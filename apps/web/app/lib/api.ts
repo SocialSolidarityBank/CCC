@@ -1729,6 +1729,25 @@ export async function registerCounselor(email: string): Promise<DirectoryUser> {
   return decodeDirectoryUser(await jsonRequest<unknown>('/users', 'POST', { email, role: 'counselor' }));
 }
 
+/** 참여자 가입 링크(초대 토큰) 발급 결과 (D39 · ADR-0016 · CCC-29). */
+export interface ParticipantInvite {
+  token: string;
+  programType: string;
+  issuedAt: string;
+}
+
+/**
+ * 참여자 가입 링크 발급(POST /invites/participant). 사업+발급 상담사가 토큰에 묶인다.
+ * 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
+ */
+export async function createParticipantInvite(programType: string): Promise<ParticipantInvite> {
+  const raw = await jsonRequest<Record<string, unknown>>('/invites/participant', 'POST', { programType });
+  if (typeof raw.token !== 'string' || typeof raw.programType !== 'string' || typeof raw.issuedAt !== 'string') {
+    throw new ApiError('invalid_request');
+  }
+  return { token: raw.token, programType: raw.programType, issuedAt: raw.issuedAt };
+}
+
 export interface PreviewUnlockResult {
   token: string;
   maxAgeSeconds: number;

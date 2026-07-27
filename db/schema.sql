@@ -4777,6 +4777,29 @@ ALTER TABLE participant_pii_vault ADD COLUMN enc_gender TEXT;
 ALTER TABLE support_cases ADD COLUMN consent_privacy_at TEXT;
 
 -- ----------------------------------------------------------------------------
+-- 0021 — 초대 토큰 (D39 · ADR-0016 · CCC-29 — 구 0018, 리베이스 시 리네임)
+-- 당사자 가입 링크(사업+발급 실무자 묶음)와 실무자 초대 링크의 공용 기반.
+-- 토큰이 곧 자격(로그인 없음): 32바이트 난수 hex, 발급·소비는 gateway 만(R1)
+-- + 전건 감사(D14). status 는 issued → used 단방향, 만료 정책은 D26 법률 검토
+-- 후 실제 인증 설계와 함께. 상세 주석: migrations/0021_invite_tokens.sql.
+-- ----------------------------------------------------------------------------
+CREATE TABLE invite_tokens (
+  token                   TEXT PRIMARY KEY,
+  org_id                  TEXT NOT NULL,
+  kind                    TEXT NOT NULL CHECK (kind IN ('participant', 'counselor')),
+  program_type            TEXT,
+  issued_by               TEXT NOT NULL,
+  status                  TEXT NOT NULL DEFAULT 'issued' CHECK (status IN ('issued', 'used')),
+  issued_at               TEXT NOT NULL DEFAULT (datetime('now')),
+  used_at                 TEXT,
+  used_by_beneficiary_id  TEXT,
+  used_by_user_id         TEXT,
+  CHECK (kind != 'participant' OR program_type IS NOT NULL)
+);
+
+CREATE INDEX idx_invite_tokens_org ON invite_tokens (org_id, kind, status);
+
+-- ----------------------------------------------------------------------------
 -- 0024: 전체 목표 (D45 · CCC-41). 케이스당 1개·수정 가능·점수 없음(D33) — goals 테이블
 -- (세부 목표, title 수정 금지)과 층이 다르므로 케이스 행의 컬럼이다. NULL = 설정 전.
 -- 권한(담당 실무자만)·200자 상한·감사(D14)는 게이트웨이가 강제한다(R1).

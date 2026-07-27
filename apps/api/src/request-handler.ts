@@ -31,6 +31,7 @@ import {
   createCase,
   createCounselingRecord,
   createIntakeRecord,
+  createParticipantInvite,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -1538,6 +1539,14 @@ export async function handleRequest(
         requestQuery(url, []);
         return json(scheduleSessionPlanResponse(await getScheduleSessionPlan(env, actor, scheduleId)));
       }
+    }
+    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'participant') {
+      // 참여자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 사람(상담사·관리자)만 —
+      // 권한·감사는 createParticipantInvite(R1 관문) 내장. 소비·가입은 CCC-28.
+      requestQuery(url, []);
+      const programType = (await requestBody(request)).programType;
+      if (typeof programType !== 'string') throw new ValidationError('program type is required');
+      return json(await createParticipantInvite(env, actor, { programType }), 201);
     }
     if (
       request.method === 'POST'

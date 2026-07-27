@@ -1,0 +1,18 @@
+{
+  "title": "참여자 초대",
+  "target_fields": [
+    "조직\n사회연대은행",
+    "사업\n마이크로크레딧 씬파일러 금융지원·멘토링"
+  ],
+  "issue_button": 1,
+  "issued_url": "http://localhost:3000/join/participant/90f7005ce407176b33ae425883e9bb94d2d09f9742e04290ab31bdb39270328e",
+  "token_len": 64,
+  "qr_svg": 1,
+  "email_draft_lines": 8,
+  "copy_buttons": 4,
+  "sidebar_return": 1,
+  "page_content_width": 960,
+  "mobile_qr_width": 194,
+  "horizontal_overflow": false,
+  "page_errors": []
+}

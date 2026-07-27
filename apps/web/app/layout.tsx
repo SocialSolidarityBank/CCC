@@ -57,6 +57,9 @@ button,input,select,textarea{font:inherit}
    블루 신호는 아이콘이 갖는다 — 색은 남고 글자는 읽힌다. */
 .navigation-link[data-current="true"]{background:var(--blue-tint);color:var(--ink)}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
+/* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
+   파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
+.navigation-soon{margin-left:auto;padding:0 8px;border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .sidebar-footer{margin-top:auto;color:var(--sub);font-size:14px;font-weight:700}
 /* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
    손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
@@ -435,9 +438,18 @@ const registerStyles = `
 /* 당사자 등록·초대 (#37) */
 .wire-register-form{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
 .wire-register-submit{width:100%}
-.wire-invite-stack{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
+/* margin-top 을 두지 않는다 — 바깥에서는 .wire-container 의 gap(--section-gap)이 이미
+   섹션 간격을 주고, 카드 안에서는 그 여백이 제목 구분선 아래에 빈 띠로 남는다. */
+.wire-invite-stack{display:grid;gap:var(--space-6)}
 .wire-invite-section{display:grid;gap:var(--space-3)}
-.wire-invite-caption{margin:0;text-align:center;font-size:14px;color:var(--sub)}
+/* 왼쪽 정렬이다 — 가운데 정렬은 아래 입력칸 축에서 떨어져 나와 페이지마다 글이 다른 데서
+   시작하는 것처럼 보인다(§5 '페이지 제목'이 가운데 정렬을 폐기한 것과 같은 이유). */
+.wire-invite-caption{margin:0;font-size:14px;color:var(--sub)}
+/* CCC-29: QR 은 입력칸이 아니라 카드 계약(--line 1px · radius 12)을 빌린 정사각 패널이다. */
+.wire-invite-qr{display:inline-flex;justify-self:start;padding:var(--space-4);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
+/* 버튼은 내용만큼만 차지한다 — 그리드 아이템 기본 stretch 를 그대로 두면 카드 폭(880)을
+   가로지르는 알약이 되어, 폼 제출도 아닌 행동이 마케팅 배너처럼 읽힌다. */
+.wire-invite-stack .wire-button{justify-self:start}
 /* D15·D23: 동의 문안 "자세히 읽어보기" — briefing-subaccordion 패턴 재사용. */
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
 .consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:6px 0;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
@@ -468,6 +480,8 @@ const recordFormStyles = `
 .record-form{display:grid;gap:var(--section-gap)}
 .record-layout{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:var(--space-6);align-items:start}
 .record-main{display:grid;gap:var(--space-6);min-width:0}
+/* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
+.record-toolbar{display:flex;justify-content:flex-end}
 .record-sticky,.record-accordion,.record-rail{
   --surface-fill:var(--panel);
   border:1px solid var(--line);

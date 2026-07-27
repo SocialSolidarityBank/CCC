@@ -11675,3 +11675,161 @@ export async function listCounselorAssignments(
     }),
   };
 }
+
+// ── 초대 토큰 (D39 · ADR-0016 · CCC-29) ─────────────────────────────────────
+//
+// 1차 MVP 가입 흐름의 기반. 토큰이 곧 자격이다(로그인 없음, 참여자는 users 미등재).
+// 그래서 이 절의 조회·소비 함수는 예외적으로 Actor 없이 토큰 문자열을 받는다 —
+// 인증 밖의 유일한 문이며, HTTP 라우트 테스트가 이 경계를 고정한다(스펙 #78 ②).
+// 발급은 여전히 Actor 검사(R1)를 거치고, 발급·소비 전건이 audit_log 에 남는다(D14).
+
+export type InviteKind = 'participant' | 'counselor';
+
+export interface InviteToken {
+  token: string;
+  kind: InviteKind;
+  orgId: string;
+  /** participant 초대에는 항상 있고(링크가 사업을 정한다), counselor 초대는 null. */
+  programType: string | null;
+  issuedBy: string;
+  status: 'issued' | 'used';
+  issuedAt: string;
+  usedAt: string | null;
+}
+
+/** 초대 소비를 감사할 때 쓰는 시스템 행위자 id. 가입자는 아직 디렉터리에 없다. */
+export const INVITE_SIGNUP_ACTOR_ID = 'system:invite-signup';
+
+/** 32바이트 난수 hex(64자). 추측·열거 불가가 이 토큰 보안의 전부다(의미 정보 금지, D20 참조). */
+function newInviteTokenValue(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function mapInviteToken(row: DbRow): InviteToken {
+  return {
+    token: stringValue(row.token),
+    kind: stringValue(row.kind) as InviteKind,
+    orgId: stringValue(row.org_id),
+    programType: row.program_type === null ? null : stringValue(row.program_type),
+    issuedBy: stringValue(row.issued_by),
+    status: stringValue(row.status) as InviteToken['status'],
+    issuedAt: stringValue(row.issued_at),
+    usedAt: row.used_at === null ? null : stringValue(row.used_at),
+  };
+}
+
+/**
+ * 참여자 가입 링크 발급(ADR-0016 결정 5). 상담사·관리자(사람)만 발급할 수 있고,
+ * 링크에 사업(programType)과 발급자(actor)가 묶인다 — 가입 완료 시 이 발급자가
+ * 담당자가 된다(소비는 CCC-28의 가입 처리 몫).
+ */
+export async function createParticipantInvite(
+  env: Env,
+  actor: Actor,
+  input: { programType: string },
+): Promise<InviteToken> {
+  assertHuman(actor);
+  assertFinancialSupportProgramType(input.programType);
+
+  const token = newInviteTokenValue();
+  await env.DB.prepare(
+    `INSERT INTO invite_tokens (token, org_id, kind, program_type, issued_by)
+     VALUES (?, ?, 'participant', ?, ?)`,
+  ).bind(token, actor.orgId, input.programType, actor.userId).run();
+
+  await writeAudit(env, actor, {
+    action: 'invite_issue',
+    targetTable: 'invite_tokens',
+    targetId: token,
+    detail: { kind: 'participant', programType: input.programType },
+  });
+
+  return getInviteTokenOrThrow(env, token);
+}
+
+/**
+ * 상담사 초대 링크 발급(CCC-33 이 화면을 단다). 관리자만 발급한다.
+ * 가입 시 users 등재로 이어진다 — 소비는 counselor 종류로만 가능하다.
+ */
+export async function createCounselorInvite(env: Env, actor: Actor): Promise<InviteToken> {
+  assertAdmin(actor);
+
+  const token = newInviteTokenValue();
+  await env.DB.prepare(
+    `INSERT INTO invite_tokens (token, org_id, kind, program_type, issued_by)
+     VALUES (?, ?, 'counselor', NULL, ?)`,
+  ).bind(token, actor.orgId, actor.userId).run();
+
+  await writeAudit(env, actor, {
+    action: 'invite_issue',
+    targetTable: 'invite_tokens',
+    targetId: token,
+    detail: { kind: 'counselor' },
+  });
+
+  return getInviteTokenOrThrow(env, token);
+}
+
+async function getInviteTokenOrThrow(env: Env, token: string): Promise<InviteToken> {
+  const row = await env.DB.prepare('SELECT * FROM invite_tokens WHERE token = ?')
+    .bind(token)
+    .first<DbRow>();
+  if (row === null) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  return mapInviteToken(row);
+}
+
+/**
+ * 토큰 경계 조회(Actor 없음): 가입 화면이 "이 링크가 아직 유효한가 + 어느 조직·사업의
+ * 초대인가"를 푸는 입구다. 종류 불일치·무효·이미 사용된 토큰은 전부 같은
+ * ForbiddenError 로 거부한다 — 무엇이 틀렸는지 구분해 주면 열거 단서가 된다.
+ */
+export async function getInviteForSignup(
+  env: Env,
+  token: string,
+  kind: InviteKind,
+): Promise<InviteToken> {
+  if (token.length === 0) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  const invite = await getInviteTokenOrThrow(env, token);
+  if (invite.kind !== kind || invite.status !== 'issued') {
+    throw new ForbiddenError('invite token is not available');
+  }
+  return invite;
+}
+
+/**
+ * 토큰 소비(단방향 issued → used). UPDATE 의 WHERE status='issued' 가 원자적
+ * 이중 사용 방지다 — 같은 토큰으로 두 번 가입할 수 없다. 가입자는 아직 디렉터리에
+ * 없으므로 감사는 시스템 행위자(INVITE_SIGNUP_ACTOR_ID)로 남긴다(D14).
+ */
+export async function consumeInviteToken(
+  env: Env,
+  token: string,
+  kind: InviteKind,
+  usedBy: { beneficiaryId?: string; userId?: string },
+): Promise<InviteToken> {
+  const invite = await getInviteForSignup(env, token, kind);
+
+  const result = await env.DB.prepare(
+    `UPDATE invite_tokens
+     SET status = 'used', used_at = datetime('now'), used_by_beneficiary_id = ?, used_by_user_id = ?
+     WHERE token = ? AND status = 'issued'`,
+  ).bind(usedBy.beneficiaryId ?? null, usedBy.userId ?? null, token).run();
+
+  if (result.meta.changes !== 1) {
+    throw new ForbiddenError('invite token is not available');
+  }
+
+  await writeAudit(env, systemActor(INVITE_SIGNUP_ACTOR_ID, invite.orgId), {
+    action: 'invite_consume',
+    targetTable: 'invite_tokens',
+    targetId: token,
+    detail: { kind, beneficiaryId: usedBy.beneficiaryId ?? null, userId: usedBy.userId ?? null },
+  });
+
+  return getInviteTokenOrThrow(env, token);
+}

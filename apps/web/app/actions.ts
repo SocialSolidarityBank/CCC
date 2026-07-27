@@ -25,6 +25,7 @@ import {
   createGoal,
   createInitialParticipantProgram,
   createManualSession,
+  createParticipantInvite,
   createSubsequentParticipantProgram,
   editAiDraft,
   getMyIdentity,
@@ -887,6 +888,19 @@ export async function registerCounselorAction(formData: FormData): Promise<void>
   revalidatePath('/admin/invite');
   revalidatePath('/admin/users');
   redirect(withNotice('/admin/invite', 'notice', 'counselor_registered'));
+}
+
+export type ParticipantInviteResult = { status: 'created'; token: string } | { status: Notice };
+
+// 참여자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 링크·QR·이메일 문안 조립은 화면 몫이고
+// 여기는 토큰만 받아 넘긴다. 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
+export async function createParticipantInviteAction(): Promise<ParticipantInviteResult> {
+  try {
+    const invite = await createParticipantInvite('financial_support_v1');
+    return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
 }
 
 const SCHEDULE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
