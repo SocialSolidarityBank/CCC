@@ -26,6 +26,8 @@ import {
   createInitialParticipantProgram,
   createManualSession,
   createParticipantInvite,
+  getPublicInviteInfo,
+  signupParticipant,
   createSubsequentParticipantProgram,
   editAiDraft,
   getMyIdentity,
@@ -898,6 +900,38 @@ export async function createParticipantInviteAction(): Promise<ParticipantInvite
   try {
     const invite = await createParticipantInvite('financial_support_v1');
     return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type ParticipantSignupResult =
+  | { status: 'created'; beneficiaryId: string; supportCaseId: string }
+  | { status: Notice };
+
+/**
+ * 참여자 자기 가입(CCC-28 · D39 · ADR-0016 #4). 공개 경로 — 인증 불필요.
+ * 성공 시 참여자+케이스+담당 배정이 원자 생성되고 201 반환. 토큰 무효·이미 소비는
+ * not_found. 리다이렉트 없음 — 클라이언트가 인라인 완료 상태를 표시한다.
+ */
+export async function signupParticipantAction(formData: FormData): Promise<ParticipantSignupResult> {
+  const token = requiredValue(formData, 'token');
+  const name = requiredValue(formData, 'name');
+  const phone = formData.get('phone');
+  const email = formData.get('email');
+  const consent = {
+    recording: checkbox(formData, 'consentRecording'),
+    textAi: checkbox(formData, 'consentTextAi'),
+  };
+  try {
+    const result = await signupParticipant({
+      token,
+      name,
+      ...(typeof phone === 'string' && phone.trim().length > 0 ? { phone: phone.trim() } : {}),
+      ...(typeof email === 'string' && email.trim().length > 0 ? { email: email.trim() } : {}),
+      consent,
+    });
+    return { status: 'created', beneficiaryId: result.beneficiaryId, supportCaseId: result.supportCaseId };
   } catch (error) {
     return { status: noticeFor(error) };
   }

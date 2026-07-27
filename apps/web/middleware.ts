@@ -12,12 +12,32 @@ const PREVIEW_COOKIE_NAME = 'ccc_preview';
  * API 에서 401 로 걸러진다).
  */
 export function middleware(request: NextRequest): NextResponse {
-  if (process.env.CCC_PREVIEW !== 'true') return NextResponse.next();
-
   const { pathname } = request.nextUrl;
-  if (pathname === '/preview') return NextResponse.next();
 
-  if (request.cookies.get(PREVIEW_COOKIE_NAME) !== undefined) return NextResponse.next();
+  // 공개 참여자 가입 경로(CCC-28 · D39): Access·미리보기 쿠키 없이 열려야 한다.
+  // 루트 레이아웃이 이 **요청** 헤더로 셸(사이드바) 제외 여부를 판별한다 — 응답 헤더를
+  // 만지면 서버 컴포넌트의 headers() 가 못 본다. 미리보기 게이트보다 먼저 태그한다:
+  // 운영·로컬(CCC_PREVIEW!='true')에서도 /join 에는 셸이 빠져야 하기 때문이다.
+  //
+  // 헤더는 **모든 경로에서 미들웨어가 저작한다** — 공개면 세우고 아니면 지운다.
+  // 공개 경로에서만 세우면 나머지 경로에서는 클라이언트가 보낸 `x-ccc-public: 1` 이
+  // 그대로 서버 컴포넌트까지 흘러간다. 지금은 셸이 빠지는 정도지만, 이 헤더에 판단을
+  // 하나라도 더 걸면 그 순간 조용한 인증 우회가 된다.
+  //
+  // 경로 매칭이 정확 일치 + '/join/' 접두인 이유: startsWith('/join') 은 '/joinX' 같은
+  // 남의 경로까지 공개로 만든다.
+  const isPublic = pathname === '/join' || pathname.startsWith('/join/');
+  const requestHeaders = new Headers(request.headers);
+  if (isPublic) requestHeaders.set('x-ccc-public', '1');
+  else requestHeaders.delete('x-ccc-public');
+  const forward = { request: { headers: requestHeaders } };
+
+  if (isPublic) return NextResponse.next(forward);
+
+  if (process.env.CCC_PREVIEW !== 'true') return NextResponse.next(forward);
+
+  if (pathname === '/preview') return NextResponse.next(forward);
+  if (request.cookies.get(PREVIEW_COOKIE_NAME) !== undefined) return NextResponse.next(forward);
 
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = '/preview';

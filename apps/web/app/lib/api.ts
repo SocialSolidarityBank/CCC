@@ -1792,3 +1792,74 @@ export async function requestPreviewUnlock(code: string): Promise<PreviewUnlockR
     maxAgeSeconds: responseInteger(record, 'maxAgeSeconds'),
   };
 }
+
+/** 공개 가입 링크 메타데이터(토큰이 유효할 때 사업 유형). Access 불필요(CCC-28). */
+export interface PublicInviteInfo {
+  programType: string;
+}
+
+/**
+ * 참여자 가입 링크의 공개 정보(사업 유형)를 가져온다. 토큰이 없거나 이미 소비되었으면
+ * not_found(404). 인증 헤더를 보내지 않는다 — 공개 경로(CCC-28 · D39).
+ */
+export async function getPublicInviteInfo(token: string): Promise<PublicInviteInfo> {
+  const requestHeaders = new Headers({ accept: 'application/json' });
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}`), {
+      headers: requestHeaders,
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return { programType: responseString(record, 'programType') };
+}
+
+export interface PublicSignupInput {
+  token: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  consent: { recording: boolean; textAi: boolean };
+}
+
+export interface PublicSignupResult {
+  beneficiaryId: string;
+  supportCaseId: string;
+}
+
+/**
+ * 참여자 자기 가입을 완료한다(공개 경로, Access 불필요). 성공 시 201 +
+ * { beneficiaryId, supportCaseId }. 토큰 무효·이미 소비는 not_found(404).
+ */
+export async function signupParticipant(input: PublicSignupInput): Promise<PublicSignupResult> {
+  const requestHeaders = new Headers({
+    accept: 'application/json',
+    'content-type': 'application/json; charset=utf-8',
+  });
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint('/signup/participant'), {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(input),
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return {
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    supportCaseId: responseString(record, 'supportCaseId'),
+  };
+}

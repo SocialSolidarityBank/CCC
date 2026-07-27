@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 // 디자인 토큰 SSOT(V0.1 · D34/ADR-0012). 값을 이 파일에 복사하지 않는다 — 두 곳에 두면
 // 다시 어긋난다. 색값 정본은 pen '색 토큰' 페이지이고, tokens.css 가 그 기계 소비용 사본이다.
@@ -521,7 +522,23 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // 셸 = 좌측 사이드바 + 본문 (D35 · ADR-0014 §2). 768px 미만에서는 .app-shell 이 block 이 되고
   // **같은 사이드바가 드로어로 변한다**(DESIGN.md §4-4) — 화면 밖에 있다가 상단 손잡이 바를
   // 누르면 왼쪽에서 밀려 들어온다. 마크업이 한 벌이라 데스크톱·모바일 메뉴가 갈라질 수 없다.
+  //
+  // 공개 경로(CCC-28 · D39)는 이 셸 없이 렌더한다. middleware 가 /join 에 x-ccc-public 요청
+  // 헤더를 붙이므로 서버에서 판별 가능 — 클라이언트 usePathname 으로 하면 서버 렌더와 어긋나
+  // 하이드레이션 불일치가 난다. 셸을 빼면 AppSidebar 가 마운트되지 않아, 공개 참여자에게 상담사
+  // 메뉴가 노출되지도 않고 사이드바가 신원을 물어 401 이 나지도 않는다. 스타일은 공개 화면에도
+  // 전부 넣는다(가입 폼이 registerStyles 의 클래스를 쓰므로).
+  const hdrs = await headers();
+  const isPublic = hdrs.get('x-ccc-public') === '1';
+  const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles;
+
+  // 공개 경로는 표시 이름을 조회하지 않는다: 사이드바가 없어 값이 쓰이지 않고, 신원 없는
+  // 요청으로 부르면 그 조회가 401 을 만든다(위 "사이드바가 신원을 물어 401" 과 같은 이유).
+  if (isPublic) {
+    return <html lang="ko"><head><style>{shellStyles}</style></head><body>{children}</body></html>;
+  }
+
   // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
   const labels = await getDisplayLabels();
-  return <html lang="ko"><head><style>{styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />{children}</div></body></html>;
+  return <html lang="ko"><head><style>{shellStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />{children}</div></body></html>;
 }

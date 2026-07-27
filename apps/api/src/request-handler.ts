@@ -32,6 +32,8 @@ import {
   createCounselingRecord,
   createIntakeRecord,
   createParticipantInvite,
+  completeParticipantSignup,
+  getInviteForSignup,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -1444,6 +1446,52 @@ export async function handleRequest(
   if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', service: 'ccc-api' });
 
   try {
+    // ── 공개 경로: 참여자 자기 가입(토큰이 자격, Access 불필요, D39 · CCC-28) ──
+    const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
+    if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
+      requestQuery(url, []);
+      // 빈 토큰은 조회 자체를 하지 않는다 — 아래 실패들과 같은 404 로 맞춰 응답을 구분 불가하게 둔다.
+      const pathToken = pubParts[2] ?? '';
+      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
+      try {
+        const invite = await getInviteForSignup(env, pathToken, 'participant');
+        if (invite.programType === null) return json({ error: 'not_found' }, 404);
+        return json({ programType: invite.programType });
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
+    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant') {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      const token = requiredString(body, 'token');
+      const name = requiredString(body, 'name');
+      const phone = optionalString(body, 'phone');
+      const email = optionalString(body, 'email');
+      const consentRaw = body.consent;
+      if (
+        consentRaw === null
+        || typeof consentRaw !== 'object'
+        || !('recording' in consentRaw)
+        || !('textAi' in consentRaw)
+        || typeof consentRaw.recording !== 'boolean'
+        || typeof consentRaw.textAi !== 'boolean'
+      ) {
+        throw new ValidationError('consent is required');
+      }
+      const consent = { recording: consentRaw.recording, textAi: consentRaw.textAi };
+      const signupInput: Parameters<typeof completeParticipantSignup>[1] = { token, name, consent };
+      if (phone != null) signupInput.phone = phone;
+      if (email != null) signupInput.email = email;
+      try {
+        const result = await completeParticipantSignup(env, signupInput);
+        return json(result, 201);
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
     const actor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'schedules') {
