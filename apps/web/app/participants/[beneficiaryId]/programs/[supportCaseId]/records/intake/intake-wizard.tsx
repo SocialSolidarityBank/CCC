@@ -33,8 +33,7 @@ export interface IntakeWizardProps {
   extendedPii: IntakeExtendedPii;
   sessionSequence: number;
   recorderLabel: string;
-  recordsHref: string;
-  scheduleHref: string;
+  briefingHref: string;
   submit: (input: CreateIntakeRecordActionInput) => Promise<IntakeRecordActionResult>;
 }
 
@@ -617,8 +616,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
     setError(null);
     // 서버에 남았으니 임시본을 지운다 — 남겨 두면 다음 기록에 섞인다(CCC-12).
     clearDraft(storageKey);
-    // 다음 만남을 적었으면 저장 뒤 상담 일정 등록으로 이어 붙인다(설계 ⑤ · D28).
-    router.push(hasNextMeeting ? props.scheduleHref : props.recordsHref);
+    // 저장 직후 브리핑으로 직행한다 — "기록이 브리핑이 된다"를 눈으로 확인하는 동선이다
+    // (스펙 #78 US 17 · CCC-31). 다음 만남은 제출 페이로드에 남아 기록으로 저장되고,
+    // 다음 상담 등록은 브리핑 상단 안내줄의 버튼이 이어받는다.
+    router.push(props.briefingHref);
   }
 
   const participantParts = [props.participant.name ?? props.beneficiaryId, props.participant.phone, props.participant.email]

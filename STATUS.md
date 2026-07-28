@@ -27,4 +27,5 @@
 ## History
 
 - 2026-07-28 (에이전트): **레포 전환** — 구레포 `CCC-archive` private 보관 + 새 `CCC` 공개 레포 스냅샷 이전. 상세는 아카이브 STATUS.md와 로컬 핸드오프 `docs/handoffs/2026-07-28-repo-reset.md`(미추적) 참조.
+- 2026-07-28 (Claude Code): **CCC-31 완료 — 인테이크 저장→브리핑 직행 + 상단 '다음 상담 등록' 안내 (스펙 #78 US 17·18).** (이관: 옛 클론 abdd5f2)
 - 전환 이전의 전체 이력: `SocialSolidarityBank/CCC-archive`의 STATUS.md (비공개).

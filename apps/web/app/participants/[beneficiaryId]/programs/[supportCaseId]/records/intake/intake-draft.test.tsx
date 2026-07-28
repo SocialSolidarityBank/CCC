@@ -38,8 +38,7 @@ function renderWizard(extendedPii = VAULT_PII) {
       extendedPii={extendedPii}
       sessionSequence={1}
       recorderLabel="상담사"
-      recordsHref="/participants/swallow-003/programs/case/records"
-      scheduleHref="/schedules/new"
+      briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"
       submit={submit}
     />,
   );
