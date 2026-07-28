@@ -9,22 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # 시크릿 히스토리 스캔에 전체 이력이 필요하다
-      # gitleaks 는 릴리스 바이너리를 직접 받는다. gitleaks/gitleaks-action 은 조직 소유
-      # 레포에서 GITLEAKS_LICENSE 를 요구해 발견 여부와 무관하게 실패하고, 서드파티
-      # 설치 액션은 시크릿 검사 경로에 남의 코드를 끼워 넣는 셈이라 쓰지 않는다.
-      # 버전은 로컬 훅과 같은 값으로 고정한다 — 다르면 CI 와 훅의 판정이 갈린다.
-      - name: Install gitleaks
-        env:
-          GITLEAKS_VERSION: 8.30.1
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /tmp/gitleaks.tar.gz \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
-          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
-          gitleaks version
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -34,4 +18,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm guard:db
-      - run: pnpm guard:secrets:history
+
+  # 비밀값 유출 검사 — 전체 히스토리를 매 push/PR마다 스캔한다 (.gitleaks.toml 허용 목록 적용).
+  # gitleaks-action은 조직 레포에 유료 라이선스가 필요해 바이너리를 직접 받아 돌린다(MIT, 무료).
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 전체 히스토리 스캔에 필요
+      - name: Run gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --no-banner --redact .

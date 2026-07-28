@@ -107,8 +107,8 @@ Linear의 Slack 연동 봇이 올리는 글에는 **이 규칙을 적용할 수 
 
 | 채널 | 무엇이 오나 | 누가 쓰나 |
 | --- | --- | --- |
-| `#ccc-tickets` (`C0BKSEDMJ0Z`) | **에이전트가 이 규칙대로 만든 스레드만** | 사람이 읽는 곳 |
-| `#ccc-linear` (Q가 공개 채널로 생성 예정) | Linear 자동 알림 전문 | 원본 확인·상태 변경 버튼용 |
+| `#ccc-tickets` | **에이전트가 이 규칙대로 만든 스레드만** | 사람이 읽는 곳 |
+| `#ccc-linear` (공개 채널) | Linear 자동 알림 전문 | 원본 확인·상태 변경 버튼용 |
 
 ### Linear에는 "채널 변경" 기능이 없다 (2026-07-26 API로 확인)
 
@@ -116,9 +116,9 @@ Linear의 Slack 연동 봇이 올리는 글에는 **이 규칙을 적용할 수 
 
 따라서 채널을 옮기려면 **끊고 다시 연결**해야 한다.
 
-- 2026-07-26: 기존 연결(팀 CCC → `#ccc-tickets`, `d44e159b-…`)을 `integrationDelete`로 삭제 → Q가 `#ccc-linear` 채널 생성 후 재연결. **새 연결 `9982197f-e764-434e-905c-798166a45984`(`slackPost`, team=CCC, 2026-07-26T05:34Z) 확인 완료.**
+- 2026-07-26: 기존 연결(팀 CCC → `#ccc-tickets`)을 `integrationDelete`로 삭제 → Q가 `#ccc-linear` 채널 생성 후 재연결(`slackPost`, team=CCC) 확인 완료. 채널 ID·연동 ID 등 구체 값은 레포 밖 `~/developer/tools/portwright/services/linear.md`에 둔다(공개 레포에 운영 ID 금지).
 - **2026-07-26 Q 육안 확인 완료 — 채널 분리 운영 시작.** 이후 티켓 소식은 이 규칙대로만 `#ccc-tickets`에 올린다.
-- 참고: **대상 채널은 API로 검증할 수 없다.** `Integration`에 settings/채널 필드가 노출되지 않고, 에이전트 Slack 계정(`account`, `U0BKSMCEJLW`)이 `#ccc-linear`의 멤버가 아니라 채널 목록에도 안 잡힌다. 다음에 다시 검증할 일이 생기면 **그 계정을 채널에 초대**하거나 티켓 1건으로 육안 확인한다.
+- 참고: **대상 채널은 API로 검증할 수 없다.** `Integration`에 settings/채널 필드가 노출되지 않고, 에이전트 Slack 계정이 `#ccc-linear`의 멤버가 아니라 채널 목록에도 안 잡힌다. 다음에 다시 검증할 일이 생기면 **그 계정을 채널에 초대**하거나 티켓 1건으로 육안 확인한다.
 - `yellow` **채널은 공개로 만든다.** Slack에는 비공개→공개 전환 API가 없고(반대 방향만 있으며 그것도 Enterprise Grid 전용), 이 워크스페이스는 Enterprise가 아니다. 비공개로 만들면 나중에 공개로 바꾸려면 채널을 새로 파야 한다.
 
 자세한 함정은 `~/developer/tools/portwright/services/linear.md`.
