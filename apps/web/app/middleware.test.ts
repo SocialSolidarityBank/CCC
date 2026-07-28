@@ -64,6 +64,22 @@ describe('middleware · x-ccc-public 저작', () => {
     expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBeNull();
   });
 
+  it('미리보기에서는 공개 가입 경로도 코드 게이트로 유도된다', () => {
+    // 2026-07-28 Q 결정(ADR-0016 개정): 미리보기에는 공개 표면을 두지 않는다.
+    // 이 분기가 없으면 미리보기 링크에 /join 경로만 코드 없이 뚫린다.
+    vi.stubEnv('CCC_PREVIEW', 'true');
+    const response = middleware(makeRequest('/join/participant/abc'));
+    expect(response.headers.get('location')).toContain('/preview');
+  });
+
+  it('운영·로컬에서는 공개 가입 경로가 그대로 열린다', () => {
+    // 미리보기 잠금이 운영 흐름까지 잠그면 참여자가 가입할 수 없다(참여자는 users 미등재).
+    const request = makeRequest('/join/participant/abc');
+    const response = middleware(request);
+    expect(response.headers.get('location')).toBeNull();
+    expect(effectiveHeader(response, request, 'x-ccc-public')).toBe('1');
+  });
+
   it('미리보기 게이트 분기에서도 클라이언트 헤더가 통과하지 않는다', () => {
     vi.stubEnv('CCC_PREVIEW', 'true');
     // 쿠키가 없으므로 /preview 로 리다이렉트된다 — 통과 응답이 아니어야 한다.

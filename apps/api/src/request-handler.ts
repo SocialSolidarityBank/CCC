@@ -111,6 +111,8 @@ import {
   validateDiscrepancyDetectionRequest,
 } from './ai-provider';
 import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
+// preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
+import { previewModeEnabled } from './preview-gate';
 import {
   MAX_AUDIO_BYTES,
   deleteAudioObject,
@@ -1447,7 +1449,17 @@ export async function handleRequest(
 
   try {
     // ── 공개 경로: 참여자 자기 가입(토큰이 자격, Access 불필요, D39 · CCC-28) ──
+    //
+    // **미리보기에는 공개 표면을 두지 않는다**(2026-07-28 Q 결정, ADR-0016 개정).
+    // 미리보기 워커에서는 이 두 경로도 지정 코드 세션을 먼저 요구한다 — 통과하면
+    // 그대로 공개 경로로 처리하므로 팀원은 코드만 있으면 가입 흐름을 검수할 수 있다.
+    // 실패는 인증 경로와 같은 401/403 으로 떨어진다(가입 경로만 다르게 답하면 그 자체가
+    // 단서다). 운영·로컬에서는 previewModeEnabled 가 false 라 이 줄이 아무 일도 안 한다.
     const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
+    const publicSignupPath =
+      (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
+      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant');
+    if (publicSignupPath && previewModeEnabled(env)) await resolveActor(request, env);
     if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
       requestQuery(url, []);
       // 빈 토큰은 조회 자체를 하지 않는다 — 아래 실패들과 같은 404 로 맞춰 응답을 구분 불가하게 둔다.

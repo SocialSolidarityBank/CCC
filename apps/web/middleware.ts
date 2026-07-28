@@ -14,7 +14,8 @@ const PREVIEW_COOKIE_NAME = 'ccc_preview';
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // 공개 참여자 가입 경로(CCC-28 · D39): Access·미리보기 쿠키 없이 열려야 한다.
+  // 공개 참여자 가입 경로(CCC-28 · D39): 운영에서는 Access 없이 열려야 한다(참여자는
+  // users 미등재라 토큰이 곧 자격이다). 다만 **미리보기에서는 코드 게이트를 앞에 둔다**.
   // 루트 레이아웃이 이 **요청** 헤더로 셸(사이드바) 제외 여부를 판별한다 — 응답 헤더를
   // 만지면 서버 컴포넌트의 headers() 가 못 본다. 미리보기 게이트보다 먼저 태그한다:
   // 운영·로컬(CCC_PREVIEW!='true')에서도 /join 에는 셸이 빠져야 하기 때문이다.
@@ -32,8 +33,10 @@ export function middleware(request: NextRequest): NextResponse {
   else requestHeaders.delete('x-ccc-public');
   const forward = { request: { headers: requestHeaders } };
 
-  if (isPublic) return NextResponse.next(forward);
-
+  // **미리보기에는 공개 표면을 두지 않는다**(2026-07-28 Q 결정, ADR-0016 개정).
+  // /join 도 지정 코드 뒤에 둔다 — 미리보기는 팀원 피드백용이고 팀원은 코드를 갖고
+  // 있으므로 가입 흐름 검수에는 지장이 없다. 셸 제외용 헤더 저작은 위에서 이미 끝났으니
+  // 여기서 빠져나가지 않아도 /join 의 화면 구성은 그대로다.
   if (process.env.CCC_PREVIEW !== 'true') return NextResponse.next(forward);
 
   if (pathname === '/preview') return NextResponse.next(forward);
