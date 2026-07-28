@@ -26,7 +26,7 @@ describe('IntakeSavedNotice', () => {
     expect(renderNotice('intake_saved').queryByTestId('intake-saved-notice')).not.toBeNull();
   });
 
-  it('다음 상담 등록 버튼은 참여자·참여 사업이 자동 선택되는 상담 등록 화면으로 간다', () => {
+  it('다음 상담 등록 버튼은 당사자·참여 사업이 자동 선택되는 상담 등록 화면으로 간다', () => {
     const { getByRole } = renderNotice('intake_saved');
     const link = getByRole('link', { name: '다음 상담 등록' });
     expect(link.getAttribute('href')).toBe(

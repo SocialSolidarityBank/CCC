@@ -39,7 +39,7 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
   PREVIEW_MODE?: string;
   /** 미리보기 지정 코드(Workers 시크릿, preview-gate.ts). 값은 로그·응답에 싣지 않는다(이름만 커밋). */
   PREVIEW_ACCESS_CODE?: string;
-  /** 미리보기 세션이 신원으로 쓸 고정 데모 상담사 이메일(users 디렉터리, preview-gate.ts). */
+  /** 미리보기 세션이 신원으로 쓸 고정 데모 실무자 이메일(users 디렉터리, preview-gate.ts). */
   PREVIEW_ACTOR_EMAIL?: string;
 }
 

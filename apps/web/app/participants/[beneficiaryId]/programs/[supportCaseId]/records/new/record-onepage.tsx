@@ -21,7 +21,7 @@ import { LifeAreaFields } from './life-area-fields';
 import { OpenActionResolutions, type OpenActionResolutionItem } from './open-action-resolutions';
 
 // 정기 기록지 원페이지(CCC-10 · 설계 v0.2 §1). 배치 순서 자체가 우선순위(P1→P4)다:
-// 질문 체크리스트 → 오늘 상담 내용(유일 실질 필수) → 미해결 액션 → 6영역 → 아코디언 → 담당자 의견.
+// 질문 체크리스트 → 오늘 상담 내용(유일 실질 필수) → 미해결 액션 → 6영역 → 아코디언 → 담당 실무자 의견.
 // 진척도는 우측 레일의 필수 채움 카운트로만 표시한다(위저드 스테퍼 폐기).
 
 const flagTypes = [
@@ -97,7 +97,7 @@ export function RecordOnepage({
       const next = previous.filter((key) => key !== areaKey);
       return status === 'crisis' ? [...next, areaKey] : next;
     });
-    // '위기'를 고르면 위기·안전 아코디언을 그 자리에서 펼친다(설계 §④·§⑤). 닫는 건 상담사 몫.
+    // '위기'를 고르면 위기·안전 아코디언을 그 자리에서 펼친다(설계 §④·§⑤). 닫는 건 실무자 몫.
     if (status === 'crisis') setSafetyOpen(true);
   }
 
@@ -228,7 +228,7 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="life-areas-title"
-        title={<><h2 id="life-areas-title">생활 6영역 변화 확인</h2><p className="panel-meta">영역별 기본값은 &apos;변화 없음&apos;이며, 그대로 두면 직전 회차 상태를 이어 기록합니다. 달라진 영역만 상태를 선택하세요. 이 상태는 상담사가 직접 기입하며 감정 점수가 아닙니다.</p></>}
+        title={<><h2 id="life-areas-title">생활 6영역 변화 확인</h2><p className="panel-meta">영역별 기본값은 &apos;변화 없음&apos;이며, 그대로 두면 직전 회차 상태를 이어 기록합니다. 달라진 영역만 상태를 선택하세요. 이 상태는 실무자가 직접 기입하며 감정 점수가 아닙니다.</p></>}
       >
         <LifeAreaFields latest={latestLifeAreaSnapshot} onStatusChange={handleLifeAreaStatus} />
       </WireCard>
@@ -237,7 +237,7 @@ export function RecordOnepage({
       <details className="record-accordion">
         <summary className="record-accordion-summary">목표 평가(GAS) <small>(권장)</small></summary>
         <div className="record-accordion-body">
-          <p>목표달성척도는 상담사가 직접 매깁니다. 매 회차 필수가 아니라 권장이며, 점수를 선택하지 않은 목표는 이번 기록에 저장하지 않습니다. 목표는 읽기 전용이며 이 화면에서 만들거나 수정할 수 없습니다.</p>
+          <p>목표달성척도는 실무자가 직접 매깁니다. 매 회차 필수가 아니라 권장이며, 점수를 선택하지 않은 목표는 이번 기록에 저장하지 않습니다. 목표는 읽기 전용이며 이 화면에서 만들거나 수정할 수 없습니다.</p>
           {goals.length === 0 ? <p className="empty"><span>등록된 목표가 없습니다. GAS를 기록할 목표를 먼저 확인하세요.</span></p> : <fieldset className="wire-fieldset">
             <legend>목표별 GAS 점수 <small>(선택)</small></legend>
             <div className="wire-form-grid">{goals.map((goal) => <WireFormField
@@ -257,7 +257,7 @@ export function RecordOnepage({
       <details className="record-accordion">
         <summary className="record-accordion-summary">회차 템플릿 항목 <small>(준비 중)</small></summary>
         <div className="record-accordion-body">
-          <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 상담사가 상담 전에 고칠 수 있습니다.</p>
+          <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
           <p className="panel-meta">지금은 코어 항목(위의 GAS 근거·액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
         </div>
       </details>
@@ -288,7 +288,7 @@ export function RecordOnepage({
         <summary className="record-accordion-summary">위기·안전 확인 {hasCrisis ? <span className="status risk">확인 필요</span> : <small>(선택)</small>}</summary>
         <div className="record-accordion-body">
           {hasCrisis ? <p className="status risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</p> : null}
-          <p>참여자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
+          <p>당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
           <WireFormField label="위기·안전 확인 내용" note="(선택)" control="textarea" htmlFor="safety-note">
             <textarea id="safety-note" name="safetyNote" rows={4} />
           </WireFormField>
@@ -299,7 +299,7 @@ export function RecordOnepage({
       <details className="record-accordion">
         <summary className="record-accordion-summary"><MetaRow items={['리스크 플래그', '목표 종료+신설']} /> <small>(조건부)</small></summary>
         <div className="record-accordion-body">
-          <p>사전 정의된 유형만 상담사가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
+          <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
           <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>
             <div className="wire-choice-group">
               {flagTypes.map(([value, label]) => <WireChoice key={value} label={label} type="checkbox" name="flagType" value={value} />)}
@@ -334,14 +334,14 @@ export function RecordOnepage({
         </div>
       </details>
 
-      {/* 10. 담당자 의견 — 접지 않고 항상 노출 */}
+      {/* 10. 담당 실무자 의견 — 접지 않고 항상 노출 */}
       <WireCard
         as="section"
         className="wire-form-card"
         labelledBy="opinion-title"
-        title={<><h2 id="opinion-title">담당자 의견 <small>(선택)</small></h2><p className="panel-meta">상담사의 종합 판단을 참여자 발언과 구분해 남깁니다.</p></>}
+        title={<><h2 id="opinion-title">담당 실무자 의견 <small>(선택)</small></h2><p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p></>}
       >
-        <WireFormField label="담당자 의견" control="textarea" htmlFor="counselor-opinion">
+        <WireFormField label="담당 실무자 의견" control="textarea" htmlFor="counselor-opinion">
           <textarea id="counselor-opinion" name="counselorOpinion" rows={4} />
         </WireFormField>
       </WireCard>

@@ -81,7 +81,7 @@ describe('0007 beneficiaries id CHECK expand (D20 · ADR-0004 · 티켓 #11)', (
       // 0007 적용 (테이블 재구성).
       await db.batch(slugExpandMigration.queries.map((query) => db.prepare(query)));
 
-      // 레거시 참여자와 FK 그래프가 그대로 보존된다.
+      // 레거시 당사자와 FK 그래프가 그대로 보존된다.
       await expect(db.prepare(
         'SELECT id, org_id, initialization_state FROM beneficiaries WHERE id = ?',
       ).bind('A017').first()).resolves.toEqual({

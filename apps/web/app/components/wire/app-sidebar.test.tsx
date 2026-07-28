@@ -21,7 +21,7 @@ function sidebarLinks(container: HTMLElement): Array<{ label: string; href: stri
 }
 
 describe('AppSidebar (D35 · ADR-0014 §2)', () => {
-  it('조직 → 사업 전환기 → 메뉴 → 설정 순으로 렌더한다', () => {
+  it('기관 → 사업 전환기 → 메뉴 → 설정 순으로 렌더한다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     expect(container.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
     // 전환기는 메뉴 위에 있어야 포함 관계가 읽힌다.
@@ -30,7 +30,7 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     expect(switcher?.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '참여자', '설정']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정']);
   });
 
   it('등록 2개는 사이드바에 넣지 않는다 — 사이드바=장소 / 우상단=행동', () => {
@@ -48,13 +48,13 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
   it('하위 경로에서도 그 메뉴가 활성으로 남는다', () => {
     const { container } = render(<AppSidebar activePath="/participants/swallow-003" />);
     const active = sidebarLinks(container).filter((link) => link.current);
-    expect(active.map((link) => link.label)).toEqual(['참여자']);
+    expect(active.map((link) => link.label)).toEqual(['당사자']);
   });
 
   it("'/participants' 활성이 '/participants/new' 까지 먹지 않는다", () => {
     // 등록은 위저드라 사이드바가 활성으로 물들면 "지금 어디인지"가 틀리게 읽힌다.
     const { container } = render(<AppSidebar activePath="/participants/new" />);
-    // 경계(/)까지 보므로 하위로 잡히긴 하나, 활성은 참여자 하나뿐이어야 한다.
+    // 경계(/)까지 보므로 하위로 잡히긴 하나, 활성은 당사자 하나뿐이어야 한다.
     expect(sidebarLinks(container).filter((link) => link.current).length).toBeLessThanOrEqual(1);
   });
 
@@ -74,7 +74,7 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     // 배지는 전체 일정 링크 안에 있다.
     const allLink = container.querySelector('a[href$="/schedule/all"]')!;
     expect(allLink.querySelector('.navigation-soon')).not.toBeNull();
-    // 다가오는 일정·참여자에는 없다.
+    // 다가오는 일정·당사자에는 없다.
     expect(container.querySelector('a[href$="/schedule"] .navigation-soon')).toBeNull();
     expect(container.querySelector('a[href="/participants"] .navigation-soon')).toBeNull();
   });
@@ -122,7 +122,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
 
-  it('드로어 안에 조직·사업 전환기·메뉴가 모두 있다', () => {
+  it('드로어 안에 기관·사업 전환기·메뉴가 모두 있다', () => {
     // 구 모바일 내비는 메뉴만 렌더해서 **좁은 화면에서는 지금 어느 사업인지 볼 수도 바꿀 수도
     // 없었다.** 마크업을 한 벌로 합쳐 해소했고, 갈라지면 이 테스트가 잡는다.
     const { container } = render(<AppSidebar activePath="/participants" />);
@@ -130,13 +130,13 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
     expect(drawer.querySelector('.program-switcher')).not.toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '참여자', '설정']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정']);
   });
 
   it('아이콘이 aria-hidden 이므로 링크 텍스트는 DOM 에 남는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.navigation-soon)')?.textContent?.trim());
-    expect(labels).toEqual(['다가오는 일정', '전체 일정', '참여자', '설정']);
+    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자', '설정']);
   });
 });

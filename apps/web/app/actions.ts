@@ -14,6 +14,8 @@ import {
   intakeAnswerResponses,
   type IntakeAdditionalItemInput,
   type IntakeAnswerInput,
+  type IntakeDebtEntryInput,
+  type IntakeLinkedOrgInput,
   type IntakeExtendedPiiInput,
   type IntakeGoalInput,
   type IntakeLifeAreaInput,
@@ -32,6 +34,7 @@ import {
   recordPilotTextAiConsent,
   registerCounselor,
   reviewAiDraft,
+  updateParticipantConsent,
   type ManualActionItem,
   type ManualActionItemResolution,
   type ActionItemResolutionStatus,
@@ -618,20 +621,53 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
   revalidateCase(caseId);
   redirect(withNotice(sessionPath(caseId, sessionId), 'notice', `ai_${decision}`));
 }
+/**
+ * 동의 3종 수정·철회 (D44). 당사자 정보 페이지의 참여 사업 카드마다 붙는다.
+ *
+ * 체크박스는 체크됐을 때만 폼에 실리므로(checkbox 헬퍼) 미체크는 곧 철회다 — 세 값을
+ * 언제나 함께 보내 서버가 현재 상태 전체를 한 행으로 기록하게 한다(append-only 이력, D14).
+ * 권한(담당 실무자·기관 관리자)은 게이트웨이가 판정한다 — 화면에서 다시 판정하지 않는다.
+ */
+export async function updateParticipantConsentAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    const supportCaseId = requiredValue(formData, 'supportCaseId');
+    await updateParticipantConsent(supportCaseId, {
+      privacy: checkbox(formData, 'consentPrivacy'),
+      recording: checkbox(formData, 'consentRecording'),
+      textAi: checkbox(formData, 'consentTextAi'),
+    });
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch (error) {
+    const fallback = beneficiaryId === undefined ? '/participants' : participantPath(beneficiaryId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  redirect(withNotice(participantPath(beneficiaryId), 'notice', 'consent_updated'));
+}
+
 export async function createInitialParticipantProgramAction(formData: FormData): Promise<void> {
   let beneficiaryId: string | undefined;
   let supportCaseId: string | undefined;
   try {
-    // 등록자=담당자(D7): 폼에서 담당자를 받지 않는다. admin 은 게이트웨이 계약상 담당자 필수라
+    // 등록자=담당 실무자(D7): 폼에서 담당 실무자를 받지 않는다. admin 은 게이트웨이 계약상 담당 실무자 필수라
     // 본인을 배정하고, counselor 는 전달하지 않아 게이트웨이 자동 본인 배정에 맡긴다.
     const identity = await getMyIdentity();
     const email = optionalEmail(formData, 'email');
     const name = optionalTrimmedText(formData, 'name', 100);
     const phone = optionalTrimmedText(formData, 'phone', 32);
+    // D41 1-1 · D42 ①: 생년월일·주소(거주지역)·성별은 등록 화면이 받아 금고에 저장한다.
+    // 인테이크 화면은 이 값을 읽어 표시만 한다.
+    const birthDate = optionalTrimmedText(formData, 'birthDate', 10);
+    const region = optionalTrimmedText(formData, 'region', 200);
+    const gender = optionalTrimmedText(formData, 'gender', 20);
+    if (birthDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new FormInputError();
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
-      // 항목별 동의(D15·D23): 기본 미체크. 미동의여도 등록은 진행된다.
+      // 항목별 동의 3종(D15·D23·D44): 기본 미체크. 미동의여도 등록은 진행된다.
+      consentPrivacy: checkbox(formData, 'consentPrivacy'),
       consentRecording: checkbox(formData, 'consentRecording'),
       consentTextAi: checkbox(formData, 'consentTextAi'),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
@@ -639,6 +675,9 @@ export async function createInitialParticipantProgramAction(formData: FormData):
       ...(name === undefined ? {} : { name }),
       ...(phone === undefined ? {} : { phone }),
       ...(email === undefined ? {} : { email }),
+      ...(birthDate === undefined ? {} : { birthDate }),
+      ...(region === undefined ? {} : { region }),
+      ...(gender === undefined ? {} : { gender }),
     });
     beneficiaryId = created.beneficiaryId;
     supportCaseId = created.supportCaseId;
@@ -651,7 +690,7 @@ export async function createInitialParticipantProgramAction(formData: FormData):
   }
   revalidateParticipantProgram(beneficiaryId, supportCaseId);
   revalidatePath('/schedules/new');
-  // 콜드스타트 해소(티켓 #19): 등록 완료 → 새 참여자가 preselect 된 상담 등록으로 잇는다.
+  // 콜드스타트 해소(티켓 #19): 등록 완료 → 새 당사자가 preselect 된 상담 등록으로 잇는다.
   redirect(withNotice(
     `/schedules/new?target=${encodeURIComponent(`${beneficiaryId}|${supportCaseId}`)}`,
     'notice',
@@ -683,7 +722,7 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
   redirect(withNotice(participantBriefingPath(beneficiaryId, supportCaseId), 'notice', 'program_created'));
 }
 
-// 상담 등록(#20): 참여자 선택은 'beneficiaryId|supportCaseId' 한 값으로 커플링해
+// 상담 등록(#20): 당사자 선택은 'beneficiaryId|supportCaseId' 한 값으로 커플링해
 // 담당 케이스만 노출한 목록에서 고르게 한다. 담당 검사·감사는 API 게이트웨이가 강제한다(R1).
 export async function createCounselingScheduleAction(formData: FormData): Promise<void> {
   try {
@@ -734,7 +773,7 @@ export async function addSupportCaseAssigneeAction(formData: FormData): Promise<
   redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_added'));
 }
 
-// 상담사 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+// 실무자 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
 export async function registerCounselorAction(formData: FormData): Promise<void> {
   try {
     const email = requiredValue(formData, 'email').trim();
@@ -877,15 +916,18 @@ export interface CreateIntakeRecordActionInput {
   submissionId: string;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
-  consent: { privacy: boolean; recordingAi: boolean };
-  helpNarrative: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actions: ManualActionItem[];
-  // P3·P4(CCC-9). 전부 선택 — 비어 있으면 아예 보내지 않는다.
+  // D42: 5종은 선택. 4단계 위저드는 보내지 않는다(동의는 등록 화면, 목표는 보류).
+  consent?: { privacy: boolean; recordingAi: boolean };
+  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actions?: ManualActionItem[];
+  // 전부 선택 — 비어 있으면 아예 보내지 않는다.
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
 }
@@ -905,7 +947,7 @@ export async function createIntakeRecordAction(
     if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
       throw new FormInputError();
     }
-    for (const area of input.lifeAreas) {
+    for (const area of input.lifeAreas ?? []) {
       if (
         !(lifeAreaKeys as readonly string[]).includes(area.areaKey)
         || !(lifeAreaStatuses as readonly string[]).includes(area.status)
@@ -928,24 +970,32 @@ export async function createIntakeRecordAction(
       submissionId: input.submissionId,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      consent: input.consent,
-      helpNarrative: {
-        todayHelp: input.helpNarrative.todayHelp.trim(),
-        hardestPoint: input.helpNarrative.hardestPoint.trim(),
-        desiredChange: input.helpNarrative.desiredChange.trim(),
-      },
-      lifeAreas: input.lifeAreas.map((area) => {
-        const note = area.note?.trim();
-        return note !== undefined && note.length > 0
-          ? { areaKey: area.areaKey, status: area.status, note }
-          : { areaKey: area.areaKey, status: area.status };
+      ...(input.consent === undefined ? {} : { consent: input.consent }),
+      ...(input.helpNarrative === undefined ? {} : {
+        helpNarrative: {
+          todayHelp: input.helpNarrative.todayHelp.trim(),
+          hardestPoint: input.helpNarrative.hardestPoint.trim(),
+          desiredChange: input.helpNarrative.desiredChange.trim(),
+        },
       }),
-      goals: input.goals.map((goal) => (
-        goal.scaleCriteria !== undefined
-          ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
-          : { title: goal.title.trim() }
-      )),
-      actions: input.actions,
+      ...(input.lifeAreas === undefined ? {} : {
+        lifeAreas: input.lifeAreas.map((area) => {
+          const note = area.note?.trim();
+          return note !== undefined && note.length > 0
+            ? { areaKey: area.areaKey, status: area.status, note }
+            : { areaKey: area.areaKey, status: area.status };
+        }),
+      }),
+      ...(input.goals === undefined ? {} : {
+        goals: input.goals.map((goal) => (
+          goal.scaleCriteria !== undefined
+            ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
+            : { title: goal.title.trim() }
+        )),
+      }),
+      ...(input.actions === undefined ? {} : { actions: input.actions }),
+      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
+      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
       ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
       ...(input.extendedPii === undefined || Object.keys(input.extendedPii).length === 0
         ? {}

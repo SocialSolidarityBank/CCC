@@ -19,7 +19,7 @@ const SAVE_DEBOUNCE_MS = 800;
 export interface DomDraft {
   /** 이 노드 안의 name 있는 입력칸이 자동 저장 대상이다. */
   containerRef: (node: HTMLElement | null) => void;
-  /** 되돌릴 임시본. 상담사가 고르기 전에는 아무것도 덮어쓰지 않는다. */
+  /** 되돌릴 임시본. 실무자가 고르기 전에는 아무것도 덮어쓰지 않는다. */
   restorable: { savedAt: number; uncertain: boolean } | null;
   savedAt: number | null;
   available: boolean;
@@ -35,12 +35,12 @@ export interface DomDraft {
  * `red` **'submitting' 을 성공으로 단정해 지우면 안 된다.** service_unavailable ·
  * unknown_outcome · conflict 세 경우에는 상위 화면이 폼 대신 안내 패널을 렌더하므로 이
  * 컴포넌트가 아예 마운트되지 않는다(records/new/page.tsx 의 mustCheckOutcome ·
- * mustStartFresh). 상담사가 "저장됐나?" 확인하러 갔다가 새 기록 작성으로 돌아오면 오류 표시
+ * mustStartFresh). 실무자가 "저장됐나?" 확인하러 갔다가 새 기록 작성으로 돌아오면 오류 표시
  * 없는 깨끗한 방문이 되는데, 그때 지우면 **저장도 안 된 상담 내용이 조용히 사라진다.**
  * 그래서 판정을 이렇게 나눈다.
  *  - 오류를 달고 되돌아왔다 → 실패가 확실하다. 이어쓰기를 권한다.
  *  - 오류 없이 새로 열렸다 → 저장됐을 가능성이 높지만 확실하지 않다. 지우지 말고 물어본다
- *    (uncertain). 상담사가 '새로 시작'을 고르면 그때 지운다.
+ *    (uncertain). 실무자가 '새로 시작'을 고르면 그때 지운다.
  * 지우는 판단을 사람에게 넘기는 대신, 저장된 내용이 다음 회차에 섞이는 것은 배너가 막는다.
  */
 export function useDomDraft({
@@ -76,7 +76,7 @@ export function useDomDraft({
     setSavedAt(written);
   }, [storageKey]);
 
-  // ① 마운트 — 만료분을 걷고 임시본을 판정한다. 되돌리기는 상담사가 고를 때만 한다.
+  // ① 마운트 — 만료분을 걷고 임시본을 판정한다. 되돌리기는 실무자가 고를 때만 한다.
   useEffect(() => {
     sweepExpiredDrafts();
     const stored = readDraft<FieldValues>(storageKey);
@@ -93,7 +93,7 @@ export function useDomDraft({
     function schedule() {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        // 배너가 떠 있는 동안에는 저장하지 않는다. 상담사가 배너를 무시하고 새로 타이핑하면
+        // 배너가 떠 있는 동안에는 저장하지 않는다. 실무자가 배너를 무시하고 새로 타이핑하면
         // 되돌릴 수 있던 내용이 거의 빈 현재 폼으로 덮어써지고, 새로고침하면 사라진다.
         // 이어쓰기·새로 시작 중 하나를 고른 뒤부터 저장을 재개한다(인테이크 위저드와 같은 규칙).
         if (restorableRef.current) return;

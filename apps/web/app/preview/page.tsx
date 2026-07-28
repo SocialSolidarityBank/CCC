@@ -49,7 +49,7 @@ export default async function PreviewGatePage({ searchParams }: { searchParams: 
         </div>
         {/* 화면 전체에 대한 안내라 입력칸의 도움말(hint)이 아니라 폼 아래 한 줄로 둔다. */}
         <p className="note-inline">
-          이 미리보기는 가상 시드 데이터만 담고 있으며 실제 참여자 정보와 연결되어 있지 않습니다.
+          이 미리보기는 가상 시드 데이터만 담고 있으며 실제 당사자 정보와 연결되어 있지 않습니다.
         </p>
       </form>
     </div>

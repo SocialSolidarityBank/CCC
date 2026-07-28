@@ -36,7 +36,7 @@ const freshCandidate: ScheduleWizardCandidate = {
 };
 const freshCandidateLabel = '남주원 010-0000-0016';
 
-// D31: 참여자 행은 실명·연락처·이메일로 표기하고 사업명은 빼야 한다.
+// D31: 당사자 행은 실명·연락처·이메일로 표기하고 사업명은 빼야 한다.
 // 구분자 가운뎃점 대신 각 조각을 독립 노드(MetaRow)로 렌더하므로 접근성 이름은 공백으로 이어진다.
 const candidateLabel = '홍서희 010-1234-5678 seohee@example.test';
 
@@ -66,7 +66,7 @@ function renderWizard(overrides: { candidates?: ScheduleWizardCandidate[] } = {}
 }
 
 describe('ScheduleWizard', () => {
-  it('참여자·일시를 고르고 다음을 누르면 2단계(이번 상담의 목표)로 전환하며 참고 카드를 채운다', async () => {
+  it('당사자·일시를 고르고 다음을 누르면 2단계(이번 상담의 목표)로 전환하며 참고 카드를 채운다', async () => {
     const { container, calls } = renderWizard();
     const scoped = within(container);
 
@@ -83,16 +83,16 @@ describe('ScheduleWizard', () => {
     expect(scoped.getAllByText('생활비 계획 유지').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('참여자를 고르기 전에는 상담 유형·일시가 보이지 않고 다음으로 갈 수 없다 (D35 §5)', () => {
-    // 상담 유형 기본값이 그 케이스의 인테이크 유무로 갈리므로, 참여자를 모르면 물어볼 수
-    // 없다. 그래서 순서가 참여자 → 상담 유형 → 일시다.
+  it('당사자를 고르기 전에는 상담 유형·일시가 보이지 않고 다음으로 갈 수 없다 (D35 §5)', () => {
+    // 상담 유형 기본값이 그 케이스의 인테이크 유무로 갈리므로, 당사자를 모르면 물어볼 수
+    // 없다. 그래서 순서가 당사자 → 상담 유형 → 일시다.
     const { container, calls } = renderWizard();
     const scoped = within(container);
 
     expect(scoped.queryByLabelText('상담 일시')).toBeNull();
     expect(scoped.queryByText('상담 유형')).toBeNull();
-    // 조직·참여 사업 선택은 삭제됐다 — 워크스페이스가 이미 정한 값을 다시 묻지 않는다.
-    expect(scoped.queryByLabelText('조직')).toBeNull();
+    // 기관·참여 사업 선택은 삭제됐다 — 워크스페이스가 이미 정한 값을 다시 묻지 않는다.
+    expect(scoped.queryByLabelText('기관')).toBeNull();
     expect(scoped.queryByLabelText('참여 사업')).toBeNull();
     // 상담 방법은 '대면' 하나뿐이라 숨긴다(D4).
     expect(scoped.queryByLabelText('상담 방법 선택하기')).toBeNull();
@@ -101,20 +101,20 @@ describe('ScheduleWizard', () => {
     expect(calls.load).toBe(0);
   });
 
-  it('참여자를 고르면 상담 유형이 케이스 상태로 정해진다 — 인테이크를 마친 케이스는 기본 상담', () => {
+  it('당사자를 고르면 상담 유형이 케이스 상태로 정해진다 — 인테이크를 마친 케이스는 기본 상담', () => {
     const { container } = renderWizard();
     const scoped = within(container);
 
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
     expect(scoped.getByText('기본 상담')).not.toBeNull();
-    expect(scoped.getByText(/인테이크가 끝난 참여자라/)).not.toBeNull();
+    expect(scoped.getByText(/인테이크가 끝난 당사자라/)).not.toBeNull();
     // 다른 유형은 접혀 있다 — 평소에는 고를 일이 없다.
     expect(scoped.queryByLabelText('상담 유형 선택하기')).toBeNull();
     expect(scoped.getByRole('button', { name: '다른 유형 선택' })).not.toBeNull();
   });
 
   it('인테이크가 없는 케이스는 인테이크로 잡히고 경고를 띄우지 않는다', () => {
-    // 새로 등록한 참여자의 첫 상담이 이 경로다 — 상담사가 유형을 고르지 않아도 맞게 잡혀야 한다.
+    // 새로 등록한 당사자의 첫 상담이 이 경로다 — 실무자가 유형을 고르지 않아도 맞게 잡혀야 한다.
     const { container } = renderWizard({ candidates: [freshCandidate] });
     const scoped = within(container);
 
@@ -125,8 +125,8 @@ describe('ScheduleWizard', () => {
     expect(scoped.getByRole('button', { name: /다음: 상담 목표/ })).not.toBeNull();
   });
 
-  it('참여자를 바꾸면 상담 유형 기본값도 다시 잡힌다', () => {
-    // 앞 참여자 기준으로 고른 유형이 남으면 인테이크가 끝난 사람에게 인테이크가 잡힌다.
+  it('당사자를 바꾸면 상담 유형 기본값도 다시 잡힌다', () => {
+    // 앞 당사자 기준으로 고른 유형이 남으면 인테이크가 끝난 사람에게 인테이크가 잡힌다.
     const { container } = renderWizard({ candidates: [freshCandidate, candidates[0]!] });
     const scoped = within(container);
 
@@ -134,7 +134,7 @@ describe('ScheduleWizard', () => {
     expect(scoped.getByText(/아직 인테이크 기록이 없어/)).not.toBeNull();
 
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
-    expect(scoped.getByText(/인테이크가 끝난 참여자라/)).not.toBeNull();
+    expect(scoped.getByText(/인테이크가 끝난 당사자라/)).not.toBeNull();
   });
 
   it('인테이크를 마친 케이스에서 인테이크를 다시 고르면 경고와 기존 기록 링크가 뜨되 막지 않는다', () => {
@@ -184,11 +184,11 @@ describe('ScheduleWizard', () => {
     expect(input?.caseGoals).toContain('월 5만원 저축을 3개월 유지한다');
   });
 
-  it('참여자를 골라도 일시가 비어 있으면 다음이 눌리지 않고 무엇이 모자란지 알린다 (CCC-22)', () => {
+  it('당사자를 골라도 일시가 비어 있으면 다음이 눌리지 않고 무엇이 모자란지 알린다 (CCC-22)', () => {
     const { container } = renderWizard();
     const scoped = within(container);
 
-    // 참여자만 고른 상태 — 일시 미입력.
+    // 당사자만 고른 상태 — 일시 미입력.
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
     const nextButton = scoped.getByRole('button', { name: /다음: / }) as HTMLButtonElement;
     expect(nextButton.disabled).toBe(true);

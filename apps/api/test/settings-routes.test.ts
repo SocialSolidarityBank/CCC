@@ -4,7 +4,7 @@ import { setupD1 } from './support/d1';
 
 // 설정 화면(#14)의 두 데이터 경로에 대한 HTTP 계약 테스트.
 //   GET /me     — 내 계정(이메일·역할). 인증된 본인 누구나(역할 무관).
-//   GET /users  — 조직 상담사 목록. 시스템 관리자(admin)만 200, 그 외 403.
+//   GET /users  — 기관 실무자 목록. 기관 관리자(admin)만 200, 그 외 403.
 // 프로비저닝된 디렉터리(provisionDirectory 기본값)로 실제 신원 행을 두고 검증한다.
 
 const adminHeaders = {
@@ -126,7 +126,7 @@ describe('settings routes (/me, /users)', () => {
     expect(response.status).toBe(200);
     const users = await response.json() as DirectoryEntry[];
     const emails = users.map((user) => user.email);
-    // 자기 조직 계정은 보이고(관리자 본인 + 상담사), 다른 조직 계정은 절대 새지 않는다.
+    // 자기 기관 계정은 보이고(관리자 본인 + 실무자), 다른 기관 계정은 절대 새지 않는다.
     expect(emails).toContain('admin.routes@example.invalid');
     expect(emails).toContain('counselor.routes@example.invalid');
     expect(users.every((user) => user.orgId === 'org_demo')).toBe(true);

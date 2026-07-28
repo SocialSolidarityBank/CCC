@@ -22,12 +22,12 @@ button,input,select,textarea{font:inherit}
 .brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
 .brand{font-weight:700}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
-/* 사업 전환기(D35·ADR-0014 §2): 조직명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
+/* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
    포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개인 동안은 누를 데가 없어 링크가 아니다.
    민트 계열은 '사람·소속'이라 사업 라벨이 그 축에 든다(D34). */
 /* 알약이 아니라 radius 6 이다(§4-5) — 행동 버튼이 아니라 값을 고르는 컨트롤이다. */
 .program-switcher{display:grid;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
-/* 조직 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
+/* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
    32(--space-8)는 그대로 유지된다 — 선은 그 사이 가운데에 놓인다.
    --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
    좌우 -24 는 사이드바 패딩만큼 되밀어 선을 끝까지 긋는다. */
@@ -172,7 +172,7 @@ textarea{min-height:216px;resize:vertical}
 .note p{font-size:14px}
 @media(max-width:767px){
   /* ── 768 미만: 사이드바는 드로어다 (§4-4) ──
-     가로 줄로 눕히면 조직명·사업 전환기·메뉴가 한 줄에 밀려 아무것도 안 읽힌다.
+     가로 줄로 눕히면 기관명·사업 전환기·메뉴가 한 줄에 밀려 아무것도 안 읽힌다.
      좁은 화면에서 '장소 전환'은 자주 하는 동작이 아니므로 평소엔 화면 밖에 두고
      손잡이를 눌렀을 때만 왼쪽에서 밀어 넣는다. 본문은 폭을 온전히 쓴다. */
   .app-shell{display:block}
@@ -236,7 +236,7 @@ const participantStyles = `
 .schedule-day-summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
 .schedule-day-group[open] .schedule-day-summary::before{transform:rotate(45deg)}
 .schedule-day-count{margin-left:auto;color:var(--sub);font-size:14px;font-weight:700}
-/* 날짜 그룹(카드) 안의 상담 카드는 자기 테두리를 벗고 --line 구분선으로 나눈다 — 위 상담사 목록과 같은 이유. */
+/* 날짜 그룹(카드) 안의 상담 카드는 자기 테두리를 벗고 --line 구분선으로 나눈다 — 위 실무자 목록과 같은 이유. */
 .schedule-day-group .today-schedule-list{padding:0;gap:0}
 .schedule-day-group .today-schedule-card{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none}
 .schedule-day-group .today-schedule-card:hover{background:var(--muted)}
@@ -369,7 +369,7 @@ const briefingStyles = `
 `;
 
 const searchStyles = `
-/* ticket-16: 참여자 검색 */
+/* ticket-16: 당사자 검색 */
 .participant-search{display:grid;gap:var(--space-3);margin-bottom:var(--space-6)}
 .participant-search>h2{font-size:18px}
 .participant-search-form{display:flex;gap:var(--space-3);align-items:flex-end}
@@ -399,7 +399,7 @@ const settingsStyles = `
 /* 사람 정보 라벨은 민트 계열. */
 .settings-field dt{color:var(--mint-deep);font-size:14px;font-weight:700}
 .settings-field dd{margin:0;color:var(--ink);font-size:16px;font-weight:700;overflow-wrap:anywhere}
-/* 상담사 목록은 카드(.settings-section) 안에 있으므로 행마다 테두리를 두르지 않고
+/* 실무자 목록은 카드(.settings-section) 안에 있으므로 행마다 테두리를 두르지 않고
    --line 구분선으로 나눈다(§5 리스트 행). 카드 안에 카드를 넣으면 경계가 두 겹으로 겹친다. */
 .settings-user-list{display:grid;margin:0;padding:0;list-style:none}
 .settings-user-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:var(--space-3);align-items:center;min-height:52px;padding:var(--space-3) var(--space-2);border-bottom:1px solid var(--line)}
@@ -432,7 +432,7 @@ const piiMaskingStyles = `
 .pii-panel{display:grid;gap:var(--space-3)}
 .pii-fields{display:grid;gap:var(--space-2);margin:0}
 .pii-field{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
-/* 참여자 정보 라벨(연락처·비상연락처·거주지)은 민트 deep — 사람·소속 축(§1-5). */
+/* 당사자 정보 라벨(연락처·비상연락처·거주지)은 민트 deep — 사람·소속 축(§1-5). */
 .pii-field dt{color:var(--mint-deep);font-size:14px;font-weight:700}
 .pii-field dd{margin:0;color:var(--ink);font-size:16px;font-weight:700;overflow-wrap:anywhere}
 .pii-panel .pii-reveal-control{flex-wrap:wrap}
@@ -442,7 +442,7 @@ const piiMaskingStyles = `
 `;
 
 const registerStyles = `
-/* 참여자 등록·초대 (#37) */
+/* 당사자 등록·초대 (#37) */
 .wire-register-form{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
 .wire-register-submit{width:100%}
 .wire-invite-stack{display:grid;gap:var(--space-6);margin-top:var(--space-8)}

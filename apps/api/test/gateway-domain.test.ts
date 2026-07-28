@@ -1109,10 +1109,10 @@ describe('canonical participant gateway', () => {
     ).bind(initial.beneficiaryId, canonicalActors.counselor.orgId).first())
       .resolves.toEqual(vaultBeforeConflict);
 
-    // D36 의 전제 게이트: 이 참여자의 케이스를 **1건도 담당하지 않으면** 페이지가 열리지
+    // D36 의 전제 게이트: 이 당사자의 케이스를 **1건도 담당하지 않으면** 페이지가 열리지
     // 않는다. 아직 secondCounselor 는 배정이 없으므로 여기서 막혀야 한다. D36 으로 표시
-    // 범위를 조직 전체로 넓혔기 때문에 이 게이트를 같이 지우기 쉬운데, 그러면 D36 의 근거
-    // ("이 페이지를 여는 사람은 이미 그 참여자의 담당자라 PII 를 보고 있다")가 무너진다.
+    // 범위를 기관 전체로 넓혔기 때문에 이 게이트를 같이 지우기 쉬운데, 그러면 D36 의 근거
+    // ("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라 PII 를 보고 있다")가 무너진다.
     await expect(listSupportCasesForBeneficiary(
       t.env,
       canonicalActors.secondCounselor,
@@ -1127,7 +1127,7 @@ describe('canonical participant gateway', () => {
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
     expect(adminProgram.replayed).toBe(false);
-    // D36(2026-07-26): 참여자 정보 허브는 **조직 내 전 참여 사업**을 보여준다. 그래서
+    // D36(2026-07-26): 당사자 정보 허브는 **기관 내 전 참여 사업**을 보여준다. 그래서
     // counselor 도 3건을 다 받되, 방금 secondCounselor 에게 배정된 건은 authorized=false 로
     // 와서 상담 내용이 잠긴다. 표시 범위와 접근 범위를 분리했다는 것을 여기서 고정한다.
     const counselorPrograms = (await listSupportCasesForBeneficiary(
@@ -1137,8 +1137,8 @@ describe('canonical participant gateway', () => {
     )).programs;
     expect(counselorPrograms).toHaveLength(3);
     expect(counselorPrograms.filter((entry) => entry.authorized)).toHaveLength(2);
-    // 비담당 사업은 "누구에게 물어보나"를 답해야 하므로 담당자 표시 이름이 실린다.
-    // 단 **이메일로 폴백하지 않는다** — 이 목록은 담당 밖 사업까지 상담사에게 내려가므로,
+    // 비담당 사업은 "누구에게 물어보나"를 답해야 하므로 담당 실무자 표시 이름이 실린다.
+    // 단 **이메일로 폴백하지 않는다** — 이 목록은 담당 밖 사업까지 실무자에게 내려가므로,
     // 이메일 폴백을 두면 admin 전용 디렉터리로 막아 둔 직원 이메일이 새어 나간다.
     // 이 픽스처의 users 는 name 이 없으므로 목록은 비어 있어야 한다.
     const locked = counselorPrograms.find((entry) => !entry.authorized);
@@ -1195,7 +1195,7 @@ describe('canonical participant gateway', () => {
     expect(vault?.encPhone).not.toBe(pii.phone);
     expect(vault?.encAccount).not.toBe(pii.account);
 
-    // D24·ADR-0005: 담당자(활성 배정)에게는 브리핑 응답에 실명·연락처가 실린다(계좌는 제외).
+    // D24·ADR-0005: 담당 실무자(활성 배정)에게는 브리핑 응답에 실명·연락처가 실린다(계좌는 제외).
     // 클릭 단위 reveal 은 사라지고, PII 가 실린 화면 조회당 read_participant_pii 감사 1건이 남는다.
     await expect(getParticipantBriefing(
       t.env,
@@ -1247,7 +1247,7 @@ describe('canonical participant gateway', () => {
     expect(counselorToday.timeZone).toBe('Asia/Seoul');
     expect(counselorToday.schedules.map((item) => item.id)).toEqual([schedule.id]);
     expect(JSON.stringify(counselorToday)).not.toContain(hidden.beneficiaryId);
-    // D24·ADR-0005: 담당자 카드에는 실명·연락처가 실린다.
+    // D24·ADR-0005: 담당 실무자 카드에는 실명·연락처가 실린다.
     expect(counselorToday.schedules[0]).toMatchObject({
       participantName: pii.name,
       participantPhone: pii.phone,
@@ -1257,7 +1257,7 @@ describe('canonical participant gateway', () => {
       schedule.id,
       hiddenSchedule.id,
     ]);
-    // admin 은 조직 전체 카드에 실명을 본다. 두 번째 참여자는 PII 미기입이라 실명 null.
+    // admin 은 기관 전체 카드에 실명을 본다. 두 번째 당사자는 PII 미기입이라 실명 null.
     expect(adminToday.schedules.find((item) => item.id === schedule.id)?.participantName).toBe(pii.name);
     expect(adminToday.schedules.find((item) => item.id === hiddenSchedule.id)?.participantName).toBeNull();
     await assignSupportCase(
@@ -1291,7 +1291,7 @@ describe('canonical participant gateway', () => {
       canonicalActors.admin.userId,
     );
 
-    // 이관으로 배정을 잃은 상담사는 브리핑(실명 포함) 접근이 막힌다 — 상담 관계가 끊긴다.
+    // 이관으로 배정을 잃은 실무자는 브리핑(실명 포함) 접근이 막힌다 — 상담 관계가 끊긴다.
     await expect(getParticipantBriefing(
       t.env,
       canonicalActors.counselor,
@@ -1973,7 +1973,7 @@ describe('canonical participant gateway', () => {
       purgedAt: null,
       version: purgedVault.version + 1,
     });
-    // 재등록으로 되살아난 실명은 새 담당자의 브리핑에 실린다(D24).
+    // 재등록으로 되살아난 실명은 새 담당 실무자의 브리핑에 실린다(D24).
     await expect(getParticipantBriefing(
       t.env,
       canonicalActors.secondCounselor,

@@ -32,7 +32,7 @@ function animalAt(index: number): string {
   return slug;
 }
 
-/** 테스트 시드 전용 — 발급 경쟁 상태를 재현하기 위한 원시 참여자 행 삽입. */
+/** 테스트 시드 전용 — 발급 경쟁 상태를 재현하기 위한 원시 당사자 행 삽입. */
 async function seedBeneficiary(id: string, orgId: string): Promise<void> {
   await t.db.prepare(
     "INSERT INTO beneficiaries (id, org_id, initialization_state) VALUES (?, ?, 'pending')",
@@ -104,7 +104,7 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
     await seedBeneficiary(`${animalAt(0)}-005`, 'org_other');
 
     const created = await createCase(t.env, counselor, {});
-    // 다른 조직의 순번(005)과 무관하게 조직 내 첫 발급은 001이다.
+    // 다른 기관의 순번(005)과 무관하게 기관 내 첫 발급은 001이다.
     expect(created.id).toBe(`${animalAt(0)}-001`);
   });
 

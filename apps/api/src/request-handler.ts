@@ -72,6 +72,7 @@ import {
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
   searchParticipants,
+  updateParticipantConsent,
   upsertUser,
   type Actor,
   type AiDraftVersion,
@@ -301,22 +302,36 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // 등록 폼은 두 체크 상태(false 포함)를 항상 보내므로 동의 기록을 남긴다. 두 키가 모두
   // 없는 (레거시/프로그램) 호출은 동의 기록을 만들지 않는다(하위 호환). 어느 항목이든
   // 체크는 기본 미동의(false)이며, 미동의여도 등록은 진행된다(D15 미동의 경로).
-  const hasConsent = 'consentRecording' in body || 'consentTextAi' in body;
+  // D44: 개인정보 수집·이용 동의(consentPrivacy)가 3종째로 합류한다. 세 키 중 하나라도
+  // 오면 동의 기록을 남긴다 — 등록 폼은 항상 셋을 보내고, 셋 다 없는 호출만 하위 호환이다.
+  const hasConsent = 'consentPrivacy' in body || 'consentRecording' in body || 'consentTextAi' in body;
   const consent = hasConsent
-    ? { recording: optionalBoolean(body, 'consentRecording'), textAi: optionalBoolean(body, 'consentTextAi') }
+    ? {
+      privacy: optionalBoolean(body, 'consentPrivacy'),
+      recording: optionalBoolean(body, 'consentRecording'),
+      textAi: optionalBoolean(body, 'consentTextAi'),
+    }
     : undefined;
   // 이메일은 선택 항목이다. undefined 면 게이트웨이 입력에서 아예 빼야 한다 —
   // { email: undefined } 로 두면 Object.keys 에 남아 assertExactKeys 가 거부한다(#37).
   const email = optionalRegisteredEmail(body);
   const name = optionalRegisteredText(body, 'name', 100);
   const phone = optionalRegisteredText(body, 'phone', 32);
+  // D41 1-1: 생년월일·주소(거주지역)·성별도 등록이 받는다. 값은 금고에 암호화 저장된다.
+  const birthDate = optionalRegisteredText(body, 'birthDate', 10);
+  const region = optionalRegisteredText(body, 'region', 200);
+  const gender = optionalRegisteredText(body, 'gender', 20);
   const optionalPii = {
     ...(name === undefined ? {} : { name }),
     ...(phone === undefined ? {} : { phone }),
     ...(email === undefined ? {} : { email }),
+    ...(birthDate === undefined ? {} : { birthDate }),
+    ...(region === undefined ? {} : { region }),
+    ...(gender === undefined ? {} : { gender }),
   };
+  const registrationKeys = ['consentPrivacy', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email']);
+    requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', ...registrationKeys]);
     return {
       input: {
         programType: requireFinancialSupportProgramType(body),
@@ -327,7 +342,7 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
       consent,
     };
   }
-  requireOnlyKeys(body, ['programType', 'intakeAt', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email']);
+  requireOnlyKeys(body, ['programType', 'intakeAt', ...registrationKeys]);
   return {
     input: {
       programType: requireFinancialSupportProgramType(body),
@@ -523,10 +538,25 @@ function parseIntakeCreation(body: JsonObject) {
   const hasExtendedPii = Object.hasOwn(body, 'extendedPii');
   const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
   const hasNextMeeting = Object.hasOwn(body, 'nextMeeting');
-  const allowedKeys = ['submissionId', 'heldAt', 'channel', 'consent', 'helpNarrative', 'lifeAreas', 'goals', 'actions'];
+  // D42: 동의·원하는 도움 3문·6영역·목표·다음 행동은 정본 질문지에 대응 항목이 없어 선택이다.
+  const hasConsent = Object.hasOwn(body, 'consent');
+  const hasHelpNarrative = Object.hasOwn(body, 'helpNarrative');
+  const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
+  const hasGoals = Object.hasOwn(body, 'goals');
+  const hasActions = Object.hasOwn(body, 'actions');
+  const hasDebts = Object.hasOwn(body, 'debts');
+  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
+  const allowedKeys = ['submissionId', 'heldAt', 'channel'];
+  if (hasConsent) allowedKeys.push('consent');
+  if (hasHelpNarrative) allowedKeys.push('helpNarrative');
+  if (hasLifeAreas) allowedKeys.push('lifeAreas');
+  if (hasGoals) allowedKeys.push('goals');
+  if (hasActions) allowedKeys.push('actions');
   if (hasAnswers) allowedKeys.push('answers');
   if (hasExtendedPii) allowedKeys.push('extendedPii');
   if (hasAdditionalItems) allowedKeys.push('additionalItems');
+  if (hasDebts) allowedKeys.push('debts');
+  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
   if (hasNextMeeting) allowedKeys.push('nextMeeting');
   if (hasManagerOpinion) allowedKeys.push('managerOpinion');
   if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
@@ -538,22 +568,26 @@ function parseIntakeCreation(body: JsonObject) {
   }
   const channel: 'in_person' | 'phone' | 'video' = channelValue;
 
-  const consentObject = asObject(body.consent);
-  requireOnlyKeys(consentObject, ['privacy', 'recordingAi']);
-  const consent = {
-    privacy: requiredBoolean(consentObject, 'privacy'),
-    recordingAi: requiredBoolean(consentObject, 'recordingAi'),
-  };
+  const consent = !hasConsent ? undefined : (() => {
+    const consentObject = asObject(body.consent);
+    requireOnlyKeys(consentObject, ['privacy', 'recordingAi']);
+    return {
+      privacy: requiredBoolean(consentObject, 'privacy'),
+      recordingAi: requiredBoolean(consentObject, 'recordingAi'),
+    };
+  })();
 
-  const narrativeObject = asObject(body.helpNarrative);
-  requireOnlyKeys(narrativeObject, ['todayHelp', 'hardestPoint', 'desiredChange']);
-  const helpNarrative = {
-    todayHelp: requiredString(narrativeObject, 'todayHelp'),
-    hardestPoint: requiredString(narrativeObject, 'hardestPoint'),
-    desiredChange: requiredString(narrativeObject, 'desiredChange'),
-  };
+  const helpNarrative = !hasHelpNarrative ? undefined : (() => {
+    const narrativeObject = asObject(body.helpNarrative);
+    requireOnlyKeys(narrativeObject, ['todayHelp', 'hardestPoint', 'desiredChange']);
+    return {
+      todayHelp: requiredString(narrativeObject, 'todayHelp'),
+      hardestPoint: requiredString(narrativeObject, 'hardestPoint'),
+      desiredChange: requiredString(narrativeObject, 'desiredChange'),
+    };
+  })();
 
-  const lifeAreas = objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
+  const lifeAreas = !hasLifeAreas ? undefined : objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
     requireOnlyKeys(area, Object.hasOwn(area, 'note') ? ['areaKey', 'status', 'note'] : ['areaKey', 'status']);
     const areaKey = requiredString(area, 'areaKey');
     if (!(LIFE_AREA_KEYS as readonly string[]).includes(areaKey)) {
@@ -570,7 +604,7 @@ function parseIntakeCreation(body: JsonObject) {
     };
   });
 
-  const goals = objectArray(body.goals, 'goals').map((goal) => {
+  const goals = !hasGoals ? undefined : objectArray(body.goals, 'goals').map((goal) => {
     requireOnlyKeys(goal, Object.hasOwn(goal, 'scaleCriteria') ? ['title', 'scaleCriteria'] : ['title']);
     return {
       title: requiredString(goal, 'title'),
@@ -578,7 +612,7 @@ function parseIntakeCreation(body: JsonObject) {
     };
   });
 
-  const actionItems = objectArray(body.actions, 'actions').map((action) => {
+  const actionItems = !hasActions ? undefined : objectArray(body.actions, 'actions').map((action) => {
     requireOnlyKeys(action, Object.hasOwn(action, 'dueDate') ? ['description', 'owner', 'dueDate'] : ['description', 'owner']);
     const ownerValue = requiredString(action, 'owner');
     if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
@@ -596,7 +630,7 @@ function parseIntakeCreation(body: JsonObject) {
     };
   });
 
-  // P3·P4 서술형 답변(CCC-9). 키·응답 어휘는 게이트웨이 상수를 그대로 쓴다.
+  // 질문지 답변(D41). 키·응답 어휘는 게이트웨이 상수를 그대로 쓴다.
   const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
     requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
     const key = requiredString(answer, 'key');
@@ -629,15 +663,36 @@ function parseIntakeCreation(body: JsonObject) {
     ? undefined
     : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
       const entryKeys = ['item'];
-      if (Object.hasOwn(entry, 'owner')) entryKeys.push('owner');
-      if (Object.hasOwn(entry, 'dueDate')) entryKeys.push('dueDate');
+      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
+        if (Object.hasOwn(entry, key)) entryKeys.push(key);
+      }
       requireOnlyKeys(entry, entryKeys);
       return {
         item: requiredString(entry, 'item'),
         ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
         ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
+        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
+        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
+        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
       };
     });
+
+  // 반복 행 표 2종(2-1 부채 · 3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 넘긴다.
+  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
+    return objectArray(value, label).map((row) => {
+      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
+      requireOnlyKeys(row, keys);
+      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
+    });
+  }
+  const debts = !hasDebts
+    ? undefined
+    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
+      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
+  const linkedOrgs = !hasLinkedOrgs
+    ? undefined
+    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
+      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
 
   const nextMeeting = !hasNextMeeting ? undefined : (() => {
     const meeting = asObject(body.nextMeeting);
@@ -656,14 +711,16 @@ function parseIntakeCreation(body: JsonObject) {
     submissionId: requiredUuid(body, 'submissionId'),
     heldAt: requiredCanonicalUtc(body, 'heldAt'),
     channel,
-    consent,
-    helpNarrative,
-    lifeAreas,
-    goals,
-    actionItems,
+    ...(consent === undefined ? {} : { consent }),
+    ...(helpNarrative === undefined ? {} : { helpNarrative }),
+    ...(lifeAreas === undefined ? {} : { lifeAreas }),
+    ...(goals === undefined ? {} : { goals }),
+    ...(actionItems === undefined ? {} : { actionItems }),
     ...(answers === undefined ? {} : { answers }),
     ...(extendedPii === undefined ? {} : { extendedPii }),
     ...(additionalItems === undefined ? {} : { additionalItems }),
+    ...(debts === undefined ? {} : { debts }),
+    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
     ...(nextMeeting === undefined ? {} : { nextMeeting }),
     ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
     ...(hasSchedule
@@ -805,13 +862,23 @@ function participantProgramResponse(
     intakeAt: supportCase.intakeAt,
     creationKind: supportCase.creationKind,
     sourceSupportCase: null,
-    // D24·ADR-0005: 참여자 상세는 실명·연락처를 기본 표시. 한 참여자의 프로그램들이라 값은 동일.
+    // D24·ADR-0005: 당사자 상세는 실명·연락처를 기본 표시. 한 당사자의 프로그램들이라 값은 동일.
     participantName: participant.name,
     participantPhone: participant.phone,
     // D36: 내가 담당하지 않는 사업도 목록에 나오되 상담 내용으로는 들어갈 수 없다.
     // 화면은 authorized 로 링크를 걸거나 잠그고, assigneeNames 로 "누구에게 물어보나"를 답한다.
     authorized: entry.authorized,
     assigneeNames: entry.assigneeNames,
+    // D44: 동의 3종의 현재 상태. 시각 자체가 아니라 여부만 내린다 — 화면은 체크 상태를
+    // 그리고, "언제 기록했나"는 consentRecordedAt 한 줄로 충분하다.
+    consent: {
+      privacy: supportCase.consentPrivacyAt !== null,
+      recording: supportCase.consentRecordingAt !== null,
+      textAi: supportCase.consentTextAiAt !== null,
+    },
+    // 동의 시각이 아니라 **기록 시각**이다 — 3종을 모두 철회하면 동의 시각은 전부 NULL 이라
+    // 방금 남긴 철회 기록이 "기록 없음"으로 보인다. 값은 append-only 이력에서 온다.
+    consentRecordedAt: entry.consentRecordedAt,
   };
 }
 
@@ -881,7 +948,7 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
   return {
     beneficiaryId: briefing.beneficiaryId,
     focusSupportCaseId: briefing.focusedSupportCase.id,
-    // D24·ADR-0005: 담당·배정 책임자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
+    // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
     participant: briefing.participant,
     sections: sources.map((sourceSupportCase) => {
       const summary = briefing.summaries.find((candidate) => candidate.sourceSupportCase.id === sourceSupportCase.id);
@@ -968,6 +1035,7 @@ function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecor
     sessionSequence: context.sessionSequence,
     hasIntake: context.hasIntake,
     extendedPii: context.extendedPii,
+    consent: context.consent,
   };
 }
 
@@ -1226,7 +1294,7 @@ async function generateAiDraft(
 }
 
 /**
- * 상담 녹음 업로드(상담사·관리자). gateway preflight가 접근 권한·동의·세션 상태를
+ * 상담 녹음 업로드(실무자·관리자). gateway preflight가 접근 권한·동의·세션 상태를
  * 확인한 뒤 콘텐츠를 읽어 R2에 저장한다. 등록 시점에는 registerRecording이 같은
  * 상태를 원자적으로 다시 확인한다. 등록이 실패하면 방금 올린 R2 객체를 지워
  * 고아 오디오를 남기지 않는다.
@@ -1307,7 +1375,7 @@ export async function handleRequest(
       );
     }
     if (request.method === 'GET' && parts.length === 1 && parts[0] === 'me') {
-      // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 조직 자기 행만.
+      // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 기관 자기 행만.
       requestQuery(url, []);
       const me = await getMyIdentity(env, actor);
       // lastProgramType: `/` 직행 목적지 (D35 · ADR-0014 '개정' 2번). 미선택이면 null 이고
@@ -1338,7 +1406,7 @@ export async function handleRequest(
       return json(await getUpcomingSchedules(env, actor, date === null ? undefined : { date: canonicalDate(date, 'date') }));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'schedules' && parts[1] === 'candidates') {
-      // 상담 등록 폼의 참여자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
+      // 상담 등록 폼의 당사자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
       requestQuery(url, []);
       const candidates = await listScheduleCandidates(env, actor);
       return json({ candidates });
@@ -1396,7 +1464,7 @@ export async function handleRequest(
       && (parts[0] === 'participants' || parts[0] === 'beneficiaries')
       && parts[1] === 'search'
     ) {
-      // 검색 라우트는 일반 참여자 상세 라우트보다 먼저 처리한다 — 'search'는 가명 ID가 아니다.
+      // 검색 라우트는 일반 당사자 상세 라우트보다 먼저 처리한다 — 'search'는 가명 ID가 아니다.
       const searchQuery = requestQuery(url, ['q']).get('q');
       if (searchQuery === null) throw new ValidationError('search query is required');
       const results = await searchParticipants(env, actor, { query: searchQuery });
@@ -1407,8 +1475,8 @@ export async function handleRequest(
       && parts.length === 1
       && (parts[0] === 'participants' || parts[0] === 'beneficiaries')
     ) {
-      // 참여자 목록(사이드바 '참여자'의 도착지). 케이스 상태로 거르지 않는다 — 종결
-      // 케이스만 남은 참여자가 허브 입구에서 사라지지 않게 한다(게이트웨이 주석 참조).
+      // 당사자 목록(사이드바 '당사자'의 도착지). 케이스 상태로 거르지 않는다 — 종결
+      // 케이스만 남은 당사자가 허브 입구에서 사라지지 않게 한다(게이트웨이 주석 참조).
       requestQuery(url, []);
       const participants = await listAssignedParticipants(env, actor);
       return json({ results: participants.map(assignedParticipantResponse) });
@@ -1459,7 +1527,7 @@ export async function handleRequest(
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignees') {
-        // 케이스 담당자 목록 — 담당자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
+        // 케이스 담당 실무자 목록 — 담당 실무자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
         requestQuery(url, []);
         const assignees = await listSupportCaseAssignees(env, actor, supportCaseId);
         return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
@@ -1477,6 +1545,19 @@ export async function handleRequest(
           ? await assignSupportCase(env, actor, supportCaseId, userId)
           : await assignSupportCase(env, actor, supportCaseId, userId, roleValue);
         return json(supportCaseAssigneeResponse(assignee), 201);
+      }
+      // 동의 3종 수정·철회 (D44). 담당 실무자 또는 기관 관리자만 — 게이트웨이의
+      // assertSupportCaseAccess 가 강제한다(R1). 세 값은 항상 함께 온다(현재 상태 전체).
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'consent') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['privacy', 'recording', 'textAi']);
+        const updated = await updateParticipantConsent(env, actor, supportCaseId, {
+          privacy: requiredBoolean(body, 'privacy'),
+          recording: requiredBoolean(body, 'recording'),
+          textAi: requiredBoolean(body, 'textAi'),
+        });
+        return json(updated);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);
@@ -1502,7 +1583,7 @@ export async function handleRequest(
           result.replayed ? 200 : 201,
         );
       }
-      // 인테이크 작성 컨텍스트(회차 자동값·참여자 표시·기존 인테이크 여부) — CCC-7.
+      // 인테이크 작성 컨텍스트(회차 자동값·당사자 표시·기존 인테이크 여부) — CCC-7.
       if (request.method === 'GET' && parts.length === 4 && parts[2] === 'records' && parts[3] === 'intake') {
         requestQuery(url, []);
         return json(intakeContextResponse(await getIntakeRecordContext(env, actor, supportCaseId)));
@@ -1563,7 +1644,7 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'sessions') {
         const input = parseRecordCreation(await requestBody(request));
         // `authorized` 를 반드시 함께 본다. D36 으로 이 목록에 **담당하지 않는 사업도**
-        // 들어오게 됐으므로(라벨·담당자만 보여주기 위해), 필터 없이 find 하면 비담당
+        // 들어오게 됐으므로(라벨·담당 실무자만 보여주기 위해), 필터 없이 find 하면 비담당
         // 케이스에 기록을 쓰게 된다 — 표시 범위를 넓힌 것이 쓰기 권한을 넓히면 안 된다.
         const legacyEntry = (await listSupportCasesForBeneficiary(
           env,
@@ -1653,7 +1734,7 @@ export async function handleRequest(
       return json(await getActiveAiProviderStatus(env, actor));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
-      // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 조직만.
+      // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 기관만.
       return json(await getPipelineHealth(env, actor));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'jobs') {
@@ -1686,7 +1767,7 @@ export async function handleRequest(
     }
 
     if (parts[0] === 'users') {
-      // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 조직만.
+      // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 기관만.
       if (request.method === 'GET' && parts.length === 1) {
         return json(await listUsers(env, actor));
       }
@@ -1709,7 +1790,7 @@ export async function handleRequest(
         return json(await deactivateUser(env, actor, parts[1]));
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignments' && parts[1] !== undefined) {
-        // 상담사별 활성 배정 참여자(실명 포함) — 관리자 영역 사용자/상담사 상세(재개편 T8, D25).
+        // 실무자별 활성 배정 당사자(실명 포함) — 관리자 영역 사용자/실무자 상세(재개편 T8, D25).
         // id 는 이메일 또는 UUID 라 경로 세그먼트를 디코드해 웹의 encodeURIComponent 인코딩도 수용한다.
         requestQuery(url, []);
         const assignments = await listCounselorAssignments(env, actor, decodeURIComponent(parts[1]));

@@ -115,7 +115,7 @@ export default function KitPage() {
           <h2 className="wire-kit-heading" id="kit-search">SearchInput</h2>
           <div className="wire-kit-stack">
             <SearchInput
-              label="참여자 검색"
+              label="당사자 검색"
               name="kit-search"
               placeholder="가명 ID 또는 이름"
               value={search}

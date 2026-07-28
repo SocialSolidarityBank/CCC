@@ -21,16 +21,16 @@ const assigneeRoleLabel: Record<SupportCaseAssignee['role'], string> = {
 };
 
 const noticeMessages: Record<string, string> = {
-  assignee_added: '상담사를 배정했습니다.',
+  assignee_added: '실무자를 배정했습니다.',
 };
 
 const errorMessages: Record<string, string> = {
   invalid_request: '입력한 정보를 다시 확인하세요.',
   validation_error: '입력한 정보를 다시 확인하세요.',
-  access_denied: '배정은 시스템 관리자만 할 수 있습니다.',
-  forbidden: '배정은 시스템 관리자만 할 수 있습니다.',
+  access_denied: '배정은 기관 관리자만 할 수 있습니다.',
+  forbidden: '배정은 기관 관리자만 할 수 있습니다.',
   not_found: '선택한 케이스를 찾을 수 없습니다.',
-  conflict: '이미 배정된 상담사입니다.',
+  conflict: '이미 배정된 실무자입니다.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
   service_unavailable: '지금 배정할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
@@ -43,8 +43,8 @@ function queryValue(params: SearchParams, name: string): string | undefined {
 }
 
 // 관리자 영역 배정 화면(재개편 T8, #38 · Figma 5:441). 와이어프레임의 '사업 단위' UI에 케이스
-// 선택 한 단계를 더해 실제 모델(케이스 단위 배정, D7)로 현실화한다: 조직·사업 → 케이스 선택
-// → 상담사 추가(공동 담당). 하단에 현재 배정된 상담사 목록. 권한·감사는 게이트웨이가 강제(R1).
+// 선택 한 단계를 더해 실제 모델(케이스 단위 배정, D7)로 현실화한다: 기관·사업 → 케이스 선택
+// → 실무자 추가(공동 담당). 하단에 현재 배정된 실무자 목록. 권한·감사는 게이트웨이가 강제(R1).
 export default async function AdminAssignPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const query = await searchParams;
   const selected = queryValue(query, 'supportCaseId');
@@ -69,10 +69,10 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
     ? undefined
     : candidates.find((candidate) => candidate.supportCaseId === selected);
 
-  // D31·D24: 참여자 선택은 역할 기준 실명·연락처·이메일로 표기한다(사업명 대신). 실명 미기입은
+  // D31·D24: 당사자 선택은 역할 기준 실명·연락처·이메일로 표기한다(사업명 대신). 실명 미기입은
   // 가명 슬러그로 폴백하고 비어 있는 필드는 생략한다.
   const caseOptions: SearchSelectOption[] = [
-    { value: '', label: '참여자(케이스)를 선택하세요' },
+    { value: '', label: '당사자(케이스)를 선택하세요' },
     ...candidates.map((candidate) => ({
       value: candidate.supportCaseId,
       label: [
@@ -119,7 +119,7 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
         <>
           <form className="wire-admin-form-row" method="get">
             <SearchInput
-              label="참여자(케이스) 선택"
+              label="당사자(케이스) 선택"
               variant="select"
               name="supportCaseId"
               value={selected ?? ''}
@@ -131,24 +131,24 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
           {selected !== undefined && selectedCandidate === undefined ? (
             <p className="wire-admin-empty">활성 케이스를 선택하세요.</p>
           ) : selectedCandidate !== undefined ? (
-            <section className="wire-admin-section" aria-label="상담사 배정">
+            <section className="wire-admin-section" aria-label="실무자 배정">
               <h2>{selectedCandidate.participantName ?? selectedCandidate.beneficiaryId} 배정</h2>
               {counselorOptions.length === 0 ? (
-                <p className="wire-admin-empty">추가할 상담사가 없습니다. 먼저 상담사를 등록하세요.</p>
+                <p className="wire-admin-empty">추가할 실무자가 없습니다. 먼저 실무자를 등록하세요.</p>
               ) : (
                 <form className="wire-admin-form-row" action={addSupportCaseAssigneeAction}>
                   <input type="hidden" name="supportCaseId" value={selectedCandidate.supportCaseId} />
-                  <SearchInput label="상담사" variant="select" name="userId" options={counselorOptions} />
+                  <SearchInput label="실무자" variant="select" name="userId" options={counselorOptions} />
                   <WireButton type="submit">추가하기</WireButton>
                 </form>
               )}
 
               <div className="wire-admin-section">
-                <h2>현재 배정된 상담사</h2>
+                <h2>현재 배정된 실무자</h2>
                 {assigneesError !== null ? (
                   <p className="wire-admin-empty" role="alert">{assigneesError}</p>
                 ) : assignees.length === 0 ? (
-                  <p className="wire-admin-empty">배정된 상담사가 없습니다.</p>
+                  <p className="wire-admin-empty">배정된 실무자가 없습니다.</p>
                 ) : (
                   <div className="wire-admin-list">
                     {assignees.map((assignee) => (

@@ -17,15 +17,15 @@ export interface AdminMenuItem {
   href: string;
 }
 export const adminMenu: AdminMenuItem[] = [
-  { label: '조직', href: '/admin' },
+  { label: '기관', href: '/admin' },
   { label: '배정', href: '/admin/assign' },
   { label: '사용자', href: '/admin/users' },
   { label: '설정', href: '/admin/settings' },
-  { label: '상담사 초대', href: '/admin/invite' },
+  { label: '실무자 초대', href: '/admin/invite' },
 ];
 
 /**
- * 직원(상담사·관리자) 표시 라벨(D31): 이름이 있으면 이름, 없으면 이메일로 폴백한다.
+ * 직원(실무자·관리자) 표시 라벨(D31): 이름이 있으면 이름, 없으면 이메일로 폴백한다.
  * 목록·배정 등 한 줄 표기에 쓴다. 이메일은 보조 정보로 별도 표기한다.
  */
 export function userLabel(user: { name: string | null; email: string }): string {
@@ -33,7 +33,7 @@ export function userLabel(user: { name: string | null; email: string }): string 
 }
 
 /**
- * 관리자 참여자 행 한 줄 요약: 실명 · 연락처. 실명 미기입이면 슬러그 폴백(D31 —
+ * 관리자 당사자 행 한 줄 요약: 실명 · 연락처. 실명 미기입이면 슬러그 폴백(D31 —
  * 슬러그는 기계 식별자라 실명이 있으면 화면에 병기하지 않는다). 사업명은 목록에서
  * 제외 — 단일 사업 반복 표기는 소음이고, 확인은 상세 화면 몫이다.
  */

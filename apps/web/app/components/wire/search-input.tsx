@@ -12,6 +12,8 @@ export interface SearchInputProps {
   label: string;
   /** text = 입력 박스(기본), select = 우측 체브론이 붙는 셀렉트. */
   variant?: 'text' | 'select';
+  /** text 변형의 input type. 생년월일 같은 날짜 칸에 'date' 를 준다(기본 'text'). */
+  type?: 'text' | 'date';
   name?: string;
   id?: string;
   placeholder?: string;
@@ -26,6 +28,7 @@ export interface SearchInputProps {
 export function SearchInput({
   label,
   variant = 'text',
+  type = 'text',
   name,
   id,
   placeholder,
@@ -66,7 +69,7 @@ export function SearchInput({
           <input
             id={fieldId}
             name={name}
-            type="text"
+            type={type}
             placeholder={placeholder}
             value={value}
             readOnly={value !== undefined && onChange === undefined}

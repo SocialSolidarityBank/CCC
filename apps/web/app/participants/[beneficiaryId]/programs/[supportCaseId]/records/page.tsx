@@ -38,13 +38,13 @@ const flagLabels: Record<FlagType, string> = {
   repeated_noncompliance: '약속 불이행 반복',
 };
 const actionOwnerLabels: Record<ActionOwner, string> = {
-  counselor: '상담사',
-  beneficiary: '참여자',
+  counselor: '실무자',
+  beneficiary: '당사자',
   org: '기관',
 };
 const flagSourceLabels: Record<FlagSource, string> = {
   ai: 'AI 제안',
-  counselor: '상담사 기록',
+  counselor: '실무자 기록',
 };
 const flagReviewStatusLabels: Record<FlagReviewStatus, string> = {
   confirmed: '확인됨',
@@ -176,7 +176,7 @@ function GoalContext({ goals }: { goals: SupportCaseRecordGoal[] }) {
   return <aside className="note" aria-labelledby="record-goals-title">
     <div>
       <h2 id="record-goals-title">읽기 전용 목표</h2>
-      <p>상담 기록에서 목표를 만들거나 바꾸지 않습니다. 각 기록의 GAS는 아래 목표를 기준으로 상담사가 직접 남깁니다.</p>
+      <p>상담 기록에서 목표를 만들거나 바꾸지 않습니다. 각 기록의 GAS는 아래 목표를 기준으로 실무자가 직접 남깁니다.</p>
       {goals.length === 0 ? <p>등록된 목표가 없습니다.</p> : <ul>{goals.map((goal) => <li key={goal.id}>{goal.title} <span className="panel-meta">{goalStatusLabel(goal.status)}</span></li>)}</ul>}
     </div>
   </aside>;
@@ -244,12 +244,12 @@ export default async function RecordHistoryPage({
 
   return <main className="page-content">
     <nav className="breadcrumb" aria-label="현재 위치">
-      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>참여자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${basePath}/briefing`}>참여 사업</Link><span>/</span><strong>상담 기록</strong>
+      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>당사자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${basePath}/briefing`}>참여 사업</Link><span>/</span><strong>상담 기록</strong>
     </nav>
     <header className="page-header">
       <div>
         <h1>상담 기록</h1>
-        <p>참여자 ID {beneficiaryId ?? '확인 불가'}의 참여 사업 상담 기록입니다. 수기 메모는 서버 저장이 확인되는 즉시 공식 기록입니다.</p>
+        <p>당사자 ID {beneficiaryId ?? '확인 불가'}의 참여 사업 상담 기록입니다. 수기 메모는 서버 저장이 확인되는 즉시 공식 기록입니다.</p>
       </div>
       {beneficiaryId === null || supportCaseId === null ? null : <div className="page-actions">
         {result.data !== null && !hasIntake ? <WireButton variant="secondary" href={`${basePath}/records/intake`}>인테이크 작성</WireButton> : null}

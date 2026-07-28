@@ -10,8 +10,8 @@ import {
 } from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
 
-// 관리자 영역(재개편 T8, #38): 상담사별 활성 배정 참여자 조회(실명·감사)와 공동 담당 추가(D7).
-// 담당자 중심 접근(ADR-0002)·역할 기준 실명 표시(D24·ADR-0005)를 게이트웨이·라우트 두 층에서 검증한다.
+// 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 조회(실명·감사)와 공동 담당 추가(D7).
+// 담당 실무자 중심 접근(ADR-0002)·역할 기준 실명 표시(D24·ADR-0005)를 게이트웨이·라우트 두 층에서 검증한다.
 
 const t = setupD1();
 
@@ -89,7 +89,7 @@ describe('listCounselorAssignments (gateway)', () => {
 
   it('does not cross organization boundaries', async () => {
     await seedAssignedParticipant();
-    // 다른 조직 관리자에게는 이 조직 상담사가 존재하지 않는다(ForbiddenError).
+    // 다른 기관 관리자에게는 이 기관 실무자가 존재하지 않는다(ForbiddenError).
     await expect(
       listCounselorAssignments(t.env, testActors.otherOrgAdmin, testActors.counselor.userId),
     ).rejects.toBeInstanceOf(ForbiddenError);

@@ -10,7 +10,7 @@
  *       다른 파일에서 env.DB.prepare 직접 호출 금지 (Guard Hook이 커밋 차단).
  *   공통 계약 — 모든 공개 함수는 내부에서 반드시:
  *     1. org_id 일치 검사 (D1: 멀티테넌트 대비)
- *     2. 접근 권한 검사 (D7: 관리자이거나 case_assignees 활성 담당자)
+ *     2. 접근 권한 검사 (D7: 관리자이거나 case_assignees 활성 담당 실무자)
  *     3. audit_log 기록 (D14: 열람 포함 전부, append-only)
  *   을 수행한다. 조회 함수는 추가로:
  *     4. R2 승인 필터 — approved_at이 NULL인 AI 산출물(ai_*)은
@@ -47,8 +47,8 @@ export interface Env {
 // ── 호출자(Actor) ───────────────────────────────────────────────────────────
 
 export type Role =
-  | 'admin'      // 관리자: 조직 내 전체 케이스 + PII 복호화 권한
-  | 'counselor'  // 상담사: 자기 담당 케이스만 (case_assignees 활성 행 기준, D7)
+  | 'admin'      // 관리자: 기관 내 전체 케이스 + PII 복호화 권한
+  | 'counselor'  // 실무자: 자기 담당 케이스만 (case_assignees 활성 행 기준, D7)
   | 'service';   // Mac Mini 파이프라인 (Access 서비스 토큰, D13):
                  // ingest 계열 함수만 호출 가능, 그 외 전부 거부
 
@@ -1102,7 +1102,7 @@ async function getFlagForOrg(env: Env, orgId: string, flagId: string): Promise<F
 
 /**
  * 여러 목표를 한 번에 조회해 goalId → caseId 맵으로 반환한다 (N+1 방지).
- * 반환에 없는 goalId는 조직에 존재하지 않는 것으로, 호출부가 ForbiddenError를 던진다.
+ * 반환에 없는 goalId는 기관에 존재하지 않는 것으로, 호출부가 ForbiddenError를 던진다.
  */
 async function goalCaseMap(env: Env, orgId: string, goalIds: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(goalIds)].filter((id) => id.length > 0);
@@ -1577,7 +1577,7 @@ export interface ContrastResult {
 export interface GasScore {
   sessionId: string;
   goalId: string;
-  score: -2 | -1 | 0 | 1 | 2;   // 상담사가 직접 매김 (D6)
+  score: -2 | -1 | 0 | 1 | 2;   // 실무자가 직접 매김 (D6)
   evidenceQuote: string | null;  // AI 발췌 제안 (D6)
   scoredBy: string;
 }
@@ -1623,7 +1623,7 @@ export interface Briefing {
   } | null;
   /** 3. 미해결 액션 아이템 */
   openActionItems: ActionItem[];
-  /** 4. 리스크 플래그 (화면 최우선 배치) — 상담사 생성 또는 confirmed만 (미검토 AI 제안 제외) */
+  /** 4. 리스크 플래그 (화면 최우선 배치) — 실무자 생성 또는 confirmed만 (미검토 AI 제안 제외) */
   flags: Flag[];
   /** 5. 오늘 확인할 질문 2~3개 (AI 생성, 승인된 기록만 입력으로 사용) */
   questions: string[];
@@ -1638,7 +1638,7 @@ export interface PipelineJob {
 }
 
 /**
- * D8 파이프라인 폴링 건강도. 조직 1개 기준.
+ * D8 파이프라인 폴링 건강도. 기관 1개 기준.
  *  - lastPolledAt: 가장 최근 poll_pipeline 감사 시각(ISO, UTC). 폴링 기록이 없으면 null.
  *  - pendingJobCount: 오디오가 등록됐지만 아직 처리 안 된 세션 수(uploaded|processing).
  *  - status:
@@ -3684,7 +3684,7 @@ export async function createCase(
 
 /**
  * 케이스 단건 조회. PII는 포함하지 않는다(revealPii 별도).
- * 권한: 담당자 | admin (D7). 감사: read.
+ * 권한: 담당 실무자 | admin (D7). 감사: read.
  */
 export async function getCase(env: Env, actor: Actor, caseId: string): Promise<Case> {
   const record = await assertCaseAccess(env, actor, caseId);
@@ -3693,7 +3693,7 @@ export async function getCase(env: Env, actor: Actor, caseId: string): Promise<C
 }
 
 /**
- * 케이스 목록. counselor는 자기 담당 활성 케이스만, admin은 조직 전체.
+ * 케이스 목록. counselor는 자기 담당 활성 케이스만, admin은 기관 전체.
  * 감사: read (목록 단위 1건).
  */
 export async function listCases(
@@ -3851,7 +3851,7 @@ export async function purgePii(env: Env, actor: Actor, caseId: string): Promise<
  * 파기 예정일이 지난 미파기 PII를 SELECT한다(공통 조회).
  * 조건: 종결됐고(closed_at), purge_due가 있고 현재 시각 이하이며, 아직 파기 안 됨
  * (pii_vault.purged_at IS NULL). purge_due·now는 둘 다 toISOString(UTC, 동일 포맷)이라
- * 문자열 사전순 비교가 곧 시간순 비교다. orgId를 주면 그 조직으로 한정한다.
+ * 문자열 사전순 비교가 곧 시간순 비교다. orgId를 주면 그 기관으로 한정한다.
  */
 async function selectDuePii(
   env: Env,
@@ -3926,7 +3926,7 @@ async function purgeDuePii(env: Env, actor: Actor, orgId: string | undefined): P
 }
 
 /**
- * 전 조직 자동 파기 (D10). scheduled(cron) 핸들러 전용 내부 진입점 — HTTP 행위자 없음.
+ * 전 기관 자동 파기 (D10). scheduled(cron) 핸들러 전용 내부 진입점 — HTTP 행위자 없음.
  * 안전성 근거: scheduled 핸들러에서만 호출하고, 파기 대상은 purge_due 경과분으로 한정되며,
  * 각 파기가 append-only 감사(purge_pii, actor_id='system:purge')를 남긴다.
  */
@@ -3935,7 +3935,7 @@ export async function purgeExpiredPii(env: Env): Promise<{ purgedCaseIds: string
 }
 
 /**
- * 관리자 수동 파기 실행 (D10). 권한: admin 전용, 자기 조직 경과분만.
+ * 관리자 수동 파기 실행 (D10). 권한: admin 전용, 자기 기관 경과분만.
  * 감사: 케이스별 purge_pii(행위자=요청 관리자).
  */
 export async function purgeExpiredPiiAsAdmin(env: Env, actor: Actor): Promise<{ purgedCaseIds: string[] }> {
@@ -3945,7 +3945,7 @@ export async function purgeExpiredPiiAsAdmin(env: Env, actor: Actor): Promise<{ 
 
 /**
  * 파기 예정 미리보기 (D10). 실제 파기 없이 대상 케이스만 나열한다.
- * 권한: admin 전용, 자기 조직. 감사: read(pii_vault, 미리보기 표시).
+ * 권한: admin 전용, 자기 기관. 감사: read(pii_vault, 미리보기 표시).
  */
 export async function previewExpiredPii(env: Env, actor: Actor): Promise<Array<{ caseId: string; purgeDue: string }>> {
   assertAdmin(actor);
@@ -3959,11 +3959,11 @@ export async function previewExpiredPii(env: Env, actor: Actor): Promise<Array<{
 }
 
 // ============================================================================
-// 담당자 (case_assignees) — D7
+// 담당 실무자 (case_assignees) — D7
 // ============================================================================
 
 /**
- * 담당자 배정 (공동 담당 포함). 권한: admin. 감사: assign.
+ * 담당 실무자 배정 (공동 담당 포함). 권한: admin. 감사: assign.
  */
 export async function assignCase(
   env: Env,
@@ -4044,7 +4044,7 @@ export async function unassignCase(
   }
 }
 
-/** 담당자 목록(이력 포함 옵션). 권한: 담당자 | admin. 감사: read. */
+/** 담당 실무자 목록(이력 포함 옵션). 권한: 담당 실무자 | admin. 감사: read. */
 export async function listAssignees(
   env: Env,
   actor: Actor,
@@ -4072,7 +4072,7 @@ export async function listAssignees(
 
 /**
  * 목표 신설. 활성 목표가 MAX_ACTIVE_GOALS(3개) 이상이면 거부.
- * 권한: 담당자 | admin. 감사: create.
+ * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function createGoal(
   env: Env,
@@ -4126,7 +4126,7 @@ export async function createGoal(
  * 목표 종료 (D12: 문구 수정 대신 종료+신설). 사유 필수.
  * successor를 주면 신규 목표를 같은 트랜잭션으로 만들고
  * replaced_by_goal_id로 연결한다(GAS 이력 연속성).
- * 권한: 담당자 | admin. 감사: close (+ 신설 시 create).
+ * 권한: 담당 실무자 | admin. 감사: close (+ 신설 시 create).
  */
 export async function closeGoal(
   env: Env,
@@ -4195,7 +4195,7 @@ export async function closeGoal(
   };
 }
 
-/** 목표 목록(종료 포함 — GAS 추이 그래프용). 권한: 담당자 | admin. 감사: read. */
+/** 목표 목록(종료 포함 — GAS 추이 그래프용). 권한: 담당 실무자 | admin. 감사: read. */
 export async function listGoals(env: Env, actor: Actor, caseId: string): Promise<Goal[]> {
   assertHuman(actor);
   await assertCaseAccess(env, actor, caseId);
@@ -4299,7 +4299,7 @@ export async function assertRecordingUploadAllowed(
  * 이미 승인된 세션은 재등록할 수 없다(승인된 공식 기록 보호, R2).
  * 미승인 세션을 재등록하면 이전 실행의 AI 산출물(전사·요약·대조·감정·화자 확인·
  * ai_gas_evidence·검토 전 AI 플래그)을 함께 비워 새 실행과 섞이지 않게 한다.
- * 권한: 담당자 | admin. 감사: update.
+ * 권한: 담당 실무자 | admin. 감사: update.
  */
 export async function registerRecording(
   env: Env,
@@ -4362,7 +4362,7 @@ export async function registerRecording(
              )
          )`,
     ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
-    // 검토 전(pending) AI 플래그만 제거 — 상담사가 이미 확정/기각한 판단은 보존 (D9).
+    // 검토 전(pending) AI 플래그만 제거 — 실무자가 이미 확정/기각한 판단은 보존 (D9).
     env.DB.prepare(
       `DELETE FROM flags
        WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'
@@ -4464,7 +4464,7 @@ export async function getPipelineAudioKey(
 // ============================================================================
 
 /**
- * 한 조직의 폴링 건강도를 계산한다(감사 미기록 — 호출부가 감사 정책을 정한다).
+ * 한 기관의 폴링 건강도를 계산한다(감사 미기록 — 호출부가 감사 정책을 정한다).
  * 데이터 원천: audit_log의 최신 poll_pipeline 시각(listPipelineJobs가 남긴다) +
  * 처리 대기 세션 수. lastPolledAt은 SQLite datetime 형식이라 UTC로 파싱해 비교한다.
  */
@@ -4508,7 +4508,7 @@ async function computePipelineHealth(env: Env, orgId: string, thresholdHours: nu
 }
 
 /**
- * 폴링 건강도 조회(관리자 화면용, D8). 권한: admin 전용, 자기 조직만.
+ * 폴링 건강도 조회(관리자 화면용, D8). 권한: admin 전용, 자기 기관만.
  * 감사: read(pipeline_health).
  */
 export async function getPipelineHealth(env: Env, actor: Actor): Promise<PipelineHealth> {
@@ -4523,10 +4523,10 @@ export async function getPipelineHealth(env: Env, actor: Actor): Promise<Pipelin
 }
 
 /**
- * 전 조직 폴링 워치독 (D8). scheduled(cron) 핸들러 전용 내부 진입점 —
+ * 전 기관 폴링 워치독 (D8). scheduled(cron) 핸들러 전용 내부 진입점 —
  * HTTP 행위자가 없다. 안전성 근거: (1) scheduled 핸들러에서만 호출하고,
  * (2) 세션·감사 조회만 하는 읽기 전용이며, (3) 남기는 유일한 쓰기는 append-only
- * 감사 행(watchdog_check)뿐이다. 조직별 건강도를 계산·감사하고 배열로 돌려준다.
+ * 감사 행(watchdog_check)뿐이다. 기관별 건강도를 계산·감사하고 배열로 돌려준다.
  * 알림 발송 판단(stale)은 호출부(Workers scheduled 핸들러)가 한다 —
  * gateway는 D1만 만지고 알림 채널은 건드리지 않는다 (R1 정신).
  */
@@ -4555,8 +4555,8 @@ export async function runPipelineWatchdog(env: Env): Promise<PipelineHealth[]> {
 }
 
 /**
- * 화자 매핑 확인 (D11: 자동 추정 → 상담사 1회 확인).
- * 권한: 담당자 | admin. 감사: update.
+ * 화자 매핑 확인 (D11: 자동 추정 → 실무자 1회 확인).
+ * 권한: 담당 실무자 | admin. 감사: update.
  */
 export async function confirmSpeakerMapping(
   env: Env,
@@ -4575,10 +4575,10 @@ export async function confirmSpeakerMapping(
 /**
  * 세션 승인 (R2: 승인 = 정합성 검증). 전제 조건을 모두 검사한다:
  *   - ai_status='review_ready' 이고 화자 매핑 확인 완료 (D11)
- *   - 대조 3종 각 항목에 대한 상담사 처리 결과(resolutions)가 제출됨
+ *   - 대조 3종 각 항목에 대한 실무자 처리 결과(resolutions)가 제출됨
  *   - GAS 점수는 recordGasScores로 먼저 저장됨 (D6)
  * 통과 시 approved_at/approved_by 기록 → 이후 브리핑·통계에 반영.
- * 권한: 담당자 | admin. 감사: approve.
+ * 권한: 담당 실무자 | admin. 감사: approve.
  */
 export async function approveSession(
   env: Env,
@@ -4700,7 +4700,7 @@ export async function approveSession(
 
 /**
  * 세션 단건 조회. 검토 화면용 — 미승인 ai_* 포함해 반환하되
- * aiStatus로 초안임이 드러난다. 권한: 담당자 | admin. 감사: read.
+ * aiStatus로 초안임이 드러난다. 권한: 담당 실무자 | admin. 감사: read.
  */
 export async function getSession(env: Env, actor: Actor, sessionId: string): Promise<Session> {
   const session = await assertSessionAccess(env, actor, sessionId);
@@ -4737,7 +4737,7 @@ export async function getSession(env: Env, actor: Actor, sessionId: string): Pro
 /**
  * 세션 목록. official=true(기본)면 R2 필터 적용 —
  * 미승인 세션은 ai_* 필드를 비워서(null) 반환한다(수기 memo는 항상 포함, D5).
- * 권한: 담당자 | admin. 감사: read.
+ * 권한: 담당 실무자 | admin. 감사: read.
  */
 export async function listSessions(
   env: Env,
@@ -4772,7 +4772,7 @@ export async function listSessions(
  * 브리핑 조회 (CLAUDE.md 6장 — 상담 5분 전 한 화면).
  * R2: 승인된 AI 산출물만 사용. 승인된 요약이 없으면 수기 메모 폴백 +
  * pendingApprovalCount 배지 (D5). 감정은 이 응답에 문장으로 넣지 않는다 (R4).
- * 권한: 담당자 | admin. 감사: read(briefing).
+ * 권한: 담당 실무자 | admin. 감사: read(briefing).
  */
 export async function getBriefing(env: Env, actor: Actor, caseId: string): Promise<Briefing> {
   assertHuman(actor);
@@ -4826,7 +4826,7 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
        WHERE action_item.org_id = ? AND action_item.support_case_id = ? AND action_item.resolved_at IS NULL
        ORDER BY action_item.due_date, action_item.created_at`,
     ).bind(actor.orgId, context.supportCaseId).all<DbRow>(),
-    // 브리핑에는 상담사가 만든 플래그 또는 상담사가 확정(confirmed)한 AI 플래그만 싣는다.
+    // 브리핑에는 실무자가 만든 플래그 또는 실무자가 확정(confirmed)한 AI 플래그만 싣는다.
     // 검토 전 AI 제안(pending)은 사실 확정 전이므로 제외한다 — 검토 화면(listFlags)에만 나온다.
     env.DB.prepare(
       `SELECT flag.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
@@ -4872,9 +4872,9 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
 // ============================================================================
 
 /**
- * GAS 점수 기록. scored_by는 항상 사람(상담사) — service 역할은 호출 불가 (D6).
+ * GAS 점수 기록. scored_by는 항상 사람(실무자) — service 역할은 호출 불가 (D6).
  * AI가 제안한 근거 발췌(evidenceQuote)는 함께 저장할 수 있다.
- * 권한: 담당자 | admin. 감사: create.
+ * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function recordGasScores(
   env: Env,
@@ -4932,7 +4932,7 @@ export async function recordGasScores(
 // 액션 아이템 (action_items)
 // ============================================================================
 
-/** 액션 아이템 생성. 권한: 담당자 | admin. 감사: create. */
+/** 액션 아이템 생성. 권한: 담당 실무자 | admin. 감사: create. */
 export async function createActionItem(
   env: Env,
   actor: Actor,
@@ -4985,7 +4985,7 @@ export async function createActionItem(
   return action;
 }
 
-/** 액션 아이템 해결 처리. 권한: 담당자 | admin. 감사: update. */
+/** 액션 아이템 해결 처리. 권한: 담당 실무자 | admin. 감사: update. */
 export async function resolveActionItem(
   env: Env,
   actor: Actor,
@@ -5002,7 +5002,7 @@ export async function resolveActionItem(
   return { ...action, resolvedAt };
 }
 
-/** 미해결 액션 아이템 목록 (브리핑 3번). 권한: 담당자 | admin. 감사: read. */
+/** 미해결 액션 아이템 목록 (브리핑 3번). 권한: 담당 실무자 | admin. 감사: read. */
 export async function listOpenActionItems(
   env: Env,
   actor: Actor,
@@ -5027,9 +5027,9 @@ export async function listOpenActionItems(
 // ============================================================================
 
 /**
- * 상담사 직접 플래그 생성 (source='counselor', 생성 즉시 confirmed).
+ * 실무자 직접 플래그 생성 (source='counselor', 생성 즉시 confirmed).
  * AI 제안 플래그는 ingestSessionArtifacts 경유로만 들어온다(quote 필수).
- * 권한: 담당자 | admin. 감사: create.
+ * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function createFlag(
   env: Env,
@@ -5082,7 +5082,7 @@ export async function createFlag(
 /**
  * AI 제안 플래그 확인 — 맞음(confirmed)/틀림(rejected) (D9).
  * rejected도 삭제하지 않고 보존한다(분기별 적중률 점검 루프의 데이터).
- * 권한: 담당자 | admin. 감사: update.
+ * 권한: 담당 실무자 | admin. 감사: update.
  */
 export async function reviewFlag(
   env: Env,
@@ -5108,7 +5108,7 @@ export async function reviewFlag(
   return { ...flag, reviewStatus: verdict, reviewedBy: actor.userId, reviewedAt };
 }
 
-/** 플래그 목록. 기본은 rejected 제외. 권한: 담당자 | admin. 감사: read. */
+/** 플래그 목록. 기본은 rejected 제외. 권한: 담당 실무자 | admin. 감사: read. */
 export async function listFlags(
   env: Env,
   actor: Actor,
@@ -5200,7 +5200,7 @@ export async function listAuditLog(
 
 /**
  * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
- * R2: 승인된 기록만 포함. 권한: 담당자 | admin. 감사: export (D14).
+ * R2: 승인된 기록만 포함. 권한: 담당 실무자 | admin. 감사: export (D14).
  */
 export async function exportCase(
   env: Env,
@@ -5292,8 +5292,8 @@ async function getUserForOrg(env: Env, orgId: string, userId: string): Promise<U
 }
 
 /**
- * 조직에 '이 사용자 말고' 활성 관리자가 하나도 없으면 거부한다.
- * 마지막 활성 관리자를 강등·비활성화해 조직이 관리자 없는 상태가 되는 것을 막는다.
+ * 기관에 '이 사용자 말고' 활성 관리자가 하나도 없으면 거부한다.
+ * 마지막 활성 관리자를 강등·비활성화해 기관이 관리자 없는 상태가 되는 것을 막는다.
  */
 async function assertNotLastActiveAdmin(env: Env, orgId: string, excludeUserId: string): Promise<void> {
   const row = await env.DB.prepare(
@@ -5315,7 +5315,7 @@ async function assertNotLastActiveAdmin(env: Env, orgId: string, excludeUserId: 
  *      즉 위조 불가능한 신원에 대한 디렉터리 행 1건만 되돌린다.
  *   2. 반환값은 PII가 아니라 {id, org_id, role}뿐이고, email은 이미 호출부가 아는 값이다.
  *   3. 이후 이 행으로 만들어진 Actor의 모든 gateway 호출은 정상적으로 org·권한·감사를 거친다.
- *   4. 이메일은 전역 UNIQUE라 결과가 0 또는 1건이며 교차 조직 노출이 없다.
+ *   4. 이메일은 전역 UNIQUE라 결과가 0 또는 1건이며 교차 기관 노출이 없다.
  * 따라서 여기서 별도 감사를 남기지 않는다(인증 전 단계, 행위자 없음).
  */
 export async function findUserByEmail(env: Env, email: string): Promise<User | null> {
@@ -5325,7 +5325,7 @@ export async function findUserByEmail(env: Env, email: string): Promise<User | n
   return row === null ? null : mapUser(row);
 }
 
-/** 사용자 디렉터리 목록. 권한: admin 전용, 자기 조직만. 감사: read(users). */
+/** 사용자 디렉터리 목록. 권한: admin 전용, 자기 기관만. 감사: read(users). */
 export async function listUsers(env: Env, actor: Actor): Promise<User[]> {
   assertAdmin(actor);
   const result = await env.DB.prepare('SELECT * FROM users WHERE org_id = ? ORDER BY email')
@@ -5338,11 +5338,11 @@ export async function listUsers(env: Env, actor: Actor): Promise<User[]> {
 /**
  * 사용자 프로비저닝(생성 또는 역할 갱신). email이 신원 키(전역 UNIQUE)다.
  *   - 신규(이메일 없음): userId를 주면 그 값을, 없으면 UUID를 id로 써 활성 상태로 만든다.
- *   - 기존(같은 조직): 역할을 갱신하고 active=1로 재활성화한다(프로비저닝 = 활성 보장).
+ *   - 기존(같은 기관): 역할을 갱신하고 active=1로 재활성화한다(프로비저닝 = 활성 보장).
  *     이때 userId 인자는 무시한다(이메일이 이미 신원을 특정한다).
  *   - 마지막 활성 관리자를 admin이 아닌 역할로 강등하려 하면 거부한다.
- *   - 다른 조직 소속 이메일은 건드릴 수 없다(ForbiddenError).
- * 권한: admin 전용, 자기 조직만. 감사: create 또는 update(users).
+ *   - 다른 기관 소속 이메일은 건드릴 수 없다(ForbiddenError).
+ * 권한: admin 전용, 자기 기관만. 감사: create 또는 update(users).
  */
 export async function upsertUser(
   env: Env,
@@ -5388,8 +5388,8 @@ export async function upsertUser(
 /**
  * 사용자 비활성화(디렉터리에서 접근 차단). 행을 지우지 않고 active=0으로 기록한다.
  * 가드: 자기 자신은 비활성화 불가, 마지막 활성 관리자도 비활성화 불가
- * (관리자 없는 조직 방지 + 자기 축출로 인한 잠금 방지).
- * 권한: admin 전용, 자기 조직만. 감사: update(users).
+ * (관리자 없는 기관 방지 + 자기 축출로 인한 잠금 방지).
+ * 권한: admin 전용, 자기 기관만. 감사: update(users).
  */
 export async function deactivateUser(env: Env, actor: Actor, userId: string): Promise<User> {
   assertAdmin(actor);
@@ -5409,8 +5409,8 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string): Pr
 
 /**
  * 로그인한 본인의 디렉터리 정보(이메일·역할)를 조회한다. 설정 화면의 '내 계정' 섹션이 쓴다.
- * 권한: 인증된 본인(역할 무관) — org_id 일치로 자기 조직 자기 행만 읽는다. 감사: read(users, self).
- * 관리자 전용이 아니므로 담당자(counselor)도 자기 신원은 확인할 수 있다.
+ * 권한: 인증된 본인(역할 무관) — org_id 일치로 자기 기관 자기 행만 읽는다. 감사: read(users, self).
+ * 관리자 전용이 아니므로 담당 실무자(counselor)도 자기 신원은 확인할 수 있다.
  */
 export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
   const user = await getUserForOrg(env, actor.orgId, actor.userId);
@@ -5425,7 +5425,7 @@ export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
  * **본인 행만 쓴다** — actor.userId 로 잠겨 있어 남의 설정을 바꿀 경로가 없다.
  * 서비스 토큰은 화면이 없으므로 사람만 허용한다.
  *
- * **감사를 남기지 않는다.** D14가 기록하라고 정한 것은 참여자·케이스 기록의 열람·변경·
+ * **감사를 남기지 않는다.** D14가 기록하라고 정한 것은 당사자·케이스 기록의 열람·변경·
  * PII 복호화·내보내기다. 본인 UI 설정을 화면 이동마다 남기면 감사 로그가 내비게이션
  * 흔적으로 덮여 "누가 누구의 PII를 봤나"를 찾기 어려워진다 — 감사의 목적을 해친다.
  * 근거는 migrations/0017 주석에도 적어 두었다.
@@ -5503,6 +5503,8 @@ export interface SupportCase {
   intakeAt: string | null;
   consentRecordingAt: string | null;
   consentTextAiAt: string | null;
+  /** 개인정보 수집·이용 동의 시각 (D44 · 0020). NULL = 미동의. 게이트가 아니라 현재 상태다. */
+  consentPrivacyAt: string | null;
   closedAt: string | null;
   closedReason: string | null;
   creationKind: 'legacy_import' | 'initial' | 'subsequent';
@@ -5593,6 +5595,7 @@ function mapSupportCase(row: DbRow): SupportCase {
     intakeAt: nullableString(row.intake_at),
     consentRecordingAt: nullableString(row.consent_recording_at),
     consentTextAiAt: nullableString(row.consent_text_ai_at),
+    consentPrivacyAt: nullableString(row.consent_privacy_at),
     closedAt: nullableString(row.closed_at),
     closedReason: nullableString(row.closed_reason),
     creationKind: canonicalCreationKind(row.creation_kind),
@@ -5982,11 +5985,11 @@ function conditionalCanonicalAuditStatement(
 /**
  * 신규 가명 ID 발급 — 동물 슬러그 + 동물별 순차번호 (D20 · ADR-0004 · 티켓 #11).
  *
- * - 동물 선택: 조직 내 슬러그 발급 수 기반 라운드로빈. 결정론적이라 검증 가능하고
+ * - 동물 선택: 기관 내 슬러그 발급 수 기반 라운드로빈. 결정론적이라 검증 가능하고
  *   동물 풀을 균등하게 소진하며, 동시 생성 충돌 시 재시도가 다음 동물로 전진한다.
- * - 순번: 동물별·조직별 최대값 + 1 (3자리 제로패딩). id는 전역 PRIMARY KEY라
- *   다른 조직이 이미 선점한 번호는 전역 최대값 + 1로 건너뛴다 — 조직 내 단조
- *   증가는 유지되고 결번만 생긴다(현 단일 조직 배치에서는 발생하지 않음).
+ * - 순번: 동물별·기관별 최대값 + 1 (3자리 제로패딩). id는 전역 PRIMARY KEY라
+ *   다른 기관이 이미 선점한 번호는 전역 최대값 + 1로 건너뛴다 — 기관 내 단조
+ *   증가는 유지되고 결번만 생긴다(현 단일 기관 배치에서는 발생하지 않음).
  * - 남는 동시성 충돌은 호출부의 UNIQUE 재시도 루프(F7)가 흡수한다.
  */
 async function allocateBeneficiaryId(env: Env, orgId: string): Promise<string> {
@@ -6036,15 +6039,22 @@ export interface CreateBeneficiaryWithInitialSupportCaseInput {
   name?: string | null;
   phone?: string | null;
   email?: string | null;
+  // D41 1-1·D42 ①: 생년월일·주소(거주지역)·성별도 등록 화면이 받아 금고에 넣는다. 인테이크
+  // 화면은 이 값을 읽어 표시만 한다 — 세션 기록에는 남지 않는다(R3). 컬럼은 0015 재사용.
+  birthDate?: string | null;
+  region?: string | null;
+  gender?: string | null;
 }
 
 /**
- * 참여자 등록 시 항목별 동의(녹음·텍스트 AI 분리, D15·D23). 기본은 미동의(false)이며,
+ * 당사자 등록 시 항목별 동의 3종(개인정보·녹음·텍스트 AI 분리, D15·D23·D44). 기본은 미동의(false)이며,
  * 미동의여도 등록은 진행된다(D15 미동의 경로). 동의한 항목은 등록 시각을
  * support_cases.consent_*_at(파이프라인 게이트) + participant_consent_records(기록자·일시)에
  * 함께 남긴다.
  */
 export interface ParticipantConsentInput {
+  /** 개인정보 수집·이용 동의 (D44). 등록 화면의 첫 체크. 생략은 미동의(false)로 읽는다. */
+  privacy?: boolean;
   recording: boolean;
   textAi: boolean;
 }
@@ -6192,13 +6202,15 @@ export async function createBeneficiaryWithInitialSupportCase(
     ? ['programType', 'intakeAt', 'initialAssigneeUserId']
     : ['programType', 'intakeAt'];
   // 이름·연락처·이메일은 선택 항목이므로 값이 있을 때만 허용 키에 넣는다(기존 등록 호출은 그대로).
-  const optionalPiiKeys = (['name', 'phone', 'email'] as const).filter((key) => input[key] !== undefined);
+  const optionalPiiKeys = (['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const)
+    .filter((key) => input[key] !== undefined);
   assertExactKeys(input, [...expectedKeys, ...optionalPiiKeys]);
   assertFinancialSupportProgramType(input.programType);
   for (const key of optionalPiiKeys) {
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
+  if (input.birthDate !== undefined && input.birthDate !== null) assertDateOnly(input.birthDate);
   const intakeAt = legacyCompatibility === undefined
     ? canonicalUtcInstant(input.intakeAt, 'intake time')
     : legacyCompatibility.intakeAt;
@@ -6217,6 +6229,15 @@ export async function createBeneficiaryWithInitialSupportCase(
   const encEmail = input.email === undefined || input.email === null
     ? null
     : await encryptPii(env, input.email);
+  const encBirthDate = input.birthDate === undefined || input.birthDate === null
+    ? null
+    : await encryptPii(env, input.birthDate);
+  const encRegion = input.region === undefined || input.region === null
+    ? null
+    : await encryptPii(env, input.region);
+  const encGender = input.gender === undefined || input.gender === null
+    ? null
+    : await encryptPii(env, input.gender);
 
   const effectiveAssigneeUserId = actor.role === 'counselor'
     ? actor.userId
@@ -6239,6 +6260,8 @@ export async function createBeneficiaryWithInitialSupportCase(
     const consentTextAiAt = consent?.textAi === true
       ? createdAt
       : (legacyCompatibility?.consentTextAiAt ?? null);
+    // D44: 개인정보 동의는 레거시 호환 경로에 대응 입력이 없다 — 등록 폼 값만이 근거다.
+    const consentPrivacyAt = consent?.privacy === true ? createdAt : null;
     const consentRecordId = consent === undefined ? null : newId();
     try {
       const statements: D1PreparedStatement[] = [
@@ -6249,15 +6272,20 @@ export async function createBeneficiaryWithInitialSupportCase(
         ).bind(beneficiaryId, actor.orgId, createdAt, createdAt),
         env.DB.prepare(
           `INSERT INTO participant_pii_vault (
-             beneficiary_id, org_id, enc_name, enc_phone, enc_email, key_version, version,
+             beneficiary_id, org_id, enc_name, enc_phone, enc_email,
+             enc_birth_date, enc_region, enc_gender, key_version, version,
              retention_change_kind, retention_changed_at, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 1, 'create', ?, ?, ?)`,
-        ).bind(beneficiaryId, actor.orgId, encName, encPhone, encEmail, piiKeyVersion, createdAt, createdAt, createdAt),
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'create', ?, ?, ?)`,
+        ).bind(
+          beneficiaryId, actor.orgId, encName, encPhone, encEmail,
+          encBirthDate, encRegion, encGender, piiKeyVersion, createdAt, createdAt, createdAt,
+        ),
         env.DB.prepare(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
-             consent_recording_at, consent_text_ai_at, creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, 'initial', ?, ?)`,
+             consent_recording_at, consent_text_ai_at, consent_privacy_at,
+             creation_kind, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           actor.orgId,
@@ -6267,6 +6295,7 @@ export async function createBeneficiaryWithInitialSupportCase(
           intakeAt,
           consentRecordingAt,
           consentTextAiAt,
+          consentPrivacyAt,
           createdAt,
           createdAt,
         ),
@@ -6308,18 +6337,18 @@ detail: { role: 'primary', initial: true },
            WHERE id = ? AND org_id = ? AND initialization_state = 'pending'`,
         ).bind(createdAt, beneficiaryId, actor.orgId),
       ];
-      // 참여자 완료 전환(위 UPDATE)의 changes 검사를 위해 인덱스를 고정한다.
+      // 당사자 완료 전환(위 UPDATE)의 changes 검사를 위해 인덱스를 고정한다.
       const completionIndex = statements.length - 1;
       // 동의 기록은 반드시 완료 전환 '이후'에 넣는다. beneficiaries_complete_guard 가
-      // 그 시점에 참여자 감사 로그를 정확히 3건으로 요구하므로(D15·D23 · 0007), record_consent
+      // 그 시점에 당사자 감사 로그를 정확히 3건으로 요구하므로(D15·D23 · 0007), record_consent
       // 감사(4번째 beneficiary_id 행)는 가드 통과 뒤에 쌓여야 한다.
       if (consent !== undefined && consentRecordId !== null) {
         statements.push(
           env.DB.prepare(
             `INSERT INTO participant_consent_records (
                id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-               consent_text_ai_at, recorded_by, recorded_at, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             consentRecordId,
             actor.orgId,
@@ -6327,6 +6356,7 @@ detail: { role: 'primary', initial: true },
             supportCaseId,
             consentRecordingAt,
             consentTextAiAt,
+            consentPrivacyAt,
             actor.userId,
             createdAt,
             createdAt,
@@ -6337,7 +6367,7 @@ detail: { role: 'primary', initial: true },
             targetId: consentRecordId,
             beneficiaryId,
             supportCaseId,
-            detail: { recording: consent.recording, textAi: consent.textAi },
+            detail: { privacy: consent.privacy === true, recording: consent.recording, textAi: consent.textAi },
             caseId: legacyCaseId,
           }),
         );
@@ -6359,6 +6389,97 @@ detail: { role: 'primary', initial: true },
     }
   }
   throw finalError instanceof Error ? finalError : new ConflictError('participant creation conflicted');
+}
+
+/** 동의 3종의 현재 상태 + 마지막 기록 정보 (D44). 화면은 이 값으로 체크 상태를 그린다. */
+export interface ParticipantConsentState {
+  supportCaseId: string;
+  privacy: boolean;
+  recording: boolean;
+  textAi: boolean;
+  /** 마지막으로 동의 상태를 기록한 시각. 한 번도 기록한 적 없으면 null. */
+  recordedAt: string | null;
+}
+
+/**
+ * 당사자 정보 페이지에서 동의 3종을 고친다 (D44 · 2026-07-29 Q 결정).
+ *
+ * **권한**: 이 참여 사업의 담당 실무자 또는 기관 관리자만 — 등록과 같은 층이다.
+ * `assertSupportCaseAccess` 하나가 그 판정을 전부 한다(R1). 담당하지 않는 실무자는
+ * 허브에서 그 사업 카드를 보더라도(D36) 여기서 막힌다 — 표시 범위가 쓰기 권한이 되면 안 된다.
+ *
+ * **이력**: 현재값은 `support_cases` 를 UPDATE 하지만, 그 행위는 언제나
+ * `participant_consent_records` 에 **새 행**으로 쌓인다(append-only, D14·D23). 철회(체크 해제)도
+ * 마찬가지다 — 시각을 NULL 로 되돌린 행이 남으므로 "언제 동의했고 언제 철회했나"가 보존된다.
+ * 행을 고쳐 이력을 지우는 경로는 DB 트리거가 막는다.
+ *
+ * **알려진 결과**: 0008·0014 의 insert 가드가 "NULL 이 아닌 동의 시각 = recorded_at" 을
+ * 요구하므로 한 행은 언제나 **그 시점의 전체 스냅샷**이다. 따라서 3종 중 하나만 고쳐도
+ * 나머지 동의 시각이 이번 기록 시각으로 갱신된다. 화면은 이 값을 "최초 동의일"이 아니라
+ * "마지막 기록 시각"으로 읽어야 한다.
+ */
+export async function updateParticipantConsent(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  consent: ParticipantConsentInput & { privacy: boolean },
+): Promise<ParticipantConsentState> {
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  assertExactKeys(consent, ['privacy', 'recording', 'textAi']);
+  for (const key of ['privacy', 'recording', 'textAi'] as const) {
+    if (typeof consent[key] !== 'boolean') throw new ValidationError('consent is invalid');
+  }
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  await assertCurrentHumanActor(env, actor);
+
+  const recordedAt = now();
+  const privacyAt = consent.privacy ? recordedAt : null;
+  const recordingAt = consent.recording ? recordedAt : null;
+  const textAiAt = consent.textAi ? recordedAt : null;
+  const consentRecordId = newId();
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET consent_privacy_at = ?, consent_recording_at = ?, consent_text_ai_at = ?, updated_at = ?
+       WHERE id = ? AND org_id = ?`,
+    ).bind(privacyAt, recordingAt, textAiAt, recordedAt, supportCaseId, actor.orgId),
+    env.DB.prepare(
+      `INSERT INTO participant_consent_records (
+         id, org_id, beneficiary_id, support_case_id, consent_recording_at,
+         consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      consentRecordId,
+      actor.orgId,
+      supportCase.beneficiaryId,
+      supportCaseId,
+      recordingAt,
+      textAiAt,
+      privacyAt,
+      actor.userId,
+      recordedAt,
+      recordedAt,
+    ),
+    canonicalAuditStatement(env, actor, {
+      action: 'record_consent',
+      targetTable: 'participant_consent_records',
+      targetId: consentRecordId,
+      beneficiaryId: supportCase.beneficiaryId,
+      supportCaseId,
+      // 동의 **여부**만 남긴다 — 동의 문안·PII 는 감사 detail 에 넣지 않는다(R3).
+      detail: { privacy: consent.privacy, recording: consent.recording, textAi: consent.textAi, kind: 'update' },
+      caseId: supportCase.legacyCaseId,
+    }),
+  ]);
+
+  return {
+    supportCaseId,
+    privacy: consent.privacy,
+    recording: consent.recording,
+    textAi: consent.textAi,
+    recordedAt,
+  };
 }
 
 /**
@@ -6579,16 +6700,22 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
 }
 
 /**
- * 참여자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
- * `authorized` 가 false 면 **내가 담당하지 않는 사업**이다 — 존재와 담당자 이름까지만
+ * 당사자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
+ * `authorized` 가 false 면 **내가 담당하지 않는 사업**이다 — 존재와 담당 실무자 이름까지만
  * 보이고 상담 내용(브리핑·기록·목표)으로는 들어갈 수 없다.
  */
 export interface ParticipantProgramEntry {
   supportCase: SupportCase;
   /** 내가 담당(또는 admin)인가. 화면은 이 값으로 링크를 걸거나 잠근다. */
   authorized: boolean;
-  /** 활성 담당자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
+  /** 활성 담당 실무자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
+  /**
+   * 마지막으로 동의 상태를 기록한 시각 (D44). **동의 시각이 아니라 기록 시각이다** —
+   * 3종을 모두 철회하면 동의 시각은 전부 NULL 이 되지만 "언제 그렇게 기록했나"는 남아야
+   * 하므로, 값은 append-only 이력(`participant_consent_records.recorded_at`)에서 읽는다.
+   */
+  consentRecordedAt: string | null;
 }
 
 export interface ParticipantProgramList {
@@ -6597,15 +6724,15 @@ export interface ParticipantProgramList {
 }
 
 /**
- * 한 참여자의 조직 내 활성 담당자 표시 이름을 사업별로 모은다.
+ * 한 당사자의 기관 내 활성 담당 실무자 표시 이름을 사업별로 모은다.
  *
  * **이메일로 폴백하지 않는다.** 다른 화면(관리자 디렉터리)은 이름 미입력 시 이메일을
- * 보여주지만, 이 목록은 D36 으로 **담당하지 않는 사업**까지 상담사에게 내려간다 —
- * 이메일 폴백을 두면 `listUsers`(admin 전용)로 막아 둔 직원 이메일이 상담사에게 새는,
- * 어떤 결정도 승인하지 않은 공개가 된다. 이름이 없으면 그 담당자는 목록에서 빠지고
+ * 보여주지만, 이 목록은 D36 으로 **담당하지 않는 사업**까지 실무자에게 내려간다 —
+ * 이메일 폴백을 두면 `listUsers`(admin 전용)로 막아 둔 직원 이메일이 실무자에게 새는,
+ * 어떤 결정도 승인하지 않은 공개가 된다. 이름이 없으면 그 담당 실무자는 목록에서 빠지고
  * 화면은 담당 줄을 그리지 않는다.
  *
- * 직원 이름은 참여자 PII 금고 대상이 아니라 복호화가 필요 없다(D31).
+ * 직원 이름은 당사자 PII 금고 대상이 아니라 복호화가 필요 없다(D31).
  */
 async function loadAssigneeNamesBySupportCase(
   env: Env,
@@ -6643,9 +6770,9 @@ export async function listSupportCasesForBeneficiary(
 ): Promise<ParticipantProgramList> {
   // **집합이 둘이다 — 섞으면 안 된다** (D36 · ADR-0014 '개정' 1번).
   //  ① 접근 판정용: 내가 담당(또는 admin)인 사업. **1건도 없으면 페이지 자체가 안 열린다.**
-  //  ② 표시용: 그 참여자의 조직 내 전 사업. 비담당 사업은 존재와 담당자 이름까지만 보인다.
+  //  ② 표시용: 그 당사자의 기관 내 전 사업. 비담당 사업은 존재와 담당 실무자 이름까지만 보인다.
   //
-  // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 참여자의 담당자라
+  // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라
   // PII를 보고 있다")가 무너진다 — 표시 범위를 넓히면서 같이 지우기 쉬우니 주의한다.
   const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
   if (authorizedIds.length === 0) {
@@ -6676,24 +6803,50 @@ export async function listSupportCasesForBeneficiary(
     actor.orgId,
     supportCases.map((supportCase) => supportCase.id),
   );
+  const consentRecordedAt = await loadLastConsentRecordedAt(env, actor.orgId, beneficiaryId);
   return {
     participant: participantNamePhone(contacts.get(beneficiaryId)),
     programs: supportCases.map((supportCase) => ({
       supportCase,
       authorized: authorized.has(supportCase.id),
       assigneeNames: assigneeNames.get(supportCase.id) ?? [],
+      consentRecordedAt: consentRecordedAt.get(supportCase.id) ?? null,
     })),
   };
 }
 
 /**
- * 참여자 목록 화면(사이드바 '참여자'의 도착지)이 쓰는 담당 참여자 전원.
+ * 참여 사업별 마지막 동의 기록 시각 (D44). 동의 시각이 아니라 **기록 시각**을 읽는다 —
+ * 3종을 모두 철회하면 동의 시각은 전부 NULL 이 되므로, 동의 시각에서 역산하면 방금 남긴
+ * 철회 기록이 화면에서 "기록 없음"으로 보인다. 이력 표는 append-only 라 MAX 가 곧 최신이다.
+ */
+async function loadLastConsentRecordedAt(
+  env: Env,
+  orgId: string,
+  beneficiaryId: string,
+): Promise<Map<string, string>> {
+  const recorded = new Map<string, string>();
+  const result = await env.DB.prepare(
+    `SELECT support_case_id, MAX(recorded_at) AS recorded_at
+     FROM participant_consent_records
+     WHERE org_id = ? AND beneficiary_id = ?
+     GROUP BY support_case_id`,
+  ).bind(orgId, beneficiaryId).all<DbRow>();
+  for (const row of result.results) {
+    const value = nullableString(row.recorded_at);
+    if (value !== null) recorded.set(stringValue(row.support_case_id), value);
+  }
+  return recorded;
+}
+
+/**
+ * 당사자 목록 화면(사이드바 '당사자'의 도착지)이 쓰는 담당 당사자 전원.
  *
  * **케이스 상태로 거르지 않는다.** 상담 등록 후보(`listScheduleCandidates`)는 담당
- * **활성** 참여사업만 내리는데, 그 범위를 목록에 쓰면 종결 케이스만 남은 참여자가
+ * **활성** 참여사업만 내리는데, 그 범위를 목록에 쓰면 종결 케이스만 남은 당사자가
  * 화면에서 조용히 사라진다 — 종결 케이스는 다시 들여다볼 일이 많은 쪽이고 이 화면은
- * 참여자 정보 허브의 입구다. 접근 범위는 `searchParticipants` 와 같다(활성 배정 기준,
- * counselor 는 담당 · admin 은 조직 전체 — R1 · D7).
+ * 당사자 정보 허브의 입구다. 접근 범위는 `searchParticipants` 와 같다(활성 배정 기준,
+ * counselor 는 담당 · admin 은 기관 전체 — R1 · D7).
  *
  * 실명은 D24·ADR-0005 로 역할 기준 기본 표시이며 서버에서 복호화해 싣는다(연락처 포함,
  * 계좌는 제외). 감사: read 1건 + 실명이 실리면 read_participant_pii 1건(D14).
@@ -6766,7 +6919,7 @@ export interface ParticipantSearchResult {
   beneficiaryId: string;
   status: 'active' | 'closed';
   programCount: number;
-  // D24·ADR-0005: 참여자 선택 UI 는 실명 목록이 전제다("검색이 아니라 선택").
+  // D24·ADR-0005: 당사자 선택 UI 는 실명 목록이 전제다("검색이 아니라 선택").
   // 담당(활성 배정)·admin 범위로 걸러진 결과의 실명만 서버 복호화해 싣는다. 미기입은 null.
   name: string | null;
 }
@@ -6781,9 +6934,9 @@ function escapeLikeOperand(value: string): string {
 }
 
 /**
- * 참여자 검색 (티켓 #16 · D21 · D24). 가명 ID(양형식) 부분 일치와 한글 표시명 부분 일치를
+ * 당사자 검색 (티켓 #16 · D21 · D24). 가명 ID(양형식) 부분 일치와 한글 표시명 부분 일치를
  * 함께 지원한다 — 한글 질의는 동물 슬러그(단일 출처 animal-slugs)로 환원해 접두어로 맞춘다.
- * 접근 범위는 다른 조회와 동일하다 — counselor는 담당 support_case, admin은 조직 전체 (R1 · D7).
+ * 접근 범위는 다른 조회와 동일하다 — counselor는 담당 support_case, admin은 기관 전체 (R1 · D7).
  * D24·ADR-0005 로 선택 UI 가 실명 목록을 전제하므로 결과의 실명을 서버 복호화해 싣고
  * (연락처·계좌는 제외), 실명이 1건 이상 실리면 화면 단위 감사 1건(read_participant_pii).
  * 가명 ID·통계·외부 출력에는 여전히 실명을 싣지 않는다 (R3 — 이 응답은 인증된 내부 화면용).
@@ -6878,6 +7031,11 @@ export interface ParticipantPiiUpdateInput {
   phone?: string | null;
   account?: string | null;
   email?: string | null;
+  // D41 1-1 · D42 ①: 인테이크 화면이 표시만 하게 되면서 이 세 항목의 쓰기 경로는 등록과
+  // 이 함수뿐이다. 이미 등록된 당사자를 고칠 길을 남기려면 여기가 열려 있어야 한다.
+  birthDate?: string | null;
+  region?: string | null;
+  gender?: string | null;
 }
 
 export interface ParticipantPiiReRegistrationInput {
@@ -6894,6 +7052,9 @@ interface ParticipantPiiVaultRow extends DbRow {
   enc_phone: string | null;
   enc_account: string | null;
   enc_email: string | null;
+  enc_birth_date: string | null;
+  enc_region: string | null;
+  enc_gender: string | null;
   version: number | string;
   purged_at: string | null;
 }
@@ -6904,7 +7065,8 @@ async function getParticipantPiiVaultForOrg(
   beneficiaryId: string,
 ): Promise<ParticipantPiiVaultRow> {
   const row = await env.DB.prepare(
-    `SELECT beneficiary_id, enc_name, enc_phone, enc_account, enc_email, version, purge_due, purged_at
+    `SELECT beneficiary_id, enc_name, enc_phone, enc_account, enc_email,
+            enc_birth_date, enc_region, enc_gender, version, purge_due, purged_at
      FROM participant_pii_vault
      WHERE beneficiary_id = ? AND org_id = ?`,
   ).bind(beneficiaryId, orgId).first<ParticipantPiiVaultRow>();
@@ -6945,10 +7107,12 @@ export async function updateParticipantPii(
   if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) {
     throw new ValidationError('PII version is invalid');
   }
-  const fields = (['name', 'phone', 'account', 'email'] as const).filter((field) => input[field] !== undefined);
+  const fields = (['name', 'phone', 'account', 'email', 'birthDate', 'region', 'gender'] as const)
+    .filter((field) => input[field] !== undefined);
   if (fields.length === 0) {
     throw new ValidationError('PII patch is empty');
   }
+  if (input.birthDate !== undefined && input.birthDate !== null) assertDateOnly(input.birthDate);
   await assertActiveSupportCaseContext(env, actor, beneficiaryId, input.supportCaseContextId);
   const current = await getParticipantPiiVaultForOrg(env, actor.orgId, beneficiaryId);
   const currentVersion = integerValue(current.version);
@@ -6956,19 +7120,26 @@ export async function updateParticipantPii(
     throw new ConflictError('participant data is unavailable');
   }
 
-  const [encName, encPhone, encAccount, encEmail] = await Promise.all([
+  const [encName, encPhone, encAccount, encEmail, encBirthDate, encRegion, encGender] = await Promise.all([
     encryptedParticipantPatch(env, input.name, current.enc_name, 'name'),
     encryptedParticipantPatch(env, input.phone, current.enc_phone, 'phone'),
     encryptedParticipantPatch(env, input.account, current.enc_account, 'account'),
     encryptedParticipantPatch(env, input.email, current.enc_email, 'email'),
+    encryptedParticipantPatch(env, input.birthDate, current.enc_birth_date, 'birthDate'),
+    encryptedParticipantPatch(env, input.region, current.enc_region, 'region'),
+    encryptedParticipantPatch(env, input.gender, current.enc_gender, 'gender'),
   ]);
   const updatedAt = now();
   const result = await env.DB.batch([
     env.DB.prepare(
       `UPDATE participant_pii_vault
-       SET enc_name = ?, enc_phone = ?, enc_account = ?, enc_email = ?, version = version + 1, updated_at = ?
+       SET enc_name = ?, enc_phone = ?, enc_account = ?, enc_email = ?,
+           enc_birth_date = ?, enc_region = ?, enc_gender = ?, version = version + 1, updated_at = ?
        WHERE beneficiary_id = ? AND org_id = ? AND version = ? AND purged_at IS NULL`,
-    ).bind(encName, encPhone, encAccount, encEmail, updatedAt, beneficiaryId, actor.orgId, input.expectedVersion),
+    ).bind(
+      encName, encPhone, encAccount, encEmail, encBirthDate, encRegion, encGender,
+      updatedAt, beneficiaryId, actor.orgId, input.expectedVersion,
+    ),
 conditionalCanonicalAuditStatement(env, actor, {
   action: 'update',
   targetTable: 'participant_pii_vault',
@@ -7072,14 +7243,14 @@ export interface ParticipantContact {
   email: string | null;
 }
 
-/** 브리핑·상세가 노출하는 참여자 필드 — 실명·연락처만(이메일 제외, D31). */
+/** 브리핑·상세가 노출하는 당사자 필드 — 실명·연락처만(이메일 제외, D31). */
 export interface ParticipantNameContact {
   name: string | null;
   phone: string | null;
 }
 
 /**
- * 브리핑·상세 등 기존 소비자는 실명·연락처만 노출한다(이메일은 참여자 선택 UI 전용, D31).
+ * 브리핑·상세 등 기존 소비자는 실명·연락처만 노출한다(이메일은 당사자 선택 UI 전용, D31).
  * loadParticipantContacts 가 이메일까지 복호화하더라도 이 경계에서 name·phone 만 추려
  * 이메일이 그 응답들로 새지 않게 한다.
  */
@@ -7089,9 +7260,9 @@ function participantNamePhone(contact: ParticipantContact | undefined): Particip
 
 /**
  * D24·ADR-0005 역할 기준 실명 표시의 공용 복호화 관문. 이미 접근 범위로 걸러진
- * (담당 활성 배정 또는 admin) 참여자 집합의 실명·연락처를 한 번의 배치 조회로
+ * (담당 활성 배정 또는 admin) 당사자 집합의 실명·연락처를 한 번의 배치 조회로
  * 복호화해 돌려준다 — 목록 응답의 N+1 을 피한다. 파기된 금고(purged_at)는 제외한다.
- * 접근 검사는 호출부가 이미 수행했다는 계약이다(비담당자의 행은 애초에 결과에 없다).
+ * 접근 검사는 호출부가 이미 수행했다는 계약이다(비담당 실무자의 행은 애초에 결과에 없다).
  */
 async function loadParticipantContacts(
   env: Env,
@@ -7120,7 +7291,7 @@ async function loadParticipantContacts(
 /**
  * PII(실명·연락처)가 1건 이상 실린 응답을 만든 게이트웨이 호출마다 화면 단위 감사
  * 1건을 남긴다(read_participant_pii, D14·D24). 값이 전부 null 이면(등록만 되고 PII
- * 미기입) 감사하지 않는다. 대상 참여자 목록은 detail 에 담아 이상 열람 분석이
+ * 미기입) 감사하지 않는다. 대상 당사자 목록은 detail 에 담아 이상 열람 분석이
  * 케이스 단위로 추적할 수 있게 한다. 클릭 단위(reveal)·마스킹 표시(masked) 감사를
  * 대체한다.
  */
@@ -7136,7 +7307,7 @@ async function auditParticipantPiiRead(
     .sort();
   // 화면 조회 1건 = 감사 1행(D24·ADR-0005). 같은 화면이 실명·연락처 외에 다른 금고
   // 항목까지 복호화해 실었다면 행을 하나 더 쓰지 않고 이 행의 fields 에 합친다 —
-  // 행이 갈리면 "이 상담사가 이 참여자를 몇 번 열람했나"를 셀 수 없게 된다(2026-07-25 Q 결정).
+  // 행이 갈리면 "이 실무자가 이 당사자를 몇 번 열람했나"를 셀 수 없게 된다(2026-07-25 Q 결정).
   const fields = ['name', 'phone', ...(scope.extraFields ?? [])];
   if (beneficiaryIds.length === 0 && (scope.extraFields?.length ?? 0) === 0) return;
   const auditedIds = beneficiaryIds.length > 0
@@ -7392,7 +7563,7 @@ export interface CreateCounselingScheduleInput {
   sessionGoals?: CreateScheduleSessionGoalInput[];
   /** 케이스 목표(intake 전용, D12). 측정 가능한 문장 1~3개를 이번 요청에서 함께 신설한다. */
   caseGoals?: string[];
-  /** 맞춤형 질문(선택). AI 생성 질문과 별개로 상담사가 직접 적는다. */
+  /** 맞춤형 질문(선택). AI 생성 질문과 별개로 실무자가 직접 적는다. */
   customQuestions?: string[];
 }
 
@@ -7726,7 +7897,7 @@ export interface ScheduleCandidate {
   beneficiaryId: string;
   supportCaseId: string;
   programType: 'financial_support_v1';
-  // D31·D24: 참여자 선택 UI 는 역할 기준 실명·연락처·이메일을 직접 실어 보여준다(사업명 대신).
+  // D31·D24: 당사자 선택 UI 는 역할 기준 실명·연락처·이메일을 직접 실어 보여준다(사업명 대신).
   // 접근 범위(담당 활성 배정 또는 admin)로 이미 걸러진 후보라 전부 열람 대상이다. 미기입은 null.
   participantName: string | null;
   participantPhone: string | null;
@@ -7740,9 +7911,9 @@ export interface ScheduleCandidate {
 }
 
 /**
- * 상담 등록 폼의 참여자 후보 (티켓 #19 콜드스타트 해소). 후보 기준을 '일정 보유'가
- * 아니라 '담당 활성 참여사업'으로 둔다 — 그래야 방금 등록해 아직 일정이 없는 참여자도
- * 첫 상담을 등록할 수 있다. counselor 는 자기 활성 배정 케이스만, admin 은 조직의 모든
+ * 상담 등록 폼의 당사자 후보 (티켓 #19 콜드스타트 해소). 후보 기준을 '일정 보유'가
+ * 아니라 '담당 활성 참여사업'으로 둔다 — 그래야 방금 등록해 아직 일정이 없는 당사자도
+ * 첫 상담을 등록할 수 있다. counselor 는 자기 활성 배정 케이스만, admin 은 기관의 모든
  * 활성 참여사업을 본다(listCases 의 접근 모델과 동일, D7). 감사: read.
  */
 export async function listScheduleCandidates(
@@ -8001,7 +8172,7 @@ export async function createCounselingSchedule(
 /**
  * 인테이크 일정 등록(티켓 #36). 세션 목표 대신 케이스 목표(goals, D12)를 이번 요청에서
  * 함께 신설한다. 일정·케이스 목표·맞춤형 질문·감사를 한 배치로 원자적으로 쓴다(R1·R5:
- * 목표 문구는 상담사가 확정, AI 개입 없음). 세션 목표는 인테이크에 허용되지 않는다.
+ * 목표 문구는 실무자가 확정, AI 개입 없음). 세션 목표는 인테이크에 허용되지 않는다.
  */
 async function createIntakeCounselingSchedule(
   env: Env,
@@ -8222,7 +8393,7 @@ async function loadScheduleSessionEntries(
 }
 
 /**
- * 일정별 세션 목표·맞춤형 질문 조회 (D28). 권한은 해당 참여사업 접근(담당자·admin)으로
+ * 일정별 세션 목표·맞춤형 질문 조회 (D28). 권한은 해당 참여사업 접근(담당 실무자·admin)으로
  * 게이트하고 감사(read)를 남긴다. 상담 유형·방법(#36)도 일정 행에서 함께 싣는다.
  */
 export async function getScheduleSessionPlan(
@@ -8318,7 +8489,7 @@ export interface CounselingRecordActionItemResolutionInput {
  * 생활 6영역 스냅샷 (CCC-8). 키·상태값의 유일 출처.
  * 영역 키·라벨 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D(D1~D6).
  * 상태 5값 근거: 같은 문서 §D("괜찮음/긴장/위기/해당없음/답변거부").
- * 이 상태는 상담사 기입값이다 — 감정 점수(R4)·리스크 플래그(D9) 와 무관.
+ * 이 상태는 실무자 기입값이다 — 감정 점수(R4)·리스크 플래그(D9) 와 무관.
  */
 export const LIFE_AREA_KEYS = [
   'economy',        // 경제·생계
@@ -8360,7 +8531,7 @@ export interface LifeAreaSnapshotEntry {
 /**
  * 정기 기록지 서술형 항목(CCC-10 · 0016 record_details). 전부 선택이며, 하나라도 채워진
  * 경우에만 details 를 보낸다(빈 객체는 거부). 값은 서술 기록일 뿐 자동 판정 입력이
- * 아니다 — 플래그 확정·GAS 점수는 여전히 상담사 몫이다(D6·D9·R5).
+ * 아니다 — 플래그 확정·GAS 점수는 여전히 실무자 몫이다(D6·D9·R5).
  */
 export interface CounselingRecordDetailsInput {
   /** 이번 상담 목표 — 일정에 세션 목표가 연결되지 않은 회차에서만 기록한다(D28). */
@@ -8369,7 +8540,7 @@ export interface CounselingRecordDetailsInput {
   changeSinceLast?: string;
   /** 위기·안전 확인 서술. */
   safetyNote?: string;
-  /** 담당자 의견(참여자 발언과 구분). */
+  /** 담당 실무자 의견(당사자 발언과 구분). */
   counselorOpinion?: string;
 }
 
@@ -9115,21 +9286,47 @@ export interface IntakeConsentInput {
 // 저장 위치는 sessions.intake_details JSON(확장 슬롯 격리 — 브리핑·통계 제외).
 // --------------------------------------------------------------------------
 
-/** 서술형 답변 키 고정 어휘(P3·P4). 화면 문구는 위저드가 갖고, 저장은 이 키로 한다. */
+/**
+ * 서술형·선택형 답변 키 고정 어휘. 화면 문구·선택값 목록은 위저드가 갖고, 저장은 이 키로 한다.
+ *
+ * 2026-07-28 D41·D42: 인테이크 정본 질문지(`PRD/intake-questionnaire-v1.md`) 4부의 항목을
+ * 이 어휘로 전부 덮는다. 선택형도 같은 {key,response,text} 로 저장한다 — 선택값 문자열이
+ * text 로 들어가고, '무응답'·'해당 없음'은 text 대신 response 코드로 남는다(빈칸과 구분).
+ * 구 6단계 위저드가 쓰던 키는 지우지 않는다(기존 기록의 해석 어휘라 삭제하면 과거 JSON 이
+ * 읽히지 않는다). 화면에서 안 쓰는 키는 그냥 오지 않을 뿐이다.
+ */
 export const INTAKE_ANSWER_KEYS = [
-  // ① 시작 — 유입·의뢰 경로(P4, 접힘 하단)
+  // ── 구 6단계 위저드 어휘(기존 기록 해석용, 화면에서는 일부만 계속 쓴다) ──
   'referral_path', 'referral_org', 'referral_reason',
-  // ③ 원하는 도움 — "더 묻기" 3문(P3, 접힘)
   'more_since', 'more_trigger', 'more_focus',
-  // ④ 생활 상황 — 영역 심화(P3, 긴장·위기 시 펼침 / 금전지원형은 경제 기본 펼침)
   'life_detail_economy', 'life_detail_housing', 'life_detail_employment',
   'life_detail_health', 'life_detail_mental_health', 'life_detail_family',
-  // ⑤ 정리 — 위기·안전 확인(P3, 영역에 '위기'가 있으면 자동 펼침·강조)
   'crisis_immediate_risk', 'crisis_needed_connection', 'crisis_safety_status', 'crisis_emergency_contact',
-  // ⑤ 정리 — 강점·자원 4문(P3, 접힘)
   'strength_personal', 'strength_relational', 'strength_past_coping', 'strength_resources',
-  // ⑤ 정리 — 참여 여건 3문(P4, 접힘)
   'participation_availability', 'participation_transport', 'participation_constraint',
+  // ── 1. 상담 신청 및 기본정보 ──
+  // 1-2 공적급여·수급자 여부
+  'welfare_basic_livelihood', 'welfare_benefit_type', 'welfare_near_poverty', 'welfare_other',
+  // 1-3 상담 운영정보(상담일=heldAt·실무자=작성자·회차=컨텍스트는 답변이 아니라 자동값)
+  'counsel_method', 'contact_time', 'contact_caution',
+  // 1-4 상담 신청 사유
+  'application_reason', 'application_reason_detail',
+  // ── 2. 현재 생활상황 ──
+  'difficulty_areas',
+  'economy_income_type', 'economy_monthly_income', 'economy_monthly_expense',
+  'economy_arrears', 'economy_debt_types',
+  'employment_status', 'employment_income_stability', 'employment_detail',
+  'housing_type', 'housing_instability', 'housing_detail',
+  'health_physical', 'health_care_barrier', 'health_stress', 'health_daily_impact', 'health_detail',
+  'family_household_type', 'family_care_burden', 'family_detail',
+  // ── 3. 필요한 도움과 활용 가능한 자원 ──
+  'need_primary', 'need_secondary', 'need_detail',
+  'previous_support_detail',
+  'strength_detail',
+  // ── 4. 상담 정리와 후속관리 ──
+  'participation_barrier', 'participation_preferred_method', 'participation_detail',
+  // 4-3 긴급도·주요 지원방향은 실무자가 직접 고른다 — AI 제안·자동값 없음(D41 ③ · R5).
+  'summary_urgency', 'summary_direction',
 ] as const;
 export type IntakeAnswerKey = (typeof INTAKE_ANSWER_KEYS)[number];
 
@@ -9160,11 +9357,37 @@ export interface IntakeExtendedPiiInput {
 
 export type IntakeExtendedPii = Record<IntakeExtendedPiiField, string | null>;
 
-/** ⑤ 추가 확인 필요 정보 표(P4, 접힘). */
+/**
+ * 4-2 추가 확인사항 표. 구 ⑤ "추가 확인 필요 정보"와 같은 구조를 이어 쓰고(D42), 정본
+ * 질문지의 4열(추가 확인사항 / 필요한 이유 / 확인 방법 / 확인 예정 시점)을 담도록
+ * reason·method·dueNote 를 덧붙였다. dueNote 는 '다음 상담 전' 같은 서술을 허용하려고
+ * 날짜형 dueDate 와 따로 둔다 — 정본 예시가 날짜가 아니다.
+ */
 export interface IntakeAdditionalItemInput {
   item: string;
   owner?: string;
   dueDate?: string;
+  reason?: string;
+  method?: string;
+  dueNote?: string;
+}
+
+/** 2-1 대출·부채 현황 반복 행. 채무가 없으면 첫 행에 '해당 없음'을 적는다(정본 참고). */
+export interface IntakeDebtEntryInput {
+  creditor: string;
+  kind?: string;
+  balance?: string;
+  monthlyPayment?: string;
+  arrearsStatus?: string;
+}
+
+/** 3-3 현재 연계된 기관·서비스 반복 행. 연계 자원이 없으면 첫 행에 '해당 없음'. */
+export interface IntakeLinkedOrgInput {
+  orgName: string;
+  serviceName?: string;
+  supportDetail?: string;
+  usagePeriod?: string;
+  progressStatus?: string;
 }
 
 /** ⑤ 다음 만남(P3). 저장 후 상담 일정 등록 화면으로 이어 붙인다(schedules, D28). */
@@ -9173,18 +9396,29 @@ export interface IntakeNextMeetingInput {
   channel: Session['channel'];
 }
 
+/**
+ * 인테이크 저장 입력.
+ *
+ * `red` 2026-07-28 D42: consent·helpNarrative·lifeAreas·goals·actionItems 5종은 **선택**이다.
+ * 정본 질문지(D41)에 대응하는 항목이 없기 때문이다 — 동의 입력은 당사자 등록 화면으로
+ * 옮겼고(D42 ②), 목표 입력은 통째로 빠졌으며(D42 ③ · D43), 원하는 도움 3문·6영역 상태·
+ * 다음 행동은 정본에 없다. 값을 지어내 채우는 대신 안 보내는 쪽을 택했다. 주면 예전과
+ * 똑같이 검증·저장하므로 기존 호출부·기록은 그대로 산다.
+ */
 export interface CreateIntakeRecordInput {
   submissionId: string;
   heldAt: string;
   channel: Session['channel'];
-  consent: IntakeConsentInput;
-  helpNarrative: IntakeHelpNarrativeInput;
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actionItems: IntakeActionItemInput[];
+  consent?: IntakeConsentInput;
+  helpNarrative?: IntakeHelpNarrativeInput;
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actionItems?: IntakeActionItemInput[];
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
   scheduleId?: string;
@@ -9196,7 +9430,7 @@ export interface IntakeRecordResult {
   replayed: boolean;
 }
 
-/** 인테이크 작성 컨텍스트(회차 자동값·참여자 표시·기존 인테이크 여부). */
+/** 인테이크 작성 컨텍스트(회차 자동값·당사자 표시·기존 인테이크 여부). */
 export interface IntakeRecordContext {
   beneficiaryId: string;
   supportCaseId: string;
@@ -9206,8 +9440,10 @@ export interface IntakeRecordContext {
   sessionSequence: number;
   // 케이스에 이미 인테이크(kind='intake')가 있으면 재작성 불가(1회 규칙).
   hasIntake: boolean;
-  // "기본정보 더 적기" 미리 채움(§0-5 재입력 없음). 감사는 화면 조회 1건에 합산된다.
+  // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
+  // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
+  consent: { privacy: boolean; recording: boolean; textAi: boolean };
 }
 
 function assertIntakeLifeAreaInputs(lifeAreas: IntakeLifeAreaInput[]): void {
@@ -9287,20 +9523,59 @@ function assertIntakeAdditionalItemInputs(items: IntakeAdditionalItemInput[]): v
     const expected = ['item'];
     if (entry.owner !== undefined) expected.push('owner');
     if (entry.dueDate !== undefined) expected.push('dueDate');
+    if (entry.reason !== undefined) expected.push('reason');
+    if (entry.method !== undefined) expected.push('method');
+    if (entry.dueNote !== undefined) expected.push('dueNote');
     assertExactKeys(entry, expected);
     assertNonBlankText(entry.item, 'additional item');
     if (entry.owner !== undefined) assertNonBlankText(entry.owner, 'additional item owner');
     if (entry.dueDate !== undefined) assertDateOnly(entry.dueDate);
+    if (entry.reason !== undefined) assertNonBlankText(entry.reason, 'additional item reason');
+    if (entry.method !== undefined) assertNonBlankText(entry.method, 'additional item method');
+    if (entry.dueNote !== undefined) assertNonBlankText(entry.dueNote, 'additional item due note');
   }
 }
+
+/**
+ * 반복 행 표 공통 검증(2-1 부채·3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 검사한다 —
+ * assertIntakeAdditionalItemInputs 와 같은 모양을 유지해 표가 늘어도 분기가 복제되지 않는다.
+ */
+function assertIntakeTableRows(
+  rows: Array<Record<string, unknown>>,
+  label: string,
+  requiredKey: string,
+  optionalKeys: readonly string[],
+): void {
+  assertBoundedArray(rows, label, 20);
+  for (const row of rows) {
+    if (typeof row !== 'object' || row === null) {
+      throw new ValidationError(`${label} row is invalid`);
+    }
+    const expected = [requiredKey, ...optionalKeys.filter((key) => row[key] !== undefined)];
+    assertExactKeys(row, expected);
+    for (const key of expected) {
+      assertNonBlankText(row[key], `${label} ${key}`);
+    }
+  }
+}
+
+const INTAKE_DEBT_OPTIONAL_KEYS = ['kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const;
+const INTAKE_LINKED_ORG_OPTIONAL_KEYS = ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus'] as const;
 
 function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
   const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
   const hasManagerOpinion = input.managerOpinion !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel', 'consent', 'helpNarrative', 'lifeAreas', 'goals', 'actionItems'];
+  const expectedKeys = ['submissionId', 'heldAt', 'channel'];
+  if (input.consent !== undefined) expectedKeys.push('consent');
+  if (input.helpNarrative !== undefined) expectedKeys.push('helpNarrative');
+  if (input.lifeAreas !== undefined) expectedKeys.push('lifeAreas');
+  if (input.goals !== undefined) expectedKeys.push('goals');
+  if (input.actionItems !== undefined) expectedKeys.push('actionItems');
   if (input.answers !== undefined) expectedKeys.push('answers');
   if (input.extendedPii !== undefined) expectedKeys.push('extendedPii');
   if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
+  if (input.debts !== undefined) expectedKeys.push('debts');
+  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
   if (input.nextMeeting !== undefined) expectedKeys.push('nextMeeting');
   if (hasManagerOpinion) expectedKeys.push('managerOpinion');
   if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
@@ -9311,30 +9586,38 @@ function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
     throw new ValidationError('record channel is invalid');
   }
 
-  // 동의 2체크 — 둘 다 true 여야 성립(v0.3). 하나라도 없으면 거부.
-  assertExactKeys(input.consent, ['privacy', 'recordingAi']);
-  if (input.consent.privacy !== true || input.consent.recordingAi !== true) {
-    throw new ValidationError('intake consent is required');
+  // 동의 2체크 — 주면 둘 다 true 여야 한다. 안 주면 동의 기록을 만들지 않는다(D42 ②).
+  if (input.consent !== undefined) {
+    assertExactKeys(input.consent, ['privacy', 'recordingAi']);
+    if (input.consent.privacy !== true || input.consent.recordingAi !== true) {
+      throw new ValidationError('intake consent is required');
+    }
   }
 
-  // 원하는 도움 3문 — 전부 비어있지 않은 문자열(P1).
-  assertExactKeys(input.helpNarrative, ['todayHelp', 'hardestPoint', 'desiredChange']);
-  assertNonBlankText(input.helpNarrative.todayHelp, 'help narrative todayHelp');
-  assertNonBlankText(input.helpNarrative.hardestPoint, 'help narrative hardestPoint');
-  assertNonBlankText(input.helpNarrative.desiredChange, 'help narrative desiredChange');
-
-  // 6영역 기준선 — 6영역 전부(P1).
-  assertIntakeLifeAreaInputs(input.lifeAreas);
-
-  // 목표 1~3(P1, D12·D6). GAS 기준(scaleCriteria)은 자유 JSON.
-  assertBoundedArray(input.goals, 'goals', MAX_ACTIVE_GOALS);
-  if (input.goals.length < 1) throw new ValidationError('at least one goal is required');
-  for (const goal of input.goals) {
-    assertExactKeys(goal, goal.scaleCriteria === undefined ? ['title'] : ['title', 'scaleCriteria']);
-    assertNonBlankText(goal.title, 'goal title');
+  // 원하는 도움 3문 — 주면 전부 비어있지 않은 문자열.
+  if (input.helpNarrative !== undefined) {
+    assertExactKeys(input.helpNarrative, ['todayHelp', 'hardestPoint', 'desiredChange']);
+    assertNonBlankText(input.helpNarrative.todayHelp, 'help narrative todayHelp');
+    assertNonBlankText(input.helpNarrative.hardestPoint, 'help narrative hardestPoint');
+    assertNonBlankText(input.helpNarrative.desiredChange, 'help narrative desiredChange');
   }
 
-  // 다음 행동 1건 이상(P1 → action_items).
+  // 6영역 기준선 — 주면 6영역 전부.
+  if (input.lifeAreas !== undefined) assertIntakeLifeAreaInputs(input.lifeAreas);
+
+  // 목표 1~3(D12·D6). GAS 기준(scaleCriteria)은 자유 JSON. 인테이크 화면은 더 이상 보내지
+  // 않지만(D42 ③ · D43) 다른 호출부가 주면 예전 계약대로 검증한다.
+  if (input.goals !== undefined) {
+    assertBoundedArray(input.goals, 'goals', MAX_ACTIVE_GOALS);
+    if (input.goals.length < 1) throw new ValidationError('at least one goal is required');
+    for (const goal of input.goals) {
+      assertExactKeys(goal, goal.scaleCriteria === undefined ? ['title'] : ['title', 'scaleCriteria']);
+      assertNonBlankText(goal.title, 'goal title');
+    }
+  }
+
+  // 다음 행동 — 주면 1건 이상(→ action_items).
+  if (input.actionItems !== undefined) {
   assertBoundedArray(input.actionItems, 'action items', 20);
   if (input.actionItems.length < 1) throw new ValidationError('at least one action item is required');
   for (const action of input.actionItems) {
@@ -9345,11 +9628,28 @@ function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
     }
     if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
   }
+  }
 
-  // P3·P4 — 전부 선택. 있으면 형식만 강제한다(비면 인테이크 성립에 영향 없음).
+  // 나머지는 전부 선택. 있으면 형식만 강제한다(비면 인테이크 성립에 영향 없음).
   if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
   if (input.extendedPii !== undefined) assertIntakeExtendedPiiInput(input.extendedPii);
   if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
+  if (input.debts !== undefined) {
+    assertIntakeTableRows(
+      input.debts as unknown as Array<Record<string, unknown>>,
+      'debts',
+      'creditor',
+      INTAKE_DEBT_OPTIONAL_KEYS,
+    );
+  }
+  if (input.linkedOrgs !== undefined) {
+    assertIntakeTableRows(
+      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
+      'linked orgs',
+      'orgName',
+      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
+    );
+  }
   if (input.nextMeeting !== undefined) {
     assertExactKeys(input.nextMeeting, ['heldAt', 'channel']);
     canonicalUtcInstant(input.nextMeeting.heldAt, 'next meeting time');
@@ -9427,7 +9727,7 @@ async function readIntakeExtendedPii(
 }
 
 /**
- * 인테이크 작성 컨텍스트(GET). 권한·활성 검사 후 참여자 표시 정보(D31 역할 기준 실명)·
+ * 인테이크 작성 컨텍스트(GET). 권한·활성 검사 후 당사자 표시 정보(D31 역할 기준 실명)·
  * 회차 자동값·기존 인테이크 여부를 돌려준다. 감사는 **화면 조회당 read_participant_pii
  * 1건**이며(D14·D24·ADR-0005), 추가 개인정보(0015)를 복호화해 실었다면 그 필드 이름을
  * 같은 행의 detail.fields 에 합쳐 남긴다 — 행을 나누지 않는다(2026-07-25 Q 결정).
@@ -9456,6 +9756,18 @@ export async function getIntakeRecordContext(
      WHERE org_id = ? AND support_case_id = ?`,
   ).bind(actor.orgId, supportCaseId).first<{ total: number; intake_count: number | null }>();
   const total = Number(counts?.total ?? 0);
+  // 1단계 동의 상태(D42 ② · D44). 3종 모두 이 참여 사업의 **현재값**을 읽는다 —
+  // 0020 이전에는 개인정보 동의만 이력 표(participant_consent_records)에서
+  // `consent_privacy_at IS NOT NULL` 로 골랐는데, 그 조회는 ① 철회 행(NULL)을 걸러내
+  // 철회가 화면에 영영 반영되지 않고 ② 당사자의 다른 참여 사업 기록까지 긁어 왔다.
+  // 표시 전용이라 시각이 아니라 기록 여부만 돌려준다.
+  const consentRow = await env.DB.prepare(
+    `SELECT consent_recording_at AS recording_at,
+            consent_text_ai_at AS text_ai_at,
+            consent_privacy_at AS privacy_at
+     FROM support_cases WHERE id = ? AND org_id = ?`,
+  ).bind(supportCaseId, actor.orgId)
+    .first<{ recording_at: string | null; text_ai_at: string | null; privacy_at: string | null }>();
   return {
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
@@ -9467,6 +9779,11 @@ export async function getIntakeRecordContext(
     sessionSequence: total + 1,
     hasIntake: Number(counts?.intake_count ?? 0) > 0,
     extendedPii,
+    consent: {
+      privacy: consentRow?.privacy_at != null,
+      recording: consentRow?.recording_at != null,
+      textAi: consentRow?.text_ai_at != null,
+    },
   };
 }
 
@@ -9492,17 +9809,19 @@ export async function createIntakeRecord(
   // 제출 해시는 저장되는 모든 입력을 덮어야 한다 — 빠뜨린 필드는 "서로 다른 제출"을
   // 같은 해시로 만들고, 두 번째 제출이 재현(replay)으로 조용히 버려진다(CCC-9).
   const submissionHash = await canonicalSha256({
-    actionItems: input.actionItems,
+    actionItems: input.actionItems ?? null,
     actorId: actor.userId,
     additionalItems: input.additionalItems ?? null,
     answers: input.answers ?? null,
     channel: input.channel,
-    consent: input.consent,
+    consent: input.consent ?? null,
+    debts: input.debts ?? null,
     extendedPii: input.extendedPii ?? null,
-    goals: input.goals.map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
+    goals: (input.goals ?? []).map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
     heldAt: input.heldAt,
-    helpNarrative: input.helpNarrative,
-    lifeAreas: input.lifeAreas,
+    helpNarrative: input.helpNarrative ?? null,
+    lifeAreas: input.lifeAreas ?? null,
+    linkedOrgs: input.linkedOrgs ?? null,
     managerOpinion: input.managerOpinion ?? null,
     nextMeeting: input.nextMeeting ?? null,
     orgId: actor.orgId,
@@ -9523,11 +9842,14 @@ export async function createIntakeRecord(
   }
 
   // 목표 상한(D12): 기존 활성 목표 + 신규 목표 ≤ 3.
-  const active = await env.DB.prepare(
-    "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
-  ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
-  if ((Number(active?.count ?? 0)) + input.goals.length > MAX_ACTIVE_GOALS) {
-    throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
+  const goalInputs = input.goals ?? [];
+  if (goalInputs.length > 0) {
+    const active = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
+    ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
+    if ((Number(active?.count ?? 0)) + goalInputs.length > MAX_ACTIVE_GOALS) {
+      throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
+    }
   }
 
   let schedule: CounselingSchedule | null = null;
@@ -9558,11 +9880,13 @@ export async function createIntakeRecord(
   const id = newId();
   const createdAt = now();
   const intakeDetails = stringifyJson({
-    helpNarrative: input.helpNarrative,
+    helpNarrative: input.helpNarrative ?? null,
     managerOpinion: input.managerOpinion ?? null,
-    // P3·P4 서술형은 확장 슬롯 성격의 JSON 으로 격리한다(브리핑·통계 제외, 3층 구조).
+    // 질문지 답변·반복 행 표는 확장 슬롯 성격의 JSON 으로 격리한다(브리핑·통계 제외, 3층 구조).
     answers: input.answers ?? [],
     additionalItems: input.additionalItems ?? [],
+    debts: input.debts ?? [],
+    linkedOrgs: input.linkedOrgs ?? [],
     nextMeeting: input.nextMeeting ?? null,
   });
   const activeSupportCaseGuard = `EXISTS (
@@ -9643,7 +9967,7 @@ export async function createIntakeRecord(
   const statements: D1PreparedStatement[] = [sessionStatement];
 
   // 목표(신설) + 각 목표 생성 감사(세션 트리거는 세션 행만 감사하므로 goals 는 명시 감사 — D14).
-  for (const goal of input.goals) {
+  for (const goal of goalInputs) {
     const goalId = newId();
     statements.push(env.DB.prepare(
       `INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at)
@@ -9669,7 +9993,7 @@ export async function createIntakeRecord(
     }));
   }
 
-  for (const action of input.actionItems) {
+  for (const action of input.actionItems ?? []) {
     statements.push(env.DB.prepare(
       `INSERT INTO action_items (
          id, org_id, support_case_id, session_id, description, owner, due_date, created_at
@@ -9689,7 +10013,7 @@ export async function createIntakeRecord(
     ));
   }
 
-  for (const area of input.lifeAreas) {
+  for (const area of input.lifeAreas ?? []) {
     statements.push(env.DB.prepare(
       `INSERT INTO session_life_area_snapshots (
          id, org_id, session_id, area_key, status, note, created_at
@@ -9755,6 +10079,9 @@ export async function createIntakeRecord(
 
   // 동의 기록(append-only): 화면 체크 privacy → consent_privacy_at, recordingAi → 2컬럼 동시.
   // 셋 다 recorded_at 과 같게 기록(insert_guard 정합). record_consent 감사(D14).
+  // D42 ②: 인테이크 화면은 동의를 입력받지 않으므로 consent 가 없으면 기록도 만들지 않는다 —
+  // 없는 동의를 인테이크 저장이 대신 남기면 등록 화면의 동의 기록과 어긋난다.
+  if (input.consent !== undefined) {
   const consentRecordId = newId();
   statements.push(env.DB.prepare(
     `INSERT INTO participant_consent_records (
@@ -9777,6 +10104,17 @@ export async function createIntakeRecord(
     createdAt,
     ...sessionExistsBindings,
   ));
+  // D44 · 0020: 이력만 남기면 "지금 상태"(support_cases)와 어긋난다 — 인테이크 1단계와
+  // 당사자 정보 페이지가 읽는 곳이 그쪽이기 때문이다. 같은 배치에서 현재값도 맞춘다.
+  statements.push(env.DB.prepare(
+    `UPDATE support_cases
+     SET consent_recording_at = ?, consent_text_ai_at = ?, consent_privacy_at = ?, updated_at = ?
+     WHERE id = ? AND org_id = ? AND ${sessionExistsClause}`,
+  ).bind(
+    createdAt, createdAt, createdAt, createdAt,
+    supportCaseId, actor.orgId,
+    ...sessionExistsBindings,
+  ));
   statements.push(conditionalCanonicalAuditStatement(env, actor, {
     action: 'record_consent',
     targetTable: 'participant_consent_records',
@@ -9785,6 +10123,7 @@ export async function createIntakeRecord(
     supportCaseId,
     detail: { privacy: true, recording: true, textAi: true, kind: 'intake' },
   }));
+  }
 
   if (schedule !== null) {
     statements.push(env.DB.prepare(
@@ -10039,7 +10378,7 @@ export interface ParticipantBriefing {
   flags: ParticipantBriefingFlag[];
   questions: ParticipantBriefingQuestion[];
   focusUpcomingSchedule: BriefingUpcomingSchedule | null;
-  // D24·ADR-0005: 담당·배정 책임자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
+  // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
   // 접근 자체가 assertSupportCaseAccess 로 이미 걸러졌으므로 여기 도달하면 열람 권한이 있다.
   participant: ParticipantNameContact;
 }
@@ -10527,7 +10866,7 @@ export async function listSupportCaseAssignees(
   return result.results.map(mapSupportCaseAssignee);
 }
 
-/** 관리자 영역(재개편 T8)이 상담사 상세·사용자 화면에 싣는 '상담사별 활성 배정 참여자' 행. */
+/** 관리자 영역(재개편 T8)이 실무자 상세·사용자 화면에 싣는 '실무자별 활성 배정 당사자' 행. */
 export interface CounselorAssignmentParticipant {
   beneficiaryId: string;
   supportCaseId: string;
@@ -10545,12 +10884,12 @@ export interface CounselorAssignments {
 }
 
 /**
- * 한 상담사(userId)의 활성 배정 참여자 목록 — 관리자 영역 사용자/상담사 상세 화면용(재개편 T8, D25).
- * 접근: admin 전용(assertAdmin), 자기 조직만. 상담사가 담당(활성 배정, unassigned_at IS NULL)한
- * 참여사업을 케이스 단위로 돌려주고, 각 참여자의 실명·연락처를 배치 복호화해 함께 싣는다.
+ * 한 실무자(userId)의 활성 배정 당사자 목록 — 관리자 영역 사용자/실무자 상세 화면용(재개편 T8, D25).
+ * 접근: admin 전용(assertAdmin), 자기 기관만. 실무자가 담당(활성 배정, unassigned_at IS NULL)한
+ * 참여사업을 케이스 단위로 돌려주고, 각 당사자의 실명·연락처를 배치 복호화해 함께 싣는다.
  * 감사: 배정 목록 조회 1건(read, support_case_assignees) + 실명이 1건 이상 실리면 화면 단위
  * read_participant_pii 1건(D14·D24, loadParticipantContacts·auditParticipantPiiRead 공용 관문).
- * listSupportCasesForBeneficiary 와 동일한 이중 감사 형태다 — 대상만 상담사로 바뀐다.
+ * listSupportCasesForBeneficiary 와 동일한 이중 감사 형태다 — 대상만 실무자로 바뀐다.
  */
 export async function listCounselorAssignments(
   env: Env,
@@ -10559,7 +10898,7 @@ export async function listCounselorAssignments(
 ): Promise<CounselorAssignments> {
   assertAdmin(actor);
   assertOpaqueIdentifier(userId, 'assignee user id');
-  // 대상 상담사가 자기 조직 사용자인지 확인한다(없으면 ForbiddenError). 교차 조직 조회 차단.
+  // 대상 실무자가 자기 기관 사용자인지 확인한다(없으면 ForbiddenError). 교차 기관 조회 차단.
   await getUserForOrg(env, actor.orgId, userId);
   const result = await env.DB.prepare(
     `SELECT support_cases.id AS support_case_id,

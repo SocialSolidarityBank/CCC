@@ -9,9 +9,18 @@ import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from './consent-co
 // 여기 옵션을 확장한다. 값 자체는 게이트웨이가 financial_support_v1 로 고정하므로 표시용이다.
 const PROGRAM_OPTIONS = [{ value: 'financial_support_v1', label: PROGRAM_LABELS.financial_support_v1 }];
 
+// 성별 선택값은 정본 질문지 1-1 그대로다(D41). 빈 값은 '미입력' — 금고에 아무것도 쓰지 않는다.
+const GENDER_OPTIONS = [
+  { value: '', label: '선택 안 함' },
+  { value: '여성', label: '여성' },
+  { value: '남성', label: '남성' },
+  { value: '기타', label: '기타' },
+  { value: '무응답', label: '무응답' },
+];
+
 export interface RegisterFormProps {
   /**
-   * 로그인한 현재 사용자 — 등록자가 곧 담당자다(등록자=담당자, D7). 담당자 지정 select 대신
+   * 로그인한 현재 사용자 — 등록자가 곧 담당 실무자다(등록자=담당 실무자, D7). 담당 실무자 지정 select 대신
    * 이 값을 읽기 전용으로 보여준다. 표시는 이름 우선, 미입력이면 이메일로 폴백한다.
    */
   currentUser: { name: string | null; email: string };
@@ -23,18 +32,21 @@ export interface RegisterFormProps {
 }
 
 /**
- * 참여자 등록 폼(재개편 T7 · #37 · Figma 1:95). 2×2 그리드(이름·이메일·연락처·참여 사업) +
- * 항목별 동의 2종(D23 — 와이어프레임엔 없지만 확정 사항) + 풀폭 "가입하기".
+ * 당사자 등록 폼(재개편 T7 · #37 · Figma 1:95). 2×2 그리드(이름·이메일·연락처·참여 사업) +
+ * 항목별 동의 3종(D23·D44 — 개인정보·녹음·텍스트 AI) + 풀폭 "가입하기".
  *
- * 이번 티켓이 저장하는 PII 는 이메일뿐이다(등록 경로가 enc_email 만 연다, #32). 이름·연락처는
- * 와이어프레임 충실성을 위해 렌더하되 전송·저장하지 않는다 — 채움은 이후 updateParticipantPii.
+ * D44: 동의는 **여기서 받고 당사자 정보 페이지에서 고친다**. 인테이크는 읽기만 한다.
+ *
+ * 저장하는 PII 는 이름·이메일·연락처와 생년월일·주소(거주지역)·성별이다 — 전부 금고에
+ * 암호화 저장된다(D3). 인테이크 1단계(1-1 기본정보)는 이 값을 읽어 표시만 하므로,
+ * 고치는 자리는 여기 하나뿐이다(D42 ①). 계좌는 여전히 updateParticipantPii 몫이다.
  */
 export function RegisterForm({ currentUser, action }: RegisterFormProps) {
   return (
     <form className="wire-register-form" action={action}>
       <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
         <div className="wire-col-6">
-          <SearchInput label="이름" name="name" placeholder="참여자 이름" />
+          <SearchInput label="이름" name="name" placeholder="당사자 이름" />
         </div>
         <div className="wire-col-6">
           <SearchInput label="이메일" name="email" placeholder="participant@example.com" />
@@ -51,14 +63,25 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
             options={PROGRAM_OPTIONS}
           />
         </div>
+        {/* D41 1-1 · D42 ①: 인테이크 1단계의 기본정보는 여기서만 입력·수정한다. 값은 금고에
+            암호화 저장되고(D3), 인테이크 화면은 읽어서 표시만 한다(세션 기록에 PII 미저장, R3). */}
+        <div className="wire-col-6">
+          <SearchInput label="생년월일" type="date" name="birthDate" placeholder="YYYY-MM-DD" />
+        </div>
+        <div className="wire-col-6">
+          <SearchInput label="주소 또는 거주지역" name="region" placeholder="예: 서울시 은평구" />
+        </div>
+        <div className="wire-col-6">
+          <SearchInput label="성별" variant="select" name="gender" value="" options={GENDER_OPTIONS} />
+        </div>
       </div>
 
-      {/* 등록자=담당자(D7): 담당자 지정 select 를 없애고 현재 사용자를 읽기 전용으로 보여준다.
+      {/* 등록자=담당 실무자(D7): 담당 실무자 지정 select 를 없애고 현재 사용자를 읽기 전용으로 보여준다.
           admin 은 서버 액션이 본인을 배정하고, counselor 는 게이트웨이가 자동 본인 배정한다. */}
       <div className="wire-invite-section">
-        <span className="wire-search-label">담당자 {currentUser.name ?? currentUser.email}</span>
+        <span className="wire-search-label">담당 실무자 {currentUser.name ?? currentUser.email}</span>
         <p className="schedule-form-hint">
-          등록한 상담사가 담당자로 자동 배정됩니다. 담당자 변경은 관리자에게 요청하거나 관리자가 배정 화면에서 처리합니다.
+          등록한 실무자가 담당 실무자로 자동 배정됩니다. 담당 실무자 변경은 관리자에게 요청하거나 관리자가 배정 화면에서 처리합니다.
         </p>
       </div>
 
@@ -68,6 +91,12 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
           동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
           미동의여도 등록은 진행됩니다.
         </p>
+        {/* D44: 개인정보 수집·이용 동의가 3종의 첫 항목이다. 나머지 둘과 같은 층
+            (참여 사업)에 기록되며, 미동의여도 등록은 진행된다(D15 미동의 경로). */}
+        <label className="consent-checkbox">
+          <input type="checkbox" className="wire-checkbox" name="consentPrivacy" value="on" />
+          <span>개인정보 수집·이용 동의</span>
+        </label>
         <label className="consent-checkbox">
           <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />
           <span>녹음·음성 분석 동의</span>

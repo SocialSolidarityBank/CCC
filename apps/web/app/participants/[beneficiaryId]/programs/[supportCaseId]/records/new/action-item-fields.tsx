@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 
 const owners = [
-  ['counselor', '상담사'],
-  ['beneficiary', '참여자'],
+  ['counselor', '실무자'],
+  ['beneficiary', '당사자'],
   ['org', '기관'],
 ] as const;
 

@@ -12,14 +12,15 @@ import { GridContainer } from '../../components/wire/grid-container';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
 import { WireButton } from '../../components/wire/wire-button';
 import { PROGRAM_LABELS } from '../../lib/labels';
+import { updateParticipantConsentAction } from '../../actions';
 import { ErrorState, type ErrorKind } from './error-state';
 
-// 참여자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
-// 사업 워크스페이스 범위를 벗어난다: 그 참여자의 **조직 내 전 참여 사업**이 보인다.
+// 당사자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
+// 사업 워크스페이스 범위를 벗어난다: 그 당사자의 **기관 내 전 참여 사업**이 보인다.
 //
-// D36 (2026-07-26 Q 확정): 동료가 담당하는 사업도 **존재와 담당자 이름까지는** 보이고,
+// D36 (2026-07-26 Q 확정): 동료가 담당하는 사업도 **존재와 담당 실무자 이름까지는** 보이고,
 // 상담 내용(브리핑·기록)으로는 들어갈 수 없다. 근거는 "이 페이지를 여는 사람은 이미 그
-// 참여자의 담당자라 PII를 보고 있다" — 그래서 **케이스를 1건도 담당하지 않으면 서버가
+// 당사자의 담당 실무자라 PII를 보고 있다" — 그래서 **케이스를 1건도 담당하지 않으면 서버가
 // 페이지 자체를 막는다**(ForbiddenError → 아래 access_or_not_found). 화면은 그 판정을
 // 다시 하지 않고 서버가 준 `authorized` 로 링크만 잠근다.
 //
@@ -74,14 +75,14 @@ function LoadingState() {
   return (
     <main className="page-content" aria-busy="true">
       <GridContainer>
-        <div className="page-header"><div><h1>참여자 정보</h1></div></div>
-        <p className="empty" role="status" aria-live="polite">참여자 정보를 불러오는 중입니다.</p>
+        <div className="page-header"><div><h1>당사자 정보</h1></div></div>
+        <p className="empty" role="status" aria-live="polite">당사자 정보를 불러오는 중입니다.</p>
       </GridContainer>
     </main>
   );
 }
 
-/** 담당자 이름 줄. 이름이 없으면 아무것도 그리지 않는다 — 빈 라벨을 남기지 않는다. */
+/** 담당 실무자 이름 줄. 이름이 없으면 아무것도 그리지 않는다 — 빈 라벨을 남기지 않는다. */
 function AssigneeLine({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   return (
@@ -89,6 +90,57 @@ function AssigneeLine({ names }: { names: string[] }) {
       <span className="participant-program-assignee-label">담당</span>
       <span>{names.join(', ')}</span>
     </div>
+  );
+}
+
+// D44: 동의 3종은 등록 때 받고 **여기서 고친다**(인테이크는 읽기만). 담고 있는 값은
+// 이 참여 사업의 현재 상태이고, 저장하면 게이트웨이가 append-only 이력에 새 행을 남긴다
+// (철회도 이력으로 남는다, D14·D23). 담당하지 않는 사업에는 이 블록을 그리지 않는다 —
+// D36 은 존재와 담당 실무자까지만 보여 주자는 결정이지 쓰기 권한을 넓힌 것이 아니다.
+const CONSENT_ITEMS = [
+  { name: 'consentPrivacy', label: '개인정보 수집·이용 동의', key: 'privacy' },
+  { name: 'consentRecording', label: '녹음·음성 분석 동의', key: 'recording' },
+  { name: 'consentTextAi', label: '텍스트 AI 정리 동의', key: 'textAi' },
+] as const;
+
+/** 마지막으로 동의 상태를 기록한 시각. 최초 동의일이 아니다 — 저장할 때마다 갱신된다. */
+function formatConsentRecordedAt(value: string | null): string {
+  if (value === null) return '기록 없음';
+  const date = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Seoul' })
+    .format(date);
+}
+
+function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
+  return (
+    <form className="participant-program-consent" action={updateParticipantConsentAction}>
+      <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+      <input type="hidden" name="supportCaseId" value={program.id} />
+      <fieldset className="consent-fieldset">
+        <legend>동의 (항목별)</legend>
+        <p className="schedule-form-hint">
+          동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
+          체크를 풀면 철회로 기록되며, 이전 기록은 지워지지 않습니다.
+        </p>
+        {CONSENT_ITEMS.map((item) => (
+          <label className="consent-checkbox" key={item.name}>
+            <input
+              type="checkbox"
+              className="wire-checkbox"
+              name={item.name}
+              value="on"
+              defaultChecked={program.consent[item.key]}
+            />
+            <span>{item.label}</span>
+          </label>
+        ))}
+        <p className="participant-program-consent-meta">
+          마지막 기록 {formatConsentRecordedAt(program.consentRecordedAt)}
+        </p>
+        <WireButton type="submit">동의 저장</WireButton>
+      </fieldset>
+    </form>
   );
 }
 
@@ -102,15 +154,18 @@ function ProgramCard({ beneficiaryId, program }: { beneficiaryId: string; progra
       <p className="participant-program-meta">참여 시작 {formatIntakeDate(program.intakeAt)}</p>
       <AssigneeLine names={program.assigneeNames} />
       {program.authorized ? (
-        <div className="participant-program-actions">
-          <WireButton href={briefingHref(beneficiaryId, program.id)} variant="primary">상담 준비</WireButton>
-          <WireButton href={recordsHref(beneficiaryId, program.id)}>상담 기록</WireButton>
-        </div>
+        <>
+          <div className="participant-program-actions">
+            <WireButton href={briefingHref(beneficiaryId, program.id)} variant="primary">상담 준비</WireButton>
+            <WireButton href={recordsHref(beneficiaryId, program.id)}>상담 기록</WireButton>
+          </div>
+          <ConsentEditor beneficiaryId={beneficiaryId} program={program} />
+        </>
       ) : (
-        // D36: 담당하지 않는 사업. 존재와 담당자까지만 알려주고 상담 내용은 열지 않는다.
+        // D36: 담당하지 않는 사업. 존재와 담당 실무자까지만 알려주고 상담 내용은 열지 않는다.
         // 잠긴 이유를 문장으로 적는다 — 버튼만 없으면 "왜 없지"가 남는다.
         <p className="participant-program-locked">
-          담당하지 않는 사업입니다. 상담 내용은 담당 상담사에게 확인하세요.
+          담당하지 않는 사업입니다. 상담 내용은 담당 실무자에게 확인하세요.
         </p>
       )}
     </article>
@@ -148,7 +203,7 @@ function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
           </section>
         )}
         <p className="note-inline">
-          다른 참여자를 찾으려면 <Link href="/participants">참여자 목록</Link>으로 가세요.
+          다른 당사자를 찾으려면 <Link href="/participants">당사자 목록</Link>으로 가세요.
         </p>
       </GridContainer>
     </main>
