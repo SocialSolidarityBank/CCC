@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="CCC">
+  <title>CCC — 컨테이너 모노그램 반전 (다크 배경용)</title>
+  <defs>
+    <clipPath id="ccc-container-inv-clip">
+      <rect width="48" height="48" rx="12"/>
+    </clipPath>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="#ffffff"/>
+  <g clip-path="url(#ccc-container-inv-clip)">
+    <path d="M40.28 11.74 A16 16 0 1 0 40.28 36.26" fill="none" stroke="#0a0a0a" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

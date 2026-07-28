@@ -1,0 +1,155 @@
+/* CCC 디자인 토큰 v3 — 기계 소비용 사본.
+ * 색 토큰의 정본(SSOT)은 pen.dev 문서 `pencil-welcome-desktop.pen`의 '색 토큰' 페이지다
+ * (2026-07-26 Q 확정). 이 파일과 그 페이지가 어긋나면 pen 페이지가 맞다.
+ * 색 외 토큰(간격·형태·타이포)의 SSOT는 루트 DESIGN.md.
+ * 값 변경 절차: pen '색 토큰' 페이지 수정 → DESIGN.md → 이 파일 → ADR-0012 개정 이력.
+ * 근거: D34 / ADR-0012. */
+:root {
+  /* ── 중립 ── */
+  --canvas: #FAFAF9;   /* 화면 바탕 (웜 오프화이트) */
+  --panel:  #FFFFFF;   /* 카드·패널·입력칸 */
+  --muted:  #F5F5F4;   /* 보조 표면·플레이스홀더 */
+  --ink:    #3D3445;   /* 기본 텍스트 (캔버스 위 11.32 · 흰 위 11.83) — 보라 기운의 웜 잉크 */
+  --sub:    #534E57;   /* 보조 텍스트·불릿 (흰 위 8.09) */
+  --line:   #E7E5E4;   /* 장식 보더 1px (흰 위 1.26) */
+  --line-control: #E3E3E3; /* 입력칸·컨트롤 경계 (흰 위 1.28) */
+  --track:  #E0E0E0;   /* 추이 막대 무채색 구간 (흰 위 1.32) */
+
+  /* ── 파스텔 3계열 ── pen '색 토큰' 페이지 값 그대로.
+   * base = 면(게이지·막대) 전용 / deep = 글자·아이콘 전용 / tint = 배경 전용.
+   * deep 3색은 자기 tint 위에서 WCAG AA는 물론 large text 3:1에도 미달한다.
+   * 수치와 완화 방법은 DESIGN.md §9 알려진 접근성 예외. */
+  --blue:          #93C1F5;
+  --blue-deep:     #67A9F0;  /* tint 위 2.11 / 흰 위 2.47 */
+  --blue-tint:     #E7EEF8;
+  --mint:          #8ED9B8;
+  --mint-deep:     #56CC99;  /* tint 위 1.76 / 흰 위 2.00 */
+  --mint-tint:     #E4F4EC;
+  --lavender:      #CBA8E2;
+  --lavender-deep: #C890F0;  /* tint 위 2.02 / 흰 위 2.41 */
+  --lavender-tint: #F2E7F7;
+
+  /* ── Semantic ── */
+  --risk:            #F071B4;                   /* 확인된 리스크 전용 — 유일한 경고색
+                                                 * (흰 위 2.72 · 배너 배경 위 2.39 — §9 참조) */
+  --risk-tint:       rgba(240, 113, 180, 0.05); /* 리스크 배너 배경 (반투명) */
+  --risk-tint-solid: #F7EEF2;                   /* 같은 배경의 불투명 등가값 —
+                                                 * 그라데이션 테두리(padding-box 채움)에 필요 */
+
+  /* ── 그림자 색 ── pen은 색 3개를 따로 두고 노드에서 조합한다.
+   * CSS는 box-shadow 한 줄로 합쳐야 하므로 아래 --shadow-soft 합성값을 함께 둔다. */
+  --shadow-mint:     rgba(86, 204, 153, 0.15);  /* #56CC9926 — 좌측 */
+  --shadow-lavender: rgba(200, 144, 240, 0.15); /* #C890F026 — 우측 */
+  --shadow-blue:     rgba(103, 169, 240, 0.15); /* #67A9F026 — 현재 미사용, pen에 존재 */
+
+  /* ── 깊이 (CSS 전용 합성값) ── */
+  --shadow-soft: -2px 2px 8px var(--shadow-mint),
+                  2px 2px 8px var(--shadow-lavender);
+  --shadow-modal: 0 8px 32px rgba(61, 52, 69, 0.18);
+
+  /* ── 그라데이션 — 이 5곳 외에 만들지 않는다 ── */
+  --gradient-sidebar: linear-gradient(180deg, #E7EEF8 0%, #E4F4EC 50%, #F2E7F7 100%);
+  --gradient-brand:   linear-gradient(90deg, #8ED9B8 0%, #CBA8E2 100%);  /* base 쌍 */
+  --gradient-brand-v: linear-gradient(180deg, #8ED9B8 0%, #CBA8E2 100%); /* 세로선용 */
+  --gradient-deep:    linear-gradient(180deg, #56CC99 0%, #C890F0 100%); /* deep 쌍 — 체크박스 테두리 */
+  --gradient-action:  linear-gradient(135deg, #A8E3C6 0%, #D1B3E3 100%); /* 프라이머리 버튼 배경 */
+
+  /* ── 경계 (CSS 전용 합성값) ── */
+  --line-action: rgba(61, 52, 69, 0.5); /* 프라이머리 버튼 1px 아웃라인 (#3D344580) */
+  /* 사이드바 안 조직 | 사업 | 메뉴 구분선(§4-5). --line(#E7E5E4)은 사이드바 그라데이션 위에서
+   * 거의 안 보여 잉크 16% 로 따로 둔다. */
+  --line-sidebar: rgba(61, 52, 69, 0.16);
+
+  /* ── 형태 ── */
+  --radius-control: 6px;    /* 버튼·내비 항목·리스크 항목 행·입력칸·상태 태그 */
+  --radius-card:    12px;   /* 카드·패널·배너·모달 */
+  --radius-pill:    9999px; /* 배지·칩·필 버튼·프라이머리/세컨더리 버튼 */
+  --radius-xs:      4px;    /* 체크박스 */
+  --radius-bar:     2px;    /* 추이 막대 */
+  --control-height: 40px;
+  --badge-height:   24px;
+  --pill-height:    32px;
+
+  /* ── 간격 — 4의 배수만 ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ── 레이아웃 ── */
+  --sidebar-width: 240px;
+
+  /* 페이지 셸 — 장폭·여백의 **유일한 주인**이다(2026-07-26).
+   * 이전에는 .page-content(1280) · .narrow(960) · .today-page(960) · .wire-container(고정 거터
+   * 230px)가 서로 다른 폭을 주장했고, 게다가 .page-content 가 .app-shell 의 그리드 아이템인데
+   * margin:0 auto 를 갖고 있어 **트랙을 채우지 않고 내용 크기로 줄어들었다** — 그래서 화면마다
+   * 콘텐츠 컬럼이 429~1200px 로 제각각이었다. 값은 여기에만 두고 화면은 클래스만 고른다.
+   *   기본(--page-max)   목록·대시보드·2열 화면
+   *   좁게(narrow)       폼·읽기 화면. 한 줄이 너무 길어지지 않게 한다
+   *
+   * 2026-07-27 D37/ADR-0015 로 값을 1440 캔버스에서 역산해 다시 정했다. box-sizing:border-box
+   * 이므로 1120 안에 좌우 패딩 40 이 포함되고, 남는 글 폭이 1040(한 줄 약 65자)이다. */
+  --page-max: 1120px;
+  --page-max-narrow: 960px;
+  --page-pad-x: 40px;
+  --page-pad-y: 40px;
+  /* 섹션 사이 간격. 페이지 안의 큰 덩어리(헤더 · 목록 · 각주)를 나누는 값 하나. */
+  --section-gap: 24px;
+  /* 카드 목록 1칸의 최소 폭 — 열 수를 직접 쓰지 않고 이 값이 열을 만든다(§4-2).
+   * 표준 420: 1120 기준 2열(각 510) · 조밀 280: 3열(각 333).
+   * 최소 폭은 취향이 아니라 열 수에서 역산한 값이다 — 열 수를 바꾸려면 본문 폭을 고친다. */
+  --grid-min: 420px;
+  --grid-min-dense: 280px;
+
+  /* 겹침 4층 — 본문 0 · 스티키 10 · 드롭다운 30 · 스크림/모달 100 (§4-5) */
+  --z-sticky: 10;
+  --z-dropdown: 30;
+  --z-modal: 100;
+
+  /* ── 타이포 ── */
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  /* 트래킹은 pen에 변수로 존재하지 않는다 — Pencil은 자간을 px로만 받아 em 하나로 묶이지 않는다.
+   * 코드 구현에서는 아래 두 값만 쓴다. */
+  --tracking-base: -0.01em;    /* 한글·혼용 */
+  --tracking-numeric: -0.03em; /* 숫자 단독(GAS 점수·ID·날짜·기한)만 */
+}
+
+/* 브레이크포인트는 하나뿐이다 — `max-width: 767px` (§4-4 · 락 11). 768 은 데스크톱이다.
+ * D37 이후 패딩·섹션 간격·그리드 최소 폭은 폭이 줄어도 따라 줄지 않는다 — 좁아지는 일은
+ * auto-fit 이 처리하므로 화면 폭 분기는 셸이 드로어로 바뀌는 지점 하나면 된다.
+ * 여기서 줄이는 것은 휴대폰에서 글이 화면 가장자리에 붙지 않게 하는 컨테이너 패딩뿐이다. */
+@media (max-width: 767px) {
+  :root { --page-pad-x: 16px; --page-pad-y: 24px; }
+}
+
+/* ── 움직임 줄이기 ── DESIGN.md §6: "prefers-reduced-motion: reduce 에서 전환 제거".
+ * 계약은 v1부터 있었는데 강제하는 규칙이 어디에도 없었다(2026-07-26 확인) — 전환을 쓰는
+ * 자리(사이드바 내비 배경·아코디언 꺽쇠 회전)가 그대로 움직였다. 토큰 파일에 두는 이유는
+ * 이것이 화면별 규칙이 아니라 시스템 전체의 계약이기 때문이다.
+ * transition 과 animation 을 0 으로 만들지 않고 1ms 로 두는 것은, 완전히 0 이면 transitionend
+ * 를 기다리는 코드가 영영 멈추기 때문이다. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── 고대비 모드 ── DESIGN.md §9 '알려진 접근성 예외'의 완화 수단.
+ * 기본 팔레트는 시안 톤을 우선해 의도적으로 WCAG 아래에 있다(Q 결정). 사용자가 고대비를
+ * 켜면 아래 6개 토큰만 갈아끼운다 — 마크업 수정이 필요 없도록 설계된 목록 그대로다.
+ * 켜는 방법: <html data-contrast="high">. 값은 §9 표의 실측치. */
+:root[data-contrast="high"] {
+  --risk:          #B52573;  /* 흰 위 6.04 · 배너 배경 위 5.31 */
+  --blue-deep:     #496B9A;  /* tint 위 4.67 */
+  --mint-deep:     #3C775E;  /* tint 위 4.62 */
+  --lavender-deep: #8256A3;  /* tint 위 4.61 */
+  --line-control:  #948E89;  /* 흰 위 3.24 */
+  --track:         #948E89;  /* 흰 위 3.24 */
+}

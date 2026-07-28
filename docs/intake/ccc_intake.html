@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCC · 인테이크(초기상담) — 화면 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'Pretendard';src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Regular.woff2') format('woff2');font-weight:400;font-display:swap;}
+@font-face{font-family:'Pretendard';src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Medium.woff2') format('woff2');font-weight:500;font-display:swap;}
+@font-face{font-family:'Pretendard';src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-SemiBold.woff2') format('woff2');font-weight:600;font-display:swap;}
+@font-face{font-family:'Pretendard';src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2') format('woff2');font-weight:700;font-display:swap;}
+@font-face{font-family:'Pretendard';src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-ExtraBold.woff2') format('woff2');font-weight:800;font-display:swap;}
+
+:root{
+  --paper:#F4F4EC; --panel:#EEEFE6; --card:#FFFFFF;
+  --ink:#1E2B25; --ink-2:#4C5B52; --ink-3:#87958B;
+  --pine:#1E6B57; --pine-deep:#143F34; --pine-tint:rgba(30,107,87,.10);
+  --clay:#D6694B; --clay-deep:#B0472E; --clay-tint:rgba(214,105,75,.12);
+  --amber:#C48A2A; --amber-tint:rgba(196,138,42,.14);
+  --line:rgba(30,43,37,.13); --line-2:rgba(30,43,37,.22);
+  --field:#F7F8F3;
+  --serif:'Gowun Batang',serif;
+  --sans:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.55;}
+:focus-visible{outline:2px solid var(--pine);outline-offset:2px;border-radius:4px;}
+
+/* CAPTION */
+.mock-cap{max-width:1240px;margin:22px auto 0;padding:0 26px;color:var(--ink-3);font-size:12.5px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.mock-cap .tag{background:var(--ink);color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.04em;padding:3px 9px;border-radius:6px;}
+
+/* APP FRAME */
+.app{max-width:1240px;margin:12px auto 40px;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 30px 70px -40px rgba(30,43,37,.35);}
+/* topbar */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:58px;border-bottom:1px solid var(--line);background:var(--card);}
+.tb-left{display:flex;align-items:center;gap:22px;}
+.logo{font-family:var(--serif);font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px;}
+.logo .mk{width:8px;height:8px;border-radius:50%;background:var(--clay);}
+.tabs{display:flex;gap:2px;}
+.tab{font-size:13px;font-weight:600;color:var(--ink-3);padding:8px 13px;border-radius:9px;}
+.tab.on{background:var(--pine-tint);color:var(--pine-deep);font-weight:700;}
+.tb-right{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--ink-2);}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--pine);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+@media (max-width:860px){.tabs{display:none;}}
+
+/* subhead */
+.subhead{padding:20px 26px 18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.subhead .ttl{font-family:var(--serif);font-size:23px;font-weight:700;display:flex;align-items:center;gap:10px;}
+.subhead .ttl .pin{font-size:11px;font-weight:700;font-family:var(--sans);background:var(--clay-tint);color:var(--clay-deep);padding:4px 10px;border-radius:999px;letter-spacing:.02em;}
+.subhead .desc{font-size:13px;color:var(--ink-2);margin-top:6px;}
+.step-dots{display:flex;gap:6px;font-size:11.5px;color:var(--ink-3);align-items:center;}
+.step-dots b{color:var(--pine-deep);}
+
+/* body grid */
+.body{display:grid;grid-template-columns:1fr 336px;gap:0;}
+@media (max-width:960px){.body{grid-template-columns:1fr;}}
+.form-col{padding:26px;border-right:1px solid var(--line);}
+@media (max-width:960px){.form-col{border-right:none;border-bottom:1px solid var(--line);}}
+
+/* section */
+.fsec{margin-bottom:26px;}
+.fsec:last-child{margin-bottom:0;}
+.fsec-h{display:flex;align-items:center;gap:10px;margin-bottom:15px;}
+.fsec-h .no{width:26px;height:26px;border-radius:8px;background:var(--pine);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.fsec-h h3{font-size:15.5px;font-weight:700;}
+.fsec-h .hint{font-size:11.5px;color:var(--ink-3);margin-left:auto;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px 14px;}
+@media (max-width:560px){.grid2,.grid3{grid-template-columns:1fr;}}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field.col2{grid-column:span 2;}
+@media (max-width:560px){.field.col2{grid-column:span 1;}}
+.field label{font-size:12px;font-weight:600;color:var(--ink-2);}
+.field label .req{color:var(--clay-deep);margin-left:2px;}
+.inp{background:var(--field);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:13.5px;font-family:var(--sans);color:var(--ink);width:100%;transition:border-color .15s,background .15s;}
+.inp:focus{border-color:var(--pine);background:#fff;outline:none;}
+.inp.filled{color:var(--ink);font-weight:600;}
+.inp::placeholder{color:var(--ink-3);font-weight:400;}
+select.inp{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%2387958B' stroke-width='1.5' fill='none'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;}
+.seg{display:flex;gap:6px;flex-wrap:wrap;}
+.seg span{font-size:12.5px;font-weight:600;padding:8px 13px;border-radius:8px;border:1px solid var(--line);color:var(--ink-2);background:var(--field);cursor:default;}
+.seg span.on{background:var(--pine);color:#fff;border-color:var(--pine);}
+.seg span.on.warn{background:var(--clay);border-color:var(--clay);}
+.suffix{position:relative;}
+.suffix .u{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink-3);font-weight:600;}
+.chips{display:flex;gap:7px;flex-wrap:wrap;}
+.chip{font-size:12px;font-weight:600;background:var(--pine-tint);color:var(--pine-deep);border:1px solid rgba(30,107,87,.25);border-radius:999px;padding:6px 12px;display:flex;align-items:center;gap:6px;}
+.chip .x{color:var(--pine);opacity:.6;font-weight:700;}
+.chip.add{background:var(--field);color:var(--ink-3);border:1px dashed var(--line-2);}
+.help{font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.5;}
+
+/* goals / baseline table */
+.base{border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+.base-row{display:grid;grid-template-columns:150px 1fr;border-bottom:1px solid var(--line);}
+.base-row:last-child{border-bottom:none;}
+.base-row .k{background:var(--field);padding:12px 14px;font-size:12.5px;font-weight:700;color:var(--pine-deep);display:flex;align-items:center;gap:7px;}
+.base-row .v{padding:11px 14px;font-size:13px;color:var(--ink-2);}
+.base-row .v .measure{display:inline-block;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11.5px;margin:2px 4px 2px 0;font-weight:600;color:var(--ink-2);}
+
+/* right rail */
+.rail{padding:24px 22px;background:var(--panel);position:sticky;top:0;align-self:start;}
+.rail h4{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px;}
+.progress{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:16px;}
+.progress .pct{font-family:var(--serif);font-size:28px;font-weight:700;color:var(--pine);}
+.progress .bar{height:7px;border-radius:99px;background:var(--paper);margin:10px 0 12px;overflow:hidden;}
+.progress .bar i{display:block;height:100%;width:78%;background:var(--pine);border-radius:99px;}
+.progress ul{list-style:none;display:flex;flex-direction:column;gap:7px;}
+.progress li{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:8px;}
+.progress li .ck{width:16px;height:16px;border-radius:5px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.progress li.done .ck{background:var(--pine-tint);color:var(--pine);}
+.progress li.todo .ck{background:var(--amber-tint);color:var(--amber);}
+.progress li.todo{color:var(--ink-3);}
+
+.preview{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:16px;}
+.preview .ph{background:var(--pine);color:#fff;padding:11px 14px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:space-between;}
+.preview .ph .t15{font-size:10px;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:999px;font-weight:700;}
+.preview .pb{padding:13px 14px;}
+.preview .stgline{display:flex;gap:4px;margin-bottom:11px;flex-wrap:wrap;}
+.preview .stgline span{font-size:9.5px;font-weight:700;padding:4px 8px;border-radius:999px;background:var(--field);color:var(--ink-3);border:1px solid var(--line);}
+.preview .stgline span.now{background:var(--clay-tint);color:var(--clay-deep);border-color:rgba(214,105,75,.35);}
+.preview .pgoal{font-size:12.5px;font-weight:700;margin-bottom:9px;}
+.preview .pgoal small{display:block;font-size:10px;font-weight:600;color:var(--pine-deep);margin-bottom:3px;}
+.preview .cap{font-size:10.5px;color:var(--ink-3);line-height:1.5;background:var(--field);border-radius:8px;padding:8px 10px;}
+
+.save-row{display:flex;flex-direction:column;gap:9px;}
+.btn{padding:13px;border-radius:10px;font-size:14px;font-weight:700;text-align:center;cursor:default;border:none;font-family:var(--sans);}
+.btn-fill{background:var(--pine);color:#fff;}
+.btn-line{background:var(--card);color:var(--ink-2);border:1.5px solid var(--line-2);}
+.save-note{font-size:11px;color:var(--ink-3);text-align:center;margin-top:4px;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<div class="mock-cap"><span class="tag">화면 시안 · MOCKUP</span> CCC 웹앱 · <b style="color:var(--ink-2)">① 인테이크(초기상담) 등록</b> — 기준점(Baseline) 데이터를 수집하는 첫 화면</div>
+
+<div class="app">
+  <!-- topbar -->
+  <div class="topbar">
+    <div class="tb-left">
+      <div class="logo"><span class="mk"></span>CCC</div>
+      <div class="tabs">
+        <span class="tab">15초 확인</span>
+        <span class="tab">전체 리포트</span>
+        <span class="tab">회차 내역</span>
+        <span class="tab on">작성 · 인테이크</span>
+      </div>
+    </div>
+    <div class="tb-right">
+      <span>담당 상담사 <b>박서현</b></span>
+      <div class="avatar">박</div>
+    </div>
+  </div>
+
+  <!-- subhead -->
+  <div class="subhead">
+    <div>
+      <div class="ttl">이○원 님 인테이크 <span class="pin">1회차 · 기준점 등록</span></div>
+      <div class="desc">이 화면에서 입력한 기준선(Baseline)은 이후 모든 회차의 변화를 측정하는 시작점이 됩니다.</div>
+    </div>
+    <div class="step-dots">사례 등록일 <b>2026.01.10</b> · 단계 <b>인테이크·초기상담</b></div>
+  </div>
+
+  <!-- body -->
+  <div class="body">
+    <!-- FORM -->
+    <div class="form-col">
+
+      <!-- 1 -->
+      <div class="fsec">
+        <div class="fsec-h"><span class="no">1</span><h3>기본 식별 정보</h3><span class="hint">깔끔한 텍스트로만 표시</span></div>
+        <div class="grid3">
+          <div class="field"><label>성명<span class="req">*</span></label><input class="inp filled" value="이○원" readonly></div>
+          <div class="field"><label>성별</label>
+            <div class="seg"><span class="on">남</span><span>여</span></div>
+          </div>
+          <div class="field"><label>만 나이</label><div class="suffix"><input class="inp filled" value="27" readonly><span class="u">세</span></div></div>
+          <div class="field col2"><label>본인 연락처 (휴대전화 / 이메일)</label><input class="inp filled" value="010-1234-**** · leewon****@mail.com" readonly></div>
+          <div class="field"><label>긴급 연락처 (관계)</label><input class="inp" placeholder="예: 모(母) 010-****-****"></div>
+        </div>
+      </div>
+
+      <!-- 2 -->
+      <div class="fsec">
+        <div class="fsec-h"><span class="no">2</span><h3>사회경제적 배경</h3></div>
+        <div class="grid2">
+          <div class="field col2"><label>고용 형태</label>
+            <div class="seg"><span>정규직</span><span class="on">계약직</span><span>아르바이트</span><span>프리랜서</span><span>무직</span></div>
+          </div>
+          <div class="field"><label>월 평균 실소득</label><div class="suffix"><input class="inp filled" value="약 165" readonly><span class="u">만 원</span></div></div>
+          <div class="field"><label>소득 변동성</label>
+            <div class="seg"><span class="on warn">변동 큼</span><span>안정</span></div>
+          </div>
+          <div class="field"><label>장애 여부<span class="req">*</span></label>
+            <div class="seg"><span>있음</span><span class="on">없음</span></div>
+          </div>
+          <div class="field"><label>정부 복지 수급</label><select class="inp"><option>차상위 계층</option><option>기초생활수급</option><option>청년수당</option><option>해당 없음</option></select></div>
+        </div>
+      </div>
+
+      <!-- 3 -->
+      <div class="fsec">
+        <div class="fsec-h"><span class="no">3</span><h3>주거 및 금융 기초</h3><span class="hint">가장 큰 지출·부채 기초선</span></div>
+        <div class="grid3">
+          <div class="field"><label>주거 형태</label><select class="inp"><option>월세</option><option>전세</option><option>LH임대</option><option>부모동거</option></select></div>
+          <div class="field"><label>월 주거 고정비</label><div class="suffix"><input class="inp filled" value="48" readonly><span class="u">만 원</span></div><div class="help">임대료 + 공과금 합계</div></div>
+          <div class="field"><label>초기 총 채무 추정액<span class="req">*</span></label><div class="suffix"><input class="inp filled" value="1,050" readonly><span class="u">만 원</span></div><div class="help">인테이크 시점 파악 부채</div></div>
+        </div>
+      </div>
+
+      <!-- 4 -->
+      <div class="fsec">
+        <div class="fsec-h"><span class="no">4</span><h3>사례관리 메타</h3></div>
+        <div class="grid2">
+          <div class="field"><label>사례 등록일 (인테이크)</label><input class="inp filled" value="2026.01.10" readonly></div>
+          <div class="field"><label>주관 기관 · 담당 상담사</label><input class="inp filled" value="사회연대은행 · 박서현" readonly></div>
+          <div class="field col2"><label>기관 참여 사업 목록</label>
+            <div class="chips">
+              <span class="chip">청년자립기금 지원사업 <span class="x">×</span></span>
+              <span class="chip">맞춤형 재무코칭 프로그램 <span class="x">×</span></span>
+              <span class="chip">청년 밥상 프로젝트 <span class="x">×</span></span>
+              <span class="chip add">+ 사업 추가</span>
+            </div>
+            <div class="help">기관 내 중복·병행 참여 현황을 한눈에 파악하기 위해 나열합니다.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 -->
+      <div class="fsec">
+        <div class="fsec-h"><span class="no">5</span><h3>초기 목표 &amp; 6대 추적 항목 기준선</h3><span class="hint">이후 회차 변화의 시작점</span></div>
+        <div class="field" style="margin-bottom:14px;"><label>초기 주요 목표<span class="req">*</span></label><input class="inp filled" value="소득 대비 지출 통제 및 1,050만 원 부채 상환 계획 수립" readonly></div>
+        <div class="base">
+          <div class="base-row"><div class="k">① 소득·지출·생계위기</div><div class="v"><span class="measure">월소득 165만</span><span class="measure">고정지출 96만</span><span class="measure">긴급지출 없음</span></div></div>
+          <div class="base-row"><div class="k">② 채무조정·자립목표</div><div class="v"><span class="measure">워크아웃 미신청</span><span class="measure">단기: 비상금 30만 모으기</span></div></div>
+          <div class="base-row"><div class="k">③ 지출통제 습관</div><div class="v"><span class="measure">가계부 미작성</span><span class="measure">통장 쪼개기 미실행</span></div></div>
+          <div class="base-row"><div class="k">④ 자원 연계</div><div class="v"><span class="measure">햇살론유스 안내 예정</span><span class="measure">LH청년전세임대 검토</span></div></div>
+          <div class="base-row"><div class="k">⑤ 위험·긍정 신호</div><div class="v"><span class="measure" style="border-color:rgba(214,105,75,.4);color:var(--clay-deep)">🚨 고금리 사금융 1건</span><span class="measure">🟢 상담 성실 참여</span></div></div>
+          <div class="base-row"><div class="k">⑥ 상담 참여·태도</div><div class="v"><span class="measure">첫 상담 방문 · 협조적</span></div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT RAIL -->
+    <aside class="rail">
+      <h4>입력 진행률</h4>
+      <div class="progress">
+        <div class="pct">78%</div>
+        <div class="bar"><i></i></div>
+        <ul>
+          <li class="done"><span class="ck">✓</span>기본 식별 정보</li>
+          <li class="done"><span class="ck">✓</span>사회경제적 배경</li>
+          <li class="done"><span class="ck">✓</span>주거·금융 기초</li>
+          <li class="todo"><span class="ck">!</span>긴급 연락처 미입력</li>
+          <li class="todo"><span class="ck">!</span>정부 복지 수급 확정 필요</li>
+        </ul>
+      </div>
+
+      <h4>이 인테이크로 만들어질 화면</h4>
+      <div class="preview">
+        <div class="ph">15초 확인 미리보기 <span class="t15">기준점 v1</span></div>
+        <div class="pb">
+          <div class="stgline"><span class="now">인테이크</span><span>지원계획</span><span>개인지원</span><span>종결</span></div>
+          <div class="pgoal"><small>현재 주요 목표</small>지출 통제 및 부채 상환 계획 수립</div>
+          <div class="cap">아직 회차 데이터가 없어 위험·긍정 변화 카드는 2회차부터 표시됩니다. 지금은 기준선만 저장됩니다.</div>
+        </div>
+      </div>
+
+      <div class="save-row">
+        <button class="btn btn-fill">인테이크 저장하고 마치기</button>
+        <button class="btn btn-line">임시 저장</button>
+        <div class="save-note">저장 시 [회차 내역]에 인테이크가 분리 뷰로 고정되고, [전체 리포트]에 인적사항이 반영됩니다.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="mock-cap" style="margin-bottom:34px;">※ 위 화면은 CCC 표준 용어 사전·정보구조(IA)에 따라 구성한 인테이크 등록 화면 시안입니다. 인적정보는 예시이며 일부는 마스킹 처리했습니다.</div>
+
+</body>
+</html>

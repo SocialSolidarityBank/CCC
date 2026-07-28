@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "web-browser-automation-report",
+  "surface": "web",
+  "recordedAt": "2026-07-15T04:53:12.834609+00:00",
+  "baseUrl": "http://localhost:3000",
+  "backend": "local save-capable preview API at http://127.0.0.1:4010",
+  "journey": [
+    {"path": "/", "assertions": ["오늘 상담 heading", "schedule card exposes only 참여자 ID, 시간, 참여 사업, 상태"]},
+    {"path": "/participants/A017", "assertions": ["참여자 ID A017 heading", "authorized 참여 사업 card", "상담 준비 보기 link", "상담 기록 자세히 보기 link"]},
+    {"path": "/participants/A017/programs/sc-preview-1/briefing", "assertions": ["상담 준비 heading", "리스크 플래그", "목표별 GAS", "지난 상담 기록 요약", "미해결 액션", "오늘 확인할 질문", "source 참여 사업 provenance"]},
+    {"path": "/participants/A017/programs/sc-preview-1/records", "assertions": ["상담 기록 heading", "상담 일정", "수기 메모", "GAS", "액션 아이템", "플래그", "상담 기록 작성 link"]},
+    {"path": "/participants/A017/programs/sc-preview-1/records/new", "assertions": ["상담 기록 작성 form", "기본 기록", "GAS", "액션 아이템", "플래그", "선택적 일정 완료", "서버에 공식 기록 저장 button"]}
+  ],
+  "manualRecordSave": {
+    "submissionId": "05c7d412-7a65-4ac3-8bad-e6a21b4c6c98",
+    "resultTransport": "server action saved result followed by redirect to the scoped official records history; no URL success query",
+    "confirmation": "상담 기록 목록에서 저장된 공식 기록을 확인",
+    "verdict": "passed"
+  },
+  "desktop": {
+    "viewport": {"width": 1440, "height": 1000},
+    "screenshot": "artifacts/ccc-participant-briefing-desktop.png",
+    "verdict": "passed"
+  },
+  "mobile": {
+    "viewport": {"width": 320, "height": 900},
+    "documentScrollWidth": 320,
+    "bodyScrollWidth": 320,
+    "horizontalOverflow": false,
+    "screenshot": "artifacts/ccc-participant-briefing-mobile-320.png",
+    "verdict": "passed"
+  },
+  "accessibility": {
+    "documentLanguage": "ko",
+    "mainLandmarks": 1,
+    "h1Count": 1,
+    "imagesMissingAlt": 0,
+    "visibleTextContrastFailures": 0,
+    "contrastThreshold": 4.5,
+    "scope": "automated page-level checks only; counselor usability observation remains human-blocked",
+    "verdict": "passed"
+  },
+  "privacy": {
+    "piiRendered": false,
+    "hiddenSupportCaseMetadataRendered": false
+  },
+  "verdict": "passed"
+}

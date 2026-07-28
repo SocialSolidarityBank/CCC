@@ -1,0 +1,15 @@
+# ML 의존성 — 처리 장비(노트북)에서만 설치한다. 코어 로직·테스트는 표준 라이브러리만 쓴다.
+#
+# torch는 여기 고정하지 않는다: WSL2+CUDA 환경에 맞는 CUDA 빌드를 먼저 설치할 것.
+#   https://pytorch.org/get-started/locally/ (CUDA 12.x, RTX 5070 Ti)
+#
+# 모델 라이선스 (CLAUDE.md §5 — 미표기 저장소 사용 금지):
+#   openai/whisper                                            MIT
+#   pyannote.audio                                            MIT (게이트 모델은 HF 승인 필요)
+#   jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition Apache-2.0
+#   LimYeri/HowRU-KoELECTRA-Emotion-Classifier                MIT
+
+openai-whisper
+pyannote.audio
+transformers
+librosa

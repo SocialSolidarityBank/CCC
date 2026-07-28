@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" fill="none" role="img" aria-label="CCC">
+  <title>CCC — 겹친 삼중 C 합자</title>
+  <g stroke="currentColor" stroke-width="4" stroke-linecap="round">
+    <path d="M21.43 16.34 A10 10 0 1 0 21.43 31.66"/>
+    <path d="M32.43 16.34 A10 10 0 1 0 32.43 31.66"/>
+    <path d="M43.43 16.34 A10 10 0 1 0 43.43 31.66"/>
+  </g>
+</svg>

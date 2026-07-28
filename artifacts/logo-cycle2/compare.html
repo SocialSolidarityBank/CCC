@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCC Logo Cycle 2 — 6 Concepts</title>
+<style>
+  :root {
+    --primary: #006CB7;
+    --primary-hover: #338BC9;
+    --primary-deep: #26257C;
+    --tint: #CDEAFF;
+    --ink: #0A1E33;
+    --body: #454745;
+    --muted: #7B7875;
+    --canvas: #ECF0F3;
+    --surface: #FFFFFF;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+    padding: 40px;
+    letter-spacing: -0.01em;
+  }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 40px; }
+  .section-title {
+    font-size: 18px; font-weight: 700; margin: 40px 0 20px;
+    padding-bottom: 8px; border-bottom: 1px solid #d4d4d4;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid #d4d4d4;
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+  }
+  .card img.main {
+    width: 160px; height: 160px;
+    border-radius: 36px;
+    box-shadow: 0 2px 12px rgba(10,30,51,0.10);
+  }
+  .card h3 { font-size: 15px; font-weight: 700; margin-top: 16px; }
+  .card p { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .sizes {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin-top: 16px; padding-top: 12px; border-top: 1px solid #f2f2f2;
+  }
+  .sizes img { border-radius: 6px; }
+  .sizes .s60 { width: 60px; height: 60px; border-radius: 14px; }
+  .sizes .s29 { width: 29px; height: 29px; border-radius: 7px; }
+  .sizes .s16 { width: 16px; height: 16px; border-radius: 4px; }
+  .sizes span { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
+  .size-item { text-align: center; }
+  .palette {
+    display: flex; gap: 8px; margin-top: 32px; flex-wrap: wrap;
+  }
+  .swatch {
+    width: 48px; height: 48px; border-radius: 10px;
+    display: flex; align-items: flex-end; justify-content: center;
+    font-size: 8px; color: #fff; padding-bottom: 3px;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+</style>
+</head>
+<body>
+<h1>CCC Logo — Cycle 2</h1>
+<p class="subtitle">Case Context Companion · iOS App Icon Style · 6 Concepts · 2026-07-25</p>
+
+<div class="section-title">정방형 심볼형 (Symbol)</div>
+<div class="grid">
+  <div class="card">
+    <img class="main" src="symbol-1-companion.png" alt="S1 동반">
+    <h3>S1. 동반 (Companion)</h3>
+    <p>맥락이 한 사람을 감싼다.<br>C + 틴트 점. 블루→딥 그라데이션.</p>
+    <div class="sizes">
+      <div class="size-item"><img class="s60" src="symbol-1-companion-60.png"><span>60</span></div>
+      <div class="size-item"><img class="s29" src="symbol-1-companion-29.png"><span>29</span></div>
+      <div class="size-item"><img class="s16" src="symbol-1-companion-16.png"><span>16</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <img class="main" src="symbol-2-arcs.png" alt="S2 누적 호">
+    <h3>S2. 누적 호 (Arcs)</h3>
+    <p>기록이 맥락으로 쌓인다.<br>삼중 호, 안쪽만 틴트. 딥→잉크 배경.</p>
+    <div class="sizes">
+      <div class="size-item"><img class="s60" src="symbol-2-arcs-60.png"><span>60</span></div>
+      <div class="size-item"><img class="s29" src="symbol-2-arcs-29.png"><span>29</span></div>
+      <div class="size-item"><img class="s16" src="symbol-2-arcs-16.png"><span>16</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <img class="main" src="symbol-3-cards.png" alt="S3 브리핑 카드">
+    <h3>S3. 브리핑 카드 (Cards)</h3>
+    <p>흩어진 기록이 한 장의 브리핑으로.<br>겹친 카드 + 본문 라인. 틴트 배경.</p>
+    <div class="sizes">
+      <div class="size-item"><img class="s60" src="symbol-3-cards-60.png"><span>60</span></div>
+      <div class="size-item"><img class="s29" src="symbol-3-cards-29.png"><span>29</span></div>
+      <div class="size-item"><img class="s16" src="symbol-3-cards-16.png"><span>16</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">로고타입형 (Logotype)</div>
+<div class="grid">
+  <div class="card">
+    <img class="main" src="logotype-1-wordmark.png" alt="L1 글자마크">
+    <h3>L1. 글자마크 (Wordmark)</h3>
+    <p>세 C가 밝아지는 진행.<br>딥→프라이머리→호버. 흰 배경.</p>
+    <div class="sizes">
+      <div class="size-item"><img class="s60" src="logotype-1-wordmark-60.png"><span>60</span></div>
+      <div class="size-item"><img class="s29" src="logotype-1-wordmark-29.png"><span>29</span></div>
+      <div class="size-item"><img class="s16" src="logotype-1-wordmark-16.png"><span>16</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <img class="main" src="logotype-2-monogram.png" alt="L2 모노그램">
+    <h3>L2. 겹침 모노그램</h3>
+    <p>세 C가 겹쳐 짜인 리본.<br>반투명 레이어드. 캔버스 배경.</p>
+    <div class="sizes">
+      <div class="size-item"><img class="s60" src="logotype-2-monogram-60.png"><span>60</span></div>
+      <div class="size-item"><img class="s29" src="logotype-2-monogram-29.png"><span>29</span></div>
+      <div class="size-item"><img class="s16" src="logotype-2-monogram-16.png"><span>16</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <img class="main" src="logotype-3-lockup.png" alt="L3 풀 록업">
+    <h3>L3. 풀 록업 (Lockup)</h3>
+    <p>심볼 글자 + 제품명 + 설명.<br>공식 문서·앱스토어용. 캔버스 배경.</p>
+    <div class="sizes">
+      <div class="size-item"><img class="s60" src="logotype-3-lockup-60.png"><span>60</span></div>
+      <div class="size-item"><img class="s29" src="logotype-3-lockup-29.png"><span>29</span></div>
+      <div class="size-item"><img class="s16" src="logotype-3-lockup-16.png"><span>16</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">사용 컬러 팔레트</div>
+<div class="palette">
+  <div class="swatch" style="background:#006CB7">#006CB7</div>
+  <div class="swatch" style="background:#338BC9">#338BC9</div>
+  <div class="swatch" style="background:#26257C">#26257C</div>
+  <div class="swatch" style="background:#CDEAFF; color:#0A1E33">#CDEAFF</div>
+  <div class="swatch" style="background:#0A1E33">#0A1E33</div>
+  <div class="swatch" style="background:#454745">#454745</div>
+  <div class="swatch" style="background:#7B7875">#7B7875</div>
+  <div class="swatch" style="background:#ECF0F3; color:#0A1E33">#ECF0F3</div>
+  <div class="swatch" style="background:#FFFFFF; color:#0A1E33">#FFFFFF</div>
+</div>
+</body>
+</html>

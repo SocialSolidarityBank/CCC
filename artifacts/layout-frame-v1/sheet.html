@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>프레임 검증 시트 — 레이아웃 계약 v1</title>
+<style>
+  @import url("../../design/tokens.css");
+  *,*::before,*::after{box-sizing:border-box}
+  body{
+    margin:0;padding:32px;background:var(--muted);color:var(--ink);
+    font-family:var(--font-sans);font-size:16px;line-height:1.55;
+    letter-spacing:var(--tracking-base);
+  }
+  h1{font-size:28px;font-weight:700;line-height:1.25;margin:0 0 8px}
+  .lede{margin:0 0 8px;color:var(--sub)}
+  .lede code{font-size:14px}
+  .contract{
+    margin:24px 0 32px;padding:20px 24px;background:var(--panel);
+    border-radius:12px;box-shadow:var(--shadow-soft);
+  }
+  .contract table{border-collapse:collapse;width:100%;font-size:14px}
+  .contract th,.contract td{padding:6px 12px 6px 0;text-align:left;vertical-align:top}
+  .contract th{font-weight:700;color:var(--sub);border-bottom:1px solid var(--line)}
+  .contract td{border-bottom:1px solid var(--line)}
+  .contract td b{letter-spacing:var(--tracking-numeric)}
+
+  .rail{display:flex;gap:32px;overflow-x:auto;padding-bottom:24px;align-items:flex-start}
+  .frame{flex:none}
+  .frame > header{
+    display:flex;align-items:baseline;gap:12px;
+    margin-bottom:8px;font-weight:700;
+  }
+  .frame > header .w{font-size:20px;letter-spacing:var(--tracking-numeric)}
+  .frame > header .note{font-size:14px;font-weight:400;color:var(--sub)}
+  .scale{
+    /* 축소해서 나란히 본다. 안쪽 iframe 은 실제 폭 그대로라 계산은 정확하다. */
+    transform:scale(var(--s));transform-origin:top left;
+  }
+  .scale-box{overflow:hidden;border-radius:12px;box-shadow:var(--shadow-soft);background:var(--canvas)}
+  iframe{border:0;display:block;background:var(--canvas)}
+  .how{margin-top:32px;font-size:14px;color:var(--sub);max-width:70ch}
+  .how b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<h1>프레임 검증 시트 — 레이아웃 계약 v1</h1>
+<p class="lede">근거: <code>docs/superpowers/specs/2026-07-27-layout-contract-design.md</code></p>
+<p class="lede">각 화면 아래 검은 눈금 막대가 <b>실제로 렌더된 값</b>을 잰 것이다. 계약과 다르면 그 숫자만 분홍으로 뜬다.</p>
+
+<div class="contract">
+  <table>
+    <thead>
+      <tr><th>화면</th><th>사이드바</th><th>컨테이너</th><th>글 폭</th><th>표준 열</th><th>조밀 열(GAS)</th><th>한 줄</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>1440</b> 기준 캔버스</td><td>240</td><td><b>1120</b></td><td><b>1040</b></td><td>2 · 각 510</td><td>3 · 각 333</td><td>약 65자</td></tr>
+      <tr><td><b>1280</b> 맥북</td><td>240</td><td>1040</td><td>960</td><td>2 · 각 470</td><td>3 · 각 306</td><td>약 60자</td></tr>
+      <tr><td><b>1024</b> 태블릿</td><td>240</td><td>784</td><td>704</td><td>1</td><td>1</td><td>약 44자</td></tr>
+      <tr><td><b>767</b> 모바일 경계</td><td>드로어</td><td>767</td><td>735</td><td>1</td><td>1</td><td>약 45자</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="rail">
+  <!-- 배율은 넷 다 0.4 로 같다. 달리 주면 폭을 눈으로 비교할 수 없다.
+       iframe 높이는 각 폭의 전체 내용 높이보다 크게 잡는다 — 모자라면 세로
+       스크롤바가 생기고 그만큼 안쪽 폭이 줄어 눈금이 15px 작게 나온다. -->
+  <div class="frame">
+    <header><span class="w">1440</span><span class="note">기준 캔버스 · 컨테이너 1120, 좌우 잔여 40</span></header>
+    <div class="scale-box" style="width:576px;height:624px">
+      <div class="scale" style="--s:.4"><iframe src="briefing.html" width="1440" height="1560" title="1440"></iframe></div>
+    </div>
+  </div>
+
+  <div class="frame">
+    <header><span class="w">1280</span><span class="note">맥북 · 상한에 안 닿아 본문을 꽉 채움</span></header>
+    <div class="scale-box" style="width:512px;height:624px">
+      <div class="scale" style="--s:.4"><iframe src="briefing.html" width="1280" height="1560" title="1280"></iframe></div>
+    </div>
+  </div>
+
+  <div class="frame">
+    <header><span class="w">1024</span><span class="note">태블릿 · 전부 1열 (GAS 는 2열을 건너뛴다)</span></header>
+    <div class="scale-box" style="width:410px;height:1008px">
+      <div class="scale" style="--s:.4"><iframe src="briefing.html" width="1024" height="2520" title="1024"></iframe></div>
+    </div>
+  </div>
+
+  <div class="frame">
+    <header><span class="w">767</span><span class="note">사이드바 → 드로어(숨김)</span></header>
+    <div class="scale-box" style="width:307px;height:1064px">
+      <div class="scale" style="--s:.4"><iframe src="briefing.html" width="767" height="2660" title="767"></iframe></div>
+    </div>
+  </div>
+</div>
+
+<p class="how">
+  <b>보는 법.</b> 축소 배율은 나란히 놓기 위한 것이고, iframe 안쪽은 실제 폭 그대로라 눈금이 재는 숫자는 정확하다.
+  숫자 하나라도 분홍이면 계약과 코드가 어긋난 것이다.
+  <b>따로 확인할 것</b> — 사이드바가 화면 왼쪽 끝에 붙었는지(가운데 떠 있으면 안 된다),
+  1440에서 컨테이너 좌우 잔여가 40씩인지, GAS 게이지 3개가 한 줄에 서는지,
+  맨 아래 넓은 카드가 2열일 때 두 칸을 먹고 1열일 때 풀리는지.
+  <b>목업 하나를 직접 열어서</b> 창을 좁혔다 넓혔다 하면 접히는 지점도 눈금으로 확인된다 —
+  표준 카드는 화면 <b>1180</b>, GAS 는 화면 <b>1200</b>에서 접힌다. GAS 는 2열을 거치지 않고
+  3열에서 곧장 1열로 간다(2열이면 둘 + 외톨이 하나로 앉기 때문).
+</p>
+
+<script>
+/* iframe 높이를 내용에 맞춘다.
+   손으로 적어 두면 목업이 길어질 때마다 세로 스크롤바가 생기고, 그 15px 때문에
+   안쪽 폭이 줄어 눈금이 계약과 다르게 나온다. 실제로 그 사고가 두 번 났다.
+   스크롤바가 사라지면 내용이 다시 흐르므로 두 번 잰다. */
+const SCALE = 0.4;
+
+function fit(frame){
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  for (let i = 0; i < 2; i++){
+    const h = doc.documentElement.scrollHeight;
+    frame.height = h;
+    frame.style.height = h + 'px';
+  }
+  const h = parseInt(frame.height, 10);
+  frame.closest('.scale-box').style.height = Math.ceil(h * SCALE) + 'px';
+  frame.closest('.scale-box').style.width  = Math.ceil(parseInt(frame.width, 10) * SCALE) + 'px';
+  /* 세로 스크롤바가 사라지면 안쪽 폭이 15px 넓어지는데, 눈금은 처음 그려질 때의
+     값을 들고 있다. 다시 재라고 알려 준다. */
+  frame.contentWindow.dispatchEvent(new Event('resize'));
+  // 폰트가 늦게 들어와 내용이 길어지면 한 번 더
+  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(() => {
+    const h2 = doc.documentElement.scrollHeight;
+    if (h2 !== h){ frame.height = h2; frame.style.height = h2 + 'px';
+      frame.closest('.scale-box').style.height = Math.ceil(h2 * SCALE) + 'px'; }
+  });
+}
+
+for (const f of document.querySelectorAll('.scale-box iframe')){
+  if (f.contentDocument && f.contentDocument.readyState === 'complete') fit(f);
+  f.addEventListener('load', () => fit(f));
+}
+</script>
+
+</body>
+</html>

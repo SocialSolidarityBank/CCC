@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="CCC wordmark">
+  <title>CCC Wordmark</title>
+  <rect width="240" height="240" rx="54" fill="#FFFFFF"/>
+  <g fill="none" stroke-width="10" stroke-linecap="round">
+    <path d="M72.1 103.1 A22 22 0 1 0 72.1 136.9" stroke="#26257C"/>
+    <path d="M134.1 103.1 A22 22 0 1 0 134.1 136.9" stroke="#006CB7"/>
+    <path d="M196.1 103.1 A22 22 0 1 0 196.1 136.9" stroke="#338BC9"/>
+  </g>
+</svg>

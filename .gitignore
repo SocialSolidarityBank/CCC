@@ -1,0 +1,39 @@
+# 에이전트 런타임 상태 (커밋 금지, 예외: .omc/skills/)
+.omc/*
+!.omc/skills/
+.omo/
+.gjc/
+.cockpit/
+
+# 의존성·빌드 산출물 (추후 Next.js/Workers 셋업 대비)
+node_modules/
+.next/
+.wrangler/
+.open-next/
+dist/
+*.tsbuildinfo
+
+# 환경 변수·시크릿
+.env
+.env.*
+.dev.vars
+
+# OS
+.DS_Store
+
+# 에이전트 런타임 상태 (하위 디렉터리 포함)
+**/.omc/
+
+# Python (apps/pipeline)
+__pycache__/
+*.pyc
+
+# 시드 툴 산출물(생성물 — 커밋 금지)
+scripts/seed/out/
+
+# 로컬 도구 산출물
+.playwright-mcp/
+
+# 스킨 패스 렌더 증거(전체 스윕) — 용량이 커서 커밋하지 않는다.
+# 재생성: scripts/design/shots.py (절차는 artifacts/design-system-v0.1-skin/README.md)
+artifacts/skin-shots/

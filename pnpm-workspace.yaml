@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - lucide-react@1.24.0

@@ -1,0 +1,16 @@
+# apps/api 로컬 개발 변수 예시 — 이름만. 실제 값은 .dev.vars(gitignore)에 넣는다.
+# 값은 커밋·로그·채팅에 절대 남기지 않는다.
+
+# PII AES-GCM 키(D3, base64 32B). 로컬 시드와 같은 테스트 키를 쓴다.
+PII_ENC_KEY=
+PII_KEY_VERSION=2
+
+# ── 로컬 프리뷰(dev 이중 잠금, local-actor.ts) ──
+LOCAL_DEV_ACTOR_EMAIL=account@bss.or.kr
+
+# ── 미리보기 코드 게이트 로컬 테스트(CCC-6, preview-gate.ts) ──
+# 아래 3개를 채우고 LOCAL_ACTOR_HEADER_MODE 를 비우면 코드 게이트를 로컬에서 재현할 수 있다.
+# PREVIEW_ACCESS_CODE 값은 팀에 공유하는 지정 코드다 — 여기(예시)에는 절대 넣지 않는다.
+PREVIEW_MODE=true
+PREVIEW_ACCESS_CODE=
+PREVIEW_ACTOR_EMAIL=ai00@ggbss.or.kr

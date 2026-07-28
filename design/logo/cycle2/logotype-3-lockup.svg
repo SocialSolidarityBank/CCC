@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="CCC Full Lockup">
+  <title>CCC Full Lockup</title>
+  <rect width="240" height="240" rx="54" fill="#ECF0F3"/>
+  <g fill="none" stroke="#0A1E33" stroke-width="8" stroke-linecap="round">
+    <path d="M81.6 82.2 A18 18 0 1 0 81.6 109.8"/>
+    <path d="M131.6 82.2 A18 18 0 1 0 131.6 109.8"/>
+    <path d="M181.6 82.2 A18 18 0 1 0 181.6 109.8"/>
+  </g>
+  <text x="120" y="152" text-anchor="middle" font-family="Pretendard, Apple SD Gothic Neo, sans-serif" font-size="15" font-weight="700" letter-spacing="0.3" fill="#006CB7">Case Context Companion</text>
+  <text x="120" y="174" text-anchor="middle" font-family="Pretendard, Apple SD Gothic Neo, sans-serif" font-size="11" font-weight="500" letter-spacing="0.2" fill="#7B7875">Case Management Briefing</text>
+</svg>

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>참여자 등록 — CCC 화면 시안 (D23·D26·D31 / D33)</title>
+<link rel="stylesheet" href="base.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="1.6"/><path d="M4 17l5-5 5 5 2.5-2.5L20 18"/></svg>
+      </span>
+      사회연대은행
+    </div>
+    <nav class="nav">
+      <a href="schedule.html">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        상담 일정
+      </a>
+      <a href="participant-new.html" aria-current="page">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-3.9 3.1-6 7-6s7 2.1 7 6M17 8h6M20 5v6"/></svg>
+        참여자
+      </a>
+      <a href="review.html">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+        설정
+      </a>
+    </nav>
+  </aside>
+
+  <main class="main" style="max-width:960px">
+
+    <div class="page-head">
+      <div>
+        <h1>참여자 등록</h1>
+        <p>가명 ID는 저장할 때 자동으로 만들어집니다. <span class="muted">개인정보는 암호화해 보관하며, 열람은 담당자와 배정 책임자로 제한됩니다.</span></p>
+      </div>
+    </div>
+
+    <form class="stack" style="gap:var(--space-5)" onsubmit="return false">
+
+      <!-- 기본 정보 -->
+      <section class="card">
+        <div class="card-head">
+          <span class="left">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+            <h2>기본 정보</h2>
+          </span>
+          <span class="badge badge-mute">필수 4항목</span>
+        </div>
+        <div class="card-body stack" style="gap:var(--space-5)">
+          <div class="grid-2">
+            <div class="field">
+              <label for="name">실명 <span class="req" aria-label="필수">*</span></label>
+              <input class="input" id="name" type="text" value="정하늘">
+            </div>
+            <div class="field">
+              <label for="phone">연락처 <span class="req" aria-label="필수">*</span></label>
+              <input class="input num" id="phone" type="tel" value="010-1234" aria-invalid="true" aria-describedby="phone-err">
+              <span class="error" id="phone-err">번호 11자리를 모두 입력해 주세요 (예: 010-1234-5678)</span>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="birth">생년월일 <span class="req" aria-label="필수">*</span></label>
+              <input class="input num" id="birth" type="text" placeholder="1985-03-21">
+            </div>
+            <div class="field">
+              <label for="region">거주 시군구 <span class="req" aria-label="필수">*</span></label>
+              <select class="select" id="region">
+                <option>서울특별시 관악구</option>
+                <option>서울특별시 동작구</option>
+                <option>서울특별시 금천구</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="addr">상세 주소</label>
+            <input class="input" id="addr" type="text" placeholder="지원 물품 발송이 필요할 때만 입력합니다">
+          </div>
+        </div>
+      </section>
+
+      <!-- 해당 시 입력 -->
+      <section class="card">
+        <div class="card-head">
+          <span class="left">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 11h18"/></svg>
+            <h2>해당할 때만 입력</h2>
+          </span>
+        </div>
+        <div class="card-body stack" style="gap:var(--space-5)">
+          <div class="grid-2">
+            <div class="field">
+              <label for="email">이메일</label>
+              <input class="input" id="email" type="email" placeholder="선택">
+            </div>
+            <div class="field">
+              <label for="emg">긴급 연락처</label>
+              <input class="input num" id="emg" type="tel" placeholder="선택">
+              <span class="hint">이름·관계는 다음 칸에 적습니다 (예: 김순자 / 모)</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="account">계좌 <span class="muted" style="font-weight:400">— 금전 지원이 실제로 나갈 때만</span></label>
+            <input class="input num" id="account" type="text" placeholder="은행 / 계좌번호 / 예금주">
+          </div>
+        </div>
+      </section>
+
+      <!-- 배정과 사업 -->
+      <section class="card">
+        <div class="card-head">
+          <span class="left">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20v-1c0-3 2.7-5 6-5s6 2 6 5v1"/><circle cx="10" cy="8" r="3.5"/><path d="M17 14c2 .6 3 2.2 3 4v2"/></svg>
+            <h2>배정과 참여 사업</h2>
+          </span>
+        </div>
+        <div class="card-body stack" style="gap:var(--space-5)">
+          <div class="grid-2">
+            <div class="field">
+              <label for="owner">담당 상담사 <span class="req" aria-label="필수">*</span></label>
+              <select class="select" id="owner">
+                <option>박서연 (나)</option>
+                <option>이준호</option>
+                <option>한지민</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="co">공동 담당</label>
+              <select class="select" id="co">
+                <option>선택 안 함</option>
+                <option>이준호</option>
+              </select>
+              <span class="hint">이관·공동 담당은 등록 후에도 바꿀 수 있습니다.</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>참여 사업</label>
+            <div class="stack" style="gap:var(--space-3);margin-top:var(--space-1)">
+              <label class="check">
+                <input type="checkbox" checked>
+                <span><span class="label">희망키움통장</span><span class="desc">2026-03 ~ 2028-02 · 금전 지원형</span></span>
+              </label>
+              <label class="check">
+                <input type="checkbox">
+                <span><span class="label">마이크로크레딧 씬파일러 금융지원·멘토링</span><span class="desc">상시</span></span>
+              </label>
+              <label class="check">
+                <input type="checkbox">
+                <span><span class="label">마음건강 지원사업</span><span class="desc">2026-01 ~ 2026-12</span></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 동의 기록 (D23·D15) -->
+      <section class="card">
+        <div class="card-head">
+          <span class="left">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h9l5 5v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M14 4v5h5M8 14l2.5 2.5L16 11"/></svg>
+            <h2>동의 기록</h2>
+          </span>
+          <span class="badge badge-mute">종이·구두로 받은 내용을 옮겨 적습니다</span>
+        </div>
+        <div class="card-body stack" style="gap:var(--space-5)">
+          <div class="stack" style="gap:var(--space-4)">
+            <label class="check">
+              <input type="checkbox" checked>
+              <span>
+                <span class="label">상담 내용의 텍스트 AI 정리에 동의</span>
+                <span class="desc">수기 메모를 요약·질문 초안으로 정리합니다. 이름·연락처·계좌는 가명으로 바꾼 뒤 처리합니다.</span>
+              </span>
+            </label>
+            <label class="check">
+              <input type="checkbox">
+              <span>
+                <span class="label">상담 녹음과 음성 분석에 동의</span>
+                <span class="desc">녹음 파일은 30일 뒤 자동 삭제됩니다. 동의하지 않아도 수기 메모 기반 정리는 그대로 제공됩니다.</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label for="cdate">동의 일시</label>
+              <input class="input num" id="cdate" type="text" value="2026-03-18 14:20">
+            </div>
+            <div class="field">
+              <label for="cby">기록자</label>
+              <input class="input" id="cby" type="text" value="박서연" readonly style="background:var(--muted);color:var(--sub)">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="spread" style="justify-content:flex-end;gap:var(--space-2)">
+        <button class="btn btn-ghost" type="button">취소</button>
+        <button class="btn btn-secondary" type="button">임시 저장</button>
+        <button class="btn btn-primary" type="submit">등록하고 상담 잡기</button>
+      </div>
+
+    </form>
+  </main>
+</div>
+</body>
+</html>

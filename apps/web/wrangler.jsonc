@@ -1,0 +1,56 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ccc",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-07-15",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "ccc"
+    },
+    {
+      "binding": "CCC_API",
+      "service": "ccc-api"
+    }
+  ],
+  "vars": {
+    "CCC_API_ORIGIN": "https://ccc-api.account-855.workers.dev"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // ── 미리보기 환경 (CCC-6, 팀원 피드백 채널) ────────────────────────────
+  // 운영과 완전 분리된 전용 워커 ccc-preview. 서비스 바인딩·self 참조를 모두
+  // 미리보기 워커로 재지정한다 — 안 하면 미리보기 웹이 운영 API(ccc-api)를 친다.
+  // 배포: pnpm exec opennextjs-cloudflare deploy --env preview (apps/web에서).
+  // CCC_PREVIEW='true' 는 런타임 스위치(빌드 불변): api.ts 가 Access 쿠키 대신
+  // 미리보기 세션 쿠키를 API 로 포워딩하고, middleware.ts 가 쿠키 없으면 진입 화면으로 유도.
+  "env": {
+    "preview": {
+      "name": "ccc-preview",
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "ccc-preview"
+        },
+        {
+          "binding": "CCC_API",
+          "service": "ccc-api-preview"
+        }
+      ],
+      "vars": {
+        // 프로비저닝 시 실제 미리보기 API URL 로 교체한다(첫 배포 후 확정).
+        "CCC_API_ORIGIN": "https://ccc-api-preview.account-855.workers.dev",
+        "CCC_PREVIEW": "true"
+      },
+      "observability": {
+        "enabled": true
+      }
+    }
+  }
+}

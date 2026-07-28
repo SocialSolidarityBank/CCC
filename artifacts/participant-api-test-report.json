@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "api-package-test-report",
+  "surface": "api",
+  "recordedAt": "2026-07-15T05:44:15.893584+00:00",
+  "commands": [
+    {"command": "corepack pnpm run guard:db", "exitCode": 0, "result": "D1 gateway guard passed"},
+    {"command": "corepack pnpm run typecheck", "exitCode": 0, "result": "API and web TypeScript checks passed on the final snapshot"},
+    {"command": "corepack pnpm run build", "exitCode": 0, "result": "API type build and Next.js production build passed; participant, briefing, records, and record-entry routes emitted"},
+    {"command": "corepack pnpm exec vitest run --config apps/api/vitest.config.ts --maxWorkers=1", "exitCode": 0, "result": "10 API test files and 138 API tests passed in the deterministic serial D1 harness"},
+    {"command": "corepack pnpm --filter @ccc/web run test", "exitCode": 0, "result": "Web test command exited 0 with no test files"},
+    {"command": "git diff --check", "exitCode": 0, "result": "No whitespace errors"}
+  ],
+  "testHarness": {
+    "reasonForSerialWorkers": "Cloudflare D1 integration files share migration/reset resources; the package test script pins maxWorkers=1 to prevent cross-file fixture interference.",
+    "standardScript": "corepack pnpm run test"
+  },
+  "coverage": [
+    "participant/support-case multi-program isolation and canonical route aliases",
+    "authorized-set-first integrated briefing and source provenance",
+    "manual record immediate official status, active-case write guard, and idempotent replay",
+    "schedule transitions and version conflicts",
+    "PII reveal, admin-only mutation, retention, purge due clearing, and re-registration guards",
+    "migration FK/trigger/view/hash/manifest/failure paths and opaque SupportCase AI identity",
+    "Phase-1 consent, grounding, immutable draft, approval, and provider safety",
+    "multi-org and role denial matrices",
+    "concurrent support-case close, record, receipt, and assignment-transfer postconditions"
+  ],
+  "verdict": "passed"
+}

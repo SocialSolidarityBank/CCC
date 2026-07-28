@@ -1,0 +1,438 @@
+{
+  "steps": [
+    {
+      "step": "01-home",
+      "url": "http://localhost:3000/programs/financial_support_v1/schedule",
+      "note": "로그인 직후 첫 화면",
+      "links_total": 10,
+      "links_own": [
+        {
+          "t": "참여자 등록",
+          "h": "/participants/new"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "시간순 ↑",
+          "d": false
+        },
+        {
+          "t": "고정",
+          "d": true
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": false
+    },
+    {
+      "step": "02-participants",
+      "url": "http://localhost:3000/participants",
+      "note": "사이드바 '참여자'",
+      "links_total": 12,
+      "links_own": [
+        {
+          "t": "참여자 등록",
+          "h": "/participants/new"
+        },
+        {
+          "t": "임하준\n(whale-001)\n진행 중\n참여 사업 1개\n010-0000-0",
+          "h": "/participants/whale-001"
+        },
+        {
+          "t": "한서연\n(goose-001)\n진행 중\n참여 사업 1개\n010-0000-0",
+          "h": "/participants/goose-001"
+        },
+        {
+          "t": "참여자 초대",
+          "h": "/participants/invite"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 1,
+      "fields": [
+        {
+          "n": "participantQuery",
+          "ty": "input:text"
+        }
+      ],
+      "dead_end": false
+    },
+    {
+      "step": "03-hub",
+      "url": "http://localhost:3000/participants/whale-001",
+      "note": "담당 참여자 정보 허브",
+      "links_total": 11,
+      "links_own": [
+        {
+          "t": "상담 준비",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/briefing"
+        },
+        {
+          "t": "상담 기록",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": false
+    },
+    {
+      "step": "04-briefing",
+      "url": "http://localhost:3000/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/briefing",
+      "note": "허브 → 상담 준비(브리핑)",
+      "links_total": 11,
+      "links_own": [
+        {
+          "t": "참여자 정보",
+          "h": "/participants/whale-001"
+        },
+        {
+          "t": "상담 기록",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records"
+        },
+        {
+          "t": "",
+          "h": "/participants/whale-001"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "전체 열기",
+          "d": false
+        },
+        {
+          "t": "전체 닫기",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": false,
+      "visible_sections": {
+        "리스크": false,
+        "전체 목표": false,
+        "GAS": true,
+        "지난 상담": true,
+        "확인할 질문": true,
+        "액션": true,
+        "개인정보": true,
+        "승인 대기": false
+      }
+    },
+    {
+      "step": "05-records",
+      "url": "http://localhost:3000/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records",
+      "note": "브리핑 → 상담 기록 목록",
+      "links_total": 13,
+      "links_own": [
+        {
+          "t": "오늘 상담",
+          "h": "/"
+        },
+        {
+          "t": "참여자 ID whale-001",
+          "h": "/participants/whale-001"
+        },
+        {
+          "t": "참여 사업",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/briefing"
+        },
+        {
+          "t": "인테이크 작성",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records/intake"
+        },
+        {
+          "t": "상담 기록 작성",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records/new"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": false
+    },
+    {
+      "step": "06-record-new",
+      "url": "http://localhost:3000/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records/new",
+      "note": "기록 목록 → 새 기록 작성",
+      "links_total": 15,
+      "links_own": [
+        {
+          "t": "오늘 상담",
+          "h": "/"
+        },
+        {
+          "t": "참여자 ID whale-001",
+          "h": "/participants/whale-001"
+        },
+        {
+          "t": "참여 사업",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/briefing"
+        },
+        {
+          "t": "상담 기록",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records"
+        },
+        {
+          "t": "상담 기록으로 돌아가기",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records"
+        },
+        {
+          "t": "세 목표 모두 궤도에 올랐다. 적립액을 조금 올려도 될지 검토하기로 했다",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/briefing"
+        },
+        {
+          "t": "상담 준비 화면",
+          "h": "/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/briefing"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "서버에 공식 기록 저장",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 39,
+      "fields": [
+        {
+          "n": "memo",
+          "ty": "textarea:textarea"
+        },
+        {
+          "n": "heldAt",
+          "ty": "input:datetime-local"
+        },
+        {
+          "n": "channel",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaStatus_economy",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaNote_economy",
+          "ty": "input:text"
+        },
+        {
+          "n": "lifeAreaStatus_housing",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaNote_housing",
+          "ty": "input:text"
+        },
+        {
+          "n": "lifeAreaStatus_employment",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaNote_employment",
+          "ty": "input:text"
+        },
+        {
+          "n": "lifeAreaStatus_health",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaNote_health",
+          "ty": "input:text"
+        },
+        {
+          "n": "lifeAreaStatus_mental_health",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaNote_mental_health",
+          "ty": "input:text"
+        },
+        {
+          "n": "lifeAreaStatus_family",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "lifeAreaNote_family",
+          "ty": "input:text"
+        },
+        {
+          "n": "gasScore",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "gasScore",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "gasScore",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "actionDescription0",
+          "ty": "input:text"
+        },
+        {
+          "n": "actionOwner0",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "actionDueDate0",
+          "ty": "input:date"
+        },
+        {
+          "n": "actionDescription1",
+          "ty": "input:text"
+        },
+        {
+          "n": "actionOwner1",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "actionDueDate1",
+          "ty": "input:date"
+        },
+        {
+          "n": "actionDescription2",
+          "ty": "input:text"
+        },
+        {
+          "n": "actionOwner2",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "actionDueDate2",
+          "ty": "input:date"
+        },
+        {
+          "n": "scheduleCompletion",
+          "ty": "select:select-one"
+        },
+        {
+          "n": "changeSinceLast",
+          "ty": "input:text"
+        },
+        {
+          "n": "safetyNote",
+          "ty": "textarea:textarea"
+        }
+      ],
+      "dead_end": false,
+      "can_enter": {
+        "세션 목표": false,
+        "GAS": true,
+        "액션": true,
+        "리스크": true,
+        "메모": true,
+        "플래그": true,
+        "점수": true
+      }
+    },
+    {
+      "step": "07-schedule-new",
+      "url": "http://localhost:3000/schedules/new",
+      "note": "상담 등록 1단계",
+      "links_total": 8,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "한서연\n010-0000-0009\nseed09@example.com",
+          "d": false
+        },
+        {
+          "t": "임하준\n010-0000-0008\nseed08@example.com",
+          "d": false
+        },
+        {
+          "t": "다음: 이번 상담의 목표",
+          "d": true
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": true
+    },
+    {
+      "step": "08-not-mine",
+      "url": "http://localhost:3000/participants/crane-001",
+      "note": "담당 아닌 참여자 직접 주소 접근",
+      "links_total": 8,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": true,
+      "body_text": "사회연대은행 사업 마이크로크레딧 씬파일러 금융지원·멘토링 다가오는 일정 전체 일정 참여자 설정 참여자 정보 요청한 참여자 정보를 확인할 수 없습니다. 접근 권한과 주소를 확인하세요."
+    },
+    {
+      "step": "09-schedule-all",
+      "url": "http://localhost:3000/programs/financial_support_v1/schedule/all",
+      "note": "사이드바 '전체 일정'",
+      "links_total": 10,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": true,
+      "body_text": "사회연대은행 사업 마이크로크레딧 씬파일러 금융지원·멘토링 다가오는 일정 전체 일정 참여자 설정 전체 일정 상담 등록 전체 일정 화면은 아직 준비 중입니다 기간을 넓혀 보는 화면을 준비하고 있습니다. 지금은 다가오는 일정에서 오늘과 앞으로 8일치를 볼 수 있습니다. 다가오는 일정 보기"
+    },
+    {
+      "step": "10-settings",
+      "url": "http://localhost:3000/settings",
+      "note": "사이드바 '설정'",
+      "links_total": 8,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "fields_count": 0,
+      "fields": [],
+      "dead_end": true
+    }
+  ],
+  "page_errors": []
+}

@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "kind": "frozen-snapshot-manifest",
+  "recordedAt": "2026-07-15T05:44:15.893584+00:00",
+  "files": [
+    {
+      "path": "apps/api/package.json",
+      "sha256": "f335d55904f0dc1817699bf0c0ed9d6434be391d649d5ae7a4e9bf5cf1001590",
+      "bytes": 440
+    },
+    {
+      "path": "db/gateway.ts",
+      "sha256": "448419e0e7f3aa4ebb802eafe024acc709b8ca533b21b8a97b535a4e77a58765",
+      "bytes": 292702
+    },
+    {
+      "path": "db/schema.sql",
+      "sha256": "69ed19a27de1446d2606044ec911c9dd67f5bab10062bd26477faa9b22bc9448",
+      "bytes": 194488
+    },
+    {
+      "path": "migrations/0005_participant_support_case_expand.sql",
+      "sha256": "6df769037e34fbe6304490facf93d5806250c54033b405952e2e7cc38a372a75",
+      "bytes": 32207
+    },
+    {
+      "path": "migrations/0006_participant_support_case_cutover.sql",
+      "sha256": "fa29cd9b6eb6711506e3dfa477cc321365d813411d81d86cf38983e15f7d2072",
+      "bytes": 103692
+    },
+    {
+      "path": "apps/api/src/request-handler.ts",
+      "sha256": "229fb49b725d73b56f94177a6dbb043dcc1e300e47aeb4f6b88cfad91461b26a",
+      "bytes": 45092
+    },
+    {
+      "path": "apps/api/test/gateway-domain.test.ts",
+      "sha256": "78fe67b92cb92157f383a95916f6ef4b44613931ab5812bbe9f6d32c2a94bf51",
+      "bytes": 71517
+    },
+    {
+      "path": "apps/api/test/routes.test.ts",
+      "sha256": "7bbef2aa1978756d0308d8eda30af27fa2f80a8e694f3e6fa5c012b64091fb8c",
+      "bytes": 107871
+    },
+    {
+      "path": "apps/api/test/schema-triggers.test.ts",
+      "sha256": "79e2060f36eefabc98bb72ae767e67aa9169a6b24702a95615011761b5b592e9",
+      "bytes": 64448
+    },
+    {
+      "path": "apps/web/app/actions.ts",
+      "sha256": "5913906f2d31e0f3ec459616c55abf1e71ffb99b737312c0ef5bf71f37227062",
+      "bytes": 18701
+    },
+    {
+      "path": "apps/web/app/lib/api.ts",
+      "sha256": "ff4915bae8dfc7eac494a23c835fb1fe2bb99cd6add01441491ad50b0e8c349c",
+      "bytes": 25862
+    },
+    {
+      "path": "apps/web/app/page.tsx",
+      "sha256": "a66cfaebdfce55a6043ccf9af27c21127a90a081871206ce878aac25aec63f27",
+      "bytes": 3582
+    },
+    {
+      "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx",
+      "sha256": "9d655f4ba1ce4b3c736cff048ecb37eeeac22470b1db3b0e386d5031187b50f9",
+      "bytes": 11094
+    },
+    {
+      "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+      "sha256": "02fd17bf80e63ee10dfcf70fe15738b7de3d7818bf4d432f4b4d6e0ac650d9e8",
+      "bytes": 22916
+    },
+    {
+      "path": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/action-item-fields.tsx",
+      "sha256": "3705555a8d30f319100e4805af4d04c7fd5567178179b5bb27648ffcb1029388",
+      "bytes": 1670
+    },
+    {
+      "path": "artifacts/participant-api-test-report.json",
+      "sha256": "a331fc078b92cc6b944a3a2da6a8b341919b4451642747f141417fb8052b7817",
+      "bytes": 2015
+    },
+    {
+      "path": "artifacts/participant-web-e2e-report.json",
+      "sha256": "e2210e6c8e30e2634e2ac1f931adbc15a61114e827bad9c121d57283aedbef38",
+      "bytes": 2480
+    },
+    {
+      "path": "artifacts/ccc-participant-briefing-desktop.png",
+      "sha256": "82159f205435fd0096de674b6fd85c15240e2dc68ed59815f395359552d8c158",
+      "bytes": 130168
+    },
+    {
+      "path": "artifacts/ccc-participant-briefing-mobile-320.png",
+      "sha256": "4ce08af1baf077011c4566b234999c4e40051a54ee87c1e69c7e3533c67f59e5",
+      "bytes": 118171
+    }
+  ],
+  "manifestSha256": "cfd6738113444fada62be00d7e60c17377df513245e14b42aaa3a2d4d0207ab4"
+}

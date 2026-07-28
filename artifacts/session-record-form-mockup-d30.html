@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCC · 기본 상담 기록지 v0.2 — 원페이지 스키밍 시안 (D30)</title>
+<!-- 폰트 CDN은 이 목업 파일 전용. 운영 앱은 pretendard self-host(D30) — CDN 사용 금지 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+/* ===== D30 토큰 (apps/web layout.tsx :root 그대로) ===== */
+:root{
+  --canvas:#faf9f7; --panel:#FFFFFF; --muted:#f2f2f2;
+  --ink:#0a0a0a; --sub:#6b6b6b; --line:#d4d4d4;
+  --strong:#0a0a0a; --accent:#0a0a0a;
+  --risk:#c22b10; --success:#046645;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);
+  font-family:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  font-size:16px;line-height:1.55;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;letter-spacing:inherit}
+
+.mock-cap{max-width:1280px;margin:20px auto 0;padding:0 24px;color:var(--sub);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mock-cap .tag{background:var(--ink);color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.04em;padding:3px 9px;border-radius:6px}
+
+/* overflow:hidden 금지 — 목표 바 sticky가 깨짐. 라운드는 자식에 개별 적용 */
+.app{max-width:1280px;margin:12px auto 40px;border:1px solid var(--line);border-radius:14px;background:var(--panel);display:grid;grid-template-columns:240px minmax(0,1fr)}
+.sidebar{display:flex;flex-direction:column;gap:32px;padding:24px;background:var(--strong);color:var(--panel);border-radius:13px 0 0 13px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:800}
+.nav{display:grid;gap:4px;list-style:none;padding:0;margin:0}
+.nav a{display:flex;align-items:center;min-height:40px;padding:0 12px;border-radius:10px;color:var(--muted);font-size:14px;font-weight:700;text-decoration:none}
+.nav a[data-current="true"]{background:var(--accent);color:var(--panel);outline:1px solid rgba(255,255,255,.25)}
+.sidebar-footer{margin-top:auto;color:var(--muted);font-size:12px;font-weight:700}
+
+.main{background:var(--canvas);min-width:0;position:relative}
+.page{max-width:1040px;margin:0 auto;padding:28px 32px 40px}
+.breadcrumb{display:flex;gap:8px;margin-bottom:12px;color:var(--sub);font-size:14px}
+.page-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:16px}
+h1{margin:0;font-size:26px;line-height:1.25}
+.page-header p{margin:6px 0 0;color:var(--sub);font-size:14px}
+.head-meta{color:var(--sub);font-size:13px;font-weight:700;text-align:right;line-height:1.7;flex:none}
+
+.b{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:700;vertical-align:2px}
+.b-req{background:var(--ink);color:var(--panel)}
+.b-opt{background:transparent;color:var(--sub);border:1px dashed var(--line)}
+.b-tpl{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+
+/* ===== 고정 목표 바 — 스크롤해도 항상 위 ===== */
+.goalbar{position:sticky;top:0;z-index:10;background:var(--strong);color:var(--panel);border-radius:14px;padding:14px 20px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:20px;box-shadow:0 8px 24px -16px rgba(10,10,10,.5)}
+.goalbar .k{flex:none;font-size:11.5px;font-weight:800;letter-spacing:.05em;color:var(--muted);text-transform:uppercase}
+.goalbar .v{font-size:15px;font-weight:700;line-height:1.4}
+.goalbar .sub{width:100%;color:var(--muted);font-size:12px;font-weight:600}
+.goalbar .edit{margin-left:auto;flex:none;font-size:12px;font-weight:700;color:var(--muted);text-decoration:underline;cursor:pointer}
+
+/* ===== 본문 그리드 ===== */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:20px;align-items:start}
+.col{display:grid;gap:14px;min-width:0}
+
+.rail{position:sticky;top:78px;display:grid;gap:14px}
+.rail .panel{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px}
+.rail h3{margin:0 0 12px;font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--sub);text-transform:uppercase}
+.reqlist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.reqlist li{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink)}
+.reqlist li .dot{flex:none;width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:800;background:var(--muted);color:var(--ink)}
+.reqlist li.todo{color:var(--sub)}
+.reqlist li.todo .dot{background:var(--panel);border:1.5px solid var(--line);color:transparent}
+.btn{display:flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border:0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;width:100%}
+.btn-primary{background:var(--accent);color:var(--panel)}
+.btn-line{background:var(--panel);color:var(--ink);border:1px solid var(--line);margin-top:8px}
+.rail .save-note{margin-top:8px;font-size:11.5px;color:var(--sub);line-height:1.5}
+
+.sec{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:20px 24px}
+.sec-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sec-h h2{margin:0;font-size:16px;line-height:1.35}
+.sec-h .hint{margin-left:auto;color:var(--sub);font-size:12px;font-weight:700;text-align:right}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:grid;gap:6px;font-size:13px;font-weight:700}
+.field .lb{color:var(--ink)}
+.field small{color:var(--sub);font-weight:400;font-size:12px}
+.inp{width:100%;min-height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-weight:400}
+textarea.inp{min-height:72px;padding:10px 12px;resize:vertical;line-height:1.5}
+
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg span{display:inline-flex;align-items:center;min-height:32px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--sub);font-size:12.5px;font-weight:600}
+.seg span.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.seg span.on-ok{background:var(--muted);color:var(--ink);border-color:var(--line)}
+
+/* 질문 체크 */
+.q-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.q-row:last-child{border-bottom:0;padding-bottom:0}
+.q-row:first-child{padding-top:0}
+.ck{flex:none;width:18px;height:18px;margin-top:2px;border:1.5px solid var(--line);border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--panel)}
+.ck.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.q-row .src{margin-left:auto;flex:none;color:var(--sub);font-size:11px;font-weight:700}
+
+/* 액션 행: 체크박스 + 인라인 폼 */
+.action-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.action-row:last-child{border-bottom:0;padding-bottom:0}
+.action-row .a-title{font-size:14px;font-weight:700}
+.action-row .a-meta{color:var(--sub);font-size:12px;font-weight:700;margin-left:8px}
+.action-row .a-form{grid-column:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.action-row .a-form .inp{flex:1;min-width:200px;min-height:36px;font-size:13px}
+
+/* 6영역 압축 행 */
+.delta{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.delta:last-child{border-bottom:0;padding-bottom:0}
+.delta .d-name{font-size:13.5px;font-weight:700}
+.delta .d-name small{display:block;color:var(--sub);font-size:11px;font-weight:700}
+.delta .d-name small em{font-style:normal;color:var(--risk)}
+.delta .d-extra{grid-column:2}
+.delta.changed .d-name{color:var(--ink)}
+
+/* 아코디언 */
+details.deep{border:1px dashed var(--line);border-radius:14px;background:var(--panel)}
+details.deep>summary{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 20px;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+details.deep>summary .b{margin-left:auto}
+details.deep>summary::-webkit-details-marker{display:none}
+details.deep>summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+details.deep[open]>summary::before{transform:rotate(45deg)}
+details.deep .deep-body{padding:4px 20px 20px;display:grid;gap:14px}
+details.deep.risk-open{border:1px solid var(--risk)}
+details.deep.risk-open>summary{color:var(--risk)}
+details.deep.risk-open>summary::before{border-color:var(--risk)}
+
+/* GAS */
+.gas-scale{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.gas-scale span{display:grid;place-items:center;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--muted);color:var(--sub);font-size:12px;font-weight:700;text-align:center;padding:4px}
+.gas-scale span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+@media (max-width:960px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .layout{grid-template-columns:1fr}
+  .rail{position:static}
+  .grid2{grid-template-columns:1fr}
+  .delta{grid-template-columns:1fr}
+  .delta .d-extra{grid-column:1}
+  .goalbar{border-radius:0;margin:0 -32px 20px;padding:14px 32px}
+}
+</style>
+</head>
+<body>
+
+<div class="mock-cap"><span class="tag">화면 시안 · MOCKUP</span> 기본(정기) 상담 기록지 v0.2 — 원페이지 스키밍 + 아코디언 · 세션 목표 상단 고정 · D30 토큰 · 인물·수치는 전부 가상 · <b style="color:var(--ink)">스크롤해 보세요 — 목표 바가 따라옵니다</b></div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">C</span>CCC</div>
+    <ul class="nav">
+      <li><a href="#">상담 일정</a></li>
+      <li><a href="#" data-current="true">상담 기록 작성</a></li>
+      <li><a href="#">참여자 등록</a></li>
+      <li><a href="#">설정</a></li>
+    </ul>
+    <div class="sidebar-footer">박서현 · 상담사</div>
+  </aside>
+
+  <main class="main">
+    <div class="page">
+      <nav class="breadcrumb"><span>상담 일정</span><span>›</span><span>김하늘</span><span>›</span><span><b>상담 기록 (2회차)</b></span></nav>
+      <header class="page-header">
+        <div>
+          <h1>김하늘 <span class="b b-req">정기 상담 · 2회차</span></h1>
+          <p>한 화면에서 훑고, 자세한 기록은 펼쳐서 적으세요. 필수는 사실상 '오늘의 상담 기록' 하나예요.</p>
+        </div>
+        <div class="head-meta">마이크로크레딧 씬파일러 금융지원·멘토링<br>2026.08.07 (금) 18:30 · 대면 · 박서현</div>
+      </header>
+
+      <!-- ===== 고정: 오늘의 세션 목표 ===== -->
+      <div class="goalbar">
+        <span class="k">이번 상담 목표</span>
+        <span class="v">긴급 주거비 지원 신청 결과 확인 · 월 예산표 첫 작성</span>
+        <span class="edit">수정</span>
+        <span class="sub">전체 목표 1 · "3개월 안에 월세·카드값 연체를 0으로 만들고 월 예산표를 유지한다"</span>
+      </div>
+
+      <div class="layout">
+        <div class="col">
+
+          <!-- 1. 오늘 확인할 질문 -->
+          <section class="sec">
+            <div class="sec-h"><h2>오늘 확인할 질문</h2><span class="hint">브리핑에서 가져옴 — 체크하며 진행</span></div>
+            <div class="q-row"><span class="ck on">✓</span><span>긴급 주거비 신청 결과를 안내하고, 입금 일정과 사용처를 함께 확인했나요?</span><span class="src">AI</span></div>
+            <div class="q-row"><span class="ck">&nbsp;</span><span>카드 분할 상환 진행 상황에 막힌 부분이 있는지 물었나요?</span><span class="src">AI</span></div>
+            <div class="q-row"><span class="ck">&nbsp;</span><span>예산표 작성에서 참여자가 직접 정하고 싶은 항목은 무엇인가요?</span><span class="src">맞춤</span></div>
+          </section>
+
+          <!-- 2. 오늘의 상담 기록 (P1) -->
+          <section class="sec">
+            <div class="sec-h"><h2>오늘의 상담 기록 <span class="b b-req">필수</span></h2><span class="hint">저장 즉시 공식 기록 · 녹음 병행 시 AI 정리는 별도 승인</span></div>
+            <textarea class="inp" style="min-height:150px" placeholder="상담 내용을 자유롭게 기록하세요."></textarea>
+          </section>
+
+          <!-- 3. 미해결 액션: 체크박스 + 기록 폼 -->
+          <section class="sec">
+            <div class="sec-h"><h2>미해결 액션 <span class="b b-req">필수</span></h2><span class="hint">항목마다 하나씩 · 0건이면 자동 통과</span></div>
+            <div class="action-row">
+              <span class="ck on">✓</span>
+              <div><span class="a-title">상담사: 긴급 주거비 지원 요건 확인 후 연락</span><span class="a-meta">기한 7.26</span></div>
+              <div class="a-form">
+                <div class="seg"><span class="on">완료</span><span>진행 중</span><span>못 함</span><span>보류</span></div>
+                <input class="inp" value="요건 충족 확인, 신청서 접수 완료">
+              </div>
+            </div>
+            <div class="action-row">
+              <span class="ck">&nbsp;</span>
+              <div><span class="a-title">참여자: 카드사 분할 상환 신청서 제출</span><span class="a-meta">기한 8.01</span></div>
+              <div class="a-form">
+                <div class="seg"><span>완료</span><span class="on">진행 중</span><span>못 함</span><span>보류</span></div>
+                <input class="inp" placeholder="한 줄 메모 (선택)">
+              </div>
+            </div>
+          </section>
+
+          <!-- 4. 생활 변화 확인 (압축 6행) -->
+          <section class="sec">
+            <div class="sec-h"><h2>생활 변화 확인 <span class="b b-req">필수</span></h2><span class="hint">기본 "변화 없음" — 달라진 영역만 갱신</span></div>
+            <div class="delta changed">
+              <div class="d-name">① 경제·생계<small>지난: <em>위기</em> →</small></div>
+              <div class="seg"><span>변화 없음</span><span>괜찮음</span><span class="on">긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+              <div class="d-extra"><input class="inp" style="min-height:36px;font-size:13px" value="긴급 주거비 지원 확정으로 월세 연체 해소 예정, 카드값은 분할 진행 중"></div>
+            </div>
+            <div class="delta">
+              <div class="d-name">② 주거<small>지난: 긴장 →</small></div>
+              <div class="seg"><span class="on on-ok">변화 없음</span><span>괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+            </div>
+            <div class="delta">
+              <div class="d-name">③ 일·고용<small>지난: 긴장 →</small></div>
+              <div class="seg"><span class="on on-ok">변화 없음</span><span>괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+            </div>
+            <div class="delta">
+              <div class="d-name">④ 건강(신체)<small>지난: 괜찮음 →</small></div>
+              <div class="seg"><span class="on on-ok">변화 없음</span><span>괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+            </div>
+            <div class="delta">
+              <div class="d-name">⑤ 심리·정서<small>지난: 긴장 →</small></div>
+              <div class="seg"><span class="on on-ok">변화 없음</span><span>괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+            </div>
+            <div class="delta">
+              <div class="d-name">⑥ 가족·관계·돌봄<small>지난: 괜찮음 →</small></div>
+              <div class="seg"><span class="on on-ok">변화 없음</span><span>괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+            </div>
+          </section>
+
+          <!-- ===== 아코디언: 선택·권장 — 필요할 때만 ===== -->
+          <details class="deep">
+            <summary>목표 평가 (GAS) — 점수는 상담사가 직접 <span class="b b-opt">권장</span></summary>
+            <div class="deep-body">
+              <div class="field"><span class="lb">목표 1 — 3개월 안에 월세·카드값 연체를 0으로 만들고 월 예산표를 유지한다</span>
+                <div class="gas-scale">
+                  <span>-2<br>연체 확대</span><span>-1<br>연체 유지</span><span class="on">0<br>월세만 해소</span><span>+1<br>연체 전액 해소</span><span>+2<br>+예산표 3개월 유지</span>
+                </div>
+              </div>
+              <div class="field"><span class="lb">근거 한 줄</span><input class="inp" value="긴급 주거비 확정으로 월세 연체 해소 경로 확보, 카드값은 분할 1회차 납부"></div>
+              <details class="deep"><summary style="min-height:44px;font-size:13px;color:var(--sub)">목표 종료·신설 — 문구 수정 금지(D12), 종료 사유 + 새 목표 신설</summary>
+                <div class="deep-body"><small style="color:var(--sub)">기존 목표를 사유와 함께 종료하고 새 목표를 신설하면 GAS 추이가 이어집니다.</small></div>
+              </details>
+            </div>
+          </details>
+
+          <details class="deep">
+            <summary>회차 템플릿 항목 — AI가 세션 목표에 맞춰 재구성 (D29) <span class="b b-tpl">템플릿</span></summary>
+            <div class="deep-body">
+              <div class="grid2">
+                <div class="field"><span class="lb">긴급 주거비 — 신청 결과·입금 예정</span><input class="inp"></div>
+                <div class="field"><span class="lb">월 예산표 — 이번 달 고정지출 합계</span><input class="inp"></div>
+              </div>
+              <small style="color:var(--sub)">항목 구성은 상담 전 수정 가능 · AI 실패 시 코어만(폴백) · 항목 상세는 D29 확정 후.</small>
+            </div>
+          </details>
+
+          <details class="deep">
+            <summary>새 액션 · 다음 만남 <span class="b b-opt">선택</span></summary>
+            <div class="deep-body">
+              <div class="grid2">
+                <div class="field"><span class="lb">새 액션 — 누가 · 무엇을</span><input class="inp" value="참여자: 월 예산표 초안을 다음 상담 전까지 작성"></div>
+                <div class="field"><span class="lb">다음 만남</span><input class="inp" value="2026.08.21 (금) 18:30 · 대면"><small>저장 시 상담 일정에 등록 — 세션 목표는 일정 등록에서 연결</small></div>
+              </div>
+            </div>
+          </details>
+
+          <details class="deep">
+            <summary>위기·안전 확인 — 생활 변화에 '위기'가 있으면 자동 펼침 <span class="b b-opt">선택</span></summary>
+            <div class="deep-body">
+              <div class="field"><span class="lb">지금 당장 위험하다고 느끼는 상황이 있나요?</span><textarea class="inp"></textarea></div>
+              <div class="grid2">
+                <div class="field"><span class="lb">오늘 바로 필요한 연결이 있나요?</span><input class="inp"></div>
+                <div class="field"><span class="lb">지금 안전한가요? 긴급 연락할 사람은?</span><input class="inp"></div>
+              </div>
+            </div>
+          </details>
+
+          <details class="deep">
+            <summary>리스크 플래그 수기 추가 — 고정 유형 + 근거 <span class="b b-opt">선택</span></summary>
+            <div class="deep-body">
+              <div class="grid2">
+                <div class="field"><span class="lb">유형 (기관 설정, D9)</span>
+                  <div class="seg"><span>위기 발언</span><span>연락 두절 위험</span><span>주거·생계 급변</span><span>부채 악화</span><span>약속 불이행 반복</span><span>기타</span></div>
+                </div>
+                <div class="field"><span class="lb">근거</span><input class="inp" placeholder="관찰·발언 근거를 한 줄로"></div>
+              </div>
+              <small style="color:var(--sub)">AI 제안 플래그의 맞음/틀림 확정은 검토·승인 화면에서 합니다.</small>
+            </div>
+          </details>
+
+          <!-- 마무리: 담당자 의견 (항상 노출) -->
+          <section class="sec">
+            <div class="sec-h"><h2>담당자 의견</h2><span class="hint">상담사의 종합 판단 — 참여자 발언과 구분해 기록</span></div>
+            <textarea class="inp" style="min-height:110px" placeholder="예: 주거비 확정으로 급한 위기는 넘김. 예산표 습관화가 다음 관건 — 참여자 주도로 항목을 정하게 할 것."></textarea>
+          </section>
+
+        </div>
+
+        <!-- ===== 우측 레일 ===== -->
+        <aside class="rail">
+          <div class="panel">
+            <h3>필수 채움 상태</h3>
+            <ul class="reqlist">
+              <li class="todo"><span class="dot"></span>오늘의 상담 기록</li>
+              <li><span class="dot">✓</span>미해결 액션 (1/2)</li>
+              <li><span class="dot">✓</span>생활 변화 확인</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <button class="btn btn-primary" disabled style="opacity:.55">저장하고 마치기</button>
+            <button class="btn btn-line">임시 저장</button>
+            <div class="save-note">수기 기록은 저장 즉시 공식 기록이 됩니다. 필수가 채워지면 저장 버튼이 열립니다.</div>
+          </div>
+          <div class="panel">
+            <h3>지난 상담</h3>
+            <div style="font-size:13px;color:var(--sub);line-height:1.55">인테이크 (7.24)<br>월세·카드값 연체로 긴급 주거비 연계 우선, 예산표는 이번 회차부터<br><span style="text-decoration:underline;font-weight:700">브리핑에서 전체 보기</span></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="mock-cap" style="margin-bottom:36px">※ 설계 근거: docs/intake/session-record-form-design-v0.md (v0.2 — 원페이지 스키밍: 목표 고정 → 질문 → 기록 → 액션 → 6영역, 선택은 아코디언으로 후순위 배치). 인테이크 시안: intake-form-mockup-d30.html. 인물·수치는 전부 가상.</div>
+
+</body>
+</html>

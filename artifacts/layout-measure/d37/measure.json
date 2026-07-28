@@ -1,0 +1,807 @@
+[
+  {
+    "width": 1440,
+    "route": "briefing",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": false,
+      "containerWidth": 1120,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 1040,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 2,
+      "stdGap": 20,
+      "denseCols": 3,
+      "denseGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "participants",
+    "path": "/participants",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": false,
+      "containerWidth": 1120,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 1040,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "participant-hub",
+    "path": "/participants/whale-001",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": false,
+      "containerWidth": 1120,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 1040,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 2,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "schedule",
+    "path": "/programs/microloan/schedule",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "schedule-new",
+    "path": "/schedules/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": true,
+      "containerWidth": 960,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 880,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "participant-new",
+    "path": "/participants/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": true,
+      "containerWidth": 960,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 880,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "records",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": false,
+      "containerWidth": 1120,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 1040,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 2,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "route": "record-new",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1440,
+      "docClient": 1440,
+      "narrow": false,
+      "containerWidth": 1120,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 1040,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "briefing",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": false,
+      "containerWidth": 1040,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 960,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 2,
+      "stdGap": 20,
+      "denseCols": 3,
+      "denseGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "participants",
+    "path": "/participants",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": false,
+      "containerWidth": 1040,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 960,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "participant-hub",
+    "path": "/participants/whale-001",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": false,
+      "containerWidth": 1040,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 960,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 2,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "schedule",
+    "path": "/programs/microloan/schedule",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "schedule-new",
+    "path": "/schedules/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": true,
+      "containerWidth": 960,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 880,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "participant-new",
+    "path": "/participants/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": true,
+      "containerWidth": 960,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 880,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "records",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": false,
+      "containerWidth": 1040,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 960,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 2,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1280,
+    "route": "record-new",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1280,
+      "docClient": 1280,
+      "narrow": false,
+      "containerWidth": 1040,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 960,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "briefing",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": false,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 1,
+      "stdGap": 20,
+      "denseCols": 1,
+      "denseGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "participants",
+    "path": "/participants",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": false,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "participant-hub",
+    "path": "/participants/whale-001",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": false,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 1,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "schedule",
+    "path": "/programs/microloan/schedule",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "schedule-new",
+    "path": "/schedules/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": true,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "participant-new",
+    "path": "/participants/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": true,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "records",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": false,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240,
+      "stdCols": 1,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 1024,
+    "route": "record-new",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 1024,
+      "docClient": 1024,
+      "narrow": false,
+      "containerWidth": 784,
+      "padLeft": 40,
+      "padRight": 40,
+      "textWidth": 704,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": false,
+      "sidebarWidth": 240
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "briefing",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": false,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0,
+      "stdCols": 1,
+      "stdGap": 20,
+      "denseCols": 1,
+      "denseGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "participants",
+    "path": "/participants",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": false,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "participant-hub",
+    "path": "/participants/whale-001",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": false,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0,
+      "stdCols": 1,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "schedule",
+    "path": "/programs/microloan/schedule",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "schedule-new",
+    "path": "/schedules/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": true,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "participant-new",
+    "path": "/participants/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": true,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "records",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": false,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0,
+      "stdCols": 1,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 767,
+    "route": "record-new",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 767,
+      "docClient": 767,
+      "narrow": false,
+      "containerWidth": 767,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 735,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "briefing",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": false,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0,
+      "stdCols": 1,
+      "stdGap": 20,
+      "denseCols": 1,
+      "denseGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "participants",
+    "path": "/participants",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": false,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "participant-hub",
+    "path": "/participants/whale-001",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": false,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0,
+      "stdCols": 1,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "schedule",
+    "path": "/programs/microloan/schedule",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "schedule-new",
+    "path": "/schedules/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": true,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "participant-new",
+    "path": "/participants/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": true,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "records",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": false,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0,
+      "stdCols": 1,
+      "stdGap": 20
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "route": "record-new",
+    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "measured": {
+      "scrollX": false,
+      "docScroll": 390,
+      "docClient": 390,
+      "narrow": false,
+      "containerWidth": 390,
+      "padLeft": 16,
+      "padRight": 16,
+      "textWidth": 358,
+      "sectionGap": 24,
+      "containerType": "inline-size",
+      "sidebarDrawer": true,
+      "sidebarWidth": 0
+    },
+    "violations": []
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "name": "ccc",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "build": "pnpm --filter @ccc/api run build && pnpm --filter @ccc/web run build",
+    "typecheck": "pnpm --filter @ccc/api run typecheck && pnpm --filter @ccc/web run typecheck",
+    "test": "pnpm --filter @ccc/api run test && pnpm --filter @ccc/web run test",
+    "guard:db": "node scripts/guard-db-gateway.mjs",
+    "hooks:install": "node scripts/install-git-hooks.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.20",
+    "@cloudflare/workers-types": "^5.20260706.1",
+    "@types/node": "^24.0.0",
+    "miniflare": "^4.20260702.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.107.0"
+  }
+}

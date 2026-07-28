@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="CCC Monogram">
+  <title>CCC Monogram</title>
+  <rect width="240" height="240" rx="54" fill="#ECF0F3"/>
+  <g fill="none" stroke-width="16" stroke-linecap="round" opacity="0.88">
+    <path d="M128.3 86.3 A44 44 0 1 0 128.3 153.7" stroke="#26257C"/>
+    <path d="M148.3 86.3 A44 44 0 1 0 148.3 153.7" stroke="#006CB7"/>
+    <path d="M168.3 86.3 A44 44 0 1 0 168.3 153.7" stroke="#338BC9"/>
+  </g>
+</svg>

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCC · 인테이크 기록지 v0.3 — 단계형 화면 시안 (D30)</title>
+<!-- 폰트 CDN은 이 목업 파일 전용. 운영 앱은 pretendard self-host(D30) — CDN 사용 금지 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+/* ===== D30 토큰 (apps/web layout.tsx :root 그대로) ===== */
+:root{
+  --canvas:#faf9f7; --panel:#FFFFFF; --muted:#f2f2f2;
+  --ink:#0a0a0a; --sub:#6b6b6b; --line:#d4d4d4;
+  --strong:#0a0a0a; --accent:#0a0a0a;
+  --risk:#c22b10; --success:#046645;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);
+  font-family:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  font-size:16px;line-height:1.55;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;letter-spacing:inherit}
+
+/* ===== 목업 캡션 ===== */
+.mock-cap{max-width:1280px;margin:20px auto 0;padding:0 24px;color:var(--sub);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mock-cap .tag{background:var(--ink);color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.04em;padding:3px 9px;border-radius:6px}
+
+/* ===== 앱 셸 ===== */
+.app{max-width:1280px;margin:12px auto 40px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);display:grid;grid-template-columns:240px minmax(0,1fr)}
+.sidebar{display:flex;flex-direction:column;gap:32px;padding:24px;background:var(--strong);color:var(--panel)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:800}
+.nav{display:grid;gap:4px;list-style:none;padding:0;margin:0}
+.nav a{display:flex;align-items:center;min-height:40px;padding:0 12px;border-radius:10px;color:var(--muted);font-size:14px;font-weight:700;text-decoration:none}
+.nav a[data-current="true"]{background:var(--accent);color:var(--panel);outline:1px solid rgba(255,255,255,.25)}
+.sidebar-footer{margin-top:auto;color:var(--muted);font-size:12px;font-weight:700}
+
+.main{background:var(--canvas);min-width:0}
+.page{max-width:1000px;margin:0 auto;padding:36px 32px}
+.breadcrumb{display:flex;gap:8px;margin-bottom:14px;color:var(--sub);font-size:14px}
+.page-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:8px}
+h1{margin:0;font-size:26px;line-height:1.25}
+.page-header p{margin:6px 0 0;color:var(--sub);font-size:14px}
+.head-meta{color:var(--sub);font-size:13px;font-weight:700;text-align:right;line-height:1.7;flex:none}
+
+/* ===== 배지 ===== */
+.b{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:700;vertical-align:2px}
+.b-req{background:var(--ink);color:var(--panel)}
+.b-opt{background:transparent;color:var(--sub);border:1px dashed var(--line)}
+.b-tpl{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+
+/* ===== 위저드 레이아웃 ===== */
+.wizard{display:grid;grid-template-columns:216px minmax(0,1fr);gap:20px;align-items:start;margin-top:24px}
+
+/* 스테퍼 */
+.stepper{position:sticky;top:16px;display:grid;gap:14px}
+.stepper .panel{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px}
+.steps{list-style:none;margin:0;padding:0;display:grid}
+.steps li{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13.5px;font-weight:700;color:var(--sub);cursor:pointer;position:relative;padding-left:2px}
+.steps li .n{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:var(--panel);font-size:12px;font-weight:800;color:var(--sub)}
+.steps li:not(:last-child)::after{content:"";position:absolute;left:15px;top:36px;width:1.5px;height:12px;background:var(--line)}
+.steps li.done{color:var(--ink)}
+.steps li.done .n{background:var(--muted);border-color:var(--muted);color:var(--ink)}
+.steps li.now{color:var(--ink)}
+.steps li.now .n{background:var(--ink);border-color:var(--ink);color:#fff}
+.steps li small{margin-left:auto;font-size:11px;font-weight:700;color:var(--sub)}
+.prog-note{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--sub);line-height:1.55}
+.prog-note b{color:var(--ink)}
+.btn{display:flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border:0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer}
+.btn-primary{background:var(--accent);color:var(--panel)}
+.btn-line{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.stepper .btn{width:100%}
+.stepper .save-note{margin-top:8px;font-size:11.5px;color:var(--sub);line-height:1.5}
+
+/* 단계 패널 */
+.step-panel{display:none;min-width:0}
+.step-panel.active{display:block}
+.sec{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:24px;margin-bottom:16px}
+.sec-h{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.sec-h h2{margin:0;font-size:17px;line-height:1.35}
+.sec-h .hint{margin-left:auto;color:var(--sub);font-size:12px;font-weight:700;text-align:right}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.field{display:grid;gap:6px;font-size:13px;font-weight:700}
+.field .lb{color:var(--ink)}
+.field .lb .b{margin-left:6px}
+.field small{color:var(--sub);font-weight:400;font-size:12px}
+.inp{width:100%;min-height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-weight:400}
+.inp[readonly]{background:var(--muted);color:var(--sub);font-weight:600}
+textarea.inp{min-height:72px;padding:10px 12px;resize:vertical;line-height:1.5}
+select.inp{font-weight:600}
+.col2{grid-column:span 2}
+.auto{color:var(--sub);font-size:11.5px;font-weight:700}
+
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg span{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--sub);font-size:13px;font-weight:600}
+.seg span.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.seg span.on-risk{background:var(--risk);color:#fff;border-color:var(--risk)}
+
+/* 동의 */
+.consent-guide{border:1px solid var(--line);border-radius:10px;background:var(--canvas);padding:16px;font-size:14px;line-height:1.65;margin-bottom:14px}
+.consent-guide b{font-weight:700}
+.ck-row{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.ck-row:last-child{border-bottom:0}
+.ck{flex:none;width:18px;height:18px;margin-top:3px;border:1.5px solid var(--line);border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--panel)}
+.ck.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.ck-row .t{display:grid;gap:2px}
+.ck-row .t b{font-weight:700}
+.ck-row .t small{color:var(--sub);font-size:12px}
+
+/* 6영역 */
+.area{border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:10px}
+.area-h{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700}
+.area-h .b{margin-left:auto}
+.areas{display:grid;gap:12px}
+.area.crisis{border-color:var(--risk)}
+.area .oneline{min-height:38px;font-size:13px}
+
+/* 접힘 */
+details.deep{border:1px dashed var(--line);border-radius:10px;background:var(--canvas)}
+details.deep>summary{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;list-style:none}
+details.deep>summary::-webkit-details-marker{display:none}
+details.deep>summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+details.deep[open]>summary::before{transform:rotate(45deg)}
+details.deep .deep-body{padding:4px 14px 16px;display:grid;gap:14px}
+details.deep.risk-open{border:1px solid var(--risk);background:var(--panel)}
+details.deep.risk-open>summary{color:var(--risk)}
+details.deep.risk-open>summary::before{border-color:var(--risk)}
+
+/* 표 */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:var(--muted);color:var(--sub);font-size:12px;font-weight:700;text-align:left;padding:8px 10px;border:1px solid var(--line)}
+.tbl td{padding:8px 10px;border:1px solid var(--line);color:var(--ink)}
+.tbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl tr.add td{color:var(--sub);font-weight:700;text-align:center;background:var(--canvas)}
+
+/* 목표 */
+.goal{border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px}
+.goal .gas-scale{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.goal .gas-scale span{display:grid;place-items:center;min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--muted);color:var(--sub);font-size:12px;font-weight:700;text-align:center;padding:4px}
+.goal-add{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px dashed var(--line);border-radius:10px;color:var(--sub);font-size:13px;font-weight:700}
+
+/* 단계 이동 푸터 */
+.step-nav{display:flex;justify-content:space-between;gap:12px;margin-top:4px}
+.step-nav .spacer{flex:1}
+
+@media (max-width:960px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .wizard{grid-template-columns:1fr}
+  .stepper{position:static}
+  .steps{display:flex;overflow-x:auto;gap:4px}
+  .steps li{flex:none;padding:0 8px}
+  .steps li::after{display:none}
+  .steps li small{display:none}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .col2{grid-column:span 1}
+}
+</style>
+</head>
+<body>
+
+<div class="mock-cap"><span class="tag">화면 시안 · MOCKUP</span> 인테이크 기록지 v0.3 — 6단계 입력 + 좌측 진척도 · D30 토큰 · 인물·수치는 전부 가상 · <b style="color:var(--ink)">단계를 클릭하거나 '다음'으로 이동해 보세요</b></div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">C</span>CCC</div>
+    <ul class="nav">
+      <li><a href="#">상담 일정</a></li>
+      <li><a href="#" data-current="true">인테이크 작성</a></li>
+      <li><a href="#">참여자 등록</a></li>
+      <li><a href="#">설정</a></li>
+    </ul>
+    <div class="sidebar-footer">박서현 · 상담사</div>
+  </aside>
+
+  <main class="main">
+    <div class="page">
+      <nav class="breadcrumb"><span>상담 일정</span><span>›</span><span>김하늘</span><span>›</span><span><b>인테이크</b></span></nav>
+      <header class="page-header">
+        <div>
+          <h1>김하늘 <span class="b b-req">인테이크 · 1회차</span></h1>
+          <p>단계마다 꼭 필요한 것만 묻습니다. 필수만 채우면 저장할 수 있어요.</p>
+        </div>
+        <div class="head-meta">마이크로크레딧 씬파일러 금융지원·멘토링<br>2026.07.24 (금) 14:00 · 대면</div>
+      </header>
+
+      <div class="wizard">
+        <!-- ===== 좌측 스테퍼 ===== -->
+        <aside class="stepper">
+          <div class="panel">
+            <ul class="steps" id="steps">
+              <li data-step="1"><span class="n">1</span>시작<small>자동</small></li>
+              <li data-step="2"><span class="n">2</span>동의<small>체크 2</small></li>
+              <li data-step="3"><span class="n">3</span>원하는 도움<small>3문</small></li>
+              <li data-step="4"><span class="n">4</span>생활 상황<small>6영역</small></li>
+              <li data-step="5"><span class="n">5</span>정리<small>목표·행동</small></li>
+              <li data-step="6"><span class="n">6</span>담당자 의견<small>마무리</small></li>
+            </ul>
+            <div class="prog-note">필수 채움 <b id="prog-count">4 / 5</b><br>생활 상황 2개 영역이 비어 있어요</div>
+          </div>
+          <div class="panel">
+            <button class="btn btn-line">임시 저장</button>
+            <div class="save-note">어느 단계에서든 저장됩니다. 수기 기록은 저장 즉시 공식 기록이 됩니다.</div>
+          </div>
+        </aside>
+
+        <!-- ===== 단계 1 · 시작 ===== -->
+        <div class="step-panel" data-panel="1">
+          <section class="sec">
+            <div class="sec-h"><h2>접수 정보</h2><span class="hint">대부분 자동 — 확인만 하세요</span></div>
+            <div class="grid3">
+              <div class="field"><span class="lb">상담 일시 <span class="auto">자동</span></span><input class="inp" value="2026.07.24 14:00" readonly></div>
+              <div class="field"><span class="lb">기록자 <span class="auto">자동</span></span><input class="inp" value="박서현" readonly></div>
+              <div class="field"><span class="lb">회차 <span class="auto">자동</span></span><input class="inp" value="인테이크 (1회차)" readonly></div>
+              <div class="field col2"><span class="lb">상담 방법</span>
+                <div class="seg"><span class="on">대면</span><span>전화</span><span>화상</span><span>방문</span><span>기타</span></div>
+              </div>
+            </div>
+          </section>
+          <section class="sec">
+            <div class="sec-h"><h2>참여자 확인</h2><span class="hint">등록할 때 입력한 내용 — 다시 묻지 않음</span></div>
+            <div class="grid3">
+              <div class="field"><span class="lb">이름</span><input class="inp" value="김하늘" readonly></div>
+              <div class="field"><span class="lb">연락처</span><input class="inp" value="010-2345-6789" readonly></div>
+              <div class="field"><span class="lb">이메일</span><input class="inp" value="haneul@example.com" readonly></div>
+            </div>
+            <details class="deep" style="margin-top:14px">
+              <summary>기본 정보 더 적기 — 생년월일 · 지역 · 긴급 연락처 · 유입 경로 <span class="b b-opt">선택</span></summary>
+              <div class="deep-body">
+                <div class="grid2">
+                  <div class="field"><span class="lb">생년월일</span>
+                    <input class="inp" type="date" value="1999-03-14"><small>달력에서 고르거나 직접 입력 — 금고(pii_vault) 암호화 저장</small></div>
+                  <div class="field"><span class="lb">거주 지역</span><input class="inp" placeholder="시·군·구 수준"></div>
+                  <div class="field"><span class="lb">긴급 연락처</span><input class="inp" placeholder="관계 · 번호"></div>
+                  <div class="field"><span class="lb">성별</span><input class="inp" placeholder="본인이 원할 때만 · 자유 기재"></div>
+                  <div class="field"><span class="lb">유입·의뢰 경로</span>
+                    <div class="seg"><span>직접 방문</span><span class="on">기관 의뢰</span><span>지인 소개</span><span>온라인</span><span>기타</span></div>
+                  </div>
+                  <div class="field"><span class="lb">의뢰 기관·사유</span><input class="inp" placeholder="자유 입력"></div>
+                </div>
+              </div>
+            </details>
+          </section>
+          <div class="step-nav"><span class="spacer"></span><button class="btn btn-primary" data-go="2">다음 · 동의</button></div>
+        </div>
+
+        <!-- ===== 단계 2 · 동의 ===== -->
+        <div class="step-panel" data-panel="2">
+          <section class="sec">
+            <div class="sec-h"><h2>동의 확인</h2><span class="hint">문안은 법률 검토 후 확정 — 지금은 구조 시안</span></div>
+            <div class="consent-guide">
+              상담 진행과 기록을 위해 <b>이름·연락처와 상담 내용을 수집·이용</b>합니다. 상담 내용의 비밀은 보장되며, <b>생명·안전에 위험이 있는 경우 등 법이 정한 예외</b>에서만 최소한으로 공유될 수 있습니다. 기록은 정해진 기간이 지나면 개인정보를 파기합니다.
+              <details class="deep" style="margin-top:12px">
+                <summary>자세히 읽어보기 — 수집 항목 · 보유 기간 · 비밀보장의 한계 전문</summary>
+                <div class="deep-body"><small style="color:var(--sub)">전문은 동의서 문안 확정(법률 검토, D15) 후 이 자리에 들어갑니다. 수집 항목 / 이용 목적 / 보유·파기 / 비밀보장 범위와 예외 / 문의처 순서.</small></div>
+              </details>
+            </div>
+            <div class="ck-row"><span class="ck on">✓</span><div class="t"><b>위 안내를 확인했으며, 개인정보 수집·이용에 동의합니다 <span class="b b-req">필수</span></b></div></div>
+            <div class="ck-row"><span class="ck on">✓</span><div class="t"><b>상담 녹음·분석과 기록의 정리·요약에 동의합니다 <span class="b b-req">필수</span></b><small>녹음 원본은 정리 후 30일 안에 자동 삭제되며, AI 정리 결과는 담당 상담사의 검토·승인 후에만 기록으로 사용됩니다</small></div></div>
+          </section>
+          <div class="step-nav"><button class="btn btn-line" data-go="1">이전</button><span class="spacer"></span><button class="btn btn-primary" data-go="3">다음 · 원하는 도움</button></div>
+        </div>
+
+        <!-- ===== 단계 3 · 원하는 도움 ===== -->
+        <div class="step-panel" data-panel="3">
+          <section class="sec">
+            <div class="sec-h"><h2>원하는 도움</h2><span class="hint">참여자의 말 그대로 적기</span></div>
+            <div class="field" style="margin-bottom:14px"><span class="lb">오늘 어떤 도움을 받고 싶어서 오셨나요? <span class="b b-req">필수</span></span>
+              <textarea class="inp">카드값이랑 월세가 밀리기 시작해서, 뭐부터 갚아야 할지 정리하고 싶어요.</textarea></div>
+            <div class="field" style="margin-bottom:14px"><span class="lb">지금 가장 힘든 점, 가장 먼저 해결하고 싶은 것은? <span class="b b-req">필수</span></span>
+              <textarea class="inp">이번 달 월세. 두 달 밀리면 나가야 할 것 같아서 그게 제일 급해요.</textarea></div>
+            <div class="field" style="margin-bottom:14px"><span class="lb">상황이 어떻게 달라지면 좋겠나요? <span class="b b-req">필수</span></span>
+              <textarea class="inp">밀린 것 없이 한 달을 시작해보고 싶어요.</textarea></div>
+            <details class="deep">
+              <summary>더 묻기 — 시작 시점 · 악화 계기 · 오늘 정리점 <span class="b b-opt">선택</span></summary>
+              <div class="deep-body">
+                <div class="field"><span class="lb">이런 어려움은 언제부터 시작되었나요?</span><textarea class="inp"></textarea></div>
+                <div class="field"><span class="lb">최근 더 어려워진 계기가 있었나요?</span><textarea class="inp"></textarea></div>
+                <div class="field"><span class="lb">이번 상담을 마칠 때 무엇이 정리되면 좋겠나요?</span><textarea class="inp"></textarea></div>
+              </div>
+            </details>
+          </section>
+          <div class="step-nav"><button class="btn btn-line" data-go="2">이전</button><span class="spacer"></span><button class="btn btn-primary" data-go="4">다음 · 생활 상황</button></div>
+        </div>
+
+        <!-- ===== 단계 4 · 생활 상황 ===== -->
+        <div class="step-panel" data-panel="4">
+          <section class="sec">
+            <div class="sec-h"><h2>생활 상황</h2><span class="hint">영역마다 상태 하나 + 한 줄이면 충분</span></div>
+            <div class="areas">
+              <div class="area crisis">
+                <div class="area-h">① 경제·생계 <span class="b b-tpl">템플릿: 심화 기본 펼침</span></div>
+                <div class="seg"><span>괜찮음</span><span>긴장</span><span class="on-risk on">위기</span><span>해당없음</span><span>답변거부</span></div>
+                <input class="inp oneline" value="월세 1개월·카드값 2개월 연체, 이번 달 생활비 부족">
+                <details class="deep" open>
+                  <summary>경제 심화 — 금전지원형 템플릿 기본 항목</summary>
+                  <div class="deep-body">
+                    <div class="grid3">
+                      <div class="field"><span class="lb">소득원 · 월평균</span><input class="inp" value="아르바이트 · 약 140만 원"></div>
+                      <div class="field"><span class="lb">월 고정지출</span><input class="inp" value="약 95만 원"></div>
+                      <div class="field"><span class="lb">수급 여부 (기초생활수급자 여부)</span><select class="inp"><option>해당 없음</option><option>기초생활수급</option><option selected>차상위</option><option>모름</option><option>기타</option></select></div>
+                    </div>
+                    <div class="field"><span class="lb">부채 기록표</span>
+                      <table class="tbl">
+                        <tr><th>발생한 곳·빌린 사람</th><th>구분</th><th>금액</th><th>발생 이유·현재 상태</th></tr>
+                        <tr><td>○○카드</td><td>카드대금</td><td class="num">180만</td><td>생활비 · 2개월 연체</td></tr>
+                        <tr><td>집주인</td><td>임대료</td><td class="num">55만</td><td>1개월 연체</td></tr>
+                        <tr class="add"><td colspan="4">+ 행 추가</td></tr>
+                      </table>
+                    </div>
+                  </div>
+                </details>
+              </div>
+              <div class="area">
+                <div class="area-h">② 주거</div>
+                <div class="seg"><span>괜찮음</span><span class="on">긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+                <input class="inp oneline" value="원룸 월세, 연체 지속 시 퇴거 걱정">
+                <details class="deep"><summary>주거 심화 — 상태가 긴장/위기일 때 펼침</summary>
+                  <div class="deep-body"><div class="grid3">
+                    <div class="field"><span class="lb">주거 형태</span><select class="inp"><option selected>월세</option><option>전세</option><option>자가</option><option>공공임대</option><option>가족·지인 거주</option><option>시설</option><option>거처 불안정</option><option>기타</option></select></div>
+                    <div class="field"><span class="lb">동거인 정보</span><input class="inp" value="혼자" placeholder="관계 · 인원 등 자유 입력"></div>
+                    <div class="field"><span class="lb">월 주거비</span><input class="inp" value="55만 원"></div>
+                  </div></div>
+                </details>
+              </div>
+              <div class="area">
+                <div class="area-h">③ 일·고용</div>
+                <div class="seg"><span>괜찮음</span><span class="on">긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+                <input class="inp oneline" value="아르바이트 근무시간이 최근 줄어듦">
+                <details class="deep"><summary>고용 심화</summary><div class="deep-body"><div class="field"><span class="lb">고용 형태 · 최근 변화</span><textarea class="inp"></textarea></div></div></details>
+              </div>
+              <div class="area">
+                <div class="area-h">④ 건강(신체)</div>
+                <div class="seg"><span class="on">괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+                <input class="inp oneline" placeholder="한 줄 설명 (선택)">
+              </div>
+              <div class="area">
+                <div class="area-h">⑤ 심리·정서</div>
+                <div class="seg"><span>괜찮음</span><span class="on">긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+                <input class="inp oneline" value="돈 걱정으로 잠을 잘 못 잔다고 함">
+              </div>
+              <div class="area">
+                <div class="area-h">⑥ 가족·관계·돌봄</div>
+                <div class="seg"><span class="on">괜찮음</span><span>긴장</span><span>위기</span><span>해당없음</span><span>답변거부</span></div>
+                <input class="inp oneline" placeholder="한 줄 설명 (선택)">
+              </div>
+            </div>
+          </section>
+          <div class="step-nav"><button class="btn btn-line" data-go="3">이전</button><span class="spacer"></span><button class="btn btn-primary" data-go="5">다음 · 정리</button></div>
+        </div>
+
+        <!-- ===== 단계 5 · 정리 ===== -->
+        <div class="step-panel" data-panel="5">
+          <section class="sec">
+            <div class="sec-h"><h2>목표와 다음 행동</h2><span class="hint">전체 상담 목표(케이스 목표) · 1개 이상 최대 3개</span></div>
+            <div class="goal" style="margin-bottom:12px">
+              <div class="field"><span class="lb">목표 1 — 측정 가능한 문장으로 <span class="b b-req">필수</span></span>
+                <input class="inp" value="3개월 안에 월세·카드값 연체를 0으로 만들고 월 예산표를 유지한다"></div>
+              <div class="field"><span class="lb">GAS 기준 — 이 목표의 -2 ~ +2 는 어떤 모습인가요? <small>점수는 이후 회차에서 상담사가 직접 매깁니다</small></span>
+                <div class="gas-scale">
+                  <span>-2<br>연체 확대</span><span>-1<br>연체 유지</span><span>0<br>월세만 해소</span><span>+1<br>연체 전액 해소</span><span>+2<br>+예산표 3개월 유지</span>
+                </div>
+              </div>
+            </div>
+            <div class="goal-add" style="margin-bottom:16px">+ 목표 추가 (최대 3)</div>
+            <div class="grid2">
+              <div class="field"><span class="lb">다음 행동 — 누가 · 무엇을 <span class="b b-req">필수 1건</span></span>
+                <input class="inp" value="상담사: 긴급 주거비 지원 요건 확인 후 금요일까지 연락"></div>
+              <div class="field"><span class="lb">다음 만남 <span class="b b-opt">선택</span></span>
+                <input class="inp" value="2026.08.07 (금) 18:30 · 대면"><small>저장 시 상담 일정에 등록됩니다. 회차별 상담 목표(세션 목표)는 일정 등록에서 위 케이스 목표의 하위로 연결해 입력합니다</small></div>
+            </div>
+          </section>
+
+          <section class="sec">
+            <div class="sec-h"><h2>필요할 때만 더 적기</h2><span class="hint">전부 선택 — 비워도 저장됩니다</span></div>
+
+            <details class="deep risk-open" open style="margin-bottom:12px">
+              <summary>위기·안전 확인 — 생활 상황에 '위기'가 있어 펼쳐 두었어요</summary>
+              <div class="deep-body">
+                <div class="field"><span class="lb">지금 당장 위험하다고 느끼는 상황이 있나요?</span>
+                  <textarea class="inp">월세가 두 달 밀리면 집을 비워줘야 할 수 있다는 통보를 받음</textarea>
+                  <small>자유롭게 기록하세요. 위험 내용은 상담사가 검토 후 리스크 플래그로 확정합니다</small></div>
+                <div class="grid2">
+                  <div class="field"><span class="lb">오늘 바로 필요한 연결이 있나요?</span><input class="inp" value="긴급 주거비 지원 안내"></div>
+                  <div class="field"><span class="lb">지금 안전한가요? 긴급 연락할 사람은?</span><input class="inp" placeholder="안전 여부 · 연락 가능한 사람"></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="deep" style="margin-bottom:12px">
+              <summary>강점과 자원 — 버팀목 · 해본 시도 · 지지망 · 이용 중 서비스</summary>
+              <div class="deep-body"><div class="grid2">
+                <div class="field"><span class="lb">버틸 수 있었던 힘·강점</span><input class="inp" value="꾸준히 일해온 성실함"></div>
+                <div class="field"><span class="lb">이미 해본 시도</span><input class="inp" value="카드사에 분할 상환 문의"></div>
+                <div class="field"><span class="lb">의논·도움 요청할 수 있는 사람</span><input class="inp"></div>
+                <div class="field"><span class="lb">이용 중인 서비스·제도 (이름만)</span><input class="inp"></div>
+              </div></div>
+            </details>
+
+            <details class="deep" style="margin-bottom:12px">
+              <summary>참여 여건 — 어려운 점 · 연락 시간 · 선호 방식</summary>
+              <div class="deep-body"><div class="grid3">
+                <div class="field"><span class="lb">참여를 어렵게 할 요인</span><input class="inp" value="평일 낮 근무 — 저녁만 가능"></div>
+                <div class="field"><span class="lb">연락 가능 시간·주의사항</span><input class="inp" value="18시 이후 · 문자 먼저"></div>
+                <div class="field"><span class="lb">선호 연락·상담 방식</span><input class="inp" value="대면 선호"></div>
+              </div></div>
+            </details>
+
+            <details class="deep">
+              <summary>추가로 확인이 필요한 정보</summary>
+              <div class="deep-body">
+                <table class="tbl">
+                  <tr><th>확인사항</th><th>이유</th><th>방법</th><th>예정 시점</th></tr>
+                  <tr><td>차상위 자격 유지 여부</td><td>지원 요건</td><td>주민센터 확인</td><td>다음 회차 전</td></tr>
+                  <tr class="add"><td colspan="4">+ 행 추가</td></tr>
+                </table>
+              </div>
+            </details>
+          </section>
+
+          <div class="step-nav"><button class="btn btn-line" data-go="4">이전</button><span class="spacer"></span><button class="btn btn-primary" data-go="6">다음 · 담당자 의견</button></div>
+        </div>
+
+        <!-- ===== 단계 6 · 담당자 의견 ===== -->
+        <div class="step-panel" data-panel="6">
+          <section class="sec">
+            <div class="sec-h"><h2>담당자 의견</h2><span class="hint">상담사의 종합 판단 — 참여자 발언과 구분해 기록</span></div>
+            <div class="field"><span class="lb">이번 인테이크에 대한 담당자 의견</span>
+              <textarea class="inp" style="min-height:140px">주거비 연체가 급한 불이라 긴급 지원 연계를 우선하고, 부채 상환 계획은 2회차에서 예산표와 함께 구체화할 필요. 참여 의지가 높고 진술이 일관됨.</textarea></div>
+          </section>
+          <div class="step-nav"><button class="btn btn-line" data-go="5">이전</button><span class="spacer"></span><button class="btn btn-primary">저장하고 마치기</button></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="mock-cap" style="margin-bottom:36px">※ 설계 근거: docs/intake/intake-form-design-v0.md (v0.3 — 6단계 입력·P1~P4 우선순위·동의 통합·위기 후반 이동). 최종 열람 화면(완성 기록지 단일 뷰)은 별도 시안. 인물·수치는 전부 가상.</div>
+
+<script>
+(function(){
+  var current = 1, TOTAL = 5;
+  var steps = document.querySelectorAll('#steps li');
+  var panels = document.querySelectorAll('.step-panel');
+  function show(n){
+    current = n;
+    panels.forEach(function(p){ p.classList.toggle('active', +p.dataset.panel === n); });
+    steps.forEach(function(s){
+      var k = +s.dataset.step;
+      s.classList.toggle('now', k === n);
+      s.classList.toggle('done', k < n);
+    });
+    window.scrollTo({top:0});
+  }
+  steps.forEach(function(s){ s.addEventListener('click', function(){ show(+s.dataset.step); }); });
+  document.querySelectorAll('[data-go]').forEach(function(b){
+    b.addEventListener('click', function(){ show(+b.dataset.go); });
+  });
+  show(1);
+})();
+</script>
+</body>
+</html>

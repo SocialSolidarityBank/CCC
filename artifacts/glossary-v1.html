@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCC 용어집 v1 — 언어 충돌 체크 (2026-07-24)</title>
+<style>
+  :root {
+    --bg: #faf9f7;          /* D30 웜 뉴트럴 */
+    --ink: #1a1a1a;
+    --sub: #6b6b6b;
+    --line: #d4d4d4;
+    --card: #ffffff;
+    --risk: #c22b10;        /* D30: 화면의 유일한 색 = 충돌 표시 전용 */
+    --risk-bg: #fdf1ee;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    letter-spacing: -0.01em; line-height: 1.65;
+    padding: 48px 24px 96px;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  header h1 { font-size: 26px; font-weight: 700; }
+  header p.meta { color: var(--sub); font-size: 13px; margin-top: 6px; }
+  header p.desc { margin-top: 14px; font-size: 15px; }
+
+  .legend { margin-top: 18px; font-size: 13px; color: var(--sub); display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.red { background: var(--risk); }
+  .dot.ok { background: transparent; border: 1.5px solid var(--line); }
+
+  section.summary {
+    margin-top: 36px; background: var(--card);
+    border: 2px solid var(--risk); border-radius: 12px; padding: 24px;
+  }
+  section.summary h2 { font-size: 17px; color: var(--risk); }
+  section.summary p.sub { font-size: 13px; color: var(--sub); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--sub); font-weight: 600; white-space: nowrap; }
+  td.term-col { font-weight: 700; white-space: nowrap; }
+  td .src { color: var(--sub); font-size: 12.5px; }
+  .table-wrap { overflow-x: auto; }
+
+  h2.group { margin-top: 48px; font-size: 15px; color: var(--sub); font-weight: 600;
+    border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  article.term {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px; margin-top: 14px;
+  }
+  article.term.conflicted { border: 2px solid var(--risk); }
+  article.term h3 { font-size: 16px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  article.term h3 .en { font-size: 12.5px; color: var(--sub); font-weight: 400; }
+  .badge {
+    display: inline-block; font-size: 11.5px; font-weight: 700; line-height: 1;
+    padding: 5px 8px; border-radius: 999px; background: var(--risk); color: #fff;
+    letter-spacing: 0;
+  }
+  article.term p.def { margin-top: 8px; font-size: 14.5px; }
+  article.term p.avoid { margin-top: 8px; font-size: 12.5px; color: var(--sub); }
+  article.term p.avoid s { text-decoration-color: rgba(0,0,0,.35); }
+  .conflict {
+    margin-top: 12px; background: var(--risk-bg); border: 1px solid var(--risk);
+    border-radius: 8px; padding: 12px 14px; font-size: 13.5px;
+  }
+  .conflict b { color: var(--risk); }
+  .conflict .src { display: block; margin-top: 4px; color: var(--sub); font-size: 12px; }
+  footer { margin-top: 56px; font-size: 12px; color: var(--sub); border-top: 1px solid var(--line); padding-top: 16px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em; background: #f1efeb; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>CCC 용어집 v1 <span style="font-weight:400; color:var(--sub); font-size:16px;">— 언어 충돌 체크</span></h1>
+  <p class="meta">원본: <code>CONTEXT.md</code>(2026-07-24 기준) · 대조 대상: docs/ 신규·기존 문서 8종 · 생성: 2026-07-24 Claude Code</p>
+  <p class="desc">프로젝트 안에서 같은 것을 같은 말로 부르기 위한 용어집입니다. 최근 들어온 문서(제품정의·인테이크·동의서 등)의 언어와 <b style="color:var(--risk)">충돌하는 지점은 빨간 테두리와 배지</b>로 표시했습니다 — 빨강은 이 프로젝트에서 위험 신호에만 쓰는 색입니다(D30).</p>
+  <div class="legend">
+    <span class="chip"><span class="dot red"></span> 충돌 있음 — 신규/기존 문서가 다른 말·다른 뜻 사용</span>
+    <span class="chip"><span class="dot ok"></span> 충돌 없음</span>
+  </div>
+</header>
+
+<section class="summary">
+  <h2>충돌 지점 요약 — 7건</h2>
+  <p class="sub">아래 표의 용어는 본문에서도 빨간 카드로 표시됩니다.</p>
+  <div class="table-wrap">
+  <table>
+    <tr><th>#</th><th>용어</th><th>충돌 내용</th></tr>
+    <tr>
+      <td>1</td><td class="term-col">참여자</td>
+      <td>금지어 <b>"대상자"</b>·<b>"수혜자"</b>가 신규·기존 문서에 다수 등장.
+        <span class="src">출처: CCC_제품정의.md(대상자 다수), record-form-guide.md(수혜자 3회)</span></td>
+    </tr>
+    <tr>
+      <td>2</td><td class="term-col">브리핑</td>
+      <td>제품정의는 <b>"15초 안에 확인"</b>, 스펙은 "상담 5분 전 한 화면" — 숫자 축이 다름(대외 카피 여부 확인 필요). 용어집 자체 정의의 "다섯 가지 고정"도 D22(7/15)가 대체한 구버전.
+        <span class="src">출처: CCC_제품정의.md, CONTEXT.md(자체 드리프트)</span></td>
+    </tr>
+    <tr>
+      <td>3</td><td class="term-col">가명 ID</td>
+      <td>구 형식 예시 <b>"A017"</b> 잔존(현행: swallow-003). "본문에는 가명 ID만 쓴다" 프레임은 D31(내부 화면 실명 기본)과 부분 충돌.
+        <span class="src">출처: record-form-guide.md, api-contract-pipeline.md</span></td>
+    </tr>
+    <tr>
+      <td>4</td><td class="term-col">파기 · 파기 검토 · 파기 예정일</td>
+      <td>용어집은 <b>"검토 전 파기 금지"</b>인데 운영 문서·코드는 예정일 경과 시 <b>자동 파기 cron</b>(검토 게이트 없음). 정책 재설계 논의 중(2026-07-24).
+        <span class="src">출처: ops.md, db/gateway.ts purgeExpiredParticipantPii</span></td>
+    </tr>
+    <tr>
+      <td>5</td><td class="term-col">PII</td>
+      <td>용어집 정의는 "실명·연락처·이메일·계좌"인데 동의서 초안 수집 항목에 <b>계좌 누락</b>. 인테이크 설계는 생년월일·거주지역 필수 추가 예정 — 동의 문안과 수집 실체 불일치.
+        <span class="src">출처: consent-draft-v0.md, intake-form-design-v0.md</span></td>
+    </tr>
+    <tr>
+      <td>6</td><td class="term-col">종결 (보유 기간)</td>
+      <td>동의서 초안이 보유 기간을 <b>"현행 1년"</b>으로 확정처럼 표기 — 스펙 8장은 미결(6개월~1년, 내부 규정 확인 후).
+        <span class="src">출처: consent-draft-v0.md</span></td>
+    </tr>
+    <tr>
+      <td>7</td><td class="term-col">항목 풀 · 상담 템플릿</td>
+      <td>record-form-guide.md 전체가 폐기된 D18 체제("외부 양식 팀 전달서") 프레임 — D29(항목 풀은 내부 주도, AI가 상담 템플릿 구성)로 대체됨. 아카이브 후보.
+        <span class="src">출처: record-form-guide.md</span></td>
+    </tr>
+  </table>
+  </div>
+</section>
+
+<h2 class="group">프로젝트 이름</h2>
+
+<article class="term">
+  <h3>CCC <span class="en">Case Context Companion</span></h3>
+  <p class="def">케이스의 맥락(누적 기록·목표·리스크)을 상담사 곁에 붙여주는 동반 도구. 레포·패키지·Cloudflare 리소스 이름의 유래. 부르는 이름은 <b>쎄쎄쎄</b> — 상담사와 참여자가 마주 앉아 리듬을 맞춰가는 도구라는 뜻.</p>
+</article>
+
+<h2 class="group">케이스와 사람</h2>
+
+<article class="term">
+  <h3>케이스 <span class="en">Case</span></h3>
+  <p class="def">참여자 1명에 대한 지원·상담 전체를 묶는 단위. 인테이크로 열리고 종결로 닫힌다.</p>
+  <p class="avoid">피하기: <s>사례 파일</s>, <s>대상자</s></p>
+</article>
+
+<article class="term conflicted">
+  <h3>참여자 <span class="badge">충돌 1</span></h3>
+  <p class="def">금전 지원 사업의 지원 대상이며 상담의 당사자. 2026-07-15 Q 확정(수혜자에서 변경 — 시혜적 뉘앙스를 피하고 코드·화면과 일치).</p>
+  <p class="avoid">피하기: <s>수혜자</s>, <s>클라이언트</s>, <s>대상자</s>, <s>이용자</s></p>
+  <div class="conflict">
+    <b>충돌:</b> CCC_제품정의.md(7/24 신규)가 본문 전반에서 <b>"대상자"</b>를, record-form-guide.md가 <b>"수혜자"</b>를 사용 — 둘 다 금지어.
+    <span class="src">제품정의는 대외 문서지만 공식 제품 정의문이므로 통일 권장.</span>
+  </div>
+</article>
+
+<article class="term conflicted">
+  <h3>가명 ID <span class="badge">충돌 3</span></h3>
+  <p class="def">참여자를 기계적으로 구분하는 케이스 식별자이자 경계 통과 토큰. 희망 상징 동물 영문 슬러그 + 순차번호(예: swallow-003). 쓰임 4가지: DB 키·URL / AI 전송 시 실명 치환 / 외부 반출 대체 식별자 / 파기 후 통계 보존 고리. <b>사람용 표시 장치가 아니다</b> — 내부 화면은 실명 기본(D31, ADR-0009).</p>
+  <p class="avoid">피하기: <s>익명 ID</s>, <s>케이스 번호</s>, <s>상담자 ID</s></p>
+  <div class="conflict">
+    <b>충돌:</b> record-form-guide.md·api-contract-pipeline.md에 구 형식 예시 <b>"A017"</b> 잔존. record-form-guide의 "본문에는 가명 ID만 씁니다"는 D31 이전 프레임.
+  </div>
+</article>
+
+<article class="term conflicted">
+  <h3>PII <span class="badge">충돌 5</span></h3>
+  <p class="def">실명·연락처·이메일·계좌. 암호화된 금고(pii_vault)에만 존재. 내부 인증 사용자(관리자·상담사 전원)는 화면에서 실명 그대로 보고, 표시 화면 조회는 감사 기록된다(ADR-0009). 마스킹·가명화는 AI 처리·통계·외부 반출에만 적용.</p>
+  <p class="avoid">피하기: <s>개인정보</s>(범위가 더 넓어 혼동됨)</p>
+  <div class="conflict">
+    <b>충돌:</b> consent-draft-v0의 수집 항목은 "성명·연락처·이메일"뿐 — <b>계좌 누락</b>. 인테이크 설계 v0는 생년월일·거주지역을 필수로 추가 예정(저장 위치 ⟦Q⟧ 미결). 동의 문안과 수집 실체를 법률 검토 전에 맞춰야 함.
+  </div>
+</article>
+
+<article class="term">
+  <h3>담당자</h3>
+  <p class="def">참여자와 상담 관계를 맺고 해당 케이스의 상담·기록·PII를 책임지는 상담사. 배정된 케이스만 열람. 공동 담당 가능, 이관해도 과거 담당 이력은 남는다.</p>
+  <p class="avoid">피하기: <s>매니저</s>, <s>케이스 워커</s></p>
+</article>
+
+<article class="term">
+  <h3>시스템 관리자</h3>
+  <p class="def">계정·권한·서비스 설정·장애·보안을 관리하는 운영 역할. 케이스 내용(상담 기록·브리핑)은 기본적으로 열람 불가, 모든 케이스를 포괄하는 상담 권한도 없다.</p>
+  <p class="avoid">피하기: <s>관리자</s>(상담 권한으로 오해), <s>상담 관리자</s></p>
+</article>
+
+<article class="term">
+  <h3>배정 책임자</h3>
+  <p class="def">담당자 배정·공동 담당 추가·이관을 처리하는 역할. PII는 담당자와 동일하게 열람(ADR-0005), 상담 내용은 자신이 담당으로 배정된 케이스에서만.</p>
+  <p class="avoid">피하기: <s>시스템 관리자</s>, <s>전체 열람자</s></p>
+</article>
+
+<article class="term">
+  <h3>역할 겸임</h3>
+  <p class="def">한 사람이 시스템 관리자·배정 책임자·담당자를 함께 맡는 것. 역할은 합쳐져도 권한의 근거는 섞이지 않는다 — 상담 내용과 PII는 담당 배정된 케이스에서만 열린다.</p>
+  <p class="avoid">피하기: <s>통합 관리자</s>, <s>최고 관리자</s></p>
+</article>
+
+<article class="term">
+  <h3>배정 요청</h3>
+  <p class="def">배정 책임자가 상담사에게 케이스 담당을 제안한 상태. 수락 전까지 상담 내용·PII가 열리지 않는다. 1인 조직의 자기 배정은 즉시 수락 처리.</p>
+  <p class="avoid">피하기: <s>배정 완료</s>, <s>접근권한 부여</s></p>
+</article>
+
+<article class="term">
+  <h3>이관 수락</h3>
+  <p class="def">새 담당자가 케이스를 넘겨받겠다고 확인하는 행위. 이 시점부터 새 담당자의 접근이 시작되고 기존 담당자의 접근이 끝난다.</p>
+  <p class="avoid">피하기: <s>배정 확인</s>, <s>인수인계 완료</s></p>
+</article>
+
+<article class="term">
+  <h3>강제 이관</h3>
+  <p class="def">퇴사·장기 부재로 정상 수락 절차가 불가능할 때, 배정 책임자가 사유를 적고 담당을 바꾸는 예외 절차. 전건 감사와 당사자 알림을 남긴다.</p>
+  <p class="avoid">피하기: <s>관리자 배정</s>, <s>임의 이관</s></p>
+</article>
+
+<article class="term">
+  <h3>참여자 안내 확인</h3>
+  <p class="def">담당자 변경을 참여자에게 별도 연락으로 안내했는지 표시하는 체크. 시스템 안 동의 절차가 아니며, 체크하지 않아도 이관을 막지 않는다.</p>
+  <p class="avoid">피하기: <s>참여자 승인</s>, <s>전자 동의</s>, <s>이관 허가</s></p>
+</article>
+
+<article class="term">
+  <h3>참여자 직접 접속</h3>
+  <p class="def">참여자 본인이 링크로 가입·로그인·동의서 작성을 하는 별도 화면 영역. 동의서 법률 검토 후 구현하며, 그 전까지 입력은 상담사가 대행한다(D26).</p>
+  <p class="avoid">피하기: <s>참여자 포털</s>(아직 없는 기능), <s>공개 가입</s></p>
+</article>
+
+<article class="term">
+  <h3>상담 관계</h3>
+  <p class="def">담당자와 참여자가 상담의 목적·역할·비밀보장 범위에 합의하고 함께 일하는 전문적 관계. 기록 접근 범위의 출발점.</p>
+  <p class="avoid">피하기: <s>개인적 관계</s>, <s>소유 관계</s></p>
+</article>
+
+<article class="term">
+  <h3>긴급 접근</h3>
+  <p class="def">시스템 관리자가 법적 요청·중대 안전사고·복구 불가능한 장애에 대응해 특정 케이스를 예외 열람하는 절차. 사유 입력·시간 제한·케이스 단위 제한·전건 감사·담당자 통지를 모두 충족해야 한다.</p>
+  <p class="avoid">피하기: <s>관리자 권한</s>, <s>전체 열람</s>, <s>임시 관리자</s></p>
+</article>
+
+<h2 class="group">기록</h2>
+
+<article class="term">
+  <h3>세션</h3>
+  <p class="def">참여자와의 대면 상담 1회에 대한 기록 단위. 현재 유일한 기록 종류(종류 세분화는 양식 확정과 함께 결정 — 인테이크 설계 v0에서 진행 중).</p>
+  <p class="avoid">피하기: <s>상담 기록</s>, <s>인터뷰</s>, <s>면담 일지</s></p>
+</article>
+
+<article class="term">
+  <h3>수기 메모</h3>
+  <p class="def">상담사가 직접 작성한 세션 기록. 저장 즉시 공식 기록이며 승인 대상이 아니다(D5).</p>
+  <p class="avoid">피하기: <s>노트</s>, <s>상담 일지</s></p>
+</article>
+
+<article class="term">
+  <h3>AI 산출물</h3>
+  <p class="def">파이프라인이 만든 요약·분류 스키마 초안·대조 결과·감정 지표의 총칭. 승인 전까지 비공식 — 브리핑·통계·보고서에 나가지 않는다(R2).</p>
+  <p class="avoid">피하기: <s>AI 요약</s>(전체를 가리킬 때), <s>초안</s>(모호함)</p>
+</article>
+
+<article class="term">
+  <h3>승인</h3>
+  <p class="def">상담사가 대조 3종을 처리하고 AI 산출물을 공식 기록으로 확정하는 행위. 곧 정합성 검증이다.</p>
+  <p class="avoid">피하기: <s>컨펌</s>, <s>확정</s>(단독 사용)</p>
+</article>
+
+<article class="term">
+  <h3>대조 3종</h3>
+  <p class="def">수기 메모와 녹취 기반 AI 정리를 맞대어 나오는 세 출력 — 메모에 없는 내용, 음성에 없는 내용, 미논의 목표.</p>
+  <p class="avoid">피하기: <s>비교 결과</s>, <s>diff</s></p>
+</article>
+
+<article class="term conflicted">
+  <h3>브리핑 <span class="badge">충돌 2</span></h3>
+  <p class="def">상담 5분 전에 보는 한 화면. 이 제품의 핵심 가치. 현행 구조는 D22(7/15): HERO 실명(D31) + 리스크 경고 배너 + GAS 라디얼 + 아코디언 4종.</p>
+  <p class="avoid">피하기: <s>대시보드</s>, <s>요약 화면</s></p>
+  <div class="conflict">
+    <b>충돌 2건:</b> ① CCC_제품정의.md는 <b>"15초 안에 확인"</b> — 스펙의 "상담 5분 전 한 화면"과 숫자 축이 다름. 대외 카피로 의도한 것인지 Q 확인 필요. ② CONTEXT.md 원문 정의의 "노출 항목은 다섯 가지로 고정된다"는 D22가 대체한 구버전 문구(용어집 자체 드리프트 — 갱신 필요).
+  </div>
+</article>
+
+<h2 class="group">목표와 신호</h2>
+
+<article class="term">
+  <h3>목표 <span class="en">Goal · 케이스 목표</span></h3>
+  <p class="def">인테이크에서 측정 가능한 문장으로 확정하는 상담 목표. 케이스당 활성 1~3개. 문구 수정 불가 — 종료+신설로만 바꾼다(D12). 세션 목표와 구별할 때는 "케이스 목표".</p>
+  <p class="avoid">피하기: <s>과제</s>, <s>플랜</s></p>
+</article>
+
+<article class="term">
+  <h3>세션 목표</h3>
+  <p class="def">상담 일정 등록 시 적는 "이번 회차에서 다룰 것". 케이스 목표의 하위로 연결(복수·미연결 허용). GAS는 케이스 목표에만 매긴다. 상담 템플릿 구성의 핵심 입력(ADR-0006).</p>
+  <p class="avoid">피하기: <s>회차 목표</s>, <s>목표</s>(단독 — 케이스 목표와 혼동)</p>
+</article>
+
+<article class="term">
+  <h3>맞춤형 질문</h3>
+  <p class="def">상담사가 이번 상담에서 직접 묻고 싶은 것. 상담 템플릿 구성의 입력이며, AI 생성 질문("오늘 확인할 질문")과 별개로 병행한다(ADR-0006).</p>
+  <p class="avoid">피하기: <s>AI 질문</s>, <s>브리핑 질문</s></p>
+</article>
+
+<article class="term conflicted">
+  <h3>항목 풀 <span class="badge">충돌 7</span></h3>
+  <p class="def">기록 항목 전체를 펼쳐 놓고 필수/선택으로 분류해 둔 기본 양식. Q(PM)가 제공하며, 상담 템플릿은 이 풀에서 구성된다(D29). 인테이크 유형은 intake-form-design-v0로 설계 착수(7/24).</p>
+  <p class="avoid">피하기: <s>양식</s>(단독), <s>기록지 원본</s></p>
+  <div class="conflict">
+    <b>충돌:</b> record-form-guide.md는 폐기된 D18 체제("외부 양식 팀에 보내는 전달서") 프레임 전체가 구버전 — D29(내부 주도)로 대체됨. 아카이브 후보.
+  </div>
+</article>
+
+<article class="term conflicted">
+  <h3>상담 템플릿 <span class="badge">충돌 7</span></h3>
+  <p class="def">한 상담(세션)을 위해 구성된 기록지. 코어(GAS 근거·액션·플래그)는 항상 포함, AI가 세션 목표·맞춤형 질문·누적 맥락에 따라 항목 풀의 선택 항목을 재구성한다. 상담사가 상담 전 수정 가능, AI 실패 시 코어 폴백(ADR-0006).</p>
+  <p class="avoid">피하기: <s>템플릿</s>(단독 — 사업 유형별 필드 묶음과 혼동), <s>기록 양식</s></p>
+  <div class="conflict">
+    <b>충돌:</b> 항목 풀과 동일 — record-form-guide.md의 구 D18 프레임.
+  </div>
+</article>
+
+<article class="term">
+  <h3>GAS <span class="en">목표달성척도</span></h3>
+  <p class="def">목표마다 -2(악화)~+2(기대 초과) 5단계 점수. 점수는 상담사가 직접 매기고, AI는 근거 발언 발췌만 제안한다(D6).</p>
+  <p class="avoid">피하기: <s>달성률</s>, <s>점수</s>(단독)</p>
+</article>
+
+<article class="term">
+  <h3>리스크 플래그</h3>
+  <p class="def">사전 정의된 고정 유형(4~6종)의 위험 신호. AI 제안은 전사 발언 인용 필수(사실 표시, 진단 아님) — 상담사가 맞음/틀림을 확인한다(D9).</p>
+  <p class="avoid">피하기: <s>경고</s>, <s>알림</s>, <s>위험 태그</s></p>
+</article>
+
+<article class="term">
+  <h3>감정 지표</h3>
+  <p class="def">참여자 발화에서 자동 산출되는 숫자 점수와 추이. 문장형 감정 서술("불안하다")은 만들지도 저장하지도 않는다(R4).</p>
+  <p class="avoid">피하기: <s>감정 분석 결과</s>(문장 포함 오해), <s>정서 상태</s></p>
+</article>
+
+<h2 class="group">데이터 구조</h2>
+
+<article class="term">
+  <h3>코어</h3>
+  <p class="def">전 케이스 공통 고정 필드(GAS 점수·근거, 액션 아이템, 리스크 플래그, 감정 추이). 브리핑과 통계는 코어만 쓴다.</p>
+</article>
+
+<article class="term">
+  <h3>템플릿</h3>
+  <p class="def">사업 유형별 필드 묶음(스키마 3층 구조의 가운데 층). 금전지원형 v1부터 시작. 회차별로 구성되는 <b>상담 템플릿</b>과는 다른 것.</p>
+  <p class="avoid">피하기: <s>상담 템플릿과 혼용</s></p>
+</article>
+
+<article class="term">
+  <h3>확장 슬롯</h3>
+  <p class="def">케이스별 자유 추가 필드. 저장은 되지만 통계·브리핑에서 제외된다.</p>
+  <p class="avoid">피하기: <s>커스텀 필드</s>, <s>기타 항목</s></p>
+</article>
+
+<article class="term conflicted">
+  <h3>종결 <span class="badge">충돌 6</span></h3>
+  <p class="def">케이스를 닫는 행위. 종결 시점부터 파기 유예기간이 시작된다.</p>
+  <p class="avoid">피하기: <s>종료</s>(목표 종료와 혼동), <s>클로징</s></p>
+  <div class="conflict">
+    <b>충돌:</b> consent-draft-v0가 보유 기간을 <b>"현행 1년"</b>으로 확정처럼 표기 — 스펙 8장은 미결(6개월~1년, 내부 규정·사업 지침 확인 후 결정). 파기 정책 재설계(아래 파기 항목)와 함께 확정 필요.
+  </div>
+</article>
+
+<article class="term conflicted">
+  <h3>파기 예정일 <span class="badge">충돌 4</span></h3>
+  <p class="def">PII를 계속 보존해야 하는지 다시 확인하는 기준일. <b>이 날짜가 왔다는 사실만으로 파기를 실행하지 않으며</b>, 연장동의나 보존 사유가 있으면 날짜를 다시 정한다.</p>
+  <p class="avoid">피하기: <s>자동 삭제일</s>, <s>만료일</s></p>
+  <div class="conflict">
+    <b>충돌:</b> ops.md·실제 코드(<code>purgeExpiredParticipantPii</code>)는 예정일 경과 시 매일 03:00 cron이 <b>사람 검토 없이 자동 파기</b>한다(활성 케이스 제외 가드만 있음). 용어집의 "검토 후 파기" 원칙과 정면 충돌 — 정책 재설계 논의 중(2026-07-24).
+  </div>
+</article>
+
+<article class="term conflicted">
+  <h3>파기 검토 <span class="badge">충돌 4</span></h3>
+  <p class="def">파기 예정일이 지난 PII에 오프라인 연장동의, 진행 중 업무, 법적 보존 사유가 있는지 확인하는 절차. <b>검토가 끝나기 전에는 PII를 파기하지 않는다.</b></p>
+  <p class="avoid">피하기: <s>자동 파기</s>, <s>일괄 삭제</s></p>
+  <div class="conflict">
+    <b>충돌:</b> 이 절차가 코드에 존재하지 않는다 — 현재는 cron 자동 파기만 구현됨. 파기 예정일 항목 참고.
+  </div>
+</article>
+
+<article class="term">
+  <h3>보존 연장</h3>
+  <p class="def">연장동의나 정당한 사유에 따라 파기 예정일을 뒤로 미루는 것. 연장된 케이스는 새 예정일까지 파기 대상에서 제외된다.</p>
+  <p class="avoid">피하기: <s>파기 보류</s>(기한 없이 미루는 뜻으로 쓰지 않음)</p>
+</article>
+
+<article class="term conflicted">
+  <h3>파기 <span class="badge">충돌 4</span></h3>
+  <p class="def">파기 검토에서 보존 사유가 없다고 확인된 뒤 <b>PII 금고의 값만</b> 지우는 것. 가명 기록은 통계용으로 보존된다(D10).</p>
+  <p class="avoid">피하기: <s>삭제</s>(가명 기록까지 지우는 오해)</p>
+  <div class="conflict">
+    <b>충돌:</b> 현재 구현은 "검토 확인 후"가 아니라 예정일 경과 즉시 자동 실행. 파기 예정일 항목 참고.
+  </div>
+</article>
+
+<article class="term">
+  <h3>감사 로그</h3>
+  <p class="def">열람·변경·PII 복호화·내보내기의 발자국. 추가만 가능하고 수정·삭제는 불가하다(D14).</p>
+  <p class="avoid">피하기: <s>접근 기록</s>, <s>히스토리</s></p>
+</article>
+
+<footer>
+  CCC 용어집 v1 · 원본 SSOT는 <code>CONTEXT.md</code> — 이 HTML은 2026-07-24 시점 스냅숏이며, 용어가 바뀌면 CONTEXT.md를 먼저 고치고 이 파일을 재생성한다. 충돌 상세와 파기 정책 논의는 STATUS.md 2026-07-24 항목 참고.
+</footer>
+
+</main>
+</body>
+</html>

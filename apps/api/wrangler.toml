@@ -1,0 +1,101 @@
+name = "ccc-api-local"
+main = "src/index.ts"
+compatibility_date = "2026-07-06"
+
+[vars]
+LOCAL_ACTOR_HEADER_MODE = "true"
+# D8 무폴링 판정 임계값(시간). 미설정이면 gateway 기본값 6시간.
+PIPELINE_STALE_HOURS = "6"
+
+# 예약 작업(D8·D10). src/index.ts scheduled 핸들러가 controller.cron으로 분기한다:
+#   - "0 3 * * *"  (매일 03:00 UTC): 파기 예정일 경과 PII 자동 파기(D10)
+#   - 그 외(30분마다): 폴링 워치독 — stale 조직 관리자 알림(D8)
+# 로컬(miniflare)에서는 트리거가 자동 실행되지 않는다. 테스트는 runWatchdog/runPurge를
+# 직접 호출한다. 실제 스케줄은 Cloudflare 계정 개설 후 배포로 활성화된다(D16).
+[triggers]
+crons = ["*/30 * * * *", "0 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ccc-local"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "../../migrations"
+
+# 상담 녹음 원본 임시 보관 (R2). 키에는 PII를 넣지 않는다 (audio/<sessionId>/<uuid>).
+# 음성 원본 30일 뒤 자동 삭제(스펙 2·5장)는 버킷 lifecycle 규칙 'audio-30d-expiry'로
+# 적용 완료(2026-07-10, wrangler r2 bucket lifecycle add). 코드가 아닌 계정 설정이므로
+# 버킷 재생성 시 규칙도 다시 걸어야 한다.
+[[r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "ccc-audio"
+
+# ── 운영 환경 (Cloudflare 조직 계정, 2026-07-10 개설) ──────────────────────
+# 배포: pnpm exec wrangler deploy --env production (apps/api에서)
+# named env는 vars·d1·r2·crons를 상속하지 않으므로 전부 명시한다.
+# LOCAL_ACTOR_HEADER_MODE를 설정하지 않는다 → identity.ts가 fail-closed(401).
+# Access JWT 검증 구현 전까지 운영 API는 의도적으로 잠긴 상태다(D16).
+[env.production]
+name = "ccc-api"
+# 운영 URL: ccc-api.account-855.workers.dev — Cloudflare Access로 보호한다
+# (계정에 도메인 zone이 없어 커스텀 도메인 대신 workers.dev 사용, 2026-07-10).
+# Access 미설정/변수 미설정 상태에서도 identity.ts가 fail-closed(401)로 잠근다.
+workers_dev = true
+
+[env.production.vars]
+PIPELINE_STALE_HOURS = "6"
+# PII 키 세대(D3): 2026-07-18 로테이션(v2). 이후 저장되는 vault 행은 key_version=2 로 찍힌다.
+# 로테이션 시점에 운영 금고의 암호문이 0건이라 재암호화 없이 키만 교체했다.
+PII_KEY_VERSION = "2"
+# Cloudflare Access 앱 "CCC API"와 "CCC" 웹 앱의 AUD를 모두 검증한다.
+# 값은 비밀이 아니며, API 직접 호출과 웹 Worker service binding 양쪽 신원을 허용한다.
+ACCESS_TEAM_DOMAIN = "socialsolidaritybank.cloudflareaccess.com"
+ACCESS_AUD = "3dbacf213494f7624c00676ce62742c414528997fd2a23c21e926c16d79404d2,52d5b26bf947ea0e6964336ed57dde622f8e8b6ac7f5f452edf1ebd0ac89c2b7"
+
+[env.production.triggers]
+crons = ["*/30 * * * *", "0 3 * * *"]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "ccc"
+database_id = "554dd4ef-c45b-4649-bc88-a7f103f3fc5c"
+migrations_dir = "../../migrations"
+
+[[env.production.r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "ccc-audio"
+
+# ── 미리보기 환경 (CCC-6, 팀원 피드백 채널) ──────────────────────────────
+# 운영과 완전 분리: 전용 워커 ccc-api-preview + 전용 D1(가상 시드 데이터만).
+# Access 를 거치지 않고 코드 게이트(preview-gate.ts)로 신원을 공급한다.
+# 배포: pnpm exec wrangler deploy --env preview (apps/api에서).
+# named env 는 vars·d1·crons 를 상속하지 않으므로 전부 명시한다.
+# ACCESS_* 를 두지 않으므로(비어 있음) PREVIEW_MODE 로 코드 게이트가 활성화된다.
+# 시크릿(값 커밋 금지, 이름만): PREVIEW_ACCESS_CODE, PII_ENC_KEY
+#   → pnpm exec wrangler secret put <이름> --env preview
+[env.preview]
+name = "ccc-api-preview"
+workers_dev = true
+
+[env.preview.vars]
+PIPELINE_STALE_HOURS = "6"
+# 시드 PII 는 key_version=2 로 스탬프되고 단일 PII_ENC_KEY 로 복호화된다(dev·prod 와 동일). 2 로 맞춘다.
+PII_KEY_VERSION = "2"
+# 코드 게이트 스위치. Access env 를 두지 않아 이중 잠금의 ②가 비어 코드 게이트가 열린다.
+PREVIEW_MODE = "true"
+# 미리보기 세션이 신원으로 쓸 고정 데모 상담사(가상 시드 users 디렉터리의 활성 상담사).
+# ai00 은 시드에서 담당 참여자가 많아 브리핑·일정 화면이 실제 데이터로 채워진다.
+PREVIEW_ACTOR_EMAIL = "ai00@ggbss.or.kr"
+
+# 크론 트리거는 미리보기에서 비활성. 주의: triggers 를 생략하면 top-level crons 가
+# 상속되므로(첫 배포에서 실측), 빈 배열로 명시해 상속을 끊는다.
+[env.preview.triggers]
+crons = []
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "ccc-preview"
+database_id = "0dc35280-1051-4916-9598-0e92f6e01844"
+migrations_dir = "../../migrations"
+
+# R2(음성 원본 버킷)는 미리보기에서 제외한다 — 가상 시드에는 오디오가 없어 업로드
+# 경로를 실사용하지 않는다. env.AUDIO_BUCKET 은 미바인딩(런타임 미참조)으로 남는다.

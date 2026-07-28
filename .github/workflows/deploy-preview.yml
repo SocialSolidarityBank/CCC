@@ -1,0 +1,50 @@
+name: Deploy Preview
+
+# 미리보기 환경(CCC-6) 자동 배포. main 에 머지될 때만 돈다.
+# 검증(typecheck·test·guard) 통과 후 api·web 미리보기 워커를 배포한다.
+# Cloudflare 자격증명은 GitHub secret 이름으로만 참조한다(값 등록은 프로비저닝 몫):
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+# 시드 주입은 이 잡에 넣지 않는다 — 별도 수동 스크립트(scripts/seed, docs/ops.md 참고).
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-preview
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm guard:db
+
+  deploy-preview:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # API 미리보기 워커 배포 (ccc-api-preview)
+      - run: pnpm --filter @ccc/api exec wrangler deploy --env preview
+      # WEB 미리보기 워커 배포 (ccc-preview) — OpenNext 빌드 후 preview env 로 배포
+      - run: pnpm --filter @ccc/web exec opennextjs-cloudflare build
+      - run: pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview

@@ -1,0 +1,34 @@
+# CCC 파이프라인 폴링 데몬 (WSL2 systemd)
+#
+# 설치 (노트북 Part B):
+#   1. 전용 계정으로 레포를 /opt/ccc(또는 전용 계정 홈)에 클론, ML 의존성 설치
+#   2. /etc/ccc-pipeline.env 생성(권한 600, 소유 root): CCC_PIPELINE_CLIENT_ID/SECRET 등
+#      환경 변수를 Infisical에서 하이드레이션해 기록한다 — 값은 레포·로그에 넣지 않는다
+#   3. sudo cp ccc-pipeline.service /etc/systemd/system/
+#   4. sudo systemctl enable --now ccc-pipeline
+#   5. journalctl -u ccc-pipeline -f 로 폴링 로그 확인
+#
+# WSL2에서 systemd가 꺼져 있으면 /etc/wsl.conf에 [boot] systemd=true 추가 후 wsl --shutdown.
+# Windows 재부팅 시 WSL 자동 기동은 작업 스케줄러에 `wsl.exe -d Ubuntu true` 등록으로 해결한다.
+
+[Unit]
+Description=CCC pipeline polling worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# TODO(Part B): 전용 계정 이름으로 바꾼다 (D13 — 개인 계정과 분리)
+User=ccc-pipeline
+EnvironmentFile=/etc/ccc-pipeline.env
+WorkingDirectory=/opt/ccc/apps/pipeline
+ExecStart=/usr/bin/python3 -m ccc_pipeline
+Restart=always
+RestartSec=30
+# 로그는 journald로 — 파일 로그를 남기지 않는다 (R3: 전사·PII가 로그에 없도록 코드에서 보장,
+# 그래도 로그 파일 상주를 피한다)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

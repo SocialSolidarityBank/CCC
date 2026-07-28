@@ -1,0 +1,21 @@
+# gitleaks allowlist — 오탐(false positive) 2건. 실제 비밀이 아님.
+#
+# 1) ACCESS_AUD (apps/api/wrangler.toml:49)
+#    Cloudflare Access의 audience 태그. JWT 검증용 공개 식별자이며 자격증명이 아니다.
+# 2) TEST_PII_KEY (apps/api/test/support/d1.ts:5)
+#    base64("12345678901234567890123456789012") — 테스트용 더미 키.
+#
+# 운영 시크릿(PII_ENC_KEY, Access API 토큰 등)은 이 레포 히스토리 어디에도 없다
+# (2026-07-18 노출 사고 후 전량 로테이션, 값은 Infisical에만 보관).
+
+[[allowlists]]
+description = "CCC false positives: Cloudflare Access audience tag and test dummy PII key"
+condition = "AND"
+paths = [
+  '''apps/api/wrangler\.toml''',
+  '''apps/api/test/support/d1\.ts''',
+]
+regexes = [
+  '''3dbacf213494f7624c00676ce62742c414528997fd2a23c21e926c16d79404d2''',
+  '''MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=''',
+]

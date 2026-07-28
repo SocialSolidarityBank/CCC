@@ -1,0 +1,280 @@
+/* 레이아웃 계약 v1 — docs/superpowers/specs/2026-07-27-layout-contract-design.md
+ *
+ * 이 파일은 **레이아웃 층만** 담는다. 색·컴포넌트는 base.css 가 이미 계약이라
+ * 손대지 않는다. 검증 대상은 폭·여백·열 수·리듬 넷뿐이다.
+ *
+ * 신설 토큰은 확정되면 design/tokens.css 로 옮긴다. 여기 둔 것은 아직 코드
+ * 반영 전이기 때문이고, 두 곳에 값을 두는 상태를 오래 끌지 않는다. */
+@import url("../design-system-v2/screens/base.css");
+
+:root{
+  /* §10 신설 토큰 */
+  --page-max:       1120px;  /* 페이지 본문 컨테이너 바깥 폭 (패딩 40 포함) */
+  --grid-min:        420px;  /* 표준 카드 그리드 트랙 최소 폭 → 1040 에서 2열 */
+  --grid-min-dense:  280px;  /* 조밀 카드 그리드 트랙 최소 폭 → 1040 에서 3열 */
+  --z-sticky:           10;
+  --z-dropdown:         30;
+  --z-modal:           100;
+
+  /* 사이드바 구분선 전용. --line(#E7E5E4)은 흰 카드 위에서 쓰라고 만든 값이라
+     파스텔 그라데이션 바탕에서는 거의 안 보인다. 새 색을 들이는 게 아니라
+     --ink 를 옅게 깐 것이다 — --line-action(잉크 50%)과 같은 방식이라
+     D34 의 '새 색조 금지'에 걸리지 않는다. */
+  --line-sidebar: rgba(61, 52, 69, 0.16);
+}
+
+/* ── §3 가로 프레임 ───────────────────────────────────────
+ * base.css 의 .main 은 스스로 패딩 40 + max-width 1280 을 갖는다.
+ * 그 두 값이 곧 이번에 고치는 대상이라 여기서 무력화하고, 폭 책임을
+ * .page 하나로 옮긴다. 컨테이너가 둘이면 또 어긋난다.
+ *
+ * min-width:0 이 없으면 flex 항목의 최소 폭이 내용물(그리드 최소 폭
+ * 420×2+20=860)에 끌려 올라가 본문이 사이드바를 밀어내고 가로 스크롤이
+ * 생긴다. 1024에서 컨테이너가 784가 아니라 848로 부푸는 현상이 이것이었다. */
+.main{padding:0;max-width:none;min-width:0}
+
+.page{
+  max-width:var(--page-max);
+  margin-inline:auto;          /* 1200 안에서 좌우 40씩 — 마진 토큰 없이 잔여로 생긴다 */
+  padding:var(--space-10);     /* 40. box-sizing:border-box 라 1120 에 포함된다 */
+  padding-bottom:calc(var(--space-10) + 56px);  /* 눈금 막대 자리 (아래 .probe 주석) */
+}
+
+/* ── §5 세로 리듬 — 40 / 24 / 16 / 20 ───────────────────── */
+.page-head{margin-bottom:var(--space-10)}   /* 페이지 헤더 아래 40 */
+.section{gap:var(--space-4);margin-bottom:var(--space-6)}  /* 제목↔내용 16, 섹션 사이 24 */
+.section:last-child{margin-bottom:0}
+
+/* ── §4 카드 그리드 — 열 수를 쓰지 않는다. 최소 폭이 정한다 ──
+ * minmax 의 최소값에 min(…,100%) 을 씌우는 이유: 컨테이너가 최소 폭보다 좁아지는
+ * 구간(휴대폰)에서 그냥 minmax(420px,1fr) 이면 트랙이 420 아래로 못 내려가 가로로
+ * 삐져나간다. 100% 를 상한으로 두면 그 구간에서만 컨테이너 폭을 따른다. */
+.grid{
+  display:grid;gap:var(--space-5);
+  grid-template-columns:repeat(auto-fit,minmax(min(var(--grid-min),100%),1fr));
+}
+
+/* 조밀 그리드는 **3열 아니면 1열**이다. 2열이 되면 3개짜리 묶음(GAS 세부 목표)이
+   둘 + 외톨이 하나로 앉는다. 880 = 280×3 + 20×2, 즉 3열이 들어가는 최소 폭이고
+   그 아래로는 한 줄에 하나씩 간다. 폭 기준은 화면이 아니라 그리드가 놓인 칸이다. */
+.grid-dense{
+  display:grid;gap:var(--space-5);
+  grid-template-columns:repeat(auto-fit,minmax(min(var(--grid-min-dense),100%),1fr));
+}
+@container (max-width:879px){
+  .grid-dense{grid-template-columns:minmax(0,1fr)}
+}
+
+/* span 2 는 화면 폭이 아니라 **그리드가 실제로 몇 열인지**에 맞춰 풀려야 한다.
+   뷰포트 기준으로 풀면 1024처럼 아직 데스크톱인데 그리드는 1열인 구간에서
+   span 2 가 살아남아 열 수를 2로 되끌어올린다(자기가 2열을 요구하므로).
+   859 = 표준 2열 하한 860 바로 아래. */
+.section{container-type:inline-size}
+.span-2{grid-column:span 2}
+@container (max-width:859px){
+  .span-2{grid-column:auto}
+}
+
+/* ── §4-1 아코디언 행 높이 ─────────────────────────────────
+ * 두 가지를 동시에 만족해야 한다.
+ *   ① 접으면 그 행이 실제로 좁아진다(빈 자리를 남겨 두지 않는다)
+ *   ② 둘 다 펼치면 큰 쪽에 높이를 맞춘다(들쭉날쭉하지 않게)
+ * 답은 '카드마다' 정렬을 다르게 주는 것이다. 행 높이는 그대로 내용이 정한다.
+ *   펼친 카드  → align-self:stretch → 행 높이를 채운다 = 서로 높이가 같아진다
+ *   접은 카드  → align-self:start   → 제 요약 줄 높이로만 남는다 = 빈 상자가 안 생긴다
+ * 자바스크립트로 높이를 재서 박지 않는다 — 내용이 바뀌면 그 값이 곧 거짓이 된다. */
+.grid[data-rows="acc"] > details[open]{align-self:stretch}
+.grid[data-rows="acc"] > details:not([open]){align-self:start}
+
+/* 페이지 전체 여닫기 줄. 오른쪽 끝에 붙는다 — 왼쪽은 제목의 자리이고
+   이건 제목이 아니라 화면을 다루는 손잡이다. */
+.page-tools{align-items:flex-end}
+
+/* ── §7 페이지 헤더 슬롯 — 사이드바=장소 / 우상단=행동 ────
+ * HERO 도 카드다. 캔버스 위에 맨 글자를 얹으면 그 글자만 어느 카드에도 속하지
+ * 않아 좌우 정렬 기준이 사라지고 행동 버튼도 허공에 뜬다. */
+.page-head{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);
+  padding:var(--space-6);
+  background:var(--panel);border-radius:var(--radius-card);box-shadow:var(--shadow-soft);
+}
+.page-head h1{display:flex;align-items:center;gap:var(--space-5);flex-wrap:wrap}
+.page-head .actions{display:flex;align-items:center;gap:var(--space-2);flex:none}
+
+/* 링크로 만든 버튼에 밑줄이 남지 않게. base.css 는 .nav a·.row 에만 밑줄을 껐다. */
+a.btn{text-decoration:none}
+
+/* 이름 표기 (DESIGN.md §5) — `이름 (가명 ID)` 한 줄.
+   띄어쓰기를 문자열에 넣지 않고 간격 4로 만든다. ID 의 색·굵기가 이름과 달라야
+   하기 때문이다. 두 글자 크기가 달라 기준선(baseline)으로 두면 ID 가 아래로
+   처져 보이므로 세로 가운데로 맞춘다. */
+.name{display:inline-flex;align-items:center;gap:var(--space-1)}
+.name .pid{font-size:16px;font-weight:400;color:var(--sub)}
+
+/* 리스크 배너 — base.css 가 없는 토큰(--gradient-risk)을 참조해 background 선언이
+   통째로 무효가 되어 있었다. 그래서 이 배너만 카드로 안 그려지고 맨 글자로 떠서
+   다른 카드와 좌우가 어긋나 보였다. DESIGN.md §5 대로 바로잡는다. */
+.risk-banner{
+  background:linear-gradient(var(--risk-tint-solid),var(--risk-tint-solid)) padding-box,
+             var(--gradient-brand) border-box;
+}
+
+/* ── 사이드바 ──────────────────────────────────────────────
+ * 사업 전환기는 알약이 아니라 **직사각형 + radius 6**이다. 이건 행동을 하는
+ * 버튼이 아니라 값을 고르는 컨트롤이라, 입력칸·select 와 같은 모양이어야
+ * "누르면 목록이 열린다"로 읽힌다(DESIGN.md §5 입력칸 계약).
+ *
+ * 구분선은 조직 | 사업 | 메뉴 세 덩어리를 가른다. 셋의 성격이 다르기 때문이다
+ * (어디 소속인가 / 무엇을 보고 있나 / 어디로 가나). §3-4 의 '블록 간격 32' 는
+ * 그대로다 — 선 위아래로 16씩 나눠 가지므로 합이 32다. */
+.sidebar{gap:0}
+.sidebar > .brand{padding-bottom:var(--space-4);border-bottom:1px solid var(--line-sidebar)}
+.sidebar > .switch-block{padding-block:var(--space-4);border-bottom:1px solid var(--line-sidebar)}
+.sidebar > .nav{padding-top:var(--space-4)}
+
+.program-switch{
+  width:100%;justify-content:space-between;
+  border-radius:var(--radius-control);   /* 알약(9999) → 6 */
+}
+
+/* ── 설명 팝오버 (§17) ─────────────────────────────────────
+ * GAS 처럼 '개념을 알아야 읽히는' 이름 옆에 붙는다. 마우스를 올리거나
+ * 키보드 초점이 들어오면 뜬다. 호버 전용으로 만들면 키보드·터치에서
+ * 영영 안 보이므로 :focus-within 을 반드시 함께 건다. */
+.hint{position:relative;display:inline-flex;align-items:center;flex:none}
+.hint > button{
+  display:grid;place-items:center;width:18px;height:18px;padding:0;
+  border:1px solid var(--sub);border-radius:var(--radius-pill);
+  background:none;color:var(--sub);
+  font-size:12px;font-weight:700;line-height:1;cursor:help;
+}
+.hint > button:hover{border-color:var(--ink);color:var(--ink)}
+.tip{
+  position:absolute;top:calc(100% + var(--space-2));left:50%;translate:-50% 0;
+  z-index:var(--z-dropdown);
+  width:max-content;max-width:280px;
+  padding:var(--space-4);
+  background:var(--panel);border-radius:var(--radius-card);
+  box-shadow:0 6px 20px rgba(48,45,42,.14),var(--shadow-soft);
+  font-size:14px;font-weight:400;line-height:1.6;color:var(--sub);
+  opacity:0;visibility:hidden;transition:opacity 120ms;
+}
+.tip b{display:block;margin-bottom:var(--space-1);font-size:14px;color:var(--ink)}
+.hint:hover .tip,.hint:focus-within .tip{opacity:1;visibility:visible}
+
+/* ── 자동 생성 필드 (§18) ──────────────────────────────────
+ * 항목 풀에서 만들어지는 조각이라 사람이 배치를 정하지 않는다.
+ * 보기 모드는 '정보 필드'(DESIGN.md §5) 그대로: 라벨 14/700 민트 deep 위,
+ * 값 16 아래, 간격 4. 긴 글만 한 줄을 통째로 쓴다. */
+.field-auto{display:flex;flex-direction:column;gap:var(--space-1)}
+.field-auto .k{font-size:14px;font-weight:700;color:var(--mint-deep)}
+.field-auto .v{font-size:16px;font-weight:700;color:var(--ink)}
+.field-auto[data-type="text-long"]{grid-column:1/-1}
+.field-auto[data-type="text-long"] .v{font-weight:400;line-height:1.6}
+
+/* ── 브리핑 이어보기 (§19) ─────────────────────────────────
+ * 별개 화면으로 가는 버튼이 아니라 이 브리핑의 아래쪽 끝이다.
+ * 그래서 위가 아니라 맨 아래에, 전폭으로, 행 모양으로 놓는다. */
+.more{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
+  padding:var(--space-5) var(--space-6);
+  background:var(--panel);border-radius:var(--radius-card);box-shadow:var(--shadow-soft);
+  color:inherit;text-decoration:none;
+}
+.more:hover{background:var(--muted)}
+/* base.css 의 .caret 은 아코디언용이라 아래를 가리킨다. 여기서는 '이어서 본다'는
+   뜻이라 오른쪽을 가리켜야 한다. */
+.more .caret{transform:rotate(-45deg)}
+.more .t{font-size:16px;font-weight:700}
+.more .d{font-size:14px;color:var(--sub)}
+
+/* ── §6 768 미만 — 사이드바는 드로어로 숨는다 ─────────────────
+ * base.css 는 사이드바를 상단 가로 스크롤 줄로 눕히는데, 그러면 메뉴 4개에
+ * 조직명·사업 전환기까지 한 줄에 밀려 들어가 어느 것도 읽히지 않는다.
+ * 좁은 화면에서 장소 전환은 자주 쓰는 동작이 아니므로 평소엔 숨기고
+ * 부를 때만 왼쪽에서 밀어 넣는다. 본문이 화면을 온전히 쓴다. */
+.drawer-toggle{display:none}
+.mobile-bar{display:none}
+.drawer-scrim{display:none}
+
+@media (max-width:767px){
+  .page{padding:var(--space-6) var(--space-4) calc(var(--space-6) + 56px)}  /* 세로 24 · 가로 16 */
+  .page-head{flex-direction:column;align-items:stretch;gap:var(--space-4)}
+  .page-head .actions{width:100%}
+  .page-head .actions .btn{flex:1}               /* 전폭 세로 쌓기 */
+
+  .app{display:block}
+
+  /* 상단 바 — 데스크톱의 '상단 헤더 띠'(락 #8이 금지한 것)가 아니라
+     드로어를 여는 손잡이다. 높이 56, 스티키. */
+  .mobile-bar{
+    display:flex;align-items:center;gap:var(--space-3);
+    height:56px;padding:0 var(--space-4);
+    position:sticky;top:0;z-index:var(--z-sticky);
+    background:var(--panel);border-bottom:1px solid var(--line);
+    font-size:16px;font-weight:700;cursor:pointer;
+  }
+  .mobile-bar .bars{display:flex;flex-direction:column;gap:3px;width:18px;flex:none}
+  .mobile-bar .bars i{height:2px;border-radius:1px;background:var(--ink)}
+
+  .sidebar{
+    position:fixed;top:0;bottom:0;left:0;
+    width:280px;max-width:82vw;
+    flex-direction:column;align-items:stretch;
+    padding:var(--space-6);overflow-y:auto;
+    z-index:var(--z-modal);
+    transform:translateX(-100%);transition:transform 150ms ease;
+  }
+  .nav{flex-direction:column}
+  .nav a{white-space:normal}
+
+  .drawer-toggle:checked ~ .app .sidebar{transform:none}
+  .drawer-scrim{
+    position:fixed;inset:0;background:rgba(48,45,42,.4);
+    z-index:calc(var(--z-modal) - 1);
+  }
+  .drawer-toggle:checked ~ .drawer-scrim{display:block}
+}
+
+/* ── 검증 눈금 ────────────────────────────────────────────
+ * 목업 자체가 자기 폭을 재서 보고한다. 시트에서 iframe 으로 띄울 때
+ * 바깥에서 재려 하면 file:// 교차 접근에 막히므로 안쪽에서 잰다.
+ * 자리는 body 가 아니라 .page 안쪽에서 비운다 — body 에 padding 을 주면
+ * .app 의 min-height:100vh 위에 얹혀 항상 넘쳐 세로 스크롤바가 생기고,
+ * 그 15px 때문에 재는 폭이 계속 작게 나온다. */
+.probe{
+  position:fixed;left:0;right:0;bottom:0;z-index:var(--z-modal);
+  display:flex;flex-wrap:wrap;gap:0 var(--space-4);
+  padding:var(--space-2) var(--space-4);
+  background:var(--ink);color:var(--panel);
+  font-size:13px;font-weight:700;line-height:1.6;
+  letter-spacing:var(--tracking-numeric);
+}
+.probe b{font-weight:700;color:var(--mint)}
+.probe .bad{color:var(--risk)}
+
+/* 시트에 iframe 으로 얹힐 때는 스크롤바를 숨긴다.
+   스크롤바가 차지하는 15px 만큼 안쪽 폭이 줄어 눈금이 계약과 다르게 나오고,
+   그걸 프레임 높이로 쫓아가려 하면 '높이를 늘리면 글이 덜 접혀 다시 짧아지는'
+   순환에 빠진다. 시트는 폭을 재는 도구이므로 아예 자리를 안 만드는 쪽이 맞다.
+   목업을 직접 열었을 때는 그대로 스크롤바가 보인다. */
+html.embedded{scrollbar-width:none}
+html.embedded::-webkit-scrollbar{width:0;height:0}
+
+/* ── GAS 원형 게이지 — 조밀 그리드 검증용 최소 구현 ─────── */
+.gauge-item{display:flex;flex-direction:column;align-items:center;gap:var(--space-2)}
+.gauge{
+  width:96px;height:96px;border-radius:50%;
+  display:grid;place-items:center;
+  /* 트랙은 계열 tint, 채움은 같은 계열 base (DESIGN.md §5).
+     전역 --track(무채색)은 추이 막대 전용이라 이름이 겹치지 않게 --g-track 을 쓴다. */
+  background:conic-gradient(var(--fill,var(--blue)) var(--pct,50%), var(--g-track,var(--blue-tint)) 0);
+}
+.gauge span{
+  width:72px;height:72px;border-radius:50%;background:var(--panel);
+  display:grid;place-items:center;font-size:24px;font-weight:700;
+  letter-spacing:var(--tracking-numeric);
+}
+.trend{display:flex;align-items:flex-end;gap:4px;height:24px}
+.trend i{width:16px;border-radius:2px;background:var(--track)}
+.trend i:last-child{background:var(--blue)}

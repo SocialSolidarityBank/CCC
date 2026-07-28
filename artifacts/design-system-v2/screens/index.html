@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCC 화면 시안 — D33 사이클 2</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .wrap{max-width:960px;margin:0 auto;padding:var(--space-10) var(--space-6)}
+  .list{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-5);margin-top:var(--space-6)}
+  .item{display:block;text-decoration:none;color:inherit}
+  .item .card-pad{display:flex;flex-direction:column;gap:var(--space-2)}
+  .item:hover .card{outline:2px solid var(--blue-deep);outline-offset:2px}
+  @media (max-width:767px){.list{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CCC 화면 시안 — D33 사이클 2</h1>
+  <p class="muted" style="margin:var(--space-2) 0 0;max-width:70ch">
+    브리핑 화면에서 뽑은 디자인 규칙(D33 / ADR-0012)을 다른 화면에 적용한 시안입니다.
+    규칙에 비어 있던 조각 — 입력칸·세컨더리 버튼·빈 상태·모달·포커스·리스트 행·탭·모바일 — 이 여기서 처음 실제로 쓰입니다.
+    <strong>승인하시면 DESIGN.md의 `[추론]` 항목이 확정 규칙으로 올라갑니다.</strong>
+  </p>
+
+  <div class="list">
+    <a class="item" href="schedule.html">
+      <div class="card card-pad">
+        <span class="badge badge-blue" style="align-self:flex-start">D21</span>
+        <span class="b700" style="font-size:18px">상담 일정</span>
+        <span class="muted s14">메인 화면. 검색 입력 · 리스트 행 · 날짜별 아코디언 · 빈 상태 · 모바일 3줄 접힘</span>
+      </div>
+    </a>
+    <a class="item" href="participant-new.html">
+      <div class="card card-pad">
+        <span class="badge badge-mint" style="align-self:flex-start">D23 · D31</span>
+        <span class="b700" style="font-size:18px">참여자 등록</span>
+        <span class="muted s14">입력칸 전 종류 · 오류 상태 · 체크박스 · 동의 분리 기록 · 세컨더리/고스트 버튼</span>
+      </div>
+    </a>
+    <a class="item" href="review.html">
+      <div class="card card-pad">
+        <span class="badge badge-lav" style="align-self:flex-start">R2 · D5 · D9</span>
+        <span class="b700" style="font-size:18px">검토·승인</span>
+        <span class="muted s14">대조 3종 · 탭 · 인용 블록 · 빈 상태 · 리스크 플래그 확인(위험 버튼)</span>
+      </div>
+    </a>
+    <a class="item" href="review-approve.html">
+      <div class="card card-pad">
+        <span class="badge badge-lav" style="align-self:flex-start">R2</span>
+        <span class="b700" style="font-size:18px">검토·승인 — 확인 모달</span>
+        <span class="muted s14">모달 · 스크림 · 처리 요약. 남은 제안 건수를 승인 전에 보여준다</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="card card-pad" style="margin-top:var(--space-8)">
+    <h2>이 시안에서 새로 정한 것</h2>
+    <ul class="muted" style="margin:var(--space-3) 0 0;padding-left:1.2em;line-height:1.8">
+      <li><strong>입력칸</strong> — 높이 40 · radius 6 · 경계는 <code>--line-control</code>. 라벨은 항상 위, 자리표시자가 라벨을 대신하지 않는다.</li>
+      <li><strong>포커스</strong> — 2px 블루 링 + 2px 오프셋. 색만이 아니라 두께로도 알린다.</li>
+      <li><strong>버튼 4종</strong> — 프라이머리(그라데이션 필 + 1px 그라데이션 아웃라인) / 세컨더리(흰 배경+보더) / 고스트(무배경) / <strong>위험</strong>(리스크 마젠타 테두리 — 되돌리기 어려운 행동에만).</li>
+      <li><strong>빈 상태</strong> — 라인 아이콘 28px + 제목 + 한 줄 설명 + 다음 행동 버튼. 무채색만 쓴다.</li>
+      <li><strong>모달</strong> — radius 12 · 스크림 <code>rgba(48,45,42,.4)</code> · 확인 버튼은 오른쪽.</li>
+      <li><strong>인용 블록</strong> — AI 제안의 근거 발언(D9·D6)에만. 2px 세로선은 민트→라벤더 그라데이션(카드 구분선과 같은 어휘).</li>
+      <li><strong>모바일</strong> — 사이드바가 상단 가로 내비로, 리스트 행은 시간+이름 / 메타 / 배지 3줄로 접힌다.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

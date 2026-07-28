@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>상담 준비 — 레이아웃 계약 v1 검증</title>
+<link rel="stylesheet" href="frame.css">
+</head>
+<body>
+<!-- 드로어 개폐. 체크박스는 시안용 장치이고, 구현에서는 버튼 + aria-expanded 로 만든다. -->
+<input type="checkbox" id="nav-toggle" class="drawer-toggle">
+<label for="nav-toggle" class="drawer-scrim" aria-label="메뉴 닫기"></label>
+
+<div class="app">
+
+  <!-- 768 미만에서만 보이는 드로어 손잡이 -->
+  <label for="nav-toggle" class="mobile-bar">
+    <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>
+    사회연대은행
+  </label>
+
+  <!-- ── 사이드바 240 (D35): 조직 → 사업 전환기 → 메뉴 ────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">사</span>
+      사회연대은행
+    </div>
+
+    <div class="stack switch-block" style="gap:var(--space-2)">
+      <div class="s14 b700 muted">사업</div>
+      <button class="btn btn-secondary program-switch">
+        희망키움통장
+        <span class="caret" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <nav class="nav">
+      <a href="#" aria-current="page">다가오는 일정</a>
+      <a href="#">전체 일정</a>
+      <a href="#">참여자</a>
+      <a href="#">설정</a>
+    </nav>
+
+    <div class="s14 b700 muted" style="margin-top:auto">김상담 · 상담사</div>
+  </aside>
+
+  <!-- ── 본문 ──────────────────────────────────────────────── -->
+  <main class="main">
+  <div class="page">
+
+    <!-- §7 HERO 카드. 우상단 행동 슬롯: 세컨더리(참여자 정보) → 프라이머리(상담 시작) -->
+    <header class="page-head">
+      <div>
+        <h1>
+          <span class="name">김미영<span class="pid">(swallow-003)</span></span>
+          <span class="badge badge-blue">상담 준비</span>
+        </h1>
+        <p>희망키움통장 · 4회차 · 2026년 3월 23일 (월) 14:00 대면</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-secondary" href="#">참여자 정보</a>
+        <button class="btn btn-primary">상담 시작</button>
+      </div>
+    </header>
+
+    <!-- 리스크 배너 (D9) — 확인된 플래그 있을 때만, 접힘 불가 -->
+    <section class="section">
+      <div class="risk-banner">
+        <div class="inline">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" style="color:var(--risk)" aria-hidden="true">
+            <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
+            <path d="M12 9v4"/><path d="M12 17h.01"/>
+          </svg>
+          <h2>확인된 리스크 2건</h2>
+        </div>
+        <label class="check" style="background:var(--panel);border-radius:var(--radius-control);padding:var(--space-3);box-shadow:var(--shadow-soft)">
+          <input type="checkbox">
+          <span><span class="label">주거 상황 급변 — 3월 말 계약 만료</span></span>
+        </label>
+        <label class="check" style="background:var(--panel);border-radius:var(--radius-control);padding:var(--space-3);box-shadow:var(--shadow-soft)">
+          <input type="checkbox">
+          <span><span class="label">약속 불이행 반복 — 최근 3회 중 2회 미이행</span></span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 전체 목표: 한 줄, 게이지 없음 (D33).
+         제목을 카드 안 라벨(14)에서 섹션 제목(h2 18/700)으로 올려 다른 섹션과 맞춘다 -->
+    <section class="section">
+      <div class="section-head"><h2>전체 목표</h2></div>
+      <div class="card card-pad">
+        <div class="b700">안정적인 주거를 유지하면서 3년 안에 자립 기반을 만든다</div>
+      </div>
+    </section>
+
+    <!-- 페이지 전체 여닫기. HERO 바로 아래가 아니라 여기 두는 이유는 D9 다 —
+         리스크 배너는 HERO 바로 아래 자리를 내줄 수 없다. 이 줄은 아래 아코디언
+         전부를 한 번에 다루므로, 그것들 바로 위가 맞는 자리이기도 하다. -->
+    <div class="section page-tools">
+      <button class="btn btn-ghost btn-sm" id="toggle-all">전체 접기</button>
+    </div>
+
+    <!-- GAS: 카드 아코디언 하나. 안쪽은 조밀 그리드 → 3열 (§17 설명 팝오버) -->
+    <section class="section">
+      <details class="acc" open>
+        <summary>
+          <span class="inline">
+            <span class="caret" aria-hidden="true"></span>
+            진행 중인 세부 목표
+            <span class="hint">
+              <button type="button" aria-describedby="tip-gas" aria-label="GAS 설명">i</button>
+              <span class="tip" id="tip-gas" role="tooltip">
+                <b>GAS · 목표달성척도</b>
+                세부 목표마다 −2(악화)에서 +2(기대 초과)까지 5단계로 매기는 점수다.
+                점수는 상담사가 직접 고르고, AI는 근거가 될 만한 발언을 뽑아 주기만 한다.
+                전체 목표와 세션 목표에는 점수를 매기지 않는다.
+              </span>
+            </span>
+          </span>
+          <span class="badge badge-mute">외 1개</span>
+        </summary>
+        <div class="card-body">
+          <div class="grid-dense">
+            <div class="gauge-item">
+              <div class="gauge" style="--pct:75%;--fill:var(--blue);--g-track:var(--blue-tint)"><span class="num">+1</span></div>
+              <div class="b700">3개월 생활비 계획 유지</div>
+              <div class="trend" aria-hidden="true"><i style="height:12px"></i><i style="height:12px"></i><i style="height:18px"></i></div>
+            </div>
+            <div class="gauge-item">
+              <div class="gauge" style="--pct:50%;--fill:var(--mint);--g-track:var(--mint-tint)"><span class="num">0</span></div>
+              <div class="b700">주거 계약 갱신 절차 완료</div>
+              <div class="trend" aria-hidden="true"><i style="height:18px"></i><i style="height:12px"></i><i style="height:12px"></i></div>
+            </div>
+            <div class="gauge-item">
+              <div class="gauge" style="--pct:100%;--fill:var(--lavender);--g-track:var(--lavender-tint)"><span class="num">+2</span></div>
+              <div class="b700">채무 상환 일정 재조정</div>
+              <div class="trend" aria-hidden="true"><i style="height:12px"></i><i style="height:18px"></i><i style="height:24px"></i></div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- 아코디언 4종: 표준 그리드 2×2. 펼치면 큰 쪽에 맞고 접으면 줄어든다(§4-1) -->
+    <section class="section">
+      <div class="section-head">
+        <h2>상담 준비 자료</h2>
+      </div>
+      <div class="grid" data-rows="acc">
+
+        <details class="acc" open>
+          <summary>
+            <span class="inline"><span class="caret" aria-hidden="true"></span>지난 상담 브리핑</span>
+            <span class="badge badge-lav">승인 대기 1건</span>
+          </summary>
+          <div class="card-body">
+            <p style="margin:0">3회차에서 주거 계약 만료가 처음 언급됐다. 집주인과 재계약 의사를 확인해 보기로 했고, 생활비 기록은 2주째 이어지고 있다.</p>
+            <div class="quote">"계약이 3월 말인데 아직 얘기를 못 해봤어요." <span class="num">14:22</span></div>
+          </div>
+        </details>
+
+        <details class="acc" open>
+          <summary>
+            <span class="inline"><span class="caret" aria-hidden="true"></span>오늘 확인할 질문</span>
+            <span class="badge badge-mute">AI 생성</span>
+          </summary>
+          <div class="card-body">
+            <ol style="margin:0;padding-left:1.2em">
+              <li>집주인과 재계약 이야기를 나눠 보셨나요?</li>
+              <li>이번 달 생활비 기록에서 달라진 점이 있나요?</li>
+              <li>상환 일정 조정 이후 부담이 줄었나요?</li>
+            </ol>
+          </div>
+        </details>
+
+        <details class="acc" open>
+          <summary>
+            <span class="inline"><span class="caret" aria-hidden="true"></span>미해결 액션 아이템</span>
+            <span class="badge badge-blue">3건</span>
+          </summary>
+          <div class="card-body stack" style="gap:var(--space-4)">
+            <label class="check"><input type="checkbox"><span><span class="label">집주인과 재계약 의사 확인</span><span class="desc">기한 <span class="num">2026-03-20</span> · 참여자</span></span></label>
+            <label class="check"><input type="checkbox"><span><span class="label">주거급여 신청 서류 안내</span><span class="desc">기한 <span class="num">2026-03-25</span> · 상담사</span></span></label>
+            <label class="check"><input type="checkbox"><span><span class="label">생활비 기록 앱 사용법 재안내</span><span class="desc">기한 없음 · 상담사</span></span></label>
+          </div>
+        </details>
+
+        <details class="acc" open>
+          <summary>
+            <span class="inline"><span class="caret" aria-hidden="true"></span>개인정보</span>
+            <span class="badge badge-mint">열람 기록됨</span>
+          </summary>
+          <div class="card-body grid-dense" style="gap:var(--space-4)">
+            <div class="field-auto"><span class="k">실명</span><span class="v">김미영</span></div>
+            <div class="field-auto"><span class="k">연락처</span><span class="v num">010-1234-5678</span></div>
+            <div class="field-auto"><span class="k">계좌</span><span class="v num">우리 1002-***-****</span></div>
+          </div>
+        </details>
+
+      </div>
+    </section>
+
+    <!-- 자동 생성 필드(§18): 항목 풀에서 만들어지는 조각. 배치를 사람이 정하지 않는다 -->
+    <section class="section">
+      <details class="acc" open>
+        <summary>
+          <span class="inline">
+            <span class="caret" aria-hidden="true"></span>
+            추가 정보
+            <span class="hint">
+              <button type="button" aria-describedby="tip-slot" aria-label="추가 정보 설명">i</button>
+              <span class="tip" id="tip-slot" role="tooltip">
+                <b>확장 슬롯</b>
+                사업마다 다르게 필요한 항목을 상담사가 덧붙이는 자리다.
+                항목 풀에서 고르면 화면 조각이 자동으로 만들어지므로 배치를 따로 정하지 않는다.
+                통계와 브리핑 요약에는 쓰이지 않는다.
+              </span>
+            </span>
+          </span>
+          <span class="badge badge-mute" id="field-count"></span>
+        </summary>
+        <div class="card-body">
+          <div class="grid-dense" id="auto-fields"></div>
+        </div>
+      </details>
+    </section>
+
+    <!-- 브리핑 이어보기(§19): 별개 화면이 아니라 이 브리핑의 아래쪽 끝 -->
+    <section class="section">
+      <a class="more" href="#">
+        <span>
+          <span class="t">자세한 상담 기록 보기</span><br>
+          <span class="d">위 브리핑을 펼친 전체 기록과 1~3회차 이력</span>
+        </span>
+        <span class="caret" aria-hidden="true"></span>
+      </a>
+    </section>
+
+  </div>
+  </main>
+</div>
+
+<!-- 눈금: 목업이 자기 폭을 재서 보고한다 -->
+<div class="probe" id="probe" role="status"></div>
+
+<script>
+/* 시트 안(iframe)이면 스크롤바를 숨긴다 — 그 15px 때문에 눈금이 계약과
+   다르게 나온다. 직접 열었을 때는 그대로 둔다. */
+if (window.self !== window.top) document.documentElement.classList.add('embedded');
+
+/* ────────────────────────────────────────────────────────────
+   1) 자동 생성 필드 (§18)
+   항목 풀의 한 줄이 화면 조각 하나가 된다. 사람이 배치를 정하지 않고
+   type 이 정한다 — 긴 글만 한 줄을 통째로 쓰고 나머지는 조밀 그리드에
+   순서대로 들어간다. 숫자·날짜는 숫자 전용 자간(--tracking-numeric)을 쓴다.
+   ──────────────────────────────────────────────────────────── */
+const FIELDS = [
+  { key:'수급 여부',   type:'choice', value:'생계급여 수급' },
+  { key:'가구원 수',   type:'number', value:'3', unit:'명' },
+  { key:'주거 형태',   type:'choice', value:'월세 (보증금 500 / 월 45만)' },
+  { key:'최근 상담일', type:'date',   value:'2026-03-09' },
+  { key:'특이사항',    type:'text-long',
+    value:'계약 만료가 상담 주기와 겹쳐 3월 안에 두 번 만나기로 했다. 자녀 전학 문제도 같이 확인해야 한다.' },
+];
+const NUMERIC = new Set(['number','date']);
+
+function renderFields(){
+  const box = document.getElementById('auto-fields');
+  box.innerHTML = '';
+  for (const f of FIELDS){
+    const el = document.createElement('div');
+    el.className = 'field-auto';
+    el.dataset.type = f.type;
+    const k = document.createElement('span');
+    k.className = 'k'; k.textContent = f.key;
+    const v = document.createElement('span');
+    v.className = 'v' + (NUMERIC.has(f.type) ? ' num' : '');
+    v.textContent = f.value + (f.unit ? ' ' + f.unit : '');
+    el.append(k, v);
+    box.append(el);
+  }
+  document.getElementById('field-count').textContent = FIELDS.length + '개';
+}
+
+/* ────────────────────────────────────────────────────────────
+   2) 아코디언 행 높이 (§4-2)
+   CSS 만으로 끝난다 — 펼친 카드는 stretch, 접은 카드는 start.
+   자바스크립트로 높이를 재서 박던 방식은 버렸다. 내용이 바뀌는 순간
+   박아 둔 값이 거짓이 되고, 접어도 행이 안 줄어들어 빈 자리가 남는다.
+   ──────────────────────────────────────────────────────────── */
+
+/* 요약 줄 안의 ⓘ 를 누르면 설명만 뜨고 카드는 여닫히지 않아야 한다.
+   버튼 자신의 동작은 이미 실행된 뒤이므로 여기서는 기본 토글만 막는다. */
+for (const s of document.querySelectorAll('details.acc > summary')){
+  s.addEventListener('click', e => {
+    if (e.target.closest('.hint')) e.preventDefault();
+  });
+}
+
+/* 페이지의 모든 아코디언을 한 번에 여닫는다 — GAS·상담 준비 자료 4장·추가 정보.
+   하나라도 접혀 있으면 '펼치기', 전부 열려 있으면 '접기'다. 라벨이 지금 상태가
+   아니라 **누르면 일어날 일**을 가리켜야 헷갈리지 않는다. */
+document.getElementById('toggle-all').addEventListener('click', e => {
+  const accs = [...document.querySelectorAll('details.acc')];
+  const willOpen = accs.some(a => !a.open);
+  accs.forEach(a => { a.open = willOpen; });
+  e.target.textContent = willOpen ? '전체 접기' : '전체 펼치기';
+});
+
+/* ────────────────────────────────────────────────────────────
+   3) 눈금 — 계약의 계산식을 그대로 옮긴다
+   계약값을 표로 박아 두면 스크롤바 15px 때문에 화면 폭이 1425가 되는 순간
+   조회가 빗나가 검사가 조용히 꺼진다.
+   ──────────────────────────────────────────────────────────── */
+const C = { sidebar:240, pageMax:1120, pad:40, padMobile:16, gap:20, min:420, minDense:280, mq:768 };
+C.dense3 = C.minDense * 3 + C.gap * 2;   // 880 — 조밀 3열이 들어가는 최소 폭
+
+const colsOf = (text, min) => Math.max(1, Math.floor((text + C.gap) / (min + C.gap)));
+
+function expected(w){
+  /* 모바일 여부를 clientWidth 로 판정하면 스크롤바 15px 때문에 CSS 의 미디어 질의와
+     최대 15px 어긋나 멀쩡한 화면에 경고가 뜬다. CSS 에게 직접 묻는다. */
+  const mobile = matchMedia(`(max-width:${C.mq - 1}px)`).matches;
+  const avail  = w - (mobile ? 0 : C.sidebar);
+  const page   = Math.min(C.pageMax, avail);
+  const pad    = mobile ? C.padMobile : C.pad;
+  const text   = page - pad * 2;
+  return {
+    mobile,
+    sidebar: mobile ? null : C.sidebar,
+    page, text,
+    std:   colsOf(text, C.min),
+    dense: text >= C.dense3 ? 3 : 1,   // 2열은 건너뛴다
+    gutter: Math.round((avail - page) / 2),
+  };
+}
+
+function cols(el){
+  if(!el) return 0;
+  return getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length;
+}
+
+function measure(){
+  const w     = Math.round(document.documentElement.clientWidth);
+  const side  = document.querySelector('.sidebar');
+  const page  = document.querySelector('.page');
+  const cs    = getComputedStyle(page);
+  const pageW = Math.round(page.getBoundingClientRect().width);
+  const textW = Math.round(pageW - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  const sideR = side.getBoundingClientRect();
+  const e     = expected(w);
+
+  const mark = (label, got, want) => {
+    if (want === null || want === undefined) return `${label} <b>${got}</b>`;
+    const ok = got === want;
+    return `${label} <b class="${ok?'':'bad'}">${got}</b>${ok?'':` <span class="bad">(계약 ${want})</span>`}`;
+  };
+
+  const parts = [
+    `화면 <b>${w}</b>`,
+    e.mobile
+      ? `사이드바 <b>드로어</b>`
+      : mark('사이드바', Math.round(sideR.width), e.sidebar) +
+        // 왼쪽 끝에 붙었는지 — 가운데 떠 있으면 계약 위반이다
+        (Math.round(sideR.left) === 0 ? '' : ` <span class="bad">(왼쪽 끝 아님: ${Math.round(sideR.left)})</span>`),
+    mark('컨테이너', pageW, e.page),
+    mark('좌우 잔여', Math.round((page.parentElement.getBoundingClientRect().width - pageW) / 2), e.gutter),
+    mark('글 폭',    textW, e.text),
+    mark('표준 열',  cols(document.querySelector('.grid')),       e.std),
+    mark('조밀 열',  cols(document.querySelector('.grid-dense')), e.dense),
+    `한 줄 <b>약 ${Math.floor(textW/16)}자</b>`,
+  ];
+  const de = document.documentElement;
+  if (de.scrollWidth > de.clientWidth) {
+    parts.push(`<span class="bad">가로 스크롤 발생 ${de.scrollWidth} &gt; ${de.clientWidth}</span>`);
+  }
+  document.getElementById('probe').innerHTML = parts.join(' · ');
+}
+
+function refresh(){ measure(); }
+addEventListener('resize', refresh);
+
+renderFields();
+refresh();
+// 웹폰트가 늦게 들어오면 잰 높이가 바뀐다 — 폰트가 준비되면 한 번 더 잰다
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
+</script>
+</body>
+</html>

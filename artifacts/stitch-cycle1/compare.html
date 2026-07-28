@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상담 준비 브리핑 — Stitch 탐색 4안 (ADR-0011 1단계)</title>
+<style>
+:root{--canvas:#faf9f7;--panel:#fff;--muted:#f2f2f2;--ink:#0a0a0a;--sub:#6b6b6b;--line:#d4d4d4;--risk:#c22b10}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo",sans-serif;letter-spacing:-.01em;line-height:1.55}
+main{max-width:1280px;margin:0 auto;padding:40px}
+h1{font-size:28px;line-height:1.25;margin:0 0 8px}
+.meta{color:var(--sub);font-size:14px;margin-bottom:32px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.card img{display:block;width:100%;height:auto;border-bottom:1px solid var(--line)}
+.card .body{padding:20px 24px}
+.card h2{margin:0 0 4px;font-size:18px;line-height:1.35}
+.card p{margin:8px 0 0;color:var(--sub);font-size:14px}
+.badge{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:9999px;background:var(--muted);font-size:12px;font-weight:700;margin-left:8px}
+.badge.rec{background:var(--ink);color:#fff}
+.note{margin-top:32px;padding:20px 24px;background:var(--panel);border:1px solid var(--line);border-radius:14px;font-size:14px}
+.note strong{display:block;margin-bottom:8px;font-size:15px}
+</style>
+</head>
+<body>
+<main>
+<h1>상담 준비 브리핑 — Stitch 레이아웃 탐색 4안</h1>
+<p class="meta">ADR-0011 1단계(탐색) 산출물 · 2026-07-25 · 색·서체·토큰은 4안 공통(DESIGN.md SSOT), 레이아웃·구조만 다름. <b>레이아웃만 취하고 디테일(영문 메뉴·아이콘 등)은 버린다.</b></p>
+<div class="grid">
+  <div class="card"><img src="A-base-d22.png" alt="A안 기본"><div class="body"><h2>A. 기본<span class="badge rec">추천</span><span class="badge">D22 스펙 그대로</span></h2><p>HERO → 리스크 배너 → GAS 3게이지 가로 → 아코디언 4종 2열. 현재 확정 스펙(D22)과 구조가 동일해 추가 결정 없이 2단계(Pencil 정밀화)로 직행 가능.</p></div></div>
+  <div class="card"><img src="C-inline.png" alt="C안 인라인"><div class="body"><h2>C. GAS 인라인<span class="badge">D22 수정 필요</span></h2><p>GAS를 HERO 우측에 칩으로 압축해 첫 화면에 4카드가 전부 들어옴 — 스크롤 최소화는 가장 우수. 다만 "원형 게이지 + 미니 추이"(D22)를 축소 표기로 바꾸는 결정이 필요.</p></div></div>
+  <div class="card"><img src="B-2col.png" alt="B안 2컬럼"><div class="body"><h2>B. 2컬럼 분할</h2><p>좌측에 리스크+GAS 고정, 우측에 브리핑 콘텐츠. 리스크를 상시 대조할 수 있지만 좌측 GAS가 세로로 쌓여 스크롤이 가장 길어짐 — 15초 훑기에 불리.</p></div></div>
+  <div class="card"><img src="D-grid.png" alt="D안 그리드"><div class="body"><h2>D. 전부 펼침 그리드</h2><p>아코디언 없이 4카드 고정 펼침. 한눈 보기는 좋으나 내용이 길어지면 카드 높이가 어긋나고, D22의 "전체 열기/닫기" 상호작용과 상충.</p></div></div>
+</div>
+<div class="note"><strong>공통 관찰 (2단계에서 수정할 디테일)</strong>
+① 사이드바 메뉴·상단 버튼이 영문(Counseling Schedule·New Case·Export) — 한글화 필요 ② GAS가 원형 게이지가 아니라 숫자+막대 추이로 그려짐 — D22는 원형 게이지 ③ 추이 막대의 그린이 SSOT #046645보다 밝은 세이지 톤 — 토큰 값으로 교정. 색 규율(리스크가 유일한 빨강·주의는 검정 반전 배지·웜 캔버스)은 4안 모두 준수.</div>
+</main>
+</body>
+</html>

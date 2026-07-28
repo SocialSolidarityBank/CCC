@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>CCC 디자인 시스템 v2 — 토큰 검증 시트 (D33 / ADR-0012)</title>
+<link rel="stylesheet" href="../../design/tokens.css">
+<style>
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--font-sans);
+       letter-spacing:var(--tracking-base);padding:var(--space-10)}
+  h1{font-size:28px;font-weight:700;line-height:1.25;margin:0 0 var(--space-2)}
+  p.lead{font-size:16px;font-weight:400;line-height:1.55;color:var(--sub);margin:0 0 var(--space-8)}
+  h2{font-size:18px;font-weight:700;line-height:1.35;margin:var(--space-8) 0 var(--space-4)}
+  .card{background:var(--panel);border-radius:var(--radius-card);box-shadow:var(--shadow-soft);
+        padding:var(--space-6);margin-bottom:var(--space-5)}
+  .row{display:flex;gap:var(--space-5);flex-wrap:wrap}
+  .sw{flex:1 1 200px}
+  .chip-lg{height:56px;border-radius:var(--radius-control);margin-bottom:var(--space-2)}
+  .meta{font-size:14px;font-weight:700;line-height:1.4;color:var(--sub)}
+  .badge{display:inline-flex;align-items:center;height:var(--badge-height);
+         border-radius:var(--radius-pill);padding:0 10px;font-size:14px;font-weight:700}
+  .b-blue{background:var(--blue-tint);color:var(--blue-deep)}
+  .b-mint{background:var(--mint-tint);color:var(--mint-deep)}
+  .b-lav{background:var(--lavender-tint);color:var(--lavender-deep)}
+  .banner{background:linear-gradient(var(--risk-tint-solid),var(--risk-tint-solid)) padding-box,
+                    var(--gradient-brand) border-box;
+          border:1.5px solid transparent;border-radius:var(--radius-card);
+          padding:var(--space-5) var(--space-6)}
+  .banner h3{margin:0 0 var(--space-3);font-size:16px;font-weight:700;color:var(--risk)}
+  .banner .item{display:flex;align-items:center;gap:var(--space-3);background:var(--panel);
+       border-radius:var(--radius-control);box-shadow:var(--shadow-soft);padding:10px 12px;
+       margin-bottom:var(--space-2);font-size:16px;font-weight:700}
+  .box{width:18px;height:18px;border:1.5px solid var(--risk);border-radius:var(--radius-xs);
+       background:var(--panel);flex-shrink:0}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:var(--control-height);
+       padding:0 var(--space-4);border-radius:var(--radius-pill);border:1px solid transparent;
+       background:var(--gradient-action) padding-box,
+                  linear-gradient(var(--panel),var(--panel)) padding-box,
+                  var(--gradient-brand) border-box;
+       box-shadow:var(--shadow-soft);font-size:16px;font-weight:700}
+  .side{width:var(--sidebar-width);height:180px;background:var(--gradient-sidebar);
+        border-radius:var(--radius-card);padding:var(--space-6);box-sizing:border-box;font-size:16px;font-weight:700}
+  .divider{height:1px;background:var(--gradient-brand);margin:var(--space-4) 0}
+  .trend{display:flex;align-items:flex-end;gap:var(--space-1)}
+  .trend i{width:16px;border-radius:var(--radius-bar);background:var(--track)}
+  .num{letter-spacing:var(--tracking-numeric);font-size:24px;font-weight:700}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  td,th{text-align:left;padding:6px 12px 6px 0;border-bottom:1px solid var(--line)}
+  th{font-weight:700;color:var(--sub)}
+</style>
+</head>
+<body>
+<h1>CCC 디자인 시스템 v2 — 토큰 검증 시트</h1>
+<p class="lead">D33 / ADR-0012. <code>design/tokens.css</code>를 그대로 불러 렌더한다 — 여기서 보이는 것이 토큰의 실제 값이다.</p>
+
+<h2>1. 파스텔 3계열 — base(면) / deep(글자) / tint(배경)</h2>
+<div class="card">
+  <div class="row">
+    <div class="sw">
+      <div class="chip-lg" style="background:var(--blue)"></div>
+      <div class="meta">blue base #8FB4DE — 면 전용</div>
+      <div class="divider"></div>
+      <div style="color:var(--blue-deep);font-size:14px;font-weight:700">blue deep #4C6FA0 — 흰 위 5.14</div>
+      <div style="background:var(--blue-tint);color:var(--blue-deep);font-size:14px;font-weight:700;padding:8px 10px;border-radius:var(--radius-control);margin-top:8px">tint 위 4.40 — 상담 준비</div>
+    </div>
+    <div class="sw">
+      <div class="chip-lg" style="background:var(--mint)"></div>
+      <div class="meta">mint base #8ED9B8 — 면 전용</div>
+      <div class="divider"></div>
+      <div style="color:var(--mint-deep);font-size:14px;font-weight:700">mint deep #5FAE8C — 흰 위 2.65</div>
+      <div style="background:var(--mint-tint);color:var(--mint-deep);font-size:14px;font-weight:700;padding:8px 10px;border-radius:var(--radius-control);margin-top:8px">tint 위 2.33 — 희망키움통장</div>
+    </div>
+    <div class="sw">
+      <div class="chip-lg" style="background:var(--lavender)"></div>
+      <div class="meta">lavender base #CBA8E2 — 면 전용</div>
+      <div class="divider"></div>
+      <div style="color:var(--lavender-deep);font-size:14px;font-weight:700">lavender deep #8F65AE — 흰 위 4.53</div>
+      <div style="background:var(--lavender-tint);color:var(--lavender-deep);font-size:14px;font-weight:700;padding:8px 10px;border-radius:var(--radius-control);margin-top:8px">tint 위 3.78 — 승인 대기 2건</div>
+    </div>
+  </div>
+</div>
+
+<h2>2. 채택값(시안) vs 미채택 보정안 — §9 알려진 접근성 예외</h2>
+<div class="card">
+  <table>
+    <tr><th>계열</th><th>채택 — 시안값</th><th>미채택 — 보정안</th></tr>
+    <tr><td>블루</td>
+      <td><span class="badge b-blue">상담 준비 · 4.40</span></td>
+      <td><span class="badge" style="background:#E7EEF8;color:#496B9A">상담 준비 · 4.67</span></td></tr>
+    <tr><td>민트</td>
+      <td><span class="badge b-mint">희망키움통장 · 2.33</span></td>
+      <td><span class="badge" style="background:#E4F4EC;color:#3C775E">희망키움통장 · 4.62</span></td></tr>
+    <tr><td>라벤더</td>
+      <td><span class="badge b-lav">승인 대기 2건 · 3.78</span></td>
+      <td><span class="badge" style="background:#F2E7F7;color:#8256A3">승인 대기 2건 · 4.61</span></td></tr>
+  </table>
+  <p class="meta" style="margin:16px 0 0;font-weight:400;color:var(--sub)">보정안은 고대비 모드용 대안으로 보관한다 — 토큰 4개 교체로 전건 AA가 되며 마크업 수정이 필요 없다.</p>
+</div>
+
+<h2>3. 리스크 배너 — 그라데이션 테두리 + 라운드 12px (border-image 미사용)</h2>
+<div class="banner">
+  <h3>확인된 리스크 2건</h3>
+  <div class="item"><span class="box"></span>부채 악화 — 3월 12일 상담 발언 인용</div>
+  <div class="item" style="margin-bottom:0"><span class="box"></span>연락 두절 위험 — 최근 2회 연락 무응답</div>
+</div>
+
+<h2>4. 그라데이션 4곳 · 깊이 · 무채색 추이</h2>
+<div class="card">
+  <div class="row" style="align-items:flex-start">
+    <div class="side">사이드바 그라데이션<br><span style="color:var(--sub);font-weight:400;font-size:14px">블루→민트→라벤더 tint</span></div>
+    <div class="sw">
+      <div style="margin-bottom:var(--space-4)"><span class="btn">상담 시작</span></div>
+      <div class="meta">프라이머리 버튼 — gradient-action 채움 + gradient-brand 1px 아웃라인 + shadow-soft</div>
+      <div class="divider"></div>
+      <div class="meta">↑ gradient-brand 1px 구분선</div>
+      <div style="margin-top:var(--space-5)">
+        <div class="trend"><i style="height:12px"></i><i style="height:18px"></i><i style="height:18px"></i><i style="height:24px;background:var(--blue)"></i></div>
+        <div class="meta" style="margin-top:8px">추이 막대 — 과거는 --track #E0E0E0, 최신 1개만 계열 base</div>
+      </div>
+      <div style="margin-top:var(--space-5)"><span class="num">+1</span> <span class="meta">GAS 점수 — 숫자 트래킹 -0.03em</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

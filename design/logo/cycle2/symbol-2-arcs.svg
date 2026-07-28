@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="CCC Cumulative Arcs">
+  <title>CCC Cumulative Arcs</title>
+  <defs>
+    <linearGradient id="s2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26257C"/>
+      <stop offset="1" stop-color="#0A1E33"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="54" fill="url(#s2)"/>
+  <g fill="none" stroke-linecap="round" stroke-width="12">
+    <path d="M162.4 69.4 A66 66 0 1 0 162.4 170.6" stroke="#FFFFFF"/>
+    <path d="M148.9 85.5 A45 45 0 1 0 148.9 154.5" stroke="#FFFFFF"/>
+    <path d="M135.4 101.6 A24 24 0 1 0 135.4 138.4" stroke="#CDEAFF"/>
+  </g>
+</svg>

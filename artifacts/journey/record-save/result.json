@@ -1,0 +1,16 @@
+{
+  "accordions_total": 5,
+  "accordions_open_by_default": 0,
+  "gas_select_count": 3,
+  "gas_errors": [
+    "1: ElementHandle.select_option: Timeout 30000ms exceeded.\nCall log:\n  - attempting select option action\n    2 × waiting for element to be visible and enabled\n      - did not find some options\n    - retrying select option action\n    - waiting 20ms\n    2 × waiting for element to be visible and enabled\n      - did not find some options\n    - retrying select option action\n      - waiting 100ms\n    59 × waiting for element to be visible and enabled\n       - did not find some options\n     - retrying select option action\n       - waiting 500ms\n"
+  ],
+  "risk_type_control": true,
+  "save_button_found": true,
+  "url_after_save": "http://localhost:3000/participants/whale-001/programs/0c79b7fa-2fd5-4aca-95e3-451fcb5e2477/records?notice=record_submission_processed",
+  "body_after_save": "사회연대은행 사업 마이크로크레딧 씬파일러 금융지원·멘토링 다가오는 일정 전체 일정 참여자 설정 오늘 상담 / 참여자 ID whale-001 / 참여 사업 / 상담 기록 상담 기록 참여자 ID whale-001의 참여 사업 상담 기록입니다. 수기 메모는 서버 저장이 확인되는 즉시 공식 기록입니다. 인테이크 작성 상담 기록 작성 상담 기록 화면으로 이동했습니다. 아래 목록에서 제출 결과를 확인하세요. 상담 일정 예정 2026. 7. 22. 오후 12:00 기록 작성 시에만 명시적으로 완료 처리할 수 있습니다. 상담 기록 2026. 7. 27. 오후 2:00 대면 공식 기록 수기 메모 발주량 조절은 자리잡음 — 나물류 덜 시키고 폐기 줄었다고 함. 대출로 대출 막는 패턴이 이번 회차에 처음 드러남. 본인도 다음 달 반복될까 걱정. 대인관계 회피 언급(동생 전화 피함). 지속 관찰 필요. GAS 주 1회 손익을 정리한다: -1 비상금 30만원을 적립한다: 0 액션 아이템 동생에게 안부 문자 담당 상담사 기한 2026-08-03 미완료 지출 장부 정리 마무리 담당 상담사 기한 2026-08-10 미완료 부채 상담 연계 자료 안내 담당 상담사 기한 2026-08-10 ",
+  "saved_ok": true,
+  "memo_visible_in_list": true,
+  "records_list_excerpt": "사회연대은행 사업 마이크로크레딧 씬파일러 금융지원·멘토링 다가오는 일정 전체 일정 참여자 설정 오늘 상담 / 참여자 ID whale-001 / 참여 사업 / 상담 기록 상담 기록 참여자 ID whale-001의 참여 사업 상담 기록입니다. 수기 메모는 서버 저장이 확인되는 즉시 공식 기록입니다. 인테이크 작성 상담 기록 작성 상담 일정 예정 2026. 7. 22. 오후 12:00 기록 작성 시에만 명시적으로 완료 처리할 수 있습니다. 상담 기록 2026. 7. 27. 오후 2:00 대면 공식 기록 수기 메모 발주량 조절은 자리잡음 — 나물류 덜 시키고 폐기 줄었다고 함. 대출로 대출 막는 패턴이 이번 회차에 처음 드러남. 본인도 다음 달 반복될까 걱정. 대인관계 회피 언급(동생 전화 피함). 지속 관찰 필요. GAS 주 1회 손익을 정리한다: -1 비상금 30만원을 적립한다: 0 액션 아이템 동생에게 안부 문자 담당 상담사 기한 2026-08-03 미완료 지출 장부 정리 마무리 담당",
+  "page_errors": []
+}
