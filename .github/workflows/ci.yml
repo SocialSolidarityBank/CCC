@@ -18,3 +18,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm guard:db
+
+  # 비밀값 유출 검사 — 전체 히스토리를 매 push/PR마다 스캔한다 (.gitleaks.toml 허용 목록 적용).
+  # gitleaks-action은 조직 레포에 유료 라이선스가 필요해 바이너리를 직접 받아 돌린다(MIT, 무료).
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 전체 히스토리 스캔에 필요
+      - name: Run gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --no-banner --redact .

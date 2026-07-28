@@ -2,3 +2,8 @@
 set -eu
 
 pnpm guard:db
+
+# 비밀값 유출 검사(스테이징 영역만) — gitleaks가 설치된 머신에서만 실행, CI가 최종 방어선.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --staged --no-banner --redact .
+fi
