@@ -47,6 +47,9 @@ export default async function NewIntakePage({
     ? '/'
     : `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
   const recordsHref = programPath === '/' ? '/' : `${programPath}/records`;
+  // 저장 직후 브리핑 직행 + 1회성 안내줄(스펙 #78 US 17·18 · CCC-31). 파라미터가
+  // 안내줄의 1회성 보장을 만든다 — 브리핑이 이 값으로 게이트하고 마운트 직후 URL에서 지운다.
+  const briefingHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=intake_saved`;
 
   if (beneficiaryId === null || supportCaseId === null) {
     return <main className="page-content narrow"><p className="status risk" role="alert">{messages.not_found}</p></main>;
@@ -76,8 +79,7 @@ export default async function NewIntakePage({
       extendedPii={context.data.extendedPii}
       sessionSequence={context.data.sessionSequence}
       recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
-      recordsHref={recordsHref}
-      scheduleHref={`/schedules/new?target=${encodeURIComponent(`${beneficiaryId}|${supportCaseId}`)}`}
+      briefingHref={briefingHref}
       submit={createIntakeRecordAction}
     />
   );

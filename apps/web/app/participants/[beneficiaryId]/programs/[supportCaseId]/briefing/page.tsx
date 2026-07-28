@@ -5,8 +5,16 @@ import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PROGRAM_LABELS } from '../../../../../lib/labels';
 import { BriefingCards } from './briefing-cards';
+import { IntakeSavedNotice } from './intake-saved-notice';
 
 const supportCaseIdPattern = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/;
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function queryValue(params: SearchParams, name: string): string | undefined {
+  const value = params[name];
+  return typeof value === 'string' ? value : undefined;
+}
 
 type ErrorKind = 'authentication_required' | 'access_or_not_found' | 'service_unavailable';
 
@@ -61,7 +69,7 @@ function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {
   return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><Link className="detail-link" href={participantHref(beneficiaryId)}><span>참여 사업 목록으로 돌아가기</span></Link></main>;
 }
 
-async function BriefingContent({ beneficiaryId, supportCaseId }: { beneficiaryId: string; supportCaseId: string }) {
+async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { beneficiaryId: string; supportCaseId: string; notice: string | undefined }) {
   if (!isBeneficiaryId(beneficiaryId) || !supportCaseIdPattern.test(supportCaseId)) {
     return <ErrorState beneficiaryId={beneficiaryId} kind="access_or_not_found" />;
   }
@@ -80,6 +88,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId }: { beneficiaryId
     // 여백 없이 1200 으로 벌어진다(2026-07-26 실측으로 확인).
     return (
       <GridContainer as="main" className="page-content">
+        <IntakeSavedNotice notice={notice} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
         <BriefingCards
           beneficiaryId={beneficiaryId}
           participantHref={participantHref(beneficiaryId)}
@@ -103,7 +112,17 @@ async function BriefingContent({ beneficiaryId, supportCaseId }: { beneficiaryId
   }
 }
 
-export default async function ParticipantBriefingPage({ params }: { params: Promise<{ beneficiaryId: string; supportCaseId: string }> }) {
-  const { beneficiaryId, supportCaseId } = await params;
-  return <Suspense fallback={<LoadingState />}><BriefingContent beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} /></Suspense>;
+export default async function ParticipantBriefingPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ beneficiaryId: string; supportCaseId: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
+  const [{ beneficiaryId, supportCaseId }, query] = await Promise.all([params, searchParams]);
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <BriefingContent beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} notice={queryValue(query, 'notice')} />
+    </Suspense>
+  );
 }

@@ -22,8 +22,7 @@ function renderWizard() {
       extendedPii={{ birthDate: null, region: null, emergencyContact: null, gender: null }}
       sessionSequence={1}
       recorderLabel="상담사"
-      recordsHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records"
-      scheduleHref="/schedules/new?target=swallow-003%7C11111111-1111-4111-8111-111111111111"
+      briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved"
       submit={submit}
     />,
   );
@@ -168,7 +167,7 @@ describe('IntakeWizard', () => {
     expect(answers.some((answer) => answer.key === 'strength_resources')).toBe(false);
   });
 
-  it('기본정보와 다음 만남을 제출하고, 다음 만남이 있으면 일정 등록으로 보낸다', async () => {
+  it('기본정보와 다음 만남을 제출하고, 저장 뒤 브리핑으로 보낸다', async () => {
     const { container, getLastInput } = renderWizard();
     const scoped = within(container);
     fillRequired(scoped);
@@ -186,6 +185,6 @@ describe('IntakeWizard', () => {
 
     expect(getLastInput()?.extendedPii).toEqual({ birthDate: '1984-03-11', region: '관악구' });
     expect(getLastInput()?.nextMeeting).toEqual({ heldAt: '2026-08-05T10:00', channel: 'in_person' });
-    expect(push).toHaveBeenCalledWith('/schedules/new?target=swallow-003%7C11111111-1111-4111-8111-111111111111');
+    expect(push).toHaveBeenCalledWith('/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved');
   });
 });
