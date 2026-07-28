@@ -18,8 +18,8 @@ const resolutionStatuses = [
 ] as const;
 
 const ownerLabels: Record<OpenActionResolutionItem['owner'], string> = {
-  counselor: '상담사',
-  beneficiary: '참여자',
+  counselor: '실무자',
+  beneficiary: '당사자',
   org: '기관',
 };
 

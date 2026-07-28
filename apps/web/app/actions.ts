@@ -622,7 +622,7 @@ export async function createInitialParticipantProgramAction(formData: FormData):
   let beneficiaryId: string | undefined;
   let supportCaseId: string | undefined;
   try {
-    // 등록자=담당자(D7): 폼에서 담당자를 받지 않는다. admin 은 게이트웨이 계약상 담당자 필수라
+    // 등록자=담당 실무자(D7): 폼에서 담당 실무자를 받지 않는다. admin 은 게이트웨이 계약상 담당 실무자 필수라
     // 본인을 배정하고, counselor 는 전달하지 않아 게이트웨이 자동 본인 배정에 맡긴다.
     const identity = await getMyIdentity();
     const email = optionalEmail(formData, 'email');
@@ -651,7 +651,7 @@ export async function createInitialParticipantProgramAction(formData: FormData):
   }
   revalidateParticipantProgram(beneficiaryId, supportCaseId);
   revalidatePath('/schedules/new');
-  // 콜드스타트 해소(티켓 #19): 등록 완료 → 새 참여자가 preselect 된 상담 등록으로 잇는다.
+  // 콜드스타트 해소(티켓 #19): 등록 완료 → 새 당사자가 preselect 된 상담 등록으로 잇는다.
   redirect(withNotice(
     `/schedules/new?target=${encodeURIComponent(`${beneficiaryId}|${supportCaseId}`)}`,
     'notice',
@@ -683,7 +683,7 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
   redirect(withNotice(participantBriefingPath(beneficiaryId, supportCaseId), 'notice', 'program_created'));
 }
 
-// 상담 등록(#20): 참여자 선택은 'beneficiaryId|supportCaseId' 한 값으로 커플링해
+// 상담 등록(#20): 당사자 선택은 'beneficiaryId|supportCaseId' 한 값으로 커플링해
 // 담당 케이스만 노출한 목록에서 고르게 한다. 담당 검사·감사는 API 게이트웨이가 강제한다(R1).
 export async function createCounselingScheduleAction(formData: FormData): Promise<void> {
   try {
@@ -734,7 +734,7 @@ export async function addSupportCaseAssigneeAction(formData: FormData): Promise<
   redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_added'));
 }
 
-// 상담사 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+// 실무자 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
 export async function registerCounselorAction(formData: FormData): Promise<void> {
   try {
     const email = requiredValue(formData, 'email').trim();

@@ -15,7 +15,7 @@ function visibleNames(container: HTMLElement): (string | null)[] {
   return [...container.querySelectorAll('.participant-row-list > div')].map((row) => row.textContent);
 }
 
-describe('ParticipantFilter (D21 참여자 찾기의 새 자리)', () => {
+describe('ParticipantFilter (D21 당사자 찾기의 새 자리)', () => {
   it('입력이 없으면 전원을 보여준다', () => {
     const { container } = render(<ParticipantFilter rows={rows()} />);
     expect(visibleNames(container)).toEqual(['김미영', '남주원']);
@@ -42,7 +42,7 @@ describe('ParticipantFilter (D21 참여자 찾기의 새 자리)', () => {
     const input = container.querySelector('input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '없는이름' } });
     expect(container.querySelector('.participant-row-list')).toBeNull();
-    expect(getByRole('status').textContent).toContain('찾는 참여자가 없습니다');
+    expect(getByRole('status').textContent).toContain('찾는 당사자가 없습니다');
     fireEvent.change(input, { target: { value: '' } });
     expect(visibleNames(container)).toEqual(['김미영', '남주원']);
   });

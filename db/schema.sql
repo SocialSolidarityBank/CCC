@@ -28,7 +28,7 @@
 -- ----------------------------------------------------------------------------
 CREATE TABLE cases (
   id                   TEXT PRIMARY KEY,              -- 가명 ID (예: 'A017')
-  org_id               TEXT NOT NULL,                 -- 조직 ID (D1)
+  org_id               TEXT NOT NULL,                 -- 기관 ID (D1)
   program_type         TEXT NOT NULL DEFAULT 'financial_support_v1',
                                                       -- 스키마 3층 중 '템플릿' 식별자
   status               TEXT NOT NULL DEFAULT 'active'
@@ -73,11 +73,11 @@ CREATE TABLE pii_vault (
 
 
 -- ----------------------------------------------------------------------------
--- case_assignees — 케이스 담당자 매핑 (D7). 공동 담당·이관을 행 추가로 표현한다.
+-- case_assignees — 케이스 담당 실무자 매핑 (D7). 공동 담당·이관을 행 추가로 표현한다.
 --   * 이관 시 기존 행을 지우지 않고 unassigned_at을 채운 뒤 새 행을 만든다
 --     → "언제 누가 담당했나" 이력이 그대로 남는다.
 --   * 접근 규칙(gateway가 강제): 관리자이거나, 이 테이블에 활성 행(unassigned_at IS NULL)이
---     있는 담당자만 해당 케이스를 열람·수정할 수 있다.
+--     있는 담당 실무자만 해당 케이스를 열람·수정할 수 있다.
 -- ----------------------------------------------------------------------------
 CREATE TABLE case_assignees (
   id            TEXT PRIMARY KEY,
@@ -142,7 +142,7 @@ CREATE TABLE sessions (
   id                           TEXT PRIMARY KEY,
   org_id                       TEXT NOT NULL,
   case_id                      TEXT NOT NULL REFERENCES cases (id),
-  counselor_id                 TEXT NOT NULL,         -- 작성 상담사 (Access 식별자)
+  counselor_id                 TEXT NOT NULL,         -- 작성 실무자 (Access 식별자)
   held_at                      TEXT NOT NULL,         -- 상담 일시
   channel                      TEXT NOT NULL DEFAULT 'in_person'
                                CHECK (channel IN ('in_person', 'phone', 'video')),
@@ -165,9 +165,9 @@ CREATE TABLE sessions (
   ai_contrast                  TEXT,                 -- 대조 3종 결과 (JSON: 메모에 없는 내용 /
                                                      -- 음성에 없는 내용 / 미논의 목표)
   emotion_scores               TEXT,                 -- 감정 점수 (JSON, 숫자만, R4·D11)
-  speaker_mapping_confirmed_at TEXT,                 -- 화자 매핑 상담사 확인 (D11)
+  speaker_mapping_confirmed_at TEXT,                 -- 화자 매핑 실무자 확인 (D11)
   approved_at                  TEXT,                 -- 승인 시각 (R2 관문)
-  approved_by                  TEXT,                 -- 승인 상담사
+  approved_by                  TEXT,                 -- 승인 실무자
   -- 확장 슬롯 (JSON, 통계·브리핑 제외)
   extra                        TEXT,
   created_at                   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -185,7 +185,7 @@ CREATE INDEX idx_sessions_pending ON sessions (case_id)
 --   * 브리핑 1번(목표별 GAS 추이 그래프)과 통계의 원천 데이터.
 --     sessions 안 JSON으로도 넣을 수 있지만, 별도 테이블이어야
 --     점수 범위(-2~+2)를 DB가 강제하고 목표별 추이 조회가 단순해진다.
---   * D6: score는 상담사가 직접 매긴다. AI는 evidence_quote(근거 발언 발췌)만 제안.
+--   * D6: score는 실무자가 직접 매긴다. AI는 evidence_quote(근거 발언 발췌)만 제안.
 -- ----------------------------------------------------------------------------
 CREATE TABLE session_goal_scores (
   id             TEXT PRIMARY KEY,
@@ -194,7 +194,7 @@ CREATE TABLE session_goal_scores (
   goal_id        TEXT NOT NULL REFERENCES goals (id),
   score          INTEGER NOT NULL CHECK (score BETWEEN -2 AND 2),  -- GAS 5단계
   evidence_quote TEXT,                                -- AI가 발췌 제안한 근거 발언 (D6)
-  scored_by      TEXT NOT NULL,                       -- 점수 매긴 상담사 (AI 불가, D6)
+  scored_by      TEXT NOT NULL,                       -- 점수 매긴 실무자 (AI 불가, D6)
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (session_id, goal_id)                        -- 세션당 목표별 점수는 1개
 );
@@ -205,7 +205,7 @@ CREATE INDEX idx_scores_goal ON session_goal_scores (goal_id);
 -- ----------------------------------------------------------------------------
 -- ai_gas_evidence — [코어] 세션×목표별 AI 근거 발췌 (D6).
 --   * D6: AI는 GAS 점수를 매기지 않는다. 목표별 근거 발언 발췌(quote)만 제안하고,
---     상담사는 이를 참고해 session_goal_scores.score를 직접 정한다.
+--     실무자는 이를 참고해 session_goal_scores.score를 직접 정한다.
 --   * quote는 마스킹 완료본만 저장한다(R3: 등록 PII 치환). 재수집 시 세션 단위로
 --     기존 행을 지우고 다시 넣는다(gateway가 처리).
 -- ----------------------------------------------------------------------------
@@ -246,8 +246,8 @@ CREATE INDEX idx_actions_open ON action_items (case_id) WHERE resolved_at IS NUL
 --   * flag_type은 사전 정의 고정 유형만 허용 — 아래 5종은 8장 미결 사항의 '초안'이며
 --     현장 검증 후 확정한다(변경 시 마이그레이션 필요).
 --   * AI 제안(source='ai')은 전사 발언 인용(quote)이 필수다 — 사실 표시이지 진단이 아님.
---   * review_status: 상담사가 맞음(confirmed)/틀림(rejected)을 확인한다.
---     상담사가 직접 만든 플래그는 생성 즉시 confirmed로 저장한다(gateway 처리).
+--   * review_status: 실무자가 맞음(confirmed)/틀림(rejected)을 확인한다.
+--     실무자가 직접 만든 플래그는 생성 즉시 confirmed로 저장한다(gateway 처리).
 -- ----------------------------------------------------------------------------
 CREATE TABLE flags (
   id            TEXT PRIMARY KEY,
@@ -1451,7 +1451,7 @@ ALTER TABLE users ADD COLUMN last_program_type TEXT;
 
 -- A beneficiary is the permanent participant identity. 가명 ID는 두 형식을 허용한다
 -- (0007 확장 단계, D20 · ADR-0004): 레거시 'A' + 3자리 이상 숫자, 또는 동물 슬러그
--- (소문자 영단어) + '-' + 3자리 이상 숫자. 어느 형식이든 다른 참여자·케이스에
+-- (소문자 영단어) + '-' + 3자리 이상 숫자. 어느 형식이든 다른 당사자·케이스에
 -- 재사용하지 않는다. 동물 슬러그 큐레이션 목록(단일 출처)은 db/animal-slugs.ts.
 CREATE TABLE beneficiaries (
   id                   TEXT PRIMARY KEY
@@ -2587,7 +2587,7 @@ CREATE TABLE sessions_next (
   -- 인테이크 서술형 항목 격리 JSON(CCC-7). 코어 3층: 통계·브리핑 쿼리에 노출 금지.
   intake_details               TEXT,
   -- 정기 기록지 서술형 항목 격리 JSON(CCC-10 · 마이그레이션 0016). 이번 상담 목표(미연결
-  -- 회차)·지난 이후 변화·위기 안전 서술·담당자 의견. 통계·브리핑 쿼리에 노출 금지.
+  -- 회차)·지난 이후 변화·위기 안전 서술·담당 실무자 의견. 통계·브리핑 쿼리에 노출 금지.
   record_details               TEXT,
   created_at                   TEXT NOT NULL,
   updated_at                   TEXT NOT NULL,
@@ -3719,7 +3719,7 @@ END;
 --   * 회차(세션)마다 6영역(경제·주거·일·건강·심리·가족)의 그 시점 상태를 쌓는다.
 --     '변화 없음' 영역도 직전 세션 값을 복사해 행을 남긴다 — 어느 회차를 열어도
 --     그 시점 6영역 상태를 바로 조회할 수 있다(복사·검증은 gateway 가 원자 배치로 처리).
---   * status 는 상담사 기입 상태값(5값)이다. 감정 점수(R4)·리스크 플래그(D9) 와 무관.
+--   * status 는 실무자 기입 상태값(5값)이다. 감정 점수(R4)·리스크 플래그(D9) 와 무관.
 --   * 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D(D1~D6).
 -- ----------------------------------------------------------------------------
 CREATE TABLE session_life_area_snapshots (
@@ -4560,9 +4560,9 @@ WHERE EXISTS (SELECT 1 FROM pragma_foreign_key_check);
 DROP TABLE participant_support_case_cutover_probe;
 
 -- ============================================================================
--- Migration 0008 — 참여자 동의 기록 (D15 · D23 · 티켓 #19)
+-- Migration 0008 — 당사자 동의 기록 (D15 · D23 · 티켓 #19)
 --
--- 참여자 등록 시 받은 항목별 동의(녹음·텍스트 AI 분리, D15)를 일시·기록자와 함께
+-- 당사자 등록 시 받은 항목별 동의(녹음·텍스트 AI 분리, D15)를 일시·기록자와 함께
 -- 저장하는 전용 기록 테이블. 문안·서명은 저장하지 않는다(D23 — 오프라인 동의의 "기록"만).
 -- support_cases.consent_*_at(파이프라인 게이트)은 그대로 두고, 이 표가 그 위에
 -- "누가 언제 그 결정을 기록했나"를 덧붙인다. 등록 게이트웨이가 두 곳을 한 배치에서 함께 쓴다.
@@ -4633,7 +4633,7 @@ CREATE TABLE schedule_session_goals (
   case_goal_id      TEXT REFERENCES goals (id),            -- NULL = 미연결 (D28)
   body              TEXT NOT NULL,                         -- 이번 회차에서 다룰 것
   ordinal           INTEGER NOT NULL,
-  created_by        TEXT NOT NULL,                         -- 작성 상담사 (Access 사용자)
+  created_by        TEXT NOT NULL,                         -- 작성 실무자 (Access 사용자)
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (schedule_id, ordinal)
 );
@@ -4646,7 +4646,7 @@ CREATE TABLE schedule_custom_questions (
   org_id            TEXT NOT NULL,
   schedule_id       TEXT NOT NULL REFERENCES counseling_schedules (id),
   support_case_id   TEXT NOT NULL REFERENCES support_cases (id),
-  body              TEXT NOT NULL,                         -- 상담사가 직접 적는 질문
+  body              TEXT NOT NULL,                         -- 실무자가 직접 적는 질문
   ordinal           INTEGER NOT NULL,
   created_by        TEXT NOT NULL,
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
@@ -4705,7 +4705,7 @@ BEGIN
 END;
 
 -- ============================================================================
--- Migration 0009 — 참여자 PII 금고에 이메일 추가 (D3 · D24 · ADR-0005 · 티켓 #32)
+-- Migration 0009 — 당사자 PII 금고에 이메일 추가 (D3 · D24 · ADR-0005 · 티켓 #32)
 --
 -- participant_pii_vault 에 enc_email 컬럼을 덧붙인다. 이름·연락처·계좌와 동일한 앱
 -- 레벨 AES-GCM 암호문(D3)만 저장하며, 평문은 어디에도 남기지 않는다. 화면 소비는 후속

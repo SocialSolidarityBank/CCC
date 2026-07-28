@@ -14,12 +14,12 @@ import { WireButton } from '../../components/wire/wire-button';
 import { PROGRAM_LABELS } from '../../lib/labels';
 import { ErrorState, type ErrorKind } from './error-state';
 
-// 참여자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
-// 사업 워크스페이스 범위를 벗어난다: 그 참여자의 **조직 내 전 참여 사업**이 보인다.
+// 당사자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
+// 사업 워크스페이스 범위를 벗어난다: 그 당사자의 **기관 내 전 참여 사업**이 보인다.
 //
-// D36 (2026-07-26 Q 확정): 동료가 담당하는 사업도 **존재와 담당자 이름까지는** 보이고,
+// D36 (2026-07-26 Q 확정): 동료가 담당하는 사업도 **존재와 담당 실무자 이름까지는** 보이고,
 // 상담 내용(브리핑·기록)으로는 들어갈 수 없다. 근거는 "이 페이지를 여는 사람은 이미 그
-// 참여자의 담당자라 PII를 보고 있다" — 그래서 **케이스를 1건도 담당하지 않으면 서버가
+// 당사자의 담당 실무자라 PII를 보고 있다" — 그래서 **케이스를 1건도 담당하지 않으면 서버가
 // 페이지 자체를 막는다**(ForbiddenError → 아래 access_or_not_found). 화면은 그 판정을
 // 다시 하지 않고 서버가 준 `authorized` 로 링크만 잠근다.
 //
@@ -74,14 +74,14 @@ function LoadingState() {
   return (
     <main className="page-content" aria-busy="true">
       <GridContainer>
-        <div className="page-header"><div><h1>참여자 정보</h1></div></div>
-        <p className="empty" role="status" aria-live="polite">참여자 정보를 불러오는 중입니다.</p>
+        <div className="page-header"><div><h1>당사자 정보</h1></div></div>
+        <p className="empty" role="status" aria-live="polite">당사자 정보를 불러오는 중입니다.</p>
       </GridContainer>
     </main>
   );
 }
 
-/** 담당자 이름 줄. 이름이 없으면 아무것도 그리지 않는다 — 빈 라벨을 남기지 않는다. */
+/** 담당 실무자 이름 줄. 이름이 없으면 아무것도 그리지 않는다 — 빈 라벨을 남기지 않는다. */
 function AssigneeLine({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   return (
@@ -107,10 +107,10 @@ function ProgramCard({ beneficiaryId, program }: { beneficiaryId: string; progra
           <WireButton href={recordsHref(beneficiaryId, program.id)}>상담 기록</WireButton>
         </div>
       ) : (
-        // D36: 담당하지 않는 사업. 존재와 담당자까지만 알려주고 상담 내용은 열지 않는다.
+        // D36: 담당하지 않는 사업. 존재와 담당 실무자까지만 알려주고 상담 내용은 열지 않는다.
         // 잠긴 이유를 문장으로 적는다 — 버튼만 없으면 "왜 없지"가 남는다.
         <p className="participant-program-locked">
-          담당하지 않는 사업입니다. 상담 내용은 담당 상담사에게 확인하세요.
+          담당하지 않는 사업입니다. 상담 내용은 담당 실무자에게 확인하세요.
         </p>
       )}
     </article>
@@ -148,7 +148,7 @@ function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
           </section>
         )}
         <p className="note-inline">
-          다른 참여자를 찾으려면 <Link href="/participants">참여자 목록</Link>으로 가세요.
+          다른 당사자를 찾으려면 <Link href="/participants">당사자 목록</Link>으로 가세요.
         </p>
       </GridContainer>
     </main>

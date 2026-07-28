@@ -75,7 +75,7 @@ async function seedScheduleWindow(): Promise<SeededWindow> {
     programType: 'financial_support_v1',
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
-  // 다른 담당자의 케이스에 창 안(KST 07-16 10:00) 일정
+  // 다른 담당 실무자의 케이스에 창 안(KST 07-16 10:00) 일정
   const hiddenSchedule = await createCounselingSchedule(t.env, testActors.unassignedCounselor, {
     beneficiaryId: hidden.beneficiaryId,
     supportCaseId: hidden.supportCaseId,
@@ -140,7 +140,7 @@ describe('GET /schedules/upcoming', () => {
     ), t.env);
     expect(adminResponse.status).toBe(200);
     const adminBody = await adminResponse.json() as { schedules: Array<{ id: string }> };
-    // admin 은 org 전체를 보되 창 경계는 동일하게 적용된다: 담당 3건 + 숨은 담당자 1건.
+    // admin 은 org 전체를 보되 창 경계는 동일하게 적용된다: 담당 3건 + 숨은 담당 실무자 1건.
     expect(adminBody.schedules.map((schedule) => schedule.id)).toEqual([
       seeded.todayScheduleId,
       seeded.hiddenScheduleId,

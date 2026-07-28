@@ -169,7 +169,7 @@ export interface MyIdentity {
   name: string | null;
 }
 
-/** 조직 사용자 디렉터리 항목 — 설정 화면 '조직 상담사 목록'(GET /users, 시스템 관리자 전용). */
+/** 기관 사용자 디렉터리 항목 — 설정 화면 '기관 실무자 목록'(GET /users, 기관 관리자 전용). */
 export interface DirectoryUser {
   id: string;
   orgId: string;
@@ -206,11 +206,11 @@ export interface ParticipantProgram {
   creationKind: 'legacy_import' | 'initial' | 'subsequent';
   sourceSupportCase: SourceSupportCase | null;
   /**
-   * D36: 내가 담당(또는 admin)인 사업인가. false 면 존재와 담당자 이름까지만 보이고
+   * D36: 내가 담당(또는 admin)인 사업인가. false 면 존재와 담당 실무자 이름까지만 보이고
    * 상담 내용(브리핑·기록)으로는 들어갈 수 없다 — 화면은 이 값으로 링크를 잠근다.
    */
   authorized: boolean;
-  /** 활성 담당자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
+  /** 활성 담당 실무자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
 }
 
@@ -223,7 +223,7 @@ export interface ParticipantDetail {
   programs: ParticipantProgram[];
 }
 
-/** 참여자 목록(사이드바 '참여자'의 도착지). 케이스 상태로 거르지 않는다 — 종결만 남은 참여자도 나온다. */
+/** 당사자 목록(사이드바 '당사자'의 도착지). 케이스 상태로 거르지 않는다 — 종결만 남은 당사자도 나온다. */
 export interface AssignedParticipant {
   beneficiaryId: string;
   status: 'active' | 'closed';
@@ -301,7 +301,7 @@ export interface BriefingUpcomingSchedule {
 export interface ParticipantBriefing {
   beneficiaryId: string;
   focusSupportCaseId: string;
-  // D24·ADR-0005: 담당·배정 책임자에게 기본 표시하는 실명·연락처. 미기입이면 null.
+  // D24·ADR-0005: 담당·기관 관리자에게 기본 표시하는 실명·연락처. 미기입이면 null.
   participant: { name: string | null; phone: string | null };
   sections: ParticipantBriefingSection[];
   // T5 계약: 포커스 참여사업의 다가오는 일정(세션 목표·맞춤형 질문). 없으면 null.
@@ -435,7 +435,7 @@ export interface ScheduleCandidate {
   beneficiaryId: string;
   supportCaseId: string;
   programType: ParticipantProgramType;
-  // D31·D24: 참여자 선택 UI 의 역할 기준 실명·연락처·이메일. 담당·admin 범위 밖이거나 미기입이면 null.
+  // D31·D24: 당사자 선택 UI 의 역할 기준 실명·연락처·이메일. 담당·admin 범위 밖이거나 미기입이면 null.
   participantName: string | null;
   participantPhone: string | null;
   participantEmail: string | null;
@@ -505,7 +505,7 @@ export interface CreateCounselingRecordResult {
   replayed: boolean;
 }
 
-// 인테이크 작성 컨텍스트(CCC-7). 회차 자동값·참여자 표시(D31)·기존 인테이크 여부.
+// 인테이크 작성 컨텍스트(CCC-7). 회차 자동값·당사자 표시(D31)·기존 인테이크 여부.
 export interface IntakeRecordContext {
   beneficiaryId: string;
   supportCaseId: string;
@@ -1089,8 +1089,8 @@ export async function getUpcomingSchedules(date?: string): Promise<TodaySchedule
 }
 
 /**
- * 상담 등록 폼의 참여자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
- * 일정 유무와 무관하므로 방금 등록해 아직 일정이 없는 참여자도 첫 상담을 등록할 수 있다.
+ * 상담 등록 폼의 당사자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
+ * 일정 유무와 무관하므로 방금 등록해 아직 일정이 없는 당사자도 첫 상담을 등록할 수 있다.
  */
 export async function listScheduleCandidates(): Promise<ScheduleCandidate[]> {
   const payload = await requestJson<{ candidates: ScheduleCandidate[] }>('/schedules/candidates');
@@ -1108,7 +1108,7 @@ export async function listParticipantPrograms(beneficiaryId: string): Promise<Pa
 }
 
 /**
- * 참여자 정보 페이지(허브)가 쓰는 참여자 1명 + 그 사람의 조직 내 전 참여 사업 (D36).
+ * 당사자 정보 페이지(허브)가 쓰는 당사자 1명 + 그 사람의 기관 내 전 참여 사업 (D36).
  *
  * 실명·연락처는 **API 가 이미 내려주고 있고 감사도 이미 남는다**(`db/gateway.ts` 의
  * `listSupportCasesForBeneficiary`). 사업마다 같은 값이 실려 오므로 첫 행에서 한 번만
@@ -1131,14 +1131,14 @@ export async function getParticipantDetail(beneficiaryId: string): Promise<Parti
   };
 }
 
-/** 참여자 목록 — 케이스 상태로 거르지 않는다(종결만 남은 참여자도 나온다). */
+/** 당사자 목록 — 케이스 상태로 거르지 않는다(종결만 남은 당사자도 나온다). */
 export async function listAssignedParticipants(): Promise<AssignedParticipant[]> {
   const payload = await requestJson<unknown>('/participants');
   const record = responseObject(payload);
   return responseArray(record, 'results').map(decodeAssignedParticipant);
 }
 
-/** 참여자 검색 (티켓 #16). 가명 ID·한글 표시명 부분 일치. 응답은 PII 없이 최소 필드만. */
+/** 당사자 검색 (티켓 #16). 가명 ID·한글 표시명 부분 일치. 응답은 PII 없이 최소 필드만. */
 export async function searchParticipants(query: string): Promise<ParticipantSearchResult[]> {
   const payload = await requestJson<unknown>(`/participants/search?q=${encodeURIComponent(query)}`);
   const record = responseObject(payload);
@@ -1150,7 +1150,7 @@ export async function searchParticipants(query: string): Promise<ParticipantSear
  * 부른다. 담당이 아니면 `not_found` 로 던진다(존재 여부를 알려주지 않는다).
  *
  * `authorized` 를 반드시 함께 본다. D36 으로 이 목록에 **담당하지 않는 사업도** 들어오게
- * 됐으므로(참여자 허브에서 라벨·담당자만 보여주기 위해), 필터 없이 `find` 하면 이 가드가
+ * 됐으므로(당사자 허브에서 라벨·담당 실무자만 보여주기 위해), 필터 없이 `find` 하면 이 가드가
  * 비담당 케이스를 통과시킨다 — 게이트웨이가 본 작업에서 다시 막아 실제 권한이 새지는
  * 않지만, 가드가 이름과 다른 일을 하게 되고 오류도 not_found 가 아니라 403 으로 바뀐다.
  * 같은 함정을 API 쪽 레거시 기록 경로에서도 고쳤다(request-handler.ts).
@@ -1411,17 +1411,17 @@ export async function rememberLastProgramType(programType: string): Promise<void
   });
 }
 
-/** 조직 사용자 디렉터리 목록. 시스템 관리자만 호출한다(비관리자에게는 403). */
+/** 기관 사용자 디렉터리 목록. 기관 관리자만 호출한다(비관리자에게는 403). */
 export async function listOrgUsers(): Promise<DirectoryUser[]> {
   const payload = await requestJson<unknown>('/users');
   if (!Array.isArray(payload)) contractViolation();
   return payload.map(decodeDirectoryUser);
 }
 
-// 관리자 영역(재개편 T8, #38): 상담사별 활성 배정 참여자 + 케이스 담당자 배정.
+// 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 + 케이스 담당 실무자 배정.
 const assignmentRoles = ['primary', 'secondary'] as const;
 
-/** 관리자 영역 사용자/상담사 상세에 실리는 상담사별 활성 배정 참여자 행(실명 포함). */
+/** 관리자 영역 사용자/실무자 상세에 실리는 실무자별 활성 배정 당사자 행(실명 포함). */
 export interface AdminAssignmentParticipant {
   beneficiaryId: string;
   supportCaseId: string;
@@ -1470,7 +1470,7 @@ function decodeSupportCaseAssignee(value: unknown): SupportCaseAssignee {
   };
 }
 
-/** 상담사별 활성 배정 참여자(실명 포함). 시스템 관리자만 호출한다(비관리자에게는 403). */
+/** 실무자별 활성 배정 당사자(실명 포함). 기관 관리자만 호출한다(비관리자에게는 403). */
 export async function listCounselorAssignments(userId: string): Promise<CounselorAssignments> {
   const payload = responseObject(await requestJson<unknown>(`/users/${encodeURIComponent(userId)}/assignments`));
   return {
@@ -1479,7 +1479,7 @@ export async function listCounselorAssignments(userId: string): Promise<Counselo
   };
 }
 
-/** 케이스 담당자 목록. 담당자 또는 관리자. 관리자 배정 화면이 현재 배정 상태를 보여줄 때 쓴다. */
+/** 케이스 담당 실무자 목록. 담당 실무자 또는 관리자. 관리자 배정 화면이 현재 배정 상태를 보여줄 때 쓴다. */
 export async function listSupportCaseAssignees(supportCaseId: string): Promise<SupportCaseAssignee[]> {
   const payload = responseObject(await requestJson<unknown>(
     `/support-cases/${encodeURIComponent(supportCaseId)}/assignees`,
@@ -1487,7 +1487,7 @@ export async function listSupportCaseAssignees(supportCaseId: string): Promise<S
   return responseArray(payload, 'assignees').map(decodeSupportCaseAssignee);
 }
 
-/** 공동 담당 추가(D7). 시스템 관리자만 호출한다. 기본 역할은 secondary. */
+/** 공동 담당 추가(D7). 기관 관리자만 호출한다. 기본 역할은 secondary. */
 export async function addSupportCaseAssignee(
   supportCaseId: string,
   userId: string,
@@ -1500,7 +1500,7 @@ export async function addSupportCaseAssignee(
   ));
 }
 
-/** 상담사 등록(기존 POST /users, role=counselor). 시스템 관리자만 호출한다. */
+/** 실무자 등록(기존 POST /users, role=counselor). 기관 관리자만 호출한다. */
 export async function registerCounselor(email: string): Promise<DirectoryUser> {
   return decodeDirectoryUser(await jsonRequest<unknown>('/users', 'POST', { email, role: 'counselor' }));
 }

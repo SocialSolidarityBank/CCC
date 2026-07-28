@@ -10,7 +10,7 @@
  *       다른 파일에서 env.DB.prepare 직접 호출 금지 (Guard Hook이 커밋 차단).
  *   공통 계약 — 모든 공개 함수는 내부에서 반드시:
  *     1. org_id 일치 검사 (D1: 멀티테넌트 대비)
- *     2. 접근 권한 검사 (D7: 관리자이거나 case_assignees 활성 담당자)
+ *     2. 접근 권한 검사 (D7: 관리자이거나 case_assignees 활성 담당 실무자)
  *     3. audit_log 기록 (D14: 열람 포함 전부, append-only)
  *   을 수행한다. 조회 함수는 추가로:
  *     4. R2 승인 필터 — approved_at이 NULL인 AI 산출물(ai_*)은
@@ -47,8 +47,8 @@ export interface Env {
 // ── 호출자(Actor) ───────────────────────────────────────────────────────────
 
 export type Role =
-  | 'admin'      // 관리자: 조직 내 전체 케이스 + PII 복호화 권한
-  | 'counselor'  // 상담사: 자기 담당 케이스만 (case_assignees 활성 행 기준, D7)
+  | 'admin'      // 관리자: 기관 내 전체 케이스 + PII 복호화 권한
+  | 'counselor'  // 실무자: 자기 담당 케이스만 (case_assignees 활성 행 기준, D7)
   | 'service';   // Mac Mini 파이프라인 (Access 서비스 토큰, D13):
                  // ingest 계열 함수만 호출 가능, 그 외 전부 거부
 
@@ -1102,7 +1102,7 @@ async function getFlagForOrg(env: Env, orgId: string, flagId: string): Promise<F
 
 /**
  * 여러 목표를 한 번에 조회해 goalId → caseId 맵으로 반환한다 (N+1 방지).
- * 반환에 없는 goalId는 조직에 존재하지 않는 것으로, 호출부가 ForbiddenError를 던진다.
+ * 반환에 없는 goalId는 기관에 존재하지 않는 것으로, 호출부가 ForbiddenError를 던진다.
  */
 async function goalCaseMap(env: Env, orgId: string, goalIds: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(goalIds)].filter((id) => id.length > 0);
@@ -1577,7 +1577,7 @@ export interface ContrastResult {
 export interface GasScore {
   sessionId: string;
   goalId: string;
-  score: -2 | -1 | 0 | 1 | 2;   // 상담사가 직접 매김 (D6)
+  score: -2 | -1 | 0 | 1 | 2;   // 실무자가 직접 매김 (D6)
   evidenceQuote: string | null;  // AI 발췌 제안 (D6)
   scoredBy: string;
 }
@@ -1623,7 +1623,7 @@ export interface Briefing {
   } | null;
   /** 3. 미해결 액션 아이템 */
   openActionItems: ActionItem[];
-  /** 4. 리스크 플래그 (화면 최우선 배치) — 상담사 생성 또는 confirmed만 (미검토 AI 제안 제외) */
+  /** 4. 리스크 플래그 (화면 최우선 배치) — 실무자 생성 또는 confirmed만 (미검토 AI 제안 제외) */
   flags: Flag[];
   /** 5. 오늘 확인할 질문 2~3개 (AI 생성, 승인된 기록만 입력으로 사용) */
   questions: string[];
@@ -1638,7 +1638,7 @@ export interface PipelineJob {
 }
 
 /**
- * D8 파이프라인 폴링 건강도. 조직 1개 기준.
+ * D8 파이프라인 폴링 건강도. 기관 1개 기준.
  *  - lastPolledAt: 가장 최근 poll_pipeline 감사 시각(ISO, UTC). 폴링 기록이 없으면 null.
  *  - pendingJobCount: 오디오가 등록됐지만 아직 처리 안 된 세션 수(uploaded|processing).
  *  - status:
@@ -3684,7 +3684,7 @@ export async function createCase(
 
 /**
  * 케이스 단건 조회. PII는 포함하지 않는다(revealPii 별도).
- * 권한: 담당자 | admin (D7). 감사: read.
+ * 권한: 담당 실무자 | admin (D7). 감사: read.
  */
 export async function getCase(env: Env, actor: Actor, caseId: string): Promise<Case> {
   const record = await assertCaseAccess(env, actor, caseId);
@@ -3693,7 +3693,7 @@ export async function getCase(env: Env, actor: Actor, caseId: string): Promise<C
 }
 
 /**
- * 케이스 목록. counselor는 자기 담당 활성 케이스만, admin은 조직 전체.
+ * 케이스 목록. counselor는 자기 담당 활성 케이스만, admin은 기관 전체.
  * 감사: read (목록 단위 1건).
  */
 export async function listCases(
@@ -3851,7 +3851,7 @@ export async function purgePii(env: Env, actor: Actor, caseId: string): Promise<
  * 파기 예정일이 지난 미파기 PII를 SELECT한다(공통 조회).
  * 조건: 종결됐고(closed_at), purge_due가 있고 현재 시각 이하이며, 아직 파기 안 됨
  * (pii_vault.purged_at IS NULL). purge_due·now는 둘 다 toISOString(UTC, 동일 포맷)이라
- * 문자열 사전순 비교가 곧 시간순 비교다. orgId를 주면 그 조직으로 한정한다.
+ * 문자열 사전순 비교가 곧 시간순 비교다. orgId를 주면 그 기관으로 한정한다.
  */
 async function selectDuePii(
   env: Env,
@@ -3926,7 +3926,7 @@ async function purgeDuePii(env: Env, actor: Actor, orgId: string | undefined): P
 }
 
 /**
- * 전 조직 자동 파기 (D10). scheduled(cron) 핸들러 전용 내부 진입점 — HTTP 행위자 없음.
+ * 전 기관 자동 파기 (D10). scheduled(cron) 핸들러 전용 내부 진입점 — HTTP 행위자 없음.
  * 안전성 근거: scheduled 핸들러에서만 호출하고, 파기 대상은 purge_due 경과분으로 한정되며,
  * 각 파기가 append-only 감사(purge_pii, actor_id='system:purge')를 남긴다.
  */
@@ -3935,7 +3935,7 @@ export async function purgeExpiredPii(env: Env): Promise<{ purgedCaseIds: string
 }
 
 /**
- * 관리자 수동 파기 실행 (D10). 권한: admin 전용, 자기 조직 경과분만.
+ * 관리자 수동 파기 실행 (D10). 권한: admin 전용, 자기 기관 경과분만.
  * 감사: 케이스별 purge_pii(행위자=요청 관리자).
  */
 export async function purgeExpiredPiiAsAdmin(env: Env, actor: Actor): Promise<{ purgedCaseIds: string[] }> {
@@ -3945,7 +3945,7 @@ export async function purgeExpiredPiiAsAdmin(env: Env, actor: Actor): Promise<{ 
 
 /**
  * 파기 예정 미리보기 (D10). 실제 파기 없이 대상 케이스만 나열한다.
- * 권한: admin 전용, 자기 조직. 감사: read(pii_vault, 미리보기 표시).
+ * 권한: admin 전용, 자기 기관. 감사: read(pii_vault, 미리보기 표시).
  */
 export async function previewExpiredPii(env: Env, actor: Actor): Promise<Array<{ caseId: string; purgeDue: string }>> {
   assertAdmin(actor);
@@ -3959,11 +3959,11 @@ export async function previewExpiredPii(env: Env, actor: Actor): Promise<Array<{
 }
 
 // ============================================================================
-// 담당자 (case_assignees) — D7
+// 담당 실무자 (case_assignees) — D7
 // ============================================================================
 
 /**
- * 담당자 배정 (공동 담당 포함). 권한: admin. 감사: assign.
+ * 담당 실무자 배정 (공동 담당 포함). 권한: admin. 감사: assign.
  */
 export async function assignCase(
   env: Env,
@@ -4044,7 +4044,7 @@ export async function unassignCase(
   }
 }
 
-/** 담당자 목록(이력 포함 옵션). 권한: 담당자 | admin. 감사: read. */
+/** 담당 실무자 목록(이력 포함 옵션). 권한: 담당 실무자 | admin. 감사: read. */
 export async function listAssignees(
   env: Env,
   actor: Actor,
@@ -4072,7 +4072,7 @@ export async function listAssignees(
 
 /**
  * 목표 신설. 활성 목표가 MAX_ACTIVE_GOALS(3개) 이상이면 거부.
- * 권한: 담당자 | admin. 감사: create.
+ * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function createGoal(
   env: Env,
@@ -4126,7 +4126,7 @@ export async function createGoal(
  * 목표 종료 (D12: 문구 수정 대신 종료+신설). 사유 필수.
  * successor를 주면 신규 목표를 같은 트랜잭션으로 만들고
  * replaced_by_goal_id로 연결한다(GAS 이력 연속성).
- * 권한: 담당자 | admin. 감사: close (+ 신설 시 create).
+ * 권한: 담당 실무자 | admin. 감사: close (+ 신설 시 create).
  */
 export async function closeGoal(
   env: Env,
@@ -4195,7 +4195,7 @@ export async function closeGoal(
   };
 }
 
-/** 목표 목록(종료 포함 — GAS 추이 그래프용). 권한: 담당자 | admin. 감사: read. */
+/** 목표 목록(종료 포함 — GAS 추이 그래프용). 권한: 담당 실무자 | admin. 감사: read. */
 export async function listGoals(env: Env, actor: Actor, caseId: string): Promise<Goal[]> {
   assertHuman(actor);
   await assertCaseAccess(env, actor, caseId);
@@ -4299,7 +4299,7 @@ export async function assertRecordingUploadAllowed(
  * 이미 승인된 세션은 재등록할 수 없다(승인된 공식 기록 보호, R2).
  * 미승인 세션을 재등록하면 이전 실행의 AI 산출물(전사·요약·대조·감정·화자 확인·
  * ai_gas_evidence·검토 전 AI 플래그)을 함께 비워 새 실행과 섞이지 않게 한다.
- * 권한: 담당자 | admin. 감사: update.
+ * 권한: 담당 실무자 | admin. 감사: update.
  */
 export async function registerRecording(
   env: Env,
@@ -4362,7 +4362,7 @@ export async function registerRecording(
              )
          )`,
     ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
-    // 검토 전(pending) AI 플래그만 제거 — 상담사가 이미 확정/기각한 판단은 보존 (D9).
+    // 검토 전(pending) AI 플래그만 제거 — 실무자가 이미 확정/기각한 판단은 보존 (D9).
     env.DB.prepare(
       `DELETE FROM flags
        WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'
@@ -4464,7 +4464,7 @@ export async function getPipelineAudioKey(
 // ============================================================================
 
 /**
- * 한 조직의 폴링 건강도를 계산한다(감사 미기록 — 호출부가 감사 정책을 정한다).
+ * 한 기관의 폴링 건강도를 계산한다(감사 미기록 — 호출부가 감사 정책을 정한다).
  * 데이터 원천: audit_log의 최신 poll_pipeline 시각(listPipelineJobs가 남긴다) +
  * 처리 대기 세션 수. lastPolledAt은 SQLite datetime 형식이라 UTC로 파싱해 비교한다.
  */
@@ -4508,7 +4508,7 @@ async function computePipelineHealth(env: Env, orgId: string, thresholdHours: nu
 }
 
 /**
- * 폴링 건강도 조회(관리자 화면용, D8). 권한: admin 전용, 자기 조직만.
+ * 폴링 건강도 조회(관리자 화면용, D8). 권한: admin 전용, 자기 기관만.
  * 감사: read(pipeline_health).
  */
 export async function getPipelineHealth(env: Env, actor: Actor): Promise<PipelineHealth> {
@@ -4523,10 +4523,10 @@ export async function getPipelineHealth(env: Env, actor: Actor): Promise<Pipelin
 }
 
 /**
- * 전 조직 폴링 워치독 (D8). scheduled(cron) 핸들러 전용 내부 진입점 —
+ * 전 기관 폴링 워치독 (D8). scheduled(cron) 핸들러 전용 내부 진입점 —
  * HTTP 행위자가 없다. 안전성 근거: (1) scheduled 핸들러에서만 호출하고,
  * (2) 세션·감사 조회만 하는 읽기 전용이며, (3) 남기는 유일한 쓰기는 append-only
- * 감사 행(watchdog_check)뿐이다. 조직별 건강도를 계산·감사하고 배열로 돌려준다.
+ * 감사 행(watchdog_check)뿐이다. 기관별 건강도를 계산·감사하고 배열로 돌려준다.
  * 알림 발송 판단(stale)은 호출부(Workers scheduled 핸들러)가 한다 —
  * gateway는 D1만 만지고 알림 채널은 건드리지 않는다 (R1 정신).
  */
@@ -4555,8 +4555,8 @@ export async function runPipelineWatchdog(env: Env): Promise<PipelineHealth[]> {
 }
 
 /**
- * 화자 매핑 확인 (D11: 자동 추정 → 상담사 1회 확인).
- * 권한: 담당자 | admin. 감사: update.
+ * 화자 매핑 확인 (D11: 자동 추정 → 실무자 1회 확인).
+ * 권한: 담당 실무자 | admin. 감사: update.
  */
 export async function confirmSpeakerMapping(
   env: Env,
@@ -4575,10 +4575,10 @@ export async function confirmSpeakerMapping(
 /**
  * 세션 승인 (R2: 승인 = 정합성 검증). 전제 조건을 모두 검사한다:
  *   - ai_status='review_ready' 이고 화자 매핑 확인 완료 (D11)
- *   - 대조 3종 각 항목에 대한 상담사 처리 결과(resolutions)가 제출됨
+ *   - 대조 3종 각 항목에 대한 실무자 처리 결과(resolutions)가 제출됨
  *   - GAS 점수는 recordGasScores로 먼저 저장됨 (D6)
  * 통과 시 approved_at/approved_by 기록 → 이후 브리핑·통계에 반영.
- * 권한: 담당자 | admin. 감사: approve.
+ * 권한: 담당 실무자 | admin. 감사: approve.
  */
 export async function approveSession(
   env: Env,
@@ -4700,7 +4700,7 @@ export async function approveSession(
 
 /**
  * 세션 단건 조회. 검토 화면용 — 미승인 ai_* 포함해 반환하되
- * aiStatus로 초안임이 드러난다. 권한: 담당자 | admin. 감사: read.
+ * aiStatus로 초안임이 드러난다. 권한: 담당 실무자 | admin. 감사: read.
  */
 export async function getSession(env: Env, actor: Actor, sessionId: string): Promise<Session> {
   const session = await assertSessionAccess(env, actor, sessionId);
@@ -4737,7 +4737,7 @@ export async function getSession(env: Env, actor: Actor, sessionId: string): Pro
 /**
  * 세션 목록. official=true(기본)면 R2 필터 적용 —
  * 미승인 세션은 ai_* 필드를 비워서(null) 반환한다(수기 memo는 항상 포함, D5).
- * 권한: 담당자 | admin. 감사: read.
+ * 권한: 담당 실무자 | admin. 감사: read.
  */
 export async function listSessions(
   env: Env,
@@ -4772,7 +4772,7 @@ export async function listSessions(
  * 브리핑 조회 (CLAUDE.md 6장 — 상담 5분 전 한 화면).
  * R2: 승인된 AI 산출물만 사용. 승인된 요약이 없으면 수기 메모 폴백 +
  * pendingApprovalCount 배지 (D5). 감정은 이 응답에 문장으로 넣지 않는다 (R4).
- * 권한: 담당자 | admin. 감사: read(briefing).
+ * 권한: 담당 실무자 | admin. 감사: read(briefing).
  */
 export async function getBriefing(env: Env, actor: Actor, caseId: string): Promise<Briefing> {
   assertHuman(actor);
@@ -4826,7 +4826,7 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
        WHERE action_item.org_id = ? AND action_item.support_case_id = ? AND action_item.resolved_at IS NULL
        ORDER BY action_item.due_date, action_item.created_at`,
     ).bind(actor.orgId, context.supportCaseId).all<DbRow>(),
-    // 브리핑에는 상담사가 만든 플래그 또는 상담사가 확정(confirmed)한 AI 플래그만 싣는다.
+    // 브리핑에는 실무자가 만든 플래그 또는 실무자가 확정(confirmed)한 AI 플래그만 싣는다.
     // 검토 전 AI 제안(pending)은 사실 확정 전이므로 제외한다 — 검토 화면(listFlags)에만 나온다.
     env.DB.prepare(
       `SELECT flag.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
@@ -4872,9 +4872,9 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
 // ============================================================================
 
 /**
- * GAS 점수 기록. scored_by는 항상 사람(상담사) — service 역할은 호출 불가 (D6).
+ * GAS 점수 기록. scored_by는 항상 사람(실무자) — service 역할은 호출 불가 (D6).
  * AI가 제안한 근거 발췌(evidenceQuote)는 함께 저장할 수 있다.
- * 권한: 담당자 | admin. 감사: create.
+ * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function recordGasScores(
   env: Env,
@@ -4932,7 +4932,7 @@ export async function recordGasScores(
 // 액션 아이템 (action_items)
 // ============================================================================
 
-/** 액션 아이템 생성. 권한: 담당자 | admin. 감사: create. */
+/** 액션 아이템 생성. 권한: 담당 실무자 | admin. 감사: create. */
 export async function createActionItem(
   env: Env,
   actor: Actor,
@@ -4985,7 +4985,7 @@ export async function createActionItem(
   return action;
 }
 
-/** 액션 아이템 해결 처리. 권한: 담당자 | admin. 감사: update. */
+/** 액션 아이템 해결 처리. 권한: 담당 실무자 | admin. 감사: update. */
 export async function resolveActionItem(
   env: Env,
   actor: Actor,
@@ -5002,7 +5002,7 @@ export async function resolveActionItem(
   return { ...action, resolvedAt };
 }
 
-/** 미해결 액션 아이템 목록 (브리핑 3번). 권한: 담당자 | admin. 감사: read. */
+/** 미해결 액션 아이템 목록 (브리핑 3번). 권한: 담당 실무자 | admin. 감사: read. */
 export async function listOpenActionItems(
   env: Env,
   actor: Actor,
@@ -5027,9 +5027,9 @@ export async function listOpenActionItems(
 // ============================================================================
 
 /**
- * 상담사 직접 플래그 생성 (source='counselor', 생성 즉시 confirmed).
+ * 실무자 직접 플래그 생성 (source='counselor', 생성 즉시 confirmed).
  * AI 제안 플래그는 ingestSessionArtifacts 경유로만 들어온다(quote 필수).
- * 권한: 담당자 | admin. 감사: create.
+ * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function createFlag(
   env: Env,
@@ -5082,7 +5082,7 @@ export async function createFlag(
 /**
  * AI 제안 플래그 확인 — 맞음(confirmed)/틀림(rejected) (D9).
  * rejected도 삭제하지 않고 보존한다(분기별 적중률 점검 루프의 데이터).
- * 권한: 담당자 | admin. 감사: update.
+ * 권한: 담당 실무자 | admin. 감사: update.
  */
 export async function reviewFlag(
   env: Env,
@@ -5108,7 +5108,7 @@ export async function reviewFlag(
   return { ...flag, reviewStatus: verdict, reviewedBy: actor.userId, reviewedAt };
 }
 
-/** 플래그 목록. 기본은 rejected 제외. 권한: 담당자 | admin. 감사: read. */
+/** 플래그 목록. 기본은 rejected 제외. 권한: 담당 실무자 | admin. 감사: read. */
 export async function listFlags(
   env: Env,
   actor: Actor,
@@ -5200,7 +5200,7 @@ export async function listAuditLog(
 
 /**
  * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
- * R2: 승인된 기록만 포함. 권한: 담당자 | admin. 감사: export (D14).
+ * R2: 승인된 기록만 포함. 권한: 담당 실무자 | admin. 감사: export (D14).
  */
 export async function exportCase(
   env: Env,
@@ -5292,8 +5292,8 @@ async function getUserForOrg(env: Env, orgId: string, userId: string): Promise<U
 }
 
 /**
- * 조직에 '이 사용자 말고' 활성 관리자가 하나도 없으면 거부한다.
- * 마지막 활성 관리자를 강등·비활성화해 조직이 관리자 없는 상태가 되는 것을 막는다.
+ * 기관에 '이 사용자 말고' 활성 관리자가 하나도 없으면 거부한다.
+ * 마지막 활성 관리자를 강등·비활성화해 기관이 관리자 없는 상태가 되는 것을 막는다.
  */
 async function assertNotLastActiveAdmin(env: Env, orgId: string, excludeUserId: string): Promise<void> {
   const row = await env.DB.prepare(
@@ -5315,7 +5315,7 @@ async function assertNotLastActiveAdmin(env: Env, orgId: string, excludeUserId: 
  *      즉 위조 불가능한 신원에 대한 디렉터리 행 1건만 되돌린다.
  *   2. 반환값은 PII가 아니라 {id, org_id, role}뿐이고, email은 이미 호출부가 아는 값이다.
  *   3. 이후 이 행으로 만들어진 Actor의 모든 gateway 호출은 정상적으로 org·권한·감사를 거친다.
- *   4. 이메일은 전역 UNIQUE라 결과가 0 또는 1건이며 교차 조직 노출이 없다.
+ *   4. 이메일은 전역 UNIQUE라 결과가 0 또는 1건이며 교차 기관 노출이 없다.
  * 따라서 여기서 별도 감사를 남기지 않는다(인증 전 단계, 행위자 없음).
  */
 export async function findUserByEmail(env: Env, email: string): Promise<User | null> {
@@ -5325,7 +5325,7 @@ export async function findUserByEmail(env: Env, email: string): Promise<User | n
   return row === null ? null : mapUser(row);
 }
 
-/** 사용자 디렉터리 목록. 권한: admin 전용, 자기 조직만. 감사: read(users). */
+/** 사용자 디렉터리 목록. 권한: admin 전용, 자기 기관만. 감사: read(users). */
 export async function listUsers(env: Env, actor: Actor): Promise<User[]> {
   assertAdmin(actor);
   const result = await env.DB.prepare('SELECT * FROM users WHERE org_id = ? ORDER BY email')
@@ -5338,11 +5338,11 @@ export async function listUsers(env: Env, actor: Actor): Promise<User[]> {
 /**
  * 사용자 프로비저닝(생성 또는 역할 갱신). email이 신원 키(전역 UNIQUE)다.
  *   - 신규(이메일 없음): userId를 주면 그 값을, 없으면 UUID를 id로 써 활성 상태로 만든다.
- *   - 기존(같은 조직): 역할을 갱신하고 active=1로 재활성화한다(프로비저닝 = 활성 보장).
+ *   - 기존(같은 기관): 역할을 갱신하고 active=1로 재활성화한다(프로비저닝 = 활성 보장).
  *     이때 userId 인자는 무시한다(이메일이 이미 신원을 특정한다).
  *   - 마지막 활성 관리자를 admin이 아닌 역할로 강등하려 하면 거부한다.
- *   - 다른 조직 소속 이메일은 건드릴 수 없다(ForbiddenError).
- * 권한: admin 전용, 자기 조직만. 감사: create 또는 update(users).
+ *   - 다른 기관 소속 이메일은 건드릴 수 없다(ForbiddenError).
+ * 권한: admin 전용, 자기 기관만. 감사: create 또는 update(users).
  */
 export async function upsertUser(
   env: Env,
@@ -5388,8 +5388,8 @@ export async function upsertUser(
 /**
  * 사용자 비활성화(디렉터리에서 접근 차단). 행을 지우지 않고 active=0으로 기록한다.
  * 가드: 자기 자신은 비활성화 불가, 마지막 활성 관리자도 비활성화 불가
- * (관리자 없는 조직 방지 + 자기 축출로 인한 잠금 방지).
- * 권한: admin 전용, 자기 조직만. 감사: update(users).
+ * (관리자 없는 기관 방지 + 자기 축출로 인한 잠금 방지).
+ * 권한: admin 전용, 자기 기관만. 감사: update(users).
  */
 export async function deactivateUser(env: Env, actor: Actor, userId: string): Promise<User> {
   assertAdmin(actor);
@@ -5409,8 +5409,8 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string): Pr
 
 /**
  * 로그인한 본인의 디렉터리 정보(이메일·역할)를 조회한다. 설정 화면의 '내 계정' 섹션이 쓴다.
- * 권한: 인증된 본인(역할 무관) — org_id 일치로 자기 조직 자기 행만 읽는다. 감사: read(users, self).
- * 관리자 전용이 아니므로 담당자(counselor)도 자기 신원은 확인할 수 있다.
+ * 권한: 인증된 본인(역할 무관) — org_id 일치로 자기 기관 자기 행만 읽는다. 감사: read(users, self).
+ * 관리자 전용이 아니므로 담당 실무자(counselor)도 자기 신원은 확인할 수 있다.
  */
 export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
   const user = await getUserForOrg(env, actor.orgId, actor.userId);
@@ -5425,7 +5425,7 @@ export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
  * **본인 행만 쓴다** — actor.userId 로 잠겨 있어 남의 설정을 바꿀 경로가 없다.
  * 서비스 토큰은 화면이 없으므로 사람만 허용한다.
  *
- * **감사를 남기지 않는다.** D14가 기록하라고 정한 것은 참여자·케이스 기록의 열람·변경·
+ * **감사를 남기지 않는다.** D14가 기록하라고 정한 것은 당사자·케이스 기록의 열람·변경·
  * PII 복호화·내보내기다. 본인 UI 설정을 화면 이동마다 남기면 감사 로그가 내비게이션
  * 흔적으로 덮여 "누가 누구의 PII를 봤나"를 찾기 어려워진다 — 감사의 목적을 해친다.
  * 근거는 migrations/0017 주석에도 적어 두었다.
@@ -5982,11 +5982,11 @@ function conditionalCanonicalAuditStatement(
 /**
  * 신규 가명 ID 발급 — 동물 슬러그 + 동물별 순차번호 (D20 · ADR-0004 · 티켓 #11).
  *
- * - 동물 선택: 조직 내 슬러그 발급 수 기반 라운드로빈. 결정론적이라 검증 가능하고
+ * - 동물 선택: 기관 내 슬러그 발급 수 기반 라운드로빈. 결정론적이라 검증 가능하고
  *   동물 풀을 균등하게 소진하며, 동시 생성 충돌 시 재시도가 다음 동물로 전진한다.
- * - 순번: 동물별·조직별 최대값 + 1 (3자리 제로패딩). id는 전역 PRIMARY KEY라
- *   다른 조직이 이미 선점한 번호는 전역 최대값 + 1로 건너뛴다 — 조직 내 단조
- *   증가는 유지되고 결번만 생긴다(현 단일 조직 배치에서는 발생하지 않음).
+ * - 순번: 동물별·기관별 최대값 + 1 (3자리 제로패딩). id는 전역 PRIMARY KEY라
+ *   다른 기관이 이미 선점한 번호는 전역 최대값 + 1로 건너뛴다 — 기관 내 단조
+ *   증가는 유지되고 결번만 생긴다(현 단일 기관 배치에서는 발생하지 않음).
  * - 남는 동시성 충돌은 호출부의 UNIQUE 재시도 루프(F7)가 흡수한다.
  */
 async function allocateBeneficiaryId(env: Env, orgId: string): Promise<string> {
@@ -6039,7 +6039,7 @@ export interface CreateBeneficiaryWithInitialSupportCaseInput {
 }
 
 /**
- * 참여자 등록 시 항목별 동의(녹음·텍스트 AI 분리, D15·D23). 기본은 미동의(false)이며,
+ * 당사자 등록 시 항목별 동의(녹음·텍스트 AI 분리, D15·D23). 기본은 미동의(false)이며,
  * 미동의여도 등록은 진행된다(D15 미동의 경로). 동의한 항목은 등록 시각을
  * support_cases.consent_*_at(파이프라인 게이트) + participant_consent_records(기록자·일시)에
  * 함께 남긴다.
@@ -6308,10 +6308,10 @@ detail: { role: 'primary', initial: true },
            WHERE id = ? AND org_id = ? AND initialization_state = 'pending'`,
         ).bind(createdAt, beneficiaryId, actor.orgId),
       ];
-      // 참여자 완료 전환(위 UPDATE)의 changes 검사를 위해 인덱스를 고정한다.
+      // 당사자 완료 전환(위 UPDATE)의 changes 검사를 위해 인덱스를 고정한다.
       const completionIndex = statements.length - 1;
       // 동의 기록은 반드시 완료 전환 '이후'에 넣는다. beneficiaries_complete_guard 가
-      // 그 시점에 참여자 감사 로그를 정확히 3건으로 요구하므로(D15·D23 · 0007), record_consent
+      // 그 시점에 당사자 감사 로그를 정확히 3건으로 요구하므로(D15·D23 · 0007), record_consent
       // 감사(4번째 beneficiary_id 행)는 가드 통과 뒤에 쌓여야 한다.
       if (consent !== undefined && consentRecordId !== null) {
         statements.push(
@@ -6579,15 +6579,15 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
 }
 
 /**
- * 참여자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
- * `authorized` 가 false 면 **내가 담당하지 않는 사업**이다 — 존재와 담당자 이름까지만
+ * 당사자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
+ * `authorized` 가 false 면 **내가 담당하지 않는 사업**이다 — 존재와 담당 실무자 이름까지만
  * 보이고 상담 내용(브리핑·기록·목표)으로는 들어갈 수 없다.
  */
 export interface ParticipantProgramEntry {
   supportCase: SupportCase;
   /** 내가 담당(또는 admin)인가. 화면은 이 값으로 링크를 걸거나 잠근다. */
   authorized: boolean;
-  /** 활성 담당자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
+  /** 활성 담당 실무자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
 }
 
@@ -6597,15 +6597,15 @@ export interface ParticipantProgramList {
 }
 
 /**
- * 한 참여자의 조직 내 활성 담당자 표시 이름을 사업별로 모은다.
+ * 한 당사자의 기관 내 활성 담당 실무자 표시 이름을 사업별로 모은다.
  *
  * **이메일로 폴백하지 않는다.** 다른 화면(관리자 디렉터리)은 이름 미입력 시 이메일을
- * 보여주지만, 이 목록은 D36 으로 **담당하지 않는 사업**까지 상담사에게 내려간다 —
- * 이메일 폴백을 두면 `listUsers`(admin 전용)로 막아 둔 직원 이메일이 상담사에게 새는,
- * 어떤 결정도 승인하지 않은 공개가 된다. 이름이 없으면 그 담당자는 목록에서 빠지고
+ * 보여주지만, 이 목록은 D36 으로 **담당하지 않는 사업**까지 실무자에게 내려간다 —
+ * 이메일 폴백을 두면 `listUsers`(admin 전용)로 막아 둔 직원 이메일이 실무자에게 새는,
+ * 어떤 결정도 승인하지 않은 공개가 된다. 이름이 없으면 그 담당 실무자는 목록에서 빠지고
  * 화면은 담당 줄을 그리지 않는다.
  *
- * 직원 이름은 참여자 PII 금고 대상이 아니라 복호화가 필요 없다(D31).
+ * 직원 이름은 당사자 PII 금고 대상이 아니라 복호화가 필요 없다(D31).
  */
 async function loadAssigneeNamesBySupportCase(
   env: Env,
@@ -6643,9 +6643,9 @@ export async function listSupportCasesForBeneficiary(
 ): Promise<ParticipantProgramList> {
   // **집합이 둘이다 — 섞으면 안 된다** (D36 · ADR-0014 '개정' 1번).
   //  ① 접근 판정용: 내가 담당(또는 admin)인 사업. **1건도 없으면 페이지 자체가 안 열린다.**
-  //  ② 표시용: 그 참여자의 조직 내 전 사업. 비담당 사업은 존재와 담당자 이름까지만 보인다.
+  //  ② 표시용: 그 당사자의 기관 내 전 사업. 비담당 사업은 존재와 담당 실무자 이름까지만 보인다.
   //
-  // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 참여자의 담당자라
+  // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라
   // PII를 보고 있다")가 무너진다 — 표시 범위를 넓히면서 같이 지우기 쉬우니 주의한다.
   const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
   if (authorizedIds.length === 0) {
@@ -6687,13 +6687,13 @@ export async function listSupportCasesForBeneficiary(
 }
 
 /**
- * 참여자 목록 화면(사이드바 '참여자'의 도착지)이 쓰는 담당 참여자 전원.
+ * 당사자 목록 화면(사이드바 '당사자'의 도착지)이 쓰는 담당 당사자 전원.
  *
  * **케이스 상태로 거르지 않는다.** 상담 등록 후보(`listScheduleCandidates`)는 담당
- * **활성** 참여사업만 내리는데, 그 범위를 목록에 쓰면 종결 케이스만 남은 참여자가
+ * **활성** 참여사업만 내리는데, 그 범위를 목록에 쓰면 종결 케이스만 남은 당사자가
  * 화면에서 조용히 사라진다 — 종결 케이스는 다시 들여다볼 일이 많은 쪽이고 이 화면은
- * 참여자 정보 허브의 입구다. 접근 범위는 `searchParticipants` 와 같다(활성 배정 기준,
- * counselor 는 담당 · admin 은 조직 전체 — R1 · D7).
+ * 당사자 정보 허브의 입구다. 접근 범위는 `searchParticipants` 와 같다(활성 배정 기준,
+ * counselor 는 담당 · admin 은 기관 전체 — R1 · D7).
  *
  * 실명은 D24·ADR-0005 로 역할 기준 기본 표시이며 서버에서 복호화해 싣는다(연락처 포함,
  * 계좌는 제외). 감사: read 1건 + 실명이 실리면 read_participant_pii 1건(D14).
@@ -6766,7 +6766,7 @@ export interface ParticipantSearchResult {
   beneficiaryId: string;
   status: 'active' | 'closed';
   programCount: number;
-  // D24·ADR-0005: 참여자 선택 UI 는 실명 목록이 전제다("검색이 아니라 선택").
+  // D24·ADR-0005: 당사자 선택 UI 는 실명 목록이 전제다("검색이 아니라 선택").
   // 담당(활성 배정)·admin 범위로 걸러진 결과의 실명만 서버 복호화해 싣는다. 미기입은 null.
   name: string | null;
 }
@@ -6781,9 +6781,9 @@ function escapeLikeOperand(value: string): string {
 }
 
 /**
- * 참여자 검색 (티켓 #16 · D21 · D24). 가명 ID(양형식) 부분 일치와 한글 표시명 부분 일치를
+ * 당사자 검색 (티켓 #16 · D21 · D24). 가명 ID(양형식) 부분 일치와 한글 표시명 부분 일치를
  * 함께 지원한다 — 한글 질의는 동물 슬러그(단일 출처 animal-slugs)로 환원해 접두어로 맞춘다.
- * 접근 범위는 다른 조회와 동일하다 — counselor는 담당 support_case, admin은 조직 전체 (R1 · D7).
+ * 접근 범위는 다른 조회와 동일하다 — counselor는 담당 support_case, admin은 기관 전체 (R1 · D7).
  * D24·ADR-0005 로 선택 UI 가 실명 목록을 전제하므로 결과의 실명을 서버 복호화해 싣고
  * (연락처·계좌는 제외), 실명이 1건 이상 실리면 화면 단위 감사 1건(read_participant_pii).
  * 가명 ID·통계·외부 출력에는 여전히 실명을 싣지 않는다 (R3 — 이 응답은 인증된 내부 화면용).
@@ -7072,14 +7072,14 @@ export interface ParticipantContact {
   email: string | null;
 }
 
-/** 브리핑·상세가 노출하는 참여자 필드 — 실명·연락처만(이메일 제외, D31). */
+/** 브리핑·상세가 노출하는 당사자 필드 — 실명·연락처만(이메일 제외, D31). */
 export interface ParticipantNameContact {
   name: string | null;
   phone: string | null;
 }
 
 /**
- * 브리핑·상세 등 기존 소비자는 실명·연락처만 노출한다(이메일은 참여자 선택 UI 전용, D31).
+ * 브리핑·상세 등 기존 소비자는 실명·연락처만 노출한다(이메일은 당사자 선택 UI 전용, D31).
  * loadParticipantContacts 가 이메일까지 복호화하더라도 이 경계에서 name·phone 만 추려
  * 이메일이 그 응답들로 새지 않게 한다.
  */
@@ -7089,9 +7089,9 @@ function participantNamePhone(contact: ParticipantContact | undefined): Particip
 
 /**
  * D24·ADR-0005 역할 기준 실명 표시의 공용 복호화 관문. 이미 접근 범위로 걸러진
- * (담당 활성 배정 또는 admin) 참여자 집합의 실명·연락처를 한 번의 배치 조회로
+ * (담당 활성 배정 또는 admin) 당사자 집합의 실명·연락처를 한 번의 배치 조회로
  * 복호화해 돌려준다 — 목록 응답의 N+1 을 피한다. 파기된 금고(purged_at)는 제외한다.
- * 접근 검사는 호출부가 이미 수행했다는 계약이다(비담당자의 행은 애초에 결과에 없다).
+ * 접근 검사는 호출부가 이미 수행했다는 계약이다(비담당 실무자의 행은 애초에 결과에 없다).
  */
 async function loadParticipantContacts(
   env: Env,
@@ -7120,7 +7120,7 @@ async function loadParticipantContacts(
 /**
  * PII(실명·연락처)가 1건 이상 실린 응답을 만든 게이트웨이 호출마다 화면 단위 감사
  * 1건을 남긴다(read_participant_pii, D14·D24). 값이 전부 null 이면(등록만 되고 PII
- * 미기입) 감사하지 않는다. 대상 참여자 목록은 detail 에 담아 이상 열람 분석이
+ * 미기입) 감사하지 않는다. 대상 당사자 목록은 detail 에 담아 이상 열람 분석이
  * 케이스 단위로 추적할 수 있게 한다. 클릭 단위(reveal)·마스킹 표시(masked) 감사를
  * 대체한다.
  */
@@ -7136,7 +7136,7 @@ async function auditParticipantPiiRead(
     .sort();
   // 화면 조회 1건 = 감사 1행(D24·ADR-0005). 같은 화면이 실명·연락처 외에 다른 금고
   // 항목까지 복호화해 실었다면 행을 하나 더 쓰지 않고 이 행의 fields 에 합친다 —
-  // 행이 갈리면 "이 상담사가 이 참여자를 몇 번 열람했나"를 셀 수 없게 된다(2026-07-25 Q 결정).
+  // 행이 갈리면 "이 실무자가 이 당사자를 몇 번 열람했나"를 셀 수 없게 된다(2026-07-25 Q 결정).
   const fields = ['name', 'phone', ...(scope.extraFields ?? [])];
   if (beneficiaryIds.length === 0 && (scope.extraFields?.length ?? 0) === 0) return;
   const auditedIds = beneficiaryIds.length > 0
@@ -7392,7 +7392,7 @@ export interface CreateCounselingScheduleInput {
   sessionGoals?: CreateScheduleSessionGoalInput[];
   /** 케이스 목표(intake 전용, D12). 측정 가능한 문장 1~3개를 이번 요청에서 함께 신설한다. */
   caseGoals?: string[];
-  /** 맞춤형 질문(선택). AI 생성 질문과 별개로 상담사가 직접 적는다. */
+  /** 맞춤형 질문(선택). AI 생성 질문과 별개로 실무자가 직접 적는다. */
   customQuestions?: string[];
 }
 
@@ -7726,7 +7726,7 @@ export interface ScheduleCandidate {
   beneficiaryId: string;
   supportCaseId: string;
   programType: 'financial_support_v1';
-  // D31·D24: 참여자 선택 UI 는 역할 기준 실명·연락처·이메일을 직접 실어 보여준다(사업명 대신).
+  // D31·D24: 당사자 선택 UI 는 역할 기준 실명·연락처·이메일을 직접 실어 보여준다(사업명 대신).
   // 접근 범위(담당 활성 배정 또는 admin)로 이미 걸러진 후보라 전부 열람 대상이다. 미기입은 null.
   participantName: string | null;
   participantPhone: string | null;
@@ -7740,9 +7740,9 @@ export interface ScheduleCandidate {
 }
 
 /**
- * 상담 등록 폼의 참여자 후보 (티켓 #19 콜드스타트 해소). 후보 기준을 '일정 보유'가
- * 아니라 '담당 활성 참여사업'으로 둔다 — 그래야 방금 등록해 아직 일정이 없는 참여자도
- * 첫 상담을 등록할 수 있다. counselor 는 자기 활성 배정 케이스만, admin 은 조직의 모든
+ * 상담 등록 폼의 당사자 후보 (티켓 #19 콜드스타트 해소). 후보 기준을 '일정 보유'가
+ * 아니라 '담당 활성 참여사업'으로 둔다 — 그래야 방금 등록해 아직 일정이 없는 당사자도
+ * 첫 상담을 등록할 수 있다. counselor 는 자기 활성 배정 케이스만, admin 은 기관의 모든
  * 활성 참여사업을 본다(listCases 의 접근 모델과 동일, D7). 감사: read.
  */
 export async function listScheduleCandidates(
@@ -8001,7 +8001,7 @@ export async function createCounselingSchedule(
 /**
  * 인테이크 일정 등록(티켓 #36). 세션 목표 대신 케이스 목표(goals, D12)를 이번 요청에서
  * 함께 신설한다. 일정·케이스 목표·맞춤형 질문·감사를 한 배치로 원자적으로 쓴다(R1·R5:
- * 목표 문구는 상담사가 확정, AI 개입 없음). 세션 목표는 인테이크에 허용되지 않는다.
+ * 목표 문구는 실무자가 확정, AI 개입 없음). 세션 목표는 인테이크에 허용되지 않는다.
  */
 async function createIntakeCounselingSchedule(
   env: Env,
@@ -8222,7 +8222,7 @@ async function loadScheduleSessionEntries(
 }
 
 /**
- * 일정별 세션 목표·맞춤형 질문 조회 (D28). 권한은 해당 참여사업 접근(담당자·admin)으로
+ * 일정별 세션 목표·맞춤형 질문 조회 (D28). 권한은 해당 참여사업 접근(담당 실무자·admin)으로
  * 게이트하고 감사(read)를 남긴다. 상담 유형·방법(#36)도 일정 행에서 함께 싣는다.
  */
 export async function getScheduleSessionPlan(
@@ -8318,7 +8318,7 @@ export interface CounselingRecordActionItemResolutionInput {
  * 생활 6영역 스냅샷 (CCC-8). 키·상태값의 유일 출처.
  * 영역 키·라벨 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D(D1~D6).
  * 상태 5값 근거: 같은 문서 §D("괜찮음/긴장/위기/해당없음/답변거부").
- * 이 상태는 상담사 기입값이다 — 감정 점수(R4)·리스크 플래그(D9) 와 무관.
+ * 이 상태는 실무자 기입값이다 — 감정 점수(R4)·리스크 플래그(D9) 와 무관.
  */
 export const LIFE_AREA_KEYS = [
   'economy',        // 경제·생계
@@ -8360,7 +8360,7 @@ export interface LifeAreaSnapshotEntry {
 /**
  * 정기 기록지 서술형 항목(CCC-10 · 0016 record_details). 전부 선택이며, 하나라도 채워진
  * 경우에만 details 를 보낸다(빈 객체는 거부). 값은 서술 기록일 뿐 자동 판정 입력이
- * 아니다 — 플래그 확정·GAS 점수는 여전히 상담사 몫이다(D6·D9·R5).
+ * 아니다 — 플래그 확정·GAS 점수는 여전히 실무자 몫이다(D6·D9·R5).
  */
 export interface CounselingRecordDetailsInput {
   /** 이번 상담 목표 — 일정에 세션 목표가 연결되지 않은 회차에서만 기록한다(D28). */
@@ -8369,7 +8369,7 @@ export interface CounselingRecordDetailsInput {
   changeSinceLast?: string;
   /** 위기·안전 확인 서술. */
   safetyNote?: string;
-  /** 담당자 의견(참여자 발언과 구분). */
+  /** 담당 실무자 의견(당사자 발언과 구분). */
   counselorOpinion?: string;
 }
 
@@ -9196,7 +9196,7 @@ export interface IntakeRecordResult {
   replayed: boolean;
 }
 
-/** 인테이크 작성 컨텍스트(회차 자동값·참여자 표시·기존 인테이크 여부). */
+/** 인테이크 작성 컨텍스트(회차 자동값·당사자 표시·기존 인테이크 여부). */
 export interface IntakeRecordContext {
   beneficiaryId: string;
   supportCaseId: string;
@@ -9427,7 +9427,7 @@ async function readIntakeExtendedPii(
 }
 
 /**
- * 인테이크 작성 컨텍스트(GET). 권한·활성 검사 후 참여자 표시 정보(D31 역할 기준 실명)·
+ * 인테이크 작성 컨텍스트(GET). 권한·활성 검사 후 당사자 표시 정보(D31 역할 기준 실명)·
  * 회차 자동값·기존 인테이크 여부를 돌려준다. 감사는 **화면 조회당 read_participant_pii
  * 1건**이며(D14·D24·ADR-0005), 추가 개인정보(0015)를 복호화해 실었다면 그 필드 이름을
  * 같은 행의 detail.fields 에 합쳐 남긴다 — 행을 나누지 않는다(2026-07-25 Q 결정).
@@ -10039,7 +10039,7 @@ export interface ParticipantBriefing {
   flags: ParticipantBriefingFlag[];
   questions: ParticipantBriefingQuestion[];
   focusUpcomingSchedule: BriefingUpcomingSchedule | null;
-  // D24·ADR-0005: 담당·배정 책임자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
+  // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
   // 접근 자체가 assertSupportCaseAccess 로 이미 걸러졌으므로 여기 도달하면 열람 권한이 있다.
   participant: ParticipantNameContact;
 }
@@ -10527,7 +10527,7 @@ export async function listSupportCaseAssignees(
   return result.results.map(mapSupportCaseAssignee);
 }
 
-/** 관리자 영역(재개편 T8)이 상담사 상세·사용자 화면에 싣는 '상담사별 활성 배정 참여자' 행. */
+/** 관리자 영역(재개편 T8)이 실무자 상세·사용자 화면에 싣는 '실무자별 활성 배정 당사자' 행. */
 export interface CounselorAssignmentParticipant {
   beneficiaryId: string;
   supportCaseId: string;
@@ -10545,12 +10545,12 @@ export interface CounselorAssignments {
 }
 
 /**
- * 한 상담사(userId)의 활성 배정 참여자 목록 — 관리자 영역 사용자/상담사 상세 화면용(재개편 T8, D25).
- * 접근: admin 전용(assertAdmin), 자기 조직만. 상담사가 담당(활성 배정, unassigned_at IS NULL)한
- * 참여사업을 케이스 단위로 돌려주고, 각 참여자의 실명·연락처를 배치 복호화해 함께 싣는다.
+ * 한 실무자(userId)의 활성 배정 당사자 목록 — 관리자 영역 사용자/실무자 상세 화면용(재개편 T8, D25).
+ * 접근: admin 전용(assertAdmin), 자기 기관만. 실무자가 담당(활성 배정, unassigned_at IS NULL)한
+ * 참여사업을 케이스 단위로 돌려주고, 각 당사자의 실명·연락처를 배치 복호화해 함께 싣는다.
  * 감사: 배정 목록 조회 1건(read, support_case_assignees) + 실명이 1건 이상 실리면 화면 단위
  * read_participant_pii 1건(D14·D24, loadParticipantContacts·auditParticipantPiiRead 공용 관문).
- * listSupportCasesForBeneficiary 와 동일한 이중 감사 형태다 — 대상만 상담사로 바뀐다.
+ * listSupportCasesForBeneficiary 와 동일한 이중 감사 형태다 — 대상만 실무자로 바뀐다.
  */
 export async function listCounselorAssignments(
   env: Env,
@@ -10559,7 +10559,7 @@ export async function listCounselorAssignments(
 ): Promise<CounselorAssignments> {
   assertAdmin(actor);
   assertOpaqueIdentifier(userId, 'assignee user id');
-  // 대상 상담사가 자기 조직 사용자인지 확인한다(없으면 ForbiddenError). 교차 조직 조회 차단.
+  // 대상 실무자가 자기 기관 사용자인지 확인한다(없으면 ForbiddenError). 교차 기관 조회 차단.
   await getUserForOrg(env, actor.orgId, userId);
   const result = await env.DB.prepare(
     `SELECT support_cases.id AS support_case_id,

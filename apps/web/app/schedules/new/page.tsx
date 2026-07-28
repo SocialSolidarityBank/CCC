@@ -37,7 +37,7 @@ export default async function NewCounselingSchedulePage({
     }));
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
-    loadError = '담당 참여자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.';
+    loadError = '담당 당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.';
   }
 
   if (loadError !== null) {

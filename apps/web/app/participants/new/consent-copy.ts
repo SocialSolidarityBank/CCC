@@ -4,7 +4,7 @@
 // 함께 고친다.
 
 export const CONSENT_DETAIL_DISCLAIMER =
-  '법률 검토 전 참고용 초안입니다(D23·D26). 동의는 서면·구두(오프라인)로 받으며, 시스템에는 항목별 동의 여부·일시·기록자만 기록됩니다. 전자서명·참여자 직접 작성은 법률 검토 후 제공됩니다.';
+  '법률 검토 전 참고용 초안입니다(D23·D26). 동의는 서면·구두(오프라인)로 받으며, 시스템에는 항목별 동의 여부·일시·기록자만 기록됩니다. 전자서명·당사자 직접 작성은 법률 검토 후 제공됩니다.';
 
 export interface ConsentDetailSection {
   heading: string;
@@ -30,7 +30,7 @@ export const CONSENT_DETAIL_SECTIONS: ConsentDetailSection[] = [
   },
   {
     heading: '4. 열람 범위',
-    paragraphs: ['성명 등 개인정보는 담당 상담사 및 배정 책임자만 열람하며, 모든 열람은 기록(감사)됩니다.'],
+    paragraphs: ['성명 등 개인정보는 담당 실무자 및 기관 관리자만 열람하며, 모든 열람은 기록(감사)됩니다.'],
   },
   {
     heading: '5. 항목별 선택 동의 (거부해도 등록·상담 이용에 불이익이 없습니다)',

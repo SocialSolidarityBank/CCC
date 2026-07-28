@@ -73,7 +73,7 @@ export const wireStyles = `
 .participant-name-group{display:inline-flex;align-items:baseline;gap:var(--space-1);flex-wrap:wrap}
 .participant-name{color:var(--ink);font-weight:700;overflow-wrap:anywhere}
 .participant-pseudonym{color:var(--sub);font-size:16px;font-weight:400}
-/* ParticipantHeroCard (D38 · DESIGN.md §5): 참여자 중심 화면의 공통 머리.
+/* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑의 .briefing-hero 와 같은 구조이나 부품이 공유된다. */
 .participant-hero-card{padding:var(--space-6);gap:var(--space-5)}
@@ -86,12 +86,12 @@ export const wireStyles = `
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:14px}
 .note-inline a{color:var(--blue-deep);font-weight:700;text-decoration:underline}
-/* 참여자 목록 — 찾기 칸 + 행 목록. 행은 gap 그리드에 낱개로 놓이므로 카드 계약을 쓴다
+/* 당사자 목록 — 찾기 칸 + 행 목록. 행은 gap 그리드에 낱개로 놓이므로 카드 계약을 쓴다
    (DESIGN.md §5 '리스트 행' — 낱개는 카드, 붙어 있으면 구분선). */
 .participant-search-layout{display:grid;gap:var(--space-5)}
-/* 참여자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
+/* 당사자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
 .participant-row-list{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
-/* 참여자 정보 허브 (D35 §3 · D36). 카드 계약(.surface-card)은 그대로 쓰고 안쪽만 정한다. */
+/* 당사자 정보 허브 (D35 §3 · D36). 카드 계약(.surface-card)은 그대로 쓰고 안쪽만 정한다. */
 .participant-contact{display:grid;gap:var(--space-1);margin:0 0 var(--space-6)}
 /* 사람 정보 라벨은 민트 계열(D34). */
 .participant-contact dt{color:var(--mint-deep);font-size:14px;font-weight:700}
@@ -138,7 +138,7 @@ button.wire-row{font:inherit;font-size:16px;font-weight:700}
    카드 제목(18)과 크기가 겹쳐 위계가 없었다. 구획 제목은 라벨이므로 14/700 --sub 다. */
 .wire-card-section{display:grid;gap:var(--space-2)}
 .wire-card-section>h3{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
-/* 수기 메모는 상담사가 줄바꿈한 그대로 읽혀야 한다. */
+/* 수기 메모는 실무자가 줄바꿈한 그대로 읽혀야 한다. */
 .wire-card-section>p{margin:0;font-size:16px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
 .wire-card-section>ul{margin:0;padding:0;display:grid;gap:var(--space-2);list-style:none;font-size:16px;color:var(--ink)}
 /* 정보 필드(§5): 라벨 14/700 민트 deep 위 · 값 16 아래. */
@@ -177,7 +177,7 @@ button.wire-row{font:inherit;font-size:16px;font-weight:700}
 /* textarea 는 박스가 세로로 늘어난다 — 높이 40 고정은 한 줄 컨트롤 계약이다. */
 .wire-input-box[data-control="textarea"]{align-items:stretch;padding:var(--space-3)}
 /* min-height 를 0 으로 되돌리는 이유: layout.tsx 의 전역 textarea 규칙(min-height 216px)이
-   rows 지정을 덮어써서 rows=4 인 담당자 의견과 rows=14 인 수기 메모가 같은 높이로 나온다.
+   rows 지정을 덮어써서 rows=4 인 담당 실무자 의견과 rows=14 인 수기 메모가 같은 높이로 나온다.
    전역 규칙은 아직 레거시 화면들이 기대고 있어 두고, 킷 입력칸 안에서만 rows 가 높이를 정한다.
    (이 파일은 백틱 템플릿 리터럴이다 — 주석에 백틱을 쓰면 문자열이 거기서 끊긴다.) */
 .wire-input-box>textarea{min-height:0;resize:vertical;line-height:1.6}
@@ -287,7 +287,7 @@ button.wire-row{font:inherit;font-size:16px;font-weight:700}
 .wire-admin-back a{font-size:14px;font-weight:700;color:var(--sub)}
 .wire-admin-back a:hover{text-decoration:underline}
 .wire-admin-list{display:grid;gap:var(--space-3);margin-top:var(--space-5)}
-/* 좌열(상담사 목록)은 '이메일  역할' 한 줄이 랩 없이 들어가는 최소 폭을 보장한다. */
+/* 좌열(실무자 목록)은 '이메일  역할' 한 줄이 랩 없이 들어가는 최소 폭을 보장한다. */
 .wire-admin-cols{display:grid;grid-template-columns:minmax(400px,1fr) minmax(0,1.2fr);gap:var(--space-6);margin-top:var(--space-6);align-items:start}
 .wire-admin-cols>section{display:grid;gap:0;min-width:0}
 .wire-admin-detail-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3)}

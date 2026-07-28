@@ -43,7 +43,7 @@ function participantHref(beneficiaryId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}`;
 }
 
-// 상담 준비를 본 다음의 주 동선은 기록 작성이다. 이 링크가 없으면 참여자 페이지까지
+// 상담 준비를 본 다음의 주 동선은 기록 작성이다. 이 링크가 없으면 당사자 페이지까지
 // 되돌아 나와야 해서 브리핑이 막다른 길이 된다(2026-07-26 Q 실사용 지적).
 function recordsHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/records`;

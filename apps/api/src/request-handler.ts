@@ -805,7 +805,7 @@ function participantProgramResponse(
     intakeAt: supportCase.intakeAt,
     creationKind: supportCase.creationKind,
     sourceSupportCase: null,
-    // D24·ADR-0005: 참여자 상세는 실명·연락처를 기본 표시. 한 참여자의 프로그램들이라 값은 동일.
+    // D24·ADR-0005: 당사자 상세는 실명·연락처를 기본 표시. 한 당사자의 프로그램들이라 값은 동일.
     participantName: participant.name,
     participantPhone: participant.phone,
     // D36: 내가 담당하지 않는 사업도 목록에 나오되 상담 내용으로는 들어갈 수 없다.
@@ -881,7 +881,7 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
   return {
     beneficiaryId: briefing.beneficiaryId,
     focusSupportCaseId: briefing.focusedSupportCase.id,
-    // D24·ADR-0005: 담당·배정 책임자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
+    // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
     participant: briefing.participant,
     sections: sources.map((sourceSupportCase) => {
       const summary = briefing.summaries.find((candidate) => candidate.sourceSupportCase.id === sourceSupportCase.id);
@@ -1226,7 +1226,7 @@ async function generateAiDraft(
 }
 
 /**
- * 상담 녹음 업로드(상담사·관리자). gateway preflight가 접근 권한·동의·세션 상태를
+ * 상담 녹음 업로드(실무자·관리자). gateway preflight가 접근 권한·동의·세션 상태를
  * 확인한 뒤 콘텐츠를 읽어 R2에 저장한다. 등록 시점에는 registerRecording이 같은
  * 상태를 원자적으로 다시 확인한다. 등록이 실패하면 방금 올린 R2 객체를 지워
  * 고아 오디오를 남기지 않는다.
@@ -1307,7 +1307,7 @@ export async function handleRequest(
       );
     }
     if (request.method === 'GET' && parts.length === 1 && parts[0] === 'me') {
-      // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 조직 자기 행만.
+      // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 기관 자기 행만.
       requestQuery(url, []);
       const me = await getMyIdentity(env, actor);
       // lastProgramType: `/` 직행 목적지 (D35 · ADR-0014 '개정' 2번). 미선택이면 null 이고
@@ -1338,7 +1338,7 @@ export async function handleRequest(
       return json(await getUpcomingSchedules(env, actor, date === null ? undefined : { date: canonicalDate(date, 'date') }));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'schedules' && parts[1] === 'candidates') {
-      // 상담 등록 폼의 참여자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
+      // 상담 등록 폼의 당사자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
       requestQuery(url, []);
       const candidates = await listScheduleCandidates(env, actor);
       return json({ candidates });
@@ -1396,7 +1396,7 @@ export async function handleRequest(
       && (parts[0] === 'participants' || parts[0] === 'beneficiaries')
       && parts[1] === 'search'
     ) {
-      // 검색 라우트는 일반 참여자 상세 라우트보다 먼저 처리한다 — 'search'는 가명 ID가 아니다.
+      // 검색 라우트는 일반 당사자 상세 라우트보다 먼저 처리한다 — 'search'는 가명 ID가 아니다.
       const searchQuery = requestQuery(url, ['q']).get('q');
       if (searchQuery === null) throw new ValidationError('search query is required');
       const results = await searchParticipants(env, actor, { query: searchQuery });
@@ -1407,8 +1407,8 @@ export async function handleRequest(
       && parts.length === 1
       && (parts[0] === 'participants' || parts[0] === 'beneficiaries')
     ) {
-      // 참여자 목록(사이드바 '참여자'의 도착지). 케이스 상태로 거르지 않는다 — 종결
-      // 케이스만 남은 참여자가 허브 입구에서 사라지지 않게 한다(게이트웨이 주석 참조).
+      // 당사자 목록(사이드바 '당사자'의 도착지). 케이스 상태로 거르지 않는다 — 종결
+      // 케이스만 남은 당사자가 허브 입구에서 사라지지 않게 한다(게이트웨이 주석 참조).
       requestQuery(url, []);
       const participants = await listAssignedParticipants(env, actor);
       return json({ results: participants.map(assignedParticipantResponse) });
@@ -1459,7 +1459,7 @@ export async function handleRequest(
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignees') {
-        // 케이스 담당자 목록 — 담당자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
+        // 케이스 담당 실무자 목록 — 담당 실무자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
         requestQuery(url, []);
         const assignees = await listSupportCaseAssignees(env, actor, supportCaseId);
         return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
@@ -1502,7 +1502,7 @@ export async function handleRequest(
           result.replayed ? 200 : 201,
         );
       }
-      // 인테이크 작성 컨텍스트(회차 자동값·참여자 표시·기존 인테이크 여부) — CCC-7.
+      // 인테이크 작성 컨텍스트(회차 자동값·당사자 표시·기존 인테이크 여부) — CCC-7.
       if (request.method === 'GET' && parts.length === 4 && parts[2] === 'records' && parts[3] === 'intake') {
         requestQuery(url, []);
         return json(intakeContextResponse(await getIntakeRecordContext(env, actor, supportCaseId)));
@@ -1563,7 +1563,7 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'sessions') {
         const input = parseRecordCreation(await requestBody(request));
         // `authorized` 를 반드시 함께 본다. D36 으로 이 목록에 **담당하지 않는 사업도**
-        // 들어오게 됐으므로(라벨·담당자만 보여주기 위해), 필터 없이 find 하면 비담당
+        // 들어오게 됐으므로(라벨·담당 실무자만 보여주기 위해), 필터 없이 find 하면 비담당
         // 케이스에 기록을 쓰게 된다 — 표시 범위를 넓힌 것이 쓰기 권한을 넓히면 안 된다.
         const legacyEntry = (await listSupportCasesForBeneficiary(
           env,
@@ -1653,7 +1653,7 @@ export async function handleRequest(
       return json(await getActiveAiProviderStatus(env, actor));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
-      // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 조직만.
+      // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 기관만.
       return json(await getPipelineHealth(env, actor));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'jobs') {
@@ -1686,7 +1686,7 @@ export async function handleRequest(
     }
 
     if (parts[0] === 'users') {
-      // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 조직만.
+      // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 기관만.
       if (request.method === 'GET' && parts.length === 1) {
         return json(await listUsers(env, actor));
       }
@@ -1709,7 +1709,7 @@ export async function handleRequest(
         return json(await deactivateUser(env, actor, parts[1]));
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignments' && parts[1] !== undefined) {
-        // 상담사별 활성 배정 참여자(실명 포함) — 관리자 영역 사용자/상담사 상세(재개편 T8, D25).
+        // 실무자별 활성 배정 당사자(실명 포함) — 관리자 영역 사용자/실무자 상세(재개편 T8, D25).
         // id 는 이메일 또는 UUID 라 경로 세그먼트를 디코드해 웹의 encodeURIComponent 인코딩도 수용한다.
         requestQuery(url, []);
         const assignments = await listCounselorAssignments(env, actor, decodeURIComponent(parts[1]));

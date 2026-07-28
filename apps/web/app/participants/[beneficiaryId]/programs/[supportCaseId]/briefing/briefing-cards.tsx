@@ -17,8 +17,8 @@ import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../..
 type ActionOwner = ParticipantBriefingSection['openActionItems'][number]['owner'];
 
 const actionOwnerLabels: Record<ActionOwner, string> = {
-  counselor: '상담사',
-  beneficiary: '참여자',
+  counselor: '실무자',
+  beneficiary: '당사자',
   org: '기관',
 };
 
@@ -132,7 +132,7 @@ function GasCard({ gasTrend }: { gasTrend: ParticipantBriefingSection['gasTrend'
       <div className="briefing-gas-grid">
         {gasTrend.map((goal, index) => <GasGauge key={goal.goalId} goal={goal} index={index} />)}
       </div>
-      <p className="briefing-meta"><MetaRow items={['GAS 척도 −2 ~ +2', '점수는 상담사가 직접 기록']} /></p>
+      <p className="briefing-meta"><MetaRow items={['GAS 척도 −2 ~ +2', '점수는 실무자가 직접 기록']} /></p>
     </>
   );
 }
@@ -184,7 +184,7 @@ export function BriefingCards({
       {/* HERO 카드 (D37 §4-5 · D22). **화면의 모든 글자는 카드 안에 있다** — HERO 도 카드다.
           좌측 이름 묶음(이름 + 상태 태그 + 메타 한 줄), 우측 행동 **최대 2개**(세컨더리 → 프라이머리).
           축은 사이드바 = 장소 / 우상단 = 행동(D35).
-          D37 이 D35 의 이동 버튼 배치를 고쳤다: `참여자 정보`는 여기 우상단 세컨더리로 올라오고
+          D37 이 D35 의 이동 버튼 배치를 고쳤다: `당사자 정보`는 여기 우상단 세컨더리로 올라오고
           `상담 기록`은 `자세한 상담 기록 보기`가 되어 이 페이지 맨 아래로 내려간다.
           '상담 준비'는 데이터가 아니라 **화면 상태 태그**다 — sourceSupportCase.status 는
           active/closed 뿐이라 이 문구의 출처가 아니다(D22). */}
@@ -205,7 +205,7 @@ export function BriefingCards({
           </p>
         </div>
         <div className="page-actions">
-          <WireButton href={participantHref} variant="secondary">참여자 정보</WireButton>
+          <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
           <WireButton href={recordNewHref} variant="primary">상담 시작</WireButton>
         </div>
       </header>
@@ -244,7 +244,7 @@ export function BriefingCards({
 
       {/* 아코디언 4종(CLAUDE.md 6장). **구 '기본정보' 카드는 없앴다** — 담고 있던 셋이 전부
           다른 자리로 갔기 때문이다: 시간·이름은 HERO 로 올라갔고, 연락처는 아래 개인정보 카드에
-          이미 있으며, '전체 참여사업' 링크는 HERO 우상단 `참여자 정보`가 잇는다(그 페이지가
+          이미 있으며, '전체 참여사업' 링크는 HERO 우상단 `당사자 정보`가 잇는다(그 페이지가
           전 참여 사업을 보여주는 허브다 — D35). 남겨 두면 같은 값이 한 화면에 두 번 나온다. */}
       <div className="briefing-cards-grid">
         {/* ① 지난 상담 브리핑 — 승인 AI 요약/수기 폴백 + 승인 대기 배지 (D5) */}
@@ -273,7 +273,7 @@ export function BriefingCards({
           <div className="briefing-qsection">
             <p className="briefing-qlabel">맞춤형 질문</p>
             {customQuestions.length === 0
-              ? <EmptyNote>상담사가 적은 맞춤형 질문이 없습니다.</EmptyNote>
+              ? <EmptyNote>실무자가 적은 맞춤형 질문이 없습니다.</EmptyNote>
               : <WireBullets items={customQuestions} />}
           </div>
           <div className="briefing-qsection">
@@ -302,7 +302,7 @@ export function BriefingCards({
                 <WireField label="연락처">{participant.phone ?? '미등록'}</WireField>
               </div>
             )
-            : <EmptyNote>권한 없음. 담당자·배정 책임자만 실명·연락처를 볼 수 있습니다.</EmptyNote>}
+            : <EmptyNote>권한 없음. 담당 실무자·기관 관리자만 실명·연락처를 볼 수 있습니다.</EmptyNote>}
         </Card>
         </div>
       </section>

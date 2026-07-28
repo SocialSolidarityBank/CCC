@@ -83,7 +83,7 @@ describe('createCounselingRecord — 정기 기록지 원페이지 (CCC-10)', ()
     expect(session?.record_details).toBeNull();
   });
 
-  it('담당자 의견·위기 서술·지난 이후 변화·이번 상담 목표를 record_details 에 저장한다', async () => {
+  it('담당 실무자 의견·위기 서술·지난 이후 변화·이번 상담 목표를 record_details 에 저장한다', async () => {
     await t.reset();
     const { supportCaseId } = await seedCaseWithGoals(['월세 체납 해소']);
 

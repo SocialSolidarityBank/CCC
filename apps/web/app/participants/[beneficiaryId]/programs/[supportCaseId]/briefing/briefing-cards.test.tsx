@@ -35,7 +35,7 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
 
 // 2026-07-27 시안(artifacts/layout-frame-v1/briefing.html) 기준으로 구성이 바뀌었다.
 // **구 '기본정보' 카드는 없다** — 시간·이름은 HERO 로, 연락처는 개인정보 카드로, 전체 참여사업
-// 링크는 HERO 우상단 '참여자 정보'로 갔다. 그리드에 남는 것은 아코디언 4종이다.
+// 링크는 HERO 우상단 '당사자 정보'로 갔다. 그리드에 남는 것은 아코디언 4종이다.
 const CARD_TITLES = ['지난 상담 브리핑', '오늘 확인할 질문', '미해결 액션', '개인정보'];
 
 // GAS 는 전폭 **아코디언** 하나다 — 2열 카드(폭 510) 안에서는 조밀 그리드 3열이 안 나오고
@@ -91,13 +91,13 @@ describe('BriefingCards — HERO + GAS 아코디언 + 자료 4종 (시안 layout
     expect(allDetails().every((details) => details.open)).toBe(true);
   });
 
-  it('HERO 우상단은 행동 2개(참여자 정보 → 상담 시작)이고, 상담 기록은 페이지 맨 아래로 내려갔다 (D37)', () => {
+  it('HERO 우상단은 행동 2개(당사자 정보 → 상담 시작)이고, 상담 기록은 페이지 맨 아래로 내려갔다 (D37)', () => {
     // D35 는 이동 버튼 2개를 이름 바로 아래 뒀는데 D37 이 그 배치만 고쳤다:
-    // '참여자 정보'는 HERO 우상단 세컨더리, '상담 기록'은 '자세한 상담 기록 보기'로 맨 아래.
+    // '당사자 정보'는 HERO 우상단 세컨더리, '상담 기록'은 '자세한 상담 기록 보기'로 맨 아래.
     const { container, queryByText } = render(<BriefingCards {...baseProps()} />);
     const actions = hero(container).querySelector('.page-actions');
     expect([...(actions?.querySelectorAll('a') ?? [])].map((a) => a.textContent))
-      .toEqual(['참여자 정보', '상담 시작']);
+      .toEqual(['당사자 정보', '상담 시작']);
     // 우상단은 최대 2개다(§4-5). 늘어나면 사이드바=장소 / 우상단=행동 축이 흐려진다.
     expect(actions?.children).toHaveLength(2);
 
@@ -145,7 +145,7 @@ describe('BriefingCards — HERO + GAS 아코디언 + 자료 4종 (시안 layout
 });
 
 describe('BriefingCards — 실명 직표시와 폴백 (D24 · ADR-0005)', () => {
-  it('담당자에게는 HERO·개인정보 카드에 실명과 연락처를 직표시한다', () => {
+  it('담당 실무자에게는 HERO·개인정보 카드에 실명과 연락처를 직표시한다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     // 구 '기본정보' 카드가 하던 이름 표시는 HERO 가 이어받았다.
     expect(within(hero(container)).getByText('홍길동')).toBeTruthy();

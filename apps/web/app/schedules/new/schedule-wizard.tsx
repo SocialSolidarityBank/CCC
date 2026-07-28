@@ -35,7 +35,7 @@ export interface ScheduleWizardCandidate {
   participantEmail: string | null;
 }
 
-// D31: 참여자 행 라벨 — 실명·연락처·이메일 순. 실명이 없으면 가명 슬러그로 폴백하고,
+// D31: 당사자 행 라벨 — 실명·연락처·이메일 순. 실명이 없으면 가명 슬러그로 폴백하고,
 // 비어 있는 필드는 생략한다(예: 연락처만 있으면 "제비-003" "010-0000-0000" 두 노드).
 function candidateLabel(candidate: ScheduleWizardCandidate) {
   const parts = [candidate.participantName ?? candidate.beneficiaryId, candidate.participantPhone, candidate.participantEmail]
@@ -65,7 +65,7 @@ const NOTICE_MESSAGES: Record<string, string> = {
   validation_error: '입력한 정보를 다시 확인하세요.',
   access_denied: '담당 중인 케이스에만 상담을 등록할 수 있습니다.',
   forbidden: '담당 중인 케이스에만 상담을 등록할 수 있습니다.',
-  not_found: '선택한 참여자를 찾을 수 없습니다.',
+  not_found: '선택한 당사자를 찾을 수 없습니다.',
   conflict: '이미 처리된 요청입니다. 다시 확인하세요.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
   service_unavailable: '지금 상담을 등록할 수 없습니다. 잠시 후 다시 시도하세요.',
@@ -141,7 +141,7 @@ function SessionKindPicker({
         <span style={captionStyle}>
           {defaultKind === 'intake'
             ? '아직 인테이크 기록이 없어 인테이크로 잡았습니다.'
-            : '인테이크가 끝난 참여자라 기본 상담으로 잡았습니다.'}
+            : '인테이크가 끝난 당사자라 기본 상담으로 잡았습니다.'}
         </span>
       </div>
       {open ? (
@@ -159,7 +159,7 @@ function SessionKindPicker({
           {showIntakeWarning && (
             <div className="note" role="alert">
               <p>
-                이 참여자는 인테이크를 이미 마쳤습니다. 그대로 진행하면 인테이크가 두 번이 됩니다.{' '}
+                이 당사자는 인테이크를 이미 마쳤습니다. 그대로 진행하면 인테이크가 두 번이 됩니다.{' '}
                 <Link href={recordHref}>기존 인테이크 기록 보기</Link>
               </p>
             </div>
@@ -181,9 +181,9 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   const [sessionGoals, setSessionGoals] = useState<SessionGoalDraft[]>([{ body: '', caseGoalId: '' }]);
   const [customQuestions, setCustomQuestions] = useState<string[]>(['']);
   // 상담 유형(#36): 'intake' 면 Step2 가 세션 목표 대신 케이스 목표(D12) 입력으로 갈린다.
-  // 기본값은 케이스 상태가 정한다(D35 §5) — 상담 카드에서 참여자를 미리 지정해 들어온
+  // 기본값은 케이스 상태가 정한다(D35 §5) — 상담 카드에서 당사자를 미리 지정해 들어온
   // 경로(preselectValue)도 같은 규칙을 타야 한다. 'regular' 로 고정하면 인테이크가 없는
-  // 참여자에게 기본 상담이 잡힌다.
+  // 당사자에게 기본 상담이 잡힌다.
   const [sessionKind, setSessionKind] = useState<'regular' | 'intake'>(
     preselected !== null && preselected.intakeAt === null ? 'intake' : 'regular',
   );
@@ -198,8 +198,8 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   ];
 
   /**
-   * 참여자를 고르면 상담 유형 기본값이 그 케이스의 인테이크 유무로 정해진다
-   * (D35 · ADR-0014 §5). 참여자를 바꾸면 기본값도 다시 잡는다 — 앞 참여자 기준으로
+   * 당사자를 고르면 상담 유형 기본값이 그 케이스의 인테이크 유무로 정해진다
+   * (D35 · ADR-0014 §5). 당사자를 바꾸면 기본값도 다시 잡는다 — 앞 당사자 기준으로
    * 고른 유형이 남으면 인테이크가 끝난 사람에게 인테이크가 잡히는 식으로 어긋난다.
    */
   function selectCandidate(candidate: ScheduleWizardCandidate) {
@@ -210,7 +210,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
 
   async function goToGoals() {
     if (selected === null || scheduledAt.trim().length === 0) {
-      setError('참여자와 상담 일시를 먼저 선택하세요.');
+      setError('당사자와 상담 일시를 먼저 선택하세요.');
       return;
     }
     // 인테이크는 케이스 목표를 새로 만드는 흐름이라 기존 목표·브리핑 참고 데이터가 필요 없다.
@@ -291,16 +291,16 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           {error !== null ? <p role="alert" style={errorStyle}>{error}</p> : null}
 
           {step === 1 ? (
-            /* 1단계 순서는 **참여자 → 상담 유형 → 일시**다 (D35 · ADR-0014 §5).
-               참여자가 정해지기 전에는 뒤 항목을 보이지 않는다 — 상담 유형 기본값이
-               그 케이스의 인테이크 유무로 갈리므로, 참여자를 모르면 물어볼 수 없다.
-               삭제한 것: **조직·참여 사업 선택**(사이드바 워크스페이스가 이미 정한 값을
+            /* 1단계 순서는 **당사자 → 상담 유형 → 일시**다 (D35 · ADR-0014 §5).
+               당사자가 정해지기 전에는 뒤 항목을 보이지 않는다 — 상담 유형 기본값이
+               그 케이스의 인테이크 유무로 갈리므로, 당사자를 모르면 물어볼 수 없다.
+               삭제한 것: **기관·참여 사업 선택**(사이드바 워크스페이스가 이미 정한 값을
                다시 묻는 중복). 숨긴 것: **상담 방법**(현재 '대면' 하나뿐 — D4. 선택지가
                늘면 되살린다). */
             <div style={stackStyle}>
-              <h2 style={headingStyle}>참여자를 선택하세요</h2>
+              <h2 style={headingStyle}>당사자를 선택하세요</h2>
               {candidates.length === 0 ? (
-                <p style={captionStyle}>담당 중인 활성 참여 사업이 없습니다. 참여자를 먼저 등록하세요.</p>
+                <p style={captionStyle}>담당 중인 활성 참여 사업이 없습니다. 당사자를 먼저 등록하세요.</p>
               ) : (
                 <div style={{ display: 'grid', gap: 12 }}>
                   {candidates.map((candidate) => (
@@ -343,7 +343,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               {selected === null || scheduledAt.trim().length === 0 ? (
                 <p style={captionStyle}>
                   {selected === null
-                    ? '참여자를 선택하세요.'
+                    ? '당사자를 선택하세요.'
                     : '상담 일시를 선택하면 다음으로 넘어갈 수 있습니다.'}
                 </p>
               ) : null}

@@ -4,7 +4,7 @@ import { GridContainer } from '../components/wire/grid-container';
 import { ApiError, getMyIdentity } from '../lib/api';
 
 // 관리자 영역 공통 레이아웃(재개편 T8, #38): 좌측 AdminSidebar + 우측 콘텐츠.
-// 접근 통제는 admin 역할만(D25 — 배정 책임자 역할은 현행 admin 이 수행). 비관리자는 콘텐츠를
+// 접근 통제는 admin 역할만(D25 — 기관 관리자 역할은 현행 admin 이 수행). 비관리자는 콘텐츠를
 // 렌더하지 않고 403 안내만 보여준다. 모든 API 는 게이트웨이에서 assertAdmin 을 다시 강제한다(R1).
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   let role: string | null = null;
@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <p className="empty" role="alert">
             {unavailable
               ? '관리자 정보를 확인할 수 없습니다. 다시 로그인한 뒤 시도하세요.'
-              : '이 영역은 시스템 관리자만 접근할 수 있습니다.'}
+              : '이 영역은 기관 관리자만 접근할 수 있습니다.'}
           </p>
         </GridContainer>
       </main>

@@ -1894,8 +1894,8 @@ describe('canonical participant API routes', () => {
       sourceSupportCase: null,
       participantName: null,
       participantPhone: null,
-      // D36: 참여자 허브가 담당 여부로 링크를 잠그기 위해 쓰는 필드. 담당 사업이라 true 이고,
-      // 담당자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
+      // D36: 당사자 허브가 담당 여부로 링크를 잠그기 위해 쓰는 필드. 담당 사업이라 true 이고,
+      // 담당 실무자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
       authorized: true,
       assigneeNames: [],
     }]);
@@ -1913,7 +1913,7 @@ describe('canonical participant API routes', () => {
     };
     expect(briefingBody.beneficiaryId).toBe(creation.beneficiaryId);
     expect(briefingBody.focusSupportCaseId).toBe(creation.supportCaseId);
-    // D24: PII 미기입 참여자는 실명·연락처 null.
+    // D24: PII 미기입 당사자는 실명·연락처 null.
     expect((briefingBody as { participant?: unknown }).participant).toEqual({ name: null, phone: null });
     expect(briefingBody.sections).toHaveLength(1);
     expect(briefingBody.sections[0]).toEqual({
@@ -1968,7 +1968,7 @@ describe('canonical participant API routes', () => {
         status: 'scheduled',
         sessionKind: 'regular',
         channel: 'in_person',
-        // D24: PII 미기입 참여자는 실명·연락처 null.
+        // D24: PII 미기입 당사자는 실명·연락처 null.
         participantName: null,
         participantPhone: null,
       }],
@@ -2611,7 +2611,7 @@ describe('canonical participant API routes', () => {
       { headers: canonicalCounselorHeaders },
     ), t.env);
     expect(visiblePrograms.status).toBe(200);
-    // D36(2026-07-26): 참여자 허브는 **조직 내 전 참여 사업**을 보여준다. 그래서 담당하지
+    // D36(2026-07-26): 당사자 허브는 **기관 내 전 참여 사업**을 보여준다. 그래서 담당하지
     // 않는 사업도 목록에 나오되 `authorized: false` 로 와서 상담 내용이 잠긴다 — 바로
     // 아래에서 그 사업의 브리핑이 여전히 403 인 것을 확인한다. 목록에 나오는 것과 열리는
     // 것은 다른 문제다.
@@ -2625,8 +2625,8 @@ describe('canonical participant API routes', () => {
       ]),
     );
     expect(visibleBody).toHaveLength(2);
-    // 담당자 표시 이름은 이메일로 폴백하지 않는다 — 담당 밖 사업까지 내려가는 목록이라
-    // 이메일 폴백은 admin 전용 디렉터리로 막아 둔 직원 이메일을 상담사에게 새게 한다.
+    // 담당 실무자 표시 이름은 이메일로 폴백하지 않는다 — 담당 밖 사업까지 내려가는 목록이라
+    // 이메일 폴백은 admin 전용 디렉터리로 막아 둔 직원 이메일을 실무자에게 새게 한다.
     expect(JSON.stringify(visibleBody)).not.toContain('@example.invalid');
 
     const hiddenBriefing = await worker.fetch(new Request(
@@ -2764,7 +2764,7 @@ describe('canonical participant API routes', () => {
     expect(vault?.encPhone).not.toBe(pii.phone);
     expect(vault?.encAccount).not.toBe(pii.account);
 
-    // 담당자: 브리핑 응답에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다 (D24).
+    // 담당 실무자: 브리핑 응답에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다 (D24).
     const briefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalCounselorHeaders },
@@ -2807,7 +2807,7 @@ describe('canonical participant API routes', () => {
     expect(adminBriefing.status).toBe(200);
     expect((await adminBriefing.json() as { participant: { name: string | null } }).participant.name).toBe(pii.name);
 
-    // 비담당 상담사는 브리핑(실명 포함) 접근이 막힌다 — 실명이 전혀 새지 않는다.
+    // 비담당 실무자는 브리핑(실명 포함) 접근이 막힌다 — 실명이 전혀 새지 않는다.
     const denied = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalUnassignedHeaders },
@@ -2840,7 +2840,7 @@ describe('canonical participant API routes', () => {
       scheduledAt: '2026-07-15T10:00:00.000Z',
     });
 
-    // 담당자: 카드에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다.
+    // 담당 실무자: 카드에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다.
     const counselorToday = await worker.fetch(new Request(
       'http://localhost/schedules/today?date=2026-07-15',
       { headers: canonicalCounselorHeaders },
@@ -2868,7 +2868,7 @@ describe('canonical participant API routes', () => {
     });
     expectContentFree({ piiReadAudit }, Object.values(pii));
 
-    // admin 도 조직 전체 카드에서 실명을 본다.
+    // admin 도 기관 전체 카드에서 실명을 본다.
     const adminToday = await worker.fetch(new Request(
       'http://localhost/schedules/today?date=2026-07-15',
       { headers: canonicalAdminHeaders },

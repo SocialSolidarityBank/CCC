@@ -56,7 +56,7 @@ export function RiskBanner({ flags }: { flags: RiskBannerFlag[] }) {
           <li key={flag.id}>
             <MetaRow items={[
               flagLabels[flag.flagType],
-              <span key="source" className="panel-meta">{flag.source === 'ai' ? '승인된 AI 제안' : '상담사 기록'}</span>,
+              <span key="source" className="panel-meta">{flag.source === 'ai' ? '승인된 AI 제안' : '실무자 기록'}</span>,
             ]} />
           </li>
         ))}

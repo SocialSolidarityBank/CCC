@@ -32,7 +32,7 @@ function getCandidates(actor: { userId: string; orgId: string; role: string }): 
 }
 
 // 콜드스타트 회귀 방지(티켓 #19): 후보 기준이 '일정 보유'가 아니라 '담당 활성 참여사업'이어야
-// 방금 등록해 아직 일정이 없는 참여자도 첫 상담을 등록할 수 있다.
+// 방금 등록해 아직 일정이 없는 당사자도 첫 상담을 등록할 수 있다.
 describe('GET /schedules/candidates (콜드스타트 해소)', () => {
   it('includes a just-registered participant that has no schedule yet', async () => {
     await t.reset();
@@ -44,7 +44,7 @@ describe('GET /schedules/candidates (콜드스타트 해소)', () => {
     const response = await getCandidates(testActors.counselor);
     expect(response.status).toBe(200);
     const body = await response.json() as CandidatesBody;
-    // PII 미기입 참여자라 실명·연락처·이메일은 전부 null 로 실린다(D31·D24).
+    // PII 미기입 당사자라 실명·연락처·이메일은 전부 null 로 실린다(D31·D24).
     expect(body.candidates).toContainEqual({
       beneficiaryId: created.beneficiaryId,
       supportCaseId: created.supportCaseId,

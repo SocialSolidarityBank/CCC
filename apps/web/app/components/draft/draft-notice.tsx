@@ -30,7 +30,7 @@ function clockLabel(savedAt: number): string {
 }
 
 /**
- * 작성하던 임시본이 있을 때만 뜬다. 상담사가 고르기 전에는 아무것도 덮어쓰지 않는다.
+ * 작성하던 임시본이 있을 때만 뜬다. 실무자가 고르기 전에는 아무것도 덮어쓰지 않는다.
  *
  * uncertain — 제출까지 갔는데 저장 여부를 화면이 확인하지 못한 임시본이다. 대개는 저장에
  * 성공한 뒤라 '새로 시작'이 맞지만, 서버 장애로 저장이 안 됐을 수도 있어 지우지 않고 묻는다.
@@ -69,7 +69,7 @@ export function DraftRestorePrompt({
 
 /**
  * 자동 저장 상태는 상시 표시한다 — 별도 임시 저장 버튼이 없으므로, 이 표시가 없으면
- * 상담사는 저장되고 있는지 알 방법이 없다.
+ * 실무자는 저장되고 있는지 알 방법이 없다.
  */
 export function DraftStatus({ savedAt, available }: { savedAt: number | null; available: boolean }) {
   const text = !available

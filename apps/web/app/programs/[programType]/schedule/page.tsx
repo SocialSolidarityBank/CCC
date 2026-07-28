@@ -9,7 +9,7 @@ import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 
 // 재개편 T3(#33): 선택된 참여 사업의 상담 카드 목록. 데이터는 오늘 + 향후 7일 일정
 // (getUpcomingSchedules)을 사업 유형으로 거른 것. 실명·연락처는 T2(D24) 응답 필드
-// participantName·participantPhone을 그대로 쓴다(담당자·배정 책임자·admin에게만 값,
+// participantName·participantPhone을 그대로 쓴다(담당 실무자·기관 관리자·admin에게만 값,
 // 그 외 null → 가명 ID / '—' 폴백). 감사는 게이트웨이가 자동 처리한다.
 
 const weekdayNames = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -101,7 +101,7 @@ export default async function ProgramSchedulePage({
         <div className="page-header">
           <PageTitle>상담 일정</PageTitle>
           <div className="page-actions">
-            <WireButton href="/participants/new">참여자 등록</WireButton>
+            <WireButton href="/participants/new">당사자 등록</WireButton>
             <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>
           </div>
         </div>

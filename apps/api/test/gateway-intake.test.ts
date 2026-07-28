@@ -295,7 +295,7 @@ describe('intake extended PII (migration 0015)', () => {
     expect(detail.fields).toEqual(['name', 'phone', 'birthDate', 'region', 'emergencyContact', 'gender']);
     expect(latest?.detail).not.toContain('1984-03-11');
     expect(latest?.detail).not.toContain('010-2222-3333');
-    // 이 참여자에 대해 decrypt_pii 행이 아예 생기지 않는다 — 생기면 열람 횟수를 셀 수 없다.
+    // 이 당사자에 대해 decrypt_pii 행이 아예 생기지 않는다 — 생기면 열람 횟수를 셀 수 없다.
     const split = await t.db.prepare(
       `SELECT COUNT(*) AS n FROM audit_log
        WHERE action = 'decrypt_pii' AND target_table = 'participant_pii_vault' AND beneficiary_id = ?`,
@@ -387,7 +387,7 @@ describe('intake P3/P4 answers, additional items, and next meeting', () => {
         { key: 'participation_transport', response: 'not_applicable' },
         { key: 'life_detail_economy', response: 'answered', text: '카드 대금 연체 2개월' },
       ],
-      additionalItems: [{ item: '임대차 계약서 사본', owner: '참여자', dueDate: '2026-08-01' }],
+      additionalItems: [{ item: '임대차 계약서 사본', owner: '당사자', dueDate: '2026-08-01' }],
       nextMeeting: { heldAt: '2026-08-05T01:00:00.000Z', channel: 'in_person' },
     }));
 
@@ -398,7 +398,7 @@ describe('intake P3/P4 answers, additional items, and next meeting', () => {
     expect(details.answers).toContainEqual({ key: 'crisis_immediate_risk', response: 'declined' });
     expect(details.answers).toContainEqual({ key: 'more_since', response: 'answered', text: '작년 겨울부터' });
     expect(details.additionalItems).toEqual([
-      { item: '임대차 계약서 사본', owner: '참여자', dueDate: '2026-08-01' },
+      { item: '임대차 계약서 사본', owner: '당사자', dueDate: '2026-08-01' },
     ]);
     expect(details.nextMeeting).toEqual({ heldAt: '2026-08-05T01:00:00.000Z', channel: 'in_person' });
   });

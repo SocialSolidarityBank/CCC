@@ -37,7 +37,7 @@ function renderWizard(extendedPii = VAULT_PII) {
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={extendedPii}
       sessionSequence={1}
-      recorderLabel="상담사"
+      recorderLabel="실무자"
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"
       submit={submit}
     />,
@@ -85,7 +85,7 @@ describe('인테이크 임시본', () => {
     for (const value of Object.values(VAULT_PII)) {
       expect(raw).not.toContain(value);
     }
-    // 상담사가 이 화면에서 직접 쓴 내용은 담긴다(그것이 이 기능의 목적이다).
+    // 실무자가 이 화면에서 직접 쓴 내용은 담긴다(그것이 이 기능의 목적이다).
     expect(raw).toContain('생계비 상담');
   });
 

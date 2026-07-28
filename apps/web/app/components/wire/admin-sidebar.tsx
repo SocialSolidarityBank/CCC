@@ -30,7 +30,7 @@ export function AdminSidebar({ activePath, className }: AdminSidebarProps) {
     <nav aria-label="관리자 메뉴" className={classes}>
       {adminMenu.map((item) => {
         // '/admin' 은 모든 관리자 경로의 접두어라 하위 경로까지 먹으면 두 탭이 동시에
-        // 활성이 된다. 조직(=/admin)만 정확 일치로 보고 나머지는 하위 경로까지 본다.
+        // 활성이 된다. 기관(=/admin)만 정확 일치로 보고 나머지는 하위 경로까지 본다.
         const active = item.href === '/admin'
           ? current === '/admin'
           : current === item.href || current.startsWith(`${item.href}/`);

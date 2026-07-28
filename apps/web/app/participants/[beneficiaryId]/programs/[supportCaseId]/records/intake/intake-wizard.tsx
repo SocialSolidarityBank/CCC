@@ -61,8 +61,8 @@ const LIFE_STATUS_LABELS: ReadonlyArray<readonly [LifeAreaStatus, string]> = [
 ];
 
 const OWNERS = [
-  ['counselor', '상담사'],
-  ['beneficiary', '참여자'],
+  ['counselor', '실무자'],
+  ['beneficiary', '당사자'],
   ['org', '기관'],
 ] as const;
 
@@ -80,7 +80,7 @@ const NOTICE_MESSAGES: Record<string, string> = {
   validation_error: '필수 항목을 다시 확인하세요.',
   access_denied: '담당 중인 참여 사업에만 인테이크를 남길 수 있습니다.',
   forbidden: '담당 중인 참여 사업에만 인테이크를 남길 수 있습니다.',
-  not_found: '참여자 또는 참여 사업을 찾을 수 없습니다.',
+  not_found: '당사자 또는 참여 사업을 찾을 수 없습니다.',
   conflict: '이 참여 사업에는 이미 인테이크 기록이 있습니다.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
   service_unavailable: '지금 저장할 수 없습니다. 잠시 후 다시 시도하세요.',
@@ -98,7 +98,7 @@ type LifeAreaState = Record<LifeAreaKey, { status: LifeAreaStatus | ''; note: st
 type AnswerState = Record<IntakeAnswerKey, AnswerDraft>;
 
 /**
- * 로컬 임시본에 담는 값(CCC-12). 상담사가 이 화면에서 입력한 것만 담는다.
+ * 로컬 임시본에 담는 값(CCC-12). 실무자가 이 화면에서 입력한 것만 담는다.
  *
  * `red` 금고에서 내려온 추가 개인정보 4종(birthDate·region·emergencyContact·gender)은
  * 여기에 없다 — props.extendedPii 로 미리 채워지는 값이라 임시본에 담으면 pii_vault 값을
@@ -286,7 +286,7 @@ const PARTICIPATION_KEYS: readonly IntakeAnswerKey[] = [
 const MORE_KEYS: readonly IntakeAnswerKey[] = ['more_since', 'more_trigger', 'more_focus'];
 const REFERRAL_KEYS: readonly IntakeAnswerKey[] = ['referral_path', 'referral_org', 'referral_reason'];
 
-const STEP_TITLES = ['시작', '동의', '원하는 도움', '생활 상황', '정리', '담당자 의견'] as const;
+const STEP_TITLES = ['시작', '동의', '원하는 도움', '생활 상황', '정리', '담당 실무자 의견'] as const;
 
 const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
 const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--ink)' };
@@ -414,7 +414,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ① 시작 P2 자동 입력: 상담 일시는 화면을 연 시각으로 채운다(상담사가 바꿀 수 있음).
+  // ① 시작 P2 자동 입력: 상담 일시는 화면을 연 시각으로 채운다(실무자가 바꿀 수 있음).
   // 서버·클라이언트 시각이 달라 생기는 하이드레이션 불일치를 피하려고 마운트 후에 채운다.
   useEffect(() => {
     setHeldAt((current) => (current === '' ? localDateTimeValue(new Date()) : current));
@@ -453,7 +453,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
   }, [storageKey]);
 
   useEffect(() => {
-    // 배너가 떠 있는 동안에는 저장하지 않는다 — 상담사가 고르기 전에 임시본을 덮어쓰면 안 된다.
+    // 배너가 떠 있는 동안에는 저장하지 않는다 — 실무자가 고르기 전에 임시본을 덮어쓰면 안 된다.
     if (restorable !== null) return;
     if (!hasContent(draftValues)) return;
     if (saveTimer.current !== null) clearTimeout(saveTimer.current);
@@ -663,7 +663,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
         <section className="wire-col-8" style={stackStyle}>
           <p style={captionStyle}>
-            <MetaRow items={[`${step} / 6 단계`, <>참여자 {participantMeta}</>]} />
+            <MetaRow items={[`${step} / 6 단계`, <>당사자 {participantMeta}</>]} />
           </p>
           {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
           <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />
@@ -675,8 +675,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
           {step === 1 ? (
             <div style={stackStyle}>
               <h2 style={headingStyle}>① 시작</h2>
-              <p style={captionStyle}><MetaRow items={[`회차 ${props.sessionSequence}회`, `기록자 ${props.recorderLabel}`]} /> 상담 일시는 화면을 연 시각으로 채웠습니다. 참여자 정보는 등록 데이터입니다(재입력 없음).</p>
-              <div style={fieldStyle}><span style={labelStyle}>참여자</span><p style={{ ...captionStyle, fontSize: 15 }}>{participantMeta}</p></div>
+              <p style={captionStyle}><MetaRow items={[`회차 ${props.sessionSequence}회`, `기록자 ${props.recorderLabel}`]} /> 상담 일시는 화면을 연 시각으로 채웠습니다. 당사자 정보는 등록 데이터입니다(재입력 없음).</p>
+              <div style={fieldStyle}><span style={labelStyle}>당사자</span><p style={{ ...captionStyle, fontSize: 15 }}>{participantMeta}</p></div>
               <label style={fieldStyle}>
                 <span style={labelStyle}>상담 일시</span>
                 <input type="datetime-local" aria-label="상담 일시" value={heldAt} onChange={(event) => setHeldAt(event.target.value)} style={inputStyle} />
@@ -724,7 +724,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               <div style={panelStyle}>
                 <h3 style={subHeadingStyle}>수집·이용 안내</h3>
                 <p style={captionStyle}>
-                  [안내문 자리표시] 상담 기록은 참여자 지원을 위해 수집·이용하며, 실명·연락처 등 개인정보는 암호화해 보관합니다.
+                  [안내문 자리표시] 상담 기록은 당사자 지원을 위해 수집·이용하며, 실명·연락처 등 개인정보는 암호화해 보관합니다.
                   비밀보장이 원칙이나 법에서 정한 예외(생명·안전에 관한 긴급 상황 등)가 있습니다. 보관 기간이 지나면 열람이 제한됩니다.
                   최종 문안은 법률 검토 후 확정합니다(D15).
                 </p>
@@ -769,7 +769,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               {/*
                 P1 3문은 게이트웨이가 본문(비어 있지 않은 문자열)을 요구하므로 답변거부·모름·
                 해당없음을 선택지 버튼으로 두지 않는다. 버튼이 라벨 문자열을 본문에 적어 넣으면
-                참여자가 실제로 그렇게 말한 경우와 저장에서 구분되지 않고, 브리핑·AI 정리의
+                당사자가 실제로 그렇게 말한 경우와 저장에서 구분되지 않고, 브리핑·AI 정리의
                 입력 원문이 UI 라벨로 오염된다. 이 3문의 거부 표현은 스키마 결정이 필요한
                 미결이다(설계 v0.3 §5).
               */}
@@ -795,7 +795,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
           {step === 4 ? (
             <div style={stackStyle}>
               <h2 style={headingStyle}>④ 생활 상황</h2>
-              <p style={captionStyle}>6영역 각각의 지금 상태를 고르고 한 줄로 적습니다. 이 상태는 상담사가 직접 기입하며 감정 점수가 아닙니다. 긴장·위기를 고르면 심화 질문이 자동으로 열립니다(금전지원형은 경제·생계 기본 펼침).</p>
+              <p style={captionStyle}>6영역 각각의 지금 상태를 고르고 한 줄로 적습니다. 이 상태는 실무자가 직접 기입하며 감정 점수가 아닙니다. 긴장·위기를 고르면 심화 질문이 자동으로 열립니다(금전지원형은 경제·생계 기본 펼침).</p>
               {LIFE_AREA_ORDER.map((key) => {
                 const status = lifeAreas[key].status;
                 const detailKey = LIFE_DETAIL_KEYS[key];
@@ -828,7 +828,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
           {step === 5 ? (
             <div style={stackStyle}>
               <h2 style={headingStyle}>⑤ 정리</h2>
-              <p style={captionStyle}>목표는 측정 가능한 문장으로 최대 3개. GAS 기준(-2~+2)은 상담사가 직접 적습니다. 목표 문구는 나중에 수정할 수 없고 종료+신설만 가능합니다(D12).</p>
+              <p style={captionStyle}>목표는 측정 가능한 문장으로 최대 3개. GAS 기준(-2~+2)은 실무자가 직접 적습니다. 목표 문구는 나중에 수정할 수 없고 종료+신설만 가능합니다(D12).</p>
               {goals.map((goal, index) => (
                 <div key={index} style={fieldStyle}>
                   <label style={fieldStyle}><span style={labelStyle}>목표 {index + 1}</span>
@@ -869,7 +869,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   {CRISIS_KEYS.map((key) => (
                     <AnswerField key={key} label={ANSWER_LABELS[key]} value={answers[key]} onChange={(next) => setAnswer(key, next)} />
                   ))}
-                  <p style={captionStyle}>여기 적힌 위험 내용은 상담사가 검토해 리스크 플래그로 확정합니다(D9). 이 화면은 플래그를 자동으로 만들지 않습니다.</p>
+                  <p style={captionStyle}>여기 적힌 위험 내용은 실무자가 검토해 리스크 플래그로 확정합니다(D9). 이 화면은 플래그를 자동으로 만들지 않습니다.</p>
                 </Collapse>
               </div>
 
@@ -929,10 +929,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
           {step === 6 ? (
             <div style={stackStyle}>
-              <h2 style={headingStyle}>⑥ 담당자 의견</h2>
-              <p style={captionStyle}>상담사의 종합 판단을 참여자 발언과 구분해 남깁니다(선택).</p>
-              <label style={fieldStyle}><span style={labelStyle}>담당자 의견</span>
-                <textarea aria-label="담당자 의견" value={managerOpinion} onChange={(event) => setManagerOpinion(event.target.value)} style={textareaStyle} /></label>
+              <h2 style={headingStyle}>⑥ 담당 실무자 의견</h2>
+              <p style={captionStyle}>실무자의 종합 판단을 당사자 발언과 구분해 남깁니다(선택).</p>
+              <label style={fieldStyle}><span style={labelStyle}>담당 실무자 의견</span>
+                <textarea aria-label="담당 실무자 의견" value={managerOpinion} onChange={(event) => setManagerOpinion(event.target.value)} style={textareaStyle} /></label>
             </div>
           ) : null}
 

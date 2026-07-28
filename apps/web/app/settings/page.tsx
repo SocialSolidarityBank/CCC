@@ -3,10 +3,10 @@ import { ApiError, getMyIdentity, listOrgUsers, type DirectoryRole, type Directo
 import { PageTitle } from '../components/wire/page-title';
 import { adminMenu, userLabel } from '../admin/admin-format';
 
-// 역할 화면 라벨 — CONTEXT.md 용어집 준수(시스템 관리자·담당자). service는 처리 장비(Mac Mini) 계정.
+// 역할 화면 라벨 — CONTEXT.md 용어집 준수(기관 관리자·담당 실무자). service는 처리 장비(Mac Mini) 계정.
 const roleLabel: Record<DirectoryRole, string> = {
-  admin: '시스템 관리자',
-  counselor: '담당자',
+  admin: '기관 관리자',
+  counselor: '담당 실무자',
   service: '서비스 계정',
 };
 
@@ -53,22 +53,22 @@ function AccountSection({ name, email, role }: { name: string | null; email: str
 async function DirectorySection() {
   let directory: DirectoryUser[];
   try {
-    // 상담사 목록이므로 처리 장비 서비스 계정은 제외한다(내부 시스템 신원 — 화면 소음).
+    // 실무자 목록이므로 처리 장비 서비스 계정은 제외한다(내부 시스템 신원 — 화면 소음).
     directory = (await listOrgUsers()).filter((user) => user.role !== 'service');
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     // 목록 조회가 실패해도 '내 계정' 섹션은 그대로 두고, 목록 자리에만 오류를 표시한다.
     return (
       <section className="settings-section" aria-labelledby="settings-directory-heading">
-        <h2 id="settings-directory-heading">조직 상담사 목록</h2>
-        <p className="empty" role="alert">상담사 목록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</p>
+        <h2 id="settings-directory-heading">기관 실무자 목록</h2>
+        <p className="empty" role="alert">실무자 목록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</p>
       </section>
     );
   }
 
   return (
     <section className="settings-section" aria-labelledby="settings-directory-heading">
-      <h2 id="settings-directory-heading">조직 상담사 목록</h2>
+      <h2 id="settings-directory-heading">기관 실무자 목록</h2>
       {directory.length === 0 ? (
         <p className="empty" aria-live="polite">등록된 계정이 없습니다.</p>
       ) : (
@@ -124,7 +124,7 @@ export default async function SettingsPage() {
     <main className="page-content narrow settings-page">
       <PageTitle>설정</PageTitle>
       <AccountSection name={me.name} email={me.email} role={me.role} />
-      {/* 조직 상담사 목록은 시스템 관리자 역할에게만 노출한다(비관리자는 내 계정만). */}
+      {/* 기관 실무자 목록은 기관 관리자 역할에게만 노출한다(비관리자는 내 계정만). */}
       {me.role === 'admin' ? <DirectorySection /> : null}
       {me.role === 'admin' ? <AdminSection /> : null}
     </main>

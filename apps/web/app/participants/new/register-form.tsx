@@ -11,7 +11,7 @@ const PROGRAM_OPTIONS = [{ value: 'financial_support_v1', label: PROGRAM_LABELS.
 
 export interface RegisterFormProps {
   /**
-   * 로그인한 현재 사용자 — 등록자가 곧 담당자다(등록자=담당자, D7). 담당자 지정 select 대신
+   * 로그인한 현재 사용자 — 등록자가 곧 담당 실무자다(등록자=담당 실무자, D7). 담당 실무자 지정 select 대신
    * 이 값을 읽기 전용으로 보여준다. 표시는 이름 우선, 미입력이면 이메일로 폴백한다.
    */
   currentUser: { name: string | null; email: string };
@@ -23,7 +23,7 @@ export interface RegisterFormProps {
 }
 
 /**
- * 참여자 등록 폼(재개편 T7 · #37 · Figma 1:95). 2×2 그리드(이름·이메일·연락처·참여 사업) +
+ * 당사자 등록 폼(재개편 T7 · #37 · Figma 1:95). 2×2 그리드(이름·이메일·연락처·참여 사업) +
  * 항목별 동의 2종(D23 — 와이어프레임엔 없지만 확정 사항) + 풀폭 "가입하기".
  *
  * 이번 티켓이 저장하는 PII 는 이메일뿐이다(등록 경로가 enc_email 만 연다, #32). 이름·연락처는
@@ -34,7 +34,7 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
     <form className="wire-register-form" action={action}>
       <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
         <div className="wire-col-6">
-          <SearchInput label="이름" name="name" placeholder="참여자 이름" />
+          <SearchInput label="이름" name="name" placeholder="당사자 이름" />
         </div>
         <div className="wire-col-6">
           <SearchInput label="이메일" name="email" placeholder="participant@example.com" />
@@ -53,12 +53,12 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
         </div>
       </div>
 
-      {/* 등록자=담당자(D7): 담당자 지정 select 를 없애고 현재 사용자를 읽기 전용으로 보여준다.
+      {/* 등록자=담당 실무자(D7): 담당 실무자 지정 select 를 없애고 현재 사용자를 읽기 전용으로 보여준다.
           admin 은 서버 액션이 본인을 배정하고, counselor 는 게이트웨이가 자동 본인 배정한다. */}
       <div className="wire-invite-section">
-        <span className="wire-search-label">담당자 {currentUser.name ?? currentUser.email}</span>
+        <span className="wire-search-label">담당 실무자 {currentUser.name ?? currentUser.email}</span>
         <p className="schedule-form-hint">
-          등록한 상담사가 담당자로 자동 배정됩니다. 담당자 변경은 관리자에게 요청하거나 관리자가 배정 화면에서 처리합니다.
+          등록한 실무자가 담당 실무자로 자동 배정됩니다. 담당 실무자 변경은 관리자에게 요청하거나 관리자가 배정 화면에서 처리합니다.
         </p>
       </div>
 

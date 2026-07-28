@@ -14,7 +14,7 @@
  * 흐름:
  *   POST /preview/unlock { code } → PREVIEW_ACCESS_CODE 와 상수시간 비교 →
  *   서명 토큰(HMAC-SHA256, exp 7일) 발급(HttpOnly·Secure·SameSite=Strict 쿠키 + 응답 본문).
- *   이후 요청은 쿠키의 토큰을 검증하고, 통과 시 고정 데모 상담사(PREVIEW_ACTOR_EMAIL)
+ *   이후 요청은 쿠키의 토큰을 검증하고, 통과 시 고정 데모 실무자(PREVIEW_ACTOR_EMAIL)
  *   신원으로 동작한다 — 신원 자체는 users 디렉터리 조회로 정하므로 권한 모델은 그대로다.
  *
  * PREVIEW_ACCESS_CODE 값은 로그·에러·응답에 절대 싣지 않는다(이름만 커밋).
@@ -198,10 +198,10 @@ export async function handlePreviewUnlock(request: Request, env: ApiEnv, now: nu
 
 /**
  * 미리보기 신원 리졸버. previewModeEnabled 가 아니면 undefined(운영·로컬 경로 불변).
- * 활성이면 쿠키의 서명 토큰을 검증하고, 통과 시 고정 데모 상담사(PREVIEW_ACTOR_EMAIL)를
+ * 활성이면 쿠키의 서명 토큰을 검증하고, 통과 시 고정 데모 실무자(PREVIEW_ACTOR_EMAIL)를
  * users 디렉터리에서 조회해 신원을 정한다.
  *   401(ActorAuthenticationError): 쿠키 없음 / 토큰 서명·만료 실패 / 코드 미설정.
- *   403(ForbiddenError): 토큰은 유효하나 데모 상담사가 디렉터리에 없거나 비활성.
+ *   403(ForbiddenError): 토큰은 유효하나 데모 실무자가 디렉터리에 없거나 비활성.
  */
 export function previewActorResolver(env: ApiEnv): ActorResolver | undefined {
   if (!previewModeEnabled(env)) return undefined;

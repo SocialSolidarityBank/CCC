@@ -122,7 +122,7 @@ describe('상담 일정의 세션 목표·맞춤형 질문 (#35)', () => {
   it('타 케이스의 목표를 연결하면 400 으로 거부하고 일정을 저장하지 않는다', async () => {
     await t.reset();
     const seeded = await seedOwnedCaseWithGoal();
-    // 같은 상담사가 소유한 다른 케이스의 목표
+    // 같은 실무자가 소유한 다른 케이스의 목표
     const otherCase = await seedOwnedCaseWithGoal();
 
     const response = await postSchedule(testActors.counselor, {
@@ -154,7 +154,7 @@ describe('상담 일정의 세션 목표·맞춤형 질문 (#35)', () => {
     expect(await countSchedules(seeded.supportCaseId)).toBe(0);
   });
 
-  it('담당이 아닌 상담사는 plan 을 조회할 수 없다(403)', async () => {
+  it('담당이 아닌 실무자는 plan 을 조회할 수 없다(403)', async () => {
     await t.reset();
     const seeded = await seedOwnedCaseWithGoal();
     const created = await postSchedule(testActors.counselor, {

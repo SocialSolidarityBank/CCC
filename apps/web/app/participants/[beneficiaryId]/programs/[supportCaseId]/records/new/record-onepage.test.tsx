@@ -88,7 +88,7 @@ describe('RecordOnepage', () => {
     expect(safety.textContent).toContain('확인 필요');
   });
 
-  it("'위기'를 되돌리면 강조를 거두되 상담사가 연 상태는 유지한다", () => {
+  it("'위기'를 되돌리면 강조를 거두되 실무자가 연 상태는 유지한다", () => {
     const { container, getByTestId } = render(<RecordOnepage {...props()} />);
     const economy = container.querySelector('select[name="lifeAreaStatus_economy"]');
     fireEvent.change(economy as HTMLSelectElement, { target: { value: 'crisis' } });

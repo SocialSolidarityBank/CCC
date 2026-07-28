@@ -6,7 +6,7 @@ const noop = (): void => {};
 
 const currentUser = { name: '홍길동', email: 'me@example.test' };
 
-describe('RegisterForm (#37 참여자 등록 폼)', () => {
+describe('RegisterForm (#37 당사자 등록 폼)', () => {
   it('renders the 2×2 wireframe fields (name·email·phone·program)', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     expect(container.querySelector('input[name="name"]')).not.toBeNull();
@@ -51,13 +51,13 @@ describe('RegisterForm (#37 참여자 등록 폼)', () => {
     expect(detail.textContent).toContain('법률 검토 전 참고용 초안');
   });
 
-  it('shows the registrant as the read-only 담당자 (이름 우선) and drops the assignee select (등록자=담당자)', () => {
+  it('shows the registrant as the read-only 담당 실무자 (이름 우선) and drops the assignee select (등록자=담당 실무자)', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    // 담당자 지정 select 는 사라진다 — 등록자가 곧 담당자다.
+    // 담당 실무자 지정 select 는 사라진다 — 등록자가 곧 담당 실무자다.
     expect(container.querySelector('select[name="initialAssigneeUserId"]')).toBeNull();
     // 현재 사용자(이름 우선)를 읽기 전용으로 표시하고 자동 배정을 안내한다.
     expect(container.textContent).toContain('홍길동');
-    expect(container.textContent).toContain('등록한 상담사가 담당자로 자동 배정됩니다');
+    expect(container.textContent).toContain('등록한 실무자가 담당 실무자로 자동 배정됩니다');
   });
 
   it('falls back to the email when the registrant has no display name', () => {

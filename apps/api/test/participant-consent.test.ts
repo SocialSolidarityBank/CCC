@@ -30,7 +30,7 @@ async function consentRow(beneficiaryId: string) {
   ).bind(beneficiaryId).first<Record<string, unknown>>();
 }
 
-describe('참여자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
+describe('당사자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
   it('records both consents and mirrors the pipeline gate on support_cases', async () => {
     await t.reset();
     const creation = await register(counselor, { recording: true, textAi: true });
@@ -51,7 +51,7 @@ describe('참여자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
     expect(supportCase?.consent_recording_at).toBe(row?.consent_recording_at);
     expect(supportCase?.consent_text_ai_at).toBe(row?.consent_text_ai_at);
 
-    // 감사: record_consent 가 참여자·참여사업 출처와 함께 남는다.
+    // 감사: record_consent 가 당사자·참여사업 출처와 함께 남는다.
     const audit = await t.db.prepare(
       "SELECT * FROM audit_log WHERE action = 'record_consent' AND beneficiary_id = ?",
     ).bind(creation.beneficiaryId).first<Record<string, unknown>>();
@@ -88,7 +88,7 @@ describe('참여자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
   it('keeps the participant completion guard intact (exactly 3 provenance audits)', async () => {
     await t.reset();
     // 동의 기록(+record_consent 감사)이 배치에 추가돼도 beneficiaries_complete_guard 를
-    // 깨지 않는지 — 완료 전환 시점의 참여자 감사 3건 불변식이 유지되는지 확인한다.
+    // 깨지 않는지 — 완료 전환 시점의 당사자 감사 3건 불변식이 유지되는지 확인한다.
     const creation = await register(counselor, { recording: true, textAi: true });
     const beneficiary = await t.db.prepare(
       'SELECT initialization_state FROM beneficiaries WHERE id = ?',

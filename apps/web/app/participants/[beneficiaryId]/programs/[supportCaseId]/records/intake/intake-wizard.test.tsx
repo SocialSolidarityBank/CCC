@@ -21,7 +21,7 @@ function renderWizard() {
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={{ birthDate: null, region: null, emergencyContact: null, gender: null }}
       sessionSequence={1}
-      recorderLabel="상담사"
+      recorderLabel="실무자"
       briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved"
       submit={submit}
     />,
