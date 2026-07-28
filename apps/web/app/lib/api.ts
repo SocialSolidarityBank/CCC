@@ -1343,6 +1343,68 @@ export async function updateParticipantConsent(
   return decodeParticipantConsent(payload);
 }
 
+/** 기본정보 수정 화면(CCC-37)이 다루는 금고 7종. 폼 필드 이름과 1:1이다. */
+export const PARTICIPANT_BASIC_INFO_FIELDS = [
+  'name', 'phone', 'email', 'account', 'birthDate', 'region', 'gender',
+] as const;
+export type ParticipantBasicInfoField = (typeof PARTICIPANT_BASIC_INFO_FIELDS)[number];
+
+export interface ParticipantBasicInfo {
+  beneficiaryId: string;
+  /** 저장에 그대로 실어 보낼 활성 참여 사업. 화면이 고르지 않는다 — 서버가 정한다. */
+  supportCaseContextId: string;
+  /** 낙관적 잠금 값. 폼이 hidden 으로 돌려준다. */
+  version: number;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  account: string | null;
+  birthDate: string | null;
+  region: string | null;
+  gender: string | null;
+}
+
+/** 저장 패치. 키가 없으면 "건드리지 않는다", null 이면 "지운다". */
+export type ParticipantBasicInfoPatch = Partial<Record<ParticipantBasicInfoField, string | null>>;
+
+function decodeParticipantBasicInfo(payload: unknown): ParticipantBasicInfo {
+  const record = responseObject(payload);
+  return {
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    supportCaseContextId: responseString(record, 'supportCaseContextId'),
+    version: responseInteger(record, 'version'),
+    name: responseNullableString(record, 'name'),
+    phone: responseNullableString(record, 'phone'),
+    email: responseNullableString(record, 'email'),
+    account: responseNullableString(record, 'account'),
+    birthDate: responseNullableString(record, 'birthDate'),
+    region: responseNullableString(record, 'region'),
+    gender: responseNullableString(record, 'gender'),
+  };
+}
+
+/**
+ * 기본정보 수정 화면의 읽기(CCC-37). 복호화된 금고 값이 실려 오므로 이 호출 자체가
+ * 화면 조회 감사 1건을 남긴다(D24) — 화면에서 감사를 또 붙이지 않는다.
+ */
+export async function getParticipantBasicInfo(beneficiaryId: string): Promise<ParticipantBasicInfo> {
+  return decodeParticipantBasicInfo(
+    await requestJson<unknown>(`/participants/${encodeURIComponent(beneficiaryId)}/basic-info`),
+  );
+}
+
+/** 기본정보 저장(CCC-37). 권한(담당 실무자·기관 관리자)과 버전 충돌은 서버가 판정한다. */
+export async function updateParticipantBasicInfo(
+  beneficiaryId: string,
+  input: { supportCaseContextId: string; expectedVersion: number } & ParticipantBasicInfoPatch,
+): Promise<void> {
+  await jsonRequest<unknown>(
+    `/participants/${encodeURIComponent(beneficiaryId)}/basic-info`,
+    'PUT',
+    input,
+  );
+}
+
 export async function createSubsequentParticipantProgram(
   beneficiaryId: string,
   input: CreateSubsequentParticipantProgramInput,

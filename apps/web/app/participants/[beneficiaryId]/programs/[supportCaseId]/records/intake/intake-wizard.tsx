@@ -51,8 +51,10 @@ export interface IntakeWizardProps {
   sessionSequence: number;
   recorderLabel: string;
   briefingHref: string;
-  /** 기본정보·동의를 고치러 가는 곳(당사자 등록 정보 화면). */
+  /** 동의를 고치러 가는 곳(당사자 정보 허브의 참여 사업 카드, D44). */
   participantHref: string;
+  /** 1-1 기본정보를 고치러 가는 곳(당사자 기본정보 수정 화면, CCC-37). */
+  basicInfoHref: string;
   submit: (input: CreateIntakeRecordActionInput) => Promise<IntakeRecordActionResult>;
 }
 
@@ -666,7 +668,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 <h3 style={subHeadingStyle}>1-1. 당사자 기본정보</h3>
                 <p style={captionStyle}>
                   당사자 등록에 저장된 값입니다. 이 화면에서는 고칠 수 없고 상담 기록에도 남지 않습니다.{' '}
-                  <a href={props.participantHref}>당사자 등록 정보에서 수정</a>
+                  <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
                 </p>
                 <ReadOnlyRow label="이름" value={props.participant.name ?? '미입력'} />
                 <ReadOnlyRow label="생년월일" value={props.extendedPii.birthDate ?? '미입력'} />

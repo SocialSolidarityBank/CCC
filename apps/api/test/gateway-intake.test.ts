@@ -7,6 +7,7 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createIntakeRecord,
   getIntakeRecordContext,
+  getParticipantBasicInfo,
   updateParticipantPii,
   listCounselingRecords,
   listGoals,
@@ -631,6 +632,64 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
     expect(audit?.detail).not.toContain('1984-03-11');
   });
 
+  // CCC-37: 권한 층을 admin 에서 "담당 실무자 또는 기관 관리자"로 열었다. 근거는 등록
+  // (createBeneficiaryWithInitialSupportCase)이 이미 counselor 에게 같은 금고를 열어 준다는 것이다.
+  it('lets the assigned counselor edit the vault and the intake screen shows it', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+
+    await updateParticipantPii(t.env, canonicalActors.counselor, initial.beneficiaryId, {
+      supportCaseContextId: initial.supportCaseId,
+      expectedVersion: 1,
+      name: '홍서희',
+      phone: '010-1234-5678',
+      birthDate: '1984-03-11',
+      region: '서울시 은평구',
+      gender: '여성',
+    });
+
+    const context = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(context.participant.name).toBe('홍서희');
+    expect(context.participant.phone).toBe('010-1234-5678');
+    expect(context.extendedPii.birthDate).toBe('1984-03-11');
+    expect(context.extendedPii.region).toBe('서울시 은평구');
+    expect(context.extendedPii.gender).toBe('여성');
+
+    // 감사에는 필드 이름만 남는다 — 값 금지(D14 · R3).
+    const audit = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE target_table = 'participant_pii_vault' AND action = 'update' AND beneficiary_id = ?
+       ORDER BY id DESC LIMIT 1`,
+    ).bind(initial.beneficiaryId).first<{ detail: string | null }>();
+    expect(audit?.detail).not.toContain('홍서희');
+    expect(audit?.detail).not.toContain('010-1234-5678');
+    expect(audit?.detail).not.toContain('1984-03-11');
+  });
+
+  it('rejects a counselor who does not hold the case', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+
+    await expect(updateParticipantPii(t.env, canonicalActors.secondCounselor, initial.beneficiaryId, {
+      supportCaseContextId: initial.supportCaseId,
+      expectedVersion: 1,
+      name: 'NOT_ALLOWED',
+    })).rejects.toBeInstanceOf(ForbiddenError);
+
+    // 값은 그대로다 — 거부된 쓰기는 금고에 닿지 않는다.
+    await expect(t.db.prepare(
+      'SELECT enc_name, version FROM participant_pii_vault WHERE beneficiary_id = ?',
+    ).bind(initial.beneficiaryId).first()).resolves.toMatchObject({ enc_name: null, version: 1 });
+  });
+
   it('rejects a malformed birth date', async () => {
     await t.reset();
     await seedCanonicalDirectory();
@@ -643,5 +702,66 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
       expectedVersion: 1,
       birthDate: '1984/03/11',
     })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('getParticipantBasicInfo is the edit screen read gate (CCC-37)', () => {
+  it('returns the seven vault fields, the write context, and one audit row', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+    await updateParticipantPii(t.env, canonicalActors.counselor, initial.beneficiaryId, {
+      supportCaseContextId: initial.supportCaseId,
+      expectedVersion: 1,
+      name: '홍서희',
+      phone: '010-1234-5678',
+      email: 'hong@example.invalid',
+      account: '국민 000-00-0000',
+      birthDate: '1984-03-11',
+      region: '서울시 은평구',
+      gender: '여성',
+    });
+
+    const basicInfo = await getParticipantBasicInfo(t.env, canonicalActors.counselor, initial.beneficiaryId);
+    expect(basicInfo).toMatchObject({
+      beneficiaryId: initial.beneficiaryId,
+      // 화면이 참여 사업을 고르지 않는다 — 게이트웨이가 활성 컨텍스트를 정해 돌려준다.
+      supportCaseContextId: initial.supportCaseId,
+      version: 2,
+      name: '홍서희',
+      phone: '010-1234-5678',
+      email: 'hong@example.invalid',
+      account: '국민 000-00-0000',
+      birthDate: '1984-03-11',
+      region: '서울시 은평구',
+      gender: '여성',
+    });
+
+    // 화면 조회 1건 = 감사 1행(D24). 추가 항목은 행을 나누지 않고 같은 행의 fields 에 합친다.
+    const reads = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE action = 'read_participant_pii' AND beneficiary_id = ? AND actor_id = ?`,
+    ).bind(initial.beneficiaryId, canonicalActors.counselor.userId).all<{ detail: string | null }>();
+    expect(reads.results).toHaveLength(1);
+    const fields = JSON.parse(reads.results[0]?.detail ?? '{}').fields;
+    expect(fields).toEqual(['name', 'phone', 'email', 'account', 'birthDate', 'region', 'gender']);
+    // 값은 감사에 남지 않는다(D14 · R3).
+    expect(reads.results[0]?.detail).not.toContain('홍서희');
+    expect(reads.results[0]?.detail).not.toContain('국민 000-00-0000');
+  });
+
+  it('refuses a counselor who does not hold any case for the participant', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+    await expect(
+      getParticipantBasicInfo(t.env, canonicalActors.secondCounselor, initial.beneficiaryId),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

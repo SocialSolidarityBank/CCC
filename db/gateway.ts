@@ -7090,9 +7090,21 @@ async function encryptedParticipantPatch(
 }
 
 /**
- * Admin-only, optimistic participant PII mutation. A currently active
- * SupportCase is required even for administrators, so a closed historical
- * program cannot mutate the participant-scoped vault.
+ * Optimistic participant PII mutation. A currently active SupportCase is
+ * required even for administrators, so a closed historical program cannot
+ * mutate the participant-scoped vault.
+ *
+ * 권한(CCC-37, 2026-07-28): **담당 실무자 또는 기관 관리자**다 — `assertAdmin` 을 뗐다.
+ * 근거는 이 층이 이미 등록에서 열려 있다는 것이다: `createBeneficiaryWithInitialSupportCase`
+ * 는 counselor 가 부르고 이름·연락처·이메일·생년월일·주소·성별 **6종**을 같은 금고에 쓴다
+ * (D42 ①). 등록 때 쓸 수 있는 값을 등록 뒤에 못 고치면 오타 하나를 관리자에게 부탁해야 한다.
+ * **계좌는 예외다** — 등록의 `optionalPiiKeys` 에 없어 지금까지 admin 만 쓸 수 있었고,
+ * CCC-37 이 7종에 포함시켰으므로 이번에 함께 열린다. 항목별로 권한을 가르지 않는다
+ * (한 화면이 한 번에 저장하는 값에 권한 축을 하나 더 두면 감사·화면·게이트웨이가 어긋난다).
+ * 케이스 단위 게이트는 그대로다 — 아래 `assertActiveSupportCaseContext` 가
+ * `assertSupportCaseAccess`(admin 또는 **활성 배정된 담당 실무자**)를 통과시키므로,
+ * 담당하지 않는 당사자의 금고는 여전히 열리지 않는다. 레거시 admin 전용 경로
+ * (`registerPii`)는 자기 자리에서 `assertAdmin` 을 계속 갖는다.
  */
 export async function updateParticipantPii(
   env: Env,
@@ -7100,7 +7112,6 @@ export async function updateParticipantPii(
   beneficiaryId: string,
   input: ParticipantPiiUpdateInput,
 ): Promise<ParticipantPiiVault> {
-  assertAdmin(actor);
   await assertCurrentHumanActor(env, actor);
   assertBeneficiaryId(beneficiaryId);
   assertOpaqueIdentifier(input.supportCaseContextId, 'support case context id');
@@ -7159,6 +7170,85 @@ conditionalCanonicalAuditStatement(env, actor, {
     purgeDue: nullableString(current.purge_due),
     purgedAt: null,
   };
+}
+
+/** 기본정보 수정 화면(CCC-37)이 다루는 금고 항목. 감사 detail 에도 이 이름들만 남는다. */
+export const PARTICIPANT_BASIC_INFO_FIELDS = [
+  'name', 'phone', 'email', 'account', 'birthDate', 'region', 'gender',
+] as const;
+export type ParticipantBasicInfoField = (typeof PARTICIPANT_BASIC_INFO_FIELDS)[number];
+
+export interface ParticipantBasicInfo {
+  beneficiaryId: string;
+  /** 저장에 그대로 쓸 활성 참여 사업. 화면이 고르지 않는다 — 게이트웨이가 정한다. */
+  supportCaseContextId: string;
+  /** 낙관적 잠금 값. 폼이 hidden 으로 돌려주고 저장이 이 값으로 충돌을 잡는다. */
+  version: number;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  account: string | null;
+  birthDate: string | null;
+  region: string | null;
+  gender: string | null;
+}
+
+/**
+ * 기본정보 수정 화면(CCC-37)의 읽기 관문. 쓰기(`updateParticipantPii`)와 **같은 문**을
+ * 지난다 — 활성 참여 사업 컨텍스트를 여기서 정해 돌려주고, 화면은 그 값을 그대로 저장에
+ * 실어 보낸다. 읽기와 쓰기가 서로 다른 케이스를 고르는 일이 생기지 않는다.
+ *
+ * 감사는 **화면 조회당 read_participant_pii 1행**이다(D14·D24·ADR-0005). 실명·연락처
+ * 외에 복호화해 실은 항목(이메일·계좌·생년월일·주소·성별)은 행을 나누지 않고 같은 행의
+ * detail.fields 에 합친다 — `getIntakeRecordContext` 와 같은 방식이다(2026-07-25 Q 결정).
+ */
+export async function getParticipantBasicInfo(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+): Promise<ParticipantBasicInfo> {
+  // 담당(또는 admin) 사업이 1건도 없으면 이 당사자의 금고는 열리지 않는다(D36 전제 게이트).
+  const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  if (authorizedIds.length === 0) {
+    throw new ForbiddenError('participant is unavailable');
+  }
+  const placeholders = authorizedIds.map(() => '?').join(', ');
+  const activeRow = await env.DB.prepare(
+    `SELECT id FROM support_cases
+     WHERE org_id = ? AND beneficiary_id = ? AND status = 'active' AND id IN (${placeholders})
+     ORDER BY program_type, id LIMIT 1`,
+  ).bind(actor.orgId, beneficiaryId, ...authorizedIds).first<{ id: string }>();
+  // 종결만 남은 당사자는 금고를 고칠 수 없다 — 쓰기가 활성 컨텍스트를 요구하기 때문이다.
+  if (activeRow === null) {
+    throw new ForbiddenError('support case is unavailable');
+  }
+  const supportCaseContextId = stringValue(activeRow.id);
+  await assertActiveSupportCaseContext(env, actor, beneficiaryId, supportCaseContextId);
+
+  const vault = await getParticipantPiiVaultForOrg(env, actor.orgId, beneficiaryId);
+  const version = integerValue(vault.version);
+  if (version === null || vault.purged_at !== null) {
+    throw new ForbiddenError('participant data is unavailable');
+  }
+  const values = {
+    name: await decryptPii(env, vault.enc_name),
+    phone: await decryptPii(env, vault.enc_phone),
+    email: await decryptPii(env, vault.enc_email),
+    account: await decryptPii(env, vault.enc_account),
+    birthDate: await decryptPii(env, vault.enc_birth_date),
+    region: await decryptPii(env, vault.enc_region),
+    gender: await decryptPii(env, vault.enc_gender),
+  };
+  const contacts = new Map<string, ParticipantContact>([
+    [beneficiaryId, { name: values.name, phone: values.phone, email: values.email }],
+  ]);
+  await auditParticipantPiiRead(env, actor, contacts, {
+    targetId: beneficiaryId,
+    supportCaseId: supportCaseContextId,
+    extraFields: (['email', 'account', 'birthDate', 'region', 'gender'] as const)
+      .filter((field) => values[field] !== null),
+  });
+  return { beneficiaryId, supportCaseContextId, version, ...values };
 }
 
 /**

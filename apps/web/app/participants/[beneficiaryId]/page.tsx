@@ -67,6 +67,11 @@ function briefingHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/briefing`;
 }
 
+/** 기본정보 수정 화면(CCC-37). 등록 7종을 등록 뒤에 고치는 자리다. */
+function participantEditHref(beneficiaryId: string): string {
+  return `/participants/${encodeURIComponent(beneficiaryId)}/edit`;
+}
+
 function recordsHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/records`;
 }
@@ -181,6 +186,11 @@ function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
       || left.id.localeCompare(right.id);
   });
 
+  // 기본정보 수정(CCC-37)은 **진행 중인 담당 사업이 있을 때만** 들어갈 수 있다 — 금고 쓰기가
+  // 활성 참여 사업 컨텍스트를 요구하기 때문이다(게이트웨이 계약). 종결만 남은 당사자에게
+  // 버튼을 띄우면 "권한과 주소를 확인하세요"라는 엉뚱한 오류 화면으로 보낸다.
+  const editable = programs.some((program) => program.authorized && program.status === 'active');
+
   return (
     <main className="page-content">
       <GridContainer>
@@ -192,6 +202,11 @@ function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
           name={detail.name}
           beneficiaryId={detail.beneficiaryId}
           meta={detail.phone !== null && detail.phone.length > 0 ? `연락처 ${detail.phone}` : undefined}
+          // 기본정보 수정(CCC-37)은 당사자 단위라 행동 슬롯(④)에 둔다 — 동의는 참여
+          // 사업마다 다르므로 카드 안에 남는다. 둘은 저장 단위가 달라 섞지 않는다(D44).
+          actions={editable
+            ? <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
+            : undefined}
         />
         {programs.length === 0 ? (
           <p className="empty" role="status">표시할 참여 사업이 없습니다.</p>
