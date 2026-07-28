@@ -1729,7 +1729,7 @@ export async function registerCounselor(email: string): Promise<DirectoryUser> {
   return decodeDirectoryUser(await jsonRequest<unknown>('/users', 'POST', { email, role: 'counselor' }));
 }
 
-/** 참여자 가입 링크(초대 토큰) 발급 결과 (D39 · ADR-0016 · CCC-29). */
+/** 당사자 가입 링크(초대 토큰) 발급 결과 (D39 · ADR-0016 · CCC-29). */
 export interface ParticipantInvite {
   token: string;
   programType: string;
@@ -1737,7 +1737,7 @@ export interface ParticipantInvite {
 }
 
 /**
- * 참여자 가입 링크 발급(POST /invites/participant). 사업+발급 상담사가 토큰에 묶인다.
+ * 당사자 가입 링크 발급(POST /invites/participant). 사업+발급 실무자가 토큰에 묶인다.
  * 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
  */
 export async function createParticipantInvite(programType: string): Promise<ParticipantInvite> {
@@ -1799,7 +1799,7 @@ export interface PublicInviteInfo {
 }
 
 /**
- * 참여자 가입 링크의 공개 정보(사업 유형)를 가져온다. 토큰이 없거나 이미 소비되었으면
+ * 당사자 가입 링크의 공개 정보(사업 유형)를 가져온다. 토큰이 없거나 이미 소비되었으면
  * not_found(404). 인증 헤더를 보내지 않는다 — 공개 경로(CCC-28 · D39).
  */
 export async function getPublicInviteInfo(token: string): Promise<PublicInviteInfo> {
@@ -1825,7 +1825,8 @@ export interface PublicSignupInput {
   name: string;
   phone?: string;
   email?: string;
-  consent: { recording: boolean; textAi: boolean };
+  // 동의 3종(D44) — 자기 가입은 등록이므로 등록 화면과 같은 3체크를 보낸다.
+  consent: { privacy: boolean; recording: boolean; textAi: boolean };
 }
 
 export interface PublicSignupResult {
@@ -1834,7 +1835,7 @@ export interface PublicSignupResult {
 }
 
 /**
- * 참여자 자기 가입을 완료한다(공개 경로, Access 불필요). 성공 시 201 +
+ * 당사자 자기 가입을 완료한다(공개 경로, Access 불필요). 성공 시 201 +
  * { beneficiaryId, supportCaseId }. 토큰 무효·이미 소비는 not_found(404).
  */
 export async function signupParticipant(input: PublicSignupInput): Promise<PublicSignupResult> {

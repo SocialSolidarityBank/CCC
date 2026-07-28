@@ -11678,7 +11678,7 @@ export async function listCounselorAssignments(
 
 // ── 초대 토큰 (D39 · ADR-0016 · CCC-29) ─────────────────────────────────────
 //
-// 1차 MVP 가입 흐름의 기반. 토큰이 곧 자격이다(로그인 없음, 참여자는 users 미등재).
+// 1차 MVP 가입 흐름의 기반. 토큰이 곧 자격이다(로그인 없음, 당사자는 users 미등재).
 // 그래서 이 절의 조회·소비 함수는 예외적으로 Actor 없이 토큰 문자열을 받는다 —
 // 인증 밖의 유일한 문이며, HTTP 라우트 테스트가 이 경계를 고정한다(스펙 #78 ②).
 // 발급은 여전히 Actor 검사(R1)를 거치고, 발급·소비 전건이 audit_log 에 남는다(D14).
@@ -11720,9 +11720,9 @@ function mapInviteToken(row: DbRow): InviteToken {
 }
 
 /**
- * 참여자 가입 링크 발급(ADR-0016 결정 5). 상담사·관리자(사람)만 발급할 수 있고,
+ * 당사자 가입 링크 발급(ADR-0016 결정 5). 실무자·관리자(사람)만 발급할 수 있고,
  * 링크에 사업(programType)과 발급자(actor)가 묶인다 — 가입 완료 시 이 발급자가
- * 담당자가 된다(소비는 CCC-28의 가입 처리 몫).
+ * 담당 실무자가 된다(소비는 CCC-28의 가입 처리 몫).
  */
 export async function createParticipantInvite(
   env: Env,
@@ -11749,7 +11749,7 @@ export async function createParticipantInvite(
 }
 
 /**
- * 상담사 초대 링크 발급(CCC-33 이 화면을 단다). 관리자만 발급한다.
+ * 실무자 초대 링크 발급(CCC-33 이 화면을 단다). 관리자만 발급한다.
  * 가입 시 users 등재로 이어진다 — 소비는 counselor 종류로만 가능하다.
  */
 export async function createCounselorInvite(env: Env, actor: Actor): Promise<InviteToken> {
@@ -11782,7 +11782,7 @@ async function getInviteTokenOrThrow(env: Env, token: string): Promise<InviteTok
 }
 
 /**
- * 토큰 경계 조회(Actor 없음): 가입 화면이 "이 링크가 아직 유효한가 + 어느 조직·사업의
+ * 토큰 경계 조회(Actor 없음): 가입 화면이 "이 링크가 아직 유효한가 + 어느 기관·사업의
  * 초대인가"를 푸는 입구다. 종류 불일치·무효·이미 사용된 토큰은 전부 같은
  * ForbiddenError 로 거부한다 — 무엇이 틀렸는지 구분해 주면 열거 단서가 된다.
  */
@@ -11834,18 +11834,18 @@ export async function consumeInviteToken(
   return getInviteTokenOrThrow(env, token);
 }
 // ============================================================================
-// 참여자 자기 가입(self signup) — 토 권한 원자 트랜잭션 (D39 · ADR-0016 · CCC-28)
+// 당사자 자기 가입(self signup) — 토 권한 원자 트랜잭션 (D39 · ADR-0016 · CCC-28)
 //
-// 참여자는 users 에 들지 않고 고유 토큰 링크로 가입한다. 이 함수는 인증된 행위자를
+// 당사자는 users 에 들지 않고 고유 토큰 링크로 가입한다. 이 함수는 인증된 행위자를
 // 받지 않는다 — 토큰이 곧 자격이다. 대신 토큰에 박힌 발급자(issuedBy)를 '후원 행위자'
-// 로 복원해 참여자·케이스·배정의 생성 감사를 남기고, 그 발급자를 담당자로 배정한다
-// (ADR-0016 결정 5). 동의 기록의 recorded_by 는 'self'(참여자 본인)로 둔다(결정 6).
+// 로 복원해 당사자·케이스·배정의 생성 감사를 남기고, 그 발급자를 담당 실무자로 배정한다
+// (ADR-0016 결정 5). 동의 기록의 recorded_by 는 'self'(당사자 본인)로 둔다(결정 6).
 //
-// 한 배치(트랜잭션) 안에서: 참여자+금고+케이스+배정+생성 감사 3건+완료 전환, 그 뒤
+// 한 배치(트랜잭션) 안에서: 당사자+금고+케이스+배정+생성 감사 3건+완료 전환, 그 뒤
 // 동의 기록(recorded_by='self')+record_consent 감사, 마지막으로 토큰 소비 UPDATE+
 // invite_consume 감사(시스템 행위자)를 넣는다. 토 소비를 같은 배치에 넣는 이유는
 // 원자성 — 동시 이중 제출에서 진 쪽은 invite_tokens_no_double_consume 가드(0019)가
-// 트랜잭션 전체를 되감아 고아 참여자가 남지 않게 한다.
+// 트랜잭션 전체를 되감아 고아 당사자가 남지 않게 한다.
 //
 // 감사 행위자 분리: 생성 3건+record_consent 감사는 후원 행위자(실제 사용자, 감사
 // provenance 가드를 만족)로, invite_consume 감사는 시스템 행위자(INVITE_SIGNUP_ACTOR_ID)
@@ -11853,7 +11853,7 @@ export async function consumeInviteToken(
 // 않는다. 동의 행의 recorded_by='self' 는 0019 가드가 허용한다.
 // ============================================================================
 
-/** 자기 가입 동의의 기록자 표식. 참여자 본인이 체크했음을 나타낸다(ADR-0016 결정 6). */
+/** 자기 가입 동의의 기록자 표식. 당사자 본인이 체크했음을 나타낸다(ADR-0016 결정 6). */
 export const PARTICIPANT_SELF_RECORDER = 'self';
 
 export interface ParticipantSignupInput {
@@ -11861,7 +11861,9 @@ export interface ParticipantSignupInput {
   name: string;
   phone?: string | null;
   email?: string | null;
-  consent: ParticipantConsentInput;
+  // 동의 3종(D44) — privacy 를 필수로 좁힌다. updateParticipantConsent 와 같은 모양이라
+  // 등록 시 받은 값과 이후 수정·철회가 같은 어휘를 쓴다.
+  consent: ParticipantConsentInput & { privacy: boolean };
 }
 
 export interface ParticipantSignupResult {
@@ -11870,7 +11872,7 @@ export interface ParticipantSignupResult {
 }
 
 /**
- * 참여자 가입 링크로 가입을 완료한다(원자). 토 검증 → 참여자+케이스+담당 배정+
+ * 당사자 가입 링크로 가입을 완료한다(원자). 토 검증 → 당사자+케이스+담당 배정+
  * 동의 기록(기록자=본인) → 토큰 소비를 한 트랜잭션에 묶는다. 인증된 행위자를 받지
  * 않는다(토큰이 자격). 이미 소비되었거나 없는 토큰은 ForbiddenError, 동시 이중 제출은
  * ConflictError, 입력 결함은 ValidationError.
@@ -11887,9 +11889,12 @@ export async function completeParticipantSignup(
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
+  // 동의 3종(D44). 자기 가입은 등록이므로 등록 경로와 같은 3체크를 받는다. 셋 다 필수
+  // boolean 이되 값은 강제하지 않는다 — 미동의여도 가입은 진행된다(D15 미동의 경로).
   if (
     input.consent === null
     || typeof input.consent !== 'object'
+    || typeof input.consent.privacy !== 'boolean'
     || typeof input.consent.recording !== 'boolean'
     || typeof input.consent.textAi !== 'boolean'
   ) {
@@ -11930,6 +11935,7 @@ export async function completeParticipantSignup(
     const createdAt = now();
     const consentRecordingAt = input.consent.recording ? createdAt : null;
     const consentTextAiAt = input.consent.textAi ? createdAt : null;
+    const consentPrivacyAt = input.consent.privacy ? createdAt : null;
     try {
       const statements: D1PreparedStatement[] = [
         env.DB.prepare(
@@ -11946,8 +11952,8 @@ export async function completeParticipantSignup(
         env.DB.prepare(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
-             consent_recording_at, consent_text_ai_at, creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, 'initial', ?, ?)`,
+             consent_recording_at, consent_text_ai_at, consent_privacy_at, creation_kind, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           invite.orgId,
@@ -11957,6 +11963,7 @@ export async function completeParticipantSignup(
           null,
           consentRecordingAt,
           consentTextAiAt,
+          consentPrivacyAt,
           createdAt,
           createdAt,
         ),
@@ -12000,13 +12007,13 @@ export async function completeParticipantSignup(
       ];
       const completionIndex = statements.length - 1;
       // 동의 기록(기록자=본인) + 감사는 완료 전환 뒤에 쌓는다(beneficiaries_complete_guard 가
-      // 그 시점에 참여자 감사 3건을 요구하므로).
+      // 그 시점에 당사자 감사 3건을 요구하므로).
       statements.push(
         env.DB.prepare(
           `INSERT INTO participant_consent_records (
              id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-             consent_text_ai_at, recorded_by, recorded_at, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           consentRecordId,
           invite.orgId,
@@ -12014,6 +12021,7 @@ export async function completeParticipantSignup(
           supportCaseId,
           consentRecordingAt,
           consentTextAiAt,
+          consentPrivacyAt,
           PARTICIPANT_SELF_RECORDER,
           createdAt,
           createdAt,
@@ -12024,7 +12032,12 @@ export async function completeParticipantSignup(
           targetId: consentRecordId,
           beneficiaryId,
           supportCaseId,
-          detail: { recording: input.consent.recording, textAi: input.consent.textAi, recorder: PARTICIPANT_SELF_RECORDER },
+          detail: {
+            privacy: input.consent.privacy,
+            recording: input.consent.recording,
+            textAi: input.consent.textAi,
+            recorder: PARTICIPANT_SELF_RECORDER,
+          },
           caseId: null,
         }),
       );

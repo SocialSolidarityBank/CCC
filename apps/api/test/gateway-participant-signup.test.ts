@@ -15,11 +15,11 @@ const { counselor, admin } = testActors;
 
 const t = setupD1();
 
-// 참여자 자기 가입(D39 · ADR-0016 · CCC-28). 토큰 권한 원자 트랜잭션: 참여자+케이스+
+// 당사자 자기 가입(D39 · ADR-0016 · CCC-28). 토큰 권한 원자 트랜잭션: 당사자+케이스+
 // 담당 배정+동의(기록자=본인)+토큰 소비를 한 배치에 묶고, 동시 이중 제출은 DB 가드로
 // 되감는다. HTTP 문단속은 라우트 테스트 몫.
 describe('participant self signup (CCC-28)', () => {
-  it('상담사가 발급한 링크로 가입하면 참여자+케이스+배정+동의+토큰 소비가 한 번에 성립한다', async () => {
+  it('실무자가 발급한 링크로 가입하면 당사자+케이스+배정+동의+토큰 소비가 한 번에 성립한다', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
 
@@ -28,7 +28,7 @@ describe('participant self signup (CCC-28)', () => {
       name: '홍길동',
       phone: '010-1234-5678',
       email: 'hong@example.invalid',
-      consent: { recording: true, textAi: false },
+      consent: { privacy: true, recording: true, textAi: false },
     });
 
     expect(result.beneficiaryId).toMatch(/^[a-z]+-\d{3}$/);
@@ -40,20 +40,25 @@ describe('participant self signup (CCC-28)', () => {
     expect(beneficiary?.initialization_state).toBe('complete');
 
     const supportCase = await t.db.prepare(
-      `SELECT program_type, status, intake_at, consent_recording_at, consent_text_ai_at, creation_kind
+      `SELECT program_type, status, intake_at, consent_recording_at, consent_text_ai_at,
+              consent_privacy_at, creation_kind
        FROM support_cases WHERE id = ?`,
     ).bind(result.supportCaseId).first<{
       program_type: string; status: string; intake_at: string | null;
-      consent_recording_at: string | null; consent_text_ai_at: string | null; creation_kind: string;
+      consent_recording_at: string | null; consent_text_ai_at: string | null;
+      consent_privacy_at: string | null; creation_kind: string;
     }>();
     expect(supportCase?.program_type).toBe('financial_support_v1');
     expect(supportCase?.status).toBe('active');
     expect(supportCase?.creation_kind).toBe('initial');
     expect(supportCase?.intake_at).toBeNull(); // 가입 시점에는 인테이크 상담이 아직 없다
+    // D44 동의 3종의 **현재값**이 체크한 대로 갈린다. 체크한 둘은 시각이 있고 안 한 하나는 NULL —
+    // 셋을 한꺼번에 보는 이유는 "가입이 성공했다"만으로는 어떤 동의가 저장됐는지 알 수 없어서다.
+    expect(supportCase?.consent_privacy_at).not.toBeNull();
     expect(supportCase?.consent_recording_at).not.toBeNull();
     expect(supportCase?.consent_text_ai_at).toBeNull();
 
-    // 담당자는 링크 발급 상담사(ADR-0016 결정 5).
+    // 담당 실무자는 링크 발급 실무자(ADR-0016 결정 5).
     const assignee = await t.db.prepare(
       "SELECT user_id, role FROM support_case_assignees WHERE support_case_id = ? AND role = 'primary'",
     ).bind(result.supportCaseId).first<{ user_id: string; role: string }>();
@@ -67,7 +72,7 @@ describe('participant self signup (CCC-28)', () => {
     expect(vault?.enc_phone).not.toBeNull();
     expect(vault?.enc_email).not.toBeNull();
 
-    // 토큰은 소비되고 참여자로 역참조된다.
+    // 토큰은 소비되고 당사자로 역참조된다.
     const token = await t.db.prepare(
       'SELECT status, used_by_beneficiary_id FROM invite_tokens WHERE token = ?',
     ).bind(invite.token).first<{ status: string; used_by_beneficiary_id: string | null }>();
@@ -75,36 +80,39 @@ describe('participant self signup (CCC-28)', () => {
     expect(token?.used_by_beneficiary_id).toBe(result.beneficiaryId);
   });
 
-  it('동의 기록의 기록자는 본인이며 발급 상담사가 아니다 (ADR-0016 결정 6)', async () => {
+  it('동의 기록의 기록자는 본인이며 발급 실무자가 아니다 (ADR-0016 결정 6)', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
 
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { recording: false, textAi: true },
+      consent: { privacy: false, recording: false, textAi: true },
     });
 
     const consent = await t.db.prepare(
-      `SELECT recorded_by, consent_recording_at, consent_text_ai_at
+      `SELECT recorded_by, consent_recording_at, consent_text_ai_at, consent_privacy_at
        FROM participant_consent_records WHERE beneficiary_id = ?`,
     ).bind(result.beneficiaryId).first<{
-      recorded_by: string; consent_recording_at: string | null; consent_text_ai_at: string | null;
+      recorded_by: string; consent_recording_at: string | null;
+      consent_text_ai_at: string | null; consent_privacy_at: string | null;
     }>();
     expect(consent?.recorded_by).toBe(PARTICIPANT_SELF_RECORDER);
     expect(consent?.recorded_by).not.toBe(counselor.userId);
+    // 현재값(support_cases)만이 아니라 **이력 행에도** 3종이 같은 모양으로 남는다(D44 2층 저장).
+    expect(consent?.consent_privacy_at).toBeNull();
     expect(consent?.consent_recording_at).toBeNull();
     expect(consent?.consent_text_ai_at).not.toBeNull();
   });
 
-  it('관리자가 발급한 링크의 담당자는 그 관리자다 (겸임 1계정)', async () => {
+  it('관리자가 발급한 링크의 담당 실무자는 그 관리자다 (겸임 1계정)', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, admin, { programType: 'financial_support_v1' });
 
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { recording: true, textAi: true },
+      consent: { privacy: true, recording: true, textAi: true },
     });
 
     const assignee = await t.db.prepare(
@@ -117,20 +125,20 @@ describe('participant self signup (CCC-28)', () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
     await completeParticipantSignup(t.env, {
-      token: invite.token, name: '홍길동', consent: { recording: true, textAi: true },
+      token: invite.token, name: '홍길동', consent: { privacy: true, recording: true, textAi: true },
     });
 
     await expect(
       completeParticipantSignup(t.env, {
-        token: invite.token, name: '두번째', consent: { recording: true, textAi: true },
+        token: invite.token, name: '두번째', consent: { privacy: true, recording: true, textAi: true },
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('같은 토큰 동시 이중 제출은 한 명만 성립하고 나머지는 409, 고아 참여자 없음', async () => {
+  it('같은 토큰 동시 이중 제출은 한 명만 성립하고 나머지는 409, 고아 당사자 없음', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
-    const payload = { token: invite.token, name: '홍길동', consent: { recording: true, textAi: true } };
+    const payload = { token: invite.token, name: '홍길동', consent: { privacy: true, recording: true, textAi: true } };
 
     const [first, second] = await Promise.allSettled([
       completeParticipantSignup(t.env, payload),
@@ -143,7 +151,7 @@ describe('participant self signup (CCC-28)', () => {
     expect(rejected).toHaveLength(1);
     expect(rejected[0]).toMatchObject({ reason: expect.any(ConflictError) });
 
-    // 토큰은 정확히 한 번 소비되고, 역참조된 참여자도 하나다.
+    // 토큰은 정확히 한 번 소비되고, 역참조된 당사자도 하나다.
     const used = await t.db.prepare(
       "SELECT used_by_beneficiary_id FROM invite_tokens WHERE token = ? AND status = 'used'",
     ).bind(invite.token).all<{ used_by_beneficiary_id: string }>();
@@ -154,7 +162,7 @@ describe('participant self signup (CCC-28)', () => {
     await t.reset();
     await expect(
       completeParticipantSignup(t.env, {
-        token: '0'.repeat(64), name: '홍길동', consent: { recording: true, textAi: true },
+        token: '0'.repeat(64), name: '홍길동', consent: { privacy: true, recording: true, textAi: true },
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -164,7 +172,7 @@ describe('participant self signup (CCC-28)', () => {
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
     await expect(
       completeParticipantSignup(t.env, {
-        token: invite.token, name: '   ', consent: { recording: true, textAi: true },
+        token: invite.token, name: '   ', consent: { privacy: true, recording: true, textAi: true },
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -181,7 +189,7 @@ describe('participant self signup (CCC-28)', () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
     const result = await completeParticipantSignup(t.env, {
-      token: invite.token, name: '홍길동', consent: { recording: true, textAi: true },
+      token: invite.token, name: '홍길동', consent: { privacy: true, recording: true, textAi: true },
     });
 
     const creationAudits = await t.db.prepare(

@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { signupParticipantAction, type ParticipantSignupResult } from '../../../actions';
 import { WireButton } from '../../../components/wire/wire-button';
 import { SearchInput } from '../../../components/wire/search-input';
+import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from '../../../participants/new/consent-copy';
 
-// 공개 참여자 가입 폼(CCC-28 · D39 · ADR-0016 #4). 인증 없는 공개 경로에서 동작하므로
+// 공개 당사자 가입 폼(CCC-28 · D39 · ADR-0016 #4). 인증 없는 공개 경로에서 동작하므로
 // 서버 액션도 공개 API(signupParticipant)만 부른다. 성공 시 리다이렉트 없이 인라인
-// "가입 완료" 패널을 보여준다 — 참여자는 브리핑 화면으로 갈 이유가 없다(상담사 화면이다).
+// "가입 완료" 패널을 보여준다 — 당사자는 브리핑 화면으로 갈 이유가 없다(실무자 화면이다).
 //
 // 입력칸은 SearchInput(등록 폼과 같은 부품), 동의는 consent-checkbox 라벨(등록 폼과 같은
 // 마크업). WireFormField 는 children 으로 컨트롤을 받는 구조라 여기와 맞지 않는다.
@@ -46,7 +47,7 @@ export function SignupForm({ token }: { token: string }) {
     return (
       <div className="wire-signup-done" role="status">
         <h2>가입이 완료되었습니다</h2>
-        <p>담당 상담사가 확인 후 연락드리겠습니다.</p>
+        <p>담당 실무자가 확인 후 연락드리겠습니다.</p>
       </div>
     );
   }
@@ -55,7 +56,7 @@ export function SignupForm({ token }: { token: string }) {
     <form className="wire-register-form" onSubmit={handleSubmit}>
       <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
         <div className="wire-col-6">
-          <SearchInput label="이름" name="name" placeholder="참여자 이름" />
+          <SearchInput label="이름" name="name" placeholder="당사자 이름" />
         </div>
         <div className="wire-col-6">
           <SearchInput label="연락처" name="phone" placeholder="010-0000-0000" />
@@ -65,12 +66,18 @@ export function SignupForm({ token }: { token: string }) {
         </div>
       </div>
 
+      {/* 동의 3종(D44) — 자기 가입이 곧 등록이므로 등록 화면(register-form.tsx)과 같은
+          3체크·같은 이름·같은 순서를 쓴다. 여기서는 기록자가 본인이라('self') 문안도
+          본인이 직접 읽는다. 미동의여도 가입은 진행된다(D15 미동의 경로). */}
       <fieldset className="consent-fieldset">
         <legend>동의 (항목별, 기본 미동의)</legend>
         <p className="schedule-form-hint">
-          동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
-          미동의여도 가입은 진행됩니다.
+          동의하신 항목과 일시가 기록됩니다. 미동의여도 가입은 진행됩니다.
         </p>
+        <label className="consent-checkbox">
+          <input type="checkbox" className="wire-checkbox" name="consentPrivacy" value="on" />
+          <span>개인정보 수집·이용 동의</span>
+        </label>
         <label className="consent-checkbox">
           <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />
           <span>녹음·음성 분석 동의</span>
@@ -79,6 +86,29 @@ export function SignupForm({ token }: { token: string }) {
           <input type="checkbox" className="wire-checkbox" name="consentTextAi" value="on" />
           <span>텍스트 AI 정리 동의</span>
         </label>
+
+        {/* 등록 화면과 같은 문안 상수를 쓴다 — 대행 입력일 때와 본인 입력일 때 읽는 글이
+            갈라지면 동의의 근거가 화면마다 달라진다. 마크업도 같은 아코디언 계약. */}
+        <details className="consent-detail">
+          <summary className="consent-detail-summary">
+            <span>자세히 읽어보기</span>
+            <span aria-hidden="true" className="briefing-card-arrow" />
+          </summary>
+          <div className="consent-detail-body">
+            <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>
+            {CONSENT_DETAIL_SECTIONS.map((section) => (
+              <div className="consent-detail-section" key={section.heading}>
+                <h3>{section.heading}</h3>
+                {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                {section.items === undefined ? null : (
+                  <ul>
+                    {section.items.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
       </fieldset>
 
       {state.phase === 'error' && (

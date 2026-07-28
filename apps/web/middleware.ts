@@ -14,7 +14,7 @@ const PREVIEW_COOKIE_NAME = 'ccc_preview';
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // 공개 참여자 가입 경로(CCC-28 · D39): 운영에서는 Access 없이 열려야 한다(참여자는
+  // 공개 당사자 가입 경로(CCC-28 · D39): 운영에서는 Access 없이 열려야 한다(당사자는
   // users 미등재라 토큰이 곧 자격이다). 다만 **미리보기에서는 코드 게이트를 앞에 둔다**.
   // 루트 레이아웃이 이 **요청** 헤더로 셸(사이드바) 제외 여부를 판별한다 — 응답 헤더를
   // 만지면 서버 컴포넌트의 headers() 가 못 본다. 미리보기 게이트보다 먼저 태그한다:

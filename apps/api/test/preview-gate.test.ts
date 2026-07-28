@@ -76,8 +76,8 @@ describe('preview code gate (CCC-6)', () => {
   /**
    * 미리보기에는 공개 표면을 두지 않는다(2026-07-28 Q 결정, ADR-0016 개정).
    *
-   * 참여자 자기 가입 경로 2개는 운영에서 resolveActor 앞에 있어 Access 없이 열린다
-   * (참여자는 users 미등재 — 토큰이 곧 자격). 그 성질이 미리보기 워커에도 그대로
+   * 당사자 자기 가입 경로 2개는 운영에서 resolveActor 앞에 있어 Access 없이 열린다
+   * (당사자는 users 미등재 — 토큰이 곧 자격). 그 성질이 미리보기 워커에도 그대로
    * 딸려오면, 미리보기는 링크+지정 코드로 잠갔다면서 정작 이 두 경로만 코드 없이
    * 열린다. 그래서 미리보기에서는 이 경로도 코드 세션을 먼저 요구한다.
    *
@@ -94,7 +94,7 @@ describe('preview code gate (CCC-6)', () => {
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token: 'x'.repeat(64), name: '테스트', consent: { recording: true, textAi: true } }),
+        body: JSON.stringify({ token: 'x'.repeat(64), name: '테스트', consent: { privacy: true, recording: true, textAi: true } }),
       }),
       previewEnv,
     );

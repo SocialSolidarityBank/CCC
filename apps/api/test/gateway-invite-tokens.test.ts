@@ -17,7 +17,7 @@ const t = setupD1();
 // 초대 토큰 기반(D39 · ADR-0016 · CCC-29). 토큰이 곧 자격이므로 발급 권한·경계 조회·
 // 단방향 소비를 gateway 단위에서 고정한다. HTTP 문단속은 CCC-28의 라우트 테스트 몫.
 describe('invite tokens (CCC-29)', () => {
-  it('상담사가 참여자 초대를 발급하면 사업+발급자가 묶인 64자 hex 토큰이 생기고 감사가 남는다', async () => {
+  it('실무자가 당사자 초대를 발급하면 사업+발급자가 묶인 64자 hex 토큰이 생기고 감사가 남는다', async () => {
     await t.reset();
 
     const invite = await createParticipantInvite(t.env, counselor, {
@@ -38,7 +38,7 @@ describe('invite tokens (CCC-29)', () => {
     expect(audit?.actor_id).toBe(counselor.userId);
   });
 
-  it('관리자도 참여자 초대를 발급할 수 있다 (겸임 1계정, D39)', async () => {
+  it('관리자도 당사자 초대를 발급할 수 있다 (겸임 1계정, D39)', async () => {
     await t.reset();
 
     const invite = await createParticipantInvite(t.env, admin, {
@@ -47,7 +47,7 @@ describe('invite tokens (CCC-29)', () => {
     expect(invite.issuedBy).toBe(admin.userId);
   });
 
-  it('서비스 역할은 참여자 초대를 발급할 수 없다', async () => {
+  it('서비스 역할은 당사자 초대를 발급할 수 없다', async () => {
     await t.reset();
 
     await expect(
@@ -55,7 +55,7 @@ describe('invite tokens (CCC-29)', () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('참여자 초대는 유효한 사업 유형이 필수다', async () => {
+  it('당사자 초대는 유효한 사업 유형이 필수다', async () => {
     await t.reset();
 
     await expect(
@@ -63,7 +63,7 @@ describe('invite tokens (CCC-29)', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('상담사 초대 발급은 관리자만 할 수 있다', async () => {
+  it('실무자 초대 발급은 관리자만 할 수 있다', async () => {
     await t.reset();
 
     await expect(createCounselorInvite(t.env, counselor)).rejects.toBeInstanceOf(ForbiddenError);

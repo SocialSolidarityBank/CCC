@@ -73,7 +73,7 @@ describe('middleware · x-ccc-public 저작', () => {
   });
 
   it('운영·로컬에서는 공개 가입 경로가 그대로 열린다', () => {
-    // 미리보기 잠금이 운영 흐름까지 잠그면 참여자가 가입할 수 없다(참여자는 users 미등재).
+    // 미리보기 잠금이 운영 흐름까지 잠그면 당사자가 가입할 수 없다(당사자는 users 미등재).
     const request = makeRequest('/join/participant/abc');
     const response = middleware(request);
     expect(response.headers.get('location')).toBeNull();

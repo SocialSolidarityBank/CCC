@@ -4602,8 +4602,9 @@ BEGIN
       AND beneficiary_id = NEW.beneficiary_id
   );
 
+  -- 'self' 는 자기 가입(당사자 본인)의 기록자 표식(0022 · D39). 그 외는 활성 사용자여야 한다.
   SELECT RAISE(ABORT, 'participant_schema_violation')
-  WHERE NOT EXISTS (
+  WHERE NEW.recorded_by <> 'self' AND NOT EXISTS (
     SELECT 1 FROM users
     WHERE id = NEW.recorded_by AND org_id = NEW.org_id
       AND active = 1 AND role IN ('admin', 'counselor')
@@ -4798,6 +4799,20 @@ CREATE TABLE invite_tokens (
 );
 
 CREATE INDEX idx_invite_tokens_org ON invite_tokens (org_id, kind, status);
+
+-- ----------------------------------------------------------------------------
+-- 0022 — 자기 가입(self signup) (D39 · ADR-0016 · CCC-28 — 구 0019, 리베이스 시 리네임)
+-- 위 participant_consent_records_insert_guard 의 'self' 예외가 이 마이그레이션 몫이고,
+-- 아래 트리거가 토큰 이중 소비를 DB 차원에서 막는다. JS 에서 UPDATE 의 changes 를 보는
+-- 방식은 배치 커밋 뒤에야 읽히므로 동시 이중 제출에서 고아 당사자를 남긴다.
+-- 상세 주석: migrations/0022_participant_self_signup.sql.
+-- ----------------------------------------------------------------------------
+CREATE TRIGGER invite_tokens_no_double_consume
+BEFORE UPDATE ON invite_tokens
+WHEN NEW.status = 'used' AND OLD.status <> 'issued'
+BEGIN
+  SELECT RAISE(ABORT, 'invite_token_already_used');
+END;
 
 -- ----------------------------------------------------------------------------
 -- 0024: 전체 목표 (D45 · CCC-41). 케이스당 1개·수정 가능·점수 없음(D33) — goals 테이블

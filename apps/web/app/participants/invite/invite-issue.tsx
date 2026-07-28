@@ -8,7 +8,7 @@ import { WireCard } from '../../components/wire/wire-card';
 import { WireFormField } from '../../components/wire/wire-form-field';
 import { PROGRAM_LABELS } from '../../lib/labels';
 
-// 참여자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 실제 이메일 발송이 없는 화면 흐름
+// 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 실제 이메일 발송이 없는 화면 흐름
 // MVP 이므로 발급 결과를 세 형태(웹 주소·QR·이메일 문안)로 보여 주고 복사에 맡긴다.
 // QR 은 qrcode.react 가 브라우저에서 SVG 로 그린다 — 외부 서비스 호출이 없어 토큰이
 // 화면 밖으로 나가지 않는다(R3 과 같은 결의 이유).
@@ -26,14 +26,14 @@ function joinUrl(token: string): string {
 
 function emailDraft(url: string): string {
   return [
-    '[사회연대은행] 참여자 가입 안내',
+    '[사회연대은행] 당사자 가입 안내',
     '',
     '안녕하세요. 아래 링크를 열어 가입을 진행해 주세요.',
     '이름·이메일·연락처만 입력하면 되고, 링크는 본인 전용입니다.',
     '',
     url,
     '',
-    '가입이 끝나면 담당 상담사가 확인 후 첫 상담 일정을 안내드립니다.',
+    '가입이 끝나면 담당 실무자가 확인 후 첫 상담 일정을 안내드립니다.',
   ].join('\n');
 }
 
@@ -76,8 +76,8 @@ export function InviteIssue() {
       <WireCard title="가입 링크">
         <div className="wire-invite-stack">
           <p className="wire-invite-caption">
-            링크에는 사업({PROGRAM_LABELS.financial_support_v1})과 발급한 상담사가 함께 담깁니다.
-            참여자가 가입을 마치면 내 참여자 목록에 나타납니다.
+            링크에는 사업({PROGRAM_LABELS.financial_support_v1})과 발급한 실무자가 함께 담깁니다.
+            당사자가 가입을 마치면 내 당사자 목록에 나타납니다.
           </p>
           <WireButton variant="primary" disabled={state.phase === 'working'} onClick={issue}>
             {state.phase === 'working' ? '만드는 중' : '가입 링크 만들기'}
@@ -131,7 +131,7 @@ export function InviteIssue() {
                 --ink 를 currentColor 로 받고, 배경은 흰 패널이 그대로 비치게 둔다. */}
             <QRCodeSVG value={state.url} size={160} fgColor="currentColor" bgColor="transparent" marginSize={2} />
           </span>
-          <span className="wire-form-hint">화면을 보여 주고 참여자 휴대전화 카메라로 찍게 하면 됩니다.</span>
+          <span className="wire-form-hint">화면을 보여 주고 당사자 휴대전화 카메라로 찍게 하면 됩니다.</span>
         </div>
 
         <div className="wire-invite-section">

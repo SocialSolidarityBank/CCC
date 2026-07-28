@@ -3099,9 +3099,9 @@ describe('public participant signup routes (CCC-28)', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           token,
-          name: '테스트 참여자',
+          name: '테스트 당사자',
           phone: '010-1234-5678',
-          consent: { recording: true, textAi: false },
+          consent: { privacy: true, recording: true, textAi: false },
         }),
       }),
       t.env,
@@ -3117,7 +3117,7 @@ describe('public participant signup routes (CCC-28)', () => {
     const body = {
       token,
       name: '첫 가입',
-      consent: { recording: true, textAi: true },
+      consent: { privacy: true, recording: true, textAi: true },
     };
     const first = await worker.fetch(
       new Request('http://localhost/signup/participant', {

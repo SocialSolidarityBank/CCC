@@ -1448,7 +1448,7 @@ export async function handleRequest(
   if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', service: 'ccc-api' });
 
   try {
-    // ── 공개 경로: 참여자 자기 가입(토큰이 자격, Access 불필요, D39 · CCC-28) ──
+    // ── 공개 경로: 당사자 자기 가입(토큰이 자격, Access 불필요, D39 · CCC-28) ──
     //
     // **미리보기에는 공개 표면을 두지 않는다**(2026-07-28 Q 결정, ADR-0016 개정).
     // 미리보기 워커에서는 이 두 경로도 지정 코드 세션을 먼저 요구한다 — 통과하면
@@ -1481,18 +1481,23 @@ export async function handleRequest(
       const name = requiredString(body, 'name');
       const phone = optionalString(body, 'phone');
       const email = optionalString(body, 'email');
+      // 동의 3종(D44): 개인정보·녹음·텍스트 AI. 자기 가입이 곧 등록이므로 등록 화면과
+      // 같은 3체크를 받는다. 셋 다 독립 boolean 이고 강제하지 않는다 — 미동의여도 가입은
+      // 진행된다(D15 미동의 경로). 개인정보 동의는 파이프라인 게이트가 아니다.
       const consentRaw = body.consent;
       if (
         consentRaw === null
         || typeof consentRaw !== 'object'
+        || !('privacy' in consentRaw)
         || !('recording' in consentRaw)
         || !('textAi' in consentRaw)
+        || typeof consentRaw.privacy !== 'boolean'
         || typeof consentRaw.recording !== 'boolean'
         || typeof consentRaw.textAi !== 'boolean'
       ) {
         throw new ValidationError('consent is required');
       }
-      const consent = { recording: consentRaw.recording, textAi: consentRaw.textAi };
+      const consent = { privacy: consentRaw.privacy, recording: consentRaw.recording, textAi: consentRaw.textAi };
       const signupInput: Parameters<typeof completeParticipantSignup>[1] = { token, name, consent };
       if (phone != null) signupInput.phone = phone;
       if (email != null) signupInput.email = email;
@@ -1601,7 +1606,7 @@ export async function handleRequest(
       }
     }
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'participant') {
-      // 참여자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 사람(상담사·관리자)만 —
+      // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 사람(실무자·관리자)만 —
       // 권한·감사는 createParticipantInvite(R1 관문) 내장. 소비·가입은 CCC-28.
       requestQuery(url, []);
       const programType = (await requestBody(request)).programType;
