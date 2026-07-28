@@ -41,7 +41,11 @@ export const OPERATIONAL_USERS: readonly OperationalUser[] = [
   { id: '522c6100-4dc5-4fdd-bd59-4e7774f68d11', email: 'counselor-03@example.test', role: 'counselor' },
   { id: '48aab0c0-4490-4569-9b4e-fad487226d6b', email: 'counselor-04@example.test', role: 'counselor' },
   { id: '0424278c-b712-43dc-b30e-d2fc11b55dc6', email: 'counselor-05@example.test', role: 'counselor' },
-  { id: 'b025ca3c-8fbd-47d6-bd2b-9d70f8d25213', email: 'a81f3d27e4d0af9136003e867e4247d8.access', role: 'service' },
+  // service 행의 email 은 Access 서비스 토큰의 Client ID(자격증명의 공개 절반)다. 위 5명과
+  // 같은 이유로 가명화한다 — 이것만으로 인증되지는 않지만 Access 팀 도메인과 합치면 어느
+  // non-identity 정책을 노려야 하는지를 알려준다. 프리로드는 로컬 미러 DB 를 채울 뿐이고
+  // 드리프트 가드는 COUNT 만 비교하므로(이메일 값을 보지 않는다) 실값이 필요 없다.
+  { id: 'b025ca3c-8fbd-47d6-bd2b-9d70f8d25213', email: 'service-token-client-id.access', role: 'service' },
 ] as const;
 
 /** 등록(create) actor: 운영 관리자 계정. admin 경로는 initialAssigneeUserId 필수. */

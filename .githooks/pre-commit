@@ -2,3 +2,4 @@
 set -eu
 
 pnpm guard:db
+pnpm guard:secrets
