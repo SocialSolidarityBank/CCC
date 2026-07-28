@@ -109,6 +109,9 @@ export const wireStyles = `
    리스크 색은 리스크 배너 독점이다(D9·D34). */
 .participant-program[data-locked="true"]{background:var(--muted)}
 .participant-program-locked{margin:var(--space-3) 0 0;color:var(--sub);font-size:14px}
+/* 동의 3종 수정(D44). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
+.participant-program-consent{margin-top:var(--space-4)}
+.participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:13px}
 /* 참여 사업 목록을 좁은 화면에서 1열로 강제하던 규칙은 지웠다 — --grid-min 420 이 이미 접는다. */
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다

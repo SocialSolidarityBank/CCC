@@ -682,8 +682,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   <ReadOnlyRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
                 ))}
                 {consentMissing ? (
+                  // D44: 동의는 등록 때 받고 당사자 정보 페이지에서 고친다. 인테이크는 읽기만 한다.
                   <p style={captionStyle}>
-                    동의는 당사자 등록 화면에서 기록합니다. <a href={props.participantHref}>당사자 등록 정보로 이동</a>
+                    동의는 당사자 정보 페이지에서 기록·수정합니다. <a href={props.participantHref}>당사자 정보로 이동</a>
                   </p>
                 ) : null}
               </div>

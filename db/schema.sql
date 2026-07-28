@@ -4758,3 +4758,13 @@ ALTER TABLE participant_pii_vault ADD COLUMN enc_region TEXT;
 ALTER TABLE participant_pii_vault ADD COLUMN enc_emergency_contact TEXT;
 
 ALTER TABLE participant_pii_vault ADD COLUMN enc_gender TEXT;
+-- ----------------------------------------------------------------------------
+-- 0020 — 개인정보 수집·이용 동의 시각 (D44 · 2026-07-29)
+-- 동의 3종을 같은 층에 맞춘다: 녹음·텍스트 AI 는 support_cases 에 "현재값"이 있고
+-- participant_consent_records(0008·0014)에 append-only 이력이 쌓이는데, 개인정보 동의는
+-- 0014 로 이력 쪽에만 들어가 있었다. 이 ALTER 가 빠진 현재값 컬럼을 채운다.
+-- 녹음 동의와 달리 파이프라인 게이트가 아니다 — 미동의여도 등록·상담은 진행된다(D15).
+-- 철회는 이 값을 NULL 로 되돌리고 행위는 이력 표에 새 행으로 남는다(D14·D23).
+-- 추가 전용: ALTER 는 기존 행을 NULL(미동의)로 백필한다 — 받지 않은 동의를 만들지 않는다.
+-- ----------------------------------------------------------------------------
+ALTER TABLE support_cases ADD COLUMN consent_privacy_at TEXT;

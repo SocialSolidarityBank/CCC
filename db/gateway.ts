@@ -5503,6 +5503,8 @@ export interface SupportCase {
   intakeAt: string | null;
   consentRecordingAt: string | null;
   consentTextAiAt: string | null;
+  /** 개인정보 수집·이용 동의 시각 (D44 · 0020). NULL = 미동의. 게이트가 아니라 현재 상태다. */
+  consentPrivacyAt: string | null;
   closedAt: string | null;
   closedReason: string | null;
   creationKind: 'legacy_import' | 'initial' | 'subsequent';
@@ -5593,6 +5595,7 @@ function mapSupportCase(row: DbRow): SupportCase {
     intakeAt: nullableString(row.intake_at),
     consentRecordingAt: nullableString(row.consent_recording_at),
     consentTextAiAt: nullableString(row.consent_text_ai_at),
+    consentPrivacyAt: nullableString(row.consent_privacy_at),
     closedAt: nullableString(row.closed_at),
     closedReason: nullableString(row.closed_reason),
     creationKind: canonicalCreationKind(row.creation_kind),
@@ -6044,12 +6047,14 @@ export interface CreateBeneficiaryWithInitialSupportCaseInput {
 }
 
 /**
- * 당사자 등록 시 항목별 동의(녹음·텍스트 AI 분리, D15·D23). 기본은 미동의(false)이며,
+ * 당사자 등록 시 항목별 동의 3종(개인정보·녹음·텍스트 AI 분리, D15·D23·D44). 기본은 미동의(false)이며,
  * 미동의여도 등록은 진행된다(D15 미동의 경로). 동의한 항목은 등록 시각을
  * support_cases.consent_*_at(파이프라인 게이트) + participant_consent_records(기록자·일시)에
  * 함께 남긴다.
  */
 export interface ParticipantConsentInput {
+  /** 개인정보 수집·이용 동의 (D44). 등록 화면의 첫 체크. 생략은 미동의(false)로 읽는다. */
+  privacy?: boolean;
   recording: boolean;
   textAi: boolean;
 }
@@ -6255,6 +6260,8 @@ export async function createBeneficiaryWithInitialSupportCase(
     const consentTextAiAt = consent?.textAi === true
       ? createdAt
       : (legacyCompatibility?.consentTextAiAt ?? null);
+    // D44: 개인정보 동의는 레거시 호환 경로에 대응 입력이 없다 — 등록 폼 값만이 근거다.
+    const consentPrivacyAt = consent?.privacy === true ? createdAt : null;
     const consentRecordId = consent === undefined ? null : newId();
     try {
       const statements: D1PreparedStatement[] = [
@@ -6276,8 +6283,9 @@ export async function createBeneficiaryWithInitialSupportCase(
         env.DB.prepare(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
-             consent_recording_at, consent_text_ai_at, creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, 'initial', ?, ?)`,
+             consent_recording_at, consent_text_ai_at, consent_privacy_at,
+             creation_kind, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           actor.orgId,
@@ -6287,6 +6295,7 @@ export async function createBeneficiaryWithInitialSupportCase(
           intakeAt,
           consentRecordingAt,
           consentTextAiAt,
+          consentPrivacyAt,
           createdAt,
           createdAt,
         ),
@@ -6338,8 +6347,8 @@ detail: { role: 'primary', initial: true },
           env.DB.prepare(
             `INSERT INTO participant_consent_records (
                id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-               consent_text_ai_at, recorded_by, recorded_at, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             consentRecordId,
             actor.orgId,
@@ -6347,6 +6356,7 @@ detail: { role: 'primary', initial: true },
             supportCaseId,
             consentRecordingAt,
             consentTextAiAt,
+            consentPrivacyAt,
             actor.userId,
             createdAt,
             createdAt,
@@ -6357,7 +6367,7 @@ detail: { role: 'primary', initial: true },
             targetId: consentRecordId,
             beneficiaryId,
             supportCaseId,
-            detail: { recording: consent.recording, textAi: consent.textAi },
+            detail: { privacy: consent.privacy === true, recording: consent.recording, textAi: consent.textAi },
             caseId: legacyCaseId,
           }),
         );
@@ -6379,6 +6389,97 @@ detail: { role: 'primary', initial: true },
     }
   }
   throw finalError instanceof Error ? finalError : new ConflictError('participant creation conflicted');
+}
+
+/** 동의 3종의 현재 상태 + 마지막 기록 정보 (D44). 화면은 이 값으로 체크 상태를 그린다. */
+export interface ParticipantConsentState {
+  supportCaseId: string;
+  privacy: boolean;
+  recording: boolean;
+  textAi: boolean;
+  /** 마지막으로 동의 상태를 기록한 시각. 한 번도 기록한 적 없으면 null. */
+  recordedAt: string | null;
+}
+
+/**
+ * 당사자 정보 페이지에서 동의 3종을 고친다 (D44 · 2026-07-29 Q 결정).
+ *
+ * **권한**: 이 참여 사업의 담당 실무자 또는 기관 관리자만 — 등록과 같은 층이다.
+ * `assertSupportCaseAccess` 하나가 그 판정을 전부 한다(R1). 담당하지 않는 실무자는
+ * 허브에서 그 사업 카드를 보더라도(D36) 여기서 막힌다 — 표시 범위가 쓰기 권한이 되면 안 된다.
+ *
+ * **이력**: 현재값은 `support_cases` 를 UPDATE 하지만, 그 행위는 언제나
+ * `participant_consent_records` 에 **새 행**으로 쌓인다(append-only, D14·D23). 철회(체크 해제)도
+ * 마찬가지다 — 시각을 NULL 로 되돌린 행이 남으므로 "언제 동의했고 언제 철회했나"가 보존된다.
+ * 행을 고쳐 이력을 지우는 경로는 DB 트리거가 막는다.
+ *
+ * **알려진 결과**: 0008·0014 의 insert 가드가 "NULL 이 아닌 동의 시각 = recorded_at" 을
+ * 요구하므로 한 행은 언제나 **그 시점의 전체 스냅샷**이다. 따라서 3종 중 하나만 고쳐도
+ * 나머지 동의 시각이 이번 기록 시각으로 갱신된다. 화면은 이 값을 "최초 동의일"이 아니라
+ * "마지막 기록 시각"으로 읽어야 한다.
+ */
+export async function updateParticipantConsent(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  consent: ParticipantConsentInput & { privacy: boolean },
+): Promise<ParticipantConsentState> {
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  assertExactKeys(consent, ['privacy', 'recording', 'textAi']);
+  for (const key of ['privacy', 'recording', 'textAi'] as const) {
+    if (typeof consent[key] !== 'boolean') throw new ValidationError('consent is invalid');
+  }
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  await assertCurrentHumanActor(env, actor);
+
+  const recordedAt = now();
+  const privacyAt = consent.privacy ? recordedAt : null;
+  const recordingAt = consent.recording ? recordedAt : null;
+  const textAiAt = consent.textAi ? recordedAt : null;
+  const consentRecordId = newId();
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET consent_privacy_at = ?, consent_recording_at = ?, consent_text_ai_at = ?, updated_at = ?
+       WHERE id = ? AND org_id = ?`,
+    ).bind(privacyAt, recordingAt, textAiAt, recordedAt, supportCaseId, actor.orgId),
+    env.DB.prepare(
+      `INSERT INTO participant_consent_records (
+         id, org_id, beneficiary_id, support_case_id, consent_recording_at,
+         consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      consentRecordId,
+      actor.orgId,
+      supportCase.beneficiaryId,
+      supportCaseId,
+      recordingAt,
+      textAiAt,
+      privacyAt,
+      actor.userId,
+      recordedAt,
+      recordedAt,
+    ),
+    canonicalAuditStatement(env, actor, {
+      action: 'record_consent',
+      targetTable: 'participant_consent_records',
+      targetId: consentRecordId,
+      beneficiaryId: supportCase.beneficiaryId,
+      supportCaseId,
+      // 동의 **여부**만 남긴다 — 동의 문안·PII 는 감사 detail 에 넣지 않는다(R3).
+      detail: { privacy: consent.privacy, recording: consent.recording, textAi: consent.textAi, kind: 'update' },
+      caseId: supportCase.legacyCaseId,
+    }),
+  ]);
+
+  return {
+    supportCaseId,
+    privacy: consent.privacy,
+    recording: consent.recording,
+    textAi: consent.textAi,
+    recordedAt,
+  };
 }
 
 /**
@@ -9623,20 +9724,18 @@ export async function getIntakeRecordContext(
      WHERE org_id = ? AND support_case_id = ?`,
   ).bind(actor.orgId, supportCaseId).first<{ total: number; intake_count: number | null }>();
   const total = Number(counts?.total ?? 0);
-  // 1단계 동의 상태(D42 ②). 녹음·텍스트 AI 는 등록 시 support_cases 에 남고, 개인정보
-  // 동의는 동의 기록 표에만 있다(0014). 표시 전용이라 시각이 아니라 기록 여부만 돌려준다.
+  // 1단계 동의 상태(D42 ② · D44). 3종 모두 이 참여 사업의 **현재값**을 읽는다 —
+  // 0020 이전에는 개인정보 동의만 이력 표(participant_consent_records)에서
+  // `consent_privacy_at IS NOT NULL` 로 골랐는데, 그 조회는 ① 철회 행(NULL)을 걸러내
+  // 철회가 화면에 영영 반영되지 않고 ② 당사자의 다른 참여 사업 기록까지 긁어 왔다.
+  // 표시 전용이라 시각이 아니라 기록 여부만 돌려준다.
   const consentRow = await env.DB.prepare(
-    `SELECT
-       (SELECT consent_recording_at FROM support_cases WHERE id = ? AND org_id = ?) AS recording_at,
-       (SELECT consent_text_ai_at FROM support_cases WHERE id = ? AND org_id = ?) AS text_ai_at,
-       (SELECT consent_privacy_at FROM participant_consent_records
-        WHERE org_id = ? AND beneficiary_id = ? AND consent_privacy_at IS NOT NULL
-        ORDER BY recorded_at DESC LIMIT 1) AS privacy_at`,
-  ).bind(
-    supportCaseId, actor.orgId,
-    supportCaseId, actor.orgId,
-    actor.orgId, supportCase.beneficiaryId,
-  ).first<{ recording_at: string | null; text_ai_at: string | null; privacy_at: string | null }>();
+    `SELECT consent_recording_at AS recording_at,
+            consent_text_ai_at AS text_ai_at,
+            consent_privacy_at AS privacy_at
+     FROM support_cases WHERE id = ? AND org_id = ?`,
+  ).bind(supportCaseId, actor.orgId)
+    .first<{ recording_at: string | null; text_ai_at: string | null; privacy_at: string | null }>();
   return {
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
@@ -9971,6 +10070,17 @@ export async function createIntakeRecord(
     actor.userId,
     createdAt,
     createdAt,
+    ...sessionExistsBindings,
+  ));
+  // D44 · 0020: 이력만 남기면 "지금 상태"(support_cases)와 어긋난다 — 인테이크 1단계와
+  // 당사자 정보 페이지가 읽는 곳이 그쪽이기 때문이다. 같은 배치에서 현재값도 맞춘다.
+  statements.push(env.DB.prepare(
+    `UPDATE support_cases
+     SET consent_recording_at = ?, consent_text_ai_at = ?, consent_privacy_at = ?, updated_at = ?
+     WHERE id = ? AND org_id = ? AND ${sessionExistsClause}`,
+  ).bind(
+    createdAt, createdAt, createdAt, createdAt,
+    supportCaseId, actor.orgId,
     ...sessionExistsBindings,
   ));
   statements.push(conditionalCanonicalAuditStatement(env, actor, {

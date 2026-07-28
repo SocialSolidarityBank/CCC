@@ -16,14 +16,22 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(container.querySelector('button[type="submit"]')?.textContent).toContain('가입하기');
   });
 
-  it('keeps both consent checkboxes present and unchecked by default (D23·D15)', () => {
+  it('keeps all three consent checkboxes present and unchecked by default (D23·D15·D44)', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const recording = container.querySelector('input[name="consentRecording"]') as HTMLInputElement;
-    const textAi = container.querySelector('input[name="consentTextAi"]') as HTMLInputElement;
-    expect(recording).not.toBeNull();
-    expect(textAi).not.toBeNull();
-    expect(recording.checked).toBe(false);
-    expect(textAi.checked).toBe(false);
+    for (const name of ['consentPrivacy', 'consentRecording', 'consentTextAi']) {
+      const box = container.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      expect(box).not.toBeNull();
+      expect(box.checked).toBe(false);
+    }
+  });
+
+  it('carries the privacy consent when checked (D44 — 등록이 동의를 받는 자리)', () => {
+    const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
+    const form = container.querySelector('form') as HTMLFormElement;
+    fireEvent.click(container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement);
+    const data = new FormData(form);
+    expect(data.get('consentPrivacy')).toBe('on');
+    expect(data.get('consentRecording')).toBeNull();
   });
 
   it('carries the filled email and a checked consent in the form payload', () => {

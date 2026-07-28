@@ -33,7 +33,9 @@ export interface RegisterFormProps {
 
 /**
  * 당사자 등록 폼(재개편 T7 · #37 · Figma 1:95). 2×2 그리드(이름·이메일·연락처·참여 사업) +
- * 항목별 동의 2종(D23 — 와이어프레임엔 없지만 확정 사항) + 풀폭 "가입하기".
+ * 항목별 동의 3종(D23·D44 — 개인정보·녹음·텍스트 AI) + 풀폭 "가입하기".
+ *
+ * D44: 동의는 **여기서 받고 당사자 정보 페이지에서 고친다**. 인테이크는 읽기만 한다.
  *
  * 저장하는 PII 는 이름·이메일·연락처와 생년월일·주소(거주지역)·성별이다 — 전부 금고에
  * 암호화 저장된다(D3). 인테이크 1단계(1-1 기본정보)는 이 값을 읽어 표시만 하므로,
@@ -89,6 +91,12 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
           동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
           미동의여도 등록은 진행됩니다.
         </p>
+        {/* D44: 개인정보 수집·이용 동의가 3종의 첫 항목이다. 나머지 둘과 같은 층
+            (참여 사업)에 기록되며, 미동의여도 등록은 진행된다(D15 미동의 경로). */}
+        <label className="consent-checkbox">
+          <input type="checkbox" className="wire-checkbox" name="consentPrivacy" value="on" />
+          <span>개인정보 수집·이용 동의</span>
+        </label>
         <label className="consent-checkbox">
           <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />
           <span>녹음·음성 분석 동의</span>

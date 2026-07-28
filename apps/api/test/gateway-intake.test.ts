@@ -583,8 +583,18 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
     const after = await getIntakeRecordContext(t.env, canonicalActors.counselor, withConsent.supportCaseId);
     expect(after.consent.recording).toBe(true);
     expect(after.consent.textAi).toBe(true);
-    // 개인정보 동의는 아직 등록 화면에 입력 칸이 없다 — 미기록으로 표시된다.
+    // D44: 개인정보 동의도 등록 화면이 받는다. 여기서는 넘기지 않았으므로 미기록이다.
     expect(after.consent.privacy).toBe(false);
+
+    const withPrivacy = await createBeneficiaryWithInitialSupportCase(
+      t.env,
+      canonicalActors.counselor,
+      { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
+      undefined,
+      { privacy: true, recording: false, textAi: false },
+    );
+    const privacyContext = await getIntakeRecordContext(t.env, canonicalActors.counselor, withPrivacy.supportCaseId);
+    expect(privacyContext.consent).toEqual({ privacy: true, recording: false, textAi: false });
   });
 });
 

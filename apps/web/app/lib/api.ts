@@ -212,6 +212,17 @@ export interface ParticipantProgram {
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
+  /** 동의 3종의 현재 상태(D44). 등록 시 받고 당사자 정보 페이지에서 고친다. */
+  consent: ParticipantConsent;
+  /** 마지막으로 동의 상태를 기록한 시각. 한 번도 없으면 null(최초 동의일이 아니다). */
+  consentRecordedAt: string | null;
+}
+
+/** 동의 3종(D15·D23·D44). 개인정보 수집·이용 / 녹음·음성 분석 / 텍스트 AI 정리. */
+export interface ParticipantConsent {
+  privacy: boolean;
+  recording: boolean;
+  textAi: boolean;
 }
 
 export interface ParticipantDetail {
@@ -421,7 +432,8 @@ export interface CreateInitialParticipantProgramInput {
   programType: ParticipantProgramType;
   intakeAt: string;
   initialAssigneeUserId?: string;
-  // 항목별 동의(D15·D23). 기본 미동의. 미동의여도 등록은 진행된다.
+  // 항목별 동의 3종(D15·D23·D44). 기본 미동의. 미동의여도 등록은 진행된다.
+  consentPrivacy?: boolean;
   consentRecording?: boolean;
   consentTextAi?: boolean;
   // 등록 시 받은 이름·연락처·이메일(선택). pii_vault enc_* 로 저장된다(D3 · D24 · #32·#37).
@@ -774,6 +786,17 @@ function decodeParticipantProgram(value: unknown): ParticipantProgram {
       if (typeof name !== 'string') contractViolation();
       return name;
     }),
+    consent: decodeParticipantConsent(responseProperty(record, 'consent')),
+    consentRecordedAt: responseNullableString(record, 'consentRecordedAt'),
+  };
+}
+
+function decodeParticipantConsent(value: unknown): ParticipantConsent {
+  const record = responseObject(value);
+  return {
+    privacy: responseBoolean(record, 'privacy'),
+    recording: responseBoolean(record, 'recording'),
+    textAi: responseBoolean(record, 'textAi'),
   };
 }
 
@@ -1302,6 +1325,22 @@ export async function createInitialParticipantProgram(
   input: CreateInitialParticipantProgramInput,
 ): Promise<ParticipantProgramCreation> {
   return jsonRequest<ParticipantProgramCreation>('/participants', 'POST', input);
+}
+
+/**
+ * 동의 3종 수정·철회 (D44). 세 값을 항상 함께 보낸다 — 서버가 현재 상태 전체를 한 번에
+ * 기록하기 때문이다(부분 갱신이 아니다). 권한(담당 실무자·기관 관리자)은 서버가 판정한다.
+ */
+export async function updateParticipantConsent(
+  supportCaseId: string,
+  consent: ParticipantConsent,
+): Promise<ParticipantConsent> {
+  const payload = await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
+    'PUT',
+    consent,
+  );
+  return decodeParticipantConsent(payload);
 }
 
 export async function createSubsequentParticipantProgram(

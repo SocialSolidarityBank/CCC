@@ -1898,6 +1898,9 @@ describe('canonical participant API routes', () => {
       // 담당 실무자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
       authorized: true,
       assigneeNames: [],
+      // D44: 동의 3종의 현재 상태. 이 픽스처는 동의를 넘기지 않은 등록이라 셋 다 미기록이다.
+      consent: { privacy: false, recording: false, textAi: false },
+      consentRecordedAt: null,
     }]);
 
     const briefing = await worker.fetch(new Request(

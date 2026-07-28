@@ -72,6 +72,7 @@ import {
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
   searchParticipants,
+  updateParticipantConsent,
   upsertUser,
   type Actor,
   type AiDraftVersion,
@@ -301,9 +302,15 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // 등록 폼은 두 체크 상태(false 포함)를 항상 보내므로 동의 기록을 남긴다. 두 키가 모두
   // 없는 (레거시/프로그램) 호출은 동의 기록을 만들지 않는다(하위 호환). 어느 항목이든
   // 체크는 기본 미동의(false)이며, 미동의여도 등록은 진행된다(D15 미동의 경로).
-  const hasConsent = 'consentRecording' in body || 'consentTextAi' in body;
+  // D44: 개인정보 수집·이용 동의(consentPrivacy)가 3종째로 합류한다. 세 키 중 하나라도
+  // 오면 동의 기록을 남긴다 — 등록 폼은 항상 셋을 보내고, 셋 다 없는 호출만 하위 호환이다.
+  const hasConsent = 'consentPrivacy' in body || 'consentRecording' in body || 'consentTextAi' in body;
   const consent = hasConsent
-    ? { recording: optionalBoolean(body, 'consentRecording'), textAi: optionalBoolean(body, 'consentTextAi') }
+    ? {
+      privacy: optionalBoolean(body, 'consentPrivacy'),
+      recording: optionalBoolean(body, 'consentRecording'),
+      textAi: optionalBoolean(body, 'consentTextAi'),
+    }
     : undefined;
   // 이메일은 선택 항목이다. undefined 면 게이트웨이 입력에서 아예 빼야 한다 —
   // { email: undefined } 로 두면 Object.keys 에 남아 assertExactKeys 가 거부한다(#37).
@@ -322,7 +329,7 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
     ...(region === undefined ? {} : { region }),
     ...(gender === undefined ? {} : { gender }),
   };
-  const registrationKeys = ['consentRecording', 'consentTextAi', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
+  const registrationKeys = ['consentPrivacy', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
     requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', ...registrationKeys]);
     return {
@@ -862,6 +869,16 @@ function participantProgramResponse(
     // 화면은 authorized 로 링크를 걸거나 잠그고, assigneeNames 로 "누구에게 물어보나"를 답한다.
     authorized: entry.authorized,
     assigneeNames: entry.assigneeNames,
+    // D44: 동의 3종의 현재 상태. 시각 자체가 아니라 여부만 내린다 — 화면은 체크 상태를
+    // 그리고, "언제 기록했나"는 consentRecordedAt 한 줄로 충분하다.
+    consent: {
+      privacy: supportCase.consentPrivacyAt !== null,
+      recording: supportCase.consentRecordingAt !== null,
+      textAi: supportCase.consentTextAiAt !== null,
+    },
+    consentRecordedAt: supportCase.consentPrivacyAt
+      ?? supportCase.consentRecordingAt
+      ?? supportCase.consentTextAiAt,
   };
 }
 
@@ -1528,6 +1545,19 @@ export async function handleRequest(
           ? await assignSupportCase(env, actor, supportCaseId, userId)
           : await assignSupportCase(env, actor, supportCaseId, userId, roleValue);
         return json(supportCaseAssigneeResponse(assignee), 201);
+      }
+      // 동의 3종 수정·철회 (D44). 담당 실무자 또는 기관 관리자만 — 게이트웨이의
+      // assertSupportCaseAccess 가 강제한다(R1). 세 값은 항상 함께 온다(현재 상태 전체).
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'consent') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['privacy', 'recording', 'textAi']);
+        const updated = await updateParticipantConsent(env, actor, supportCaseId, {
+          privacy: requiredBoolean(body, 'privacy'),
+          recording: requiredBoolean(body, 'recording'),
+          textAi: requiredBoolean(body, 'textAi'),
+        });
+        return json(updated);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);

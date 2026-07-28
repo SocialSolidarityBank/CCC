@@ -87,7 +87,8 @@ describe('IntakeWizard', () => {
     const consent = scoped.getByTestId('intake-consent-status');
     expect(consent.querySelectorAll('input, select, textarea').length).toBe(0);
     expect(consent.textContent).toContain('미기록');
-    expect(within(consent).getByText('당사자 등록 정보로 이동')).not.toBeNull();
+    // D44: 동의를 고치는 자리는 당사자 정보 페이지다 — 인테이크는 읽기만 한다.
+    expect(within(consent).getByText('당사자 정보로 이동')).not.toBeNull();
   });
 
   it('목표·GAS·동의 입력 칸을 더 이상 두지 않는다', () => {

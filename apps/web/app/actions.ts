@@ -34,6 +34,7 @@ import {
   recordPilotTextAiConsent,
   registerCounselor,
   reviewAiDraft,
+  updateParticipantConsent,
   type ManualActionItem,
   type ManualActionItemResolution,
   type ActionItemResolutionStatus,
@@ -620,6 +621,32 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
   revalidateCase(caseId);
   redirect(withNotice(sessionPath(caseId, sessionId), 'notice', `ai_${decision}`));
 }
+/**
+ * 동의 3종 수정·철회 (D44). 당사자 정보 페이지의 참여 사업 카드마다 붙는다.
+ *
+ * 체크박스는 체크됐을 때만 폼에 실리므로(checkbox 헬퍼) 미체크는 곧 철회다 — 세 값을
+ * 언제나 함께 보내 서버가 현재 상태 전체를 한 행으로 기록하게 한다(append-only 이력, D14).
+ * 권한(담당 실무자·기관 관리자)은 게이트웨이가 판정한다 — 화면에서 다시 판정하지 않는다.
+ */
+export async function updateParticipantConsentAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    const supportCaseId = requiredValue(formData, 'supportCaseId');
+    await updateParticipantConsent(supportCaseId, {
+      privacy: checkbox(formData, 'consentPrivacy'),
+      recording: checkbox(formData, 'consentRecording'),
+      textAi: checkbox(formData, 'consentTextAi'),
+    });
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch (error) {
+    const fallback = beneficiaryId === undefined ? '/participants' : participantPath(beneficiaryId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  redirect(withNotice(participantPath(beneficiaryId), 'notice', 'consent_updated'));
+}
+
 export async function createInitialParticipantProgramAction(formData: FormData): Promise<void> {
   let beneficiaryId: string | undefined;
   let supportCaseId: string | undefined;
@@ -639,7 +666,8 @@ export async function createInitialParticipantProgramAction(formData: FormData):
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
-      // 항목별 동의(D15·D23): 기본 미체크. 미동의여도 등록은 진행된다.
+      // 항목별 동의 3종(D15·D23·D44): 기본 미체크. 미동의여도 등록은 진행된다.
+      consentPrivacy: checkbox(formData, 'consentPrivacy'),
       consentRecording: checkbox(formData, 'consentRecording'),
       consentTextAi: checkbox(formData, 'consentTextAi'),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
