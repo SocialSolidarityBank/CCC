@@ -356,6 +356,27 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
     expect(denied.status).toBe(403);
   });
 
+  it('keeps a recorded timestamp after a full revocation (기록 시각이지 동의 시각이 아니다)', async () => {
+    await t.reset();
+    const creation = await register(counselor, { privacy: true, recording: true, textAi: true });
+    await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
+      privacy: false, recording: false, textAi: false,
+    });
+
+    const response = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/support-cases`,
+      { headers: headersFor(counselor) },
+    ), t.env);
+    expect(response.status).toBe(200);
+    const programs = await response.json() as Array<{
+      consent: { privacy: boolean; recording: boolean; textAi: boolean };
+      consentRecordedAt: string | null;
+    }>;
+    expect(programs[0]?.consent).toEqual({ privacy: false, recording: false, textAi: false });
+    // 동의 시각에서 역산했다면 여기가 null 이 된다 — 방금 남긴 철회 기록이 사라져 보인다.
+    expect(programs[0]?.consentRecordedAt).not.toBeNull();
+  });
+
   it('rejects a partial payload — the three values always travel together', async () => {
     await t.reset();
     const creation = await register(counselor, { privacy: true, recording: true, textAi: true });

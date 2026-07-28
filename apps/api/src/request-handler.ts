@@ -876,9 +876,9 @@ function participantProgramResponse(
       recording: supportCase.consentRecordingAt !== null,
       textAi: supportCase.consentTextAiAt !== null,
     },
-    consentRecordedAt: supportCase.consentPrivacyAt
-      ?? supportCase.consentRecordingAt
-      ?? supportCase.consentTextAiAt,
+    // 동의 시각이 아니라 **기록 시각**이다 — 3종을 모두 철회하면 동의 시각은 전부 NULL 이라
+    // 방금 남긴 철회 기록이 "기록 없음"으로 보인다. 값은 append-only 이력에서 온다.
+    consentRecordedAt: entry.consentRecordedAt,
   };
 }
 

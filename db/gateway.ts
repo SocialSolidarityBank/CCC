@@ -6710,6 +6710,12 @@ export interface ParticipantProgramEntry {
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
+  /**
+   * 마지막으로 동의 상태를 기록한 시각 (D44). **동의 시각이 아니라 기록 시각이다** —
+   * 3종을 모두 철회하면 동의 시각은 전부 NULL 이 되지만 "언제 그렇게 기록했나"는 남아야
+   * 하므로, 값은 append-only 이력(`participant_consent_records.recorded_at`)에서 읽는다.
+   */
+  consentRecordedAt: string | null;
 }
 
 export interface ParticipantProgramList {
@@ -6797,14 +6803,40 @@ export async function listSupportCasesForBeneficiary(
     actor.orgId,
     supportCases.map((supportCase) => supportCase.id),
   );
+  const consentRecordedAt = await loadLastConsentRecordedAt(env, actor.orgId, beneficiaryId);
   return {
     participant: participantNamePhone(contacts.get(beneficiaryId)),
     programs: supportCases.map((supportCase) => ({
       supportCase,
       authorized: authorized.has(supportCase.id),
       assigneeNames: assigneeNames.get(supportCase.id) ?? [],
+      consentRecordedAt: consentRecordedAt.get(supportCase.id) ?? null,
     })),
   };
+}
+
+/**
+ * 참여 사업별 마지막 동의 기록 시각 (D44). 동의 시각이 아니라 **기록 시각**을 읽는다 —
+ * 3종을 모두 철회하면 동의 시각은 전부 NULL 이 되므로, 동의 시각에서 역산하면 방금 남긴
+ * 철회 기록이 화면에서 "기록 없음"으로 보인다. 이력 표는 append-only 라 MAX 가 곧 최신이다.
+ */
+async function loadLastConsentRecordedAt(
+  env: Env,
+  orgId: string,
+  beneficiaryId: string,
+): Promise<Map<string, string>> {
+  const recorded = new Map<string, string>();
+  const result = await env.DB.prepare(
+    `SELECT support_case_id, MAX(recorded_at) AS recorded_at
+     FROM participant_consent_records
+     WHERE org_id = ? AND beneficiary_id = ?
+     GROUP BY support_case_id`,
+  ).bind(orgId, beneficiaryId).all<DbRow>();
+  for (const row of result.results) {
+    const value = nullableString(row.recorded_at);
+    if (value !== null) recorded.set(stringValue(row.support_case_id), value);
+  }
+  return recorded;
 }
 
 /**
