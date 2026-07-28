@@ -1,0 +1,15 @@
+{
+  "intake_loaded": true,
+  "complete_enabled": true,
+  "url_after_save": "http://localhost:3000/participants/crane-001/programs/5d60b9ba-3092-4a91-b3f2-06f00bfd0270/briefing?notice=intake_saved",
+  "redirect_has_notice_param": true,
+  "notice_visible": true,
+  "notice_title": "인테이크 기록을 저장했습니다",
+  "url_after_strip": "http://localhost:3000/participants/crane-001/programs/5d60b9ba-3092-4a91-b3f2-06f00bfd0270/briefing",
+  "param_stripped_after_mount": true,
+  "cta_href": "/schedules/new?target=crane-001%7C5d60b9ba-3092-4a91-b3f2-06f00bfd0270",
+  "schedule_target": "crane-001|5d60b9ba-3092-4a91-b3f2-06f00bfd0270",
+  "target_prefilled_correct": true,
+  "notice_absent_on_reload": true,
+  "page_errors": []
+}
