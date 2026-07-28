@@ -7,6 +7,7 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createIntakeRecord,
   getIntakeRecordContext,
+  updateParticipantPii,
   listCounselingRecords,
   listGoals,
   purgeParticipantPii,
@@ -37,7 +38,7 @@ async function seedCanonicalDirectory(): Promise<void> {
   ).run();
 }
 
-const FULL_LIFE_AREAS: CreateIntakeRecordInput['lifeAreas'] = [
+const FULL_LIFE_AREAS: NonNullable<CreateIntakeRecordInput['lifeAreas']> = [
   { areaKey: 'economy', status: 'crisis', note: 'DEBT_SPIKE' },
   { areaKey: 'housing', status: 'okay' },
   { areaKey: 'employment', status: 'strained' },
@@ -428,5 +429,209 @@ describe('intake P3/P4 answers, additional items, and next meeting', () => {
     await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput({
       answers: [{ key: 'more_since', response: 'answered', text: '다른 내용' }],
     }))).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+// ============================================================================
+// D41·D42 — 정본 질문지 4단계 화면이 보내는 모양
+// 화면은 동의·원하는 도움 3문·6영역·목표·다음 행동을 보내지 않는다. 게이트웨이가 그 5종을
+// 선택으로 받는지, 그리고 안 보냈을 때 목표·동의 기록이 만들어지지 않는지 고정한다.
+// ============================================================================
+
+/** 4단계 위저드가 실제로 보내는 최소 페이로드(질문지 답변 + 반복 행 표). */
+function questionnaireInput(overrides: Partial<CreateIntakeRecordInput> = {}): CreateIntakeRecordInput {
+  return {
+    submissionId: '01000000-0000-4000-8000-0000000000b1',
+    heldAt: '2026-07-15T10:00:00.000Z',
+    channel: 'in_person',
+    answers: [
+      { key: 'welfare_basic_livelihood', response: 'answered', text: '수급 중' },
+      // 정본의 '무응답'은 새 코드가 아니라 기존 어휘 재사용이다(빈칸과 구분되어 저장).
+      { key: 'welfare_benefit_type', response: 'unknown' },
+      { key: 'summary_urgency', response: 'answered', text: '즉시 개입 필요' },
+    ],
+    debts: [{ creditor: 'OO은행', balance: '1,200만원' }],
+    linkedOrgs: [{ orgName: 'OO구 주민센터', progressStatus: '심사 중' }],
+    additionalItems: [{ item: '전체 채무 잔액', reason: '채무조정 가능성 판단', dueNote: '다음 상담 전' }],
+    managerOpinion: '채무 연체와 주거불안이 동시에 있어 우선순위가 높음',
+    ...overrides,
+  };
+}
+
+describe('intake questionnaire form (D41 · D42)', () => {
+  it('saves without consent, help narrative, life areas, goals, or action items', async () => {
+    await t.reset();
+    const initial = await seedCase();
+
+    const result = await createIntakeRecord(
+      t.env, canonicalActors.counselor, initial.supportCaseId, questionnaireInput(),
+    );
+    expect(result.replayed).toBe(false);
+    expect(result.record.kind).toBe('intake');
+
+    // 목표 입력이 없으므로 목표가 생기지 않는다(D42 ③ · D43 GAS 보류).
+    expect(await listGoals(t.env, canonicalActors.counselor, initial.supportCaseId)).toHaveLength(0);
+
+    // 동의를 받지 않았으므로 인테이크가 동의 기록을 대신 남기지 않는다(D42 ②).
+    const consentRows = await t.db.prepare(
+      'SELECT COUNT(*) AS n FROM participant_consent_records WHERE support_case_id = ?',
+    ).bind(initial.supportCaseId).first<{ n: number }>();
+    expect(Number(consentRows?.n ?? 0)).toBe(0);
+
+    // 6영역 스냅샷·액션도 만들어지지 않는다.
+    const snapshots = await t.db.prepare(
+      'SELECT COUNT(*) AS n FROM session_life_area_snapshots WHERE session_id = ?',
+    ).bind(result.record.id).first<{ n: number }>();
+    expect(Number(snapshots?.n ?? 0)).toBe(0);
+    const actions = await t.db.prepare(
+      'SELECT COUNT(*) AS n FROM action_items WHERE session_id = ?',
+    ).bind(result.record.id).first<{ n: number }>();
+    expect(Number(actions?.n ?? 0)).toBe(0);
+  });
+
+  it('keeps questionnaire answers and both row tables in the isolated intake JSON', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    const result = await createIntakeRecord(
+      t.env, canonicalActors.counselor, initial.supportCaseId, questionnaireInput(),
+    );
+
+    const row = await t.db.prepare('SELECT intake_details FROM sessions WHERE id = ?')
+      .bind(result.record.id).first<{ intake_details: string }>();
+    const details = JSON.parse(row?.intake_details ?? '{}');
+    expect(details.answers).toContainEqual({ key: 'welfare_benefit_type', response: 'unknown' });
+    // 긴급도는 실무자가 고른 값 그대로다 — AI 제안·자동값이 아니다(R5).
+    expect(details.answers).toContainEqual({ key: 'summary_urgency', response: 'answered', text: '즉시 개입 필요' });
+    expect(details.debts).toEqual([{ creditor: 'OO은행', balance: '1,200만원' }]);
+    expect(details.linkedOrgs).toEqual([{ orgName: 'OO구 주민센터', progressStatus: '심사 중' }]);
+    expect(details.additionalItems).toEqual([
+      { item: '전체 채무 잔액', reason: '채무조정 가능성 판단', dueNote: '다음 상담 전' },
+    ]);
+    expect(details.helpNarrative).toBeNull();
+  });
+
+  it('gives different submission hashes to submissions that differ only in the row tables', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, questionnaireInput());
+    // 해시가 새 필드를 덮지 않으면 두 번째 제출이 재현으로 조용히 버려진다.
+    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, questionnaireInput({
+      debts: [{ creditor: '다른 은행' }],
+    }))).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('rejects a row whose required first column is blank', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, questionnaireInput({
+      debts: [{ creditor: '   ' }],
+    }))).rejects.toBeInstanceOf(ValidationError);
+    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, questionnaireInput({
+      linkedOrgs: [{ orgName: 'OO센터', serviceName: '' }],
+    }))).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('participant registration stores the 1-1 basic information (D41 · D42)', () => {
+  it('encrypts birth date, region, and gender at registration and shows them on the intake screen', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+      name: '홍서희',
+      phone: '010-1234-5678',
+      birthDate: '1984-03-11',
+      region: '서울시 은평구',
+      gender: '여성',
+    });
+
+    const stored = await t.db.prepare(
+      'SELECT enc_birth_date, enc_region, enc_gender FROM participant_pii_vault WHERE beneficiary_id = ?',
+    ).bind(initial.beneficiaryId).first<{
+      enc_birth_date: string | null; enc_region: string | null; enc_gender: string | null;
+    }>();
+    expect(stored?.enc_birth_date).not.toBeNull();
+    expect(stored?.enc_birth_date).not.toBe('1984-03-11');
+    expect(stored?.enc_region).not.toBe('서울시 은평구');
+    expect(stored?.enc_gender).not.toBe('여성');
+
+    const context = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(context.extendedPii.birthDate).toBe('1984-03-11');
+    expect(context.extendedPii.region).toBe('서울시 은평구');
+    expect(context.extendedPii.gender).toBe('여성');
+    expect(context.participant.name).toBe('홍서희');
+  });
+
+  it('reports consent status for the read-only first step', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const withoutConsent = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+    const before = await getIntakeRecordContext(t.env, canonicalActors.counselor, withoutConsent.supportCaseId);
+    expect(before.consent).toEqual({ privacy: false, recording: false, textAi: false });
+
+    const withConsent = await createBeneficiaryWithInitialSupportCase(
+      t.env,
+      canonicalActors.counselor,
+      { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
+      undefined,
+      { recording: true, textAi: true },
+    );
+    const after = await getIntakeRecordContext(t.env, canonicalActors.counselor, withConsent.supportCaseId);
+    expect(after.consent.recording).toBe(true);
+    expect(after.consent.textAi).toBe(true);
+    // 개인정보 동의는 아직 등록 화면에 입력 칸이 없다 — 미기록으로 표시된다.
+    expect(after.consent.privacy).toBe(false);
+  });
+});
+
+describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () => {
+  it('lets an admin fix birth date, region, and gender after registration', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+
+    // 인테이크 화면이 표시 전용이 된 뒤로 이미 등록된 당사자를 고칠 길은 이 함수뿐이다.
+    await updateParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId, {
+      supportCaseContextId: initial.supportCaseId,
+      expectedVersion: 1,
+      birthDate: '1984-03-11',
+      region: '서울시 은평구',
+      gender: '여성',
+    });
+
+    const context = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(context.extendedPii.birthDate).toBe('1984-03-11');
+    expect(context.extendedPii.region).toBe('서울시 은평구');
+    expect(context.extendedPii.gender).toBe('여성');
+
+    // 감사 detail 에는 필드 이름만 남는다 — 값 금지(D14).
+    const audit = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE target_table = 'participant_pii_vault' AND action = 'update' AND beneficiary_id = ?
+       ORDER BY id DESC LIMIT 1`,
+    ).bind(initial.beneficiaryId).first<{ detail: string | null }>();
+    expect(JSON.parse(audit?.detail ?? '{}').fields).toEqual(['birthDate', 'region', 'gender']);
+    expect(audit?.detail).not.toContain('1984-03-11');
+  });
+
+  it('rejects a malformed birth date', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+    await expect(updateParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId, {
+      supportCaseContextId: initial.supportCaseId,
+      expectedVersion: 1,
+      birthDate: '1984/03/11',
+    })).rejects.toBeInstanceOf(ValidationError);
   });
 });

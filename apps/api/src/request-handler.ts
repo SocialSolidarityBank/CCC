@@ -310,13 +310,21 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   const email = optionalRegisteredEmail(body);
   const name = optionalRegisteredText(body, 'name', 100);
   const phone = optionalRegisteredText(body, 'phone', 32);
+  // D41 1-1: 생년월일·주소(거주지역)·성별도 등록이 받는다. 값은 금고에 암호화 저장된다.
+  const birthDate = optionalRegisteredText(body, 'birthDate', 10);
+  const region = optionalRegisteredText(body, 'region', 200);
+  const gender = optionalRegisteredText(body, 'gender', 20);
   const optionalPii = {
     ...(name === undefined ? {} : { name }),
     ...(phone === undefined ? {} : { phone }),
     ...(email === undefined ? {} : { email }),
+    ...(birthDate === undefined ? {} : { birthDate }),
+    ...(region === undefined ? {} : { region }),
+    ...(gender === undefined ? {} : { gender }),
   };
+  const registrationKeys = ['consentRecording', 'consentTextAi', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email']);
+    requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', ...registrationKeys]);
     return {
       input: {
         programType: requireFinancialSupportProgramType(body),
@@ -327,7 +335,7 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
       consent,
     };
   }
-  requireOnlyKeys(body, ['programType', 'intakeAt', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email']);
+  requireOnlyKeys(body, ['programType', 'intakeAt', ...registrationKeys]);
   return {
     input: {
       programType: requireFinancialSupportProgramType(body),
@@ -523,10 +531,25 @@ function parseIntakeCreation(body: JsonObject) {
   const hasExtendedPii = Object.hasOwn(body, 'extendedPii');
   const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
   const hasNextMeeting = Object.hasOwn(body, 'nextMeeting');
-  const allowedKeys = ['submissionId', 'heldAt', 'channel', 'consent', 'helpNarrative', 'lifeAreas', 'goals', 'actions'];
+  // D42: 동의·원하는 도움 3문·6영역·목표·다음 행동은 정본 질문지에 대응 항목이 없어 선택이다.
+  const hasConsent = Object.hasOwn(body, 'consent');
+  const hasHelpNarrative = Object.hasOwn(body, 'helpNarrative');
+  const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
+  const hasGoals = Object.hasOwn(body, 'goals');
+  const hasActions = Object.hasOwn(body, 'actions');
+  const hasDebts = Object.hasOwn(body, 'debts');
+  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
+  const allowedKeys = ['submissionId', 'heldAt', 'channel'];
+  if (hasConsent) allowedKeys.push('consent');
+  if (hasHelpNarrative) allowedKeys.push('helpNarrative');
+  if (hasLifeAreas) allowedKeys.push('lifeAreas');
+  if (hasGoals) allowedKeys.push('goals');
+  if (hasActions) allowedKeys.push('actions');
   if (hasAnswers) allowedKeys.push('answers');
   if (hasExtendedPii) allowedKeys.push('extendedPii');
   if (hasAdditionalItems) allowedKeys.push('additionalItems');
+  if (hasDebts) allowedKeys.push('debts');
+  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
   if (hasNextMeeting) allowedKeys.push('nextMeeting');
   if (hasManagerOpinion) allowedKeys.push('managerOpinion');
   if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
@@ -538,22 +561,26 @@ function parseIntakeCreation(body: JsonObject) {
   }
   const channel: 'in_person' | 'phone' | 'video' = channelValue;
 
-  const consentObject = asObject(body.consent);
-  requireOnlyKeys(consentObject, ['privacy', 'recordingAi']);
-  const consent = {
-    privacy: requiredBoolean(consentObject, 'privacy'),
-    recordingAi: requiredBoolean(consentObject, 'recordingAi'),
-  };
+  const consent = !hasConsent ? undefined : (() => {
+    const consentObject = asObject(body.consent);
+    requireOnlyKeys(consentObject, ['privacy', 'recordingAi']);
+    return {
+      privacy: requiredBoolean(consentObject, 'privacy'),
+      recordingAi: requiredBoolean(consentObject, 'recordingAi'),
+    };
+  })();
 
-  const narrativeObject = asObject(body.helpNarrative);
-  requireOnlyKeys(narrativeObject, ['todayHelp', 'hardestPoint', 'desiredChange']);
-  const helpNarrative = {
-    todayHelp: requiredString(narrativeObject, 'todayHelp'),
-    hardestPoint: requiredString(narrativeObject, 'hardestPoint'),
-    desiredChange: requiredString(narrativeObject, 'desiredChange'),
-  };
+  const helpNarrative = !hasHelpNarrative ? undefined : (() => {
+    const narrativeObject = asObject(body.helpNarrative);
+    requireOnlyKeys(narrativeObject, ['todayHelp', 'hardestPoint', 'desiredChange']);
+    return {
+      todayHelp: requiredString(narrativeObject, 'todayHelp'),
+      hardestPoint: requiredString(narrativeObject, 'hardestPoint'),
+      desiredChange: requiredString(narrativeObject, 'desiredChange'),
+    };
+  })();
 
-  const lifeAreas = objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
+  const lifeAreas = !hasLifeAreas ? undefined : objectArray(body.lifeAreas, 'lifeAreas').map((area) => {
     requireOnlyKeys(area, Object.hasOwn(area, 'note') ? ['areaKey', 'status', 'note'] : ['areaKey', 'status']);
     const areaKey = requiredString(area, 'areaKey');
     if (!(LIFE_AREA_KEYS as readonly string[]).includes(areaKey)) {
@@ -570,7 +597,7 @@ function parseIntakeCreation(body: JsonObject) {
     };
   });
 
-  const goals = objectArray(body.goals, 'goals').map((goal) => {
+  const goals = !hasGoals ? undefined : objectArray(body.goals, 'goals').map((goal) => {
     requireOnlyKeys(goal, Object.hasOwn(goal, 'scaleCriteria') ? ['title', 'scaleCriteria'] : ['title']);
     return {
       title: requiredString(goal, 'title'),
@@ -578,7 +605,7 @@ function parseIntakeCreation(body: JsonObject) {
     };
   });
 
-  const actionItems = objectArray(body.actions, 'actions').map((action) => {
+  const actionItems = !hasActions ? undefined : objectArray(body.actions, 'actions').map((action) => {
     requireOnlyKeys(action, Object.hasOwn(action, 'dueDate') ? ['description', 'owner', 'dueDate'] : ['description', 'owner']);
     const ownerValue = requiredString(action, 'owner');
     if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
@@ -596,7 +623,7 @@ function parseIntakeCreation(body: JsonObject) {
     };
   });
 
-  // P3·P4 서술형 답변(CCC-9). 키·응답 어휘는 게이트웨이 상수를 그대로 쓴다.
+  // 질문지 답변(D41). 키·응답 어휘는 게이트웨이 상수를 그대로 쓴다.
   const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
     requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
     const key = requiredString(answer, 'key');
@@ -629,15 +656,36 @@ function parseIntakeCreation(body: JsonObject) {
     ? undefined
     : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
       const entryKeys = ['item'];
-      if (Object.hasOwn(entry, 'owner')) entryKeys.push('owner');
-      if (Object.hasOwn(entry, 'dueDate')) entryKeys.push('dueDate');
+      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
+        if (Object.hasOwn(entry, key)) entryKeys.push(key);
+      }
       requireOnlyKeys(entry, entryKeys);
       return {
         item: requiredString(entry, 'item'),
         ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
         ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
+        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
+        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
+        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
       };
     });
+
+  // 반복 행 표 2종(2-1 부채 · 3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 넘긴다.
+  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
+    return objectArray(value, label).map((row) => {
+      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
+      requireOnlyKeys(row, keys);
+      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
+    });
+  }
+  const debts = !hasDebts
+    ? undefined
+    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
+      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
+  const linkedOrgs = !hasLinkedOrgs
+    ? undefined
+    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
+      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
 
   const nextMeeting = !hasNextMeeting ? undefined : (() => {
     const meeting = asObject(body.nextMeeting);
@@ -656,14 +704,16 @@ function parseIntakeCreation(body: JsonObject) {
     submissionId: requiredUuid(body, 'submissionId'),
     heldAt: requiredCanonicalUtc(body, 'heldAt'),
     channel,
-    consent,
-    helpNarrative,
-    lifeAreas,
-    goals,
-    actionItems,
+    ...(consent === undefined ? {} : { consent }),
+    ...(helpNarrative === undefined ? {} : { helpNarrative }),
+    ...(lifeAreas === undefined ? {} : { lifeAreas }),
+    ...(goals === undefined ? {} : { goals }),
+    ...(actionItems === undefined ? {} : { actionItems }),
     ...(answers === undefined ? {} : { answers }),
     ...(extendedPii === undefined ? {} : { extendedPii }),
     ...(additionalItems === undefined ? {} : { additionalItems }),
+    ...(debts === undefined ? {} : { debts }),
+    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
     ...(nextMeeting === undefined ? {} : { nextMeeting }),
     ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
     ...(hasSchedule
@@ -968,6 +1018,7 @@ function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecor
     sessionSequence: context.sessionSequence,
     hasIntake: context.hasIntake,
     extendedPii: context.extendedPii,
+    consent: context.consent,
   };
 }
 

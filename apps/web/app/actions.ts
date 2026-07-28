@@ -14,6 +14,8 @@ import {
   intakeAnswerResponses,
   type IntakeAdditionalItemInput,
   type IntakeAnswerInput,
+  type IntakeDebtEntryInput,
+  type IntakeLinkedOrgInput,
   type IntakeExtendedPiiInput,
   type IntakeGoalInput,
   type IntakeLifeAreaInput,
@@ -628,6 +630,12 @@ export async function createInitialParticipantProgramAction(formData: FormData):
     const email = optionalEmail(formData, 'email');
     const name = optionalTrimmedText(formData, 'name', 100);
     const phone = optionalTrimmedText(formData, 'phone', 32);
+    // D41 1-1 · D42 ①: 생년월일·주소(거주지역)·성별은 등록 화면이 받아 금고에 저장한다.
+    // 인테이크 화면은 이 값을 읽어 표시만 한다.
+    const birthDate = optionalTrimmedText(formData, 'birthDate', 10);
+    const region = optionalTrimmedText(formData, 'region', 200);
+    const gender = optionalTrimmedText(formData, 'gender', 20);
+    if (birthDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new FormInputError();
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
@@ -639,6 +647,9 @@ export async function createInitialParticipantProgramAction(formData: FormData):
       ...(name === undefined ? {} : { name }),
       ...(phone === undefined ? {} : { phone }),
       ...(email === undefined ? {} : { email }),
+      ...(birthDate === undefined ? {} : { birthDate }),
+      ...(region === undefined ? {} : { region }),
+      ...(gender === undefined ? {} : { gender }),
     });
     beneficiaryId = created.beneficiaryId;
     supportCaseId = created.supportCaseId;
@@ -877,15 +888,18 @@ export interface CreateIntakeRecordActionInput {
   submissionId: string;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
-  consent: { privacy: boolean; recordingAi: boolean };
-  helpNarrative: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actions: ManualActionItem[];
-  // P3·P4(CCC-9). 전부 선택 — 비어 있으면 아예 보내지 않는다.
+  // D42: 5종은 선택. 4단계 위저드는 보내지 않는다(동의는 등록 화면, 목표는 보류).
+  consent?: { privacy: boolean; recordingAi: boolean };
+  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actions?: ManualActionItem[];
+  // 전부 선택 — 비어 있으면 아예 보내지 않는다.
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
 }
@@ -905,7 +919,7 @@ export async function createIntakeRecordAction(
     if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
       throw new FormInputError();
     }
-    for (const area of input.lifeAreas) {
+    for (const area of input.lifeAreas ?? []) {
       if (
         !(lifeAreaKeys as readonly string[]).includes(area.areaKey)
         || !(lifeAreaStatuses as readonly string[]).includes(area.status)
@@ -928,24 +942,32 @@ export async function createIntakeRecordAction(
       submissionId: input.submissionId,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      consent: input.consent,
-      helpNarrative: {
-        todayHelp: input.helpNarrative.todayHelp.trim(),
-        hardestPoint: input.helpNarrative.hardestPoint.trim(),
-        desiredChange: input.helpNarrative.desiredChange.trim(),
-      },
-      lifeAreas: input.lifeAreas.map((area) => {
-        const note = area.note?.trim();
-        return note !== undefined && note.length > 0
-          ? { areaKey: area.areaKey, status: area.status, note }
-          : { areaKey: area.areaKey, status: area.status };
+      ...(input.consent === undefined ? {} : { consent: input.consent }),
+      ...(input.helpNarrative === undefined ? {} : {
+        helpNarrative: {
+          todayHelp: input.helpNarrative.todayHelp.trim(),
+          hardestPoint: input.helpNarrative.hardestPoint.trim(),
+          desiredChange: input.helpNarrative.desiredChange.trim(),
+        },
       }),
-      goals: input.goals.map((goal) => (
-        goal.scaleCriteria !== undefined
-          ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
-          : { title: goal.title.trim() }
-      )),
-      actions: input.actions,
+      ...(input.lifeAreas === undefined ? {} : {
+        lifeAreas: input.lifeAreas.map((area) => {
+          const note = area.note?.trim();
+          return note !== undefined && note.length > 0
+            ? { areaKey: area.areaKey, status: area.status, note }
+            : { areaKey: area.areaKey, status: area.status };
+        }),
+      }),
+      ...(input.goals === undefined ? {} : {
+        goals: input.goals.map((goal) => (
+          goal.scaleCriteria !== undefined
+            ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
+            : { title: goal.title.trim() }
+        )),
+      }),
+      ...(input.actions === undefined ? {} : { actions: input.actions }),
+      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
+      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
       ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
       ...(input.extendedPii === undefined || Object.keys(input.extendedPii).length === 0
         ? {}

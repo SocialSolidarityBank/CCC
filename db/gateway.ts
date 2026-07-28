@@ -6036,6 +6036,11 @@ export interface CreateBeneficiaryWithInitialSupportCaseInput {
   name?: string | null;
   phone?: string | null;
   email?: string | null;
+  // D41 1-1·D42 ①: 생년월일·주소(거주지역)·성별도 등록 화면이 받아 금고에 넣는다. 인테이크
+  // 화면은 이 값을 읽어 표시만 한다 — 세션 기록에는 남지 않는다(R3). 컬럼은 0015 재사용.
+  birthDate?: string | null;
+  region?: string | null;
+  gender?: string | null;
 }
 
 /**
@@ -6192,13 +6197,15 @@ export async function createBeneficiaryWithInitialSupportCase(
     ? ['programType', 'intakeAt', 'initialAssigneeUserId']
     : ['programType', 'intakeAt'];
   // 이름·연락처·이메일은 선택 항목이므로 값이 있을 때만 허용 키에 넣는다(기존 등록 호출은 그대로).
-  const optionalPiiKeys = (['name', 'phone', 'email'] as const).filter((key) => input[key] !== undefined);
+  const optionalPiiKeys = (['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const)
+    .filter((key) => input[key] !== undefined);
   assertExactKeys(input, [...expectedKeys, ...optionalPiiKeys]);
   assertFinancialSupportProgramType(input.programType);
   for (const key of optionalPiiKeys) {
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
+  if (input.birthDate !== undefined && input.birthDate !== null) assertDateOnly(input.birthDate);
   const intakeAt = legacyCompatibility === undefined
     ? canonicalUtcInstant(input.intakeAt, 'intake time')
     : legacyCompatibility.intakeAt;
@@ -6217,6 +6224,15 @@ export async function createBeneficiaryWithInitialSupportCase(
   const encEmail = input.email === undefined || input.email === null
     ? null
     : await encryptPii(env, input.email);
+  const encBirthDate = input.birthDate === undefined || input.birthDate === null
+    ? null
+    : await encryptPii(env, input.birthDate);
+  const encRegion = input.region === undefined || input.region === null
+    ? null
+    : await encryptPii(env, input.region);
+  const encGender = input.gender === undefined || input.gender === null
+    ? null
+    : await encryptPii(env, input.gender);
 
   const effectiveAssigneeUserId = actor.role === 'counselor'
     ? actor.userId
@@ -6249,10 +6265,14 @@ export async function createBeneficiaryWithInitialSupportCase(
         ).bind(beneficiaryId, actor.orgId, createdAt, createdAt),
         env.DB.prepare(
           `INSERT INTO participant_pii_vault (
-             beneficiary_id, org_id, enc_name, enc_phone, enc_email, key_version, version,
+             beneficiary_id, org_id, enc_name, enc_phone, enc_email,
+             enc_birth_date, enc_region, enc_gender, key_version, version,
              retention_change_kind, retention_changed_at, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 1, 'create', ?, ?, ?)`,
-        ).bind(beneficiaryId, actor.orgId, encName, encPhone, encEmail, piiKeyVersion, createdAt, createdAt, createdAt),
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'create', ?, ?, ?)`,
+        ).bind(
+          beneficiaryId, actor.orgId, encName, encPhone, encEmail,
+          encBirthDate, encRegion, encGender, piiKeyVersion, createdAt, createdAt, createdAt,
+        ),
         env.DB.prepare(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
@@ -6878,6 +6898,11 @@ export interface ParticipantPiiUpdateInput {
   phone?: string | null;
   account?: string | null;
   email?: string | null;
+  // D41 1-1 · D42 ①: 인테이크 화면이 표시만 하게 되면서 이 세 항목의 쓰기 경로는 등록과
+  // 이 함수뿐이다. 이미 등록된 당사자를 고칠 길을 남기려면 여기가 열려 있어야 한다.
+  birthDate?: string | null;
+  region?: string | null;
+  gender?: string | null;
 }
 
 export interface ParticipantPiiReRegistrationInput {
@@ -6894,6 +6919,9 @@ interface ParticipantPiiVaultRow extends DbRow {
   enc_phone: string | null;
   enc_account: string | null;
   enc_email: string | null;
+  enc_birth_date: string | null;
+  enc_region: string | null;
+  enc_gender: string | null;
   version: number | string;
   purged_at: string | null;
 }
@@ -6904,7 +6932,8 @@ async function getParticipantPiiVaultForOrg(
   beneficiaryId: string,
 ): Promise<ParticipantPiiVaultRow> {
   const row = await env.DB.prepare(
-    `SELECT beneficiary_id, enc_name, enc_phone, enc_account, enc_email, version, purge_due, purged_at
+    `SELECT beneficiary_id, enc_name, enc_phone, enc_account, enc_email,
+            enc_birth_date, enc_region, enc_gender, version, purge_due, purged_at
      FROM participant_pii_vault
      WHERE beneficiary_id = ? AND org_id = ?`,
   ).bind(beneficiaryId, orgId).first<ParticipantPiiVaultRow>();
@@ -6945,10 +6974,12 @@ export async function updateParticipantPii(
   if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) {
     throw new ValidationError('PII version is invalid');
   }
-  const fields = (['name', 'phone', 'account', 'email'] as const).filter((field) => input[field] !== undefined);
+  const fields = (['name', 'phone', 'account', 'email', 'birthDate', 'region', 'gender'] as const)
+    .filter((field) => input[field] !== undefined);
   if (fields.length === 0) {
     throw new ValidationError('PII patch is empty');
   }
+  if (input.birthDate !== undefined && input.birthDate !== null) assertDateOnly(input.birthDate);
   await assertActiveSupportCaseContext(env, actor, beneficiaryId, input.supportCaseContextId);
   const current = await getParticipantPiiVaultForOrg(env, actor.orgId, beneficiaryId);
   const currentVersion = integerValue(current.version);
@@ -6956,19 +6987,26 @@ export async function updateParticipantPii(
     throw new ConflictError('participant data is unavailable');
   }
 
-  const [encName, encPhone, encAccount, encEmail] = await Promise.all([
+  const [encName, encPhone, encAccount, encEmail, encBirthDate, encRegion, encGender] = await Promise.all([
     encryptedParticipantPatch(env, input.name, current.enc_name, 'name'),
     encryptedParticipantPatch(env, input.phone, current.enc_phone, 'phone'),
     encryptedParticipantPatch(env, input.account, current.enc_account, 'account'),
     encryptedParticipantPatch(env, input.email, current.enc_email, 'email'),
+    encryptedParticipantPatch(env, input.birthDate, current.enc_birth_date, 'birthDate'),
+    encryptedParticipantPatch(env, input.region, current.enc_region, 'region'),
+    encryptedParticipantPatch(env, input.gender, current.enc_gender, 'gender'),
   ]);
   const updatedAt = now();
   const result = await env.DB.batch([
     env.DB.prepare(
       `UPDATE participant_pii_vault
-       SET enc_name = ?, enc_phone = ?, enc_account = ?, enc_email = ?, version = version + 1, updated_at = ?
+       SET enc_name = ?, enc_phone = ?, enc_account = ?, enc_email = ?,
+           enc_birth_date = ?, enc_region = ?, enc_gender = ?, version = version + 1, updated_at = ?
        WHERE beneficiary_id = ? AND org_id = ? AND version = ? AND purged_at IS NULL`,
-    ).bind(encName, encPhone, encAccount, encEmail, updatedAt, beneficiaryId, actor.orgId, input.expectedVersion),
+    ).bind(
+      encName, encPhone, encAccount, encEmail, encBirthDate, encRegion, encGender,
+      updatedAt, beneficiaryId, actor.orgId, input.expectedVersion,
+    ),
 conditionalCanonicalAuditStatement(env, actor, {
   action: 'update',
   targetTable: 'participant_pii_vault',
@@ -9115,21 +9153,47 @@ export interface IntakeConsentInput {
 // 저장 위치는 sessions.intake_details JSON(확장 슬롯 격리 — 브리핑·통계 제외).
 // --------------------------------------------------------------------------
 
-/** 서술형 답변 키 고정 어휘(P3·P4). 화면 문구는 위저드가 갖고, 저장은 이 키로 한다. */
+/**
+ * 서술형·선택형 답변 키 고정 어휘. 화면 문구·선택값 목록은 위저드가 갖고, 저장은 이 키로 한다.
+ *
+ * 2026-07-28 D41·D42: 인테이크 정본 질문지(`PRD/intake-questionnaire-v1.md`) 4부의 항목을
+ * 이 어휘로 전부 덮는다. 선택형도 같은 {key,response,text} 로 저장한다 — 선택값 문자열이
+ * text 로 들어가고, '무응답'·'해당 없음'은 text 대신 response 코드로 남는다(빈칸과 구분).
+ * 구 6단계 위저드가 쓰던 키는 지우지 않는다(기존 기록의 해석 어휘라 삭제하면 과거 JSON 이
+ * 읽히지 않는다). 화면에서 안 쓰는 키는 그냥 오지 않을 뿐이다.
+ */
 export const INTAKE_ANSWER_KEYS = [
-  // ① 시작 — 유입·의뢰 경로(P4, 접힘 하단)
+  // ── 구 6단계 위저드 어휘(기존 기록 해석용, 화면에서는 일부만 계속 쓴다) ──
   'referral_path', 'referral_org', 'referral_reason',
-  // ③ 원하는 도움 — "더 묻기" 3문(P3, 접힘)
   'more_since', 'more_trigger', 'more_focus',
-  // ④ 생활 상황 — 영역 심화(P3, 긴장·위기 시 펼침 / 금전지원형은 경제 기본 펼침)
   'life_detail_economy', 'life_detail_housing', 'life_detail_employment',
   'life_detail_health', 'life_detail_mental_health', 'life_detail_family',
-  // ⑤ 정리 — 위기·안전 확인(P3, 영역에 '위기'가 있으면 자동 펼침·강조)
   'crisis_immediate_risk', 'crisis_needed_connection', 'crisis_safety_status', 'crisis_emergency_contact',
-  // ⑤ 정리 — 강점·자원 4문(P3, 접힘)
   'strength_personal', 'strength_relational', 'strength_past_coping', 'strength_resources',
-  // ⑤ 정리 — 참여 여건 3문(P4, 접힘)
   'participation_availability', 'participation_transport', 'participation_constraint',
+  // ── 1. 상담 신청 및 기본정보 ──
+  // 1-2 공적급여·수급자 여부
+  'welfare_basic_livelihood', 'welfare_benefit_type', 'welfare_near_poverty', 'welfare_other',
+  // 1-3 상담 운영정보(상담일=heldAt·실무자=작성자·회차=컨텍스트는 답변이 아니라 자동값)
+  'counsel_method', 'contact_time', 'contact_caution',
+  // 1-4 상담 신청 사유
+  'application_reason', 'application_reason_detail',
+  // ── 2. 현재 생활상황 ──
+  'difficulty_areas',
+  'economy_income_type', 'economy_monthly_income', 'economy_monthly_expense',
+  'economy_arrears', 'economy_debt_types',
+  'employment_status', 'employment_income_stability', 'employment_detail',
+  'housing_type', 'housing_instability', 'housing_detail',
+  'health_physical', 'health_care_barrier', 'health_stress', 'health_daily_impact', 'health_detail',
+  'family_household_type', 'family_care_burden', 'family_detail',
+  // ── 3. 필요한 도움과 활용 가능한 자원 ──
+  'need_primary', 'need_secondary', 'need_detail',
+  'previous_support_detail',
+  'strength_detail',
+  // ── 4. 상담 정리와 후속관리 ──
+  'participation_barrier', 'participation_preferred_method', 'participation_detail',
+  // 4-3 긴급도·주요 지원방향은 실무자가 직접 고른다 — AI 제안·자동값 없음(D41 ③ · R5).
+  'summary_urgency', 'summary_direction',
 ] as const;
 export type IntakeAnswerKey = (typeof INTAKE_ANSWER_KEYS)[number];
 
@@ -9160,11 +9224,37 @@ export interface IntakeExtendedPiiInput {
 
 export type IntakeExtendedPii = Record<IntakeExtendedPiiField, string | null>;
 
-/** ⑤ 추가 확인 필요 정보 표(P4, 접힘). */
+/**
+ * 4-2 추가 확인사항 표. 구 ⑤ "추가 확인 필요 정보"와 같은 구조를 이어 쓰고(D42), 정본
+ * 질문지의 4열(추가 확인사항 / 필요한 이유 / 확인 방법 / 확인 예정 시점)을 담도록
+ * reason·method·dueNote 를 덧붙였다. dueNote 는 '다음 상담 전' 같은 서술을 허용하려고
+ * 날짜형 dueDate 와 따로 둔다 — 정본 예시가 날짜가 아니다.
+ */
 export interface IntakeAdditionalItemInput {
   item: string;
   owner?: string;
   dueDate?: string;
+  reason?: string;
+  method?: string;
+  dueNote?: string;
+}
+
+/** 2-1 대출·부채 현황 반복 행. 채무가 없으면 첫 행에 '해당 없음'을 적는다(정본 참고). */
+export interface IntakeDebtEntryInput {
+  creditor: string;
+  kind?: string;
+  balance?: string;
+  monthlyPayment?: string;
+  arrearsStatus?: string;
+}
+
+/** 3-3 현재 연계된 기관·서비스 반복 행. 연계 자원이 없으면 첫 행에 '해당 없음'. */
+export interface IntakeLinkedOrgInput {
+  orgName: string;
+  serviceName?: string;
+  supportDetail?: string;
+  usagePeriod?: string;
+  progressStatus?: string;
 }
 
 /** ⑤ 다음 만남(P3). 저장 후 상담 일정 등록 화면으로 이어 붙인다(schedules, D28). */
@@ -9173,18 +9263,29 @@ export interface IntakeNextMeetingInput {
   channel: Session['channel'];
 }
 
+/**
+ * 인테이크 저장 입력.
+ *
+ * `red` 2026-07-28 D42: consent·helpNarrative·lifeAreas·goals·actionItems 5종은 **선택**이다.
+ * 정본 질문지(D41)에 대응하는 항목이 없기 때문이다 — 동의 입력은 당사자 등록 화면으로
+ * 옮겼고(D42 ②), 목표 입력은 통째로 빠졌으며(D42 ③ · D43), 원하는 도움 3문·6영역 상태·
+ * 다음 행동은 정본에 없다. 값을 지어내 채우는 대신 안 보내는 쪽을 택했다. 주면 예전과
+ * 똑같이 검증·저장하므로 기존 호출부·기록은 그대로 산다.
+ */
 export interface CreateIntakeRecordInput {
   submissionId: string;
   heldAt: string;
   channel: Session['channel'];
-  consent: IntakeConsentInput;
-  helpNarrative: IntakeHelpNarrativeInput;
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actionItems: IntakeActionItemInput[];
+  consent?: IntakeConsentInput;
+  helpNarrative?: IntakeHelpNarrativeInput;
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actionItems?: IntakeActionItemInput[];
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
   scheduleId?: string;
@@ -9206,8 +9307,10 @@ export interface IntakeRecordContext {
   sessionSequence: number;
   // 케이스에 이미 인테이크(kind='intake')가 있으면 재작성 불가(1회 규칙).
   hasIntake: boolean;
-  // "기본정보 더 적기" 미리 채움(§0-5 재입력 없음). 감사는 화면 조회 1건에 합산된다.
+  // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
+  // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
+  consent: { privacy: boolean; recording: boolean; textAi: boolean };
 }
 
 function assertIntakeLifeAreaInputs(lifeAreas: IntakeLifeAreaInput[]): void {
@@ -9287,20 +9390,59 @@ function assertIntakeAdditionalItemInputs(items: IntakeAdditionalItemInput[]): v
     const expected = ['item'];
     if (entry.owner !== undefined) expected.push('owner');
     if (entry.dueDate !== undefined) expected.push('dueDate');
+    if (entry.reason !== undefined) expected.push('reason');
+    if (entry.method !== undefined) expected.push('method');
+    if (entry.dueNote !== undefined) expected.push('dueNote');
     assertExactKeys(entry, expected);
     assertNonBlankText(entry.item, 'additional item');
     if (entry.owner !== undefined) assertNonBlankText(entry.owner, 'additional item owner');
     if (entry.dueDate !== undefined) assertDateOnly(entry.dueDate);
+    if (entry.reason !== undefined) assertNonBlankText(entry.reason, 'additional item reason');
+    if (entry.method !== undefined) assertNonBlankText(entry.method, 'additional item method');
+    if (entry.dueNote !== undefined) assertNonBlankText(entry.dueNote, 'additional item due note');
   }
 }
+
+/**
+ * 반복 행 표 공통 검증(2-1 부채·3-3 연계 기관). 첫 열만 필수이고 나머지는 준 것만 검사한다 —
+ * assertIntakeAdditionalItemInputs 와 같은 모양을 유지해 표가 늘어도 분기가 복제되지 않는다.
+ */
+function assertIntakeTableRows(
+  rows: Array<Record<string, unknown>>,
+  label: string,
+  requiredKey: string,
+  optionalKeys: readonly string[],
+): void {
+  assertBoundedArray(rows, label, 20);
+  for (const row of rows) {
+    if (typeof row !== 'object' || row === null) {
+      throw new ValidationError(`${label} row is invalid`);
+    }
+    const expected = [requiredKey, ...optionalKeys.filter((key) => row[key] !== undefined)];
+    assertExactKeys(row, expected);
+    for (const key of expected) {
+      assertNonBlankText(row[key], `${label} ${key}`);
+    }
+  }
+}
+
+const INTAKE_DEBT_OPTIONAL_KEYS = ['kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const;
+const INTAKE_LINKED_ORG_OPTIONAL_KEYS = ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus'] as const;
 
 function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
   const hasSchedule = input.scheduleId !== undefined || input.expectedScheduleVersion !== undefined;
   const hasManagerOpinion = input.managerOpinion !== undefined;
-  const expectedKeys = ['submissionId', 'heldAt', 'channel', 'consent', 'helpNarrative', 'lifeAreas', 'goals', 'actionItems'];
+  const expectedKeys = ['submissionId', 'heldAt', 'channel'];
+  if (input.consent !== undefined) expectedKeys.push('consent');
+  if (input.helpNarrative !== undefined) expectedKeys.push('helpNarrative');
+  if (input.lifeAreas !== undefined) expectedKeys.push('lifeAreas');
+  if (input.goals !== undefined) expectedKeys.push('goals');
+  if (input.actionItems !== undefined) expectedKeys.push('actionItems');
   if (input.answers !== undefined) expectedKeys.push('answers');
   if (input.extendedPii !== undefined) expectedKeys.push('extendedPii');
   if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
+  if (input.debts !== undefined) expectedKeys.push('debts');
+  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
   if (input.nextMeeting !== undefined) expectedKeys.push('nextMeeting');
   if (hasManagerOpinion) expectedKeys.push('managerOpinion');
   if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
@@ -9311,30 +9453,38 @@ function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
     throw new ValidationError('record channel is invalid');
   }
 
-  // 동의 2체크 — 둘 다 true 여야 성립(v0.3). 하나라도 없으면 거부.
-  assertExactKeys(input.consent, ['privacy', 'recordingAi']);
-  if (input.consent.privacy !== true || input.consent.recordingAi !== true) {
-    throw new ValidationError('intake consent is required');
+  // 동의 2체크 — 주면 둘 다 true 여야 한다. 안 주면 동의 기록을 만들지 않는다(D42 ②).
+  if (input.consent !== undefined) {
+    assertExactKeys(input.consent, ['privacy', 'recordingAi']);
+    if (input.consent.privacy !== true || input.consent.recordingAi !== true) {
+      throw new ValidationError('intake consent is required');
+    }
   }
 
-  // 원하는 도움 3문 — 전부 비어있지 않은 문자열(P1).
-  assertExactKeys(input.helpNarrative, ['todayHelp', 'hardestPoint', 'desiredChange']);
-  assertNonBlankText(input.helpNarrative.todayHelp, 'help narrative todayHelp');
-  assertNonBlankText(input.helpNarrative.hardestPoint, 'help narrative hardestPoint');
-  assertNonBlankText(input.helpNarrative.desiredChange, 'help narrative desiredChange');
-
-  // 6영역 기준선 — 6영역 전부(P1).
-  assertIntakeLifeAreaInputs(input.lifeAreas);
-
-  // 목표 1~3(P1, D12·D6). GAS 기준(scaleCriteria)은 자유 JSON.
-  assertBoundedArray(input.goals, 'goals', MAX_ACTIVE_GOALS);
-  if (input.goals.length < 1) throw new ValidationError('at least one goal is required');
-  for (const goal of input.goals) {
-    assertExactKeys(goal, goal.scaleCriteria === undefined ? ['title'] : ['title', 'scaleCriteria']);
-    assertNonBlankText(goal.title, 'goal title');
+  // 원하는 도움 3문 — 주면 전부 비어있지 않은 문자열.
+  if (input.helpNarrative !== undefined) {
+    assertExactKeys(input.helpNarrative, ['todayHelp', 'hardestPoint', 'desiredChange']);
+    assertNonBlankText(input.helpNarrative.todayHelp, 'help narrative todayHelp');
+    assertNonBlankText(input.helpNarrative.hardestPoint, 'help narrative hardestPoint');
+    assertNonBlankText(input.helpNarrative.desiredChange, 'help narrative desiredChange');
   }
 
-  // 다음 행동 1건 이상(P1 → action_items).
+  // 6영역 기준선 — 주면 6영역 전부.
+  if (input.lifeAreas !== undefined) assertIntakeLifeAreaInputs(input.lifeAreas);
+
+  // 목표 1~3(D12·D6). GAS 기준(scaleCriteria)은 자유 JSON. 인테이크 화면은 더 이상 보내지
+  // 않지만(D42 ③ · D43) 다른 호출부가 주면 예전 계약대로 검증한다.
+  if (input.goals !== undefined) {
+    assertBoundedArray(input.goals, 'goals', MAX_ACTIVE_GOALS);
+    if (input.goals.length < 1) throw new ValidationError('at least one goal is required');
+    for (const goal of input.goals) {
+      assertExactKeys(goal, goal.scaleCriteria === undefined ? ['title'] : ['title', 'scaleCriteria']);
+      assertNonBlankText(goal.title, 'goal title');
+    }
+  }
+
+  // 다음 행동 — 주면 1건 이상(→ action_items).
+  if (input.actionItems !== undefined) {
   assertBoundedArray(input.actionItems, 'action items', 20);
   if (input.actionItems.length < 1) throw new ValidationError('at least one action item is required');
   for (const action of input.actionItems) {
@@ -9345,11 +9495,28 @@ function assertIntakeRecordInput(input: CreateIntakeRecordInput): void {
     }
     if (action.dueDate !== undefined) assertDateOnly(action.dueDate);
   }
+  }
 
-  // P3·P4 — 전부 선택. 있으면 형식만 강제한다(비면 인테이크 성립에 영향 없음).
+  // 나머지는 전부 선택. 있으면 형식만 강제한다(비면 인테이크 성립에 영향 없음).
   if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
   if (input.extendedPii !== undefined) assertIntakeExtendedPiiInput(input.extendedPii);
   if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
+  if (input.debts !== undefined) {
+    assertIntakeTableRows(
+      input.debts as unknown as Array<Record<string, unknown>>,
+      'debts',
+      'creditor',
+      INTAKE_DEBT_OPTIONAL_KEYS,
+    );
+  }
+  if (input.linkedOrgs !== undefined) {
+    assertIntakeTableRows(
+      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
+      'linked orgs',
+      'orgName',
+      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
+    );
+  }
   if (input.nextMeeting !== undefined) {
     assertExactKeys(input.nextMeeting, ['heldAt', 'channel']);
     canonicalUtcInstant(input.nextMeeting.heldAt, 'next meeting time');
@@ -9456,6 +9623,20 @@ export async function getIntakeRecordContext(
      WHERE org_id = ? AND support_case_id = ?`,
   ).bind(actor.orgId, supportCaseId).first<{ total: number; intake_count: number | null }>();
   const total = Number(counts?.total ?? 0);
+  // 1단계 동의 상태(D42 ②). 녹음·텍스트 AI 는 등록 시 support_cases 에 남고, 개인정보
+  // 동의는 동의 기록 표에만 있다(0014). 표시 전용이라 시각이 아니라 기록 여부만 돌려준다.
+  const consentRow = await env.DB.prepare(
+    `SELECT
+       (SELECT consent_recording_at FROM support_cases WHERE id = ? AND org_id = ?) AS recording_at,
+       (SELECT consent_text_ai_at FROM support_cases WHERE id = ? AND org_id = ?) AS text_ai_at,
+       (SELECT consent_privacy_at FROM participant_consent_records
+        WHERE org_id = ? AND beneficiary_id = ? AND consent_privacy_at IS NOT NULL
+        ORDER BY recorded_at DESC LIMIT 1) AS privacy_at`,
+  ).bind(
+    supportCaseId, actor.orgId,
+    supportCaseId, actor.orgId,
+    actor.orgId, supportCase.beneficiaryId,
+  ).first<{ recording_at: string | null; text_ai_at: string | null; privacy_at: string | null }>();
   return {
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
@@ -9467,6 +9648,11 @@ export async function getIntakeRecordContext(
     sessionSequence: total + 1,
     hasIntake: Number(counts?.intake_count ?? 0) > 0,
     extendedPii,
+    consent: {
+      privacy: consentRow?.privacy_at != null,
+      recording: consentRow?.recording_at != null,
+      textAi: consentRow?.text_ai_at != null,
+    },
   };
 }
 
@@ -9492,17 +9678,19 @@ export async function createIntakeRecord(
   // 제출 해시는 저장되는 모든 입력을 덮어야 한다 — 빠뜨린 필드는 "서로 다른 제출"을
   // 같은 해시로 만들고, 두 번째 제출이 재현(replay)으로 조용히 버려진다(CCC-9).
   const submissionHash = await canonicalSha256({
-    actionItems: input.actionItems,
+    actionItems: input.actionItems ?? null,
     actorId: actor.userId,
     additionalItems: input.additionalItems ?? null,
     answers: input.answers ?? null,
     channel: input.channel,
-    consent: input.consent,
+    consent: input.consent ?? null,
+    debts: input.debts ?? null,
     extendedPii: input.extendedPii ?? null,
-    goals: input.goals.map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
+    goals: (input.goals ?? []).map((goal) => ({ title: goal.title, scaleCriteria: goal.scaleCriteria ?? null })),
     heldAt: input.heldAt,
-    helpNarrative: input.helpNarrative,
-    lifeAreas: input.lifeAreas,
+    helpNarrative: input.helpNarrative ?? null,
+    lifeAreas: input.lifeAreas ?? null,
+    linkedOrgs: input.linkedOrgs ?? null,
     managerOpinion: input.managerOpinion ?? null,
     nextMeeting: input.nextMeeting ?? null,
     orgId: actor.orgId,
@@ -9523,11 +9711,14 @@ export async function createIntakeRecord(
   }
 
   // 목표 상한(D12): 기존 활성 목표 + 신규 목표 ≤ 3.
-  const active = await env.DB.prepare(
-    "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
-  ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
-  if ((Number(active?.count ?? 0)) + input.goals.length > MAX_ACTIVE_GOALS) {
-    throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
+  const goalInputs = input.goals ?? [];
+  if (goalInputs.length > 0) {
+    const active = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
+    ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
+    if ((Number(active?.count ?? 0)) + goalInputs.length > MAX_ACTIVE_GOALS) {
+      throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
+    }
   }
 
   let schedule: CounselingSchedule | null = null;
@@ -9558,11 +9749,13 @@ export async function createIntakeRecord(
   const id = newId();
   const createdAt = now();
   const intakeDetails = stringifyJson({
-    helpNarrative: input.helpNarrative,
+    helpNarrative: input.helpNarrative ?? null,
     managerOpinion: input.managerOpinion ?? null,
-    // P3·P4 서술형은 확장 슬롯 성격의 JSON 으로 격리한다(브리핑·통계 제외, 3층 구조).
+    // 질문지 답변·반복 행 표는 확장 슬롯 성격의 JSON 으로 격리한다(브리핑·통계 제외, 3층 구조).
     answers: input.answers ?? [],
     additionalItems: input.additionalItems ?? [],
+    debts: input.debts ?? [],
+    linkedOrgs: input.linkedOrgs ?? [],
     nextMeeting: input.nextMeeting ?? null,
   });
   const activeSupportCaseGuard = `EXISTS (
@@ -9643,7 +9836,7 @@ export async function createIntakeRecord(
   const statements: D1PreparedStatement[] = [sessionStatement];
 
   // 목표(신설) + 각 목표 생성 감사(세션 트리거는 세션 행만 감사하므로 goals 는 명시 감사 — D14).
-  for (const goal of input.goals) {
+  for (const goal of goalInputs) {
     const goalId = newId();
     statements.push(env.DB.prepare(
       `INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at)
@@ -9669,7 +9862,7 @@ export async function createIntakeRecord(
     }));
   }
 
-  for (const action of input.actionItems) {
+  for (const action of input.actionItems ?? []) {
     statements.push(env.DB.prepare(
       `INSERT INTO action_items (
          id, org_id, support_case_id, session_id, description, owner, due_date, created_at
@@ -9689,7 +9882,7 @@ export async function createIntakeRecord(
     ));
   }
 
-  for (const area of input.lifeAreas) {
+  for (const area of input.lifeAreas ?? []) {
     statements.push(env.DB.prepare(
       `INSERT INTO session_life_area_snapshots (
          id, org_id, session_id, area_key, status, note, created_at
@@ -9755,6 +9948,9 @@ export async function createIntakeRecord(
 
   // 동의 기록(append-only): 화면 체크 privacy → consent_privacy_at, recordingAi → 2컬럼 동시.
   // 셋 다 recorded_at 과 같게 기록(insert_guard 정합). record_consent 감사(D14).
+  // D42 ②: 인테이크 화면은 동의를 입력받지 않으므로 consent 가 없으면 기록도 만들지 않는다 —
+  // 없는 동의를 인테이크 저장이 대신 남기면 등록 화면의 동의 기록과 어긋난다.
+  if (input.consent !== undefined) {
   const consentRecordId = newId();
   statements.push(env.DB.prepare(
     `INSERT INTO participant_consent_records (
@@ -9785,6 +9981,7 @@ export async function createIntakeRecord(
     supportCaseId,
     detail: { privacy: true, recording: true, textAi: true, kind: 'intake' },
   }));
+  }
 
   if (schedule !== null) {
     statements.push(env.DB.prepare(

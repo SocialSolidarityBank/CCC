@@ -429,6 +429,10 @@ export interface CreateInitialParticipantProgramInput {
   name?: string;
   phone?: string;
   email?: string;
+  // D41 1-1 · D42: 생년월일(YYYY-MM-DD)·주소 또는 거주지역·성별도 등록이 받아 금고에 넣는다.
+  birthDate?: string;
+  region?: string;
+  gender?: string;
 }
 
 export interface ScheduleCandidate {
@@ -512,8 +516,10 @@ export interface IntakeRecordContext {
   participant: { name: string | null; phone: string | null; email: string | null };
   sessionSequence: number;
   hasIntake: boolean;
-  // "기본정보 더 적기" 미리 채움(CCC-9). 서버가 금고에서 복호화해 실어 준다(감사 1건).
+  // 1-1 기본정보 표시용(D42 ①). 서버가 금고에서 복호화해 실어 준다(감사 1건).
   extendedPii: IntakeExtendedPii;
+  // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫.
+  consent: { privacy: boolean; recording: boolean; textAi: boolean };
 }
 
 // 인테이크 6영역 기준선(P1): 6영역 전부 상태 직접 입력('변화 없음' 없음).
@@ -528,7 +534,7 @@ export interface IntakeGoalInput {
   scaleCriteria?: unknown;
 }
 
-// P3·P4 서술형 답변(CCC-9). 키 어휘는 게이트웨이 INTAKE_ANSWER_KEYS 와 동일하다.
+// 질문지 답변 키 어휘. 게이트웨이 INTAKE_ANSWER_KEYS 와 같은 순서·같은 값이어야 한다(D41).
 export const intakeAnswerKeys = [
   'referral_path', 'referral_org', 'referral_reason',
   'more_since', 'more_trigger', 'more_focus',
@@ -537,6 +543,21 @@ export const intakeAnswerKeys = [
   'crisis_immediate_risk', 'crisis_needed_connection', 'crisis_safety_status', 'crisis_emergency_contact',
   'strength_personal', 'strength_relational', 'strength_past_coping', 'strength_resources',
   'participation_availability', 'participation_transport', 'participation_constraint',
+  'welfare_basic_livelihood', 'welfare_benefit_type', 'welfare_near_poverty', 'welfare_other',
+  'counsel_method', 'contact_time', 'contact_caution',
+  'application_reason', 'application_reason_detail',
+  'difficulty_areas',
+  'economy_income_type', 'economy_monthly_income', 'economy_monthly_expense',
+  'economy_arrears', 'economy_debt_types',
+  'employment_status', 'employment_income_stability', 'employment_detail',
+  'housing_type', 'housing_instability', 'housing_detail',
+  'health_physical', 'health_care_barrier', 'health_stress', 'health_daily_impact', 'health_detail',
+  'family_household_type', 'family_care_burden', 'family_detail',
+  'need_primary', 'need_secondary', 'need_detail',
+  'previous_support_detail',
+  'strength_detail',
+  'participation_barrier', 'participation_preferred_method', 'participation_detail',
+  'summary_urgency', 'summary_direction',
 ] as const;
 export type IntakeAnswerKey = (typeof intakeAnswerKeys)[number];
 
@@ -558,6 +579,26 @@ export interface IntakeAdditionalItemInput {
   item: string;
   owner?: string;
   dueDate?: string;
+  reason?: string;
+  method?: string;
+  dueNote?: string;
+}
+
+// 반복 행 표 2종(2-1 부채 · 3-3 연계 기관). 첫 열만 필수다.
+export interface IntakeDebtEntryInput {
+  creditor: string;
+  kind?: string;
+  balance?: string;
+  monthlyPayment?: string;
+  arrearsStatus?: string;
+}
+
+export interface IntakeLinkedOrgInput {
+  orgName: string;
+  serviceName?: string;
+  supportDetail?: string;
+  usagePeriod?: string;
+  progressStatus?: string;
 }
 
 export interface IntakeNextMeetingInput {
@@ -569,14 +610,17 @@ export interface CreateIntakeRecordInput {
   submissionId: string;
   heldAt: string;
   channel: SupportCaseRecord['channel'];
-  consent: { privacy: boolean; recordingAi: boolean };
-  helpNarrative: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actions: ManualActionItem[];
+  // D42: 5종은 선택 — 정본 질문지에 대응 항목이 없다(동의는 등록 화면, 목표는 보류).
+  consent?: { privacy: boolean; recordingAi: boolean };
+  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actions?: ManualActionItem[];
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
   scheduleId?: string;
@@ -1308,6 +1352,14 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     sessionSequence: responseInteger(record, 'sessionSequence'),
     hasIntake: responseBoolean(record, 'hasIntake'),
     extendedPii: decodeIntakeExtendedPii(responseProperty(record, 'extendedPii')),
+    consent: (() => {
+      const consent = responseObject(responseProperty(record, 'consent'));
+      return {
+        privacy: responseBoolean(consent, 'privacy'),
+        recording: responseBoolean(consent, 'recording'),
+        textAi: responseBoolean(consent, 'textAi'),
+      };
+    })(),
   };
 }
 

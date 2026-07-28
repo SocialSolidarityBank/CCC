@@ -77,6 +77,8 @@ export default async function NewIntakePage({
       submissionId={crypto.randomUUID()}
       participant={context.data.participant}
       extendedPii={context.data.extendedPii}
+      consent={context.data.consent}
+      participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
       sessionSequence={context.data.sessionSequence}
       recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
       briefingHref={briefingHref}

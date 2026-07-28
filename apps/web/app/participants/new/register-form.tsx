@@ -9,6 +9,15 @@ import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from './consent-co
 // 여기 옵션을 확장한다. 값 자체는 게이트웨이가 financial_support_v1 로 고정하므로 표시용이다.
 const PROGRAM_OPTIONS = [{ value: 'financial_support_v1', label: PROGRAM_LABELS.financial_support_v1 }];
 
+// 성별 선택값은 정본 질문지 1-1 그대로다(D41). 빈 값은 '미입력' — 금고에 아무것도 쓰지 않는다.
+const GENDER_OPTIONS = [
+  { value: '', label: '선택 안 함' },
+  { value: '여성', label: '여성' },
+  { value: '남성', label: '남성' },
+  { value: '기타', label: '기타' },
+  { value: '무응답', label: '무응답' },
+];
+
 export interface RegisterFormProps {
   /**
    * 로그인한 현재 사용자 — 등록자가 곧 담당 실무자다(등록자=담당 실무자, D7). 담당 실무자 지정 select 대신
@@ -26,8 +35,9 @@ export interface RegisterFormProps {
  * 당사자 등록 폼(재개편 T7 · #37 · Figma 1:95). 2×2 그리드(이름·이메일·연락처·참여 사업) +
  * 항목별 동의 2종(D23 — 와이어프레임엔 없지만 확정 사항) + 풀폭 "가입하기".
  *
- * 이번 티켓이 저장하는 PII 는 이메일뿐이다(등록 경로가 enc_email 만 연다, #32). 이름·연락처는
- * 와이어프레임 충실성을 위해 렌더하되 전송·저장하지 않는다 — 채움은 이후 updateParticipantPii.
+ * 저장하는 PII 는 이름·이메일·연락처와 생년월일·주소(거주지역)·성별이다 — 전부 금고에
+ * 암호화 저장된다(D3). 인테이크 1단계(1-1 기본정보)는 이 값을 읽어 표시만 하므로,
+ * 고치는 자리는 여기 하나뿐이다(D42 ①). 계좌는 여전히 updateParticipantPii 몫이다.
  */
 export function RegisterForm({ currentUser, action }: RegisterFormProps) {
   return (
@@ -50,6 +60,17 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
             value="financial_support_v1"
             options={PROGRAM_OPTIONS}
           />
+        </div>
+        {/* D41 1-1 · D42 ①: 인테이크 1단계의 기본정보는 여기서만 입력·수정한다. 값은 금고에
+            암호화 저장되고(D3), 인테이크 화면은 읽어서 표시만 한다(세션 기록에 PII 미저장, R3). */}
+        <div className="wire-col-6">
+          <SearchInput label="생년월일" type="date" name="birthDate" placeholder="YYYY-MM-DD" />
+        </div>
+        <div className="wire-col-6">
+          <SearchInput label="주소 또는 거주지역" name="region" placeholder="예: 서울시 은평구" />
+        </div>
+        <div className="wire-col-6">
+          <SearchInput label="성별" variant="select" name="gender" value="" options={GENDER_OPTIONS} />
         </div>
       </div>
 
