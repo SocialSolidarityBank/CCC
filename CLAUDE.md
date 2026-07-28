@@ -183,7 +183,7 @@ Claude API 호출부, 로그, 에러 메시지에 실명, 연락처, 계좌가 �
   infisical run --projectId=<ID> --env=<env> -- <명령>
   ```
   값은 주입만 한다 — `secrets get` 등으로 stdout·채팅·로그에 출력 금지.
-- **값이 stdout에 닿는 명령은 실행 자체 금지**: `infisical secrets`/`export`/`get`, `--plain`, 자격증명 파일 열람. 이름 확인이 필요해도 값 섞인 출력을 만들지 않는다. (2026-07-18 실제 노출 사고 → 전 키 로테이션. `~/.claude/hooks/secret-dump-guard.sh` 훅이 결정론 차단)
+- **값이 stdout에 닿는 명령은 실행 자체 금지**: `infisical secrets`/`export`/`get`, `--plain`, 자격증명 파일 열람. 이름 확인이 필요해도 값 섞인 출력을 만들지 않는다. (과거 실제 노출로 전 키 로테이션을 치른 규칙 — `~/.claude/hooks/secret-dump-guard.sh` 훅이 결정론 차단)
 - .env는 이름만 커밋(`.env.example`), 값 커밋 금지. 절차 SSOT: `~/DEVELOPER/PROJECTS/BSS/bss-infra/docs/machine-access.md` (레포 `SocialSolidarityBank/bss-infra`).
 - 시크릿 값이 채팅·커밋에 노출되면 즉시 보고하고 해당 키 로테이션을 안내한다.
 
@@ -205,7 +205,7 @@ GitHub Issues(`SocialSolidarityBank/CCC`)를 `gh` CLI로 사용한다. 상세: `
 5. 올리기 전 점검 5개(본문 1개 / 쉬운 한 줄 / 첫 댓글 자족 / 강조 2개 이하 / 윤문) 전부 통과해야 게시한다
 
 전문·예시·나쁨↔좋음 대조: `docs/agents/ticket-thread-protocol.md`.
-**채널 분리(2026-07-26 Q 결정)**: Linear 연동 봇의 게시 형식은 바꿀 수 없으므로(설정 자체가 없음) 채널을 갈랐다 — `#ccc-tickets`(`C0BKSEDMJ0Z`)는 **이 규칙대로 만든 스레드만**, `#ccc-linear`(공개, Q가 생성 예정)는 Linear 자동 알림 전문. **Linear에는 채널 변경 기능이 없다**(2026-07-26 API 전수 확인 — 생성·삭제 뮤테이션뿐, 채널은 Slack 인증 화면에서 고르는 값). 그래서 기존 연결(팀 CCC → #ccc-tickets)은 `integrationDelete`로 **삭제 완료**. **2026-07-26 분리 운영 시작** — Q가 `#ccc-linear` 생성 후 재연결(`9982197f-…`, `slackPost`/team=CCC) + 육안 확인 완료. 참고: 대상 채널은 API로 검증 불가(`Integration`에 채널 필드 없음, 에이전트 Slack 계정 `U0BKSMCEJLW`이 그 채널 비멤버). 채널을 다시 만들 일이 있으면 **공개**로 만든다(Slack에 비공개→공개 전환 API가 없고 Enterprise 전용이라, 비공개면 채널을 새로 파야 한다).
+**채널 분리(2026-07-26 Q 결정)**: Linear 연동 봇의 게시 형식은 바꿀 수 없으므로(설정 자체가 없음) 채널을 갈랐다 — `#ccc-tickets`는 **이 규칙대로 만든 스레드만**, `#ccc-linear`(공개)는 Linear 자동 알림 전문. **Linear에는 채널 변경 기능이 없다**(2026-07-26 API 전수 확인 — 생성·삭제 뮤테이션뿐, 채널은 Slack 인증 화면에서 고르는 값). 기존 연결(팀 CCC → #ccc-tickets)은 `integrationDelete`로 삭제하고 `#ccc-linear`로 재연결 완료(**2026-07-26 분리 운영 시작**). 채널을 다시 만들 일이 있으면 **공개**로 만든다(Slack에 비공개→공개 전환 API가 없고 Enterprise 전용이라, 비공개면 채널을 새로 파야 한다). 채널·연동의 구체 ID와 검증 함정은 `~/developer/tools/portwright/services/linear.md`(레포 밖 — 공개 레포에 운영 ID를 두지 않는다).
 
 ### 미리보기 환경 (CCC-6, 2026-07-25~)
 

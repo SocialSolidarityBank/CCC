@@ -6,7 +6,7 @@
 #    base64("12345678901234567890123456789012") — 테스트용 더미 키.
 #
 # 운영 시크릿(PII_ENC_KEY, Access API 토큰 등)은 이 레포 히스토리 어디에도 없다
-# (2026-07-18 노출 사고 후 전량 로테이션, 값은 Infisical에만 보관).
+# (값은 시크릿 매니저에만 보관, 레포에는 이름만 커밋한다).
 
 [[allowlists]]
 description = "CCC false positives: Cloudflare Access audience tag and test dummy PII key"
