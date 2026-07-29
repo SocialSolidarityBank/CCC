@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
-import { updateOverallGoalAction } from '../../../../../actions';
+import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
@@ -105,6 +105,8 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           participant={briefing.participant}
           sessionRows={focused.sessionRows}
           discrepancies={focused.discrepancies}
+          discrepancyAction={resolveDiscrepancyAction}
+          discrepancyError={notice === 'discrepancy_error'}
           pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}
           aiSuggestions={focused.aiSuggestions}
           openActionItems={focused.openActionItems}

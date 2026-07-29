@@ -2199,6 +2199,8 @@ describe('canonical participant API routes', () => {
         version: 1,
         completedSessionId: null,
       },
+      // CCC-42: '기록 오류'로 처리된 불일치가 가리키는 회차. 여기서는 처리 이력이 없어 빈 배열.
+      recordErrorSessionIds: [],
     });
   });
   it('serves the intake context and stores an intake record once, replaying identical resubmissions (CCC-7)', async () => {

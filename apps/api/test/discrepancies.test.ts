@@ -8,9 +8,11 @@ import {
   createManualSession,
   ForbiddenError,
   getParticipantBriefing,
+  listRecordErrorSessionIds,
   listSupportCasesForBeneficiary,
   recordPilotTextAiConsentEvidence,
   replaceSessionDiscrepancies,
+  resolveSessionDiscrepancy,
   updateParticipantPii,
   ValidationError,
 } from '../../../db/gateway';
@@ -300,7 +302,7 @@ describe('replaceSessionDiscrepancies — 저장·교체·불변 (ADR-0018)', ()
 });
 
 describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다', () => {
-  it('미처리 불일치를 상담일과 함께 싣고 처리된 행은 제외한다', async () => {
+  it('미처리·처리됨을 상담일과 함께 싣고 미처리를 앞세운다 (CCC-42)', async () => {
     const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
     const [first, second] = fixture.sessionIds;
     const stored = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [
@@ -326,14 +328,154 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
     ).bind(stored[1]?.id ?? '').run();
 
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
-    expect(briefing.discrepancies).toHaveLength(1);
+    // 처리된 항목도 함께 온다 — 화면이 접힌 이력으로 내린다(ADR-0018: 삭제되지 않는다).
+    expect(briefing.discrepancies).toHaveLength(2);
     const item = briefing.discrepancies[0];
+    // 미처리가 앞이다 — 화면이 정렬을 다시 만들지 않아도 되게.
+    expect(item?.resolution).toBeNull();
     expect(item?.kind).toBe('cross_session');
     expect(item?.left.sessionId).toBe(first);
     expect(item?.left.heldAt).toBe('2026-07-01T10:00:00.000Z');
     expect(item?.left.quote).toBe('첫 메모');
     expect(item?.right.sessionId).toBe(second);
     expect(item?.right.quote).toBe('둘째 메모');
+
+    const resolved = briefing.discrepancies[1];
+    expect(resolved?.id).toBe(stored[1]?.id);
+    expect(resolved?.resolution).toEqual({
+      status: 'situation_changed',
+      resolvedAt: '2026-07-29T00:00:00.000Z',
+    });
+    // 처리자 userId 는 화면에 쓰지 않으므로 응답에 싣지 않는다 — 감사에만 남는다(D14).
+    expect(resolved).not.toHaveProperty('resolvedBy');
+  });
+});
+
+// ── 처리 3종 (CCC-42) ────────────────────────────────────────────────────────
+
+describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-42)', () => {
+  async function storedPair(): Promise<{
+    caseId: string;
+    supportCaseId: string;
+    sessionIds: string[];
+    id: string;
+  }> {
+    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
+    const [first, second] = fixture.sessionIds;
+    const [row] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'cross_session',
+      leftSessionId: first ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+    if (row === undefined) throw new Error('expected a stored discrepancy');
+    return { ...fixture, id: row.id };
+  }
+
+  it('처리 3종을 저장하고 처리자·시각을 남기며 원본(인용·회차)은 그대로다', async () => {
+    for (const status of ['situation_changed', 'record_error', 'confirmed'] as const) {
+      const fixture = await storedPair();
+      const resolved = await resolveSessionDiscrepancy(t.env, counselor, fixture.id, status);
+      expect(resolved.resolutionStatus).toBe(status);
+      expect(resolved.resolvedBy).toBe(counselor.userId);
+      expect(resolved.resolvedAt).not.toBeNull();
+      // 처리는 표시일 뿐 — 인용·회차는 그대로다(ADR-0018).
+      expect(resolved.leftQuote).toBe('첫 메모');
+      expect(resolved.rightQuote).toBe('둘째 메모');
+      expect(resolved.leftSessionId).toBe(fixture.sessionIds[0]);
+      await t.reset();
+    }
+  });
+
+  it('처리 종류는 다시 바꿀 수 있고 바꾼 전건이 감사에 남는다 (D14 · Q 결정)', async () => {
+    const fixture = await storedPair();
+    await resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'confirmed');
+    const changed = await resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'record_error');
+    expect(changed.resolutionStatus).toBe('record_error');
+
+    const audit = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE action = 'resolve_discrepancy' AND target_id = ?
+       ORDER BY id`,
+    ).bind(fixture.id).all<{ detail: string }>();
+    expect(audit.results).toHaveLength(2);
+    expect(JSON.parse(audit.results[0]?.detail ?? '{}')).toMatchObject({
+      status: 'confirmed',
+      previousStatus: null,
+    });
+    expect(JSON.parse(audit.results[1]?.detail ?? '{}')).toMatchObject({
+      status: 'record_error',
+      previousStatus: 'confirmed',
+    });
+  });
+
+  it('처리 종류 값이 아니면 거부하고 다른 기관·타인의 항목은 열지 않는다', async () => {
+    const fixture = await storedPair();
+    await expect(
+      resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'wrong' as never),
+    ).rejects.toThrowError(ValidationError);
+    await expect(
+      resolveSessionDiscrepancy(t.env, counselor, crypto.randomUUID(), 'confirmed'),
+    ).rejects.toThrowError(ForbiddenError);
+  });
+
+  it('기관 관리자도 처리할 수 있다 (D7 — 전체 목표의 "담당 실무자만"과 다른 층)', async () => {
+    const fixture = await storedPair();
+    const resolved = await resolveSessionDiscrepancy(t.env, admin, fixture.id, 'confirmed');
+    expect(resolved.resolutionStatus).toBe('confirmed');
+    expect(resolved.resolvedBy).toBe(admin.userId);
+  });
+
+  it("'기록 오류' 처리는 원본을 지우지 않고 그 회차를 표시 대상으로만 올린다", async () => {
+    const fixture = await storedPair();
+    expect(await listRecordErrorSessionIds(t.env, counselor, fixture.supportCaseId)).toEqual([]);
+    await resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'record_error');
+    // 0027 에 어느 쪽이 오류인지 담는 칸이 없어 쌍의 양쪽 회차가 모두 표시 대상이다.
+    expect(new Set(await listRecordErrorSessionIds(t.env, counselor, fixture.supportCaseId)))
+      .toEqual(new Set([fixture.sessionIds[0], fixture.sessionIds[1]]));
+    // 원본 회차(수기 메모)는 그대로다.
+    const session = await t.db.prepare('SELECT memo FROM sessions WHERE id = ?')
+      .bind(fixture.sessionIds[0]).first<{ memo: string }>();
+    expect(session?.memo).toBe('첫 메모');
+  });
+
+  it('이미 처리한 쌍은 재검출이 다시 올리지 않는다 (Q 결정 — 중복 처리 방지)', async () => {
+    const fixture = await storedPair();
+    await resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'confirmed');
+    const [first, second] = fixture.sessionIds;
+    const again = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'cross_session',
+      leftSessionId: first ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+    expect(again).toHaveLength(0);
+    const rows = await t.db.prepare(
+      'SELECT COUNT(*) AS count FROM session_discrepancies WHERE support_case_id = ?',
+    ).bind(fixture.supportCaseId).first<{ count: number }>();
+    expect(Number(rows?.count ?? 0)).toBe(1);
+
+    // 좌우가 뒤집혀 와도 같은 쌍이다 — 어느 쪽이 left 인지는 프로바이더가 그때 정한다.
+    const swapped = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'cross_session',
+      leftSessionId: second ?? '',
+      leftQuote: '둘째 메모',
+      rightSessionId: first ?? '',
+      rightQuote: '첫 메모',
+    }]);
+    expect(swapped).toHaveLength(0);
+
+    // 인용이 다르면 다른 건이므로 새로 올라온다.
+    const different = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'within_session',
+      leftSessionId: second ?? '',
+      leftQuote: '둘째 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+    expect(different).toHaveLength(1);
   });
 });
 
@@ -487,5 +629,57 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
     }]);
     const briefing = await getParticipantBriefing(t.env, admin, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(1);
+  });
+});
+
+describe('라우트 — 처리 3종 엔드포인트 (CCC-42)', () => {
+  async function storedPair(): Promise<{ supportCaseId: string; id: string; sessionIds: string[] }> {
+    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
+    const [first, second] = fixture.sessionIds;
+    const [row] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'cross_session',
+      leftSessionId: first ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+    if (row === undefined) throw new Error('expected a stored discrepancy');
+    return { supportCaseId: fixture.supportCaseId, id: row.id, sessionIds: fixture.sessionIds };
+  }
+
+  async function putResolution(
+    supportCaseId: string,
+    discrepancyId: string,
+    body: unknown,
+  ): Promise<Response> {
+    return worker.fetch(new Request(
+      `https://api.test/support-cases/${supportCaseId}/discrepancies/${discrepancyId}/resolution`,
+      { method: 'PUT', headers: counselorHeaders(), body: JSON.stringify(body) },
+    ), t.env);
+  }
+
+  it('처리 요청이 저장되고 잘못된 값·주소 불일치는 거부된다', async () => {
+    const fixture = await storedPair();
+    const ok = await putResolution(fixture.supportCaseId, fixture.id, { status: 'record_error' });
+    expect(ok.status).toBe(200);
+    await expect(ok.json()).resolves.toMatchObject({ resolutionStatus: 'record_error' });
+
+    expect((await putResolution(fixture.supportCaseId, fixture.id, { status: 'nope' })).status).toBe(400);
+
+    // 주소의 참여 사업이 그 항목의 소속과 다르면 통과시키지 않는다.
+    const other = await createCaseWithSessions(['다른 케이스 메모']);
+    expect((await putResolution(other.supportCaseId, fixture.id, { status: 'confirmed' })).status).toBe(403);
+  });
+
+  it("기록 목록 응답이 '기록 오류' 처리된 회차를 함께 싣는다", async () => {
+    const fixture = await storedPair();
+    await putResolution(fixture.supportCaseId, fixture.id, { status: 'record_error' });
+    const response = await worker.fetch(new Request(
+      `https://api.test/support-cases/${fixture.supportCaseId}/records?official=true`,
+      { headers: counselorHeaders() },
+    ), t.env);
+    expect(response.status).toBe(200);
+    const body = await response.json() as { recordErrorSessionIds: string[] };
+    expect(new Set(body.recordErrorSessionIds)).toEqual(new Set(fixture.sessionIds));
   });
 });

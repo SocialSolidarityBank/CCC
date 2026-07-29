@@ -352,6 +352,12 @@ const briefingStyles = `
 .briefing-suggestion-title{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
 .briefing-suggestion-reason{margin:0;font-size:14px;color:var(--sub)}
 .briefing-suggestion-link{justify-self:start;font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
+/* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
+   시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
+.briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
+.briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
+.briefing-history>summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--sub)}
+.briefing-history>.briefing-qsection{margin-top:var(--space-4)}
 /* 배지·메타·빈 상태(§5 상태 배지). */
 .briefing-badges{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}

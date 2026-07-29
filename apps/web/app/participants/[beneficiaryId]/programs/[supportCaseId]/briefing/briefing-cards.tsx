@@ -35,6 +35,14 @@ const discrepancyKindLabels: Record<'cross_session' | 'within_session', string> 
   within_session: '회차 내 모순',
 };
 
+// D45 처리 3종 (CCC-42). 순서는 ADR-0018 의 나열 순서를 따른다.
+const discrepancyResolutionOptions = ['situation_changed', 'record_error', 'confirmed'] as const;
+const discrepancyResolutionLabels: Record<(typeof discrepancyResolutionOptions)[number], string> = {
+  situation_changed: '상황 변경',
+  record_error: '기록 오류',
+  confirmed: '확인 완료',
+};
+
 export interface BriefingCardsProps {
   beneficiaryId: string;
   /** 전체 목표 저장 폼의 hidden 값 — 게이트웨이 권한 판정에 그대로 넘어간다. */
@@ -56,8 +64,12 @@ export interface BriefingCardsProps {
   participant: { name: string | null; phone: string | null };
   /** D45 영역 ② 회차별 정리 — 최신순. 승인된 AI 핵심 한 줄, 없으면 수기 발췌 + '수기' 배지(D5). */
   sessionRows: ParticipantBriefingSection['sessionRows'];
-  /** D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). 미처리 항목만 온다. */
+  /** D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). 미처리·처리됨이 함께 온다. */
   discrepancies: ParticipantBriefingSection['discrepancies'];
+  /** 처리 3종 서버 액션 (CCC-42). 없으면 처리 버튼을 그리지 않는다(jsdom 테스트 기본값). */
+  discrepancyAction?: (formData: FormData) => Promise<void>;
+  /** 직전 처리 실패 여부(리다이렉트 notice) — 카드 안에 한 줄로 알린다. */
+  discrepancyError?: boolean;
   /** 승인 대기 배지 — D45 가 영역 ② 머리로 옮겼다(구 '지난 상담 브리핑' 카드 자리). */
   pendingApprovalCount: number;
   /** D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차 링크. 재료는 승인본만(R2). */
@@ -152,6 +164,66 @@ function OverallGoalCard({
   );
 }
 
+/**
+ * 불일치 한 건 (D45 영역 ③ · CCC-42). 양쪽 원문 인용 + 회차 링크를 나란히 놓고, 그 아래
+ * 처리 3종 버튼을 둔다. 처리된 항목도 같은 부품으로 그린다 — 처리 종류는 다시 바꿀 수
+ * 있으므로(Q 결정) 이력에서도 버튼이 살아 있고, 지금 처리 상태만 한 줄로 덧붙는다.
+ */
+function DiscrepancyItem({
+  item,
+  beneficiaryId,
+  supportCaseId,
+  recordsHref,
+  action,
+}: {
+  item: ParticipantBriefingSection['discrepancies'][number];
+  beneficiaryId: string;
+  supportCaseId: string;
+  recordsHref: string;
+  action: ((formData: FormData) => Promise<void>) | undefined;
+}) {
+  return (
+    <div className="briefing-qsection">
+      <p className="briefing-qlabel">{discrepancyKindLabels[item.kind]}</p>
+      <div className="briefing-fields">
+        {[item.left, item.right].map((side, index) => (
+          <WireField key={`${item.id}-${index}`} label={`${formatDateOnly(side.heldAt)} 회차`}>
+            <span>“{side.quote}”</span>
+            {' '}
+            <Link href={`${recordsHref}#record-${side.sessionId}`}>기록 보기</Link>
+          </WireField>
+        ))}
+      </div>
+      {item.resolution !== null && (
+        <p className="briefing-note">
+          {discrepancyResolutionLabels[item.resolution.status]}으로 처리됨
+          {' · '}
+          {formatDateOnly(item.resolution.resolvedAt)}
+        </p>
+      )}
+      {action !== undefined && (
+        <form className="briefing-resolution-form" action={action}>
+          <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+          <input type="hidden" name="supportCaseId" value={supportCaseId} />
+          <input type="hidden" name="discrepancyId" value={item.id} />
+          {discrepancyResolutionOptions.map((status) => (
+            <WireButton
+              key={status}
+              type="submit"
+              name="status"
+              value={status}
+              variant="secondary"
+              disabled={item.resolution?.status === status}
+            >
+              {discrepancyResolutionLabels[status]}
+            </WireButton>
+          ))}
+        </form>
+      )}
+    </div>
+  );
+}
+
 // 카드 = 접힘 가능한 <details>. 요약(제목)만 남기고 본문을 접을 수 있어 '전체 열기/닫기'가
 // 카드 접힘 상태에도 일괄 적용된다. 기본은 열림. badge 는 제목 오른쪽(화살표 앞)에 앉는다.
 function Card({ title, badge, children }: { title: string; badge?: ReactNode; children: ReactNode }) {
@@ -183,6 +255,8 @@ export function BriefingCards({
   participant,
   sessionRows,
   discrepancies,
+  discrepancyAction,
+  discrepancyError = false,
   pendingApprovalCount,
   aiSuggestions,
   openActionItems,
@@ -203,6 +277,10 @@ export function BriefingCards({
       details.open = next;
     }
   };
+
+  // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
+  const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
+  const resolvedDiscrepancies = discrepancies.filter((item) => item.resolution !== null);
 
   const sessionGoals = upcomingSchedule?.sessionGoals ?? [];
   const customQuestions = upcomingSchedule?.customQuestions ?? [];
@@ -329,32 +407,49 @@ export function BriefingCards({
               ))} />}
         </Card>
 
-        {/* 영역 ③ 내용 불일치 (D45 · CCC-43) — 기록 공식화 시점에 검출·저장된 결과의 읽기
-            전용 표시. AI 는 어느 쪽이 맞는지 판단하지 않으므로(R5) 양쪽 원문 인용과 회차
-            링크만 나란히 놓는다. 처리 3종(상황 변경/기록 오류/확인 완료)은 CCC-42. */}
+        {/* 영역 ③ 내용 불일치 (D45 · CCC-43 · CCC-42) — 기록 공식화 시점에 검출·저장된 결과.
+            AI 는 어느 쪽이 맞는지 판단하지 않으므로(R5) 양쪽 원문 인용과 회차 링크만 나란히
+            놓고, 판단은 실무자의 처리 3종이 한다. 처리는 **표시일 뿐 원본 기록은 불변**이며
+            처리된 항목은 삭제되지 않고 접힌 이력으로 내려간다(ADR-0018). 배지는 **미처리만**
+            센다 — 이력이 쌓일수록 숫자가 불어나면 '남은 일'을 알려주지 못한다. */}
         <Card
           title="내용 불일치"
-          badge={discrepancies.length > 0 ? <span className="briefing-badge is-pending">{discrepancies.length}건</span> : null}
+          badge={unresolvedDiscrepancies.length > 0
+            ? <span className="briefing-badge is-pending">{unresolvedDiscrepancies.length}건</span>
+            : null}
         >
-          {discrepancies.length === 0
+          {unresolvedDiscrepancies.length === 0
             ? <EmptyNote>검출된 불일치가 없습니다 — 기록이 저장·승인될 때마다 자동으로 대조합니다.</EmptyNote>
-            : discrepancies.map((item) => (
-              <div className="briefing-qsection" key={item.id}>
-                <p className="briefing-qlabel">{discrepancyKindLabels[item.kind]}</p>
-                <div className="briefing-fields">
-                  {[item.left, item.right].map((side, index) => (
-                    <WireField
-                      key={`${item.id}-${index}`}
-                      label={`${formatDateOnly(side.heldAt)} 회차`}
-                    >
-                      <span>“{side.quote}”</span>
-                      {' '}
-                      <Link href={`${recordsHref}#record-${side.sessionId}`}>기록 보기</Link>
-                    </WireField>
-                  ))}
-                </div>
-              </div>
+            : unresolvedDiscrepancies.map((item) => (
+              <DiscrepancyItem
+                key={item.id}
+                item={item}
+                beneficiaryId={beneficiaryId}
+                supportCaseId={supportCaseId}
+                recordsHref={recordsHref}
+                action={discrepancyAction}
+              />
             ))}
+          {discrepancyError && (
+            <p className="briefing-goal-error" role="alert">
+              처리하지 못했습니다. 담당 실무자와 기관 관리자만 처리할 수 있습니다 — 잠시 후 다시 시도하세요.
+            </p>
+          )}
+          {resolvedDiscrepancies.length > 0 && (
+            <details className="briefing-history">
+              <summary>처리된 항목 {resolvedDiscrepancies.length}건</summary>
+              {resolvedDiscrepancies.map((item) => (
+                <DiscrepancyItem
+                  key={item.id}
+                  item={item}
+                  beneficiaryId={beneficiaryId}
+                  supportCaseId={supportCaseId}
+                  recordsHref={recordsHref}
+                  action={discrepancyAction}
+                />
+              ))}
+            </details>
+          )}
         </Card>
 
         {/* 유지 카드 2종 (D45 표 7행) — 미해결 액션·개인정보. 표준 그리드(최소 420 → 2열, D37). */}

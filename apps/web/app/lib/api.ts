@@ -318,13 +318,15 @@ export interface ParticipantBriefingSection {
     memoExcerpt: string | null;
   }>;
   // D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). AI 판단 없이 양쪽 원문 인용 +
-  // 회차 참조만(R5). CCC-43 범위에서는 미처리 항목만 온다(처리 3종은 CCC-42).
+  // 회차 참조만(R5). 처리 3종(CCC-42)은 resolution 으로 함께 오고, null 이면 미처리다 —
+  // 화면이 미처리 목록과 접힌 이력으로 가른다.
   discrepancies: Array<{
     id: string;
     kind: 'cross_session' | 'within_session';
     left: { sessionId: string; heldAt: string; quote: string };
     right: { sessionId: string; heldAt: string; quote: string };
     detectedAt: string;
+    resolution: { status: DiscrepancyResolutionStatus; resolvedAt: string } | null;
   }>;
 }
 
@@ -429,10 +431,19 @@ export interface SupportCaseRecordGoal {
   status: 'active' | 'closed';
 }
 
+/** 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 처리는 표시일 뿐 원본 기록은 불변이다. */
+export type DiscrepancyResolutionStatus = 'situation_changed' | 'record_error' | 'confirmed';
+
 export interface SupportCaseRecords {
   records: SupportCaseRecord[];
   goals: SupportCaseRecordGoal[];
   schedule: CounselingSchedule | null;
+  /**
+   * '기록 오류'로 처리된 불일치가 가리키는 회차 ID (CCC-42). 그 기록 옆에 처리됨 표시만
+   * 붙인다 — 원본은 그대로다. 0027 에 어느 쪽이 오류인지 담는 칸이 없어 쌍의 양쪽 회차가
+   * 모두 들어온다(회차 내 모순이면 한 곳).
+   */
+  recordErrorSessionIds: string[];
 }
 
 // 정기 기록지 고정 헤더의 "이번 상담 목표"(D28 · CCC-10). 일정에 연결된 세션 목표를 표시한다.
@@ -932,6 +943,10 @@ function decodeSupportCaseRecords(value: unknown): SupportCaseRecords {
     records: responseArray(record, 'records').map(decodeSupportCaseRecord),
     goals: responseArray(record, 'goals').map(decodeSupportCaseRecordGoal),
     schedule: schedule === null ? null : decodeCounselingSchedule(schedule),
+    recordErrorSessionIds: responseArray(record, 'recordErrorSessionIds').map((item) => {
+      if (typeof item !== 'string') contractViolation();
+      return item;
+    }),
   };
 }
 
@@ -1384,6 +1399,23 @@ export async function updateSupportCaseOverallGoal(
     `/support-cases/${encodeURIComponent(supportCaseId)}/overall-goal`,
     'PUT',
     { overallGoal },
+  );
+}
+
+/**
+ * 불일치 처리 3종 (D45 · CCC-42). 표시만 바뀌고 원본 기록은 그대로다 — 이미 처리한 항목의
+ * 종류도 다시 바꿀 수 있고, 바꾼 전건이 감사에 남는다(D14).
+ */
+export async function resolveDiscrepancy(
+  supportCaseId: string,
+  discrepancyId: string,
+  status: DiscrepancyResolutionStatus,
+): Promise<void> {
+  await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}`
+    + `/discrepancies/${encodeURIComponent(discrepancyId)}/resolution`,
+    'PUT',
+    { status },
   );
 }
 

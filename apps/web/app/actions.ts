@@ -41,6 +41,7 @@ import {
   updateParticipantConsent,
   updateParticipantBasicInfo,
   updateSupportCaseOverallGoal,
+  resolveDiscrepancy,
   type ManualActionItem,
   type ManualActionItemResolution,
   type ActionItemResolutionStatus,
@@ -690,6 +691,37 @@ export async function updateOverallGoalAction(formData: FormData): Promise<void>
       ? '/participants'
       : participantBriefingPath(beneficiaryId, supportCaseId);
     redirect(withNotice(fallback, 'notice', 'overall_goal_error'));
+  }
+  if (beneficiaryId === undefined || supportCaseId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  redirect(participantBriefingPath(beneficiaryId, supportCaseId));
+}
+
+/**
+ * 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 브리핑 영역 ③ 의 처리 버튼이 제출한다.
+ * 처리는 표시일 뿐 원본 기록은 그대로다 — 여기서 바뀌는 것은 처리 상태뿐이다.
+ * 권한(담당 실무자·기관 관리자)·감사(D14)는 게이트웨이가 판정한다.
+ * 성공 피드백은 갱신된 목록 자체이고, 실패만 notice 코드로 돌아온다(전체 목표 카드와 같은 방식).
+ */
+export async function resolveDiscrepancyAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    const discrepancyId = opaqueId(formData, 'discrepancyId');
+    const status = formData.get('status');
+    if (status !== 'situation_changed' && status !== 'record_error' && status !== 'confirmed') {
+      throw new Error('discrepancy resolution status is invalid');
+    }
+    await resolveDiscrepancy(supportCaseId, discrepancyId, status);
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch {
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined
+      ? '/participants'
+      : participantBriefingPath(beneficiaryId, supportCaseId);
+    redirect(withNotice(fallback, 'notice', 'discrepancy_error'));
   }
   if (beneficiaryId === undefined || supportCaseId === undefined) {
     redirect(withNotice('/participants', 'error', 'service_unavailable'));
