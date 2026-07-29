@@ -37,7 +37,7 @@ const messages: Record<LoadError, string> = {
   access_denied: '이 참여 사업에 상담 기록을 남길 권한이 없습니다.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 시도하세요.',
   forbidden: '이 참여 사업에 상담 기록을 남길 권한이 없습니다.',
-  not_found: '요청한 참여자 ID 또는 참여 사업을 찾을 수 없습니다.',
+  not_found: '요청한 당사자 ID 또는 참여 사업을 찾을 수 없습니다.',
   service_unavailable: '상담 기록 서비스를 지금 사용할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
 
@@ -348,7 +348,7 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     authentication_required: { className: 'status risk', role: 'alert', text: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 새 상담 기록을 시작하세요.' },
     access_denied: { className: 'status risk', role: 'alert', text: '이 참여 사업에 상담 기록을 남길 권한이 없습니다. 권한을 확인한 뒤 새 상담 기록을 시작하세요.' },
     forbidden: { className: 'status risk', role: 'alert', text: '현재 권한으로는 이 상담 기록을 저장할 수 없습니다. 권한 상태를 확인하세요.' },
-    not_found: { className: 'status risk', role: 'alert', text: '요청한 참여자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.' },
+    not_found: { className: 'status risk', role: 'alert', text: '요청한 당사자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.' },
     conflict: { className: 'status risk', role: 'alert', text: '같은 제출 ID에 다른 저장 요청이 있어 이 기록을 등록하지 않았습니다.' },
     not_eligible_or_already_purged: { className: 'status risk', role: 'alert', text: '현재 참여 사업에는 상담 기록을 등록할 수 없습니다. 참여 사업 상태를 확인하세요.' },
     pilot_text_ai_consent_required: { className: 'status risk', role: 'alert', text: '텍스트 AI 파일럿 동의가 확인되지 않아 요청을 처리할 수 없습니다. 동의 상태를 확인하세요.' },
@@ -413,12 +413,12 @@ export default async function NewRecordPage({
 
   return <main className="page-content">
     <nav className="breadcrumb" aria-label="현재 위치">
-      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>참여자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${programPath}/briefing`}>참여 사업</Link><span>/</span><Link href={historyPath}>상담 기록</Link><span>/</span><strong>작성</strong>
+      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>당사자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${programPath}/briefing`}>참여 사업</Link><span>/</span><Link href={historyPath}>상담 기록</Link><span>/</span><strong>작성</strong>
     </nav>
     <header className="page-header">
       <div>
         <h1>상담 기록 작성</h1>
-        <p>참여자 ID {beneficiaryId ?? '확인 불가'}의 참여 사업에 수기 기록을 남깁니다. 필수 상담 기록 항목을 한 화면에서 확인하고 작성합니다.</p>
+        <p>당사자 ID {beneficiaryId ?? '확인 불가'}의 참여 사업에 수기 기록을 남깁니다. 필수 상담 기록 항목을 한 화면에서 확인하고 작성합니다.</p>
       </div>
       <WireButton variant="secondary" href={historyPath}>상담 기록으로 돌아가기</WireButton>
     </header>

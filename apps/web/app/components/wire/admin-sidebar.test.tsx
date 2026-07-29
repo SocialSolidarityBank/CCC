@@ -15,8 +15,8 @@ describe('AdminSidebar', () => {
     expect(active[0]?.getAttribute('aria-current')).toBe('page');
   });
 
-  it("'/admin' 은 모든 관리자 경로의 접두어라 하위 경로에서 조직 탭이 같이 켜지지 않는다", () => {
-    // 조직만 정확 일치로 보지 않으면 /admin/users 에서 조직·사용자 두 탭이 동시에 활성이 된다.
+  it("'/admin' 은 모든 관리자 경로의 접두어라 하위 경로에서 기관 탭이 같이 켜지지 않는다", () => {
+    // 기관만 정확 일치로 보지 않으면 /admin/users 에서 기관·사용자 두 탭이 동시에 활성이 된다.
     const { container } = render(<AdminSidebar activePath="/admin/users/abc" />);
     const active = Array.from(container.querySelectorAll('a[data-active="true"]'));
     expect(active.map((anchor) => anchor.getAttribute('href'))).toEqual(['/admin/users']);
@@ -28,7 +28,7 @@ describe('AdminSidebar', () => {
     expect(container.querySelector('nav.wire-tabs')).not.toBeNull();
   });
 
-  it('조직·배정·사용자·설정·상담사 초대 5개 메뉴를 순서대로 렌더한다', () => {
+  it('기관·배정·사용자·설정·실무자 초대 5개 메뉴를 순서대로 렌더한다', () => {
     const { container } = render(<AdminSidebar activePath="/admin" />);
     const hrefs = Array.from(container.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href'));
     expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/settings', '/admin/invite']);

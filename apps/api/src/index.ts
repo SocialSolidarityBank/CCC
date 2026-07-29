@@ -16,7 +16,7 @@ export {
 import { PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
 /**
- * 폴링 워치독 1회 실행 (D8). 전 조직 건강도를 계산하고 stale인 조직마다 관리자 알림
+ * 폴링 워치독 1회 실행 (D8). 전 기관 건강도를 계산하고 stale인 기관마다 관리자 알림
  * 시임(notifyAdmins)을 호출한다. 계산·감사는 gateway(runPipelineWatchdog)가, 알림 발송
  * 판단은 여기가 담당한다. 테스트가 직접 부를 수 있도록 export한다.
  */

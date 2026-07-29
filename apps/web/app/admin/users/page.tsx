@@ -13,8 +13,8 @@ import {
 import { assignmentStatusLabel, assignmentSummary, userLabel } from '../admin-format';
 
 const roleLabel: Record<DirectoryRole, string> = {
-  admin: '시스템 관리자',
-  counselor: '담당자',
+  admin: '기관 관리자',
+  counselor: '담당 실무자',
   service: '서비스 계정',
 };
 
@@ -25,8 +25,8 @@ function queryValue(params: SearchParams, name: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-// 관리자 영역 사용자 화면(재개편 T8, #38 · Figma 5:386). 좌열 상담사 목록(admin·counselor),
-// 우열은 선택한 상담사의 담당 참여자(실명 포함, D24·ADR-0005). 선택은 ?selected= 쿼리로 유지해
+// 관리자 영역 사용자 화면(재개편 T8, #38 · Figma 5:386). 좌열 실무자 목록(admin·counselor),
+// 우열은 선택한 실무자의 담당 당사자(실명 포함, D24·ADR-0005). 선택은 ?selected= 쿼리로 유지해
 // 서버 렌더만으로 마스터-디테일을 구성한다(클릭 → 링크 → 우열 서버 조회).
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const query = await searchParams;
@@ -38,7 +38,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     users = (await listOrgUsers()).filter((user) => user.role === 'admin' || user.role === 'counselor');
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
-    usersError = '상담사 목록을 지금 불러올 수 없습니다. 접근 권한을 확인하세요.';
+    usersError = '실무자 목록을 지금 불러올 수 없습니다. 접근 권한을 확인하세요.';
   }
 
   const selectedUser = selected === undefined ? undefined : users.find((user) => user.id === selected);
@@ -49,7 +49,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
       assignments = await listCounselorAssignments(selectedUser.id);
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
-      assignmentsError = '담당 참여자를 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.';
+      assignmentsError = '담당 당사자를 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.';
     }
   }
 
@@ -57,11 +57,11 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     <>
       <PageTitle>사용자</PageTitle>
       <div className="wire-admin-cols">
-        <section aria-label="상담사 목록">
+        <section aria-label="실무자 목록">
           {usersError !== null ? (
             <p className="wire-admin-empty" role="alert">{usersError}</p>
           ) : users.length === 0 ? (
-            <p className="wire-admin-empty">등록된 상담사가 없습니다.</p>
+            <p className="wire-admin-empty">등록된 실무자가 없습니다.</p>
           ) : (
             <div className="wire-admin-list">
               {users.map((user) => (
@@ -78,9 +78,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           )}
         </section>
 
-        <section aria-label="담당 참여자">
+        <section aria-label="담당 당사자">
           {selectedUser === undefined ? (
-            <p className="wire-admin-empty">상담사를 선택하면 담당 참여자가 표시됩니다.</p>
+            <p className="wire-admin-empty">실무자를 선택하면 담당 당사자가 표시됩니다.</p>
           ) : (
             <>
               <div className="wire-admin-detail-head">
@@ -92,7 +92,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
               {assignmentsError !== null ? (
                 <p className="wire-admin-empty" role="alert">{assignmentsError}</p>
               ) : assignments === null || assignments.participants.length === 0 ? (
-                <p className="wire-admin-empty">담당 참여자가 없습니다.</p>
+                <p className="wire-admin-empty">담당 당사자가 없습니다.</p>
               ) : (
                 <div className="wire-admin-list">
                   {assignments.participants.map((participant) => (

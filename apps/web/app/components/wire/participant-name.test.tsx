@@ -7,7 +7,7 @@ import { ParticipantName } from './participant-name';
 // 테스트는 전부 통과해도 `pnpm test` 가 1 로 끝난다(CI 실패).
 afterEach(cleanup);
 
-// 이름 표기 계약 (D34 · DESIGN.md §5 '이름 표기'). 이 컴포넌트가 브리핑 HERO·참여자 목록·
+// 이름 표기 계약 (D34 · DESIGN.md §5 '이름 표기'). 이 컴포넌트가 브리핑 HERO·당사자 목록·
 // 허브 세 곳의 단일 출처라, 계약이 깨지면 화면 세 개가 동시에 어긋난다.
 
 describe('ParticipantName', () => {

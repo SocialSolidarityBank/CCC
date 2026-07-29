@@ -10,8 +10,14 @@ export const AI_PROVIDER_REGISTRY = Object.freeze({
     }),
   }),
 });
-export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v1';
-export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v1';
+// v2 (CCC-38·CCC-39·D45): 출력에 핵심 한 줄(oneLiner)이 추가되고, 브리핑 질문이 단문
+// 텍스트에서 구조화 제안(짧은 제목 + 확인 이유)으로 바뀌었다. 버전을 올리면 활성 프로바이더
+// 설정 해시가 어긋나 재활성화 전까지 fail-closed 된다 — 구 스키마로 생성이 계속되는
+// 드리프트를 막는 의도된 동작이다.
+export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v2';
+export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v2';
+export const DISCREPANCY_PROMPT_VERSION = 'phase1.discrepancy.v1';
+export const DISCREPANCY_SCHEMA_VERSION = 'phase1.discrepancy-list.v1';
 
 const MAX_MASKED_TEXT_LENGTH = 24_000;
 const MAX_EVIDENCE_ITEMS = 64;
@@ -19,8 +25,17 @@ const MAX_CLAIMS = 32;
 const MAX_CLAIM_LENGTH = 2_000;
 const MIN_QUESTIONS = 2;
 const MAX_QUESTIONS = 3;
+// D45: "짧은 제목" — 화면에서 한 줄에 앉는 길이로 강제한다.
+const MAX_QUESTION_TITLE_LENGTH = 80;
+// 게이트웨이의 MAX_AI_ONE_LINER_LENGTH(db/gateway.ts)와 같은 값 — 회차 줄에 앉는 한 문장.
+const MAX_ONE_LINER_LENGTH = 120;
 const CODEX_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const CODEX_REQUEST_TIMEOUT_MS = 20_000;
+
+// 내용 불일치 검출(D45 · CCC-43) 상한. 소스 = 공식화된 회차의 가명 처리 텍스트.
+const MAX_DISCREPANCY_SOURCES = 12;
+const MAX_DISCREPANCIES = 8;
+const MAX_DISCREPANCY_QUOTE_LENGTH = 500;
 
 const opaqueIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const opaqueReferencePattern = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
@@ -80,8 +95,10 @@ export interface AiGeneratedClaim {
   text: string;
   evidence: readonly AiClaimEvidenceReference[];
 }
+/** D45 영역 ① 구조화 제안 — 짧은 제목 + 확인해야 하는 이유. 근거는 evidence 가 강제한다. */
 export interface AiGeneratedQuestion {
-  text: string;
+  title: string;
+  reason: string;
   evidence: readonly AiClaimEvidenceReference[];
 }
 
@@ -93,6 +110,39 @@ export interface AiProviderRequest {
 export interface AiProviderOutput {
   claims: readonly AiGeneratedClaim[];
   questions: readonly AiGeneratedQuestion[];
+  /** D45 영역 ② 핵심 한 줄 — 개행 없는 한 문장, 요약·질문과 함께 승인된다(R2). */
+  oneLiner: string;
+}
+
+/**
+ * 내용 불일치 검출(D45 · ADR-0018 · CCC-43) 요청. 소스는 게이트웨이가 가명 처리한
+ * 공식 기록 텍스트뿐이고(R3), sourceRef 는 회차(session) 불투명 식별자다.
+ * triggerRef = 이번 공식화로 검출을 일으킨 회차 — 출력은 이 회차가 낀 쌍만 허용된다.
+ */
+export interface DiscrepancySourceInput {
+  sourceRef: string;
+  text: string;
+}
+
+export interface DiscrepancyDetectionRequest {
+  triggerRef: string;
+  sources: readonly DiscrepancySourceInput[];
+}
+
+/**
+ * 불일치 한 쌍 — 판단 없이 양쪽 원문 인용과 회차 참조만(R5). 인용은 해당 소스 텍스트의
+ * 문자 그대로의 부분 문자열이어야 검증을 통과한다(근거 없는 인용 금지, D9 와 같은 태도).
+ */
+export interface DetectedDiscrepancy {
+  kind: 'cross_session' | 'within_session';
+  leftRef: string;
+  leftQuote: string;
+  rightRef: string;
+  rightQuote: string;
+}
+
+export interface DiscrepancyDetectionOutput {
+  discrepancies: readonly DetectedDiscrepancy[];
 }
 
 /**
@@ -103,6 +153,12 @@ export interface AiProviderAdapter {
   readonly providerId: typeof CODEX_PROVIDER_ID;
   readonly adapterVersion: string;
   generate(request: AiProviderRequest): Promise<AiProviderOutput>;
+  /**
+   * 내용 불일치 검출(CCC-43). 선택 메서드 — 없으면 검출은 조용히 스킵된다(D8:
+   * 검출 실패·미지원이 기록 저장을 막으면 안 된다). 반환값은 호출자가
+   * validateDiscrepancyDetectionOutput 으로 반드시 재검증한다.
+   */
+  detectDiscrepancies?(request: DiscrepancyDetectionRequest): Promise<unknown>;
 }
 
 /**
@@ -163,7 +219,7 @@ function hasProhibitedOutput(value: string): boolean {
  * (`\d{2,6}-\d{2,6}-\d{2,8}`)에 우연히 걸린다 — 실측 20만 개 중 8,651개(4.3%).
  * 예: `006ec309-6253-498c-8bfe-4dd22ddfe344` 의 `309-6253-498` 구간.
  *
- * 그 결과 API 가 **자기가 발급한 식별자를 자기 검증기로 거부**해, 상담사의 AI 초안 편집이
+ * 그 결과 API 가 **자기가 발급한 식별자를 자기 검증기로 거부**해, 실무자의 AI 초안 편집이
  * 약 4.3% 확률로 400 invalid_request 로 실패했다(이슈 #47 — flake 로 보였던 것의 실체).
  *
  * 정규 UUID(8-4-4-4-12 16진, 36자)는 주민번호(13자리)·전화(10~11자리)·계좌(10~16자리)
@@ -478,7 +534,7 @@ function assertSafeGeneratedOutputText(value: unknown): asserts value is string 
 export function validateAiProviderOutput(value: unknown, request: AiProviderRequest): AiProviderOutput {
   if (!isRecord(value)) throw new AiProviderProhibitedOutputError();
   assertNoProhibitedKeys(value);
-  assertExactKeys(value, ['claims', 'questions'], new AiProviderProhibitedOutputError());
+  assertExactKeys(value, ['claims', 'questions', 'oneLiner'], new AiProviderProhibitedOutputError());
   if (!Array.isArray(value.claims) || value.claims.length === 0 || value.claims.length > MAX_CLAIMS) {
     throw new AiProviderProhibitedOutputError();
   }
@@ -513,24 +569,130 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
     claims.push({ claimKey, text, evidence });
   }
 
-  const questionTexts = new Set<string>();
+  const questionTitles = new Set<string>();
   const questions: AiGeneratedQuestion[] = [];
   for (const rawQuestion of value.questions) {
     if (!isRecord(rawQuestion)) throw new AiProviderProhibitedOutputError();
     assertNoProhibitedKeys(rawQuestion);
-    assertExactKeys(rawQuestion, ['text', 'evidence'], new AiProviderProhibitedOutputError());
-    const text = rawQuestion.text;
-    assertSafeGeneratedOutputText(text);
-    if (questionTexts.has(text)) {
+    assertExactKeys(rawQuestion, ['title', 'reason', 'evidence'], new AiProviderProhibitedOutputError());
+    const title = rawQuestion.title;
+    const reason = rawQuestion.reason;
+    assertSafeGeneratedOutputText(title);
+    if (title.length > MAX_QUESTION_TITLE_LENGTH) {
       throw new AiProviderProhibitedOutputError();
     }
-    questionTexts.add(text);
+    assertSafeGeneratedOutputText(reason);
+    if (questionTitles.has(title)) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    questionTitles.add(title);
     questions.push({
-      text,
+      title,
+      reason,
       evidence: validateOutputEvidenceReferences(rawQuestion.evidence, allowedReferences),
     });
   }
-  return { claims, questions };
+
+  // 핵심 한 줄(D45·CCC-38): 개행 없는 한 문장. PII 유사 패턴·금지 판단은 claims 와 같은
+  // 검사(assertSafeGeneratedOutputText)를 통과해야 한다.
+  const oneLiner = value.oneLiner;
+  assertSafeGeneratedOutputText(oneLiner);
+  if (oneLiner.includes('\n') || oneLiner.length > MAX_ONE_LINER_LENGTH) {
+    throw new AiProviderProhibitedOutputError();
+  }
+  return { claims, questions, oneLiner };
+}
+
+/** 검출 요청 검증 — 소스 텍스트는 가명 처리된 안전 텍스트여야 하고 참조는 유일해야 한다. */
+export function validateDiscrepancyDetectionRequest(value: unknown): DiscrepancyDetectionRequest {
+  if (!isRecord(value)) throw new AiProviderInputError();
+  assertExactKeys(value, ['triggerRef', 'sources'], new AiProviderInputError());
+  const triggerRef = stringField(value, 'triggerRef');
+  if (triggerRef === null || !isOpaqueReference(triggerRef)) throw new AiProviderInputError();
+  if (!Array.isArray(value.sources) || value.sources.length === 0 || value.sources.length > MAX_DISCREPANCY_SOURCES) {
+    throw new AiProviderInputError();
+  }
+  const refs = new Set<string>();
+  const sources: DiscrepancySourceInput[] = [];
+  for (const item of value.sources) {
+    if (!isRecord(item)) throw new AiProviderInputError();
+    assertExactKeys(item, ['sourceRef', 'text'], new AiProviderInputError());
+    const sourceRef = stringField(item, 'sourceRef');
+    if (sourceRef === null || !isOpaqueReference(sourceRef) || refs.has(sourceRef)) {
+      throw new AiProviderInputError();
+    }
+    assertSafeText(item.text, MAX_MASKED_TEXT_LENGTH);
+    refs.add(sourceRef);
+    sources.push({ sourceRef, text: item.text });
+  }
+  if (!refs.has(triggerRef)) throw new AiProviderInputError();
+  return { triggerRef, sources };
+}
+
+/**
+ * 검출 출력 검증 — 판단·해석 필드는 스키마 자체가 거부하고(assertExactKeys), 인용은
+ * 요청 소스 텍스트의 부분 문자열이어야 한다. 트리거 회차가 끼지 않은 쌍, 유형과 회차의
+ * 모순(within 인데 회차가 다름 등)도 전부 fail-closed 다.
+ */
+export function validateDiscrepancyDetectionOutput(
+  value: unknown,
+  request: DiscrepancyDetectionRequest,
+): DiscrepancyDetectionOutput {
+  if (!isRecord(value)) throw new AiProviderProhibitedOutputError();
+  assertNoProhibitedKeys(value);
+  assertExactKeys(value, ['discrepancies'], new AiProviderProhibitedOutputError());
+  if (!Array.isArray(value.discrepancies) || value.discrepancies.length > MAX_DISCREPANCIES) {
+    throw new AiProviderProhibitedOutputError();
+  }
+  const textByRef = new Map(request.sources.map((source) => [source.sourceRef, source.text] as const));
+  const seen = new Set<string>();
+  const discrepancies: DetectedDiscrepancy[] = [];
+  for (const item of value.discrepancies) {
+    if (!isRecord(item)) throw new AiProviderProhibitedOutputError();
+    assertNoProhibitedKeys(item);
+    assertExactKeys(
+      item,
+      ['kind', 'leftRef', 'leftQuote', 'rightRef', 'rightQuote'],
+      new AiProviderProhibitedOutputError(),
+    );
+    const kind = stringField(item, 'kind');
+    const leftRef = stringField(item, 'leftRef');
+    const rightRef = stringField(item, 'rightRef');
+    const leftQuote = item.leftQuote;
+    const rightQuote = item.rightQuote;
+    if (
+      (kind !== 'cross_session' && kind !== 'within_session')
+      || leftRef === null
+      || rightRef === null
+    ) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    const leftText = textByRef.get(leftRef);
+    const rightText = textByRef.get(rightRef);
+    if (leftText === undefined || rightText === undefined) throw new AiProviderProhibitedOutputError();
+    if (kind === 'within_session' && leftRef !== rightRef) throw new AiProviderProhibitedOutputError();
+    if (kind === 'cross_session' && leftRef === rightRef) throw new AiProviderProhibitedOutputError();
+    // 검출은 공식화된 회차를 계기로 실행된다 — 그 회차가 낀 쌍만 유효하다.
+    if (leftRef !== request.triggerRef && rightRef !== request.triggerRef) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    assertSafeGeneratedOutputText(leftQuote);
+    assertSafeGeneratedOutputText(rightQuote);
+    if (
+      leftQuote.length > MAX_DISCREPANCY_QUOTE_LENGTH
+      || rightQuote.length > MAX_DISCREPANCY_QUOTE_LENGTH
+      // 원문 인용 강제 — 소스에 없는 문장은 인용이 아니다.
+      || !leftText.includes(leftQuote)
+      || !rightText.includes(rightQuote)
+    ) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    const key = [kind, leftRef, leftQuote, rightRef, rightQuote].join(' ');
+    if (seen.has(key)) throw new AiProviderProhibitedOutputError();
+    seen.add(key);
+    discrepancies.push({ kind, leftRef, leftQuote, rightRef, rightQuote });
+  }
+  return { discrepancies };
 }
 
 function responseText(response: unknown): string | null {
@@ -549,8 +711,9 @@ function responseText(response: unknown): string | null {
 const codexResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['claims', 'questions'],
+  required: ['claims', 'questions', 'oneLiner'],
   properties: {
+    oneLiner: { type: 'string', minLength: 1, maxLength: 120 },
     claims: {
       type: 'array',
       minItems: 1,
@@ -588,9 +751,10 @@ const codexResponseSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['text', 'evidence'],
+        required: ['title', 'reason', 'evidence'],
         properties: {
-          text: { type: 'string' },
+          title: { type: 'string' },
+          reason: { type: 'string' },
           evidence: {
             type: 'array',
             minItems: 1,
@@ -615,10 +779,47 @@ const codexResponseSchema = {
 } as const;
 
 const CODEX_INSTRUCTIONS = [
-  'Generate only grounded counseling-record draft claims and exactly two or three briefing questions.',
-  'Each claim and each question must cite one or more supplied opaque evidence references exactly.',
+  'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions.',
+  'Each suggestion has a short title (80 characters or fewer) naming what to check in the next session, and a reason explaining why it needs checking.',
+  'Also produce oneLiner: a single-line Korean gist of the session in 120 characters or fewer, with no line breaks.',
+  'Each claim and each suggestion must cite one or more supplied opaque evidence references exactly.',
   'Do not produce GAS scores, confirmations, diagnoses, or decisions about support continuation.',
   'Do not add names, contacts, accounts, or other personal data.',
+].join(' ');
+
+// 불일치 검출 스키마(D45 · CCC-43) — 판단 필드가 아예 없다. 빈 배열이 정상 결과다.
+const codexDiscrepancySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['discrepancies'],
+  properties: {
+    discrepancies: {
+      type: 'array',
+      maxItems: MAX_DISCREPANCIES,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'leftRef', 'leftQuote', 'rightRef', 'rightQuote'],
+        properties: {
+          kind: { type: 'string', enum: ['cross_session', 'within_session'] },
+          leftRef: { type: 'string' },
+          leftQuote: { type: 'string' },
+          rightRef: { type: 'string' },
+          rightQuote: { type: 'string' },
+        },
+      },
+    },
+  },
+} as const;
+
+// R5: 어느 쪽이 맞는지 판단·해석·권고 금지 — 상반된 서술의 원문 인용 쌍만.
+const CODEX_DISCREPANCY_INSTRUCTIONS = [
+  'Compare the supplied counseling-record sources and list only pairs of directly conflicting factual statements.',
+  'Each pair must involve the trigger source; quote both sides verbatim as exact substrings of the source texts.',
+  'Use kind within_session when both quotes come from the trigger source itself, cross_session otherwise.',
+  'Do not judge which side is correct, do not interpret, summarize, diagnose, or recommend anything.',
+  'Do not add names, contacts, accounts, or other personal data.',
+  'Return an empty list when there is no direct conflict.',
 ].join(' ');
 
 /** The sole Phase-1 external provider implementation. It never logs content. */
@@ -633,6 +834,30 @@ export class CodexProviderAdapter implements AiProviderAdapter {
   ) {}
 
   async generate(request: AiProviderRequest): Promise<AiProviderOutput> {
+    return await this.callStructured(
+      CODEX_INSTRUCTIONS,
+      JSON.stringify({ maskedText: request.maskedText, evidence: request.evidence }),
+      'ccc_grounded_draft_v1',
+      codexResponseSchema,
+    ) as AiProviderOutput;
+  }
+
+  /** 내용 불일치 검출(CCC-43). 반환값 검증은 호출자의 validateDiscrepancyDetectionOutput 몫이다. */
+  async detectDiscrepancies(request: DiscrepancyDetectionRequest): Promise<unknown> {
+    return await this.callStructured(
+      CODEX_DISCREPANCY_INSTRUCTIONS,
+      JSON.stringify({ triggerRef: request.triggerRef, sources: request.sources }),
+      'ccc_discrepancy_list_v1',
+      codexDiscrepancySchema,
+    );
+  }
+
+  private async callStructured(
+    instructions: string,
+    input: string,
+    schemaName: string,
+    schema: object,
+  ): Promise<unknown> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), CODEX_REQUEST_TIMEOUT_MS);
     try {
@@ -646,14 +871,14 @@ export class CodexProviderAdapter implements AiProviderAdapter {
           },
           body: JSON.stringify({
             model: this.config.model,
-            instructions: CODEX_INSTRUCTIONS,
-            input: JSON.stringify({ maskedText: request.maskedText, evidence: request.evidence }),
+            instructions,
+            input,
             text: {
               format: {
                 type: 'json_schema',
-                name: 'ccc_grounded_draft_v1',
+                name: schemaName,
                 strict: true,
-                schema: codexResponseSchema,
+                schema,
               },
             },
           }),
@@ -672,7 +897,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
       const text = responseText(payload);
       if (text === null) throw new AiProviderUnavailableError();
       try {
-        return JSON.parse(text) as AiProviderOutput;
+        return JSON.parse(text) as unknown;
       } catch {
         throw new AiProviderUnavailableError();
       }

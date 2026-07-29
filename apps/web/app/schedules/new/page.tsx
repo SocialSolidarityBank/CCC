@@ -1,6 +1,6 @@
 import { ApiError, listScheduleCandidates } from '../../lib/api';
 import { createSchedulePlanAction, loadScheduleContextAction } from '../../actions';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import { getDisplayLabels } from '../../lib/display-labels';
 import { ScheduleWizard, type ScheduleWizardCandidate } from './schedule-wizard';
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -25,11 +25,12 @@ export default async function NewCounselingSchedulePage({
   let loadError: string | null = null;
   try {
     const results = await listScheduleCandidates();
+    const { programLabels } = await getDisplayLabels();
     candidates = results.map((candidate) => ({
       value: `${candidate.beneficiaryId}|${candidate.supportCaseId}`,
       beneficiaryId: candidate.beneficiaryId,
       supportCaseId: candidate.supportCaseId,
-      programLabel: PROGRAM_LABELS[candidate.programType],
+      programLabel: programLabels[candidate.programType],
       participantName: candidate.participantName,
       participantPhone: candidate.participantPhone,
       participantEmail: candidate.participantEmail,
@@ -37,7 +38,7 @@ export default async function NewCounselingSchedulePage({
     }));
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
-    loadError = '담당 참여자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.';
+    loadError = '담당 당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.';
   }
 
   if (loadError !== null) {

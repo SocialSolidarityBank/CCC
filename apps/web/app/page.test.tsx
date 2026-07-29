@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DEFAULT_PROGRAM_TYPE } from './lib/labels';
 
-// `/`는 화면이 아니라 리다이렉트다 (D35 · ADR-0014 §2 — 구 조직 아코디언 폐기).
+// `/`는 화면이 아니라 리다이렉트다 (D35 · ADR-0014 §2 — 구 기관 아코디언 폐기).
 // next/navigation 의 redirect 는 예외를 던져 렌더를 중단하므로, 렌더 결과가 아니라
 // **어디로 보냈는지**를 검증한다.
 const redirect = vi.fn((path: string) => {

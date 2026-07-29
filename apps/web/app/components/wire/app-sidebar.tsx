@@ -7,7 +7,7 @@ import type { ParticipantProgramType } from '../../lib/api';
 import { DEFAULT_PROGRAM_TYPE, ORG_LABEL, PROGRAM_LABELS, PROGRAM_TYPES, isKnownProgramType } from '../../lib/labels';
 
 // 앱 셸의 좌측 사이드바 (D35 · ADR-0014 §2). 축은 **사이드바 = 장소 / 페이지 우상단 = 행동**이라
-// 등록 2개(상담·참여자)는 여기 넣지 않는다 — 섞이면 누를 때마다 "화면이 바뀌는 것"과
+// 등록 2개(상담·당사자)는 여기 넣지 않는다 — 섞이면 누를 때마다 "화면이 바뀌는 것"과
 // "새로 만드는 것"을 판별해야 한다. 설정도 사이드바 1곳만 남긴다(구 헤더 링크 + 프로필
 // 드롭다운 이중 진입 폐기).
 //
@@ -32,7 +32,7 @@ function programMenu(programType: ParticipantProgramType): NavItem[] {
     { label: '다가오는 일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
     // '전체 일정'은 CCC-19 가 만든다. 여기서는 메뉴 자리만 잡는다.
     { label: '전체 일정', href: `/programs/${programType}/schedule/all`, icon: 'calendar', soon: true },
-    { label: '참여자', href: '/participants', icon: 'participants' },
+    { label: '당사자', href: '/participants', icon: 'participants' },
   ];
 }
 
@@ -73,12 +73,19 @@ function programTypeFromPath(path: string): ParticipantProgramType | null {
 
 export interface AppSidebarProps {
   /**
-   * 워크스페이스 폴백. 경로가 사업을 알려주지 않는 화면(참여자·설정)에서 쓴다.
+   * 워크스페이스 폴백. 경로가 사업을 알려주지 않는 화면(당사자·설정)에서 쓴다.
    * CCC-18b 가 계정 설정에 저장된 마지막 선택 사업을 여기로 넣는다 — 그전까지는 첫 사업.
    */
   programType?: string;
   /** 활성 경로. 생략하면 현재 경로로 자동 판단. */
   activePath?: string;
+  /**
+   * 온보딩이 저장한 기관 이름 (CCC-32). 루트 레이아웃이 getDisplayLabels() 로 넣는다.
+   * 생략하면 labels.ts 하드코딩 라벨 — 테스트·스토리 렌더가 지금까지처럼 동작한다.
+   */
+  orgLabel?: string;
+  /** 온보딩이 저장한 사업 표시 이름 매핑 (CCC-32). 생략하면 labels.ts 폴백. */
+  programLabels?: Record<ParticipantProgramType, string>;
 }
 
 /**
@@ -86,12 +93,17 @@ export interface AppSidebarProps {
  * 평소엔 화면 밖에 있고 상단 손잡이 바(56px)를 눌러야 왼쪽에서 밀려 들어온다.
  *
  * 이전에는 모바일용 가로 내비를 따로 렌더했는데 두 가지가 잘못돼 있었다: 계약이 정한 드로어가
- * 아니었고, 조직명과 **사업 전환기가 빠져 있어 좁은 화면에서는 지금 어느 사업인지 볼 수도
+ * 아니었고, 기관명과 **사업 전환기가 빠져 있어 좁은 화면에서는 지금 어느 사업인지 볼 수도
  * 바꿀 수도 없었다.** 마크업을 한 벌로 합치면 그 갈라짐이 구조적으로 사라진다.
  *
  * 손잡이 바는 §7 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에는 없고 내용은 손잡이뿐이다.
  */
-export function AppSidebar({ programType, activePath }: AppSidebarProps) {
+export function AppSidebar({
+  programType,
+  activePath,
+  orgLabel = ORG_LABEL,
+  programLabels = PROGRAM_LABELS,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -119,7 +131,7 @@ export function AppSidebar({ programType, activePath }: AppSidebarProps) {
       handleRef.current?.focus();
     };
   }, [drawerOpen]);
-  // 지금 보고 있는 사업이 워크스페이스다. 경로 밖(참여자·설정)에서는 넘겨받은 값으로,
+  // 지금 보고 있는 사업이 워크스페이스다. 경로 밖(당사자·설정)에서는 넘겨받은 값으로,
   // 그것도 없으면 첫 사업으로 떨어진다 — 메뉴 링크가 목적지를 잃지 않게 항상 하나를 고른다.
   const fallback = programType !== undefined && isKnownProgramType(programType) ? programType : DEFAULT_PROGRAM_TYPE;
   const activeProgram = programTypeFromPath(current) ?? fallback;
@@ -131,7 +143,7 @@ export function AppSidebar({ programType, activePath }: AppSidebarProps) {
   const navigation = (
     <ul className="navigation-list">
       {menu.map((item) => {
-        // 하위 경로(예: 참여자 상세)에서도 그 메뉴가 활성으로 남아야 "지금 어디인지"가 유지된다.
+        // 하위 경로(예: 당사자 상세)에서도 그 메뉴가 활성으로 남아야 "지금 어디인지"가 유지된다.
         // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 본다.
         const active = current === item.href || current.startsWith(`${item.href}/`);
         return (
@@ -180,7 +192,7 @@ export function AppSidebar({ programType, activePath }: AppSidebarProps) {
       >
         <span aria-hidden="true" className="drawer-handle-bars"><i /><i /><i /></span>
         <span className="drawer-handle-label">메뉴</span>
-        <span className="drawer-handle-program">{PROGRAM_LABELS[activeProgram]}</span>
+        <span className="drawer-handle-program">{programLabels[activeProgram]}</span>
       </button>
       {/* 스크림은 드로어가 열렸을 때만 존재한다. 눌러서 닫는 것이 좁은 화면의 주 동작이다. */}
       {drawerOpen ? (
@@ -196,14 +208,14 @@ export function AppSidebar({ programType, activePath }: AppSidebarProps) {
       >
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
-          <span>{ORG_LABEL}</span>
+          <span>{orgLabel}</span>
         </div>
-        {/* 사업 전환기는 조직명 아래·메뉴 위다 — 아래 모든 메뉴의 범위를 정하므로
+        {/* 사업 전환기는 기관명 아래·메뉴 위다 — 아래 모든 메뉴의 범위를 정하므로
             위에 있어야 포함 관계가 눈으로 읽힌다 (ADR-0014 §2). */}
         <div className="program-switcher">
           <p className="program-switcher-label">사업</p>
           <p className="program-switcher-name" aria-current="true">
-            {PROGRAM_LABELS[activeProgram]}
+            {programLabels[activeProgram]}
             {switchable && <span aria-hidden="true"> ▾</span>}
           </p>
         </div>

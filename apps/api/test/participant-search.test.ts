@@ -4,8 +4,8 @@ import { createBeneficiaryWithInitialSupportCase, updateParticipantPii } from '.
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES } from '../../../db/animal-slugs';
 import { setupD1, testActors } from './support/d1';
 
-// 참여자 검색(티켓 #16 · D21) HTTP 계약: 부분 일치, PII 무포함, 접근 범위.
-// 발급은 조직 내 라운드로빈이라 생성 순서로 슬러그가 결정된다(가명 ID 발급 테스트가 프라이어 아트).
+// 당사자 검색(티켓 #16 · D21) HTTP 계약: 부분 일치, PII 무포함, 접근 범위.
+// 발급은 기관 내 라운드로빈이라 생성 순서로 슬러그가 결정된다(가명 ID 발급 테스트가 프라이어 아트).
 const firstSlug = ANIMAL_SLUGS[0]!;   // 예: swallow (제비)
 const secondSlug = ANIMAL_SLUGS[1]!;  // 예: crane (두루미)
 const thirdSlug = ANIMAL_SLUGS[2]!;   // 예: dolphin (돌고래)
@@ -58,7 +58,7 @@ interface SeededParticipants {
   hiddenThird: { beneficiaryId: string; supportCaseId: string };
 }
 
-// counselor 가 담당하는 두 케이스와, 다른 담당자가 담당하는 한 케이스를 같은 조직에 심는다.
+// counselor 가 담당하는 두 케이스와, 다른 담당 실무자가 담당하는 한 케이스를 같은 기관에 심는다.
 async function seedParticipants(): Promise<SeededParticipants> {
   await t.reset();
   const ownedFirst = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
@@ -129,7 +129,7 @@ describe('GET /participants/search', () => {
 
     const counselorView = await search(testActors.counselor, '001');
     expect(counselorView.results.map((r) => r.beneficiaryId)).toEqual(ownedIdsSorted);
-    // 다른 담당자의 케이스(가명 ID 조각조차)는 노출되지 않는다.
+    // 다른 담당 실무자의 케이스(가명 ID 조각조차)는 노출되지 않는다.
     expect(counselorView.text).not.toContain(thirdId);
     expect(counselorView.results.map((r) => r.beneficiaryId)).not.toContain(seeded.hiddenThird.beneficiaryId);
 

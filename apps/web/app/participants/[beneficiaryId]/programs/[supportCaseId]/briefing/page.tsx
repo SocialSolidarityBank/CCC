@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
+import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
-import { PROGRAM_LABELS } from '../../../../../lib/labels';
+import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { BriefingCards } from './briefing-cards';
 import { IntakeSavedNotice } from './intake-saved-notice';
 
@@ -43,7 +44,7 @@ function participantHref(beneficiaryId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}`;
 }
 
-// 상담 준비를 본 다음의 주 동선은 기록 작성이다. 이 링크가 없으면 참여자 페이지까지
+// 상담 준비를 본 다음의 주 동선은 기록 작성이다. 이 링크가 없으면 당사자 페이지까지
 // 되돌아 나와야 해서 브리핑이 막다른 길이 된다(2026-07-26 Q 실사용 지적).
 function recordsHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/records`;
@@ -76,6 +77,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
 
   try {
     const briefing = await getParticipantBriefing(beneficiaryId, supportCaseId);
+    const { programLabels } = await getDisplayLabels();
     const focused = briefing.sections[0];
     if (focused === undefined) return <EmptyState beneficiaryId={beneficiaryId} />;
     if (briefing.beneficiaryId !== beneficiaryId || briefing.focusSupportCaseId !== supportCaseId || focused.sourceSupportCase.id !== supportCaseId) {
@@ -91,14 +93,22 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
         <IntakeSavedNotice notice={notice} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
         <BriefingCards
           beneficiaryId={beneficiaryId}
+          supportCaseId={supportCaseId}
+          overallGoal={briefing.overallGoal}
+          canEditOverallGoal={briefing.canEditOverallGoal}
+          overallGoalError={notice === 'overall_goal_error'}
+          overallGoalAction={updateOverallGoalAction}
           participantHref={participantHref(beneficiaryId)}
           recordsHref={recordsHref(beneficiaryId, supportCaseId)}
           recordNewHref={recordNewHref(beneficiaryId, supportCaseId)}
-          programLabel={PROGRAM_LABELS[focused.sourceSupportCase.programType]}
+          programLabel={programLabels[focused.sourceSupportCase.programType]}
           participant={briefing.participant}
-          gasTrend={focused.gasTrend}
-          lastSessionSummary={focused.lastSessionSummary}
-          questions={focused.questions}
+          sessionRows={focused.sessionRows}
+          discrepancies={focused.discrepancies}
+          discrepancyAction={resolveDiscrepancyAction}
+          discrepancyError={notice === 'discrepancy_error'}
+          pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}
+          aiSuggestions={focused.aiSuggestions}
           openActionItems={focused.openActionItems}
           flags={focused.flags}
           upcomingSchedule={briefing.focusUpcomingSchedule}

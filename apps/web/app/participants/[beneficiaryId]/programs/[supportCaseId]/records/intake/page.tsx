@@ -9,7 +9,7 @@ const messages: Record<LoadError, string> = {
   access_denied: '이 참여 사업에 인테이크를 남길 권한이 없습니다.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 시도하세요.',
   forbidden: '이 참여 사업에 인테이크를 남길 권한이 없습니다.',
-  not_found: '요청한 참여자 ID 또는 참여 사업을 찾을 수 없습니다.',
+  not_found: '요청한 당사자 ID 또는 참여 사업을 찾을 수 없습니다.',
   service_unavailable: '인테이크 서비스를 지금 사용할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
 
@@ -77,6 +77,9 @@ export default async function NewIntakePage({
       submissionId={crypto.randomUUID()}
       participant={context.data.participant}
       extendedPii={context.data.extendedPii}
+      consent={context.data.consent}
+      participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
+      basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
       sessionSequence={context.data.sessionSequence}
       recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
       briefingHref={briefingHref}

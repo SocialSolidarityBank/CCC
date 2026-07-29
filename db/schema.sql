@@ -28,7 +28,7 @@
 -- ----------------------------------------------------------------------------
 CREATE TABLE cases (
   id                   TEXT PRIMARY KEY,              -- 가명 ID (예: 'A017')
-  org_id               TEXT NOT NULL,                 -- 조직 ID (D1)
+  org_id               TEXT NOT NULL,                 -- 기관 ID (D1)
   program_type         TEXT NOT NULL DEFAULT 'financial_support_v1',
                                                       -- 스키마 3층 중 '템플릿' 식별자
   status               TEXT NOT NULL DEFAULT 'active'
@@ -73,11 +73,11 @@ CREATE TABLE pii_vault (
 
 
 -- ----------------------------------------------------------------------------
--- case_assignees — 케이스 담당자 매핑 (D7). 공동 담당·이관을 행 추가로 표현한다.
+-- case_assignees — 케이스 담당 실무자 매핑 (D7). 공동 담당·이관을 행 추가로 표현한다.
 --   * 이관 시 기존 행을 지우지 않고 unassigned_at을 채운 뒤 새 행을 만든다
 --     → "언제 누가 담당했나" 이력이 그대로 남는다.
 --   * 접근 규칙(gateway가 강제): 관리자이거나, 이 테이블에 활성 행(unassigned_at IS NULL)이
---     있는 담당자만 해당 케이스를 열람·수정할 수 있다.
+--     있는 담당 실무자만 해당 케이스를 열람·수정할 수 있다.
 -- ----------------------------------------------------------------------------
 CREATE TABLE case_assignees (
   id            TEXT PRIMARY KEY,
@@ -142,7 +142,7 @@ CREATE TABLE sessions (
   id                           TEXT PRIMARY KEY,
   org_id                       TEXT NOT NULL,
   case_id                      TEXT NOT NULL REFERENCES cases (id),
-  counselor_id                 TEXT NOT NULL,         -- 작성 상담사 (Access 식별자)
+  counselor_id                 TEXT NOT NULL,         -- 작성 실무자 (Access 식별자)
   held_at                      TEXT NOT NULL,         -- 상담 일시
   channel                      TEXT NOT NULL DEFAULT 'in_person'
                                CHECK (channel IN ('in_person', 'phone', 'video')),
@@ -165,9 +165,9 @@ CREATE TABLE sessions (
   ai_contrast                  TEXT,                 -- 대조 3종 결과 (JSON: 메모에 없는 내용 /
                                                      -- 음성에 없는 내용 / 미논의 목표)
   emotion_scores               TEXT,                 -- 감정 점수 (JSON, 숫자만, R4·D11)
-  speaker_mapping_confirmed_at TEXT,                 -- 화자 매핑 상담사 확인 (D11)
+  speaker_mapping_confirmed_at TEXT,                 -- 화자 매핑 실무자 확인 (D11)
   approved_at                  TEXT,                 -- 승인 시각 (R2 관문)
-  approved_by                  TEXT,                 -- 승인 상담사
+  approved_by                  TEXT,                 -- 승인 실무자
   -- 확장 슬롯 (JSON, 통계·브리핑 제외)
   extra                        TEXT,
   created_at                   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -185,7 +185,7 @@ CREATE INDEX idx_sessions_pending ON sessions (case_id)
 --   * 브리핑 1번(목표별 GAS 추이 그래프)과 통계의 원천 데이터.
 --     sessions 안 JSON으로도 넣을 수 있지만, 별도 테이블이어야
 --     점수 범위(-2~+2)를 DB가 강제하고 목표별 추이 조회가 단순해진다.
---   * D6: score는 상담사가 직접 매긴다. AI는 evidence_quote(근거 발언 발췌)만 제안.
+--   * D6: score는 실무자가 직접 매긴다. AI는 evidence_quote(근거 발언 발췌)만 제안.
 -- ----------------------------------------------------------------------------
 CREATE TABLE session_goal_scores (
   id             TEXT PRIMARY KEY,
@@ -194,7 +194,7 @@ CREATE TABLE session_goal_scores (
   goal_id        TEXT NOT NULL REFERENCES goals (id),
   score          INTEGER NOT NULL CHECK (score BETWEEN -2 AND 2),  -- GAS 5단계
   evidence_quote TEXT,                                -- AI가 발췌 제안한 근거 발언 (D6)
-  scored_by      TEXT NOT NULL,                       -- 점수 매긴 상담사 (AI 불가, D6)
+  scored_by      TEXT NOT NULL,                       -- 점수 매긴 실무자 (AI 불가, D6)
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (session_id, goal_id)                        -- 세션당 목표별 점수는 1개
 );
@@ -205,7 +205,7 @@ CREATE INDEX idx_scores_goal ON session_goal_scores (goal_id);
 -- ----------------------------------------------------------------------------
 -- ai_gas_evidence — [코어] 세션×목표별 AI 근거 발췌 (D6).
 --   * D6: AI는 GAS 점수를 매기지 않는다. 목표별 근거 발언 발췌(quote)만 제안하고,
---     상담사는 이를 참고해 session_goal_scores.score를 직접 정한다.
+--     실무자는 이를 참고해 session_goal_scores.score를 직접 정한다.
 --   * quote는 마스킹 완료본만 저장한다(R3: 등록 PII 치환). 재수집 시 세션 단위로
 --     기존 행을 지우고 다시 넣는다(gateway가 처리).
 -- ----------------------------------------------------------------------------
@@ -246,8 +246,8 @@ CREATE INDEX idx_actions_open ON action_items (case_id) WHERE resolved_at IS NUL
 --   * flag_type은 사전 정의 고정 유형만 허용 — 아래 5종은 8장 미결 사항의 '초안'이며
 --     현장 검증 후 확정한다(변경 시 마이그레이션 필요).
 --   * AI 제안(source='ai')은 전사 발언 인용(quote)이 필수다 — 사실 표시이지 진단이 아님.
---   * review_status: 상담사가 맞음(confirmed)/틀림(rejected)을 확인한다.
---     상담사가 직접 만든 플래그는 생성 즉시 confirmed로 저장한다(gateway 처리).
+--   * review_status: 실무자가 맞음(confirmed)/틀림(rejected)을 확인한다.
+--     실무자가 직접 만든 플래그는 생성 즉시 confirmed로 저장한다(gateway 처리).
 -- ----------------------------------------------------------------------------
 CREATE TABLE flags (
   id            TEXT PRIMARY KEY,
@@ -1432,6 +1432,13 @@ CREATE TABLE organization_settings (
   updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 0023: 관리자 온보딩(CCC-32)이 저장하는 기관·첫 사업 표시 이름. NULL 이면 화면은
+-- labels.ts 하드코딩 라벨로 폴백한다. programs 테이블 없음 — 이름만 진짜(스펙 #78).
+ALTER TABLE organization_settings ADD COLUMN org_name TEXT
+  CHECK (org_name IS NULL OR length(trim(org_name)) BETWEEN 1 AND 80);
+ALTER TABLE organization_settings ADD COLUMN program_display_name TEXT
+  CHECK (program_display_name IS NULL OR length(trim(program_display_name)) BETWEEN 1 AND 120);
+
 ALTER TABLE users ADD COLUMN time_zone TEXT
   CHECK (
     time_zone IS NULL OR (
@@ -1451,7 +1458,7 @@ ALTER TABLE users ADD COLUMN last_program_type TEXT;
 
 -- A beneficiary is the permanent participant identity. 가명 ID는 두 형식을 허용한다
 -- (0007 확장 단계, D20 · ADR-0004): 레거시 'A' + 3자리 이상 숫자, 또는 동물 슬러그
--- (소문자 영단어) + '-' + 3자리 이상 숫자. 어느 형식이든 다른 참여자·케이스에
+-- (소문자 영단어) + '-' + 3자리 이상 숫자. 어느 형식이든 다른 당사자·케이스에
 -- 재사용하지 않는다. 동물 슬러그 큐레이션 목록(단일 출처)은 db/animal-slugs.ts.
 CREATE TABLE beneficiaries (
   id                   TEXT PRIMARY KEY
@@ -2587,7 +2594,7 @@ CREATE TABLE sessions_next (
   -- 인테이크 서술형 항목 격리 JSON(CCC-7). 코어 3층: 통계·브리핑 쿼리에 노출 금지.
   intake_details               TEXT,
   -- 정기 기록지 서술형 항목 격리 JSON(CCC-10 · 마이그레이션 0016). 이번 상담 목표(미연결
-  -- 회차)·지난 이후 변화·위기 안전 서술·담당자 의견. 통계·브리핑 쿼리에 노출 금지.
+  -- 회차)·지난 이후 변화·위기 안전 서술·담당 실무자 의견. 통계·브리핑 쿼리에 노출 금지.
   record_details               TEXT,
   created_at                   TEXT NOT NULL,
   updated_at                   TEXT NOT NULL,
@@ -3719,7 +3726,7 @@ END;
 --   * 회차(세션)마다 6영역(경제·주거·일·건강·심리·가족)의 그 시점 상태를 쌓는다.
 --     '변화 없음' 영역도 직전 세션 값을 복사해 행을 남긴다 — 어느 회차를 열어도
 --     그 시점 6영역 상태를 바로 조회할 수 있다(복사·검증은 gateway 가 원자 배치로 처리).
---   * status 는 상담사 기입 상태값(5값)이다. 감정 점수(R4)·리스크 플래그(D9) 와 무관.
+--   * status 는 실무자 기입 상태값(5값)이다. 감정 점수(R4)·리스크 플래그(D9) 와 무관.
 --   * 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D(D1~D6).
 -- ----------------------------------------------------------------------------
 CREATE TABLE session_life_area_snapshots (
@@ -4560,9 +4567,9 @@ WHERE EXISTS (SELECT 1 FROM pragma_foreign_key_check);
 DROP TABLE participant_support_case_cutover_probe;
 
 -- ============================================================================
--- Migration 0008 — 참여자 동의 기록 (D15 · D23 · 티켓 #19)
+-- Migration 0008 — 당사자 동의 기록 (D15 · D23 · 티켓 #19)
 --
--- 참여자 등록 시 받은 항목별 동의(녹음·텍스트 AI 분리, D15)를 일시·기록자와 함께
+-- 당사자 등록 시 받은 항목별 동의(녹음·텍스트 AI 분리, D15)를 일시·기록자와 함께
 -- 저장하는 전용 기록 테이블. 문안·서명은 저장하지 않는다(D23 — 오프라인 동의의 "기록"만).
 -- support_cases.consent_*_at(파이프라인 게이트)은 그대로 두고, 이 표가 그 위에
 -- "누가 언제 그 결정을 기록했나"를 덧붙인다. 등록 게이트웨이가 두 곳을 한 배치에서 함께 쓴다.
@@ -4595,8 +4602,9 @@ BEGIN
       AND beneficiary_id = NEW.beneficiary_id
   );
 
+  -- 'self' 는 자기 가입(당사자 본인)의 기록자 표식(0022 · D39). 그 외는 활성 사용자여야 한다.
   SELECT RAISE(ABORT, 'participant_schema_violation')
-  WHERE NOT EXISTS (
+  WHERE NEW.recorded_by <> 'self' AND NOT EXISTS (
     SELECT 1 FROM users
     WHERE id = NEW.recorded_by AND org_id = NEW.org_id
       AND active = 1 AND role IN ('admin', 'counselor')
@@ -4633,7 +4641,7 @@ CREATE TABLE schedule_session_goals (
   case_goal_id      TEXT REFERENCES goals (id),            -- NULL = 미연결 (D28)
   body              TEXT NOT NULL,                         -- 이번 회차에서 다룰 것
   ordinal           INTEGER NOT NULL,
-  created_by        TEXT NOT NULL,                         -- 작성 상담사 (Access 사용자)
+  created_by        TEXT NOT NULL,                         -- 작성 실무자 (Access 사용자)
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (schedule_id, ordinal)
 );
@@ -4646,7 +4654,7 @@ CREATE TABLE schedule_custom_questions (
   org_id            TEXT NOT NULL,
   schedule_id       TEXT NOT NULL REFERENCES counseling_schedules (id),
   support_case_id   TEXT NOT NULL REFERENCES support_cases (id),
-  body              TEXT NOT NULL,                         -- 상담사가 직접 적는 질문
+  body              TEXT NOT NULL,                         -- 실무자가 직접 적는 질문
   ordinal           INTEGER NOT NULL,
   created_by        TEXT NOT NULL,
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
@@ -4705,7 +4713,7 @@ BEGIN
 END;
 
 -- ============================================================================
--- Migration 0009 — 참여자 PII 금고에 이메일 추가 (D3 · D24 · ADR-0005 · 티켓 #32)
+-- Migration 0009 — 당사자 PII 금고에 이메일 추가 (D3 · D24 · ADR-0005 · 티켓 #32)
 --
 -- participant_pii_vault 에 enc_email 컬럼을 덧붙인다. 이름·연락처·계좌와 동일한 앱
 -- 레벨 AES-GCM 암호문(D3)만 저장하며, 평문은 어디에도 남기지 않는다. 화면 소비는 후속
@@ -4758,3 +4766,116 @@ ALTER TABLE participant_pii_vault ADD COLUMN enc_region TEXT;
 ALTER TABLE participant_pii_vault ADD COLUMN enc_emergency_contact TEXT;
 
 ALTER TABLE participant_pii_vault ADD COLUMN enc_gender TEXT;
+-- ----------------------------------------------------------------------------
+-- 0020 — 개인정보 수집·이용 동의 시각 (D44 · 2026-07-29)
+-- 동의 3종을 같은 층에 맞춘다: 녹음·텍스트 AI 는 support_cases 에 "현재값"이 있고
+-- participant_consent_records(0008·0014)에 append-only 이력이 쌓이는데, 개인정보 동의는
+-- 0014 로 이력 쪽에만 들어가 있었다. 이 ALTER 가 빠진 현재값 컬럼을 채운다.
+-- 녹음 동의와 달리 파이프라인 게이트가 아니다 — 미동의여도 등록·상담은 진행된다(D15).
+-- 철회는 이 값을 NULL 로 되돌리고 행위는 이력 표에 새 행으로 남는다(D14·D23).
+-- 추가 전용: ALTER 는 기존 행을 NULL(미동의)로 백필한다 — 받지 않은 동의를 만들지 않는다.
+-- ----------------------------------------------------------------------------
+ALTER TABLE support_cases ADD COLUMN consent_privacy_at TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 0021 — 초대 토큰 (D39 · ADR-0016 · CCC-29 — 구 0018, 리베이스 시 리네임)
+-- 당사자 가입 링크(사업+발급 실무자 묶음)와 실무자 초대 링크의 공용 기반.
+-- 토큰이 곧 자격(로그인 없음): 32바이트 난수 hex, 발급·소비는 gateway 만(R1)
+-- + 전건 감사(D14). status 는 issued → used 단방향, 만료 정책은 D26 법률 검토
+-- 후 실제 인증 설계와 함께. 상세 주석: migrations/0021_invite_tokens.sql.
+-- ----------------------------------------------------------------------------
+CREATE TABLE invite_tokens (
+  token                   TEXT PRIMARY KEY,
+  org_id                  TEXT NOT NULL,
+  kind                    TEXT NOT NULL CHECK (kind IN ('participant', 'counselor')),
+  program_type            TEXT,
+  issued_by               TEXT NOT NULL,
+  status                  TEXT NOT NULL DEFAULT 'issued' CHECK (status IN ('issued', 'used')),
+  issued_at               TEXT NOT NULL DEFAULT (datetime('now')),
+  used_at                 TEXT,
+  used_by_beneficiary_id  TEXT,
+  used_by_user_id         TEXT,
+  CHECK (kind != 'participant' OR program_type IS NOT NULL)
+);
+
+CREATE INDEX idx_invite_tokens_org ON invite_tokens (org_id, kind, status);
+
+-- ----------------------------------------------------------------------------
+-- 0022 — 자기 가입(self signup) (D39 · ADR-0016 · CCC-28 — 구 0019, 리베이스 시 리네임)
+-- 위 participant_consent_records_insert_guard 의 'self' 예외가 이 마이그레이션 몫이고,
+-- 아래 트리거가 토큰 이중 소비를 DB 차원에서 막는다. JS 에서 UPDATE 의 changes 를 보는
+-- 방식은 배치 커밋 뒤에야 읽히므로 동시 이중 제출에서 고아 당사자를 남긴다.
+-- 상세 주석: migrations/0022_participant_self_signup.sql.
+-- ----------------------------------------------------------------------------
+CREATE TRIGGER invite_tokens_no_double_consume
+BEFORE UPDATE ON invite_tokens
+WHEN NEW.status = 'used' AND OLD.status <> 'issued'
+BEGIN
+  SELECT RAISE(ABORT, 'invite_token_already_used');
+END;
+
+-- ----------------------------------------------------------------------------
+-- 0024: 전체 목표 (D45 · CCC-41). 케이스당 1개·수정 가능·점수 없음(D33) — goals 테이블
+-- (세부 목표, title 수정 금지)과 층이 다르므로 케이스 행의 컬럼이다. NULL = 설정 전.
+-- 권한(담당 실무자만)·200자 상한·감사(D14)는 게이트웨이가 강제한다(R1).
+-- ----------------------------------------------------------------------------
+ALTER TABLE support_cases ADD COLUMN overall_goal TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 0027: 내용 불일치 저장 구조 (D45 · ADR-0018 · CCC-43). 기록 공식화 시점(수기 저장·
+-- AI 승인)에 검출해 저장하고 브리핑 영역 ③은 저장된 결과만 읽는다. AI 는 판단하지
+-- 않으므로(R5) 양쪽 원문 인용 + 회차 참조만 담는다. resolution_* 3컬럼은 처리 3종
+-- (CCC-42)의 예약 자리 — NULL = 미처리. 인용·회차는 트리거로 불변, 처리된 행은 삭제
+-- 불가(접힌 이력 보존). 상세 근거는 migrations/0027_session_discrepancies.sql.
+-- ----------------------------------------------------------------------------
+CREATE TABLE session_discrepancies (
+  id                 TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL,
+  support_case_id    TEXT NOT NULL REFERENCES support_cases (id),
+  kind               TEXT NOT NULL CHECK (kind IN ('cross_session', 'within_session')),
+  trigger_session_id TEXT NOT NULL REFERENCES sessions (id),
+  left_session_id    TEXT NOT NULL REFERENCES sessions (id),
+  left_quote         TEXT NOT NULL CHECK (length(trim(left_quote)) BETWEEN 1 AND 500),
+  right_session_id   TEXT NOT NULL REFERENCES sessions (id),
+  right_quote        TEXT NOT NULL CHECK (length(trim(right_quote)) BETWEEN 1 AND 500),
+  detected_at        TEXT NOT NULL,
+  resolution_status  TEXT CHECK (resolution_status IN ('situation_changed', 'record_error', 'confirmed')),
+  resolved_by        TEXT,
+  resolved_at        TEXT,
+  created_at         TEXT NOT NULL,
+  CHECK (kind <> 'within_session' OR left_session_id = right_session_id),
+  CHECK (kind <> 'cross_session' OR left_session_id <> right_session_id),
+  CHECK (
+    (resolution_status IS NULL AND resolved_by IS NULL AND resolved_at IS NULL)
+    OR (resolution_status IS NOT NULL AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL)
+  )
+);
+
+CREATE INDEX idx_session_discrepancies_case
+  ON session_discrepancies (org_id, support_case_id, resolution_status);
+CREATE INDEX idx_session_discrepancies_trigger
+  ON session_discrepancies (org_id, trigger_session_id);
+
+CREATE TRIGGER session_discrepancies_content_immutable
+BEFORE UPDATE ON session_discrepancies
+WHEN OLD.id <> NEW.id
+  OR OLD.org_id <> NEW.org_id
+  OR OLD.support_case_id <> NEW.support_case_id
+  OR OLD.kind <> NEW.kind
+  OR OLD.trigger_session_id <> NEW.trigger_session_id
+  OR OLD.left_session_id <> NEW.left_session_id
+  OR OLD.left_quote <> NEW.left_quote
+  OR OLD.right_session_id <> NEW.right_session_id
+  OR OLD.right_quote <> NEW.right_quote
+  OR OLD.detected_at <> NEW.detected_at
+  OR OLD.created_at <> NEW.created_at
+BEGIN
+  SELECT RAISE(ABORT, 'session_discrepancies: detected content is immutable');
+END;
+
+CREATE TRIGGER session_discrepancies_resolved_no_delete
+BEFORE DELETE ON session_discrepancies
+WHEN OLD.resolution_status IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'session_discrepancies: resolved rows are retained history');
+END;

@@ -121,7 +121,10 @@ export type AiDraftReviewDecision = 'approved' | 'rejected' | 'superseded' | nul
 export interface AiDraft {
   version: number;
   summaryText: string;
-  questions: string[];
+  /** D45 핵심 한 줄(CCC-38) — 승인 화면에서 요약·질문과 함께 검토된다. null = 레거시 초안. */
+  oneLiner: string | null;
+  /** CCC-39: 구조화 제안(제목+이유). 승인 흐름에서 요약과 함께 승인된다(R2). */
+  questions: Array<{ title: string; reason: string }>;
   reviewDecision: AiDraftReviewDecision;
   evidence: AiEvidence[];
 }
@@ -169,7 +172,7 @@ export interface MyIdentity {
   name: string | null;
 }
 
-/** 조직 사용자 디렉터리 항목 — 설정 화면 '조직 상담사 목록'(GET /users, 시스템 관리자 전용). */
+/** 기관 사용자 디렉터리 항목 — 설정 화면 '기관 실무자 목록'(GET /users, 기관 관리자 전용). */
 export interface DirectoryUser {
   id: string;
   orgId: string;
@@ -206,12 +209,23 @@ export interface ParticipantProgram {
   creationKind: 'legacy_import' | 'initial' | 'subsequent';
   sourceSupportCase: SourceSupportCase | null;
   /**
-   * D36: 내가 담당(또는 admin)인 사업인가. false 면 존재와 담당자 이름까지만 보이고
+   * D36: 내가 담당(또는 admin)인 사업인가. false 면 존재와 담당 실무자 이름까지만 보이고
    * 상담 내용(브리핑·기록)으로는 들어갈 수 없다 — 화면은 이 값으로 링크를 잠근다.
    */
   authorized: boolean;
-  /** 활성 담당자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
+  /** 활성 담당 실무자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
+  /** 동의 3종의 현재 상태(D44). 등록 시 받고 당사자 정보 페이지에서 고친다. */
+  consent: ParticipantConsent;
+  /** 마지막으로 동의 상태를 기록한 시각. 한 번도 없으면 null(최초 동의일이 아니다). */
+  consentRecordedAt: string | null;
+}
+
+/** 동의 3종(D15·D23·D44). 개인정보 수집·이용 / 녹음·음성 분석 / 텍스트 AI 정리. */
+export interface ParticipantConsent {
+  privacy: boolean;
+  recording: boolean;
+  textAi: boolean;
 }
 
 export interface ParticipantDetail {
@@ -223,7 +237,7 @@ export interface ParticipantDetail {
   programs: ParticipantProgram[];
 }
 
-/** 참여자 목록(사이드바 '참여자'의 도착지). 케이스 상태로 거르지 않는다 — 종결만 남은 참여자도 나온다. */
+/** 당사자 목록(사이드바 '당사자'의 도착지). 케이스 상태로 거르지 않는다 — 종결만 남은 당사자도 나온다. */
 export interface AssignedParticipant {
   beneficiaryId: string;
   status: 'active' | 'closed';
@@ -286,7 +300,34 @@ export interface ParticipantBriefingSection {
     source: 'ai' | 'counselor';
     reviewStatus: 'confirmed';
   }>;
-  questions: string[];
+  // D45 영역 ① AI 제안(CCC-39) — 제목·이유·근거 회차. 최대 3개(서버가 끊는다).
+  // reason=null 은 구조화 이전(v1) 단문 질문 저장분 — 화면은 이유 줄만 생략한다.
+  aiSuggestions: Array<{
+    title: string;
+    reason: string | null;
+    sessionId: string;
+    heldAt: string | null;
+  }>;
+  // D45 영역 ② 회차별 정리 — 상담일·유형·핵심 한 줄(최신순). 승인된 AI 한 줄이 없으면
+  // 화면이 수기 발췌 + '수기' 배지로 폴백한다(D5·CCC-38).
+  sessionRows: Array<{
+    sessionId: string;
+    heldAt: string;
+    kind: 'regular' | 'intake';
+    aiOneLiner: string | null;
+    memoExcerpt: string | null;
+  }>;
+  // D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). AI 판단 없이 양쪽 원문 인용 +
+  // 회차 참조만(R5). 처리 3종(CCC-42)은 resolution 으로 함께 오고, null 이면 미처리다 —
+  // 화면이 미처리 목록과 접힌 이력으로 가른다.
+  discrepancies: Array<{
+    id: string;
+    kind: 'cross_session' | 'within_session';
+    left: { sessionId: string; heldAt: string; quote: string };
+    right: { sessionId: string; heldAt: string; quote: string };
+    detectedAt: string;
+    resolution: { status: DiscrepancyResolutionStatus; resolvedAt: string } | null;
+  }>;
 }
 
 // 티켓 #35(T5) 계약: 포커스 참여사업의 다가오는 상담 일정 + 그 세션 목표(케이스 목표 연결)·
@@ -301,7 +342,11 @@ export interface BriefingUpcomingSchedule {
 export interface ParticipantBriefing {
   beneficiaryId: string;
   focusSupportCaseId: string;
-  // D24·ADR-0005: 담당·배정 책임자에게 기본 표시하는 실명·연락처. 미기입이면 null.
+  /** D45 전체 목표 — 포커스 케이스당 1개, null = 설정 전. */
+  overallGoal: string | null;
+  /** D45: 담당 실무자만 그 자리 편집. admin 은 열람만이라 false 로 온다. */
+  canEditOverallGoal: boolean;
+  // D24·ADR-0005: 담당·기관 관리자에게 기본 표시하는 실명·연락처. 미기입이면 null.
   participant: { name: string | null; phone: string | null };
   sections: ParticipantBriefingSection[];
   // T5 계약: 포커스 참여사업의 다가오는 일정(세션 목표·맞춤형 질문). 없으면 null.
@@ -386,10 +431,19 @@ export interface SupportCaseRecordGoal {
   status: 'active' | 'closed';
 }
 
+/** 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 처리는 표시일 뿐 원본 기록은 불변이다. */
+export type DiscrepancyResolutionStatus = 'situation_changed' | 'record_error' | 'confirmed';
+
 export interface SupportCaseRecords {
   records: SupportCaseRecord[];
   goals: SupportCaseRecordGoal[];
   schedule: CounselingSchedule | null;
+  /**
+   * '기록 오류'로 처리된 불일치가 가리키는 회차 ID (CCC-42). 그 기록 옆에 처리됨 표시만
+   * 붙인다 — 원본은 그대로다. 0027 에 어느 쪽이 오류인지 담는 칸이 없어 쌍의 양쪽 회차가
+   * 모두 들어온다(회차 내 모순이면 한 곳).
+   */
+  recordErrorSessionIds: string[];
 }
 
 // 정기 기록지 고정 헤더의 "이번 상담 목표"(D28 · CCC-10). 일정에 연결된 세션 목표를 표시한다.
@@ -421,7 +475,8 @@ export interface CreateInitialParticipantProgramInput {
   programType: ParticipantProgramType;
   intakeAt: string;
   initialAssigneeUserId?: string;
-  // 항목별 동의(D15·D23). 기본 미동의. 미동의여도 등록은 진행된다.
+  // 항목별 동의 3종(D15·D23·D44). 기본 미동의. 미동의여도 등록은 진행된다.
+  consentPrivacy?: boolean;
   consentRecording?: boolean;
   consentTextAi?: boolean;
   // 등록 시 받은 이름·연락처·이메일(선택). pii_vault enc_* 로 저장된다(D3 · D24 · #32·#37).
@@ -429,13 +484,17 @@ export interface CreateInitialParticipantProgramInput {
   name?: string;
   phone?: string;
   email?: string;
+  // D41 1-1 · D42: 생년월일(YYYY-MM-DD)·주소 또는 거주지역·성별도 등록이 받아 금고에 넣는다.
+  birthDate?: string;
+  region?: string;
+  gender?: string;
 }
 
 export interface ScheduleCandidate {
   beneficiaryId: string;
   supportCaseId: string;
   programType: ParticipantProgramType;
-  // D31·D24: 참여자 선택 UI 의 역할 기준 실명·연락처·이메일. 담당·admin 범위 밖이거나 미기입이면 null.
+  // D31·D24: 당사자 선택 UI 의 역할 기준 실명·연락처·이메일. 담당·admin 범위 밖이거나 미기입이면 null.
   participantName: string | null;
   participantPhone: string | null;
   participantEmail: string | null;
@@ -505,15 +564,17 @@ export interface CreateCounselingRecordResult {
   replayed: boolean;
 }
 
-// 인테이크 작성 컨텍스트(CCC-7). 회차 자동값·참여자 표시(D31)·기존 인테이크 여부.
+// 인테이크 작성 컨텍스트(CCC-7). 회차 자동값·당사자 표시(D31)·기존 인테이크 여부.
 export interface IntakeRecordContext {
   beneficiaryId: string;
   supportCaseId: string;
   participant: { name: string | null; phone: string | null; email: string | null };
   sessionSequence: number;
   hasIntake: boolean;
-  // "기본정보 더 적기" 미리 채움(CCC-9). 서버가 금고에서 복호화해 실어 준다(감사 1건).
+  // 1-1 기본정보 표시용(D42 ①). 서버가 금고에서 복호화해 실어 준다(감사 1건).
   extendedPii: IntakeExtendedPii;
+  // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫.
+  consent: { privacy: boolean; recording: boolean; textAi: boolean };
 }
 
 // 인테이크 6영역 기준선(P1): 6영역 전부 상태 직접 입력('변화 없음' 없음).
@@ -528,7 +589,7 @@ export interface IntakeGoalInput {
   scaleCriteria?: unknown;
 }
 
-// P3·P4 서술형 답변(CCC-9). 키 어휘는 게이트웨이 INTAKE_ANSWER_KEYS 와 동일하다.
+// 질문지 답변 키 어휘. 게이트웨이 INTAKE_ANSWER_KEYS 와 같은 순서·같은 값이어야 한다(D41).
 export const intakeAnswerKeys = [
   'referral_path', 'referral_org', 'referral_reason',
   'more_since', 'more_trigger', 'more_focus',
@@ -537,6 +598,21 @@ export const intakeAnswerKeys = [
   'crisis_immediate_risk', 'crisis_needed_connection', 'crisis_safety_status', 'crisis_emergency_contact',
   'strength_personal', 'strength_relational', 'strength_past_coping', 'strength_resources',
   'participation_availability', 'participation_transport', 'participation_constraint',
+  'welfare_basic_livelihood', 'welfare_benefit_type', 'welfare_near_poverty', 'welfare_other',
+  'counsel_method', 'contact_time', 'contact_caution',
+  'application_reason', 'application_reason_detail',
+  'difficulty_areas',
+  'economy_income_type', 'economy_monthly_income', 'economy_monthly_expense',
+  'economy_arrears', 'economy_debt_types',
+  'employment_status', 'employment_income_stability', 'employment_detail',
+  'housing_type', 'housing_instability', 'housing_detail',
+  'health_physical', 'health_care_barrier', 'health_stress', 'health_daily_impact', 'health_detail',
+  'family_household_type', 'family_care_burden', 'family_detail',
+  'need_primary', 'need_secondary', 'need_detail',
+  'previous_support_detail',
+  'strength_detail',
+  'participation_barrier', 'participation_preferred_method', 'participation_detail',
+  'summary_urgency', 'summary_direction',
 ] as const;
 export type IntakeAnswerKey = (typeof intakeAnswerKeys)[number];
 
@@ -558,6 +634,26 @@ export interface IntakeAdditionalItemInput {
   item: string;
   owner?: string;
   dueDate?: string;
+  reason?: string;
+  method?: string;
+  dueNote?: string;
+}
+
+// 반복 행 표 2종(2-1 부채 · 3-3 연계 기관). 첫 열만 필수다.
+export interface IntakeDebtEntryInput {
+  creditor: string;
+  kind?: string;
+  balance?: string;
+  monthlyPayment?: string;
+  arrearsStatus?: string;
+}
+
+export interface IntakeLinkedOrgInput {
+  orgName: string;
+  serviceName?: string;
+  supportDetail?: string;
+  usagePeriod?: string;
+  progressStatus?: string;
 }
 
 export interface IntakeNextMeetingInput {
@@ -569,14 +665,17 @@ export interface CreateIntakeRecordInput {
   submissionId: string;
   heldAt: string;
   channel: SupportCaseRecord['channel'];
-  consent: { privacy: boolean; recordingAi: boolean };
-  helpNarrative: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actions: ManualActionItem[];
+  // D42: 5종은 선택 — 정본 질문지에 대응 항목이 없다(동의는 등록 화면, 목표는 보류).
+  consent?: { privacy: boolean; recordingAi: boolean };
+  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actions?: ManualActionItem[];
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
   scheduleId?: string;
@@ -730,6 +829,17 @@ function decodeParticipantProgram(value: unknown): ParticipantProgram {
       if (typeof name !== 'string') contractViolation();
       return name;
     }),
+    consent: decodeParticipantConsent(responseProperty(record, 'consent')),
+    consentRecordedAt: responseNullableString(record, 'consentRecordedAt'),
+  };
+}
+
+function decodeParticipantConsent(value: unknown): ParticipantConsent {
+  const record = responseObject(value);
+  return {
+    privacy: responseBoolean(record, 'privacy'),
+    recording: responseBoolean(record, 'recording'),
+    textAi: responseBoolean(record, 'textAi'),
   };
 }
 
@@ -833,6 +943,10 @@ function decodeSupportCaseRecords(value: unknown): SupportCaseRecords {
     records: responseArray(record, 'records').map(decodeSupportCaseRecord),
     goals: responseArray(record, 'goals').map(decodeSupportCaseRecordGoal),
     schedule: schedule === null ? null : decodeCounselingSchedule(schedule),
+    recordErrorSessionIds: responseArray(record, 'recordErrorSessionIds').map((item) => {
+      if (typeof item !== 'string') contractViolation();
+      return item;
+    }),
   };
 }
 
@@ -1089,8 +1203,8 @@ export async function getUpcomingSchedules(date?: string): Promise<TodaySchedule
 }
 
 /**
- * 상담 등록 폼의 참여자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
- * 일정 유무와 무관하므로 방금 등록해 아직 일정이 없는 참여자도 첫 상담을 등록할 수 있다.
+ * 상담 등록 폼의 당사자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).
+ * 일정 유무와 무관하므로 방금 등록해 아직 일정이 없는 당사자도 첫 상담을 등록할 수 있다.
  */
 export async function listScheduleCandidates(): Promise<ScheduleCandidate[]> {
   const payload = await requestJson<{ candidates: ScheduleCandidate[] }>('/schedules/candidates');
@@ -1108,7 +1222,7 @@ export async function listParticipantPrograms(beneficiaryId: string): Promise<Pa
 }
 
 /**
- * 참여자 정보 페이지(허브)가 쓰는 참여자 1명 + 그 사람의 조직 내 전 참여 사업 (D36).
+ * 당사자 정보 페이지(허브)가 쓰는 당사자 1명 + 그 사람의 기관 내 전 참여 사업 (D36).
  *
  * 실명·연락처는 **API 가 이미 내려주고 있고 감사도 이미 남는다**(`db/gateway.ts` 의
  * `listSupportCasesForBeneficiary`). 사업마다 같은 값이 실려 오므로 첫 행에서 한 번만
@@ -1131,14 +1245,14 @@ export async function getParticipantDetail(beneficiaryId: string): Promise<Parti
   };
 }
 
-/** 참여자 목록 — 케이스 상태로 거르지 않는다(종결만 남은 참여자도 나온다). */
+/** 당사자 목록 — 케이스 상태로 거르지 않는다(종결만 남은 당사자도 나온다). */
 export async function listAssignedParticipants(): Promise<AssignedParticipant[]> {
   const payload = await requestJson<unknown>('/participants');
   const record = responseObject(payload);
   return responseArray(record, 'results').map(decodeAssignedParticipant);
 }
 
-/** 참여자 검색 (티켓 #16). 가명 ID·한글 표시명 부분 일치. 응답은 PII 없이 최소 필드만. */
+/** 당사자 검색 (티켓 #16). 가명 ID·한글 표시명 부분 일치. 응답은 PII 없이 최소 필드만. */
 export async function searchParticipants(query: string): Promise<ParticipantSearchResult[]> {
   const payload = await requestJson<unknown>(`/participants/search?q=${encodeURIComponent(query)}`);
   const record = responseObject(payload);
@@ -1150,7 +1264,7 @@ export async function searchParticipants(query: string): Promise<ParticipantSear
  * 부른다. 담당이 아니면 `not_found` 로 던진다(존재 여부를 알려주지 않는다).
  *
  * `authorized` 를 반드시 함께 본다. D36 으로 이 목록에 **담당하지 않는 사업도** 들어오게
- * 됐으므로(참여자 허브에서 라벨·담당자만 보여주기 위해), 필터 없이 `find` 하면 이 가드가
+ * 됐으므로(당사자 허브에서 라벨·담당 실무자만 보여주기 위해), 필터 없이 `find` 하면 이 가드가
  * 비담당 케이스를 통과시킨다 — 게이트웨이가 본 작업에서 다시 막아 실제 권한이 새지는
  * 않지만, 가드가 이름과 다른 일을 하게 되고 오류도 not_found 가 아니라 403 으로 바뀐다.
  * 같은 함정을 API 쪽 레거시 기록 경로에서도 고쳤다(request-handler.ts).
@@ -1260,6 +1374,113 @@ export async function createInitialParticipantProgram(
   return jsonRequest<ParticipantProgramCreation>('/participants', 'POST', input);
 }
 
+/**
+ * 동의 3종 수정·철회 (D44). 세 값을 항상 함께 보낸다 — 서버가 현재 상태 전체를 한 번에
+ * 기록하기 때문이다(부분 갱신이 아니다). 권한(담당 실무자·기관 관리자)은 서버가 판정한다.
+ */
+export async function updateParticipantConsent(
+  supportCaseId: string,
+  consent: ParticipantConsent,
+): Promise<ParticipantConsent> {
+  const payload = await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
+    'PUT',
+    consent,
+  );
+  return decodeParticipantConsent(payload);
+}
+
+/** 전체 목표 그 자리 입력·수정 (D45 · CCC-41). null·빈 문자열은 "설정 전"으로 되돌린다. */
+export async function updateSupportCaseOverallGoal(
+  supportCaseId: string,
+  overallGoal: string | null,
+): Promise<{ supportCaseId: string; overallGoal: string | null }> {
+  return jsonRequest<{ supportCaseId: string; overallGoal: string | null }>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/overall-goal`,
+    'PUT',
+    { overallGoal },
+  );
+}
+
+/**
+ * 불일치 처리 3종 (D45 · CCC-42). 표시만 바뀌고 원본 기록은 그대로다 — 이미 처리한 항목의
+ * 종류도 다시 바꿀 수 있고, 바꾼 전건이 감사에 남는다(D14).
+ */
+export async function resolveDiscrepancy(
+  supportCaseId: string,
+  discrepancyId: string,
+  status: DiscrepancyResolutionStatus,
+): Promise<void> {
+  await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}`
+    + `/discrepancies/${encodeURIComponent(discrepancyId)}/resolution`,
+    'PUT',
+    { status },
+  );
+}
+
+/** 기본정보 수정 화면(CCC-37)이 다루는 금고 7종. 폼 필드 이름과 1:1이다. */
+export const PARTICIPANT_BASIC_INFO_FIELDS = [
+  'name', 'phone', 'email', 'account', 'birthDate', 'region', 'gender',
+] as const;
+export type ParticipantBasicInfoField = (typeof PARTICIPANT_BASIC_INFO_FIELDS)[number];
+
+export interface ParticipantBasicInfo {
+  beneficiaryId: string;
+  /** 저장에 그대로 실어 보낼 활성 참여 사업. 화면이 고르지 않는다 — 서버가 정한다. */
+  supportCaseContextId: string;
+  /** 낙관적 잠금 값. 폼이 hidden 으로 돌려준다. */
+  version: number;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  account: string | null;
+  birthDate: string | null;
+  region: string | null;
+  gender: string | null;
+}
+
+/** 저장 패치. 키가 없으면 "건드리지 않는다", null 이면 "지운다". */
+export type ParticipantBasicInfoPatch = Partial<Record<ParticipantBasicInfoField, string | null>>;
+
+function decodeParticipantBasicInfo(payload: unknown): ParticipantBasicInfo {
+  const record = responseObject(payload);
+  return {
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    supportCaseContextId: responseString(record, 'supportCaseContextId'),
+    version: responseInteger(record, 'version'),
+    name: responseNullableString(record, 'name'),
+    phone: responseNullableString(record, 'phone'),
+    email: responseNullableString(record, 'email'),
+    account: responseNullableString(record, 'account'),
+    birthDate: responseNullableString(record, 'birthDate'),
+    region: responseNullableString(record, 'region'),
+    gender: responseNullableString(record, 'gender'),
+  };
+}
+
+/**
+ * 기본정보 수정 화면의 읽기(CCC-37). 복호화된 금고 값이 실려 오므로 이 호출 자체가
+ * 화면 조회 감사 1건을 남긴다(D24) — 화면에서 감사를 또 붙이지 않는다.
+ */
+export async function getParticipantBasicInfo(beneficiaryId: string): Promise<ParticipantBasicInfo> {
+  return decodeParticipantBasicInfo(
+    await requestJson<unknown>(`/participants/${encodeURIComponent(beneficiaryId)}/basic-info`),
+  );
+}
+
+/** 기본정보 저장(CCC-37). 권한(담당 실무자·기관 관리자)과 버전 충돌은 서버가 판정한다. */
+export async function updateParticipantBasicInfo(
+  beneficiaryId: string,
+  input: { supportCaseContextId: string; expectedVersion: number } & ParticipantBasicInfoPatch,
+): Promise<void> {
+  await jsonRequest<unknown>(
+    `/participants/${encodeURIComponent(beneficiaryId)}/basic-info`,
+    'PUT',
+    input,
+  );
+}
+
 export async function createSubsequentParticipantProgram(
   beneficiaryId: string,
   input: CreateSubsequentParticipantProgramInput,
@@ -1308,6 +1529,14 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     sessionSequence: responseInteger(record, 'sessionSequence'),
     hasIntake: responseBoolean(record, 'hasIntake'),
     extendedPii: decodeIntakeExtendedPii(responseProperty(record, 'extendedPii')),
+    consent: (() => {
+      const consent = responseObject(responseProperty(record, 'consent'));
+      return {
+        privacy: responseBoolean(consent, 'privacy'),
+        recording: responseBoolean(consent, 'recording'),
+        textAi: responseBoolean(consent, 'textAi'),
+      };
+    })(),
   };
 }
 
@@ -1388,6 +1617,33 @@ export async function getMyIdentity(): Promise<MyIdentity> {
   return decodeDirectoryUser(await requestJson<unknown>('/me'));
 }
 
+/** 관리자 온보딩이 저장한 기관·첫 사업 표시 이름 (CCC-32). null 이면 labels.ts 폴백. */
+export interface OrganizationProfile {
+  orgId: string;
+  orgName: string | null;
+  programDisplayName: string | null;
+}
+
+function decodeOrganizationProfile(value: unknown): OrganizationProfile {
+  const record = responseObject(value);
+  return {
+    orgId: responseString(record, 'orgId'),
+    orgName: responseNullableString(record, 'orgName'),
+    programDisplayName: responseNullableString(record, 'programDisplayName'),
+  };
+}
+
+export async function getOrganizationProfile(): Promise<OrganizationProfile> {
+  return decodeOrganizationProfile(await requestJson<unknown>('/organization/profile'));
+}
+
+/** 관리자 온보딩 2단계 저장 (CCC-32). admin 검사·감사는 API 게이트웨이 몫(R1). */
+export async function completeOrganizationOnboarding(
+  input: { orgName: string; programDisplayName: string },
+): Promise<OrganizationProfile> {
+  return decodeOrganizationProfile(await jsonRequest<unknown>('/organization/onboarding', 'POST', input));
+}
+
 /**
  * `/` 직행 목적지 — 마지막에 선택한 사업 (D35 · ADR-0014 '개정' 2번).
  * 미선택이면 null 이고 호출부가 첫 사업으로 폴백한다. 404 를 내지 않는다.
@@ -1411,17 +1667,17 @@ export async function rememberLastProgramType(programType: string): Promise<void
   });
 }
 
-/** 조직 사용자 디렉터리 목록. 시스템 관리자만 호출한다(비관리자에게는 403). */
+/** 기관 사용자 디렉터리 목록. 기관 관리자만 호출한다(비관리자에게는 403). */
 export async function listOrgUsers(): Promise<DirectoryUser[]> {
   const payload = await requestJson<unknown>('/users');
   if (!Array.isArray(payload)) contractViolation();
   return payload.map(decodeDirectoryUser);
 }
 
-// 관리자 영역(재개편 T8, #38): 상담사별 활성 배정 참여자 + 케이스 담당자 배정.
+// 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 + 케이스 담당 실무자 배정.
 const assignmentRoles = ['primary', 'secondary'] as const;
 
-/** 관리자 영역 사용자/상담사 상세에 실리는 상담사별 활성 배정 참여자 행(실명 포함). */
+/** 관리자 영역 사용자/실무자 상세에 실리는 실무자별 활성 배정 당사자 행(실명 포함). */
 export interface AdminAssignmentParticipant {
   beneficiaryId: string;
   supportCaseId: string;
@@ -1470,7 +1726,7 @@ function decodeSupportCaseAssignee(value: unknown): SupportCaseAssignee {
   };
 }
 
-/** 상담사별 활성 배정 참여자(실명 포함). 시스템 관리자만 호출한다(비관리자에게는 403). */
+/** 실무자별 활성 배정 당사자(실명 포함). 기관 관리자만 호출한다(비관리자에게는 403). */
 export async function listCounselorAssignments(userId: string): Promise<CounselorAssignments> {
   const payload = responseObject(await requestJson<unknown>(`/users/${encodeURIComponent(userId)}/assignments`));
   return {
@@ -1479,7 +1735,7 @@ export async function listCounselorAssignments(userId: string): Promise<Counselo
   };
 }
 
-/** 케이스 담당자 목록. 담당자 또는 관리자. 관리자 배정 화면이 현재 배정 상태를 보여줄 때 쓴다. */
+/** 케이스 담당 실무자 목록. 담당 실무자 또는 관리자. 관리자 배정 화면이 현재 배정 상태를 보여줄 때 쓴다. */
 export async function listSupportCaseAssignees(supportCaseId: string): Promise<SupportCaseAssignee[]> {
   const payload = responseObject(await requestJson<unknown>(
     `/support-cases/${encodeURIComponent(supportCaseId)}/assignees`,
@@ -1487,7 +1743,7 @@ export async function listSupportCaseAssignees(supportCaseId: string): Promise<S
   return responseArray(payload, 'assignees').map(decodeSupportCaseAssignee);
 }
 
-/** 공동 담당 추가(D7). 시스템 관리자만 호출한다. 기본 역할은 secondary. */
+/** 공동 담당 추가(D7). 기관 관리자만 호출한다. 기본 역할은 secondary. */
 export async function addSupportCaseAssignee(
   supportCaseId: string,
   userId: string,
@@ -1500,9 +1756,28 @@ export async function addSupportCaseAssignee(
   ));
 }
 
-/** 상담사 등록(기존 POST /users, role=counselor). 시스템 관리자만 호출한다. */
+/** 실무자 등록(기존 POST /users, role=counselor). 기관 관리자만 호출한다. */
 export async function registerCounselor(email: string): Promise<DirectoryUser> {
   return decodeDirectoryUser(await jsonRequest<unknown>('/users', 'POST', { email, role: 'counselor' }));
+}
+
+/** 당사자 가입 링크(초대 토큰) 발급 결과 (D39 · ADR-0016 · CCC-29). */
+export interface ParticipantInvite {
+  token: string;
+  programType: string;
+  issuedAt: string;
+}
+
+/**
+ * 당사자 가입 링크 발급(POST /invites/participant). 사업+발급 실무자가 토큰에 묶인다.
+ * 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
+ */
+export async function createParticipantInvite(programType: string): Promise<ParticipantInvite> {
+  const raw = await jsonRequest<Record<string, unknown>>('/invites/participant', 'POST', { programType });
+  if (typeof raw.token !== 'string' || typeof raw.programType !== 'string' || typeof raw.issuedAt !== 'string') {
+    throw new ApiError('invalid_request');
+  }
+  return { token: raw.token, programType: raw.programType, issuedAt: raw.issuedAt };
 }
 
 export interface PreviewUnlockResult {
@@ -1547,5 +1822,77 @@ export async function requestPreviewUnlock(code: string): Promise<PreviewUnlockR
   return {
     token: responseString(record, 'token'),
     maxAgeSeconds: responseInteger(record, 'maxAgeSeconds'),
+  };
+}
+
+/** 공개 가입 링크 메타데이터(토큰이 유효할 때 사업 유형). Access 불필요(CCC-28). */
+export interface PublicInviteInfo {
+  programType: string;
+}
+
+/**
+ * 당사자 가입 링크의 공개 정보(사업 유형)를 가져온다. 토큰이 없거나 이미 소비되었으면
+ * not_found(404). 인증 헤더를 보내지 않는다 — 공개 경로(CCC-28 · D39).
+ */
+export async function getPublicInviteInfo(token: string): Promise<PublicInviteInfo> {
+  const requestHeaders = new Headers({ accept: 'application/json' });
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}`), {
+      headers: requestHeaders,
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return { programType: responseString(record, 'programType') };
+}
+
+export interface PublicSignupInput {
+  token: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  // 동의 3종(D44) — 자기 가입은 등록이므로 등록 화면과 같은 3체크를 보낸다.
+  consent: { privacy: boolean; recording: boolean; textAi: boolean };
+}
+
+export interface PublicSignupResult {
+  beneficiaryId: string;
+  supportCaseId: string;
+}
+
+/**
+ * 당사자 자기 가입을 완료한다(공개 경로, Access 불필요). 성공 시 201 +
+ * { beneficiaryId, supportCaseId }. 토큰 무효·이미 소비는 not_found(404).
+ */
+export async function signupParticipant(input: PublicSignupInput): Promise<PublicSignupResult> {
+  const requestHeaders = new Headers({
+    accept: 'application/json',
+    'content-type': 'application/json; charset=utf-8',
+  });
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint('/signup/participant'), {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(input),
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return {
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    supportCaseId: responseString(record, 'supportCaseId'),
   };
 }

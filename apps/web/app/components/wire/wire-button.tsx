@@ -29,6 +29,12 @@ export interface WireButtonProps {
   /** 버튼으로 렌더. */
   onClick?: () => void;
   type?: 'button' | 'submit';
+  /**
+   * 제출 버튼이 폼에 실어 보내는 이름·값. 한 폼에 선택지가 여럿일 때(예: 불일치 처리 3종)
+   * 어느 버튼을 눌렀는지 서버 액션이 알아야 한다. href 로 렌더될 때는 무시된다.
+   */
+  name?: string;
+  value?: string;
   className?: string;
 }
 
@@ -44,6 +50,8 @@ export function WireButton({
   href,
   onClick,
   type = 'button',
+  name,
+  value,
   className,
 }: WireButtonProps) {
   const resolvedVariant: WireButtonVariant = variant ?? (size === 'large' ? 'primary' : 'secondary');
@@ -68,6 +76,8 @@ export function WireButton({
     <button
       className={classes}
       type={type}
+      name={name}
+      value={value}
       onClick={onClick}
       disabled={disabled}
       data-variant={resolvedVariant}

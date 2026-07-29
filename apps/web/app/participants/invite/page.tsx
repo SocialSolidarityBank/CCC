@@ -1,35 +1,30 @@
 import { GridContainer } from '../../components/wire/grid-container';
-import { ListRow } from '../../components/wire/list-row';
 import { PageTitle } from '../../components/wire/page-title';
-import { SearchInput } from '../../components/wire/search-input';
-import { WireButton } from '../../components/wire/wire-button';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import { WireCard, WireField } from '../../components/wire/wire-card';
+import { getDisplayLabels } from '../../lib/display-labels';
+import { InviteIssue } from './invite-issue';
 
-// 참여자 초대 화면(재개편 T7 · #37 · Figma 7:759 · D26).
-// D26: 참여자 직접 접속(본인이 링크로 가입·로그인·동의 작성)은 동의서 법률 검토 후 구현한다.
-// 이번 개편은 IA(메뉴 구조) 분리까지만 — 이 화면은 발송·저장이 없는 정적 스텁이다.
-// 게이트웨이·D1·R1 접점이 전혀 없다(데이터 조회 없음).
-export default function ParticipantInvitePage() {
+// 당사자 초대 화면(D39 · ADR-0016 · CCC-29 — 구 D26 정적 스텁 대체).
+// 실무자가 당사자 가입 링크(사업+발급 실무자 묶음 토큰 URL)를 발급해 링크·QR·이메일
+// 문안으로 전달한다. 발급·감사는 API 게이트웨이(R1·D14), 이메일 발송은 없다(D39).
+export default async function ParticipantInvitePage() {
+  // 초대 대상 표기도 온보딩 저장 이름을 되비춘다(CCC-32) — 미설정이면 하드코딩 폴백.
+  const { orgLabel, programLabels } = await getDisplayLabels();
+
   return (
     <main className="page-content narrow">
       <GridContainer>
-        <PageTitle>참여자 초대</PageTitle>
+        <PageTitle>당사자 초대</PageTitle>
 
         <div className="wire-invite-stack">
-          <section className="wire-invite-section" aria-label="초대 대상">
-            <ListRow chevron="right">사회연대은행</ListRow>
-            <ListRow chevron="right">{PROGRAM_LABELS.financial_support_v1}</ListRow>
-          </section>
+          {/* 이동하는 행이 아니라 "이 링크가 무엇에 묶이는가"라는 정보라서 리스트 행이 아니라
+              정보 필드 계약(라벨 14/700 민트 deep + 값 16 --ink)을 쓴다(DESIGN.md §5). */}
+          <WireCard title="초대 대상">
+            <WireField label="기관">{orgLabel}</WireField>
+            <WireField label="사업">{programLabels.financial_support_v1}</WireField>
+          </WireCard>
 
-          <section className="wire-invite-section" aria-label="참여자 초대하기">
-            <SearchInput label="참여자 초대하기" name="inviteEmail" placeholder="participant@example.com" />
-          </section>
-
-          {/* 발송은 D26 스텁: 비활성 버튼이라 눌러도 아무 일도 일어나지 않는다. 저장·발송 없음. */}
-          <WireButton type="button" size="large" chevron disabled className="wire-register-submit">
-            초대장 발송하기
-          </WireButton>
-          <p className="wire-invite-caption">동의서 법률 검토 후 제공 예정 (D26)</p>
+          <InviteIssue />
         </div>
       </GridContainer>
     </main>

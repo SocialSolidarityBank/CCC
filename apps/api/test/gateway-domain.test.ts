@@ -24,6 +24,8 @@ import {
   createGeneratedAiDraft,
   createGoal,
   createOrganizationSettings,
+  completeOrganizationOnboarding,
+  getOrganizationProfile,
   createManualSession,
   createSupportCase,
   editAiDraftForSession,
@@ -56,6 +58,7 @@ import {
   rescheduleCounselingSchedule,
   reviewFlag,
   resolveActionItem,
+  setSupportCaseOverallGoal,
   updateParticipantPii,
   transferSupportCase,
   unassignSupportCase,
@@ -194,6 +197,7 @@ const OFFICIAL_CANARIES = {
   contrast: 'UNAPPROVED_CONTRAST_CANARY',
   emotion: 'UNAPPROVED_EMOTION_CANARY',
   draft: 'UNAPPROVED_DRAFT_CANARY',
+  oneLiner: 'UNAPPROVED_ONE_LINER_CANARY',
   evidence: 'UNAPPROVED_EVIDENCE_CANARY',
   providerApproval: 'UNAPPROVED_PROVIDER_APPROVAL_CANARY',
   providerModel: 'UNAPPROVED_PROVIDER_MODEL_CANARY',
@@ -282,14 +286,15 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
   ).bind(workItemId, counselor.orgId, sessionScope.support_case_id, session.id, 'text_ai_briefing', createdAt).run();
   await t.db.prepare(
     `INSERT INTO ai_draft_versions (
-      id, work_item_id, version, parent_version_id, summary_text, questions_json,
+      id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json,
       source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
       origin, creation_mode, grounding_status, created_by, created_at
-    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
   ).bind(
     draftId,
     workItemId,
     OFFICIAL_CANARIES.draft,
+    OFFICIAL_CANARIES.oneLiner,
     JSON.stringify(['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?']),
     source.snapshotId,
     source.snapshotHash,
@@ -384,7 +389,11 @@ async function createReviewReadySession() {
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'AI_SUMMARY_DEMO',
-    questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+    oneLiner: 'AI_ONE_LINER_DEMO',
+    questions: [
+      { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+      { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+    ],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
     providerConfigId: selection.providerConfigId,
@@ -515,7 +524,11 @@ async function createPilotDraft(
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'GROUNDED_AI_SUMMARY_DEMO',
-    questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+    oneLiner: 'GROUNDED_AI_ONE_LINER_DEMO',
+    questions: [
+      { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+      { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+    ],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
     providerConfigId: selection.providerConfigId,
@@ -639,8 +652,17 @@ describe('gateway domain records', () => {
       emotionScores: null,
     });
     expect(approvedBefore).toEqual([]);
+    // 참여자 브리핑의 회차 줄(핵심 한 줄 포함)도 승인 전에는 어떤 캐너리도 싣지 않는다(R2·CCC-38).
+    const briefingScope = await t.db.prepare(
+      'SELECT id, beneficiary_id FROM support_cases WHERE COALESCE(legacy_case_id, id) = ?',
+    ).bind(fixture.caseId).first<{ id: string; beneficiary_id: string }>();
+    if (briefingScope === null) throw new Error('expected canonical support case scope');
+    const participantBefore = await getParticipantBriefing(
+      t.env, counselor, briefingScope.beneficiary_id, briefingScope.id,
+    );
+    expect(participantBefore.sessionRows).toEqual([expect.objectContaining({ aiOneLiner: null })]);
     expectNoCanaries(
-      { briefingBefore, sessionsBefore, exportBefore, approvedBefore },
+      { briefingBefore, sessionsBefore, exportBefore, approvedBefore, participantBefore },
       allCanaries,
     );
 
@@ -658,6 +680,15 @@ describe('gateway domain records', () => {
       pendingApprovalCount: 0,
     });
     expect(briefingAfter.questions).toEqual(['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?']);
+    // 승인이 끝나야 핵심 한 줄이 공식 뷰와 브리핑 회차 줄에 실린다(CCC-38·D45 영역 ②).
+    expect(approvedAfter).toEqual([expect.objectContaining({ oneLiner: OFFICIAL_CANARIES.oneLiner })]);
+    const participantAfter = await getParticipantBriefing(
+      t.env, counselor, briefingScope.beneficiary_id, briefingScope.id,
+    );
+    expect(participantAfter.sessionRows).toEqual([expect.objectContaining({
+      sessionId: fixture.sessionId,
+      aiOneLiner: OFFICIAL_CANARIES.oneLiner,
+    })]);
     expect(sessionsAfter).toHaveLength(1);
     const sessionAfter = sessionsAfter[0];
     if (sessionAfter === undefined) throw new Error('expected approved official session');
@@ -710,13 +741,18 @@ describe('gateway domain records', () => {
       workItemId: fixture.workItemId,
       draftVersionId: fixture.draftId,
       summaryText: OFFICIAL_CANARIES.draft,
-      questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+      // SQL 시드가 v1 단문 문자열이라 reason 없이 정규화된다(하위 호환 계약).
+      questions: [
+        { title: '상황 일정에 변동이 있었나요?', reason: null },
+        { title: '주거비 변화가 있었나요?', reason: null },
+      ],
       origin: 'generated',
       groundingStatus: 'grounded',
     });
     expectNoCanaries(
       { briefingAfter, sessionsAfter, exportAfter, approvedAfter },
-      allCanaries.filter((canary) => canary !== OFFICIAL_CANARIES.draft),
+      // 요약과 핵심 한 줄은 승인으로 공식화됐으므로 승인 후에는 보이는 것이 맞다(CCC-38).
+      allCanaries.filter((canary) => canary !== OFFICIAL_CANARIES.draft && canary !== OFFICIAL_CANARIES.oneLiner),
     );
   });
 
@@ -968,6 +1004,65 @@ describe('organization settings bootstrap', () => {
     });
   });
 });
+
+describe('organization onboarding names (CCC-32)', () => {
+  it('saves org and program display names admin-only, audited, and re-runnable', async () => {
+    await t.reset();
+
+    // 온보딩 전에는 저장값이 없다 — 화면은 labels.ts 하드코딩 라벨로 폴백한다.
+    await expect(getOrganizationProfile(t.env, counselor)).resolves.toEqual({
+      orgId: counselor.orgId,
+      orgName: null,
+      programDisplayName: null,
+    });
+
+    // 저장은 기관 관리자만 (스펙 #78 — 온보딩은 처음 가입한 관리자의 화면).
+    await expect(completeOrganizationOnboarding(t.env, counselor, {
+      orgName: '연대은행', programDisplayName: '금융지원 사업',
+    })).rejects.toBeInstanceOf(ForbiddenError);
+
+    const saved = await completeOrganizationOnboarding(t.env, admin, {
+      orgName: '  연대은행  ', programDisplayName: '금융지원 사업',
+    });
+    expect(saved).toEqual({
+      orgId: admin.orgId,
+      orgName: '연대은행',
+      programDisplayName: '금융지원 사업',
+    });
+
+    // 실무자도 읽을 수 있어야 한다 — 사이드바는 모든 역할의 셸이다.
+    await expect(getOrganizationProfile(t.env, counselor)).resolves.toMatchObject({
+      orgName: '연대은행',
+      programDisplayName: '금융지원 사업',
+    });
+
+    // 다시 실행하면 덮어쓴다(수정 경로 겸용) — 409 로 막히지 않는다.
+    await expect(completeOrganizationOnboarding(t.env, admin, {
+      orgName: '연대은행', programDisplayName: '자활 사업',
+    })).resolves.toMatchObject({ programDisplayName: '자활 사업' });
+
+    const audits = await t.db.prepare(
+      `SELECT COUNT(*) AS count FROM audit_log
+       WHERE org_id = ? AND action = 'update' AND target_table = 'organization_settings'`,
+    ).bind(admin.orgId).first<{ count: number }>();
+    expect(audits?.count).toBe(2);
+  });
+
+  it('rejects blank names and keeps service role out', async () => {
+    await t.reset();
+    await expect(completeOrganizationOnboarding(t.env, admin, {
+      orgName: '   ', programDisplayName: '금융지원 사업',
+    })).rejects.toBeInstanceOf(ValidationError);
+    await expect(completeOrganizationOnboarding(t.env, admin, {
+      orgName: '연대은행', programDisplayName: '',
+    })).rejects.toBeInstanceOf(ValidationError);
+    await expect(getOrganizationProfile(t.env, service)).rejects.toBeInstanceOf(ForbiddenError);
+    // 설정 행이 없는 기관도 조회는 에러가 아니라 null — 셸이 앱 전체를 잠그면 안 된다.
+    await expect(getOrganizationProfile(t.env, {
+      userId: 'someone', orgId: 'org_without_settings', role: 'counselor' as const,
+    })).resolves.toEqual({ orgId: 'org_without_settings', orgName: null, programDisplayName: null });
+  });
+});
 describe('canonical participant gateway', () => {
   it('routes legacy PII registration through the canonical admin-only atomic mutation', async () => {
     await t.reset();
@@ -1109,10 +1204,10 @@ describe('canonical participant gateway', () => {
     ).bind(initial.beneficiaryId, canonicalActors.counselor.orgId).first())
       .resolves.toEqual(vaultBeforeConflict);
 
-    // D36 의 전제 게이트: 이 참여자의 케이스를 **1건도 담당하지 않으면** 페이지가 열리지
+    // D36 의 전제 게이트: 이 당사자의 케이스를 **1건도 담당하지 않으면** 페이지가 열리지
     // 않는다. 아직 secondCounselor 는 배정이 없으므로 여기서 막혀야 한다. D36 으로 표시
-    // 범위를 조직 전체로 넓혔기 때문에 이 게이트를 같이 지우기 쉬운데, 그러면 D36 의 근거
-    // ("이 페이지를 여는 사람은 이미 그 참여자의 담당자라 PII 를 보고 있다")가 무너진다.
+    // 범위를 기관 전체로 넓혔기 때문에 이 게이트를 같이 지우기 쉬운데, 그러면 D36 의 근거
+    // ("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라 PII 를 보고 있다")가 무너진다.
     await expect(listSupportCasesForBeneficiary(
       t.env,
       canonicalActors.secondCounselor,
@@ -1127,7 +1222,7 @@ describe('canonical participant gateway', () => {
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
     expect(adminProgram.replayed).toBe(false);
-    // D36(2026-07-26): 참여자 정보 허브는 **조직 내 전 참여 사업**을 보여준다. 그래서
+    // D36(2026-07-26): 당사자 정보 허브는 **기관 내 전 참여 사업**을 보여준다. 그래서
     // counselor 도 3건을 다 받되, 방금 secondCounselor 에게 배정된 건은 authorized=false 로
     // 와서 상담 내용이 잠긴다. 표시 범위와 접근 범위를 분리했다는 것을 여기서 고정한다.
     const counselorPrograms = (await listSupportCasesForBeneficiary(
@@ -1137,8 +1232,8 @@ describe('canonical participant gateway', () => {
     )).programs;
     expect(counselorPrograms).toHaveLength(3);
     expect(counselorPrograms.filter((entry) => entry.authorized)).toHaveLength(2);
-    // 비담당 사업은 "누구에게 물어보나"를 답해야 하므로 담당자 표시 이름이 실린다.
-    // 단 **이메일로 폴백하지 않는다** — 이 목록은 담당 밖 사업까지 상담사에게 내려가므로,
+    // 비담당 사업은 "누구에게 물어보나"를 답해야 하므로 담당 실무자 표시 이름이 실린다.
+    // 단 **이메일로 폴백하지 않는다** — 이 목록은 담당 밖 사업까지 실무자에게 내려가므로,
     // 이메일 폴백을 두면 admin 전용 디렉터리로 막아 둔 직원 이메일이 새어 나간다.
     // 이 픽스처의 users 는 name 이 없으므로 목록은 비어 있어야 한다.
     const locked = counselorPrograms.find((entry) => !entry.authorized);
@@ -1195,7 +1290,7 @@ describe('canonical participant gateway', () => {
     expect(vault?.encPhone).not.toBe(pii.phone);
     expect(vault?.encAccount).not.toBe(pii.account);
 
-    // D24·ADR-0005: 담당자(활성 배정)에게는 브리핑 응답에 실명·연락처가 실린다(계좌는 제외).
+    // D24·ADR-0005: 담당 실무자(활성 배정)에게는 브리핑 응답에 실명·연락처가 실린다(계좌는 제외).
     // 클릭 단위 reveal 은 사라지고, PII 가 실린 화면 조회당 read_participant_pii 감사 1건이 남는다.
     await expect(getParticipantBriefing(
       t.env,
@@ -1247,7 +1342,7 @@ describe('canonical participant gateway', () => {
     expect(counselorToday.timeZone).toBe('Asia/Seoul');
     expect(counselorToday.schedules.map((item) => item.id)).toEqual([schedule.id]);
     expect(JSON.stringify(counselorToday)).not.toContain(hidden.beneficiaryId);
-    // D24·ADR-0005: 담당자 카드에는 실명·연락처가 실린다.
+    // D24·ADR-0005: 담당 실무자 카드에는 실명·연락처가 실린다.
     expect(counselorToday.schedules[0]).toMatchObject({
       participantName: pii.name,
       participantPhone: pii.phone,
@@ -1257,7 +1352,7 @@ describe('canonical participant gateway', () => {
       schedule.id,
       hiddenSchedule.id,
     ]);
-    // admin 은 조직 전체 카드에 실명을 본다. 두 번째 참여자는 PII 미기입이라 실명 null.
+    // admin 은 기관 전체 카드에 실명을 본다. 두 번째 당사자는 PII 미기입이라 실명 null.
     expect(adminToday.schedules.find((item) => item.id === schedule.id)?.participantName).toBe(pii.name);
     expect(adminToday.schedules.find((item) => item.id === hiddenSchedule.id)?.participantName).toBeNull();
     await assignSupportCase(
@@ -1291,7 +1386,7 @@ describe('canonical participant gateway', () => {
       canonicalActors.admin.userId,
     );
 
-    // 이관으로 배정을 잃은 상담사는 브리핑(실명 포함) 접근이 막힌다 — 상담 관계가 끊긴다.
+    // 이관으로 배정을 잃은 실무자는 브리핑(실명 포함) 접근이 막힌다 — 상담 관계가 끊긴다.
     await expect(getParticipantBriefing(
       t.env,
       canonicalActors.counselor,
@@ -1973,7 +2068,7 @@ describe('canonical participant gateway', () => {
       purgedAt: null,
       version: purgedVault.version + 1,
     });
-    // 재등록으로 되살아난 실명은 새 담당자의 브리핑에 실린다(D24).
+    // 재등록으로 되살아난 실명은 새 담당 실무자의 브리핑에 실린다(D24).
     await expect(getParticipantBriefing(
       t.env,
       canonicalActors.secondCounselor,
@@ -2111,6 +2206,15 @@ describe('canonical participant gateway', () => {
       sourceSupportCase: expect.objectContaining({ id: initial.supportCaseId }),
       text: 'VISIBLE_MANUAL_MEMO',
     })]);
+    // D45 영역 ② — 회차 줄도 인가된 참여 사업 것만 실리고, 발췌는 수기 메모 첫 줄이다.
+    expect(briefing.sessionRows).toEqual([expect.objectContaining({
+      sourceSupportCase: expect.objectContaining({ id: initial.supportCaseId }),
+      heldAt: '2026-07-15T10:00:00.000Z',
+      kind: 'regular',
+      // 승인된 AI 한 줄이 없는 회차는 null — 화면은 수기 발췌 + '수기' 배지로 폴백한다(CCC-38·D5).
+      aiOneLiner: null,
+      memoExcerpt: 'VISIBLE_MANUAL_MEMO',
+    })]);
     expect(JSON.stringify(briefing)).not.toContain('HIDDEN_MANUAL_MEMO');
     expect(JSON.stringify(briefing)).not.toContain(hidden.supportCaseId);
     await expect(getParticipantBriefing(
@@ -2119,5 +2223,237 @@ describe('canonical participant gateway', () => {
       initial.beneficiaryId,
       hidden.supportCaseId,
     )).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
+  // 세션 하나에 provider_generated 초안을 SQL 로 시드한다(v2 구조화 questions_json).
+  // 활성 프로바이더 설정·케이스 동의는 호출자가 먼저 마련한다(0026 가드가 검사).
+  async function seedStructuredDraft(
+    caseId: string,
+    sessionId: string,
+    seedKey: string,
+    suggestions: Array<{ title: string; reason: string }>,
+    configId: string,
+    consentId: string,
+  ): Promise<{ workItemId: string }> {
+    const source = await seedMaskedSourceSnapshot(caseId, sessionId, `${seedKey}-source`, [
+      { key: 'main', sourceRef: `memo:${seedKey}`, evidenceQuote: `MASKED_${seedKey}_EVIDENCE` },
+    ]);
+    const evidence = source.evidenceByKey.main;
+    if (evidence === undefined) throw new Error('expected seeded suggestion evidence');
+    const sessionScope = await t.db.prepare(
+      'SELECT support_case_id FROM sessions WHERE id = ? AND org_id = ?',
+    ).bind(sessionId, counselor.orgId).first<{ support_case_id: string }>();
+    if (sessionScope === null) throw new Error('expected session scope');
+
+    const workItemId = `${seedKey}-work`;
+    const draftId = `${seedKey}-draft`;
+    const createdAt = '2026-07-01T00:00:00.000Z';
+    await t.db.prepare(
+      'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).bind(workItemId, counselor.orgId, sessionScope.support_case_id, sessionId, 'text_ai_briefing', createdAt).run();
+    await t.db.prepare(
+      `INSERT INTO ai_draft_versions (
+        id, work_item_id, version, parent_version_id, summary_text, questions_json,
+        source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
+        origin, creation_mode, grounding_status, created_by, created_at
+      ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+    ).bind(
+      draftId,
+      workItemId,
+      `${seedKey}_SUMMARY`,
+      JSON.stringify(suggestions),
+      source.snapshotId,
+      source.snapshotHash,
+      consentId,
+      configId,
+      'gpt-5-codex',
+      'provider-prompt-v2',
+      'provider-schema-v2',
+      counselor.userId,
+      createdAt,
+    ).run();
+    await t.db.prepare(
+      `INSERT INTO ai_evidence_links (
+        id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      `${seedKey}-claim-link`, draftId, evidence.id, 'seed-claim',
+      evidence.evidenceQuote, evidence.sourceRef, evidence.sourceStart, evidence.sourceEnd, createdAt,
+    ).run();
+    for (const [index] of suggestions.entries()) {
+      await t.db.prepare(
+        `INSERT INTO ai_evidence_links (
+          id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        `${seedKey}-question-${index + 1}`, draftId, evidence.id, `question_${index + 1}`,
+        evidence.evidenceQuote, evidence.sourceRef, evidence.sourceStart, evidence.sourceEnd, createdAt,
+      ).run();
+    }
+    return { workItemId };
+  }
+
+  it('serves structured suggestions from approved drafts only, capped at three, with the evidence session attached', async () => {
+    await t.reset();
+    t.env.TEXT_AI_PILOT_ENABLED = '1';
+    const config = await registerAiProviderConfiguration(t.env, admin, {
+      adapterId: 'codex',
+      adapterVersion: 'v1',
+      configHash: 'f'.repeat(64),
+      approvalRefs: ['privacy-security-approval'],
+    });
+    await activateAiProviderConfiguration(t.env, admin, config.id);
+    const caseRecord = await createCase(t.env, counselor, {});
+    const consent = await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
+      noticeVersion: 'pilot-text-ai-v1',
+      noticeSha256: SHA256,
+      evidenceRef: 'r2://opaque-suggestion-consent',
+      evidenceSha256: 'a'.repeat(64),
+      effectiveAt: '2026-01-01T00:00:00.000Z',
+    });
+    const olderSession = await createManualSession(t.env, counselor, caseRecord.id, {
+      submissionId: '01000000-0000-4000-8000-000000000011',
+      heldAt: '2026-01-02T10:00:00.000Z',
+      channel: 'in_person',
+      memo: 'OLDER_SESSION_MEMO',
+      gasScores: [],
+    });
+    const newerSession = await createManualSession(t.env, counselor, caseRecord.id, {
+      submissionId: '01000000-0000-4000-8000-000000000012',
+      heldAt: '2026-01-10T10:00:00.000Z',
+      channel: 'in_person',
+      memo: 'NEWER_SESSION_MEMO',
+      gasScores: [],
+    });
+    const olderDraft = await seedStructuredDraft(caseRecord.id, olderSession.id, 'sugg-older', [
+      { title: 'OLDER_TITLE_1', reason: 'OLDER_REASON_1' },
+      { title: 'OLDER_TITLE_2', reason: 'OLDER_REASON_2' },
+    ], config.id, consent.id);
+    const newerDraft = await seedStructuredDraft(caseRecord.id, newerSession.id, 'sugg-newer', [
+      { title: 'NEWER_TITLE_1', reason: 'NEWER_REASON_1' },
+      { title: 'NEWER_TITLE_2', reason: 'NEWER_REASON_2' },
+      { title: 'NEWER_TITLE_3', reason: 'NEWER_REASON_3' },
+    ], config.id, consent.id);
+    const scope = await t.db.prepare(
+      'SELECT id, beneficiary_id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
+    ).bind(caseRecord.id, counselor.orgId).first<{ id: string; beneficiary_id: string }>();
+    if (scope === null) throw new Error('expected canonical support case scope');
+
+    // R2 — 승인 전 초안은 어떤 제안도 브리핑에 내보내지 않는다(재료가 공식 기록만임을 고정).
+    const pendingBriefing = await getParticipantBriefing(
+      t.env, counselor, scope.beneficiary_id, scope.id,
+    );
+    expect(pendingBriefing.aiSuggestions).toEqual([]);
+    expectNoCanaries(pendingBriefing, ['OLDER_TITLE_1', 'NEWER_TITLE_1', 'OLDER_REASON_1', 'NEWER_REASON_1']);
+
+    await approveGeneratedAiDraft(t.env, counselor, olderDraft.workItemId, 1);
+    // 승인 시각(ms)이 겹치면 최신순 정렬이 비결정적이 된다 — 두 승인 사이 간격을 강제한다.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await approveGeneratedAiDraft(t.env, counselor, newerDraft.workItemId, 1);
+
+    // 최대 3개 — 최신 승인(3개짜리)이 상한을 채우고 이전 승인분은 밀려난다(D45).
+    const briefing = await getParticipantBriefing(t.env, counselor, scope.beneficiary_id, scope.id);
+    expect(briefing.aiSuggestions).toEqual([
+      {
+        sourceSupportCase: expect.objectContaining({ id: scope.id }),
+        sessionId: newerSession.id,
+        heldAt: '2026-01-10T10:00:00.000Z',
+        title: 'NEWER_TITLE_1',
+        reason: 'NEWER_REASON_1',
+      },
+      {
+        sourceSupportCase: expect.objectContaining({ id: scope.id }),
+        sessionId: newerSession.id,
+        heldAt: '2026-01-10T10:00:00.000Z',
+        title: 'NEWER_TITLE_2',
+        reason: 'NEWER_REASON_2',
+      },
+      {
+        sourceSupportCase: expect.objectContaining({ id: scope.id }),
+        sessionId: newerSession.id,
+        heldAt: '2026-01-10T10:00:00.000Z',
+        title: 'NEWER_TITLE_3',
+        reason: 'NEWER_REASON_3',
+      },
+    ]);
+  });
+});
+
+describe('overall goal (D45 · CCC-41)', () => {
+  it('lets only the assigned counselor set, edit, and clear it — trimmed, audited, briefing-visible', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+
+    // 설정 전에는 null 로 온다 — 화면의 "설정 전" 폴백 재료.
+    await expect(getParticipantBriefing(
+      t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
+    )).resolves.toMatchObject({ overallGoal: null, canEditOverallGoal: true });
+
+    // 담당 실무자가 그 자리에서 입력한다. 앞뒤 공백은 저장 전에 정리된다.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '  주거 안정과 채무 상환 계획 실행  ',
+    )).resolves.toEqual({ supportCaseId: created.supportCaseId, overallGoal: '주거 안정과 채무 상환 계획 실행' });
+
+    // 전체 목표는 수정 가능하다(D33 — 세부 목표의 수정 금지와 다른 층).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
+    await expect(getParticipantBriefing(
+      t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
+
+    // admin 은 열람은 되지만 편집은 안 된다(ADR-0018 '담당 실무자만'). 브리핑도 편집 불가로 알린다.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.admin, created.supportCaseId, 'ADMIN_EDIT_BLOCKED',
+    )).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(getParticipantBriefing(
+      t.env, canonicalActors.admin, created.beneficiaryId, created.supportCaseId,
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련', canEditOverallGoal: false });
+
+    // 비담당 실무자는 접근 자체가 막힌다(D7).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.secondCounselor, created.supportCaseId, 'NOT_ASSIGNED',
+    )).rejects.toBeInstanceOf(ForbiddenError);
+
+    // 빈 문자열 저장 = 설정 전으로 되돌림.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '   ',
+    )).resolves.toEqual({ supportCaseId: created.supportCaseId, overallGoal: null });
+
+    // 길이 상한 200자(게이트웨이 검증).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '가'.repeat(201),
+    )).rejects.toBeInstanceOf(ValidationError);
+
+    // 변경 전건 감사(D14) — 성공한 쓰기 3건(입력·수정·지움)이 전부 남고, 목표 문장은 detail 에 없다.
+    const audits = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE action = 'update' AND target_table = 'support_cases' AND target_id = ?`,
+    ).bind(created.supportCaseId).all<{ detail: string }>();
+    const goalAudits = audits.results.filter((row) => row.detail.includes('overall_goal'));
+    expect(goalAudits).toHaveLength(3);
+    for (const row of goalAudits) {
+      expect(row.detail).not.toContain('자립 기반 마련');
+      expect(row.detail).not.toContain('주거 안정');
+    }
+  });
+
+  it('rejects editing on a closed support case', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+    await closeSupportCase(t.env, canonicalActors.counselor, created.supportCaseId, 'program complete');
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '종결 후 수정 시도',
+    )).rejects.toBeInstanceOf(ValidationError);
   });
 });

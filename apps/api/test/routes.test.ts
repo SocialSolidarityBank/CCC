@@ -10,6 +10,7 @@ import {
   registerAiProviderConfiguration,
   registerRecording,
   updateParticipantPii,
+  createParticipantInvite,
 } from '../../../db/gateway';
 import {
   AI_PROVIDER_REGISTRY_VERSION,
@@ -92,7 +93,7 @@ const TEST_PROVIDER_CONFIG = {
 interface RouteAiDraft {
   version: number;
   summaryText: string;
-  questions: string[];
+  questions: Array<{ title: string; reason: string }>;
   reviewDecision: 'approved' | 'rejected' | 'superseded' | null;
   evidence: Array<{ id: string; claimKey: string; quote: string }>;
 }
@@ -112,8 +113,8 @@ function firstEvidence(request: AiProviderRequest): AiProviderRequest['evidence'
 function validProviderQuestions(request: AiProviderRequest): AiProviderOutput['questions'] {
   const evidence = { ...firstEvidence(request) };
   return [
-    { text: '상황 일정에 변동이 있었나요?', evidence: [{ ...evidence }] },
-    { text: '주거비 변화가 있었나요?', evidence: [{ ...evidence }] },
+    { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.', evidence: [{ ...evidence }] },
+    { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.', evidence: [{ ...evidence }] },
   ];
 }
 
@@ -125,6 +126,7 @@ function validProviderOutput(request: AiProviderRequest, text = 'A001 discussed 
       evidence: [{ ...firstEvidence(request) }],
     }],
     questions: validProviderQuestions(request),
+    oneLiner: '생활비 지출 상황을 확인했다.',
   };
 }
 
@@ -421,6 +423,67 @@ describe('API routes', () => {
     expect(response.status).toBe(401);
   });
 
+  it('serves organization profile to every role and gates onboarding save to admins (CCC-32)', async () => {
+    await t.reset();
+
+    // 인증 없는 요청은 문 앞에서 거절 — 토큰 없는 새 경로를 만들지 않았다.
+    const unauthenticated = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: unauthenticatedHeaders,
+    }), t.env);
+    expect(unauthenticated.status).toBe(401);
+
+    // 온보딩 전에는 null — 화면이 하드코딩 라벨로 폴백한다.
+    const before = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: counselorHeaders,
+    }), t.env);
+    expect(before.status).toBe(200);
+    await expect(before.json()).resolves.toEqual({
+      orgId: 'org_demo', orgName: null, programDisplayName: null,
+    });
+
+    // 실무자는 저장할 수 없다.
+    const forbidden = await worker.fetch(new Request('http://localhost/organization/onboarding', {
+      method: 'POST',
+      headers: counselorHeaders,
+      body: JSON.stringify({ orgName: '연대은행', programDisplayName: '금융지원 사업' }),
+    }), t.env);
+    expect(forbidden.status).toBe(403);
+
+    // 이름 누락은 400.
+    const invalid = await worker.fetch(new Request('http://localhost/organization/onboarding', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ orgName: '연대은행' }),
+    }), t.env);
+    expect(invalid.status).toBe(400);
+
+    const saved = await worker.fetch(new Request('http://localhost/organization/onboarding', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ orgName: '연대은행', programDisplayName: '금융지원 사업' }),
+    }), t.env);
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toEqual({
+      orgId: 'org_demo', orgName: '연대은행', programDisplayName: '금융지원 사업',
+    });
+
+    // 저장한 이름이 실무자 조회에도 되비친다 — 사이드바는 모든 역할의 셸이다.
+    const after = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: counselorHeaders,
+    }), t.env);
+    await expect(after.json()).resolves.toMatchObject({
+      orgName: '연대은행', programDisplayName: '금융지원 사업',
+    });
+
+    // 다른 기관에는 보이지 않는다 — 프로필은 자기 기관 행만 읽는다.
+    const otherOrg = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: otherOrgCounselorHeaders,
+    }), t.env);
+    await expect(otherOrg.json()).resolves.toEqual({
+      orgId: 'org_other', orgName: null, programDisplayName: null,
+    });
+  });
+
   it('maps local headers to a counselor and routes through the case gateway', async () => {
     await t.reset();
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
@@ -623,7 +686,10 @@ describe('API routes', () => {
     expect(draft).toEqual(expect.objectContaining({
       version: 1,
       summaryText: 'A001 discussed grocery expenses.',
-      questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+      questions: [
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+      ],
       reviewDecision: null,
       evidence: expect.arrayContaining([
         expect.objectContaining({ claimKey: 'grocery-expenses', quote: MASKED_TEXT }),
@@ -1085,8 +1151,8 @@ describe('API routes', () => {
           ...validProviderOutput(request),
           questions: [
             ...validProviderQuestions(request),
-            { text: '공과금 납부 계획을 확인할까요?', evidence: [{ ...evidence }] },
-            { text: '다음 지원 일정을 확인할까요?', evidence: [{ ...evidence }] },
+            { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.', evidence: [{ ...evidence }] },
+            { title: '다음 지원 일정을 확인할까요?', reason: '지원 일정 확인이 필요합니다.', evidence: [{ ...evidence }] },
           ],
         };
       },
@@ -1098,7 +1164,7 @@ describe('API routes', () => {
         ...validProviderOutput(request),
         questions: [
           ...validProviderQuestions(request).slice(0, 1),
-          { text: '연락처: 010-1234-5678을 확인할까요?', evidence: [{ ...firstEvidence(request) }] },
+          { title: '연락처: 010-1234-5678을 확인할까요?', reason: '연락 수단 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
         ],
       }),
       (request) => ({
@@ -1138,7 +1204,7 @@ describe('API routes', () => {
       ...validProviderOutput(request),
       questions: [
         ...validProviderQuestions(request),
-        { text: '공과금 납부 계획을 확인할까요?', evidence: [{ ...firstEvidence(request) }] },
+        { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
       ],
     });
     const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
@@ -1150,9 +1216,9 @@ describe('API routes', () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual(expect.objectContaining({
       questions: [
-        '상황 일정에 변동이 있었나요?',
-        '주거비 변화가 있었나요?',
-        '공과금 납부 계획을 확인할까요?',
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+        { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.' },
       ],
     }));
   });
@@ -1894,10 +1960,13 @@ describe('canonical participant API routes', () => {
       sourceSupportCase: null,
       participantName: null,
       participantPhone: null,
-      // D36: 참여자 허브가 담당 여부로 링크를 잠그기 위해 쓰는 필드. 담당 사업이라 true 이고,
-      // 담당자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
+      // D36: 당사자 허브가 담당 여부로 링크를 잠그기 위해 쓰는 필드. 담당 사업이라 true 이고,
+      // 담당 실무자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
       authorized: true,
       assigneeNames: [],
+      // D44: 동의 3종의 현재 상태. 이 픽스처는 동의를 넘기지 않은 등록이라 셋 다 미기록이다.
+      consent: { privacy: false, recording: false, textAi: false },
+      consentRecordedAt: null,
     }]);
 
     const briefing = await worker.fetch(new Request(
@@ -1913,7 +1982,7 @@ describe('canonical participant API routes', () => {
     };
     expect(briefingBody.beneficiaryId).toBe(creation.beneficiaryId);
     expect(briefingBody.focusSupportCaseId).toBe(creation.supportCaseId);
-    // D24: PII 미기입 참여자는 실명·연락처 null.
+    // D24: PII 미기입 당사자는 실명·연락처 null.
     expect((briefingBody as { participant?: unknown }).participant).toEqual({ name: null, phone: null });
     expect(briefingBody.sections).toHaveLength(1);
     expect(briefingBody.sections[0]).toEqual({
@@ -1926,7 +1995,11 @@ describe('canonical participant API routes', () => {
       lastSessionSummary: null,
       openActionItems: [],
       flags: [],
-      questions: [],
+      aiSuggestions: [],
+      // D45 영역 ② 회차별 정리 — 이 픽스처는 상담 기록이 없어 빈 배열이다.
+      sessionRows: [],
+      // D45 영역 ③ 내용 불일치(CCC-43) — 저장된 검출 결과가 없어 빈 배열이다.
+      discrepancies: [],
     });
     expect(briefingBody).not.toHaveProperty('supportCases');
     const queryFocusedBriefing = await worker.fetch(new Request(
@@ -1968,7 +2041,7 @@ describe('canonical participant API routes', () => {
         status: 'scheduled',
         sessionKind: 'regular',
         channel: 'in_person',
-        // D24: PII 미기입 참여자는 실명·연락처 null.
+        // D24: PII 미기입 당사자는 실명·연락처 null.
         participantName: null,
         participantPhone: null,
       }],
@@ -2126,6 +2199,8 @@ describe('canonical participant API routes', () => {
         version: 1,
         completedSessionId: null,
       },
+      // CCC-42: '기록 오류'로 처리된 불일치가 가리키는 회차. 여기서는 처리 이력이 없어 빈 배열.
+      recordErrorSessionIds: [],
     });
   });
   it('serves the intake context and stores an intake record once, replaying identical resubmissions (CCC-7)', async () => {
@@ -2438,7 +2513,7 @@ describe('canonical participant API routes', () => {
           text: string;
           pendingApprovalCount: number;
         } | null;
-        questions: string[];
+        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null }>;
       }>;
     };
     const officialBeforeApproval = await officialBeforeApprovalResponse.json() as {
@@ -2450,7 +2525,7 @@ describe('canonical participant API routes', () => {
         text: 'CANONICAL_REJECTED_MANUAL_FALLBACK',
         pendingApprovalCount: 1,
       },
-      questions: [],
+      aiSuggestions: [],
     })]);
     expect(officialBeforeApproval.records.map(({ id, memo }) => ({ id, memo }))).toEqual([
       { id: rejectedSessionId, memo: 'CANONICAL_REJECTED_MANUAL_FALLBACK' },
@@ -2498,7 +2573,7 @@ describe('canonical participant API routes', () => {
           text: string;
           pendingApprovalCount: number;
         } | null;
-        questions: string[];
+        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null }>;
       }>;
     };
     const officialAfterApproval = await officialAfterApprovalResponse.json() as {
@@ -2510,7 +2585,10 @@ describe('canonical participant API routes', () => {
         text: approvedCanary,
         pendingApprovalCount: 1,
       },
-      questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+      aiSuggestions: [
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z' },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z' },
+      ],
     })]);
     expectContentFree(focusedAfterApproval, [pendingCanary, rejectedCanary]);
     expect(officialAfterApproval.records.map(({ id, memo }) => ({ id, memo }))).toEqual([
@@ -2611,7 +2689,7 @@ describe('canonical participant API routes', () => {
       { headers: canonicalCounselorHeaders },
     ), t.env);
     expect(visiblePrograms.status).toBe(200);
-    // D36(2026-07-26): 참여자 허브는 **조직 내 전 참여 사업**을 보여준다. 그래서 담당하지
+    // D36(2026-07-26): 당사자 허브는 **기관 내 전 참여 사업**을 보여준다. 그래서 담당하지
     // 않는 사업도 목록에 나오되 `authorized: false` 로 와서 상담 내용이 잠긴다 — 바로
     // 아래에서 그 사업의 브리핑이 여전히 403 인 것을 확인한다. 목록에 나오는 것과 열리는
     // 것은 다른 문제다.
@@ -2625,8 +2703,8 @@ describe('canonical participant API routes', () => {
       ]),
     );
     expect(visibleBody).toHaveLength(2);
-    // 담당자 표시 이름은 이메일로 폴백하지 않는다 — 담당 밖 사업까지 내려가는 목록이라
-    // 이메일 폴백은 admin 전용 디렉터리로 막아 둔 직원 이메일을 상담사에게 새게 한다.
+    // 담당 실무자 표시 이름은 이메일로 폴백하지 않는다 — 담당 밖 사업까지 내려가는 목록이라
+    // 이메일 폴백은 admin 전용 디렉터리로 막아 둔 직원 이메일을 실무자에게 새게 한다.
     expect(JSON.stringify(visibleBody)).not.toContain('@example.invalid');
 
     const hiddenBriefing = await worker.fetch(new Request(
@@ -2764,7 +2842,7 @@ describe('canonical participant API routes', () => {
     expect(vault?.encPhone).not.toBe(pii.phone);
     expect(vault?.encAccount).not.toBe(pii.account);
 
-    // 담당자: 브리핑 응답에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다 (D24).
+    // 담당 실무자: 브리핑 응답에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다 (D24).
     const briefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalCounselorHeaders },
@@ -2807,7 +2885,7 @@ describe('canonical participant API routes', () => {
     expect(adminBriefing.status).toBe(200);
     expect((await adminBriefing.json() as { participant: { name: string | null } }).participant.name).toBe(pii.name);
 
-    // 비담당 상담사는 브리핑(실명 포함) 접근이 막힌다 — 실명이 전혀 새지 않는다.
+    // 비담당 실무자는 브리핑(실명 포함) 접근이 막힌다 — 실명이 전혀 새지 않는다.
     const denied = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalUnassignedHeaders },
@@ -2840,7 +2918,7 @@ describe('canonical participant API routes', () => {
       scheduledAt: '2026-07-15T10:00:00.000Z',
     });
 
-    // 담당자: 카드에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다.
+    // 담당 실무자: 카드에 실명·연락처가 실리고, 계좌는 어떤 경로로도 실리지 않는다.
     const counselorToday = await worker.fetch(new Request(
       'http://localhost/schedules/today?date=2026-07-15',
       { headers: canonicalCounselorHeaders },
@@ -2868,7 +2946,7 @@ describe('canonical participant API routes', () => {
     });
     expectContentFree({ piiReadAudit }, Object.values(pii));
 
-    // admin 도 조직 전체 카드에서 실명을 본다.
+    // admin 도 기관 전체 카드에서 실명을 본다.
     const adminToday = await worker.fetch(new Request(
       'http://localhost/schedules/today?date=2026-07-15',
       { headers: canonicalAdminHeaders },
@@ -2911,5 +2989,168 @@ describe('canonical participant API routes', () => {
       "SELECT COUNT(*) AS count FROM audit_log WHERE action IN ('reveal_participant_pii', 'read_participant_pii_masked')",
     ).first<{ count: number }>();
     expect(revealActionCount?.count).toBe(0);
+  });
+});
+
+describe('support case overall goal route (D45 · CCC-41)', () => {
+  it('gates PUT /support-cases/:id/overall-goal to the assigned counselor and reflects it in the briefing', async () => {
+    const creation = await setupCanonicalParticipant();
+    const url = `http://localhost/support-cases/${creation.supportCaseId}/overall-goal`;
+
+    // 담당 실무자 저장 — 공백은 정리돼 돌아온다.
+    const saved = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: '  자립 기반 마련  ' }),
+    }), t.env);
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toEqual({
+      supportCaseId: creation.supportCaseId,
+      overallGoal: '자립 기반 마련',
+    });
+
+    // 브리핑에 실리고, 담당 실무자에게는 편집 가능으로 온다.
+    const briefing = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    expect(briefing.status).toBe(200);
+    await expect(briefing.json()).resolves.toMatchObject({
+      overallGoal: '자립 기반 마련',
+      canEditOverallGoal: true,
+    });
+
+    // admin 은 열람은 되지만(canEdit=false) 저장은 403 이다 (ADR-0018 '담당 실무자만').
+    const adminBriefing = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
+      { headers: canonicalAdminHeaders },
+    ), t.env);
+    await expect(adminBriefing.json()).resolves.toMatchObject({ canEditOverallGoal: false });
+    const adminPut = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalAdminHeaders,
+      body: JSON.stringify({ overallGoal: 'ADMIN_BLOCKED' }),
+    }), t.env);
+    expect(adminPut.status).toBe(403);
+
+    // 비담당 실무자는 접근 자체가 403(D7). 알 수 없는 키는 400.
+    const unassignedPut = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalUnassignedHeaders,
+      body: JSON.stringify({ overallGoal: 'NOT_ASSIGNED' }),
+    }), t.env);
+    expect(unassignedPut.status).toBe(403);
+    const badBody = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: 'x', unexpected: true }),
+    }), t.env);
+    expect(badBody.status).toBe(400);
+
+    // null 저장 = 설정 전으로 되돌림.
+    const cleared = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: null }),
+    }), t.env);
+    expect(cleared.status).toBe(200);
+    await expect(cleared.json()).resolves.toEqual({
+      supportCaseId: creation.supportCaseId,
+      overallGoal: null,
+    });
+  });
+});
+
+describe('public participant signup routes (CCC-28)', () => {
+  const counselor = {
+    userId: counselorHeaders['X-CCC-User-Id'],
+    orgId: counselorHeaders['X-CCC-Org-Id'],
+    role: 'counselor' as const,
+  };
+
+  async function issueToken(): Promise<string> {
+    await t.reset();
+    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    return invite.token;
+  }
+
+  it('GET /invites/participant/:token returns programType for a valid token', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request(`http://localhost/invites/participant/${token}`),
+      t.env,
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ programType: 'financial_support_v1' });
+  });
+
+  it('GET /invites/participant/:token returns 404 for unknown token', async () => {
+    await t.reset();
+    const res = await worker.fetch(
+      new Request('http://localhost/invites/participant/0000000000000000000000000000000000000000000000000000000000000000'),
+      t.env,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /signup/participant creates beneficiary + case and returns 201', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          name: '테스트 당사자',
+          phone: '010-1234-5678',
+          consent: { privacy: true, recording: true, textAi: false },
+        }),
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json() as { beneficiaryId: string; supportCaseId: string };
+    expect(body.beneficiaryId).toBeTruthy();
+    expect(body.supportCaseId).toBeTruthy();
+  });
+
+  it('POST /signup/participant returns 404 for already-used token', async () => {
+    const token = await issueToken();
+    const body = {
+      token,
+      name: '첫 가입',
+      consent: { privacy: true, recording: true, textAi: true },
+    };
+    const first = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      t.env,
+    );
+    expect(first.status).toBe(201);
+    const second = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      t.env,
+    );
+    expect(second.status).toBe(404);
+  });
+
+  it('POST /signup/participant returns 400 when consent is missing', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, name: '이름만' }),
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(400);
   });
 });

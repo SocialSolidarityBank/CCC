@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { WireBullets, WireField } from '../../../../../components/wire/wire-card';
 import { ParticipantName } from '../../../../../components/wire/participant-name';
 import { WireButton } from '../../../../../components/wire/wire-button';
@@ -9,21 +9,52 @@ import { MetaRow } from '../../../../../components/wire/meta-row';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';
 
-// 재개편 T4(#34) 상담 준비 6카드 개편. 서버 page.tsx 는 브리핑을 fetch 만 하고(감사·접근은
+// D45(ADR-0018) 브리핑 3영역 재구성. 서버 page.tsx 는 브리핑을 fetch 만 하고(감사·접근은
 // 게이트웨이가 이미 수행 — R1·D14), 이 클라이언트 컴포넌트가 순수 데이터를 받아 표현·폴백·
 // 전체 열기/닫기를 담당한다. lib/api 런타임은 로드하지 않고(`import type`만) jsdom 컴포넌트
 // 테스트에서 그대로 렌더된다. 아코디언은 네이티브 <details> + ref 일괄 토글(기존 패턴).
+// GAS 게이지·세부 목표 표시는 D43 보류로 화면에서 뺐다 — 스키마·데이터는 유지된다.
 
 type ActionOwner = ParticipantBriefingSection['openActionItems'][number]['owner'];
 
 const actionOwnerLabels: Record<ActionOwner, string> = {
-  counselor: '상담사',
-  beneficiary: '참여자',
+  counselor: '실무자',
+  beneficiary: '당사자',
   org: '기관',
+};
+
+// 상담 유형은 현행 2종으로 시작한다(D45) — 세분 유형(초기상담·사정·개입 등)은 §8 미결과 함께.
+const sessionKindLabels: Record<'regular' | 'intake', string> = {
+  regular: '기본 상담',
+  intake: '인테이크',
+};
+
+// D45 영역 ③ — 사실 관계 라벨만. "충돌"·"오류" 같은 판단 어휘를 쓰지 않는다(R5).
+const discrepancyKindLabels: Record<'cross_session' | 'within_session', string> = {
+  cross_session: '회차 간 불일치',
+  within_session: '회차 내 모순',
+};
+
+// D45 처리 3종 (CCC-42). 순서는 ADR-0018 의 나열 순서를 따른다.
+const discrepancyResolutionOptions = ['situation_changed', 'record_error', 'confirmed'] as const;
+const discrepancyResolutionLabels: Record<(typeof discrepancyResolutionOptions)[number], string> = {
+  situation_changed: '상황 변경',
+  record_error: '기록 오류',
+  confirmed: '확인 완료',
 };
 
 export interface BriefingCardsProps {
   beneficiaryId: string;
+  /** 전체 목표 저장 폼의 hidden 값 — 게이트웨이 권한 판정에 그대로 넘어간다. */
+  supportCaseId: string;
+  /** D45 전체 목표 — 케이스당 1개·수정 가능·점수 없음(D33). null = 설정 전. */
+  overallGoal: string | null;
+  /** 담당 실무자만 true(게이트웨이 판정). admin 은 열람만이라 편집 UI 를 그리지 않는다. */
+  canEditOverallGoal: boolean;
+  /** 직전 저장 실패 여부(리다이렉트 notice) — 카드 안에 한 줄로 알린다. */
+  overallGoalError?: boolean;
+  /** 서버 액션. jsdom 테스트는 넘기지 않아도 렌더된다 — 없으면 편집 UI 를 그리지 않는다. */
+  overallGoalAction?: (formData: FormData) => Promise<void>;
   participantHref: string;
   recordsHref: string;
   /** HERO 우상단 프라이머리 `상담 시작`의 목적지 — 이 앱에서 상담을 시작한다는 것은 기록을 연다는 뜻이다. */
@@ -31,16 +62,21 @@ export interface BriefingCardsProps {
   /** HERO 메타 줄의 사업명. 워크스페이스가 정하므로 화면이 이름을 만들지 않는다. */
   programLabel: string;
   participant: { name: string | null; phone: string | null };
-  gasTrend: ParticipantBriefingSection['gasTrend'];
-  lastSessionSummary: ParticipantBriefingSection['lastSessionSummary'];
-  questions: string[];
+  /** D45 영역 ② 회차별 정리 — 최신순. 승인된 AI 핵심 한 줄, 없으면 수기 발췌 + '수기' 배지(D5). */
+  sessionRows: ParticipantBriefingSection['sessionRows'];
+  /** D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). 미처리·처리됨이 함께 온다. */
+  discrepancies: ParticipantBriefingSection['discrepancies'];
+  /** 처리 3종 서버 액션 (CCC-42). 없으면 처리 버튼을 그리지 않는다(jsdom 테스트 기본값). */
+  discrepancyAction?: (formData: FormData) => Promise<void>;
+  /** 직전 처리 실패 여부(리다이렉트 notice) — 카드 안에 한 줄로 알린다. */
+  discrepancyError?: boolean;
+  /** 승인 대기 배지 — D45 가 영역 ② 머리로 옮겼다(구 '지난 상담 브리핑' 카드 자리). */
+  pendingApprovalCount: number;
+  /** D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차 링크. 재료는 승인본만(R2). */
+  aiSuggestions: ParticipantBriefingSection['aiSuggestions'];
   openActionItems: ParticipantBriefingSection['openActionItems'];
   flags: RiskBannerFlag[];
   upcomingSchedule: BriefingUpcomingSchedule | null;
-}
-
-function formatScore(score: number): string {
-  return score > 0 ? `+${score}` : `${score}`;
 }
 
 function formatDateTime(value: string): string {
@@ -49,8 +85,8 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
-// #17 잔여: 목표 종료 칩에 붙는 날짜는 시각 없이 YYYY-MM-DD만 — closedAt은 ISO 문자열(gateway
-// now() 표준)이라 앞 10자를 그대로 뽑으면 시간대 변환 없이 안정적으로 날짜만 남는다.
+// 회차 줄의 날짜는 시각 없이 YYYY-MM-DD만 — held_at은 ISO 문자열(gateway now() 표준)이라
+// 앞 10자를 그대로 뽑으면 시간대 변환 없이 안정적으로 날짜만 남는다.
 function formatDateOnly(value: string): string {
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
   return match?.[1] ?? value;
@@ -60,99 +96,174 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="briefing-note" role="status">{children}</p>;
 }
 
+/** 전체 목표 카드 (D45 · CCC-41) — HERO·리스크 배너 아래 카드형 한 줄. 방향 문장만 —
+    점수·게이지는 붙이지 않는다(D43). 비면 "설정 전"이고, 담당 실무자는 그 자리에서 바로
+    입력·수정한다(빈 칸 저장 = 설정 전으로 되돌림). 접힘 대상이 아니라 아코디언 밖이다. */
+function OverallGoalCard({
+  beneficiaryId,
+  supportCaseId,
+  overallGoal,
+  canEdit,
+  hasError,
+  action,
+}: {
+  beneficiaryId: string;
+  supportCaseId: string;
+  overallGoal: string | null;
+  canEdit: boolean;
+  hasError: boolean;
+  action: ((formData: FormData) => Promise<void>) | undefined;
+}) {
+  const [editing, setEditing] = useState(false);
+  const isSet = overallGoal !== null && overallGoal.length > 0;
+  const editable = canEdit && action !== undefined;
+
+  return (
+    <section className="surface-card briefing-goal" aria-label="전체 목표">
+      <div className="briefing-goal-row">
+        <p className="briefing-qlabel">전체 목표</p>
+        {editing && action !== undefined
+          ? (
+            <form className="briefing-goal-form" action={action}>
+              <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+              <input type="hidden" name="supportCaseId" value={supportCaseId} />
+              {/* 게이트웨이 상한과 같은 200자 — 길이 실패를 화면에서 먼저 막는다. */}
+              <input
+                className="briefing-goal-input"
+                type="text"
+                name="overallGoal"
+                defaultValue={overallGoal ?? ''}
+                maxLength={200}
+                placeholder="이 당사자와 무엇을 향해 가는지 한 문장으로 적습니다"
+                aria-label="전체 목표"
+                autoFocus
+              />
+              <WireButton type="submit" variant="secondary" height="sm">저장</WireButton>
+              <WireButton variant="ghost" height="sm" onClick={() => setEditing(false)}>취소</WireButton>
+            </form>
+          )
+          : (
+            <>
+              <p className={isSet ? 'briefing-goal-text' : 'briefing-goal-text is-empty'}>
+                {isSet ? overallGoal : '설정 전'}
+              </p>
+              {editable && (
+                <WireButton variant="ghost" height="sm" onClick={() => setEditing(true)}>
+                  {isSet ? '수정' : '입력'}
+                </WireButton>
+              )}
+            </>
+          )}
+      </div>
+      {hasError && (
+        <p className="briefing-goal-error" role="alert">
+          전체 목표를 저장하지 못했습니다. 담당 실무자만 수정할 수 있습니다 — 잠시 후 다시 시도하세요.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 불일치 한 건 (D45 영역 ③ · CCC-42). 양쪽 원문 인용 + 회차 링크를 나란히 놓고, 그 아래
+ * 처리 3종 버튼을 둔다. 처리된 항목도 같은 부품으로 그린다 — 처리 종류는 다시 바꿀 수
+ * 있으므로(Q 결정) 이력에서도 버튼이 살아 있고, 지금 처리 상태만 한 줄로 덧붙는다.
+ */
+function DiscrepancyItem({
+  item,
+  beneficiaryId,
+  supportCaseId,
+  recordsHref,
+  action,
+}: {
+  item: ParticipantBriefingSection['discrepancies'][number];
+  beneficiaryId: string;
+  supportCaseId: string;
+  recordsHref: string;
+  action: ((formData: FormData) => Promise<void>) | undefined;
+}) {
+  return (
+    <div className="briefing-qsection">
+      <p className="briefing-qlabel">{discrepancyKindLabels[item.kind]}</p>
+      <div className="briefing-fields">
+        {[item.left, item.right].map((side, index) => (
+          <WireField key={`${item.id}-${index}`} label={`${formatDateOnly(side.heldAt)} 회차`}>
+            <span>“{side.quote}”</span>
+            {' '}
+            <Link href={`${recordsHref}#record-${side.sessionId}`}>기록 보기</Link>
+          </WireField>
+        ))}
+      </div>
+      {item.resolution !== null && (
+        <p className="briefing-note">
+          {discrepancyResolutionLabels[item.resolution.status]}으로 처리됨
+          {' · '}
+          {formatDateOnly(item.resolution.resolvedAt)}
+        </p>
+      )}
+      {action !== undefined && (
+        <form className="briefing-resolution-form" action={action}>
+          <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+          <input type="hidden" name="supportCaseId" value={supportCaseId} />
+          <input type="hidden" name="discrepancyId" value={item.id} />
+          {discrepancyResolutionOptions.map((status) => (
+            <WireButton
+              key={status}
+              type="submit"
+              name="status"
+              value={status}
+              variant="secondary"
+              disabled={item.resolution?.status === status}
+            >
+              {discrepancyResolutionLabels[status]}
+            </WireButton>
+          ))}
+        </form>
+      )}
+    </div>
+  );
+}
+
 // 카드 = 접힘 가능한 <details>. 요약(제목)만 남기고 본문을 접을 수 있어 '전체 열기/닫기'가
-// 카드 접힘 상태에도 일괄 적용된다. 기본은 열림.
-function Card({ title, children }: { title: string; children: ReactNode }) {
+// 카드 접힘 상태에도 일괄 적용된다. 기본은 열림. badge 는 제목 오른쪽(화살표 앞)에 앉는다.
+function Card({ title, badge, children }: { title: string; badge?: ReactNode; children: ReactNode }) {
   return (
     <details className="briefing-card" open>
       <summary className="briefing-card-summary">
         <span>{title}</span>
-        <span aria-hidden="true" className="briefing-card-arrow" />
+        <span className="briefing-card-summary-right">
+          {badge}
+          <span aria-hidden="true" className="briefing-card-arrow" />
+        </span>
       </summary>
       <div className="briefing-card-body">{children}</div>
     </details>
   );
 }
 
-// GAS 척도는 −2~+2 다섯 단계다. 게이지 채움 비율은 그 구간을 0~100% 로 편 값이다
-// (−2 → 0% · 0 → 50% · +2 → 100%). 점수의 좋고 나쁨을 색으로 알리지 않으므로(D6·R4)
-// 채움 색은 점수가 아니라 **목표 순서**가 정한다 — 계열 3색 회전은 구분 장치다(DESIGN.md §1-5).
-function gaugePercent(score: number): number {
-  return ((score + 2) / 4) * 100;
-}
-
-const GAUGE_SERIES = ['blue', 'mint', 'lavender'] as const;
-
-/**
- * GAS 게이지 한 칸(DESIGN.md §5): **96px 원형** · 트랙은 계열 tint · 채움은 같은 계열 base ·
- * 중앙 점수 24/700. 게이지 아래 미니 추이는 직전 점수 흐름이다(CLAUDE.md 6장).
- * 이전 구현은 납작한 사각 박스에 숫자만 있어 이 계약을 지키지 않았다.
- */
-function GasGauge({ goal, index }: { goal: ParticipantBriefingSection['gasTrend'][number]; index: number }) {
-  const latest = goal.points.length === 0 ? null : goal.points[goal.points.length - 1]!;
-  const series = GAUGE_SERIES[index % GAUGE_SERIES.length]!;
-  // 추이는 최근 5개까지만 — 그보다 길어지면 막대가 실선처럼 뭉개져 흐름이 안 읽힌다.
-  const trend = goal.points.slice(-5);
-  return (
-    <div className="briefing-gas-goal" data-series={series}>
-      <div
-        className="briefing-gauge"
-        style={{ '--gauge-pct': `${latest === null ? 0 : gaugePercent(latest.score)}%` } as CSSProperties}
-        role="img"
-        aria-label={latest === null
-          ? `${goal.goalTitle} 목표는 아직 GAS 점수 기록이 없습니다`
-          : `${goal.goalTitle} 목표 최신 GAS 점수 ${formatScore(latest.score)}점`}
-      >
-        <span className="briefing-gas-score" aria-hidden="true">
-          {latest === null ? '–' : formatScore(latest.score)}
-        </span>
-      </div>
-      <span className="briefing-gas-goal-title">
-        {goal.goalTitle}
-        {goal.status === 'closed' ? <span className="briefing-gas-goal-closed">종료</span> : null}
-      </span>
-      {trend.length > 1 ? (
-        <span className="briefing-gas-trend" aria-hidden="true">
-          {trend.map((point, i) => (
-            <i key={i} style={{ '--bar': `${Math.max(8, gaugePercent(point.score) * 0.24)}px` } as CSSProperties} />
-          ))}
-        </span>
-      ) : null}
-      {goal.status === 'closed' && goal.closedAt !== null ? (
-        <span className="briefing-meta">{formatDateOnly(goal.closedAt)}</span>
-      ) : null}
-    </div>
-  );
-}
-
-function GasCard({ gasTrend }: { gasTrend: ParticipantBriefingSection['gasTrend'] }) {
-  if (gasTrend.length === 0) return <EmptyNote>표시할 GAS 기록이 없습니다.</EmptyNote>;
-  return (
-    <>
-      <div className="briefing-gas-grid">
-        {gasTrend.map((goal, index) => <GasGauge key={goal.goalId} goal={goal} index={index} />)}
-      </div>
-      <p className="briefing-meta"><MetaRow items={['GAS 척도 −2 ~ +2', '점수는 상담사가 직접 기록']} /></p>
-    </>
-  );
-}
-
 export function BriefingCards({
   beneficiaryId,
+  supportCaseId,
+  overallGoal,
+  canEditOverallGoal,
+  overallGoalError = false,
+  overallGoalAction,
   participantHref,
   recordsHref,
   recordNewHref,
   programLabel,
   participant,
-  gasTrend,
-  lastSessionSummary,
-  questions,
+  sessionRows,
+  discrepancies,
+  discrepancyAction,
+  discrepancyError = false,
+  pendingApprovalCount,
+  aiSuggestions,
   openActionItems,
   flags,
   upcomingSchedule,
 }: BriefingCardsProps) {
-  // 여닫기 범위는 **아코디언을 담은 영역 전체**다 — GAS 도 아코디언이 됐고 그리드 밖에 있어서,
-  // 예전처럼 카드 그리드에만 ref 를 걸면 '전체 접기'가 GAS 를 건너뛴다.
+  // 여닫기 범위는 **아코디언을 담은 영역 전체**다 — 3영역과 그리드 카드 전부.
   const accordionsRef = useRef<HTMLDivElement>(null);
   // 버튼 하나로 여닫는다(시안). 두 개(열기/닫기)면 지금 상태를 버튼이 안 알려준다.
   const [allOpen, setAllOpen] = useState(true);
@@ -167,25 +278,19 @@ export function BriefingCards({
     }
   };
 
-  // 진행 중이 4개 이상이면 최근 갱신순 3개만 게이지로 세우고 나머지는 "외 N개"로 접는다
-  // (CLAUDE.md 6장 · D33). 게이지가 늘어나면 '5분 전에 훑는' 화면이 아니게 된다.
-  const activeGoals = gasTrend.filter((goal) => goal.status === 'active');
-  const shownGoals = (activeGoals.length > 0 ? activeGoals : gasTrend).slice(0, 3);
-  const hiddenGoalCount = (activeGoals.length > 0 ? activeGoals : gasTrend).length - shownGoals.length;
+  // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
+  const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
+  const resolvedDiscrepancies = discrepancies.filter((item) => item.resolution !== null);
 
-  const summarySource = lastSessionSummary?.source;
-  const pendingApprovalCount = lastSessionSummary?.pendingApprovalCount ?? 0;
   const sessionGoals = upcomingSchedule?.sessionGoals ?? [];
   const customQuestions = upcomingSchedule?.customQuestions ?? [];
   const hasPii = participant.name !== null || participant.phone !== null;
 
   return (
     <div className="briefing-page">
-      {/* HERO 카드 (D37 §4-5 · D22). **화면의 모든 글자는 카드 안에 있다** — HERO 도 카드다.
-          좌측 이름 묶음(이름 + 상태 태그 + 메타 한 줄), 우측 행동 **최대 2개**(세컨더리 → 프라이머리).
-          축은 사이드바 = 장소 / 우상단 = 행동(D35).
-          D37 이 D35 의 이동 버튼 배치를 고쳤다: `참여자 정보`는 여기 우상단 세컨더리로 올라오고
-          `상담 기록`은 `자세한 상담 기록 보기`가 되어 이 페이지 맨 아래로 내려간다.
+      {/* HERO 카드 (D37 §4-5 · D38 공통 부품 계약). **화면의 모든 글자는 카드 안에 있다** —
+          HERO 도 카드다. 좌측 이름 묶음(이름 + 상태 태그 + 메타 한 줄), 우측 행동 **최대 2개**
+          (세컨더리 → 프라이머리). 축은 사이드바 = 장소 / 우상단 = 행동(D35).
           '상담 준비'는 데이터가 아니라 **화면 상태 태그**다 — sourceSupportCase.status 는
           active/closed 뿐이라 이 문구의 출처가 아니다(D22). */}
       <header className="page-header surface-card briefing-hero">
@@ -205,12 +310,22 @@ export function BriefingCards({
           </p>
         </div>
         <div className="page-actions">
-          <WireButton href={participantHref} variant="secondary">참여자 정보</WireButton>
+          <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
           <WireButton href={recordNewHref} variant="primary">상담 시작</WireButton>
         </div>
       </header>
 
       <RiskBanner flags={flags} />
+
+      {/* 전체 목표 카드는 리스크 배너 아래·아코디언 위다(D45 표 3행). */}
+      <OverallGoalCard
+        beneficiaryId={beneficiaryId}
+        supportCaseId={supportCaseId}
+        overallGoal={overallGoal}
+        canEdit={canEditOverallGoal}
+        hasError={overallGoalError}
+        action={overallGoalAction}
+      />
 
       {/* 여닫기 줄은 리스크 배너 **아래**다 — 배너는 HERO 바로 아래 자리를 내줄 수 없고(D9),
           이 줄이 다루는 대상(아코디언 전부)의 바로 위이기도 하다. */}
@@ -222,46 +337,11 @@ export function BriefingCards({
 
       <div className="briefing-accordions" ref={accordionsRef}>
 
-      {/* GAS — **전폭 아코디언 하나**다(시안 `artifacts/layout-frame-v1/briefing.html`).
-          전폭이어야 하는 이유는 조밀 그리드 때문이다: 2열 카드(폭 510) 안에서는 최소 280 으로
-          3열이 물리적으로 안 나오고 계약이 2열을 금지한다(세부 목표 3개가 둘 + 외톨이로 앉는다).
-          전폭 1040 이면 3열 각 333 이 나온다. */}
-      <details className="briefing-card briefing-gas-card" open>
-        <summary className="briefing-card-summary">
-          <span>진행 중인 세부 목표</span>
-          <span className="briefing-card-summary-right">
-            {hiddenGoalCount > 0 ? <span className="briefing-badge">외 {hiddenGoalCount}개</span> : null}
-            <span aria-hidden="true" className="briefing-card-arrow" />
-          </span>
-        </summary>
-        <div className="briefing-card-body">
-          <GasCard gasTrend={shownGoals} />
-        </div>
-      </details>
-
-      <section className="briefing-section" aria-labelledby="briefing-materials-heading">
-        <h2 id="briefing-materials-heading" className="briefing-section-heading">상담 준비 자료</h2>
-
-      {/* 아코디언 4종(CLAUDE.md 6장). **구 '기본정보' 카드는 없앴다** — 담고 있던 셋이 전부
-          다른 자리로 갔기 때문이다: 시간·이름은 HERO 로 올라갔고, 연락처는 아래 개인정보 카드에
-          이미 있으며, '전체 참여사업' 링크는 HERO 우상단 `참여자 정보`가 잇는다(그 페이지가
-          전 참여 사업을 보여주는 허브다 — D35). 남겨 두면 같은 값이 한 화면에 두 번 나온다. */}
-      <div className="briefing-cards-grid">
-        {/* ① 지난 상담 브리핑 — 승인 AI 요약/수기 폴백 + 승인 대기 배지 (D5) */}
-        <Card title="지난 상담 브리핑">
-          <div className="briefing-badges">
-            <span className={summarySource === 'ai' ? 'briefing-badge is-approved' : 'briefing-badge'}>
-              {lastSessionSummary === null ? '기록 없음' : summarySource === 'ai' ? '승인된 AI 요약' : '수기 기록'}
-            </span>
-            {pendingApprovalCount > 0 ? <span className="briefing-badge is-pending">승인 대기 {pendingApprovalCount}건</span> : null}
-          </div>
-          {lastSessionSummary === null
-            ? <EmptyNote>표시할 승인된 AI 요약 또는 수기 기록이 없습니다.</EmptyNote>
-            : <WireBullets items={[lastSessionSummary.text]} />}
-        </Card>
-
-        {/* ④ 오늘 확인할 질문 — 세션 목표 / 맞춤형 질문 / AI 질문 */}
-        <Card title="오늘 확인할 질문">
+        {/* 영역 ① 오늘 만나기 전 꼭 기억할 것 (D45) — 구 '지난 상담 브리핑'·'오늘 확인할 질문'
+            카드를 대체한다. **실무자 입력(세션 목표·맞춤형 질문)이 위, AI 가 아래** — 실무자가
+            직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
+            근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
+        <Card title="오늘 만나기 전 꼭 기억할 것">
           <div className="briefing-qsection">
             <p className="briefing-qlabel">세션 목표</p>
             {sessionGoals.length === 0
@@ -273,45 +353,130 @@ export function BriefingCards({
           <div className="briefing-qsection">
             <p className="briefing-qlabel">맞춤형 질문</p>
             {customQuestions.length === 0
-              ? <EmptyNote>상담사가 적은 맞춤형 질문이 없습니다.</EmptyNote>
+              ? <EmptyNote>실무자가 적은 맞춤형 질문이 없습니다.</EmptyNote>
               : <WireBullets items={customQuestions} />}
           </div>
           <div className="briefing-qsection">
-            <p className="briefing-qlabel">AI 질문</p>
-            {questions.length === 0
-              ? <EmptyNote>승인된 상담 기록이 쌓이면 질문을 제안합니다.</EmptyNote>
-              : <WireBullets items={questions} />}
+            <p className="briefing-qlabel">AI 제안</p>
+            {aiSuggestions.length === 0
+              ? <EmptyNote>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</EmptyNote>
+              : (
+                <ul className="briefing-suggestions">
+                  {/* 최대 3개는 서버 계약(D45)이지만 화면도 같은 상한을 지킨다 — 훑는 화면이다. */}
+                  {aiSuggestions.slice(0, 3).map((suggestion) => (
+                    <li key={`${suggestion.sessionId}-${suggestion.title}`} className="briefing-suggestion">
+                      <p className="briefing-suggestion-title">{suggestion.title}</p>
+                      {suggestion.reason !== null && (
+                        <p className="briefing-suggestion-reason">{suggestion.reason}</p>
+                      )}
+                      {/* 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다. */}
+                      <Link
+                        className="briefing-suggestion-link"
+                        href={`${recordsHref}#record-${suggestion.sessionId}`}
+                      >
+                        근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatDateOnly(suggestion.heldAt)})`}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
           </div>
         </Card>
 
-        {/* ⑤ 미해결 액션 */}
-        <Card title="미해결 액션">
-          {openActionItems.length === 0
-            ? <EmptyNote>미해결 항목이 없습니다.</EmptyNote>
-            : <WireBullets items={openActionItems.map((item) => (
-                <MetaRow items={[item.description, item.dueDate === null ? null : `기한 ${item.dueDate}`, `담당 ${actionOwnerLabels[item.owner]}`]} />
+        {/* 영역 ② 상담 내용 회차별 정리 (D45) — 회차마다 상담일 · 유형 · 핵심 한 줄. 한 줄은
+            승인된 AI 산출물만 싣고(R2 — 게이트웨이가 approved 뷰에서만 읽는다), 승인 전이거나
+            녹음이 없으면 수기 발췌 + '수기' 배지로 폴백한다(D5 · CCC-38). '승인 대기' 배지는
+            구 '지난 상담 브리핑' 카드에서 이 머리로 옮겨 왔다. */}
+        <Card
+          title="상담 내용 회차별 정리"
+          badge={pendingApprovalCount > 0 ? <span className="briefing-badge is-pending">승인 대기 {pendingApprovalCount}건</span> : null}
+        >
+          {sessionRows.length === 0
+            ? <EmptyNote>표시할 상담 회차가 없습니다.</EmptyNote>
+            : <WireBullets items={sessionRows.map((row) => (
+                <MetaRow items={[
+                  formatDateOnly(row.heldAt),
+                  sessionKindLabels[row.kind],
+                  row.aiOneLiner !== null
+                    ? row.aiOneLiner
+                    : <>
+                        {row.memoExcerpt ?? '수기 메모 없음'}
+                        {row.memoExcerpt !== null && <span className="briefing-badge">수기</span>}
+                      </>,
+                ]} />
               ))} />}
         </Card>
 
-        {/* ⑥ 개인정보 — 실명·연락처 직표시(복호화 클릭 없음, T2 제공). 권한 없으면 값이 null. */}
-        <Card title="개인정보">
-          {hasPii
-            ? (
-              <div className="briefing-fields">
-                <WireField label="이름">{participant.name ?? '미등록'}</WireField>
-                <WireField label="연락처">{participant.phone ?? '미등록'}</WireField>
-              </div>
-            )
-            : <EmptyNote>권한 없음. 담당자·배정 책임자만 실명·연락처를 볼 수 있습니다.</EmptyNote>}
+        {/* 영역 ③ 내용 불일치 (D45 · CCC-43 · CCC-42) — 기록 공식화 시점에 검출·저장된 결과.
+            AI 는 어느 쪽이 맞는지 판단하지 않으므로(R5) 양쪽 원문 인용과 회차 링크만 나란히
+            놓고, 판단은 실무자의 처리 3종이 한다. 처리는 **표시일 뿐 원본 기록은 불변**이며
+            처리된 항목은 삭제되지 않고 접힌 이력으로 내려간다(ADR-0018). 배지는 **미처리만**
+            센다 — 이력이 쌓일수록 숫자가 불어나면 '남은 일'을 알려주지 못한다. */}
+        <Card
+          title="내용 불일치"
+          badge={unresolvedDiscrepancies.length > 0
+            ? <span className="briefing-badge is-pending">{unresolvedDiscrepancies.length}건</span>
+            : null}
+        >
+          {unresolvedDiscrepancies.length === 0
+            ? <EmptyNote>검출된 불일치가 없습니다 — 기록이 저장·승인될 때마다 자동으로 대조합니다.</EmptyNote>
+            : unresolvedDiscrepancies.map((item) => (
+              <DiscrepancyItem
+                key={item.id}
+                item={item}
+                beneficiaryId={beneficiaryId}
+                supportCaseId={supportCaseId}
+                recordsHref={recordsHref}
+                action={discrepancyAction}
+              />
+            ))}
+          {discrepancyError && (
+            <p className="briefing-goal-error" role="alert">
+              처리하지 못했습니다. 담당 실무자와 기관 관리자만 처리할 수 있습니다 — 잠시 후 다시 시도하세요.
+            </p>
+          )}
+          {resolvedDiscrepancies.length > 0 && (
+            <details className="briefing-history">
+              <summary>처리된 항목 {resolvedDiscrepancies.length}건</summary>
+              {resolvedDiscrepancies.map((item) => (
+                <DiscrepancyItem
+                  key={item.id}
+                  item={item}
+                  beneficiaryId={beneficiaryId}
+                  supportCaseId={supportCaseId}
+                  recordsHref={recordsHref}
+                  action={discrepancyAction}
+                />
+              ))}
+            </details>
+          )}
         </Card>
+
+        {/* 유지 카드 2종 (D45 표 7행) — 미해결 액션·개인정보. 표준 그리드(최소 420 → 2열, D37). */}
+        <div className="briefing-cards-grid">
+          <Card title="미해결 액션">
+            {openActionItems.length === 0
+              ? <EmptyNote>미해결 항목이 없습니다.</EmptyNote>
+              : <WireBullets items={openActionItems.map((item) => (
+                  <MetaRow items={[item.description, item.dueDate === null ? null : `기한 ${item.dueDate}`, `담당 ${actionOwnerLabels[item.owner]}`]} />
+                ))} />}
+          </Card>
+
+          {/* 개인정보 — 실명·연락처 직표시(복호화 클릭 없음, D24). 권한 없으면 값이 null. */}
+          <Card title="개인정보">
+            {hasPii
+              ? (
+                <div className="briefing-fields">
+                  <WireField label="이름">{participant.name ?? '미등록'}</WireField>
+                  <WireField label="연락처">{participant.phone ?? '미등록'}</WireField>
+                </div>
+              )
+              : <EmptyNote>권한 없음. 담당 실무자·기관 관리자만 실명·연락처를 볼 수 있습니다.</EmptyNote>}
+          </Card>
         </div>
-      </section>
       </div>
 
-      {/* 브리핑 이어보기 — 별개 화면이 아니라 이 브리핑의 아래쪽 끝이다(D37 · 시안 §19).
-          D35 가 이름 아래 뒀던 `상담 기록` 버튼을 D37 이 여기로 내리고 이름을 바꿨다:
-          "상담 기록"은 무엇이 열리는지 안 알려줬고, 이 자리에서는 위 브리핑을 다 읽은 다음의
-          다음 걸음이라 문장으로 설명할 수 있다. */}
+      {/* 브리핑 이어보기 — 별개 화면이 아니라 이 브리핑의 아래쪽 끝이다(D37 · 시안 §19). */}
       <Link className="briefing-more surface-card" href={recordsHref}>
         <span>
           <span className="briefing-more-title">자세한 상담 기록 보기</span>

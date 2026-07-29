@@ -106,7 +106,7 @@ describe('비제어 폼 수집·복원', () => {
 
   it('셀렉트는 지금 실재하는 옵션일 때만 되돌린다', () => {
     // 임시본을 쓴 뒤 목표가 종료되면 그 GAS 옵션은 사라진다. 없는 값을 밀어 넣으면 점수가
-    // 엉뚱한 목표에 붙거나 조용히 비므로 건너뛴다(D6 — 점수는 상담사 몫).
+    // 엉뚱한 목표에 붙거나 조용히 비므로 건너뛴다(D6 — 점수는 실무자 몫).
     const target = mount(`
       <select name="gasScore"><option value=""></option><option value="goal-2:1">goal-2</option></select>
     `);

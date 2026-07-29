@@ -14,14 +14,20 @@ import {
   intakeAnswerResponses,
   type IntakeAdditionalItemInput,
   type IntakeAnswerInput,
+  type IntakeDebtEntryInput,
+  type IntakeLinkedOrgInput,
   type IntakeExtendedPiiInput,
   type IntakeGoalInput,
   type IntakeLifeAreaInput,
   type IntakeNextMeetingInput,
+  completeOrganizationOnboarding,
   createCounselingSchedule,
   createGoal,
   createInitialParticipantProgram,
   createManualSession,
+  createParticipantInvite,
+  getPublicInviteInfo,
+  signupParticipant,
   createSubsequentParticipantProgram,
   editAiDraft,
   getMyIdentity,
@@ -32,6 +38,10 @@ import {
   recordPilotTextAiConsent,
   registerCounselor,
   reviewAiDraft,
+  updateParticipantConsent,
+  updateParticipantBasicInfo,
+  updateSupportCaseOverallGoal,
+  resolveDiscrepancy,
   type ManualActionItem,
   type ManualActionItemResolution,
   type ActionItemResolutionStatus,
@@ -152,6 +162,15 @@ function optionalEmail(formData: FormData, name: string): string | undefined {
 function optionalTrimmedText(formData: FormData, name: string, maxLength: number): string | undefined {
   const input = value(formData, name).trim();
   if (input.length === 0) return undefined;
+  if (input.length > maxLength) throw new FormInputError();
+  return input;
+}
+
+// 기본정보 수정(CCC-37): 폼이 7종을 언제나 함께 보내므로 빈 칸은 undefined 가 아니라
+// null 이다 — "안 건드림"이 아니라 "지운다"를 뜻한다. 길이 상한만 폼에서 본다.
+function nullableTrimmedText(formData: FormData, name: string, maxLength: number): string | null {
+  const input = value(formData, name).trim();
+  if (input.length === 0) return null;
   if (input.length > maxLength) throw new FormInputError();
   return input;
 }
@@ -435,6 +454,11 @@ function participantPath(beneficiaryId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}`;
 }
 
+/** 기본정보 수정 화면(CCC-37). 저장 성공·실패 모두 이 화면으로 돌아온다. */
+function participantEditPath(beneficiaryId: string): string {
+  return `${participantPath(beneficiaryId)}/edit`;
+}
+
 function participantProgramPath(beneficiaryId: string, supportCaseId: string): string {
   return `${participantPath(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
 }
@@ -449,6 +473,7 @@ function revalidateParticipantProgram(beneficiaryId: string, supportCaseId: stri
   revalidatePath('/records');
   revalidatePath('/records/new');
   revalidatePath(participantPath(beneficiaryId));
+  revalidatePath(participantEditPath(beneficiaryId));
   revalidatePath(participantBriefingPath(beneficiaryId, supportCaseId));
   revalidatePath(`${programPath}/records`);
   revalidatePath(`${programPath}/records/new`);
@@ -618,20 +643,149 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
   revalidateCase(caseId);
   redirect(withNotice(sessionPath(caseId, sessionId), 'notice', `ai_${decision}`));
 }
+/**
+ * 동의 3종 수정·철회 (D44). 당사자 정보 페이지의 참여 사업 카드마다 붙는다.
+ *
+ * 체크박스는 체크됐을 때만 폼에 실리므로(checkbox 헬퍼) 미체크는 곧 철회다 — 세 값을
+ * 언제나 함께 보내 서버가 현재 상태 전체를 한 행으로 기록하게 한다(append-only 이력, D14).
+ * 권한(담당 실무자·기관 관리자)은 게이트웨이가 판정한다 — 화면에서 다시 판정하지 않는다.
+ */
+export async function updateParticipantConsentAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    const supportCaseId = requiredValue(formData, 'supportCaseId');
+    await updateParticipantConsent(supportCaseId, {
+      privacy: checkbox(formData, 'consentPrivacy'),
+      recording: checkbox(formData, 'consentRecording'),
+      textAi: checkbox(formData, 'consentTextAi'),
+    });
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch (error) {
+    const fallback = beneficiaryId === undefined ? '/participants' : participantPath(beneficiaryId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  redirect(withNotice(participantPath(beneficiaryId), 'notice', 'consent_updated'));
+}
+
+/**
+ * 전체 목표 그 자리 입력·수정 (D45 · CCC-41). 브리핑의 전체 목표 카드에서 제출한다.
+ * 빈 칸 저장은 "설정 전"으로 되돌린다(케이스당 1개·수정 가능·점수 없음 — D33).
+ * 권한(담당 실무자만)·감사(D14)는 게이트웨이가 판정한다 — 여기서는 값만 나른다.
+ * 성공 피드백은 별도 notice 없이 갱신된 카드 자체다. 실패만 notice 코드로 돌아온다.
+ */
+export async function updateOverallGoalAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    const overallGoal = nullableTrimmedText(formData, 'overallGoal', 200);
+    await updateSupportCaseOverallGoal(supportCaseId, overallGoal);
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch {
+    // 실패 사유는 코드 하나로 뭉친다 — 길이 초과는 입력 maxLength 로 이미 막혀 있어,
+    // 남는 실패(권한·일시 장애)는 안내 한 줄이면 충분하다.
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined
+      ? '/participants'
+      : participantBriefingPath(beneficiaryId, supportCaseId);
+    redirect(withNotice(fallback, 'notice', 'overall_goal_error'));
+  }
+  if (beneficiaryId === undefined || supportCaseId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  redirect(participantBriefingPath(beneficiaryId, supportCaseId));
+}
+
+/**
+ * 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 브리핑 영역 ③ 의 처리 버튼이 제출한다.
+ * 처리는 표시일 뿐 원본 기록은 그대로다 — 여기서 바뀌는 것은 처리 상태뿐이다.
+ * 권한(담당 실무자·기관 관리자)·감사(D14)는 게이트웨이가 판정한다.
+ * 성공 피드백은 갱신된 목록 자체이고, 실패만 notice 코드로 돌아온다(전체 목표 카드와 같은 방식).
+ */
+export async function resolveDiscrepancyAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    const discrepancyId = opaqueId(formData, 'discrepancyId');
+    const status = formData.get('status');
+    if (status !== 'situation_changed' && status !== 'record_error' && status !== 'confirmed') {
+      throw new Error('discrepancy resolution status is invalid');
+    }
+    await resolveDiscrepancy(supportCaseId, discrepancyId, status);
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch {
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined
+      ? '/participants'
+      : participantBriefingPath(beneficiaryId, supportCaseId);
+    redirect(withNotice(fallback, 'notice', 'discrepancy_error'));
+  }
+  if (beneficiaryId === undefined || supportCaseId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  redirect(participantBriefingPath(beneficiaryId, supportCaseId));
+}
+
+/**
+ * 기본정보 수정 (CCC-37). 이름·연락처·이메일·계좌·생년월일·주소·성별 7종을 **언제나 함께**
+ * 보낸다 — 폼이 현재 상태 전체를 들고 있으므로 빈 칸은 곧 "지운다"(null)다.
+ *
+ * 값은 금고에 AES-GCM 으로 저장되고(D3) 감사는 게이트웨이가 남긴다(D14). PII 는 임시본에도
+ * 리다이렉트 주소에도 싣지 않는다 — 실패해도 오가는 것은 notice 코드뿐이다(R3).
+ * 권한(담당 실무자·기관 관리자)은 게이트웨이가 판정한다.
+ */
+export async function updateParticipantBasicInfoAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    const supportCaseContextId = opaqueId(formData, 'supportCaseContextId');
+    const expectedVersion = positiveInteger(formData, 'expectedVersion');
+    const birthDate = nullableTrimmedText(formData, 'birthDate', 10);
+    if (birthDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new FormInputError();
+    await updateParticipantBasicInfo(beneficiaryId, {
+      supportCaseContextId,
+      expectedVersion,
+      name: nullableTrimmedText(formData, 'name', 100),
+      phone: nullableTrimmedText(formData, 'phone', 32),
+      email: nullableTrimmedText(formData, 'email', 200),
+      account: nullableTrimmedText(formData, 'account', 100),
+      birthDate,
+      region: nullableTrimmedText(formData, 'region', 200),
+      gender: nullableTrimmedText(formData, 'gender', 20),
+    });
+    revalidateParticipantProgram(beneficiaryId, supportCaseContextId);
+  } catch (error) {
+    const fallback = beneficiaryId === undefined ? '/participants' : participantEditPath(beneficiaryId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  redirect(withNotice(participantEditPath(beneficiaryId), 'notice', 'basic_info_updated'));
+}
+
 export async function createInitialParticipantProgramAction(formData: FormData): Promise<void> {
   let beneficiaryId: string | undefined;
   let supportCaseId: string | undefined;
   try {
-    // 등록자=담당자(D7): 폼에서 담당자를 받지 않는다. admin 은 게이트웨이 계약상 담당자 필수라
+    // 등록자=담당 실무자(D7): 폼에서 담당 실무자를 받지 않는다. admin 은 게이트웨이 계약상 담당 실무자 필수라
     // 본인을 배정하고, counselor 는 전달하지 않아 게이트웨이 자동 본인 배정에 맡긴다.
     const identity = await getMyIdentity();
     const email = optionalEmail(formData, 'email');
     const name = optionalTrimmedText(formData, 'name', 100);
     const phone = optionalTrimmedText(formData, 'phone', 32);
+    // D41 1-1 · D42 ①: 생년월일·주소(거주지역)·성별은 등록 화면이 받아 금고에 저장한다.
+    // 인테이크 화면은 이 값을 읽어 표시만 한다.
+    const birthDate = optionalTrimmedText(formData, 'birthDate', 10);
+    const region = optionalTrimmedText(formData, 'region', 200);
+    const gender = optionalTrimmedText(formData, 'gender', 20);
+    if (birthDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new FormInputError();
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
-      // 항목별 동의(D15·D23): 기본 미체크. 미동의여도 등록은 진행된다.
+      // 항목별 동의 3종(D15·D23·D44): 기본 미체크. 미동의여도 등록은 진행된다.
+      consentPrivacy: checkbox(formData, 'consentPrivacy'),
       consentRecording: checkbox(formData, 'consentRecording'),
       consentTextAi: checkbox(formData, 'consentTextAi'),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
@@ -639,6 +793,9 @@ export async function createInitialParticipantProgramAction(formData: FormData):
       ...(name === undefined ? {} : { name }),
       ...(phone === undefined ? {} : { phone }),
       ...(email === undefined ? {} : { email }),
+      ...(birthDate === undefined ? {} : { birthDate }),
+      ...(region === undefined ? {} : { region }),
+      ...(gender === undefined ? {} : { gender }),
     });
     beneficiaryId = created.beneficiaryId;
     supportCaseId = created.supportCaseId;
@@ -651,7 +808,7 @@ export async function createInitialParticipantProgramAction(formData: FormData):
   }
   revalidateParticipantProgram(beneficiaryId, supportCaseId);
   revalidatePath('/schedules/new');
-  // 콜드스타트 해소(티켓 #19): 등록 완료 → 새 참여자가 preselect 된 상담 등록으로 잇는다.
+  // 콜드스타트 해소(티켓 #19): 등록 완료 → 새 당사자가 preselect 된 상담 등록으로 잇는다.
   redirect(withNotice(
     `/schedules/new?target=${encodeURIComponent(`${beneficiaryId}|${supportCaseId}`)}`,
     'notice',
@@ -683,7 +840,7 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
   redirect(withNotice(participantBriefingPath(beneficiaryId, supportCaseId), 'notice', 'program_created'));
 }
 
-// 상담 등록(#20): 참여자 선택은 'beneficiaryId|supportCaseId' 한 값으로 커플링해
+// 상담 등록(#20): 당사자 선택은 'beneficiaryId|supportCaseId' 한 값으로 커플링해
 // 담당 케이스만 노출한 목록에서 고르게 한다. 담당 검사·감사는 API 게이트웨이가 강제한다(R1).
 export async function createCounselingScheduleAction(formData: FormData): Promise<void> {
   try {
@@ -734,7 +891,26 @@ export async function addSupportCaseAssigneeAction(formData: FormData): Promise<
   redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_added'));
 }
 
-// 상담사 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+// 실무자 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+/**
+ * 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). 조직 이름·첫 사업 표시 이름만
+ * 진짜 저장한다 — admin 검사·감사는 게이트웨이 몫(R1). 저장한 이름이 셸(사이드바) 전체에
+ * 되비치므로 레이아웃 단위로 재검증한다.
+ */
+export async function completeOrganizationOnboardingAction(formData: FormData): Promise<void> {
+  try {
+    const orgName = requiredValue(formData, 'orgName').trim();
+    const programDisplayName = requiredValue(formData, 'programDisplayName').trim();
+    if (orgName.length === 0 || orgName.length > 80) throw new FormInputError();
+    if (programDisplayName.length === 0 || programDisplayName.length > 120) throw new FormInputError();
+    await completeOrganizationOnboarding({ orgName, programDisplayName });
+  } catch (error) {
+    redirect(withNotice('/onboarding', 'error', noticeFor(error)));
+  }
+  revalidatePath('/', 'layout');
+  redirect(withNotice('/onboarding', 'notice', 'onboarding_saved'));
+}
+
 export async function registerCounselorAction(formData: FormData): Promise<void> {
   try {
     const email = requiredValue(formData, 'email').trim();
@@ -746,6 +922,54 @@ export async function registerCounselorAction(formData: FormData): Promise<void>
   revalidatePath('/admin/invite');
   revalidatePath('/admin/users');
   redirect(withNotice('/admin/invite', 'notice', 'counselor_registered'));
+}
+
+export type ParticipantInviteResult = { status: 'created'; token: string } | { status: Notice };
+
+// 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 링크·QR·이메일 문안 조립은 화면 몫이고
+// 여기는 토큰만 받아 넘긴다. 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
+export async function createParticipantInviteAction(): Promise<ParticipantInviteResult> {
+  try {
+    const invite = await createParticipantInvite('financial_support_v1');
+    return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type ParticipantSignupResult =
+  | { status: 'created'; beneficiaryId: string; supportCaseId: string }
+  | { status: Notice };
+
+/**
+ * 당사자 자기 가입(CCC-28 · D39 · ADR-0016 #4). 공개 경로 — 인증 불필요.
+ * 성공 시 당사자+케이스+담당 배정이 원자 생성되고 201 반환. 토큰 무효·이미 소비는
+ * not_found. 리다이렉트 없음 — 클라이언트가 인라인 완료 상태를 표시한다.
+ */
+export async function signupParticipantAction(formData: FormData): Promise<ParticipantSignupResult> {
+  const token = requiredValue(formData, 'token');
+  const name = requiredValue(formData, 'name');
+  const phone = formData.get('phone');
+  const email = formData.get('email');
+  // 항목별 동의 3종(D44): 등록 화면과 같은 체크박스 이름·순서. 기본 미체크이고
+  // 미동의여도 가입은 진행된다(D15).
+  const consent = {
+    privacy: checkbox(formData, 'consentPrivacy'),
+    recording: checkbox(formData, 'consentRecording'),
+    textAi: checkbox(formData, 'consentTextAi'),
+  };
+  try {
+    const result = await signupParticipant({
+      token,
+      name,
+      ...(typeof phone === 'string' && phone.trim().length > 0 ? { phone: phone.trim() } : {}),
+      ...(typeof email === 'string' && email.trim().length > 0 ? { email: email.trim() } : {}),
+      consent,
+    });
+    return { status: 'created', beneficiaryId: result.beneficiaryId, supportCaseId: result.supportCaseId };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
 }
 
 const SCHEDULE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -877,15 +1101,18 @@ export interface CreateIntakeRecordActionInput {
   submissionId: string;
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
-  consent: { privacy: boolean; recordingAi: boolean };
-  helpNarrative: { todayHelp: string; hardestPoint: string; desiredChange: string };
-  lifeAreas: IntakeLifeAreaInput[];
-  goals: IntakeGoalInput[];
-  actions: ManualActionItem[];
-  // P3·P4(CCC-9). 전부 선택 — 비어 있으면 아예 보내지 않는다.
+  // D42: 5종은 선택. 4단계 위저드는 보내지 않는다(동의는 등록 화면, 목표는 보류).
+  consent?: { privacy: boolean; recordingAi: boolean };
+  helpNarrative?: { todayHelp: string; hardestPoint: string; desiredChange: string };
+  lifeAreas?: IntakeLifeAreaInput[];
+  goals?: IntakeGoalInput[];
+  actions?: ManualActionItem[];
+  // 전부 선택 — 비어 있으면 아예 보내지 않는다.
   answers?: IntakeAnswerInput[];
   extendedPii?: IntakeExtendedPiiInput;
   additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
 }
@@ -905,7 +1132,7 @@ export async function createIntakeRecordAction(
     if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
       throw new FormInputError();
     }
-    for (const area of input.lifeAreas) {
+    for (const area of input.lifeAreas ?? []) {
       if (
         !(lifeAreaKeys as readonly string[]).includes(area.areaKey)
         || !(lifeAreaStatuses as readonly string[]).includes(area.status)
@@ -928,24 +1155,32 @@ export async function createIntakeRecordAction(
       submissionId: input.submissionId,
       heldAt: heldAt.toISOString(),
       channel: input.channel,
-      consent: input.consent,
-      helpNarrative: {
-        todayHelp: input.helpNarrative.todayHelp.trim(),
-        hardestPoint: input.helpNarrative.hardestPoint.trim(),
-        desiredChange: input.helpNarrative.desiredChange.trim(),
-      },
-      lifeAreas: input.lifeAreas.map((area) => {
-        const note = area.note?.trim();
-        return note !== undefined && note.length > 0
-          ? { areaKey: area.areaKey, status: area.status, note }
-          : { areaKey: area.areaKey, status: area.status };
+      ...(input.consent === undefined ? {} : { consent: input.consent }),
+      ...(input.helpNarrative === undefined ? {} : {
+        helpNarrative: {
+          todayHelp: input.helpNarrative.todayHelp.trim(),
+          hardestPoint: input.helpNarrative.hardestPoint.trim(),
+          desiredChange: input.helpNarrative.desiredChange.trim(),
+        },
       }),
-      goals: input.goals.map((goal) => (
-        goal.scaleCriteria !== undefined
-          ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
-          : { title: goal.title.trim() }
-      )),
-      actions: input.actions,
+      ...(input.lifeAreas === undefined ? {} : {
+        lifeAreas: input.lifeAreas.map((area) => {
+          const note = area.note?.trim();
+          return note !== undefined && note.length > 0
+            ? { areaKey: area.areaKey, status: area.status, note }
+            : { areaKey: area.areaKey, status: area.status };
+        }),
+      }),
+      ...(input.goals === undefined ? {} : {
+        goals: input.goals.map((goal) => (
+          goal.scaleCriteria !== undefined
+            ? { title: goal.title.trim(), scaleCriteria: goal.scaleCriteria }
+            : { title: goal.title.trim() }
+        )),
+      }),
+      ...(input.actions === undefined ? {} : { actions: input.actions }),
+      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
+      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
       ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
       ...(input.extendedPii === undefined || Object.keys(input.extendedPii).length === 0
         ? {}

@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 // ParticipantHeroCard 계약 (D38 · DESIGN.md §5).
 // 고정 1층(이름) + 슬롯 3층(상태 태그·메타·행동).
-// 이 부품이 참여자 중심 화면 전부의 머리이므로, 계약이 깨지면 화면 전체가 어긋난다.
+// 이 부품이 당사자 중심 화면 전부의 머리이므로, 계약이 깨지면 화면 전체가 어긋난다.
 
 describe('ParticipantHeroCard', () => {
   it('이름은 항상 있다 — 실명 + 가명 ID 한 줄 (고정층)', () => {

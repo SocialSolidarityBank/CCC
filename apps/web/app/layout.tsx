@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 // 디자인 토큰 SSOT(V0.1 · D34/ADR-0012). 값을 이 파일에 복사하지 않는다 — 두 곳에 두면
 // 다시 어긋난다. 색값 정본은 pen '색 토큰' 페이지이고, tokens.css 가 그 기계 소비용 사본이다.
 import '../../../design/tokens.css';
 import { AppSidebar } from './components/wire/app-sidebar';
+import { getDisplayLabels } from './lib/display-labels';
 import { wireStyles } from './components/wire/wire-styles';
 
 // 앱 셸·레거시 화면 공통. 토큰은 design/tokens.css 에서만 온다 — 여기에 :root 를 다시 두지 않는다.
@@ -22,12 +24,12 @@ button,input,select,textarea{font:inherit}
 .brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
 .brand{font-weight:700}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
-/* 사업 전환기(D35·ADR-0014 §2): 조직명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
+/* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
    포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개인 동안은 누를 데가 없어 링크가 아니다.
    민트 계열은 '사람·소속'이라 사업 라벨이 그 축에 든다(D34). */
 /* 알약이 아니라 radius 6 이다(§4-5) — 행동 버튼이 아니라 값을 고르는 컨트롤이다. */
 .program-switcher{display:grid;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
-/* 조직 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
+/* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
    32(--space-8)는 그대로 유지된다 — 선은 그 사이 가운데에 놓인다.
    --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
    좌우 -24 는 사이드바 패딩만큼 되밀어 선을 끝까지 긋는다. */
@@ -56,6 +58,9 @@ button,input,select,textarea{font:inherit}
    블루 신호는 아이콘이 갖는다 — 색은 남고 글자는 읽힌다. */
 .navigation-link[data-current="true"]{background:var(--blue-tint);color:var(--ink)}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
+/* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
+   파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
+.navigation-soon{margin-left:auto;padding:0 8px;border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .sidebar-footer{margin-top:auto;color:var(--sub);font-size:14px;font-weight:700}
 /* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
    손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
@@ -172,7 +177,7 @@ textarea{min-height:216px;resize:vertical}
 .note p{font-size:14px}
 @media(max-width:767px){
   /* ── 768 미만: 사이드바는 드로어다 (§4-4) ──
-     가로 줄로 눕히면 조직명·사업 전환기·메뉴가 한 줄에 밀려 아무것도 안 읽힌다.
+     가로 줄로 눕히면 기관명·사업 전환기·메뉴가 한 줄에 밀려 아무것도 안 읽힌다.
      좁은 화면에서 '장소 전환'은 자주 하는 동작이 아니므로 평소엔 화면 밖에 두고
      손잡이를 눌렀을 때만 왼쪽에서 밀어 넣는다. 본문은 폭을 온전히 쓴다. */
   .app-shell{display:block}
@@ -236,7 +241,7 @@ const participantStyles = `
 .schedule-day-summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
 .schedule-day-group[open] .schedule-day-summary::before{transform:rotate(45deg)}
 .schedule-day-count{margin-left:auto;color:var(--sub);font-size:14px;font-weight:700}
-/* 날짜 그룹(카드) 안의 상담 카드는 자기 테두리를 벗고 --line 구분선으로 나눈다 — 위 상담사 목록과 같은 이유. */
+/* 날짜 그룹(카드) 안의 상담 카드는 자기 테두리를 벗고 --line 구분선으로 나눈다 — 위 실무자 목록과 같은 이유. */
 .schedule-day-group .today-schedule-list{padding:0;gap:0}
 .schedule-day-group .today-schedule-card{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none}
 .schedule-day-group .today-schedule-card:hover{background:var(--muted)}
@@ -321,43 +326,38 @@ const briefingStyles = `
 .briefing-hero-meta{margin:0;color:var(--sub);font-size:14px}
 /* 여닫기 줄은 오른쪽 끝. 화면 조작이라 고스트 32px 하나다. */
 .briefing-toolbar{display:flex;justify-content:flex-end}
-/* GAS 는 전폭 아코디언이다 — 안쪽 조밀 그리드가 3열이 되려면 1040 이 필요하다. */
+/* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
 .briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
-/* GAS 게이지 96px 원형(§5): 트랙은 계열 tint · 채움은 같은 계열 base · 중앙 점수 24/700.
-   conic-gradient 로 채움 비율을 그리고 안쪽을 흰 원으로 덮어 링을 만든다. 점수의 좋고 나쁨은
-   색으로 알리지 않으므로(D6·R4) 계열은 점수가 아니라 목표 순서가 정한다. */
-.briefing-gas-goal{display:grid;justify-items:center;gap:var(--space-2);text-align:center}
-.briefing-gauge{
-  position:relative;display:grid;place-items:center;width:96px;height:96px;border-radius:var(--radius-pill);
-  background:conic-gradient(var(--gauge-fill) var(--gauge-pct),var(--gauge-track) 0);
-}
-.briefing-gauge::before{content:"";position:absolute;inset:12px;border-radius:var(--radius-pill);background:var(--panel)}
-.briefing-gauge .briefing-gas-score{position:relative}
-.briefing-gas-goal[data-series="blue"]{--gauge-fill:var(--blue);--gauge-track:var(--blue-tint)}
-.briefing-gas-goal[data-series="mint"]{--gauge-fill:var(--mint);--gauge-track:var(--mint-tint)}
-.briefing-gas-goal[data-series="lavender"]{--gauge-fill:var(--lavender);--gauge-track:var(--lavender-tint)}
-/* 미니 추이 — 직전 점수 흐름. 막대는 면이라 base 계열을 쓴다(색 규율 2). */
-.briefing-gas-trend{display:flex;align-items:flex-end;gap:var(--space-1);height:24px}
-.briefing-gas-trend i{width:6px;height:var(--bar);border-radius:var(--radius-bar);background:var(--gauge-fill)}
+/* 전체 목표 카드(D45 · CCC-41) — 카드형 한 줄. 카드 계약(.surface-card)을 그대로 쓰고
+   안쪽 가로 배치만 정한다. 점수·게이지 자리는 없다(D43). */
+.briefing-goal{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6)}
+.briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
+.briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+/* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
+.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:16px;color:var(--ink)}
+.briefing-goal-error{margin:0;font-size:14px;color:var(--risk)}
 /* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
 .briefing-more{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-5) var(--space-6)}
 .briefing-more:hover{--surface-fill:var(--muted)}
 .briefing-more-title{display:block;font-size:16px;font-weight:700;color:var(--ink)}
 .briefing-more-desc{display:block;margin-top:var(--space-1);font-size:14px;color:var(--sub)}
-/* 조밀 그리드(D37 §4-2) — 최소 280 이 열을 만든다. **3열 아니면 1열이다**: 2열이면 세부 목표
-   3개(D33)가 둘 + 외톨이 하나로 앉는다. 접는 판단은 화면이 아니라 컨테이너 폭으로 한다. */
-.briefing-gas-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min-dense)),1fr));gap:var(--space-5)}
-@container (max-width:879px){.briefing-gas-grid{grid-template-columns:minmax(0,1fr)}}
-/* 게이지 칸에는 배경 상자를 두지 않는다 — 계열 tint 는 **게이지 트랙**의 몫이다(§5).
-   구 구현은 칸마다 tint 패널 + 그라데이션 테두리를 둘렀는데, 그러면 카드 안에 카드가 생기고
-   (§5 '카드 안에 카드' 회피) 트랙과 패널이 같은 색이라 원형 게이지가 배경에 묻힌다. */
-.briefing-gas-score{font-size:24px;font-weight:700;line-height:1;color:var(--ink);letter-spacing:var(--tracking-numeric)}
-.briefing-gas-goal-title{font-size:16px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
-/* 종료된 목표 칩 — 중립 배지(색 없이 테두리로만 선다). */
-.briefing-gas-goal-closed{display:inline-flex;align-items:center;min-height:20px;margin-left:6px;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}
-/* 오늘 확인할 질문 — 세 섹션. */
+/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. */
 .briefing-qsection{display:grid;gap:var(--space-2)}
 .briefing-qlabel{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
+/* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층. */
+.briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-suggestion{display:grid;gap:var(--space-1)}
+.briefing-suggestion-title{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-suggestion-reason{margin:0;font-size:14px;color:var(--sub)}
+.briefing-suggestion-link{justify-self:start;font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
+/* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
+   시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
+.briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
+.briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
+.briefing-history>summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--sub)}
+.briefing-history>.briefing-qsection{margin-top:var(--space-4)}
 /* 배지·메타·빈 상태(§5 상태 배지). */
 .briefing-badges{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}
@@ -369,7 +369,7 @@ const briefingStyles = `
 `;
 
 const searchStyles = `
-/* ticket-16: 참여자 검색 */
+/* ticket-16: 당사자 검색 */
 .participant-search{display:grid;gap:var(--space-3);margin-bottom:var(--space-6)}
 .participant-search>h2{font-size:18px}
 .participant-search-form{display:flex;gap:var(--space-3);align-items:flex-end}
@@ -399,7 +399,7 @@ const settingsStyles = `
 /* 사람 정보 라벨은 민트 계열. */
 .settings-field dt{color:var(--mint-deep);font-size:14px;font-weight:700}
 .settings-field dd{margin:0;color:var(--ink);font-size:16px;font-weight:700;overflow-wrap:anywhere}
-/* 상담사 목록은 카드(.settings-section) 안에 있으므로 행마다 테두리를 두르지 않고
+/* 실무자 목록은 카드(.settings-section) 안에 있으므로 행마다 테두리를 두르지 않고
    --line 구분선으로 나눈다(§5 리스트 행). 카드 안에 카드를 넣으면 경계가 두 겹으로 겹친다. */
 .settings-user-list{display:grid;margin:0;padding:0;list-style:none}
 .settings-user-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:var(--space-3);align-items:center;min-height:52px;padding:var(--space-3) var(--space-2);border-bottom:1px solid var(--line)}
@@ -432,7 +432,7 @@ const piiMaskingStyles = `
 .pii-panel{display:grid;gap:var(--space-3)}
 .pii-fields{display:grid;gap:var(--space-2);margin:0}
 .pii-field{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
-/* 참여자 정보 라벨(연락처·비상연락처·거주지)은 민트 deep — 사람·소속 축(§1-5). */
+/* 당사자 정보 라벨(연락처·비상연락처·거주지)은 민트 deep — 사람·소속 축(§1-5). */
 .pii-field dt{color:var(--mint-deep);font-size:14px;font-weight:700}
 .pii-field dd{margin:0;color:var(--ink);font-size:16px;font-weight:700;overflow-wrap:anywhere}
 .pii-panel .pii-reveal-control{flex-wrap:wrap}
@@ -442,12 +442,21 @@ const piiMaskingStyles = `
 `;
 
 const registerStyles = `
-/* 참여자 등록·초대 (#37) */
+/* 당사자 등록·초대 (#37) */
 .wire-register-form{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
 .wire-register-submit{width:100%}
-.wire-invite-stack{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
+/* margin-top 을 두지 않는다 — 바깥에서는 .wire-container 의 gap(--section-gap)이 이미
+   섹션 간격을 주고, 카드 안에서는 그 여백이 제목 구분선 아래에 빈 띠로 남는다. */
+.wire-invite-stack{display:grid;gap:var(--space-6)}
 .wire-invite-section{display:grid;gap:var(--space-3)}
-.wire-invite-caption{margin:0;text-align:center;font-size:14px;color:var(--sub)}
+/* 왼쪽 정렬이다 — 가운데 정렬은 아래 입력칸 축에서 떨어져 나와 페이지마다 글이 다른 데서
+   시작하는 것처럼 보인다(§5 '페이지 제목'이 가운데 정렬을 폐기한 것과 같은 이유). */
+.wire-invite-caption{margin:0;font-size:14px;color:var(--sub)}
+/* CCC-29: QR 은 입력칸이 아니라 카드 계약(--line 1px · radius 12)을 빌린 정사각 패널이다. */
+.wire-invite-qr{display:inline-flex;justify-self:start;padding:var(--space-4);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
+/* 버튼은 내용만큼만 차지한다 — 그리드 아이템 기본 stretch 를 그대로 두면 카드 폭(880)을
+   가로지르는 알약이 되어, 폼 제출도 아닌 행동이 마케팅 배너처럼 읽힌다. */
+.wire-invite-stack .wire-button{justify-self:start}
 /* D15·D23: 동의 문안 "자세히 읽어보기" — briefing-subaccordion 패턴 재사용. */
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
 .consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:6px 0;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
@@ -459,6 +468,14 @@ const registerStyles = `
 .consent-detail-section h3{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
 .consent-detail-section p,.consent-detail-section li{margin:0;font-size:14px;color:var(--sub)}
 .consent-detail-section ul{margin:0;padding-left:18px;display:grid;gap:6px}
+/* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
+   단계 표시는 블루 계열(시간·상태 축, D34)이다. */
+.onboarding-form{display:grid;margin-top:var(--space-8)}
+.onboarding-card{display:grid;gap:var(--space-4);padding:var(--space-6)}
+.onboarding-card h2{margin:0}
+.onboarding-step{margin:0;justify-self:start;padding:2px 10px;border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:14px;font-weight:700}
+.onboarding-help{margin:0;font-size:14px;color:var(--sub)}
+.onboarding-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-2)}
 `;
 
 const recordFormStyles = `
@@ -470,6 +487,8 @@ const recordFormStyles = `
 .record-form{display:grid;gap:var(--section-gap)}
 .record-layout{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:var(--space-6);align-items:start}
 .record-main{display:grid;gap:var(--space-6);min-width:0}
+/* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
+.record-toolbar{display:flex;justify-content:flex-end}
 .record-sticky,.record-accordion,.record-rail{
   --surface-fill:var(--panel);
   border:1px solid var(--line);
@@ -505,9 +524,27 @@ const recordFormStyles = `
 
 export const metadata: Metadata = { title: 'CCC 사례관리', description: '비영리 사례관리 내부 운영 도구' };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   // 셸 = 좌측 사이드바 + 본문 (D35 · ADR-0014 §2). 768px 미만에서는 .app-shell 이 block 이 되고
   // **같은 사이드바가 드로어로 변한다**(DESIGN.md §4-4) — 화면 밖에 있다가 상단 손잡이 바를
   // 누르면 왼쪽에서 밀려 들어온다. 마크업이 한 벌이라 데스크톱·모바일 메뉴가 갈라질 수 없다.
-  return <html lang="ko"><head><style>{styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar />{children}</div></body></html>;
+  //
+  // 공개 경로(CCC-28 · D39)는 이 셸 없이 렌더한다. middleware 가 /join 에 x-ccc-public 요청
+  // 헤더를 붙이므로 서버에서 판별 가능 — 클라이언트 usePathname 으로 하면 서버 렌더와 어긋나
+  // 하이드레이션 불일치가 난다. 셸을 빼면 AppSidebar 가 마운트되지 않아, 공개 당사자에게 실무자
+  // 메뉴가 노출되지도 않고 사이드바가 신원을 물어 401 이 나지도 않는다. 스타일은 공개 화면에도
+  // 전부 넣는다(가입 폼이 registerStyles 의 클래스를 쓰므로).
+  const hdrs = await headers();
+  const isPublic = hdrs.get('x-ccc-public') === '1';
+  const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles;
+
+  // 공개 경로는 표시 이름을 조회하지 않는다: 사이드바가 없어 값이 쓰이지 않고, 신원 없는
+  // 요청으로 부르면 그 조회가 401 을 만든다(위 "사이드바가 신원을 물어 401" 과 같은 이유).
+  if (isPublic) {
+    return <html lang="ko"><head><style>{shellStyles}</style></head><body>{children}</body></html>;
+  }
+
+  // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
+  const labels = await getDisplayLabels();
+  return <html lang="ko"><head><style>{shellStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />{children}</div></body></html>;
 }

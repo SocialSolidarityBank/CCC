@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { ParticipantName } from './participant-name';
 
-// ParticipantHeroCard — 참여자 중심 화면의 공통 머리 (D38 · DESIGN.md §5).
+// ParticipantHeroCard — 당사자 중심 화면의 공통 머리 (D38 · DESIGN.md §5).
 //
-// URL이 특정 참여자를 가리키는 화면(/participants/:id/**)은 전부 이 부품을 단다.
+// URL이 특정 당사자를 가리키는 화면(/participants/:id/**)은 전부 이 부품을 단다.
 // 고정 1층 + 슬롯 3층:
 //  ① 이름 — `이름 (가명 ID)` 한 줄. 항상 있다 (ParticipantName size="hero").
 //  ② 상태 태그 — 케이스 1개를 보는 화면(브리핑·기록)에서만 필수다.
