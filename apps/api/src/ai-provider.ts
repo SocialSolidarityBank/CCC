@@ -10,8 +10,11 @@ export const AI_PROVIDER_REGISTRY = Object.freeze({
     }),
   }),
 });
-export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v1';
-export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v1';
+// v2 (CCC-39·D45): 브리핑 질문이 단문 텍스트에서 구조화 제안(짧은 제목 + 확인 이유)으로
+// 바뀌었다. 버전을 올리면 활성 프로바이더 설정 해시가 어긋나 재활성화 전까지 fail-closed 된다
+// — 구 스키마로 생성이 계속되는 드리프트를 막는 의도된 동작이다.
+export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v2';
+export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v2';
 
 const MAX_MASKED_TEXT_LENGTH = 24_000;
 const MAX_EVIDENCE_ITEMS = 64;
@@ -19,6 +22,8 @@ const MAX_CLAIMS = 32;
 const MAX_CLAIM_LENGTH = 2_000;
 const MIN_QUESTIONS = 2;
 const MAX_QUESTIONS = 3;
+// D45: "짧은 제목" — 화면에서 한 줄에 앉는 길이로 강제한다.
+const MAX_QUESTION_TITLE_LENGTH = 80;
 const CODEX_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const CODEX_REQUEST_TIMEOUT_MS = 20_000;
 
@@ -80,8 +85,10 @@ export interface AiGeneratedClaim {
   text: string;
   evidence: readonly AiClaimEvidenceReference[];
 }
+/** D45 영역 ① 구조화 제안 — 짧은 제목 + 확인해야 하는 이유. 근거는 evidence 가 강제한다. */
 export interface AiGeneratedQuestion {
-  text: string;
+  title: string;
+  reason: string;
   evidence: readonly AiClaimEvidenceReference[];
 }
 
@@ -513,20 +520,26 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
     claims.push({ claimKey, text, evidence });
   }
 
-  const questionTexts = new Set<string>();
+  const questionTitles = new Set<string>();
   const questions: AiGeneratedQuestion[] = [];
   for (const rawQuestion of value.questions) {
     if (!isRecord(rawQuestion)) throw new AiProviderProhibitedOutputError();
     assertNoProhibitedKeys(rawQuestion);
-    assertExactKeys(rawQuestion, ['text', 'evidence'], new AiProviderProhibitedOutputError());
-    const text = rawQuestion.text;
-    assertSafeGeneratedOutputText(text);
-    if (questionTexts.has(text)) {
+    assertExactKeys(rawQuestion, ['title', 'reason', 'evidence'], new AiProviderProhibitedOutputError());
+    const title = rawQuestion.title;
+    const reason = rawQuestion.reason;
+    assertSafeGeneratedOutputText(title);
+    if (title.length > MAX_QUESTION_TITLE_LENGTH) {
       throw new AiProviderProhibitedOutputError();
     }
-    questionTexts.add(text);
+    assertSafeGeneratedOutputText(reason);
+    if (questionTitles.has(title)) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    questionTitles.add(title);
     questions.push({
-      text,
+      title,
+      reason,
       evidence: validateOutputEvidenceReferences(rawQuestion.evidence, allowedReferences),
     });
   }
@@ -588,9 +601,10 @@ const codexResponseSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['text', 'evidence'],
+        required: ['title', 'reason', 'evidence'],
         properties: {
-          text: { type: 'string' },
+          title: { type: 'string' },
+          reason: { type: 'string' },
           evidence: {
             type: 'array',
             minItems: 1,
@@ -615,8 +629,9 @@ const codexResponseSchema = {
 } as const;
 
 const CODEX_INSTRUCTIONS = [
-  'Generate only grounded counseling-record draft claims and exactly two or three briefing questions.',
-  'Each claim and each question must cite one or more supplied opaque evidence references exactly.',
+  'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions.',
+  'Each suggestion has a short title (80 characters or fewer) naming what to check in the next session, and a reason explaining why it needs checking.',
+  'Each claim and each suggestion must cite one or more supplied opaque evidence references exactly.',
   'Do not produce GAS scores, confirmations, diagnoses, or decisions about support continuation.',
   'Do not add names, contacts, accounts, or other personal data.',
 ].join(' ');
@@ -651,7 +666,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
             text: {
               format: {
                 type: 'json_schema',
-                name: 'ccc_grounded_draft_v1',
+                name: 'ccc_grounded_draft_v2',
                 strict: true,
                 schema: codexResponseSchema,
               },

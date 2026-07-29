@@ -733,7 +733,28 @@ function isQuestionClaimKey(value: string): boolean {
   return /^question_[0-9].*$/.test(value);
 }
 
-function assertGeneratedAiDraftQuestions(value: unknown): asserts value is string[] {
+/**
+ * 저장분 한 항목을 구조화 제안으로 정규화한다 (CCC-39·D45).
+ * v1 저장분은 단문 질문 문자열 — reason 없이 제목만 있는 제안으로 읽는다.
+ */
+function normalizeAiBriefingSuggestion(item: unknown): AiBriefingSuggestion {
+  if (typeof item === 'string') {
+    return { title: item, reason: null };
+  }
+  if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+    const record = item as Record<string, unknown>;
+    if (
+      Object.keys(record).every((key) => key === 'title' || key === 'reason')
+      && typeof record.title === 'string'
+      && (typeof record.reason === 'string' || record.reason === null)
+    ) {
+      return { title: record.title, reason: record.reason ?? null };
+    }
+  }
+  throw new ValidationError('AI briefing suggestion is invalid');
+}
+
+function assertGeneratedAiDraftQuestions(value: unknown): asserts value is AiBriefingSuggestion[] {
   if (
     !Array.isArray(value)
     || value.length < MIN_GENERATED_AI_DRAFT_QUESTIONS
@@ -742,17 +763,21 @@ function assertGeneratedAiDraftQuestions(value: unknown): asserts value is strin
     throw new ValidationError('AI briefing questions must contain two or three items');
   }
 
-  const questionTexts = new Set<string>();
-  for (const question of value) {
-    assertRequiredText(question, 'AI briefing question');
-    if (questionTexts.has(question)) {
+  const titles = new Set<string>();
+  for (const item of value) {
+    const suggestion = normalizeAiBriefingSuggestion(item);
+    assertRequiredText(suggestion.title, 'AI briefing suggestion title');
+    if (suggestion.reason !== null) {
+      assertRequiredText(suggestion.reason, 'AI briefing suggestion reason');
+    }
+    if (titles.has(suggestion.title)) {
       throw new ValidationError('AI briefing questions must be unique');
     }
-    questionTexts.add(question);
+    titles.add(suggestion.title);
   }
 }
 
-function parseAiDraftQuestions(value: unknown, origin: AiDraftOrigin): string[] {
+function parseAiDraftQuestions(value: unknown, origin: AiDraftOrigin): AiBriefingSuggestion[] {
   const parsed = parseJson<unknown>(value);
   if (origin === 'legacy_import') {
     if (!Array.isArray(parsed) || parsed.length !== 0) {
@@ -761,8 +786,25 @@ function parseAiDraftQuestions(value: unknown, origin: AiDraftOrigin): string[] 
     return [];
   }
 
-  assertGeneratedAiDraftQuestions(parsed);
-  return parsed;
+  if (!Array.isArray(parsed)) {
+    throw new ValidationError('AI briefing questions must contain two or three items');
+  }
+  const normalized = parsed.map(normalizeAiBriefingSuggestion);
+  assertGeneratedAiDraftQuestions(normalized);
+  return normalized;
+}
+
+/**
+ * 저장·프러버넌스 비교용 직렬화. v1 단문(reason=null)은 문자열로 되돌려
+ * 저장 형태를 왕복시킨다 — human_edited 새 버전이 부모의 questions_json 과
+ * 바이트 단위로 같아야 하는 DB 가드(0026 · parent.questions_json IS NEW.questions_json)와 맞춘다.
+ */
+function questionsToJson(questions: AiBriefingSuggestion[]): string {
+  return stringifyJson(questions.map((suggestion) => (
+    suggestion.reason === null
+      ? suggestion.title
+      : { title: suggestion.title, reason: suggestion.reason }
+  )));
 }
 function assertTimestamp(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
@@ -1491,7 +1533,10 @@ async function maskGeneratedAiDraftInput<T extends AiDraftContentInput>(
   return {
     ...input,
     summaryText: mask(input.summaryText),
-    questions: input.questions.map(mask),
+    questions: input.questions.map((suggestion) => ({
+      title: mask(suggestion.title),
+      reason: suggestion.reason === null ? null : mask(suggestion.reason),
+    })),
     evidence: input.evidence.map((item) => ({
       ...item,
       evidenceQuote: mask(item.evidenceQuote),
@@ -1735,6 +1780,16 @@ export interface AiWorkItem {
   createdAt: string;
 }
 
+/**
+ * D45 영역 ① 구조화 제안 — 짧은 제목 + 확인해야 하는 이유. 근거 회차는 초안이 속한
+ * 세션이고 인용은 ai_evidence_links(question_N)가 강제한다. reason=null 은
+ * v1 단문 질문 저장분의 하위 호환 표기다(신규 생성분은 항상 채워진다).
+ */
+export interface AiBriefingSuggestion {
+  title: string;
+  reason: string | null;
+}
+
 /** 마스킹된 근거 링크. 링크가 없는 generated 초안은 검토할 수 있어도 승인할 수 없다. */
 export interface AiEvidenceLink {
   id: string;
@@ -1757,7 +1812,7 @@ export interface AiDraftVersion {
   version: number;
   parentVersionId: string | null;
   summaryText: string;
-  questions: string[];
+  questions: AiBriefingSuggestion[];
   sourceSnapshotId: string | null;
   sourceSnapshotHash: string | null;
   consentEvidenceId: string | null;
@@ -1785,7 +1840,7 @@ export interface ApprovedAiBriefing {
   sessionId: string;
   version: number;
   summaryText: string;
-  questions: string[];
+  questions: AiBriefingSuggestion[];
   origin: AiDraftOrigin;
   groundingStatus: AiDraftGroundingStatus;
   approvedBy: string;
@@ -1803,7 +1858,7 @@ export interface AiEvidenceInput {
 
 export interface AiDraftContentInput {
   summaryText: string;
-  questions: string[];
+  questions: AiBriefingSuggestion[];
   sourceSnapshotId?: string;
   sourceSnapshotHash: string;
   modelId: string;
@@ -2872,7 +2927,7 @@ export async function createGeneratedAiDraft(
       draftVersion,
       parentVersionId,
       maskedInput.summaryText,
-      stringifyJson(maskedInput.questions),
+      questionsToJson(maskedInput.questions),
       sourceSnapshot.id,
       sourceSnapshot.sha256,
       consentEvidenceId,
@@ -3034,7 +3089,7 @@ async function editGeneratedAiDraft(
       || input.promptVersion !== current.promptVersion
       || input.schemaVersion !== current.schemaVersion
       || (input.sourceSnapshotId !== undefined && input.sourceSnapshotId !== current.sourceSnapshotId)
-      || stringifyJson(input.questions) !== stringifyJson(current.questions)
+      || questionsToJson(input.questions) !== questionsToJson(current.questions)
     ) {
       throw new ValidationError('AI draft provenance must match its parent');
     }
@@ -3114,7 +3169,7 @@ async function editGeneratedAiDraft(
         nextVersion,
         current.id,
         maskedInput.summaryText,
-        stringifyJson(maskedInput.questions),
+        questionsToJson(maskedInput.questions),
         current.sourceSnapshotId,
         current.sourceSnapshotHash,
         consentEvidence.id,
@@ -3203,7 +3258,7 @@ async function editGeneratedAiDraft(
     evidence,
   };
 }
-function isCompleteGroundingEvidence(evidence: AiEvidenceLink[], questions: string[]): boolean {
+function isCompleteGroundingEvidence(evidence: AiEvidenceLink[], questions: AiBriefingSuggestion[]): boolean {
   return (
     evidence.length > 0
     && evidence.every((link) => (
@@ -4863,7 +4918,8 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
     lastSessionSummary,
     openActionItems: actions.results.map(mapActionItem),
     flags: flags.results.map(mapFlag),
-    questions: approvedBriefings[0]?.questions ?? [],
+    // 구 케이스 브리핑 응답은 단문 문자열 계약을 유지한다 — 구조화 제안의 제목만 싣는다(CCC-39).
+    questions: (approvedBriefings[0]?.questions ?? []).map((suggestion) => suggestion.title),
   };
 }
 
@@ -10582,11 +10638,22 @@ export interface ParticipantBriefingFlag {
   flag: Flag;
 }
 
-export interface ParticipantBriefingQuestion {
+/**
+ * D45 영역 ① AI 제안 (CCC-39). 재료는 공식 기록만 — approved_ai_briefing_v1 을 거친
+ * 승인본에서만 조립한다(R2). sessionId·heldAt 이 근거 회차이고, 화면은 그 회차 기록으로
+ * 링크를 건다. 참여 사업당 최대 MAX_BRIEFING_AI_SUGGESTIONS 개(최신 승인순).
+ */
+export interface ParticipantBriefingSuggestion {
   sourceSupportCase: SourceSupportCase;
   sessionId: string;
-  text: string;
+  /** 근거 회차의 상담일. 세션 행이 조회 범위에 없으면 null(링크는 세션 ID 로 여전히 건다). */
+  heldAt: string | null;
+  title: string;
+  reason: string | null;
 }
+
+/** D45: AI 제안은 최대 3개 — 그 이상은 '오늘 만나기 전'이 훑기 화면이 아니게 된다. */
+const MAX_BRIEFING_AI_SUGGESTIONS = 3;
 
 /**
  * 포커스 참여사업의 다가오는 상담 일정과 그 세션 목표·맞춤형 질문 (D28). 티켓 #34가
@@ -10610,7 +10677,7 @@ export interface ParticipantBriefing {
   sessionRows: ParticipantBriefingSessionRow[];
   actionItems: ParticipantBriefingAction[];
   flags: ParticipantBriefingFlag[];
-  questions: ParticipantBriefingQuestion[];
+  aiSuggestions: ParticipantBriefingSuggestion[];
   focusUpcomingSchedule: BriefingUpcomingSchedule | null;
   /** 포커스 참여사업의 전체 목표 (D45 · 0024). NULL = 설정 전. */
   overallGoal: string | null;
@@ -10638,11 +10705,16 @@ function orderedAuthorizedSupportCases(
   });
 }
 
-function briefingQuestions(row: DbRow): string[] {
-  const questions = parseJson<unknown>(row.questions_json);
-  return Array.isArray(questions) && questions.every((question) => typeof question === 'string')
-    ? questions
-    : [];
+// 브리핑 조립은 방어적으로 읽는다 — 형태가 어긋난 행은 통째로 버리고 화면을 세우지 않는다.
+// (v1 문자열·v2 {title, reason} 객체 혼재 허용 — 0026 가드와 같은 폭.)
+function briefingSuggestions(row: DbRow): AiBriefingSuggestion[] {
+  const parsed = parseJson<unknown>(row.questions_json);
+  if (!Array.isArray(parsed)) return [];
+  try {
+    return parsed.map(normalizeAiBriefingSuggestion);
+  } catch {
+    return [];
+  }
 }
 
 // 수기 메모의 첫 비어 있지 않은 줄에서 최대 60자 — D45 영역 ②의 폴백 발췌(D5).
@@ -10815,12 +10887,29 @@ export async function getParticipantBriefing(
     });
   }
 
-  const questions: ParticipantBriefingQuestion[] = [];
+  // D45 영역 ① AI 제안 — approved 쿼리가 승인 최신순(approved_at DESC)이라 참여 사업당
+  // 최근 승인본의 제안부터 최대 3개만 싣는다. 근거 회차(heldAt)는 세션 조회 결과에서 붙인다.
+  const heldAtBySession = new Map<string, string>(
+    sessions.results.map((row): [string, string] => [stringValue(row.id), stringValue(row.held_at)]),
+  );
+  const aiSuggestions: ParticipantBriefingSuggestion[] = [];
+  const suggestionCountBySupportCase = new Map<string, number>();
   for (const row of approved.results) {
-    const source = sources.get(stringValue(row.support_case_id));
+    const supportCaseId = stringValue(row.support_case_id);
+    const source = sources.get(supportCaseId);
     if (source === undefined) continue;
-    for (const text of briefingQuestions(row)) {
-      questions.push({ sourceSupportCase: source, sessionId: stringValue(row.session_id), text });
+    const sessionId = stringValue(row.session_id);
+    for (const suggestion of briefingSuggestions(row)) {
+      const count = suggestionCountBySupportCase.get(supportCaseId) ?? 0;
+      if (count >= MAX_BRIEFING_AI_SUGGESTIONS) break;
+      suggestionCountBySupportCase.set(supportCaseId, count + 1);
+      aiSuggestions.push({
+        sourceSupportCase: source,
+        sessionId,
+        heldAt: heldAtBySession.get(sessionId) ?? null,
+        title: suggestion.title,
+        reason: suggestion.reason,
+      });
     }
   }
 
@@ -10903,7 +10992,7 @@ export async function getParticipantBriefing(
     sessionRows,
     actionItems,
     flags: briefingFlags,
-    questions,
+    aiSuggestions,
     focusUpcomingSchedule,
     overallGoal: focus.overallGoal,
     canEditOverallGoal: actor.role === 'counselor',

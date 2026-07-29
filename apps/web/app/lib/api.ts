@@ -121,7 +121,8 @@ export type AiDraftReviewDecision = 'approved' | 'rejected' | 'superseded' | nul
 export interface AiDraft {
   version: number;
   summaryText: string;
-  questions: string[];
+  /** CCC-39: 구조화 제안(제목+이유). 승인 흐름에서 요약과 함께 승인된다(R2). */
+  questions: Array<{ title: string; reason: string }>;
   reviewDecision: AiDraftReviewDecision;
   evidence: AiEvidence[];
 }
@@ -297,7 +298,14 @@ export interface ParticipantBriefingSection {
     source: 'ai' | 'counselor';
     reviewStatus: 'confirmed';
   }>;
-  questions: string[];
+  // D45 영역 ① AI 제안(CCC-39) — 제목·이유·근거 회차. 최대 3개(서버가 끊는다).
+  // reason=null 은 구조화 이전(v1) 단문 질문 저장분 — 화면은 이유 줄만 생략한다.
+  aiSuggestions: Array<{
+    title: string;
+    reason: string | null;
+    sessionId: string;
+    heldAt: string | null;
+  }>;
   // D45 영역 ② 회차별 정리 — 상담일·유형·수기 발췌 한 줄(최신순). 핵심 한 줄(AI)은 CCC-38.
   sessionRows: Array<{
     sessionId: string;

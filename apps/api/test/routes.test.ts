@@ -92,7 +92,7 @@ const TEST_PROVIDER_CONFIG = {
 interface RouteAiDraft {
   version: number;
   summaryText: string;
-  questions: string[];
+  questions: Array<{ title: string; reason: string }>;
   reviewDecision: 'approved' | 'rejected' | 'superseded' | null;
   evidence: Array<{ id: string; claimKey: string; quote: string }>;
 }
@@ -112,8 +112,8 @@ function firstEvidence(request: AiProviderRequest): AiProviderRequest['evidence'
 function validProviderQuestions(request: AiProviderRequest): AiProviderOutput['questions'] {
   const evidence = { ...firstEvidence(request) };
   return [
-    { text: '상황 일정에 변동이 있었나요?', evidence: [{ ...evidence }] },
-    { text: '주거비 변화가 있었나요?', evidence: [{ ...evidence }] },
+    { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.', evidence: [{ ...evidence }] },
+    { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.', evidence: [{ ...evidence }] },
   ];
 }
 
@@ -684,7 +684,10 @@ describe('API routes', () => {
     expect(draft).toEqual(expect.objectContaining({
       version: 1,
       summaryText: 'A001 discussed grocery expenses.',
-      questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+      questions: [
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+      ],
       reviewDecision: null,
       evidence: expect.arrayContaining([
         expect.objectContaining({ claimKey: 'grocery-expenses', quote: MASKED_TEXT }),
@@ -1146,8 +1149,8 @@ describe('API routes', () => {
           ...validProviderOutput(request),
           questions: [
             ...validProviderQuestions(request),
-            { text: '공과금 납부 계획을 확인할까요?', evidence: [{ ...evidence }] },
-            { text: '다음 지원 일정을 확인할까요?', evidence: [{ ...evidence }] },
+            { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.', evidence: [{ ...evidence }] },
+            { title: '다음 지원 일정을 확인할까요?', reason: '지원 일정 확인이 필요합니다.', evidence: [{ ...evidence }] },
           ],
         };
       },
@@ -1159,7 +1162,7 @@ describe('API routes', () => {
         ...validProviderOutput(request),
         questions: [
           ...validProviderQuestions(request).slice(0, 1),
-          { text: '연락처: 010-1234-5678을 확인할까요?', evidence: [{ ...firstEvidence(request) }] },
+          { title: '연락처: 010-1234-5678을 확인할까요?', reason: '연락 수단 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
         ],
       }),
       (request) => ({
@@ -1199,7 +1202,7 @@ describe('API routes', () => {
       ...validProviderOutput(request),
       questions: [
         ...validProviderQuestions(request),
-        { text: '공과금 납부 계획을 확인할까요?', evidence: [{ ...firstEvidence(request) }] },
+        { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
       ],
     });
     const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
@@ -1211,9 +1214,9 @@ describe('API routes', () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual(expect.objectContaining({
       questions: [
-        '상황 일정에 변동이 있었나요?',
-        '주거비 변화가 있었나요?',
-        '공과금 납부 계획을 확인할까요?',
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+        { title: '공과금 납부 계획을 확인할까요?', reason: '납부 계획 확인이 필요합니다.' },
       ],
     }));
   });
@@ -1990,7 +1993,7 @@ describe('canonical participant API routes', () => {
       lastSessionSummary: null,
       openActionItems: [],
       flags: [],
-      questions: [],
+      aiSuggestions: [],
       // D45 영역 ② 회차별 정리 — 이 픽스처는 상담 기록이 없어 빈 배열이다.
       sessionRows: [],
     });
@@ -2504,7 +2507,7 @@ describe('canonical participant API routes', () => {
           text: string;
           pendingApprovalCount: number;
         } | null;
-        questions: string[];
+        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null }>;
       }>;
     };
     const officialBeforeApproval = await officialBeforeApprovalResponse.json() as {
@@ -2516,7 +2519,7 @@ describe('canonical participant API routes', () => {
         text: 'CANONICAL_REJECTED_MANUAL_FALLBACK',
         pendingApprovalCount: 1,
       },
-      questions: [],
+      aiSuggestions: [],
     })]);
     expect(officialBeforeApproval.records.map(({ id, memo }) => ({ id, memo }))).toEqual([
       { id: rejectedSessionId, memo: 'CANONICAL_REJECTED_MANUAL_FALLBACK' },
@@ -2564,7 +2567,7 @@ describe('canonical participant API routes', () => {
           text: string;
           pendingApprovalCount: number;
         } | null;
-        questions: string[];
+        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null }>;
       }>;
     };
     const officialAfterApproval = await officialAfterApprovalResponse.json() as {
@@ -2576,7 +2579,10 @@ describe('canonical participant API routes', () => {
         text: approvedCanary,
         pendingApprovalCount: 1,
       },
-      questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+      aiSuggestions: [
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z' },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z' },
+      ],
     })]);
     expectContentFree(focusedAfterApproval, [pendingCanary, rejectedCanary]);
     expect(officialAfterApproval.records.map(({ id, memo }) => ({ id, memo }))).toEqual([

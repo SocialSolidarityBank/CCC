@@ -52,7 +52,8 @@ export interface BriefingCardsProps {
   sessionRows: ParticipantBriefingSection['sessionRows'];
   /** 승인 대기 배지 — D45 가 영역 ② 머리로 옮겼다(구 '지난 상담 브리핑' 카드 자리). */
   pendingApprovalCount: number;
-  questions: string[];
+  /** D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차 링크. 재료는 승인본만(R2). */
+  aiSuggestions: ParticipantBriefingSection['aiSuggestions'];
   openActionItems: ParticipantBriefingSection['openActionItems'];
   flags: RiskBannerFlag[];
   upcomingSchedule: BriefingUpcomingSchedule | null;
@@ -174,7 +175,7 @@ export function BriefingCards({
   participant,
   sessionRows,
   pendingApprovalCount,
-  questions,
+  aiSuggestions,
   openActionItems,
   flags,
   upcomingSchedule,
@@ -251,8 +252,8 @@ export function BriefingCards({
 
         {/* 영역 ① 오늘 만나기 전 꼭 기억할 것 (D45) — 구 '지난 상담 브리핑'·'오늘 확인할 질문'
             카드를 대체한다. **실무자 입력(세션 목표·맞춤형 질문)이 위, AI 가 아래** — 실무자가
-            직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안의 구조화(제목·이유·근거
-            회차 링크)는 CCC-39 — 그때까지는 기존 승인 기반 질문을 그대로 싣는다. */}
+            직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
+            근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
         <Card title="오늘 만나기 전 꼭 기억할 것">
           <div className="briefing-qsection">
             <p className="briefing-qlabel">세션 목표</p>
@@ -269,10 +270,29 @@ export function BriefingCards({
               : <WireBullets items={customQuestions} />}
           </div>
           <div className="briefing-qsection">
-            <p className="briefing-qlabel">AI 질문</p>
-            {questions.length === 0
-              ? <EmptyNote>승인된 상담 기록이 쌓이면 질문을 제안합니다.</EmptyNote>
-              : <WireBullets items={questions} />}
+            <p className="briefing-qlabel">AI 제안</p>
+            {aiSuggestions.length === 0
+              ? <EmptyNote>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</EmptyNote>
+              : (
+                <ul className="briefing-suggestions">
+                  {/* 최대 3개는 서버 계약(D45)이지만 화면도 같은 상한을 지킨다 — 훑는 화면이다. */}
+                  {aiSuggestions.slice(0, 3).map((suggestion) => (
+                    <li key={`${suggestion.sessionId}-${suggestion.title}`} className="briefing-suggestion">
+                      <p className="briefing-suggestion-title">{suggestion.title}</p>
+                      {suggestion.reason !== null && (
+                        <p className="briefing-suggestion-reason">{suggestion.reason}</p>
+                      )}
+                      {/* 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다. */}
+                      <Link
+                        className="briefing-suggestion-link"
+                        href={`${recordsHref}#record-${suggestion.sessionId}`}
+                      >
+                        근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatDateOnly(suggestion.heldAt)})`}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
           </div>
         </Card>
 

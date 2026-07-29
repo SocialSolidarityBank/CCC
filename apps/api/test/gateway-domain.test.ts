@@ -387,7 +387,10 @@ async function createReviewReadySession() {
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'AI_SUMMARY_DEMO',
-    questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+    questions: [
+      { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+      { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+    ],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
     providerConfigId: selection.providerConfigId,
@@ -518,7 +521,10 @@ async function createPilotDraft(
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'GROUNDED_AI_SUMMARY_DEMO',
-    questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+    questions: [
+      { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
+      { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+    ],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
     providerConfigId: selection.providerConfigId,
@@ -713,7 +719,11 @@ describe('gateway domain records', () => {
       workItemId: fixture.workItemId,
       draftVersionId: fixture.draftId,
       summaryText: OFFICIAL_CANARIES.draft,
-      questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
+      // SQL 시드가 v1 단문 문자열이라 reason 없이 정규화된다(하위 호환 계약).
+      questions: [
+        { title: '상황 일정에 변동이 있었나요?', reason: null },
+        { title: '주거비 변화가 있었나요?', reason: null },
+      ],
       origin: 'generated',
       groundingStatus: 'grounded',
     });
@@ -2188,6 +2198,161 @@ describe('canonical participant gateway', () => {
       initial.beneficiaryId,
       hidden.supportCaseId,
     )).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
+  // 세션 하나에 provider_generated 초안을 SQL 로 시드한다(v2 구조화 questions_json).
+  // 활성 프로바이더 설정·케이스 동의는 호출자가 먼저 마련한다(0026 가드가 검사).
+  async function seedStructuredDraft(
+    caseId: string,
+    sessionId: string,
+    seedKey: string,
+    suggestions: Array<{ title: string; reason: string }>,
+    configId: string,
+    consentId: string,
+  ): Promise<{ workItemId: string }> {
+    const source = await seedMaskedSourceSnapshot(caseId, sessionId, `${seedKey}-source`, [
+      { key: 'main', sourceRef: `memo:${seedKey}`, evidenceQuote: `MASKED_${seedKey}_EVIDENCE` },
+    ]);
+    const evidence = source.evidenceByKey.main;
+    if (evidence === undefined) throw new Error('expected seeded suggestion evidence');
+    const sessionScope = await t.db.prepare(
+      'SELECT support_case_id FROM sessions WHERE id = ? AND org_id = ?',
+    ).bind(sessionId, counselor.orgId).first<{ support_case_id: string }>();
+    if (sessionScope === null) throw new Error('expected session scope');
+
+    const workItemId = `${seedKey}-work`;
+    const draftId = `${seedKey}-draft`;
+    const createdAt = '2026-07-01T00:00:00.000Z';
+    await t.db.prepare(
+      'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).bind(workItemId, counselor.orgId, sessionScope.support_case_id, sessionId, 'text_ai_briefing', createdAt).run();
+    await t.db.prepare(
+      `INSERT INTO ai_draft_versions (
+        id, work_item_id, version, parent_version_id, summary_text, questions_json,
+        source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
+        origin, creation_mode, grounding_status, created_by, created_at
+      ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+    ).bind(
+      draftId,
+      workItemId,
+      `${seedKey}_SUMMARY`,
+      JSON.stringify(suggestions),
+      source.snapshotId,
+      source.snapshotHash,
+      consentId,
+      configId,
+      'gpt-5-codex',
+      'provider-prompt-v2',
+      'provider-schema-v2',
+      counselor.userId,
+      createdAt,
+    ).run();
+    await t.db.prepare(
+      `INSERT INTO ai_evidence_links (
+        id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      `${seedKey}-claim-link`, draftId, evidence.id, 'seed-claim',
+      evidence.evidenceQuote, evidence.sourceRef, evidence.sourceStart, evidence.sourceEnd, createdAt,
+    ).run();
+    for (const [index] of suggestions.entries()) {
+      await t.db.prepare(
+        `INSERT INTO ai_evidence_links (
+          id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        `${seedKey}-question-${index + 1}`, draftId, evidence.id, `question_${index + 1}`,
+        evidence.evidenceQuote, evidence.sourceRef, evidence.sourceStart, evidence.sourceEnd, createdAt,
+      ).run();
+    }
+    return { workItemId };
+  }
+
+  it('serves structured suggestions from approved drafts only, capped at three, with the evidence session attached', async () => {
+    await t.reset();
+    t.env.TEXT_AI_PILOT_ENABLED = '1';
+    const config = await registerAiProviderConfiguration(t.env, admin, {
+      adapterId: 'codex',
+      adapterVersion: 'v1',
+      configHash: 'f'.repeat(64),
+      approvalRefs: ['privacy-security-approval'],
+    });
+    await activateAiProviderConfiguration(t.env, admin, config.id);
+    const caseRecord = await createCase(t.env, counselor, {});
+    const consent = await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
+      noticeVersion: 'pilot-text-ai-v1',
+      noticeSha256: SHA256,
+      evidenceRef: 'r2://opaque-suggestion-consent',
+      evidenceSha256: 'a'.repeat(64),
+      effectiveAt: '2026-01-01T00:00:00.000Z',
+    });
+    const olderSession = await createManualSession(t.env, counselor, caseRecord.id, {
+      submissionId: '01000000-0000-4000-8000-000000000011',
+      heldAt: '2026-01-02T10:00:00.000Z',
+      channel: 'in_person',
+      memo: 'OLDER_SESSION_MEMO',
+      gasScores: [],
+    });
+    const newerSession = await createManualSession(t.env, counselor, caseRecord.id, {
+      submissionId: '01000000-0000-4000-8000-000000000012',
+      heldAt: '2026-01-10T10:00:00.000Z',
+      channel: 'in_person',
+      memo: 'NEWER_SESSION_MEMO',
+      gasScores: [],
+    });
+    const olderDraft = await seedStructuredDraft(caseRecord.id, olderSession.id, 'sugg-older', [
+      { title: 'OLDER_TITLE_1', reason: 'OLDER_REASON_1' },
+      { title: 'OLDER_TITLE_2', reason: 'OLDER_REASON_2' },
+    ], config.id, consent.id);
+    const newerDraft = await seedStructuredDraft(caseRecord.id, newerSession.id, 'sugg-newer', [
+      { title: 'NEWER_TITLE_1', reason: 'NEWER_REASON_1' },
+      { title: 'NEWER_TITLE_2', reason: 'NEWER_REASON_2' },
+      { title: 'NEWER_TITLE_3', reason: 'NEWER_REASON_3' },
+    ], config.id, consent.id);
+    const scope = await t.db.prepare(
+      'SELECT id, beneficiary_id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
+    ).bind(caseRecord.id, counselor.orgId).first<{ id: string; beneficiary_id: string }>();
+    if (scope === null) throw new Error('expected canonical support case scope');
+
+    // R2 — 승인 전 초안은 어떤 제안도 브리핑에 내보내지 않는다(재료가 공식 기록만임을 고정).
+    const pendingBriefing = await getParticipantBriefing(
+      t.env, counselor, scope.beneficiary_id, scope.id,
+    );
+    expect(pendingBriefing.aiSuggestions).toEqual([]);
+    expectNoCanaries(pendingBriefing, ['OLDER_TITLE_1', 'NEWER_TITLE_1', 'OLDER_REASON_1', 'NEWER_REASON_1']);
+
+    await approveGeneratedAiDraft(t.env, counselor, olderDraft.workItemId, 1);
+    // 승인 시각(ms)이 겹치면 최신순 정렬이 비결정적이 된다 — 두 승인 사이 간격을 강제한다.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await approveGeneratedAiDraft(t.env, counselor, newerDraft.workItemId, 1);
+
+    // 최대 3개 — 최신 승인(3개짜리)이 상한을 채우고 이전 승인분은 밀려난다(D45).
+    const briefing = await getParticipantBriefing(t.env, counselor, scope.beneficiary_id, scope.id);
+    expect(briefing.aiSuggestions).toEqual([
+      {
+        sourceSupportCase: expect.objectContaining({ id: scope.id }),
+        sessionId: newerSession.id,
+        heldAt: '2026-01-10T10:00:00.000Z',
+        title: 'NEWER_TITLE_1',
+        reason: 'NEWER_REASON_1',
+      },
+      {
+        sourceSupportCase: expect.objectContaining({ id: scope.id }),
+        sessionId: newerSession.id,
+        heldAt: '2026-01-10T10:00:00.000Z',
+        title: 'NEWER_TITLE_2',
+        reason: 'NEWER_REASON_2',
+      },
+      {
+        sourceSupportCase: expect.objectContaining({ id: scope.id }),
+        sessionId: newerSession.id,
+        heldAt: '2026-01-10T10:00:00.000Z',
+        title: 'NEWER_TITLE_3',
+        reason: 'NEWER_REASON_3',
+      },
+    ]);
   });
 });
 

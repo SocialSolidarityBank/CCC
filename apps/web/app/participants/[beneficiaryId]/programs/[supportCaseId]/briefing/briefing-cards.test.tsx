@@ -21,7 +21,12 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
       { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', kind: 'intake', memoExcerpt: '채무 현황과 정서적 어려움 확인' },
     ],
     pendingApprovalCount: 2,
-    questions: ['최근 구직 활동은 어땠는지'],
+    aiSuggestions: [{
+      title: '최근 구직 활동은 어땠는지',
+      reason: '지난 회차에서 면접 결과를 기다리고 있었다',
+      sessionId: 's-2',
+      heldAt: '2026-07-15T05:00:00Z',
+    }],
     openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20' }],
     flags: [],
     upcomingSchedule: {
@@ -93,14 +98,52 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(allDetails().every((details) => details.open)).toBe(true);
   });
 
-  it('영역 ①은 실무자 입력(세션 목표·맞춤형 질문)이 위, AI 질문이 아래다 (D45·R5)', () => {
+  it('영역 ①은 실무자 입력(세션 목표·맞춤형 질문)이 위, AI 제안이 아래다 (D45·R5)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
     const labels = [...card.querySelectorAll('.briefing-qlabel')].map((node) => node.textContent);
-    expect(labels).toEqual(['세션 목표', '맞춤형 질문', 'AI 질문']);
+    expect(labels).toEqual(['세션 목표', '맞춤형 질문', 'AI 제안']);
     expect(card.textContent).toContain('구직 상담');
     expect(card.textContent).toContain('이번 달 지출은 정리됐는지');
     expect(card.textContent).toContain('최근 구직 활동은 어땠는지');
+  });
+
+  it('AI 제안은 제목·이유·근거 회차 링크 3층이고 링크는 해당 회차 기록 앵커로 간다 (CCC-39)', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const item = container.querySelector('.briefing-suggestion');
+    if (item === null) throw new Error('suggestion item not found');
+    expect(item.querySelector('.briefing-suggestion-title')?.textContent).toBe('최근 구직 활동은 어땠는지');
+    expect(item.querySelector('.briefing-suggestion-reason')?.textContent).toBe('지난 회차에서 면접 결과를 기다리고 있었다');
+    const link = item.querySelector('a.briefing-suggestion-link');
+    expect(link?.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
+    expect(link?.textContent).toContain('근거 회차 보기');
+    expect(link?.textContent).toContain('2026-07-15');
+  });
+
+  it('AI 제안은 최대 3개만 렌더되고, 구(v1) 저장분(reason=null)은 이유 줄을 생략한다', () => {
+    const suggestion = (n: number) => ({
+      title: `제안 ${n}`,
+      reason: n === 1 ? null : `이유 ${n}`,
+      sessionId: `s-${n}`,
+      heldAt: null,
+    });
+    const { container } = render(<BriefingCards {...baseProps({
+      aiSuggestions: [suggestion(1), suggestion(2), suggestion(3), suggestion(4)],
+    })} />);
+    const items = container.querySelectorAll('.briefing-suggestion');
+    expect(items).toHaveLength(3);
+    // reason=null(첫 항목)은 이유 줄 없이 제목·링크만 남는다.
+    expect(items[0]?.querySelector('.briefing-suggestion-reason')).toBeNull();
+    expect(items[1]?.querySelector('.briefing-suggestion-reason')?.textContent).toBe('이유 2');
+    // heldAt 이 없으면 링크 라벨에 날짜 괄호가 붙지 않는다.
+    expect(items[0]?.querySelector('a')?.textContent).toBe('근거 회차 보기');
+  });
+
+  it('공식 기록이 없어 제안이 비면 빈 상태 안내를 표시한다 (CCC-39 AC)', () => {
+    const { container } = render(<BriefingCards {...baseProps({ aiSuggestions: [] })} />);
+    const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
+    expect(card.textContent).toContain('승인된 상담 기록이 쌓이면 확인할 것을 제안합니다');
+    expect(card.querySelector('.briefing-suggestion')).toBeNull();
   });
 
   it('영역 ②는 회차마다 상담일·유형·한 줄을 표시한다', () => {

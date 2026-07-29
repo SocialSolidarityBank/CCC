@@ -995,9 +995,16 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             source: flag.source,
             reviewStatus: flag.reviewStatus,
           })),
-        questions: briefing.questions
-          .filter((question) => question.sourceSupportCase.id === sourceSupportCase.id)
-          .map((question) => question.text),
+        // D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차(sessionId·heldAt). 최대 3개는
+        // 게이트웨이가 이미 끊었다. 화면은 sessionId 로 해당 회차 기록에 링크를 건다.
+        aiSuggestions: briefing.aiSuggestions
+          .filter((suggestion) => suggestion.sourceSupportCase.id === sourceSupportCase.id)
+          .map((suggestion) => ({
+            title: suggestion.title,
+            reason: suggestion.reason,
+            sessionId: suggestion.sessionId,
+            heldAt: suggestion.heldAt,
+          })),
         // D45 영역 ② 회차별 정리 — 상담일·유형·수기 발췌 (최신순, 게이트웨이 정렬 보존).
         sessionRows: briefing.sessionRows
           .filter((row) => row.sourceSupportCase.id === sourceSupportCase.id)
@@ -1306,7 +1313,7 @@ async function generateAiDraft(
     modelId: config.model,
     promptVersion: AI_DRAFT_PROMPT_VERSION,
     schemaVersion: AI_DRAFT_SCHEMA_VERSION,
-    questions: output.questions.map((question) => question.text),
+    questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
     evidence: providerEvidenceLinks(output),
   });
 }
