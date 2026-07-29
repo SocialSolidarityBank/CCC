@@ -63,6 +63,8 @@ systemd/             WSL2 자동 시작 유닛
 cd apps/pipeline/tests && PYTHONPATH=.. python3 -m unittest discover -s . -p "test_*.py" -v
 ```
 
-`tests/` 안에서 돌리는 이유: 파이썬 3.12 이후 `unittest discover` 는 시작 디렉터리가
-임포트 가능해야 하고 `tests/` 에는 `__init__.py` 가 없다. 레포 루트에서 `-s apps/pipeline/tests`
-로 부르면 `Start directory is not importable` 로 죽는다. CI 의 `pipeline-test` 잡도 같은 방식이다.
+`tests/` 안에서 돌리는 이유: `unittest discover` 가 시작 디렉터리를 임포트 가능한 곳으로
+요구하는데 `tests/` 에는 `__init__.py` 가 없다. 레포 루트에서 `-s apps/pipeline/tests` 로
+부르면 `Start directory is not importable` 로 죽는다(파이썬 3.14에서 확인 — 옛 버전에서
+동작했다면 그쪽이 예외다). CI 의 `pipeline-test` 잡도 같은 방식이며, 그 잡은 **발견된
+테스트 개수까지 확인**한다 — 발견 실패는 `Ran 0 tests ... OK` 로 초록이 되기 때문이다.
