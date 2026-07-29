@@ -11675,3 +11675,410 @@ export async function listCounselorAssignments(
     }),
   };
 }
+
+// ── 초대 토큰 (D39 · ADR-0016 · CCC-29) ─────────────────────────────────────
+//
+// 1차 MVP 가입 흐름의 기반. 토큰이 곧 자격이다(로그인 없음, 당사자는 users 미등재).
+// 그래서 이 절의 조회·소비 함수는 예외적으로 Actor 없이 토큰 문자열을 받는다 —
+// 인증 밖의 유일한 문이며, HTTP 라우트 테스트가 이 경계를 고정한다(스펙 #78 ②).
+// 발급은 여전히 Actor 검사(R1)를 거치고, 발급·소비 전건이 audit_log 에 남는다(D14).
+
+export type InviteKind = 'participant' | 'counselor';
+
+export interface InviteToken {
+  token: string;
+  kind: InviteKind;
+  orgId: string;
+  /** participant 초대에는 항상 있고(링크가 사업을 정한다), counselor 초대는 null. */
+  programType: string | null;
+  issuedBy: string;
+  status: 'issued' | 'used';
+  issuedAt: string;
+  usedAt: string | null;
+}
+
+/** 초대 소비를 감사할 때 쓰는 시스템 행위자 id. 가입자는 아직 디렉터리에 없다. */
+export const INVITE_SIGNUP_ACTOR_ID = 'system:invite-signup';
+
+/** 32바이트 난수 hex(64자). 추측·열거 불가가 이 토큰 보안의 전부다(의미 정보 금지, D20 참조). */
+function newInviteTokenValue(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function mapInviteToken(row: DbRow): InviteToken {
+  return {
+    token: stringValue(row.token),
+    kind: stringValue(row.kind) as InviteKind,
+    orgId: stringValue(row.org_id),
+    programType: row.program_type === null ? null : stringValue(row.program_type),
+    issuedBy: stringValue(row.issued_by),
+    status: stringValue(row.status) as InviteToken['status'],
+    issuedAt: stringValue(row.issued_at),
+    usedAt: row.used_at === null ? null : stringValue(row.used_at),
+  };
+}
+
+/**
+ * 당사자 가입 링크 발급(ADR-0016 결정 5). 실무자·관리자(사람)만 발급할 수 있고,
+ * 링크에 사업(programType)과 발급자(actor)가 묶인다 — 가입 완료 시 이 발급자가
+ * 담당 실무자가 된다(소비는 CCC-28의 가입 처리 몫).
+ */
+export async function createParticipantInvite(
+  env: Env,
+  actor: Actor,
+  input: { programType: string },
+): Promise<InviteToken> {
+  assertHuman(actor);
+  assertFinancialSupportProgramType(input.programType);
+
+  const token = newInviteTokenValue();
+  await env.DB.prepare(
+    `INSERT INTO invite_tokens (token, org_id, kind, program_type, issued_by)
+     VALUES (?, ?, 'participant', ?, ?)`,
+  ).bind(token, actor.orgId, input.programType, actor.userId).run();
+
+  await writeAudit(env, actor, {
+    action: 'invite_issue',
+    targetTable: 'invite_tokens',
+    targetId: token,
+    detail: { kind: 'participant', programType: input.programType },
+  });
+
+  return getInviteTokenOrThrow(env, token);
+}
+
+/**
+ * 실무자 초대 링크 발급(CCC-33 이 화면을 단다). 관리자만 발급한다.
+ * 가입 시 users 등재로 이어진다 — 소비는 counselor 종류로만 가능하다.
+ */
+export async function createCounselorInvite(env: Env, actor: Actor): Promise<InviteToken> {
+  assertAdmin(actor);
+
+  const token = newInviteTokenValue();
+  await env.DB.prepare(
+    `INSERT INTO invite_tokens (token, org_id, kind, program_type, issued_by)
+     VALUES (?, ?, 'counselor', NULL, ?)`,
+  ).bind(token, actor.orgId, actor.userId).run();
+
+  await writeAudit(env, actor, {
+    action: 'invite_issue',
+    targetTable: 'invite_tokens',
+    targetId: token,
+    detail: { kind: 'counselor' },
+  });
+
+  return getInviteTokenOrThrow(env, token);
+}
+
+async function getInviteTokenOrThrow(env: Env, token: string): Promise<InviteToken> {
+  const row = await env.DB.prepare('SELECT * FROM invite_tokens WHERE token = ?')
+    .bind(token)
+    .first<DbRow>();
+  if (row === null) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  return mapInviteToken(row);
+}
+
+/**
+ * 토큰 경계 조회(Actor 없음): 가입 화면이 "이 링크가 아직 유효한가 + 어느 기관·사업의
+ * 초대인가"를 푸는 입구다. 종류 불일치·무효·이미 사용된 토큰은 전부 같은
+ * ForbiddenError 로 거부한다 — 무엇이 틀렸는지 구분해 주면 열거 단서가 된다.
+ */
+export async function getInviteForSignup(
+  env: Env,
+  token: string,
+  kind: InviteKind,
+): Promise<InviteToken> {
+  if (token.length === 0) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  const invite = await getInviteTokenOrThrow(env, token);
+  if (invite.kind !== kind || invite.status !== 'issued') {
+    throw new ForbiddenError('invite token is not available');
+  }
+  return invite;
+}
+
+/**
+ * 토큰 소비(단방향 issued → used). UPDATE 의 WHERE status='issued' 가 원자적
+ * 이중 사용 방지다 — 같은 토큰으로 두 번 가입할 수 없다. 가입자는 아직 디렉터리에
+ * 없으므로 감사는 시스템 행위자(INVITE_SIGNUP_ACTOR_ID)로 남긴다(D14).
+ */
+export async function consumeInviteToken(
+  env: Env,
+  token: string,
+  kind: InviteKind,
+  usedBy: { beneficiaryId?: string; userId?: string },
+): Promise<InviteToken> {
+  const invite = await getInviteForSignup(env, token, kind);
+
+  const result = await env.DB.prepare(
+    `UPDATE invite_tokens
+     SET status = 'used', used_at = datetime('now'), used_by_beneficiary_id = ?, used_by_user_id = ?
+     WHERE token = ? AND status = 'issued'`,
+  ).bind(usedBy.beneficiaryId ?? null, usedBy.userId ?? null, token).run();
+
+  if (result.meta.changes !== 1) {
+    throw new ForbiddenError('invite token is not available');
+  }
+
+  await writeAudit(env, systemActor(INVITE_SIGNUP_ACTOR_ID, invite.orgId), {
+    action: 'invite_consume',
+    targetTable: 'invite_tokens',
+    targetId: token,
+    detail: { kind, beneficiaryId: usedBy.beneficiaryId ?? null, userId: usedBy.userId ?? null },
+  });
+
+  return getInviteTokenOrThrow(env, token);
+}
+// ============================================================================
+// 당사자 자기 가입(self signup) — 토 권한 원자 트랜잭션 (D39 · ADR-0016 · CCC-28)
+//
+// 당사자는 users 에 들지 않고 고유 토큰 링크로 가입한다. 이 함수는 인증된 행위자를
+// 받지 않는다 — 토큰이 곧 자격이다. 대신 토큰에 박힌 발급자(issuedBy)를 '후원 행위자'
+// 로 복원해 당사자·케이스·배정의 생성 감사를 남기고, 그 발급자를 담당 실무자로 배정한다
+// (ADR-0016 결정 5). 동의 기록의 recorded_by 는 'self'(당사자 본인)로 둔다(결정 6).
+//
+// 한 배치(트랜잭션) 안에서: 당사자+금고+케이스+배정+생성 감사 3건+완료 전환, 그 뒤
+// 동의 기록(recorded_by='self')+record_consent 감사, 마지막으로 토큰 소비 UPDATE+
+// invite_consume 감사(시스템 행위자)를 넣는다. 토 소비를 같은 배치에 넣는 이유는
+// 원자성 — 동시 이중 제출에서 진 쪽은 invite_tokens_no_double_consume 가드(0019)가
+// 트랜잭션 전체를 되감아 고아 당사자가 남지 않게 한다.
+//
+// 감사 행위자 분리: 생성 3건+record_consent 감사는 후원 행위자(실제 사용자, 감사
+// provenance 가드를 만족)로, invite_consume 감사는 시스템 행위자(INVITE_SIGNUP_ACTOR_ID)
+// 로 남긴다. 후자는 beneficiary_id 를 갖지 않으므로 provenance 가드의 WHEN 에 걸리지
+// 않는다. 동의 행의 recorded_by='self' 는 0019 가드가 허용한다.
+// ============================================================================
+
+/** 자기 가입 동의의 기록자 표식. 당사자 본인이 체크했음을 나타낸다(ADR-0016 결정 6). */
+export const PARTICIPANT_SELF_RECORDER = 'self';
+
+export interface ParticipantSignupInput {
+  token: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  // 동의 3종(D44) — privacy 를 필수로 좁힌다. updateParticipantConsent 와 같은 모양이라
+  // 등록 시 받은 값과 이후 수정·철회가 같은 어휘를 쓴다.
+  consent: ParticipantConsentInput & { privacy: boolean };
+}
+
+export interface ParticipantSignupResult {
+  beneficiaryId: string;
+  supportCaseId: string;
+}
+
+/**
+ * 당사자 가입 링크로 가입을 완료한다(원자). 토 검증 → 당사자+케이스+담당 배정+
+ * 동의 기록(기록자=본인) → 토큰 소비를 한 트랜잭션에 묶는다. 인증된 행위자를 받지
+ * 않는다(토큰이 자격). 이미 소비되었거나 없는 토큰은 ForbiddenError, 동시 이중 제출은
+ * ConflictError, 입력 결함은 ValidationError.
+ */
+export async function completeParticipantSignup(
+  env: Env,
+  input: ParticipantSignupInput,
+): Promise<ParticipantSignupResult> {
+  const optionalKeys = (['phone', 'email'] as const).filter((key) => input[key] !== undefined);
+  assertExactKeys(input, ['token', 'name', 'consent', ...optionalKeys]);
+  assertNonBlankText(input.token, 'token');
+  assertNonBlankText(input.name, 'name');
+  for (const key of optionalKeys) {
+    const value = input[key];
+    if (value !== null) assertNonBlankText(value, key);
+  }
+  // 동의 3종(D44). 자기 가입은 등록이므로 등록 경로와 같은 3체크를 받는다. 셋 다 필수
+  // boolean 이되 값은 강제하지 않는다 — 미동의여도 가입은 진행된다(D15 미동의 경로).
+  if (
+    input.consent === null
+    || typeof input.consent !== 'object'
+    || typeof input.consent.privacy !== 'boolean'
+    || typeof input.consent.recording !== 'boolean'
+    || typeof input.consent.textAi !== 'boolean'
+  ) {
+    throw new ValidationError('consent is required');
+  }
+
+  // 순차 이중 제출 게이트: 이미 소비되었거나 종류가 안 맞으면 여기서 거부한다.
+  // 동시 경계는 아래 배치 안의 가드가 맡는다.
+  const invite = await getInviteForSignup(env, input.token, 'participant');
+  const programType = invite.programType;
+  if (programType === null) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  assertFinancialSupportProgramType(programType);
+
+  // 후원 행위자 복원: 발급자가 활성 사용자인지 확인하고 역할까지 가져와 감사·배정에 쓴다.
+  const sponsorRow = await env.DB.prepare(
+    `SELECT id, role FROM users
+     WHERE id = ? AND org_id = ? AND active = 1 AND role IN ('admin', 'counselor')`,
+  ).bind(invite.issuedBy, invite.orgId).first<{ id: string; role: string }>();
+  if (sponsorRow === null) {
+    throw new ForbiddenError('invite sponsor is unavailable');
+  }
+  const sponsorActor: Actor = { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
+
+  await assertOrganizationSettings(env, invite.orgId);
+  const piiKeyVersion = activePiiKeyVersion(env);
+  const encName = await encryptPii(env, input.name);
+  const encPhone = input.phone === undefined || input.phone === null ? null : await encryptPii(env, input.phone);
+  const encEmail = input.email === undefined || input.email === null ? null : await encryptPii(env, input.email);
+
+  let finalError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const beneficiaryId = await allocateBeneficiaryId(env, invite.orgId);
+    const supportCaseId = newId();
+    const assignmentId = newId();
+    const consentRecordId = newId();
+    const createdAt = now();
+    const consentRecordingAt = input.consent.recording ? createdAt : null;
+    const consentTextAiAt = input.consent.textAi ? createdAt : null;
+    const consentPrivacyAt = input.consent.privacy ? createdAt : null;
+    try {
+      const statements: D1PreparedStatement[] = [
+        env.DB.prepare(
+          `INSERT INTO beneficiaries (
+             id, org_id, initialization_state, created_at, updated_at
+           ) VALUES (?, ?, 'pending', ?, ?)`,
+        ).bind(beneficiaryId, invite.orgId, createdAt, createdAt),
+        env.DB.prepare(
+          `INSERT INTO participant_pii_vault (
+             beneficiary_id, org_id, enc_name, enc_phone, enc_email, key_version, version,
+             retention_change_kind, retention_changed_at, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 1, 'create', ?, ?, ?)`,
+        ).bind(beneficiaryId, invite.orgId, encName, encPhone, encEmail, piiKeyVersion, createdAt, createdAt, createdAt),
+        env.DB.prepare(
+          `INSERT INTO support_cases (
+             id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
+             consent_recording_at, consent_text_ai_at, consent_privacy_at, creation_kind, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
+        ).bind(
+          supportCaseId,
+          invite.orgId,
+          beneficiaryId,
+          null,
+          programType,
+          null,
+          consentRecordingAt,
+          consentTextAiAt,
+          consentPrivacyAt,
+          createdAt,
+          createdAt,
+        ),
+        env.DB.prepare(
+          `INSERT INTO support_case_assignees (
+             id, org_id, support_case_id, user_id, role, assigned_at
+           ) VALUES (?, ?, ?, ?, 'primary', ?)`,
+        ).bind(assignmentId, invite.orgId, supportCaseId, sponsorRow.id, createdAt),
+        canonicalAuditStatement(env, sponsorActor, {
+          action: 'create',
+          targetTable: 'beneficiaries',
+          targetId: beneficiaryId,
+          beneficiaryId,
+          supportCaseId: null,
+          detail: { schemaVersion: 1, via: 'invite_signup' },
+          caseId: null,
+        }),
+        canonicalAuditStatement(env, sponsorActor, {
+          action: 'create',
+          targetTable: 'support_cases',
+          targetId: supportCaseId,
+          beneficiaryId,
+          supportCaseId,
+          detail: { programType, schemaVersion: 1, via: 'invite_signup' },
+          caseId: null,
+        }),
+        canonicalAuditStatement(env, sponsorActor, {
+          action: 'assign',
+          targetTable: 'support_case_assignees',
+          targetId: assignmentId,
+          beneficiaryId,
+          supportCaseId,
+          detail: { role: 'primary', initial: true, via: 'invite_signup' },
+          caseId: null,
+        }),
+        env.DB.prepare(
+          `UPDATE beneficiaries
+           SET initialization_state = 'complete', updated_at = ?
+           WHERE id = ? AND org_id = ? AND initialization_state = 'pending'`,
+        ).bind(createdAt, beneficiaryId, invite.orgId),
+      ];
+      const completionIndex = statements.length - 1;
+      // 동의 기록(기록자=본인) + 감사는 완료 전환 뒤에 쌓는다(beneficiaries_complete_guard 가
+      // 그 시점에 당사자 감사 3건을 요구하므로).
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO participant_consent_records (
+             id, org_id, beneficiary_id, support_case_id, consent_recording_at,
+             consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          consentRecordId,
+          invite.orgId,
+          beneficiaryId,
+          supportCaseId,
+          consentRecordingAt,
+          consentTextAiAt,
+          consentPrivacyAt,
+          PARTICIPANT_SELF_RECORDER,
+          createdAt,
+          createdAt,
+        ),
+        canonicalAuditStatement(env, sponsorActor, {
+          action: 'record_consent',
+          targetTable: 'participant_consent_records',
+          targetId: consentRecordId,
+          beneficiaryId,
+          supportCaseId,
+          detail: {
+            privacy: input.consent.privacy,
+            recording: input.consent.recording,
+            textAi: input.consent.textAi,
+            recorder: PARTICIPANT_SELF_RECORDER,
+          },
+          caseId: null,
+        }),
+      );
+      // 토큰 소비를 같은 배치에: 상태 술어 없이 업데이트해 경계에서 used 행을 맞춰도
+      // 가드(0019)가 used->used 를 RAISE 로 막아 트랜잭션 전체를 되감게 한다.
+      statements.push(
+        env.DB.prepare(
+          `UPDATE invite_tokens
+           SET status = 'used', used_at = ?, used_by_beneficiary_id = ?, used_by_user_id = NULL
+           WHERE token = ?`,
+        ).bind(createdAt, beneficiaryId, input.token),
+        env.DB.prepare(
+          `INSERT INTO audit_log (
+             org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, datetime('now'))`,
+        ).bind(
+          invite.orgId,
+          INVITE_SIGNUP_ACTOR_ID,
+          'service',
+          'invite_consume',
+          'invite_tokens',
+          input.token,
+          stringifyJson({ kind: 'participant', beneficiaryId, via: 'signup' }),
+        ),
+      );
+
+      const results = await env.DB.batch(statements);
+      const completion = results[completionIndex] as unknown as { meta?: { changes?: number } };
+      if ((completion.meta?.changes ?? 0) < 1) {
+        throw new ConflictError('participant initialization did not complete');
+      }
+      return { beneficiaryId, supportCaseId };
+    } catch (error) {
+      finalError = error;
+      if (!isUniqueConstraintError(error)) break;
+    }
+  }
+  // 동시 이중 제출: 진 쪽 배치는 가드가 되감았고, 그 오류를 409 로 번역한다.
+  if (finalError instanceof Error && finalError.message.includes('invite_token_already_used')) {
+    throw new ConflictError('invite token already used');
+  }
+  throw finalError instanceof Error ? finalError : new ConflictError('participant signup conflicted');
+}
+

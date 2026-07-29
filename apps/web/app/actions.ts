@@ -25,6 +25,9 @@ import {
   createGoal,
   createInitialParticipantProgram,
   createManualSession,
+  createParticipantInvite,
+  getPublicInviteInfo,
+  signupParticipant,
   createSubsequentParticipantProgram,
   editAiDraft,
   getMyIdentity,
@@ -887,6 +890,54 @@ export async function registerCounselorAction(formData: FormData): Promise<void>
   revalidatePath('/admin/invite');
   revalidatePath('/admin/users');
   redirect(withNotice('/admin/invite', 'notice', 'counselor_registered'));
+}
+
+export type ParticipantInviteResult = { status: 'created'; token: string } | { status: Notice };
+
+// 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 링크·QR·이메일 문안 조립은 화면 몫이고
+// 여기는 토큰만 받아 넘긴다. 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
+export async function createParticipantInviteAction(): Promise<ParticipantInviteResult> {
+  try {
+    const invite = await createParticipantInvite('financial_support_v1');
+    return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type ParticipantSignupResult =
+  | { status: 'created'; beneficiaryId: string; supportCaseId: string }
+  | { status: Notice };
+
+/**
+ * 당사자 자기 가입(CCC-28 · D39 · ADR-0016 #4). 공개 경로 — 인증 불필요.
+ * 성공 시 당사자+케이스+담당 배정이 원자 생성되고 201 반환. 토큰 무효·이미 소비는
+ * not_found. 리다이렉트 없음 — 클라이언트가 인라인 완료 상태를 표시한다.
+ */
+export async function signupParticipantAction(formData: FormData): Promise<ParticipantSignupResult> {
+  const token = requiredValue(formData, 'token');
+  const name = requiredValue(formData, 'name');
+  const phone = formData.get('phone');
+  const email = formData.get('email');
+  // 항목별 동의 3종(D44): 등록 화면과 같은 체크박스 이름·순서. 기본 미체크이고
+  // 미동의여도 가입은 진행된다(D15).
+  const consent = {
+    privacy: checkbox(formData, 'consentPrivacy'),
+    recording: checkbox(formData, 'consentRecording'),
+    textAi: checkbox(formData, 'consentTextAi'),
+  };
+  try {
+    const result = await signupParticipant({
+      token,
+      name,
+      ...(typeof phone === 'string' && phone.trim().length > 0 ? { phone: phone.trim() } : {}),
+      ...(typeof email === 'string' && email.trim().length > 0 ? { email: email.trim() } : {}),
+      consent,
+    });
+    return { status: 'created', beneficiaryId: result.beneficiaryId, supportCaseId: result.supportCaseId };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
 }
 
 const SCHEDULE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

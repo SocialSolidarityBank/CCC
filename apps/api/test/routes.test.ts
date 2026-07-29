@@ -10,6 +10,7 @@ import {
   registerAiProviderConfiguration,
   registerRecording,
   updateParticipantPii,
+  createParticipantInvite,
 } from '../../../db/gateway';
 import {
   AI_PROVIDER_REGISTRY_VERSION,
@@ -3055,5 +3056,99 @@ describe('support case overall goal route (D45 · CCC-41)', () => {
       supportCaseId: creation.supportCaseId,
       overallGoal: null,
     });
+  });
+});
+
+describe('public participant signup routes (CCC-28)', () => {
+  const counselor = {
+    userId: counselorHeaders['X-CCC-User-Id'],
+    orgId: counselorHeaders['X-CCC-Org-Id'],
+    role: 'counselor' as const,
+  };
+
+  async function issueToken(): Promise<string> {
+    await t.reset();
+    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    return invite.token;
+  }
+
+  it('GET /invites/participant/:token returns programType for a valid token', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request(`http://localhost/invites/participant/${token}`),
+      t.env,
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ programType: 'financial_support_v1' });
+  });
+
+  it('GET /invites/participant/:token returns 404 for unknown token', async () => {
+    await t.reset();
+    const res = await worker.fetch(
+      new Request('http://localhost/invites/participant/0000000000000000000000000000000000000000000000000000000000000000'),
+      t.env,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /signup/participant creates beneficiary + case and returns 201', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          name: '테스트 당사자',
+          phone: '010-1234-5678',
+          consent: { privacy: true, recording: true, textAi: false },
+        }),
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json() as { beneficiaryId: string; supportCaseId: string };
+    expect(body.beneficiaryId).toBeTruthy();
+    expect(body.supportCaseId).toBeTruthy();
+  });
+
+  it('POST /signup/participant returns 404 for already-used token', async () => {
+    const token = await issueToken();
+    const body = {
+      token,
+      name: '첫 가입',
+      consent: { privacy: true, recording: true, textAi: true },
+    };
+    const first = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      t.env,
+    );
+    expect(first.status).toBe(201);
+    const second = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      t.env,
+    );
+    expect(second.status).toBe(404);
+  });
+
+  it('POST /signup/participant returns 400 when consent is missing', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, name: '이름만' }),
+      }),
+      t.env,
+    );
+    expect(res.status).toBe(400);
   });
 });

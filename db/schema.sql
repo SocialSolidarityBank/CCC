@@ -4602,8 +4602,9 @@ BEGIN
       AND beneficiary_id = NEW.beneficiary_id
   );
 
+  -- 'self' 는 자기 가입(당사자 본인)의 기록자 표식(0022 · D39). 그 외는 활성 사용자여야 한다.
   SELECT RAISE(ABORT, 'participant_schema_violation')
-  WHERE NOT EXISTS (
+  WHERE NEW.recorded_by <> 'self' AND NOT EXISTS (
     SELECT 1 FROM users
     WHERE id = NEW.recorded_by AND org_id = NEW.org_id
       AND active = 1 AND role IN ('admin', 'counselor')
@@ -4775,6 +4776,43 @@ ALTER TABLE participant_pii_vault ADD COLUMN enc_gender TEXT;
 -- 추가 전용: ALTER 는 기존 행을 NULL(미동의)로 백필한다 — 받지 않은 동의를 만들지 않는다.
 -- ----------------------------------------------------------------------------
 ALTER TABLE support_cases ADD COLUMN consent_privacy_at TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 0021 — 초대 토큰 (D39 · ADR-0016 · CCC-29 — 구 0018, 리베이스 시 리네임)
+-- 당사자 가입 링크(사업+발급 실무자 묶음)와 실무자 초대 링크의 공용 기반.
+-- 토큰이 곧 자격(로그인 없음): 32바이트 난수 hex, 발급·소비는 gateway 만(R1)
+-- + 전건 감사(D14). status 는 issued → used 단방향, 만료 정책은 D26 법률 검토
+-- 후 실제 인증 설계와 함께. 상세 주석: migrations/0021_invite_tokens.sql.
+-- ----------------------------------------------------------------------------
+CREATE TABLE invite_tokens (
+  token                   TEXT PRIMARY KEY,
+  org_id                  TEXT NOT NULL,
+  kind                    TEXT NOT NULL CHECK (kind IN ('participant', 'counselor')),
+  program_type            TEXT,
+  issued_by               TEXT NOT NULL,
+  status                  TEXT NOT NULL DEFAULT 'issued' CHECK (status IN ('issued', 'used')),
+  issued_at               TEXT NOT NULL DEFAULT (datetime('now')),
+  used_at                 TEXT,
+  used_by_beneficiary_id  TEXT,
+  used_by_user_id         TEXT,
+  CHECK (kind != 'participant' OR program_type IS NOT NULL)
+);
+
+CREATE INDEX idx_invite_tokens_org ON invite_tokens (org_id, kind, status);
+
+-- ----------------------------------------------------------------------------
+-- 0022 — 자기 가입(self signup) (D39 · ADR-0016 · CCC-28 — 구 0019, 리베이스 시 리네임)
+-- 위 participant_consent_records_insert_guard 의 'self' 예외가 이 마이그레이션 몫이고,
+-- 아래 트리거가 토큰 이중 소비를 DB 차원에서 막는다. JS 에서 UPDATE 의 changes 를 보는
+-- 방식은 배치 커밋 뒤에야 읽히므로 동시 이중 제출에서 고아 당사자를 남긴다.
+-- 상세 주석: migrations/0022_participant_self_signup.sql.
+-- ----------------------------------------------------------------------------
+CREATE TRIGGER invite_tokens_no_double_consume
+BEFORE UPDATE ON invite_tokens
+WHEN NEW.status = 'used' AND OLD.status <> 'issued'
+BEGIN
+  SELECT RAISE(ABORT, 'invite_token_already_used');
+END;
 
 -- ----------------------------------------------------------------------------
 -- 0024: 전체 목표 (D45 · CCC-41). 케이스당 1개·수정 가능·점수 없음(D33) — goals 테이블

@@ -31,6 +31,9 @@ import {
   createCase,
   createCounselingRecord,
   createIntakeRecord,
+  createParticipantInvite,
+  completeParticipantSignup,
+  getInviteForSignup,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -108,6 +111,8 @@ import {
   validateDiscrepancyDetectionRequest,
 } from './ai-provider';
 import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
+// preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
+import { previewModeEnabled } from './preview-gate';
 import {
   MAX_AUDIO_BYTES,
   deleteAudioObject,
@@ -1443,6 +1448,67 @@ export async function handleRequest(
   if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', service: 'ccc-api' });
 
   try {
+    // ── 공개 경로: 당사자 자기 가입(토큰이 자격, Access 불필요, D39 · CCC-28) ──
+    //
+    // **미리보기에는 공개 표면을 두지 않는다**(2026-07-28 Q 결정, ADR-0016 개정).
+    // 미리보기 워커에서는 이 두 경로도 지정 코드 세션을 먼저 요구한다 — 통과하면
+    // 그대로 공개 경로로 처리하므로 팀원은 코드만 있으면 가입 흐름을 검수할 수 있다.
+    // 실패는 인증 경로와 같은 401/403 으로 떨어진다(가입 경로만 다르게 답하면 그 자체가
+    // 단서다). 운영·로컬에서는 previewModeEnabled 가 false 라 이 줄이 아무 일도 안 한다.
+    const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
+    const publicSignupPath =
+      (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
+      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant');
+    if (publicSignupPath && previewModeEnabled(env)) await resolveActor(request, env);
+    if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
+      requestQuery(url, []);
+      // 빈 토큰은 조회 자체를 하지 않는다 — 아래 실패들과 같은 404 로 맞춰 응답을 구분 불가하게 둔다.
+      const pathToken = pubParts[2] ?? '';
+      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
+      try {
+        const invite = await getInviteForSignup(env, pathToken, 'participant');
+        if (invite.programType === null) return json({ error: 'not_found' }, 404);
+        return json({ programType: invite.programType });
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
+    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant') {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      const token = requiredString(body, 'token');
+      const name = requiredString(body, 'name');
+      const phone = optionalString(body, 'phone');
+      const email = optionalString(body, 'email');
+      // 동의 3종(D44): 개인정보·녹음·텍스트 AI. 자기 가입이 곧 등록이므로 등록 화면과
+      // 같은 3체크를 받는다. 셋 다 독립 boolean 이고 강제하지 않는다 — 미동의여도 가입은
+      // 진행된다(D15 미동의 경로). 개인정보 동의는 파이프라인 게이트가 아니다.
+      const consentRaw = body.consent;
+      if (
+        consentRaw === null
+        || typeof consentRaw !== 'object'
+        || !('privacy' in consentRaw)
+        || !('recording' in consentRaw)
+        || !('textAi' in consentRaw)
+        || typeof consentRaw.privacy !== 'boolean'
+        || typeof consentRaw.recording !== 'boolean'
+        || typeof consentRaw.textAi !== 'boolean'
+      ) {
+        throw new ValidationError('consent is required');
+      }
+      const consent = { privacy: consentRaw.privacy, recording: consentRaw.recording, textAi: consentRaw.textAi };
+      const signupInput: Parameters<typeof completeParticipantSignup>[1] = { token, name, consent };
+      if (phone != null) signupInput.phone = phone;
+      if (email != null) signupInput.email = email;
+      try {
+        const result = await completeParticipantSignup(env, signupInput);
+        return json(result, 201);
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
     const actor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'schedules') {
@@ -1538,6 +1604,14 @@ export async function handleRequest(
         requestQuery(url, []);
         return json(scheduleSessionPlanResponse(await getScheduleSessionPlan(env, actor, scheduleId)));
       }
+    }
+    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'participant') {
+      // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 사람(실무자·관리자)만 —
+      // 권한·감사는 createParticipantInvite(R1 관문) 내장. 소비·가입은 CCC-28.
+      requestQuery(url, []);
+      const programType = (await requestBody(request)).programType;
+      if (typeof programType !== 'string') throw new ValidationError('program type is required');
+      return json(await createParticipantInvite(env, actor, { programType }), 201);
     }
     if (
       request.method === 'POST'
