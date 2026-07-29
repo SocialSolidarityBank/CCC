@@ -197,6 +197,7 @@ const OFFICIAL_CANARIES = {
   contrast: 'UNAPPROVED_CONTRAST_CANARY',
   emotion: 'UNAPPROVED_EMOTION_CANARY',
   draft: 'UNAPPROVED_DRAFT_CANARY',
+  oneLiner: 'UNAPPROVED_ONE_LINER_CANARY',
   evidence: 'UNAPPROVED_EVIDENCE_CANARY',
   providerApproval: 'UNAPPROVED_PROVIDER_APPROVAL_CANARY',
   providerModel: 'UNAPPROVED_PROVIDER_MODEL_CANARY',
@@ -285,14 +286,15 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
   ).bind(workItemId, counselor.orgId, sessionScope.support_case_id, session.id, 'text_ai_briefing', createdAt).run();
   await t.db.prepare(
     `INSERT INTO ai_draft_versions (
-      id, work_item_id, version, parent_version_id, summary_text, questions_json,
+      id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json,
       source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
       origin, creation_mode, grounding_status, created_by, created_at
-    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
   ).bind(
     draftId,
     workItemId,
     OFFICIAL_CANARIES.draft,
+    OFFICIAL_CANARIES.oneLiner,
     JSON.stringify(['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?']),
     source.snapshotId,
     source.snapshotHash,
@@ -387,6 +389,7 @@ async function createReviewReadySession() {
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'AI_SUMMARY_DEMO',
+    oneLiner: 'AI_ONE_LINER_DEMO',
     questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
@@ -518,6 +521,7 @@ async function createPilotDraft(
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'GROUNDED_AI_SUMMARY_DEMO',
+    oneLiner: 'GROUNDED_AI_ONE_LINER_DEMO',
     questions: ['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?'],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
@@ -642,8 +646,17 @@ describe('gateway domain records', () => {
       emotionScores: null,
     });
     expect(approvedBefore).toEqual([]);
+    // 참여자 브리핑의 회차 줄(핵심 한 줄 포함)도 승인 전에는 어떤 캐너리도 싣지 않는다(R2·CCC-38).
+    const briefingScope = await t.db.prepare(
+      'SELECT id, beneficiary_id FROM support_cases WHERE COALESCE(legacy_case_id, id) = ?',
+    ).bind(fixture.caseId).first<{ id: string; beneficiary_id: string }>();
+    if (briefingScope === null) throw new Error('expected canonical support case scope');
+    const participantBefore = await getParticipantBriefing(
+      t.env, counselor, briefingScope.beneficiary_id, briefingScope.id,
+    );
+    expect(participantBefore.sessionRows).toEqual([expect.objectContaining({ aiOneLiner: null })]);
     expectNoCanaries(
-      { briefingBefore, sessionsBefore, exportBefore, approvedBefore },
+      { briefingBefore, sessionsBefore, exportBefore, approvedBefore, participantBefore },
       allCanaries,
     );
 
@@ -661,6 +674,15 @@ describe('gateway domain records', () => {
       pendingApprovalCount: 0,
     });
     expect(briefingAfter.questions).toEqual(['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?']);
+    // 승인이 끝나야 핵심 한 줄이 공식 뷰와 브리핑 회차 줄에 실린다(CCC-38·D45 영역 ②).
+    expect(approvedAfter).toEqual([expect.objectContaining({ oneLiner: OFFICIAL_CANARIES.oneLiner })]);
+    const participantAfter = await getParticipantBriefing(
+      t.env, counselor, briefingScope.beneficiary_id, briefingScope.id,
+    );
+    expect(participantAfter.sessionRows).toEqual([expect.objectContaining({
+      sessionId: fixture.sessionId,
+      aiOneLiner: OFFICIAL_CANARIES.oneLiner,
+    })]);
     expect(sessionsAfter).toHaveLength(1);
     const sessionAfter = sessionsAfter[0];
     if (sessionAfter === undefined) throw new Error('expected approved official session');
@@ -719,7 +741,8 @@ describe('gateway domain records', () => {
     });
     expectNoCanaries(
       { briefingAfter, sessionsAfter, exportAfter, approvedAfter },
-      allCanaries.filter((canary) => canary !== OFFICIAL_CANARIES.draft),
+      // 요약과 핵심 한 줄은 승인으로 공식화됐으므로 승인 후에는 보이는 것이 맞다(CCC-38).
+      allCanaries.filter((canary) => canary !== OFFICIAL_CANARIES.draft && canary !== OFFICIAL_CANARIES.oneLiner),
     );
   });
 
@@ -2178,6 +2201,8 @@ describe('canonical participant gateway', () => {
       sourceSupportCase: expect.objectContaining({ id: initial.supportCaseId }),
       heldAt: '2026-07-15T10:00:00.000Z',
       kind: 'regular',
+      // 승인된 AI 한 줄이 없는 회차는 null — 화면은 수기 발췌 + '수기' 배지로 폴백한다(CCC-38·D5).
+      aiOneLiner: null,
       memoExcerpt: 'VISIBLE_MANUAL_MEMO',
     })]);
     expect(JSON.stringify(briefing)).not.toContain('HIDDEN_MANUAL_MEMO');

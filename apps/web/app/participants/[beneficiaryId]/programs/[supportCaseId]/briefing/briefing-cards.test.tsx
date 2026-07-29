@@ -17,8 +17,8 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
     programLabel: '마이크로크레딧 씬파일러 금융지원·멘토링',
     participant: { name: '홍길동', phone: '010-1234-5678' },
     sessionRows: [
-      { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', kind: 'regular', memoExcerpt: '구직 활동 근황과 지출 정리를 확인했다' },
-      { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', kind: 'intake', memoExcerpt: '채무 현황과 정서적 어려움 확인' },
+      { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', kind: 'regular', aiOneLiner: null, memoExcerpt: '구직 활동 근황과 지출 정리를 확인했다' },
+      { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', kind: 'intake', aiOneLiner: null, memoExcerpt: '채무 현황과 정서적 어려움 확인' },
     ],
     pendingApprovalCount: 2,
     questions: ['최근 구직 활동은 어땠는지'],
@@ -103,7 +103,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(card.textContent).toContain('최근 구직 활동은 어땠는지');
   });
 
-  it('영역 ②는 회차마다 상담일·유형·한 줄을 표시한다', () => {
+  it('영역 ②는 회차마다 상담일·유형·한 줄을 표시하고, 수기 발췌에는 수기 배지가 붙는다 (CCC-38·D5)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
     const rows = [...card.querySelectorAll('li')].map((row) => row.textContent ?? '');
@@ -111,14 +111,32 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(rows[0]).toContain('2026-07-15');
     expect(rows[0]).toContain('기본 상담');
     expect(rows[0]).toContain('구직 활동 근황');
+    expect(rows[0]).toContain('수기');
     expect(rows[1]).toContain('2026-07-01');
     expect(rows[1]).toContain('인테이크');
     expect(rows[1]).toContain('채무 현황과 정서적 어려움 확인');
   });
 
+  it('승인된 AI 한 줄이 있는 회차는 그 한 줄을 싣고 수기 배지를 붙이지 않는다 (CCC-38·R2)', () => {
+    const { container } = render(<BriefingCards {...baseProps({
+      sessionRows: [{
+        sessionId: 's-4',
+        heldAt: '2026-07-18T05:00:00Z',
+        kind: 'regular',
+        aiOneLiner: '구직 지원금 신청을 완료하고 다음 면접 일정을 잡았다.',
+        memoExcerpt: '수기 발췌는 뒤로 밀린다',
+      }],
+    })} />);
+    const card = cardByTitle(container, '상담 내용 회차별 정리');
+    const row = card.querySelector('li')?.textContent ?? '';
+    expect(row).toContain('구직 지원금 신청을 완료하고 다음 면접 일정을 잡았다.');
+    // 승인된 한 줄이 있으면 수기 폴백(발췌·배지)은 나오지 않는다.
+    expect(row).not.toContain('수기');
+  });
+
   it('영역 ②의 수기 메모 없는 회차는 폴백 문구를, 회차가 없으면 빈 상태를 표시한다', () => {
     const { container } = render(<BriefingCards {...baseProps({
-      sessionRows: [{ sessionId: 's-3', heldAt: '2026-07-10T05:00:00Z', kind: 'regular', memoExcerpt: null }],
+      sessionRows: [{ sessionId: 's-3', heldAt: '2026-07-10T05:00:00Z', kind: 'regular', aiOneLiner: null, memoExcerpt: null }],
     })} />);
     expect(cardByTitle(container, '상담 내용 회차별 정리').textContent).toContain('수기 메모 없음');
 

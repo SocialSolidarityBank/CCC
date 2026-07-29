@@ -998,13 +998,14 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
         questions: briefing.questions
           .filter((question) => question.sourceSupportCase.id === sourceSupportCase.id)
           .map((question) => question.text),
-        // D45 영역 ② 회차별 정리 — 상담일·유형·수기 발췌 (최신순, 게이트웨이 정렬 보존).
+        // D45 영역 ② 회차별 정리 — 상담일·유형·핵심 한 줄(승인분)·수기 발췌 (최신순, 게이트웨이 정렬 보존).
         sessionRows: briefing.sessionRows
           .filter((row) => row.sourceSupportCase.id === sourceSupportCase.id)
           .map((row) => ({
             sessionId: row.sessionId,
             heldAt: row.heldAt,
             kind: row.kind,
+            aiOneLiner: row.aiOneLiner,
             memoExcerpt: row.memoExcerpt,
           })),
       };
@@ -1199,6 +1200,8 @@ function aiDraftResponse(draft: AiDraftVersion) {
   return {
     version: draft.version,
     summaryText: draft.summaryText,
+    // 승인 화면의 핵심 한 줄 항목(CCC-38) — 요약·질문과 함께 검토·승인된다(R2).
+    oneLiner: draft.oneLiner,
     reviewDecision: draft.reviewDecision,
     questions: draft.questions,
     evidence: draft.evidence.map((evidence) => ({
@@ -1299,6 +1302,7 @@ async function generateAiDraft(
   const summaryText = validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n'));
   return createGeneratedAiDraftForService(env, actor, sessionId, {
     summaryText,
+    oneLiner: output.oneLiner,
     sourceSnapshotId: sourceSnapshot.id,
     sourceSnapshotHash: sourceSnapshot.sha256,
     providerConfigId: activeProvider.providerConfigId,
