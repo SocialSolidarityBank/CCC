@@ -319,6 +319,10 @@ export interface BriefingUpcomingSchedule {
 export interface ParticipantBriefing {
   beneficiaryId: string;
   focusSupportCaseId: string;
+  /** D45 전체 목표 — 포커스 케이스당 1개, null = 설정 전. */
+  overallGoal: string | null;
+  /** D45: 담당 실무자만 그 자리 편집. admin 은 열람만이라 false 로 온다. */
+  canEditOverallGoal: boolean;
   // D24·ADR-0005: 담당·기관 관리자에게 기본 표시하는 실명·연락처. 미기입이면 null.
   participant: { name: string | null; phone: string | null };
   sections: ParticipantBriefingSection[];
@@ -1348,6 +1352,18 @@ export async function updateParticipantConsent(
     consent,
   );
   return decodeParticipantConsent(payload);
+}
+
+/** 전체 목표 그 자리 입력·수정 (D45 · CCC-41). null·빈 문자열은 "설정 전"으로 되돌린다. */
+export async function updateSupportCaseOverallGoal(
+  supportCaseId: string,
+  overallGoal: string | null,
+): Promise<{ supportCaseId: string; overallGoal: string | null }> {
+  return jsonRequest<{ supportCaseId: string; overallGoal: string | null }>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/overall-goal`,
+    'PUT',
+    { overallGoal },
+  );
 }
 
 /** 기본정보 수정 화면(CCC-37)이 다루는 금고 7종. 폼 필드 이름과 1:1이다. */

@@ -2918,3 +2918,72 @@ describe('canonical participant API routes', () => {
     expect(revealActionCount?.count).toBe(0);
   });
 });
+
+describe('support case overall goal route (D45 · CCC-41)', () => {
+  it('gates PUT /support-cases/:id/overall-goal to the assigned counselor and reflects it in the briefing', async () => {
+    const creation = await setupCanonicalParticipant();
+    const url = `http://localhost/support-cases/${creation.supportCaseId}/overall-goal`;
+
+    // 담당 실무자 저장 — 공백은 정리돼 돌아온다.
+    const saved = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: '  자립 기반 마련  ' }),
+    }), t.env);
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toEqual({
+      supportCaseId: creation.supportCaseId,
+      overallGoal: '자립 기반 마련',
+    });
+
+    // 브리핑에 실리고, 담당 실무자에게는 편집 가능으로 온다.
+    const briefing = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    expect(briefing.status).toBe(200);
+    await expect(briefing.json()).resolves.toMatchObject({
+      overallGoal: '자립 기반 마련',
+      canEditOverallGoal: true,
+    });
+
+    // admin 은 열람은 되지만(canEdit=false) 저장은 403 이다 (ADR-0018 '담당 실무자만').
+    const adminBriefing = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
+      { headers: canonicalAdminHeaders },
+    ), t.env);
+    await expect(adminBriefing.json()).resolves.toMatchObject({ canEditOverallGoal: false });
+    const adminPut = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalAdminHeaders,
+      body: JSON.stringify({ overallGoal: 'ADMIN_BLOCKED' }),
+    }), t.env);
+    expect(adminPut.status).toBe(403);
+
+    // 비담당 실무자는 접근 자체가 403(D7). 알 수 없는 키는 400.
+    const unassignedPut = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalUnassignedHeaders,
+      body: JSON.stringify({ overallGoal: 'NOT_ASSIGNED' }),
+    }), t.env);
+    expect(unassignedPut.status).toBe(403);
+    const badBody = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: 'x', unexpected: true }),
+    }), t.env);
+    expect(badBody.status).toBe(400);
+
+    // null 저장 = 설정 전으로 되돌림.
+    const cleared = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: null }),
+    }), t.env);
+    expect(cleared.status).toBe(200);
+    await expect(cleared.json()).resolves.toEqual({
+      supportCaseId: creation.supportCaseId,
+      overallGoal: null,
+    });
+  });
+});

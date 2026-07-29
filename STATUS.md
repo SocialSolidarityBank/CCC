@@ -2,8 +2,8 @@
 
 > **이 레포는 2026-07-28 전환으로 새로 시작했습니다.** 옛 히스토리와 상세 이력은 비공개 아카이브 `SocialSolidarityBank/CCC-archive`에 보존돼 있습니다. 이 문서의 과거 기록은 아카이브의 STATUS.md가 정본이며, 여기에는 개인정보가 포함된 원문을 싣지 않습니다. 옛 이슈·PR을 인용할 때는 `CCC-archive#NN` 형식을 씁니다.
 
-- **Last updated**: 2026-07-29 (Claude Code — CCC-40 구현: 브리핑 3영역 골격 + GAS 아코디언 제거. 브랜치 `feat/briefing-3sections`.)
-- **Current Phase**: **브리핑 3영역 골격 구현 완료(CCC-40)** — 남은 병렬 4건(CCC-41 전체 목표 카드 · CCC-38 핵심 한 줄 · CCC-39 AI 제안 구조화 · CCC-43 불일치 검출)은 이 PR 머지 후 main에서 각자 브랜치로.
+- **Last updated**: 2026-07-29 (Claude Code — CCC-41 구현: 전체 목표 카드 그 자리 입력·수정. 브랜치 `feat/ccc-41-overall-goal-card`.)
+- **Current Phase**: **브리핑 3영역 병렬 구현 중** — CCC-41(전체 목표 카드) 구현 완료, 남은 병렬 3건(CCC-38 핵심 한 줄 · CCC-39 AI 제안 구조화 · CCC-43 불일치 검출) + CCC-42(CCC-43 뒤). CCC-32(온보딩 이름)는 별도 세션에서 병렬 진행.
 
 ## Next 3 Actions
 
@@ -26,6 +26,7 @@
 
 ## History
 
+- 2026-07-29 (Claude Code): **CCC-41 — 전체 목표 카드, HERO 아래 그 자리 입력·수정(D45·ADR-0018, D43 미결 해소).** ① 마이그레이션 **0024** `support_cases.overall_goal`(케이스당 1개·수정 가능·점수 없음 — goals 테이블의 세부 목표 층과 분리, 번호는 PR #5의 0021·0022와 병렬 CCC-32의 0023을 피해 0024) ② gateway `setSupportCaseOverallGoal` — **담당 실무자만**(admin 열람만, ADR-0018), 활성 케이스만, 200자 상한, 빈 값=설정 전 복귀, 변경 전건 감사(detail에 목표 문장 미포함) + `getParticipantBriefing`에 `overallGoal`·`canEditOverallGoal` ③ API `PUT /support-cases/:id/overall-goal` ④ 브리핑 화면: 리스크 배너 아래 카드형 한 줄, 비면 "설정 전", 담당 실무자에게만 입력/수정 버튼 → 그 자리 폼(maxLength 200), 실패 시 카드 안 오류 한 줄. 게이트: 웹 155 ✓ · API 318 ✓ (build는 커밋 검증 워크트리에서 재확인). ⚠️ 같은 체크아웃에서 CCC-32 세션이 병렬 작업 중이어서 41 몫 변경만 훅 단위 선별 커밋 — 재발 방지는 세션별 `.worktrees/` 분리(메모리 기록).
 - 2026-07-29 (Claude Code): **동의서 법률 검토 패킷 v1 + 문안 v0.2.** ① 신규 `docs/consent/legal-review-packet-v1.md` — 자문용 패킷: 서비스 개요, 시스템의 실제 동의 처리(3종 구분·대행 입력·append-only 철회 이력·참여 사업 단위 재동의·해외 AI 위탁·아카이브 보존), 검토 질문 7건(문안 전반 / D36 표시 범위의 제3자 제공 여부 / AI 국외 이전 / 제21조 아카이브 정합·1년 근거 / 사업 단위 재동의 타당성 / 전자서명·직접 작성 요건 / 대행 입력 증빙력), 동의 노출 화면 4곳. ② `consent-draft-v0.md` v0.1→v0.2: 4절에 D36 문구("같은 기관의 다른 실무자에게는 참여 중인 사업 목록과 담당 실무자 이름이 표시됩니다") 추가 + 구 용어(상담사·배정 책임자·참여자) D40 정규화. ③ `consent-copy.ts` 4절에 같은 문구 동기화(정본-화면 동기 규칙). 게이트: 빌드 · 웹 테스트 145개 통과. 다음: Q가 패킷으로 자문 의뢰 → 회신 반영 → PR #5 머지 게이트 해제.
 
 - 2026-07-29 (Claude Code): **CCC-37 당사자 기본정보 수정 화면** — 등록 화면이 받는 7종(이름·휴대전화·이메일·계좌·생년월일·주소/거주지역·성별)을 등록 뒤에 고치는 자리를 `/participants/:id/edit` 에 신설했다. ① 저장은 기존 단일 관문 `updateParticipantPii`(R1) 그대로 — 새 복호화·저장 경로를 만들지 않았다. ② **권한 층 1건 변경**: `updateParticipantPii` 의 `assertAdmin` 을 뗐다. 근거는 등록(`createBeneficiaryWithInitialSupportCase`)이 이미 counselor 에게 같은 금고의 **6종**(이름·연락처·이메일·생년월일·주소·성별)을 열어 준다는 것 — 등록 때 쓸 수 있는 값을 등록 뒤에 못 고치면 오타 하나를 관리자에게 부탁해야 한다. **계좌만 예외**로 지금까지 admin 전용이었고, CCC-37 이 7종에 포함시켜 이번에 함께 열렸다(항목별 권한 분기는 두지 않는다 — 한 화면이 한 번에 저장하는 값에 축을 더하면 화면·게이트웨이·감사가 어긋난다). 케이스 단위 게이트는 그대로다(`assertActiveSupportCaseContext` → `assertSupportCaseAccess`: admin 또는 **활성 배정된 담당 실무자**). 레거시 `registerPii` 는 자기 자리의 `assertAdmin` 을 유지한다. ③ 읽기는 새 관문 `getParticipantBasicInfo` — 쓰기와 같은 문을 지나고 활성 참여 사업 컨텍스트까지 정해 돌려준다(화면이 사업을 고르지 않는다). 감사는 **화면 조회 1행**이며 추가 항목은 행을 나누지 않고 같은 행 `fields` 에 합친다(D24, `getIntakeRecordContext` 와 같은 방식). ④ 인테이크 1-1 의 '당사자 등록 정보에서 수정' 링크가 이 화면을 가리킨다 — 동의 링크(허브)와 목적지를 갈라 D44 코드와 얽지 않았다. ⑤ PII 는 브라우저 임시본·리다이렉트 주소에 담지 않는다(R3, 테스트로 고정). 게이트: build · guard:db · 테스트 457개(API 312 + 웹 145) 전부 통과. **PR #7로 머지**(계좌 권한 실무자 개방은 Q 승인 2026-07-29, PR 코멘트 기록).

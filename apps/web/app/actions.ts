@@ -36,6 +36,7 @@ import {
   reviewAiDraft,
   updateParticipantConsent,
   updateParticipantBasicInfo,
+  updateSupportCaseOverallGoal,
   type ManualActionItem,
   type ManualActionItemResolution,
   type ActionItemResolutionStatus,
@@ -661,6 +662,35 @@ export async function updateParticipantConsentAction(formData: FormData): Promis
   }
   if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
   redirect(withNotice(participantPath(beneficiaryId), 'notice', 'consent_updated'));
+}
+
+/**
+ * 전체 목표 그 자리 입력·수정 (D45 · CCC-41). 브리핑의 전체 목표 카드에서 제출한다.
+ * 빈 칸 저장은 "설정 전"으로 되돌린다(케이스당 1개·수정 가능·점수 없음 — D33).
+ * 권한(담당 실무자만)·감사(D14)는 게이트웨이가 판정한다 — 여기서는 값만 나른다.
+ * 성공 피드백은 별도 notice 없이 갱신된 카드 자체다. 실패만 notice 코드로 돌아온다.
+ */
+export async function updateOverallGoalAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    const overallGoal = nullableTrimmedText(formData, 'overallGoal', 200);
+    await updateSupportCaseOverallGoal(supportCaseId, overallGoal);
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  } catch {
+    // 실패 사유는 코드 하나로 뭉친다 — 길이 초과는 입력 maxLength 로 이미 막혀 있어,
+    // 남는 실패(권한·일시 장애)는 안내 한 줄이면 충분하다.
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined
+      ? '/participants'
+      : participantBriefingPath(beneficiaryId, supportCaseId);
+    redirect(withNotice(fallback, 'notice', 'overall_goal_error'));
+  }
+  if (beneficiaryId === undefined || supportCaseId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  redirect(participantBriefingPath(beneficiaryId, supportCaseId));
 }
 
 /**
