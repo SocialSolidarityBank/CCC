@@ -24,7 +24,10 @@ export function isKnownProgramType(value: string): value is ParticipantProgramTy
 
 /** 기관 식별값 → 표시명. 내부 전용 단일 기관(D1)이라 식별값 'bss'만 매핑한다. */
 export const ORG_ID = 'bss';
-export const ORG_LABELS: Record<string, string> = {
+// satisfies 로 키를 살려 둔다 — Record<string, string> 주석은 인덱싱 결과를
+// string | undefined 로 만들어, ORG_LABEL 을 string 자리(getDisplayLabels 폴백)에
+// 쓰는 코드가 CI 타입체크에서 깨진다(CCC-32 에서 실제 발생).
+export const ORG_LABELS = {
   bss: '사회연대은행',
-};
+} satisfies Record<string, string>;
 export const ORG_LABEL = ORG_LABELS[ORG_ID];
