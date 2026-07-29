@@ -27,9 +27,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # 전체 히스토리 스캔에 필요
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Run gitleaks
         env:
           GITLEAKS_VERSION: 8.30.1
         run: |
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
-          ./gitleaks git --no-banner --redact .
+          # 허용목록 회귀 테스트가 PATH 에서 gitleaks 를 찾으므로 여기 올려 둔다.
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks git --no-banner --redact .
+      - name: 허용목록이 파일을 통째로 가리지 않는지 확인
+        run: node scripts/guard-secrets-allowlist.test.mjs

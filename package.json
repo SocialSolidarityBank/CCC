@@ -12,6 +12,9 @@
     "typecheck": "pnpm --filter @ccc/api run typecheck && pnpm --filter @ccc/web run typecheck",
     "test": "pnpm --filter @ccc/api run test && pnpm --filter @ccc/web run test",
     "guard:db": "node scripts/guard-db-gateway.mjs",
+    "guard:secrets": "node scripts/guard-secrets.mjs",
+    "guard:secrets:history": "node scripts/guard-secrets.mjs --history",
+    "guard:secrets:allowlist": "node scripts/guard-secrets-allowlist.test.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "devDependencies": {
