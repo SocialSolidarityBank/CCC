@@ -18,8 +18,11 @@ import {
   StaleDraftVersionError,
   TextAiPilotDisabledError,
   ValidationError,
+  assertPilotTextAiConsent,
   assertRecordingUploadAllowed,
   approveSession,
+  collectDiscrepancyDetectionSources,
+  replaceSessionDiscrepancies,
   assignSupportCase,
   COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
@@ -101,6 +104,8 @@ import {
   validateAiEvidenceIds,
   validateAiProviderOutput,
   validateAiProviderRequest,
+  validateDiscrepancyDetectionOutput,
+  validateDiscrepancyDetectionRequest,
 } from './ai-provider';
 import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
 import {
@@ -1015,6 +1020,16 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             aiOneLiner: row.aiOneLiner,
             memoExcerpt: row.memoExcerpt,
           })),
+        // D45 영역 ③ 내용 불일치 — 저장된 검출 결과의 읽기 전용 표시(CCC-43). 판단 없음(R5).
+        discrepancies: briefing.discrepancies
+          .filter((item) => item.sourceSupportCase.id === sourceSupportCase.id)
+          .map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            left: item.left,
+            right: item.right,
+            detectedAt: item.detectedAt,
+          })),
       };
     }),
     // 포커스 참여사업의 다가오는 상담 일정의 세션 목표·맞춤형 질문 (D28, 티켓 #34 소비).
@@ -1222,6 +1237,41 @@ function aiDraftResponse(draft: AiDraftVersion) {
 function requireAssignedCounselor(actor: Actor): void {
   if (actor.role !== 'counselor') {
     throw new ForbiddenError('assigned counselor role is required for AI draft review');
+  }
+}
+
+/**
+ * 내용 불일치 검출 (D45 · ADR-0018 · CCC-43) — 기록 공식화 직후(수기 저장 · AI 정리 승인)
+ * 호출된다. **최선 노력**이다: 동의 부재(D15)·프로바이더 미구성/실패·검증 거부 등 어떤
+ * 실패도 기록 저장 응답을 막지 않고 조용히 스킵된다(D8 — 다음 공식화 때 재검출). 전송
+ * 재료는 게이트웨이가 가명 처리한 공식 텍스트뿐이고(R3), 출력은 판단 없는 인용 쌍만
+ * 통과한다(R5). 브리핑은 저장된 결과만 읽으므로 이 함수는 열람 경로에서 절대 불리지 않는다.
+ */
+async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: string): Promise<void> {
+  try {
+    const material = await collectDiscrepancyDetectionSources(env, actor, sessionId);
+    if (!material.sources.some((source) => source.sessionId === material.triggerSessionId)) return;
+    // 텍스트 AI 동의 게이트 (D15 · D44) — 파일럿 중지·동의 부재면 여기서 던져 스킵된다.
+    await assertPilotTextAiConsent(env, actor, material.caseId);
+    const { adapter } = resolveAiProviderAdapter(env);
+    if (adapter.detectDiscrepancies === undefined) return;
+    const providerRequest = validateDiscrepancyDetectionRequest({
+      triggerRef: material.triggerSessionId,
+      sources: material.sources.map((source) => ({ sourceRef: source.sessionId, text: source.text })),
+    });
+    const output = validateDiscrepancyDetectionOutput(
+      await adapter.detectDiscrepancies(providerRequest),
+      providerRequest,
+    );
+    await replaceSessionDiscrepancies(env, actor, sessionId, output.discrepancies.map((item) => ({
+      kind: item.kind,
+      leftSessionId: item.leftRef,
+      leftQuote: item.leftQuote,
+      rightSessionId: item.rightRef,
+      rightQuote: item.rightQuote,
+    })));
+  } catch {
+    // 내용 무로깅(R3) — 실패는 스킵이 계약이다(D8). 기록 저장은 이미 성공했다.
   }
 }
 
@@ -1655,6 +1705,9 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'records') {
         requestQuery(url, []);
         const result = await createCounselingRecord(env, actor, supportCaseId, parseRecordCreation(await requestBody(request)));
+        // 수기 메모는 저장 즉시 공식 기록(D5) — 공식화 시점 불일치 검출(CCC-43). 재생(replay)은
+        // 이미 검출을 거친 제출이라 건너뛴다. 실패해도 저장 응답은 그대로 나간다(D8).
+        if (!result.replayed) await runDiscrepancyDetection(env, actor, result.record.id);
         return json(
           { record: counselingRecordResponse(result.record), replayed: result.replayed },
           result.replayed ? 200 : 201,
@@ -1669,6 +1722,8 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 4 && parts[2] === 'records' && parts[3] === 'intake') {
         requestQuery(url, []);
         const result = await createIntakeRecord(env, actor, supportCaseId, parseIntakeCreation(await requestBody(request)));
+        // 인테이크도 수기 공식 기록이다(D5) — 회차 내 모순 검출 대상(CCC-43).
+        if (!result.replayed) await runDiscrepancyDetection(env, actor, result.record.id);
         return json(
           { record: intakeRecordResponse(result.record), replayed: result.replayed },
           result.replayed ? 200 : 201,
@@ -1732,6 +1787,8 @@ export async function handleRequest(
           throw new ForbiddenError('legacy case has no authorized canonical support case');
         }
         const result = await createCounselingRecord(env, actor, legacyEntry.supportCase.id, input);
+        // Phase-1 호환 경로도 같은 공식화 지점이다 — 검출 훅 동일(CCC-43).
+        if (!result.replayed) await runDiscrepancyDetection(env, actor, result.record.id);
         return json(
           { ...sessionResponse(await getSession(env, actor, result.record.id)), replayed: result.replayed },
           result.replayed ? 200 : 201,
@@ -1798,7 +1855,10 @@ export async function handleRequest(
         const version = routeDraftVersion(parts[4] ?? '');
         const input = parseAiDraftReview(await requestBody(request));
         if (input.expectedVersion !== version) throw new StaleDraftVersionError();
-        return json(aiDraftResponse(await reviewAiDraftForSession(env, actor, sessionId, input)));
+        const reviewed = await reviewAiDraftForSession(env, actor, sessionId, input);
+        // AI 정리 승인 = 공식화(R2) — 이 시점에 불일치를 재검출한다(CCC-43). 거부는 비공식이라 제외.
+        if (input.decision === 'approved') await runDiscrepancyDetection(env, actor, sessionId);
+        return json(aiDraftResponse(reviewed));
       }
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'audio') {
         return await handleAudioUpload(request, env, actor, sessionId);

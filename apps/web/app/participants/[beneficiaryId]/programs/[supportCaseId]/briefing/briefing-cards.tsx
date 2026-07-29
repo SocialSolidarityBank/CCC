@@ -29,6 +29,12 @@ const sessionKindLabels: Record<'regular' | 'intake', string> = {
   intake: '인테이크',
 };
 
+// D45 영역 ③ — 사실 관계 라벨만. "충돌"·"오류" 같은 판단 어휘를 쓰지 않는다(R5).
+const discrepancyKindLabels: Record<'cross_session' | 'within_session', string> = {
+  cross_session: '회차 간 불일치',
+  within_session: '회차 내 모순',
+};
+
 export interface BriefingCardsProps {
   beneficiaryId: string;
   /** 전체 목표 저장 폼의 hidden 값 — 게이트웨이 권한 판정에 그대로 넘어간다. */
@@ -50,6 +56,8 @@ export interface BriefingCardsProps {
   participant: { name: string | null; phone: string | null };
   /** D45 영역 ② 회차별 정리 — 최신순. 승인된 AI 핵심 한 줄, 없으면 수기 발췌 + '수기' 배지(D5). */
   sessionRows: ParticipantBriefingSection['sessionRows'];
+  /** D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). 미처리 항목만 온다. */
+  discrepancies: ParticipantBriefingSection['discrepancies'];
   /** 승인 대기 배지 — D45 가 영역 ② 머리로 옮겼다(구 '지난 상담 브리핑' 카드 자리). */
   pendingApprovalCount: number;
   /** D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차 링크. 재료는 승인본만(R2). */
@@ -174,6 +182,7 @@ export function BriefingCards({
   programLabel,
   participant,
   sessionRows,
+  discrepancies,
   pendingApprovalCount,
   aiSuggestions,
   openActionItems,
@@ -320,10 +329,32 @@ export function BriefingCards({
               ))} />}
         </Card>
 
-        {/* 영역 ③ 내용 불일치 (D45) — 검출·저장은 CCC-43, 처리 3종은 CCC-42. 골격 단계에서는
-            자리와 빈 상태만 둔다. AI 는 판단하지 않고 양쪽 인용만 보여줄 영역이다(R5). */}
-        <Card title="내용 불일치">
-          <EmptyNote>준비 중입니다 — 기록 사이에 서로 어긋나는 내용이 검출되면 여기에 나란히 표시됩니다.</EmptyNote>
+        {/* 영역 ③ 내용 불일치 (D45 · CCC-43) — 기록 공식화 시점에 검출·저장된 결과의 읽기
+            전용 표시. AI 는 어느 쪽이 맞는지 판단하지 않으므로(R5) 양쪽 원문 인용과 회차
+            링크만 나란히 놓는다. 처리 3종(상황 변경/기록 오류/확인 완료)은 CCC-42. */}
+        <Card
+          title="내용 불일치"
+          badge={discrepancies.length > 0 ? <span className="briefing-badge is-pending">{discrepancies.length}건</span> : null}
+        >
+          {discrepancies.length === 0
+            ? <EmptyNote>검출된 불일치가 없습니다 — 기록이 저장·승인될 때마다 자동으로 대조합니다.</EmptyNote>
+            : discrepancies.map((item) => (
+              <div className="briefing-qsection" key={item.id}>
+                <p className="briefing-qlabel">{discrepancyKindLabels[item.kind]}</p>
+                <div className="briefing-fields">
+                  {[item.left, item.right].map((side, index) => (
+                    <WireField
+                      key={`${item.id}-${index}`}
+                      label={`${formatDateOnly(side.heldAt)} 회차`}
+                    >
+                      <span>“{side.quote}”</span>
+                      {' '}
+                      <Link href={`${recordsHref}#record-${side.sessionId}`}>기록 보기</Link>
+                    </WireField>
+                  ))}
+                </div>
+              </div>
+            ))}
         </Card>
 
         {/* 유지 카드 2종 (D45 표 7행) — 미해결 액션·개인정보. 표준 그리드(최소 420 → 2열, D37). */}

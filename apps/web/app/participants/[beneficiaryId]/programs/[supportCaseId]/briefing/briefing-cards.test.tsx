@@ -20,6 +20,7 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
       { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', kind: 'regular', aiOneLiner: null, memoExcerpt: '구직 활동 근황과 지출 정리를 확인했다' },
       { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', kind: 'intake', aiOneLiner: null, memoExcerpt: '채무 현황과 정서적 어려움 확인' },
     ],
+    discrepancies: [],
     pendingApprovalCount: 2,
     aiSuggestions: [{
       title: '최근 구직 활동은 어땠는지',
@@ -198,10 +199,53 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(none.container.textContent).not.toContain('승인 대기');
   });
 
-  it('영역 ③은 준비 중 안내를 표시한다 (검출은 CCC-43, 처리는 CCC-42)', () => {
+  it('영역 ③은 불일치가 없으면 빈 상태를 표시한다 (CCC-43)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '내용 불일치');
-    expect(card.textContent).toContain('준비 중');
+    expect(card.textContent).toContain('검출된 불일치가 없습니다');
+    expect(card.querySelector('.briefing-badge')).toBeNull();
+  });
+
+  it('영역 ③은 양쪽 인용과 회차 링크를 나란히 놓고 판단 표현을 쓰지 않는다 (CCC-43 · R5)', () => {
+    const recordsHref = baseProps().recordsHref;
+    const { container } = render(<BriefingCards {...baseProps({
+      discrepancies: [
+        {
+          id: 'd-1',
+          kind: 'cross_session',
+          left: { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', quote: '채무는 은행 대출뿐이라고 했다' },
+          right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지인에게 빌린 돈 상환이 밀려 있다' },
+          detectedAt: '2026-07-15T06:00:00Z',
+        },
+        {
+          id: 'd-2',
+          kind: 'within_session',
+          left: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '이번 달 지출을 정리했다' },
+          right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지출 내역은 아직 정리 전이다' },
+          detectedAt: '2026-07-15T06:00:00Z',
+        },
+      ],
+    })} />);
+    const card = cardByTitle(container, '내용 불일치');
+    // 건수 배지 — 영역 ② '승인 대기'와 같은 자리 문법.
+    expect(card.querySelector('.briefing-card-summary')?.textContent).toContain('2건');
+    // 유형 라벨 2종.
+    expect(card.textContent).toContain('회차 간 불일치');
+    expect(card.textContent).toContain('회차 내 모순');
+    // 양쪽 원문 인용이 그대로 나온다.
+    expect(card.textContent).toContain('채무는 은행 대출뿐이라고 했다');
+    expect(card.textContent).toContain('지인에게 빌린 돈 상환이 밀려 있다');
+    // 회차 링크 — 상세 기록의 해당 회차 앵커로 간다.
+    const links = [...card.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(links).toContain(`${recordsHref}#record-s-1`);
+    expect(links).toContain(`${recordsHref}#record-s-2`);
+    // 각 인용 옆에 상담일이 붙는다.
+    expect(card.textContent).toContain('2026-07-01 회차');
+    expect(card.textContent).toContain('2026-07-15 회차');
+    // AI 는 판단하지 않는다(R5) — 판단 어휘가 화면에 나오면 계약 위반이다.
+    for (const banned of ['오류입니다', '틀렸', '맞습니다', '정확', '거짓']) {
+      expect(card.textContent).not.toContain(banned);
+    }
   });
 });
 

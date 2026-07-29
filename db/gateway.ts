@@ -3730,6 +3730,298 @@ function officialSessionFromApprovedBriefing(
   };
 }
 // ============================================================================
+// 내용 불일치 (session_discrepancies) — D45 · ADR-0018 · CCC-43
+//
+// 기록이 공식화되는 시점(수기 메모 저장 · AI 정리 승인)에 라우트가 ①
+// collectDiscrepancyDetectionSources 로 가명 처리된 공식 텍스트를 모으고 ② 프로바이더
+// 호출·검증(apps/api) 뒤 ③ replaceSessionDiscrepancies 로 저장한다. 브리핑은 저장된
+// 결과만 읽는다(실시간 검사 기각, ADR-0018). 검출 실패는 기록 저장을 막지 않는다(D8).
+// ============================================================================
+
+export type DiscrepancyKind = 'cross_session' | 'within_session';
+export type DiscrepancyResolutionStatus = 'situation_changed' | 'record_error' | 'confirmed';
+
+export interface SessionDiscrepancy {
+  id: string;
+  supportCaseId: string;
+  kind: DiscrepancyKind;
+  triggerSessionId: string;
+  leftSessionId: string;
+  leftQuote: string;
+  rightSessionId: string;
+  rightQuote: string;
+  detectedAt: string;
+  /** 처리 3종(CCC-42 자리). NULL = 미처리 — CCC-43 범위에서는 항상 NULL. */
+  resolutionStatus: DiscrepancyResolutionStatus | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+}
+
+export interface DiscrepancyDetectionSource {
+  sessionId: string;
+  text: string;
+}
+
+export interface DiscrepancyDetectionMaterial {
+  /** 레거시 케이스 ID — 텍스트 AI 동의 게이트(assertPilotTextAiConsent)용. */
+  caseId: string;
+  supportCaseId: string;
+  triggerSessionId: string;
+  /** 가명 처리 완료(R3) 공식 텍스트 — 회차당 수기 메모 + 승인된 AI 정리. 오래된 순. */
+  sources: DiscrepancyDetectionSource[];
+}
+
+// 프로바이더에 보내는 회차 수 상한 — apps/api 의 MAX_DISCREPANCY_SOURCES 와 같은 값.
+const DISCREPANCY_SOURCE_LIMIT = 12;
+const DISCREPANCY_ITEM_LIMIT = 8;
+const DISCREPANCY_QUOTE_LIMIT = 500;
+
+async function resolveSessionScope(
+  env: Env,
+  orgId: string,
+  sessionId: string,
+): Promise<{ supportCaseId: string; beneficiaryId: string; caseId: string }> {
+  const row = await env.DB.prepare(
+    `SELECT session.support_case_id, support_case.beneficiary_id,
+            COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
+     FROM sessions AS session
+     JOIN support_cases AS support_case ON support_case.id = session.support_case_id
+     WHERE session.id = ? AND session.org_id = ?`,
+  ).bind(sessionId, orgId).first<DbRow>();
+  if (row === null) {
+    throw new ForbiddenError('session is not available in this organization');
+  }
+  return {
+    supportCaseId: stringValue(row.support_case_id),
+    beneficiaryId: stringValue(row.beneficiary_id),
+    caseId: stringValue(row.case_id),
+  };
+}
+
+/**
+ * 검출 재료 수집 — 공식 기록만(R2: 수기 메모(D5 즉시 공식) + 승인된 AI 정리), 등록 PII 는
+ * 가명 ID 로 치환해서만 내보낸다(R3 · D2). 권한: 담당 실무자 | admin (D7).
+ * 감사: PII 복호화 1건(decrypt_pii, D14).
+ */
+export async function collectDiscrepancyDetectionSources(
+  env: Env,
+  actor: Actor,
+  triggerSessionId: string,
+): Promise<DiscrepancyDetectionMaterial> {
+  assertOpaqueIdentifier(triggerSessionId, 'session id');
+  const scope = await resolveSessionScope(env, actor.orgId, triggerSessionId);
+  await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+
+  const [sessionRows, approvedRows] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id, memo, held_at FROM sessions
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY held_at DESC, id DESC
+       LIMIT ?`,
+    ).bind(actor.orgId, scope.supportCaseId, DISCREPANCY_SOURCE_LIMIT).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT session_id, summary_text FROM approved_ai_briefing_v1
+       WHERE org_id = ? AND support_case_id = ?
+       ORDER BY approved_at DESC, draft_version DESC`,
+    ).bind(actor.orgId, scope.supportCaseId).all<DbRow>(),
+  ]);
+
+  const approvedBySession = new Map<string, string>();
+  for (const row of approvedRows.results) {
+    const sessionId = stringValue(row.session_id);
+    if (!approvedBySession.has(sessionId)) approvedBySession.set(sessionId, stringValue(row.summary_text));
+  }
+
+  const rows = [...sessionRows.results];
+  if (!rows.some((row) => stringValue(row.id) === triggerSessionId)) {
+    const triggerRow = await env.DB.prepare(
+      `SELECT id, memo, held_at FROM sessions
+       WHERE id = ? AND org_id = ? AND support_case_id = ?`,
+    ).bind(triggerSessionId, actor.orgId, scope.supportCaseId).first<DbRow>();
+    if (triggerRow === null) {
+      throw new ForbiddenError('session is not available in this organization');
+    }
+    rows.push(triggerRow);
+  }
+
+  const pii = await readPiiValues(env, actor.orgId, scope.caseId);
+  await writeAudit(env, actor, {
+    action: 'decrypt_pii',
+    targetTable: 'pii_vault',
+    targetId: scope.caseId,
+    caseId: scope.caseId,
+    detail: { purpose: 'discrepancy_detection_masking' },
+  });
+
+  // 오래된 순으로 정렬해 회차 흐름이 보이게 보낸다.
+  rows.sort((left, right) => stringValue(left.held_at).localeCompare(stringValue(right.held_at)));
+  const sources: DiscrepancyDetectionSource[] = [];
+  for (const row of rows) {
+    const parts: string[] = [];
+    const memo = nullableString(row.memo);
+    if (memo !== null && memo.trim().length > 0) parts.push(memo);
+    const approvedSummary = approvedBySession.get(stringValue(row.id));
+    if (approvedSummary !== undefined && approvedSummary.trim().length > 0) parts.push(approvedSummary);
+    if (parts.length === 0) continue;
+    sources.push({
+      sessionId: stringValue(row.id),
+      text: maskRegisteredPii(parts.join('\n'), scope.caseId, pii),
+    });
+  }
+
+  return {
+    caseId: scope.caseId,
+    supportCaseId: scope.supportCaseId,
+    triggerSessionId,
+    sources,
+  };
+}
+
+export interface DetectedSessionDiscrepancyInput {
+  kind: DiscrepancyKind;
+  leftSessionId: string;
+  leftQuote: string;
+  rightSessionId: string;
+  rightQuote: string;
+}
+
+function mapSessionDiscrepancy(row: DbRow): SessionDiscrepancy {
+  const resolution = nullableString(row.resolution_status);
+  return {
+    id: stringValue(row.id),
+    supportCaseId: stringValue(row.support_case_id),
+    kind: stringValue(row.kind) === 'within_session' ? 'within_session' : 'cross_session',
+    triggerSessionId: stringValue(row.trigger_session_id),
+    leftSessionId: stringValue(row.left_session_id),
+    leftQuote: stringValue(row.left_quote),
+    rightSessionId: stringValue(row.right_session_id),
+    rightQuote: stringValue(row.right_quote),
+    detectedAt: stringValue(row.detected_at),
+    resolutionStatus: resolution === 'situation_changed' || resolution === 'record_error' || resolution === 'confirmed'
+      ? resolution
+      : null,
+    resolvedBy: nullableString(row.resolved_by),
+    resolvedAt: nullableString(row.resolved_at),
+  };
+}
+
+/**
+ * 검출 결과 저장 — 같은 트리거 회차의 **미처리** 행만 지우고 새 결과로 교체한다(재검출).
+ * 처리된 행은 접힌 이력이라 남는다(ADR-0018, DB 트리거도 삭제를 막는다). 인용은 저장 전에
+ * 길이·유형 정합을 다시 검증하고, 회차 참조가 이 참여 사업의 회차인지도 확인한다.
+ * 권한: 담당 실무자 | admin (D7). 감사: create 1건(D14).
+ */
+export async function replaceSessionDiscrepancies(
+  env: Env,
+  actor: Actor,
+  triggerSessionId: string,
+  items: DetectedSessionDiscrepancyInput[],
+): Promise<SessionDiscrepancy[]> {
+  assertHuman(actor);
+  assertOpaqueIdentifier(triggerSessionId, 'session id');
+  if (!Array.isArray(items) || items.length > DISCREPANCY_ITEM_LIMIT) {
+    throw new ValidationError('discrepancy items are invalid');
+  }
+  const scope = await resolveSessionScope(env, actor.orgId, triggerSessionId);
+  await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+
+  const referencedIds = new Set<string>([triggerSessionId]);
+  for (const item of items) {
+    if (item === null || typeof item !== 'object') {
+      throw new ValidationError('discrepancy item is invalid');
+    }
+    if (item.kind !== 'cross_session' && item.kind !== 'within_session') {
+      throw new ValidationError('discrepancy kind is invalid');
+    }
+    assertOpaqueIdentifier(item.leftSessionId, 'discrepancy session id');
+    assertOpaqueIdentifier(item.rightSessionId, 'discrepancy session id');
+    for (const quote of [item.leftQuote, item.rightQuote]) {
+      if (
+        typeof quote !== 'string'
+        || quote.trim().length === 0
+        || quote.length > DISCREPANCY_QUOTE_LIMIT
+      ) {
+        throw new ValidationError('discrepancy quote is invalid');
+      }
+    }
+    if (item.kind === 'within_session' && item.leftSessionId !== item.rightSessionId) {
+      throw new ValidationError('within-session discrepancy must reference one session');
+    }
+    if (item.kind === 'cross_session' && item.leftSessionId === item.rightSessionId) {
+      throw new ValidationError('cross-session discrepancy must reference two sessions');
+    }
+    if (item.leftSessionId !== triggerSessionId && item.rightSessionId !== triggerSessionId) {
+      throw new ValidationError('discrepancy must involve the trigger session');
+    }
+    referencedIds.add(item.leftSessionId);
+    referencedIds.add(item.rightSessionId);
+  }
+
+  const idList = [...referencedIds];
+  const placeholders = idList.map(() => '?').join(', ');
+  const known = await env.DB.prepare(
+    `SELECT id FROM sessions
+     WHERE org_id = ? AND support_case_id = ? AND id IN (${placeholders})`,
+  ).bind(actor.orgId, scope.supportCaseId, ...idList).all<{ id: string }>();
+  if (known.results.length !== idList.length) {
+    throw new ForbiddenError('discrepancy references an unavailable session');
+  }
+
+  const detectedAt = now();
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `DELETE FROM session_discrepancies
+       WHERE org_id = ? AND trigger_session_id = ? AND resolution_status IS NULL`,
+    ).bind(actor.orgId, triggerSessionId),
+  ];
+  const insertedIds: string[] = [];
+  for (const item of items) {
+    const id = newId();
+    insertedIds.push(id);
+    statements.push(env.DB.prepare(
+      `INSERT INTO session_discrepancies (
+         id, org_id, support_case_id, kind, trigger_session_id,
+         left_session_id, left_quote, right_session_id, right_quote,
+         detected_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      id,
+      actor.orgId,
+      scope.supportCaseId,
+      item.kind,
+      triggerSessionId,
+      item.leftSessionId,
+      item.leftQuote,
+      item.rightSessionId,
+      item.rightQuote,
+      detectedAt,
+      detectedAt,
+    ));
+  }
+  statements.push(canonicalAuditStatement(env, actor, {
+    action: 'create',
+    targetTable: 'session_discrepancies',
+    targetId: triggerSessionId,
+    beneficiaryId: scope.beneficiaryId,
+    supportCaseId: scope.supportCaseId,
+    detail: { count: items.length },
+  }));
+  await env.DB.batch(statements);
+
+  if (insertedIds.length === 0) return [];
+  const rows = await env.DB.prepare(
+    `SELECT * FROM session_discrepancies
+     WHERE org_id = ? AND id IN (${insertedIds.map(() => '?').join(', ')})`,
+  ).bind(actor.orgId, ...insertedIds).all<DbRow>();
+  // 같은 배치는 detected_at 이 동일해 시각 정렬이 무의미하다 — 입력(검출) 순서를 보존해 반환.
+  const byId = new Map(rows.results.map((row) => [stringValue(row.id), mapSessionDiscrepancy(row)] as const));
+  return insertedIds.flatMap((id) => {
+    const mapped = byId.get(id);
+    return mapped === undefined ? [] : [mapped];
+  });
+}
+
+// ============================================================================
 // 케이스 (cases)
 // ============================================================================
 
@@ -10705,6 +10997,19 @@ export interface BriefingUpcomingSchedule {
   customQuestions: ScheduleCustomQuestion[];
 }
 
+/**
+ * D45 영역 ③ 내용 불일치 — 저장된 검출 결과의 읽기 전용 행(CCC-43). 판단 없이 양쪽
+ * 원문 인용 + 회차 참조(상담일 포함)만 싣는다(R5). CCC-43 범위에서는 미처리 행만 온다.
+ */
+export interface ParticipantBriefingDiscrepancy {
+  sourceSupportCase: SourceSupportCase;
+  id: string;
+  kind: DiscrepancyKind;
+  left: { sessionId: string; heldAt: string; quote: string };
+  right: { sessionId: string; heldAt: string; quote: string };
+  detectedAt: string;
+}
+
 export interface ParticipantBriefing {
   beneficiaryId: string;
   focusedSupportCase: SourceSupportCase;
@@ -10715,6 +11020,7 @@ export interface ParticipantBriefing {
   actionItems: ParticipantBriefingAction[];
   flags: ParticipantBriefingFlag[];
   aiSuggestions: ParticipantBriefingSuggestion[];
+  discrepancies: ParticipantBriefingDiscrepancy[];
   focusUpcomingSchedule: BriefingUpcomingSchedule | null;
   /** 포커스 참여사업의 전체 목표 (D45 · 0024). NULL = 설정 전. */
   overallGoal: string | null;
@@ -10801,7 +11107,7 @@ export async function getParticipantBriefing(
   );
   const scopedValues = [actor.orgId, ...authorizedIds];
 
-  const [goals, gas, sessions, approved, pending, actions, flags] = await Promise.all([
+  const [goals, gas, sessions, approved, pending, actions, flags, discrepancyRows] = await Promise.all([
     env.DB.prepare(
       `SELECT * FROM goals
        WHERE org_id = ? AND support_case_id IN (${placeholders})
@@ -10852,6 +11158,21 @@ export async function getParticipantBriefing(
        WHERE org_id = ? AND support_case_id IN (${placeholders})
          AND (source = 'counselor' OR review_status = 'confirmed')
        ORDER BY created_at DESC, id DESC`,
+    ).bind(...scopedValues).all<DbRow>(),
+    // D45 영역 ③ — 저장된 검출 결과만 읽는다(실시간 검사 없음, ADR-0018). CCC-43 범위는
+    // 미처리 행만(처리 3종·접힌 이력은 CCC-42). 회차 링크용 상담일을 함께 싣는다.
+    env.DB.prepare(
+      `SELECT discrepancy.*,
+              left_session.held_at AS left_held_at,
+              right_session.held_at AS right_held_at
+       FROM session_discrepancies AS discrepancy
+       JOIN sessions AS left_session
+         ON left_session.id = discrepancy.left_session_id AND left_session.org_id = discrepancy.org_id
+       JOIN sessions AS right_session
+         ON right_session.id = discrepancy.right_session_id AND right_session.org_id = discrepancy.org_id
+       WHERE discrepancy.org_id = ? AND discrepancy.support_case_id IN (${placeholders})
+         AND discrepancy.resolution_status IS NULL
+       ORDER BY discrepancy.detected_at DESC, discrepancy.id`,
     ).bind(...scopedValues).all<DbRow>(),
   ]);
 
@@ -10975,6 +11296,20 @@ export async function getParticipantBriefing(
       action: mapActionItem({ ...row, case_id: row.support_case_id }),
     }];
   });
+  const discrepancies: ParticipantBriefingDiscrepancy[] = discrepancyRows.results.flatMap((row) => {
+    const source = sources.get(stringValue(row.support_case_id));
+    if (source === undefined) return [];
+    const mapped = mapSessionDiscrepancy(row);
+    return [{
+      sourceSupportCase: source,
+      id: mapped.id,
+      kind: mapped.kind,
+      left: { sessionId: mapped.leftSessionId, heldAt: stringValue(row.left_held_at), quote: mapped.leftQuote },
+      right: { sessionId: mapped.rightSessionId, heldAt: stringValue(row.right_held_at), quote: mapped.rightQuote },
+      detectedAt: mapped.detectedAt,
+    }];
+  });
+
   const briefingFlags = flags.results.flatMap((row) => {
     const source = sources.get(stringValue(row.support_case_id));
     if (source === undefined) return [];
@@ -11034,6 +11369,7 @@ export async function getParticipantBriefing(
     actionItems,
     flags: briefingFlags,
     aiSuggestions,
+    discrepancies,
     focusUpcomingSchedule,
     overallGoal: focus.overallGoal,
     canEditOverallGoal: actor.role === 'counselor',
