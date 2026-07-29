@@ -321,41 +321,14 @@ const briefingStyles = `
 .briefing-hero-meta{margin:0;color:var(--sub);font-size:14px}
 /* 여닫기 줄은 오른쪽 끝. 화면 조작이라 고스트 32px 하나다. */
 .briefing-toolbar{display:flex;justify-content:flex-end}
-/* GAS 는 전폭 아코디언이다 — 안쪽 조밀 그리드가 3열이 되려면 1040 이 필요하다. */
+/* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
 .briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
-/* GAS 게이지 96px 원형(§5): 트랙은 계열 tint · 채움은 같은 계열 base · 중앙 점수 24/700.
-   conic-gradient 로 채움 비율을 그리고 안쪽을 흰 원으로 덮어 링을 만든다. 점수의 좋고 나쁨은
-   색으로 알리지 않으므로(D6·R4) 계열은 점수가 아니라 목표 순서가 정한다. */
-.briefing-gas-goal{display:grid;justify-items:center;gap:var(--space-2);text-align:center}
-.briefing-gauge{
-  position:relative;display:grid;place-items:center;width:96px;height:96px;border-radius:var(--radius-pill);
-  background:conic-gradient(var(--gauge-fill) var(--gauge-pct),var(--gauge-track) 0);
-}
-.briefing-gauge::before{content:"";position:absolute;inset:12px;border-radius:var(--radius-pill);background:var(--panel)}
-.briefing-gauge .briefing-gas-score{position:relative}
-.briefing-gas-goal[data-series="blue"]{--gauge-fill:var(--blue);--gauge-track:var(--blue-tint)}
-.briefing-gas-goal[data-series="mint"]{--gauge-fill:var(--mint);--gauge-track:var(--mint-tint)}
-.briefing-gas-goal[data-series="lavender"]{--gauge-fill:var(--lavender);--gauge-track:var(--lavender-tint)}
-/* 미니 추이 — 직전 점수 흐름. 막대는 면이라 base 계열을 쓴다(색 규율 2). */
-.briefing-gas-trend{display:flex;align-items:flex-end;gap:var(--space-1);height:24px}
-.briefing-gas-trend i{width:6px;height:var(--bar);border-radius:var(--radius-bar);background:var(--gauge-fill)}
 /* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
 .briefing-more{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-5) var(--space-6)}
 .briefing-more:hover{--surface-fill:var(--muted)}
 .briefing-more-title{display:block;font-size:16px;font-weight:700;color:var(--ink)}
 .briefing-more-desc{display:block;margin-top:var(--space-1);font-size:14px;color:var(--sub)}
-/* 조밀 그리드(D37 §4-2) — 최소 280 이 열을 만든다. **3열 아니면 1열이다**: 2열이면 세부 목표
-   3개(D33)가 둘 + 외톨이 하나로 앉는다. 접는 판단은 화면이 아니라 컨테이너 폭으로 한다. */
-.briefing-gas-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min-dense)),1fr));gap:var(--space-5)}
-@container (max-width:879px){.briefing-gas-grid{grid-template-columns:minmax(0,1fr)}}
-/* 게이지 칸에는 배경 상자를 두지 않는다 — 계열 tint 는 **게이지 트랙**의 몫이다(§5).
-   구 구현은 칸마다 tint 패널 + 그라데이션 테두리를 둘렀는데, 그러면 카드 안에 카드가 생기고
-   (§5 '카드 안에 카드' 회피) 트랙과 패널이 같은 색이라 원형 게이지가 배경에 묻힌다. */
-.briefing-gas-score{font-size:24px;font-weight:700;line-height:1;color:var(--ink);letter-spacing:var(--tracking-numeric)}
-.briefing-gas-goal-title{font-size:16px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
-/* 종료된 목표 칩 — 중립 배지(색 없이 테두리로만 선다). */
-.briefing-gas-goal-closed{display:inline-flex;align-items:center;min-height:20px;margin-left:6px;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}
-/* 오늘 확인할 질문 — 세 섹션. */
+/* 영역 ① — 실무자 입력·AI 질문의 세 섹션. */
 .briefing-qsection{display:grid;gap:var(--space-2)}
 .briefing-qlabel{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
 /* 배지·메타·빈 상태(§5 상태 배지). */

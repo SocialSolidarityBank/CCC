@@ -96,8 +96,8 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           recordNewHref={recordNewHref(beneficiaryId, supportCaseId)}
           programLabel={PROGRAM_LABELS[focused.sourceSupportCase.programType]}
           participant={briefing.participant}
-          gasTrend={focused.gasTrend}
-          lastSessionSummary={focused.lastSessionSummary}
+          sessionRows={focused.sessionRows}
+          pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}
           questions={focused.questions}
           openActionItems={focused.openActionItems}
           flags={focused.flags}

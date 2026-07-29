@@ -2111,6 +2111,13 @@ describe('canonical participant gateway', () => {
       sourceSupportCase: expect.objectContaining({ id: initial.supportCaseId }),
       text: 'VISIBLE_MANUAL_MEMO',
     })]);
+    // D45 영역 ② — 회차 줄도 인가된 참여 사업 것만 실리고, 발췌는 수기 메모 첫 줄이다.
+    expect(briefing.sessionRows).toEqual([expect.objectContaining({
+      sourceSupportCase: expect.objectContaining({ id: initial.supportCaseId }),
+      heldAt: '2026-07-15T10:00:00.000Z',
+      kind: 'regular',
+      memoExcerpt: 'VISIBLE_MANUAL_MEMO',
+    })]);
     expect(JSON.stringify(briefing)).not.toContain('HIDDEN_MANUAL_MEMO');
     expect(JSON.stringify(briefing)).not.toContain(hidden.supportCaseId);
     await expect(getParticipantBriefing(
