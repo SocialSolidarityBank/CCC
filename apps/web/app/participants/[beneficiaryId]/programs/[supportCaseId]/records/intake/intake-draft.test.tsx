@@ -41,6 +41,7 @@ function renderWizard(extendedPii = VAULT_PII) {
       recorderLabel="이지은"
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"
       participantHref="/participants/swallow-003"
+      basicInfoHref="/participants/swallow-003/edit"
       submit={submit}
     />,
   );

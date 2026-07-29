@@ -26,6 +26,7 @@ function renderWizard(consent = { privacy: true, recording: true, textAi: true }
       recorderLabel="이지은"
       briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved"
       participantHref="/participants/swallow-003"
+      basicInfoHref="/participants/swallow-003/edit"
       submit={submit}
     />,
   );
@@ -89,6 +90,18 @@ describe('IntakeWizard', () => {
     expect(consent.textContent).toContain('미기록');
     // D44: 동의를 고치는 자리는 당사자 정보 페이지다 — 인테이크는 읽기만 한다.
     expect(within(consent).getByText('당사자 정보로 이동')).not.toBeNull();
+  });
+
+  // CCC-37: 1-1 의 '수정' 링크는 기본정보 수정 화면으로 간다. 동의 링크(허브)와 목적지가 다르다.
+  it('1-1 기본정보 수정 링크는 기본정보 수정 화면을 가리킨다', () => {
+    const { container } = renderWizard({ privacy: true, recording: false, textAi: false });
+    const scoped = within(container);
+    const basicEdit = within(scoped.getByTestId('intake-basic-info'))
+      .getByText('당사자 등록 정보에서 수정') as HTMLAnchorElement;
+    expect(basicEdit.getAttribute('href')).toBe('/participants/swallow-003/edit');
+    const consentLink = within(scoped.getByTestId('intake-consent-status'))
+      .getByText('당사자 정보로 이동') as HTMLAnchorElement;
+    expect(consentLink.getAttribute('href')).toBe('/participants/swallow-003');
   });
 
   it('목표·GAS·동의 입력 칸을 더 이상 두지 않는다', () => {

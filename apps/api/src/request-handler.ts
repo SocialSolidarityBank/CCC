@@ -12,6 +12,7 @@ import {
   INTAKE_ANSWER_KEYS,
   INTAKE_ANSWER_RESPONSES,
   INTAKE_EXTENDED_PII_FIELDS,
+  PARTICIPANT_BASIC_INFO_FIELDS,
   NotApprovedError,
   PilotTextAiConsentRequiredError,
   StaleDraftVersionError,
@@ -41,6 +42,7 @@ import {
   getCase,
   getCurrentAiDraftForSession,
   getLatestPilotTextAiConsentStatus,
+  getParticipantBasicInfo,
   getParticipantBriefing,
   getPipelineAudioKey,
   getPipelineHealth,
@@ -73,6 +75,7 @@ import {
   reviewAiDraftForSession,
   searchParticipants,
   updateParticipantConsent,
+  updateParticipantPii,
   upsertUser,
   type Actor,
   type AiDraftVersion,
@@ -1505,6 +1508,28 @@ export async function handleRequest(
           parseSubsequentParticipantCreation(await requestBody(request), actor),
         );
         return json(result, result.replayed ? 200 : 201);
+      }
+      // 기본정보 수정 화면(CCC-37). 읽기·쓰기 모두 담당 실무자 또는 기관 관리자만 —
+      // 게이트웨이가 강제한다(R1). 응답에는 복호화된 금고 값이 실리므로 감사는 게이트웨이가
+      // 화면 조회당 1행으로 남긴다(D14·D24).
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'basic-info') {
+        requestQuery(url, []);
+        return json(await getParticipantBasicInfo(env, actor, beneficiaryId));
+      }
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'basic-info') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['supportCaseContextId', 'expectedVersion', ...PARTICIPANT_BASIC_INFO_FIELDS]);
+        // 값이 온 항목만 패치로 만든다. null 은 "지운다"이고, 키 부재는 "건드리지 않는다"다.
+        const patch: Record<string, string | null> = {};
+        for (const field of PARTICIPANT_BASIC_INFO_FIELDS) {
+          if (Object.hasOwn(body, field)) patch[field] = optionalNullableString(body, field) ?? null;
+        }
+        return json(await updateParticipantPii(env, actor, beneficiaryId, {
+          supportCaseContextId: requiredUuid(body, 'supportCaseContextId'),
+          expectedVersion: requiredInteger(body, 'expectedVersion'),
+          ...patch,
+        }));
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'briefing') {
         const query = requestQuery(url, ['focusSupportCaseId']);

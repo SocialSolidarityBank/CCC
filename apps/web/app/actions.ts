@@ -35,6 +35,7 @@ import {
   registerCounselor,
   reviewAiDraft,
   updateParticipantConsent,
+  updateParticipantBasicInfo,
   type ManualActionItem,
   type ManualActionItemResolution,
   type ActionItemResolutionStatus,
@@ -155,6 +156,15 @@ function optionalEmail(formData: FormData, name: string): string | undefined {
 function optionalTrimmedText(formData: FormData, name: string, maxLength: number): string | undefined {
   const input = value(formData, name).trim();
   if (input.length === 0) return undefined;
+  if (input.length > maxLength) throw new FormInputError();
+  return input;
+}
+
+// 기본정보 수정(CCC-37): 폼이 7종을 언제나 함께 보내므로 빈 칸은 undefined 가 아니라
+// null 이다 — "안 건드림"이 아니라 "지운다"를 뜻한다. 길이 상한만 폼에서 본다.
+function nullableTrimmedText(formData: FormData, name: string, maxLength: number): string | null {
+  const input = value(formData, name).trim();
+  if (input.length === 0) return null;
   if (input.length > maxLength) throw new FormInputError();
   return input;
 }
@@ -438,6 +448,11 @@ function participantPath(beneficiaryId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}`;
 }
 
+/** 기본정보 수정 화면(CCC-37). 저장 성공·실패 모두 이 화면으로 돌아온다. */
+function participantEditPath(beneficiaryId: string): string {
+  return `${participantPath(beneficiaryId)}/edit`;
+}
+
 function participantProgramPath(beneficiaryId: string, supportCaseId: string): string {
   return `${participantPath(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
 }
@@ -452,6 +467,7 @@ function revalidateParticipantProgram(beneficiaryId: string, supportCaseId: stri
   revalidatePath('/records');
   revalidatePath('/records/new');
   revalidatePath(participantPath(beneficiaryId));
+  revalidatePath(participantEditPath(beneficiaryId));
   revalidatePath(participantBriefingPath(beneficiaryId, supportCaseId));
   revalidatePath(`${programPath}/records`);
   revalidatePath(`${programPath}/records/new`);
@@ -645,6 +661,42 @@ export async function updateParticipantConsentAction(formData: FormData): Promis
   }
   if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
   redirect(withNotice(participantPath(beneficiaryId), 'notice', 'consent_updated'));
+}
+
+/**
+ * 기본정보 수정 (CCC-37). 이름·연락처·이메일·계좌·생년월일·주소·성별 7종을 **언제나 함께**
+ * 보낸다 — 폼이 현재 상태 전체를 들고 있으므로 빈 칸은 곧 "지운다"(null)다.
+ *
+ * 값은 금고에 AES-GCM 으로 저장되고(D3) 감사는 게이트웨이가 남긴다(D14). PII 는 임시본에도
+ * 리다이렉트 주소에도 싣지 않는다 — 실패해도 오가는 것은 notice 코드뿐이다(R3).
+ * 권한(담당 실무자·기관 관리자)은 게이트웨이가 판정한다.
+ */
+export async function updateParticipantBasicInfoAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    const supportCaseContextId = opaqueId(formData, 'supportCaseContextId');
+    const expectedVersion = positiveInteger(formData, 'expectedVersion');
+    const birthDate = nullableTrimmedText(formData, 'birthDate', 10);
+    if (birthDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new FormInputError();
+    await updateParticipantBasicInfo(beneficiaryId, {
+      supportCaseContextId,
+      expectedVersion,
+      name: nullableTrimmedText(formData, 'name', 100),
+      phone: nullableTrimmedText(formData, 'phone', 32),
+      email: nullableTrimmedText(formData, 'email', 200),
+      account: nullableTrimmedText(formData, 'account', 100),
+      birthDate,
+      region: nullableTrimmedText(formData, 'region', 200),
+      gender: nullableTrimmedText(formData, 'gender', 20),
+    });
+    revalidateParticipantProgram(beneficiaryId, supportCaseContextId);
+  } catch (error) {
+    const fallback = beneficiaryId === undefined ? '/participants' : participantEditPath(beneficiaryId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined) redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  redirect(withNotice(participantEditPath(beneficiaryId), 'notice', 'basic_info_updated'));
 }
 
 export async function createInitialParticipantProgramAction(formData: FormData): Promise<void> {
