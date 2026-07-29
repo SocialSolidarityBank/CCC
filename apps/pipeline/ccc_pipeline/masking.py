@@ -5,14 +5,23 @@
 텍스트가 장비를 떠난다.
 
 - 정규식 계층(항상 동작): 전화번호·주민등록번호·이메일·계좌형 숫자열
+- 질병명 사전 계층(항상 동작, G3): 구체 병명·진단명을 `[질환]` 으로 치환. 사전은
+  `condition_terms.py` — 무엇을 일부러 뺐는지도 거기 적혀 있다.
 - NER 계층(선택): CCC_NER_MODEL_ID 설정 시 한국어 개체명 인식으로 인명을 추가 마스킹.
+  질병명도 NER 을 병행할 수 있다(`build_condition_ner`) — 사전이 놓친 표기를 잡는 몫이다.
   모델은 라이선스 표기를 확인한 것만 지정한다 (CLAUDE.md §5 규칙).
+
+**집계만 남긴다(R3)**: `mask_text_with_report` 는 "어떤 토큰을 몇 건 치환했는지" 숫자만
+돌려준다. 치환된 원문은 보고서에 담지 않는다 — 그걸 담으면 마스킹의 의미가 없어진다.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+
+from .condition_terms import ALL_TERMS
 
 # 치환 토큰 — 검토 화면에서 마스킹 사실이 보이도록 각괄호 한글 라벨을 쓴다.
 PHONE_TOKEN = "[전화번호]"
@@ -20,6 +29,7 @@ RRN_TOKEN = "[주민번호]"
 EMAIL_TOKEN = "[이메일]"
 ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
+CONDITION_TOKEN = "[질환]"
 
 # 경계 주의: 파이썬 re의 \b는 한글도 단어 문자로 봐서 "1234로"처럼 조사가 붙으면
 # 매칭이 깨진다. 숫자 패턴은 앞뒤에 숫자·하이픈이 없다는 룩어라운드로 경계를 잡는다.
@@ -42,32 +52,104 @@ _REGEX_LAYERS: list[tuple[re.Pattern[str], str]] = [
     (_EMAIL, EMAIL_TOKEN),
 ]
 
+# 질병명 사전 → 정규식 1개. **긴 항목이 먼저** 와야 "제2형 당뇨병"이 "당뇨병"·"당뇨"에
+# 먼저 잡혀 조각나지 않는다(파이썬 re 는 같은 위치에서 앞선 대안을 택한다).
+# 사전의 공백은 `\s*` 로 바꿔, 한 항목이 붙여 쓴 형태와 띄어 쓴 형태를 둘 다 잡는다.
+# IGNORECASE 는 ASCII 약어(ADHD·PTSD·HIV) 때문이며 한글에는 영향이 없다.
+_CONDITION = re.compile(
+    "|".join(
+        r"\s*".join(re.escape(part) for part in term.split())
+        for term in sorted(ALL_TERMS, key=lambda term: len(term.replace(" ", "")), reverse=True)
+    ),
+    re.IGNORECASE,
+)
+
 # 인명 NER 함수 시그니처: 텍스트 → (시작, 끝) 문자 오프셋 목록.
 NerFn = Callable[[str], list[tuple[int, int]]]
 
 
+@dataclass
+class MaskingReport:
+    """무엇을 몇 건 치환했는지 — **숫자만**. 치환된 원문은 담지 않는다 (R3)."""
+
+    counts: dict[str, int] = field(default_factory=dict)
+
+    def add(self, token: str, amount: int = 1) -> None:
+        if amount > 0:
+            self.counts[token] = self.counts.get(token, 0) + amount
+
+    @property
+    def total(self) -> int:
+        return sum(self.counts.values())
+
+    def as_mapping(self) -> Mapping[str, int]:
+        return dict(self.counts)
+
+
+def _sub_counting(pattern: re.Pattern[str], token: str, text: str, report: MaskingReport) -> str:
+    def replace(_match: re.Match[str]) -> str:
+        report.add(token)
+        return token
+
+    return pattern.sub(replace, text)
+
+
 def mask_patterns(text: str) -> str:
-    """정규식 계층만 적용한다. NER 없이도 항상 이 최소선은 보장된다."""
+    """숫자·형식 정규식 계층만 적용한다. 사전·NER 없이도 항상 이 최소선은 보장된다."""
     for pattern, token in _REGEX_LAYERS:
         text = pattern.sub(token, text)
     return text
 
 
-def mask_text(text: str, ner: NerFn | None = None) -> str:
-    """정규식 + (있으면) NER 인명 마스킹. NER 스팬을 먼저 치환해 오프셋이 어긋나지 않게 한다."""
-    if ner is not None:
-        spans = sorted(ner(text), key=lambda span: span[0], reverse=True)
-        for start, end in spans:
-            if 0 <= start < end <= len(text):
-                text = text[:start] + PERSON_TOKEN + text[end:]
-    return mask_patterns(text)
+def mask_conditions(text: str) -> str:
+    """질병명 사전 계층만 적용한다 (G3). 상담 맥락 문장은 건드리지 않는다."""
+    return _CONDITION.sub(CONDITION_TOKEN, text)
 
 
-def build_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
-    """transformers NER 파이프라인을 인명 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
+def mask_text(text: str, ner: NerFn | None = None, condition_ner: NerFn | None = None) -> str:
+    """전 계층 마스킹. 보고서가 필요하면 `mask_text_with_report` 를 쓴다."""
+    masked, _report = mask_text_with_report(text, ner, condition_ner)
+    return masked
 
-    인명 계열 라벨(PS/PER/PERSON 접두)만 마스킹 대상으로 본다. 라벨 체계는 모델마다
-    달라서, 노트북 세팅 때 실제 모델의 라벨 목록을 확인하고 필요하면 여기를 보정한다.
+
+def mask_text_with_report(
+    text: str,
+    ner: NerFn | None = None,
+    condition_ner: NerFn | None = None,
+) -> tuple[str, MaskingReport]:
+    """전 계층 마스킹 + 집계.
+
+    순서: NER 스팬(오프셋 기반이라 먼저) → 질병명 사전 → 숫자·형식 정규식.
+    NER 스팬은 **뒤에서 앞으로** 치환해 앞선 치환이 뒤 스팬의 오프셋을 밀지 않게 한다.
+    인명·질병명 두 목록은 **합쳐서 한 번에** 정렬한다 — 목록별로 따로 치환하면 앞 목록의
+    치환이 뒤 목록 스팬의 오프셋을 밀어 엉뚱한 자리를 지운다.
+    """
+    report = MaskingReport()
+    spans: list[tuple[int, int, str]] = []
+    for span_fn, token in ((ner, PERSON_TOKEN), (condition_ner, CONDITION_TOKEN)):
+        if span_fn is None:
+            continue
+        spans.extend((start, end, token) for start, end in span_fn(text))
+
+    previous_start = len(text)
+    for start, end, token in sorted(spans, key=lambda span: span[0], reverse=True):
+        # 겹치는 스팬은 뒤쪽만 살린다 — 앞 스팬이 이미 치환한 자리를 다시 자르지 않는다.
+        if 0 <= start < end <= previous_start:
+            text = text[:start] + token + text[end:]
+            report.add(token)
+            previous_start = start
+
+    text = _sub_counting(_CONDITION, CONDITION_TOKEN, text, report)
+    for pattern, token in _REGEX_LAYERS:
+        text = _sub_counting(pattern, token, text, report)
+    return text, report
+
+
+def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
+    """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
+
+    라벨 체계는 모델마다 달라서, 노트북 세팅 때 실제 모델의 라벨 목록을 확인하고 필요하면
+    호출부의 접두 목록을 보정한다.
     """
     from transformers import pipeline  # noqa: PLC0415
 
@@ -77,8 +159,23 @@ def build_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
         spans: list[tuple[int, int]] = []
         for entity in recognizer(text):
             group = str(entity.get("entity_group", "")).upper()
-            if group.startswith(("PS", "PER")):
+            if group.startswith(label_prefixes):
                 spans.append((int(entity["start"]), int(entity["end"])))
         return spans
 
     return ner
+
+
+def build_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
+    """인명 스팬 NER. 인명 계열 라벨(PS/PER/PERSON 접두)만 마스킹 대상으로 본다."""
+    return _build_span_ner(model_id, ("PS", "PER"))
+
+
+def build_condition_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
+    """질병명 스팬 NER (G3) — **사전의 보완재이지 대체재가 아니다.**
+
+    사전(`condition_terms.py`)이 항상 먼저 동작하고, 이 계층은 사전에 없는 표기·오탈자를
+    줍는 몫이다. 라벨 접두는 한국어 NER 에서 질병·증상에 흔히 쓰이는 것들을 넣어 뒀지만
+    **실측 확인 전이다** — 노트북 세팅 때 모델의 실제 라벨을 확인하고 여기를 고친다.
+    """
+    return _build_span_ner(model_id, ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM"))

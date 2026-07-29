@@ -19,6 +19,22 @@ jobs:
       - run: pnpm test
       - run: pnpm guard:db
 
+  # 파이프라인(파이썬) 테스트 — 표준 라이브러리 unittest 만 쓰므로 ML 설치가 필요 없다.
+  # G3 의 마스킹 치환율 검증이 여기 걸려 있다 — CI 에 없으면 아무도 돌리지 않는 검증이 된다.
+  # 시작 디렉터리가 임포트 가능해야 해서(파이썬 3.12+) tests/ 안에서 실행한다.
+  pipeline-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: unittest
+        working-directory: apps/pipeline/tests
+        env:
+          PYTHONPATH: ..
+        run: python3 -m unittest discover -s . -p "test_*.py" -v
+
   # 비밀값 유출 검사 — 전체 히스토리를 매 push/PR마다 스캔한다 (.gitleaks.toml 허용 목록 적용).
   # gitleaks-action은 조직 레포에 유료 라이선스가 필요해 바이너리를 직접 받아 돌린다(MIT, 무료).
   secret-scan:
