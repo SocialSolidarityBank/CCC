@@ -14,29 +14,37 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const repoRoot = join(dirname(new URL(import.meta.url).pathname), '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ACCESS_AUD = '3dbacf213494f7624c00676ce62742c414528997fd2a23c21e926c16d79404d2';
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
-// 기본 룰에 걸리는 값. 실제 자격증명이 아니라 형식만 맞춘 더미다. gitleaks:allow
-const PLANTED = 'ghp_0123456789abcdefghijklmnopqrstuvwx';
+// 기본 룰(github-pat)에 걸리는 값 — ghp_ 뒤 36자, entropy 검사를 통과하도록 무작위 배열.
+// 실제 자격증명이 아니라 형식만 맞춘 더미다.
+const PLANTED = 'ghp_NbrnTP3fAbnFbmOHnKYaXRvj7uff0LYTH8xI'; // gitleaks:allow
 
 const probe = mkdtempSync(join(tmpdir(), 'ccc-allowlist-'));
 const failures = [];
 
-function scan(mode) {
-  const args = mode === 'dir'
-    ? ['dir', '-c', join(probe, '.gitleaks.toml'), '--no-banner', '--redact', '-f', 'json', '-r', '-', probe]
-    : ['dir', '-c', join(probe, '.gitleaks.toml'), '--no-banner', '--redact', '-f', 'json', '-r', '-', probe];
+function scan() {
+  const args = ['dir', '-c', join(probe, '.gitleaks.toml'), '--no-banner', '--redact', '-f', 'json', '-r', '-', probe];
   const r = spawnSync('gitleaks', args, { encoding: 'utf8' });
   if (r.error?.code === 'ENOENT') {
     console.error('허용목록 테스트 건너뜀 불가: gitleaks 가 없다. 설치: brew install gitleaks');
     process.exit(1);
   }
+  // gitleaks exit code: 0 = no leaks, 1 = leaks found, 그 외 = 실행 자체 실패.
+  if (r.status !== 0 && r.status !== 1) {
+    console.error(`허용목록 테스트 실패: gitleaks 가 비정상 종료했다 (exit ${r.status}).`);
+    console.error(r.stderr || r.stdout);
+    process.exit(1);
+  }
   try {
     return JSON.parse(r.stdout || '[]');
   } catch {
-    return [];
+    console.error('허용목록 테스트 실패: gitleaks 출력이 JSON 으로 파싱되지 않는다.');
+    console.error(r.stdout);
+    process.exit(1);
   }
 }
 
@@ -48,7 +56,7 @@ try {
   writeFileSync(join(probe, 'apps/api/wrangler.toml'), `ACCESS_AUD = "${ACCESS_AUD}"\n`);
   writeFileSync(join(probe, 'apps/api/test/support/d1.ts'), `export const TEST_PII_KEY = '${TEST_PII_KEY}';\n`);
 
-  const clean = scan('dir');
+  const clean = scan();
   if (clean.length > 0) {
     failures.push(`오탐 2건이 면제되지 않았다: ${clean.map((f) => f.File).join(', ')}`);
   }
@@ -58,7 +66,7 @@ try {
     join(probe, 'apps/api/wrangler.toml'),
     `ACCESS_AUD = "${ACCESS_AUD}"\nSOME_TOKEN = "${PLANTED}"\n`,
   );
-  const planted = scan('dir');
+  const planted = scan();
   const caught = planted.some((f) => String(f.File).endsWith('wrangler.toml'));
   if (!caught) {
     failures.push(

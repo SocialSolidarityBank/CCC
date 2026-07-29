@@ -14,7 +14,7 @@ import { spawnSync } from 'node:child_process';
 const HISTORY = process.argv.includes('--history');
 const args = HISTORY
   ? ['git', '--no-banner', '--redact']
-  : ['git', '--pre-commit', '--staged', '--no-banner', '--redact'];
+  : ['git', '--staged', '--no-banner', '--redact'];
 
 const result = spawnSync('gitleaks', args, { stdio: 'inherit' });
 
