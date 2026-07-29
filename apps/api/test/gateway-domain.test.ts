@@ -56,6 +56,7 @@ import {
   rescheduleCounselingSchedule,
   reviewFlag,
   resolveActionItem,
+  setSupportCaseOverallGoal,
   updateParticipantPii,
   transferSupportCase,
   unassignSupportCase,
@@ -2126,5 +2127,82 @@ describe('canonical participant gateway', () => {
       initial.beneficiaryId,
       hidden.supportCaseId,
     )).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('overall goal (D45 · CCC-41)', () => {
+  it('lets only the assigned counselor set, edit, and clear it — trimmed, audited, briefing-visible', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+
+    // 설정 전에는 null 로 온다 — 화면의 "설정 전" 폴백 재료.
+    await expect(getParticipantBriefing(
+      t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
+    )).resolves.toMatchObject({ overallGoal: null, canEditOverallGoal: true });
+
+    // 담당 실무자가 그 자리에서 입력한다. 앞뒤 공백은 저장 전에 정리된다.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '  주거 안정과 채무 상환 계획 실행  ',
+    )).resolves.toEqual({ supportCaseId: created.supportCaseId, overallGoal: '주거 안정과 채무 상환 계획 실행' });
+
+    // 전체 목표는 수정 가능하다(D33 — 세부 목표의 수정 금지와 다른 층).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
+    await expect(getParticipantBriefing(
+      t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
+
+    // admin 은 열람은 되지만 편집은 안 된다(ADR-0018 '담당 실무자만'). 브리핑도 편집 불가로 알린다.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.admin, created.supportCaseId, 'ADMIN_EDIT_BLOCKED',
+    )).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(getParticipantBriefing(
+      t.env, canonicalActors.admin, created.beneficiaryId, created.supportCaseId,
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련', canEditOverallGoal: false });
+
+    // 비담당 실무자는 접근 자체가 막힌다(D7).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.secondCounselor, created.supportCaseId, 'NOT_ASSIGNED',
+    )).rejects.toBeInstanceOf(ForbiddenError);
+
+    // 빈 문자열 저장 = 설정 전으로 되돌림.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '   ',
+    )).resolves.toEqual({ supportCaseId: created.supportCaseId, overallGoal: null });
+
+    // 길이 상한 200자(게이트웨이 검증).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '가'.repeat(201),
+    )).rejects.toBeInstanceOf(ValidationError);
+
+    // 변경 전건 감사(D14) — 성공한 쓰기 3건(입력·수정·지움)이 전부 남고, 목표 문장은 detail 에 없다.
+    const audits = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE action = 'update' AND target_table = 'support_cases' AND target_id = ?`,
+    ).bind(created.supportCaseId).all<{ detail: string }>();
+    const goalAudits = audits.results.filter((row) => row.detail.includes('overall_goal'));
+    expect(goalAudits).toHaveLength(3);
+    for (const row of goalAudits) {
+      expect(row.detail).not.toContain('자립 기반 마련');
+      expect(row.detail).not.toContain('주거 안정');
+    }
+  });
+
+  it('rejects editing on a closed support case', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+    });
+    await closeSupportCase(t.env, canonicalActors.counselor, created.supportCaseId, 'program complete');
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '종결 후 수정 시도',
+    )).rejects.toBeInstanceOf(ValidationError);
   });
 });

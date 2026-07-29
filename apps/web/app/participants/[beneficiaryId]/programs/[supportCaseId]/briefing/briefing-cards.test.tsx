@@ -8,6 +8,9 @@ afterEach(cleanup);
 function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsProps {
   return {
     beneficiaryId: 'swallow-003',
+    supportCaseId: '11111111-1111-4111-8111-111111111111',
+    overallGoal: null,
+    canEditOverallGoal: true,
     participantHref: '/participants/swallow-003',
     recordsHref: '/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records',
     recordNewHref: '/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records/new',
@@ -213,5 +216,77 @@ describe('BriefingCards — 실명 직표시와 폴백 (D24 · ADR-0005)', () =>
     const privacy = cardByTitle(container, '개인정보');
     expect(privacy.textContent).toContain('권한 없음');
     expect(privacy.querySelector('.wire-field-row')).toBeNull();
+  });
+});
+
+describe('BriefingCards — 전체 목표 카드 (D45 · CCC-41)', () => {
+  const goalCard = (container: HTMLElement): HTMLElement => {
+    const el = container.querySelector<HTMLElement>('.briefing-goal');
+    if (el === null) throw new Error('overall goal card not found');
+    return el;
+  };
+
+  it('리스크 배너 아래·아코디언 위에 서고, 비어 있으면 설정 전으로 표기한다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const card = goalCard(container);
+    expect(card.textContent).toContain('전체 목표');
+    expect(card.textContent).toContain('설정 전');
+    // 위치 계약(D45 표 3행): 아코디언 영역보다 앞이다.
+    const accordions = container.querySelector('.briefing-accordions');
+    expect(accordions).not.toBeNull();
+    expect(card.compareDocumentPosition(accordions as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 점수·게이지는 붙지 않는다(D43).
+    expect(card.querySelector('.briefing-gauge')).toBeNull();
+  });
+
+  it('값이 있으면 한 줄로 보여주고 담당 실무자에게는 수정 버튼이 뜬다', () => {
+    const { container } = render(<BriefingCards {...baseProps({
+      overallGoal: '안정적인 주거 확보와 채무 상환 계획 실행',
+      overallGoalAction: async () => {},
+    })} />);
+    const card = goalCard(container);
+    expect(card.textContent).toContain('안정적인 주거 확보와 채무 상환 계획 실행');
+    expect(card.textContent).not.toContain('설정 전');
+    expect(within(card).getByText('수정')).toBeTruthy();
+  });
+
+  it('수정을 누르면 그 자리에서 입력 폼이 열리고 취소로 닫힌다', () => {
+    const { container } = render(<BriefingCards {...baseProps({
+      overallGoal: '기존 목표',
+      overallGoalAction: async () => {},
+    })} />);
+    const card = goalCard(container);
+    fireEvent.click(within(card).getByText('수정'));
+    const input = card.querySelector<HTMLInputElement>('input[name="overallGoal"]');
+    expect(input).not.toBeNull();
+    expect(input?.defaultValue).toBe('기존 목표');
+    // 게이트웨이 상한과 같은 200자.
+    expect(input?.maxLength).toBe(200);
+    // hidden 값이 폼에 실린다 — 게이트웨이 권한 판정의 입력이다.
+    expect(card.querySelector<HTMLInputElement>('input[name="supportCaseId"]')?.value)
+      .toBe('11111111-1111-4111-8111-111111111111');
+    fireEvent.click(within(card).getByText('취소'));
+    expect(card.querySelector('input[name="overallGoal"]')).toBeNull();
+  });
+
+  it('비어 있으면 버튼 라벨은 입력이고, 비담당(canEdit=false)에게는 편집 UI 가 없다', () => {
+    const editable = render(<BriefingCards {...baseProps({ overallGoalAction: async () => {} })} />);
+    expect(within(goalCard(editable.container)).getByText('입력')).toBeTruthy();
+    cleanup();
+    const readOnly = render(<BriefingCards {...baseProps({
+      canEditOverallGoal: false,
+      overallGoal: '기존 목표',
+      overallGoalAction: async () => {},
+    })} />);
+    const card = goalCard(readOnly.container);
+    expect(card.textContent).toContain('기존 목표');
+    expect(card.querySelector('button')).toBeNull();
+  });
+
+  it('저장 실패 notice 가 오면 카드 안에 오류 한 줄을 알린다', () => {
+    const { container } = render(<BriefingCards {...baseProps({ overallGoalError: true })} />);
+    const alert = goalCard(container).querySelector('[role="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert?.textContent).toContain('저장하지 못했습니다');
   });
 });

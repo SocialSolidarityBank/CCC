@@ -5505,6 +5505,8 @@ export interface SupportCase {
   consentTextAiAt: string | null;
   /** 개인정보 수집·이용 동의 시각 (D44 · 0020). NULL = 미동의. 게이트가 아니라 현재 상태다. */
   consentPrivacyAt: string | null;
+  /** 전체 목표 (D45 · 0024). 케이스당 1개·수정 가능·점수 없음. NULL = 설정 전. */
+  overallGoal: string | null;
   closedAt: string | null;
   closedReason: string | null;
   creationKind: 'legacy_import' | 'initial' | 'subsequent';
@@ -5596,6 +5598,7 @@ function mapSupportCase(row: DbRow): SupportCase {
     consentRecordingAt: nullableString(row.consent_recording_at),
     consentTextAiAt: nullableString(row.consent_text_ai_at),
     consentPrivacyAt: nullableString(row.consent_privacy_at),
+    overallGoal: nullableString(row.overall_goal),
     closedAt: nullableString(row.closed_at),
     closedReason: nullableString(row.closed_reason),
     creationKind: canonicalCreationKind(row.creation_kind),
@@ -6480,6 +6483,59 @@ export async function updateParticipantConsent(
     textAi: consent.textAi,
     recordedAt,
   };
+}
+
+const MAX_OVERALL_GOAL_LENGTH = 200;
+
+/**
+ * 전체 목표 그 자리 입력·수정 (D45 · CCC-41). 케이스당 1개·수정 가능·점수 없음(D33)이라
+ * goals 테이블(세부 목표, title 수정 금지)이 아니라 support_cases.overall_goal 을 쓴다.
+ *
+ * 권한은 **담당 실무자만**(ADR-0018 — 불일치 처리의 '담당 실무자·기관 관리자'보다 좁다).
+ * counselor 는 assertSupportCaseAccess 가 활성 배정을 강제하고, admin 은 여기서 거른다.
+ * null 또는 빈 문자열은 "지운다"(설정 전으로 되돌림). 변경 전건 감사(D14) — 목표 문장은
+ * 자유 텍스트라 감사 detail 에 싣지 않는다(R3 태도, 동의 기록과 같은 원칙).
+ */
+export async function setSupportCaseOverallGoal(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  overallGoal: string | null,
+): Promise<{ supportCaseId: string; overallGoal: string | null }> {
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  if (overallGoal !== null && typeof overallGoal !== 'string') {
+    throw new ValidationError('overall goal is invalid');
+  }
+  const normalized = overallGoal === null ? null : overallGoal.trim();
+  const nextGoal = normalized === null || normalized.length === 0 ? null : normalized;
+  if (nextGoal !== null && nextGoal.length > MAX_OVERALL_GOAL_LENGTH) {
+    throw new ValidationError(`overall goal must be at most ${MAX_OVERALL_GOAL_LENGTH} characters`);
+  }
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  if (actor.role !== 'counselor') {
+    throw new ForbiddenError('only an assigned counselor can edit the overall goal');
+  }
+  if (supportCase.status !== 'active') {
+    throw new ValidationError('overall goal can only be edited on an active support case');
+  }
+
+  const updatedAt = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE support_cases SET overall_goal = ?, updated_at = ?
+       WHERE id = ? AND org_id = ?`,
+    ).bind(nextGoal, updatedAt, supportCaseId, actor.orgId),
+    canonicalAuditStatement(env, actor, {
+      action: 'update',
+      targetTable: 'support_cases',
+      targetId: supportCaseId,
+      beneficiaryId: supportCase.beneficiaryId,
+      supportCaseId,
+      detail: { field: 'overall_goal', cleared: nextGoal === null },
+      caseId: supportCase.legacyCaseId,
+    }),
+  ]);
+  return { supportCaseId, overallGoal: nextGoal };
 }
 
 /**
@@ -10479,6 +10535,14 @@ export interface ParticipantBriefing {
   flags: ParticipantBriefingFlag[];
   questions: ParticipantBriefingQuestion[];
   focusUpcomingSchedule: BriefingUpcomingSchedule | null;
+  /** 포커스 참여사업의 전체 목표 (D45 · 0024). NULL = 설정 전. */
+  overallGoal: string | null;
+  /**
+   * 전체 목표 그 자리 편집 가능 여부 (D45: 담당 실무자만). counselor 접근은
+   * assertSupportCaseAccess 가 활성 배정을 이미 강제했으므로 역할만 보면 된다 —
+   * admin 은 열람은 되지만 편집은 안 된다(ADR-0018 '담당 실무자만').
+   */
+  canEditOverallGoal: boolean;
   // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
   // 접근 자체가 assertSupportCaseAccess 로 이미 걸러졌으므로 여기 도달하면 열람 권한이 있다.
   participant: ParticipantNameContact;
@@ -10764,6 +10828,8 @@ export async function getParticipantBriefing(
     flags: briefingFlags,
     questions,
     focusUpcomingSchedule,
+    overallGoal: focus.overallGoal,
+    canEditOverallGoal: actor.role === 'counselor',
     participant: participantNamePhone(contacts.get(beneficiaryId)),
   };
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
+import { updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PROGRAM_LABELS } from '../../../../../lib/labels';
@@ -91,6 +92,11 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
         <IntakeSavedNotice notice={notice} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
         <BriefingCards
           beneficiaryId={beneficiaryId}
+          supportCaseId={supportCaseId}
+          overallGoal={briefing.overallGoal}
+          canEditOverallGoal={briefing.canEditOverallGoal}
+          overallGoalError={notice === 'overall_goal_error'}
+          overallGoalAction={updateOverallGoalAction}
           participantHref={participantHref(beneficiaryId)}
           recordsHref={recordsHref(beneficiaryId, supportCaseId)}
           recordNewHref={recordNewHref(beneficiaryId, supportCaseId)}

@@ -31,6 +31,16 @@ const sessionKindLabels: Record<'regular' | 'intake', string> = {
 
 export interface BriefingCardsProps {
   beneficiaryId: string;
+  /** 전체 목표 저장 폼의 hidden 값 — 게이트웨이 권한 판정에 그대로 넘어간다. */
+  supportCaseId: string;
+  /** D45 전체 목표 — 케이스당 1개·수정 가능·점수 없음(D33). null = 설정 전. */
+  overallGoal: string | null;
+  /** 담당 실무자만 true(게이트웨이 판정). admin 은 열람만이라 편집 UI 를 그리지 않는다. */
+  canEditOverallGoal: boolean;
+  /** 직전 저장 실패 여부(리다이렉트 notice) — 카드 안에 한 줄로 알린다. */
+  overallGoalError?: boolean;
+  /** 서버 액션. jsdom 테스트는 넘기지 않아도 렌더된다 — 없으면 편집 UI 를 그리지 않는다. */
+  overallGoalAction?: (formData: FormData) => Promise<void>;
   participantHref: string;
   recordsHref: string;
   /** HERO 우상단 프라이머리 `상담 시작`의 목적지 — 이 앱에서 상담을 시작한다는 것은 기록을 연다는 뜻이다. */
@@ -65,6 +75,74 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="briefing-note" role="status">{children}</p>;
 }
 
+/** 전체 목표 카드 (D45 · CCC-41) — HERO·리스크 배너 아래 카드형 한 줄. 방향 문장만 —
+    점수·게이지는 붙이지 않는다(D43). 비면 "설정 전"이고, 담당 실무자는 그 자리에서 바로
+    입력·수정한다(빈 칸 저장 = 설정 전으로 되돌림). 접힘 대상이 아니라 아코디언 밖이다. */
+function OverallGoalCard({
+  beneficiaryId,
+  supportCaseId,
+  overallGoal,
+  canEdit,
+  hasError,
+  action,
+}: {
+  beneficiaryId: string;
+  supportCaseId: string;
+  overallGoal: string | null;
+  canEdit: boolean;
+  hasError: boolean;
+  action: ((formData: FormData) => Promise<void>) | undefined;
+}) {
+  const [editing, setEditing] = useState(false);
+  const isSet = overallGoal !== null && overallGoal.length > 0;
+  const editable = canEdit && action !== undefined;
+
+  return (
+    <section className="surface-card briefing-goal" aria-label="전체 목표">
+      <div className="briefing-goal-row">
+        <p className="briefing-qlabel">전체 목표</p>
+        {editing && action !== undefined
+          ? (
+            <form className="briefing-goal-form" action={action}>
+              <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+              <input type="hidden" name="supportCaseId" value={supportCaseId} />
+              {/* 게이트웨이 상한과 같은 200자 — 길이 실패를 화면에서 먼저 막는다. */}
+              <input
+                className="briefing-goal-input"
+                type="text"
+                name="overallGoal"
+                defaultValue={overallGoal ?? ''}
+                maxLength={200}
+                placeholder="이 당사자와 무엇을 향해 가는지 한 문장으로 적습니다"
+                aria-label="전체 목표"
+                autoFocus
+              />
+              <WireButton type="submit" variant="secondary" height="sm">저장</WireButton>
+              <WireButton variant="ghost" height="sm" onClick={() => setEditing(false)}>취소</WireButton>
+            </form>
+          )
+          : (
+            <>
+              <p className={isSet ? 'briefing-goal-text' : 'briefing-goal-text is-empty'}>
+                {isSet ? overallGoal : '설정 전'}
+              </p>
+              {editable && (
+                <WireButton variant="ghost" height="sm" onClick={() => setEditing(true)}>
+                  {isSet ? '수정' : '입력'}
+                </WireButton>
+              )}
+            </>
+          )}
+      </div>
+      {hasError && (
+        <p className="briefing-goal-error" role="alert">
+          전체 목표를 저장하지 못했습니다. 담당 실무자만 수정할 수 있습니다 — 잠시 후 다시 시도하세요.
+        </p>
+      )}
+    </section>
+  );
+}
+
 // 카드 = 접힘 가능한 <details>. 요약(제목)만 남기고 본문을 접을 수 있어 '전체 열기/닫기'가
 // 카드 접힘 상태에도 일괄 적용된다. 기본은 열림. badge 는 제목 오른쪽(화살표 앞)에 앉는다.
 function Card({ title, badge, children }: { title: string; badge?: ReactNode; children: ReactNode }) {
@@ -84,6 +162,11 @@ function Card({ title, badge, children }: { title: string; badge?: ReactNode; ch
 
 export function BriefingCards({
   beneficiaryId,
+  supportCaseId,
+  overallGoal,
+  canEditOverallGoal,
+  overallGoalError = false,
+  overallGoalAction,
   participantHref,
   recordsHref,
   recordNewHref,
@@ -145,6 +228,16 @@ export function BriefingCards({
       </header>
 
       <RiskBanner flags={flags} />
+
+      {/* 전체 목표 카드는 리스크 배너 아래·아코디언 위다(D45 표 3행). */}
+      <OverallGoalCard
+        beneficiaryId={beneficiaryId}
+        supportCaseId={supportCaseId}
+        overallGoal={overallGoal}
+        canEdit={canEditOverallGoal}
+        hasError={overallGoalError}
+        action={overallGoalAction}
+      />
 
       {/* 여닫기 줄은 리스크 배너 **아래**다 — 배너는 HERO 바로 아래 자리를 내줄 수 없고(D9),
           이 줄이 다루는 대상(아코디언 전부)의 바로 위이기도 하다. */}

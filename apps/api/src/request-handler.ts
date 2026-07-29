@@ -74,6 +74,7 @@ import {
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
   searchParticipants,
+  setSupportCaseOverallGoal,
   updateParticipantConsent,
   updateParticipantPii,
   upsertUser,
@@ -951,6 +952,9 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
   return {
     beneficiaryId: briefing.beneficiaryId,
     focusSupportCaseId: briefing.focusedSupportCase.id,
+    // D45 전체 목표 — 포커스 케이스당 1개, NULL = 설정 전. 편집 가능 여부는 게이트웨이 판정.
+    overallGoal: briefing.overallGoal,
+    canEditOverallGoal: briefing.canEditOverallGoal,
     // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
     participant: briefing.participant,
     sections: sources.map((sourceSupportCase) => {
@@ -1592,6 +1596,15 @@ export async function handleRequest(
           textAi: requiredBoolean(body, 'textAi'),
         });
         return json(updated);
+      }
+      // 전체 목표 그 자리 입력·수정 (D45 · CCC-41). 담당 실무자만 — 게이트웨이가 강제한다(R1).
+      // null 또는 빈 문자열은 "설정 전"으로 되돌린다.
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'overall-goal') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['overallGoal']);
+        const overallGoal = optionalNullableString(body, 'overallGoal') ?? null;
+        return json(await setSupportCaseOverallGoal(env, actor, supportCaseId, overallGoal));
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);

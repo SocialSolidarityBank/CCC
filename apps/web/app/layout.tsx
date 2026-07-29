@@ -323,6 +323,16 @@ const briefingStyles = `
 .briefing-toolbar{display:flex;justify-content:flex-end}
 /* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
 .briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
+/* 전체 목표 카드(D45 · CCC-41) — 카드형 한 줄. 카드 계약(.surface-card)을 그대로 쓰고
+   안쪽 가로 배치만 정한다. 점수·게이지 자리는 없다(D43). */
+.briefing-goal{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6)}
+.briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
+.briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+/* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
+.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:16px;color:var(--ink)}
+.briefing-goal-error{margin:0;font-size:14px;color:var(--risk)}
 /* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
 .briefing-more{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-5) var(--space-6)}
 .briefing-more:hover{--surface-fill:var(--muted)}
