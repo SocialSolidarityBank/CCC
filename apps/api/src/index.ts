@@ -1,4 +1,9 @@
-import { purgeExpiredParticipantPii, runPipelineWatchdog, type PipelineHealth } from '../../../db/gateway';
+import {
+  listEmergencyConsentDeadlines,
+  purgeExpiredParticipantPii,
+  runPipelineWatchdog,
+  type PipelineHealth,
+} from '../../../db/gateway';
 import { type ApiEnv } from './identity';
 import { localDevActorResolver } from './local-actor';
 import { notifyAdmins } from './notify';
@@ -31,7 +36,24 @@ export async function runWatchdog(env: ApiEnv): Promise<PipelineHealth[]> {
       );
     }
   }
+  await remindEmergencyConsentDeadlines(env);
   return healths;
+}
+
+/**
+ * 긴급 등록의 ① 동의 보완 기한 알림 (G1). 워치독과 같은 주기를 탄다 — 알림 채널을 새로
+ * 만들지 않고 기존 시임(notifyAdmins) 하나만 쓴다. 본문은 기관 ID·건수뿐이다(R3 · notify.ts 계약).
+ * 실무자 개인에게 보내는 채널은 아직 없으므로(사이드바 배지 인프라 미구현) 현 단계는
+ * 관리자 알림 + `GET /consent/follow-ups` 보완 대상 리포트가 그 자리를 맡는다.
+ */
+export async function remindEmergencyConsentDeadlines(env: ApiEnv): Promise<void> {
+  for (const summary of await listEmergencyConsentDeadlines(env)) {
+    await notifyAdmins(
+      env,
+      `emergency registration consent follow-up for org ${summary.orgId}: `
+        + `${summary.overdue} overdue, ${summary.dueSoon} due soon`,
+    );
+  }
 }
 
 /** Canonical participant PII purge (D10), safe for scheduled execution and direct tests. */

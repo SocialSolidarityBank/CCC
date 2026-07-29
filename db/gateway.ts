@@ -122,8 +122,37 @@ export class AiProviderNotConfiguredError extends Error {
   }
 }
 
+/**
+ * ① 개인정보 수집·이용 동의 없이 등록하려 했다 (G1 · 2026-07-29 Q 결정1).
+ * 긴급 등록(사유 필수)만이 예외이며, 그 경로를 화면이 안내할 수 있도록 코드를 따로 둔다 —
+ * 'invalid_request' 로 뭉치면 화면에서 원인 없는 실패로 보인다(게이트 문서 §2 G1).
+ */
+export class PrivacyConsentRequiredError extends Error {
+  readonly code = 'privacy_consent_required';
+  readonly statusCode = 422;
+
+  constructor() {
+    super('privacy_consent_required');
+  }
+}
+/** 긴급 등록을 골랐는데 사유가 비었다 (G1). 사유 없는 예외는 기록 없는 우회다. */
+export class EmergencyReasonRequiredError extends Error {
+  readonly code = 'emergency_reason_required';
+  readonly statusCode = 422;
+
+  constructor() {
+    super('emergency_reason_required');
+  }
+}
+
 // ── 설정 상수 ───────────────────────────────────────────────────────────────
 
+/**
+ * 긴급 등록 시 ① 개인정보 동의를 보완해야 하는 기한(일). G1 의 **설정값**이다 —
+ * 법률 검토가 재개되면(2026-07-30 Q 결정으로 MVP 범위에서는 종료) 이 숫자만 바꾼다.
+ * 기관별 설정으로 나누지 않는다(전역 1개, G2 의 보존 상한과 같은 태도).
+ */
+export const EMERGENCY_CONSENT_GRACE_DAYS = 14;
 
 /**
  * D8 무폴링 판정 기본 임계값(시간). env.PIPELINE_STALE_HOURS로 덮어쓸 수 있다.
@@ -6576,10 +6605,66 @@ export interface CreateBeneficiaryWithInitialSupportCaseInput {
  * 함께 남긴다.
  */
 export interface ParticipantConsentInput {
-  /** 개인정보 수집·이용 동의 (D44). 등록 화면의 첫 체크. 생략은 미동의(false)로 읽는다. */
+  /**
+   * 개인정보 수집·이용 동의 (D44 → G1). **등록의 하드 게이트**다: true 가 아니면 등록이
+   * 거부되고, 급박한 위기 개입만 `emergency`(사유 필수)로 통과한다. 생략은 미동의로 읽는다.
+   */
   privacy?: boolean;
   recording: boolean;
   textAi: boolean;
+  /**
+   * 긴급 등록 (G1 예외). ① 동의를 아직 받지 못한 채 등록해야 하는 경우에만 쓴다 —
+   * 사유가 케이스 행에 남고 보완 기한(EMERGENCY_CONSENT_GRACE_DAYS)이 함께 생긴다.
+   * ① 동의와 동시에 올 수 없다(예외는 동의가 없을 때만 성립).
+   */
+  emergency?: EmergencyRegistrationInput;
+}
+
+/** 긴급 등록 사유 (G1). 자유 텍스트라 감사 detail 에는 싣지 않는다(R3 태도). */
+export interface EmergencyRegistrationInput {
+  reason: string;
+}
+
+/** 긴급 등록으로 케이스 행에 남길 3값. 일반 등록이면 전부 NULL 이다. */
+interface EmergencyRegistrationRecord {
+  at: string;
+  reason: string;
+  dueAt: string;
+}
+
+const MAX_EMERGENCY_REASON_LENGTH = 500;
+
+function emergencyConsentDueAt(instant: string): string {
+  return new Date(Date.parse(instant) + EMERGENCY_CONSENT_GRACE_DAYS * 86_400_000).toISOString();
+}
+
+/**
+ * ① 하드 게이트 판정 (G1 · 게이트 문서 §2). 등록 3경로(당사자 등록·추가 참여 사업·
+ * 자기 가입)가 전부 이 함수 하나를 지난다 — 경로마다 조건을 다시 쓰면 한 곳만 느슨해진다.
+ *
+ * 반환값은 케이스 행에 쓸 긴급 등록 3값이며, ① 동의를 받았으면 null 이다.
+ */
+function assertPrivacyConsentGate(
+  privacy: boolean,
+  emergency: EmergencyRegistrationInput | undefined,
+  createdAt: string,
+): EmergencyRegistrationRecord | null {
+  if (privacy) {
+    // 동의가 있는데 긴급 예외까지 함께 오면 상태가 모순된다 — 예외는 동의가 없을 때만 성립한다.
+    if (emergency !== undefined) throw new ValidationError('emergency registration requires missing privacy consent');
+    return null;
+  }
+  if (emergency === undefined) throw new PrivacyConsentRequiredError();
+  if (typeof emergency !== 'object' || emergency === null) throw new EmergencyReasonRequiredError();
+  assertExactKeys(emergency, ['reason']);
+  if (typeof emergency.reason !== 'string' || emergency.reason.trim().length === 0) {
+    throw new EmergencyReasonRequiredError();
+  }
+  const reason = emergency.reason.trim();
+  if (reason.length > MAX_EMERGENCY_REASON_LENGTH) {
+    throw new ValidationError(`emergency reason must be at most ${MAX_EMERGENCY_REASON_LENGTH} characters`);
+  }
+  return { at: createdAt, reason, dueAt: emergencyConsentDueAt(createdAt) };
 }
 interface LegacyInitialSupportCaseCompatibility {
   intakeAt: string | null;
@@ -6594,6 +6679,13 @@ export interface CreateSupportCaseInput {
   intakeAt: string;
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
+  /**
+   * ① 개인정보 수집·이용 동의 (G1). 같은 당사자의 두 번째 참여 사업도 동의 3종이 미체크로
+   * 시작하므로(D44) 여기서 ① 을 다시 받는다. false 면 `emergencyReason` 없이는 거부된다.
+   */
+  consentPrivacy: boolean;
+  /** 긴급 등록 사유 (G1 예외). ① 미동의로 열어야 할 때만 넣는다. */
+  emergencyReason?: string;
 }
 
 export interface SupportCaseCreationResult {
@@ -6789,6 +6881,13 @@ async function supportCaseReceiptReplay(
  * Creates a permanent participant and its sole initial SupportCase in one D1
  * batch. PII is deliberately absent: the only vault row is an empty versioned
  * container. A failed audit or publication transition rolls the whole batch back.
+ *
+ * **① 하드 게이트(G1)**: `consent` 를 실은 호출 — 즉 사람이 쓰는 등록 경로 전부 — 는
+ * ① 개인정보 수집·이용 동의가 없으면 거부되고, 긴급 등록(사유 필수)만 통과한다.
+ * `consent` 없이 부르는 호출은 레거시 Phase-1 호환(`createCase`, 0008 시절 어휘라
+ * ① 개념 자체가 없다)과 시드 하네스뿐이며, HTTP 등록 라우트는 언제나 consent 를 싣는다
+ * (`parseInitialParticipantCreation`). 그 레거시 경로로 생긴 ① 미기록 케이스는
+ * `listPrivacyConsentFollowUps` 의 보완 대상 리포트가 잡는다.
  */
 export async function createBeneficiaryWithInitialSupportCase(
   env: Env,
@@ -6845,6 +6944,12 @@ export async function createBeneficiaryWithInitialSupportCase(
   assertOpaqueIdentifier(effectiveAssigneeUserId, 'initial assignee user id');
   await assertActiveHumanUser(env, actor.orgId, effectiveAssigneeUserId);
 
+  // ① 하드 게이트(G1)는 가명 ID 재시도 루프 **밖에서** 한 번만 판정한다 — 입력 결함으로
+  // 가명 ID 를 소모하지 않게 한다. 시각만 각 시도의 createdAt 으로 다시 맞춘다.
+  const emergencyValidated = consent === undefined
+    ? null
+    : assertPrivacyConsentGate(consent.privacy === true, consent.emergency, now());
+
   let finalError: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const beneficiaryId = await allocateBeneficiaryId(env, actor.orgId);
@@ -6862,6 +6967,10 @@ export async function createBeneficiaryWithInitialSupportCase(
       : (legacyCompatibility?.consentTextAiAt ?? null);
     // D44: 개인정보 동의는 레거시 호환 경로에 대응 입력이 없다 — 등록 폼 값만이 근거다.
     const consentPrivacyAt = consent?.privacy === true ? createdAt : null;
+    // 긴급 등록 3값(G1). 일반 등록이면 전부 NULL 이고, DB 가드가 셋의 정합을 강제한다(0028).
+    const emergency: EmergencyRegistrationRecord | null = emergencyValidated === null
+      ? null
+      : { at: createdAt, reason: emergencyValidated.reason, dueAt: emergencyConsentDueAt(createdAt) };
     const consentRecordId = consent === undefined ? null : newId();
     try {
       const statements: D1PreparedStatement[] = [
@@ -6884,8 +6993,9 @@ export async function createBeneficiaryWithInitialSupportCase(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
              consent_recording_at, consent_text_ai_at, consent_privacy_at,
+             emergency_registration_at, emergency_registration_reason, consent_privacy_due_at,
              creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           actor.orgId,
@@ -6896,6 +7006,9 @@ export async function createBeneficiaryWithInitialSupportCase(
           consentRecordingAt,
           consentTextAiAt,
           consentPrivacyAt,
+          emergency === null ? null : emergency.at,
+          emergency === null ? null : emergency.reason,
+          emergency === null ? null : emergency.dueAt,
           createdAt,
           createdAt,
         ),
@@ -6967,7 +7080,13 @@ detail: { role: 'primary', initial: true },
             targetId: consentRecordId,
             beneficiaryId,
             supportCaseId,
-            detail: { privacy: consent.privacy === true, recording: consent.recording, textAi: consent.textAi },
+            // 긴급 등록은 여기서 함께 남긴다(G1 — 전건 감사). 사유는 자유 텍스트라 싣지 않는다(R3 태도).
+            detail: {
+              privacy: consent.privacy === true,
+              recording: consent.recording,
+              textAi: consent.textAi,
+              ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
+            },
             caseId: legacyCaseId,
           }),
         );
@@ -7082,6 +7201,120 @@ export async function updateParticipantConsent(
   };
 }
 
+/** ① 동의 보완 대상 1건 (G1 완료 기준). PII 는 담지 않는다 — 가명 ID·사업·기한만이다(R3). */
+export interface PrivacyConsentFollowUp {
+  supportCaseId: string;
+  beneficiaryId: string;
+  programType: string;
+  status: string;
+  /** 긴급 등록으로 열린 케이스면 그 시각, 아니면 null(레거시·구 경로로 ① 이 비어 있는 케이스). */
+  emergencyRegistrationAt: string | null;
+  /** 보완 기한. 긴급 등록 건에만 있다. */
+  consentPrivacyDueAt: string | null;
+  /** 기한이 지났는가. 기한이 없으면 false. */
+  overdue: boolean;
+}
+
+/**
+ * ① 개인정보 동의가 기록되지 않은 참여 사업 목록 — **보완 대상 리포트** (G1 완료 기준).
+ *
+ * 두 부류가 함께 나온다: ① 긴급 등록으로 열려 보완 기한이 걸린 케이스(기한 임박·경과 순),
+ * ② 하드 게이트 이전에 만들어졌거나 레거시 호환 경로(`createCase`)로 생긴 ① 미기록 케이스.
+ * **기존 데이터를 고치지 않는다** — 목록화만 한다(게이트 문서 §2 G1 "마이그레이션 대상 아님").
+ *
+ * 범위는 다른 목록과 같다(D7): 실무자는 자신이 담당인 케이스, 기관 관리자는 기관 전체.
+ * **활성 케이스만** 낸다 — 종결된 케이스는 보완할 상담이 남아 있지 않아 이 작업 큐에
+ * 영원히 쌓이기만 한다(종결분 점검이 필요해지면 별도 조회로 뽑는다). 조회 감사는 목록 단위 1건(D14).
+ */
+export async function listPrivacyConsentFollowUps(
+  env: Env,
+  actor: Actor,
+): Promise<PrivacyConsentFollowUp[]> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  const sql = actor.role === 'admin'
+    ? `SELECT support_cases.id, support_cases.beneficiary_id, support_cases.program_type,
+              support_cases.status, support_cases.emergency_registration_at,
+              support_cases.consent_privacy_due_at
+       FROM support_cases
+       WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
+         AND support_cases.status = 'active'
+       ORDER BY support_cases.consent_privacy_due_at IS NULL,
+                support_cases.consent_privacy_due_at, support_cases.id`
+    : `SELECT support_cases.id, support_cases.beneficiary_id, support_cases.program_type,
+              support_cases.status, support_cases.emergency_registration_at,
+              support_cases.consent_privacy_due_at
+       FROM support_cases
+       JOIN support_case_assignees ON support_case_assignees.support_case_id = support_cases.id
+         AND support_case_assignees.org_id = support_cases.org_id
+         AND support_case_assignees.user_id = ?
+         AND support_case_assignees.unassigned_at IS NULL
+       WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
+         AND support_cases.status = 'active'
+       ORDER BY support_cases.consent_privacy_due_at IS NULL,
+                support_cases.consent_privacy_due_at, support_cases.id`;
+  const bindings = actor.role === 'admin' ? [actor.orgId] : [actor.userId, actor.orgId];
+  const result = await env.DB.prepare(sql).bind(...bindings).all<DbRow>();
+  await writeCanonicalAudit(env, actor, {
+    action: 'read',
+    targetTable: 'support_cases',
+    detail: { list: 'privacy_consent_follow_up', resultCount: result.results.length },
+  });
+  const nowInstant = now();
+  return result.results.map((row) => {
+    const dueAt = nullableString(row.consent_privacy_due_at);
+    return {
+      supportCaseId: stringValue(row.id),
+      beneficiaryId: stringValue(row.beneficiary_id),
+      programType: stringValue(row.program_type),
+      status: stringValue(row.status),
+      emergencyRegistrationAt: nullableString(row.emergency_registration_at),
+      consentPrivacyDueAt: dueAt,
+      overdue: dueAt !== null && dueAt < nowInstant,
+    };
+  });
+}
+
+/** 기한 도래 며칠 전부터 "임박"으로 셀지 (G1 알림). 기한 자체(14일)와 달리 알림 시점 값이다. */
+export const EMERGENCY_CONSENT_REMINDER_DAYS = 3;
+
+/** 기관별 긴급 등록 보완 현황 집계 (G1 알림). 건수만 담는다 — 케이스·PII 는 담지 않는다(R3). */
+export interface EmergencyConsentDeadlineSummary {
+  orgId: string;
+  /** 기한이 임박한(EMERGENCY_CONSENT_REMINDER_DAYS 이내) 미보완 건수. */
+  dueSoon: number;
+  /** 기한이 지난 미보완 건수. */
+  overdue: number;
+}
+
+/**
+ * 긴급 등록의 ① 동의 보완 기한 현황 (G1 "만료 전 담당 실무자 알림"). 워치독(cron)이
+ * 부르는 읽기 전용 집계라 행위자를 받지 않는다 — `runPipelineWatchdog` 와 같은 자리다.
+ * 알림 본문에 실릴 값이므로 기관 ID·건수만 낸다(notify.ts 계약: PII·케이스 내용 금지).
+ */
+export async function listEmergencyConsentDeadlines(env: Env): Promise<EmergencyConsentDeadlineSummary[]> {
+  const nowInstant = now();
+  const soonInstant = new Date(Date.parse(nowInstant) + EMERGENCY_CONSENT_REMINDER_DAYS * 86_400_000).toISOString();
+  const result = await env.DB.prepare(
+    `SELECT org_id,
+            SUM(CASE WHEN consent_privacy_due_at < ? THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE WHEN consent_privacy_due_at >= ? AND consent_privacy_due_at <= ? THEN 1 ELSE 0 END) AS due_soon
+     FROM support_cases
+     WHERE consent_privacy_at IS NULL
+       AND consent_privacy_due_at IS NOT NULL
+       AND status = 'active'
+     GROUP BY org_id
+     ORDER BY org_id`,
+  ).bind(nowInstant, nowInstant, soonInstant).all<DbRow>();
+  return result.results
+    .map((row) => ({
+      orgId: stringValue(row.org_id),
+      dueSoon: Number(row.due_soon ?? 0),
+      overdue: Number(row.overdue ?? 0),
+    }))
+    .filter((summary) => summary.dueSoon > 0 || summary.overdue > 0);
+}
+
 const MAX_OVERALL_GOAL_LENGTH = 200;
 
 /**
@@ -7148,10 +7381,17 @@ export async function createSupportCase(
 ): Promise<SupportCaseCreationResult> {
   await assertCurrentHumanActor(env, actor);
   assertBeneficiaryId(beneficiaryId);
-  const expectedKeys = actor.role === 'counselor'
+  const baseKeys = actor.role === 'counselor'
     ? ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'sourceSupportCaseId']
     : ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'initialAssigneeUserId'];
+  // ① 은 필수 키다(G1). 긴급 사유는 값이 있을 때만 허용 키에 넣는다(등록 경로의 선택 PII 와 같은 방식).
+  const expectedKeys = [
+    ...baseKeys,
+    'consentPrivacy',
+    ...(input.emergencyReason === undefined ? [] : ['emergencyReason']),
+  ];
   assertExactKeys(input, expectedKeys);
+  if (typeof input.consentPrivacy !== 'boolean') throw new ValidationError('consent is invalid');
   if (input.schemaVersion !== 1) throw new ValidationError('schema version is invalid');
   assertCanonicalSubmissionId(input.submissionId);
   assertFinancialSupportProgramType(input.programType);
@@ -7172,11 +7412,23 @@ export async function createSupportCase(
     await assertActiveHumanUser(env, actor.orgId, effectiveAssigneeUserId);
   }
 
+  // ① 하드 게이트(G1). 영수증 해시 이전에 판정한다 — 동의 없는 요청이 재생(replay)으로
+  // 통과하면 안 된다. 해시에도 동의·긴급 여부를 넣어, 같은 제출 id 로 조건만 바꾼 재시도는
+  // 조용한 재생이 아니라 409 가 되게 한다.
+  const createdAt = now();
+  const emergency = assertPrivacyConsentGate(
+    input.consentPrivacy === true,
+    input.emergencyReason === undefined ? undefined : { reason: input.emergencyReason },
+    createdAt,
+  );
+
   const payloadHash = await canonicalSha256({
     actorId: actor.userId,
     beneficiaryId,
+    consentPrivacy: input.consentPrivacy === true,
     creatorRole: actor.role,
     effectiveAssigneeUserId,
+    emergencyRegistration: emergency !== null,
     intakeAt,
     orgId: actor.orgId,
     programType: FINANCIAL_SUPPORT_V1,
@@ -7189,7 +7441,8 @@ export async function createSupportCase(
 
   const supportCaseId = newId();
   const assignmentId = newId();
-  const createdAt = now();
+  const consentRecordId = newId();
+  const consentPrivacyAt = input.consentPrivacy === true ? createdAt : null;
   const creationBoundary = actor.role === 'counselor'
     ? {
       sql: `EXISTS (
@@ -7241,9 +7494,11 @@ export async function createSupportCase(
         `INSERT INTO support_cases (
            id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
            creation_submission_id, creation_payload_hash, created_by_actor_id,
-           source_support_case_id, initial_assignee_user_id, created_at, updated_at
+           source_support_case_id, initial_assignee_user_id,
+           consent_privacy_at, emergency_registration_at, emergency_registration_reason,
+           consent_privacy_due_at, created_at, updated_at
          )
-         SELECT ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE ${creationBoundary.sql}`,
       ).bind(
         supportCaseId,
@@ -7256,6 +7511,10 @@ export async function createSupportCase(
         actor.userId,
         sourceSupportCaseId,
         effectiveAssigneeUserId,
+        consentPrivacyAt,
+        emergency === null ? null : emergency.at,
+        emergency === null ? null : emergency.reason,
+        emergency === null ? null : emergency.dueAt,
         createdAt,
         createdAt,
         ...creationBoundary.bindings,
@@ -7294,6 +7553,46 @@ export async function createSupportCase(
         beneficiaryId,
         supportCaseId,
         detail: { role: 'primary', initial: true },
+      }),
+      // ① 동의(또는 긴급 등록)의 이력 행 (D44 · G1). 케이스 생성이 경계에서 거부되면
+      // WHERE EXISTS 가 이 행도 함께 없앤다 — 고아 동의 기록을 남기지 않는다.
+      // ②·③ 은 미체크로 시작한다(D44) — 두 번째 사업은 앞 사업의 동의를 물려받지 않는다.
+      env.DB.prepare(
+        `INSERT INTO participant_consent_records (
+           id, org_id, beneficiary_id, support_case_id, consent_recording_at,
+           consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+         )
+         SELECT ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM support_cases
+           WHERE id = ? AND org_id = ? AND beneficiary_id = ?
+         )`,
+      ).bind(
+        consentRecordId,
+        actor.orgId,
+        beneficiaryId,
+        supportCaseId,
+        consentPrivacyAt,
+        actor.userId,
+        createdAt,
+        createdAt,
+        supportCaseId,
+        actor.orgId,
+        beneficiaryId,
+      ),
+      conditionalCanonicalAuditStatement(env, actor, {
+        action: 'record_consent',
+        targetTable: 'participant_consent_records',
+        targetId: consentRecordId,
+        beneficiaryId,
+        supportCaseId,
+        // 사유 텍스트는 싣지 않는다(R3 태도) — 긴급 여부와 보완 기한만 남긴다.
+        detail: {
+          privacy: input.consentPrivacy === true,
+          recording: false,
+          textAi: false,
+          ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
+        },
       }),
     ]);
     const creation = results[0] as unknown as { meta?: { changes?: number } };
@@ -12043,8 +12342,7 @@ export async function completeParticipantSignup(
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
-  // 동의 3종(D44). 자기 가입은 등록이므로 등록 경로와 같은 3체크를 받는다. 셋 다 필수
-  // boolean 이되 값은 강제하지 않는다 — 미동의여도 가입은 진행된다(D15 미동의 경로).
+  // 동의 3종(D44). 자기 가입은 등록이므로 등록 경로와 같은 3체크를 받는다. 셋 다 필수 boolean 이다.
   if (
     input.consent === null
     || typeof input.consent !== 'object'
@@ -12054,6 +12352,13 @@ export async function completeParticipantSignup(
   ) {
     throw new ValidationError('consent is required');
   }
+  // ① 하드 게이트(G1): 자기 가입에는 **긴급 등록 예외가 없다**. 긴급 등록은 실무자가
+  // 사유를 적고 책임지는 예외인데(전건 감사·보완 기한), 여기서는 당사자 본인이 체크하고
+  // 판단할 실무자가 그 자리에 없다. ② ③ 미동의 경로는 그대로다(D15).
+  if (input.consent.emergency !== undefined) {
+    throw new ValidationError('emergency registration is not available on self signup');
+  }
+  assertPrivacyConsentGate(input.consent.privacy, undefined, now());
 
   // 순차 이중 제출 게이트: 이미 소비되었거나 종류가 안 맞으면 여기서 거부한다.
   // 동시 경계는 아래 배치 안의 가드가 맡는다.

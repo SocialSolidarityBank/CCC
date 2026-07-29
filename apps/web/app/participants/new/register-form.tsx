@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { SearchInput } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
 import { PROGRAM_LABELS } from '../../lib/labels';
@@ -48,6 +49,12 @@ export function RegisterForm({
   action,
   programLabel = PROGRAM_LABELS.financial_support_v1,
 }: RegisterFormProps) {
+  // G1: ① 은 필수 체크이고, 긴급 등록을 켜면 그 필수가 사유 입력으로 옮겨 간다.
+  // 둘은 **서로 배타**다 — 서버가 "동의가 있는데 긴급 예외까지 왔다"를 거부하므로(예외는
+  // 동의가 없을 때만 성립), 화면에서 아예 함께 켜지지 않게 한다. 그러지 않으면 한 번의
+  // 클릭으로 원인 없는 실패에 닿는다.
+  const [privacy, setPrivacy] = useState(false);
+  const [emergency, setEmergency] = useState(false);
   const programOptions = [{ value: 'financial_support_v1', label: programLabel }];
   return (
     <form className="wire-register-form" action={action}>
@@ -96,13 +103,25 @@ export function RegisterForm({
         <legend>동의 (항목별, 기본 미동의)</legend>
         <p className="schedule-form-hint">
           동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
-          미동의여도 등록은 진행됩니다.
+          개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.
         </p>
-        {/* D44: 개인정보 수집·이용 동의가 3종의 첫 항목이다. 나머지 둘과 같은 층
-            (참여 사업)에 기록되며, 미동의여도 등록은 진행된다(D15 미동의 경로). */}
+        {/* G1(2026-07-29 Q 결정1): ① 개인정보 수집·이용 동의는 **등록의 하드 게이트**다.
+            체크 없이 제출하면 서버가 privacy_consent_required 로 되돌린다. 급박한 위기
+            개입만 아래 '긴급 등록'으로 통과하며, 그때는 사유와 보완 기한이 함께 남는다. */}
         <label className="consent-checkbox">
-          <input type="checkbox" className="wire-checkbox" name="consentPrivacy" value="on" />
-          <span>개인정보 수집·이용 동의</span>
+          <input
+            type="checkbox"
+            className="wire-checkbox"
+            name="consentPrivacy"
+            value="on"
+            required={!emergency}
+            checked={privacy}
+            onChange={(event) => {
+              setPrivacy(event.currentTarget.checked);
+              if (event.currentTarget.checked) setEmergency(false);
+            }}
+          />
+          <span>개인정보 수집·이용 동의 (필수)</span>
         </label>
         <label className="consent-checkbox">
           <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />
@@ -112,6 +131,41 @@ export function RegisterForm({
           <input type="checkbox" className="wire-checkbox" name="consentTextAi" value="on" />
           <span>텍스트 AI 정리 동의</span>
         </label>
+
+        {/* G1 예외: 긴급 등록. 동의를 받을 수 없는 급박한 개입에서만 쓰고, 사유가 케이스에
+            남으며 보완 기한(기본 14일) 전에 알림이 간다. 예외 경로일 뿐 확인된 리스크가
+            아니므로 리스크 레드를 쓰지 않는다(D9 — 리스크 색 독점). */}
+        <div className="consent-emergency">
+          <label className="consent-checkbox">
+            <input
+              type="checkbox"
+              className="wire-checkbox"
+              name="emergencyRegistration"
+              value="on"
+              checked={emergency}
+              onChange={(event) => {
+                setEmergency(event.currentTarget.checked);
+                if (event.currentTarget.checked) setPrivacy(false);
+              }}
+            />
+            <span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span>
+          </label>
+          {emergency ? (
+            <label className="field">
+              <span>긴급 등록 사유</span>
+              <textarea
+                name="emergencyReason"
+                rows={3}
+                maxLength={500}
+                required
+                placeholder="예: 당사자가 위기 상황이라 서면 동의를 먼저 받을 수 없었음"
+              />
+            </label>
+          ) : null}
+          <p className="schedule-form-hint">
+            긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다. 기한 전에 담당 실무자에게 알림이 갑니다.
+          </p>
+        </div>
 
         {/* 정보 표시 전용 아코디언(기본 접힘) — briefing-cards.tsx의 briefing-subaccordion 패턴을
             그대로 참고한다(요약 + .briefing-card-arrow 회전 화살표). 체크박스 이름·액션·저장

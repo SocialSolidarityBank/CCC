@@ -74,6 +74,9 @@ type Notice =
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
   | 'ai_provider_unavailable'
+  // G1: ① 동의 하드 게이트에 걸린 두 경우. 화면이 원인을 그대로 안내한다.
+  | 'privacy_consent_required'
+  | 'emergency_reason_required'
   | 'service_unavailable';
 
 class FormInputError extends Error {}
@@ -391,6 +394,9 @@ function noticeFor(error: unknown): Notice {
       case 'service_unavailable':
       case 'ai_prohibited_output':
       case 'ai_provider_unavailable':
+      // G1: ① 미동의·긴급 사유 누락은 화면이 원인을 그대로 안내한다.
+      case 'privacy_consent_required':
+      case 'emergency_reason_required':
         return error.code;
     }
   }
@@ -781,13 +787,20 @@ export async function createInitialParticipantProgramAction(formData: FormData):
     const region = optionalTrimmedText(formData, 'region', 200);
     const gender = optionalTrimmedText(formData, 'gender', 20);
     if (birthDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new FormInputError();
+    // 긴급 등록(G1): 토글을 켰을 때만 사유를 싣는다. 사유가 비면 서버가 emergency_reason_required 로
+    // 되돌려 주므로 여기서 다시 판정하지 않는다 — 판정은 게이트웨이 한 곳이다(R1).
+    const emergencyReason = checkbox(formData, 'emergencyRegistration')
+      ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
+      : undefined;
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
-      // 항목별 동의 3종(D15·D23·D44): 기본 미체크. 미동의여도 등록은 진행된다.
+      // 항목별 동의 3종(D15·D23·D44): ② ③ 은 기본 미체크이고 미동의여도 등록은 진행된다.
+      // ① 은 하드 게이트다(G1) — 미체크면 긴급 등록 사유가 있어야 서버가 받아 준다.
       consentPrivacy: checkbox(formData, 'consentPrivacy'),
       consentRecording: checkbox(formData, 'consentRecording'),
       consentTextAi: checkbox(formData, 'consentTextAi'),
+      ...(emergencyReason === undefined ? {} : { emergencyReason }),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
       // 등록 폼의 이름·연락처·이메일을 금고에 저장한다(#37 보완, 계좌만 이후 updateParticipantPii).
       ...(name === undefined ? {} : { name }),
@@ -821,12 +834,19 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
   let supportCaseId: string | undefined;
   try {
     beneficiaryId = participantId(formData, 'beneficiaryId');
+    // 추가 참여 사업도 ① 하드 게이트를 지난다(G1) — 두 번째 사업은 동의 3종이 미체크로
+    // 시작하므로(D44) 여기서 ① 을 다시 받고, 미체크면 긴급 등록 사유가 있어야 한다.
+    const emergencyReason = checkbox(formData, 'emergencyRegistration')
+      ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
+      : undefined;
     const created = await createSubsequentParticipantProgram(beneficiaryId, {
       schemaVersion: 1,
       submissionId: submissionId(formData),
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTime(formData, 'intakeAt'),
       sourceSupportCaseId: opaqueId(formData, 'sourceSupportCaseId'),
+      consentPrivacy: checkbox(formData, 'consentPrivacy'),
+      ...(emergencyReason === undefined ? {} : { emergencyReason }),
     });
     supportCaseId = created.supportCaseId;
   } catch (error) {
@@ -951,8 +971,9 @@ export async function signupParticipantAction(formData: FormData): Promise<Parti
   const name = requiredValue(formData, 'name');
   const phone = formData.get('phone');
   const email = formData.get('email');
-  // 항목별 동의 3종(D44): 등록 화면과 같은 체크박스 이름·순서. 기본 미체크이고
-  // 미동의여도 가입은 진행된다(D15).
+  // 항목별 동의 3종(D44): 등록 화면과 같은 체크박스 이름·순서. ① 은 하드 게이트라
+  // 미체크면 서버가 privacy_consent_required 로 되돌린다(G1 — 자기 가입에는 긴급 예외가 없다).
+  // ② ③ 은 기본 미체크이고 미동의여도 가입은 진행된다(D15).
   const consent = {
     privacy: checkbox(formData, 'consentPrivacy'),
     recording: checkbox(formData, 'consentRecording'),

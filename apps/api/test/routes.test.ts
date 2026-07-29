@@ -1934,6 +1934,8 @@ async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
     body: JSON.stringify({
       programType: 'financial_support_v1',
       intakeAt: '2026-07-15T09:00:00.000Z',
+      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
+      consentPrivacy: true,
     }),
   }), t.env);
   expect(response.status).toBe(201);
@@ -1964,9 +1966,10 @@ describe('canonical participant API routes', () => {
       // 담당 실무자 표시 이름은 이 픽스처에서 users.name 이 없어 비어 있다(이메일 폴백 없음).
       authorized: true,
       assigneeNames: [],
-      // D44: 동의 3종의 현재 상태. 이 픽스처는 동의를 넘기지 않은 등록이라 셋 다 미기록이다.
-      consent: { privacy: false, recording: false, textAi: false },
-      consentRecordedAt: null,
+      // D44: 동의 3종의 현재 상태. G1 이후 등록은 ① 없이는 성립하지 않으므로(픽스처가 ① 을
+      // 보낸다) privacy 만 true 이고, 기록 시각은 그 등록 시점이다.
+      consent: { privacy: true, recording: false, textAi: false },
+      consentRecordedAt: expect.any(String),
     }]);
 
     const briefing = await worker.fetch(new Request(
@@ -2099,6 +2102,7 @@ describe('canonical participant API routes', () => {
       replayed: true,
     });
     const sibling = await createSupportCase(t.env, canonicalCounselor, creation.beneficiaryId, {
+      consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
       programType: 'financial_support_v1',
@@ -2288,6 +2292,8 @@ describe('canonical participant API routes', () => {
     const requestBody = {
       schemaVersion: 1,
       submissionId: '99999999-9999-4999-8999-999999999999',
+      // G1: 추가 참여 사업도 ① 을 다시 받는다(D44 — 두 번째 사업은 미체크로 시작).
+      consentPrivacy: true,
       programType: 'financial_support_v1',
       intakeAt: '2026-07-16T09:00:00.000Z',
       sourceSupportCaseId: creation.supportCaseId,
@@ -2337,7 +2343,9 @@ describe('canonical participant API routes', () => {
               version, purge_due AS purgeDue, purged_at AS purgedAt, updated_at AS updatedAt
        FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ?`,
     ).bind(creation.beneficiaryId, canonicalCounselor.orgId).first();
-    expect(stateBeforeConflict).toEqual({ supportCaseCount: 2, assignmentCount: 2, auditCount: 5 });
+    // 감사 7건: 등록 4건(create·create·assign·record_consent) + 추가 사업 3건(create·assign·
+    // record_consent). G1 로 등록·추가 양쪽에 동의 기록 감사가 1건씩 붙었다.
+    expect(stateBeforeConflict).toEqual({ supportCaseCount: 2, assignmentCount: 2, auditCount: 7 });
 
     const conflict = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/support-cases`,
@@ -2656,6 +2664,7 @@ describe('canonical participant API routes', () => {
     const hiddenPayload = {
       schemaVersion: 1,
       submissionId: '55555555-5555-4555-8555-555555555555',
+      consentPrivacy: true,
       programType: 'financial_support_v1',
       intakeAt: '2026-07-16T09:00:00.000Z',
       initialAssigneeUserId: canonicalIds.hiddenCounselor,

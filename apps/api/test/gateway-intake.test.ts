@@ -567,10 +567,14 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
   it('reports consent status for the read-only first step', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    const withoutConsent = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
-      intakeAt: '2026-07-15T09:00:00.000Z',
-    });
+    // ① 이 비어 있는 케이스는 이제 긴급 등록으로만 생긴다(G1) — 인테이크 1단계는 그 상태도 읽어야 한다.
+    const withoutConsent = await createBeneficiaryWithInitialSupportCase(
+      t.env,
+      canonicalActors.counselor,
+      { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
+      undefined,
+      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
+    );
     const before = await getIntakeRecordContext(t.env, canonicalActors.counselor, withoutConsent.supportCaseId);
     expect(before.consent).toEqual({ privacy: false, recording: false, textAi: false });
 
@@ -579,13 +583,12 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
       canonicalActors.counselor,
       { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
-      { recording: true, textAi: true },
+      { privacy: true, recording: true, textAi: true },
     );
     const after = await getIntakeRecordContext(t.env, canonicalActors.counselor, withConsent.supportCaseId);
     expect(after.consent.recording).toBe(true);
     expect(after.consent.textAi).toBe(true);
-    // D44: 개인정보 동의도 등록 화면이 받는다. 여기서는 넘기지 않았으므로 미기록이다.
-    expect(after.consent.privacy).toBe(false);
+    expect(after.consent.privacy).toBe(true);
 
     const withPrivacy = await createBeneficiaryWithInitialSupportCase(
       t.env,

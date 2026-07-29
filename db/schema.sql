@@ -4879,3 +4879,37 @@ WHEN OLD.resolution_status IS NOT NULL
 BEGIN
   SELECT RAISE(ABORT, 'session_discrepancies: resolved rows are retained history');
 END;
+
+-- ----------------------------------------------------------------------------
+-- 0028: 긴급 등록 — ① 개인정보 동의 하드 게이트의 예외 (G1 · 2026-07-29 Q 결정1).
+-- 등록은 ① 동의 없이는 막히고, 급박한 위기 개입만 사유·보완 기한과 함께 통과한다.
+-- 세 컬럼은 등록 시점의 사실이라 불변이며, 보완은 consent_privacy_at 이 채워지는 것으로
+-- 확인한다. 기한 계산(기본 14일)은 게이트웨이 설정값이다.
+-- 상세 근거: migrations/0028_support_case_emergency_registration.sql.
+-- ----------------------------------------------------------------------------
+ALTER TABLE support_cases ADD COLUMN emergency_registration_at TEXT;
+ALTER TABLE support_cases ADD COLUMN emergency_registration_reason TEXT;
+ALTER TABLE support_cases ADD COLUMN consent_privacy_due_at TEXT;
+
+CREATE TRIGGER support_cases_emergency_registration_insert_guard
+BEFORE INSERT ON support_cases
+BEGIN
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE (NEW.emergency_registration_at IS NULL) <> (NEW.consent_privacy_due_at IS NULL)
+     OR (NEW.emergency_registration_at IS NULL) <> (NEW.emergency_registration_reason IS NULL);
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NEW.emergency_registration_at IS NOT NULL
+    AND (TRIM(NEW.emergency_registration_reason) = '' OR NEW.consent_privacy_at IS NOT NULL);
+END;
+
+CREATE TRIGGER support_cases_emergency_registration_immutable_guard
+BEFORE UPDATE OF emergency_registration_at, emergency_registration_reason, consent_privacy_due_at
+ON support_cases
+WHEN NEW.emergency_registration_at IS NOT OLD.emergency_registration_at
+  OR NEW.emergency_registration_reason IS NOT OLD.emergency_registration_reason
+  OR NEW.consent_privacy_due_at IS NOT OLD.consent_privacy_due_at
+BEGIN SELECT RAISE(ABORT, 'participant_schema_violation'); END;
+
+CREATE INDEX idx_support_cases_privacy_consent_followup
+  ON support_cases (org_id, consent_privacy_at, consent_privacy_due_at);
