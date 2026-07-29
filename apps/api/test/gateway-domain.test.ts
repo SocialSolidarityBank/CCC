@@ -24,6 +24,8 @@ import {
   createGeneratedAiDraft,
   createGoal,
   createOrganizationSettings,
+  completeOrganizationOnboarding,
+  getOrganizationProfile,
   createManualSession,
   createSupportCase,
   editAiDraftForSession,
@@ -967,6 +969,65 @@ describe('organization settings bootstrap', () => {
       target_table: 'organization_settings',
       target_id: bootstrapAdmin.orgId,
     });
+  });
+});
+
+describe('organization onboarding names (CCC-32)', () => {
+  it('saves org and program display names admin-only, audited, and re-runnable', async () => {
+    await t.reset();
+
+    // 온보딩 전에는 저장값이 없다 — 화면은 labels.ts 하드코딩 라벨로 폴백한다.
+    await expect(getOrganizationProfile(t.env, counselor)).resolves.toEqual({
+      orgId: counselor.orgId,
+      orgName: null,
+      programDisplayName: null,
+    });
+
+    // 저장은 기관 관리자만 (스펙 #78 — 온보딩은 처음 가입한 관리자의 화면).
+    await expect(completeOrganizationOnboarding(t.env, counselor, {
+      orgName: '연대은행', programDisplayName: '금융지원 사업',
+    })).rejects.toBeInstanceOf(ForbiddenError);
+
+    const saved = await completeOrganizationOnboarding(t.env, admin, {
+      orgName: '  연대은행  ', programDisplayName: '금융지원 사업',
+    });
+    expect(saved).toEqual({
+      orgId: admin.orgId,
+      orgName: '연대은행',
+      programDisplayName: '금융지원 사업',
+    });
+
+    // 실무자도 읽을 수 있어야 한다 — 사이드바는 모든 역할의 셸이다.
+    await expect(getOrganizationProfile(t.env, counselor)).resolves.toMatchObject({
+      orgName: '연대은행',
+      programDisplayName: '금융지원 사업',
+    });
+
+    // 다시 실행하면 덮어쓴다(수정 경로 겸용) — 409 로 막히지 않는다.
+    await expect(completeOrganizationOnboarding(t.env, admin, {
+      orgName: '연대은행', programDisplayName: '자활 사업',
+    })).resolves.toMatchObject({ programDisplayName: '자활 사업' });
+
+    const audits = await t.db.prepare(
+      `SELECT COUNT(*) AS count FROM audit_log
+       WHERE org_id = ? AND action = 'update' AND target_table = 'organization_settings'`,
+    ).bind(admin.orgId).first<{ count: number }>();
+    expect(audits?.count).toBe(2);
+  });
+
+  it('rejects blank names and keeps service role out', async () => {
+    await t.reset();
+    await expect(completeOrganizationOnboarding(t.env, admin, {
+      orgName: '   ', programDisplayName: '금융지원 사업',
+    })).rejects.toBeInstanceOf(ValidationError);
+    await expect(completeOrganizationOnboarding(t.env, admin, {
+      orgName: '연대은행', programDisplayName: '',
+    })).rejects.toBeInstanceOf(ValidationError);
+    await expect(getOrganizationProfile(t.env, service)).rejects.toBeInstanceOf(ForbiddenError);
+    // 설정 행이 없는 기관도 조회는 에러가 아니라 null — 셸이 앱 전체를 잠그면 안 된다.
+    await expect(getOrganizationProfile(t.env, {
+      userId: 'someone', orgId: 'org_without_settings', role: 'counselor' as const,
+    })).resolves.toEqual({ orgId: 'org_without_settings', orgName: null, programDisplayName: null });
   });
 });
 describe('canonical participant gateway', () => {

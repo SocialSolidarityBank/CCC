@@ -20,6 +20,7 @@ import {
   type IntakeGoalInput,
   type IntakeLifeAreaInput,
   type IntakeNextMeetingInput,
+  completeOrganizationOnboarding,
   createCounselingSchedule,
   createGoal,
   createInitialParticipantProgram,
@@ -856,6 +857,25 @@ export async function addSupportCaseAssigneeAction(formData: FormData): Promise<
 }
 
 // 실무자 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+/**
+ * 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). 조직 이름·첫 사업 표시 이름만
+ * 진짜 저장한다 — admin 검사·감사는 게이트웨이 몫(R1). 저장한 이름이 셸(사이드바) 전체에
+ * 되비치므로 레이아웃 단위로 재검증한다.
+ */
+export async function completeOrganizationOnboardingAction(formData: FormData): Promise<void> {
+  try {
+    const orgName = requiredValue(formData, 'orgName').trim();
+    const programDisplayName = requiredValue(formData, 'programDisplayName').trim();
+    if (orgName.length === 0 || orgName.length > 80) throw new FormInputError();
+    if (programDisplayName.length === 0 || programDisplayName.length > 120) throw new FormInputError();
+    await completeOrganizationOnboarding({ orgName, programDisplayName });
+  } catch (error) {
+    redirect(withNotice('/onboarding', 'error', noticeFor(error)));
+  }
+  revalidatePath('/', 'layout');
+  redirect(withNotice('/onboarding', 'notice', 'onboarding_saved'));
+}
+
 export async function registerCounselorAction(formData: FormData): Promise<void> {
   try {
     const email = requiredValue(formData, 'email').trim();

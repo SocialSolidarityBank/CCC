@@ -48,6 +48,8 @@ import {
   getPipelineHealth,
   getMyIdentity,
   getLastProgramType,
+  getOrganizationProfile,
+  completeOrganizationOnboarding,
   rememberLastProgramType,
   getNextCounselingScheduleForSupportCase,
   getScheduleSessionPlan,
@@ -1401,6 +1403,23 @@ export async function handleRequest(
         id: me.id, orgId: me.orgId, email: me.email, role: me.role, active: me.active, name: me.name,
         lastProgramType,
       });
+    }
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
+      // 기관·첫 사업 표시 이름 (CCC-32). 모든 화면의 셸(사이드바)이 읽으므로 역할 무관,
+      // 값이 없으면 null — 화면이 labels.ts 하드코딩 라벨로 폴백한다. 감사 없음 근거는 게이트웨이 주석.
+      requestQuery(url, []);
+      return json(await getOrganizationProfile(env, actor));
+    }
+    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'onboarding') {
+      // 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). admin 검사·감사는 게이트웨이 내장(R1).
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      const orgName = body.orgName;
+      const programDisplayName = body.programDisplayName;
+      if (typeof orgName !== 'string' || typeof programDisplayName !== 'string') {
+        throw new ValidationError('organization onboarding payload is invalid');
+      }
+      return json(await completeOrganizationOnboarding(env, actor, { orgName, programDisplayName }));
     }
     if (request.method === 'PUT' && parts.length === 2 && parts[0] === 'me' && parts[1] === 'last-program') {
       // 마지막에 선택한 사업을 본인 계정에 기억시킨다. 본인 행만 쓰고 감사는 남기지 않는다

@@ -13,7 +13,8 @@ import {
   type SupportCaseAssignee,
 } from '../../lib/api';
 import { addSupportCaseAssigneeAction } from '../../actions';
-import { programLabel, userLabel } from '../admin-format';
+import { getDisplayLabels } from '../../lib/display-labels';
+import { userLabel } from '../admin-format';
 
 const assigneeRoleLabel: Record<SupportCaseAssignee['role'], string> = {
   primary: '주 담당',
@@ -47,6 +48,7 @@ function queryValue(params: SearchParams, name: string): string | undefined {
 // → 실무자 추가(공동 담당). 하단에 현재 배정된 실무자 목록. 권한·감사는 게이트웨이가 강제(R1).
 export default async function AdminAssignPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const query = await searchParams;
+  const { programLabels } = await getDisplayLabels();
   const selected = queryValue(query, 'supportCaseId');
   const notice = queryValue(query, 'notice');
   const errorCode = queryValue(query, 'error');
@@ -110,7 +112,7 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
       ) : null}
 
       <div className="wire-admin-list">
-        <ListRow>{programLabel.financial_support_v1}</ListRow>
+        <ListRow>{programLabels.financial_support_v1}</ListRow>
       </div>
 
       {loadError !== null ? (

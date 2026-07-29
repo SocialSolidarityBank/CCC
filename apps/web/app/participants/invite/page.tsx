@@ -3,13 +3,15 @@ import { ListRow } from '../../components/wire/list-row';
 import { PageTitle } from '../../components/wire/page-title';
 import { SearchInput } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import { getDisplayLabels } from '../../lib/display-labels';
 
 // 당사자 초대 화면(재개편 T7 · #37 · Figma 7:759 · D26).
 // D26: 당사자 직접 접속(본인이 링크로 가입·로그인·동의 작성)은 동의서 법률 검토 후 구현한다.
 // 이번 개편은 IA(메뉴 구조) 분리까지만 — 이 화면은 발송·저장이 없는 정적 스텁이다.
 // 게이트웨이·D1·R1 접점이 전혀 없다(데이터 조회 없음).
-export default function ParticipantInvitePage() {
+export default async function ParticipantInvitePage() {
+  // 초대 대상 표기도 온보딩 저장 이름을 되비춘다(CCC-32) — 미설정이면 하드코딩 폴백.
+  const { orgLabel, programLabels } = await getDisplayLabels();
   return (
     <main className="page-content narrow">
       <GridContainer>
@@ -17,8 +19,8 @@ export default function ParticipantInvitePage() {
 
         <div className="wire-invite-stack">
           <section className="wire-invite-section" aria-label="초대 대상">
-            <ListRow chevron="right">사회연대은행</ListRow>
-            <ListRow chevron="right">{PROGRAM_LABELS.financial_support_v1}</ListRow>
+            <ListRow chevron="right">{orgLabel}</ListRow>
+            <ListRow chevron="right">{programLabels.financial_support_v1}</ListRow>
           </section>
 
           <section className="wire-invite-section" aria-label="당사자 초대하기">

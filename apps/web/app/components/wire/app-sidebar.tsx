@@ -79,6 +79,13 @@ export interface AppSidebarProps {
   programType?: string;
   /** 활성 경로. 생략하면 현재 경로로 자동 판단. */
   activePath?: string;
+  /**
+   * 온보딩이 저장한 기관 이름 (CCC-32). 루트 레이아웃이 getDisplayLabels() 로 넣는다.
+   * 생략하면 labels.ts 하드코딩 라벨 — 테스트·스토리 렌더가 지금까지처럼 동작한다.
+   */
+  orgLabel?: string;
+  /** 온보딩이 저장한 사업 표시 이름 매핑 (CCC-32). 생략하면 labels.ts 폴백. */
+  programLabels?: Record<ParticipantProgramType, string>;
 }
 
 /**
@@ -91,7 +98,12 @@ export interface AppSidebarProps {
  *
  * 손잡이 바는 §7 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에는 없고 내용은 손잡이뿐이다.
  */
-export function AppSidebar({ programType, activePath }: AppSidebarProps) {
+export function AppSidebar({
+  programType,
+  activePath,
+  orgLabel = ORG_LABEL,
+  programLabels = PROGRAM_LABELS,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -180,7 +192,7 @@ export function AppSidebar({ programType, activePath }: AppSidebarProps) {
       >
         <span aria-hidden="true" className="drawer-handle-bars"><i /><i /><i /></span>
         <span className="drawer-handle-label">메뉴</span>
-        <span className="drawer-handle-program">{PROGRAM_LABELS[activeProgram]}</span>
+        <span className="drawer-handle-program">{programLabels[activeProgram]}</span>
       </button>
       {/* 스크림은 드로어가 열렸을 때만 존재한다. 눌러서 닫는 것이 좁은 화면의 주 동작이다. */}
       {drawerOpen ? (
@@ -196,14 +208,14 @@ export function AppSidebar({ programType, activePath }: AppSidebarProps) {
       >
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
-          <span>{ORG_LABEL}</span>
+          <span>{orgLabel}</span>
         </div>
         {/* 사업 전환기는 기관명 아래·메뉴 위다 — 아래 모든 메뉴의 범위를 정하므로
             위에 있어야 포함 관계가 눈으로 읽힌다 (ADR-0014 §2). */}
         <div className="program-switcher">
           <p className="program-switcher-label">사업</p>
           <p className="program-switcher-name" aria-current="true">
-            {PROGRAM_LABELS[activeProgram]}
+            {programLabels[activeProgram]}
             {switchable && <span aria-hidden="true"> ▾</span>}
           </p>
         </div>

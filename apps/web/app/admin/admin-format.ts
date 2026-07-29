@@ -1,8 +1,7 @@
 import type { AdminAssignmentParticipant } from '../lib/api';
-import { PROGRAM_LABELS } from '../lib/labels';
 
-// 관리자 영역(재개편 T8) 공용 표시 라벨 — 값은 SSOT(lib/labels.ts PROGRAM_LABELS)를 그대로 가리킨다.
-export const programLabel: Record<AdminAssignmentParticipant['programType'], string> = PROGRAM_LABELS;
+// 사업 표시 라벨은 CCC-32 부터 정적 상수가 아니다 — 각 페이지가 getDisplayLabels()
+// (온보딩 저장값 우선, labels.ts 폴백)로 요청 시점에 읽는다.
 
 export const assignmentStatusLabel: Record<AdminAssignmentParticipant['status'], string> = {
   active: '진행 중',

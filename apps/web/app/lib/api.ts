@@ -1564,6 +1564,33 @@ export async function getMyIdentity(): Promise<MyIdentity> {
   return decodeDirectoryUser(await requestJson<unknown>('/me'));
 }
 
+/** 관리자 온보딩이 저장한 기관·첫 사업 표시 이름 (CCC-32). null 이면 labels.ts 폴백. */
+export interface OrganizationProfile {
+  orgId: string;
+  orgName: string | null;
+  programDisplayName: string | null;
+}
+
+function decodeOrganizationProfile(value: unknown): OrganizationProfile {
+  const record = responseObject(value);
+  return {
+    orgId: responseString(record, 'orgId'),
+    orgName: responseNullableString(record, 'orgName'),
+    programDisplayName: responseNullableString(record, 'programDisplayName'),
+  };
+}
+
+export async function getOrganizationProfile(): Promise<OrganizationProfile> {
+  return decodeOrganizationProfile(await requestJson<unknown>('/organization/profile'));
+}
+
+/** 관리자 온보딩 2단계 저장 (CCC-32). admin 검사·감사는 API 게이트웨이 몫(R1). */
+export async function completeOrganizationOnboarding(
+  input: { orgName: string; programDisplayName: string },
+): Promise<OrganizationProfile> {
+  return decodeOrganizationProfile(await jsonRequest<unknown>('/organization/onboarding', 'POST', input));
+}
+
 /**
  * `/` 직행 목적지 — 마지막에 선택한 사업 (D35 · ADR-0014 '개정' 2번).
  * 미선택이면 null 이고 호출부가 첫 사업으로 폴백한다. 404 를 내지 않는다.

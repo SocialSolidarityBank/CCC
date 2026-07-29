@@ -4,7 +4,7 @@ import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
-import { PROGRAM_LABELS } from '../../../../../lib/labels';
+import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { BriefingCards } from './briefing-cards';
 import { IntakeSavedNotice } from './intake-saved-notice';
 
@@ -77,6 +77,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
 
   try {
     const briefing = await getParticipantBriefing(beneficiaryId, supportCaseId);
+    const { programLabels } = await getDisplayLabels();
     const focused = briefing.sections[0];
     if (focused === undefined) return <EmptyState beneficiaryId={beneficiaryId} />;
     if (briefing.beneficiaryId !== beneficiaryId || briefing.focusSupportCaseId !== supportCaseId || focused.sourceSupportCase.id !== supportCaseId) {
@@ -100,7 +101,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           participantHref={participantHref(beneficiaryId)}
           recordsHref={recordsHref(beneficiaryId, supportCaseId)}
           recordNewHref={recordNewHref(beneficiaryId, supportCaseId)}
-          programLabel={PROGRAM_LABELS[focused.sourceSupportCase.programType]}
+          programLabel={programLabels[focused.sourceSupportCase.programType]}
           participant={briefing.participant}
           sessionRows={focused.sessionRows}
           pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}

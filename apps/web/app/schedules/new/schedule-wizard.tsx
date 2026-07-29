@@ -9,7 +9,6 @@ import { ListRow } from '../../components/wire/list-row';
 import { SearchInput } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
-import { PROGRAM_LABELS } from '../../lib/labels';
 import type {
   CreateSchedulePlanInput,
   CreateSchedulePlanResult,

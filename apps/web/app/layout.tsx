@@ -5,6 +5,7 @@ import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 // 다시 어긋난다. 색값 정본은 pen '색 토큰' 페이지이고, tokens.css 가 그 기계 소비용 사본이다.
 import '../../../design/tokens.css';
 import { AppSidebar } from './components/wire/app-sidebar';
+import { getDisplayLabels } from './lib/display-labels';
 import { wireStyles } from './components/wire/wire-styles';
 
 // 앱 셸·레거시 화면 공통. 토큰은 design/tokens.css 에서만 온다 — 여기에 :root 를 다시 두지 않는다.
@@ -442,6 +443,14 @@ const registerStyles = `
 .consent-detail-section h3{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
 .consent-detail-section p,.consent-detail-section li{margin:0;font-size:14px;color:var(--sub)}
 .consent-detail-section ul{margin:0;padding-left:18px;display:grid;gap:6px}
+/* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
+   단계 표시는 블루 계열(시간·상태 축, D34)이다. */
+.onboarding-form{display:grid;margin-top:var(--space-8)}
+.onboarding-card{display:grid;gap:var(--space-4);padding:var(--space-6)}
+.onboarding-card h2{margin:0}
+.onboarding-step{margin:0;justify-self:start;padding:2px 10px;border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:14px;font-weight:700}
+.onboarding-help{margin:0;font-size:14px;color:var(--sub)}
+.onboarding-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-2)}
 `;
 
 const recordFormStyles = `
@@ -488,9 +497,11 @@ const recordFormStyles = `
 
 export const metadata: Metadata = { title: 'CCC 사례관리', description: '비영리 사례관리 내부 운영 도구' };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   // 셸 = 좌측 사이드바 + 본문 (D35 · ADR-0014 §2). 768px 미만에서는 .app-shell 이 block 이 되고
   // **같은 사이드바가 드로어로 변한다**(DESIGN.md §4-4) — 화면 밖에 있다가 상단 손잡이 바를
   // 누르면 왼쪽에서 밀려 들어온다. 마크업이 한 벌이라 데스크톱·모바일 메뉴가 갈라질 수 없다.
-  return <html lang="ko"><head><style>{styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar />{children}</div></body></html>;
+  // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
+  const labels = await getDisplayLabels();
+  return <html lang="ko"><head><style>{styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />{children}</div></body></html>;
 }

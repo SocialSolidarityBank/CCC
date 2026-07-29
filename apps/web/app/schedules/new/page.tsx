@@ -1,6 +1,6 @@
 import { ApiError, listScheduleCandidates } from '../../lib/api';
 import { createSchedulePlanAction, loadScheduleContextAction } from '../../actions';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import { getDisplayLabels } from '../../lib/display-labels';
 import { ScheduleWizard, type ScheduleWizardCandidate } from './schedule-wizard';
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -25,11 +25,12 @@ export default async function NewCounselingSchedulePage({
   let loadError: string | null = null;
   try {
     const results = await listScheduleCandidates();
+    const { programLabels } = await getDisplayLabels();
     candidates = results.map((candidate) => ({
       value: `${candidate.beneficiaryId}|${candidate.supportCaseId}`,
       beneficiaryId: candidate.beneficiaryId,
       supportCaseId: candidate.supportCaseId,
-      programLabel: PROGRAM_LABELS[candidate.programType],
+      programLabel: programLabels[candidate.programType],
       participantName: candidate.participantName,
       participantPhone: candidate.participantPhone,
       participantEmail: candidate.participantEmail,

@@ -421,6 +421,67 @@ describe('API routes', () => {
     expect(response.status).toBe(401);
   });
 
+  it('serves organization profile to every role and gates onboarding save to admins (CCC-32)', async () => {
+    await t.reset();
+
+    // 인증 없는 요청은 문 앞에서 거절 — 토큰 없는 새 경로를 만들지 않았다.
+    const unauthenticated = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: unauthenticatedHeaders,
+    }), t.env);
+    expect(unauthenticated.status).toBe(401);
+
+    // 온보딩 전에는 null — 화면이 하드코딩 라벨로 폴백한다.
+    const before = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: counselorHeaders,
+    }), t.env);
+    expect(before.status).toBe(200);
+    await expect(before.json()).resolves.toEqual({
+      orgId: 'org_demo', orgName: null, programDisplayName: null,
+    });
+
+    // 실무자는 저장할 수 없다.
+    const forbidden = await worker.fetch(new Request('http://localhost/organization/onboarding', {
+      method: 'POST',
+      headers: counselorHeaders,
+      body: JSON.stringify({ orgName: '연대은행', programDisplayName: '금융지원 사업' }),
+    }), t.env);
+    expect(forbidden.status).toBe(403);
+
+    // 이름 누락은 400.
+    const invalid = await worker.fetch(new Request('http://localhost/organization/onboarding', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ orgName: '연대은행' }),
+    }), t.env);
+    expect(invalid.status).toBe(400);
+
+    const saved = await worker.fetch(new Request('http://localhost/organization/onboarding', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ orgName: '연대은행', programDisplayName: '금융지원 사업' }),
+    }), t.env);
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toEqual({
+      orgId: 'org_demo', orgName: '연대은행', programDisplayName: '금융지원 사업',
+    });
+
+    // 저장한 이름이 실무자 조회에도 되비친다 — 사이드바는 모든 역할의 셸이다.
+    const after = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: counselorHeaders,
+    }), t.env);
+    await expect(after.json()).resolves.toMatchObject({
+      orgName: '연대은행', programDisplayName: '금융지원 사업',
+    });
+
+    // 다른 기관에는 보이지 않는다 — 프로필은 자기 기관 행만 읽는다.
+    const otherOrg = await worker.fetch(new Request('http://localhost/organization/profile', {
+      headers: otherOrgCounselorHeaders,
+    }), t.env);
+    await expect(otherOrg.json()).resolves.toEqual({
+      orgId: 'org_other', orgName: null, programDisplayName: null,
+    });
+  });
+
   it('maps local headers to a counselor and routes through the case gateway', async () => {
     await t.reset();
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };

@@ -40,6 +40,22 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     expect(hrefs).not.toContain('/participants/new');
   });
 
+  it('온보딩 저장 이름을 넘기면 기관·사업 라벨이 그 값으로 바뀐다 (CCC-32)', () => {
+    const { container } = render(
+      <AppSidebar
+        activePath="/participants"
+        orgLabel="연대은행"
+        programLabels={{ financial_support_v1: '금융지원 사업' }}
+      />,
+    );
+    expect(container.querySelector('.brand')?.textContent).toContain('연대은행');
+    expect(container.querySelector('.program-switcher-name')?.textContent).toContain('금융지원 사업');
+    // 프롭 없이 렌더하면 하드코딩 폴백 — 온보딩 전 환경이 지금까지처럼 보인다.
+    cleanup();
+    const fallback = render(<AppSidebar activePath="/participants" />).container;
+    expect(fallback.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
+  });
+
   it('사업이 1개인 동안은 전환기에 화살표를 두지 않는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     expect(container.querySelector('.program-switcher-name')?.textContent).not.toContain('▾');
