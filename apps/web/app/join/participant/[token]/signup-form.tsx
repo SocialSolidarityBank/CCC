@@ -24,6 +24,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   not_found: '이 링크는 사용할 수 없거나 이미 완료되었습니다.',
   validation_error: '입력한 정보를 확인해 주세요.',
   conflict: '이미 가입이 완료되었습니다.',
+  // G1: ① 은 가입의 하드 게이트다. 자기 가입에는 긴급 등록 예외가 없다(실무자가 판단·기록하는 예외).
+  privacy_consent_required: '개인정보 수집·이용 동의에 체크해야 가입할 수 있습니다.',
   service_unavailable: '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
 };
 
@@ -72,11 +74,14 @@ export function SignupForm({ token }: { token: string }) {
       <fieldset className="consent-fieldset">
         <legend>동의 (항목별, 기본 미동의)</legend>
         <p className="schedule-form-hint">
-          동의하신 항목과 일시가 기록됩니다. 미동의여도 가입은 진행됩니다.
+          동의하신 항목과 일시가 기록됩니다. 개인정보 수집·이용 동의는 가입에 반드시 필요하고,
+          녹음·텍스트 AI 는 동의하지 않아도 가입이 진행됩니다.
         </p>
+        {/* G1: ① 개인정보 수집·이용 동의는 가입의 하드 게이트다(등록 화면과 같은 규칙).
+            긴급 등록 예외는 여기에 두지 않는다 — 사유를 적고 책임질 실무자가 이 화면에 없다. */}
         <label className="consent-checkbox">
-          <input type="checkbox" className="wire-checkbox" name="consentPrivacy" value="on" />
-          <span>개인정보 수집·이용 동의</span>
+          <input type="checkbox" className="wire-checkbox" name="consentPrivacy" value="on" required />
+          <span>개인정보 수집·이용 동의 (필수)</span>
         </label>
         <label className="consent-checkbox">
           <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />

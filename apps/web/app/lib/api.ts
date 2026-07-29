@@ -19,6 +19,10 @@ export type ApiErrorCode =
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
   | 'ai_provider_unavailable'
+  // G1: ① 개인정보 동의 하드 게이트. 화면이 "동의를 체크하거나 긴급 등록을 고르라"고
+  // 안내하려면 원인이 코드로 구분돼야 한다 — 'invalid_request' 로 뭉치지 않는다.
+  | 'privacy_consent_required'
+  | 'emergency_reason_required'
   | 'service_unavailable';
 
 const knownErrorCodes = new Set<ApiErrorCode>([
@@ -38,6 +42,8 @@ const knownErrorCodes = new Set<ApiErrorCode>([
   'ai_provider_not_configured',
   'ai_prohibited_output',
   'ai_provider_unavailable',
+  'privacy_consent_required',
+  'emergency_reason_required',
   'service_unavailable',
 ]);
 
@@ -475,10 +481,13 @@ export interface CreateInitialParticipantProgramInput {
   programType: ParticipantProgramType;
   intakeAt: string;
   initialAssigneeUserId?: string;
-  // 항목별 동의 3종(D15·D23·D44). 기본 미동의. 미동의여도 등록은 진행된다.
+  // 항목별 동의 3종(D15·D23·D44). ② ③ 은 기본 미동의이고 미동의여도 등록은 진행된다.
+  // ① consentPrivacy 만은 **하드 게이트**다(G1) — 없으면 emergencyReason 이 있어야 통과한다.
   consentPrivacy?: boolean;
   consentRecording?: boolean;
   consentTextAi?: boolean;
+  /** 긴급 등록 사유 (G1 예외). ① 미체크로 등록해야 하는 급박한 위기 개입에만 쓴다. */
+  emergencyReason?: string;
   // 등록 시 받은 이름·연락처·이메일(선택). pii_vault enc_* 로 저장된다(D3 · D24 · #32·#37).
   // JSON 직렬화가 undefined 를 지우므로 미입력은 바디에서 자연히 빠진다.
   name?: string;
@@ -512,6 +521,10 @@ export interface CreateSubsequentParticipantProgramInput {
   intakeAt: string;
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
+  /** ① 개인정보 동의 (G1). 두 번째 참여 사업도 동의 3종이 미체크로 시작하므로 여기서 다시 받는다(D44). */
+  consentPrivacy: boolean;
+  /** 긴급 등록 사유 (G1 예외). */
+  emergencyReason?: string;
 }
 
 export interface ParticipantProgramCreation {

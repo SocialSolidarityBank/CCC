@@ -15,6 +15,10 @@ const errorMessages: Record<string, string> = {
   access_denied: '당사자를 등록할 권한이 없습니다.',
   forbidden: '당사자를 등록할 권한이 없습니다.',
   conflict: '이미 처리된 요청입니다. 다시 확인하세요.',
+  // G1: 게이트에 걸린 두 경우는 원인을 그대로 짚어 준다 — "다시 확인하세요"로 뭉치면
+  // 화면에서 원인 없는 실패로 보인다(게이트 문서 §2 G1).
+  privacy_consent_required: '개인정보 수집·이용 동의를 체크해야 등록할 수 있습니다. 동의를 먼저 받을 수 없다면 긴급 등록을 선택하세요.',
+  emergency_reason_required: '긴급 등록에는 사유를 적어야 합니다.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
   service_unavailable: '지금 당사자를 등록할 수 없습니다. 잠시 후 다시 시도하세요.',
 };

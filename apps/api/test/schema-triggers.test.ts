@@ -1404,6 +1404,7 @@ describe('schema triggers', () => {
        WHERE id = ?`,
     ).bind('2020-01-01 00:00:00', 'program complete', counselor.userId, participant.supportCaseId).run();
     const unassignedSource = await createSupportCase(t.env, admin, participant.beneficiaryId, {
+      consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
       programType: 'financial_support_v1',

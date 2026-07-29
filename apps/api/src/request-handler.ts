@@ -18,6 +18,8 @@ import {
   StaleDraftVersionError,
   TextAiPilotDisabledError,
   ValidationError,
+  PrivacyConsentRequiredError,
+  EmergencyReasonRequiredError,
   assertPilotTextAiConsent,
   assertRecordingUploadAllowed,
   approveSession,
@@ -72,6 +74,7 @@ import {
   listSessions,
   listSupportCaseAssignees,
   listAssignedParticipants,
+  listPrivacyConsentFollowUps,
   listSupportCasesForBeneficiary,
   listUsers,
   loadMaskedSourceSnapshotForService,
@@ -314,6 +317,19 @@ function requireFinancialSupportProgramType(body: JsonObject): 'financial_suppor
   return 'financial_support_v1';
 }
 
+/**
+ * 긴급 등록 사유 (G1). **빈 문자열도 그대로 넘긴다** — "긴급 등록을 골랐는데 사유가 비었다"는
+ * 판정은 게이트웨이가 `emergency_reason_required` 로 내려야 화면이 그 자리를 짚어 안내한다.
+ * 여기서 400 invalid_request 로 뭉치면 원인 없는 실패가 된다(게이트 문서 §2 G1).
+ */
+function optionalEmergencyReason(body: JsonObject): string | undefined {
+  const value = body.emergencyReason;
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw new ValidationError('emergencyReason must be a string');
+  if (value.length > 500) throw new ValidationError('emergencyReason is invalid');
+  return value;
+}
+
 function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
   // 항목별 동의(D15·D23)는 등록 입력과 함께 오지만 게이트웨이에는 별도 인자로 넘긴다.
@@ -322,14 +338,16 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // 체크는 기본 미동의(false)이며, 미동의여도 등록은 진행된다(D15 미동의 경로).
   // D44: 개인정보 수집·이용 동의(consentPrivacy)가 3종째로 합류한다. 세 키 중 하나라도
   // 오면 동의 기록을 남긴다 — 등록 폼은 항상 셋을 보내고, 셋 다 없는 호출만 하위 호환이다.
-  const hasConsent = 'consentPrivacy' in body || 'consentRecording' in body || 'consentTextAi' in body;
-  const consent = hasConsent
-    ? {
-      privacy: optionalBoolean(body, 'consentPrivacy'),
-      recording: optionalBoolean(body, 'consentRecording'),
-      textAi: optionalBoolean(body, 'consentTextAi'),
-    }
-    : undefined;
+  // G1(2026-07-29 Q 결정1): ① 은 이제 등록의 하드 게이트다. 그래서 HTTP 등록은 동의 키가
+  // 없어도 **언제나** consent 객체(전부 false)를 만들어 게이트웨이 게이트를 지나게 한다 —
+  // 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다. 통과 경로는 ① 체크 또는 긴급 등록뿐이다.
+  const emergencyReason = optionalEmergencyReason(body);
+  const consent = {
+    privacy: optionalBoolean(body, 'consentPrivacy'),
+    recording: optionalBoolean(body, 'consentRecording'),
+    textAi: optionalBoolean(body, 'consentTextAi'),
+    ...(emergencyReason === undefined ? {} : { emergency: { reason: emergencyReason } }),
+  };
   // 이메일은 선택 항목이다. undefined 면 게이트웨이 입력에서 아예 빼야 한다 —
   // { email: undefined } 로 두면 Object.keys 에 남아 assertExactKeys 가 거부한다(#37).
   const email = optionalRegisteredEmail(body);
@@ -347,7 +365,7 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
     ...(region === undefined ? {} : { region }),
     ...(gender === undefined ? {} : { gender }),
   };
-  const registrationKeys = ['consentPrivacy', 'consentRecording', 'consentTextAi', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
+  const registrationKeys = ['consentPrivacy', 'consentRecording', 'consentTextAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
     requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', ...registrationKeys]);
     return {
@@ -373,23 +391,33 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
 
 function parseSubsequentParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
+  // G1: 추가 참여 사업도 ① 하드 게이트를 지난다 — 두 번째 사업은 동의 3종이 미체크로
+  // 시작하므로(D44) 여기서 ① 을 다시 받는다. 긴급 사유는 값이 있을 때만 싣는다.
+  const emergencyReason = optionalEmergencyReason(body);
+  const consentKeys = ['consentPrivacy', 'emergencyReason'];
+  const consentInput = {
+    consentPrivacy: optionalBoolean(body, 'consentPrivacy'),
+    ...(emergencyReason === undefined ? {} : { emergencyReason }),
+  };
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'initialAssigneeUserId']);
+    requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'initialAssigneeUserId', ...consentKeys]);
     return {
       schemaVersion: requiredSchemaVersion(body),
       submissionId: requiredUuid(body, 'submissionId'),
       programType: requireFinancialSupportProgramType(body),
       intakeAt: requiredCanonicalUtc(body, 'intakeAt'),
       initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
+      ...consentInput,
     };
   }
-  requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'sourceSupportCaseId']);
+  requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'sourceSupportCaseId', ...consentKeys]);
   return {
     schemaVersion: requiredSchemaVersion(body),
     submissionId: requiredUuid(body, 'submissionId'),
     programType: requireFinancialSupportProgramType(body),
     intakeAt: requiredCanonicalUtc(body, 'intakeAt'),
     sourceSupportCaseId: requiredUuid(body, 'sourceSupportCaseId'),
+    ...consentInput,
   };
 }
 
@@ -1433,6 +1461,10 @@ function errorResponse(error: unknown): Response {
   if (error instanceof DraftVersionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof GroundedEvidenceRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderNotConfiguredError) return json({ error: error.code }, error.statusCode);
+  // G1: ① 미동의·긴급 사유 누락은 'invalid_request' 로 뭉치지 않는다 — 화면이 "동의를
+  // 체크하거나 긴급 등록을 고르라"고 안내하려면 원인이 코드로 구분돼야 한다(게이트 문서 §2 G1).
+  if (error instanceof PrivacyConsentRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof EmergencyReasonRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderInputError) return json({ error: 'invalid_request' }, 400);
   if (error instanceof AiProviderProhibitedOutputError) return json({ error: 'ai_prohibited_output' }, 422);
   if (error instanceof AiProviderUnavailableError) return json({ error: 'ai_provider_unavailable' }, 503);
@@ -1654,6 +1686,12 @@ export async function handleRequest(
       requestQuery(url, []);
       const participants = await listAssignedParticipants(env, actor);
       return json({ results: participants.map(assignedParticipantResponse) });
+    }
+    // ① 동의 보완 대상 리포트 (G1 완료 기준). 긴급 등록 건(기한 임박·경과 순) + 하드 게이트
+    // 이전·레거시 경로로 ① 이 비어 있는 케이스를 함께 낸다. 범위(담당·기관)·감사는 게이트웨이가 강제한다(R1).
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'consent' && parts[1] === 'follow-ups') {
+      requestQuery(url, []);
+      return json({ results: await listPrivacyConsentFollowUps(env, actor) });
     }
     if (parts[0] === 'participants' && parts[1] !== undefined) {
       const beneficiaryId = requireBeneficiaryId(parts[1]);

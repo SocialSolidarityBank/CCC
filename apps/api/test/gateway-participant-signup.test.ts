@@ -87,7 +87,8 @@ describe('participant self signup (CCC-28)', () => {
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { privacy: false, recording: false, textAi: true },
+      // G1: 자기 가입도 ① 없이는 성립하지 않는다. 여기서 보는 것은 기록자 표식이다.
+      consent: { privacy: true, recording: false, textAi: true },
     });
 
     const consent = await t.db.prepare(
@@ -100,7 +101,7 @@ describe('participant self signup (CCC-28)', () => {
     expect(consent?.recorded_by).toBe(PARTICIPANT_SELF_RECORDER);
     expect(consent?.recorded_by).not.toBe(counselor.userId);
     // 현재값(support_cases)만이 아니라 **이력 행에도** 3종이 같은 모양으로 남는다(D44 2층 저장).
-    expect(consent?.consent_privacy_at).toBeNull();
+    expect(consent?.consent_privacy_at).not.toBeNull();
     expect(consent?.consent_recording_at).toBeNull();
     expect(consent?.consent_text_ai_at).not.toBeNull();
   });

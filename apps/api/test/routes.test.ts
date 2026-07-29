@@ -2099,6 +2099,7 @@ describe('canonical participant API routes', () => {
       replayed: true,
     });
     const sibling = await createSupportCase(t.env, canonicalCounselor, creation.beneficiaryId, {
+      consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
       programType: 'financial_support_v1',

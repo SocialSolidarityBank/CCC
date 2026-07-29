@@ -359,6 +359,10 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     ai_provider_not_configured: { className: 'status risk', role: 'alert', text: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.' },
     ai_prohibited_output: { className: 'status risk', role: 'alert', text: '안전 기준에 맞지 않는 AI 결과가 감지되어 요청을 처리할 수 없습니다.' },
     ai_provider_unavailable: { className: 'status risk', role: 'alert', text: '텍스트 AI 서비스를 지금 사용할 수 없어 요청을 처리할 수 없습니다.' },
+    // G1 의 두 코드는 등록 화면에서 나는 실패다. 상담 기록 저장 경로에서는 나지 않지만
+    // 공용 Notice 타입을 쓰므로 자리는 채워 둔다(빠지면 타입이 깨진다).
+    privacy_consent_required: { className: 'status risk', role: 'alert', text: '개인정보 수집·이용 동의가 확인되지 않아 요청을 처리할 수 없습니다. 당사자 정보 화면에서 동의 상태를 확인하세요.' },
+    emergency_reason_required: { className: 'status risk', role: 'alert', text: '긴급 등록 사유가 없어 요청을 처리할 수 없습니다.' },
     service_unavailable: { className: 'status risk', role: 'alert', text: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.' },
     unknown_outcome: { className: 'status risk', role: 'alert', text: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.' },
   };

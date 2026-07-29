@@ -27,7 +27,10 @@ async function register(actor: typeof counselor | typeof admin, consent?: Partic
   const input = actor.role === 'admin'
     ? { programType: 'financial_support_v1' as const, intakeAt: INTAKE_AT, initialAssigneeUserId: actor.userId }
     : { programType: 'financial_support_v1' as const, intakeAt: INTAKE_AT };
-  return createBeneficiaryWithInitialSupportCase(t.env, actor, input, undefined, consent);
+  // G1: ① 은 등록의 하드 게이트다. 테스트 기본값은 "동의함"이고, 게이트 자체를 시험하는
+  // 테스트만 privacy:false 를 명시한다(스프레드가 뒤에 있어 명시값이 이긴다).
+  const gated = consent === undefined ? undefined : { privacy: true, ...consent };
+  return createBeneficiaryWithInitialSupportCase(t.env, actor, input, undefined, gated);
 }
 
 async function consentRow(beneficiaryId: string) {
@@ -143,6 +146,8 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     const response = await register({
       programType: 'financial_support_v1',
       intakeAt: INTAKE_AT,
+      // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
+      consentPrivacy: true,
       consentRecording: true,
       consentTextAi: false,
     });
@@ -160,6 +165,8 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     const response = await register({
       programType: 'financial_support_v1',
       intakeAt: INTAKE_AT,
+      // ②·③ 미동의 경로는 G1 이후에도 불변이다 — 막히는 것은 ① 뿐이다.
+      consentPrivacy: true,
       consentRecording: false,
       consentTextAi: false,
     });
@@ -171,12 +178,15 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     expect(row?.consent_text_ai_at).toBeNull();
   });
 
-  it('records no consent when the payload omits both flags (legacy/programmatic caller)', async () => {
+  // G1(2026-07-29)이 이 자리의 계약을 뒤집었다: 동의 키를 생략한 HTTP 등록은 "동의 기록 없이
+  // 등록"이 아니라 **거부**다. 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다.
+  it('rejects a payload that omits the privacy consent (G1 하드 게이트)', async () => {
     await t.reset();
     const response = await register({ programType: 'financial_support_v1', intakeAt: INTAKE_AT });
-    expect(response.status).toBe(201);
-    const created = await response.json() as { beneficiaryId: string };
-    expect(await consentRow(created.beneficiaryId)).toBeNull();
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: 'privacy_consent_required' });
+    const created = await t.db.prepare('SELECT COUNT(*) AS count FROM beneficiaries').first<{ count: number }>();
+    expect(created?.count).toBe(0);
   });
 
   it('rejects a non-boolean consent flag', async () => {
@@ -214,11 +224,12 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
     expect(current?.consent_text_ai_at).toBeNull();
   });
 
-  it('leaves privacy unrecorded when the registration form omits it', async () => {
+  // G1 이 이 자리의 계약을 대체했다: ① 를 비운 채로는 등록이 성립하지 않는다.
+  // 게이트 전체(긴급 예외 포함)는 consent-privacy-gate.test.ts 가 고정한다.
+  it('refuses to register without the privacy consent (G1)', async () => {
     await t.reset();
-    const creation = await register(counselor, { recording: true, textAi: true });
-    const current = await supportCaseConsent(creation.supportCaseId);
-    expect(current?.consent_privacy_at).toBeNull();
+    await expect(register(counselor, { privacy: false, recording: true, textAi: true }))
+      .rejects.toThrow('privacy_consent_required');
   });
 
   it('updates and revokes from the participant settings page, appending history + audit', async () => {
@@ -264,7 +275,10 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
 
   it('re-grants a revoked consent (the settings page is the only edit surface)', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: false, recording: false, textAi: false });
+    // ① 이 비어 있는 케이스는 이제 긴급 등록으로만 생긴다(G1). 그 상태에서 보완하는 흐름이다.
+    const creation = await register(counselor, {
+      privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' },
+    });
     await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
       privacy: true, recording: true, textAi: true,
     });
@@ -302,7 +316,9 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
 
   it('lets an org admin edit consent (등록과 같은 권한 층)', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: false, recording: false, textAi: false });
+    const creation = await register(counselor, {
+      privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' },
+    });
     const updated = await updateParticipantConsent(t.env, admin, creation.supportCaseId, {
       privacy: true, recording: false, textAi: false,
     });
@@ -331,7 +347,7 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false },
+      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
     );
 
     const ok = await worker.fetch(new Request(
