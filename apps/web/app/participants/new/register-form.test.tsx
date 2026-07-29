@@ -86,6 +86,24 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect((container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement).required).toBe(false);
   });
 
+  it('keeps the privacy consent and the emergency toggle mutually exclusive (G1)', () => {
+    const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
+    const privacy = () => container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement;
+    const emergency = () => container.querySelector('input[name="emergencyRegistration"]') as HTMLInputElement;
+
+    // 서버는 "동의가 있는데 긴급 예외까지 왔다"를 거부한다 — 화면에서 그 조합을 못 만들게 한다.
+    fireEvent.click(privacy());
+    expect(privacy().checked).toBe(true);
+    fireEvent.click(emergency());
+    expect(emergency().checked).toBe(true);
+    expect(privacy().checked).toBe(false);
+
+    fireEvent.click(privacy());
+    expect(privacy().checked).toBe(true);
+    expect(emergency().checked).toBe(false);
+    expect(container.querySelector('textarea[name="emergencyReason"]')).toBeNull();
+  });
+
   it('carries the emergency reason in the form payload (G1)', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     const form = container.querySelector('form') as HTMLFormElement;

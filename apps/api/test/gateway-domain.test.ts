@@ -1167,7 +1167,9 @@ describe('canonical participant gateway', () => {
               version, purge_due AS purgeDue, purged_at AS purgedAt, updated_at AS updatedAt
        FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ?`,
     ).bind(initial.beneficiaryId, canonicalActors.counselor.orgId).first();
-    expect(beforeConflict).toEqual({ supportCaseCount: 2, assignmentCount: 2, auditCount: 5 });
+    // 감사 6건: 최초 등록 3건(create·create·assign) + 추가 사업 3건(create·assign·record_consent).
+    // 마지막 1건이 G1 로 늘었다 — 추가 참여 사업도 ① 동의를 받아 이력·감사로 남기기 때문이다.
+    expect(beforeConflict).toEqual({ supportCaseCount: 2, assignmentCount: 2, auditCount: 6 });
 
     await expect(createSupportCase(t.env, canonicalActors.counselor, initial.beneficiaryId, {
       ...input,

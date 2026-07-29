@@ -7223,7 +7223,8 @@ export interface PrivacyConsentFollowUp {
  * **기존 데이터를 고치지 않는다** — 목록화만 한다(게이트 문서 §2 G1 "마이그레이션 대상 아님").
  *
  * 범위는 다른 목록과 같다(D7): 실무자는 자신이 담당인 케이스, 기관 관리자는 기관 전체.
- * 조회 감사는 목록 단위 1건(D14).
+ * **활성 케이스만** 낸다 — 종결된 케이스는 보완할 상담이 남아 있지 않아 이 작업 큐에
+ * 영원히 쌓이기만 한다(종결분 점검이 필요해지면 별도 조회로 뽑는다). 조회 감사는 목록 단위 1건(D14).
  */
 export async function listPrivacyConsentFollowUps(
   env: Env,
@@ -7237,6 +7238,7 @@ export async function listPrivacyConsentFollowUps(
               support_cases.consent_privacy_due_at
        FROM support_cases
        WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
+         AND support_cases.status = 'active'
        ORDER BY support_cases.consent_privacy_due_at IS NULL,
                 support_cases.consent_privacy_due_at, support_cases.id`
     : `SELECT support_cases.id, support_cases.beneficiary_id, support_cases.program_type,
@@ -7248,6 +7250,7 @@ export async function listPrivacyConsentFollowUps(
          AND support_case_assignees.user_id = ?
          AND support_case_assignees.unassigned_at IS NULL
        WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
+         AND support_cases.status = 'active'
        ORDER BY support_cases.consent_privacy_due_at IS NULL,
                 support_cases.consent_privacy_due_at, support_cases.id`;
   const bindings = actor.role === 'admin' ? [actor.orgId] : [actor.userId, actor.orgId];

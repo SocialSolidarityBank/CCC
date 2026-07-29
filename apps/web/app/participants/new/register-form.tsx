@@ -49,8 +49,11 @@ export function RegisterForm({
   action,
   programLabel = PROGRAM_LABELS.financial_support_v1,
 }: RegisterFormProps) {
-  // G1: ① 은 필수 체크다. 긴급 등록을 켜면 그 필수가 사유 입력으로 옮겨 간다 —
-  // 최종 판정은 서버(게이트웨이)가 하고, 여기 상태는 "무엇을 채워야 하는지"를 보여줄 뿐이다.
+  // G1: ① 은 필수 체크이고, 긴급 등록을 켜면 그 필수가 사유 입력으로 옮겨 간다.
+  // 둘은 **서로 배타**다 — 서버가 "동의가 있는데 긴급 예외까지 왔다"를 거부하므로(예외는
+  // 동의가 없을 때만 성립), 화면에서 아예 함께 켜지지 않게 한다. 그러지 않으면 한 번의
+  // 클릭으로 원인 없는 실패에 닿는다.
+  const [privacy, setPrivacy] = useState(false);
   const [emergency, setEmergency] = useState(false);
   const programOptions = [{ value: 'financial_support_v1', label: programLabel }];
   return (
@@ -112,6 +115,11 @@ export function RegisterForm({
             name="consentPrivacy"
             value="on"
             required={!emergency}
+            checked={privacy}
+            onChange={(event) => {
+              setPrivacy(event.currentTarget.checked);
+              if (event.currentTarget.checked) setEmergency(false);
+            }}
           />
           <span>개인정보 수집·이용 동의 (필수)</span>
         </label>
@@ -135,7 +143,10 @@ export function RegisterForm({
               name="emergencyRegistration"
               value="on"
               checked={emergency}
-              onChange={(event) => setEmergency(event.currentTarget.checked)}
+              onChange={(event) => {
+                setEmergency(event.currentTarget.checked);
+                if (event.currentTarget.checked) setPrivacy(false);
+              }}
             />
             <span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span>
           </label>
