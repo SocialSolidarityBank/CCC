@@ -1994,6 +1994,8 @@ describe('canonical participant API routes', () => {
       questions: [],
       // D45 영역 ② 회차별 정리 — 이 픽스처는 상담 기록이 없어 빈 배열이다.
       sessionRows: [],
+      // D45 영역 ③ 내용 불일치(CCC-43) — 저장된 검출 결과가 없어 빈 배열이다.
+      discrepancies: [],
     });
     expect(briefingBody).not.toHaveProperty('supportCases');
     const queryFocusedBriefing = await worker.fetch(new Request(

@@ -4782,3 +4782,62 @@ ALTER TABLE support_cases ADD COLUMN consent_privacy_at TEXT;
 -- 권한(담당 실무자만)·200자 상한·감사(D14)는 게이트웨이가 강제한다(R1).
 -- ----------------------------------------------------------------------------
 ALTER TABLE support_cases ADD COLUMN overall_goal TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 0027: 내용 불일치 저장 구조 (D45 · ADR-0018 · CCC-43). 기록 공식화 시점(수기 저장·
+-- AI 승인)에 검출해 저장하고 브리핑 영역 ③은 저장된 결과만 읽는다. AI 는 판단하지
+-- 않으므로(R5) 양쪽 원문 인용 + 회차 참조만 담는다. resolution_* 3컬럼은 처리 3종
+-- (CCC-42)의 예약 자리 — NULL = 미처리. 인용·회차는 트리거로 불변, 처리된 행은 삭제
+-- 불가(접힌 이력 보존). 상세 근거는 migrations/0027_session_discrepancies.sql.
+-- ----------------------------------------------------------------------------
+CREATE TABLE session_discrepancies (
+  id                 TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL,
+  support_case_id    TEXT NOT NULL REFERENCES support_cases (id),
+  kind               TEXT NOT NULL CHECK (kind IN ('cross_session', 'within_session')),
+  trigger_session_id TEXT NOT NULL REFERENCES sessions (id),
+  left_session_id    TEXT NOT NULL REFERENCES sessions (id),
+  left_quote         TEXT NOT NULL CHECK (length(trim(left_quote)) BETWEEN 1 AND 500),
+  right_session_id   TEXT NOT NULL REFERENCES sessions (id),
+  right_quote        TEXT NOT NULL CHECK (length(trim(right_quote)) BETWEEN 1 AND 500),
+  detected_at        TEXT NOT NULL,
+  resolution_status  TEXT CHECK (resolution_status IN ('situation_changed', 'record_error', 'confirmed')),
+  resolved_by        TEXT,
+  resolved_at        TEXT,
+  created_at         TEXT NOT NULL,
+  CHECK (kind <> 'within_session' OR left_session_id = right_session_id),
+  CHECK (kind <> 'cross_session' OR left_session_id <> right_session_id),
+  CHECK (
+    (resolution_status IS NULL AND resolved_by IS NULL AND resolved_at IS NULL)
+    OR (resolution_status IS NOT NULL AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL)
+  )
+);
+
+CREATE INDEX idx_session_discrepancies_case
+  ON session_discrepancies (org_id, support_case_id, resolution_status);
+CREATE INDEX idx_session_discrepancies_trigger
+  ON session_discrepancies (org_id, trigger_session_id);
+
+CREATE TRIGGER session_discrepancies_content_immutable
+BEFORE UPDATE ON session_discrepancies
+WHEN OLD.id <> NEW.id
+  OR OLD.org_id <> NEW.org_id
+  OR OLD.support_case_id <> NEW.support_case_id
+  OR OLD.kind <> NEW.kind
+  OR OLD.trigger_session_id <> NEW.trigger_session_id
+  OR OLD.left_session_id <> NEW.left_session_id
+  OR OLD.left_quote <> NEW.left_quote
+  OR OLD.right_session_id <> NEW.right_session_id
+  OR OLD.right_quote <> NEW.right_quote
+  OR OLD.detected_at <> NEW.detected_at
+  OR OLD.created_at <> NEW.created_at
+BEGIN
+  SELECT RAISE(ABORT, 'session_discrepancies: detected content is immutable');
+END;
+
+CREATE TRIGGER session_discrepancies_resolved_no_delete
+BEFORE DELETE ON session_discrepancies
+WHEN OLD.resolution_status IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'session_discrepancies: resolved rows are retained history');
+END;

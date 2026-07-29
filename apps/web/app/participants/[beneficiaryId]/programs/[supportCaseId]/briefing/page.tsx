@@ -104,6 +104,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           programLabel={programLabels[focused.sourceSupportCase.programType]}
           participant={briefing.participant}
           sessionRows={focused.sessionRows}
+          discrepancies={focused.discrepancies}
           pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}
           questions={focused.questions}
           openActionItems={focused.openActionItems}

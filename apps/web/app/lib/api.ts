@@ -309,6 +309,15 @@ export interface ParticipantBriefingSection {
     aiOneLiner: string | null;
     memoExcerpt: string | null;
   }>;
+  // D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). AI 판단 없이 양쪽 원문 인용 +
+  // 회차 참조만(R5). CCC-43 범위에서는 미처리 항목만 온다(처리 3종은 CCC-42).
+  discrepancies: Array<{
+    id: string;
+    kind: 'cross_session' | 'within_session';
+    left: { sessionId: string; heldAt: string; quote: string };
+    right: { sessionId: string; heldAt: string; quote: string };
+    detectedAt: string;
+  }>;
 }
 
 // 티켓 #35(T5) 계약: 포커스 참여사업의 다가오는 상담 일정 + 그 세션 목표(케이스 목표 연결)·
