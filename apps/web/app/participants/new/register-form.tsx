@@ -5,10 +5,6 @@ import { WireButton } from '../../components/wire/wire-button';
 import { PROGRAM_LABELS } from '../../lib/labels';
 import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from './consent-copy';
 
-// 참여 사업은 v1 하나뿐이다(스키마 3층 구조의 템플릿 층 시작점). 선택지가 늘면
-// 여기 옵션을 확장한다. 값 자체는 게이트웨이가 financial_support_v1 로 고정하므로 표시용이다.
-const PROGRAM_OPTIONS = [{ value: 'financial_support_v1', label: PROGRAM_LABELS.financial_support_v1 }];
-
 // 성별 선택값은 정본 질문지 1-1 그대로다(D41). 빈 값은 '미입력' — 금고에 아무것도 쓰지 않는다.
 const GENDER_OPTIONS = [
   { value: '', label: '선택 안 함' },
@@ -29,6 +25,12 @@ export interface RegisterFormProps {
    * (actions.ts → 'server-only')에서 떼어내 단위 테스트에서 렌더 가능하게 한다.
    */
   action: (formData: FormData) => void | Promise<void>;
+  /**
+   * 참여 사업 표시 이름 — 페이지가 getDisplayLabels() 로 넣는다(온보딩 저장값 우선, CCC-32).
+   * 생략하면 labels.ts 폴백 — 단위 테스트가 서버 fetch 없이 렌더할 수 있다.
+   * 참여 사업은 v1 하나뿐이고 값 자체는 게이트웨이가 financial_support_v1 로 고정하므로 표시용이다.
+   */
+  programLabel?: string;
 }
 
 /**
@@ -41,7 +43,12 @@ export interface RegisterFormProps {
  * 암호화 저장된다(D3). 인테이크 1단계(1-1 기본정보)는 이 값을 읽어 표시만 하므로,
  * 고치는 자리는 여기 하나뿐이다(D42 ①). 계좌는 여전히 updateParticipantPii 몫이다.
  */
-export function RegisterForm({ currentUser, action }: RegisterFormProps) {
+export function RegisterForm({
+  currentUser,
+  action,
+  programLabel = PROGRAM_LABELS.financial_support_v1,
+}: RegisterFormProps) {
+  const programOptions = [{ value: 'financial_support_v1', label: programLabel }];
   return (
     <form className="wire-register-form" action={action}>
       <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
@@ -60,7 +67,7 @@ export function RegisterForm({ currentUser, action }: RegisterFormProps) {
             variant="select"
             name="programType"
             value="financial_support_v1"
-            options={PROGRAM_OPTIONS}
+            options={programOptions}
           />
         </div>
         {/* D41 1-1 · D42 ①: 인테이크 1단계의 기본정보는 여기서만 입력·수정한다. 값은 금고에

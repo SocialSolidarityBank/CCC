@@ -6143,6 +6143,83 @@ export async function createOrganizationSettings(
     updatedAt: createdAt,
   };
 }
+export interface OrganizationProfile {
+  orgId: string;
+  orgName: string | null;
+  programDisplayName: string | null;
+}
+
+/**
+ * 사이드바·화면이 되비출 기관·첫 사업 표시 이름 (CCC-32 · 스펙 #78 US 2).
+ *
+ * **값이 없으면 null** — 화면이 기존 하드코딩 라벨(labels.ts)로 폴백한다. 설정 행 자체가
+ * 없어도 에러가 아니라 null 이다: 이 함수는 모든 화면의 셸(사이드바)이 부르므로, 설정
+ * 미비가 앱 전체를 잠그면 안 된다.
+ *
+ * **감사를 남기지 않는다** — 기관 표시 이름은 당사자·케이스 기록이 아니라 화면 설정이다.
+ * 모든 페이지 렌더마다 감사 행이 쌓이면 실제 신호(누가 누구의 PII를 봤나)가 묻힌다
+ * (getLastProgramType 과 같은 근거 — migrations/0017 주석).
+ */
+export async function getOrganizationProfile(env: Env, actor: Actor): Promise<OrganizationProfile> {
+  assertHuman(actor);
+  const row = await env.DB.prepare(
+    'SELECT org_name, program_display_name FROM organization_settings WHERE org_id = ?',
+  ).bind(actor.orgId).first<DbRow>();
+  return {
+    orgId: actor.orgId,
+    orgName: row === null ? null : nullableString(row.org_name),
+    programDisplayName: row === null ? null : nullableString(row.program_display_name),
+  };
+}
+
+/**
+ * 관리자 온보딩 2단계의 저장 (CCC-32 · 스펙 #78 US 1). 조직 이름·첫 사업 표시 이름만
+ * 진짜 저장한다 — programs 테이블·사업 전환기 개편은 스펙이 명시적으로 제외했다.
+ *
+ * 설정 행이 이미 있어야 한다(로컬·미리보기 시드가 만든다 — scripts/seed/preload-data.ts).
+ * 없는데 여기서 time_zone 을 지어내 INSERT 하면 0005 의 "no guessed default" 원칙이
+ * 깨진다. 다시 실행하면 이름을 덮어쓴다(수정 경로 겸용 — 온보딩 화면 재방문이 409 로
+ * 막히지 않는다). 변경은 전건 audit_log 에 남는다(D14).
+ */
+export async function completeOrganizationOnboarding(
+  env: Env,
+  actor: Actor,
+  input: { orgName: string; programDisplayName: string },
+): Promise<OrganizationProfile> {
+  assertAdmin(actor);
+  await assertCurrentHumanActor(env, actor);
+  const orgName = input.orgName.trim();
+  if (orgName.length < 1 || orgName.length > 80) {
+    throw new ValidationError('organization name is invalid');
+  }
+  const programDisplayName = input.programDisplayName.trim();
+  if (programDisplayName.length < 1 || programDisplayName.length > 120) {
+    throw new ValidationError('program display name is invalid');
+  }
+  await assertOrganizationSettings(env, actor.orgId);
+  const updatedAt = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE organization_settings
+       SET org_name = ?, program_display_name = ?, updated_at = ?
+       WHERE org_id = ?`,
+    ).bind(orgName, programDisplayName, updatedAt, actor.orgId),
+    env.DB.prepare(
+      `INSERT INTO audit_log (
+         org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
+       ) VALUES (?, ?, ?, 'update', 'organization_settings', ?, NULL, ?, ?)`,
+    ).bind(
+      actor.orgId,
+      actor.userId,
+      actor.role,
+      actor.orgId,
+      stringifyJson({ onboarding: true, orgName, programDisplayName }),
+      updatedAt,
+    ),
+  ]);
+  return { orgId: actor.orgId, orgName, programDisplayName };
+}
+
 async function assertOrganizationSettings(env: Env, orgId: string): Promise<void> {
   const row = await env.DB.prepare('SELECT org_id FROM organization_settings WHERE org_id = ?')
     .bind(orgId)

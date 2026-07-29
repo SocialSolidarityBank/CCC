@@ -11,7 +11,7 @@ import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
 import { WireButton } from '../../components/wire/wire-button';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import { getDisplayLabels } from '../../lib/display-labels';
 import { updateParticipantConsentAction } from '../../actions';
 import { ErrorState, type ErrorKind } from './error-state';
 
@@ -42,8 +42,9 @@ function expectedApiErrorKind(error: ApiError): ErrorKind | null {
   }
 }
 
-function programName(programType: ParticipantProgramType): string {
-  const name = PROGRAM_LABELS[programType];
+// 사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 요청 안에서는 getDisplayLabels() 가 1회로 접힌다.
+function programName(labels: Record<ParticipantProgramType, string>, programType: ParticipantProgramType): string {
+  const name = labels[programType];
   if (name === undefined) throw new Error('Participant program type was invalid.');
   return name;
 }
@@ -149,11 +150,15 @@ function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; prog
   );
 }
 
-function ProgramCard({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
+function ProgramCard({ beneficiaryId, program, programTitle }: {
+  beneficiaryId: string;
+  program: ParticipantProgram;
+  programTitle: string;
+}) {
   return (
     <article className="surface-card participant-program" data-locked={program.authorized ? undefined : 'true'}>
       <div className="participant-program-head">
-        <h2>{programName(program.programType)}</h2>
+        <h2>{programTitle}</h2>
         <span className="status">{programStatus(program.status)}</span>
       </div>
       <p className="participant-program-meta">참여 시작 {formatIntakeDate(program.intakeAt)}</p>
@@ -177,12 +182,13 @@ function ProgramCard({ beneficiaryId, program }: { beneficiaryId: string; progra
   );
 }
 
-function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
+async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
+  const { programLabels } = await getDisplayLabels();
   // 진행 중을 먼저, 그 안에서는 사업명 순. 내 담당을 위로 올리지 않는다 — 사람 단위로
   // 무엇에 참여 중인지가 이 화면의 질문이고, 담당 여부는 카드 안에서 읽힌다.
   const programs = [...detail.programs].sort((left, right) => {
     if (left.status !== right.status) return left.status === 'active' ? -1 : 1;
-    return programName(left.programType).localeCompare(programName(right.programType), 'ko')
+    return programName(programLabels, left.programType).localeCompare(programName(programLabels, right.programType), 'ko')
       || left.id.localeCompare(right.id);
   });
 
@@ -213,7 +219,12 @@ function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
         ) : (
           <section className="participant-program-list" aria-label="참여 사업 목록">
             {programs.map((program) => (
-              <ProgramCard key={program.id} beneficiaryId={detail.beneficiaryId} program={program} />
+              <ProgramCard
+                key={program.id}
+                beneficiaryId={detail.beneficiaryId}
+                program={program}
+                programTitle={programName(programLabels, program.programType)}
+              />
             ))}
           </section>
         )}

@@ -1,4 +1,5 @@
 import { ApiError, getMyIdentity, type MyIdentity } from '../../lib/api';
+import { getDisplayLabels } from '../../lib/display-labels';
 import { createInitialParticipantProgramAction } from '../../actions';
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageTitle } from '../../components/wire/page-title';
@@ -69,6 +70,7 @@ export default async function NewParticipantPage({
         <RegisterForm
           currentUser={{ name: me.name, email: me.email }}
           action={createInitialParticipantProgramAction}
+          programLabel={(await getDisplayLabels()).programLabels.financial_support_v1}
         />
       </GridContainer>
     </main>

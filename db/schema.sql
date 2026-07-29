@@ -1432,6 +1432,13 @@ CREATE TABLE organization_settings (
   updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 0023: 관리자 온보딩(CCC-32)이 저장하는 기관·첫 사업 표시 이름. NULL 이면 화면은
+-- labels.ts 하드코딩 라벨로 폴백한다. programs 테이블 없음 — 이름만 진짜(스펙 #78).
+ALTER TABLE organization_settings ADD COLUMN org_name TEXT
+  CHECK (org_name IS NULL OR length(trim(org_name)) BETWEEN 1 AND 80);
+ALTER TABLE organization_settings ADD COLUMN program_display_name TEXT
+  CHECK (program_display_name IS NULL OR length(trim(program_display_name)) BETWEEN 1 AND 120);
+
 ALTER TABLE users ADD COLUMN time_zone TEXT
   CHECK (
     time_zone IS NULL OR (
