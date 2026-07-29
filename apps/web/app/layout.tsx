@@ -339,9 +339,15 @@ const briefingStyles = `
 .briefing-more:hover{--surface-fill:var(--muted)}
 .briefing-more-title{display:block;font-size:16px;font-weight:700;color:var(--ink)}
 .briefing-more-desc{display:block;margin-top:var(--space-1);font-size:14px;color:var(--sub)}
-/* 영역 ① — 실무자 입력·AI 질문의 세 섹션. */
+/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. */
 .briefing-qsection{display:grid;gap:var(--space-2)}
 .briefing-qlabel{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
+/* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층. */
+.briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-suggestion{display:grid;gap:var(--space-1)}
+.briefing-suggestion-title{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-suggestion-reason{margin:0;font-size:14px;color:var(--sub)}
+.briefing-suggestion-link{justify-self:start;font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
 /* 배지·메타·빈 상태(§5 상태 배지). */
 .briefing-badges{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}

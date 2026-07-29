@@ -106,7 +106,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           sessionRows={focused.sessionRows}
           discrepancies={focused.discrepancies}
           pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}
-          questions={focused.questions}
+          aiSuggestions={focused.aiSuggestions}
           openActionItems={focused.openActionItems}
           flags={focused.flags}
           upcomingSchedule={briefing.focusUpcomingSchedule}
