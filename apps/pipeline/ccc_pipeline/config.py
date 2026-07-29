@@ -22,6 +22,8 @@ class Config:
     work_dir: Path
     whisper_model: str
     ner_model_id: str | None
+    # 질병명 NER 은 인명 NER 과 다른 모델이라 설정을 따로 둔다. 없어도 사전 계층은 항상 동작한다(G3).
+    condition_ner_model_id: str | None
     hf_token: str | None
 
 
@@ -51,5 +53,6 @@ def load_config() -> Config:
         work_dir=work_dir,
         whisper_model=os.environ.get("CCC_WHISPER_MODEL", "").strip() or "medium",
         ner_model_id=os.environ.get("CCC_NER_MODEL_ID", "").strip() or None,
+        condition_ner_model_id=os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None,
         hf_token=os.environ.get("HF_TOKEN", "").strip() or None,
     )

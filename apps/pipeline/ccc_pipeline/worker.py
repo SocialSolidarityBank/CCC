@@ -24,10 +24,18 @@ logger = logging.getLogger("ccc_pipeline")
 
 def _build_ner_or_none(config: Config):  # noqa: ANN202
     if config.ner_model_id is None:
-        # 정규식 마스킹은 항상 동작하지만, 인명 마스킹이 빠지면 2차 방어가 얇아진다(D2).
-        logger.warning("CCC_NER_MODEL_ID is not set — masking runs regex-only (no person-name NER)")
+        # 정규식·사전 마스킹은 항상 동작하지만, 인명 마스킹이 빠지면 2차 방어가 얇아진다(D2).
+        logger.warning("CCC_NER_MODEL_ID is not set — masking runs without person-name NER")
         return None
     return masking.build_ner(config.ner_model_id)
+
+
+def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
+    if config.condition_ner_model_id is None:
+        # 사전 계층(G3)은 항상 동작한다 — NER 은 사전이 놓친 표기를 줍는 보완재다.
+        logger.info("CCC_CONDITION_NER_MODEL_ID is not set — condition masking uses the dictionary only")
+        return None
+    return masking.build_condition_ner(config.condition_ner_model_id)
 
 
 def process_job(client: ApiClient, config: Config, job_id: str) -> None:
@@ -60,7 +68,13 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         emotion_scores = aggregate_scores(speech_scores, text_scores)
 
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
-        transcript = masking.mask_text(format_transcript(segments, roles), _build_ner_or_none(config))
+        transcript, mask_report = masking.mask_text_with_report(
+            format_transcript(segments, roles),
+            _build_ner_or_none(config),
+            _build_condition_ner_or_none(config),
+        )
+        # 마스킹 집계는 **건수만** 남긴다 — 치환된 원문은 로그에도 쓰지 않는다(R3, G3 검증용).
+        logger.info("job %s: masked total=%d detail=%s", job_id, mask_report.total, mask_report.as_mapping())
 
         client.post_artifacts(job_id, build_artifacts(transcript, emotion_scores))
         logger.info("job %s: artifacts posted (%.1fs)", job_id, time.monotonic() - started)

@@ -20,6 +20,7 @@ def make_config(work_dir: Path) -> Config:
         work_dir=work_dir,
         whisper_model="tiny",
         ner_model_id=None,
+        condition_ner_model_id=None,
         hf_token=None,
     )
 

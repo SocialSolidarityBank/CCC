@@ -21,7 +21,8 @@ ccc_pipeline/
   diarize.py         pyannote 화자 분리 (지연 임포트)
   speaker_mapping.py 전사 구간↔화자 정렬 + 수혜자/상담사 자동 추정 (D11, 순수 로직)
   emotion.py         감정 점수 집계 (음성 0.3 + 텍스트 0.7 가중, R4, 순수 로직)
-  masking.py         2차 PII 마스킹 — 정규식(전화·주민번호·이메일·계좌) + 선택적 NER (D2)
+  masking.py         2차 PII 마스킹 — 정규식(전화·주민번호·이메일·계좌) + 질병명 사전(G3) + 선택적 NER (D2)
+  condition_terms.py 질병명·진단명 사전 — 무엇을 일부러 뺐는지도 여기 적혀 있다 (G3)
   artifacts.py       POST /pipeline/jobs/:id/artifacts 본문 조립
   worker.py          폴링 루프 (작업 디렉터리 생성→처리→무조건 삭제)
 tests/               표준 라이브러리 unittest — ML 설치 없이 실행 가능
@@ -56,8 +57,14 @@ systemd/             WSL2 자동 시작 유닛
 주의: 운영 API 앞의 Cloudflare가 기본 python-urllib User-Agent를 차단(1010)하므로
 클라이언트는 `ccc-pipeline/<버전>` UA를 명시한다 — 새 HTTP 코드를 추가할 때도 유지할 것.
 
-## 테스트 (이 레포 어디서든, ML 설치 불필요)
+## 테스트 (ML 설치 불필요)
 
 ```bash
-python3 -m unittest discover -s apps/pipeline/tests -v
+cd apps/pipeline/tests && PYTHONPATH=.. python3 -m unittest discover -s . -p "test_*.py" -v
 ```
+
+`tests/` 안에서 돌리는 이유: `unittest discover` 가 시작 디렉터리를 임포트 가능한 곳으로
+요구하는데 `tests/` 에는 `__init__.py` 가 없다. 레포 루트에서 `-s apps/pipeline/tests` 로
+부르면 `Start directory is not importable` 로 죽는다(파이썬 3.14에서 확인 — 옛 버전에서
+동작했다면 그쪽이 예외다). CI 의 `pipeline-test` 잡도 같은 방식이며, 그 잡은 **발견된
+테스트 개수까지 확인**한다 — 발견 실패는 `Ran 0 tests ... OK` 로 초록이 되기 때문이다.
