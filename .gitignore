@@ -37,3 +37,9 @@ scripts/seed/out/
 # 스킨 패스 렌더 증거(전체 스윕) — 용량이 커서 커밋하지 않는다.
 # 재생성: scripts/design/shots.py (절차는 artifacts/design-system-v0.1-skin/README.md)
 artifacts/skin-shots/
+
+# 세션 산출물(핸드오프·리포트) — 로컬 작업 메모라 커밋하지 않는다.
+# 2026-07-28 전환 때 이 디렉터리는 실 이메일·로컬 경로 때문에 스냅샷에서 제외됐고,
+# add -A 로 되돌아오는 사고를 막으려면 문서 규칙이 아니라 여기서 막아야 한다.
+docs/handoffs/
+omp-session-*.html
