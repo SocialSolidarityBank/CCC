@@ -43,3 +43,10 @@ artifacts/skin-shots/
 # add -A 로 되돌아오는 사고를 막으려면 문서 규칙이 아니라 여기서 막아야 한다.
 docs/handoffs/
 omp-session-*.html
+
+# 훑기 근거 스크린샷(2026-07-30 UI 수정 트랙, 92장 22MB) — 결함 목록의 근거이지만
+# 커밋하지 않는다. ia-shots 관례가 report.json 만 남기는 것이고, PR #3 이 미참조
+# PNG 를 걷어낸 직후에 22MB 를 공개 레포로 되돌리지 않는다. 재생성은 안 된다 —
+# afd2676 시점의 화면이라 레인이 머지되면 다른 그림이 나온다. 그래서 지우지 말고
+# 워크트리 밖(주 체크아웃)에 둔 채로 이 규칙이 add -A 만 막는다.
+artifacts/ui-revision-sweep-v1/shots/

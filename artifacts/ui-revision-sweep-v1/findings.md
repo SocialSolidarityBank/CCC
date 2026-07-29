@@ -3,8 +3,9 @@
 - **작성**: 2026-07-30 (Claude Code, 워크트리 `.worktrees/ui-revision`, 브랜치 `plan/ui-revision`)
 - **대상**: `main`(576ebe0) 과 같은 내용의 로컬 프리뷰. 미리보기(ccc-preview)는 지정 코드 입력이 필요해 로컬로 대체했다(Q 승인 2026-07-30) — **코드는 preview 와 동일**하다.
 - **근거 산출물**
-  - 전 화면 스크린샷 21화면 × 2뷰포트: `artifacts/ia-shots/rev-baseline/`(firefly-001, 5회차) · `artifacts/ia-shots/rev-otter/`(otter-001, 리스크 플래그 1건)
-  - D37 레이아웃 계약 실측: `artifacts/layout-measure/rev-baseline/measure.json`
+  - 커밋됨: `rev-baseline/report.json` · `rev-otter/report.json` · `layout-measure/rev-baseline/measure.json`
+  - **커밋 안 됨 — 스크린샷 92장(22MB)**: 주 체크아웃의 `artifacts/ui-revision-sweep-v1/shots/` 에 있다(워크트리 밖이라 `git worktree remove` 로도 안 사라진다). 21화면 × 2뷰포트 × 2케이스 — `rev-baseline/`(firefly-001, 5회차) · `rev-otter/`(otter-001, 리스크 플래그 1건) · `layout-measure/`(1440px 8장).
+  - `yellow` **이 스크린샷은 재생성되지 않는다** — `afd2676` 시점의 화면이라 레인 A·B가 머지되면 `scripts/design/ia-shots.py` 가 다른 그림을 낸다. 지우지 말 것.
 - **판정 기준**: CLAUDE.md 9장 결정(D-번호) · `DESIGN.md` §1~§7 · `PRD/intake-questionnaire-v1.md`. 취향이 아니라 **문서화된 계약 위반**만 결함으로 올렸고, 계약이 없는 항목은 `[미계약]` 으로 표시했다.
 
 ## 요약
