@@ -284,6 +284,33 @@ describe('replaceSessionDiscrepancies — 저장·교체·불변 (ADR-0018)', ()
     }])).rejects.toThrowError(ValidationError);
   });
 
+  it('같은 쌍이 다른 트리거 회차로 다시 검출돼도 한 건만 남는다 (중복 방지)', async () => {
+    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
+    const [first, second] = fixture.sessionIds;
+    const pair = {
+      kind: 'cross_session' as const,
+      leftSessionId: first ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    };
+    // 검출은 수기 저장과 AI 초안 승인 양쪽에서 돌아가므로 트리거 회차가 달라질 수 있다.
+    expect(await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [pair])).toHaveLength(1);
+    expect(await replaceSessionDiscrepancies(t.env, counselor, first ?? '', [pair])).toHaveLength(0);
+
+    const rows = await t.db.prepare(
+      'SELECT COUNT(*) AS count FROM session_discrepancies WHERE support_case_id = ? AND resolution_status IS NULL',
+    ).bind(fixture.supportCaseId).first<{ count: number }>();
+    expect(Number(rows?.count ?? 0)).toBe(1);
+
+    // 같은 트리거의 재검출은 교체다 — 지운 자리에 다시 넣는다(중복 방지가 교체를 막지 않는다).
+    expect(await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [pair])).toHaveLength(1);
+    const after = await t.db.prepare(
+      'SELECT COUNT(*) AS count FROM session_discrepancies WHERE support_case_id = ? AND resolution_status IS NULL',
+    ).bind(fixture.supportCaseId).first<{ count: number }>();
+    expect(Number(after?.count ?? 0)).toBe(1);
+  });
+
   it('저장은 감사 로그(create)를 남긴다 (D14)', async () => {
     const fixture = await createCaseWithSessions(['첫 메모']);
     const trigger = fixture.sessionIds[0] ?? '';
@@ -349,6 +376,55 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
     // 처리자 userId 는 화면에 쓰지 않으므로 응답에 싣지 않는다 — 감사에만 남는다(D14).
     expect(resolved).not.toHaveProperty('resolvedBy');
   });
+
+  it('처리된 이력은 최근 20건까지만 싣고 미처리는 자르지 않는다', async () => {
+    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
+    const [first, second] = fixture.sessionIds;
+    // 처리된 이력 25건 — 게이트웨이는 한 번에 8건까지만 받으므로(DISCREPANCY_ITEM_LIMIT)
+    // 상한을 넘기려면 직접 넣는다. 인용을 달리해 서로 다른 쌍으로 만든다.
+    for (let index = 0; index < 25; index += 1) {
+      await t.db.prepare(
+        `INSERT INTO session_discrepancies (
+           id, org_id, support_case_id, kind, trigger_session_id,
+           left_session_id, left_quote, right_session_id, right_quote,
+           detected_at, resolution_status, resolved_by, resolved_at, created_at
+         ) VALUES (?, ?, ?, 'cross_session', ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?)`,
+      ).bind(
+        crypto.randomUUID(),
+        counselor.orgId,
+        fixture.supportCaseId,
+        second ?? '',
+        first ?? '',
+        `첫 메모 ${index}`,
+        second ?? '',
+        `둘째 메모 ${index}`,
+        '2026-07-20T00:00:00.000Z',
+        counselor.userId,
+        // 처리 시각을 벌려 '최근 20건'의 경계를 확인할 수 있게 한다.
+        `2026-07-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`,
+        '2026-07-20T00:00:00.000Z',
+      ).run();
+    }
+    const unresolved = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'within_session',
+      leftSessionId: second ?? '',
+      leftQuote: '둘째 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+    expect(unresolved).toHaveLength(1);
+
+    const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
+    const resolvedItems = briefing.discrepancies.filter((item) => item.resolution !== null);
+    const openItems = briefing.discrepancies.filter((item) => item.resolution === null);
+    expect(openItems).toHaveLength(1);
+    expect(resolvedItems).toHaveLength(20);
+    // 잘린 5건은 가장 오래 전에 처리한 것들이다 — 2026-07-01~05.
+    const oldest = resolvedItems
+      .map((item) => item.resolution?.resolvedAt ?? '')
+      .sort()[0];
+    expect(oldest).toBe('2026-07-06T00:00:00.000Z');
+  });
 });
 
 // ── 처리 3종 (CCC-42) ────────────────────────────────────────────────────────
@@ -410,7 +486,7 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     });
   });
 
-  it('처리 종류 값이 아니면 거부하고 다른 기관·타인의 항목은 열지 않는다', async () => {
+  it('처리 종류 값이 아니면 거부하고 없는 항목은 열지 않는다', async () => {
     const fixture = await storedPair();
     await expect(
       resolveSessionDiscrepancy(t.env, counselor, fixture.id, 'wrong' as never),
@@ -418,6 +494,22 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     await expect(
       resolveSessionDiscrepancy(t.env, counselor, crypto.randomUUID(), 'confirmed'),
     ).rejects.toThrowError(ForbiddenError);
+  });
+
+  it('비담당 실무자와 다른 기관 실무자는 실제 항목도 처리할 수 없다 (D7)', async () => {
+    const fixture = await storedPair();
+    for (const stranger of [testActors.unassignedCounselor, testActors.otherOrgCounselor]) {
+      await expect(
+        resolveSessionDiscrepancy(t.env, stranger, fixture.id, 'confirmed'),
+      ).rejects.toThrowError(ForbiddenError);
+      await expect(
+        listRecordErrorSessionIds(t.env, stranger, fixture.supportCaseId),
+      ).rejects.toThrowError(ForbiddenError);
+    }
+    // 거절은 아무것도 바꾸지 않는다 — 처리 3컬럼은 그대로 비어 있다.
+    const row = await t.db.prepare('SELECT resolution_status FROM session_discrepancies WHERE id = ?')
+      .bind(fixture.id).first<{ resolution_status: string | null }>();
+    expect(row?.resolution_status).toBeNull();
   });
 
   it('기관 관리자도 처리할 수 있다 (D7 — 전체 목표의 "담당 실무자만"과 다른 층)', async () => {
@@ -669,6 +761,16 @@ describe('라우트 — 처리 3종 엔드포인트 (CCC-42)', () => {
     // 주소의 참여 사업이 그 항목의 소속과 다르면 통과시키지 않는다.
     const other = await createCaseWithSessions(['다른 케이스 메모']);
     expect((await putResolution(other.supportCaseId, fixture.id, { status: 'confirmed' })).status).toBe(403);
+
+    // 거절은 상태를 바꾸지 않는다 — 검사가 저장보다 앞이라야 성립한다(403 이 기록을 바꾸면 안 된다).
+    const row = await t.db.prepare('SELECT resolution_status FROM session_discrepancies WHERE id = ?')
+      .bind(fixture.id).first<{ resolution_status: string | null }>();
+    expect(row?.resolution_status).toBe('record_error');
+    // 바뀌지 않았으니 처리 감사도 늘지 않는다(D14).
+    const audit = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'resolve_discrepancy' AND target_id = ?",
+    ).bind(fixture.id).first<{ count: number }>();
+    expect(Number(audit?.count ?? 0)).toBe(1);
   });
 
   it("기록 목록 응답이 '기록 오류' 처리된 회차를 함께 싣는다", async () => {

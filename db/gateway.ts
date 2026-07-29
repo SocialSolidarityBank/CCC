@@ -3775,6 +3775,8 @@ export interface DiscrepancyDetectionMaterial {
 const DISCREPANCY_SOURCE_LIMIT = 12;
 const DISCREPANCY_ITEM_LIMIT = 8;
 const DISCREPANCY_QUOTE_LIMIT = 500;
+// 브리핑이 싣는 처리된 이력의 상한(참여 사업당). 처리된 행은 삭제되지 않아 계속 쌓인다.
+const DISCREPANCY_RESOLVED_HISTORY_LIMIT = 20;
 
 async function resolveSessionScope(
   env: Env,
@@ -3925,7 +3927,8 @@ function mapSessionDiscrepancy(row: DbRow): SessionDiscrepancy {
 
 /**
  * 검출 결과 저장 — 같은 트리거 회차의 **미처리** 행만 지우고 새 결과로 교체한다(재검출).
- * 처리된 행은 접힌 이력이라 남는다(ADR-0018, DB 트리거도 삭제를 막는다). 인용은 저장 전에
+ * 처리된 행은 접힌 이력이라 남는다(ADR-0018, DB 트리거도 삭제를 막는다). 이미 이 참여 사업에
+ * 있는 쌍(처리됨 또는 다른 트리거 회차의 미처리)은 새로 넣지 않는다 — 중복 방지. 인용은 저장 전에
  * 길이·유형 정합을 다시 검증하고, 회차 참조가 이 참여 사업의 회차인지도 확인한다.
  * 권한: 담당 실무자 | admin (D7). 감사: create 1건(D14).
  */
@@ -3985,23 +3988,26 @@ export async function replaceSessionDiscrepancies(
     throw new ForbiddenError('discrepancy references an unavailable session');
   }
 
-  // 이미 처리한 쌍은 다시 올리지 않는다 (CCC-42 · Q 결정 2026-07-29). 처리된 행은 지워지지
-  // 않으므로(트리거), 재검출이 같은 쌍을 새로 넣으면 접힌 이력과 미처리 목록에 같은 내용이
-  // 두 번 보이고 실무자가 같은 건을 반복해서 처리하게 된다. 트리거 회차가 아니라 **참여 사업**
-  // 범위로 본다 — 같은 쌍이 다른 회차의 공식화로 다시 검출될 수 있다.
-  const resolvedRows = await env.DB.prepare(
+  // 이미 있는 쌍은 다시 올리지 않는다 (CCC-42 · Q 결정 2026-07-29). 범위는 트리거 회차가 아니라
+  // **참여 사업** 이다 — 검출은 수기 저장과 AI 초안 승인 양쪽에서 돌아가므로 같은 쌍이 서로 다른
+  // 트리거 회차로 다시 올라올 수 있고, 그러면 브리핑에 같은 내용이 두 번 보인다.
+  // 두 갈래를 함께 막는다: ① 처리된 행(트리거가 삭제를 막아 이력으로 남는다) ② **다른** 트리거
+  // 회차의 미처리 행. 같은 트리거의 미처리 행은 아래 DELETE 가 지우고 새로 넣는 교체 대상이라
+  // 제외한다 — 넣지 않으면 지우기만 하고 다시 못 넣는다.
+  const existingRows = await env.DB.prepare(
     `SELECT kind, left_session_id, left_quote, right_session_id, right_quote
      FROM session_discrepancies
-     WHERE org_id = ? AND support_case_id = ? AND resolution_status IS NOT NULL`,
-  ).bind(actor.orgId, scope.supportCaseId).all<DbRow>();
-  const resolvedKeys = new Set(resolvedRows.results.map((row) => discrepancyPairKey({
+     WHERE org_id = ? AND support_case_id = ?
+       AND (resolution_status IS NOT NULL OR trigger_session_id != ?)`,
+  ).bind(actor.orgId, scope.supportCaseId, triggerSessionId).all<DbRow>();
+  const existingKeys = new Set(existingRows.results.map((row) => discrepancyPairKey({
     kind: stringValue(row.kind) === 'within_session' ? 'within_session' : 'cross_session',
     leftSessionId: stringValue(row.left_session_id),
     leftQuote: stringValue(row.left_quote),
     rightSessionId: stringValue(row.right_session_id),
     rightQuote: stringValue(row.right_quote),
   })));
-  const fresh = items.filter((item) => !resolvedKeys.has(discrepancyPairKey(item)));
+  const fresh = items.filter((item) => !existingKeys.has(discrepancyPairKey(item)));
 
   const detectedAt = now();
   const statements: D1PreparedStatement[] = [
@@ -4040,7 +4046,7 @@ export async function replaceSessionDiscrepancies(
     targetId: triggerSessionId,
     beneficiaryId: scope.beneficiaryId,
     supportCaseId: scope.supportCaseId,
-    detail: { count: fresh.length, skippedResolved: items.length - fresh.length },
+    detail: { count: fresh.length, skippedExisting: items.length - fresh.length },
   }));
   await env.DB.batch(statements);
 
@@ -4068,12 +4074,17 @@ export async function replaceSessionDiscrepancies(
  *
  * 권한: 담당 실무자 | 기관 관리자 (D7 — `assertSupportCaseAccess`, 등록·동의와 같은 층).
  * 전체 목표(CCC-41)의 "담당 실무자만"과 다르다는 점에 주의.
+ *
+ * `expectedSupportCaseId` 를 주면 그 참여 사업 소속이 아닌 항목은 **바꾸기 전에** 거부한다.
+ * 라우트가 주소(URL)의 참여 사업을 넘겨 쓴다 — 검사를 호출 뒤로 미루면 거절(403)을 돌려주면서
+ * 이미 UPDATE 와 감사 1건이 커밋된 뒤라, 상태를 바꾼 403 이 된다.
  */
 export async function resolveSessionDiscrepancy(
   env: Env,
   actor: Actor,
   discrepancyId: string,
   status: DiscrepancyResolutionStatus,
+  expectedSupportCaseId?: string,
 ): Promise<SessionDiscrepancy> {
   assertHuman(actor);
   assertOpaqueIdentifier(discrepancyId, 'discrepancy id');
@@ -4088,6 +4099,10 @@ export async function resolveSessionDiscrepancy(
     throw new ForbiddenError('discrepancy is not available in this organization');
   }
   const current = mapSessionDiscrepancy(existing);
+  // 주소가 가리킨 참여 사업과 실제 소속이 어긋나면 아무것도 바꾸기 전에 멈춘다.
+  if (expectedSupportCaseId !== undefined && current.supportCaseId !== expectedSupportCaseId) {
+    throw new ForbiddenError('discrepancy does not belong to this support case');
+  }
   const scope = await resolveSessionScope(env, actor.orgId, current.triggerSessionId);
   await assertSupportCaseAccess(env, actor, current.supportCaseId);
 
@@ -11289,18 +11304,26 @@ export async function getParticipantBriefing(
     // D45 영역 ③ — 저장된 검출 결과만 읽는다(실시간 검사 없음, ADR-0018). 미처리와 처리된
     // 항목을 **함께** 싣고(CCC-42: 처리분은 화면에서 접힌 이력), 미처리를 앞세운다. 회차
     // 링크용 상담일을 함께 싣는다.
+    // 처리된 이력은 지워지지 않아 무한히 쌓이므로 **참여 사업마다 최근 20건**까지만 싣는다
+    // (미처리는 실무자가 처리해야 할 목록이라 자르지 않는다).
     env.DB.prepare(
-      `SELECT discrepancy.*,
-              left_session.held_at AS left_held_at,
-              right_session.held_at AS right_held_at
-       FROM session_discrepancies AS discrepancy
-       JOIN sessions AS left_session
-         ON left_session.id = discrepancy.left_session_id AND left_session.org_id = discrepancy.org_id
-       JOIN sessions AS right_session
-         ON right_session.id = discrepancy.right_session_id AND right_session.org_id = discrepancy.org_id
-       WHERE discrepancy.org_id = ? AND discrepancy.support_case_id IN (${placeholders})
-       ORDER BY (discrepancy.resolution_status IS NULL) DESC,
-                discrepancy.detected_at DESC, discrepancy.id`,
+      `SELECT * FROM (
+         SELECT discrepancy.*,
+                left_session.held_at AS left_held_at,
+                right_session.held_at AS right_held_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY discrepancy.support_case_id, (discrepancy.resolution_status IS NULL)
+                  ORDER BY discrepancy.resolved_at DESC, discrepancy.id
+                ) AS resolved_rank
+         FROM session_discrepancies AS discrepancy
+         JOIN sessions AS left_session
+           ON left_session.id = discrepancy.left_session_id AND left_session.org_id = discrepancy.org_id
+         JOIN sessions AS right_session
+           ON right_session.id = discrepancy.right_session_id AND right_session.org_id = discrepancy.org_id
+         WHERE discrepancy.org_id = ? AND discrepancy.support_case_id IN (${placeholders})
+       )
+       WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
+       ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
     ).bind(...scopedValues).all<DbRow>(),
   ]);
 

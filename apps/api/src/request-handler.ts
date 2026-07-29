@@ -1777,14 +1777,10 @@ export async function handleRequest(
         if (status !== 'situation_changed' && status !== 'record_error' && status !== 'confirmed') {
           throw new ValidationError('status is invalid');
         }
-        const discrepancyId = parts[3] ?? '';
-        const resolved = await resolveSessionDiscrepancy(env, actor, discrepancyId, status);
-        // 주소의 참여 사업과 실제 소속이 어긋나면 거부한다 — 게이트웨이는 불일치 행에서 스스로
-        // 범위를 찾으므로 URL 이 다른 사업을 가리켜도 통과한다. 주소와 결과를 일치시킨다.
-        if (resolved.supportCaseId !== supportCaseId) {
-          throw new ForbiddenError('discrepancy does not belong to this support case');
-        }
-        return json(resolved);
+        const discrepancyId = requireRouteUuid(parts[3] ?? '', 'discrepancy id');
+        // 주소의 참여 사업을 함께 넘긴다 — 게이트웨이가 **바꾸기 전에** 소속을 대조한다.
+        // 여기서 응답을 받아 놓고 걸러내면 이미 저장·감사가 끝난 뒤라 상태를 바꾼 403 이 된다.
+        return json(await resolveSessionDiscrepancy(env, actor, discrepancyId, status, supportCaseId));
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);
