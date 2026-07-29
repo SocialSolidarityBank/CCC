@@ -75,6 +75,9 @@ import {
   listSupportCaseAssignees,
   listAssignedParticipants,
   listPrivacyConsentFollowUps,
+  listPurgeReviewQueue,
+  setParticipantLegalHold,
+  clearParticipantLegalHold,
   listSupportCasesForBeneficiary,
   listUsers,
   loadMaskedSourceSnapshotForService,
@@ -1693,6 +1696,12 @@ export async function handleRequest(
       requestQuery(url, []);
       return json({ results: await listPrivacyConsentFollowUps(env, actor) });
     }
+    // 파기 검토 큐 (G2 완료 기준). 법적 보류로 자동 파기가 멈춘 미파기 금고를 낸다 —
+    // 아무것도 지우지 않는다. 권한(기관 관리자)·감사는 게이트웨이가 강제한다(R1·D32).
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'retention' && parts[1] === 'purge-review') {
+      requestQuery(url, []);
+      return json({ results: await listPurgeReviewQueue(env, actor) });
+    }
     if (parts[0] === 'participants' && parts[1] !== undefined) {
       const beneficiaryId = requireBeneficiaryId(parts[1]);
       if (
@@ -1721,6 +1730,20 @@ export async function handleRequest(
       // 기본정보 수정 화면(CCC-37). 읽기·쓰기 모두 담당 실무자 또는 기관 관리자만 —
       // 게이트웨이가 강제한다(R1). 응답에는 복호화된 금고 값이 실리므로 감사는 게이트웨이가
       // 화면 조회당 1행으로 남긴다(D14·D24).
+      // 법적 보류 걸기·풀기 (G2). 권한(기관 관리자)·사유 검증·감사는 게이트웨이가 강제한다(R1).
+      // 파기는 이 경로가 하지 않는다 — 보류를 풀어야 기존 파기 경로가 열린다(0029 트리거).
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'legal-hold') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['reason']);
+        await setParticipantLegalHold(env, actor, beneficiaryId, requiredString(body, 'reason'));
+        return json({ ok: true });
+      }
+      if (request.method === 'DELETE' && parts.length === 3 && parts[2] === 'legal-hold') {
+        requestQuery(url, []);
+        await clearParticipantLegalHold(env, actor, beneficiaryId);
+        return json({ ok: true });
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'basic-info') {
         requestQuery(url, []);
         return json(await getParticipantBasicInfo(env, actor, beneficiaryId));

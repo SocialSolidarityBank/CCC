@@ -4913,3 +4913,46 @@ BEGIN SELECT RAISE(ABORT, 'participant_schema_violation'); END;
 
 CREATE INDEX idx_support_cases_privacy_consent_followup
   ON support_cases (org_id, consent_privacy_at, consent_privacy_due_at);
+
+-- ============================================================================
+-- 0029: 법적 보류 + 보존 상한 5년 (G2). 자동 파기(D10 cron)에 예외가 없어 다른 법령상
+-- 보존 의무·법적 분쟁 건도 함께 지워지던 것을 막는다(D32 가 요구한 예외).
+-- 상한 숫자는 게이트웨이 전역 상수(RETENTION_CAP_YEARS)에만 산다 — 여기서 계산하지 않는다.
+-- 상세 근거: migrations/0029_pii_legal_hold_and_retention_cap.sql.
+-- ============================================================================
+
+ALTER TABLE participant_pii_vault ADD COLUMN legal_hold_at TEXT;
+ALTER TABLE participant_pii_vault ADD COLUMN legal_hold_reason TEXT;
+ALTER TABLE participant_pii_vault ADD COLUMN legal_hold_by TEXT;
+
+CREATE TRIGGER participant_pii_vault_legal_hold_insert_guard
+BEFORE INSERT ON participant_pii_vault
+BEGIN
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NEW.legal_hold_at IS NOT NULL
+     OR NEW.legal_hold_reason IS NOT NULL
+     OR NEW.legal_hold_by IS NOT NULL;
+END;
+
+CREATE TRIGGER participant_pii_vault_legal_hold_consistency_guard
+BEFORE UPDATE OF legal_hold_at, legal_hold_reason, legal_hold_by
+ON participant_pii_vault
+BEGIN
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE (NEW.legal_hold_at IS NULL) <> (NEW.legal_hold_reason IS NULL)
+     OR (NEW.legal_hold_at IS NULL) <> (NEW.legal_hold_by IS NULL);
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NEW.legal_hold_at IS NOT NULL AND TRIM(NEW.legal_hold_reason) = '';
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NEW.legal_hold_at IS NOT NULL AND NEW.purged_at IS NOT NULL;
+END;
+
+CREATE TRIGGER participant_pii_vault_legal_hold_purge_guard
+BEFORE UPDATE OF purged_at ON participant_pii_vault
+WHEN OLD.legal_hold_at IS NOT NULL AND NEW.purged_at IS NOT NULL
+BEGIN SELECT RAISE(ABORT, 'participant_schema_violation'); END;
+
+CREATE INDEX idx_participant_pii_vault_legal_hold
+  ON participant_pii_vault (org_id, legal_hold_at) WHERE purged_at IS NULL;

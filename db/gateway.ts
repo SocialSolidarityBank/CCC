@@ -155,6 +155,23 @@ export class EmergencyReasonRequiredError extends Error {
 export const EMERGENCY_CONSENT_GRACE_DAYS = 14;
 
 /**
+ * 보존 상한(년) — 종결 후 이 기간이 지나면 법적 보류로도 더 미룰 수 없다 (G2, D32).
+ *
+ * **전역 설정값이다 — 기관별 변동을 허용하지 않는다.** 허용하려면 동의서 3절을
+ * "기관 규정에 따르되 최장 5년" 식으로 먼저 재기술해야 한다(게이트 문서 §2 G2).
+ * 이 숫자는 여기 한 곳에만 산다 — DB 트리거는 상한을 계산하지 않고 "보류 중이면
+ * 파기 금지"라는 단순 불변식만 지킨다(0029). 법률 검토가 재개되면 이 상수만 바꾼다.
+ */
+export const RETENTION_CAP_YEARS = 5;
+
+/** 종결 시각 → 보존 상한 도래 시각. 상한 계산은 이 함수 하나만 쓴다. */
+export function retentionCapAt(closedAt: string): string {
+  const capped = new Date(closedAt);
+  capped.setUTCFullYear(capped.getUTCFullYear() + RETENTION_CAP_YEARS);
+  return capped.toISOString();
+}
+
+/**
  * D8 무폴링 판정 기본 임계값(시간). env.PIPELINE_STALE_HOURS로 덮어쓸 수 있다.
  * Mac Mini가 이 시간 이상 poll_pipeline을 남기지 않으면 stale로 판정한다.
  */
@@ -7275,6 +7292,152 @@ export async function listPrivacyConsentFollowUps(
   });
 }
 
+/** 파기 검토 큐 한 줄 (G2). 사유 원문은 담지 않는다 — 목록은 "무엇을 결정해야 하나"만 보여 준다(R3). */
+export interface PurgeReviewQueueEntry {
+  beneficiaryId: string;
+  /** 보류를 건 시각. */
+  legalHoldAt: string;
+  /** 보존 상한 도래 시각. 종결 시각을 모르면 null(상한을 계산할 근거가 없다). */
+  retentionCapAt: string | null;
+  /** 상한이 이미 지났나 — true 면 더 미룰 수 없고 관리자가 처리해야 한다. */
+  capReached: boolean;
+  /** 보관 기간(purge_due)이 지났나. 보류가 자동 파기를 멈춘 상태라는 표시다. */
+  purgeOverdue: boolean;
+}
+
+/**
+ * 파기 검토 큐 (G2 완료 기준) — **법적 보류로 자동 파기가 멈춘 미파기 금고 목록**이다.
+ *
+ * D32 가 요구한 것은 "자동 삭제가 아니라 기관 관리자 확인 후 파기"이므로, 이 함수는
+ * 아무것도 지우지 않고 **결정이 필요한 건만 낸다**. 상한(RETENTION_CAP_YEARS) 계산은
+ * 게이트웨이 몫이고 DB 는 "보류 중이면 파기 금지"만 지킨다(0029) — 숫자가 한 곳에 산다.
+ *
+ * 권한은 **기관 관리자만**이다. 파기는 되돌릴 수 없고 D32 가 그 판단을 관리자에게 맡겼다.
+ * 조회 감사는 목록 단위 1건(D14). 사유 원문은 응답·감사 어디에도 싣지 않는다(R3).
+ */
+export async function listPurgeReviewQueue(
+  env: Env,
+  actor: Actor,
+): Promise<PurgeReviewQueueEntry[]> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  assertAdmin(actor);
+  const result = await env.DB.prepare(
+    `SELECT vault.beneficiary_id, vault.legal_hold_at, vault.purge_due,
+            context_case.closed_at AS context_closed_at
+     FROM participant_pii_vault AS vault
+     LEFT JOIN support_cases AS context_case
+       ON context_case.id = vault.retention_context_support_case_id
+     WHERE vault.org_id = ? AND vault.purged_at IS NULL AND vault.legal_hold_at IS NOT NULL
+     ORDER BY vault.legal_hold_at, vault.beneficiary_id`,
+  ).bind(actor.orgId).all<DbRow>();
+
+  await writeCanonicalAudit(env, actor, {
+    action: 'read',
+    targetTable: 'participant_pii_vault',
+    detail: { list: 'purge_review_queue', resultCount: result.results.length },
+  });
+
+  const nowInstant = now();
+  return result.results.map((row) => {
+    const closedAt = nullableString(row.context_closed_at);
+    const capAt = closedAt === null ? null : retentionCapAt(closedAt);
+    const purgeDue = nullableString(row.purge_due);
+    return {
+      beneficiaryId: stringValue(row.beneficiary_id),
+      legalHoldAt: stringValue(row.legal_hold_at),
+      retentionCapAt: capAt,
+      capReached: capAt !== null && capAt <= nowInstant,
+      purgeOverdue: purgeDue !== null && purgeDue <= nowInstant,
+    };
+  });
+}
+
+/**
+ * 법적 보류를 건다 (G2) — 이 금고는 자동 파기 대상에서 빠진다.
+ *
+ * 쓰는 자리: 다른 법령상 보존 의무나 법적 분쟁으로 보관 기간이 지나도 남겨야 할 때다.
+ * 무한정 미루는 장치가 아니다 — 상한(종결 + RETENTION_CAP_YEARS)이 지나면 파기 검토
+ * 큐에 올라오고, 관리자가 보류를 해제한 뒤 파기한다.
+ *
+ * 권한은 기관 관리자만(파기 정지는 기관의 법적 판단이다). 사유는 필수이고 **감사
+ * detail 에 싣지 않는다**(R3, 0028 의 긴급 등록 사유와 같은 태도) — 값은 컬럼에만 산다.
+ */
+export async function setParticipantLegalHold(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+  reason: string,
+): Promise<void> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  assertAdmin(actor);
+  const trimmed = reason.trim();
+  if (trimmed.length === 0 || trimmed.length > 500) {
+    throw new ValidationError('legal hold reason is invalid');
+  }
+  const heldAt = now();
+  const result = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE participant_pii_vault
+       SET legal_hold_at = ?, legal_hold_reason = ?, legal_hold_by = ?, updated_at = ?
+       WHERE beneficiary_id = ? AND org_id = ?
+         AND purged_at IS NULL AND legal_hold_at IS NULL`,
+    ).bind(heldAt, trimmed, actor.userId, heldAt, beneficiaryId, actor.orgId),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'set_legal_hold',
+      targetTable: 'participant_pii_vault',
+      targetId: beneficiaryId,
+      beneficiaryId,
+      // 보류는 금고 단위 사실이다 — 특정 참여 사업에 매이지 않는다.
+      supportCaseId: null,
+      detail: { reasonProvided: true },
+    }),
+  ]);
+  const update = result[0] as unknown as { meta?: { changes?: number } };
+  if ((update.meta?.changes ?? 0) < 1) {
+    // 이미 보류 중이거나 이미 파기됐거나 다른 기관의 금고다 — 어느 쪽인지 밝히지 않는다.
+    throw new ConflictError('participant data is unavailable');
+  }
+}
+
+/**
+ * 법적 보류를 해제한다 (G2). 해제하면 그 금고는 다시 자동 파기 대상이 된다.
+ *
+ * 상한이 지난 건을 파기하려면 **먼저 이 함수로 보류를 풀어야 한다** — DB 트리거가
+ * 보류 중 파기를 예외 없이 막기 때문이다(0029). 그래서 감사에 "보류 해제" 와 "파기"가
+ * 각각 남고, 상한 도래 후의 처리 경위가 두 행으로 읽힌다(D14).
+ */
+export async function clearParticipantLegalHold(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+): Promise<void> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  assertAdmin(actor);
+  const clearedAt = now();
+  const result = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE participant_pii_vault
+       SET legal_hold_at = NULL, legal_hold_reason = NULL, legal_hold_by = NULL, updated_at = ?
+       WHERE beneficiary_id = ? AND org_id = ? AND legal_hold_at IS NOT NULL`,
+    ).bind(clearedAt, beneficiaryId, actor.orgId),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'clear_legal_hold',
+      targetTable: 'participant_pii_vault',
+      targetId: beneficiaryId,
+      beneficiaryId,
+      supportCaseId: null,
+      detail: {},
+    }),
+  ]);
+  const update = result[0] as unknown as { meta?: { changes?: number } };
+  if ((update.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('participant data is unavailable');
+  }
+}
+
 /** 기한 도래 며칠 전부터 "임박"으로 셀지 (G1 알림). 기한 자체(14일)와 달리 알림 시점 값이다. */
 export const EMERGENCY_CONSENT_REMINDER_DAYS = 3;
 
@@ -8561,6 +8724,9 @@ export async function purgeExpiredParticipantPii(
     `SELECT beneficiary_id, org_id
      FROM participant_pii_vault
      WHERE purged_at IS NULL AND purge_due IS NOT NULL AND purge_due <= datetime('now')
+       -- G2: 법적 보류 중인 금고는 자동 파기 대상이 아니다. 0029 트리거가 최후 방어선이지만
+       -- 여기서 빼야 cron 이 매번 실패하는 건을 붙들고 재시도하지 않는다.
+       AND legal_hold_at IS NULL
        AND NOT EXISTS (
          SELECT 1 FROM support_cases
          WHERE support_cases.beneficiary_id = participant_pii_vault.beneficiary_id
