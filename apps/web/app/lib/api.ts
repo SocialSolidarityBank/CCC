@@ -298,6 +298,13 @@ export interface ParticipantBriefingSection {
     reviewStatus: 'confirmed';
   }>;
   questions: string[];
+  // D45 영역 ② 회차별 정리 — 상담일·유형·수기 발췌 한 줄(최신순). 핵심 한 줄(AI)은 CCC-38.
+  sessionRows: Array<{
+    sessionId: string;
+    heldAt: string;
+    kind: 'regular' | 'intake';
+    memoExcerpt: string | null;
+  }>;
 }
 
 // 티켓 #35(T5) 계약: 포커스 참여사업의 다가오는 상담 일정 + 그 세션 목표(케이스 목표 연결)·

@@ -10429,6 +10429,16 @@ export interface ParticipantBriefingSummary {
   pendingApprovalCount: number;
 }
 
+// D45 영역 ② 회차별 정리 — 회차마다 상담일·유형·수기 발췌 한 줄. 메모 전문은 싣지 않는다:
+// 브리핑은 훑는 화면이고 전문 입구는 '자세한 상담 기록 보기'다. 핵심 한 줄(AI)은 CCC-38 몫.
+export interface ParticipantBriefingSessionRow {
+  sourceSupportCase: SourceSupportCase;
+  sessionId: string;
+  heldAt: string;
+  kind: 'regular' | 'intake';
+  memoExcerpt: string | null;
+}
+
 export interface ParticipantBriefingAction {
   sourceSupportCase: SourceSupportCase;
   action: ActionItem;
@@ -10464,6 +10474,7 @@ export interface ParticipantBriefing {
   supportCases: SourceSupportCase[];
   gasTrends: ParticipantBriefingGasTrend[];
   summaries: ParticipantBriefingSummary[];
+  sessionRows: ParticipantBriefingSessionRow[];
   actionItems: ParticipantBriefingAction[];
   flags: ParticipantBriefingFlag[];
   questions: ParticipantBriefingQuestion[];
@@ -10491,6 +10502,14 @@ function briefingQuestions(row: DbRow): string[] {
   return Array.isArray(questions) && questions.every((question) => typeof question === 'string')
     ? questions
     : [];
+}
+
+// 수기 메모의 첫 비어 있지 않은 줄에서 최대 60자 — D45 영역 ②의 폴백 발췌(D5).
+function sessionMemoExcerpt(memo: string | null): string | null {
+  if (memo === null) return null;
+  const firstLine = memo.split('\n').find((line) => line.trim().length > 0)?.trim() ?? '';
+  if (firstLine.length === 0) return null;
+  return firstLine.length > 60 ? `${firstLine.slice(0, 60)}…` : firstLine;
 }
 
 /**
@@ -10664,6 +10683,19 @@ export async function getParticipantBriefing(
     }
   }
 
+  // D45 영역 ② 회차별 정리 — sessions 쿼리가 이미 held_at DESC 라 최신순이 보존된다.
+  const sessionRows: ParticipantBriefingSessionRow[] = sessions.results.flatMap((row) => {
+    const source = sources.get(stringValue(row.support_case_id));
+    if (source === undefined) return [];
+    return [{
+      sourceSupportCase: source,
+      sessionId: stringValue(row.id),
+      heldAt: stringValue(row.held_at),
+      kind: stringValue(row.kind) === 'intake' ? 'intake' as const : 'regular' as const,
+      memoExcerpt: sessionMemoExcerpt(nullableString(row.memo)),
+    }];
+  });
+
   const actionItems = actions.results.flatMap((row) => {
     const source = sources.get(stringValue(row.support_case_id));
     if (source === undefined) return [];
@@ -10727,6 +10759,7 @@ export async function getParticipantBriefing(
     supportCases: supportCases.map(sourceSupportCase),
     gasTrends: [...trendByGoal.values()],
     summaries,
+    sessionRows,
     actionItems,
     flags: briefingFlags,
     questions,

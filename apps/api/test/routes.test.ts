@@ -1930,6 +1930,8 @@ describe('canonical participant API routes', () => {
       openActionItems: [],
       flags: [],
       questions: [],
+      // D45 영역 ② 회차별 정리 — 이 픽스처는 상담 기록이 없어 빈 배열이다.
+      sessionRows: [],
     });
     expect(briefingBody).not.toHaveProperty('supportCases');
     const queryFocusedBriefing = await worker.fetch(new Request(

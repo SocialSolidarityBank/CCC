@@ -992,6 +992,15 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
         questions: briefing.questions
           .filter((question) => question.sourceSupportCase.id === sourceSupportCase.id)
           .map((question) => question.text),
+        // D45 영역 ② 회차별 정리 — 상담일·유형·수기 발췌 (최신순, 게이트웨이 정렬 보존).
+        sessionRows: briefing.sessionRows
+          .filter((row) => row.sourceSupportCase.id === sourceSupportCase.id)
+          .map((row) => ({
+            sessionId: row.sessionId,
+            heldAt: row.heldAt,
+            kind: row.kind,
+            memoExcerpt: row.memoExcerpt,
+          })),
       };
     }),
     // 포커스 참여사업의 다가오는 상담 일정의 세션 목표·맞춤형 질문 (D28, 티켓 #34 소비).
