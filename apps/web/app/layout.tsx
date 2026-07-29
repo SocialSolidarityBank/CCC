@@ -191,7 +191,16 @@ textarea{min-height:216px;resize:vertical}
   }
   .sidebar[data-drawer-open="true"]{transform:none}
   .drawer-close{display:block}
-  .page-header,.case-toolbar{flex-direction:column}
+  /* align-items 를 stretch 로 되돌리는 것이 핵심이다(기본은 97행의 flex-start).
+     헤더가 세로로 누우면 교차축이 가로가 되는데, flex-start 인 채로는 .page-actions 가
+     내용 크기로 쪼그라든다. 그 상태에서 안의 버튼이 아래 width:100% 를 받으면 기준 폭이
+     "내용에 맞춰 줄어든 폭" 이라 폭이 순환 참조에 걸려, 두 버튼이 좁은 상자를 반씩 나눠
+     갖고 라벨이 '당사자 정 / 보' 로 쪼개진다(R7 · 390px 실측 2026-07-30). */
+  .page-header,.case-toolbar{flex-direction:column;align-items:stretch}
+  /* 행동 버튼은 좁으면 **세로로 쌓는다**(D38 보강 — 라벨 줄바꿈 금지의 짝). 가로로 둔 채
+     폭만 나누면 라벨이 길어질 때마다 같은 결함이 돌아온다 — 버튼 개수가 아니라 라벨 길이가
+     변수이기 때문이다. 세로 배치는 라벨이 얼마나 길든 한 줄을 보장한다. */
+  .page-actions{width:100%;flex-direction:column;align-items:stretch}
   /* 킷 버튼도 같이 잡는다 — 레거시 .button 만 있으면 교체한 화면에서 버튼이 줄어든다. */
   .page-header .button,.page-header .wire-button{width:100%;justify-content:center}
   .search-field{max-width:none}

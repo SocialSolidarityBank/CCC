@@ -1,6 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, fireEvent, cleanup } from '@testing-library/react';
 import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
+
+// vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다. 정리하지 않으면 파일이 끝난 뒤
+// jsdom 이 내려가는 동안 React 가 남은 작업을 돌려 'window is not defined' 가 던져지고,
+// **테스트는 전부 통과해도 종료코드가 1** 이 된다(CI 실패). 이 파일이 실제로 CI 를 깨뜨렸다:
+// 2026-07-30 PR #16 의 push 런에서 unhandled error 2건으로 verify 실패(같은 커밋의
+// pull_request 런은 통과 — 부하에 따라 갈리는 타이밍 의존이라 '플레이크'로 보였던 것이다).
+// 같은 누락이 남은 테스트 파일 12개에도 있다(STATUS.md History 참조).
+afterEach(cleanup);
 
 const cards: ScheduleCardItem[] = [
   {

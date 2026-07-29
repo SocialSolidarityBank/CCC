@@ -218,8 +218,11 @@ button.wire-row{font:inherit;font-size:16px;font-weight:700}
 .wire-radio{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
 .wire-radio:checked{background:radial-gradient(circle at center,var(--ink) 0 4px,transparent 4px) padding-box,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
 .wire-radio:disabled,.wire-checkbox:disabled{background:linear-gradient(var(--muted),var(--muted)) padding-box,linear-gradient(var(--line),var(--line)) border-box;cursor:not-allowed}
-/* WireButton (§5 버튼 4종 × 크기 2단). 크기 변형은 높이·패딩·라벨만 다르고 색 규칙은 같다. */
-.wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;text-align:left;cursor:pointer}
+/* WireButton (§5 버튼 4종 × 크기 2단). 크기 변형은 높이·패딩·라벨만 다르고 색 규칙은 같다.
+   **라벨은 줄바꿈하지 않는다**(R7 · 2026-07-30): 한글은 어디서나 끊길 수 있어 칸이 좁아지면
+   '당사자 정 / 보' 처럼 낱글자로 쪼개진다. 버튼은 한 번에 읽히는 한 덩어리라 넘칠지언정
+   쪼개지지 않는 쪽이 옳다 — 좁은 화면의 자리는 세로 배치가 만든다(layout.tsx 768 미만). */
+.wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;text-align:left;white-space:nowrap;cursor:pointer}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 14px;font-size:14px}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--ink);box-shadow:var(--shadow-soft)}
