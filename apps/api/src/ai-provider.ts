@@ -10,9 +10,10 @@ export const AI_PROVIDER_REGISTRY = Object.freeze({
     }),
   }),
 });
-// v2 (CCC-39·D45): 브리핑 질문이 단문 텍스트에서 구조화 제안(짧은 제목 + 확인 이유)으로
-// 바뀌었다. 버전을 올리면 활성 프로바이더 설정 해시가 어긋나 재활성화 전까지 fail-closed 된다
-// — 구 스키마로 생성이 계속되는 드리프트를 막는 의도된 동작이다.
+// v2 (CCC-38·CCC-39·D45): 출력에 핵심 한 줄(oneLiner)이 추가되고, 브리핑 질문이 단문
+// 텍스트에서 구조화 제안(짧은 제목 + 확인 이유)으로 바뀌었다. 버전을 올리면 활성 프로바이더
+// 설정 해시가 어긋나 재활성화 전까지 fail-closed 된다 — 구 스키마로 생성이 계속되는
+// 드리프트를 막는 의도된 동작이다.
 export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v2';
 export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v2';
 
@@ -24,6 +25,8 @@ const MIN_QUESTIONS = 2;
 const MAX_QUESTIONS = 3;
 // D45: "짧은 제목" — 화면에서 한 줄에 앉는 길이로 강제한다.
 const MAX_QUESTION_TITLE_LENGTH = 80;
+// 게이트웨이의 MAX_AI_ONE_LINER_LENGTH(db/gateway.ts)와 같은 값 — 회차 줄에 앉는 한 문장.
+const MAX_ONE_LINER_LENGTH = 120;
 const CODEX_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const CODEX_REQUEST_TIMEOUT_MS = 20_000;
 
@@ -100,6 +103,8 @@ export interface AiProviderRequest {
 export interface AiProviderOutput {
   claims: readonly AiGeneratedClaim[];
   questions: readonly AiGeneratedQuestion[];
+  /** D45 영역 ② 핵심 한 줄 — 개행 없는 한 문장, 요약·질문과 함께 승인된다(R2). */
+  oneLiner: string;
 }
 
 /**
@@ -485,7 +490,7 @@ function assertSafeGeneratedOutputText(value: unknown): asserts value is string 
 export function validateAiProviderOutput(value: unknown, request: AiProviderRequest): AiProviderOutput {
   if (!isRecord(value)) throw new AiProviderProhibitedOutputError();
   assertNoProhibitedKeys(value);
-  assertExactKeys(value, ['claims', 'questions'], new AiProviderProhibitedOutputError());
+  assertExactKeys(value, ['claims', 'questions', 'oneLiner'], new AiProviderProhibitedOutputError());
   if (!Array.isArray(value.claims) || value.claims.length === 0 || value.claims.length > MAX_CLAIMS) {
     throw new AiProviderProhibitedOutputError();
   }
@@ -543,7 +548,15 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
       evidence: validateOutputEvidenceReferences(rawQuestion.evidence, allowedReferences),
     });
   }
-  return { claims, questions };
+
+  // 핵심 한 줄(D45·CCC-38): 개행 없는 한 문장. PII 유사 패턴·금지 판단은 claims 와 같은
+  // 검사(assertSafeGeneratedOutputText)를 통과해야 한다.
+  const oneLiner = value.oneLiner;
+  assertSafeGeneratedOutputText(oneLiner);
+  if (oneLiner.includes('\n') || oneLiner.length > MAX_ONE_LINER_LENGTH) {
+    throw new AiProviderProhibitedOutputError();
+  }
+  return { claims, questions, oneLiner };
 }
 
 function responseText(response: unknown): string | null {
@@ -562,8 +575,9 @@ function responseText(response: unknown): string | null {
 const codexResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['claims', 'questions'],
+  required: ['claims', 'questions', 'oneLiner'],
   properties: {
+    oneLiner: { type: 'string', minLength: 1, maxLength: 120 },
     claims: {
       type: 'array',
       minItems: 1,
@@ -631,6 +645,7 @@ const codexResponseSchema = {
 const CODEX_INSTRUCTIONS = [
   'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions.',
   'Each suggestion has a short title (80 characters or fewer) naming what to check in the next session, and a reason explaining why it needs checking.',
+  'Also produce oneLiner: a single-line Korean gist of the session in 120 characters or fewer, with no line breaks.',
   'Each claim and each suggestion must cite one or more supplied opaque evidence references exactly.',
   'Do not produce GAS scores, confirmations, diagnoses, or decisions about support continuation.',
   'Do not add names, contacts, accounts, or other personal data.',

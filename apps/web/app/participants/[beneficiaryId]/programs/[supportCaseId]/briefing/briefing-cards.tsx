@@ -48,7 +48,7 @@ export interface BriefingCardsProps {
   /** HERO 메타 줄의 사업명. 워크스페이스가 정하므로 화면이 이름을 만들지 않는다. */
   programLabel: string;
   participant: { name: string | null; phone: string | null };
-  /** D45 영역 ② 회차별 정리 — 최신순. 핵심 한 줄(AI)이 붙기 전(CCC-38)까지는 수기 발췌가 그 줄이다. */
+  /** D45 영역 ② 회차별 정리 — 최신순. 승인된 AI 핵심 한 줄, 없으면 수기 발췌 + '수기' 배지(D5). */
   sessionRows: ParticipantBriefingSection['sessionRows'];
   /** 승인 대기 배지 — D45 가 영역 ② 머리로 옮겼다(구 '지난 상담 브리핑' 카드 자리). */
   pendingApprovalCount: number;
@@ -296,9 +296,10 @@ export function BriefingCards({
           </div>
         </Card>
 
-        {/* 영역 ② 상담 내용 회차별 정리 (D45) — 회차마다 상담일 · 유형 · 한 줄. 핵심 한 줄(AI)이
-            붙기 전(CCC-38)까지는 수기 발췌가 그 줄을 채운다(D5 폴백과 같은 원리). '승인 대기'
-            배지는 구 '지난 상담 브리핑' 카드에서 이 머리로 옮겨 왔다. */}
+        {/* 영역 ② 상담 내용 회차별 정리 (D45) — 회차마다 상담일 · 유형 · 핵심 한 줄. 한 줄은
+            승인된 AI 산출물만 싣고(R2 — 게이트웨이가 approved 뷰에서만 읽는다), 승인 전이거나
+            녹음이 없으면 수기 발췌 + '수기' 배지로 폴백한다(D5 · CCC-38). '승인 대기' 배지는
+            구 '지난 상담 브리핑' 카드에서 이 머리로 옮겨 왔다. */}
         <Card
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <span className="briefing-badge is-pending">승인 대기 {pendingApprovalCount}건</span> : null}
@@ -309,7 +310,12 @@ export function BriefingCards({
                 <MetaRow items={[
                   formatDateOnly(row.heldAt),
                   sessionKindLabels[row.kind],
-                  row.memoExcerpt ?? '수기 메모 없음',
+                  row.aiOneLiner !== null
+                    ? row.aiOneLiner
+                    : <>
+                        {row.memoExcerpt ?? '수기 메모 없음'}
+                        {row.memoExcerpt !== null && <span className="briefing-badge">수기</span>}
+                      </>,
                 ]} />
               ))} />}
         </Card>
