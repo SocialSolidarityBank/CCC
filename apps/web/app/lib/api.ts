@@ -121,6 +121,8 @@ export type AiDraftReviewDecision = 'approved' | 'rejected' | 'superseded' | nul
 export interface AiDraft {
   version: number;
   summaryText: string;
+  /** D45 핵심 한 줄(CCC-38) — 승인 화면에서 요약·질문과 함께 검토된다. null = 레거시 초안. */
+  oneLiner: string | null;
   questions: string[];
   reviewDecision: AiDraftReviewDecision;
   evidence: AiEvidence[];
@@ -298,11 +300,13 @@ export interface ParticipantBriefingSection {
     reviewStatus: 'confirmed';
   }>;
   questions: string[];
-  // D45 영역 ② 회차별 정리 — 상담일·유형·수기 발췌 한 줄(최신순). 핵심 한 줄(AI)은 CCC-38.
+  // D45 영역 ② 회차별 정리 — 상담일·유형·핵심 한 줄(최신순). 승인된 AI 한 줄이 없으면
+  // 화면이 수기 발췌 + '수기' 배지로 폴백한다(D5·CCC-38).
   sessionRows: Array<{
     sessionId: string;
     heldAt: string;
     kind: 'regular' | 'intake';
+    aiOneLiner: string | null;
     memoExcerpt: string | null;
   }>;
 }

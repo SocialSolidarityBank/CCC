@@ -125,6 +125,7 @@ function validProviderOutput(request: AiProviderRequest, text = 'A001 discussed 
       evidence: [{ ...firstEvidence(request) }],
     }],
     questions: validProviderQuestions(request),
+    oneLiner: '생활비 지출 상황을 확인했다.',
   };
 }
 

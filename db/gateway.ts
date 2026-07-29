@@ -593,6 +593,7 @@ function mapAiDraftVersion(row: DbRow, evidence: AiEvidenceLink[] = []): AiDraft
     version,
     parentVersionId: nullableString(row.parent_version_id),
     summaryText: stringValue(row.summary_text),
+    oneLiner: nullableString(row.one_liner),
     questions,
     sourceSnapshotId: nullableString(row.source_snapshot_id),
     sourceSnapshotHash: nullableString(row.source_snapshot_hash),
@@ -629,6 +630,7 @@ function mapApprovedAiBriefing(row: DbRow): ApprovedAiBriefing {
     sessionId: stringValue(row.session_id),
     version,
     summaryText: stringValue(row.summary_text),
+    oneLiner: nullableString(row.one_liner),
     questions,
     origin,
     groundingStatus: toAiDraftGroundingStatus(row.grounding_status),
@@ -725,6 +727,19 @@ function assertRequiredText(value: unknown, field: string): asserts value is str
 }
 const MIN_GENERATED_AI_DRAFT_QUESTIONS = 2;
 const MAX_GENERATED_AI_DRAFT_QUESTIONS = 3;
+// D45 영역 ②: 회차 줄에 앉는 "핵심 한 줄" — 개행 없는 한 문장, 브리핑 훑기용 상한.
+const MAX_AI_ONE_LINER_LENGTH = 120;
+
+function assertAiOneLiner(value: unknown, required: boolean): asserts value is string | null | undefined {
+  if (value === null || value === undefined) {
+    if (required) throw new ValidationError('AI one-liner is required');
+    return;
+  }
+  assertRequiredText(value, 'AI one-liner');
+  if (value.includes('\n') || value.length > MAX_AI_ONE_LINER_LENGTH) {
+    throw new ValidationError('AI one-liner must be a single line of 120 characters or fewer');
+  }
+}
 
 function questionClaimKey(index: number): string {
   return `question_${index + 1}`;
@@ -1337,6 +1352,7 @@ async function getCurrentAiDraftVersion(env: Env, orgId: string, workItemId: str
        draft.version,
        draft.parent_version_id,
        draft.summary_text,
+       draft.one_liner,
        draft.questions_json,
        draft.source_snapshot_id,
        draft.source_snapshot_hash,
@@ -1401,6 +1417,9 @@ function assertGeneratedAiDraftInput(
   requireSourceSnapshot = requireKind,
 ): void {
   assertRequiredText(input.summaryText, 'AI summary');
+  // 핵심 한 줄(D45·CCC-38)은 새 생성 경로(requireKind)에서 필수, 편집 경로는 레거시
+  // 초안(v1 스키마, one_liner 없음)의 재버전을 위해 NULL 을 허용한다.
+  assertAiOneLiner(input.oneLiner, requireKind);
   assertGeneratedAiDraftQuestions(input.questions);
   assertSha256(input.sourceSnapshotHash, 'source snapshot hash');
   assertOpaqueIdentifier(input.modelId, 'model id');
@@ -1491,6 +1510,7 @@ async function maskGeneratedAiDraftInput<T extends AiDraftContentInput>(
   return {
     ...input,
     summaryText: mask(input.summaryText),
+    oneLiner: input.oneLiner == null ? input.oneLiner : mask(input.oneLiner),
     questions: input.questions.map(mask),
     evidence: input.evidence.map((item) => ({
       ...item,
@@ -1757,6 +1777,8 @@ export interface AiDraftVersion {
   version: number;
   parentVersionId: string | null;
   summaryText: string;
+  /** D45 영역 ② 핵심 한 줄. NULL = 스키마 v1 레거시 초안(한 줄 없음). */
+  oneLiner: string | null;
   questions: string[];
   sourceSnapshotId: string | null;
   sourceSnapshotHash: string | null;
@@ -1785,6 +1807,8 @@ export interface ApprovedAiBriefing {
   sessionId: string;
   version: number;
   summaryText: string;
+  /** D45 영역 ② 핵심 한 줄. NULL = 한 줄이 없던 시절의 승인 초안. */
+  oneLiner: string | null;
   questions: string[];
   origin: AiDraftOrigin;
   groundingStatus: AiDraftGroundingStatus;
@@ -1803,6 +1827,8 @@ export interface AiEvidenceInput {
 
 export interface AiDraftContentInput {
   summaryText: string;
+  /** D45 핵심 한 줄. 생성 경로는 필수, 편집 경로는 레거시 초안 호환으로 NULL 허용. */
+  oneLiner?: string | null;
   questions: string[];
   sourceSnapshotId?: string;
   sourceSnapshotHash: string;
@@ -2865,13 +2891,14 @@ export async function createGeneratedAiDraft(
       ).bind(workItem.id, actor.orgId, context.supportCaseId, workItem.sessionId, workItem.kind, workItem.createdAt),
     ];
     statements.push(env.DB.prepare(
-      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
       draftId,
       workItem.id,
       draftVersion,
       parentVersionId,
       maskedInput.summaryText,
+      maskedInput.oneLiner ?? null,
       stringifyJson(maskedInput.questions),
       sourceSnapshot.id,
       sourceSnapshot.sha256,
@@ -2946,6 +2973,7 @@ export async function createGeneratedAiDraft(
     version: draftVersion,
     parentVersionId,
     summaryText: maskedInput.summaryText,
+    oneLiner: maskedInput.oneLiner ?? null,
     questions: maskedInput.questions,
     sourceSnapshotId: sourceSnapshot.id,
     sourceSnapshotHash: sourceSnapshot.sha256,
@@ -3035,6 +3063,8 @@ async function editGeneratedAiDraft(
       || input.schemaVersion !== current.schemaVersion
       || (input.sourceSnapshotId !== undefined && input.sourceSnapshotId !== current.sourceSnapshotId)
       || stringifyJson(input.questions) !== stringifyJson(current.questions)
+      // 핵심 한 줄도 질문과 같이 AI 산출물이다 — 사람 편집은 증거 재선택뿐, 한 줄은 부모 그대로.
+      || (input.oneLiner ?? null) !== current.oneLiner
     ) {
       throw new ValidationError('AI draft provenance must match its parent');
     }
@@ -3107,13 +3137,14 @@ async function editGeneratedAiDraft(
   try {
     const statements: D1PreparedStatement[] = [
       env.DB.prepare(
-        'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         draftId,
         workItem.id,
         nextVersion,
         current.id,
         maskedInput.summaryText,
+        maskedInput.oneLiner ?? null,
         stringifyJson(maskedInput.questions),
         current.sourceSnapshotId,
         current.sourceSnapshotHash,
@@ -3183,6 +3214,7 @@ async function editGeneratedAiDraft(
     version: nextVersion,
     parentVersionId: current.id,
     summaryText: maskedInput.summaryText,
+    oneLiner: maskedInput.oneLiner ?? null,
     questions: maskedInput.questions,
     sourceSnapshotId: current.sourceSnapshotId,
     sourceSnapshotHash: current.sourceSnapshotHash,
@@ -3451,6 +3483,8 @@ function editInputForCurrentAiDraft(
   return {
     expectedVersion,
     summaryText,
+    // 편집은 증거 재선택이다 — 핵심 한 줄은 부모 초안의 값을 그대로 잇는다(레거시면 NULL).
+    oneLiner: current.oneLiner,
     questions: current.questions,
     sourceSnapshotId: current.sourceSnapshotId,
     sourceSnapshotHash: current.sourceSnapshotHash,
@@ -3586,6 +3620,7 @@ async function loadApprovedAiBriefings(
        session_id,
        draft_version,
        summary_text,
+       one_liner,
        questions_json,
        origin,
        grounding_status,
@@ -10562,13 +10597,15 @@ export interface ParticipantBriefingSummary {
   pendingApprovalCount: number;
 }
 
-// D45 영역 ② 회차별 정리 — 회차마다 상담일·유형·수기 발췌 한 줄. 메모 전문은 싣지 않는다:
-// 브리핑은 훑는 화면이고 전문 입구는 '자세한 상담 기록 보기'다. 핵심 한 줄(AI)은 CCC-38 몫.
+// D45 영역 ② 회차별 정리 — 회차마다 상담일·유형·핵심 한 줄. 메모 전문은 싣지 않는다:
+// 브리핑은 훑는 화면이고 전문 입구는 '자세한 상담 기록 보기'다.
 export interface ParticipantBriefingSessionRow {
   sourceSupportCase: SourceSupportCase;
   sessionId: string;
   heldAt: string;
   kind: 'regular' | 'intake';
+  /** 승인된 AI 핵심 한 줄(CCC-38). NULL = 미승인·녹음 없음·레거시 → 화면은 수기 발췌 + '수기' 배지(D5). */
+  aiOneLiner: string | null;
   memoExcerpt: string | null;
 }
 
@@ -10718,7 +10755,7 @@ export async function getParticipantBriefing(
        ORDER BY held_at DESC, id DESC`,
     ).bind(...scopedValues).all<DbRow>(),
     env.DB.prepare(
-      `SELECT support_case_id, session_id, summary_text, questions_json, approved_at
+      `SELECT support_case_id, session_id, summary_text, one_liner, questions_json, approved_at
        FROM approved_ai_briefing_v1
        WHERE org_id = ? AND support_case_id IN (${placeholders})
        ORDER BY approved_at DESC, draft_version DESC`,
@@ -10825,14 +10862,18 @@ export async function getParticipantBriefing(
   }
 
   // D45 영역 ② 회차별 정리 — sessions 쿼리가 이미 held_at DESC 라 최신순이 보존된다.
+  // 핵심 한 줄은 approved_ai_briefing_v1 을 거친 승인분만 싣는다(R2) — approvedBySession 은
+  // approved_at DESC 첫 행이라 회차당 최신 승인 초안의 한 줄이다.
   const sessionRows: ParticipantBriefingSessionRow[] = sessions.results.flatMap((row) => {
     const source = sources.get(stringValue(row.support_case_id));
     if (source === undefined) return [];
+    const approvedRow = approvedBySession.get(stringValue(row.id));
     return [{
       sourceSupportCase: source,
       sessionId: stringValue(row.id),
       heldAt: stringValue(row.held_at),
       kind: stringValue(row.kind) === 'intake' ? 'intake' as const : 'regular' as const,
+      aiOneLiner: approvedRow === undefined ? null : nullableString(approvedRow.one_liner),
       memoExcerpt: sessionMemoExcerpt(nullableString(row.memo)),
     }];
   });
