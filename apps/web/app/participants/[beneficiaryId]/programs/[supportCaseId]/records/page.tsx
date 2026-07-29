@@ -182,7 +182,7 @@ function GoalContext({ goals }: { goals: SupportCaseRecordGoal[] }) {
   </aside>;
 }
 
-function RecordCard({ record }: { record: SupportCaseRecord }) {
+function RecordCard({ record, recordError }: { record: SupportCaseRecord; recordError: boolean }) {
   const title = <div className="wire-card-head">
     <div>
       <h2 id={`record-${record.id}`}>{record.kind === 'intake' ? '인테이크 기록' : '상담 기록'}</h2>
@@ -192,6 +192,11 @@ function RecordCard({ record }: { record: SupportCaseRecord }) {
   </div>;
 
   return <WireCard as="article" labelledBy={`record-${record.id}`} title={title}>
+    {/* 불일치 처리 '기록 오류'의 흔적 (D45 · ADR-0018 · CCC-42). 원본은 손대지 않고 표시만
+        붙여 다음 열람자의 오해를 막는다 — 정정이 필요하면 실무자가 따로 기록한다. */}
+    {recordError && <p className="note" role="note">
+      이 기록과 관련된 내용 불일치가 <strong>기록 오류</strong>로 처리되었습니다. 아래 내용은 원본 그대로입니다.
+    </p>}
     <section className="wire-card-section" aria-labelledby={`memo-${record.id}`}>
       <h3 id={`memo-${record.id}`}>수기 메모</h3>
       <p>{record.memo}</p>
@@ -232,6 +237,9 @@ export default async function RecordHistoryPage({
   const records = result.data?.records ?? [];
   const goals = result.data?.goals ?? [];
   const schedule = result.data?.schedule ?? null;
+  // '기록 오류'로 처리된 불일치가 가리키는 회차 (CCC-42). 쌍의 양쪽에 붙는다 — 0027 에
+  // 어느 쪽이 오류인지 담는 칸이 없다.
+  const recordErrorSessionIds = new Set(result.data?.recordErrorSessionIds ?? []);
   const notice = queryValue(query, 'notice');
   const error = result.error;
   const basePath = beneficiaryId === null || supportCaseId === null
@@ -271,7 +279,7 @@ export default async function RecordHistoryPage({
     </WireCard>}
 
     <section className="card-grid" aria-label="상담 기록 목록">
-      {result.data === null ? <WireCard><div className="empty"><span>상담 기록 목록을 확인할 수 없습니다.</span></div></WireCard> : records.length === 0 ? <WireCard><div className="empty"><span>아직 상담 기록이 없습니다.</span></div><p className="panel-meta">상담 일시, 방식, 수기 메모, GAS, 액션 아이템, 플래그를 한 번에 기록하세요.</p></WireCard> : records.map((record) => <RecordCard key={record.id} record={record} />)}
+      {result.data === null ? <WireCard><div className="empty"><span>상담 기록 목록을 확인할 수 없습니다.</span></div></WireCard> : records.length === 0 ? <WireCard><div className="empty"><span>아직 상담 기록이 없습니다.</span></div><p className="panel-meta">상담 일시, 방식, 수기 메모, GAS, 액션 아이템, 플래그를 한 번에 기록하세요.</p></WireCard> : records.map((record) => <RecordCard key={record.id} record={record} recordError={recordErrorSessionIds.has(record.id)} />)}
     </section>
     {result.data === null ? null : <GoalContext goals={goals} />}
   </main>;

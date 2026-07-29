@@ -216,6 +216,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
           left: { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', quote: '채무는 은행 대출뿐이라고 했다' },
           right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지인에게 빌린 돈 상환이 밀려 있다' },
           detectedAt: '2026-07-15T06:00:00Z',
+          resolution: null,
         },
         {
           id: 'd-2',
@@ -223,6 +224,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
           left: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '이번 달 지출을 정리했다' },
           right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지출 내역은 아직 정리 전이다' },
           detectedAt: '2026-07-15T06:00:00Z',
+          resolution: null,
         },
       ],
     })} />);
@@ -246,6 +248,78 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     for (const banned of ['오류입니다', '틀렸', '맞습니다', '정확', '거짓']) {
       expect(card.textContent).not.toContain(banned);
     }
+  });
+
+  it('처리 3종 버튼은 서버 액션이 있을 때만 그려지고 항목 ID를 함께 보낸다 (CCC-42)', () => {
+    const unresolved = {
+      id: 'd-1' as const,
+      kind: 'cross_session' as const,
+      left: { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', quote: '채무는 은행 대출뿐이라고 했다' },
+      right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지인에게 빌린 돈 상환이 밀려 있다' },
+      detectedAt: '2026-07-15T06:00:00Z',
+      resolution: null,
+    };
+    // 액션이 없으면(=권한·환경이 갖춰지지 않은 렌더) 버튼을 그리지 않는다.
+    const withoutAction = render(<BriefingCards {...baseProps({ discrepancies: [unresolved] })} />);
+    expect(cardByTitle(withoutAction.container, '내용 불일치').querySelector('form')).toBeNull();
+
+    const { container } = render(<BriefingCards {...baseProps({
+      discrepancies: [unresolved],
+      discrepancyAction: async () => {},
+    })} />);
+    const form = cardByTitle(container, '내용 불일치').querySelector('form');
+    if (form === null) throw new Error('resolution form not found');
+    // 어느 항목을 처리하는지 폼이 스스로 안다 — 화면 상태에 기대지 않는다.
+    expect(form.querySelector<HTMLInputElement>('input[name="discrepancyId"]')?.value).toBe('d-1');
+    expect(form.querySelector<HTMLInputElement>('input[name="supportCaseId"]')?.value)
+      .toBe(baseProps().supportCaseId);
+    // 처리 3종이 그대로, ADR-0018 순서로 나온다.
+    expect([...form.querySelectorAll('button')].map((button) => [button.value, button.textContent]))
+      .toEqual([
+        ['situation_changed', '상황 변경'],
+        ['record_error', '기록 오류'],
+        ['confirmed', '확인 완료'],
+      ]);
+  });
+
+  it('처리된 항목은 삭제되지 않고 접힌 이력으로 내려가며 배지는 미처리만 센다 (CCC-42)', () => {
+    const { container } = render(<BriefingCards {...baseProps({
+      discrepancyAction: async () => {},
+      discrepancies: [
+        {
+          id: 'd-1',
+          kind: 'cross_session',
+          left: { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', quote: '채무는 은행 대출뿐이라고 했다' },
+          right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지인에게 빌린 돈 상환이 밀려 있다' },
+          detectedAt: '2026-07-15T06:00:00Z',
+          resolution: null,
+        },
+        {
+          id: 'd-2',
+          kind: 'within_session',
+          left: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '이번 달 지출을 정리했다' },
+          right: { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', quote: '지출 내역은 아직 정리 전이다' },
+          detectedAt: '2026-07-15T06:00:00Z',
+          resolution: { status: 'situation_changed', resolvedAt: '2026-07-16T02:00:00Z' },
+        },
+      ],
+    })} />);
+    const card = cardByTitle(container, '내용 불일치');
+    // 배지가 이력까지 세면 '남은 일'을 알려주지 못한다 — 미처리 1건만.
+    expect(card.querySelector('.briefing-card-summary')?.textContent).toContain('1건');
+    const history = card.querySelector('.briefing-history');
+    if (history === null) throw new Error('history not found');
+    expect(history.querySelector('summary')?.textContent).toContain('처리된 항목 1건');
+    // 접혀 있을 뿐 지워지지 않는다 — 인용도 처리 상태도 이력 안에 남는다.
+    expect(history.textContent).toContain('이번 달 지출을 정리했다');
+    expect(history.textContent).toContain('상황 변경으로 처리됨');
+    // 미처리 항목은 이력 밖에 있다.
+    expect(history.textContent).not.toContain('채무는 은행 대출뿐이라고 했다');
+    // 처리 종류는 다시 바꿀 수 있다(Q 결정) — 이력에도 버튼이 살아 있고 현재 상태만 비활성.
+    const historyButtons = [...history.querySelectorAll('button')];
+    expect(historyButtons).toHaveLength(3);
+    expect(historyButtons.find((button) => button.value === 'situation_changed')?.disabled).toBe(true);
+    expect(historyButtons.find((button) => button.value === 'record_error')?.disabled).toBe(false);
   });
 });
 

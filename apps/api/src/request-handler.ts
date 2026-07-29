@@ -23,6 +23,8 @@ import {
   approveSession,
   collectDiscrepancyDetectionSources,
   replaceSessionDiscrepancies,
+  resolveSessionDiscrepancy,
+  listRecordErrorSessionIds,
   assignSupportCase,
   COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
@@ -1025,7 +1027,8 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             aiOneLiner: row.aiOneLiner,
             memoExcerpt: row.memoExcerpt,
           })),
-        // D45 영역 ③ 내용 불일치 — 저장된 검출 결과의 읽기 전용 표시(CCC-43). 판단 없음(R5).
+        // D45 영역 ③ 내용 불일치 — 저장된 검출 결과(CCC-43). 판단 없음(R5). 처리 3종(CCC-42)은
+        // resolution 으로 함께 나가고, 화면이 미처리/접힌 이력으로 가른다.
         discrepancies: briefing.discrepancies
           .filter((item) => item.sourceSupportCase.id === sourceSupportCase.id)
           .map((item) => ({
@@ -1034,6 +1037,7 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             left: item.left,
             right: item.right,
             detectedAt: item.detectedAt,
+            resolution: item.resolution,
           })),
       };
     }),
@@ -1760,20 +1764,45 @@ export async function handleRequest(
         const overallGoal = optionalNullableString(body, 'overallGoal') ?? null;
         return json(await setSupportCaseOverallGoal(env, actor, supportCaseId, overallGoal));
       }
+      // 불일치 처리 3종 (D45 · CCC-42). 권한(담당 실무자·기관 관리자)은 게이트웨이가 강제한다(R1).
+      // 처리는 표시일 뿐 원본 기록은 건드리지 않는다 — 바뀌는 것은 처리 3컬럼뿐이다(ADR-0018).
+      if (
+        request.method === 'PUT' && parts.length === 5
+        && parts[2] === 'discrepancies' && parts[4] === 'resolution'
+      ) {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['status']);
+        const status = requiredString(body, 'status');
+        if (status !== 'situation_changed' && status !== 'record_error' && status !== 'confirmed') {
+          throw new ValidationError('status is invalid');
+        }
+        const discrepancyId = parts[3] ?? '';
+        const resolved = await resolveSessionDiscrepancy(env, actor, discrepancyId, status);
+        // 주소의 참여 사업과 실제 소속이 어긋나면 거부한다 — 게이트웨이는 불일치 행에서 스스로
+        // 범위를 찾으므로 URL 이 다른 사업을 가리켜도 통과한다. 주소와 결과를 일치시킨다.
+        if (resolved.supportCaseId !== supportCaseId) {
+          throw new ForbiddenError('discrepancy does not belong to this support case');
+        }
+        return json(resolved);
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'records') {
         const query = requestQuery(url, ['official']);
         const official = query.get('official');
         if (official !== null && official !== 'true') throw new ValidationError('official is invalid');
-        const [records, goals, schedule] = await Promise.all([
+        const [records, goals, schedule, recordErrorSessionIds] = await Promise.all([
           listCounselingRecords(env, actor, supportCaseId),
           listGoals(env, actor, supportCaseId),
           getNextCounselingScheduleForSupportCase(env, actor, supportCaseId),
+          // '기록 오류'로 처리된 불일치가 가리키는 회차 — 화면이 그 기록 옆에 표시만 붙인다(CCC-42).
+          listRecordErrorSessionIds(env, actor, supportCaseId),
         ]);
         const goalTitles = new Map(goals.map((goal): [string, string] => [goal.id, goal.title]));
         return json({
           records: records.map((record) => counselingRecordDetailsResponse(record, goalTitles)),
           goals: goals.map((goal) => ({ id: goal.id, title: goal.title, status: goal.status })),
           schedule: nextCounselingScheduleResponse(schedule),
+          recordErrorSessionIds,
         });
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'records') {

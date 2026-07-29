@@ -3751,7 +3751,7 @@ export interface SessionDiscrepancy {
   rightSessionId: string;
   rightQuote: string;
   detectedAt: string;
-  /** 처리 3종(CCC-42 자리). NULL = 미처리 — CCC-43 범위에서는 항상 NULL. */
+  /** 처리 3종(CCC-42). NULL = 미처리. 처리는 표시일 뿐 원본 기록은 불변이다(ADR-0018). */
   resolutionStatus: DiscrepancyResolutionStatus | null;
   resolvedBy: string | null;
   resolvedAt: string | null;
@@ -3885,6 +3885,24 @@ export interface DetectedSessionDiscrepancyInput {
   rightQuote: string;
 }
 
+/**
+ * 불일치 한 쌍의 동일성 키 — 유형 + 양쪽 (회차, 인용). 재검출이 이미 처리한 쌍을 다시
+ * 올리지 않게 하는 데 쓴다(CCC-42). 인용까지 넣는 이유: 같은 두 회차에서 서로 다른 주제의
+ * 불일치가 나올 수 있어 회차 쌍만으로는 다른 건까지 묻힌다. 좌우는 정렬한다 — 어느 쪽이
+ * left 인지는 프로바이더가 그때그때 정하는 것이라 동일성의 일부가 아니다.
+ *
+ * 알려진 한계: **인용 텍스트가 정확히 같을 때만** 걸러진다. 프로바이더가 같은 불일치를 다른
+ * 범위로 발췌하면(조사 하나 차이) 새 건으로 올라온다 — 출력 검증은 "소스 원문의 부분 문자열"만
+ * 강제하고 같은 범위를 강제하지 않는다.
+ */
+function discrepancyPairKey(item: DetectedSessionDiscrepancyInput): string {
+  const sides = [
+    [item.leftSessionId, item.leftQuote],
+    [item.rightSessionId, item.rightQuote],
+  ].sort();
+  return JSON.stringify([item.kind, sides]);
+}
+
 function mapSessionDiscrepancy(row: DbRow): SessionDiscrepancy {
   const resolution = nullableString(row.resolution_status);
   return {
@@ -3967,6 +3985,24 @@ export async function replaceSessionDiscrepancies(
     throw new ForbiddenError('discrepancy references an unavailable session');
   }
 
+  // 이미 처리한 쌍은 다시 올리지 않는다 (CCC-42 · Q 결정 2026-07-29). 처리된 행은 지워지지
+  // 않으므로(트리거), 재검출이 같은 쌍을 새로 넣으면 접힌 이력과 미처리 목록에 같은 내용이
+  // 두 번 보이고 실무자가 같은 건을 반복해서 처리하게 된다. 트리거 회차가 아니라 **참여 사업**
+  // 범위로 본다 — 같은 쌍이 다른 회차의 공식화로 다시 검출될 수 있다.
+  const resolvedRows = await env.DB.prepare(
+    `SELECT kind, left_session_id, left_quote, right_session_id, right_quote
+     FROM session_discrepancies
+     WHERE org_id = ? AND support_case_id = ? AND resolution_status IS NOT NULL`,
+  ).bind(actor.orgId, scope.supportCaseId).all<DbRow>();
+  const resolvedKeys = new Set(resolvedRows.results.map((row) => discrepancyPairKey({
+    kind: stringValue(row.kind) === 'within_session' ? 'within_session' : 'cross_session',
+    leftSessionId: stringValue(row.left_session_id),
+    leftQuote: stringValue(row.left_quote),
+    rightSessionId: stringValue(row.right_session_id),
+    rightQuote: stringValue(row.right_quote),
+  })));
+  const fresh = items.filter((item) => !resolvedKeys.has(discrepancyPairKey(item)));
+
   const detectedAt = now();
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
@@ -3975,7 +4011,7 @@ export async function replaceSessionDiscrepancies(
     ).bind(actor.orgId, triggerSessionId),
   ];
   const insertedIds: string[] = [];
-  for (const item of items) {
+  for (const item of fresh) {
     const id = newId();
     insertedIds.push(id);
     statements.push(env.DB.prepare(
@@ -4004,7 +4040,7 @@ export async function replaceSessionDiscrepancies(
     targetId: triggerSessionId,
     beneficiaryId: scope.beneficiaryId,
     supportCaseId: scope.supportCaseId,
-    detail: { count: items.length },
+    detail: { count: fresh.length, skippedResolved: items.length - fresh.length },
   }));
   await env.DB.batch(statements);
 
@@ -4019,6 +4055,92 @@ export async function replaceSessionDiscrepancies(
     const mapped = byId.get(id);
     return mapped === undefined ? [] : [mapped];
   });
+}
+
+/**
+ * 불일치 처리 3종 (상황 변경 / 기록 오류 / 확인 완료) — D45 · ADR-0018 · CCC-42.
+ *
+ * 처리는 **표시일 뿐 원본 기록은 불변**이다: 여기서 바뀌는 것은 처리 3컬럼뿐이고, 인용·회차·
+ * 유형은 DB 트리거가 UPDATE 자체를 막는다. 처리된 행은 접힌 이력으로 남으며 삭제되지 않는다.
+ *
+ * 처리 종류는 **다시 바꿀 수 있다**(Q 결정 2026-07-29) — 잘못 누른 처리를 되돌릴 길을 남긴다.
+ * 바꾼 전건이 감사로 쌓이므로 이력은 audit_log 쪽에서 온전하다(D14).
+ *
+ * 권한: 담당 실무자 | 기관 관리자 (D7 — `assertSupportCaseAccess`, 등록·동의와 같은 층).
+ * 전체 목표(CCC-41)의 "담당 실무자만"과 다르다는 점에 주의.
+ */
+export async function resolveSessionDiscrepancy(
+  env: Env,
+  actor: Actor,
+  discrepancyId: string,
+  status: DiscrepancyResolutionStatus,
+): Promise<SessionDiscrepancy> {
+  assertHuman(actor);
+  assertOpaqueIdentifier(discrepancyId, 'discrepancy id');
+  if (status !== 'situation_changed' && status !== 'record_error' && status !== 'confirmed') {
+    throw new ValidationError('discrepancy resolution status is invalid');
+  }
+
+  const existing = await env.DB.prepare(
+    `SELECT * FROM session_discrepancies WHERE id = ? AND org_id = ?`,
+  ).bind(discrepancyId, actor.orgId).first<DbRow>();
+  if (existing === null) {
+    throw new ForbiddenError('discrepancy is not available in this organization');
+  }
+  const current = mapSessionDiscrepancy(existing);
+  const scope = await resolveSessionScope(env, actor.orgId, current.triggerSessionId);
+  await assertSupportCaseAccess(env, actor, current.supportCaseId);
+
+  const resolvedAt = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE session_discrepancies
+       SET resolution_status = ?, resolved_by = ?, resolved_at = ?
+       WHERE id = ? AND org_id = ?`,
+    ).bind(status, actor.userId, resolvedAt, discrepancyId, actor.orgId),
+    canonicalAuditStatement(env, actor, {
+      action: 'resolve_discrepancy',
+      targetTable: 'session_discrepancies',
+      targetId: discrepancyId,
+      beneficiaryId: scope.beneficiaryId,
+      supportCaseId: current.supportCaseId,
+      // 인용 원문은 감사 detail 에 싣지 않는다 — 처리 사실만 남긴다(D14 · R3).
+      detail: { status, previousStatus: current.resolutionStatus },
+    }),
+  ]);
+
+  return { ...current, resolutionStatus: status, resolvedBy: actor.userId, resolvedAt };
+}
+
+/**
+ * '기록 오류'로 처리된 불일치가 가리키는 회차 ID 목록 — 상세 기록 화면이 그 회차 옆에
+ * `기록 오류 처리됨` 표시를 붙이는 데 쓴다(ADR-0018: 원본은 남기고 표시만 붙여 다음
+ * 열람자의 오해를 막는다).
+ *
+ * 0027 에는 **어느 쪽이 잘못된 기록인지**를 담는 칸이 없으므로 표시는 쌍이 가리키는 양쪽
+ * 회차에 붙는다(회차 내 모순이면 한 곳). 한쪽만 지목하려면 스키마 변경이 필요하다.
+ *
+ * 권한: 담당 실무자 | 기관 관리자 (D7). 감사 없음 — 같은 화면의 기록 조회(listCounselingRecords)가
+ * 이미 read 감사를 남기며, 이 함수는 그 화면의 표시 보강일 뿐이라 행을 나누면 조회 1건 원칙(D24)이
+ * 깨진다.
+ */
+export async function listRecordErrorSessionIds(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<string[]> {
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  await assertSupportCaseAccess(env, actor, supportCaseId);
+  const rows = await env.DB.prepare(
+    `SELECT left_session_id, right_session_id FROM session_discrepancies
+     WHERE org_id = ? AND support_case_id = ? AND resolution_status = 'record_error'`,
+  ).bind(actor.orgId, supportCaseId).all<DbRow>();
+  const ids = new Set<string>();
+  for (const row of rows.results) {
+    ids.add(stringValue(row.left_session_id));
+    ids.add(stringValue(row.right_session_id));
+  }
+  return [...ids].sort();
 }
 
 // ============================================================================
@@ -11008,6 +11130,11 @@ export interface ParticipantBriefingDiscrepancy {
   left: { sessionId: string; heldAt: string; quote: string };
   right: { sessionId: string; heldAt: string; quote: string };
   detectedAt: string;
+  /**
+   * 처리 3종 (CCC-42). null = 미처리. 처리된 항목은 화면에서 접힌 이력으로 내려가고
+   * 삭제되지 않는다. 처리자(userId)는 싣지 않는다 — 표시에 쓰지 않고 감사에 남는다(D14).
+   */
+  resolution: { status: DiscrepancyResolutionStatus; resolvedAt: string } | null;
 }
 
 export interface ParticipantBriefing {
@@ -11159,8 +11286,9 @@ export async function getParticipantBriefing(
          AND (source = 'counselor' OR review_status = 'confirmed')
        ORDER BY created_at DESC, id DESC`,
     ).bind(...scopedValues).all<DbRow>(),
-    // D45 영역 ③ — 저장된 검출 결과만 읽는다(실시간 검사 없음, ADR-0018). CCC-43 범위는
-    // 미처리 행만(처리 3종·접힌 이력은 CCC-42). 회차 링크용 상담일을 함께 싣는다.
+    // D45 영역 ③ — 저장된 검출 결과만 읽는다(실시간 검사 없음, ADR-0018). 미처리와 처리된
+    // 항목을 **함께** 싣고(CCC-42: 처리분은 화면에서 접힌 이력), 미처리를 앞세운다. 회차
+    // 링크용 상담일을 함께 싣는다.
     env.DB.prepare(
       `SELECT discrepancy.*,
               left_session.held_at AS left_held_at,
@@ -11171,8 +11299,8 @@ export async function getParticipantBriefing(
        JOIN sessions AS right_session
          ON right_session.id = discrepancy.right_session_id AND right_session.org_id = discrepancy.org_id
        WHERE discrepancy.org_id = ? AND discrepancy.support_case_id IN (${placeholders})
-         AND discrepancy.resolution_status IS NULL
-       ORDER BY discrepancy.detected_at DESC, discrepancy.id`,
+       ORDER BY (discrepancy.resolution_status IS NULL) DESC,
+                discrepancy.detected_at DESC, discrepancy.id`,
     ).bind(...scopedValues).all<DbRow>(),
   ]);
 
@@ -11307,6 +11435,9 @@ export async function getParticipantBriefing(
       left: { sessionId: mapped.leftSessionId, heldAt: stringValue(row.left_held_at), quote: mapped.leftQuote },
       right: { sessionId: mapped.rightSessionId, heldAt: stringValue(row.right_held_at), quote: mapped.rightQuote },
       detectedAt: mapped.detectedAt,
+      resolution: mapped.resolutionStatus === null || mapped.resolvedAt === null
+        ? null
+        : { status: mapped.resolutionStatus, resolvedAt: mapped.resolvedAt },
     }];
   });
 
