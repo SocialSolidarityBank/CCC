@@ -74,6 +74,36 @@ describe('IntakeWizard', () => {
     expect(scoped.queryByRole('button', { name: /5\./ })).toBeNull();
   });
 
+  it('1단계 소절 번호는 정본 순서대로 하나씩만 뜬다', () => {
+    const { container } = renderWizard();
+    const subHeadings = [...container.querySelectorAll('h3')]
+      .map((el) => el.textContent ?? '')
+      .filter((text) => /^1-\d\./.test(text));
+
+    // 구 결함: 자동 채움 항목을 별도 상자로 빼는 바람에 '1-3' 이 두 번 떴고
+    // 그 상자가 1-2 위로 올라가 정본 순서가 깨졌다.
+    expect(subHeadings).toEqual([
+      '1-1. 당사자 기본정보',
+      '1-2. 공적급여·수급자 여부',
+      '1-3. 상담 운영정보',
+      '1-4. 상담 신청 사유',
+    ]);
+    expect(new Set(subHeadings).size).toBe(subHeadings.length);
+  });
+
+  it('자동 채움 항목(상담일·실무자·회차)은 1-3 소절 안에 있다', () => {
+    const { container } = renderWizard();
+    const operations = [...container.querySelectorAll('h3')]
+      .find((el) => el.textContent === '1-3. 상담 운영정보')?.parentElement;
+    expect(operations).not.toBeUndefined();
+
+    const scoped = within(operations as HTMLElement);
+    expect(scoped.getByLabelText('상담일')).not.toBeNull();
+    expect(scoped.getByText('상담 회차')).not.toBeNull();
+    // 정본 1-3 의 나머지 항목도 같은 상자 안이다 — 소절이 쪼개지지 않았다.
+    expect(scoped.getByText(/상담 방법/)).not.toBeNull();
+  });
+
   it('1단계 기본정보와 동의는 읽기 전용이다 — 입력 칸이 없다', () => {
     const { container } = renderWizard({ privacy: true, recording: false, textAi: false });
     const scoped = within(container);
