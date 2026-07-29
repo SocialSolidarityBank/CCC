@@ -2,12 +2,12 @@
 
 > **이 레포는 2026-07-28 전환으로 새로 시작했습니다.** 옛 히스토리와 상세 이력은 비공개 아카이브 `SocialSolidarityBank/CCC-archive`에 보존돼 있습니다. 이 문서의 과거 기록은 아카이브의 STATUS.md가 정본이며, 여기에는 개인정보가 포함된 원문을 싣지 않습니다. 옛 이슈·PR을 인용할 때는 `CCC-archive#NN` 형식을 씁니다.
 
-- **Last updated**: 2026-07-29 (Claude Code — CCC-37 기본정보 수정 화면을 브랜치 `feat/ccc-37-basic-info-edit`에 구현. 미푸시·미머지.)
+- **Last updated**: 2026-07-29 (Claude Code — CCC-37 게이트 재검증(build·guard:db·테스트 457개) 후 push, **PR #7 오픈**. Linear CCC-37은 In Review + PR 링크 코멘트. 머지되면 브랜치명 연동으로 자동 Done.)
 - **Current Phase**: 인테이크 4단계 재구현(D41·D42) + 동의 3종 등록·수정 흐름(D44) **main 머지 완료**. 브리핑 재구성은 여전히 **Q 시안 대기** — 도착 전 브리핑 구조 변경(CCC-15 포함) 착수 금지(D43).
 
 ## Next 3 Actions
 
-1. `yellow` **동의 문안·법률 검토(D26)** — 화면·저장은 D44로 열렸고 남은 것은 문안이다. `apps/web/app/participants/new/consent-copy.ts`의 초안 6절이 그대로 당사자 정보 페이지 수정 UI에도 적용되는지, 열람 범위 문구에 D36(같은 기관 실무자에게 참여 사업·담당자 이름이 보임)이 반영됐는지 확인 필요. 남은 인테이크 판단 1건: `emergencyContact`는 질문지에 없어 화면 입력 경로가 없다(CCC-37 기본정보 수정 화면도 7종만 다룬다). 기본정보 수정 화면 부재는 **CCC-37로 해소**(브랜치 `feat/ccc-37-basic-info-edit`, 미머지).
+1. `yellow` **동의 문안·법률 검토(D26)** — 화면·저장은 D44로 열렸고 남은 것은 문안이다. `apps/web/app/participants/new/consent-copy.ts`의 초안 6절이 그대로 당사자 정보 페이지 수정 UI에도 적용되는지, 열람 범위 문구에 D36(같은 기관 실무자에게 참여 사업·담당자 이름이 보임)이 반영됐는지 확인 필요. 남은 인테이크 판단 1건: `emergencyContact`는 질문지에 없어 화면 입력 경로가 없다(CCC-37 기본정보 수정 화면도 7종만 다룬다). 기본정보 수정 화면 부재는 **CCC-37로 해소**(PR #7 오픈, 리뷰 대기).
 2. `yellow` **PR #5 리베이스** — D40 스윕과 CLAUDE.md §9(D39 vs D40~D43)·CONTEXT.md·apps/web·gateway 충돌 예정. 신규 문자열 140건(참여자 92·상담사 37 등) 동일 매핑 치환 후 재테스트. 머지 시점은 동의서 법률 검토 게이트(Q 결정). PR #4는 충돌 없음, 머지 가능.
 3. `yellow` **브리핑 재구성 그릴링 재개** — Q 시안 도착 시. 전체 목표 입력 UI 위치(첫 상담 대화 설정, D43)도 이때 확정. (기존 red 항목 Actions secret 재등록·브랜치 보호·CCC-35 토큰 로테이션은 미완이면 유지.)
 
