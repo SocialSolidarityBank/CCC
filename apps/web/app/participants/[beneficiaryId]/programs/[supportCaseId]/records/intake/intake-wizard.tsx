@@ -590,10 +590,17 @@ export function IntakeWizard(props: IntakeWizardProps) {
   const participantParts = [props.participant.name ?? props.beneficiaryId, props.participant.phone, props.participant.email]
     .filter((part): part is string => typeof part === 'string' && part.length > 0);
 
-  function renderGroups(groups: readonly { title: string; questions: readonly IntakeQuestion[] }[]) {
+  // 정본(PRD/intake-questionnaire-v1.md)에서 한 소절인데 일부 항목이 자동 채움인 경우가 있다.
+  // 그 자동 항목을 별도 상자로 빼면 같은 번호가 화면에 두 번 뜨므로(구 결함), 소절 제목을
+  // 열쇠로 삼아 **그 소절 안 맨 위에** 끼워 넣는다. 번호는 언제나 소절 하나에 하나다.
+  function renderGroups(
+    groups: readonly { title: string; questions: readonly IntakeQuestion[] }[],
+    extras: Readonly<Record<string, ReactNode>> = {},
+  ) {
     return groups.map((group) => (
       <div key={group.title} style={panelStyle}>
         <h3 style={subHeadingStyle}>{group.title}</h3>
+        {extras[group.title] ?? null}
         {group.questions.map((question) => (
           <QuestionField
             key={question.key}
@@ -616,7 +623,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
   return (
     <main className="page-content">
       <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }}>
-        <nav className="wire-col-4" aria-label="단계 진행" style={{ ...stackStyle, gap: 8 }}>
+        {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
+            단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다. */}
+        <nav className="wire-col-4" aria-label="단계 진행" style={{ ...stackStyle, gap: 8, alignContent: 'start' }}>
           <h2 style={headingStyle}>진행 단계</h2>
           {STEP_TITLES.map((title, index) => {
             const stepNumber = index + 1;
@@ -691,17 +700,19 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 ) : null}
               </div>
 
-              <div style={panelStyle}>
-                <h3 style={subHeadingStyle}>1-3. 상담 운영정보 (자동)</h3>
-                <label style={fieldStyle}>
-                  <span style={labelStyle}>상담일</span>
-                  <input type="datetime-local" aria-label="상담일" value={heldAt} onChange={(event) => setHeldAt(event.target.value)} style={inputStyle} />
-                </label>
-                <ReadOnlyRow label="실무자" value={props.recorderLabel} />
-                <ReadOnlyRow label="상담 회차" value={`${props.sessionSequence}회`} />
-              </div>
-
-              {renderGroups(STEP_GROUPS[0]!)}
+              {renderGroups(STEP_GROUPS[0]!, {
+                // 정본 1-3 의 첫 세 항목(상담일·실무자·상담 회차)이다 — 앞의 둘은 자동으로 채워진다.
+                '1-3. 상담 운영정보': (
+                  <>
+                    <label style={fieldStyle}>
+                      <span style={labelStyle}>상담일</span>
+                      <input type="datetime-local" aria-label="상담일" value={heldAt} onChange={(event) => setHeldAt(event.target.value)} style={inputStyle} />
+                    </label>
+                    <ReadOnlyRow label="실무자" value={props.recorderLabel} />
+                    <ReadOnlyRow label="상담 회차" value={`${props.sessionSequence}회`} />
+                  </>
+                ),
+              })}
             </div>
           ) : null}
 
