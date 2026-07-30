@@ -181,6 +181,41 @@ for (const [name, rec] of declaredClasses) {
   add(rec.file, rec.line, 'dead-class', `.${name} 를 쓰는 마크업이 없다 — 지우거나, 계약이면 token-audit 의 UNUSED_BUT_CONTRACTED 에 사유와 함께 넣는다`);
 }
 
+// ── 다크 대응 검사 ────────────────────────────────────────────────────────────
+// 다크 블록(:root[data-theme="dark"])은 **덮어쓰기만** 담으므로, 라이트에서 원시 색값
+// (hex·rgba·그라데이션)으로 선언된 토큰을 빠뜨리면 그 자리만 라이트로 남는다. 눈으로는
+// 잘 안 잡힌다 — --gradient-sidebar 를 빠뜨리면 어두운 화면에 흰 사이드바가 하나 켜진다.
+// var() 조합으로 만든 토큰(--shadow-soft)은 재료가 바뀌면 따라오므로 대상이 아니다.
+const THEME_INVARIANT = new Set([
+  '--on-action',      // 채운 면이 두 테마에서 같으므로 그 위 글자도 같다(tokens.css 다크 절 ③)
+  '--line-on-action', // 같은 이유 — 밝은 파스텔 면 위 아웃라인
+  '--blue', '--mint', '--lavender', // base 는 면이라 어두운 배경 위에서 그대로 선다
+  '--gradient-action',              // 위 ③
+  '--gradient-brand', '--gradient-brand-v', // 파스텔 자체라 두 테마에서 모두 선다
+]);
+
+const lightBlock = (() => {
+  const open = tokensSrc.indexOf('{', tokensSrc.indexOf(':root {'));
+  return tokensSrc.slice(open, tokensSrc.indexOf('\n}', open));
+})();
+const darkStart = tokensSrc.indexOf(':root[data-theme="dark"]');
+const darkBlock = darkStart < 0 ? '' : (() => {
+  const open = tokensSrc.indexOf('{', darkStart);
+  return tokensSrc.slice(open, tokensSrc.indexOf('\n}', open));
+})();
+
+if (darkBlock) {
+  const darkNames = new Set([...darkBlock.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+  for (const m of lightBlock.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    const [, name, value] = m;
+    // 원시 색값만 대상: hex 또는 rgba/hsla 리터럴. var() 로만 조합된 값은 자동으로 따라온다.
+    const raw = value.replace(/var\(--[a-z0-9-]+\)/g, '');
+    if (!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i.test(raw)) continue;
+    if (THEME_INVARIANT.has(name) || darkNames.has(name)) continue;
+    add(TOKENS, 0, 'dark-parity', `${name} 는 원시 색값인데 다크 블록에 대응이 없다 — 다크에서 라이트 값이 그대로 남는다. 의도라면 token-audit 의 THEME_INVARIANT 에 사유와 함께 넣는다`);
+  }
+}
+
 // 계단 자체가 tokens.css 에 살아 있는지 확인한다 — 위 검사들이 "토큰을 쓰라"고 말하는데
 // 그 토큰이 지워져 있으면 검사가 통과하면서도 화면은 깨진다.
 for (const step of TEXT_STEPS) {

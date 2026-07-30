@@ -100,7 +100,7 @@ button,input,select,textarea{font:inherit}
 /* 지금 어느 사업인지는 드로어를 열지 않고도 보여야 한다 — 사업이 메뉴의 범위를 정하기 때문이다.
    민트 계열은 '사람·소속' 축이라 사업 라벨이 여기 든다(D34). */
 .drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:var(--text-sm);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.drawer-scrim{position:fixed;inset:0;background:rgba(61,52,69,.4);z-index:calc(var(--z-modal) - 1)}
+.drawer-scrim{position:fixed;inset:0;background:var(--scrim);z-index:calc(var(--z-modal) - 1)}
 .drawer-close{display:none;width:100%;min-height:var(--control-height);margin-top:var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:700;cursor:pointer}
 /* ── 페이지 셸 ── 장폭·여백의 유일한 주인(2026-07-26). 값은 design/tokens.css 에만 있다.
    width:100% 가 핵심이다 — .page-content 는 .app-shell 의 **그리드 아이템**이고 auto 마진을

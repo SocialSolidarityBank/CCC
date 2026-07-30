@@ -127,7 +127,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    background 를 직접 쓰되 **테두리 그라데이션을 살려야 하므로 배경 2겹을 유지한다**
    (--surface-fill 변수로는 못 한다: linear-gradient() 의 색 자리에 그라데이션을 넣을 수 없다).
    호버가 이 규칙을 덮지 못하는 것도 의도다 — 이미 고른 행에 지나가는 중 표시가 겹칠 이유가 없다. */
-.wire-row[data-selected="true"]{background:var(--gradient-action) padding-box,var(--gradient-brand) border-box}
+.wire-row[data-selected="true"]{background:var(--gradient-action) padding-box,var(--gradient-brand) border-box;color:var(--on-action)}
 .wire-row[data-align="center"]{justify-content:center;text-align:center}
 .wire-row-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .wire-row[data-align="center"] .wire-row-text{flex:0 1 auto}
@@ -224,7 +224,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 /* 라디오의 켬도 체크박스와 같은 어휘다 — 가운데 --ink 점 + **--gradient-action 면**.
    두 컨트롤이 같은 폼 안에 서므로 켬 신호가 갈리면 하나는 켜진 것처럼, 하나는 아닌 것처럼
    보인다. 채움 근거는 아래 .wire-checkbox:checked 주석에 한 번만 적어 둔다. */
-.wire-radio:checked{background:radial-gradient(circle at center,var(--ink) 0 4px,transparent 4px) padding-box,var(--gradient-action) padding-box,var(--gradient-deep) border-box}
+.wire-radio:checked{background:radial-gradient(circle at center,var(--on-action) 0 4px,transparent 4px) padding-box,var(--gradient-action) padding-box,var(--gradient-deep) border-box}
 .wire-radio:disabled,.wire-checkbox:disabled{background:linear-gradient(var(--muted),var(--muted)) padding-box,linear-gradient(var(--line),var(--line)) border-box;cursor:not-allowed}
 /* WireButton (§5 버튼 4종 × 크기 2단). 크기 변형은 높이·패딩·라벨만 다르고 색 규칙은 같다.
    **라벨은 줄바꿈하지 않는다**(R7 · 2026-07-30): 한글은 어디서나 끊길 수 있어 칸이 좁아지면
@@ -240,7 +240,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 .wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:left;white-space:nowrap;cursor:pointer}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
-.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--ink);box-shadow:var(--shadow-soft)}
+.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft)}
 /* 고스트: 배경·테두리 없음, --sub 글자. */
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);box-shadow:none}
 /* 위험: 되돌리기 어려운 행동에만. */
@@ -312,9 +312,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 /* 인용 블록(§5): AI 제안의 근거 발언 전용. 세로선은 --gradient-brand-v(흐르는 방향과 같게). */
 .wire-quote{margin:0;padding-left:var(--space-3);border-left:2px solid transparent;background:var(--gradient-brand-v) left/2px 100% no-repeat;font-size:var(--text-sm);color:var(--sub)}
 .wire-quote-time{display:block;margin-top:var(--space-1);font-size:var(--text-sm);font-weight:700;color:var(--sub);letter-spacing:var(--tracking-numeric)}
-/* 모달(§5): 폭 520 · radius 12 · 스크림 rgba(61,52,69,.4) · --shadow-modal.
+/* 모달(§5): 폭 520 · radius 12 · 스크림 --scrim · --shadow-modal.
    하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */
-.wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:rgba(61,52,69,.4)}
+.wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:var(--scrim)}
 .wire-modal{width:100%;max-width:520px;padding:var(--space-6);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-modal)}
 .wire-modal-title{margin:0;font-size:var(--text-lg);font-weight:700;color:var(--ink)}
 .wire-modal-desc{margin:var(--space-2) 0 0;font-size:var(--text-md);color:var(--sub)}
