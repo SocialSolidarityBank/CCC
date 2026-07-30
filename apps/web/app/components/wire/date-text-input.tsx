@@ -30,16 +30,28 @@ export interface DateTextInputProps {
   id?: string | undefined;
   name?: string | undefined;
   /**
-   * `red` **초기값 전용이다 — 이 부품은 비제어다.**
-   * 편집 중 값은 내부 상태가 갖고, 이 prop 은 마운트 때 **한 번만** 읽는다. 호출부가
-   * 다시 그리면서 새 값을 주어도 화면은 바뀌지 않는다. 제어형(부모가 값을 쥐는 방식)이
-   * 필요해지면 `value`+`onChange` 를 새로 만들어야 한다 — `defaultValue` 에 값을 계속
-   * 흘려보내는 방식으로는 안 된다.
+   * 비제어 모드의 초기값. 마운트 때 한 번만 읽는다. `value` 를 함께 주면 무시된다.
    */
   defaultValue?: string | undefined;
+  /**
+   * 제어 모드. 주면 부모가 값을 쥐고, 이 부품은 내부 상태를 쓰지 않는다.
+   * 달력이 값을 밀어 넣는 자리(`DatePickerControl`)가 이 경로를 쓴다 — 사용자가 친 글자와
+   * 달력이 고른 날짜가 **같은 하나의 값**이어야 하기 때문이다.
+   */
+  value?: string | undefined;
   required?: boolean | undefined;
   /** 도움말 문구의 id — KRDS '레이블·설명은 프로그래밍적으로 연결'. */
   describedBy?: string | undefined;
+  /**
+   * 보이는 라벨이 없는 자리(위저드의 인라인 폼)에서 쓰는 접근성 이름. 라벨이 `htmlFor` 로
+   * 이어져 있으면 주지 않는다 — 주면 화면의 라벨과 낭독되는 이름이 갈린다.
+   */
+  ariaLabel?: string | undefined;
+  /**
+   * 브라우저 자동완성. 생년월일 칸만 `bday` 를 준다(KRDS: 개인정보 칸에 자동완성 지원) —
+   * 상담 일시에 생일을 채워 넣으면 안 되므로 기본값은 끔이다.
+   */
+  autoComplete?: string | undefined;
   /** 값이 바뀔 때 호출부에 알린다(폼 제출값은 input 이 직접 갖는다). */
   onValueChange?: ((value: string) => void) | undefined;
 }
@@ -51,8 +63,9 @@ export interface DateTextInputProps {
  * 따르고 페이지 로케일을 무시하기 때문이다 — 같은 화면이 팀원마다 `mm/dd/yyyy` 로도,
  * `YYYY. MM. DD.` 로도 보인다(훑기 결함 R6). 글자 입력칸에는 그 편차가 아예 없다.
  *
- * 생년월일처럼 **아는 값을 적는** 자리에만 쓴다. 요일이 중요하거나 먼 날짜를 고르는 자리는
- * 달력이 맞고(KRDS), 그 판단은 이 레인에서 하지 않는다(착수 문서 §5).
+ * 생년월일처럼 **아는 값을 적는** 자리에서는 이 부품만 쓴다(달력 없음). 요일이 중요하거나 먼
+ * 날짜를 고르는 자리(상담 일시·기한)는 이 부품을 본체로 두고 달력을 옆에 붙인다
+ * (`DatePickerControl`, D48 · ADR-0020) — KRDS 가 그 두 자리를 다르게 지정한다.
  *
  * 제출값은 네이티브와 **글자 그대로 같다**(`YYYY-MM-DD`) — 서버 액션·게이트웨이는 손대지 않는다.
  * 형식이 어긋난 값은 `pattern` 이 화면에서 막고, 서버도 같은 정규식으로 다시 막는다.
@@ -61,11 +74,17 @@ export function DateTextInput({
   id,
   name,
   defaultValue = '',
+  value: controlledValue,
   required = false,
   describedBy,
+  ariaLabel,
+  autoComplete = 'off',
   onValueChange,
 }: DateTextInputProps) {
-  const [value, setValue] = useState(() => formatDateDigits(defaultValue));
+  const [internalValue, setInternalValue] = useState(() => formatDateDigits(defaultValue));
+  // 제어 모드면 부모가 쥔 값을 그대로 그린다. 내부 상태는 그대로 두되 쓰지 않는다 —
+  // 훅 개수를 조건부로 바꿀 수 없기 때문이다(리액트 규칙).
+  const value = controlledValue === undefined ? internalValue : formatDateDigits(controlledValue);
 
   return (
     <input
@@ -73,17 +92,18 @@ export function DateTextInput({
       name={name}
       type="text"
       inputMode="numeric"
-      autoComplete="bday"
+      autoComplete={autoComplete}
       placeholder={DATE_TEXT_PLACEHOLDER}
       maxLength={10}
       required={required}
       pattern="\d{4}-\d{2}-\d{2}"
       title={DATE_TEXT_HINT}
       aria-describedby={describedBy}
+      aria-label={ariaLabel}
       value={value}
       onChange={(event) => {
         const next = formatDateDigits(event.currentTarget.value);
-        setValue(next);
+        if (controlledValue === undefined) setInternalValue(next);
         onValueChange?.(next);
       }}
     />

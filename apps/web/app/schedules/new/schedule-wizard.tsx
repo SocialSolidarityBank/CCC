@@ -7,6 +7,7 @@ import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
 import { ListRow } from '../../components/wire/list-row';
 import { SearchInput } from '../../components/wire/search-input';
+import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire/date-picker-control';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
 import type {
@@ -208,7 +209,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   }
 
   async function goToGoals() {
-    if (selected === null || scheduledAt.trim().length === 0) {
+    if (selected === null || !isCompleteDateTime(scheduledAt)) {
       setError('당사자와 상담 일시를 먼저 선택하세요.');
       return;
     }
@@ -322,24 +323,24 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                     onChange={(kind) => { setSessionKind(kind); setError(null); }}
                     recordHref={intakeRecordHref(selected)}
                   />
-                  <label style={{ display: 'grid', gap: 8 }}>
+                  {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
+                      팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS). */}
+                  <div style={{ display: 'grid', gap: 8 }}>
                     <span style={labelStyle}>상담 일시</span>
-                    <input
-                      type="datetime-local"
-                      aria-label="상담 일시"
+                    <DateTimePickerControl
+                      fieldLabel="상담 일시"
                       value={scheduledAt}
-                      onChange={(event) => setScheduledAt(event.target.value)}
-                      style={inputStyle}
+                      onChange={setScheduledAt}
                     />
-                  </label>
+                  </div>
                 </>
               )}
               <div style={rowActionsStyle}>
-                <WireButton size="large" chevron disabled={busy || selected === null || scheduledAt.trim().length === 0} onClick={goToGoals}>
+                <WireButton size="large" chevron disabled={busy || selected === null || !isCompleteDateTime(scheduledAt)} onClick={goToGoals}>
                   {sessionKind === 'intake' ? '다음: 상담 목표' : '다음: 이번 상담의 목표'}
                 </WireButton>
               </div>
-              {selected === null || scheduledAt.trim().length === 0 ? (
+              {selected === null || !isCompleteDateTime(scheduledAt) ? (
                 <p style={captionStyle}>
                   {selected === null
                     ? '당사자를 선택하세요.'

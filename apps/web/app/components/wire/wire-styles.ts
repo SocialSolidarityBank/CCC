@@ -352,6 +352,47 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .consent-upload-slot-label{color:var(--sub);font-size:14px;font-weight:700}
 /* '준비 중' 은 상태 표시다. 라벤더 = 'AI·승인 대기' 축이라 대기 상태가 그 축에 든다(D34). */
 .consent-upload-slot-state{justify-self:start;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 var(--space-2);border-radius:var(--radius-pill);background:var(--lavender-tint);color:var(--lavender-deep);font-size:12px;font-weight:700}
+/* ── 날짜 선택(D48 · ADR-0020) ──────────────────────────────────────────────
+   새 색·새 반경·새 그림자를 만들지 않는다 — 전부 기존 토큰의 조합이다.
+   팝오버는 모달과 같은 표면 계약(흰 면 · radius 12 · --shadow-soft)이고 쌓임은
+   드롭다운 층(z 30, DESIGN.md §4-5)이다. 테두리에 그라데이션을 두르지 않는다(§5 락). */
+.wire-date-control{position:relative;display:flex;align-items:center;gap:var(--space-2);width:100%}
+.wire-date-control>input{flex:1 1 auto;min-width:0}
+/* 달력 버튼은 입력칸 높이에 맞춘 정사각형이다. 아이콘만 있으므로 접근성 이름은 aria-label 이 준다. */
+.wire-date-toggle{flex:none;display:grid;place-items:center;width:var(--control-height);height:var(--control-height);padding:0;border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub);cursor:pointer}
+.wire-date-toggle:hover{background:var(--muted);color:var(--ink)}
+.wire-date-toggle:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.wire-date-toggle[aria-expanded="true"]{background:var(--blue-tint);color:var(--ink)}
+.wire-date-popover{position:absolute;top:calc(100% + var(--space-2));left:0;z-index:30;display:block;padding:var(--space-3);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow-soft)}
+
+/* react-day-picker 덮어쓰기. 라이브러리 기본 accent 는 파랑 계열 링크색이라 D34 축과 다르다.
+   블루 = '시간·상태' 축이므로 날짜 선택은 블루가 맞다(§1-5). */
+.wire-date-popover .rdp-root{--rdp-accent-color:var(--blue-base);--rdp-accent-background-color:var(--blue-tint);--rdp-day-height:36px;--rdp-day-width:36px;--rdp-font-family:inherit;color:var(--ink)}
+.wire-date-popover .rdp-month_caption{font-size:16px;font-weight:700;color:var(--ink)}
+/* 요일 머리글은 라벨이다 — 14/700 --sub(§2). */
+.wire-date-popover .rdp-weekday{font-size:14px;font-weight:700;color:var(--sub);text-transform:none}
+.wire-date-popover .rdp-day_button{border-radius:var(--radius-control);font-size:14px;color:var(--ink)}
+.wire-date-popover .rdp-day_button:hover{background:var(--muted)}
+.wire-date-popover .rdp-day_button:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* red — 선택일은 **면**을 블루 base 로 칠하고 글자는 --ink 다. --blue-deep 글자는 흰 위 대비
+   2.47 로 WCAG 미달이고(§9 예외는 보조 정보 한정), 날짜는 읽어야 하는 값이다.
+   (이 파일은 자바스크립트 템플릿 문자열이라 주석에 백틱을 쓰면 문자열이 끊긴다.) */
+.wire-date-popover .rdp-selected .rdp-day_button{background:var(--blue-base);color:var(--ink);font-weight:700}
+/* 오늘은 배경 틴트로만 표시한다 — 색만으로 구분하지 않도록 테두리도 함께 준다(KRDS). */
+.wire-date-popover .rdp-today:not(.rdp-selected) .rdp-day_button{background:var(--blue-tint);border:1px solid var(--blue-base)}
+.wire-date-popover .rdp-outside .rdp-day_button{color:var(--sub)}
+.wire-date-popover .rdp-button_previous,.wire-date-popover .rdp-button_next{border-radius:var(--radius-control);color:var(--sub)}
+.wire-date-popover .rdp-button_previous:focus-visible,.wire-date-popover .rdp-button_next:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+
+/* 날짜 + 시각. 좁은 화면에서는 세로로 쌓는다(§4-4 단일 브레이크포인트). */
+.wire-datetime-control{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);width:100%}
+.wire-datetime-control .wire-date-control{flex:1 1 200px}
+.wire-time-input{flex:0 1 130px;min-width:0;height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:16px}
+.wire-time-input:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+@media (max-width:767px){
+  .wire-date-popover{left:auto;right:0}
+}
+
 /* /kit 데모 전용 */
 .wire-kit-section{display:grid;gap:var(--space-4);margin-block:var(--space-10)}
 .wire-kit-heading{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
