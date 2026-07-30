@@ -68,14 +68,14 @@ export function SignupForm({ token }: { token: string }) {
         </div>
       </div>
 
-      {/* 동의 3종(D44) — 자기 가입이 곧 등록이므로 등록 화면(register-form.tsx)과 같은
-          3체크·같은 이름·같은 순서를 쓴다. 여기서는 기록자가 본인이라('self') 문안도
+      {/* 동의 2종(D49) — 자기 가입이 곧 등록이므로 등록 화면(register-form.tsx)과 같은
+          2체크·같은 이름·같은 순서를 쓴다. 여기서는 기록자가 본인이라('self') 문안도
           본인이 직접 읽는다. 미동의여도 가입은 진행된다(D15 미동의 경로). */}
       <fieldset className="consent-fieldset">
         <legend>동의 (항목별, 기본 미동의)</legend>
         <p className="schedule-form-hint">
           동의하신 항목과 일시가 기록됩니다. 개인정보 수집·이용 동의는 가입에 반드시 필요하고,
-          녹음·텍스트 AI 는 동의하지 않아도 가입이 진행됩니다.
+          AI를 활용한 녹취기록은 동의하지 않아도 가입이 진행됩니다.
         </p>
         {/* G1: ① 개인정보 수집·이용 동의는 가입의 하드 게이트다(등록 화면과 같은 규칙).
             긴급 등록 예외는 여기에 두지 않는다 — 사유를 적고 책임질 실무자가 이 화면에 없다. */}
@@ -84,12 +84,8 @@ export function SignupForm({ token }: { token: string }) {
           <span>개인정보 수집·이용 동의 (필수)</span>
         </label>
         <label className="consent-checkbox">
-          <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />
-          <span>녹음·음성 분석 동의</span>
-        </label>
-        <label className="consent-checkbox">
-          <input type="checkbox" className="wire-checkbox" name="consentTextAi" value="on" />
-          <span>텍스트 AI 정리 동의</span>
+          <input type="checkbox" className="wire-checkbox" name="consentRecordingAi" value="on" />
+          <span>AI를 활용한 녹취기록 동의</span>
         </label>
 
         {/* 등록 화면과 같은 문안 상수를 쓴다 — 대행 입력일 때와 본인 입력일 때 읽는 글이

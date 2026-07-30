@@ -39,10 +39,10 @@ async function consentRow(beneficiaryId: string) {
   ).bind(beneficiaryId).first<Record<string, unknown>>();
 }
 
-describe('당사자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
+describe('당사자 등록 동의 기록 (D49 · D23 · 티켓 #19)', () => {
   it('records both consents and mirrors the pipeline gate on support_cases', async () => {
     await t.reset();
-    const creation = await register(counselor, { recording: true, textAi: true });
+    const creation = await register(counselor, { recordingAi: true });
 
     const row = await consentRow(creation.beneficiaryId);
     expect(row).not.toBeNull();
@@ -71,7 +71,7 @@ describe('당사자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
 
   it('allows registration with no consent (D15 미동의 경로) and stores NULL item times', async () => {
     await t.reset();
-    const creation = await register(counselor, { recording: false, textAi: false });
+    const creation = await register(counselor, { recordingAi: false });
 
     const row = await consentRow(creation.beneficiaryId);
     expect(row).not.toBeNull();
@@ -86,19 +86,32 @@ describe('당사자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
     expect(supportCase?.consent_text_ai_at).toBeNull();
   });
 
-  it('supports per-item consent split (recording only)', async () => {
+  // D49: 구 '항목별 분리(녹음만 동의)' 테스트를 대체한다 — 이제 ② 한 체크가 두 컬럼을 함께
+  // 움직이므로 입력으로는 갈린 상태를 만들 수 없다. 갈린 상태가 존재할 수 있는 것은 3종 시절
+  // 데이터뿐이고, 그때의 표시 규칙(둘 중 하나라도 있으면 동의)을 여기서 고정한다.
+  it('reads a legacy 3-item row as consented when only one column is set (D49 표시 규칙)', async () => {
     await t.reset();
-    const creation = await register(counselor, { recording: true, textAi: false });
-    const row = await consentRow(creation.beneficiaryId);
-    expect(row?.consent_recording_at).not.toBeNull();
-    expect(row?.consent_text_ai_at).toBeNull();
+    const creation = await register(counselor, { recordingAi: false });
+    // 3종 시절에만 생길 수 있는 상태: 텍스트 AI 만 동의.
+    await t.db.prepare(
+      'UPDATE support_cases SET consent_text_ai_at = ? WHERE id = ?',
+    ).bind('2026-07-20T00:00:00.000Z', creation.supportCaseId).run();
+
+    const context = await getIntakeRecordContext(t.env, counselor, creation.supportCaseId);
+    expect(context.consent.recordingAi).toBe(true);
+
+    // 다만 녹음 게이트는 표시값이 아니라 컬럼을 직접 본다 — 녹음이 열리지는 않는다.
+    const current = await t.db.prepare(
+      'SELECT consent_recording_at FROM support_cases WHERE id = ?',
+    ).bind(creation.supportCaseId).first<Record<string, unknown>>();
+    expect(current?.consent_recording_at).toBeNull();
   });
 
   it('keeps the participant completion guard intact (exactly 3 provenance audits)', async () => {
     await t.reset();
     // 동의 기록(+record_consent 감사)이 배치에 추가돼도 beneficiaries_complete_guard 를
     // 깨지 않는지 — 완료 전환 시점의 당사자 감사 3건 불변식이 유지되는지 확인한다.
-    const creation = await register(counselor, { recording: true, textAi: true });
+    const creation = await register(counselor, { recordingAi: true });
     const beneficiary = await t.db.prepare(
       'SELECT initialization_state FROM beneficiaries WHERE id = ?',
     ).bind(creation.beneficiaryId).first<{ initialization_state: string }>();
@@ -112,7 +125,7 @@ describe('당사자 등록 동의 기록 (D15 · D23 · 티켓 #19)', () => {
 
   it('is append-only: consent records reject UPDATE and DELETE (D23)', async () => {
     await t.reset();
-    const creation = await register(admin, { recording: true, textAi: true });
+    const creation = await register(admin, { recordingAi: true });
     const row = await consentRow(creation.beneficiaryId);
     const id = row?.id as string;
 
@@ -141,34 +154,33 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     }), t.env);
   }
 
-  it('records the split consent from the registration payload', async () => {
+  it('records the merged consent from the registration payload (D49)', async () => {
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
       intakeAt: INTAKE_AT,
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
       consentPrivacy: true,
-      consentRecording: true,
-      consentTextAi: false,
+      consentRecordingAi: true,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { beneficiaryId: string; supportCaseId: string };
 
     const row = await consentRow(created.beneficiaryId);
-    expect(row?.consent_recording_at).not.toBeNull();
-    expect(row?.consent_text_ai_at).toBeNull();
+    // D49: ② 한 키가 두 컬럼에 같은 시각을 찍는다.
+    expect(row?.consent_recording_at).toBe(row?.recorded_at);
+    expect(row?.consent_text_ai_at).toBe(row?.recorded_at);
     expect(row?.recorded_by).toBe(counselor.userId);
   });
 
-  it('records a decline when the form submits both flags false (D15 미동의 경로)', async () => {
+  it('records a decline when the form submits the merged flag false (D15 미동의 경로)', async () => {
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
       intakeAt: INTAKE_AT,
-      // ②·③ 미동의 경로는 G1 이후에도 불변이다 — 막히는 것은 ① 뿐이다.
+      // ② 미동의 경로는 G1·D49 이후에도 불변이다 — 막히는 것은 ① 뿐이다.
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { beneficiaryId: string };
@@ -194,13 +206,13 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     const response = await register({
       programType: 'financial_support_v1',
       intakeAt: INTAKE_AT,
-      consentRecording: 'yes',
+      consentRecordingAi: 'yes',
     });
     expect(response.status).toBe(400);
   });
 });
 
-describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 (D44)', () => {
+describe('동의 2종 — 등록 저장 · 설정 수정 · 인테이크 읽기 (D44 · D49)', () => {
   async function supportCaseConsent(supportCaseId: string) {
     return t.db.prepare(
       `SELECT consent_privacy_at, consent_recording_at, consent_text_ai_at
@@ -208,41 +220,41 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
     ).bind(supportCaseId).first<Record<string, unknown>>();
   }
 
-  it('stores all three consents at registration', async () => {
+  it('stores both consents at registration (D49)', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: true, textAi: false });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
 
     const row = await consentRow(creation.beneficiaryId);
     expect(row?.consent_privacy_at).toBe(row?.recorded_at);
+    // D49: ② 한 체크가 두 컬럼에 **같은 시각**을 찍는다(insert 가드 정합).
     expect(row?.consent_recording_at).toBe(row?.recorded_at);
-    expect(row?.consent_text_ai_at).toBeNull();
+    expect(row?.consent_text_ai_at).toBe(row?.recorded_at);
 
     // 현재값(support_cases)도 같은 층에서 함께 남는다 — 이력만 남기면 화면이 못 읽는다.
     const current = await supportCaseConsent(creation.supportCaseId);
     expect(current?.consent_privacy_at).toBe(row?.consent_privacy_at);
     expect(current?.consent_recording_at).toBe(row?.consent_recording_at);
-    expect(current?.consent_text_ai_at).toBeNull();
+    expect(current?.consent_text_ai_at).toBe(row?.consent_text_ai_at);
   });
 
   // G1 이 이 자리의 계약을 대체했다: ① 를 비운 채로는 등록이 성립하지 않는다.
   // 게이트 전체(긴급 예외 포함)는 consent-privacy-gate.test.ts 가 고정한다.
   it('refuses to register without the privacy consent (G1)', async () => {
     await t.reset();
-    await expect(register(counselor, { privacy: false, recording: true, textAi: true }))
+    await expect(register(counselor, { privacy: false, recordingAi: true }))
       .rejects.toThrow('privacy_consent_required');
   });
 
   it('updates and revokes from the participant settings page, appending history + audit', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: true, textAi: true });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
 
     // 철회: 개인정보만 남기고 둘을 해제한다.
     const updated = await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
       privacy: true,
-      recording: false,
-      textAi: false,
+      recordingAi: false,
     });
-    expect(updated).toMatchObject({ privacy: true, recording: false, textAi: false });
+    expect(updated).toMatchObject({ privacy: true, recordingAi: false });
 
     const current = await supportCaseConsent(creation.supportCaseId);
     expect(current?.consent_privacy_at).not.toBeNull();
@@ -267,8 +279,7 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
     const details = audits.results.map((row) => JSON.parse(row.detail) as Record<string, unknown>);
     expect(details).toContainEqual(expect.objectContaining({
       privacy: true,
-      recording: false,
-      textAi: false,
+      recordingAi: false,
       kind: 'update',
     }));
   });
@@ -277,10 +288,10 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
     await t.reset();
     // ① 이 비어 있는 케이스는 이제 긴급 등록으로만 생긴다(G1). 그 상태에서 보완하는 흐름이다.
     const creation = await register(counselor, {
-      privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' },
+      privacy: false, recordingAi: false, emergency: { reason: '위기 개입' },
     });
     await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
-      privacy: true, recording: true, textAi: true,
+      privacy: true, recordingAi: true,
     });
     const current = await supportCaseConsent(creation.supportCaseId);
     expect(current?.consent_privacy_at).not.toBeNull();
@@ -290,23 +301,23 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
 
   it('shows the stored values on the read-only intake first step', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: false, textAi: true });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
     const context = await getIntakeRecordContext(t.env, counselor, creation.supportCaseId);
-    expect(context.consent).toEqual({ privacy: true, recording: false, textAi: true });
+    expect(context.consent).toEqual({ privacy: true, recordingAi: true });
 
     // 철회가 화면에 반영된다 — 이력에서 "동의한 행"만 고르면 철회가 영영 보이지 않았다.
     await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
-      privacy: false, recording: false, textAi: false,
+      privacy: false, recordingAi: false,
     });
     const after = await getIntakeRecordContext(t.env, counselor, creation.supportCaseId);
-    expect(after.consent).toEqual({ privacy: false, recording: false, textAi: false });
+    expect(after.consent).toEqual({ privacy: false, recordingAi: false });
   });
 
   it('rejects an edit by a counselor who is not assigned to the case', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: true, textAi: true });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
     await expect(updateParticipantConsent(t.env, unassignedCounselor, creation.supportCaseId, {
-      privacy: false, recording: false, textAi: false,
+      privacy: false, recordingAi: false,
     })).rejects.toBeInstanceOf(ForbiddenError);
 
     // 거부된 시도는 값을 바꾸지 않는다.
@@ -317,23 +328,23 @@ describe('동의 3종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
   it('lets an org admin edit consent (등록과 같은 권한 층)', async () => {
     await t.reset();
     const creation = await register(counselor, {
-      privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' },
+      privacy: false, recordingAi: false, emergency: { reason: '위기 개입' },
     });
     const updated = await updateParticipantConsent(t.env, admin, creation.supportCaseId, {
-      privacy: true, recording: false, textAi: false,
+      privacy: true, recordingAi: false,
     });
     expect(updated.privacy).toBe(true);
   });
 
   it('rejects a non-boolean consent value', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: true, textAi: true });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
     await expect(updateParticipantConsent(
       t.env,
       counselor,
       creation.supportCaseId,
-      { privacy: 'yes', recording: false, textAi: false } as unknown as {
-        privacy: boolean; recording: boolean; textAi: boolean;
+      { privacy: 'yes', recordingAi: false } as unknown as {
+        privacy: boolean; recordingAi: boolean;
       },
     )).rejects.toThrow();
   });
@@ -347,7 +358,7 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
 
     const ok = await worker.fetch(new Request(
@@ -355,18 +366,18 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
       {
         method: 'PUT',
         headers: headersFor(counselor),
-        body: JSON.stringify({ privacy: true, recording: true, textAi: false }),
+        body: JSON.stringify({ privacy: true, recordingAi: true }),
       },
     ), t.env);
     expect(ok.status).toBe(200);
-    await expect(ok.json()).resolves.toMatchObject({ privacy: true, recording: true, textAi: false });
+    await expect(ok.json()).resolves.toMatchObject({ privacy: true, recordingAi: true });
 
     const denied = await worker.fetch(new Request(
       `http://localhost/support-cases/${creation.supportCaseId}/consent`,
       {
         method: 'PUT',
         headers: headersFor(unassignedCounselor),
-        body: JSON.stringify({ privacy: false, recording: false, textAi: false }),
+        body: JSON.stringify({ privacy: false, recordingAi: false }),
       },
     ), t.env);
     expect(denied.status).toBe(403);
@@ -374,9 +385,9 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
 
   it('keeps a recorded timestamp after a full revocation (기록 시각이지 동의 시각이 아니다)', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: true, textAi: true });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
     await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
-      privacy: false, recording: false, textAi: false,
+      privacy: false, recordingAi: false,
     });
 
     const response = await worker.fetch(new Request(
@@ -385,17 +396,17 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
     ), t.env);
     expect(response.status).toBe(200);
     const programs = await response.json() as Array<{
-      consent: { privacy: boolean; recording: boolean; textAi: boolean };
+      consent: { privacy: boolean; recordingAi: boolean };
       consentRecordedAt: string | null;
     }>;
-    expect(programs[0]?.consent).toEqual({ privacy: false, recording: false, textAi: false });
+    expect(programs[0]?.consent).toEqual({ privacy: false, recordingAi: false });
     // 동의 시각에서 역산했다면 여기가 null 이 된다 — 방금 남긴 철회 기록이 사라져 보인다.
     expect(programs[0]?.consentRecordedAt).not.toBeNull();
   });
 
-  it('rejects a partial payload — the three values always travel together', async () => {
+  it('rejects a partial payload — the two values always travel together', async () => {
     await t.reset();
-    const creation = await register(counselor, { privacy: true, recording: true, textAi: true });
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
     const response = await worker.fetch(new Request(
       `http://localhost/support-cases/${creation.supportCaseId}/consent`,
       { method: 'PUT', headers: headersFor(counselor), body: JSON.stringify({ privacy: false }) },

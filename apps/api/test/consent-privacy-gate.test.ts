@@ -38,7 +38,8 @@ function headersFor(actor: { userId: string; orgId: string; role: string }): Rec
 
 async function supportCaseRow(supportCaseId: string) {
   return t.db.prepare(
-    `SELECT consent_privacy_at, emergency_registration_at, emergency_registration_reason,
+    `SELECT consent_privacy_at, consent_recording_at, consent_text_ai_at,
+            emergency_registration_at, emergency_registration_reason,
             consent_privacy_due_at
      FROM support_cases WHERE id = ?`,
   ).bind(supportCaseId).first<Record<string, unknown>>();
@@ -52,7 +53,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false },
+      { privacy: false, recordingAi: false },
     )).rejects.toBeInstanceOf(PrivacyConsentRequiredError);
 
     // 거부는 아무것도 남기지 않는다 — 반쯤 만들어진 당사자가 남으면 게이트가 무의미해진다.
@@ -68,7 +69,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: true, recording: false, textAi: false },
+      { privacy: true, recordingAi: false },
     );
     const row = await supportCaseRow(creation.supportCaseId);
     expect(row?.consent_privacy_at).not.toBeNull();
@@ -83,7 +84,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입 — 서면 동의 전 등록' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입 — 서면 동의 전 등록' } },
     );
 
     const row = await supportCaseRow(creation.supportCaseId);
@@ -112,7 +113,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '   ' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '   ' } },
     )).rejects.toBeInstanceOf(EmergencyReasonRequiredError);
   });
 
@@ -123,7 +124,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: true, recording: false, textAi: false, emergency: { reason: '사유' } },
+      { privacy: true, recordingAi: false, emergency: { reason: '사유' } },
     )).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -162,7 +163,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: true, recording: false, textAi: false },
+      { privacy: true, recordingAi: false },
     );
   }
 
@@ -206,6 +207,49 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     expect(row?.recorded_by).toBe(counselor.userId);
   });
 
+  // D49: 이 인자가 생기기 전에는 두 번째 사업에서 ② 를 기록할 API 경로가 아예 없었다.
+  it('② AI를 활용한 녹취기록 동의를 두 번째 사업에서 함께 받는다 (D49)', async () => {
+    await t.reset();
+    const initial = await initialCase();
+    const second = await createSupportCase(t.env, counselor, initial.beneficiaryId, {
+      schemaVersion: 1,
+      submissionId: '44444444-4444-4444-8444-444444444444',
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-17T09:00:00.000Z',
+      sourceSupportCaseId: initial.supportCaseId,
+      consentPrivacy: true,
+      consentRecordingAi: true,
+    });
+
+    // 현재값과 이력 행 양쪽에 두 컬럼이 같은 시각으로 남는다(insert 가드 정합).
+    const current = await supportCaseRow(second.supportCaseId);
+    expect(current?.consent_recording_at).not.toBeNull();
+    expect(current?.consent_text_ai_at).toBe(current?.consent_recording_at);
+
+    const row = await t.db.prepare(
+      `SELECT consent_privacy_at, consent_recording_at, consent_text_ai_at, recorded_at
+       FROM participant_consent_records WHERE support_case_id = ?`,
+    ).bind(second.supportCaseId).first<Record<string, unknown>>();
+    expect(row?.consent_recording_at).toBe(row?.recorded_at);
+    expect(row?.consent_text_ai_at).toBe(row?.recorded_at);
+  });
+
+  it('② 를 보내지 않으면 미동의로 시작한다 — ② 는 게이트가 아니다 (D49)', async () => {
+    await t.reset();
+    const initial = await initialCase();
+    const second = await createSupportCase(t.env, counselor, initial.beneficiaryId, {
+      schemaVersion: 1,
+      submissionId: '55555555-5555-4555-8555-555555555555',
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-17T09:00:00.000Z',
+      sourceSupportCaseId: initial.supportCaseId,
+      consentPrivacy: true,
+    });
+    const row = await supportCaseRow(second.supportCaseId);
+    expect(row?.consent_recording_at).toBeNull();
+    expect(row?.consent_text_ai_at).toBeNull();
+  });
+
   it('긴급 등록이면 사유·기한이 두 번째 사업에도 남는다', async () => {
     await t.reset();
     const initial = await initialCase();
@@ -232,7 +276,7 @@ describe('① 하드 게이트 — 자기 가입 (G1 · 긴급 예외 없음)', 
     await expect(completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { privacy: false, recording: false, textAi: false },
+      consent: { privacy: false, recordingAi: false },
     })).rejects.toBeInstanceOf(PrivacyConsentRequiredError);
 
     // 토큰은 소비되지 않는다 — 거부된 제출이 링크를 태워 버리면 당사자가 다시 가입할 수 없다.
@@ -247,7 +291,7 @@ describe('① 하드 게이트 — 자기 가입 (G1 · 긴급 예외 없음)', 
     await expect(completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { privacy: false, recording: false, textAi: false, emergency: { reason: '급함' } },
+      consent: { privacy: false, recordingAi: false, emergency: { reason: '급함' } },
     })).rejects.toBeInstanceOf(ValidationError);
   });
 });
@@ -260,14 +304,14 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: true, recording: false, textAi: false },
+      { privacy: true, recordingAi: false },
     );
     const urgent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
 
     const pending = await listPrivacyConsentFollowUps(t.env, counselor);
@@ -279,7 +323,7 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
     expect(pending.some((item) => item.supportCaseId === consented.supportCaseId)).toBe(false);
 
     await updateParticipantConsent(t.env, counselor, urgent.supportCaseId, {
-      privacy: true, recording: false, textAi: false,
+      privacy: true, recordingAi: false,
     });
     await expect(listPrivacyConsentFollowUps(t.env, counselor)).resolves.toEqual([]);
   });
@@ -291,7 +335,7 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
       admin,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT, initialAssigneeUserId: admin.userId },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
     // 방금 만든 건의 기한은 14일 뒤라 '임박(3일)'에도 '경과'에도 들지 않는다 — 알림이
     // 등록 즉시 울리지 않는다는 것이 여기서 고정하는 계약이다(기한 컬럼은 0028 로 불변이라
@@ -310,7 +354,7 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
       counselor,
       { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
     const response = await worker.fetch(new Request('http://localhost/consent/follow-ups', {
       method: 'GET',

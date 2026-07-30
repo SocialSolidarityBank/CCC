@@ -7,7 +7,7 @@ import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '..
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
-function renderWizard(consent = { privacy: true, recording: true, textAi: true }) {
+function renderWizard(consent = { privacy: true, recordingAi: true }) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
@@ -105,7 +105,7 @@ describe('IntakeWizard', () => {
   });
 
   it('1단계 기본정보와 동의는 읽기 전용이다 — 입력 칸이 없다', () => {
-    const { container } = renderWizard({ privacy: true, recording: false, textAi: false });
+    const { container } = renderWizard({ privacy: true, recordingAi: false });
     const scoped = within(container);
 
     const basic = scoped.getByTestId('intake-basic-info');
@@ -124,7 +124,7 @@ describe('IntakeWizard', () => {
 
   // CCC-37: 1-1 의 '수정' 링크는 기본정보 수정 화면으로 간다. 동의 링크(허브)와 목적지가 다르다.
   it('1-1 기본정보 수정 링크는 기본정보 수정 화면을 가리킨다', () => {
-    const { container } = renderWizard({ privacy: true, recording: false, textAi: false });
+    const { container } = renderWizard({ privacy: true, recordingAi: false });
     const scoped = within(container);
     const basicEdit = within(scoped.getByTestId('intake-basic-info'))
       .getByText('당사자 등록 정보에서 수정') as HTMLAnchorElement;

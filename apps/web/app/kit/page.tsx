@@ -220,11 +220,11 @@ export default function KitPage() {
           <div className="wire-kit-stack">
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" defaultChecked />
-              녹음·음성 분석 동의
+              AI를 활용한 녹취기록 동의
             </label>
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" />
-              텍스트 AI 정리 동의
+              개인정보 수집·이용 동의
             </label>
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" data-tone="risk" defaultChecked />

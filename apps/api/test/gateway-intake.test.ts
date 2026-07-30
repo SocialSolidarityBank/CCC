@@ -106,7 +106,7 @@ describe('createIntakeRecord', () => {
       'SELECT COUNT(*) AS count FROM action_items WHERE session_id = ? AND resolved_at IS NULL',
     ).bind(result.record.id).first<{ count: number }>()).resolves.toEqual({ count: 1 });
 
-    // Consent row: privacy + recording + textAi all bound to recorded_at.
+    // Consent row: privacy + recordingAi(두 컬럼 동시, D49) all bound to recorded_at.
     const consent = await t.db.prepare(
       `SELECT consent_privacy_at, consent_recording_at, consent_text_ai_at, recorded_at
        FROM participant_consent_records WHERE support_case_id = ?
@@ -573,21 +573,20 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
       canonicalActors.counselor,
       { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
-      { privacy: false, recording: false, textAi: false, emergency: { reason: '위기 개입' } },
+      { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
     const before = await getIntakeRecordContext(t.env, canonicalActors.counselor, withoutConsent.supportCaseId);
-    expect(before.consent).toEqual({ privacy: false, recording: false, textAi: false });
+    expect(before.consent).toEqual({ privacy: false, recordingAi: false });
 
     const withConsent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
       { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
-      { privacy: true, recording: true, textAi: true },
+      { privacy: true, recordingAi: true },
     );
     const after = await getIntakeRecordContext(t.env, canonicalActors.counselor, withConsent.supportCaseId);
-    expect(after.consent.recording).toBe(true);
-    expect(after.consent.textAi).toBe(true);
+    expect(after.consent.recordingAi).toBe(true);
     expect(after.consent.privacy).toBe(true);
 
     const withPrivacy = await createBeneficiaryWithInitialSupportCase(
@@ -595,10 +594,10 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
       canonicalActors.counselor,
       { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
-      { privacy: true, recording: false, textAi: false },
+      { privacy: true, recordingAi: false },
     );
     const privacyContext = await getIntakeRecordContext(t.env, canonicalActors.counselor, withPrivacy.supportCaseId);
-    expect(privacyContext.consent).toEqual({ privacy: true, recording: false, textAi: false });
+    expect(privacyContext.consent).toEqual({ privacy: true, recordingAi: false });
   });
 });
 

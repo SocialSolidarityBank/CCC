@@ -652,7 +652,7 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
 /**
  * 동의 3종 수정·철회 (D44). 당사자 정보 페이지의 참여 사업 카드마다 붙는다.
  *
- * 체크박스는 체크됐을 때만 폼에 실리므로(checkbox 헬퍼) 미체크는 곧 철회다 — 세 값을
+ * 체크박스는 체크됐을 때만 폼에 실리므로(checkbox 헬퍼) 미체크는 곧 철회다 — 두 값을
  * 언제나 함께 보내 서버가 현재 상태 전체를 한 행으로 기록하게 한다(append-only 이력, D14).
  * 권한(담당 실무자·기관 관리자)은 게이트웨이가 판정한다 — 화면에서 다시 판정하지 않는다.
  */
@@ -663,8 +663,7 @@ export async function updateParticipantConsentAction(formData: FormData): Promis
     const supportCaseId = requiredValue(formData, 'supportCaseId');
     await updateParticipantConsent(supportCaseId, {
       privacy: checkbox(formData, 'consentPrivacy'),
-      recording: checkbox(formData, 'consentRecording'),
-      textAi: checkbox(formData, 'consentTextAi'),
+      recordingAi: checkbox(formData, 'consentRecordingAi'),
     });
     revalidateParticipantProgram(beneficiaryId, supportCaseId);
   } catch (error) {
@@ -795,11 +794,10 @@ export async function createInitialParticipantProgramAction(formData: FormData):
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
-      // 항목별 동의 3종(D15·D23·D44): ② ③ 은 기본 미체크이고 미동의여도 등록은 진행된다.
+      // 항목별 동의 2종(D49·D23·D44): ② 는 기본 미체크이고 미동의여도 등록은 진행된다.
       // ① 은 하드 게이트다(G1) — 미체크면 긴급 등록 사유가 있어야 서버가 받아 준다.
       consentPrivacy: checkbox(formData, 'consentPrivacy'),
-      consentRecording: checkbox(formData, 'consentRecording'),
-      consentTextAi: checkbox(formData, 'consentTextAi'),
+      consentRecordingAi: checkbox(formData, 'consentRecordingAi'),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
       ...(identity.role === 'admin' ? { initialAssigneeUserId: identity.id } : {}),
       // 등록 폼의 이름·연락처·이메일을 금고에 저장한다(#37 보완, 계좌만 이후 updateParticipantPii).
@@ -845,7 +843,9 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
       programType: 'financial_support_v1',
       intakeAt: canonicalUtcDateTime(formData, 'intakeAt'),
       sourceSupportCaseId: opaqueId(formData, 'sourceSupportCaseId'),
+      // D49: 두 번째 참여 사업도 2종을 여기서 받는다 — 전에는 ② 를 보낼 경로가 없었다.
       consentPrivacy: checkbox(formData, 'consentPrivacy'),
+      consentRecordingAi: checkbox(formData, 'consentRecordingAi'),
       ...(emergencyReason === undefined ? {} : { emergencyReason }),
     });
     supportCaseId = created.supportCaseId;
@@ -971,13 +971,12 @@ export async function signupParticipantAction(formData: FormData): Promise<Parti
   const name = requiredValue(formData, 'name');
   const phone = formData.get('phone');
   const email = formData.get('email');
-  // 항목별 동의 3종(D44): 등록 화면과 같은 체크박스 이름·순서. ① 은 하드 게이트라
+  // 항목별 동의 2종(D49): 등록 화면과 같은 체크박스 이름·순서. ① 은 하드 게이트라
   // 미체크면 서버가 privacy_consent_required 로 되돌린다(G1 — 자기 가입에는 긴급 예외가 없다).
-  // ② ③ 은 기본 미체크이고 미동의여도 가입은 진행된다(D15).
+  // ② 는 기본 미체크이고 미동의여도 가입은 진행된다(D15).
   const consent = {
     privacy: checkbox(formData, 'consentPrivacy'),
-    recording: checkbox(formData, 'consentRecording'),
-    textAi: checkbox(formData, 'consentTextAi'),
+    recordingAi: checkbox(formData, 'consentRecordingAi'),
   };
   try {
     const result = await signupParticipant({

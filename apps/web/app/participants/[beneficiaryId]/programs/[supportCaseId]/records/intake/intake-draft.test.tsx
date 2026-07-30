@@ -36,7 +36,7 @@ function renderWizard(extendedPii = VAULT_PII) {
       submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
       participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
       extendedPii={extendedPii}
-      consent={{ privacy: true, recording: true, textAi: true }}
+      consent={{ privacy: true, recordingAi: true }}
       sessionSequence={1}
       recorderLabel="이지은"
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"

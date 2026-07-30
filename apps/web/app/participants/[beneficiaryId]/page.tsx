@@ -99,14 +99,13 @@ function AssigneeLine({ names }: { names: string[] }) {
   );
 }
 
-// D44: 동의 3종은 등록 때 받고 **여기서 고친다**(인테이크는 읽기만). 담고 있는 값은
+// D44: 동의 2종(D49)은 등록 때 받고 **여기서 고친다**(인테이크는 읽기만). 담고 있는 값은
 // 이 참여 사업의 현재 상태이고, 저장하면 게이트웨이가 append-only 이력에 새 행을 남긴다
 // (철회도 이력으로 남는다, D14·D23). 담당하지 않는 사업에는 이 블록을 그리지 않는다 —
 // D36 은 존재와 담당 실무자까지만 보여 주자는 결정이지 쓰기 권한을 넓힌 것이 아니다.
 const CONSENT_ITEMS = [
   { name: 'consentPrivacy', label: '개인정보 수집·이용 동의', key: 'privacy' },
-  { name: 'consentRecording', label: '녹음·음성 분석 동의', key: 'recording' },
-  { name: 'consentTextAi', label: '텍스트 AI 정리 동의', key: 'textAi' },
+  { name: 'consentRecordingAi', label: 'AI를 활용한 녹취기록 동의', key: 'recordingAi' },
 ] as const;
 
 /** 마지막으로 동의 상태를 기록한 시각. 최초 동의일이 아니다 — 저장할 때마다 갱신된다. */
@@ -118,7 +117,9 @@ function formatConsentRecordedAt(value: string | null): string {
     .format(date);
 }
 
-function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
+// 테스트에서 직접 렌더한다 — 체크박스 `name` 이 서버 액션이 읽는 키와 어긋나면 오류가 아니라
+// **조용한 철회**가 저장된다(checkbox 헬퍼는 키가 없으면 false 다). 그래서 이름을 DOM 으로 고정한다.
+export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
   return (
     <form className="participant-program-consent" action={updateParticipantConsentAction}>
       <input type="hidden" name="beneficiaryId" value={beneficiaryId} />

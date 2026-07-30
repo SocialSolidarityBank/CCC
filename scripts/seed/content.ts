@@ -75,7 +75,8 @@ export interface SeedParticipant {
   email: string;
   assigneeUserId: string;
   intakeAt: string;
-  consent: { recording: boolean; textAi: boolean };
+  // D49: 동의 2종 — ② AI를 활용한 녹취기록(구 녹음 + 텍스트 AI 를 합침).
+  consent: { recordingAi: boolean };
   trajectory: Trajectory;
   goals: SeedGoal[];
   intakeMemo: string;
@@ -129,7 +130,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 1 (ai00, improving, 목표2, 정기3, 미래일정) ──────────────────────────────
   {
     name: '김서준', phone: phone(1), email: email(1), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 4, 13), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 4, 13), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'repay', title: '월 상환액 20만원을 3개월 연속 납부한다' },
       { key: 'ledger', title: '주 1회 매출 장부를 기록한다' },
@@ -149,7 +150,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 2 (ai00, plateau, 목표1, 정기2, resolvedActions2, 미래일정) ───────────────
   {
     name: '이하은', phone: phone(2), email: email(2), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 5, 11), consent: { recording: true, textAi: true }, trajectory: 'plateau',
+    intakeAt: iso(2026, 5, 11), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [{ key: 'attend', title: '멘토링에 월 2회 참석한다' }],
     intakeMemo: '온라인 판매를 준비 중이나 어디서부터 손대야 할지 막막해한다. 멘토링을 통해 실행 순서를 잡는 것을 첫 목표로 삼았다.',
     regulars: [
@@ -165,7 +166,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 3 (ai00, improving, 목표3, 정기4, 목표교체 afterSession2, 미래일정) ─────────
   {
     name: '박도윤', phone: phone(3), email: email(3), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 4, 6), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 4, 6), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'repay', title: '월 상환액 15만원을 정기 납부한다' },
       { key: 'save', title: '비상금 50만원을 적립한다' },
@@ -187,7 +188,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 4 (ai00, decline, 목표2, 정기2, 인라인액션·플래그 debt) ─────────────────────
   {
     name: '최시우', phone: phone(4), email: email(4), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 5, 13), consent: { recording: true, textAi: true }, trajectory: 'decline',
+    intakeAt: iso(2026, 5, 13), consent: { recordingAi: true }, trajectory: 'decline',
     goals: [
       { key: 'repay', title: '카드 리볼빙 잔액을 매달 10만원씩 줄인다' },
       { key: 'budget', title: '주간 생활비 예산을 세워 지킨다' },
@@ -205,7 +206,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 5 (ai00, improving, 목표2, 정기3, resolvedAction1, 미래일정) ────────────────
   {
     name: '정예은', phone: phone(5), email: email(5), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 4, 15), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 4, 15), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'sales', title: '월 매출 200만원을 안정적으로 유지한다' },
       { key: 'save', title: '매달 10만원을 비상금으로 적립한다' },
@@ -222,7 +223,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 6 (ai00, plateau, 목표1, 정기1, 인라인액션) ────────────────────────────────
   {
     name: '강지호', phone: phone(6), email: email(6), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 6, 15), consent: { recording: true, textAi: true }, trajectory: 'plateau',
+    intakeAt: iso(2026, 6, 15), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [{ key: 'ledger', title: '매일 지출을 기록해 새는 돈을 파악한다' }],
     intakeMemo: '배달 일과 단기 아르바이트를 병행하며 수입이 들쭉날쭉하다. 우선 지출 파악부터 시작하기로 했다.',
     regulars: [
@@ -235,7 +236,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 7 (ai00, mixed, 목표2, 정기2, 텍스트만 동의, 인라인액션) ────────────────────
   {
     name: '윤채원', phone: phone(7), email: email(7), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: iso(2026, 5, 18), consent: { recording: false, textAi: true }, trajectory: 'mixed',
+    intakeAt: iso(2026, 5, 18), consent: { recordingAi: true }, trajectory: 'mixed',
     goals: [
       { key: 'repay', title: '소상공인 대출 원금을 매달 상환한다' },
       { key: 'mentor', title: '경영 멘토링을 월 2회 이수한다' },
@@ -252,7 +253,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 8 (counselor01, improving, 목표3, 정기3, 미래일정) ───────────────────────────
   {
     name: '임하준', phone: phone(8), email: email(8), assigneeUserId: COUNSELOR_IDS.counselor01,
-    intakeAt: iso(2026, 4, 20), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 4, 20), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'repay', title: '월 상환액 25만원을 정기 납부한다' },
       { key: 'save', title: '비상금 30만원을 적립한다' },
@@ -269,7 +270,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 9 (counselor01, decline, 목표2, 정기4, 목표교체 afterSession1, 인라인플래그 contact) ──
   {
     name: '한서연', phone: phone(9), email: email(9), assigneeUserId: COUNSELOR_IDS.counselor01,
-    intakeAt: iso(2026, 4, 8), consent: { recording: true, textAi: true }, trajectory: 'decline',
+    intakeAt: iso(2026, 4, 8), consent: { recordingAi: true }, trajectory: 'decline',
     goals: [
       { key: 'repay', title: '연체된 통신·공과금을 3개월 내 정리한다' },
       { key: 'income', title: '주 20시간 이상 안정적으로 근로한다' },
@@ -292,7 +293,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 10 (counselor02, improving, 목표2, 정기2, 인라인액션, 미래일정) ────────────────────
   {
     name: '오지안', phone: phone(10), email: email(10), assigneeUserId: COUNSELOR_IDS.counselor02,
-    intakeAt: iso(2026, 5, 20), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 5, 20), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'sales', title: '주말 플리마켓 매출을 월 4회 기록한다' },
       { key: 'save', title: '매출의 10%를 적립한다' },
@@ -311,7 +312,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 11 (counselor02, plateau, 목표1, 정기1, 텍스트만 동의, 인라인액션) ─────────────────
   {
     name: '서유나', phone: phone(11), email: email(11), assigneeUserId: COUNSELOR_IDS.counselor02,
-    intakeAt: iso(2026, 6, 17), consent: { recording: false, textAi: true }, trajectory: 'plateau',
+    intakeAt: iso(2026, 6, 17), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [{ key: 'repay', title: '카드 대금을 매달 정액 상환한다' }],
     intakeMemo: '프리랜서 디자인 수입이 불규칙해 카드 대금 관리가 어렵다. 정액 상환 습관을 목표로 삼았고 녹음은 원치 않아 수기로 진행한다.',
     regulars: [
@@ -324,7 +325,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 12 (counselor03, plateau, 목표3, 정기3, 목표교체 afterSession1) ────────────────────
   {
     name: '신건우', phone: phone(12), email: email(12), assigneeUserId: COUNSELOR_IDS.counselor03,
-    intakeAt: iso(2026, 4, 22), consent: { recording: true, textAi: true }, trajectory: 'plateau',
+    intakeAt: iso(2026, 4, 22), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [
       { key: 'repay', title: '사업자 대출을 월 20만원씩 상환한다' },
       { key: 'ledger', title: '일 매출·매입을 매일 기록한다' },
@@ -344,7 +345,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 13 (counselor03, mixed, 목표2, 정기2, 미동의, 독립 플래그 repeated) ────────────────
   {
     name: '조민서', phone: phone(13), email: email(13), assigneeUserId: COUNSELOR_IDS.counselor03,
-    intakeAt: iso(2026, 5, 25), consent: { recording: false, textAi: false }, trajectory: 'mixed',
+    intakeAt: iso(2026, 5, 25), consent: { recordingAi: false }, trajectory: 'mixed',
     goals: [
       { key: 'repay', title: '월 상환 계획을 세워 지킨다' },
       { key: 'attend', title: '재무 상담에 격주로 참석한다' },
@@ -359,7 +360,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 14 (counselor04, improving, 목표2, 정기3, 인라인액션, 미래일정) ────────────────
   {
     name: '권하율', phone: phone(14), email: email(14), assigneeUserId: COUNSELOR_IDS.counselor04,
-    intakeAt: iso(2026, 4, 27), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 4, 27), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'sales', title: '월 매출 목표 150만원을 달성한다' },
       { key: 'ledger', title: '주간 손익을 기록해 점검한다' },
@@ -379,7 +380,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 15 (counselor04, plateau, 목표1, 정기1, 텍스트만 동의) ────────────────────────
   {
     name: '배시윤', phone: phone(15), email: email(15), assigneeUserId: COUNSELOR_IDS.counselor04,
-    intakeAt: iso(2026, 6, 22), consent: { recording: false, textAi: true }, trajectory: 'plateau',
+    intakeAt: iso(2026, 6, 22), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [{ key: 'budget', title: '월 고정지출을 정리해 예산 안에서 생활한다' }],
     intakeMemo: '소규모 세탁 대행업을 하며 고정지출 관리가 어렵다. 예산 수립과 준수를 목표로 삼았다. 녹음은 원치 않아 수기로 진행한다.',
     regulars: [
@@ -389,7 +390,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 16 (counselor05, improving, 목표2, 정기2, resolvedAction1) ───────────────────
   {
     name: '남주원', phone: phone(16), email: email(16), assigneeUserId: COUNSELOR_IDS.counselor05,
-    intakeAt: iso(2026, 5, 27), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 5, 27), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [
       { key: 'repay', title: '소액 대출 잔액을 6개월 내 절반으로 줄인다' },
       { key: 'save', title: '매달 5만원을 비상금으로 적립한다' },
@@ -404,7 +405,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 17 (counselor05, mixed, 목표2, 정기2, 미동의, 인라인플래그 housing) ───────────
   {
     name: '문가온', phone: phone(17), email: email(17), assigneeUserId: COUNSELOR_IDS.counselor05,
-    intakeAt: iso(2026, 6, 1), consent: { recording: false, textAi: false }, trajectory: 'mixed',
+    intakeAt: iso(2026, 6, 1), consent: { recordingAi: false }, trajectory: 'mixed',
     goals: [
       { key: 'income', title: '주 3일 이상 안정적으로 일한다' },
       { key: 'budget', title: '월세와 생활비 예산을 분리해 관리한다' },
@@ -421,7 +422,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 18 (박은영 virtual, improving, 목표1, 정기1, 미래일정) ──────────────────────
   {
     name: '유서아', phone: phone(18), email: email(18), assigneeUserId: VIRTUAL_COUNSELORS[0].userId,
-    intakeAt: iso(2026, 6, 24), consent: { recording: true, textAi: true }, trajectory: 'improving',
+    intakeAt: iso(2026, 6, 24), consent: { recordingAi: true }, trajectory: 'improving',
     goals: [{ key: 'sales', title: '첫 3개월 내 월 매출 100만원을 만든다' }],
     intakeMemo: '홈베이킹 소량 판매를 막 시작했다. 초기 매출 기반을 만드는 것을 첫 목표로 삼았다.',
     regulars: [
@@ -432,7 +433,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 19 (정민철 virtual, plateau, 목표2, 정기2) ─────────────────────────────────
   {
     name: '고라온', phone: phone(19), email: email(19), assigneeUserId: VIRTUAL_COUNSELORS[1].userId,
-    intakeAt: iso(2026, 6, 3), consent: { recording: true, textAi: true }, trajectory: 'plateau',
+    intakeAt: iso(2026, 6, 3), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [
       { key: 'repay', title: '생활비 대출을 매달 정액 상환한다' },
       { key: 'ledger', title: '가계부를 매주 정리한다' },
@@ -446,7 +447,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 20 (오하늘 virtual, decline, 목표1, 정기1, 미동의, 인라인액션) ──────────────
   {
     name: '진하윤', phone: phone(20), email: email(20), assigneeUserId: VIRTUAL_COUNSELORS[2].userId,
-    intakeAt: iso(2026, 7, 10), consent: { recording: false, textAi: false }, trajectory: 'decline',
+    intakeAt: iso(2026, 7, 10), consent: { recordingAi: false }, trajectory: 'decline',
     goals: [{ key: 'income', title: '월 소득 100만원 이상을 회복한다' }],
     intakeMemo: '녹음·텍스트 AI 모두 원치 않아 수기 기록으로 진행한다. 실직 후 소득 회복을 첫 목표로 삼았다.',
     regulars: [

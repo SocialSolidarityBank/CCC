@@ -38,8 +38,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       email: 'participant@example.test',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
@@ -62,8 +61,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       email: 'named@example.test',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
@@ -84,8 +82,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       name: '   ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(400);
   });
@@ -98,8 +95,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       email: '  spaced@example.test  ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
@@ -115,8 +111,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       email: 'not-an-email',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(400);
   });
@@ -129,8 +124,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       email: '   ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(400);
   });
@@ -142,8 +136,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
       intakeAt: INTAKE_AT,
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
-      consentRecording: false,
-      consentTextAi: false,
+      consentRecordingAi: false,
     });
     expect(response.status).toBe(201);
     const created = await response.json() as { supportCaseId: string };
