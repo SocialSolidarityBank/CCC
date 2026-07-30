@@ -9,6 +9,7 @@ import '../../../design/tokens.css';
 // 덮어쓴다 — 이 파일은 격자 배치·숨김 규칙처럼 덮으면 안 되는 뼈대만 제공한다.
 import 'react-day-picker/style.css';
 import { AppSidebar } from './components/wire/app-sidebar';
+import { BackLink } from './components/wire/back-link';
 import { getDisplayLabels } from './lib/display-labels';
 import { wireStyles } from './components/wire/wire-styles';
 
@@ -44,6 +45,24 @@ button,input,select,textarea{font:inherit}
 }
 .program-switcher-label{margin:0;color:var(--mint-deep);font-size:14px;font-weight:700}
 .program-switcher-name{margin:0;color:var(--ink);font-size:16px;font-weight:700}
+/* 사업 전환기 드롭다운(2026-07-31). 방아쇠는 카드 안을 꽉 채우는 투명 버튼이다 — 알약을
+   덧대면 카드 안에 컨트롤이 두 겹으로 보인다. 값 글자는 --ink 그대로(§9 대비 예외는 보조
+   정보 한정이라 읽어야 하는 값에 deep 을 쓰지 않는다). */
+.program-switcher-trigger{display:flex;align-items:center;gap:var(--space-2);width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.program-switcher-trigger .wire-chevron{margin-left:auto;flex:none}
+.program-switcher-trigger:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px;border-radius:var(--radius-control)}
+/* 목록은 카드 바로 아래에 뜬다. 표면 계약은 date-picker 팝오버와 같은 값을 쓴다
+   (--panel · --radius-card · --shadow-soft · z 30) — 새 표면을 만들지 않는다. */
+.program-switcher-menu{
+  position:absolute;top:calc(100% + var(--space-2));left:0;right:0;z-index:var(--z-dropdown);
+  display:grid;gap:2px;padding:var(--space-2);margin:0;list-style:none;
+  border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-soft);
+}
+.program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:14px;font-weight:700}
+.program-switcher-option[data-selected="true"]{background:var(--blue-tint)}
+@media (hover:hover){.program-switcher-option:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}}
+/* 체크 글자에 deep 을 쓰지 않는다(§9 대비 예외는 보조 정보 한정). 선택 신호는 --blue-tint 면이 갖는다. */
+.program-switcher-check{width:14px;flex:none;color:var(--ink)}
 .navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0;list-style:none}
 .navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--sub);font-size:14px;font-weight:700;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
@@ -64,7 +83,13 @@ button,input,select,textarea{font:inherit}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
 .navigation-soon{margin-left:auto;padding:0 8px;border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
-.sidebar-footer{margin-top:auto;color:var(--sub);font-size:14px;font-weight:700}
+/* 푸터에 항목이 둘(설정·로그아웃)이 되어 가로 flex 로는 나란히 서 버린다 — 메뉴와 같은
+   세로 목록이어야 같은 종류로 읽힌다. */
+.sidebar-footer{margin-top:auto;display:grid;gap:var(--space-1);color:var(--sub);font-size:14px;font-weight:700}
+.sidebar-logout-form{margin:0}
+/* 로그아웃은 폼 버튼이지만 메뉴 항목처럼 보여야 한다 — .navigation-link 를 그대로 쓰고
+   버튼 기본 스타일만 지운다. width:100% 는 눌리는 영역을 메뉴와 같게 맞춘다. */
+.sidebar-logout{width:100%;border:0;background:transparent;font:inherit;text-align:left;cursor:pointer}
 /* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
    손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
 .drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
@@ -97,6 +122,23 @@ button,input,select,textarea{font:inherit}
 }
 /* 폼·읽기 화면. 장폭만 좁히고 여백·간격은 그대로 쓴다. */
 .narrow{--page-max:var(--page-max-narrow)}
+/* ── 뒤로가기 줄(2026-07-31) ── 본문 열을 감싸는 div 와 그 안 첫 줄.
+   min-width:0 이 필요하다 — 그리드 아이템의 기본 min-width:auto 때문에 내용이 넓으면
+   본문 열이 트랙을 넘어 사이드바를 밀어낸다(표·코드 블록에서 실제로 난다). */
+.content-column{display:flex;flex-direction:column;min-width:0}
+/* 본문과 **같은** 컨테이너 값을 쓴다 — 여기서 다른 폭을 쓰면 '뒤로'와 제목의 왼쪽 끝이 어긋난다.
+   아래 패딩은 0 이고, 뒤따르는 .page-content 의 위 패딩을 줄여 둘 사이가 벌어지지 않게 한다. */
+.page-backbar{width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--page-pad-y) var(--page-pad-x) 0}
+/* .narrow 는 --page-max 를 **.page-content 자기 자신에** 얹는다(위 .narrow 규칙). 뒤로가기 줄은
+   그 형제라 그 값을 물려받지 못하고 :root 의 1120 을 쓴다 — 둘 다 가운데 정렬이므로 좁은 화면
+   (960)에서 '뒤로'가 제목보다 80px 왼쪽에 선다. 다음 형제를 보고 같은 폭으로 맞춘다. */
+.page-backbar:has(+ .page-content.narrow){max-width:var(--page-max-narrow)}
+/* 형제 선택자라 뒤로가기 줄이 있는 화면에만 걸린다 — 공개 화면(셸 없음)은 그대로다. */
+.page-backbar+.page-content{padding-top:var(--space-4)}
+/* 고스트 버튼 계약(§5): 배경·테두리 없음, --sub 글자. 되돌리기는 주 행동이 아니다. */
+.page-back{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-2);margin-left:calc(var(--space-2) * -1);border:0;border-radius:var(--radius-control);background:transparent;color:var(--sub);font-size:14px;font-weight:700;cursor:pointer}
+@media (hover:hover){.page-back:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}}
+.page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 .page-header{display:flex;justify-content:space-between;gap:var(--space-6);align-items:flex-start}
 /* 우상단 행동 묶음 (D35 — 사이드바=장소 / 페이지 우상단=행동). 주 행동이 오른쪽 끝이다. */
 .page-actions{display:flex;align-items:center;gap:var(--space-3);flex:none}
@@ -622,5 +664,23 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
   const labels = await getDisplayLabels();
-  return <html lang="ko"><head><style>{shellStyles}</style></head><body><div className="wire-shell app-shell"><AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />{children}</div></body></html>;
+  // 본문 열을 div 로 한 번 감싼다 — 뒤로가기 줄이 본문과 **같은 컨테이너**(폭 1120·좌우 40)를
+  // 써야 제목과 왼쪽 끝이 맞기 때문이다. 감싸지 않고 셸의 형제로 두면 그리드 다음 행,
+  // 즉 사이드바 아래로 떨어진다.
+  return (
+    <html lang="ko">
+      <head><style>{shellStyles}</style></head>
+      <body>
+        <div className="wire-shell app-shell">
+          <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />
+          <div className="content-column">
+            {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
+                랜드마크 이동에서 통째로 건너뛴다. */}
+            <nav className="page-backbar" aria-label="페이지 이동"><BackLink /></nav>
+            {children}
+          </div>
+        </div>
+      </body>
+    </html>
+  );
 }
