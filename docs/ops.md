@@ -141,6 +141,20 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - 웹은 진입 화면(`/preview`)에서 코드를 받아 서버 액션(`unlockPreviewAction`)이 API로 검증하고, 받은 토큰을 웹 도메인의 HttpOnly 쿠키로 심는다(웹·API 도메인이 달라 쿠키를 웹 쪽에서 다시 심어야 한다). 이후 요청은 `middleware.ts`가 쿠키 없으면 진입 화면으로 유도하고, `api.ts`가 그 쿠키를 API로 포워딩한다. 웹은 `CCC_PREVIEW='true'` 런타임 변수로만 이 경로가 켜진다.
 - 검증 통과 시 고정 데모 상담사(`PREVIEW_ACTOR_EMAIL`, 시드 users 디렉터리에 존재해야 함) 신원으로 동작한다 — 권한 모델(R1 게이트웨이)은 미리보기에서도 그대로다.
 
+#### 관리자 시점 (2026-07-30 Q 요청)
+
+**코드가 둘이고, 어느 코드로 들어왔는지가 곧 신원이다.**
+
+| 코드 | 신원 | 누가 쓰나 |
+| --- | --- | --- |
+| `PREVIEW_ACCESS_CODE` | 실무자(`PREVIEW_ACTOR_EMAIL`) | 팀원 피드백 — 지금까지와 같다 |
+| `PREVIEW_ADMIN_ACCESS_CODE` | 기관 관리자(`PREVIEW_ADMIN_ACTOR_EMAIL`) | 관리자 화면 확인 |
+
+- **토큰 형식은 그대로다.** 세션 토큰은 발급에 쓰인 코드를 HMAC 키로 서명하므로, 리졸버가 코드별로 갈라 검증하면 신원이 갈린다 — 토큰에 역할을 적어 넣지 않는다(적으면 위조 표면이 는다).
+- **코드와 이메일이 둘 다 있어야 관리자 경로가 열린다.** 하나만 설정된 상태에서 열어 주면 실무자 이메일로 관리자 코드가 통해 의도하지 않은 경로가 생긴다. 시크릿을 안 넣는 것이 곧 "관리자 시점 없음"이다.
+- **응답은 한 가지다.** 두 코드를 항상 둘 다 비교하고(일찍 빠져나오지 않는다) 실패는 401 하나로만 답한다 — 응답 시간이나 메시지로 "관리자 코드가 있다"가 새지 않게 한다.
+- 관리자 시점도 **같은 가상 시드**를 본다. 운영 PII 와 연결되지 않는 것은 그대로다.
+
 ### 보안 경계
 
 - 미리보기 D1에는 **가상 시드만** 있고 운영 PII와 연결되지 않는다.
@@ -153,7 +167,9 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 | --- | --- | --- |
 | `PREVIEW_MODE` | api `wrangler.toml [env.preview.vars]` | 코드 게이트 스위치(`'true'`). |
 | `PREVIEW_ACTOR_EMAIL` | api `wrangler.toml [env.preview.vars]` | 미리보기 세션의 고정 데모 상담사 이메일. |
-| `PREVIEW_ACCESS_CODE` | api Workers 시크릿 | 지정 코드. 값 커밋·로그 금지(이름만). |
+| `PREVIEW_ACCESS_CODE` | api Workers 시크릿 | 팀원용 지정 코드. 값 커밋·로그 금지(이름만). |
+| `PREVIEW_ADMIN_ACCESS_CODE` | api Workers 시크릿 | **관리자 시점** 지정 코드. 없으면 그 경로 자체가 없다. 값 커밋·로그 금지. |
+| `PREVIEW_ADMIN_ACTOR_EMAIL` | api `wrangler.toml [env.preview.vars]` | 관리자 코드로 들어왔을 때 쓸 기관 관리자 이메일. |
 | `PII_ENC_KEY` | api Workers 시크릿 | 시드 PII 복호화용(D3). 값 커밋·로그 금지. |
 | `CCC_PREVIEW` | web `wrangler.jsonc [env.preview].vars` | 웹 미리보기 경로 스위치(`'true'`). |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | 자동 배포용. 값 등록은 프로비저닝 단계. |

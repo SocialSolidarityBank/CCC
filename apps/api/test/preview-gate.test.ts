@@ -4,6 +4,8 @@ import type { ApiEnv } from '../src/identity';
 
 // 테스트 전용 고정 코드(실제 지정 코드 아님 — 픽스처 리터럴). 실제 코드는 시크릿으로만 주입한다.
 const TEST_CODE = 'test-preview-code-1234';
+// 관리자 시점 픽스처(2026-07-30). 실무자 코드와 **다른 값**이어야 두 경로가 갈린다.
+const TEST_ADMIN_CODE = 'test-preview-admin-code-5678';
 
 const baseEnv: ApiEnv = {
   DB: undefined as unknown as D1Database,
@@ -17,6 +19,13 @@ const previewEnv: ApiEnv = {
   PREVIEW_MODE: 'true',
   PREVIEW_ACCESS_CODE: TEST_CODE,
   PREVIEW_ACTOR_EMAIL: 'account@bss.or.kr',
+};
+
+// 관리자 시점이 켜진 env — 코드와 이메일이 **둘 다** 있어야 경로가 열린다.
+const adminPreviewEnv: ApiEnv = {
+  ...previewEnv,
+  PREVIEW_ADMIN_ACCESS_CODE: TEST_ADMIN_CODE,
+  PREVIEW_ADMIN_ACTOR_EMAIL: 'admin@bss.or.kr',
 };
 
 function unlockRequest(code: unknown): Request {
@@ -33,8 +42,8 @@ function meRequest(cookie?: string): Request {
   });
 }
 
-async function unlockAndGetCookie(env: ApiEnv): Promise<string> {
-  const response = await worker.fetch(unlockRequest(TEST_CODE), env);
+async function unlockAndGetCookie(env: ApiEnv, code: string = TEST_CODE): Promise<string> {
+  const response = await worker.fetch(unlockRequest(code), env);
   const setCookie = response.headers.get('set-cookie');
   expect(setCookie).not.toBeNull();
   const token = /ccc_preview=([^;]+)/.exec(setCookie as string)?.[1];
@@ -140,6 +149,55 @@ describe('preview code gate (CCC-6)', () => {
       ACCESS_AUD: 'aud-tag',
     };
     const response = await worker.fetch(unlockRequest(TEST_CODE), leakedEnv);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  // ── 관리자 시점(2026-07-30 Q 요청) ──────────────────────────────────────
+  // 팀원용 실무자 코드는 그대로 두고, **다른 코드**로 들어오면 기관 관리자 신원이 된다.
+  // 토큰은 발급에 쓰인 코드를 HMAC 키로 서명하므로 형식을 바꾸지 않고 갈린다.
+
+  it('관리자 코드도 세션 쿠키를 발급한다', async () => {
+    const response = await worker.fetch(unlockRequest(TEST_ADMIN_CODE), adminPreviewEnv);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('ccc_preview=');
+  });
+
+  it('관리자 코드로 받은 쿠키는 인증 경계를 통과한다', async () => {
+    const cookie = await unlockAndGetCookie(adminPreviewEnv, TEST_ADMIN_CODE);
+    const response = await worker.fetch(meRequest(cookie), adminPreviewEnv);
+    expect(response.status).not.toBe(401);
+  });
+
+  it('`red` 관리자 코드로 받은 쿠키는 관리자 경로가 꺼진 env 에서 거부된다', async () => {
+    // 이것이 "토큰이 코드에 묶여 있다"의 증거다 — 아무 유효 쿠키나 통하는 게 아니다.
+    const cookie = await unlockAndGetCookie(adminPreviewEnv, TEST_ADMIN_CODE);
+    const response = await worker.fetch(meRequest(cookie), previewEnv);
+    expect(response.status).toBe(401);
+  });
+
+  it('관리자 코드는 그 경로가 설정되지 않은 env 에서 통하지 않는다', async () => {
+    const response = await worker.fetch(unlockRequest(TEST_ADMIN_CODE), previewEnv);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('`red` 코드만 있고 이메일이 없으면 관리자 경로가 열리지 않는다 (하다 만 설정)', async () => {
+    // 반쪽 설정에서 열어 주면 실무자 이메일로 관리자 코드가 통해 의도하지 않은 경로가 생긴다.
+    const halfConfigured: ApiEnv = { ...previewEnv, PREVIEW_ADMIN_ACCESS_CODE: TEST_ADMIN_CODE };
+    const response = await worker.fetch(unlockRequest(TEST_ADMIN_CODE), halfConfigured);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('관리자 경로를 켜도 실무자 코드는 그대로 동작한다', async () => {
+    const response = await worker.fetch(unlockRequest(TEST_CODE), adminPreviewEnv);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('ccc_preview=');
+  });
+
+  it('둘 다 아닌 코드는 관리자 경로가 켜져 있어도 거부된다', async () => {
+    const response = await worker.fetch(unlockRequest('neither-code'), adminPreviewEnv);
     expect(response.status).toBe(401);
     expect(response.headers.get('set-cookie')).toBeNull();
   });

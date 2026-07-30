@@ -96,6 +96,35 @@ async function codeMatches(submitted: string, expected: string): Promise<boolean
   return constantTimeEqual(submittedDigest, expectedDigest);
 }
 
+/**
+ * 관리자 시점이 설정돼 있는가. 코드와 이메일이 **둘 다** 있어야 한다 — 하나만 있으면
+ * 설정을 하다 만 상태이고, 그 상태에서 열어 주면 의도하지 않은 권한이 생긴다.
+ */
+function adminPreviewConfigured(env: ApiEnv): boolean {
+  return (env.PREVIEW_ADMIN_ACCESS_CODE?.length ?? 0) > 0
+    && (env.PREVIEW_ADMIN_ACTOR_EMAIL?.trim().length ?? 0) > 0;
+}
+
+/**
+ * 제출 코드가 어느 지정 코드와 맞는지 찾아 **그 코드 자체**를 돌려준다(서명 키가 된다).
+ * 맞는 것이 없으면 null. 어느 쪽이 틀렸는지는 호출부에도 알리지 않는다 — 응답이 하나여야
+ * 코드의 존재 여부가 새지 않는다.
+ *
+ * 두 코드를 **항상 둘 다** 비교한다. 첫 번째에서 일찍 빠져나오면 응답 시간이 갈려
+ * "관리자 코드가 있다"는 사실이 드러난다.
+ */
+async function resolveSigningCode(env: ApiEnv, submitted: string): Promise<string | null> {
+  const expected = env.PREVIEW_ACCESS_CODE ?? '';
+  const adminExpected = adminPreviewConfigured(env) ? env.PREVIEW_ADMIN_ACCESS_CODE! : null;
+  const [matchesUser, matchesAdmin] = await Promise.all([
+    expected.length > 0 ? codeMatches(submitted, expected) : Promise.resolve(false),
+    adminExpected === null ? Promise.resolve(false) : codeMatches(submitted, adminExpected),
+  ]);
+  if (matchesUser) return expected;
+  if (matchesAdmin) return adminExpected;
+  return null;
+}
+
 async function hmacKey(code: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     'raw',
@@ -184,11 +213,18 @@ export async function handlePreviewUnlock(request: Request, env: ApiEnv, now: nu
     submittedCode = undefined;
   }
 
-  if (typeof submittedCode !== 'string' || submittedCode.length === 0 || !(await codeMatches(submittedCode, expectedCode))) {
+  if (typeof submittedCode !== 'string' || submittedCode.length === 0) {
     return jsonResponse({ error: 'actor_authentication_required' }, 401);
   }
 
-  const { token, expMs } = await mintToken(expectedCode, now);
+  // 어느 코드로 들어왔는지가 곧 신원이다 — 토큰은 그 코드를 HMAC 키로 서명하므로
+  // 형식을 바꾸지 않고도 리졸버가 코드별로 갈라 검증할 수 있다(아래 previewActorResolver).
+  const signingCode = await resolveSigningCode(env, submittedCode);
+  if (signingCode === null) {
+    return jsonResponse({ error: 'actor_authentication_required' }, 401);
+  }
+
+  const { token, expMs } = await mintToken(signingCode, now);
   return jsonResponse(
     { token, maxAgeSeconds: PREVIEW_TOKEN_TTL_SECONDS, expiresAt: new Date(expMs).toISOString() },
     200,
@@ -212,11 +248,22 @@ export function previewActorResolver(env: ApiEnv): ActorResolver | undefined {
       throw new ActorAuthenticationError('preview access code is not configured');
     }
     const token = previewTokenFromCookies(request);
-    if (token === null || !(await verifyToken(expectedCode, token, Date.now()))) {
+    if (token === null) {
       throw new ActorAuthenticationError('a valid preview session cookie is required');
     }
 
-    const email = runtimeEnv.PREVIEW_ACTOR_EMAIL?.trim();
+    // 토큰은 발급에 쓰인 코드를 HMAC 키로 서명했다 — 어느 코드로 검증되는지가 곧 신원이다.
+    // 실무자 코드를 먼저 본다: 관리자 코드는 있을 수도 없을 수도 있고, 없으면 그 경로 자체가 없다.
+    const now = Date.now();
+    let email = runtimeEnv.PREVIEW_ACTOR_EMAIL?.trim();
+    if (!(await verifyToken(expectedCode, token, now))) {
+      const adminCode = adminPreviewConfigured(runtimeEnv) ? runtimeEnv.PREVIEW_ADMIN_ACCESS_CODE! : null;
+      if (adminCode === null || !(await verifyToken(adminCode, token, now))) {
+        throw new ActorAuthenticationError('a valid preview session cookie is required');
+      }
+      email = runtimeEnv.PREVIEW_ADMIN_ACTOR_EMAIL?.trim();
+    }
+
     if (email === undefined || email.length === 0) {
       throw new ActorAuthenticationError('PREVIEW_ACTOR_EMAIL is required for preview identity');
     }
