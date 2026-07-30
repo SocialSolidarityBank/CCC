@@ -7353,8 +7353,11 @@ export async function setSupportCaseOverallGoal(
     throw new ValidationError(`overall goal must be at most ${MAX_OVERALL_GOAL_LENGTH} characters`);
   }
   const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
-  if (actor.role !== 'counselor') {
-    throw new ForbiddenError('only an assigned counselor can edit the overall goal');
+  // D45 는 '담당 실무자만' 이었으나 2026-07-30 Q 결정으로 기관 관리자도 수정한다
+  // (ADR-0018 개정). 담당 실무자는 assertSupportCaseAccess 가 활성 배정을 이미
+  // 강제했고, admin 은 같은 함수가 기관 범위로 통과시킨다 — 여기서는 역할만 본다.
+  if (actor.role !== 'counselor' && actor.role !== 'admin') {
+    throw new ForbiddenError('only an assigned counselor or an org admin can edit the overall goal');
   }
   if (supportCase.status !== 'active') {
     throw new ValidationError('overall goal can only be edited on an active support case');
@@ -11541,9 +11544,10 @@ export interface ParticipantBriefing {
   /** 포커스 참여사업의 전체 목표 (D45 · 0024). NULL = 설정 전. */
   overallGoal: string | null;
   /**
-   * 전체 목표 그 자리 편집 가능 여부 (D45: 담당 실무자만). counselor 접근은
-   * assertSupportCaseAccess 가 활성 배정을 이미 강제했으므로 역할만 보면 된다 —
-   * admin 은 열람은 되지만 편집은 안 된다(ADR-0018 '담당 실무자만').
+   * 전체 목표 그 자리 편집 가능 여부. 구 D45 는 '담당 실무자만' 이었으나
+   * 2026-07-30 Q 결정으로 **기관 관리자도 수정한다**(ADR-0018 개정).
+   * 접근은 assertSupportCaseAccess 가 이미 걸렀다 — counselor 는 활성 배정,
+   * admin 은 기관 범위 — 그래서 여기서는 역할만 보면 된다.
    */
   canEditOverallGoal: boolean;
   // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
@@ -11920,7 +11924,7 @@ export async function getParticipantBriefing(
     discrepancies,
     focusUpcomingSchedule,
     overallGoal: focus.overallGoal,
-    canEditOverallGoal: actor.role === 'counselor',
+    canEditOverallGoal: actor.role === 'counselor' || actor.role === 'admin',
     participant: participantNamePhone(contacts.get(beneficiaryId)),
   };
 }
