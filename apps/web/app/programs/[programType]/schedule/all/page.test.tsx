@@ -146,6 +146,29 @@ describe('전체 일정 화면 (CCC-19)', () => {
     expect(getMonthSchedules).toHaveBeenCalledWith(undefined);
   });
 
+  // 오늘 표시는 이번 달을 볼 때만 나타나므로 시계를 고정하지 않으면 영영 렌더되지 않는
+  // 경로가 된다. 기관 시간대(Asia/Seoul) 기준으로 판정하는지도 여기서 함께 본다.
+  it('오늘 날짜 묶음에만 오늘 표시가 붙는다 (기관 시간대 기준)', async () => {
+    // UTC 로는 아직 02-14 지만 KST(UTC+9) 로는 **02-15 01:00** 이다 — 시간대를 무시하고
+    // UTC 날짜로 판정하면 오늘 표시가 하루 앞 묶음에 붙는다.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-14T16:00:00.000Z'));
+    try {
+      getMonthSchedules.mockResolvedValue(board([
+        schedule({ id: 's1', scheduledAt: '2026-02-15T01:00:00.000Z' }),
+        schedule({ id: 's2', scheduledAt: '2026-02-16T01:00:00.000Z' }),
+      ]));
+
+      const { container } = await renderPage('2026-02');
+
+      const titles = Array.from(container.querySelectorAll('.month-day-title'));
+      expect(titles.map((t) => t.getAttribute('data-today'))).toEqual(['true', null]);
+      expect(titles[0]!.textContent).toBe('2월 15일 (일)');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('그 달에 상담이 없으면 빈 상태 계약대로 보여준다', async () => {
     getMonthSchedules.mockResolvedValue(board([]));
 
