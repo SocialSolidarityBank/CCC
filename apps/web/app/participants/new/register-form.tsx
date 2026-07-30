@@ -132,7 +132,7 @@ export function RegisterForm({
           <legend>동의 (항목별, 기본 미동의)</legend>
           <p className="schedule-form-hint">
             동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
-            개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.
+            개인정보 수집·이용 동의는 등록에 반드시 필요하며, AI를 활용한 녹취기록은 미동의여도 등록이 진행됩니다.
           </p>
           {/* G1(2026-07-29 Q 결정1): ① 개인정보 수집·이용 동의는 **등록의 하드 게이트**다.
               체크 없이 제출하면 서버가 privacy_consent_required 로 되돌린다. 급박한 위기
@@ -152,13 +152,12 @@ export function RegisterForm({
             />
             <span>개인정보 수집·이용 동의 (필수)</span>
           </label>
+          {/* D49: 구 ② 녹음·음성 분석 + 구 ③ 텍스트 AI 정리를 한 체크로 합쳤다. 체크 하나가
+              두 컬럼에 같은 시각을 찍는다(DB 3컬럼 유지 — 법률 검토가 분리를 요구하면
+              화면만 다시 펴면 된다). 하드 게이트는 여전히 ① 하나다(G1). */}
           <label className="consent-checkbox">
-            <input type="checkbox" className="wire-checkbox" name="consentRecording" value="on" />
-            <span>녹음·음성 분석 동의</span>
-          </label>
-          <label className="consent-checkbox">
-            <input type="checkbox" className="wire-checkbox" name="consentTextAi" value="on" />
-            <span>텍스트 AI 정리 동의</span>
+            <input type="checkbox" className="wire-checkbox" name="consentRecordingAi" value="on" />
+            <span>AI를 활용한 녹취기록 동의</span>
           </label>
 
           {/* 2026-07-30 Q: 자필 서명·스캔 파일로 받은 동의서를 올릴 **자리만** 만든다.

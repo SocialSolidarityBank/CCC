@@ -337,16 +337,15 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // 등록 폼은 두 체크 상태(false 포함)를 항상 보내므로 동의 기록을 남긴다. 두 키가 모두
   // 없는 (레거시/프로그램) 호출은 동의 기록을 만들지 않는다(하위 호환). 어느 항목이든
   // 체크는 기본 미동의(false)이며, 미동의여도 등록은 진행된다(D15 미동의 경로).
-  // D44: 개인정보 수집·이용 동의(consentPrivacy)가 3종째로 합류한다. 세 키 중 하나라도
-  // 오면 동의 기록을 남긴다 — 등록 폼은 항상 셋을 보내고, 셋 다 없는 호출만 하위 호환이다.
+  // D49: 동의는 2종이다 — ① consentPrivacy · ② consentRecordingAi(구 녹음+텍스트 AI 를 합침).
+  // 등록 폼은 항상 둘을 보내고, 둘 다 없는 호출만 하위 호환이다.
   // G1(2026-07-29 Q 결정1): ① 은 이제 등록의 하드 게이트다. 그래서 HTTP 등록은 동의 키가
   // 없어도 **언제나** consent 객체(전부 false)를 만들어 게이트웨이 게이트를 지나게 한다 —
   // 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다. 통과 경로는 ① 체크 또는 긴급 등록뿐이다.
   const emergencyReason = optionalEmergencyReason(body);
   const consent = {
     privacy: optionalBoolean(body, 'consentPrivacy'),
-    recording: optionalBoolean(body, 'consentRecording'),
-    textAi: optionalBoolean(body, 'consentTextAi'),
+    recordingAi: optionalBoolean(body, 'consentRecordingAi'),
     ...(emergencyReason === undefined ? {} : { emergency: { reason: emergencyReason } }),
   };
   // 이메일은 선택 항목이다. undefined 면 게이트웨이 입력에서 아예 빼야 한다 —
@@ -366,7 +365,7 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
     ...(region === undefined ? {} : { region }),
     ...(gender === undefined ? {} : { gender }),
   };
-  const registrationKeys = ['consentPrivacy', 'consentRecording', 'consentTextAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
+  const registrationKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
     requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', ...registrationKeys]);
     return {
@@ -392,12 +391,17 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
 
 function parseSubsequentParticipantCreation(body: JsonObject, actor: Actor) {
   requireHumanParticipantActor(actor);
-  // G1: 추가 참여 사업도 ① 하드 게이트를 지난다 — 두 번째 사업은 동의 3종이 미체크로
-  // 시작하므로(D44) 여기서 ① 을 다시 받는다. 긴급 사유는 값이 있을 때만 싣는다.
+  // G1: 추가 참여 사업도 ① 하드 게이트를 지난다 — 두 번째 사업은 동의 2종이 미체크로
+  // 시작하므로(D44) 여기서 다시 받는다. D49: ② 도 이 경로에서 받는다(전에는 사업을 만든 뒤
+  // 당사자 정보 페이지에서 따로 고쳐야 했다). ② 는 게이트가 아니라 선택이므로 키가 없으면 뺀다.
   const emergencyReason = optionalEmergencyReason(body);
-  const consentKeys = ['consentPrivacy', 'emergencyReason'];
+  const consentKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason'];
+  const consentRecordingAi = Object.hasOwn(body, 'consentRecordingAi')
+    ? optionalBoolean(body, 'consentRecordingAi')
+    : undefined;
   const consentInput = {
     consentPrivacy: optionalBoolean(body, 'consentPrivacy'),
+    ...(consentRecordingAi === undefined ? {} : { consentRecordingAi }),
     ...(emergencyReason === undefined ? {} : { emergencyReason }),
   };
   if (actor.role === 'admin') {
@@ -916,12 +920,12 @@ function participantProgramResponse(
     // 화면은 authorized 로 링크를 걸거나 잠그고, assigneeNames 로 "누구에게 물어보나"를 답한다.
     authorized: entry.authorized,
     assigneeNames: entry.assigneeNames,
-    // D44: 동의 3종의 현재 상태. 시각 자체가 아니라 여부만 내린다 — 화면은 체크 상태를
+    // D44: 동의의 현재 상태. 시각 자체가 아니라 여부만 내린다 — 화면은 체크 상태를
     // 그리고, "언제 기록했나"는 consentRecordedAt 한 줄로 충분하다.
+    // D49 표시 규칙: ② 는 두 컬럼 중 하나라도 찍혀 있으면 동의로 읽는다(구 3종 기록 호환).
     consent: {
       privacy: supportCase.consentPrivacyAt !== null,
-      recording: supportCase.consentRecordingAt !== null,
-      textAi: supportCase.consentTextAiAt !== null,
+      recordingAi: supportCase.consentRecordingAt !== null || supportCase.consentTextAiAt !== null,
     },
     // 동의 시각이 아니라 **기록 시각**이다 — 3종을 모두 철회하면 동의 시각은 전부 NULL 이라
     // 방금 남긴 철회 기록이 "기록 없음"으로 보인다. 값은 append-only 이력에서 온다.
@@ -1522,23 +1526,21 @@ export async function handleRequest(
       const name = requiredString(body, 'name');
       const phone = optionalString(body, 'phone');
       const email = optionalString(body, 'email');
-      // 동의 3종(D44): 개인정보·녹음·텍스트 AI. 자기 가입이 곧 등록이므로 등록 화면과
-      // 같은 3체크를 받는다. 셋 다 독립 boolean 이고 강제하지 않는다 — 미동의여도 가입은
-      // 진행된다(D15 미동의 경로). 개인정보 동의는 파이프라인 게이트가 아니다.
+      // 동의 2종(D49): ① 개인정보 ② AI를 활용한 녹취기록. 자기 가입이 곧 등록이므로 등록
+      // 화면과 같은 2체크를 받는다. 둘 다 독립 boolean 이고 ② 는 강제하지 않는다 — 미동의여도
+      // 가입은 진행된다(D15 미동의 경로).
       const consentRaw = body.consent;
       if (
         consentRaw === null
         || typeof consentRaw !== 'object'
         || !('privacy' in consentRaw)
-        || !('recording' in consentRaw)
-        || !('textAi' in consentRaw)
+        || !('recordingAi' in consentRaw)
         || typeof consentRaw.privacy !== 'boolean'
-        || typeof consentRaw.recording !== 'boolean'
-        || typeof consentRaw.textAi !== 'boolean'
+        || typeof consentRaw.recordingAi !== 'boolean'
       ) {
         throw new ValidationError('consent is required');
       }
-      const consent = { privacy: consentRaw.privacy, recording: consentRaw.recording, textAi: consentRaw.textAi };
+      const consent = { privacy: consentRaw.privacy, recordingAi: consentRaw.recordingAi };
       const signupInput: Parameters<typeof completeParticipantSignup>[1] = { token, name, consent };
       if (phone != null) signupInput.phone = phone;
       if (email != null) signupInput.email = email;
@@ -1785,16 +1787,15 @@ export async function handleRequest(
           : await assignSupportCase(env, actor, supportCaseId, userId, roleValue);
         return json(supportCaseAssigneeResponse(assignee), 201);
       }
-      // 동의 3종 수정·철회 (D44). 담당 실무자 또는 기관 관리자만 — 게이트웨이의
-      // assertSupportCaseAccess 가 강제한다(R1). 세 값은 항상 함께 온다(현재 상태 전체).
+      // 동의 2종 수정·철회 (D44 · 항목 수는 D49). 담당 실무자 또는 기관 관리자만 —
+      // 게이트웨이의 assertSupportCaseAccess 가 강제한다(R1). 두 값은 항상 함께 온다(현재 상태 전체).
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'consent') {
         requestQuery(url, []);
         const body = await requestBody(request);
-        requireOnlyKeys(body, ['privacy', 'recording', 'textAi']);
+        requireOnlyKeys(body, ['privacy', 'recordingAi']);
         const updated = await updateParticipantConsent(env, actor, supportCaseId, {
           privacy: requiredBoolean(body, 'privacy'),
-          recording: requiredBoolean(body, 'recording'),
-          textAi: requiredBoolean(body, 'textAi'),
+          recordingAi: requiredBoolean(body, 'recordingAi'),
         });
         return json(updated);
       }

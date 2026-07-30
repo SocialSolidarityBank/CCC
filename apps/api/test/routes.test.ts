@@ -1968,7 +1968,7 @@ describe('canonical participant API routes', () => {
       assigneeNames: [],
       // D44: 동의 3종의 현재 상태. G1 이후 등록은 ① 없이는 성립하지 않으므로(픽스처가 ① 을
       // 보낸다) privacy 만 true 이고, 기록 시각은 그 등록 시점이다.
-      consent: { privacy: true, recording: false, textAi: false },
+      consent: { privacy: true, recordingAi: false },
       consentRecordedAt: expect.any(String),
     }]);
 
@@ -3123,7 +3123,7 @@ describe('public participant signup routes (CCC-28)', () => {
           token,
           name: '테스트 당사자',
           phone: '010-1234-5678',
-          consent: { privacy: true, recording: true, textAi: false },
+          consent: { privacy: true, recordingAi: true },
         }),
       }),
       t.env,
@@ -3139,7 +3139,7 @@ describe('public participant signup routes (CCC-28)', () => {
     const body = {
       token,
       name: '첫 가입',
-      consent: { privacy: true, recording: true, textAi: true },
+      consent: { privacy: true, recordingAi: true },
     };
     const first = await worker.fetch(
       new Request('http://localhost/signup/participant', {

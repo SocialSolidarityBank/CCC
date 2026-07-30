@@ -6610,8 +6610,13 @@ export interface ParticipantConsentInput {
    * 거부되고, 급박한 위기 개입만 `emergency`(사유 필수)로 통과한다. 생략은 미동의로 읽는다.
    */
   privacy?: boolean;
-  recording: boolean;
-  textAi: boolean;
+  /**
+   * ② AI를 활용한 녹취기록 동의 (D49 — 구 ② 녹음·음성 분석 + 구 ③ 텍스트 AI 정리를 합친 것).
+   * 체크 하나가 `consent_recording_at`·`consent_text_ai_at` **두 컬럼에 같은 시각**을 찍는다:
+   * DB 는 3컬럼을 그대로 두므로(마이그레이션 없음) 법률 검토가 분리를 요구하면 화면만 다시
+   * 펴면 된다. 값이 갈리면 0008·0014 insert 가드가 거부한다("NULL 아닌 동의 시각 = recorded_at").
+   */
+  recordingAi: boolean;
   /**
    * 긴급 등록 (G1 예외). ① 동의를 아직 받지 못한 채 등록해야 하는 경우에만 쓴다 —
    * 사유가 케이스 행에 남고 보완 기한(EMERGENCY_CONSENT_GRACE_DAYS)이 함께 생긴다.
@@ -6684,6 +6689,12 @@ export interface CreateSupportCaseInput {
    * 시작하므로(D44) 여기서 ① 을 다시 받는다. false 면 `emergencyReason` 없이는 거부된다.
    */
   consentPrivacy: boolean;
+  /**
+   * ② AI를 활용한 녹취기록 동의 (D49). **선택 인자**다 — ② 는 하드 게이트가 아니므로(G1은 ① 만)
+   * 보내지 않으면 미동의로 시작한다. 이 인자가 생기기 전에는 두 번째 참여 사업에서 ② 를
+   * 기록할 API 경로가 아예 없어, 사업을 만든 뒤 당사자 정보 페이지에서 따로 고쳐야 했다.
+   */
+  consentRecordingAi?: boolean;
   /** 긴급 등록 사유 (G1 예외). ① 미동의로 열어야 할 때만 넣는다. */
   emergencyReason?: string;
 }
@@ -6959,10 +6970,11 @@ export async function createBeneficiaryWithInitialSupportCase(
     const createdAt = now();
     // 항목별 동의(D15·D23): 동의한 항목만 등록 시각을 남기고, 미동의는 NULL 로 둔다.
     // 등록 폼 동의(consent)가 우선하고, 없으면 레거시 호환 경로의 값(있으면)을 쓴다.
-    const consentRecordingAt = consent?.recording === true
+    // D49: ② 는 한 체크로 두 컬럼에 같은 시각을 찍는다.
+    const consentRecordingAt = consent?.recordingAi === true
       ? createdAt
       : (legacyCompatibility?.consentRecordingAt ?? null);
-    const consentTextAiAt = consent?.textAi === true
+    const consentTextAiAt = consent?.recordingAi === true
       ? createdAt
       : (legacyCompatibility?.consentTextAiAt ?? null);
     // D44: 개인정보 동의는 레거시 호환 경로에 대응 입력이 없다 — 등록 폼 값만이 근거다.
@@ -7083,8 +7095,7 @@ detail: { role: 'primary', initial: true },
             // 긴급 등록은 여기서 함께 남긴다(G1 — 전건 감사). 사유는 자유 텍스트라 싣지 않는다(R3 태도).
             detail: {
               privacy: consent.privacy === true,
-              recording: consent.recording,
-              textAi: consent.textAi,
+              recordingAi: consent.recordingAi,
               ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
             },
             caseId: legacyCaseId,
@@ -7110,12 +7121,12 @@ detail: { role: 'primary', initial: true },
   throw finalError instanceof Error ? finalError : new ConflictError('participant creation conflicted');
 }
 
-/** 동의 3종의 현재 상태 + 마지막 기록 정보 (D44). 화면은 이 값으로 체크 상태를 그린다. */
+/** 동의 2종의 현재 상태 + 마지막 기록 정보 (D44 · 항목 수는 D49). 화면은 이 값으로 체크 상태를 그린다. */
 export interface ParticipantConsentState {
   supportCaseId: string;
   privacy: boolean;
-  recording: boolean;
-  textAi: boolean;
+  /** ② AI를 활용한 녹취기록 (D49). 구 3종 기록은 두 컬럼 중 하나라도 찍혀 있으면 true 로 읽는다. */
+  recordingAi: boolean;
   /** 마지막으로 동의 상태를 기록한 시각. 한 번도 기록한 적 없으면 null. */
   recordedAt: string | null;
 }
@@ -7144,8 +7155,8 @@ export async function updateParticipantConsent(
   consent: ParticipantConsentInput & { privacy: boolean },
 ): Promise<ParticipantConsentState> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
-  assertExactKeys(consent, ['privacy', 'recording', 'textAi']);
-  for (const key of ['privacy', 'recording', 'textAi'] as const) {
+  assertExactKeys(consent, ['privacy', 'recordingAi']);
+  for (const key of ['privacy', 'recordingAi'] as const) {
     if (typeof consent[key] !== 'boolean') throw new ValidationError('consent is invalid');
   }
   const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
@@ -7153,8 +7164,9 @@ export async function updateParticipantConsent(
 
   const recordedAt = now();
   const privacyAt = consent.privacy ? recordedAt : null;
-  const recordingAt = consent.recording ? recordedAt : null;
-  const textAiAt = consent.textAi ? recordedAt : null;
+  // D49: ② 한 체크 → 두 컬럼에 같은 시각(또는 둘 다 NULL 로 철회).
+  const recordingAt = consent.recordingAi ? recordedAt : null;
+  const textAiAt = consent.recordingAi ? recordedAt : null;
   const consentRecordId = newId();
 
   await env.DB.batch([
@@ -7187,7 +7199,7 @@ export async function updateParticipantConsent(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       // 동의 **여부**만 남긴다 — 동의 문안·PII 는 감사 detail 에 넣지 않는다(R3).
-      detail: { privacy: consent.privacy, recording: consent.recording, textAi: consent.textAi, kind: 'update' },
+      detail: { privacy: consent.privacy, recordingAi: consent.recordingAi, kind: 'update' },
       caseId: supportCase.legacyCaseId,
     }),
   ]);
@@ -7195,8 +7207,7 @@ export async function updateParticipantConsent(
   return {
     supportCaseId,
     privacy: consent.privacy,
-    recording: consent.recording,
-    textAi: consent.textAi,
+    recordingAi: consent.recordingAi,
     recordedAt,
   };
 }
@@ -7388,10 +7399,15 @@ export async function createSupportCase(
   const expectedKeys = [
     ...baseKeys,
     'consentPrivacy',
+    // ② 는 선택이라 값이 있을 때만 허용 키에 넣는다(긴급 사유와 같은 방식).
+    ...(input.consentRecordingAi === undefined ? [] : ['consentRecordingAi']),
     ...(input.emergencyReason === undefined ? [] : ['emergencyReason']),
   ];
   assertExactKeys(input, expectedKeys);
   if (typeof input.consentPrivacy !== 'boolean') throw new ValidationError('consent is invalid');
+  if (input.consentRecordingAi !== undefined && typeof input.consentRecordingAi !== 'boolean') {
+    throw new ValidationError('consent is invalid');
+  }
   if (input.schemaVersion !== 1) throw new ValidationError('schema version is invalid');
   assertCanonicalSubmissionId(input.submissionId);
   assertFinancialSupportProgramType(input.programType);
@@ -7426,6 +7442,8 @@ export async function createSupportCase(
     actorId: actor.userId,
     beneficiaryId,
     consentPrivacy: input.consentPrivacy === true,
+    // D49: 같은 제출 id 로 동의만 바꾼 재시도가 조용한 재생으로 통과하면 안 된다.
+    consentRecordingAi: input.consentRecordingAi === true,
     creatorRole: actor.role,
     effectiveAssigneeUserId,
     emergencyRegistration: emergency !== null,
@@ -7443,6 +7461,8 @@ export async function createSupportCase(
   const assignmentId = newId();
   const consentRecordId = newId();
   const consentPrivacyAt = input.consentPrivacy === true ? createdAt : null;
+  // D49: ② 한 체크 → 두 컬럼에 같은 시각(insert 가드 정합).
+  const consentRecordingAiAt = input.consentRecordingAi === true ? createdAt : null;
   const creationBoundary = actor.role === 'counselor'
     ? {
       sql: `EXISTS (
@@ -7495,10 +7515,11 @@ export async function createSupportCase(
            id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
            creation_submission_id, creation_payload_hash, created_by_actor_id,
            source_support_case_id, initial_assignee_user_id,
-           consent_privacy_at, emergency_registration_at, emergency_registration_reason,
+           consent_privacy_at, consent_recording_at, consent_text_ai_at,
+           emergency_registration_at, emergency_registration_reason,
            consent_privacy_due_at, created_at, updated_at
          )
-         SELECT ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE ${creationBoundary.sql}`,
       ).bind(
         supportCaseId,
@@ -7512,6 +7533,8 @@ export async function createSupportCase(
         sourceSupportCaseId,
         effectiveAssigneeUserId,
         consentPrivacyAt,
+        consentRecordingAiAt,
+        consentRecordingAiAt,
         emergency === null ? null : emergency.at,
         emergency === null ? null : emergency.reason,
         emergency === null ? null : emergency.dueAt,
@@ -7556,13 +7579,14 @@ export async function createSupportCase(
       }),
       // ① 동의(또는 긴급 등록)의 이력 행 (D44 · G1). 케이스 생성이 경계에서 거부되면
       // WHERE EXISTS 가 이 행도 함께 없앤다 — 고아 동의 기록을 남기지 않는다.
-      // ②·③ 은 미체크로 시작한다(D44) — 두 번째 사업은 앞 사업의 동의를 물려받지 않는다.
+      // ② 는 이 요청에서 받은 값이다(D49) — 두 번째 사업은 앞 사업의 동의를 물려받지 않고,
+      // 보내지 않으면 미동의(NULL)로 시작한다.
       env.DB.prepare(
         `INSERT INTO participant_consent_records (
            id, org_id, beneficiary_id, support_case_id, consent_recording_at,
            consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
          )
-         SELECT ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE EXISTS (
            SELECT 1 FROM support_cases
            WHERE id = ? AND org_id = ? AND beneficiary_id = ?
@@ -7572,6 +7596,8 @@ export async function createSupportCase(
         actor.orgId,
         beneficiaryId,
         supportCaseId,
+        consentRecordingAiAt,
+        consentRecordingAiAt,
         consentPrivacyAt,
         actor.userId,
         createdAt,
@@ -7589,8 +7615,7 @@ export async function createSupportCase(
         // 사유 텍스트는 싣지 않는다(R3 태도) — 긴급 여부와 보완 기한만 남긴다.
         detail: {
           privacy: input.consentPrivacy === true,
-          recording: false,
-          textAi: false,
+          recordingAi: input.consentRecordingAi === true,
           ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
         },
       }),
@@ -10500,7 +10525,7 @@ export interface IntakeRecordContext {
   // 1-1 기본정보 표시용 금고 값(D42 ① — 인테이크 화면은 읽기만 한다). 감사는 화면 조회 1건에 합산.
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
-  consent: { privacy: boolean; recording: boolean; textAi: boolean };
+  consent: { privacy: boolean; recordingAi: boolean };
 }
 
 function assertIntakeLifeAreaInputs(lifeAreas: IntakeLifeAreaInput[]): void {
@@ -10838,8 +10863,8 @@ export async function getIntakeRecordContext(
     extendedPii,
     consent: {
       privacy: consentRow?.privacy_at != null,
-      recording: consentRow?.recording_at != null,
-      textAi: consentRow?.text_ai_at != null,
+      // D49 표시 규칙: 구 3종 기록은 두 컬럼 중 하나라도 찍혀 있으면 ② 동의로 읽는다.
+      recordingAi: consentRow?.recording_at != null || consentRow?.text_ai_at != null,
     },
   };
 }
@@ -11178,7 +11203,7 @@ export async function createIntakeRecord(
     targetId: consentRecordId,
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
-    detail: { privacy: true, recording: true, textAi: true, kind: 'intake' },
+    detail: { privacy: true, recordingAi: true, kind: 'intake' },
   }));
   }
 
@@ -12412,13 +12437,12 @@ export async function completeParticipantSignup(
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
-  // 동의 3종(D44). 자기 가입은 등록이므로 등록 경로와 같은 3체크를 받는다. 셋 다 필수 boolean 이다.
+  // 동의 2종(D49). 자기 가입은 등록이므로 등록 경로와 같은 2체크를 받는다. 둘 다 필수 boolean 이다.
   if (
     input.consent === null
     || typeof input.consent !== 'object'
     || typeof input.consent.privacy !== 'boolean'
-    || typeof input.consent.recording !== 'boolean'
-    || typeof input.consent.textAi !== 'boolean'
+    || typeof input.consent.recordingAi !== 'boolean'
   ) {
     throw new ValidationError('consent is required');
   }
@@ -12462,8 +12486,9 @@ export async function completeParticipantSignup(
     const assignmentId = newId();
     const consentRecordId = newId();
     const createdAt = now();
-    const consentRecordingAt = input.consent.recording ? createdAt : null;
-    const consentTextAiAt = input.consent.textAi ? createdAt : null;
+    // D49: ② 한 체크 → 두 컬럼에 같은 시각.
+    const consentRecordingAt = input.consent.recordingAi ? createdAt : null;
+    const consentTextAiAt = input.consent.recordingAi ? createdAt : null;
     const consentPrivacyAt = input.consent.privacy ? createdAt : null;
     try {
       const statements: D1PreparedStatement[] = [
@@ -12563,8 +12588,7 @@ export async function completeParticipantSignup(
           supportCaseId,
           detail: {
             privacy: input.consent.privacy,
-            recording: input.consent.recording,
-            textAi: input.consent.textAi,
+            recordingAi: input.consent.recordingAi,
             recorder: PARTICIPANT_SELF_RECORDER,
           },
           caseId: null,

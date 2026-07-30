@@ -99,13 +99,16 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(fieldset?.classList.contains('register-consent')).toBe(true);
   });
 
-  it('keeps all three consent checkboxes present and unchecked by default (D23·D15·D44)', () => {
+  it('keeps both consent checkboxes present and unchecked by default (D23·D49·D44)', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    for (const name of ['consentPrivacy', 'consentRecording', 'consentTextAi']) {
+    for (const name of ['consentPrivacy', 'consentRecordingAi']) {
       const box = container.querySelector(`input[name="${name}"]`) as HTMLInputElement;
       expect(box).not.toBeNull();
       expect(box.checked).toBe(false);
     }
+    // D49: 구 3종 시절의 두 체크(consentRecording·consentTextAi)는 사라졌다.
+    expect(container.querySelector('input[name="consentRecording"]')).toBeNull();
+    expect(container.querySelector('input[name="consentTextAi"]')).toBeNull();
   });
 
   it('carries the privacy consent when checked (D44 — 등록이 동의를 받는 자리)', () => {
@@ -114,14 +117,14 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     fireEvent.click(container.querySelector('input[name="consentPrivacy"]') as HTMLInputElement);
     const data = new FormData(form);
     expect(data.get('consentPrivacy')).toBe('on');
-    expect(data.get('consentRecording')).toBeNull();
+    expect(data.get('consentRecordingAi')).toBeNull();
   });
 
   it('carries the filled email and a checked consent in the form payload', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
     const form = container.querySelector('form') as HTMLFormElement;
     const email = container.querySelector('input[name="email"]') as HTMLInputElement;
-    const recording = container.querySelector('input[name="consentRecording"]') as HTMLInputElement;
+    const recording = container.querySelector('input[name="consentRecordingAi"]') as HTMLInputElement;
 
     fireEvent.change(email, { target: { value: 'participant@example.test' } });
     fireEvent.click(recording);
@@ -129,8 +132,7 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     const data = new FormData(form);
     expect(data.get('email')).toBe('participant@example.test');
     // 체크된 동의만 폼에 실린다(미체크 = 키 부재 = 미동의, D15). 서버 액션이 명시 boolean 으로 정규화한다.
-    expect(data.get('consentRecording')).toBe('on');
-    expect(data.get('consentTextAi')).toBeNull();
+    expect(data.get('consentRecordingAi')).toBe('on');
   });
 
   it('renders a collapsed "자세히 읽어보기" accordion with the consent detail copy (D15·D23)', () => {

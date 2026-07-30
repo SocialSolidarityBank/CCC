@@ -227,11 +227,10 @@ export interface ParticipantProgram {
   consentRecordedAt: string | null;
 }
 
-/** 동의 3종(D15·D23·D44). 개인정보 수집·이용 / 녹음·음성 분석 / 텍스트 AI 정리. */
+/** 동의 2종(D49·D23·D44). ① 개인정보 수집·이용 ② AI를 활용한 녹취기록(녹음·전사·감정 분석 + AI 정리). */
 export interface ParticipantConsent {
   privacy: boolean;
-  recording: boolean;
-  textAi: boolean;
+  recordingAi: boolean;
 }
 
 export interface ParticipantDetail {
@@ -492,11 +491,10 @@ export interface CreateInitialParticipantProgramInput {
   programType: ParticipantProgramType;
   intakeAt: string;
   initialAssigneeUserId?: string;
-  // 항목별 동의 3종(D15·D23·D44). ② ③ 은 기본 미동의이고 미동의여도 등록은 진행된다.
+  // 항목별 동의 2종(D49·D23·D44). ② 는 기본 미동의이고 미동의여도 등록은 진행된다.
   // ① consentPrivacy 만은 **하드 게이트**다(G1) — 없으면 emergencyReason 이 있어야 통과한다.
   consentPrivacy?: boolean;
-  consentRecording?: boolean;
-  consentTextAi?: boolean;
+  consentRecordingAi?: boolean;
   /** 긴급 등록 사유 (G1 예외). ① 미체크로 등록해야 하는 급박한 위기 개입에만 쓴다. */
   emergencyReason?: string;
   // 등록 시 받은 이름·연락처·이메일(선택). pii_vault enc_* 로 저장된다(D3 · D24 · #32·#37).
@@ -532,8 +530,10 @@ export interface CreateSubsequentParticipantProgramInput {
   intakeAt: string;
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
-  /** ① 개인정보 동의 (G1). 두 번째 참여 사업도 동의 3종이 미체크로 시작하므로 여기서 다시 받는다(D44). */
+  /** ① 개인정보 동의 (G1). 두 번째 참여 사업도 동의 2종이 미체크로 시작하므로 여기서 다시 받는다(D44). */
   consentPrivacy: boolean;
+  /** ② AI를 활용한 녹취기록 동의 (D49). 선택 — 보내지 않으면 미동의로 시작한다. */
+  consentRecordingAi?: boolean;
   /** 긴급 등록 사유 (G1 예외). */
   emergencyReason?: string;
 }
@@ -598,7 +598,7 @@ export interface IntakeRecordContext {
   // 1-1 기본정보 표시용(D42 ①). 서버가 금고에서 복호화해 실어 준다(감사 1건).
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫.
-  consent: { privacy: boolean; recording: boolean; textAi: boolean };
+  consent: { privacy: boolean; recordingAi: boolean };
 }
 
 // 인테이크 6영역 기준선(P1): 6영역 전부 상태 직접 입력('변화 없음' 없음).
@@ -862,8 +862,7 @@ function decodeParticipantConsent(value: unknown): ParticipantConsent {
   const record = responseObject(value);
   return {
     privacy: responseBoolean(record, 'privacy'),
-    recording: responseBoolean(record, 'recording'),
-    textAi: responseBoolean(record, 'textAi'),
+    recordingAi: responseBoolean(record, 'recordingAi'),
   };
 }
 
@@ -1566,8 +1565,7 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
       const consent = responseObject(responseProperty(record, 'consent'));
       return {
         privacy: responseBoolean(consent, 'privacy'),
-        recording: responseBoolean(consent, 'recording'),
-        textAi: responseBoolean(consent, 'textAi'),
+        recordingAi: responseBoolean(consent, 'recordingAi'),
       };
     })(),
   };
@@ -1890,8 +1888,8 @@ export interface PublicSignupInput {
   name: string;
   phone?: string;
   email?: string;
-  // 동의 3종(D44) — 자기 가입은 등록이므로 등록 화면과 같은 3체크를 보낸다.
-  consent: { privacy: boolean; recording: boolean; textAi: boolean };
+  // 동의 2종(D49) — 자기 가입은 등록이므로 등록 화면과 같은 2체크를 보낸다.
+  consent: { privacy: boolean; recordingAi: boolean };
 }
 
 export interface PublicSignupResult {

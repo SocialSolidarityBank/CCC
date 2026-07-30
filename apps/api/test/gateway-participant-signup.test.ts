@@ -28,7 +28,7 @@ describe('participant self signup (CCC-28)', () => {
       name: '홍길동',
       phone: '010-1234-5678',
       email: 'hong@example.invalid',
-      consent: { privacy: true, recording: true, textAi: false },
+      consent: { privacy: true, recordingAi: true },
     });
 
     expect(result.beneficiaryId).toMatch(/^[a-z]+-\d{3}$/);
@@ -52,11 +52,11 @@ describe('participant self signup (CCC-28)', () => {
     expect(supportCase?.status).toBe('active');
     expect(supportCase?.creation_kind).toBe('initial');
     expect(supportCase?.intake_at).toBeNull(); // 가입 시점에는 인테이크 상담이 아직 없다
-    // D44 동의 3종의 **현재값**이 체크한 대로 갈린다. 체크한 둘은 시각이 있고 안 한 하나는 NULL —
-    // 셋을 한꺼번에 보는 이유는 "가입이 성공했다"만으로는 어떤 동의가 저장됐는지 알 수 없어서다.
+    // 동의의 **현재값**이 체크한 대로 남는다 — "가입이 성공했다"만으로는 어떤 동의가 저장됐는지
+    // 알 수 없어서 전 컬럼을 본다. D49: ② 한 체크가 두 컬럼에 같은 시각을 찍는다.
     expect(supportCase?.consent_privacy_at).not.toBeNull();
     expect(supportCase?.consent_recording_at).not.toBeNull();
-    expect(supportCase?.consent_text_ai_at).toBeNull();
+    expect(supportCase?.consent_text_ai_at).toBe(supportCase?.consent_recording_at);
 
     // 담당 실무자는 링크 발급 실무자(ADR-0016 결정 5).
     const assignee = await t.db.prepare(
@@ -88,7 +88,7 @@ describe('participant self signup (CCC-28)', () => {
       token: invite.token,
       name: '홍길동',
       // G1: 자기 가입도 ① 없이는 성립하지 않는다. 여기서 보는 것은 기록자 표식이다.
-      consent: { privacy: true, recording: false, textAi: true },
+      consent: { privacy: true, recordingAi: true },
     });
 
     const consent = await t.db.prepare(
@@ -100,10 +100,10 @@ describe('participant self signup (CCC-28)', () => {
     }>();
     expect(consent?.recorded_by).toBe(PARTICIPANT_SELF_RECORDER);
     expect(consent?.recorded_by).not.toBe(counselor.userId);
-    // 현재값(support_cases)만이 아니라 **이력 행에도** 3종이 같은 모양으로 남는다(D44 2층 저장).
+    // 현재값(support_cases)만이 아니라 **이력 행에도** 같은 모양으로 남는다(D44 2층 저장).
     expect(consent?.consent_privacy_at).not.toBeNull();
-    expect(consent?.consent_recording_at).toBeNull();
-    expect(consent?.consent_text_ai_at).not.toBeNull();
+    expect(consent?.consent_recording_at).not.toBeNull();
+    expect(consent?.consent_text_ai_at).toBe(consent?.consent_recording_at);
   });
 
   it('관리자가 발급한 링크의 담당 실무자는 그 관리자다 (겸임 1계정)', async () => {
@@ -113,7 +113,7 @@ describe('participant self signup (CCC-28)', () => {
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { privacy: true, recording: true, textAi: true },
+      consent: { privacy: true, recordingAi: true },
     });
 
     const assignee = await t.db.prepare(
@@ -126,12 +126,12 @@ describe('participant self signup (CCC-28)', () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
     await completeParticipantSignup(t.env, {
-      token: invite.token, name: '홍길동', consent: { privacy: true, recording: true, textAi: true },
+      token: invite.token, name: '홍길동', consent: { privacy: true, recordingAi: true },
     });
 
     await expect(
       completeParticipantSignup(t.env, {
-        token: invite.token, name: '두번째', consent: { privacy: true, recording: true, textAi: true },
+        token: invite.token, name: '두번째', consent: { privacy: true, recordingAi: true },
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -139,7 +139,7 @@ describe('participant self signup (CCC-28)', () => {
   it('같은 토큰 동시 이중 제출은 한 명만 성립하고 나머지는 409, 고아 당사자 없음', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
-    const payload = { token: invite.token, name: '홍길동', consent: { privacy: true, recording: true, textAi: true } };
+    const payload = { token: invite.token, name: '홍길동', consent: { privacy: true, recordingAi: true } };
 
     const [first, second] = await Promise.allSettled([
       completeParticipantSignup(t.env, payload),
@@ -163,7 +163,7 @@ describe('participant self signup (CCC-28)', () => {
     await t.reset();
     await expect(
       completeParticipantSignup(t.env, {
-        token: '0'.repeat(64), name: '홍길동', consent: { privacy: true, recording: true, textAi: true },
+        token: '0'.repeat(64), name: '홍길동', consent: { privacy: true, recordingAi: true },
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -173,7 +173,7 @@ describe('participant self signup (CCC-28)', () => {
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
     await expect(
       completeParticipantSignup(t.env, {
-        token: invite.token, name: '   ', consent: { privacy: true, recording: true, textAi: true },
+        token: invite.token, name: '   ', consent: { privacy: true, recordingAi: true },
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -190,7 +190,7 @@ describe('participant self signup (CCC-28)', () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
     const result = await completeParticipantSignup(t.env, {
-      token: invite.token, name: '홍길동', consent: { privacy: true, recording: true, textAi: true },
+      token: invite.token, name: '홍길동', consent: { privacy: true, recordingAi: true },
     });
 
     const creationAudits = await t.db.prepare(

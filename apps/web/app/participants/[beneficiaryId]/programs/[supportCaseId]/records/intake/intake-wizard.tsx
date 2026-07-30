@@ -48,7 +48,7 @@ export interface IntakeWizardProps {
   /** 금고에 있는 기본정보(생년월일·주소/거주지역·성별 등). 표시 전용. */
   extendedPii: IntakeExtendedPii;
   /** 동의 기록 여부(표시 전용). 입력은 당사자 등록 화면. */
-  consent: { privacy: boolean; recording: boolean; textAi: boolean };
+  consent: { privacy: boolean; recordingAi: boolean };
   sessionSequence: number;
   recorderLabel: string;
   briefingHref: string;
@@ -617,8 +617,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
   const consentRows: ReadonlyArray<readonly [string, boolean]> = [
     ['개인정보 수집·이용 동의', props.consent.privacy],
-    ['녹음·음성 분석 동의', props.consent.recording],
-    ['텍스트 AI 정리 동의', props.consent.textAi],
+    ['AI를 활용한 녹취기록 동의', props.consent.recordingAi],
   ];
   const consentMissing = consentRows.some(([, recorded]) => !recorded);
 

@@ -138,7 +138,7 @@ async function runParticipant(
     },
     undefined,
     // G1: ① 개인정보 동의는 등록의 하드 게이트다. 시드는 가상 데이터라 동의를 받은 것으로 둔다.
-    { privacy: true, recording: participant.consent.recording, textAi: participant.consent.textAi },
+    { privacy: true, recordingAi: participant.consent.recordingAi },
   );
   const { beneficiaryId, supportCaseId } = creation;
 
