@@ -1,0 +1,1437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>레인 B — Y10 동의 블록 시안 비교</title>
+<style>
+/* CCC 디자인 토큰 v3 — 기계 소비용 사본.
+ * 색 토큰의 정본(SSOT)은 pen.dev 문서 `pencil-welcome-desktop.pen`의 '색 토큰' 페이지다
+ * (2026-07-26 Q 확정). 이 파일과 그 페이지가 어긋나면 pen 페이지가 맞다.
+ * 색 외 토큰(간격·형태·타이포)의 SSOT는 루트 DESIGN.md.
+ * 값 변경 절차: pen '색 토큰' 페이지 수정 → DESIGN.md → 이 파일 → ADR-0012 개정 이력.
+ * 근거: D34 / ADR-0012. */
+:root {
+  /* ── 중립 ── */
+  --canvas: #FAFAF9;   /* 화면 바탕 (웜 오프화이트) */
+  --panel:  #FFFFFF;   /* 카드·패널·입력칸 */
+  --muted:  #F5F5F4;   /* 보조 표면·플레이스홀더 */
+  --ink:    #3D3445;   /* 기본 텍스트 (캔버스 위 11.32 · 흰 위 11.83) — 보라 기운의 웜 잉크 */
+  --sub:    #534E57;   /* 보조 텍스트·불릿 (흰 위 8.09) */
+  --line:   #E7E5E4;   /* 장식 보더 1px (흰 위 1.26) */
+  --line-control: #E3E3E3; /* 입력칸·컨트롤 경계 (흰 위 1.28) */
+  --track:  #E0E0E0;   /* 추이 막대 무채색 구간 (흰 위 1.32) */
+
+  /* ── 파스텔 3계열 ── pen '색 토큰' 페이지 값 그대로.
+   * base = 면(게이지·막대) 전용 / deep = 글자·아이콘 전용 / tint = 배경 전용.
+   * deep 3색은 자기 tint 위에서 WCAG AA는 물론 large text 3:1에도 미달한다.
+   * 수치와 완화 방법은 DESIGN.md §9 알려진 접근성 예외. */
+  --blue:          #93C1F5;
+  --blue-deep:     #67A9F0;  /* tint 위 2.11 / 흰 위 2.47 */
+  --blue-tint:     #E7EEF8;
+  --mint:          #8ED9B8;
+  --mint-deep:     #56CC99;  /* tint 위 1.76 / 흰 위 2.00 */
+  --mint-tint:     #E4F4EC;
+  --lavender:      #CBA8E2;
+  --lavender-deep: #C890F0;  /* tint 위 2.02 / 흰 위 2.41 */
+  --lavender-tint: #F2E7F7;
+
+  /* ── Semantic ── */
+  --risk:            #F071B4;                   /* 확인된 리스크 전용 — 유일한 경고색
+                                                 * (흰 위 2.72 · 배너 배경 위 2.39 — §9 참조) */
+  --risk-tint:       rgba(240, 113, 180, 0.05); /* 리스크 배너 배경 (반투명) */
+  --risk-tint-solid: #F7EEF2;                   /* 같은 배경의 불투명 등가값 —
+                                                 * 그라데이션 테두리(padding-box 채움)에 필요 */
+
+  /* ── 그림자 색 ── pen은 색 3개를 따로 두고 노드에서 조합한다.
+   * CSS는 box-shadow 한 줄로 합쳐야 하므로 아래 --shadow-soft 합성값을 함께 둔다. */
+  --shadow-mint:     rgba(86, 204, 153, 0.15);  /* #56CC9926 — 좌측 */
+  --shadow-lavender: rgba(200, 144, 240, 0.15); /* #C890F026 — 우측 */
+  --shadow-blue:     rgba(103, 169, 240, 0.15); /* #67A9F026 — 현재 미사용, pen에 존재 */
+
+  /* ── 깊이 (CSS 전용 합성값) ── */
+  --shadow-soft: -2px 2px 8px var(--shadow-mint),
+                  2px 2px 8px var(--shadow-lavender);
+  --shadow-modal: 0 8px 32px rgba(61, 52, 69, 0.18);
+
+  /* ── 그라데이션 — 이 5곳 외에 만들지 않는다 ── */
+  --gradient-sidebar: linear-gradient(180deg, #E7EEF8 0%, #E4F4EC 50%, #F2E7F7 100%);
+  --gradient-brand:   linear-gradient(90deg, #8ED9B8 0%, #CBA8E2 100%);  /* base 쌍 */
+  --gradient-brand-v: linear-gradient(180deg, #8ED9B8 0%, #CBA8E2 100%); /* 세로선용 */
+  --gradient-deep:    linear-gradient(180deg, #56CC99 0%, #C890F0 100%); /* deep 쌍 — 체크박스 테두리 */
+  --gradient-action:  linear-gradient(135deg, #A8E3C6 0%, #D1B3E3 100%); /* 프라이머리 버튼 배경 */
+
+  /* ── 경계 (CSS 전용 합성값) ── */
+  --line-action: rgba(61, 52, 69, 0.5); /* 프라이머리 버튼 1px 아웃라인 (#3D344580) */
+  /* 사이드바 안 조직 | 사업 | 메뉴 구분선(§4-5). --line(#E7E5E4)은 사이드바 그라데이션 위에서
+   * 거의 안 보여 잉크 16% 로 따로 둔다. */
+  --line-sidebar: rgba(61, 52, 69, 0.16);
+
+  /* ── 형태 ── */
+  --radius-control: 6px;    /* 버튼·내비 항목·리스크 항목 행·입력칸·상태 태그 */
+  --radius-card:    12px;   /* 카드·패널·배너·모달 */
+  --radius-pill:    9999px; /* 배지·칩·필 버튼·프라이머리/세컨더리 버튼 */
+  --radius-xs:      4px;    /* 체크박스 */
+  --radius-bar:     2px;    /* 추이 막대 */
+  --control-height: 40px;
+  --badge-height:   24px;
+  --pill-height:    32px;
+
+  /* ── 간격 — 4의 배수만 ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ── 레이아웃 ── */
+  --sidebar-width: 240px;
+
+  /* 페이지 셸 — 장폭·여백의 **유일한 주인**이다(2026-07-26).
+   * 이전에는 .page-content(1280) · .narrow(960) · .today-page(960) · .wire-container(고정 거터
+   * 230px)가 서로 다른 폭을 주장했고, 게다가 .page-content 가 .app-shell 의 그리드 아이템인데
+   * margin:0 auto 를 갖고 있어 **트랙을 채우지 않고 내용 크기로 줄어들었다** — 그래서 화면마다
+   * 콘텐츠 컬럼이 429~1200px 로 제각각이었다. 값은 여기에만 두고 화면은 클래스만 고른다.
+   *   기본(--page-max)   목록·대시보드·2열 화면
+   *   좁게(narrow)       폼·읽기 화면. 한 줄이 너무 길어지지 않게 한다
+   *
+   * 2026-07-27 D37/ADR-0015 로 값을 1440 캔버스에서 역산해 다시 정했다. box-sizing:border-box
+   * 이므로 1120 안에 좌우 패딩 40 이 포함되고, 남는 글 폭이 1040(한 줄 약 65자)이다. */
+  --page-max: 1120px;
+  --page-max-narrow: 960px;
+  --page-pad-x: 40px;
+  --page-pad-y: 40px;
+  /* 섹션 사이 간격. 페이지 안의 큰 덩어리(헤더 · 목록 · 각주)를 나누는 값 하나. */
+  --section-gap: 24px;
+  /* 카드 목록 1칸의 최소 폭 — 열 수를 직접 쓰지 않고 이 값이 열을 만든다(§4-2).
+   * 표준 420: 1120 기준 2열(각 510) · 조밀 280: 3열(각 333).
+   * 최소 폭은 취향이 아니라 열 수에서 역산한 값이다 — 열 수를 바꾸려면 본문 폭을 고친다. */
+  --grid-min: 420px;
+  --grid-min-dense: 280px;
+
+  /* 겹침 4층 — 본문 0 · 스티키 10 · 드롭다운 30 · 스크림/모달 100 (§4-5) */
+  --z-sticky: 10;
+  --z-dropdown: 30;
+  --z-modal: 100;
+
+  /* ── 타이포 ── */
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  /* 트래킹은 pen에 변수로 존재하지 않는다 — Pencil은 자간을 px로만 받아 em 하나로 묶이지 않는다.
+   * 코드 구현에서는 아래 두 값만 쓴다. */
+  --tracking-base: -0.01em;    /* 한글·혼용 */
+  --tracking-numeric: -0.03em; /* 숫자 단독(GAS 점수·ID·날짜·기한)만 */
+}
+
+/* 브레이크포인트는 하나뿐이다 — `max-width: 767px` (§4-4 · 락 11). 768 은 데스크톱이다.
+ * D37 이후 패딩·섹션 간격·그리드 최소 폭은 폭이 줄어도 따라 줄지 않는다 — 좁아지는 일은
+ * auto-fit 이 처리하므로 화면 폭 분기는 셸이 드로어로 바뀌는 지점 하나면 된다.
+ * 여기서 줄이는 것은 휴대폰에서 글이 화면 가장자리에 붙지 않게 하는 컨테이너 패딩뿐이다. */
+@media (max-width: 767px) {
+  :root { --page-pad-x: 16px; --page-pad-y: 24px; }
+}
+
+/* ── 움직임 줄이기 ── DESIGN.md §6: "prefers-reduced-motion: reduce 에서 전환 제거".
+ * 계약은 v1부터 있었는데 강제하는 규칙이 어디에도 없었다(2026-07-26 확인) — 전환을 쓰는
+ * 자리(사이드바 내비 배경·아코디언 꺽쇠 회전)가 그대로 움직였다. 토큰 파일에 두는 이유는
+ * 이것이 화면별 규칙이 아니라 시스템 전체의 계약이기 때문이다.
+ * transition 과 animation 을 0 으로 만들지 않고 1ms 로 두는 것은, 완전히 0 이면 transitionend
+ * 를 기다리는 코드가 영영 멈추기 때문이다. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── 고대비 모드 ── DESIGN.md §9 '알려진 접근성 예외'의 완화 수단.
+ * 기본 팔레트는 시안 톤을 우선해 의도적으로 WCAG 아래에 있다(Q 결정). 사용자가 고대비를
+ * 켜면 아래 6개 토큰만 갈아끼운다 — 마크업 수정이 필요 없도록 설계된 목록 그대로다.
+ * 켜는 방법: <html data-contrast="high">. 값은 §9 표의 실측치. */
+:root[data-contrast="high"] {
+  --risk:          #B52573;  /* 흰 위 6.04 · 배너 배경 위 5.31 */
+  --blue-deep:     #496B9A;  /* tint 위 4.67 */
+  --mint-deep:     #3C775E;  /* tint 위 4.62 */
+  --lavender-deep: #8256A3;  /* tint 위 4.61 */
+  --line-control:  #948E89;  /* 흰 위 3.24 */
+  --track:         #948E89;  /* 흰 위 3.24 */
+}
+
+/* ===== styles ===== */
+
+:root{font-family:var(--font-sans);color:var(--ink);letter-spacing:var(--tracking-base)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);font-size:16px;line-height:1.55}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit}
+.app-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);min-height:100dvh}
+/* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다. */
+.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink)}
+.brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
+.brand{font-weight:700}
+.brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
+/* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
+   포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개인 동안은 누를 데가 없어 링크가 아니다.
+   민트 계열은 '사람·소속'이라 사업 라벨이 그 축에 든다(D34). */
+/* 알약이 아니라 radius 6 이다(§4-5) — 행동 버튼이 아니라 값을 고르는 컨트롤이다. */
+.program-switcher{display:grid;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
+/* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
+   32(--space-8)는 그대로 유지된다 — 선은 그 사이 가운데에 놓인다.
+   --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
+   좌우 -24 는 사이드바 패딩만큼 되밀어 선을 끝까지 긋는다. */
+.sidebar>.program-switcher,.sidebar>.navigation-list{position:relative}
+.sidebar>.program-switcher::before,.sidebar>.navigation-list::before{
+  content:"";position:absolute;top:calc(var(--space-4) * -1);
+  left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);
+  height:1px;background:var(--line-sidebar);
+}
+.program-switcher-label{margin:0;color:var(--mint-deep);font-size:14px;font-weight:700}
+.program-switcher-name{margin:0;color:var(--ink);font-size:16px;font-weight:700}
+.navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0;list-style:none}
+.navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--sub);font-size:14px;font-weight:700;transition:background-color .12s ease,color .12s ease}
+/* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
+   "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
+@media (hover:hover){
+  /* 호버는 **약한 신호**다. 예전에는 흰색(--panel) 알약이라 활성 항목보다 더 선택된 것처럼
+     보였다 — 사업 전환기 카드와 같은 흰 알약이었기 때문이다. 잉크 4% 워시로 낮춘다. */
+  .navigation-link:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+  /* 활성 항목 위에서는 활성 표시가 이겨야 한다 — 호버가 덮으면 "지금 어디인지"가 사라진다. */
+  .navigation-link[data-current="true"]:hover{background:var(--blue-tint);color:var(--ink)}
+}
+/* 활성 내비는 블루 계열(시간·상태). 단 **글자는 --ink** 다 — --blue-deep(#67a9f0)을 --blue-tint
+   위에 얹으면 대비가 1.9 라 라벨이 읽히지 않고, 비활성(--sub #534e57)보다 오히려 흐려져
+   위계가 뒤집힌다. DESIGN.md §9 의 대비 예외는 '보조 정보 한정'이라 주 메뉴 라벨은 대상이 아니다.
+   블루 신호는 아이콘이 갖는다 — 색은 남고 글자는 읽힌다. */
+.navigation-link[data-current="true"]{background:var(--blue-tint);color:var(--ink)}
+.navigation-link[data-current="true"] svg{color:var(--blue-deep)}
+/* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
+   파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
+.navigation-soon{margin-left:auto;padding:0 8px;border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
+.sidebar-footer{margin-top:auto;color:var(--sub);font-size:14px;font-weight:700}
+/* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
+   손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
+.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
+.drawer-handle-bars{display:flex;flex-direction:column;gap:3px;width:18px;flex:none}
+.drawer-handle-bars i{height:2px;border-radius:var(--radius-bar);background:var(--ink)}
+/* 지금 어느 사업인지는 드로어를 열지 않고도 보여야 한다 — 사업이 메뉴의 범위를 정하기 때문이다.
+   민트 계열은 '사람·소속' 축이라 사업 라벨이 여기 든다(D34). */
+.drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer-scrim{position:fixed;inset:0;background:rgba(61,52,69,.4);z-index:calc(var(--z-modal) - 1)}
+.drawer-close{display:none;width:100%;min-height:var(--control-height);margin-top:var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:14px;font-weight:700;cursor:pointer}
+/* ── 페이지 셸 ── 장폭·여백의 유일한 주인(2026-07-26). 값은 design/tokens.css 에만 있다.
+   width:100% 가 핵심이다 — .page-content 는 .app-shell 의 **그리드 아이템**이고 auto 마진을
+   갖고 있어서, 폭을 명시하지 않으면 트랙을 채우지 않고 내용 크기로 줄어든다. 그래서 이전에는
+   같은 클래스인데도 화면마다 컬럼이 429~1200px 로 달랐다.
+   grid + gap 으로 섹션 간격도 여기서 한 번에 정한다 — 화면마다 margin 을 따로 주지 않는다. */
+.page-content{
+  width:100%;
+  /* D37 §4-1: 1120 은 **패딩을 포함한** 컨테이너 폭이다(box-sizing:border-box). 이전에는
+     calc(--page-max + 패딩*2) 라 실제 총폭이 1200 이었고 글 폭이 1120 으로 나왔다 —
+     계약이 정한 글 폭은 1040(한 줄 약 65자)이다. */
+  max-width:var(--page-max);
+  margin-inline:auto;
+  padding:var(--page-pad-y) var(--page-pad-x);
+  display:grid;
+  gap:var(--section-gap);
+  align-content:start;
+  /* 컨테이너 질의의 기준점. 열 수·span 해제는 화면 폭이 아니라 이 폭으로 판단한다(§4-2) —
+     화면 폭으로 풀면 사이드바가 있고 없고에 따라 같은 폭에서 다른 결과가 나온다. */
+  container-type:inline-size;
+}
+/* 폼·읽기 화면. 장폭만 좁히고 여백·간격은 그대로 쓴다. */
+.narrow{--page-max:var(--page-max-narrow)}
+.page-header{display:flex;justify-content:space-between;gap:var(--space-6);align-items:flex-start}
+/* 우상단 행동 묶음 (D35 — 사이드바=장소 / 페이지 우상단=행동). 주 행동이 오른쪽 끝이다. */
+.page-actions{display:flex;align-items:center;gap:var(--space-3);flex:none}
+h1{margin:0;font-size:28px;line-height:1.25}
+h2{margin:0;font-size:18px;line-height:1.35}
+p{margin:var(--space-2) 0 0;color:var(--sub)}
+/* 버튼 4종(§5). 기본은 세컨더리, .button-primary 가 프라이머리다. */
+.button{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;cursor:pointer}
+.button-primary{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--ink);box-shadow:var(--shadow-soft)}
+.button-ghost{background:transparent;border-color:transparent;color:var(--sub);box-shadow:none}
+.button-danger{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk);box-shadow:none}
+.button-sm{min-height:var(--pill-height);padding:0 14px;font-size:14px}
+.button:disabled{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
+.case-toolbar{display:flex;gap:var(--space-3);margin-bottom:var(--space-5)}
+/* 입력칸(§5): 높이 40 · radius 6 · --line-control 1px. 라벨은 항상 위에 둔다. */
+.search-field,.select-field,.input-icon{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub)}
+.search-field{flex:1;max-width:420px}
+.search-field input,.select-field select,.input-icon input{width:100%;border:0;background:transparent;color:var(--ink);outline:0}
+.search-field:focus-within,.select-field:focus-within,.input-icon:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 레거시 화면의 떠 있는 표면들도 카드 계약을 쓴다(§5). 기본 테두리는 **회색 --line** 이고,
+   그라데이션 테두리는 선택·활성일 때만 쓴다(2026-07-26 Q 지적 · pen 실측). 채움은
+   --surface-fill 로만 바꾼다 — 선택 상태는 배경 2겹이라 background 를 통째로 덮으면 테두리가 날아간다. */
+.case-list,.panel,.detail-link,.today-schedule-card,.participant-stage-item,.schedule-day-group,.settings-section,.schedule-form,.pii-reveal-control{
+  --surface-fill:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  background:var(--surface-fill);
+  box-shadow:var(--shadow-soft);
+  color:var(--ink);
+}
+/* 케이스 목록: 목록 전체가 카드 하나이고 행은 --line 구분선으로 나눈다(§5 리스트 행). */
+.case-list{overflow:hidden}
+.case-list-heading,.case-row{display:grid;grid-template-columns:1fr 1.2fr 1fr 1.2fr var(--space-6);gap:var(--space-4);align-items:center}
+.case-list-heading{padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--line);color:var(--sub);font-size:14px;font-weight:700}
+.case-row{min-height:76px;padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--line)}
+.case-row:last-child{border-bottom:0}
+.case-row:hover{background:var(--muted)}
+.detail-link:hover{--surface-fill:var(--muted)}
+.case-identity{display:grid;gap:var(--space-1)}
+.case-identity strong{font-size:16px;font-weight:700}
+/* 이름 뒤 괄호 가명 ID 는 항상 16/400 --sub(§5 이름 표기). */
+.case-identity small,.panel-meta{color:var(--sub);font-size:14px;font-weight:700}
+.case-program{color:var(--sub);font-size:14px}
+/* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다. */
+.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:14px;font-weight:700}
+/* 주의·대기·미완료는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
+.warning{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
+.risk{border-color:transparent;background:var(--risk-tint-solid);color:var(--risk)}
+.breadcrumb{display:flex;gap:var(--space-2);margin-bottom:var(--space-4);color:var(--sub);font-size:14px}
+.briefing{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}
+.panel{padding:var(--space-6)}
+.risk-panel,.gas-panel{grid-column:1/-1}
+.panel-head{display:flex;justify-content:space-between;gap:var(--space-4);align-items:flex-start}
+.panel-head>div{display:flex;gap:var(--space-2);align-items:center}
+.gas{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-2);margin-top:var(--space-6)}
+.gas span{display:grid;place-items:center;min-height:48px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted);color:var(--sub);font-weight:700}
+.lines{display:grid;gap:var(--space-2);margin-top:var(--space-6)}
+.lines span{height:12px;border-radius:var(--radius-bar);background:var(--muted)}
+.lines span:nth-child(2){width:86%}
+.lines span:nth-child(3){width:70%}
+.empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:14px}
+.detail-link{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-5);padding:var(--space-5);font-weight:700}
+.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
+.form-panel{display:grid;gap:var(--space-5)}
+.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
+/* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
+.field{display:grid;gap:var(--space-2);font-size:14px;font-weight:700;color:var(--sub)}
+.field input,.field select,.field textarea{width:100%;min-height:var(--control-height);padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:16px;font-weight:400}
+/* 라디오·체크박스는 텍스트 칸이 아니다. 위 규칙의 width:100% 를 그대로 먹으면 동그라미가
+   칸을 가로질러 늘어나고 라벨이 아래 줄로 밀려난다 — 선택지가 세로로 한 글자씩 쪼개져
+   읽히던 원인이다(2026-07-26 Q 보고 "너무 좁아서 쓸 수 없는 칸"). */
+.field input[type="radio"],.field input[type="checkbox"]{width:auto;min-height:0;padding:0;border:0;border-radius:0;background:none;accent-color:var(--blue-deep)}
+/* 선택지 한 줄: 동그라미와 글자를 같은 줄에 세우고 누를 면적을 컨트롤 높이만큼 준다. */
+.field:has(>span>input[type="radio"])>span,.field:has(>span>input[type="checkbox"])>span{
+  display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);
+  color:var(--ink);font-size:16px;
+}
+textarea{min-height:216px;resize:vertical}
+.form-actions{display:flex;justify-content:flex-end}
+.note{display:flex;gap:var(--space-3);padding:var(--space-5);border-radius:var(--radius-card);background:var(--muted)}
+.note p{font-size:14px}
+@media(max-width:767px){
+  /* ── 768 미만: 사이드바는 드로어다 (§4-4) ──
+     가로 줄로 눕히면 기관명·사업 전환기·메뉴가 한 줄에 밀려 아무것도 안 읽힌다.
+     좁은 화면에서 '장소 전환'은 자주 하는 동작이 아니므로 평소엔 화면 밖에 두고
+     손잡이를 눌렀을 때만 왼쪽에서 밀어 넣는다. 본문은 폭을 온전히 쓴다. */
+  .app-shell{display:block}
+  .drawer-handle{display:flex}
+  .sidebar{
+    position:fixed;top:0;bottom:0;left:0;
+    width:280px;max-width:82vw;
+    padding:var(--space-6);overflow-y:auto;
+    z-index:var(--z-modal);
+    transform:translateX(-100%);transition:transform .15s ease;
+  }
+  .sidebar[data-drawer-open="true"]{transform:none}
+  .drawer-close{display:block}
+  /* align-items 를 stretch 로 되돌리는 것이 핵심이다(기본은 97행의 flex-start).
+     헤더가 세로로 누우면 교차축이 가로가 되는데, flex-start 인 채로는 .page-actions 가
+     내용 크기로 쪼그라든다. 그 상태에서 안의 버튼이 아래 width:100% 를 받으면 기준 폭이
+     "내용에 맞춰 줄어든 폭" 이라 폭이 순환 참조에 걸려, 두 버튼이 좁은 상자를 반씩 나눠
+     갖고 라벨이 '당사자 정 / 보' 로 쪼개진다(R7 · 390px 실측 2026-07-30). */
+  .page-header,.case-toolbar{flex-direction:column;align-items:stretch}
+  /* 행동 버튼은 좁으면 **세로로 쌓는다**(D38 보강 — 라벨 줄바꿈 금지의 짝). 가로로 둔 채
+     폭만 나누면 라벨이 길어질 때마다 같은 결함이 돌아온다 — 버튼 개수가 아니라 라벨 길이가
+     변수이기 때문이다. 세로 배치는 라벨이 얼마나 길든 한 줄을 보장한다. */
+  .page-actions{width:100%;flex-direction:column;align-items:stretch}
+  /* 킷 버튼도 같이 잡는다 — 레거시 .button 만 있으면 교체한 화면에서 버튼이 줄어든다. */
+  .page-header .button,.page-header .wire-button{width:100%;justify-content:center}
+  .search-field{max-width:none}
+  .case-list-heading{display:none}
+  .case-program{display:none}
+  .briefing,.form,.field-grid{grid-template-columns:1fr}
+  .risk-panel,.gas-panel{grid-column:auto}
+  .case-row{grid-template-columns:minmax(0,1fr) var(--space-6);gap:var(--space-3)}
+  .case-row .status{grid-column:1}
+  .case-row>svg{grid-column:2;grid-row:1/4}
+}
+/* ===== participantStyles ===== */
+
+.today-schedule-list{display:grid;gap:var(--space-3)}
+.today-schedule-card{display:grid;grid-template-columns:1.1fr .8fr 1.2fr .7fr;gap:var(--space-4);align-items:center;padding:var(--space-5)}
+.today-schedule-card:hover{--surface-fill:var(--muted)}
+.schedule-field{display:grid;gap:var(--space-1);min-width:0}
+.schedule-field strong{overflow-wrap:anywhere;font-size:16px;font-weight:700}
+/* 정보 라벨은 민트 계열(사람·소속). */
+.schedule-field-label{color:var(--mint-deep);font-size:14px;font-weight:700}
+.provenance-label{color:var(--sub);font-size:14px;font-weight:700}
+.schedule-status{display:inline-flex;align-items:center;gap:var(--space-2);width:max-content;font-size:14px;font-weight:700}
+/* 상태 점은 시간·상태 축이라 블루. 종료·취소는 색이 아니라 문구가 구분한다(색 하나에 기대지 않는다). */
+.status-dot{width:8px;height:8px;border-radius:var(--radius-pill);background:var(--blue)}
+.schedule-status[data-status="completed"] .status-dot{background:var(--track)}
+.schedule-status[data-status="cancelled"] .status-dot,.schedule-status[data-status="no_show"] .status-dot{background:var(--risk)}
+.participant-stage{display:grid;gap:var(--space-5)}
+.participant-stage-header{display:flex;justify-content:space-between;gap:var(--space-4);align-items:flex-start}
+.participant-stage-list{display:grid;gap:var(--space-3)}
+.participant-stage-item{padding:var(--space-5)}
+.provenance-label{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent}
+/* 오류는 --risk 글자 + 메시지 텍스트로 알린다. 색만으로 알리지 않는다(§5 입력 오류·§9 완화). */
+.error-state,[role="alert"]{color:var(--risk);font-weight:700}
+[role="status"][aria-live],[aria-live="polite"]{min-height:1.5em}
+.pii-reveal-control{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4)}
+.pii-reveal-control button{min-height:var(--control-height)}
+.fixed-core-form{display:grid;gap:var(--space-5)}
+/* 브레이크포인트는 767 하나다(D37 §4-4 · 락 11) — 구 768/359 두 벌을 합쳤다. 359 이하에서
+   1열로 더 접던 단계는 사라지고 좁은 휴대폰에서도 2열로 남는다(필드가 짧고 min-width:0 ·
+   overflow-wrap:anywhere 라 깨지지 않는다). 줄어든 패딩은 여기로 옮겼다. */
+@media(max-width:767px){.today-schedule-card{grid-template-columns:repeat(2,minmax(0,1fr));padding:var(--space-4)}.participant-stage-header{flex-direction:column}.participant-stage-item{padding:var(--space-4)}}
+/* ticket-12: 상담 일정 */
+.schedule-section{display:grid;gap:var(--space-3)}
+.schedule-section>h2{font-size:18px}
+.schedule-day-groups{display:grid;gap:var(--space-3)}
+.schedule-day-summary{display:flex;align-items:center;gap:var(--space-3);min-height:52px;padding:0 var(--space-5);font-size:16px;font-weight:700;cursor:pointer;list-style:none}
+.schedule-day-summary::-webkit-details-marker{display:none}
+.schedule-day-summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+.schedule-day-group[open] .schedule-day-summary::before{transform:rotate(45deg)}
+.schedule-day-count{margin-left:auto;color:var(--sub);font-size:14px;font-weight:700}
+/* 날짜 그룹(카드) 안의 상담 카드는 자기 테두리를 벗고 --line 구분선으로 나눈다 — 위 실무자 목록과 같은 이유. */
+.schedule-day-group .today-schedule-list{padding:0;gap:0}
+.schedule-day-group .today-schedule-card{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none}
+.schedule-day-group .today-schedule-card:hover{background:var(--muted)}
+
+/* ===== briefingStyles ===== */
+
+/* 상담 준비 6카드 — 디자인 시스템 V0.1 계약. */
+.briefing-page{display:grid;gap:var(--space-5)}
+/* 이름 + 출구 버튼 2개(D35 §4). 버튼은 이름 바로 아래 줄이고, 화면 조작(전체 열기/닫기)과
+   섞이지 않게 아래 툴바와 분리한다. 간격 4의 배수만 쓴다(D30 존치 규칙). */
+.briefing-identity{display:grid;gap:var(--space-3);justify-items:start}
+.briefing-exits{display:flex;gap:var(--space-3);flex-wrap:wrap}
+/* 이름 줄이 위로 올라가면서 툴바에는 토글만 남는다 — 오른쪽 정렬. */
+.briefing-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.briefing-toolbar-toggles{display:flex;gap:var(--space-2);flex-wrap:wrap}
+/* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + --gradient-brand 1.5px 균일 테두리.
+   좌측 액센트 띠(border-left 두께 강조)는 금지 패턴이다 — 병합으로 되살아난 것을 걷었다(이슈 #49).
+   배너가 서는 것은 테두리가 아니라 위치(HERO 바로 아래)·배경 틴트·아이콘이다.
+   --risk 대비가 2.72 라 색 하나에 기대지 않는다: 아이콘·문구·고정 위치·접힘 불가 4중 신호(§9). */
+.risk-banner{
+  padding:var(--space-5) var(--space-6);
+  border:1.5px solid transparent;
+  border-radius:var(--radius-card);
+  background:linear-gradient(var(--risk-tint-solid),var(--risk-tint-solid)) padding-box,var(--gradient-brand) border-box;
+  box-shadow:var(--shadow-soft);
+  color:var(--ink);
+}
+.risk-banner-head{display:flex;align-items:center;gap:var(--space-2)}
+.risk-banner-icon{flex:none;width:18px;height:18px;color:var(--risk)}
+.risk-banner-title{margin:0;font-size:16px;font-weight:700;color:var(--risk)}
+/* 항목은 흰 배경 행(radius 6 · --shadow-soft)에 체크박스 + 16/700 --ink. */
+.risk-banner-list{margin:var(--space-3) 0 0;padding:0;display:grid;gap:var(--space-2);list-style:none}
+.risk-banner-list li{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--panel);box-shadow:var(--shadow-soft);color:var(--ink);font-size:16px;font-weight:700}
+.risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:700;font-size:14px}
+/* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
+   1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
+.briefing-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));gap:var(--space-5);align-items:start}
+/* 아코디언이 나란할 때: 펼친 카드는 서로 높이를 맞추고, 접은 카드는 요약 줄만 남긴다(§4-2).
+   JS 로 높이를 재서 박지 않는다 — 접으면 행이 실제로 줄어든다. */
+.briefing-cards-grid>.briefing-card{align-self:start}
+.briefing-cards-grid>.briefing-card[open]{align-self:stretch}
+/* 카드 = 접힘 가능한 <details>. 카드 계약(§5)을 그대로 쓴다. */
+.briefing-card{
+  --surface-fill:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  background:var(--surface-fill);
+  box-shadow:var(--shadow-soft);
+  color:var(--ink);
+}
+.briefing-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);font-size:18px;font-weight:700;cursor:pointer;list-style:none}
+.briefing-card-summary::-webkit-details-marker{display:none}
+.briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+/* 자식 결합자(>)로 두면 GAS 요약처럼 화살표를 배지와 함께 감싼 경우 회전이 안 먹어
+   펼쳐져 있는데 화살표만 닫힌 모양으로 남는다(2026-07-27 렌더에서 확인). */
+.briefing-card[open]>.briefing-card-summary .briefing-card-arrow{transform:rotate(45deg)}
+/* 헤더/본문 구분선은 --gradient-brand 1px(구조적 구분선 — 액센트 띠 금지 대상이 아니다, 색 규율 6). */
+.briefing-card-body{display:grid;gap:var(--space-3);padding:var(--space-5) var(--space-6) var(--space-6);background:var(--gradient-brand) top/100% 1px no-repeat}
+.briefing-fields{display:grid;gap:10px}
+/* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
+.briefing-subaccordion{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
+.briefing-subaccordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:6px 0;font-size:16px;font-weight:700;cursor:pointer;list-style:none}
+.briefing-subaccordion-summary::-webkit-details-marker{display:none}
+.briefing-subaccordion[open]>.briefing-subaccordion-summary>.briefing-card-arrow{transform:rotate(45deg)}
+.briefing-subaccordion-body{padding-top:var(--space-2)}
+.briefing-inline-link{font-size:16px;font-weight:700;color:var(--ink);text-decoration:underline}
+/* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
+   계열 3색은 목표를 서로 구분하는 회전일 뿐이고 점수 숫자는 항상 --ink 다. */
+/* GAS 전폭 섹션(CLAUDE.md 6장 · 2026-07-27 Q 결정 — 이 파일의 CSS 는 템플릿 리터럴이라 주석에 백틱을 쓰지 않는다). 섹션 제목은 카드 밖 h2 18/700 이고 그 아래 16 이다
+   — §4-3 세로 리듬(40/24/16/20)에서 '섹션 제목↔내용'에 해당한다. 섹션 사이 24 는 페이지
+   그리드의 gap 이 이미 준다(§4-6 규칙 3: 화면에서 margin 으로 띄우지 않는다). */
+.briefing-page{display:grid;gap:var(--section-gap)}
+.briefing-accordions{display:grid;gap:var(--section-gap)}
+.briefing-section{display:grid;gap:var(--space-4)}
+.briefing-section-heading{font-size:18px;font-weight:700;color:var(--ink)}
+/* HERO 도 카드다(§4-5) — 화면의 모든 글자가 카드 안에 있고 예외는 섹션 제목뿐이다. */
+.briefing-hero{padding:var(--space-6);gap:var(--space-5)}
+.briefing-hero-identity{display:grid;gap:var(--space-2);min-width:0}
+.briefing-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:28px;line-height:1.25}
+/* 상태 태그는 시간·상태 축이라 블루다(D34). 글자는 deep — base 는 글자에 쓰지 않는다(색 규율 3). */
+.briefing-badge.is-stage{border-color:transparent;background:var(--blue-tint);color:var(--blue-deep)}
+.briefing-hero-meta{margin:0;color:var(--sub);font-size:14px}
+/* 여닫기 줄은 오른쪽 끝. 화면 조작이라 고스트 32px 하나다. */
+.briefing-toolbar{display:flex;justify-content:flex-end}
+/* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
+.briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
+/* 전체 목표 카드(D45 · CCC-41) — 카드형 한 줄. 카드 계약(.surface-card)을 그대로 쓰고
+   안쪽 가로 배치만 정한다. 점수·게이지 자리는 없다(D43). */
+.briefing-goal{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6)}
+.briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
+.briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+/* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
+.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:16px;color:var(--ink)}
+.briefing-goal-error{margin:0;font-size:14px;color:var(--risk)}
+/* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
+.briefing-more{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-5) var(--space-6)}
+.briefing-more:hover{--surface-fill:var(--muted)}
+.briefing-more-title{display:block;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-more-desc{display:block;margin-top:var(--space-1);font-size:14px;color:var(--sub)}
+/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. */
+.briefing-qsection{display:grid;gap:var(--space-2)}
+.briefing-qlabel{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
+/* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층. */
+.briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-suggestion{display:grid;gap:var(--space-1)}
+.briefing-suggestion-title{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.briefing-suggestion-reason{margin:0;font-size:14px;color:var(--sub)}
+.briefing-suggestion-link{justify-self:start;font-size:14px;font-weight:700;color:var(--ink);text-decoration:underline}
+/* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
+   시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
+.briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
+.briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
+.briefing-history>summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--sub)}
+.briefing-history>.briefing-qsection{margin-top:var(--space-4)}
+/* 배지·메타·빈 상태(§5 상태 배지). */
+.briefing-badges{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}
+.briefing-badge.is-approved{border-color:transparent;background:var(--mint-tint);color:var(--mint-deep)}
+/* 승인 대기는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
+.briefing-badge.is-pending{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
+.briefing-meta,.briefing-note{margin:0;font-size:14px;color:var(--sub)}
+/* 767 블록에서 두 그리드를 1열로 강제하던 규칙은 지웠다 — 최소 폭(420·280)이 이미 접는다(락 10·11). */
+
+/* ===== searchStyles ===== */
+
+/* ticket-16: 당사자 검색 */
+.participant-search{display:grid;gap:var(--space-3);margin-bottom:var(--space-6)}
+.participant-search>h2{font-size:18px}
+.participant-search-form{display:flex;gap:var(--space-3);align-items:flex-end}
+.participant-search-field{display:grid;gap:var(--space-2);font-size:14px;font-weight:700}
+.participant-search-form .participant-search-field{flex:1;max-width:420px}
+.participant-search-label{color:var(--sub);font-size:14px;font-weight:700}
+.participant-search-field input,.participant-search-select{width:100%;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:16px;font-weight:400}
+.participant-search-form .button{flex:none}
+.participant-search-results{max-width:520px}
+.participant-search-message{margin:0;color:var(--sub);font-size:14px}
+.participant-search-message[role="alert"]{color:var(--risk);font-weight:700}
+@media(max-width:767px){.participant-search-form{flex-direction:column;align-items:stretch}.participant-search-form .participant-search-field{max-width:none}.participant-search-form .button{width:100%}}
+
+/* ===== settingsStyles ===== */
+
+/* ticket-14: 설정 */
+/* .settings-gear 4종 삭제(2026-07-27) — D35 가 설정을 사이드바 **메뉴 항목**으로 옮긴 뒤로
+   이 클래스를 쓰는 마크업이 0곳이었다. 죽은 CSS 였지만 무해하지 않았다: 함께 있던
+   .sidebar{position:relative} 가 뒤 문자열에 있어 드로어의 position:fixed 를 덮었고,
+   그래서 768 미만에서 드로어가 화면 높이를 못 채우고 내용 높이(531px)로 떠 있었다.
+   (주석에 백틱을 쓰지 않는 이유는 이 CSS 가 템플릿 리터럴이기 때문이다 — 쓰면 앱 전체가 500 이다.) */
+.settings-page{display:grid;gap:var(--space-6)}
+.settings-section{display:grid;gap:var(--space-4);padding:var(--space-6)}
+.settings-section>h2{font-size:18px}
+.settings-account{display:grid;gap:var(--space-4);margin:0}
+.settings-field{display:grid;gap:var(--space-1)}
+/* 사람 정보 라벨은 민트 계열. */
+.settings-field dt{color:var(--mint-deep);font-size:14px;font-weight:700}
+.settings-field dd{margin:0;color:var(--ink);font-size:16px;font-weight:700;overflow-wrap:anywhere}
+/* 실무자 목록은 카드(.settings-section) 안에 있으므로 행마다 테두리를 두르지 않고
+   --line 구분선으로 나눈다(§5 리스트 행). 카드 안에 카드를 넣으면 경계가 두 겹으로 겹친다. */
+.settings-user-list{display:grid;margin:0;padding:0;list-style:none}
+.settings-user-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:var(--space-3);align-items:center;min-height:52px;padding:var(--space-3) var(--space-2);border-bottom:1px solid var(--line)}
+.settings-user-row:last-child{border-bottom:0}
+.settings-user-email{overflow-wrap:anywhere;font-weight:700}
+.settings-user-role{color:var(--sub);font-size:14px;font-weight:700}
+.settings-user-status{display:inline-flex;align-items:center;width:max-content;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:14px;font-weight:700}
+.settings-user-row[data-active="false"]{opacity:.6}
+@media(max-width:767px){.settings-user-row{grid-template-columns:1fr;gap:var(--space-1)}.settings-user-role,.settings-user-status{justify-self:start}}
+
+/* ===== scheduleStyles ===== */
+
+/* ticket-20: 상담 등록 */
+.schedule-actions{display:flex;justify-content:flex-end;margin-top:var(--space-2)}
+.schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
+.schedule-form-hint{margin:0;color:var(--sub);font-size:14px}
+/* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
+.schedule-form-notice{color:var(--ink);font-weight:700}
+.schedule-form-error{color:var(--risk);font-weight:700}
+.consent-fieldset{display:grid;gap:var(--space-3);margin:0;padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card)}
+.consent-fieldset legend{padding:0 6px;font-weight:700;font-size:14px;color:var(--sub)}
+.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:16px;font-weight:700}
+/* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
+   리스크 변형(테두리만 --risk)을 덮어써 버린다 — 실제로 그 버그를 겪어 규칙을 한 곳으로 모았다. */
+.consent-checkbox input[type="checkbox"]:not(.wire-checkbox){width:18px;height:18px}
+/* G1: 긴급 등록(① 동의 하드 게이트의 예외). 예외 경로라 동의 3종과 가는 선 하나로 가르되,
+   확인된 리스크가 아니므로 리스크 레드는 쓰지 않는다(D9 — 리스크 색 독점). */
+.consent-emergency{display:grid;gap:var(--space-3);padding-top:var(--space-3);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
+.consent-emergency textarea{min-height:88px}
+
+/* ===== piiMaskingStyles ===== */
+
+/* ticket-18: PII 마스킹 */
+.pii-panel{display:grid;gap:var(--space-3)}
+.pii-fields{display:grid;gap:var(--space-2);margin:0}
+.pii-field{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
+/* 당사자 정보 라벨(연락처·비상연락처·거주지)은 민트 deep — 사람·소속 축(§1-5). */
+.pii-field dt{color:var(--mint-deep);font-size:14px;font-weight:700}
+.pii-field dd{margin:0;color:var(--ink);font-size:16px;font-weight:700;overflow-wrap:anywhere}
+.pii-panel .pii-reveal-control{flex-wrap:wrap}
+.pii-panel .pii-reveal-control button{min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;cursor:pointer}
+.pii-panel .pii-reveal-control button:hover:not(:disabled){background:var(--muted)}
+.pii-panel .pii-reveal-control button:disabled{background:var(--muted);border-color:var(--line);color:var(--sub);cursor:not-allowed}
+
+/* ===== registerStyles ===== */
+
+/* 당사자 등록·초대 (#37) */
+.wire-register-form{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
+.wire-register-submit{width:100%}
+/* margin-top 을 두지 않는다 — 바깥에서는 .wire-container 의 gap(--section-gap)이 이미
+   섹션 간격을 주고, 카드 안에서는 그 여백이 제목 구분선 아래에 빈 띠로 남는다. */
+.wire-invite-stack{display:grid;gap:var(--space-6)}
+.wire-invite-section{display:grid;gap:var(--space-3)}
+/* 왼쪽 정렬이다 — 가운데 정렬은 아래 입력칸 축에서 떨어져 나와 페이지마다 글이 다른 데서
+   시작하는 것처럼 보인다(§5 '페이지 제목'이 가운데 정렬을 폐기한 것과 같은 이유). */
+.wire-invite-caption{margin:0;font-size:14px;color:var(--sub)}
+/* CCC-29: QR 은 입력칸이 아니라 카드 계약(--line 1px · radius 12)을 빌린 정사각 패널이다. */
+.wire-invite-qr{display:inline-flex;justify-self:start;padding:var(--space-4);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
+/* 버튼은 내용만큼만 차지한다 — 그리드 아이템 기본 stretch 를 그대로 두면 카드 폭(880)을
+   가로지르는 알약이 되어, 폼 제출도 아닌 행동이 마케팅 배너처럼 읽힌다. */
+.wire-invite-stack .wire-button{justify-self:start}
+/* D15·D23: 동의 문안 "자세히 읽어보기" — briefing-subaccordion 패턴 재사용. */
+.consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
+.consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:6px 0;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+.consent-detail-summary::-webkit-details-marker{display:none}
+.consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:rotate(45deg)}
+.consent-detail-body{display:grid;gap:var(--space-4);padding-top:var(--space-3)}
+.consent-detail-disclaimer{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
+.consent-detail-section{display:grid;gap:6px}
+.consent-detail-section h3{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.consent-detail-section p,.consent-detail-section li{margin:0;font-size:14px;color:var(--sub)}
+.consent-detail-section ul{margin:0;padding-left:18px;display:grid;gap:6px}
+/* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
+   단계 표시는 블루 계열(시간·상태 축, D34)이다. */
+.onboarding-form{display:grid;margin-top:var(--space-8)}
+.onboarding-card{display:grid;gap:var(--space-4);padding:var(--space-6)}
+.onboarding-card h2{margin:0}
+.onboarding-step{margin:0;justify-self:start;padding:2px 10px;border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:14px;font-weight:700}
+.onboarding-help{margin:0;font-size:14px;color:var(--sub)}
+.onboarding-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-2)}
+
+/* ===== recordFormStyles ===== */
+
+/* CCC-10: 정기 기록지 원페이지 — 고정 헤더 + 본문(P1→P4) + 우측 필수 채움 레일.
+   강조는 사방 균일 테두리로만 준다 — 좌측 액센트 띠는 금지 패턴이다(이슈 #49). */
+/* 상담 기록 작성 폼. 세로 한 단이다 — 레거시 .form(본문 + 사이드 레일 2열)을 쓰면
+   아래 .record-layout 이 이미 갖고 있는 레일과 겹쳐 본문이 236px 로 짓눌렸다
+   (2026-07-26 Q 보고 "너무 좁아서 쓸 수 없는 칸" 의 실제 원인). */
+.record-form{display:grid;gap:var(--section-gap)}
+.record-layout{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:var(--space-6);align-items:start}
+.record-main{display:grid;gap:var(--space-6);min-width:0}
+/* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
+.record-toolbar{display:flex;justify-content:flex-end}
+.record-sticky,.record-accordion,.record-rail{
+  --surface-fill:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  background:var(--surface-fill);
+  box-shadow:var(--shadow-soft);
+  color:var(--ink);
+}
+.record-sticky{position:sticky;top:0;z-index:var(--z-sticky);display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
+.record-sticky-row{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.record-sticky-label{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
+.record-sticky-value{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.record-sticky-list{margin:0;padding-left:18px;display:grid;gap:var(--space-1);font-size:16px;font-weight:700;color:var(--ink)}
+.record-sticky-count{margin:0;padding:2px 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub);white-space:nowrap}
+.record-sticky-meta{margin:0;font-size:14px;color:var(--sub)}
+.record-accordion{padding:var(--space-4) var(--space-5)}
+.record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+.record-accordion-summary::-webkit-details-marker{display:none}
+.record-accordion-body{display:grid;gap:var(--space-4);padding-top:var(--space-4)}
+/* 위기 영역은 확인된 리스크와 같은 축이므로 --risk 균일 테두리 + 배경 틴트로 표시한다(D9). */
+.record-accordion.is-crisis{--surface-fill:var(--risk-tint-solid);border:1.5px solid var(--risk);background:var(--risk-tint-solid);padding:15px 19px}
+.record-accordion.is-crisis .record-accordion-summary{color:var(--risk)}
+.record-rail{position:sticky;top:0;display:grid;gap:var(--space-2);padding:var(--space-4)}
+.record-rail-count{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:14px;color:var(--sub)}
+.record-rail-list li[data-done="true"]{color:var(--ink);font-weight:700}
+.record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+/* 레일 해제는 **컨테이너 질의**로 한다(§4-2). 화면 폭으로 풀면 사이드바 240 이 있는 768~900 에서
+   본문이 228px 로 짓눌린다 — 2026-07-26 에 900 으로 잡아 뒀던 이유이자, 브레이크포인트를 767 하나로
+   모으면 되살아나는 결함이다. 644 = 본문 최소 420(--grid-min) + gap 24 + 레일 200. */
+@container (max-width:643px){.record-layout{grid-template-columns:minmax(0,1fr)}.record-rail{position:static;order:-1}}
+
+/* ===== wireStyles ===== */
+
+/* ── 떠 있는 표면(카드 계약) ── 흰 배경 · radius 12 · **회색 --line 1px** · --shadow-soft.
+   pen 의 'C · 카드'는 테두리가 아예 없고 이중 파스텔 그림자만으로 뜬다. 그라데이션 테두리를
+   가진 컴포넌트는 **리스크 배너 하나뿐**이다 — 그것이 배너를 서게 하는 장치이기 때문이다(D9).
+   그래서 모든 카드에 그라데이션을 두르면 두 가지가 동시에 망가진다: 화면이 촌스러워지고
+   (2026-07-26 Q 지적), 리스크 배너가 다른 카드와 구별되지 않는다.
+   여기서는 캔버스(#FAFAF9) 위 흰 카드가 그림자만으로는 약해 **회색 1px** 을 기본으로 두고,
+   **선택·활성일 때만** 그라데이션으로 바꾼다.
+   채움을 바꿀 때는 --surface-fill 만 바꾼다(선택 상태는 배경 2겹이라 background 를 덮으면 테두리가 날아간다). */
+.surface-card{
+  --surface-fill:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  background:var(--surface-fill);
+  box-shadow:var(--shadow-soft);
+  color:var(--ink);
+}
+/* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
+   배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
+.surface-card[data-selected="true"],.surface-card[aria-current="true"],.is-selected-surface{
+  border-color:transparent;
+  background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box;
+}
+/* 셸: 새 앱 헤더가 올라가는 전 페이지 컨테이너. body 배경은 덮지 않고 이 래퍼에만 캔버스색. */
+.wire-shell{min-height:100dvh;background:var(--canvas)}
+/* GridContainer: 페이지 안의 **섹션 스택**이다. 장폭·좌우 여백은 갖지 않는다 —
+   그건 .page-content(셸) 의 일이다(2026-07-26).
+   이전에는 여기에 고정 거터 230px 이 박혀 있어 셸의 여백과 겹쳤고, 화면 폭이 바뀌면
+   콘텐츠 컬럼만 제멋대로 늘었다 줄었다 했다. 폭 결정권을 한 곳으로 모은 결과 이 클래스는
+   "세로 리듬"만 담당한다. width prop 은 호출부 호환을 위해 남아 있으나 폭을 정하지 않는다. */
+.wire-container{width:100%;display:grid;gap:var(--section-gap);align-content:start}
+.wire-container[data-grid="true"]{grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--space-5);row-gap:var(--space-5)}
+.wire-col-3{grid-column:span 3}
+.wire-col-4{grid-column:span 4}
+.wire-col-6{grid-column:span 6}
+/* col-8 은 인테이크 위저드(단계 목록 4 + 본문 8)가 쓰는데 규칙이 없어 span 이 안 먹었다 —
+   본문이 12분의 1 칸으로 떨어져 글줄이 몇 어절에서 끊겼다(2026-07-26 확인). */
+.wire-col-8{grid-column:span 8}
+.wire-col-12{grid-column:span 12}
+@media(max-width:767px){
+  .wire-container[data-grid="true"]{grid-template-columns:1fr}
+  .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-12{grid-column:auto}
+}
+/* ── 카드 목록 ── 기본은 폭 전체를 쓰고, 칸이 늘어나면 --grid-min 을 기준으로 열이 갈린다
+   (D37 §4-2: 표준 420 → 1120 에서 2열 각 510 · 화면 1180 미만에서 1열). 화면마다
+   grid-template-columns 를 다시 쓰지 않고 **열 수도 직접 지정하지 않는다**(락 10).
+   auto-fill 이 아니라 **auto-fit** 이다 — auto-fill 은 빈 트랙을 남겨서 카드가 1개일 때도
+   화면 절반만 차지한다(2026-07-26 Q 지시: 기본은 폭 전체). */
+.card-grid{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
+/* 조밀 그리드 — GAS 게이지·정보 필드처럼 작은 칸이 여럿일 때(D37 §4-2, 최소 280 → 3열).
+   **3열 아니면 1열이다** — 2열이면 3개짜리 묶음(D33 세부 목표)이 둘 + 외톨이 하나로 앉는다. */
+.card-grid-dense{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min-dense)),1fr));align-items:start}
+@container (max-width:879px){.card-grid-dense{grid-template-columns:minmax(0,1fr)}}
+/* 목록 위 조작 줄(정렬·필터 등). 왼쪽이 주 조작, 오른쪽이 보조다. 아래 여백은 주지 않는다 —
+   섹션 간격은 페이지 셸(--section-gap)이 갖는다. */
+.list-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);flex-wrap:wrap}
+/* 인라인 강조 링크. AppHeader(D35 로 폐기) 시절 클래스지만 관리자 사용자 상세가 계속 쓴다. */
+.wire-header-link{font-size:16px;font-weight:700;color:var(--ink)}
+.wire-header-link:hover{text-decoration:underline}
+/* 이름 표기 (D34 · DESIGN.md §5): "이름 (가명 ID)" 한 줄. 띄어쓰기는 문자열이 아니라
+   간격 4로 만든다 — ID의 색·굵기가 실명과 달라야 하기 때문이다. 실명 크기는 자리마다
+   다르므로 인라인 스타일이 정하고, 가명 ID는 자리와 무관하게 항상 16/400 --sub 다. */
+.participant-name-group{display:inline-flex;align-items:baseline;gap:var(--space-1);flex-wrap:wrap}
+.participant-name{color:var(--ink);font-weight:700;overflow-wrap:anywhere}
+.participant-pseudonym{color:var(--sub);font-size:16px;font-weight:400}
+/* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
+   .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
+   브리핑의 .briefing-hero 와 같은 구조이나 부품이 공유된다. */
+.participant-hero-card{padding:var(--space-6);gap:var(--space-5)}
+.participant-hero-identity{display:grid;gap:var(--space-2);min-width:0}
+.participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:28px;line-height:1.25}
+/* 상태 태그는 컨트롤이다(§5) — 배지(pill)가 아니라 radius 6 · --blue-deep 1px 테두리.
+   시간·상태 축이라 블루다(D34). 줄바꿈하지 않는다. */
+.participant-hero-stage{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--blue-deep);border-radius:var(--radius-control);background:transparent;font-size:14px;font-weight:700;color:var(--blue-deep);white-space:nowrap}
+.participant-hero-meta{margin:0;color:var(--sub);font-size:14px}
+/* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
+.note-inline{color:var(--sub);font-size:14px}
+.note-inline a{color:var(--blue-deep);font-weight:700;text-decoration:underline}
+/* 당사자 목록 — 찾기 칸 + 행 목록. 행은 gap 그리드에 낱개로 놓이므로 카드 계약을 쓴다
+   (DESIGN.md §5 '리스트 행' — 낱개는 카드, 붙어 있으면 구분선). */
+.participant-search-layout{display:grid;gap:var(--space-5)}
+/* 당사자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
+.participant-row-list{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
+/* 당사자 정보 허브 (D35 §3 · D36). 카드 계약(.surface-card)은 그대로 쓰고 안쪽만 정한다. */
+.participant-contact{display:grid;gap:var(--space-1);margin:0 0 var(--space-6)}
+/* 사람 정보 라벨은 민트 계열(D34). */
+.participant-contact dt{color:var(--mint-deep);font-size:14px;font-weight:700}
+.participant-contact dd{margin:0;color:var(--ink);font-size:16px;font-weight:700}
+.participant-program-list{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
+.participant-program{display:grid;gap:var(--space-2);padding:var(--space-5) var(--space-6)}
+/* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
+.participant-program-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.participant-program-head .status{flex:none;white-space:nowrap}
+.participant-program-meta{margin:0;color:var(--sub);font-size:14px}
+.participant-program-assignee{display:flex;gap:var(--space-2);align-items:baseline;font-size:14px;color:var(--ink)}
+.participant-program-assignee-label{color:var(--mint-deep);font-weight:700}
+.participant-program-actions{display:flex;gap:var(--space-3);margin-top:var(--space-3)}
+/* 담당하지 않는 사업(D36): 잠긴 이유를 문장으로 남긴다. 색이 아니라 문장이 알린다 —
+   리스크 색은 리스크 배너 독점이다(D9·D34). */
+.participant-program[data-locked="true"]{background:var(--muted)}
+.participant-program-locked{margin:var(--space-3) 0 0;color:var(--sub);font-size:14px}
+/* 동의 3종 수정(D44). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
+.participant-program-consent{margin-top:var(--space-4)}
+.participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:13px}
+/* 참여 사업 목록을 좁은 화면에서 1열로 강제하던 규칙은 지웠다 — --grid-min 420 이 이미 접는다. */
+/* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
+   화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
+   (구분선 계약은 행이 한 컨테이너 안에 붙어 있을 때 성립한다 — 이 차이는 STATUS 에 남긴다).
+   호버·선택은 --surface-fill 만 바꾼다: background 를 덮으면 그라데이션 테두리가 사라진다. */
+.wire-row{display:flex;align-items:center;gap:var(--space-3);width:100%;min-height:72px;padding:var(--space-4) var(--space-6);font-size:16px;font-weight:700;text-align:left;cursor:pointer}
+button.wire-row{font:inherit;font-size:16px;font-weight:700}
+.wire-row:hover{--surface-fill:var(--muted)}
+.wire-row[data-static="true"]{cursor:default}
+.wire-row[data-static="true"]:hover{--surface-fill:var(--panel)}
+.wire-row[data-selected="true"]{--surface-fill:var(--muted)}
+.wire-row[data-align="center"]{justify-content:center;text-align:center}
+.wire-row-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.wire-row[data-align="center"] .wire-row-text{flex:0 1 auto}
+.wire-chevron{flex:none;width:10px;height:10px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub)}
+.wire-chevron[data-dir="down"]{transform:translateY(-3px) rotate(45deg)}
+.wire-chevron[data-dir="right"]{transform:translateX(-3px) rotate(-45deg)}
+/* WireCard (§5 카드): 헤더/본문을 --gradient-brand 1px 선으로 나눈다. */
+.wire-card{padding:var(--space-6)}
+.wire-card-title{margin:0;font-size:18px;font-weight:700;line-height:1.35;color:var(--ink)}
+.wire-card-divider{height:1px;margin:var(--space-4) 0;background:var(--gradient-brand);border:0}
+.wire-card-body{display:grid;gap:var(--space-3)}
+/* 제목과 상태 배지가 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은 이유). */
+.wire-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.wire-card-head .status,.wire-card-head .wire-badge{flex:none;white-space:nowrap}
+/* 카드 안 하위 구획. h3 에 규칙이 없어 브라우저 기본 크기(18.7px)가 그대로 나오던 자리다 —
+   카드 제목(18)과 크기가 겹쳐 위계가 없었다. 구획 제목은 라벨이므로 14/700 --sub 다. */
+.wire-card-section{display:grid;gap:var(--space-2)}
+.wire-card-section>h3{margin:0;font-size:14px;font-weight:700;color:var(--sub)}
+/* 수기 메모는 실무자가 줄바꿈한 그대로 읽혀야 한다. */
+.wire-card-section>p{margin:0;font-size:16px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.wire-card-section>ul{margin:0;padding:0;display:grid;gap:var(--space-2);list-style:none;font-size:16px;color:var(--ink)}
+/* 정보 필드(§5): 라벨 14/700 민트 deep 위 · 값 16 아래. */
+.wire-field-row{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
+.wire-field-label{color:var(--mint-deep);font-size:14px;font-weight:700}
+.wire-field-value{color:var(--ink);font-size:16px;overflow-wrap:anywhere}
+/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. */
+.wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:16px}
+.wire-bullets>li{position:relative;padding-left:var(--space-4)}
+.wire-bullets>li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--sub)}
+/* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
+.wire-search{display:grid;gap:var(--space-2)}
+.wire-search-label{font-size:14px;font-weight:700;color:var(--sub)}
+.wire-search-box{display:flex;align-items:center;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-search-box input,.wire-search-box select{width:100%;border:0;background:transparent;color:var(--ink);outline:0;font-size:16px;-webkit-appearance:none;appearance:none}
+/* select 는 네이티브 화살표를 끄고 꺽쇠를 직접 그린다 — 네이티브는 테두리에 붙어 다른 입력칸과 안 맞는다. */
+.wire-search-box select{padding-right:var(--space-6)}
+.wire-search-box .wire-chevron{margin:0}
+.wire-search-box:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 입력 오류(§5): 테두리 1.5px --risk + 아래 메시지. 색만으로 알리지 않는다. */
+.wire-search-box[data-invalid="true"]{border:1.5px solid var(--risk)}
+.wire-field-error{margin:0;font-size:14px;font-weight:700;color:var(--risk)}
+/* WireFormField (§5 입력칸) — 검색칸과 **같은 계약**을 폼에서 쓰는 형태다. 검색칸 규칙을
+   .wire-search-box 에 묶어 둔 탓에 폼 화면들이 레거시 .field 로 각자 그리고 있었다.
+   박스 규칙은 검색칸과 한 글자도 다르지 않고, 폼에만 필요한 것(필수 별표·도움말·오류 자리)만 는다. */
+.wire-form-field{display:grid;gap:var(--space-2)}
+.wire-form-label{font-size:14px;font-weight:700;color:var(--sub)}
+/* 필수 별표는 --risk 지만 리스크 독점(D9)의 예외가 아니다 — 오류·필수 표시는 §9 가 허용한 자리다. */
+.wire-form-required{color:var(--risk)}
+/* 라벨 옆 '(선택)' 같은 보조 문구. 라벨과 같은 줄이므로 굵기만 낮춘다. */
+.wire-form-note{margin-left:var(--space-1);color:var(--sub);font-weight:400}
+.wire-input-box{display:flex;align-items:center;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:16px;font-weight:400;-webkit-appearance:none;appearance:none}
+/* select 는 네이티브 화살표를 끄고 꺽쇠를 직접 그린다(검색칸과 같은 이유). */
+.wire-input-box>select{padding-right:var(--space-6)}
+/* textarea 는 박스가 세로로 늘어난다 — 높이 40 고정은 한 줄 컨트롤 계약이다. */
+.wire-input-box[data-control="textarea"]{align-items:stretch;padding:var(--space-3)}
+/* min-height 를 0 으로 되돌리는 이유: layout.tsx 의 전역 textarea 규칙(min-height 216px)이
+   rows 지정을 덮어써서 rows=4 인 담당 실무자 의견과 rows=14 인 수기 메모가 같은 높이로 나온다.
+   전역 규칙은 아직 레거시 화면들이 기대고 있어 두고, 킷 입력칸 안에서만 rows 가 높이를 정한다.
+   (이 파일은 백틱 템플릿 리터럴이다 — 주석에 백틱을 쓰면 문자열이 거기서 끊긴다.) */
+.wire-input-box>textarea{min-height:0;resize:vertical;line-height:1.6}
+.wire-input-box:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
+.wire-input-box[data-invalid="true"]{border:1.5px solid var(--risk)}
+.wire-form-hint{font-size:14px;font-weight:400;color:var(--sub)}
+.wire-form-hint a{color:var(--blue-deep);font-weight:700;text-decoration:underline}
+/* 폼을 담은 카드는 본문 간격을 한 단 넓힌다 — 입력칸은 라벨·도움말을 달고 있어
+   정보 카드(12)의 간격으로는 항목 경계가 안 읽힌다. */
+.wire-form-card>.wire-card-body{gap:var(--space-5)}
+/* 폼 2열. 화면마다 grid-template-columns 를 다시 쓰지 않는다(.card-grid 와 같은 취지). */
+.wire-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}
+/* 폼 하단 버튼 줄: 오른쪽 정렬, 프라이머리가 오른쪽 끝(모달 하단과 같은 어휘). */
+.wire-form-actions{display:flex;justify-content:flex-end;gap:var(--space-3)}
+@media(max-width:767px){
+  .wire-form-grid{grid-template-columns:minmax(0,1fr)}
+}
+/* WireChoice (§5 선택지 행): 컨트롤과 라벨이 같은 줄, 누를 면적은 컨트롤 높이(40)만큼.
+   입력칸 규칙(width:100%)을 상속시키지 않는 것이 이 클래스의 존재 이유다. */
+.wire-choice{display:flex;align-items:flex-start;gap:var(--space-3);min-height:var(--control-height);padding:var(--space-2) 0;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer}
+.wire-choice>input{margin:var(--space-1) 0 0}
+.wire-choice-text{display:grid;gap:var(--space-1);min-width:0;overflow-wrap:anywhere}
+.wire-choice-desc{color:var(--sub);font-size:14px;font-weight:400}
+.wire-choice:has(>input:disabled){color:var(--sub);cursor:not-allowed}
+/* 폼 안 묶음(fieldset). 카드 안에 또 카드를 두지 않도록 --line 1px 만 두르고 그림자는 없다. */
+.wire-fieldset{display:grid;gap:var(--space-3);min-width:0;margin:0;padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card)}
+.wire-fieldset>legend{padding:0 6px;font-size:14px;font-weight:700;color:var(--sub)}
+.wire-fieldset>legend small{font-weight:400}
+.wire-fieldset-list{display:grid;gap:var(--space-4)}
+/* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. */
+.wire-choice-group{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
+.wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}
+/* 라디오(§5): 체크박스와 같은 계약이고 모양만 원형이다. 선택 표시는 가운데 --ink 점.
+   체크박스와 같은 이유로 ::after 가 아니라 background 로 그린다(input 은 replaced element). */
+.wire-radio{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
+.wire-radio:checked{background:radial-gradient(circle at center,var(--ink) 0 4px,transparent 4px) padding-box,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
+.wire-radio:disabled,.wire-checkbox:disabled{background:linear-gradient(var(--muted),var(--muted)) padding-box,linear-gradient(var(--line),var(--line)) border-box;cursor:not-allowed}
+/* WireButton (§5 버튼 4종 × 크기 2단). 크기 변형은 높이·패딩·라벨만 다르고 색 규칙은 같다.
+   **라벨은 줄바꿈하지 않는다**(R7 · 2026-07-30): 한글은 어디서나 끊길 수 있어 칸이 좁아지면
+   '당사자 정 / 보' 처럼 낱글자로 쪼개진다. 버튼은 한 번에 읽히는 한 덩어리라 넘칠지언정
+   쪼개지지 않는 쪽이 옳다 — 좁은 화면의 자리는 세로 배치가 만든다(layout.tsx 768 미만). */
+.wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:16px;font-weight:700;text-align:left;white-space:nowrap;cursor:pointer}
+.wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 14px;font-size:14px}
+/* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
+.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--ink);box-shadow:var(--shadow-soft)}
+/* 고스트: 배경·테두리 없음, --sub 글자. */
+.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);box-shadow:none}
+/* 위험: 되돌리기 어려운 행동에만. */
+.wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk);box-shadow:none}
+.wire-button[data-justify="center"]{justify-content:center}
+.wire-button[data-justify="between"]{justify-content:space-between}
+.wire-button[data-justify="between"] .wire-button-text{flex:1 1 auto}
+.wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
+.wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{border-color:var(--sub)}
+.wire-button .wire-chevron{border-color:currentColor}
+/* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다. */
+.wire-meta-row{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
+/* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/700. 기본형은 색 없이 --sub 테두리로만 선다. */
+.wire-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:14px;font-weight:700;color:var(--sub)}
+/* 계열 배지: tint 배경 + deep 글자. 민트=사람·소속, 라벤더=AI·승인 대기, 블루=시간·상태. */
+.wire-badge[data-tone="mint"]{border-color:transparent;background:var(--mint-tint);color:var(--mint-deep)}
+.wire-badge[data-tone="lavender"]{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
+.wire-badge[data-tone="blue"]{border-color:transparent;background:var(--blue-tint);color:var(--blue-deep)}
+/* 상태 태그: 눌러서 상태를 바꾸는 컨트롤이라 radius 6 · 블루 deep 1px 테두리(배지가 아니다). */
+.wire-status-tag{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--blue-deep);border-radius:var(--radius-control);background:transparent;font-size:14px;font-weight:700;color:var(--blue-deep)}
+/* 체크박스(§5): 18px · radius 4 · --gradient-deep 1px 테두리. 리스크 변형은 테두리만 --risk. */
+.wire-checkbox{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-xs);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
+/* 리스크 변형: 테두리만 --risk 로 바꾼다(2026-07-26 Q 결정). 나머지는 기본과 같다.
+   테두리를 불투명 단색으로 덮으므로 아래 그라데이션 레이어는 보이지 않는다. */
+.wire-checkbox[data-tone="risk"]{border:1px solid var(--risk)}
+/* 체크 표시는 ::before/::after 가 아니라 background-image 로 그린다.
+   이유: input 은 replaced element 라 Firefox 가 생성 콘텐츠를 렌더하지 않는다 — ::after 로 그리면
+   Firefox 에서 체크 표시가 조용히 사라져 선택·미선택이 구분되지 않는다. 동의 체크박스(D23)에서는
+   그게 가장 위험한 자리다. background-image 는 전 브라우저에서 동작한다.
+   data URI 안에는 var() 를 쓸 수 없어 획 색만 hex 로 박힌다 — --ink(#3D3445)·--risk(#F071B4)와
+   같은 값이며, 토큰이 바뀌면 이 두 줄도 함께 고쳐야 하는 유일한 자리다. */
+.wire-checkbox:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%233D3445' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
+.wire-checkbox[data-tone="risk"]:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%23F071B4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
+/* 빈 상태(§5): 무채색만. 라인 아이콘 28 + 제목 16/700 + 설명 14/400 + 다음 행동 버튼. */
+.wire-empty{display:grid;justify-items:center;gap:var(--space-2);padding:var(--space-10) var(--space-6);text-align:center}
+.wire-empty-icon{width:28px;height:28px;color:var(--sub)}
+.wire-empty-title{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.wire-empty-desc{margin:0;max-width:34ch;font-size:14px;color:var(--sub)}
+.wire-empty>.wire-button{margin-top:var(--space-2)}
+/* 탭(§5): 활성은 색이 아니라 대비로 구분한다. */
+.wire-tabs{display:flex;gap:var(--space-6);border-bottom:1px solid var(--line)}
+.wire-tab{padding:var(--space-2) 0;border:0;border-bottom:2px solid transparent;background:none;color:var(--sub);font-size:16px;font-weight:700;cursor:pointer}
+.wire-tab[aria-selected="true"],.wire-tab[data-active="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+/* 인용 블록(§5): AI 제안의 근거 발언 전용. 세로선은 --gradient-brand-v(흐르는 방향과 같게). */
+.wire-quote{margin:0;padding-left:var(--space-3);border-left:2px solid transparent;background:var(--gradient-brand-v) left/2px 100% no-repeat;font-size:14px;color:var(--sub)}
+.wire-quote-time{display:block;margin-top:var(--space-1);font-size:14px;font-weight:700;color:var(--sub);letter-spacing:var(--tracking-numeric)}
+/* 모달(§5): 폭 520 · radius 12 · 스크림 rgba(61,52,69,.4) · --shadow-modal.
+   하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */
+.wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:rgba(61,52,69,.4)}
+.wire-modal{width:100%;max-width:520px;padding:var(--space-6);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-modal)}
+.wire-modal-title{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+.wire-modal-desc{margin:var(--space-2) 0 0;font-size:16px;color:var(--sub)}
+.wire-modal-body{margin-top:var(--space-5)}
+.wire-modal-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-6)}
+/* 관리자 2차 내비(CCC-18a): 좌측 335px 컬럼 → 가로 탭. 셸 사이드바 옆에 기둥이 둘 서면
+   "사이드바 = 장소"(D35)가 어느 쪽인지 읽히지 않는다. 탭 자체 규칙은 .wire-tab 이 갖고
+   있고(DESIGN.md §5), 여기서는 좁은 화면 가로 스크롤만 더한다. */
+.wire-admin-tabs{overflow-x:auto;scrollbar-width:none}
+.wire-admin-tabs::-webkit-scrollbar{display:none}
+.wire-admin-tabs .wire-tab{flex:none;white-space:nowrap}
+/* 관리자 영역 레이아웃: 탭 아래 콘텐츠 한 단. */
+.wire-admin-layout{display:block}
+.wire-admin-content{min-width:0;padding:var(--space-6) 0 var(--space-10)}
+.wire-admin-back{margin-bottom:var(--space-3)}
+.wire-admin-back a{font-size:14px;font-weight:700;color:var(--sub)}
+.wire-admin-back a:hover{text-decoration:underline}
+.wire-admin-list{display:grid;gap:var(--space-3);margin-top:var(--space-5)}
+/* 좌열(실무자 목록)은 '이메일  역할' 한 줄이 랩 없이 들어가는 최소 폭을 보장한다. */
+.wire-admin-cols{display:grid;grid-template-columns:minmax(400px,1fr) minmax(0,1.2fr);gap:var(--space-6);margin-top:var(--space-6);align-items:start}
+.wire-admin-cols>section{display:grid;gap:0;min-width:0}
+.wire-admin-detail-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3)}
+.wire-admin-detail-name{margin:0;font-size:18px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.wire-admin-section{display:grid;gap:var(--space-3);margin-top:var(--space-6)}
+.wire-admin-section>h2{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+.wire-admin-form{display:grid;gap:var(--space-4);margin-top:var(--space-5)}
+.wire-admin-form-row{display:flex;gap:var(--space-3);align-items:flex-end;margin-top:var(--space-5)}
+.wire-admin-form-row .wire-search{flex:1 1 auto;min-width:0}
+.wire-admin-form-row .wire-button{flex:none}
+.wire-admin-empty{margin:0;color:var(--sub);font-size:14px}
+.wire-admin-caption{margin:6px 0 0;font-size:14px;color:var(--sub)}
+/* 성공색은 이 시스템에 없다(D6·R4) — 완료 알림도 중립 잉크로 쓰고 문구로 알린다. */
+.wire-admin-notice{margin:0 0 var(--space-3);color:var(--ink);font-weight:700}
+.wire-admin-error{margin:0 0 var(--space-3);color:var(--risk);font-weight:700}
+@media(max-width:767px){
+  .wire-admin-layout{flex-direction:column}
+  .wire-admin-content{padding:var(--space-6) 0 var(--space-8)}
+  .wire-admin-cols{grid-template-columns:1fr}
+  .wire-admin-form-row{flex-direction:column;align-items:stretch}
+}
+
+/* PageTitle: 업무 도구 밀도 — 마케팅 랜딩의 큰 디스플레이 타입을 쓰지 않는다(§7-6).
+   정렬은 **왼쪽**이다(2026-07-26). 가운데 정렬은 제목만 콘텐츠 축에서 떨어져 나와,
+   페이지마다 제목 위치가 달라 보이는 원인이었다(설정 화면에서 특히). */
+.wire-page-title{margin:0;text-align:start;font-size:28px;font-weight:700;line-height:1.25;color:var(--ink)}
+@media(max-width:767px){.wire-page-title{font-size:24px}}
+/* 포커스(§5): 모든 조작 요소 공통, :focus-visible 만. */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* /kit 데모 전용 */
+.wire-kit-section{display:grid;gap:var(--space-4);margin-block:var(--space-10)}
+.wire-kit-heading{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+.wire-kit-caption{margin:0;font-size:14px;color:var(--sub)}
+.wire-kit-stack{display:grid;gap:var(--space-3)}
+.wire-kit-row{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:flex-start}
+.wire-kit-swatch{display:grid;place-items:center;min-height:60px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted);color:var(--sub);font-size:14px}
+
+
+/* ── 시안 전용(앱 CSS 아님) ── */
+body{background:var(--canvas);padding:32px}
+.sheet{display:grid;gap:40px;max-width:1180px;margin:0 auto}
+.sheet-head h1{margin:0 0 8px;font-size:24px;font-weight:700;color:var(--ink)}
+.sheet-head p{margin:0;font-size:15px;color:var(--sub);line-height:1.6}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:32px;align-items:start}
+.variant{display:grid;gap:12px;min-width:0}
+.variant-head{display:grid;gap:6px}
+.variant-tag{justify-self:start;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 10px;border-radius:var(--radius-pill);font-size:12px;font-weight:700}
+.variant[data-tone="now"] .variant-tag{background:var(--muted);color:var(--sub)}
+.variant[data-tone="rec"] .variant-tag{background:var(--mint-tint);color:var(--mint-deep)}
+.variant[data-tone="alt"] .variant-tag{background:var(--blue-tint);color:var(--blue-deep)}
+.variant-title{margin:0;font-size:17px;font-weight:700;color:var(--ink)}
+.variant-note{margin:0;font-size:13px;color:var(--sub);line-height:1.65}
+.variant-note code{padding:1px 4px;border-radius:var(--radius-xs);background:var(--muted);font-size:12px}
+.stage{padding:20px;border-radius:var(--radius-card);background:var(--canvas);border:1px dashed var(--line)}
+.stage>.page-title-mock{margin:0 0 16px;font-size:20px;font-weight:700;color:var(--ink)}
+.wire-register-form{margin-top:0}
+/* 시안 폭이 좁아 12열 그리드가 2열로 안 접히므로 한 줄 1칸으로 강제한다(실화면은 960 폭에서 2열이다). */
+.stage .wire-container[data-grid="true"]{grid-template-columns:1fr;gap:16px}
+.stage .wire-col-6{grid-column:auto}
+.wire-chevron{color:var(--sub)}
+.briefing-card-arrow::after{content:"›";color:var(--sub)}
+/* 버튼 — 앱 클래스 이름이 화면마다 달라 시안에서는 계약값(높이 40·알약·그라데이션)을 직접 쓴다. */
+.wire-btn{display:inline-flex;align-items:center;gap:6px;height:var(--control-height);padding:0 16px;border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--gradient-action);color:var(--ink);font-size:16px;font-weight:700;cursor:pointer}
+.wire-register-submit{width:100%;justify-content:center}
+.y10-submit-compact{justify-self:start;width:auto}
+/* ── Y10 세 가지 ── */
+.y10-now{}                                                   /* 지금 그대로: --line 1px, 그림자 없음 */
+.y10-a{background:var(--muted);border-color:var(--line)}     /* 안 A: 그림자 없이 배경만 한 톤 */
+.y10-a legend{color:var(--mint-deep)}
+.y10-b{background:var(--panel);border-color:var(--line);box-shadow:var(--shadow-soft)}  /* 안 B: 카드 안 카드 */
+
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="sheet-head">
+    <h1>당사자 등록 화면 — 동의 블록(Y10)을 어떻게 할까</h1>
+    <p>실제 앱 CSS(<code>design/tokens.css</code> + <code>layout.tsx</code> · <code>wire-styles.ts</code>)를 그대로 인라인해 그렸습니다 — 색·간격·테두리는 화면과 같은 값입니다. 폼 자체는 아직 고치지 않았습니다(코드 변경 0건).<br />
+    보실 것은 <b>동의 블록(가운데 상자)이 주변과 어떻게 어울리는가</b> 하나입니다. 폭이 좁아 입력칸은 1열로 세웠지만 실제 화면은 2열입니다.</p>
+  </div>
+
+  <div class="sheet-head">
+    <h1>동의 블록만 크게</h1>
+    <p>위 시안은 폼 전체라 상자 하나의 차이가 눈에 잘 안 잡힙니다. 같은 블록을 <b>카드 안에 놓은 상태로</b> 나란히 크게 그렸습니다.</p>
+  </div>
+  <div class="cols">
+    <section class="variant" data-tone="now">
+      <div class="variant-head">
+        <span class="variant-tag">현재 / 안 C</span>
+        <p class="variant-note">회색 테두리 1px · 흰 배경. 카드 안에 들어가면 카드와 배경색이 같아 상자가 테두리로만 존재한다.</p>
+      </div>
+      <div class="surface-card wire-card"><div class="wire-card-body">
+      <fieldset class="consent-fieldset y10-now">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset></div></div>
+    </section>
+    <section class="variant" data-tone="rec">
+      <div class="variant-head">
+        <span class="variant-tag">안 A · 추천</span>
+        <p class="variant-note">테두리 1px + 배경 한 톤(<code>--muted</code>) + 제목 민트. 그림자 없이 "카드 안의 한 덩어리"로 읽힌다.</p>
+      </div>
+      <div class="surface-card wire-card"><div class="wire-card-body">
+      <fieldset class="consent-fieldset y10-a">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset></div></div>
+    </section>
+    <section class="variant" data-tone="alt">
+      <div class="variant-head">
+        <span class="variant-tag">안 B</span>
+        <p class="variant-note">흰 배경 + <code>--shadow-soft</code>. 흰 카드 위 흰 상자라 그림자가 거의 안 보이면서, 규칙상으로는 카드 안 카드가 된다.</p>
+      </div>
+      <div class="surface-card wire-card"><div class="wire-card-body">
+      <fieldset class="consent-fieldset y10-b">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset></div></div>
+    </section>
+  </div>
+  <div class="sheet-head">
+    <h1>화면 전체로 보기</h1>
+    <p>같은 안을 등록 화면 전체에 적용한 모습입니다. Y6(카드) · Y7(<code>등록하기</code>) · Y8(필수 <code>*</code>)이 함께 들어가 있습니다.</p>
+  </div>
+  <div class="cols">
+    <section class="variant" data-tone="now" id="now">
+      <div class="variant-head">
+        <span class="variant-tag">현재</span>
+        <h2 class="variant-title">지금 화면</h2>
+        <p class="variant-note">폼이 배경 위에 그대로 놓인다(카드 없음). 동의 블록만 회색 테두리 상자다. 버튼은 풀폭 <code>가입하기</code>. 필수 표시 없음.</p>
+      </div>
+      <div class="stage">
+        <p class="page-title-mock">당사자 등록</p>
+        
+    <form class="wire-register-form">
+      <div class="wire-container" data-grid="true" style="padding:0">
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이름</span>
+            <span class="wire-search-box"><input placeholder="당사자 이름" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이메일</span>
+            <span class="wire-search-box"><input placeholder="participant@example.com" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">연락처</span>
+            <span class="wire-search-box"><input placeholder="010-0000-0000" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">참여 사업</span>
+            <span class="wire-search-box"><select><option>금전지원형 v1</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">생년월일</span>
+            <span class="wire-search-box"><input placeholder="YYYY-MM-DD" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">주소 또는 거주지역</span>
+            <span class="wire-search-box"><input placeholder="예: 서울시 은평구" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">성별</span>
+            <span class="wire-search-box"><select><option>선택 안 함</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+      </div>
+      <div class="wire-invite-section">
+        <span class="wire-search-label">담당 실무자 김성큐</span>
+        <p class="schedule-form-hint">등록한 실무자가 담당 실무자로 자동 배정됩니다.</p>
+      </div>
+      <fieldset class="consent-fieldset y10-now">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset>
+      <button type="button" class="wire-btn wire-btn-primary wire-register-submit">가입하기 <span aria-hidden="true">›</span></button>
+    </form>
+      </div>
+    </section>
+    <section class="variant" data-tone="rec" id="a">
+      <div class="variant-head">
+        <span class="variant-tag">안 A · 추천</span>
+        <h2 class="variant-title">Y6 우선 · Y10 재정의</h2>
+        <p class="variant-note">폼 전체가 카드 안으로 들어간다. 동의 블록은 <b>그림자 없이</b> 테두리 1px 유지 + 배경·간격·제목만 카드 안 그룹 언어로 맞춘다. 버튼은 콤팩트 알약 <code>등록하기</code>, 필수 <code>*</code> 표시.</p>
+      </div>
+      <div class="stage">
+        <p class="page-title-mock">당사자 등록</p>
+        <div class="surface-card wire-card"><div class="wire-card-body">
+    <form class="wire-register-form">
+      <div class="wire-container" data-grid="true" style="padding:0">
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이름 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="당사자 이름" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이메일 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="participant@example.com" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">연락처 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="010-0000-0000" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">참여 사업</span>
+            <span class="wire-search-box"><select><option>금전지원형 v1</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">생년월일</span>
+            <span class="wire-search-box"><input placeholder="YYYY-MM-DD" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">주소 또는 거주지역</span>
+            <span class="wire-search-box"><input placeholder="예: 서울시 은평구" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">성별</span>
+            <span class="wire-search-box"><select><option>선택 안 함</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+      </div>
+      <div class="wire-invite-section">
+        <span class="wire-search-label">담당 실무자 김성큐</span>
+        <p class="schedule-form-hint">등록한 실무자가 담당 실무자로 자동 배정됩니다.</p>
+      </div>
+      <fieldset class="consent-fieldset y10-a">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset>
+      <button type="button" class="wire-btn wire-btn-primary y10-submit-compact">등록하기 <span aria-hidden="true">›</span></button>
+    </form></div></div>
+      </div>
+    </section>
+    <section class="variant" data-tone="alt" id="b">
+      <div class="variant-head">
+        <span class="variant-tag">안 B</span>
+        <h2 class="variant-title">Y10 원안 — 동의 블록에 그림자</h2>
+        <p class="variant-note">동의 블록에 <code>--shadow-soft</code> + 흰 배경을 준다. 카드 안에 또 카드가 생겨 계약 두 곳(<code>wire-card.tsx:14</code> · <code>wire-styles.ts:112</code>)과 어긋나고, 같은 상자를 쓰는 동의 수정 허브 화면도 함께 바뀐다.</p>
+      </div>
+      <div class="stage">
+        <p class="page-title-mock">당사자 등록</p>
+        <div class="surface-card wire-card"><div class="wire-card-body">
+    <form class="wire-register-form">
+      <div class="wire-container" data-grid="true" style="padding:0">
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이름 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="당사자 이름" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이메일 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="participant@example.com" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">연락처 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="010-0000-0000" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">참여 사업</span>
+            <span class="wire-search-box"><select><option>금전지원형 v1</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">생년월일</span>
+            <span class="wire-search-box"><input placeholder="YYYY-MM-DD" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">주소 또는 거주지역</span>
+            <span class="wire-search-box"><input placeholder="예: 서울시 은평구" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">성별</span>
+            <span class="wire-search-box"><select><option>선택 안 함</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+      </div>
+      <div class="wire-invite-section">
+        <span class="wire-search-label">담당 실무자 김성큐</span>
+        <p class="schedule-form-hint">등록한 실무자가 담당 실무자로 자동 배정됩니다.</p>
+      </div>
+      <fieldset class="consent-fieldset y10-b">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset>
+      <button type="button" class="wire-btn wire-btn-primary y10-submit-compact">등록하기 <span aria-hidden="true">›</span></button>
+    </form></div></div>
+      </div>
+    </section>
+    <section class="variant" data-tone="alt" id="c">
+      <div class="variant-head">
+        <span class="variant-tag">안 C</span>
+        <h2 class="variant-title">Y10 빼기 — Y6·Y7·Y8 만</h2>
+        <p class="variant-note">카드·라벨·필수 표시만 하고 동의 블록은 지금 모습 그대로 둔다. 카드 안에서 회색 테두리 상자가 그대로 남는다.</p>
+      </div>
+      <div class="stage">
+        <p class="page-title-mock">당사자 등록</p>
+        <div class="surface-card wire-card"><div class="wire-card-body">
+    <form class="wire-register-form">
+      <div class="wire-container" data-grid="true" style="padding:0">
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이름 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="당사자 이름" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">이메일 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="participant@example.com" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">연락처 <span class="wire-form-required" aria-hidden="true">*</span></span>
+            <span class="wire-search-box"><input placeholder="010-0000-0000" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">참여 사업</span>
+            <span class="wire-search-box"><select><option>금전지원형 v1</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">생년월일</span>
+            <span class="wire-search-box"><input placeholder="YYYY-MM-DD" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">주소 또는 거주지역</span>
+            <span class="wire-search-box"><input placeholder="예: 서울시 은평구" /></span>
+          </label>
+        </div>
+        <div class="wire-col-6">
+          <label class="wire-search">
+            <span class="wire-search-label">성별</span>
+            <span class="wire-search-box"><select><option>선택 안 함</option></select><span class="wire-chevron" aria-hidden="true">›</span></span>
+          </label>
+        </div>
+      </div>
+      <div class="wire-invite-section">
+        <span class="wire-search-label">담당 실무자 김성큐</span>
+        <p class="schedule-form-hint">등록한 실무자가 담당 실무자로 자동 배정됩니다.</p>
+      </div>
+      <fieldset class="consent-fieldset y10-now">
+        <legend>동의 (항목별, 기본 미동의)</legend>
+        <p class="schedule-form-hint">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다. 개인정보 수집·이용 동의는 등록에 반드시 필요하며, 녹음·텍스트 AI 는 미동의여도 등록이 진행됩니다.</p>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>개인정보 수집·이용 동의 (필수)</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>녹음·음성 분석 동의</span></label>
+        <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>텍스트 AI 정리 동의</span></label>
+        <div class="consent-emergency">
+          <label class="consent-checkbox"><input type="checkbox" class="wire-checkbox" /><span>긴급 등록 (동의를 먼저 받을 수 없는 경우)</span></label>
+          <p class="schedule-form-hint">긴급 등록은 사유와 함께 기록되고, 동의 보완 기한(등록일부터 14일)이 생깁니다.</p>
+        </div>
+        <details class="consent-detail">
+          <summary class="consent-detail-summary"><span>자세히 읽어보기</span><span aria-hidden="true" class="briefing-card-arrow"></span></summary>
+        </details>
+      </fieldset>
+      <button type="button" class="wire-btn wire-btn-primary y10-submit-compact">등록하기 <span aria-hidden="true">›</span></button>
+    </form></div></div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

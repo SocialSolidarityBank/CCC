@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Chevron } from './chevron';
 
 export interface SearchSelectOption {
@@ -8,8 +9,11 @@ export interface SearchSelectOption {
 }
 
 export interface SearchInputProps {
-  /** 상단 라벨(14/700 --sub). */
-  label: string;
+  /**
+   * 상단 라벨(14/700 --sub). 문자열이 기본이지만 조각도 받는다 — 필수 별표(`wire-form-required`)
+   * 처럼 라벨 안에서 색이 달라지는 부분이 있으면 문자열로는 표현할 수 없다(Y8).
+   */
+  label: ReactNode;
   /** text = 입력 박스(기본), select = 우측 체브론이 붙는 셀렉트. */
   variant?: 'text' | 'select';
   /** text 변형의 input type. 생년월일 같은 날짜 칸에 'date' 를 준다(기본 'text'). */
