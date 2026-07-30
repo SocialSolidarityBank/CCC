@@ -1,0 +1,63 @@
+---
+name: codemap
+description: >-
+  Route a codebase question to the right code-intelligence tool automatically.
+  Use when the user asks about their CODE — "이 코드 어디서 호출돼?", "이거 고치면 뭐
+  깨져?", "이 프로젝트 전체 설명해줘", "구조 분석", "온보딩 문서", "어떤 함수가 뭐
+  하는지", "where is X called", "what breaks if I change Y", "explain this
+  codebase", "map this repo", "분석해줘", "코드맵". One entry, three backends: the
+  agent picks codegraph (fast structural default), codebase-memory (complex /
+  multi-repo / infra / dead-code), or Understand-Anything (human-readable
+  summaries + dashboard). Not for writing new code, not for non-code questions.
+---
+
+# codemap — one entry, the right code lens
+
+You are routing a **non-developer PM's** codebase question to ONE of three
+installed tools. The PM never picks a tool — you do. Pick the cheapest tool
+that fully answers; escalate only if it can't.
+
+## Step 0 — resolve the target codebase
+
+Before routing, know WHICH codebase the question is about:
+- If the user named a project/path, use it.
+- Else use the current working directory.
+- codegraph & codebase-memory need that path indexed; Understand-Anything
+  indexes on demand. If unindexed, say so and offer to index — don't return
+  an empty "no project" error.
+
+## Routing decision tree
+
+1. **Does the PM need to READ the answer themselves** (explain whole project,
+   onboarding, plain-English summary, architecture tour, business domain, or a
+   visual dashboard)?
+   → **Understand-Anything**. See `references/understand-anything.md`.
+
+2. **Else, is it a COMPLEX structural question** — spans multiple repos, touches
+   infra files (Dockerfile/K8s), needs dead-code or cross-service/route
+   analysis, precise type resolution, or a rare language?
+   → **codebase-memory**. See `references/codebase-memory.md`.
+
+3. **Else (general structural lookup)** — "where is X?", "who calls Y?", "what
+   breaks if I change Z?", signature/source of a symbol.
+   → **codegraph** (DEFAULT). See `references/codegraph.md`.
+
+4. **Ambiguous?** Start at codegraph (3). If it can't answer (missing breadth,
+   needs narration for the PM), escalate to codebase-memory (2) or
+   Understand-Anything (1) and say why you escalated.
+
+## Graceful degradation
+
+Before using a tool, confirm it's available:
+- codegraph: `mcp__codegraph__*` tools present (always installed).
+- codebase-memory: `mcp__codebase-memory-mcp__*` tools present.
+- Understand-Anything: `/understand*` skills present (plugin enabled).
+
+If the routed tool is NOT available, tell the PM plainly what's missing + the
+one-line fix, then fall back to the next-best AVAILABLE tool and note the
+downgrade. Never fail silently.
+
+## Output for a non-developer
+
+Answer in the PM's language (Korean by default here). Lead with the plain
+answer; keep tool mechanics to a one-line "어떤 도구로 봤는지" footnote.
