@@ -6,6 +6,7 @@ R3: 로그에는 세션 ID·건수·소요 시간·예외 유형만 남긴다. �
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import shutil
 import time
@@ -98,10 +99,49 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
+MASKING_PIPELINE_VERSION = "ner-mask-v1"
+
+
+def process_text_job(client: ApiClient, config: Config, item_id: str, session_id: str) -> None:
+    """텍스트 일감 1건 (D51 · ADR-0025): 원문 받기 → 2차 마스킹 → 스냅샷 전송 → 완료.
+
+    받는 텍스트는 서버가 1차 치환(등록 PII → 가명 ID)을 끝낸 공식 기록이다. 여기서
+    NER·사전·정규식 계층을 얹어야만 그 텍스트가 사업자에게 나갈 수 있다(R3 · D2).
+    오디오가 없으므로 전사·감정은 건너뛴다. 중간 파일도 만들지 않는다.
+    """
+    source = client.get_text_job_source(item_id)
+    masked, report = masking.mask_text_with_report(
+        source,
+        _build_ner_or_none(config),
+        _build_condition_ner_or_none(config),
+    )
+    # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
+    logger.info("text job %s: masked total=%d detail=%s", item_id, report.total, report.as_mapping())
+
+    digest = hashlib.sha256(masked.encode("utf-8")).hexdigest()
+    client.post_masked_source(session_id, {
+        "maskedText": masked,
+        "sha256": digest,
+        "maskingPipelineVersion": MASKING_PIPELINE_VERSION,
+        # 텍스트 일감에는 따로 발췌할 근거가 없다 — 마스킹된 본문 전체가 한 조각이다.
+        "evidence": [{
+            "id": str(uuid.uuid4()),
+            "sourceRef": session_id,
+            "sourceSha256": digest,
+            "evidenceQuote": masked,
+            "sourceStart": 0,
+            # 서버는 유니코드 코드 포인트 기준으로 구간을 검증한다.
+            "sourceEnd": len(masked),
+        }],
+    })
+    client.complete_text_job(item_id)
+
+
 def run_once(client: ApiClient, config: Config) -> int:
-    """폴링 1회: 대기 작업을 순차 처리(VRAM 직렬화). 처리한 건수를 돌려준다."""
+    """폴링 1회: 오디오 큐와 텍스트 큐를 순차 처리. 처리한 건수 합계를 돌려준다."""
     jobs = client.list_jobs()
-    if not jobs:
+    text_jobs = client.list_text_jobs()
+    if not jobs and not text_jobs:
         logger.info("no jobs")
         return 0
 
@@ -118,6 +158,19 @@ def run_once(client: ApiClient, config: Config) -> int:
             logger.error("job %s: api error status=%d", job_id, error.status)
         except Exception as error:  # noqa: BLE001
             logger.error("job %s: %s", job_id, type(error).__name__)
+
+    for item in text_jobs:
+        item_id = str(item.get("id", ""))
+        session_id = str(item.get("sessionId", ""))
+        if item_id == "" or session_id == "":
+            continue
+        try:
+            process_text_job(client, config, item_id, session_id)
+            processed += 1
+        except ApiError as error:
+            logger.error("text job %s: api error status=%d", item_id, error.status)
+        except Exception as error:  # noqa: BLE001
+            logger.error("text job %s: %s", item_id, type(error).__name__)
     return processed
 
 

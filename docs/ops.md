@@ -43,6 +43,11 @@
 | `NOTIFY_WEBHOOK_URL` | Workers 시크릿 | (없음) | D8 관리자 알림 웹훅. 미설정 시 console.error 폴백만. URL은 시크릿 취급(로그 출력 금지). |
 | `LOCAL_ACTOR_HEADER_MODE` | `wrangler.toml [vars]` | (로컬 `"true"`) | 로컬 개발용 헤더 인증 모드. 프로덕션 미설정 시 fail closed(D16). |
 | `PII_ENC_KEY` | Workers 시크릿 | (없음) | PII AES-GCM 키(D3). 코드·로그 출력 금지(R3). |
+| `AI_PROVIDER_CONFIG` | Workers 환경 변수(JSON 문자열) | (없음) | 활성 AI 사업자 설정(레지스트리·어댑터·설정 버전·모델). **미설정이면 AI 호출 경로 전체가 fail closed** 된다 — 지금 운영·로컬 어디에도 없어 사업자 호출이 한 번도 실행된 적이 없다(D55·ADR-0025). |
+| `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D55). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
+| `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0025). |
+
+두 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`)은 **함께** 있어야 사업자 호출이 열린다. 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 
 PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조직별로 저장한다. 값이 없거나 유효하지 않으면 종결·파기 예약을 fail closed하며, 코드에서 기본 기간을 추정하지 않는다. 내부 규정 확정 후 각 조직 설정을 명시적으로 등록한다(8장 미결).
 

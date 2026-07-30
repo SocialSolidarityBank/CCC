@@ -81,3 +81,37 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/artifacts", artifacts)) as response:
             if response.status != 204:
                 raise ApiError(response.status, "unexpected artifacts response")
+
+    # ------------------------------------------------------------------
+    # 텍스트 일감 (D51 · ADR-0025) — 오디오 없는 회차의 2차 마스킹.
+    # ------------------------------------------------------------------
+
+    def list_text_jobs(self) -> list[dict[str, Any]]:
+        """GET /pipeline/text-jobs — 오디오 큐와 함께 D8 무폴링 감시에 합산된다."""
+        with self._open(self._request("GET", "/pipeline/text-jobs")) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        jobs = payload.get("jobs")
+        if not isinstance(jobs, list):
+            raise ApiError(200, "malformed text jobs response")
+        return jobs
+
+    def get_text_job_source(self, item_id: str) -> str:
+        """GET /pipeline/text-jobs/:id/source — 1차 치환까지 끝난 공식 텍스트."""
+        with self._open(self._request("GET", f"/pipeline/text-jobs/{item_id}/source")) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        text = payload.get("text")
+        if not isinstance(text, str) or text == "":
+            raise ApiError(200, "malformed text job source response")
+        return text
+
+    def post_masked_source(self, session_id: str, snapshot: dict[str, Any]) -> None:
+        """POST /sessions/:id/ai/source — 2차 마스킹 스냅샷. 성공 시 201."""
+        with self._open(self._request("POST", f"/sessions/{session_id}/ai/source", snapshot)) as response:
+            if response.status != 201:
+                raise ApiError(response.status, "unexpected masked source response")
+
+    def complete_text_job(self, item_id: str) -> None:
+        """POST /pipeline/text-jobs/:id/complete — 성공 시 204."""
+        with self._open(self._request("POST", f"/pipeline/text-jobs/{item_id}/complete", {})) as response:
+            if response.status != 204:
+                raise ApiError(response.status, "unexpected text job completion response")

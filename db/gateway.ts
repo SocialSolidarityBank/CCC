@@ -18,6 +18,7 @@
  */
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from './animal-slugs';
+import { CONSENT_TEXT_AI_NOTICE_TEXT, CONSENT_TEXT_AI_NOTICE_VERSION } from './consent-notice';
 
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
 export interface Env {
@@ -3830,9 +3831,16 @@ async function resolveSessionScope(
 }
 
 /**
- * 검출 재료 수집 — 공식 기록만(R2: 수기 메모(D5 즉시 공식) + 승인된 AI 정리), 등록 PII 는
- * 가명 ID 로 치환해서만 내보낸다(R3 · D2). 권한: 담당 실무자 | admin (D7).
- * 감사: PII 복호화 1건(decrypt_pii, D14).
+ * 검출 재료 수집 — 공식 기록만(R2: 수기 메모(D5 즉시 공식) + 승인된 AI 정리).
+ *
+ * R3 (2026-07-31 · ADR-0025): 재료는 **처리 장비가 2차 마스킹(NER)한 스냅샷**
+ * (`ai_masked_source_snapshots`)뿐이다. 수기 메모 원문을 쓰지 않는 이유는 금고에
+ * 등록되지 않은 제3자("아들 김철수")를 1차 치환(maskRegisteredPii)이 잡지 못하기
+ * 때문이다 — 그 텍스트는 사업자로 나갈 수 없다. 스냅샷이 없는 회차는 **재료에서
+ * 빠지고**, 트리거 회차에 스냅샷이 없으면 호출자가 검출 자체를 스킵한다(D8:
+ * 다음 공식화 때 재검출). 스냅샷을 만드는 것은 텍스트 일감 큐다.
+ *
+ * 권한: 담당 실무자 | admin (D7). 감사: PII 복호화 1건(decrypt_pii, D14).
  */
 export async function collectDiscrepancyDetectionSources(
   env: Env,
@@ -3841,13 +3849,27 @@ export async function collectDiscrepancyDetectionSources(
 ): Promise<DiscrepancyDetectionMaterial> {
   assertOpaqueIdentifier(triggerSessionId, 'session id');
   const scope = await resolveSessionScope(env, actor.orgId, triggerSessionId);
-  await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+  if (actor.role === 'service') {
+    // 장비가 스냅샷을 올린 직후의 재검출 경로(ADR-0025). 사람 담당 검사(D7) 대신
+    // 서비스 역할 + 파일럿 활성 + 텍스트 AI 동의 근거를 확인한다.
+    await assertPilotTextAiConsentForService(env, actor, triggerSessionId);
+  } else {
+    await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+  }
 
   const [sessionRows, approvedRows] = await Promise.all([
+    // 회차당 최신 스냅샷 1건. 스냅샷이 없는 회차는 JOIN 에서 떨어진다.
     env.DB.prepare(
-      `SELECT id, memo, held_at FROM sessions
-       WHERE org_id = ? AND support_case_id = ?
-       ORDER BY held_at DESC, id DESC
+      `SELECT session.id AS id, session.held_at AS held_at, snapshot.masked_text AS masked_text
+       FROM sessions AS session
+       JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
+         SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
+         WHERE candidate.org_id = session.org_id AND candidate.session_id = session.id
+         ORDER BY candidate.created_at DESC, candidate.id DESC
+         LIMIT 1
+       )
+       WHERE session.org_id = ? AND session.support_case_id = ?
+       ORDER BY session.held_at DESC, session.id DESC
        LIMIT ?`,
     ).bind(actor.orgId, scope.supportCaseId, DISCREPANCY_SOURCE_LIMIT).all<DbRow>(),
     env.DB.prepare(
@@ -3865,14 +3887,23 @@ export async function collectDiscrepancyDetectionSources(
 
   const rows = [...sessionRows.results];
   if (!rows.some((row) => stringValue(row.id) === triggerSessionId)) {
+    // 트리거 회차가 최근 N건 밖이면 따로 가져온다. 회차 자체가 없으면 권한 오류지만,
+    // 스냅샷이 아직 없는 것은 오류가 아니라 스킵 사유다(마스킹 대기 중, D8).
     const triggerRow = await env.DB.prepare(
-      `SELECT id, memo, held_at FROM sessions
-       WHERE id = ? AND org_id = ? AND support_case_id = ?`,
+      `SELECT session.id AS id, session.held_at AS held_at, snapshot.masked_text AS masked_text
+       FROM sessions AS session
+       LEFT JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = (
+         SELECT candidate.id FROM ai_masked_source_snapshots AS candidate
+         WHERE candidate.org_id = session.org_id AND candidate.session_id = session.id
+         ORDER BY candidate.created_at DESC, candidate.id DESC
+         LIMIT 1
+       )
+       WHERE session.id = ? AND session.org_id = ? AND session.support_case_id = ?`,
     ).bind(triggerSessionId, actor.orgId, scope.supportCaseId).first<DbRow>();
     if (triggerRow === null) {
       throw new ForbiddenError('session is not available in this organization');
     }
-    rows.push(triggerRow);
+    if (nullableString(triggerRow.masked_text) !== null) rows.push(triggerRow);
   }
 
   const pii = await readPiiValues(env, actor.orgId, scope.caseId);
@@ -3889,8 +3920,9 @@ export async function collectDiscrepancyDetectionSources(
   const sources: DiscrepancyDetectionSource[] = [];
   for (const row of rows) {
     const parts: string[] = [];
-    const memo = nullableString(row.memo);
-    if (memo !== null && memo.trim().length > 0) parts.push(memo);
+    // 2차 마스킹을 마친 스냅샷만 재료다(R3). 1차 치환은 그 위에 한 겹 더 얹는다.
+    const maskedText = nullableString(row.masked_text);
+    if (maskedText !== null && maskedText.trim().length > 0) parts.push(maskedText);
     const approvedSummary = approvedBySession.get(stringValue(row.id));
     if (approvedSummary !== undefined && approvedSummary.trim().length > 0) parts.push(approvedSummary);
     if (parts.length === 0) continue;
@@ -3967,13 +3999,18 @@ export async function replaceSessionDiscrepancies(
   triggerSessionId: string,
   items: DetectedSessionDiscrepancyInput[],
 ): Promise<SessionDiscrepancy[]> {
-  assertHuman(actor);
   assertOpaqueIdentifier(triggerSessionId, 'session id');
   if (!Array.isArray(items) || items.length > DISCREPANCY_ITEM_LIMIT) {
     throw new ValidationError('discrepancy items are invalid');
   }
   const scope = await resolveSessionScope(env, actor.orgId, triggerSessionId);
-  await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+  if (actor.role === 'service') {
+    // 장비 스냅샷 직후 재검출(ADR-0025). 사람 담당 검사 대신 서비스 텍스트 AI 게이트.
+    await assertPilotTextAiConsentForService(env, actor, triggerSessionId);
+  } else {
+    assertHuman(actor);
+    await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+  }
 
   const referencedIds = new Set<string>([triggerSessionId]);
   for (const item of items) {
@@ -4956,6 +4993,176 @@ export async function registerRecording(
 
 
 /** 처리 대기 중인 녹음 작업 목록. Mac Mini 서비스 역할 전용 (D13). */
+// ============================================================================
+// 텍스트 일감 큐 (D51 · ADR-0022 · ADR-0025 · 마이그레이션 0029)
+//
+// 오디오가 없는 회차의 2차 마스킹(NER)을 처리 장비에 맡기기 위한 큐다. 기록이
+// 공식화될 때(수기 저장 · AI 정리 승인) 한 행이 쌓이고, 장비는 오디오 큐와 같은
+// 폴링에서 이걸 가져가 마스킹한 뒤 `recordMaskedSourceSnapshot` 으로 스냅샷을
+// 만든다. 스냅샷이 생겨야만 불일치 검출이 재료를 얻는다(R3).
+// ============================================================================
+
+export type TextWorkReason = 'manual_record' | 'ai_draft_approved';
+
+export interface TextWorkItem {
+  id: string;
+  sessionId: string;
+  reason: TextWorkReason;
+  enqueuedAt: string;
+}
+
+/**
+ * 공식화 훅 — 실패해도 기록 저장을 막지 않는다(D8). 같은 회차의 대기 행이 이미
+ * 있으면 부분 유니크 인덱스가 조용히 흡수한다(INSERT OR IGNORE).
+ */
+export async function enqueueTextWorkItem(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  reason: TextWorkReason,
+): Promise<void> {
+  assertOpaqueIdentifier(sessionId, 'session id');
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+  ).bind(newId(), actor.orgId, scope.supportCaseId, sessionId, reason, now()).run();
+}
+
+/**
+ * 장비 폴링 — **지금 실제로 처리할 수 있는** 대기 일감만. 오디오 큐와 함께 D8 무폴링
+ * 감시에 합산된다.
+ *
+ * 처리 불가 조건을 목록 단계에서 걸러내는 이유: 스냅샷 저장(`recordMaskedSourceSnapshot`)
+ * 은 파일럿 활성 + 텍스트 AI 동의 근거를 요구하고, 원문 조회는 공식 텍스트를 요구한다.
+ * 이 조건이 안 맞는 행을 내보내면 장비가 매 폴링마다 같은 행을 집어 실패하고, 큐는
+ * 삭제가 없어(0029 트리거) 영원히 쌓인다. 안 보이게 두면 조건이 갖춰지는 순간
+ * — ② 동의가 기록되는 순간 — 저절로 보인다.
+ */
+export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWorkItem[]> {
+  if (actor.role !== 'service') {
+    throw new ForbiddenError('service role is required for text work items');
+  }
+  // 파일럿이 꺼져 있으면 스냅샷 저장이 전부 거부된다 — 아예 내보내지 않는다.
+  if (!isPilotTextAiEnabled(env)) return [];
+
+  const result = await env.DB.prepare(
+    `SELECT queue.id, queue.session_id, queue.reason, queue.enqueued_at
+     FROM ai_text_work_queue AS queue
+     JOIN sessions AS session ON session.id = queue.session_id AND session.org_id = queue.org_id
+     WHERE queue.org_id = ? AND queue.status = 'pending'
+       -- ② 텍스트 AI 동의 근거가 효력 중이어야 스냅샷을 저장할 수 있다.
+       AND EXISTS (
+         SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
+         WHERE evidence.org_id = queue.org_id
+           AND evidence.support_case_id = queue.support_case_id
+           AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       )
+       -- 마스킹할 공식 텍스트가 있어야 한다(수기 메모 또는 승인된 AI 정리). 인테이크
+       -- 회차는 memo 가 NULL 이라(본문은 intake_details) 승인된 정리가 생기기 전까지
+       -- 여기서 걸린다 — 원문 조회가 400 을 던질 행을 애초에 내보내지 않는다.
+       AND (
+         TRIM(COALESCE(session.memo, '')) <> ''
+         OR EXISTS (
+           SELECT 1 FROM approved_ai_briefing_v1 AS approved
+           WHERE approved.org_id = queue.org_id AND approved.session_id = queue.session_id
+             AND TRIM(COALESCE(approved.summary_text, '')) <> ''
+         )
+       )
+     ORDER BY queue.enqueued_at
+     LIMIT 50`,
+  ).bind(actor.orgId).all<DbRow>();
+  const items = result.results.map((row) => ({
+    id: stringValue(row.id),
+    sessionId: stringValue(row.session_id),
+    reason: stringValue(row.reason) as TextWorkReason,
+    enqueuedAt: stringValue(row.enqueued_at),
+  }));
+  await writeAudit(env, actor, {
+    action: 'poll_pipeline',
+    targetTable: 'ai_text_work_queue',
+    detail: { jobCount: items.length },
+  });
+  return items;
+}
+
+/**
+ * 장비가 마스킹할 원문 — **1차 치환(등록 PII → 가명 ID)까지 마친** 공식 텍스트다.
+ * 장비는 이 위에 NER 을 얹어 스냅샷을 만든다(D2 2단 방어). 1차 치환은 멱등이라
+ * `recordMaskedSourceSnapshot` 이 다시 걸어도 해시가 어긋나지 않는다.
+ * 동의·파일럿 게이트는 스냅샷 저장 시점에 다시 확인된다.
+ */
+export async function getTextWorkItemSource(
+  env: Env,
+  actor: Actor,
+  itemId: string,
+): Promise<{ sessionId: string; text: string }> {
+  if (actor.role !== 'service') {
+    throw new ForbiddenError('service role is required for text work items');
+  }
+  assertOpaqueIdentifier(itemId, 'text work item id');
+  const item = await env.DB.prepare(
+    `SELECT session_id, support_case_id FROM ai_text_work_queue
+     WHERE id = ? AND org_id = ? AND status = 'pending'`,
+  ).bind(itemId, actor.orgId).first<DbRow>();
+  if (item === null) {
+    throw new ForbiddenError('text work item is not available in this organization');
+  }
+  const sessionId = stringValue(item.session_id);
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+
+  const [sessionRow, approvedRow] = await Promise.all([
+    env.DB.prepare('SELECT memo FROM sessions WHERE id = ? AND org_id = ?')
+      .bind(sessionId, actor.orgId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT summary_text FROM approved_ai_briefing_v1
+       WHERE org_id = ? AND session_id = ?
+       ORDER BY approved_at DESC, draft_version DESC
+       LIMIT 1`,
+    ).bind(actor.orgId, sessionId).first<DbRow>(),
+  ]);
+
+  const parts: string[] = [];
+  const memo = sessionRow === null ? null : nullableString(sessionRow.memo);
+  if (memo !== null && memo.trim().length > 0) parts.push(memo);
+  const summary = approvedRow === null ? null : nullableString(approvedRow.summary_text);
+  if (summary !== null && summary.trim().length > 0) parts.push(summary);
+  if (parts.length === 0) {
+    throw new ValidationError('text work item has no official text');
+  }
+
+  const pii = await readPiiValues(env, actor.orgId, scope.caseId);
+  await writeAudit(env, actor, {
+    action: 'decrypt_pii',
+    targetTable: 'pii_vault',
+    targetId: scope.caseId,
+    caseId: scope.caseId,
+    detail: { purpose: 'text_work_item_masking' },
+  });
+  return { sessionId, text: maskRegisteredPii(parts.join('\n'), scope.caseId, pii) };
+}
+
+/** 스냅샷 저장 후 장비가 부른다. 완료 행은 불변이다(0029 트리거). */
+export async function completeTextWorkItem(env: Env, actor: Actor, itemId: string): Promise<void> {
+  if (actor.role !== 'service') {
+    throw new ForbiddenError('service role is required for text work items');
+  }
+  assertOpaqueIdentifier(itemId, 'text work item id');
+  const result = await env.DB.prepare(
+    `UPDATE ai_text_work_queue SET status = 'done', completed_at = ?
+     WHERE id = ? AND org_id = ? AND status = 'pending'`,
+  ).bind(now(), itemId, actor.orgId).run();
+  if ((result.meta?.changes ?? 0) === 0) {
+    throw new ForbiddenError('text work item is not available in this organization');
+  }
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'ai_text_work_queue',
+    targetId: itemId,
+    detail: { status: 'done' },
+  });
+}
+
 export async function listPipelineJobs(env: Env, actor: Actor): Promise<PipelineJob[]> {
   if (actor.role !== 'service') {
     throw new ForbiddenError('service role is required for pipeline jobs');
@@ -7101,6 +7308,42 @@ detail: { role: 'primary', initial: true },
             caseId: legacyCaseId,
           }),
         );
+        // 등록 시점의 ② 체크도 AI 초안 근거 행을 만든다 (ADR-0025) — 정보 페이지에서
+        // 다시 저장해야만 근거가 생기는 상태를 남기지 않는다.
+        if (consentTextAiAt !== null) {
+          const evidenceId = newId();
+          statements.push(
+            env.DB.prepare(
+              `INSERT INTO pilot_text_ai_consent_evidence (
+                 id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref,
+                 evidence_sha256, captured_by, effective_at, created_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ).bind(
+              evidenceId,
+              actor.orgId,
+              supportCaseId,
+              CONSENT_TEXT_AI_NOTICE_VERSION,
+              await sha256Hex(CONSENT_TEXT_AI_NOTICE_TEXT),
+              `internal://participant-consent-records/${consentRecordId}`,
+              await sha256Hex(`${consentRecordId} ${supportCaseId} ${createdAt}`),
+              actor.userId,
+              consentTextAiAt,
+              createdAt,
+            ),
+            canonicalAuditStatement(env, actor, {
+              action: 'create',
+              targetTable: 'pilot_text_ai_consent_evidence',
+              targetId: evidenceId,
+              // 참여 사업 스코프 감사는 당사자 ID 를 함께 요구한다
+              // (audit_log_participant_provenance_guard). 이 행은 완료 전환 **이후**에
+              // 쌓이므로 beneficiaries_complete_guard 의 '당사자 감사 3건'은 그대로다.
+              beneficiaryId,
+              supportCaseId,
+              detail: { purpose: 'text_ai_consent_wiring', noticeVersion: CONSENT_TEXT_AI_NOTICE_VERSION },
+              caseId: legacyCaseId,
+            }),
+          );
+        }
       }
       const results = await env.DB.batch(statements);
       const completion = results[completionIndex] as unknown as { meta?: { changes?: number } };
@@ -7169,6 +7412,20 @@ export async function updateParticipantConsent(
   const textAiAt = consent.recordingAi ? recordedAt : null;
   const consentRecordId = newId();
 
+  // ② 체크는 AI 초안 저장의 근거 행도 만든다 (ADR-0025). 이 행이 없으면 동의를 다
+  // 받은 케이스에서도 0026 트리거가 초안을 거부한다 — 화면과 파이프라인이 서로
+  // 모르던 자리를 여기서 잇는다. 파일럿 스위치는 **사용**을 막을 뿐이므로, 근거는
+  // 스위치 상태와 무관하게 남긴다. 철회(②=false)는 새 근거를 만들지 않는다 —
+  // 근거 표는 append-only 라, 사용 차단은 `support_cases.consent_text_ai_at` 이 맡는다.
+  const textAiEvidence = consent.recordingAi
+    ? {
+      id: newId(),
+      noticeSha256: await sha256Hex(CONSENT_TEXT_AI_NOTICE_TEXT),
+      evidenceRef: `internal://participant-consent-records/${consentRecordId}`,
+      evidenceSha256: await sha256Hex(`${consentRecordId} ${supportCaseId} ${recordedAt}`),
+    }
+    : null;
+
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE support_cases
@@ -7202,6 +7459,34 @@ export async function updateParticipantConsent(
       detail: { privacy: consent.privacy, recordingAi: consent.recordingAi, kind: 'update' },
       caseId: supportCase.legacyCaseId,
     }),
+    ...(textAiEvidence === null ? [] : [
+      env.DB.prepare(
+        `INSERT INTO pilot_text_ai_consent_evidence (
+           id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref,
+           evidence_sha256, captured_by, effective_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        textAiEvidence.id,
+        actor.orgId,
+        supportCaseId,
+        CONSENT_TEXT_AI_NOTICE_VERSION,
+        textAiEvidence.noticeSha256,
+        textAiEvidence.evidenceRef,
+        textAiEvidence.evidenceSha256,
+        actor.userId,
+        recordedAt,
+        recordedAt,
+      ),
+      canonicalAuditStatement(env, actor, {
+        action: 'create',
+        targetTable: 'pilot_text_ai_consent_evidence',
+        targetId: textAiEvidence.id,
+        beneficiaryId: supportCase.beneficiaryId,
+        supportCaseId,
+        detail: { purpose: 'text_ai_consent_wiring', noticeVersion: CONSENT_TEXT_AI_NOTICE_VERSION },
+        caseId: supportCase.legacyCaseId,
+      }),
+    ]),
   ]);
 
   return {

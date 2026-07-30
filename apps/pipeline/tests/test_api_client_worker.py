@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import unittest
@@ -84,11 +85,13 @@ class RunOnceTest(unittest.TestCase):
     def test_no_jobs_returns_zero(self):
         client = mock.Mock()
         client.list_jobs.return_value = []
+        client.list_text_jobs.return_value = []
         with TemporaryDirectory() as tmp:
             self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
 
     def test_processes_available_jobs_and_survives_one_failure(self):
         client = mock.Mock()
+        client.list_text_jobs.return_value = []
         client.list_jobs.return_value = [
             {"id": "bad", "audioAvailable": True},
             {"id": "good", "audioAvailable": True},
@@ -125,6 +128,45 @@ class RunOnceTest(unittest.TestCase):
         self.assertTrue(created_dirs, "download should have run")
         for directory in created_dirs:
             self.assertFalse(directory.exists(), "work dir must be deleted (D13)")
+
+
+class TextJobTest(unittest.TestCase):
+    """텍스트 일감 (D51 · ADR-0025) — 오디오 없는 회차의 2차 마스킹."""
+
+    def test_masks_source_and_posts_snapshot_then_completes(self):
+        from ccc_pipeline.worker import process_text_job
+
+        client = mock.Mock()
+        client.get_text_job_source.return_value = "아들에게 010-1234-5678 로 연락한다고 함"
+        with TemporaryDirectory() as tmp:
+            process_text_job(client, make_config(Path(tmp)), "item-1", "session-1")
+
+        session_id, snapshot = client.post_masked_source.call_args.args
+        self.assertEqual(session_id, "session-1")
+        # 2차 마스킹을 거치지 않은 원문은 절대 나가지 않는다 (R3).
+        self.assertNotIn("010-1234-5678", snapshot["maskedText"])
+        self.assertIn("[전화번호]", snapshot["maskedText"])
+        # 해시는 보내는 본문 그대로여야 서버 검증을 통과한다.
+        expected = hashlib.sha256(snapshot["maskedText"].encode("utf-8")).hexdigest()
+        self.assertEqual(snapshot["sha256"], expected)
+        # 근거 한 조각이 본문 전체를 덮는다 — 구간은 코드 포인트 기준.
+        evidence = snapshot["evidence"][0]
+        self.assertEqual(evidence["evidenceQuote"], snapshot["maskedText"])
+        self.assertEqual(evidence["sourceEnd"], len(snapshot["maskedText"]))
+        client.complete_text_job.assert_called_once_with("item-1")
+
+    def test_failed_text_job_is_not_completed_and_does_not_stop_the_rest(self):
+        client = mock.Mock()
+        client.list_jobs.return_value = []
+        client.list_text_jobs.return_value = [
+            {"id": "bad", "sessionId": "s1"},
+            {"id": "good", "sessionId": "s2"},
+        ]
+        with TemporaryDirectory() as tmp:
+            with mock.patch("ccc_pipeline.worker.process_text_job") as process_text_job:
+                process_text_job.side_effect = [ApiError(409, "conflict"), None]
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 1)
+                self.assertEqual(process_text_job.call_count, 2)
 
 
 if __name__ == "__main__":
