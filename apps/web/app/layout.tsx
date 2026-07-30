@@ -5,6 +5,9 @@ import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 // 디자인 토큰 SSOT(V0.1 · D34/ADR-0012). 값을 이 파일에 복사하지 않는다 — 두 곳에 두면
 // 다시 어긋난다. 색값 정본은 pen '색 토큰' 페이지이고, tokens.css 가 그 기계 소비용 사본이다.
 import '../../../design/tokens.css';
+// 달력 부품의 기본 CSS(D48 · ADR-0020). 겉모습은 wire-styles.ts '날짜 선택' 절이 D34 토큰으로
+// 덮어쓴다 — 이 파일은 격자 배치·숨김 규칙처럼 덮으면 안 되는 뼈대만 제공한다.
+import 'react-day-picker/style.css';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { getDisplayLabels } from './lib/display-labels';
 import { wireStyles } from './components/wire/wire-styles';

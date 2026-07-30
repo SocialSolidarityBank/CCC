@@ -98,6 +98,7 @@ export function SearchInput({
             defaultValue={value}
             required={required}
             describedBy={hintId}
+            autoComplete="bday"
             onValueChange={onChange}
           />
         ) : (

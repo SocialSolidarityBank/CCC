@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireButton } from '../../../../../../components/wire/wire-button';
+import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
   IntakeAnswerKey,
@@ -706,7 +707,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   <>
                     <label style={fieldStyle}>
                       <span style={labelStyle}>상담일</span>
-                      <input type="datetime-local" aria-label="상담일" value={heldAt} onChange={(event) => setHeldAt(event.target.value)} style={inputStyle} />
+                      {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
+                      팀원마다 달랐다(R6). 달력 + 직접 입력 병행으로 바꾼다(KRDS). */}
+                  <DateTimePickerControl fieldLabel="상담일" value={heldAt} onChange={setHeldAt} />
                     </label>
                     <ReadOnlyRow label="실무자" value={props.recorderLabel} />
                     <ReadOnlyRow label="상담 회차" value={`${props.sessionSequence}회`} />

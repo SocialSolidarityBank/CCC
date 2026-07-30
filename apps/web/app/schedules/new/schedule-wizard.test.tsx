@@ -74,7 +74,8 @@ describe('ScheduleWizard', () => {
     expect(scoped.queryByText('이번 상담의 목표는 무엇인가요?')).toBeNull();
 
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
-    fireEvent.change(scoped.getByLabelText('상담 일시'), { target: { value: '2026-07-20T13:00' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
     fireEvent.click(scoped.getByRole('button', { name: /다음: 이번 상담의 목표/ }));
 
     await waitFor(() => expect(scoped.getByText('이번 상담의 목표는 무엇인가요?')).not.toBeNull());
@@ -89,7 +90,7 @@ describe('ScheduleWizard', () => {
     const { container, calls } = renderWizard();
     const scoped = within(container);
 
-    expect(scoped.queryByLabelText('상담 일시')).toBeNull();
+    expect(scoped.queryByLabelText('상담 일시 날짜')).toBeNull();
     expect(scoped.queryByText('상담 유형')).toBeNull();
     // 기관·참여 사업 선택은 삭제됐다 — 워크스페이스가 이미 정한 값을 다시 묻지 않는다.
     expect(scoped.queryByLabelText('기관')).toBeNull();
@@ -152,7 +153,8 @@ describe('ScheduleWizard', () => {
     const link = within(alert).getByRole('link');
     expect(link.getAttribute('href')).toContain('/records/intake');
     // 경고일 뿐이므로 일시까지 채우면 다음으로 갈 수 있다.
-    fireEvent.change(scoped.getByLabelText('상담 일시'), { target: { value: '2026-07-20T13:00' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
     expect((scoped.getByRole('button', { name: /다음: 상담 목표/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -161,7 +163,8 @@ describe('ScheduleWizard', () => {
     const scoped = within(container);
 
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
-    fireEvent.change(scoped.getByLabelText('상담 일시'), { target: { value: '2026-07-20T13:00' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
     // 이 픽스처는 인테이크를 마친 케이스라 기본값이 '기본 상담'이다 — 인테이크로 바꾸려면
     // 접힌 선택을 펼쳐야 한다(D35 §5).
     fireEvent.click(scoped.getByRole('button', { name: '다른 유형 선택' }));
@@ -195,7 +198,8 @@ describe('ScheduleWizard', () => {
     expect(scoped.getByText('상담 일시를 선택하면 다음으로 넘어갈 수 있습니다.')).not.toBeNull();
 
     // 일시를 채우면 활성화되고 안내가 사라진다.
-    fireEvent.change(scoped.getByLabelText('상담 일시'), { target: { value: '2026-07-20T13:00' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
     expect(nextButton.disabled).toBe(false);
     expect(scoped.queryByText('상담 일시를 선택하면 다음으로 넘어갈 수 있습니다.')).toBeNull();
   });

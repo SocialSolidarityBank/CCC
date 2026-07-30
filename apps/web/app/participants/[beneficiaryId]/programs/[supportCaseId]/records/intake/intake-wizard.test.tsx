@@ -98,7 +98,7 @@ describe('IntakeWizard', () => {
     expect(operations).not.toBeUndefined();
 
     const scoped = within(operations as HTMLElement);
-    expect(scoped.getByLabelText('상담일')).not.toBeNull();
+    expect(scoped.getByLabelText('상담일 날짜')).not.toBeNull();
     expect(scoped.getByText('상담 회차')).not.toBeNull();
     // 정본 1-3 의 나머지 항목도 같은 상자 안이다 — 소절이 쪼개지지 않았다.
     expect(scoped.getByText(/상담 방법/)).not.toBeNull();
@@ -145,8 +145,9 @@ describe('IntakeWizard', () => {
   it('상담일을 자동으로 채운다', () => {
     const { container } = renderWizard();
     const scoped = within(container);
-    expect((scoped.getByLabelText('상담일') as HTMLInputElement).value)
-      .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    // D48: 한 칸이던 상담일이 날짜 칸 + 시각 칸으로 나뉘었다. 자동 채움은 둘 다 채워야 한다.
+    expect((scoped.getByLabelText('상담일 날짜') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect((scoped.getByLabelText('상담일 시각') as HTMLInputElement).value).toMatch(/^\d{2}:\d{2}$/);
     expect(scoped.getByTestId('intake-missing').textContent).not.toContain('1. 상담일');
   });
 

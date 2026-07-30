@@ -6,6 +6,8 @@ import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../..
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
+import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
+import { DATE_TEXT_HINT } from '../../../../../../components/wire/date-text-input';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { draftKey } from '../../../../../../lib/form-draft';
 import { useDomDraft } from '../../../../../../lib/use-dom-draft';
@@ -72,6 +74,9 @@ export function RecordOnepage({
   submissionFailed = false,
 }: RecordOnepageProps) {
   const [memoFilled, setMemoFilled] = useState(false);
+  // D48: 상담 일시는 날짜 칸 + 시각 칸 둘로 나뉘고 합쳐진 값을 숨은 칸으로 낸다. 그래서 이 값만
+  // 리액트가 쥔다 — 폼의 나머지 칸은 예전처럼 DOM 이 갖는다.
+  const [heldAt, setHeldAt] = useState('');
   const draft = useDomDraft({ storageKey: draftKey('record', supportCaseId), submissionFailed });
   const [crisisAreas, setCrisisAreas] = useState<string[]>([]);
   const [resolvedActionIds, setResolvedActionIds] = useState<string[]>([]);
@@ -204,8 +209,19 @@ export function RecordOnepage({
           />
         </WireFormField>
         <div className="wire-form-grid">
-          <WireFormField label="상담 일시" required htmlFor="record-held-at">
-            <input id="record-held-at" name="heldAt" type="datetime-local" required />
+          {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라 팀원마다
+              달랐다(R6). 상담 일시는 요일로 잡는 값이라 KRDS 기준 달력이 맞는 자리다 —
+              입력칸은 그대로 두고 달력을 옆에 붙인다. 제출값은 예전과 같은 문자열이다. */}
+          <WireFormField label="상담 일시" required htmlFor="record-held-at" hint={DATE_TEXT_HINT}>
+            <DateTimePickerControl
+              id="record-held-at"
+              name="heldAt"
+              fieldLabel="상담 일시"
+              describedBy="record-held-at-hint"
+              required
+              value={heldAt}
+              onChange={setHeldAt}
+            />
           </WireFormField>
           <WireFormField label="상담 방식" control="select" htmlFor="record-channel">
             <select id="record-channel" name="channel" defaultValue="in_person">{channelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>

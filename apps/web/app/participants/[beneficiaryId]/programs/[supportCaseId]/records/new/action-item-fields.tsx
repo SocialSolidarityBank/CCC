@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
+import { DatePickerControl } from '../../../../../../components/wire/date-picker-control';
+import { DATE_TEXT_HINT } from '../../../../../../components/wire/date-text-input';
 
 const owners = [
   ['counselor', '실무자'],
@@ -39,12 +41,15 @@ export function ActionItemFields({ index }: { index: number }) {
           {owners.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </WireFormField>
-      <WireFormField label="기한" note="(선택)" htmlFor={`action-due-date-${index}`}>
-        <input
+      {/* D48: 네이티브 날짜 칸은 표기가 보는 사람의 브라우저 언어를 따라 팀원마다 달랐다(R6).
+          기한은 가까운 미래 날짜라 KRDS 기준 달력이 맞는 자리다 — 입력칸은 그대로 두고 붙인다. */}
+      <WireFormField label="기한" note="(선택)" htmlFor={`action-due-date-${index}`} hint={DATE_TEXT_HINT}>
+        <DatePickerControl
           id={`action-due-date-${index}`}
           name={`actionDueDate${index}`}
-          onChange={(event) => setDueDate(event.currentTarget.value)}
-          type="date"
+          fieldLabel="기한"
+          describedBy={`action-due-date-${index}-hint`}
+          onChange={setDueDate}
           value={dueDate}
         />
       </WireFormField>
