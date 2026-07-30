@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AdminSidebar } from '../components/wire/admin-sidebar';
+import { RiskBanner } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/risk-banner';
 import { GridContainer } from '../components/wire/grid-container';
 import { ListRow } from '../components/wire/list-row';
 import { PageTitle } from '../components/wire/page-title';
@@ -243,6 +244,48 @@ export default function KitPage() {
               <input type="checkbox" className="wire-checkbox" data-tone="risk" />
               연락 두절 위험 (리스크 변형 · 끔)
             </label>
+          </div>
+        </section>
+
+        {/* 그라데이션 테두리를 쓰는 표면 3종. 킷에 없던 자리인데, 이 셋이 **다크에서 가장 깨지기
+            쉬운 부품**이다 — 배경 2겹(padding-box 채움 + border-box 그라데이션)으로 만들어져
+            채움색 토큰이 다크에서 안 따라오면 테두리가 안쪽까지 번지거나 아예 사라진다.
+            눈으로 볼 자리가 없으면 회귀를 잡을 방법도 없다(2026-07-31). */}
+        <section className="wire-kit-section" aria-labelledby="kit-gradient-surfaces">
+          <h2 className="wire-kit-heading" id="kit-gradient-surfaces">그라데이션 테두리 3종</h2>
+          <p className="wire-kit-caption">
+            리스크 배너(1.5px · 전용 tint 채움), 펼친 회차 카드(1px · 흰 면 채움), 위기 아코디언(리스크 1.5px).
+            셋 다 <code>border-image</code> 가 아니라 배경 2겹으로 만든다 — <code>border-image</code> 는
+            브라우저가 <code>border-radius</code> 를 무시해 모서리가 각진다.
+          </p>
+          <div className="wire-kit-stack">
+            <RiskBanner
+              flags={[
+                { id: 'kit-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed' },
+                { id: 'kit-2', flagType: 'contact_loss_risk', source: 'counselor', reviewStatus: 'confirmed' },
+                { id: 'kit-3', flagType: 'crisis_utterance', source: 'ai', reviewStatus: 'pending' },
+              ]}
+            />
+            <details className="surface-card" open>
+              <summary className="record-summary">
+                <span className="record-ordinal">3회차</span>
+                <span className="record-held-at">3월 12일</span>
+                <span className="record-kind">기본 상담</span>
+                <span className="record-one-liner">상환 계획을 다시 짰고 다음 달 임대료 납부일을 확인했다.</span>
+              </summary>
+              <div className="record-body">
+                <div className="record-session-goal">
+                  <span className="record-session-goal-label">이번 상담의 목표</span>
+                  <p>임대료 연체를 막을 방법을 함께 정한다.</p>
+                </div>
+              </div>
+            </details>
+            <details className="record-accordion is-crisis" open>
+              <summary className="record-accordion-summary">위기·안전 확인</summary>
+              <div className="record-accordion-body">
+                <p className="wire-kit-caption">확인된 리스크와 같은 축이라 리스크 균일 테두리 + 배경 틴트로 표시한다(D9).</p>
+              </div>
+            </details>
           </div>
         </section>
 

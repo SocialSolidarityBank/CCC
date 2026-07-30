@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 // 디자인 토큰 SSOT(V0.1 · D34/ADR-0012). 값을 이 파일에 복사하지 않는다 — 두 곳에 두면
 // 다시 어긋난다. 색값 정본은 pen '색 토큰' 페이지이고, tokens.css 가 그 기계 소비용 사본이다.
@@ -11,6 +11,7 @@ import 'react-day-picker/style.css';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
 import { getDisplayLabels } from './lib/display-labels';
+import { THEME_COOKIE_NAME, parseTheme } from './lib/theme-cookie';
 import { wireStyles } from './components/wire/wire-styles';
 
 // 앱 셸·레거시 화면 공통. 토큰은 design/tokens.css 에서만 온다 — 여기에 :root 를 다시 두지 않는다.
@@ -588,12 +589,20 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // 전부 넣는다(가입 폼이 registerStyles 의 클래스를 쓰므로).
   const hdrs = await headers();
   const isPublic = hdrs.get('x-ccc-public') === '1';
+  // 테마는 **서버가 정해 <html> 에 박는다**(D56 · ADR-0026). 첫 페인트 전에 정해져 있어야
+  // 어두운 화면을 기대한 사람에게 흰 화면이 번쩍이지 않는다 — localStorage 로 하면 자바스크립트가
+  // 돈 뒤에야 읽혀서 그 번쩍임을 막으려 <head> 에 블로킹 인라인 스크립트를 넣어야 한다.
+  // 라이트일 때는 속성 자체를 두지 않는다(:root 기본값이 곧 라이트다).
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE_NAME)?.value);
+  const themeAttr = theme === 'dark' ? 'dark' : undefined;
   const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + scheduleStyles + monthScheduleStyles + wireStyles + registerStyles + recordFormStyles;
 
   // 공개 경로는 표시 이름을 조회하지 않는다: 사이드바가 없어 값이 쓰이지 않고, 신원 없는
   // 요청으로 부르면 그 조회가 401 을 만든다(위 "사이드바가 신원을 물어 401" 과 같은 이유).
   if (isPublic) {
-    return <html lang="ko"><head><style>{shellStyles}</style></head><body>{children}</body></html>;
+    // 공개 화면에도 테마는 적용한다 — 셸이 없을 뿐 같은 앱 화면이다(토글은 사이드바에 있으므로
+    // 여기서 바꿀 수는 없고, 앞서 켜 둔 값이 그대로 따라온다).
+    return <html lang="ko" data-theme={themeAttr}><head><style>{shellStyles}</style></head><body>{children}</body></html>;
   }
 
   // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
@@ -602,11 +611,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // 써야 제목과 왼쪽 끝이 맞기 때문이다. 감싸지 않고 셸의 형제로 두면 그리드 다음 행,
   // 즉 사이드바 아래로 떨어진다.
   return (
-    <html lang="ko">
+    <html lang="ko" data-theme={themeAttr}>
       <head><style>{shellStyles}</style></head>
       <body>
         <div className="wire-shell app-shell">
-          <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} />
+          <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
           <div className="content-column">
             {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
                 랜드마크 이동에서 통째로 건너뛴다. */}
