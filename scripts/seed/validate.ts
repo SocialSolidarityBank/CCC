@@ -9,8 +9,8 @@
  *  - 전 시드 테이블 행 동등(_at 정규화, held_at/intake_at/scheduled_at 은 값까지 대조).
  *  - audit_log 는 (org_id, actor_id, actor_role, action, target_table, target_id,
  *    beneficiary_id, support_case_id, detail) multiset 비교(id·created_at 제외).
- *  - 불변식: 케이스당 활성 목표 ≤3, 세션별 점수 1~3 & 케이스 귀속, 동의 레코드 20,
- *    vault 20행·key_version=2·enc_name NOT NULL.
+ *  - 불변식: 케이스당 활성 목표 ≤3, 세션별 점수 1~3 & 케이스 귀속, 동의 레코드 = 참여자 수,
+ *    vault 행 수 = 참여자 수·key_version=2·enc_name NOT NULL.
  *  - 복호화 라운드트립: enc_name/phone/email 을 AES-GCM(12B IV prefix) 로 풀어 content 와 대조.
  */
 import type { D1Database } from '@cloudflare/workers-types';

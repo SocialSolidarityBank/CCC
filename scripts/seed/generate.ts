@@ -300,8 +300,8 @@ describe('operational seed generation', () => {
         ),
       ]);
 
-      // 방출 규모가 스펙 범위(대략 1,200~1,600) 근처인지 가볍게 확인.
-      expect(emitted.length).toBeGreaterThan(600);
+      // 방출 규모가 참여자 수에 비례하는지 가볍게 확인(참여자당 대략 60~80 문장).
+      expect(emitted.length).toBeGreaterThan(PARTICIPANTS.length * 30);
     } finally {
       await harness.dispose();
     }
