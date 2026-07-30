@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PREVIEW_COOKIE_NAME = 'ccc_preview';
+import { PREVIEW_COOKIE_NAME } from './app/lib/preview-cookie';
 
 /**
  * 미리보기 코드 게이트 유도(CCC-6). CCC_PREVIEW='true' 인 미리보기 워커에서만 동작한다 —
@@ -27,7 +27,11 @@ export function middleware(request: NextRequest): NextResponse {
   //
   // 경로 매칭이 정확 일치 + '/join/' 접두인 이유: startsWith('/join') 은 '/joinX' 같은
   // 남의 경로까지 공개로 만든다.
-  const isPublic = pathname === '/join' || pathname.startsWith('/join/');
+  // 코드 입력 화면(/preview)도 셸을 뺀다 (2026-07-31, 로그아웃 도입과 함께). 지금까지는
+  // 사이드바가 그대로 떠서 **로그아웃한 화면에 앱 메뉴가 남아 있었다** — 나갔는데 안 나간
+  // 것처럼 보인다. 이 헤더가 뜻하는 것은 '신원을 아직 모르는 화면'이고 /preview 가 정확히
+  // 그것이므로, 새 판단을 더하는 것이 아니라 같은 판단에 화면 하나를 넣는 것이다.
+  const isPublic = pathname === '/join' || pathname.startsWith('/join/') || pathname === '/preview';
   const requestHeaders = new Headers(request.headers);
   if (isPublic) requestHeaders.set('x-ccc-public', '1');
   else requestHeaders.delete('x-ccc-public');

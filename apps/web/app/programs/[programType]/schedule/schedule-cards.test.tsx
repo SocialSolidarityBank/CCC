@@ -71,4 +71,15 @@ describe('ScheduleCards', () => {
     fireEvent.click(toggle as HTMLButtonElement);
     expect(cardNames(container)).toEqual(['otter-001', '김철수']); // 내림차순
   });
+
+  it("툴바에 '고정' 자리표시자를 두지 않는다", () => {
+    // 2026-07-31 Q 요청으로 뺐다. 누를 수 없는 버튼이 계속 보이면 "아직 안 만든 것"이 아니라
+    // "고장난 것"으로 읽힌다. 되살아나면 이 테스트가 잡는다 — 기능이 실제로 생길 때 넣는다.
+    const { container } = render(<ScheduleCards cards={cards} />);
+    const toolbarButtons = Array.from(container.querySelectorAll('.list-toolbar button'));
+    expect(toolbarButtons).toHaveLength(1);
+    expect(container.querySelector('.list-toolbar')?.textContent).not.toContain('고정');
+    // 비활성 버튼 자체가 남아 있지 않아야 한다.
+    expect(container.querySelector('.list-toolbar button[disabled]')).toBeNull();
+  });
 });
