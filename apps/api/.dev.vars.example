@@ -9,8 +9,13 @@ PII_KEY_VERSION=2
 LOCAL_DEV_ACTOR_EMAIL=account@bss.or.kr
 
 # ── 미리보기 코드 게이트 로컬 테스트(CCC-6, preview-gate.ts) ──
-# 아래 3개를 채우고 LOCAL_ACTOR_HEADER_MODE 를 비우면 코드 게이트를 로컬에서 재현할 수 있다.
+# 아래를 채우고 LOCAL_ACTOR_HEADER_MODE 를 비우면 코드 게이트를 로컬에서 재현할 수 있다.
 # PREVIEW_ACCESS_CODE 값은 팀에 공유하는 지정 코드다 — 여기(예시)에는 절대 넣지 않는다.
 PREVIEW_MODE=true
 PREVIEW_ACCESS_CODE=
 PREVIEW_ACTOR_EMAIL=ai00@ggbss.or.kr
+
+# 관리자 시점(D28). 코드와 이메일이 **둘 다** 있어야 그 경로가 열린다 —
+# 하나만 채우면 관리자 경로 자체가 없다(반쪽 설정을 여는 것이 더 위험하다).
+PREVIEW_ADMIN_ACCESS_CODE=
+PREVIEW_ADMIN_ACTOR_EMAIL=account@bss.or.kr

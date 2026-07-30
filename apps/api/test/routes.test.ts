@@ -3040,18 +3040,25 @@ describe('support case overall goal route (D45 · CCC-41)', () => {
       canEditOverallGoal: true,
     });
 
-    // admin 은 열람은 되지만(canEdit=false) 저장은 403 이다 (ADR-0018 '담당 실무자만').
+    // 기관 관리자도 수정한다(2026-07-30 Q 결정 — ADR-0018 개정, 구 '담당 실무자만' 대체).
     const adminBriefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalAdminHeaders },
     ), t.env);
-    await expect(adminBriefing.json()).resolves.toMatchObject({ canEditOverallGoal: false });
+    await expect(adminBriefing.json()).resolves.toMatchObject({ canEditOverallGoal: true });
     const adminPut = await worker.fetch(new Request(url, {
       method: 'PUT',
       headers: canonicalAdminHeaders,
-      body: JSON.stringify({ overallGoal: 'ADMIN_BLOCKED' }),
+      body: JSON.stringify({ overallGoal: '관리자가 고친 전체 목표' }),
     }), t.env);
-    expect(adminPut.status).toBe(403);
+    expect(adminPut.status).toBe(200);
+    // 되돌려 놓는다 — 아래 단정들이 앞의 값을 이어서 쓴다.
+    const restorePut = await worker.fetch(new Request(url, {
+      method: 'PUT',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ overallGoal: '자립 기반 마련' }),
+    }), t.env);
+    expect(restorePut.status).toBe(200);
 
     // 비담당 실무자는 접근 자체가 403(D7). 알 수 없는 키는 400.
     const unassignedPut = await worker.fetch(new Request(url, {
