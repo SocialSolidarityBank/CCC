@@ -1,10 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, render } from '@testing-library/react';
 import { AdminSidebar } from './admin-sidebar';
 
 // usePathname 은 App Router 컨텍스트를 요구하므로 테스트에서는 목으로 대체한다.
 // activePath 를 명시하면 현재 경로와 무관하게 활성 항목을 파생한다.
 vi.mock('next/navigation', () => ({ usePathname: () => '/' }));
+
+afterEach(cleanup);
 
 describe('AdminSidebar', () => {
   it('activePath 로 정확히 한 항목만 활성 표시(data-active·aria-current)한다', () => {

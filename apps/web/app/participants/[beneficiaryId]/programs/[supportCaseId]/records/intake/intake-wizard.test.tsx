@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, within, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, render, within, fireEvent, waitFor } from '@testing-library/react';
 import { IntakeWizard } from './intake-wizard';
 import { ACTIVE_QUESTIONS, STEP_GROUPS } from './intake-questions';
 import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '../../../../../../actions';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
+afterEach(cleanup);
 
 function renderWizard(consent = { privacy: true, recordingAi: true }) {
   push.mockClear();
