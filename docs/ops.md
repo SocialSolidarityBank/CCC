@@ -74,7 +74,7 @@ set -a; . ./apps/api/.dev.vars; set +a
 pnpm exec vitest run --config scripts/seed/vitest.config.ts
 
 # 1-d) 프리로드 + 시드 적재 (apps/api 에서)
-pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/local-preload.sql
+pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/preload.sql
 pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/seed.sql
 
 # 2) API: apps/api 에서  pnpm exec wrangler dev            (http://127.0.0.1:8787)
@@ -91,12 +91,11 @@ pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/se
 vitest 가 루트를 `apps/api` 로 잡아 `No test files found, exiting with code 1` 로 끝난다.
 빈 `out/` 만 남으므로 다음 단계가 파일 없음으로 실패한다.
 
-**② `local-preload.sql` 은 시드 생성이 만들어 주지 않는다.** 없으면 `scripts/seed/preload-data.ts`
-의 `preloadStatements()` 등가 SQL 로 직접 만들어 넣는다 — `organization_settings` 1행 +
-`users` 8행 + `beneficiaries` 스텁 2행(`A001`·`swallow-001`, `initialization_state='pending'`),
-타임스탬프는 전부 `PRELOAD_AT`(`2026-01-01 00:00:00`) 고정이다. 건너뛰면 다음 단계 `seed.sql` 이
-`participant_schema_violation` 트리거로 실패한다. 작성 예시는
-`artifacts/ccc-12-local-autosave/README.md` 에 있다.
+**② 프리로드 파일 이름은 `preload.sql` 이다**(2026-07-31 정정). 시드 생성이 `out/preload.sql` 로
+만들어 준다 — 이 문서가 한동안 `local-preload.sql` 이라고 적어 두어, 절차대로 따라 하면
+`Unable to read SQL text file` 로 **조용히 건너뛰어지고** 화면이 빈 채로 뜬다(실제로 밟았다).
+내용은 `organization_settings` 1행 + `users` + `beneficiaries` 스텁이며, 건너뛰면 다음 단계
+`seed.sql` 이 `participant_schema_violation` 트리거로 실패한다.
 
 **③ 세션이 2개 이상이면 포트를 갈라야 한다.** 다른 세션이 이미 8787·3000 을 쓰고 있으면 wrangler·
 next 가 조용히 다음 포트(8788·3001)로 올라간다. 그때 웹의 `CCC_API_ORIGIN` 이 **남의 API** 를

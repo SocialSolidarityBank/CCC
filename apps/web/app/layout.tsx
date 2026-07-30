@@ -545,6 +545,43 @@ const scheduleStyles = `
 .consent-emergency textarea{min-height:88px}
 `;
 
+// CCC-19: 전체 일정(한 달 창). 행 어휘는 상담 기록 화면(D47)의 접힌 줄을 그대로 빌린다 —
+// 같은 것을 두 화면에서 다르게 그리지 않기 위해서다. 새 색·새 반경은 없다.
+const monthScheduleStyles = `
+/* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
+.month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
+.month-nav-label{min-width:9ch;font-size:16px;font-weight:700;color:var(--ink);text-align:center}
+/* 하루 묶음. 날짜 제목 + 그 아래 붙은 행들 — 행이 붙어 있으므로 카드 계약이 아니라
+   행 사이 1px --line 구분선을 쓴다(DESIGN.md §5 '리스트 행'의 맥락 규칙). */
+.month-day{display:grid;gap:var(--space-3)}
+.month-day-title{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.month-day-title[data-today="true"]{color:var(--blue-deep)}
+.month-rows{display:grid;overflow:hidden;border-radius:var(--radius-card);border:1px solid var(--line);background:var(--panel)}
+.month-rows>*+*{border-top:1px solid var(--line)}
+.month-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);color:inherit;text-decoration:none}
+@media (hover:hover){.month-row:hover{background:var(--muted)}}
+.month-row:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
+/* 시간은 고정폭으로 세로 정렬을 맞춘다(§5 리스트 행: 시간 16/700 고정폭 → 이름 묶음). */
+.month-row-time{flex:none;min-width:6ch;font-size:16px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+/* 이름 묶음 — '이름 (가명 ID)' 한 줄, 띄어쓰기는 문자열이 아니라 간격이 만든다(§5 이름 표기).
+   이 블록은 템플릿 문자열이라 주석에도 백틱을 쓸 수 없다 — 쓰면 문자열이 거기서 끝난다. */
+.month-row-name{display:flex;align-items:baseline;gap:var(--space-1);min-width:0;flex:1}
+.month-row-name b{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap}
+.month-row-name span{font-size:16px;font-weight:400;color:var(--sub);white-space:nowrap}
+.month-row-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
+/* 유형 칩 — 블루 tint + --ink 글자(D47 계열 칩 ①: 읽어야 하는 값이라 deep 을 쓰지 않는다). */
+.month-row-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border-radius:var(--radius-pill);background:var(--blue-tint);font-size:14px;font-weight:700;color:var(--ink)}
+/* 상태는 지난 일정에만 붙는다(예정은 붙이지 않는다 — 대부분이 예정이라 전부 붙으면 소음이다).
+   무채색 기본 배지다: 취소·불참은 경고가 아니라 사실이고, 리스크 색은 확인된 플래그 전용이다(D9). */
+.month-row-status{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:14px;font-weight:700;color:var(--sub)}
+@media (max-width:767px){
+  /* §5 모바일: 리스트 행은 시간+이름 / 메타 / 배지 3줄로 접힌다. */
+  .month-row{flex-wrap:wrap}
+  .month-row-name{flex-basis:calc(100% - 6ch - var(--space-3))}
+  .month-row-right{flex-basis:100%}
+}
+`;
+
 const piiMaskingStyles = `
 /* ticket-18: PII 마스킹 */
 .pii-panel{display:grid;gap:var(--space-3)}
@@ -654,7 +691,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // 전부 넣는다(가입 폼이 registerStyles 의 클래스를 쓰므로).
   const hdrs = await headers();
   const isPublic = hdrs.get('x-ccc-public') === '1';
-  const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles;
+  const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + monthScheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles;
 
   // 공개 경로는 표시 이름을 조회하지 않는다: 사이드바가 없어 값이 쓰이지 않고, 신원 없는
   // 요청으로 부르면 그 조회가 401 을 만든다(위 "사이드바가 신원을 물어 401" 과 같은 이유).

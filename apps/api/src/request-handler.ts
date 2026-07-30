@@ -66,6 +66,7 @@ import {
   getScheduleSessionPlan,
   getSession,
   getTodaySchedules,
+  getMonthSchedules,
   getUpcomingSchedules,
   listCases,
   listCounselingRecords,
@@ -1609,6 +1610,12 @@ export async function handleRequest(
       const query = requestQuery(url, ['date']);
       const date = query.get('date');
       return json(await getUpcomingSchedules(env, actor, date === null ? undefined : { date: canonicalDate(date, 'date') }));
+    }
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'schedules' && parts[1] === 'month') {
+      // 전체 일정 화면(CCC-19). month 를 생략하면 게이트웨이가 기관 시간대의 이번 달을 쓴다.
+      const query = requestQuery(url, ['month']);
+      const month = query.get('month');
+      return json(await getMonthSchedules(env, actor, month === null ? undefined : { month }));
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'schedules' && parts[1] === 'candidates') {
       // 상담 등록 폼의 당사자 후보 — '담당 활성 참여사업' 기준(티켓 #19 콜드스타트 해소).

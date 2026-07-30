@@ -8690,6 +8690,11 @@ export interface TodayScheduleCard {
   // 등록만 되고 PII 미기입이면 null.
   participantName: string | null;
   participantPhone: string | null;
+  /**
+   * 완료 회차의 세션 id. 전체 일정(CCC-19)이 지난 일정을 그 회차로 바로 보낸다
+   * (`#record-{id}` 앵커, D47 ①). 스키마 CHECK 상 status='completed' 일 때만 값이 있다.
+   */
+  completedSessionId: string | null;
 }
 
 function assertDateOnly(value: unknown): asserts value is string {
@@ -8885,7 +8890,7 @@ export async function getTodaySchedules(
   const interval = await resolveAuthoritativeTodayInterval(env, actor, opts);
   const result = actor.role === 'admin'
     ? await env.DB.prepare(
-      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, support_case.program_type
+      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
        FROM counseling_schedules AS schedule
        JOIN support_cases AS support_case ON support_case.id = schedule.support_case_id
          AND support_case.org_id = schedule.org_id
@@ -8893,7 +8898,7 @@ export async function getTodaySchedules(
        ORDER BY schedule.scheduled_at, schedule.id`,
     ).bind(actor.orgId, interval.startUtc, interval.endUtc).all<DbRow>()
     : await env.DB.prepare(
-      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, support_case.program_type
+      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
        FROM counseling_schedules AS schedule
        JOIN support_cases AS support_case ON support_case.id = schedule.support_case_id
          AND support_case.org_id = schedule.org_id
@@ -8939,6 +8944,7 @@ export async function getTodaySchedules(
         channel: canonicalScheduleChannel(row.channel),
         participantName: contact?.name ?? null,
         participantPhone: contact?.phone ?? null,
+        completedSessionId: nullableString(row.completed_session_id),
       };
     }),
   };
@@ -8961,6 +8967,41 @@ export async function getUpcomingSchedules(
     ...(opts?.date !== undefined ? { date: opts.date } : {}),
     days: UPCOMING_SCHEDULE_WINDOW_DAYS,
   });
+}
+
+function assertMonthOnly(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+    throw new ValidationError('schedule month is invalid');
+  }
+}
+
+/** 그 달의 날 수. `new Date(Date.UTC(y, m, 0))` 의 날짜가 곧 이전 달의 마지막 날이다. */
+function daysInMonth(month: string): number {
+  const [year, monthIndex] = month.split('-').map(Number);
+  return new Date(Date.UTC(year!, monthIndex!, 0)).getUTCDate();
+}
+
+/**
+ * 한 달 창의 상담 일정 (전체 일정 화면, CCC-19 · D35). '다가오는 일정'과 같은
+ * `getTodaySchedules` 를 쓰므로 접근 범위(담당 활성 배정 또는 admin org-wide, D7)와
+ * 감사(read + read_participant_pii 각 1행, D24)가 그대로 적용된다. 상태를 거르지 않아
+ * 지난 일정(완료·취소·불참)도 함께 나온다 — 이 화면의 목적이 '지난·앞으로 둘 다'다.
+ *
+ * **달을 정하는 것은 서버다.** month 를 생략하면 기관 시간대의 오늘이 속한 달을 쓴다 —
+ * 화면이 기본 달을 계산하려면 기관 시간대를 먼저 알아야 하는데 그 값이 여기 있기 때문이다
+ * ('오늘'을 서버가 정하는 것과 같은 이유). 창 길이도 서버가 달에서 파생하므로 화면이
+ * 임의 길이를 요구할 수 없다.
+ */
+export async function getMonthSchedules(
+  env: Env,
+  actor: Actor,
+  opts?: { month?: string },
+): Promise<AuthoritativeDayInterval & { schedules: TodayScheduleCard[] }> {
+  const month = opts?.month ?? (await resolveEffectiveTimeZone(env, actor).then(
+    (timeZone) => localDateAt(new Date(), timeZone).slice(0, 7),
+  ));
+  assertMonthOnly(month);
+  return getTodaySchedules(env, actor, { date: `${month}-01`, days: daysInMonth(month) });
 }
 
 export interface ScheduleCandidate {
