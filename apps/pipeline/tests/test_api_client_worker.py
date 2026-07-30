@@ -19,6 +19,10 @@ def make_config(work_dir: Path) -> Config:
         poll_interval_seconds=1,
         work_dir=work_dir,
         whisper_model="tiny",
+        stt_engine="whisper",
+        stt_max_chunk_seconds=180.0,
+        stt_min_chunk_seconds=30.0,
+        stt_repeat_threshold=4,
         ner_model_id=None,
         condition_ner_model_id=None,
         hf_token=None,
@@ -114,7 +118,8 @@ class RunOnceTest(unittest.TestCase):
         client.download_audio.side_effect = fake_download
         with TemporaryDirectory() as tmp:
             config = make_config(Path(tmp))
-            with mock.patch("ccc_pipeline.transcribe.transcribe", side_effect=RuntimeError("gpu oom")):
+            # 워커가 이름으로 가져다 쓰므로 워커 쪽 이름을 바꿔 끼운다(D53 이후 전사 진입점).
+            with mock.patch("ccc_pipeline.worker.transcribe_audio", side_effect=RuntimeError("gpu oom")):
                 with self.assertRaises(RuntimeError):
                     process_job(client, config, "s1")
         self.assertTrue(created_dirs, "download should have run")

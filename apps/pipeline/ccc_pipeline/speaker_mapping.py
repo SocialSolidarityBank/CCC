@@ -21,6 +21,9 @@ class Segment:
     end: float
     text: str
     speaker: str | None = None  # 화자 분리 라벨 (예: SPEAKER_00)
+    # 사람의 발화가 아니라 파이프라인이 끼워 넣은 경고 줄(D53 반복 붕괴 표시).
+    # 감정 집계에서 제외해야 한다 — 당사자가 한 말이 아니다(R4·D11).
+    warning: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,7 +50,7 @@ def assign_speakers(segments: list[Segment], turns: list[Turn]) -> list[Segment]
             if overlap > best_overlap:
                 best_overlap = overlap
                 best_speaker = turn.speaker
-        assigned.append(Segment(segment.start, segment.end, segment.text, best_speaker))
+        assigned.append(Segment(segment.start, segment.end, segment.text, best_speaker, segment.warning))
     return assigned
 
 
@@ -60,7 +63,7 @@ def estimate_roles(segments: list[Segment]) -> dict[str, str]:
     """
     durations: dict[str, float] = {}
     for segment in segments:
-        if segment.speaker is None:
+        if segment.speaker is None or segment.warning:
             continue
         durations[segment.speaker] = durations.get(segment.speaker, 0.0) + (segment.end - segment.start)
 
@@ -78,6 +81,10 @@ def format_transcript(segments: list[Segment], roles: dict[str, str]) -> str:
     for segment in segments:
         text = segment.text.strip()
         if text == "":
+            continue
+        if segment.warning:
+            # 파이프라인 경고는 화자 라벨을 붙이지 않는다 — 사람이 한 말이 아니다.
+            lines.append(text)
             continue
         role = roles.get(segment.speaker or "", "")
         prefix = labels.get(role, "[화자?]")

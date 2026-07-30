@@ -10,6 +10,12 @@
 - 로그에는 세션 ID·건수·소요 시간만 남긴다. 전사 내용·PII는 로그 금지 (R3)
 - 감정은 숫자 점수만 산출한다. 문장형 감정 서술은 만들지 않는다 (R4)
 - Claude 대조·요약은 2단계-c 범위 — 지금은 `aiSummary`에 자리표시 문구를 보낸다
+- **전사는 통짜로 넣지 않는다** — 무음 경계에서 조각으로 나누고 반복 붕괴를 검사한다 (D53·ADR-0024).
+  실측에서 whisper large-v3가 34분 대화의 48%를 같은 문장 254번 반복으로 잃고 없던 문장을 지어냈다
+- **반복 구간은 지우지 않고 접어서 경고를 남긴다** — 그 시간대에 엔진이 무너졌다는 사실 자체가
+  실무자에게 필요한 정보다. 경고 줄은 `Segment.warning=True`라 감정 집계·역할 추정에서 빠진다 (R4·D11)
+- **엔진은 아직 확정이 아니다** — 후보 1순위는 Qwen3-ASR-1.7B이고, 확정은 실측 게이트 G1~G3 통과 후다.
+  ffmpeg이 없으면 조각 분할 없이 통짜로 폴백한다(전사가 멈추는 것보다 낫고, 반복 검사가 뒤를 받는다)
 
 ## 구조
 
@@ -17,7 +23,9 @@
 ccc_pipeline/
   config.py          환경 변수 → 설정 (시크릿은 Infisical 주입, 코드에 없음)
   api_client.py      Workers API 클라이언트 (표준 라이브러리 urllib, UA 명시)
-  transcribe.py      Whisper 전사 (지연 임포트 — ML 미설치 환경에서도 나머지 동작)
+  transcribe.py      전사 오케스트레이션 — 조각 순회·시각 되돌리기·반복 재시도 + 엔진 등록소 (D53)
+  chunking.py        무음 경계 조각 분할 (ffmpeg silencedetect, 경계 계산은 순수 로직)
+  repetition.py      반복 붕괴 검사 — 접어서 경고, 지우지 않는다 (순수 로직, R5)
   diarize.py         pyannote 화자 분리 (지연 임포트)
   speaker_mapping.py 전사 구간↔화자 정렬 + 수혜자/상담사 자동 추정 (D11, 순수 로직)
   emotion.py         감정 점수 집계 (음성 0.3 + 텍스트 0.7 가중, R4, 순수 로직)
@@ -51,6 +59,10 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_POLL_INTERVAL_SECONDS` | | `600` | 폴링 주기(초). D8 SLA(다음 영업일) 안이면 조정 자유 |
 | `CCC_WORK_DIR` | | `~/.cache/ccc-pipeline` | 임시 작업 디렉터리(작업마다 하위 생성 후 삭제) |
 | `CCC_WHISPER_MODEL` | | `medium` | Whisper 모델 크기. VRAM 12GB에서 large-v3는 여유 확인 후 |
+| `CCC_STT_ENGINE` | | `whisper` | STT 엔진(D53). 모르는 이름은 **폴백하지 않고 즉시 실패**한다 — 오타로 다른 엔진이 조용히 돌면 어떤 엔진으로 전사했는지 알 수 없다 |
+| `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
+| `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
+| `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
 | `CCC_NER_MODEL_ID` | | (없음) | 2차 마스킹용 한국어 NER 모델. 미설정 시 정규식만 + 경고 로그. **라이선스 표기 확인 후 지정** (§5 규칙) |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
 

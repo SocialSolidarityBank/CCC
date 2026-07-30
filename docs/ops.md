@@ -15,7 +15,7 @@
 
 ## 폴링 워치독 (D8)
 
-- 데이터 원천: `audit_log`의 최신 `poll_pipeline` 시각(Mac Mini가 `GET /pipeline/jobs`를 부를 때마다 남는다).
+- 데이터 원천: `audit_log`의 최신 `poll_pipeline` 시각(처리 장비가 `GET /pipeline/jobs`를 부를 때마다 남는다).
 - 판정: 마지막 폴링이 임계값(`PIPELINE_STALE_HOURS`, 기본 6시간)을 넘으면 `stale`. 대기 작업이 있는데 폴링 이력 자체가 없어도 `stale`. 폴링 이력·대기 작업이 모두 없으면 `inactive`(알림 안 함).
 - 조회 경로: `GET /pipeline/health`(관리자 전용). 계약은 `docs/api-contract-pipeline.md` 참고.
 - 알림: `console.error("[WATCHDOG ALERT] …")`는 항상 남고(`wrangler tail`로 확인), `NOTIFY_WEBHOOK_URL` 시크릿이 설정되면 그 주소로 `{"text": ...}` JSON을 POST한다(Slack/Discord incoming webhook 호환). 발송 실패는 로그만 남기고 삼킨다 — 채널 장애가 cron을 죽이지 않는다. 채널 추가는 `apps/api/src/notify.ts`의 `notifyAdmins` 한 곳에만 붙인다.
