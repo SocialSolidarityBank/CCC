@@ -105,7 +105,9 @@ export function RegisterForm({
             <SearchInput label="성별" variant="select" name="gender" value="" options={GENDER_OPTIONS} />
           </div>
           <div className="wire-col-6">
-            <SearchInput label="생년월일" type="date" name="birthDate" placeholder="YYYY-MM-DD" />
+            {/* 레인 D: 네이티브 날짜 칸을 글자 입력으로 바꿨다(R6 + Q '생년월일 한국어화').
+                자리 표시자·도움말·자동 하이픈은 부품이 갖는다 — date-text-input.tsx 참조. */}
+            <SearchInput label="생년월일" type="date" name="birthDate" />
           </div>
           <div className="wire-col-6">
             <SearchInput label="주소 또는 거주지역" name="region" placeholder="예: 서울시 은평구" />

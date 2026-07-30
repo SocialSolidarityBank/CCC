@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Chevron } from './chevron';
+import { DATE_TEXT_HINT, DateTextInput } from './date-text-input';
 
 export interface SearchSelectOption {
   value: string;
@@ -16,8 +17,17 @@ export interface SearchInputProps {
   label: ReactNode;
   /** text = 입력 박스(기본), select = 우측 체브론이 붙는 셀렉트. */
   variant?: 'text' | 'select';
-  /** text 변형의 input type. 생년월일 같은 날짜 칸에 'date' 를 준다(기본 'text'). */
+  /**
+   * text 변형의 input type. 생년월일 같은 날짜 칸에 'date' 를 준다(기본 'text').
+   *
+   * 'date' 는 **네이티브 날짜 칸이 아니다** — `DateTextInput`(글자 입력 + 자동 하이픈)으로
+   * 그린다. 네이티브는 표기가 보는 사람의 브라우저 언어를 따라 팀원마다 달라진다(R6).
+   * 이때 `placeholder` 는 무시되고 KRDS 도움말이 자동으로 붙는다.
+   */
   type?: 'text' | 'date';
+  /** 입력칸 아래 도움말. 'date' 는 주지 않아도 KRDS 문구가 기본으로 붙는다. */
+  hint?: ReactNode;
+  required?: boolean;
   name?: string;
   id?: string;
   placeholder?: string;
@@ -33,6 +43,8 @@ export function SearchInput({
   label,
   variant = 'text',
   type = 'text',
+  hint,
+  required = false,
   name,
   id,
   placeholder,
@@ -43,6 +55,10 @@ export function SearchInput({
 }: SearchInputProps) {
   const fieldId = id ?? name;
   const classes = ['wire-search', className].filter(Boolean).join(' ');
+  const resolvedHint = hint ?? (type === 'date' ? DATE_TEXT_HINT : undefined);
+  // 도움말을 컨트롤에 이어야 스크린 리더가 형식 안내를 함께 읽는다(KRDS · WCAG 2.1 A).
+  // 그러려면 도움말에 id 가 필요하고, id 는 필드 id 에서 파생한다.
+  const hintId = resolvedHint === undefined || fieldId === undefined ? undefined : `${fieldId}-hint`;
 
   return (
     <label className={classes} htmlFor={fieldId}>
@@ -69,6 +85,17 @@ export function SearchInput({
             )}
             <Chevron dir="down" />
           </>
+        ) : type === 'date' ? (
+          /* 날짜는 부품이 따로 있다 — placeholder·자동 하이픈·형식 검증을 한곳에 둔다.
+             value 는 초기값으로만 쓴다(부품이 내부 상태로 편집을 관리한다). */
+          <DateTextInput
+            id={fieldId}
+            name={name}
+            defaultValue={value}
+            required={required}
+            describedBy={hintId}
+            onValueChange={onChange}
+          />
         ) : (
           <input
             id={fieldId}
@@ -76,11 +103,17 @@ export function SearchInput({
             type={type}
             placeholder={placeholder}
             value={value}
+            required={required}
             readOnly={value !== undefined && onChange === undefined}
             onChange={onChange ? (event) => onChange(event.target.value) : undefined}
           />
         )}
       </span>
+      {resolvedHint === undefined ? null : (
+        <span className="wire-form-hint" id={hintId}>
+          {resolvedHint}
+        </span>
+      )}
     </label>
   );
 }

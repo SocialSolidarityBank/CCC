@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { cleanup, render, fireEvent } from '@testing-library/react';
 import { BasicInfoForm } from './basic-info-form';
 import type { ParticipantBasicInfo } from '../../../lib/api';
 
@@ -17,6 +17,12 @@ const BASIC_INFO: ParticipantBasicInfo = {
   region: '서울시 은평구',
   gender: '여성',
 };
+
+// 레인 D: 이 파일에 afterEach(cleanup) 이 없었다. 없으면 파일이 끝난 뒤 jsdom 이 내려가는
+// 동안 React 가 남은 작업을 돌려 `window is not defined` 가 터지고, **테스트가 전부 통과해도
+// 종료코드가 1** 이 된다(CI 는 그 숫자만 본다). 이 레인이 이 파일을 만지므로 여기서 닫는다 —
+// 남은 파일 9개는 STATUS 다음 할 일 3번이다.
+afterEach(cleanup);
 
 describe('BasicInfoForm (CCC-37 당사자 기본정보 수정)', () => {
   beforeEach(() => {

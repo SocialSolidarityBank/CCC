@@ -3,6 +3,7 @@
 import { WireCard } from '../../../components/wire/wire-card';
 import { WireButton } from '../../../components/wire/wire-button';
 import { WireFormField } from '../../../components/wire/wire-form-field';
+import { DATE_TEXT_HINT, DateTextInput } from '../../../components/wire/date-text-input';
 import type { ParticipantBasicInfo } from '../../../lib/api';
 
 // 성별 선택값은 정본 질문지 1-1 그대로다(D41) — 등록 폼(register-form.tsx)과 같은 목록을
@@ -51,12 +52,15 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
           <WireFormField label="이메일" htmlFor="basicInfoEmail">
             <input id="basicInfoEmail" name="email" type="email" maxLength={200} defaultValue={basicInfo.email ?? ''} />
           </WireFormField>
-          <WireFormField label="생년월일" htmlFor="basicInfoBirthDate">
-            <input
+          {/* 레인 D: 등록 화면(register-form)과 **같은 부품**을 쓴다. 두 화면이 같은 값을
+              다르게 받으면 다음 수정에서 갈라진다. 도움말은 WireFormField 의 hint 슬롯이
+              그리고, DateTextInput 이 aria-describedby 로 그것을 가리킨다(KRDS). */}
+          <WireFormField label="생년월일" htmlFor="basicInfoBirthDate" hint={DATE_TEXT_HINT}>
+            <DateTextInput
               id="basicInfoBirthDate"
               name="birthDate"
-              type="date"
               defaultValue={basicInfo.birthDate ?? ''}
+              describedBy="basicInfoBirthDate-hint"
             />
           </WireFormField>
           <WireFormField label="주소 또는 거주지역" htmlFor="basicInfoRegion">
