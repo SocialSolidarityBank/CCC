@@ -4,6 +4,7 @@ import {
   DatePickerControl,
   DateTimePickerControl,
   formatDateOnly,
+  isCompleteDateTime,
   parseDateOnly,
 } from './date-picker-control';
 
@@ -159,5 +160,27 @@ describe('DateTimePickerControl', () => {
     );
 
     expect(container.querySelector('input[type="hidden"]')).toBeNull();
+  });
+});
+
+describe('isCompleteDateTime', () => {
+  it('`red` 날짜만 채운 반쪽 값을 걸러낸다 — 칸이 둘로 나뉘며 새로 생긴 상태다', () => {
+    // 예전 한 칸짜리 datetime-local 은 둘 다 채워야 값을 내줘서 '비어 있지 않다'로 충분했다.
+    // 이제는 날짜만 치면 `2026-08-12T` 가 되고 그 검사를 통과해 버린다.
+    expect('2026-08-12T'.trim().length === 0).toBe(false);
+    expect(isCompleteDateTime('2026-08-12T')).toBe(false);
+  });
+
+  it('시각만 채운 값도 걸러낸다', () => {
+    expect(isCompleteDateTime('T14:30')).toBe(false);
+  });
+
+  it('없는 날짜는 온전한 형식이어도 걸러낸다', () => {
+    expect(isCompleteDateTime('2026-02-31T14:30')).toBe(false);
+  });
+
+  it('둘 다 채워야 통과한다', () => {
+    expect(isCompleteDateTime('')).toBe(false);
+    expect(isCompleteDateTime('2026-08-12T14:30')).toBe(true);
   });
 });

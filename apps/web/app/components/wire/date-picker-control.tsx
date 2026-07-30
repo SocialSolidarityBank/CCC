@@ -153,6 +153,18 @@ export function DatePickerControl({
   );
 }
 
+/**
+ * `YYYY-MM-DDTHH:mm` 이 **온전히** 채워졌는가.
+ *
+ * `red` 칸이 둘로 나뉘면서 예전에 없던 상태가 생겼다 — 날짜만 채우면 값이 `2026-08-12T` 가 된다.
+ * 한 칸짜리 `datetime-local` 은 둘 다 채워야 값을 내줬으므로 `길이 > 0` 검사로 충분했지만
+ * 이제는 아니다. **폼 밖에서(자바스크립트로) 제출하는 화면은 이 함수로 검사해야 한다** —
+ * 폼으로 제출하는 화면은 두 칸의 `required`·`pattern` 이 대신 막는다.
+ */
+export function isCompleteDateTime(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) && parseDateOnly(value.slice(0, 10)) !== undefined;
+}
+
 export interface DateTimePickerControlProps {
   id?: string | undefined;
   /** 폼 제출 이름. 주면 합쳐진 값(`YYYY-MM-DDTHH:mm`)을 숨은 칸으로 낸다. */

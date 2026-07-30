@@ -7,7 +7,7 @@ import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
 import { ListRow } from '../../components/wire/list-row';
 import { SearchInput } from '../../components/wire/search-input';
-import { DateTimePickerControl } from '../../components/wire/date-picker-control';
+import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire/date-picker-control';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
 import type {
@@ -209,7 +209,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   }
 
   async function goToGoals() {
-    if (selected === null || scheduledAt.trim().length === 0) {
+    if (selected === null || !isCompleteDateTime(scheduledAt)) {
       setError('당사자와 상담 일시를 먼저 선택하세요.');
       return;
     }
@@ -336,11 +336,11 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                 </>
               )}
               <div style={rowActionsStyle}>
-                <WireButton size="large" chevron disabled={busy || selected === null || scheduledAt.trim().length === 0} onClick={goToGoals}>
+                <WireButton size="large" chevron disabled={busy || selected === null || !isCompleteDateTime(scheduledAt)} onClick={goToGoals}>
                   {sessionKind === 'intake' ? '다음: 상담 목표' : '다음: 이번 상담의 목표'}
                 </WireButton>
               </div>
-              {selected === null || scheduledAt.trim().length === 0 ? (
+              {selected === null || !isCompleteDateTime(scheduledAt) ? (
                 <p style={captionStyle}>
                   {selected === null
                     ? '당사자를 선택하세요.'
