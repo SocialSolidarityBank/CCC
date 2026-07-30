@@ -7,11 +7,6 @@ import { RecordOnepage, type RecordOnepageProps } from './record-onepage';
 
 function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps {
   return {
-    goals: [
-      { id: 'goal-1', title: '월세 체납 해소', status: 'active' },
-      { id: 'goal-2', title: '건강 회복', status: 'active' },
-      { id: 'goal-3', title: '지난 목표', status: 'closed' },
-    ],
     schedules: [],
     openActionItems: [],
     latestLifeAreaSnapshot: [],
@@ -28,7 +23,7 @@ function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps 
 afterEach(cleanup);
 
 describe('RecordOnepage', () => {
-  it('고정 헤더에 이번 상담 목표와 전체 목표 N 을 항상 표시한다', () => {
+  it('고정 헤더에 이번 상담 목표를 항상 표시한다', () => {
     const { container, getByTestId } = render(<RecordOnepage {...props({
       sessionGoals: [{ body: '임대차 계약 확인', caseGoalTitle: '월세 체납 해소' }],
     })} />);
@@ -37,8 +32,6 @@ describe('RecordOnepage', () => {
     expect(header.className).toContain('record-sticky');
     expect(header.textContent).toContain('이번 상담 목표');
     expect(header.textContent).toContain('임대차 계약 확인');
-    // 활성 목표만 센다(종료 목표 제외).
-    expect(header.textContent).toContain('전체 목표 2');
     // 일정에 세션 목표가 있으면 헤더에서 따로 입력받지 않는다.
     expect(container.querySelector('input[name="sessionGoalNote"]')).toBeNull();
   });
@@ -99,20 +92,19 @@ describe('RecordOnepage', () => {
     expect(safety.open).toBe(true);
   });
 
-  it('목표 종료를 고르기 전에는 종료 사유·새 목표 입력이 잠겨 있다', () => {
+  // D47 §6 · ADR-0019 — GAS 점수와 '목표 종료+신설'은 화면에서 내렸다. D43 이 보류한 것은
+  // 'GAS 와 세부 목표 층' 둘 다인데 브리핑만 정리되고 이 화면에는 남아 있었다(UI 훑기 R1).
+  // 이 테스트는 그것들이 조용히 되살아나는 것을 막는다 — 되살릴 때는 D43 해제가 먼저다.
+  it('보류된 세부 목표 층 UI(GAS 점수·목표 종료+신설)를 어디에도 그리지 않는다', () => {
     const { container } = render(<RecordOnepage {...props()} />);
 
-    const reason = container.querySelector('input[name="goalClosedReason"]') as HTMLInputElement;
-    const newTitle = container.querySelector('input[name="newGoalTitle"]') as HTMLInputElement;
-    expect(reason.disabled).toBe(true);
-    expect(newTitle.disabled).toBe(true);
-
-    fireEvent.change(container.querySelector('select[name="closeGoalId"]') as HTMLSelectElement, {
-      target: { value: 'goal-1' },
-    });
-    expect(reason.disabled).toBe(false);
-    expect(reason.required).toBe(true);
-    expect(newTitle.disabled).toBe(false);
+    expect(container.querySelector('select[name="gasScore"]')).toBeNull();
+    expect(container.querySelector('select[name="closeGoalId"]')).toBeNull();
+    expect(container.querySelector('input[name="goalClosedReason"]')).toBeNull();
+    expect(container.querySelector('input[name="newGoalTitle"]')).toBeNull();
+    // 라벨로도 남아 있으면 안 된다 — 입력칸만 지우고 제목이 남으면 기능이 있는 것처럼 읽힌다.
+    expect(container.textContent).not.toContain('GAS');
+    expect(container.textContent).not.toContain('목표 종료');
   });
 
   it('전체 열기/닫기가 아코디언을 일괄 조작하고 기본은 접힘이다 (CCC-24)', () => {

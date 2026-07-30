@@ -45,7 +45,8 @@ function dateTimeLabel(value: string): string {
 }
 
 export interface RecordOnepageProps {
-  goals: SupportCaseRecordGoal[];
+  // goals(세부 목표)는 더 이상 받지 않는다 — GAS 입력·목표 종료+신설이 D47 §6 으로 빠지면서
+  // 이 화면에서 쓸 곳이 없어졌다. 조회 API 는 그대로 내려보내므로 재활성 시 되돌리면 된다.
   schedules: CounselingSchedule[];
   openActionItems: OpenActionResolutionItem[];
   latestLifeAreaSnapshot: LifeAreaSnapshotEntry[];
@@ -60,7 +61,6 @@ export interface RecordOnepageProps {
 }
 
 export function RecordOnepage({
-  goals,
   schedules,
   openActionItems,
   latestLifeAreaSnapshot,
@@ -79,9 +79,7 @@ export function RecordOnepage({
   // 전체 열기/닫기 — 브리핑과 같은 규칙이다(버튼 하나, ref 일괄 토글). 기본은 접힘(CCC-5).
   const accordionsRef = useRef<HTMLDivElement>(null);
   const [allOpen, setAllOpen] = useState(false);
-  const [closeGoalId, setCloseGoalId] = useState('');
 
-  const activeGoals = goals.filter((goal) => goal.status === 'active');
   const openActionsHandled = openActionItems.length === 0 || resolvedActionIds.length === openActionItems.length;
   const hasCrisis = crisisAreas.length > 0;
   // P1 3종(설계 §2). 6영역은 기본값 '변화 없음'이 곧 유효한 입력이라 언제나 충족으로 센다.
@@ -142,7 +140,9 @@ export function RecordOnepage({
                 <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `전체 목표: ${goal.caseGoalTitle}`]} />
               </li>)}</ul>}
           </div>
-          <p className="record-sticky-count">전체 목표 {activeGoals.length}</p>
+          {/* 여기 있던 `전체 목표 N` 카운트는 제거했다(D47 §6). 세던 것은 goals 테이블의
+              **세부 목표**라 D43 보류 대상이었고, 이름도 전체 목표(케이스당 1개, D33)와
+              달라 숫자가 늘 2 이상으로 보였다. 전체 목표는 브리핑이 한 줄로 보여준다. */}
         </div>
         {sessionGoals.length === 0
           ? <WireFormField label="이번 상담 목표" note="(선택, 일정에 연결된 목표가 없을 때)" htmlFor="session-goal-note">
@@ -233,32 +233,17 @@ export function RecordOnepage({
         <LifeAreaFields latest={latestLifeAreaSnapshot} onStatusChange={handleLifeAreaStatus} />
       </WireCard>
 
-      {/* 5. GAS — 권장 */}
-      <details className="record-accordion">
-        <summary className="record-accordion-summary">목표 평가(GAS) <small>(권장)</small></summary>
-        <div className="record-accordion-body">
-          <p>목표달성척도는 실무자가 직접 매깁니다. 매 회차 필수가 아니라 권장이며, 점수를 선택하지 않은 목표는 이번 기록에 저장하지 않습니다. 목표는 읽기 전용이며 이 화면에서 만들거나 수정할 수 없습니다.</p>
-          {goals.length === 0 ? <p className="empty"><span>등록된 목표가 없습니다. GAS를 기록할 목표를 먼저 확인하세요.</span></p> : <fieldset className="wire-fieldset">
-            <legend>목표별 GAS 점수 <small>(선택)</small></legend>
-            <div className="wire-form-grid">{goals.map((goal) => <WireFormField
-              key={goal.id}
-              label={goal.title}
-              note={`(${goal.status === 'active' ? '진행 중' : '종료됨'})`}
-              control="select"
-              htmlFor={`gas-score-${goal.id}`}
-            >
-              <select id={`gas-score-${goal.id}`} name="gasScore" defaultValue=""><option value="">점수 선택 안 함</option>{[-2, -1, 0, 1, 2].map((score) => <option key={score} value={JSON.stringify({ goalId: goal.id, score })}>{score > 0 ? `+${score}` : score}</option>)}</select>
-            </WireFormField>)}</div>
-          </fieldset>}
-        </div>
-      </details>
+      {/* 5. GAS 아코디언은 **제거됐다** (D47 §6 · ADR-0019). D43 이 보류한 것은 'GAS 와
+          세부 목표 층' 둘 다이고, 브리핑은 D45 에서 이미 뺐는데 이 화면만 남아 있었다
+          (UI 훑기 R1). 점수를 입력하면 데이터는 쌓이는데 어디에도 안 보이는 상태였다.
+          DB·게이트웨이·기존 데이터는 그대로다 — 재활성 시 이 자리에 UI 만 되살린다. */}
 
       {/* 6. 회차 템플릿(D29) — 이번 범위는 자리 구조까지 */}
       <details className="record-accordion">
         <summary className="record-accordion-summary">회차 템플릿 항목 <small>(준비 중)</small></summary>
         <div className="record-accordion-body">
           <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
-          <p className="panel-meta">지금은 코어 항목(위의 GAS 근거·액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
+          <p className="panel-meta">지금은 코어 항목(위의 액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
         </div>
       </details>
 
@@ -295,41 +280,18 @@ export function RecordOnepage({
         </div>
       </details>
 
-      {/* 9. 플래그 수기 추가 · 목표 종료+신설 */}
+      {/* 9. 플래그 수기 추가. '목표 종료 + 신설' fieldset 은 **제거됐다** (D47 §6 · ADR-0019)
+          — 그것도 GAS 와 같은 세부 목표 층이라 D43 보류 대상이다. 이로써 앱 안에 세부 목표를
+          만들거나 닫을 경로가 없어지는 것은 알고 받아들인 결과이고, 전체 목표 편집은 브리핑에
+          남아 있다(D45). goals·closed_reason·replaced_by_goal_id 스키마는 그대로 둔다. */}
       <details className="record-accordion">
-        <summary className="record-accordion-summary"><MetaRow items={['리스크 플래그', '목표 종료+신설']} /> <small>(조건부)</small></summary>
+        <summary className="record-accordion-summary">리스크 플래그 <small>(조건부)</small></summary>
         <div className="record-accordion-body">
           <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
           <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>
             <div className="wire-choice-group">
               {flagTypes.map(([value, label]) => <WireChoice key={value} label={label} type="checkbox" name="flagType" value={value} />)}
             </div>
-          </fieldset>
-          <fieldset className="wire-fieldset">
-            <legend>목표 종료 + 신설 <small>(선택)</small></legend>
-            <p className="panel-meta">목표 문구는 고칠 수 없습니다. 달성하거나 더는 맞지 않으면 사유를 적어 종료하고 새 목표를 신설합니다.</p>
-            <WireFormField label="종료할 목표" control="select" htmlFor="close-goal-id">
-              <select
-                id="close-goal-id"
-                name="closeGoalId"
-                value={closeGoalId}
-                onChange={(event) => setCloseGoalId(event.currentTarget.value)}
-              >
-                <option value="">종료하지 않음</option>
-                {activeGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
-              </select>
-            </WireFormField>
-            <WireFormField
-              label="종료 사유"
-              required={closeGoalId.length > 0}
-              note={closeGoalId.length > 0 ? '(필수)' : '(종료할 목표를 고르면 입력)'}
-              htmlFor="goal-closed-reason"
-            >
-              <input id="goal-closed-reason" name="goalClosedReason" type="text" maxLength={200} required={closeGoalId.length > 0} disabled={closeGoalId.length === 0} />
-            </WireFormField>
-            <WireFormField label="새 목표 문구" note="(선택)" htmlFor="new-goal-title">
-              <input id="new-goal-title" name="newGoalTitle" type="text" maxLength={200} disabled={closeGoalId.length === 0} />
-            </WireFormField>
           </fieldset>
         </div>
       </details>

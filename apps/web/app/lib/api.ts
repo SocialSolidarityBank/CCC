@@ -429,6 +429,12 @@ export interface SupportCaseRecord {
   // 기록 종류(CCC-7) — 목록에서 인테이크/정기 구분 표시용.
   kind: SessionKind;
   createdAt: string;
+  /** D47 접힌 줄의 핵심 한 줄 — 승인된 AI 한 줄만(R2). null 이면 아래 memoExcerpt 로 낮춘다(D5). */
+  aiOneLiner: string | null;
+  /** D47 폴백 발췌 — 수기 메모 첫 줄 최대 60자. 메모가 비면 null. */
+  memoExcerpt: string | null;
+  /** D47 '이번 상담의 목표'(GAS 가 있던 자리). 빈 배열이면 블록을 그리지 않는다 — ADR-0019 §2. */
+  sessionGoals: string[];
 }
 
 export interface SupportCaseRecordGoal {
@@ -450,6 +456,11 @@ export interface SupportCaseRecords {
    * 모두 들어온다(회차 내 모순이면 한 곳).
    */
   recordErrorSessionIds: string[];
+  /** D47 HERO 아래 한 줄. 이 화면에서는 **읽기 전용** — 수정은 브리핑이다(D45). NULL = 설정 전. */
+  overallGoal: string | null;
+  /** D47 HERO 상태 태그(D38 슬롯 ②) — 케이스 1개를 보는 화면이라 필수다. */
+  caseStatus: 'active' | 'closed';
+  programType: ParticipantProgramType;
 }
 
 // 정기 기록지 고정 헤더의 "이번 상담 목표"(D28 · CCC-10). 일정에 연결된 세션 목표를 표시한다.
@@ -914,6 +925,12 @@ function decodeSupportCaseRecord(value: unknown): SupportCaseRecord {
     lifeAreaSnapshot: responseArray(record, 'lifeAreaSnapshot').map(decodeLifeAreaSnapshotEntry),
     kind: responseEnum(responseProperty(record, 'kind'), sessionKinds),
     createdAt: responseString(record, 'createdAt'),
+    aiOneLiner: responseNullableString(record, 'aiOneLiner'),
+    memoExcerpt: responseNullableString(record, 'memoExcerpt'),
+    sessionGoals: responseArray(record, 'sessionGoals').map((goal) => {
+      if (typeof goal !== 'string') contractViolation();
+      return goal;
+    }),
   };
 }
 
@@ -960,6 +977,9 @@ function decodeSupportCaseRecords(value: unknown): SupportCaseRecords {
       if (typeof item !== 'string') contractViolation();
       return item;
     }),
+    overallGoal: responseNullableString(record, 'overallGoal'),
+    caseStatus: responseEnum(responseProperty(record, 'caseStatus'), caseStatuses),
+    programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
   };
 }
 

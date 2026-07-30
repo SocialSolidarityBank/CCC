@@ -27,7 +27,9 @@ export const wireStyles = `
 }
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
-.surface-card[data-selected="true"],.surface-card[aria-current="true"],.is-selected-surface{
+/* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
+   쪽에서 바뀌므로 data 속성 대신 [open] 을 같은 규칙에 얹는다 — 어휘가 갈라지지 않는다. */
+.surface-card[data-selected="true"],.surface-card[aria-current="true"],.surface-card[open],.is-selected-surface{
   border-color:transparent;
   background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box;
 }

@@ -2192,6 +2192,12 @@ describe('canonical participant API routes', () => {
           { areaKey: 'economy', status: 'crisis', note: 'CANONICAL_ECONOMY' },
         ],
         kind: 'regular',
+        // D47 접힌 줄 3종. 이 회차는 승인된 AI 초안이 없어 핵심 한 줄이 null 이고 화면은
+        // memoExcerpt 로 낮춘다(D5). 일정이 아직 완료 처리 전이고 기록지 메모도 없어
+        // sessionGoals 는 빈 배열 — 그때 화면은 '이번 상담의 목표' 블록을 안 그린다.
+        aiOneLiner: null,
+        memoExcerpt: recordBody.memo,
+        sessionGoals: [],
       }],
       goals: [{ id: goal.id, title: goal.title, status: 'active' }],
       schedule: {
@@ -2205,6 +2211,11 @@ describe('canonical participant API routes', () => {
       },
       // CCC-42: '기록 오류'로 처리된 불일치가 가리키는 회차. 여기서는 처리 이력이 없어 빈 배열.
       recordErrorSessionIds: [],
+      // D47: HERO 상태 태그와 전체 목표 한 줄의 재료. 전체 목표는 아직 설정 전이라 null 이고
+      // 화면은 "상담 준비 화면에서 설정" 안내로 낮춘다 — 이 화면에서는 수정하지 않는다.
+      overallGoal: null,
+      caseStatus: 'active',
+      programType: 'financial_support_v1',
     });
   });
   it('serves the intake context and stores an intake record once, replaying identical resubmissions (CCC-7)', async () => {
