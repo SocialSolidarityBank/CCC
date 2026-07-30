@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D47 시안 — 상담 기록 화면 v1</title>
+<!-- D47 그릴링 시안 v1 (2026-07-30).
+     확정 4건 반영: ① 최신만 펼침 ② GAS 자리 → 세션 목표 ③ HERO 버튼 2개 ④ N회차 표기.
+     토큰 값은 design/tokens.css 사본. 이 파일은 시안이며 앱 코드가 아니다. -->
+<style>
+:root{
+  --canvas:#FAFAF9; --panel:#FFF; --muted:#F5F5F4;
+  --ink:#3D3445; --sub:#534E57; --line:#E7E5E4; --line-control:#E3E3E3;
+  --blue:#93C1F5; --blue-deep:#67A9F0; --blue-tint:#E7EEF8;
+  --mint:#8ED9B8; --mint-deep:#56CC99; --mint-tint:#E4F4EC;
+  --lavender:#CBA8E2; --lavender-deep:#C890F0; --lavender-tint:#F2E7F7;
+  --risk:#F071B4;
+  --shadow-soft:-2px 2px 8px rgba(86,204,153,.15), 2px 2px 8px rgba(200,144,240,.15);
+  --gradient-brand:linear-gradient(90deg,#8ED9B8 0%,#CBA8E2 100%);
+  --gradient-brand-v:linear-gradient(180deg,#8ED9B8 0%,#CBA8E2 100%);
+  --gradient-action:linear-gradient(135deg,#A8E3C6 0%,#D1B3E3 100%);
+  --gradient-sidebar:linear-gradient(180deg,#E7EEF8 0%,#E4F4EC 50%,#F2E7F7 100%);
+  --line-action:rgba(61,52,69,.5); --line-sidebar:rgba(61,52,69,.16);
+  --radius-control:6px; --radius-card:12px; --radius-pill:9999px;
+  --control-height:40px; --badge-height:24px; --pill-height:32px;
+  --sidebar-width:240px; --page-max:1120px; --page-pad-x:40px; --page-pad-y:40px;
+  --section-gap:24px;
+  --font-sans:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  --tracking-base:-0.01em;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--font-sans);
+     letter-spacing:var(--tracking-base);font-size:16px;line-height:1.5;
+     -webkit-font-smoothing:antialiased}
+.shell{display:grid;grid-template-columns:var(--sidebar-width) 1fr;min-height:100vh}
+
+/* ── 사이드바 (맥락용, D35) ── */
+.side{background:var(--gradient-sidebar);padding:24px 16px;display:flex;flex-direction:column;gap:16px}
+.side-org{font-size:14px;font-weight:700;color:var(--sub)}
+.side-switch{background:var(--panel);border-radius:var(--radius-control);padding:12px;
+             box-shadow:var(--shadow-soft)}
+.side-switch b{display:block;font-size:16px;font-weight:700}
+.side-switch span{font-size:14px;color:var(--sub)}
+.side-sep{height:1px;background:var(--line-sidebar)}
+.side-nav{display:flex;flex-direction:column;gap:4px}
+.side-nav a{height:40px;display:flex;align-items:center;padding:0 12px;
+            border-radius:var(--radius-control);font-size:14px;font-weight:700;
+            color:var(--sub);text-decoration:none}
+.side-nav a[aria-current]{background:var(--blue-tint);color:var(--ink)}
+
+/* ── 페이지 ── */
+.page{width:100%;max-width:var(--page-max);margin:0 auto;
+      padding:var(--page-pad-y) var(--page-pad-x);
+      display:grid;gap:var(--section-gap);align-content:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card);
+      box-shadow:var(--shadow-soft)}
+/* 활성·선택 카드만 그라데이션 테두리 (DESIGN.md §5 카드 계약).
+   배경 2겹 방식 — border-image는 radius를 무시한다(D34 렌더 결함). */
+.card[data-open]{border-color:transparent;
+  background:linear-gradient(var(--panel),var(--panel)) padding-box,
+             var(--gradient-brand) border-box}
+
+/* HERO (D38) */
+.hero{padding:24px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.hero-name{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.hero-name h1{margin:0;font-size:28px;font-weight:700;display:flex;align-items:baseline;gap:4px}
+.hero-name h1 small{font-size:16px;font-weight:400;color:var(--sub)}
+.tag{height:var(--control-height);display:inline-flex;align-items:center;padding:0 12px;
+     border:1px solid var(--blue-deep);border-radius:var(--radius-control);
+     font-size:14px;font-weight:700;color:var(--ink)}
+.hero-meta{margin:8px 0 0;font-size:14px;color:var(--sub)}
+.actions{display:flex;gap:12px}
+.btn{height:var(--control-height);display:inline-flex;align-items:center;padding:0 16px;
+     border-radius:var(--radius-pill);font-size:16px;font-weight:700;white-space:nowrap;
+     text-decoration:none;color:var(--ink);cursor:pointer}
+.btn.sec{background:var(--panel);border:1px solid var(--line-control)}
+.btn.pri{background:var(--gradient-action);border:1px solid var(--line-action);box-shadow:var(--shadow-soft)}
+.btn.sm{height:var(--pill-height);padding:0 14px;font-size:14px}
+
+/* 전체 목표 한 줄 (D45 어휘) */
+.goal{padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.goal-label{font-size:14px;font-weight:700;color:var(--mint-deep)}
+.goal-body{font-size:16px;font-weight:700}
+
+/* 회차 목록 */
+.sec-title{margin:0;font-size:18px;font-weight:700;display:flex;align-items:center;gap:12px}
+.list{display:grid;gap:12px}
+
+/* 접힌 줄 */
+.row{padding:16px 24px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.chev{color:var(--sub);font-size:14px;width:12px;flex:none}
+.row-n{font-size:16px;font-weight:700;flex:none}
+.dot{color:var(--line-control);flex:none}
+.row-date{font-size:16px;font-weight:400;color:var(--sub);flex:none}
+/* 유형 = 시간·상태 축 → 블루 tint 칩. 글자는 --ink 라 tint 위에서도 읽힌다(§9). */
+.kind{height:var(--badge-height);display:inline-flex;align-items:center;padding:0 10px;
+      border-radius:var(--radius-pill);font-size:14px;font-weight:700;flex:none;
+      background:var(--blue-tint);color:var(--ink)}
+/* 인테이크도 같은 블루다 — 유형은 전부 시간·상태 축이라 라벤더로 빼면 축이 깨진다.
+   구분은 색이 아니라 글자가 한다. */
+.row-one{font-size:16px;font-weight:400;color:var(--ink);overflow:hidden;
+         text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.row-one.draft{color:var(--sub)}
+.badge{height:var(--badge-height);display:inline-flex;align-items:center;padding:0 10px;
+       border-radius:var(--radius-pill);font-size:14px;font-weight:700;flex:none}
+.badge.wait{background:var(--lavender-tint);color:var(--lavender-deep)}
+.badge.plain{border:1px solid var(--sub);color:var(--sub)}
+
+/* 펼친 카드 */
+.open{overflow:hidden}
+.open .row{border-bottom:1px solid transparent;
+           border-image:var(--gradient-brand) 1;border-image-slice:0 0 1 0}
+/* 카드 헤더와 본문은 --gradient-brand 1px 로 나눈다 (DESIGN.md §5 카드 계약).
+   그라데이션이 남는 자리는 카드 '안쪽 구분선'뿐이다. */
+.open-head{padding:16px 24px;display:flex;align-items:center;gap:12px;
+           border-bottom:1px solid transparent;
+           background:linear-gradient(var(--panel),var(--panel)) padding-box,
+                      var(--gradient-brand) border-box}
+.open-body{padding:20px 24px;display:grid;gap:20px}
+.blk h3{margin:0 0 8px;font-size:16px;font-weight:700}
+.blk p{margin:0;font-size:16px}
+.blk ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.blk li{font-size:16px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.li-meta{font-size:14px;color:var(--sub)}
+/* 담당 = 사람 축 → 민트 tint 칩 */
+.who{background:var(--mint-tint);color:var(--ink);border-radius:var(--radius-pill);
+     padding:0 10px;font-size:14px;font-weight:700}
+.done{border:1px solid var(--sub);color:var(--sub);border-radius:var(--radius-pill);
+      padding:0 10px;font-size:14px;font-weight:700}
+.done[data-done]{border-color:transparent;background:var(--blue-tint);color:var(--ink)}
+/* 세션 목표 = 실무자가 정한 것 → 사람 축(민트) */
+.sess{background:var(--mint-tint);border-radius:var(--radius-control);padding:12px 16px}
+.sess .lb{font-size:14px;font-weight:700;color:var(--mint-deep);display:block;margin-bottom:4px}
+/* 리스크 레드는 **확인된** 플래그에만. 제외됨·검토 대기는 무채색이다(D9·D34) */
+.flag{font-weight:700;color:var(--sub)}
+.flag[data-confirmed]{color:var(--risk)}
+/* AI 출처 표시 = 라벤더 축 */
+.ai{background:var(--lavender-tint);color:var(--lavender-deep);border-radius:var(--radius-pill);
+    padding:0 10px;font-size:14px;font-weight:700}
+.foot{padding:12px 24px;border-top:1px solid var(--line);font-size:14px;color:var(--sub);
+      display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.note{margin:0;background:var(--muted);border-radius:var(--radius-control);
+      padding:12px 16px;font-size:14px;color:var(--sub)}
+
+.legend{margin:0;font-size:14px;color:var(--sub)}
+.legend b{color:var(--ink)}
+.cut{border:0;border-top:1px dashed var(--line-control);margin:8px 0 0}
+
+@media (max-width:767px){
+  .shell{grid-template-columns:1fr}
+  .side{display:none}
+  .page{padding:24px 16px}
+  .hero{align-items:stretch}
+  .actions{flex-direction:column;width:100%}
+  .btn{width:100%;justify-content:center}
+  .hero-name h1{font-size:24px}
+  .row{flex-wrap:wrap}
+  .row-one{flex-basis:100%;white-space:normal}
+}
+@media (prefers-color-scheme:dark){
+  /* 시안은 라이트 전용 — 다크 모드는 DESIGN.md에서 아직 [추론] 상태다 */
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <nav class="side" aria-label="사이드바 (맥락용)">
+    <div class="side-org">사회연대은행</div>
+    <div class="side-switch"><b>금전지원형</b><span>참여 사업</span></div>
+    <div class="side-sep"></div>
+    <div class="side-nav">
+      <a href="#">다가오는 일정</a>
+      <a href="#">전체 일정</a>
+      <a href="#" aria-current="page">당사자</a>
+      <a href="#">설정</a>
+    </div>
+  </nav>
+
+  <main class="page">
+
+    <!-- ① HERO — D38 공통 부품. 브레드크럼은 이것이 대체한다(R3 해소) -->
+    <section class="card hero">
+      <div>
+        <div class="hero-name">
+          <h1>김미영 <small>(swallow-003)</small></h1>
+          <span class="tag">진행 중</span>
+        </div>
+        <p class="hero-meta">금전지원형 · 5회차까지 기록됨 · 최근 상담 2026-07-28</p>
+      </div>
+      <div class="actions">
+        <a class="btn sec" href="#">당사자 정보</a>
+        <a class="btn pri" href="#">상담 기록 작성</a>
+      </div>
+    </section>
+
+    <!-- ② 전체 목표 한 줄 — 브리핑과 같은 어휘(D45) -->
+    <section class="card goal">
+      <div>
+        <span class="goal-label">전체 목표</span>
+        <span class="goal-body">안정적인 주거를 확보하고 매달 고정 지출을 감당할 수 있게 된다</span>
+      </div>
+      <span class="badge plain">수정은 상담 준비 화면에서</span>
+    </section>
+
+    <!-- ③ 회차 목록 -->
+    <h2 class="sec-title">상담 기록 <span class="badge wait">승인 대기 1건</span></h2>
+
+    <div class="list">
+
+      <!-- 펼친 회차 = 최신 1개 -->
+      <article class="card open" data-open>
+        <div class="open-head">
+          <span class="chev">▼</span>
+          <span class="row-n">5회차</span><span class="dot">·</span>
+          <span class="row-date">2026-07-28</span>
+          <span class="kind">기본 상담</span>
+          <span style="flex:1"></span>
+          <span class="badge plain">공식 기록</span>
+        </div>
+        <div class="open-body">
+
+          <div class="sess">
+            <span class="lb">이번 상담의 목표</span>
+            주거 계약 연장 여부를 확인하고, 안 되면 대안 두 가지를 같이 추린다
+          </div>
+
+          <div class="blk">
+            <h3>수기 메모</h3>
+            <p>집주인과 통화해 계약을 1년 연장하기로 구두 합의했다고 함. 계약서는 다음 주에 쓰기로 했고,
+               보증금은 그대로 유지. 다만 관리비가 3만 원 오른다고 해서 월 고정 지출을 다시 계산해 봐야
+               한다고 이야기함. 지난 회차에 말했던 아르바이트는 시간이 안 맞아 그만뒀고, 이번 달부터
+               다른 곳을 알아보는 중.</p>
+          </div>
+
+          <div class="blk">
+            <h3>액션 아이템</h3>
+            <ul>
+              <li>계약서 사본 받아 오기 <span class="who">당사자</span> <span class="li-meta">기한 2026-08-08</span> <span class="done">미완료</span></li>
+              <li>관리비 인상분 반영해 월 지출표 다시 작성 <span class="who">실무자</span> <span class="li-meta">기한 2026-08-04</span> <span class="done">미완료</span></li>
+              <li>구직 정보 3곳 정리해 전달 <span class="who">실무자</span> <span class="done" data-done>완료</span></li>
+            </ul>
+          </div>
+
+          <div class="blk">
+            <h3>플래그</h3>
+            <ul>
+              <li><span class="flag" data-confirmed>⚠ 주거·생계 급변</span> <span class="li-meta">실무자 기록 · 확인됨</span></li>
+              <li><span class="flag">부채 악화</span> <span class="ai">AI 제안</span> <span class="li-meta">제외됨</span></li>
+            </ul>
+          </div>
+
+        </div>
+        <div class="foot">
+          <span>공식 등록 2026년 7월 28일 오후 4:12</span>
+          <a class="btn sm sec" href="#">이 회차 접기</a>
+        </div>
+      </article>
+
+      <!-- 접힌 회차들 -->
+      <article class="card row">
+        <span class="chev">▶</span>
+        <span class="row-n">4회차</span><span class="dot">·</span>
+        <span class="row-date">2026-07-14</span>
+        <span class="kind">기본 상담</span>
+        <span class="row-one">긴급 생계비를 신청했고 결과는 2주 뒤에 나온다</span>
+      </article>
+
+      <article class="card row">
+        <span class="chev">▶</span>
+        <span class="row-n">3회차</span><span class="dot">·</span>
+        <span class="row-date">2026-06-30</span>
+        <span class="kind">기본 상담</span>
+        <span class="row-one draft">집주인이 계약 연장은 어렵다고 했다고 함. 다음 달까지 방을 알아봐야…</span>
+        <span class="badge wait">승인 대기</span>
+      </article>
+
+      <article class="card row">
+        <span class="chev">▶</span>
+        <span class="row-n">2회차</span><span class="dot">·</span>
+        <span class="row-date">2026-06-16</span>
+        <span class="kind">기본 상담</span>
+        <span class="row-one">부채 상환 일정을 정리하고 상담소 연계를 안내했다</span>
+      </article>
+
+      <article class="card row">
+        <span class="chev">▶</span>
+        <span class="row-n">1회차</span><span class="dot">·</span>
+        <span class="row-date">2026-06-02</span>
+        <span class="kind">인테이크</span>
+        <span class="row-one">주거 불안정과 실직이 겹친 상태로 초기 상담 진행</span>
+      </article>
+
+    </div>
+
+    <hr class="cut">
+    <p class="legend">
+      <b>이 시안이 보여주는 것</b> — ① 최신 회차만 펼쳐 있고 나머지는 한 줄. 브리핑에서 특정 회차 링크로
+      들어오면 그 회차가 펼쳐진 채 열린다. ② 펼친 카드 맨 위 민트 블록이 <b>GAS가 있던 자리</b>(이번 상담의
+      목표). ③ HERO 우상단 버튼 2개, 브레드크럼 없음. ④ 접힌 줄은 <b>N회차 · 날짜 · 유형 · 핵심 한 줄</b>,
+      승인 전이면 수기 메모 앞부분(회색) + 라벤더 <b>승인 대기</b> 배지.
+    </p>
+    <p class="legend">
+      <b>아직 안 정한 것</b> — 확인된 리스크 플래그가 있을 때 브리핑처럼 HERO 아래 경고 배너를 이 화면에도
+      둘지, 그리고 기록 <b>작성</b> 화면의 GAS 입력을 어디까지 뺄지.
+    </p>
+
+  </main>
+</div>
+</body>
+</html>
