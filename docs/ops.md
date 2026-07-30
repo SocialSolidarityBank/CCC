@@ -182,6 +182,12 @@ wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sq
 **② 새로 만드는 시드** — 이제 낡은 상태로 태어나지 않는다. `scripts/seed/content.ts` 의 날짜는 절대값이 아니라 **기준일 상대 오프셋**(`at(일수[, 시, 분])` · `dueDate: day(일수)`)이고, 기준일 기본값은 시드를 만드는 날(기관 시간대)이다. `generate.ts` 의 `UPCOMING_FROM` 도 같은 기준일에서 파생하므로 `verify.sql` 의 '다가오는 일정' 단정이 함께 움직인다. 미래 일정 4건은 기준일 **+0 · +2 · +8 · +15** 일이라 생성 직후 '오늘의 상담' 1건 + '다가오는 일정' 2건이 있고, 남은 것이 3주에 걸쳐 창 안으로 들어온다.
 
 - 과거 산출물을 재현하려면 `SEED_ANCHOR_DATE=2026-08-01` 처럼 고정해 돌린다. 쓰인 기준일은 `seed.sql` 헤더와 `manifest.json` 의 `anchorDate` 에 남는다.
+- **적용 결과 확인은 Infisical 이 필요 없다**(2026-07-31 실측). 이 기계의 wrangler 는 이미 OAuth 로 로그인돼 있어 읽기 전용 조회가 그대로 된다 — 시크릿을 다룰 일이 없다:
+  ```bash
+  pnpm --filter @ccc/api exec wrangler d1 execute ccc-preview --env preview --remote --json \
+    --command "SELECT COUNT(*) AS n, MIN(scheduled_at) AS first_at, MAX(scheduled_at) AS last_at FROM counseling_schedules WHERE org_id='bss' AND status='scheduled';"
+  ```
+  `--json` 없이 돌리면 결과 표가 실행 통계에 밀려 안 보일 수 있다. `infisical run` 은 이 기계에서 대화형 로그인을 요구하고, 토큰을 뽑는 `--plain` 은 값이 stdout 에 닿아 금지(§10)이므로 **그쪽으로 가지 말 것**.
 - `yellow` **시드를 다시 만들어도 이미 넣은 DB 는 고쳐지지 않는다** — id 중복·`audit_log` append-only·FK 로 재적용이 막혀 있다(진짜 롤백은 Time Travel 뿐). 그래서 ①과 ②는 서로를 대체하지 않는다.
 
 ### 보안 경계
