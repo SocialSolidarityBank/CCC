@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireButton } from '../../../../../../components/wire/wire-button';
-import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
+import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
   IntakeAnswerKey,
@@ -525,7 +525,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
     .map((entry, index) => ({ index, ...entry }))
     .filter((entry) => entry.filled < entry.required)
     .map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}`);
-  const heldAtMissing = heldAt.trim().length === 0;
+  // D48: 날짜·시각 두 칸이라 '비어 있지 않다'로는 반쪽 값(`2026-08-12T`)을 걸러내지 못한다.
+  const heldAtMissing = !isCompleteDateTime(heldAt);
   const canComplete = missingSteps.length === 0 && !heldAtMissing;
 
   function collectedAnswers() {
