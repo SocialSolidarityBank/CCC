@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { cleanup, render } from '@testing-library/react';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
+
+afterEach(cleanup);
 
 const confirmedFlag: RiskBannerFlag = {
   id: 'flag-confirmed',

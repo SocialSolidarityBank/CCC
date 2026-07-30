@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { cleanup, render } from '@testing-library/react';
 import type { LifeAreaSnapshotEntry } from '../../../../../../lib/api';
 import { LifeAreaFields } from './life-area-fields';
+
+afterEach(cleanup);
 
 describe('LifeAreaFields', () => {
   it('6영역 전부를 렌더하고, 기본값은 변화 없음이다', () => {

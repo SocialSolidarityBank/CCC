@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { cleanup, render, fireEvent } from '@testing-library/react';
 import { OpenActionResolutions, type OpenActionResolutionItem } from './open-action-resolutions';
+
+afterEach(cleanup);
 
 const actions: OpenActionResolutionItem[] = [
   { id: 'a-1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-30' },

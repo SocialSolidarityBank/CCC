@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { cleanup, render, fireEvent } from '@testing-library/react';
 import { ListRow } from './list-row';
+
+afterEach(cleanup);
 
 describe('ListRow', () => {
   it('chevron="down"은 아래 방향 체브론을 렌더한다', () => {

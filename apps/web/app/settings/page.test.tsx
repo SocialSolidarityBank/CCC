@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, render } from '@testing-library/react';
 import { AdminSection } from './page';
 import { adminMenu } from '../admin/admin-format';
+
+afterEach(cleanup);
 
 // page.tsx 가 lib/api 를 import 하므로 모듈 로드 자체가 @opennextjs/cloudflare 변환에 걸린다.
 // AdminSection 은 API 를 쓰지 않지만, 모듈이 로드되도록 최소 목을 둔다.
