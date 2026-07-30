@@ -155,6 +155,25 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - **응답은 한 가지다.** 두 코드를 항상 둘 다 비교하고(일찍 빠져나오지 않는다) 실패는 401 하나로만 답한다 — 응답 시간이나 메시지로 "관리자 코드가 있다"가 새지 않게 한다.
 - 관리자 시점도 **같은 가상 시드**를 본다. 운영 PII 와 연결되지 않는 것은 그대로다.
 
+### `yellow` 시드 일정은 시간이 지나면 다시 과거가 된다 (2026-07-30 1회 보정함)
+
+시드의 날짜는 **하드코딩된 절대값**이다(`scripts/seed/content.ts` 의 `iso()` — 오늘 기준 상대값이 아니다). 그래서 시간이 흐르면 '다가오는 일정'이 **실무자·관리자 양쪽 모두** 비게 된다. 2026-07-30 에 실제로 그 상태였다(예정 16건이 전부 과거, 가장 늦은 것이 `2026-07-28`).
+
+**그때 한 보정**: `status='scheduled'` 16건만 **2026-07-31 ~ 08-21** 에 다시 폈다 — 앞 8건은 첫 주에 하루 1건씩, 뒤 8건은 이후 2주에 이틀 간격(KST 10:00·13:00). **한 주가 아니라 3주를 버티게 편 이유**는 '다가오는 일정'이 **8일 창**이라, 촘촘히 몰아 두면 그 주가 지나는 순간 다시 비기 때문이다. 이렇게 두면 날이 갈수록 뒤엣것이 창 안으로 들어온다. `completed` 64건은 **건드리지 않았다** — 그쪽을 미래로 옮기면 이미 있는 상담 기록(`sessions.held_at`)과 어긋난다.
+
+다시 비면 같은 방법으로 편다. 두 가지를 지켜야 한다:
+
+- **`status='scheduled'` 만 옮긴다.** 스키마 CHECK 가 이 상태에는 세션이 붙어 있지 않음을 보장하므로(`completed_session_id IS NULL`) 딸려 오는 것이 없다.
+- **`version = version + 1` 을 함께 쓴다.** `counseling_schedules_update_guard` 트리거가 `OF` 절 없이 모든 UPDATE 에 걸려 있어, 버전을 올리지 않으면 `participant_schema_violation` 으로 거부된다.
+
+```sql
+UPDATE counseling_schedules
+SET scheduled_at='2026-08-20T01:00:00.000Z', version=version+1, updated_at='...'
+WHERE id='...' AND org_id='bss' AND status='scheduled';
+```
+
+**근본 해결(미착수)**: `scripts/seed/content.ts` 의 날짜를 단일 기준일에서 상대 계산하도록 바꾸면 시드가 낡지 않는다. 이때 `scripts/seed/generate.ts` 의 `UPCOMING_FROM` 도 함께 고쳐야 한다(`verify.sql` 의 '다가오는 일정 존재' 단정이 그 값을 쓴다).
+
 ### 보안 경계
 
 - 미리보기 D1에는 **가상 시드만** 있고 운영 PII와 연결되지 않는다.
@@ -179,7 +198,7 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 1. **D1 생성**: `wrangler d1 create ccc-preview` → 출력 `database_id`를 `apps/api/wrangler.toml`의 `[[env.preview.d1_databases]]` 자리표시(`00000000-...`)에 채운다.
 2. **마이그레이션**: `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote`.
 3. **시드 주입(수동)**: 기존 시드 산출물(`scripts/seed/out/seed.sql`, RUNBOOK 참고)을 미리보기 D1에 적용한다 — `wrangler d1 execute ccc-preview --env preview --remote --file scripts/seed/out/seed.sql`. 배포 잡에는 넣지 않는다(가상 데이터 전용, 되돌리기 어려움).
-4. **시크릿 등록(값 stdout 금지)**: `wrangler secret put PREVIEW_ACCESS_CODE --env preview`, `wrangler secret put PII_ENC_KEY --env preview` (apps/api에서).
+4. **시크릿 등록(값 stdout 금지)**: `wrangler secret put PREVIEW_ACCESS_CODE --env preview`, `wrangler secret put PREVIEW_ADMIN_ACCESS_CODE --env preview`(관리자 시점 — 안 넣으면 그 경로가 없다), `wrangler secret put PII_ENC_KEY --env preview` (apps/api에서). 값을 파일로 만들어 뒀다면 `wrangler secret put <이름> --env preview < 파일` 로 stdin 주입할 수 있다(값이 stdout 에 닿지 않는다).
 5. **웹 preview URL 확정**: 첫 배포 후 확정되는 `ccc-api-preview` URL로 `apps/web/wrangler.jsonc [env.preview].vars.CCC_API_ORIGIN` 자리표시를 교체한다.
 6. **GitHub secret 등록**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 7. **첫 배포**: `pnpm --filter @ccc/api exec wrangler deploy --env preview` → `pnpm --filter @ccc/web exec opennextjs-cloudflare build && opennextjs-cloudflare deploy --env preview`.
