@@ -155,24 +155,34 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - **응답은 한 가지다.** 두 코드를 항상 둘 다 비교하고(일찍 빠져나오지 않는다) 실패는 401 하나로만 답한다 — 응답 시간이나 메시지로 "관리자 코드가 있다"가 새지 않게 한다.
 - 관리자 시점도 **같은 가상 시드**를 본다. 운영 PII 와 연결되지 않는 것은 그대로다.
 
-### `yellow` 시드 일정은 시간이 지나면 다시 과거가 된다 (2026-07-30 1회 보정함)
+### 시드 일정이 낡았을 때 — 커맨드 하나로 다시 편다 (2026-07-31 도구화)
 
-시드의 날짜는 **하드코딩된 절대값**이다(`scripts/seed/content.ts` 의 `iso()` — 오늘 기준 상대값이 아니다). 그래서 시간이 흐르면 '다가오는 일정'이 **실무자·관리자 양쪽 모두** 비게 된다. 2026-07-30 에 실제로 그 상태였다(예정 16건이 전부 과거, 가장 늦은 것이 `2026-07-28`).
+'다가오는 일정'은 **오늘 + 향후 7일(8일 창, 기관 시간대)** 만 본다. 일정 날짜는 DB 에 절대값으로 들어 있으므로, 아무것도 하지 않으면 시간이 흐르면서 화면이 **실무자·관리자 양쪽 모두** 빈다. 자리가 두 군데라 고치는 곳도 두 군데다.
 
-**그때 한 보정**: `status='scheduled'` 16건만 **2026-07-31 ~ 08-21** 에 다시 폈다 — 앞 8건은 첫 주에 하루 1건씩, 뒤 8건은 이후 2주에 이틀 간격(KST 10:00·13:00). **한 주가 아니라 3주를 버티게 편 이유**는 '다가오는 일정'이 **8일 창**이라, 촘촘히 몰아 두면 그 주가 지나는 순간 다시 비기 때문이다. 이렇게 두면 날이 갈수록 뒤엣것이 창 안으로 들어온다. `completed` 64건은 **건드리지 않았다** — 그쪽을 미래로 옮기면 이미 있는 상담 기록(`sessions.held_at`)과 어긋난다.
+**① 이미 넣은 DB(미리보기·운영)** — 재배치 SQL 을 만들어 적용한다.
 
-다시 비면 같은 방법으로 편다. 두 가지를 지켜야 한다:
-
-- **`status='scheduled'` 만 옮긴다.** 스키마 CHECK 가 이 상태에는 세션이 붙어 있지 않음을 보장하므로(`completed_session_id IS NULL`) 딸려 오는 것이 없다.
-- **`version = version + 1` 을 함께 쓴다.** `counseling_schedules_update_guard` 트리거가 `OF` 절 없이 모든 UPDATE 에 걸려 있어, 버전을 올리지 않으면 `participant_schema_violation` 으로 거부된다.
-
-```sql
-UPDATE counseling_schedules
-SET scheduled_at='2026-08-20T01:00:00.000Z', version=version+1, updated_at='...'
-WHERE id='...' AND org_id='bss' AND status='scheduled';
+```bash
+pnpm seed:reschedule --org=bss > /tmp/reschedule.sql
 ```
 
-**근본 해결(미착수)**: `scripts/seed/content.ts` 의 날짜를 단일 기준일에서 상대 계산하도록 바꾸면 시드가 낡지 않는다. 이때 `scripts/seed/generate.ts` 의 `UPCOMING_FROM` 도 함께 고쳐야 한다(`verify.sql` 의 '다가오는 일정 존재' 단정이 그 값을 쓴다).
+기준일 없이 돌리면 **기관 시간대 기준 오늘**부터 21일에 걸쳐 편다(`--from=YYYY-MM-DD`·`--days=N` 으로 조정). 만들어진 SQL 을 눈으로 확인한 뒤 적용한다:
+
+```bash
+wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sql
+```
+
+마지막 문장은 대조용 `SELECT`(건수·첫 일정·마지막 일정)다 — 출력 형식은 wrangler 가 정하므로, 표가 안 보이면 같은 SELECT 를 `--command` 로 한 번 더 돌려 확인한다. 스크립트가 지키는 것 셋 — 전부 실패로 배운 것이고 `apps/api/test/seed-reschedule-sql.test.ts` 가 실제 마이그레이션 위에서 고정한다:
+
+- **`status='scheduled'` 만 옮긴다.** `completed` 를 미래로 옮기면 이미 있는 상담 기록(`sessions.held_at`)과 어긋난다. 스키마 CHECK 가 scheduled 에는 세션이 붙어 있지 않음을 보장한다(`completed_session_id IS NULL`).
+- **`version = version + 1` 을 함께 쓴다.** `counseling_schedules_update_guard` 가 `OF` 절 없이 모든 UPDATE 에 걸려 있어, 버전을 올리지 않으면 `participant_schema_violation` 으로 거부된다.
+- **순위를 임시 표(`seed_reschedule_plan`)에 먼저 굳힌다.** 한 UPDATE 안에서 `scheduled_at` 을 읽어 순위를 매기면서 같은 열을 고치면, SQLite 가 행을 하나씩 처리하는 동안 이미 고친 값이 뒤 행 계산에 섞여 **조용히 뒤엉킨다.** 임시 표는 마지막 문장이 지운다.
+
+**8일 창인데 21일에 걸쳐 펴는 이유**: 한 주에 몰아 두면 그 주가 지나는 순간 다시 빈다. 넓게 펴 두면 날이 갈수록 뒤엣것이 창 안으로 들어온다. 그래도 기간이 끝나면 또 낡으므로 이 스크립트는 **한 번 쓰고 버리는 것이 아니라 상비 도구**다.
+
+**② 새로 만드는 시드** — 이제 낡은 상태로 태어나지 않는다. `scripts/seed/content.ts` 의 날짜는 절대값이 아니라 **기준일 상대 오프셋**(`at(일수[, 시, 분])` · `dueDate: day(일수)`)이고, 기준일 기본값은 시드를 만드는 날(기관 시간대)이다. `generate.ts` 의 `UPCOMING_FROM` 도 같은 기준일에서 파생하므로 `verify.sql` 의 '다가오는 일정' 단정이 함께 움직인다. 미래 일정 4건은 기준일 **+0 · +2 · +8 · +15** 일이라 생성 직후 '오늘의 상담' 1건 + '다가오는 일정' 2건이 있고, 남은 것이 3주에 걸쳐 창 안으로 들어온다.
+
+- 과거 산출물을 재현하려면 `SEED_ANCHOR_DATE=2026-08-01` 처럼 고정해 돌린다. 쓰인 기준일은 `seed.sql` 헤더와 `manifest.json` 의 `anchorDate` 에 남는다.
+- `yellow` **시드를 다시 만들어도 이미 넣은 DB 는 고쳐지지 않는다** — id 중복·`audit_log` append-only·FK 로 재적용이 막혀 있다(진짜 롤백은 Time Travel 뿐). 그래서 ①과 ②는 서로를 대체하지 않는다.
 
 ### 보안 경계
 

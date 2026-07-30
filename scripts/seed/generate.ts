@@ -20,13 +20,18 @@ import { runScenario } from './scenario';
 import { inlineSql, firstKeyword, type SqlParam } from './sql-literal';
 import { validateSeed, type EmittedStatement } from './validate';
 import type { WriteEntry } from './capture';
-import { PARTICIPANTS, VIRTUAL_COUNSELORS } from './content';
+import { PARTICIPANTS, SEED_ANCHOR_DATE, VIRTUAL_COUNSELORS } from './content';
 import { OPERATIONAL_AUDIT_BASELINE, ORG_ID, preloadStatements } from './preload-data';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
 
-/** 향후 7일 예정 일정 판정 하한(브리핑에 바로 뜨는 기준). */
-const UPCOMING_FROM = '2026-08-01T00:00:00.000Z';
+/**
+ * 향후 7일 예정 일정 판정 하한(브리핑에 바로 뜨는 기준).
+ *
+ * 기준일에서 파생한다 — 절대값으로 두면 시드 날짜가 기준일과 함께 움직일 때 verify.sql 의
+ * '다가오는 일정' 단정만 과거에 남아 늘 0 을 세게 된다.
+ */
+const UPCOMING_FROM = `${SEED_ANCHOR_DATE}T00:00:00.000Z`;
 
 interface EmittedRich extends EmittedStatement {
   participantId: string;
@@ -90,6 +95,7 @@ function assembleSeedSql(emitted: readonly EmittedRich[]): string {
     '-- 전원 가상 인물·가상 데이터. 실존 인물·기관과 무관하다.',
     `-- 생성 문장 수: ${emitted.length}`,
     `-- 조직: ${ORG_ID} · 참여자 ${PARTICIPANTS.length}명 + 가상 상담사 ${VIRTUAL_COUNSELORS.length}명`,
+    `-- 기준일: ${SEED_ANCHOR_DATE} (모든 날짜가 이 날에서 상대 계산됐다 — 재현: SEED_ANCHOR_DATE=${SEED_ANCHOR_DATE})`,
     '-- 적용: apps/api 에서 wrangler d1 execute ccc --env production --remote --file ../../scripts/seed/out/seed.sql (원자적, -y 금지)',
     '-- 롤백: audit_log·participant_consent_records 는 append-only, support_cases/beneficiaries 는 동의 FK 로 삭제 불가.',
     '--       진짜 롤백은 Time Travel(적용 전 북마크)로만 한다.',
@@ -143,6 +149,9 @@ function buildManifest(emitted: readonly EmittedRich[], sessionCount: number): {
   const manifest: Record<string, unknown> = {
     note: '전원 가상 데이터. 테이블 카운트는 시드가 추가하는 delta(운영 기준선 별도).',
     generatedAt: new Date().toISOString(),
+    // 이 시드의 날짜가 어느 '오늘'을 기준으로 만들어졌는지. 같은 값을 SEED_ANCHOR_DATE 로
+    // 넣으면 산출물의 날짜가 그대로 재현된다.
+    anchorDate: SEED_ANCHOR_DATE,
     org: ORG_ID,
     statementCount: emitted.length,
     participants: PARTICIPANTS.length,

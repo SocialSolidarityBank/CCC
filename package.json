@@ -15,7 +15,8 @@
     "guard:secrets": "node scripts/guard-secrets.mjs",
     "guard:secrets:history": "node scripts/guard-secrets.mjs --history",
     "guard:secrets:allowlist": "node scripts/guard-secrets-allowlist.test.mjs",
-    "hooks:install": "node scripts/install-git-hooks.mjs"
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "seed:reschedule": "node scripts/seed/reschedule-upcoming.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.20",
