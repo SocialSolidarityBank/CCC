@@ -18,6 +18,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm guard:db
+      - run: pnpm guard:tokens
 
   # 파이프라인(파이썬) 테스트 — 표준 라이브러리 unittest 만 쓰므로 ML 설치가 필요 없다.
   # G3 의 마스킹 치환율 검증이 여기 걸려 있다 — CI 에 없으면 아무도 돌리지 않는 검증이 된다.

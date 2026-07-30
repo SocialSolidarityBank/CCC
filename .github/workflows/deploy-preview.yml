@@ -28,6 +28,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm guard:db
+      - run: pnpm guard:tokens
 
   deploy-preview:
     needs: verify

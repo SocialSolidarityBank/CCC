@@ -416,9 +416,10 @@ export default async function NewRecordPage({
   const mustStartFresh = state === 'conflict';
 
   return <main className="page-content">
-    <nav className="breadcrumb" aria-label="현재 위치">
-      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>당사자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${programPath}/briefing`}>참여 사업</Link><span>/</span><Link href={historyPath}>상담 기록</Link><span>/</span><strong>작성</strong>
-    </nav>
+    {/* 브레드크럼을 지웠다(2026-07-31). D35 가 "상담사에게 비관례"로 기각했고 D47 ③ 이 상담
+        기록 화면에서 걷어낸 부품인데 이 화면에만 살아남아 있었다 — 게다가 첫 마디가 D35 가
+        폐지한 메뉴 이름('오늘 상담')이었고, 가명 ID 를 경로 라벨로 노출하고 있었다.
+        나가는 길은 이미 둘이다: 셸의 뒤로가기 줄(D50 ⑤)과 아래 헤더의 '상담 기록으로 돌아가기'. */}
     <header className="page-header">
       <div>
         <h1>상담 기록 작성</h1>

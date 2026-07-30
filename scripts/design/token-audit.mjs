@@ -12,7 +12,7 @@
 // 실행: node scripts/design/token-audit.mjs   (pnpm guard:tokens)
 // 종료 코드: 위반 0 이면 0, 있으면 1.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 
@@ -116,6 +116,69 @@ for (const file of TARGETS) {
       }
     }
   });
+}
+
+// ── 죽은 클래스 검사 ──────────────────────────────────────────────────────────
+// 2026-07-31 감사에서 CSS 클래스 351개 중 **68개(19%)** 가 마크업에 한 곳도 없었다. 전부
+// 대체된 결정의 잔여물이다 — 구 케이스 목록 표(D35 IA 개편) · 클릭 복호화 PII 패널(D22 를
+// D24·D31 이 대체) · GAS 게이지(D43 보류) · 구 일정 화면(D54 가 month-* 로 재구축) 등.
+// 무해한 죽은 코드가 아니다: 같은 계약이 두 벌 있으면 어느 쪽을 고칠지가 매번 판단거리가 되고,
+// 실제로 .button 4종이 그렇게 살아 있었다.
+//
+// 허용목록은 "아직 안 쓰지만 DESIGN.md 가 계약으로 적어 둔 부품"이다. 여기 넣는 것은
+// 결정이고, 넣지 않은 채 남기는 것이 결함이다.
+const UNUSED_BUT_CONTRACTED = new Set([
+  'card-grid-dense',     // §4-2 조밀 그리드(GAS 가 D43 으로 보류되며 사용처가 비었다)
+  'wire-scrim',          // §5 모달 — 검토·승인 화면 미구현
+  'is-selected-surface', // §5 '선택·활성 표면'을 details 가 아닌 곳에서 수동으로 켜는 훅
+  'wire-card-section',   // §5 카드 안 하위 구획
+  'wire-col-3', 'wire-col-12', // 12칼럼 세트(4·6·8 은 사용 중)
+  'is-approved',         // §5 계열 배지 '승인됨' 변형
+]);
+
+const markupFiles = [];
+(function walk(dir) {
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) walk(p);
+    else if (/\.tsx?$/.test(p)) markupFiles.push(p);
+  }
+})(join(repoRoot, 'apps/web/app'));
+
+const declaredClasses = new Map();
+for (const file of TARGETS) {
+  const raw = readFileSync(file, 'utf8');
+  // CSS 는 템플릿 리터럴(역따옴표 문자열) 안에만 있다 — 바깥 JS 에서 경로의 .css·.ts 가 잡힌다.
+  for (const lit of raw.matchAll(/`([\s\S]*?)`/g)) {
+    const css = lit[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/url\("[^"]*"\)/g, ' ');
+    if (!/\{[^}]*:/.test(css)) continue; // 규칙이 없으면 CSS 리터럴이 아니다
+    for (const m of css.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)(?=[\s,{:[>.]|$)/gm)) {
+      const name = m[1];
+      if (name.startsWith('rdp-')) continue; // react-day-picker 가 생성하는 이름
+      if (!declaredClasses.has(name)) declaredClasses.set(name, { file, line: 0 });
+    }
+  }
+  // 줄 번호는 첫 등장 기준으로 따로 채운다(위 루프는 리터럴 단위라 줄을 모른다).
+  raw.split('\n').forEach((line, i) => {
+    for (const m of line.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)(?=[\s,{:[>.]|$)/g)) {
+      const rec = declaredClasses.get(m[1]);
+      if (rec && rec.file === file && rec.line === 0) rec.line = i + 1;
+    }
+  });
+}
+
+const usedTokens = new Set();
+for (const file of markupFiles) {
+  let src = readFileSync(file, 'utf8');
+  if (TARGETS.includes(file)) src = src.replace(/`[\s\S]*?`/g, ' '); // CSS 자기 자신은 사용처가 아니다
+  for (const m of src.matchAll(/["'`]([^"'`\n]{0,300})["'`]/g)) {
+    for (const t of m[1].split(/[\s{}$]+/)) if (t) usedTokens.add(t);
+  }
+}
+
+for (const [name, rec] of declaredClasses) {
+  if (usedTokens.has(name) || UNUSED_BUT_CONTRACTED.has(name)) continue;
+  add(rec.file, rec.line, 'dead-class', `.${name} 를 쓰는 마크업이 없다 — 지우거나, 계약이면 token-audit 의 UNUSED_BUT_CONTRACTED 에 사유와 함께 넣는다`);
 }
 
 // 계단 자체가 tokens.css 에 살아 있는지 확인한다 — 위 검사들이 "토큰을 쓰라"고 말하는데

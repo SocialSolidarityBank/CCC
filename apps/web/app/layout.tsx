@@ -152,16 +152,11 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
    쓰지 않는 죽은 CSS 였는데, 같은 계약을 두 벌로 적어 둔 탓에 §5 를 고칠 때마다 어느 쪽을
    고쳐야 하는지가 매번 판단거리였다. 무해한 죽은 코드가 아니라 **드리프트의 저장고**다.
    앱은 전부 WireButton 을 쓴다(components/wire/wire-button.tsx). */
-.case-toolbar{display:flex;gap:var(--space-3);margin-bottom:var(--space-5)}
 /* 입력칸(§5): 높이 40 · radius 6 · --line-control 1px. 라벨은 항상 위에 둔다. */
-.search-field,.select-field,.input-icon{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub)}
-.search-field{flex:1;max-width:420px}
-.search-field input,.select-field select,.input-icon input{width:100%;border:0;background:transparent;color:var(--ink);outline:0}
-.search-field:focus-within,.select-field:focus-within,.input-icon:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
 /* 레거시 화면의 떠 있는 표면들도 카드 계약을 쓴다(§5). 기본 테두리는 **회색 --line** 이고,
    그라데이션 테두리는 선택·활성일 때만 쓴다(2026-07-26 Q 지적 · pen 실측). 채움은
    --surface-fill 로만 바꾼다 — 선택 상태는 배경 2겹이라 background 를 통째로 덮으면 테두리가 날아간다. */
-.case-list,.panel,.detail-link,.today-schedule-card,.participant-stage-item,.schedule-day-group,.settings-section,.schedule-form,.pii-reveal-control{
+.panel,.detail-link,.settings-section,.schedule-form{
   --surface-fill:var(--panel);
   border:1px solid var(--line);
   border-radius:var(--radius-card);
@@ -169,41 +164,17 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
   box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
-/* 케이스 목록: 목록 전체가 카드 하나이고 행은 --line 구분선으로 나눈다(§5 리스트 행). */
-.case-list{overflow:hidden}
-.case-list-heading,.case-row{display:grid;grid-template-columns:1fr 1.2fr 1fr 1.2fr var(--space-6);gap:var(--space-4);align-items:center}
-.case-list-heading{padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--line);color:var(--sub);font-size:var(--text-sm);font-weight:700}
-.case-row{min-height:76px;padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--line)}
-.case-row:last-child{border-bottom:0}
-.case-row:hover{background:var(--muted)}
 .detail-link:hover{--surface-fill:var(--muted)}
-.case-identity{display:grid;gap:var(--space-1)}
-.case-identity strong{font-size:var(--text-md);font-weight:700}
-/* 이름 뒤 괄호 가명 ID 는 항상 16/400 --sub(§5 이름 표기). */
-.case-identity small,.panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:700}
-.case-program{color:var(--sub);font-size:var(--text-sm)}
+.panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:700}
 /* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다. */
 .status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:700}
 /* 주의·대기·미완료는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .warning{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
 .risk{border-color:transparent;background:var(--risk-tint-solid);color:var(--risk)}
-.breadcrumb{display:flex;gap:var(--space-2);margin-bottom:var(--space-4);color:var(--sub);font-size:var(--text-sm)}
-.briefing{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}
 .panel{padding:var(--space-6)}
-.risk-panel,.gas-panel{grid-column:1/-1}
-.panel-head{display:flex;justify-content:space-between;gap:var(--space-4);align-items:flex-start}
-.panel-head>div{display:flex;gap:var(--space-2);align-items:center}
-.gas{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-2);margin-top:var(--space-6)}
-.gas span{display:grid;place-items:center;min-height:48px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted);color:var(--sub);font-weight:700}
-.lines{display:grid;gap:var(--space-2);margin-top:var(--space-6)}
-.lines span{height:12px;border-radius:var(--radius-bar);background:var(--muted)}
-.lines span:nth-child(2){width:86%}
-.lines span:nth-child(3){width:70%}
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
 .detail-link{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-5);padding:var(--space-5) var(--space-6);font-weight:700}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
-.form-panel{display:grid;gap:var(--space-5)}
-.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
 .field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:700;color:var(--sub)}
 .field input,.field select,.field textarea{width:100%;min-height:var(--control-height);padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:400}
@@ -217,7 +188,6 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
   color:var(--ink);font-size:var(--text-md);
 }
 textarea{min-height:216px;resize:vertical}
-.form-actions{display:flex;justify-content:flex-end}
 .note{display:flex;gap:var(--space-3);padding:var(--space-5) var(--space-6);border-radius:var(--radius-card);background:var(--muted)}
 .note p{font-size:var(--text-sm)}
 @media(max-width:767px){
@@ -241,64 +211,26 @@ textarea{min-height:216px;resize:vertical}
      내용 크기로 쪼그라든다. 그 상태에서 안의 버튼이 아래 width:100% 를 받으면 기준 폭이
      "내용에 맞춰 줄어든 폭" 이라 폭이 순환 참조에 걸려, 두 버튼이 좁은 상자를 반씩 나눠
      갖고 라벨이 '당사자 정 / 보' 로 쪼개진다(R7 · 390px 실측 2026-07-30). */
-  .page-header,.case-toolbar{flex-direction:column;align-items:stretch}
+  .page-header{flex-direction:column;align-items:stretch}
   /* 행동 버튼은 좁으면 **세로로 쌓는다**(D38 보강 — 라벨 줄바꿈 금지의 짝). 가로로 둔 채
      폭만 나누면 라벨이 길어질 때마다 같은 결함이 돌아온다 — 버튼 개수가 아니라 라벨 길이가
      변수이기 때문이다. 세로 배치는 라벨이 얼마나 길든 한 줄을 보장한다. */
   .page-actions{width:100%;flex-direction:column;align-items:stretch}
   /* 킷 버튼도 같이 잡는다 — 레거시 .button 만 있으면 교체한 화면에서 버튼이 줄어든다. */
   .page-header .wire-button{width:100%;justify-content:center}
-  .search-field{max-width:none}
-  .case-list-heading{display:none}
-  .case-program{display:none}
-  .briefing,.form,.field-grid{grid-template-columns:1fr}
-  .risk-panel,.gas-panel{grid-column:auto}
-  .case-row{grid-template-columns:minmax(0,1fr) var(--space-6);gap:var(--space-3)}
-  .case-row .status{grid-column:1}
-  .case-row>svg{grid-column:2;grid-row:1/4}
+  .form{grid-template-columns:1fr}
 }`;
 const participantStyles = `
-.today-schedule-list{display:grid;gap:var(--space-3)}
-.today-schedule-card{display:grid;grid-template-columns:1.1fr .8fr 1.2fr .7fr;gap:var(--space-4);align-items:center;padding:var(--space-5) var(--space-6)}
-.today-schedule-card:hover{--surface-fill:var(--muted)}
-.schedule-field{display:grid;gap:var(--space-1);min-width:0}
-.schedule-field strong{overflow-wrap:anywhere;font-size:var(--text-md);font-weight:700}
 /* 정보 라벨은 민트 계열(사람·소속). */
-.schedule-field-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
-.provenance-label{color:var(--sub);font-size:var(--text-sm);font-weight:700}
-.schedule-status{display:inline-flex;align-items:center;gap:var(--space-2);width:max-content;font-size:var(--text-sm);font-weight:700}
 /* 상태 점은 시간·상태 축이라 블루. 종료·취소는 색이 아니라 문구가 구분한다(색 하나에 기대지 않는다). */
-.status-dot{width:8px;height:8px;border-radius:var(--radius-pill);background:var(--blue)}
-.schedule-status[data-status="completed"] .status-dot{background:var(--track)}
-.schedule-status[data-status="cancelled"] .status-dot,.schedule-status[data-status="no_show"] .status-dot{background:var(--risk)}
-.participant-stage{display:grid;gap:var(--space-5)}
-.participant-stage-header{display:flex;justify-content:space-between;gap:var(--space-4);align-items:flex-start}
-.participant-stage-list{display:grid;gap:var(--space-3)}
-.participant-stage-item{padding:var(--space-5) var(--space-6)}
-.provenance-label{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent}
 /* 오류는 --risk 글자 + 메시지 텍스트로 알린다. 색만으로 알리지 않는다(§5 입력 오류·§9 완화). */
-.error-state,[role="alert"]{color:var(--risk);font-weight:700}
+[role="alert"]{color:var(--risk);font-weight:700}
 [role="status"][aria-live],[aria-live="polite"]{min-height:1.5em}
-.pii-reveal-control{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4)}
-.pii-reveal-control button{min-height:var(--control-height)}
-.fixed-core-form{display:grid;gap:var(--space-5)}
 /* 브레이크포인트는 767 하나다(D37 §4-4 · 락 11) — 구 768/359 두 벌을 합쳤다. 359 이하에서
    1열로 더 접던 단계는 사라지고 좁은 휴대폰에서도 2열로 남는다(필드가 짧고 min-width:0 ·
    overflow-wrap:anywhere 라 깨지지 않는다). 줄어든 패딩은 여기로 옮겼다. */
-@media(max-width:767px){.today-schedule-card{grid-template-columns:repeat(2,minmax(0,1fr));padding:var(--space-4)}.participant-stage-header{flex-direction:column}.participant-stage-item{padding:var(--space-4)}}
 /* ticket-12: 상담 일정 */
-.schedule-section{display:grid;gap:var(--space-3)}
-.schedule-section>h2{font-size:var(--text-lg)}
-.schedule-day-groups{display:grid;gap:var(--space-3)}
-.schedule-day-summary{display:flex;align-items:center;gap:var(--space-3);min-height:52px;padding:0 var(--space-5);font-size:var(--text-md);font-weight:700;cursor:pointer;list-style:none}
-.schedule-day-summary::-webkit-details-marker{display:none}
-.schedule-day-summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
-.schedule-day-group[open] .schedule-day-summary::before{transform:rotate(45deg)}
-.schedule-day-count{margin-left:auto;color:var(--sub);font-size:var(--text-sm);font-weight:700}
 /* 날짜 그룹(카드) 안의 상담 카드는 자기 테두리를 벗고 --line 구분선으로 나눈다 — 위 실무자 목록과 같은 이유. */
-.schedule-day-group .today-schedule-list{padding:0;gap:0}
-.schedule-day-group .today-schedule-card{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none}
-.schedule-day-group .today-schedule-card:hover{background:var(--muted)}
 `;
 
 const briefingStyles = `
@@ -306,11 +238,8 @@ const briefingStyles = `
 .briefing-page{display:grid;gap:var(--space-5)}
 /* 이름 + 출구 버튼 2개(D35 §4). 버튼은 이름 바로 아래 줄이고, 화면 조작(전체 열기/닫기)과
    섞이지 않게 아래 툴바와 분리한다. 간격 4의 배수만 쓴다(D30 존치 규칙). */
-.briefing-identity{display:grid;gap:var(--space-3);justify-items:start}
-.briefing-exits{display:flex;gap:var(--space-3);flex-wrap:wrap}
 /* 이름 줄이 위로 올라가면서 툴바에는 토글만 남는다 — 오른쪽 정렬. */
 .briefing-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-.briefing-toolbar-toggles{display:flex;gap:var(--space-2);flex-wrap:wrap}
 /* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + --gradient-brand 1.5px 균일 테두리.
    좌측 액센트 띠(border-left 두께 강조)는 금지 패턴이다 — 병합으로 되살아난 것을 걷었다(이슈 #49).
    배너가 서는 것은 테두리가 아니라 위치(HERO 바로 아래)·배경 틴트·아이콘이다.
@@ -356,12 +285,6 @@ const briefingStyles = `
 .briefing-card-body{display:grid;gap:var(--space-3);padding:var(--space-5) var(--space-6) var(--space-6);background:var(--gradient-brand) top/100% 1px no-repeat}
 .briefing-fields{display:grid;gap:var(--space-2-5)}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
-.briefing-subaccordion{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
-.briefing-subaccordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-md);font-weight:700;cursor:pointer;list-style:none}
-.briefing-subaccordion-summary::-webkit-details-marker{display:none}
-.briefing-subaccordion[open]>.briefing-subaccordion-summary>.briefing-card-arrow{transform:rotate(45deg)}
-.briefing-subaccordion-body{padding-top:var(--space-2)}
-.briefing-inline-link{font-size:var(--text-md);font-weight:700;color:var(--ink);text-decoration:underline}
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
    계열 3색은 목표를 서로 구분하는 회전일 뿐이고 점수 숫자는 항상 --ink 다. */
 /* GAS 전폭 섹션(CLAUDE.md 6장 · 2026-07-27 Q 결정 — 이 파일의 CSS 는 템플릿 리터럴이라 주석에 백틱을 쓰지 않는다). 섹션 제목은 카드 밖 h2 18/700 이고 그 아래 16 이다
@@ -369,8 +292,6 @@ const briefingStyles = `
    그리드의 gap 이 이미 준다(§4-6 규칙 3: 화면에서 margin 으로 띄우지 않는다). */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
-.briefing-section{display:grid;gap:var(--space-4)}
-.briefing-section-heading{font-size:var(--text-lg);font-weight:700;color:var(--ink)}
 /* HERO 도 카드다(§4-5) — 화면의 모든 글자가 카드 안에 있고 예외는 섹션 제목뿐이다. */
 .briefing-hero{padding:var(--space-6);gap:var(--space-5)}
 .briefing-hero-identity{display:grid;gap:var(--space-2);min-width:0}
@@ -413,12 +334,11 @@ const briefingStyles = `
 .briefing-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
 .briefing-history>.briefing-qsection{margin-top:var(--space-4)}
 /* 배지·메타·빈 상태(§5 상태 배지). */
-.briefing-badges{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
 .briefing-badge.is-approved{border-color:transparent;background:var(--mint-tint);color:var(--mint-deep)}
 /* 승인 대기는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .briefing-badge.is-pending{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
-.briefing-meta,.briefing-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
+.briefing-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
    회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
    그 회차가 추가로 열린다. 카드 계약(.surface-card)과 '펼친 것이 곧 활성'(surface-card[open])은
@@ -482,21 +402,6 @@ const briefingStyles = `
 /* 767 블록에서 두 그리드를 1열로 강제하던 규칙은 지웠다 — 최소 폭(420·280)이 이미 접는다(락 10·11). */
 `;
 
-const searchStyles = `
-/* ticket-16: 당사자 검색 */
-.participant-search{display:grid;gap:var(--space-3);margin-bottom:var(--space-6)}
-.participant-search>h2{font-size:var(--text-lg)}
-.participant-search-form{display:flex;gap:var(--space-3);align-items:flex-end}
-.participant-search-field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:700}
-.participant-search-form .participant-search-field{flex:1;max-width:420px}
-.participant-search-label{color:var(--sub);font-size:var(--text-sm);font-weight:700}
-.participant-search-field input,.participant-search-select{width:100%;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:400}
-.participant-search-form .button{flex:none}
-.participant-search-results{max-width:520px}
-.participant-search-message{margin:0;color:var(--sub);font-size:var(--text-sm)}
-.participant-search-message[role="alert"]{color:var(--risk);font-weight:700}
-@media(max-width:767px){.participant-search-form{flex-direction:column;align-items:stretch}.participant-search-form .participant-search-field{max-width:none}.participant-search-form .button{width:100%}}
-`;
 
 const settingsStyles = `
 /* ticket-14: 설정 */
@@ -527,7 +432,6 @@ const settingsStyles = `
 
 const scheduleStyles = `
 /* ticket-20: 상담 등록 */
-.schedule-actions{display:flex;justify-content:flex-end;margin-top:var(--space-2)}
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-sm)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
@@ -582,19 +486,6 @@ const monthScheduleStyles = `
 }
 `;
 
-const piiMaskingStyles = `
-/* ticket-18: PII 마스킹 */
-.pii-panel{display:grid;gap:var(--space-3)}
-.pii-fields{display:grid;gap:var(--space-2);margin:0}
-.pii-field{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
-/* 당사자 정보 라벨(연락처·비상연락처·거주지)은 민트 deep — 사람·소속 축(§1-5). */
-.pii-field dt{color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
-.pii-field dd{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:700;overflow-wrap:anywhere}
-.pii-panel .pii-reveal-control{flex-wrap:wrap}
-.pii-panel .pii-reveal-control button{min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;cursor:pointer}
-.pii-panel .pii-reveal-control button:hover:not(:disabled){background:var(--muted)}
-.pii-panel .pii-reveal-control button:disabled{background:var(--muted);border-color:var(--line);color:var(--sub);cursor:not-allowed}
-`;
 
 const registerStyles = `
 /* 당사자 등록·초대 (#37) */
@@ -661,7 +552,6 @@ const recordFormStyles = `
 .record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
 .record-sticky-value{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
 .record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:700;color:var(--ink)}
-.record-sticky-count{margin:0;padding:var(--space-0-5) var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:700;color:var(--sub);white-space:nowrap}
 .record-sticky-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .record-accordion{padding:var(--space-4) var(--space-5)}
 .record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
@@ -698,7 +588,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // 전부 넣는다(가입 폼이 registerStyles 의 클래스를 쓰므로).
   const hdrs = await headers();
   const isPublic = hdrs.get('x-ccc-public') === '1';
-  const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + searchStyles + scheduleStyles + monthScheduleStyles + piiMaskingStyles + wireStyles + registerStyles + recordFormStyles;
+  const shellStyles = styles + participantStyles + briefingStyles + settingsStyles + scheduleStyles + monthScheduleStyles + wireStyles + registerStyles + recordFormStyles;
 
   // 공개 경로는 표시 이름을 조회하지 않는다: 사이드바가 없어 값이 쓰이지 않고, 신원 없는
   // 요청으로 부르면 그 조회가 401 을 만든다(위 "사이드바가 신원을 물어 401" 과 같은 이유).

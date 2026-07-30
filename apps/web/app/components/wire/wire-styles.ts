@@ -94,10 +94,6 @@ export const wireStyles = `
 /* 당사자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
 .participant-row-list{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
 /* 당사자 정보 허브 (D35 §3 · D36). 카드 계약(.surface-card)은 그대로 쓰고 안쪽만 정한다. */
-.participant-contact{display:grid;gap:var(--space-1);margin:0 0 var(--space-6)}
-/* 사람 정보 라벨은 민트 계열(D34). */
-.participant-contact dt{color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
-.participant-contact dd{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:700}
 .participant-program-list{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
 .participant-program{display:grid;gap:var(--space-2);padding:var(--space-5) var(--space-6)}
 /* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
