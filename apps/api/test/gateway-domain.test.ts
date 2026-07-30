@@ -2415,13 +2415,19 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
     )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
 
-    // admin 은 열람은 되지만 편집은 안 된다(ADR-0018 '담당 실무자만'). 브리핑도 편집 불가로 알린다.
+    // 기관 관리자도 수정한다(2026-07-30 Q 결정 — ADR-0018 개정, 구 '담당 실무자만' 대체).
+    // 브리핑도 편집 가능으로 알린다.
     await expect(setSupportCaseOverallGoal(
-      t.env, canonicalActors.admin, created.supportCaseId, 'ADMIN_EDIT_BLOCKED',
-    )).rejects.toBeInstanceOf(ForbiddenError);
+      t.env, canonicalActors.admin, created.supportCaseId, '관리자가 고친 전체 목표',
+    )).resolves.toMatchObject({ overallGoal: '관리자가 고친 전체 목표' });
     await expect(getParticipantBriefing(
       t.env, canonicalActors.admin, created.beneficiaryId, created.supportCaseId,
-    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련', canEditOverallGoal: false });
+    )).resolves.toMatchObject({ overallGoal: '관리자가 고친 전체 목표', canEditOverallGoal: true });
+
+    // 되돌려 놓는다 — 아래 단정들이 이 값을 이어서 쓴다.
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
 
     // 비담당 실무자는 접근 자체가 막힌다(D7).
     await expect(setSupportCaseOverallGoal(
@@ -2438,16 +2444,18 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.supportCaseId, '가'.repeat(201),
     )).rejects.toBeInstanceOf(ValidationError);
 
-    // 변경 전건 감사(D14) — 성공한 쓰기 3건(입력·수정·지움)이 전부 남고, 목표 문장은 detail 에 없다.
+    // 변경 전건 감사(D14) — 성공한 쓰기 5건(입력·수정·관리자 수정·원복·지움)이 전부 남고,
+    // 목표 문장은 detail 에 없다.
     const audits = await t.db.prepare(
       `SELECT detail FROM audit_log
        WHERE action = 'update' AND target_table = 'support_cases' AND target_id = ?`,
     ).bind(created.supportCaseId).all<{ detail: string }>();
     const goalAudits = audits.results.filter((row) => row.detail.includes('overall_goal'));
-    expect(goalAudits).toHaveLength(3);
+    expect(goalAudits).toHaveLength(5);
     for (const row of goalAudits) {
       expect(row.detail).not.toContain('자립 기반 마련');
       expect(row.detail).not.toContain('주거 안정');
+      expect(row.detail).not.toContain('관리자가 고친');
     }
   });
 
