@@ -56,7 +56,7 @@ export default function KitPage() {
 
         <section className="wire-kit-section" aria-labelledby="kit-listrow">
           <h2 className="wire-kit-heading" id="kit-listrow">ListRow</h2>
-          <p className="wire-kit-caption">체브론 down, right, none, selected(뮤트 필), 아코디언 토글, 링크</p>
+          <p className="wire-kit-caption">체브론 down, right, none, selected(그라데이션 채움 — 체크박스 켬과 같은 어휘), 아코디언 토글, 링크</p>
           <div className="wire-kit-stack">
             <ListRow chevron="down">체브론 down (펼침)</ListRow>
             <ListRow chevron="right">체브론 right (이동/접힘)</ListRow>
@@ -179,6 +179,10 @@ export default function KitPage() {
           <p className="wire-kit-caption">
             종류가 색과 테두리를 정하고, 크기는 높이만 바꾼다(40 / 32). 2026-07-26 Q 결정.
           </p>
+          <p className="wire-kit-caption">
+            2026-07-31: 프라이머리와 세컨더리는 <strong>테두리가 같다</strong>. 강조는 면(그라데이션)과
+            그림자가 만든다. 마우스를 올리면 잉크 워시가 깔리고, 누르면 1px 내려간다.
+          </p>
           <div className="wire-kit-row">
             <WireButton variant="primary" align="center">프라이머리</WireButton>
             <WireButton variant="secondary" align="center">세컨더리</WireButton>
@@ -217,18 +221,27 @@ export default function KitPage() {
           <p className="wire-kit-caption">
             기본은 민트에서 라벤더로 흐르는 deep 그라데이션 테두리다. 리스크 변형은 테두리만 바꾼다. 2026-07-26 Q 결정.
           </p>
+          <p className="wire-kit-caption">
+            2026-07-31: <strong>켜면 면이 칠해진다</strong>. 예전에는 12px 체크 표시 하나로만 갈려서
+            훑을 때 켜짐과 꺼짐이 구분되지 않았다. 채움은 프라이머리 버튼과 같은 그라데이션이고,
+            리스크 변형도 채움은 같고 테두리만 리스크 색이다. 아래 네 칸을 나란히 두고 비교한다.
+          </p>
           <div className="wire-kit-stack">
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" defaultChecked />
-              AI를 활용한 녹취기록 동의
+              AI를 활용한 녹취기록 동의 (켬)
             </label>
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" />
-              개인정보 수집·이용 동의
+              개인정보 수집·이용 동의 (끔)
             </label>
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" data-tone="risk" defaultChecked />
-              부채 악화 (리스크 변형)
+              부채 악화 (리스크 변형 · 켬)
+            </label>
+            <label className="consent-checkbox">
+              <input type="checkbox" className="wire-checkbox" data-tone="risk" />
+              연락 두절 위험 (리스크 변형 · 끔)
             </label>
           </div>
         </section>

@@ -82,7 +82,7 @@ button,input,select,textarea{font:inherit}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
-.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
+.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:700;color:var(--sub);white-space:nowrap}
 /* 푸터에 항목이 둘(설정·로그아웃)이 되어 가로 flex 로는 나란히 서 버린다 — 메뉴와 같은
    세로 목록이어야 같은 종류로 읽힌다. */
 .sidebar-footer{margin-top:auto;display:grid;gap:var(--space-1);color:var(--sub);font-size:var(--text-sm);font-weight:700}
@@ -147,13 +147,11 @@ button,input,select,textarea{font:inherit}
 h1{margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
 h2{margin:0;font-size:var(--text-lg);line-height:var(--leading-snug)}
 p{margin:var(--space-2) 0 0;color:var(--sub)}
-/* 버튼 4종(§5). 기본은 세컨더리, .button-primary 가 프라이머리다. */
-.button{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;cursor:pointer}
-.button-primary{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--ink);box-shadow:var(--shadow-soft)}
-.button-ghost{background:transparent;border-color:transparent;color:var(--sub);box-shadow:none}
-.button-danger{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk);box-shadow:none}
-.button-sm{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
-.button:disabled{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
+/* 버튼 규칙은 **.wire-button 하나가 소유한다**(2026-07-31). 여기 있던 .button 4종
+   (.button-primary·.button-ghost·.button-danger·.button-sm)은 지웠다 — 마크업이 한 곳도
+   쓰지 않는 죽은 CSS 였는데, 같은 계약을 두 벌로 적어 둔 탓에 §5 를 고칠 때마다 어느 쪽을
+   고쳐야 하는지가 매번 판단거리였다. 무해한 죽은 코드가 아니라 **드리프트의 저장고**다.
+   앱은 전부 WireButton 을 쓴다(components/wire/wire-button.tsx). */
 .case-toolbar{display:flex;gap:var(--space-3);margin-bottom:var(--space-5)}
 /* 입력칸(§5): 높이 40 · radius 6 · --line-control 1px. 라벨은 항상 위에 둔다. */
 .search-field,.select-field,.input-icon{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub)}
@@ -202,7 +200,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 .lines span:nth-child(2){width:86%}
 .lines span:nth-child(3){width:70%}
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
-.detail-link{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-5);padding:var(--space-5);font-weight:700}
+.detail-link{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-5);padding:var(--space-5) var(--space-6);font-weight:700}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 .form-panel{display:grid;gap:var(--space-5)}
 .field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
@@ -220,7 +218,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 }
 textarea{min-height:216px;resize:vertical}
 .form-actions{display:flex;justify-content:flex-end}
-.note{display:flex;gap:var(--space-3);padding:var(--space-5);border-radius:var(--radius-card);background:var(--muted)}
+.note{display:flex;gap:var(--space-3);padding:var(--space-5) var(--space-6);border-radius:var(--radius-card);background:var(--muted)}
 .note p{font-size:var(--text-sm)}
 @media(max-width:767px){
   /* ── 768 미만: 사이드바는 드로어다 (§4-4) ──
@@ -249,7 +247,7 @@ textarea{min-height:216px;resize:vertical}
      변수이기 때문이다. 세로 배치는 라벨이 얼마나 길든 한 줄을 보장한다. */
   .page-actions{width:100%;flex-direction:column;align-items:stretch}
   /* 킷 버튼도 같이 잡는다 — 레거시 .button 만 있으면 교체한 화면에서 버튼이 줄어든다. */
-  .page-header .button,.page-header .wire-button{width:100%;justify-content:center}
+  .page-header .wire-button{width:100%;justify-content:center}
   .search-field{max-width:none}
   .case-list-heading{display:none}
   .case-program{display:none}
@@ -261,7 +259,7 @@ textarea{min-height:216px;resize:vertical}
 }`;
 const participantStyles = `
 .today-schedule-list{display:grid;gap:var(--space-3)}
-.today-schedule-card{display:grid;grid-template-columns:1.1fr .8fr 1.2fr .7fr;gap:var(--space-4);align-items:center;padding:var(--space-5)}
+.today-schedule-card{display:grid;grid-template-columns:1.1fr .8fr 1.2fr .7fr;gap:var(--space-4);align-items:center;padding:var(--space-5) var(--space-6)}
 .today-schedule-card:hover{--surface-fill:var(--muted)}
 .schedule-field{display:grid;gap:var(--space-1);min-width:0}
 .schedule-field strong{overflow-wrap:anywhere;font-size:var(--text-md);font-weight:700}
@@ -276,7 +274,7 @@ const participantStyles = `
 .participant-stage{display:grid;gap:var(--space-5)}
 .participant-stage-header{display:flex;justify-content:space-between;gap:var(--space-4);align-items:flex-start}
 .participant-stage-list{display:grid;gap:var(--space-3)}
-.participant-stage-item{padding:var(--space-5)}
+.participant-stage-item{padding:var(--space-5) var(--space-6)}
 .provenance-label{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent}
 /* 오류는 --risk 글자 + 메시지 텍스트로 알린다. 색만으로 알리지 않는다(§5 입력 오류·§9 완화). */
 .error-state,[role="alert"]{color:var(--risk);font-weight:700}
@@ -646,6 +644,10 @@ const recordFormStyles = `
 .record-main{display:grid;gap:var(--space-6);min-width:0}
 /* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
 .record-toolbar{display:flex;justify-content:flex-end}
+/* 이 세 패널은 카드 패딩 3종 중 **좁은 보조 패널(16/20)** 이다(DESIGN.md §3-4, 2026-07-31).
+   본문 폭 전체를 쓰는 카드는 좌우 24 로 통일했지만, 이 화면은 우측 레일 200 을 떼고 남은
+   좁은 열에 서고 레일 자체는 200px 이라 좌우 24 를 주면 안쪽 글 폭이 152 로 떨어진다.
+   같은 값을 화면마다 다시 정하지 않도록 여기 한 곳에만 적어 둔다. */
 .record-sticky,.record-accordion,.record-rail{
   --surface-fill:var(--panel);
   border:1px solid var(--line);

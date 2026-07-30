@@ -113,7 +113,7 @@ export const wireStyles = `
 .participant-program-locked{margin:var(--space-3) 0 0;color:var(--sub);font-size:var(--text-sm)}
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{margin-top:var(--space-4)}
-.participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:13px}
+.participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
 /* 참여 사업 목록을 좁은 화면에서 1열로 강제하던 규칙은 지웠다 — --grid-min 420 이 이미 접는다. */
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
@@ -124,7 +124,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 .wire-row:hover{--surface-fill:var(--muted)}
 .wire-row[data-static="true"]{cursor:default}
 .wire-row[data-static="true"]:hover{--surface-fill:var(--panel)}
-.wire-row[data-selected="true"]{--surface-fill:var(--muted)}
+/* 고른 행도 **채운다**(2026-07-31 Q 지시 "리스트도 채운다"). 체크박스 켬과 같은
+   --gradient-action 이라, 화면 어디서든 '내가 지금 고른 것'이 한 어휘로 읽힌다.
+   구 --muted(#F5F5F4)는 흰 카드 위에서 호버와 같은 색이라 고른 것인지 지나가는 중인지
+   구분되지 않았다 — 실제로 아래 :hover 규칙이 같은 값을 쓴다.
+   background 를 직접 쓰되 **테두리 그라데이션을 살려야 하므로 배경 2겹을 유지한다**
+   (--surface-fill 변수로는 못 한다: linear-gradient() 의 색 자리에 그라데이션을 넣을 수 없다).
+   호버가 이 규칙을 덮지 못하는 것도 의도다 — 이미 고른 행에 지나가는 중 표시가 겹칠 이유가 없다. */
+.wire-row[data-selected="true"]{background:var(--gradient-action) padding-box,var(--gradient-brand) border-box}
 .wire-row[data-align="center"]{justify-content:center;text-align:center}
 .wire-row-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .wire-row[data-align="center"] .wire-row-text{flex:0 1 auto}
@@ -218,13 +225,23 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 /* 라디오(§5): 체크박스와 같은 계약이고 모양만 원형이다. 선택 표시는 가운데 --ink 점.
    체크박스와 같은 이유로 ::after 가 아니라 background 로 그린다(input 은 replaced element). */
 .wire-radio{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
-.wire-radio:checked{background:radial-gradient(circle at center,var(--ink) 0 4px,transparent 4px) padding-box,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
+/* 라디오의 켬도 체크박스와 같은 어휘다 — 가운데 --ink 점 + **--gradient-action 면**.
+   두 컨트롤이 같은 폼 안에 서므로 켬 신호가 갈리면 하나는 켜진 것처럼, 하나는 아닌 것처럼
+   보인다. 채움 근거는 아래 .wire-checkbox:checked 주석에 한 번만 적어 둔다. */
+.wire-radio:checked{background:radial-gradient(circle at center,var(--ink) 0 4px,transparent 4px) padding-box,var(--gradient-action) padding-box,var(--gradient-deep) border-box}
 .wire-radio:disabled,.wire-checkbox:disabled{background:linear-gradient(var(--muted),var(--muted)) padding-box,linear-gradient(var(--line),var(--line)) border-box;cursor:not-allowed}
 /* WireButton (§5 버튼 4종 × 크기 2단). 크기 변형은 높이·패딩·라벨만 다르고 색 규칙은 같다.
    **라벨은 줄바꿈하지 않는다**(R7 · 2026-07-30): 한글은 어디서나 끊길 수 있어 칸이 좁아지면
    '당사자 정 / 보' 처럼 낱글자로 쪼개진다. 버튼은 한 번에 읽히는 한 덩어리라 넘칠지언정
    쪼개지지 않는 쪽이 옳다 — 좁은 화면의 자리는 세로 배치가 만든다(layout.tsx 768 미만). */
-.wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:left;white-space:nowrap;cursor:pointer}
+/* 세컨더리(기본형). 테두리를 --line-control(#E3E3E3, 흰 위 1.28)에서 **--line-action
+   (잉크 50%)** 으로 올린다(2026-07-31). 흰 카드 위에서 1.28 짜리 테두리는 사실상 안 보여
+   버튼이 버튼으로 읽히지 않았다 — 입력칸은 라벨이 형태를 알려 주지만(§9 완화) 버튼에는
+   그 장치가 없다. 새 색이 아니라 프라이머리가 이미 쓰던 토큰이다.
+   그래서 **일반 버튼과 강조 버튼의 구분이 테두리 굵기가 아니라 면과 깊이로 옮겨간다**:
+   테두리는 둘이 같고, 프라이머리만 그라데이션 면과 그림자를 갖는다. 두 버튼이 나란히
+   설 때 눌러야 할 쪽이 뜨는 것은 이 대비이지 테두리 진하기가 아니다. */
+.wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:left;white-space:nowrap;cursor:pointer}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-action);color:var(--ink);box-shadow:var(--shadow-soft)}
@@ -235,6 +252,19 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 .wire-button[data-justify="center"]{justify-content:center}
 .wire-button[data-justify="between"]{justify-content:space-between}
 .wire-button[data-justify="between"] .wire-button-text{flex:1 1 auto}
+/* 호버·누름(2026-07-31 신설). 지금까지 버튼에 **상태가 disabled 하나뿐**이라, 누를 수 있는
+   것과 없는 것은 구분됐지만 지금 가리키고 있는 것은 알 수 없었다. 새 색을 만들지 않고
+   사이드바 내비가 이미 쓰는 잉크 워시(§5 '호버는 약한 신호')를 그대로 빌린다.
+   @media (hover:hover) 안에 두는 이유는 터치 기기에서 탭한 버튼에 호버가 남아 눌린 채로
+   굳은 것처럼 보이기 때문이다(내비 항목에서 겪은 것과 같은 결함).
+   누름은 transform 만 쓴다(§6: 누름은 transform·opacity 만). */
+@media (hover:hover){
+  .wire-button:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}
+  .wire-button[data-variant="primary"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--gradient-action);filter:brightness(.96)}
+  .wire-button[data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+  .wire-button[data-variant="danger"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--risk-tint-solid)}
+}
+.wire-button:not(:disabled):not([aria-disabled="true"]):active{transform:translateY(1px)}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
 .wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{border-color:var(--sub)}
 .wire-button .wire-chevron{border-color:currentColor}
@@ -259,8 +289,20 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    그게 가장 위험한 자리다. background-image 는 전 브라우저에서 동작한다.
    data URI 안에는 var() 를 쓸 수 없어 획 색만 hex 로 박힌다 — --ink(#3D3445)·--risk(#F071B4)와
    같은 값이며, 토큰이 바뀌면 이 두 줄도 함께 고쳐야 하는 유일한 자리다. */
-.wire-checkbox:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%233D3445' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
-.wire-checkbox[data-tone="risk"]:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%23F071B4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box}
+/* 켬 = **면이 칠해진다**(2026-07-31 Q 결정). 이전에는 켜고 끄고가 12px 체크 글리프 하나로만
+   갈렸다 — 18px 상자 안에서 그 차이는 훑을 때 잡히지 않고, 동의 체크박스(D23·D49)처럼
+   "표시했나 안 했나"가 곧 법적 기록인 자리에서 가장 위험한 종류의 모호함이다.
+   채움은 **프라이머리 버튼과 같은 --gradient-action** 이다(Q 지시: "확인 채울 때는 버튼
+   컬러랑 같은 그라데이션으로 채워, 컬러 맘대로 바꾸지 말고"). 새 색도 새 그라데이션도
+   아니다 — §3-3 이 허용한 5개 중 하나이고, '지금 내가 정한 것'이라는 뜻을 프라이머리
+   버튼과 나눠 갖는다. 체크 획은 --ink 다(그라데이션 양끝 위 8.15 / 6.35 로 둘 다 통과). */
+.wire-checkbox:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%233D3445' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,var(--gradient-action) padding-box,var(--gradient-deep) border-box}
+/* 리스크 변형도 **같은 채움**이다 — §5 가 "테두리만 --risk 로 바꾸고 나머지는 기본과 같다"
+   (2026-07-26 Q 결정)로 이미 정해 둔 그대로다. 리스크 색은 테두리가 계속 독점한다(D9).
+   바뀐 것은 체크 획 하나다: 핑크 획은 채운 면 위에서 대비 1.85·1.44 라 아예 보이지 않아
+   --ink 로 바꿨다. 리스크를 알리는 것은 획이 아니라 테두리이므로 신호는 잃지 않는다.
+   (그래서 이제 data URI 안 원시 hex 는 --ink 한 값뿐이다 — 위 주석의 '두 줄'이 한 줄이 됐다.) */
+.wire-checkbox[data-tone="risk"]:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%233D3445' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,var(--gradient-action) padding-box,var(--gradient-deep) border-box}
 /* 빈 상태(§5): 무채색만. 라인 아이콘 28 + 제목 16/700 + 설명 14/400 + 다음 행동 버튼. */
 .wire-empty{display:grid;justify-items:center;gap:var(--space-2);padding:var(--space-10) var(--space-6);text-align:center}
 .wire-empty-icon{width:28px;height:28px;color:var(--sub)}
@@ -338,7 +380,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    민트 계열 = '사람·소속' 축이고 사업 라벨이 그 축에 든다(D34). 알약이 아니라 radius 6 이다 —
    행동 버튼이 아니다(§4-5, 사이드바 사업 전환기와 같은 이유). */
 .register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--mint-tint)}
-.register-program-fixed-label{color:var(--mint-deep);font-size:13px;font-weight:700}
+.register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:700}
 /* Y10(안 A): 카드 안에서는 그림자를 쓰지 않는다 — 카드 안에 또 카드가 되고 카드 계약과 어긋난다.
    테두리 1px 은 그대로 두고 배경만 한 톤 낮춰 '카드 안의 한 덩어리'로 읽히게 한다.
@@ -351,7 +393,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
 .consent-upload-slot-label{color:var(--sub);font-size:var(--text-sm);font-weight:700}
 /* '준비 중' 은 상태 표시다. 라벤더 = 'AI·승인 대기' 축이라 대기 상태가 그 축에 든다(D34). */
-.consent-upload-slot-state{justify-self:start;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 var(--space-2);border-radius:var(--radius-pill);background:var(--lavender-tint);color:var(--lavender-deep);font-size:12px;font-weight:700}
+.consent-upload-slot-state{justify-self:start;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 var(--space-2);border-radius:var(--radius-pill);background:var(--lavender-tint);color:var(--lavender-deep);font-size:var(--text-sm);font-weight:700}
 /* ── 날짜 선택(D48 · ADR-0020) ──────────────────────────────────────────────
    새 색·새 반경·새 그림자를 만들지 않는다 — 전부 기존 토큰의 조합이다.
    팝오버는 모달과 같은 표면 계약(흰 면 · radius 12 · --shadow-soft)이고 쌓임은
