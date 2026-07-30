@@ -29,7 +29,13 @@ export function formatDateDigits(raw: string): string {
 export interface DateTextInputProps {
   id?: string | undefined;
   name?: string | undefined;
-  /** 초기값(`YYYY-MM-DD`). 두 호출부 모두 비제어라 내부 상태의 씨앗으로만 쓴다. */
+  /**
+   * `red` **초기값 전용이다 — 이 부품은 비제어다.**
+   * 편집 중 값은 내부 상태가 갖고, 이 prop 은 마운트 때 **한 번만** 읽는다. 호출부가
+   * 다시 그리면서 새 값을 주어도 화면은 바뀌지 않는다. 제어형(부모가 값을 쥐는 방식)이
+   * 필요해지면 `value`+`onChange` 를 새로 만들어야 한다 — `defaultValue` 에 값을 계속
+   * 흘려보내는 방식으로는 안 된다.
+   */
   defaultValue?: string | undefined;
   required?: boolean | undefined;
   /** 도움말 문구의 id — KRDS '레이블·설명은 프로그래밍적으로 연결'. */

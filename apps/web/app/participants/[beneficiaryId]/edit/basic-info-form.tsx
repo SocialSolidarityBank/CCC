@@ -60,6 +60,9 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
               id="basicInfoBirthDate"
               name="birthDate"
               defaultValue={basicInfo.birthDate ?? ''}
+              /* 이 문자열은 WireFormField 가 htmlFor 에서 만드는 `${htmlFor}-hint` 와
+                 손으로 맞춘 값이다. 위 htmlFor 를 바꾸면 여기도 함께 바꿔야 한다 —
+                 안 바꾸면 도움말 연결만 조용히 끊기고 테스트는 통과한다. */
               describedBy="basicInfoBirthDate-hint"
             />
           </WireFormField>

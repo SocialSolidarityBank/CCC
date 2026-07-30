@@ -82,6 +82,15 @@ KRDS 가 함께 요구하는 것:
 | 당사자 등록 | `participants/new/register-form.tsx` | `SearchInput type="date"`(안에서 새 부품을 그린다) |
 | 기본정보 수정 | `participants/[beneficiaryId]/edit/basic-info-form.tsx` | `WireFormField` + 새 부품 직접 |
 
+`green` **"대상 파일 7개"의 정체** — `lane-b-prep.md` §9-3 이 말한 7개는 **날짜 칸 6곳 +
+공유 부품 `search-input.tsx` 1개**다(§5 표의 4곳 + 위 표의 2곳 + 감싸는 부품). 일곱 번째
+화면을 더 찾을 필요 없다.
+
+`red` **`SearchInput type="date"` 는 비제어 전용이다.** `value` 를 주면 **초기값으로만**
+쓰인다 — 다른 type 처럼 매 렌더 반영되지 않는다. 값을 부모가 쥐어야 하는 화면이 생기면
+`DateTextInput` 에 제어형 경로(`value`+`onChange`)를 먼저 만들어야 한다. 지금 호출부
+(등록 화면)는 값을 주지 않아 드러나지 않지만, prop 이름만 보면 되는 것처럼 보인다.
+
 두 화면이 감싸는 부품은 다르지만(등록은 검색칸 계약 높이 61, 수정은 폼칸 계약 높이 40)
 **안에 든 입력 부품은 하나**다. 이걸 안 맞추면 다음 수정에서 두 화면이 갈라진다.
 
