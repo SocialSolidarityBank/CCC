@@ -221,7 +221,7 @@ export interface ParticipantProgram {
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름. 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
-  /** 동의 3종의 현재 상태(D44). 등록 시 받고 당사자 정보 페이지에서 고친다. */
+  /** 동의 2종의 현재 상태(D44 · 항목 수는 D49). 등록 시 받고 당사자 정보 페이지에서 고친다. */
   consent: ParticipantConsent;
   /** 마지막으로 동의 상태를 기록한 시각. 한 번도 없으면 null(최초 동의일이 아니다). */
   consentRecordedAt: string | null;

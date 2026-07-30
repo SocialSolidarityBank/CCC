@@ -117,7 +117,9 @@ function formatConsentRecordedAt(value: string | null): string {
     .format(date);
 }
 
-function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
+// 테스트에서 직접 렌더한다 — 체크박스 `name` 이 서버 액션이 읽는 키와 어긋나면 오류가 아니라
+// **조용한 철회**가 저장된다(checkbox 헬퍼는 키가 없으면 false 다). 그래서 이름을 DOM 으로 고정한다.
+export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
   return (
     <form className="participant-program-consent" action={updateParticipantConsentAction}>
       <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
