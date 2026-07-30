@@ -34,6 +34,11 @@ scripts/seed/out/
 # 로컬 도구 산출물
 .playwright-mcp/
 
+# 병렬 작업용 워크트리 — 등록된 워크트리는 git이 이미 무시하지만,
+# 등록이 풀린 잔여 폴더가 add -A 로 딸려 들어오는 사고를 막는 가드다.
+# (2026-07-30: 7개 8.6 GB / 폴더당 파일 약 4만 — 실수로 커밋되면 되돌리기 비싸다)
+.worktrees/
+
 # 스킨 패스 렌더 증거(전체 스윕) — 용량이 커서 커밋하지 않는다.
 # 재생성: scripts/design/shots.py (절차는 artifacts/design-system-v0.1-skin/README.md)
 artifacts/skin-shots/

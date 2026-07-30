@@ -1,0 +1,84 @@
+---
+name: codemap
+description: >-
+  Route a codebase question to the right code-intelligence tool automatically.
+  Use when the user asks about their CODE — "이 코드 어디서 호출돼?", "이거 고치면 뭐
+  깨져?", "이 프로젝트 전체 설명해줘", "구조 분석", "온보딩 문서", "어떤 함수가 뭐
+  하는지", "where is X called", "what breaks if I change Y", "explain this
+  codebase", "map this repo", "분석해줘", "코드맵". One entry, three backends: the
+  agent picks codegraph (fast structural default), codebase-memory (complex /
+  multi-repo / infra / dead-code), or Understand-Anything (human-readable
+  summaries + dashboard). Not for writing new code, not for non-code questions.
+---
+
+# codemap — one entry, the right code lens
+
+You are routing a **non-developer PM's** codebase question to ONE of three
+installed tools. The PM never picks a tool — you do. Pick the cheapest tool
+that fully answers; escalate only if it can't.
+
+## Step 0 — resolve the target codebase
+
+Before routing, know WHICH codebase the question is about:
+- If the user named a project/path, use it.
+- Else use the current working directory.
+- codegraph & codebase-memory need that path indexed; Understand-Anything
+  indexes on demand. If unindexed, say so — don't return an empty
+  "no project" error, and don't index it yourself. **Indexing runs only after
+  the user explicitly approves it**: state the cost (how many files, roughly how
+  long) and ask. Until then, answer with an AVAILABLE tool or with plain
+  Read/Grep, and say which you used.
+
+## Routing decision tree
+
+1. **Does the PM need to READ the answer themselves** (explain whole project,
+   onboarding, plain-English summary, architecture tour, business domain, or a
+   visual dashboard)?
+   → **Understand-Anything**. See `references/understand-anything.md`.
+
+2. **Else, is it a COMPLEX structural question** — spans multiple repos, touches
+   infra files (Dockerfile/K8s), needs dead-code or cross-service/route
+   analysis, precise type resolution, or a rare language?
+   → **codebase-memory**. See `references/codebase-memory.md`.
+
+3. **Else (general structural lookup)** — "where is X?", "who calls Y?", "what
+   breaks if I change Z?", signature/source of a symbol.
+   → **codegraph** (DEFAULT). See `references/codegraph.md`.
+
+4. **Ambiguous?** Start at codegraph (3). If it can't answer (missing breadth,
+   needs narration for the PM), escalate to codebase-memory (2) or
+   Understand-Anything (1) and say why you escalated.
+
+## Graceful degradation — NEVER install anything
+
+Before using a tool, confirm it's available:
+- codegraph: `mcp__codegraph__*` tools present.
+- codebase-memory: `mcp__codebase-memory-mcp__*` tools present.
+- Understand-Anything: `/understand*` skills present (plugin enabled).
+
+**Routing installs and configures nothing.** If the routed backend is missing,
+you do all three of these and then stop:
+
+1. Say plainly what is missing.
+2. Give the one-line fix as *information* — do not run it, do not download an
+   installer, do not edit any MCP/agent config, do not `index_repository`.
+3. Fall back to the next-best AVAILABLE tool (or plain Read/Grep) and say you
+   downgraded and why.
+
+Installing a backend mid-route is out of scope even if the user seems to want an
+answer badly, even if the install looks like one command, and even if you are
+confident it is safe. Routing is a read-only decision.
+
+> Why this is a hard rule: on 2026-07-29 a `/codemap` run hit a missing
+> `codebase-memory` backend, installed it inline, and the installer silently
+> rewrote MCP config for 9 other agent runtimes and left a SessionStart hook
+> that re-injected an "always index first" directive into every session. The
+> routing question was never answered. See
+> `CCC-new/docs/postmortems/2026-07-30-codemap-overload.md`.
+
+Never fail silently.
+
+## Output for a non-developer
+
+Answer in the PM's language (Korean by default here). Lead with the plain
+answer; keep tool mechanics to a one-line "어떤 도구로 봤는지" footnote.
