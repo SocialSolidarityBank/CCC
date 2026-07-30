@@ -85,8 +85,17 @@ describe('middleware · x-ccc-public 저작', () => {
     // 쿠키가 없으므로 /preview 로 리다이렉트된다 — 통과 응답이 아니어야 한다.
     const redirected = middleware(makeRequest('/participants/crane-001', { 'x-ccc-public': '1' }));
     expect(redirected.headers.get('location')).toContain('/preview');
-    // /preview 자체는 통과하되 헤더는 지워진 채로 간다.
-    const request = makeRequest('/preview', { 'x-ccc-public': '1' });
-    expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBeNull();
+    // 클라이언트가 보낸 헤더가 그대로 흘러가지 않는다는 성질은 위 리다이렉트와
+    // '비공개 경로에서 클라이언트가 보낸 헤더는 지워진다' 테스트가 지킨다.
+  });
+
+  it('코드 입력 화면은 셸 없이 렌더된다', () => {
+    // 2026-07-31: /preview 를 공개(셸 제외) 목록에 넣었다. 안 그러면 로그아웃한 화면에
+    // 사이드바가 그대로 남아 "나갔는데 안 나간 것"처럼 보인다.
+    // 값이 '1' 인 것은 **미들웨어가 세웠기 때문**이지 클라이언트가 보내서가 아니다 —
+    // 미들웨어는 모든 경로에서 이 헤더를 다시 저작하므로 위조분은 언제나 덮인다.
+    vi.stubEnv('CCC_PREVIEW', 'true');
+    const request = makeRequest('/preview');
+    expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBe('1');
   });
 });

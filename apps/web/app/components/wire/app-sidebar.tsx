@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { logoutAction } from '../../logout-action';
 import type { ParticipantProgramType } from '../../lib/api';
 import { DEFAULT_PROGRAM_TYPE, ORG_LABEL, PROGRAM_LABELS, PROGRAM_TYPES, isKnownProgramType } from '../../lib/labels';
+import { Chevron } from './chevron';
 
 // 앱 셸의 좌측 사이드바 (D35 · ADR-0014 §2). 축은 **사이드바 = 장소 / 페이지 우상단 = 행동**이라
 // 등록 2개(상담·당사자)는 여기 넣지 않는다 — 섞이면 누를 때마다 "화면이 바뀌는 것"과
@@ -37,7 +39,7 @@ function programMenu(programType: ParticipantProgramType): NavItem[] {
 }
 
 /** 16px 단색 라인 아이콘(DESIGN.md §4). currentColor 라 활성 항목에서 글자와 같이 물든다. */
-function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' }) {
+function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logout' }) {
   const common = {
     width: 16,
     height: 16,
@@ -61,7 +63,110 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' }) {
       return <svg {...common}><circle cx="8" cy="8" r="2.5" /><path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8L3.4 3.4" /></svg>;
     case 'org':
       return <svg {...common}><path d="M8 1.8l5.4 3.1v6.2L8 14.2 2.6 11.1V4.9z" /></svg>;
+    case 'logout':
+      return <svg {...common}><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6" /></svg>;
   }
+}
+
+/**
+ * 사업 전환기 (2026-07-31 Q 요청). 지금 등록된 사업은 1개뿐이라 목록에도 1개만 뜨지만,
+ * 사업이 늘면 그대로 동작한다 — 그래서 '2개부터 형태를 정한다'(구 ADR-0014 개정 1번)를
+ * 지금 닫는다.
+ *
+ * 팝오버 방식은 date-picker-control.tsx 의 것을 그대로 따른다(바깥 pointerdown 으로 닫기 +
+ * Escape 로 닫고 **초점을 버튼으로 되돌리기**). 새 상호작용을 발명하지 않는다.
+ *
+ * 사업이 1개뿐이면 버튼이 아니라 글자로 남긴다 — 눌러도 자기 자신뿐인 목록을 여는 것은
+ * 누를 데가 있다고 알려 놓고 아무 일도 안 하는 것이라 화살표를 두지 않던 기존 판단과 같다.
+ */
+function ProgramSwitcher({
+  activeProgram,
+  programLabels,
+  switchable,
+}: {
+  activeProgram: ParticipantProgramType;
+  programLabels: Record<ParticipantProgramType, string>;
+  switchable: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  if (!switchable) {
+    return (
+      <div className="program-switcher">
+        <p className="program-switcher-label">사업</p>
+        <p className="program-switcher-name" aria-current="true">{programLabels[activeProgram]}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="program-switcher" ref={rootRef}>
+      <p className="program-switcher-label" id={`${menuId}-label`}>사업</p>
+      {/* **listbox 가 아니라 열고 닫는 목록(disclosure)이다.** 처음에는 role="listbox" +
+          role="option" 으로 적었는데, ARIA 는 option 안에 링크 같은 조작 가능한 자식을 두는 것을
+          금지하고(둘이 같은 노드를 두고 다툰다) listbox 라고 알린 이상 화살표 이동을 기대하게
+          만든다 — 그 둘을 다 지키려면 초점 관리를 직접 구현해야 하는데, 여기서 필요한 것은
+          '누르면 그 사업으로 가는 링크 목록'뿐이다. 그래서 역할을 참칭하지 않고 링크로 남긴다.
+          현재 항목은 aria-current 로 알린다 — 메뉴 링크(navigation-link)와 같은 방식이다. */}
+      <button
+        type="button"
+        ref={buttonRef}
+        className="program-switcher-trigger"
+        aria-expanded={open}
+        aria-labelledby={`${menuId}-label ${menuId}-value`}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        <span className="program-switcher-name" id={`${menuId}-value`}>{programLabels[activeProgram]}</span>
+        {/* 방향은 늘 아래다 — Chevron 계약에 'up' 이 없고(down|right), 열림 여부는
+            aria-expanded 와 열린 목록 자체가 이미 알린다. 이 하나 때문에 공용 부품을 넓히지 않는다. */}
+        <Chevron dir="down" />
+      </button>
+      {open ? (
+        <ul className="program-switcher-menu" aria-labelledby={`${menuId}-label`}>
+          {PROGRAM_TYPES.map((type) => {
+            const selected = type === activeProgram;
+            return (
+              <li key={type}>
+                {/* 사업을 바꾸는 것은 워크스페이스를 옮기는 것이므로 그 사업의 일정으로 간다.
+                    Link 라 서버가 rememberLastProgramType 을 그 화면에서 저장한다. */}
+                <Link
+                  className="program-switcher-option"
+                  href={`/programs/${type}/schedule`}
+                  data-selected={selected ? 'true' : undefined}
+                  aria-current={selected ? 'true' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="program-switcher-check" aria-hidden="true">{selected ? '✓' : ''}</span>
+                  <span>{programLabels[type]}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 /** 경로에서 현재 워크스페이스를 읽는다. `/programs/:type/...` 밖이면 null. */
@@ -206,21 +311,35 @@ export function AppSidebar({
         data-drawer-open={drawerOpen ? 'true' : undefined}
         tabIndex={-1}
       >
-        <div className="brand">
+        {/* 기관명이 곧 홈 버튼이다 (2026-07-31 Q 요청). 서비스 로고를 누르면 처음 화면으로
+            가는 것은 웹의 보편 관례라, 별도 '홈' 메뉴를 만드는 것보다 배울 것이 적다.
+            목적지는 '/' 다 — 마지막 선택 사업을 서버가 읽어 그 일정으로 보낸다(page.tsx).
+            여기서 /programs/:type/schedule 로 직접 링크하면 당사자·설정 화면처럼 경로가
+            사업을 안 알려주는 곳에서 폴백(첫 사업)으로 새어, 방금 보던 사업과 달라진다. */}
+        <Link className="brand" href="/">
           <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
           <span>{orgLabel}</span>
-        </div>
+        </Link>
         {/* 사업 전환기는 기관명 아래·메뉴 위다 — 아래 모든 메뉴의 범위를 정하므로
             위에 있어야 포함 관계가 눈으로 읽힌다 (ADR-0014 §2). */}
-        <div className="program-switcher">
-          <p className="program-switcher-label">사업</p>
-          <p className="program-switcher-name" aria-current="true">
-            {programLabels[activeProgram]}
-            {switchable && <span aria-hidden="true"> ▾</span>}
-          </p>
-        </div>
+        <ProgramSwitcher
+          activeProgram={activeProgram}
+          programLabels={programLabels}
+          switchable={switchable}
+        />
         {navigation}
-        <div className="sidebar-footer">{settings}</div>
+        <div className="sidebar-footer">
+          {settings}
+          {/* 로그아웃은 설정 아래 마지막이다 — 파괴적이진 않지만 '나가는' 행동이라 메뉴
+              흐름의 끝에 둔다. 서버 액션 폼인 이유는 쿠키를 지우는 일이 서버 몫이기 때문이다
+              (HttpOnly 라 클라이언트에서 못 지운다). */}
+          <form action={logoutAction} className="sidebar-logout-form">
+            <button type="submit" className="navigation-link sidebar-logout">
+              <NavIcon name="logout" />
+              <span>로그아웃</span>
+            </button>
+          </form>
+        </div>
         {/* 닫기는 드로어일 때만 보인다. 스크림·Esc 외에 **보이는** 탈출구가 하나는 있어야
             한다 — 스크림을 눌러 닫는 것을 모르는 사람이 갇힌다. */}
         <button type="button" className="drawer-close" onClick={() => setDrawerOpen(false)}>메뉴 닫기</button>

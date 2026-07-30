@@ -30,7 +30,34 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     expect(switcher?.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '로그아웃']);
+  });
+
+  it('기관명이 홈 버튼이다 — 목적지는 마지막 선택 사업을 서버가 정하는 /', () => {
+    // 2026-07-31 Q 요청. /programs/:type/schedule 로 직접 링크하면 경로가 사업을 안 알려주는
+    // 화면(당사자·설정)에서 폴백(첫 사업)으로 새어, 방금 보던 사업과 달라진다.
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    const brand = container.querySelector('a.brand');
+    expect(brand).not.toBeNull();
+    expect(brand?.getAttribute('href')).toBe('/');
+    expect(brand?.textContent).toContain(ORG_LABEL);
+  });
+
+  it('로그아웃은 서버 액션 폼이다 — HttpOnly 쿠키는 클라이언트가 못 지운다', () => {
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    const submit = container.querySelector('.sidebar-logout-form button[type="submit"]');
+    expect(submit).not.toBeNull();
+    expect(submit?.textContent).toContain('로그아웃');
+    // 링크가 아니어야 한다 — GET 으로 로그아웃되면 프리페치·크롤러가 세션을 끊을 수 있다.
+    expect(container.querySelector('a[href="/preview"]')).toBeNull();
+  });
+
+  it('사업이 1개뿐이면 전환기는 버튼이 아니다 — 눌러도 자기 자신뿐인 목록을 열지 않는다', () => {
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    expect(container.querySelector('.program-switcher-trigger')).toBeNull();
+    expect(container.querySelector('.program-switcher-menu')).toBeNull();
+    expect(container.querySelector('.program-switcher-name')?.textContent)
+      .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
 
   it('등록 2개는 사이드바에 넣지 않는다 — 사이드바=장소 / 우상단=행동', () => {
@@ -146,13 +173,13 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
     expect(drawer.querySelector('.program-switcher')).not.toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '로그아웃']);
   });
 
   it('아이콘이 aria-hidden 이므로 링크 텍스트는 DOM 에 남는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.navigation-soon)')?.textContent?.trim());
-    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자', '설정']);
+    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '로그아웃']);
   });
 });
