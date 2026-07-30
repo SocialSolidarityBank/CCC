@@ -98,11 +98,20 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --file ../../sc
 pnpm exec wrangler d1 execute ccc-preview --env preview --remote --file ../../scripts/seed/out/verify.sql
 ```
 
-- `drop-all.sql` 은 고정 파일이 아니다 — `sqlite_master` 를 조회해 그때그때 만든다
-  (`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).
-  `d1_migrations` 도 함께 지워야 마이그레이션이 처음부터 다시 적용된다.
-- 미리보기 `PII_ENC_KEY` 는 운영 키와 **같은 값**이다(2026-07-31 확인 — 운영 키로 만든 시드가
-  미리보기에서 이름까지 정상 렌더된다). 그래서 시드 생성은 2단계 그대로 infisical prod 로 한다.
+- `drop-all.sql` 은 고정 파일이 아니다 — `sqlite_master` 를 조회해 그때그때 만든다.
+  **`type IN ('table','view')` 둘 다** 잡아야 한다 — 뷰(`cases`·`case_assignees`·
+  `approved_ai_briefing_v1`·`grounded_ai_quality_v1`)를 빠뜨리면 재적용이
+  `view cases already exists` 로 죽는다(2026-07-31 실측). Cloudflare 내부 `_cf_KV` 는 제외하고,
+  `d1_migrations` 는 **포함**해야 마이그레이션이 처음부터 다시 적용된다.
+- `wrangler d1 migrations apply` 는 확인 프롬프트에서 멈춘다. `CI=true ... < /dev/null` 로
+  비대화형 실행하면 "fallback value in non-interactive context: yes" 로 진행한다.
+- **미리보기 키는 `PII_ENC_KEY` 가 아니라 `PREVIEW_PII_ENC_KEY` 다**(운영 키와 다른 값,
+  2026-07-31 실측). 시드 생성기는 `PII_ENC_KEY` 라는 이름을 읽으므로 주입 시 갈아끼운다:
+  ```bash
+  TOK="$(op read 'op://seongqkim-bss/infisical/ggbss_project_access_token')"
+  infisical run --token="$TOK" --env=prod --path=/ --silent -- \
+    sh -c 'PII_ENC_KEY="$PREVIEW_PII_ENC_KEY" pnpm exec vitest run --config scripts/seed/vitest.config.ts'
+  ```
 - `audit_log` 도 함께 사라진다. 가상 데이터의 감사 흔적이라 미리보기에서는 문제되지 않는다.
 
 ## 금지
