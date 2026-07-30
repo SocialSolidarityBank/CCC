@@ -325,6 +325,33 @@ button.wire-row{font:inherit;font-size:16px;font-weight:700}
 @media(max-width:767px){.wire-page-title{font-size:24px}}
 /* 포커스(§5): 모든 조작 요소 공통, :focus-visible 만. */
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* ── 당사자 등록 화면(UI 수정 레인 B, 2026-07-30) ──
+   규칙을 여기 두는 이유: .wire-register-form · .consent-fieldset · .wire-register-submit 은
+   layout.tsx 에 있고 **자기 가입 폼(join/participant)·동의 수정 허브와 공유**한다. 그 규칙을 덮으면
+   손대지 않은 화면 2개가 함께 바뀐다. 그래서 등록 화면에만 붙는 클래스로 범위를 좁혀 여기 둔다.
+   (이 파일은 CSS 를 템플릿 리터럴로 담으므로 주석에 역따옴표를 쓰지 않는다 — 문자열이 끊긴다.) */
+/* Y6: 폼을 카드 안에 넣었으므로 카드 밖 기준의 상단 여백(layout.tsx .wire-register-form)을 끈다. */
+.register-card .wire-register-form{margin-top:0}
+/* Y6: 풀폭 제출 버튼은 이 화면만의 예외였다. 그리드 항목이 늘어나지 않게 왼쪽에 세운다. */
+.register-submit{justify-self:start}
+/* 참여 사업 고정 표시(2026-07-30 Q): 고를 값이 아니라 이미 정해진 값이므로 입력칸이 아니다.
+   민트 계열 = '사람·소속' 축이고 사업 라벨이 그 축에 든다(D34). 알약이 아니라 radius 6 이다 —
+   행동 버튼이 아니다(§4-5, 사이드바 사업 전환기와 같은 이유). */
+.register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--mint-tint)}
+.register-program-fixed-label{color:var(--mint-deep);font-size:13px;font-weight:700}
+.register-program-fixed-value{color:var(--ink);font-size:14px;font-weight:700}
+/* Y10(안 A): 카드 안에서는 그림자를 쓰지 않는다 — 카드 안에 또 카드가 되고 카드 계약과 어긋난다.
+   테두리 1px 은 그대로 두고 배경만 한 톤 낮춰 '카드 안의 한 덩어리'로 읽히게 한다.
+   선택자에 두 클래스를 겹치는 이유: layout.tsx 의 registerStyles 가 이 파일(wireStyles)보다
+   **뒤에** 합쳐지므로(layout.tsx shellStyles), 같은 특정도면 저쪽 규칙이 이긴다. */
+.consent-fieldset.register-consent{background:var(--muted)}
+.consent-fieldset.register-consent>legend{color:var(--mint-deep)}
+/* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
+   올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
+.consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
+.consent-upload-slot-label{color:var(--sub);font-size:14px;font-weight:700}
+/* '준비 중' 은 상태 표시다. 라벤더 = 'AI·승인 대기' 축이라 대기 상태가 그 축에 든다(D34). */
+.consent-upload-slot-state{justify-self:start;display:inline-flex;align-items:center;height:var(--badge-height);padding:0 var(--space-2);border-radius:var(--radius-pill);background:var(--lavender-tint);color:var(--lavender-deep);font-size:12px;font-weight:700}
 /* /kit 데모 전용 */
 .wire-kit-section{display:grid;gap:var(--space-4);margin-block:var(--space-10)}
 .wire-kit-heading{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
