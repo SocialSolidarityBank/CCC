@@ -141,33 +141,36 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
       { key: 'repay', title: '월 상환액 20만원을 3개월 연속 납부한다' },
       { key: 'ledger', title: '주 1회 매출 장부를 기록한다' },
     ],
-    intakeMemo: '노점 분식 매출이 일정치 않아 카드 대출 상환이 밀려 있는 상황이다. 우선 고정 상환액을 정하고, 매출을 눈으로 확인할 수 있게 장부부터 시작하기로 했다.',
+    intakeMemo: '분식 노점을 혼자 꾸린다. 날씨에 따라 하루 매출이 세 배까지 벌어져 카드 대출 상환이 두 달 밀렸다. 감으로 하던 장사를 숫자로 보는 것부터 시작하고, 매달 낼 수 있는 금액을 먼저 고정하기로 했다.',
     regulars: [
-      { heldAt: iso(2026, 5, 4), memo: '이번 달 상환은 약속한 금액을 맞췄다. 장부는 사흘에 한 번 정도 적고 있어 습관이 자리잡는 중이다.' },
+      { heldAt: iso(2026, 5, 4), memo: '약속한 20만원을 이번 달은 맞췄다. 장부는 사흘에 한 번꼴이지만 적는 날이 늘고 있다.' },
       {
-        heldAt: iso(2026, 5, 25), memo: '주말 매출이 늘면서 상환 여유가 조금 생겼다. 재료비를 미리 계산해두는 방식으로 지출을 줄여보기로 했다.',
+        heldAt: iso(2026, 5, 25), memo: '주말 매출이 오르며 상환에 숨통이 트였다. 재료를 그날그날 사다 보니 남겨서 버리는 일이 잦다고 해, 주간 상한을 정해보기로 했다.',
         actionItems: [{ description: '다음 상담 전까지 주간 재료비 상한을 정해 온다', owner: 'beneficiary', dueDate: '2026-06-10' }],
-        goalLinks: ['ledger'], customQuestions: ['장부 기록에서 가장 번거로운 부분은?'],
+        goalLinks: ['ledger'], customQuestions: ['장부를 적다가 가장 귀찮은 대목은 어디인가요?'],
       },
-      { heldAt: iso(2026, 6, 15), memo: '석 달째 정액 상환이 이어졌다. 비상금 적립도 시작해보고 싶다고 해서 다음 회차에 목표를 함께 검토하기로 했다.' },
+      { heldAt: iso(2026, 6, 15), memo: '석 달 연속 정액 상환이 이어졌다. 비상금을 모으고 싶다는 이야기를 먼저 꺼냈다.' },
     ],
-    futureSchedules: [{ scheduledAt: iso(2026, 7, 21, 4), goalLinks: ['repay'], customQuestions: ['적립 목표를 새로 잡을지 이야기해봅시다'] }],
+    futureSchedules: [{ scheduledAt: iso(2026, 8, 3, 4), goalLinks: ['repay'], customQuestions: ['적립을 새 목표로 넣을지 함께 정해봅시다'] }],
   },
   // ── 2 (ai00, plateau, 목표1, 정기2, resolvedActions2, 미래일정) ───────────────
   {
     name: '이하은', phone: phone(2), email: email(2), assigneeUserId: COUNSELOR_IDS.ai00,
     intakeAt: iso(2026, 5, 11), consent: { recordingAi: true }, trajectory: 'plateau',
     goals: [{ key: 'attend', title: '멘토링에 월 2회 참석한다' }],
-    intakeMemo: '온라인 판매를 준비 중이나 어디서부터 손대야 할지 막막해한다. 멘토링을 통해 실행 순서를 잡는 것을 첫 목표로 삼았다.',
+    intakeMemo: '손뜨개 소품을 온라인에 올려 팔아보려 하지만 어디부터 손대야 할지 모르겠다고 한다. 계획을 혼자 세우다 지쳤다고 해, 멘토링에 꾸준히 나가는 것을 첫 목표로 잡았다.',
     regulars: [
-      { heldAt: iso(2026, 6, 1), memo: '멘토링에는 두 번 다 참석했다. 다만 배운 내용을 실제로 적용하는 단계에서 멈춰 있어 부담을 느낀다.' },
-      { heldAt: iso(2026, 6, 22), memo: '참석은 유지되고 있으나 성과 체감이 낮아 동기가 떨어진 모습이다. 작은 실행 과제를 쪼개 주기로 했다.' },
+      { heldAt: iso(2026, 6, 1), memo: '두 번 다 참석했다. 다만 배운 것을 자기 물건에 적용하는 단계에서 막혀 부담스러워한다.' },
+      {
+        heldAt: iso(2026, 6, 22), memo: '참석은 지키고 있으나 매출로 이어지지 않아 의욕이 눈에 띄게 떨어졌다. 과제를 한 주에 하나씩으로 줄였다.',
+        customQuestions: ['이번 달 멘토링에서 바로 써먹은 것이 하나라도 있었나요?'],
+      },
     ],
     resolvedActions: [
       { description: '멘토가 추천한 상품 등록 절차 문서를 함께 읽는다', owner: 'counselor', dueDate: '2026-06-05' },
       { description: '판매 채널 후보 3곳을 비교해 온다', owner: 'beneficiary', dueDate: '2026-06-18' },
     ],
-    futureSchedules: [{ scheduledAt: iso(2026, 7, 19, 5) }],
+    futureSchedules: [{ scheduledAt: iso(2026, 8, 4, 5), customQuestions: ['판매 채널을 한 곳으로 좁혀볼지 이야기해봅시다'] }],
   },
   // ── 3 (ai00, improving, 목표3, 정기4, 목표교체 afterSession2, 미래일정) ─────────
   {
@@ -178,18 +181,21 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
       { key: 'save', title: '비상금 50만원을 적립한다' },
       { key: 'sales', title: '주간 매출을 기록해 흐름을 파악한다' },
     ],
-    intakeMemo: '중고 거래 기반 소매를 하며 부채와 생활비가 뒤섞여 있어 구분이 어렵다. 상환·적립·매출 세 축을 나눠 관리하기로 정리했다.',
+    intakeMemo: '중고 물품을 매입해 되파는 일을 한다. 생활비와 사업비가 한 통장에서 섞여 얼마를 버는지 본인도 모르는 상태다. 상환·적립·매출 세 갈래로 나눠 관리하기로 정리했다.',
     regulars: [
-      { heldAt: iso(2026, 4, 20), memo: '상환 계좌를 분리하니 관리가 한결 수월해졌다. 매출 기록도 시작했다.' },
-      { heldAt: iso(2026, 5, 11), memo: '적립은 아직 어렵지만 상환과 매출 기록은 자리잡았다. 적립 방식을 현실적으로 다시 잡기로 했다.', goalLinks: ['save'] },
-      { heldAt: iso(2026, 6, 1), memo: '매출 흐름이 눈에 들어오면서 비수기 대비 감각이 생겼다. 매출 기록 목표는 사실상 달성돼 새 목표로 전환하기로 합의했다.' },
-      { heldAt: iso(2026, 6, 22), memo: '재고 회전 관리로 목표를 옮긴 뒤 실행이 구체화됐다. 상환·적립도 안정적이다.' },
+      { heldAt: iso(2026, 4, 20), memo: '상환용 통장을 따로 만들자 관리가 한결 쉬워졌다. 매출도 그날그날 적기 시작했다.' },
+      { heldAt: iso(2026, 5, 11), memo: '적립까지는 아직 손이 못 미치지만 상환과 매출 기록은 자리를 잡았다. 적립 금액을 현실적으로 낮춰 다시 잡기로 했다.', goalLinks: ['save'] },
+      { heldAt: iso(2026, 6, 1), memo: '매출 흐름이 눈에 들어오면서 비수기를 미리 대비하게 됐다. 기록은 이미 습관이 되어 목표를 바꾸자는 이야기가 본인에게서 나왔다.' },
+      {
+        heldAt: iso(2026, 6, 22), memo: '재고 회전으로 목표를 옮긴 뒤 할 일이 구체적이 됐다. 상환·적립 모두 흔들림이 없다.',
+        customQuestions: ['안 팔리고 오래 남는 물건은 주로 어떤 종류인가요?'],
+      },
     ],
     goalReplacement: {
       afterSession: 3, closeGoalKey: 'sales', reason: '매출 기록 습관이 정착되어 재고 회전 관리로 목표를 전환',
       newGoal: { key: 'stock', title: '주간 재고 회전율을 점검해 과잉 매입을 줄인다', scaleCriteria: SAVINGS_SCALE },
     },
-    futureSchedules: [{ scheduledAt: iso(2026, 7, 23, 3), goalLinks: ['repay', 'save'] }],
+    futureSchedules: [{ scheduledAt: iso(2026, 8, 6, 3), goalLinks: ['repay', 'save'] }],
   },
   // ── 4 (ai00, decline, 목표2, 정기2, 인라인액션·플래그 debt) ─────────────────────
   {
@@ -199,15 +205,19 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
       { key: 'repay', title: '카드 리볼빙 잔액을 매달 10만원씩 줄인다' },
       { key: 'budget', title: '주간 생활비 예산을 세워 지킨다' },
     ],
-    intakeMemo: '리볼빙과 현금서비스가 얽혀 이자 부담이 크다. 우선 잔액을 조금씩 줄이는 것과 생활비 통제를 목표로 잡았다.',
+    intakeMemo: '리볼빙과 현금서비스가 겹쳐 매달 이자만 빠져나간다. 잔액을 조금씩이라도 줄이는 것과, 생활비를 손에 쥐고 쓰는 것을 목표로 삼았다.',
     regulars: [
       {
-        heldAt: iso(2026, 6, 3), memo: '예상치 못한 병원비로 이번 달 상환이 어려웠고 리볼빙이 다시 늘었다. 지출 우선순위를 함께 다시 짰다.',
-        actionItems: [{ description: '고정지출 항목을 정리해 다음 상담 때 가져온다', owner: 'beneficiary', dueDate: '2026-07-19' }],
+        heldAt: iso(2026, 6, 3), memo: '갑작스러운 병원비로 이번 달 상환을 넘겼고 리볼빙이 다시 늘었다. 무엇부터 낼지 순서를 함께 다시 적었다.',
+        actionItems: [{ description: '고정지출 항목을 정리해 다음 상담 때 가져온다', owner: 'beneficiary', dueDate: '2026-08-05' }],
         flags: [{ flagType: 'debt_deterioration', quote: '이번 달은 도저히 못 갚아서 리볼빙으로 또 넘겼어요.' }],
       },
-      { heldAt: iso(2026, 6, 24), memo: '생활비 예산은 세웠으나 지키지 못한 주가 많았다. 부채 규모가 커지며 심리적 위축이 보인다.' },
+      {
+        heldAt: iso(2026, 6, 24), memo: '예산은 세웠지만 지킨 주가 절반이 안 된다. 빚이 늘면서 말수가 눈에 띄게 줄었다.',
+        customQuestions: ['예산을 넘긴 주에는 주로 어떤 지출이 있었나요?'],
+      },
     ],
+    futureSchedules: [{ scheduledAt: iso(2026, 8, 5, 6), goalLinks: ['budget'] }],
   },
 ];
 
@@ -220,6 +230,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
  * - 목표 교체(D12): 1케이스(3) — closeGoal successor 로 scale_criteria JSON 저장.
  * - 미해결 인라인 액션: 2건(1·4). 해결된 액션: 2건(2×2).
  * - confirmed 플래그 1건: 인라인 1(4 debt) — 브리핑 리스크 배너(D9)의 유일한 시연 케이스.
- * - 향후 예정 일정 3건: 1·2·3 (전원 ai00 담당).
+ * - 예정 일정 4건(08-03·04·05·06): 사람당 정확히 1건 — 일정 화면에서 같은 사람이 여러 줄로
+ *   반복되지 않게 한다(2026-07-31 Q 지적: 프리뷰에서 한 명이 일정 9건으로 아홉 번 나왔다).
  * - 세션: 인테이크 4 + 정기 11 = 15. 세션당 sessions_manual_submission_audit 트리거 감사 15건.
  */

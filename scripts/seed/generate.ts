@@ -7,7 +7,7 @@
  *   2) 방출 필터(INSERT/UPDATE만) + 파라미터 인라인 → seed.sql 조립
  *   3) unstable_splitSqlQuery 로 재분할해 문장 수 일치 assert(이스케이프 버그 검출)
  *   4) 신선한 두 번째 DB 에 재생 → 캡처 DB 와 diff + 복호화 + 불변식 검증
- *   5) 산출물 5종 기록(out/, gitignore): seed.sql·manifest.json·verify.sql·
+ *   5) 산출물 6종 기록(out/, gitignore): seed.sql·preload.sql·manifest.json·verify.sql·
  *      delete-best-effort.sql·capture-report.txt
  */
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -21,12 +21,12 @@ import { inlineSql, firstKeyword, type SqlParam } from './sql-literal';
 import { validateSeed, type EmittedStatement } from './validate';
 import type { WriteEntry } from './capture';
 import { PARTICIPANTS, VIRTUAL_COUNSELORS } from './content';
-import { OPERATIONAL_AUDIT_BASELINE, ORG_ID } from './preload-data';
+import { OPERATIONAL_AUDIT_BASELINE, ORG_ID, preloadStatements } from './preload-data';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
 
 /** 향후 7일 예정 일정 판정 하한(브리핑에 바로 뜨는 기준). */
-const UPCOMING_FROM = '2026-07-19T00:00:00.000Z';
+const UPCOMING_FROM = '2026-08-01T00:00:00.000Z';
 
 interface EmittedRich extends EmittedStatement {
   participantId: string;
@@ -61,6 +61,27 @@ function emitStatements(writes: readonly WriteEntry[]): EmittedRich[] {
       params: write.params,
     };
   });
+}
+
+/**
+ * 프리로드(기관 설정 · 활성 users · beneficiaries 스텁)를 인라인 SQL 로 직렬화한다.
+ *
+ * seed.sql 은 게이트웨이가 방출한 쓰기만 담아서 계정을 담지 않는다 — 이미 계정이 있는 운영
+ * D1 에 얹는 것이 원래 용도이기 때문이다. 반면 **빈 DB 를 처음부터 세울 때는**(마이그레이션
+ * 직후의 미리보기 D1) 이 파일을 seed.sql 보다 먼저 적용해야 한다. 안 그러면 로그인 신원
+ * (PREVIEW_ACTOR_EMAIL 이 가리키는 상담사)이 없어 화면이 아예 열리지 않는다.
+ */
+function assemblePreloadSql(): string {
+  const header = [
+    '-- CCC 프리로드 (기관 설정 · 활성 users · beneficiaries 스텁)',
+    '-- 빈 DB 전용: 마이그레이션 적용 직후, seed.sql 보다 **먼저** 적용한다.',
+    '-- 이미 계정이 있는 DB(운영)에는 적용하지 않는다 — UNIQUE 충돌로 실패한다.',
+    '',
+  ].join('\n');
+  const body = preloadStatements()
+    .map((statement) => `${inlineSql(statement.sql, statement.params as SqlParam[])};`)
+    .join('\n');
+  return `${header}${body}\n`;
 }
 
 function assembleSeedSql(emitted: readonly EmittedRich[]): string {
@@ -290,6 +311,7 @@ describe('operational seed generation', () => {
       await mkdir(OUT_DIR, { recursive: true });
       await Promise.all([
         writeFile(join(OUT_DIR, 'seed.sql'), seedSql, 'utf8'),
+        writeFile(join(OUT_DIR, 'preload.sql'), assemblePreloadSql(), 'utf8'),
         writeFile(join(OUT_DIR, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8'),
         writeFile(join(OUT_DIR, 'verify.sql'), buildVerifySql(emitted, summarySessions), 'utf8'),
         writeFile(join(OUT_DIR, 'delete-best-effort.sql'), buildDeleteBestEffort(perParticipant), 'utf8'),
