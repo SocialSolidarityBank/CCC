@@ -41,6 +41,14 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
   PREVIEW_ACCESS_CODE?: string;
   /** 미리보기 세션이 신원으로 쓸 고정 데모 실무자 이메일(users 디렉터리, preview-gate.ts). */
   PREVIEW_ACTOR_EMAIL?: string;
+  /**
+   * 미리보기 **관리자 시점** 지정 코드(Workers 시크릿, preview-gate.ts). 값은 로그·응답에
+   * 싣지 않는다(이름만 커밋). 설정하지 않으면 관리자 경로 자체가 없다 — 팀원용 실무자 코드만
+   * 동작하므로, 이 값을 안 넣는 것이 곧 "관리자 시점 없음" 이다.
+   */
+  PREVIEW_ADMIN_ACCESS_CODE?: string;
+  /** 위 관리자 코드로 들어왔을 때 쓸 기관 관리자 이메일(users 디렉터리, preview-gate.ts). */
+  PREVIEW_ADMIN_ACTOR_EMAIL?: string;
 }
 
 export class ActorAuthenticationError extends Error {}

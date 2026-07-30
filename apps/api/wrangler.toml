@@ -85,6 +85,11 @@ PREVIEW_MODE = "true"
 # 미리보기 세션이 신원으로 쓸 고정 데모 상담사(가상 시드 users 디렉터리의 활성 상담사).
 # ai00 은 시드에서 담당 참여자가 많아 브리핑·일정 화면이 실제 데이터로 채워진다.
 PREVIEW_ACTOR_EMAIL = "ai00@ggbss.or.kr"
+# 관리자 시점 테스터(2026-07-30 Q 요청). 위 실무자 코드와 **다른 코드**로 들어오면 이 신원이 된다
+# — 팀원은 실무자 화면을 그대로 보고, 관리자 화면은 코드를 아는 사람만 본다.
+# 짝인 시크릿 PREVIEW_ADMIN_ACCESS_CODE 를 넣지 않으면 이 경로 자체가 없다(둘 다 있어야 열린다).
+#   pnpm exec wrangler secret put PREVIEW_ADMIN_ACCESS_CODE --env preview
+PREVIEW_ADMIN_ACTOR_EMAIL = "account@bss.or.kr"
 
 # 크론 트리거는 미리보기에서 비활성. 주의: triggers 를 생략하면 top-level crons 가
 # 상속되므로(첫 배포에서 실측), 빈 배열로 명시해 상속을 끊는다.
