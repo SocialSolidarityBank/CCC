@@ -2047,6 +2047,8 @@ describe('canonical participant API routes', () => {
         // D24: PII 미기입 당사자는 실명·연락처 null.
         participantName: null,
         participantPhone: null,
+        // CCC-19: 완료 회차의 세션 id. 예정이면 null(스키마 CHECK 가 보장한다).
+        completedSessionId: null,
       }],
     });
     await createCounselingSchedule(t.env, canonicalCounselor, {

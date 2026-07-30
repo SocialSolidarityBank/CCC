@@ -33,7 +33,9 @@ function programMenu(programType: ParticipantProgramType): NavItem[] {
   return [
     { label: '다가오는 일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
     // '전체 일정'은 CCC-19 가 만든다. 여기서는 메뉴 자리만 잡는다.
-    { label: '전체 일정', href: `/programs/${programType}/schedule/all`, icon: 'calendar', soon: true },
+    // '준비 중' 배지는 CCC-19 로 화면이 생기면서 뗐다 — 화면이 있는 메뉴에 남겨 두면
+    // 안 만들어진 것으로 읽힌다.
+    { label: '전체 일정', href: `/programs/${programType}/schedule/all`, icon: 'calendar' },
     { label: '당사자', href: '/participants', icon: 'participants' },
   ];
 }

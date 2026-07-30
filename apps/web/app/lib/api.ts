@@ -269,6 +269,10 @@ export interface TodaySchedule {
   // D24·ADR-0005: 담당·admin 카드에 실린 실명·연락처(서버 복호화). 미기입이면 null.
   participantName: string | null;
   participantPhone: string | null;
+  /** 상담 유형(인테이크/기본 상담). 전체 일정의 유형 칩이 쓴다(D47 계열 칩). */
+  sessionKind: SessionKind;
+  /** 완료 회차의 세션 id. 전체 일정이 지난 일정을 그 회차로 보낸다. 완료가 아니면 null. */
+  completedSessionId: string | null;
 }
 
 export interface TodaySchedules {
@@ -1232,6 +1236,22 @@ export async function getTodaySchedules(date?: string): Promise<TodaySchedules> 
 export async function getUpcomingSchedules(date?: string): Promise<TodaySchedules> {
   const suffix = date === undefined ? '' : `?date=${encodeURIComponent(dateOnly(date))}`;
   return requestJson<TodaySchedules>(`/schedules/upcoming${suffix}`);
+}
+
+function monthOnly(value: string): string {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new ApiError('invalid_request');
+  return value;
+}
+
+/**
+ * 한 달 창(전체 일정 화면, CCC-19). 상태를 거르지 않아 지난 일정(완료·취소·불참)도 함께
+ * 내려온다. month 를 생략하면 **서버가** 기관 시간대의 이번 달을 정한다 — 화면이 기본 달을
+ * 계산하려면 기관 시간대를 먼저 알아야 하는데 그 값은 서버에만 있다. 응답의 `date` 가 그
+ * 달의 1일이라 화면은 거기서 달을 읽는다.
+ */
+export async function getMonthSchedules(month?: string): Promise<TodaySchedules> {
+  const suffix = month === undefined ? '' : `?month=${encodeURIComponent(monthOnly(month))}`;
+  return requestJson<TodaySchedules>(`/schedules/month${suffix}`);
 }
 
 /**

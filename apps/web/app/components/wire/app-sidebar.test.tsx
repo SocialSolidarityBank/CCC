@@ -109,17 +109,14 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     expect(links[1]?.href).toBe(`/programs/${type}/schedule/all`);
   });
 
-  it("전체 일정에만 '준비 중' 배지가 붙고 나머지 메뉴에는 없다 (CCC-23)", () => {
+  // 구 CCC-23 은 '전체 일정에만 준비 중 배지가 붙는다'를 고정했다. CCC-19 로 그 화면이
+  // 생기면서 배지를 뗐으므로, 단정을 뒤집어 **어느 메뉴에도 붙지 않는 것**을 고정한다 —
+  // 배지가 남으면 있는 화면이 없는 것으로 읽힌다.
+  it("'준비 중' 배지는 어느 메뉴에도 붙지 않는다 (CCC-19 — 전체 일정 화면 완성)", () => {
     const { container } = render(<AppSidebar />);
-    const badges = Array.from(container.querySelectorAll('.navigation-soon'));
-    expect(badges).toHaveLength(1);
-    expect(badges[0]!.textContent).toBe('준비 중');
-    // 배지는 전체 일정 링크 안에 있다.
-    const allLink = container.querySelector('a[href$="/schedule/all"]')!;
-    expect(allLink.querySelector('.navigation-soon')).not.toBeNull();
-    // 다가오는 일정·당사자에는 없다.
-    expect(container.querySelector('a[href$="/schedule"] .navigation-soon')).toBeNull();
-    expect(container.querySelector('a[href="/participants"] .navigation-soon')).toBeNull();
+    expect(container.querySelectorAll('.navigation-soon')).toHaveLength(0);
+    // 메뉴 자체는 그대로 있다(사라진 것이 아니라 배지만 뗀 것이다).
+    expect(container.querySelector('a[href$="/schedule/all"]')).not.toBeNull();
   });
 
 });
