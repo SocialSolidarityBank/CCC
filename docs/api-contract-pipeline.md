@@ -1,11 +1,13 @@
-# Mac Mini 파이프라인 API 계약
+# 처리 장비 파이프라인 API 계약
 
-이 문서는 Mac Mini가 사례관리 API와 통신할 때 지켜야 하는 1단계-b 계약이다. Mac Mini는 D1과 R2에 직접 연결하지 않고, 항상 Workers API만 호출한다.
+이 문서는 처리 장비가 사례관리 API와 통신할 때 지켜야 하는 1단계-b 계약이다. 처리 장비는 D1과 R2에 직접 연결하지 않고, 항상 Workers API만 호출한다. (용어: 이 문서가 "Mac Mini"라 부르던 기계가 **처리 장비**다 — 2026-07-31 D51, CONTEXT.md 참조.)
+
+> `yellow` **미반영 — 텍스트 일감(D51·ADR-0022).** 아래 계약은 **녹음 일감**만 다룬다. 오디오 없는 회차의 텍스트 AI 작업(핵심 한 줄·AI 제안·내용 불일치)을 위한 큐·상태·엔드포인트는 구현과 함께 이 문서에 추가한다. 지금 `GET /pipeline/jobs`는 `audio_r2_key IS NOT NULL`로 걸러 수기 메모 회차를 아예 돌려주지 않는다.
 
 ## 범위와 인증
 
 - 운영 환경에서는 Workers가 Cloudflare Access가 서명한 JWT(`Cf-Access-Jwt-Assertion` 헤더)를 검증한 뒤 행위자를 판별한다. 검증 내용: RS256 서명(팀 도메인 JWKS `https://<team>/cdn-cgi/access/certs`, 모듈 캐시 ~1h·미지의 kid면 재조회) + `iss = https://<ACCESS_TEAM_DOMAIN>` + `aud`에 `ACCESS_AUD` 포함 + `exp`/`nbf`(±60s). 구현: `apps/api/src/access-jwt.ts`(검증) + `apps/api/src/identity.ts`(행위자 판별).
-- 검증된 신원은 반드시 **users 디렉터리**에 있어야 한다. 사람 로그인은 JWT의 `email`, 서비스 토큰(Mac Mini)은 `common_name`으로 조회한다. 디렉터리에 없거나 비활성(`active=0`)이면 Access를 통과했더라도 `403`(앱 프로비저닝 안 됨). 행위자의 `{userId, orgId, role}`은 이 디렉터리 행에서 나온다(자세한 건 아래 "사용자 디렉터리 관리").
+- 검증된 신원은 반드시 **users 디렉터리**에 있어야 한다. 사람 로그인은 JWT의 `email`, 서비스 토큰(처리 장비)은 `common_name`으로 조회한다. 디렉터리에 없거나 비활성(`active=0`)이면 Access를 통과했더라도 `403`(앱 프로비저닝 안 됨). 행위자의 `{userId, orgId, role}`은 이 디렉터리 행에서 나온다(자세한 건 아래 "사용자 디렉터리 관리").
 - fail closed: `ACCESS_TEAM_DOMAIN`·`ACCESS_AUD` 환경 변수가 설정되기 전(계정 개설 전, D16)에는 운영 API가 전부 `401`로 잠긴다. 이 두 값은 Access 애플리케이션 생성 후 `wrangler.toml [env.production.vars]`에 채운다. 서명·`iss`·`aud`·`exp` 검증 실패와 헤더 누락도 `401`이다.
 - 로컬 개발에서는 `LOCAL_ACTOR_HEADER_MODE=true`로만 동작한다. 이때는 `X-CCC-User-Id`, `X-CCC-Org-Id`, `X-CCC-Role: service` 헤더를 명시한다(users 디렉터리 조회 없이 헤더를 그대로 신뢰한다).
 - `admin`, `counselor` 역할은 작업 조회와 산출물 저장을 호출할 수 없다. 인증 정보가 없으면 `401`, 서비스 역할이 아니면 `403`을 응답한다.
@@ -18,7 +20,7 @@
 | 상태 | 의미 |
 | --- | --- |
 | `none` | 녹음 작업이 등록되지 않았다. |
-| `uploaded` | 상담사가 녹음 업로드를 등록했다. Mac Mini가 폴링할 수 있다. |
+| `uploaded` | 상담사가 녹음 업로드를 등록했다. 처리 장비가 폴링할 수 있다. |
 | `processing` | 처리 중 상태로 예약되어 있다. 2단계에서 작업 시작 기록을 연결한다. |
 | `review_ready` | 전사, 대조 3종, 감정 지표, AI 산출물이 저장돼 상담사 검토를 기다린다. |
 | `approved` | 상담사가 승인해 AI 산출물이 공식 기록이 됐다. |
@@ -29,7 +31,7 @@
 
 ### `GET /pipeline/jobs`
 
-`uploaded` 또는 `processing` 상태이며 오디오 등록이 있는 작업을 오래된 순서로 돌려준다. 호출할 때마다 감사 로그에 `poll_pipeline`이 기록된다. 이 감사 로그의 가장 최근 시각이 D8의 "Mac Mini가 마지막으로 폴링한 시각" 데이터 원천이다. 아래 `GET /pipeline/health`와 스케줄 워치독이 이 기록을 기준으로 무폴링을 판정한다(기본 6시간, `PIPELINE_STALE_HOURS`로 조정).
+`uploaded` 또는 `processing` 상태이며 오디오 등록이 있는 작업을 오래된 순서로 돌려준다. 호출할 때마다 감사 로그에 `poll_pipeline`이 기록된다. 이 감사 로그의 가장 최근 시각이 D8의 "처리 장비가 마지막으로 폴링한 시각" 데이터 원천이다. 아래 `GET /pipeline/health`와 스케줄 워치독이 이 기록을 기준으로 무폴링을 판정한다(기본 6시간, `PIPELINE_STALE_HOURS`로 조정).
 
 응답 예시:
 
@@ -48,7 +50,7 @@
 
 ### `GET /pipeline/jobs/:id/audio`
 
-서비스 역할이 등록된 녹음 원본을 내려받는 중계 경로다(2단계-a 구현). Mac Mini에 R2 자격 증명이나 버킷 직접 접근 권한을 주지 않고, Workers가 R2에서 읽어 바이트만 흘려준다.
+서비스 역할이 등록된 녹음 원본을 내려받는 중계 경로다(2단계-a 구현). 처리 장비에 R2 자격 증명이나 버킷 직접 접근 권한을 주지 않고, Workers가 R2에서 읽어 바이트만 흘려준다.
 
 - gateway가 서비스 역할·조직 일치·오디오 등록 여부를 확인한 뒤, 조회 직전 audit_log에 `download_audio`를 기록한다(D14: 오디오 열람은 전건 감사).
 - 성공하면 `200`으로 저장된 `Content-Type`(업로드 때 지정한 오디오 MIME)과 `Cache-Control: no-store` 헤더로 원본 바이트를 스트리밍한다. 응답에 `audio_r2_key`는 절대 싣지 않는다.
@@ -67,7 +69,7 @@
 
 ### `POST /pipeline/jobs/:id/artifacts`
 
-Mac Mini가 로컬에서 전사와 2차 NER 마스킹을 끝낸 뒤 호출한다. 등록된 PII 값의 1차 치환은 gateway 안에서 한 번 더 수행한다. 본문은 아래 필드를 모두 포함해야 한다.
+처리 장비가 로컬에서 전사와 2차 NER 마스킹을 끝낸 뒤 호출한다. 등록된 PII 값의 1차 치환은 gateway 안에서 한 번 더 수행한다. 본문은 아래 필드를 모두 포함해야 한다.
 
 ```json
 {
@@ -135,7 +137,7 @@ Mac Mini가 로컬에서 전사와 2차 NER 마스킹을 끝낸 뒤 호출한다
 
 ## 녹음 업로드 (상담사·관리자)
 
-Mac Mini가 아니라 웹앱(상담사·관리자)이 호출하는 경로다. 파이프라인 작업이 여기서 만들어진다.
+처리 장비가 아니라 웹앱(상담사·관리자)이 호출하는 경로다. 파이프라인 작업이 여기서 만들어진다.
 
 ### `PUT /sessions/:id/audio`
 
@@ -163,7 +165,7 @@ Mac Mini가 아니라 웹앱(상담사·관리자)이 호출하는 경로다. �
 { "email": "counselor@example.org", "role": "counselor", "userId": "optional-explicit-id" }
 ```
 
-- `role`은 `admin` · `counselor` · `service` 중 하나. 서비스 토큰(Mac Mini)은 `service`로, `email`에 토큰의 client id / common_name을 넣는다.
+- `role`은 `admin` · `counselor` · `service` 중 하나. 서비스 토큰(처리 장비)은 `service`로, `email`에 토큰의 client id / common_name을 넣는다.
 - 이메일이 처음이면 새로 만든다(`userId`를 주면 그 값을, 없으면 UUID를 id로 쓴다). 이미 있으면 역할을 갱신하고 `active=1`로 재활성화한다(이때 `userId` 인자는 무시 — 이메일이 신원을 특정한다).
 - 마지막 활성 관리자를 관리자가 아닌 역할로 강등하려 하면 `400`. 다른 조직 소속 이메일은 `403`.
 - 성공 시 `201`로 갱신된 사용자 행을 돌려준다. 형식 오류는 `400`.

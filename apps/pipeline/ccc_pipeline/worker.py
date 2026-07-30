@@ -18,6 +18,7 @@ from .artifacts import build_artifacts
 from .config import Config
 from .emotion import aggregate_scores
 from .speaker_mapping import BENEFICIARY, assign_speakers, estimate_roles, format_transcript
+from .transcribe import build_engine, transcribe_audio
 
 logger = logging.getLogger("ccc_pipeline")
 
@@ -43,7 +44,6 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
     # ML 모듈은 여기서만 임포트한다 — 미설치 환경에서도 워커 모듈 자체는 로드 가능하게.
     from .diarize import diarize  # noqa: PLC0415
     from .emotion import build_speech_scorer, build_text_scorer  # noqa: PLC0415
-    from .transcribe import transcribe  # noqa: PLC0415
 
     work_dir = config.work_dir / f"{job_id}-{uuid.uuid4().hex[:8]}"
     started = time.monotonic()
@@ -51,14 +51,29 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         audio_path = client.download_audio(job_id, work_dir / "audio.bin")
         logger.info("job %s: audio downloaded", job_id)
 
-        segments = transcribe(str(audio_path), config.whisper_model)
+        # 조각 분할 + 반복 검사를 거친다 (D53). 반복이 남으면 그 구간은 접히고
+        # 경고가 전사에 실려 승인 화면에서 실무자가 본다 — 조용히 통과시키지 않는다.
+        transcription = transcribe_audio(
+            str(audio_path),
+            work_dir,
+            build_engine(config.stt_engine, config.whisper_model),
+            max_chunk_seconds=config.stt_max_chunk_seconds,
+            min_chunk_seconds=config.stt_min_chunk_seconds,
+            repeat_threshold=config.stt_repeat_threshold,
+        )
+        segments = transcription.segments
+        if not transcription.reliable:
+            logger.warning("job %s: transcript incomplete — repetition runs=%d", job_id, len(transcription.warnings))
         turns = diarize(str(audio_path), config.hf_token)
         segments = assign_speakers(segments, turns)
         roles = estimate_roles(segments)
         logger.info("job %s: transcribed segments=%d speakers=%d", job_id, len(segments), len(roles))
 
         # 감정은 수혜자 발화만 (D11). 점수는 숫자만 (R4).
-        beneficiary_segments = [s for s in segments if roles.get(s.speaker or "") == BENEFICIARY]
+        # 경고 줄은 사람 발화가 아니므로 감정 집계에서 뺀다 (D53 · R4).
+        beneficiary_segments = [
+            s for s in segments if not s.warning and roles.get(s.speaker or "") == BENEFICIARY
+        ]
         text_scores = build_text_scorer()([s.text for s in beneficiary_segments]) if beneficiary_segments else []
         speech_scores = (
             build_speech_scorer()(str(audio_path), [(s.start, s.end) for s in beneficiary_segments])
