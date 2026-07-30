@@ -46,6 +46,13 @@ infisical run --projectId=a7c44b37-a885-4c62-98cd-cbc8a9810de9 --env=prod -- \
   명시 실패 메시지를 낸다.
 - green 이면 `scripts/seed/out/` 에 산출물 5종이 생성된다. `capture-report.txt` 의 문장 수와
   검증 결과를 확인한다. `manifest.json` 의 `audit.expectedAfterSeed` 를 기록해 둔다.
+- **날짜는 기준일에서 상대 계산된다** — 기본 기준일은 시드를 만드는 날(KST)이라, 만들 때마다
+  '다가오는 상담'이 항상 채워진다. 어느 기준일로 만들어졌는지는 `manifest.json` 의
+  `anchorDate` 에 적히고, 과거 산출물을 그대로 재현하려면 그 값을 넣는다:
+  `SEED_ANCHOR_DATE=2026-07-19 pnpm exec vitest run --config scripts/seed/vitest.config.ts`.
+- `yellow` **이미 넣은 DB 는 재생성으로 고쳐지지 않는다** — 기존 예정 일정을 앞으로 당기는
+  일은 `pnpm seed:reschedule`(`scripts/seed/reschedule-upcoming.mjs`)이 맡는다. UPDATE SQL 만
+  만들어 내고 적용은 사람이 한다.
 
 ## 3. 운영 적용 (원자적) + 스모크 + 롤백 대비
 
@@ -63,10 +70,10 @@ wrangler d1 execute ccc --env production --remote --file ../../scripts/seed/out/
 
 - `verify.sql` 결과를 `manifest.json` 기대치와 대조한다(참여자 +4, 세션 +15, 동의 +4,
   vault key_version=2 +4, audit 총합 = 기준선 162 + 방출 audit + 세션 수).
-- 라이브 스모크: 브리핑/일정 화면에서 담당자 계정으로 실명 렌더 + 예정 일정(ai00 담당 3건)이
-  보이는지 확인한다. 주의: 시드의 예정 일정은 2026-07-19~23 으로 하드코딩돼 있어, 그 주가
-  지나면 '다가오는 상담'(향후 7일) 섹션은 비어 보인다 — 날짜를 옮기려면 content.ts 의
-  futureSchedules 와 generate.ts 의 UPCOMING_FROM 을 함께 고친다.
+- 라이브 스모크: 브리핑/일정 화면에서 담당자 계정으로 실명 렌더 + 예정 일정(ai00 담당 4건)이
+  보이는지 확인한다. 예정 일정은 **기준일 +3~+6 일**이라 시드를 만든 날 기준으로 항상
+  '다가오는 상담'(향후 7일) 안에 들어온다 — 날짜가 하드코딩이던 시절의 "그 주가 지나면
+  비어 보인다" 문제는 없어졌다.
 - 실패 시 롤백: `delete-best-effort.sql` 은 자식 테이블만 부분 정리한다. audit_log·
   participant_consent_records 는 append-only, support_cases·beneficiaries 는 동의 FK 로
   삭제 불가하므로 **완전 롤백은 (a)의 Time Travel restore 로만** 한다:
