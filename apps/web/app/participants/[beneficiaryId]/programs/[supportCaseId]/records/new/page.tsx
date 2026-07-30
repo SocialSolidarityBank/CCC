@@ -444,7 +444,6 @@ export default async function NewRecordPage({
       <input type="hidden" name="supportCaseId" value={activeSupportCaseId} />
       <input type="hidden" name="submissionId" value={submissionId} />
       <RecordOnepage
-        goals={goals}
         schedules={schedules}
         openActionItems={openActionItems}
         latestLifeAreaSnapshot={latestLifeAreaSnapshot}

@@ -1,59 +1,40 @@
-import Link from 'next/link';
-import { MetaRow } from '../../../../../components/wire/meta-row';
+import { GridContainer } from '../../../../../components/wire/grid-container';
+import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../components/wire/wire-card';
+import { getDisplayLabels } from '../../../../../lib/display-labels';
 import {
   ApiError,
+  getParticipantDetail,
   listSupportCaseRecords,
   type CounselingScheduleStatus,
-  type FlagType,
-  type SupportCaseRecord,
-  type SupportCaseRecordGoal,
+  type ParticipantDetail,
   type SupportCaseRecords,
 } from '../../../../../lib/api';
+import { RecordHashOpener } from './record-hash-opener';
+import { RecordList, formatDateOnly, formatDateTime } from './record-list';
+
+// 상담 기록 — 회차 상세 (D47 · ADR-0019).
+//
+// 브리핑 영역 ②가 한 줄 목록이면 이 화면은 **그 줄을 펴서 보는 곳**이다. 그래서 기본은
+// 최신 1개만 펼치고 나머지는 같은 모양의 접힌 줄로 둔다.
+//
+// 이 화면에서 없앤 것(전부 확정 결정 이행, UI 훑기 R1~R3):
+//  * GAS 점수·'읽기 전용 목표' 카드 — D43(GAS·세부 목표 층 전체 보류)
+//  * 브레드크럼 — D35(비관례라 기각). 출구는 HERO 왼쪽 버튼이 갖는다
+//  * "당사자 ID firefly-001" 표기 — D31(가명 ID는 기계 식별자). 이름은 HERO 가 갖는다
+//
+// 표현·회차 번호는 record-list.tsx 가 갖는다. 여기는 fetch·스코프·머리만 맡는다.
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
 type ErrorKind = 'authentication_required' | 'access_or_not_found' | 'service_unavailable';
-type ActionOwner = SupportCaseRecord['actionItems'][number]['owner'];
-type FlagSource = SupportCaseRecord['flags'][number]['source'];
-type FlagReviewStatus = SupportCaseRecord['flags'][number]['reviewStatus'];
 type LoadResult<T> = { data: T; error: null } | { data: null; error: ErrorKind };
 
 const messages: Record<ErrorKind, string> = {
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 상담 기록을 확인하세요.',
   access_or_not_found: '요청한 상담 기록 정보를 확인할 수 없습니다. 접근 권한과 주소를 확인하세요.',
   service_unavailable: '상담 기록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.',
-};
-const channelLabels: Record<SupportCaseRecord['channel'], string> = {
-  in_person: '대면',
-  phone: '전화',
-  video: '화상',
-};
-const flagLabels: Record<FlagType, string> = {
-  crisis_utterance: '위기 발언',
-  contact_loss_risk: '연락 두절 위험',
-  housing_livelihood_shock: '주거·생계 급변',
-  debt_deterioration: '부채 악화',
-  repeated_noncompliance: '약속 불이행 반복',
-};
-const actionOwnerLabels: Record<ActionOwner, string> = {
-  counselor: '실무자',
-  beneficiary: '당사자',
-  org: '기관',
-};
-const flagSourceLabels: Record<FlagSource, string> = {
-  ai: 'AI 제안',
-  counselor: '실무자 기록',
-};
-const flagReviewStatusLabels: Record<FlagReviewStatus, string> = {
-  confirmed: '확인됨',
-  rejected: '제외됨',
-  pending: '검토 대기',
-};
-const goalStatusLabels: Record<SupportCaseRecordGoal['status'], string> = {
-  active: '진행 중',
-  closed: '종료됨',
 };
 const schedulePresentations: Record<CounselingScheduleStatus, { className: string; label: string; message: string }> = {
   scheduled: {
@@ -77,42 +58,6 @@ const schedulePresentations: Record<CounselingScheduleStatus, { className: strin
     message: '이 일정은 불참으로 처리되어 상담 기록으로 완료 처리할 수 없습니다.',
   },
 };
-
-function actionOwnerLabel(owner: ActionOwner): string {
-  const label = actionOwnerLabels[owner];
-  if (label === undefined) throw new Error('Record action item owner was invalid.');
-  return label;
-}
-
-function channelLabel(channel: SupportCaseRecord['channel']): string {
-  const label = channelLabels[channel];
-  if (label === undefined) throw new Error('Record channel was invalid.');
-  return label;
-}
-
-function flagLabel(flagType: FlagType): string {
-  const label = flagLabels[flagType];
-  if (label === undefined) throw new Error('Record flag type was invalid.');
-  return label;
-}
-
-function flagSourceLabel(source: FlagSource): string {
-  const label = flagSourceLabels[source];
-  if (label === undefined) throw new Error('Record flag source was invalid.');
-  return label;
-}
-
-function flagReviewStatusLabel(reviewStatus: FlagReviewStatus): string {
-  const label = flagReviewStatusLabels[reviewStatus];
-  if (label === undefined) throw new Error('Record flag review status was invalid.');
-  return label;
-}
-
-function goalStatusLabel(status: SupportCaseRecordGoal['status']): string {
-  const label = goalStatusLabels[status];
-  if (label === undefined) throw new Error('Record goal status was invalid.');
-  return label;
-}
 
 function schedulePresentation(status: CounselingScheduleStatus): { className: string; label: string; message: string } {
   const presentation = schedulePresentations[status];
@@ -154,71 +99,27 @@ async function load<T>(request: Promise<T>): Promise<LoadResult<T>> {
   }
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
-
 function Message({ code }: { code: ErrorKind | null }) {
   if (code === null) return null;
   return <p className="status risk" role="alert">{messages[code]}</p>;
 }
+
 function Notice({ code }: { code: string | undefined }) {
   if (code !== 'record_submission_processed') return null;
   return <p className="status" role="status" aria-live="polite">상담 기록 화면으로 이동했습니다. 아래 목록에서 제출 결과를 확인하세요.</p>;
 }
 
-function GoalContext({ goals }: { goals: SupportCaseRecordGoal[] }) {
-  return <aside className="note" aria-labelledby="record-goals-title">
-    <div>
-      <h2 id="record-goals-title">읽기 전용 목표</h2>
-      <p>상담 기록에서 목표를 만들거나 바꾸지 않습니다. 각 기록의 GAS는 아래 목표를 기준으로 실무자가 직접 남깁니다.</p>
-      {goals.length === 0 ? <p>등록된 목표가 없습니다.</p> : <ul>{goals.map((goal) => <li key={goal.id}>{goal.title} <span className="panel-meta">{goalStatusLabel(goal.status)}</span></li>)}</ul>}
-    </div>
-  </aside>;
-}
-
-function RecordCard({ record, recordError }: { record: SupportCaseRecord; recordError: boolean }) {
-  const title = <div className="wire-card-head">
-    <div>
-      <h2 id={`record-${record.id}`}>{record.kind === 'intake' ? '인테이크 기록' : '상담 기록'}</h2>
-      <p className="panel-meta"><MetaRow items={[formatDateTime(record.heldAt), channelLabel(record.channel)]} /></p>
-    </div>
-    <span className="status" data-record-kind={record.kind}>{record.kind === 'intake' ? '인테이크 공식 기록' : '공식 기록'}</span>
-  </div>;
-
-  return <WireCard as="article" labelledBy={`record-${record.id}`} title={title}>
-    {/* 불일치 처리 '기록 오류'의 흔적 (D45 · ADR-0018 · CCC-42). 원본은 손대지 않고 표시만
-        붙여 다음 열람자의 오해를 막는다 — 정정이 필요하면 실무자가 따로 기록한다. */}
-    {recordError && <p className="note" role="note">
-      이 기록과 관련된 내용 불일치가 <strong>기록 오류</strong>로 처리되었습니다. 아래 내용은 원본 그대로입니다.
-    </p>}
-    <section className="wire-card-section" aria-labelledby={`memo-${record.id}`}>
-      <h3 id={`memo-${record.id}`}>수기 메모</h3>
-      <p>{record.memo}</p>
-    </section>
-
-    <section className="wire-card-section" aria-labelledby={`gas-${record.id}`}>
-      <h3 id={`gas-${record.id}`}>GAS</h3>
-      {record.gasScores.length === 0 ? <p>기록된 GAS가 없습니다.</p> : <ul>{record.gasScores.map((score) => <li key={score.goalId}>{score.goalTitle}: <strong>{score.score > 0 ? `+${score.score}` : score.score}</strong></li>)}</ul>}
-    </section>
-
-    <section className="wire-card-section" aria-labelledby={`actions-${record.id}`}>
-      <h3 id={`actions-${record.id}`}>액션 아이템</h3>
-      {record.actionItems.length === 0 ? <p>기록된 액션 아이템이 없습니다.</p> : <ul>{record.actionItems.map((item) => <li key={item.id}>{item.description} <MetaRow items={[`담당 ${actionOwnerLabel(item.owner)}`, item.dueDate === null ? null : `기한 ${item.dueDate}`]} /> <span className="status">{item.resolved ? '완료' : '미완료'}</span></li>)}</ul>}
-    </section>
-
-    <section className="wire-card-section" aria-labelledby={`flags-${record.id}`}>
-      <h3 id={`flags-${record.id}`}>플래그</h3>
-      {record.flags.length === 0 ? <p>표시된 플래그가 없습니다.</p> : <ul>{record.flags.map((flag) => <li key={flag.id}>{flagLabel(flag.flagType)} <span className="panel-meta"><MetaRow items={[flagSourceLabel(flag.source), flagReviewStatusLabel(flag.reviewStatus)]} /></span></li>)}</ul>}
-    </section>
-
-    <p className="panel-meta">공식 등록 {formatDateTime(record.createdAt)}</p>
-  </WireCard>;
+/**
+ * 전체 목표 한 줄 — 브리핑과 같은 어휘이되 **읽기 전용**이다(D47 §1).
+ * 설정·수정은 브리핑 몫이라 여기에는 입력칸도 저장 버튼도 없다.
+ */
+function OverallGoalRow({ overallGoal }: { overallGoal: string | null }) {
+  return <section className="surface-card record-goal" aria-label="전체 목표">
+    <span className="record-goal-label">전체 목표</span>
+    {overallGoal === null || overallGoal.length === 0
+      ? <p className="record-goal-text is-empty">아직 설정 전입니다. 상담 준비 화면에서 설정할 수 있습니다.</p>
+      : <p className="record-goal-text">{overallGoal}</p>}
+  </section>;
 }
 
 export default async function RecordHistoryPage({
@@ -234,8 +135,14 @@ export default async function RecordHistoryPage({
   const result: LoadResult<SupportCaseRecords> = beneficiaryId === null || supportCaseId === null
     ? { data: null, error: 'access_or_not_found' }
     : await load(listSupportCaseRecords(beneficiaryId, supportCaseId));
+  // 이름은 HERO 의 고정 1층이라 별도로 읽는다(D38). 실패해도 화면은 성립해야 하므로
+  // 가명 ID 폴백으로 낮춘다 — 기록을 못 여는 것보다 이름이 없는 편이 낫다.
+  const participant: LoadResult<ParticipantDetail> = beneficiaryId === null
+    ? { data: null, error: 'access_or_not_found' }
+    : await load(getParticipantDetail(beneficiaryId));
+  const { programLabels } = await getDisplayLabels();
+
   const records = result.data?.records ?? [];
-  const goals = result.data?.goals ?? [];
   const schedule = result.data?.schedule ?? null;
   // '기록 오류'로 처리된 불일치가 가리키는 회차 (CCC-42). 쌍의 양쪽에 붙는다 — 0027 에
   // 어느 쪽이 오류인지 담는 칸이 없다.
@@ -247,23 +154,42 @@ export default async function RecordHistoryPage({
     : `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
   const participantPath = beneficiaryId === null ? '/' : `/participants/${encodeURIComponent(beneficiaryId)}`;
   const currentSchedulePresentation = schedule === null ? null : schedulePresentation(schedule.status);
-  // 인테이크(kind=intake)가 아직 없는 케이스에서만 인테이크 작성 진입 버튼을 보인다(1회 규칙).
+  // 인테이크(kind=intake)가 아직 없는 케이스에서만 인테이크 작성이 프라이머리다(1회 규칙).
+  // 버튼을 하나 더 두지 않고 자리를 갈아끼워 D38 의 '최대 2개'를 지킨다(D47 §3).
   const hasIntake = records.some((record) => record.kind === 'intake');
+  // 최신 상담일이 목록 맨 위다(서버가 held_at DESC 로 준다).
+  const latestHeldAt = records[0]?.heldAt ?? null;
 
-  return <main className="page-content">
-    <nav className="breadcrumb" aria-label="현재 위치">
-      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>당사자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${basePath}/briefing`}>참여 사업</Link><span>/</span><strong>상담 기록</strong>
-    </nav>
-    <header className="page-header">
-      <div>
-        <h1>상담 기록</h1>
-        <p>당사자 ID {beneficiaryId ?? '확인 불가'}의 참여 사업 상담 기록입니다. 수기 메모는 서버 저장이 확인되는 즉시 공식 기록입니다.</p>
-      </div>
-      {beneficiaryId === null || supportCaseId === null ? null : <div className="page-actions">
-        {result.data !== null && !hasIntake ? <WireButton variant="secondary" href={`${basePath}/records/intake`}>인테이크 작성</WireButton> : null}
-        <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록 작성</WireButton>
-      </div>}
-    </header>
+  const heroMeta = [
+    result.data === null ? null : programLabels[result.data.programType],
+    records.length === 0 ? '기록 없음' : `${records.length}회차까지 기록됨`,
+    latestHeldAt === null ? null : `최근 상담 ${formatDateOnly(latestHeldAt)}`,
+  ].filter((item): item is string => item !== null).join(' · ');
+
+  return <GridContainer as="main" className="page-content">
+    <RecordHashOpener />
+    {/* ParticipantHeroCard (D38): 케이스 1개를 보는 화면이라 상태 태그가 필수다(슬롯 ②).
+        브레드크럼은 이 카드가 대체한다 — 출구는 왼쪽 세컨더리 하나다(D35).
+        exactOptionalPropertyTypes 라 없는 슬롯은 undefined 대신 키를 뺀다. */}
+    <ParticipantHeroCard
+      name={participant.data?.name ?? null}
+      beneficiaryId={beneficiaryId ?? '확인 불가'}
+      {...(result.data === null
+        ? {}
+        : { stageTag: result.data.caseStatus === 'active' ? '진행 중' : '종결' })}
+      {...(heroMeta.length === 0 ? {} : { meta: heroMeta })}
+      {...(beneficiaryId === null || supportCaseId === null ? {} : {
+        actions: <>
+          <WireButton variant="secondary" href={participantPath}>당사자 정보</WireButton>
+          {result.data !== null && !hasIntake
+            ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크 작성</WireButton>
+            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록 작성</WireButton>}
+        </>,
+      })}
+    />
+
+    {result.data !== null && <OverallGoalRow overallGoal={result.data.overallGoal} />}
+
     <Notice code={notice} />
     <Message code={error} />
 
@@ -278,9 +204,11 @@ export default async function RecordHistoryPage({
       <p>{formatDateTime(schedule.scheduledAt)} {currentSchedulePresentation.message}</p>
     </WireCard>}
 
-    <section className="card-grid" aria-label="상담 기록 목록">
-      {result.data === null ? <WireCard><div className="empty"><span>상담 기록 목록을 확인할 수 없습니다.</span></div></WireCard> : records.length === 0 ? <WireCard><div className="empty"><span>아직 상담 기록이 없습니다.</span></div><p className="panel-meta">상담 일시, 방식, 수기 메모, GAS, 액션 아이템, 플래그를 한 번에 기록하세요.</p></WireCard> : records.map((record) => <RecordCard key={record.id} record={record} recordError={recordErrorSessionIds.has(record.id)} />)}
-    </section>
-    {result.data === null ? null : <GoalContext goals={goals} />}
-  </main>;
+    <h2 className="record-section-title">회차별 기록</h2>
+    <RecordList
+      records={records}
+      recordErrorSessionIds={recordErrorSessionIds}
+      unavailable={result.data === null}
+    />
+  </GridContainer>;
 }

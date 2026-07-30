@@ -11,7 +11,6 @@ const KEY = draftKey('record', SUPPORT_CASE_ID);
 
 function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps {
   return {
-    goals: [{ id: 'goal-1', title: '월세 체납 해소', status: 'active' }],
     schedules: [],
     openActionItems: [],
     latestLifeAreaSnapshot: [],

@@ -2,6 +2,7 @@ import {
   ACTION_ITEM_RESOLUTION_STATUSES,
   type ActionItemResolutionStatus,
   AiProviderNotConfiguredError,
+  assertSupportCaseAccess,
   ConflictError,
   DraftVersionRequiredError,
   FLAG_TYPES,
@@ -1152,6 +1153,10 @@ function counselingRecordDetailsResponse(
       status: area.status,
       note: area.note,
     })),
+    // D47 접힌 줄·회차 카드용 3종. 저장된 값을 싣기만 한다 — 새 스키마 없음(ADR-0019 영향).
+    aiOneLiner: record.aiOneLiner,
+    memoExcerpt: record.memoExcerpt,
+    sessionGoals: record.sessionGoals,
   };
 }
 
@@ -1824,12 +1829,15 @@ export async function handleRequest(
         const query = requestQuery(url, ['official']);
         const official = query.get('official');
         if (official !== null && official !== 'true') throw new ValidationError('official is invalid');
-        const [records, goals, schedule, recordErrorSessionIds] = await Promise.all([
+        const [records, goals, schedule, recordErrorSessionIds, supportCase] = await Promise.all([
           listCounselingRecords(env, actor, supportCaseId),
           listGoals(env, actor, supportCaseId),
           getNextCounselingScheduleForSupportCase(env, actor, supportCaseId),
           // '기록 오류'로 처리된 불일치가 가리키는 회차 — 화면이 그 기록 옆에 표시만 붙인다(CCC-42).
           listRecordErrorSessionIds(env, actor, supportCaseId),
+          // D47: HERO 상태 태그와 전체 목표 한 줄(읽기 전용)의 재료. 접근 판정만 하고 감사는
+          // 남기지 않으므로 이 화면의 read 감사는 listCounselingRecords 한 건 그대로다(D14).
+          assertSupportCaseAccess(env, actor, supportCaseId),
         ]);
         const goalTitles = new Map(goals.map((goal): [string, string] => [goal.id, goal.title]));
         return json({
@@ -1837,6 +1845,10 @@ export async function handleRequest(
           goals: goals.map((goal) => ({ id: goal.id, title: goal.title, status: goal.status })),
           schedule: nextCounselingScheduleResponse(schedule),
           recordErrorSessionIds,
+          // 수정은 브리핑 몫이라 여기서는 값만 내려보낸다(D47 §1).
+          overallGoal: supportCase.overallGoal,
+          caseStatus: supportCase.status,
+          programType: supportCase.programType,
         });
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'records') {

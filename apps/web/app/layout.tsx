@@ -374,6 +374,66 @@ const briefingStyles = `
 /* 승인 대기는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .briefing-badge.is-pending{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
 .briefing-meta,.briefing-note{margin:0;font-size:14px;color:var(--sub)}
+/* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
+   회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
+   그 회차가 추가로 열린다. 카드 계약(.surface-card)과 '펼친 것이 곧 활성'(surface-card[open])은
+   wire-styles.ts 가 갖고, 여기서는 안쪽 배치와 계열 칩만 정한다. */
+/* min-width:0 이 두 층에 다 필요하다(2026-07-30 1024px 실측으로 잡은 결함).
+   그리드 아이템의 **자동 최소 크기는 min-content** 라, 접힌 줄의 white-space:nowrap 한 줄
+   길이가 그대로 바닥이 되어 페이지 컨테이너를 1024 폭에서 918 까지 밀어냈다(가로 스크롤).
+   한 줄 자체의 min-width:0 만으로는 안 풀린다 — 그건 레이아웃 때 줄어들 자유를 줄 뿐,
+   컨테이너의 **고유 min-content 계산**에는 항목의 내용 폭이 그대로 들어가기 때문이다.
+   그래서 바닥을 없애야 하는 곳은 한 줄이 아니라 그것을 담은 그리드 아이템이다. */
+.record-list{display:grid;gap:var(--space-3);min-width:0}
+.record-list>details{min-width:0}
+/* 접힌 줄 = 펼친 카드의 머리. 두 상태가 같은 줄이라 자리가 안 흔들린다. */
+.record-summary{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);cursor:pointer;list-style:none}
+.record-summary::-webkit-details-marker{display:none}
+.record-summary:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.record-chevron{flex:none;width:12px;font-size:14px;color:var(--sub)}
+.record-ordinal{flex:none;font-size:16px;font-weight:700;color:var(--ink)}
+.record-held-at{flex:none;font-size:16px;color:var(--sub)}
+/* 유형 칩 — 시간·상태 축이라 블루 tint. 글자는 --ink 다: 읽어야 하는 값이라 §9 의
+   '보조 정보 한정' 대비 예외를 쓰지 않는다. 인테이크도 같은 블루이고 구분은 글자가 한다. */
+.record-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border-radius:var(--radius-pill);background:var(--blue-tint);font-size:14px;font-weight:700;color:var(--ink)}
+/* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). */
+.record-one-liner{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;color:var(--ink)}
+.record-one-liner.is-memo{color:var(--sub)}
+.record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
+/* 펼친 본문. 머리와 본문은 --gradient-brand 1px 로 나눈다(§5 카드 계약 — 그라데이션이
+   남는 자리는 카드 안쪽 구분선뿐이다). */
+.record-body{border-top:1px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-brand) border-box;display:grid;gap:var(--space-5);padding:var(--space-5) var(--space-6)}
+.record-block{display:grid;gap:var(--space-2)}
+.record-block>h3{margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.record-block>p{margin:0;font-size:16px;color:var(--ink);white-space:pre-wrap}
+.record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
+.record-block li{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);font-size:16px;color:var(--ink)}
+/* '이번 상담의 목표' — GAS 가 있던 자리(D47 §2). 실무자가 정한 것이라 사람 축(민트)이다.
+   재료가 없으면 이 블록 자체를 그리지 않는다 — 빈 블록은 뺀 자리를 다시 빈칸으로 만든다. */
+.record-session-goal{display:grid;gap:var(--space-1);border-radius:var(--radius-control);background:var(--mint-tint);padding:var(--space-3) var(--space-4)}
+.record-session-goal-label{font-size:14px;font-weight:700;color:var(--mint-deep)}
+.record-session-goal p{margin:0;font-size:16px;color:var(--ink)}
+/* 담당 칩 — 사람·소속 축(민트). 글자는 --ink(위 유형 칩과 같은 이유). */
+.record-owner{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border-radius:var(--radius-pill);background:var(--mint-tint);font-size:14px;font-weight:700;color:var(--ink)}
+/* AI 출처 칩 — AI 축(라벤더). 곁다리로 읽는 값이라 deep 글자가 남는 자리다(§9 예외). */
+.record-ai-source{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 10px;border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:14px;font-weight:700;color:var(--lavender-deep)}
+.record-item-meta{font-size:14px;color:var(--sub)}
+/* 리스크 레드는 **확인된** 플래그에만(D9·D34). 조회 API 가 확인된 것만 내려보내지만,
+   색을 상태에 걸어 두면 나중에 범위가 넓어져도 규율이 깨지지 않는다. */
+.record-flag{font-weight:700;color:var(--sub)}
+.record-flag[data-confirmed="true"]{color:var(--risk)}
+.record-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-4);border-top:1px solid var(--line);padding:var(--space-3) var(--space-6);font-size:14px;color:var(--sub)}
+/* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
+.record-goal{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;padding:var(--space-4) var(--space-6)}
+.record-goal-label{flex:none;font-size:14px;font-weight:700;color:var(--mint-deep)}
+.record-goal-text{flex:1;min-width:0;margin:0;font-size:16px;font-weight:700;color:var(--ink)}
+.record-goal-text.is-empty{font-weight:400;color:var(--sub)}
+.record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:18px;font-weight:700;color:var(--ink)}
+@media (max-width:767px){
+  /* 좁으면 한 줄이 무너지므로 핵심 한 줄을 아래로 내린다(리스트 행 계약과 같은 접힘). */
+  .record-summary{flex-wrap:wrap}
+  .record-one-liner{flex-basis:100%;white-space:normal;overflow:visible}
+}
 /* 767 블록에서 두 그리드를 1열로 강제하던 규칙은 지웠다 — 최소 폭(420·280)이 이미 접는다(락 10·11). */
 `;
 

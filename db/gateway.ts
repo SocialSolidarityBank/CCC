@@ -9499,6 +9499,21 @@ export interface CounselingRecordDetails extends CounselingRecord {
   confirmedFlags: Flag[];
   // 이 회차 시점의 6영역 스냅샷(CCC-8). 스냅샷 미보유 회차는 빈 배열.
   lifeAreaSnapshot: LifeAreaSnapshotEntry[];
+  /**
+   * D47 접힌 줄의 핵심 한 줄. **승인된 AI 한 줄만** 싣는다(0025 · R2) — 미승인·녹음 없음·
+   * 레거시 초안이면 null 이고, 화면은 `memoExcerpt` 로 낮춰 '승인 대기' 배지를 붙인다(D5).
+   * 브리핑 영역 ②와 같은 출처라 두 화면의 같은 회차가 같은 문장을 보여준다.
+   */
+  aiOneLiner: string | null;
+  /** D47 접힌 줄의 폴백 발췌 — 수기 메모 첫 줄 최대 60자. 메모가 비면 null. */
+  memoExcerpt: string | null;
+  /**
+   * D47 회차 카드의 '이번 상담의 목표'(GAS 가 있던 자리). **출처가 둘이고 중복 저장이 아니다**
+   * (0016 주석): 일정에 연결된 회차는 `schedule_session_goals`(0009) 가 SSOT 이고, 일정 없이
+   * 쓴 회차만 `record_details.sessionGoalNote` 를 쓴다. 일정 쪽을 먼저 보고 없으면 메모 쪽으로
+   * 내려간다. **둘 다 없으면 빈 배열**이고 화면은 블록 자체를 그리지 않는다(인테이크가 그 경우).
+   */
+  sessionGoals: string[];
 }
 
 export interface CounselingRecordGasScoreInput {
@@ -11261,7 +11276,8 @@ export async function listCounselingRecords(
   const placeholders = sessionIds.map(() => '?').join(', ');
   const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas] = await Promise.all([
     env.DB.prepare(
-      `SELECT session_id, summary_text, approved_at
+      // one_liner 는 D47 접힌 줄의 핵심 한 줄(0025) — 브리핑 영역 ②와 같은 승인 경로에서 읽는다(R2).
+      `SELECT session_id, summary_text, approved_at, one_liner
        FROM approved_ai_briefing_v1
        WHERE org_id = ? AND support_case_id = ?`,
     ).bind(actor.orgId, supportCaseId).all<DbRow>(),
@@ -11297,9 +11313,32 @@ export async function listCounselingRecords(
   const approvedBySession = new Map(
     approved.results.map((row) => [
       stringValue(row.session_id),
-      { summaryText: stringValue(row.summary_text), approvedAt: nullableString(row.approved_at) },
+      {
+        summaryText: stringValue(row.summary_text),
+        approvedAt: nullableString(row.approved_at),
+        oneLiner: nullableString(row.one_liner),
+      },
     ]),
   );
+  // D47 '이번 상담의 목표' 1차 출처 — 그 회차가 완료 처리한 일정의 세션 목표(0009, SSOT).
+  // 완료 일정을 위에서 이미 회차별로 묶었으므로 그 일정 ID 로만 좁혀 읽는다.
+  const completedScheduleIds = completedSchedules.results.map((row) => stringValue(row.id));
+  const scheduleGoalsByScheduleId = new Map<string, string[]>();
+  if (completedScheduleIds.length > 0) {
+    const schedulePlaceholders = completedScheduleIds.map(() => '?').join(', ');
+    const scheduleGoals = await env.DB.prepare(
+      `SELECT schedule_id, body
+       FROM schedule_session_goals
+       WHERE org_id = ? AND support_case_id = ? AND schedule_id IN (${schedulePlaceholders})
+       ORDER BY schedule_id, ordinal`,
+    ).bind(actor.orgId, supportCaseId, ...completedScheduleIds).all<DbRow>();
+    for (const row of scheduleGoals.results) {
+      const scheduleId = stringValue(row.schedule_id);
+      const current = scheduleGoalsByScheduleId.get(scheduleId) ?? [];
+      current.push(stringValue(row.body));
+      scheduleGoalsByScheduleId.set(scheduleId, current);
+    }
+  }
   const scoresBySession = new Map<string, CounselingRecordGasScore[]>();
   for (const row of scores.results) {
     const stored = mapGasScore(row);
@@ -11356,13 +11395,24 @@ export async function listCounselingRecords(
   return sessions.results.map((row) => {
     const sessionId = stringValue(row.id);
     const projected = approvedBySession.get(sessionId);
+    const completedSchedule = completedScheduleBySession.get(sessionId) ?? null;
+    // 일정 쪽이 SSOT 이고, 일정이 없거나 목표가 안 달린 회차만 기록지 메모로 내려간다(0016).
+    const scheduleGoals = completedSchedule === null
+      ? []
+      : scheduleGoalsByScheduleId.get(completedSchedule.id) ?? [];
+    const sessionGoals = scheduleGoals.length > 0
+      ? scheduleGoals
+      : sessionGoalNoteLines(nullableString(row.record_details));
     return {
       ...mapCounselingRecord(row, projected?.summaryText ?? null, projected?.approvedAt ?? null),
-      completedSchedule: completedScheduleBySession.get(sessionId) ?? null,
+      completedSchedule,
       gasScores: scoresBySession.get(sessionId) ?? [],
       actionItems: actionsBySession.get(sessionId) ?? [],
       confirmedFlags: flagsBySession.get(sessionId) ?? [],
       lifeAreaSnapshot: lifeAreasBySession.get(sessionId) ?? [],
+      aiOneLiner: projected?.oneLiner ?? null,
+      memoExcerpt: sessionMemoExcerpt(nullableString(row.memo)),
+      sessionGoals,
     };
   });
 }
@@ -11499,6 +11549,26 @@ function briefingSuggestions(row: DbRow): AiBriefingSuggestion[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * record_details(0016) 의 sessionGoalNote 를 줄 단위로 편다 — D47 '이번 상담의 목표'의
+ * 2차 출처다. 일정에 세션 목표가 연결되지 않은 회차에서 실무자가 기록지에 직접 적은 값이라
+ * 여러 줄일 수 있고, 일정 쪽(schedule_session_goals)이 있으면 여기까지 오지 않는다.
+ * JSON 이 깨졌거나 키가 없으면 빈 배열 — 기록 조회가 그것 때문에 실패하지는 않는다.
+ */
+function sessionGoalNoteLines(recordDetails: string | null): string[] {
+  if (recordDetails === null) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(recordDetails);
+  } catch {
+    return [];
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return [];
+  const note = (parsed as Record<string, unknown>).sessionGoalNote;
+  if (typeof note !== 'string') return [];
+  return note.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
 }
 
 // 수기 메모의 첫 비어 있지 않은 줄에서 최대 60자 — D45 영역 ②의 폴백 발췌(D5).
