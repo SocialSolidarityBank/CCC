@@ -273,3 +273,49 @@ class AddressLayerTest(unittest.TestCase):
         masked, report = masking.mask_text_with_report("행복아파트 3동", None, None, None)
         self.assertEqual(masked, "행복아파트 3동")
         self.assertEqual(report.total, 0)
+
+
+class OverlapPolicyTest(unittest.TestCase):
+    """겹치는 스팬 처리 (2026-08-01 Q 결정: 못 가리는 것보다 과하게 가리는 쪽).
+
+    통째로 건너뛰면 겹치지 않는 부분이 원문 그대로 남는다 — 그건 유출이고 되돌릴 수 없다.
+    """
+
+    def test_overlapping_spans_are_clipped_not_dropped(self):
+        text = "행복아파트 김철수 씨"
+        # 주소(0,6)와 인명(7,10)이 아니라, 주소가 인명을 물고 들어오는 겹침을 만든다.
+        def person(_t):
+            return [(7, 10)]
+
+        def address(_t):
+            return [(0, 9)]
+
+        masked, report = masking.mask_text_with_report(text, person, None, address)
+        # 합집합을 한 토큰으로 덮는다 — 조각이 남지 않는 것이 핵심이다.
+        self.assertNotIn("행복아파트", masked)
+        self.assertNotIn("김철수", masked)
+        # 계층이 섞이면 식별력이 큰 쪽(인명)을 쓴다.
+        self.assertEqual(masked, "[인명]씨")
+        self.assertEqual(report.total, 1)
+
+    def test_fully_covered_span_is_skipped(self):
+        text = "김철수 씨"
+
+        def outer(_t):
+            return [(0, 3)]
+
+        def inner(_t):
+            return [(1, 2)]
+
+        masked, report = masking.mask_text_with_report(text, outer, None, inner)
+        # 안쪽 스팬은 바깥에 덮이므로 한 번만 치환된다 — 토큰이 중첩되지 않는다.
+        self.assertEqual(masked, "[인명] 씨")
+        self.assertEqual(report.total, 1)
+
+    def test_no_fragment_survives_a_partial_overlap(self):
+        # 회귀 방지: 잘라서 치환하던 구현은 "[인명][주소]수 씨" 처럼 조각을 남겼다.
+        text = "가나다라마바사"
+        masked, _ = masking.mask_text_with_report(
+            text, lambda _t: [(4, 7)], None, lambda _t: [(0, 5)],
+        )
+        self.assertEqual(masked, "[인명]")

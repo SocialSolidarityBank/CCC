@@ -102,6 +102,48 @@ class MaskingReport:
         return dict(self.counts)
 
 
+# 겹친 스팬이 서로 다른 계층일 때 어느 토큰으로 가릴지. 식별력이 큰 쪽이 앞이다.
+_TOKEN_PRIORITY = (PERSON_TOKEN, ADDRESS_TOKEN, CONDITION_TOKEN)
+
+
+def _merge_spans(spans: list[tuple[int, int, str]], limit: int) -> list[tuple[int, int, str]]:
+    """겹치는 스팬을 **합쳐서** 한 번에 가릴 구간 목록으로 만든다 (뒤에서 앞 순서로 반환).
+
+    2026-08-01 Q 결정(못 가리는 것보다 과하게 가리는 쪽)의 구현이다. 겹칠 때 한쪽을
+    버리면 겹치지 않는 부분이 원문 그대로 남고, 잘라서 치환하면 `[인명][주소]수` 처럼
+    조각이 남는다 — 둘 다 유출이다. 합집합을 한 토큰으로 덮으면 남는 조각이 없다.
+
+    계층이 섞이면 식별력이 큰 쪽 토큰을 쓴다(인명 > 주소 > 질환). 뒤에서 앞으로 치환해야
+    앞선 치환이 뒤 구간의 오프셋을 밀지 않으므로, 내림차순으로 돌려준다.
+    """
+    # 범위를 벗어난 스팬은 버린다 — 모델이 텍스트 밖 오프셋을 주면 그건 좌표가 깨진 것이고,
+    # 그 좌표로 자르면 엉뚱한 자리가 사라진다. 끝만 넘치면 텍스트 끝까지로 줄여 가린다.
+    valid = sorted(
+        (
+            (start, min(end, limit), token)
+            for start, end, token in spans
+            if 0 <= start < end and start < limit
+        ),
+        key=lambda span: span[0],
+    )
+    merged: list[tuple[int, int, set[str]]] = []
+    for start, end, token in valid:
+        if merged and start < merged[-1][1]:
+            previous_start, previous_end, tokens = merged[-1]
+            tokens.add(token)
+            merged[-1] = (previous_start, max(previous_end, end), tokens)
+            continue
+        merged.append((start, end, {token}))
+
+    def pick(tokens: set[str]) -> str:
+        for candidate in _TOKEN_PRIORITY:
+            if candidate in tokens:
+                return candidate
+        return next(iter(tokens))
+
+    return [(start, end, pick(tokens)) for start, end, tokens in reversed(merged)]
+
+
 def _sub_counting(pattern: re.Pattern[str], token: str, text: str, report: MaskingReport) -> str:
     def replace(_match: re.Match[str]) -> str:
         report.add(token)
@@ -154,13 +196,9 @@ def mask_text_with_report(
             continue
         spans.extend((start, end, token) for start, end in span_fn(text))
 
-    previous_start = len(text)
-    for start, end, token in sorted(spans, key=lambda span: span[0], reverse=True):
-        # 겹치는 스팬은 뒤쪽만 살린다 — 앞 스팬이 이미 치환한 자리를 다시 자르지 않는다.
-        if 0 <= start < end <= previous_start:
-            text = text[:start] + token + text[end:]
-            report.add(token)
-            previous_start = start
+    for start, end, token in _merge_spans(spans, len(text)):
+        text = text[:start] + token + text[end:]
+        report.add(token)
 
     text = _sub_counting(_CONDITION, CONDITION_TOKEN, text, report)
     for pattern, token in _REGEX_LAYERS:
