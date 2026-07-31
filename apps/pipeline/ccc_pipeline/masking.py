@@ -31,6 +31,12 @@ ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
 CONDITION_TOKEN = "[질환]"
 
+# 라벨 접두 기본값. KLUE·모두의 말뭉치 계열을 상정한 값이고, PII 전용 모델은 NAME 계열이라
+# 다르다 — 모델을 정할 때 CCC_NER_LABELS 로 함께 정한다(config.py). 기본값이 그 모델과
+# 안 맞으면 로드 단계에서 죽으므로, 조용히 어긋난 채 도는 일은 없다.
+DEFAULT_PERSON_LABELS = ("PS", "PER", "NAME")
+DEFAULT_CONDITION_LABELS = ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM")
+
 # 경계 주의: 파이썬 re의 \b는 한글도 단어 문자로 봐서 "1234로"처럼 조사가 붙으면
 # 매칭이 깨진다. 숫자 패턴은 앞뒤에 숫자·하이픈이 없다는 룩어라운드로 경계를 잡는다.
 # 주민등록번호: 생년월일 6자리 + 성별 자리 1~4 + 6자리. 구분자 유무 모두.
@@ -145,15 +151,45 @@ def mask_text_with_report(
     return text, report
 
 
+class MaskingConfigError(Exception):
+    """마스킹 계층 설정 오류. 메시지에 전사 내용·시크릿을 넣지 않는다 (R3)."""
+
+
+def _assert_labels_exist(recognizer, model_id: str, label_prefixes: tuple[str, ...]) -> None:  # noqa: ANN001
+    """모델이 **선언한** 라벨 목록과 설정한 접두를 대조한다.
+
+    왜 필요한가: 라벨 체계는 모델마다 다르다(KLUE 계열 `PS`/`PER` vs PII 전용 모델 `NAME` 계열).
+    접두가 어긋나면 파이프라인은 정상 동작하는데 **치환만 0건**이 되고, 로그에도 아무것도 남지
+    않는다 — "이름이 없는 상담 기록"과 구분할 방법이 없다. 그 조용한 실패가 곧 PII 유출이라
+    (R3), 여기서 시끄럽게 죽인다. 이 검사는 연결이 맞는지까지만 본다 — 그 모델이 한국어
+    상담체에서 인명을 **잘 찾는지**는 실측 게이트의 몫이다.
+    """
+    declared = getattr(getattr(recognizer, "model", None), "config", None)
+    id2label = getattr(declared, "id2label", None)
+    if not isinstance(id2label, dict) or not id2label:
+        # 라벨 목록을 못 읽는 모델이면 대조 자체가 불가능하다 — 통과시키지 않는다.
+        raise MaskingConfigError(f"NER model {model_id} does not declare a label set")
+
+    labels = {str(value).upper() for value in id2label.values()}
+    # 파이프라인의 aggregation 이 B-/I- 접두를 떼므로 여기서도 떼고 비교한다.
+    stripped = {label.split("-", 1)[1] if label[:2] in ("B-", "I-") else label for label in labels}
+    if not any(label.startswith(label_prefixes) for label in stripped):
+        raise MaskingConfigError(
+            f"NER model {model_id} declares no label starting with {label_prefixes} "
+            f"(declared: {sorted(stripped)})",
+        )
+
+
 def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
     """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
 
-    라벨 체계는 모델마다 달라서, 노트북 세팅 때 실제 모델의 라벨 목록을 확인하고 필요하면
-    호출부의 접두 목록을 보정한다.
+    라벨 체계는 모델마다 다르므로 **모델과 라벨 접두를 한 쌍으로 설정**하고(config.py),
+    여기서 모델이 선언한 라벨과 대조한다. 어긋나면 뜨지 않는다.
     """
     from transformers import pipeline  # noqa: PLC0415
 
     recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    _assert_labels_exist(recognizer, model_id, label_prefixes)
 
     def ner(text: str) -> list[tuple[int, int]]:
         spans: list[tuple[int, int]] = []
@@ -166,16 +202,15 @@ def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: AN
     return ner
 
 
-def build_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
-    """인명 스팬 NER. 인명 계열 라벨(PS/PER/PERSON 접두)만 마스킹 대상으로 본다."""
-    return _build_span_ner(model_id, ("PS", "PER"))
+def build_ner(model_id: str, label_prefixes: tuple[str, ...] = DEFAULT_PERSON_LABELS):  # noqa: ANN201
+    """인명 스팬 NER. 어느 라벨을 인명으로 볼지는 **모델과 함께 설정**한다(config.ner_labels)."""
+    return _build_span_ner(model_id, label_prefixes)
 
 
-def build_condition_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
+def build_condition_ner(model_id: str, label_prefixes: tuple[str, ...] = DEFAULT_CONDITION_LABELS):  # noqa: ANN201
     """질병명 스팬 NER (G3) — **사전의 보완재이지 대체재가 아니다.**
 
     사전(`condition_terms.py`)이 항상 먼저 동작하고, 이 계층은 사전에 없는 표기·오탈자를
-    줍는 몫이다. 라벨 접두는 한국어 NER 에서 질병·증상에 흔히 쓰이는 것들을 넣어 뒀지만
-    **실측 확인 전이다** — 노트북 세팅 때 모델의 실제 라벨을 확인하고 여기를 고친다.
+    줍는 몫이다. 라벨 접두는 모델과 함께 설정한다(config.condition_ner_labels).
     """
-    return _build_span_ner(model_id, ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM"))
+    return _build_span_ner(model_id, label_prefixes)

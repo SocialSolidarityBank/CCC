@@ -63,7 +63,10 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
-| `CCC_NER_MODEL_ID` | | (없음) | 2차 마스킹용 한국어 NER 모델. 미설정 시 정규식만 + 경고 로그. **라이선스 표기 확인 후 지정** (§5 규칙) |
+| `CCC_NER_MODEL_ID` | **예** | (없음) | 2차 마스킹용 한국어 인명 NER 모델. `red` **미설정이면 회차를 처리하지 않는다**(2026-07-31 Q 결정) — 인명 계층이 빈 채로 돌면 금고에 없는 제3자가 그대로 사업자로 나간다(R3). **라이선스 표기 확인 후 지정**(§5 규칙) |
+| `CCC_NER_LABELS` | | `PS,PER,NAME` | 위 모델이 **인명에 붙이는 라벨 접두**. 모델과 한 쌍이다 — KLUE 계열은 `PS`/`PER`, PII 전용 모델은 `NAME` 계열로 다르다. 모델을 불러올 때 그 모델이 선언한 라벨과 대조하고, **안 맞으면 뜨지 않는다**(조용한 0건 마스킹 방지) |
+| `CCC_CONDITION_NER_MODEL_ID` | | (없음) | 질병명 NER(G3). 미설정이면 사전 계층만 동작하고 **진행한다** — 인명과 달리 사전이 주 계층이다 |
+| `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
 
 주의: 운영 API 앞의 Cloudflare가 기본 python-urllib User-Agent를 차단(1010)하므로

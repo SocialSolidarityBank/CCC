@@ -178,3 +178,36 @@ class ConditionMaskingRateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LabelContractTest(unittest.TestCase):
+    """모델이 선언한 라벨과 설정한 접두의 대조 (2026-07-31 Q 결정).
+
+    이 검사가 없으면 접두가 어긋났을 때 **경고 없이 치환 0건**이 되고, 그 결과가
+    "이름이 없는 상담 기록"과 구분되지 않는다 — 조용한 PII 유출이다(R3).
+    """
+
+    class _FakeRecognizer:
+        def __init__(self, labels):
+            self.model = type("M", (), {"config": type("C", (), {"id2label": dict(enumerate(labels))})()})()
+
+    def test_accepts_a_model_that_declares_a_matching_label(self):
+        recognizer = self._FakeRecognizer(["O", "B-PS", "I-PS"])
+        masking._assert_labels_exist(recognizer, "fixture/klue-ner", ("PS", "PER"))
+
+    def test_strips_bio_prefixes_before_comparing(self):
+        # 파이프라인 aggregation 이 B-/I- 를 떼므로 대조도 떼고 한다.
+        recognizer = self._FakeRecognizer(["O", "B-NAME", "I-NAME"])
+        masking._assert_labels_exist(recognizer, "fixture/pii-model", ("NAME",))
+
+    def test_rejects_a_model_whose_labels_do_not_match(self):
+        # PII 전용 모델(NAME 계열)에 KLUE 접두(PS/PER)를 설정한 전형적인 실수.
+        recognizer = self._FakeRecognizer(["O", "B-NAME", "B-PHONE"])
+        with self.assertRaises(masking.MaskingConfigError):
+            masking._assert_labels_exist(recognizer, "fixture/pii-model", ("PS", "PER"))
+
+    def test_rejects_a_model_that_declares_no_labels(self):
+        # 대조 자체가 불가능하면 통과시키지 않는다.
+        recognizer = self._FakeRecognizer([])
+        with self.assertRaises(masking.MaskingConfigError):
+            masking._assert_labels_exist(recognizer, "fixture/unknown", ("PS",))

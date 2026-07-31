@@ -24,20 +24,25 @@ from .transcribe import build_engine, transcribe_audio
 logger = logging.getLogger("ccc_pipeline")
 
 
-def _build_ner_or_none(config: Config):  # noqa: ANN202
+def _build_person_ner(config: Config):  # noqa: ANN202
+    """인명 NER 계층. **없으면 진행하지 않는다** (2026-07-31 Q 결정).
+
+    구 동작은 경고만 남기고 통과였는데, 그러면 금고에 없는 제3자("아들 김철수")가 마스킹
+    없이 그대로 사업자에게 나간다 — 2차 방어의 한 겹이 통째로 빈 채로 파이프라인이 도는
+    것이라 R3 위반이다. 늦는 것(D8 SLA · 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
+    """
     if config.ner_model_id is None:
-        # 정규식·사전 마스킹은 항상 동작하지만, 인명 마스킹이 빠지면 2차 방어가 얇아진다(D2).
-        logger.warning("CCC_NER_MODEL_ID is not set — masking runs without person-name NER")
-        return None
-    return masking.build_ner(config.ner_model_id)
+        raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
+    return masking.build_ner(config.ner_model_id, config.ner_labels)
 
 
 def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
     if config.condition_ner_model_id is None:
         # 사전 계층(G3)은 항상 동작한다 — NER 은 사전이 놓친 표기를 줍는 보완재다.
+        # 인명과 달리 여기는 없어도 진행한다: 사전이 대체재가 아니라 **주 계층**이다.
         logger.info("CCC_CONDITION_NER_MODEL_ID is not set — condition masking uses the dictionary only")
         return None
-    return masking.build_condition_ner(config.condition_ner_model_id)
+    return masking.build_condition_ner(config.condition_ner_model_id, config.condition_ner_labels)
 
 
 def process_job(client: ApiClient, config: Config, job_id: str) -> None:
@@ -86,7 +91,7 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
         transcript, mask_report = masking.mask_text_with_report(
             format_transcript(segments, roles),
-            _build_ner_or_none(config),
+            _build_person_ner(config),
             _build_condition_ner_or_none(config),
         )
         # 마스킹 집계는 **건수만** 남긴다 — 치환된 원문은 로그에도 쓰지 않는다(R3, G3 검증용).
@@ -112,7 +117,7 @@ def process_text_job(client: ApiClient, config: Config, item_id: str, session_id
     source = client.get_text_job_source(item_id)
     masked, report = masking.mask_text_with_report(
         source,
-        _build_ner_or_none(config),
+        _build_person_ner(config),
         _build_condition_ner_or_none(config),
     )
     # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).

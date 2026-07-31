@@ -29,8 +29,13 @@ class Config:
     stt_min_chunk_seconds: float
     stt_repeat_threshold: int
     ner_model_id: str | None
+    # 모델이 인명에 붙이는 라벨 접두. **모델과 한 쌍**이라 함께 설정한다 — KLUE 계열은
+    # PS/PER, PII 전용 모델은 NAME 계열로 서로 다르다. 틀리면 마스킹이 조용히 0건이 되므로,
+    # 모델을 불러올 때 그 모델이 선언한 라벨 목록과 대조해 안 맞으면 뜨지 않는다(masking.py).
+    ner_labels: tuple[str, ...]
     # 질병명 NER 은 인명 NER 과 다른 모델이라 설정을 따로 둔다. 없어도 사전 계층은 항상 동작한다(G3).
     condition_ner_model_id: str | None
+    condition_ner_labels: tuple[str, ...]
     hf_token: str | None
 
 
@@ -49,6 +54,16 @@ def _positive_int(name: str, default: int, minimum: int = 1) -> int:
     except ValueError:
         return default
     return value if value >= minimum else default
+
+
+def _labels(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """쉼표로 나열한 라벨 접두 목록. 비어 있으면 기본값 — **빈 목록은 만들지 않는다**
+    (아무 라벨도 안 맞으면 마스킹이 0건이 되는데, 그건 설정이 아니라 사고다)."""
+    raw = os.environ.get(name, "").strip()
+    if raw == "":
+        return default
+    labels = tuple(part.strip().upper() for part in raw.split(",") if part.strip() != "")
+    return labels or default
 
 
 def _required(name: str) -> str:
@@ -81,6 +96,8 @@ def load_config() -> Config:
         stt_min_chunk_seconds=_positive_float("CCC_STT_MIN_CHUNK_SECONDS", chunking.DEFAULT_MIN_CHUNK_SECONDS),
         stt_repeat_threshold=_positive_int("CCC_STT_REPEAT_THRESHOLD", repetition.DEFAULT_REPEAT_THRESHOLD, minimum=2),
         ner_model_id=os.environ.get("CCC_NER_MODEL_ID", "").strip() or None,
+        ner_labels=_labels("CCC_NER_LABELS", masking.DEFAULT_PERSON_LABELS),
         condition_ner_model_id=os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None,
+        condition_ner_labels=_labels("CCC_CONDITION_NER_LABELS", masking.DEFAULT_CONDITION_LABELS),
         hf_token=os.environ.get("HF_TOKEN", "").strip() or None,
     )
