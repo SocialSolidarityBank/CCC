@@ -29,6 +29,7 @@ RRN_TOKEN = "[주민번호]"
 EMAIL_TOKEN = "[이메일]"
 ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
+ADDRESS_TOKEN = "[주소]"
 CONDITION_TOKEN = "[질환]"
 
 # 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
@@ -41,6 +42,9 @@ _TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")
 # 기본값이 넓어도 조용히 어긋난 채 도는 일은 없다. 모델을 정하면 CCC_NER_LABELS 로
 # 그 모델의 라벨만 명시하는 쪽이 더 안전하다 — 의도한 라벨이 문서에 남는다.
 DEFAULT_PERSON_LABELS = ("PS", "PER", "NAME", "PRIVATE_PERSON")
+# 주소 계층(2026-08-01 Q 결정 — 이름과 함께 가린다). "○○아파트 3동" 만으로도 사람이
+# 특정되는데, 상담 내용을 이해하는 데는 주소가 없어도 지장이 없다. 빈 튜플로 두면 계층이 꺼진다.
+DEFAULT_ADDRESS_LABELS = ("LC", "ADDRESS", "PRIVATE_ADDRESS")
 DEFAULT_CONDITION_LABELS = ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM")
 
 # 경계 주의: 파이썬 re의 \b는 한글도 단어 문자로 봐서 "1234로"처럼 조사가 붙으면
@@ -128,6 +132,7 @@ def mask_text_with_report(
     text: str,
     ner: NerFn | None = None,
     condition_ner: NerFn | None = None,
+    address_ner: NerFn | None = None,
 ) -> tuple[str, MaskingReport]:
     """전 계층 마스킹 + 집계.
 
@@ -138,7 +143,13 @@ def mask_text_with_report(
     """
     report = MaskingReport()
     spans: list[tuple[int, int, str]] = []
-    for span_fn, token in ((ner, PERSON_TOKEN), (condition_ner, CONDITION_TOKEN)):
+    # 계층마다 **자기 토큰**을 쓴다 — 주소를 [인명] 으로 치환하면 검토 화면과 집계가
+    # 둘 다 거짓이 된다(무엇이 가려졌는지가 실무자에게 필요한 정보다).
+    for span_fn, token in (
+        (ner, PERSON_TOKEN),
+        (address_ner, ADDRESS_TOKEN),
+        (condition_ner, CONDITION_TOKEN),
+    ):
         if span_fn is None:
             continue
         spans.extend((start, end, token) for start, end in span_fn(text))
@@ -188,16 +199,8 @@ def _assert_labels_exist(recognizer, model_id: str, label_prefixes: tuple[str, .
         )
 
 
-def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
-    """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
-
-    라벨 체계는 모델마다 다르므로 **모델과 라벨 접두를 한 쌍으로 설정**하고(config.py),
-    여기서 모델이 선언한 라벨과 대조한다. 어긋나면 뜨지 않는다.
-    """
-    from transformers import pipeline  # noqa: PLC0415
-
-    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
-    _assert_labels_exist(recognizer, model_id, label_prefixes)
+def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN202 — 반환은 NerFn
+    """이미 불러온 파이프라인에서 특정 라벨 접두만 고르는 스팬 함수를 만든다."""
 
     def ner(text: str) -> list[tuple[int, int]]:
         spans: list[tuple[int, int]] = []
@@ -210,9 +213,47 @@ def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: AN
     return ner
 
 
+def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
+    """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
+
+    라벨 체계는 모델마다 다르므로 **모델과 라벨 접두를 한 쌍으로 설정**하고(config.py),
+    여기서 모델이 선언한 라벨과 대조한다. 어긋나면 뜨지 않는다.
+    """
+    from transformers import pipeline  # noqa: PLC0415
+
+    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    _assert_labels_exist(recognizer, model_id, label_prefixes)
+    return _span_fn(recognizer, label_prefixes)
+
+
 def build_ner(model_id: str, label_prefixes: tuple[str, ...] = DEFAULT_PERSON_LABELS):  # noqa: ANN201
     """인명 스팬 NER. 어느 라벨을 인명으로 볼지는 **모델과 함께 설정**한다(config.ner_labels)."""
     return _build_span_ner(model_id, label_prefixes)
+
+
+def build_person_and_address_ner(  # noqa: ANN201 — 반환은 (NerFn, NerFn | None)
+    model_id: str,
+    person_prefixes: tuple[str, ...] = DEFAULT_PERSON_LABELS,
+    address_prefixes: tuple[str, ...] = DEFAULT_ADDRESS_LABELS,
+):
+    """인명·주소 두 계층을 **모델 한 번만 불러서** 만든다.
+
+    채택 모델(korean-pii-e5-base)은 인명과 주소를 같은 모델이 잡는다. 계층마다 따로
+    부르면 같은 가중치를 두 번 올려 장비 메모리를 낭비한다(장비는 STT·화자 분리·감정과
+    자원을 나눠 쓴다).
+
+    `address_prefixes` 가 비면 주소 계층 없이 인명만 돌린다 — 주소를 안 잡는 모델로
+    갈아탈 때의 경로다. 비어 있지 **않은데** 모델이 그 라벨을 선언하지 않으면 뜨지 않는다.
+    """
+    from transformers import pipeline  # noqa: PLC0415
+
+    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    _assert_labels_exist(recognizer, model_id, person_prefixes)
+    person = _span_fn(recognizer, person_prefixes)
+    if not address_prefixes:
+        return person, None
+    _assert_labels_exist(recognizer, model_id, address_prefixes)
+    return person, _span_fn(recognizer, address_prefixes)
 
 
 def build_condition_ner(model_id: str, label_prefixes: tuple[str, ...] = DEFAULT_CONDITION_LABELS):  # noqa: ANN201

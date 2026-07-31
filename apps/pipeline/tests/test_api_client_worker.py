@@ -27,6 +27,7 @@ def make_config(work_dir: Path) -> Config:
         stt_repeat_threshold=4,
         ner_model_id="fixture/person-ner",
         ner_labels=("PS", "PER", "NAME"),
+        address_labels=("LC", "ADDRESS", "PRIVATE_ADDRESS"),
         condition_ner_model_id=None,
         condition_ner_labels=("DS",),
         hf_token=None,
@@ -148,7 +149,10 @@ class TextJobTest(unittest.TestCase):
             return [] if start < 0 else [(start, start + len("김철수"))]
 
         with TemporaryDirectory() as tmp:
-            with mock.patch("ccc_pipeline.worker._build_person_ner", return_value=fake_person_ner):
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(fake_person_ner, None),
+            ):
                 process_text_job(client, make_config(Path(tmp)), "item-1", "session-1")
 
         session_id, snapshot = client.post_masked_source.call_args.args
@@ -209,10 +213,13 @@ class DeviceReadinessTest(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             base = make_config(Path(tmp))
-            # 사전만 돌았는지 질병 NER 까지 거쳤는지가 스냅샷 기록에서 구분돼야 한다.
-            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1+cond-dict")
+            # 어느 계층이 실제로 돌았는지가 스냅샷 기록에서 구분돼야 한다 —
+            # 주소를 가렸는지, 질병명을 사전으로만 걸렀는지까지.
+            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1+addr+cond-dict")
             with_cond = replace(base, condition_ner_model_id="fixture/cond-ner")
-            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1+cond-ner")
+            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1+addr+cond-ner")
+            no_addr = replace(base, address_labels=())
+            self.assertEqual(masking_pipeline_version(no_addr), "ner-mask-v1-addr+cond-dict")
 
 
 class PersonNerFailClosedTest(unittest.TestCase):

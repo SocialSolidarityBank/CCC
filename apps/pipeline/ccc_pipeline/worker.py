@@ -24,7 +24,7 @@ from .transcribe import build_engine, transcribe_audio
 logger = logging.getLogger("ccc_pipeline")
 
 
-def _build_person_ner(config: Config):  # noqa: ANN202
+def _build_person_and_address_ner(config: Config):  # noqa: ANN202
     """인명 NER 계층. **없으면 진행하지 않는다** (2026-07-31 Q 결정).
 
     구 동작은 경고만 남기고 통과였는데, 그러면 금고에 없는 제3자("아들 김철수")가 마스킹
@@ -33,7 +33,8 @@ def _build_person_ner(config: Config):  # noqa: ANN202
     """
     if config.ner_model_id is None:
         raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
-    return masking.build_ner(config.ner_model_id, config.ner_labels)
+    # 인명과 주소는 같은 모델이 잡는다 — 한 번만 올린다(장비 메모리는 STT·감정과 나눠 쓴다).
+    return masking.build_person_and_address_ner(config.ner_model_id, config.ner_labels, config.address_labels)
 
 
 def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
@@ -89,10 +90,12 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         emotion_scores = aggregate_scores(speech_scores, text_scores)
 
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
+        person_ner, address_ner = _build_person_and_address_ner(config)
         transcript, mask_report = masking.mask_text_with_report(
             format_transcript(segments, roles),
-            _build_person_ner(config),
+            person_ner,
             _build_condition_ner_or_none(config),
+            address_ner,
         )
         # 마스킹 집계는 **건수만** 남긴다 — 치환된 원문은 로그에도 쓰지 않는다(R3, G3 검증용).
         logger.info("job %s: masked total=%d detail=%s", job_id, mask_report.total, mask_report.as_mapping())
@@ -127,7 +130,10 @@ def masking_pipeline_version(config: Config) -> str:
     고정 문자열이면 "질병명이 사전으로만 걸러졌는지 NER 까지 거쳤는지" 를 나중에 되짚을 수
     없다 — 마스킹 문제가 발견됐을 때 어느 스냅샷이 영향권인지 가려내는 근거가 이 값이다.
     """
-    return "ner-mask-v1+cond-ner" if config.condition_ner_model_id is not None else "ner-mask-v1+cond-dict"
+    parts = ["ner-mask-v1"]
+    parts.append("+addr" if config.address_labels else "-addr")
+    parts.append("+cond-ner" if config.condition_ner_model_id is not None else "+cond-dict")
+    return "".join(parts)
 
 
 def process_text_job(client: ApiClient, config: Config, item_id: str, session_id: str) -> None:
@@ -138,10 +144,12 @@ def process_text_job(client: ApiClient, config: Config, item_id: str, session_id
     오디오가 없으므로 전사·감정은 건너뛴다. 중간 파일도 만들지 않는다.
     """
     source = client.get_text_job_source(item_id)
+    person_ner, address_ner = _build_person_and_address_ner(config)
     masked, report = masking.mask_text_with_report(
         source,
-        _build_person_ner(config),
+        person_ner,
         _build_condition_ner_or_none(config),
+        address_ner,
     )
     # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
     logger.info("text job %s: masked total=%d detail=%s", item_id, report.total, report.as_mapping())

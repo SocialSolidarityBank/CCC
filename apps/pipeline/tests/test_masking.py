@@ -231,3 +231,45 @@ class LabelContractTest(unittest.TestCase):
         recognizer = self._FakeRecognizer([])
         with self.assertRaises(masking.MaskingConfigError):
             masking._assert_labels_exist(recognizer, "fixture/unknown", ("PS",))
+
+
+class AddressLayerTest(unittest.TestCase):
+    """주소 계층 (2026-08-01 Q 결정) — 이름과 **다른 토큰**으로 가린다."""
+
+    def test_address_uses_its_own_token(self):
+        text = "김철수 씨가 행복아파트 3동에 산다고 말함"
+
+        def person(t):
+            i = t.find("김철수")
+            return [(i, i + 3)]
+
+        def address(t):
+            i = t.find("행복아파트 3동")
+            return [(i, i + len("행복아파트 3동"))]
+
+        masked, report = masking.mask_text_with_report(text, person, None, address)
+        # 주소를 [인명] 으로 치환하면 검토 화면과 집계가 둘 다 거짓이 된다.
+        self.assertIn("[인명]", masked)
+        self.assertIn("[주소]", masked)
+        self.assertNotIn("행복아파트", masked)
+        self.assertEqual(report.as_mapping()[masking.PERSON_TOKEN], 1)
+        self.assertEqual(report.as_mapping()[masking.ADDRESS_TOKEN], 1)
+
+    def test_layers_do_not_shift_each_other_offsets(self):
+        # 두 계층 스팬을 합쳐 뒤에서 앞으로 치환하지 않으면 엉뚱한 자리가 잘린다.
+        text = "가나다 주소는 라마바사 이다"
+
+        def person(t):
+            return [(0, 3)]
+
+        def address(t):
+            i = t.find("라마바사")
+            return [(i, i + 4)]
+
+        masked, _ = masking.mask_text_with_report(text, person, None, address)
+        self.assertEqual(masked, "[인명] 주소는 [주소] 이다")
+
+    def test_address_layer_can_be_turned_off(self):
+        masked, report = masking.mask_text_with_report("행복아파트 3동", None, None, None)
+        self.assertEqual(masked, "행복아파트 3동")
+        self.assertEqual(report.total, 0)
