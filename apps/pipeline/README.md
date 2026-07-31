@@ -69,6 +69,17 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
 
+### 기동 전 설치 점검 (2026-07-31)
+
+`python3 -m ccc_pipeline` 은 폴링을 시작하기 전에 두 가지를 확인하고, 안 맞으면 **뜨지 않는다**(종료 코드 2).
+
+| 확인 | 왜 |
+| --- | --- |
+| `ffmpeg` 설치 | 없으면 무음 경계 분할이 통짜 전사로 폴백한다 — ADR-0024 가 금지한 방식이고, 실측에서 반복 붕괴(254회 반복·48% 손실)를 일으켰다 |
+| `CCC_NER_MODEL_ID` 설정 | 없으면 2차 방어의 인명 계층이 빈 채로 돈다(R3) |
+
+`yellow` 기동 후에 생긴 정체(모델 로드 실패·라벨 불일치 등)는 이 점검이 못 잡는다 — 감시 쪽 몫이고 별도 티켓이다.
+
 주의: 운영 API 앞의 Cloudflare가 기본 python-urllib User-Agent를 차단(1010)하므로
 클라이언트는 `ccc-pipeline/<버전>` UA를 명시한다 — 새 HTTP 코드를 추가할 때도 유지할 것.
 

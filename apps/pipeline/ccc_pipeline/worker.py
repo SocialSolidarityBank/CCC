@@ -104,7 +104,30 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-MASKING_PIPELINE_VERSION = "ner-mask-v1"
+def assert_device_ready(config: Config) -> None:
+    """기동 전 설치 점검. **실행 중 조건이 아니라 설치 오류**를 여기서 시끄럽게 잡는다.
+
+    이런 것들은 매 회차마다 조용히 품질을 깎는 대신 처음부터 뜨지 않는 게 맞다:
+      * ffmpeg 부재 → 무음 경계 분할이 통짜 전사로 폴백한다. ADR-0024 가 그 방식을
+        금지한 이유가 반복 붕괴 실측(254회 반복·48% 손실)이다.
+      * 인명 NER 미설정 → 2차 방어의 인명 계층이 빈 채로 돈다(R3).
+    """
+    if shutil.which("ffmpeg") is None:
+        raise masking.MaskingConfigError(
+            "ffmpeg is not installed — silence-boundary chunking would fall back to whole-file "
+            "transcription, which ADR-0024 forbids",
+        )
+    if config.ner_model_id is None:
+        raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
+
+
+def masking_pipeline_version(config: Config) -> str:
+    """스냅샷에 남길 마스킹 버전. **실제로 동작한 계층**을 담는다.
+
+    고정 문자열이면 "질병명이 사전으로만 걸러졌는지 NER 까지 거쳤는지" 를 나중에 되짚을 수
+    없다 — 마스킹 문제가 발견됐을 때 어느 스냅샷이 영향권인지 가려내는 근거가 이 값이다.
+    """
+    return "ner-mask-v1+cond-ner" if config.condition_ner_model_id is not None else "ner-mask-v1+cond-dict"
 
 
 def process_text_job(client: ApiClient, config: Config, item_id: str, session_id: str) -> None:
@@ -127,7 +150,7 @@ def process_text_job(client: ApiClient, config: Config, item_id: str, session_id
     client.post_masked_source(session_id, {
         "maskedText": masked,
         "sha256": digest,
-        "maskingPipelineVersion": MASKING_PIPELINE_VERSION,
+        "maskingPipelineVersion": masking_pipeline_version(config),
         # 텍스트 일감에는 따로 발췌할 근거가 없다 — 마스킹된 본문 전체가 한 조각이다.
         "evidence": [{
             "id": str(uuid.uuid4()),

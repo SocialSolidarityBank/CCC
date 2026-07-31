@@ -182,6 +182,39 @@ class TextJobTest(unittest.TestCase):
                 self.assertEqual(process_text_job.call_count, 2)
 
 
+class DeviceReadinessTest(unittest.TestCase):
+    """기동 전 설치 점검 — 설정이 틀린 채로 도는 것을 처음부터 막는다."""
+
+    def test_missing_ffmpeg_stops_startup(self):
+        from ccc_pipeline.masking import MaskingConfigError
+        from ccc_pipeline.worker import assert_device_ready
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch("ccc_pipeline.worker.shutil.which", return_value=None):
+                with self.assertRaises(MaskingConfigError):
+                    assert_device_ready(make_config(Path(tmp)))
+
+    def test_missing_person_ner_stops_startup(self):
+        from ccc_pipeline.masking import MaskingConfigError
+        from ccc_pipeline.worker import assert_device_ready
+
+        with TemporaryDirectory() as tmp:
+            config = replace(make_config(Path(tmp)), ner_model_id=None)
+            with mock.patch("ccc_pipeline.worker.shutil.which", return_value="/usr/bin/ffmpeg"):
+                with self.assertRaises(MaskingConfigError):
+                    assert_device_ready(config)
+
+    def test_masking_version_records_which_layers_ran(self):
+        from ccc_pipeline.worker import masking_pipeline_version
+
+        with TemporaryDirectory() as tmp:
+            base = make_config(Path(tmp))
+            # 사전만 돌았는지 질병 NER 까지 거쳤는지가 스냅샷 기록에서 구분돼야 한다.
+            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1+cond-dict")
+            with_cond = replace(base, condition_ner_model_id="fixture/cond-ner")
+            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1+cond-ner")
+
+
 class PersonNerFailClosedTest(unittest.TestCase):
     """인명 NER 계층이 없으면 진행하지 않는다 (2026-07-31 Q 결정 · R3).
 
