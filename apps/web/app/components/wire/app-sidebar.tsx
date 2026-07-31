@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { logoutAction } from '../../logout-action';
+import { toggleThemeAction } from '../../theme-action';
+import type { Theme } from '../../lib/theme-cookie';
 import type { ParticipantProgramType } from '../../lib/api';
 import { DEFAULT_PROGRAM_TYPE, ORG_LABEL, PROGRAM_LABELS, PROGRAM_TYPES, isKnownProgramType } from '../../lib/labels';
 import { Chevron } from './chevron';
@@ -41,7 +43,7 @@ function programMenu(programType: ParticipantProgramType): NavItem[] {
 }
 
 /** 16px 단색 라인 아이콘(DESIGN.md §4). currentColor 라 활성 항목에서 글자와 같이 물든다. */
-function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logout' }) {
+function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logout' | 'theme-dark' | 'theme-light' }) {
   const common = {
     width: 16,
     height: 16,
@@ -55,6 +57,11 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logou
     focusable: false,
   };
   switch (name) {
+    // 아이콘은 **가는 곳**을 가리킨다(현재 상태가 아니라). 라이트일 때 달이 뜨고, 누르면 어두워진다.
+    case 'theme-dark':
+      return <svg {...common}><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z" /></svg>;
+    case 'theme-light':
+      return <svg {...common}><circle cx="8" cy="8" r="3" /><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06" /></svg>;
     case 'upcoming':
       return <svg {...common}><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>;
     case 'calendar':
@@ -193,6 +200,12 @@ export interface AppSidebarProps {
   orgLabel?: string;
   /** 온보딩이 저장한 사업 표시 이름 매핑 (CCC-32). 생략하면 labels.ts 폴백. */
   programLabels?: Record<ParticipantProgramType, string>;
+  /**
+   * 현재 테마 (D56 · ADR-0026). 루트 레이아웃이 쿠키에서 읽어 넣는다 — 여기서 직접 읽지
+   * 않는 이유는 이 컴포넌트가 클라이언트이고 쿠키 판정은 첫 페인트 전에 끝나 있어야 하기
+   * 때문이다. 생략하면 라이트로 그린다(테스트·스토리 렌더가 지금까지처럼 동작한다).
+   */
+  theme?: Theme;
 }
 
 /**
@@ -210,6 +223,7 @@ export function AppSidebar({
   activePath,
   orgLabel = ORG_LABEL,
   programLabels = PROGRAM_LABELS,
+  theme = 'light',
 }: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
@@ -335,6 +349,21 @@ export function AppSidebar({
           {/* 로그아웃은 설정 아래 마지막이다 — 파괴적이진 않지만 '나가는' 행동이라 메뉴
               흐름의 끝에 둔다. 서버 액션 폼인 이유는 쿠키를 지우는 일이 서버 몫이기 때문이다
               (HttpOnly 라 클라이언트에서 못 지운다). */}
+          {/* 테마 전환 (D56). 로그아웃과 같은 이유로 서버 액션 폼이다 — 쿠키를 서버가 쓰고,
+              그래야 다음 렌더의 <html data-theme> 이 첫 페인트부터 맞는다. GET 링크로 두면
+              프리페치가 테마를 제멋대로 바꾼다.
+              라벨은 **가는 곳**을 말한다("다크 모드로") — 현재 상태를 말하면 누를 때마다
+              무엇이 될지 한 번 더 생각해야 한다. aria-pressed 로 현재 상태는 따로 알린다. */}
+          <form action={toggleThemeAction} className="sidebar-logout-form">
+            <button
+              type="submit"
+              className="navigation-link sidebar-logout"
+              aria-pressed={theme === 'dark'}
+            >
+              <NavIcon name={theme === 'dark' ? 'theme-light' : 'theme-dark'} />
+              <span>{theme === 'dark' ? '라이트 모드로' : '다크 모드로'}</span>
+            </button>
+          </form>
           <form action={logoutAction} className="sidebar-logout-form">
             <button type="submit" className="navigation-link sidebar-logout">
               <NavIcon name="logout" />
