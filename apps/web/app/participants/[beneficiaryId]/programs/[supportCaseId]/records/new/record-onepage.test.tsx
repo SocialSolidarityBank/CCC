@@ -14,6 +14,7 @@ function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps 
     customQuestions: [],
     lastRecordSummary: null,
     briefingPath: '/participants/swallow-003/programs/case-1/briefing',
+    actions: <><button type="button">상담 기록으로 돌아가기</button><button type="submit">저장</button></>,
     ...overrides,
   };
 }
@@ -34,6 +35,16 @@ describe('RecordOnepage', () => {
     expect(header.textContent).toContain('임대차 계약 확인');
     // 일정에 세션 목표가 있으면 헤더에서 따로 입력받지 않는다.
     expect(container.querySelector('input[name="sessionGoalNote"]')).toBeNull();
+  });
+
+  // 2026-07-31 Q: 나가기·저장이 화면 양 끝에 흩어져 있던 것을 고정 헤더로 모았다.
+  // 저장이 폼 아래에 하나도 남아 있지 않으므로, 이 자리가 비면 저장할 길이 사라진다.
+  it('고정 헤더가 나가기·저장 버튼을 갖는다', () => {
+    const { getByTestId } = render(<RecordOnepage {...props()} />);
+
+    const header = getByTestId('record-sticky-header');
+    expect(header.textContent).toContain('상담 기록으로 돌아가기');
+    expect(header.querySelector('button[type="submit"]')?.textContent).toBe('저장');
   });
 
   it('세션 목표가 미연결이면 헤더에서 바로 이번 상담 목표를 추가할 수 있다', () => {

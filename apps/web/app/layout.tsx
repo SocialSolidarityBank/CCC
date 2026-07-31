@@ -549,10 +549,16 @@ const recordFormStyles = `
   color:var(--ink);
 }
 .record-sticky{position:sticky;top:0;z-index:var(--z-sticky);display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
-.record-sticky-row{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.record-sticky-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:var(--space-3) var(--space-4)}
+.record-sticky-row>div:first-child{min-width:0;flex:1 1 240px}
 .record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
 .record-sticky-value{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
 .record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:700;color:var(--ink)}
+/* 나가기·저장(2026-07-31 Q). 이 둘은 원래 화면 양 끝에 흩어져 있었다 — 나가기는 제목 옆에서
+   아무것과도 묶이지 않았고, 저장은 폼 맨 아래라 스크롤을 끝까지 내려야 보였다.
+   고정 헤더에 함께 두면 어느 위치에서 쓰든 나가는 길과 저장이 늘 같은 자리에 있다.
+   §4-5 순서를 따라 세컨더리 → 프라이머리이고, 좁아지면 줄바꿈한다. */
+.record-sticky-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);flex:none}
 .record-sticky-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .record-accordion{padding:var(--space-4) var(--space-5)}
 .record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:700;color:var(--ink);cursor:pointer;list-style:none}

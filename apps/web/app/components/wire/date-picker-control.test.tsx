@@ -161,6 +161,41 @@ describe('DateTimePickerControl', () => {
 
     expect(container.querySelector('input[type="hidden"]')).toBeNull();
   });
+
+  // 2026-07-31 Q 재구성: 팝오버 하나에서 날짜와 시각을 함께 고른다.
+  it('팝오버 안에서 시각을 고르면 날짜와 합쳐진 값이 된다', () => {
+    const onChange = vi.fn();
+    render(<DateTimePickerControl value="2026-08-12T" onChange={onChange} fieldLabel="상담 일시" />);
+
+    fireEvent.click(screen.getByRole('button', { name: '상담 일시 날짜·시각 선택 열기' }));
+    fireEvent.click(screen.getByRole('button', { name: '14:30' }));
+
+    expect(onChange).toHaveBeenCalledWith('2026-08-12T14:30');
+  });
+
+  it('날짜를 골라도 팝오버가 닫히지 않는다 — 시각이 아직 남아 있다', () => {
+    render(<DateTimePickerControl value="2026-08-12T14:30" onChange={vi.fn()} fieldLabel="상담 일시" />);
+
+    fireEvent.click(screen.getByRole('button', { name: '상담 일시 날짜·시각 선택 열기' }));
+    const dialog = screen.getByRole('dialog', { name: '상담 일시 날짜·시각 선택' });
+    // 날짜 버튼의 접근성 이름은 라이브러리가 로케일로 만든 긴 문장이라 격자에서 칸을 집는다.
+    const day20 = Array.from(dialog.querySelectorAll('.rdp-day_button'))
+      .find((button) => button.textContent?.trim() === '20');
+    fireEvent.click(day20 as HTMLElement);
+
+    expect(screen.getByRole('dialog', { name: '상담 일시 날짜·시각 선택' })).not.toBeNull();
+  });
+
+  it('완료를 누르면 닫히고 초점이 여는 버튼으로 돌아온다', () => {
+    render(<DateTimePickerControl value="2026-08-12T14:30" onChange={vi.fn()} fieldLabel="상담 일시" />);
+
+    const toggle = screen.getByRole('button', { name: '상담 일시 날짜·시각 선택 열기' });
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: '완료' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '상담 일시 날짜·시각 선택 열기' }));
+  });
 });
 
 describe('isCompleteDateTime', () => {
