@@ -1,0 +1,149 @@
+name: Deploy Production
+
+# 운영 배포 (ccc-api · ccc). **미리보기와 모양이 일부러 다르다** — 그 차이가 이 파일의 전부다.
+#
+#   미리보기: main 에 머지되면 자동으로 나간다.
+#   운영:     사람이 눌러야 돌고, 그 위에 승인이 한 번 더 걸린다(environment: production).
+#
+# 빌드·검증 단계는 deploy-preview.yml 과 **한 글자도 다르지 않다** — 파이프라인은 이미 있고,
+# 여기서 새로 만드는 것은 방아쇠와 게이트뿐이다.
+#
+# `yellow` **오늘 이 워크플로를 돌리면 실패한다. 그게 맞는 동작이다.**
+# 운영 D1 에 마이그레이션 17개(0012~0028)가 미적용이라 아래 스키마 게이트가 막는다.
+# 게이트를 풀어서 초록으로 만들지 않는다 — 스키마보다 앞선 코드를 배포하면 화면이 아니라
+# 런타임에서 터진다(없는 컬럼을 조회한다).
+#
+# 첫 실행 전에 사람이 해야 하는 일 3가지:
+#   1. GitHub 저장소 설정에서 **Environment `production` 생성 + 필수 리뷰어 지정**
+#      (이게 없으면 `environment:` 는 승인 없이 그냥 통과한다 — 잠금이 아니라 라벨이 된다)
+#   2. 운영 D1 마이그레이션 적용:
+#      pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote
+#      docs/ops.md 의 "마이그레이션은 자동으로 안 간다" 정책은 그대로다 — 이 워크플로는
+#      **적용하지 않고 확인만 한다**. 운영 PII DB 의 스키마 변경은 사람이 보고 누르는 일이다
+#   3. 운영 시크릿 확인: `wrangler deploy` 는 시크릿이 없어도 **성공한다** — 워커가 런타임에
+#      터질 뿐이다. 초록을 "동작한다"로 읽지 않는다. 최소 PII_ENC_KEY 가 있어야 한다
+#      (pnpm --filter @ccc/api exec wrangler secret list --env production 으로 이름만 확인)
+#
+# `yellow` **실서비스 개시 전 선행 조건은 이 워크플로가 판단하지 않는다.**
+# CLAUDE.md 8장의 보존·파기 파이프라인 미구현, D46 의 동의 게이트·법률 검토 재개 조건은
+# 여전히 열려 있다. 이 파일이 있다는 것이 "배포해도 된다"는 뜻이 아니다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '운영 배포를 확인하려면 deploy-production 을 그대로 입력한다'
+        required: true
+        type: string
+
+# 미리보기와 **다른 그룹**이다 — 같은 그룹에 두면 한쪽이 다른 쪽을 취소한다.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # 오타 하나로 운영에 나가지 않게, 확인 문구를 먼저 본다. 승인(environment)과 별개의
+  # 잠금이다 — 승인은 "누가 봤나", 이건 "무엇을 누르는지 알고 있나"를 묻는다.
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 확인 문구 검사
+        # 입력값을 `${{ }}` 로 셸 안에 직접 펼치지 않는다 — 그렇게 하면 GitHub 이 문자열을
+        # **스크립트로 치환**해서 넣으므로 `"; curl ... | sh; #` 같은 입력이 그대로 실행된다.
+        # env 로 넘기고 셸 변수로 읽으면 값은 값으로만 남는다. 이 워크플로를 돌릴 수 있는 사람은
+        # 이미 쓰기 권한자지만, 하필 운영 배포 자리라 주입 경로를 남기지 않는다.
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "deploy-production" ]; then
+            echo "확인 문구가 다르다 (기대: deploy-production)"
+            exit 1
+          fi
+
+  verify:
+    needs: confirm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm guard:db
+      - run: pnpm guard:tokens
+
+  # 스키마 게이트 — docs/ops.md 의 "마이그레이션은 자동으로 안 간다"를 주석이 아니라 **잡**으로 만든다.
+  # 미적용 마이그레이션이 남아 있으면 배포를 막는다.
+  schema-gate:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 운영 D1 미적용 마이그레이션 확인
+        # **종료 코드에 기대지 않고 출력을 읽는다.** `migrations list` 는 보고 명령이라
+        # 미적용이 남아 있어도 0 으로 끝날 수 있다 — 그러면 게이트가 초록으로 통과하면서
+        # 아무것도 막지 않는다. 막지 않는 게이트는 게이트가 없는 것보다 나쁘다(있다고 믿게 된다).
+        # 그래서 "적용할 마이그레이션 없음" 문구를 **명시적으로 확인**하고, 아니면 실패시킨다.
+        run: |
+          set -o pipefail
+          pnpm --filter @ccc/api exec wrangler d1 migrations list ccc --env production --remote \
+            2>&1 | tee "$RUNNER_TEMP/migrations.txt" || true
+          if grep -qiE 'No migrations to apply|적용할 마이그레이션' "$RUNNER_TEMP/migrations.txt"; then
+            echo "운영 D1 스키마가 레포와 같다 — 배포 진행 가능."
+            exit 0
+          fi
+          echo "::error::운영 D1 에 미적용 마이그레이션이 있다. 코드를 스키마보다 앞세우지 않는다."
+          echo "적용: pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote"
+          echo "--- migrations list 출력 ---"
+          cat "$RUNNER_TEMP/migrations.txt"
+          exit 1
+
+  deploy-production:
+    needs: schema-gate
+    runs-on: ubuntu-latest
+    # 승인 게이트. **저장소 설정에서 Environment 를 만들고 리뷰어를 지정해야 실제로 잠긴다** —
+    # 없으면 이 줄은 통과하는 라벨일 뿐이다(위 머리말 1번).
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # API 를 먼저 배포한다 — 웹이 서비스 바인딩(CCC_API → ccc-api)으로 API 를 부르므로
+      # 순서가 뒤집히면 새 웹이 옛 API 를 잠깐 친다(미리보기와 같은 순서다).
+      - name: API 운영 배포 (ccc-api)
+        run: pnpm --filter @ccc/api exec wrangler deploy --env production
+      # 웹은 **--env 를 붙이지 않는다.** wrangler.jsonc 의 최상위 name 이 곧 운영("ccc")이고
+      # named env 는 preview 하나뿐이다 — 여기서 --env production 을 쓰면 없는 환경을 찾는다.
+      # 미리보기 워크플로를 그대로 베끼면 틀리는 유일한 자리다.
+      - name: WEB 운영 빌드·배포 (ccc)
+        run: |
+          pnpm --filter @ccc/web exec opennextjs-cloudflare build
+          pnpm --filter @ccc/web exec opennextjs-cloudflare deploy
+      # 크론이 다시 등록된다(*/30 워치독 · 03:00 PII 파기, D8·D10). 오늘 기준 파기 후보는
+      # 0건이다 — 보존 시계는 0006 의 DB 트리거가 케이스 **종결 시에만** 걸고 운영에는 종결
+      # 케이스가 없다. 0012~0028 중 purge_due 를 채우는 마이그레이션도 없다(2026-07-31 확인).
+      - name: 배포 후 확인 안내
+        run: |
+          echo "배포 완료. 시크릿 누락은 배포 성공으로 가려지므로 런타임을 직접 확인한다:"
+          echo "  pnpm --filter @ccc/api exec wrangler secret list --env production"
+          echo "  crons: */30(워치독) · 0 3 * * *(PII 파기) 가 다시 등록됐다"

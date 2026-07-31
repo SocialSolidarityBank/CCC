@@ -122,6 +122,30 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - **배포 후 확인**: 브라우저로 https://ccc-preview.account-855.workers.dev/preview 를 열어 눈으로 본다. 서브 CSS에 토큰이 실렸는지는 `curl`로도 볼 수 있지만 그것만으로는 레이아웃 깨짐을 못 잡는다.
 - CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다. 통과 못 한 상태로 배포하지 않는다.
 
+## 운영 배포 (`.github/workflows/deploy-production.yml`, 2026-07-31 신설)
+
+**미리보기와 방아쇠가 다르다.** 미리보기는 main 에 머지되면 자동으로 나가고, 운영은 사람이 눌러야 돈다(`workflow_dispatch`). 빌드·검증 단계는 미리보기와 한 글자도 다르지 않다 — 새로 만든 것은 방아쇠와 게이트뿐이다.
+
+잠금 4단, 순서대로:
+
+1. **확인 문구** — 실행할 때 `deploy-production` 을 그대로 입력해야 한다. 오타로 나가지 않게 하는 것이지 권한 검사가 아니다
+2. **verify** — `typecheck` · `test` · `guard:db` · `guard:tokens` (미리보기와 동일)
+3. **schema-gate** — 운영 D1 에 미적용 마이그레이션이 있으면 **막는다**. 위 "마이그레이션은 자동으로 안 간다" 정책을 주석이 아니라 잡으로 만든 것이다. 적용은 여전히 사람 몫이다: `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote`
+4. **environment: production** — 승인 게이트
+
+`yellow` **오늘 돌리면 3번에서 실패한다. 그게 맞는 동작이다** — 운영 D1 에 마이그레이션 17개(0012~0028)가 미적용이다. 게이트를 풀어서 초록으로 만들지 않는다. 스키마보다 앞선 코드는 화면이 아니라 런타임에서 터진다(없는 컬럼을 조회한다).
+
+첫 실행 전에 사람이 해야 하는 일:
+
+- **저장소 설정에서 Environment `production` 을 만들고 필수 리뷰어를 지정한다.** 없으면 `environment:` 줄은 잠금이 아니라 통과하는 라벨이다
+- 운영 시크릿 확인 — `wrangler deploy` 는 시크릿이 없어도 **성공한다**(워커가 런타임에 터질 뿐이다). 초록을 "동작한다"로 읽지 않는다. 이름만 확인: `pnpm --filter @ccc/api exec wrangler secret list --env production`
+
+`yellow` **이 워크플로가 있다는 것이 "배포해도 된다"는 뜻이 아니다.** `CLAUDE.md` 8장의 보존·파기 파이프라인 미구현, D46 의 동의 게이트·법률 검토 재개 조건은 그대로 열려 있다. 워크플로는 그 판단을 하지 않는다.
+
+**웹은 `--env` 를 붙이지 않는다.** `apps/web/wrangler.jsonc` 의 최상위 `name` 이 곧 운영(`ccc`)이고 named env 는 `preview` 하나뿐이다 — 미리보기 명령을 그대로 베끼면 틀리는 유일한 자리다. API 는 `--env production` 이 있고, **API 를 먼저** 배포한다(웹이 서비스 바인딩 `CCC_API → ccc-api` 로 API 를 부른다).
+
+**크론**: 운영 배포는 `*/30`(폴링 워치독, D8)과 `0 3 * * *`(PII 파기, D10)을 다시 등록한다. 2026-07-31 확인 기준 파기 후보는 0건이다 — 보존 시계(`purge_due`)는 마이그레이션 0006 의 DB 트리거가 케이스 **종결 시에만** 걸고 운영에는 종결 케이스가 없으며, 미적용 마이그레이션 0012~0028 중 `purge_due` 를 채우는 것도 없다.
+
 ## 미리보기 환경 (CCC-6)
 
 팀원이 링크 + 지정 코드만으로 개발 중 서비스를 보는 **미리보기 전용 환경**. Cloudflare Access를 거치지 않는다. 운영과 완전 분리한다.
