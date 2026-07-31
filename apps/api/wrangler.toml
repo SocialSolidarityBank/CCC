@@ -90,6 +90,20 @@ PREVIEW_ACTOR_EMAIL = "ai00@ggbss.or.kr"
 # 짝인 시크릿 PREVIEW_ADMIN_ACCESS_CODE 를 넣지 않으면 이 경로 자체가 없다(둘 다 있어야 열린다).
 #   pnpm exec wrangler secret put PREVIEW_ADMIN_ACCESS_CODE --env preview
 PREVIEW_ADMIN_ACTOR_EMAIL = "account@bss.or.kr"
+# 종단 점검(E2E) 기본 신원 — 처리 장비 역할. 미리보기는 Access 서비스 토큰이 없어
+# service 역할이 될 수 없고, 그래서 "수기 저장 → 장비 마스킹 → 불일치 검출" 종단
+# 경로를 실물로 확인할 수 없었다(D55·ADR-0025). 짝인 시크릿 PREVIEW_E2E_ACCESS_CODE
+# 를 넣지 않으면 이 경로 자체가 없다(둘 다 있어야 열린다 — 관리자 시점과 같은 규칙).
+#   pnpm exec wrangler secret put PREVIEW_E2E_ACCESS_CODE --env preview
+PREVIEW_SERVICE_ACTOR_EMAIL = "service-token-client-id.access"
+# AI 사업자 설정 (D55 · ADR-0025). 시크릿이 아니라 "어느 모델을 승인해 쓰는가"의 기록이라
+# 값을 커밋한다 — 짝인 CODEX_API_KEY 는 시크릿이라 여기 없다(둘 다 있어야 호출이 열린다).
+# 앞 네 값은 코드가 요구하는 고정값이고, model 만 고른다(2026-07-31 Q 선택: gpt-5.6-luna).
+# 교체 후보: gpt-5.4-mini · gpt-5-mini — 이 줄만 바꾸면 된다.
+AI_PROVIDER_CONFIG = '{"registryVersion":"phase1.v1","providerId":"codex","adapterVersion":"v1","configVersion":"v1","model":"gpt-5.6-luna"}'
+# 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 사용되지 않고,
+# 텍스트 일감 큐도 비어 보인다(ADR-0025). 미리보기는 가상 시드 전용이라 켠다.
+TEXT_AI_PILOT_ENABLED = "1"
 
 # 크론 트리거는 미리보기에서 비활성. 주의: triggers 를 생략하면 top-level crons 가
 # 상속되므로(첫 배포에서 실측), 빈 배열로 명시해 상속을 끊는다.
