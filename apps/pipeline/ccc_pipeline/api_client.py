@@ -83,7 +83,7 @@ class ApiClient:
                 raise ApiError(response.status, "unexpected artifacts response")
 
     # ------------------------------------------------------------------
-    # 텍스트 일감 (D51 · ADR-0025) — 오디오 없는 회차의 2차 마스킹.
+    # 텍스트 일감 (D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹.
     # ------------------------------------------------------------------
 
     def list_text_jobs(self) -> list[dict[str, Any]]:

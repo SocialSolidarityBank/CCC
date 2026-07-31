@@ -118,7 +118,7 @@ function adminPreviewConfigured(env: ApiEnv): boolean {
  *
  * 왜 필요한가: 처리 장비용 엔드포인트는 `service` 역할 전용인데, 미리보기는 Access 를
  * 쓰지 않아 서비스 토큰이 없다. 그래서 이 환경에서는 "수기 저장 → 장비 마스킹 →
- * 불일치 검출" 종단 경로를 한 번도 실물로 확인할 수 없었다(ADR-0025 를 만든 뒤 실측 불가).
+ * 불일치 검출" 종단 경로를 한 번도 실물로 확인할 수 없었다(ADR-0027 를 만든 뒤 실측 불가).
  * 이 코드는 그 구간을 미리보기에서 돌리기 위한 것이다.
  */
 function e2ePreviewConfigured(env: ApiEnv): boolean {

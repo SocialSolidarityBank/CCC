@@ -43,9 +43,9 @@
 | `NOTIFY_WEBHOOK_URL` | Workers 시크릿 | (없음) | D8 관리자 알림 웹훅. 미설정 시 console.error 폴백만. URL은 시크릿 취급(로그 출력 금지). |
 | `LOCAL_ACTOR_HEADER_MODE` | `wrangler.toml [vars]` | (로컬 `"true"`) | 로컬 개발용 헤더 인증 모드. 프로덕션 미설정 시 fail closed(D16). |
 | `PII_ENC_KEY` | Workers 시크릿 | (없음) | PII AES-GCM 키(D3). 코드·로그 출력 금지(R3). |
-| `AI_PROVIDER_CONFIG` | Workers 환경 변수(JSON 문자열) | (없음) | 활성 AI 사업자 설정(레지스트리·어댑터·설정 버전·모델). **미설정이면 AI 호출 경로 전체가 fail closed** 된다 — 지금 운영·로컬 어디에도 없어 사업자 호출이 한 번도 실행된 적이 없다(D55·ADR-0025). |
-| `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D55). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
-| `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0025). |
+| `AI_PROVIDER_CONFIG` | Workers 환경 변수(JSON 문자열) | (없음) | 활성 AI 사업자 설정(레지스트리·어댑터·설정 버전·모델). **미설정이면 AI 호출 경로 전체가 fail closed** 된다 — 지금 운영·로컬 어디에도 없어 사업자 호출이 한 번도 실행된 적이 없다(D57·ADR-0027). |
+| `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
+| `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
 
 두 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`)은 **함께** 있어야 사업자 호출이 열린다. 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 
@@ -127,6 +127,34 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - **배포 후 확인**: 브라우저로 https://ccc-preview.account-855.workers.dev/preview 를 열어 눈으로 본다. 서브 CSS에 토큰이 실렸는지는 `curl`로도 볼 수 있지만 그것만으로는 레이아웃 깨짐을 못 잡는다.
 - CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다. 통과 못 한 상태로 배포하지 않는다.
 
+## 운영 배포 (`.github/workflows/deploy-production.yml`, 2026-07-31 신설)
+
+> **2026-08-01: 운영 D1 마이그레이션 15개(0012~0028) 적용 완료.** 스키마 게이트는 이제 통과한다 — 어제까지 운영 배포를 물리적으로 막던 잠금이 풀렸고, 남은 것은 확인 문구와 승인 둘이다. 적용 전후 행 수·되돌릴 Time Travel 북마크·확인한 스키마 목록은 `artifacts/prod-migration-2026-08-01/`. `yellow` **운영 DB 가 배포된 코드(2026-07-15)보다 앞선 상태**이고, 이 간극은 운영 배포로 닫는 것이 정상 순서다. 스키마를 맞춘 것이 실서비스 개시 조건(보존·파기 파이프라인, D46)을 충족했다는 뜻은 아니다.
+
+
+
+**미리보기와 방아쇠가 다르다.** 미리보기는 main 에 머지되면 자동으로 나가고, 운영은 사람이 눌러야 돈다(`workflow_dispatch`). 빌드·검증 단계는 미리보기와 한 글자도 다르지 않다 — 새로 만든 것은 방아쇠와 게이트뿐이다.
+
+잠금 4단, 순서대로:
+
+1. **확인 문구** — 실행할 때 `deploy-production` 을 그대로 입력해야 한다. 오타로 나가지 않게 하는 것이지 권한 검사가 아니다
+2. **verify** — `typecheck` · `test` · `guard:db` · `guard:tokens` (미리보기와 동일)
+3. **schema-gate** — 운영 D1 에 미적용 마이그레이션이 있으면 **막는다**. 위 "마이그레이션은 자동으로 안 간다" 정책을 주석이 아니라 잡으로 만든 것이다. 적용은 여전히 사람 몫이다: `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote`
+4. **environment: production** — 승인 게이트
+
+`yellow` **오늘 돌리면 3번에서 실패한다. 그게 맞는 동작이다** — 운영 D1 에 마이그레이션 17개(0012~0028)가 미적용이다. 게이트를 풀어서 초록으로 만들지 않는다. 스키마보다 앞선 코드는 화면이 아니라 런타임에서 터진다(없는 컬럼을 조회한다).
+
+첫 실행 전에 사람이 해야 하는 일:
+
+- **저장소 설정에서 Environment `production` 을 만들고 필수 리뷰어를 지정한다.** 없으면 `environment:` 줄은 잠금이 아니라 통과하는 라벨이다
+- 운영 시크릿 확인 — `wrangler deploy` 는 시크릿이 없어도 **성공한다**(워커가 런타임에 터질 뿐이다). 초록을 "동작한다"로 읽지 않는다. 이름만 확인: `pnpm --filter @ccc/api exec wrangler secret list --env production`
+
+`yellow` **이 워크플로가 있다는 것이 "배포해도 된다"는 뜻이 아니다.** `CLAUDE.md` 8장의 보존·파기 파이프라인 미구현, D46 의 동의 게이트·법률 검토 재개 조건은 그대로 열려 있다. 워크플로는 그 판단을 하지 않는다.
+
+**웹은 `--env` 를 붙이지 않는다.** `apps/web/wrangler.jsonc` 의 최상위 `name` 이 곧 운영(`ccc`)이고 named env 는 `preview` 하나뿐이다 — 미리보기 명령을 그대로 베끼면 틀리는 유일한 자리다. API 는 `--env production` 이 있고, **API 를 먼저** 배포한다(웹이 서비스 바인딩 `CCC_API → ccc-api` 로 API 를 부른다).
+
+**크론**: 운영 배포는 `*/30`(폴링 워치독, D8)과 `0 3 * * *`(PII 파기, D10)을 다시 등록한다. 2026-07-31 확인 기준 파기 후보는 0건이다 — 보존 시계(`purge_due`)는 마이그레이션 0006 의 DB 트리거가 케이스 **종결 시에만** 걸고 운영에는 종결 케이스가 없으며, 미적용 마이그레이션 0012~0028 중 `purge_due` 를 채우는 것도 없다.
+
 ## 미리보기 환경 (CCC-6)
 
 팀원이 링크 + 지정 코드만으로 개발 중 서비스를 보는 **미리보기 전용 환경**. Cloudflare Access를 거치지 않는다. 운영과 완전 분리한다.
@@ -200,7 +228,7 @@ wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sq
 - 코드 게이트는 Access보다 약한 잠금이다 — 지정 코드를 아는 사람은 모두 데모 상담사 시점으로 본다. 실제 참여자 정보가 아니므로 감수한다.
 - 지정 코드 값은 코드·로그·문서에 넣지 않는다. 이름만 커밋한다(`PREVIEW_ACCESS_CODE`).
 
-### 미리보기에서 종단 경로 돌리기 (D55 · ADR-0025, 2026-07-31 실측)
+### 미리보기에서 종단 경로 돌리기 (D57 · ADR-0027, 2026-07-31 실측)
 
 **왜 필요했나.** 미리보기는 Access 를 안 쓰고 코드 게이트로 신원을 공급하는데, 그 신원은 항상 users 디렉터리의 사람(실무자·관리자)이다. 처리 장비용 엔드포인트는 `service` 역할 전용이라 **"수기 저장 → 장비 마스킹 → 불일치 검출" 종단 경로를 미리보기에서 한 번도 확인할 수 없었다.**
 
@@ -216,11 +244,11 @@ wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sq
 
 - **기본 python UA 는 Cloudflare 가 막는다**(오류 1010 → 403). `api_client.py` 가 UA 를 명시하는 이유와 같다. `urllib` 로 직접 칠 때도 `User-Agent` 를 넣어야 한다.
 - **`wrangler` 명령은 `apps/api` 안에서 실행**해야 한다. 다른 폴더면 "Required Worker name missing" 으로 조용히 실패한다. `--env preview` 를 빼면 없는 워커(`ccc-api-local`)를 찾다 실패한다.
-- **시드 케이스는 `consent_text_ai_at` 이 이미 차 있어도 근거 행이 없다.** 그 컬럼은 배선(ADR-0025) 이전에 찍힌 값이라, 화면에서 **동의를 다시 저장해야** `pilot_text_ai_consent_evidence` 행이 생기고 그때부터 텍스트 일감이 장비에 보인다. **운영 전환 시 기존 케이스 전부에 해당한다.**
+- **시드 케이스는 `consent_text_ai_at` 이 이미 차 있어도 근거 행이 없다.** 그 컬럼은 배선(ADR-0027) 이전에 찍힌 값이라, 화면에서 **동의를 다시 저장해야** `pilot_text_ai_consent_evidence` 행이 생기고 그때부터 텍스트 일감이 장비에 보인다. **운영 전환 시 기존 케이스 전부에 해당한다.**
 
 `red` **관측 공백** — 2026-07-31 실측: 스냅샷 POST 는 `ok`(200)로 끝나고 예외·로그가 **0건**이다. `runDiscrepancyDetection` 이 모든 실패를 삼키는 계약(D8)이라, 바깥에서 **사업자를 불렀는지·실패했는지·정말 불일치가 없었는지 구분할 수 없다.** 불일치 0건이 정상인지 고장인지 판정할 방법이 없다는 뜻이다. 최소 관측 수단(내용 없이 시도·실패 사유·저장 건수만)은 별도 티켓.
 
-`yellow` **인명 마스킹은 NER 모델이 있어야 동작한다** — 실측에서 `[전화번호]`·`[질환]` 은 정규식·사전 계층이 잡았지만 `아들 김철수` 는 그대로 남았다(`CCC_NER_MODEL_ID` 미설정으로 돌린 결과). ADR-0025 가 인용한 바로 그 사례다.
+`yellow` **인명 마스킹은 NER 모델이 있어야 동작한다** — 실측에서 `[전화번호]`·`[질환]` 은 정규식·사전 계층이 잡았지만 `아들 김철수` 는 그대로 남았다(`CCC_NER_MODEL_ID` 미설정으로 돌린 결과). ADR-0027 가 인용한 바로 그 사례다.
 
 **그래서 2026-07-31 Q 결정으로 두 가지를 못 박았다**(구 동작은 "경고만 내고 통과"였다):
 

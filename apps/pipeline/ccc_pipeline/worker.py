@@ -137,7 +137,7 @@ def masking_pipeline_version(config: Config) -> str:
 
 
 def process_text_job(client: ApiClient, config: Config, item_id: str, session_id: str) -> None:
-    """텍스트 일감 1건 (D51 · ADR-0025): 원문 받기 → 2차 마스킹 → 스냅샷 전송 → 완료.
+    """텍스트 일감 1건 (D51 · ADR-0027): 원문 받기 → 2차 마스킹 → 스냅샷 전송 → 완료.
 
     받는 텍스트는 서버가 1차 치환(등록 PII → 가명 ID)을 끝낸 공식 기록이다. 여기서
     NER·사전·정규식 계층을 얹어야만 그 텍스트가 사업자에게 나갈 수 있다(R3 · D2).

@@ -41,7 +41,7 @@ export const CONSENT_DETAIL_SECTIONS: ConsentDetailSection[] = [
   {
     heading: '5. 선택 동의 (거부해도 등록·상담 이용에 불이익이 없습니다)',
     // ② 항목 본문은 게이트웨이와 같은 상수를 쓴다 — 체크할 때 근거 표에 남기는
-    // 해시가 화면에 보인 문안과 같아야 하기 때문이다(ADR-0025).
+    // 해시가 화면에 보인 문안과 같아야 하기 때문이다(ADR-0027).
     items: [CONSENT_TEXT_AI_NOTICE_TEXT],
   },
   {

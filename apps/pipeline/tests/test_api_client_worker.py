@@ -135,7 +135,7 @@ class RunOnceTest(unittest.TestCase):
 
 
 class TextJobTest(unittest.TestCase):
-    """텍스트 일감 (D51 · ADR-0025) — 오디오 없는 회차의 2차 마스킹."""
+    """텍스트 일감 (D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹."""
 
     def test_masks_source_and_posts_snapshot_then_completes(self):
         from ccc_pipeline.worker import process_text_job

@@ -3833,7 +3833,7 @@ async function resolveSessionScope(
 /**
  * 검출 재료 수집 — 공식 기록만(R2: 수기 메모(D5 즉시 공식) + 승인된 AI 정리).
  *
- * R3 (2026-07-31 · ADR-0025): 재료는 **처리 장비가 2차 마스킹(NER)한 스냅샷**
+ * R3 (2026-07-31 · ADR-0027): 재료는 **처리 장비가 2차 마스킹(NER)한 스냅샷**
  * (`ai_masked_source_snapshots`)뿐이다. 수기 메모 원문을 쓰지 않는 이유는 금고에
  * 등록되지 않은 제3자("아들 김철수")를 1차 치환(maskRegisteredPii)이 잡지 못하기
  * 때문이다 — 그 텍스트는 사업자로 나갈 수 없다. 스냅샷이 없는 회차는 **재료에서
@@ -3850,7 +3850,7 @@ export async function collectDiscrepancyDetectionSources(
   assertOpaqueIdentifier(triggerSessionId, 'session id');
   const scope = await resolveSessionScope(env, actor.orgId, triggerSessionId);
   if (actor.role === 'service') {
-    // 장비가 스냅샷을 올린 직후의 재검출 경로(ADR-0025). 사람 담당 검사(D7) 대신
+    // 장비가 스냅샷을 올린 직후의 재검출 경로(ADR-0027). 사람 담당 검사(D7) 대신
     // 서비스 역할 + 파일럿 활성 + 텍스트 AI 동의 근거를 확인한다.
     await assertPilotTextAiConsentForService(env, actor, triggerSessionId);
   } else {
@@ -4005,7 +4005,7 @@ export async function replaceSessionDiscrepancies(
   }
   const scope = await resolveSessionScope(env, actor.orgId, triggerSessionId);
   if (actor.role === 'service') {
-    // 장비 스냅샷 직후 재검출(ADR-0025). 사람 담당 검사 대신 서비스 텍스트 AI 게이트.
+    // 장비 스냅샷 직후 재검출(ADR-0027). 사람 담당 검사 대신 서비스 텍스트 AI 게이트.
     await assertPilotTextAiConsentForService(env, actor, triggerSessionId);
   } else {
     assertHuman(actor);
@@ -4994,7 +4994,7 @@ export async function registerRecording(
 
 /** 처리 대기 중인 녹음 작업 목록. Mac Mini 서비스 역할 전용 (D13). */
 // ============================================================================
-// 텍스트 일감 큐 (D51 · ADR-0022 · ADR-0025 · 마이그레이션 0029)
+// 텍스트 일감 큐 (D51 · ADR-0022 · ADR-0027 · 마이그레이션 0029)
 //
 // 오디오가 없는 회차의 2차 마스킹(NER)을 처리 장비에 맡기기 위한 큐다. 기록이
 // 공식화될 때(수기 저장 · AI 정리 승인) 한 행이 쌓이고, 장비는 오디오 큐와 같은
@@ -7308,7 +7308,7 @@ detail: { role: 'primary', initial: true },
             caseId: legacyCaseId,
           }),
         );
-        // 등록 시점의 ② 체크도 AI 초안 근거 행을 만든다 (ADR-0025) — 정보 페이지에서
+        // 등록 시점의 ② 체크도 AI 초안 근거 행을 만든다 (ADR-0027) — 정보 페이지에서
         // 다시 저장해야만 근거가 생기는 상태를 남기지 않는다.
         if (consentTextAiAt !== null) {
           const evidenceId = newId();
@@ -7412,7 +7412,7 @@ export async function updateParticipantConsent(
   const textAiAt = consent.recordingAi ? recordedAt : null;
   const consentRecordId = newId();
 
-  // ② 체크는 AI 초안 저장의 근거 행도 만든다 (ADR-0025). 이 행이 없으면 동의를 다
+  // ② 체크는 AI 초안 저장의 근거 행도 만든다 (ADR-0027). 이 행이 없으면 동의를 다
   // 받은 케이스에서도 0026 트리거가 초안을 거부한다 — 화면과 파이프라인이 서로
   // 모르던 자리를 여기서 잇는다. 파일럿 스위치는 **사용**을 막을 뿐이므로, 근거는
   // 스위치 상태와 무관하게 남긴다. 철회(②=false)는 새 근거를 만들지 않는다 —

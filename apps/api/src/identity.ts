@@ -52,7 +52,7 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
   /**
    * 미리보기 **종단 점검(E2E) 코드**(Workers 시크릿, preview-gate.ts). 미리보기에는
    * Access 서비스 토큰이 없어 `service` 역할이 될 수 없고, 그래서 "수기 저장 → 장비
-   * 마스킹 → 불일치 검출" 종단 경로를 실물로 확인할 수 없다(D55·ADR-0025). 이 코드로
+   * 마스킹 → 불일치 검출" 종단 경로를 실물로 확인할 수 없다(D57·ADR-0027). 이 코드로
    * 들어오면 `X-CCC-Preview-Actor` 헤더로 신원을 고를 수 있다 — 단 아래 세 이메일
    * 변수에 적힌 값만 허용된다. 설정하지 않으면 이 경로 자체가 없다.
    */

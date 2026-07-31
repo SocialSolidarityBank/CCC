@@ -118,7 +118,7 @@ describe('당사자 등록 동의 기록 (D49 · D23 · 티켓 #19)', () => {
     ).bind(creation.beneficiaryId).first<{ initialization_state: string }>();
     expect(beneficiary?.initialization_state).toBe('complete');
 
-    // 대상 표까지 좁힌다 — 완료 전환 '이후'에 쌓이는 다른 create 감사(ADR-0025 의 텍스트 AI
+    // 대상 표까지 좁힌다 — 완료 전환 '이후'에 쌓이는 다른 create 감사(ADR-0027 의 텍스트 AI
     // 동의 근거 등)는 이 불변식과 무관하다. DB 가드도 전환 시점만 센다.
     const provenance = await t.db.prepare(
       `SELECT action FROM audit_log
@@ -290,9 +290,9 @@ describe('동의 2종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
     }));
   });
 
-  // ADR-0025 — 화면의 ② 체크가 AI 초안 근거 행을 만든다. 이 배선이 없으면 동의를 다
+  // ADR-0027 — 화면의 ② 체크가 AI 초안 근거 행을 만든다. 이 배선이 없으면 동의를 다
   // 받은 케이스에서도 0026 트리거가 초안 저장을 거부한다(부품은 있는데 화면만 없던 자리).
-  it('records the text-AI consent evidence row when ② is checked (ADR-0025)', async () => {
+  it('records the text-AI consent evidence row when ② is checked (ADR-0027)', async () => {
     await t.reset();
     const creation = await register(counselor, { privacy: true, recordingAi: true });
 

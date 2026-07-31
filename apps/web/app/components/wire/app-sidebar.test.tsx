@@ -30,7 +30,7 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     expect(switcher?.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '로그아웃']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '다크 모드로', '로그아웃']);
   });
 
   it('기관명이 홈 버튼이다 — 목적지는 마지막 선택 사업을 서버가 정하는 /', () => {
@@ -45,9 +45,10 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
 
   it('로그아웃은 서버 액션 폼이다 — HttpOnly 쿠키는 클라이언트가 못 지운다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    const submit = container.querySelector('.sidebar-logout-form button[type="submit"]');
-    expect(submit).not.toBeNull();
-    expect(submit?.textContent).toContain('로그아웃');
+    // 테마 전환도 같은 클래스의 폼이라(D56) 첫 폼을 집으면 그쪽이 걸린다 — 라벨로 고른다.
+    const submits = Array.from(container.querySelectorAll('.sidebar-logout-form button[type="submit"]'));
+    const submit = submits.find((el) => el.textContent?.includes('로그아웃'));
+    expect(submit).not.toBeUndefined();
     // 링크가 아니어야 한다 — GET 으로 로그아웃되면 프리페치·크롤러가 세션을 끊을 수 있다.
     expect(container.querySelector('a[href="/preview"]')).toBeNull();
   });
@@ -172,13 +173,46 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
     expect(drawer.querySelector('.program-switcher')).not.toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '로그아웃']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '다크 모드로', '로그아웃']);
   });
 
   it('아이콘이 aria-hidden 이므로 링크 텍스트는 DOM 에 남는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.navigation-soon)')?.textContent?.trim());
-    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '로그아웃']);
+    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '다크 모드로', '로그아웃']);
+  });
+});
+
+describe('AppSidebar — 테마 전환 (D56 · ADR-0026)', () => {
+  it('서버 액션 폼이다 — 쿠키를 서버가 써야 다음 렌더의 첫 페인트부터 테마가 맞는다', () => {
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    const submit = Array.from(container.querySelectorAll('.sidebar-logout-form button[type="submit"]'))
+      .find((el) => el.textContent?.includes('모드로'));
+    expect(submit).not.toBeUndefined();
+    // GET 링크로 두면 프리페치가 테마를 제멋대로 바꾼다.
+    expect(container.querySelector('a[href*="theme"]')).toBeNull();
+  });
+
+  it('라벨은 **가는 곳**을 말하고, 현재 상태는 aria-pressed 가 알린다', () => {
+    // 라벨이 현재 상태를 말하면 누를 때마다 무엇이 될지 한 번 더 생각해야 한다.
+    const light = render(<AppSidebar activePath="/participants" theme="light" />);
+    const lightBtn = Array.from(light.container.querySelectorAll('button[type="submit"]'))
+      .find((el) => el.textContent?.includes('모드로'));
+    expect(lightBtn?.textContent).toContain('다크 모드로');
+    expect(lightBtn?.getAttribute('aria-pressed')).toBe('false');
+
+    const dark = render(<AppSidebar activePath="/participants" theme="dark" />);
+    const darkBtn = Array.from(dark.container.querySelectorAll('button[type="submit"]'))
+      .find((el) => el.textContent?.includes('모드로'));
+    expect(darkBtn?.textContent).toContain('라이트 모드로');
+    expect(darkBtn?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('theme 을 안 주면 라이트다 — 다크는 명시적으로 켠 사람만 본다', () => {
+    const { container } = render(<AppSidebar activePath="/participants" />);
+    const btn = Array.from(container.querySelectorAll('button[type="submit"]'))
+      .find((el) => el.textContent?.includes('모드로'));
+    expect(btn?.getAttribute('aria-pressed')).toBe('false');
   });
 });

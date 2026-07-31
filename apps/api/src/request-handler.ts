@@ -1329,7 +1329,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
 
 /**
  * 기록 공식화 훅 (D5 · R2). ① 텍스트 일감을 큐에 넣어 처리 장비가 2차 마스킹
- * 스냅샷을 만들게 하고(ADR-0025), ② 불일치 검출을 시도한다. 스냅샷이 아직 없는
+ * 스냅샷을 만들게 하고(ADR-0027), ② 불일치 검출을 시도한다. 스냅샷이 아직 없는
  * 회차는 ②가 조용히 스킵되고, 장비가 스냅샷을 올리는 순간 그 경로에서 다시 돈다.
  * 둘 다 최선 노력이다 — 어느 쪽 실패도 기록 저장 응답을 막지 않는다(D8).
  */
@@ -2004,7 +2004,7 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 4 && parts[2] === 'ai' && parts[3] === 'source') {
         const snapshot = await recordMaskedSourceSnapshot(env, actor, sessionId, parseMaskedSourceSnapshot(await requestBody(request)));
         // 이제서야 이 회차가 2차 마스킹을 마친 재료를 갖는다 — 공식화 시점에 스킵됐던
-        // 불일치 검출을 여기서 돌린다(ADR-0025). 실패는 스킵이다(D8).
+        // 불일치 검출을 여기서 돌린다(ADR-0027). 실패는 스킵이다(D8).
         await runDiscrepancyDetection(env, actor, sessionId);
         return json({
           sourceSnapshotId: snapshot.id,
@@ -2062,7 +2062,7 @@ export async function handleRequest(
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'jobs') {
       return json({ jobs: await listPipelineJobs(env, actor) });
     }
-    // 텍스트 일감 큐(D51 · ADR-0025) — 오디오 없는 회차의 2차 마스킹을 장비에 맡긴다.
+    // 텍스트 일감 큐(D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹을 장비에 맡긴다.
     if (parts[0] === 'pipeline' && parts[1] === 'text-jobs') {
       if (request.method === 'GET' && parts.length === 2) {
         return json({ jobs: await listTextWorkItems(env, actor) });

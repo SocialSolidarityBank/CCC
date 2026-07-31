@@ -79,7 +79,7 @@ async function seedMaskedSnapshot(sessionId: string, text: string): Promise<void
 }
 
 /**
- * 처리 장비 흉내 (ADR-0025) — 대기 중인 텍스트 일감을 전부 가져와 2차 마스킹
+ * 처리 장비 흉내 (ADR-0027) — 대기 중인 텍스트 일감을 전부 가져와 2차 마스킹
  * 스냅샷을 만들고 완료 처리한다. 스냅샷 POST 라우트가 불일치 재검출을 돌린다.
  * `mask` 로 NER 마스킹을 대신한다(기본값은 원문 그대로 = 마스킹할 것이 없는 경우).
  */
@@ -149,7 +149,7 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
 
-  // 검출 재료는 2차 마스킹 스냅샷뿐이다(R3 · ADR-0025). 라우트를 거치지 않고 만든
+  // 검출 재료는 2차 마스킹 스냅샷뿐이다(R3 · ADR-0027). 라우트를 거치지 않고 만든
   // 회차라 공식화 훅이 돌지 않으므로 스냅샷을 직접 심는다(장비가 한 일과 같은 결과).
   // 저장·처리만 보는 테스트에는 필요 없어서 기본값은 끔 — 매 픽스처가 느려진다.
   if (withSnapshots) {
@@ -276,7 +276,7 @@ describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명
     expect(Number(audit?.count ?? 0)).toBeGreaterThan(0);
   });
 
-  // ADR-0025 의 핵심 보증 — 이 테스트가 깨지면 1차 치환만 거친 메모가 사업자로 나간다.
+  // ADR-0027 의 핵심 보증 — 이 테스트가 깨지면 1차 치환만 거친 메모가 사업자로 나간다.
   it('2차 마스킹 스냅샷이 없는 회차는 재료에서 빠진다 (R3)', async () => {
     const fixture = await createCaseWithSessions(['아들 김철수가 보증을 섰다고 말함'], true);
     const later = await createManualSession(t.env, counselor, fixture.caseId, {
@@ -790,7 +790,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
 
     const response = await postManualRecord(fixture.supportCaseId, '지인 채무 상환이 밀려 있다고 말함', 2);
     expect(response.status).toBe(201);
-    // 저장 시점에는 스냅샷이 없어 검출이 스킵된다 — 장비가 마스킹을 마쳐야 돈다(ADR-0025).
+    // 저장 시점에는 스냅샷이 없어 검출이 스킵된다 — 장비가 마스킹을 마쳐야 돈다(ADR-0027).
     expect(await runDeviceTextJobs()).toBe(1);
 
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);

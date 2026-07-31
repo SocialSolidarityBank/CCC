@@ -18,6 +18,7 @@ function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps 
     customQuestions: [],
     lastRecordSummary: null,
     briefingPath: '/participants/swallow-003/programs/case-1/briefing',
+    actions: <button type="submit">저장</button>,
     supportCaseId: SUPPORT_CASE_ID,
     submissionFailed: false,
     ...overrides,

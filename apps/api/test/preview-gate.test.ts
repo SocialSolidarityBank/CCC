@@ -7,7 +7,7 @@ import type { ApiEnv } from '../src/identity';
 const TEST_CODE = 'test-preview-code-1234';
 // 관리자 시점 픽스처(2026-07-30). 실무자 코드와 **다른 값**이어야 두 경로가 갈린다.
 const TEST_ADMIN_CODE = 'test-preview-admin-code-5678';
-// 종단 점검 코드 픽스처(D55). 위 둘과 또 달라야 세 경로가 갈린다.
+// 종단 점검 코드 픽스처(D57). 위 둘과 또 달라야 세 경로가 갈린다.
 const TEST_E2E_CODE = 'test-preview-e2e-code-9012';
 
 const baseEnv: ApiEnv = {
@@ -208,7 +208,7 @@ describe('preview code gate (CCC-6)', () => {
 
 // 종단 점검(E2E) 코드 — 미리보기에서 처리 장비(service) 시점을 여는 유일한 경로.
 // 이 경로가 넓어지면 미리보기가 사실상 무인증이 되므로, 아래 셋을 테스트로 고정한다.
-describe('preview E2E code (D55 · ADR-0025)', () => {
+describe('preview E2E code (D57 · ADR-0027)', () => {
   const e2ePreviewEnv: ApiEnv = {
     ...adminPreviewEnv,
     PREVIEW_E2E_ACCESS_CODE: TEST_E2E_CODE,

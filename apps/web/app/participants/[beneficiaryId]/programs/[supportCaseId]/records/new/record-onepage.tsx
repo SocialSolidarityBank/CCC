@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireCard } from '../../../../../../components/wire/wire-card';
@@ -56,6 +56,20 @@ export interface RecordOnepageProps {
   customQuestions: string[];
   lastRecordSummary: RecordLastSummary | null;
   briefingPath: string;
+  /**
+   * 고정 헤더 오른쪽에 붙는 버튼(2026-07-31 Q). 나가기·저장이 여기 산다.
+   *
+   * 이 화면의 버튼 둘은 원래 서로 멀리 떨어져 있었다 — 나가기는 페이지 제목 옆, 저장은
+   * 폼 맨 아래. 저장은 스크롤을 끝까지 내려야 보였고 나가기는 어느 것과도 묶이지 않아
+   * 혼자 떠 있었다. 둘 다 **언제나 보이는 한 자리**(이 고정 헤더)로 모은다.
+   *
+   * 슬롯으로 받는 이유는 저장이 `type="submit"` 이라 폼 소유자(page.tsx)가 쥐어야 하기
+   * 때문이다. 이 부품은 폼 안에서 렌더되므로 여기 놓인 제출 버튼도 그대로 동작한다.
+   *
+   * **선택 항목이 아니다** — 폼 아래에 있던 저장 버튼을 없앴으므로, 빠뜨리면 저장할 길이
+   * 하나도 없는 기록지가 조용히 나간다.
+   */
+  actions: ReactNode;
   /** 임시본 키(참여 사업 1건당 1개). 없으면 자동 저장을 끈다. */
   supportCaseId?: string;
   /** 직전 제출이 오류로 이 화면에 되돌아왔는가 — 임시본 성공 판정에 쓴다(use-dom-draft). */
@@ -70,6 +84,7 @@ export function RecordOnepage({
   customQuestions,
   lastRecordSummary,
   briefingPath,
+  actions,
   supportCaseId = '',
   submissionFailed = false,
 }: RecordOnepageProps) {
@@ -147,7 +162,9 @@ export function RecordOnepage({
           </div>
           {/* 여기 있던 `전체 목표 N` 카운트는 제거했다(D47 §6). 세던 것은 goals 테이블의
               **세부 목표**라 D43 보류 대상이었고, 이름도 전체 목표(케이스당 1개, D33)와
-              달라 숫자가 늘 2 이상으로 보였다. 전체 목표는 브리핑이 한 줄로 보여준다. */}
+              달라 숫자가 늘 2 이상으로 보였다. 전체 목표는 브리핑이 한 줄로 보여준다.
+              그 자리를 나가기·저장 버튼이 이어받는다(2026-07-31 Q). */}
+          <div className="record-sticky-actions">{actions}</div>
         </div>
         {sessionGoals.length === 0
           ? <WireFormField label="이번 상담 목표" note="(선택, 일정에 연결된 목표가 없을 때)" htmlFor="session-goal-note">
