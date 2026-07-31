@@ -178,14 +178,37 @@ export interface DateTimePickerControlProps {
 }
 
 /**
- * 날짜 + 시각(D48 · ADR-0020). 상담 일시처럼 `datetime-local` 이던 자리를 대신한다.
+ * 상담 시간대(07:00~21:00, 30분 간격). 이 앱의 일정은 전부 이 범위 안에 있고, 벗어나는
+ * 시각은 시각 칸에 직접 적으면 된다 — 목록은 **빠른 길**이지 유일한 길이 아니다.
+ */
+const timeSlots: string[] = Array.from({ length: 29 }, (_, index) => {
+  const minutes = 7 * 60 + index * 30;
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+});
+
+/**
+ * 날짜 + 시각(D48 · ADR-0020, 2026-07-31 Q 재구성).
  *
- * 달력에는 시간이 없으므로 **칸이 둘**이다. 제출값은 예전과 같은 `YYYY-MM-DDTHH:mm` 한 덩어리라
- * 서버 액션·게이트웨이는 손대지 않는다.
+ * **한 덩어리로 보이고 한 패널에서 고른다.** 이전에는 날짜칸·달력버튼·시각칸이 각자 테두리를
+ * 가진 세 부품으로 나란히 서 있어서 하나의 값을 적는 자리로 읽히지 않았고, 달력을 열어도 시각은
+ * 따로 쳐야 했다. 이제 두 칸은 테두리 하나를 공유하고, 팝오버 하나에 달력과 시각 목록이 함께 있다.
  *
- * 시각은 네이티브 `<input type="time">` 을 그대로 쓴다. 표기가 12시간제/24시간제로 갈리긴 하지만
- * **`2:30 PM` 과 `14:30` 은 둘 다 뜻이 하나**다 — R6 이 문제였던 이유는 편차가 아니라 `03/04/2026`
- * 처럼 **뜻이 둘**(3월 4일/4월 3일)이었기 때문이다. 시각에는 그 모호함이 없다(ADR-0020 §4).
+ * **바뀌지 않은 것**(전부 의도적이다):
+ *  * 두 칸 다 키보드로 직접 칠 수 있다 — KRDS 가 "날짜 선택기를 써도 입력 필드를 읽기전용으로
+ *    만들지 말라"를 요구한다. 팝오버는 대체가 아니라 지름길이다.
+ *  * 달력 알맹이는 `react-day-picker`(MIT) 그대로다. 키보드 격자 이동·스크린 리더 낭독은 손으로
+ *    만들 때 가장 조용히 틀리는 영역이다(ADR-0020 §2). shadcn/ui 의 날짜 선택기도 같은 조합
+ *    (react-day-picker + 팝오버)이라 부품을 갈아끼울 일이 아니라 팝오버를 다시 그릴 일이었다.
+ *  * 보이는 두 칸의 이름(`<name>Date`·`<name>Time`)과 숨은 칸의 제출값(`YYYY-MM-DDTHH:mm`).
+ *    이름을 빼면 폼 임시본(`useDomDraft`)이 **이름 있는 칸만** 복원하므로 상담 일시가 조용히
+ *    사라진다. 제출값이 그대로라 서버 액션·게이트웨이·마이그레이션은 변경 0이다.
+ *  * 시각은 네이티브 `<input type="time">` 이다. 12/24시간제로 표기가 갈리지만 `2:30 PM` 과
+ *    `14:30` 은 뜻이 하나다 — R6 이 문제였던 이유는 편차가 아니라 `03/04/2026` 처럼 뜻이
+ *    둘이었기 때문이다(ADR-0020 §4).
+ *
+ * 팝오버는 날짜를 골라도 닫지 않는다 — 아직 시각이 남아 있다. 닫는 길은 세 개다:
+ * `완료` 버튼, Escape, 바깥 누르기. 셋 다 초점을 여는 버튼으로 되돌린다.
  */
 export function DateTimePickerControl({
   id,
@@ -196,42 +219,123 @@ export function DateTimePickerControl({
   describedBy,
   fieldLabel,
 }: DateTimePickerControlProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const separator = value.indexOf('T');
   const datePart = separator === -1 ? value : value.slice(0, separator);
   const timePart = separator === -1 ? '' : value.slice(separator + 1);
+  const selected = parseDateOnly(datePart);
   // 둘 다 비면 빈 값을 낸다 — `T14:30` 같은 반쪽 값이 서버로 가지 않게 한다.
   const emit = (nextDate: string, nextTime: string): void => {
     onChange(nextDate === '' && nextTime === '' ? '' : `${nextDate}T${nextTime}`);
   };
 
-  return (
-    <span className="wire-datetime-control">
-      <DatePickerControl
-        id={id}
-        name={name === undefined ? undefined : `${name}Date`}
-        value={datePart}
-        onChange={(next) => emit(next, timePart)}
-        required={required}
-        describedBy={describedBy}
-        fieldLabel={fieldLabel}
-        ariaLabel={`${fieldLabel} 날짜`}
-      />
-      <input
-        className="wire-time-input"
-        type="time"
-        name={name === undefined ? undefined : `${name}Time`}
-        aria-label={`${fieldLabel} 시각`}
-        value={timePart}
-        required={required}
-        onChange={(event) => emit(datePart, event.currentTarget.value)}
-      />
-      {/* 서버가 읽는 값은 이 숨은 칸 하나다. 숨은 칸은 HTML 규칙상 제약 검증에서 빠지므로
-          필수 검사는 위 두 칸이 맡는다.
+  const close = (): void => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
 
-          `yellow` 보이는 두 칸에도 이름(`<name>Date`·`<name>Time`)을 준다. 폼 임시본
-          (`useDomDraft`)이 **이름 있는 칸만** 저장·복원하기 때문이다 — 이름을 빼면 임시본이
-          숨은 칸만 되돌리는데 그 값은 리액트가 즉시 덮어써서 상담 일시가 조용히 사라진다.
-          제출 시 이 두 키가 함께 가지만 서버 액션은 읽는 키만 꺼내 쓴다(무시된다). */}
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    // Escape 는 닫고 **초점을 버튼으로 되돌린다** — 안 되돌리면 키보드 사용자가 화면 맨 위로 튄다.
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <span className="wire-datetime-control" ref={rootRef}>
+      {/* 테두리는 이 껍데기 하나가 갖는다. 안의 두 칸은 테두리를 벗고 세로선으로만 나뉜다 —
+          하나의 값을 적는 자리이므로 하나의 상자로 보여야 한다. */}
+      <span className="wire-datetime-fields">
+        <DateTextInput
+          id={id}
+          name={name === undefined ? undefined : `${name}Date`}
+          value={datePart}
+          onValueChange={(next) => emit(next, timePart)}
+          required={required}
+          describedBy={describedBy}
+          ariaLabel={`${fieldLabel} 날짜`}
+        />
+        <input
+          className="wire-datetime-time"
+          type="time"
+          name={name === undefined ? undefined : `${name}Time`}
+          aria-label={`${fieldLabel} 시각`}
+          value={timePart}
+          required={required}
+          onChange={(event) => emit(datePart, event.currentTarget.value)}
+        />
+      </span>
+      <button
+        type="button"
+        ref={buttonRef}
+        className="wire-date-toggle"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        // 패널에 시각까지 들어 있으므로 이름도 '달력'이 아니라 '날짜·시각'이다.
+        aria-label={`${fieldLabel} 날짜·시각 선택 ${open ? '닫기' : '열기'}`}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        <CalendarGlyph />
+      </button>
+      {open ? (
+        <span className="wire-date-popover wire-datetime-popover" role="dialog" aria-label={`${fieldLabel} 날짜·시각 선택`}>
+          <DayPicker
+            mode="single"
+            locale={ko}
+            selected={selected}
+            // 값이 없으면 defaultMonth 를 아예 넘기지 않는다 — 이 레포는 exactOptionalPropertyTypes
+            // 라서 undefined 를 넘기는 것과 생략하는 것이 다르다. 생략하면 이번 달이 열린다.
+            {...(selected === undefined ? {} : { defaultMonth: selected })}
+            autoFocus
+            onSelect={(date) => {
+              if (date === undefined) return;
+              emit(formatDateOnly(date), timePart);
+            }}
+          />
+          {/* 시각 목록은 라디오 그룹이 아니라 **버튼 목록**이다 — 고른 값은 위 시각 칸에 그대로
+              보이고, 여기서 고르지 않고 직접 쳐도 된다. aria-pressed 로 현재 값만 알린다. */}
+          <span className="wire-time-list" role="group" aria-label={`${fieldLabel} 시각 목록`}>
+            {timeSlots.map((slot) => (
+              <button
+                key={slot}
+                type="button"
+                className="wire-time-slot"
+                aria-pressed={slot === timePart}
+                // 목록은 07:00 부터라 이미 고른 시각이 스크롤 아래 숨는다. 열 때 그 줄로 감는다.
+                // scrollIntoView 를 쓰지 않는다 — 안쪽 목록만이 아니라 **페이지까지** 함께 감아서
+                // 팝오버를 여는 것만으로 화면이 튄다. 부모의 scrollTop 만 직접 옮긴다.
+                ref={slot === timePart ? (node) => {
+                  const list = node?.parentElement;
+                  if (node == null || list == null) return;
+                  list.scrollTop = node.offsetTop - list.clientHeight / 2 + node.offsetHeight / 2;
+                } : undefined}
+                onClick={() => emit(datePart, slot)}
+              >
+                {slot}
+              </button>
+            ))}
+          </span>
+          <span className="wire-datetime-popover-foot">
+            <button type="button" className="wire-datetime-done" onClick={close}>완료</button>
+          </span>
+        </span>
+      ) : null}
+      {/* 서버가 읽는 값은 이 숨은 칸 하나다. 숨은 칸은 HTML 규칙상 제약 검증에서 빠지므로
+          필수 검사는 보이는 두 칸이 맡는다. */}
       {name === undefined ? null : <input type="hidden" name={name} value={value} />}
     </span>
   );

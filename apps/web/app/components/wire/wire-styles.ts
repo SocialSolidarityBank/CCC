@@ -367,7 +367,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 
 /* react-day-picker 덮어쓰기. 라이브러리 기본 accent 는 파랑 계열 링크색이라 D34 축과 다르다.
    블루 = '시간·상태' 축이므로 날짜 선택은 블루가 맞다(§1-5). */
-.wire-date-popover .rdp-root{--rdp-accent-color:var(--blue-base);--rdp-accent-background-color:var(--blue-tint);--rdp-day-height:36px;--rdp-day-width:36px;--rdp-font-family:inherit;color:var(--ink)}
+.wire-date-popover .rdp-root{--rdp-accent-color:var(--blue);--rdp-accent-background-color:var(--blue-tint);--rdp-day-height:36px;--rdp-day-width:36px;--rdp-font-family:inherit;color:var(--ink)}
 .wire-date-popover .rdp-month_caption{font-size:16px;font-weight:700;color:var(--ink)}
 /* 요일 머리글은 라벨이다 — 14/700 --sub(§2). */
 .wire-date-popover .rdp-weekday{font-size:14px;font-weight:700;color:var(--sub);text-transform:none}
@@ -377,20 +377,55 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 /* red — 선택일은 **면**을 블루 base 로 칠하고 글자는 --ink 다. --blue-deep 글자는 흰 위 대비
    2.47 로 WCAG 미달이고(§9 예외는 보조 정보 한정), 날짜는 읽어야 하는 값이다.
    (이 파일은 자바스크립트 템플릿 문자열이라 주석에 백틱을 쓰면 문자열이 끊긴다.) */
-.wire-date-popover .rdp-selected .rdp-day_button{background:var(--blue-base);color:var(--ink);font-weight:700}
+.wire-date-popover .rdp-selected .rdp-day_button{background:var(--blue);color:var(--ink);font-weight:700}
 /* 오늘은 배경 틴트로만 표시한다 — 색만으로 구분하지 않도록 테두리도 함께 준다(KRDS). */
-.wire-date-popover .rdp-today:not(.rdp-selected) .rdp-day_button{background:var(--blue-tint);border:1px solid var(--blue-base)}
+.wire-date-popover .rdp-today:not(.rdp-selected) .rdp-day_button{background:var(--blue-tint);border:1px solid var(--blue)}
 .wire-date-popover .rdp-outside .rdp-day_button{color:var(--sub)}
 .wire-date-popover .rdp-button_previous,.wire-date-popover .rdp-button_next{border-radius:var(--radius-control);color:var(--sub)}
 .wire-date-popover .rdp-button_previous:focus-visible,.wire-date-popover .rdp-button_next:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 
-/* 날짜 + 시각. 좁은 화면에서는 세로로 쌓는다(§4-4 단일 브레이크포인트). */
-.wire-datetime-control{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);width:100%}
-.wire-datetime-control .wire-date-control{flex:1 1 200px}
-.wire-time-input{flex:0 1 130px;min-width:0;height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:16px}
-.wire-time-input:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 날짜 + 시각(2026-07-31 Q). 두 칸이 테두리 하나를 공유한다 — 하나의 값을 적는 자리이므로
+   상자도 하나다. 다만 **그 상자는 여기서 그리지 않는다** — WireFormField 가 이미 모든 컨트롤을
+   .wire-input-box(테두리 · radius · 초점 링)로 감싸고 있어서, 여기서 또 그리면 둥근 사각형이
+   두 겹으로 겹치고 초점 링도 두 개가 된다. 이 껍데기는 배치와 세로 구분선만 맡는다.
+   새 색·반경·그림자 0개. */
+.wire-datetime-control{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);width:100%}
+.wire-datetime-fields{flex:1 1 240px;min-width:0;display:flex;align-items:stretch;height:var(--control-height)}
+.wire-datetime-fields>input{height:100%;min-width:0;border:0;border-radius:0;background:transparent;color:var(--ink);font-size:16px}
+.wire-datetime-fields>input:focus,.wire-datetime-fields>input:focus-visible{outline:none}
+/* 기준 폭을 auto 로 두면 input 의 기본 폭(약 180px)이 기준이 되어 날짜칸이 자리를 다 가져가고
+   시각칸이 눌려 분이 잘린다. 기준을 110px 로 못박아 남는 폭만 날짜칸이 가져가게 한다. */
+.wire-datetime-fields>input:first-child{flex:1 1 110px;min-width:104px;padding-right:var(--space-3)}
+/* 선택자를 자식 결합자로 쓴다 — 위 .wire-datetime-fields>input 의 border:0 을 이겨야 한다. */
+/* 시각 칸은 브라우저가 12시간제(오후 02:30)로 그릴 때가 있어 128px 이 필요하다 — 좁으면 분이 잘린다.
+   다만 좁은 화면에서는 줄어들어야 한다 — 고정 폭이면 375px 에서 상자가 화면을 넘어 가로 스크롤이 생긴다.
+   (이 파일은 자바스크립트 템플릿 문자열이라 주석에 백틱을 쓰면 문자열이 끊긴다.) */
+/* 달력 버튼도 같은 상자 안에 있으므로 테두리를 벗는다 — 상자 안의 상자를 만들지 않는다.
+   날짜만 쓰는 자리(.wire-date-control)의 겉모습은 건드리지 않는다. */
+.wire-datetime-control>.wire-date-toggle{border-color:transparent;background:transparent}
+.wire-datetime-control>.wire-date-toggle:hover{background:var(--muted)}
+.wire-datetime-fields>.wire-datetime-time{flex:0 1 128px;min-width:112px;padding:0 var(--space-2);border-left:1px solid var(--line-control);text-align:center}
+/* 팝오버는 달력 + 시각 목록 두 단이다. 목록은 달력 높이에 맞춰 스크롤한다.
+   width:max-content 가 필요하다 — 절대 위치 요소의 자동 폭은 **감싸는 상자 폭**이 상한이라
+   그냥 두면 입력칸 폭(약 330px)에 갇혀 시각 목록이 달력 아래로 접힌다. */
+.wire-datetime-popover{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--space-3);width:max-content;max-width:min(92vw,480px)}
+/* position:relative 는 장식이 아니다 — 선택된 시각으로 목록을 감을 때 offsetTop 의 기준
+   (offsetParent)이 이 목록이어야 한다. 없으면 기준이 바깥 컨트롤이라 엉뚱한 곳으로 감긴다. */
+.wire-time-list{position:relative;display:flex;flex-direction:column;gap:2px;width:96px;max-height:296px;overflow-y:auto;padding-right:var(--space-1)}
+.wire-time-slot{flex:none;padding:6px var(--space-2);border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums;text-align:center;cursor:pointer}
+.wire-time-slot:hover{background:var(--muted)}
+.wire-time-slot:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 선택된 시각도 날짜와 같은 규칙이다 — 면을 블루 base 로 칠하고 글자는 --ink 다.
+   읽어야 하는 값에 deep 글자를 쓰지 않는다(§9 대비 예외는 보조 정보 한정). */
+.wire-time-slot[aria-pressed="true"]{background:var(--blue);color:var(--ink);font-weight:700}
+.wire-datetime-popover-foot{flex:1 0 100%;display:flex;justify-content:flex-end;padding-top:var(--space-2);border-top:1px solid var(--line)}
+.wire-datetime-done{height:32px;padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:14px;font-weight:700;cursor:pointer}
+.wire-datetime-done:hover{background:var(--muted)}
+.wire-datetime-done:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 @media (max-width:767px){
   .wire-date-popover{left:auto;right:0}
+  /* 좁은 화면에서는 시각 목록을 달력 아래 가로 줄로 눕힌다 — 세로 목록이면 팝오버가 화면을 넘는다. */
+  .wire-datetime-popover .wire-time-list{flex-direction:row;flex-wrap:wrap;width:100%;max-height:none;overflow:visible}
 }
 
 /* /kit 데모 전용 */

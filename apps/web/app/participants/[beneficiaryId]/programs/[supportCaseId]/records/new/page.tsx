@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createCounselingRecordAction } from '../../../../../../actions';
+import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
-import { ApiError, getNewRecordContext, lifeAreaKeys, lifeAreaStatuses, type ApiErrorCode, type NewRecordContext } from '../../../../../../lib/api';
+import { ApiError, getNewRecordContext, getParticipantDetail, lifeAreaKeys, lifeAreaStatuses, type ApiErrorCode, type NewRecordContext, type ParticipantDetail } from '../../../../../../lib/api';
 import { RecordOnepage } from './record-onepage';
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -43,6 +43,13 @@ const messages: Record<LoadError, string> = {
 
 function safeId(value: string): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
+}
+
+/** HERO 메타용 날짜. 시각까지는 필요 없다 — 한 줄이 길어질수록 안 읽힌다. */
+function dateOnlyLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(date);
 }
 
 function safeSubmissionId(value: string | undefined): string | null {
@@ -388,13 +395,17 @@ export default async function NewRecordPage({
   const context: LoadResult<NewRecordContext> = beneficiaryId === null || supportCaseId === null
     ? { data: null, error: 'not_found' }
     : await load(getNewRecordContext(beneficiaryId, supportCaseId));
+  // 이름은 HERO 의 고정 1층이라 따로 읽는다(D38). 실패해도 화면은 성립해야 하므로
+  // 가명 ID 폴백으로 낮춘다 — 기록을 못 쓰는 것보다 이름이 없는 편이 낫다.
+  const participant: LoadResult<ParticipantDetail> = beneficiaryId === null
+    ? { data: null, error: 'not_found' }
+    : await load(getParticipantDetail(beneficiaryId));
   const activeBeneficiaryId = beneficiaryId ?? '';
   const activeSupportCaseId = supportCaseId ?? '';
   const programPath = beneficiaryId === null || supportCaseId === null
     ? '/'
     : `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
   const historyPath = programPath === '/' ? '/' : `${programPath}/records`;
-  const participantPath = beneficiaryId === null ? '/' : `/participants/${encodeURIComponent(beneficiaryId)}`;
   const state = recoveryState(queryValue(query, 'outcome'));
   const recoverySubmissionId = safeSubmissionId(queryValue(query, 'submissionId'));
   const retryWithSameSubmissionId = state === 'invalid_request' || state === 'validation_error';
@@ -414,18 +425,26 @@ export default async function NewRecordPage({
   const newRecordPath = beneficiaryId === null || supportCaseId === null ? '/' : `${historyPath}/new`;
   const mustCheckOutcome = state === 'unknown_outcome' || state === 'service_unavailable';
   const mustStartFresh = state === 'conflict';
+  // HERO 메타 한 줄(D38 슬롯 ③) — 쓰기 화면에 필요한 맥락은 '지난 상담이 언제였나'와
+  // '넘겨받은 액션이 몇 건인가' 둘이다. 없으면 그 조각만 빠진다.
+  const heroMeta = [
+    lastRecordSummary === null ? '첫 상담 기록' : `지난 상담 ${dateOnlyLabel(lastRecordSummary.heldAt)}`,
+    openActionItems.length === 0 ? null : `미해결 액션 ${openActionItems.length}건`,
+  ].filter((item): item is string => item !== null).join(' · ');
 
   return <main className="page-content">
-    <nav className="breadcrumb" aria-label="현재 위치">
-      <Link href="/">오늘 상담</Link><span>/</span><Link href={participantPath}>당사자 ID {beneficiaryId ?? '확인 불가'}</Link><span>/</span><Link href={`${programPath}/briefing`}>참여 사업</Link><span>/</span><Link href={historyPath}>상담 기록</Link><span>/</span><strong>작성</strong>
-    </nav>
-    <header className="page-header">
-      <div>
-        <h1>상담 기록 작성</h1>
-        <p>당사자 ID {beneficiaryId ?? '확인 불가'}의 참여 사업에 수기 기록을 남깁니다. 필수 상담 기록 항목을 한 화면에서 확인하고 작성합니다.</p>
-      </div>
-      <WireButton variant="secondary" href={historyPath}>상담 기록으로 돌아가기</WireButton>
-    </header>
+    {/* ParticipantHeroCard (D38): 이 화면도 URL 이 당사자 한 명을 가리키므로 공통 머리를
+        단다 — 상담 기록 읽기 화면만 갖고 있던 것을 쓰기 화면에도 맞춘다.
+        함께 없앤 것(둘 다 이미 확정된 결정인데 이 화면만 남아 있었다):
+         * 브레드크럼 — D35 가 비관례로 기각. 나가는 길은 고정 헤더의 버튼이 갖는다
+         * "당사자 ID swallow-003" 표기 — D31(가명 ID 는 기계 식별자). 이름은 HERO 가 갖는다
+        제목은 '상담 기록 작성'에서 **'상담 기록'**으로 줄여 상태 태그 자리로 옮겼다(2026-07-31 Q). */}
+    <ParticipantHeroCard
+      name={participant.data?.name ?? null}
+      beneficiaryId={beneficiaryId ?? '확인 불가'}
+      stageTag="상담 기록"
+      {...(heroMeta.length === 0 ? {} : { meta: heroMeta })}
+    />
     <Message code={error} />
     <RecoveryStatus state={state} />
 
@@ -451,11 +470,14 @@ export default async function NewRecordPage({
         customQuestions={customQuestions}
         lastRecordSummary={lastRecordSummary}
         briefingPath={`${programPath}/briefing`}
+        actions={<>
+          <WireButton variant="secondary" href={historyPath}>상담 기록으로 돌아가기</WireButton>
+          <WireButton variant="primary" type="submit">저장</WireButton>
+        </>}
         supportCaseId={activeSupportCaseId}
         submissionFailed={state !== 'idle'}
       />
 
-      <div className="wire-form-actions"><WireButton variant="primary" type="submit">서버에 공식 기록 저장</WireButton></div>
       <p className="panel-meta">제출 ID {submissionId}. 서버가 즉시 재시도를 허용한 경우에만 같은 ID를 유지합니다.</p>
     </form>}
   </main>;
