@@ -100,6 +100,7 @@ AI 사업자 호출부, 로그, 에러 메시지에 실명, 연락처, 계좌가
 모델 정보:
 - LLM: **OpenAI**(`apps/api/src/ai-provider.ts`, 프로바이더 슬러그 `codex`). 모델·프롬프트·스키마 버전은 활성 프로바이더 설정 해시로 고정되고, 어긋나면 재활성화 전까지 fail-closed 다(D55·ADR-0025)
 - STT: **엔진 미확정(D53)** — 현행 openai/whisper 유지, 후보 1순위는 Qwen3-ASR-1.7B(Apache-2.0). 확정은 실측 게이트 G1~G3 통과 후이며 그 세션은 처리 장비 앞에서 해야 한다. 엔진과 무관하게 **무음 경계 청크 분할 + 반복 검사**는 필수(ADR-0024). 근거: `docs/aside/` 조사 3건
+- 인명 마스킹(2차 방어의 인명 계층): **FrameByFrame/korean-pii-e5-base** (MIT, 2026-08-01 Q 승인). 대화체 KDPII F1 0.943 — 뉴스로 학습한 일반 NER 과 달리 상담 말투 분포에 맞다. 라벨은 `private_person` 계열(BIOES). **미설정이면 장비가 뜨지 않는다**(R3 — 인명 계층이 빈 채로 돌 수 없다). 상세: `apps/pipeline/README.md`
 - 화자 분리: pyannote.audio
 - 음성 감정: jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition (Apache-2.0, 정확도 0.77)
 - 텍스트 감정: LimYeri/HowRU-KoELECTRA-Emotion-Classifier (MIT, 정확도 0.95)

@@ -66,10 +66,31 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
 | `CCC_NER_MODEL_ID` | **예** | (없음) | 2차 마스킹용 한국어 인명 NER 모델. `red` **미설정이면 회차를 처리하지 않는다**(2026-07-31 Q 결정) — 인명 계층이 빈 채로 돌면 금고에 없는 제3자가 그대로 사업자로 나간다(R3). **라이선스 표기 확인 후 지정**(§5 규칙) |
-| `CCC_NER_LABELS` | | `PS,PER,NAME` | 위 모델이 **인명에 붙이는 라벨 접두**. 모델과 한 쌍이다 — KLUE 계열은 `PS`/`PER`, PII 전용 모델은 `NAME` 계열로 다르다. 모델을 불러올 때 그 모델이 선언한 라벨과 대조하고, **안 맞으면 뜨지 않는다**(조용한 0건 마스킹 방지) |
+| `CCC_NER_LABELS` | | `PS,PER,NAME,PRIVATE_PERSON` | 위 모델이 **인명에 붙이는 라벨 접두**. 모델과 한 쌍이다 — KLUE 계열은 `PS`/`PER`, PII 전용 모델은 `NAME` 계열로 다르다. 모델을 불러올 때 그 모델이 선언한 라벨과 대조하고, **안 맞으면 뜨지 않는다**(조용한 0건 마스킹 방지) |
 | `CCC_CONDITION_NER_MODEL_ID` | | (없음) | 질병명 NER(G3). 미설정이면 사전 계층만 동작하고 **진행한다** — 인명과 달리 사전이 주 계층이다 |
 | `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
+
+### 인명 NER 모델 (2026-08-01 Q 승인)
+
+**`FrameByFrame/korean-pii-e5-base`** — 라이선스 **MIT**(§5 규칙 충족, 모델 카드 확인).
+베이스는 `intfloat/multilingual-e5-base`. 대화체 KDPII F1 0.943 / KLUE 인명 0.866.
+
+```bash
+CCC_NER_MODEL_ID=FrameByFrame/korean-pii-e5-base
+CCC_NER_LABELS=PRIVATE_PERSON          # 주소까지 가리려면 PRIVATE_PERSON,PRIVATE_ADDRESS
+```
+
+`yellow` **이 모델의 라벨은 `PS`/`PER` 가 아니다.** 실제 라벨은 `private_person`·`private_address`·
+`private_phone` … 9종이고 태깅은 **BIOES**(B-/I-/E-/S-)다. 기본값에 `PRIVATE_PERSON` 을 넣어 뒀지만,
+세팅 때 `CCC_NER_LABELS` 로 **의도한 라벨만 명시**하는 쪽을 권한다 — 무엇을 가리기로 했는지가
+설정에 남는다.
+
+이 모델은 전화·이메일·계좌·주소·URL·IP·생년월일도 함께 잡는다. 정규식 계층과 **겹치지만 겹쳐 둔다** —
+한쪽이 놓쳐도 다른 쪽이 잡는 게 목적이고, 같은 자리를 두 번 치환해도 결과는 같다.
+
+`red` 질병명은 이 모델에 **없다**. 질병명은 사전 계층(`condition_terms.py`)이 주 계층이고, 그건
+이 모델 채택과 무관하게 그대로다(G3).
 
 ### 기동 전 설치 점검 (2026-07-31)
 

@@ -196,9 +196,29 @@ class LabelContractTest(unittest.TestCase):
         masking._assert_labels_exist(recognizer, "fixture/klue-ner", ("PS", "PER"))
 
     def test_strips_bio_prefixes_before_comparing(self):
-        # 파이프라인 aggregation 이 B-/I- 를 떼므로 대조도 떼고 한다.
+        # 파이프라인 aggregation 이 태깅 접두를 떼므로 대조도 떼고 한다.
         recognizer = self._FakeRecognizer(["O", "B-NAME", "I-NAME"])
         masking._assert_labels_exist(recognizer, "fixture/pii-model", ("NAME",))
+
+    def test_accepts_bioes_tagging(self):
+        # 채택 모델(korean-pii-e5-base)이 BIOES 다 — E-/S- 를 못 떼면 멀쩡한 모델을 거부한다.
+        recognizer = self._FakeRecognizer(
+            ["O", "B-private_person", "I-private_person", "E-private_person", "S-private_person"],
+        )
+        masking._assert_labels_exist(recognizer, "FrameByFrame/korean-pii-e5-base", ("PRIVATE_PERSON",))
+
+    def test_default_person_labels_cover_the_adopted_model(self):
+        # 기본값만으로도 채택 모델이 뜬다 — 세팅 때 라벨을 안 적어도 조용히 0건이 되지 않는다.
+        recognizer = self._FakeRecognizer(["O", "S-private_person", "S-private_address"])
+        masking._assert_labels_exist(
+            recognizer, "FrameByFrame/korean-pii-e5-base", masking.DEFAULT_PERSON_LABELS,
+        )
+
+    def test_klue_style_labels_are_not_matched_by_the_pii_prefix(self):
+        # PS 가 PRIVATE_* 를 우연히 먹지 않는지 — 접두 비교의 흔한 사고.
+        recognizer = self._FakeRecognizer(["O", "B-private_phone"])
+        with self.assertRaises(masking.MaskingConfigError):
+            masking._assert_labels_exist(recognizer, "fixture/pii-model", ("PS", "PER"))
 
     def test_rejects_a_model_whose_labels_do_not_match(self):
         # PII 전용 모델(NAME 계열)에 KLUE 접두(PS/PER)를 설정한 전형적인 실수.

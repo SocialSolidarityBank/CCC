@@ -31,10 +31,16 @@ ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
 CONDITION_TOKEN = "[질환]"
 
-# 라벨 접두 기본값. KLUE·모두의 말뭉치 계열을 상정한 값이고, PII 전용 모델은 NAME 계열이라
-# 다르다 — 모델을 정할 때 CCC_NER_LABELS 로 함께 정한다(config.py). 기본값이 그 모델과
-# 안 맞으면 로드 단계에서 죽으므로, 조용히 어긋난 채 도는 일은 없다.
-DEFAULT_PERSON_LABELS = ("PS", "PER", "NAME")
+# 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
+_TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")
+
+# 라벨 접두 기본값 — **여러 계열을 함께 담는다.** 모델마다 이름이 달라서다:
+#   KLUE·모두의 말뭉치 계열 → PS / PER
+#   PII 전용 모델 → NAME 또는 PRIVATE_PERSON (채택 모델 korean-pii-e5-base 가 후자)
+# 접두가 그 모델과 하나도 안 맞으면 로드 단계에서 죽으므로(_assert_labels_exist),
+# 기본값이 넓어도 조용히 어긋난 채 도는 일은 없다. 모델을 정하면 CCC_NER_LABELS 로
+# 그 모델의 라벨만 명시하는 쪽이 더 안전하다 — 의도한 라벨이 문서에 남는다.
+DEFAULT_PERSON_LABELS = ("PS", "PER", "NAME", "PRIVATE_PERSON")
 DEFAULT_CONDITION_LABELS = ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM")
 
 # 경계 주의: 파이썬 re의 \b는 한글도 단어 문자로 봐서 "1234로"처럼 조사가 붙으면
@@ -171,8 +177,10 @@ def _assert_labels_exist(recognizer, model_id: str, label_prefixes: tuple[str, .
         raise MaskingConfigError(f"NER model {model_id} does not declare a label set")
 
     labels = {str(value).upper() for value in id2label.values()}
-    # 파이프라인의 aggregation 이 B-/I- 접두를 떼므로 여기서도 떼고 비교한다.
-    stripped = {label.split("-", 1)[1] if label[:2] in ("B-", "I-") else label for label in labels}
+    # 파이프라인의 aggregation 이 태깅 접두를 떼므로 여기서도 떼고 비교한다.
+    # BIO 뿐 아니라 BIOES(E-·S-)·BILOU(L-·U-)도 쓴다 — 실제로 채택한 모델
+    # (korean-pii-e5-base)이 BIOES 다. 접두 목록이 좁으면 멀쩡한 모델을 거부한다.
+    stripped = {label.split("-", 1)[1] if label[:2] in _TAG_PREFIXES else label for label in labels}
     if not any(label.startswith(label_prefixes) for label in stripped):
         raise MaskingConfigError(
             f"NER model {model_id} declares no label starting with {label_prefixes} "
