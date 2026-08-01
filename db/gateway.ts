@@ -5909,7 +5909,7 @@ export type AiCallKind = 'discrepancy_detection';
  *
  * - `stored` / `empty`      정상. 사업자가 답했고 결과를 저장했다(0건이면 empty).
  * - `skipped_no_snapshot`   트리거 회차에 2차 마스킹 스냅샷이 아직 없다 — 대기 중이며 가장 흔하다.
- * - `skipped_consent`       ② 동의 근거가 없다. 운영 전환 직후 기존 케이스 전부가 여기 걸린다(ADR-0025 실측 ②).
+ * - `skipped_consent`       ② 동의 근거가 없다. 운영 전환 직후 기존 케이스 전부가 여기 걸린다(ADR-0027 실측 ②).
  * - `skipped_pilot_disabled` 파일럿 스위치가 꺼져 있다.
  * - `skipped_unsupported`   어댑터에 검출 메서드가 없다.
  * - `provider_unavailable`  설정이 없어 **부를 수조차 없었다**(설정·키). reason 이 어느 쪽인지 가른다.
