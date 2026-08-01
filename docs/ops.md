@@ -51,9 +51,16 @@
 
 PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조직별로 저장한다. 값이 없거나 유효하지 않으면 종결·파기 예약을 fail closed하며, 코드에서 기본 기간을 추정하지 않는다. 내부 규정 확정 후 각 조직 설정을 명시적으로 등록한다(8장 미결).
 
-## 마이그레이션 파일 번호
+## 문서·마이그레이션 일련번호 (`pnpm guard:doc-numbers`, 2026-08-01 신설)
 
-`migrations/0009_participant_pii_email.sql`과 `migrations/0009_schedule_session_plan.sql`은 번호가 중복되지만, wrangler는 마이그레이션 파일명 전체를 identity로 쓰고 두 파일 모두 이미 적용 완료라 rename하지 않는다.
+ADR 파일·마이그레이션 파일·9장 결정 번호는 **손으로 붙이는 순차 번호**다. 브랜치를 딴 시점에 각자 "다음 번호"를 계산하므로 두 브랜치가 같은 번호를 집는 일이 구조적으로 생기고, **git 은 그것을 못 잡는다** — 파일 이름이 완전히 같지 않으면(`0025-a.md` vs `0025-b.md`) 자동 병합이 "새 파일 둘"로 보고 조용히 통과시키고, 표의 행도 서로 다른 줄이면 충돌이 나지 않는다.
+
+실제로 두 번 일어났다: 아래 `0009` 두 건과, 2026-08-01 의 **ADR-0025 · D55**(main 은 디자인 토큰, `feat/llm-adapter-openrouter` 는 AI 사업자 — 머지 전에 사람이 눈으로 잡아 0027 · D57 로 옮겼다). 사람 눈에 기대지 않도록 가드를 두고 pre-commit 과 CI 에 걸었다.
+
+- 겹치면 **머지 순서가 뒤인 쪽이** 다음 빈 번호로 옮긴다. 파일명뿐 아니라 본문 참조도 함께 고친다.
+- 번호는 브랜치를 딸 때가 아니라 **PR 을 여는 시점에 확정**하는 편이 겹칠 창을 줄인다.
+
+`migrations/0009_participant_pii_email.sql`과 `migrations/0009_schedule_session_plan.sql`은 번호가 중복되지만, wrangler는 마이그레이션 파일명 전체를 identity로 쓰고 두 파일 모두 이미 적용 완료라 rename하지 않는다. 가드에도 그 한 건만 예외로 박아 뒀다(`KNOWN_DUPLICATES`) — 새 중복을 눈감아 주는 자리가 아니다.
 
 ## 로컬 프리뷰 (dev 이중 잠금)
 

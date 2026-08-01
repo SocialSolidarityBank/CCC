@@ -12,6 +12,7 @@
     "typecheck": "pnpm --filter @ccc/api run typecheck && pnpm --filter @ccc/web run typecheck",
     "test": "pnpm --filter @ccc/api run test && pnpm --filter @ccc/web run test",
     "guard:db": "node scripts/guard-db-gateway.mjs",
+    "guard:doc-numbers": "node scripts/guard-doc-numbers.mjs",
     "guard:tokens": "node scripts/design/token-audit.mjs",
     "design:contrast": "node scripts/design/contrast.mjs",
     "guard:secrets": "node scripts/guard-secrets.mjs",
