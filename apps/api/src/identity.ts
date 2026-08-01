@@ -49,6 +49,16 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
   PREVIEW_ADMIN_ACCESS_CODE?: string;
   /** 위 관리자 코드로 들어왔을 때 쓸 기관 관리자 이메일(users 디렉터리, preview-gate.ts). */
   PREVIEW_ADMIN_ACTOR_EMAIL?: string;
+  /**
+   * 미리보기 **종단 점검(E2E) 코드**(Workers 시크릿, preview-gate.ts). 미리보기에는
+   * Access 서비스 토큰이 없어 `service` 역할이 될 수 없고, 그래서 "수기 저장 → 장비
+   * 마스킹 → 불일치 검출" 종단 경로를 실물로 확인할 수 없다(D57·ADR-0027). 이 코드로
+   * 들어오면 `X-CCC-Preview-Actor` 헤더로 신원을 고를 수 있다 — 단 아래 세 이메일
+   * 변수에 적힌 값만 허용된다. 설정하지 않으면 이 경로 자체가 없다.
+   */
+  PREVIEW_E2E_ACCESS_CODE?: string;
+  /** E2E 코드의 기본 신원 — 처리 장비 역할(users 디렉터리의 role='service' 행). */
+  PREVIEW_SERVICE_ACTOR_EMAIL?: string;
 }
 
 export class ActorAuthenticationError extends Error {}

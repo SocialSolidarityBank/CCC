@@ -1,12 +1,15 @@
 // CCC-43 — 내용 불일치 검출·저장·표시 (D45 · ADR-0018)
 // ① 프로바이더 출력 검증(원문 인용 강제·판단 금지, R5) ② 게이트웨이 저장·불변·브리핑
 // ③ 라우트 훅(수기 저장 시 검출 실행, 실패해도 저장은 성공 — D8) 을 검증한다.
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   collectDiscrepancyDetectionSources,
   createCase,
   createManualSession,
+  enqueueTextWorkItem,
   ForbiddenError,
+  listTextWorkItems,
+  recordMaskedSourceSnapshot,
   getParticipantBriefing,
   listRecordErrorSessionIds,
   listSupportCasesForBeneficiary,
@@ -29,9 +32,91 @@ import {
 import worker from './support/local-worker';
 import { setupD1, testActors } from './support/d1';
 
-const { counselor, admin } = testActors;
+// 이 파일의 픽스처는 케이스·회차·동의·스냅샷을 매번 새로 만든다 — 전체 스위트를 병렬로
+// 돌리면 기본 5초 안에 끝나지 않아 내용과 무관하게 시간 초과로 떨어진다(브랜치 이전부터
+// 같은 증상). 단독 실행에서는 여유가 충분하고, 늘려도 실패는 여전히 실패로 잡힌다.
+vi.setConfig({ testTimeout: 30_000 });
+
+const { counselor, admin, service } = testActors;
 const t = setupD1();
 const SHA256 = 'a'.repeat(64);
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function serviceHeaders(): Record<string, string> {
+  return {
+    'content-type': 'application/json',
+    'X-CCC-User-Id': service.userId,
+    'X-CCC-Org-Id': service.orgId,
+    'X-CCC-Role': 'service',
+  };
+}
+
+function wholeTextEvidence(sessionId: string, maskedText: string, sha256: string) {
+  return {
+    id: crypto.randomUUID(),
+    sourceRef: sessionId,
+    sourceSha256: sha256,
+    evidenceQuote: maskedText,
+    sourceStart: 0,
+    sourceEnd: [...maskedText].length,
+  };
+}
+
+/** 장비가 만든 2차 마스킹 스냅샷을 직접 심는다 — 라우트 왕복 없이 같은 상태를 만든다. */
+async function seedMaskedSnapshot(sessionId: string, text: string): Promise<void> {
+  const maskedText = text.trim().length === 0 ? 'MASKED_SOURCE_BASELINE' : text;
+  const sha256 = await sha256Hex(maskedText);
+  await recordMaskedSourceSnapshot(t.env, service, sessionId, {
+    maskedText,
+    sha256,
+    maskingPipelineVersion: 'ner-mask-v1',
+    evidence: [wholeTextEvidence(sessionId, maskedText, sha256)],
+  });
+}
+
+/**
+ * 처리 장비 흉내 (ADR-0027) — 대기 중인 텍스트 일감을 전부 가져와 2차 마스킹
+ * 스냅샷을 만들고 완료 처리한다. 스냅샷 POST 라우트가 불일치 재검출을 돌린다.
+ * `mask` 로 NER 마스킹을 대신한다(기본값은 원문 그대로 = 마스킹할 것이 없는 경우).
+ */
+async function runDeviceTextJobs(mask: (text: string) => string = (text) => text): Promise<number> {
+  const listed = await worker.fetch(new Request('https://api.test/pipeline/text-jobs', {
+    headers: serviceHeaders(),
+  }), t.env);
+  const { jobs } = await listed.json() as { jobs: Array<{ id: string; sessionId: string }> };
+  for (const job of jobs) {
+    const sourceResponse = await worker.fetch(
+      new Request(`https://api.test/pipeline/text-jobs/${job.id}/source`, { headers: serviceHeaders() }),
+      t.env,
+    );
+    if (sourceResponse.status !== 200) throw new Error(`text job source failed: ${sourceResponse.status}`);
+    const { text } = await sourceResponse.json() as { text: string };
+    const maskedText = mask(text);
+    const snapshotResponse = await worker.fetch(new Request(`https://api.test/sessions/${job.sessionId}/ai/source`, {
+      method: 'POST',
+      headers: serviceHeaders(),
+      body: JSON.stringify({
+        maskedText,
+        sha256: await sha256Hex(maskedText),
+        maskingPipelineVersion: 'ner-mask-v1',
+        // 텍스트 일감에는 발췌할 근거가 따로 없다 — 마스킹된 본문 전체가 한 조각이다.
+        evidence: [wholeTextEvidence(job.sessionId, maskedText, await sha256Hex(maskedText))],
+      }),
+    }), t.env);
+    if (snapshotResponse.status !== 201) {
+      throw new Error(`snapshot post failed: ${snapshotResponse.status} ${await snapshotResponse.text()}`);
+    }
+    await worker.fetch(new Request(`https://api.test/pipeline/text-jobs/${job.id}/complete`, {
+      method: 'POST',
+      headers: serviceHeaders(),
+    }), t.env);
+  }
+  return jobs.length;
+}
 
 // 테스트마다 독립 D1 — setupD1 계약상 reset() 이 컨텍스트를 만든다.
 beforeEach(async () => {
@@ -43,7 +128,7 @@ function submissionId(): string {
   return crypto.randomUUID();
 }
 
-async function createCaseWithSessions(memos: string[]): Promise<{
+async function createCaseWithSessions(memos: string[], withSnapshots = false): Promise<{
   caseId: string;
   supportCaseId: string;
   sessionIds: string[];
@@ -63,6 +148,17 @@ async function createCaseWithSessions(memos: string[]): Promise<{
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, caseRecord.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
+
+  // 검출 재료는 2차 마스킹 스냅샷뿐이다(R3 · ADR-0027). 라우트를 거치지 않고 만든
+  // 회차라 공식화 훅이 돌지 않으므로 스냅샷을 직접 심는다(장비가 한 일과 같은 결과).
+  // 저장·처리만 보는 테스트에는 필요 없어서 기본값은 끔 — 매 픽스처가 느려진다.
+  if (withSnapshots) {
+    await enableTextAiConsent(caseRecord.id);
+    for (const [index, sessionId] of sessionIds.entries()) {
+      await seedMaskedSnapshot(sessionId, memos[index] ?? '');
+    }
+  }
+
   return { caseId: caseRecord.id, supportCaseId, sessionIds };
 }
 
@@ -158,7 +254,7 @@ describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명
     const fixture = await createCaseWithSessions([
       '홍길동 님은 채무가 은행 대출뿐이라고 말함',
       '홍길동 님이 지인 채무 상환이 밀려 있다고 말함',
-    ]);
+    ], true);
     await updateParticipantPii(t.env, counselor, fixture.caseId, {
       supportCaseContextId: fixture.supportCaseId,
       expectedVersion: 1,
@@ -178,6 +274,47 @@ describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명
       "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'decrypt_pii' AND target_table = 'pii_vault' AND detail LIKE '%discrepancy_detection_masking%'",
     ).first<{ count: number }>();
     expect(Number(audit?.count ?? 0)).toBeGreaterThan(0);
+  });
+
+  // ADR-0027 의 핵심 보증 — 이 테스트가 깨지면 1차 치환만 거친 메모가 사업자로 나간다.
+  it('2차 마스킹 스냅샷이 없는 회차는 재료에서 빠진다 (R3)', async () => {
+    const fixture = await createCaseWithSessions(['아들 김철수가 보증을 섰다고 말함'], true);
+    const later = await createManualSession(t.env, counselor, fixture.caseId, {
+      submissionId: submissionId(),
+      heldAt: '2026-07-09T10:00:00.000Z',
+      channel: 'in_person',
+      memo: '아들 김철수 연락처를 받아 적음',
+      gasScores: [],
+    });
+
+    // 스냅샷이 있는 회차만 재료다 — 방금 만든 회차의 메모 원문은 나가지 않는다.
+    const material = await collectDiscrepancyDetectionSources(t.env, counselor, fixture.sessionIds[0] ?? '');
+    expect(material.sources.map((source) => source.sessionId)).toEqual([fixture.sessionIds[0]]);
+    expect(JSON.stringify(material.sources)).not.toContain('연락처를 받아 적음');
+
+    // 트리거 회차 자체에 스냅샷이 없으면 재료가 비어 호출자가 검출을 스킵한다.
+    const skipped = await collectDiscrepancyDetectionSources(t.env, counselor, later.id);
+    expect(skipped.sources.some((source) => source.sessionId === later.id)).toBe(false);
+  });
+
+  // 큐는 삭제가 없다(0029) — 처리할 수 없는 행을 내보내면 장비가 매 폴링마다 같은 행에
+  // 걸려 실패하고 큐가 영원히 쌓인다. 조건이 갖춰질 때까지 안 보이는 것이 계약이다.
+  it('② 동의 근거가 없으면 텍스트 일감이 장비에 보이지 않는다', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담 메모']);
+    t.env.TEXT_AI_PILOT_ENABLED = '1';
+    await enqueueTextWorkItem(t.env, counselor, fixture.sessionIds[0] ?? '', 'manual_record');
+
+    const before = await listTextWorkItems(t.env, service);
+    expect(before).toHaveLength(0);
+
+    // ② 를 기록하는 순간 같은 행이 저절로 보인다 — 큐를 다시 쌓을 필요가 없다.
+    await enableTextAiConsent(fixture.caseId);
+    const after = await listTextWorkItems(t.env, service);
+    expect(after.map((item) => item.sessionId)).toEqual([fixture.sessionIds[0]]);
+
+    // 파일럿이 꺼져 있으면 스냅샷 저장이 전부 거부되므로 역시 내보내지 않는다.
+    delete t.env.TEXT_AI_PILOT_ENABLED;
+    expect(await listTextWorkItems(t.env, service)).toHaveLength(0);
   });
 
   it('비담당 실무자는 수집할 수 없다 (D7)', async () => {
@@ -633,8 +770,8 @@ async function enableTextAiConsent(caseId: string): Promise<void> {
 }
 
 describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기준)', () => {
-  it('수기 메모 저장이 검출을 실행해 결과가 브리핑에 나타난다', async () => {
-    const fixture = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함']);
+  it('수기 메모 저장 → 장비 마스킹 → 검출 결과가 브리핑에 나타난다', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
     await enableTextAiConsent(fixture.caseId);
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
       const priorRef = request.sources[0]?.sourceRef ?? '';
@@ -653,6 +790,8 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
 
     const response = await postManualRecord(fixture.supportCaseId, '지인 채무 상환이 밀려 있다고 말함', 2);
     expect(response.status).toBe(201);
+    // 저장 시점에는 스냅샷이 없어 검출이 스킵된다 — 장비가 마스킹을 마쳐야 돈다(ADR-0027).
+    expect(await runDeviceTextJobs()).toBe(1);
 
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(1);
@@ -664,14 +803,14 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
   });
 
   it('프로바이더 실패는 스킵일 뿐 기록 저장은 성공한다 (D8)', async () => {
-    const fixture = await createCaseWithSessions(['첫 상담 메모']);
-    await enableTextAiConsent(fixture.caseId);
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
       throw new Error('provider down');
     });
 
     const response = await postManualRecord(fixture.supportCaseId, '둘째 상담 메모', 2);
     expect(response.status).toBe(201);
+    await runDeviceTextJobs();
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(0);
   });
@@ -691,8 +830,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
   });
 
   it('판단이 섞인 프로바이더 출력은 저장되지 않는다 (R5 fail-closed)', async () => {
-    const fixture = await createCaseWithSessions(['첫 상담 메모']);
-    await enableTextAiConsent(fixture.caseId);
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
       discrepancies: [{
         kind: 'within_session',
@@ -705,6 +843,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
 
     const response = await postManualRecord(fixture.supportCaseId, '둘째 상담 메모', 2);
     expect(response.status).toBe(201);
+    await runDeviceTextJobs();
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(0);
   });

@@ -43,6 +43,11 @@
 | `NOTIFY_WEBHOOK_URL` | Workers 시크릿 | (없음) | D8 관리자 알림 웹훅. 미설정 시 console.error 폴백만. URL은 시크릿 취급(로그 출력 금지). |
 | `LOCAL_ACTOR_HEADER_MODE` | `wrangler.toml [vars]` | (로컬 `"true"`) | 로컬 개발용 헤더 인증 모드. 프로덕션 미설정 시 fail closed(D16). |
 | `PII_ENC_KEY` | Workers 시크릿 | (없음) | PII AES-GCM 키(D3). 코드·로그 출력 금지(R3). |
+| `AI_PROVIDER_CONFIG` | Workers 환경 변수(JSON 문자열) | (없음) | 활성 AI 사업자 설정(레지스트리·어댑터·설정 버전·모델). **미설정이면 AI 호출 경로 전체가 fail closed** 된다 — 지금 운영·로컬 어디에도 없어 사업자 호출이 한 번도 실행된 적이 없다(D57·ADR-0027). |
+| `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
+| `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
+
+두 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`)은 **함께** 있어야 사업자 호출이 열린다. 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 
 PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조직별로 저장한다. 값이 없거나 유효하지 않으면 종결·파기 예약을 fail closed하며, 코드에서 기본 기간을 추정하지 않는다. 내부 규정 확정 후 각 조직 설정을 명시적으로 등록한다(8장 미결).
 
@@ -222,6 +227,37 @@ wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sq
 - 미리보기 D1에는 **가상 시드만** 있고 운영 PII와 연결되지 않는다.
 - 코드 게이트는 Access보다 약한 잠금이다 — 지정 코드를 아는 사람은 모두 데모 상담사 시점으로 본다. 실제 참여자 정보가 아니므로 감수한다.
 - 지정 코드 값은 코드·로그·문서에 넣지 않는다. 이름만 커밋한다(`PREVIEW_ACCESS_CODE`).
+
+### 미리보기에서 종단 경로 돌리기 (D57 · ADR-0027, 2026-07-31 실측)
+
+**왜 필요했나.** 미리보기는 Access 를 안 쓰고 코드 게이트로 신원을 공급하는데, 그 신원은 항상 users 디렉터리의 사람(실무자·관리자)이다. 처리 장비용 엔드포인트는 `service` 역할 전용이라 **"수기 저장 → 장비 마스킹 → 불일치 검출" 종단 경로를 미리보기에서 한 번도 확인할 수 없었다.**
+
+**해결.** 지정 코드를 한 종류 더 뒀다(`PREVIEW_E2E_ACCESS_CODE`, 관리자 코드와 같은 규칙 — 코드와 이메일이 **둘 다** 있어야 열린다). 이 코드로 들어오면 `X-CCC-Preview-Actor` 헤더로 신원을 고를 수 있고, **환경 변수에 적힌 세 이메일만** 허용된다(목록 밖이면 장비로 떨어진다). 미리보기 D1 에는 `service-token-client-id.access`(role=service) 행이 이미 있다.
+
+절차:
+
+1. `POST /preview/unlock` 에 E2E 코드 → 쿠키 획득
+2. 실무자 시점(`X-CCC-Preview-Actor: ai00@ggbss.or.kr`)으로 동의 재저장 + 상담 기록 저장
+3. 장비 시점(헤더 없음 = 기본값 service)으로 `GET /pipeline/text-jobs` → `/source` → 마스킹 → `POST /sessions/:id/ai/source` → `/complete`
+
+`yellow` **함정 3개** (전부 실제로 밟았다):
+
+- **기본 python UA 는 Cloudflare 가 막는다**(오류 1010 → 403). `api_client.py` 가 UA 를 명시하는 이유와 같다. `urllib` 로 직접 칠 때도 `User-Agent` 를 넣어야 한다.
+- **`wrangler` 명령은 `apps/api` 안에서 실행**해야 한다. 다른 폴더면 "Required Worker name missing" 으로 조용히 실패한다. `--env preview` 를 빼면 없는 워커(`ccc-api-local`)를 찾다 실패한다.
+- **시드 케이스는 `consent_text_ai_at` 이 이미 차 있어도 근거 행이 없다.** 그 컬럼은 배선(ADR-0027) 이전에 찍힌 값이라, 화면에서 **동의를 다시 저장해야** `pilot_text_ai_consent_evidence` 행이 생기고 그때부터 텍스트 일감이 장비에 보인다. **운영 전환 시 기존 케이스 전부에 해당한다.**
+
+`red` **관측 공백** — 2026-07-31 실측: 스냅샷 POST 는 `ok`(200)로 끝나고 예외·로그가 **0건**이다. `runDiscrepancyDetection` 이 모든 실패를 삼키는 계약(D8)이라, 바깥에서 **사업자를 불렀는지·실패했는지·정말 불일치가 없었는지 구분할 수 없다.** 불일치 0건이 정상인지 고장인지 판정할 방법이 없다는 뜻이다. 최소 관측 수단(내용 없이 시도·실패 사유·저장 건수만)은 별도 티켓.
+
+`yellow` **인명 마스킹은 NER 모델이 있어야 동작한다** — 실측에서 `[전화번호]`·`[질환]` 은 정규식·사전 계층이 잡았지만 `아들 김철수` 는 그대로 남았다(`CCC_NER_MODEL_ID` 미설정으로 돌린 결과). ADR-0027 가 인용한 바로 그 사례다.
+
+**그래서 2026-07-31 Q 결정으로 두 가지를 못 박았다**(구 동작은 "경고만 내고 통과"였다):
+
+1. **인명 NER 이 없으면 그 회차를 처리하지 않는다.** 스냅샷도 만들지 않고 일감도 완료하지 않아, 큐에 남아 다음 폴링에서 다시 잡힌다. 늦는 것(D8 SLA · 브리핑은 수기 메모 폴백 D5)이 새는 것보다 낫다.
+2. **모델과 라벨 접두를 한 쌍으로 설정하고**(`CCC_NER_MODEL_ID` + `CCC_NER_LABELS`), 모델을 불러올 때 그 모델이 **선언한 라벨 목록과 대조**한다. 안 맞으면 뜨지 않는다.
+
+`red` 2번이 필요한 이유: 라벨 체계는 모델마다 다르다(KLUE 계열 `PS`/`PER` vs PII 전용 모델 `NAME` 계열). 접두가 어긋나면 파이프라인은 **정상 동작하는데 치환만 0건**이 되고, 그 결과는 "이름이 없는 상담 기록"과 구분되지 않는다 — 경고조차 남지 않는다. 사람 눈 확인에 기대지 않고 기계가 대조한다.
+
+기계 대조가 보장하는 것은 **연결이 맞다**까지다. 그 모델이 한국어 상담체에서 인명을 **잘 찾는지**는 별개이고 실측 게이트의 몫이다(아래 미결).
 
 ### 환경 변수 / 시크릿
 

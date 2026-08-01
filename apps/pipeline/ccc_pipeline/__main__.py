@@ -8,7 +8,8 @@ import sys
 
 from .api_client import ApiClient
 from .config import ConfigError, load_config
-from .worker import run_forever, run_once
+from .masking import MaskingConfigError
+from .worker import assert_device_ready, run_forever, run_once
 
 
 def main() -> int:
@@ -22,6 +23,13 @@ def main() -> int:
         config = load_config()
     except ConfigError as error:
         print(f"config error: {error}", file=sys.stderr)
+        return 2
+
+    # 설치 점검은 폴링을 시작하기 전에 한다 — 설정이 틀린 채로 도는 것이 가장 나쁘다.
+    try:
+        assert_device_ready(config)
+    except MaskingConfigError as error:
+        print(f"device not ready: {error}", file=sys.stderr)
         return 2
 
     client = ApiClient(config.api_base_url, config.client_id, config.client_secret)

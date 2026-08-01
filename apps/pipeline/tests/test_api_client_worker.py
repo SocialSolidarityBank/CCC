@@ -1,8 +1,10 @@
+import hashlib
 import io
 import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from dataclasses import replace
 from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
@@ -23,8 +25,11 @@ def make_config(work_dir: Path) -> Config:
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
         stt_repeat_threshold=4,
-        ner_model_id=None,
+        ner_model_id="fixture/person-ner",
+        ner_labels=("PS", "PER", "NAME"),
+        address_labels=("LC", "ADDRESS", "PRIVATE_ADDRESS"),
         condition_ner_model_id=None,
+        condition_ner_labels=("DS",),
         hf_token=None,
     )
 
@@ -84,11 +89,13 @@ class RunOnceTest(unittest.TestCase):
     def test_no_jobs_returns_zero(self):
         client = mock.Mock()
         client.list_jobs.return_value = []
+        client.list_text_jobs.return_value = []
         with TemporaryDirectory() as tmp:
             self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
 
     def test_processes_available_jobs_and_survives_one_failure(self):
         client = mock.Mock()
+        client.list_text_jobs.return_value = []
         client.list_jobs.return_value = [
             {"id": "bad", "audioAvailable": True},
             {"id": "good", "audioAvailable": True},
@@ -125,6 +132,128 @@ class RunOnceTest(unittest.TestCase):
         self.assertTrue(created_dirs, "download should have run")
         for directory in created_dirs:
             self.assertFalse(directory.exists(), "work dir must be deleted (D13)")
+
+
+class TextJobTest(unittest.TestCase):
+    """텍스트 일감 (D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹."""
+
+    def test_masks_source_and_posts_snapshot_then_completes(self):
+        from ccc_pipeline.worker import process_text_job
+
+        client = mock.Mock()
+        client.get_text_job_source.return_value = "아들 김철수에게 010-1234-5678 로 연락한다고 함"
+
+        # 인명 NER 대역 — 실제 모델 대신 "김철수" 스팬만 돌려준다(transformers 미설치 환경).
+        def fake_person_ner(text: str):
+            start = text.find("김철수")
+            return [] if start < 0 else [(start, start + len("김철수"))]
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(fake_person_ner, None),
+            ):
+                process_text_job(client, make_config(Path(tmp)), "item-1", "session-1")
+
+        session_id, snapshot = client.post_masked_source.call_args.args
+        self.assertEqual(session_id, "session-1")
+        # 2차 마스킹을 거치지 않은 원문은 절대 나가지 않는다 (R3).
+        self.assertNotIn("010-1234-5678", snapshot["maskedText"])
+        self.assertIn("[전화번호]", snapshot["maskedText"])
+        # 금고에 없는 제3자 이름도 가려진다 — 이 계층이 빠지면 그대로 나간다(R3).
+        self.assertNotIn("김철수", snapshot["maskedText"])
+        self.assertIn("[인명]", snapshot["maskedText"])
+        # 해시는 보내는 본문 그대로여야 서버 검증을 통과한다.
+        expected = hashlib.sha256(snapshot["maskedText"].encode("utf-8")).hexdigest()
+        self.assertEqual(snapshot["sha256"], expected)
+        # 근거 한 조각이 본문 전체를 덮는다 — 구간은 코드 포인트 기준.
+        evidence = snapshot["evidence"][0]
+        self.assertEqual(evidence["evidenceQuote"], snapshot["maskedText"])
+        self.assertEqual(evidence["sourceEnd"], len(snapshot["maskedText"]))
+        client.complete_text_job.assert_called_once_with("item-1")
+
+    def test_failed_text_job_is_not_completed_and_does_not_stop_the_rest(self):
+        client = mock.Mock()
+        client.list_jobs.return_value = []
+        client.list_text_jobs.return_value = [
+            {"id": "bad", "sessionId": "s1"},
+            {"id": "good", "sessionId": "s2"},
+        ]
+        with TemporaryDirectory() as tmp:
+            with mock.patch("ccc_pipeline.worker.process_text_job") as process_text_job:
+                process_text_job.side_effect = [ApiError(409, "conflict"), None]
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 1)
+                self.assertEqual(process_text_job.call_count, 2)
+
+
+class DeviceReadinessTest(unittest.TestCase):
+    """기동 전 설치 점검 — 설정이 틀린 채로 도는 것을 처음부터 막는다."""
+
+    def test_missing_ffmpeg_stops_startup(self):
+        from ccc_pipeline.masking import MaskingConfigError
+        from ccc_pipeline.worker import assert_device_ready
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch("ccc_pipeline.worker.shutil.which", return_value=None):
+                with self.assertRaises(MaskingConfigError):
+                    assert_device_ready(make_config(Path(tmp)))
+
+    def test_missing_person_ner_stops_startup(self):
+        from ccc_pipeline.masking import MaskingConfigError
+        from ccc_pipeline.worker import assert_device_ready
+
+        with TemporaryDirectory() as tmp:
+            config = replace(make_config(Path(tmp)), ner_model_id=None)
+            with mock.patch("ccc_pipeline.worker.shutil.which", return_value="/usr/bin/ffmpeg"):
+                with self.assertRaises(MaskingConfigError):
+                    assert_device_ready(config)
+
+    def test_masking_version_records_which_layers_ran(self):
+        from ccc_pipeline.worker import masking_pipeline_version
+
+        with TemporaryDirectory() as tmp:
+            base = make_config(Path(tmp))
+            # 어느 계층이 실제로 돌았는지가 스냅샷 기록에서 구분돼야 한다 —
+            # 주소를 가렸는지, 질병명을 사전으로만 걸렀는지까지.
+            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1+addr+cond-dict")
+            with_cond = replace(base, condition_ner_model_id="fixture/cond-ner")
+            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1+addr+cond-ner")
+            no_addr = replace(base, address_labels=())
+            self.assertEqual(masking_pipeline_version(no_addr), "ner-mask-v1-addr+cond-dict")
+
+
+class PersonNerFailClosedTest(unittest.TestCase):
+    """인명 NER 계층이 없으면 진행하지 않는다 (2026-07-31 Q 결정 · R3).
+
+    구 동작(경고 후 통과)이면 금고에 없는 제3자가 마스킹 없이 사업자로 나간다.
+    """
+
+    def _config_without_ner(self, tmp: str) -> Config:
+        base = make_config(Path(tmp))
+        return replace(base, ner_model_id=None)
+
+    def test_text_job_refuses_to_run_without_person_ner(self):
+        from ccc_pipeline.masking import MaskingConfigError
+        from ccc_pipeline.worker import process_text_job
+
+        client = mock.Mock()
+        client.get_text_job_source.return_value = "아들 김철수가 보증을 섰다고 함."
+        with TemporaryDirectory() as tmp:
+            with self.assertRaises(MaskingConfigError):
+                process_text_job(client, self._config_without_ner(tmp), "item-1", "session-1")
+        # 스냅샷도 완료도 일어나지 않는다 — 일감은 대기로 남아 다음 폴링에서 다시 잡힌다.
+        client.post_masked_source.assert_not_called()
+        client.complete_text_job.assert_not_called()
+
+    def test_run_once_survives_and_leaves_the_item_pending(self):
+        client = mock.Mock()
+        client.list_jobs.return_value = []
+        client.list_text_jobs.return_value = [{"id": "i1", "sessionId": "s1"}]
+        client.get_text_job_source.return_value = "아들 김철수가 보증을 섰다고 함."
+        with TemporaryDirectory() as tmp:
+            # 폴링 루프는 죽지 않고 0건 처리로 넘어간다(D8) — 큐에는 그대로 남는다.
+            self.assertEqual(run_once(client, self._config_without_ner(tmp)), 0)
+        client.complete_text_job.assert_not_called()
 
 
 if __name__ == "__main__":

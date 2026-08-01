@@ -178,3 +178,144 @@ class ConditionMaskingRateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LabelContractTest(unittest.TestCase):
+    """모델이 선언한 라벨과 설정한 접두의 대조 (2026-07-31 Q 결정).
+
+    이 검사가 없으면 접두가 어긋났을 때 **경고 없이 치환 0건**이 되고, 그 결과가
+    "이름이 없는 상담 기록"과 구분되지 않는다 — 조용한 PII 유출이다(R3).
+    """
+
+    class _FakeRecognizer:
+        def __init__(self, labels):
+            self.model = type("M", (), {"config": type("C", (), {"id2label": dict(enumerate(labels))})()})()
+
+    def test_accepts_a_model_that_declares_a_matching_label(self):
+        recognizer = self._FakeRecognizer(["O", "B-PS", "I-PS"])
+        masking._assert_labels_exist(recognizer, "fixture/klue-ner", ("PS", "PER"))
+
+    def test_strips_bio_prefixes_before_comparing(self):
+        # 파이프라인 aggregation 이 태깅 접두를 떼므로 대조도 떼고 한다.
+        recognizer = self._FakeRecognizer(["O", "B-NAME", "I-NAME"])
+        masking._assert_labels_exist(recognizer, "fixture/pii-model", ("NAME",))
+
+    def test_accepts_bioes_tagging(self):
+        # 채택 모델(korean-pii-e5-base)이 BIOES 다 — E-/S- 를 못 떼면 멀쩡한 모델을 거부한다.
+        recognizer = self._FakeRecognizer(
+            ["O", "B-private_person", "I-private_person", "E-private_person", "S-private_person"],
+        )
+        masking._assert_labels_exist(recognizer, "FrameByFrame/korean-pii-e5-base", ("PRIVATE_PERSON",))
+
+    def test_default_person_labels_cover_the_adopted_model(self):
+        # 기본값만으로도 채택 모델이 뜬다 — 세팅 때 라벨을 안 적어도 조용히 0건이 되지 않는다.
+        recognizer = self._FakeRecognizer(["O", "S-private_person", "S-private_address"])
+        masking._assert_labels_exist(
+            recognizer, "FrameByFrame/korean-pii-e5-base", masking.DEFAULT_PERSON_LABELS,
+        )
+
+    def test_klue_style_labels_are_not_matched_by_the_pii_prefix(self):
+        # PS 가 PRIVATE_* 를 우연히 먹지 않는지 — 접두 비교의 흔한 사고.
+        recognizer = self._FakeRecognizer(["O", "B-private_phone"])
+        with self.assertRaises(masking.MaskingConfigError):
+            masking._assert_labels_exist(recognizer, "fixture/pii-model", ("PS", "PER"))
+
+    def test_rejects_a_model_whose_labels_do_not_match(self):
+        # PII 전용 모델(NAME 계열)에 KLUE 접두(PS/PER)를 설정한 전형적인 실수.
+        recognizer = self._FakeRecognizer(["O", "B-NAME", "B-PHONE"])
+        with self.assertRaises(masking.MaskingConfigError):
+            masking._assert_labels_exist(recognizer, "fixture/pii-model", ("PS", "PER"))
+
+    def test_rejects_a_model_that_declares_no_labels(self):
+        # 대조 자체가 불가능하면 통과시키지 않는다.
+        recognizer = self._FakeRecognizer([])
+        with self.assertRaises(masking.MaskingConfigError):
+            masking._assert_labels_exist(recognizer, "fixture/unknown", ("PS",))
+
+
+class AddressLayerTest(unittest.TestCase):
+    """주소 계층 (2026-08-01 Q 결정) — 이름과 **다른 토큰**으로 가린다."""
+
+    def test_address_uses_its_own_token(self):
+        text = "김철수 씨가 행복아파트 3동에 산다고 말함"
+
+        def person(t):
+            i = t.find("김철수")
+            return [(i, i + 3)]
+
+        def address(t):
+            i = t.find("행복아파트 3동")
+            return [(i, i + len("행복아파트 3동"))]
+
+        masked, report = masking.mask_text_with_report(text, person, None, address)
+        # 주소를 [인명] 으로 치환하면 검토 화면과 집계가 둘 다 거짓이 된다.
+        self.assertIn("[인명]", masked)
+        self.assertIn("[주소]", masked)
+        self.assertNotIn("행복아파트", masked)
+        self.assertEqual(report.as_mapping()[masking.PERSON_TOKEN], 1)
+        self.assertEqual(report.as_mapping()[masking.ADDRESS_TOKEN], 1)
+
+    def test_layers_do_not_shift_each_other_offsets(self):
+        # 두 계층 스팬을 합쳐 뒤에서 앞으로 치환하지 않으면 엉뚱한 자리가 잘린다.
+        text = "가나다 주소는 라마바사 이다"
+
+        def person(t):
+            return [(0, 3)]
+
+        def address(t):
+            i = t.find("라마바사")
+            return [(i, i + 4)]
+
+        masked, _ = masking.mask_text_with_report(text, person, None, address)
+        self.assertEqual(masked, "[인명] 주소는 [주소] 이다")
+
+    def test_address_layer_can_be_turned_off(self):
+        masked, report = masking.mask_text_with_report("행복아파트 3동", None, None, None)
+        self.assertEqual(masked, "행복아파트 3동")
+        self.assertEqual(report.total, 0)
+
+
+class OverlapPolicyTest(unittest.TestCase):
+    """겹치는 스팬 처리 (2026-08-01 Q 결정: 못 가리는 것보다 과하게 가리는 쪽).
+
+    통째로 건너뛰면 겹치지 않는 부분이 원문 그대로 남는다 — 그건 유출이고 되돌릴 수 없다.
+    """
+
+    def test_overlapping_spans_are_clipped_not_dropped(self):
+        text = "행복아파트 김철수 씨"
+        # 주소(0,6)와 인명(7,10)이 아니라, 주소가 인명을 물고 들어오는 겹침을 만든다.
+        def person(_t):
+            return [(7, 10)]
+
+        def address(_t):
+            return [(0, 9)]
+
+        masked, report = masking.mask_text_with_report(text, person, None, address)
+        # 합집합을 한 토큰으로 덮는다 — 조각이 남지 않는 것이 핵심이다.
+        self.assertNotIn("행복아파트", masked)
+        self.assertNotIn("김철수", masked)
+        # 계층이 섞이면 식별력이 큰 쪽(인명)을 쓴다.
+        self.assertEqual(masked, "[인명]씨")
+        self.assertEqual(report.total, 1)
+
+    def test_fully_covered_span_is_skipped(self):
+        text = "김철수 씨"
+
+        def outer(_t):
+            return [(0, 3)]
+
+        def inner(_t):
+            return [(1, 2)]
+
+        masked, report = masking.mask_text_with_report(text, outer, None, inner)
+        # 안쪽 스팬은 바깥에 덮이므로 한 번만 치환된다 — 토큰이 중첩되지 않는다.
+        self.assertEqual(masked, "[인명] 씨")
+        self.assertEqual(report.total, 1)
+
+    def test_no_fragment_survives_a_partial_overlap(self):
+        # 회귀 방지: 잘라서 치환하던 구현은 "[인명][주소]수 씨" 처럼 조각을 남겼다.
+        text = "가나다라마바사"
+        masked, _ = masking.mask_text_with_report(
+            text, lambda _t: [(4, 7)], None, lambda _t: [(0, 5)],
+        )
+        self.assertEqual(masked, "[인명]")

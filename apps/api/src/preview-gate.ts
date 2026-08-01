@@ -113,15 +113,57 @@ function adminPreviewConfigured(env: ApiEnv): boolean {
  * 두 코드를 **항상 둘 다** 비교한다. 첫 번째에서 일찍 빠져나오면 응답 시간이 갈려
  * "관리자 코드가 있다"는 사실이 드러난다.
  */
+/**
+ * 종단 점검(E2E) 시점이 설정돼 있는가. 코드와 **장비 신원 이메일**이 둘 다 있어야 한다.
+ *
+ * 왜 필요한가: 처리 장비용 엔드포인트는 `service` 역할 전용인데, 미리보기는 Access 를
+ * 쓰지 않아 서비스 토큰이 없다. 그래서 이 환경에서는 "수기 저장 → 장비 마스킹 →
+ * 불일치 검출" 종단 경로를 한 번도 실물로 확인할 수 없었다(ADR-0027 를 만든 뒤 실측 불가).
+ * 이 코드는 그 구간을 미리보기에서 돌리기 위한 것이다.
+ */
+function e2ePreviewConfigured(env: ApiEnv): boolean {
+  return (env.PREVIEW_E2E_ACCESS_CODE?.length ?? 0) > 0
+    && (env.PREVIEW_SERVICE_ACTOR_EMAIL?.trim().length ?? 0) > 0;
+}
+
+/**
+ * E2E 코드로 들어왔을 때 쓸 수 있는 신원 목록. **환경 변수에 적힌 이메일만** 허용한다 —
+ * 임의 이메일을 헤더로 받으면 디렉터리의 아무 사용자나 될 수 있어 게이트의 의미가 없어진다.
+ * 기본값은 장비(service)다.
+ */
+function e2eActorAllowList(env: ApiEnv): string[] {
+  return [
+    env.PREVIEW_SERVICE_ACTOR_EMAIL,
+    env.PREVIEW_ACTOR_EMAIL,
+    env.PREVIEW_ADMIN_ACTOR_EMAIL,
+  ]
+    .map((value) => value?.trim() ?? '')
+    .filter((value) => value.length > 0);
+}
+
+/**
+ * E2E 코드로 들어온 요청의 신원 이메일을 정한다. 허용 목록 밖이거나 헤더가 없으면
+ * 장비(service)로 떨어진다 — 이 함수가 미리보기에서 신원이 넓어지는 유일한 지점이라
+ * 테스트로 직접 고정한다.
+ */
+export function resolvePreviewE2eActorEmail(env: ApiEnv, requested: string | null): string | undefined {
+  const wanted = requested?.trim() ?? '';
+  if (wanted.length > 0 && e2eActorAllowList(env).includes(wanted)) return wanted;
+  return env.PREVIEW_SERVICE_ACTOR_EMAIL?.trim();
+}
+
 async function resolveSigningCode(env: ApiEnv, submitted: string): Promise<string | null> {
   const expected = env.PREVIEW_ACCESS_CODE ?? '';
   const adminExpected = adminPreviewConfigured(env) ? env.PREVIEW_ADMIN_ACCESS_CODE! : null;
-  const [matchesUser, matchesAdmin] = await Promise.all([
+  const e2eExpected = e2ePreviewConfigured(env) ? env.PREVIEW_E2E_ACCESS_CODE! : null;
+  const [matchesUser, matchesAdmin, matchesE2e] = await Promise.all([
     expected.length > 0 ? codeMatches(submitted, expected) : Promise.resolve(false),
     adminExpected === null ? Promise.resolve(false) : codeMatches(submitted, adminExpected),
+    e2eExpected === null ? Promise.resolve(false) : codeMatches(submitted, e2eExpected),
   ]);
   if (matchesUser) return expected;
   if (matchesAdmin) return adminExpected;
+  if (matchesE2e) return e2eExpected;
   return null;
 }
 
@@ -258,10 +300,16 @@ export function previewActorResolver(env: ApiEnv): ActorResolver | undefined {
     let email = runtimeEnv.PREVIEW_ACTOR_EMAIL?.trim();
     if (!(await verifyToken(expectedCode, token, now))) {
       const adminCode = adminPreviewConfigured(runtimeEnv) ? runtimeEnv.PREVIEW_ADMIN_ACCESS_CODE! : null;
-      if (adminCode === null || !(await verifyToken(adminCode, token, now))) {
+      const e2eCode = e2ePreviewConfigured(runtimeEnv) ? runtimeEnv.PREVIEW_E2E_ACCESS_CODE! : null;
+      if (adminCode !== null && await verifyToken(adminCode, token, now)) {
+        email = runtimeEnv.PREVIEW_ADMIN_ACTOR_EMAIL?.trim();
+      } else if (e2eCode !== null && await verifyToken(e2eCode, token, now)) {
+        // 종단 점검 시점: 헤더로 신원을 고르되 **환경 변수에 적힌 이메일만** 허용한다.
+        // 헤더가 없거나 목록에 없으면 장비(service)로 떨어진다.
+        email = resolvePreviewE2eActorEmail(runtimeEnv, request.headers.get('X-CCC-Preview-Actor'));
+      } else {
         throw new ActorAuthenticationError('a valid preview session cookie is required');
       }
-      email = runtimeEnv.PREVIEW_ADMIN_ACTOR_EMAIL?.trim();
     }
 
     if (email === undefined || email.length === 0) {

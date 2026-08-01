@@ -73,6 +73,10 @@ import {
   listCounselorAssignments,
   listGoals,
   listPipelineJobs,
+  listTextWorkItems,
+  getTextWorkItemSource,
+  completeTextWorkItem,
+  enqueueTextWorkItem,
   listSessions,
   listSupportCaseAssignees,
   listAssignedParticipants,
@@ -1299,7 +1303,8 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
     const material = await collectDiscrepancyDetectionSources(env, actor, sessionId);
     if (!material.sources.some((source) => source.sessionId === material.triggerSessionId)) return;
     // 텍스트 AI 동의 게이트 (D15 · D44) — 파일럿 중지·동의 부재면 여기서 던져 스킵된다.
-    await assertPilotTextAiConsent(env, actor, material.caseId);
+    // 서비스 역할(장비 스냅샷 직후 경로)은 수집 단계에서 이미 같은 게이트를 통과했다.
+    if (actor.role !== 'service') await assertPilotTextAiConsent(env, actor, material.caseId);
     const { adapter } = resolveAiProviderAdapter(env);
     if (adapter.detectDiscrepancies === undefined) return;
     const providerRequest = validateDiscrepancyDetectionRequest({
@@ -1320,6 +1325,26 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
   } catch {
     // 내용 무로깅(R3) — 실패는 스킵이 계약이다(D8). 기록 저장은 이미 성공했다.
   }
+}
+
+/**
+ * 기록 공식화 훅 (D5 · R2). ① 텍스트 일감을 큐에 넣어 처리 장비가 2차 마스킹
+ * 스냅샷을 만들게 하고(ADR-0027), ② 불일치 검출을 시도한다. 스냅샷이 아직 없는
+ * 회차는 ②가 조용히 스킵되고, 장비가 스냅샷을 올리는 순간 그 경로에서 다시 돈다.
+ * 둘 다 최선 노력이다 — 어느 쪽 실패도 기록 저장 응답을 막지 않는다(D8).
+ */
+async function onRecordOfficialized(
+  env: ApiEnv,
+  actor: Actor,
+  sessionId: string,
+  reason: 'manual_record' | 'ai_draft_approved',
+): Promise<void> {
+  try {
+    await enqueueTextWorkItem(env, actor, sessionId, reason);
+  } catch {
+    // 큐 적재 실패는 스킵이다(D8) — 다음 공식화 때 다시 쌓인다. 내용 무로깅(R3).
+  }
+  await runDiscrepancyDetection(env, actor, sessionId);
 }
 
 function providerEvidenceLinks(output: ReturnType<typeof validateAiProviderOutput>) {
@@ -1864,7 +1889,7 @@ export async function handleRequest(
         const result = await createCounselingRecord(env, actor, supportCaseId, parseRecordCreation(await requestBody(request)));
         // 수기 메모는 저장 즉시 공식 기록(D5) — 공식화 시점 불일치 검출(CCC-43). 재생(replay)은
         // 이미 검출을 거친 제출이라 건너뛴다. 실패해도 저장 응답은 그대로 나간다(D8).
-        if (!result.replayed) await runDiscrepancyDetection(env, actor, result.record.id);
+        if (!result.replayed) await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
         return json(
           { record: counselingRecordResponse(result.record), replayed: result.replayed },
           result.replayed ? 200 : 201,
@@ -1880,7 +1905,7 @@ export async function handleRequest(
         requestQuery(url, []);
         const result = await createIntakeRecord(env, actor, supportCaseId, parseIntakeCreation(await requestBody(request)));
         // 인테이크도 수기 공식 기록이다(D5) — 회차 내 모순 검출 대상(CCC-43).
-        if (!result.replayed) await runDiscrepancyDetection(env, actor, result.record.id);
+        if (!result.replayed) await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
         return json(
           { record: intakeRecordResponse(result.record), replayed: result.replayed },
           result.replayed ? 200 : 201,
@@ -1945,7 +1970,7 @@ export async function handleRequest(
         }
         const result = await createCounselingRecord(env, actor, legacyEntry.supportCase.id, input);
         // Phase-1 호환 경로도 같은 공식화 지점이다 — 검출 훅 동일(CCC-43).
-        if (!result.replayed) await runDiscrepancyDetection(env, actor, result.record.id);
+        if (!result.replayed) await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
         return json(
           { ...sessionResponse(await getSession(env, actor, result.record.id)), replayed: result.replayed },
           result.replayed ? 200 : 201,
@@ -1978,6 +2003,9 @@ export async function handleRequest(
       }
       if (request.method === 'POST' && parts.length === 4 && parts[2] === 'ai' && parts[3] === 'source') {
         const snapshot = await recordMaskedSourceSnapshot(env, actor, sessionId, parseMaskedSourceSnapshot(await requestBody(request)));
+        // 이제서야 이 회차가 2차 마스킹을 마친 재료를 갖는다 — 공식화 시점에 스킵됐던
+        // 불일치 검출을 여기서 돌린다(ADR-0027). 실패는 스킵이다(D8).
+        await runDiscrepancyDetection(env, actor, sessionId);
         return json({
           sourceSnapshotId: snapshot.id,
           sha256: snapshot.sha256,
@@ -2014,7 +2042,7 @@ export async function handleRequest(
         if (input.expectedVersion !== version) throw new StaleDraftVersionError();
         const reviewed = await reviewAiDraftForSession(env, actor, sessionId, input);
         // AI 정리 승인 = 공식화(R2) — 이 시점에 불일치를 재검출한다(CCC-43). 거부는 비공식이라 제외.
-        if (input.decision === 'approved') await runDiscrepancyDetection(env, actor, sessionId);
+        if (input.decision === 'approved') await onRecordOfficialized(env, actor, sessionId, 'ai_draft_approved');
         return json(aiDraftResponse(reviewed));
       }
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'audio') {
@@ -2033,6 +2061,22 @@ export async function handleRequest(
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'jobs') {
       return json({ jobs: await listPipelineJobs(env, actor) });
+    }
+    // 텍스트 일감 큐(D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹을 장비에 맡긴다.
+    if (parts[0] === 'pipeline' && parts[1] === 'text-jobs') {
+      if (request.method === 'GET' && parts.length === 2) {
+        return json({ jobs: await listTextWorkItems(env, actor) });
+      }
+      if (parts[2] !== undefined) {
+        const itemId = parts[2];
+        if (request.method === 'GET' && parts.length === 4 && parts[3] === 'source') {
+          return json(await getTextWorkItemSource(env, actor, itemId));
+        }
+        if (request.method === 'POST' && parts.length === 4 && parts[3] === 'complete') {
+          await completeTextWorkItem(env, actor, itemId);
+          return new Response(null, { status: 204 });
+        }
+      }
     }
     if (parts[0] === 'pii-purge') {
       // D10 PII 파기 — 관리자 전용(gateway 내부에서 강제). 미리보기(GET)와 실행(POST) 분리.

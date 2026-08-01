@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import worker from '../src/index';
+import { resolvePreviewE2eActorEmail } from '../src/preview-gate';
 import type { ApiEnv } from '../src/identity';
 
 // 테스트 전용 고정 코드(실제 지정 코드 아님 — 픽스처 리터럴). 실제 코드는 시크릿으로만 주입한다.
 const TEST_CODE = 'test-preview-code-1234';
 // 관리자 시점 픽스처(2026-07-30). 실무자 코드와 **다른 값**이어야 두 경로가 갈린다.
 const TEST_ADMIN_CODE = 'test-preview-admin-code-5678';
+// 종단 점검 코드 픽스처(D57). 위 둘과 또 달라야 세 경로가 갈린다.
+const TEST_E2E_CODE = 'test-preview-e2e-code-9012';
 
 const baseEnv: ApiEnv = {
   DB: undefined as unknown as D1Database,
@@ -200,5 +203,49 @@ describe('preview code gate (CCC-6)', () => {
     const response = await worker.fetch(unlockRequest('neither-code'), adminPreviewEnv);
     expect(response.status).toBe(401);
     expect(response.headers.get('set-cookie')).toBeNull();
+  });
+});
+
+// 종단 점검(E2E) 코드 — 미리보기에서 처리 장비(service) 시점을 여는 유일한 경로.
+// 이 경로가 넓어지면 미리보기가 사실상 무인증이 되므로, 아래 셋을 테스트로 고정한다.
+describe('preview E2E code (D57 · ADR-0027)', () => {
+  const e2ePreviewEnv: ApiEnv = {
+    ...adminPreviewEnv,
+    PREVIEW_E2E_ACCESS_CODE: TEST_E2E_CODE,
+    PREVIEW_SERVICE_ACTOR_EMAIL: 'service-token-client-id.access',
+  };
+
+  it('`red` 코드만 있고 장비 이메일이 없으면 열리지 않는다 (하다 만 설정)', async () => {
+    const halfConfigured: ApiEnv = { ...previewEnv, PREVIEW_E2E_ACCESS_CODE: TEST_E2E_CODE };
+    const response = await worker.fetch(unlockRequest(TEST_E2E_CODE), halfConfigured);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('E2E 코드를 켜도 실무자·관리자 코드는 그대로 동작한다', async () => {
+    for (const code of [TEST_CODE, TEST_ADMIN_CODE]) {
+      const response = await worker.fetch(unlockRequest(code), e2ePreviewEnv);
+      expect(response.status).toBe(200);
+    }
+    const rejected = await worker.fetch(unlockRequest('neither-code'), e2ePreviewEnv);
+    expect(rejected.status).toBe(401);
+  });
+
+  it('`red` 목록 밖 이메일은 신원이 되지 않는다 — 장비로 떨어진다', () => {
+    // 디렉터리의 다른 사용자를 헤더로 지목해도 통과하면 게이트의 의미가 없어진다.
+    expect(resolvePreviewE2eActorEmail(e2ePreviewEnv, 'counselor-03@example.test'))
+      .toBe('service-token-client-id.access');
+    expect(resolvePreviewE2eActorEmail(e2ePreviewEnv, null))
+      .toBe('service-token-client-id.access');
+    expect(resolvePreviewE2eActorEmail(e2ePreviewEnv, '  '))
+      .toBe('service-token-client-id.access');
+  });
+
+  it('목록 안 이메일(실무자·관리자·장비)은 그대로 신원이 된다', () => {
+    for (const email of ['account@bss.or.kr', 'admin@bss.or.kr', 'service-token-client-id.access']) {
+      expect(resolvePreviewE2eActorEmail(e2ePreviewEnv, email)).toBe(email);
+    }
+    // 공백은 다듬어 비교한다 — 헤더에 공백이 섞여도 같은 신원이어야 한다.
+    expect(resolvePreviewE2eActorEmail(e2ePreviewEnv, ' admin@bss.or.kr ')).toBe('admin@bss.or.kr');
   });
 });

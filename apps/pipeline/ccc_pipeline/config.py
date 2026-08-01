@@ -29,8 +29,16 @@ class Config:
     stt_min_chunk_seconds: float
     stt_repeat_threshold: int
     ner_model_id: str | None
+    # 모델이 인명에 붙이는 라벨 접두. **모델과 한 쌍**이라 함께 설정한다 — KLUE 계열은
+    # PS/PER, PII 전용 모델은 NAME 계열로 서로 다르다. 틀리면 마스킹이 조용히 0건이 되므로,
+    # 모델을 불러올 때 그 모델이 선언한 라벨 목록과 대조해 안 맞으면 뜨지 않는다(masking.py).
+    ner_labels: tuple[str, ...]
+    # 주소 계층 라벨(2026-08-01 Q 결정). 비우면 주소를 가리지 않는다 — 주소를 안 잡는
+    # 모델로 갈아탈 때의 경로다. 비어 있지 않은데 모델이 그 라벨이 없으면 뜨지 않는다.
+    address_labels: tuple[str, ...]
     # 질병명 NER 은 인명 NER 과 다른 모델이라 설정을 따로 둔다. 없어도 사전 계층은 항상 동작한다(G3).
     condition_ner_model_id: str | None
+    condition_ner_labels: tuple[str, ...]
     hf_token: str | None
 
 
@@ -49,6 +57,22 @@ def _positive_int(name: str, default: int, minimum: int = 1) -> int:
     except ValueError:
         return default
     return value if value >= minimum else default
+
+
+def _labels(name: str, default: tuple[str, ...], *, allow_empty: bool = False) -> tuple[str, ...]:
+    """쉼표로 나열한 라벨 접두 목록. 미설정이면 기본값.
+
+    인명처럼 **꺼지면 안 되는** 계층은 빈 목록을 만들지 않는다(아무 라벨도 안 맞으면
+    마스킹이 0건이 되는데 그건 설정이 아니라 사고다). 주소처럼 끌 수 있는 계층만
+    `allow_empty=True` 로 두어, `CCC_NER_ADDRESS_LABELS=none` 같은 명시적 해제를 받는다.
+    """
+    raw = os.environ.get(name, "").strip()
+    if raw == "":
+        return default
+    if allow_empty and raw.lower() in ("none", "off", "-"):
+        return ()
+    labels = tuple(part.strip().upper() for part in raw.split(",") if part.strip() != "")
+    return labels if labels or allow_empty else default
 
 
 def _required(name: str) -> str:
@@ -81,6 +105,9 @@ def load_config() -> Config:
         stt_min_chunk_seconds=_positive_float("CCC_STT_MIN_CHUNK_SECONDS", chunking.DEFAULT_MIN_CHUNK_SECONDS),
         stt_repeat_threshold=_positive_int("CCC_STT_REPEAT_THRESHOLD", repetition.DEFAULT_REPEAT_THRESHOLD, minimum=2),
         ner_model_id=os.environ.get("CCC_NER_MODEL_ID", "").strip() or None,
+        ner_labels=_labels("CCC_NER_LABELS", masking.DEFAULT_PERSON_LABELS),
+        address_labels=_labels("CCC_NER_ADDRESS_LABELS", masking.DEFAULT_ADDRESS_LABELS, allow_empty=True),
         condition_ner_model_id=os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None,
+        condition_ner_labels=_labels("CCC_CONDITION_NER_LABELS", masking.DEFAULT_CONDITION_LABELS),
         hf_token=os.environ.get("HF_TOKEN", "").strip() or None,
     )

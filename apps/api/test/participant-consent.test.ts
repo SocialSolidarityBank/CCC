@@ -7,6 +7,7 @@ import {
   ForbiddenError,
   type ParticipantConsentInput,
 } from '../../../db/gateway';
+import { CONSENT_TEXT_AI_NOTICE_VERSION } from '../../../db/consent-notice';
 import { setupD1, testActors } from './support/d1';
 
 const { counselor, admin, unassignedCounselor } = testActors;
@@ -117,8 +118,13 @@ describe('당사자 등록 동의 기록 (D49 · D23 · 티켓 #19)', () => {
     ).bind(creation.beneficiaryId).first<{ initialization_state: string }>();
     expect(beneficiary?.initialization_state).toBe('complete');
 
+    // 대상 표까지 좁힌다 — 완료 전환 '이후'에 쌓이는 다른 create 감사(ADR-0027 의 텍스트 AI
+    // 동의 근거 등)는 이 불변식과 무관하다. DB 가드도 전환 시점만 센다.
     const provenance = await t.db.prepare(
-      "SELECT action FROM audit_log WHERE beneficiary_id = ? AND action IN ('create', 'assign') ORDER BY id",
+      `SELECT action FROM audit_log
+       WHERE beneficiary_id = ? AND action IN ('create', 'assign')
+         AND target_table IN ('beneficiaries', 'support_cases', 'support_case_assignees')
+       ORDER BY id`,
     ).bind(creation.beneficiaryId).all<{ action: string }>();
     expect(provenance.results.map((r) => r.action)).toEqual(['create', 'create', 'assign']);
   });
@@ -282,6 +288,40 @@ describe('동의 2종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
       recordingAi: false,
       kind: 'update',
     }));
+  });
+
+  // ADR-0027 — 화면의 ② 체크가 AI 초안 근거 행을 만든다. 이 배선이 없으면 동의를 다
+  // 받은 케이스에서도 0026 트리거가 초안 저장을 거부한다(부품은 있는데 화면만 없던 자리).
+  it('records the text-AI consent evidence row when ② is checked (ADR-0027)', async () => {
+    await t.reset();
+    const creation = await register(counselor, { privacy: true, recordingAi: true });
+
+    const evidence = await t.db.prepare(
+      `SELECT notice_version, notice_sha256, evidence_ref FROM pilot_text_ai_consent_evidence
+       WHERE support_case_id = ?`,
+    ).bind(creation.supportCaseId).all<Record<string, unknown>>();
+    expect(evidence.results).toHaveLength(1);
+    // 어느 문안에 동의했는지가 함께 남는다 — 법률 검토가 재개될 때 필요한 것이 이것이다.
+    expect(evidence.results[0]?.notice_version).toBe(CONSENT_TEXT_AI_NOTICE_VERSION);
+    expect(evidence.results[0]?.notice_sha256).toMatch(/^[0-9a-f]{64}$/);
+
+    // 철회는 새 근거를 만들지 않는다(append-only) — 사용 차단은 consent_text_ai_at 이 맡는다.
+    await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
+      privacy: true, recordingAi: false,
+    });
+    const afterRevoke = await t.db.prepare(
+      'SELECT COUNT(*) AS count FROM pilot_text_ai_consent_evidence WHERE support_case_id = ?',
+    ).bind(creation.supportCaseId).first<{ count: number }>();
+    expect(Number(afterRevoke?.count ?? 0)).toBe(1);
+
+    // 다시 동의하면 그 시점 문안으로 근거가 한 행 더 쌓인다.
+    await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
+      privacy: true, recordingAi: true,
+    });
+    const afterRegrant = await t.db.prepare(
+      'SELECT COUNT(*) AS count FROM pilot_text_ai_consent_evidence WHERE support_case_id = ?',
+    ).bind(creation.supportCaseId).first<{ count: number }>();
+    expect(Number(afterRegrant?.count ?? 0)).toBe(2);
   });
 
   it('re-grants a revoked consent (the settings page is the only edit surface)', async () => {

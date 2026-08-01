@@ -29,7 +29,23 @@ RRN_TOKEN = "[주민번호]"
 EMAIL_TOKEN = "[이메일]"
 ACCOUNT_TOKEN = "[계좌번호]"
 PERSON_TOKEN = "[인명]"
+ADDRESS_TOKEN = "[주소]"
 CONDITION_TOKEN = "[질환]"
+
+# 태깅 접두(BIO·BIOES·BILOU). 라벨 대조 전에 떼어 낸다.
+_TAG_PREFIXES = ("B-", "I-", "E-", "S-", "L-", "U-")
+
+# 라벨 접두 기본값 — **여러 계열을 함께 담는다.** 모델마다 이름이 달라서다:
+#   KLUE·모두의 말뭉치 계열 → PS / PER
+#   PII 전용 모델 → NAME 또는 PRIVATE_PERSON (채택 모델 korean-pii-e5-base 가 후자)
+# 접두가 그 모델과 하나도 안 맞으면 로드 단계에서 죽으므로(_assert_labels_exist),
+# 기본값이 넓어도 조용히 어긋난 채 도는 일은 없다. 모델을 정하면 CCC_NER_LABELS 로
+# 그 모델의 라벨만 명시하는 쪽이 더 안전하다 — 의도한 라벨이 문서에 남는다.
+DEFAULT_PERSON_LABELS = ("PS", "PER", "NAME", "PRIVATE_PERSON")
+# 주소 계층(2026-08-01 Q 결정 — 이름과 함께 가린다). "○○아파트 3동" 만으로도 사람이
+# 특정되는데, 상담 내용을 이해하는 데는 주소가 없어도 지장이 없다. 빈 튜플로 두면 계층이 꺼진다.
+DEFAULT_ADDRESS_LABELS = ("LC", "ADDRESS", "PRIVATE_ADDRESS")
+DEFAULT_CONDITION_LABELS = ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM")
 
 # 경계 주의: 파이썬 re의 \b는 한글도 단어 문자로 봐서 "1234로"처럼 조사가 붙으면
 # 매칭이 깨진다. 숫자 패턴은 앞뒤에 숫자·하이픈이 없다는 룩어라운드로 경계를 잡는다.
@@ -86,6 +102,48 @@ class MaskingReport:
         return dict(self.counts)
 
 
+# 겹친 스팬이 서로 다른 계층일 때 어느 토큰으로 가릴지. 식별력이 큰 쪽이 앞이다.
+_TOKEN_PRIORITY = (PERSON_TOKEN, ADDRESS_TOKEN, CONDITION_TOKEN)
+
+
+def _merge_spans(spans: list[tuple[int, int, str]], limit: int) -> list[tuple[int, int, str]]:
+    """겹치는 스팬을 **합쳐서** 한 번에 가릴 구간 목록으로 만든다 (뒤에서 앞 순서로 반환).
+
+    2026-08-01 Q 결정(못 가리는 것보다 과하게 가리는 쪽)의 구현이다. 겹칠 때 한쪽을
+    버리면 겹치지 않는 부분이 원문 그대로 남고, 잘라서 치환하면 `[인명][주소]수` 처럼
+    조각이 남는다 — 둘 다 유출이다. 합집합을 한 토큰으로 덮으면 남는 조각이 없다.
+
+    계층이 섞이면 식별력이 큰 쪽 토큰을 쓴다(인명 > 주소 > 질환). 뒤에서 앞으로 치환해야
+    앞선 치환이 뒤 구간의 오프셋을 밀지 않으므로, 내림차순으로 돌려준다.
+    """
+    # 범위를 벗어난 스팬은 버린다 — 모델이 텍스트 밖 오프셋을 주면 그건 좌표가 깨진 것이고,
+    # 그 좌표로 자르면 엉뚱한 자리가 사라진다. 끝만 넘치면 텍스트 끝까지로 줄여 가린다.
+    valid = sorted(
+        (
+            (start, min(end, limit), token)
+            for start, end, token in spans
+            if 0 <= start < end and start < limit
+        ),
+        key=lambda span: span[0],
+    )
+    merged: list[tuple[int, int, set[str]]] = []
+    for start, end, token in valid:
+        if merged and start < merged[-1][1]:
+            previous_start, previous_end, tokens = merged[-1]
+            tokens.add(token)
+            merged[-1] = (previous_start, max(previous_end, end), tokens)
+            continue
+        merged.append((start, end, {token}))
+
+    def pick(tokens: set[str]) -> str:
+        for candidate in _TOKEN_PRIORITY:
+            if candidate in tokens:
+                return candidate
+        return next(iter(tokens))
+
+    return [(start, end, pick(tokens)) for start, end, tokens in reversed(merged)]
+
+
 def _sub_counting(pattern: re.Pattern[str], token: str, text: str, report: MaskingReport) -> str:
     def replace(_match: re.Match[str]) -> str:
         report.add(token)
@@ -116,6 +174,7 @@ def mask_text_with_report(
     text: str,
     ner: NerFn | None = None,
     condition_ner: NerFn | None = None,
+    address_ner: NerFn | None = None,
 ) -> tuple[str, MaskingReport]:
     """전 계층 마스킹 + 집계.
 
@@ -126,18 +185,20 @@ def mask_text_with_report(
     """
     report = MaskingReport()
     spans: list[tuple[int, int, str]] = []
-    for span_fn, token in ((ner, PERSON_TOKEN), (condition_ner, CONDITION_TOKEN)):
+    # 계층마다 **자기 토큰**을 쓴다 — 주소를 [인명] 으로 치환하면 검토 화면과 집계가
+    # 둘 다 거짓이 된다(무엇이 가려졌는지가 실무자에게 필요한 정보다).
+    for span_fn, token in (
+        (ner, PERSON_TOKEN),
+        (address_ner, ADDRESS_TOKEN),
+        (condition_ner, CONDITION_TOKEN),
+    ):
         if span_fn is None:
             continue
         spans.extend((start, end, token) for start, end in span_fn(text))
 
-    previous_start = len(text)
-    for start, end, token in sorted(spans, key=lambda span: span[0], reverse=True):
-        # 겹치는 스팬은 뒤쪽만 살린다 — 앞 스팬이 이미 치환한 자리를 다시 자르지 않는다.
-        if 0 <= start < end <= previous_start:
-            text = text[:start] + token + text[end:]
-            report.add(token)
-            previous_start = start
+    for start, end, token in _merge_spans(spans, len(text)):
+        text = text[:start] + token + text[end:]
+        report.add(token)
 
     text = _sub_counting(_CONDITION, CONDITION_TOKEN, text, report)
     for pattern, token in _REGEX_LAYERS:
@@ -145,15 +206,39 @@ def mask_text_with_report(
     return text, report
 
 
-def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
-    """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
+class MaskingConfigError(Exception):
+    """마스킹 계층 설정 오류. 메시지에 전사 내용·시크릿을 넣지 않는다 (R3)."""
 
-    라벨 체계는 모델마다 달라서, 노트북 세팅 때 실제 모델의 라벨 목록을 확인하고 필요하면
-    호출부의 접두 목록을 보정한다.
+
+def _assert_labels_exist(recognizer, model_id: str, label_prefixes: tuple[str, ...]) -> None:  # noqa: ANN001
+    """모델이 **선언한** 라벨 목록과 설정한 접두를 대조한다.
+
+    왜 필요한가: 라벨 체계는 모델마다 다르다(KLUE 계열 `PS`/`PER` vs PII 전용 모델 `NAME` 계열).
+    접두가 어긋나면 파이프라인은 정상 동작하는데 **치환만 0건**이 되고, 로그에도 아무것도 남지
+    않는다 — "이름이 없는 상담 기록"과 구분할 방법이 없다. 그 조용한 실패가 곧 PII 유출이라
+    (R3), 여기서 시끄럽게 죽인다. 이 검사는 연결이 맞는지까지만 본다 — 그 모델이 한국어
+    상담체에서 인명을 **잘 찾는지**는 실측 게이트의 몫이다.
     """
-    from transformers import pipeline  # noqa: PLC0415
+    declared = getattr(getattr(recognizer, "model", None), "config", None)
+    id2label = getattr(declared, "id2label", None)
+    if not isinstance(id2label, dict) or not id2label:
+        # 라벨 목록을 못 읽는 모델이면 대조 자체가 불가능하다 — 통과시키지 않는다.
+        raise MaskingConfigError(f"NER model {model_id} does not declare a label set")
 
-    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    labels = {str(value).upper() for value in id2label.values()}
+    # 파이프라인의 aggregation 이 태깅 접두를 떼므로 여기서도 떼고 비교한다.
+    # BIO 뿐 아니라 BIOES(E-·S-)·BILOU(L-·U-)도 쓴다 — 실제로 채택한 모델
+    # (korean-pii-e5-base)이 BIOES 다. 접두 목록이 좁으면 멀쩡한 모델을 거부한다.
+    stripped = {label.split("-", 1)[1] if label[:2] in _TAG_PREFIXES else label for label in labels}
+    if not any(label.startswith(label_prefixes) for label in stripped):
+        raise MaskingConfigError(
+            f"NER model {model_id} declares no label starting with {label_prefixes} "
+            f"(declared: {sorted(stripped)})",
+        )
+
+
+def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN202 — 반환은 NerFn
+    """이미 불러온 파이프라인에서 특정 라벨 접두만 고르는 스팬 함수를 만든다."""
 
     def ner(text: str) -> list[tuple[int, int]]:
         spans: list[tuple[int, int]] = []
@@ -166,16 +251,53 @@ def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: AN
     return ner
 
 
-def build_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
-    """인명 스팬 NER. 인명 계열 라벨(PS/PER/PERSON 접두)만 마스킹 대상으로 본다."""
-    return _build_span_ner(model_id, ("PS", "PER"))
+def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
+    """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
+
+    라벨 체계는 모델마다 다르므로 **모델과 라벨 접두를 한 쌍으로 설정**하고(config.py),
+    여기서 모델이 선언한 라벨과 대조한다. 어긋나면 뜨지 않는다.
+    """
+    from transformers import pipeline  # noqa: PLC0415
+
+    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    _assert_labels_exist(recognizer, model_id, label_prefixes)
+    return _span_fn(recognizer, label_prefixes)
 
 
-def build_condition_ner(model_id: str):  # noqa: ANN201 — 반환은 NerFn
+def build_ner(model_id: str, label_prefixes: tuple[str, ...] = DEFAULT_PERSON_LABELS):  # noqa: ANN201
+    """인명 스팬 NER. 어느 라벨을 인명으로 볼지는 **모델과 함께 설정**한다(config.ner_labels)."""
+    return _build_span_ner(model_id, label_prefixes)
+
+
+def build_person_and_address_ner(  # noqa: ANN201 — 반환은 (NerFn, NerFn | None)
+    model_id: str,
+    person_prefixes: tuple[str, ...] = DEFAULT_PERSON_LABELS,
+    address_prefixes: tuple[str, ...] = DEFAULT_ADDRESS_LABELS,
+):
+    """인명·주소 두 계층을 **모델 한 번만 불러서** 만든다.
+
+    채택 모델(korean-pii-e5-base)은 인명과 주소를 같은 모델이 잡는다. 계층마다 따로
+    부르면 같은 가중치를 두 번 올려 장비 메모리를 낭비한다(장비는 STT·화자 분리·감정과
+    자원을 나눠 쓴다).
+
+    `address_prefixes` 가 비면 주소 계층 없이 인명만 돌린다 — 주소를 안 잡는 모델로
+    갈아탈 때의 경로다. 비어 있지 **않은데** 모델이 그 라벨을 선언하지 않으면 뜨지 않는다.
+    """
+    from transformers import pipeline  # noqa: PLC0415
+
+    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    _assert_labels_exist(recognizer, model_id, person_prefixes)
+    person = _span_fn(recognizer, person_prefixes)
+    if not address_prefixes:
+        return person, None
+    _assert_labels_exist(recognizer, model_id, address_prefixes)
+    return person, _span_fn(recognizer, address_prefixes)
+
+
+def build_condition_ner(model_id: str, label_prefixes: tuple[str, ...] = DEFAULT_CONDITION_LABELS):  # noqa: ANN201
     """질병명 스팬 NER (G3) — **사전의 보완재이지 대체재가 아니다.**
 
     사전(`condition_terms.py`)이 항상 먼저 동작하고, 이 계층은 사전에 없는 표기·오탈자를
-    줍는 몫이다. 라벨 접두는 한국어 NER 에서 질병·증상에 흔히 쓰이는 것들을 넣어 뒀지만
-    **실측 확인 전이다** — 노트북 세팅 때 모델의 실제 라벨을 확인하고 여기를 고친다.
+    줍는 몫이다. 라벨 접두는 모델과 함께 설정한다(config.condition_ner_labels).
     """
-    return _build_span_ner(model_id, ("DS", "DISEASE", "SYMPTOM", "CV_DISEASE", "TRM"))
+    return _build_span_ner(model_id, label_prefixes)
