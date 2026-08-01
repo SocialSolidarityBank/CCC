@@ -87,6 +87,7 @@ import {
   markCounselingScheduleNoShow,
   previewExpiredPii,
   purgeExpiredPiiAsAdmin,
+  recordAiCallOutcome,
   recordMaskedSourceSnapshot,
   recordPilotTextAiConsentEvidence,
   registerRecording,
@@ -98,6 +99,8 @@ import {
   updateParticipantPii,
   upsertUser,
   type Actor,
+  type AiCallFailureReason,
+  type AiCallOutcome,
   type AiDraftVersion,
   type CounselingRecordDetails,
   type AssignedParticipant,
@@ -109,9 +112,11 @@ import { isBeneficiaryId } from '../../../db/animal-slugs';
 import {
   AI_DRAFT_PROMPT_VERSION,
   AI_DRAFT_SCHEMA_VERSION,
+  DISCREPANCY_PROMPT_VERSION,
   AiProviderInputError,
   AiProviderProhibitedOutputError,
   AiProviderUnavailableError,
+  type AiProviderUnavailableReason,
   canonicalAiProviderConfigHash,
   resolveAiProviderAdapter,
   validateAiDraftSummary,
@@ -1298,15 +1303,45 @@ function requireAssignedCounselor(actor: Actor): void {
  * 재료는 게이트웨이가 가명 처리한 공식 텍스트뿐이고(R3), 출력은 판단 없는 인용 쌍만
  * 통과한다(R5). 브리핑은 저장된 결과만 읽으므로 이 함수는 열람 경로에서 절대 불리지 않는다.
  */
+/** 사업자에 **닿기도 전에** 끝난 사유들 — 손 쓸 자리가 시크릿·설정이다(CCC-47). */
+const CONFIGURATION_REASONS: ReadonlySet<AiProviderUnavailableReason> = new Set([
+  'config_missing',
+  'config_invalid',
+  'api_key_missing',
+  'adapter_invalid',
+]);
+
 async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: string): Promise<void> {
+  // CCC-47 — 어떻게 끝났든 사실 한 줄을 남긴다. 이 값들은 전부 분류·숫자·설정값이고
+  // 상담 내용은 하나도 들어가지 않는다(R3). 관측이 없으면 아래 스킵 경로들이 "정상적으로
+  // 불일치가 없었다"와 구분되지 않는다 — 그게 이 티켓의 출발점이다.
+  const startedAt = Date.now();
+  let outcome: AiCallOutcome = 'failed_other';
+  let caseId: string | null = null;
+  let reason: AiCallFailureReason | null = null;
+  let status: number | null = null;
+  let sourceCount: number | null = null;
+  let storedCount: number | null = null;
+  let model: string | null = null;
+
   try {
     const material = await collectDiscrepancyDetectionSources(env, actor, sessionId);
-    if (!material.sources.some((source) => source.sessionId === material.triggerSessionId)) return;
+    caseId = material.caseId;
+    sourceCount = material.sources.length;
+    if (!material.sources.some((source) => source.sessionId === material.triggerSessionId)) {
+      // 가장 흔한 상태다 — 장비가 아직 2차 마스킹 스냅샷을 올리지 않았다(대기 중, D8).
+      outcome = 'skipped_no_snapshot';
+      return;
+    }
     // 텍스트 AI 동의 게이트 (D15 · D44) — 파일럿 중지·동의 부재면 여기서 던져 스킵된다.
     // 서비스 역할(장비 스냅샷 직후 경로)은 수집 단계에서 이미 같은 게이트를 통과했다.
     if (actor.role !== 'service') await assertPilotTextAiConsent(env, actor, material.caseId);
-    const { adapter } = resolveAiProviderAdapter(env);
-    if (adapter.detectDiscrepancies === undefined) return;
+    const { adapter, config } = resolveAiProviderAdapter(env);
+    model = config.model;
+    if (adapter.detectDiscrepancies === undefined) {
+      outcome = 'skipped_unsupported';
+      return;
+    }
     const providerRequest = validateDiscrepancyDetectionRequest({
       triggerRef: material.triggerSessionId,
       sources: material.sources.map((source) => ({ sourceRef: source.sessionId, text: source.text })),
@@ -1322,8 +1357,46 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
       rightSessionId: item.rightRef,
       rightQuote: item.rightQuote,
     })));
-  } catch {
+    storedCount = output.discrepancies.length;
+    outcome = storedCount === 0 ? 'empty' : 'stored';
+  } catch (error) {
     // 내용 무로깅(R3) — 실패는 스킵이 계약이다(D8). 기록 저장은 이미 성공했다.
+    // 분류만 갈라 둔다: 어느 실패인지 모르면 고칠 자리도 알 수 없다(CCC-47).
+    if (error instanceof PilotTextAiConsentRequiredError) {
+      outcome = 'skipped_consent';
+    } else if (error instanceof TextAiPilotDisabledError) {
+      outcome = 'skipped_pilot_disabled';
+    } else if (error instanceof AiProviderUnavailableError) {
+      // 설정이 없어 못 부른 것과 불렀는데 실패한 것을 가른다 — 손 쓸 자리가 서로 다르다.
+      // (앞은 시크릿·설정, 뒤는 사업자·망. 티켓이 쓴 두 낱말이기도 하다.)
+      outcome = CONFIGURATION_REASONS.has(error.reason) ? 'provider_unavailable' : 'provider_error';
+      reason = error.reason;
+      status = error.status ?? null;
+    } else if (error instanceof AiProviderProhibitedOutputError) {
+      outcome = 'output_rejected';
+    } else if (error instanceof AiProviderInputError) {
+      outcome = 'request_invalid';
+    }
+  } finally {
+    // 게이트웨이 안에서도 삼키지만, finally 에서 새어 나가는 예외는 성공한 기록 저장의
+    // 201 을 500 으로 바꾼다 — 관측 때문에 그럴 수는 없다(D8).
+    try {
+      await recordAiCallOutcome(env, actor, {
+        kind: 'discrepancy_detection',
+        outcome,
+        sessionId,
+        caseId,
+        reason,
+        status,
+        sourceCount,
+        storedCount,
+        durationMs: Date.now() - startedAt,
+        model,
+        promptVersion: DISCREPANCY_PROMPT_VERSION,
+      });
+    } catch {
+      // 관측 실패는 관측 실패로 끝난다.
+    }
   }
 }
 

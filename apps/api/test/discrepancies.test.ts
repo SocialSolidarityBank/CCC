@@ -21,6 +21,9 @@ import {
 } from '../../../db/gateway';
 import {
   AiProviderProhibitedOutputError,
+  AiProviderUnavailableError,
+  CodexProviderAdapter,
+  DISCREPANCY_PROMPT_VERSION,
   validateDiscrepancyDetectionOutput,
   validateDiscrepancyDetectionRequest,
   type AiProviderConfig,
@@ -860,6 +863,233 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
     }]);
     const briefing = await getParticipantBriefing(t.env, admin, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(1);
+  });
+});
+
+/**
+ * CCC-47 — 실측(2026-07-31)에서 스냅샷 POST 는 ok 로 끝나고 예외·로그가 0건이었다.
+ * "불일치 0건"이 정상인지 고장인지 바깥에서 구분할 수 없다는 뜻이다. 아래는 그 다섯
+ * 상황이 감사 기록에서 **서로 다른 값**으로 남는지, 그리고 그 기록에 상담 내용이
+ * 섞이지 않는지(R3)를 본다.
+ */
+describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', () => {
+  interface AiCallDetail {
+    kind: string;
+    outcome: string;
+    reason?: string;
+    status?: number;
+    sourceCount?: number;
+    storedCount?: number;
+    durationMs?: number;
+    model?: string;
+    promptVersion?: string;
+  }
+
+  /** 이 회차에 남은 ai_call 기록을 시간순으로. 마지막이 가장 최근 시도다. */
+  async function aiCalls(sessionId: string): Promise<AiCallDetail[]> {
+    const rows = await t.db.prepare(
+      "SELECT detail FROM audit_log WHERE action = 'ai_call' AND target_id = ? ORDER BY id",
+    ).bind(sessionId).all<{ detail: string }>();
+    return rows.results.map((row) => JSON.parse(row.detail) as AiCallDetail);
+  }
+
+  /** 마지막 시도의 원문 감사 행 — 내용 유입 검사(R3)는 detail 문자열 전체를 본다. */
+  async function lastAiCallRaw(sessionId: string): Promise<string> {
+    const row = await t.db.prepare(
+      "SELECT detail FROM audit_log WHERE action = 'ai_call' AND target_id = ? ORDER BY id DESC LIMIT 1",
+    ).bind(sessionId).first<{ detail: string }>();
+    return row?.detail ?? '';
+  }
+
+  /** 마지막 회차 id — 라우트가 만든 회차는 응답 본문에서 받는다. */
+  async function postAndSession(supportCaseId: string, memo: string, sequence: number): Promise<string> {
+    const response = await postManualRecord(supportCaseId, memo, sequence);
+    expect(response.status).toBe(201);
+    const body = await response.json() as { record?: { id?: string } };
+    const sessionId = body.record?.id;
+    if (sessionId === undefined) throw new Error(`unexpected record response: ${JSON.stringify(body)}`);
+    return sessionId;
+  }
+
+  it('① 사업자 미설정은 provider_unavailable/config_missing 으로 남는다', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    // 주입 어댑터를 치우면 실제 해석 경로가 돈다 — 설정도 키도 없는 운영 초기 상태다.
+    delete t.env.AI_PROVIDER_ADAPTER;
+    delete t.env.AI_PROVIDER_CONFIG;
+
+    const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
+    await runDeviceTextJobs();
+
+    const calls = await aiCalls(sessionId);
+    expect(calls.at(-1)?.outcome).toBe('provider_unavailable');
+    expect(calls.at(-1)?.reason).toBe('config_missing');
+  });
+
+  it('② 키 오류(401)와 ③ 모델명 오류(404)는 상태 코드로 갈린다', async () => {
+    // 어댑터 단위로 본다 — 이 둘을 가르는 것은 오직 응답 코드다(CCC-47 완료 기준 1).
+    const config: AiProviderConfig = { ...fakeProviderConfig, registryVersion: 'phase1.v1' };
+    const responder = (status: number): typeof fetch => (async () => new Response('{}', { status })) as unknown as typeof fetch;
+
+    for (const status of [401, 404]) {
+      const adapter = new CodexProviderAdapter(config, 'test-key', responder(status));
+      const error = await adapter.detectDiscrepancies({
+        triggerRef: crypto.randomUUID(),
+        sources: [{ sourceRef: crypto.randomUUID(), text: '본문' }],
+      }).then(() => null, (caught: unknown) => caught);
+      expect(error).toBeInstanceOf(AiProviderUnavailableError);
+      expect((error as AiProviderUnavailableError).reason).toBe('http_status');
+      expect((error as AiProviderUnavailableError).status).toBe(status);
+    }
+
+    // 망 장애는 상태 코드 자체가 없다 — 같은 값으로 뭉뚱그려지지 않는다.
+    const unreachable = new CodexProviderAdapter(config, 'test-key', (async () => {
+      throw new Error('network down');
+    }) as unknown as typeof fetch);
+    const networkError = await unreachable.detectDiscrepancies({
+      triggerRef: crypto.randomUUID(),
+      sources: [{ sourceRef: crypto.randomUUID(), text: '본문' }],
+    }).then(() => null, (caught: unknown) => caught);
+    expect((networkError as AiProviderUnavailableError).reason).toBe('network');
+    expect((networkError as AiProviderUnavailableError).status).toBeUndefined();
+  });
+
+  it('②③ 그 상태 코드가 감사 기록까지 그대로 간다 — 401 과 404 가 다른 줄로 남는다', async () => {
+    // 위 테스트는 어댑터가 무엇을 던지는지까지만 본다. 기록 경로가 그 숫자를 보존하는지는
+    // 별개이고, 이것이 완료 기준 1 이 실제로 서는 자리다.
+    for (const status of [401, 404]) {
+      const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+      t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
+        throw new AiProviderUnavailableError('http_status', status);
+      });
+
+      const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
+      await runDeviceTextJobs();
+
+      const last = (await aiCalls(sessionId)).at(-1);
+      // 설정이 없어 못 부른 것(provider_unavailable)과 달리 불렀는데 실패한 것이다.
+      expect(last?.outcome).toBe('provider_error');
+      expect(last?.reason).toBe('http_status');
+      expect(last?.status).toBe(status);
+    }
+  });
+
+  it('④ 인용 검증 실패는 output_rejected 로 남는다 — 정상 빈 결과와 다르다', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
+      discrepancies: [{
+        kind: 'within_session',
+        leftRef: request.triggerRef,
+        leftQuote: '소스에 없는 지어낸 인용',
+        rightRef: request.triggerRef,
+        rightQuote: '소스에 없는 지어낸 인용',
+      }],
+    }));
+
+    const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
+    await runDeviceTextJobs();
+
+    const calls = await aiCalls(sessionId);
+    expect(calls.at(-1)?.outcome).toBe('output_rejected');
+    expect(calls.at(-1)?.storedCount).toBeUndefined();
+  });
+
+  it('⑤ 정상 빈 결과는 empty 로, 저장된 결과는 stored 와 건수로 남는다', async () => {
+    const empty = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => ({ discrepancies: [] }));
+    const emptySession = await postAndSession(empty.supportCaseId, '둘째 상담 메모', 2);
+    await runDeviceTextJobs();
+
+    const emptyCalls = await aiCalls(emptySession);
+    expect(emptyCalls.at(-1)?.outcome).toBe('empty');
+    expect(emptyCalls.at(-1)?.storedCount).toBe(0);
+    // 사업자를 실제로 불렀다는 사실이 남는다 — 재료 회차 수와 모델·프롬프트 판까지.
+    expect(emptyCalls.at(-1)?.sourceCount).toBeGreaterThan(0);
+    expect(emptyCalls.at(-1)?.model).toBe(fakeProviderConfig.model);
+    expect(emptyCalls.at(-1)?.promptVersion).toBe(DISCREPANCY_PROMPT_VERSION);
+
+    const stored = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
+      const prior = request.sources[0];
+      const triggerText = request.sources.find((source) => source.sourceRef === request.triggerRef)?.text ?? '';
+      return {
+        discrepancies: [{
+          kind: 'cross_session',
+          leftRef: prior?.sourceRef ?? '',
+          leftQuote: prior?.text ?? '',
+          rightRef: request.triggerRef,
+          rightQuote: triggerText,
+        }],
+      };
+    });
+    const storedSession = await postAndSession(stored.supportCaseId, '지인 채무 상환이 밀려 있다고 말함', 2);
+    await runDeviceTextJobs();
+
+    const storedCalls = await aiCalls(storedSession);
+    expect(storedCalls.at(-1)?.outcome).toBe('stored');
+    expect(storedCalls.at(-1)?.storedCount).toBe(1);
+  });
+
+  it('스냅샷 대기는 저장 시점에 skipped_no_snapshot 으로 남는다 — "안 불렀다"가 보인다', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => ({ discrepancies: [] }));
+
+    const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
+    // 장비를 돌리기 전 = 트리거 회차에 2차 마스킹 스냅샷이 아직 없다.
+    const beforeDevice = await aiCalls(sessionId);
+    expect(beforeDevice).toHaveLength(1);
+    expect(beforeDevice[0]?.outcome).toBe('skipped_no_snapshot');
+
+    await runDeviceTextJobs();
+    const afterDevice = await aiCalls(sessionId);
+    expect(afterDevice).toHaveLength(2);
+    expect(afterDevice[1]?.outcome).toBe('empty');
+  });
+
+  it('기록 어느 줄에도 상담 내용이 들어가지 않는다 (R3)', async () => {
+    const secret = '지인에게 빌린 돈을 갚지 못하고 있다';
+    const fixture = await createCaseWithSessions([secret], true);
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
+      const prior = request.sources[0];
+      const triggerText = request.sources.find((source) => source.sourceRef === request.triggerRef)?.text ?? '';
+      return {
+        discrepancies: [{
+          kind: 'cross_session',
+          leftRef: prior?.sourceRef ?? '',
+          leftQuote: prior?.text ?? '',
+          rightRef: request.triggerRef,
+          rightQuote: triggerText,
+        }],
+      };
+    });
+
+    const triggerMemo = '이자만 내고 원금은 그대로라고 말함';
+    const sessionId = await postAndSession(fixture.supportCaseId, triggerMemo, 2);
+    await runDeviceTextJobs();
+
+    const detail = await lastAiCallRaw(sessionId);
+    expect(detail.length).toBeGreaterThan(0);
+    expect(detail).not.toContain(secret);
+    expect(detail).not.toContain(triggerMemo);
+    expect(detail).not.toContain('홍길동');
+    // 남은 것은 분류·숫자·설정값뿐이라는 것을 키 목록으로 못 박는다.
+    expect(Object.keys(JSON.parse(detail) as AiCallDetail).sort()).toEqual([
+      'durationMs', 'kind', 'model', 'outcome', 'promptVersion', 'sourceCount', 'storedCount',
+    ]);
+  });
+
+  it('실패 경로에서도 줄이 남고 기록 저장 응답은 그대로 201 이다 (D8)', async () => {
+    const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
+      // 우리 오류 계층 밖의 예외 — 분류되지 않아도 사건 자체는 남아야 한다.
+      throw new Error('provider down');
+    });
+
+    const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
+    await runDeviceTextJobs();
+
+    expect((await aiCalls(sessionId)).at(-1)?.outcome).toBe('failed_other');
+    const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
+    expect(briefing.discrepancies).toHaveLength(0);
   });
 });
 

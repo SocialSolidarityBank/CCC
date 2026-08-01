@@ -51,9 +51,16 @@
 
 PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조직별로 저장한다. 값이 없거나 유효하지 않으면 종결·파기 예약을 fail closed하며, 코드에서 기본 기간을 추정하지 않는다. 내부 규정 확정 후 각 조직 설정을 명시적으로 등록한다(8장 미결).
 
-## 마이그레이션 파일 번호
+## 문서·마이그레이션 일련번호 (`pnpm guard:doc-numbers`, 2026-08-01 신설)
 
-`migrations/0009_participant_pii_email.sql`과 `migrations/0009_schedule_session_plan.sql`은 번호가 중복되지만, wrangler는 마이그레이션 파일명 전체를 identity로 쓰고 두 파일 모두 이미 적용 완료라 rename하지 않는다.
+ADR 파일·마이그레이션 파일·9장 결정 번호는 **손으로 붙이는 순차 번호**다. 브랜치를 딴 시점에 각자 "다음 번호"를 계산하므로 두 브랜치가 같은 번호를 집는 일이 구조적으로 생기고, **git 은 그것을 못 잡는다** — 파일 이름이 완전히 같지 않으면(`0025-a.md` vs `0025-b.md`) 자동 병합이 "새 파일 둘"로 보고 조용히 통과시키고, 표의 행도 서로 다른 줄이면 충돌이 나지 않는다.
+
+실제로 두 번 일어났다: 아래 `0009` 두 건과, 2026-08-01 의 **ADR-0025 · D55**(main 은 디자인 토큰, `feat/llm-adapter-openrouter` 는 AI 사업자 — 머지 전에 사람이 눈으로 잡아 0027 · D57 로 옮겼다). 사람 눈에 기대지 않도록 가드를 두고 pre-commit 과 CI 에 걸었다.
+
+- 겹치면 **머지 순서가 뒤인 쪽이** 다음 빈 번호로 옮긴다. 파일명뿐 아니라 본문 참조도 함께 고친다.
+- 번호는 브랜치를 딸 때가 아니라 **PR 을 여는 시점에 확정**하는 편이 겹칠 창을 줄인다.
+
+`migrations/0009_participant_pii_email.sql`과 `migrations/0009_schedule_session_plan.sql`은 번호가 중복되지만, wrangler는 마이그레이션 파일명 전체를 identity로 쓰고 두 파일 모두 이미 적용 완료라 rename하지 않는다. 가드에도 그 한 건만 예외로 박아 뒀다(`KNOWN_DUPLICATES`) — 새 중복을 눈감아 주는 자리가 아니다.
 
 ## 로컬 프리뷰 (dev 이중 잠금)
 
@@ -246,7 +253,30 @@ wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sq
 - **`wrangler` 명령은 `apps/api` 안에서 실행**해야 한다. 다른 폴더면 "Required Worker name missing" 으로 조용히 실패한다. `--env preview` 를 빼면 없는 워커(`ccc-api-local`)를 찾다 실패한다.
 - **시드 케이스는 `consent_text_ai_at` 이 이미 차 있어도 근거 행이 없다.** 그 컬럼은 배선(ADR-0027) 이전에 찍힌 값이라, 화면에서 **동의를 다시 저장해야** `pilot_text_ai_consent_evidence` 행이 생기고 그때부터 텍스트 일감이 장비에 보인다. **운영 전환 시 기존 케이스 전부에 해당한다.**
 
-`red` **관측 공백** — 2026-07-31 실측: 스냅샷 POST 는 `ok`(200)로 끝나고 예외·로그가 **0건**이다. `runDiscrepancyDetection` 이 모든 실패를 삼키는 계약(D8)이라, 바깥에서 **사업자를 불렀는지·실패했는지·정말 불일치가 없었는지 구분할 수 없다.** 불일치 0건이 정상인지 고장인지 판정할 방법이 없다는 뜻이다. 최소 관측 수단(내용 없이 시도·실패 사유·저장 건수만)은 별도 티켓.
+`green` **관측 공백 — 해소(CCC-47, 2026-08-01)** — 2026-07-31 실측에서는 스냅샷 POST 가 `ok`(200)로 끝나고 예외·로그가 **0건**이었다. `runDiscrepancyDetection` 이 모든 실패를 삼키는 계약(D8) 때문에 **사업자를 불렀는지·실패했는지·정말 불일치가 없었는지 구분할 수 없었다.** 이제 시도 한 번마다 감사 로그에 `ai_call` 행이 한 줄 남는다. **삼키는 계약은 그대로다** — 남기는 것이 늘었을 뿐 기록 저장은 여전히 막히지 않고, 관측 기록 쓰기가 실패해도 마찬가지다.
+
+내용은 남기지 않는다(R3) — `detail` 에 들어가는 것은 분류·숫자·설정값뿐이고, 그 키 목록은 테스트가 못 박는다.
+
+```bash
+# 최근 시도 20건 — apps/api 안에서. 운영은 --env production, 미리보기는 --env preview.
+pnpm exec wrangler d1 execute ccc-preview --env preview --remote --command \
+  "SELECT created_at, target_id, detail FROM audit_log WHERE action = 'ai_call' ORDER BY id DESC LIMIT 20"
+```
+
+`outcome` 읽는 법:
+
+| 값 | 뜻 | 다음 손 |
+| --- | --- | --- |
+| `stored` / `empty` | 사업자가 답했다. `storedCount` 가 저장 건수(0 이면 정말 불일치가 없었다) | 없음 |
+| `skipped_no_snapshot` | 트리거 회차에 2차 마스킹 스냅샷이 아직 없다 — **가장 흔하고 정상이다** | 장비 폴링 확인(D8 SLA 안이면 대기) |
+| `skipped_consent` | ② 동의 근거가 없다 | 화면에서 ② 동의 재저장(위 함정 3번) |
+| `skipped_pilot_disabled` | `TEXT_AI_PILOT_ENABLED` 가 꺼져 있다 | 스위치 확인 |
+| `provider_unavailable` | 설정이 없어 **부를 수조차 없었다**. `reason` — `config_missing`(`AI_PROVIDER_CONFIG` 없음) · `api_key_missing`(`CODEX_API_KEY` 없음) · `config_invalid` | 해당 시크릿·설정값 등록 |
+| `provider_error` | **불렀는데 실패했다**. `reason` — `http_status`(+`status`: **401=키 오류 · 404=모델명 오류**) · `network`(닿지 못함·타임아웃) · `malformed_response` | 401·404 는 키·모델명, network 는 사업자 상태 |
+| `output_rejected` | 모델 출력이 검증에 걸려 버려졌다(R5). 인용을 글자 그대로 안 돌려준 경우가 대부분일 것이다 | 반복되면 프롬프트 판올림 검토 |
+| `request_invalid` | 우리가 만든 요청이 스키마에 안 맞았다 = 우리 쪽 버그 | 코드 수정 |
+
+`yellow` 남는 것 하나: 이 기록은 **불일치 검출(D51 ④ 두 번째 호출)** 만 덮는다. 승인 대상 초안 생성(`generateAiDraft`)은 요청-응답이라 실패가 호출자에게 그대로 돌아가므로 같은 공백이 없다.
 
 `yellow` **인명 마스킹은 NER 모델이 있어야 동작한다** — 실측에서 `[전화번호]`·`[질환]` 은 정규식·사전 계층이 잡았지만 `아들 김철수` 는 그대로 남았다(`CCC_NER_MODEL_ID` 미설정으로 돌린 결과). ADR-0027 가 인용한 바로 그 사례다.
 

@@ -190,8 +190,30 @@ export class AiProviderProhibitedOutputError extends Error {
   }
 }
 
+/**
+ * 사용 불가의 **사유 분류** (CCC-47). 내용이 아니라 분류다 — 응답 본문·프롬프트·키는
+ * 어디에도 담지 않는다(R3). 이 값이 없으면 "설정 안 됨"·"키 틀림"·"모델명 틀림"·
+ * "망 장애"가 관측에서 전부 같은 사건으로 보인다.
+ */
+export type AiProviderUnavailableReason =
+  | 'config_missing'
+  | 'config_invalid'
+  | 'api_key_missing'
+  | 'adapter_invalid'
+  | 'network'
+  | 'http_status'
+  | 'malformed_response'
+  | 'unknown';
+
 export class AiProviderUnavailableError extends Error {
-  constructor() {
+  /**
+   * `status` 는 http_status 일 때의 응답 코드다. 401(키)·404(모델명)를 가르는 유일한
+   * 단서라 숫자만 남긴다 — 본문은 요청을 되비칠 수 있어 남기지 않는다(R3).
+   */
+  constructor(
+    readonly reason: AiProviderUnavailableReason = 'unknown',
+    readonly status?: number,
+  ) {
     super('ai_provider_unavailable');
   }
 }
@@ -353,11 +375,11 @@ function assertClaimEvidenceReference(
 }
 
 function parseProviderConfigValue(value: unknown): AiProviderConfig {
-  if (!isRecord(value)) throw new AiProviderUnavailableError();
+  if (!isRecord(value)) throw new AiProviderUnavailableError('config_invalid');
   assertExactKeys(
     value,
     ['registryVersion', 'providerId', 'adapterVersion', 'configVersion', 'model'],
-    new AiProviderUnavailableError(),
+    new AiProviderUnavailableError('config_invalid'),
   );
   const registryVersion = stringField(value, 'registryVersion');
   const providerId = stringField(value, 'providerId');
@@ -373,7 +395,7 @@ function parseProviderConfigValue(value: unknown): AiProviderConfig {
     || model === null
     || !modelPattern.test(model)
   ) {
-    throw new AiProviderUnavailableError();
+    throw new AiProviderUnavailableError('config_invalid');
   }
   return {
     registryVersion: AI_PROVIDER_REGISTRY_VERSION,
@@ -389,14 +411,14 @@ function parseProviderConfig(rawConfig: string): AiProviderConfig {
     return parseProviderConfigValue(JSON.parse(rawConfig));
   } catch (error) {
     if (error instanceof AiProviderUnavailableError) throw error;
-    throw new AiProviderUnavailableError();
+    throw new AiProviderUnavailableError('config_invalid');
   }
 }
 
 /** The registry accepts only the approved Phase-1 Codex adapter. */
 export function resolveAiProviderConfig(env: AiProviderRuntimeEnv): AiProviderConfig {
   const rawConfig = env.AI_PROVIDER_CONFIG?.trim();
-  if (rawConfig === undefined || rawConfig.length === 0) throw new AiProviderUnavailableError();
+  if (rawConfig === undefined || rawConfig.length === 0) throw new AiProviderUnavailableError('config_missing');
   return parseProviderConfig(rawConfig);
 }
 
@@ -885,21 +907,23 @@ export class CodexProviderAdapter implements AiProviderAdapter {
           signal: controller.signal,
         });
       } catch {
-        throw new AiProviderUnavailableError();
+        // 망 장애·타임아웃(AbortController). 사업자에 닿지도 못한 경우다.
+        throw new AiProviderUnavailableError('network');
       }
-      if (!response.ok) throw new AiProviderUnavailableError();
+      // 상태 코드만 싣는다 — 401(키 오류)과 404(모델명 오류)를 가르는 단서다(CCC-47).
+      if (!response.ok) throw new AiProviderUnavailableError('http_status', response.status);
       let payload: unknown;
       try {
         payload = await response.json();
       } catch {
-        throw new AiProviderUnavailableError();
+        throw new AiProviderUnavailableError('malformed_response');
       }
       const text = responseText(payload);
-      if (text === null) throw new AiProviderUnavailableError();
+      if (text === null) throw new AiProviderUnavailableError('malformed_response');
       try {
         return JSON.parse(text) as unknown;
       } catch {
-        throw new AiProviderUnavailableError();
+        throw new AiProviderUnavailableError('malformed_response');
       }
     } finally {
       clearTimeout(timeout);
@@ -911,7 +935,7 @@ export function resolveAiProviderAdapter(env: AiProviderRuntimeEnv): { adapter: 
   const injectedAdapter = env.AI_PROVIDER_ADAPTER;
   if (injectedAdapter !== undefined) {
     if (!isRecord(injectedAdapter)) {
-      throw new AiProviderUnavailableError();
+      throw new AiProviderUnavailableError('adapter_invalid');
     }
     if (
       injectedAdapter.testOnly !== true
@@ -919,20 +943,20 @@ export function resolveAiProviderAdapter(env: AiProviderRuntimeEnv): { adapter: 
       || injectedAdapter.adapterVersion !== CODEX_PROVIDER_ADAPTER_VERSION
       || typeof injectedAdapter.generate !== 'function'
     ) {
-      throw new AiProviderUnavailableError();
+      throw new AiProviderUnavailableError('adapter_invalid');
     }
     const config = parseProviderConfigValue(injectedAdapter.config);
     if (
       config.providerId !== injectedAdapter.providerId
       || config.adapterVersion !== injectedAdapter.adapterVersion
     ) {
-      throw new AiProviderUnavailableError();
+      throw new AiProviderUnavailableError('adapter_invalid');
     }
     return { adapter: injectedAdapter as unknown as AiProviderTestAdapter, config };
   }
 
   const config = resolveAiProviderConfig(env);
   const apiKey = env.CODEX_API_KEY?.trim();
-  if (apiKey === undefined || apiKey.length === 0) throw new AiProviderUnavailableError();
+  if (apiKey === undefined || apiKey.length === 0) throw new AiProviderUnavailableError('api_key_missing');
   return { adapter: new CodexProviderAdapter(config, apiKey), config };
 }

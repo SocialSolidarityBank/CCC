@@ -5897,6 +5897,129 @@ export async function listFlags(
 // 감사·내보내기 (audit_log) — D14
 // ============================================================================
 
+/** AI 호출 관측 (CCC-47) 의 감사 action. 읽을 때 이 한 값으로 걸러 낸다. */
+export const AI_CALL_AUDIT_ACTION = 'ai_call';
+
+/** 어느 호출 자리인가. D51 ④ 의 두 자리에 대응한다. */
+export type AiCallKind = 'discrepancy_detection';
+
+/**
+ * 한 번의 시도가 어떻게 끝났는가. **닫힌 목록**이라는 점이 핵심이다 — 자유 문자열을
+ * 허용하면 언젠가 오류 메시지가 실려 상담 내용이 샌다(R3).
+ *
+ * - `stored` / `empty`      정상. 사업자가 답했고 결과를 저장했다(0건이면 empty).
+ * - `skipped_no_snapshot`   트리거 회차에 2차 마스킹 스냅샷이 아직 없다 — 대기 중이며 가장 흔하다.
+ * - `skipped_consent`       ② 동의 근거가 없다. 운영 전환 직후 기존 케이스 전부가 여기 걸린다(ADR-0027 실측 ②).
+ * - `skipped_pilot_disabled` 파일럿 스위치가 꺼져 있다.
+ * - `skipped_unsupported`   어댑터에 검출 메서드가 없다.
+ * - `provider_unavailable`  설정이 없어 **부를 수조차 없었다**(설정·키). reason 이 어느 쪽인지 가른다.
+ * - `provider_error`        불렀는데 실패했다(망·상태 코드·깨진 응답). 401 과 404 는 status 가 가른다.
+ * - `output_rejected`       출력이 검증에 걸려 버려졌다(R5 — 인용이 원문과 다른 경우가 대부분일 것이다).
+ * - `request_invalid`       우리가 만든 요청이 스키마에 안 맞았다 = 우리 쪽 버그.
+ * - `failed_other`          그 밖의 예외(저장 실패 등).
+ */
+export type AiCallOutcome =
+  | 'stored'
+  | 'empty'
+  | 'skipped_no_snapshot'
+  | 'skipped_consent'
+  | 'skipped_pilot_disabled'
+  | 'skipped_unsupported'
+  | 'provider_unavailable'
+  | 'provider_error'
+  | 'output_rejected'
+  | 'request_invalid'
+  | 'failed_other';
+
+/**
+ * 실패 사유. `apps/api/src/ai-provider.ts` 의 AiProviderUnavailableReason 을 그대로
+ * 비춘다 — 게이트웨이가 앱 코드를 import 하지 않으므로(의존 방향) 값 목록을 여기 다시
+ * 쓴다. 한쪽에만 값이 늘면 호출부에서 타입 오류로 잡힌다.
+ *
+ * **열린 문자열이 아니라는 점이 이 타입의 존재 이유다.** 자유 문자열을 허용하면 언젠가
+ * 오류 메시지가 실려 상담 내용이 감사 로그로 샌다(R3).
+ */
+export type AiCallFailureReason =
+  | 'config_missing'
+  | 'config_invalid'
+  | 'api_key_missing'
+  | 'adapter_invalid'
+  | 'network'
+  | 'http_status'
+  | 'malformed_response'
+  | 'unknown';
+
+export interface AiCallOutcomeEntry {
+  kind: AiCallKind;
+  outcome: AiCallOutcome;
+  sessionId: string;
+  caseId?: string | null;
+  /** provider_unavailable · provider_error 의 세부 사유. */
+  reason?: AiCallFailureReason | null;
+  /** reason='http_status' 일 때의 응답 코드. 100~599 밖이면 버린다. */
+  status?: number | null;
+  /** 사업자에 보낸 재료 회차 수. 0 이면 보낼 것이 없었다는 뜻이다. */
+  sourceCount?: number | null;
+  /** 저장한 불일치 건수. */
+  storedCount?: number | null;
+  durationMs?: number | null;
+  /** 설정값(운영자가 넣은 값)이라 상담 내용이 아니다. 모델·프롬프트 판올림 추적용. */
+  model?: string | null;
+  promptVersion?: string | null;
+}
+
+/** 정수만, 그것도 정해진 범위 안만 통과시킨다 — 숫자 자리로 문자열이 새지 않게. */
+function boundedInteger(value: number | null | undefined, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  if (rounded < min || rounded > max) return undefined;
+  return rounded;
+}
+
+/**
+ * AI 호출 한 번의 **사실만** 남긴다 (CCC-47 · D14). 보낸 텍스트도 받은 텍스트도 남기지
+ * 않는다(R3) — 분류·숫자·설정값뿐이다. 그래서 인자가 열린 문자열이 아니라 닫힌 타입이다.
+ *
+ * 권한 검사를 하지 않는 이유: 호출자는 이미 자기 경로에서 접근 검사를 통과했고, 이 함수는
+ * **자기 자신의 실패까지** 남겨야 해서 여기서 다시 던지면 남길 것이 사라진다. 실패가 기록
+ * 저장을 막아서도 안 된다(D8) — 호출자가 감싸지만, 여기서도 삼킨다.
+ */
+export async function recordAiCallOutcome(
+  env: Env,
+  actor: Actor,
+  entry: AiCallOutcomeEntry,
+): Promise<void> {
+  const detail: Record<string, unknown> = {
+    kind: entry.kind,
+    outcome: entry.outcome,
+  };
+  if (typeof entry.reason === 'string' && entry.reason.length > 0) detail.reason = entry.reason;
+  const status = boundedInteger(entry.status, 100, 599);
+  if (status !== undefined) detail.status = status;
+  const sourceCount = boundedInteger(entry.sourceCount, 0, 10_000);
+  if (sourceCount !== undefined) detail.sourceCount = sourceCount;
+  const storedCount = boundedInteger(entry.storedCount, 0, 10_000);
+  if (storedCount !== undefined) detail.storedCount = storedCount;
+  const durationMs = boundedInteger(entry.durationMs, 0, 3_600_000);
+  if (durationMs !== undefined) detail.durationMs = durationMs;
+  if (typeof entry.model === 'string' && entry.model.length > 0) detail.model = entry.model;
+  if (typeof entry.promptVersion === 'string' && entry.promptVersion.length > 0) {
+    detail.promptVersion = entry.promptVersion;
+  }
+
+  try {
+    await writeAudit(env, actor, {
+      action: AI_CALL_AUDIT_ACTION,
+      targetTable: 'sessions',
+      targetId: entry.sessionId,
+      caseId: entry.caseId ?? null,
+      detail,
+    });
+  } catch {
+    // 관측이 기록 저장을 막으면 고치려던 것보다 나쁜 것을 들인다(D8).
+  }
+}
+
 /**
  * 감사 로그 조회. 권한: admin 전용. 감사: read(audit_log) — 감사 조회도 기록.
  */
