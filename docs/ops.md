@@ -264,7 +264,8 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --command \
 | `skipped_no_snapshot` | 트리거 회차에 2차 마스킹 스냅샷이 아직 없다 — **가장 흔하고 정상이다** | 장비 폴링 확인(D8 SLA 안이면 대기) |
 | `skipped_consent` | ② 동의 근거가 없다 | 화면에서 ② 동의 재저장(위 함정 3번) |
 | `skipped_pilot_disabled` | `TEXT_AI_PILOT_ENABLED` 가 꺼져 있다 | 스위치 확인 |
-| `provider_unavailable` | 사업자에 닿지 못했다. **`reason` 이 사유를 가른다** — `config_missing`(`AI_PROVIDER_CONFIG` 없음) · `api_key_missing`(`CODEX_API_KEY` 없음) · `config_invalid` · `http_status`(+`status`: 401=키 · 404=모델명) · `network` · `malformed_response` | reason 별로 해당 시크릿·모델명 확인 |
+| `provider_unavailable` | 설정이 없어 **부를 수조차 없었다**. `reason` — `config_missing`(`AI_PROVIDER_CONFIG` 없음) · `api_key_missing`(`CODEX_API_KEY` 없음) · `config_invalid` | 해당 시크릿·설정값 등록 |
+| `provider_error` | **불렀는데 실패했다**. `reason` — `http_status`(+`status`: **401=키 오류 · 404=모델명 오류**) · `network`(닿지 못함·타임아웃) · `malformed_response` | 401·404 는 키·모델명, network 는 사업자 상태 |
 | `output_rejected` | 모델 출력이 검증에 걸려 버려졌다(R5). 인용을 글자 그대로 안 돌려준 경우가 대부분일 것이다 | 반복되면 프롬프트 판올림 검토 |
 | `request_invalid` | 우리가 만든 요청이 스키마에 안 맞았다 = 우리 쪽 버그 | 코드 수정 |
 

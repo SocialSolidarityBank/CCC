@@ -953,6 +953,26 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
     expect((networkError as AiProviderUnavailableError).status).toBeUndefined();
   });
 
+  it('②③ 그 상태 코드가 감사 기록까지 그대로 간다 — 401 과 404 가 다른 줄로 남는다', async () => {
+    // 위 테스트는 어댑터가 무엇을 던지는지까지만 본다. 기록 경로가 그 숫자를 보존하는지는
+    // 별개이고, 이것이 완료 기준 1 이 실제로 서는 자리다.
+    for (const status of [401, 404]) {
+      const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+      t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
+        throw new AiProviderUnavailableError('http_status', status);
+      });
+
+      const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
+      await runDeviceTextJobs();
+
+      const last = (await aiCalls(sessionId)).at(-1);
+      // 설정이 없어 못 부른 것(provider_unavailable)과 달리 불렀는데 실패한 것이다.
+      expect(last?.outcome).toBe('provider_error');
+      expect(last?.reason).toBe('http_status');
+      expect(last?.status).toBe(status);
+    }
+  });
+
   it('④ 인용 검증 실패는 output_rejected 로 남는다 — 정상 빈 결과와 다르다', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
@@ -1057,15 +1077,17 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
     ]);
   });
 
-  it('관측 기록이 쌓여도 기록 저장 응답은 막히지 않는다 (D8)', async () => {
+  it('실패 경로에서도 줄이 남고 기록 저장 응답은 그대로 201 이다 (D8)', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
+      // 우리 오류 계층 밖의 예외 — 분류되지 않아도 사건 자체는 남아야 한다.
       throw new Error('provider down');
     });
 
-    const response = await postManualRecord(fixture.supportCaseId, '둘째 상담 메모', 2);
-    expect(response.status).toBe(201);
+    const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
     await runDeviceTextJobs();
+
+    expect((await aiCalls(sessionId)).at(-1)?.outcome).toBe('failed_other');
     const briefing = await getParticipantBriefing(t.env, counselor, fixture.caseId, fixture.supportCaseId);
     expect(briefing.discrepancies).toHaveLength(0);
   });
