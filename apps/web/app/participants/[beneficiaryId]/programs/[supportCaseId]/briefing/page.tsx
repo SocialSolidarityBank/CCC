@@ -4,6 +4,7 @@ import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { WireButton } from '../../../../../components/wire/wire-button';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { BriefingCards } from './briefing-cards';
 import { IntakeSavedNotice } from './intake-saved-notice';
@@ -63,11 +64,11 @@ function LoadingState() {
 }
 
 function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: ErrorKind }) {
-  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="status risk" role="alert">{errorMessages[kind]}</p><Link className="detail-link" href={participantHref(beneficiaryId)}><span>참여 사업 목록으로 돌아가기</span></Link></main>;
+  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="status risk" role="alert">{errorMessages[kind]}</p><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
 }
 
 function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {
-  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><Link className="detail-link" href={participantHref(beneficiaryId)}><span>참여 사업 목록으로 돌아가기</span></Link></main>;
+  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
 }
 
 async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { beneficiaryId: string; supportCaseId: string; notice: string | undefined }) {

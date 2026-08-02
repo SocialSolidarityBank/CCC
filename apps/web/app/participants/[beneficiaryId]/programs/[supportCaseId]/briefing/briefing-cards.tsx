@@ -476,14 +476,11 @@ export function BriefingCards({
         </div>
       </div>
 
-      {/* 브리핑 이어보기 — 별개 화면이 아니라 이 브리핑의 아래쪽 끝이다(D37 · 시안 §19). */}
-      <Link className="briefing-more surface-card" href={recordsHref}>
-        <span>
-          <span className="briefing-more-title">자세한 상담 기록 보기</span>
-          <span className="briefing-more-desc">위 브리핑을 펼친 전체 기록과 지난 회차 이력</span>
-        </span>
-        <span aria-hidden="true" className="briefing-card-arrow" />
-      </Link>
+      {/* 브리핑 이어보기 — 별개 화면이 아니라 이 브리핑의 아래쪽 끝이다(D37 · 시안 §19).
+          단독 이동 링크라 알약이다(D58/CCC-51 — 구 카드형). 클래스는 테스트·CSS 계약용. */}
+      <WireButton className="briefing-more" variant="secondary" href={recordsHref} chevron>
+        자세한 상담 기록 보기
+      </WireButton>
     </div>
   );
 }

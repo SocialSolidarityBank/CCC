@@ -238,8 +238,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    테두리는 둘이 같고, 프라이머리만 그라데이션 면과 그림자를 갖는다. 두 버튼이 나란히
    설 때 눌러야 할 쪽이 뜨는 것은 이 대비이지 테두리 진하기가 아니다. */
 /* 정렬 기본은 **가운데**다(2026-08-02 D58/CCC-50 — 구 왼쪽 기본은 버그, DESIGN.md §5).
-   왼쪽·양끝 정렬은 data-justify 명시 옵션으로만 쓴다. */
-.wire-button{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:center;white-space:nowrap;cursor:pointer}
+   왼쪽·양끝 정렬은 data-justify 명시 옵션으로만 쓴다.
+   세컨더리(기본형) 테두리는 **--gradient-brand 1px 아웃라인**이다(2026-08-02 D58/CCC-51 —
+   구 --line-action 을 대체, §3-3 배경 2겹 방식). 채움은 --button-fill 로만 바꾼다 —
+   background 를 통째로 덮으면 테두리 층이 날아간다(카드 계약과 같은 함정). 프라이머리·
+   고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
+.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:center;white-space:nowrap;cursor:pointer}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft)}
@@ -258,7 +262,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    굳은 것처럼 보이기 때문이다(내비 항목에서 겪은 것과 같은 결함).
    누름은 transform 만 쓴다(§6: 누름은 transform·opacity 만). */
 @media (hover:hover){
-  .wire-button:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}
+  /* 세컨더리 호버는 --button-fill 만 바꾼다 — background 를 덮으면 그라데이션 테두리가 사라진다. */
+  .wire-button:not(:disabled):not([aria-disabled="true"]):hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}
   .wire-button[data-variant="primary"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--gradient-action);filter:brightness(.96)}
   .wire-button[data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
   .wire-button[data-variant="danger"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--risk-tint-solid)}

@@ -168,7 +168,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 /* 레거시 화면의 떠 있는 표면들도 카드 계약을 쓴다(§5). 기본 테두리는 **회색 --line** 이고,
    그라데이션 테두리는 선택·활성일 때만 쓴다(2026-07-26 Q 지적 · pen 실측). 채움은
    --surface-fill 로만 바꾼다 — 선택 상태는 배경 2겹이라 background 를 통째로 덮으면 테두리가 날아간다. */
-.panel,.detail-link,.settings-section,.schedule-form{
+.panel,.settings-section,.schedule-form{
   --surface-fill:var(--panel);
   border:1px solid var(--line);
   border-radius:var(--radius-card);
@@ -176,7 +176,6 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
   box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
-.detail-link:hover{--surface-fill:var(--muted)}
 .panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:700}
 /* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다. */
 .status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:700}
@@ -185,7 +184,6 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 .risk{border-color:transparent;background:var(--risk-tint-solid);color:var(--risk)}
 .panel{padding:var(--space-6)}
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
-.detail-link{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-5);padding:var(--space-5) var(--space-6);font-weight:700}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
 .field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:700;color:var(--sub)}
@@ -252,15 +250,17 @@ const briefingStyles = `
    섞이지 않게 아래 툴바와 분리한다. 간격 4의 배수만 쓴다(D30 존치 규칙). */
 /* 이름 줄이 위로 올라가면서 툴바에는 토글만 남는다 — 오른쪽 정렬. */
 .briefing-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-/* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + --gradient-brand 1.5px 균일 테두리.
+/* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + **--risk 단색 1.5px 균일 테두리**
+   (2026-08-02 D58/CCC-51 — 구 --gradient-brand. 세컨더리 버튼이 브랜드 그라데이션
+   아웃라인을 갖게 되어, 배너는 위험 버튼과 같은 "빨강 테두리 = 위험" 축으로 옮겼다).
    좌측 액센트 띠(border-left 두께 강조)는 금지 패턴이다 — 병합으로 되살아난 것을 걷었다(이슈 #49).
    배너가 서는 것은 테두리가 아니라 위치(HERO 바로 아래)·배경 틴트·아이콘이다.
    --risk 대비가 2.72 라 색 하나에 기대지 않는다: 아이콘·문구·고정 위치·접힘 불가 4중 신호(§9). */
 .risk-banner{
   padding:var(--space-5) var(--space-6);
-  border:1.5px solid transparent;
+  border:1.5px solid var(--risk);
   border-radius:var(--radius-card);
-  background:linear-gradient(var(--risk-tint-solid),var(--risk-tint-solid)) padding-box,var(--gradient-brand) border-box;
+  background:var(--risk-tint-solid);
   box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
@@ -326,10 +326,9 @@ const briefingStyles = `
 .briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);color:var(--ink)}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
 /* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
-.briefing-more{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-5) var(--space-6)}
-.briefing-more:hover{--surface-fill:var(--muted)}
-.briefing-more-title{display:block;font-size:var(--text-md);font-weight:700;color:var(--ink)}
-.briefing-more-desc{display:block;margin-top:var(--space-1);font-size:var(--text-sm);color:var(--sub)}
+/* 브리핑 이어보기는 알약 버튼이 됐다(D58/CCC-51 — 구 카드형). 그리드 아이템이라 폭이
+   늘어나는 것만 막고(가운데 자리), 나머지는 .wire-button 계약 그대로다. */
+.briefing-more{justify-self:center}
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. */
 .briefing-qsection{display:grid;gap:var(--space-2)}
 .briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--sub)}

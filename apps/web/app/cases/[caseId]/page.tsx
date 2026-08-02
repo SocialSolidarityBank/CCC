@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { WireButton } from '../../components/wire/wire-button';
 import { redirect } from 'next/navigation';
 import {
   ANIMAL_SLUG_BENEFICIARY_ID_PATTERN,
@@ -24,5 +24,5 @@ export default async function LegacyCasePage({ params }: { params: Promise<{ cas
     redirect(`/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(legacySupportCaseId(beneficiaryId))}/briefing`);
   }
 
-  return <main className="page-content narrow"><header className="page-header"><div><h1>상담 준비</h1><p>이전 주소의 당사자 정보를 확인할 수 없습니다.</p></div></header><p className="status risk" role="alert">당사자 ID로 확인할 수 없는 이전 주소입니다.</p><Link className="detail-link" href="/"><span>당사자 목록으로 돌아가기</span></Link></main>;
+  return <main className="page-content narrow"><header className="page-header"><div><h1>상담 준비</h1><p>이전 주소의 당사자 정보를 확인할 수 없습니다.</p></div></header><p className="status risk" role="alert">당사자 ID로 확인할 수 없는 이전 주소입니다.</p><div><WireButton variant="secondary" href="/">당사자 목록으로 돌아가기</WireButton></div></main>;
 }

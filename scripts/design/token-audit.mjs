@@ -69,6 +69,9 @@ for (const file of TARGETS) {
     for (const m of line.matchAll(/var\((--[a-z0-9-]+)/g)) {
       const name = m[1];
       if (name === '--surface-fill') continue;
+      // .wire-button 이 규칙 안에서 만드는 지역 변수(CCC-51) — 그라데이션 테두리 2겹의
+      // 채움을 호버가 background 대신 이 변수로 바꾼다(--surface-fill 과 같은 패턴).
+      if (name === '--button-fill') continue;
       if (name.startsWith('--rdp-')) continue; // react-day-picker 라이브러리 소유
       if (!defined.has(name)) add(file, n, 'undefined-token', `${name} 는 design/tokens.css 에 없다`);
     }
