@@ -29,6 +29,11 @@ export const wireStyles = `
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
    쪽에서 바뀌므로 data 속성 대신 [open] 을 같은 규칙에 얹는다 — 어휘가 갈라지지 않는다. */
+/* details 는 overflow:clip 이 필수다(2026-08-03) — Chromium 이 details 의 border-box
+   그라데이션 배경층을 하단 border-radius 로 잘라내지 못해, 펼친 회차 카드의 아래 모서리가
+   각지고 링이 삐져나온다(킷 '그라데이션 테두리 3종'에서 실측). 레이어 승격(will-change)으로는
+   안 고쳐지고 클립만 고친다. summary 포커스 링은 안쪽(-2px)으로 옮겨 잘리지 않게 한다. */
+details.surface-card{overflow:clip}
 .surface-card[data-selected="true"],.surface-card[aria-current="true"],.surface-card[open],.is-selected-surface{
   border-color:transparent;
   background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box;
@@ -117,9 +122,11 @@ export const wireStyles = `
    호버·선택은 --surface-fill 만 바꾼다: background 를 덮으면 그라데이션 테두리가 사라진다. */
 .wire-row{display:flex;align-items:center;gap:var(--space-3);width:100%;min-height:72px;padding:var(--space-4) var(--space-6);font-size:var(--text-md);font-weight:700;text-align:left;cursor:pointer}
 button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
-.wire-row:hover{--surface-fill:var(--muted)}
+/* 호버도 그라데이션이다(2026-08-03 Q 결정 — 구 --muted 단색). 채움만 바꾸므로 실제 테두리
+   (--line 1px)는 그대로다. 선택 행은 더 진한 --gradient-action 이라 구분된다. 터치 잔상은
+   버튼과 같은 이유로 hover 미디어 안에 둔다. */
+@media (hover:hover){.wire-row:not([data-static="true"]):not([data-selected="true"]):hover{background:var(--gradient-hover)}}
 .wire-row[data-static="true"]{cursor:default}
-.wire-row[data-static="true"]:hover{--surface-fill:var(--panel)}
 /* 고른 행도 **채운다**(2026-07-31 Q 지시 "리스트도 채운다"). 체크박스 켬과 같은
    --gradient-action 이라, 화면 어디서든 '내가 지금 고른 것'이 한 어휘로 읽힌다.
    구 --muted(#F5F5F4)는 흰 카드 위에서 호버와 같은 색이라 고른 것인지 지나가는 중인지
@@ -166,6 +173,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 .wire-search-box select{padding-right:var(--space-6)}
 .wire-search-box .wire-chevron{margin:0}
 .wire-search-box:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
+.wire-search-box input:focus-visible,.wire-search-box select:focus-visible{outline:none}
 /* 입력 오류(§5): 테두리 1.5px --risk + 아래 메시지. 색만으로 알리지 않는다. */
 .wire-search-box[data-invalid="true"]{border:1.5px solid var(--risk)}
 .wire-field-error{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--risk)}
@@ -190,6 +198,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    (이 파일은 백틱 템플릿 리터럴이다 — 주석에 백틱을 쓰면 문자열이 거기서 끊긴다.) */
 .wire-input-box>textarea{min-height:0;resize:vertical;line-height:var(--leading-relaxed)}
 .wire-input-box:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 포커스 링은 상자 하나만 — 내부 컨트롤의 전역 :focus-visible 링을 끈다(이중 링, 2026-08-03).
+   datetime-fields 가 이미 쓰는 패턴이다. */
+.wire-input-box>input:focus-visible,.wire-input-box>select:focus-visible,.wire-input-box>textarea:focus-visible{outline:none}
 .wire-input-box[data-invalid="true"]{border:1.5px solid var(--risk)}
 .wire-form-hint{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .wire-form-hint a{color:var(--blue-deep);font-weight:700;text-decoration:underline}
@@ -243,7 +254,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    구 --line-action 을 대체, §3-3 배경 2겹 방식). 채움은 --button-fill 로만 바꾼다 —
    background 를 통째로 덮으면 테두리 층이 날아간다(카드 계약과 같은 함정). 프라이머리·
    고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
-.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:center;white-space:nowrap;cursor:pointer}
+.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:var(--leading-none);gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:center;white-space:nowrap;cursor:pointer}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft)}
@@ -331,8 +342,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 .wire-empty>.wire-button{margin-top:var(--space-2)}
 /* 탭(§5): 활성은 색이 아니라 대비로 구분한다. */
 .wire-tabs{display:flex;gap:var(--space-6);border-bottom:1px solid var(--line)}
-.wire-tab{padding:var(--space-2) 0;border:0;border-bottom:2px solid transparent;background:none;color:var(--sub);font-size:var(--text-md);font-weight:700;cursor:pointer}
-.wire-tab[aria-selected="true"],.wire-tab[data-active="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+/* 항목 언더라인(2px)이 컨테이너 밑줄(1px)과 **겹쳐야** 한 선으로 읽힌다 — 띄우면 활성
+   밑줄이 1px 떠 보인다(2026-08-03 Q 지적 '박스 아웃라인과 아이템 정렬'). */
+/* optical: -1px 는 간격이 아니라 컨테이너 border 1px 위로 겹치는 값 — 선 두께에서 온다 */
+.wire-tab{margin-bottom:-1px;padding:var(--space-2) 0;border:0;border-bottom:2px solid transparent;background:none;color:var(--sub);font-size:var(--text-md);font-weight:700;cursor:pointer}
+/* 활성 밑줄은 브랜드 그라데이션이다(2026-08-03 Q 결정 — 구 --ink 단색). */
+.wire-tab[aria-selected="true"],.wire-tab[data-active="true"]{color:var(--ink);background:var(--gradient-brand) left bottom/100% 2px no-repeat}
 /* 인용 블록(§5): AI 제안의 근거 발언 전용. 세로선은 --gradient-brand-v(흐르는 방향과 같게). */
 .wire-quote{margin:0;padding-left:var(--space-3);border-left:2px solid transparent;background:var(--gradient-brand-v) left/2px 100% no-repeat;font-size:var(--text-sm);color:var(--sub)}
 .wire-quote-time{display:block;margin-top:var(--space-1);font-size:var(--text-sm);font-weight:700;color:var(--sub);letter-spacing:var(--tracking-numeric)}

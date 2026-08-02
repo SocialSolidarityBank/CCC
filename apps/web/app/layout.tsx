@@ -365,7 +365,9 @@ const briefingStyles = `
 /* 접힌 줄 = 펼친 카드의 머리. 두 상태가 같은 줄이라 자리가 안 흔들린다. */
 .record-summary{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);cursor:pointer;list-style:none}
 .record-summary::-webkit-details-marker{display:none}
-.record-summary:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 카드가 overflow:clip 이라(그라데이션 테두리 하단 라운드 버그 수리, wire-styles 참조)
+   바깥 링은 잘린다 — 안쪽 링으로 바꾼다. */
+.record-summary:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
 .record-chevron{flex:none;width:12px;font-size:var(--text-sm);color:var(--sub)}
 .record-ordinal{flex:none;font-size:var(--text-md);font-weight:700;color:var(--ink)}
 .record-held-at{flex:none;font-size:var(--text-md);color:var(--sub)}
