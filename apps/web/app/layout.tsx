@@ -24,8 +24,14 @@ body{margin:0;background:var(--canvas);font-size:var(--text-md);line-height:var(
 a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit}
 .app-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);min-height:100dvh}
-/* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다. */
-.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink)}
+/* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다.
+   **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. overflow:hidden 은
+   하단 묶음(설정·테마·로그아웃)을 발치에 상시 노출시키기 위한 것으로, 메뉴가 넘치면
+   아래 .navigation-list 만 안에서 스크롤한다. 768 미만 드로어 블록이 position:fixed 로
+   덮으므로 여기 값은 데스크톱에만 산다. */
+.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink);position:sticky;top:0;height:100dvh;overflow:hidden}
+/* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
+.sidebar>.navigation-list{overflow-y:auto;min-height:0}
 .brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
 .brand{font-weight:700}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
@@ -39,11 +45,16 @@ button,input,select,textarea{font:inherit}
    --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
    좌우 -24 는 사이드바 패딩만큼 되밀어 선을 끝까지 긋는다. */
 .sidebar>.program-switcher,.sidebar>.navigation-list{position:relative}
-.sidebar>.program-switcher::before,.sidebar>.navigation-list::before{
-  content:"";position:absolute;top:calc(var(--space-4) * -1);
+/* 메뉴 위 구분선은 메뉴(::before)가 아니라 **사업 전환기의 ::after** 로 긋는다(CCC-52) —
+   메뉴 목록이 내부 스크롤(overflow-y:auto)을 갖게 되면서, 목록 밖(top:-16)에 그리던
+   ::before 가 overflow 에 잘려 사라지기 때문이다. 위치는 같다(간격 32 의 가운데). */
+.sidebar>.program-switcher::before,.sidebar>.program-switcher::after{
+  content:"";position:absolute;
   left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);
   height:1px;background:var(--line-sidebar);
 }
+.sidebar>.program-switcher::before{top:calc(var(--space-4) * -1)}
+.sidebar>.program-switcher::after{bottom:calc(var(--space-4) * -1)}
 .program-switcher-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
 .program-switcher-name{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:700}
 /* 사업 전환기 드롭다운(2026-07-31). 방아쇠는 카드 안을 꽉 채우는 투명 버튼이다 — 알약을
