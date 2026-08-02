@@ -9,6 +9,15 @@ on:
   push:
     branches: [main]
 
+# 같은 PR 에 새 커밋이 오면 이전 실행을 취소한다 (2026-08-02). 위 주석이 없앤 것이
+# "같은 커밋을 두 번" 이라면, 이것이 없애는 것은 "**낡은 커밋을** 끝까지 검사하는" 몫이다.
+# 리베이스·스쿼시로 head 가 바뀌면 직전 실행의 결과는 어차피 쓰지 않는다.
+# main 은 취소하지 않는다 — 연달아 머지될 때 앞 커밋이 미검증으로 남으면 안 되고,
+# 이 파일의 secret-scan·pipeline-test 는 deploy-preview.yml 의 verify 에 없다.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
     runs-on: ubuntu-latest
