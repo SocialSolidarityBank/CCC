@@ -237,7 +237,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
    그래서 **일반 버튼과 강조 버튼의 구분이 테두리 굵기가 아니라 면과 깊이로 옮겨간다**:
    테두리는 둘이 같고, 프라이머리만 그라데이션 면과 그림자를 갖는다. 두 버튼이 나란히
    설 때 눌러야 할 쪽이 뜨는 것은 이 대비이지 테두리 진하기가 아니다. */
-.wire-button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:left;white-space:nowrap;cursor:pointer}
+/* 정렬 기본은 **가운데**다(2026-08-02 D58/CCC-50 — 구 왼쪽 기본은 버그, DESIGN.md §5).
+   왼쪽·양끝 정렬은 data-justify 명시 옵션으로만 쓴다. */
+.wire-button{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:center;white-space:nowrap;cursor:pointer}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft)}
@@ -246,7 +248,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 /* 위험: 되돌리기 어려운 행동에만. */
 .wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk);box-shadow:none}
 .wire-button[data-justify="center"]{justify-content:center}
-.wire-button[data-justify="between"]{justify-content:space-between}
+.wire-button[data-justify="left"]{justify-content:flex-start;text-align:left}
+.wire-button[data-justify="between"]{justify-content:space-between;text-align:left}
 .wire-button[data-justify="between"] .wire-button-text{flex:1 1 auto}
 /* 호버·누름(2026-07-31 신설). 지금까지 버튼에 **상태가 disabled 하나뿐**이라, 누를 수 있는
    것과 없는 것은 구분됐지만 지금 가리키고 있는 것은 알 수 없었다. 새 색을 만들지 않고
@@ -264,6 +267,22 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:700}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
 .wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{border-color:var(--sub)}
 .wire-button .wire-chevron{border-color:currentColor}
+/* ── 모션 3종 뼈대 (2026-08-02 D58/ADR-0028 · DESIGN.md §6 · CCC-50) ──
+   여기는 어휘 정의만 둔다 — 실제 배선(어느 요소에 어느 클래스를 다는가)은 CCC-51·CCC-53.
+   시간·이징은 tokens.css 의 모션 토큰만 쓴다(§6: 이 밖의 값 위반).
+   ① 흐름: 그라데이션 배경·테두리가 호버 동안 좌우로 흐른다. background-size 200% 가 전제라
+      그라데이션을 가진 요소에만 의미가 있다. @media (hover:hover) 안에 두는 이유는 버튼
+      호버와 같다 — 터치에서 탭 잔상이 남는다.
+   ② 눌림: 위 .wire-button:active 의 translateY(1px)와 같은 어휘 — 버튼 밖 클릭 요소용.
+   ③ 떠오름: 스크롤 첫 진입 1회. 반복 재생 금지는 배선 쪽(IntersectionObserver once)이 진다. */
+@keyframes motion-flow{from{background-position:0% 50%}to{background-position:100% 50%}}
+.motion-flow{background-size:200% auto}
+@media (hover:hover){
+  .motion-flow:hover{animation:motion-flow var(--motion-flow-period) var(--ease-standard) infinite alternate}
+}
+.motion-press:active{transform:translateY(1px)}
+@keyframes motion-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.motion-rise{animation:motion-rise var(--motion-base) var(--ease-standard) both}
 /* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다. */
 .wire-meta-row{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
 /* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/700. 기본형은 색 없이 --sub 테두리로만 선다. */

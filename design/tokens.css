@@ -111,7 +111,7 @@
   --list-indent: 18px;
 
   /* ── 레이아웃 ── */
-  --sidebar-width: 240px;
+  --sidebar-width: 280px; /* 2026-08-02 D58/ADR-0028 — 구 240. §4-1 재계산: 1440에서 본문 영역 1160, 컨테이너 1120, 잔여 좌우 20 */
 
   /* 페이지 셸 — 장폭·여백의 **유일한 주인**이다(2026-07-26).
    * 이전에는 .page-content(1280) · .narrow(960) · .today-page(960) · .wire-container(고정 거터
@@ -139,6 +139,15 @@
   --z-sticky: 10;
   --z-dropdown: 30;
   --z-modal: 100;
+
+  /* ── 모션 (2026-08-02 D58/ADR-0028 · DESIGN.md §6) ──
+   * 시간 2단 + 이징 1종이 전부다 — 이 밖의 duration·easing 은 위반.
+   * 흐름(호버 그라데이션 이동)의 반복 주기만 별도 토큰 하나를 갖는다: 120·200ms 로 반복하면
+   * 점멸로 보이고, 반복 주기는 전환 시간이 아니라 흐름의 정의 자체이기 때문이다. */
+  --motion-fast: 120ms;         /* 눌림 · 호버 워시 */
+  --motion-base: 200ms;         /* 흐름 진입 · 떠오름 */
+  --motion-flow-period: 1600ms; /* 흐름 반복 주기 (호버 동안만) */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
   /* ── 타이포 ── */
   --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;

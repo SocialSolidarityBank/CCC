@@ -335,7 +335,7 @@ D37 이 값을 정하기 전에 main 에서 셸을 세우며 확인된 것들이
 
 공통 계약:
 
-- **시간 2단 + 이징 1종만** 쓴다: `--motion-fast`(120ms — 눌림·호버 워시), `--motion-base`(200ms — 흐름 진입·떠오름), `--ease-standard`. 이 셋 밖의 duration·easing 은 위반이다.
+- **시간 2단 + 이징 1종만** 쓴다: `--motion-fast`(120ms — 눌림·호버 워시), `--motion-base`(200ms — 흐름 진입·떠오름), `--ease-standard`. 예외 하나: 흐름의 **반복 주기**만 `--motion-flow-period`(1600ms)를 따로 갖는다 — 120·200ms 로 반복하면 점멸로 보이고, 반복 주기는 전환 시간이 아니라 흐름의 정의 자체다. 이 넷 밖의 duration·easing 은 위반이다.
 - 그라데이션이 없는 요소의 호버는 **잉크 6% 워시**(§5) 그대로다 — 워시는 상태 표시지 모션이 아니므로 3종에 세지 않는다.
 - 애니메이션 속성은 `transform`·`opacity`·`background-position` 만 — 레이아웃을 움직이는 속성(width·margin 등) 금지.
 - `prefers-reduced-motion: reduce`에서 전환 제거(tokens.css 의 시스템 계약 그대로).
