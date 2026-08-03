@@ -148,7 +148,7 @@ export function RecordCard({
               {item.description}
               <span className="record-owner">{actionOwnerLabel(item.owner)}</span>
               {item.dueDate !== null && <span className="record-item-meta">기한 {item.dueDate}</span>}
-              <span className="status">{item.resolved ? '완료' : '미완료'}</span>
+              {item.resolved ? <span className="status">완료</span> : <span className="status warning">미완료</span>}
             </li>)}</ul>}
       </section>
 
