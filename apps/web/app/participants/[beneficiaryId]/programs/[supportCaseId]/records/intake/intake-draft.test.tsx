@@ -50,7 +50,7 @@ function renderWizard(extendedPii = VAULT_PII) {
 
 function fillAllQuestions(scoped: ReturnType<typeof within>): void {
   for (let step = 1; step <= 4; step += 1) {
-    fireEvent.click(scoped.getByRole('button', { name: new RegExp(`^[✓●○] ${step}\\.`) }));
+    fireEvent.click(scoped.getByRole('button', { name: new RegExp(`^${step}\\.`) }));
     for (const question of STEP_GROUPS[step - 1]!.flatMap((group) => group.questions)) {
       if (question.kind === 'select') {
         const fallback = question.options?.includes('무응답') === true ? '무응답' : question.options![0]!;
@@ -114,7 +114,7 @@ describe('인테이크 임시본', () => {
 
     fireEvent.click(getByRole('button', { name: '이어쓰기' }));
     expect(scoped.getByRole('heading', { name: '2. 현재 생활상황' })).not.toBeNull();
-    fireEvent.click(scoped.getByRole('button', { name: /^[✓●○] 1\./ }));
+    fireEvent.click(scoped.getByRole('button', { name: /^1\./ }));
     expect((scoped.getByLabelText('기타 공적급여') as HTMLTextAreaElement).value).toBe('기초연금 수급');
     expect((scoped.getByLabelText('기초생활보장 수급 여부') as HTMLSelectElement).value).toBe('무응답');
   });

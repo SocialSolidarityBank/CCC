@@ -1,4 +1,6 @@
 import { MetaRow } from '../../../../../components/wire/meta-row';
+import { Chevron } from '../../../../../components/wire/chevron';
+import { Icon } from '../../../../../components/wire/icon';
 import { WireCard } from '../../../../../components/wire/wire-card';
 import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
 
@@ -105,7 +107,7 @@ export function RecordCard({
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
     <summary className="record-summary">
-      <span className="record-chevron" aria-hidden="true">▸</span>
+      <span className="record-chevron" aria-hidden="true"><Chevron dir="right" /></span>
       <span className="record-ordinal">{ordinal}회차</span>
       <span className="record-held-at">{formatDateOnly(record.heldAt)}</span>
       <span className="record-kind">{sessionKindLabel(record.kind)}</span>
@@ -115,7 +117,7 @@ export function RecordCard({
       <span className="record-summary-right">
         {record.aiOneLiner === null && record.memoExcerpt !== null && <span className="briefing-badge">수기</span>}
         {/* 리스크 배너는 두지 않는다(D47 §5) — 대신 어느 회차에서 나왔는지를 이 표시가 알린다. */}
-        {hasConfirmedFlag && <span className="record-flag" data-confirmed="true">⚠ 리스크</span>}
+        {hasConfirmedFlag && <span className="record-flag" data-confirmed="true"><Icon name="warning" size={14} /> 리스크</span>}
       </span>
     </summary>
 
@@ -146,7 +148,7 @@ export function RecordCard({
               {item.description}
               <span className="record-owner">{actionOwnerLabel(item.owner)}</span>
               {item.dueDate !== null && <span className="record-item-meta">기한 {item.dueDate}</span>}
-              <span className="status">{item.resolved ? '완료' : '미완료'}</span>
+              {item.resolved ? <span className="status">완료</span> : <span className="status warning">미완료</span>}
             </li>)}</ul>}
       </section>
 
@@ -157,7 +159,7 @@ export function RecordCard({
           : <ul>{record.flags.map((flag) => <li key={flag.id}>
               {/* 리스크 레드는 확인된 것에만(D9·D34) — 제외됨·검토 대기는 무채색이다. */}
               <span className="record-flag" data-confirmed={flag.reviewStatus === 'confirmed' ? 'true' : 'false'}>
-                {flag.reviewStatus === 'confirmed' && '⚠ '}{flagLabel(flag.flagType)}
+                {flag.reviewStatus === 'confirmed' && <><Icon name="warning" size={14} />{' '}</>}{flagLabel(flag.flagType)}
               </span>
               {flag.source === 'ai' && <span className="record-ai-source">AI 제안</span>}
               <span className="record-item-meta">{flagReviewStatusLabel(flag.reviewStatus)}</span>

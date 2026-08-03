@@ -160,7 +160,7 @@ function ProgramCard({ beneficiaryId, program, programTitle }: {
     <article className="surface-card participant-program" data-locked={program.authorized ? undefined : 'true'}>
       <div className="participant-program-head">
         <h2>{programTitle}</h2>
-        <span className="status">{programStatus(program.status)}</span>
+        <span className="status mint">{programStatus(program.status)}</span>
       </div>
       <p className="participant-program-meta">참여 시작 {formatIntakeDate(program.intakeAt)}</p>
       <AssigneeLine names={program.assigneeNames} />

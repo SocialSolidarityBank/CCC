@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Chevron } from '../../components/wire/chevron';
 import { ListRow } from '../../components/wire/list-row';
 import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
@@ -86,7 +87,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
               <div className="wire-admin-detail-head">
                 <p className="wire-admin-detail-name">{userLabel(selectedUser)}</p>
                 <Link className="wire-header-link" href={`/admin/users/${encodeURIComponent(selectedUser.id)}`}>
-                  상세 보기 →
+                  상세 보기 <Chevron dir="right" />
                 </Link>
               </div>
               {assignmentsError !== null ? (

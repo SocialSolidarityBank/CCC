@@ -10,6 +10,7 @@ import '../../../design/tokens.css';
 import 'react-day-picker/style.css';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
+import { MotionRise } from './components/wire/motion-rise';
 import { getDisplayLabels } from './lib/display-labels';
 import { THEME_COOKIE_NAME, parseTheme } from './lib/theme-cookie';
 import { wireStyles } from './components/wire/wire-styles';
@@ -182,6 +183,9 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 /* 주의·대기·미완료는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .warning{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
 .risk{border-color:transparent;background:var(--risk-tint-solid);color:var(--risk)}
+/* D58 계열 의미 고정(CCC-54): 민트=진행·상태, 블루=정보·일정. 읽어야 하는 값이라 글자는 --ink(D47). */
+.status.mint{border-color:transparent;background:var(--mint-tint);color:var(--ink)}
+.status.blue{border-color:transparent;background:var(--blue-tint);color:var(--ink)}
 .panel{padding:var(--space-6)}
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
@@ -641,6 +645,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             {children}
           </div>
         </div>
+        {/* 떠오름 배선(§6·CCC-53) — 렌더 없는 관찰자라 셸 밖에 둔다. */}
+        <MotionRise />
       </body>
     </html>
   );

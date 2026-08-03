@@ -90,7 +90,7 @@ function EditScreen({
           meta="등록된 기본정보를 고칩니다."
           actions={<WireButton href={hubHref}>당사자 정보</WireButton>}
         />
-        {noticeText === undefined ? null : <p className="status" role="status">{noticeText}</p>}
+        {noticeText === undefined ? null : <p className="status blue" role="status">{noticeText}</p>}
         {errorText === undefined ? null : <p className="status risk" role="alert">{errorText}</p>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />
       </GridContainer>

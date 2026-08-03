@@ -37,7 +37,7 @@ describe('사업 전환기 — 사업이 2개 이상일 때 (2026-07-31)', () =>
     fireEvent.click(container.querySelector('.program-switcher-trigger') as HTMLElement);
 
     const options = Array.from(container.querySelectorAll('.program-switcher-option'));
-    expect(options.map((el) => el.textContent?.replace('✓', '').trim())).toEqual(['금융지원', '멘토링']);
+    expect(options.map((el) => el.textContent?.trim())).toEqual(['금융지원', '멘토링']);
     // 선택 표시는 두 곳에 있어야 한다 — 눈으로 보는 표시(data-selected)와 보조기기가 읽는 값.
     expect(options[0]?.getAttribute('data-selected')).toBe('true');
     expect(options[1]?.getAttribute('data-selected')).toBeNull();
