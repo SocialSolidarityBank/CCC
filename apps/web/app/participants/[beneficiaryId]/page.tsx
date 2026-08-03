@@ -10,6 +10,7 @@ import {
 import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
+import { WireField } from '../../components/wire/wire-card';
 import { WireButton } from '../../components/wire/wire-button';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { updateParticipantConsentAction } from '../../actions';
@@ -203,12 +204,22 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
       <GridContainer>
         {/* ParticipantHeroCard (D38): 허브는 케이스가 교차하는 화면이라
             단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).
-            연락처는 메타 한 줄로 흡수(슬롯 ③) — 계좌·주소 등 추가 PII는
-            메타 줄에 올리지 않는다(§5 계약). */}
+            연락처는 메타 줄 상시 노출에서 **이름 클릭 → 개인 정보 접힘**으로 옮겼다
+            (2026-08-03 Q — 구 개인정보 카드는 브리핑에서 뺐고 여기가 그 자리다).
+            이메일은 D31 이 브리핑·상세 응답에서 일부러 뺀 필드라 여기 없다. */}
         <ParticipantHeroCard
           name={detail.name}
           beneficiaryId={detail.beneficiaryId}
-          meta={detail.phone !== null && detail.phone.length > 0 ? `연락처 ${detail.phone}` : undefined}
+          pii={
+            <>
+              <WireField label="연락처">{detail.phone !== null && detail.phone.length > 0 ? detail.phone : '미기입'}</WireField>
+              <WireField label="참여 사업">
+                {programs.length === 0
+                  ? '없음'
+                  : programs.map((program) => programName(programLabels, program.programType)).join(', ')}
+              </WireField>
+            </>
+          }
           // 기본정보 수정(CCC-37)은 당사자 단위라 행동 슬롯(④)에 둔다 — 동의는 참여
           // 사업마다 다르므로 카드 안에 남는다. 둘은 저장 단위가 달라 섞지 않는다(D44).
           actions={editable

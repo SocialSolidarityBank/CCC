@@ -26,6 +26,12 @@ export interface ParticipantHeroCardProps {
   stageTag?: string;
   /** 메타 한 줄. 내용은 화면이 정한다. */
   meta?: ReactNode;
+  /**
+   * 개인 정보 접힘 칸(2026-08-03 Q). 넘기면 이름 줄이 클릭 가능한 여닫이(summary)가 되고,
+   * 이름 **아래**로 연락처·참여 사업 같은 개인 정보 칸이 열린다. 연락처를 메타 줄에
+   * 상시 노출하는 대신 이 접힘으로 옮기는 것이 의도다.
+   */
+  pii?: ReactNode;
   /** 우상단 행동 버튼. 세컨더리 → 프라이머리 순서로 넘긴다(§4-5). */
   actions?: ReactNode;
   className?: string;
@@ -36,19 +42,32 @@ export function ParticipantHeroCard({
   beneficiaryId,
   stageTag,
   meta,
+  pii,
   actions,
   className,
 }: ParticipantHeroCardProps) {
   const classes = ['page-header', 'surface-card', 'participant-hero-card', className]
     .filter(Boolean)
     .join(' ');
+  const title = (
+    <h1 className="participant-hero-title">
+      <ParticipantName name={name} beneficiaryId={beneficiaryId} size="hero" />
+      {stageTag !== undefined && <span className="participant-hero-stage">{stageTag}</span>}
+    </h1>
+  );
   return (
     <header className={classes}>
       <div className="participant-hero-identity">
-        <h1 className="participant-hero-title">
-          <ParticipantName name={name} beneficiaryId={beneficiaryId} size="hero" />
-          {stageTag !== undefined && <span className="participant-hero-stage">{stageTag}</span>}
-        </h1>
+        {pii === undefined ? title : (
+          /* 이름 줄이 곧 여닫이다 — 카드(이름)를 누르면 이름 아래로 개인 정보가 열린다. */
+          <details className="participant-hero-pii">
+            <summary>
+              {title}
+              <span aria-hidden="true" className="briefing-card-arrow" />
+            </summary>
+            <div className="participant-hero-pii-body">{pii}</div>
+          </details>
+        )}
         {meta !== undefined && <p className="participant-hero-meta">{meta}</p>}
       </div>
       {actions !== undefined && <div className="page-actions">{actions}</div>}

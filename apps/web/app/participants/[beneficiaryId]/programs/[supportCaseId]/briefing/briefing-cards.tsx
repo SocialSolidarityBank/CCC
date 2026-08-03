@@ -144,11 +144,25 @@ function OverallGoalCard({
           )
           : (
             <>
-              <p className={isSet ? 'briefing-goal-text' : 'briefing-goal-text is-empty'}>
-                {isSet ? overallGoal : '설정 전'}
-              </p>
+              {/* 수정할 수 있는 목표는 **입력칸과 같은 상자**로 그린다(2026-08-03 Q — 맨글자는
+                  수정 불가로 읽힌다). 상자를 눌러도 바로 편집이 시작된다. */}
+              {editable
+                ? (
+                  <button
+                    type="button"
+                    className={isSet ? 'briefing-goal-display' : 'briefing-goal-display is-empty'}
+                    onClick={() => setEditing(true)}
+                  >
+                    {isSet ? overallGoal : '설정 전 — 눌러서 입력'}
+                  </button>
+                )
+                : (
+                  <p className={isSet ? 'briefing-goal-text' : 'briefing-goal-text is-empty'}>
+                    {isSet ? overallGoal : '설정 전'}
+                  </p>
+                )}
               {editable && (
-                <WireButton variant="ghost" height="sm" onClick={() => setEditing(true)}>
+                <WireButton variant="secondary" height="sm" onClick={() => setEditing(true)}>
                   {isSet ? '수정' : '입력'}
                 </WireButton>
               )}
@@ -226,9 +240,10 @@ function DiscrepancyItem({
 
 // 카드 = 접힘 가능한 <details>. 요약(제목)만 남기고 본문을 접을 수 있어 '전체 열기/닫기'가
 // 카드 접힘 상태에도 일괄 적용된다. 기본은 열림. badge 는 제목 오른쪽(화살표 앞)에 앉는다.
-function Card({ title, badge, children }: { title: string; badge?: ReactNode; children: ReactNode }) {
+// id 는 툴바 바로가기(2026-08-03 Q)의 앵커다.
+function Card({ id, title, badge, children }: { id?: string; title: string; badge?: ReactNode; children: ReactNode }) {
   return (
-    <details className="briefing-card" open>
+    <details className="briefing-card" open id={id}>
       <summary className="briefing-card-summary">
         <span>{title}</span>
         <span className="briefing-card-summary-right">
@@ -284,7 +299,6 @@ export function BriefingCards({
 
   const sessionGoals = upcomingSchedule?.sessionGoals ?? [];
   const customQuestions = upcomingSchedule?.customQuestions ?? [];
-  const hasPii = participant.name !== null || participant.phone !== null;
 
   return (
     <div className="briefing-page">
@@ -328,9 +342,17 @@ export function BriefingCards({
       />
 
       {/* 여닫기 줄은 리스크 배너 **아래**다 — 배너는 HERO 바로 아래 자리를 내줄 수 없고(D9),
-          이 줄이 다루는 대상(아코디언 전부)의 바로 위이기도 하다. */}
+          이 줄이 다루는 대상(아코디언 전부)의 바로 위이기도 하다.
+          왼쪽은 아래 카드로 건너뛰는 바로가기(2026-08-03 Q — 카드 타이틀 텍스트가 곧 링크),
+          오른쪽 '전체 접기/열기'는 세컨더리 버튼이다(구 고스트 — 버튼으로 읽히게). */}
       <div className="briefing-toolbar">
-        <WireButton onClick={toggleAll} variant="ghost" height="sm">
+        <nav className="briefing-toolbar-anchors" aria-label="카드 바로가기">
+          <a href="#briefing-remember">오늘 만나기 전 꼭 기억할 것</a>
+          <a href="#briefing-sessions">상담 내용 회차별 정리</a>
+          <a href="#briefing-discrepancies">내용 불일치</a>
+          <a href="#briefing-actions">미해결 액션</a>
+        </nav>
+        <WireButton onClick={toggleAll} variant="secondary" height="sm">
           {allOpen ? '전체 접기' : '전체 열기'}
         </WireButton>
       </div>
@@ -341,7 +363,7 @@ export function BriefingCards({
             카드를 대체한다. **실무자 입력(세션 목표·맞춤형 질문)이 위, AI 가 아래** — 실무자가
             직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
             근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
-        <Card title="오늘 만나기 전 꼭 기억할 것">
+        <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
           <div className="briefing-qsection">
             <p className="briefing-qlabel">세션 목표</p>
             {sessionGoals.length === 0
@@ -388,6 +410,7 @@ export function BriefingCards({
             녹음이 없으면 수기 발췌 + '수기' 배지로 폴백한다(D5 · CCC-38). '승인 대기' 배지는
             구 '지난 상담 브리핑' 카드에서 이 머리로 옮겨 왔다. */}
         <Card
+          id="briefing-sessions"
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <span className="briefing-badge is-pending">승인 대기 {pendingApprovalCount}건</span> : null}
         >
@@ -413,6 +436,7 @@ export function BriefingCards({
             처리된 항목은 삭제되지 않고 접힌 이력으로 내려간다(ADR-0018). 배지는 **미처리만**
             센다 — 이력이 쌓일수록 숫자가 불어나면 '남은 일'을 알려주지 못한다. */}
         <Card
+          id="briefing-discrepancies"
           title="내용 불일치"
           badge={unresolvedDiscrepancies.length > 0
             ? <span className="briefing-badge is-pending">{unresolvedDiscrepancies.length}건</span>
@@ -452,26 +476,15 @@ export function BriefingCards({
           )}
         </Card>
 
-        {/* 유지 카드 2종 (D45 표 7행) — 미해결 액션·개인정보. 표준 그리드(최소 420 → 2열, D37). */}
+        {/* 미해결 액션 (D45 표 7행). 개인정보 카드는 여기서 뺐다(2026-08-03 Q) — 개인 정보는
+            당사자 정보 화면의 HERO(이름 클릭)에서 본다. 표준 그리드는 유지(D37). */}
         <div className="briefing-cards-grid">
-          <Card title="미해결 액션">
+          <Card id="briefing-actions" title="미해결 액션">
             {openActionItems.length === 0
               ? <EmptyNote>미해결 항목이 없습니다.</EmptyNote>
               : <WireBullets items={openActionItems.map((item) => (
                   <MetaRow items={[item.description, item.dueDate === null ? null : `기한 ${item.dueDate}`, `담당 ${actionOwnerLabels[item.owner]}`]} />
                 ))} />}
-          </Card>
-
-          {/* 개인정보 — 실명·연락처 직표시(복호화 클릭 없음, D24). 권한 없으면 값이 null. */}
-          <Card title="개인정보">
-            {hasPii
-              ? (
-                <div className="briefing-fields">
-                  <WireField label="이름">{participant.name ?? '미등록'}</WireField>
-                  <WireField label="연락처">{participant.phone ?? '미등록'}</WireField>
-                </div>
-              )
-              : <EmptyNote>권한 없음. 담당 실무자·기관 관리자만 실명·연락처를 볼 수 있습니다.</EmptyNote>}
           </Card>
         </div>
       </div>

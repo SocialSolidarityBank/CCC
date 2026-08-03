@@ -40,7 +40,10 @@ button,input,select,textarea{font:inherit}
    포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개여도 선택창이다(2026-08-03 Q).
    민트 계열은 '사람·소속'이라 사업 라벨이 그 축에 든다(D34). */
 /* 알약이 아니라 radius 6 이다(§4-5) — 행동 버튼이 아니라 값을 고르는 컨트롤이다. */
-.program-switcher{display:grid;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
+/* 2026-08-03 Q: '사업' 라벨은 선택창 **밖**에 두고 선택창은 1열이다 — 라벨+흰 상자 한 줄. */
+.program-switcher{display:flex;align-items:center;gap:var(--space-3)}
+/* 흰 상자가 곧 선택창이다. 드롭다운의 기준점(position:relative)도 여기다. */
+.program-switcher-box{position:relative;flex:1;min-width:0;display:grid;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
 /* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
    32(--space-8)는 그대로 유지된다 — 선은 그 사이 가운데에 놓인다.
    --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
@@ -56,22 +59,32 @@ button,input,select,textarea{font:inherit}
 }
 .sidebar>.program-switcher::before{top:calc(var(--space-4) * -1)}
 .sidebar>.program-switcher::after{bottom:calc(var(--space-4) * -1)}
-.program-switcher-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
-.program-switcher-name{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:600}
+.program-switcher-label{margin:0;flex:none;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
+/* 사업 이름은 한 줄이고, 넘치면 꺾쇠(V) 앞에서 **자연스럽게 사라진다**(2026-08-03 Q —
+   말줄임표가 아니라 마스크 페이드). 마스크는 알파만 쓰므로 색은 불투명하면 무엇이든 같다. */
+.program-switcher-name{flex:1;min-width:0;margin:0;overflow:hidden;white-space:nowrap;color:var(--ink);font-size:var(--text-md);font-weight:600;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 28px),transparent)}
 /* 사업 전환기 드롭다운(2026-07-31). 방아쇠는 카드 안을 꽉 채우는 투명 버튼이다 — 알약을
    덧대면 카드 안에 컨트롤이 두 겹으로 보인다. 값 글자는 --ink 그대로(§9 대비 예외는 보조
    정보 한정이라 읽어야 하는 값에 deep 을 쓰지 않는다). */
-.program-switcher-trigger{display:flex;align-items:center;gap:var(--space-2);width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+/* min-width:0 이 필요하다 — 그리드 아이템의 자동 최소 크기는 min-content 라, nowrap 사업
+   이름이 그대로 바닥이 되어 상자가 사이드바 밖으로 넘친다(2026-08-03 실측). */
+.program-switcher-trigger{display:flex;align-items:center;gap:var(--space-2);width:100%;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
 .program-switcher-trigger .wire-chevron{margin-left:auto;flex:none}
 .program-switcher-trigger:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px;border-radius:var(--radius-control)}
 /* 목록은 카드 바로 아래에 뜬다. 표면 계약은 date-picker 팝오버와 같은 값을 쓴다
    (--panel · --radius-card · --shadow-soft · z 30) — 새 표면을 만들지 않는다. */
+/* 접힌 상자에서는 이름이 잘려도, **열면 전체 글자가 보인다**(2026-08-03 Q) — 목록 폭은
+   내용만큼(max-content) 벌어지되 사이드바 폭을 상한으로 갖고, 그보다 긴 이름만 아래
+   옵션 규칙의 마스크로 다시 사라진다. */
 .program-switcher-menu{
-  position:absolute;top:calc(100% + var(--space-2));left:0;right:0;z-index:var(--z-dropdown);
+  position:absolute;top:calc(100% + var(--space-2));left:0;z-index:var(--z-dropdown);
+  min-width:100%;width:max-content;max-width:calc(var(--sidebar-width) - var(--space-6) * 2);
   display:grid;gap:var(--space-0-5);padding:var(--space-2);margin:0;list-style:none;
   border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-soft);
 }
 .program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-sm);font-weight:600}
+/* 상한을 넘는 이름은 옵션 안에서도 같은 방식으로 사라진다 — 말줄임표를 쓰지 않는다(위 이름 규칙과 동일 어휘). */
+.program-switcher-option>span:last-child{min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 20px),transparent)}
 .program-switcher-option[data-selected="true"]{background:var(--blue-tint)}
 @media (hover:hover){.program-switcher-option:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}}
 /* 체크 글자에 deep 을 쓰지 않는다(§9 대비 예외는 보조 정보 한정). 선택 신호는 --blue-tint 면이 갖는다. */
@@ -81,9 +94,14 @@ button,input,select,textarea{font:inherit}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
-  /* 호버는 **약한 신호**다. 예전에는 흰색(--panel) 알약이라 활성 항목보다 더 선택된 것처럼
-     보였다 — 사업 전환기 카드와 같은 흰 알약이었기 때문이다. 잉크 4% 워시로 낮춘다. */
-  .navigation-link:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+  /* 호버 = **어두운 면 위 그라데이션 글자**다(2026-08-03 Q — 구 잉크 6% 워시 대체).
+     활성(블루 tint)과 어휘가 완전히 갈려, 지나가는 중과 지금 있는 곳이 섞여 보이지 않는다.
+     아이콘은 currentColor 라 --panel(흰색)로 남긴다 — 파스텔 그라데이션을 획에 얹으면
+     16px 라인 아이콘은 획이 끊겨 보인다. */
+  .navigation-link:not([data-current="true"]):hover{background:var(--ink);color:var(--panel)}
+  .navigation-link:not([data-current="true"]):hover>span:not(.navigation-soon){background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
+  /* 다크에서는 --ink 가 밝은 색이라 뒤집힌다 — 어두운 면은 --canvas 가, 아이콘은 --ink 가 맡는다. */
+  [data-theme="dark"] .navigation-link:not([data-current="true"]):hover{background:var(--canvas);color:var(--ink)}
   /* 활성 항목 위에서는 활성 표시가 이겨야 한다 — 호버가 덮으면 "지금 어디인지"가 사라진다. */
   .navigation-link[data-current="true"]:hover{background:var(--blue-tint);color:var(--ink)}
 }
@@ -252,8 +270,12 @@ const briefingStyles = `
 .briefing-page{display:grid;gap:var(--space-5)}
 /* 이름 + 출구 버튼 2개(D35 §4). 버튼은 이름 바로 아래 줄이고, 화면 조작(전체 열기/닫기)과
    섞이지 않게 아래 툴바와 분리한다. 간격 4의 배수만 쓴다(D30 존치 규칙). */
-/* 이름 줄이 위로 올라가면서 툴바에는 토글만 남는다 — 오른쪽 정렬. */
-.briefing-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+/* 툴바 = 왼쪽 카드 바로가기 + 오른쪽 여닫기 버튼(2026-08-03 Q). */
+.briefing-toolbar{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+/* 바로가기는 카드 타이틀 텍스트 그대로다 — 인라인 참조라 알약이 아니라 텍스트다(D58 ⑥). */
+.briefing-toolbar-anchors{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.briefing-toolbar-anchors a{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+@media (hover:hover){.briefing-toolbar-anchors a:hover{color:var(--ink);text-decoration:underline}}
 /* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + **--risk 단색 1.5px 균일 테두리**
    (2026-08-02 D58/CCC-51 — 구 --gradient-brand. 세컨더리 버튼이 브랜드 그라데이션
    아웃라인을 갖게 되어, 배너는 위험 버튼과 같은 "빨강 테두리 = 위험" 축으로 옮겼다).
@@ -315,8 +337,7 @@ const briefingStyles = `
 /* 상태 태그는 시간·상태 축이라 블루다(D34). 글자는 deep — base 는 글자에 쓰지 않는다(색 규율 3). */
 .briefing-badge.is-stage{border-color:transparent;background:var(--blue-tint);color:var(--blue-deep)}
 .briefing-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-/* 여닫기 줄은 오른쪽 끝. 화면 조작이라 고스트 32px 하나다. */
-.briefing-toolbar{display:flex;justify-content:flex-end}
+/* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
 .briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
 /* 전체 목표 카드(D45 · CCC-41) — 카드형 한 줄. 카드 계약(.surface-card)을 그대로 쓰고
@@ -328,6 +349,11 @@ const briefingStyles = `
 .briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 /* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
 .briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);color:var(--ink)}
+/* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
+   목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
+.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);font-weight:600;text-align:left;color:var(--ink);cursor:pointer}
+.briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
+@media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
 /* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
 /* 브리핑 이어보기는 알약 버튼이 됐다(D58/CCC-51 — 구 카드형). 그리드 아이템이라 폭이
@@ -480,7 +506,8 @@ const monthScheduleStyles = `
 .month-rows{display:grid;overflow:hidden;border-radius:var(--radius-card);border:1px solid var(--line);background:var(--panel)}
 .month-rows>*+*{border-top:1px solid var(--line)}
 .month-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);color:inherit;text-decoration:none}
-@media (hover:hover){.month-row:hover{background:var(--muted)}}
+/* 호버는 리스트 행과 같은 그라데이션 채움이다(2026-08-03 Q — 구 --muted 단색). */
+@media (hover:hover){.month-row:hover{background:var(--gradient-hover)}}
 .month-row:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
 /* 시간은 고정폭으로 세로 정렬을 맞춘다(§5 리스트 행: 시간 16/700 고정폭 → 이름 묶음). */
 .month-row-time{flex:none;min-width:6ch;font-size:var(--text-md);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}

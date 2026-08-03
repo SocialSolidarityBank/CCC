@@ -7,7 +7,7 @@
 // 실명/연락처 폴백 판단은 여기서 한다(participantName ?? 가명 ID, participantPhone ?? '—').
 // 스타일은 와이어 킷과 디자인 토큰(design/tokens.css)만 사용한다(신규 CSS 클래스 없음).
 import { useState } from 'react';
-import { Icon } from '../../../components/wire/icon';
+import { Icon } from '../../../components/wire/wire-icon';
 import Link from 'next/link';
 import { WireButton } from '../../../components/wire/wire-button';
 import { WireCard, WireField } from '../../../components/wire/wire-card';

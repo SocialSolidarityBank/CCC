@@ -43,7 +43,8 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
 // D45(ADR-0018) 3영역 — 이 순서가 계약이다. 구 '지난 상담 브리핑'·'오늘 확인할 질문' 카드는
 // 영역 ①·②가 대체했고, GAS 아코디언은 D43 보류로 화면에서 빠졌다.
 const AREA_TITLES = ['오늘 만나기 전 꼭 기억할 것', '상담 내용 회차별 정리', '내용 불일치'];
-const GRID_TITLES = ['미해결 액션', '개인정보'];
+// 개인정보 카드는 2026-08-03 Q 지시로 브리핑에서 빠졌다 — 당사자 정보 HERO(이름 클릭)로 이동.
+const GRID_TITLES = ['미해결 액션'];
 
 function hero(container: HTMLElement): HTMLElement {
   const el = container.querySelector<HTMLElement>('.briefing-hero');
@@ -371,14 +372,16 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
 });
 
 describe('BriefingCards — 실명 직표시와 폴백 (D24 · ADR-0005)', () => {
-  it('담당 실무자에게는 HERO·개인정보 카드에 실명과 연락처를 직표시한다', () => {
+  it('담당 실무자에게는 HERO 에 실명을 직표시하고, 개인정보 카드는 더 이상 없다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     // 구 '기본정보' 카드가 하던 이름 표시는 HERO 가 이어받았다.
     expect(within(hero(container)).getByText('홍길동')).toBeTruthy();
-    const privacy = cardByTitle(container, '개인정보');
-    expect(privacy.textContent).toContain('홍길동');
-    expect(privacy.textContent).toContain('010-1234-5678');
-    expect(privacy.textContent).not.toContain('권한 없음');
+    // 개인정보 카드는 당사자 정보 HERO(이름 클릭 접힘)로 이동했다(2026-08-03 Q).
+    // 연락처도 브리핑에는 더 이상 나오지 않는다.
+    const cardTitles = [...container.querySelectorAll<HTMLDetailsElement>('details.briefing-card')]
+      .map((card) => card.querySelector('.briefing-card-summary')?.textContent?.trim() ?? '');
+    expect(cardTitles.some((title) => title.includes('개인정보'))).toBe(false);
+    expect(container.textContent).not.toContain('010-1234-5678');
   });
 
   it('이름이 없으면 HERO 이름은 가명 ID 그대로 폴백한다 (D31 — 한글 표시명 폐기)', () => {
@@ -390,12 +393,6 @@ describe('BriefingCards — 실명 직표시와 폴백 (D24 · ADR-0005)', () =>
     expect(card.textContent).not.toContain('제비');
   });
 
-  it('실명·연락처가 모두 없으면 개인정보 카드는 권한 없음으로 표기한다', () => {
-    const { container } = render(<BriefingCards {...baseProps({ participant: { name: null, phone: null } })} />);
-    const privacy = cardByTitle(container, '개인정보');
-    expect(privacy.textContent).toContain('권한 없음');
-    expect(privacy.querySelector('.wire-field-row')).toBeNull();
-  });
 });
 
 describe('BriefingCards — 전체 목표 카드 (D45 · CCC-41)', () => {
