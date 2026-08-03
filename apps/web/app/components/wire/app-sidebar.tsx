@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Icon } from './icon';
 import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { logoutAction } from '../../logout-action';
@@ -157,7 +158,7 @@ function ProgramSwitcher({
                   aria-current={selected ? 'true' : undefined}
                   onClick={() => setOpen(false)}
                 >
-                  <span className="program-switcher-check" aria-hidden="true">{selected ? '✓' : ''}</span>
+                  <span className="program-switcher-check" aria-hidden="true">{selected ? <Icon name="check" size={14} /> : null}</span>
                   <span>{programLabels[type]}</span>
                 </Link>
               </li>

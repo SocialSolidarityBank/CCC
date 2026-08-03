@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Icon } from '../../../../../../components/wire/icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
@@ -357,7 +358,7 @@ function QuestionField(props: { question: IntakeQuestion; value: AnswerDraft; on
               key={code}
               onClick={() => onChange(value.response === code ? { response: 'answered', text: '' } : { response: code, text: '' })}
             >
-              {value.response === code ? `✓ ${optionLabel}` : optionLabel}
+              {value.response === code ? <><Icon name="check" size={14} /> {optionLabel}</> : optionLabel}
             </WireButton>
           ),
         )}
@@ -633,7 +634,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
             const entry = progress[index]!;
             const done = entry.filled >= entry.required;
             const state = step === stepNumber ? 'current' : done ? 'done' : 'waiting';
-            const mark = done ? '✓' : step === stepNumber ? '●' : '○';
+            // 아이콘은 SVG 공용 부품이다(CCC-49) — 문자 글리프는 §7 락 5 위반.
+            const mark = done ? <Icon name="check" size={14} /> : step === stepNumber ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />;
             return (
               <button
                 key={title}

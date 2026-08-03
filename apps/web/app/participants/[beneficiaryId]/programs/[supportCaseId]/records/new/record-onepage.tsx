@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Icon } from '../../../../../../components/wire/icon';
 import { useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
@@ -348,7 +349,7 @@ export function RecordOnepage({
       <DraftStatus savedAt={draft.savedAt} available={draft.available} />
       <ul className="record-rail-list">
         {requiredItems.map((item) => <li key={item.label} data-done={item.done}>
-          <span aria-hidden="true">{item.done ? '●' : '○'}</span> {item.label}
+          <span aria-hidden="true">{item.done ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />}</span> {item.label}
           <span className="record-rail-state">{item.done ? ' 채움' : ' 남음'}</span>
         </li>)}
       </ul>

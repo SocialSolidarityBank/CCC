@@ -309,6 +309,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-row:not([data-static="true"]):active,.record-summary:active,.navigation-link:active,.wire-tab:active,.program-switcher-trigger:active{transform:translateY(1px)}
 @keyframes motion-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .motion-rise{animation:motion-rise var(--motion-base) var(--ease-standard) both}
+/* 공용 아이콘(CCC-49): 문장 속에 서면 베이스라인에 맞춰 살짝 내린다(em 비례라 크기를 따라간다).
+   플렉스 줄에서는 줄어들지 않는다. */
+.wire-icon{display:inline-block;vertical-align:-0.15em;flex:none}
 /* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다. */
 .wire-meta-row{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
 /* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/700. 기본형은 색 없이 --sub 테두리로만 선다. */

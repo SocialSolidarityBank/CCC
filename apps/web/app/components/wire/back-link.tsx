@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { Icon } from './icon';
 import { useEffect, useState } from 'react';
 
 /**
@@ -33,7 +34,7 @@ export function BackLink() {
 
   return (
     <button type="button" className="page-back" onClick={() => router.back()}>
-      <span aria-hidden="true">←</span>
+      <Icon name="arrow-left" size={14} />
       <span>뒤로</span>
     </button>
   );

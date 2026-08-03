@@ -41,7 +41,7 @@ function renderWizard(consent = { privacy: true, recordingAi: true }) {
  */
 function fillAllQuestions(scoped: ReturnType<typeof within>): void {
   for (let step = 1; step <= 4; step += 1) {
-    fireEvent.click(scoped.getByRole('button', { name: new RegExp(`^[✓●○] ${step}\\.`) }));
+    fireEvent.click(scoped.getByRole('button', { name: new RegExp(`^${step}\\.`) }));
     for (const question of STEP_GROUPS[step - 1]!.flatMap((group) => group.questions)) {
       if (question.kind === 'select') {
         const fallback = question.options?.includes('무응답') === true ? '무응답' : question.options![0]!;
