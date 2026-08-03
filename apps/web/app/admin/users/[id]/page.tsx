@@ -47,7 +47,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   if (user === undefined) {
     return (
       <>
-        <div className="wire-admin-back"><Link href="/admin/users">← 사용자 목록으로</Link></div>
+        <div className="wire-admin-back"><WireButton variant="ghost" height="sm" href="/admin/users">사용자 목록으로</WireButton></div>
         <PageTitle>실무자 상세</PageTitle>
         <p className="wire-admin-empty" role="alert">해당 실무자를 찾을 수 없습니다.</p>
       </>
@@ -65,7 +65,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
 
   return (
     <>
-      <div className="wire-admin-back"><Link href="/admin/users">← 사용자 목록으로</Link></div>
+      <div className="wire-admin-back"><WireButton variant="ghost" height="sm" href="/admin/users">사용자 목록으로</WireButton></div>
       <PageTitle>실무자 상세</PageTitle>
 
       <div className="wire-admin-form">

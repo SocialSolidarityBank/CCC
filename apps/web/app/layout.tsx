@@ -24,13 +24,19 @@ body{margin:0;background:var(--canvas);font-size:var(--text-md);line-height:var(
 a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit}
 .app-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);min-height:100dvh}
-/* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다. */
-.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink)}
+/* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다.
+   **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. overflow:hidden 은
+   하단 묶음(설정·테마·로그아웃)을 발치에 상시 노출시키기 위한 것으로, 메뉴가 넘치면
+   아래 .navigation-list 만 안에서 스크롤한다. 768 미만 드로어 블록이 position:fixed 로
+   덮으므로 여기 값은 데스크톱에만 산다. */
+.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink);position:sticky;top:0;height:100dvh;overflow:hidden}
+/* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
+.sidebar>.navigation-list{overflow-y:auto;min-height:0}
 .brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
-.brand{font-weight:700}
+.brand{font-weight:600}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
 /* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
-   포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개인 동안은 누를 데가 없어 링크가 아니다.
+   포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개여도 선택창이다(2026-08-03 Q).
    민트 계열은 '사람·소속'이라 사업 라벨이 그 축에 든다(D34). */
 /* 알약이 아니라 radius 6 이다(§4-5) — 행동 버튼이 아니라 값을 고르는 컨트롤이다. */
 .program-switcher{display:grid;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
@@ -39,13 +45,18 @@ button,input,select,textarea{font:inherit}
    --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
    좌우 -24 는 사이드바 패딩만큼 되밀어 선을 끝까지 긋는다. */
 .sidebar>.program-switcher,.sidebar>.navigation-list{position:relative}
-.sidebar>.program-switcher::before,.sidebar>.navigation-list::before{
-  content:"";position:absolute;top:calc(var(--space-4) * -1);
+/* 메뉴 위 구분선은 메뉴(::before)가 아니라 **사업 전환기의 ::after** 로 긋는다(CCC-52) —
+   메뉴 목록이 내부 스크롤(overflow-y:auto)을 갖게 되면서, 목록 밖(top:-16)에 그리던
+   ::before 가 overflow 에 잘려 사라지기 때문이다. 위치는 같다(간격 32 의 가운데). */
+.sidebar>.program-switcher::before,.sidebar>.program-switcher::after{
+  content:"";position:absolute;
   left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);
   height:1px;background:var(--line-sidebar);
 }
-.program-switcher-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
-.program-switcher-name{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:700}
+.sidebar>.program-switcher::before{top:calc(var(--space-4) * -1)}
+.sidebar>.program-switcher::after{bottom:calc(var(--space-4) * -1)}
+.program-switcher-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
+.program-switcher-name{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:600}
 /* 사업 전환기 드롭다운(2026-07-31). 방아쇠는 카드 안을 꽉 채우는 투명 버튼이다 — 알약을
    덧대면 카드 안에 컨트롤이 두 겹으로 보인다. 값 글자는 --ink 그대로(§9 대비 예외는 보조
    정보 한정이라 읽어야 하는 값에 deep 을 쓰지 않는다). */
@@ -59,13 +70,13 @@ button,input,select,textarea{font:inherit}
   display:grid;gap:var(--space-0-5);padding:var(--space-2);margin:0;list-style:none;
   border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-soft);
 }
-.program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-sm);font-weight:700}
+.program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-sm);font-weight:600}
 .program-switcher-option[data-selected="true"]{background:var(--blue-tint)}
 @media (hover:hover){.program-switcher-option:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}}
 /* 체크 글자에 deep 을 쓰지 않는다(§9 대비 예외는 보조 정보 한정). 선택 신호는 --blue-tint 면이 갖는다. */
 .program-switcher-check{width:14px;flex:none;color:var(--ink)}
 .navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0;list-style:none}
-.navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-sm);font-weight:700;transition:background-color .12s ease,color .12s ease}
+.navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-sm);font-weight:600;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -83,26 +94,26 @@ button,input,select,textarea{font:inherit}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
-.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:700;color:var(--sub);white-space:nowrap}
+.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--sub);white-space:nowrap}
 /* 푸터에 항목이 둘(설정·로그아웃)이 되어 가로 flex 로는 나란히 서 버린다 — 메뉴와 같은
    세로 목록이어야 같은 종류로 읽힌다. */
-.sidebar-footer{margin-top:auto;display:grid;gap:var(--space-1);color:var(--sub);font-size:var(--text-sm);font-weight:700}
+.sidebar-footer{margin-top:auto;display:grid;gap:var(--space-1);color:var(--sub);font-size:var(--text-sm);font-weight:600}
 .sidebar-logout-form{margin:0}
 /* 로그아웃은 폼 버튼이지만 메뉴 항목처럼 보여야 한다 — .navigation-link 를 그대로 쓰고
    버튼 기본 스타일만 지운다. width:100% 는 눌리는 영역을 메뉴와 같게 맞춘다. */
 .sidebar-logout{width:100%;border:0;background:transparent;font:inherit;text-align:left;cursor:pointer}
 /* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
    손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
-.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:700;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
+.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
 /* optical: gap 3 은 간격 리듬이 아니라 **아이콘 안쪽 도형**이다 — 막대 2px 셋과 사이 3px 이
    합쳐 18×12 손잡이 글리프를 만든다. 간격 토큰으로 스냅하면 아이콘 모양이 바뀐다. */
 .drawer-handle-bars{display:flex;flex-direction:column;gap:3px;width:18px;flex:none}
 .drawer-handle-bars i{height:2px;border-radius:var(--radius-bar);background:var(--ink)}
 /* 지금 어느 사업인지는 드로어를 열지 않고도 보여야 한다 — 사업이 메뉴의 범위를 정하기 때문이다.
    민트 계열은 '사람·소속' 축이라 사업 라벨이 여기 든다(D34). */
-.drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:var(--text-sm);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drawer-scrim{position:fixed;inset:0;background:var(--scrim);z-index:calc(var(--z-modal) - 1)}
-.drawer-close{display:none;width:100%;min-height:var(--control-height);margin-top:var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:700;cursor:pointer}
+.drawer-close{display:none;width:100%;min-height:var(--control-height);margin-top:var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 /* ── 페이지 셸 ── 장폭·여백의 유일한 주인(2026-07-26). 값은 design/tokens.css 에만 있다.
    width:100% 가 핵심이다 — .page-content 는 .app-shell 의 **그리드 아이템**이고 auto 마진을
    갖고 있어서, 폭을 명시하지 않으면 트랙을 채우지 않고 내용 크기로 줄어든다. 그래서 이전에는
@@ -139,7 +150,7 @@ button,input,select,textarea{font:inherit}
 /* 형제 선택자라 뒤로가기 줄이 있는 화면에만 걸린다 — 공개 화면(셸 없음)은 그대로다. */
 .page-backbar+.page-content{padding-top:var(--space-4)}
 /* 고스트 버튼 계약(§5): 배경·테두리 없음, --sub 글자. 되돌리기는 주 행동이 아니다. */
-.page-back{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-2);margin-left:calc(var(--space-2) * -1);border:0;border-radius:var(--radius-control);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:700;cursor:pointer}
+.page-back{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-2);margin-left:calc(var(--space-2) * -1);border:0;border-radius:var(--radius-control);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 @media (hover:hover){.page-back:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}}
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 .page-header{display:flex;justify-content:space-between;gap:var(--space-6);align-items:flex-start}
@@ -157,7 +168,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 /* 레거시 화면의 떠 있는 표면들도 카드 계약을 쓴다(§5). 기본 테두리는 **회색 --line** 이고,
    그라데이션 테두리는 선택·활성일 때만 쓴다(2026-07-26 Q 지적 · pen 실측). 채움은
    --surface-fill 로만 바꾼다 — 선택 상태는 배경 2겹이라 background 를 통째로 덮으면 테두리가 날아간다. */
-.panel,.detail-link,.settings-section,.schedule-form{
+.panel,.settings-section,.schedule-form{
   --surface-fill:var(--panel);
   border:1px solid var(--line);
   border-radius:var(--radius-card);
@@ -165,19 +176,17 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
   box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
-.detail-link:hover{--surface-fill:var(--muted)}
-.panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:700}
+.panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다. */
-.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:700}
+.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* 주의·대기·미완료는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .warning{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
 .risk{border-color:transparent;background:var(--risk-tint-solid);color:var(--risk)}
 .panel{padding:var(--space-6)}
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
-.detail-link{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-5);padding:var(--space-5) var(--space-6);font-weight:700}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
-.field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:700;color:var(--sub)}
+.field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .field input,.field select,.field textarea{width:100%;min-height:var(--control-height);padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:400}
 /* 라디오·체크박스는 텍스트 칸이 아니다. 위 규칙의 width:100% 를 그대로 먹으면 동그라미가
    칸을 가로질러 늘어나고 라벨이 아래 줄로 밀려난다 — 선택지가 세로로 한 글자씩 쪼개져
@@ -225,7 +234,7 @@ const participantStyles = `
 /* 정보 라벨은 민트 계열(사람·소속). */
 /* 상태 점은 시간·상태 축이라 블루. 종료·취소는 색이 아니라 문구가 구분한다(색 하나에 기대지 않는다). */
 /* 오류는 --risk 글자 + 메시지 텍스트로 알린다. 색만으로 알리지 않는다(§5 입력 오류·§9 완화). */
-[role="alert"]{color:var(--risk);font-weight:700}
+[role="alert"]{color:var(--risk);font-weight:600}
 [role="status"][aria-live],[aria-live="polite"]{min-height:1.5em}
 /* 브레이크포인트는 767 하나다(D37 §4-4 · 락 11) — 구 768/359 두 벌을 합쳤다. 359 이하에서
    1열로 더 접던 단계는 사라지고 좁은 휴대폰에서도 2열로 남는다(필드가 짧고 min-width:0 ·
@@ -241,25 +250,27 @@ const briefingStyles = `
    섞이지 않게 아래 툴바와 분리한다. 간격 4의 배수만 쓴다(D30 존치 규칙). */
 /* 이름 줄이 위로 올라가면서 툴바에는 토글만 남는다 — 오른쪽 정렬. */
 .briefing-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-/* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + --gradient-brand 1.5px 균일 테두리.
+/* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + **--risk 단색 1.5px 균일 테두리**
+   (2026-08-02 D58/CCC-51 — 구 --gradient-brand. 세컨더리 버튼이 브랜드 그라데이션
+   아웃라인을 갖게 되어, 배너는 위험 버튼과 같은 "빨강 테두리 = 위험" 축으로 옮겼다).
    좌측 액센트 띠(border-left 두께 강조)는 금지 패턴이다 — 병합으로 되살아난 것을 걷었다(이슈 #49).
    배너가 서는 것은 테두리가 아니라 위치(HERO 바로 아래)·배경 틴트·아이콘이다.
    --risk 대비가 2.72 라 색 하나에 기대지 않는다: 아이콘·문구·고정 위치·접힘 불가 4중 신호(§9). */
 .risk-banner{
   padding:var(--space-5) var(--space-6);
-  border:1.5px solid transparent;
+  border:1.5px solid var(--risk);
   border-radius:var(--radius-card);
-  background:linear-gradient(var(--risk-tint-solid),var(--risk-tint-solid)) padding-box,var(--gradient-brand) border-box;
+  background:var(--risk-tint-solid);
   box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
 .risk-banner-head{display:flex;align-items:center;gap:var(--space-2)}
 .risk-banner-icon{flex:none;width:18px;height:18px;color:var(--risk)}
-.risk-banner-title{margin:0;font-size:var(--text-md);font-weight:700;color:var(--risk)}
+.risk-banner-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--risk)}
 /* 항목은 흰 배경 행(radius 6 · --shadow-soft)에 체크박스 + 16/700 --ink. */
 .risk-banner-list{margin:var(--space-3) 0 0;padding:0;display:grid;gap:var(--space-2);list-style:none}
-.risk-banner-list li{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--panel);box-shadow:var(--shadow-soft);color:var(--ink);font-size:var(--text-md);font-weight:700}
-.risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:700;font-size:var(--text-sm)}
+.risk-banner-list li{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--panel);box-shadow:var(--shadow-soft);color:var(--ink);font-size:var(--text-md);font-weight:600}
+.risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:600;font-size:var(--text-sm)}
 /* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
    1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
 .briefing-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));gap:var(--space-5);align-items:start}
@@ -276,7 +287,7 @@ const briefingStyles = `
   box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
-.briefing-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);font-size:var(--text-lg);font-weight:700;cursor:pointer;list-style:none}
+.briefing-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);font-size:var(--text-lg);font-weight:600;cursor:pointer;list-style:none}
 .briefing-card-summary::-webkit-details-marker{display:none}
 .briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
 /* 자식 결합자(>)로 두면 GAS 요약처럼 화살표를 배지와 함께 감싼 경우 회전이 안 먹어
@@ -308,34 +319,33 @@ const briefingStyles = `
    안쪽 가로 배치만 정한다. 점수·게이지 자리는 없다(D43). */
 .briefing-goal{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6)}
 .briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
-.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
 .briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 /* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
 .briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);color:var(--ink)}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
 /* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
-.briefing-more{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-5) var(--space-6)}
-.briefing-more:hover{--surface-fill:var(--muted)}
-.briefing-more-title{display:block;font-size:var(--text-md);font-weight:700;color:var(--ink)}
-.briefing-more-desc{display:block;margin-top:var(--space-1);font-size:var(--text-sm);color:var(--sub)}
+/* 브리핑 이어보기는 알약 버튼이 됐다(D58/CCC-51 — 구 카드형). 그리드 아이템이라 폭이
+   늘어나는 것만 막고(가운데 자리), 나머지는 .wire-button 계약 그대로다. */
+.briefing-more{justify-self:center}
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. */
 .briefing-qsection{display:grid;gap:var(--space-2)}
-.briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
+.briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 /* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층. */
 .briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
 .briefing-suggestion{display:grid;gap:var(--space-1)}
-.briefing-suggestion-title{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.briefing-suggestion-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .briefing-suggestion-reason{margin:0;font-size:var(--text-sm);color:var(--sub)}
-.briefing-suggestion-link{justify-self:start;font-size:var(--text-sm);font-weight:700;color:var(--ink);text-decoration:underline}
+.briefing-suggestion-link{justify-self:start;font-size:var(--text-sm);font-weight:600;color:var(--ink);text-decoration:underline}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
 .briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
 .briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
-.briefing-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
+.briefing-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .briefing-history>.briefing-qsection{margin-top:var(--space-4)}
 /* 배지·메타·빈 상태(§5 상태 배지). */
-.briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
+.briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .briefing-badge.is-approved{border-color:transparent;background:var(--mint-tint);color:var(--mint-deep)}
 /* 승인 대기는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .briefing-badge.is-pending{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
@@ -355,13 +365,15 @@ const briefingStyles = `
 /* 접힌 줄 = 펼친 카드의 머리. 두 상태가 같은 줄이라 자리가 안 흔들린다. */
 .record-summary{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);cursor:pointer;list-style:none}
 .record-summary::-webkit-details-marker{display:none}
-.record-summary:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 카드가 overflow:clip 이라(그라데이션 테두리 하단 라운드 버그 수리, wire-styles 참조)
+   바깥 링은 잘린다 — 안쪽 링으로 바꾼다. */
+.record-summary:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
 .record-chevron{flex:none;width:12px;font-size:var(--text-sm);color:var(--sub)}
-.record-ordinal{flex:none;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.record-ordinal{flex:none;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-held-at{flex:none;font-size:var(--text-md);color:var(--sub)}
 /* 유형 칩 — 시간·상태 축이라 블루 tint. 글자는 --ink 다: 읽어야 하는 값이라 §9 의
    '보조 정보 한정' 대비 예외를 쓰지 않는다. 인테이크도 같은 블루이고 구분은 글자가 한다. */
-.record-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:700;color:var(--ink)}
+.record-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). */
 .record-one-liner{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);color:var(--ink)}
 .record-one-liner.is-memo{color:var(--sub)}
@@ -370,31 +382,31 @@ const briefingStyles = `
    남는 자리는 카드 안쪽 구분선뿐이다). */
 .record-body{border-top:1px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-brand) border-box;display:grid;gap:var(--space-5);padding:var(--space-5) var(--space-6)}
 .record-block{display:grid;gap:var(--space-2)}
-.record-block>h3{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.record-block>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-block>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap}
 .record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
 .record-block li{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);font-size:var(--text-md);color:var(--ink)}
 /* '이번 상담의 목표' — GAS 가 있던 자리(D47 §2). 실무자가 정한 것이라 사람 축(민트)이다.
    재료가 없으면 이 블록 자체를 그리지 않는다 — 빈 블록은 뺀 자리를 다시 빈칸으로 만든다. */
 .record-session-goal{display:grid;gap:var(--space-1);border-radius:var(--radius-control);background:var(--mint-tint);padding:var(--space-3) var(--space-4)}
-.record-session-goal-label{font-size:var(--text-sm);font-weight:700;color:var(--mint-deep)}
+.record-session-goal-label{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-session-goal p{margin:0;font-size:var(--text-md);color:var(--ink)}
 /* 담당 칩 — 사람·소속 축(민트). 글자는 --ink(위 유형 칩과 같은 이유). */
-.record-owner{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--mint-tint);font-size:var(--text-sm);font-weight:700;color:var(--ink)}
+.record-owner{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--mint-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 /* AI 출처 칩 — AI 축(라벤더). 곁다리로 읽는 값이라 deep 글자가 남는 자리다(§9 예외). */
-.record-ai-source{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:var(--text-sm);font-weight:700;color:var(--lavender-deep)}
+.record-ai-source{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:var(--text-sm);font-weight:600;color:var(--lavender-deep)}
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
 /* 리스크 레드는 **확인된** 플래그에만(D9·D34). 조회 API 가 확인된 것만 내려보내지만,
    색을 상태에 걸어 두면 나중에 범위가 넓어져도 규율이 깨지지 않는다. */
-.record-flag{font-weight:700;color:var(--sub)}
+.record-flag{font-weight:600;color:var(--sub)}
 .record-flag[data-confirmed="true"]{color:var(--risk)}
 .record-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-4);border-top:1px solid var(--line);padding:var(--space-3) var(--space-6);font-size:var(--text-sm);color:var(--sub)}
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
 .record-goal{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;padding:var(--space-4) var(--space-6)}
-.record-goal-label{flex:none;font-size:var(--text-sm);font-weight:700;color:var(--mint-deep)}
-.record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
+.record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
-.record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-lg);font-weight:700;color:var(--ink)}
+.record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-lg);font-weight:600;color:var(--ink)}
 @media (max-width:767px){
   /* 좁으면 한 줄이 무너지므로 핵심 한 줄을 아래로 내린다(리스트 행 계약과 같은 접힘). */
   .record-summary{flex-wrap:wrap}
@@ -417,16 +429,16 @@ const settingsStyles = `
 .settings-account{display:grid;gap:var(--space-4);margin:0}
 .settings-field{display:grid;gap:var(--space-1)}
 /* 사람 정보 라벨은 민트 계열. */
-.settings-field dt{color:var(--mint-deep);font-size:var(--text-sm);font-weight:700}
-.settings-field dd{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:700;overflow-wrap:anywhere}
+.settings-field dt{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
+.settings-field dd{margin:0;color:var(--ink);font-size:var(--text-md);font-weight:600;overflow-wrap:anywhere}
 /* 실무자 목록은 카드(.settings-section) 안에 있으므로 행마다 테두리를 두르지 않고
    --line 구분선으로 나눈다(§5 리스트 행). 카드 안에 카드를 넣으면 경계가 두 겹으로 겹친다. */
 .settings-user-list{display:grid;margin:0;padding:0;list-style:none}
 .settings-user-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:var(--space-3);align-items:center;min-height:52px;padding:var(--space-3) var(--space-2);border-bottom:1px solid var(--line)}
 .settings-user-row:last-child{border-bottom:0}
-.settings-user-email{overflow-wrap:anywhere;font-weight:700}
-.settings-user-role{color:var(--sub);font-size:var(--text-sm);font-weight:700}
-.settings-user-status{display:inline-flex;align-items:center;width:max-content;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:700}
+.settings-user-email{overflow-wrap:anywhere;font-weight:600}
+.settings-user-role{color:var(--sub);font-size:var(--text-sm);font-weight:600}
+.settings-user-status{display:inline-flex;align-items:center;width:max-content;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:600}
 .settings-user-row[data-active="false"]{opacity:.6}
 @media(max-width:767px){.settings-user-row{grid-template-columns:1fr;gap:var(--space-1)}.settings-user-role,.settings-user-status{justify-self:start}}
 `;
@@ -436,11 +448,11 @@ const scheduleStyles = `
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-sm)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
-.schedule-form-notice{color:var(--ink);font-weight:700}
-.schedule-form-error{color:var(--risk);font-weight:700}
+.schedule-form-notice{color:var(--ink);font-weight:600}
+.schedule-form-error{color:var(--risk);font-weight:600}
 .consent-fieldset{display:grid;gap:var(--space-3);margin:0;padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card)}
-.consent-fieldset legend{padding:0 var(--space-1-5);font-weight:700;font-size:var(--text-sm);color:var(--sub)}
-.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:700}
+.consent-fieldset legend{padding:0 var(--space-1-5);font-weight:600;font-size:var(--text-sm);color:var(--sub)}
+.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
    리스크 변형(테두리만 --risk)을 덮어써 버린다 — 실제로 그 버그를 겪어 규칙을 한 곳으로 모았다. */
 .consent-checkbox input[type="checkbox"]:not(.wire-checkbox){width:18px;height:18px}
@@ -455,11 +467,11 @@ const scheduleStyles = `
 const monthScheduleStyles = `
 /* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
-.month-nav-label{min-width:9ch;font-size:var(--text-md);font-weight:700;color:var(--ink);text-align:center}
+.month-nav-label{min-width:9ch;font-size:var(--text-md);font-weight:600;color:var(--ink);text-align:center}
 /* 하루 묶음. 날짜 제목 + 그 아래 붙은 행들 — 행이 붙어 있으므로 카드 계약이 아니라
    행 사이 1px --line 구분선을 쓴다(DESIGN.md §5 '리스트 행'의 맥락 규칙). */
 .month-day{display:grid;gap:var(--space-3)}
-.month-day-title{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.month-day-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .month-day-title[data-today="true"]{color:var(--blue-deep)}
 .month-rows{display:grid;overflow:hidden;border-radius:var(--radius-card);border:1px solid var(--line);background:var(--panel)}
 .month-rows>*+*{border-top:1px solid var(--line)}
@@ -467,18 +479,18 @@ const monthScheduleStyles = `
 @media (hover:hover){.month-row:hover{background:var(--muted)}}
 .month-row:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
 /* 시간은 고정폭으로 세로 정렬을 맞춘다(§5 리스트 행: 시간 16/700 고정폭 → 이름 묶음). */
-.month-row-time{flex:none;min-width:6ch;font-size:var(--text-md);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.month-row-time{flex:none;min-width:6ch;font-size:var(--text-md);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 /* 이름 묶음 — '이름 (가명 ID)' 한 줄, 띄어쓰기는 문자열이 아니라 간격이 만든다(§5 이름 표기).
    이 블록은 템플릿 문자열이라 주석에도 백틱을 쓸 수 없다 — 쓰면 문자열이 거기서 끝난다. */
 .month-row-name{display:flex;align-items:baseline;gap:var(--space-1);min-width:0;flex:1}
-.month-row-name b{font-size:var(--text-md);font-weight:700;color:var(--ink);white-space:nowrap}
+.month-row-name b{font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
 .month-row-name span{font-size:var(--text-md);font-weight:400;color:var(--sub);white-space:nowrap}
 .month-row-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
 /* 유형 칩 — 블루 tint + --ink 글자(D47 계열 칩 ①: 읽어야 하는 값이라 deep 을 쓰지 않는다). */
-.month-row-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:700;color:var(--ink)}
+.month-row-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 /* 상태는 지난 일정에만 붙는다(예정은 붙이지 않는다 — 대부분이 예정이라 전부 붙으면 소음이다).
    무채색 기본 배지다: 취소·불참은 경고가 아니라 사실이고, 리스크 색은 확인된 플래그 전용이다(D9). */
-.month-row-status{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:700;color:var(--sub)}
+.month-row-status{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 @media (max-width:767px){
   /* §5 모바일: 리스트 행은 시간+이름 / 메타 / 배지 3줄로 접힌다. */
   .month-row{flex-wrap:wrap}
@@ -506,13 +518,13 @@ const registerStyles = `
 .wire-invite-stack .wire-button{justify-self:start}
 /* D15·D23: 동의 문안 "자세히 읽어보기" — briefing-subaccordion 패턴 재사용. */
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
-.consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+.consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
 .consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:rotate(45deg)}
 .consent-detail-body{display:grid;gap:var(--space-4);padding-top:var(--space-3)}
-.consent-detail-disclaimer{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
+.consent-detail-disclaimer{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .consent-detail-section{display:grid;gap:var(--space-1-5)}
-.consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .consent-detail-section p,.consent-detail-section li{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .consent-detail-section ul{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1-5)}
 /* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
@@ -520,7 +532,7 @@ const registerStyles = `
 .onboarding-form{display:grid;margin-top:var(--space-8)}
 .onboarding-card{display:grid;gap:var(--space-4);padding:var(--space-6)}
 .onboarding-card h2{margin:0}
-.onboarding-step{margin:0;justify-self:start;padding:var(--space-0-5) var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:var(--text-sm);font-weight:700}
+.onboarding-step{margin:0;justify-self:start;padding:var(--space-0-5) var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:var(--text-sm);font-weight:600}
 .onboarding-help{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .onboarding-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-2)}
 `;
@@ -551,9 +563,9 @@ const recordFormStyles = `
 .record-sticky{position:sticky;top:0;z-index:var(--z-sticky);display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
 .record-sticky-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:var(--space-3) var(--space-4)}
 .record-sticky-row>div:first-child{min-width:0;flex:1 1 240px}
-.record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:700;color:var(--sub)}
-.record-sticky-value{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
-.record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+.record-sticky-value{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 나가기·저장(2026-07-31 Q). 이 둘은 원래 화면 양 끝에 흩어져 있었다 — 나가기는 제목 옆에서
    아무것과도 묶이지 않았고, 저장은 폼 맨 아래라 스크롤을 끝까지 내려야 보였다.
    고정 헤더에 함께 두면 어느 위치에서 쓰든 나가는 길과 저장이 늘 같은 자리에 있다.
@@ -561,7 +573,7 @@ const recordFormStyles = `
 .record-sticky-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);flex:none}
 .record-sticky-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .record-accordion{padding:var(--space-4) var(--space-5)}
-.record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+.record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .record-accordion-summary::-webkit-details-marker{display:none}
 .record-accordion-body{display:grid;gap:var(--space-4);padding-top:var(--space-4)}
 /* 위기 영역은 확인된 리스크와 같은 축이므로 --risk 균일 테두리 + 배경 틴트로 표시한다(D9). */
@@ -571,9 +583,9 @@ const recordFormStyles = `
 .record-accordion.is-crisis{--surface-fill:var(--risk-tint-solid);border:1.5px solid var(--risk);background:var(--risk-tint-solid);padding:15px 19px}
 .record-accordion.is-crisis .record-accordion-summary{color:var(--risk)}
 .record-rail{position:sticky;top:0;display:grid;gap:var(--space-2);padding:var(--space-4)}
-.record-rail-count{margin:0;font-size:var(--text-md);font-weight:700;color:var(--ink)}
+.record-rail-count{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);color:var(--sub)}
-.record-rail-list li[data-done="true"]{color:var(--ink);font-weight:700}
+.record-rail-list li[data-done="true"]{color:var(--ink);font-weight:600}
 .record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 /* 레일 해제는 **컨테이너 질의**로 한다(§4-2). 화면 폭으로 풀면 사이드바 240 이 있는 768~900 에서
    본문이 228px 로 짓눌린다 — 2026-07-26 에 900 으로 잡아 뒀던 이유이자, 브레이크포인트를 767 하나로

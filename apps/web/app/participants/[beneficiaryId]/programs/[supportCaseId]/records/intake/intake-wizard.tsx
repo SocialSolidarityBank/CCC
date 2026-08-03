@@ -118,12 +118,12 @@ const ADDITIONAL_COLUMNS: readonly ColumnSpec[] = [
 ];
 
 const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
-const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--ink)' };
-const subHeadingStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--ink)' };
+const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };
+const subHeadingStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' };
 // 입력 라벨은 값 위에 두고 14/700 --sub 로 쓴다(DESIGN.md §9 완화).
-const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--sub)' };
+const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
 const captionStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
-const errorStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--risk)' };
+const errorStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--risk)' };
 const inputStyle: CSSProperties = {
   width: '100%', minHeight: 'var(--control-height)', padding: '0 var(--space-3)', background: 'var(--panel)',
   border: '1px solid var(--line-control)', borderRadius: 'var(--radius-control)', color: 'var(--ink)', fontSize: 16,
@@ -648,7 +648,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   // 현재 단계는 시간·진행 축이므로 블루 계열이다(§1-5 배정표).
                   background: step === stepNumber ? 'var(--blue-tint)' : 'transparent',
                   color: step === stepNumber ? 'var(--blue-deep)' : 'var(--ink)',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
                 }}
               >
                 <span>{mark} {stepNumber}. {title}</span>

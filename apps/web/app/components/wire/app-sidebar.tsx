@@ -68,8 +68,10 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logou
       return <svg {...common}><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /></svg>;
     case 'participants':
       return <svg {...common}><circle cx="8" cy="5.5" r="2.5" /><path d="M3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4" /></svg>;
+    // 설정은 톱니(원+방사선)가 아니라 **슬라이더**다(2026-08-02 CCC-52) — 방사선 톱니는
+    // 16px 에서 해(라이트 모드) 아이콘과 같은 모양으로 렌더돼 테마 항목과 겹쳐 보였다.
     case 'settings':
-      return <svg {...common}><circle cx="8" cy="8" r="2.5" /><path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8L3.4 3.4" /></svg>;
+      return <svg {...common}><path d="M2.5 4.5h5.2M12.3 4.5h1.2M2.5 11.5h1.2M7.3 11.5h6.2" /><circle cx="10.2" cy="4.5" r="1.9" /><circle cx="5.4" cy="11.5" r="1.9" /></svg>;
     case 'org':
       return <svg {...common}><path d="M8 1.8l5.4 3.1v6.2L8 14.2 2.6 11.1V4.9z" /></svg>;
     case 'logout':
@@ -85,17 +87,15 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logou
  * 팝오버 방식은 date-picker-control.tsx 의 것을 그대로 따른다(바깥 pointerdown 으로 닫기 +
  * Escape 로 닫고 **초점을 버튼으로 되돌리기**). 새 상호작용을 발명하지 않는다.
  *
- * 사업이 1개뿐이면 버튼이 아니라 글자로 남긴다 — 눌러도 자기 자신뿐인 목록을 여는 것은
- * 누를 데가 있다고 알려 놓고 아무 일도 안 하는 것이라 화살표를 두지 않던 기존 판단과 같다.
+ * 사업이 1개뿐이어도 **선택창이다**(2026-08-03 Q 지시 — 구 '1개면 글자' 판단 대체).
+ * 늘 같은 자리가 같은 컨트롤이어야 사업이 늘었을 때 조작법이 바뀌지 않는다.
  */
 function ProgramSwitcher({
   activeProgram,
   programLabels,
-  switchable,
 }: {
   activeProgram: ParticipantProgramType;
   programLabels: Record<ParticipantProgramType, string>;
-  switchable: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -119,15 +119,6 @@ function ProgramSwitcher({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [open]);
-
-  if (!switchable) {
-    return (
-      <div className="program-switcher">
-        <p className="program-switcher-label">사업</p>
-        <p className="program-switcher-name" aria-current="true">{programLabels[activeProgram]}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="program-switcher" ref={rootRef}>
@@ -259,7 +250,6 @@ export function AppSidebar({
   const menu = programMenu(activeProgram);
   // 사업이 1개인 동안은 드롭다운 없이 라벨만이다 — 누를 데가 없는 화살표를 두지 않는다.
   // 2개부터 전환기 형태를 정한다(ADR-0014 개정 1번, 미결이나 착수를 막지 않음).
-  const switchable = PROGRAM_TYPES.length > 1;
 
   const navigation = (
     <ul className="navigation-list">
@@ -341,7 +331,6 @@ export function AppSidebar({
         <ProgramSwitcher
           activeProgram={activeProgram}
           programLabels={programLabels}
-          switchable={switchable}
         />
         {navigation}
         <div className="sidebar-footer">

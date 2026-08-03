@@ -25,7 +25,7 @@ const TARGETS = [
 
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
-const WEIGHTS = ['400', '700'];
+const WEIGHTS = ['400', '600']; // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림
 
 const tokensSrc = readFileSync(TOKENS, 'utf8');
 // :root 및 그 변형(:root[data-contrast="high"])에서 선언된 이름을 모은다.
@@ -69,6 +69,9 @@ for (const file of TARGETS) {
     for (const m of line.matchAll(/var\((--[a-z0-9-]+)/g)) {
       const name = m[1];
       if (name === '--surface-fill') continue;
+      // .wire-button 이 규칙 안에서 만드는 지역 변수(CCC-51) — 그라데이션 테두리 2겹의
+      // 채움을 호버가 background 대신 이 변수로 바꾼다(--surface-fill 과 같은 패턴).
+      if (name === '--button-fill') continue;
       if (name.startsWith('--rdp-')) continue; // react-day-picker 라이브러리 소유
       if (!defined.has(name)) add(file, n, 'undefined-token', `${name} 는 design/tokens.css 에 없다`);
     }
@@ -83,9 +86,9 @@ for (const file of TARGETS) {
       add(file, n, 'raw-font-size', `font-size:${m[1]}px — 계단은 ${TEXT_STEPS.join(' · ')} 다섯뿐이다`);
     }
 
-    // 4) font-weight — 400·700 두 단계뿐(DESIGN.md §2). 토큰 대신 값을 직접 검사한다.
+    // 4) font-weight — 400·600 두 단계뿐(DESIGN.md §2, 2026-08-03 개정). 토큰 대신 값을 직접 검사한다.
     for (const m of line.matchAll(/font-weight:\s*([0-9]+)/g)) {
-      if (!WEIGHTS.includes(m[1])) add(file, n, 'font-weight-step', `font-weight:${m[1]} — 400 과 700 두 단계만 쓴다`);
+      if (!WEIGHTS.includes(m[1])) add(file, n, 'font-weight-step', `font-weight:${m[1]} — 400 과 600 두 단계만 쓴다`);
     }
 
     // 5) 간격 리터럴 — /* optical: */ 로 사유를 적지 않은 px 는 위반.
@@ -134,6 +137,10 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'wire-card-section',   // §5 카드 안 하위 구획
   'wire-col-3', 'wire-col-12', // 12칼럼 세트(4·6·8 은 사용 중)
   'is-approved',         // §5 계열 배지 '승인됨' 변형
+  // §6 모션 3종(D58/ADR-0028): 어휘 정의는 CCC-50, 배선은 CCC-51·CCC-53 몫
+  'motion-flow',
+  'motion-press',
+  'motion-rise',
 ]);
 
 const markupFiles = [];

@@ -19,7 +19,8 @@ export interface WireButtonProps {
   variant?: WireButtonVariant;
   /** 높이 축(§5 · 2026-07-26 Q 결정): md = 40px(기본), sm = 32px. 색 규칙은 동일하다. */
   height?: 'md' | 'sm';
-  /** 텍스트 정렬. 기본 left. 체브론이 있으면 텍스트 좌측·체브론 우측으로 배치된다. */
+  /** 텍스트 정렬. 기본 center(2026-08-02 D58 — 구 left 기본은 버그). 체브론이 있으면
+   *  텍스트 좌측·체브론 우측으로 배치된다. */
   align?: 'left' | 'center';
   /** 우측 체브론 표시. */
   chevron?: boolean;
@@ -44,7 +45,7 @@ export function WireButton({
   size = 'small',
   variant,
   height = 'md',
-  align = 'left',
+  align = 'center',
   chevron = false,
   disabled = false,
   href,
@@ -55,7 +56,7 @@ export function WireButton({
   className,
 }: WireButtonProps) {
   const resolvedVariant: WireButtonVariant = variant ?? (size === 'large' ? 'primary' : 'secondary');
-  const justify = chevron ? 'between' : align === 'center' ? 'center' : 'left';
+  const justify = chevron ? 'between' : align;
   const classes = ['wire-button', className].filter(Boolean).join(' ');
   const inner = (
     <>

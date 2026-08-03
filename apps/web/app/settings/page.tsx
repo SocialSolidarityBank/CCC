@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ApiError, getMyIdentity, listOrgUsers, type DirectoryRole, type DirectoryUser, type MyIdentity } from '../lib/api';
 import { PageTitle } from '../components/wire/page-title';
+import { WireButton } from '../components/wire/wire-button';
 import { adminMenu, userLabel } from '../admin/admin-format';
 
 // 역할 화면 라벨 — CONTEXT.md 용어집 준수(기관 관리자·담당 실무자). service는 처리 장비(Mac Mini) 계정.
@@ -96,7 +97,7 @@ export function AdminSection() {
       <ul className="settings-user-list">
         {links.map((item) => (
           <li key={item.href} className="settings-user-row">
-            <Link href={item.href}>{item.label}</Link>
+            <WireButton variant="secondary" height="sm" href={item.href}>{item.label}</WireButton>
           </li>
         ))}
       </ul>

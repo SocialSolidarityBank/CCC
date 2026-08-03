@@ -24,7 +24,7 @@ const noticeStyle: CSSProperties = {
   borderRadius: 'var(--radius-card)',
 };
 
-const titleStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--ink)' };
+const titleStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' };
 const bodyStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
 const actionsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
 

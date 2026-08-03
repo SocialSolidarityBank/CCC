@@ -68,6 +68,9 @@
   --gradient-brand-v: linear-gradient(180deg, #8ED9B8 0%, #CBA8E2 100%); /* 세로선용 */
   --gradient-deep:    linear-gradient(180deg, #56CC99 0%, #C890F0 100%); /* deep 쌍 — 체크박스 테두리 */
   --gradient-action:  linear-gradient(135deg, #A8E3C6 0%, #D1B3E3 100%); /* 프라이머리 버튼 배경 */
+  --gradient-hover:   linear-gradient(90deg, #E7EEF8 0%, #F2E7F7 100%);  /* 리스트 행 호버 — tint 쌍
+                                                 * (2026-08-03 Q 결정, 6번째. 선택의 --gradient-action
+                                                 * 보다 연해 '지나가는 중'과 '고른 것'이 갈린다) */
 
   /* ── 경계 (CSS 전용 합성값) ── */
   --line-action: rgba(61, 52, 69, 0.5); /* 프라이머리 버튼 1px 아웃라인 (#3D344580) */
@@ -111,7 +114,7 @@
   --list-indent: 18px;
 
   /* ── 레이아웃 ── */
-  --sidebar-width: 240px;
+  --sidebar-width: 280px; /* 2026-08-02 D58/ADR-0028 — 구 240. §4-1 재계산: 1440에서 본문 영역 1160, 컨테이너 1120, 잔여 좌우 20 */
 
   /* 페이지 셸 — 장폭·여백의 **유일한 주인**이다(2026-07-26).
    * 이전에는 .page-content(1280) · .narrow(960) · .today-page(960) · .wire-container(고정 거터
@@ -140,7 +143,20 @@
   --z-dropdown: 30;
   --z-modal: 100;
 
+  /* ── 모션 (2026-08-02 D58/ADR-0028 · DESIGN.md §6) ──
+   * 시간 2단 + 이징 1종이 전부다 — 이 밖의 duration·easing 은 위반.
+   * 흐름(호버 그라데이션 이동)의 반복 주기만 별도 토큰 하나를 갖는다: 120·200ms 로 반복하면
+   * 점멸로 보이고, 반복 주기는 전환 시간이 아니라 흐름의 정의 자체이기 때문이다. */
+  --motion-fast: 120ms;         /* 눌림 · 호버 워시 */
+  --motion-base: 200ms;         /* 흐름 진입 · 떠오름 */
+  --motion-flow-period: 1600ms; /* 흐름 반복 주기 (호버 동안만) */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
   /* ── 타이포 ── */
+  /* 한글 광학 보정(2026-08-03 Q 관찰): 한글은 베이스라인 아래 획이 없어(영문 g·y 공간)
+   * 고정 높이 컨트롤에서 글자가 위로 떠 보인다. 단일행 컨트롤의 텍스트만 이만큼 내린다.
+   * 값의 지위는 [도출]·잠정 — Q 가 눈으로 덮어쓸 수 있다. 여러 줄 본문에는 걸지 않는다. */
+  --nudge-hangul: 0.045em;
   --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   /* 트래킹은 pen에 변수로 존재하지 않는다 — Pencil은 자간을 px로만 받아 em 하나로 묶이지 않는다.
    * 코드 구현에서는 아래 두 값만 쓴다. */
@@ -168,9 +184,9 @@
   --leading-body:    1.55;  /* 읽는 본문(body 기본값) */
   --leading-relaxed: 1.6;   /* 여러 줄 입력칸 */
 
-  /* 굵기는 400·700 두 단계뿐이다(DESIGN.md §2). 토큰으로 치환하지 않고 **감사 스크립트가
-   * 원시값을 직접 검사한다**(scripts/design/token-audit.mjs) — 400/700 은 그 자체로 읽히는
-   * 값이라 이름을 붙여도 읽는 사람이 얻는 것이 없고, 막아야 하는 것은 '500 이 새로 들어오는
+  /* 굵기는 400·600 두 단계뿐이다(DESIGN.md §2, 2026-08-03 개정). 토큰으로 치환하지 않고 **감사 스크립트가
+   * 원시값을 직접 검사한다**(scripts/design/token-audit.mjs) — 400/600 은 그 자체로 읽히는
+   * 값이라 이름을 붙여도 읽는 사람이 얻는 것이 없고, 막아야 하는 것은 '계단 밖 값이 새로 들어오는
    * 일' 인데 그건 토큰이 아니라 검사가 막는다. */
 }
 
@@ -266,6 +282,7 @@
    * **action 만은 일부러 라이트와 동일하다** — 위 ③. */
   --gradient-sidebar: linear-gradient(180deg, #1E2A38 0%, #172A22 50%, #281E33 100%);
   --gradient-deep:    linear-gradient(180deg, #7FDCB4 0%, #D6AFF3 100%);
+  --gradient-hover:   linear-gradient(90deg, #1E2A38 0%, #281E33 100%); /* 다크 tint 쌍 */
 
   /* 잉크 알파 — --ink 가 뒤집혔으므로 알파 조합도 다시 선언한다. */
   --line-action:  rgba(242, 239, 244, 0.45);

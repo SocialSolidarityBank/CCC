@@ -14,15 +14,15 @@ const noticeStyle: CSSProperties = {
 
 // 배너 면만 블루 tint 로 두고 글자는 --ink 다. --blue-deep 은 tint 위 2.11 이라 제목에 쓰면
 // DESIGN.md §9 의 접근성 예외가 하나 늘어난다 — 새 예외를 만들지 않는다.
-const titleStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--ink)' };
+const titleStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' };
 const bodyStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
 const actionsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
-const statusStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sub)' };
+const statusStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
 
 const buttonStyle: CSSProperties = {
   minHeight: 32, padding: '0 14px', borderRadius: 'var(--radius-control)',
   border: '1px solid var(--line-control)', background: 'var(--panel)',
-  color: 'var(--ink)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+  color: 'var(--ink)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
 };
 
 function clockLabel(savedAt: number): string {

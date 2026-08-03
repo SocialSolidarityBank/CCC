@@ -32,7 +32,7 @@ def check(label: str, ok: bool, detail: str = "") -> None:
 with sync_playwright() as p:
     browser = p.chromium.launch()
 
-    # ── 데스크톱 1440: 손잡이·스크림이 없고 사이드바가 240 으로 서 있다 ──
+    # ── 데스크톱 1440: 손잡이·스크림이 없고 사이드바가 280 으로 서 있다 (D58 — 구 240) ──
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     page.goto(f"{base}{path}", wait_until="networkidle")
     page.wait_for_timeout(400)
@@ -49,7 +49,7 @@ with sync_playwright() as p:
     }""")
     check("1440: 손잡이 바 없음 (락 8 — 상단 헤더 띠 금지)", not desk["handleShown"], str(desk))
     check("1440: 드로어 닫기 버튼 없음", not desk["closeShown"], str(desk))
-    check("1440: 사이드바 240 · 왼쪽 끝 고정", desk["sidebarWidth"] == 240 and desk["sidebarLeft"] == 0, str(desk))
+    check("1440: 사이드바 280 · 왼쪽 끝 고정", desk["sidebarWidth"] == 280 and desk["sidebarLeft"] == 0, str(desk))
     page.screenshot(path=str(out / "desktop-1440.png"))
     page.close()
 

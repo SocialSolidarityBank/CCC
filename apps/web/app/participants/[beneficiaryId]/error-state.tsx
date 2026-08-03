@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { WireButton } from '../../components/wire/wire-button';
 import { GridContainer } from '../../components/wire/grid-container';
 
 // 당사자 정보 화면의 오류 상태. 서버 컴포넌트(page.tsx)에서 쓰지만,
@@ -19,7 +19,7 @@ export function ErrorState({ kind }: { kind: ErrorKind }) {
       <GridContainer>
         <div className="page-header"><div><h1>당사자 정보</h1></div></div>
         <p className="status risk" role="alert">{errorMessages[kind]}</p>
-        <p><Link href="/participants">당사자 목록으로 돌아가기</Link></p>
+        <p><WireButton variant="secondary" href="/participants">당사자 목록으로 돌아가기</WireButton></p>
       </GridContainer>
     </main>
   );
