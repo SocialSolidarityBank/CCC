@@ -123,49 +123,53 @@ function ProgramSwitcher({
 
   return (
     <div className="program-switcher" ref={rootRef}>
+      {/* '사업' 라벨은 선택창 **밖**이다(2026-08-03 Q — 구 '카드 안 2층' 대체). 선택창은
+          흰 상자 1열이고, 드롭다운도 그 상자를 기준으로 뜬다. */}
       <p className="program-switcher-label" id={`${menuId}-label`}>사업</p>
-      {/* **listbox 가 아니라 열고 닫는 목록(disclosure)이다.** 처음에는 role="listbox" +
-          role="option" 으로 적었는데, ARIA 는 option 안에 링크 같은 조작 가능한 자식을 두는 것을
-          금지하고(둘이 같은 노드를 두고 다툰다) listbox 라고 알린 이상 화살표 이동을 기대하게
-          만든다 — 그 둘을 다 지키려면 초점 관리를 직접 구현해야 하는데, 여기서 필요한 것은
-          '누르면 그 사업으로 가는 링크 목록'뿐이다. 그래서 역할을 참칭하지 않고 링크로 남긴다.
-          현재 항목은 aria-current 로 알린다 — 메뉴 링크(navigation-link)와 같은 방식이다. */}
-      <button
-        type="button"
-        ref={buttonRef}
-        className="program-switcher-trigger"
-        aria-expanded={open}
-        aria-labelledby={`${menuId}-label ${menuId}-value`}
-        onClick={() => setOpen((previous) => !previous)}
-      >
-        <span className="program-switcher-name" id={`${menuId}-value`}>{programLabels[activeProgram]}</span>
-        {/* 방향은 늘 아래다 — Chevron 계약에 'up' 이 없고(down|right), 열림 여부는
-            aria-expanded 와 열린 목록 자체가 이미 알린다. 이 하나 때문에 공용 부품을 넓히지 않는다. */}
-        <Chevron dir="down" />
-      </button>
-      {open ? (
-        <ul className="program-switcher-menu" aria-labelledby={`${menuId}-label`}>
-          {PROGRAM_TYPES.map((type) => {
-            const selected = type === activeProgram;
-            return (
-              <li key={type}>
-                {/* 사업을 바꾸는 것은 워크스페이스를 옮기는 것이므로 그 사업의 일정으로 간다.
-                    Link 라 서버가 rememberLastProgramType 을 그 화면에서 저장한다. */}
-                <Link
-                  className="program-switcher-option"
-                  href={`/programs/${type}/schedule`}
-                  data-selected={selected ? 'true' : undefined}
-                  aria-current={selected ? 'true' : undefined}
-                  onClick={() => setOpen(false)}
-                >
-                  <span className="program-switcher-check" aria-hidden="true">{selected ? <Icon name="check" size={14} /> : null}</span>
-                  <span>{programLabels[type]}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      <div className="program-switcher-box">
+        {/* **listbox 가 아니라 열고 닫는 목록(disclosure)이다.** 처음에는 role="listbox" +
+            role="option" 으로 적었는데, ARIA 는 option 안에 링크 같은 조작 가능한 자식을 두는 것을
+            금지하고(둘이 같은 노드를 두고 다툰다) listbox 라고 알린 이상 화살표 이동을 기대하게
+            만든다 — 그 둘을 다 지키려면 초점 관리를 직접 구현해야 하는데, 여기서 필요한 것은
+            '누르면 그 사업으로 가는 링크 목록'뿐이다. 그래서 역할을 참칭하지 않고 링크로 남긴다.
+            현재 항목은 aria-current 로 알린다 — 메뉴 링크(navigation-link)와 같은 방식이다. */}
+        <button
+          type="button"
+          ref={buttonRef}
+          className="program-switcher-trigger"
+          aria-expanded={open}
+          aria-labelledby={`${menuId}-label ${menuId}-value`}
+          onClick={() => setOpen((previous) => !previous)}
+        >
+          <span className="program-switcher-name" id={`${menuId}-value`}>{programLabels[activeProgram]}</span>
+          {/* 방향은 늘 아래다 — Chevron 계약에 'up' 이 없고(down|right), 열림 여부는
+              aria-expanded 와 열린 목록 자체가 이미 알린다. 이 하나 때문에 공용 부품을 넓히지 않는다. */}
+          <Chevron dir="down" />
+        </button>
+        {open ? (
+          <ul className="program-switcher-menu" aria-labelledby={`${menuId}-label`}>
+            {PROGRAM_TYPES.map((type) => {
+              const selected = type === activeProgram;
+              return (
+                <li key={type}>
+                  {/* 사업을 바꾸는 것은 워크스페이스를 옮기는 것이므로 그 사업의 일정으로 간다.
+                      Link 라 서버가 rememberLastProgramType 을 그 화면에서 저장한다. */}
+                  <Link
+                    className="program-switcher-option"
+                    href={`/programs/${type}/schedule`}
+                    data-selected={selected ? 'true' : undefined}
+                    aria-current={selected ? 'true' : undefined}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="program-switcher-check" aria-hidden="true">{selected ? <Icon name="check" size={14} /> : null}</span>
+                    <span>{programLabels[type]}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -252,12 +256,21 @@ export function AppSidebar({
   // 사업이 1개인 동안은 드롭다운 없이 라벨만이다 — 누를 데가 없는 화살표를 두지 않는다.
   // 2개부터 전환기 형태를 정한다(ADR-0014 개정 1번, 미결이나 착수를 막지 않음).
 
+  // 하위 경로(예: 당사자 상세)에서도 그 메뉴가 활성으로 남아야 "지금 어디인지"가 유지된다.
+  // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 보고,
+  // 겹치는 후보 중 **가장 긴 href 하나만** 활성이다(2026-08-03 Q 보고 — '전체 일정'
+  // /schedule/all 에서 '다가오는 일정' /schedule 이 접두사 일치로 같이 켜져 둘이 동시
+  // 선택된 것처럼 보였다).
+  const matches = menu.filter((item) => current === item.href || current.startsWith(`${item.href}/`));
+  const activeHref = matches.reduce<string | null>(
+    (longest, item) => (longest === null || item.href.length > longest.length ? item.href : longest),
+    null,
+  );
+
   const navigation = (
     <ul className="navigation-list">
       {menu.map((item) => {
-        // 하위 경로(예: 당사자 상세)에서도 그 메뉴가 활성으로 남아야 "지금 어디인지"가 유지된다.
-        // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 본다.
-        const active = current === item.href || current.startsWith(`${item.href}/`);
+        const active = item.href === activeHref;
         return (
           <li key={item.href}>
             <Link

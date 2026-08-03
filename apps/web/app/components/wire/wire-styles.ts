@@ -90,6 +90,13 @@ details.surface-card{overflow:clip}
    시간·상태 축이라 블루다(D34). 줄바꿈하지 않는다. */
 .participant-hero-stage{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-control);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--blue-deep);white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
+/* 개인 정보 접힘(2026-08-03 Q) — 이름 줄을 누르면 이름 아래로 개인 정보 칸이 열린다.
+   상시 노출이 아니라 접힘인 이유: 연락처는 매번 보는 값이 아니고, 카드 첫인상은 이름이다. */
+.participant-hero-pii>summary{display:flex;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none}
+.participant-hero-pii>summary::-webkit-details-marker{display:none}
+.participant-hero-pii[open]>summary .briefing-card-arrow{transform:rotate(45deg)}
+/* 칸은 카드 안의 한 덩어리다 — 카드 안에 또 카드를 만들지 않고 배경만 한 톤 낮춘다(§5). */
+.participant-hero-pii-body{display:grid;gap:var(--space-2-5);margin-top:var(--space-3);padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted)}
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:var(--text-sm)}
 .note-inline a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
@@ -283,6 +290,18 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
   .wire-button:not([data-variant="ghost"]):not([data-variant="danger"]):not(:disabled):not([aria-disabled="true"]):hover{animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
   /* 선택·활성 카드 테두리도 같은 어휘로 흐른다. */
   .surface-card[data-selected="true"]:hover,.surface-card[aria-current="true"]:hover,.surface-card[open]:hover{background-size:200% auto;animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
+  /* 클릭해서 들어가는 카드의 호버(2026-08-03 Q — "다른 카드도 그라데이션") — 채움은
+     --gradient-hover(리스트 행과 같은 tint 쌍), 테두리는 --gradient-brand 아웃라인이 되어
+     같은 흐름 애니메이션을 탄다. 링크가 감싼 카드는 자동으로 잡고, 링크가 아닌 복잡한
+     카드형 div 는 data-hover-flow="true" 를 달아 같은 어휘를 쓴다. 선택·펼침 상태는
+     위 규칙(더 진한 --gradient-action 채움 없이 테두리 흐름)이 이미 갖는다. */
+  a:hover>.surface-card:not([data-selected="true"]):not([open]),
+  .surface-card[data-hover-flow="true"]:hover{
+    border-color:transparent;
+    background:var(--gradient-hover) padding-box,var(--gradient-brand) border-box;
+    background-size:200% auto;
+    animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite;
+  }
 }
 .wire-button:not(:disabled):not([aria-disabled="true"]):active{transform:translateY(1px)}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
