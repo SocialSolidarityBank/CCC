@@ -87,17 +87,15 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logou
  * 팝오버 방식은 date-picker-control.tsx 의 것을 그대로 따른다(바깥 pointerdown 으로 닫기 +
  * Escape 로 닫고 **초점을 버튼으로 되돌리기**). 새 상호작용을 발명하지 않는다.
  *
- * 사업이 1개뿐이면 버튼이 아니라 글자로 남긴다 — 눌러도 자기 자신뿐인 목록을 여는 것은
- * 누를 데가 있다고 알려 놓고 아무 일도 안 하는 것이라 화살표를 두지 않던 기존 판단과 같다.
+ * 사업이 1개뿐이어도 **선택창이다**(2026-08-03 Q 지시 — 구 '1개면 글자' 판단 대체).
+ * 늘 같은 자리가 같은 컨트롤이어야 사업이 늘었을 때 조작법이 바뀌지 않는다.
  */
 function ProgramSwitcher({
   activeProgram,
   programLabels,
-  switchable,
 }: {
   activeProgram: ParticipantProgramType;
   programLabels: Record<ParticipantProgramType, string>;
-  switchable: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -121,15 +119,6 @@ function ProgramSwitcher({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [open]);
-
-  if (!switchable) {
-    return (
-      <div className="program-switcher">
-        <p className="program-switcher-label">사업</p>
-        <p className="program-switcher-name" aria-current="true">{programLabels[activeProgram]}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="program-switcher" ref={rootRef}>
@@ -261,7 +250,6 @@ export function AppSidebar({
   const menu = programMenu(activeProgram);
   // 사업이 1개인 동안은 드롭다운 없이 라벨만이다 — 누를 데가 없는 화살표를 두지 않는다.
   // 2개부터 전환기 형태를 정한다(ADR-0014 개정 1번, 미결이나 착수를 막지 않음).
-  const switchable = PROGRAM_TYPES.length > 1;
 
   const navigation = (
     <ul className="navigation-list">
@@ -343,7 +331,6 @@ export function AppSidebar({
         <ProgramSwitcher
           activeProgram={activeProgram}
           programLabels={programLabels}
-          switchable={switchable}
         />
         {navigation}
         <div className="sidebar-footer">

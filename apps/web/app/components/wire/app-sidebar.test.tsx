@@ -53,10 +53,12 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     expect(container.querySelector('a[href="/preview"]')).toBeNull();
   });
 
-  it('사업이 1개뿐이면 전환기는 버튼이 아니다 — 눌러도 자기 자신뿐인 목록을 열지 않는다', () => {
+  it('사업이 1개뿐이어도 전환기는 선택창이다 (2026-08-03 Q — 구 "1개면 글자" 대체)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    expect(container.querySelector('.program-switcher-trigger')).toBeNull();
-    expect(container.querySelector('.program-switcher-menu')).toBeNull();
+    // 늘 같은 자리가 같은 컨트롤이어야 사업이 늘었을 때 조작법이 바뀌지 않는다.
+    const trigger = container.querySelector('.program-switcher-trigger');
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.program-switcher-name')?.textContent)
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });

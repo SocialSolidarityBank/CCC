@@ -76,12 +76,12 @@ function messageFor(status: string): string {
 }
 
 const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
-const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--ink)' };
+const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };
 // 라벨은 값 위 14/700 --sub. 입력 경계선 하나에 기대지 않기 위한 규칙이다(DESIGN.md §9).
-const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--sub)' };
+const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
 const captionStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
 // 오류는 --risk 글자 + 메시지 텍스트를 함께 둔다(§5 입력 오류).
-const errorStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--risk)' };
+const errorStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--risk)' };
 const inputStyle: CSSProperties = {
   width: '100%',
   minHeight: 'var(--control-height)',
@@ -135,7 +135,7 @@ function SessionKindPicker({
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gap: 4 }}>
         <span style={labelStyle}>상담 유형</span>
-        <strong style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>
+        <strong style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>
           {value === 'intake' ? '인테이크' : '기본 상담'}
         </strong>
         <span style={captionStyle}>

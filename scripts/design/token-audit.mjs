@@ -25,7 +25,7 @@ const TARGETS = [
 
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
-const WEIGHTS = ['400', '700'];
+const WEIGHTS = ['400', '600']; // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림
 
 const tokensSrc = readFileSync(TOKENS, 'utf8');
 // :root 및 그 변형(:root[data-contrast="high"])에서 선언된 이름을 모은다.
@@ -86,9 +86,9 @@ for (const file of TARGETS) {
       add(file, n, 'raw-font-size', `font-size:${m[1]}px — 계단은 ${TEXT_STEPS.join(' · ')} 다섯뿐이다`);
     }
 
-    // 4) font-weight — 400·700 두 단계뿐(DESIGN.md §2). 토큰 대신 값을 직접 검사한다.
+    // 4) font-weight — 400·600 두 단계뿐(DESIGN.md §2, 2026-08-03 개정). 토큰 대신 값을 직접 검사한다.
     for (const m of line.matchAll(/font-weight:\s*([0-9]+)/g)) {
-      if (!WEIGHTS.includes(m[1])) add(file, n, 'font-weight-step', `font-weight:${m[1]} — 400 과 700 두 단계만 쓴다`);
+      if (!WEIGHTS.includes(m[1])) add(file, n, 'font-weight-step', `font-weight:${m[1]} — 400 과 600 두 단계만 쓴다`);
     }
 
     // 5) 간격 리터럴 — /* optical: */ 로 사유를 적지 않은 px 는 위반.
