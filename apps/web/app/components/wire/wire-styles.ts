@@ -254,10 +254,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    구 --line-action 을 대체, §3-3 배경 2겹 방식). 채움은 --button-fill 로만 바꾼다 —
    background 를 통째로 덮으면 테두리 층이 날아간다(카드 계약과 같은 함정). 프라이머리·
    고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
-.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:var(--leading-none);gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer}
+.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:var(--leading-none);gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
-.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft)}
+.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft);background-size:200% auto;background-position:50% 0}
 /* 고스트: 배경·테두리 없음, --sub 글자. */
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);box-shadow:none}
 /* 위험: 되돌리기 어려운 행동에만. */
@@ -278,6 +278,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
   .wire-button[data-variant="primary"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--gradient-action);filter:brightness(.96)}
   .wire-button[data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
   .wire-button[data-variant="danger"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--risk-tint-solid)}
+  /* 흐름(§6·CCC-53): 그라데이션을 가진 버튼만 — 기본형은 아웃라인이, 프라이머리는 채움이 흐른다.
+     고스트·위험·비활성은 그라데이션이 없어 흐를 것이 없다. */
+  .wire-button:not([data-variant="ghost"]):not([data-variant="danger"]):not(:disabled):not([aria-disabled="true"]):hover{animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
+  /* 선택·활성 카드 테두리도 같은 어휘로 흐른다. */
+  .surface-card[data-selected="true"]:hover,.surface-card[aria-current="true"]:hover,.surface-card[open]:hover{background-size:200% auto;animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
 }
 .wire-button:not(:disabled):not([aria-disabled="true"]):active{transform:translateY(1px)}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
@@ -293,12 +298,15 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
       호버와 같다 — 터치에서 탭 잔상이 남는다.
    ② 눌림: 위 .wire-button:active 의 translateY(1px)와 같은 어휘 — 버튼 밖 클릭 요소용.
    ③ 떠오름: 스크롤 첫 진입 1회. 반복 재생 금지는 배선 쪽(IntersectionObserver once)이 진다. */
-@keyframes motion-flow{from{background-position:0% 50%}to{background-position:100% 50%}}
+/* 평시 창(50%)에서 출발해 좌우를 오가고 다시 50% 로 — 호버 진입·이탈에 튐이 없다. */
+@keyframes motion-flow{0%{background-position:50% 0}25%{background-position:100% 0}75%{background-position:0% 0}100%{background-position:50% 0}}
 .motion-flow{background-size:200% auto}
 @media (hover:hover){
-  .motion-flow:hover{animation:motion-flow var(--motion-flow-period) var(--ease-standard) infinite alternate}
+  .motion-flow:hover{animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
 }
 .motion-press:active{transform:translateY(1px)}
+/* 눌림 배선(§6·CCC-53): 모든 클릭 요소가 같은 어휘를 쓴다. 버튼은 위 :active 규칙이 이미 갖는다. */
+.wire-row:not([data-static="true"]):active,.record-summary:active,.navigation-link:active,.wire-tab:active,.program-switcher-trigger:active{transform:translateY(1px)}
 @keyframes motion-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .motion-rise{animation:motion-rise var(--motion-base) var(--ease-standard) both}
 /* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다. */
