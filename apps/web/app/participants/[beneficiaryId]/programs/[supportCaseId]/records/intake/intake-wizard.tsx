@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Icon } from '../../../../../../components/wire/icon';
+import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';

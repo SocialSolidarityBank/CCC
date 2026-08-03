@@ -1,6 +1,6 @@
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { Chevron } from '../../../../../components/wire/chevron';
-import { Icon } from '../../../../../components/wire/icon';
+import { Icon } from '../../../../../components/wire/wire-icon';
 import { WireCard } from '../../../../../components/wire/wire-card';
 import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
 
