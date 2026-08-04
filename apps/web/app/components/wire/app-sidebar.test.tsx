@@ -161,10 +161,13 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(isOpen()).toBe(false);
   });
 
-  it('손잡이가 지금 사업을 적는다 — 드로어를 열지 않고도 워크스페이스가 보여야 한다', () => {
+  it('손잡이에는 메뉴만 있다 — 사업명 표기는 2026-08-05 Q 지시로 뺐다', () => {
+    // 구 계약("드로어를 열지 않고도 워크스페이스가 보여야 한다")을 Q ④가 대체:
+    // "모바일에선 헤더에 메뉴만 두고 전부 사이드바로". 사업 확인·전환은 드로어 안 전환기 몫이다.
     const { container } = render(<AppSidebar activePath="/participants" />);
-    expect(container.querySelector('.drawer-handle-program')?.textContent)
-      .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
+    expect(container.querySelector('.drawer-handle-program')).toBeNull();
+    expect(handle(container).textContent).toContain('메뉴');
+    expect(handle(container).textContent).not.toContain(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
 
   it('드로어 안에 기관·사업 전환기·메뉴가 모두 있다', () => {

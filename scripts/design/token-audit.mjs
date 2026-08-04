@@ -196,7 +196,7 @@ for (const [name, rec] of declaredClasses) {
 // ── 다크 대응 검사 ────────────────────────────────────────────────────────────
 // 다크 블록(:root[data-theme="dark"])은 **덮어쓰기만** 담으므로, 라이트에서 원시 색값
 // (hex·rgba·그라데이션)으로 선언된 토큰을 빠뜨리면 그 자리만 라이트로 남는다. 눈으로는
-// 잘 안 잡힌다 — --gradient-sidebar 를 빠뜨리면 어두운 화면에 흰 사이드바가 하나 켜진다.
+// 잘 안 잡힌다 — 예컨대 --gradient-hover 를 빠뜨리면 어두운 화면의 행 호버만 밝게 켜진다.
 // var() 조합으로 만든 토큰(--shadow-soft)은 재료가 바뀌면 따라오므로 대상이 아니다.
 const THEME_INVARIANT = new Set([
   '--on-action',      // 채운 면이 두 테마에서 같으므로 그 위 글자도 같다(tokens.css 다크 절 ③)
@@ -204,6 +204,7 @@ const THEME_INVARIANT = new Set([
   '--blue', '--mint', '--lavender', // base 는 면이라 어두운 배경 위에서 그대로 선다
   '--gradient-action',              // 위 ③
   '--gradient-brand', '--gradient-brand-v', // 파스텔 자체라 두 테마에서 모두 선다
+  '--gradient-frame', '--gradient-frame-v', // 같은 이유 — 프레임 구분선의 base 3색 (2026-08-05)
 ]);
 
 const lightBlock = (() => {

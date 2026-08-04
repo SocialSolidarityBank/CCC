@@ -265,7 +265,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
 
   if (created) {
     return (
-      <main className="page-content narrow">
+      <main className="page-content">
         <GridContainer>
           <div style={stackStyle}>
             <PageTitle>상담 일정 등록</PageTitle>
@@ -283,7 +283,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   }
 
   return (
-    <main className="page-content narrow">
+    <main className="page-content">
       <GridContainer>
         <div style={stackStyle}>
           <PageTitle>상담 일정 등록</PageTitle>

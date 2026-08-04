@@ -48,7 +48,7 @@ export default async function NewParticipantPage({
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     return (
-      <main className="page-content narrow">
+      <main className="page-content">
         <GridContainer>
           <PageTitle>당사자 등록</PageTitle>
           <p className="empty" role="alert">지금 당사자 등록 화면을 열 수 없습니다. 접근 권한을 확인하세요.</p>
@@ -60,7 +60,7 @@ export default async function NewParticipantPage({
   // 등록자=담당 실무자(D7): 담당 실무자 지정 select 를 없앴다. 서버 액션이 admin 은 본인을 배정하고
   // counselor 는 게이트웨이 자동 본인 배정에 맡긴다. 폼엔 현재 사용자만 읽기 전용으로 넘긴다.
   return (
-    <main className="page-content narrow">
+    <main className="page-content">
       <GridContainer>
         <PageTitle>당사자 등록</PageTitle>
 

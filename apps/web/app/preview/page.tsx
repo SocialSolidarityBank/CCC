@@ -28,7 +28,7 @@ export default async function PreviewGatePage({ searchParams }: { searchParams: 
   const errorCode = queryValue(query, 'error');
 
   return (
-    <div className="page-content narrow">
+    <div className="page-content">
       <div className="page-header">
         <div>
           <h1>미리보기 접속</h1>

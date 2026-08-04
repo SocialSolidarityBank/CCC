@@ -43,7 +43,7 @@ export default async function NewCounselingSchedulePage({
 
   if (loadError !== null) {
     return (
-      <main className="page-content narrow">
+      <main className="page-content">
         <p className="empty" role="alert">{loadError}</p>
       </main>
     );

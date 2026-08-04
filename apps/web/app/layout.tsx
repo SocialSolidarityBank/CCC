@@ -8,6 +8,7 @@ import '../../../design/tokens.css';
 // 달력 부품의 기본 CSS(D48 · ADR-0020). 겉모습은 wire-styles.ts '날짜 선택' 절이 D34 토큰으로
 // 덮어쓴다 — 이 파일은 격자 배치·숨김 규칙처럼 덮으면 안 되는 뼈대만 제공한다.
 import 'react-day-picker/style.css';
+import { AppHeader } from './components/wire/app-header';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
 import { getDisplayLabels } from './lib/display-labels';
@@ -23,21 +24,25 @@ const styles = `
 body{margin:0;background:var(--canvas);font-size:var(--text-md);line-height:var(--leading-body)}
 a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit}
-.app-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);min-height:100dvh}
-/* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다.
+/* 셸 = 헤더 1행(전폭) + 사이드바·본문 1행 (2026-08-05 Q — 헤더는 사이드바 위까지 화면
+   전체 폭으로 확장하고, 기관명을 사이드바 메뉴('다가오는 일정')와 같은 좌측선(24)에 세운다). */
+.app-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);min-height:100dvh}
+/* 사이드바(§4): **캔버스 배경 + 오른쪽 1px 그라데이션 라인**(2026-08-05 Q — 구 --gradient-sidebar
+   면 배경 폐지: "모두 라인으로 영역 구분". 라인 3색은 그 배경의 블루→민트→라벤더 축 그대로).
    **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. 메뉴가 넘치면
-   아래 .navigation-list 만 안에서 스크롤한다(구 overflow:hidden 은 2026-08-04 에 풀었다 —
-   사업 전환기 팝업이 사이드바 끝에서 잘렸다. 내부 스크롤은 .navigation-list 가 이미 맡는다).
-   768 미만 드로어 블록이 position:fixed 로 덮으므로 여기 값은 데스크톱에만 산다. */
-.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink);position:sticky;top:0;height:100dvh;overflow:visible}
+   아래 .navigation-list 만 안에서 스크롤한다.
+   768 미만 드로어 블록이 position:fixed 로 덮으므로 여기 값은 데스크톱에만 산다.
+   헤더가 1행을 차지하므로 sticky 기준은 헤더 아래(top 56)이고, 위 패딩 20 은 첫 메뉴 항목의
+   윗변을 본문 열 '뒤로' 알약의 윗변(56+20=76)과 같은 높이에 세운다. */
+.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-5) var(--space-6) var(--space-6);background:var(--canvas);color:var(--ink);position:sticky;top:var(--header-height);height:calc(100dvh - var(--header-height));overflow:visible}
+.sidebar::after{content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:var(--gradient-frame-v)}
 /* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
 .sidebar>.navigation-list{overflow-y:auto;min-height:0}
 .brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
-/* 기관명 줄: 왼쪽 브랜드 링크 + (드로어에서만) 오른쪽 닫기 X.
-   위 -4/아래 +4 마진 쌍은 기관명 중심을 40→36 으로 올려 **'뒤로' 알약 중심(36)과 맞추는**
-   것이다(2026-08-04 Q — 뒤로 띠가 위아래 20 균등이 되면서 알약이 4px 올라갔다). 마진을
-   쌍으로 줘야 아래 블록(사업·구분선 72·메뉴)은 한 픽셀도 안 움직인다. */
-.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-top:calc(var(--space-1) * -1);margin-bottom:var(--space-1)}
+/* 기관명 줄: 왼쪽 브랜드 링크 + 오른쪽 닫기 X — 드로어(768 미만) 전용이다(2026-08-05).
+   구 -4/+4 마진 쌍(기관명 중심을 뒤로 알약 36 에 맞추던 보정)은 헤더 신설로 그 기하 자체가
+   사라져 걷었다. */
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
 /* 기관명 18(--text-lg)/600 (2026-08-04 Q — 구 16). 사이드바 강조 굵기 600 유지. */
 .brand{font-size:var(--text-lg);font-weight:600}
 /* 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 버튼 대체). 데스크톱엔 없다.
@@ -58,8 +63,10 @@ button,input,select,textarea{font:inherit}
 /* 2026-08-04 Q: '사업' 라벨은 선택창 **위** 2단이다(구 2026-08-03 '라벨+흰 상자 한 줄' 대체) —
    라벨 줄과 흰 상자가 사이드바 좌측선에 같이 선다. */
 .program-switcher{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
-/* 흰 상자가 곧 선택창이다. 드롭다운의 기준점(position:relative)도 여기다. */
-.program-switcher-box{position:relative;flex:1;min-width:0;display:grid;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
+/* 흰 상자가 곧 선택창이다. 드롭다운의 기준점(position:relative)도 여기다.
+   경계 --line-control 1px 은 2026-08-05 에 얹었다 — 드로어 배경이 그라데이션에서 캔버스로
+   바뀌어, 캔버스(#FAFAF9) 위 흰 상자는 경계 없이는 형태가 안 잡힌다(§5 입력칸 계약). */
+.program-switcher-box{position:relative;flex:1;min-width:0;display:grid;padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
 /* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
    32(--space-8)는 그대로 유지된다 — 선은 그 사이 가운데에 놓인다.
    --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
@@ -108,13 +115,9 @@ button,input,select,textarea{font:inherit}
 @media (hover:hover){.program-switcher-option:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}}
 /* 체크 글자에 deep 을 쓰지 않는다(§9 대비 예외는 보조 정보 한정). 선택 신호는 --blue-tint 면이 갖는다. */
 .program-switcher-check{width:14px;flex:none;color:var(--ink)}
-/* 팝업이 **열린 동안만** 사이드바를 드롭다운 층으로 든다(2026-08-04 Q 보고 — 팝업이 본문
-   텍스트 아래로 깔렸다). sticky 인 .sidebar 는 자기 스태킹 컨텍스트를 만들어 팝업의
-   z-dropdown 이 그 안에 갇히고, 본문 .page-content 도 containment(container-type)로
-   컨텍스트가 되어 DOM 순서(사이드바 → 본문)대로 본문이 위에 칠해진다. 상시 z 를 주면
-   본문 안 스크림·모달이 사이드바 아래로 떨어지는 역전이 생기므로 :has 로 열림에만 건다.
-   768 미만 드로어는 z-modal(100) 이 필요해 데스크톱에만 적용한다. */
-@media (min-width:768px){.sidebar:has(.program-switcher-menu){z-index:var(--z-dropdown)}}
+/* (구 2026-08-04 :has z-lift 규칙은 2026-08-05 에 걷었다 — 데스크톱 전환기가 상단 헤더로
+   옮겨 가, 팝업이 sticky 사이드바의 스태킹 컨텍스트에 갇히는 문제 자체가 사라졌다.
+   헤더는 z-sticky 라 팝업(z-dropdown)이 본문 위에 선다. 드로어(768 미만)는 z-modal 그대로다.) */
 /* 좌우 -12(--space-3)는 항목의 안쪽 패딩만큼 알약을 되밀어 **아이콘·글자가 사이드바
    좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
    알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다. */
@@ -157,17 +160,69 @@ button,input,select,textarea{font:inherit}
    버튼 기본 스타일만 지운다. width:100% 는 눌리는 영역을 메뉴와 같게 맞춘다.
    테두리는 지우지 않는다 — .navigation-link 의 투명 1px 이 상자 크기를 링크와 같게 유지한다. */
 .sidebar-logout{width:100%;background:transparent;font:inherit;text-align:left;cursor:pointer}
+/* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
+   Infisical 레퍼런스. D50 의 사이드바 배치·D58 ⑤ '하단 묶음 상시 노출'의 자리 부분 대체).
+   마크업은 드로어(768 미만)가 그대로 쓰므로 지우지 않고 숨긴다 — app-sidebar.tsx 주석 참조.
+   자식 선택자(0,2,0)인 이유: 개별 블록 규칙(.sidebar-head 등, 0,1,0)이 시트 뒤쪽에 있어
+   동순위면 그쪽이 이긴다 — 미디어 쿼리는 특이도를 올려 주지 않는다. */
+@media (min-width:768px){.sidebar>.sidebar-head,.sidebar>.program-switcher,.sidebar>.sidebar-footer{display:none}}
 /* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
    손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
-.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:500;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
+/* 손잡이 바 = 좁은 화면의 헤더다(2026-08-05 Q ④ "모바일에선 헤더에 메뉴만") — 내용은 메뉴
+   버튼뿐이고 나머지(기관·사업·계정 행동)는 전부 드로어 안이다. 경계도 데스크톱 헤더와 같은
+   그라데이션 라인 1px. */
+.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;background:var(--canvas);color:var(--ink);font-size:var(--text-md);font-weight:500;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
+.drawer-handle::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--gradient-frame)}
 /* optical: gap 3 은 간격 리듬이 아니라 **아이콘 안쪽 도형**이다 — 막대 2px 셋과 사이 3px 이
    합쳐 18×12 손잡이 글리프를 만든다. 간격 토큰으로 스냅하면 아이콘 모양이 바뀐다. */
 .drawer-handle-bars{display:flex;flex-direction:column;gap:3px;width:18px;flex:none}
 .drawer-handle-bars i{height:2px;border-radius:var(--radius-bar);background:var(--ink)}
-/* 지금 어느 사업인지는 드로어를 열지 않고도 보여야 한다 — 사업이 메뉴의 범위를 정하기 때문이다.
-   민트 계열은 '사람·소속' 축이라 사업 라벨이 여기 든다(D34). */
-.drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:var(--text-md);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* (구 .drawer-handle-program — 바에 적던 현재 사업명 — 은 2026-08-05 Q ④ 로 뺐다:
+   "헤더에 메뉴만 두고 전부 사이드바로". 사업 확인·전환은 드로어 안 전환기가 맡는다.) */
 .drawer-scrim{position:fixed;inset:0;background:var(--scrim);z-index:calc(var(--z-modal) - 1)}
+/* ── 상단 헤더 (2026-08-05 Q · Infisical 레퍼런스 — 구 락 8 '상단 헤더 띠 금지' 대체) ──
+   축이 두 층으로 갈린다: 헤더 = 맥락(기관·사업) + 계정 행동(설정·테마·로그아웃) /
+   사이드바 = 장소(메뉴). **화면 전체 폭**(사이드바 위까지, 셸 그리드 1행)이고 z 는 스티키 층 —
+   같은 날 Q "z-index 최상위로 확장". 좌우 패딩 24 라 기관 마크가 사이드바 메뉴 아이콘과
+   같은 좌측선(24)에 선다. 배경은 캔버스 그대로, 본문과는 **하단 1px 그라데이션 라인**으로만
+   가른다(같은 날 Q — ① 면 배경안 폐지 "라인으로만" ② 라인 색은 3색 그라데이션).
+   sticky 라 스크롤해도 남는다. 768 미만에는 없다 — 손잡이 바 + 드로어가 담는다(§4-4). */
+/* gap 32 는 기관명↔사업명 간격을 2배로 벌린 값이다(2026-08-05 Q — 구 16). */
+.app-header{grid-column:1/-1;position:sticky;top:0;z-index:var(--z-sticky);display:flex;align-items:center;gap:var(--space-8);height:var(--header-height);padding:0 var(--space-6);background:var(--canvas)}
+.app-header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--gradient-frame)}
+/* optical: -7 은 기관 마크(32px 상자) 중심을 아래 메뉴 아이콘 중심(x=33: 패딩 24 + 알약 테두리 1
+   + 아이콘 반폭 8)에 맞추는 값이다(2026-08-05 Q "메뉴 아이콘이랑 조직 로고랑 가운데 정렬") —
+   33 − 16 = 17 이라 패딩 24 에서 7 을 되민다. 간격 토큰이 아니라 정렬 보정이다. */
+.app-header .brand{flex:none;margin-left:-7px}
+/* 기관 | 사업 세로 구분선 — 글자 구분자(/·|)를 쓰지 않는다(§10). */
+.header-divider{flex:none;width:1px;height:20px;background:var(--line)}
+.header-actions{margin-left:auto;display:flex;align-items:center;gap:var(--space-2)}
+.header-action-form{margin:0;display:flex}
+/* 계정 행동 3개 = 32px 원형 아이콘 버튼 — 드로어 닫기 X 와 같은 세컨더리 옷(그라데이션
+   1px 테두리 + --panel 채움). 라벨은 aria-label + title 이 갖는다. */
+.header-icon-button{--button-fill:var(--panel);display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
+@media (hover:hover){.header-icon-button:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
+.header-icon-button:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 설정이 현재 화면이면 활성 어휘(블루 tint 채움 + 블루 아이콘)를 입는다 — 내비 활성과 같은 신호. */
+.header-icon-button[data-current="true"]{--button-fill:var(--blue-tint)}
+.header-icon-button[data-current="true"] svg{color:var(--blue-deep)}
+/* 헤더 안 전환기: **상자 없이 텍스트 + 화살표**다(2026-08-05 Q — '사업' 라벨도 뺀다.
+   드로어에서는 구 형태(라벨 위 2단 + 흰 상자) 그대로). 라벨 p 는 display:none 이어도
+   aria-labelledby 가 읽으므로 접근 이름("사업 <사업명>")은 유지된다.
+   상자 노드는 드롭다운의 기준점(position:relative)으로만 남는다. */
+.app-header .program-switcher{flex:none;flex-direction:row;align-items:center}
+.app-header .program-switcher-label{display:none}
+/* 폭 상한은 느슨하다(2026-08-05 Q "여백 많으니까 더 펼쳐줘" — 구 min(32vw,360px)에서는 긴
+   사업명이 헤더의 빈 공간을 두고도 잘렸다). 웬만한 사업명은 끝까지 보이고, 상한을 넘는
+   극단만 마스크로 사라진다. */
+.app-header .program-switcher-box{flex:none;width:max-content;max-width:min(50vw,560px);padding:0;border:0;background:transparent}
+/* 사업명은 현재 워크스페이스라 강조 600 — 셸 활성 어휘(§2-1 역할표). */
+/* optical: 28 은 간격이 아니라 이름 규칙의 마스크 페이드 구간 폭이다 — 그 구간을 글자 뒤
+   **빈 패딩**으로 밀어내, 상한(560) 안에서는 마지막 글자까지 불투명하게 만든다(2026-08-05 Q
+   "여백 많으니까 더 펼쳐줘" — 구 상태에서는 안 잘렸는데도 끝 글자가 항상 흐려져 잘린 것처럼
+   보였다). 상한을 넘는 극단만 기존 어휘대로 페이드로 사라진다. margin -28 은 빈 구간만큼
+   화살표를 되당겨 이름↔화살표 간격 8 을 유지한다. */
+.app-header .program-switcher-name{font-weight:600;padding-right:28px;margin-right:-28px}
 /* ── 페이지 셸 ── 장폭·여백의 유일한 주인(2026-07-26). 값은 design/tokens.css 에만 있다.
    width:100% 가 핵심이다 — .page-content 는 .app-shell 의 **그리드 아이템**이고 auto 마진을
    갖고 있어서, 폭을 명시하지 않으면 트랙을 채우지 않고 내용 크기로 줄어든다. 그래서 이전에는
@@ -188,31 +243,21 @@ button,input,select,textarea{font:inherit}
      화면 폭으로 풀면 사이드바가 있고 없고에 따라 같은 폭에서 다른 결과가 나온다. */
   container-type:inline-size;
 }
-/* 폼·읽기 화면. 장폭만 좁히고 여백·간격은 그대로 쓴다. */
-.narrow{--page-max:var(--page-max-narrow)}
+/* (.narrow 960 은 2026-08-05 폐지 — Q "특별한 이유가 없으면 장폭은 가장 넓은 페이지에 맞춰
+   고정". 장폭은 --page-max 1120 하나다. 폼의 읽기 폭은 페이지가 아니라 폼 자신이 좁힌다.) */
 /* ── 뒤로가기 줄(2026-07-31) ── 본문 열을 감싸는 div 와 그 안 첫 줄.
    min-width:0 이 필요하다 — 그리드 아이템의 기본 min-width:auto 때문에 내용이 넓으면
    본문 열이 트랙을 넘어 사이드바를 밀어낸다(표·코드 블록에서 실제로 난다). */
 .content-column{display:flex;flex-direction:column;min-width:0}
-/* 본문과 **같은** 컨테이너 값을 쓴다 — 여기서 다른 폭을 쓰면 '뒤로'와 제목의 왼쪽 끝이 어긋난다.
-   아래 패딩은 0 이고, 뒤따르는 .page-content 의 위 패딩을 줄여 둘 사이가 벌어지지 않게 한다. */
-.page-backbar{--backbar-max:var(--page-max);width:100%;max-width:var(--backbar-max);margin-inline:auto;padding:var(--page-pad-y) var(--page-pad-x) 0}
-/* 뒤로 버튼이 있을 때만: 위·아래 여백을 **20씩 균등**하게 두고(2026-08-04 Q — 구 24/16),
-   아래 1px 가로선은 사이드바 '기관|사업' 구분선과 같은 높이(20+32+20=72)에 남는다 —
-   셸 머리띠가 사이드바와 한 줄로 읽힌다. 균등 여백·선 연속·기관명 중심(40) 셋은 동시에
-   못 잡는다(20+16=36≠40) — 선 연속이 눈에 제일 크게 걸려 알약 중심 4px 를 양보했다.
-   뒤로가 안 그려지는 화면(히스토리 없음)은 기존 패딩 그대로라 선도 없다.
-   가로선은 **본문 열 끝까지 여백 없이** 간다(2026-08-04 Q) — 상자를 열 전체 폭으로 펼쳐 선을
-   긋고, 컨테이너 정렬은 좌우 패딩으로 재현한다: 남는 폭의 절반 + 기존 패딩. 열이 컨테이너보다
-   좁으면 max() 가 기존 패딩으로 떨어진다. 뒤로 알약의 왼쪽 끝은 바뀌지 않는다. */
-.page-backbar:has(.page-back){max-width:none;padding:var(--space-5) max(var(--page-pad-x),calc((100% - var(--backbar-max)) / 2 + var(--page-pad-x))) var(--space-5);border-bottom:1px solid var(--line)}
-/* .narrow 는 --page-max 를 **.page-content 자기 자신에** 얹는다(위 .narrow 규칙). 뒤로가기 줄은
-   그 형제라 그 값을 물려받지 못하고 :root 의 1120 을 쓴다 — 둘 다 가운데 정렬이므로 좁은 화면
-   (960)에서 '뒤로'가 제목보다 80px 왼쪽에 선다. 다음 형제를 보고 같은 폭으로 맞춘다. */
-.page-backbar:has(+ .page-content.narrow){--backbar-max:var(--page-max-narrow)}
-/* 형제 선택자라 뒤로가기 줄이 있는 화면에만 걸린다 — 공개 화면(셸 없음)은 그대로다. */
-/* 뒤로가 알약 버튼이 되면서(2026-08-04) 아래 제목과 16 은 붙어 보인다 — 24 로 벌린다. */
-.page-backbar+.page-content{padding-top:var(--space-6)}
+/* 뒤로 알약은 **사이드바 쪽 고정**이다(2026-08-05 Q — 구 2026-08-04 '가운데 컨테이너 정렬 +
+   본문 열 전체 가로선(높이 72 연속)' 계약 대체). 헤더 신설로 사이드바 상단 기하(기관명 중심
+   36 · 구분선 72)가 사라져 선을 이을 대상이 없고, 알약은 컨테이너가 아니라 사이드바 안쪽선
+   (24)에 붙는다 — 프레임 크롬이라 본문 제목과 왼쪽 끝을 맞추지 않는다(같은 날 Q 확인:
+   본문은 가운데 정렬 유지). 뒤로가 안 그려지는 화면(히스토리 없음)은 이 줄이 0 높이다. */
+.page-backbar{padding:0}
+.page-backbar:has(.page-back){padding:var(--space-5) var(--space-6) 0}
+/* 뒤로 알약이 있으면 본문 위 여백은 40 대신 24 — 알약 줄이 이미 20 을 벌렸다. */
+.page-backbar:has(.page-back)+.page-content{padding-top:var(--space-6)}
 /* 고스트 버튼 계약(§5): 배경·테두리 없음, --sub 글자. 되돌리기는 주 행동이 아니다. */
 /* 뒤로가기도 알약 버튼이다(2026-08-04 Q — 구 투명 텍스트 대체). 단독 클릭 요소는 전부
    알약(D58 ⑥)이라 세컨더리 sm 과 같은 옷을 입는다 — 그라데이션 1px 테두리 + --panel 채움.
@@ -278,6 +323,9 @@ textarea{min-height:216px;resize:vertical}
      좁은 화면에서 '장소 전환'은 자주 하는 동작이 아니므로 평소엔 화면 밖에 두고
      손잡이를 눌렀을 때만 왼쪽에서 밀어 넣는다. 본문은 폭을 온전히 쓴다. */
   .app-shell{display:block}
+  /* 상단 헤더는 데스크톱 전용(2026-08-05) — 좁은 화면은 드로어가 기관·사업·메뉴·계정
+     행동을 전부 담는 기존 구조 그대로다(§4-4). */
+  .app-header{display:none}
   .drawer-handle{display:flex}
   .sidebar{
     position:fixed;top:0;bottom:0;left:0;
@@ -715,6 +763,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head><style>{shellStyles}</style></head>
       <body>
         <div className="wire-shell app-shell">
+          {/* 상단 헤더(2026-08-05 Q · Infisical 레퍼런스) — 셸 그리드 1행, **화면 전체 폭**
+              (사이드바 위까지). 기관 마크가 사이드바 메뉴와 같은 좌측선(24)에 선다.
+              768 미만에서는 렌더만 되고 CSS 가 숨긴다(손잡이 바 + 드로어가 담당). */}
+          <AppHeader orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
           <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
           <div className="content-column">
             {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
