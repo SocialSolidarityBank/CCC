@@ -187,7 +187,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 /* 레거시 화면의 떠 있는 표면들도 카드 계약을 쓴다(§5). 기본 테두리는 **회색 --line** 이고,
    그라데이션 테두리는 선택·활성일 때만 쓴다(2026-07-26 Q 지적 · pen 실측). 채움은
    --surface-fill 로만 바꾼다 — 선택 상태는 배경 2겹이라 background 를 통째로 덮으면 테두리가 날아간다. */
-.panel,.settings-section,.schedule-form{
+.panel,.schedule-form{
   --surface-fill:var(--panel);
   border:1px solid var(--line);
   border-radius:var(--radius-card);
@@ -304,23 +304,20 @@ const briefingStyles = `
    JS 로 높이를 재서 박지 않는다 — 접으면 행이 실제로 줄어든다. */
 .briefing-cards-grid>.briefing-card{align-self:start}
 .briefing-cards-grid>.briefing-card[open]{align-self:stretch}
-/* 카드 = 접힘 가능한 <details>. 카드 계약(§5)을 그대로 쓴다. */
-.briefing-card{
-  --surface-fill:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius-card);
-  background:var(--surface-fill);
-  box-shadow:var(--shadow-soft);
-  color:var(--ink);
-}
-.briefing-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);font-size:var(--text-lg);font-weight:600;cursor:pointer;list-style:none}
+/* 브리핑 3영역·미해결 액션 = **플랫 구획**이다(D59 · 2026-08-04 — 구 카드 계약 대체).
+   읽기만 하는 구획은 캔버스에 직접 얹고 제목 + 브랜드 1px 구분선 + 여백으로 선다 —
+   카드(흰 상자)는 클릭·집어 드는 단위와 강조 컨테이너(HERO·리스크 배너·폼)만 쓴다.
+   접힘(details)은 유지된다 — 형태만 바뀌고 전체 접기·앵커는 그대로다. */
+.briefing-card{color:var(--ink)}
+/* 구획 제목 줄. 구분선을 제목(summary)에 붙여 접혀 있어도 구획 리듬이 남는다. */
+.briefing-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-2) 0 var(--space-3);background:var(--gradient-brand) bottom/100% 1px no-repeat;font-size:var(--text-lg);font-weight:600;cursor:pointer;list-style:none}
 .briefing-card-summary::-webkit-details-marker{display:none}
 .briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
 /* 자식 결합자(>)로 두면 GAS 요약처럼 화살표를 배지와 함께 감싼 경우 회전이 안 먹어
    펼쳐져 있는데 화살표만 닫힌 모양으로 남는다(2026-07-27 렌더에서 확인). */
 .briefing-card[open]>.briefing-card-summary .briefing-card-arrow{transform:rotate(45deg)}
-/* 헤더/본문 구분선은 --gradient-brand 1px(구조적 구분선 — 액센트 띠 금지 대상이 아니다, 색 규율 6). */
-.briefing-card-body{display:grid;gap:var(--space-3);padding:var(--space-5) var(--space-6) var(--space-6);background:var(--gradient-brand) top/100% 1px no-repeat}
+/* 구분선은 제목(summary) 쪽이 갖는다 — 본문은 여백만. */
+.briefing-card-body{display:grid;gap:var(--space-3);padding:var(--space-4) 0 var(--space-2)}
 .briefing-fields{display:grid;gap:var(--space-2-5)}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
@@ -340,9 +337,9 @@ const briefingStyles = `
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
 .briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
-/* 전체 목표 카드(D45 · CCC-41) — 카드형 한 줄. 카드 계약(.surface-card)을 그대로 쓰고
-   안쪽 가로 배치만 정한다. 점수·게이지 자리는 없다(D43). */
-.briefing-goal{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6)}
+/* 전체 목표(D45 · CCC-41 · D59 플랫화) — 카드가 아니라 캔버스 위 한 줄이다.
+   수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가 알린다. 점수·게이지 자리는 없다(D43). */
+.briefing-goal{display:grid;gap:var(--space-2);padding:0}
 .briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
 .briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
@@ -453,9 +450,10 @@ const settingsStyles = `
    .sidebar{position:relative} 가 뒤 문자열에 있어 드로어의 position:fixed 를 덮었고,
    그래서 768 미만에서 드로어가 화면 높이를 못 채우고 내용 높이(531px)로 떠 있었다.
    (주석에 백틱을 쓰지 않는 이유는 이 CSS 가 템플릿 리터럴이기 때문이다 — 쓰면 앱 전체가 500 이다.) */
-.settings-page{display:grid;gap:var(--space-6)}
-.settings-section{display:grid;gap:var(--space-4);padding:var(--space-6)}
-.settings-section>h2{font-size:var(--text-lg)}
+.settings-page{display:grid;gap:var(--space-8)}
+/* 설정 구획은 플랫이다(D59) — 읽기 구획이라 카드가 아니라 제목 + 구분선 + 여백으로 선다. */
+.settings-section{display:grid;gap:var(--space-4);padding:0;color:var(--ink)}
+.settings-section>h2{font-size:var(--text-lg);padding-bottom:var(--space-3);background:var(--gradient-brand) bottom/100% 1px no-repeat}
 .settings-account{display:grid;gap:var(--space-4);margin:0}
 .settings-field{display:grid;gap:var(--space-1)}
 /* 사람 정보 라벨은 민트 계열. */
@@ -480,7 +478,8 @@ const scheduleStyles = `
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
 .schedule-form-notice{color:var(--ink);font-weight:600}
 .schedule-form-error{color:var(--risk);font-weight:600}
-.consent-fieldset{display:grid;gap:var(--space-3);margin:0;padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card)}
+/* 동의 묶음은 카드 안 상자였다 — D59 '카드 안 카드 금지'로 플랫: 위 구분선 하나 + 여백. */
+.consent-fieldset{display:grid;gap:var(--space-3);margin:0;padding:var(--space-3) 0 0;border:0;border-top:1px solid var(--line);border-radius:0}
 .consent-fieldset legend{padding:0 var(--space-1-5);font-weight:600;font-size:var(--text-sm);color:var(--sub)}
 .consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
@@ -503,9 +502,11 @@ const monthScheduleStyles = `
 .month-day{display:grid;gap:var(--space-3)}
 .month-day-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .month-day-title[data-today="true"]{color:var(--blue-deep)}
-.month-rows{display:grid;overflow:hidden;border-radius:var(--radius-card);border:1px solid var(--line);background:var(--panel)}
+/* 날짜 묶음은 플랫이다(D59) — 행은 캔버스에 직접 얹고 사이는 구분선만. 행 자체가
+   클릭 단위지만 붙어 있는 행이므로 카드가 아니라 구분선 계약이다(§5 리스트 행 맥락 규칙). */
+.month-rows{display:grid}
 .month-rows>*+*{border-top:1px solid var(--line)}
-.month-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);color:inherit;text-decoration:none}
+.month-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);color:inherit;text-decoration:none}
 /* 호버는 리스트 행과 같은 그라데이션 채움이다(2026-08-03 Q — 구 --muted 단색). */
 @media (hover:hover){.month-row:hover{background:var(--gradient-hover)}}
 .month-row:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}

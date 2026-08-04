@@ -74,12 +74,11 @@ details.surface-card{overflow:clip}
 /* 인라인 강조 링크. AppHeader(D35 로 폐기) 시절 클래스지만 관리자 사용자 상세가 계속 쓴다. */
 .wire-header-link{font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-header-link:hover{text-decoration:underline}
-/* 이름 표기 (D34 · DESIGN.md §5): "이름 (가명 ID)" 한 줄. 띄어쓰기는 문자열이 아니라
-   간격 4로 만든다 — ID의 색·굵기가 실명과 달라야 하기 때문이다. 실명 크기는 자리마다
-   다르므로 인라인 스타일이 정하고, 가명 ID는 자리와 무관하게 항상 16/400 --sub 다. */
+/* 이름 표기 (D59 · 2026-08-04): 화면 표기는 실명 하나 — 가명 ID 는 백엔드 전용이고,
+   이름이 없는 두 경우(무응답·파기)에만 ID 가 이름 자리에 폴백으로 나온다.
+   동명이인 구분은 전화번호가 맡는다(전체 번호, 자리는 화면이 정한다). */
 .participant-name-group{display:inline-flex;align-items:baseline;gap:var(--space-1);flex-wrap:wrap}
 .participant-name{color:var(--ink);font-weight:600;overflow-wrap:anywhere}
-.participant-pseudonym{color:var(--sub);font-size:var(--text-md);font-weight:400}
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑의 .briefing-hero 와 같은 구조이나 부품이 공유된다. */
@@ -90,13 +89,9 @@ details.surface-card{overflow:clip}
    시간·상태 축이라 블루다(D34). 줄바꿈하지 않는다. */
 .participant-hero-stage{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-control);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--blue-deep);white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-/* 개인 정보 접힘(2026-08-03 Q) — 이름 줄을 누르면 이름 아래로 개인 정보 칸이 열린다.
-   상시 노출이 아니라 접힘인 이유: 연락처는 매번 보는 값이 아니고, 카드 첫인상은 이름이다. */
-.participant-hero-pii>summary{display:flex;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none}
-.participant-hero-pii>summary::-webkit-details-marker{display:none}
-.participant-hero-pii[open]>summary .briefing-card-arrow{transform:rotate(45deg)}
-/* 칸은 카드 안의 한 덩어리다 — 카드 안에 또 카드를 만들지 않고 배경만 한 톤 낮춘다(§5). */
-.participant-hero-pii-body{display:grid;gap:var(--space-2-5);margin-top:var(--space-3);padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted)}
+/* 연락처는 이름 옆에 나란히 선다(D59 · 2026-08-04 — 구 개인정보 접힘 폐지).
+   읽는 값이라 16/400 --sub, 이름과는 제목 줄의 gap 이 여백을 만든다. */
+.participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:var(--text-sm)}
 .note-inline a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
@@ -228,8 +223,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-choice-text{display:grid;gap:var(--space-1);min-width:0;overflow-wrap:anywhere}
 .wire-choice-desc{color:var(--sub);font-size:var(--text-sm);font-weight:400}
 .wire-choice:has(>input:disabled){color:var(--sub);cursor:not-allowed}
-/* 폼 안 묶음(fieldset). 카드 안에 또 카드를 두지 않도록 --line 1px 만 두르고 그림자는 없다. */
-.wire-fieldset{display:grid;gap:var(--space-3);min-width:0;margin:0;padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card)}
+/* 폼 안 묶음(fieldset). D59 '카드 안 카드 금지' — 상자 대신 위 구분선 하나 + 여백으로 가른다. */
+.wire-fieldset{display:grid;gap:var(--space-3);min-width:0;margin:0;padding:var(--space-3) 0 0;border:0;border-top:1px solid var(--line)}
 .wire-fieldset>legend{padding:0 var(--space-1-5);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-fieldset>legend small{font-weight:400}
 .wire-fieldset-list{display:grid;gap:var(--space-4)}
@@ -453,11 +448,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--mint-tint)}
 .register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:600}
-/* Y10(안 A): 카드 안에서는 그림자를 쓰지 않는다 — 카드 안에 또 카드가 되고 카드 계약과 어긋난다.
-   테두리 1px 은 그대로 두고 배경만 한 톤 낮춰 '카드 안의 한 덩어리'로 읽히게 한다.
-   선택자에 두 클래스를 겹치는 이유: layout.tsx 의 registerStyles 가 이 파일(wireStyles)보다
-   **뒤에** 합쳐지므로(layout.tsx shellStyles), 같은 특정도면 저쪽 규칙이 이긴다. */
-.consent-fieldset.register-consent{background:var(--muted)}
+/* Y10 의 muted 배경은 D59 플랫화로 걷었다 — 동의 묶음은 이제 상자가 아니라 구분선이다. */
 .consent-fieldset.register-consent>legend{color:var(--mint-deep)}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */

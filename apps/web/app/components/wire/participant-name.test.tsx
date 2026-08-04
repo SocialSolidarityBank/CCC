@@ -7,35 +7,35 @@ import { ParticipantName } from './participant-name';
 // 테스트는 전부 통과해도 `pnpm test` 가 1 로 끝난다(CI 실패).
 afterEach(cleanup);
 
-// 이름 표기 계약 (D34 · DESIGN.md §5 '이름 표기'). 이 컴포넌트가 브리핑 HERO·당사자 목록·
-// 허브 세 곳의 단일 출처라, 계약이 깨지면 화면 세 개가 동시에 어긋난다.
+// 이름 표기 계약 (D59 · 2026-08-04). 가명 ID 는 화면에 표시하지 않는다 — 백엔드 전용이고,
+// 이름이 없는 두 경우(무응답 등록·파기 후)에만 이름 자리에 폴백으로 나온다.
+// 이 컴포넌트가 브리핑 HERO·당사자 목록·허브의 단일 출처라, 계약이 깨지면 화면 세 개가
+// 동시에 어긋난다.
 
 describe('ParticipantName', () => {
-  it('실명과 가명 ID를 텍스트 노드 2개로 나눈다 — 띄어쓰기를 문자열에 넣지 않는다', () => {
-    // 간격은 CSS(gap 4)가 만든다. 한 문자열로 합치면 ID의 색·굵기를 달리 줄 수 없다.
+  it('실명이 있으면 실명 하나만 표시한다 — 가명 ID 는 화면에 없다 (D59)', () => {
     const { container } = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" />);
     expect(container.querySelector('.participant-name')?.textContent).toBe('김미영');
-    expect(container.querySelector('.participant-pseudonym')?.textContent).toBe('(swallow-003)');
-    expect(container.querySelector('.participant-name-group')?.textContent).not.toContain(' (');
+    expect(container.textContent).not.toContain('swallow-003');
   });
 
-  it('실명이 없으면 가명 ID만 남고 괄호를 만들지 않는다 (D31 폴백)', () => {
+  it('실명이 없으면 가명 ID가 이름 자리에 폴백으로 나온다 — 괄호 없이', () => {
     const { container } = render(<ParticipantName name={null} beneficiaryId="swallow-003" />);
     expect(container.querySelector('.participant-name')?.textContent).toBe('swallow-003');
-    expect(container.querySelector('.participant-pseudonym')).toBeNull();
+    expect(container.textContent).not.toContain('(');
   });
 
-  it('빈 문자열도 미기입으로 본다 — "()" 만 남는 표기를 만들지 않는다', () => {
+  it('빈 문자열도 미기입으로 본다 — 폴백이 동작한다', () => {
     const { container } = render(<ParticipantName name="" beneficiaryId="swallow-003" />);
     expect(container.querySelector('.participant-name')?.textContent).toBe('swallow-003');
-    expect(container.querySelector('.participant-pseudonym')).toBeNull();
   });
 
-  it('실명 크기는 자리가 정하고, 가명 ID는 자리와 무관하게 16px이다', () => {
+  it('실명 크기는 자리가 정한다 — hero 28 · h2 18 · row 16', () => {
     const hero = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" size="hero" />);
     expect(hero.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('28px');
-    // 가명 ID 크기는 인라인이 아니라 CSS 계약(.participant-pseudonym 16/400)이 잡는다.
-    expect(hero.container.querySelector<HTMLElement>('.participant-pseudonym')?.style.fontSize).toBe('');
+
+    const h2 = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" size="h2" />);
+    expect(h2.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('18px');
 
     const row = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" />);
     expect(row.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('16px');
