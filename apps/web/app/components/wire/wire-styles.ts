@@ -321,8 +321,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .motion-press:active{transform:translateY(1px)}
 /* 눌림 배선(§6·CCC-53): 모든 클릭 요소가 같은 어휘를 쓴다. 버튼은 위 :active 규칙이 이미 갖는다. */
 .wire-row:not([data-static="true"]):active,.record-summary:active,.navigation-link:active,.wire-tab:active,.program-switcher-trigger:active{transform:translateY(1px)}
-@keyframes motion-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.motion-rise{animation:motion-rise var(--motion-base) var(--ease-standard) both}
+/* 떠오름(구 §6 ③)은 2026-08-04 Q 결정으로 폐지 — 로딩·스크롤 진입 모션은 없다.
+   모션은 호버(흐름)·눌림 두 계열만 남는다(ADR-0028 개정 기록). */
 /* 공용 아이콘(CCC-49): 문장 속에 서면 베이스라인에 맞춰 살짝 내린다(em 비례라 크기를 따라간다).
    플렉스 줄에서는 줄어들지 않는다. */
 .wire-icon{display:inline-block;vertical-align:-0.15em;flex:none}

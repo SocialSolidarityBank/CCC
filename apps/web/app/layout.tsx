@@ -10,7 +10,6 @@ import '../../../design/tokens.css';
 import 'react-day-picker/style.css';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
-import { MotionRise } from './components/wire/motion-rise';
 import { getDisplayLabels } from './lib/display-labels';
 import { THEME_COOKIE_NAME, parseTheme } from './lib/theme-cookie';
 import { wireStyles } from './components/wire/wire-styles';
@@ -673,8 +672,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             {children}
           </div>
         </div>
-        {/* 떠오름 배선(§6·CCC-53) — 렌더 없는 관찰자라 셸 밖에 둔다. */}
-        <MotionRise />
       </body>
     </html>
   );
