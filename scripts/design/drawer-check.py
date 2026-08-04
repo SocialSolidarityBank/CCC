@@ -41,7 +41,7 @@ with sync_playwright() as p:
       const s = document.querySelector('.sidebar');
       return {
         handleShown: h ? getComputedStyle(h).display !== 'none' : false,
-        closeShown: (() => { const c = document.querySelector('.drawer-close');
+        closeShown: (() => { const c = document.querySelector('.drawer-dismiss');
                              return c ? getComputedStyle(c).display !== 'none' : false; })(),
         sidebarWidth: s ? Math.round(s.getBoundingClientRect().width) : 0,
         sidebarLeft: s ? Math.round(s.getBoundingClientRect().left) : null,
