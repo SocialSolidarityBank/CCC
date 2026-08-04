@@ -12,12 +12,20 @@ afterEach(cleanup);
 // 이 부품이 당사자 중심 화면 전부의 머리이므로, 계약이 깨지면 화면 전체가 어긋난다.
 
 describe('ParticipantHeroCard', () => {
-  it('이름은 항상 있다 — 실명 + 가명 ID 한 줄 (고정층)', () => {
+  it('이름은 항상 있다 — 실명 하나, 가명 ID 는 화면에 없다 (D59)', () => {
     const { container } = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />,
     );
     expect(container.querySelector('h1 .participant-name')?.textContent).toBe('김미영');
-    expect(container.querySelector('h1 .participant-pseudonym')?.textContent).toBe('(swallow-003)');
+    expect(container.textContent).not.toContain('swallow-003');
+  });
+
+  it('연락처 슬롯 — 넘기면 이름 옆에 나란히 서고, 이름 크기는 h2 로 낮출 수 있다 (D59 허브)', () => {
+    const { container } = render(
+      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" nameSize="h2" contact="010-1234-5678" />,
+    );
+    expect(container.querySelector('h1 .participant-hero-contact')?.textContent).toBe('010-1234-5678');
+    expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('18px');
   });
 
   it('상태 태그는 슬롯이다 — 넘기면 보이고 넘기지 않으면 없다 (허브)', () => {

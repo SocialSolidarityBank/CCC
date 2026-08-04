@@ -119,7 +119,8 @@ function OverallGoalCard({
   const editable = canEdit && action !== undefined;
 
   return (
-    <section className="surface-card briefing-goal" aria-label="전체 목표">
+    // 플랫 구획이다(D59) — 읽고 고치는 한 줄이라 카드가 아니다. 수정 가능성은 안쪽 상자가 알린다.
+    <section className="briefing-goal" aria-label="전체 목표">
       <div className="briefing-goal-row">
         <p className="briefing-qlabel">전체 목표</p>
         {editing && action !== undefined

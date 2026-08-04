@@ -27,11 +27,15 @@ export interface ParticipantHeroCardProps {
   /** 메타 한 줄. 내용은 화면이 정한다. */
   meta?: ReactNode;
   /**
-   * 개인 정보 접힘 칸(2026-08-03 Q). 넘기면 이름 줄이 클릭 가능한 여닫이(summary)가 되고,
-   * 이름 **아래**로 연락처·참여 사업 같은 개인 정보 칸이 열린다. 연락처를 메타 줄에
-   * 상시 노출하는 대신 이 접힘으로 옮기는 것이 의도다.
+   * 이름 크기(2026-08-04 D59). 허브(당사자 정보)는 h2(18) — 이미 '그 사람' 화면이라
+   * 페이지 제목 크기가 과했다. 브리핑·기록 등 케이스 화면은 hero(28) 그대로.
    */
-  pii?: ReactNode;
+  nameSize?: 'hero' | 'h2';
+  /**
+   * 이름 옆에 나란히 앉는 연락처(2026-08-04 D59 — 구 개인정보 접힘 대체). 간격을 두고
+   * 같은 줄에 선다. 계좌·주소 등 추가 PII 는 여기 올리지 않는다(§5 계약 유지).
+   */
+  contact?: string;
   /** 우상단 행동 버튼. 세컨더리 → 프라이머리 순서로 넘긴다(§4-5). */
   actions?: ReactNode;
   className?: string;
@@ -42,32 +46,24 @@ export function ParticipantHeroCard({
   beneficiaryId,
   stageTag,
   meta,
-  pii,
+  nameSize = 'hero',
+  contact,
   actions,
   className,
 }: ParticipantHeroCardProps) {
   const classes = ['page-header', 'surface-card', 'participant-hero-card', className]
     .filter(Boolean)
     .join(' ');
-  const title = (
-    <h1 className="participant-hero-title">
-      <ParticipantName name={name} beneficiaryId={beneficiaryId} size="hero" />
-      {stageTag !== undefined && <span className="participant-hero-stage">{stageTag}</span>}
-    </h1>
-  );
   return (
     <header className={classes}>
       <div className="participant-hero-identity">
-        {pii === undefined ? title : (
-          /* 이름 줄이 곧 여닫이다 — 카드(이름)를 누르면 이름 아래로 개인 정보가 열린다. */
-          <details className="participant-hero-pii">
-            <summary>
-              {title}
-              <span aria-hidden="true" className="briefing-card-arrow" />
-            </summary>
-            <div className="participant-hero-pii-body">{pii}</div>
-          </details>
-        )}
+        <h1 className="participant-hero-title">
+          <ParticipantName name={name} beneficiaryId={beneficiaryId} size={nameSize} />
+          {contact !== undefined && contact.length > 0 && (
+            <span className="participant-hero-contact">{contact}</span>
+          )}
+          {stageTag !== undefined && <span className="participant-hero-stage">{stageTag}</span>}
+        </h1>
         {meta !== undefined && <p className="participant-hero-meta">{meta}</p>}
       </div>
       {actions !== undefined && <div className="page-actions">{actions}</div>}

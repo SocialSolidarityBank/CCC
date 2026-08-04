@@ -74,9 +74,10 @@ describe('전체 일정 화면 (CCC-19)', () => {
     expect(firstDayRows[0]!.querySelector('.month-row-time')?.textContent).toBe('10:00');
     expect(firstDayRows[1]!.querySelector('.month-row-time')?.textContent).toBe('14:00');
 
-    // 이름 표기(§5): 실명과 가명 ID 는 별도 노드이고 띄어쓰기는 간격이 만든다.
+    // 이름 표기(D59): 가명 ID 는 화면에 없다 — 동명이인 구분은 연락처가 맡는다.
     expect(firstDayRows[0]!.querySelector('.month-row-name b')?.textContent).toBe('김철수');
-    expect(firstDayRows[0]!.querySelector('.month-row-name span')?.textContent).toBe('(swallow-003)');
+    expect(firstDayRows[0]!.querySelector('.month-row-name span')?.textContent).toBe('010-1234-5678');
+    expect(firstDayRows[0]!.textContent).not.toContain('swallow-003');
 
     expect(days[1]!.querySelector('.month-row-kind')?.textContent).toBe('인테이크');
     expect(firstDayRows[0]!.querySelector('.month-row-kind')?.textContent).toBe('기본 상담');

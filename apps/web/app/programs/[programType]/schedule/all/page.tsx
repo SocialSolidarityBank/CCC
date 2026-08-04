@@ -211,10 +211,11 @@ export default async function ProgramScheduleAllPage({
               return (
                 <Link className="month-row" key={schedule.id} href={rowHref(schedule)}>
                   <span className="month-row-time">{time}</span>
-                  {/* 이름 표기(§5): `이름 (가명 ID)` — 띄어쓰기는 문자열이 아니라 간격이 만든다. */}
+                  {/* 이름 표기(D59): 가명 ID 는 화면에 없다 — 동명이인 구분은 연락처가 맡는다.
+                      이름이 없으면 ID 폴백(그때만 화면에 나온다). */}
                   <span className="month-row-name">
                     <b>{schedule.participantName ?? schedule.beneficiaryId}</b>
-                    {schedule.participantName !== null && <span>({schedule.beneficiaryId})</span>}
+                    {schedule.participantPhone !== null && <span>{schedule.participantPhone}</span>}
                   </span>
                   <span className="month-row-right">
                     <span className="month-row-kind">{sessionKindLabels[schedule.sessionKind]}</span>
