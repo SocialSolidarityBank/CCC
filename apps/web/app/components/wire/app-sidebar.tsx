@@ -44,7 +44,7 @@ function programMenu(programType: ParticipantProgramType): NavItem[] {
 }
 
 /** 16px 단색 라인 아이콘(DESIGN.md §4). currentColor 라 활성 항목에서 글자와 같이 물든다. */
-function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logout' | 'theme-dark' | 'theme-light' }) {
+function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logout' | 'theme-dark' | 'theme-light' | 'close' }) {
   const common = {
     width: 16,
     height: 16,
@@ -77,6 +77,9 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'settings' | 'org' | 'logou
       return <svg {...common}><path d="M8 1.8l5.4 3.1v6.2L8 14.2 2.6 11.1V4.9z" /></svg>;
     case 'logout':
       return <svg {...common}><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6" /></svg>;
+    // 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 텍스트 버튼 대체).
+    case 'close':
+      return <svg {...common}><path d="M4 4l8 8M12 4l-8 8" /></svg>;
   }
 }
 
@@ -123,8 +126,8 @@ function ProgramSwitcher({
 
   return (
     <div className="program-switcher" ref={rootRef}>
-      {/* '사업' 라벨은 선택창 **밖**이다(2026-08-03 Q — 구 '카드 안 2층' 대체). 선택창은
-          흰 상자 1열이고, 드롭다운도 그 상자를 기준으로 뜬다. */}
+      {/* '사업' 라벨은 선택창 **위**다(2026-08-04 Q — 구 2026-08-03 '라벨+흰 상자 한 줄' 대체).
+          라벨 줄 아래 흰 상자가 오고, 드롭다운은 그 상자를 기준으로 뜬다. */}
       <p className="program-switcher-label" id={`${menuId}-label`}>사업</p>
       <div className="program-switcher-box">
         {/* **listbox 가 아니라 열고 닫는 목록(disclosure)이다.** 처음에는 role="listbox" +
@@ -336,10 +339,18 @@ export function AppSidebar({
             목적지는 '/' 다 — 마지막 선택 사업을 서버가 읽어 그 일정으로 보낸다(page.tsx).
             여기서 /programs/:type/schedule 로 직접 링크하면 당사자·설정 화면처럼 경로가
             사업을 안 알려주는 곳에서 폴백(첫 사업)으로 새어, 방금 보던 사업과 달라진다. */}
-        <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
-          <span>{orgLabel}</span>
-        </Link>
+        <div className="sidebar-head">
+          <Link className="brand" href="/">
+            <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
+            <span>{orgLabel}</span>
+          </Link>
+          {/* 드로어 닫기 X — 768 미만에서만 보인다(2026-08-04 Q — 구 하단 '메뉴 닫기' 텍스트
+              버튼 대체). 패널 상단 우측은 닫기의 관례 자리라 배우지 않아도 찾는다.
+              스크림·Esc 는 그대로 남는 닫는 길이다. */}
+          <button type="button" className="drawer-dismiss" aria-label="메뉴 닫기" onClick={() => setDrawerOpen(false)}>
+            <NavIcon name="close" />
+          </button>
+        </div>
         {/* 사업 전환기는 기관명 아래·메뉴 위다 — 아래 모든 메뉴의 범위를 정하므로
             위에 있어야 포함 관계가 눈으로 읽힌다 (ADR-0014 §2). */}
         <ProgramSwitcher
@@ -355,8 +366,9 @@ export function AppSidebar({
           {/* 테마 전환 (D56). 로그아웃과 같은 이유로 서버 액션 폼이다 — 쿠키를 서버가 쓰고,
               그래야 다음 렌더의 <html data-theme> 이 첫 페인트부터 맞는다. GET 링크로 두면
               프리페치가 테마를 제멋대로 바꾼다.
-              라벨은 **가는 곳**을 말한다("다크 모드로") — 현재 상태를 말하면 누를 때마다
-              무엇이 될지 한 번 더 생각해야 한다. aria-pressed 로 현재 상태는 따로 알린다. */}
+              라벨은 **가는 곳**을 말한다 — 현재 상태를 말하면 누를 때마다 무엇이 될지 한 번 더
+              생각해야 한다. 조사 '로'는 뺀다(2026-08-04 Q — "다크 모드"로 충분히 읽히고 짧다).
+              aria-pressed 로 현재 상태는 따로 알린다. */}
           <form action={toggleThemeAction} className="sidebar-logout-form">
             <button
               type="submit"
@@ -364,7 +376,7 @@ export function AppSidebar({
               aria-pressed={theme === 'dark'}
             >
               <NavIcon name={theme === 'dark' ? 'theme-light' : 'theme-dark'} />
-              <span>{theme === 'dark' ? '라이트 모드로' : '다크 모드로'}</span>
+              <span>{theme === 'dark' ? '라이트 모드' : '다크 모드'}</span>
             </button>
           </form>
           <form action={logoutAction} className="sidebar-logout-form">
@@ -374,9 +386,6 @@ export function AppSidebar({
             </button>
           </form>
         </div>
-        {/* 닫기는 드로어일 때만 보인다. 스크림·Esc 외에 **보이는** 탈출구가 하나는 있어야
-            한다 — 스크림을 눌러 닫는 것을 모르는 사람이 갇힌다. */}
-        <button type="button" className="drawer-close" onClick={() => setDrawerOpen(false)}>메뉴 닫기</button>
       </nav>
     </>
   );

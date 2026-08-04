@@ -25,7 +25,9 @@ const TARGETS = [
 
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
-const WEIGHTS = ['400', '600']; // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림
+// 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
+// 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.
+const WEIGHTS = ['400', '500', '600'];
 
 const tokensSrc = readFileSync(TOKENS, 'utf8');
 // :root 및 그 변형(:root[data-contrast="high"])에서 선언된 이름을 모은다.
@@ -72,6 +74,9 @@ for (const file of TARGETS) {
       // .wire-button 이 규칙 안에서 만드는 지역 변수(CCC-51) — 그라데이션 테두리 2겹의
       // 채움을 호버가 background 대신 이 변수로 바꾼다(--surface-fill 과 같은 패턴).
       if (name === '--button-fill') continue;
+      // .page-backbar 가 규칙 안에서 만드는 지역 변수(2026-08-04) — 컨테이너 상한(1120/960)을
+      // 담아, 가로선 전폭 상태의 좌우 패딩 계산과 narrow 분기가 한 값을 본다.
+      if (name === '--backbar-max') continue;
       if (name.startsWith('--rdp-')) continue; // react-day-picker 라이브러리 소유
       if (!defined.has(name)) add(file, n, 'undefined-token', `${name} 는 design/tokens.css 에 없다`);
     }

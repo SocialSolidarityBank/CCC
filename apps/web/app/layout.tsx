@@ -25,22 +25,39 @@ a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit}
 .app-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);min-height:100dvh}
 /* 사이드바(§4): --gradient-sidebar 배경 + 잉크 글자. 다크 패널이 아니다.
-   **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. overflow:hidden 은
-   하단 묶음(설정·테마·로그아웃)을 발치에 상시 노출시키기 위한 것으로, 메뉴가 넘치면
-   아래 .navigation-list 만 안에서 스크롤한다. 768 미만 드로어 블록이 position:fixed 로
-   덮으므로 여기 값은 데스크톱에만 산다. */
-.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink);position:sticky;top:0;height:100dvh;overflow:hidden}
+   **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. 메뉴가 넘치면
+   아래 .navigation-list 만 안에서 스크롤한다(구 overflow:hidden 은 2026-08-04 에 풀었다 —
+   사업 전환기 팝업이 사이드바 끝에서 잘렸다. 내부 스크롤은 .navigation-list 가 이미 맡는다).
+   768 미만 드로어 블록이 position:fixed 로 덮으므로 여기 값은 데스크톱에만 산다. */
+.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-6);background:var(--gradient-sidebar);color:var(--ink);position:sticky;top:0;height:100dvh;overflow:visible}
 /* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
 .sidebar>.navigation-list{overflow-y:auto;min-height:0}
 .brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
-.brand{font-weight:600}
+/* 기관명 줄: 왼쪽 브랜드 링크 + (드로어에서만) 오른쪽 닫기 X.
+   위 -4/아래 +4 마진 쌍은 기관명 중심을 40→36 으로 올려 **'뒤로' 알약 중심(36)과 맞추는**
+   것이다(2026-08-04 Q — 뒤로 띠가 위아래 20 균등이 되면서 알약이 4px 올라갔다). 마진을
+   쌍으로 줘야 아래 블록(사업·구분선 72·메뉴)은 한 픽셀도 안 움직인다. */
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-top:calc(var(--space-1) * -1);margin-bottom:var(--space-1)}
+/* 기관명 18(--text-lg)/600 (2026-08-04 Q — 구 16). 사이드바 강조 굵기 600 유지. */
+.brand{font-size:var(--text-lg);font-weight:600}
+/* 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 버튼 대체). 데스크톱엔 없다.
+   **동그라미 버튼**이다(같은 날 Q — 뒤로 알약과 같은 세컨더리 옷: 그라데이션 1px 테두리 +
+   --panel 채움. 32×32 정사각 + radius pill = 원). */
+.drawer-dismiss{--button-fill:var(--panel);display:none;place-items:center;width:32px;height:32px;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
+@media (hover:hover){.drawer-dismiss:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
+.drawer-dismiss:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* optical: 한글 잉크가 상자 중심보다 ~1px 위에 앉는다(16px·행간 1.55 실측 −1.08px, 2026-08-04
+   canvas TextMetrics). 아이콘은 기하 중앙이라 글자만 1px 내려 잉크 중심을 맞춘다(보정 후 −0.07px).
+   버튼의 --nudge-hangul(행간 1 전용, 0 확정)과 다른 행간 조합이라 별도 보정이다.
+   기관명(18px)은 원래 −0.34px 라 보정하지 않는다 — 1px 을 얹으면 +0.66 으로 더 어긋난다. */
+.navigation-link>span:not(.navigation-soon){transform:translateY(1px)}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
 /* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
-   포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개여도 선택창이다(2026-08-03 Q).
-   민트 계열은 '사람·소속'이라 사업 라벨이 그 축에 든다(D34). */
+   포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개여도 선택창이다(2026-08-03 Q). */
 /* 알약이 아니라 radius 6 이다(§4-5) — 행동 버튼이 아니라 값을 고르는 컨트롤이다. */
-/* 2026-08-03 Q: '사업' 라벨은 선택창 **밖**에 두고 선택창은 1열이다 — 라벨+흰 상자 한 줄. */
-.program-switcher{display:flex;align-items:center;gap:var(--space-3)}
+/* 2026-08-04 Q: '사업' 라벨은 선택창 **위** 2단이다(구 2026-08-03 '라벨+흰 상자 한 줄' 대체) —
+   라벨 줄과 흰 상자가 사이드바 좌측선에 같이 선다. */
+.program-switcher{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
 /* 흰 상자가 곧 선택창이다. 드롭다운의 기준점(position:relative)도 여기다. */
 .program-switcher-box{position:relative;flex:1;min-width:0;display:grid;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--panel)}
 /* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
@@ -58,10 +75,12 @@ button,input,select,textarea{font:inherit}
 }
 .sidebar>.program-switcher::before{top:calc(var(--space-4) * -1)}
 .sidebar>.program-switcher::after{bottom:calc(var(--space-4) * -1)}
-.program-switcher-label{margin:0;flex:none;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
+/* 라벨 색은 메뉴 비활성과 같은 --sub 다(2026-08-04 Q — 구 민트 deep 대체). 사이드바 글자는
+   기본 500·강조 600, 크기 하한 16(--text-md) — 같은 그릴링의 사이드바 타이포 계약. */
+.program-switcher-label{margin:0;color:var(--sub);font-size:var(--text-md);font-weight:500}
 /* 사업 이름은 한 줄이고, 넘치면 꺾쇠(V) 앞에서 **자연스럽게 사라진다**(2026-08-03 Q —
    말줄임표가 아니라 마스크 페이드). 마스크는 알파만 쓰므로 색은 불투명하면 무엇이든 같다. */
-.program-switcher-name{flex:1;min-width:0;margin:0;overflow:hidden;white-space:nowrap;color:var(--ink);font-size:var(--text-md);font-weight:600;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 28px),transparent)}
+.program-switcher-name{flex:1;min-width:0;margin:0;overflow:hidden;white-space:nowrap;color:var(--ink);font-size:var(--text-md);font-weight:500;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 28px),transparent)}
 /* 사업 전환기 드롭다운(2026-07-31). 방아쇠는 카드 안을 꽉 채우는 투명 버튼이다 — 알약을
    덧대면 카드 안에 컨트롤이 두 겹으로 보인다. 값 글자는 --ink 그대로(§9 대비 예외는 보조
    정보 한정이라 읽어야 하는 값에 deep 을 쓰지 않는다). */
@@ -73,23 +92,36 @@ button,input,select,textarea{font:inherit}
 /* 목록은 카드 바로 아래에 뜬다. 표면 계약은 date-picker 팝오버와 같은 값을 쓴다
    (--panel · --radius-card · --shadow-soft · z 30) — 새 표면을 만들지 않는다. */
 /* 접힌 상자에서는 이름이 잘려도, **열면 전체 글자가 보인다**(2026-08-03 Q) — 목록 폭은
-   내용만큼(max-content) 벌어지되 사이드바 폭을 상한으로 갖고, 그보다 긴 이름만 아래
-   옵션 규칙의 마스크로 다시 사라진다. */
+   내용만큼(max-content) 벌어진다. 상한은 사이드바 폭이 아니라 **본문까지 침범하는 넉넉한
+   폭**이다(2026-08-04 Q — 구 상한에서는 긴 사업명이 사이드바 끝에서 잘렸다. .sidebar 의
+   overflow 도 같이 풀었다). 상한을 넘는 극단만 아래 옵션 규칙의 마스크로 사라진다. */
 .program-switcher-menu{
   position:absolute;top:calc(100% + var(--space-2));left:0;z-index:var(--z-dropdown);
-  min-width:100%;width:max-content;max-width:calc(var(--sidebar-width) - var(--space-6) * 2);
+  min-width:100%;width:max-content;max-width:min(60vw,480px);
   display:grid;gap:var(--space-0-5);padding:var(--space-2);margin:0;list-style:none;
   border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-soft);
 }
-.program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-sm);font-weight:600}
+.program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-md);font-weight:500}
 /* 상한을 넘는 이름은 옵션 안에서도 같은 방식으로 사라진다 — 말줄임표를 쓰지 않는다(위 이름 규칙과 동일 어휘). */
 .program-switcher-option>span:last-child{min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 20px),transparent)}
-.program-switcher-option[data-selected="true"]{background:var(--blue-tint)}
+.program-switcher-option[data-selected="true"]{background:var(--blue-tint);font-weight:600}
 @media (hover:hover){.program-switcher-option:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}}
 /* 체크 글자에 deep 을 쓰지 않는다(§9 대비 예외는 보조 정보 한정). 선택 신호는 --blue-tint 면이 갖는다. */
 .program-switcher-check{width:14px;flex:none;color:var(--ink)}
-.navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0;list-style:none}
-.navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-sm);font-weight:600;transition:background-color .12s ease,color .12s ease}
+/* 팝업이 **열린 동안만** 사이드바를 드롭다운 층으로 든다(2026-08-04 Q 보고 — 팝업이 본문
+   텍스트 아래로 깔렸다). sticky 인 .sidebar 는 자기 스태킹 컨텍스트를 만들어 팝업의
+   z-dropdown 이 그 안에 갇히고, 본문 .page-content 도 containment(container-type)로
+   컨텍스트가 되어 DOM 순서(사이드바 → 본문)대로 본문이 위에 칠해진다. 상시 z 를 주면
+   본문 안 스크림·모달이 사이드바 아래로 떨어지는 역전이 생기므로 :has 로 열림에만 건다.
+   768 미만 드로어는 z-modal(100) 이 필요해 데스크톱에만 적용한다. */
+@media (min-width:768px){.sidebar:has(.program-switcher-menu){z-index:var(--z-dropdown)}}
+/* 좌우 -12(--space-3)는 항목의 안쪽 패딩만큼 알약을 되밀어 **아이콘·글자가 사이드바
+   좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
+   알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다. */
+.navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
+/* 테두리 1px 은 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 2px 자라
+   글자가 상태 전환마다 1px 씩 튄다. */
+.navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -102,36 +134,40 @@ button,input,select,textarea{font:inherit}
   /* 다크에서는 --ink 가 밝은 색이라 뒤집힌다 — 어두운 면은 --canvas 가, 아이콘은 --ink 가 맡는다. */
   [data-theme="dark"] .navigation-link:not([data-current="true"]):hover{background:var(--canvas);color:var(--ink)}
   /* 활성 항목 위에서는 활성 표시가 이겨야 한다 — 호버가 덮으면 "지금 어디인지"가 사라진다. */
-  .navigation-link[data-current="true"]:hover{background:var(--blue-tint);color:var(--ink)}
+  .navigation-link[data-current="true"]:hover{background:linear-gradient(var(--blue-tint),var(--blue-tint)) padding-box,var(--gradient-brand) border-box;color:var(--ink)}
 }
 /* 활성 내비는 블루 계열(시간·상태). 단 **글자는 --ink** 다 — --blue-deep(#67a9f0)을 --blue-tint
    위에 얹으면 대비가 1.9 라 라벨이 읽히지 않고, 비활성(--sub #534e57)보다 오히려 흐려져
    위계가 뒤집힌다. DESIGN.md §9 의 대비 예외는 '보조 정보 한정'이라 주 메뉴 라벨은 대상이 아니다.
    블루 신호는 아이콘이 갖는다 — 색은 남고 글자는 읽힌다. */
-.navigation-link[data-current="true"]{background:var(--blue-tint);color:var(--ink)}
+/* 활성 = tint 채움 + --gradient-brand 1px 테두리 (2026-08-04 Q — --blue-tint #E7EEF8 가
+   사이드바 그라데이션 최상단 색과 동일해 위쪽 메뉴에서 활성 상자가 아예 안 보였다.
+   그라데이션 테두리는 D58 '선택·활성' 어휘다). */
+.navigation-link[data-current="true"]{background:linear-gradient(var(--blue-tint),var(--blue-tint)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-weight:600}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
-.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--sub);white-space:nowrap}
+.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
 /* 푸터에 항목이 둘(설정·로그아웃)이 되어 가로 flex 로는 나란히 서 버린다 — 메뉴와 같은
    세로 목록이어야 같은 종류로 읽힌다. */
-.sidebar-footer{margin-top:auto;display:grid;gap:var(--space-1);color:var(--sub);font-size:var(--text-sm);font-weight:600}
+/* margin-inline -12 는 위 .navigation-list 와 같은 좌측선 정렬이다. */
+.sidebar-footer{margin-top:auto;margin-inline:calc(var(--space-3) * -1);display:grid;gap:var(--space-1);color:var(--sub);font-size:var(--text-md);font-weight:500}
 .sidebar-logout-form{margin:0}
 /* 로그아웃은 폼 버튼이지만 메뉴 항목처럼 보여야 한다 — .navigation-link 를 그대로 쓰고
-   버튼 기본 스타일만 지운다. width:100% 는 눌리는 영역을 메뉴와 같게 맞춘다. */
-.sidebar-logout{width:100%;border:0;background:transparent;font:inherit;text-align:left;cursor:pointer}
+   버튼 기본 스타일만 지운다. width:100% 는 눌리는 영역을 메뉴와 같게 맞춘다.
+   테두리는 지우지 않는다 — .navigation-link 의 투명 1px 이 상자 크기를 링크와 같게 유지한다. */
+.sidebar-logout{width:100%;background:transparent;font:inherit;text-align:left;cursor:pointer}
 /* ── 드로어 부품 ── 데스크톱에는 셋 다 없다(§4-4 는 768 미만에서만 드로어라고 말한다).
    손잡이 바는 락 8 이 금지한 '상단 헤더 띠'가 아니다 — 데스크톱에 없고 내용은 손잡이뿐이다. */
-.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
+.drawer-handle{display:none;align-items:center;gap:var(--space-3);width:100%;height:56px;padding:0 var(--space-4);border:0;border-bottom:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:500;text-align:left;cursor:pointer;position:sticky;top:0;z-index:var(--z-sticky)}
 /* optical: gap 3 은 간격 리듬이 아니라 **아이콘 안쪽 도형**이다 — 막대 2px 셋과 사이 3px 이
    합쳐 18×12 손잡이 글리프를 만든다. 간격 토큰으로 스냅하면 아이콘 모양이 바뀐다. */
 .drawer-handle-bars{display:flex;flex-direction:column;gap:3px;width:18px;flex:none}
 .drawer-handle-bars i{height:2px;border-radius:var(--radius-bar);background:var(--ink)}
 /* 지금 어느 사업인지는 드로어를 열지 않고도 보여야 한다 — 사업이 메뉴의 범위를 정하기 때문이다.
    민트 계열은 '사람·소속' 축이라 사업 라벨이 여기 든다(D34). */
-.drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer-handle-program{margin-left:auto;color:var(--mint-deep);font-size:var(--text-md);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drawer-scrim{position:fixed;inset:0;background:var(--scrim);z-index:calc(var(--z-modal) - 1)}
-.drawer-close{display:none;width:100%;min-height:var(--control-height);margin-top:var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 /* ── 페이지 셸 ── 장폭·여백의 유일한 주인(2026-07-26). 값은 design/tokens.css 에만 있다.
    width:100% 가 핵심이다 — .page-content 는 .app-shell 의 **그리드 아이템**이고 auto 마진을
    갖고 있어서, 폭을 명시하지 않으면 트랙을 채우지 않고 내용 크기로 줄어든다. 그래서 이전에는
@@ -160,18 +196,33 @@ button,input,select,textarea{font:inherit}
 .content-column{display:flex;flex-direction:column;min-width:0}
 /* 본문과 **같은** 컨테이너 값을 쓴다 — 여기서 다른 폭을 쓰면 '뒤로'와 제목의 왼쪽 끝이 어긋난다.
    아래 패딩은 0 이고, 뒤따르는 .page-content 의 위 패딩을 줄여 둘 사이가 벌어지지 않게 한다. */
-.page-backbar{width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--page-pad-y) var(--page-pad-x) 0}
+.page-backbar{--backbar-max:var(--page-max);width:100%;max-width:var(--backbar-max);margin-inline:auto;padding:var(--page-pad-y) var(--page-pad-x) 0}
+/* 뒤로 버튼이 있을 때만: 위·아래 여백을 **20씩 균등**하게 두고(2026-08-04 Q — 구 24/16),
+   아래 1px 가로선은 사이드바 '기관|사업' 구분선과 같은 높이(20+32+20=72)에 남는다 —
+   셸 머리띠가 사이드바와 한 줄로 읽힌다. 균등 여백·선 연속·기관명 중심(40) 셋은 동시에
+   못 잡는다(20+16=36≠40) — 선 연속이 눈에 제일 크게 걸려 알약 중심 4px 를 양보했다.
+   뒤로가 안 그려지는 화면(히스토리 없음)은 기존 패딩 그대로라 선도 없다.
+   가로선은 **본문 열 끝까지 여백 없이** 간다(2026-08-04 Q) — 상자를 열 전체 폭으로 펼쳐 선을
+   긋고, 컨테이너 정렬은 좌우 패딩으로 재현한다: 남는 폭의 절반 + 기존 패딩. 열이 컨테이너보다
+   좁으면 max() 가 기존 패딩으로 떨어진다. 뒤로 알약의 왼쪽 끝은 바뀌지 않는다. */
+.page-backbar:has(.page-back){max-width:none;padding:var(--space-5) max(var(--page-pad-x),calc((100% - var(--backbar-max)) / 2 + var(--page-pad-x))) var(--space-5);border-bottom:1px solid var(--line)}
 /* .narrow 는 --page-max 를 **.page-content 자기 자신에** 얹는다(위 .narrow 규칙). 뒤로가기 줄은
    그 형제라 그 값을 물려받지 못하고 :root 의 1120 을 쓴다 — 둘 다 가운데 정렬이므로 좁은 화면
    (960)에서 '뒤로'가 제목보다 80px 왼쪽에 선다. 다음 형제를 보고 같은 폭으로 맞춘다. */
-.page-backbar:has(+ .page-content.narrow){max-width:var(--page-max-narrow)}
+.page-backbar:has(+ .page-content.narrow){--backbar-max:var(--page-max-narrow)}
 /* 형제 선택자라 뒤로가기 줄이 있는 화면에만 걸린다 — 공개 화면(셸 없음)은 그대로다. */
-.page-backbar+.page-content{padding-top:var(--space-4)}
+/* 뒤로가 알약 버튼이 되면서(2026-08-04) 아래 제목과 16 은 붙어 보인다 — 24 로 벌린다. */
+.page-backbar+.page-content{padding-top:var(--space-6)}
 /* 고스트 버튼 계약(§5): 배경·테두리 없음, --sub 글자. 되돌리기는 주 행동이 아니다. */
-.page-back{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-2);margin-left:calc(var(--space-2) * -1);border:0;border-radius:var(--radius-control);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:600;cursor:pointer}
-@media (hover:hover){.page-back:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}}
+/* 뒤로가기도 알약 버튼이다(2026-08-04 Q — 구 투명 텍스트 대체). 단독 클릭 요소는 전부
+   알약(D58 ⑥)이라 세컨더리 sm 과 같은 옷을 입는다 — 그라데이션 1px 테두리 + --panel 채움.
+   --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+@media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
+/* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
-.page-header{display:flex;justify-content:space-between;gap:var(--space-6);align-items:flex-start}
+/* h1 과 행동 버튼(40)은 세로 중앙으로 맞춘다(2026-08-04 Q — flex-start 는 제목이 위로 떠 보였다). */
+.page-header{display:flex;justify-content:space-between;gap:var(--space-6);align-items:center}
 /* 우상단 행동 묶음 (D35 — 사이드바=장소 / 페이지 우상단=행동). 주 행동이 오른쪽 끝이다. */
 .page-actions{display:flex;align-items:center;gap:var(--space-3);flex:none}
 h1{margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
@@ -236,7 +287,7 @@ textarea{min-height:216px;resize:vertical}
     transform:translateX(-100%);transition:transform .15s ease;
   }
   .sidebar[data-drawer-open="true"]{transform:none}
-  .drawer-close{display:block}
+  .drawer-dismiss{display:grid}
   /* align-items 를 stretch 로 되돌리는 것이 핵심이다(기본은 97행의 flex-start).
      헤더가 세로로 누우면 교차축이 가로가 되는데, flex-start 인 채로는 .page-actions 가
      내용 크기로 쪼그라든다. 그 상태에서 안의 버튼이 아래 width:100% 를 받으면 기준 폭이
