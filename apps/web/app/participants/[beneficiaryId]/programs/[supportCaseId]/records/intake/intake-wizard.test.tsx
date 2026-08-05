@@ -95,8 +95,9 @@ describe('IntakeWizard', () => {
 
   it('자동 채움 항목(상담일·실무자·회차)은 1-3 소절 안에 있다', () => {
     const { container } = renderWizard();
+    // 소절 상자는 WireCard 다(2026-08-05 컴포넌트화) — h3 는 제목 슬롯 안이라 카드로 올라간다.
     const operations = [...container.querySelectorAll('h3')]
-      .find((el) => el.textContent === '1-3. 상담 운영정보')?.parentElement;
+      .find((el) => el.textContent === '1-3. 상담 운영정보')?.closest('.wire-card');
     expect(operations).not.toBeUndefined();
 
     const scoped = within(operations as HTMLElement);

@@ -9,22 +9,31 @@
 // 안에 들어가므로, 나중에 background 를 통째로 덮으면 테두리가 사라진다. 그래서 채움색을
 // --surface-fill 변수로 빼두고 hover·selected 는 그 변수만 바꾼다.
 export const wireStyles = `
-/* ── 떠 있는 표면(카드 계약) ── 흰 배경 · radius 12 · **회색 --line 1px** · --shadow-soft.
-   pen 의 'C · 카드'는 테두리가 아예 없고 이중 파스텔 그림자만으로 뜬다. 그라데이션 테두리를
-   가진 컴포넌트는 **리스크 배너 하나뿐**이다 — 그것이 배너를 서게 하는 장치이기 때문이다(D9).
-   그래서 모든 카드에 그라데이션을 두르면 두 가지가 동시에 망가진다: 화면이 촌스러워지고
-   (2026-07-26 Q 지적), 리스크 배너가 다른 카드와 구별되지 않는다.
-   여기서는 캔버스(#FAFAF9) 위 흰 카드가 그림자만으로는 약해 **회색 1px** 을 기본으로 두고,
-   **선택·활성일 때만** 그라데이션으로 바꾼다.
+/* ── 카드 계약 ── **아웃라인 카드**다(2026-08-05 Q 개정 · ADR-0030 — 구 --shadow-soft 폐지).
+   경계는 그림자가 아니라 **선 2종**이 만든다(Infisical·Cloudflare·Vercel·Supabase 레퍼런스):
+     기본(비선택) = 회색 --line 1px / 선택·활성 = --gradient-brand 1px.
+   그림자는 본문 흐름 밖으로 떠 있는 층(모달·팝오버·스티키 헤더)만 쓴다 — 본문 카드가
+   그림자를 나눠 가지면 정작 떠 있는 층이 뜨지 않는다.
+   그라데이션을 **상시** 두르는 컴포넌트는 여전히 리스크 배너 하나뿐이다(D9 — 전 카드에
+   두르면 배너가 묻힌다). 카드의 그라데이션은 '선택·활성'의 어휘다.
    채움을 바꿀 때는 --surface-fill 만 바꾼다(선택 상태는 배경 2겹이라 background 를 덮으면 테두리가 날아간다). */
 .surface-card{
   --surface-fill:var(--panel);
   border:1px solid var(--line);
   border-radius:var(--radius-card);
   background:var(--surface-fill);
-  box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
+/* 안내줄 변형(D59 ②): 블루 tint 면 — 자동 저장·저장 완료 같은 시간·상태 축 안내(D34).
+   테두리는 기본 카드와 같은 --line 이다 — 리스크 어휘(--risk 테두리)는 배너 전용(D9). */
+.surface-card[data-tone="info"]{--surface-fill:var(--blue-tint)}
+/* 안내줄 안 조각 — 제목 16/600 --ink · 본문 14 --sub · 행동 줄. draft-notice ·
+   intake-saved-notice 가 인라인 스타일로 제각각 그리던 것을 한 계약으로 모았다(2026-08-05). */
+.notice-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.notice-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
+.notice-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 자동 저장 상태 한 줄 — 카드 밖 플랫 텍스트. */
+.notice-status{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
@@ -58,6 +67,14 @@ details.surface-card{overflow:clip}
   .wire-container[data-grid="true"]{grid-template-columns:1fr}
   .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-12{grid-column:auto}
 }
+/* ── 카드-섹션 여백 3단 (2026-08-05 Q · ADR-0030) ── 카드가 전면 컴포넌트화되면서 간격도
+   세 값으로 닫는다. **이 밖의 카드 간격을 새로 만들지 않는다**:
+     ① 페이지 세로 스택(구획 카드·HERO·배너 사이) = 24 (--section-gap)
+     ② 같은 목록 안 카드 사이(그리드·스택)     = 20 (--space-5)
+     ③ 행 카드 스택(접힌 회차 줄·당사자 행)     = 12 (--space-3)
+   카드 안 패딩은 §3-4 그대로다(본문 24 · 머리/행 16/24 · 좁은 보조 패널 16/20).
+   전용 유틸 클래스는 두지 않는다 — 화면 목록 클래스(.card-grid·.record-list·.briefing-page 등)가
+   위 세 값만 쓰는지를 계약으로 삼는다(가드가 죽은 클래스를 막는다). */
 /* ── 카드 목록 ── 기본은 폭 전체를 쓰고, 칸이 늘어나면 --grid-min 을 기준으로 열이 갈린다
    (D37 §4-2: 표준 420 → 1120 에서 2열 각 510 · 화면 1180 미만에서 1열). 화면마다
    grid-template-columns 를 다시 쓰지 않고 **열 수도 직접 지정하지 않는다**(락 10).
@@ -81,7 +98,7 @@ details.surface-card{overflow:clip}
 .participant-name{color:var(--ink);font-weight:600;overflow-wrap:anywhere}
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
-   브리핑의 .briefing-hero 와 같은 구조이나 부품이 공유된다. */
+   브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
 .participant-hero-card{padding:var(--space-6);gap:var(--space-5)}
 .participant-hero-identity{display:grid;gap:var(--space-2);min-width:0}
 .participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
@@ -148,8 +165,22 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* WireCard (§5 카드): 헤더/본문을 --gradient-brand 1px 선으로 나눈다. */
 .wire-card{padding:var(--space-6)}
 .wire-card-title{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
+/* 제목 슬롯에 시맨틱 헤딩(h3 소절 제목)이 들어와도 크기는 카드 제목 계약을 따른다 —
+   UA 기본 크기가 새지 않게 한다(인테이크 소절, 2026-08-05). */
+.wire-card-title>h3{margin:0;font-size:inherit;font-weight:inherit;line-height:inherit}
 .wire-card-divider{height:1px;margin:var(--space-4) 0;background:var(--gradient-brand);border:0}
 .wire-card-body{display:grid;gap:var(--space-3)}
+/* WireCardDetails — 접힘 카드(2026-08-05 카드화 · ADR-0030, 구 브리핑 플랫 아코디언).
+   접힌 상태 = 제목 줄만 남은 회색 카드, 펼친 상태 = 활성이라 .surface-card[open] 의
+   그라데이션 테두리를 그대로 받는다(D47 회차 카드와 같은 어휘).
+   제목 아래 그라데이션 1px 은 WireCard 의 구분선과 같은 선인데, 접혀 있으면 본문이 없어
+   선도 없다 — 카드 바닥에 선만 남는 모양을 막는다. */
+.wire-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none}
+.wire-card-summary::-webkit-details-marker{display:none}
+.wire-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
+.wire-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+.wire-card-details[open]>.wire-card-summary{margin-bottom:var(--space-4);padding-bottom:var(--space-4);background:var(--gradient-brand) bottom/100% 1px no-repeat}
+.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:rotate(45deg)}
 /* 제목과 상태 배지가 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은 이유). */
 .wire-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
 .wire-card-head .status,.wire-card-head .wire-badge{flex:none;white-space:nowrap}
@@ -300,6 +331,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
      같은 흐름 애니메이션을 탄다. 링크가 감싼 카드는 자동으로 잡고, 링크가 아닌 복잡한
      카드형 div 는 data-hover-flow="true" 를 달아 같은 어휘를 쓴다. 선택·펼침 상태는
      위 규칙(더 진한 --gradient-action 채움 없이 테두리 흐름)이 이미 갖는다. */
+  /* 테마 규칙(2026-08-05 Q · ADR-0030): ① 카드·행의 **면 호버**는 자기 테마의 tint 쌍
+     (--gradient-hover — 다크 값은 tokens.css 가 갖는다). ② **선택**은 두 테마 공통 —
+     카드는 --gradient-brand 아웃라인, 행·컨트롤은 --gradient-action 면 + --on-action 글자
+     (채움이 두 테마에서 같은 밝은 파스텔이라 글자도 늘 어두운 잉크다). ③ **반전 호버**
+     (내비류 강조 호버)는 라이트 = 어두운 면 + 그라데이션 글자 ↔ 다크 = 그라데이션 면 +
+     --on-action 글자다 — 배선은 layout.tsx 내비 규칙에 있다. */
   a:hover>.surface-card:not([data-selected="true"]):not([open]),
   .surface-card[data-hover-flow="true"]:hover{
     border-color:transparent;

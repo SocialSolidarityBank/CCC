@@ -40,7 +40,7 @@ export default async function PreviewGatePage({ searchParams }: { searchParams: 
         <p role="alert" className="wire-field-error">{errorMessages[errorCode] ?? '확인하지 못했습니다.'}</p>
       ) : null}
 
-      <form className="schedule-form" action={unlockPreviewAction}>
+      <form className="surface-card schedule-form" action={unlockPreviewAction}>
         <WireFormField label="접속 코드" required htmlFor="preview-code">
           <input id="preview-code" type="password" name="code" autoComplete="off" autoFocus required />
         </WireFormField>

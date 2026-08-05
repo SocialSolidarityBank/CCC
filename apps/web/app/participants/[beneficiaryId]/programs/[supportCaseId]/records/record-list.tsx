@@ -123,8 +123,9 @@ export function RecordCard({
 
     <div className="record-body">
       {/* 불일치 처리 '기록 오류'의 흔적 (D45 · ADR-0018 · CCC-42). 원본은 손대지 않고 표시만
-          붙여 다음 열람자의 오해를 막는다 — 정정이 필요하면 실무자가 따로 기록한다. */}
-      {recordError && <p className="note" role="note">
+          붙여 다음 열람자의 오해를 막는다 — 정정이 필요하면 실무자가 따로 기록한다.
+          상자가 아니라 플랫 한 줄이다 — 카드 안에 상자를 두지 않는다(카드 안 카드 금지). */}
+      {recordError && <p className="record-error-note" role="note">
         이 기록과 관련된 내용 불일치가 <strong>기록 오류</strong>로 처리되었습니다. 아래 내용은 원본 그대로입니다.
       </p>}
 

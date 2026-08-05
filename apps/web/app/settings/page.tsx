@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ApiError, getMyIdentity, listOrgUsers, type DirectoryRole, type DirectoryUser, type MyIdentity } from '../lib/api';
 import { PageTitle } from '../components/wire/page-title';
 import { WireButton } from '../components/wire/wire-button';
+import { WireCard } from '../components/wire/wire-card';
 import { adminMenu, userLabel } from '../admin/admin-format';
 
 // 역할 화면 라벨 — CONTEXT.md 용어집 준수(기관 관리자·담당 실무자). service는 처리 장비(Mac Mini) 계정.
@@ -28,8 +29,8 @@ function settingsErrorMessage(error: ApiError): string | null {
 
 function AccountSection({ name, email, role }: { name: string | null; email: string; role: DirectoryRole }) {
   return (
-    <section className="settings-section" aria-labelledby="settings-account-heading">
-      <h2 id="settings-account-heading">내 계정</h2>
+    // 설정 구획은 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체).
+    <WireCard as="section" className="settings-section" labelledBy="settings-account-heading" title={<h2 id="settings-account-heading">내 계정</h2>}>
       <dl className="settings-account">
         {/* 이름 미등록 계정(관리자·테스터)은 행 자체를 생략 — '미입력' 표기는 소음이다. */}
         {name === null ? null : (
@@ -47,7 +48,7 @@ function AccountSection({ name, email, role }: { name: string | null; email: str
           <dd>{roleLabel[role]}</dd>
         </div>
       </dl>
-    </section>
+    </WireCard>
   );
 }
 
@@ -60,16 +61,14 @@ async function DirectorySection() {
     if (!(error instanceof ApiError)) throw error;
     // 목록 조회가 실패해도 '내 계정' 섹션은 그대로 두고, 목록 자리에만 오류를 표시한다.
     return (
-      <section className="settings-section" aria-labelledby="settings-directory-heading">
-        <h2 id="settings-directory-heading">기관 실무자 목록</h2>
+      <WireCard as="section" className="settings-section" labelledBy="settings-directory-heading" title={<h2 id="settings-directory-heading">기관 실무자 목록</h2>}>
         <p className="empty" role="alert">실무자 목록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</p>
-      </section>
+      </WireCard>
     );
   }
 
   return (
-    <section className="settings-section" aria-labelledby="settings-directory-heading">
-      <h2 id="settings-directory-heading">기관 실무자 목록</h2>
+    <WireCard as="section" className="settings-section" labelledBy="settings-directory-heading" title={<h2 id="settings-directory-heading">기관 실무자 목록</h2>}>
       {directory.length === 0 ? (
         <p className="empty" aria-live="polite">등록된 계정이 없습니다.</p>
       ) : (
@@ -83,7 +82,7 @@ async function DirectorySection() {
           ))}
         </ul>
       )}
-    </section>
+    </WireCard>
   );
 }
 
@@ -92,8 +91,7 @@ async function DirectorySection() {
 export function AdminSection() {
   const links = adminMenu.filter((item) => item.href !== '/admin/settings');
   return (
-    <section className="settings-section" aria-labelledby="settings-admin-heading">
-      <h2 id="settings-admin-heading">관리자</h2>
+    <WireCard as="section" className="settings-section" labelledBy="settings-admin-heading" title={<h2 id="settings-admin-heading">관리자</h2>}>
       <ul className="settings-user-list">
         {links.map((item) => (
           <li key={item.href} className="settings-user-row">
@@ -101,7 +99,7 @@ export function AdminSection() {
           </li>
         ))}
       </ul>
-    </section>
+    </WireCard>
   );
 }
 

@@ -5,6 +5,7 @@ import { ApiError, getMonthSchedules, type TodaySchedule } from '../../../../lib
 import { GridContainer } from '../../../../components/wire/grid-container';
 import { PageTitle } from '../../../../components/wire/page-title';
 import { WireButton } from '../../../../components/wire/wire-button';
+import { WireCard } from '../../../../components/wire/wire-card';
 import { isKnownProgramType } from '../../../../lib/labels';
 
 // 사이드바 '전체 일정'(D35 · ADR-0014 §2)의 도착지 — CCC-19.
@@ -201,10 +202,17 @@ export default async function ProgramScheduleAllPage({
   return frame(month, (
     <>
       {[...days.entries()].map(([date, entries]) => (
-        <section className="month-day" key={date} aria-label={formatDayTitle(date)}>
-          <h2 className="month-day-title" data-today={date === today ? 'true' : undefined}>
+        // 날짜 묶음은 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체).
+        // 안의 행은 붙어 있으므로 카드가 아니라 --line 구분선이다(§5 리스트 행 맥락 규칙).
+        <WireCard
+          as="section"
+          className="month-day"
+          key={date}
+          labelledBy={`month-day-${date}`}
+          title={<h2 className="month-day-title" id={`month-day-${date}`} data-today={date === today ? 'true' : undefined}>
             {formatDayTitle(date)}
-          </h2>
+          </h2>}
+        >
           <div className="month-rows">
             {entries.map(({ schedule, time }) => {
               const status = statusLabels[schedule.status];
@@ -225,7 +233,7 @@ export default async function ProgramScheduleAllPage({
               );
             })}
           </div>
-        </section>
+        </WireCard>
       ))}
     </>
   ));
