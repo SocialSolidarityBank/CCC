@@ -309,6 +309,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-button .wire-chevron{border-color:currentColor}
 /* 한글 광학 보정(tokens.css --nudge-hangul) — 고정 높이 단일행 컨트롤의 텍스트만 내린다. */
 .wire-button-text,.wire-badge,.wire-input-box>input,.wire-input-box>select,.wire-search-box input,.wire-search-box select{transform:translateY(var(--nudge-hangul))}
+/* 텍스트 옆에 서는 꺽쇠도 같은 값으로 따라 내린다(2026-08-06 실측) — 글자만 내리면 버튼의
+   화살표가 라벨보다 0.7px 떠 보인다. 꺽쇠는 회전 transform 을 이미 갖고 있어 합성 대신
+   position 오프셋으로 옮긴다(기존 translateX·rotate 와 독립). */
+.wire-button .wire-chevron,.wire-search-box .wire-chevron,.wire-input-box .wire-chevron{position:relative;top:var(--nudge-hangul)}
 /* ── 모션 3종 뼈대 (2026-08-02 D58/ADR-0028 · DESIGN.md §6 · CCC-50) ──
    여기는 어휘 정의만 둔다 — 실제 배선(어느 요소에 어느 클래스를 다는가)은 CCC-51·CCC-53.
    시간·이징은 tokens.css 의 모션 토큰만 쓴다(§6: 이 밖의 값 위반).
