@@ -37,17 +37,20 @@ with sync_playwright() as p:
     page.goto(f"{base}{path}", wait_until="networkidle")
     page.wait_for_timeout(400)
     desk = page.evaluate("""() => {
-      const h = document.querySelector('.drawer-handle');
+      // 2026-08-05 2차: 손잡이 버튼이 .drawer-bar(기관·사업 선택창 + 원형 메뉴 버튼) 안으로
+      // 들어갔다. 노출 여부는 바가 정한다 — display:none 부모 안 자식의 computed display 는
+      // 자기 값(grid)을 돌려주므로 바 자체를 봐야 한다.
+      const bar = document.querySelector('.drawer-bar');
       const s = document.querySelector('.sidebar');
       return {
-        handleShown: h ? getComputedStyle(h).display !== 'none' : false,
+        barShown: bar ? getComputedStyle(bar).display !== 'none' : false,
         closeShown: (() => { const c = document.querySelector('.drawer-dismiss');
                              return c ? getComputedStyle(c).display !== 'none' : false; })(),
         sidebarWidth: s ? Math.round(s.getBoundingClientRect().width) : 0,
         sidebarLeft: s ? Math.round(s.getBoundingClientRect().left) : null,
       };
     }""")
-    check("1440: 손잡이 바 없음 (락 8 — 상단 헤더 띠 금지)", not desk["handleShown"], str(desk))
+    check("1440: 모바일 바 없음 (데스크톱은 상단 헤더가 맡는다)", not desk["barShown"], str(desk))
     check("1440: 드로어 닫기 버튼 없음", not desk["closeShown"], str(desk))
     check("1440: 사이드바 280 · 왼쪽 끝 고정", desk["sidebarWidth"] == 280 and desk["sidebarLeft"] == 0, str(desk))
     page.screenshot(path=str(out / "desktop-1440.png"))
@@ -60,19 +63,26 @@ with sync_playwright() as p:
 
     closed = page.evaluate("""() => {
       const s = document.querySelector('.sidebar');
+      const bar = document.querySelector('.drawer-bar');
       const h = document.querySelector('.drawer-handle');
       const box = s.getBoundingClientRect();
       return {
-        handleShown: getComputedStyle(h).display !== 'none',
-        handleHeight: Math.round(h.getBoundingClientRect().height),
+        barShown: getComputedStyle(bar).display !== 'none',
+        barHeight: Math.round(bar.getBoundingClientRect().height),
+        // 원형 메뉴 버튼(32)이 바 오른쪽 끝에 있고, 기관·사업 선택창이 그 왼쪽에 있다.
+        handleRound: Math.round(h.getBoundingClientRect().width) === 32
+          && Math.round(h.getBoundingClientRect().height) === 32,
+        orgInBar: bar.querySelector('.org-switcher') !== null,
+        programInBar: bar.querySelector('.program-switcher:not(.org-switcher)') !== null,
         sidebarRight: Math.round(box.right),
         sidebarWidth: Math.round(box.width),
-        scrim: document.querySelector('.drawer-scrim') !== null,
         docScroll: document.documentElement.scrollWidth,
         docClient: document.documentElement.clientWidth,
+        scrim: document.querySelector('.drawer-scrim') !== null,
       };
     }""")
-    check("390: 손잡이 바 보임 · 높이 56", closed["handleShown"] and closed["handleHeight"] == 56, str(closed))
+    check("390: 모바일 바 보임 · 높이 56", closed["barShown"] and closed["barHeight"] == 56, str(closed))
+    check("390: 바 = 기관·사업 선택창 + 원형(32) 메뉴 버튼", closed["orgInBar"] and closed["programInBar"] and closed["handleRound"], str(closed))
     # 닫혔을 때 오른쪽 끝이 0 이하 = 화면 밖에 있다.
     check("390: 드로어가 화면 밖에 있다", closed["sidebarRight"] <= 0, str(closed))
     check("390: 스크림 없음", not closed["scrim"], str(closed))

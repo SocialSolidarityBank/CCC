@@ -11,7 +11,9 @@ export type ShellIconName =
   | 'logout'
   | 'theme-dark'
   | 'theme-light'
-  | 'close';
+  | 'close'
+  | 'sidebar'
+  | 'updown';
 
 export function NavIcon({ name }: { name: ShellIconName }) {
   const common = {
@@ -49,5 +51,13 @@ export function NavIcon({ name }: { name: ShellIconName }) {
     // 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 텍스트 버튼 대체).
     case 'close':
       return <svg {...common}><path d="M4 4l8 8M12 4l-8 8" /></svg>;
+    // 사이드바 패널 (2026-08-05 Q 2차 — 모바일 바 우측 원형 메뉴 버튼. 햄버거 대체:
+    // "원형 버튼 안에 사이드바 아이콘". Infisical 의 panel-left 글리프와 같은 어휘).
+    case 'sidebar':
+      return <svg {...common}><rect x="2" y="2.5" width="12" height="11" rx="2" /><path d="M6.2 2.5v11" /></svg>;
+    // 상하 꺽쇠 (2026-08-05 Q 2차 — 기관·사업 선택창의 화살표. 단방향 꺽쇠는 '펼침'을,
+    // 상하 꺽쇠는 '고르는 값'을 말한다 — Infisical·OpenAI 플랫폼의 전환기 어휘).
+    case 'updown':
+      return <svg {...common}><path d="M5 6.2 8 3.2l3 3M5 9.8l3 3 3-3" /></svg>;
   }
 }

@@ -21,16 +21,20 @@ function sidebarLinks(container: HTMLElement): Array<{ label: string; href: stri
 }
 
 describe('AppSidebar (D35 · ADR-0014 §2)', () => {
-  it('기관 → 사업 전환기 → 메뉴 → 설정 순으로 렌더한다', () => {
+  it('기관 → 사업 전환기 → 메뉴 → 하단 묶음 순으로 렌더한다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    expect(container.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
+    expect(container.querySelector('.sidebar .brand')?.textContent).toContain(ORG_LABEL);
     // 전환기는 메뉴 위에 있어야 포함 관계가 읽힌다.
     const switcher = container.querySelector('.sidebar .program-switcher');
     expect(switcher?.textContent).toContain(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
     expect(switcher?.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // 메뉴는 장소 3개뿐이다 — 하단 묶음(설정·테마·로그아웃)은 2026-08-05 Q 2차로
+    // 텍스트 메뉴 항목에서 원형 아이콘 버튼이 되어 링크 목록에서 빠졌다.
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '다크 모드', '로그아웃']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자']);
+    const footer = Array.from(container.querySelectorAll('.sidebar-footer .header-icon-button'));
+    expect(footer.map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
   });
 
   it('기관명이 홈 버튼이다 — 목적지는 마지막 선택 사업을 서버가 정하는 /', () => {
@@ -45,10 +49,10 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
 
   it('로그아웃은 서버 액션 폼이다 — HttpOnly 쿠키는 클라이언트가 못 지운다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    // 테마 전환도 같은 클래스의 폼이라(D56) 첫 폼을 집으면 그쪽이 걸린다 — 라벨로 고른다.
-    const submits = Array.from(container.querySelectorAll('.sidebar-logout-form button[type="submit"]'));
-    const submit = submits.find((el) => el.textContent?.includes('로그아웃'));
-    expect(submit).not.toBeUndefined();
+    // 아이콘 버튼이라 라벨은 aria-label 이 갖는다(2026-08-05 Q 2차 — 구 텍스트 항목 대체).
+    const submit = container.querySelector('.sidebar-footer form button[aria-label="로그아웃"]');
+    expect(submit).not.toBeNull();
+    expect(submit?.getAttribute('type')).toBe('submit');
     // 링크가 아니어야 한다 — GET 으로 로그아웃되면 프리페치·크롤러가 세션을 끊을 수 있다.
     expect(container.querySelector('a[href="/preview"]')).toBeNull();
   });
@@ -56,10 +60,11 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
   it('사업이 1개뿐이어도 전환기는 선택창이다 (2026-08-03 Q — 구 "1개면 글자" 대체)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     // 늘 같은 자리가 같은 컨트롤이어야 사업이 늘었을 때 조작법이 바뀌지 않는다.
-    const trigger = container.querySelector('.program-switcher-trigger');
+    // 바(.drawer-bar)에도 전환기가 생겨(2026-08-05 2차) 드로어 쪽만 집는다.
+    const trigger = container.querySelector('.sidebar .program-switcher-trigger');
     expect(trigger).not.toBeNull();
     expect(trigger?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('.program-switcher-name')?.textContent)
+    expect(container.querySelector('.sidebar .program-switcher-name')?.textContent)
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
 
@@ -78,12 +83,14 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
         programLabels={{ financial_support_v1: '금융지원 사업' }}
       />,
     );
-    expect(container.querySelector('.brand')?.textContent).toContain('연대은행');
-    expect(container.querySelector('.program-switcher-name')?.textContent).toContain('금융지원 사업');
+    expect(container.querySelector('.sidebar .brand')?.textContent).toContain('연대은행');
+    expect(container.querySelector('.sidebar .program-switcher-name')?.textContent).toContain('금융지원 사업');
+    // 바의 기관 선택창도 같은 라벨을 받는다(2026-08-05 2차).
+    expect(container.querySelector('.drawer-bar .org-switcher')?.textContent).toContain('연대은행');
     // 프롭 없이 렌더하면 하드코딩 폴백 — 온보딩 전 환경이 지금까지처럼 보인다.
     cleanup();
     const fallback = render(<AppSidebar activePath="/participants" />).container;
-    expect(fallback.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
+    expect(fallback.querySelector('.sidebar .brand')?.textContent).toContain(ORG_LABEL);
   });
 
   it('사업이 1개인 동안은 전환기에 화살표를 두지 않는다', () => {
@@ -161,13 +168,21 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(isOpen()).toBe(false);
   });
 
-  it('손잡이에는 메뉴만 있다 — 사업명 표기는 2026-08-05 Q 지시로 뺐다', () => {
-    // 구 계약("드로어를 열지 않고도 워크스페이스가 보여야 한다")을 Q ④가 대체:
-    // "모바일에선 헤더에 메뉴만 두고 전부 사이드바로". 사업 확인·전환은 드로어 안 전환기 몫이다.
+  it('바 = 좌측 기관·사업 선택창 + 우측 원형 메뉴 버튼이다 (2026-08-05 Q 2차 — 구 "메뉴만" 대체)', () => {
+    // 구 계약("헤더에 메뉴만")을 같은 날 2차 지시가 대체: Infisical·OpenAI 처럼 여러 기관·
+    // 사업을 고르는 흐름이 전제라, 바에서도 기관·사업이 보이고 골라져야 한다.
     const { container } = render(<AppSidebar activePath="/participants" />);
-    expect(container.querySelector('.drawer-handle-program')).toBeNull();
-    expect(handle(container).textContent).toContain('메뉴');
-    expect(handle(container).textContent).not.toContain(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
+    const bar = container.querySelector('.drawer-bar')!;
+    const org = bar.querySelector('.org-switcher');
+    const program = bar.querySelector('.program-switcher:not(.org-switcher)');
+    expect(org?.textContent).toContain(ORG_LABEL);
+    expect(program?.textContent).toContain(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
+    // 순서: 기관 → 사업 → 메뉴 버튼(오른쪽 끝).
+    expect(org?.compareDocumentPosition(program as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(program?.compareDocumentPosition(handle(container))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // 메뉴 버튼은 아이콘 원형이라 라벨은 aria-label 이 갖는다 — 글자 '메뉴'는 화면에 없다.
+    expect(handle(container).getAttribute('aria-label')).toBe('메뉴');
+    expect(handle(container).textContent?.trim()).toBe('');
   });
 
   it('드로어 안에 기관·사업 전환기·메뉴가 모두 있다', () => {
@@ -178,23 +193,30 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
     expect(drawer.querySelector('.program-switcher')).not.toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '다크 모드', '로그아웃']);
+      .toEqual(['다가오는 일정', '전체 일정', '당사자']);
+    // 하단 묶음은 원형 아이콘 버튼 3개다(2026-08-05 Q 2차 — 웹 헤더와 같은 옷).
+    expect(Array.from(drawer.querySelectorAll('.sidebar-footer .header-icon-button'))
+      .map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
   });
 
   it('아이콘이 aria-hidden 이므로 링크 텍스트는 DOM 에 남는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.navigation-soon)')?.textContent?.trim());
-    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자', '설정', '다크 모드', '로그아웃']);
+    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자']);
   });
 });
 
 describe('AppSidebar — 테마 전환 (D56 · ADR-0026)', () => {
+  // 아이콘 버튼이라 라벨은 aria-label 이 갖는다(2026-08-05 Q 2차 — 구 텍스트 항목 대체).
+  const themeButton = (container: HTMLElement) =>
+    container.querySelector('.sidebar-footer form button[aria-pressed]');
+
   it('서버 액션 폼이다 — 쿠키를 서버가 써야 다음 렌더의 첫 페인트부터 테마가 맞는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    const submit = Array.from(container.querySelectorAll('.sidebar-logout-form button[type="submit"]'))
-      .find((el) => el.textContent?.includes('모드'));
-    expect(submit).not.toBeUndefined();
+    const submit = themeButton(container);
+    expect(submit).not.toBeNull();
+    expect(submit?.getAttribute('type')).toBe('submit');
     // GET 링크로 두면 프리페치가 테마를 제멋대로 바꾼다.
     expect(container.querySelector('a[href*="theme"]')).toBeNull();
   });
@@ -202,22 +224,18 @@ describe('AppSidebar — 테마 전환 (D56 · ADR-0026)', () => {
   it('라벨은 **가는 곳**을 말하고, 현재 상태는 aria-pressed 가 알린다', () => {
     // 라벨이 현재 상태를 말하면 누를 때마다 무엇이 될지 한 번 더 생각해야 한다.
     const light = render(<AppSidebar activePath="/participants" theme="light" />);
-    const lightBtn = Array.from(light.container.querySelectorAll('button[type="submit"]'))
-      .find((el) => el.textContent?.includes('모드'));
-    expect(lightBtn?.textContent).toContain('다크 모드');
+    const lightBtn = themeButton(light.container);
+    expect(lightBtn?.getAttribute('aria-label')).toBe('다크 모드');
     expect(lightBtn?.getAttribute('aria-pressed')).toBe('false');
 
     const dark = render(<AppSidebar activePath="/participants" theme="dark" />);
-    const darkBtn = Array.from(dark.container.querySelectorAll('button[type="submit"]'))
-      .find((el) => el.textContent?.includes('모드'));
-    expect(darkBtn?.textContent).toContain('라이트 모드');
+    const darkBtn = themeButton(dark.container);
+    expect(darkBtn?.getAttribute('aria-label')).toBe('라이트 모드');
     expect(darkBtn?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('theme 을 안 주면 라이트다 — 다크는 명시적으로 켠 사람만 본다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    const btn = Array.from(container.querySelectorAll('button[type="submit"]'))
-      .find((el) => el.textContent?.includes('모드'));
-    expect(btn?.getAttribute('aria-pressed')).toBe('false');
+    expect(themeButton(container)?.getAttribute('aria-pressed')).toBe('false');
   });
 });

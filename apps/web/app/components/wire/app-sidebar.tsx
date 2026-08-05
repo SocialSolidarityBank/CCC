@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { NavIcon } from './shell-icons';
+import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';
 import { toggleThemeAction } from '../../theme-action';
@@ -154,34 +155,30 @@ export function AppSidebar({
   );
 
   const settingsActive = current === '/settings' || current.startsWith('/settings/');
-  const settings = (
-    <Link
-      className="navigation-link"
-      href="/settings"
-      data-current={settingsActive ? 'true' : undefined}
-      aria-current={settingsActive ? 'page' : undefined}
-    >
-      <NavIcon name="settings" />
-      <span>설정</span>
-    </Link>
-  );
 
   return (
     <>
-      {/* 손잡이 바 = 좁은 화면의 헤더 — 768 미만에서만 보인다. 내용은 메뉴 버튼뿐이다
-          (2026-08-05 Q ④ "모바일에선 헤더에 메뉴만 두고 전부 사이드바로" — 구 '현재 사업명'
-          표기를 뺐다. 사업 확인·전환은 드로어 안 전환기가 맡는다). */}
-      <button
-        ref={handleRef}
-        type="button"
-        className="drawer-handle"
-        aria-expanded={drawerOpen}
-        aria-controls="app-sidebar"
-        onClick={() => setDrawerOpen((open) => !open)}
-      >
-        <span aria-hidden="true" className="drawer-handle-bars"><i /><i /><i /></span>
-        <span className="drawer-handle-label">메뉴</span>
-      </button>
+      {/* 모바일 바 = 좁은 화면의 헤더 — 768 미만에서만 보인다. 2026-08-05 Q 2차(같은 날 ④
+          "메뉴만" 대체): **좌측 = 기관·사업 선택창**(데스크톱 헤더와 같은 내용 — "웹화면,
+          모바일화면 동시수정"), **우측 = 원형 사이드바 버튼**(구 좌측 햄버거+'메뉴' 글자 대체).
+          Infisical·OpenAI 플랫폼처럼 여러 기관·사업을 고르는 흐름이 전제다. */}
+      <div className="drawer-bar">
+        <OrgSwitcher orgLabel={orgLabel} />
+        <span className="header-divider" aria-hidden="true" />
+        <ProgramSwitcher activeProgram={activeProgram} programLabels={programLabels} />
+        <button
+          ref={handleRef}
+          type="button"
+          className="header-icon-button drawer-handle"
+          aria-label="메뉴"
+          title="메뉴"
+          aria-expanded={drawerOpen}
+          aria-controls="app-sidebar"
+          onClick={() => setDrawerOpen((open) => !open)}
+        >
+          <NavIcon name="sidebar" />
+        </button>
+      </div>
       {/* 스크림은 드로어가 열렸을 때만 존재한다. 눌러서 닫는 것이 좁은 화면의 주 동작이다. */}
       {drawerOpen ? (
         <div className="drawer-scrim" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
@@ -219,31 +216,36 @@ export function AppSidebar({
           programLabels={programLabels}
         />
         {navigation}
+        {/* 하단 묶음은 헤더의 계정 행동과 **같은 옷**이다 — 32px 원형 아이콘 버튼 3개
+            (2026-08-05 Q 2차 "circle + 아이콘 버튼을 웹화면과 통일" — 구 텍스트 메뉴 항목 대체).
+            라벨은 aria-label + title 이 갖는다. 테마·로그아웃이 서버 액션 폼인 이유는
+            쿠키를 서버가 써야 하기 때문이다(HttpOnly · 첫 페인트 테마 일치). 테마 라벨은
+            **가는 곳**을 말한다(§11) — aria-pressed 로 현재 상태는 따로 알린다. */}
         <div className="sidebar-footer">
-          {settings}
-          {/* 로그아웃은 설정 아래 마지막이다 — 파괴적이진 않지만 '나가는' 행동이라 메뉴
-              흐름의 끝에 둔다. 서버 액션 폼인 이유는 쿠키를 지우는 일이 서버 몫이기 때문이다
-              (HttpOnly 라 클라이언트에서 못 지운다). */}
-          {/* 테마 전환 (D56). 로그아웃과 같은 이유로 서버 액션 폼이다 — 쿠키를 서버가 쓰고,
-              그래야 다음 렌더의 <html data-theme> 이 첫 페인트부터 맞는다. GET 링크로 두면
-              프리페치가 테마를 제멋대로 바꾼다.
-              라벨은 **가는 곳**을 말한다 — 현재 상태를 말하면 누를 때마다 무엇이 될지 한 번 더
-              생각해야 한다. 조사 '로'는 뺀다(2026-08-04 Q — "다크 모드"로 충분히 읽히고 짧다).
-              aria-pressed 로 현재 상태는 따로 알린다. */}
-          <form action={toggleThemeAction} className="sidebar-logout-form">
+          <Link
+            className="header-icon-button"
+            href="/settings"
+            aria-label="설정"
+            title="설정"
+            data-current={settingsActive ? 'true' : undefined}
+            aria-current={settingsActive ? 'page' : undefined}
+          >
+            <NavIcon name="settings" />
+          </Link>
+          <form action={toggleThemeAction} className="header-action-form">
             <button
               type="submit"
-              className="navigation-link sidebar-logout"
+              className="header-icon-button"
+              aria-label={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+              title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
               aria-pressed={theme === 'dark'}
             >
               <NavIcon name={theme === 'dark' ? 'theme-light' : 'theme-dark'} />
-              <span>{theme === 'dark' ? '라이트 모드' : '다크 모드'}</span>
             </button>
           </form>
-          <form action={logoutAction} className="sidebar-logout-form">
-            <button type="submit" className="navigation-link sidebar-logout">
+          <form action={logoutAction} className="header-action-form">
+            <button type="submit" className="header-icon-button" aria-label="로그아웃" title="로그아웃">
               <NavIcon name="logout" />
-              <span>로그아웃</span>
             </button>
           </form>
         </div>
