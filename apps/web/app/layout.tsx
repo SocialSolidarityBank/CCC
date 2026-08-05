@@ -329,6 +329,9 @@ textarea{min-height:216px;resize:vertical}
   .drawer-handle{display:flex}
   .sidebar{
     position:fixed;top:0;bottom:0;left:0;
+    /* height 해제가 필수다 — 데스크톱 규칙의 calc(100dvh - 56px)가 남으면 top·bottom 을
+       둘 다 박아도 height 가 이겨 드로어가 화면 아래 56px 을 못 덮는다(844 실측 788). */
+    height:auto;
     width:280px;max-width:82vw;
     padding:var(--space-6);overflow-y:auto;
     z-index:var(--z-modal);
