@@ -350,7 +350,8 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     // 화면의 모든 글자는 카드 안에 있다 — HERO 도 카드다.
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
-    expect(card.querySelector('.briefing-badge.is-stage')?.textContent).toBe('상담 준비');
+    // 상태 태그는 §5 컨트롤 부품(2026-08-05, 구 .briefing-badge.is-stage 알약 폐지).
+    expect(card.querySelector('.participant-hero-stage')?.textContent).toBe('상담 준비');
     const meta = card.querySelector('.briefing-hero-meta')?.textContent ?? '';
     expect(meta).toContain('마이크로크레딧');
     expect(meta).toContain('대면');

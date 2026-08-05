@@ -26,26 +26,31 @@ export function AdminSidebar({ activePath, className }: AdminSidebarProps) {
   const current = activePath ?? pathname;
   const classes = ['wire-tabs', 'wire-admin-tabs', className].filter(Boolean).join(' ');
 
+  // 좁은 화면 가로 스크롤은 nav 가 아니라 이 래퍼가 갖는다(2026-08-05). nav 자신에게
+  // overflow-x:auto 를 주면 세로 오버플로도 함께 잘려(명세: visible 이 auto 로 승격)
+  // 활성 탭 밑줄 2px 중 경계선 아래 1.5px 이 잘렸다 — 밑줄이 헤어라인으로만 보이던 원인.
   return (
-    <nav aria-label="관리자 메뉴" className={classes}>
-      {adminMenu.map((item) => {
-        // '/admin' 은 모든 관리자 경로의 접두어라 하위 경로까지 먹으면 두 탭이 동시에
-        // 활성이 된다. 기관(=/admin)만 정확 일치로 보고 나머지는 하위 경로까지 본다.
-        const active = item.href === '/admin'
-          ? current === '/admin'
-          : current === item.href || current.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            className="wire-tab"
-            href={item.href}
-            data-active={active ? 'true' : undefined}
-            aria-current={active ? 'page' : undefined}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="wire-admin-tabs-scroll">
+      <nav aria-label="관리자 메뉴" className={classes}>
+        {adminMenu.map((item) => {
+          // '/admin' 은 모든 관리자 경로의 접두어라 하위 경로까지 먹으면 두 탭이 동시에
+          // 활성이 된다. 기관(=/admin)만 정확 일치로 보고 나머지는 하위 경로까지 본다.
+          const active = item.href === '/admin'
+            ? current === '/admin'
+            : current === item.href || current.startsWith(`${item.href}/`);
+          return (
+            <Link
+              key={item.href}
+              className="wire-tab"
+              href={item.href}
+              data-active={active ? 'true' : undefined}
+              aria-current={active ? 'page' : undefined}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }

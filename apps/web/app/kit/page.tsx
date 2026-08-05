@@ -368,10 +368,10 @@ export default function KitPage() {
 
         <section className="wire-kit-section" aria-labelledby="kit-admin">
           <h2 className="wire-kit-heading" id="kit-admin">AdminSidebar</h2>
-          <p className="wire-kit-caption">활성 항목은 bold. 링크만 있고 페이지는 이후 티켓.</p>
-          <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-card)', overflow: 'hidden', maxWidth: 335 }}>
-            <AdminSidebar activePath="/admin/users" />
-          </div>
+          {/* 구 335px 테두리 상자는 사이드바 컬럼 시절 데모의 잔재였다(2026-08-05 제거) —
+              지금은 가로 탭이라 실제 쓰임과 같은 전폭으로 보여준다. */}
+          <p className="wire-kit-caption">관리자 2차 내비 — 가로 탭. 활성 탭은 그라데이션 밑줄.</p>
+          <AdminSidebar activePath="/admin/users" />
         </section>
       </GridContainer>
     </main>

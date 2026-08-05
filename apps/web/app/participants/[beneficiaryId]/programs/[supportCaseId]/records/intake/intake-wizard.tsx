@@ -7,6 +7,7 @@ import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/dr
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
+import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
   IntakeAnswerKey,
@@ -707,12 +708,13 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 // 정본 1-3 의 첫 세 항목(상담일·실무자·상담 회차)이다 — 앞의 둘은 자동으로 채워진다.
                 '1-3. 상담 운영정보': (
                   <>
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>상담일</span>
-                      {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
-                      팀원마다 달랐다(R6). 달력 + 직접 입력 병행으로 바꾼다(KRDS). */}
-                  <DateTimePickerControl fieldLabel="상담일" value={heldAt} onChange={setHeldAt} />
-                    </label>
+                    {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
+                        팀원마다 달랐다(R6). 달력 + 직접 입력 병행으로 바꾼다(KRDS).
+                        WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 입력 상자의
+                        테두리·포커스 링이 없어 입력칸으로 보이지 않았다. */}
+                    <WireFormField label="상담일" htmlFor="intake-held-at">
+                      <DateTimePickerControl id="intake-held-at" fieldLabel="상담일" value={heldAt} onChange={setHeldAt} />
+                    </WireFormField>
                     <ReadOnlyRow label="실무자" value={props.recorderLabel} />
                     <ReadOnlyRow label="상담 회차" value={`${props.sessionSequence}회`} />
                   </>
