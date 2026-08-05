@@ -38,13 +38,11 @@ button,input,select,textarea{font:inherit}
 .sidebar::after{content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:var(--gradient-frame-v)}
 /* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
 .sidebar>.navigation-list{overflow-y:auto;min-height:0}
-.brand,.navigation-link,.sidebar-footer{display:flex;align-items:center;gap:var(--space-2)}
-/* 기관명 줄: 왼쪽 브랜드 링크 + 오른쪽 닫기 X — 드로어(768 미만) 전용이다(2026-08-05).
-   구 -4/+4 마진 쌍(기관명 중심을 뒤로 알약 36 에 맞추던 보정)은 헤더 신설로 그 기하 자체가
-   사라져 걷었다. */
+.navigation-link{display:flex;align-items:center;gap:var(--space-2)}
+/* 드로어 머리 줄(768 미만 전용): 계정 행동 묶음(좌) + 닫기 X(우) — 2026-08-06 Q,
+   구 기관명(브랜드 링크) 줄 대체. 기관·사업 맥락은 모바일 바가 전담한다. */
 .sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
-/* 기관명 18(--text-lg)/600 (2026-08-04 Q — 구 16). 사이드바 강조 굵기 600 유지. */
-.brand{font-size:var(--text-lg);font-weight:600}
+.sidebar-actions{display:flex;align-items:center;gap:var(--space-2)}
 /* 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 버튼 대체). 데스크톱엔 없다.
    **동그라미 버튼**이다(같은 날 Q — 뒤로 알약과 같은 세컨더리 옷: 그라데이션 1px 테두리 +
    --panel 채움). 28×28 로 기관 마크(32)보다 한 단 작다(2026-08-05 Q 2차 "X 버튼 크기랑
@@ -68,21 +66,8 @@ button,input,select,textarea{font:inherit}
    경계 --line-control 1px 은 2026-08-05 에 얹었다 — 드로어 배경이 그라데이션에서 캔버스로
    바뀌어, 캔버스(#FAFAF9) 위 흰 상자는 경계 없이는 형태가 안 잡힌다(§5 입력칸 계약). */
 .program-switcher-box{position:relative;flex:1;min-width:0;display:grid;padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
-/* 기관 | 사업 | 메뉴 세 덩어리를 1px 선으로 가른다(§4-5). 선 위아래 16씩이라 덩어리 간격
-   32(--space-8)는 그대로 유지된다 — 선은 그 사이 가운데에 놓인다.
-   --line(#E7E5E4)이 아니라 --line-sidebar 인 이유는 사이드바 그라데이션 위에서 거의 안 보이기 때문이다.
-   좌우 -24 는 사이드바 패딩만큼 되밀어 선을 끝까지 긋는다. */
-.sidebar>.program-switcher,.sidebar>.navigation-list{position:relative}
-/* 메뉴 위 구분선은 메뉴(::before)가 아니라 **사업 전환기의 ::after** 로 긋는다(CCC-52) —
-   메뉴 목록이 내부 스크롤(overflow-y:auto)을 갖게 되면서, 목록 밖(top:-16)에 그리던
-   ::before 가 overflow 에 잘려 사라지기 때문이다. 위치는 같다(간격 32 의 가운데). */
-.sidebar>.program-switcher::before,.sidebar>.program-switcher::after{
-  content:"";position:absolute;
-  left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);
-  height:1px;background:var(--line-sidebar);
-}
-.sidebar>.program-switcher::before{top:calc(var(--space-4) * -1)}
-.sidebar>.program-switcher::after{bottom:calc(var(--space-4) * -1)}
+/* (구 .sidebar>.program-switcher 구분선 규칙 2026-08-06 제거 — 드로어에서 기관·사업
+   블록이 빠져 선의 주인이 머리 줄(.sidebar-head::after, 모바일 블록)로 옮겨 갔다.) */
 /* 라벨 색은 메뉴 비활성과 같은 --sub 다(2026-08-04 Q — 구 민트 deep 대체). 사이드바 글자는
    기본 500·강조 600, 크기 하한 16(--text-md) — 같은 그릴링의 사이드바 타이포 계약. */
 .program-switcher-label{margin:0;color:var(--sub);font-size:var(--text-md);font-weight:500}
@@ -154,17 +139,14 @@ button,input,select,textarea{font:inherit}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
 .navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
-/* 하단 묶음 = 헤더 계정 행동과 같은 원형 아이콘 버튼 3개의 **가로 줄**이다(2026-08-05 Q 2차
-   "circle + 아이콘 버튼을 웹화면과 통일" — 구 텍스트 세로 목록 대체. .sidebar-logout 계열
-   규칙도 함께 걷었다). flex·gap 은 위 .sidebar-footer 공통 규칙이 이미 준다. 버튼이 자기
-   테두리를 가지므로 메뉴 좌측선 보정(margin -12)은 필요 없다 — 패딩 24 그대로 선다. */
-.sidebar-footer{margin-top:auto}
+/* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
+   .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
    Infisical 레퍼런스. D50 의 사이드바 배치·D58 ⑤ '하단 묶음 상시 노출'의 자리 부분 대체).
    마크업은 드로어(768 미만)가 그대로 쓰므로 지우지 않고 숨긴다 — app-sidebar.tsx 주석 참조.
    자식 선택자(0,2,0)인 이유: 개별 블록 규칙(.sidebar-head 등, 0,1,0)이 시트 뒤쪽에 있어
    동순위면 그쪽이 이긴다 — 미디어 쿼리는 특이도를 올려 주지 않는다. */
-@media (min-width:768px){.sidebar>.sidebar-head,.sidebar>.program-switcher,.sidebar>.sidebar-footer{display:none}}
+@media (min-width:768px){.sidebar>.sidebar-head{display:none}}
 /* ── 드로어 부품 ── 데스크톱에는 없다(§4-4 는 768 미만에서만 드로어라고 말한다). */
 /* 모바일 바 = 좁은 화면의 헤더다(2026-08-05 Q 2차 — 같은 날 ④ '메뉴 버튼만' 대체):
    좌측 = 기관·사업 선택창(데스크톱 헤더와 같은 내용), 우측 = 원형 사이드바 버튼.
@@ -227,9 +209,14 @@ button,input,select,textarea{font:inherit}
    "여백 많으니까 더 펼쳐줘" — 구 상태에서는 안 잘렸는데도 끝 글자가 항상 흐려져 잘린 것처럼
    보였다). 상한을 넘는 극단만 기존 어휘대로 페이드로 사라진다. margin -28 은 빈 구간만큼
    화살표를 되당겨 이름↔화살표 간격 8 을 유지한다. */
-.app-header .program-switcher-name,.drawer-bar .program-switcher-name{font-weight:600;padding-right:28px;margin-right:-28px}
-/* 기관명은 18/600 이다 — 구 .brand(홈 링크) 크기를 선택창 트리거가 그대로 잇는다(2026-08-05 2차). */
-.org-switcher .program-switcher-name{font-size:var(--text-lg)}
+.app-header .program-switcher-name,.drawer-bar .program-switcher-name{font-weight:600}
+/* 빈 패딩 마스크 트릭(글자 뒤 28 빈 구간)은 **헤더 전용**이다 — 폭이 넉넉해 안 잘릴 때
+   끝 글자가 흐려지는 것만 막는다. 바(좁은 화면)에서는 트릭이 꺽쇠 밑까지 글자를 밀어 넣어
+   겹쳐 보였다(2026-08-06 Q ④) — 바는 기본 마스크가 꺽쇠 앞 28px 에서 먼저 지운다. */
+/* optical: 28 은 간격이 아니라 이름 마스크의 페이드 구간 폭이다 — 그 구간을 글자 뒤 빈
+   패딩으로 밀어내고, margin -28 이 꺽쇠를 되당겨 이름↔꺽쇠 간격 8 을 유지한다. */
+.app-header .program-switcher-name{padding-right:28px;margin-right:-28px}
+/* 기관명 크기 = 사업명 크기(16/600) — 2026-08-06 Q ⑤, 구 18(--text-lg) 대체. */
 /* ── 페이지 셸 ── 장폭·여백의 유일한 주인(2026-07-26). 값은 design/tokens.css 에만 있다.
    width:100% 가 핵심이다 — .page-content 는 .app-shell 의 **그리드 아이템**이고 auto 마진을
    갖고 있어서, 폭을 명시하지 않으면 트랙을 채우지 않고 내용 크기로 줄어든다. 그래서 이전에는
@@ -334,32 +321,34 @@ textarea{min-height:216px;resize:vertical}
      행동을 전부 담는 기존 구조 그대로다(§4-4). */
   .app-header{display:none}
   .drawer-bar{display:flex}
+  /* 드로어는 **오른쪽**에서 나온다(2026-08-06 Q ① — 여는 버튼이 바 오른쪽 끝이라
+     패널도 같은 쪽에서 나와야 손과 눈이 이어진다. 구 왼쪽 대체). */
   .sidebar{
-    position:fixed;top:0;bottom:0;left:0;
+    position:fixed;top:0;bottom:0;right:0;left:auto;
     /* height 해제가 필수다 — 데스크톱 규칙의 calc(100dvh - 56px)가 남으면 top·bottom 을
        둘 다 박아도 height 가 이겨 드로어가 화면 아래 56px 을 못 덮는다(844 실측 788). */
     height:auto;
     width:280px;max-width:82vw;
     /* 위 패딩 0: 머리 줄이 스스로 높이 56 을 갖는다(아래 .sidebar-head — 바와 같은 높이).
-       overflow 는 visible 이다(2026-08-05 Q 2차 "사업명이 드로어에 갇힘") — auto 면 사업
-       선택창 팝오버가 드로어 폭 280 에서 잘린다. 세로 스크롤은 데스크톱과 같은 구조로
-       메뉴 목록(.navigation-list)이 안에서만 맡는다. 팝오버 z 는 따로 안 올린다 —
-       드로어 자체가 z-modal 스태킹 컨텍스트라 안의 팝오버는 스크림·본문 위에 선다. */
+       세로 스크롤은 데스크톱과 같은 구조로 메뉴 목록(.navigation-list)이 안에서만 맡는다. */
     padding:0 var(--space-6) var(--space-6);overflow:visible;
     z-index:var(--z-modal);
-    transform:translateX(-100%);transition:transform .15s ease;
+    transform:translateX(100%);transition:transform .15s ease;
   }
+  /* 데스크톱의 오른쪽 세로 프레임 라인은 드로어에서 **왼쪽** 모서리로 옮긴다 — 패널이
+     오른쪽에서 나오므로 본문과 만나는 모서리가 왼쪽이다. */
+  .sidebar::after{right:auto;left:0}
   .sidebar[data-drawer-open="true"]{transform:none}
   .drawer-dismiss{display:grid}
-  /* 머리 줄 높이 = 바 높이 56. 아래 구분선(-32 = 머리·전환기 간격 32 의 위 끝)이 정확히
-     y 56 에 앉아 **본문 바의 프레임 라인과 같은 높이**가 된다(2026-08-05 Q 2차 "드로어랑
-     메인 페이지 가로선 정렬" — 구 상태는 패딩 24 + 머리 32 + 간격 절반 16 = 72 라 16 어긋났다). */
-  .sidebar-head{min-height:56px}
-  .sidebar>.program-switcher::before{top:calc(var(--space-8) * -1)}
-  /* 드로어 안 사업 선택창 팝오버는 드로어 밖까지 벌어진다 — 기본 상한 60vw 는 390 에서 234 라
-     드로어 안폭과 사실상 같아 긴 사업명이 항상 잘려 보였다. 88vw 는 375 실측에서 현행
-     사업명(300px)이 마스크 문턱에 닿지 않는 최소 상한이다. */
-  .sidebar .program-switcher-menu{max-width:min(88vw,480px)}
+  /* 머리 줄 높이 = 바 높이 56, 아래 1px 구분선이 정확히 y 56 — **본문 바의 프레임 라인과
+     같은 높이**다(2026-08-05 Q "가로선 정렬" 유지. 선의 주인은 2026-08-06 에 사라진 사업
+     전환기에서 머리 줄 ::after 로 옮겨 왔다). */
+  .sidebar-head{position:relative;min-height:56px}
+  .sidebar-head::after{content:"";position:absolute;left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);bottom:0;height:1px;background:var(--line-sidebar)}
+  /* 드로어 안 모든 아이템의 좌우 시작선을 맞춘다(2026-08-06 Q ③): 메뉴 알약의 -12 좌측
+     보정을 풀면 활성 배경 상자·계정 행동 버튼(좌 24)과 닫기 X·상자 우변(우 24)이 한 줄에
+     선다. 데스크톱의 -12 는 아이콘·글자를 24 에 세우는 보정이라 그대로 둔다. */
+  .sidebar .navigation-list{margin-inline:0}
   /* 바의 선택창 목록은 상자가 아니라 **바 전폭**에 떨어진다 — 상자 기준 왼쪽/오른쪽 닻은
      어느 쪽이든 좁은 화면을 뚫거나 이름을 다시 자른다. 상자의 positioning 을 풀면 기준이
      바(sticky = positioned)로 올라가고, 좌우 16 만 남기고 화면 폭을 온전히 쓴다. */

@@ -21,36 +21,38 @@ function sidebarLinks(container: HTMLElement): Array<{ label: string; href: stri
 }
 
 describe('AppSidebar (D35 · ADR-0014 §2)', () => {
-  it('기관 → 사업 전환기 → 메뉴 → 하단 묶음 순으로 렌더한다', () => {
+  it('드로어 = 계정 행동(상단 줄) + 메뉴다 — 기관·사업 맥락은 바가 전담한다 (2026-08-06 Q)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    expect(container.querySelector('.sidebar .brand')?.textContent).toContain(ORG_LABEL);
-    // 전환기는 메뉴 위에 있어야 포함 관계가 읽힌다.
-    const switcher = container.querySelector('.sidebar .program-switcher');
-    expect(switcher?.textContent).toContain(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
-    expect(switcher?.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
+    // 상단 줄: 계정 행동 3개(좌) + 닫기 X(우) — 구 기관명 줄·사업 전환기 블록 대체.
+    const actions = Array.from(container.querySelectorAll('.sidebar .sidebar-actions .header-icon-button'));
+    expect(actions.map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
+    const head = container.querySelector('.sidebar .sidebar-head')!;
+    expect(head.querySelector('.drawer-dismiss')).not.toBeNull();
+    // 상단 줄이 메뉴보다 위다.
+    expect(head.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    // 메뉴는 장소 3개뿐이다 — 하단 묶음(설정·테마·로그아웃)은 2026-08-05 Q 2차로
-    // 텍스트 메뉴 항목에서 원형 아이콘 버튼이 되어 링크 목록에서 빠졌다.
+    // 메뉴는 장소 3개뿐이다.
     expect(sidebarLinks(container).map((link) => link.label))
       .toEqual(['다가오는 일정', '전체 일정', '당사자']);
-    const footer = Array.from(container.querySelectorAll('.sidebar-footer .header-icon-button'));
-    expect(footer.map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
+    // 드로어에는 기관명·사업 전환기가 없다 — 두 벌 두면 다시 갈라진다.
+    expect(container.querySelector('.sidebar .program-switcher')).toBeNull();
+    expect(container.querySelector('.sidebar .brand')).toBeNull();
   });
 
-  it('기관명이 홈 버튼이다 — 목적지는 마지막 선택 사업을 서버가 정하는 /', () => {
-    // 2026-07-31 Q 요청. /programs/:type/schedule 로 직접 링크하면 경로가 사업을 안 알려주는
-    // 화면(당사자·설정)에서 폴백(첫 사업)으로 새어, 방금 보던 사업과 달라진다.
+  it('홈 배선은 바의 기관 선택창 목록 안에 있다 — 기관을 고르면 /', () => {
+    // 2026-07-31 Q "기관명=홈" → 2026-08-05 2차에 선택창 목록 안으로, 2026-08-06 에
+    // 드로어 기관명 줄 자체가 빠져 바의 기관 선택창이 유일한 자리가 됐다.
     const { container } = render(<AppSidebar activePath="/participants" />);
-    const brand = container.querySelector('a.brand');
-    expect(brand).not.toBeNull();
-    expect(brand?.getAttribute('href')).toBe('/');
-    expect(brand?.textContent).toContain(ORG_LABEL);
+    fireEvent.click(container.querySelector('.drawer-bar .org-switcher .program-switcher-trigger')!);
+    const option = container.querySelector('.drawer-bar .org-switcher .program-switcher-option');
+    expect(option?.getAttribute('href')).toBe('/');
+    expect(option?.textContent).toContain(ORG_LABEL);
   });
 
   it('로그아웃은 서버 액션 폼이다 — HttpOnly 쿠키는 클라이언트가 못 지운다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     // 아이콘 버튼이라 라벨은 aria-label 이 갖는다(2026-08-05 Q 2차 — 구 텍스트 항목 대체).
-    const submit = container.querySelector('.sidebar-footer form button[aria-label="로그아웃"]');
+    const submit = container.querySelector('.sidebar-actions form button[aria-label="로그아웃"]');
     expect(submit).not.toBeNull();
     expect(submit?.getAttribute('type')).toBe('submit');
     // 링크가 아니어야 한다 — GET 으로 로그아웃되면 프리페치·크롤러가 세션을 끊을 수 있다.
@@ -60,11 +62,11 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
   it('사업이 1개뿐이어도 전환기는 선택창이다 (2026-08-03 Q — 구 "1개면 글자" 대체)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     // 늘 같은 자리가 같은 컨트롤이어야 사업이 늘었을 때 조작법이 바뀌지 않는다.
-    // 바(.drawer-bar)에도 전환기가 생겨(2026-08-05 2차) 드로어 쪽만 집는다.
-    const trigger = container.querySelector('.sidebar .program-switcher-trigger');
+    // 전환기의 유일한 자리는 바다(2026-08-06 — 드로어 블록 제거).
+    const trigger = container.querySelector('.drawer-bar .program-switcher:not(.org-switcher) .program-switcher-trigger');
     expect(trigger).not.toBeNull();
     expect(trigger?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('.sidebar .program-switcher-name')?.textContent)
+    expect(container.querySelector('.drawer-bar .program-switcher:not(.org-switcher) .program-switcher-name')?.textContent)
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
 
@@ -83,14 +85,13 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
         programLabels={{ financial_support_v1: '금융지원 사업' }}
       />,
     );
-    expect(container.querySelector('.sidebar .brand')?.textContent).toContain('연대은행');
-    expect(container.querySelector('.sidebar .program-switcher-name')?.textContent).toContain('금융지원 사업');
-    // 바의 기관 선택창도 같은 라벨을 받는다(2026-08-05 2차).
     expect(container.querySelector('.drawer-bar .org-switcher')?.textContent).toContain('연대은행');
+    expect(container.querySelector('.drawer-bar .program-switcher:not(.org-switcher) .program-switcher-name')?.textContent)
+      .toContain('금융지원 사업');
     // 프롭 없이 렌더하면 하드코딩 폴백 — 온보딩 전 환경이 지금까지처럼 보인다.
     cleanup();
     const fallback = render(<AppSidebar activePath="/participants" />).container;
-    expect(fallback.querySelector('.sidebar .brand')?.textContent).toContain(ORG_LABEL);
+    expect(fallback.querySelector('.drawer-bar .org-switcher')?.textContent).toContain(ORG_LABEL);
   });
 
   it('사업이 1개인 동안은 전환기에 화살표를 두지 않는다', () => {
@@ -185,17 +186,16 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(handle(container).textContent?.trim()).toBe('');
   });
 
-  it('드로어 안에 기관·사업 전환기·메뉴가 모두 있다', () => {
-    // 구 모바일 내비는 메뉴만 렌더해서 **좁은 화면에서는 지금 어느 사업인지 볼 수도 바꿀 수도
-    // 없었다.** 마크업을 한 벌로 합쳐 해소했고, 갈라지면 이 테스트가 잡는다.
+  it('드로어에는 메뉴·계정 행동만 있다 — 기관·사업은 바 전담 (2026-08-06)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const drawer = container.querySelector('.sidebar')!;
-    expect(drawer.querySelector('.brand')?.textContent).toContain(ORG_LABEL);
-    expect(drawer.querySelector('.program-switcher')).not.toBeNull();
+    // 2026-08-06 Q: 드로어에서 기관명·사업 전환기를 뺐다 — 그 맥락은 바가 전담한다.
+    expect(drawer.querySelector('.brand')).toBeNull();
+    expect(drawer.querySelector('.program-switcher')).toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
       .toEqual(['다가오는 일정', '전체 일정', '당사자']);
-    // 하단 묶음은 원형 아이콘 버튼 3개다(2026-08-05 Q 2차 — 웹 헤더와 같은 옷).
-    expect(Array.from(drawer.querySelectorAll('.sidebar-footer .header-icon-button'))
+    // 계정 행동은 상단 줄의 원형 아이콘 버튼 3개다(웹 헤더와 같은 옷).
+    expect(Array.from(drawer.querySelectorAll('.sidebar-actions .header-icon-button'))
       .map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
   });
 
@@ -210,7 +210,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
 describe('AppSidebar — 테마 전환 (D56 · ADR-0026)', () => {
   // 아이콘 버튼이라 라벨은 aria-label 이 갖는다(2026-08-05 Q 2차 — 구 텍스트 항목 대체).
   const themeButton = (container: HTMLElement) =>
-    container.querySelector('.sidebar-footer form button[aria-pressed]');
+    container.querySelector('.sidebar-actions form button[aria-pressed]');
 
   it('서버 액션 폼이다 — 쿠키를 서버가 써야 다음 렌더의 첫 페인트부터 테마가 맞는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);

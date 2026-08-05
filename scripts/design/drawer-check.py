@@ -74,7 +74,7 @@ with sync_playwright() as p:
           && Math.round(h.getBoundingClientRect().height) === 32,
         orgInBar: bar.querySelector('.org-switcher') !== null,
         programInBar: bar.querySelector('.program-switcher:not(.org-switcher)') !== null,
-        sidebarRight: Math.round(box.right),
+        sidebarLeft: Math.round(box.left),
         sidebarWidth: Math.round(box.width),
         docScroll: document.documentElement.scrollWidth,
         docClient: document.documentElement.clientWidth,
@@ -83,8 +83,8 @@ with sync_playwright() as p:
     }""")
     check("390: 모바일 바 보임 · 높이 56", closed["barShown"] and closed["barHeight"] == 56, str(closed))
     check("390: 바 = 기관·사업 선택창 + 원형(32) 메뉴 버튼", closed["orgInBar"] and closed["programInBar"] and closed["handleRound"], str(closed))
-    # 닫혔을 때 오른쪽 끝이 0 이하 = 화면 밖에 있다.
-    check("390: 드로어가 화면 밖에 있다", closed["sidebarRight"] <= 0, str(closed))
+    # 2026-08-06 Q ①: 드로어는 오른쪽에서 나온다 — 닫혔을 때 왼쪽 끝이 화면 폭 이상 = 화면 밖 오른쪽.
+    check("390: 드로어가 화면 밖(오른쪽)에 있다", closed["sidebarLeft"] >= closed["docClient"], str(closed))
     check("390: 스크림 없음", not closed["scrim"], str(closed))
     check("390: 가로 스크롤 없음", closed["docScroll"] <= closed["docClient"], str(closed))
     page.screenshot(path=str(out / "mobile-390-closed.png"))
@@ -104,8 +104,8 @@ with sync_playwright() as p:
         bodyOverflow: getComputedStyle(document.body).overflow,
       };
     }""")
-    # 280 · max 82vw → 390 에서 280.
-    check("390: 열면 왼쪽 0 · 폭 280", opened["left"] == 0 and opened["width"] == 280, str(opened))
+    # 280 · max 82vw → 390 에서 280. 오른쪽 끝에 붙는다(2026-08-06 Q ①).
+    check("390: 열면 오른쪽 끝 · 폭 280", opened["left"] == 110 and opened["width"] == 280, str(opened))
     # 화면 높이를 채워야 한다. 내용 높이로 뜨면 아래쪽에 본문이 비쳐 패널로 안 읽힌다 —
     # 2026-07-27 에 죽은 `.sidebar{position:relative}` 가 position:fixed 를 덮어 실제로 그랬다.
     check("390: 드로어가 화면 높이를 채운다",
@@ -113,19 +113,34 @@ with sync_playwright() as p:
     check("390: 스크림이 화면 전체를 덮는다", opened["scrimHeight"] == opened["viewport"], str(opened))
     check("390: 스크림 생김 · aria-expanded=true", opened["scrim"] and opened["expanded"] == "true", str(opened))
     check("390: 열린 동안 본문 스크롤 잠김", opened["bodyOverflow"] == "hidden", str(opened))
+    # 2026-08-06 Q ③: 드로어 안 모든 아이템의 좌우 시작선 — 계정 행동 버튼·메뉴 상자 좌 24,
+    # 닫기 X·메뉴 상자 우 24 (패딩 24 한 줄).
+    align = page.evaluate("""() => {
+      const s = document.querySelector('.sidebar').getBoundingClientRect();
+      const btn = document.querySelector('.sidebar-actions .header-icon-button').getBoundingClientRect();
+      const nav = document.querySelector('.sidebar .navigation-link').getBoundingClientRect();
+      const x = document.querySelector('.drawer-dismiss').getBoundingClientRect();
+      return {
+        btnLeft: Math.round(btn.left - s.left), navLeft: Math.round(nav.left - s.left),
+        xRight: Math.round(s.right - x.right), navRight: Math.round(s.right - nav.right),
+      };
+    }""")
+    check("390: 좌우 시작선 정렬 — 버튼·메뉴 상자 좌 24 · X·메뉴 상자 우 24",
+          align["btnLeft"] == 24 and align["navLeft"] == 24
+          and align["xRight"] == 24 and align["navRight"] == 24, str(align))
     page.screenshot(path=str(out / "mobile-390-open.png"))
 
-    # 스크림 중앙(x=195)은 폭 280 드로어 밑이라 클릭이 드로어에 가로막힌다 — 사람이 실제로
-    # 누르는 자리는 드로어 오른쪽의 드러난 띠다. 좌표로 그 자리를 누른다.
-    page.mouse.click(340, 400)
+    # 드로어(110..390)가 오른쪽을 덮으므로 사람이 실제로 누르는 드러난 띠는 왼쪽이다.
+    page.mouse.click(50, 400)
     page.wait_for_timeout(300)
     after = page.evaluate("""() => ({
-      right: Math.round(document.querySelector('.sidebar').getBoundingClientRect().right),
+      left: Math.round(document.querySelector('.sidebar').getBoundingClientRect().left),
+      client: document.documentElement.clientWidth,
       scrim: document.querySelector('.drawer-scrim') !== null,
       bodyOverflow: getComputedStyle(document.body).overflow,
     })""")
     check("390: 스크림을 누르면 닫히고 스크롤이 풀린다",
-          after["right"] <= 0 and not after["scrim"] and after["bodyOverflow"] != "hidden", str(after))
+          after["left"] >= after["client"] and not after["scrim"] and after["bodyOverflow"] != "hidden", str(after))
     page.close()
     browser.close()
 

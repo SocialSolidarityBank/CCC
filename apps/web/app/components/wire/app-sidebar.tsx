@@ -18,15 +18,14 @@ import { ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 //
 // 2026-08-05 Q — 상단 헤더 신설(Infisical 레퍼런스)로 축이 한 층 더 갈렸다:
 // **헤더 = 맥락(기관·사업) + 계정 행동(설정·테마·로그아웃) / 사이드바 = 장소(메뉴)**.
-// 데스크톱(768 이상) 사이드바에는 메뉴만 남는다. 아래 마크업의 머리(기관명)·사업 전환기·
-// 하단 묶음은 지우지 않았다 — **768 미만 드로어가 그대로 쓴다**(헤더는 좁은 화면에 없어,
-// 드로어가 기관·사업·메뉴·계정 행동을 전부 담는 기존 구조가 유지된다). 데스크톱에서는
-// CSS(layout.tsx `.sidebar-mobile` 규칙)가 그 블록들을 숨긴다.
+// 2026-08-06 Q — 좁은 화면도 같은 축이다: **모바일 바 = 맥락(기관·사업 선택창) + 메뉴 버튼**,
+// **드로어 = 계정 행동(상단 줄) + 메뉴**. 드로어의 기관명·사업 전환기 블록은 뺐다(바가 전담).
+// 상단 줄은 데스크톱에서 CSS(768 이상 display:none)로 숨는다 — 데스크톱 계정 행동은 헤더 몫.
 //
 // 시각 계약은 DESIGN.md §4·§5 가 정본이고 여기서 새로 정하지 않는다 — 폭 280(--sidebar-width),
 // 배경은 캔버스 + 오른쪽 1px 그라데이션 라인(2026-08-05 Q — 구 --gradient-sidebar 면 폐지),
 // 활성 항목 --blue-tint 배경 + --gradient-brand 테두리. 클래스는 layout.tsx 의
-// .sidebar / .navigation-link / .sidebar-footer 를 그대로 쓴다.
+// .sidebar / .navigation-link / .sidebar-head / .sidebar-actions 를 그대로 쓴다.
 
 interface NavItem {
   label: string;
@@ -76,11 +75,8 @@ export interface AppSidebarProps {
 
 /**
  * 좌측 사이드바(280px). **768px 미만에서는 같은 마크업이 드로어로 변한다**(DESIGN.md §4-4) —
- * 평소엔 화면 밖에 있고 상단 손잡이 바(56px)를 눌러야 왼쪽에서 밀려 들어온다.
- *
- * 이전에는 모바일용 가로 내비를 따로 렌더했는데 두 가지가 잘못돼 있었다: 계약이 정한 드로어가
- * 아니었고, 기관명과 **사업 전환기가 빠져 있어 좁은 화면에서는 지금 어느 사업인지 볼 수도
- * 바꿀 수도 없었다.** 마크업을 한 벌로 합치면 그 갈라짐이 구조적으로 사라진다.
+ * 평소엔 화면 밖에 있고 바 오른쪽 끝의 메뉴 버튼을 눌러야 **오른쪽에서** 밀려 들어온다
+ * (2026-08-06 Q — 여는 버튼과 같은 쪽이어야 손과 눈이 이어진다).
  */
 export function AppSidebar({
   programType,
@@ -191,64 +187,48 @@ export function AppSidebar({
         data-drawer-open={drawerOpen ? 'true' : undefined}
         tabIndex={-1}
       >
-        {/* ── 머리·사업 전환기·하단 묶음 세 블록은 **드로어 전용**이다(2026-08-05 Q —
-            데스크톱에서는 상단 헤더가 같은 내용을 담는다. app-header.tsx 참조).
-            마크업을 지우지 않고 CSS(768 이상 display:none)로 숨기는 이유: 드로어가 이 블록들을
-            그대로 쓰고, 마크업 두 벌(모바일용/데스크톱용)을 두면 다시 갈라지기 때문이다. ── */}
-        {/* 기관명이 곧 홈 버튼이다 (2026-07-31 Q 요청). 목적지는 '/' — 마지막 선택 사업을
-            서버가 읽어 그 일정으로 보낸다(page.tsx). */}
+        {/* ── 드로어 = 계정 행동 + 메뉴 (2026-08-06 Q — 구 기관명·사업 전환기 블록 제거:
+            그 맥락은 모바일 바가 전담한다. 두 벌 두면 다시 갈라진다).
+            상단 줄 = 설정·테마·로그아웃 원형 버튼(좌) + 닫기 X(우). 라벨은 aria-label +
+            title 이 갖는다. 테마·로그아웃이 서버 액션 폼인 이유는 쿠키를 서버가 써야 하기
+            때문이다(HttpOnly · 첫 페인트 테마 일치). 테마 라벨은 **가는 곳**을 말한다(§11) —
+            aria-pressed 로 현재 상태는 따로 알린다. ── */}
         <div className="sidebar-head">
-          <Link className="brand" href="/">
-            <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
-            <span>{orgLabel}</span>
-          </Link>
-          {/* 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 텍스트 버튼 대체).
-              패널 상단 우측은 닫기의 관례 자리라 배우지 않아도 찾는다.
+          <div className="sidebar-actions">
+            <Link
+              className="header-icon-button"
+              href="/settings"
+              aria-label="설정"
+              title="설정"
+              data-current={settingsActive ? 'true' : undefined}
+              aria-current={settingsActive ? 'page' : undefined}
+            >
+              <NavIcon name="settings" />
+            </Link>
+            <form action={toggleThemeAction} className="header-action-form">
+              <button
+                type="submit"
+                className="header-icon-button"
+                aria-label={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+                title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+                aria-pressed={theme === 'dark'}
+              >
+                <NavIcon name={theme === 'dark' ? 'theme-light' : 'theme-dark'} />
+              </button>
+            </form>
+            <form action={logoutAction} className="header-action-form">
+              <button type="submit" className="header-icon-button" aria-label="로그아웃" title="로그아웃">
+                <NavIcon name="logout" />
+              </button>
+            </form>
+          </div>
+          {/* 드로어 닫기 X — 패널 상단 우측은 닫기의 관례 자리라 배우지 않아도 찾는다.
               스크림·Esc 는 그대로 남는 닫는 길이다. */}
           <button type="button" className="drawer-dismiss" aria-label="메뉴 닫기" onClick={() => setDrawerOpen(false)}>
             <NavIcon name="close" />
           </button>
         </div>
-        {/* 사업 전환기는 기관명 아래·메뉴 위다 — 아래 모든 메뉴의 범위를 정하므로
-            위에 있어야 포함 관계가 눈으로 읽힌다 (ADR-0014 §2). */}
-        <ProgramSwitcher
-          activeProgram={activeProgram}
-          programLabels={programLabels}
-        />
         {navigation}
-        {/* 하단 묶음은 헤더의 계정 행동과 **같은 옷**이다 — 32px 원형 아이콘 버튼 3개
-            (2026-08-05 Q 2차 "circle + 아이콘 버튼을 웹화면과 통일" — 구 텍스트 메뉴 항목 대체).
-            라벨은 aria-label + title 이 갖는다. 테마·로그아웃이 서버 액션 폼인 이유는
-            쿠키를 서버가 써야 하기 때문이다(HttpOnly · 첫 페인트 테마 일치). 테마 라벨은
-            **가는 곳**을 말한다(§11) — aria-pressed 로 현재 상태는 따로 알린다. */}
-        <div className="sidebar-footer">
-          <Link
-            className="header-icon-button"
-            href="/settings"
-            aria-label="설정"
-            title="설정"
-            data-current={settingsActive ? 'true' : undefined}
-            aria-current={settingsActive ? 'page' : undefined}
-          >
-            <NavIcon name="settings" />
-          </Link>
-          <form action={toggleThemeAction} className="header-action-form">
-            <button
-              type="submit"
-              className="header-icon-button"
-              aria-label={theme === 'dark' ? '라이트 모드' : '다크 모드'}
-              title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
-              aria-pressed={theme === 'dark'}
-            >
-              <NavIcon name={theme === 'dark' ? 'theme-light' : 'theme-dark'} />
-            </button>
-          </form>
-          <form action={logoutAction} className="header-action-form">
-            <button type="submit" className="header-icon-button" aria-label="로그아웃" title="로그아웃">
-              <NavIcon name="logout" />
-            </button>
-          </form>
-        </div>
       </nav>
     </>
   );
