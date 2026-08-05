@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError, getMonthSchedules, type TodaySchedule } from '../../../../lib/api';
 import { GridContainer } from '../../../../components/wire/grid-container';
 import { PageTitle } from '../../../../components/wire/page-title';
 import { WireButton } from '../../../../components/wire/wire-button';
-import { WireCard } from '../../../../components/wire/wire-card';
+import { ParticipantCard } from '../../../../components/wire/participant-card';
 import { isKnownProgramType } from '../../../../lib/labels';
 
 // 사이드바 '전체 일정'(D35 · ADR-0014 §2)의 도착지 — CCC-19.
@@ -160,22 +159,15 @@ export default async function ProgramScheduleAllPage({
 
   // 응답의 date 는 그 달의 1일이다 — 기본 달을 서버가 정하므로 화면은 여기서 달을 읽는다.
   const month = board.date.slice(0, 7);
-  const today = zonedParts(new Date().toISOString(), board.timeZone).date;
 
   // 사업 범위는 워크스페이스가 정한다(D35) — 다른 사업의 일정은 이 화면에 오지 않는다.
+  // 서버가 scheduled_at 오름차순으로 내려주므로 순서가 곧 시간순이다. 날짜 묶음은
+  // 2026-08-06 Q 카드 통일로 없앴다 — 카드 1행이 날짜를 직접 담으므로 묶음 제목이 중복이다.
   const rows = board.schedules
     .filter((schedule) => schedule.programType === programType)
     .map((schedule) => ({ schedule, ...zonedParts(schedule.scheduledAt, board.timeZone) }));
 
-  // 서버가 scheduled_at 오름차순으로 내려주므로 삽입 순서가 곧 시간순이다.
-  const days = new Map<string, typeof rows>();
-  for (const row of rows) {
-    const bucket = days.get(row.date);
-    if (bucket === undefined) days.set(row.date, [row]);
-    else bucket.push(row);
-  }
-
-  if (days.size === 0) {
+  if (rows.length === 0) {
     return frame(month, (
       <div className="wire-empty">
         <svg
@@ -200,41 +192,24 @@ export default async function ProgramScheduleAllPage({
   }
 
   return frame(month, (
-    <>
-      {[...days.entries()].map(([date, entries]) => (
-        // 날짜 묶음은 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체).
-        // 안의 행은 붙어 있으므로 카드가 아니라 --line 구분선이다(§5 리스트 행 맥락 규칙).
-        <WireCard
-          as="section"
-          className="month-day"
-          key={date}
-          labelledBy={`month-day-${date}`}
-          title={<h2 className="month-day-title" id={`month-day-${date}`} data-today={date === today ? 'true' : undefined}>
-            {formatDayTitle(date)}
-          </h2>}
-        >
-          <div className="month-rows">
-            {entries.map(({ schedule, time }) => {
-              const status = statusLabels[schedule.status];
-              return (
-                <Link className="month-row" key={schedule.id} href={rowHref(schedule)}>
-                  <span className="month-row-time">{time}</span>
-                  {/* 이름 표기(D59): 가명 ID 는 화면에 없다 — 동명이인 구분은 연락처가 맡는다.
-                      이름이 없으면 ID 폴백(그때만 화면에 나온다). */}
-                  <span className="month-row-name">
-                    <b>{schedule.participantName ?? schedule.beneficiaryId}</b>
-                    {schedule.participantPhone !== null && <span>{schedule.participantPhone}</span>}
-                  </span>
-                  <span className="month-row-right">
-                    <span className="month-row-kind">{sessionKindLabels[schedule.sessionKind]}</span>
-                    {status !== null && <span className="month-row-status">{status}</span>}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </WireCard>
+    // 다가오는 일정과 **같은 당사자 카드**다(2026-08-06 Q — 구 날짜 묶음 카드 + 행 대체).
+    // 지난 일정의 상태(완료/취소/불참)만 무채색 뱃지로 더 얹는다.
+    <div className="card-grid">
+      {rows.map(({ schedule, date, time }) => (
+        <ParticipantCard
+          key={schedule.id}
+          href={rowHref(schedule)}
+          schedule={{
+            date: formatDayTitle(date),
+            time,
+            kindLabel: sessionKindLabels[schedule.sessionKind],
+            ...(statusLabels[schedule.status] === null ? {} : { statusLabel: statusLabels[schedule.status] as string }),
+          }}
+          name={schedule.participantName}
+          beneficiaryId={schedule.beneficiaryId}
+          phone={schedule.participantPhone}
+        />
       ))}
-    </>
+    </div>
   ));
 }

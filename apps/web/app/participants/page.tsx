@@ -1,10 +1,7 @@
-import Link from 'next/link';
 import { ApiError, listAssignedParticipants, type AssignedParticipant } from '../lib/api';
 import { GridContainer } from '../components/wire/grid-container';
-import { ListRow } from '../components/wire/list-row';
-import { MetaRow } from '../components/wire/meta-row';
 import { PageTitle } from '../components/wire/page-title';
-import { ParticipantName } from '../components/wire/participant-name';
+import { ParticipantCard } from '../components/wire/participant-card';
 import { WireButton } from '../components/wire/wire-button';
 import { ParticipantFilter } from './participant-filter';
 
@@ -42,10 +39,13 @@ export default async function ParticipantsPage() {
   return (
     <main className="page-content">
       <GridContainer>
-        {/* 축은 사이드바=장소 / 페이지 우상단=행동이다(§2). 등록은 행동이라 여기 남는다. */}
+        {/* 축은 사이드바=장소 / 페이지 우상단=행동이다(§2). 등록은 행동이라 여기 남는다.
+            당사자 초대는 2026-08-06 Q 지시로 본문 아래 보조 링크에서 **기본(세컨더리) 버튼**으로
+            승격해 등록 옆에 선다(§4-5 순서: 세컨더리 → 프라이머리). */}
         <div className="page-header">
           <PageTitle>당사자</PageTitle>
           <div className="page-actions">
+            <WireButton href="/participants/invite">당사자 초대</WireButton>
             <WireButton href="/participants/new" variant="primary">당사자 등록</WireButton>
           </div>
         </div>
@@ -59,29 +59,24 @@ export default async function ParticipantsPage() {
               beneficiaryId: entry.beneficiaryId,
               // 검색어 대조용 문자열. 이름·가명 ID·연락처를 한 줄로 이어 둔다.
               haystack: [entry.name ?? '', entry.beneficiaryId, entry.phone ?? ''].join(' ').toLowerCase(),
+              // 일정 화면과 같은 당사자 카드(2026-08-06 Q) — 1행 카드 + 오른쪽 화살표가
+              // 상세(허브)로 가는 길임을 알린다. 상태는 뱃지, 참여 사업 수는 컬러 표시.
               node: (
-                <ListRow href={`/participants/${encodeURIComponent(entry.beneficiaryId)}`}>
-                  <span style={{ display: 'grid', gap: 4 }}>
-                    <ParticipantName name={entry.name} beneficiaryId={entry.beneficiaryId} />
-                    <MetaRow
-                      items={[
-                        statusLabel(entry.status),
-                        `참여 사업 ${entry.programCount}개`,
-                        ...(entry.phone === null || entry.phone.length === 0 ? [] : [entry.phone]),
-                      ]}
-                    />
-                  </span>
-                </ListRow>
+                <ParticipantCard
+                  href={`/participants/${encodeURIComponent(entry.beneficiaryId)}`}
+                  name={entry.name}
+                  beneficiaryId={entry.beneficiaryId}
+                  phone={entry.phone}
+                  statusBadge={entry.status === 'active'
+                    ? { label: statusLabel(entry.status), tone: 'mint' }
+                    : { label: statusLabel(entry.status) }}
+                  programCount={entry.programCount}
+                  chevron
+                />
               ),
             }))}
           />
         )}
-        {/* 당사자 초대(D26 스텁)의 유일한 진입점이었던 프로필 드롭다운이 헤더와 함께
-            사라졌다. 초대는 '행동'이라 이 페이지에 남되, 아직 발송이 없는 스텁이라
-            주 버튼과 겨루지 않게 본문 아래 보조 링크로 둔다. */}
-        <p className="note-inline">
-          당사자가 직접 정보를 입력하게 하려면 <Link href="/participants/invite">당사자 초대</Link>를 쓰세요.
-        </p>
       </GridContainer>
     </main>
   );

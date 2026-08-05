@@ -44,12 +44,18 @@ function localTime(instant: string, timeZone: string): string {
   }).format(date);
 }
 
-/** 카드 상단 표시용 일시 — "7월 17일 (목) 14:00". */
-function formatScheduleWhen(instant: string, timeZone: string): string {
+/** 카드 1행 날짜 칸 — "7월 17일 (목)". 시간은 localTime 이 따로 준다(2026-08-06 카드 개편). */
+function formatScheduleDate(instant: string, timeZone: string): string {
   const { year, month, day } = zonedDateParts(instant, timeZone);
   const weekday = weekdayNames[new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).getUTCDay()];
-  return `${Number(month)}월 ${Number(day)}일 (${weekday}) ${localTime(instant, timeZone)}`;
+  return `${Number(month)}월 ${Number(day)}일 (${weekday})`;
 }
+
+/** 상담 종류 뱃지 문구 — 전체 일정과 같은 어휘(D47). */
+const sessionKindLabels: Record<'regular' | 'intake', string> = {
+  regular: '기본 상담',
+  intake: '인테이크',
+};
 
 function scheduleErrorMessage(error: ApiError): string | null {
   switch (error.code) {
@@ -118,7 +124,11 @@ export default async function ProgramSchedulePage({
       .map((schedule) => ({
         id: schedule.id,
         href: briefingHref(schedule.beneficiaryId, schedule.supportCaseId),
-        when: formatScheduleWhen(schedule.scheduledAt, board.timeZone),
+        schedule: {
+          date: formatScheduleDate(schedule.scheduledAt, board.timeZone),
+          time: localTime(schedule.scheduledAt, board.timeZone),
+          kindLabel: sessionKindLabels[schedule.sessionKind],
+        },
         participantName: schedule.participantName,
         beneficiaryId: schedule.beneficiaryId,
         participantPhone: schedule.participantPhone,

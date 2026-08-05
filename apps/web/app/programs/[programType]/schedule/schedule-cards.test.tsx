@@ -7,14 +7,15 @@ import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 // **테스트는 전부 통과해도 종료코드가 1** 이 된다(CI 실패). 이 파일이 실제로 CI 를 깨뜨렸다:
 // 2026-07-30 PR #16 의 push 런에서 unhandled error 2건으로 verify 실패(같은 커밋의
 // pull_request 런은 통과 — 부하에 따라 갈리는 타이밍 의존이라 '플레이크'로 보였던 것이다).
-// 같은 누락이 남은 테스트 파일 12개에도 있다(STATUS.md History 참조).
 afterEach(cleanup);
 
+// 2026-08-06 Q 카드 통일: 카드는 공용 ParticipantCard 다 — 1행 날짜·시간·종류 뱃지,
+// 2행 이름·가명 ID·연락처. 이 테스트는 그 구조를 계약으로 고정한다.
 const cards: ScheduleCardItem[] = [
   {
     id: 's1',
     href: '/participants/swallow-003/programs/case-1/briefing',
-    when: '7월 17일 (목) 10:00',
+    schedule: { date: '7월 17일 (목)', time: '10:00', kindLabel: '기본 상담' },
     participantName: '김철수',
     beneficiaryId: 'swallow-003',
     participantPhone: '010-1234-5678',
@@ -22,54 +23,55 @@ const cards: ScheduleCardItem[] = [
   {
     id: 's2',
     href: '/participants/otter-001/programs/case-2/briefing',
-    when: '7월 18일 (금) 14:00',
+    schedule: { date: '7월 18일 (금)', time: '14:00', kindLabel: '인테이크' },
     participantName: null,
     beneficiaryId: 'otter-001',
     participantPhone: null,
   },
 ];
 
-/** 각 카드의 '이름' WireField 값(실명 또는 가명 ID 폴백)을 렌더 순서대로 뽑는다. */
-function cardNames(container: HTMLElement): (string | null)[] {
-  return Array.from(container.querySelectorAll('.wire-field-row'))
-    .filter((row) => row.querySelector('.wire-field-label')?.textContent === '이름')
-    .map((row) => row.querySelector('.wire-field-value')?.textContent ?? null);
+function cellTexts(container: HTMLElement): (string | null)[] {
+  return Array.from(container.querySelectorAll('.participant-card-cell')).map((el) => el.textContent);
 }
 
-function fieldValues(container: HTMLElement): (string | null)[] {
-  return Array.from(container.querySelectorAll('.wire-field-value')).map((el) => el.textContent);
+/** 카드 렌더 순서 — 1행 날짜 칸을 카드 순서대로 뽑는다. */
+function cardDates(container: HTMLElement): (string | null)[] {
+  return Array.from(container.querySelectorAll('.participant-card'))
+    .map((card) => card.querySelector('.participant-card-cell')?.textContent ?? null);
 }
 
 describe('ScheduleCards', () => {
-  it('실명이 있으면 실명을, 없으면 가명 ID로 폴백해 이름 필드에 표시하고 연락처도 폴백한다', () => {
+  it('1행 날짜·시간·종류 뱃지, 2행 이름·가명 ID·연락처를 표시한다 (2026-08-06 카드 통일)', () => {
     const { container } = render(<ScheduleCards cards={cards} />);
-    const names = cardNames(container);
-    expect(names).toContain('김철수'); // 실명(T2 응답)
-    expect(names).toContain('otter-001'); // participantName=null → 가명 ID 폴백
+    const values = cellTexts(container);
+    expect(values).toContain('김철수'); // 실명(T2 응답)
+    expect(values).toContain('swallow-003'); // 가명 ID 칸(2026-08-06 복귀)
+    expect(values).toContain('010-1234-5678'); // 연락처
+    expect(values).toContain('미기입'); // participantName=null → 이름 칸 폴백(ID 칸이 따로 있다)
+    expect(values).toContain('7월 17일 (목)');
+    expect(values).toContain('10:00');
 
-    const values = fieldValues(container);
-    expect(values).toContain('010-1234-5678'); // 연락처 있음
-    expect(values).toContain('미기입'); // participantPhone=null → 폴백
+    // 상담 종류는 블루 뱃지다(D34 일정 축).
+    const badges = Array.from(container.querySelectorAll('.wire-badge')).map((el) => el.textContent);
+    expect(badges).toContain('기본 상담');
+    expect(badges).toContain('인테이크');
 
-    // 일시는 카드 헤더(구분선)로 표시된다.
-    const headers = Array.from(container.querySelectorAll('.wire-card-title')).map((el) => el.textContent);
-    expect(headers).toContain('7월 17일 (목) 10:00');
+    // 행 구분선은 회색 풀블리드 한 줄이다(2026-08-06).
+    expect(container.querySelectorAll('.participant-card-divider')).toHaveLength(2);
 
-    // 카드는 상담 준비(브리핑)로 링크된다.
-    // 열 수는 .card-grid 가 정한다 — 예전에는 링크마다 wire-col-6 이 박혀 있어 카드가
-    // 1장일 때도 화면 절반만 차지했다(2026-07-26).
+    // 카드는 상담 준비(브리핑)로 링크된다. 열 수는 .card-grid 가 정한다(2026-07-26).
     const links = Array.from(container.querySelectorAll('.card-grid > a')).map((el) => el.getAttribute('href'));
     expect(links).toContain('/participants/swallow-003/programs/case-1/briefing');
   });
 
   it('시간순 정렬 토글을 누르면 카드 순서가 뒤집힌다', () => {
     const { container } = render(<ScheduleCards cards={cards} />);
-    expect(cardNames(container)).toEqual(['김철수', 'otter-001']); // 기본 오름차순
+    expect(cardDates(container)).toEqual(['7월 17일 (목)', '7월 18일 (금)']); // 기본 오름차순
 
     const toggle = container.querySelector('button.wire-button');
     expect(toggle).not.toBeNull();
     fireEvent.click(toggle as HTMLButtonElement);
-    expect(cardNames(container)).toEqual(['otter-001', '김철수']); // 내림차순
+    expect(cardDates(container)).toEqual(['7월 18일 (금)', '7월 17일 (목)']); // 내림차순
   });
 
   it("툴바에 '고정' 자리표시자를 두지 않는다", () => {

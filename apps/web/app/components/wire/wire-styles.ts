@@ -34,6 +34,21 @@ export const wireStyles = `
 .notice-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 /* 자동 저장 상태 한 줄 — 카드 밖 플랫 텍스트. */
 .notice-status{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* ── 당사자 카드 (2026-08-06 Q) ── 일정(다가오는·전체)과 당사자 목록이 같은 부품을 쓴다.
+   글자는 전부 16/400 — 크기·굵기를 카드 안에서 갈라 쓰지 않는다. 칸은 장폭에 고르게
+   펴고(space-between), 세로는 가운데 정렬이다. 행 구분선은 회색 --line 이고 카드
+   아웃라인까지 가로지른다(패딩만큼 음수 마진). */
+.participant-card-link{display:block;color:inherit;text-decoration:none}
+.participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
+.participant-card-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3) var(--space-4);flex-wrap:wrap;min-height:var(--badge-height)}
+.participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;color:var(--ink);overflow-wrap:anywhere}
+.participant-card-cell[data-tone="sub"]{color:var(--sub)}
+.participant-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
+.participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none}
+/* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
+   민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
+.participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;color:var(--lavender-deep);white-space:nowrap}
+.participant-card .wire-chevron{flex:none}
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
@@ -162,13 +177,15 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-chevron{flex:none;width:10px;height:10px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub)}
 .wire-chevron[data-dir="down"]{transform:translateY(-3px) rotate(45deg)}
 .wire-chevron[data-dir="right"]{transform:translateX(-3px) rotate(-45deg)}
-/* WireCard (§5 카드): 헤더/본문을 --gradient-brand 1px 선으로 나눈다. */
+/* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 .wire-card{padding:var(--space-6)}
 .wire-card-title{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
 /* 제목 슬롯에 시맨틱 헤딩(h3 소절 제목)이 들어와도 크기는 카드 제목 계약을 따른다 —
    UA 기본 크기가 새지 않게 한다(인테이크 소절, 2026-08-05). */
 .wire-card-title>h3{margin:0;font-size:inherit;font-weight:inherit;line-height:inherit}
-.wire-card-divider{height:1px;margin:var(--space-4) 0;background:var(--gradient-brand);border:0}
+/* 구분선은 회색 --line 이고 카드 아웃라인까지 가로지른다(2026-08-06 Q — 구 그라데이션
+   안쪽 구분선 대체. 그라데이션 3색은 구조선이 아니라 정보 표시로 옮겨 간다). */
+.wire-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .wire-card-body{display:grid;gap:var(--space-3)}
 /* WireCardDetails — 접힘 카드(2026-08-05 카드화 · ADR-0030, 구 브리핑 플랫 아코디언).
    접힌 상태 = 제목 줄만 남은 회색 카드, 펼친 상태 = 활성이라 .surface-card[open] 의
@@ -179,7 +196,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
 .wire-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
-.wire-card-details[open]>.wire-card-summary{margin-bottom:var(--space-4);padding-bottom:var(--space-4);background:var(--gradient-brand) bottom/100% 1px no-repeat}
+/* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
+.wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-4);padding:0 var(--space-6) var(--space-4);border-bottom:1px solid var(--line)}
 .wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:rotate(45deg)}
 /* 제목과 상태 배지가 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은 이유). */
 .wire-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}

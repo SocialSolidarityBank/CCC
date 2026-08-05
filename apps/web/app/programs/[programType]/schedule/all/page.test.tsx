@@ -49,12 +49,26 @@ async function renderPage(month?: string) {
   return render(element);
 }
 
+function cards(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('.participant-card'));
+}
+
+function cellTexts(card: HTMLElement): (string | null)[] {
+  return Array.from(card.querySelectorAll('.participant-card-cell')).map((el) => el.textContent);
+}
+
+function badgeTexts(card: HTMLElement): (string | null)[] {
+  return Array.from(card.querySelectorAll('.wire-badge')).map((el) => el.textContent);
+}
+
 beforeEach(() => {
   getMonthSchedules.mockReset();
 });
 
+// 2026-08-06 Q 카드 통일: 날짜 묶음이 사라지고 다가오는 일정과 같은 당사자 카드가 됐다 —
+// 1행 날짜·시간·종류 뱃지(지난 일정은 상태 뱃지 추가), 2행 이름·가명 ID·연락처.
 describe('전체 일정 화면 (CCC-19)', () => {
-  it('일정을 날짜별로 묶고 시간·이름·유형을 한 줄에 보여준다', async () => {
+  it('일정마다 당사자 카드 한 장 — 1행 날짜·시간·종류 뱃지, 2행 이름·가명 ID·연락처', async () => {
     getMonthSchedules.mockResolvedValue(board([
       schedule(),
       schedule({ id: 's2', scheduledAt: '2026-02-15T05:00:00.000Z', participantName: '이영희', beneficiaryId: 'crane-001' }),
@@ -63,24 +77,22 @@ describe('전체 일정 화면 (CCC-19)', () => {
 
     const { container } = await renderPage('2026-02');
 
-    const days = container.querySelectorAll('.month-day');
-    expect(days).toHaveLength(2);
-    expect(days[0]!.querySelector('.month-day-title')?.textContent).toBe('2월 15일 (일)');
-    expect(days[1]!.querySelector('.month-day-title')?.textContent).toBe('2월 20일 (금)');
+    const rendered = cards(container);
+    expect(rendered).toHaveLength(3);
 
-    // 같은 날 두 건은 서버가 준 시간순 그대로 한 묶음 안에 앉는다.
-    const firstDayRows = days[0]!.querySelectorAll('.month-row');
-    expect(firstDayRows).toHaveLength(2);
-    expect(firstDayRows[0]!.querySelector('.month-row-time')?.textContent).toBe('10:00');
-    expect(firstDayRows[1]!.querySelector('.month-row-time')?.textContent).toBe('14:00');
+    // 서버가 준 시간순 그대로다.
+    const first = cellTexts(rendered[0]!);
+    expect(first).toContain('2월 15일 (일)');
+    expect(first).toContain('10:00');
+    expect(first).toContain('김철수');
+    expect(first).toContain('swallow-003'); // 가명 ID 칸(2026-08-06 복귀)
+    expect(first).toContain('010-1234-5678');
+    expect(cellTexts(rendered[1]!)).toContain('14:00');
+    expect(cellTexts(rendered[2]!)).toContain('2월 20일 (금)');
 
-    // 이름 표기(D59): 가명 ID 는 화면에 없다 — 동명이인 구분은 연락처가 맡는다.
-    expect(firstDayRows[0]!.querySelector('.month-row-name b')?.textContent).toBe('김철수');
-    expect(firstDayRows[0]!.querySelector('.month-row-name span')?.textContent).toBe('010-1234-5678');
-    expect(firstDayRows[0]!.textContent).not.toContain('swallow-003');
-
-    expect(days[1]!.querySelector('.month-row-kind')?.textContent).toBe('인테이크');
-    expect(firstDayRows[0]!.querySelector('.month-row-kind')?.textContent).toBe('기본 상담');
+    // 상담 종류 뱃지 — 블루 계열(일정 축, D34).
+    expect(badgeTexts(rendered[0]!)).toContain('기본 상담');
+    expect(badgeTexts(rendered[2]!)).toContain('인테이크');
   });
 
   it('완료된 회차는 그 회차가 펼쳐진 상담 기록으로, 나머지는 브리핑으로 보낸다', async () => {
@@ -91,14 +103,14 @@ describe('전체 일정 화면 (CCC-19)', () => {
 
     const { container } = await renderPage('2026-02');
 
-    const hrefs = Array.from(container.querySelectorAll('.month-row')).map((row) => row.getAttribute('href'));
+    const hrefs = Array.from(container.querySelectorAll('.card-grid > a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual([
       '/participants/swallow-003/programs/case-1/records#record-sess-9',
       '/participants/swallow-003/programs/case-1/briefing',
     ]);
   });
 
-  it('상태 배지는 지난 일정에만 붙는다 — 예정에는 붙이지 않는다', async () => {
+  it('상태 뱃지는 지난 일정에만 붙는다 — 예정에는 붙이지 않는다', async () => {
     getMonthSchedules.mockResolvedValue(board([
       schedule({ id: 's1', status: 'scheduled' }),
       schedule({ id: 's2', scheduledAt: '2026-02-16T01:00:00.000Z', status: 'cancelled' }),
@@ -108,9 +120,8 @@ describe('전체 일정 화면 (CCC-19)', () => {
 
     const { container } = await renderPage('2026-02');
 
-    const statuses = Array.from(container.querySelectorAll('.month-row')).map(
-      (row) => row.querySelector('.month-row-status')?.textContent ?? null,
-    );
+    // 카드마다 첫 뱃지는 상담 종류다 — 상태는 그 다음 뱃지로만 온다.
+    const statuses = cards(container).map((card) => badgeTexts(card)[1] ?? null);
     expect(statuses).toEqual([null, '취소', '불참', '완료']);
   });
 
@@ -122,7 +133,7 @@ describe('전체 일정 화면 (CCC-19)', () => {
 
     const { container } = await renderPage('2026-02');
 
-    expect(container.querySelectorAll('.month-row')).toHaveLength(1);
+    expect(cards(container)).toHaveLength(1);
   });
 
   it('월 이동 링크가 앞뒤 달을 가리키고 해가 바뀌는 경계를 넘는다', async () => {
@@ -145,29 +156,6 @@ describe('전체 일정 화면 (CCC-19)', () => {
 
     // undefined 로 넘어가야 게이트웨이가 기관 시간대의 이번 달을 고른다.
     expect(getMonthSchedules).toHaveBeenCalledWith(undefined);
-  });
-
-  // 오늘 표시는 이번 달을 볼 때만 나타나므로 시계를 고정하지 않으면 영영 렌더되지 않는
-  // 경로가 된다. 기관 시간대(Asia/Seoul) 기준으로 판정하는지도 여기서 함께 본다.
-  it('오늘 날짜 묶음에만 오늘 표시가 붙는다 (기관 시간대 기준)', async () => {
-    // UTC 로는 아직 02-14 지만 KST(UTC+9) 로는 **02-15 01:00** 이다 — 시간대를 무시하고
-    // UTC 날짜로 판정하면 오늘 표시가 하루 앞 묶음에 붙는다.
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-14T16:00:00.000Z'));
-    try {
-      getMonthSchedules.mockResolvedValue(board([
-        schedule({ id: 's1', scheduledAt: '2026-02-15T01:00:00.000Z' }),
-        schedule({ id: 's2', scheduledAt: '2026-02-16T01:00:00.000Z' }),
-      ]));
-
-      const { container } = await renderPage('2026-02');
-
-      const titles = Array.from(container.querySelectorAll('.month-day-title'));
-      expect(titles.map((t) => t.getAttribute('data-today'))).toEqual(['true', null]);
-      expect(titles[0]!.textContent).toBe('2월 15일 (일)');
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it('그 달에 상담이 없으면 빈 상태 계약대로 보여준다', async () => {

@@ -108,11 +108,11 @@ button,input,select,textarea{font:inherit}
    좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
    알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다. */
 .navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
-/* 테두리 1px 은 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 2px 자라
-   글자가 상태 전환마다 1px 씩 튄다. */
+/* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
+   전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
 /* 높이는 '뒤로' 알약과 같은 32 다(2026-08-06 Q — 구 40. 첫 메뉴 윗변 = 뒤로 윗변(76)
    계약과 짝: 높이까지 같아야 두 크롬이 한 리듬으로 읽힌다). */
-.navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
+.navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -616,36 +616,9 @@ const monthScheduleStyles = `
 /* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
 .month-nav-label{min-width:9ch;font-size:var(--text-md);font-weight:600;color:var(--ink);text-align:center}
-/* 하루 묶음 = 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체). 카드 모양·제목
-   구분선은 WireCard 가 갖고, 안의 행은 붙어 있으므로 카드가 아니라 행 사이 1px --line
-   구분선이다(DESIGN.md §5 '리스트 행'의 맥락 규칙). */
-.month-day-title{margin:0}
-.month-day-title[data-today="true"]{color:var(--blue-deep)}
-.month-rows{display:grid}
-.month-rows>*+*{border-top:1px solid var(--line)}
-.month-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);color:inherit;text-decoration:none}
-/* 호버는 리스트 행과 같은 그라데이션 채움이다(2026-08-03 Q — 구 --muted 단색). */
-@media (hover:hover){.month-row:hover{background:var(--gradient-hover)}}
-.month-row:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
-/* 시간은 고정폭으로 세로 정렬을 맞춘다(§5 리스트 행: 시간 16/700 고정폭 → 이름 묶음). */
-.month-row-time{flex:none;min-width:6ch;font-size:var(--text-md);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
-/* 이름 묶음 — '이름 (가명 ID)' 한 줄, 띄어쓰기는 문자열이 아니라 간격이 만든다(§5 이름 표기).
-   이 블록은 템플릿 문자열이라 주석에도 백틱을 쓸 수 없다 — 쓰면 문자열이 거기서 끝난다. */
-.month-row-name{display:flex;align-items:baseline;gap:var(--space-1);min-width:0;flex:1}
-.month-row-name b{font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
-.month-row-name span{font-size:var(--text-md);font-weight:400;color:var(--sub);white-space:nowrap}
-.month-row-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
-/* 유형 칩 — 블루 tint + --ink 글자 + 블루 deep 외곽선(배지 재규정 2026-08-05 Q). */
-.month-row-kind{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-/* 상태는 지난 일정에만 붙는다(예정은 붙이지 않는다 — 대부분이 예정이라 전부 붙으면 소음이다).
-   무채색 기본 배지다: 취소·불참은 경고가 아니라 사실이고, 리스크 색은 확인된 플래그 전용이다(D9). */
-.month-row-status{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-@media (max-width:767px){
-  /* §5 모바일: 리스트 행은 시간+이름 / 메타 / 배지 3줄로 접힌다. */
-  .month-row{flex-wrap:wrap}
-  .month-row-name{flex-basis:calc(100% - 6ch - var(--space-3))}
-  .month-row-right{flex-basis:100%}
-}
+/* 날짜 묶음·행(.month-day·.month-row*)은 2026-08-06 Q 카드 통일로 삭제 — 전체 일정도
+   다가오는 일정과 같은 당사자 카드(ParticipantCard, wire-styles.ts)를 쓴다. 상태·유형
+   뱃지는 카드의 .wire-badge 어휘가 이어받는다(트랙 C PR #61 의 배지 재규정 포함). */
 `;
 
 
