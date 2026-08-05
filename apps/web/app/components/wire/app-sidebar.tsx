@@ -189,11 +189,17 @@ export function AppSidebar({
       >
         {/* ── 드로어 = 계정 행동 + 메뉴 (2026-08-06 Q — 구 기관명·사업 전환기 블록 제거:
             그 맥락은 모바일 바가 전담한다. 두 벌 두면 다시 갈라진다).
-            상단 줄 = 설정·테마·로그아웃 원형 버튼(좌) + 닫기 X(우). 라벨은 aria-label +
+            상단 줄 = **드로어 버튼(좌) + 설정·테마·로그아웃(우)** (2026-08-06 Q 2차 — 구
+            '계정 행동 좌 + 닫기 X 우' 반전. 닫기는 X 가 아니라 여는 버튼과 같은 사이드바
+            아이콘·같은 32 원형이다 — 한 버튼이 여닫는 토글로 읽힌다). 라벨은 aria-label +
             title 이 갖는다. 테마·로그아웃이 서버 액션 폼인 이유는 쿠키를 서버가 써야 하기
             때문이다(HttpOnly · 첫 페인트 테마 일치). 테마 라벨은 **가는 곳**을 말한다(§11) —
             aria-pressed 로 현재 상태는 따로 알린다. ── */}
         <div className="sidebar-head">
+          {/* 스크림·Esc 는 그대로 남는 닫는 길이다. */}
+          <button type="button" className="header-icon-button drawer-dismiss" aria-label="메뉴 닫기" title="메뉴 닫기" onClick={() => setDrawerOpen(false)}>
+            <NavIcon name="sidebar" />
+          </button>
           <div className="sidebar-actions">
             <Link
               className="header-icon-button"
@@ -222,11 +228,6 @@ export function AppSidebar({
               </button>
             </form>
           </div>
-          {/* 드로어 닫기 X — 패널 상단 우측은 닫기의 관례 자리라 배우지 않아도 찾는다.
-              스크림·Esc 는 그대로 남는 닫는 길이다. */}
-          <button type="button" className="drawer-dismiss" aria-label="메뉴 닫기" onClick={() => setDrawerOpen(false)}>
-            <NavIcon name="close" />
-          </button>
         </div>
         {navigation}
       </nav>

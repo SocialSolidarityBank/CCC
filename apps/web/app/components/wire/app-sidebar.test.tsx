@@ -23,11 +23,16 @@ function sidebarLinks(container: HTMLElement): Array<{ label: string; href: stri
 describe('AppSidebar (D35 · ADR-0014 §2)', () => {
   it('드로어 = 계정 행동(상단 줄) + 메뉴다 — 기관·사업 맥락은 바가 전담한다 (2026-08-06 Q)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
-    // 상단 줄: 계정 행동 3개(좌) + 닫기 X(우) — 구 기관명 줄·사업 전환기 블록 대체.
+    // 상단 줄: 드로어 버튼(좌) + 계정 행동 3개(우) — 2026-08-06 2차 반전. 닫기는 X 가 아니라
+    // 여는 버튼과 같은 사이드바 아이콘 원형이다(토글로 읽힌다).
     const actions = Array.from(container.querySelectorAll('.sidebar .sidebar-actions .header-icon-button'));
     expect(actions.map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
     const head = container.querySelector('.sidebar .sidebar-head')!;
-    expect(head.querySelector('.drawer-dismiss')).not.toBeNull();
+    const dismiss = head.querySelector('.drawer-dismiss')!;
+    expect(dismiss).not.toBeNull();
+    // 순서: 드로어 버튼이 계정 행동 묶음보다 앞(왼쪽)이다.
+    expect(dismiss.compareDocumentPosition(head.querySelector('.sidebar-actions') as Node))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     // 상단 줄이 메뉴보다 위다.
     expect(head.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);

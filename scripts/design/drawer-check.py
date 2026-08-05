@@ -113,21 +113,24 @@ with sync_playwright() as p:
     check("390: 스크림이 화면 전체를 덮는다", opened["scrimHeight"] == opened["viewport"], str(opened))
     check("390: 스크림 생김 · aria-expanded=true", opened["scrim"] and opened["expanded"] == "true", str(opened))
     check("390: 열린 동안 본문 스크롤 잠김", opened["bodyOverflow"] == "hidden", str(opened))
-    # 2026-08-06 Q ③: 드로어 안 모든 아이템의 좌우 시작선 — 계정 행동 버튼·메뉴 상자 좌 24,
-    # 닫기 X·메뉴 상자 우 24 (패딩 24 한 줄).
+    # 2026-08-06 Q ③·2차: 드로어 안 모든 아이템의 좌우 시작선 — 드로어 버튼(닫기)·메뉴 상자
+    # 좌 24, 계정 행동 묶음·메뉴 상자 우 24 (패딩 24 한 줄). 닫기는 여는 버튼과 같은 32 원형.
     align = page.evaluate("""() => {
       const s = document.querySelector('.sidebar').getBoundingClientRect();
-      const btn = document.querySelector('.sidebar-actions .header-icon-button').getBoundingClientRect();
+      const dismiss = document.querySelector('.drawer-dismiss').getBoundingClientRect();
+      const actions = [...document.querySelectorAll('.sidebar-actions .header-icon-button')];
+      const last = actions[actions.length - 1].getBoundingClientRect();
       const nav = document.querySelector('.sidebar .navigation-link').getBoundingClientRect();
-      const x = document.querySelector('.drawer-dismiss').getBoundingClientRect();
       return {
-        btnLeft: Math.round(btn.left - s.left), navLeft: Math.round(nav.left - s.left),
-        xRight: Math.round(s.right - x.right), navRight: Math.round(s.right - nav.right),
+        dismissLeft: Math.round(dismiss.left - s.left), navLeft: Math.round(nav.left - s.left),
+        actionsRight: Math.round(s.right - last.right), navRight: Math.round(s.right - nav.right),
+        dismissSize: Math.round(dismiss.width) + 'x' + Math.round(dismiss.height),
       };
     }""")
-    check("390: 좌우 시작선 정렬 — 버튼·메뉴 상자 좌 24 · X·메뉴 상자 우 24",
-          align["btnLeft"] == 24 and align["navLeft"] == 24
-          and align["xRight"] == 24 and align["navRight"] == 24, str(align))
+    check("390: 좌우 시작선 정렬 — 드로어 버튼(32)·메뉴 상자 좌 24 · 계정 행동·메뉴 상자 우 24",
+          align["dismissLeft"] == 24 and align["navLeft"] == 24
+          and align["actionsRight"] == 24 and align["navRight"] == 24
+          and align["dismissSize"] == "32x32", str(align))
     page.screenshot(path=str(out / "mobile-390-open.png"))
 
     # 드로어(110..390)가 오른쪽을 덮으므로 사람이 실제로 누르는 드러난 띠는 왼쪽이다.

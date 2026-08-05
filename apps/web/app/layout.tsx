@@ -43,13 +43,11 @@ button,input,select,textarea{font:inherit}
    구 기관명(브랜드 링크) 줄 대체. 기관·사업 맥락은 모바일 바가 전담한다. */
 .sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
 .sidebar-actions{display:flex;align-items:center;gap:var(--space-2)}
-/* 드로어 닫기 X (2026-08-04 Q — 구 하단 '메뉴 닫기' 버튼 대체). 데스크톱엔 없다.
-   **동그라미 버튼**이다(같은 날 Q — 뒤로 알약과 같은 세컨더리 옷: 그라데이션 1px 테두리 +
-   --panel 채움). 28×28 로 기관 마크(32)보다 한 단 작다(2026-08-05 Q 2차 "X 버튼 크기랑
-   조직 로고 크기랑 좀 맞추자 — 줄여도 될듯": 닫기는 보조 행동이라 마크 아래 서열). */
-.drawer-dismiss{--button-fill:var(--panel);display:none;place-items:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
-@media (hover:hover){.drawer-dismiss:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
-.drawer-dismiss:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 드로어 닫기 = 여는 버튼과 같은 사이드바 아이콘·같은 32 원형이다(2026-08-06 Q 2차 —
+   구 X 28 대체: 한 버튼이 여닫는 토글로 읽힌다). 옷·호버·초점은 .header-icon-button 이
+   입히고, 여기서는 노출만 다룬다 — 데스크톱엔 없다(머리 줄 자체도 숨지만, 계약을 이중으로
+   적어 한쪽 규칙이 움직여도 새지 않게 한다). */
+.sidebar .drawer-dismiss{display:none}
 /* optical: 한글 잉크가 상자 중심보다 ~1px 위에 앉는다(16px·행간 1.55 실측 −1.08px, 2026-08-04
    canvas TextMetrics). 아이콘은 기하 중앙이라 글자만 1px 내려 잉크 중심을 맞춘다(보정 후 −0.07px).
    버튼의 --nudge-hangul(행간 1 전용, 0 확정)과 다른 행간 조합이라 별도 보정이다.
@@ -339,7 +337,7 @@ textarea{min-height:216px;resize:vertical}
      오른쪽에서 나오므로 본문과 만나는 모서리가 왼쪽이다. */
   .sidebar::after{right:auto;left:0}
   .sidebar[data-drawer-open="true"]{transform:none}
-  .drawer-dismiss{display:grid}
+  .sidebar .drawer-dismiss{display:grid}
   /* 머리 줄 높이 = 바 높이 56, 아래 1px 구분선이 정확히 y 56 — **본문 바의 프레임 라인과
      같은 높이**다(2026-08-05 Q "가로선 정렬" 유지. 선의 주인은 2026-08-06 에 사라진 사업
      전환기에서 머리 줄 ::after 로 옮겨 왔다). */
