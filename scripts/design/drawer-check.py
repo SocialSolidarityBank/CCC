@@ -78,14 +78,17 @@ with sync_playwright() as p:
         sidebarWidth: Math.round(box.width),
         docScroll: document.documentElement.scrollWidth,
         docClient: document.documentElement.clientWidth,
-        scrim: document.querySelector('.drawer-scrim') !== null,
+        scrimOn: document.querySelector('.drawer-scrim')?.getAttribute('data-open') === 'true',
+        scrimIdle: (() => { const sc = document.querySelector('.drawer-scrim');
+          if (!sc) return false; const cs = getComputedStyle(sc);
+          return cs.opacity === '0' && cs.pointerEvents === 'none'; })(),
       };
     }""")
     check("390: 모바일 바 보임 · 높이 56", closed["barShown"] and closed["barHeight"] == 56, str(closed))
     check("390: 바 = 기관·사업 선택창 + 원형(32) 메뉴 버튼", closed["orgInBar"] and closed["programInBar"] and closed["handleRound"], str(closed))
     # 2026-08-06 Q ①: 드로어는 오른쪽에서 나온다 — 닫혔을 때 왼쪽 끝이 화면 폭 이상 = 화면 밖 오른쪽.
     check("390: 드로어가 화면 밖(오른쪽)에 있다", closed["sidebarLeft"] >= closed["docClient"], str(closed))
-    check("390: 스크림 없음", not closed["scrim"], str(closed))
+    check("390: 스크림 꺼짐 — 투명 · 클릭 통과", not closed["scrimOn"] and closed["scrimIdle"], str(closed))
     check("390: 가로 스크롤 없음", closed["docScroll"] <= closed["docClient"], str(closed))
     page.screenshot(path=str(out / "mobile-390-closed.png"))
 
@@ -99,7 +102,7 @@ with sync_playwright() as p:
         top: Math.round(box.top), height: Math.round(box.height),
         viewport: innerHeight,
         scrimHeight: scrim ? Math.round(scrim.getBoundingClientRect().height) : 0,
-        scrim: scrim !== null,
+        scrimOn: scrim ? scrim.getAttribute('data-open') === 'true' : false,
         expanded: document.querySelector('.drawer-handle').getAttribute('aria-expanded'),
         bodyOverflow: getComputedStyle(document.body).overflow,
       };
@@ -111,7 +114,7 @@ with sync_playwright() as p:
     check("390: 드로어가 화면 높이를 채운다",
           opened["top"] == 0 and opened["height"] == opened["viewport"], str(opened))
     check("390: 스크림이 화면 전체를 덮는다", opened["scrimHeight"] == opened["viewport"], str(opened))
-    check("390: 스크림 생김 · aria-expanded=true", opened["scrim"] and opened["expanded"] == "true", str(opened))
+    check("390: 스크림 켜짐 · aria-expanded=true", opened["scrimOn"] and opened["expanded"] == "true", str(opened))
     check("390: 열린 동안 본문 스크롤 잠김", opened["bodyOverflow"] == "hidden", str(opened))
     # 2026-08-06 Q ③·2차: 드로어 안 모든 아이템의 좌우 시작선 — 드로어 버튼(닫기)·메뉴 상자
     # 좌 24, 계정 행동 묶음·메뉴 상자 우 24 (패딩 24 한 줄). 닫기는 여는 버튼과 같은 32 원형.
@@ -139,11 +142,11 @@ with sync_playwright() as p:
     after = page.evaluate("""() => ({
       left: Math.round(document.querySelector('.sidebar').getBoundingClientRect().left),
       client: document.documentElement.clientWidth,
-      scrim: document.querySelector('.drawer-scrim') !== null,
+      scrimOn: document.querySelector('.drawer-scrim')?.getAttribute('data-open') === 'true',
       bodyOverflow: getComputedStyle(document.body).overflow,
     })""")
     check("390: 스크림을 누르면 닫히고 스크롤이 풀린다",
-          after["left"] >= after["client"] and not after["scrim"] and after["bodyOverflow"] != "hidden", str(after))
+          after["left"] >= after["client"] and not after["scrimOn"] and after["bodyOverflow"] != "hidden", str(after))
     page.close()
     browser.close()
 

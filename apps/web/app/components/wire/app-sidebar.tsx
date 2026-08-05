@@ -104,12 +104,13 @@ export function AppSidebar({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     // 초점을 드로어 안으로 옮긴다 — 안 옮기면 탭이 뒤 본문을 돌아 화면과 어긋난다.
-    drawerRef.current?.focus();
+    // preventScroll: 슬라이드 중 기본 스크롤 보정이 끼면 화면이 미세하게 튄다.
+    drawerRef.current?.focus({ preventScroll: true });
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = previousOverflow;
       // 닫을 때 손잡이로 초점을 돌려준다(열기 전 자리).
-      handleRef.current?.focus();
+      handleRef.current?.focus({ preventScroll: true });
     };
   }, [drawerOpen]);
   // 워크스페이스 판정은 헤더와 같은 헬퍼를 쓴다(program-switcher.tsx) — 두 부품이 다른
@@ -175,10 +176,15 @@ export function AppSidebar({
           <NavIcon name="sidebar" />
         </button>
       </div>
-      {/* 스크림은 드로어가 열렸을 때만 존재한다. 눌러서 닫는 것이 좁은 화면의 주 동작이다. */}
-      {drawerOpen ? (
-        <div className="drawer-scrim" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
-      ) : null}
+      {/* 스크림은 늘 마운트하고 열림 상태만 바꾼다(2026-08-06 Q "부자연") — 조건 마운트면
+          닫는 순간 어둠이 뚝 사라지고 드로어만 남아 미끄러진다. 눌러서 닫는 것이 좁은
+          화면의 주 동작이다(닫힘 상태는 pointer-events:none 이라 본문을 막지 않는다). */}
+      <div
+        className="drawer-scrim"
+        data-open={drawerOpen ? 'true' : undefined}
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden="true"
+      />
       <nav
         ref={drawerRef}
         id="app-sidebar"

@@ -110,7 +110,9 @@ button,input,select,textarea{font:inherit}
 .navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
 /* 테두리 1px 은 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 2px 자라
    글자가 상태 전환마다 1px 씩 튄다. */
-.navigation-link{min-height:var(--control-height);padding:0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
+/* 높이는 '뒤로' 알약과 같은 32 다(2026-08-06 Q — 구 40. 첫 메뉴 윗변 = 뒤로 윗변(76)
+   계약과 짝: 높이까지 같아야 두 크롬이 한 리듬으로 읽힌다). */
+.navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -144,8 +146,15 @@ button,input,select,textarea{font:inherit}
    마크업은 드로어(768 미만)가 그대로 쓰므로 지우지 않고 숨긴다 — app-sidebar.tsx 주석 참조.
    자식 선택자(0,2,0)인 이유: 개별 블록 규칙(.sidebar-head 등, 0,1,0)이 시트 뒤쪽에 있어
    동순위면 그쪽이 이긴다 — 미디어 쿼리는 특이도를 올려 주지 않는다. */
-@media (min-width:768px){.sidebar>.sidebar-head{display:none}}
+@media (min-width:768px){.sidebar>.sidebar-head,.drawer-scrim{display:none}}
 /* ── 드로어 부품 ── 데스크톱에는 없다(§4-4 는 768 미만에서만 드로어라고 말한다). */
+/* 셸 크롬에서는 OS 탭 하이라이트(둥근 파란 플래시)를 끈다 — 눌림·호버 어휘는 §6 이
+   정의하고, 시스템 블롭이 겹치면 열고 닫을 때 좌우 상단에 그림자 같은 잔상이 번쩍인다
+   (2026-08-06 Q 보고). 속성은 상속되므로 컨테이너에만 둔다. */
+.app-header,.drawer-bar,.sidebar,.drawer-scrim,.page-back{-webkit-tap-highlight-color:transparent}
+/* 드로어 컨테이너의 프로그램적 초점(열릴 때 focus 이동)에는 UA 링을 그리지 않는다 —
+   초점 신호는 안의 조작 요소들이 갖는다. */
+.sidebar:focus{outline:none}
 /* 모바일 바 = 좁은 화면의 헤더다(2026-08-05 Q 2차 — 같은 날 ④ '메뉴 버튼만' 대체):
    좌측 = 기관·사업 선택창(데스크톱 헤더와 같은 내용), 우측 = 원형 사이드바 버튼.
    경계는 데스크톱 헤더와 같은 그라데이션 라인 1px. 선택창 팝오버가 바 밖(본문 위)으로
@@ -156,7 +165,10 @@ button,input,select,textarea{font:inherit}
 /* 사이드바 버튼(구 햄버거+'메뉴' 글자)은 .header-icon-button 원형 옷을 그대로 입는다 —
    "circle + 아이콘 버튼을 웹화면과 통일"(2026-08-05 Q 2차). 자리만 바 오른쪽 끝. */
 .drawer-bar .drawer-handle{margin-left:auto;flex:none}
-.drawer-scrim{position:fixed;inset:0;background:var(--scrim);z-index:calc(var(--z-modal) - 1)}
+/* 스크림은 늘 있고 열림만 오간다(2026-08-06) — 어둠이 드로어와 같은 리듬으로 페이드해야
+   닫힘이 뚝 끊기지 않는다. 닫힘 상태는 투명 + pointer-events:none 이라 본문을 막지 않는다. */
+.drawer-scrim{position:fixed;inset:0;background:var(--scrim);z-index:calc(var(--z-modal) - 1);opacity:0;pointer-events:none;transition:opacity var(--motion-base) var(--ease-standard)}
+.drawer-scrim[data-open="true"]{opacity:1;pointer-events:auto}
 /* ── 상단 헤더 (2026-08-05 Q · Infisical 레퍼런스 — 구 락 8 '상단 헤더 띠 금지' 대체) ──
    축이 두 층으로 갈린다: 헤더 = 맥락(기관·사업) + 계정 행동(설정·테마·로그아웃) /
    사이드바 = 장소(메뉴). **화면 전체 폭**(사이드바 위까지, 셸 그리드 1행)이고 z 는 스티키 층 —
@@ -331,7 +343,9 @@ textarea{min-height:216px;resize:vertical}
        세로 스크롤은 데스크톱과 같은 구조로 메뉴 목록(.navigation-list)이 안에서만 맡는다. */
     padding:0 var(--space-6) var(--space-6);overflow:visible;
     z-index:var(--z-modal);
-    transform:translateX(100%);transition:transform .15s ease;
+    /* 모션 토큰 준수(§6 — 시간 2단 + 이징 1종): 구 .15s ease 는 계약 밖 값이었고 감속이
+       일러 끝이 뚝 멈춰 보였다(2026-08-06 Q "부자연"). */
+    transform:translateX(100%);transition:transform var(--motion-base) var(--ease-standard);
   }
   /* 데스크톱의 오른쪽 세로 프레임 라인은 드로어에서 **왼쪽** 모서리로 옮긴다 — 패널이
      오른쪽에서 나오므로 본문과 만나는 모서리가 왼쪽이다. */

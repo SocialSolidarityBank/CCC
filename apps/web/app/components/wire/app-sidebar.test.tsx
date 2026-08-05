@@ -144,16 +144,19 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
 describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
   const handle = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.drawer-handle')!;
 
-  it('기본은 닫힘이고 손잡이를 누르면 열린다 — 스크림은 열렸을 때만 존재한다', () => {
+  it('기본은 닫힘이고 손잡이를 누르면 열린다 — 스크림은 늘 있고 열림 상태만 오간다', () => {
+    // 조건 마운트였다면 닫는 순간 어둠이 뚝 사라진다(2026-08-06 Q "부자연") — 늘 마운트하고
+    // data-open 으로 페이드한다. 닫힘 상태는 CSS 가 pointer-events:none 으로 본문을 열어 둔다.
     const { container } = render(<AppSidebar activePath="/participants" />);
     expect(handle(container).getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.sidebar')?.getAttribute('data-drawer-open')).toBeNull();
-    expect(container.querySelector('.drawer-scrim')).toBeNull();
+    expect(container.querySelector('.drawer-scrim')).not.toBeNull();
+    expect(container.querySelector('.drawer-scrim')?.getAttribute('data-open')).toBeNull();
 
     fireEvent.click(handle(container));
     expect(handle(container).getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('.sidebar')?.getAttribute('data-drawer-open')).toBe('true');
-    expect(container.querySelector('.drawer-scrim')).not.toBeNull();
+    expect(container.querySelector('.drawer-scrim')?.getAttribute('data-open')).toBe('true');
   });
 
   it('스크림·닫기 버튼·Esc 세 경로로 닫힌다', () => {
