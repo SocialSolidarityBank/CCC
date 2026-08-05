@@ -10,6 +10,8 @@
 
 재는 것 (DESIGN.md §4 · §7 락 8~12):
   - 페이지 컨테이너 총폭 1120(패딩 포함) · 좌우 패딩 40 → 글 폭 1040
+    (.narrow 960 은 2026-08-05 폐지 — 장폭은 1120 하나다)
+  - 상단 헤더 높이 56 (2026-08-05 신설) · 768 미만에서 없음(드로어가 대신한다)
   - 섹션 간격 24 · 카드 gap 20
   - 사이드바 280 (2026-08-02 D58/ADR-0028 — 구 240) · 768 미만에서 숨음
   - 표준 그리드 열 수(1440 에서 2) · 조밀 그리드 열 수(1440 에서 3, 좁으면 1)
@@ -31,7 +33,7 @@ out_dir.mkdir(parents=True, exist_ok=True)
 # 계약 값. 폭이 줄어도 따라 줄지 않는다 — 768 미만 패딩만 예외다(§4-4).
 CONTRACT = {
     "page_max": 1120,
-    "page_max_narrow": 960,
+    "header": 56,  # 2026-08-05 상단 헤더 — 767 미만은 0(드로어 손잡이 바가 대신한다)
     "pad_desktop": 40,
     "pad_mobile_x": 16,
     "section_gap": 24,
@@ -53,9 +55,13 @@ MEASURE_JS = """() => {
     docScroll: document.documentElement.scrollWidth,
     docClient: document.documentElement.clientWidth,
   };
+  const header = document.querySelector('.app-header');
+  if (header) {
+    const hs = getComputedStyle(header);
+    out.headerHeight = hs.display === 'none' ? 0 : Math.round(header.getBoundingClientRect().height);
+  }
   if (content) {
     const cs = getComputedStyle(content);
-    out.narrow = content.classList.contains('narrow');
     out.containerWidth = Math.round(content.getBoundingClientRect().width);
     out.padLeft = px(cs.paddingLeft);
     out.padRight = px(cs.paddingRight);
@@ -95,10 +101,9 @@ def check(width: int, m: dict) -> list[str]:
         if m["padLeft"] != pad or m["padRight"] != pad:
             bad.append(f"컨테이너 좌우 패딩 {m['padLeft']}/{m['padRight']} (계약 {pad})")
         # 넓은 화면에서만 상한이 걸린다. 좁으면 화면 폭을 따라가는 게 정상이다.
+        # 장폭은 1120 하나다(.narrow 960 은 2026-08-05 폐지).
         avail = width - m.get("sidebarWidth", 0)
-        # 폼·읽기 화면은 .narrow 라 상한이 960 이다(§4-1 허용 폭 4종 중 하나).
-        cap = CONTRACT["page_max_narrow"] if m.get("narrow") else CONTRACT["page_max"]
-        expected = min(cap, avail)
+        expected = min(CONTRACT["page_max"], avail)
         if abs(m["containerWidth"] - expected) > 1:
             bad.append(f"컨테이너 총폭 {m['containerWidth']} (계약 {expected})")
         if m["sectionGap"] != CONTRACT["section_gap"]:
@@ -112,6 +117,11 @@ def check(width: int, m: dict) -> list[str]:
     # 셸이 바뀌는 지점은 이 하나뿐이다(§4-4 · 락 11) — 768 미만은 드로어, 이상은 고정 사이드바.
     if m.get("sidebarDrawer") is not None and m["sidebarDrawer"] != mobile:
         bad.append(f"{'드로어여야 하는데 고정' if mobile else '고정이어야 하는데 드로어'}다")
+    # 상단 헤더(2026-08-05): 데스크톱 56 · 768 미만 0(드로어 손잡이 바가 대신한다).
+    if m.get("headerHeight") is not None:
+        want_header = 0 if mobile else CONTRACT["header"]
+        if m["headerHeight"] != want_header:
+            bad.append(f"헤더 높이 {m['headerHeight']} (계약 {want_header})")
     for key, name in (("stdGap", "표준 그리드 gap"), ("denseGap", "조밀 그리드 gap")):
         if key in m and m[key] != CONTRACT["card_gap"]:
             bad.append(f"{name} {m[key]} (계약 {CONTRACT['card_gap']})")
@@ -120,7 +130,7 @@ def check(width: int, m: dict) -> list[str]:
         bad.append("조밀 그리드가 2열 (계약: 3열 아니면 1열)")
     # §4-2 표가 든 실제 숫자를 그대로 단언한다. 위의 검사들은 "틀린 값이 없는가"만 보므로
     # 그리드가 통째로 1열로 주저앉아도 통과한다 — 그래서 열 수는 따로 못 박는다.
-    if width == 1440 and not m.get("narrow"):
+    if width == 1440:
         if m.get("stdCols") is not None and m["stdCols"] != 2:
             bad.append(f"1440 에서 표준 그리드 {m['stdCols']}열 (계약 2열)")
         if m.get("denseCols") is not None and m["denseCols"] != 3:
@@ -140,8 +150,8 @@ def discover_routes(page) -> list[tuple[str, str]]:
         ("participants", "/participants"),
         ("participant-hub", f"/participants/{PARTICIPANT}"),
         ("schedule", f"/programs/{PROGRAM_TYPE}/schedule"),
-        # 폼·읽기 화면(.narrow). 읽기 폭 720 → 960 이 이번 변경에서 값 변화 폭이 가장 크므로
-        # 반드시 함께 잰다 — 위 5개는 전부 기본 폭이라 그 변화를 건드리지 않는다.
+        # 폼 화면 2종 — 구 .narrow(960) 였다가 2026-08-05 에 기본 폭(1120)으로 합쳐진
+        # 화면이라, 폐지가 실제로 반영됐는지 함께 잰다.
         ("schedule-new", "/schedules/new"),
         ("participant-new", "/participants/new"),
     ]

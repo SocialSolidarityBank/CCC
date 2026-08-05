@@ -59,7 +59,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
 
   if (role !== 'admin') {
     return (
-      <main className="page-content narrow">
+      <main className="page-content">
         <GridContainer>
           <PageTitle>기관 온보딩</PageTitle>
           <p className="empty" role="alert">
@@ -75,7 +75,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const saved = notice === 'onboarding_saved' && !editing;
 
   return (
-    <main className="page-content narrow">
+    <main className="page-content">
       <GridContainer>
         <PageTitle>기관 온보딩</PageTitle>
 

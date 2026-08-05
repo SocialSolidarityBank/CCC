@@ -114,7 +114,7 @@ export default async function SettingsPage() {
     const message = settingsErrorMessage(error);
     if (message === null) throw error;
     return (
-      <main className="page-content narrow settings-page">
+      <main className="page-content settings-page">
         <PageTitle>설정</PageTitle>
         <p className="empty" role="alert">{message}</p>
       </main>
@@ -122,7 +122,7 @@ export default async function SettingsPage() {
   }
 
   return (
-    <main className="page-content narrow settings-page">
+    <main className="page-content settings-page">
       <PageTitle>설정</PageTitle>
       <AccountSection name={me.name} email={me.email} role={me.role} />
       {/* 기관 실무자 목록은 기관 관리자 역할에게만 노출한다(비관리자는 내 계정만). */}

@@ -52,18 +52,18 @@ export default async function NewIntakePage({
   const briefingHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=intake_saved`;
 
   if (beneficiaryId === null || supportCaseId === null) {
-    return <main className="page-content narrow"><p className="status risk" role="alert">{messages.not_found}</p></main>;
+    return <main className="page-content"><p className="status risk" role="alert">{messages.not_found}</p></main>;
   }
 
   const [context, identity] = await Promise.all([load(supportCaseId), getMyIdentity().catch(() => null)]);
 
   if (context.error !== null) {
-    return <main className="page-content narrow"><p className="status risk" role="alert">{messages[context.error]}</p></main>;
+    return <main className="page-content"><p className="status risk" role="alert">{messages[context.error]}</p></main>;
   }
 
   if (context.data.hasIntake) {
     return (
-      <main className="page-content narrow">
+      <main className="page-content">
         <header className="page-header"><div><h1>인테이크 기록</h1><p>이 참여 사업에는 이미 인테이크 기록이 있습니다. 인테이크는 참여 사업당 한 번만 작성합니다.</p></div></header>
         <div className="wire-form-actions"><WireButton variant="primary" href={recordsHref}>상담 기록으로</WireButton></div>
       </main>

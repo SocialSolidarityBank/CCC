@@ -12,7 +12,7 @@ export default async function ParticipantInvitePage() {
   const { orgLabel, programLabels } = await getDisplayLabels();
 
   return (
-    <main className="page-content narrow">
+    <main className="page-content">
       <GridContainer>
         <PageTitle>당사자 초대</PageTitle>
 
