@@ -230,6 +230,10 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 - .env는 이름만 커밋(`.env.example`), 값 커밋 금지. 절차 SSOT: `~/DEVELOPER/PROJECTS/BSS/bss-infra/docs/machine-access.md` (레포 `SocialSolidarityBank/bss-infra`).
 - 시크릿 값이 채팅·커밋에 노출되면 즉시 보고하고 해당 키 로테이션을 안내한다.
 
+## 11. 한국어 산문 부호 (2026-08-06 Q)
+
+화면 문안뿐 아니라 이 레포의 한국어 산출물 전반(문서, 커밋 메시지, PR, 티켓, 코드 주석)에서 **긴 대시(`—`)는 쓰지 않고, 가운데 점(`·`)은 자제한다.** 한 호흡으로 읽는 병렬(`이름·연락처·계좌` 류)만 예외. 이유: 둘 다 AI 문체 신호다. 상세와 UI 문자열 규칙은 DESIGN.md §10 (기존 문서 소급 수정은 하지 않는다).
+
 ## Agent skills
 
 ### Issue tracker
