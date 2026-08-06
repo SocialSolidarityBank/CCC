@@ -40,28 +40,34 @@ export const wireStyles = `
    아웃라인까지 가로지른다(패딩만큼 음수 마진). */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
 .participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
-/* 칸은 **고정 자리 좌측정렬**이다(2026-08-06 Q 2차 — 구 space-between 고른 펴기 대체:
-   내용 폭이 카드마다 달라 가운데 칸들이 제각각의 x 에 앉았다, Q "삐뚤삐뚤"). 날짜·이름·
-   가명 ID 칸이 고정 폭을 가져 다음 칸의 시작선이 모든 카드에서 같다. 틈 12 는 유지. */
+/* 칸은 **앞 아이템을 따라 붙는 좌측정렬**이다(2026-08-06 Q 5차 — 구 고정 폭 칸 대체:
+   가명 ID 가 길면 고정 96px 칸 안에서 줄바꿈해 답답했고, 날짜 고정 104px 칸은 짧은 날짜
+   옆 시간을 멀리 밀어냈다). 1행 틈은 12 유지, 2행(정보 칸)만 20 으로 한 단 넓힌다. */
 .participant-card-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
-.participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;color:var(--ink);overflow-wrap:anywhere}
+.participant-card-row[data-row="info"]{gap:var(--space-5)}
+/* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q,
+   버튼·입력칸과 같은 계약. 1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다). */
+.participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;line-height:normal;color:var(--ink);overflow-wrap:anywhere}
 .participant-card-cell[data-tone="sub"]{color:var(--sub)}
-/* optical: 고정 칸 폭 — 날짜 104("8월 13일 (목)" 90 + 여유) · 이름 72(한글 4자 강조체 68 +
-   여유. 2026-08-06 3차 "더 가까이" — 구 84) · 가명 ID 96(dolphin-001 84 + 여유, 구 104).
-   간격 토큰이 아니라 열 자리다. */
-.participant-card-cell[data-col="date"]{flex:none;width:104px}
 /* 이름은 강조 600 + 계단 16 에 광학 +1px (2026-08-06 Q "볼드 + 폰트 1px" — 당사자 카드
    이름 한정 예외, DESIGN.md §2-1 기록). */
-.participant-card-cell[data-col="name"]{flex:none;width:72px;font-weight:600;font-size:calc(var(--text-md) + 1px)}
+.participant-card-cell[data-col="name"]{font-weight:600;font-size:calc(var(--text-md) + 1px)}
 /* 가명 ID 는 연락처(--sub)보다 한 발 옅은 그레이다(2026-08-06 3차) — 대조용 값이라 물러선다.
    양끝이 테마 토큰이라 다크에서도 따라 뒤집힌다. 흰 위 4.78 로 AA(4.5) 통과 실계산. */
-.participant-card-cell[data-col="id"]{flex:none;width:96px;color:color-mix(in srgb,var(--sub) 80%,var(--panel))}
+.participant-card-cell[data-col="id"]{color:color-mix(in srgb,var(--sub) 80%,var(--panel))}
 .participant-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
+/* 호버 그라데이션 채움 위에서는 회색 --line 이 묻힌다(2026-08-06 Q 5차) — 구분선을 카드
+   표면색(라이트=화이트)으로 뒤집어 살린다. 다크의 표면색은 호버 tint 와 밝기가 겹쳐
+   더 밝은 --line-control 로 잇는다. */
+@media (hover:hover){
+  .participant-card-link:hover .participant-card-divider{border-top-color:var(--panel)}
+  [data-theme="dark"] .participant-card-link:hover .participant-card-divider{border-top-color:var(--line-control)}
+}
 /* 1행 뱃지 묶음도 오른쪽 끝 — 좌측은 고정 칸(날짜·시간)의 자리다. */
 .participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none;margin-left:auto}
 /* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
    민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
-.participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;color:var(--lavender-deep);white-space:nowrap}
+.participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;line-height:normal;color:var(--lavender-deep);white-space:nowrap}
 /* 상세 화살표는 없다(2026-08-06 4차 — 구 '목록 카드 오른쪽 끝 고정' 폐지). 카드 전체가
    링크이고 호버 그라데이션 아웃라인이 눌림을 알린다 — 일정 카드와 같은 문법. */
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
@@ -129,18 +135,30 @@ details.surface-card{overflow:clip}
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
-.participant-hero-card{padding:var(--space-6);gap:var(--space-5)}
-.participant-hero-identity{display:grid;gap:var(--space-2);min-width:0}
-.participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
-/* 상태 태그는 컨트롤이다(§5) — 배지(pill)가 아니라 radius 6. 시간·상태 축이라 블루다(D34).
-   색 레시피는 2026-08-05 Q 재규정(.wire-status-tag 와 동일): 블루 tint 면 + 블루 deep
-   외곽선 + --ink 글자. 줄바꿈하지 않는다. 브리핑 HERO 도 이 클래스를 단다(2026-08-05 —
-   구 .briefing-badge.is-stage 알약 대체: 같은 '상담 준비' 태그가 화면마다 옷이 달랐다). */
-.participant-hero-stage{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-control);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink);white-space:nowrap}
+/* 2행 골격(2026-08-06 Q): 1행 = 이름·태그(좌) + 버튼(우), 구분선 아래 2행 = 메타.
+   1행은 flex-wrap 이라 좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다 — 이름도
+   버튼도 뭉개지지 않는다(767 미만은 기존 모바일 규칙이 버튼을 세로로 쌓는다). */
+.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-4)}
+.participant-hero-top{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4) var(--space-5);flex-wrap:wrap;min-width:0}
+.participant-hero-divider{height:0;margin:0 calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
+.participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
+/* 상태 태그도 **알약**이다(2026-08-06 Q — 구 "컨트롤이라 radius 6" 대체: 뱃지 계열과
+   같은 모양으로 통일한다). 시간·상태 축이라 블루다(D34). 색 레시피는 2026-08-05 Q 재규정:
+   블루 tint 면 + 블루 deep 외곽선 + --ink 글자, 굵기는 뱃지와 같은 400. 줄바꿈하지 않는다.
+   브리핑 HERO 도 이 클래스를 단다(2026-08-05 — 구 .briefing-badge.is-stage 대체). */
+.participant-hero-stage{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink);white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 /* 연락처는 이름 옆에 나란히 선다(D59 · 2026-08-04 — 구 개인정보 접힘 폐지).
    읽는 값이라 16/400 --sub, 이름과는 제목 줄의 gap 이 여백을 만든다. */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
+/* 가명 ID(허브 한정, 2026-08-06 Q) — 당사자 카드 정보 칸과 같은 옅은 그레이 대조용 값. */
+.participant-hero-id{color:color-mix(in srgb,var(--sub) 80%,var(--panel));font-size:var(--text-md);font-weight:400;white-space:nowrap}
+/* 767 미만: 메타 조각이 세로로 눕고 세로선은 끈다(2026-08-06 Q — 좁은 폭에서 긴 조각이
+   줄 중간에서 꺾이며 뭉개지는 것을 막는다). */
+@media(max-width:767px){
+  .participant-hero-meta .wire-meta-row{flex-direction:column;align-items:flex-start;gap:var(--space-1)}
+  .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
+}
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:var(--text-sm)}
 .note-inline a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
@@ -151,11 +169,15 @@ details.surface-card{overflow:clip}
 .participant-search-divider{height:0;margin:0;border:0;border-top:1px solid var(--line)}
 /* 당사자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
 .participant-row-list{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
-/* 당사자 정보 허브 (D35 §3 · D36). 카드 계약(.surface-card)은 그대로 쓰고 안쪽만 정한다. */
-.participant-program-list{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
-.participant-program{display:grid;gap:var(--space-2);padding:var(--space-5) var(--space-6)}
-/* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
+/* 당사자 정보 허브 (D35 §3 · D36 · 2026-08-06 Q 개편). 사업별 낱개 카드를 걷고
+   '참여중인 사업'·'최신 일정' 두 카드(WireCard)가 나란히 선다. 사업은 카드 안 **행**이고
+   행 사이는 --line 구분선이다(카드 안 카드 금지 — D59 ③). 동의서는 맨 아래 카드로 옮겼다. */
+.participant-program-row{display:grid;gap:var(--space-2)}
+.participant-program-row+.participant-program-row{padding-top:var(--space-4);border-top:1px solid var(--line)}
+/* 행 제목은 카드 제목(18)보다 한 단 아래 16/600 이다. */
 .participant-program-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.participant-program-head>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
 .participant-program-head .status{flex:none;white-space:nowrap}
 .participant-program-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 .participant-program-assignee{display:flex;gap:var(--space-2);align-items:baseline;font-size:var(--text-sm);color:var(--ink)}
@@ -163,12 +185,20 @@ details.surface-card{overflow:clip}
 .participant-program-actions{display:flex;gap:var(--space-3);margin-top:var(--space-3)}
 /* 담당하지 않는 사업(D36): 잠긴 이유를 문장으로 남긴다. 색이 아니라 문장이 알린다 —
    리스크 색은 리스크 배너 독점이다(D9·D34). */
-.participant-program[data-locked="true"]{background:var(--muted)}
 .participant-program-locked{margin:var(--space-3) 0 0;color:var(--sub);font-size:var(--text-sm)}
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
-.participant-program-consent{margin-top:var(--space-4)}
+.participant-program-consent{margin-top:0}
 .participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
-/* 참여 사업 목록을 좁은 화면에서 1열로 강제하던 규칙은 지웠다 — --grid-min 420 이 이미 접는다. */
+/* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
+   --line 구분선, 묶음 안 fieldset 의 자체 윗선은 끈다(카드 제목 구분선과 겹쳐 이중선이 된다). */
+.participant-consent-block{display:grid;gap:var(--space-2)}
+.participant-consent-block+.participant-consent-block{padding-top:var(--space-4);border-top:1px solid var(--line)}
+.participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
+.participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 최신 일정 카드의 한 줄 — 일정 카드 1행과 같은 어휘(날짜·시각 밀착 + 유형 뱃지).
+   행간 normal 은 당사자 카드 셀과 같은 기하 정렬 계약이다. */
+.participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
+.participant-next-schedule-date,.participant-next-schedule-time{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
    (구분선 계약은 행이 한 컨테이너 안에 붙어 있을 때 성립한다 — 이 차이는 STATUS 에 남긴다).
@@ -213,10 +243,13 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
-.wire-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+/* optical: 꺽쇠 잉크는 회전 때문에 상자 중앙에서 벗어난다(닫힘 › = 오른쪽으로, 열림 ⌄ =
+   아래로 각 약 2px — 2026-08-06 실측). 레이아웃 상자가 아니라 잉크가 글줄 중앙에 오도록
+   translate 로 되민다(.wire-chevron[data-dir] 와 같은 보정 계약). */
+.wire-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:translateX(-2px) rotate(-45deg);transition:transform .15s ease}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-4);padding:0 var(--space-6) var(--space-4);border-bottom:1px solid var(--line)}
-.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:rotate(45deg)}
+.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-2px) rotate(45deg)}
 /* 제목과 상태 배지가 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은 이유). */
 .wire-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
 .wire-card-head .status,.wire-card-head .wire-badge{flex:none;white-space:nowrap}
@@ -238,7 +271,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
 .wire-search{display:grid;gap:var(--space-2)}
 .wire-search-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.wire-search-box{display:flex;align-items:center;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 /* 행간 normal — 단일행 컨트롤의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q, 버튼과 동일). */
 .wire-search-box input,.wire-search-box select{width:100%;border:0;background:transparent;color:var(--ink);outline:0;font-size:var(--text-md);line-height:normal;-webkit-appearance:none;appearance:none}
 /* select 는 네이티브 화살표를 끄고 꺽쇠를 직접 그린다 — 네이티브는 테두리에 붙어 다른 입력칸과 안 맞는다. */
@@ -258,7 +291,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-form-required{color:var(--risk)}
 /* 라벨 옆 '(선택)' 같은 보조 문구. 라벨과 같은 줄이므로 굵기만 낮춘다. */
 .wire-form-note{margin-left:var(--space-1);color:var(--sub);font-weight:400}
-.wire-input-box{display:flex;align-items:center;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-md);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
 .wire-input-box>input,.wire-input-box>select{line-height:normal}
@@ -334,7 +367,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
 /* 행간은 default(normal)다 — 2026-08-06 Q: 단일행 컨트롤의 세로 중앙은 광학 보정이 아니라
    기하 정렬(flex 상하좌우 center + 기본 행간)이 만든다(구 --leading-none 대체). */
-.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
+/* 크기 두 갈래(2026-08-06 Q): 핵심 버튼(프라이머리·세컨더리·위험) = --text-btn 15,
+   이동·보기 조작(neutral·ghost) = 계단 14. 굵기도 갈린다 — 강조(핵심)만 600, 조작은 400. */
+.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-btn);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
 /* 프라이머리: --gradient-action 배경 + --line-on-action 1px. 그림자는 없다(2026-08-06,
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
@@ -345,9 +380,13 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    프라이머리 = 그라데이션 면. 테두리는 --line-action(잉크 50%) — D55 가 세운 "흰 카드 위
    1.28 테두리는 버튼으로 안 읽힌다" 기준을 그대로 잇는 값이다. 호버는 기본형과 같은
    잉크 워시(--button-fill 변수만 바뀐다). */
-.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line-action)}
-/* 고스트: 배경·테두리 없음, --sub 글자. */
-.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub)}
+/* 조작 알약은 크기도 한 단이다(2026-08-06 Q "텍스트 크기가 같은데 버튼 크기가 달라서
+   이상") — 뒤로 알약과 같은 32(--pill-height)·패딩 14 로 통일한다. 핵심 버튼만 40 이다. */
+.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line-action);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
+/* 고스트: 배경·테두리 없음, --sub 글자. 조작 축이라 neutral 과 같은 14/400·32 다. */
+.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
+/* 조작 알약 안 꺽쇠는 글자를 따라 줄어든다(2026-08-06 Q — 16 시절 8 이 14 옆에서 크다). */
+.wire-button[data-variant="neutral"] .wire-chevron,.wire-button[data-variant="ghost"] .wire-chevron{width:7px;height:7px}
 /* 위험: 되돌리기 어려운 행동에만. */
 .wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk)}
 .wire-button[data-justify="center"]{justify-content:center}
@@ -389,6 +428,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
     background-size:200% auto;
     animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite;
   }
+  /* 접힌 카드(details)도 눌러서 여는 클릭 대상이다(2026-08-06 Q 후속) — 링크 카드와 같은
+     호버 어휘를 받는다. 펼친 카드는 위 [open] 규칙(활성 테두리 + 흐름)이 이미 갖는다. */
+  details.wire-card-details:not([open]):hover{
+    border-color:transparent;
+    background:var(--gradient-hover) padding-box,var(--gradient-brand) border-box;
+    background-size:200% auto;
+    animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite;
+  }
 }
 .wire-button:not(:disabled):not([aria-disabled="true"]):active{transform:translateY(1px)}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);cursor:not-allowed}
@@ -425,21 +472,30 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 버튼 라벨 안 아이콘은 글자 세로 중앙에 맞춘다(2026-08-06 Q "시간순 화살표가 가운데가
    아니다" — 본문용 -0.15em 은 버튼 16px 라벨 옆에서 0.9px 낮게 실측됐다). */
 .wire-button .wire-icon{vertical-align:-0.09em}
-/* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다. */
+/* optical: 조작 알약(14px 라벨)은 본문 기본 보정(-0.15em)이 맞다 — 위 -0.09em 은 16px
+   라벨 실측값이라 14px 옆에서 0.75px 떠 보였다(2026-08-07 실측, 보정 후 잔차 0.09px). */
+.wire-button[data-variant="neutral"] .wire-icon,.wire-button[data-variant="ghost"] .wire-icon{vertical-align:-0.15em}
+/* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다.
+   조각 사이는 **세로선 1px** 로 가른다(2026-08-06 Q — 여러 위계·성격의 값이 한 줄에 설 때
+   간격만으로는 경계가 안 읽힌다). */
 .wire-meta-row{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
-/* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/600. 기본형은 색 없이 --sub 테두리로만 선다.
+.wire-meta-row>span+span{border-left:1px solid var(--line-control);padding-left:var(--space-3)}
+/* 한 줄 넘침 처리 공용 계약(2026-08-06 Q "전역과 싱크"): 줄바꿈 대신 오른쪽 끝 48px 에서
+   마스크로 자연스럽게 사라진다. 브리핑 회차 행·상담 기록 핵심 한 줄이 같은 규칙을 쓴다. */
+.wire-fade-clip{white-space:nowrap;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 48px),transparent)}
+/* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/400(굵기는 2026-08-06 Q — 뱃지 글자는 본문과
+   같은 400, 강조가 아니라 분류 표시다). 기본형은 색 없이 --sub 테두리로만 선다.
    2026-08-05 Q 재규정(구 tint 배경 + deep 글자 대체): 계열 구분은 **tint 배경**이 맡고,
    글자는 전부 --ink 로 통일하며, 계열의 deep 색은 글자에서 **흐린 외곽선 1px** 로 옮긴다.
    세 값 모두 테마 토큰이라 다크(D56)에서 배경·외곽선·글자가 함께 뒤집힌다 — deep 글자
    시절의 tint 위 대비 미달(§9 1.76~2.11)도 이 재규정으로 함께 사라진다. */
-.wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+.wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=일정·유형·정보(D58 ④). */
 .wire-badge[data-tone="mint"]{border-color:var(--mint-deep);background:var(--mint-tint)}
 .wire-badge[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}
 .wire-badge[data-tone="blue"]{border-color:var(--blue-deep);background:var(--blue-tint)}
-/* 상태 태그: 눌러서 상태를 바꾸는 컨트롤이라 radius 6(배지가 아니다). 색 레시피는 배지와
-   같은 재규정을 따른다 — 블루 tint 면 + 블루 deep 외곽선 + --ink 글자. */
-.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-control);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+/* 상태 태그: 색·모양 레시피는 배지와 같다(2026-08-06 Q — radius 6 을 알약으로 통일, 굵기 400). */
+.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 체크박스(§5): 18px · radius 4 · --gradient-deep 1px 테두리. 리스크 변형은 테두리만 --risk. */
 .wire-checkbox{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-xs);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
 /* 리스크 변형: 테두리만 --risk 로 바꾼다(2026-07-26 Q 결정). 나머지는 기본과 같다.
@@ -567,7 +623,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .consent-upload-slot-label{color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* '준비 중' 은 상태 표시다. 라벤더 = 'AI·승인 대기' 축이라 대기 상태가 그 축에 든다(D34).
    색 레시피는 배지 재규정(2026-08-05 Q)을 따른다 — tint 면 + deep 외곽선 + --ink 글자. */
-.consent-upload-slot-state{justify-self:start;display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:1px solid var(--lavender-deep);border-radius:var(--radius-pill);background:var(--lavender-tint);color:var(--ink);font-size:var(--text-sm);font-weight:600}
+.consent-upload-slot-state{justify-self:start;display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:1px solid var(--lavender-deep);border-radius:var(--radius-pill);background:var(--lavender-tint);color:var(--ink);font-size:var(--text-sm);font-weight:400}
 /* ── 날짜 선택(D48 · ADR-0020) ──────────────────────────────────────────────
    새 색·새 반경·새 그림자를 만들지 않는다 — 전부 기존 토큰의 조합이다.
    팝오버는 모달과 같은 표면 계약(흰 면 · radius 12 · --shadow-soft)이고 쌓임은
@@ -575,7 +631,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-date-control{position:relative;display:flex;align-items:center;gap:var(--space-2);width:100%}
 .wire-date-control>input{flex:1 1 auto;min-width:0}
 /* 달력 버튼은 입력칸 높이에 맞춘 정사각형이다. 아이콘만 있으므로 접근성 이름은 aria-label 이 준다. */
-.wire-date-toggle{flex:none;display:grid;place-items:center;width:var(--control-height);height:var(--control-height);padding:0;border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub);cursor:pointer}
+.wire-date-toggle{flex:none;display:grid;place-items:center;line-height:normal;width:var(--control-height);height:var(--control-height);padding:0;border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub);cursor:pointer}
 .wire-date-toggle:hover{background:var(--muted);color:var(--ink)}
 .wire-date-toggle:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 .wire-date-toggle[aria-expanded="true"]{background:var(--blue-tint);color:var(--ink)}
@@ -637,7 +693,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    읽어야 하는 값에 deep 글자를 쓰지 않는다(§9 대비 예외는 보조 정보 한정). */
 .wire-time-slot[aria-pressed="true"]{background:var(--blue);color:var(--ink);font-weight:600}
 .wire-datetime-popover-foot{flex:1 0 100%;display:flex;justify-content:flex-end;padding-top:var(--space-2);border-top:1px solid var(--line)}
-.wire-datetime-done{height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.wire-datetime-done{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .wire-datetime-done:hover{background:var(--muted)}
 .wire-datetime-done:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 @media (max-width:767px){

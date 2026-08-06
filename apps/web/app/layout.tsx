@@ -20,6 +20,9 @@ import { wireStyles } from './components/wire/wire-styles';
 // 색으로 표시하지 않는다는 D6·R4 와 정면 충돌해 역할 자체가 사라진 것이다.
 const styles = `
 :root{font-family:var(--font-sans);color:var(--ink);letter-spacing:var(--tracking-base)}
+/* 스크롤바 자리를 항상 확보한다(2026-08-06 Q "아코디언 접을 때 장폭이 변한다") — 내용이
+   짧아져 스크롤바가 사라지면 본문 폭이 그만큼 늘어 페이지가 좌우로 들썩였다. */
+html{scrollbar-gutter:stable}
 *{box-sizing:border-box}
 body{margin:0;background:var(--canvas);font-size:var(--text-md);line-height:var(--leading-body)}
 a{color:inherit;text-decoration:none}
@@ -94,7 +97,7 @@ button,input,select,textarea{font:inherit}
   display:grid;gap:var(--space-0-5);padding:var(--space-2);margin:0;list-style:none;
   border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-soft);
 }
-.program-switcher-option{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-md);font-weight:500}
+.program-switcher-option{display:flex;align-items:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-2);border-radius:var(--radius-control);color:var(--ink);font-size:var(--text-md);font-weight:500}
 /* 상한을 넘는 이름은 옵션 안에서도 같은 방식으로 사라진다 — 말줄임표를 쓰지 않는다(위 이름 규칙과 동일 어휘). */
 .program-switcher-option>span:last-child{min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 20px),transparent)}
 .program-switcher-option[data-selected="true"]{background:var(--blue-tint);font-weight:600}
@@ -270,7 +273,7 @@ button,input,select,textarea{font:inherit}
    그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
    그레이, 컬러는 중요 행동만). 화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
    --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 /* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -293,7 +296,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 /* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다.
    2026-08-05 Q 재규정: 배지는 tint 배경으로 계열을 구분하고 글자는 전부 --ink 로 통일,
    계열 deep 색은 흐린 외곽선 1px 로 옮긴다(다크 테마에서 토큰이 함께 뒤집힌다 — D56). */
-.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;justify-content:center;line-height:normal;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600}
+.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;justify-content:center;line-height:normal;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:400}
 /* 주의·대기·미완료는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .warning{border-color:var(--lavender-deep);background:var(--lavender-tint)}
 .risk{border-color:var(--risk);background:var(--risk-tint-solid)}
@@ -401,12 +404,24 @@ const briefingStyles = `
 .briefing-page{display:grid;gap:var(--space-5)}
 /* 이름 + 출구 버튼 2개(D35 §4). 버튼은 이름 바로 아래 줄이고, 화면 조작(전체 열기/닫기)과
    섞이지 않게 아래 툴바와 분리한다. 간격 4의 배수만 쓴다(D30 존치 규칙). */
-/* 툴바 = 왼쪽 카드 바로가기 + 오른쪽 여닫기 버튼(2026-08-03 Q). */
+/* 툴바 = 왼쪽 카드 바로가기 + 오른쪽 여닫기 버튼(2026-08-03 Q). 여닫기는 줄이 접혀도
+   **항상 오른쪽 끝**이다(2026-08-07 Q — 좁은 화면에서 뱃지 무리에 섞여 하나처럼 보였다.
+   그레이 조작 알약 + 오른쪽 축으로 성격을 가른다). */
 .briefing-toolbar{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-/* 바로가기는 카드 타이틀 텍스트 그대로다 — 인라인 참조라 알약이 아니라 텍스트다(D58 ⑥). */
-.briefing-toolbar-anchors{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
-.briefing-toolbar-anchors a{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-@media (hover:hover){.briefing-toolbar-anchors a:hover{color:var(--ink);text-decoration:underline}}
+.briefing-toolbar>.wire-button{margin-left:auto}
+/* 바로가기는 **계열 컬러 알약**이다(2026-08-06 Q — 구 맨글자 링크 대체. 단독 클릭 요소는
+   알약이 맞다, D58 ⑥). 색 레시피는 배지 재규정과 같다: tint 면 + deep 외곽선 + --ink 글자.
+   계열은 D58 ④ 의미 고정 — 라벤더=AI·블루=일정(회차)·핑크=경고(불일치)·민트=상태(액션).
+   불일치의 핑크는 배지 축의 '경고'이지 확인된 리스크 어휘(배너 전용 1.5px 테두리, D9)가 아니다. */
+.briefing-toolbar-anchors{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.briefing-toolbar-anchors a{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+.briefing-toolbar-anchors a[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}
+.briefing-toolbar-anchors a[data-tone="blue"]{border-color:var(--blue-deep);background:var(--blue-tint)}
+.briefing-toolbar-anchors a[data-tone="mint"]{border-color:var(--mint-deep);background:var(--mint-tint)}
+.briefing-toolbar-anchors a[data-tone="risk"]{border-color:var(--risk);background:var(--risk-tint-solid)}
+/* 호버는 프라이머리 버튼과 같은 밝기 워시, 눌림은 공통 어휘(§6)다. */
+@media (hover:hover){.briefing-toolbar-anchors a:hover{filter:brightness(.96)}}
+.briefing-toolbar-anchors a:active{transform:translateY(1px)}
 /* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + **--risk 단색 1.5px 균일 테두리**
    (2026-08-02 D58/CCC-51 — 구 --gradient-brand. 세컨더리 버튼이 브랜드 그라데이션
    아웃라인을 갖게 되어, 배너는 위험 버튼과 같은 "빨강 테두리 = 위험" 축으로 옮겼다).
@@ -439,7 +454,8 @@ const briefingStyles = `
    플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
    여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
    접힘(details)은 유지된다 — 전체 접기·앵커는 그대로다. */
-.briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
+/* optical: 꺽쇠 잉크 보정 translate 2px — .wire-card-arrow 와 같은 계약(2026-08-06 실측). */
+.briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:translateX(-2px) rotate(-45deg);transition:transform .15s ease}
 .briefing-fields{display:grid;gap:var(--space-2-5)}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
@@ -460,27 +476,36 @@ const briefingStyles = `
 .briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
 .briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+/* 저장·취소 묶음(2026-08-06 Q): 둘 다 버튼이고 컬러(세컨더리 아웃라인 vs 그레이 아웃라인)로
+   가른다. 한 결정의 두 갈래라 사이 간격은 입력칸과의 12 보다 좁은 8 이다. */
+.briefing-goal-buttons{display:flex;align-items:center;gap:var(--space-2)}
 /* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
 .briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);color:var(--ink)}
 /* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
    목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
-.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);font-weight:600;text-align:left;color:var(--ink);cursor:pointer}
+.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);font-weight:600;text-align:left;color:var(--ink);cursor:pointer}
 .briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
 @media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
-/* 브리핑 이어보기 — 페이지 맨 아래 한 줄(D37). 카드 계약을 그대로 쓰고 안쪽만 정한다. */
-/* 브리핑 이어보기는 알약 버튼이 됐다(D58/CCC-51 — 구 카드형). 그리드 아이템이라 폭이
-   늘어나는 것만 막고(가운데 자리), 나머지는 .wire-button 계약 그대로다. */
-.briefing-more{justify-self:center}
-/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. */
+/* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
+   HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
+/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 구획 사이는 --line 가로선이다(2026-08-06 Q —
+   여러 위계의 텍스트가 이어질 때 컬러 라벨 + 가로선이 경계를 만든다). */
 .briefing-qsection{display:grid;gap:var(--space-2)}
-.briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+.briefing-qsection+.briefing-qsection{padding-top:var(--space-4);border-top:1px solid var(--line)}
+/* 구획 라벨은 정보 필드 라벨(§5 민트 deep)과 같은 계약을 입는다(2026-08-06 Q "타이틀 컬러").
+   AI 제안만 라벤더다 — AI·승인 대기 축(D58 ④). */
+.briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
+.briefing-qlabel[data-tone="ai"]{color:var(--lavender-deep)}
 /* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층. */
 .briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
 .briefing-suggestion{display:grid;gap:var(--space-1)}
 .briefing-suggestion-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.briefing-suggestion-reason{margin:0;font-size:var(--text-sm);color:var(--sub)}
-.briefing-suggestion-link{justify-self:start;font-size:var(--text-sm);font-weight:600;color:var(--ink);text-decoration:underline}
+/* 본문 16 기본(2026-08-06 Q) — 아코디언 안 읽는 글은 전부 16 이고, 14 는 라벨(qlabel)·
+   메타(근거 링크·이력 요약)만 남는다. */
+.briefing-suggestion-reason{margin:0;font-size:var(--text-md);color:var(--sub)}
+/* 근거 링크도 본문 16 이다(2026-08-06 Q "폰트 크기 정렬" — 영역 ① 안 14 는 라벨만 남는다). */
+.briefing-suggestion-link{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
 .briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
@@ -489,10 +514,29 @@ const briefingStyles = `
 .briefing-history>.briefing-qsection{margin-top:var(--space-4)}
 /* 배지·메타·빈 상태(§5 상태 배지). 색 레시피는 2026-08-05 Q 재규정(.status 와 동일) —
    구 .is-approved(민트) 변형은 사용처가 없어 함께 삭제했다. */
-.briefing-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+.briefing-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 승인 대기는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
 .briefing-badge.is-pending{border-color:var(--lavender-deep);background:var(--lavender-tint)}
-.briefing-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 빈 상태·처리됨 안내도 본문이다 — 16 기본(2026-08-06 Q). */
+.briefing-note{margin:0;font-size:var(--text-md);color:var(--sub)}
+/* 영역 ② 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지 → 수기 뱃지 →
+   핵심 한 줄이 좌측정렬 고정 간격(12)으로 선다. 본문이 한 줄을 넘으면 줄바꿈 대신
+   오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
+   전문은 근거 회차(상담 기록)에서 읽는다. */
+.briefing-session-rows{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-session-row{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+/* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q.
+   1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다 — 당사자 카드 셀과 같은 계약). */
+.briefing-session-date{flex:none;font-size:var(--text-md);line-height:normal;color:var(--ink);font-variant-numeric:tabular-nums}
+.briefing-session-row .wire-badge,.briefing-session-row .briefing-badge{flex:none}
+/* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
+.briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
+/* 미해결 액션 행(2026-08-06 Q): 내용은 왼쪽, 담당(민트 — 사람·담당 축)과 기한(블루 —
+   일정 축)은 행 오른쪽 끝 뱃지다(D58 ④). 내용이 남는 폭을 갖고 뱃지를 끝으로 민다. */
+.briefing-action-rows{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-action-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
+.briefing-action-desc{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink);overflow-wrap:anywhere}
+.briefing-action-row .wire-badge{flex:none;white-space:nowrap}
 /* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
    회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
    그 회차가 추가로 열린다. 카드 계약(.surface-card)과 '펼친 것이 곧 활성'(surface-card[open])은
@@ -511,14 +555,19 @@ const briefingStyles = `
 /* 카드가 overflow:clip 이라(그라데이션 테두리 하단 라운드 버그 수리, wire-styles 참조)
    바깥 링은 잘린다 — 안쪽 링으로 바꾼다. */
 .record-summary:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
-.record-chevron{flex:none;width:12px;font-size:var(--text-sm);color:var(--sub)}
-.record-ordinal{flex:none;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.record-held-at{flex:none;font-size:var(--text-md);color:var(--sub)}
+/* 회차 앞 꺽쇠(.record-chevron)는 2026-08-06 Q 로 폐지 — 좁은 폭에서 세로선으로 읽혔다.
+   펼침 상태는 카드의 그라데이션 테두리(활성 어휘)가 이미 알린다. */
+/* 고정 칸(2026-08-06 Q "좌측 정렬 되도록 영역·여백 고정"): 회차 번호·날짜가 고정 폭을
+   가져 어느 행에서나 유형 뱃지·핵심 한 줄이 같은 x 에서 시작한다. 날짜는 브리핑 회차 행과
+   같은 YYYY-MM-DD 10자라 84 로 닫힌다. 행간 normal 은 기하 정렬 계약이다. */
+.record-ordinal{flex:none;width:52px;font-size:var(--text-md);font-weight:600;line-height:normal;color:var(--ink)}
+.record-held-at{flex:none;width:96px;font-size:var(--text-md);line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 /* 유형 칩 — 시간·상태 축이라 블루 tint. 외곽선은 배지 재규정(2026-08-05 Q — deep 을 흐린
    테두리로)을 따르고, 글자는 --ink 다. 인테이크도 같은 블루이고 구분은 글자가 한다. */
-.record-kind{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-/* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). */
-.record-one-liner{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);color:var(--ink)}
+.record-kind{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+/* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). 넘침은 공용
+   .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 브리핑 회차 행과 같은 규칙(2026-08-06 Q). */
+.record-one-liner{flex:1;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
 .record-one-liner.is-memo{color:var(--sub)}
 .record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
 /* 펼친 본문. 머리와 본문은 --gradient-brand 1px 로 나눈다(§5 카드 계약 — 그라데이션이
@@ -527,7 +576,10 @@ const briefingStyles = `
 .record-block{display:grid;gap:var(--space-2)}
 /* '기록 오류' 흔적 — 카드 안 상자였던 .note 를 플랫 한 줄로(2026-08-05 · 카드 안 카드 금지). */
 .record-error-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
-.record-block>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 구획 라벨은 브리핑 영역 ① 과 같은 계약이다(2026-08-06 Q 컬러 규칙): 14/600 + 계열 컬러.
+   수기 메모·액션 아이템 = 민트(사람·기록·상태 축), 플래그 = 라벨은 민트를 유지하고 리스크
+   레드는 확인된 항목에만 남긴다(D9 — 색은 확인된 리스크 전용). */
+.record-block>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-block>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap}
 .record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
 .record-block li{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);font-size:var(--text-md);color:var(--ink)}
@@ -537,9 +589,9 @@ const briefingStyles = `
 .record-session-goal-label{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-session-goal p{margin:0;font-size:var(--text-md);color:var(--ink)}
 /* 담당 칩 — 사람·소속 축(민트). 외곽선·글자는 배지 재규정(위 유형 칩과 같다). */
-.record-owner{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--mint-deep);border-radius:var(--radius-pill);background:var(--mint-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+.record-owner{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--mint-deep);border-radius:var(--radius-pill);background:var(--mint-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* AI 출처 칩 — AI 축(라벤더). 외곽선·글자는 배지 재규정(2026-08-05 Q — deep 글자 폐지). */
-.record-ai-source{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--lavender-deep);border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+.record-ai-source{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--lavender-deep);border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
 /* 리스크 레드는 **확인된** 플래그에만(D9·D34). 조회 API 가 확인된 것만 내려보내지만,
    색을 상태에 걸어 두면 나중에 범위가 넓어져도 규율이 깨지지 않는다. */
@@ -554,9 +606,11 @@ const briefingStyles = `
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
 .record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-lg);font-weight:600;color:var(--ink)}
 @media (max-width:767px){
-  /* 좁으면 한 줄이 무너지므로 핵심 한 줄을 아래로 내린다(리스트 행 계약과 같은 접힘). */
+  /* 좁으면 한 줄이 무너지므로 핵심 한 줄을 아래로 내린다(리스트 행 계약과 같은 접힘).
+     내려간 줄은 전문을 접어 보여주므로 페이드 마스크도 함께 끈다. */
   .record-summary{flex-wrap:wrap}
-  .record-one-liner{flex-basis:100%;white-space:normal;overflow:visible}
+  /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
+  .record-one-liner.wire-fade-clip{flex-basis:100%;white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
 }
 /* 767 블록에서 두 그리드를 1열로 강제하던 규칙은 지웠다 — 최소 폭(420·280)이 이미 접는다(락 10·11). */
 `;
@@ -615,17 +669,42 @@ const scheduleStyles = `
 const monthScheduleStyles = `
 /* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
 /* 월 이동 줄(2026-08-06 Q 개정): 버튼은 일반(neutral) 그레이 아웃라인, 꺽쇠는 당사자
-   카드와 같은 부품(.wire-chevron)을 버튼 안 크기(8)로, 글자와 꺽쇠 사이는 12 로 벌린다.
-   달 라벨도 같은 알약 옷을 입어 줄의 균형을 맞춘다 — 누르는 것이 아니라 호버·커서가 없다. */
+   카드와 같은 부품(.wire-chevron)을 버튼 안 크기(8)로, 글자와 꺽쇠 사이는 12 로 벌린다. */
+/* 2026-08-06 Q 후속 — 시안 2종을 data-variant 로 나란히 둔다(확정 전 임시 스위치 ?nav=2):
+   ① pill = 이전 달·달 라벨·다음 달 세 조각이 **알약 하나**에 든다.
+   ② inverse = 세 알약을 유지하고 **달 라벨만 반전** — 라이트 = 어두운 면 + 그라데이션 글자
+     ↔ 다크 = 그라데이션 면 + --on-action 글자(사이드바 내비 반전 호버와 같은 계약,
+     ADR-0030 테마 규칙 ③). 확정되면 남는 시안 하나로 접는다. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
 .month-nav .wire-button{gap:var(--space-3)}
-.month-nav .wire-chevron{width:8px;height:8px}
-.month-nav-label{display:inline-flex;align-items:center;justify-content:center;min-width:9ch;min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
-/* 768 미만: 세 알약이 한 줄(343)에 안 들어간다(실측 396). 라벨이 위 전폭, 이동 두 버튼이
-   아래 반반 — 페이지 헤더 버튼의 모바일 세로 쌓기와 같은 원칙(변수는 라벨 길이)이다. */
+/* 달 라벨은 이 줄의 **값**이라 조작 알약보다 한 발 선다(2026-08-06 Q "상대적으로 작아 보인다")
+   — 크기 +1(15) · 600. 당사자 카드 이름과 같은 계단 광학 예외 형식이다(§2-1). */
+.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);white-space:nowrap}
+/* ── 시안 ① 하나의 알약 ── 겉 테두리는 neutral 버튼과 같은 --line-action, 조각 사이 세로선은
+   --line. 높이도 조작 알약과 같은 32 다. 모서리 밖 삐침은 clip 으로 자른다. */
+.month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--panel);overflow:clip}
+.month-nav-group .month-nav-label{border:0;border-radius:0;min-height:auto}
+.month-nav-seg{display:inline-flex;align-items:center;line-height:normal;gap:var(--space-3);padding:0 var(--space-3-5);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
+/* 조각의 꺽쇠도 조작 알약과 같은 7 — 글자(14)를 따라 줄어든다. */
+.month-nav-seg .wire-chevron{width:7px;height:7px}
+.month-nav-seg+.month-nav-label,.month-nav-label+.month-nav-seg{border-left:1px solid var(--line)}
+/* 알약 하나 안이라 포커스 링을 안으로 접는다 — overflow:clip 에 잘리지 않게. */
+.month-nav-seg:focus-visible{outline-offset:-2px}
+@media (hover:hover){.month-nav-seg:hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
+.month-nav-seg:active{transform:translateY(1px)}
+/* ── 시안 ② 현재 달 반전 ── 글자 그라데이션은 안쪽 span 에 clip 으로 얹는다(겉은 어두운 면). */
+.month-nav[data-variant="inverse"] .month-nav-label{background:var(--ink);border-color:transparent}
+.month-nav[data-variant="inverse"] .month-nav-label>span{background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-theme="dark"] .month-nav[data-variant="inverse"] .month-nav-label{background:var(--gradient-brand)}
+[data-theme="dark"] .month-nav[data-variant="inverse"] .month-nav-label>span{background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--on-action)}
+/* 768 미만: ② 는 기존 그리드(라벨 위 전폭, 이동 두 버튼 아래 반반)를 유지하고,
+   ① 은 알약이 전폭으로 늘며 라벨이 남는 폭을 가진다. */
 @media(max-width:767px){
-  .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
-  .month-nav-label{grid-column:1/-1;grid-row:1}
+  .month-nav[data-variant="inverse"]{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+  .month-nav[data-variant="inverse"] .month-nav-label{grid-column:1/-1;grid-row:1}
+  .month-nav-group{width:100%}
+  .month-nav-group .month-nav-label{flex:1;min-width:0}
+  .month-nav-seg{flex:none}
 }
 /* 날짜 묶음·행(.month-day·.month-row*)은 2026-08-06 Q 카드 통일로 삭제 — 전체 일정도
    다가오는 일정과 같은 당사자 카드(ParticipantCard, wire-styles.ts)를 쓴다. 상태·유형
@@ -653,7 +732,7 @@ const registerStyles = `
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
 .consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
-.consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:rotate(45deg)}
+.consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-2px) rotate(45deg)}
 .consent-detail-body{display:grid;gap:var(--space-4);padding-top:var(--space-3)}
 .consent-detail-disclaimer{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .consent-detail-section{display:grid;gap:var(--space-1-5)}

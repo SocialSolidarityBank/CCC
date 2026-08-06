@@ -27,6 +27,7 @@ function program(consent: ParticipantProgram['consent']): ParticipantProgram {
     assigneeNames: ['김실무'],
     consent,
     consentRecordedAt: '2026-07-16T09:00:00.000Z',
+    upcomingSchedule: null,
   };
 }
 

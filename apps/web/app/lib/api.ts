@@ -225,6 +225,11 @@ export interface ParticipantProgram {
   consent: ParticipantConsent;
   /** 마지막으로 동의 상태를 기록한 시각. 한 번도 없으면 null(최초 동의일이 아니다). */
   consentRecordedAt: string | null;
+  /**
+   * 이 사업의 가장 이른 예정 일정 — 허브 '최신 일정' 카드(2026-08-06 Q).
+   * 담당(또는 admin) 사업에만 실리고 비담당·일정 없음은 null 이다(D36).
+   */
+  upcomingSchedule: { id: string; scheduledAt: string; sessionKind: SessionKind } | null;
 }
 
 /** 동의 2종(D49·D23·D44). ① 개인정보 수집·이용 ② AI를 활용한 녹취기록(녹음·전사·감정 분석 + AI 정리). */
@@ -859,6 +864,17 @@ function decodeParticipantProgram(value: unknown): ParticipantProgram {
     }),
     consent: decodeParticipantConsent(responseProperty(record, 'consent')),
     consentRecordedAt: responseNullableString(record, 'consentRecordedAt'),
+    upcomingSchedule: decodeProgramUpcomingSchedule(responseProperty(record, 'upcomingSchedule')),
+  };
+}
+
+function decodeProgramUpcomingSchedule(value: unknown): ParticipantProgram['upcomingSchedule'] {
+  if (value === null) return null;
+  const record = responseObject(value);
+  return {
+    id: responseString(record, 'id'),
+    scheduledAt: responseString(record, 'scheduledAt'),
+    sessionKind: responseEnum(responseProperty(record, 'sessionKind'), sessionKinds),
   };
 }
 

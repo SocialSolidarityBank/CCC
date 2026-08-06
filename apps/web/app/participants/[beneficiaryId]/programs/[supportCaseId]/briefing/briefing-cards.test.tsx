@@ -325,21 +325,19 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 });
 
 describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D38·D9)', () => {
-  it('HERO 우상단은 행동 2개(당사자 정보 → 상담 시작)이고, 상담 기록은 페이지 맨 아래로 내려갔다 (D37)', () => {
+  it('HERO 우상단은 행동 3개(당사자 정보 → 전체 상담 기록 → 상담 시작)다 (2026-08-06 Q — 구 맨 아래 링크 대체)', () => {
     const { container, queryByText } = render(<BriefingCards {...baseProps()} />);
     const actions = hero(container).querySelector('.page-actions');
     expect([...(actions?.querySelectorAll('a') ?? [])].map((a) => a.textContent))
-      .toEqual(['당사자 정보', '상담 시작']);
-    // 우상단은 최대 2개다(§4-5). 늘어나면 사이드바=장소 / 우상단=행동 축이 흐려진다.
-    expect(actions?.children).toHaveLength(2);
+      .toEqual(['당사자 정보', '전체 상담 기록', '상담 시작']);
+    // 이 화면만 D38 상한을 3개로 넓혔다(2026-08-06 Q). 프라이머리는 여전히 오른쪽 끝 1개다.
+    expect(actions?.children).toHaveLength(3);
 
     const more = container.querySelector('.briefing-more');
     expect(more?.getAttribute('href')).toBe(baseProps().recordsHref);
-    expect(more?.textContent).toContain('자세한 상담 기록 보기');
-    // 맨 아래여야 한다 — 위 브리핑을 다 읽은 다음의 걸음이다.
-    expect(container.querySelector('.briefing-page')?.lastElementChild).toBe(more);
-
-    // 되살아나면 이 테스트가 잡는다.
+    expect(more?.textContent).toContain('전체 상담 기록');
+    // 구 맨 아래 링크가 되살아나면 이 테스트가 잡는다.
+    expect(queryByText('자세한 상담 기록 보기')).toBeNull();
     expect(queryByText('← 목록으로')).toBeNull();
     expect(queryByText('전체 사업 보기')).toBeNull();
   });

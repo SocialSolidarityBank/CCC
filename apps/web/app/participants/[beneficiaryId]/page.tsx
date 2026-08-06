@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Suspense } from 'react';
 import {
   ApiError,
@@ -11,6 +10,7 @@ import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
 import { WireButton } from '../../components/wire/wire-button';
+import { WireCard } from '../../components/wire/wire-card';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { updateParticipantConsentAction } from '../../actions';
 import { ErrorState, type ErrorKind } from './error-state';
@@ -151,27 +151,27 @@ export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: strin
   );
 }
 
-function ProgramCard({ beneficiaryId, program, programTitle }: {
+/** 참여중인 사업 카드의 한 행(2026-08-06 Q — 구 사업별 낱개 카드 대체). 동의서는 여기서
+ *  뺐다 — 페이지 맨 아래 동의서 카드로 옮겼다(같은 날 Q 지시). 행 사이는 --line 구분선이다
+ *  (카드 안 카드 금지 — D59 ③ 유지). */
+function ProgramRow({ beneficiaryId, program, programTitle }: {
   beneficiaryId: string;
   program: ParticipantProgram;
   programTitle: string;
 }) {
   return (
-    <article className="surface-card participant-program" data-locked={program.authorized ? undefined : 'true'}>
+    <div className="participant-program-row">
       <div className="participant-program-head">
-        <h2>{programTitle}</h2>
+        <h3>{programTitle}</h3>
         <span className="status mint">{programStatus(program.status)}</span>
       </div>
       <p className="participant-program-meta">참여 시작 {formatIntakeDate(program.intakeAt)}</p>
       <AssigneeLine names={program.assigneeNames} />
       {program.authorized ? (
-        <>
-          <div className="participant-program-actions">
-            <WireButton href={briefingHref(beneficiaryId, program.id)} variant="primary">상담 준비</WireButton>
-            <WireButton href={recordsHref(beneficiaryId, program.id)}>상담 기록</WireButton>
-          </div>
-          <ConsentEditor beneficiaryId={beneficiaryId} program={program} />
-        </>
+        <div className="participant-program-actions">
+          <WireButton href={briefingHref(beneficiaryId, program.id)} variant="primary">상담 준비</WireButton>
+          <WireButton href={recordsHref(beneficiaryId, program.id)}>상담 기록</WireButton>
+        </div>
       ) : (
         // D36: 담당하지 않는 사업. 존재와 담당 실무자까지만 알려주고 상담 내용은 열지 않는다.
         // 잠긴 이유를 문장으로 적는다 — 버튼만 없으면 "왜 없지"가 남는다.
@@ -179,7 +179,66 @@ function ProgramCard({ beneficiaryId, program, programTitle }: {
           담당하지 않는 사업입니다. 상담 내용은 담당 실무자에게 확인하세요.
         </p>
       )}
-    </article>
+    </div>
+  );
+}
+
+/** 다가오는 일정 표기 — 일정 카드 1행과 같은 어휘(날짜 · 시각 · 유형 뱃지). 기관 표준
+ *  시간대 표기는 이 파일의 다른 시각 표기(참여 시작·동의 기록)와 같이 Asia/Seoul 이다. */
+function formatScheduleParts(value: string): { date: string; time: string } {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return { date: value, time: '' };
+  return {
+    date: new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' }).format(instant),
+    time: new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Seoul' }).format(instant),
+  };
+}
+
+const scheduleKindLabels: Record<'regular' | 'intake', string> = {
+  regular: '기본 상담',
+  intake: '인테이크',
+};
+
+/** 최신 일정 카드(2026-08-06 Q) — 담당 사업들의 예정 일정 중 가장 이른 1건. */
+function NextScheduleCard({ beneficiaryId, programs, programLabels }: {
+  beneficiaryId: string;
+  programs: ParticipantProgram[];
+  programLabels: Record<ParticipantProgramType, string>;
+}) {
+  const candidates = programs
+    .filter((program) => program.upcomingSchedule !== null)
+    .sort((left, right) => left.upcomingSchedule!.scheduledAt.localeCompare(right.upcomingSchedule!.scheduledAt));
+  const next = candidates[0];
+
+  return (
+    <WireCard as="section" title="최신 일정">
+      {next === undefined || next.upcomingSchedule === null ? (
+        <>
+          <p className="participant-program-meta">예정된 상담이 없습니다.</p>
+          <div className="participant-program-actions">
+            <WireButton href="/schedules/new">상담 등록</WireButton>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="participant-next-schedule-row">
+            <span className="participant-next-schedule-date">
+              {formatScheduleParts(next.upcomingSchedule.scheduledAt).date}
+            </span>
+            <span className="participant-next-schedule-time">
+              {formatScheduleParts(next.upcomingSchedule.scheduledAt).time}
+            </span>
+            <span className="wire-badge" data-tone="blue">
+              {scheduleKindLabels[next.upcomingSchedule.sessionKind]}
+            </span>
+          </div>
+          <p className="participant-program-meta">{programName(programLabels, next.programType)}</p>
+          <div className="participant-program-actions">
+            <WireButton href={briefingHref(beneficiaryId, next.id)} variant="primary">상담 준비</WireButton>
+          </div>
+        </>
+      )}
+    </WireCard>
   );
 }
 
@@ -198,42 +257,80 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
   // 버튼을 띄우면 "권한과 주소를 확인하세요"라는 엉뚱한 오류 화면으로 보낸다.
   const editable = programs.some((program) => program.authorized && program.status === 'active');
 
+  // 인테이크 기록의 입구(2026-08-06 Q) — 담당 사업 중 첫 번째(진행 중 우선 정렬)의 상담
+  // 기록으로 간다. 인테이크는 회차 목록의 1회차라 별도 화면이 없다(D47).
+  const intakeTarget = programs.find((program) => program.authorized);
+  const consentPrograms = programs.filter((program) => program.authorized);
+
   return (
     <main className="page-content">
       <GridContainer>
         {/* ParticipantHeroCard (D38 · D59 개편 2026-08-04): 허브는 케이스가 교차하는 화면이라
             단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).
             이름은 h2(18) — 이미 '그 사람' 화면이라 페이지 제목 크기가 과했다. 연락처는
-            이름 옆에 나란히 직표시(구 개인정보 접힘 폐지 — 접힘에 남는 내용이 참여 사업뿐이라
-            아래 사업 카드와 중복이었다). 가명 ID 는 화면에 없다(D59 — 백엔드 전용). */}
+            이름 옆에 나란히 직표시. 가명 ID 도 이름 옆이다(2026-08-06 Q — D59 ② 부분
+            재개정을 허브 머리까지 넓혔다, 당사자 카드 정보 칸과 같은 표기). */}
         <ParticipantHeroCard
           name={detail.name}
           beneficiaryId={detail.beneficiaryId}
           nameSize="h2"
+          showId
           {...(detail.phone !== null && detail.phone.length > 0 ? { contact: detail.phone } : {})}
-          // 기본정보 수정(CCC-37)은 당사자 단위라 행동 슬롯(④)에 둔다 — 동의는 참여
-          // 사업마다 다르므로 카드 안에 남는다. 둘은 저장 단위가 달라 섞지 않는다(D44).
-          actions={editable
-            ? <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
-            : undefined}
+          // 기본정보 수정(CCC-37)은 당사자 단위라 행동 슬롯(④)에 둔다. 인테이크 기록도
+          // 같은 슬롯이다(2026-08-06 Q) — 세컨더리 2개, D38 상한(버튼 최대 2개) 안이다.
+          actions={
+            <>
+              {intakeTarget !== undefined && (
+                <WireButton href={recordsHref(detail.beneficiaryId, intakeTarget.id)}>인테이크 기록</WireButton>
+              )}
+              {editable && (
+                <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
+              )}
+            </>
+          }
         />
         {programs.length === 0 ? (
           <p className="empty" role="status">표시할 참여 사업이 없습니다.</p>
         ) : (
-          <section className="participant-program-list" aria-label="참여 사업 목록">
-            {programs.map((program) => (
-              <ProgramCard
-                key={program.id}
+          <>
+            {/* 참여중인 사업 + 최신 일정 두 카드가 나란히 선다(2026-08-06 Q — 구 사업별
+                낱개 카드 대체). 그리드는 표준 카드 그리드(D37 §4-2)다. */}
+            <div className="card-grid">
+              <WireCard as="section" title="참여중인 사업">
+                {programs.map((program) => (
+                  <ProgramRow
+                    key={program.id}
+                    beneficiaryId={detail.beneficiaryId}
+                    program={program}
+                    programTitle={programName(programLabels, program.programType)}
+                  />
+                ))}
+              </WireCard>
+              <NextScheduleCard
                 beneficiaryId={detail.beneficiaryId}
-                program={program}
-                programTitle={programName(programLabels, program.programType)}
+                programs={programs}
+                programLabels={programLabels}
               />
-            ))}
-          </section>
+            </div>
+            {/* 동의서는 맨 아래다(2026-08-06 Q — 구 사업 카드 안 동의 묶음 대체). 저장 단위는
+                여전히 참여 사업이라(D44) 담당 사업마다 한 묶음씩 서고, 사업이 여럿이면
+                묶음 머리에 사업명이 선다. */}
+            {consentPrograms.length > 0 && (
+              <WireCard as="section" title="동의서">
+                {consentPrograms.map((program) => (
+                  <div key={program.id} className="participant-consent-block">
+                    {consentPrograms.length > 1 && (
+                      <h3 className="participant-consent-program">{programName(programLabels, program.programType)}</h3>
+                    )}
+                    <ConsentEditor beneficiaryId={detail.beneficiaryId} program={program} />
+                  </div>
+                ))}
+              </WireCard>
+            )}
+          </>
         )}
-        <p className="note-inline">
-          다른 당사자를 찾으려면 <Link href="/participants">당사자 목록</Link>으로 가세요.
-        </p>
+        {/* '다른 당사자를 찾으려면 …' 안내줄은 삭제했다(2026-08-06 Q) — 당사자 목록은
+            사이드바가 이미 안내한다(D35 사이드바=장소). */}
       </GridContainer>
     </main>
   );

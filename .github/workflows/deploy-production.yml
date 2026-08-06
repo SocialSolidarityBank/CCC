@@ -75,6 +75,7 @@ jobs:
       - run: pnpm test
       - run: pnpm guard:db
       - run: pnpm guard:tokens
+      - run: pnpm guard:align
 
   # 스키마 게이트 — docs/ops.md 의 "마이그레이션은 자동으로 안 간다"를 주석이 아니라 **잡**으로 만든다.
   # 미적용 마이그레이션이 남아 있으면 배포를 막는다.

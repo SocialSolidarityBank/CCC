@@ -8104,6 +8104,13 @@ export interface ParticipantProgramEntry {
    * 하므로, 값은 append-only 이력(`participant_consent_records.recorded_at`)에서 읽는다.
    */
   consentRecordedAt: string | null;
+  /**
+   * 이 사업의 가장 이른 예정(scheduled) 일정 — 허브의 '최신 일정' 카드가 쓴다(2026-08-06 Q).
+   * **담당(또는 admin)인 사업에만 싣는다** — D36 은 비담당 사업의 존재·담당 실무자까지만
+   * 열었고, 일정은 상담 내용 쪽이다. 브리핑의 focusUpcomingSchedule 과 같은 판정
+   * (status='scheduled' 최조기 1건)이다.
+   */
+  upcomingSchedule: { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind } | null;
 }
 
 export interface ParticipantProgramList {
@@ -8192,6 +8199,7 @@ export async function listSupportCasesForBeneficiary(
     supportCases.map((supportCase) => supportCase.id),
   );
   const consentRecordedAt = await loadLastConsentRecordedAt(env, actor.orgId, beneficiaryId);
+  const upcomingSchedules = await loadUpcomingScheduleBySupportCase(env, actor.orgId, authorizedIds);
   return {
     participant: participantNamePhone(contacts.get(beneficiaryId)),
     programs: supportCases.map((supportCase) => ({
@@ -8199,8 +8207,40 @@ export async function listSupportCasesForBeneficiary(
       authorized: authorized.has(supportCase.id),
       assigneeNames: assigneeNames.get(supportCase.id) ?? [],
       consentRecordedAt: consentRecordedAt.get(supportCase.id) ?? null,
+      // 비담당 사업은 조회 자체를 안 했으므로 자연히 null 이다(D36 범위 유지).
+      upcomingSchedule: upcomingSchedules.get(supportCase.id) ?? null,
     })),
   };
+}
+
+/**
+ * 사업별 가장 이른 예정(scheduled) 일정 (허브 '최신 일정' 카드, 2026-08-06 Q).
+ * 브리핑의 focusUpcomingSchedule 과 같은 판정을 여러 케이스에 한 번에 낸다 — 감사·권한이
+ * 없는 내부 로더이고, 호출부(listSupportCasesForBeneficiary)가 담당 케이스 id 만 넘긴다.
+ */
+async function loadUpcomingScheduleBySupportCase(
+  env: Env,
+  orgId: string,
+  supportCaseIds: string[],
+): Promise<Map<string, { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }>> {
+  const upcoming = new Map<string, { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }>();
+  if (supportCaseIds.length === 0) return upcoming;
+  const placeholders = supportCaseIds.map(() => '?').join(', ');
+  const result = await env.DB.prepare(
+    `SELECT id, support_case_id, scheduled_at, session_kind FROM counseling_schedules
+     WHERE org_id = ? AND support_case_id IN (${placeholders}) AND status = 'scheduled'
+     ORDER BY scheduled_at, id`,
+  ).bind(orgId, ...supportCaseIds).all<DbRow>();
+  for (const row of result.results) {
+    const caseId = stringValue(row.support_case_id);
+    if (upcoming.has(caseId)) continue;
+    upcoming.set(caseId, {
+      id: stringValue(row.id),
+      scheduledAt: stringValue(row.scheduled_at),
+      sessionKind: canonicalScheduleKind(row.session_kind),
+    });
+  }
+  return upcoming;
 }
 
 /**

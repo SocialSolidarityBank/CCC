@@ -7,9 +7,10 @@ import Link from 'next/link';
 //       한 줄 카드가 아니라 **일정 카드와 같은 2행 골격**을 쓴다(구 '2행 오른쪽 묶음' 대체).
 //  2행(공통): 이름 · 가명 ID · 연락처 (· 이메일 — 보류, D24 확장 대기. 자리만)
 //
-// 규칙(2026-08-06 Q, 같은 날 2·3차 개정):
-//  - 칸은 **고정 자리 좌측정렬**이다(2차 — 구 space-between 고른 펴기 대체). 날짜·이름·
-//    가명 ID 칸이 고정 폭을 가져, 어느 카드에서나 같은 값이 같은 x 에서 시작한다.
+// 규칙(2026-08-06 Q, 같은 날 2·3·5차 개정):
+//  - 칸은 **앞 아이템을 따라 붙는 좌측정렬**이다(5차 — 구 고정 폭 칸 대체: 가명 ID 가
+//    길어지면 고정 96px 칸 안에서 줄바꿈해 답답했다). 날짜 옆 시간도 같은 원리로 밀착한다.
+//    1행 틈은 12, 2행(정보 칸) 틈은 20 — 값 사이 여백을 한 단 넓힌다.
 //  - 이름만 강조(600 + 광학 1px 확대), 나머지는 16/400. 가명 ID 는 연락처보다 옅은
 //    그레이다(3차 — 대조용 값이라 한 발 물러선다).
 //  - 뱃지는 행 오른쪽 끝, 정보 값은 왼쪽 고정 칸 — 두 축이 섞이지 않는다.
@@ -85,7 +86,7 @@ export function ParticipantCard({
             <hr className="participant-card-divider" />
           </>
         )}
-        <div className="participant-card-row">
+        <div className="participant-card-row" data-row="info">
           {/* 이름 미기입은 회색 '미기입' — ID 칸이 따로 있어 같은 값을 두 번 적지 않는다(D31 폴백 변형). */}
           {name === null || name.length === 0
             ? <span className="participant-card-cell" data-col="name" data-tone="sub">미기입</span>
