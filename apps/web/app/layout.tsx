@@ -257,20 +257,20 @@ button,input,select,textarea{font:inherit}
    min-width:0 이 필요하다 — 그리드 아이템의 기본 min-width:auto 때문에 내용이 넓으면
    본문 열이 트랙을 넘어 사이드바를 밀어낸다(표·코드 블록에서 실제로 난다). */
 .content-column{display:flex;flex-direction:column;min-width:0}
-/* 뒤로 알약은 **사이드바 쪽 고정**이다(2026-08-05 Q — 구 2026-08-04 '가운데 컨테이너 정렬 +
-   본문 열 전체 가로선(높이 72 연속)' 계약 대체). 헤더 신설로 사이드바 상단 기하(기관명 중심
-   36 · 구분선 72)가 사라져 선을 이을 대상이 없고, 알약은 컨테이너가 아니라 사이드바 안쪽선
-   (24)에 붙는다 — 프레임 크롬이라 본문 제목과 왼쪽 끝을 맞추지 않는다(같은 날 Q 확인:
-   본문은 가운데 정렬 유지). 뒤로가 안 그려지는 화면(히스토리 없음)은 이 줄이 0 높이다. */
+/* 뒤로 알약은 **본문 컨테이너와 같은 좌측선**에 선다(2026-08-06 Q "뒤로, 제목, 시간순,
+   카드까지 좌측정렬" — 구 2026-08-05 '사이드바 안쪽선 24 고정·프레임 크롬' 대체).
+   컨테이너 기하(.page-content 와 같은 장폭·auto 마진·좌우 패딩)를 그대로 받아, 알약의
+   왼쪽 끝 = 페이지 제목·툴바·카드의 왼쪽 끝이다.
+   뒤로가 안 그려지는 화면(히스토리 없음)은 이 줄이 0 높이다. */
 .page-backbar{padding:0}
-.page-backbar:has(.page-back){padding:var(--space-5) var(--space-6) 0}
+.page-backbar:has(.page-back){width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--space-5) var(--page-pad-x) 0}
 /* 뒤로 알약이 있으면 본문 위 여백은 40 대신 24 — 알약 줄이 이미 20 을 벌렸다. */
 .page-backbar:has(.page-back)+.page-content{padding-top:var(--space-6)}
-/* 고스트 버튼 계약(§5): 배경·테두리 없음, --sub 글자. 되돌리기는 주 행동이 아니다. */
-/* 뒤로가기도 알약 버튼이다(2026-08-04 Q — 구 투명 텍스트 대체). 단독 클릭 요소는 전부
-   알약(D58 ⑥)이라 세컨더리 sm 과 같은 옷을 입는다 — 그라데이션 1px 테두리 + --panel 채움.
+/* 뒤로가기도 알약 버튼이다(2026-08-04 Q — 구 투명 텍스트 대체). 옷은 **일반(neutral)**
+   그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
+   그레이, 컬러는 중요 행동만). 화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
    --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 /* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -614,8 +614,19 @@ const scheduleStyles = `
 // 같은 것을 두 화면에서 다르게 그리지 않기 위해서다. 새 색·새 반경은 없다.
 const monthScheduleStyles = `
 /* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
+/* 월 이동 줄(2026-08-06 Q 개정): 버튼은 일반(neutral) 그레이 아웃라인, 꺽쇠는 당사자
+   카드와 같은 부품(.wire-chevron)을 버튼 안 크기(8)로, 글자와 꺽쇠 사이는 12 로 벌린다.
+   달 라벨도 같은 알약 옷을 입어 줄의 균형을 맞춘다 — 누르는 것이 아니라 호버·커서가 없다. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
-.month-nav-label{min-width:9ch;font-size:var(--text-md);font-weight:600;color:var(--ink);text-align:center}
+.month-nav .wire-button{gap:var(--space-3)}
+.month-nav .wire-chevron{width:8px;height:8px}
+.month-nav-label{display:inline-flex;align-items:center;justify-content:center;min-width:9ch;min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
+/* 768 미만: 세 알약이 한 줄(343)에 안 들어간다(실측 396). 라벨이 위 전폭, 이동 두 버튼이
+   아래 반반 — 페이지 헤더 버튼의 모바일 세로 쌓기와 같은 원칙(변수는 라벨 길이)이다. */
+@media(max-width:767px){
+  .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+  .month-nav-label{grid-column:1/-1;grid-row:1}
+}
 /* 날짜 묶음·행(.month-day·.month-row*)은 2026-08-06 Q 카드 통일로 삭제 — 전체 일정도
    다가오는 일정과 같은 당사자 카드(ParticipantCard, wire-styles.ts)를 쓴다. 상태·유형
    뱃지는 카드의 .wire-badge 어휘가 이어받는다(트랙 C PR #61 의 배지 재규정 포함). */

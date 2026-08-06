@@ -6,9 +6,11 @@ import { Chevron } from './chevron';
 //  1행(일정 화면만): 날짜 · 시간 · 상담 종류 뱃지(+지난 일정 상태 뱃지)
 //  2행(공통):       이름 · 가명 ID · 연락처 (· 이메일 — 목록 API 가 아직 안 준다, 자리만)
 //
-// 규칙(2026-08-06 Q):
-//  - 글자는 전부 16/400 로 통일한다. 색만 가른다 — 이름은 --ink, 보조 값은 --sub.
-//  - 칸은 카드 장폭에 고르게 편다(space-between) · 카드 안 세로도 가운데 정렬.
+// 규칙(2026-08-06 Q, 같은 날 2차 개정):
+//  - 칸은 **고정 자리 좌측정렬**이다(2차 — 구 space-between 고른 펴기 대체). 날짜·이름·
+//    가명 ID 칸이 고정 폭을 가져, 어느 카드에서나 같은 값이 같은 x 에서 시작한다.
+//  - 이름만 강조(600 + 광학 1px 확대), 나머지는 16/400. 색은 이름 --ink, 보조 값 --sub.
+//  - 뱃지·참여 사업 같은 상태 묶음은 오른쪽 끝으로 민다(정보 칸과 축이 다르다).
 //  - 행 사이 구분선은 회색 --line 1px 이고 **카드 아웃라인까지 가로지른다**(풀블리드).
 //  - 상태(진행 중·종결)는 뱃지, 참여 사업 N개는 컬러 글자(라벤더 deep — 정보 3색 배분).
 //  - 가명 ID 는 카드 정보 표시로 복귀했다(2026-08-06 Q — D59 ② "화면 미표시" 부분 재개정).
@@ -60,7 +62,7 @@ export function ParticipantCard({
         {schedule !== undefined && (
           <>
             <div className="participant-card-row">
-              <span className="participant-card-cell">{schedule.date}</span>
+              <span className="participant-card-cell" data-col="date">{schedule.date}</span>
               <span className="participant-card-cell">{schedule.time}</span>
               <span className="participant-card-badges">
                 <span className="wire-badge" data-tone="blue">{schedule.kindLabel}</span>
@@ -73,20 +75,24 @@ export function ParticipantCard({
         <div className="participant-card-row">
           {/* 이름 미기입은 회색 '미기입' — ID 칸이 따로 있어 같은 값을 두 번 적지 않는다(D31 폴백 변형). */}
           {name === null || name.length === 0
-            ? <span className="participant-card-cell" data-tone="sub">미기입</span>
-            : <span className="participant-card-cell">{name}</span>}
-          <span className="participant-card-cell" data-tone="sub">{beneficiaryId}</span>
+            ? <span className="participant-card-cell" data-col="name" data-tone="sub">미기입</span>
+            : <span className="participant-card-cell" data-col="name">{name}</span>}
+          <span className="participant-card-cell" data-col="id" data-tone="sub">{beneficiaryId}</span>
           {phone !== null && phone !== undefined && phone.length > 0 && (
             <span className="participant-card-cell" data-tone="sub">{phone}</span>
           )}
           {email !== null && email !== undefined && email.length > 0 && (
             <span className="participant-card-cell" data-tone="sub">{email}</span>
           )}
-          {statusBadge !== undefined && (
-            <span className="wire-badge" data-tone={statusBadge.tone}>{statusBadge.label}</span>
-          )}
-          {programCount !== undefined && (
-            <span className="participant-card-programs">참여 사업 {programCount}개</span>
+          {(statusBadge !== undefined || programCount !== undefined) && (
+            <span className="participant-card-meta">
+              {statusBadge !== undefined && (
+                <span className="wire-badge" data-tone={statusBadge.tone}>{statusBadge.label}</span>
+              )}
+              {programCount !== undefined && (
+                <span className="participant-card-programs">참여 사업 {programCount}개</span>
+              )}
+            </span>
           )}
         </div>
         {chevron === true && <Chevron dir="right" />}

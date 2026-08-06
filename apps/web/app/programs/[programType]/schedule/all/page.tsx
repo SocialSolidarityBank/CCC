@@ -133,12 +133,14 @@ export default async function ProgramScheduleAllPage({
         </div>
         {month !== null && (
           <div className="month-nav">
-            <WireButton href={`/programs/${programType}/schedule/all?month=${shiftMonth(month, -1)}`}>
-              ‹ 이전 달
+            {/* 달 이동은 일반(neutral) 그레이 알약이다(2026-08-06 Q 위계 재편). 꺽쇠는
+                문자 글리프(‹›, §7 락 5 위반 잔재)를 걷어내고 카드와 같은 부품을 단다. */}
+            <WireButton variant="neutral" chevron="left" href={`/programs/${programType}/schedule/all?month=${shiftMonth(month, -1)}`}>
+              이전 달
             </WireButton>
             <span className="month-nav-label" aria-live="polite">{formatMonthLabel(month)}</span>
-            <WireButton href={`/programs/${programType}/schedule/all?month=${shiftMonth(month, 1)}`}>
-              다음 달 ›
+            <WireButton variant="neutral" chevron="right" href={`/programs/${programType}/schedule/all?month=${shiftMonth(month, 1)}`}>
+              다음 달
             </WireButton>
           </div>
         )}

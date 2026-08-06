@@ -40,13 +40,24 @@ export const wireStyles = `
    아웃라인까지 가로지른다(패딩만큼 음수 마진). */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
 .participant-card{position:relative;display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
-/* 최소 틈은 12(여백 3단 ③)다. space-between 이라 여유가 있으면 고르게 퍼지고, 이 값은
-   빠듯할 때 접히기 전 하한이다. 16이면 표준 2열(칸 438)에서 당사자 카드가 9px 모자라 접힌다. */
-.participant-card-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
+/* 칸은 **고정 자리 좌측정렬**이다(2026-08-06 Q 2차 — 구 space-between 고른 펴기 대체:
+   내용 폭이 카드마다 달라 가운데 칸들이 제각각의 x 에 앉았다, Q "삐뚤삐뚤"). 날짜·이름·
+   가명 ID 칸이 고정 폭을 가져 다음 칸의 시작선이 모든 카드에서 같다. 틈 12 는 유지. */
+.participant-card-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
 .participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;color:var(--ink);overflow-wrap:anywhere}
 .participant-card-cell[data-tone="sub"]{color:var(--sub)}
+/* optical: 고정 칸 폭 — 날짜 104("8월 13일 (목)" 90 + 여유) · 이름 84(한글 4자 강조체) ·
+   가명 ID 104(dolphin-001 84 + 여유). 간격 토큰이 아니라 열 자리다. */
+.participant-card-cell[data-col="date"]{flex:none;width:104px}
+/* 이름은 강조 600 + 계단 16 에 광학 +1px (2026-08-06 Q "볼드 + 폰트 1px" — 당사자 카드
+   이름 한정 예외, DESIGN.md §2-1 기록). */
+.participant-card-cell[data-col="name"]{flex:none;width:84px;font-weight:600;font-size:calc(var(--text-md) + 1px)}
+.participant-card-cell[data-col="id"]{flex:none;width:104px}
+/* 상태 뱃지·참여 사업 묶음은 오른쪽 끝으로 민다 — 정보 칸(좌측 고정)과 축이 다르다. */
+.participant-card-meta{display:inline-flex;align-items:center;gap:var(--space-3);margin-left:auto;flex:none}
 .participant-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
-.participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none}
+/* 1행 뱃지 묶음도 오른쪽 끝 — 좌측은 고정 칸(날짜·시간)의 자리다. */
+.participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none;margin-left:auto}
 /* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
    민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
 .participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;color:var(--lavender-deep);white-space:nowrap}
@@ -138,6 +149,8 @@ details.surface-card{overflow:clip}
 /* 당사자 목록 — 찾기 칸 + 행 목록. 행은 gap 그리드에 낱개로 놓이므로 카드 계약을 쓴다
    (DESIGN.md §5 '리스트 행' — 낱개는 카드, 붙어 있으면 구분선). */
 .participant-search-layout{display:grid;gap:var(--space-5)}
+/* 찾기 칸과 목록 사이 가로선(2026-08-06 Q). 컨테이너 전폭 --line 1px. */
+.participant-search-divider{height:0;margin:0;border:0;border-top:1px solid var(--line)}
 /* 당사자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
 .participant-row-list{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
 /* 당사자 정보 허브 (D35 §3 · D36). 카드 계약(.surface-card)은 그대로 쓰고 안쪽만 정한다. */
@@ -183,6 +196,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-chevron{flex:none;width:10px;height:10px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub)}
 .wire-chevron[data-dir="down"]{transform:translateY(-3px) rotate(45deg)}
 .wire-chevron[data-dir="right"]{transform:translateX(-3px) rotate(-45deg)}
+.wire-chevron[data-dir="left"]{transform:translateX(3px) rotate(135deg)}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 .wire-card{padding:var(--space-6)}
 .wire-card-title{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
@@ -328,6 +342,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);background-size:200% auto;background-position:50% 0}
+/* 일반(neutral): 그레이 아웃라인 알약(2026-08-06 Q 위계 재편). 이동·보기 조작(뒤로,
+   시간순, 달 이동)이 쓴다. 컬러는 중요 행동의 어휘로 올라간다: 세컨더리 = 컬러 아웃라인,
+   프라이머리 = 그라데이션 면. 테두리는 --line-action(잉크 50%) — D55 가 세운 "흰 카드 위
+   1.28 테두리는 버튼으로 안 읽힌다" 기준을 그대로 잇는 값이다. 호버는 기본형과 같은
+   잉크 워시(--button-fill 변수만 바뀐다). */
+.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line-action)}
 /* 고스트: 배경·테두리 없음, --sub 글자. */
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub)}
 /* 위험: 되돌리기 어려운 행동에만. */
@@ -349,8 +369,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
   .wire-button[data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
   .wire-button[data-variant="danger"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--risk-tint-solid)}
   /* 흐름(§6·CCC-53): 그라데이션을 가진 버튼만 — 기본형은 아웃라인이, 프라이머리는 채움이 흐른다.
-     고스트·위험·비활성은 그라데이션이 없어 흐를 것이 없다. */
-  .wire-button:not([data-variant="ghost"]):not([data-variant="danger"]):not(:disabled):not([aria-disabled="true"]):hover{animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
+     일반(neutral)·고스트·위험·비활성은 그라데이션이 없어 흐를 것이 없다. */
+  .wire-button:not([data-variant="neutral"]):not([data-variant="ghost"]):not([data-variant="danger"]):not(:disabled):not([aria-disabled="true"]):hover{animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
   /* 선택·활성 카드 테두리도 같은 어휘로 흐른다. */
   .surface-card[data-selected="true"]:hover,.surface-card[aria-current="true"]:hover,.surface-card[open]:hover{background-size:200% auto;animation:motion-flow calc(var(--motion-flow-period) * 2) var(--ease-standard) infinite}
   /* 클릭해서 들어가는 카드의 호버(2026-08-03 Q — "다른 카드도 그라데이션") — 채움은
@@ -404,6 +424,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 공용 아이콘(CCC-49): 문장 속에 서면 베이스라인에 맞춰 살짝 내린다(em 비례라 크기를 따라간다).
    플렉스 줄에서는 줄어들지 않는다. */
 .wire-icon{display:inline-block;vertical-align:-0.15em;flex:none}
+/* 버튼 라벨 안 아이콘은 글자 세로 중앙에 맞춘다(2026-08-06 Q "시간순 화살표가 가운데가
+   아니다" — 본문용 -0.15em 은 버튼 16px 라벨 옆에서 0.9px 낮게 실측됐다). */
+.wire-button .wire-icon{vertical-align:-0.09em}
 /* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다. */
 .wire-meta-row{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
 /* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/600. 기본형은 색 없이 --sub 테두리로만 선다.

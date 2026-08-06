@@ -30,7 +30,8 @@ export function ScheduleCards({ cards }: { cards: ScheduleCardItem[] }) {
       {/* '고정'은 2026-07-31 Q 요청으로 뺐다. 누를 수 없는 자리표시자 버튼이 계속 보이면
           "아직 안 만든 것"이 아니라 "고장난 것"으로 읽힌다 — 기능이 실제로 생길 때 다시 넣는다. */}
       <div className="list-toolbar">
-        <WireButton onClick={() => setAscending((prev) => !prev)}>
+        {/* 정렬 토글은 보기 조작이라 일반(neutral) 그레이 알약이다(2026-08-06 Q 위계 재편). */}
+        <WireButton variant="neutral" onClick={() => setAscending((prev) => !prev)}>
           시간순 {ascending ? <Icon name="arrow-up" size={14} /> : <Icon name="arrow-down" size={14} />}
         </WireButton>
       </div>
