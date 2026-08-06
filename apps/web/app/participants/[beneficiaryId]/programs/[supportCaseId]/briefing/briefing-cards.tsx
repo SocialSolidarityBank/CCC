@@ -140,8 +140,12 @@ function OverallGoalCard({
                 aria-label="전체 목표"
                 autoFocus
               />
-              <WireButton type="submit" variant="secondary" height="sm">저장</WireButton>
-              <WireButton variant="ghost" height="sm" onClick={() => setEditing(false)}>취소</WireButton>
+              {/* 저장·취소 둘 다 버튼이고 컬러로 가른다(2026-08-06 Q): 저장 = 세컨더리
+                  (그라데이션 아웃라인), 취소 = 일반(그레이 아웃라인). 사이 간격은 8. */}
+              <span className="briefing-goal-buttons">
+                <WireButton type="submit" variant="secondary" height="sm">저장</WireButton>
+                <WireButton variant="neutral" height="sm" onClick={() => setEditing(false)}>취소</WireButton>
+              </span>
             </form>
           )
           : (
@@ -155,7 +159,7 @@ function OverallGoalCard({
                     className={isSet ? 'briefing-goal-display' : 'briefing-goal-display is-empty'}
                     onClick={() => setEditing(true)}
                   >
-                    {isSet ? overallGoal : '설정 전 — 눌러서 입력'}
+                    {isSet ? overallGoal : '설정 전 입력하세요'}
                   </button>
                 )
                 : (
@@ -173,7 +177,7 @@ function OverallGoalCard({
       </div>
       {hasError && (
         <p className="briefing-goal-error" role="alert">
-          전체 목표를 저장하지 못했습니다. 담당 실무자만 수정할 수 있습니다 — 잠시 후 다시 시도하세요.
+          전체 목표를 저장하지 못했습니다. 담당 실무자만 수정할 수 있습니다. 잠시 후 다시 시도하세요.
         </p>
       )}
     </WireCard>
@@ -314,7 +318,10 @@ export function BriefingCards({
           '대면',
         ]} />}
         actions={<>
+          {/* '전체 상담 기록'은 2026-08-06 Q 로 페이지 맨 아래(구 '자세한 상담 기록 보기')에서
+              여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다. */}
           <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
+          <WireButton className="briefing-more" href={recordsHref} variant="secondary">전체 상담 기록</WireButton>
           <WireButton href={recordNewHref} variant="primary">상담 시작</WireButton>
         </>}
       />
@@ -336,13 +343,19 @@ export function BriefingCards({
           왼쪽은 아래 카드로 건너뛰는 바로가기(2026-08-03 Q — 카드 타이틀 텍스트가 곧 링크),
           오른쪽 '전체 접기/열기'는 세컨더리 버튼이다(구 고스트 — 버튼으로 읽히게). */}
       <div className="briefing-toolbar">
+        {/* 바로가기는 계열 컬러 알약이다(2026-08-06 Q — 구 맨글자 링크. 단독 클릭 요소는 알약,
+            D58 ⑥). 계열은 D58 ④ 의미 고정을 따른다: 라벤더=AI 제안이 든 준비 카드 ·
+            블루=회차(시간 축) · 핑크=경고(불일치) · 민트=상태(남은 액션). */}
         <nav className="briefing-toolbar-anchors" aria-label="카드 바로가기">
-          <a href="#briefing-remember">오늘 만나기 전 꼭 기억할 것</a>
-          <a href="#briefing-sessions">상담 내용 회차별 정리</a>
-          <a href="#briefing-discrepancies">내용 불일치</a>
-          <a href="#briefing-actions">미해결 액션</a>
+          <a href="#briefing-remember" data-tone="lavender">오늘 만나기 전 꼭 기억할 것</a>
+          <a href="#briefing-sessions" data-tone="blue">상담 내용 회차별 정리</a>
+          <a href="#briefing-discrepancies" data-tone="risk">내용 불일치</a>
+          <a href="#briefing-actions" data-tone="mint">미해결 액션</a>
         </nav>
-        <WireButton onClick={toggleAll} variant="secondary" height="sm">
+        {/* 보기 조작이라 일반(neutral) 그레이 알약이다(2026-08-07 Q — 구 세컨더리: 컬러
+            tint 바로가기 알약과 한 무리로 읽혔다). 자리도 항상 오른쪽 끝이라 뱃지 줄과
+            축이 갈린다. */}
+        <WireButton onClick={toggleAll} variant="neutral" height="sm">
           {allOpen ? '전체 접기' : '전체 열기'}
         </WireButton>
       </div>
@@ -369,7 +382,7 @@ export function BriefingCards({
               : <WireBullets items={customQuestions} />}
           </div>
           <div className="briefing-qsection">
-            <p className="briefing-qlabel">AI 제안</p>
+            <p className="briefing-qlabel" data-tone="ai">AI 제안</p>
             {aiSuggestions.length === 0
               ? <EmptyNote>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</EmptyNote>
               : (
@@ -404,20 +417,27 @@ export function BriefingCards({
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <span className="briefing-badge is-pending">승인 대기 {pendingApprovalCount}건</span> : null}
         >
+          {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지(블루) →
+              수기 뱃지 → 핵심 한 줄. 전 항목 좌측정렬 고정 간격이고, 한 줄이 넘치는 본문은
+              줄바꿈 대신 오른쪽 끝에서 자연스럽게 사라진다(마스크 페이드). */}
           {sessionRows.length === 0
             ? <EmptyNote>표시할 상담 회차가 없습니다.</EmptyNote>
-            : <WireBullets items={sessionRows.map((row) => (
-                <MetaRow items={[
-                  formatDateOnly(row.heldAt),
-                  sessionKindLabels[row.kind],
-                  row.aiOneLiner !== null
-                    ? row.aiOneLiner
-                    : <>
-                        {row.memoExcerpt ?? '수기 메모 없음'}
-                        {row.memoExcerpt !== null && <span className="briefing-badge">수기</span>}
-                      </>,
-                ]} />
-              ))} />}
+            : (
+              <ul className="briefing-session-rows">
+                {sessionRows.map((row) => (
+                  <li key={row.sessionId} className="briefing-session-row">
+                    <span className="briefing-session-date">{formatDateOnly(row.heldAt)}</span>
+                    <span className="wire-badge" data-tone="blue">{sessionKindLabels[row.kind]}</span>
+                    {row.aiOneLiner === null && row.memoExcerpt !== null && (
+                      <span className="briefing-badge">수기</span>
+                    )}
+                    <span className="briefing-session-text wire-fade-clip">
+                      {row.aiOneLiner ?? row.memoExcerpt ?? '수기 메모 없음'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
         </Card>
 
         {/* 영역 ③ 내용 불일치 (D45 · CCC-43 · CCC-42) — 기록 공식화 시점에 검출·저장된 결과.
@@ -433,7 +453,7 @@ export function BriefingCards({
             : null}
         >
           {unresolvedDiscrepancies.length === 0
-            ? <EmptyNote>검출된 불일치가 없습니다 — 기록이 저장·승인될 때마다 자동으로 대조합니다.</EmptyNote>
+            ? <EmptyNote>검출된 불일치가 없습니다. 기록이 저장·승인될 때마다 자동으로 대조합니다.</EmptyNote>
             : unresolvedDiscrepancies.map((item) => (
               <DiscrepancyItem
                 key={item.id}
@@ -446,7 +466,7 @@ export function BriefingCards({
             ))}
           {discrepancyError && (
             <p className="briefing-goal-error" role="alert">
-              처리하지 못했습니다. 담당 실무자와 기관 관리자만 처리할 수 있습니다 — 잠시 후 다시 시도하세요.
+              처리하지 못했습니다. 담당 실무자와 기관 관리자만 처리할 수 있습니다. 잠시 후 다시 시도하세요.
             </p>
           )}
           {resolvedDiscrepancies.length > 0 && (
@@ -470,20 +490,30 @@ export function BriefingCards({
             당사자 정보 화면의 HERO(이름 클릭)에서 본다. 표준 그리드는 유지(D37). */}
         <div className="briefing-cards-grid">
           <Card id="briefing-actions" title="미해결 액션">
+            {/* 액션 행(2026-08-06 Q): 내용은 왼쪽, 오른쪽 끝은 뱃지 둘 — 담당(민트 =
+                사람·담당 축)과 기한(블루 = 일정 축, D58 ④). '담당 실무자/당사자/기관'은
+                이 액션을 해 오기로 한 주체다(action_items.owner). */}
             {openActionItems.length === 0
               ? <EmptyNote>미해결 항목이 없습니다.</EmptyNote>
-              : <WireBullets items={openActionItems.map((item) => (
-                  <MetaRow items={[item.description, item.dueDate === null ? null : `기한 ${item.dueDate}`, `담당 ${actionOwnerLabels[item.owner]}`]} />
-                ))} />}
+              : (
+                <ul className="briefing-action-rows">
+                  {openActionItems.map((item) => (
+                    <li key={item.id} className="briefing-action-row">
+                      <span className="briefing-action-desc">{item.description}</span>
+                      <span className="wire-badge" data-tone="mint">담당 {actionOwnerLabels[item.owner]}</span>
+                      {item.dueDate !== null && (
+                        <span className="wire-badge" data-tone="blue">기한 {item.dueDate}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
           </Card>
         </div>
       </div>
 
-      {/* 브리핑 이어보기 — 별개 화면이 아니라 이 브리핑의 아래쪽 끝이다(D37 · 시안 §19).
-          단독 이동 링크라 알약이다(D58/CCC-51 — 구 카드형). 클래스는 테스트·CSS 계약용. */}
-      <WireButton className="briefing-more" variant="secondary" href={recordsHref} chevron>
-        자세한 상담 기록 보기
-      </WireButton>
+      {/* 맨 아래 '자세한 상담 기록 보기'는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
+          HERO 행동 줄(당사자 정보 옆)로 올라갔다. */}
     </div>
   );
 }

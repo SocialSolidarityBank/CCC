@@ -1,5 +1,4 @@
 import { MetaRow } from '../../../../../components/wire/meta-row';
-import { Chevron } from '../../../../../components/wire/chevron';
 import { Icon } from '../../../../../components/wire/wire-icon';
 import { WireCard } from '../../../../../components/wire/wire-card';
 import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
@@ -85,6 +84,12 @@ export function formatDateOnly(value: string): string {
   return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(date);
 }
 
+/** 접힌 줄의 날짜 — 브리핑 회차 행과 같은 YYYY-MM-DD(held_at ISO 앞 10자, 시간대 변환 없음). */
+function isoDateOnly(value: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  return match?.[1] ?? value;
+}
+
 /**
  * 한 회차. 접힌 줄(summary)과 펼친 본문이 같은 요소라 두 상태에서 자리가 안 흔들린다.
  * `id` 는 브리핑 앵커(`#record-{회차ID}`)의 목적지다 — 바뀌면 브리핑 링크가 조용히 끊긴다.
@@ -106,12 +111,13 @@ export function RecordCard({
   const hasConfirmedFlag = record.flags.some((flag) => flag.reviewStatus === 'confirmed');
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
+    {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지(세로선으로 읽혔다). 날짜는 브리핑 회차 행과 같은
+        YYYY-MM-DD 다 — 폭이 일정해 고정 칸 좌측 정렬이 성립한다. 넘침은 공용 .wire-fade-clip. */}
     <summary className="record-summary">
-      <span className="record-chevron" aria-hidden="true"><Chevron dir="right" /></span>
       <span className="record-ordinal">{ordinal}회차</span>
-      <span className="record-held-at">{formatDateOnly(record.heldAt)}</span>
+      <span className="record-held-at">{isoDateOnly(record.heldAt)}</span>
       <span className="record-kind">{sessionKindLabel(record.kind)}</span>
-      <span className={record.aiOneLiner === null ? 'record-one-liner is-memo' : 'record-one-liner'}>
+      <span className={record.aiOneLiner === null ? 'record-one-liner wire-fade-clip is-memo' : 'record-one-liner wire-fade-clip'}>
         {oneLiner ?? '핵심 한 줄이 아직 없습니다'}
       </span>
       <span className="record-summary-right">

@@ -940,6 +940,8 @@ function participantProgramResponse(
     // 동의 시각이 아니라 **기록 시각**이다 — 3종을 모두 철회하면 동의 시각은 전부 NULL 이라
     // 방금 남긴 철회 기록이 "기록 없음"으로 보인다. 값은 append-only 이력에서 온다.
     consentRecordedAt: entry.consentRecordedAt,
+    // 허브 '최신 일정' 카드(2026-08-06 Q). 담당 사업에만 실리고 비담당은 null 이다(D36).
+    upcomingSchedule: entry.upcomingSchedule,
   };
 }
 

@@ -1970,6 +1970,8 @@ describe('canonical participant API routes', () => {
       // 보낸다) privacy 만 true 이고, 기록 시각은 그 등록 시점이다.
       consent: { privacy: true, recordingAi: false },
       consentRecordedAt: expect.any(String),
+      // 허브 '최신 일정' 카드(2026-08-06 Q). 이 픽스처에는 예정 일정이 없어 null 이다.
+      upcomingSchedule: null,
     }]);
 
     const briefing = await worker.fetch(new Request(

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError, getMonthSchedules, type TodaySchedule } from '../../../../lib/api';
 import { GridContainer } from '../../../../components/wire/grid-container';
@@ -121,6 +122,11 @@ export default async function ProgramScheduleAllPage({
   const requested = typeof query.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(query.month)
     ? query.month
     : undefined;
+  // 월 내비 시안 비교용 임시 스위치(2026-08-06 Q): 기본 = ① 알약 하나, ?nav=2 = ② 달 라벨
+  // 반전. 확정되면 스위치와 진 시안을 걷어낸다.
+  const navVariant = query.nav === '2' ? 'inverse' : 'pill';
+  const monthHref = (month: string, delta: number) =>
+    `/programs/${programType}/schedule/all?month=${shiftMonth(month, delta)}${navVariant === 'inverse' ? '&nav=2' : ''}`;
 
   const frame = (month: string | null, body: ReactNode) => (
     <main className="page-content">
@@ -131,15 +137,31 @@ export default async function ProgramScheduleAllPage({
             <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>
           </div>
         </div>
-        {month !== null && (
-          <div className="month-nav">
-            {/* 달 이동은 일반(neutral) 그레이 알약이다(2026-08-06 Q 위계 재편). 꺽쇠는
-                문자 글리프(‹›, §7 락 5 위반 잔재)를 걷어내고 카드와 같은 부품을 단다. */}
-            <WireButton variant="neutral" chevron="left" href={`/programs/${programType}/schedule/all?month=${shiftMonth(month, -1)}`}>
+        {month !== null && navVariant === 'pill' && (
+          // 시안 ①: 세 조각이 알약 하나에 든다. 꺽쇠는 당사자 카드와 같은 부품(.wire-chevron).
+          <div className="month-nav" data-variant="pill">
+            <div className="month-nav-group">
+              <Link className="month-nav-seg" href={monthHref(month, -1)}>
+                <span aria-hidden="true" className="wire-chevron" data-dir="left" />
+                이전 달
+              </Link>
+              <span className="month-nav-label" aria-live="polite"><span>{formatMonthLabel(month)}</span></span>
+              <Link className="month-nav-seg" href={monthHref(month, 1)}>
+                다음 달
+                <span aria-hidden="true" className="wire-chevron" data-dir="right" />
+              </Link>
+            </div>
+          </div>
+        )}
+        {month !== null && navVariant === 'inverse' && (
+          // 시안 ②: 달 이동은 일반(neutral) 그레이 알약(2026-08-06 Q 위계 재편), 달 라벨만
+          // 반전(어두운 면 + 그라데이션 글자, 다크는 반대 — layout.tsx 규칙).
+          <div className="month-nav" data-variant="inverse">
+            <WireButton variant="neutral" chevron="left" href={monthHref(month, -1)}>
               이전 달
             </WireButton>
-            <span className="month-nav-label" aria-live="polite">{formatMonthLabel(month)}</span>
-            <WireButton variant="neutral" chevron="right" href={`/programs/${programType}/schedule/all?month=${shiftMonth(month, 1)}`}>
+            <span className="month-nav-label" aria-live="polite"><span>{formatMonthLabel(month)}</span></span>
+            <WireButton variant="neutral" chevron="right" href={monthHref(month, 1)}>
               다음 달
             </WireButton>
           </div>

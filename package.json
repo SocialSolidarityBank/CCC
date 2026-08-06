@@ -14,6 +14,7 @@
     "guard:db": "node scripts/guard-db-gateway.mjs",
     "guard:doc-numbers": "node scripts/guard-doc-numbers.mjs",
     "guard:tokens": "node scripts/design/token-audit.mjs",
+    "guard:align": "node scripts/design/align-audit.mjs",
     "design:contrast": "node scripts/design/contrast.mjs",
     "guard:secrets": "node scripts/guard-secrets.mjs",
     "guard:secrets:history": "node scripts/guard-secrets.mjs --history",
