@@ -13,6 +13,8 @@ import { Chevron } from './chevron';
 //  - 상태(진행 중·종결)는 뱃지, 참여 사업 N개는 컬러 글자(라벤더 deep — 정보 3색 배분).
 //  - 가명 ID 는 카드 정보 표시로 복귀했다(2026-08-06 Q — D59 ② "화면 미표시" 부분 재개정).
 //  - 당사자 목록 카드는 오른쪽 끝 화살표(>)가 상세(허브)로 가는 길임을 알린다.
+//    화살표는 행 밖(카드 직속)이다. 행의 flex-wrap 에 넣으면 칸이 빠듯할 때 화살표만
+//    둘째 줄로 떨어져 홀로 매달린다(2026-08-06 실측, dolphin-001 카드).
 
 export interface ParticipantCardSchedule {
   /** "8월 7일 (금)" */
@@ -54,7 +56,7 @@ export function ParticipantCard({
 }: ParticipantCardProps) {
   return (
     <Link className="participant-card-link" href={href}>
-      <article className="surface-card participant-card">
+      <article className="surface-card participant-card" data-chevron={chevron === true ? 'true' : undefined}>
         {schedule !== undefined && (
           <>
             <div className="participant-card-row">
@@ -86,8 +88,8 @@ export function ParticipantCard({
           {programCount !== undefined && (
             <span className="participant-card-programs">참여 사업 {programCount}개</span>
           )}
-          {chevron === true && <Chevron dir="right" />}
         </div>
+        {chevron === true && <Chevron dir="right" />}
       </article>
     </Link>
   );

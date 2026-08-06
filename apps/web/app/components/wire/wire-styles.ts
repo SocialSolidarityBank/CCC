@@ -39,8 +39,10 @@ export const wireStyles = `
    펴고(space-between), 세로는 가운데 정렬이다. 행 구분선은 회색 --line 이고 카드
    아웃라인까지 가로지른다(패딩만큼 음수 마진). */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
-.participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
-.participant-card-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3) var(--space-4);flex-wrap:wrap;min-height:var(--badge-height)}
+.participant-card{position:relative;display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
+/* 최소 틈은 12(여백 3단 ③)다. space-between 이라 여유가 있으면 고르게 퍼지고, 이 값은
+   빠듯할 때 접히기 전 하한이다. 16이면 표준 2열(칸 438)에서 당사자 카드가 9px 모자라 접힌다. */
+.participant-card-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
 .participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;color:var(--ink);overflow-wrap:anywhere}
 .participant-card-cell[data-tone="sub"]{color:var(--sub)}
 .participant-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
@@ -48,7 +50,11 @@ export const wireStyles = `
 /* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
    민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
 .participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;color:var(--lavender-deep);white-space:nowrap}
-.participant-card .wire-chevron{flex:none}
+/* 상세 화살표는 행 밖, 카드 오른쪽 끝 고정이다. 행의 flex-wrap 안에 두면 칸이 빠듯할 때
+   화살표만 둘째 줄로 떨어진다. 카드가 자리(패딩)를 내주고 화살표는 세로 중앙에 선다. */
+/* optical: 10px 는 간격이 아니라 .wire-chevron 글리프 폭이다(패딩 24 + 화살표 10 + 틈 16) */
+.participant-card[data-chevron="true"]{padding-right:calc(var(--space-6) + 10px + var(--space-4))}
+.participant-card>.wire-chevron{position:absolute;top:calc(50% - 5px);right:var(--space-6)}
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
@@ -304,9 +310,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    (잉크 50%)** 으로 올린다(2026-07-31). 흰 카드 위에서 1.28 짜리 테두리는 사실상 안 보여
    버튼이 버튼으로 읽히지 않았다 — 입력칸은 라벨이 형태를 알려 주지만(§9 완화) 버튼에는
    그 장치가 없다. 새 색이 아니라 프라이머리가 이미 쓰던 토큰이다.
-   그래서 **일반 버튼과 강조 버튼의 구분이 테두리 굵기가 아니라 면과 깊이로 옮겨간다**:
-   테두리는 둘이 같고, 프라이머리만 그라데이션 면과 그림자를 갖는다. 두 버튼이 나란히
-   설 때 눌러야 할 쪽이 뜨는 것은 이 대비이지 테두리 진하기가 아니다. */
+   그래서 **일반 버튼과 강조 버튼의 구분이 테두리 굵기가 아니라 면으로 옮겨간다**:
+   테두리는 둘이 같고, 프라이머리만 그라데이션 면을 갖는다(그림자는 2026-08-06 D60 후속으로
+   폐지. 본문 흐름의 그림자는 떠 있는 층 몫이다). 두 버튼이 나란히 설 때 눌러야 할 쪽이
+   뜨는 것은 이 면 대비이지 테두리 진하기가 아니다. */
 /* 정렬 기본은 **가운데**다(2026-08-02 D58/CCC-50 — 구 왼쪽 기본은 버그, DESIGN.md §5).
    왼쪽·양끝 정렬은 data-justify 명시 옵션으로만 쓴다.
    세컨더리(기본형) 테두리는 **--gradient-brand 1px 아웃라인**이다(2026-08-02 D58/CCC-51 —
@@ -317,12 +324,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    기하 정렬(flex 상하좌우 center + 기본 행간)이 만든다(구 --leading-none 대체). */
 .wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-md);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
 .wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
-/* 프라이머리: --gradient-action 배경 + --line-action 1px + --shadow-soft. */
-.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);box-shadow:var(--shadow-soft);background-size:200% auto;background-position:50% 0}
+/* 프라이머리: --gradient-action 배경 + --line-on-action 1px. 그림자는 없다(2026-08-06,
+   ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
+   일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
+.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);background-size:200% auto;background-position:50% 0}
 /* 고스트: 배경·테두리 없음, --sub 글자. */
-.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);box-shadow:none}
+.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub)}
 /* 위험: 되돌리기 어려운 행동에만. */
-.wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk);box-shadow:none}
+.wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk)}
 .wire-button[data-justify="center"]{justify-content:center}
 .wire-button[data-justify="left"]{justify-content:flex-start;text-align:left}
 .wire-button[data-justify="between"]{justify-content:space-between;text-align:left}
@@ -364,7 +373,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
   }
 }
 .wire-button:not(:disabled):not([aria-disabled="true"]):active{transform:translateY(1px)}
-.wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);box-shadow:none;cursor:not-allowed}
+.wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);cursor:not-allowed}
 .wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{border-color:var(--sub)}
 .wire-button .wire-chevron{border-color:currentColor}
 /* 한글 광학 보정(tokens.css --nudge-hangul) — 고정 높이 단일행 컨트롤의 텍스트만 내린다. */
