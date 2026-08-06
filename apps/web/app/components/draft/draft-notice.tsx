@@ -1,29 +1,13 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { WireButton } from '../wire/wire-button';
+import { WireCard } from '../wire/wire-card';
 import { draftRetentionLabel } from '../../lib/form-draft';
 
 // 로컬 임시본(CCC-12)의 화면 2종. 인테이크 위저드와 정기 기록지가 같은 것을 쓴다.
-// 새 색을 만들지 않는다 — 자동 저장은 시간·상태 축이라 블루 계열이다(D34 · DESIGN.md §1-5).
-
-const noticeStyle: CSSProperties = {
-  display: 'grid', gap: 12, padding: 16,
-  background: 'var(--blue-tint)', border: '1px solid var(--line)',
-  borderRadius: 'var(--radius-card)',
-};
-
-// 배너 면만 블루 tint 로 두고 글자는 --ink 다. --blue-deep 은 tint 위 2.11 이라 제목에 쓰면
-// DESIGN.md §9 의 접근성 예외가 하나 늘어난다 — 새 예외를 만들지 않는다.
-const titleStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' };
-const bodyStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
-const actionsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
-const statusStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
-
-const buttonStyle: CSSProperties = {
-  minHeight: 32, padding: '0 14px', borderRadius: 'var(--radius-control)',
-  border: '1px solid var(--line-control)', background: 'var(--panel)',
-  color: 'var(--ink)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-};
+// 안내줄은 카드다(D59 ② · 2026-08-05 컴포넌트화 — 구 인라인 스타일 손 카드 대체).
+// 새 색을 만들지 않는다 — 자동 저장은 시간·상태 축이라 블루 tint(WireCard tone="info")다
+// (D34 · DESIGN.md §1-5). 버튼도 킷(WireButton)으로 통일했다.
 
 function clockLabel(savedAt: number): string {
   return new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit' }).format(new Date(savedAt));
@@ -47,23 +31,22 @@ export function DraftRestorePrompt({
   onDiscard: () => void;
 }) {
   return (
-    <section style={noticeStyle} role="status" data-testid="draft-restore-prompt" aria-labelledby="draft-restore-title">
-      <p id="draft-restore-title" style={titleStyle}>
+    <WireCard as="section" tone="info" role="status" testId="draft-restore-prompt" labelledBy="draft-restore-title">
+      <p id="draft-restore-title" className="notice-title">
         {uncertain ? '저장 여부를 확인하지 못한 기록이 있습니다' : '작성하던 기록이 있습니다'}
       </p>
-      <p style={bodyStyle}>
+      <p className="notice-desc">
         {uncertain
           ? `${clockLabel(savedAt)}에 저장을 시도한 내용이 이 브라우저에 남아 있습니다. 기록이 이미 저장됐다면 새로 시작하고, 저장되지 않았다면 이어서 쓰세요.`
           : `이 브라우저에 ${clockLabel(savedAt)}까지 입력한 내용이 남아 있습니다. 이어서 쓰거나 새로 시작할 수 있습니다.`}
       </p>
-      <div style={actionsStyle}>
-        {/* 파스텔은 면·테두리로만 쓴다 — --blue-deep 을 흰 위 글자로 쓰면 2.47 이라 §9 예외가 하나 늘어난다. */}
-        <button type="button" onClick={onResume} style={{ ...buttonStyle, border: '1.5px solid var(--blue)' }}>
-          이어쓰기
-        </button>
-        <button type="button" onClick={onDiscard} style={buttonStyle}>새로 시작</button>
+      <div className="notice-actions">
+        {/* 이어쓰기가 우선 행동이라 세컨더리(그라데이션 아웃라인), 새로 시작은 고스트다 —
+            프라이머리는 화면 주 행동(HERO·폼 제출) 몫이라 안내줄에서는 쓰지 않는다(§4-5). */}
+        <WireButton variant="secondary" height="sm" onClick={onResume}>이어쓰기</WireButton>
+        <WireButton variant="ghost" height="sm" onClick={onDiscard}>새로 시작</WireButton>
       </div>
-    </section>
+    </WireCard>
   );
 }
 
@@ -77,7 +60,7 @@ export function DraftStatus({ savedAt, available }: { savedAt: number | null; av
     : savedAt === null
       ? '자동 저장 대기'
       : `자동 저장됨 ${clockLabel(savedAt)}`;
-  return <p style={statusStyle} role="status" aria-live="polite" data-testid="draft-status">{text}</p>;
+  return <p className="notice-status" role="status" aria-live="polite" data-testid="draft-status">{text}</p>;
 }
 
 /** 임시본을 어디에 얼마나 두는지 입력칸 옆에서 밝힌다. 화면 문구와 보관 규율을 한 곳에서 맞춘다. */

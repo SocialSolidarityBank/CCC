@@ -108,11 +108,11 @@ button,input,select,textarea{font:inherit}
    좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
    알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다. */
 .navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
-/* 테두리 1px 은 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 2px 자라
-   글자가 상태 전환마다 1px 씩 튄다. */
+/* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
+   전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
 /* 높이는 '뒤로' 알약과 같은 32 다(2026-08-06 Q — 구 40. 첫 메뉴 윗변 = 뒤로 윗변(76)
    계약과 짝: 높이까지 같아야 두 크롬이 한 리듬으로 읽힌다). */
-.navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
+.navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -122,8 +122,12 @@ button,input,select,textarea{font:inherit}
      16px 라인 아이콘은 획이 끊겨 보인다. */
   .navigation-link:not([data-current="true"]):hover{background:var(--ink);color:var(--panel)}
   .navigation-link:not([data-current="true"]):hover>span:not(.navigation-soon){background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
-  /* 다크에서는 --ink 가 밝은 색이라 뒤집힌다 — 어두운 면은 --canvas 가, 아이콘은 --ink 가 맡는다. */
-  [data-theme="dark"] .navigation-link:not([data-current="true"]):hover{background:var(--canvas);color:var(--ink)}
+  /* 다크는 **색 반전**이다(2026-08-05 Q · ADR-0030 호버 테마 규칙): 라이트가 "어두운 면 +
+     그라데이션 글자"라면 다크는 "그라데이션 면 + 어두운 글자". 글자·아이콘은 --on-action
+     (두 테마 공통의 어두운 잉크)이다 — 다크의 --ink 는 밝은 색이라 그라데이션 위에서 안 읽힌다.
+     (구 규칙은 --canvas 면 + --ink 글자 — 그라데이션이 사라져 라이트와 어휘가 갈렸다.) */
+  [data-theme="dark"] .navigation-link:not([data-current="true"]):hover{background:var(--gradient-brand);color:var(--on-action)}
+  [data-theme="dark"] .navigation-link:not([data-current="true"]):hover>span:not(.navigation-soon){background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--on-action)}
   /* 활성 항목 위에서는 활성 표시가 이겨야 한다 — 호버가 덮으면 "지금 어디인지"가 사라진다. */
   .navigation-link[data-current="true"]:hover{background:linear-gradient(var(--blue-tint),var(--blue-tint)) padding-box,var(--gradient-brand) border-box;color:var(--ink)}
 }
@@ -253,20 +257,20 @@ button,input,select,textarea{font:inherit}
    min-width:0 이 필요하다 — 그리드 아이템의 기본 min-width:auto 때문에 내용이 넓으면
    본문 열이 트랙을 넘어 사이드바를 밀어낸다(표·코드 블록에서 실제로 난다). */
 .content-column{display:flex;flex-direction:column;min-width:0}
-/* 뒤로 알약은 **사이드바 쪽 고정**이다(2026-08-05 Q — 구 2026-08-04 '가운데 컨테이너 정렬 +
-   본문 열 전체 가로선(높이 72 연속)' 계약 대체). 헤더 신설로 사이드바 상단 기하(기관명 중심
-   36 · 구분선 72)가 사라져 선을 이을 대상이 없고, 알약은 컨테이너가 아니라 사이드바 안쪽선
-   (24)에 붙는다 — 프레임 크롬이라 본문 제목과 왼쪽 끝을 맞추지 않는다(같은 날 Q 확인:
-   본문은 가운데 정렬 유지). 뒤로가 안 그려지는 화면(히스토리 없음)은 이 줄이 0 높이다. */
+/* 뒤로 알약은 **본문 컨테이너와 같은 좌측선**에 선다(2026-08-06 Q "뒤로, 제목, 시간순,
+   카드까지 좌측정렬" — 구 2026-08-05 '사이드바 안쪽선 24 고정·프레임 크롬' 대체).
+   컨테이너 기하(.page-content 와 같은 장폭·auto 마진·좌우 패딩)를 그대로 받아, 알약의
+   왼쪽 끝 = 페이지 제목·툴바·카드의 왼쪽 끝이다.
+   뒤로가 안 그려지는 화면(히스토리 없음)은 이 줄이 0 높이다. */
 .page-backbar{padding:0}
-.page-backbar:has(.page-back){padding:var(--space-5) var(--space-6) 0}
+.page-backbar:has(.page-back){width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--space-5) var(--page-pad-x) 0}
 /* 뒤로 알약이 있으면 본문 위 여백은 40 대신 24 — 알약 줄이 이미 20 을 벌렸다. */
 .page-backbar:has(.page-back)+.page-content{padding-top:var(--space-6)}
-/* 고스트 버튼 계약(§5): 배경·테두리 없음, --sub 글자. 되돌리기는 주 행동이 아니다. */
-/* 뒤로가기도 알약 버튼이다(2026-08-04 Q — 구 투명 텍스트 대체). 단독 클릭 요소는 전부
-   알약(D58 ⑥)이라 세컨더리 sm 과 같은 옷을 입는다 — 그라데이션 1px 테두리 + --panel 채움.
+/* 뒤로가기도 알약 버튼이다(2026-08-04 Q — 구 투명 텍스트 대체). 옷은 **일반(neutral)**
+   그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
+   그레이, 컬러는 중요 행동만). 화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
    --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line-action);border-radius:var(--radius-pill);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 /* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -283,17 +287,8 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
    고쳐야 하는지가 매번 판단거리였다. 무해한 죽은 코드가 아니라 **드리프트의 저장고**다.
    앱은 전부 WireButton 을 쓴다(components/wire/wire-button.tsx). */
 /* 입력칸(§5): 높이 40 · radius 6 · --line-control 1px. 라벨은 항상 위에 둔다. */
-/* 레거시 화면의 떠 있는 표면들도 카드 계약을 쓴다(§5). 기본 테두리는 **회색 --line** 이고,
-   그라데이션 테두리는 선택·활성일 때만 쓴다(2026-07-26 Q 지적 · pen 실측). 채움은
-   --surface-fill 로만 바꾼다 — 선택 상태는 배경 2겹이라 background 를 통째로 덮으면 테두리가 날아간다. */
-.panel,.schedule-form{
-  --surface-fill:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius-card);
-  background:var(--surface-fill);
-  box-shadow:var(--shadow-soft);
-  color:var(--ink);
-}
+/* 레거시 화면의 카드 표면(.panel·.schedule-form)도 마크업의 .surface-card 로 계약을 받는다
+   (2026-08-05 컴포넌트화 — 구 계약 CSS 복사 5줄 삭제). 여기는 패딩·배치만 남는다. */
 .panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다.
    2026-08-05 Q 재규정: 배지는 tint 배경으로 계열을 구분하고 글자는 전부 --ink 로 통일,
@@ -423,15 +418,15 @@ const briefingStyles = `
   border:1.5px solid var(--risk);
   border-radius:var(--radius-card);
   background:var(--risk-tint-solid);
-  box-shadow:var(--shadow-soft);
   color:var(--ink);
 }
 .risk-banner-head{display:flex;align-items:center;gap:var(--space-2)}
 .risk-banner-icon{flex:none;width:18px;height:18px;color:var(--risk)}
 .risk-banner-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--risk)}
-/* 항목은 흰 배경 행(radius 6 · --shadow-soft)에 체크박스 + 16/700 --ink. */
+/* 항목은 흰 배경 행(radius 6 · --line 1px)에 체크박스 + 16/700 --ink.
+   그림자는 아웃라인으로 대체됐다(2026-08-05 Q · ADR-0030 — 본문 카드는 선이 경계를 만든다). */
 .risk-banner-list{margin:var(--space-3) 0 0;padding:0;display:grid;gap:var(--space-2);list-style:none}
-.risk-banner-list li{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--panel);box-shadow:var(--shadow-soft);color:var(--ink);font-size:var(--text-md);font-weight:600}
+.risk-banner-list li{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600}
 .risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:600;font-size:var(--text-sm)}
 /* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
    1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
@@ -440,20 +435,11 @@ const briefingStyles = `
    JS 로 높이를 재서 박지 않는다 — 접으면 행이 실제로 줄어든다. */
 .briefing-cards-grid>.briefing-card{align-self:start}
 .briefing-cards-grid>.briefing-card[open]{align-self:stretch}
-/* 브리핑 3영역·미해결 액션 = **플랫 구획**이다(D59 · 2026-08-04 — 구 카드 계약 대체).
-   읽기만 하는 구획은 캔버스에 직접 얹고 제목 + 브랜드 1px 구분선 + 여백으로 선다 —
-   카드(흰 상자)는 클릭·집어 드는 단위와 강조 컨테이너(HERO·리스크 배너·폼)만 쓴다.
-   접힘(details)은 유지된다 — 형태만 바뀌고 전체 접기·앵커는 그대로다. */
-.briefing-card{color:var(--ink)}
-/* 구획 제목 줄. 구분선을 제목(summary)에 붙여 접혀 있어도 구획 리듬이 남는다. */
-.briefing-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-2) 0 var(--space-3);background:var(--gradient-brand) bottom/100% 1px no-repeat;font-size:var(--text-lg);font-weight:600;cursor:pointer;list-style:none}
-.briefing-card-summary::-webkit-details-marker{display:none}
+/* 브리핑 3영역·미해결 액션 = **접힘 카드**다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59
+   플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
+   여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
+   접힘(details)은 유지된다 — 전체 접기·앵커는 그대로다. */
 .briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .15s ease}
-/* 자식 결합자(>)로 두면 GAS 요약처럼 화살표를 배지와 함께 감싼 경우 회전이 안 먹어
-   펼쳐져 있는데 화살표만 닫힌 모양으로 남는다(2026-07-27 렌더에서 확인). */
-.briefing-card[open]>.briefing-card-summary .briefing-card-arrow{transform:rotate(45deg)}
-/* 구분선은 제목(summary) 쪽이 갖는다 — 본문은 여백만. */
-.briefing-card-body{display:grid;gap:var(--space-3);padding:var(--space-4) 0 var(--space-2)}
 .briefing-fields{display:grid;gap:var(--space-2-5)}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
@@ -463,19 +449,13 @@ const briefingStyles = `
    그리드의 gap 이 이미 준다(§4-6 규칙 3: 화면에서 margin 으로 띄우지 않는다). */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
-/* HERO 도 카드다(§4-5) — 화면의 모든 글자가 카드 안에 있고 예외는 섹션 제목뿐이다. */
-.briefing-hero{padding:var(--space-6);gap:var(--space-5)}
-.briefing-hero-identity{display:grid;gap:var(--space-2);min-width:0}
-.briefing-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
-/* '상담 준비' 상태 태그는 .participant-hero-stage(wire-styles) 를 단다 — 구 .is-stage 알약은
-   2026-08-05 삭제: 같은 태그가 이 화면에서만 옷(pill·tint 채움)이 달랐다(§5 는 컨트롤). */
-.briefing-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
+/* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화 — 구 .briefing-hero
+   손 마크업·전용 CSS 삭제. 상태 태그도 부품의 participant-hero-stage 계약을 따른다 —
+   트랙 C(PR #61)의 .is-stage 폐지와 같은 결론이라 리베이스에서 컴포넌트 쪽으로 합쳤다). */
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
-/* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
-.briefing-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
-/* 전체 목표(D45 · CCC-41 · D59 플랫화) — 카드가 아니라 캔버스 위 한 줄이다.
-   수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가 알린다. 점수·게이지 자리는 없다(D43). */
-.briefing-goal{display:grid;gap:var(--space-2);padding:0}
+/* 전체 목표(D45 · CCC-41) — 카드다(2026-08-05 카드화 · ADR-0030, 구 D59 플랫 대체).
+   카드 모양은 WireCard 가 갖고, 수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가
+   알린다. 점수·게이지 자리는 없다(D43). */
 .briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
 .briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
@@ -545,6 +525,8 @@ const briefingStyles = `
    남는 자리는 카드 안쪽 구분선뿐이다). */
 .record-body{border-top:1px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-brand) border-box;display:grid;gap:var(--space-5);padding:var(--space-5) var(--space-6)}
 .record-block{display:grid;gap:var(--space-2)}
+/* '기록 오류' 흔적 — 카드 안 상자였던 .note 를 플랫 한 줄로(2026-08-05 · 카드 안 카드 금지). */
+.record-error-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .record-block>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-block>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap}
 .record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
@@ -565,7 +547,8 @@ const briefingStyles = `
 .record-flag[data-confirmed="true"]{color:var(--risk)}
 .record-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-4);border-top:1px solid var(--line);padding:var(--space-3) var(--space-6);font-size:var(--text-sm);color:var(--sub)}
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
-.record-goal{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;padding:var(--space-4) var(--space-6)}
+/* 전체 목표 — 카드 모양은 WireCard 가 갖고(2026-08-05 컴포넌트화), 여기는 안쪽 한 줄 배치만. */
+.record-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
 .record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
@@ -586,10 +569,10 @@ const settingsStyles = `
    .sidebar{position:relative} 가 뒤 문자열에 있어 드로어의 position:fixed 를 덮었고,
    그래서 768 미만에서 드로어가 화면 높이를 못 채우고 내용 높이(531px)로 떠 있었다.
    (주석에 백틱을 쓰지 않는 이유는 이 CSS 가 템플릿 리터럴이기 때문이다 — 쓰면 앱 전체가 500 이다.) */
-.settings-page{display:grid;gap:var(--space-8)}
-/* 설정 구획은 플랫이다(D59) — 읽기 구획이라 카드가 아니라 제목 + 구분선 + 여백으로 선다. */
-.settings-section{display:grid;gap:var(--space-4);padding:0;color:var(--ink)}
-.settings-section>h2{font-size:var(--text-lg);padding-bottom:var(--space-3);background:var(--gradient-brand) bottom/100% 1px no-repeat}
+/* 페이지 스택 간격은 여백 3단 ①(24, ADR-0030)을 따른다 — 구 32 를 24 로 모았다. */
+.settings-page{display:grid;gap:var(--section-gap)}
+/* 설정 구획은 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체). 카드 모양·제목
+   구분선은 WireCard 가 갖고, .settings-section 은 훅으로만 남는다. */
 .settings-account{display:grid;gap:var(--space-4);margin:0}
 .settings-field{display:grid;gap:var(--space-1)}
 /* 사람 정보 라벨은 민트 계열. */
@@ -631,40 +614,22 @@ const scheduleStyles = `
 // 같은 것을 두 화면에서 다르게 그리지 않기 위해서다. 새 색·새 반경은 없다.
 const monthScheduleStyles = `
 /* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
+/* 월 이동 줄(2026-08-06 Q 개정): 버튼은 일반(neutral) 그레이 아웃라인, 꺽쇠는 당사자
+   카드와 같은 부품(.wire-chevron)을 버튼 안 크기(8)로, 글자와 꺽쇠 사이는 12 로 벌린다.
+   달 라벨도 같은 알약 옷을 입어 줄의 균형을 맞춘다 — 누르는 것이 아니라 호버·커서가 없다. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
-.month-nav-label{min-width:9ch;font-size:var(--text-md);font-weight:600;color:var(--ink);text-align:center}
-/* 하루 묶음. 날짜 제목 + 그 아래 붙은 행들 — 행이 붙어 있으므로 카드 계약이 아니라
-   행 사이 1px --line 구분선을 쓴다(DESIGN.md §5 '리스트 행'의 맥락 규칙). */
-.month-day{display:grid;gap:var(--space-3)}
-.month-day-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.month-day-title[data-today="true"]{color:var(--blue-deep)}
-/* 날짜 묶음은 플랫이다(D59) — 행은 캔버스에 직접 얹고 사이는 구분선만. 행 자체가
-   클릭 단위지만 붙어 있는 행이므로 카드가 아니라 구분선 계약이다(§5 리스트 행 맥락 규칙). */
-.month-rows{display:grid}
-.month-rows>*+*{border-top:1px solid var(--line)}
-.month-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-3);color:inherit;text-decoration:none}
-/* 호버는 리스트 행과 같은 그라데이션 채움이다(2026-08-03 Q — 구 --muted 단색). */
-@media (hover:hover){.month-row:hover{background:var(--gradient-hover)}}
-.month-row:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
-/* 시간은 고정폭으로 세로 정렬을 맞춘다(§5 리스트 행: 시간 16/700 고정폭 → 이름 묶음). */
-.month-row-time{flex:none;min-width:6ch;font-size:var(--text-md);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
-/* 이름 묶음 — '이름 (가명 ID)' 한 줄, 띄어쓰기는 문자열이 아니라 간격이 만든다(§5 이름 표기).
-   이 블록은 템플릿 문자열이라 주석에도 백틱을 쓸 수 없다 — 쓰면 문자열이 거기서 끝난다. */
-.month-row-name{display:flex;align-items:baseline;gap:var(--space-1);min-width:0;flex:1}
-.month-row-name b{font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
-.month-row-name span{font-size:var(--text-md);font-weight:400;color:var(--sub);white-space:nowrap}
-.month-row-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
-/* 유형 칩 — 블루 tint + --ink 글자 + 블루 deep 외곽선(배지 재규정 2026-08-05 Q). */
-.month-row-kind{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-/* 상태는 지난 일정에만 붙는다(예정은 붙이지 않는다 — 대부분이 예정이라 전부 붙으면 소음이다).
-   무채색 기본 배지다: 취소·불참은 경고가 아니라 사실이고, 리스크 색은 확인된 플래그 전용이다(D9). */
-.month-row-status{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-@media (max-width:767px){
-  /* §5 모바일: 리스트 행은 시간+이름 / 메타 / 배지 3줄로 접힌다. */
-  .month-row{flex-wrap:wrap}
-  .month-row-name{flex-basis:calc(100% - 6ch - var(--space-3))}
-  .month-row-right{flex-basis:100%}
+.month-nav .wire-button{gap:var(--space-3)}
+.month-nav .wire-chevron{width:8px;height:8px}
+.month-nav-label{display:inline-flex;align-items:center;justify-content:center;min-width:9ch;min-height:var(--control-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
+/* 768 미만: 세 알약이 한 줄(343)에 안 들어간다(실측 396). 라벨이 위 전폭, 이동 두 버튼이
+   아래 반반 — 페이지 헤더 버튼의 모바일 세로 쌓기와 같은 원칙(변수는 라벨 길이)이다. */
+@media(max-width:767px){
+  .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+  .month-nav-label{grid-column:1/-1;grid-row:1}
 }
+/* 날짜 묶음·행(.month-day·.month-row*)은 2026-08-06 Q 카드 통일로 삭제 — 전체 일정도
+   다가오는 일정과 같은 당사자 카드(ParticipantCard, wire-styles.ts)를 쓴다. 상태·유형
+   뱃지는 카드의 .wire-badge 어휘가 이어받는다(트랙 C PR #61 의 배지 재규정 포함). */
 `;
 
 
@@ -716,19 +681,13 @@ const recordFormStyles = `
 .record-main{display:grid;gap:var(--space-6);min-width:0}
 /* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
 .record-toolbar{display:flex;justify-content:flex-end}
-/* 이 세 패널은 카드 패딩 3종 중 **좁은 보조 패널(16/20)** 이다(DESIGN.md §3-4, 2026-07-31).
-   본문 폭 전체를 쓰는 카드는 좌우 24 로 통일했지만, 이 화면은 우측 레일 200 을 떼고 남은
-   좁은 열에 서고 레일 자체는 200px 이라 좌우 24 를 주면 안쪽 글 폭이 152 로 떨어진다.
-   같은 값을 화면마다 다시 정하지 않도록 여기 한 곳에만 적어 둔다. */
-.record-sticky,.record-accordion,.record-rail{
-  --surface-fill:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius-card);
-  background:var(--surface-fill);
-  box-shadow:var(--shadow-soft);
-  color:var(--ink);
-}
-.record-sticky{position:sticky;top:0;z-index:var(--z-sticky);display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
+/* 이 세 패널은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
+   구 계약 CSS 복사 5줄 삭제). 여기 남는 것은 카드 패딩 3종 중 **좁은 보조 패널(16/20)**
+   (DESIGN.md §3-4, 2026-07-31)과 배치뿐이다: 이 화면은 우측 레일 200 을 떼고 남은 좁은
+   열에 서고 레일 자체는 200px 이라 좌우 24 를 주면 안쪽 글 폭이 152 로 떨어진다. */
+/* 고정 헤더는 스크롤 중 본문 위에 뜨는 층이라 그림자를 유지한다(ADR-0030 — 그림자는 떠
+   있는 층 전용). */
+.record-sticky{position:sticky;top:0;z-index:var(--z-sticky);box-shadow:var(--shadow-soft);display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
 .record-sticky-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:var(--space-3) var(--space-4)}
 .record-sticky-row>div:first-child{min-width:0;flex:1 1 240px}
 .record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}

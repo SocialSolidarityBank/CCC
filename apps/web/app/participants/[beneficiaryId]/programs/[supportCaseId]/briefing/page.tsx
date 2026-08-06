@@ -68,7 +68,7 @@ function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: Erro
 }
 
 function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {
-  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
+  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="surface-card panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
 }
 
 async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { beneficiaryId: string; supportCaseId: string; notice: string | undefined }) {

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireButton } from '../../../../../../components/wire/wire-button';
+import { WireCard } from '../../../../../../components/wire/wire-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
@@ -121,7 +122,7 @@ const ADDITIONAL_COLUMNS: readonly ColumnSpec[] = [
 
 const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
 const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };
-const subHeadingStyle: CSSProperties = { margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' };
+// 소절 제목은 WireCard 의 title 슬롯(h3)이 그린다 — 구 subHeadingStyle 삭제(2026-08-05).
 // 입력 라벨은 값 위에 두고 14/700 --sub 로 쓴다(DESIGN.md §9 완화).
 const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
 const captionStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
@@ -137,11 +138,8 @@ const textareaStyle: CSSProperties = {
 };
 const rowActionsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
 const fieldStyle: CSSProperties = { display: 'grid', gap: 8 };
-// 단락을 나누는 패널은 장식 경계이므로 --line 을 쓴다(컨트롤 경계 --line-control 과 구분).
-const panelStyle: CSSProperties = {
-  display: 'grid', gap: 16, padding: 16,
-  border: '1px solid var(--line)', borderRadius: 'var(--radius-card)',
-};
+// 소절 패널은 WireCard 가 그린다(2026-08-05 컴포넌트화 · ADR-0030 — 구 panelStyle 손 상자
+// 삭제. 정기 기록지와 같은 카드 어휘가 된다).
 const checkboxRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
 
 function isRecordObject(value: unknown): value is Record<string, unknown> {
@@ -379,8 +377,7 @@ function RowTable(props: {
 }) {
   const { columns, rows, onChange } = props;
   return (
-    <div style={panelStyle} data-testid={props.testId}>
-      <h3 style={subHeadingStyle}>{props.title}</h3>
+    <WireCard title={<h3>{props.title}</h3>} testId={props.testId}>
       <p style={captionStyle}>{props.hint}</p>
       {rows.map((row, index) => (
         <div key={index} style={fieldStyle}>
@@ -406,7 +403,7 @@ function RowTable(props: {
       <div style={rowActionsStyle}>
         <WireButton onClick={() => onChange([...rows, emptyRow(columns)])}>줄 추가</WireButton>
       </div>
-    </div>
+    </WireCard>
   );
 }
 
@@ -602,8 +599,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     extras: Readonly<Record<string, ReactNode>> = {},
   ) {
     return groups.map((group) => (
-      <div key={group.title} style={panelStyle}>
-        <h3 style={subHeadingStyle}>{group.title}</h3>
+      <WireCard key={group.title} title={<h3>{group.title}</h3>}>
         {extras[group.title] ?? null}
         {group.questions.map((question) => (
           <QuestionField
@@ -613,7 +609,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
             onChange={(next) => setAnswer(question.key, next)}
           />
         ))}
-      </div>
+      </WireCard>
     ));
   }
 
@@ -677,8 +673,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
             <div style={stackStyle}>
               <h2 style={headingStyle}>1. 상담 신청 및 기본정보</h2>
 
-              <div style={panelStyle} data-testid="intake-basic-info">
-                <h3 style={subHeadingStyle}>1-1. 당사자 기본정보</h3>
+              <WireCard title={<h3>1-1. 당사자 기본정보</h3>} testId="intake-basic-info">
                 <p style={captionStyle}>
                   당사자 등록에 저장된 값입니다. 이 화면에서는 고칠 수 없고 상담 기록에도 남지 않습니다.{' '}
                   <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
@@ -689,10 +684,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 <ReadOnlyRow label="이메일" value={props.participant.email ?? '미입력'} />
                 <ReadOnlyRow label="주소 또는 거주지역" value={props.extendedPii.region ?? '미입력'} />
                 <ReadOnlyRow label="성별" value={props.extendedPii.gender ?? '미입력'} />
-              </div>
+              </WireCard>
 
-              <div style={panelStyle} data-testid="intake-consent-status">
-                <h3 style={subHeadingStyle}>동의 기록</h3>
+              <WireCard title={<h3>동의 기록</h3>} testId="intake-consent-status">
                 {consentRows.map(([label, recorded]) => (
                   <ReadOnlyRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
                 ))}
@@ -702,7 +696,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                     동의는 당사자 정보 페이지에서 기록·수정합니다. <a href={props.participantHref}>당사자 정보로 이동</a>
                   </p>
                 ) : null}
-              </div>
+              </WireCard>
 
               {renderGroups(STEP_GROUPS[0]!, {
                 // 정본 1-3 의 첫 세 항목(상담일·실무자·상담 회차)이다 — 앞의 둘은 자동으로 채워진다.
@@ -771,8 +765,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 onChange={setAdditionalItems}
                 testId="intake-additional-table"
               />
-              <div style={panelStyle}>
-                <h3 style={subHeadingStyle}>담당 실무자 종합의견</h3>
+              <WireCard title={<h3>담당 실무자 종합의견</h3>}>
                 <p style={captionStyle}>실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p>
                 <label style={fieldStyle}>
                   <span style={labelStyle}>담당 실무자 종합의견</span>
@@ -783,7 +776,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                     style={textareaStyle}
                   />
                 </label>
-              </div>
+              </WireCard>
             </div>
           ) : null}
 

@@ -151,7 +151,7 @@ export function RecordOnepage({
         />}
 
       {/* 고정 헤더 — 스크롤해도 이번 상담 목표(D28)와 전체 목표 N 이 항상 보인다. */}
-      <header className="record-sticky" data-testid="record-sticky-header">
+      <header className="surface-card record-sticky" data-testid="record-sticky-header">
         <div className="record-sticky-row">
           <div>
             <p className="record-sticky-label">이번 상담 목표</p>
@@ -273,7 +273,7 @@ export function RecordOnepage({
           DB·게이트웨이·기존 데이터는 그대로다 — 재활성 시 이 자리에 UI 만 되살린다. */}
 
       {/* 6. 회차 템플릿(D29) — 이번 범위는 자리 구조까지 */}
-      <details className="record-accordion">
+      <details className="surface-card record-accordion">
         <summary className="record-accordion-summary">회차 템플릿 항목 <small>(준비 중)</small></summary>
         <div className="record-accordion-body">
           <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
@@ -282,7 +282,7 @@ export function RecordOnepage({
       </details>
 
       {/* 7. 새 액션 · 다음 만남 */}
-      <details className="record-accordion">
+      <details className="surface-card record-accordion">
         <summary className="record-accordion-summary"><MetaRow items={['새 액션', '다음 만남']} /> <small>(선택)</small></summary>
         <div className="record-accordion-body">
           <p>필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</p>
@@ -318,7 +318,7 @@ export function RecordOnepage({
           — 그것도 GAS 와 같은 세부 목표 층이라 D43 보류 대상이다. 이로써 앱 안에 세부 목표를
           만들거나 닫을 경로가 없어지는 것은 알고 받아들인 결과이고, 전체 목표 편집은 브리핑에
           남아 있다(D45). goals·closed_reason·replaced_by_goal_id 스키마는 그대로 둔다. */}
-      <details className="record-accordion">
+      <details className="surface-card record-accordion">
         <summary className="record-accordion-summary">리스크 플래그 <small>(조건부)</small></summary>
         <div className="record-accordion-body">
           <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
@@ -343,7 +343,7 @@ export function RecordOnepage({
       </WireCard>
     </div>
 
-    <aside className="record-rail" aria-label="작성 진척도">
+    <aside className="surface-card record-rail" aria-label="작성 진척도">
       <p className="record-rail-count" data-testid="record-required-count">필수 {filledCount}/{requiredItems.length}</p>
       {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
       <DraftStatus savedAt={draft.savedAt} available={draft.available} />

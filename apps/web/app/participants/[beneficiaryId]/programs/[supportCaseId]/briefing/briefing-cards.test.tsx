@@ -47,14 +47,14 @@ const AREA_TITLES = ['오늘 만나기 전 꼭 기억할 것', '상담 내용 �
 const GRID_TITLES = ['미해결 액션'];
 
 function hero(container: HTMLElement): HTMLElement {
-  const el = container.querySelector<HTMLElement>('.briefing-hero');
+  const el = container.querySelector<HTMLElement>('.participant-hero-card');
   if (el === null) throw new Error('HERO not found');
   return el;
 }
 
 function cardByTitle(container: HTMLElement, title: string): HTMLDetailsElement {
   const card = [...container.querySelectorAll<HTMLDetailsElement>('details.briefing-card')].find(
-    (details) => details.querySelector('.briefing-card-summary')?.textContent?.includes(title) ?? false,
+    (details) => details.querySelector('.wire-card-summary')?.textContent?.includes(title) ?? false,
   );
   if (card === undefined) throw new Error(`Card not found: ${title}`);
   return card;
@@ -64,14 +64,14 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
   it('3영역이 계약 순서로 렌더되고 유지 카드 2종은 그리드에 남는다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const allTitles = [...container.querySelectorAll<HTMLDetailsElement>('details.briefing-card')]
-      .map((card) => card.querySelector('.briefing-card-summary')?.textContent?.trim() ?? '');
+      .map((card) => card.querySelector('.wire-card-summary')?.textContent?.trim() ?? '');
     // 3영역이 이 순서로 먼저 온다 — 영역 순서가 바뀌면 '5분 전에 훑는' 동선이 깨진다.
     const areaIndexes = AREA_TITLES.map((title) => allTitles.findIndex((candidate) => candidate.startsWith(title)));
     expect(areaIndexes.every((index) => index >= 0)).toBe(true);
     expect([...areaIndexes].sort((a, b) => a - b)).toEqual(areaIndexes);
 
     const gridCards = container.querySelectorAll<HTMLDetailsElement>('.briefing-cards-grid > details.briefing-card');
-    expect([...gridCards].map((card) => card.querySelector('.briefing-card-summary')?.textContent?.trim()))
+    expect([...gridCards].map((card) => card.querySelector('.wire-card-summary')?.textContent?.trim()))
       .toEqual(GRID_TITLES);
     expect([...container.querySelectorAll<HTMLDetailsElement>('details')].every((card) => card.open)).toBe(true);
   });
@@ -192,7 +192,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 
   it('승인 대기 배지는 영역 ② 머리에 앉고 0건이면 없다 (D5 — D45 가 자리만 옮김)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
-    const summary = cardByTitle(container, '상담 내용 회차별 정리').querySelector('.briefing-card-summary');
+    const summary = cardByTitle(container, '상담 내용 회차별 정리').querySelector('.wire-card-summary');
     expect(summary?.textContent).toContain('승인 대기 2건');
 
     cleanup();
@@ -231,7 +231,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     })} />);
     const card = cardByTitle(container, '내용 불일치');
     // 건수 배지 — 영역 ② '승인 대기'와 같은 자리 문법.
-    expect(card.querySelector('.briefing-card-summary')?.textContent).toContain('2건');
+    expect(card.querySelector('.wire-card-summary')?.textContent).toContain('2건');
     // 유형 라벨 2종.
     expect(card.textContent).toContain('회차 간 불일치');
     expect(card.textContent).toContain('회차 내 모순');
@@ -307,7 +307,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     })} />);
     const card = cardByTitle(container, '내용 불일치');
     // 배지가 이력까지 세면 '남은 일'을 알려주지 못한다 — 미처리 1건만.
-    expect(card.querySelector('.briefing-card-summary')?.textContent).toContain('1건');
+    expect(card.querySelector('.wire-card-summary')?.textContent).toContain('1건');
     const history = card.querySelector('.briefing-history');
     if (history === null) throw new Error('history not found');
     expect(history.querySelector('summary')?.textContent).toContain('처리된 항목 1건');
@@ -350,9 +350,9 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     // 화면의 모든 글자는 카드 안에 있다 — HERO 도 카드다.
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
-    // 상태 태그는 §5 컨트롤 부품(2026-08-05, 구 .briefing-badge.is-stage 알약 폐지).
+    // 상태 태그는 §5 컨트롤 부품(2026-08-05 — 트랙 C 의 .is-stage 폐지와 같은 결론).
     expect(card.querySelector('.participant-hero-stage')?.textContent).toBe('상담 준비');
-    const meta = card.querySelector('.briefing-hero-meta')?.textContent ?? '';
+    const meta = card.querySelector('.participant-hero-meta')?.textContent ?? '';
     expect(meta).toContain('마이크로크레딧');
     expect(meta).toContain('대면');
   });
@@ -380,7 +380,7 @@ describe('BriefingCards — 실명 직표시와 폴백 (D24 · ADR-0005)', () =>
     // 개인정보 카드는 당사자 정보 HERO(이름 클릭 접힘)로 이동했다(2026-08-03 Q).
     // 연락처도 브리핑에는 더 이상 나오지 않는다.
     const cardTitles = [...container.querySelectorAll<HTMLDetailsElement>('details.briefing-card')]
-      .map((card) => card.querySelector('.briefing-card-summary')?.textContent?.trim() ?? '');
+      .map((card) => card.querySelector('.wire-card-summary')?.textContent?.trim() ?? '');
     expect(cardTitles.some((title) => title.includes('개인정보'))).toBe(false);
     expect(container.textContent).not.toContain('010-1234-5678');
   });

@@ -15,7 +15,7 @@ import { ParticipantName } from './participant-name';
 //
 // 부품은 내용에 무관심하다 — 메타의 성격(맥락 vs PII)이 화면마다 다른 것은
 // 계약 위반이 아니라 화면 재량이다.
-// 카드 계약(radius 12 · --shadow-soft · --line 1px)은 .surface-card 가 담당한다.
+// 카드 계약(radius 12 · 아웃라인 --line 1px, 그림자 없음: D60)은 .surface-card 가 담당한다.
 
 export interface ParticipantHeroCardProps {
   /** 복호화된 실명. 미기입이면 가명 ID가 대신 제목이 된다(D31 폴백). */

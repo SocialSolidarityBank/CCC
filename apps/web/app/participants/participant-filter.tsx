@@ -38,6 +38,8 @@ export function ParticipantFilter({ rows }: { rows: ParticipantFilterRow[] }) {
         value={query}
         onChange={setQuery}
       />
+      {/* 찾기 칸과 목록 사이 가로선(2026-08-06 Q) — 입력 구획과 결과 구획을 가른다. */}
+      <hr className="participant-search-divider" />
       {visible.length === 0 ? (
         <p className="empty" role="status" aria-live="polite">
           찾는 당사자가 없습니다. 이름 일부만 입력해 보세요.

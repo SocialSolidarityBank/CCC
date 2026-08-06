@@ -4,8 +4,10 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Chevron } from './chevron';
 
-/** 버튼 종류 4종(DESIGN.md §5). 색·테두리 규칙은 종류가 정하고, 크기는 높이만 바꾼다. */
-export type WireButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** 버튼 종류 5종(DESIGN.md §5). 색·테두리 규칙은 종류가 정하고, 크기는 높이만 바꾼다.
+ *  neutral 은 2026-08-06 Q 위계 재편으로 신설: 이동·보기 조작(뒤로, 시간순, 달 이동)은
+ *  그레이 아웃라인, 컬러(아웃라인·그라데이션 면)는 중요 행동(등록·저장류)만 갖는다. */
+export type WireButtonVariant = 'primary' | 'secondary' | 'neutral' | 'ghost' | 'danger';
 
 export interface WireButtonProps {
   children: ReactNode;
@@ -22,8 +24,8 @@ export interface WireButtonProps {
   /** 텍스트 정렬. 기본 center(2026-08-02 D58 — 구 left 기본은 버그). 체브론이 있으면
    *  텍스트 좌측·체브론 우측으로 배치된다. */
   align?: 'left' | 'center';
-  /** 우측 체브론 표시. */
-  chevron?: boolean;
+  /** 체브론 표시. true·'right' = 우측(다음·이동), 'left' = 좌측(이전 달). */
+  chevron?: boolean | 'left' | 'right';
   disabled?: boolean;
   /** 링크로 렌더(비활성 아니면). */
   href?: string;
@@ -56,12 +58,13 @@ export function WireButton({
   className,
 }: WireButtonProps) {
   const resolvedVariant: WireButtonVariant = variant ?? (size === 'large' ? 'primary' : 'secondary');
-  const justify = chevron ? 'between' : align;
+  const justify = chevron !== false && chevron !== undefined ? 'between' : align;
   const classes = ['wire-button', className].filter(Boolean).join(' ');
   const inner = (
     <>
+      {chevron === 'left' && <Chevron dir="left" />}
       <span className="wire-button-text">{children}</span>
-      {chevron && <Chevron dir="right" />}
+      {(chevron === true || chevron === 'right') && <Chevron dir="right" />}
     </>
   );
 

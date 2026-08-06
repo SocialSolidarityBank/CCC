@@ -115,14 +115,17 @@ function Notice({ code }: { code: string | undefined }) {
 /**
  * 전체 목표 한 줄 — 브리핑과 같은 어휘이되 **읽기 전용**이다(D47 §1).
  * 설정·수정은 브리핑 몫이라 여기에는 입력칸도 저장 버튼도 없다.
+ * 카드 모양은 WireCard 계약이 갖는다(2026-08-05 컴포넌트화 · ADR-0030).
  */
 function OverallGoalRow({ overallGoal }: { overallGoal: string | null }) {
-  return <section className="surface-card record-goal" aria-label="전체 목표">
-    <span className="record-goal-label">전체 목표</span>
-    {overallGoal === null || overallGoal.length === 0
-      ? <p className="record-goal-text is-empty">아직 설정 전입니다. 상담 준비 화면에서 설정할 수 있습니다.</p>
-      : <p className="record-goal-text">{overallGoal}</p>}
-  </section>;
+  return <WireCard as="section" className="record-goal" labelledBy="record-goal-label">
+    <div className="record-goal-row">
+      <span className="record-goal-label" id="record-goal-label">전체 목표</span>
+      {overallGoal === null || overallGoal.length === 0
+        ? <p className="record-goal-text is-empty">아직 설정 전입니다. 상담 준비 화면에서 설정할 수 있습니다.</p>
+        : <p className="record-goal-text">{overallGoal}</p>}
+    </div>
+  </WireCard>;
 }
 
 export default async function RecordHistoryPage({

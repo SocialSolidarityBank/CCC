@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
-import { WireBullets, WireField } from '../../../../../components/wire/wire-card';
-import { ParticipantName } from '../../../../../components/wire/participant-name';
+import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../../components/wire/wire-card';
+import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
@@ -119,10 +119,11 @@ function OverallGoalCard({
   const editable = canEdit && action !== undefined;
 
   return (
-    // 플랫 구획이다(D59) — 읽고 고치는 한 줄이라 카드가 아니다. 수정 가능성은 안쪽 상자가 알린다.
-    <section className="briefing-goal" aria-label="전체 목표">
+    // 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체). 읽기 구획도 아웃라인
+    // 카드로 통일한다. 수정 가능성은 안쪽 상자가 알린다.
+    <WireCard as="section" className="briefing-goal" labelledBy="briefing-goal-label">
       <div className="briefing-goal-row">
-        <p className="briefing-qlabel">전체 목표</p>
+        <p className="briefing-qlabel" id="briefing-goal-label">전체 목표</p>
         {editing && action !== undefined
           ? (
             <form className="briefing-goal-form" action={action}>
@@ -175,7 +176,7 @@ function OverallGoalCard({
           전체 목표를 저장하지 못했습니다. 담당 실무자만 수정할 수 있습니다 — 잠시 후 다시 시도하세요.
         </p>
       )}
-    </section>
+    </WireCard>
   );
 }
 
@@ -239,21 +240,14 @@ function DiscrepancyItem({
   );
 }
 
-// 카드 = 접힘 가능한 <details>. 요약(제목)만 남기고 본문을 접을 수 있어 '전체 열기/닫기'가
-// 카드 접힘 상태에도 일괄 적용된다. 기본은 열림. badge 는 제목 오른쪽(화살표 앞)에 앉는다.
-// id 는 툴바 바로가기(2026-08-03 Q)의 앵커다.
+// 구획 카드 = 접힘 카드(WireCardDetails, 2026-08-05 카드화 — 구 플랫 아코디언).
+// '전체 열기/닫기'는 네이티브 details 라 그대로 일괄 적용된다. 기본은 열림.
+// badge 는 제목 오른쪽(화살표 앞), id 는 툴바 바로가기(2026-08-03 Q)의 앵커다.
 function Card({ id, title, badge, children }: { id?: string; title: string; badge?: ReactNode; children: ReactNode }) {
   return (
-    <details className="briefing-card" open id={id}>
-      <summary className="briefing-card-summary">
-        <span>{title}</span>
-        <span className="briefing-card-summary-right">
-          {badge}
-          <span aria-hidden="true" className="briefing-card-arrow" />
-        </span>
-      </summary>
-      <div className="briefing-card-body">{children}</div>
-    </details>
+    <WireCardDetails className="briefing-card" open id={id} title={title} badge={badge}>
+      {children}
+    </WireCardDetails>
   );
 }
 
@@ -303,34 +297,27 @@ export function BriefingCards({
 
   return (
     <div className="briefing-page">
-      {/* HERO 카드 (D37 §4-5 · D38 공통 부품 계약). **화면의 모든 글자는 카드 안에 있다** —
-          HERO 도 카드다. 좌측 이름 묶음(이름 + 상태 태그 + 메타 한 줄), 우측 행동 **최대 2개**
-          (세컨더리 → 프라이머리). 축은 사이드바 = 장소 / 우상단 = 행동(D35).
+      {/* HERO — 공통 부품 ParticipantHeroCard(D38). 기록·허브와 같은 부품이라 여백·태그
+          모양이 화면마다 갈리지 않는다(2026-08-05 컴포넌트화 — 구 손 마크업 대체).
           '상담 준비'는 데이터가 아니라 **화면 상태 태그**다 — sourceSupportCase.status 는
-          active/closed 뿐이라 이 문구의 출처가 아니다(D22). */}
-      <header className="page-header surface-card briefing-hero">
-        <div className="briefing-hero-identity">
-          <h1 className="briefing-hero-title">
-            <ParticipantName name={participant.name} beneficiaryId={beneficiaryId} size="hero" />
-            {/* 상태 태그는 §5 컨트롤(radius 6) — 다른 HERO 와 같은 부품 클래스를 단다(2026-08-05,
-                구 .briefing-badge.is-stage 알약 폐지). */}
-            <span className="participant-hero-stage">상담 준비</span>
-          </h1>
-          {/* 회차는 브리핑 응답에 없어 넣지 않는다 — 없는 숫자를 화면에서 만들지 않는다.
-              상담 방식은 v1 이 대면뿐이다(D4). */}
-          <p className="briefing-hero-meta">
-            <MetaRow items={[
-              programLabel,
-              upcomingSchedule === null ? '예정된 상담 없음' : formatDateTime(upcomingSchedule.scheduledAt),
-              '대면',
-            ]} />
-          </p>
-        </div>
-        <div className="page-actions">
+          active/closed 뿐이라 이 문구의 출처가 아니다(D22).
+          회차는 브리핑 응답에 없어 메타에 넣지 않는다. 상담 방식은 v1 이 대면뿐이다(D4).
+          상태 태그는 부품의 participant-hero-stage 계약 — 트랙 C(PR #61)의 .is-stage 폐지와
+          같은 결론이라 리베이스에서 컴포넌트 쪽으로 합쳤다. */}
+      <ParticipantHeroCard
+        name={participant.name}
+        beneficiaryId={beneficiaryId}
+        stageTag="상담 준비"
+        meta={<MetaRow items={[
+          programLabel,
+          upcomingSchedule === null ? '예정된 상담 없음' : formatDateTime(upcomingSchedule.scheduledAt),
+          '대면',
+        ]} />}
+        actions={<>
           <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
           <WireButton href={recordNewHref} variant="primary">상담 시작</WireButton>
-        </div>
-      </header>
+        </>}
+      />
 
       <RiskBanner flags={flags} />
 
