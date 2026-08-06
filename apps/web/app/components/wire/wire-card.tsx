@@ -6,6 +6,9 @@ import type { ReactNode } from 'react';
 // 본문 구획은 전부 이 컴포넌트를 거친다 — 손으로 만든 카드 div 는 여백이 제각각이 된다
 // (2026-08-05 Q "컴포넌트화를 안 해서 여백 관리가 어려움").
 
+/** 콜아웃(안내줄) 톤 3종. 값은 D34 계열 의미 고정을 따른다. */
+export type WireCardTone = 'info' | 'mint' | 'lavender';
+
 export interface WireCardProps {
   children: ReactNode;
   /** 카드 상단 타이틀. 있으면 아래 그라데이션 1px 구분선이 붙는다. */
@@ -15,11 +18,11 @@ export interface WireCardProps {
   /** 카드 이름을 짚어 주는 요소 id. as 를 함께 주지 않으면 랜드마크가 생기지 않는다. */
   labelledBy?: string;
   /**
-   * 안내줄 변형(D59 ② 강조 컨테이너). 'info' = 블루 tint 면(시간·상태 축, D34) —
-   * 자동 저장·저장 완료 같은 상태 안내가 쓴다. 리스크 어휘(--risk 테두리)는 배너 전용이라
-   * 여기 없다(D9).
+   * 안내줄 변형(D59 ② 강조 컨테이너). 'info' = 블루 tint 면(시간·상태 축, D34),
+   * 'mint' = 사람·소속, 'lavender' = 주의·대기(색 규율 5 — 2026-08-07 콜아웃 확정으로 추가).
+   * 리스크 어휘(--risk 테두리)는 배너 전용이라 여기 없다(D9).
    */
-  tone?: 'info';
+  tone?: WireCardTone;
   /** 테스트 고정용 data-testid. 컴포넌트화 전 손 카드가 쓰던 값을 그대로 잇는다. */
   testId?: string;
   /** aria-live 안내 카드(role="status" 등)를 카드 요소 자체에 얹을 때. */

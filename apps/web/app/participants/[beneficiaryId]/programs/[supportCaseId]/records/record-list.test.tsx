@@ -67,7 +67,7 @@ describe('RecordList', () => {
 
     const ordinals = Array.from(container.querySelectorAll('.record-ordinal')).map((node) => node.textContent);
     expect(ordinals).toEqual(['3회차', '2회차', '1회차']);
-    const kinds = Array.from(container.querySelectorAll('.record-kind')).map((node) => node.textContent);
+    const kinds = Array.from(container.querySelectorAll('.record-summary .wire-badge[data-tone="blue"]')).map((node) => node.textContent);
     expect(kinds).toEqual(['기본 상담', '기본 상담', '인테이크']);
   });
 
@@ -78,7 +78,7 @@ describe('RecordList', () => {
     expect(line?.textContent).toBe('주거 계약 연장이 확인됐다');
     expect(line?.className).not.toContain('is-memo');
     // 배지만 본다 — 본문에는 '수기 메모' 소제목이 언제나 있으므로 전체 텍스트로 재면 안 된다.
-    expect(container.querySelector('.record-summary .briefing-badge')).toBeNull();
+    expect(container.querySelector('.record-summary .wire-badge:not([data-tone])')).toBeNull();
   });
 
   it('승인 전이면 수기 발췌로 낮추고 수기 배지를 단다 (D5 폴백 · §4)', () => {
@@ -87,7 +87,7 @@ describe('RecordList', () => {
     const line = container.querySelector('.record-one-liner');
     expect(line?.textContent).toBe('집을 알아봐야 한다');
     expect(line?.className).toContain('is-memo');
-    expect(container.querySelector('.record-summary .briefing-badge')?.textContent).toBe('수기');
+    expect(container.querySelector('.record-summary .wire-badge:not([data-tone])')?.textContent).toBe('수기');
   });
 
   it('세션 목표가 있으면 GAS 가 있던 자리에 그린다 (§2)', () => {
@@ -129,7 +129,7 @@ describe('RecordList', () => {
     expect(plain).toHaveLength(1);
     expect(plain[0]?.textContent).toContain('부채 악화');
     // AI 가 제안한 플래그는 출처 칩으로만 표시한다(라벤더 축).
-    expect(container.querySelector('.record-ai-source')?.textContent).toBe('AI 제안');
+    expect(container.querySelector('.wire-badge[data-tone="lavender"]')?.textContent).toBe('AI 제안');
   });
 
   it('확인된 플래그가 없으면 접힌 줄에 리스크 표시가 없다 (§5)', () => {

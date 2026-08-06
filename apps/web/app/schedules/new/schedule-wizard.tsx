@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, type CSSProperties } from 'react';
 import { GridContainer } from '../../components/wire/grid-container';
+import { WireCallout } from '../../components/wire/wire-callout';
 import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
 import { ListRow } from '../../components/wire/list-row';
@@ -158,12 +159,10 @@ function SessionKindPicker({
             onChange={(next) => onChange(next === 'intake' ? 'intake' : 'regular')}
           />
           {showIntakeWarning && (
-            <div className="note" role="alert">
-              <p>
-                이 당사자는 인테이크를 이미 마쳤습니다. 그대로 진행하면 인테이크가 두 번이 됩니다.{' '}
-                <Link href={recordHref}>기존 인테이크 기록 보기</Link>
-              </p>
-            </div>
+            <WireCallout tone="lavender" role="alert" title="이 당사자는 인테이크를 이미 마쳤습니다">
+              그대로 진행하면 인테이크가 두 번이 됩니다.{' '}
+              <Link href={recordHref}>기존 인테이크 기록 보기</Link>
+            </WireCallout>
           )}
         </div>
       ) : (

@@ -64,7 +64,7 @@ function LoadingState() {
 }
 
 function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: ErrorKind }) {
-  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="status risk" role="alert">{errorMessages[kind]}</p><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
+  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
 }
 
 function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ApiError, getMyIdentity, listOrgUsers, type DirectoryRole, type DirectoryUser, type MyIdentity } from '../lib/api';
 import { PageTitle } from '../components/wire/page-title';
+import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
 import { WireCard } from '../components/wire/wire-card';
 import { adminMenu, userLabel } from '../admin/admin-format';
@@ -77,7 +78,7 @@ async function DirectorySection() {
             <li className="settings-user-row" key={user.id} data-active={user.active ? undefined : 'false'}>
               <span className="settings-user-email">{userLabel(user)}</span>
               <span className="settings-user-role">{roleLabel[user.role]}</span>
-              <span className="settings-user-status">{user.active ? '활성' : '비활성'}</span>
+              <WireBadge>{user.active ? '활성' : '비활성'}</WireBadge>
             </li>
           ))}
         </ul>

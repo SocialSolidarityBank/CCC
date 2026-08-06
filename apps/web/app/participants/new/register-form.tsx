@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SearchInput } from '../../components/wire/search-input';
+import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
 import { PROGRAM_LABELS } from '../../lib/labels';
@@ -167,7 +168,7 @@ export function RegisterForm({
               그 묶음은 다음 세션 몫이다(artifacts/ui-revision-sweep-v1/lane-b-prep.md §9-2). */}
           <div className="consent-upload-slot" data-state="pending">
             <span className="consent-upload-slot-label">서명 동의서 첨부</span>
-            <span className="consent-upload-slot-state">준비 중</span>
+            <WireBadge tone="lavender">준비 중</WireBadge>
             <p className="schedule-form-hint">
               종이에 자필 서명을 받거나 이메일·스캔으로 받은 동의서를 올리는 자리입니다. 파일 첨부는 아직 동작하지 않습니다.
             </p>

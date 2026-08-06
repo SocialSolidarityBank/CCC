@@ -1,4 +1,5 @@
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { MetaRow } from '../../../../../components/wire/meta-row';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../components/wire/wire-card';
@@ -41,22 +42,22 @@ const messages: Record<ErrorKind, string> = {
 // 핑크는 D9 위반이었다(리스크 색은 확인된 플래그·오류 전용, 일정 상태는 사실이지 경고가 아니다).
 const schedulePresentations: Record<CounselingScheduleStatus, { className: string; label: string; message: string }> = {
   scheduled: {
-    className: 'status',
+    className: 'wire-badge',
     label: '예정',
     message: '기록 작성 시에만 명시적으로 완료 처리할 수 있습니다.',
   },
   completed: {
-    className: 'status',
+    className: 'wire-badge',
     label: '완료됨',
     message: '일정이 상담 기록과 연결되어 완료되었습니다.',
   },
   cancelled: {
-    className: 'status',
+    className: 'wire-badge',
     label: '취소됨',
     message: '이 일정은 취소되어 상담 기록으로 완료 처리할 수 없습니다.',
   },
   no_show: {
-    className: 'status',
+    className: 'wire-badge',
     label: '불참',
     message: '이 일정은 불참으로 처리되어 상담 기록으로 완료 처리할 수 없습니다.',
   },
@@ -104,12 +105,12 @@ async function load<T>(request: Promise<T>): Promise<LoadResult<T>> {
 
 function Message({ code }: { code: ErrorKind | null }) {
   if (code === null) return null;
-  return <p className="status risk" role="alert">{messages[code]}</p>;
+  return <p className="wire-badge" data-tone="risk" role="alert">{messages[code]}</p>;
 }
 
 function Notice({ code }: { code: string | undefined }) {
   if (code !== 'record_submission_processed') return null;
-  return <p className="status blue" role="status" aria-live="polite">상담 기록 화면으로 이동했습니다. 아래 목록에서 제출 결과를 확인하세요.</p>;
+  return <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">상담 기록 화면으로 이동했습니다. 아래 목록에서 제출 결과를 확인하세요.</p>;
 }
 
 /**
@@ -166,11 +167,12 @@ export default async function RecordHistoryPage({
   // 최신 상담일이 목록 맨 위다(서버가 held_at DESC 로 준다).
   const latestHeldAt = records[0]?.heldAt ?? null;
 
-  const heroMeta = [
+  // 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다(§10, 2026-08-07).
+  const heroMetaItems = [
     result.data === null ? null : programLabels[result.data.programType],
     records.length === 0 ? '기록 없음' : `${records.length}회차까지 기록됨`,
     latestHeldAt === null ? null : `최근 상담 ${formatDateOnly(latestHeldAt)}`,
-  ].filter((item): item is string => item !== null).join(' · ');
+  ].filter((item): item is string => item !== null);
 
   return <GridContainer as="main" className="page-content">
     <RecordHashOpener />
@@ -183,7 +185,7 @@ export default async function RecordHistoryPage({
       {...(result.data === null
         ? {}
         : { stageTag: result.data.caseStatus === 'active' ? '진행 중' : '종결' })}
-      {...(heroMeta.length === 0 ? {} : { meta: heroMeta })}
+      {...(heroMetaItems.length === 0 ? {} : { meta: <MetaRow items={heroMetaItems} /> })}
       {...(beneficiaryId === null || supportCaseId === null ? {} : {
         actions: <>
           <WireButton variant="secondary" href={participantPath}>당사자 정보</WireButton>

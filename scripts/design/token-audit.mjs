@@ -123,6 +123,16 @@ for (const file of TARGETS) {
         add(file, n, 'raw-hex', `${m[0]} — 색은 design/tokens.css 의 이름으로만 쓴다`);
       }
     }
+
+    // 8) 알약(pill) 반경 허용목록 (2026-08-07 버튼 직사각화). 버튼·조작 요소는 radius 6 이고
+    //    pill 은 읽기 전용 배지·상태 태그(2026-08-06 알약 재개정)·원형 아이콘 버튼·라디오·불릿 점만 갖는다. 새 알약 레시피가
+    //    화면 CSS 에 스며드는 것을 막는다.
+    if (line.includes('var(--radius-pill)')) {
+      const PILL_ALLOWED = ['wire-badge', 'navigation-soon', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag'];
+      if (!PILL_ALLOWED.some((name) => line.includes(name))) {
+        add(file, n, 'pill-outside-badge', `--radius-pill 은 배지(.wire-badge)·원형 아이콘(.header-icon-button)·라디오·불릿만 쓴다. 버튼은 var(--radius-control)`);
+      }
+    }
   });
 }
 
@@ -190,6 +200,30 @@ for (const file of markupFiles) {
 for (const [name, rec] of declaredClasses) {
   if (usedTokens.has(name) || UNUSED_BUT_CONTRACTED.has(name)) continue;
   add(rec.file, rec.line, 'dead-class', `.${name} 를 쓰는 마크업이 없다 — 지우거나, 계약이면 token-audit 의 UNUSED_BUT_CONTRACTED 에 사유와 함께 넣는다`);
+}
+
+// ── UI 문안 부호 검사 ─────────────────────────────────────────────────────────
+// DESIGN.md §10: 화면 문자열에 긴 대시(—)를 쓰지 않고, 서로 다른 정보를 잇는 구분자
+// 가운뎃점(' · ')을 쓰지 않는다(한 낱말 병렬 '주거·생계'는 공백이 없어 잡히지 않는다).
+// 주석은 검사 대상이 아니다 — 코드 주석 소급 수정은 §10 개정이 명시적으로 제외했다.
+// 테스트 파일도 제외한다: describe/it 설명문은 화면에 나가지 않는다.
+const stripJsComments = (src) =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    // 라인 주석. URL 의 :// 를 지우지 않도록 앞 글자를 본다.
+    .replace(/(^|[^:"'`])\/\/[^\n]*/gm, (_, pre) => pre);
+
+for (const file of markupFiles) {
+  if (/\.test\.tsx?$/.test(file)) continue;
+  const src = stripJsComments(readFileSync(file, 'utf8'));
+  src.split('\n').forEach((line, idx) => {
+    if (line.includes('—')) {
+      add(file, idx + 1, 'prose-em-dash', `긴 대시(—)는 화면 문자열에 쓰지 않는다(§10) — 마침표나 쉼표로 나눈다`);
+    }
+    if (line.includes(' · ')) {
+      add(file, idx + 1, 'prose-separator-dot', `구분자 가운뎃점(' · ') 금지(§10) — 조각을 나눠 MetaRow 간격으로 띄운다`);
+    }
+  });
 }
 
 // ── 다크 대응 검사 ────────────────────────────────────────────────────────────

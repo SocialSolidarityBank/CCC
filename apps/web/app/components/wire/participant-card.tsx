@@ -68,7 +68,7 @@ export function ParticipantCard({
                 {schedule.statusLabel !== undefined && <span className="wire-badge">{schedule.statusLabel}</span>}
               </span>
             </div>
-            <hr className="participant-card-divider" />
+            <hr className="wire-card-divider" />
           </>
         )}
         {schedule === undefined && (statusBadge !== undefined || programCount !== undefined) && (
@@ -83,7 +83,7 @@ export function ParticipantCard({
                 </span>
               )}
             </div>
-            <hr className="participant-card-divider" />
+            <hr className="wire-card-divider" />
           </>
         )}
         <div className="participant-card-row" data-row="info">

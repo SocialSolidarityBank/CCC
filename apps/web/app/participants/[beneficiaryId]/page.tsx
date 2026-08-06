@@ -9,6 +9,7 @@ import {
 import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
+import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
 import { getDisplayLabels } from '../../lib/display-labels';
@@ -163,7 +164,7 @@ function ProgramRow({ beneficiaryId, program, programTitle }: {
     <div className="participant-program-row">
       <div className="participant-program-head">
         <h3>{programTitle}</h3>
-        <span className="status mint">{programStatus(program.status)}</span>
+        <WireBadge tone="mint">{programStatus(program.status)}</WireBadge>
       </div>
       <p className="participant-program-meta">참여 시작 {formatIntakeDate(program.intakeAt)}</p>
       <AssigneeLine names={program.assigneeNames} />

@@ -32,13 +32,14 @@ export function userLabel(user: { name: string | null; email: string }): string 
 }
 
 /**
- * 관리자 당사자 행 한 줄 요약: 실명 · 연락처. 실명 미기입이면 슬러그 폴백(D31 —
+ * 관리자 당사자 행 요약 조각: 실명, 연락처. 실명 미기입이면 슬러그 폴백(D31 —
  * 슬러그는 기계 식별자라 실명이 있으면 화면에 병기하지 않는다). 사업명은 목록에서
  * 제외 — 단일 사업 반복 표기는 소음이고, 확인은 상세 화면 몫이다.
  */
-export function assignmentSummary(participant: AdminAssignmentParticipant): string {
+export function assignmentSummaryItems(participant: AdminAssignmentParticipant): string[] {
+  // 조각 배열로 주는 이유: 구분자 가운뎃점을 문자열에 박지 않고 MetaRow 간격이 나눈다(§10, 2026-08-07).
   return [
     participant.participantName ?? participant.beneficiaryId,
     participant.participantPhone ?? '연락처 미기입',
-  ].join(' · ');
+  ];
 }

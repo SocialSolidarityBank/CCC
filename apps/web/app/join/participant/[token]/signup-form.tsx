@@ -113,7 +113,7 @@ export function SignupForm({ token }: { token: string }) {
       </fieldset>
 
       {state.phase === 'error' && (
-        <p className="status risk" role="alert">{state.message}</p>
+        <p className="wire-badge" data-tone="risk" role="alert">{state.message}</p>
       )}
 
       <WireButton type="submit" size="large" chevron className="wire-register-submit" disabled={state.phase === 'working'}>

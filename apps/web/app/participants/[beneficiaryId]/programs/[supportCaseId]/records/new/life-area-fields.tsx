@@ -45,8 +45,8 @@ export function LifeAreaFields({
     const prior = priorByArea.get(areaKey);
     return <fieldset className="wire-fieldset" key={areaKey}>
       <legend>{label} <small>직전 상태: {prior === undefined
-        ? <span className="status">미기록</span>
-        : <span className={prior.status === 'crisis' ? 'status risk' : 'status'}>{statusLabels[prior.status]}</span>}</small></legend>
+        ? <span className="wire-badge">미기록</span>
+        : <span className="wire-badge" data-tone={prior.status === 'crisis' ? 'risk' : undefined}>{statusLabels[prior.status]}</span>}</small></legend>
       <WireFormField
         label="이번 회차 상태"
         note="(기본: 변화 없음)"

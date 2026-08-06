@@ -204,7 +204,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '내용 불일치');
     expect(card.textContent).toContain('검출된 불일치가 없습니다');
-    expect(card.querySelector('.briefing-badge')).toBeNull();
+    expect(card.querySelector('.wire-badge')).toBeNull();
   });
 
   it('영역 ③은 양쪽 인용과 회차 링크를 나란히 놓고 판단 표현을 쓰지 않는다 (CCC-43 · R5)', () => {
@@ -349,7 +349,7 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
     // 상태 태그는 §5 컨트롤 부품(2026-08-05 — 트랙 C 의 .is-stage 폐지와 같은 결론).
-    expect(card.querySelector('.participant-hero-stage')?.textContent).toBe('상담 준비');
+    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('상담 준비');
     const meta = card.querySelector('.participant-hero-meta')?.textContent ?? '';
     expect(meta).toContain('마이크로크레딧');
     expect(meta).toContain('대면');

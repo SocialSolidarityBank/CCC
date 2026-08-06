@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createCounselingRecordAction } from '../../../../../../actions';
+import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
@@ -348,38 +349,38 @@ async function submitRecord(formData: FormData): Promise<void> {
 }
 
 function RecoveryStatus({ state }: { state: RecoveryState }) {
-  const content: Record<RecoveryState, { className: string; role: 'alert' | 'status'; text: string }> = {
-    idle: { className: 'status warning', role: 'status', text: '아직 서버에 저장되지 않았습니다.' },
-    invalid_request: { className: 'status risk', role: 'alert', text: '입력 형식을 확인한 뒤 같은 제출 ID로 다시 시도하세요.' },
-    validation_error: { className: 'status risk', role: 'alert', text: '입력한 상담 기록을 확인한 뒤 같은 제출 ID로 다시 시도하세요.' },
-    authentication_required: { className: 'status risk', role: 'alert', text: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 새 상담 기록을 시작하세요.' },
-    access_denied: { className: 'status risk', role: 'alert', text: '이 참여 사업에 상담 기록을 남길 권한이 없습니다. 권한을 확인한 뒤 새 상담 기록을 시작하세요.' },
-    forbidden: { className: 'status risk', role: 'alert', text: '현재 권한으로는 이 상담 기록을 저장할 수 없습니다. 권한 상태를 확인하세요.' },
-    not_found: { className: 'status risk', role: 'alert', text: '요청한 당사자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.' },
-    conflict: { className: 'status risk', role: 'alert', text: '같은 제출 ID에 다른 저장 요청이 있어 이 기록을 등록하지 않았습니다.' },
-    not_eligible_or_already_purged: { className: 'status risk', role: 'alert', text: '현재 참여 사업에는 상담 기록을 등록할 수 없습니다. 참여 사업 상태를 확인하세요.' },
-    pilot_text_ai_consent_required: { className: 'status risk', role: 'alert', text: '텍스트 AI 파일럿 동의가 확인되지 않아 요청을 처리할 수 없습니다. 동의 상태를 확인하세요.' },
-    text_ai_pilot_disabled: { className: 'status risk', role: 'alert', text: '텍스트 AI 파일럿이 현재 사용할 수 없어 요청을 처리할 수 없습니다.' },
-    stale_draft_version: { className: 'status risk', role: 'alert', text: '기록 초안이 변경되어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
-    draft_version_required: { className: 'status risk', role: 'alert', text: '기록 초안 버전이 확인되지 않아 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
-    grounded_evidence_required: { className: 'status risk', role: 'alert', text: '확인 가능한 근거가 없어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
-    ai_provider_not_configured: { className: 'status risk', role: 'alert', text: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.' },
-    ai_prohibited_output: { className: 'status risk', role: 'alert', text: '안전 기준에 맞지 않는 AI 결과가 감지되어 요청을 처리할 수 없습니다.' },
-    ai_provider_unavailable: { className: 'status risk', role: 'alert', text: '텍스트 AI 서비스를 지금 사용할 수 없어 요청을 처리할 수 없습니다.' },
+  const content: Record<RecoveryState, { tone: 'lavender' | 'risk'; role: 'alert' | 'status'; text: string }> = {
+    idle: { tone: 'lavender', role: 'status', text: '아직 서버에 저장되지 않았습니다.' },
+    invalid_request: { tone: 'risk', role: 'alert', text: '입력 형식을 확인한 뒤 같은 제출 ID로 다시 시도하세요.' },
+    validation_error: { tone: 'risk', role: 'alert', text: '입력한 상담 기록을 확인한 뒤 같은 제출 ID로 다시 시도하세요.' },
+    authentication_required: { tone: 'risk', role: 'alert', text: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 새 상담 기록을 시작하세요.' },
+    access_denied: { tone: 'risk', role: 'alert', text: '이 참여 사업에 상담 기록을 남길 권한이 없습니다. 권한을 확인한 뒤 새 상담 기록을 시작하세요.' },
+    forbidden: { tone: 'risk', role: 'alert', text: '현재 권한으로는 이 상담 기록을 저장할 수 없습니다. 권한 상태를 확인하세요.' },
+    not_found: { tone: 'risk', role: 'alert', text: '요청한 당사자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.' },
+    conflict: { tone: 'risk', role: 'alert', text: '같은 제출 ID에 다른 저장 요청이 있어 이 기록을 등록하지 않았습니다.' },
+    not_eligible_or_already_purged: { tone: 'risk', role: 'alert', text: '현재 참여 사업에는 상담 기록을 등록할 수 없습니다. 참여 사업 상태를 확인하세요.' },
+    pilot_text_ai_consent_required: { tone: 'risk', role: 'alert', text: '텍스트 AI 파일럿 동의가 확인되지 않아 요청을 처리할 수 없습니다. 동의 상태를 확인하세요.' },
+    text_ai_pilot_disabled: { tone: 'risk', role: 'alert', text: '텍스트 AI 파일럿이 현재 사용할 수 없어 요청을 처리할 수 없습니다.' },
+    stale_draft_version: { tone: 'risk', role: 'alert', text: '기록 초안이 변경되어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
+    draft_version_required: { tone: 'risk', role: 'alert', text: '기록 초안 버전이 확인되지 않아 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
+    grounded_evidence_required: { tone: 'risk', role: 'alert', text: '확인 가능한 근거가 없어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
+    ai_provider_not_configured: { tone: 'risk', role: 'alert', text: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.' },
+    ai_prohibited_output: { tone: 'risk', role: 'alert', text: '안전 기준에 맞지 않는 AI 결과가 감지되어 요청을 처리할 수 없습니다.' },
+    ai_provider_unavailable: { tone: 'risk', role: 'alert', text: '텍스트 AI 서비스를 지금 사용할 수 없어 요청을 처리할 수 없습니다.' },
     // G1 의 두 코드는 등록 화면에서 나는 실패다. 상담 기록 저장 경로에서는 나지 않지만
     // 공용 Notice 타입을 쓰므로 자리는 채워 둔다(빠지면 타입이 깨진다).
-    privacy_consent_required: { className: 'status risk', role: 'alert', text: '개인정보 수집·이용 동의가 확인되지 않아 요청을 처리할 수 없습니다. 당사자 정보 화면에서 동의 상태를 확인하세요.' },
-    emergency_reason_required: { className: 'status risk', role: 'alert', text: '긴급 등록 사유가 없어 요청을 처리할 수 없습니다.' },
-    service_unavailable: { className: 'status risk', role: 'alert', text: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.' },
-    unknown_outcome: { className: 'status risk', role: 'alert', text: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.' },
+    privacy_consent_required: { tone: 'risk', role: 'alert', text: '개인정보 수집·이용 동의가 확인되지 않아 요청을 처리할 수 없습니다. 당사자 정보 화면에서 동의 상태를 확인하세요.' },
+    emergency_reason_required: { tone: 'risk', role: 'alert', text: '긴급 등록 사유가 없어 요청을 처리할 수 없습니다.' },
+    service_unavailable: { tone: 'risk', role: 'alert', text: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.' },
+    unknown_outcome: { tone: 'risk', role: 'alert', text: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.' },
   };
   const item = content[state];
-  return <p className={item.className} role={item.role} aria-live="polite" data-recovery-state={state}>{item.text}</p>;
+  return <p className="wire-badge" data-tone={item.tone} role={item.role} aria-live="polite" data-recovery-state={state}>{item.text}</p>;
 }
 
 function Message({ code }: { code: LoadError | null }) {
   if (code === null || messages[code] === undefined) return null;
-  return <p className="status risk" role="alert">{messages[code]}</p>;
+  return <p className="wire-badge" data-tone="risk" role="alert">{messages[code]}</p>;
 }
 
 export default async function NewRecordPage({
@@ -427,10 +428,11 @@ export default async function NewRecordPage({
   const mustStartFresh = state === 'conflict';
   // HERO 메타 한 줄(D38 슬롯 ③) — 쓰기 화면에 필요한 맥락은 '지난 상담이 언제였나'와
   // '넘겨받은 액션이 몇 건인가' 둘이다. 없으면 그 조각만 빠진다.
-  const heroMeta = [
+  // 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다(§10, 2026-08-07).
+  const heroMetaItems = [
     lastRecordSummary === null ? '첫 상담 기록' : `지난 상담 ${dateOnlyLabel(lastRecordSummary.heldAt)}`,
     openActionItems.length === 0 ? null : `미해결 액션 ${openActionItems.length}건`,
-  ].filter((item): item is string => item !== null).join(' · ');
+  ].filter((item): item is string => item !== null);
 
   return <main className="page-content">
     {/* ParticipantHeroCard (D38): 이 화면도 URL 이 당사자 한 명을 가리키므로 공통 머리를
@@ -443,7 +445,7 @@ export default async function NewRecordPage({
       name={participant.data?.name ?? null}
       beneficiaryId={beneficiaryId ?? '확인 불가'}
       stageTag="상담 기록"
-      {...(heroMeta.length === 0 ? {} : { meta: heroMeta })}
+      {...(heroMetaItems.length === 0 ? {} : { meta: <MetaRow items={heroMetaItems} /> })}
     />
     <Message code={error} />
     <RecoveryStatus state={state} />

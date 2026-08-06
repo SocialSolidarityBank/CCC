@@ -304,9 +304,9 @@ export function RecordOnepage({
         open={safetyOpen}
         onToggle={(event) => setSafetyOpen(event.currentTarget.open)}
       >
-        <summary className="record-accordion-summary">위기·안전 확인 {hasCrisis ? <span className="status risk">확인 필요</span> : <small>(선택)</small>}</summary>
+        <summary className="record-accordion-summary">위기·안전 확인 {hasCrisis ? <span className="wire-badge" data-tone="risk">확인 필요</span> : <small>(선택)</small>}</summary>
         <div className="record-accordion-body">
-          {hasCrisis ? <p className="status risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</p> : null}
+          {hasCrisis ? <p className="wire-badge" data-tone="risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</p> : null}
           <p>당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
           <WireFormField label="위기·안전 확인 내용" note="(선택)" control="textarea" htmlFor="safety-note">
             <textarea id="safety-note" name="safetyNote" rows={4} />
