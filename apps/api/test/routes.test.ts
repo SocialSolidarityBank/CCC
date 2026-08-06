@@ -730,7 +730,7 @@ describe('API routes', () => {
     await expect(response.json()).resolves.toEqual({ error: 'ai_prohibited_output' });
     expect(prohibitedAdapter.calls).toBe(1);
     await expectNoDraft(prohibitedFixture.env, prohibitedFixture.session.id);
-  }, 15_000);
+  });
 
   it('rejects future and noncanonical pilot consent effective times without recording evidence', async () => {
     const fixture = await setupPhase1AiFixture();
@@ -796,7 +796,7 @@ describe('API routes', () => {
     await expect(isolatedResponse.json()).resolves.toEqual({ error: 'pilot_text_ai_consent_required' });
     expect(isolated.adapter.calls).toBe(0);
     await expectNoDraft(isolated.env, secondSession.id);
-  }, 30_000);
+  });
 
   it('isolates source snapshots to their recorded case and session before outbound work', async () => {
     const { adapter, caseRecord, counselor, env, session } = await setupPhase1AiFixture();
@@ -864,7 +864,7 @@ describe('API routes', () => {
     await expect(mismatchedResponse.json()).resolves.toEqual({ error: 'ai_provider_unavailable' });
     expect(mismatchedAdapter.calls).toBe(0);
     await expectNoDraft(mismatched.env, mismatched.session.id);
-  }, 30_000);
+  });
 
   it('rejects provider output when activation changes during the outbound call', async () => {
     const adapter = new FakeAiProviderAdapter();
@@ -1007,7 +1007,7 @@ describe('API routes', () => {
         reviewEvents: 0,
       });
     }
-  }, 60_000);
+  });
   it('rejects duplicate snapshot spans and unsupported browser generation fields without mutation', async () => {
     const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
@@ -1131,7 +1131,7 @@ describe('API routes', () => {
       expect(adapter.calls).toBe(1);
       await expectNoDraft(env, session.id);
     }
-  }, 60_000);
+  });
 
   it('rejects ungrounded, duplicate, unsafe, and malformed briefing questions without drafts', async () => {
     const invalidOutputs: Array<(request: AiProviderRequest) => unknown> = [
@@ -1197,7 +1197,7 @@ describe('API routes', () => {
       await expect(response.json()).resolves.toEqual({ error: 'ai_prohibited_output' });
       await expectNoDraft(env, session.id);
     }
-  }, 60_000);
+  });
   it('accepts exactly three unique grounded briefing questions', async () => {
     const adapter = new FakeAiProviderAdapter();
     adapter.output = (request) => ({
@@ -1775,7 +1775,7 @@ describe('API routes', () => {
       }));
       expectContentFree({ briefing, sessions, sessionPayload }, [scenario.canary]);
     }
-  }, 30_000);
+  });
 
   it('returns only safe active provider metadata to an admin', async () => {
     const { adapter, env } = await setupPhase1AiFixture();
@@ -2623,7 +2623,7 @@ describe('canonical participant API routes', () => {
       officialAfterApproval,
       [pendingCanary, rejectedCanary, approvedCanary],
     );
-  }, 15_000);
+  });
 
   it('rejects role-confused, malformed, unknown-field, and hidden-case participant requests without disclosure', async () => {
     const creation = await setupCanonicalParticipant();
