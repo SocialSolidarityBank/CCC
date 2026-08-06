@@ -59,8 +59,8 @@ export default async function ParticipantsPage() {
               beneficiaryId: entry.beneficiaryId,
               // 검색어 대조용 문자열. 이름·가명 ID·연락처를 한 줄로 이어 둔다.
               haystack: [entry.name ?? '', entry.beneficiaryId, entry.phone ?? ''].join(' ').toLowerCase(),
-              // 일정 화면과 같은 당사자 카드(2026-08-06 Q) — 1행 카드 + 오른쪽 화살표가
-              // 상세(허브)로 가는 길임을 알린다. 상태는 뱃지, 참여 사업 수는 컬러 표시.
+              // 일정 화면과 같은 당사자 카드(2026-08-06 Q) — 2행 골격(1행 참여 사업·상태,
+              // 2행 이름·ID·연락처). 카드 전체가 상세(허브)로 가는 링크다.
               node: (
                 <ParticipantCard
                   href={`/participants/${encodeURIComponent(entry.beneficiaryId)}`}
@@ -71,7 +71,6 @@ export default async function ParticipantsPage() {
                     ? { label: statusLabel(entry.status), tone: 'mint' }
                     : { label: statusLabel(entry.status) }}
                   programCount={entry.programCount}
-                  chevron
                 />
               ),
             }))}

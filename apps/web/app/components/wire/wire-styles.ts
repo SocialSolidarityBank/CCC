@@ -39,7 +39,7 @@ export const wireStyles = `
    펴고(space-between), 세로는 가운데 정렬이다. 행 구분선은 회색 --line 이고 카드
    아웃라인까지 가로지른다(패딩만큼 음수 마진). */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
-.participant-card{position:relative;display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
+.participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
 /* 칸은 **고정 자리 좌측정렬**이다(2026-08-06 Q 2차 — 구 space-between 고른 펴기 대체:
    내용 폭이 카드마다 달라 가운데 칸들이 제각각의 x 에 앉았다, Q "삐뚤삐뚤"). 날짜·이름·
    가명 ID 칸이 고정 폭을 가져 다음 칸의 시작선이 모든 카드에서 같다. 틈 12 는 유지. */
@@ -62,11 +62,8 @@ export const wireStyles = `
 /* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
    민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
 .participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;color:var(--lavender-deep);white-space:nowrap}
-/* 상세 화살표는 행 밖, 카드 오른쪽 끝 고정이다. 행의 flex-wrap 안에 두면 칸이 빠듯할 때
-   화살표만 둘째 줄로 떨어진다. 카드가 자리(패딩)를 내주고 화살표는 세로 중앙에 선다. */
-/* optical: 10px 는 간격이 아니라 .wire-chevron 글리프 폭이다(패딩 24 + 화살표 10 + 틈 16) */
-.participant-card[data-chevron="true"]{padding-right:calc(var(--space-6) + 10px + var(--space-4))}
-.participant-card>.wire-chevron{position:absolute;top:calc(50% - 5px);right:var(--space-6)}
+/* 상세 화살표는 없다(2026-08-06 4차 — 구 '목록 카드 오른쪽 끝 고정' 폐지). 카드 전체가
+   링크이고 호버 그라데이션 아웃라인이 눌림을 알린다 — 일정 카드와 같은 문법. */
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
