@@ -46,15 +46,16 @@ export const wireStyles = `
 .participant-card-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
 .participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;color:var(--ink);overflow-wrap:anywhere}
 .participant-card-cell[data-tone="sub"]{color:var(--sub)}
-/* optical: 고정 칸 폭 — 날짜 104("8월 13일 (목)" 90 + 여유) · 이름 84(한글 4자 강조체) ·
-   가명 ID 104(dolphin-001 84 + 여유). 간격 토큰이 아니라 열 자리다. */
+/* optical: 고정 칸 폭 — 날짜 104("8월 13일 (목)" 90 + 여유) · 이름 72(한글 4자 강조체 68 +
+   여유. 2026-08-06 3차 "더 가까이" — 구 84) · 가명 ID 96(dolphin-001 84 + 여유, 구 104).
+   간격 토큰이 아니라 열 자리다. */
 .participant-card-cell[data-col="date"]{flex:none;width:104px}
 /* 이름은 강조 600 + 계단 16 에 광학 +1px (2026-08-06 Q "볼드 + 폰트 1px" — 당사자 카드
    이름 한정 예외, DESIGN.md §2-1 기록). */
-.participant-card-cell[data-col="name"]{flex:none;width:84px;font-weight:600;font-size:calc(var(--text-md) + 1px)}
-.participant-card-cell[data-col="id"]{flex:none;width:104px}
-/* 상태 뱃지·참여 사업 묶음은 오른쪽 끝으로 민다 — 정보 칸(좌측 고정)과 축이 다르다. */
-.participant-card-meta{display:inline-flex;align-items:center;gap:var(--space-3);margin-left:auto;flex:none}
+.participant-card-cell[data-col="name"]{flex:none;width:72px;font-weight:600;font-size:calc(var(--text-md) + 1px)}
+/* 가명 ID 는 연락처(--sub)보다 한 발 옅은 그레이다(2026-08-06 3차) — 대조용 값이라 물러선다.
+   양끝이 테마 토큰이라 다크에서도 따라 뒤집힌다. 흰 위 4.78 로 AA(4.5) 통과 실계산. */
+.participant-card-cell[data-col="id"]{flex:none;width:96px;color:color-mix(in srgb,var(--sub) 80%,var(--panel))}
 .participant-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 /* 1행 뱃지 묶음도 오른쪽 끝 — 좌측은 고정 칸(날짜·시간)의 자리다. */
 .participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none;margin-left:auto}
