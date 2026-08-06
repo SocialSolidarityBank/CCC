@@ -888,7 +888,7 @@ describe('gateway domain records', () => {
       await expect(t.db.prepare('SELECT COUNT(*) AS count FROM ai_draft_versions').first<{ count: number }>())
         .resolves.toEqual({ count: 0 });
     }
-  }, 30_000);
+  });
   it('rejects evidence-only edits that select only question links', async () => {
     await t.reset();
     const { draft } = await createPilotDraft();

@@ -1122,7 +1122,7 @@ describe('schema triggers', () => {
     } finally {
       await miniflare.dispose();
     }
-  }, 20_000);
+  });
   it('aborts 0006 atomically when reverse support-case reconciliation finds post-expand drift', async () => {
     const { miniflare, db, expandMigration, cutoverMigration } = await createPreCutoverD1();
     try {

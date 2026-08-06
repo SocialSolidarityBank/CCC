@@ -144,5 +144,5 @@ describe('0007 beneficiaries id CHECK expand (D20 · ADR-0004 · 티켓 #11)', (
     } finally {
       await miniflare.dispose();
     }
-  }, 20_000);
+  });
 });
