@@ -36,9 +36,12 @@ const messages: Record<ErrorKind, string> = {
   access_or_not_found: '요청한 상담 기록 정보를 확인할 수 없습니다. 접근 권한과 주소를 확인하세요.',
   service_unavailable: '상담 기록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.',
 };
+// 일정 상태는 전부 무채색 기본 배지다(2026-08-05 배지 스윕) — 전체 일정 화면(month-row-status)과
+// 같은 어휘. 구 '예정'=라벤더는 '승인 대기'(AI 축)와 색이 겹쳤고, 구 '취소됨'·'불참'=리스크
+// 핑크는 D9 위반이었다(리스크 색은 확인된 플래그·오류 전용, 일정 상태는 사실이지 경고가 아니다).
 const schedulePresentations: Record<CounselingScheduleStatus, { className: string; label: string; message: string }> = {
   scheduled: {
-    className: 'status warning',
+    className: 'status',
     label: '예정',
     message: '기록 작성 시에만 명시적으로 완료 처리할 수 있습니다.',
   },
@@ -48,12 +51,12 @@ const schedulePresentations: Record<CounselingScheduleStatus, { className: strin
     message: '일정이 상담 기록과 연결되어 완료되었습니다.',
   },
   cancelled: {
-    className: 'status risk',
+    className: 'status',
     label: '취소됨',
     message: '이 일정은 취소되어 상담 기록으로 완료 처리할 수 없습니다.',
   },
   no_show: {
-    className: 'status risk',
+    className: 'status',
     label: '불참',
     message: '이 일정은 불참으로 처리되어 상담 기록으로 완료 처리할 수 없습니다.',
   },

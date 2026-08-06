@@ -312,7 +312,9 @@ export function BriefingCards({
         <div className="briefing-hero-identity">
           <h1 className="briefing-hero-title">
             <ParticipantName name={participant.name} beneficiaryId={beneficiaryId} size="hero" />
-            <span className="briefing-badge is-stage">상담 준비</span>
+            {/* 상태 태그는 §5 컨트롤(radius 6) — 다른 HERO 와 같은 부품 클래스를 단다(2026-08-05,
+                구 .briefing-badge.is-stage 알약 폐지). */}
+            <span className="participant-hero-stage">상담 준비</span>
           </h1>
           {/* 회차는 브리핑 응답에 없어 넣지 않는다 — 없는 숫자를 화면에서 만들지 않는다.
               상담 방식은 v1 이 대면뿐이다(D4). */}

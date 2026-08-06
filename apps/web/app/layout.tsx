@@ -295,20 +295,24 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
   color:var(--ink);
 }
 .panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:600}
-/* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다. */
-.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:600}
+/* 상태 배지(§5 기본 배지): 색 없이 --sub 테두리로만 선다.
+   2026-08-05 Q 재규정: 배지는 tint 배경으로 계열을 구분하고 글자는 전부 --ink 로 통일,
+   계열 deep 색은 흐린 외곽선 1px 로 옮긴다(다크 테마에서 토큰이 함께 뒤집힌다 — D56). */
+.status{display:inline-flex;width:max-content;min-height:var(--badge-height);align-items:center;justify-content:center;line-height:normal;padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600}
 /* 주의·대기·미완료는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
-.warning{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
-.risk{border-color:transparent;background:var(--risk-tint-solid);color:var(--risk)}
-/* D58 계열 의미 고정(CCC-54): 민트=진행·상태, 블루=정보·일정. 읽어야 하는 값이라 글자는 --ink(D47). */
-.status.mint{border-color:transparent;background:var(--mint-tint);color:var(--ink)}
-.status.blue{border-color:transparent;background:var(--blue-tint);color:var(--ink)}
+.warning{border-color:var(--lavender-deep);background:var(--lavender-tint)}
+.risk{border-color:var(--risk);background:var(--risk-tint-solid)}
+/* D58 계열 의미 고정(CCC-54): 민트=진행·상태, 블루=정보·일정. */
+.status.mint{border-color:var(--mint-deep);background:var(--mint-tint)}
+.status.blue{border-color:var(--blue-deep);background:var(--blue-tint)}
 .panel{padding:var(--space-6)}
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
 .field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .field input,.field select,.field textarea{width:100%;min-height:var(--control-height);padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:400}
+/* 단일행 컨트롤만 행간 normal(2026-08-06 Q — 킷 입력칸과 동일). textarea 는 다중행이라 제외. */
+.field input,.field select{line-height:normal}
 /* 라디오·체크박스는 텍스트 칸이 아니다. 위 규칙의 width:100% 를 그대로 먹으면 동그라미가
    칸을 가로질러 늘어나고 라벨이 아래 줄로 밀려난다 — 선택지가 세로로 한 글자씩 쪼개져
    읽히던 원인이다(2026-07-26 Q 보고 "너무 좁아서 쓸 수 없는 칸"). */
@@ -463,8 +467,8 @@ const briefingStyles = `
 .briefing-hero{padding:var(--space-6);gap:var(--space-5)}
 .briefing-hero-identity{display:grid;gap:var(--space-2);min-width:0}
 .briefing-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
-/* 상태 태그는 시간·상태 축이라 블루다(D34). 글자는 deep — base 는 글자에 쓰지 않는다(색 규율 3). */
-.briefing-badge.is-stage{border-color:transparent;background:var(--blue-tint);color:var(--blue-deep)}
+/* '상담 준비' 상태 태그는 .participant-hero-stage(wire-styles) 를 단다 — 구 .is-stage 알약은
+   2026-08-05 삭제: 같은 태그가 이 화면에서만 옷(pill·tint 채움)이 달랐다(§5 는 컨트롤). */
 .briefing-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 카드 제목 오른쪽 자리 — 배지(승인 대기 등)와 화살표가 앉는다. */
@@ -503,11 +507,11 @@ const briefingStyles = `
 .briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
 .briefing-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .briefing-history>.briefing-qsection{margin-top:var(--space-4)}
-/* 배지·메타·빈 상태(§5 상태 배지). */
-.briefing-badge{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.briefing-badge.is-approved{border-color:transparent;background:var(--mint-tint);color:var(--mint-deep)}
+/* 배지·메타·빈 상태(§5 상태 배지). 색 레시피는 2026-08-05 Q 재규정(.status 와 동일) —
+   구 .is-approved(민트) 변형은 사용처가 없어 함께 삭제했다. */
+.briefing-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 /* 승인 대기는 라벤더 tint 배지다(색 규율 5 — v1 검정 반전 배지를 대체). */
-.briefing-badge.is-pending{border-color:transparent;background:var(--lavender-tint);color:var(--lavender-deep)}
+.briefing-badge.is-pending{border-color:var(--lavender-deep);background:var(--lavender-tint)}
 .briefing-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
    회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
@@ -530,9 +534,9 @@ const briefingStyles = `
 .record-chevron{flex:none;width:12px;font-size:var(--text-sm);color:var(--sub)}
 .record-ordinal{flex:none;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-held-at{flex:none;font-size:var(--text-md);color:var(--sub)}
-/* 유형 칩 — 시간·상태 축이라 블루 tint. 글자는 --ink 다: 읽어야 하는 값이라 §9 의
-   '보조 정보 한정' 대비 예외를 쓰지 않는다. 인테이크도 같은 블루이고 구분은 글자가 한다. */
-.record-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+/* 유형 칩 — 시간·상태 축이라 블루 tint. 외곽선은 배지 재규정(2026-08-05 Q — deep 을 흐린
+   테두리로)을 따르고, 글자는 --ink 다. 인테이크도 같은 블루이고 구분은 글자가 한다. */
+.record-kind{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). */
 .record-one-liner{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);color:var(--ink)}
 .record-one-liner.is-memo{color:var(--sub)}
@@ -550,10 +554,10 @@ const briefingStyles = `
 .record-session-goal{display:grid;gap:var(--space-1);border-radius:var(--radius-control);background:var(--mint-tint);padding:var(--space-3) var(--space-4)}
 .record-session-goal-label{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-session-goal p{margin:0;font-size:var(--text-md);color:var(--ink)}
-/* 담당 칩 — 사람·소속 축(민트). 글자는 --ink(위 유형 칩과 같은 이유). */
-.record-owner{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--mint-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-/* AI 출처 칩 — AI 축(라벤더). 곁다리로 읽는 값이라 deep 글자가 남는 자리다(§9 예외). */
-.record-ai-source{display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:var(--text-sm);font-weight:600;color:var(--lavender-deep)}
+/* 담당 칩 — 사람·소속 축(민트). 외곽선·글자는 배지 재규정(위 유형 칩과 같다). */
+.record-owner{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--mint-deep);border-radius:var(--radius-pill);background:var(--mint-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+/* AI 출처 칩 — AI 축(라벤더). 외곽선·글자는 배지 재규정(2026-08-05 Q — deep 글자 폐지). */
+.record-ai-source{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--lavender-deep);border-radius:var(--radius-pill);background:var(--lavender-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
 /* 리스크 레드는 **확인된** 플래그에만(D9·D34). 조회 API 가 확인된 것만 내려보내지만,
    색을 상태에 걸어 두면 나중에 범위가 넓어져도 규율이 깨지지 않는다. */
@@ -598,7 +602,7 @@ const settingsStyles = `
 .settings-user-row:last-child{border-bottom:0}
 .settings-user-email{overflow-wrap:anywhere;font-weight:600}
 .settings-user-role{color:var(--sub);font-size:var(--text-sm);font-weight:600}
-.settings-user-status{display:inline-flex;align-items:center;width:max-content;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--sub);font-size:var(--text-sm);font-weight:600}
+.settings-user-status{display:inline-flex;align-items:center;justify-content:center;line-height:normal;width:max-content;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600}
 .settings-user-row[data-active="false"]{opacity:.6}
 @media(max-width:767px){.settings-user-row{grid-template-columns:1fr;gap:var(--space-1)}.settings-user-role,.settings-user-status{justify-self:start}}
 `;
@@ -650,11 +654,11 @@ const monthScheduleStyles = `
 .month-row-name b{font-size:var(--text-md);font-weight:600;color:var(--ink);white-space:nowrap}
 .month-row-name span{font-size:var(--text-md);font-weight:400;color:var(--sub);white-space:nowrap}
 .month-row-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
-/* 유형 칩 — 블루 tint + --ink 글자(D47 계열 칩 ①: 읽어야 하는 값이라 deep 을 쓰지 않는다). */
-.month-row-kind{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+/* 유형 칩 — 블루 tint + --ink 글자 + 블루 deep 외곽선(배지 재규정 2026-08-05 Q). */
+.month-row-kind{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 /* 상태는 지난 일정에만 붙는다(예정은 붙이지 않는다 — 대부분이 예정이라 전부 붙으면 소음이다).
    무채색 기본 배지다: 취소·불참은 경고가 아니라 사실이고, 리스크 색은 확인된 플래그 전용이다(D9). */
-.month-row-status{flex:none;display:inline-flex;align-items:center;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+.month-row-status{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:600;color:var(--ink)}
 @media (max-width:767px){
   /* §5 모바일: 리스트 행은 시간+이름 / 메타 / 배지 3줄로 접힌다. */
   .month-row{flex-wrap:wrap}
@@ -696,7 +700,7 @@ const registerStyles = `
 .onboarding-form{display:grid;margin-top:var(--space-8)}
 .onboarding-card{display:grid;gap:var(--space-4);padding:var(--space-6)}
 .onboarding-card h2{margin:0}
-.onboarding-step{margin:0;justify-self:start;padding:var(--space-0-5) var(--space-2-5);border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:var(--text-sm);font-weight:600}
+.onboarding-step{margin:0;justify-self:start;min-height:var(--badge-height);display:inline-flex;align-items:center;justify-content:center;line-height:normal;padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);color:var(--ink);font-size:var(--text-sm);font-weight:600}
 .onboarding-help{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .onboarding-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-2)}
 `;

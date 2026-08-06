@@ -141,7 +141,6 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'is-selected-surface', // §5 '선택·활성 표면'을 details 가 아닌 곳에서 수동으로 켜는 훅
   'wire-card-section',   // §5 카드 안 하위 구획
   'wire-col-3', 'wire-col-12', // 12칼럼 세트(4·6·8 은 사용 중)
-  'is-approved',         // §5 계열 배지 '승인됨' 변형
   // §6 모션 3종(D58/ADR-0028): 어휘 정의는 CCC-50, 배선은 CCC-51·CCC-53 몫
   'motion-flow',
   'motion-press',

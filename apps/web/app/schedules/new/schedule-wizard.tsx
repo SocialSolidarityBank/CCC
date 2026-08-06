@@ -8,6 +8,7 @@ import { PageTitle } from '../../components/wire/page-title';
 import { ListRow } from '../../components/wire/list-row';
 import { SearchInput } from '../../components/wire/search-input';
 import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire/date-picker-control';
+import { WireFormField } from '../../components/wire/wire-form-field';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
 import type {
@@ -324,15 +325,18 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                     recordHref={intakeRecordHref(selected)}
                   />
                   {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
-                      팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS). */}
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <span style={labelStyle}>상담 일시</span>
+                      팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS).
+                      WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 .wire-input-box 의
+                      테두리·포커스 링이 없어 입력칸이 입력칸으로 보이지 않았다(기록 작성 화면과
+                      같은 조합). */}
+                  <WireFormField label="상담 일시" htmlFor="schedule-scheduled-at">
                     <DateTimePickerControl
+                      id="schedule-scheduled-at"
                       fieldLabel="상담 일시"
                       value={scheduledAt}
                       onChange={setScheduledAt}
                     />
-                  </div>
+                  </WireFormField>
                 </>
               )}
               <div style={rowActionsStyle}>
