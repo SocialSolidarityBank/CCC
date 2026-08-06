@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NavIcon } from './shell-icons';
+import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';
 import { toggleThemeAction } from '../../theme-action';
@@ -55,12 +56,9 @@ export function AppHeader({
 
   return (
     <header className="app-header">
-      {/* 기관명이 곧 홈 버튼이다 (2026-07-31 Q 요청 — D50, 자리만 사이드바 → 헤더).
-          목적지는 '/' 다 — 마지막 선택 사업을 서버가 읽어 그 일정으로 보낸다(page.tsx). */}
-      <Link className="brand" href="/">
-        <span className="brand-mark" aria-hidden="true"><NavIcon name="org" /></span>
-        <span>{orgLabel}</span>
-      </Link>
+      {/* 기관명도 선택창이다 (2026-08-05 Q 2차 — Infisical·OpenAI 레퍼런스, 구 홈 링크 대체.
+          D50 홈 배선은 목록 안으로 옮겨 갔다 — 기관을 고르면 그 기관의 홈 '/' 로 간다). */}
+      <OrgSwitcher orgLabel={orgLabel} />
       {/* 기관 | 사업 구분은 1px 세로 선이다 — 글자 구분자(/·|)를 쓰지 않는 문안 규칙(§10)과 맞다. */}
       <span className="header-divider" aria-hidden="true" />
       <ProgramSwitcher activeProgram={activeProgram} programLabels={programLabels} />

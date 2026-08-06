@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Icon } from './wire-icon';
-import { Chevron } from './chevron';
+import { NavIcon } from './shell-icons';
 import type { ParticipantProgramType } from '../../lib/api';
 import { DEFAULT_PROGRAM_TYPE, PROGRAM_TYPES, isKnownProgramType } from '../../lib/labels';
 
@@ -91,9 +91,9 @@ export function ProgramSwitcher({
           onClick={() => setOpen((previous) => !previous)}
         >
           <span className="program-switcher-name" id={`${menuId}-value`}>{programLabels[activeProgram]}</span>
-          {/* 방향은 늘 아래다 — Chevron 계약에 'up' 이 없고(down|right), 열림 여부는
-              aria-expanded 와 열린 목록 자체가 이미 알린다. 이 하나 때문에 공용 부품을 넓히지 않는다. */}
-          <Chevron dir="down" />
+          {/* 상하 꺽쇠(2026-08-05 Q 2차 — 구 아래 꺽쇠 대체): 단방향 꺽쇠는 '펼침'을, 상하
+              꺽쇠는 '고르는 값'을 말한다. 기관 선택창과 같은 어휘(Infisical·OpenAI 레퍼런스). */}
+          <span className="switcher-updown" aria-hidden="true"><NavIcon name="updown" /></span>
         </button>
         {open ? (
           <ul className="program-switcher-menu" aria-labelledby={`${menuId}-label`}>

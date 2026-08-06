@@ -2,12 +2,12 @@
   {
     "width": 1440,
     "route": "briefing",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/briefing",
     "measured": {
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": false,
+      "headerHeight": 56,
       "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
@@ -15,11 +15,9 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
+      "sidebarWidth": 280,
       "stdCols": 2,
-      "stdGap": 20,
-      "denseCols": 3,
-      "denseGap": 20
+      "stdGap": 20
     },
     "violations": []
   },
@@ -31,7 +29,7 @@
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": false,
+      "headerHeight": 56,
       "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
@@ -39,19 +37,19 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1440,
     "route": "participant-hub",
-    "path": "/participants/whale-001",
+    "path": "/participants/crane-001",
     "measured": {
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": false,
+      "headerHeight": 56,
       "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
@@ -59,7 +57,7 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
+      "sidebarWidth": 280,
       "stdCols": 2,
       "stdGap": 20
     },
@@ -73,8 +71,9 @@
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
+      "headerHeight": 56,
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
@@ -86,15 +85,15 @@
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": true,
-      "containerWidth": 960,
+      "headerHeight": 56,
+      "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 880,
+      "textWidth": 1040,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
@@ -106,27 +105,27 @@
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": true,
-      "containerWidth": 960,
+      "headerHeight": 56,
+      "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 880,
+      "textWidth": 1040,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1440,
     "route": "records",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records",
     "measured": {
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": false,
+      "headerHeight": 56,
       "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
@@ -134,21 +133,19 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
-      "stdCols": 2,
-      "stdGap": 20
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1440,
     "route": "record-new",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records/new",
     "measured": {
       "scrollX": false,
       "docScroll": 1440,
       "docClient": 1440,
-      "narrow": false,
+      "headerHeight": 56,
       "containerWidth": 1120,
       "padLeft": 40,
       "padRight": 40,
@@ -156,31 +153,29 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1280,
     "route": "briefing",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/briefing",
     "measured": {
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": false,
-      "containerWidth": 1040,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 960,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
+      "sidebarWidth": 280,
       "stdCols": 2,
-      "stdGap": 20,
-      "denseCols": 3,
-      "denseGap": 20
+      "stdGap": 20
     },
     "violations": []
   },
@@ -192,35 +187,35 @@
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": false,
-      "containerWidth": 1040,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 960,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1280,
     "route": "participant-hub",
-    "path": "/participants/whale-001",
+    "path": "/participants/crane-001",
     "measured": {
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": false,
-      "containerWidth": 1040,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 960,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
+      "sidebarWidth": 280,
       "stdCols": 2,
       "stdGap": 20
     },
@@ -234,8 +229,9 @@
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
+      "headerHeight": 56,
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
@@ -247,15 +243,15 @@
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": true,
-      "containerWidth": 960,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 880,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
@@ -267,81 +263,77 @@
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": true,
-      "containerWidth": 960,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 880,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1280,
     "route": "records",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records",
     "measured": {
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": false,
-      "containerWidth": 1040,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 960,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
-      "stdCols": 2,
-      "stdGap": 20
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1280,
     "route": "record-new",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records/new",
     "measured": {
       "scrollX": false,
       "docScroll": 1280,
       "docClient": 1280,
-      "narrow": false,
-      "containerWidth": 1040,
+      "headerHeight": 56,
+      "containerWidth": 1000,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 960,
+      "textWidth": 920,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1024,
     "route": "briefing",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/briefing",
     "measured": {
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": false,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
+      "sidebarWidth": 280,
       "stdCols": 1,
-      "stdGap": 20,
-      "denseCols": 1,
-      "denseGap": 20
+      "stdGap": 20
     },
     "violations": []
   },
@@ -353,35 +345,35 @@
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": false,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1024,
     "route": "participant-hub",
-    "path": "/participants/whale-001",
+    "path": "/participants/crane-001",
     "measured": {
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": false,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
+      "sidebarWidth": 280,
       "stdCols": 1,
       "stdGap": 20
     },
@@ -395,8 +387,9 @@
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
+      "headerHeight": 56,
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
@@ -408,15 +401,15 @@
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": true,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
@@ -428,69 +421,67 @@
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": true,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1024,
     "route": "records",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records",
     "measured": {
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": false,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240,
-      "stdCols": 1,
-      "stdGap": 20
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 1024,
     "route": "record-new",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records/new",
     "measured": {
       "scrollX": false,
       "docScroll": 1024,
       "docClient": 1024,
-      "narrow": false,
-      "containerWidth": 784,
+      "headerHeight": 56,
+      "containerWidth": 744,
       "padLeft": 40,
       "padRight": 40,
-      "textWidth": 704,
+      "textWidth": 664,
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": false,
-      "sidebarWidth": 240
+      "sidebarWidth": 280
     },
     "violations": []
   },
   {
     "width": 767,
     "route": "briefing",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/briefing",
     "measured": {
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -500,9 +491,7 @@
       "sidebarDrawer": true,
       "sidebarWidth": 0,
       "stdCols": 1,
-      "stdGap": 20,
-      "denseCols": 1,
-      "denseGap": 20
+      "stdGap": 20
     },
     "violations": []
   },
@@ -514,7 +503,7 @@
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -529,12 +518,12 @@
   {
     "width": 767,
     "route": "participant-hub",
-    "path": "/participants/whale-001",
+    "path": "/participants/crane-001",
     "measured": {
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -556,6 +545,7 @@
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
+      "headerHeight": 0,
       "sidebarDrawer": true,
       "sidebarWidth": 0
     },
@@ -569,7 +559,7 @@
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": true,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -589,7 +579,7 @@
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": true,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -604,12 +594,12 @@
   {
     "width": 767,
     "route": "records",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records",
     "measured": {
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -617,21 +607,19 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": true,
-      "sidebarWidth": 0,
-      "stdCols": 1,
-      "stdGap": 20
+      "sidebarWidth": 0
     },
     "violations": []
   },
   {
     "width": 767,
     "route": "record-new",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records/new",
     "measured": {
       "scrollX": false,
       "docScroll": 767,
       "docClient": 767,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 767,
       "padLeft": 16,
       "padRight": 16,
@@ -646,12 +634,12 @@
   {
     "width": 390,
     "route": "briefing",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/briefing",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/briefing",
     "measured": {
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,
@@ -661,9 +649,7 @@
       "sidebarDrawer": true,
       "sidebarWidth": 0,
       "stdCols": 1,
-      "stdGap": 20,
-      "denseCols": 1,
-      "denseGap": 20
+      "stdGap": 20
     },
     "violations": []
   },
@@ -675,7 +661,7 @@
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,
@@ -690,12 +676,12 @@
   {
     "width": 390,
     "route": "participant-hub",
-    "path": "/participants/whale-001",
+    "path": "/participants/crane-001",
     "measured": {
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,
@@ -717,6 +703,7 @@
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
+      "headerHeight": 0,
       "sidebarDrawer": true,
       "sidebarWidth": 0
     },
@@ -730,7 +717,7 @@
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": true,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,
@@ -750,7 +737,7 @@
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": true,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,
@@ -765,12 +752,12 @@
   {
     "width": 390,
     "route": "records",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records",
     "measured": {
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,
@@ -778,21 +765,19 @@
       "sectionGap": 24,
       "containerType": "inline-size",
       "sidebarDrawer": true,
-      "sidebarWidth": 0,
-      "stdCols": 1,
-      "stdGap": 20
+      "sidebarWidth": 0
     },
     "violations": []
   },
   {
     "width": 390,
     "route": "record-new",
-    "path": "/participants/whale-001/programs/5c6ffe0f-d7f7-45da-a135-850333485ee3/records/new",
+    "path": "/participants/crane-001/programs/7aaf3ba0-705f-4bb9-a5ea-cd6af3b6ecff/records/new",
     "measured": {
       "scrollX": false,
       "docScroll": 390,
       "docClient": 390,
-      "narrow": false,
+      "headerHeight": 0,
       "containerWidth": 390,
       "padLeft": 16,
       "padRight": 16,

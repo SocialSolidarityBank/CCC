@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { AppHeader } from './app-header';
 import { DEFAULT_PROGRAM_TYPE, ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 
@@ -10,19 +10,31 @@ const pathname = vi.hoisted(() => ({ current: '/' }));
 vi.mock('next/navigation', () => ({ usePathname: () => pathname.current }));
 
 describe('AppHeader (2026-08-05 상단 헤더 — Infisical 레퍼런스)', () => {
-  it('기관(홈) → 사업 전환기 → 계정 행동(설정·테마·로그아웃) 순으로 렌더한다', () => {
+  it('기관 선택창 → 사업 전환기 → 계정 행동(설정·테마·로그아웃) 순으로 렌더한다', () => {
     const { container } = render(<AppHeader activePath="/participants" />);
-    // 기관명이 곧 홈 버튼이다(D50 — 자리만 사이드바 → 헤더).
-    const brand = container.querySelector('a.brand');
-    expect(brand?.getAttribute('href')).toBe('/');
-    expect(brand?.textContent).toContain(ORG_LABEL);
+    // 기관명도 선택창이다(2026-08-05 Q 2차 — 구 홈 링크 대체. 홈 배선은 목록 안 '/').
+    const org = container.querySelector('.app-header .org-switcher');
+    expect(org).not.toBeNull();
+    expect(org?.textContent).toContain(ORG_LABEL);
     // 사업 전환기는 기관명 다음이다 — 헤더 왼쪽이 '기관 | 사업' 맥락 묶음이다.
-    const switcher = container.querySelector('.app-header .program-switcher');
+    const switcher = container.querySelector('.app-header .program-switcher:not(.org-switcher)');
     expect(switcher?.textContent).toContain(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
-    expect(brand?.compareDocumentPosition(switcher as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(org?.compareDocumentPosition(switcher as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     // 계정 행동 3개 — 아이콘 버튼이라 라벨은 aria-label 이 갖는다.
     const actions = Array.from(container.querySelectorAll('.header-actions .header-icon-button'));
     expect(actions.map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
+  });
+
+  it('기관 선택창을 열면 목록이 뜨고, 기관을 고르면 그 기관의 홈(/)으로 간다', () => {
+    // D50 "기관명=홈"의 새 자리 — 링크가 목록 안으로 들어갔다(2026-08-05 Q 2차).
+    const { container } = render(<AppHeader activePath="/participants" />);
+    const trigger = container.querySelector<HTMLButtonElement>('.org-switcher .program-switcher-trigger')!;
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(trigger);
+    const option = container.querySelector('.org-switcher .program-switcher-option');
+    expect(option?.getAttribute('href')).toBe('/');
+    expect(option?.textContent).toContain(ORG_LABEL);
+    expect(option?.getAttribute('aria-current')).toBe('true');
   });
 
   it('설정은 링크, 테마·로그아웃은 서버 액션 폼 버튼이다', () => {
@@ -55,7 +67,8 @@ describe('AppHeader (2026-08-05 상단 헤더 — Infisical 레퍼런스)', () =
     const { container } = render(
       <AppHeader activePath={`/programs/${DEFAULT_PROGRAM_TYPE}/schedule`} />,
     );
-    expect(container.querySelector('.program-switcher-name')?.textContent)
+    // 기관 선택창도 같은 이름 클래스를 쓰므로(2026-08-05 2차) 사업 쪽만 집는다.
+    expect(container.querySelector('.program-switcher:not(.org-switcher) .program-switcher-name')?.textContent)
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
 });
