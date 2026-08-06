@@ -85,9 +85,9 @@
   --line-sidebar: rgba(61, 52, 69, 0.16);
 
   /* ── 형태 ── */
-  --radius-control: 6px;    /* 버튼·내비 항목·리스크 항목 행·입력칸·상태 태그 */
+  --radius-control: 6px;    /* 버튼(2026-08-07 직사각화, 구 pill)·내비 항목·리스크 항목 행·입력칸·상태 태그 */
   --radius-card:    12px;   /* 카드·패널·배너·모달 */
-  --radius-pill:    9999px; /* 배지·칩·필 버튼·프라이머리/세컨더리 버튼 */
+  --radius-pill:    9999px; /* 배지·칩(읽기 전용)·원형 아이콘 버튼(정사각 32)·라디오 */
   --radius-xs:      4px;    /* 체크박스 */
   --radius-bar:     2px;    /* 추이 막대 */
   --control-height: 40px;

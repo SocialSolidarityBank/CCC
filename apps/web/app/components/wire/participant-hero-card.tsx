@@ -78,7 +78,7 @@ export function ParticipantHeroCard({
           {contact !== undefined && contact.length > 0 && (
             <span className="participant-hero-contact">{contact}</span>
           )}
-          {stageTag !== undefined && <span className="participant-hero-stage">{stageTag}</span>}
+          {stageTag !== undefined && <span className="wire-status-tag">{stageTag}</span>}
         </h1>
         {actions !== undefined && <div className="page-actions">{actions}</div>}
       </div>

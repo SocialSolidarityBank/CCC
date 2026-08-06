@@ -9,7 +9,9 @@ import { PageTitle } from '../components/wire/page-title';
 import { SearchInput } from '../components/wire/search-input';
 import { WireBullets, WireCard, WireField } from '../components/wire/wire-card';
 import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
+import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
+import { WireCallout, WireQuote } from '../components/wire/wire-callout';
 import { PROGRAM_LABELS } from '../lib/labels';
 
 // #31 컴포넌트 킷 검수용 데모. 전 컴포넌트를 변형까지 나열한다. 스타일 검수 전용이라
@@ -30,7 +32,7 @@ export default function KitPage() {
           <h2 className="wire-kit-heading" id="kit-tokens">레이아웃과 색 토큰</h2>
           <p className="wire-kit-caption">
             콘텐츠 컬럼 1120(폼·읽기 화면은 720), 좌우 여백 32, 섹션 간격 32. 값은 design/tokens.css 의
-            --page-max · --page-pad-x · --section-gap 하나뿐이고 화면이 폭을 따로 정하지 않는다 (DESIGN.md 4-1)
+            --page-max, --page-pad-x, --section-gap 하나뿐이고 화면이 폭을 따로 정하지 않는다 (DESIGN.md 4-1)
           </p>
           <div className="wire-container" data-grid="true">
             <div className="wire-col-6 wire-kit-swatch">col-6</div>
@@ -57,7 +59,7 @@ export default function KitPage() {
 
         <section className="wire-kit-section" aria-labelledby="kit-listrow">
           <h2 className="wire-kit-heading" id="kit-listrow">ListRow</h2>
-          <p className="wire-kit-caption">체브론 down, right, none, selected(그라데이션 채움 — 체크박스 켬과 같은 어휘), 아코디언 토글, 링크</p>
+          <p className="wire-kit-caption">체브론 down, right, none, selected(그라데이션 채움, 체크박스 켬과 같은 어휘), 아코디언 토글, 링크</p>
           <div className="wire-kit-stack">
             <ListRow chevron="down">체브론 down (펼침)</ListRow>
             <ListRow chevron="right">체브론 right (이동/접힘)</ListRow>
@@ -137,9 +139,9 @@ export default function KitPage() {
         </section>
 
         <section className="wire-kit-section" aria-labelledby="kit-form-field">
-          <h2 className="wire-kit-heading" id="kit-form-field">WireFormField · WireChoice</h2>
+          <h2 className="wire-kit-heading" id="kit-form-field">WireFormField와 WireChoice</h2>
           <p className="wire-kit-caption">
-            검색칸과 같은 입력칸 계약(높이 40 · radius 6 · --line-control 1px)을 폼에서 쓰는 형태다.
+            검색칸과 같은 입력칸 계약(높이 40, radius 6, --line-control 1px)을 폼에서 쓰는 형태다.
             라벨은 항상 위, 필수는 별표, 오류는 테두리 1.5px --risk + 메시지를 함께 낸다.
             선택지 행은 동그라미와 라벨이 같은 줄이고 입력칸 규칙을 상속하지 않는다.
           </p>
@@ -176,17 +178,20 @@ export default function KitPage() {
         </section>
 
         <section className="wire-kit-section" aria-labelledby="kit-button">
-          <h2 className="wire-kit-heading" id="kit-button">버튼 4종 × 크기 2단</h2>
+          <h2 className="wire-kit-heading" id="kit-button">버튼 5종 × 크기 2단</h2>
           <p className="wire-kit-caption">
             종류가 색과 테두리를 정하고, 크기는 높이만 바꾼다(40 / 32). 2026-07-26 Q 결정.
           </p>
           <p className="wire-kit-caption">
-            2026-07-31: 프라이머리와 세컨더리는 <strong>테두리가 같다</strong>. 강조는 면(그라데이션)과
-            그림자가 만든다. 마우스를 올리면 잉크 워시가 깔리고, 누르면 1px 내려간다.
+            2026-08-07: 형태는 <strong>직사각형 + radius 6</strong>이다(구 알약 대체). 입력칸, 카드와
+            같은 사각 어휘라 조작 요소가 한 계열로 읽힌다. 알약은 배지의 전유물이고 원형은 32px
+            아이콘 버튼만 남는다. 강조는 면(그라데이션)이 만들고, 마우스를 올리면 잉크 워시가
+            깔리고, 누르면 1px 내려간다.
           </p>
           <div className="wire-kit-row">
             <WireButton variant="primary" align="center">프라이머리</WireButton>
             <WireButton variant="secondary" align="center">세컨더리</WireButton>
+            <WireButton variant="neutral" align="center">일반</WireButton>
             <WireButton variant="ghost" align="center">고스트</WireButton>
             <WireButton variant="danger" align="center">위험</WireButton>
             <WireButton disabled align="center">비활성</WireButton>
@@ -206,13 +211,16 @@ export default function KitPage() {
         <section className="wire-kit-section" aria-labelledby="kit-badge">
           <h2 className="wire-kit-heading" id="kit-badge">배지와 상태 태그</h2>
           <p className="wire-kit-caption">
-            기본형은 색 없이 테두리로만 선다. 계열 배지는 tint 배경 + deep 글자이고, 주의와 대기는 라벤더다.
+            배지는 WireBadge 하나가 전부다(2026-08-07 통합, 구 화면별 레시피 8종 대체). 기본형은
+            색 없이 테두리로만 서고, 계열은 tint 배경이 가른다. 블루=일정과 유형, 민트=진행과
+            담당, 라벤더=AI와 대기, 리스크=확인된 위험과 오류 전용이다.
           </p>
           <div className="wire-kit-row">
-            <span className="wire-badge">공식 기록</span>
-            <span className="wire-badge" data-tone="mint">마이크로크레딧</span>
-            <span className="wire-badge" data-tone="lavender">승인 대기 2건</span>
-            <span className="wire-badge" data-tone="blue">3회차</span>
+            <WireBadge>공식 기록</WireBadge>
+            <WireBadge tone="mint">마이크로크레딧</WireBadge>
+            <WireBadge tone="lavender">승인 대기 2건</WireBadge>
+            <WireBadge tone="blue">3회차</WireBadge>
+            <WireBadge tone="risk">확인 필요</WireBadge>
             <button type="button" className="wire-status-tag">상담 준비</button>
           </div>
         </section>
@@ -238,11 +246,11 @@ export default function KitPage() {
             </label>
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" data-tone="risk" defaultChecked />
-              부채 악화 (리스크 변형 · 켬)
+              부채 악화 (리스크 변형, 켬)
             </label>
             <label className="consent-checkbox">
               <input type="checkbox" className="wire-checkbox" data-tone="risk" />
-              연락 두절 위험 (리스크 변형 · 끔)
+              연락 두절 위험 (리스크 변형, 끔)
             </label>
           </div>
         </section>
@@ -254,8 +262,8 @@ export default function KitPage() {
         <section className="wire-kit-section" aria-labelledby="kit-gradient-surfaces">
           <h2 className="wire-kit-heading" id="kit-gradient-surfaces">그라데이션 테두리 3종</h2>
           <p className="wire-kit-caption">
-            리스크 배너(1.5px · 전용 tint 채움), 펼친 회차 카드(1px · 흰 면 채움), 위기 아코디언(리스크 1.5px).
-            셋 다 <code>border-image</code> 가 아니라 배경 2겹으로 만든다 — <code>border-image</code> 는
+            리스크 배너(1.5px, 전용 tint 채움), 펼친 회차 카드(1px, 흰 면 채움), 위기 아코디언(리스크 1.5px).
+            셋 다 <code>border-image</code> 가 아니라 배경 2겹으로 만든다. <code>border-image</code> 는
             브라우저가 <code>border-radius</code> 를 무시해 모서리가 각진다.
           </p>
           <div className="wire-kit-stack">
@@ -270,7 +278,7 @@ export default function KitPage() {
               <summary className="record-summary">
                 <span className="record-ordinal">3회차</span>
                 <span className="record-held-at">3월 12일</span>
-                <span className="record-kind">기본 상담</span>
+                <span className="wire-badge" data-tone="blue">기본 상담</span>
                 <span className="record-one-liner">상환 계획을 다시 짰고 다음 달 임대료 납부일을 확인했다.</span>
               </summary>
               <div className="record-body">
@@ -300,14 +308,34 @@ export default function KitPage() {
         </section>
 
         <section className="wire-kit-section" aria-labelledby="kit-quote">
-          <h2 className="wire-kit-heading" id="kit-quote">인용 블록</h2>
+          <h2 className="wire-kit-heading" id="kit-quote">인용 블록 (WireQuote)</h2>
           <p className="wire-kit-caption">
             AI 제안의 근거 발언 전용이다. 세로선은 브랜드 그라데이션이고 회색 세로선을 쓰지 않는다.
           </p>
-          <blockquote className="wire-quote">
+          <WireQuote time="12:04">
             이번 달은 상환액을 맞췄는데 다음 달이 걱정이라고 하셨어요.
-            <span className="wire-quote-time">12:04</span>
-          </blockquote>
+          </WireQuote>
+        </section>
+
+        <section className="wire-kit-section" aria-labelledby="kit-callout">
+          <h2 className="wire-kit-heading" id="kit-callout">콜아웃 (WireCallout)</h2>
+          <p className="wire-kit-caption">
+            제목 16/600, 본문 14/400, 행동 줄 순서의 안내 카드다. 톤은 계열 의미를 따른다:
+            info(블루)=시간과 상태 안내, mint=사람과 소속, lavender=주의와 대기. 리스크 어휘는
+            배너 전용이라 콜아웃에 없다(D9).
+          </p>
+          <div className="wire-kit-stack">
+            <WireCallout tone="info" title="인테이크 기록을 저장했습니다"
+              actions={<WireButton variant="secondary" height="sm">다음 상담 등록</WireButton>}>
+              다음 상담을 등록해 두면 상담 일정과 기록 작성으로 바로 이어갈 수 있습니다.
+            </WireCallout>
+            <WireCallout tone="mint" title="담당 실무자가 바뀌었습니다">
+              이관 기록은 참여 사업 카드에서 확인할 수 있습니다.
+            </WireCallout>
+            <WireCallout tone="lavender" title="이 당사자는 인테이크를 이미 마쳤습니다">
+              그대로 진행하면 인테이크가 두 번이 됩니다.
+            </WireCallout>
+          </div>
         </section>
 
         <section className="wire-kit-section" aria-labelledby="kit-empty">
@@ -370,7 +398,7 @@ export default function KitPage() {
           <h2 className="wire-kit-heading" id="kit-admin">AdminSidebar</h2>
           {/* 구 335px 테두리 상자는 사이드바 컬럼 시절 데모의 잔재였다(2026-08-05 제거) —
               지금은 가로 탭이라 실제 쓰임과 같은 전폭으로 보여준다. */}
-          <p className="wire-kit-caption">관리자 2차 내비 — 가로 탭. 활성 탭은 그라데이션 밑줄.</p>
+          <p className="wire-kit-caption">관리자 2차 내비는 가로 탭이다. 활성 탭은 그라데이션 밑줄.</p>
           <AdminSidebar activePath="/admin/users" />
         </section>
       </GridContainer>

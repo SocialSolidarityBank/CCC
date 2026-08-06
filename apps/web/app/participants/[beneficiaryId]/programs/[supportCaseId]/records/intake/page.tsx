@@ -52,13 +52,13 @@ export default async function NewIntakePage({
   const briefingHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=intake_saved`;
 
   if (beneficiaryId === null || supportCaseId === null) {
-    return <main className="page-content"><p className="status risk" role="alert">{messages.not_found}</p></main>;
+    return <main className="page-content"><p className="wire-badge" data-tone="risk" role="alert">{messages.not_found}</p></main>;
   }
 
   const [context, identity] = await Promise.all([load(supportCaseId), getMyIdentity().catch(() => null)]);
 
   if (context.error !== null) {
-    return <main className="page-content"><p className="status risk" role="alert">{messages[context.error]}</p></main>;
+    return <main className="page-content"><p className="wire-badge" data-tone="risk" role="alert">{messages[context.error]}</p></main>;
   }
 
   if (context.data.hasIntake) {

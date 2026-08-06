@@ -33,13 +33,13 @@ describe('ParticipantHeroCard', () => {
     const withTag = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" stageTag="상담 준비" />,
     );
-    expect(withTag.container.querySelector('.participant-hero-stage')?.textContent).toBe('상담 준비');
+    expect(withTag.container.querySelector('.wire-status-tag')?.textContent).toBe('상담 준비');
 
     // 허브는 케이스가 교차해 단일 상태가 없다 — 태그 없이도 부품이 완전해야 한다.
     const withoutTag = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />,
     );
-    expect(withoutTag.container.querySelector('.participant-hero-stage')).toBeNull();
+    expect(withoutTag.container.querySelector('.wire-status-tag')).toBeNull();
   });
 
   it('메타와 행동도 슬롯이다 — 없으면 빈 자리 없이 접힌다', () => {

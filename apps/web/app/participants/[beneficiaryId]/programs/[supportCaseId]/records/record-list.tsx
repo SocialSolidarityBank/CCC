@@ -1,5 +1,6 @@
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { Icon } from '../../../../../components/wire/wire-icon';
+import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { WireCard } from '../../../../../components/wire/wire-card';
 import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
 
@@ -116,12 +117,12 @@ export function RecordCard({
     <summary className="record-summary">
       <span className="record-ordinal">{ordinal}회차</span>
       <span className="record-held-at">{isoDateOnly(record.heldAt)}</span>
-      <span className="record-kind">{sessionKindLabel(record.kind)}</span>
+      <WireBadge tone="blue">{sessionKindLabel(record.kind)}</WireBadge>
       <span className={record.aiOneLiner === null ? 'record-one-liner wire-fade-clip is-memo' : 'record-one-liner wire-fade-clip'}>
         {oneLiner ?? '핵심 한 줄이 아직 없습니다'}
       </span>
       <span className="record-summary-right">
-        {record.aiOneLiner === null && record.memoExcerpt !== null && <span className="briefing-badge">수기</span>}
+        {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}
         {/* 리스크 배너는 두지 않는다(D47 §5) — 대신 어느 회차에서 나왔는지를 이 표시가 알린다. */}
         {hasConfirmedFlag && <span className="record-flag" data-confirmed="true"><Icon name="warning" size={14} /> 리스크</span>}
       </span>
@@ -153,9 +154,9 @@ export function RecordCard({
           ? <p className="record-item-meta">기록된 액션 아이템이 없습니다.</p>
           : <ul>{record.actionItems.map((item) => <li key={item.id}>
               {item.description}
-              <span className="record-owner">{actionOwnerLabel(item.owner)}</span>
+              <WireBadge tone="mint">{actionOwnerLabel(item.owner)}</WireBadge>
               {item.dueDate !== null && <span className="record-item-meta">기한 {item.dueDate}</span>}
-              {item.resolved ? <span className="status">완료</span> : <span className="status warning">미완료</span>}
+              {item.resolved ? <WireBadge>완료</WireBadge> : <WireBadge tone="lavender">미완료</WireBadge>}
             </li>)}</ul>}
       </section>
 
@@ -168,7 +169,7 @@ export function RecordCard({
               <span className="record-flag" data-confirmed={flag.reviewStatus === 'confirmed' ? 'true' : 'false'}>
                 {flag.reviewStatus === 'confirmed' && <><Icon name="warning" size={14} />{' '}</>}{flagLabel(flag.flagType)}
               </span>
-              {flag.source === 'ai' && <span className="record-ai-source">AI 제안</span>}
+              {flag.source === 'ai' && <WireBadge tone="lavender">AI 제안</WireBadge>}
               <span className="record-item-meta">{flagReviewStatusLabel(flag.reviewStatus)}</span>
             </li>)}</ul>}
       </section>

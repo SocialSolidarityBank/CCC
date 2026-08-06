@@ -28,7 +28,7 @@ describe('LifeAreaFields', () => {
     expect(container.textContent).toContain('위기');
     expect(container.textContent).toContain('괜찮음');
     // 경제(위기)만 리스크 색 배지.
-    const riskBadges = container.querySelectorAll('.status.risk');
+    const riskBadges = container.querySelectorAll('.wire-badge[data-tone="risk"]');
     expect(riskBadges).toHaveLength(1);
     expect((riskBadges[0]?.textContent ?? '')).toContain('위기');
   });

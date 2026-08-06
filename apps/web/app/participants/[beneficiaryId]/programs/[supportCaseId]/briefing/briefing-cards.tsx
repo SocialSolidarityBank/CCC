@@ -6,6 +6,7 @@ import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../.
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
+import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';
 
@@ -216,9 +217,10 @@ function DiscrepancyItem({
       </div>
       {item.resolution !== null && (
         <p className="briefing-note">
-          {discrepancyResolutionLabels[item.resolution.status]}으로 처리됨
-          {' · '}
-          {formatDateOnly(item.resolution.resolvedAt)}
+          <MetaRow items={[
+            `${discrepancyResolutionLabels[item.resolution.status]}으로 처리됨`,
+            formatDateOnly(item.resolution.resolvedAt),
+          ]} />
         </p>
       )}
       {action !== undefined && (
@@ -306,7 +308,7 @@ export function BriefingCards({
           '상담 준비'는 데이터가 아니라 **화면 상태 태그**다 — sourceSupportCase.status 는
           active/closed 뿐이라 이 문구의 출처가 아니다(D22).
           회차는 브리핑 응답에 없어 메타에 넣지 않는다. 상담 방식은 v1 이 대면뿐이다(D4).
-          상태 태그는 부품의 participant-hero-stage 계약 — 트랙 C(PR #61)의 .is-stage 폐지와
+          상태 태그는 부품의 wire-status-tag 계약 — 트랙 C(PR #61)의 .is-stage 폐지와
           같은 결론이라 리베이스에서 컴포넌트 쪽으로 합쳤다. */}
       <ParticipantHeroCard
         name={participant.name}
@@ -415,7 +417,7 @@ export function BriefingCards({
         <Card
           id="briefing-sessions"
           title="상담 내용 회차별 정리"
-          badge={pendingApprovalCount > 0 ? <span className="briefing-badge is-pending">승인 대기 {pendingApprovalCount}건</span> : null}
+          badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
           {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지(블루) →
               수기 뱃지 → 핵심 한 줄. 전 항목 좌측정렬 고정 간격이고, 한 줄이 넘치는 본문은
@@ -427,9 +429,9 @@ export function BriefingCards({
                 {sessionRows.map((row) => (
                   <li key={row.sessionId} className="briefing-session-row">
                     <span className="briefing-session-date">{formatDateOnly(row.heldAt)}</span>
-                    <span className="wire-badge" data-tone="blue">{sessionKindLabels[row.kind]}</span>
+                    <WireBadge tone="blue">{sessionKindLabels[row.kind]}</WireBadge>
                     {row.aiOneLiner === null && row.memoExcerpt !== null && (
-                      <span className="briefing-badge">수기</span>
+                      <WireBadge>수기</WireBadge>
                     )}
                     <span className="briefing-session-text wire-fade-clip">
                       {row.aiOneLiner ?? row.memoExcerpt ?? '수기 메모 없음'}
@@ -449,7 +451,7 @@ export function BriefingCards({
           id="briefing-discrepancies"
           title="내용 불일치"
           badge={unresolvedDiscrepancies.length > 0
-            ? <span className="briefing-badge is-pending">{unresolvedDiscrepancies.length}건</span>
+            ? <WireBadge tone="lavender">{unresolvedDiscrepancies.length}건</WireBadge>
             : null}
         >
           {unresolvedDiscrepancies.length === 0

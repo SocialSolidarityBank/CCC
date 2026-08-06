@@ -57,7 +57,7 @@ describe('ScheduleCards', () => {
     expect(badges).toContain('인테이크');
 
     // 행 구분선은 회색 풀블리드 한 줄이다(2026-08-06).
-    expect(container.querySelectorAll('.participant-card-divider')).toHaveLength(2);
+    expect(container.querySelectorAll('.participant-card .wire-card-divider')).toHaveLength(2);
 
     // 카드는 상담 준비(브리핑)로 링크된다. 열 수는 .card-grid 가 정한다(2026-07-26).
     const links = Array.from(container.querySelectorAll('.card-grid > a')).map((el) => el.getAttribute('href'));

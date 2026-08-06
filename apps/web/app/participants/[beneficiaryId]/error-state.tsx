@@ -18,7 +18,7 @@ export function ErrorState({ kind }: { kind: ErrorKind }) {
     <main className="page-content">
       <GridContainer>
         <div className="page-header"><div><h1>당사자 정보</h1></div></div>
-        <p className="status risk" role="alert">{errorMessages[kind]}</p>
+        <p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p>
         <p><WireButton variant="secondary" href="/participants">당사자 목록으로 돌아가기</WireButton></p>
       </GridContainer>
     </main>

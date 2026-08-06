@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../components/wire/wire-card';
+import { WireCallout } from '../../../../../components/wire/wire-callout';
 
 // 인테이크 저장 직후 브리핑에 한 번만 뜨는 안내줄(CCC-31 · 스펙 #78 US 17·18).
 //
@@ -40,14 +40,13 @@ export function IntakeSavedNotice({
   if (notice !== 'intake_saved') return null;
 
   return (
-    <WireCard as="section" tone="info" role="status" testId="intake-saved-notice">
-      <p className="notice-title">인테이크 기록을 저장했습니다</p>
-      <p className="notice-desc">다음 상담을 등록해 두면 상담 일정과 기록 작성으로 바로 이어갈 수 있습니다.</p>
-      <div className="notice-actions">
+    <WireCallout tone="info" role="status" testId="intake-saved-notice" title="인테이크 기록을 저장했습니다"
+      actions={
         <WireButton variant="secondary" height="sm" href={scheduleHref(beneficiaryId, supportCaseId)}>
           다음 상담 등록
         </WireButton>
-      </div>
-    </WireCard>
+      }>
+      다음 상담을 등록해 두면 상담 일정과 기록 작성으로 바로 이어갈 수 있습니다.
+    </WireCallout>
   );
 }

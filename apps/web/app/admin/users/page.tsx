@@ -11,7 +11,7 @@ import {
   type DirectoryRole,
   type DirectoryUser,
 } from '../../lib/api';
-import { assignmentStatusLabel, assignmentSummary, userLabel } from '../admin-format';
+import { assignmentStatusLabel, assignmentSummaryItems, userLabel } from '../admin-format';
 
 const roleLabel: Record<DirectoryRole, string> = {
   admin: '기관 관리자',
@@ -98,7 +98,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                 <div className="wire-admin-list">
                   {assignments.participants.map((participant) => (
                     <ListRow key={participant.supportCaseId}>
-                      <MetaRow items={[assignmentSummary(participant), assignmentStatusLabel[participant.status]]} />
+                      <MetaRow items={[...assignmentSummaryItems(participant), assignmentStatusLabel[participant.status]]} />
                     </ListRow>
                   ))}
                 </div>

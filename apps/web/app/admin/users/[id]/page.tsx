@@ -12,7 +12,7 @@ import {
   type DirectoryRole,
   type DirectoryUser,
 } from '../../../lib/api';
-import { assignmentStatusLabel, assignmentSummary } from '../../admin-format';
+import { assignmentStatusLabel, assignmentSummaryItems } from '../../admin-format';
 
 const roleLabel: Record<DirectoryRole, string> = {
   admin: '기관 관리자',
@@ -85,7 +85,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           <div className="wire-admin-list">
             {assignments.participants.map((participant) => (
               <ListRow key={participant.supportCaseId}>
-                <MetaRow items={[assignmentSummary(participant), assignmentStatusLabel[participant.status]]} />
+                <MetaRow items={[...assignmentSummaryItems(participant), assignmentStatusLabel[participant.status]]} />
               </ListRow>
             ))}
           </div>
