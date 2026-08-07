@@ -748,9 +748,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    2px 오른쪽에서 시작한다(2026-08-05 실측). */
 .wire-datetime-fields>input{height:100%;min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ink);font-size:var(--text-md);line-height:normal}
 .wire-datetime-fields>input:focus,.wire-datetime-fields>input:focus-visible{outline:none}
-/* 기준 폭을 auto 로 두면 input 의 기본 폭(약 180px)이 기준이 되어 날짜칸이 자리를 다 가져가고
-   시각칸이 눌려 분이 잘린다. 기준을 110px 로 못박아 남는 폭만 날짜칸이 가져가게 한다. */
-.wire-datetime-fields>input:first-child{flex:1 1 110px;min-width:104px;padding-right:var(--space-3)}
+/* 날짜·시각은 **반반**이다(2026-08-07 Q 11차 "시간 필드가 너무 좁다" — 구 날짜 grow ·
+   시각 128 고정은 날짜칸이 남는 폭을 다 가져갔다). 기준 50%/50% 에 min-width 만 남겨
+   좁은 화면에서 분이 잘리는 것을 막는다. */
+.wire-datetime-fields>input:first-child{flex:1 1 50%;min-width:104px;padding-right:var(--space-3)}
 /* 선택자를 자식 결합자로 쓴다 — 위 .wire-datetime-fields>input 의 border:0 을 이겨야 한다. */
 /* 시각 칸은 브라우저가 12시간제(오후 02:30)로 그릴 때가 있어 128px 이 필요하다 — 좁으면 분이 잘린다.
    다만 좁은 화면에서는 줄어들어야 한다 — 고정 폭이면 375px 에서 상자가 화면을 넘어 가로 스크롤이 생긴다.
@@ -759,7 +760,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    날짜만 쓰는 자리(.wire-date-control)의 겉모습은 건드리지 않는다. */
 .wire-datetime-control>.wire-date-toggle{border-color:transparent;background:transparent}
 .wire-datetime-control>.wire-date-toggle:hover{background:var(--muted)}
-.wire-datetime-fields>.wire-datetime-time{flex:0 1 128px;min-width:112px;padding:0 var(--space-2);border-left:1px solid var(--line-control);text-align:center}
+.wire-datetime-fields>.wire-datetime-time{flex:1 1 50%;min-width:112px;padding:0 var(--space-2);border-left:1px solid var(--line-control);text-align:center}
 /* 팝오버는 달력 + 시각 목록 두 단이다. 목록은 달력 높이에 맞춰 스크롤한다.
    width:max-content 가 필요하다 — 절대 위치 요소의 자동 폭은 **감싸는 상자 폭**이 상한이라
    그냥 두면 입력칸 폭(약 330px)에 갇혀 시각 목록이 달력 아래로 접힌다. */

@@ -5,6 +5,7 @@ import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
+import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
@@ -292,20 +293,21 @@ function QuestionField(props: { question: IntakeQuestion; value: AnswerDraft; on
   const { question, value, onChange } = props;
 
   if (question.kind === 'select') {
+    // 공용 입력칸 부품을 쓴다(2026-08-07 Q 11차 "선택창 V 여백 안맞음" — 맨몸 select 는
+    // §5 계약(네이티브 화살표 끄고 꺽쇠를 우측 12 에 직접 그림)을 벗어나 브라우저 기본
+    // V 가 제멋대로 앉았다. 등록 폼과 같은 WireFormField(control select)로 고친다).
     return (
-      <label style={fieldStyle}>
-        <span style={labelStyle}>{question.label}</span>
+      <WireFormField label={question.label} control="select">
         <select
           aria-label={question.label}
           data-answer-key={question.key}
           value={optionFromDraft(value)}
           onChange={(event) => onChange(draftFromOption(event.target.value))}
-          style={inputStyle}
         >
           <option value="">선택하세요</option>
           {(question.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
-      </label>
+      </WireFormField>
     );
   }
 
@@ -661,10 +663,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
         </nav>
 
         <section className="wire-col-8" style={stackStyle}>
-          {/* 맥락 고정 카드(2026-08-07 Q 9차): 누구의 인테이크인지(구 맨 아래 당사자 줄을
-              위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모으고, 스크롤해도
-              화면에 남긴다(.intake-context-card, 768 이상 sticky). */}
-          <WireCard className="intake-context-card" testId="intake-context">
+          {/* 맥락 카드(2026-08-07 Q 9차·10차 개정): 누구의 인테이크인지(구 맨 아래 당사자
+              줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
+              static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
+          <WireCard testId="intake-context">
             <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' }} data-testid="intake-participant">
               <MetaRow items={participantParts} />
             </p>
@@ -791,12 +793,13 @@ export function IntakeWizard(props: IntakeWizardProps) {
             </div>
           ) : null}
 
-          {/* 남은 필수 항목은 강조 배지다(2026-08-07 Q 9차 — 구 회색 캡션은 안 보였다).
+          {/* 남은 필수 항목은 콜아웃(안내줄 카드)이다(2026-08-07 Q 11차 "경고 카드 규칙
+              사용" — 구 9차 알약 배지 대체: 알약은 읽기 전용 배지 전유물이고 문장이 길다).
               라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9). */}
           {!canComplete ? (
-            <p className="wire-badge" data-tone="lavender" data-testid="intake-missing">
-              완료하려면 남은 필수 항목을 채우세요: {[heldAtMissing ? '1. 상담일' : null, ...missingSteps].filter((entry) => entry !== null).join(', ')}
-            </p>
+            <WireCallout tone="lavender" role="status" testId="intake-missing" title="완료하려면 남은 필수 항목을 채우세요">
+              {[heldAtMissing ? '1. 상담일' : null, ...missingSteps].filter((entry) => entry !== null).join(', ')}
+            </WireCallout>
           ) : null}
 
           <div style={rowActionsStyle}>
