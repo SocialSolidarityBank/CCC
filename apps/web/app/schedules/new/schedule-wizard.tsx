@@ -58,6 +58,8 @@ export interface ScheduleWizardProps {
   loadContext: (beneficiaryId: string, supportCaseId: string) => Promise<ScheduleContextResult>;
   submit: (input: CreateSchedulePlanInput) => Promise<CreateSchedulePlanResult>;
   preselectValue?: string;
+  /** 도착 안내 한 줄(예: 당사자 등록 완료). 서버 페이지가 notice 쿼리를 읽어 문장으로 넘긴다. */
+  noticeText?: string;
 }
 
 interface SessionGoalDraft {
@@ -180,7 +182,7 @@ function SessionKindPicker({
   );
 }
 
-export function ScheduleWizard({ candidates, loadContext, submit, preselectValue }: ScheduleWizardProps) {
+export function ScheduleWizard({ candidates, loadContext, submit, preselectValue, noticeText }: ScheduleWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const preselected = candidates.find((candidate) => candidate.value === preselectValue) ?? null;
   const [selected, setSelected] = useState<ScheduleWizardCandidate | null>(preselected);
@@ -278,11 +280,9 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           <div style={stackStyle}>
             <PageTitle>상담 일정 등록</PageTitle>
             {contextBar}
+            {/* 기록 템플릿 안내 카드는 삭제했다(2026-08-08 일괄 검토 A2) — GAS 는 D43 보류,
+                AI 템플릿 조립은 D52 보류라 안내할 기능이 없다. */}
             <h2 style={headingStyle}>등록을 완료했어요</h2>
-            <WireCard title="이 상담의 기록 템플릿">
-              <WireBullets items={['GAS 근거 발췌', '액션 아이템', '리스크 플래그']} />
-              <p style={captionStyle}><MetaRow items={['기본 템플릿', '항목 풀 확정 후 AI 구성 예정']} /></p>
-            </WireCard>
             <WireButton size="large" chevron href="/">상담 일정으로</WireButton>
           </div>
         </GridContainer>
@@ -295,6 +295,9 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
       <GridContainer>
         <div style={stackStyle}>
           <PageTitle>상담 일정 등록</PageTitle>
+          {noticeText !== undefined && (
+            <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
+          )}
           <p style={captionStyle}>{step} / 3 단계</p>
           {error !== null ? <p role="alert" style={errorStyle}>{error}</p> : null}
 

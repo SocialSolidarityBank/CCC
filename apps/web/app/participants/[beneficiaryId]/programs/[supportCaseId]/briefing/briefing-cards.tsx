@@ -423,7 +423,10 @@ export function BriefingCards({
                       )}
                     </span>
                     <span className="briefing-session-text wire-fade-clip">
-                      {row.aiOneLiner ?? row.memoExcerpt ?? '수기 메모 없음'}
+                      {/* 일괄 검토 A9 (2026-08-08): 인테이크는 메모 칸이 없어 '수기 메모 없음'이
+                          항상 나오는 빈말이었다 — 질문지 회차임을 알리는 문구로 낮춘다. */}
+                      {row.aiOneLiner ?? row.memoExcerpt
+                        ?? (row.kind === 'intake' ? '인테이크 질문지 작성 회차' : '수기 메모 없음')}
                     </span>
                   </li>
                 ))}

@@ -113,7 +113,8 @@ export function RecordCard({
       <span className="record-held-at">{formatKoreanDate(record.heldAt)}</span>
       <WireBadge tone="blue">{sessionKindLabel(record.kind)}</WireBadge>
       <span className={record.aiOneLiner === null ? 'record-one-liner wire-fade-clip is-memo' : 'record-one-liner wire-fade-clip'}>
-        {oneLiner ?? '핵심 한 줄이 아직 없습니다'}
+        {/* 일괄 검토 A9 (2026-08-08): 인테이크는 메모가 없어 항상 빈말이 나오던 자리다. */}
+        {oneLiner ?? (record.kind === 'intake' ? '인테이크 질문지 작성 회차' : '핵심 한 줄이 아직 없습니다')}
       </span>
       <span className="record-summary-right">
         {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}

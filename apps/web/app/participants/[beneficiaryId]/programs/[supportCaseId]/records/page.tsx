@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
@@ -118,12 +119,14 @@ function Notice({ code }: { code: string | undefined }) {
  * 설정·수정은 브리핑 몫이라 여기에는 입력칸도 저장 버튼도 없다.
  * 카드 모양은 WireCard 계약이 갖는다(2026-08-05 컴포넌트화 · ADR-0030).
  */
-function OverallGoalRow({ overallGoal }: { overallGoal: string | null }) {
+function OverallGoalRow({ overallGoal, briefingHref }: { overallGoal: string | null; briefingHref: string }) {
   return <WireCard as="section" className="record-goal" labelledBy="record-goal-label">
     <div className="record-goal-row">
       <span className="record-goal-label" id="record-goal-label">전체 목표</span>
       {overallGoal === null || overallGoal.length === 0
-        ? <p className="record-goal-text is-empty">아직 설정 전입니다. 상담 준비 화면에서 설정할 수 있습니다.</p>
+        // 일괄 검토 A10 (2026-08-08): 이 화면에서 브리핑으로 가는 길이 없어 문구를 링크로 승격.
+        // 인라인 참조는 텍스트 링크가 맞다(D58 ⑥).
+        ? <p className="record-goal-text is-empty">아직 설정 전입니다. <Link href={briefingHref}>상담 준비 화면</Link>에서 설정할 수 있습니다.</p>
         : <p className="record-goal-text">{overallGoal}</p>}
     </div>
   </WireCard>;
@@ -196,7 +199,7 @@ export default async function RecordHistoryPage({
       })}
     />
 
-    {result.data !== null && <OverallGoalRow overallGoal={result.data.overallGoal} />}
+    {result.data !== null && <OverallGoalRow overallGoal={result.data.overallGoal} briefingHref={`${basePath}/briefing`} />}
 
     <Notice code={notice} />
     <Message code={error} />

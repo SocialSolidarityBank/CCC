@@ -7,7 +7,6 @@ import { PREVIEW_COOKIE_NAME, requestPreviewUnlock } from './lib/api';
 import {
   ApiError,
   addSupportCaseAssignee,
-  createCase,
   createCounselingRecord,
   createIntakeRecord,
   intakeAnswerKeys,
@@ -22,9 +21,7 @@ import {
   type IntakeNextMeetingInput,
   completeOrganizationOnboarding,
   createCounselingSchedule,
-  createGoal,
   createInitialParticipantProgram,
-  createManualSession,
   createParticipantInvite,
   getPublicInviteInfo,
   signupParticipant,
@@ -442,11 +439,6 @@ function casePath(caseId: string): string {
   return `/cases/${encodeURIComponent(caseId)}`;
 }
 
-function sessionFormPath(caseId?: string): string {
-  if (caseId === undefined) return '/sessions/new';
-  return `/sessions/new?caseId=${encodeURIComponent(caseId)}`;
-}
-
 function revalidateCase(caseId: string): void {
   revalidatePath('/sessions/new');
   revalidatePath(casePath(caseId));
@@ -508,68 +500,6 @@ function parseEvidenceIds(formData: FormData): string[] {
   return ids;
 }
 
-
-export async function createCaseAction(formData: FormData): Promise<void> {
-  let createdId: string | undefined;
-  try {
-    const intakeAt = value(formData, 'intakeAt');
-    const created = await createCase({
-      programType: 'financial_support_v1',
-      ...(intakeAt.length > 0 ? { intakeAt: isoLikeDateTime(formData, 'intakeAt') } : {}),
-    });
-    createdId = created.id;
-  } catch (error) {
-    redirect(withNotice('/sessions/new', 'error', noticeFor(error)));
-  }
-
-  if (createdId === undefined) redirect(withNotice('/sessions/new', 'error', 'service_unavailable'));
-  revalidateCase(createdId);
-  redirect(withNotice(sessionFormPath(createdId), 'notice', 'case_created'));
-}
-
-export async function createGoalAction(formData: FormData): Promise<void> {
-  let caseId: string | undefined;
-  try {
-    caseId = opaqueId(formData, 'caseId');
-    const title = requiredValue(formData, 'goalTitle');
-    await createGoal(caseId, title);
-  } catch (error) {
-    redirect(withNotice(sessionFormPath(caseId), 'error', noticeFor(error)));
-  }
-
-  if (caseId === undefined) redirect(withNotice('/sessions/new', 'error', 'service_unavailable'));
-  revalidateCase(caseId);
-  redirect(withNotice(sessionFormPath(caseId), 'notice', 'goal_created'));
-}
-
-export async function saveManualSessionAction(formData: FormData): Promise<void> {
-  let caseId: string | undefined;
-  let sessionId: string | undefined;
-  try {
-    caseId = opaqueId(formData, 'caseId');
-    const channel = requiredValue(formData, 'channel');
-    if (channel !== 'in_person' && channel !== 'phone' && channel !== 'video') throw new FormInputError();
-    const memo = requiredValue(formData, 'memo');
-
-    const session = await createManualSession(caseId, {
-      heldAt: isoLikeDateTime(formData, 'heldAt'),
-      channel,
-      memo,
-    });
-    sessionId = session.id;
-  } catch (error) {
-    redirect(withNotice(sessionFormPath(caseId), 'error', noticeFor(error)));
-  }
-
-  if (caseId === undefined || sessionId === undefined) {
-    redirect(withNotice('/sessions/new', 'error', 'service_unavailable'));
-  }
-  revalidateCase(caseId);
-  const destination = new URL(casePath(caseId), 'https://ccc.invalid');
-  destination.searchParams.set('session', sessionId);
-  destination.searchParams.set('notice', 'session_saved');
-  redirect(`${destination.pathname}${destination.search}`);
-}
 
 export async function recordPilotTextAiConsentAction(formData: FormData): Promise<void> {
   let caseId: string | undefined;

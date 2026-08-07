@@ -505,29 +505,35 @@ export function IntakeWizard(props: IntakeWizardProps) {
   // 단계별 필수 채움 카운트(필수 개수 / 채워진 개수). 전 항목 필수 + 무응답 원칙을 여기서 센다.
   // 질문 말고도 필수인 것 3개를 함께 센다: 2-1 부채 표·3-3 연계 기관 표의 첫 열(정본의
   // "없으면 첫 행에 '해당 없음'")과 4-3 담당 실무자 종합의견.
+  // 일괄 검토 A7 (2026-08-08): 단계 이름만으로는 45문항에서 빈 곳을 못 찾는다 — 남은 항목의
+  // **이름까지** 모아 완료 안내에 그대로 보여준다.
   const progress = useMemo(() => STEP_GROUPS.map((groups, index) => {
     const questions = groups.flatMap((group) => group.questions);
     let required = questions.length;
     let filled = questions.filter((q) => isFilled(answers[q.key])).length;
+    const missing = questions.filter((q) => !isFilled(answers[q.key])).map((q) => q.label);
     if (index === 1) {
       required += 1;
       if (firstColumnFilled(debts, DEBT_COLUMNS)) filled += 1;
+      else missing.push("대출·부채 표 첫 행(없으면 '해당 없음')");
     }
     if (index === 2) {
       required += 1;
       if (firstColumnFilled(linkedOrgs, LINKED_ORG_COLUMNS)) filled += 1;
+      else missing.push("연계 기관 표 첫 행(없으면 '해당 없음')");
     }
     if (index === 3) {
       required += 1;
       if (managerOpinion.trim().length > 0) filled += 1;
+      else missing.push('담당 실무자 종합의견');
     }
-    return { required, filled };
+    return { required, filled, missing };
   }), [answers, debts, linkedOrgs, managerOpinion]);
 
-  const missingSteps = progress
+  const missingDetails = progress
     .map((entry, index) => ({ index, ...entry }))
-    .filter((entry) => entry.filled < entry.required)
-    .map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}`);
+    .filter((entry) => entry.filled < entry.required);
+  const missingSteps = missingDetails.map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}`);
   // D48: 날짜·시각 두 칸이라 '비어 있지 않다'로는 반쪽 값(`2026-08-12T`)을 걸러내지 못한다.
   const heldAtMissing = !isCompleteDateTime(heldAt);
   const canComplete = missingSteps.length === 0 && !heldAtMissing;
@@ -741,7 +747,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               >
                 <RowTable
                   title="채무별 상세"
-                  hint="채무별로 기관·채권자, 구분, 잔액, 월 상환액, 연체 여부와 상태를 기록합니다. 채무가 없으면 첫 행에 '해당 없음'을 기입합니다."
+                  hint="채무별로 기관·채권자, 구분, 잔액, 월 상환액, 연체 여부와 상태를 기록합니다. 채무가 없으면 첫 행에 '해당 없음'을 기입합니다. 첫 칸은 필수라 비워 두면 완료할 수 없습니다."
                   columns={DEBT_COLUMNS}
                   rows={debts}
                   onChange={setDebts}
@@ -757,7 +763,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               {renderGroups(STEP_GROUPS[2]!)}
               <RowTable
                 title="3-3. 현재 연계된 기관·서비스"
-                hint="이용 중이거나 연결이 진행 중인 자원을 기록합니다. 연계 자원이 없으면 첫 행에 '해당 없음'을 기입합니다."
+                hint="이용 중이거나 연결이 진행 중인 자원을 기록합니다. 연계 자원이 없으면 첫 행에 '해당 없음'을 기입합니다. 첫 칸은 필수라 비워 두면 완료할 수 없습니다."
                 columns={LINKED_ORG_COLUMNS}
                 rows={linkedOrgs}
                 onChange={setLinkedOrgs}
@@ -795,10 +801,17 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
           {/* 남은 필수 항목은 콜아웃(안내줄 카드)이다(2026-08-07 Q 11차 "경고 카드 규칙
               사용" — 구 9차 알약 배지 대체: 알약은 읽기 전용 배지 전유물이고 문장이 길다).
-              라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9). */}
+              라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9).
+              내용은 A7(2026-08-08)의 "항목 이름까지" 목록이다. 콜아웃 본문이 p 라 ul 을
+              넣을 수 없어 줄 단위 span 으로 편다. 단계당 한 줄, 항목 이름은 그 줄 안의 병렬. */}
           {!canComplete ? (
             <WireCallout tone="lavender" role="status" testId="intake-missing" title="완료하려면 남은 필수 항목을 채우세요">
-              {[heldAtMissing ? '1. 상담일' : null, ...missingSteps].filter((entry) => entry !== null).join(', ')}
+              {[
+                ...(heldAtMissing ? ['1. 상담일'] : []),
+                ...missingDetails.map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}: ${entry.missing.join(', ')}`),
+              ].map((line) => (
+                <span key={line} style={{ display: 'block' }}>{line}</span>
+              ))}
             </WireCallout>
           ) : null}
 
