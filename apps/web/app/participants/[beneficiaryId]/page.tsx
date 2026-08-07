@@ -166,8 +166,9 @@ export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: strin
           체크를 풀면 철회로 기록되며, 이전 기록은 지워지지 않습니다.
         </p>
         {CONSENT_ITEMS.map((item) => (
-          // 체크박스 아래 전문 보기 아코디언(2026-08-07 Q) — 항목과 전문이 한 묶음으로 선다.
-          <div key={item.name}>
+          // 체크 라벨과 '전문 보기'가 한 줄에 서고, 펼친 전문만 그 아래로 떨어진다
+          // (2026-08-08 Q "우측에 나란히 가운데 정렬"). 배치는 .consent-item 이 갖는다.
+          <div className="consent-item" key={item.name}>
             <label className="consent-checkbox">
               <input
                 type="checkbox"

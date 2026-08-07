@@ -750,12 +750,20 @@ const registerStyles = `
 /* D15·D23: 동의 문안 "자세히 읽어보기"·"전문 보기" — briefing-subaccordion 패턴 재사용.
    등록 폼(자세히 읽어보기)과 동의 수정 허브(항목별 전문 보기, 2026-08-07 Q)가 같은 부품이다. */
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
-/* 체크박스 바로 아래 붙는 변형(허브 전문 보기) — 항목 사이 구분선 없이 라벨만 살짝 들여 선다.
-   윗여백은 기본과 같은 8 이다(2026-08-08 Q "여백 더 주고"). 구 0 은 알약이 체크 라벨에
-   붙어 한 덩어리로 뭉쳤다. 12 로 더 벌리면 fieldset 항목 간격과 같아져 묶음이 풀리므로
-   8 이 상한이다(하니스 실측). */
-/* optical: 18px 는 간격이 아니라 체크박스 상자 폭이다 — 라벨 첫 글자 x 에 요약 줄을 맞춘다 */
-.consent-detail[data-inline="true"]{background:none;margin-left:calc(18px + var(--space-3))}
+/* 동의 항목 한 줄 = 체크 라벨 + '전문 보기' 알약이고, 펼친 전문만 그 아래 줄을 통째로
+   쓴다(2026-08-08 Q "우측에 나란히 가운데 정렬"). 구 배치는 알약이 라벨 아래로 떨어져
+   항목 하나가 두 줄을 먹었다.
+   알약은 격자가 아니라 자기 width:max-content 가 폭을 정하므로 1fr 칸에서 늘어나지 않고
+   라벨 바로 옆에 붙는다. 세로 가운데는 align-items 다. */
+.consent-item{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:var(--space-3)}
+/* details 는 상자를 버리고 자식을 그대로 격자에 내놓는다. 그래야 summary(알약)는 라벨과
+   같은 줄에, 본문은 아래 줄에 설 수 있다. summary 를 details 밖으로 꺼낼 수는 없다. */
+.consent-detail[data-inline="true"]{display:contents}
+/* 펼친 전문은 두 칸을 다 쓴다. 규칙이 둘인 이유: 요즘 브라우저는 details 의 비-summary
+   자식을 ::details-content 상자로 감싸므로 **그 상자**가 격자 항목이고, 그 상자가 없는
+   브라우저에서는 본문 자신이 격자 항목이다. 둘 다 적어야 어느 쪽에서든 전폭이 된다. */
+.consent-detail[data-inline="true"]::details-content{grid-column:1/-1}
+.consent-detail[data-inline="true"]>.consent-detail-body{grid-column:1/-1}
 /* 화살표는 텍스트 바로 옆이다(2026-08-07 Q 9차 — 구 space-between 은 화살표가 오른쪽
    끝으로 떨어져 라벨과 남남으로 읽혔다). */
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
