@@ -2,10 +2,12 @@ import Link from 'next/link';
 
 // 당사자 카드 (2026-08-06 Q · D60 후속) — **일정 카드와 당사자 목록 카드가 같은 부품이다.**
 //
-//  1행: 일정 화면 = 날짜 · 시간 · 종류 뱃지(+지난 일정 상태 뱃지)
-//       당사자 목록 = 참여 사업 N개 · 상태 뱃지(진행 중·종결) — 같은 날 3차: 목록도
-//       한 줄 카드가 아니라 **일정 카드와 같은 2행 골격**을 쓴다(구 '2행 오른쪽 묶음' 대체).
-//  2행(공통): 이름 · 가명 ID · 연락처 (· 이메일 — 보류, D24 확장 대기. 자리만)
+// 2026-08-07 Q 행 순서 교체: **이름이 위다** — 사람이 단위인 카드라 이름 행이 먼저 서고,
+// 날짜·참여 사업 같은 정보는 가로선 아래로 내려간다(구 '정보 행이 아래' 배치의 반전.
+// HERO 2행 골격과 같은 문법: 이름 위, 정보는 선 아래).
+//  1행(공통): 이름 · 가명 ID · 연락처 (· 이메일 — 보류, D24 확장 대기. 자리만)
+//  2행: 일정 화면 = 날짜 · 시간 · 종류 뱃지(+지난 일정 상태 뱃지)
+//       당사자 목록 = 참여 사업 N개 · 상태 뱃지(진행 중·종결) — 2행 골격 자체는 유지(3차).
 //
 // 규칙(2026-08-06 Q, 같은 날 2·3·5차 개정):
 //  - 칸은 **앞 아이템을 따라 붙는 좌측정렬**이다(5차 — 구 고정 폭 칸 대체: 가명 ID 가
@@ -58,34 +60,6 @@ export function ParticipantCard({
   return (
     <Link className="participant-card-link" href={href}>
       <article className="surface-card participant-card">
-        {schedule !== undefined && (
-          <>
-            <div className="participant-card-row">
-              <span className="participant-card-cell" data-col="date">{schedule.date}</span>
-              <span className="participant-card-cell">{schedule.time}</span>
-              <span className="participant-card-badges">
-                <span className="wire-badge" data-tone="blue">{schedule.kindLabel}</span>
-                {schedule.statusLabel !== undefined && <span className="wire-badge">{schedule.statusLabel}</span>}
-              </span>
-            </div>
-            <hr className="wire-card-divider" />
-          </>
-        )}
-        {schedule === undefined && (statusBadge !== undefined || programCount !== undefined) && (
-          <>
-            <div className="participant-card-row">
-              {programCount !== undefined && (
-                <span className="participant-card-programs">참여 사업 {programCount}개</span>
-              )}
-              {statusBadge !== undefined && (
-                <span className="participant-card-badges">
-                  <span className="wire-badge" data-tone={statusBadge.tone}>{statusBadge.label}</span>
-                </span>
-              )}
-            </div>
-            <hr className="wire-card-divider" />
-          </>
-        )}
         <div className="participant-card-row" data-row="info">
           {/* 이름 미기입은 회색 '미기입' — ID 칸이 따로 있어 같은 값을 두 번 적지 않는다(D31 폴백 변형). */}
           {name === null || name.length === 0
@@ -99,6 +73,34 @@ export function ParticipantCard({
             <span className="participant-card-cell" data-tone="sub">{email}</span>
           )}
         </div>
+        {schedule !== undefined && (
+          <>
+            <hr className="wire-card-divider" />
+            <div className="participant-card-row">
+              <span className="participant-card-cell" data-col="date">{schedule.date}</span>
+              <span className="participant-card-cell">{schedule.time}</span>
+              <span className="participant-card-badges">
+                <span className="wire-badge" data-tone="blue">{schedule.kindLabel}</span>
+                {schedule.statusLabel !== undefined && <span className="wire-badge">{schedule.statusLabel}</span>}
+              </span>
+            </div>
+          </>
+        )}
+        {schedule === undefined && (statusBadge !== undefined || programCount !== undefined) && (
+          <>
+            <hr className="wire-card-divider" />
+            <div className="participant-card-row">
+              {programCount !== undefined && (
+                <span className="participant-card-programs">참여 사업 {programCount}개</span>
+              )}
+              {statusBadge !== undefined && (
+                <span className="participant-card-badges">
+                  <span className="wire-badge" data-tone={statusBadge.tone}>{statusBadge.label}</span>
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </article>
     </Link>
   );

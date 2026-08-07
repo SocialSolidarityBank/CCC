@@ -34,14 +34,15 @@ function cellTexts(container: HTMLElement): (string | null)[] {
   return Array.from(container.querySelectorAll('.participant-card-cell')).map((el) => el.textContent);
 }
 
-/** 카드 렌더 순서 — 1행 날짜 칸을 카드 순서대로 뽑는다. */
+/** 카드 렌더 순서 — 날짜 칸을 카드 순서대로 뽑는다(2026-08-07 행 순서 교체로 날짜는
+ *  첫 칸이 아니라 data-col 로 짚는다 — 이름 행이 위, 일정 행이 가로선 아래다). */
 function cardDates(container: HTMLElement): (string | null)[] {
   return Array.from(container.querySelectorAll('.participant-card'))
-    .map((card) => card.querySelector('.participant-card-cell')?.textContent ?? null);
+    .map((card) => card.querySelector('.participant-card-cell[data-col="date"]')?.textContent ?? null);
 }
 
 describe('ScheduleCards', () => {
-  it('1행 날짜·시간·종류 뱃지, 2행 이름·가명 ID·연락처를 표시한다 (2026-08-06 카드 통일)', () => {
+  it('이름 행이 위, 날짜·시간·종류 뱃지는 가로선 아래를 표시한다 (2026-08-07 행 순서 교체)', () => {
     const { container } = render(<ScheduleCards cards={cards} />);
     const values = cellTexts(container);
     expect(values).toContain('김철수'); // 실명(T2 응답)

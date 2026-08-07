@@ -72,7 +72,8 @@ export function SignupForm({ token }: { token: string }) {
           2체크·같은 이름·같은 순서를 쓴다. 여기서는 기록자가 본인이라('self') 문안도
           본인이 직접 읽는다. 미동의여도 가입은 진행된다(D15 미동의 경로). */}
       <fieldset className="consent-fieldset">
-        <legend>동의 (항목별, 기본 미동의)</legend>
+        {/* 괄호 보충은 뺐다(2026-08-07 Q — 등록 화면과 같은 개정). 아래 안내문이 대신 말한다. */}
+        <legend>동의</legend>
         <p className="schedule-form-hint">
           동의하신 항목과 일시가 기록됩니다. 개인정보 수집·이용 동의는 가입에 반드시 필요하고,
           AI를 활용한 녹취기록은 동의하지 않아도 가입이 진행됩니다.

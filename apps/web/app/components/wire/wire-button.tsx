@@ -38,6 +38,11 @@ export interface WireButtonProps {
    */
   name?: string;
   value?: string;
+  /**
+   * 폼 밖에 선 제출 버튼이 가리키는 form id (2026-08-07 — 카드 제목 줄의 '동의 저장' 등,
+   * 버튼이 폼 바깥 마크업에 서야 할 때). href 로 렌더될 때는 무시된다.
+   */
+  form?: string;
   className?: string;
 }
 
@@ -55,6 +60,7 @@ export function WireButton({
   type = 'button',
   name,
   value,
+  form,
   className,
 }: WireButtonProps) {
   const resolvedVariant: WireButtonVariant = variant ?? (size === 'large' ? 'primary' : 'secondary');
@@ -82,6 +88,7 @@ export function WireButton({
       type={type}
       name={name}
       value={value}
+      form={form}
       onClick={onClick}
       disabled={disabled}
       data-variant={resolvedVariant}
