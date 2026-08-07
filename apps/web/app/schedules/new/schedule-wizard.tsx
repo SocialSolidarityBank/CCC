@@ -38,11 +38,19 @@ export interface ScheduleWizardCandidate {
 }
 
 // D31: 당사자 행 라벨 — 실명·연락처·이메일 순. 실명이 없으면 가명 슬러그로 폴백하고,
-// 비어 있는 필드는 생략한다(예: 연락처만 있으면 "제비-003" "010-0000-0000" 두 노드).
+// 비어 있는 필드는 MetaRow 가 거른다(예: 연락처만 있으면 "제비-003" "010-0000-0000" 두 노드).
+// 굵기는 당사자 카드와 같은 계약이다(2026-08-07 Q "텍스트 weight 수정") — 이름만 600,
+// 나머지 값은 행 기본 400. 행 자체의 400 은 .schedule-candidate-row 가 갖는다.
 function candidateLabel(candidate: ScheduleWizardCandidate) {
-  const parts = [candidate.participantName ?? candidate.beneficiaryId, candidate.participantPhone, candidate.participantEmail]
-    .filter((part): part is string => typeof part === 'string' && part.length > 0);
-  return <MetaRow items={parts} />;
+  return (
+    <MetaRow items={[
+      <span key="name" className="schedule-candidate-name">
+        {candidate.participantName ?? candidate.beneficiaryId}
+      </span>,
+      candidate.participantPhone,
+      candidate.participantEmail,
+    ]} />
+  );
 }
 
 export interface ScheduleWizardProps {
@@ -260,7 +268,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   }
 
   const contextBar = selected !== null
-    ? <ListRow selected>{candidateLabel(selected)}</ListRow>
+    ? <ListRow selected className="schedule-candidate-row">{candidateLabel(selected)}</ListRow>
     : null;
 
   if (created) {
@@ -306,6 +314,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                   {candidates.map((candidate) => (
                     <ListRow
                       key={candidate.value}
+                      className="schedule-candidate-row"
                       selected={selected?.value === candidate.value}
                       onClick={() => selectCandidate(candidate)}
                     >

@@ -13,7 +13,14 @@ import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
 import { getDisplayLabels } from '../../lib/display-labels';
+import { formatKoreanDateTime } from '../../lib/format-korean-date';
 import { updateParticipantConsentAction } from '../../actions';
+import {
+  CONSENT_DETAIL_DISCLAIMER,
+  CONSENT_PRIVACY_SECTIONS,
+  CONSENT_RECORDING_AI_SECTIONS,
+  type ConsentDetailSection,
+} from '../new/consent-copy';
 import { ErrorState, type ErrorKind } from './error-state';
 
 // 당사자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
@@ -98,48 +105,81 @@ const CONSENT_ITEMS = [
   { name: 'consentRecordingAi', label: 'AI를 활용한 녹취기록 동의', key: 'recordingAi' },
 ] as const;
 
+// 항목별 전문(2026-08-07 Q "각 동의 체크박스 아래 전문 보기") — 문안은 등록 폼과 같은
+// consent-copy 정본을 항목별로 갈라 실은 것이라 한 글자도 다르지 않다.
+const CONSENT_ITEM_SECTIONS: Record<(typeof CONSENT_ITEMS)[number]['key'], ConsentDetailSection[]> = {
+  privacy: CONSENT_PRIVACY_SECTIONS,
+  recordingAi: CONSENT_RECORDING_AI_SECTIONS,
+};
+
+/** 전문 보기 아코디언 — 등록 폼 '자세히 읽어보기'와 같은 부품(.consent-detail)의 인라인 변형. */
+function ConsentDetailAccordion({ sections }: { sections: ConsentDetailSection[] }) {
+  return (
+    <details className="consent-detail" data-inline="true">
+      <summary className="consent-detail-summary">
+        <span>전문 보기</span>
+        <span aria-hidden="true" className="briefing-card-arrow" />
+      </summary>
+      <div className="consent-detail-body">
+        <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>
+        {sections.map((section) => (
+          <div className="consent-detail-section" key={section.heading}>
+            <h3>{section.heading}</h3>
+            {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+            {section.items === undefined ? null : (
+              <ul>
+                {section.items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 /** 마지막으로 동의 상태를 기록한 시각. 최초 동의일이 아니다 — 저장할 때마다 갱신된다. */
 function formatConsentRecordedAt(value: string | null): string {
   if (value === null) return '기록 없음';
-  const date = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Seoul' })
-    .format(date);
+  return formatKoreanDateTime(value);
 }
 
-/** '동의 저장' 버튼이 폼 밖(카드·묶음 제목 줄 우측)에 서므로 form 속성으로 잇는다(2026-08-07 Q). */
+/** '저장' 버튼이 폼 밖(카드·묶음 제목 줄 우측)에 서므로 form 속성으로 잇는다(2026-08-07 Q — 라벨도 '저장' 하나다). */
 function consentFormId(supportCaseId: string): string {
   return `consent-form-${supportCaseId}`;
 }
 
 // 테스트에서 직접 렌더한다 — 체크박스 `name` 이 서버 액션이 읽는 키와 어긋나면 오류가 아니라
 // **조용한 철회**가 저장된다(checkbox 헬퍼는 키가 없으면 false 다). 그래서 이름을 DOM 으로 고정한다.
-// '동의 저장' 버튼은 이 폼 안에 없다 — 제목 줄 우측에 서고 form 속성으로 이 폼을 가리킨다
-// (2026-08-07 Q "동의 저장은 동의서와 같은 라인 우측").
+// '저장' 버튼은 이 폼 안에 없다 — 제목 줄 우측에 서고 form 속성으로 이 폼을 가리킨다
+// (2026-08-07 Q "동의서와 같은 라인 우측", 라벨은 '저장').
 export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: string; program: ParticipantProgram }) {
   return (
     <form id={consentFormId(program.id)} className="participant-program-consent" action={updateParticipantConsentAction}>
       <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
       <input type="hidden" name="supportCaseId" value={program.id} />
-      <fieldset className="consent-fieldset">
-        {/* legend 는 구획 타이틀 위계다(2026-08-07 Q — 구 '동의 (항목별)' 의 괄호 삭제,
-            좌측정렬·16/600 은 .consent-fieldset legend 규칙이 갖는다). */}
-        <legend>동의</legend>
+      {/* legend 는 없다(2026-08-07 Q "'동의' 텍스트는 필요 없어 보이네" — 카드 제목 '동의서'가
+          이미 구획을 말한다). 접근성 이름은 aria-label 이 잇는다. */}
+      <fieldset className="consent-fieldset" aria-label="동의">
         <p className="schedule-form-hint">
           동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
           체크를 풀면 철회로 기록되며, 이전 기록은 지워지지 않습니다.
         </p>
         {CONSENT_ITEMS.map((item) => (
-          <label className="consent-checkbox" key={item.name}>
-            <input
-              type="checkbox"
-              className="wire-checkbox"
-              name={item.name}
-              value="on"
-              defaultChecked={program.consent[item.key]}
-            />
-            <span>{item.label}</span>
-          </label>
+          // 체크박스 아래 전문 보기 아코디언(2026-08-07 Q) — 항목과 전문이 한 묶음으로 선다.
+          <div key={item.name}>
+            <label className="consent-checkbox">
+              <input
+                type="checkbox"
+                className="wire-checkbox"
+                name={item.name}
+                value="on"
+                defaultChecked={program.consent[item.key]}
+              />
+              <span>{item.label}</span>
+            </label>
+            <ConsentDetailAccordion sections={CONSENT_ITEM_SECTIONS[item.key]} />
+          </div>
         ))}
         <p className="participant-program-consent-meta">
           마지막 기록 {formatConsentRecordedAt(program.consentRecordedAt)}
@@ -171,23 +211,14 @@ function ProgramRow({ program, programTitle }: {
   );
 }
 
-/** 다가오는 일정 표기 — 일정 카드 1행과 같은 어휘(날짜 · 시각 · 유형 뱃지). 기관 표준
- *  시간대 표기는 이 파일의 다른 시각 표기(참여 시작·동의 기록)와 같이 Asia/Seoul 이다. */
-function formatScheduleParts(value: string): { date: string; time: string } {
-  const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) return { date: value, time: '' };
-  return {
-    date: new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' }).format(instant),
-    time: new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Seoul' }).format(instant),
-  };
-}
-
 const scheduleKindLabels: Record<'regular' | 'intake', string> = {
   regular: '기본 상담',
   intake: '인테이크',
 };
 
-/** 최신 일정 카드(2026-08-06 Q) — 담당 사업들의 예정 일정 중 가장 이른 1건. */
+/** 최신 일정 카드(2026-08-06 Q · 2026-08-07 가로 행 개편) — 담당 사업들의 예정 일정 중
+ *  가장 이른 1건. 행 문법은 브리핑 '상담 내용 회차별 정리'와 같다: 날짜 · 상담 종류 뱃지 ·
+ *  참여 사업, 오른쪽 끝에 상담 준비 버튼. 날짜는 공용 표기(년 월 일 오전/오후 시간)다. */
 function NextScheduleCard({ beneficiaryId, programs, programLabels }: {
   beneficiaryId: string;
   programs: ParticipantProgram[];
@@ -201,30 +232,19 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels }: {
   return (
     <WireCard as="section" title="최신 일정">
       {next === undefined || next.upcomingSchedule === null ? (
-        <>
+        <div className="participant-next-schedule-row">
           <p className="participant-program-meta">예정된 상담이 없습니다.</p>
-          <div className="participant-program-actions">
-            <WireButton href="/schedules/new">상담 등록</WireButton>
-          </div>
-        </>
+          <WireButton href="/schedules/new">상담 등록</WireButton>
+        </div>
       ) : (
-        <>
-          <div className="participant-next-schedule-row">
-            <span className="participant-next-schedule-date">
-              {formatScheduleParts(next.upcomingSchedule.scheduledAt).date}
-            </span>
-            <span className="participant-next-schedule-time">
-              {formatScheduleParts(next.upcomingSchedule.scheduledAt).time}
-            </span>
-            <span className="wire-badge" data-tone="blue">
-              {scheduleKindLabels[next.upcomingSchedule.sessionKind]}
-            </span>
-          </div>
-          <p className="participant-program-meta">{programName(programLabels, next.programType)}</p>
-          <div className="participant-program-actions">
-            <WireButton href={briefingHref(beneficiaryId, next.id)} variant="primary">상담 준비</WireButton>
-          </div>
-        </>
+        <div className="participant-next-schedule-row">
+          <span className="participant-next-schedule-date">
+            {formatKoreanDateTime(next.upcomingSchedule.scheduledAt)}
+          </span>
+          <WireBadge tone="blue">{scheduleKindLabels[next.upcomingSchedule.sessionKind]}</WireBadge>
+          <span className="participant-next-schedule-program">{programName(programLabels, next.programType)}</span>
+          <WireButton href={briefingHref(beneficiaryId, next.id)} variant="primary">상담 준비</WireButton>
+        </div>
       )}
     </WireCard>
   );
@@ -280,28 +300,27 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
           <p className="empty" role="status">표시할 참여 사업이 없습니다.</p>
         ) : (
           <>
-            {/* 참여중인 사업 + 최신 일정 두 카드가 나란히 선다(2026-08-06 Q — 구 사업별
-                낱개 카드 대체). 그리드는 표준 카드 그리드(D37 §4-2)다. */}
-            <div className="card-grid">
-              <WireCard as="section" title="참여중인 사업">
-                {programs.map((program) => (
-                  <ProgramRow
-                    key={program.id}
-                    program={program}
-                    programTitle={programName(programLabels, program.programType)}
-                  />
-                ))}
-              </WireCard>
-              <NextScheduleCard
-                beneficiaryId={detail.beneficiaryId}
-                programs={programs}
-                programLabels={programLabels}
-              />
-            </div>
+            {/* 참여중인 사업·최신 일정은 **가로로 긴 전폭 카드 2장 스택**이다(2026-08-07 Q —
+                구 2열 나란 배치 대체: 좁은 카드에서 행이 접혔다). 카드 사이 간격은 페이지
+                스택 24(--section-gap, GridContainer)다. */}
+            <WireCard as="section" title="참여중인 사업">
+              {programs.map((program) => (
+                <ProgramRow
+                  key={program.id}
+                  program={program}
+                  programTitle={programName(programLabels, program.programType)}
+                />
+              ))}
+            </WireCard>
+            <NextScheduleCard
+              beneficiaryId={detail.beneficiaryId}
+              programs={programs}
+              programLabels={programLabels}
+            />
             {/* 동의서는 맨 아래다(2026-08-06 Q — 구 사업 카드 안 동의 묶음 대체). 저장 단위는
                 여전히 참여 사업이라(D44) 담당 사업마다 한 묶음씩 서고, 사업이 여럿이면
                 묶음 머리에 사업명이 선다.
-                '동의 저장'은 제목과 같은 줄 우측이다(2026-08-07 Q) — 사업 1개면 카드 제목
+                '저장'은 제목과 같은 줄 우측이다(2026-08-07 Q) — 사업 1개면 카드 제목
                 '동의서' 줄, 여럿이면 각 묶음의 사업명 줄. 버튼은 폼 밖이라 form 속성으로
                 자기 폼을 가리킨다(consentFormId). */}
             {consentPrograms.length > 0 && (
@@ -311,7 +330,7 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
                   consentPrograms.length === 1 ? (
                     <div className="wire-card-head">
                       <span>동의서</span>
-                      <WireButton type="submit" form={consentFormId(consentPrograms[0]!.id)}>동의 저장</WireButton>
+                      <WireButton type="submit" form={consentFormId(consentPrograms[0]!.id)}>저장</WireButton>
                     </div>
                   ) : (
                     '동의서'
@@ -323,7 +342,7 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
                     {consentPrograms.length > 1 && (
                       <div className="participant-program-head">
                         <h3 className="participant-consent-program">{programName(programLabels, program.programType)}</h3>
-                        <WireButton type="submit" form={consentFormId(program.id)}>동의 저장</WireButton>
+                        <WireButton type="submit" form={consentFormId(program.id)}>저장</WireButton>
                       </div>
                     )}
                     <ConsentEditor beneficiaryId={detail.beneficiaryId} program={program} />

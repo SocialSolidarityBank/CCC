@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { formatKoreanDate, formatKoreanTime } from '../../../../lib/format-korean-date';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError, getMonthSchedules, type TodaySchedule } from '../../../../lib/api';
@@ -24,8 +25,6 @@ import { isKnownProgramType } from '../../../../lib/labels';
 // 분량은 달 단위 이동이라 페이지네이션이 필요 없다. 필터는 두지 않는다 — 달 창 자체가
 // 필터이고, 무엇을 거르고 싶은지는 써 보기 전에 알 수 없다.
 
-const weekdayNames = ['일', '월', '화', '수', '목', '금', '토'] as const;
-
 /** 유형 칩 문구. 상담 기록 화면(D47)의 접힌 줄과 같은 어휘를 쓴다. */
 const sessionKindLabels: Record<TodaySchedule['sessionKind'], string> = {
   intake: '인테이크',
@@ -40,30 +39,8 @@ const statusLabels: Record<TodaySchedule['status'], string | null> = {
   no_show: '불참',
 };
 
-function zonedParts(instant: string, timeZone: string): { date: string; time: string } {
-  const value = new Date(instant);
-  if (Number.isNaN(value.valueOf())) throw new Error('Invalid schedule timestamp');
-  const date = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(value);
-  const time = new Intl.DateTimeFormat('ko-KR', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(value);
-  return { date, time };
-}
-
-/** "8월 3일 (월)" — 날짜 묶음의 제목. */
-function formatDayTitle(date: string): string {
-  const [year, month, day] = date.split('-').map(Number);
-  const weekday = weekdayNames[new Date(Date.UTC(year!, month! - 1, day!)).getUTCDay()];
-  return `${month}월 ${day}일 (${weekday})`;
-}
+// 날짜·시각 표기는 공용 계약이다(2026-08-07 Q 통일 — "2026년 8월 3일" + "오후 3:00",
+// 요일 표기·YYYY-MM-DD 중간 키는 뺐다). 기관 시간대는 board.timeZone 을 그대로 넘긴다.
 
 /** "2026년 8월" — 월 이동 줄의 라벨. */
 function formatMonthLabel(month: string): string {
@@ -189,7 +166,11 @@ export default async function ProgramScheduleAllPage({
   // 2026-08-06 Q 카드 통일로 없앴다 — 카드 1행이 날짜를 직접 담으므로 묶음 제목이 중복이다.
   const rows = board.schedules
     .filter((schedule) => schedule.programType === programType)
-    .map((schedule) => ({ schedule, ...zonedParts(schedule.scheduledAt, board.timeZone) }));
+    .map((schedule) => ({
+      schedule,
+      date: formatKoreanDate(schedule.scheduledAt, board.timeZone),
+      time: formatKoreanTime(schedule.scheduledAt, board.timeZone),
+    }));
 
   if (rows.length === 0) {
     return frame(month, (
@@ -224,7 +205,7 @@ export default async function ProgramScheduleAllPage({
           key={schedule.id}
           href={rowHref(schedule)}
           schedule={{
-            date: formatDayTitle(date),
+            date,
             time,
             kindLabel: sessionKindLabels[schedule.sessionKind],
             ...(statusLabels[schedule.status] === null ? {} : { statusLabel: statusLabels[schedule.status] as string }),

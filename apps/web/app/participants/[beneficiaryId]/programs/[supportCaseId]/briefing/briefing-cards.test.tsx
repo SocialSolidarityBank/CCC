@@ -119,7 +119,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const link = item.querySelector('a.briefing-suggestion-link');
     expect(link?.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
     expect(link?.textContent).toContain('근거 회차 보기');
-    expect(link?.textContent).toContain('2026-07-15');
+    expect(link?.textContent).toContain('2026년 7월 15일');
   });
 
   it('AI 제안은 최대 3개만 렌더되고, 구(v1) 저장분(reason=null)은 이유 줄을 생략한다', () => {
@@ -153,11 +153,11 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const card = cardByTitle(container, '상담 내용 회차별 정리');
     const rows = [...card.querySelectorAll('li')].map((row) => row.textContent ?? '');
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toContain('2026-07-15');
+    expect(rows[0]).toContain('2026년 7월 15일');
     expect(rows[0]).toContain('기본 상담');
     expect(rows[0]).toContain('구직 활동 근황');
     expect(rows[0]).toContain('수기');
-    expect(rows[1]).toContain('2026-07-01');
+    expect(rows[1]).toContain('2026년 7월 1일');
     expect(rows[1]).toContain('인테이크');
     expect(rows[1]).toContain('채무 현황과 정서적 어려움 확인');
   });
@@ -243,8 +243,8 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(links).toContain(`${recordsHref}#record-s-1`);
     expect(links).toContain(`${recordsHref}#record-s-2`);
     // 각 인용 옆에 상담일이 붙는다.
-    expect(card.textContent).toContain('2026-07-01 회차');
-    expect(card.textContent).toContain('2026-07-15 회차');
+    expect(card.textContent).toContain('2026년 7월 1일 회차');
+    expect(card.textContent).toContain('2026년 7월 15일 회차');
     // AI 는 판단하지 않는다(R5) — 판단 어휘가 화면에 나오면 계약 위반이다.
     for (const banned of ['오류입니다', '틀렸', '맞습니다', '정확', '거짓']) {
       expect(card.textContent).not.toContain(banned);

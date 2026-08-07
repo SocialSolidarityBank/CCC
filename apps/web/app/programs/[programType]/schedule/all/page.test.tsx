@@ -13,6 +13,9 @@ vi.mock('../../../../lib/api', () => ({
 }));
 
 const { default: ProgramScheduleAllPage } = await import('./page');
+// 시각 기대값은 공용 포매터로 만든다 — '오전'과 시각 사이 공백 문자가 러너의 ICU 버전에
+// 따라 달라(NBSP 등) 리터럴 비교가 CI 에서 깨진다.
+const { formatKoreanTime } = await import('../../../../lib/format-korean-date');
 
 function schedule(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -83,13 +86,13 @@ describe('전체 일정 화면 (CCC-19)', () => {
 
     // 서버가 준 시간순 그대로다.
     const first = cellTexts(rendered[0]!);
-    expect(first).toContain('2월 15일 (일)');
-    expect(first).toContain('10:00');
+    expect(first).toContain('2026년 2월 15일');
+    expect(first).toContain(formatKoreanTime('2026-02-15T01:00:00.000Z'));
     expect(first).toContain('김철수');
     expect(first).toContain('swallow-003'); // 가명 ID 칸(2026-08-06 복귀)
     expect(first).toContain('010-1234-5678');
-    expect(cellTexts(rendered[1]!)).toContain('14:00');
-    expect(cellTexts(rendered[2]!)).toContain('2월 20일 (금)');
+    expect(cellTexts(rendered[1]!)).toContain(formatKoreanTime('2026-02-15T05:00:00.000Z'));
+    expect(cellTexts(rendered[2]!)).toContain('2026년 2월 20일');
 
     // 상담 종류 뱃지 — 블루 계열(일정 축, D34).
     expect(badgeTexts(rendered[0]!)).toContain('기본 상담');

@@ -8,6 +8,7 @@ import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
+import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';
 
 // D45(ADR-0018) 브리핑 3영역 재구성. 서버 page.tsx 는 브리핑을 fetch 만 하고(감사·접근은
@@ -80,18 +81,9 @@ export interface BriefingCardsProps {
   upcomingSchedule: BriefingUpcomingSchedule | null;
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-}
-
-// 회차 줄의 날짜는 시각 없이 YYYY-MM-DD만 — held_at은 ISO 문자열(gateway now() 표준)이라
-// 앞 10자를 그대로 뽑으면 시간대 변환 없이 안정적으로 날짜만 남는다.
-function formatDateOnly(value: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
-  return match?.[1] ?? value;
-}
+// 날짜·시각 표기는 공용 계약 하나다(2026-08-07 Q 통일 — 구 dateStyle medium ·
+// YYYY-MM-DD 지역 함수 대체): formatKoreanDate("2026년 8월 7일") ·
+// formatKoreanDateTime("2026년 8월 7일 오후 1:00"), lib/format-korean-date.ts.
 
 function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="briefing-note" role="status">{children}</p>;
@@ -208,7 +200,7 @@ function DiscrepancyItem({
       <p className="briefing-qlabel">{discrepancyKindLabels[item.kind]}</p>
       <div className="briefing-fields">
         {[item.left, item.right].map((side, index) => (
-          <WireField key={`${item.id}-${index}`} label={`${formatDateOnly(side.heldAt)} 회차`}>
+          <WireField key={`${item.id}-${index}`} label={`${formatKoreanDate(side.heldAt)} 회차`}>
             <span>“{side.quote}”</span>
             {' '}
             <Link href={`${recordsHref}#record-${side.sessionId}`}>기록 보기</Link>
@@ -219,7 +211,7 @@ function DiscrepancyItem({
         <p className="briefing-note">
           <MetaRow items={[
             `${discrepancyResolutionLabels[item.resolution.status]}으로 처리됨`,
-            formatDateOnly(item.resolution.resolvedAt),
+            formatKoreanDate(item.resolution.resolvedAt),
           ]} />
         </p>
       )}
@@ -316,7 +308,7 @@ export function BriefingCards({
         stageTag="상담 준비"
         meta={<MetaRow items={[
           programLabel,
-          upcomingSchedule === null ? '예정된 상담 없음' : formatDateTime(upcomingSchedule.scheduledAt),
+          upcomingSchedule === null ? '예정된 상담 없음' : formatKoreanDateTime(upcomingSchedule.scheduledAt),
           '대면',
         ]} />}
         actions={<>
@@ -401,7 +393,7 @@ export function BriefingCards({
                         className="briefing-suggestion-link"
                         href={`${recordsHref}#record-${suggestion.sessionId}`}
                       >
-                        근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatDateOnly(suggestion.heldAt)})`}
+                        근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
                       </Link>
                     </li>
                   ))}
@@ -428,7 +420,7 @@ export function BriefingCards({
               <ul className="briefing-session-rows">
                 {sessionRows.map((row) => (
                   <li key={row.sessionId} className="briefing-session-row">
-                    <span className="briefing-session-date">{formatDateOnly(row.heldAt)}</span>
+                    <span className="briefing-session-date">{formatKoreanDate(row.heldAt)}</span>
                     <WireBadge tone="blue">{sessionKindLabels[row.kind]}</WireBadge>
                     {row.aiOneLiner === null && row.memoExcerpt !== null && (
                       <WireBadge>수기</WireBadge>

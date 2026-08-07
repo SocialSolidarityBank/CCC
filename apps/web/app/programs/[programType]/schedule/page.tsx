@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { formatKoreanDate, formatKoreanTime } from '../../../lib/format-korean-date';
 import { notFound } from 'next/navigation';
 import { ApiError, getUpcomingSchedules, rememberLastProgramType } from '../../../lib/api';
 import { GridContainer } from '../../../components/wire/grid-container';
@@ -12,44 +13,8 @@ import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 // participantName·participantPhone을 그대로 쓴다(담당 실무자·기관 관리자·admin에게만 값,
 // 그 외 null → 가명 ID / '—' 폴백). 감사는 게이트웨이가 자동 처리한다.
 
-const weekdayNames = ['일', '월', '화', '수', '목', '금', '토'] as const;
-
-function zonedDateParts(instant: string, timeZone: string): { year: string; month: string; day: string } {
-  const date = new Date(instant);
-  if (Number.isNaN(date.valueOf())) throw new Error('Invalid schedule timestamp');
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const values: Record<string, string> = {};
-  for (const part of parts) {
-    if (part.type !== 'literal') values[part.type] = part.value;
-  }
-  if (values.year === undefined || values.month === undefined || values.day === undefined) {
-    throw new Error('Invalid schedule time zone');
-  }
-  return { year: values.year, month: values.month, day: values.day };
-}
-
-function localTime(instant: string, timeZone: string): string {
-  const date = new Date(instant);
-  if (Number.isNaN(date.valueOf())) throw new Error('Invalid schedule timestamp');
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(date);
-}
-
-/** 카드 1행 날짜 칸 — "7월 17일 (목)". 시간은 localTime 이 따로 준다(2026-08-06 카드 개편). */
-function formatScheduleDate(instant: string, timeZone: string): string {
-  const { year, month, day } = zonedDateParts(instant, timeZone);
-  const weekday = weekdayNames[new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).getUTCDay()];
-  return `${Number(month)}월 ${Number(day)}일 (${weekday})`;
-}
+// 날짜·시각 표기는 공용 계약이다(2026-08-07 Q 통일 — "2026년 7월 17일" + "오후 1:00",
+// 요일 표기는 뺐다). 기관 시간대는 board.timeZone 을 그대로 넘긴다.
 
 /** 상담 종류 뱃지 문구 — 전체 일정과 같은 어휘(D47). */
 const sessionKindLabels: Record<'regular' | 'intake', string> = {
@@ -125,8 +90,8 @@ export default async function ProgramSchedulePage({
         id: schedule.id,
         href: briefingHref(schedule.beneficiaryId, schedule.supportCaseId),
         schedule: {
-          date: formatScheduleDate(schedule.scheduledAt, board.timeZone),
-          time: localTime(schedule.scheduledAt, board.timeZone),
+          date: formatKoreanDate(schedule.scheduledAt, board.timeZone),
+          time: formatKoreanTime(schedule.scheduledAt, board.timeZone),
           kindLabel: sessionKindLabels[schedule.sessionKind],
         },
         participantName: schedule.participantName,

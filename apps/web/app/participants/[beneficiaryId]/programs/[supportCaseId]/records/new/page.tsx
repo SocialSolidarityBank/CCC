@@ -6,6 +6,7 @@ import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { ApiError, getNewRecordContext, getParticipantDetail, lifeAreaKeys, lifeAreaStatuses, type ApiErrorCode, type NewRecordContext, type ParticipantDetail } from '../../../../../../lib/api';
 import { RecordOnepage } from './record-onepage';
+import { formatKoreanDate } from '../../../../../../lib/format-korean-date';
 
 type SearchParams = Record<string, string | string[] | undefined>;
 type SubmissionFailure = ApiErrorCode;
@@ -46,11 +47,10 @@ function safeId(value: string): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
 }
 
-/** HERO 메타용 날짜. 시각까지는 필요 없다 — 한 줄이 길어질수록 안 읽힌다. */
+/** HERO 메타용 날짜. 시각까지는 필요 없다 — 한 줄이 길어질수록 안 읽힌다.
+ *  표기는 공용 계약(2026-08-07 Q 통일)이다. */
 function dateOnlyLabel(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(date);
+  return formatKoreanDate(value);
 }
 
 function safeSubmissionId(value: string | undefined): string | null {

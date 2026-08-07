@@ -1,4 +1,5 @@
 import { MetaRow } from '../../../../../components/wire/meta-row';
+import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import { Icon } from '../../../../../components/wire/wire-icon';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { WireCard } from '../../../../../components/wire/wire-card';
@@ -73,22 +74,14 @@ function sessionKindLabel(kind: SupportCaseRecord['kind']): string {
   return label;
 }
 
+// 날짜·시각 표기는 공용 계약 하나다(2026-08-07 Q 통일 — 구 dateStyle medium ·
+// YYYY-MM-DD 지역 함수 대체). 이 파일의 두 export 는 records/page.tsx 가 함께 쓴다.
 export function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return formatKoreanDateTime(value);
 }
 
 export function formatDateOnly(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(date);
-}
-
-/** 접힌 줄의 날짜 — 브리핑 회차 행과 같은 YYYY-MM-DD(held_at ISO 앞 10자, 시간대 변환 없음). */
-function isoDateOnly(value: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
-  return match?.[1] ?? value;
+  return formatKoreanDate(value);
 }
 
 /**
@@ -116,7 +109,7 @@ export function RecordCard({
         YYYY-MM-DD 다 — 폭이 일정해 고정 칸 좌측 정렬이 성립한다. 넘침은 공용 .wire-fade-clip. */}
     <summary className="record-summary">
       <span className="record-ordinal">{ordinal}회차</span>
-      <span className="record-held-at">{isoDateOnly(record.heldAt)}</span>
+      <span className="record-held-at">{formatKoreanDate(record.heldAt)}</span>
       <WireBadge tone="blue">{sessionKindLabel(record.kind)}</WireBadge>
       <span className={record.aiOneLiner === null ? 'record-one-liner wire-fade-clip is-memo' : 'record-one-liner wire-fade-clip'}>
         {oneLiner ?? '핵심 한 줄이 아직 없습니다'}

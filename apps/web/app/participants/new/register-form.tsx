@@ -116,9 +116,14 @@ export function RegisterForm({
         </div>
 
         {/* 등록자=담당 실무자(D7): 담당 실무자 지정 select 를 없애고 현재 사용자를 읽기 전용으로 보여준다.
-            admin 은 서버 액션이 본인을 배정하고, counselor 는 게이트웨이가 자동 본인 배정한다. */}
+            admin 은 서버 액션이 본인을 배정하고, counselor 는 게이트웨이가 자동 본인 배정한다.
+            표시는 참여 사업 고정 표시와 같은 민트 tint 상자다(2026-08-07 Q "카드처리해서 잘
+            보이게" — 담당 실무자도 '사람·소속' 축이라 같은 어휘가 맞다, D34). */}
         <div className="wire-invite-section">
-          <span className="wire-search-label">담당 실무자 {currentUser.name ?? currentUser.email}</span>
+          <p className="register-program-fixed">
+            <span className="register-program-fixed-label">담당 실무자</span>
+            <span className="register-program-fixed-value">{currentUser.name ?? currentUser.email}</span>
+          </p>
           <p className="schedule-form-hint">
             등록한 실무자가 담당 실무자로 자동 배정됩니다. 담당 실무자 변경은 관리자에게 요청하거나 관리자가 배정 화면에서 처리합니다.
           </p>

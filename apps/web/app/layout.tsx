@@ -641,6 +641,12 @@ const settingsStyles = `
 
 const scheduleStyles = `
 /* ticket-20: 상담 등록 */
+/* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
+   당사자 카드의 굵기 계약(이름만 강조)을 위저드 행에도 잇는다.
+   .wire-row 를 겹쳐 쓰는 이유: 버튼 행은 button.wire-row(0-1-1)가 600 을 다시 얹으므로
+   클래스 둘(0-2-0)로 이긴다. */
+.wire-row.schedule-candidate-row{font-weight:400}
+.schedule-candidate-name{font-weight:600}
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-sm)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
@@ -729,12 +735,22 @@ const registerStyles = `
 /* 버튼은 내용만큼만 차지한다 — 그리드 아이템 기본 stretch 를 그대로 두면 카드 폭(880)을
    가로지르는 알약이 되어, 폼 제출도 아닌 행동이 마케팅 배너처럼 읽힌다. */
 .wire-invite-stack .wire-button{justify-self:start}
-/* D15·D23: 동의 문안 "자세히 읽어보기" — briefing-subaccordion 패턴 재사용. */
+/* D15·D23: 동의 문안 "자세히 읽어보기"·"전문 보기" — briefing-subaccordion 패턴 재사용.
+   등록 폼(자세히 읽어보기)과 동의 수정 허브(항목별 전문 보기, 2026-08-07 Q)가 같은 부품이다. */
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
+/* 체크박스 바로 아래 붙는 변형(허브 전문 보기) — 항목 사이 구분선 없이 라벨만 살짝 들여 선다. */
+/* optical: 18px 는 간격이 아니라 체크박스 상자 폭이다 — 라벨 첫 글자 x 에 요약 줄을 맞춘다 */
+.consent-detail[data-inline="true"]{padding-top:0;background:none;margin-left:calc(18px + var(--space-3))}
 .consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
+/* 인라인 변형의 요약 줄은 보조 조작이다 — 라벨(600 --ink)이 아니라 --sub 400. 화살표가
+   바로 옆에 붙도록 양끝 벌림 대신 좌측 밀착으로 앉는다. */
+.consent-detail[data-inline="true"]>.consent-detail-summary{justify-content:flex-start;font-weight:400;color:var(--sub)}
 .consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-2px) rotate(45deg)}
-.consent-detail-body{display:grid;gap:var(--space-4);padding-top:var(--space-3)}
+/* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
+   텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
+   담고 읽기 폭을 72ch 로 막는다. 새 색 없음 — 배경은 --muted, 테두리는 --line 이다. */
+.consent-detail-body{display:grid;gap:var(--space-4);margin-top:var(--space-3);padding:var(--space-4) var(--space-5);max-width:72ch;background:var(--muted);border:1px solid var(--line);border-radius:var(--radius-control)}
 .consent-detail-disclaimer{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .consent-detail-section{display:grid;gap:var(--space-1-5)}
 .consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
