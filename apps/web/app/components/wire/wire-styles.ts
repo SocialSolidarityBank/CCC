@@ -42,7 +42,8 @@ export const wireStyles = `
    펴고(space-between), 세로는 가운데 정렬이다. 행 구분선은 회색 --line 이고 카드
    아웃라인까지 가로지른다(패딩만큼 음수 마진). */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
-.participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6)}
+/* --divider-gap 20 = 이 카드의 세로 패딩 — 행이 아웃라인·가로선 사이 정중앙에 선다(9차). */
+.participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6);--divider-gap:var(--space-5)}
 /* 칸은 **앞 아이템을 따라 붙는 좌측정렬**이다(2026-08-06 Q 5차 — 구 고정 폭 칸 대체:
    가명 ID 가 길면 고정 96px 칸 안에서 줄바꿈해 답답했고, 날짜 고정 104px 칸은 짧은 날짜
    옆 시간을 멀리 밀어냈다). 1행 틈은 12 유지, 2행(정보 칸)만 20 으로 한 단 넓힌다. */
@@ -158,7 +159,9 @@ details.surface-card{overflow:clip}
    1행에서 내려 이름만 위계 위에 남긴다(당사자 카드와 같은 문법: 이름 위, 정보는 선 아래).
    1행은 flex-wrap 이라 좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다 — 이름도
    버튼도 뭉개지지 않는다(767 미만은 기존 모바일 규칙이 버튼을 세로로 쌓는다). */
-.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-4)}
+/* gap 24 = 세로 패딩과 같은 값 — 1행(이름)·2행(정보)이 아웃라인과 구분선 사이
+   정중앙에 선다(2026-08-07 Q 9차, 구 16 은 위 24/아래 16 비대칭). */
+.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
 .participant-hero-top{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4) var(--space-5);flex-wrap:wrap;min-width:0}
 .participant-hero-divider{height:0;margin:0 calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
@@ -196,7 +199,8 @@ details.surface-card{overflow:clip}
    카드라 섹션 제목 단(--text-lg)을 쓴다). */
 .participant-hub-card>.wire-card-title{font-size:var(--text-lg)}
 .participant-program-row{display:grid;gap:var(--space-2)}
-.participant-program-row+.participant-program-row{padding-top:var(--space-4);border-top:1px solid var(--line)}
+/* 행 구분선 위아래 12/12 — 위 간격은 카드 본문 gap(12)이 주므로 패딩도 12 로 맞춘다(9차). */
+.participant-program-row+.participant-program-row{padding-top:var(--space-3);border-top:1px solid var(--line)}
 /* 행 제목은 카드 제목(18)보다 한 단 아래 16 이다. 배지는 제목과 같은 y 세로 중앙이다
    (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
 .participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
@@ -220,7 +224,8 @@ details.surface-card{overflow:clip}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    --line 구분선, 묶음 안 fieldset 의 자체 윗선은 끈다(카드 제목 구분선과 겹쳐 이중선이 된다). */
 .participant-consent-block{display:grid;gap:var(--space-2)}
-.participant-consent-block+.participant-consent-block{padding-top:var(--space-4);border-top:1px solid var(--line)}
+/* 위 12(본문 gap)/아래 12(패딩) — 구분선 중심 대칭(9차, .participant-program-row 와 같은 계약). */
+.participant-consent-block+.participant-consent-block{padding-top:var(--space-3);border-top:1px solid var(--line)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
 .participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 최신 일정 카드의 한 줄(2026-08-07 Q 가로 행 개편) — 회차별 정리 행과 같은 어휘:
@@ -275,8 +280,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    기본정보 수정의 카드 안 두 번째 구획 제목에서 추가). */
 .wire-card-title>h2,.wire-card-title>h3{margin:0;font-size:inherit;font-weight:inherit;line-height:inherit}
 /* 구분선은 회색 --line 이고 카드 아웃라인까지 가로지른다(2026-08-06 Q — 구 그라데이션
-   안쪽 구분선 대체. 그라데이션 3색은 구조선이 아니라 정보 표시로 옮겨 간다). */
-.wire-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
+   안쪽 구분선 대체. 그라데이션 3색은 구조선이 아니라 정보 표시로 옮겨 간다).
+   세로 여백은 **카드의 세로 패딩과 같게** 맞춰 각 구획이 아웃라인과 가로선의 정중앙에
+   선다(2026-08-07 Q 9차 "가로선 기준 위아래 정렬" — 구 16 고정은 위 24/아래 16 로
+   비대칭이었다). 세로 패딩이 24 가 아닌 카드는 --divider-gap 으로 제 패딩을 알린다. */
+.wire-card-divider{height:0;margin:var(--divider-gap,var(--space-6)) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .wire-card-body{display:grid;gap:var(--space-3)}
 /* WireCardDetails — 접힘 카드(2026-08-05 카드화 · ADR-0030, 구 브리핑 플랫 아코디언).
    접힌 상태 = 제목 줄만 남은 회색 카드, 펼친 상태 = 활성이라 .surface-card[open] 의
@@ -291,7 +299,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    translate 로 되민다(.wire-chevron[data-dir] 와 같은 보정 계약). */
 .wire-card-arrow{flex:none;width:.5625em;height:.5625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub);transform:translateX(-.125em) rotate(-45deg);transition:transform .15s ease}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
-.wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-4);padding:0 var(--space-6) var(--space-4);border-bottom:1px solid var(--line)}
+.wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-6);padding:0 var(--space-6) var(--space-6);border-bottom:1px solid var(--line)}
 .wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-.125em) rotate(45deg)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
    이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */

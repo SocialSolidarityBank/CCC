@@ -403,8 +403,10 @@ export function BriefingCards({
           badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
           {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지(블루) →
-              수기 뱃지 → 핵심 한 줄. 전 항목 좌측정렬 고정 간격이고, 한 줄이 넘치는 본문은
-              줄바꿈 대신 오른쪽 끝에서 자연스럽게 사라진다(마스크 페이드). */}
+              수기 뱃지 → 핵심 한 줄. 각 항목은 **고정 폭 칸**에 앉아 어느 행에서나 같은
+              x 에서 시작한다(2026-08-07 Q 9차 — 수기 칸은 배지가 없어도 자리를 지켜
+              본문 시작점이 안 흔들린다). 한 줄이 넘치는 본문은 줄바꿈 대신 오른쪽 끝에서
+              자연스럽게 사라진다(마스크 페이드). */}
           {sessionRows.length === 0
             ? <EmptyNote>표시할 상담 회차가 없습니다.</EmptyNote>
             : (
@@ -412,10 +414,14 @@ export function BriefingCards({
                 {sessionRows.map((row) => (
                   <li key={row.sessionId} className="briefing-session-row">
                     <span className="briefing-session-date">{formatKoreanDate(row.heldAt)}</span>
-                    <WireBadge tone="blue">{sessionKindLabels[row.kind]}</WireBadge>
-                    {row.aiOneLiner === null && row.memoExcerpt !== null && (
-                      <WireBadge>수기</WireBadge>
-                    )}
+                    <span className="briefing-session-kind">
+                      <WireBadge tone="blue">{sessionKindLabels[row.kind]}</WireBadge>
+                    </span>
+                    <span className="briefing-session-memo">
+                      {row.aiOneLiner === null && row.memoExcerpt !== null && (
+                        <WireBadge>수기</WireBadge>
+                      )}
+                    </span>
                     <span className="briefing-session-text wire-fade-clip">
                       {row.aiOneLiner ?? row.memoExcerpt ?? '수기 메모 없음'}
                     </span>
