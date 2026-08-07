@@ -272,11 +272,13 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
   );
 }
 
-/** 읽기 전용 한 줄(기본정보·동의). 입력 컨트롤을 두지 않는 것이 이 부품의 계약이다. */
+/** 읽기 전용 한 줄(기본정보·동의). 입력 컨트롤을 두지 않는 것이 이 부품의 계약이다.
+ *  라벨은 민트다(2026-08-07 Q 9차 "태그에 컬러" — 사람·기록 축, .record-block>h3 과
+ *  같은 계약). 값(--ink)과 색으로 갈라져 짝이 한눈에 읽힌다. */
 function ReadOnlyRow(props: { label: string; value: string }) {
   return (
     <div style={fieldStyle} data-testid="intake-readonly-row">
-      <span style={labelStyle}>{props.label}</span>
+      <span style={{ ...labelStyle, color: 'var(--mint-deep)' }}>{props.label}</span>
       <p style={{ ...captionStyle, fontSize: 15, color: 'var(--ink)' }}>{props.value}</p>
     </div>
   );
@@ -623,8 +625,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
     <main className="page-content">
       <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }}>
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
-            단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다. */}
-        <nav className="wire-col-4" aria-label="단계 진행" style={{ ...stackStyle, gap: 8, alignContent: 'start' }}>
+            단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
+            .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}
+        <nav className="wire-col-4 intake-step-nav" aria-label="단계 진행" style={{ ...stackStyle, gap: 8, alignContent: 'start' }}>
           <h2 style={headingStyle}>진행 단계</h2>
           {STEP_TITLES.map((title, index) => {
             const stepNumber = index + 1;
@@ -658,10 +661,18 @@ export function IntakeWizard(props: IntakeWizardProps) {
         </nav>
 
         <section className="wire-col-8" style={stackStyle}>
-          <p style={captionStyle}>
-            <MetaRow items={[`${step} / 4 단계`, `회차 ${props.sessionSequence}회`, `실무자 ${props.recorderLabel}`]} />
-          </p>
-          <p style={captionStyle}>모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
+          {/* 맥락 고정 카드(2026-08-07 Q 9차): 누구의 인테이크인지(구 맨 아래 당사자 줄을
+              위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모으고, 스크롤해도
+              화면에 남긴다(.intake-context-card, 768 이상 sticky). */}
+          <WireCard className="intake-context-card" testId="intake-context">
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' }} data-testid="intake-participant">
+              <MetaRow items={participantParts} />
+            </p>
+            <p style={captionStyle}>
+              <MetaRow items={[`${step} / 4 단계`, `회차 ${props.sessionSequence}회`, `실무자 ${props.recorderLabel}`]} />
+            </p>
+            <p style={captionStyle}>모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
+          </WireCard>
           {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
           <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />
           {restorable === null
@@ -780,15 +791,13 @@ export function IntakeWizard(props: IntakeWizardProps) {
             </div>
           ) : null}
 
+          {/* 남은 필수 항목은 강조 배지다(2026-08-07 Q 9차 — 구 회색 캡션은 안 보였다).
+              라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9). */}
           {!canComplete ? (
-            <p style={captionStyle} data-testid="intake-missing">
+            <p className="wire-badge" data-tone="lavender" data-testid="intake-missing">
               완료하려면 남은 필수 항목을 채우세요: {[heldAtMissing ? '1. 상담일' : null, ...missingSteps].filter((entry) => entry !== null).join(', ')}
             </p>
           ) : null}
-
-          <p style={captionStyle} data-testid="intake-participant">
-            <MetaRow items={participantParts} />
-          </p>
 
           <div style={rowActionsStyle}>
             {step > 1 ? <WireButton onClick={() => { setStep(step - 1); setError(null); }}>이전</WireButton> : null}

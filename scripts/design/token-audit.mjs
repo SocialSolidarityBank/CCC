@@ -128,7 +128,8 @@ for (const file of TARGETS) {
     //    pill 은 읽기 전용 배지·상태 태그(2026-08-06 알약 재개정)·원형 아이콘 버튼·라디오·불릿 점만 갖는다. 새 알약 레시피가
     //    화면 CSS 에 스며드는 것을 막는다.
     if (line.includes('var(--radius-pill)')) {
-      const PILL_ALLOWED = ['wire-badge', 'navigation-soon', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag'];
+      // consent-detail-summary: 전문 보기 배지형 버튼(2026-08-07 Q 9차 — 배지 레시피를 빌린 조작).
+      const PILL_ALLOWED = ['wire-badge', 'navigation-soon', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag', 'consent-detail-summary'];
       if (!PILL_ALLOWED.some((name) => line.includes(name))) {
         add(file, n, 'pill-outside-badge', `--radius-pill 은 배지(.wire-badge)·원형 아이콘(.header-icon-button)·라디오·불릿만 쓴다. 버튼은 var(--radius-control)`);
       }

@@ -24,7 +24,13 @@ const styles = `
    짧아져 스크롤바가 사라지면 본문 폭이 그만큼 늘어 페이지가 좌우로 들썩였다. */
 html{scrollbar-gutter:stable}
 *{box-sizing:border-box}
-body{margin:0;background:var(--canvas);font-size:var(--text-md);line-height:var(--leading-body)}
+/* 줄바꿈 전역 계약(2026-08-07 Q 9차 "문맥상 맞게 잘라서 줄바꿈"): keep-all 은 한국어를
+   어절 경계에서만 꺾고, pretty 는 두 줄 이상일 때 마지막 줄이 낱말 하나로 남는 극단
+   (한 줄만 긴 모양)을 피한다. break-word 는 어절보다 긴 통짜 값(이메일 등)이 칸을
+   뚫는 것만 막는 안전핀이다. */
+body{margin:0;background:var(--canvas);font-size:var(--text-md);line-height:var(--leading-body);word-break:keep-all;overflow-wrap:break-word;text-wrap:pretty}
+/* 제목·구획 머리는 balance — 두 줄이 되면 줄 길이를 고르게 나눈다(같은 계약). */
+h1,h2,h3,legend{text-wrap:balance}
 a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit}
 /* 셸 = 헤더 1행(전폭) + 사이드바·본문 1행 (2026-08-05 Q — 헤더는 사이드바 위까지 화면
@@ -508,10 +514,18 @@ const briefingStyles = `
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
    전문은 근거 회차(상담 기록)에서 읽는다. */
 .briefing-session-rows{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+/* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
+   각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
+   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게. 회차 목록(.record-summary)
+   의 고정 칸과 같은 계약이고, 날짜 폭 136 도 .record-held-at 과 같은 값이다. */
 .briefing-session-row{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+.briefing-session-kind{flex:none;width:84px;display:inline-flex}
+.briefing-session-kind>.wire-badge{width:100%}
+.briefing-session-memo{flex:none;width:52px;display:inline-flex}
+.briefing-session-memo>.wire-badge{width:100%}
 /* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q.
    1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다 — 당사자 카드 셀과 같은 계약). */
-.briefing-session-date{flex:none;font-size:var(--text-md);line-height:normal;color:var(--ink);font-variant-numeric:tabular-nums}
+.briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-md);line-height:normal;color:var(--ink);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
@@ -598,6 +612,10 @@ const briefingStyles = `
   .record-summary{flex-wrap:wrap}
   /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
   .record-one-liner.wire-fade-clip{flex-basis:100%;white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
+  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(136+84+48)이 좁은 화면 폭을 다 먹는다(9차). */
+  .briefing-session-row{flex-wrap:wrap}
+  .briefing-session-memo:empty{display:none}
+  .briefing-session-text.wire-fade-clip{flex-basis:100%;white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
 }
 /* 767 블록에서 두 그리드를 1열로 강제하던 규칙은 지웠다 — 최소 폭(420·280)이 이미 접는다(락 10·11). */
 `;
@@ -735,11 +753,16 @@ const registerStyles = `
 /* 체크박스 바로 아래 붙는 변형(허브 전문 보기) — 항목 사이 구분선 없이 라벨만 살짝 들여 선다. */
 /* optical: 18px 는 간격이 아니라 체크박스 상자 폭이다 — 라벨 첫 글자 x 에 요약 줄을 맞춘다 */
 .consent-detail[data-inline="true"]{padding-top:0;background:none;margin-left:calc(18px + var(--space-3))}
-.consent-detail-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
+/* 화살표는 텍스트 바로 옆이다(2026-08-07 Q 9차 — 구 space-between 은 화살표가 오른쪽
+   끝으로 떨어져 라벨과 남남으로 읽혔다). */
+.consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
-/* 인라인 변형의 요약 줄은 보조 조작이다 — 라벨(600 --ink)이 아니라 --sub 400. 화살표가
-   바로 옆에 붙도록 양끝 벌림 대신 좌측 밀착으로 앉는다. */
-.consent-detail[data-inline="true"]>.consent-detail-summary{justify-content:flex-start;font-weight:400;color:var(--sub)}
+/* 인라인 변형의 요약 줄은 **작은 배지형 버튼**이다(2026-08-07 Q 9차 "전문보기를 작은
+   뱃지형 버튼으로" — 구 텍스트+화살표 줄 대체). 모양은 기본 배지 레시피(높이 24 ·
+   --sub 외곽선 · 알약 · 14/400 --ink)를 그대로 빌리고, 조작이므로 호버 면만 얹는다.
+   화살표는 글자를 따라 줄어드는 em 계약이라 배지 안에서 저절로 작아진다. */
+.consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-2);min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
+@media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
 .consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-.125em) rotate(45deg)}
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
    텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
@@ -750,6 +773,13 @@ const registerStyles = `
 .consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .consent-detail-section p,.consent-detail-section li{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .consent-detail-section ul{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1-5)}
+/* 인테이크 위저드 고정 요소(2026-08-07 Q 9차): 진행 단계 레일과 맥락 카드(당사자·단계·
+   실무자)는 스크롤해도 화면에 남는다. sticky 기준은 헤더 아래(사이드바와 같은 계약)이고,
+   768 미만은 한 열이라 고정하지 않는다 — 좁은 화면에서 위가 붙박이면 본문이 안 보인다. */
+@media (min-width:768px){
+  .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
+  .intake-context-card{position:sticky;top:calc(var(--header-height) + var(--space-6));z-index:var(--z-sticky)}
+}
 /* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
    단계 표시는 블루 계열(시간·상태 축, D34)이다. */
 .onboarding-form{display:grid;margin-top:var(--space-8)}
