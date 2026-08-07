@@ -43,10 +43,17 @@ export function LifeAreaFields({
   const priorByArea = new Map(latest.map((entry) => [entry.areaKey, entry] as const));
   return <div className="wire-form-grid">{lifeAreaOrder.map(([areaKey, label]) => {
     const prior = priorByArea.get(areaKey);
-    return <fieldset className="wire-fieldset" key={areaKey}>
-      <legend>{label} <small>직전 상태: {prior === undefined
-        ? <span className="wire-badge">미기록</span>
-        : <span className="wire-badge" data-tone={prior.status === 'crisis' ? 'risk' : undefined}>{statusLabels[prior.status]}</span>}</small></legend>
+    // 머리 줄은 가로선 없는 한 줄이다(2026-08-08 Q — 구 .wire-fieldset 의 border-top 위에
+    // legend 가 걸터앉아 '경제·생계' 글줄이 선과 어긋나 보였다). 영역 이름과 직전 상태
+    // 배지를 flex 로 갈라 세로 중앙에 나란히 세운다. 영역 사이는 격자 gap 이 띄운다.
+    return <fieldset className="wire-fieldset life-area-fieldset" key={areaKey}>
+      <legend className="life-area-legend">
+        <span className="life-area-name">{label}</span>
+        <span className="life-area-prior">직전 상태</span>
+        {prior === undefined
+          ? <span className="wire-badge">미기록</span>
+          : <span className="wire-badge" data-tone={prior.status === 'crisis' ? 'risk' : undefined}>{statusLabels[prior.status]}</span>}
+      </legend>
       <WireFormField
         label="이번 회차 상태"
         note="(기본: 변화 없음)"
