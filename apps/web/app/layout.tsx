@@ -773,12 +773,13 @@ const registerStyles = `
 .consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .consent-detail-section p,.consent-detail-section li{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .consent-detail-section ul{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1-5)}
-/* 인테이크 위저드 고정 요소(2026-08-07 Q 9차): 진행 단계 레일과 맥락 카드(당사자·단계·
-   실무자)는 스크롤해도 화면에 남는다. sticky 기준은 헤더 아래(사이드바와 같은 계약)이고,
-   768 미만은 한 열이라 고정하지 않는다 — 좁은 화면에서 위가 붙박이면 본문이 안 보인다. */
+/* 인테이크 위저드 고정 요소(2026-08-07 Q 9차·10차 개정): **진행 단계 레일만** 스크롤해도
+   화면에 남는다 — 맥락 카드(당사자·단계·실무자)는 static 으로 함께 흘러간다(10차 Q
+   "당사자 카드는 스크롤하면 사라져야지" — 구 9차 sticky 지시 대체). sticky 기준은 헤더
+   아래(사이드바와 같은 계약)이고, 768 미만은 한 열이라 고정하지 않는다 — 좁은 화면에서
+   위가 붙박이면 본문이 안 보인다. */
 @media (min-width:768px){
   .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
-  .intake-context-card{position:sticky;top:calc(var(--header-height) + var(--space-6));z-index:var(--z-sticky)}
 }
 /* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
    단계 표시는 블루 계열(시간·상태 축, D34)이다. */

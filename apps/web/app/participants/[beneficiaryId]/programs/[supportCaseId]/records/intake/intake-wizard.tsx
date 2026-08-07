@@ -661,10 +661,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
         </nav>
 
         <section className="wire-col-8" style={stackStyle}>
-          {/* 맥락 고정 카드(2026-08-07 Q 9차): 누구의 인테이크인지(구 맨 아래 당사자 줄을
-              위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모으고, 스크롤해도
-              화면에 남긴다(.intake-context-card, 768 이상 sticky). */}
-          <WireCard className="intake-context-card" testId="intake-context">
+          {/* 맥락 카드(2026-08-07 Q 9차·10차 개정): 누구의 인테이크인지(구 맨 아래 당사자
+              줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
+              static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
+          <WireCard testId="intake-context">
             <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' }} data-testid="intake-participant">
               <MetaRow items={participantParts} />
             </p>
