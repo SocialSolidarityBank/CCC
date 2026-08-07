@@ -2,9 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { WireCard } from '../../../components/wire/wire-card';
-import { WireButton } from '../../../components/wire/wire-button';
 import { WireFormField } from '../../../components/wire/wire-form-field';
-import { ParticipantName } from '../../../components/wire/participant-name';
 import { DATE_TEXT_HINT, DateTextInput } from '../../../components/wire/date-text-input';
 import type { ParticipantBasicInfo } from '../../../lib/api';
 
@@ -42,9 +40,10 @@ export interface BasicInfoFormProps {
  * 값은 서버가 금고에서 복호화해 내려준 현재 상태이며(D3), 브라우저 임시본(localStorage 등)에
  * 담지 않는다 — 인테이크 임시본이 금고 값을 빼고 저장하는 것과 같은 규율이다(R3).
  *
- * '저장' 버튼은 카드 머리(이름 줄) 우측이다(2026-08-07 Q 4차 — 카드 한 장으로 합치면서
- * 폼 안으로 돌아왔다. form id 는 테스트 앵커로 유지). 값이 있던 칸을 비운 채 저장하면
- * 그 칸 아래 경고가 뜨고 한 번 더 눌러야 지워진다(조용한 금고 삭제 방지).
+ * '저장' 버튼은 카드 밖 페이지 제목 줄 우측이다(2026-08-07 Q 5차, page.tsx) —
+ * form="basic-info-form" 속성으로 이 폼을 가리키므로 onSubmit 검사는 그대로 동작한다.
+ * 값이 있던 칸을 비운 채 저장하면 그 칸 아래 경고가 뜨고 한 번 더 눌러야 지워진다
+ * (조용한 금고 삭제 방지).
  */
 export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
   const [warnedFields, setWarnedFields] = useState<FieldName[]>([]);
@@ -87,22 +86,12 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
       <input type="hidden" name="beneficiaryId" value={basicInfo.beneficiaryId} />
       <input type="hidden" name="supportCaseContextId" value={basicInfo.supportCaseContextId} />
       <input type="hidden" name="expectedVersion" value={String(basicInfo.version)} />
-      {/* 화면 전체가 **카드 한 장**이다(2026-08-07 Q 4차 — 이름 줄까지 합쳤다. 별도 HERO
-          카드를 두지 않는 D38 의 화면 단위 예외, DESIGN.md §5 기록).
-          골격: 이름·저장 줄 → 풀블리드 가로선 → 기본 정보 구획 → 풀블리드 가로선 →
-          추가 정보 구획. **구획 제목 아래에는 선을 긋지 않는다**(Q 지시 — 선은 구획 사이만).
-          구획 제목과 필드 사이 간격은 카드 본문 gap 하나(20)로 두 구획이 같다(여백 규칙). */}
-      <WireCard className="wire-form-card">
-        <div className="participant-hero-top">
-          <h1 className="participant-hero-title">
-            <ParticipantName name={basicInfo.name} beneficiaryId={basicInfo.beneficiaryId} size="hero" />
-          </h1>
-          <div className="page-actions">
-            <WireButton type="submit" variant="primary">저장</WireButton>
-          </div>
-        </div>
-        <hr className="wire-card-divider" />
-        <div className="wire-card-title"><h2>기본 정보</h2></div>
+      {/* 폼은 **카드 2장**이다(2026-08-07 Q 5차 — 구 '카드 한 장' 재개정): 기본 정보 /
+          추가 정보 카드가 페이지 스택 간격(24)으로 쌓인다. 이름·저장 줄은 카드 밖 페이지
+          제목 줄(page.tsx). 카드 제목·구분선은 표준 카드 문법(WireCard title)이라 제목과
+          필드 사이 간격도 두 카드가 같다(여백 3단 ④ 규칙). */}
+      <div className="basic-info-stack">
+      <WireCard className="wire-form-card" title={<h2>기본 정보</h2>}>
         <div className="wire-form-grid">
           <WireFormField label="이름" htmlFor="basicInfoName" {...warningFor('name')}>
             <input id="basicInfoName" name="name" type="text" maxLength={100} defaultValue={basicInfo.name ?? ''} />
@@ -130,8 +119,8 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
             />
           </WireFormField>
         </div>
-        <hr className="wire-card-divider" />
-        <div className="wire-card-title"><h2>추가 정보</h2></div>
+      </WireCard>
+      <WireCard className="wire-form-card" title={<h2>추가 정보</h2>}>
         <div className="wire-form-grid">
           <WireFormField label="주소 또는 거주지역" htmlFor="basicInfoRegion" {...warningFor('region')}>
             <input id="basicInfoRegion" name="region" type="text" maxLength={200} defaultValue={basicInfo.region ?? ''} />
@@ -163,6 +152,7 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
           </WireFormField>
         </div>
       </WireCard>
+      </div>
     </form>
   );
 }

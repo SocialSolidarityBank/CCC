@@ -358,6 +358,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}
 /* 폼 하단 버튼 줄: 오른쪽 정렬, 프라이머리가 오른쪽 끝(모달 하단과 같은 어휘). */
 .wire-form-actions{display:flex;justify-content:flex-end;gap:var(--space-3)}
+/* 기본정보 수정 폼 카드 스택(2026-08-07 Q 5차) — 폼 한 장 안에 카드 2장(기본·추가 정보)이
+   페이지 스택 간격(여백 3단 ①)으로 쌓인다. 폼 요소 자체는 간격을 못 만들어 래퍼가 갖는다. */
+.basic-info-stack{display:grid;gap:var(--section-gap)}
 @media(max-width:767px){
   .wire-form-grid{grid-template-columns:minmax(0,1fr)}
 }

@@ -2,6 +2,8 @@ import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
 import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../components/wire/grid-container';
+import { ParticipantName } from '../../../components/wire/participant-name';
+import { WireButton } from '../../../components/wire/wire-button';
 import { updateParticipantBasicInfoAction } from '../../../actions';
 import { ErrorState, type ErrorKind } from '../error-state';
 import { BasicInfoForm } from './basic-info-form';
@@ -78,9 +80,16 @@ function EditScreen({
   return (
     <main className="page-content">
       <GridContainer>
-        {/* 이 화면은 **카드 한 장**이다(2026-08-07 Q 4차 — "김서준 있는 부분도 카드 합쳐줘").
-            이름·저장 줄까지 폼 카드 머리로 들어가므로 별도 HERO 카드를 두지 않는다 —
-            D38(공통 HERO 부품)의 화면 단위 예외로 기록한다(DESIGN.md §5). */}
+        {/* 이름·저장 줄은 **카드 밖 페이지 제목 줄**이다(2026-08-07 Q 5차 — 구 '카드 한 장에
+            합침'을 같은 날 재개정. 전체 일정의 제목+행동 줄과 같은 문법). 폼은 아래에서
+            기본 정보·추가 정보 **카드 2장**으로 갈린다. D38(공통 HERO 부품)의 화면 단위
+            예외인 것은 그대로다(DESIGN.md §5 기록). '저장'은 폼 밖이라 form 속성으로 잇는다. */}
+        <div className="page-header">
+          <h1><ParticipantName name={basicInfo.name} beneficiaryId={basicInfo.beneficiaryId} size="hero" /></h1>
+          <div className="page-actions">
+            <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
+          </div>
+        </div>
         {noticeText === undefined ? null : <p className="wire-badge" data-tone="blue" role="status">{noticeText}</p>}
         {errorText === undefined ? null : <p className="wire-badge" data-tone="risk" role="alert">{errorText}</p>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />
