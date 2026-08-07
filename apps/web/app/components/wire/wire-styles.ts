@@ -191,12 +191,20 @@ details.surface-card{overflow:clip}
 /* 당사자 정보 허브 (D35 §3 · D36 · 2026-08-06 Q 개편). 사업별 낱개 카드를 걷고
    '참여중인 사업'·'최신 일정' 두 카드(WireCard)가 나란히 선다. 사업은 카드 안 **행**이고
    행 사이는 --line 구분선이다(카드 안 카드 금지 — D59 ③). 동의서는 맨 아래 카드로 옮겼다. */
+/* 허브 카드 3장(참여중인 사업·최신 일정·동의서)의 제목은 18 이다(2026-08-07 Q 8차
+   "폰트 크기 2px 키우기". 전역 카드 제목 16 위의 이 화면 예외로, 섹션 역할의 전폭
+   카드라 섹션 제목 단(--text-lg)을 쓴다). */
+.participant-hub-card>.wire-card-title{font-size:var(--text-lg)}
 .participant-program-row{display:grid;gap:var(--space-2)}
 .participant-program-row+.participant-program-row{padding-top:var(--space-4);border-top:1px solid var(--line)}
-/* 행 제목은 카드 제목(18)보다 한 단 아래 16/600 이다. 배지는 제목과 같은 y 세로 중앙이다
+/* 행 제목은 카드 제목(18)보다 한 단 아래 16 이다. 배지는 제목과 같은 y 세로 중앙이다
    (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
 .participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
 .participant-program-head>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 사업명 리스트 항목은 400 이다(2026-08-07 Q 8차, 리스트업이지 제목이 아니다). 동의서
+   카드의 사업명 묶음 머리(.participant-consent-program)는 저장 버튼을 거느린 구획 제목이라
+   600 을 유지한다. */
+.participant-program-row .participant-program-head>h3{font-weight:400}
 /* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
 .participant-program-head .wire-badge{flex:none;white-space:nowrap}
 .participant-program-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
@@ -251,10 +259,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-row[data-align="center"]{justify-content:center;text-align:center}
 .wire-row-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .wire-row[data-align="center"] .wire-row-text{flex:0 1 auto}
-.wire-chevron{flex:none;width:10px;height:10px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub)}
-.wire-chevron[data-dir="down"]{transform:translateY(-3px) rotate(45deg)}
-.wire-chevron[data-dir="right"]{transform:translateX(-3px) rotate(-45deg)}
-.wire-chevron[data-dir="left"]{transform:translateX(3px) rotate(135deg)}
+/* 꺽쇠 크기는 em 이라 글줄 폰트 크기를 따라간다(2026-08-07 Q 8차 전역 계약, 16px 기준
+   상자 10·획 2 그대로). .wire-card-arrow·.briefing-card-arrow 도 같은 계약이다. */
+.wire-chevron{flex:none;width:.625em;height:.625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub)}
+.wire-chevron[data-dir="down"]{transform:translateY(-.1875em) rotate(45deg)}
+.wire-chevron[data-dir="right"]{transform:translateX(-.1875em) rotate(-45deg)}
+.wire-chevron[data-dir="left"]{transform:translateX(.1875em) rotate(135deg)}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 .wire-card{padding:var(--space-6)}
 /* 카드 제목은 16/600 이다(2026-08-07 Q "wire-card-title 폰트 크기 줄일 것" — 구 18 대체.
@@ -279,10 +289,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* optical: 꺽쇠 잉크는 회전 때문에 상자 중앙에서 벗어난다(닫힘 › = 오른쪽으로, 열림 ⌄ =
    아래로 각 약 2px — 2026-08-06 실측). 레이아웃 상자가 아니라 잉크가 글줄 중앙에 오도록
    translate 로 되민다(.wire-chevron[data-dir] 와 같은 보정 계약). */
-.wire-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:translateX(-2px) rotate(-45deg);transition:transform .15s ease}
+.wire-card-arrow{flex:none;width:.5625em;height:.5625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub);transform:translateX(-.125em) rotate(-45deg);transition:transform .15s ease}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-4);padding:0 var(--space-6) var(--space-4);border-bottom:1px solid var(--line)}
-.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-2px) rotate(45deg)}
+.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-.125em) rotate(45deg)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
    이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */
 .wire-card-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
@@ -437,8 +447,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
 /* 버튼 안 꺽쇠는 글자를 따라간다(2026-08-07 Q "등록하기 '>' 가 너무 크다" — 규칙으로 닫는다):
    핵심 버튼(라벨 15) = 8, 조작 버튼(라벨 14) = 7. 본문·카드의 10px 꺽쇠 기본값은 그대로다. */
-.wire-button .wire-chevron{width:8px;height:8px}
-.wire-button[data-variant="neutral"] .wire-chevron,.wire-button[data-variant="ghost"] .wire-chevron{width:7px;height:7px}
+/* 버튼 안 꺽쇠도 em — 라벨 크기를 따라간다(2026-08-07 Q 8차. 15px 라벨 8 · 14px 라벨 7,
+   구 px 고정값과 같은 크기다). */
+.wire-button .wire-chevron{width:.5333em;height:.5333em}
+.wire-button[data-variant="neutral"] .wire-chevron,.wire-button[data-variant="ghost"] .wire-chevron{width:.5em;height:.5em}
 /* 위험: 되돌리기 어려운 행동에만. */
 .wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk)}
 .wire-button[data-justify="center"]{justify-content:center}

@@ -439,8 +439,10 @@ const briefingStyles = `
    플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
    여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
    접힘(details)은 유지된다 — 전체 접기·앵커는 그대로다. */
-/* optical: 꺽쇠 잉크 보정 translate 2px — .wire-card-arrow 와 같은 계약(2026-08-06 실측). */
-.briefing-card-arrow{flex:none;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:translateX(-2px) rotate(-45deg);transition:transform .15s ease}
+/* optical: 꺽쇠 잉크 보정 translate 는 .wire-card-arrow 와 같은 계약(2026-08-06 실측).
+   크기는 em 이다(2026-08-07 Q 8차 "꺽쇠는 폰트 크기를 따라가게 전역 수정". 구 9px/2px
+   고정은 14px 글줄(전문 보기) 옆에서 과대했다). 16px 기준 상자 9·획 2 그대로다. */
+.briefing-card-arrow{flex:none;width:.5625em;height:.5625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub);transform:translateX(-.125em) rotate(-45deg);transition:transform .15s ease}
 .briefing-fields{display:grid;gap:var(--space-2-5)}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
@@ -540,10 +542,12 @@ const briefingStyles = `
 /* 회차 앞 꺽쇠(.record-chevron)는 2026-08-06 Q 로 폐지 — 좁은 폭에서 세로선으로 읽혔다.
    펼침 상태는 카드의 그라데이션 테두리(활성 어휘)가 이미 알린다. */
 /* 고정 칸(2026-08-06 Q "좌측 정렬 되도록 영역·여백 고정"): 회차 번호·날짜가 고정 폭을
-   가져 어느 행에서나 유형 뱃지·핵심 한 줄이 같은 x 에서 시작한다. 날짜는 브리핑 회차 행과
-   같은 YYYY-MM-DD 10자라 84 로 닫힌다. 행간 normal 은 기하 정렬 계약이다. */
+   가져 어느 행에서나 유형 뱃지·핵심 한 줄이 같은 x 에서 시작한다. 날짜는 공용 표기
+   "2026년 8월 7일"이라 최장 "2026년 12월 31일"이 한 줄에 들도록 136 으로 닫는다
+   (2026-08-07 Q 8차. 구 YYYY-MM-DD 96 은 표기 통일 뒤 두 줄로 접혔다).
+   행간 normal 은 기하 정렬 계약이다. */
 .record-ordinal{flex:none;width:52px;font-size:var(--text-md);font-weight:600;line-height:normal;color:var(--ink)}
-.record-held-at{flex:none;width:96px;font-size:var(--text-md);line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
+.record-held-at{flex:none;width:136px;white-space:nowrap;font-size:var(--text-md);line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 /* 유형 칩은 공용 배지 블루 톤이다(2026-08-07 통합, 구 .record-kind 삭제). 시간·상태 축이라
    블루이고 인테이크도 같은 블루, 구분은 글자가 한다. 접힌 줄 안에서 줄어들지 않게만 잡는다. */
 .record-summary>.wire-badge{flex:none}
@@ -682,8 +686,8 @@ const monthScheduleStyles = `
 .month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);overflow:clip}
 .month-nav-group .month-nav-label{border:0;border-radius:0;min-height:auto}
 .month-nav-seg{display:inline-flex;align-items:center;line-height:normal;gap:var(--space-3);padding:0 var(--space-3-5);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
-/* 조각의 꺽쇠도 조작 버튼과 같은 7 — 글자(14)를 따라 줄어든다. */
-.month-nav-seg .wire-chevron{width:7px;height:7px}
+/* 조각의 꺽쇠도 조작 버튼과 같은 .5em(14px 글자에서 7) — 글자를 따라 줄어든다. */
+.month-nav-seg .wire-chevron{width:.5em;height:.5em}
 .month-nav-seg+.month-nav-label,.month-nav-label+.month-nav-seg{border-left:1px solid var(--line)}
 /* 상자 하나 안이라 포커스 링을 안으로 접는다 — overflow:clip 에 잘리지 않게. */
 .month-nav-seg:focus-visible{outline-offset:-2px}
@@ -736,7 +740,7 @@ const registerStyles = `
 /* 인라인 변형의 요약 줄은 보조 조작이다 — 라벨(600 --ink)이 아니라 --sub 400. 화살표가
    바로 옆에 붙도록 양끝 벌림 대신 좌측 밀착으로 앉는다. */
 .consent-detail[data-inline="true"]>.consent-detail-summary{justify-content:flex-start;font-weight:400;color:var(--sub)}
-.consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-2px) rotate(45deg)}
+.consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-.125em) rotate(45deg)}
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
    텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
    담고 읽기 폭을 72ch 로 막는다. 새 색 없음 — 배경은 --muted, 테두리는 --line 이다. */
