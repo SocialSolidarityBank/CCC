@@ -760,7 +760,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    날짜만 쓰는 자리(.wire-date-control)의 겉모습은 건드리지 않는다. */
 .wire-datetime-control>.wire-date-toggle{border-color:transparent;background:transparent}
 .wire-datetime-control>.wire-date-toggle:hover{background:var(--muted)}
-.wire-datetime-fields>.wire-datetime-time{flex:1 1 50%;min-width:112px;padding:0 var(--space-2);border-left:1px solid var(--line-control);text-align:center}
+/* 시각은 세로선에 붙는 좌측정렬이다(2026-08-07 Q 12차 — 구 가운데 정렬 대체). 왼쪽 12 는
+   날짜칸이 상자 테두리에서 들어가는 값(.wire-input-box 패딩)과 같은 리듬이다. */
+.wire-datetime-fields>.wire-datetime-time{flex:1 1 50%;min-width:112px;padding:0 var(--space-2) 0 var(--space-3);border-left:1px solid var(--line-control);text-align:left}
 /* 팝오버는 달력 + 시각 목록 두 단이다. 목록은 달력 높이에 맞춰 스크롤한다.
    width:max-content 가 필요하다 — 절대 위치 요소의 자동 폭은 **감싸는 상자 폭**이 상한이라
    그냥 두면 입력칸 폭(약 330px)에 갇혀 시각 목록이 달력 아래로 접힌다. */
