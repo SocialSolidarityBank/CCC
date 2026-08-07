@@ -2,8 +2,6 @@ import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
 import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../components/wire/grid-container';
-import { ParticipantHeroCard } from '../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../components/wire/wire-button';
 import { updateParticipantBasicInfoAction } from '../../../actions';
 import { ErrorState, type ErrorKind } from '../error-state';
 import { BasicInfoForm } from './basic-info-form';
@@ -80,18 +78,9 @@ function EditScreen({
   return (
     <main className="page-content">
       <GridContainer>
-        {/* ParticipantHeroCard (D38): 여러 참여 사업에 걸친 당사자 단위 화면이라
-            상태 태그를 생략한다(슬롯 ②). 메타 한 줄은 지금 무엇을 하는 화면인지로 쓴다 —
-            연락처·계좌 같은 값은 아래 폼이 이미 들고 있어 두 번 그리지 않는다. */}
-        {/* 메타("등록된 기본정보를 고칩니다")와 '당사자 정보' 버튼은 뺐다(2026-08-07 Q 3차 —
-            무엇을 하는 화면인지는 아래 카드가 말하고, 허브 복귀는 좌상단 '뒤로'가 이미 있다).
-            HERO 는 이름 + 저장 한 줄만 남는다. */}
-        <ParticipantHeroCard
-          name={basicInfo.name}
-          beneficiaryId={basicInfo.beneficiaryId}
-          // '저장'은 폼 밖이라 form 속성으로 아래 폼을 가리킨다(동의서 카드와 같은 방식).
-          actions={<WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>}
-        />
+        {/* 이 화면은 **카드 한 장**이다(2026-08-07 Q 4차 — "김서준 있는 부분도 카드 합쳐줘").
+            이름·저장 줄까지 폼 카드 머리로 들어가므로 별도 HERO 카드를 두지 않는다 —
+            D38(공통 HERO 부품)의 화면 단위 예외로 기록한다(DESIGN.md §5). */}
         {noticeText === undefined ? null : <p className="wire-badge" data-tone="blue" role="status">{noticeText}</p>}
         {errorText === undefined ? null : <p className="wire-badge" data-tone="risk" role="alert">{errorText}</p>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />
