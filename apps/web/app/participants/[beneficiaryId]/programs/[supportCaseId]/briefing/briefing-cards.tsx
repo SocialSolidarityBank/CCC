@@ -334,21 +334,12 @@ export function BriefingCards({
 
       {/* 여닫기 줄은 리스크 배너 **아래**다 — 배너는 HERO 바로 아래 자리를 내줄 수 없고(D9),
           이 줄이 다루는 대상(아코디언 전부)의 바로 위이기도 하다.
-          왼쪽은 아래 카드로 건너뛰는 바로가기(2026-08-03 Q — 카드 타이틀 텍스트가 곧 링크),
-          오른쪽 '전체 접기/열기'는 세컨더리 버튼이다(구 고스트 — 버튼으로 읽히게). */}
+          왼쪽은 섹션 제목이다(2026-08-07 Q — 구 카드 바로가기 알약 4개 삭제: 카드 제목과
+          같은 문구가 두 번 서 소음이었다). 카드 여러 장을 묶는 섹션 제목이라 카드 밖 예외
+          자리이고(§7-6), 상담 기록의 '회차별 기록'과 같은 스타일(18/600)을 쓴다. */}
       <div className="briefing-toolbar">
-        {/* 바로가기는 계열 컬러 알약이다(2026-08-06 Q — 구 맨글자 링크. 단독 클릭 요소는 알약,
-            D58 ⑥). 계열은 D58 ④ 의미 고정을 따른다: 라벤더=AI 제안이 든 준비 카드 ·
-            블루=회차(시간 축) · 핑크=경고(불일치) · 민트=상태(남은 액션). */}
-        <nav className="briefing-toolbar-anchors" aria-label="카드 바로가기">
-          <a href="#briefing-remember" data-tone="lavender">오늘 만나기 전 꼭 기억할 것</a>
-          <a href="#briefing-sessions" data-tone="blue">상담 내용 회차별 정리</a>
-          <a href="#briefing-discrepancies" data-tone="risk">내용 불일치</a>
-          <a href="#briefing-actions" data-tone="mint">미해결 액션</a>
-        </nav>
-        {/* 보기 조작이라 일반(neutral) 그레이 알약이다(2026-08-07 Q — 구 세컨더리: 컬러
-            tint 바로가기 알약과 한 무리로 읽혔다). 자리도 항상 오른쪽 끝이라 뱃지 줄과
-            축이 갈린다. */}
+        <h2 className="record-section-title">상담 전 꼭 봐야할 내용</h2>
+        {/* 보기 조작이라 일반(neutral) 그레이 버튼이다(2026-08-07 Q — 구 세컨더리). */}
         <WireButton onClick={toggleAll} variant="neutral" height="sm">
           {allOpen ? '전체 접기' : '전체 열기'}
         </WireButton>

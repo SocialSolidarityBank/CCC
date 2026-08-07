@@ -404,20 +404,9 @@ const briefingStyles = `
    그레이 조작 알약 + 오른쪽 축으로 성격을 가른다). */
 .briefing-toolbar{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 .briefing-toolbar>.wire-button{margin-left:auto}
-/* 바로가기는 **계열 컬러 버튼**이다(2026-08-06 Q — 구 맨글자 링크 대체. 단독 클릭 요소는
-   버튼이 맞다, D58 ⑥. 형태는 D61(2026-08-07)로 직사각 radius 6 — 구 알약 대체).
-   색 레시피는 배지 재규정과 같다: tint 면 + deep 외곽선 + --ink 글자.
-   계열은 D58 ④ 의미 고정 — 라벤더=AI·블루=일정(회차)·핑크=경고(불일치)·민트=상태(액션).
-   불일치의 핑크는 배지 축의 '경고'이지 확인된 리스크 어휘(배너 전용 1.5px 테두리, D9)가 아니다. */
-.briefing-toolbar-anchors{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-.briefing-toolbar-anchors a{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--sub);border-radius:var(--radius-control);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
-.briefing-toolbar-anchors a[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}
-.briefing-toolbar-anchors a[data-tone="blue"]{border-color:var(--blue-deep);background:var(--blue-tint)}
-.briefing-toolbar-anchors a[data-tone="mint"]{border-color:var(--mint-deep);background:var(--mint-tint)}
-.briefing-toolbar-anchors a[data-tone="risk"]{border-color:var(--risk);background:var(--risk-tint-solid)}
-/* 호버는 프라이머리 버튼과 같은 밝기 워시, 눌림은 공통 어휘(§6)다. */
-@media (hover:hover){.briefing-toolbar-anchors a:hover{filter:brightness(.96)}}
-.briefing-toolbar-anchors a:active{transform:translateY(1px)}
+/* 구 .briefing-toolbar-anchors(카드 바로가기 알약 4개)는 2026-08-07 Q 지시로 삭제 —
+   카드 제목과 같은 문구가 두 번 서 소음이었다. 왼쪽 자리는 섹션 제목
+   ('상담 전 꼭 봐야할 내용', .record-section-title 공용)이 이어받았다. */
 /* 리스크 경고 배너(D9 · §5). 배경 --risk-tint-solid + **--risk 단색 1.5px 균일 테두리**
    (2026-08-02 D58/CCC-51 — 구 --gradient-brand. 세컨더리 버튼이 브랜드 그라데이션
    아웃라인을 갖게 되어, 배너는 위험 버튼과 같은 "빨강 테두리 = 위험" 축으로 옮겼다).
@@ -648,7 +637,8 @@ const scheduleStyles = `
 .wire-row.schedule-candidate-row{font-weight:400}
 .schedule-candidate-name{font-weight:600}
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
-.schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-sm)}
+/* 도움말 문구는 12(--text-xs, 2026-08-07 Q 전역 통일) — .wire-form-hint 와 같은 역할이다. */
+.schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
 .schedule-form-notice{color:var(--ink);font-weight:600}
 .schedule-form-error{color:var(--risk);font-weight:600}

@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
 import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../components/wire/grid-container';
-import { ParticipantHeroCard } from '../../../components/wire/participant-hero-card';
+import { ParticipantName } from '../../../components/wire/participant-name';
 import { WireButton } from '../../../components/wire/wire-button';
 import { updateParticipantBasicInfoAction } from '../../../actions';
 import { ErrorState, type ErrorKind } from '../error-state';
@@ -76,25 +76,29 @@ function EditScreen({
 }) {
   const noticeText = notice === undefined ? undefined : NOTICES[notice];
   const errorText = error === undefined ? undefined : ERRORS[error] ?? ERRORS.service_unavailable;
-  const hubHref = `/participants/${encodeURIComponent(basicInfo.beneficiaryId)}`;
 
   return (
     <main className="page-content">
       <GridContainer>
-        {/* ParticipantHeroCard (D38): 여러 참여 사업에 걸친 당사자 단위 화면이라
-            상태 태그를 생략한다(슬롯 ②). 메타 한 줄은 지금 무엇을 하는 화면인지로 쓴다 —
-            연락처·계좌 같은 값은 아래 폼이 이미 들고 있어 두 번 그리지 않는다. */}
-        <ParticipantHeroCard
-          name={basicInfo.name}
-          beneficiaryId={basicInfo.beneficiaryId}
-          meta="등록된 기본정보를 고칩니다."
-          // '저장'은 HERO 행동 줄 오른쪽 끝이다(2026-08-07 Q "저장 버튼을 당사자 정보
-          // 오른쪽으로") — 폼 밖이라 form 속성으로 아래 폼을 가리킨다(동의서 카드와 같은 방식).
-          actions={<>
-            <WireButton href={hubHref}>당사자 정보</WireButton>
+        {/* 이름·저장 줄은 **카드 밖 페이지 제목 줄**이다(2026-08-07 Q 5차 — 구 '카드 한 장에
+            합침'을 같은 날 재개정. 전체 일정의 제목+행동 줄과 같은 문법). 폼은 아래에서
+            기본 정보·추가 정보 **카드 2장**으로 갈린다. D38(공통 HERO 부품)의 화면 단위
+            예외인 것은 그대로다(DESIGN.md §5 기록). '저장'은 폼 밖이라 form 속성으로 잇는다. */}
+        {/* 이름 옆 가명 ID(2026-08-07 Q 6차 — 허브 HERO 와 같은 옅은 그레이 대조값).
+            이름·ID·저장이 한 줄 세로 중앙에 선다: 제목 묶음은 .participant-hero-title(flex
+            center), 줄 전체는 .page-header(align-items:center)가 맞춘다.
+            이름 폴백이 이미 ID 인 경우(무응답·파기)는 같은 값을 두 번 적지 않는다. */}
+        <div className="page-header">
+          <h1 className="participant-hero-title">
+            <ParticipantName name={basicInfo.name} beneficiaryId={basicInfo.beneficiaryId} size="hero" />
+            {basicInfo.name !== null && basicInfo.name.length > 0 && (
+              <span className="participant-hero-id">{basicInfo.beneficiaryId}</span>
+            )}
+          </h1>
+          <div className="page-actions">
             <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
-          </>}
-        />
+          </div>
+        </div>
         {noticeText === undefined ? null : <p className="wire-badge" data-tone="blue" role="status">{noticeText}</p>}
         {errorText === undefined ? null : <p className="wire-badge" data-tone="risk" role="alert">{errorText}</p>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />

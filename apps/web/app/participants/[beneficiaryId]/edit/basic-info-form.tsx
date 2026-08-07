@@ -40,9 +40,10 @@ export interface BasicInfoFormProps {
  * 값은 서버가 금고에서 복호화해 내려준 현재 상태이며(D3), 브라우저 임시본(localStorage 등)에
  * 담지 않는다 — 인테이크 임시본이 금고 값을 빼고 저장하는 것과 같은 규율이다(R3).
  *
- * '저장' 버튼은 폼 밖(HERO 행동 줄 우측)이다(2026-08-07 Q) — form="basic-info-form" 으로
- * 이 폼을 가리키므로 onSubmit 검사는 그대로 동작한다. 값이 있던 칸을 비운 채 저장하면
- * 그 칸 아래 경고가 뜨고 한 번 더 눌러야 지워진다(조용한 금고 삭제 방지).
+ * '저장' 버튼은 카드 밖 페이지 제목 줄 우측이다(2026-08-07 Q 5차, page.tsx) —
+ * form="basic-info-form" 속성으로 이 폼을 가리키므로 onSubmit 검사는 그대로 동작한다.
+ * 값이 있던 칸을 비운 채 저장하면 그 칸 아래 경고가 뜨고 한 번 더 눌러야 지워진다
+ * (조용한 금고 삭제 방지).
  */
 export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
   const [warnedFields, setWarnedFields] = useState<FieldName[]>([]);
@@ -85,12 +86,18 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
       <input type="hidden" name="beneficiaryId" value={basicInfo.beneficiaryId} />
       <input type="hidden" name="supportCaseContextId" value={basicInfo.supportCaseContextId} />
       <input type="hidden" name="expectedVersion" value={String(basicInfo.version)} />
-      <WireCard className="wire-form-card" title={<h2>기본정보</h2>}>
+      {/* 폼은 **카드 2장**이다(2026-08-07 Q 5차 — 구 '카드 한 장' 재개정): 기본 정보 /
+          추가 정보 카드가 페이지 스택 간격(24)으로 쌓인다. 이름·저장 줄은 카드 밖 페이지
+          제목 줄(page.tsx). 카드 제목·구분선은 표준 카드 문법(WireCard title)이라 제목과
+          필드 사이 간격도 두 카드가 같다(여백 3단 ④ 규칙). */}
+      <div className="basic-info-stack">
+      <WireCard className="wire-form-card" title={<h2>기본 정보</h2>}>
         <div className="wire-form-grid">
           <WireFormField label="이름" htmlFor="basicInfoName" {...warningFor('name')}>
             <input id="basicInfoName" name="name" type="text" maxLength={100} defaultValue={basicInfo.name ?? ''} />
           </WireFormField>
-          <WireFormField label="휴대전화" htmlFor="basicInfoPhone" {...warningFor('phone')}>
+          {/* 라벨은 '연락처'다(2026-08-07 Q — 구 '휴대전화'. 등록 화면·당사자 카드와 같은 말). */}
+          <WireFormField label="연락처" htmlFor="basicInfoPhone" {...warningFor('phone')}>
             <input id="basicInfoPhone" name="phone" type="tel" maxLength={32} defaultValue={basicInfo.phone ?? ''} />
           </WireFormField>
           <WireFormField label="이메일" htmlFor="basicInfoEmail" {...warningFor('email')}>
@@ -111,6 +118,10 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
               describedBy="basicInfoBirthDate-hint"
             />
           </WireFormField>
+        </div>
+      </WireCard>
+      <WireCard className="wire-form-card" title={<h2>추가 정보</h2>}>
+        <div className="wire-form-grid">
           <WireFormField label="주소 또는 거주지역" htmlFor="basicInfoRegion" {...warningFor('region')}>
             <input id="basicInfoRegion" name="region" type="text" maxLength={200} defaultValue={basicInfo.region ?? ''} />
           </WireFormField>
@@ -122,15 +133,26 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
             </select>
           </WireFormField>
           <WireFormField
-            label="계좌"
+            label="계좌번호"
             htmlFor="basicInfoAccount"
             hint="지원금 입금 계좌입니다. 은행과 번호를 함께 적습니다."
             {...warningFor('account')}
           >
             <input id="basicInfoAccount" name="account" type="text" maxLength={100} defaultValue={basicInfo.account ?? ''} />
           </WireFormField>
+          {/* 기타는 **자리만**이다(서명 동의서 첨부 자리와 같은 원칙 — 저장되는 척하면
+              실무자가 적은 메모가 조용히 사라진다). 금고 컬럼·게이트웨이가 생기면 연다. */}
+          <WireFormField
+            label="기타"
+            note="(준비 중)"
+            htmlFor="basicInfoEtc"
+            hint="메모 칸은 준비 중입니다. 아직 저장되지 않습니다."
+          >
+            <input id="basicInfoEtc" name="etc" type="text" disabled />
+          </WireFormField>
         </div>
       </WireCard>
+      </div>
     </form>
   );
 }
