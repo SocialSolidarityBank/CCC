@@ -265,14 +265,18 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
         candidates.map((candidate) => (
           <Link
             key={candidate.id}
-            className="participant-next-schedule-row participant-next-schedule-link"
+            className="participant-next-schedule-link"
             href={briefingHref(beneficiaryId, candidate.id)}
           >
-            <span className="participant-next-schedule-date">
-              {formatKoreanDateTime(candidate.upcomingSchedule!.scheduledAt)}
+            {/* 내용은 좁으면 줄바꿈하되 꺽쇠는 행 전체의 세로 중앙에 남는다(2026-08-08 Q
+                "가운데 정렬" — 격자 좌 1fr / 우 auto). */}
+            <span className="participant-next-schedule-main">
+              <span className="participant-next-schedule-date">
+                {formatKoreanDateTime(candidate.upcomingSchedule!.scheduledAt)}
+              </span>
+              <WireBadge tone="blue">{scheduleKindLabels[candidate.upcomingSchedule!.sessionKind]}</WireBadge>
+              <span className="participant-next-schedule-program">{programName(programLabels, candidate.programType)}</span>
             </span>
-            <WireBadge tone="blue">{scheduleKindLabels[candidate.upcomingSchedule!.sessionKind]}</WireBadge>
-            <span className="participant-next-schedule-program">{programName(programLabels, candidate.programType)}</span>
             <Chevron dir="right" />
           </Link>
         ))
