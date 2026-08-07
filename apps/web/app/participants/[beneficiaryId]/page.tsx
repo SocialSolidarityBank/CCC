@@ -230,7 +230,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels }: {
   const next = candidates[0];
 
   return (
-    <WireCard as="section" title="최신 일정">
+    <WireCard as="section" className="participant-hub-card" title="최신 일정">
       {next === undefined || next.upcomingSchedule === null ? (
         <div className="participant-next-schedule-row">
           <p className="participant-program-meta">예정된 상담이 없습니다.</p>
@@ -303,7 +303,7 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
             {/* 참여중인 사업·최신 일정은 **가로로 긴 전폭 카드 2장 스택**이다(2026-08-07 Q —
                 구 2열 나란 배치 대체: 좁은 카드에서 행이 접혔다). 카드 사이 간격은 페이지
                 스택 24(--section-gap, GridContainer)다. */}
-            <WireCard as="section" title="참여중인 사업">
+            <WireCard as="section" className="participant-hub-card" title="참여중인 사업">
               {programs.map((program) => (
                 <ProgramRow
                   key={program.id}
@@ -326,6 +326,7 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
             {consentPrograms.length > 0 && (
               <WireCard
                 as="section"
+                className="participant-hub-card"
                 title={
                   consentPrograms.length === 1 ? (
                     <div className="wire-card-head">

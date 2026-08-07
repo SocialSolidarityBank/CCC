@@ -105,8 +105,9 @@ export function RecordCard({
   const hasConfirmedFlag = record.flags.some((flag) => flag.reviewStatus === 'confirmed');
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
-    {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지(세로선으로 읽혔다). 날짜는 브리핑 회차 행과 같은
-        YYYY-MM-DD 다 — 폭이 일정해 고정 칸 좌측 정렬이 성립한다. 넘침은 공용 .wire-fade-clip. */}
+    {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지(세로선으로 읽혔다). 날짜는 공용 표기
+        ("2026년 8월 7일")고, 고정 칸(.record-held-at 136px)이 최장 날짜까지 한 줄로 담아
+        좌측 정렬이 성립한다. 넘침은 공용 .wire-fade-clip. */}
     <summary className="record-summary">
       <span className="record-ordinal">{ordinal}회차</span>
       <span className="record-held-at">{formatKoreanDate(record.heldAt)}</span>
