@@ -258,9 +258,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 .wire-card{padding:var(--space-6)}
 .wire-card-title{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
-/* 제목 슬롯에 시맨틱 헤딩(h3 소절 제목)이 들어와도 크기는 카드 제목 계약을 따른다 —
-   UA 기본 크기가 새지 않게 한다(인테이크 소절, 2026-08-05). */
-.wire-card-title>h3{margin:0;font-size:inherit;font-weight:inherit;line-height:inherit}
+/* 제목 슬롯에 시맨틱 헤딩(h2 카드 제목·h3 소절 제목)이 들어와도 크기는 카드 제목 계약을
+   따른다 — UA 기본 크기가 새지 않게 한다(인테이크 소절 2026-08-05, h2 는 2026-08-07
+   기본정보 수정의 카드 안 두 번째 구획 제목에서 추가). */
+.wire-card-title>h2,.wire-card-title>h3{margin:0;font-size:inherit;font-weight:inherit;line-height:inherit}
 /* 구분선은 회색 --line 이고 카드 아웃라인까지 가로지른다(2026-08-06 Q — 구 그라데이션
    안쪽 구분선 대체. 그라데이션 3색은 구조선이 아니라 정보 표시로 옮겨 간다). */
 .wire-card-divider{height:0;margin:var(--space-4) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
@@ -303,7 +304,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 단일 항목 — 목록이 아니라 문장이다. 크기·색은 불릿 항목과 같고 불릿·들여쓰기만 없다. */
 .wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-md)}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
-.wire-search{display:grid;gap:var(--space-2)}
+/* align-content:start — 폼 입력칸(.wire-form-field)과 같은 stretch 부풀림 방지 계약. */
+.wire-search{display:grid;gap:var(--space-2);align-content:start}
 .wire-search-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 /* 행간 normal — 단일행 컨트롤의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q, 버튼과 동일). */
@@ -319,7 +321,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* WireFormField (§5 입력칸) — 검색칸과 **같은 계약**을 폼에서 쓰는 형태다. 검색칸 규칙을
    .wire-search-box 에 묶어 둔 탓에 폼 화면들이 레거시 .field 로 각자 그리고 있었다.
    박스 규칙은 검색칸과 한 글자도 다르지 않고, 폼에만 필요한 것(필수 별표·도움말·오류 자리)만 는다. */
-.wire-form-field{display:grid;gap:var(--space-2)}
+/* align-content:start(2026-08-07 Q "인풋 크기·높이 안 맞음" 근본 원인): 2열 그리드에서
+   힌트 달린 이웃 칸이 행을 키우면, stretch 기본값이 남는 높이를 이 칸의 라벨·박스 행에
+   나눠 줘 입력칸이 54.8px 로 부풀었다(기본정보 수정 이메일 칸 실측 +14.8). 행을 위로
+   붙이면 모든 박스가 40 으로 고정된다. */
+.wire-form-field{display:grid;gap:var(--space-2);align-content:start}
 .wire-form-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 /* 필수 별표는 --risk 지만 리스크 독점(D9)의 예외가 아니다 — 오류·필수 표시는 §9 가 허용한 자리다. */
 .wire-form-required{color:var(--risk)}

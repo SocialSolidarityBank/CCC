@@ -85,12 +85,16 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
       <input type="hidden" name="beneficiaryId" value={basicInfo.beneficiaryId} />
       <input type="hidden" name="supportCaseContextId" value={basicInfo.supportCaseContextId} />
       <input type="hidden" name="expectedVersion" value={String(basicInfo.version)} />
-      <WireCard className="wire-form-card" title={<h2>기본정보</h2>}>
+      {/* 한 카드, 두 구획(2026-08-07 Q 3차): **기본 정보**(당사자 카드에 노출되는 값 —
+          이름·연락처·이메일·생년월일)와 **추가 정보**(주소 또는 거주지역·성별·계좌번호·기타).
+          구획마다 제목 아래 풀블리드 가로선을 긋고 그 아래 필드를 나열한다(WireCard 제목 문법). */}
+      <WireCard className="wire-form-card" title={<h2>기본 정보</h2>}>
         <div className="wire-form-grid">
           <WireFormField label="이름" htmlFor="basicInfoName" {...warningFor('name')}>
             <input id="basicInfoName" name="name" type="text" maxLength={100} defaultValue={basicInfo.name ?? ''} />
           </WireFormField>
-          <WireFormField label="휴대전화" htmlFor="basicInfoPhone" {...warningFor('phone')}>
+          {/* 라벨은 '연락처'다(2026-08-07 Q — 구 '휴대전화'. 등록 화면·당사자 카드와 같은 말). */}
+          <WireFormField label="연락처" htmlFor="basicInfoPhone" {...warningFor('phone')}>
             <input id="basicInfoPhone" name="phone" type="tel" maxLength={32} defaultValue={basicInfo.phone ?? ''} />
           </WireFormField>
           <WireFormField label="이메일" htmlFor="basicInfoEmail" {...warningFor('email')}>
@@ -111,6 +115,10 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
               describedBy="basicInfoBirthDate-hint"
             />
           </WireFormField>
+        </div>
+        <div className="wire-card-title"><h2>추가 정보</h2></div>
+        <hr className="wire-card-divider" />
+        <div className="wire-form-grid">
           <WireFormField label="주소 또는 거주지역" htmlFor="basicInfoRegion" {...warningFor('region')}>
             <input id="basicInfoRegion" name="region" type="text" maxLength={200} defaultValue={basicInfo.region ?? ''} />
           </WireFormField>
@@ -122,12 +130,22 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
             </select>
           </WireFormField>
           <WireFormField
-            label="계좌"
+            label="계좌번호"
             htmlFor="basicInfoAccount"
             hint="지원금 입금 계좌입니다. 은행과 번호를 함께 적습니다."
             {...warningFor('account')}
           >
             <input id="basicInfoAccount" name="account" type="text" maxLength={100} defaultValue={basicInfo.account ?? ''} />
+          </WireFormField>
+          {/* 기타는 **자리만**이다(서명 동의서 첨부 자리와 같은 원칙 — 저장되는 척하면
+              실무자가 적은 메모가 조용히 사라진다). 금고 컬럼·게이트웨이가 생기면 연다. */}
+          <WireFormField
+            label="기타"
+            note="(준비 중)"
+            htmlFor="basicInfoEtc"
+            hint="메모 칸은 준비 중입니다. 아직 저장되지 않습니다."
+          >
+            <input id="basicInfoEtc" name="etc" type="text" disabled />
           </WireFormField>
         </div>
       </WireCard>
