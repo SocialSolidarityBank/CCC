@@ -750,17 +750,27 @@ const registerStyles = `
 /* D15·D23: 동의 문안 "자세히 읽어보기"·"전문 보기" — briefing-subaccordion 패턴 재사용.
    등록 폼(자세히 읽어보기)과 동의 수정 허브(항목별 전문 보기, 2026-08-07 Q)가 같은 부품이다. */
 .consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
-/* 체크박스 바로 아래 붙는 변형(허브 전문 보기) — 항목 사이 구분선 없이 라벨만 살짝 들여 선다. */
+/* 체크박스 바로 아래 붙는 변형(허브 전문 보기) — 항목 사이 구분선 없이 라벨만 살짝 들여 선다.
+   윗여백은 기본과 같은 8 이다(2026-08-08 Q "여백 더 주고"). 구 0 은 알약이 체크 라벨에
+   붙어 한 덩어리로 뭉쳤다. 12 로 더 벌리면 fieldset 항목 간격과 같아져 묶음이 풀리므로
+   8 이 상한이다(하니스 실측). */
 /* optical: 18px 는 간격이 아니라 체크박스 상자 폭이다 — 라벨 첫 글자 x 에 요약 줄을 맞춘다 */
-.consent-detail[data-inline="true"]{padding-top:0;background:none;margin-left:calc(18px + var(--space-3))}
+.consent-detail[data-inline="true"]{background:none;margin-left:calc(18px + var(--space-3))}
 /* 화살표는 텍스트 바로 옆이다(2026-08-07 Q 9차 — 구 space-between 은 화살표가 오른쪽
    끝으로 떨어져 라벨과 남남으로 읽혔다). */
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
+/* 동의 요약 줄의 꺽쇠만 기준 글자를 .7 로 낮춘다(2026-08-08 Q "꺽쇠 크기 더 줄이기").
+   전역 em 계약(.5625em, 2026-08-07 Q 8차)은 16px 글줄에서 잡은 비율이라 14px 글줄에서는
+   글자 대비 여전히 컸다. 크기를 px 로 다시 박지 않고 기준 글자만 줄여, 상자와 획과
+   광학 보정 translate 가 한 비율로 함께 작아진다. 14px 글줄에서 상자 7.88 에서 5.5 로
+   내려간다(하니스 실측). 등록 폼 '자세히 읽어보기'와 허브 '전문 보기'는 같은 부품이라
+   한 선택자가 둘 다 덮는다. */
+.consent-detail-summary>.briefing-card-arrow{font-size:.7em}
 /* 인라인 변형의 요약 줄은 **작은 배지형 버튼**이다(2026-08-07 Q 9차 "전문보기를 작은
    뱃지형 버튼으로" — 구 텍스트+화살표 줄 대체). 모양은 기본 배지 레시피(높이 24 ·
    --sub 외곽선 · 알약 · 14/400 --ink)를 그대로 빌리고, 조작이므로 호버 면만 얹는다.
-   화살표는 글자를 따라 줄어드는 em 계약이라 배지 안에서 저절로 작아진다. */
+   화살표 크기는 바로 위 규칙이 정한다(기준 글자 .7em). */
 .consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-2);min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
 @media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
 .consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-.125em) rotate(45deg)}
