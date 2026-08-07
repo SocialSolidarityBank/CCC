@@ -65,10 +65,11 @@ beforeEach(() => {
   getMonthSchedules.mockReset();
 });
 
-// 2026-08-06 Q 카드 통일: 날짜 묶음이 사라지고 다가오는 일정과 같은 당사자 카드가 됐다 —
-// 1행 날짜·시간·종류 뱃지(지난 일정은 상태 뱃지 추가), 2행 이름·가명 ID·연락처.
+// 2026-08-06 Q 카드 통일: 날짜 묶음이 사라지고 다가오는 일정과 같은 당사자 카드가 됐다.
+// 2026-08-07 행 순서 교체: 이름 행이 위, 날짜·시간·종류 뱃지(지난 일정은 상태 뱃지 추가)는
+// 가로선 아래다.
 describe('전체 일정 화면 (CCC-19)', () => {
-  it('일정마다 당사자 카드 한 장 — 1행 날짜·시간·종류 뱃지, 2행 이름·가명 ID·연락처', async () => {
+  it('일정마다 당사자 카드 한 장 — 이름 행 위, 날짜·시간·종류 뱃지는 가로선 아래', async () => {
     getMonthSchedules.mockResolvedValue(board([
       schedule(),
       schedule({ id: 's2', scheduledAt: '2026-02-15T05:00:00.000Z', participantName: '이영희', beneficiaryId: 'crane-001' }),

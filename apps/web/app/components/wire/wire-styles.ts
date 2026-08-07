@@ -120,7 +120,15 @@ details.surface-card{overflow:clip}
    grid-template-columns 를 다시 쓰지 않고 **열 수도 직접 지정하지 않는다**(락 10).
    auto-fill 이 아니라 **auto-fit** 이다 — auto-fill 은 빈 트랙을 남겨서 카드가 1개일 때도
    화면 절반만 차지한다(2026-07-26 Q 지시: 기본은 폭 전체). */
-.card-grid{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
+/* 나란한 카드는 높이를 맞춘다(2026-08-07 Q — 구 align-items:start 대체). 그리드 기본
+   stretch 가 같은 줄 카드를 같은 높이로 편다. 카드 안 하단 버튼 줄도 같은 y 에 서도록
+   카드를 세로 flex 로 펴고 마지막 액션 줄을 바닥에 붙인다(아래 .card-grid>.wire-card). */
+.card-grid{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr))}
+.card-grid>.wire-card{display:flex;flex-direction:column}
+.card-grid>.wire-card>.wire-card-body{flex:1 1 auto;display:flex;flex-direction:column;align-items:stretch}
+.card-grid>.wire-card>.wire-card-body>.participant-program-actions:last-child{margin-top:auto}
+/* 링크로 감싼 당사자 카드도 줄 높이를 다 쓴다 — 링크가 그리드 아이템이라 카드가 못 받는다. */
+.card-grid>.participant-card-link>.participant-card{height:100%}
 /* 조밀 그리드 — GAS 게이지·정보 필드처럼 작은 칸이 여럿일 때(D37 §4-2, 최소 280 → 3열).
    **3열 아니면 1열이다** — 2열이면 3개짜리 묶음(D33 세부 목표)이 둘 + 외톨이 하나로 앉는다. */
 .card-grid-dense{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min-dense)),1fr));align-items:start}
@@ -139,7 +147,9 @@ details.surface-card{overflow:clip}
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
-/* 2행 골격(2026-08-06 Q): 1행 = 이름·태그(좌) + 버튼(우), 구분선 아래 2행 = 메타.
+/* 2행 골격(2026-08-06 Q · 2026-08-07 위계 개편): 1행 = 이름·태그(좌) + 버튼(우), 구분선
+   아래 2행 = 정보 행(가명 ID·연락처·메타 — wire-meta-row 세로선으로 가른다). 연락처·ID 를
+   1행에서 내려 이름만 위계 위에 남긴다(당사자 카드와 같은 문법: 이름 위, 정보는 선 아래).
    1행은 flex-wrap 이라 좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다 — 이름도
    버튼도 뭉개지지 않는다(767 미만은 기존 모바일 규칙이 버튼을 세로로 쌓는다). */
 .participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-4)}
@@ -151,8 +161,8 @@ details.surface-card{overflow:clip}
    레시피는 아래 .wire-status-tag 가 소유한다). 줄바꿈 금지만 HERO 한정으로 남긴다. */
 .participant-hero-title .wire-status-tag{white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-/* 연락처는 이름 옆에 나란히 선다(D59 · 2026-08-04 — 구 개인정보 접힘 폐지).
-   읽는 값이라 16/400 --sub, 이름과는 제목 줄의 gap 이 여백을 만든다. */
+/* 연락처는 구분선 아래 정보 행에 선다(2026-08-07 Q — 구 '이름 옆 나란' 대체).
+   읽는 값이라 당사자 카드 정보 칸과 같은 16/400 --sub 다. */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
 /* 가명 ID(허브 한정, 2026-08-06 Q) — 당사자 카드 정보 칸과 같은 옅은 그레이 대조용 값. */
 .participant-hero-id{color:color-mix(in srgb,var(--sub) 80%,var(--panel));font-size:var(--text-md);font-weight:400;white-space:nowrap}
@@ -177,8 +187,9 @@ details.surface-card{overflow:clip}
    행 사이는 --line 구분선이다(카드 안 카드 금지 — D59 ③). 동의서는 맨 아래 카드로 옮겼다. */
 .participant-program-row{display:grid;gap:var(--space-2)}
 .participant-program-row+.participant-program-row{padding-top:var(--space-4);border-top:1px solid var(--line)}
-/* 행 제목은 카드 제목(18)보다 한 단 아래 16/600 이다. */
-.participant-program-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+/* 행 제목은 카드 제목(18)보다 한 단 아래 16/600 이다. 배지는 제목과 같은 y 세로 중앙이다
+   (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
+.participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
 .participant-program-head>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
 .participant-program-head .wire-badge{flex:none;white-space:nowrap}
@@ -186,9 +197,8 @@ details.surface-card{overflow:clip}
 .participant-program-assignee{display:flex;gap:var(--space-2);align-items:baseline;font-size:var(--text-sm);color:var(--ink)}
 .participant-program-assignee-label{color:var(--mint-deep);font-weight:600}
 .participant-program-actions{display:flex;gap:var(--space-3);margin-top:var(--space-3)}
-/* 담당하지 않는 사업(D36): 잠긴 이유를 문장으로 남긴다. 색이 아니라 문장이 알린다 —
-   리스크 색은 리스크 배너 독점이다(D9·D34). */
-.participant-program-locked{margin:var(--space-3) 0 0;color:var(--sub);font-size:var(--text-sm)}
+/* 구 .participant-program-locked(담당하지 않는 사업 잠금 문구)는 2026-08-07 사업명
+   리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{margin-top:0}
 .participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
@@ -253,8 +263,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-4);padding:0 var(--space-6) var(--space-4);border-bottom:1px solid var(--line)}
 .wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-2px) rotate(45deg)}
-/* 제목과 상태 배지가 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은 이유). */
-.wire-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+/* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
+   이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */
+.wire-card-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
 .wire-card-head .wire-badge{flex:none;white-space:nowrap}
 /* 카드 안 하위 구획. h3 에 규칙이 없어 브라우저 기본 크기(18.7px)가 그대로 나오던 자리다 —
    카드 제목(18)과 크기가 겹쳐 위계가 없었다. 구획 제목은 라벨이므로 14/700 --sub 다. */
@@ -381,14 +392,15 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
 .wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);background-size:200% auto;background-position:50% 0}
-/* 일반(neutral): 그레이 아웃라인 알약(2026-08-06 Q 위계 재편). 이동·보기 조작(뒤로,
+/* 일반(neutral): 그레이 아웃라인(2026-08-06 Q 위계 재편). 이동·보기 조작(뒤로,
    시간순, 달 이동)이 쓴다. 컬러는 중요 행동의 어휘로 올라간다: 세컨더리 = 컬러 아웃라인,
-   프라이머리 = 그라데이션 면. 테두리는 --line-action(잉크 50%) — D55 가 세운 "흰 카드 위
-   1.28 테두리는 버튼으로 안 읽힌다" 기준을 그대로 잇는 값이다. 호버는 기본형과 같은
+   프라이머리 = 그라데이션 면. 테두리는 카드 아웃라인과 같은 --line 이다(2026-08-07 Q
+   "뒤로·시간순·달 이동 아웃라인을 카드 div 아웃라인과 맞출 것" — 구 --line-action(잉크
+   50%) 대체. 조작 버튼은 카드와 같은 표면 어휘로 물러선다). 호버는 기본형과 같은
    잉크 워시(--button-fill 변수만 바뀐다). */
-/* 조작 알약은 크기도 한 단이다(2026-08-06 Q "텍스트 크기가 같은데 버튼 크기가 달라서
-   이상") — 뒤로 알약과 같은 32(--pill-height)·패딩 14 로 통일한다. 핵심 버튼만 40 이다. */
-.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line-action);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
+/* 조작 버튼은 크기도 한 단이다(2026-08-06 Q "텍스트 크기가 같은데 버튼 크기가 달라서
+   이상") — 뒤로 버튼과 같은 32(--pill-height)·패딩 14 로 통일한다. 핵심 버튼만 40 이다. */
+.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
 /* 고스트: 배경·테두리 없음, --sub 글자. 조작 축이라 neutral 과 같은 14/400·32 다. */
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
 /* 조작 알약 안 꺽쇠는 글자를 따라 줄어든다(2026-08-06 Q — 16 시절 8 이 14 옆에서 크다). */

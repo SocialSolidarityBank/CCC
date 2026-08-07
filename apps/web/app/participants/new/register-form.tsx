@@ -130,7 +130,9 @@ export function RegisterForm({
             `register-consent` 로 범위를 좁힌다 — `.consent-fieldset` 자체는 자기 가입 폼·동의 수정
             허브와 공유하는 규칙이라 덮으면 손대지 않은 화면 2개가 함께 바뀐다. */}
         <fieldset className="consent-fieldset register-consent">
-          <legend>동의 (항목별, 기본 미동의)</legend>
+          {/* 괄호 보충("항목별, 기본 미동의")은 뺐다(2026-08-07 Q "legend 는 타이틀 위계 +
+              필요 없는 텍스트 삭제") — 기본 미동의·필수 여부는 바로 아래 안내문이 말한다. */}
+          <legend>동의</legend>
           <p className="schedule-form-hint">
             동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
             개인정보 수집·이용 동의는 등록에 반드시 필요하며, AI를 활용한 녹취기록은 미동의여도 등록이 진행됩니다.

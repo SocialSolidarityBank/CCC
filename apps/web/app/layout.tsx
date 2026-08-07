@@ -272,9 +272,11 @@ button,input,select,textarea{font:inherit}
 /* 뒤로가기도 버튼이다(2026-08-04 Q, 구 투명 텍스트 대체. 형태는 2026-08-07 직사각 radius 6,
    구 알약 대체). 옷은 **일반(neutral)**
    그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
-   그레이, 컬러는 중요 행동만). 화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
+   그레이, 컬러는 중요 행동만). 테두리는 카드 아웃라인과 같은 --line 이다(2026-08-07 Q
+   "뒤로 아웃라인을 카드 div 아웃라인과 맞출 것" — neutral 버튼과 같은 개정).
+   화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
    --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line-action);border-radius:var(--radius-control);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 /* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -646,7 +648,11 @@ const scheduleStyles = `
 .schedule-form-error{color:var(--risk);font-weight:600}
 /* 동의 묶음은 카드 안 상자였다 — D59 '카드 안 카드 금지'로 플랫: 위 구분선 하나 + 여백. */
 .consent-fieldset{display:grid;gap:var(--space-3);margin:0;padding:var(--space-3) 0 0;border:0;border-top:1px solid var(--line);border-radius:0}
-.consent-fieldset legend{padding:0 var(--space-1-5);font-weight:600;font-size:var(--text-sm);color:var(--sub)}
+/* legend 는 구획 타이틀 위계다(2026-08-07 Q — 구 14/600 --sub 라벨 대체): 소제목 16/600
+   --ink(D61 ③ 짝 계약), 좌측정렬. float 는 legend 의 특수 렌더링(테두리 선 위에 띄우고
+   들여쓰는 것)을 끄는 표준 장치다 — float 가 none 이 아니면 legend 는 일반 자식으로
+   내려와 그리드 첫 행에 왼쪽 정렬로 선다(구 6px 들여쓰기 패딩도 함께 걷는다). */
+.consent-fieldset legend{float:left;padding:0;font-weight:600;font-size:var(--text-md);color:var(--ink)}
 .consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
    리스크 변형(테두리만 --risk)을 덮어써 버린다 — 실제로 그 버그를 겪어 규칙을 한 곳으로 모았다. */
@@ -673,10 +679,11 @@ const monthScheduleStyles = `
 .month-nav .wire-button{gap:var(--space-3)}
 /* 달 라벨은 이 줄의 **값**이라 조작 버튼보다 한 발 선다(2026-08-06 Q "상대적으로 작아 보인다")
    — 크기 +1(15) · 600. 당사자 카드 이름과 같은 계단 광학 예외 형식이다(§2-1). */
-.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line-action);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);white-space:nowrap}
-/* ── 시안 ① 하나의 상자 ── 겉 테두리는 neutral 버튼과 같은 --line-action, 조각 사이 세로선은
-   --line. 높이도 조작 버튼과 같은 32 다. 모서리 밖 삐침은 clip 으로 자른다. */
-.month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:1px solid var(--line-action);border-radius:var(--radius-control);background:var(--panel);overflow:clip}
+.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);white-space:nowrap}
+/* ── 시안 ① 하나의 상자 ── 겉 테두리는 neutral 버튼·카드와 같은 --line(2026-08-07 Q 통일,
+   구 --line-action), 조각 사이 세로선도 --line. 높이도 조작 버튼과 같은 32 다.
+   모서리 밖 삐침은 clip 으로 자른다. */
+.month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);overflow:clip}
 .month-nav-group .month-nav-label{border:0;border-radius:0;min-height:auto}
 .month-nav-seg{display:inline-flex;align-items:center;line-height:normal;gap:var(--space-3);padding:0 var(--space-3-5);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
 /* 조각의 꺽쇠도 조작 버튼과 같은 7 — 글자(14)를 따라 줄어든다. */
