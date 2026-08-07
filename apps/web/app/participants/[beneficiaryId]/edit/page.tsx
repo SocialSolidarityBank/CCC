@@ -88,7 +88,12 @@ function EditScreen({
           name={basicInfo.name}
           beneficiaryId={basicInfo.beneficiaryId}
           meta="등록된 기본정보를 고칩니다."
-          actions={<WireButton href={hubHref}>당사자 정보</WireButton>}
+          // '저장'은 HERO 행동 줄 오른쪽 끝이다(2026-08-07 Q "저장 버튼을 당사자 정보
+          // 오른쪽으로") — 폼 밖이라 form 속성으로 아래 폼을 가리킨다(동의서 카드와 같은 방식).
+          actions={<>
+            <WireButton href={hubHref}>당사자 정보</WireButton>
+            <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
+          </>}
         />
         {noticeText === undefined ? null : <p className="wire-badge" data-tone="blue" role="status">{noticeText}</p>}
         {errorText === undefined ? null : <p className="wire-badge" data-tone="risk" role="alert">{errorText}</p>}

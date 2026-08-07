@@ -1,6 +1,7 @@
 'use client';
 
 import { WireButton } from '../wire/wire-button';
+import { formatKoreanTime } from '../../lib/format-korean-date';
 import { WireCallout } from '../wire/wire-callout';
 import { draftRetentionLabel } from '../../lib/form-draft';
 
@@ -9,8 +10,9 @@ import { draftRetentionLabel } from '../../lib/form-draft';
 // 새 색을 만들지 않는다 — 자동 저장은 시간·상태 축이라 블루 tint(WireCallout tone="info")다
 // (D34 · DESIGN.md §1-5). 버튼도 킷(WireButton)으로 통일했다.
 
+// 시각 표기도 공용 계약을 따른다(2026-08-07 Q 통일 — "오후 1:05").
 function clockLabel(savedAt: number): string {
-  return new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit' }).format(new Date(savedAt));
+  return formatKoreanTime(new Date(savedAt).toISOString());
 }
 
 /**

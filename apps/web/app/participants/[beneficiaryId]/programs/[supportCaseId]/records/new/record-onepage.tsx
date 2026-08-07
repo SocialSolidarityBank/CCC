@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../../../../components/draft/draft-notice';
@@ -41,10 +42,9 @@ const channelOptions = [
   ['video', '화상'],
 ] as const;
 
+// 표기는 공용 계약이다(2026-08-07 Q 통일 — "2026년 8월 7일 오후 1:00").
 function dateTimeLabel(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return formatKoreanDateTime(value);
 }
 
 export interface RecordOnepageProps {

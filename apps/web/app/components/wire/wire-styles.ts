@@ -48,6 +48,10 @@ export const wireStyles = `
    옆 시간을 멀리 밀어냈다). 1행 틈은 12 유지, 2행(정보 칸)만 20 으로 한 단 넓힌다. */
 .participant-card-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
 .participant-card-row[data-row="info"]{gap:var(--space-5)}
+/* 정보 칸 사이 세로선(2026-08-07 Q "아이디·연락처가 오는 경우 세로선 모두 넣어서 여백
+   구분" — global). HERO 정보 행(wire-meta-row)과 같은 문법이다. gap 20 에 padding 20 을
+   더해 선이 두 칸의 정중앙에 선다. */
+.participant-card-row[data-row="info"]>.participant-card-cell+.participant-card-cell{border-left:1px solid var(--line-control);padding-left:var(--space-5)}
 /* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q,
    버튼·입력칸과 같은 계약. 1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다). */
 .participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;line-height:normal;color:var(--ink);overflow-wrap:anywhere}
@@ -66,6 +70,10 @@ export const wireStyles = `
 @media (hover:hover){
   .participant-card-link:hover .wire-card-divider{border-top-color:var(--panel)}
   [data-theme="dark"] .participant-card-link:hover .wire-card-divider{border-top-color:var(--line-control)}
+  /* 정보 칸 세로선도 같은 이유로 카드 표면색으로 뒤집는다(2026-08-07 Q "호버 시 세로선
+     화이트"). 다크는 가로 구분선과 같은 --line-control 로 잇는다. */
+  .participant-card-link:hover .participant-card-row[data-row="info"]>.participant-card-cell+.participant-card-cell{border-left-color:var(--panel)}
+  [data-theme="dark"] .participant-card-link:hover .participant-card-row[data-row="info"]>.participant-card-cell+.participant-card-cell{border-left-color:var(--line-control)}
 }
 /* 1행 뱃지 묶음도 오른쪽 끝 — 좌측은 고정 칸(날짜·시간)의 자리다. */
 .participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none;margin-left:auto}
@@ -121,12 +129,10 @@ details.surface-card{overflow:clip}
    auto-fill 이 아니라 **auto-fit** 이다 — auto-fill 은 빈 트랙을 남겨서 카드가 1개일 때도
    화면 절반만 차지한다(2026-07-26 Q 지시: 기본은 폭 전체). */
 /* 나란한 카드는 높이를 맞춘다(2026-08-07 Q — 구 align-items:start 대체). 그리드 기본
-   stretch 가 같은 줄 카드를 같은 높이로 편다. 카드 안 하단 버튼 줄도 같은 y 에 서도록
-   카드를 세로 flex 로 펴고 마지막 액션 줄을 바닥에 붙인다(아래 .card-grid>.wire-card). */
+   stretch 가 같은 줄 카드를 같은 높이로 편다. */
 .card-grid{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr))}
 .card-grid>.wire-card{display:flex;flex-direction:column}
 .card-grid>.wire-card>.wire-card-body{flex:1 1 auto;display:flex;flex-direction:column;align-items:stretch}
-.card-grid>.wire-card>.wire-card-body>.participant-program-actions:last-child{margin-top:auto}
 /* 링크로 감싼 당사자 카드도 줄 높이를 다 쓴다 — 링크가 그리드 아이템이라 카드가 못 받는다. */
 .card-grid>.participant-card-link>.participant-card{height:100%}
 /* 조밀 그리드 — GAS 게이지·정보 필드처럼 작은 칸이 여럿일 때(D37 §4-2, 최소 280 → 3열).
@@ -196,7 +202,8 @@ details.surface-card{overflow:clip}
 .participant-program-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 .participant-program-assignee{display:flex;gap:var(--space-2);align-items:baseline;font-size:var(--text-sm);color:var(--ink)}
 .participant-program-assignee-label{color:var(--mint-deep);font-weight:600}
-.participant-program-actions{display:flex;gap:var(--space-3);margin-top:var(--space-3)}
+/* 구 .participant-program-actions(카드 하단 버튼 줄)는 2026-08-07 가로 행 개편으로 삭제 —
+   버튼은 일정 행의 오른쪽 끝(margin-left:auto)에 선다. */
 /* 구 .participant-program-locked(담당하지 않는 사업 잠금 문구)는 2026-08-07 사업명
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
@@ -208,10 +215,12 @@ details.surface-card{overflow:clip}
 .participant-consent-block+.participant-consent-block{padding-top:var(--space-4);border-top:1px solid var(--line)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
 .participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-/* 최신 일정 카드의 한 줄 — 일정 카드 1행과 같은 어휘(날짜·시각 밀착 + 유형 뱃지).
-   행간 normal 은 당사자 카드 셀과 같은 기하 정렬 계약이다. */
-.participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
-.participant-next-schedule-date,.participant-next-schedule-time{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+/* 최신 일정 카드의 한 줄(2026-08-07 Q 가로 행 개편) — 회차별 정리 행과 같은 어휘:
+   날짜 · 종류 뱃지 · 참여 사업, 오른쪽 끝에 행동 버튼(margin-left:auto). 빈 상태도 같은
+   행 골격을 쓴다(안내 문장 + 오른쪽 끝 상담 등록). 행간 normal 은 기하 정렬 계약. */
+.participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--control-height)}
+.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+.participant-next-schedule-row>.wire-button{margin-left:auto}
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
    (구분선 계약은 행이 한 컨테이너 안에 붙어 있을 때 성립한다 — 이 차이는 STATUS 에 남긴다).
@@ -221,8 +230,16 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 호버도 그라데이션이다(2026-08-03 Q 결정 — 구 --muted 단색). 채움만 바꾸므로 실제 테두리
    (--line 1px)는 그대로다. 선택 행은 더 진한 --gradient-action 이라 구분된다. 터치 잔상은
    버튼과 같은 이유로 hover 미디어 안에 둔다. */
-@media (hover:hover){.wire-row:not([data-static="true"]):not([data-selected="true"]):hover{background:var(--gradient-hover)}}
+@media (hover:hover){
+  .wire-row:not([data-static="true"]):not([data-selected="true"]):hover{background:var(--gradient-hover)}
+  /* 행 안 메타 줄 세로선은 호버 채움 위에서 카드 표면색으로 뒤집는다(2026-08-07 Q "호버 시
+     세로선 화이트" — 당사자 카드 구분선과 같은 계약). 다크는 더 밝은 --line-control. */
+  .wire-row:not([data-static="true"]):not([data-selected="true"]):hover .wire-meta-row>span+span{border-left-color:var(--panel)}
+  [data-theme="dark"] .wire-row:not([data-static="true"]):not([data-selected="true"]):hover .wire-meta-row>span+span{border-left-color:var(--line-control)}
+}
 .wire-row[data-static="true"]{cursor:default}
+/* 고른 행(--gradient-action 면) 위 세로선은 채운 면 전용 선색을 쓴다(D56 --line-on-action). */
+.wire-row[data-selected="true"] .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 고른 행도 **채운다**(2026-07-31 Q 지시 "리스트도 채운다"). 체크박스 켬과 같은
    --gradient-action 이라, 화면 어디서든 '내가 지금 고른 것'이 한 어휘로 읽힌다.
    구 --muted(#F5F5F4)는 흰 카드 위에서 호버와 같은 색이라 고른 것인지 지나가는 중인지
@@ -278,10 +295,13 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-field-row{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
 .wire-field-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .wire-field-value{color:var(--ink);font-size:var(--text-md);overflow-wrap:anywhere}
-/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. */
+/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. 불릿은 2개 이상일 때만이다(2026-08-07 Q
+   규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
 .wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-md)}
 .wire-bullets>li{position:relative;padding-left:var(--space-4)}
 .wire-bullets>li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--sub)}
+/* 단일 항목 — 목록이 아니라 문장이다. 크기·색은 불릿 항목과 같고 불릿·들여쓰기만 없다. */
+.wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-md)}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
 .wire-search{display:grid;gap:var(--space-2)}
 .wire-search-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
@@ -403,7 +423,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
 /* 고스트: 배경·테두리 없음, --sub 글자. 조작 축이라 neutral 과 같은 14/400·32 다. */
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
-/* 조작 알약 안 꺽쇠는 글자를 따라 줄어든다(2026-08-06 Q — 16 시절 8 이 14 옆에서 크다). */
+/* 버튼 안 꺽쇠는 글자를 따라간다(2026-08-07 Q "등록하기 '>' 가 너무 크다" — 규칙으로 닫는다):
+   핵심 버튼(라벨 15) = 8, 조작 버튼(라벨 14) = 7. 본문·카드의 10px 꺽쇠 기본값은 그대로다. */
+.wire-button .wire-chevron{width:8px;height:8px}
 .wire-button[data-variant="neutral"] .wire-chevron,.wire-button[data-variant="ghost"] .wire-chevron{width:7px;height:7px}
 /* 위험: 되돌리기 어려운 행동에만. */
 .wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk)}

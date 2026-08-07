@@ -51,3 +51,11 @@ export const CONSENT_DETAIL_SECTIONS: ConsentDetailSection[] = [
     ],
   },
 ];
+
+// 항목별 전문(2026-08-07 Q — 동의 수정 허브의 체크박스별 '전문 보기'). **문안을 새로 쓰지
+// 않는다** — 위 정본 절을 항목별로 갈라 실을 뿐이다. 개인정보 = 1~4·6절, AI 녹취 = 5·6절.
+export const CONSENT_PRIVACY_SECTIONS: ConsentDetailSection[] =
+  CONSENT_DETAIL_SECTIONS.filter((section) => !section.heading.startsWith('5.'));
+
+export const CONSENT_RECORDING_AI_SECTIONS: ConsentDetailSection[] =
+  CONSENT_DETAIL_SECTIONS.filter((section) => section.heading.startsWith('5.') || section.heading.startsWith('6.'));

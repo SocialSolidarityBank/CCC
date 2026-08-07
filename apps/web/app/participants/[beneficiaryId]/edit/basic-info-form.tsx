@@ -1,7 +1,7 @@
 'use client';
 
+import { useState, type FormEvent } from 'react';
 import { WireCard } from '../../../components/wire/wire-card';
-import { WireButton } from '../../../components/wire/wire-button';
 import { WireFormField } from '../../../components/wire/wire-form-field';
 import { DATE_TEXT_HINT, DateTextInput } from '../../../components/wire/date-text-input';
 import type { ParticipantBasicInfo } from '../../../lib/api';
@@ -15,6 +15,14 @@ const GENDER_OPTIONS = [
   { value: '기타', label: '기타' },
   { value: '무응답', label: '무응답' },
 ];
+
+/** 빈칸 경고 검사 대상 7종 — 폼 name 과 금고 현재값 키. */
+const FIELD_NAMES = ['name', 'phone', 'email', 'birthDate', 'region', 'gender', 'account'] as const;
+type FieldName = (typeof FIELD_NAMES)[number];
+
+/** 값이 있던 칸을 비운 채 저장할 때 칸 아래 뜨는 경고(2026-08-07 Q — 구 상단 고정
+ *  안내 문장 대체). 첫 저장 시도는 막고, 같은 상태로 한 번 더 누르면 삭제로 진행한다. */
+const EMPTIED_WARNING = '빈칸으로 저장하면 항목이 삭제됩니다. 삭제하려면 저장을 한 번 더 누르세요.';
 
 export interface BasicInfoFormProps {
   basicInfo: ParticipantBasicInfo;
@@ -31,11 +39,47 @@ export interface BasicInfoFormProps {
  *
  * 값은 서버가 금고에서 복호화해 내려준 현재 상태이며(D3), 브라우저 임시본(localStorage 등)에
  * 담지 않는다 — 인테이크 임시본이 금고 값을 빼고 저장하는 것과 같은 규율이다(R3).
- * 빈 칸으로 저장하면 그 항목은 금고에서 지워진다.
+ *
+ * '저장' 버튼은 폼 밖(HERO 행동 줄 우측)이다(2026-08-07 Q) — form="basic-info-form" 으로
+ * 이 폼을 가리키므로 onSubmit 검사는 그대로 동작한다. 값이 있던 칸을 비운 채 저장하면
+ * 그 칸 아래 경고가 뜨고 한 번 더 눌러야 지워진다(조용한 금고 삭제 방지).
  */
 export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
+  const [warnedFields, setWarnedFields] = useState<FieldName[]>([]);
+
+  const initialValues: Record<FieldName, string> = {
+    name: basicInfo.name ?? '',
+    phone: basicInfo.phone ?? '',
+    email: basicInfo.email ?? '',
+    birthDate: basicInfo.birthDate ?? '',
+    region: basicInfo.region ?? '',
+    gender: basicInfo.gender ?? '',
+    account: basicInfo.account ?? '',
+  };
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const data = new FormData(event.currentTarget);
+    const emptied = FIELD_NAMES.filter(
+      (field) => initialValues[field].length > 0 && String(data.get(field) ?? '').trim().length === 0,
+    );
+    if (emptied.length === 0) {
+      setWarnedFields([]);
+      return; // 그대로 제출된다.
+    }
+    // 같은 칸 구성으로 이미 경고를 봤으면 두 번째 제출은 통과한다(삭제 의사 확인 완료).
+    const alreadyWarned = emptied.length === warnedFields.length
+      && emptied.every((field) => warnedFields.includes(field));
+    if (!alreadyWarned) {
+      event.preventDefault();
+      setWarnedFields(emptied);
+    }
+  }
+
+  const warningFor = (field: FieldName) =>
+    warnedFields.includes(field) ? { error: EMPTIED_WARNING } : {};
+
   return (
-    <form action={action}>
+    <form id="basic-info-form" action={action} onSubmit={handleSubmit}>
       {/* 낙관적 잠금 + 쓰기 컨텍스트. 둘 다 서버가 정해 준 값을 그대로 돌려보낸다 —
           화면이 참여 사업을 고르지 않는다. */}
       <input type="hidden" name="beneficiaryId" value={basicInfo.beneficiaryId} />
@@ -43,19 +87,19 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
       <input type="hidden" name="expectedVersion" value={String(basicInfo.version)} />
       <WireCard className="wire-form-card" title={<h2>기본정보</h2>}>
         <div className="wire-form-grid">
-          <WireFormField label="이름" htmlFor="basicInfoName">
+          <WireFormField label="이름" htmlFor="basicInfoName" {...warningFor('name')}>
             <input id="basicInfoName" name="name" type="text" maxLength={100} defaultValue={basicInfo.name ?? ''} />
           </WireFormField>
-          <WireFormField label="휴대전화" htmlFor="basicInfoPhone">
+          <WireFormField label="휴대전화" htmlFor="basicInfoPhone" {...warningFor('phone')}>
             <input id="basicInfoPhone" name="phone" type="tel" maxLength={32} defaultValue={basicInfo.phone ?? ''} />
           </WireFormField>
-          <WireFormField label="이메일" htmlFor="basicInfoEmail">
+          <WireFormField label="이메일" htmlFor="basicInfoEmail" {...warningFor('email')}>
             <input id="basicInfoEmail" name="email" type="email" maxLength={200} defaultValue={basicInfo.email ?? ''} />
           </WireFormField>
           {/* 레인 D: 등록 화면(register-form)과 **같은 부품**을 쓴다. 두 화면이 같은 값을
               다르게 받으면 다음 수정에서 갈라진다. 도움말은 WireFormField 의 hint 슬롯이
               그리고, DateTextInput 이 aria-describedby 로 그것을 가리킨다(KRDS). */}
-          <WireFormField label="생년월일" htmlFor="basicInfoBirthDate" hint={DATE_TEXT_HINT}>
+          <WireFormField label="생년월일" htmlFor="basicInfoBirthDate" hint={DATE_TEXT_HINT} {...warningFor('birthDate')}>
             <DateTextInput
               id="basicInfoBirthDate"
               name="birthDate"
@@ -67,10 +111,10 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
               describedBy="basicInfoBirthDate-hint"
             />
           </WireFormField>
-          <WireFormField label="주소 또는 거주지역" htmlFor="basicInfoRegion">
+          <WireFormField label="주소 또는 거주지역" htmlFor="basicInfoRegion" {...warningFor('region')}>
             <input id="basicInfoRegion" name="region" type="text" maxLength={200} defaultValue={basicInfo.region ?? ''} />
           </WireFormField>
-          <WireFormField label="성별" control="select" htmlFor="basicInfoGender">
+          <WireFormField label="성별" control="select" htmlFor="basicInfoGender" {...warningFor('gender')}>
             <select id="basicInfoGender" name="gender" defaultValue={basicInfo.gender ?? ''}>
               {GENDER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -81,15 +125,10 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
             label="계좌"
             htmlFor="basicInfoAccount"
             hint="지원금 입금 계좌입니다. 은행과 번호를 함께 적습니다."
+            {...warningFor('account')}
           >
             <input id="basicInfoAccount" name="account" type="text" maxLength={100} defaultValue={basicInfo.account ?? ''} />
           </WireFormField>
-        </div>
-        <p className="wire-form-hint">
-          빈 칸으로 저장하면 그 항목은 지워집니다. 저장 기록은 감사 로그에 남습니다.
-        </p>
-        <div className="wire-form-actions">
-          <WireButton type="submit" variant="primary">저장</WireButton>
         </div>
       </WireCard>
     </form>

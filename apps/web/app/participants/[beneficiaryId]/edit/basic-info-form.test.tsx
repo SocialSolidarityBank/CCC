@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { cleanup, render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { cleanup, render, fireEvent, waitFor } from '@testing-library/react';
 import { BasicInfoForm } from './basic-info-form';
 import type { ParticipantBasicInfo } from '../../../lib/api';
 
@@ -86,5 +86,79 @@ describe('BasicInfoForm (CCC-37 당사자 기본정보 수정)', () => {
     expect(stored).not.toContain('국민 000-00-0000');
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
+  });
+});
+
+/** React 는 액션 폼의 submit 을 스스로 가로채므로(defaultPrevented 로는 판정 불가)
+ *  게이트 판정은 **액션 호출 여부**로 한다. 액션은 transition 에서 비동기로 돌아
+ *  한 틱 기다린 뒤 확인한다. */
+async function flushActions() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+// 2026-08-07 Q: 값이 있던 칸을 비운 채 저장하면 그 칸 아래 경고가 뜨고 제출이 한 번 막힌다.
+// 같은 상태로 한 번 더 제출해야 통과한다 — 조용한 금고 삭제(빈칸 저장 = 항목 삭제) 방지 게이트다.
+describe('기본정보 수정 폼 — 빈칸 저장 경고 게이트 (2026-08-07)', () => {
+  it('값이 있던 칸을 비우면 첫 제출이 막히고 그 칸 아래 경고가 뜬다', async () => {
+    const action = vi.fn();
+    const { container } = render(<BasicInfoForm basicInfo={BASIC_INFO} action={action} />);
+    const form = container.querySelector('#basic-info-form') as HTMLFormElement;
+    const phone = container.querySelector('#basicInfoPhone') as HTMLInputElement;
+
+    fireEvent.change(phone, { target: { value: '' } });
+    fireEvent.submit(form);
+    await flushActions();
+
+    expect(action).not.toHaveBeenCalled(); // preventDefault — 서버 액션이 돌지 않는다.
+    const warning = container.querySelector('.wire-field-error');
+    expect(warning?.textContent).toContain('빈칸으로 저장하면 항목이 삭제됩니다');
+    // 경고는 비운 칸(휴대전화)에만 붙는다.
+    expect(container.querySelectorAll('.wire-field-error')).toHaveLength(1);
+  });
+
+  it('경고를 본 뒤 같은 상태로 한 번 더 제출하면 통과한다 (삭제 의사 확인)', async () => {
+    const action = vi.fn();
+    const { container } = render(<BasicInfoForm basicInfo={BASIC_INFO} action={action} />);
+    const form = container.querySelector('#basic-info-form') as HTMLFormElement;
+    const phone = container.querySelector('#basicInfoPhone') as HTMLInputElement;
+
+    fireEvent.change(phone, { target: { value: '' } });
+    fireEvent.submit(form);
+    await flushActions();
+    expect(action).not.toHaveBeenCalled();
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(1)); // 두 번째는 막지 않는다.
+  });
+
+  it('비운 칸을 되채우면 경고 게이트 없이 바로 제출된다', async () => {
+    const action = vi.fn();
+    const { container } = render(<BasicInfoForm basicInfo={BASIC_INFO} action={action} />);
+    const form = container.querySelector('#basic-info-form') as HTMLFormElement;
+    const phone = container.querySelector('#basicInfoPhone') as HTMLInputElement;
+
+    fireEvent.change(phone, { target: { value: '' } });
+    fireEvent.submit(form);
+    await flushActions();
+    expect(action).not.toHaveBeenCalled();
+
+    fireEvent.change(phone, { target: { value: '010-9999-0000' } });
+    fireEvent.submit(form);
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
+  });
+
+  it('처음부터 비어 있던 칸은 경고 대상이 아니다', async () => {
+    const action = vi.fn();
+    const empty: ParticipantBasicInfo = {
+      ...BASIC_INFO,
+      region: null,
+      account: null,
+    };
+    const { container } = render(<BasicInfoForm basicInfo={empty} action={action} />);
+    const form = container.querySelector('#basic-info-form') as HTMLFormElement;
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
+    expect(container.querySelectorAll('.wire-field-error')).toHaveLength(0);
   });
 });
