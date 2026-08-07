@@ -20,6 +20,11 @@ export default async function NewCounselingSchedulePage({
 }) {
   const query = await searchParams;
   const preselectTarget = queryValue(query, 'target');
+  // 등록 완료 안내(A2 일괄 검토 A1, 2026-08-08): 당사자 등록 액션이 notice=program_created 를
+  // 붙여 이 화면으로 보낸다 — 소비하는 곳이 없어 안내가 사라지고 있었다.
+  const noticeText = queryValue(query, 'notice') === 'program_created'
+    ? '당사자를 등록했습니다. 이어서 첫 상담 일정을 잡아 주세요.'
+    : undefined;
 
   let candidates: ScheduleWizardCandidate[] = [];
   let loadError: string | null = null;
@@ -55,6 +60,7 @@ export default async function NewCounselingSchedulePage({
       loadContext={loadScheduleContextAction}
       submit={createSchedulePlanAction}
       {...(preselectTarget === undefined ? {} : { preselectValue: preselectTarget })}
+      {...(noticeText === undefined ? {} : { noticeText })}
     />
   );
 }

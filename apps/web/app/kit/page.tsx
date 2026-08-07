@@ -349,7 +349,7 @@ export default function KitPage() {
               </svg>
               <p className="wire-empty-title">예정된 상담이 없습니다</p>
               <p className="wire-empty-desc">상담을 등록하면 이 자리에 날짜별로 모입니다.</p>
-              <WireButton variant="secondary" height="sm" align="center" href="/schedules/new">상담 등록</WireButton>
+              <WireButton variant="secondary" height="sm" align="center" href="/kit">상담 등록</WireButton>
             </div>
           </WireCard>
         </section>

@@ -251,7 +251,12 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels }: {
   );
 }
 
-async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
+/** 저장 결과 안내(일괄 검토 A4, 2026-08-08). 동의 저장 액션이 이 화면으로 notice 를 보낸다. */
+const NOTICES: Record<string, string> = {
+  consent_updated: '동의 내용을 저장했습니다.',
+};
+
+async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; notice?: string }) {
   const { programLabels } = await getDisplayLabels();
   // 진행 중을 먼저, 그 안에서는 사업명 순. 내 담당을 위로 올리지 않는다 — 사람 단위로
   // 무엇에 참여 중인지가 이 화면의 질문이고, 담당 여부는 카드 안에서 읽힌다.
@@ -271,9 +276,14 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
   const intakeTarget = programs.find((program) => program.authorized);
   const consentPrograms = programs.filter((program) => program.authorized);
 
+  const noticeText = notice === undefined ? undefined : NOTICES[notice];
+
   return (
     <main className="page-content">
       <GridContainer>
+        {noticeText !== undefined && (
+          <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
+        )}
         {/* ParticipantHeroCard (D38 · D59 개편 2026-08-04): 허브는 케이스가 교차하는 화면이라
             단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).
             이름은 h2(18) — 이미 '그 사람' 화면이라 페이지 제목 크기가 과했다. 연락처·가명
@@ -361,7 +371,7 @@ async function ParticipantHub({ detail }: { detail: ParticipantDetail }) {
   );
 }
 
-async function ParticipantContent({ beneficiaryId }: { beneficiaryId: string }) {
+async function ParticipantContent({ beneficiaryId, notice }: { beneficiaryId: string; notice?: string }) {
   if (!isBeneficiaryId(beneficiaryId)) return <ErrorState kind="access_or_not_found" />;
 
   try {
@@ -369,7 +379,7 @@ async function ParticipantContent({ beneficiaryId }: { beneficiaryId: string }) 
     if (detail.beneficiaryId !== beneficiaryId) {
       throw new Error('Participant detail response did not match the requested participant.');
     }
-    return <ParticipantHub detail={detail} />;
+    return <ParticipantHub detail={detail} {...(notice === undefined ? {} : { notice })} />;
   } catch (error) {
     const kind = error instanceof ApiError ? expectedApiErrorKind(error) : null;
     if (kind === null) throw error;
@@ -377,7 +387,17 @@ async function ParticipantContent({ beneficiaryId }: { beneficiaryId: string }) 
   }
 }
 
-export default async function ParticipantPage({ params }: { params: Promise<{ beneficiaryId: string }> }) {
+export default async function ParticipantPage({ params, searchParams }: {
+  params: Promise<{ beneficiaryId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { beneficiaryId } = await params;
-  return <Suspense fallback={<LoadingState />}><ParticipantContent beneficiaryId={beneficiaryId} /></Suspense>;
+  const query = await searchParams;
+  const noticeValue = query.notice;
+  const notice = typeof noticeValue === 'string' ? noticeValue : undefined;
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <ParticipantContent beneficiaryId={beneficiaryId} {...(notice === undefined ? {} : { notice })} />
+    </Suspense>
+  );
 }
