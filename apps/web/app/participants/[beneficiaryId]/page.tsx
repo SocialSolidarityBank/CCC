@@ -74,6 +74,11 @@ function recordsHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/records`;
 }
 
+/** 인테이크 확인·수정 화면(2026-08-08 Q). 주소는 전체 상담 기록의 하위다. */
+function intakeHref(beneficiaryId: string, supportCaseId: string): string {
+  return `${recordsHref(beneficiaryId, supportCaseId)}/intake`;
+}
+
 function LoadingState() {
   return (
     <main className="page-content" aria-busy="true">
@@ -271,8 +276,9 @@ async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; n
   // 버튼을 띄우면 "권한과 주소를 확인하세요"라는 엉뚱한 오류 화면으로 보낸다.
   const editable = programs.some((program) => program.authorized && program.status === 'active');
 
-  // 인테이크 기록의 입구(2026-08-06 Q) — 담당 사업 중 첫 번째(진행 중 우선 정렬)의 상담
-  // 기록으로 간다. 인테이크는 회차 목록의 1회차라 별도 화면이 없다(D47).
+  // 인테이크의 입구(2026-08-08 Q — 구 '인테이크 기록'→상담 기록 목록 대체). 확인·수정
+  // 화면으로 직행한다: 전체 상담 기록 버튼과 목적지가 같던 중복을 가른다. 담당 사업 중
+  // 첫 번째(진행 중 우선 정렬)가 대상이다.
   const intakeTarget = programs.find((program) => program.authorized);
   const consentPrograms = programs.filter((program) => program.authorized);
 
@@ -299,7 +305,7 @@ async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; n
           actions={
             <>
               {intakeTarget !== undefined && (
-                <WireButton href={recordsHref(detail.beneficiaryId, intakeTarget.id)}>인테이크 기록</WireButton>
+                <WireButton href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크</WireButton>
               )}
               {editable && (
                 <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>

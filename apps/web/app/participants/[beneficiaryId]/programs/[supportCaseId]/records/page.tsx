@@ -192,8 +192,11 @@ export default async function RecordHistoryPage({
       {...(beneficiaryId === null || supportCaseId === null ? {} : {
         actions: <>
           <WireButton variant="secondary" href={participantPath}>당사자 정보</WireButton>
+          {/* 인테이크가 없으면 첫 일은 인테이크다(1회 규칙). 있으면 프라이머리는 정기 기록으로
+              돌아가고, 인테이크 확인·수정 입구는 아래 목록의 인테이크 회차가 갖는다
+              (2026-08-08 Q — 구 '인테이크 작성' 라벨 대체). */}
           {result.data !== null && !hasIntake
-            ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크 작성</WireButton>
+            ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크</WireButton>
             : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록 작성</WireButton>}
         </>,
       })}
@@ -220,6 +223,7 @@ export default async function RecordHistoryPage({
       records={records}
       recordErrorSessionIds={recordErrorSessionIds}
       unavailable={result.data === null}
+      {...(beneficiaryId === null || supportCaseId === null ? {} : { intakeHref: `${basePath}/records/intake` })}
     />
   </GridContainer>;
 }

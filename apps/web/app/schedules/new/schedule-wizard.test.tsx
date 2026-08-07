@@ -151,7 +151,9 @@ describe('ScheduleWizard', () => {
     const alert = scoped.getByRole('alert');
     expect(alert.textContent).toContain('인테이크를 이미 마쳤습니다');
     const link = within(alert).getByRole('link');
-    expect(link.getAttribute('href')).toContain('/records/intake');
+    // 2026-08-08 Q: 인테이크 화면 직행은 전체 상담 기록·당사자 정보의 입구만 갖는다 —
+    // 이 경고 링크는 인테이크가 담긴 전체 상담 기록으로 간다(/records, intake 직행 아님).
+    expect(link.getAttribute('href')).toMatch(/\/records$/);
     // 경고일 뿐이므로 일시까지 채우면 다음으로 갈 수 있다.
     fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
     fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });

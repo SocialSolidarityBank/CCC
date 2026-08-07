@@ -2,6 +2,7 @@ import { MetaRow } from '../../../../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import { Icon } from '../../../../../components/wire/wire-icon';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
+import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../components/wire/wire-card';
 import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
 
@@ -93,11 +94,14 @@ export function RecordCard({
   ordinal,
   recordError,
   defaultOpen,
+  intakeHref,
 }: {
   record: SupportCaseRecord;
   ordinal: number;
   recordError: boolean;
   defaultOpen: boolean;
+  /** 인테이크 회차에만 온다 — 펼친 본문에서 확인·수정 화면으로 가는 입구(2026-08-08 Q). */
+  intakeHref?: string;
 }) {
   // 핵심 한 줄은 승인된 AI 산출물만(R2). 승인 전·녹음 없음·레거시면 수기 발췌로 낮추고
   // '수기' 배지를 단다(D5) — 브리핑 영역 ②와 같은 폴백이라 두 화면이 같은 문장을 보여준다.
@@ -124,6 +128,11 @@ export function RecordCard({
     </summary>
 
     <div className="record-body">
+      {/* 인테이크 진입은 전체 상담 기록 안이다(2026-08-08 Q — 사이트맵상 이 목록의 하위).
+          질문지 답변은 이 목록에 펴지 않고 확인·수정 화면이 정본을 보여준다. */}
+      {record.kind === 'intake' && intakeHref !== undefined && <p className="record-intake-entry">
+        <WireButton variant="secondary" href={intakeHref}>인테이크 확인·수정</WireButton>
+      </p>}
       {/* 불일치 처리 '기록 오류'의 흔적 (D45 · ADR-0018 · CCC-42). 원본은 손대지 않고 표시만
           붙여 다음 열람자의 오해를 막는다 — 정정이 필요하면 실무자가 따로 기록한다.
           상자가 아니라 플랫 한 줄이다 — 카드 안에 상자를 두지 않는다(카드 안 카드 금지). */}
@@ -180,10 +189,13 @@ export function RecordList({
   records,
   recordErrorSessionIds,
   unavailable,
+  intakeHref,
 }: {
   records: SupportCaseRecord[];
   recordErrorSessionIds: ReadonlySet<string>;
   unavailable: boolean;
+  /** 인테이크 확인·수정 화면(2026-08-08 Q — 인테이크 진입은 이 목록 안이다). */
+  intakeHref?: string;
 }) {
   if (unavailable) {
     return <section className="record-list" aria-label="상담 기록 목록">
@@ -209,6 +221,7 @@ export function RecordList({
       recordError={recordErrorSessionIds.has(record.id)}
       // 최신 1개만 펼친 채 온다. 나머지는 브리핑 앵커나 클릭으로 열린다.
       defaultOpen={index === 0}
+      {...(record.kind === 'intake' && intakeHref !== undefined ? { intakeHref } : {})}
     />)}
   </section>;
 }

@@ -608,6 +608,20 @@ export interface IntakeRecordContext {
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫.
   consent: { privacy: boolean; recordingAi: boolean };
+  // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 일 때만 온다.
+  saved: IntakeSavedRecord | null;
+}
+
+// 저장된 인테이크의 위저드 소유분 — 수정 화면 프리필 재료.
+export interface IntakeSavedRecord {
+  sessionId: string;
+  heldAt: string;
+  channel: 'in_person' | 'phone' | 'video';
+  answers: IntakeAnswerInput[];
+  debts: Array<Record<string, string>>;
+  linkedOrgs: Array<Record<string, string>>;
+  additionalItems: Array<Record<string, string>>;
+  managerOpinion: string | null;
 }
 
 // 인테이크 6영역 기준선(P1): 6영역 전부 상태 직접 입력('변화 없음' 없음).
@@ -1604,6 +1618,76 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
         recordingAi: responseBoolean(consent, 'recordingAi'),
       };
     })(),
+    // 배포 2단위(web·api)가 순차로 구르는 짧은 시차에 구 API 응답(saved 없음)을 만나도
+    // 화면이 죽지 않게 없으면 null 로 낮춘다 — 새 API 는 항상 싣는다.
+    saved: 'saved' in record ? decodeIntakeSavedRecord(record.saved) : null,
+  };
+}
+
+/** 저장된 인테이크 내용 해독(2026-08-08). 표 행은 문자열 칸만 살린다 — 파손 JSON 방어. */
+function decodeIntakeSavedRecord(value: unknown): IntakeSavedRecord | null {
+  if (value === null || value === undefined) return null;
+  const record = responseObject(value);
+  const stringRows = (raw: unknown): Array<Record<string, string>> => (
+    Array.isArray(raw)
+      ? raw.map((row) => Object.fromEntries(
+        Object.entries(responseObject(row)).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      ))
+      : []
+  );
+  const rawAnswers = responseProperty(record, 'answers');
+  const answers: IntakeAnswerInput[] = !Array.isArray(rawAnswers) ? [] : rawAnswers.flatMap((entry) => {
+    const answer = responseObject(entry);
+    const key = answer.key;
+    const response = answer.response;
+    if (typeof key !== 'string' || !(intakeAnswerKeys as readonly string[]).includes(key)) return [];
+    if (typeof response !== 'string' || !(intakeAnswerResponses as readonly string[]).includes(response)) return [];
+    return [{
+      key: key as IntakeAnswerKey,
+      response: response as IntakeAnswerResponse,
+      ...(typeof answer.text === 'string' ? { text: answer.text } : {}),
+    }];
+  });
+  return {
+    sessionId: responseString(record, 'sessionId'),
+    heldAt: responseString(record, 'heldAt'),
+    channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
+    answers,
+    debts: stringRows(responseProperty(record, 'debts')),
+    linkedOrgs: stringRows(responseProperty(record, 'linkedOrgs')),
+    additionalItems: stringRows(responseProperty(record, 'additionalItems')),
+    managerOpinion: responseNullableString(record, 'managerOpinion'),
+  };
+}
+
+/** 인테이크 수정 입력(2026-08-08 Q "확인/수정") — 위저드 소유분만. */
+export interface UpdateIntakeRecordInput {
+  heldAt: string;
+  channel: SupportCaseRecord['channel'];
+  answers?: IntakeAnswerInput[];
+  additionalItems?: IntakeAdditionalItemInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
+  managerOpinion?: string;
+}
+
+export async function updateIntakeRecord(
+  supportCaseId: string,
+  input: UpdateIntakeRecordInput,
+): Promise<{ record: CreatedIntakeRecord }> {
+  const result = responseObject(await jsonRequest<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/records/intake`,
+    'PUT',
+    input,
+  ));
+  const record = responseObject(responseProperty(result, 'record'));
+  return {
+    record: {
+      id: responseString(record, 'id'),
+      heldAt: responseString(record, 'heldAt'),
+      channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
+      kind: responseEnum(responseProperty(record, 'kind'), sessionKinds),
+    },
   };
 }
 

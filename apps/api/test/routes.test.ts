@@ -2302,6 +2302,103 @@ describe('canonical participant API routes', () => {
     ), t.env);
     expect(denied.status).toBe(403);
   });
+  it('serves the saved intake in the context and updates it in place (2026-08-08 확인·수정)', async () => {
+    const creation = await setupCanonicalParticipant();
+
+    // 인테이크가 없으면 수정은 409 — 만들기 1회 규칙의 짝(수정은 있는 것만).
+    const beforeCreate = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      {
+        method: 'PUT',
+        headers: canonicalCounselorHeaders,
+        body: JSON.stringify({ heldAt: '2026-07-15T09:30:00.000Z', channel: 'in_person' }),
+      },
+    ), t.env);
+    expect(beforeCreate.status).toBe(409);
+
+    const created = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      {
+        method: 'POST',
+        headers: canonicalCounselorHeaders,
+        body: JSON.stringify({
+          submissionId: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3',
+          heldAt: '2026-07-15T09:30:00.000Z',
+          channel: 'in_person',
+          answers: [{ key: 'counsel_method', response: 'answered', text: '대면 상담(내방)' }],
+          debts: [{ creditor: '해당 없음' }],
+          managerOpinion: 'INTAKE_OPINION_V1',
+        }),
+      },
+    ), t.env);
+    expect(created.status).toBe(201);
+    const createdBody = await created.json() as { record: { id: string } };
+
+    // 컨텍스트가 저장분을 싣는다 — 확인 화면의 재료(감사는 화면 조회 1건에 합산).
+    const context = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    await expect(context.json()).resolves.toMatchObject({
+      hasIntake: true,
+      saved: {
+        sessionId: createdBody.record.id,
+        heldAt: '2026-07-15T09:30:00.000Z',
+        channel: 'in_person',
+        answers: [{ key: 'counsel_method', response: 'answered', text: '대면 상담(내방)' }],
+        debts: [{ creditor: '해당 없음' }],
+        managerOpinion: 'INTAKE_OPINION_V1',
+      },
+    });
+
+    // 수정: 상담일·답변·의견을 덮어쓴다. 같은 세션 행이 그대로 남는다(새 회차 아님).
+    const updated = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      {
+        method: 'PUT',
+        headers: canonicalCounselorHeaders,
+        body: JSON.stringify({
+          heldAt: '2026-07-16T10:00:00.000Z',
+          channel: 'phone',
+          answers: [{ key: 'counsel_method', response: 'answered', text: '전화 상담' }],
+          debts: [{ creditor: 'OO은행', kind: '신용대출' }],
+          managerOpinion: 'INTAKE_OPINION_V2',
+        }),
+      },
+    ), t.env);
+    expect(updated.status).toBe(200);
+    await expect(updated.json()).resolves.toMatchObject({
+      record: { id: createdBody.record.id, heldAt: '2026-07-16T10:00:00.000Z', channel: 'phone', kind: 'intake' },
+    });
+
+    const contextAfter = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    await expect(contextAfter.json()).resolves.toMatchObject({
+      // 회차가 늘지 않았다(수정은 덮어쓰기) — sessionSequence = 기존 1 + 1.
+      sessionSequence: 2,
+      saved: {
+        sessionId: createdBody.record.id,
+        heldAt: '2026-07-16T10:00:00.000Z',
+        channel: 'phone',
+        answers: [{ key: 'counsel_method', response: 'answered', text: '전화 상담' }],
+        debts: [{ creditor: 'OO은행', kind: '신용대출' }],
+        managerOpinion: 'INTAKE_OPINION_V2',
+      },
+    });
+
+    // 담당 아닌 실무자는 수정할 수 없다(403) — 읽기와 같은 경계다(D7).
+    const denied = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      {
+        method: 'PUT',
+        headers: canonicalUnassignedHeaders,
+        body: JSON.stringify({ heldAt: '2026-07-17T10:00:00.000Z', channel: 'in_person' }),
+      },
+    ), t.env);
+    expect(denied.status).toBe(403);
+  });
   it('returns 409 for a conflicting canonical SupportCase receipt without state mutation', async () => {
     const creation = await setupCanonicalParticipant();
     const requestBody = {

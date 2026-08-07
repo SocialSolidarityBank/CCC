@@ -18,10 +18,12 @@ import type {
   ScheduleContextResult,
 } from '../../actions';
 
-/** 기존 인테이크 기록지 경로. 경고에서 "그럼 그건 어디 있나"를 답한다. */
+/** 기존 인테이크가 담긴 전체 상담 기록 경로. 경고에서 "그럼 그건 어디 있나"를 답한다.
+ *  인테이크 확인·수정 화면 직행은 전체 상담 기록·당사자 정보의 입구만 갖는다(2026-08-08 Q
+ *  — 구 records/intake 직행 대체). */
 function intakeRecordHref(candidate: ScheduleWizardCandidate): string {
   return `/participants/${encodeURIComponent(candidate.beneficiaryId)}`
-    + `/programs/${encodeURIComponent(candidate.supportCaseId)}/records/intake`;
+    + `/programs/${encodeURIComponent(candidate.supportCaseId)}/records`;
 }
 
 export interface ScheduleWizardCandidate {
