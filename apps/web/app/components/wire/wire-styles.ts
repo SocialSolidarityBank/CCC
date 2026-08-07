@@ -257,7 +257,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-chevron[data-dir="left"]{transform:translateX(3px) rotate(135deg)}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 .wire-card{padding:var(--space-6)}
-.wire-card-title{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
+/* 카드 제목은 16/600 이다(2026-08-07 Q "wire-card-title 폰트 크기 줄일 것" — 구 18 대체.
+   18 은 카드 여러 장을 묶는 섹션 제목(h2, .record-section-title 류)의 몫으로 올라간다). */
+.wire-card-title{margin:0;font-size:var(--text-md);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
 /* 제목 슬롯에 시맨틱 헤딩(h2 카드 제목·h3 소절 제목)이 들어와도 크기는 카드 제목 계약을
    따른다 — UA 기본 크기가 새지 않게 한다(인테이크 소절 2026-08-05, h2 는 2026-08-07
    기본정보 수정의 카드 안 두 번째 구획 제목에서 추가). */
