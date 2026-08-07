@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 import {
   ApiError,
   getParticipantDetail,
@@ -8,7 +9,9 @@ import {
 } from '../../lib/api';
 import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
+import { PageTitle } from '../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
+import { Chevron } from '../../components/wire/chevron';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
@@ -225,32 +228,54 @@ const scheduleKindLabels: Record<'regular' | 'intake', string> = {
 /** 최신 일정 카드(2026-08-06 Q · 2026-08-07 가로 행 개편) — 담당 사업들의 예정 일정 중
  *  가장 이른 1건. 행 문법은 브리핑 '상담 내용 회차별 정리'와 같다: 날짜 · 상담 종류 뱃지 ·
  *  참여 사업, 오른쪽 끝에 상담 준비 버튼. 날짜는 공용 표기(년 월 일 오전/오후 시간)다. */
-function NextScheduleCard({ beneficiaryId, programs, programLabels }: {
+function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarget }: {
   beneficiaryId: string;
   programs: ParticipantProgram[];
   programLabels: Record<ParticipantProgramType, string>;
+  /** 전체 상담 기록 버튼의 대상 사업(2026-08-08 Q — 담당 사업이 없으면 버튼도 없다). */
+  recordsTarget: ParticipantProgram | undefined;
 }) {
   const candidates = programs
     .filter((program) => program.upcomingSchedule !== null)
     .sort((left, right) => left.upcomingSchedule!.scheduledAt.localeCompare(right.upcomingSchedule!.scheduledAt));
-  const next = candidates[0];
 
   return (
-    <WireCard as="section" className="participant-hub-card" title="최신 일정">
-      {next === undefined || next.upcomingSchedule === null ? (
+    <WireCard
+      as="section"
+      className="participant-hub-card"
+      // '전체 상담 기록' 입구는 이 카드 제목 줄 우측이다(2026-08-08 Q — HERO 는 D38 상한
+      // 2개가 찼다. 동의서 카드의 '저장'과 같은 자리 문법).
+      title={
+        recordsTarget === undefined ? '최신 일정' : (
+          <div className="wire-card-head">
+            <span>최신 일정</span>
+            <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
+          </div>
+        )
+      }
+    >
+      {candidates.length === 0 ? (
         <div className="participant-next-schedule-row">
           <p className="participant-program-meta">예정된 상담이 없습니다.</p>
           <WireButton href="/schedules/new">상담 등록</WireButton>
         </div>
       ) : (
-        <div className="participant-next-schedule-row">
-          <span className="participant-next-schedule-date">
-            {formatKoreanDateTime(next.upcomingSchedule.scheduledAt)}
-          </span>
-          <WireBadge tone="blue">{scheduleKindLabels[next.upcomingSchedule.sessionKind]}</WireBadge>
-          <span className="participant-next-schedule-program">{programName(programLabels, next.programType)}</span>
-          <WireButton href={briefingHref(beneficiaryId, next.id)} variant="primary">상담 준비</WireButton>
-        </div>
+        // 행 전체가 브리핑으로 가는 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체).
+        // 여러 사업의 예정 일정이 시각순으로 전부 선다. 꺽쇠는 이동 어휘의 그레이 꺽쇠.
+        candidates.map((candidate) => (
+          <Link
+            key={candidate.id}
+            className="participant-next-schedule-row participant-next-schedule-link"
+            href={briefingHref(beneficiaryId, candidate.id)}
+          >
+            <span className="participant-next-schedule-date">
+              {formatKoreanDateTime(candidate.upcomingSchedule!.scheduledAt)}
+            </span>
+            <WireBadge tone="blue">{scheduleKindLabels[candidate.upcomingSchedule!.sessionKind]}</WireBadge>
+            <span className="participant-next-schedule-program">{programName(programLabels, candidate.programType)}</span>
+            <Chevron dir="right" />
+          </Link>
+        ))
       )}
     </WireCard>
   );
@@ -287,6 +312,8 @@ async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; n
   return (
     <main className="page-content">
       <GridContainer>
+        {/* 페이지 타이틀(2026-08-08 Q "모든 페이지 상단에 페이지 타이틀"). */}
+        <div className="page-header"><PageTitle>당사자 정보</PageTitle></div>
         {noticeText !== undefined && (
           <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
         )}
@@ -333,6 +360,7 @@ async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; n
               beneficiaryId={detail.beneficiaryId}
               programs={programs}
               programLabels={programLabels}
+              recordsTarget={intakeTarget}
             />
             {/* 동의서는 맨 아래다(2026-08-06 Q — 구 사업 카드 안 동의 묶음 대체). 저장 단위는
                 여전히 참여 사업이라(D44) 담당 사업마다 한 묶음씩 서고, 사업이 여럿이면

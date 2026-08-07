@@ -5,6 +5,7 @@ import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
+import { PageTitle } from '../../../../../../components/wire/page-title';
 import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
@@ -674,6 +675,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
   return (
     <main className="page-content">
+      {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
+      <div className="page-header"><PageTitle>인테이크</PageTitle></div>
       <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }}>
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.

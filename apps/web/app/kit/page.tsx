@@ -221,7 +221,7 @@ export default function KitPage() {
             <WireBadge tone="lavender">승인 대기 2건</WireBadge>
             <WireBadge tone="blue">3회차</WireBadge>
             <WireBadge tone="risk">확인 필요</WireBadge>
-            <button type="button" className="wire-status-tag">상담 준비</button>
+            <button type="button" className="wire-status-tag">15초 페이지</button>
           </div>
         </section>
 

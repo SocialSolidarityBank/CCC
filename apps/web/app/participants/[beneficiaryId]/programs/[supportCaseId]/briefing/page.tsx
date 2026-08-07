@@ -4,6 +4,7 @@ import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { PageTitle } from '../../../../../components/wire/page-title';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { BriefingCards } from './briefing-cards';
@@ -21,9 +22,9 @@ function queryValue(params: SearchParams, name: string): string | undefined {
 type ErrorKind = 'authentication_required' | 'access_or_not_found' | 'service_unavailable';
 
 const errorMessages: Record<ErrorKind, string> = {
-  authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 상담 준비를 확인하세요.',
-  access_or_not_found: '요청한 상담 준비 정보를 확인할 수 없습니다. 접근 권한과 주소를 확인하세요.',
-  service_unavailable: '상담 준비를 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.',
+  authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 15초 페이지를 확인하세요.',
+  access_or_not_found: '요청한 15초 페이지 정보를 확인할 수 없습니다. 접근 권한과 주소를 확인하세요.',
+  service_unavailable: '15초 페이지를 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.',
 };
 
 function expectedApiErrorKind(error: ApiError): ErrorKind | null {
@@ -60,15 +61,15 @@ function recordNewHref(beneficiaryId: string, supportCaseId: string): string {
 // 상담 일정(홈)으로 돌아가는 상단 '목록으로' 링크의 목적지.
 
 function LoadingState() {
-  return <main className="page-content" aria-busy="true"><header className="page-header"><div><h1>상담 준비</h1><p>승인된 상담 기록을 불러오는 중입니다.</p></div></header><div className="empty" role="status" aria-live="polite">상담 준비를 불러오는 중입니다.</div></main>;
+  return <main className="page-content" aria-busy="true"><header className="page-header"><div><h1>15초 페이지</h1><p>승인된 상담 기록을 불러오는 중입니다.</p></div></header><div className="empty" role="status" aria-live="polite">15초 페이지를 불러오는 중입니다.</div></main>;
 }
 
 function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: ErrorKind }) {
-  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
+  return <main className="page-content"><header className="page-header"><div><h1>15초 페이지</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
 }
 
 function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {
-  return <main className="page-content"><header className="page-header"><div><h1>상담 준비</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="surface-card panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
+  return <main className="page-content"><header className="page-header"><div><h1>15초 페이지</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="surface-card panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
 }
 
 async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { beneficiaryId: string; supportCaseId: string; notice: string | undefined }) {
@@ -91,6 +92,8 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
     // 여백 없이 1200 으로 벌어진다(2026-07-26 실측으로 확인).
     return (
       <GridContainer as="main" className="page-content">
+        {/* 페이지 타이틀(2026-08-08 Q — 이 화면의 이름은 '15초 페이지'다, 구 '상담 준비'). */}
+        <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
         <IntakeSavedNotice notice={notice} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
         <BriefingCards
           beneficiaryId={beneficiaryId}

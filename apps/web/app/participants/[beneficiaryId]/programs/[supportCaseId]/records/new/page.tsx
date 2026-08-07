@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createCounselingRecordAction } from '../../../../../../actions';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
+import { PageTitle } from '../../../../../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
@@ -435,6 +436,8 @@ export default async function NewRecordPage({
   ].filter((item): item is string => item !== null);
 
   return <main className="page-content">
+    {/* 페이지 타이틀(2026-08-08 Q — 구 '상담 시작' 어휘 대체, 화면 이름은 '상담 기록'). */}
+    <div className="page-header"><PageTitle>상담 기록</PageTitle></div>
     {/* ParticipantHeroCard (D38): 이 화면도 URL 이 당사자 한 명을 가리키므로 공통 머리를
         단다 — 상담 기록 읽기 화면만 갖고 있던 것을 쓰기 화면에도 맞춘다.
         함께 없앤 것(둘 다 이미 확정된 결정인데 이 화면만 남아 있었다):

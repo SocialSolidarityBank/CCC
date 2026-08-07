@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { PageTitle } from '../../../../../components/wire/page-title';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
@@ -126,7 +127,7 @@ function OverallGoalRow({ overallGoal, briefingHref }: { overallGoal: string | n
       {overallGoal === null || overallGoal.length === 0
         // 일괄 검토 A10 (2026-08-08): 이 화면에서 브리핑으로 가는 길이 없어 문구를 링크로 승격.
         // 인라인 참조는 텍스트 링크가 맞다(D58 ⑥).
-        ? <p className="record-goal-text is-empty">아직 설정 전입니다. <Link href={briefingHref}>상담 준비 화면</Link>에서 설정할 수 있습니다.</p>
+        ? <p className="record-goal-text is-empty">아직 설정 전입니다. <Link href={briefingHref}>15초 페이지</Link>에서 설정할 수 있습니다.</p>
         : <p className="record-goal-text">{overallGoal}</p>}
     </div>
   </WireCard>;
@@ -178,6 +179,8 @@ export default async function RecordHistoryPage({
   ].filter((item): item is string => item !== null);
 
   return <GridContainer as="main" className="page-content">
+    {/* 페이지 타이틀(2026-08-08 Q). 이 화면의 이름은 '전체 상담 기록'이다 — 용어 통일. */}
+    <div className="page-header"><PageTitle>전체 상담 기록</PageTitle></div>
     <RecordHashOpener />
     {/* ParticipantHeroCard (D38): 케이스 1개를 보는 화면이라 상태 태그가 필수다(슬롯 ②).
         브레드크럼은 이 카드가 대체한다 — 출구는 왼쪽 세컨더리 하나다(D35).

@@ -234,6 +234,15 @@ details.surface-card{overflow:clip}
 .participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--control-height)}
 .participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 .participant-next-schedule-row>.wire-button{margin-left:auto}
+/* 행 전체가 브리핑 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체). 꺽쇠는 오른쪽 끝
+   세로 중앙(이동 어휘의 그레이 꺽쇠), 여러 행이면 --line 가로선으로 갈리고 상하 12 씩
+   눌러 클릭 면을 벌린다. 호버는 면 호버 tint 쌍(D60 ④ — 행 배경 --muted). */
+/* 좌우 -12 는 사이드바 알약과 같은 트릭 — 호버 면을 글자 밖까지 벌리되 글자는 카드
+   좌측선(24)에 남긴다. */
+.participant-next-schedule-link{padding:var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.participant-next-schedule-link>.wire-chevron{margin-left:auto}
+.participant-next-schedule-link+.participant-next-schedule-link{border-top:1px solid var(--line)}
+@media (hover:hover){.participant-next-schedule-link:hover{background:var(--muted)}}
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
    (구분선 계약은 행이 한 컨테이너 안에 붙어 있을 때 성립한다 — 이 차이는 STATUS 에 남긴다).

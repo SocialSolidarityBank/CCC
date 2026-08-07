@@ -192,10 +192,10 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="questions-title"
-        title={<><h2 id="questions-title">오늘 확인할 질문</h2><p className="panel-meta">일정에 등록한 맞춤형 질문입니다. 체크는 진행 표시용이며 저장하지 않습니다. AI가 만든 질문은 상담 준비 화면에서 확인하세요.</p></>}
+        title={<><h2 id="questions-title">오늘 확인할 질문</h2><p className="panel-meta">일정에 등록한 맞춤형 질문입니다. 체크는 진행 표시용이며 저장하지 않습니다. AI가 만든 질문은 15초 페이지에서 확인하세요.</p></>}
       >
         {customQuestions.length === 0
-          ? <p className="empty"><span>등록된 맞춤형 질문이 없습니다. <Link href={briefingPath}>상담 준비 화면</Link>에서 질문을 확인하세요.</span></p>
+          ? <p className="empty"><span>등록된 맞춤형 질문이 없습니다. <Link href={briefingPath}>15초 페이지</Link>에서 질문을 확인하세요.</span></p>
           : <fieldset className="wire-fieldset"><legend>질문 체크리스트</legend>
             <div className="wire-choice-group" data-layout="stack">
               {customQuestions.map((question, index) => <WireChoice key={index} label={question} type="checkbox" />)}
