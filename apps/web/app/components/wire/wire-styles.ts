@@ -349,7 +349,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    datetime-fields 가 이미 쓰는 패턴이다. */
 .wire-input-box>input:focus-visible,.wire-input-box>select:focus-visible,.wire-input-box>textarea:focus-visible{outline:none}
 .wire-input-box[data-invalid="true"]{border:1.5px solid var(--risk)}
-.wire-form-hint{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
+/* 도움말은 12(--text-xs)다(2026-08-07 Q "작게 표시해야 할 설명 문구는 12px 전역 통일"). */
+.wire-form-hint{font-size:var(--text-xs);font-weight:400;color:var(--sub)}
 .wire-form-hint a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
 /* 폼을 담은 카드는 본문 간격을 한 단 넓힌다 — 입력칸은 라벨·도움말을 달고 있어
    정보 카드(12)의 간격으로는 항목 경계가 안 읽힌다. */

@@ -648,7 +648,8 @@ const scheduleStyles = `
 .wire-row.schedule-candidate-row{font-weight:400}
 .schedule-candidate-name{font-weight:600}
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
-.schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-sm)}
+/* 도움말 문구는 12(--text-xs, 2026-08-07 Q 전역 통일) — .wire-form-hint 와 같은 역할이다. */
+.schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
 .schedule-form-notice{color:var(--ink);font-weight:600}
 .schedule-form-error{color:var(--risk);font-weight:600}

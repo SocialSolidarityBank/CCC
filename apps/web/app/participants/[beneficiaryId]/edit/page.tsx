@@ -84,8 +84,17 @@ function EditScreen({
             합침'을 같은 날 재개정. 전체 일정의 제목+행동 줄과 같은 문법). 폼은 아래에서
             기본 정보·추가 정보 **카드 2장**으로 갈린다. D38(공통 HERO 부품)의 화면 단위
             예외인 것은 그대로다(DESIGN.md §5 기록). '저장'은 폼 밖이라 form 속성으로 잇는다. */}
+        {/* 이름 옆 가명 ID(2026-08-07 Q 6차 — 허브 HERO 와 같은 옅은 그레이 대조값).
+            이름·ID·저장이 한 줄 세로 중앙에 선다: 제목 묶음은 .participant-hero-title(flex
+            center), 줄 전체는 .page-header(align-items:center)가 맞춘다.
+            이름 폴백이 이미 ID 인 경우(무응답·파기)는 같은 값을 두 번 적지 않는다. */}
         <div className="page-header">
-          <h1><ParticipantName name={basicInfo.name} beneficiaryId={basicInfo.beneficiaryId} size="hero" /></h1>
+          <h1 className="participant-hero-title">
+            <ParticipantName name={basicInfo.name} beneficiaryId={basicInfo.beneficiaryId} size="hero" />
+            {basicInfo.name !== null && basicInfo.name.length > 0 && (
+              <span className="participant-hero-id">{basicInfo.beneficiaryId}</span>
+            )}
+          </h1>
           <div className="page-actions">
             <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
           </div>
