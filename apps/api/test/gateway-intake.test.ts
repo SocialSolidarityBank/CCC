@@ -6,6 +6,7 @@ import {
   type CreateIntakeRecordInput,
   createBeneficiaryWithInitialSupportCase,
   createIntakeRecord,
+  updateIntakeRecord,
   getIntakeRecordContext,
   getParticipantBasicInfo,
   updateParticipantPii,
@@ -126,6 +127,66 @@ describe('createIntakeRecord', () => {
     const records = await listCounselingRecords(t.env, canonicalActors.counselor, initial.supportCaseId);
     expect(records).toHaveLength(1);
     expect(records[0]?.kind).toBe('intake');
+  });
+
+  // CCC-56: intake_at 은 "인테이크 완료 시각"이다 — 등록이 아니라 인테이크 기록 저장이 채우고,
+  // 상담일을 고치면 따라간다.
+  it('registration leaves intake_at NULL until the intake record fills it with held_at (CCC-56)', async () => {
+    await t.reset();
+    await seedCanonicalDirectory();
+    const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
+      programType: 'financial_support_v1',
+    });
+    const beforeIntake = await t.db.prepare(
+      'SELECT intake_at FROM support_cases WHERE id = ?',
+    ).bind(initial.supportCaseId).first<{ intake_at: string | null }>();
+    expect(beforeIntake?.intake_at).toBeNull();
+
+    await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
+    const afterIntake = await t.db.prepare(
+      'SELECT intake_at FROM support_cases WHERE id = ?',
+    ).bind(initial.supportCaseId).first<{ intake_at: string | null }>();
+    expect(afterIntake?.intake_at).toBe('2026-07-15T10:00:00.000Z');
+  });
+
+  it('overrides a harness-provided creation intakeAt with the real held_at (CCC-56)', async () => {
+    await t.reset();
+    const initial = await seedCase(); // 하네스가 등록 시점에 09:00 을 싣는다(선택 인자).
+    await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
+    const row = await t.db.prepare(
+      'SELECT intake_at FROM support_cases WHERE id = ?',
+    ).bind(initial.supportCaseId).first<{ intake_at: string | null }>();
+    expect(row?.intake_at).toBe('2026-07-15T10:00:00.000Z');
+  });
+
+  it('keeps intake_at in sync when the intake edit changes the held date (CCC-56)', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
+
+    await updateIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
+      heldAt: '2026-07-20T14:00:00.000Z',
+      channel: 'phone',
+    });
+    const row = await t.db.prepare(
+      'SELECT intake_at FROM support_cases WHERE id = ?',
+    ).bind(initial.supportCaseId).first<{ intake_at: string | null }>();
+    expect(row?.intake_at).toBe('2026-07-20T14:00:00.000Z');
+  });
+
+  it('does not move intake_at when an unassigned counselor attempts the edit (CCC-56)', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
+
+    await expect(updateIntakeRecord(t.env, canonicalActors.secondCounselor, initial.supportCaseId, {
+      heldAt: '2026-07-21T09:00:00.000Z',
+      channel: 'in_person',
+    })).rejects.toBeInstanceOf(ForbiddenError);
+    const row = await t.db.prepare(
+      'SELECT intake_at FROM support_cases WHERE id = ?',
+    ).bind(initial.supportCaseId).first<{ intake_at: string | null }>();
+    expect(row?.intake_at).toBe('2026-07-15T10:00:00.000Z');
   });
 
   it('records audit rows for the session, each goal, and the consent', async () => {

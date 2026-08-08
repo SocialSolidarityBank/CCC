@@ -133,7 +133,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     const response = await worker.fetch(new Request('http://localhost/participants', {
       method: 'POST',
       headers: headersFor(counselor),
-      body: JSON.stringify({ programType: 'financial_support_v1', intakeAt: INTAKE_AT }),
+      body: JSON.stringify({ programType: 'financial_support_v1' }),
     }), t.env);
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'privacy_consent_required' });
@@ -146,7 +146,6 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       headers: headersFor(counselor),
       body: JSON.stringify({
         programType: 'financial_support_v1',
-        intakeAt: INTAKE_AT,
         consentPrivacy: false,
         emergencyReason: '',
       }),

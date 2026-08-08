@@ -173,16 +173,23 @@ async function assertInvariants(replayDb: D1Database, checks: string[]): Promise
   }
   checks.push(`active goals per case <= 3 (max ${activeGoalsMax})`);
 
-  // 세션별 점수 1~3 & 모든 점수 goal 이 세션 케이스에 귀속.
+  // 세션별 점수: 정기 회차는 1~3, 인테이크는 0 (CCC-56 — 실흐름의 인테이크 위저드는
+  // 채점하지 않는다. 채점은 정기 기록부터다). 모든 점수 goal 은 세션 케이스에 귀속.
   const perSession = await selectAll(
     replayDb,
-    `SELECT s.id AS session_id, s.support_case_id AS case_id, COUNT(sgs.id) AS score_count
+    `SELECT s.id AS session_id, s.support_case_id AS case_id, s.kind AS kind, COUNT(sgs.id) AS score_count
      FROM sessions s
      LEFT JOIN session_goal_scores sgs ON sgs.session_id = s.id
-     GROUP BY s.id, s.support_case_id`,
+     GROUP BY s.id, s.support_case_id, s.kind`,
   );
   for (const row of perSession) {
     const count = Number(row.score_count);
+    if (String(row.kind) === 'intake') {
+      if (count !== 0) {
+        throw new Error(`[seed] 불변식 위반: 인테이크 세션 ${String(row.session_id)} 점수 수 ${count} (0 아님)`);
+      }
+      continue;
+    }
     if (count < 1 || count > 3) {
       throw new Error(`[seed] 불변식 위반: 세션 ${String(row.session_id)} 점수 수 ${count} (1~3 아님)`);
     }

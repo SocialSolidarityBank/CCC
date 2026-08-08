@@ -164,7 +164,6 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
       consentPrivacy: true,
       consentRecordingAi: true,
@@ -183,7 +182,6 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       // ② 미동의 경로는 G1·D49 이후에도 불변이다 — 막히는 것은 ① 뿐이다.
       consentPrivacy: true,
       consentRecordingAi: false,
@@ -200,7 +198,7 @@ describe('POST /participants consent contract (티켓 #19)', () => {
   // 등록"이 아니라 **거부**다. 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다.
   it('rejects a payload that omits the privacy consent (G1 하드 게이트)', async () => {
     await t.reset();
-    const response = await register({ programType: 'financial_support_v1', intakeAt: INTAKE_AT });
+    const response = await register({ programType: 'financial_support_v1' });
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'privacy_consent_required' });
     const created = await t.db.prepare('SELECT COUNT(*) AS count FROM beneficiaries').first<{ count: number }>();
@@ -211,7 +209,6 @@ describe('POST /participants consent contract (티켓 #19)', () => {
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       consentRecordingAi: 'yes',
     });
     expect(response.status).toBe(400);
