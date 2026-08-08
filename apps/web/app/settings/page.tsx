@@ -89,13 +89,14 @@ async function DirectorySection() {
 }
 
 // 관리자 구역 — 설정 화면 안에서 관리자 화면 4개로 들어가는 진입구(CCC-21, 스펙 #76).
-// 링크 목록은 adminMenu 를 재사용하되 '/admin/settings'(설정 화면 자체의 중복 주소)는 뺀다.
+// 링크 목록은 adminMenu 를 그대로 쓴다. 구 '/admin/settings' 걸러내기는 CCC-55 로 사라졌다.
+// 그 주소가 이 화면을 관리자 레이아웃 안에 다시 그리는 중복이었고, 지금은 라우트도 메뉴 항목도
+// 없어서 자기 자신을 가리키는 링크가 애초에 생기지 않는다.
 export function AdminSection() {
-  const links = adminMenu.filter((item) => item.href !== '/admin/settings');
   return (
     <WireCard as="section" className="settings-section" labelledBy="settings-admin-heading" title={<h2 id="settings-admin-heading">관리자</h2>}>
       <ul className="settings-user-list">
-        {links.map((item) => (
+        {adminMenu.map((item) => (
           <li key={item.href} className="settings-user-row">
             <WireButton variant="secondary" height="sm" href={item.href}>{item.label}</WireButton>
           </li>

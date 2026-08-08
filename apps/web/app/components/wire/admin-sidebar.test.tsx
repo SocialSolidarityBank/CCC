@@ -30,9 +30,13 @@ describe('AdminSidebar', () => {
     expect(container.querySelector('nav.wire-tabs')).not.toBeNull();
   });
 
-  it('기관·배정·사용자·설정·실무자 초대 5개 메뉴를 순서대로 렌더한다', () => {
+  // CCC-55: '설정' 탭은 뺐다. 설정은 관리자 영역 밖의 화면이고, 셸 헤더·사이드바의 톱니바퀴
+  // 버튼이 관리자 화면에서도 늘 보인다. 탭으로 두면 누르는 순간 이 탭줄 자체가 사라졌다.
+  it('기관·배정·사용자·실무자 초대 4개 메뉴를 순서대로 렌더한다', () => {
     const { container } = render(<AdminSidebar activePath="/admin" />);
     const hrefs = Array.from(container.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href'));
-    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/settings', '/admin/invite']);
+    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite']);
+    // 관리자 레이아웃 밖으로 나가는 링크는 이 탭줄에 두지 않는다.
+    expect(hrefs).not.toContain('/settings');
   });
 });
