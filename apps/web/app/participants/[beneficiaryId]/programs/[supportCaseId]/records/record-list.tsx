@@ -131,7 +131,8 @@ export function RecordCard({
       {/* 인테이크 진입은 전체 상담 기록 안이다(2026-08-08 Q — 사이트맵상 이 목록의 하위).
           질문지 답변은 이 목록에 펴지 않고 확인·수정 화면이 정본을 보여준다. */}
       {record.kind === 'intake' && intakeHref !== undefined && <p className="record-intake-entry">
-        <WireButton variant="secondary" href={intakeHref}>인테이크 확인·수정</WireButton>
+        {/* 도착지는 조회가 기본이다(CCC-58) — 수정은 조회 화면의 버튼이 연다. */}
+        <WireButton variant="secondary" href={intakeHref}>인테이크 기록 보기</WireButton>
       </p>}
       {/* 불일치 처리 '기록 오류'의 흔적 (D45 · ADR-0018 · CCC-42). 원본은 손대지 않고 표시만
           붙여 다음 열람자의 오해를 막는다 — 정정이 필요하면 실무자가 따로 기록한다.

@@ -468,6 +468,8 @@ function revalidateParticipantProgram(beneficiaryId: string, supportCaseId: stri
   revalidatePath(participantBriefingPath(beneficiaryId, supportCaseId));
   revalidatePath(`${programPath}/records`);
   revalidatePath(`${programPath}/records/new`);
+  // 인테이크 조회 화면(CCC-58) — 수정 저장 직후 이 경로로 돌아오므로 함께 갱신한다.
+  revalidatePath(`${programPath}/records/intake`);
 }
 
 function rejectInconsistentCaseId(formData: FormData, authoritativeCaseId: string): void {
