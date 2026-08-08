@@ -459,6 +459,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wizard-field{display:grid;gap:var(--space-2)}
 /* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
 .wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 인테이크 조회의 값만 저장된 줄바꿈을 그대로 보인다 — 서술형 답변이 여러 줄로 들어온다.
+   크기·색은 위 .wire-field-value(정보 필드) 그대로다. */
+.intake-read-value{white-space:pre-wrap}
 @media(max-width:767px){
   .wire-form-grid{grid-template-columns:minmax(0,1fr)}
 }
