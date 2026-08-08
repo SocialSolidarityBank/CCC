@@ -475,8 +475,24 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-repeat-actions>.wire-button{width:var(--pill-height);padding:0}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
    자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
-   되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다. */
+   되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다.
+   2026-08-09: 목표·질문 묶음이 카드 안으로 들어갔지만 이 래퍼는 **카드 안에 그대로 남는다** —
+   카드가 장폭 1120 을 쓰므로 래퍼를 빼면 textarea 글줄이 1070 이 되어 이 규칙이 무의미해진다.
+   카드는 묶음을 보이게 하고, 읽기 폭은 여전히 이 래퍼가 정한다. */
 .wizard-form{display:grid;gap:var(--space-4);max-width:520px}
+/* 나란히 서는 컨트롤 줄(2026-08-09 Q "2 column grid"). 520 은 **글줄 폭**이라 여기 쓸 수
+   없다 — 두 칸으로 나누면 250 이 되고, 날짜·시각 상자는 최소 288(칸 240 + 간격 8 + 달력
+   버튼 40)이라 그 안에서 두 줄로 접힌다. 읽기 폭이 아니라 조작 폭이므로 §4-1 이 폼 화면
+   폭으로 적어 둔 720 을 쓴다(칸마다 350). 767 미만 한 열은 .wire-form-grid 가 갖는다. */
+.wizard-row{display:grid;gap:var(--space-4);max-width:720px}
+/* 구획 머리(2026-08-09 Q "이름 카드 아래 물음 사이의 여백 더 주고 가로선으로 구분하기").
+   위 카드와 성격이 다른 구획이 시작된다는 표시다 — 여백만으로는 스택의 다른 간격과
+   구별되지 않았다(§2-2 규칙 2 ⓐ). 선은 회색 --line 1px, 카드 안 구분선과 같은 어휘다.
+   위 여백은 스택 gap 20 위에 12 를 더해 32 로 벌린다(§3-4 여백 3단 밖의 새 값을 만들지
+   않고 토큰 둘을 겹친다). 제목 자체의 크기·굵기는 전역 h2 계약 그대로다. */
+.wizard-section-head{display:grid;gap:var(--space-2);padding-top:var(--space-3);border-top:1px solid var(--line)}
+.wizard-section-head>h2{margin:0}
+.wizard-section-head>p{margin:0}
 /* 칸 하나(라벨·컨트롤·딸린 버튼)의 세로 묶음. WireFormField 안쪽 간격과 같은 8 이다. */
 .wizard-field{display:grid;gap:var(--space-2)}
 /* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */

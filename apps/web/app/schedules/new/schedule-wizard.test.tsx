@@ -107,11 +107,12 @@ describe('ScheduleWizard', () => {
     const scoped = within(container);
 
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
-    expect(scoped.getByText('기본 상담')).not.toBeNull();
+    // 2026-08-09 Q: 값을 보여 주는 자리와 고치는 자리가 **선택창 하나**다(구 값 + 접힘 대체).
+    const kind = scoped.getByLabelText('상담 유형') as HTMLSelectElement;
+    expect(kind.value).toBe('regular');
     expect(scoped.getByText(/인테이크가 끝난 당사자라/)).not.toBeNull();
-    // 다른 유형은 접혀 있다 — 평소에는 고를 일이 없다.
-    expect(scoped.queryByLabelText('상담 유형 선택하기')).toBeNull();
-    expect(scoped.getByRole('button', { name: '다른 유형 선택' })).not.toBeNull();
+    // 접힘·'다른 유형 선택' 버튼은 없어졌다 — 낱말이 세 번 겹치던 원인이었다.
+    expect(scoped.queryByRole('button', { name: '다른 유형 선택' })).toBeNull();
   });
 
   it('인테이크가 없는 케이스는 인테이크로 잡히고 경고를 띄우지 않는다', () => {
@@ -120,7 +121,7 @@ describe('ScheduleWizard', () => {
     const scoped = within(container);
 
     fireEvent.click(scoped.getByRole('button', { name: freshCandidateLabel }));
-    expect(scoped.getByText('인테이크')).not.toBeNull();
+    expect((scoped.getByLabelText('상담 유형') as HTMLSelectElement).value).toBe('intake');
     expect(scoped.getByText(/아직 인테이크 기록이 없어/)).not.toBeNull();
     expect(scoped.queryByRole('alert')).toBeNull();
     expect(scoped.getByRole('button', { name: /다음: 상담 목표/ })).not.toBeNull();
@@ -145,8 +146,7 @@ describe('ScheduleWizard', () => {
     const scoped = within(container);
 
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
-    fireEvent.click(scoped.getByRole('button', { name: '다른 유형 선택' }));
-    fireEvent.change(scoped.getByLabelText('상담 유형 선택하기'), { target: { value: 'intake' } });
+    fireEvent.change(scoped.getByLabelText('상담 유형'), { target: { value: 'intake' } });
 
     const alert = scoped.getByRole('alert');
     expect(alert.textContent).toContain('인테이크를 이미 마쳤습니다');
@@ -167,10 +167,8 @@ describe('ScheduleWizard', () => {
     fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
     fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
     fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
-    // 이 픽스처는 인테이크를 마친 케이스라 기본값이 '기본 상담'이다 — 인테이크로 바꾸려면
-    // 접힌 선택을 펼쳐야 한다(D35 §5).
-    fireEvent.click(scoped.getByRole('button', { name: '다른 유형 선택' }));
-    fireEvent.change(scoped.getByLabelText('상담 유형 선택하기'), { target: { value: 'intake' } });
+    // 이 픽스처는 인테이크를 마친 케이스라 기본값이 '기본 상담'이다(D35 §5).
+    fireEvent.change(scoped.getByLabelText('상담 유형'), { target: { value: 'intake' } });
     fireEvent.click(scoped.getByRole('button', { name: /다음: 상담 목표/ }));
 
     await waitFor(() => expect(scoped.getByText('상담의 목표는 무엇인가요?')).not.toBeNull());
