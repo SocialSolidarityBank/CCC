@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { closeGoal, createBeneficiaryWithInitialSupportCase, createGoal } from '../../../db/gateway';
+import {
+  ConflictError,
+  ForbiddenError,
+  ValidationError,
+  cancelCounselingSchedule,
+  closeGoal,
+  createBeneficiaryWithInitialSupportCase,
+  createGoal,
+  rescheduleCounselingSchedule,
+  updateScheduleSessionGoals,
+} from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 세션 목표(D28)·맞춤형 질문 저장·조회, 잘못된 케이스 목표 연결 거부, 비담당 접근 차단,
@@ -140,7 +150,7 @@ describe('상담 일정의 세션 목표·맞춤형 질문 (#35)', () => {
   it('종료된 케이스 목표를 연결하면 400 으로 거부하고 일정을 저장하지 않는다', async () => {
     await t.reset();
     const seeded = await seedOwnedCaseWithGoal();
-    await closeGoal(t.env, testActors.counselor, seeded.goalId, '상황 변화로 재설정');
+    await closeGoal(t.env, testActors.counselor, seeded.goalId, 'reset');
 
     const response = await postSchedule(testActors.counselor, {
       beneficiaryId: seeded.beneficiaryId,
@@ -200,5 +210,114 @@ describe('상담 일정의 세션 목표·맞춤형 질문 (#35)', () => {
       { body: '구직 활동 점검', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지' },
     ]);
     expect(briefingBody.focusUpcomingSchedule?.customQuestions).toEqual(['이번 주 지원 신청은 했는지']);
+  });
+});
+
+// 시작 전에만 고칠 수 있는 미래 일정. 테스트 고정 날짜라 넉넉히 먼 미래를 쓴다.
+const FUTURE_AT = '2036-01-05T01:00:00.000Z';
+const PAST_AT = '2026-07-16T01:00:00.000Z';
+
+async function postScheduleId(seeded: SeededCase, scheduledAt: string, body?: Record<string, unknown>): Promise<string> {
+  const created = await postSchedule(testActors.counselor, {
+    beneficiaryId: seeded.beneficiaryId,
+    supportCaseId: seeded.supportCaseId,
+    scheduledAt,
+    ...body,
+  });
+  expect(created.status).toBe(201);
+  return ((await created.json()) as { id: string }).id;
+}
+
+describe('세션 목표 수정 (D62 §6 · CCC-71)', () => {
+  it('시작 전 일정의 묶음을 통째로 바꾸고, 연결은 활성 목표만, 낡은 version 은 충돌로 거부한다', async () => {
+    await t.reset();
+    const seeded = await seedOwnedCaseWithGoal();
+    const scheduleId = await postScheduleId(seeded, FUTURE_AT, {
+      sessionGoals: [{ body: '처음 계획' }],
+    });
+
+    const result = await updateScheduleSessionGoals(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 1,
+      sessionGoals: [
+        { body: '다듬은 계획', caseGoalId: seeded.goalId },
+        { body: '추가 확인' },
+      ],
+    });
+    expect(result.version).toBe(2);
+    expect(result.sessionGoals).toEqual([
+      { id: expect.any(String), body: '다듬은 계획', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', ordinal: 0 },
+      { id: expect.any(String), body: '추가 확인', caseGoalId: null, caseGoalTitle: null, ordinal: 1 },
+    ]);
+
+    // 닫힌 목표는 다시 저장하는 묶음에 넣을 수 없다(기존 연결 보존과 별개 — D62 §5).
+    await closeGoal(t.env, testActors.counselor, seeded.goalId, 'reset');
+    await expect(updateScheduleSessionGoals(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 2,
+      sessionGoals: [{ body: '닫힌 목표 연결 시도', caseGoalId: seeded.goalId }],
+    })).rejects.toBeInstanceOf(ValidationError);
+
+    // 낡은 version 은 충돌 — 저장된 묶음은 그대로다.
+    await expect(updateScheduleSessionGoals(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 1,
+      sessionGoals: [],
+    })).rejects.toBeInstanceOf(ConflictError);
+    const rows = await t.db.prepare(
+      'SELECT body FROM schedule_session_goals WHERE schedule_id = ? ORDER BY ordinal',
+    ).bind(scheduleId).all<{ body: string }>();
+    expect(rows.results.map((row) => row.body)).toEqual(['다듬은 계획', '추가 확인']);
+  });
+
+  it('일정 시작 시각이 지나면 잠기고, 미루면 새 시각까지 다시 열린다', async () => {
+    await t.reset();
+    const seeded = await seedOwnedCaseWithGoal();
+    const scheduleId = await postScheduleId(seeded, PAST_AT, {
+      sessionGoals: [{ body: '그날의 계획' }],
+    });
+
+    await expect(updateScheduleSessionGoals(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 1,
+      sessionGoals: [{ body: '지난 회기 사후 수정 시도' }],
+    })).rejects.toBeInstanceOf(ValidationError);
+
+    await rescheduleCounselingSchedule(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 1,
+      scheduledAt: FUTURE_AT,
+    });
+    const result = await updateScheduleSessionGoals(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 2,
+      sessionGoals: [{ body: '미룬 뒤 다듬은 계획' }],
+    });
+    expect(result.version).toBe(3);
+    expect(result.sessionGoals.map((goal) => goal.body)).toEqual(['미룬 뒤 다듬은 계획']);
+  });
+
+  it('취소된 일정은 잠긴 기록이고, 인테이크 일정과 비담당 실무자는 거부한다', async () => {
+    await t.reset();
+    const seeded = await seedOwnedCaseWithGoal();
+    const scheduleId = await postScheduleId(seeded, FUTURE_AT, {
+      sessionGoals: [{ body: '취소 전 계획' }],
+    });
+
+    await expect(updateScheduleSessionGoals(t.env, testActors.unassignedCounselor, scheduleId, {
+      expectedVersion: 1,
+      sessionGoals: [],
+    })).rejects.toBeInstanceOf(ForbiddenError);
+
+    await cancelCounselingSchedule(t.env, testActors.counselor, scheduleId, { expectedVersion: 1 });
+    await expect(updateScheduleSessionGoals(t.env, testActors.counselor, scheduleId, {
+      expectedVersion: 2,
+      sessionGoals: [],
+    })).rejects.toBeInstanceOf(ConflictError);
+    // 취소돼도 세션 목표는 그날의 계획 기록으로 남는다.
+    const rows = await t.db.prepare(
+      'SELECT body FROM schedule_session_goals WHERE schedule_id = ?',
+    ).bind(scheduleId).all<{ body: string }>();
+    expect(rows.results.map((row) => row.body)).toEqual(['취소 전 계획']);
+
+    const intakeScheduleId = await postScheduleId(seeded, FUTURE_AT, { sessionKind: 'intake' });
+    await expect(updateScheduleSessionGoals(t.env, testActors.counselor, intakeScheduleId, {
+      expectedVersion: 1,
+      sessionGoals: [{ body: '인테이크에 세션 목표 시도' }],
+    })).rejects.toBeInstanceOf(ValidationError);
   });
 });

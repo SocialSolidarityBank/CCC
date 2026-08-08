@@ -59,6 +59,7 @@ import {
   reviewFlag,
   resolveActionItem,
   setSupportCaseOverallGoal,
+  updateGoalTitle,
   updateParticipantPii,
   transferSupportCase,
   unassignSupportCase,
@@ -552,7 +553,7 @@ async function createPilotDraft(
 }
 
 describe('gateway domain records', () => {
-  it('closes an immutable goal and links a successor without exceeding the active cap', async () => {
+  it('enforces the active-goal cap, restricts close reasons to the D62 picks, and frees the cap after closing', async () => {
     await t.reset();
     const caseRecord = await createCase(t.env, counselor, {});
     const first = await createGoal(t.env, counselor, caseRecord.id, { title: 'Goal one' });
@@ -560,13 +561,54 @@ describe('gateway domain records', () => {
     await createGoal(t.env, counselor, caseRecord.id, { title: 'Goal three' });
     await expect(createGoal(t.env, counselor, caseRecord.id, { title: 'Goal four' })).rejects.toBeInstanceOf(ValidationError);
 
-    const result = await closeGoal(t.env, counselor, first.id, 'changed circumstances', {
-      title: 'Goal replacement',
-    });
-    expect(result.closed.status).toBe('closed');
-    expect(result.successor?.replacedByGoalId).toBeNull();
-    expect(result.closed.replacedByGoalId).toBe(result.successor?.id);
+    // 닫기 사유는 선택값 3종(달성/중단/재설정)만 — 빈 사유·자유 텍스트는 거부한다 (D62 §5).
+    await expect(closeGoal(t.env, counselor, first.id, '')).rejects.toBeInstanceOf(ValidationError);
+    await expect(closeGoal(t.env, counselor, first.id, 'changed circumstances')).rejects.toBeInstanceOf(ValidationError);
+
+    const closed = await closeGoal(t.env, counselor, first.id, 'achieved');
+    expect(closed.status).toBe('closed');
+    expect(closed.closedReason).toBe('achieved');
+    // 구 종료+신설 승계 연결은 만들지 않는다.
+    expect(closed.replacedByGoalId).toBeNull();
+
+    // 닫힌 목표는 다시 닫을 수 없고(재개도 없다), 상한에서 빠져 새 목표가 들어간다.
+    await expect(closeGoal(t.env, counselor, first.id, 'reset')).rejects.toBeInstanceOf(ValidationError);
+    await createGoal(t.env, counselor, caseRecord.id, { title: 'Goal four' });
     expect((await listGoals(t.env, counselor, caseRecord.id)).filter((goal) => goal.status === 'active')).toHaveLength(3);
+  });
+
+  it('edits a goal title with the previous wording preserved as history (D62)', async () => {
+    await t.reset();
+    const caseRecord = await createCase(t.env, counselor, {});
+    const goal = await createGoal(t.env, counselor, caseRecord.id, { title: '주 1회 저축 습관 만들기' });
+
+    const updated = await updateGoalTitle(t.env, counselor, goal.id, '  주 1회 3만원 저축하기  ');
+    expect(updated.title).toBe('주 1회 3만원 저축하기');
+    expect((await listGoals(t.env, counselor, caseRecord.id))[0]?.title).toBe('주 1회 3만원 저축하기');
+
+    // 같은 문구 재저장은 이력을 만들지 않는다.
+    await updateGoalTitle(t.env, counselor, goal.id, '주 1회 3만원 저축하기');
+
+    // 최초 작성이 첫 줄, 수정이 둘째 줄 — 이전 문구·수정자가 그대로 남는다 (D62 §4).
+    const revisions = await t.db.prepare(
+      'SELECT title, edited_by FROM goal_revisions WHERE goal_id = ? ORDER BY id',
+    ).bind(goal.id).all<{ title: string; edited_by: string }>();
+    expect(revisions.results.map((row) => row.title)).toEqual(['주 1회 저축 습관 만들기', '주 1회 3만원 저축하기']);
+    expect(revisions.results.every((row) => row.edited_by === counselor.userId)).toBe(true);
+
+    await expect(updateGoalTitle(t.env, counselor, goal.id, '   ')).rejects.toBeInstanceOf(ValidationError);
+
+    // 닫힌 목표는 기록이다 — 문구 수정 거부.
+    await closeGoal(t.env, counselor, goal.id, 'stopped');
+    await expect(updateGoalTitle(t.env, counselor, goal.id, '닫힌 뒤 수정 시도')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('locks goal title edits on a closed support case (D62)', async () => {
+    await t.reset();
+    const caseRecord = await createCase(t.env, counselor, {});
+    const goal = await createGoal(t.env, counselor, caseRecord.id, { title: '종결 전 목표' });
+    await closeCase(t.env, counselor, caseRecord.id, 'program complete');
+    await expect(updateGoalTitle(t.env, counselor, goal.id, '종결 후 수정 시도')).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('keeps generated AI unofficial until immutable approval projects it through the official view', async () => {
@@ -2407,7 +2449,7 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.supportCaseId, '  주거 안정과 채무 상환 계획 실행  ',
     )).resolves.toEqual({ supportCaseId: created.supportCaseId, overallGoal: '주거 안정과 채무 상환 계획 실행' });
 
-    // 전체 목표는 수정 가능하다(D33 — 세부 목표의 수정 금지와 다른 층).
+    // 전체 목표는 수정 가능하다(D62 — 세부 목표도 이제 수정 가능, 두 층 다 이력 보존).
     await expect(setSupportCaseOverallGoal(
       t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
     )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
@@ -2429,6 +2471,11 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
     )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
 
+    // 같은 문구 재저장 — 감사는 남지만 이력은 늘지 않는다(D62 §4).
+    await expect(setSupportCaseOverallGoal(
+      t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
+
     // 비담당 실무자는 접근 자체가 막힌다(D7).
     await expect(setSupportCaseOverallGoal(
       t.env, canonicalActors.secondCounselor, created.supportCaseId, 'NOT_ASSIGNED',
@@ -2444,19 +2491,33 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.supportCaseId, '가'.repeat(201),
     )).rejects.toBeInstanceOf(ValidationError);
 
-    // 변경 전건 감사(D14) — 성공한 쓰기 5건(입력·수정·관리자 수정·원복·지움)이 전부 남고,
-    // 목표 문장은 detail 에 없다.
+    // 변경 전건 감사(D14) — 성공한 쓰기 6건(입력·수정·관리자 수정·원복·같은 문구 재저장·지움)이
+    // 전부 남고, 목표 문장은 detail 에 없다.
     const audits = await t.db.prepare(
       `SELECT detail FROM audit_log
        WHERE action = 'update' AND target_table = 'support_cases' AND target_id = ?`,
     ).bind(created.supportCaseId).all<{ detail: string }>();
     const goalAudits = audits.results.filter((row) => row.detail.includes('overall_goal'));
-    expect(goalAudits).toHaveLength(5);
+    expect(goalAudits).toHaveLength(6);
     for (const row of goalAudits) {
       expect(row.detail).not.toContain('자립 기반 마련');
       expect(row.detail).not.toContain('주거 안정');
       expect(row.detail).not.toContain('관리자가 고친');
     }
+
+    // 이력(D62 §4) — 문구가 실제로 바뀐 5번(최초 작성·수정·관리자 수정·원복·지움)만
+    // goal_revisions 에 남는다. goal_id NULL = 전체 목표, title NULL = 지움.
+    const revisions = await t.db.prepare(
+      'SELECT title, edited_by FROM goal_revisions WHERE support_case_id = ? AND goal_id IS NULL ORDER BY id',
+    ).bind(created.supportCaseId).all<{ title: string | null; edited_by: string }>();
+    expect(revisions.results.map((row) => row.title)).toEqual([
+      '주거 안정과 채무 상환 계획 실행',
+      '자립 기반 마련',
+      '관리자가 고친 전체 목표',
+      '자립 기반 마련',
+      null,
+    ]);
+    expect(revisions.results[2]?.edited_by).toBe(canonicalActors.admin.userId);
   });
 
   it('rejects editing on a closed support case', async () => {

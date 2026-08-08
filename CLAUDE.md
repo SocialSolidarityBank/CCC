@@ -34,7 +34,8 @@
 participant_pii_vault     실명, 연락처, 계좌. 앱 레벨 AES-GCM 암호화(키는 Workers 시크릿, D3). 관리자 권한만 조회
 support_cases             가명 ID(동물 슬러그, 예: swallow-003 — D20·ADR-0004), 기관 ID, 담당 실무자 ID, GAS 기준, closed_at, purge_due (D10)
 support_case_assignees    케이스별 담당 실무자 매핑. 공동 담당·이관 지원 (D7)
-goals            세부 목표(D62 위계 전체 > 세부 > 세션의 2층. 전체 목표는 support_cases.overall_goal, 세션 목표는 schedule_session_goals). 문구·연결·상태만 운영(GAS 채점은 D43 보류), 수정 허용+이전 문구 이력 보존(D62 가 D12 수정 금지 대체). status(active/closed) + closed_reason(달성/중단/재설정)
+goals            세부 목표(D62 위계 전체 > 세부 > 세션의 2층. 전체 목표는 support_cases.overall_goal, 세션 목표는 schedule_session_goals). 문구·연결·상태만 운영(GAS 채점은 D43 보류), 수정 허용+이전 문구 이력 보존(D62 가 D12 수정 금지 대체). status(active/closed) + closed_reason(달성/중단/재설정 = achieved/stopped/reset)
+goal_revisions   전체·세부 목표 문구 이력(D62, 마이그레이션 0031). 덧붙이기 전용, 한 행 = 한 번의 확정(최초 작성 포함), goal_id NULL 이면 전체 목표. 감사 조회(admin 전용)와 열람 범위가 달라 audit_log detail 이 아닌 전용 표다(CCC-71 결정)
 sessions         세션 기록. 분류 스키마 필드 + 승인 플래그(approved_at)
 action_items     액션 아이템. 담당, 기한, 해결 여부
 flags            리스크 플래그. 고정 유형 + 전사 발언 인용 + 실무자 확인(맞음/틀림) (D9)

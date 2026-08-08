@@ -4913,3 +4913,107 @@ BEGIN SELECT RAISE(ABORT, 'participant_schema_violation'); END;
 
 CREATE INDEX idx_support_cases_privacy_consent_followup
   ON support_cases (org_id, consent_privacy_at, consent_privacy_due_at);
+
+
+-- ----------------------------------------------------------------------------
+-- ai_text_work_queue — 텍스트 일감 큐 (0029 · D51 · ADR-0027).
+-- 수기 메모만 있는 회차도 처리 장비의 2차 마스킹을 거치게 하는 큐.
+-- (0031 반영 때 뒤늦게 스냅샷에 합류 — 0030 은 데이터 복구(UPDATE)뿐이라 스키마 변화 없음.)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ai_text_work_queue (
+  id              TEXT PRIMARY KEY,
+  org_id          TEXT NOT NULL,
+  support_case_id TEXT NOT NULL REFERENCES support_cases (id),
+  session_id      TEXT NOT NULL REFERENCES sessions (id),
+  -- 무엇이 이 일감을 만들었는가. 수기 저장(D5 즉시 공식) | AI 정리 승인(R2).
+  reason          TEXT NOT NULL CHECK (reason IN ('manual_record', 'ai_draft_approved')),
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done')),
+  enqueued_at     TEXT NOT NULL,
+  completed_at    TEXT,
+  -- done 이면 완료 시각이 있고, pending 이면 없다. 상태와 시각이 어긋나지 못하게.
+  CHECK ((status = 'done') = (completed_at IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_text_work_queue_pending
+  ON ai_text_work_queue (org_id, status, enqueued_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_text_work_queue_one_pending_per_session
+  ON ai_text_work_queue (org_id, session_id) WHERE status = 'pending';
+
+CREATE TRIGGER IF NOT EXISTS ai_text_work_queue_done_is_final
+BEFORE UPDATE ON ai_text_work_queue
+WHEN OLD.status = 'done'
+BEGIN
+  SELECT RAISE(ABORT, 'completed text work items are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_text_work_queue_no_delete
+BEFORE DELETE ON ai_text_work_queue
+BEGIN
+  SELECT RAISE(ABORT, 'text work items are append-only');
+END;
+
+
+-- ----------------------------------------------------------------------------
+-- goal_revisions — 목표 문구 이력 (0031 · D62 · ADR-0032).
+-- D12 수정 금지 폐지: goals_title_immutable 트리거를 걷어내고, 전체·세부 목표의
+-- 문구 확정(최초 작성 포함)마다 한 행을 덧붙인다. goal_id NULL = 전체 목표
+-- (support_cases.overall_goal, title NULL = 지움). 감사 조회(admin 전용)와 달리
+-- 담당 실무자도 읽어야 해 audit_log detail 확장 대신 전용 표를 쓴다.
+-- ----------------------------------------------------------------------------
+DROP TRIGGER goals_title_immutable;
+
+CREATE TABLE goal_revisions (
+  id              INTEGER PRIMARY KEY,                       -- 추가 전용 순서 보장 (audit_log 방식)
+  org_id          TEXT NOT NULL,
+  support_case_id TEXT NOT NULL REFERENCES support_cases (id),
+  goal_id         TEXT REFERENCES goals (id),                -- NULL = 전체 목표
+  title           TEXT,                                      -- 확정된 문구. NULL = 지움(전체 목표만)
+  edited_by       TEXT NOT NULL,                             -- 수정자 (users.id)
+  edited_at       TEXT NOT NULL
+);
+
+CREATE INDEX idx_goal_revisions_case ON goal_revisions (support_case_id, id);
+CREATE INDEX idx_goal_revisions_goal ON goal_revisions (goal_id, id) WHERE goal_id IS NOT NULL;
+
+CREATE TRIGGER goal_revisions_insert_guard
+BEFORE INSERT ON goal_revisions
+BEGIN
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM support_cases
+    WHERE id = NEW.support_case_id AND org_id = NEW.org_id
+  );
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NEW.goal_id IS NOT NULL
+    AND (
+      NEW.title IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM goals
+        WHERE id = NEW.goal_id
+          AND org_id = NEW.org_id
+          AND support_case_id = NEW.support_case_id
+      )
+    );
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM users
+    WHERE id = NEW.edited_by AND org_id = NEW.org_id
+      AND active = 1 AND role IN ('admin', 'counselor')
+  );
+END;
+
+CREATE TRIGGER goal_revisions_no_update
+BEFORE UPDATE ON goal_revisions
+BEGIN SELECT RAISE(ABORT, 'D62: goal_revisions is append-only'); END;
+CREATE TRIGGER goal_revisions_no_delete
+BEFORE DELETE ON goal_revisions
+BEGIN SELECT RAISE(ABORT, 'D62: goal_revisions is append-only'); END;
+
+-- 닫은 목표는 다시 열지 않는다 (D62 §5). 같은 목표가 다시 필요해지면 새로 만든다.
+CREATE TRIGGER goals_no_reopen
+BEFORE UPDATE OF status ON goals
+WHEN OLD.status = 'closed' AND NEW.status = 'active'
+BEGIN SELECT RAISE(ABORT, 'D62: a closed goal cannot be reopened'); END;

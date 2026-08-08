@@ -174,6 +174,13 @@ export const PURGE_ACTOR_ID = 'system:purge';
 /** 케이스당 활성 목표 상한 (CLAUDE.md 3장) */
 export const MAX_ACTIVE_GOALS = 3;
 
+/**
+ * 세부 목표 닫기 사유 선택값 (D62 §5). 달성(achieved)·중단(stopped)·재설정(reset).
+ * 화면은 배지로 3종처럼 보여주지만 상태는 활성/종료 2종이고 사유가 이 값을 가른다.
+ */
+export const GOAL_CLOSE_REASONS = ['achieved', 'stopped', 'reset'] as const;
+export type GoalCloseReason = (typeof GOAL_CLOSE_REASONS)[number];
+
 /** D9 리스크 플래그 고정 유형 목록 — 유일 출처. FlagType·toFlagType이 이 배열을 따른다. */
 export const FLAG_TYPES = [
   'crisis_utterance',
@@ -1621,12 +1628,12 @@ export interface Assignee {
 export interface Goal {
   id: string;
   caseId: string;
-  title: string;                 // D12: 수정 불가
-  scaleCriteria: unknown | null; // GAS -2~+2 단계 기준 (JSON)
+  title: string;                 // D62: 수정 가능, 이전 문구는 goal_revisions 에 보존
+  scaleCriteria: unknown | null; // GAS -2~+2 단계 기준 (JSON, D43 보류)
   status: 'active' | 'closed';
-  closedReason: string | null;
+  closedReason: string | null;   // D62: 닫을 때 GOAL_CLOSE_REASONS 중 하나
   closedAt: string | null;
-  replacedByGoalId: string | null;
+  replacedByGoalId: string | null; // 구 종료+신설 잔재 — 새 코드는 쓰지 않는다 (D62 §5)
 }
 
 export type AiStatus = 'none' | 'uploaded' | 'processing' | 'review_ready' | 'approved';
@@ -4654,11 +4661,12 @@ export async function listAssignees(
 }
 
 // ============================================================================
-// 목표 (goals) — D12
+// 목표 (goals) — 세부 목표 층 (D62 · ADR-0032. 문구·연결·상태만, GAS 는 D43 보류)
 // ============================================================================
 
 /**
  * 목표 신설. 활성 목표가 MAX_ACTIVE_GOALS(3개) 이상이면 거부.
+ * 최초 작성도 이력의 첫 줄로 남긴다(D62 §4 — "누가 처음 정했는지"가 함께 남는다).
  * 권한: 담당 실무자 | admin. 감사: create.
  */
 export async function createGoal(
@@ -4694,92 +4702,110 @@ export async function createGoal(
     replacedByGoalId: null,
   };
   const createdAt = now();
-  await env.DB.prepare(
-    'INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).bind(
-    goal.id,
-    actor.orgId,
-    context.supportCaseId,
-    goal.title,
-    goal.scaleCriteria === null ? null : stringifyJson(goal.scaleCriteria),
-    goal.status,
-    createdAt,
-  ).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      'INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).bind(
+      goal.id,
+      actor.orgId,
+      context.supportCaseId,
+      goal.title,
+      goal.scaleCriteria === null ? null : stringifyJson(goal.scaleCriteria),
+      goal.status,
+      createdAt,
+    ),
+    env.DB.prepare(
+      'INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).bind(actor.orgId, context.supportCaseId, goal.id, goal.title, actor.userId, createdAt),
+  ]);
   await writeAudit(env, actor, { action: 'create', targetTable: 'goals', targetId: goal.id, caseId });
   return goal;
 }
 
 /**
- * 목표 종료 (D12: 문구 수정 대신 종료+신설). 사유 필수.
- * successor를 주면 신규 목표를 같은 트랜잭션으로 만들고
- * replaced_by_goal_id로 연결한다(GAS 이력 연속성).
- * 권한: 담당 실무자 | admin. 감사: close (+ 신설 시 create).
+ * 세부 목표 문구 수정 (D62 §4 — D12 수정 금지 폐지). 이전 문구·수정자·시각은
+ * goal_revisions 에 덧붙여 보존한다. 닫힌 목표는 기록이라 고치지 않고, 종결 케이스도
+ * 잠근다(전체 목표와 같은 규칙). 같은 문구면 아무것도 쓰지 않는다.
+ * 권한: 담당 실무자 | admin. 감사: update (문구는 detail 에 싣지 않는다 — R3 태도).
+ */
+export async function updateGoalTitle(
+  env: Env,
+  actor: Actor,
+  goalId: string,
+  title: string,
+): Promise<Goal> {
+  assertHuman(actor);
+  const goal = await getGoalForOrg(env, actor.orgId, goalId);
+  const caseRecord = await assertCaseAccess(env, actor, goal.caseId);
+  const context = await resolveLegacyCaseContext(env, actor.orgId, goal.caseId);
+
+  const nextTitle = typeof title === 'string' ? title.trim() : '';
+  if (nextTitle.length === 0) {
+    throw new ValidationError('goal title is required');
+  }
+  if (caseRecord.status !== 'active') {
+    throw new ValidationError('goal can only be edited on an active support case');
+  }
+  if (goal.status !== 'active') {
+    throw new ValidationError('only an active goal can be edited');
+  }
+  if (nextTitle === goal.title) {
+    return goal;
+  }
+
+  const editedAt = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      'UPDATE goals SET title = ? WHERE id = ? AND org_id = ?',
+    ).bind(nextTitle, goal.id, actor.orgId),
+    env.DB.prepare(
+      'INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).bind(actor.orgId, context.supportCaseId, goal.id, nextTitle, actor.userId, editedAt),
+  ]);
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'goals',
+    targetId: goal.id,
+    caseId: goal.caseId,
+    detail: { field: 'title' },
+  });
+  return { ...goal, title: nextTitle };
+}
+
+/**
+ * 목표 닫기 (D62 §5). 사유는 달성/중단/재설정 선택값만 받는다(GOAL_CLOSE_REASONS).
+ * 구 '종료+신설' 승계는 만들지 않는다 — 수정이 자유로워져 문구를 바꾸려고 닫을 일이
+ * 없고, 닫기는 순수하게 사유의 기록이다. 닫은 목표는 다시 열지 않는다(DB 트리거
+ * goals_no_reopen 이 결정론으로 강제).
+ * 권한: 담당 실무자 | admin. 감사: close.
  */
 export async function closeGoal(
   env: Env,
   actor: Actor,
   goalId: string,
   reason: string,
-  successor?: { title: string; scaleCriteria?: unknown },
-): Promise<{ closed: Goal; successor: Goal | null }> {
+): Promise<Goal> {
   assertHuman(actor);
   const goal = await getGoalForOrg(env, actor.orgId, goalId);
   await assertCaseAccess(env, actor, goal.caseId);
-  const context = await resolveLegacyCaseContext(env, actor.orgId, goal.caseId);
 
   if (goal.status !== 'active') {
     throw new ValidationError('only an active goal can be closed');
   }
-  if (reason.trim().length === 0) {
+  if (typeof reason !== 'string' || reason.trim().length === 0) {
     throw new ValidationError('closed reason is required');
   }
-
-  let successorGoal: Goal | null = null;
-  if (successor !== undefined) {
-    const title = successor.title.trim();
-    if (title.length === 0) {
-      throw new ValidationError('successor goal title is required');
-    }
-    successorGoal = {
-      id: newId(),
-      caseId: goal.caseId,
-      title,
-      scaleCriteria: successor.scaleCriteria ?? null,
-      status: 'active',
-      closedReason: null,
-      closedAt: null,
-      replacedByGoalId: null,
-    };
+  if (!(GOAL_CLOSE_REASONS as readonly string[]).includes(reason)) {
+    throw new ValidationError('closed reason is invalid');
   }
 
   const closedAt = now();
-  const statements: D1PreparedStatement[] = [];
-  if (successorGoal !== null) {
-    statements.push(env.DB.prepare(
-      'INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).bind(
-      successorGoal.id,
-      actor.orgId,
-      context.supportCaseId,
-      successorGoal.title,
-      successorGoal.scaleCriteria === null ? null : stringifyJson(successorGoal.scaleCriteria),
-      successorGoal.status,
-      closedAt,
-    ));
-  }
-  statements.push(env.DB.prepare(
-    'UPDATE goals SET status = ?, closed_reason = ?, closed_at = ?, replaced_by_goal_id = ? WHERE id = ? AND org_id = ?',
-  ).bind('closed', reason, closedAt, successorGoal?.id ?? null, goal.id, actor.orgId));
-  await env.DB.batch(statements);
+  await env.DB.prepare(
+    'UPDATE goals SET status = ?, closed_reason = ?, closed_at = ? WHERE id = ? AND org_id = ?',
+  ).bind('closed', reason, closedAt, goal.id, actor.orgId).run();
   await writeAudit(env, actor, { action: 'close', targetTable: 'goals', targetId: goal.id, caseId: goal.caseId });
-  if (successorGoal !== null) {
-    await writeAudit(env, actor, { action: 'create', targetTable: 'goals', targetId: successorGoal.id, caseId: goal.caseId });
-  }
 
-  return {
-    closed: { ...goal, status: 'closed', closedReason: reason, closedAt, replacedByGoalId: successorGoal?.id ?? null },
-    successor: successorGoal,
-  };
+  return { ...goal, status: 'closed', closedReason: reason, closedAt };
 }
 
 /** 목표 목록(종료 포함 — GAS 추이 그래프용). 권한: 담당 실무자 | admin. 감사: read. */
@@ -7760,6 +7786,8 @@ const MAX_OVERALL_GOAL_LENGTH = 200;
  * counselor 는 assertSupportCaseAccess 가 활성 배정을 강제하고, admin 은 여기서 거른다.
  * null 또는 빈 문자열은 "지운다"(설정 전으로 되돌림). 변경 전건 감사(D14) — 목표 문장은
  * 자유 텍스트라 감사 detail 에 싣지 않는다(R3 태도, 동의 기록과 같은 원칙).
+ * 문구가 실제로 바뀔 때만 goal_revisions 에 한 줄을 덧붙인다(D62 §4, 최초 작성 포함 —
+ * goal_id NULL 이 전체 목표, title NULL 이 지움이다).
  */
 export async function setSupportCaseOverallGoal(
   env: Env,
@@ -7793,6 +7821,11 @@ export async function setSupportCaseOverallGoal(
       `UPDATE support_cases SET overall_goal = ?, updated_at = ?
        WHERE id = ? AND org_id = ?`,
     ).bind(nextGoal, updatedAt, supportCaseId, actor.orgId),
+    ...(nextGoal === supportCase.overallGoal ? [] : [
+      env.DB.prepare(
+        'INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at) VALUES (?, ?, NULL, ?, ?, ?)',
+      ).bind(actor.orgId, supportCaseId, nextGoal, actor.userId, updatedAt),
+    ]),
     canonicalAuditStatement(env, actor, {
       action: 'update',
       targetTable: 'support_cases',
@@ -9570,7 +9603,7 @@ interface NormalizedScheduleSessionGoal {
  * caseGoalId 는 형식만 검증한다(같은 케이스·active 여부는 assertSessionGoalLinksActive).
  */
 function normalizeSchedulePlanInput(
-  input: CreateCounselingScheduleInput,
+  input: Pick<CreateCounselingScheduleInput, 'sessionGoals' | 'customQuestions'>,
 ): { sessionGoals: NormalizedScheduleSessionGoal[]; customQuestions: string[] } {
   const sessionGoalsInput = input.sessionGoals ?? [];
   if (!Array.isArray(sessionGoalsInput)) throw new ValidationError('session goals are invalid');
@@ -9999,6 +10032,112 @@ export async function getScheduleSessionPlan(
     channel: schedule.channel,
     sessionGoals: entries.sessionGoals,
     customQuestions: entries.customQuestions,
+  };
+}
+
+export interface UpdateScheduleSessionGoalsInput {
+  expectedVersion: number;
+  sessionGoals: CreateScheduleSessionGoalInput[];
+}
+
+/**
+ * 세션 목표 수정 (D62 §6 — 수정 기능 신설). 일정에 등록된 세션 목표 묶음을 통째로
+ * 바꾼다. 상담 전에는 자유롭게 고치고 **일정 시작 시각이 지나면** 그날의 계획 기록으로
+ * 잠근다 — 미루면(reschedule) 새 시각까지 다시 열리고, 취소·완료된 일정은 잠긴 기록이다.
+ * 연결(caseGoalId)은 활성 세부 목표만 허용한다(닫힌 목표의 기존 연결은 그대로 두지만,
+ * 다시 저장하는 묶음에는 넣을 수 없다). 세션 목표는 이력이 없다(D62 §4) — 잠금 전
+ * 자유 수정이므로 이전 문구를 남기지 않고 통째로 갈아끼운다.
+ * 동시성은 일정 행의 version 낙관 잠금을 그대로 쓴다(reschedule 과 같은 계약). 모든
+ * 쓰기 문장이 같은 조건(EXISTS: scheduled·version·시작 전)을 달아, 경합하면 전부
+ * 무변경으로 끝나고 ConflictError 를 던진다.
+ * 권한: 담당 실무자 | admin (활성 케이스 배정 — assertScheduleMutationAccess).
+ * 감사: update (변경이 실제로 적용됐을 때만 1건).
+ */
+export async function updateScheduleSessionGoals(
+  env: Env,
+  actor: Actor,
+  scheduleId: string,
+  input: UpdateScheduleSessionGoalsInput,
+): Promise<{ scheduleId: string; version: number; sessionGoals: ScheduleSessionGoal[] }> {
+  assertOpaqueIdentifier(scheduleId, 'schedule id');
+  if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) {
+    throw new ValidationError('schedule version is invalid');
+  }
+  const schedule = await getCounselingScheduleForOrg(env, actor.orgId, scheduleId);
+  await assertScheduleMutationAccess(env, actor, schedule);
+  if (schedule.sessionKind === 'intake') {
+    throw new ValidationError('intake schedule cannot carry session goals');
+  }
+  if (schedule.status !== 'scheduled') {
+    throw new ConflictError('counseling schedule is unavailable');
+  }
+  const nowInstant = now();
+  if (Date.parse(schedule.scheduledAt) <= Date.parse(nowInstant)) {
+    throw new ValidationError('session goals are locked after the schedule start time');
+  }
+  const { sessionGoals } = normalizeSchedulePlanInput({ sessionGoals: input.sessionGoals, customQuestions: [] });
+  await assertSessionGoalLinksActive(
+    env,
+    actor.orgId,
+    schedule.supportCaseId,
+    sessionGoals.map((goal) => goal.caseGoalId),
+  );
+
+  // 잠금 조건을 쓰기 문장 자체에도 단다 — 조회와 배치 사이의 경합(취소·미루기·다른
+  // 수정)이 끼면 아래 전부가 0행으로 끝나고, 마지막 version UPDATE 검사가 잡아낸다.
+  const guardClause = `EXISTS (
+    SELECT 1 FROM counseling_schedules
+    WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND scheduled_at > ?
+  )`;
+  const guardBindings = [scheduleId, actor.orgId, input.expectedVersion, nowInstant];
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `DELETE FROM schedule_session_goals WHERE org_id = ? AND schedule_id = ? AND ${guardClause}`,
+    ).bind(actor.orgId, scheduleId, ...guardBindings),
+  ];
+  sessionGoals.forEach((goal, index) => {
+    statements.push(env.DB.prepare(
+      `INSERT INTO schedule_session_goals (
+         id, org_id, schedule_id, support_case_id, case_goal_id, body, ordinal, created_by, created_at
+       )
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+       WHERE ${guardClause}`,
+    ).bind(
+      newId(),
+      actor.orgId,
+      scheduleId,
+      schedule.supportCaseId,
+      goal.caseGoalId,
+      goal.body,
+      index,
+      actor.userId,
+      nowInstant,
+      ...guardBindings,
+    ));
+  });
+  statements.push(env.DB.prepare(
+    `UPDATE counseling_schedules
+     SET version = version + 1, updated_by_actor_id = ?, updated_at = ?
+     WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND scheduled_at > ?`,
+  ).bind(actor.userId, nowInstant, scheduleId, actor.orgId, input.expectedVersion, nowInstant));
+  statements.push(conditionalCanonicalAuditStatement(env, actor, {
+    action: 'update',
+    targetTable: 'schedule_session_goals',
+    targetId: scheduleId,
+    beneficiaryId: schedule.beneficiaryId,
+    supportCaseId: schedule.supportCaseId,
+    detail: { count: sessionGoals.length },
+  }));
+  const results = await env.DB.batch(statements);
+  const update = results[statements.length - 2] as unknown as { meta?: { changes?: number } };
+  if ((update.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('counseling schedule is unavailable');
+  }
+  const entries = await loadScheduleSessionEntries(env, actor.orgId, scheduleId);
+  return {
+    scheduleId,
+    version: input.expectedVersion + 1,
+    sessionGoals: entries.sessionGoals,
   };
 }
 

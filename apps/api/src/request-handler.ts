@@ -2154,16 +2154,8 @@ export async function handleRequest(
       const goalId = parts[1];
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'close') {
         const body = await requestBody(request);
-        const successorValue = body.successor;
-        let successor: { title: string; scaleCriteria?: unknown } | undefined;
-        if (successorValue !== undefined && successorValue !== null) {
-          const successorBody = asObject(successorValue);
-          successor = {
-            title: requiredString(successorBody, 'title'),
-            ...(Object.hasOwn(successorBody, 'scaleCriteria') ? { scaleCriteria: successorBody.scaleCriteria } : {}),
-          };
-        }
-        return json(await closeGoal(env, actor, goalId, requiredString(body, 'reason'), successor));
+        // D62 §5: 구 종료+신설 승계(successor)는 받지 않는다. 사유는 선택값 3종.
+        return json(await closeGoal(env, actor, goalId, requiredString(body, 'reason')));
       }
     }
     if (parts[0] === 'sessions' && parts[1] !== undefined) {
