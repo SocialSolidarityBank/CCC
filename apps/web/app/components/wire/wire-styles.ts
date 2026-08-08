@@ -805,7 +805,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-admin-form-row .wire-search{flex:1 1 auto;min-width:0}
 .wire-admin-form-row .wire-button{flex:none}
 .wire-admin-empty{margin:0;color:var(--sub);font-size:var(--text-sm)}
-.wire-admin-caption{margin:var(--space-1-5) 0 0;font-size:var(--text-sm);color:var(--sub)}
+/* .wire-admin-caption 은 지웠다(CCC-63). 유일한 사용처가 '초대 보내기' 스텁 아래
+   "Access 초대와 연동 예정" 한 줄이었고, 그 구획이 공용 안내줄(WireCallout)로 바뀌었다. */
 /* 성공색은 이 시스템에 없다(D6·R4) — 완료 알림도 중립 잉크로 쓰고 문구로 알린다. */
 .wire-admin-notice{margin:0 0 var(--space-3);color:var(--ink);font-weight:600}
 .wire-admin-error{margin:0 0 var(--space-3);color:var(--risk);font-weight:600}

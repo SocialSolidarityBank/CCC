@@ -101,6 +101,13 @@ export function AdminSection() {
             <WireButton variant="secondary" height="sm" href={item.href}>{item.label}</WireButton>
           </li>
         ))}
+        {/* 온보딩 진입 링크(CCC-61, 2026-08-08 Q 결정). 이 화면이 유일한 입구다. 그전에는
+            주소를 직접 쳐야만 갈 수 있는 고아 화면이었다. adminMenu 에 넣지 않는 이유는
+            그 목록이 관리자 탭줄도 함께 그리는데 /onboarding 은 관리자 영역 밖이기 때문이다.
+            라벨은 '온보딩' 대신 그 화면이 실제로 하는 일로 적는다. */}
+        <li className="settings-user-row">
+          <WireButton variant="secondary" height="sm" href="/onboarding">기관·사업 이름</WireButton>
+        </li>
       </ul>
     </WireCard>
   );

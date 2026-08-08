@@ -1,6 +1,7 @@
 import { PageTitle } from '../../components/wire/page-title';
 import { SearchInput } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
+import { WireCallout } from '../../components/wire/wire-callout';
 import { registerCounselorAction } from '../../actions';
 
 const noticeMessages: Record<string, string> = {
@@ -47,13 +48,13 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
         <WireButton type="submit">등록</WireButton>
       </form>
 
-      <section className="wire-admin-section" aria-label="실무자 초대">
-        <div className="wire-admin-form-row">
-          <SearchInput label="실무자 초대" name="inviteEmail" placeholder="이메일" />
-          <WireButton disabled>초대 보내기</WireButton>
-        </div>
-        <p className="wire-admin-caption">Access 초대와 연동 예정</p>
-      </section>
+      {/* 구 '실무자 초대' 폼(이메일 칸 + 영구 비활성 '초대 보내기')은 없앴다(CCC-63).
+          누를 수 없는 버튼이 상시 노출됐고, 버튼만 빼면 아무 데도 안 붙는 이메일 칸이 남는다.
+          지금 실제로 되는 길은 위의 '실무자 등록하기' 하나뿐이므로, 그 사실을 말로 적는다. */}
+      <WireCallout tone="lavender" role="status" testId="admin-invite-note" title="메일 초대는 아직 없습니다">
+        지금은 위에서 이메일로 실무자를 바로 등록합니다. 등록한 사람은 Cloudflare Access 로
+        로그인합니다. 메일을 보내 초대하는 방식은 Access 연동 뒤에 생깁니다.
+      </WireCallout>
     </>
   );
 }

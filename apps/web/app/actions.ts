@@ -428,17 +428,20 @@ export async function unlockPreviewAction(formData: FormData): Promise<void> {
   redirect('/');
 }
 
-function casePath(caseId: string): string {
-  return `/cases/${encodeURIComponent(caseId)}`;
-}
+/**
+ * AI 초안 액션 3종이 끝난 뒤 돌아갈 곳(CCC-60).
+ *
+ * 원래는 `/cases/:caseId` 와 `/sessions/new` 로 갔는데, 그 둘은 다른 화면으로 넘기기만 하던
+ * 옛 별칭이라 이 티켓에서 지웠다. 그래서 이 액션들의 목적지가 없어졌다.
+ *
+ * **액션 자체는 남긴다.** 게이트웨이 호출과 버전 검사가 들어 있고, AI 승인 화면(CCC-67)이
+ * 생기면 그대로 쓸 물건이다. 지금은 그 화면이 없어서 이 액션들을 부르는 곳도 0건이다.
+ * 승인 화면이 생기는 날 이 상수를 그 화면 주소로 바꾼다.
+ */
+const AI_DRAFT_RETURN_PATH = '/';
 
-function revalidateCase(caseId: string): void {
-  revalidatePath('/sessions/new');
-  revalidatePath(casePath(caseId));
-}
-
-function sessionPath(caseId: string, sessionId: string): string {
-  return `${casePath(caseId)}?session=${encodeURIComponent(sessionId)}`;
+function revalidateCase(): void {
+  revalidatePath(AI_DRAFT_RETURN_PATH);
 }
 
 function participantPath(beneficiaryId: string): string {
@@ -461,8 +464,9 @@ function participantBriefingPath(beneficiaryId: string, supportCaseId: string): 
 function revalidateParticipantProgram(beneficiaryId: string, supportCaseId: string): void {
   const programPath = participantProgramPath(beneficiaryId, supportCaseId);
   revalidatePath('/');
-  revalidatePath('/records');
-  revalidatePath('/records/new');
+  // 구 '/records'·'/records/new' 갱신은 지웠다(CCC-60). 전자는 다른 화면으로 넘기기만 하던
+  // 별칭이라 이 티켓에서 라우트째 없앴고, 후자는 애초에 존재한 적 없는 주소다(실제 기록 작성
+  // 화면은 아래 `${programPath}/records/new` 다).
   revalidatePath(participantPath(beneficiaryId));
   revalidatePath(participantEditPath(beneficiaryId));
   revalidatePath(participantBriefingPath(beneficiaryId, supportCaseId));
@@ -508,12 +512,12 @@ export async function recordPilotTextAiConsentAction(formData: FormData): Promis
       effectiveAt: isoLikeDateTime(formData, 'effectiveAt'),
     });
   } catch (error) {
-    redirect(withNotice(caseId === undefined ? '/sessions/new' : casePath(caseId), 'error', noticeFor(error)));
+    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', noticeFor(error)));
   }
 
-  if (caseId === undefined) redirect(withNotice('/sessions/new', 'error', 'service_unavailable'));
-  revalidateCase(caseId);
-  redirect(withNotice(casePath(caseId), 'notice', 'pilot_consent_recorded'));
+  if (caseId === undefined) redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', 'service_unavailable'));
+  revalidateCase();
+  redirect(withNotice(AI_DRAFT_RETURN_PATH, 'notice', 'pilot_consent_recorded'));
 }
 
 
@@ -531,17 +535,14 @@ export async function editAiDraftAction(formData: FormData): Promise<void> {
       evidenceIds: parseEvidenceIds(formData),
     });
   } catch (error) {
-    const fallback = caseId === undefined || sessionId === undefined
-      ? '/sessions/new'
-      : sessionPath(caseId, sessionId);
-    redirect(withNotice(fallback, 'error', noticeFor(error)));
+    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', noticeFor(error)));
   }
 
   if (caseId === undefined || sessionId === undefined) {
-    redirect(withNotice('/sessions/new', 'error', 'service_unavailable'));
+    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', 'service_unavailable'));
   }
-  revalidateCase(caseId);
-  redirect(withNotice(sessionPath(caseId, sessionId), 'notice', 'ai_draft_edited'));
+  revalidateCase();
+  redirect(withNotice(AI_DRAFT_RETURN_PATH, 'notice', 'ai_draft_edited'));
 }
 
 export async function reviewAiDraftAction(formData: FormData): Promise<void> {
@@ -562,17 +563,14 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
       decision,
     });
   } catch (error) {
-    const fallback = caseId === undefined || sessionId === undefined
-      ? '/sessions/new'
-      : sessionPath(caseId, sessionId);
-    redirect(withNotice(fallback, 'error', noticeFor(error)));
+    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', noticeFor(error)));
   }
 
   if (caseId === undefined || sessionId === undefined || decision === undefined) {
-    redirect(withNotice('/sessions/new', 'error', 'service_unavailable'));
+    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', 'service_unavailable'));
   }
-  revalidateCase(caseId);
-  redirect(withNotice(sessionPath(caseId, sessionId), 'notice', `ai_${decision}`));
+  revalidateCase();
+  redirect(withNotice(AI_DRAFT_RETURN_PATH, 'notice', `ai_${decision}`));
 }
 /**
  * 동의 3종 수정·철회 (D44). 당사자 정보 페이지의 참여 사업 카드마다 붙는다.
