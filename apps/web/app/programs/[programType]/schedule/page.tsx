@@ -10,8 +10,9 @@ import { isKnownProgramType } from '../../../lib/labels';
 import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 
 // 재개편 T3(#33): 선택된 참여 사업의 상담 카드 목록. 데이터는 오늘 + 향후 7일 일정
-// (getUpcomingSchedules)을 사업 유형과 상태로 거른 것(상태 거르기는 CCC-57 에서 붙였다.
-// 아래 filter 주석 참조). 실명·연락처는 T2(D24) 응답 필드
+// (getUpcomingSchedules)을 사업 유형으로 거른 뒤 **오늘 / 앞으로 두 칸으로 가른 것**이다
+// (CCC-66). 상태 거르기는 앞으로 칸에만 걸린다(CCC-57). 아래 today·upcoming 주석 참조.
+// 실명·연락처는 T2(D24) 응답 필드
 // participantName·participantPhone을 그대로 쓴다(담당 실무자·기관 관리자·admin에게만 값,
 // 그 외 null → 가명 ID / '—' 폴백). 감사는 게이트웨이가 자동 처리한다.
 
@@ -23,6 +24,28 @@ const sessionKindLabels: Record<'regular' | 'intake', string> = {
   regular: '기본 상담',
   intake: '인테이크',
 };
+
+/** 상태 배지 문구. 전체 일정과 같은 표(D54)이고 예정에는 붙이지 않는다. */
+const statusLabels: Record<'scheduled' | 'completed' | 'cancelled' | 'no_show', string | null> = {
+  scheduled: null,
+  completed: '완료',
+  cancelled: '취소',
+  no_show: '불참',
+};
+
+/**
+ * 기관 시간대 기준 달력 날짜(YYYY-MM-DD). 서버가 준 board.date 와 같은 모양이라 그대로 비교한다.
+ * 'en-CA' 로케일이 이 형식을 준다. 문자열을 직접 자르면 UTC 기준이 되어 자정 근처 일정이
+ * 하루씩 어긋난다.
+ */
+function orgDateKey(value: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
 
 function scheduleErrorMessage(error: ApiError): string | null {
   switch (error.code) {
@@ -86,28 +109,33 @@ export default async function ProgramSchedulePage({
   try {
     const board = await getUpcomingSchedules();
     // getUpcomingSchedules는 scheduled_at·id 오름차순(시간순)으로 내려온다.
-    const cards: ScheduleCardItem[] = board.schedules
-      .filter((schedule) => schedule.programType === programType)
-      // 상태 거르기(CCC-57, 2026-08-08 Q 승인). 서버는 창 안의 일정을 상태 구분 없이
-      // 전부 내려 주는데, 이 화면은 이름 그대로 '앞으로 할 일'이라 끝난 건은 자리를
-      // 차지하면 안 된다. 카드에 상태 표시가 없어서 완료된 일정이 예정 건과 똑같이
-      // 보였고, 그것이 이 티켓이 없애려는 '유령 예정 일정'이다.
-      // 지난 일정은 '전체 일정' 화면이 완료·취소·불참 배지와 함께 보여 준다(D54).
-      .filter((schedule) => schedule.status === 'scheduled')
-      .map((schedule) => ({
-        id: schedule.id,
-        href: briefingHref(schedule.beneficiaryId, schedule.supportCaseId),
-        schedule: {
-          date: formatKoreanDate(schedule.scheduledAt, board.timeZone),
-          time: formatKoreanTime(schedule.scheduledAt, board.timeZone),
-          kindLabel: sessionKindLabels[schedule.sessionKind],
-        },
-        participantName: schedule.participantName,
-        beneficiaryId: schedule.beneficiaryId,
-        participantPhone: schedule.participantPhone,
-      }));
+    const mine = board.schedules.filter((schedule) => schedule.programType === programType);
+    const toCard = (schedule: (typeof mine)[number]): ScheduleCardItem => ({
+      id: schedule.id,
+      href: briefingHref(schedule.beneficiaryId, schedule.supportCaseId),
+      schedule: {
+        date: formatKoreanDate(schedule.scheduledAt, board.timeZone),
+        time: formatKoreanTime(schedule.scheduledAt, board.timeZone),
+        kindLabel: sessionKindLabels[schedule.sessionKind],
+        // 오늘 칸에만 붙는다(아래 today). 예정에는 배지를 달지 않는다. 대부분이 예정이라
+        // 전부 붙으면 소음이다(D54 와 같은 규칙).
+        ...(statusLabels[schedule.status] === null ? {} : { statusLabel: statusLabels[schedule.status] as string }),
+      },
+      participantName: schedule.participantName,
+      beneficiaryId: schedule.beneficiaryId,
+      participantPhone: schedule.participantPhone,
+    });
 
-    return frame(<ScheduleCards cards={cards} />);
+    // 오늘 / 앞으로 가르기(CCC-66, 2026-08-08 Q 결정). 기준일은 서버가 정한 기관 시간대의
+    // 오늘(board.date)이다. 브라우저 시간대로 가르면 사람마다 '오늘'이 달라진다.
+    const today = mine.filter((schedule) => orgDateKey(schedule.scheduledAt, board.timeZone) === board.date);
+    // 앞으로는 예정만 남긴다(CCC-57). 끝난 건이 서 있으면 유령 예정 일정이다.
+    // 오늘 칸은 거르지 않는다: "3건 중 1건 끝"을 보는 자리라 끝난 건도 배지를 달고 남는다.
+    const upcoming = mine.filter(
+      (schedule) => orgDateKey(schedule.scheduledAt, board.timeZone) !== board.date && schedule.status === 'scheduled',
+    );
+
+    return frame(<ScheduleCards today={today.map(toCard)} upcoming={upcoming.map(toCard)} />);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     const message = scheduleErrorMessage(error);

@@ -43,7 +43,7 @@ function cardDates(container: HTMLElement): (string | null)[] {
 
 describe('ScheduleCards', () => {
   it('이름 행이 위, 날짜·시간·종류 뱃지는 가로선 아래를 표시한다 (2026-08-07 행 순서 교체)', () => {
-    const { container } = render(<ScheduleCards cards={cards} />);
+    const { container } = render(<ScheduleCards today={[]} upcoming={cards} />);
     const values = cellTexts(container);
     expect(values).toContain('김철수'); // 실명(T2 응답)
     expect(values).toContain('swallow-003'); // 가명 ID 칸(2026-08-06 복귀)
@@ -66,7 +66,7 @@ describe('ScheduleCards', () => {
   });
 
   it('시간순 정렬 토글을 누르면 카드 순서가 뒤집힌다', () => {
-    const { container } = render(<ScheduleCards cards={cards} />);
+    const { container } = render(<ScheduleCards today={[]} upcoming={cards} />);
     expect(cardDates(container)).toEqual(['7월 17일 (목)', '7월 18일 (금)']); // 기본 오름차순
 
     const toggle = container.querySelector('button.wire-button');
@@ -75,10 +75,60 @@ describe('ScheduleCards', () => {
     expect(cardDates(container)).toEqual(['7월 18일 (금)', '7월 17일 (목)']); // 내림차순
   });
 
+  // CCC-66: D21 이 정한 '오늘' 구분이 구현에서 빠져 평평한 목록이 됐다. 오늘 상담이 다른
+  // 날짜에 섞여 있으면 "상담 5분 전에 한 화면" 콘셉트와 어긋난다.
+  it('오늘과 다가오는 일정을 나눠 보여준다', () => {
+    const todayCard: ScheduleCardItem = {
+      id: 't1',
+      href: '/participants/crane-001/programs/case-3/briefing',
+      schedule: { date: '7월 16일 (수)', time: '09:00', kindLabel: '기본 상담' },
+      participantName: '이영희',
+      beneficiaryId: 'crane-001',
+      participantPhone: null,
+    };
+    const { container } = render(<ScheduleCards today={[todayCard]} upcoming={cards} />);
+
+    const today = container.querySelector('[data-testid="schedule-today"]') as HTMLElement;
+    const upcoming = container.querySelector('[data-testid="schedule-upcoming"]') as HTMLElement;
+    expect(today.querySelector('h2')?.textContent).toBe('오늘');
+    expect(upcoming.querySelector('h2')?.textContent).toBe('다가오는 일정');
+    expect(today.textContent).toContain('이영희');
+    expect(today.textContent).not.toContain('김철수');
+    expect(upcoming.textContent).toContain('김철수');
+    expect(upcoming.textContent).not.toContain('이영희');
+  });
+
+  // 오늘 칸은 끝난 상담도 배지와 함께 남긴다("3건 중 1건 끝"을 보는 자리다).
+  // 다가오는 칸은 예정만 온다. 거르기는 페이지가 하고, 여기서는 배지가 붙는지만 본다.
+  it('오늘 칸의 끝난 상담에는 상태 배지가 붙는다', () => {
+    const done: ScheduleCardItem = {
+      id: 't2',
+      href: '/participants/crane-001/programs/case-3/briefing',
+      schedule: { date: '7월 16일 (수)', time: '09:00', kindLabel: '기본 상담', statusLabel: '완료' },
+      participantName: '이영희',
+      beneficiaryId: 'crane-001',
+      participantPhone: null,
+    };
+    const { container } = render(<ScheduleCards today={[done]} upcoming={[]} />);
+
+    const today = container.querySelector('[data-testid="schedule-today"]') as HTMLElement;
+    expect(Array.from(today.querySelectorAll('.wire-badge')).map((el) => el.textContent)).toContain('완료');
+  });
+
+  // 오늘 상담이 없다는 것 자체가 실무자가 알고 싶은 답이다. 칸이 통째로 사라지면
+  // "오늘이 없는 건지 화면이 안 뜬 건지"를 구분할 수 없다.
+  it('오늘 상담이 없어도 오늘 칸은 남고 빈 상태를 알린다', () => {
+    const { container } = render(<ScheduleCards today={[]} upcoming={cards} />);
+
+    const today = container.querySelector('[data-testid="schedule-today"]') as HTMLElement;
+    expect(today).not.toBeNull();
+    expect(today.textContent).toContain('오늘 잡힌 상담이 없습니다');
+  });
+
   it("툴바에 '고정' 자리표시자를 두지 않는다", () => {
     // 2026-07-31 Q 요청으로 뺐다. 누를 수 없는 버튼이 계속 보이면 "아직 안 만든 것"이 아니라
     // "고장난 것"으로 읽힌다. 되살아나면 이 테스트가 잡는다 — 기능이 실제로 생길 때 넣는다.
-    const { container } = render(<ScheduleCards cards={cards} />);
+    const { container } = render(<ScheduleCards today={[]} upcoming={cards} />);
     const toolbarButtons = Array.from(container.querySelectorAll('.list-toolbar button'));
     expect(toolbarButtons).toHaveLength(1);
     expect(container.querySelector('.list-toolbar')?.textContent).not.toContain('고정');
