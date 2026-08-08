@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Icon } from '../../../components/wire/wire-icon';
 import { WireButton } from '../../../components/wire/wire-button';
 import { ParticipantCard, type ParticipantCardSchedule } from '../../../components/wire/participant-card';
+import { WireEmpty } from '../../../components/wire/wire-state';
 
 export interface ScheduleCardItem {
   id: string;
@@ -37,9 +38,7 @@ export function ScheduleCards({ cards }: { cards: ScheduleCardItem[] }) {
       </div>
 
       {ordered.length === 0 ? (
-        <p style={{ color: 'var(--sub)' }} aria-live="polite">
-          예정된 상담이 없습니다.
-        </p>
+        <WireEmpty live>예정된 상담이 없습니다.</WireEmpty>
       ) : (
         <div className="card-grid">
           {ordered.map((card) => (

@@ -12,6 +12,7 @@ import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire
 import { WireFormField } from '../../components/wire/wire-form-field';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
+import { WireEmpty } from '../../components/wire/wire-state';
 import type {
   CreateSchedulePlanInput,
   CreateSchedulePlanResult,
@@ -288,7 +289,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           <div className="wizard-stack">
             <h2>당사자를 선택하세요</h2>
             {candidates.length === 0 ? (
-              <p className="panel-meta">담당 중인 활성 참여 사업이 없습니다. 당사자를 먼저 등록하세요.</p>
+              <WireEmpty>담당 중인 활성 참여 사업이 없습니다. 당사자를 먼저 등록하세요.</WireEmpty>
             ) : (
               /* 후보 목록은 낱개 카드라 폭을 다 쓴다 — .wizard-form(520) 밖이다. */
               <div className="schedule-candidate-list">
@@ -395,11 +396,11 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
             {contextBar}
             <h2>이번 상담의 목표는 무엇인가요?</h2>
             {/* 참고 카드 2장은 읽는 자료라 폭을 다 쓴다 — 입력 묶음(.wizard-form 520)과 다른 축이다. */}
-            <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
+            <div className="wire-container" data-grid="true">
               <div className="wire-col-6">
                 <WireCard title="상담별 목표">
                   {(context?.caseGoals ?? []).length === 0 ? (
-                    <p className="panel-meta">등록된 케이스 목표가 없습니다.</p>
+                    <WireEmpty>등록된 케이스 목표가 없습니다.</WireEmpty>
                   ) : (
                     <WireBullets items={(context?.caseGoals ?? []).map((goal) => goal.title)} />
                   )}

@@ -5,6 +5,7 @@ import { ApiError, getUpcomingSchedules, rememberLastProgramType } from '../../.
 import { GridContainer } from '../../../components/wire/grid-container';
 import { PageTitle } from '../../../components/wire/page-title';
 import { WireButton } from '../../../components/wire/wire-button';
+import { WireError } from '../../../components/wire/wire-state';
 import { isKnownProgramType } from '../../../lib/labels';
 import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 
@@ -111,6 +112,6 @@ export default async function ProgramSchedulePage({
     if (!(error instanceof ApiError)) throw error;
     const message = scheduleErrorMessage(error);
     if (message === null) throw error;
-    return frame(<p role="alert" style={{ color: 'var(--ink)' }}>{message}</p>);
+    return frame(<WireError>{message}</WireError>);
   }
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../../components/wire/wire-card';
+import { WireEmpty } from '../../../../../components/wire/wire-state';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
@@ -85,9 +86,8 @@ export interface BriefingCardsProps {
 // YYYY-MM-DD 지역 함수 대체): formatKoreanDate("2026년 8월 7일") ·
 // formatKoreanDateTime("2026년 8월 7일 오후 1:00"), lib/format-korean-date.ts.
 
-function EmptyNote({ children }: { children: ReactNode }) {
-  return <p className="briefing-note" role="status">{children}</p>;
-}
+// 구 EmptyNote(.briefing-note)는 2026-08-09 전수 정리로 공용 WireEmpty 가 대신한다 —
+// 빈 상태 규칙이 화면마다 둘로 갈려 있었다(§2-2 · wire-state.tsx).
 
 /** 전체 목표 카드 (D45 · CCC-41) — HERO·리스크 배너 아래 카드형 한 줄. 방향 문장만 —
     점수·게이지는 붙이지 않는다(D43). 비면 "설정 전"이고, 담당 실무자는 그 자리에서 바로
@@ -208,7 +208,7 @@ function DiscrepancyItem({
         ))}
       </div>
       {item.resolution !== null && (
-        <p className="briefing-note">
+        <p className="panel-meta">
           <MetaRow items={[
             `${discrepancyResolutionLabels[item.resolution.status]}으로 처리됨`,
             formatKoreanDate(item.resolution.resolvedAt),
@@ -355,7 +355,7 @@ export function BriefingCards({
           <div className="briefing-qsection">
             <p className="briefing-qlabel">세션 목표</p>
             {sessionGoals.length === 0
-              ? <EmptyNote>연결된 다가오는 일정의 세션 목표가 없습니다.</EmptyNote>
+              ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
               : <WireBullets items={sessionGoals.map((goal) => (
                   goal.caseGoalTitle === null ? goal.body : <MetaRow items={[goal.body, `케이스 목표: ${goal.caseGoalTitle}`]} />
                 ))} />}
@@ -363,13 +363,13 @@ export function BriefingCards({
           <div className="briefing-qsection">
             <p className="briefing-qlabel">맞춤형 질문</p>
             {customQuestions.length === 0
-              ? <EmptyNote>실무자가 적은 맞춤형 질문이 없습니다.</EmptyNote>
+              ? <WireEmpty>실무자가 적은 맞춤형 질문이 없습니다.</WireEmpty>
               : <WireBullets items={customQuestions} />}
           </div>
           <div className="briefing-qsection">
             <p className="briefing-qlabel" data-tone="ai">AI 제안</p>
             {aiSuggestions.length === 0
-              ? <EmptyNote>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</EmptyNote>
+              ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
               : (
                 <ul className="briefing-suggestions">
                   {/* 최대 3개는 서버 계약(D45)이지만 화면도 같은 상한을 지킨다 — 훑는 화면이다. */}
@@ -408,7 +408,7 @@ export function BriefingCards({
               본문 시작점이 안 흔들린다). 한 줄이 넘치는 본문은 줄바꿈 대신 오른쪽 끝에서
               자연스럽게 사라진다(마스크 페이드). */}
           {sessionRows.length === 0
-            ? <EmptyNote>표시할 상담 회차가 없습니다.</EmptyNote>
+            ? <WireEmpty>표시할 상담 회차가 없습니다.</WireEmpty>
             : (
               <ul className="briefing-session-rows">
                 {sessionRows.map((row) => (
@@ -447,7 +447,7 @@ export function BriefingCards({
             : null}
         >
           {unresolvedDiscrepancies.length === 0
-            ? <EmptyNote>검출된 불일치가 없습니다. 기록이 저장·승인될 때마다 자동으로 대조합니다.</EmptyNote>
+            ? <WireEmpty>검출된 불일치가 없습니다. 기록이 저장·승인될 때마다 자동으로 대조합니다.</WireEmpty>
             : unresolvedDiscrepancies.map((item) => (
               <DiscrepancyItem
                 key={item.id}
@@ -488,7 +488,7 @@ export function BriefingCards({
                 사람·담당 축)과 기한(블루 = 일정 축, D58 ④). '담당 실무자/당사자/기관'은
                 이 액션을 해 오기로 한 주체다(action_items.owner). */}
             {openActionItems.length === 0
-              ? <EmptyNote>미해결 항목이 없습니다.</EmptyNote>
+              ? <WireEmpty>미해결 항목이 없습니다.</WireEmpty>
               : (
                 <ul className="briefing-action-rows">
                   {openActionItems.map((item) => (

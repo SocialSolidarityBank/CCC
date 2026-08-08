@@ -1,3 +1,4 @@
+import { WireError } from '../../../../../components/wire/wire-state';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
@@ -74,7 +75,7 @@ function LoadingState() {
 function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: ErrorKind }) {
   return <GridContainer as="main" className="page-content">
     <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
-    <p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p>
+    <WireError>{errorMessages[kind]}</WireError>
     <div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div>
   </GridContainer>;
 }

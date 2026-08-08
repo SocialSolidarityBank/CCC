@@ -3,6 +3,7 @@ import { getDisplayLabels } from '../../lib/display-labels';
 import { createInitialParticipantProgramAction } from '../../actions';
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageTitle } from '../../components/wire/page-title';
+import { WireError } from '../../components/wire/wire-state';
 import { RegisterForm } from './register-form';
 
 const noticeMessages: Record<string, string> = {
@@ -51,7 +52,7 @@ export default async function NewParticipantPage({
       <main className="page-content">
         <GridContainer>
           <PageTitle>당사자 등록</PageTitle>
-          <p className="empty" role="alert">지금 당사자 등록 화면을 열 수 없습니다. 접근 권한을 확인하세요.</p>
+          <WireError>지금 당사자 등록 화면을 열 수 없습니다. 접근 권한을 확인하세요.</WireError>
         </GridContainer>
       </main>
     );
@@ -68,7 +69,7 @@ export default async function NewParticipantPage({
           <p className="schedule-form-notice" role="status" aria-live="polite">{noticeMessages[notice]}</p>
         ) : null}
         {errorCode !== undefined ? (
-          <p className="schedule-form-error" role="alert">{errorMessages[errorCode] ?? '당사자를 등록하지 못했습니다.'}</p>
+          <WireError>{errorMessages[errorCode] ?? '당사자를 등록하지 못했습니다.'}</WireError>
         ) : null}
 
         <RegisterForm

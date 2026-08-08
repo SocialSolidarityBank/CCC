@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AdminSidebar } from '../components/wire/admin-sidebar';
 import { GridContainer } from '../components/wire/grid-container';
+import { WireError } from '../components/wire/wire-state';
 import { ApiError, getMyIdentity } from '../lib/api';
 
 // 관리자 영역 공통 레이아웃(재개편 T8, #38): 좌측 AdminSidebar + 우측 콘텐츠.
@@ -20,11 +21,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     return (
       <main className="page-content">
         <GridContainer>
-          <p className="empty" role="alert">
+          <WireError>
             {unavailable
               ? '관리자 정보를 확인할 수 없습니다. 다시 로그인한 뒤 시도하세요.'
               : '이 영역은 기관 관리자만 접근할 수 있습니다.'}
-          </p>
+          </WireError>
         </GridContainer>
       </main>
     );

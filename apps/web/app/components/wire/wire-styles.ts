@@ -161,6 +161,12 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    본문이 12분의 1 칸으로 떨어져 글줄이 몇 어절에서 끊겼다(2026-07-26 확인). */
 .wire-col-8{grid-column:span 8}
 .wire-col-12{grid-column:span 12}
+/* 레일 격자 — 좌 4(레일) / 우 8(본문) 화면이 함께 쓰는 이름이다(2026-08-09). 인테이크와
+   상담 기록 작성이 **같은 레이아웃이어야 한다**는 것이 2026-08-08 Q 지시인데, 둘 다
+   인라인 style={{padding:0,gap:24}} 로 각자 들고 있어서 한쪽만 바뀔 수 있는 상태였다.
+   격자 기본 gap 은 목록 간격 20 이고, 이 레일 화면들만 페이지 스택 간격 24 를 쓴다
+   (여백 3단 ①, 레일과 본문은 같은 목록의 형제가 아니라 페이지의 두 구획이다). */
+.rail-grid{row-gap:var(--section-gap);column-gap:var(--section-gap)}
 @media(max-width:767px){
   .wire-container[data-grid="true"]{grid-template-columns:1fr}
   .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-12{grid-column:auto}
@@ -398,7 +404,6 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-search-box input,.wire-search-box select{width:100%;border:0;background:transparent;color:var(--ink);outline:0;font-size:var(--text-md);line-height:normal;-webkit-appearance:none;appearance:none}
 /* select 는 네이티브 화살표를 끄고 꺽쇠를 직접 그린다 — 네이티브는 테두리에 붙어 다른 입력칸과 안 맞는다. */
 .wire-search-box select{padding-right:var(--space-6)}
-.wire-search-box .wire-chevron{margin:0}
 .wire-search-box:focus-within{outline:2px solid var(--blue-deep);outline-offset:2px}
 .wire-search-box input:focus-visible,.wire-search-box select:focus-visible{outline:none}
 /* 입력 오류(§5): 테두리 1.5px --risk + 아래 메시지. 색만으로 알리지 않는다. */
@@ -463,6 +468,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wizard-stack>p,.wizard-form>p,.wizard-field>p{margin:0}
 /* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
 .wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 반복 칸의 +/- 세트(WireRepeatActions, 2026-08-09). 한 쌍이 한 줄에 오른쪽으로 붙는다 —
+   조작 대상 바로 아래이고, 간격은 행 스택 값 8 이다(둘이 한 쌍으로 읽혀야 하므로 조작 줄
+   기본 12 보다 좁다). 아이콘 버튼은 정사각이라 폭을 높이에 맞춘다. */
+.wire-repeat-actions{display:flex;justify-content:flex-end;gap:var(--space-2)}
+.wire-repeat-actions>.wire-button{width:var(--pill-height);padding:0}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
    자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
    되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다. */
@@ -618,6 +628,23 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    화살표가 라벨보다 0.7px 떠 보인다. 꺽쇠는 회전 transform 을 이미 갖고 있어 합성 대신
    position 오프셋으로 옮긴다(기존 translateX·rotate 와 독립). */
 .wire-button .wire-chevron,.wire-search-box .wire-chevron,.wire-input-box .wire-chevron{position:relative;top:var(--nudge-hangul)}
+/* 선택창 꺽쇠는 **클릭을 통과시킨다** (2026-08-09 Q "클릭이 안 됨"). 네이티브 화살표를 끈
+   자리라 이 꺽쇠가 선택창의 유일한 표시인데, 꺽쇠가 자기 칸을 차지하고 있어서 정확히 그
+   위를 누르면 아무 일도 안 일어났다 — 버튼처럼 생겼는데 반응이 없는 상태다.
+   지우면 선택창이 글자 입력칸과 똑같아 보이므로(네이티브 화살표가 이미 꺼져 있다) 지우는
+   대신 **선택창 위에 얹고 통과시킨다**: 꺽쇠를 절대 위치로 빼면 선택창이 상자 폭을 다
+   쓰므로 꺽쇠 자리 밑에도 선택창이 깔리고, pointer-events:none 이 클릭을 그리로 넘긴다.
+   세로 가운데는 transform 이 아니라 inset+auto 마진으로 잡는다 — 회전(rotate 45deg)이
+   이미 transform 을 쓰고 있어 겹치면 한쪽이 지워진다. 형태·크기·색은 그대로다. */
+.wire-input-box,.wire-search-box{position:relative}
+.wire-input-box .wire-chevron,.wire-search-box .wire-chevron{
+  position:absolute;
+  right:var(--space-3);
+  top:0;
+  bottom:0;
+  margin-block:auto;
+  pointer-events:none;
+}
 /* ── 모션 3종 뼈대 (2026-08-02 D58/ADR-0028 · DESIGN.md §6 · CCC-50) ──
    여기는 어휘 정의만 둔다 — 실제 배선(어느 요소에 어느 클래스를 다는가)은 CCC-51·CCC-53.
    시간·이징은 tokens.css 의 모션 토큰만 쓴다(§6: 이 밖의 값 위반).
@@ -841,8 +868,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    .wire-input-box(테두리 · radius · 초점 링)로 감싸고 있어서, 여기서 또 그리면 둥근 사각형이
    두 겹으로 겹치고 초점 링도 두 개가 된다. 이 껍데기는 배치와 세로 구분선만 맡는다.
    새 색·반경·그림자 0개. */
-.wire-datetime-control{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);width:100%}
-.wire-datetime-fields{flex:1 1 240px;min-width:0;display:flex;align-items:stretch;height:var(--control-height)}
+/* 높이는 **상자가 정한다**(2026-08-09). 안쪽 묶음이 40 을 직접 갖고 있어서 테두리 2px 이
+   덧붙어 이 칸만 42 로 서 있었다(다른 입력칸 40, 하니스 실측). 안쪽은 늘어나기만 한다. */
+.wire-datetime-control{position:relative;display:flex;flex-wrap:wrap;align-items:stretch;gap:var(--space-2);width:100%}
+.wire-input-box>.wire-datetime-control{align-self:stretch}
+.wire-datetime-fields{flex:1 1 240px;min-width:0;display:flex;align-items:stretch}
 /* padding:0 은 UA 기본(1px 2px)을 걷는 값이다 — 안 걷으면 날짜칸 글자만 다른 입력칸보다
    2px 오른쪽에서 시작한다(2026-08-05 실측). */
 .wire-datetime-fields>input{height:100%;min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ink);font-size:var(--text-md);line-height:normal}
@@ -859,8 +889,23 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    다만 좁은 화면에서는 줄어들어야 한다 — 고정 폭이면 375px 에서 상자가 화면을 넘어 가로 스크롤이 생긴다.
    (이 파일은 자바스크립트 템플릿 문자열이라 주석에 백틱을 쓰면 문자열이 끊긴다.) */
 /* 달력 버튼도 같은 상자 안에 있으므로 테두리를 벗는다 — 상자 안의 상자를 만들지 않는다.
-   날짜만 쓰는 자리(.wire-date-control)의 겉모습은 건드리지 않는다. */
-.wire-datetime-control>.wire-date-toggle{border-color:transparent;background:transparent}
+   날짜만 쓰는 자리(.wire-date-control)의 겉모습은 건드리지 않는다.
+
+   ── 여백은 **상자가 아니라 글리프**가 지킨다 (2026-08-09 Q) ──
+   버튼은 40 짜리 히트 영역 안에 16 글리프를 가운데 두므로, 상자를 입력칸 패딩(12) 안에
+   그대로 세우면 글리프 오른쪽 여백이 12 + 12 = **25** 가 된다(하니스 실측). 왼쪽 글자는
+   13 이라 눈에는 아이콘만 멀찍이 떨어져 보인다 — Q 가 지적한 그 어긋남이다.
+   버튼 아웃라인을 보여 주는 쪽(그러면 24 가 버튼 패딩으로 읽힌다)은 상자 안의 상자를
+   만들어 D60 ② 와 부딪히므로, **버튼을 패딩만큼 되밀어 글리프를 13 에 세운다.**
+   히트 영역 40 은 그대로다. 오른쪽 모서리만 둥글려 호버 채움이 상자 곡선을 따라간다. */
+.wire-datetime-control>.wire-date-toggle{
+  border-color:transparent;
+  background:transparent;
+  height:auto;
+  align-self:stretch;
+  margin-right:calc(var(--space-3) * -1);
+  border-radius:0 var(--radius-control) var(--radius-control) 0;
+}
 .wire-datetime-control>.wire-date-toggle:hover{background:var(--muted)}
 /* 시각은 세로선에 붙는 좌측정렬이다(2026-08-07 Q 12차 — 구 가운데 정렬 대체). 왼쪽 12 는
    날짜칸이 상자 테두리에서 들어가는 값(.wire-input-box 패딩)과 같은 리듬이다. */

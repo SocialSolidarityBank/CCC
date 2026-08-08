@@ -76,7 +76,7 @@ export function RegisterForm({
           <span className="register-program-fixed-value">{programLabel}</span>
         </p>
 
-        <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
+        <div className="wire-container" data-grid="true">
           {/* 이름·이메일·연락처는 필수 표시를 달지 않는다(2026-08-08 Q). 서버가 셋 다 선택
               취급이고(createInitialParticipantProgramAction), D59 가 이름 없는 무응답 등록을
               설계된 경우로 인정한다. 구 Y8 별표는 이 서버 규칙과 어긋나 내렸다. */}

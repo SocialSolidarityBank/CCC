@@ -7,6 +7,7 @@ import { GridContainer } from '../../../../components/wire/grid-container';
 import { PageTitle } from '../../../../components/wire/page-title';
 import { WireButton } from '../../../../components/wire/wire-button';
 import { ParticipantCard } from '../../../../components/wire/participant-card';
+import { WireError } from '../../../../components/wire/wire-state';
 import { isKnownProgramType } from '../../../../lib/labels';
 
 // 사이드바 '전체 일정'(D35 · ADR-0014 §2)의 도착지 — CCC-19.
@@ -155,7 +156,7 @@ export default async function ProgramScheduleAllPage({
     if (!(error instanceof ApiError)) throw error;
     const message = scheduleErrorMessage(error);
     if (message === null) throw error;
-    return frame(requested ?? null, <p role="alert" style={{ color: 'var(--ink)' }}>{message}</p>);
+    return frame(requested ?? null, <WireError>{message}</WireError>);
   }
 
   // 응답의 date 는 그 달의 1일이다 — 기본 달을 서버가 정하므로 화면은 여기서 달을 읽는다.
