@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type {
   IntakeAnswerInput,
   IntakeExtendedPii,
@@ -48,19 +48,19 @@ export interface IntakeReadViewProps {
   basicInfoHref: string;
 }
 
-// 작성 위저드와 같은 타이포 계약(D61 ③): 절 제목 20/600, 라벨 14/600 --sub, 값 15 --ink.
-const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };
-const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
-const valueStyle: CSSProperties = { margin: 0, fontSize: 15, color: 'var(--ink)', whiteSpace: 'pre-wrap' };
-const captionStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
-const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
-const rowStyle: CSSProperties = { display: 'grid', gap: 4 };
-
+// 작성 위저드와 같은 타이포 계약이다 — 그래서 위저드가 공용 클래스로 옮겨 간 2026-08-09 에
+// 이 화면도 함께 옮긴다. 인라인으로 남겨 두면 같은 인테이크 기능인데 조회는 제목 20, 작성은
+// 18 로 갈린다. 값도 15 였는데 15 는 §2-1 의 **버튼 전용** 하프스텝이라 버튼 밖에서는 계단
+// 밖 값이다(작성 화면의 기본정보 줄과 같은 수정).
+//   headingStyle → 그냥 h2(전역 18/600) · stackStyle → .wizard-stack · rowStyle → .wizard-field ·
+//   labelStyle·valueStyle → .wire-field-label/.wire-field-value(§5 정보 필드) ·
+//   captionStyle → .panel-meta
+// 조회 값만 줄바꿈을 원문대로 살린다(pre-wrap) — 서술형 답변이 여러 줄로 저장되기 때문이다.
 function ReadRow(props: { label: string; value: string }) {
   return (
-    <div style={rowStyle} data-testid="intake-read-row">
-      <span style={labelStyle}>{props.label}</span>
-      <p style={valueStyle}>{props.value}</p>
+    <div className="wizard-field" data-testid="intake-read-row">
+      <span className="wire-field-label">{props.label}</span>
+      <p className="wire-field-value intake-read-value">{props.value}</p>
     </div>
   );
 }
@@ -102,11 +102,11 @@ function TableCard(props: {
   return (
     <WireCard title={<h3>{props.title}</h3>} testId={props.testId}>
       {props.rows.length === 0 ? (
-        <p style={captionStyle}>기록 없음</p>
+        <p className="panel-meta">기록 없음</p>
       ) : (
         props.rows.map((row, index) => (
-          <div key={index} style={rowStyle} data-testid={`${props.testId}-row`}>
-            {props.rows.length > 1 && <span style={labelStyle}>{index + 1}번</span>}
+          <div key={index} className="wizard-field" data-testid={`${props.testId}-row`}>
+            {props.rows.length > 1 && <span className="wire-form-label">{index + 1}번</span>}
             {props.columns.map((column) => {
               const cell = (row[column.key] ?? '').trim();
               return <ReadRow key={column.key} label={column.label} value={cell.length === 0 ? '미입력' : cell} />;
@@ -153,7 +153,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         <>
           <TableCard title="4-2. 추가 확인사항" columns={ADDITIONAL_COLUMNS} rows={props.saved.additionalItems} testId="intake-read-additional" />
           <WireCard title={<h3>담당 실무자 종합의견</h3>} testId="intake-read-opinion">
-            <p style={valueStyle}>
+            <p className="wire-field-value intake-read-value">
               {(props.saved.managerOpinion ?? '').trim().length === 0 ? '기록 없음' : props.saved.managerOpinion}
             </p>
           </WireCard>
@@ -179,14 +179,14 @@ export function IntakeReadView(props: IntakeReadViewProps) {
           </>
         }
       />
-      <div style={stackStyle} data-testid="intake-read-view">
+      <div className="wizard-stack" data-testid="intake-read-view">
         {sections.map((section, index) => (
-          <section key={section.title} style={stackStyle} aria-label={`${index + 1}. ${section.title}`}>
-            <h2 style={headingStyle}>{index + 1}. {section.title}</h2>
+          <section key={section.title} className="wizard-stack" aria-label={`${index + 1}. ${section.title}`}>
+            <h2>{index + 1}. {section.title}</h2>
             {index === 0 && (
               <>
                 <WireCard title={<h3>1-1. 당사자 기본정보</h3>} testId="intake-read-basic-info">
-                  <p style={captionStyle}>
+                  <p className="panel-meta">
                     당사자 등록에 저장된 값입니다. <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
                   </p>
                   <ReadRow label="이름" value={props.participant.name ?? '미입력'} />
@@ -201,7 +201,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
                     <ReadRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
                   ))}
                   {consentMissing && (
-                    <p style={captionStyle}>
+                    <p className="panel-meta">
                       동의는 당사자 정보 페이지에서 기록·수정합니다. <a href={props.participantHref}>당사자 정보로 이동</a>
                     </p>
                   )}

@@ -34,6 +34,12 @@ export const wireStyles = `
    intake-saved-notice 가 인라인 스타일로 제각각 그리던 것을 한 계약으로 모았다(2026-08-05). */
 .notice-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .notice-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 안내줄 안 목록(2026-08-09) — 기하는 .wire-bullets 를 그대로 빌리고 크기·색만 본문 짝
+   (14/400 --sub)에 맞춘다. 16/--ink 로 두면 목록이 제목(16/600)과 같은 위계로 읽혀
+   "무엇이 남았나" 보다 목록 자체가 먼저 눈에 든다. 단일 항목(.wire-bullets-single)도 같은 값.
+   클래스 둘(0-2-0)로 적는 이유는 .wire-bullets 가 이 파일 뒤쪽에 있어 한 클래스끼리는
+   순서로 지기 때문이다(.wire-row.schedule-candidate-row 와 같은 처리). */
+.wire-bullets.notice-list,.wire-bullets-single.notice-list{font-size:var(--text-sm);color:var(--sub)}
 .notice-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 /* 자동 저장 상태 한 줄, 카드 밖 플랫 텍스트. 보조 정보라 400 이다(2026-08-07 짝 통일). */
 .notice-status{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
@@ -95,6 +101,44 @@ details.surface-card{overflow:clip}
 .surface-card[data-selected="true"],.surface-card[aria-current="true"],.surface-card[open],.is-selected-surface{
   border-color:transparent;
   background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box;
+}
+/* ── 펼친 카드의 제목 줄 채움 (2026-08-09 Q) ──
+   '고른 행'(.wire-row[data-selected])이 쓰는 --gradient-action 면 + --on-action 글자를
+   **펼친 카드의 제목 줄**이 그대로 빌린다. 제목 줄은 구조적으로 행이므로 D60 ④ 를 고칠 일이
+   없다 — 카드는 여전히 --gradient-brand 아웃라인으로 활성을 알리고, 그 위에 행 어휘가 얹힌다.
+
+   카드 **전체**를 채우지 않는 이유: 펼친 카드의 본문은 읽는 면이다. 회차 본문과 기록지
+   아코디언 본문은 긴 글이라 파스텔 면 위에 앉으면 읽기가 나빠진다.
+
+   두 자리는 제외한다.
+     * **브리핑 3영역**(.briefing-card)은 open 이 기본값이라 늘 펼쳐져 있다 — '활성'이 아무
+       정보를 갖지 않는 자리다. 채우면 15초 페이지에 파스텔 띠 셋이 상시로 서서 조용한
+       화면(§0)이 무너지고 리스크 배너의 유일성(D9)도 함께 흐려진다.
+     * **위기·안전 아코디언**(.is-crisis)은 --risk 틴트·테두리를 갖는 자리다. 경고색 독점을
+       지키려면 그 위에 다른 채움을 얹지 않는다(D9).
+
+   **채운 면 위 글자는 늘 --on-action 이다.** --gradient-action 은 두 테마에서 같은 밝은
+   파스텔이라(tokens.css 다크 주석 ③) --ink 를 그대로 두면 다크에서 밝은 글자가 밝은 면에
+   얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
+   배지는 자기 면(계열 tint)을 가진 독립 표면이라 건드리지 않는다. */
+details.surface-card[open]:not(.briefing-card)>.record-summary,
+.record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
+  background:var(--gradient-action);
+  color:var(--on-action);
+}
+details.surface-card[open]:not(.briefing-card)>.record-summary>.record-ordinal,
+details.surface-card[open]:not(.briefing-card)>.record-summary>.record-held-at,
+details.surface-card[open]:not(.briefing-card)>.record-summary>.record-one-liner,
+details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{color:var(--on-action)}
+/* 아코디언은 카드가 패딩 16/20 을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로
+   면을 아웃라인까지 밀고 패딩으로 글자 자리를 되돌린다. 아래 여백은 본문의 padding-top 16 이
+   이미 준다. 회차 카드(.record-summary)는 카드에 패딩이 없어 이 보정이 필요 없다.
+   **아래 두 값은 .record-accordion 의 패딩(layout.tsx, 현재 16/20)을 그대로 뒤집은 것이다** —
+   그 패딩을 바꾸거나 아코디언을 카드 부품(WireCardDetails)으로 옮기면 여기도 함께 고쳐야
+   면이 아웃라인에 맞는다. */
+.record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
+  margin:calc(var(--space-4) * -1) calc(var(--space-5) * -1) 0;
+  padding:var(--space-4) var(--space-5);
 }
 /* 셸: 새 앱 헤더가 올라가는 전 페이지 컨테이너. body 배경은 덮지 않고 이 래퍼에만 캔버스색. */
 .wire-shell{min-height:100dvh;background:var(--canvas)}
@@ -392,6 +436,32 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 기본정보 수정 폼 카드 스택(2026-08-07 Q 5차) — 폼 한 장 안에 카드 2장(기본·추가 정보)이
    페이지 스택 간격(여백 3단 ①)으로 쌓인다. 폼 요소 자체는 간격을 못 만들어 래퍼가 갖는다. */
 .basic-info-stack{display:grid;gap:var(--section-gap)}
+/* ── 위저드 공용 (2026-08-09 Q) ── 상담 등록과 인테이크 두 화면이 화면 전체를 인라인 스타일
+   객체로 그리고 있었다. guard:tokens 는 layout.tsx·wire-styles.ts 두 파일만 훑으므로 인라인
+   값은 검사 밖이었고, 실제로 제목이 계단에 없는 20px 로(다른 화면 h2 는 18) 서 있었다.
+   같은 블록이 두 파일에 복사돼 있어 한쪽만 고치면 두 화면이 갈라진다 — 함께 옮긴다. */
+.wizard-stack{display:grid;gap:var(--space-5);align-content:start}
+/* 간격은 격자의 gap 하나가 준다(§4-6 규칙 3) — 전역 p 의 위 마진 8 이 남으면 캡션 **위**만
+   28 이 되어 아래(20)와 어긋난다. 구 인라인 captionStyle 이 margin:0 을 갖고 있어 안 보이던
+   결함이고, 클래스로 옮기며 드러났다. .panel-meta 자체는 건드리지 않는다 — 카드 제목 슬롯
+   (.wire-card-title)은 격자가 아니라 그 8 이 제목과 설명을 갈라 주는 유일한 여백이다.
+   위저드 격자 셋(스택·폼·칸)의 직계 p 가 대상이다. 실제로 걸리는 것은 .panel-meta ·
+   .wire-field-error · .wire-badge · .wire-field-value 뿐이고 넷 다 0 이 맞다 — 인테이크
+   기본정보 줄은 이 규칙이 없으면 라벨↔값이 8(격자) + 8(p 마진) = 16 으로 벌어진다. */
+.wizard-stack>p,.wizard-form>p,.wizard-field>p{margin:0}
+/* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
+.wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
+   자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
+   되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다. */
+.wizard-form{display:grid;gap:var(--space-4);max-width:520px}
+/* 칸 하나(라벨·컨트롤·딸린 버튼)의 세로 묶음. WireFormField 안쪽 간격과 같은 8 이다. */
+.wizard-field{display:grid;gap:var(--space-2)}
+/* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
+.wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 인테이크 조회의 값만 저장된 줄바꿈을 그대로 보인다 — 서술형 답변이 여러 줄로 들어온다.
+   크기·색은 위 .wire-field-value(정보 필드) 그대로다. */
+.intake-read-value{white-space:pre-wrap}
 @media(max-width:767px){
   .wire-form-grid{grid-template-columns:minmax(0,1fr)}
 }

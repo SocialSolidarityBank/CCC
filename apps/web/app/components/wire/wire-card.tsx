@@ -101,17 +101,19 @@ export function WireField({ label, children }: WireFieldProps) {
 
 export interface WireBulletsProps {
   items: ReactNode[];
+  /** 크기·색을 자리에 맞추는 덧클래스(예: 콜아웃 본문의 .notice-list). 기하는 그대로 둔다. */
+  className?: string;
 }
 
 /** 불릿 리스트. 불릿은 **항목이 2개 이상일 때만** 쓴다(2026-08-07 Q 불릿 규칙 신설) —
  *  한 항목뿐이면 목록이 아니라 문장이므로 불릿 없는 본문 한 줄로 그린다. 이 부품을 쓰는
  *  모든 카드(브리핑 세션 목표·맞춤형 질문, 일정 위저드 등)에 같은 규칙이 적용된다. */
-export function WireBullets({ items }: WireBulletsProps) {
+export function WireBullets({ items, className }: WireBulletsProps) {
   if (items.length === 1) {
-    return <p className="wire-bullets-single">{items[0]}</p>;
+    return <p className={['wire-bullets-single', className].filter(Boolean).join(' ')}>{items[0]}</p>;
   }
   return (
-    <ul className="wire-bullets">
+    <ul className={['wire-bullets', className].filter(Boolean).join(' ')}>
       {items.map((item, index) => (
         <li key={index}>{item}</li>
       ))}

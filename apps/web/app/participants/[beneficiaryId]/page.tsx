@@ -9,6 +9,7 @@ import {
 } from '../../lib/api';
 import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
+import { PageLoading } from '../../components/wire/page-loading';
 import { PageTitle } from '../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
 import { Chevron } from '../../components/wire/chevron';
@@ -83,15 +84,9 @@ function intakeHref(beneficiaryId: string, supportCaseId: string): string {
   return `${recordsHref(beneficiaryId, supportCaseId)}/intake`;
 }
 
+// 공용 로딩 부품(2026-08-09 Q "전역 로딩 화면 통일").
 function LoadingState() {
-  return (
-    <main className="page-content" aria-busy="true">
-      <GridContainer>
-        <div className="page-header"><div><h1>당사자 정보</h1></div></div>
-        <p className="empty" role="status" aria-live="polite">당사자 정보를 불러오는 중입니다.</p>
-      </GridContainer>
-    </main>
-  );
+  return <PageLoading title="당사자 정보" />;
 }
 
 /** 담당 실무자 이름 줄. 이름이 없으면 아무것도 그리지 않는다 — 빈 라벨을 남기지 않는다. */

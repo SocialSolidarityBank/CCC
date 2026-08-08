@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { WireCard, type WireCardTone } from './wire-card';
+import { WireBullets, WireCard, type WireCardTone } from './wire-card';
 
 // 콜아웃(안내줄) 계약, 2026-08-07 Q 리팩터링으로 컴포넌트 확정.
 // draft-notice 와 intake-saved-notice 가 손으로 조립하던 안내줄(WireCard tone
@@ -13,6 +13,14 @@ export interface WireCalloutProps {
   title: ReactNode;
   /** 본문 설명(14/400 --sub). 문장 안 링크 허용. */
   children?: ReactNode;
+  /**
+   * 열거해야 할 것이 있을 때의 목록 슬롯(2026-08-09 신설). children 은 `p` 한 장이라
+   * 목록을 넣을 수 없어, 호출부가 줄마다 `span[display:block]` 을 깔아 흉내 내고 있었다 —
+   * 줄 사이 간격이 행간뿐이라 여러 줄이 한 덩어리로 뭉치고, 줄바꿈된 둘째 줄이 번호 아래로
+   * 들어가 항목 경계가 사라졌다. 여기로 넘기면 §5 불릿 규칙(2개 이상일 때만 불릿)이
+   * 자동으로 적용된다.
+   */
+  items?: ReactNode[];
   /** 행동 버튼 줄. 안내줄의 버튼은 세컨더리 이하만 쓴다(프라이머리는 화면 주 행동 몫, §4-5). */
   actions?: ReactNode;
   tone?: WireCardTone;
@@ -24,7 +32,7 @@ export interface WireCalloutProps {
   labelledBy?: string;
 }
 
-export function WireCallout({ title, children, actions, tone = 'info', role, testId, titleId, labelledBy }: WireCalloutProps) {
+export function WireCallout({ title, children, items, actions, tone = 'info', role, testId, titleId, labelledBy }: WireCalloutProps) {
   // exactOptionalPropertyTypes: 없는 슬롯은 undefined 대신 키를 뺀다(레포 공통 패턴).
   return (
     <WireCard
@@ -36,6 +44,7 @@ export function WireCallout({ title, children, actions, tone = 'info', role, tes
     >
       <p className="notice-title" id={titleId}>{title}</p>
       {children !== undefined && <p className="notice-desc">{children}</p>}
+      {items !== undefined && items.length > 0 && <WireBullets items={items} className="notice-list" />}
       {actions !== undefined && <div className="notice-actions">{actions}</div>}
     </WireCard>
   );

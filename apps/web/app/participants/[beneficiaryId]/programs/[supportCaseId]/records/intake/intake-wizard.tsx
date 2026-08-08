@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
@@ -10,7 +10,7 @@ import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
-import { WireFormField } from '../../../../../../components/wire/wire-form-field';
+import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
   IntakeAnswerInput,
@@ -116,27 +116,18 @@ interface IntakeDraftValues {
 // 표 3종의 열 정의는 intake-questions.ts 가 단일 원천이다(CCC-58 — 조회 화면과 공유).
 type ColumnSpec = IntakeTableColumn;
 
-const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
-const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };
+// 2026-08-09 Q: 인라인 스타일 객체 10종을 공용 클래스·부품으로 옮겼다. 상담 등록 위저드에
+// 같은 블록이 복사돼 있어 두 화면을 함께 옮긴다 — 한쪽만 고치면 지금 똑같은 두 화면이 갈라진다.
+// guard:tokens 는 layout.tsx·wire-styles.ts 두 파일만 훑으므로 인라인 값은 검사 밖이었고,
+// 실제로 제목이 계단에 없는 20px 로(다른 화면 h2 는 18), 기본정보 값이 버튼 전용 하프스텝
+// 15px 로 서 있었다.
+//   stackStyle → .wizard-stack · headingStyle → 그냥 h2(전역 18/600) · fieldStyle → .wizard-field ·
+//   labelStyle·inputStyle·textareaStyle → WireFormField(§5 입력칸 계약) · captionStyle → .panel-meta ·
+//   errorStyle → .wire-field-error · rowActionsStyle·checkboxRowStyle → .wizard-actions ·
+//   읽기 전용 줄 → .wire-field-label/.wire-field-value(§5 정보 필드) ·
+//   여러 개 고르기 → WireChoice(§5 선택지 행 — 누를 면적 40, 라벨 16)
 // 소절 제목은 WireCard 의 title 슬롯(h3)이 그린다 — 구 subHeadingStyle 삭제(2026-08-05).
-// 입력 라벨은 값 위에 두고 14/700 --sub 로 쓴다(DESIGN.md §9 완화).
-const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
-const captionStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
-const errorStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--risk)' };
-const inputStyle: CSSProperties = {
-  width: '100%', minHeight: 'var(--control-height)', padding: '0 var(--space-3)', background: 'var(--panel)',
-  border: '1px solid var(--line-control)', borderRadius: 'var(--radius-control)', color: 'var(--ink)', fontSize: 16,
-};
-const textareaStyle: CSSProperties = {
-  width: '100%', minHeight: 88, padding: 'var(--space-3)', background: 'var(--panel)',
-  border: '1px solid var(--line-control)', borderRadius: 'var(--radius-control)', color: 'var(--ink)',
-  fontSize: 16, resize: 'vertical', fontFamily: 'inherit',
-};
-const rowActionsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
-const fieldStyle: CSSProperties = { display: 'grid', gap: 8 };
-// 소절 패널은 WireCard 가 그린다(2026-08-05 컴포넌트화 · ADR-0030 — 구 panelStyle 손 상자
-// 삭제. 정기 기록지와 같은 카드 어휘가 된다).
-const checkboxRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
+// 소절 패널도 WireCard 가 그린다(2026-08-05 컴포넌트화 · ADR-0030 — 구 panelStyle 손 상자 삭제).
 
 function isRecordObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -272,10 +263,12 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
  *  라벨은 민트다(2026-08-07 Q 9차 "태그에 컬러" — 사람·기록 축, .record-block>h3 과
  *  같은 계약). 값(--ink)과 색으로 갈라져 짝이 한눈에 읽힌다. */
 function ReadOnlyRow(props: { label: string; value: string }) {
+  // 값은 16(--text-md)이다 — 구 15 는 §2-1 의 **버튼 전용** 하프스텝(--text-btn)이라 버튼 밖에
+  // 쓰면 계단 밖 값이다. 라벨·값 색은 §5 '정보 필드' 계약(.wire-field-label/.wire-field-value)이 갖는다.
   return (
-    <div style={fieldStyle} data-testid="intake-readonly-row">
-      <span style={{ ...labelStyle, color: 'var(--mint-deep)' }}>{props.label}</span>
-      <p style={{ ...captionStyle, fontSize: 15, color: 'var(--ink)' }}>{props.value}</p>
+    <div className="wizard-field" data-testid="intake-readonly-row">
+      <span className="wire-field-label">{props.label}</span>
+      <p className="wire-field-value">{props.value}</p>
     </div>
   );
 }
@@ -314,20 +307,23 @@ function QuestionField(props: { question: IntakeQuestion; value: AnswerDraft; on
         : [...selected, option];
       onChange(draftFromOption(next.join(', ')));
     };
+    // 보기는 공용 선택지 행(WireChoice)이다 — 손으로 그린 14px 라벨 + 기본 체크박스는 §5
+    // '선택지 행'(누를 면적 40 · 라벨 16)과 §5 체크박스(켬 = 면 채움)를 둘 다 벗어나 있었다.
+    // 접근 이름은 그대로 `질문 보기`다 — 한 화면에 '무응답' 체크박스가 여럿이라 보기 낱말만으로는
+    // 어느 질문의 것인지 가려지지 않는다(WireChoice 의 ariaLabel).
     return (
-      <div style={fieldStyle} data-answer-key={question.key}>
-        <span style={labelStyle}>{question.label}</span>
-        <div style={checkboxRowStyle} role="group" aria-label={question.label}>
+      <div className="wizard-field" data-answer-key={question.key}>
+        <span className="wire-form-label">{question.label}</span>
+        <div className="wizard-choice-row" role="group" aria-label={question.label}>
           {(question.options ?? []).map((option) => (
-            <label key={option} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14 }}>
-              <input
-                type="checkbox"
-                aria-label={`${question.label} ${option}`}
-                checked={selected.includes(option)}
-                onChange={() => toggle(option)}
-              />
-              {option}
-            </label>
+            <WireChoice
+              key={option}
+              type="checkbox"
+              label={option}
+              ariaLabel={`${question.label} ${option}`}
+              checked={selected.includes(option)}
+              onChange={() => toggle(option)}
+            />
           ))}
         </div>
       </div>
@@ -336,20 +332,19 @@ function QuestionField(props: { question: IntakeQuestion; value: AnswerDraft; on
 
   const answered = value.response === 'answered';
   return (
-    <div style={fieldStyle}>
-      <label style={fieldStyle}>
-        <span style={labelStyle}>{question.label}</span>
+    <div className="wizard-field">
+      <WireFormField label={question.label} control="textarea">
         <textarea
           aria-label={question.label}
           data-answer-key={question.key}
           placeholder={question.hint}
+          rows={3}
           value={answered ? value.text : ''}
           disabled={!answered}
           onChange={(event) => onChange({ response: 'answered', text: event.target.value })}
-          style={textareaStyle}
         />
-      </label>
-      <div style={rowActionsStyle}>
+      </WireFormField>
+      <div className="wizard-actions">
         {([[NO_RESPONSE_OPTION, NO_RESPONSE_CODE], [NOT_APPLICABLE_OPTION, NOT_APPLICABLE_CODE]] as const).map(
           ([optionLabel, code]) => (
             <WireButton
@@ -377,12 +372,11 @@ function RowTable(props: {
   const { columns, rows, onChange } = props;
   return (
     <WireCard title={<h3>{props.title}</h3>} testId={props.testId}>
-      <p style={captionStyle}>{props.hint}</p>
+      <p className="panel-meta">{props.hint}</p>
       {rows.map((row, index) => (
-        <div key={index} style={fieldStyle}>
+        <div key={index} className="wizard-field">
           {columns.map((column) => (
-            <label key={column.key} style={fieldStyle}>
-              <span style={labelStyle}>{`${column.label} ${index + 1}`}</span>
+            <WireFormField key={column.key} label={`${column.label} ${index + 1}`}>
               <input
                 aria-label={`${column.label} ${index + 1}`}
                 value={row[column.key] ?? ''}
@@ -390,16 +384,17 @@ function RowTable(props: {
                 onChange={(event) => onChange(rows.map((entry, entryIndex) => (
                   entryIndex === index ? { ...entry, [column.key]: event.target.value } : entry
                 )))}
-                style={inputStyle}
               />
-            </label>
+            </WireFormField>
           ))}
-          <WireButton onClick={() => onChange(rows.filter((_, entryIndex) => entryIndex !== index))}>
-            이 줄 삭제
-          </WireButton>
+          <div className="wizard-actions">
+            <WireButton onClick={() => onChange(rows.filter((_, entryIndex) => entryIndex !== index))}>
+              이 줄 삭제
+            </WireButton>
+          </div>
         </div>
       ))}
-      <div style={rowActionsStyle}>
+      <div className="wizard-actions">
         <WireButton onClick={() => onChange([...rows, emptyRow(columns)])}>줄 추가</WireButton>
       </div>
     </WireCard>
@@ -660,8 +655,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
             .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}
-        <nav className="wire-col-4 intake-step-nav" aria-label="단계 진행" style={{ ...stackStyle, gap: 8, alignContent: 'start' }}>
-          <h2 style={headingStyle}>진행 단계</h2>
+        <nav className="wire-col-4 intake-step-nav" aria-label="단계 진행">
+          <h2>진행 단계</h2>
           {STEP_TITLES.map((title, index) => {
             const stepNumber = index + 1;
             const entry = progress[index]!;
@@ -669,43 +664,36 @@ export function IntakeWizard(props: IntakeWizardProps) {
             const state = step === stepNumber ? 'current' : done ? 'done' : 'waiting';
             // 아이콘은 SVG 공용 부품이다(CCC-49) — 문자 글리프는 §7 락 5 위반.
             const mark = done ? <Icon name="check" size={14} /> : step === stepNumber ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />;
+            // 옷은 .intake-step 이 갖는다(2026-08-09 인라인 정리) — 현재 단계 색은 data-step-state 가 가른다.
             return (
               <button
                 key={title}
                 type="button"
+                className="intake-step"
                 onClick={() => { setStep(stepNumber); setError(null); }}
                 aria-current={step === stepNumber ? 'step' : undefined}
                 data-step-state={state}
-                style={{
-                  display: 'flex', justifyContent: 'space-between', gap: 8, textAlign: 'left',
-                  padding: '10px 12px', border: '1px solid var(--line-control)',
-                  borderRadius: 'var(--radius-control)',
-                  // 현재 단계는 시간·진행 축이므로 블루 계열이다(§1-5 배정표).
-                  background: step === stepNumber ? 'var(--blue-tint)' : 'transparent',
-                  color: step === stepNumber ? 'var(--blue-deep)' : 'var(--ink)',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                }}
               >
                 <span>{mark} {stepNumber}. {title}</span>
-                <span style={captionStyle}>{entry.filled}/{entry.required}</span>
+                <span className="intake-step-count">{entry.filled}/{entry.required}</span>
               </button>
             );
           })}
         </nav>
 
-        <section className="wire-col-8" style={stackStyle}>
+        <section className="wire-col-8 wizard-stack">
           {/* 맥락 카드(2026-08-07 Q 9차·10차 개정): 누구의 인테이크인지(구 맨 아래 당사자
               줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
               static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
           <WireCard testId="intake-context">
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--ink)' }} data-testid="intake-participant">
+            <p className="intake-participant-line" data-testid="intake-participant">
               <MetaRow items={participantParts} />
             </p>
-            <p style={captionStyle}>
+            <p className="panel-meta">
               {/* 수정 모드의 '회차 N회'는 다음 회차 자동값이라 거짓 정보다 — 자리 자체를 수정 표시로 바꾼다. */}
               <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : `회차 ${props.sessionSequence}회`, `실무자 ${props.recorderLabel}`]} />
             </p>
-            <p style={captionStyle}>모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
+            <p className="panel-meta">모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
           </WireCard>
           {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다.
               수정 모드는 임시본이 없으므로 두 줄 다 그리지 않는다. */}
@@ -713,14 +701,14 @@ export function IntakeWizard(props: IntakeWizardProps) {
           {editing || restorable === null
             ? null
             : <DraftRestorePrompt savedAt={restorable} onResume={resumeDraft} onDiscard={discardDraft} />}
-          {error !== null ? <p role="alert" style={errorStyle}>{error}</p> : null}
+          {error !== null ? <p role="alert" className="wire-field-error">{error}</p> : null}
 
           {step === 1 ? (
-            <div style={stackStyle}>
-              <h2 style={headingStyle}>1. 상담 신청 및 기본정보</h2>
+            <div className="wizard-stack">
+              <h2>1. 상담 신청 및 기본정보</h2>
 
               <WireCard title={<h3>1-1. 당사자 기본정보</h3>} testId="intake-basic-info">
-                <p style={captionStyle}>
+                <p className="panel-meta">
                   당사자 등록에 저장된 값입니다. 이 화면에서는 고칠 수 없고 상담 기록에도 남지 않습니다.{' '}
                   <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
                 </p>
@@ -738,7 +726,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 ))}
                 {consentMissing ? (
                   // D44: 동의는 등록 때 받고 당사자 정보 페이지에서 고친다. 인테이크는 읽기만 한다.
-                  <p style={captionStyle}>
+                  <p className="panel-meta">
                     동의는 당사자 정보 페이지에서 기록·수정합니다. <a href={props.participantHref}>당사자 정보로 이동</a>
                   </p>
                 ) : null}
@@ -764,8 +752,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
           ) : null}
 
           {step === 2 ? (
-            <div style={stackStyle}>
-              <h2 style={headingStyle}>2. 현재 생활상황</h2>
+            <div className="wizard-stack">
+              <h2>2. 현재 생활상황</h2>
               {renderGroups(STEP_GROUPS[1]!)}
               <Collapse
                 title="대출·부채 현황 표"
@@ -785,8 +773,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
           ) : null}
 
           {step === 3 ? (
-            <div style={stackStyle}>
-              <h2 style={headingStyle}>3. 필요한 도움과 활용 가능한 자원</h2>
+            <div className="wizard-stack">
+              <h2>3. 필요한 도움과 활용 가능한 자원</h2>
               {renderGroups(STEP_GROUPS[2]!)}
               <RowTable
                 title="3-3. 현재 연계된 기관·서비스"
@@ -800,8 +788,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
           ) : null}
 
           {step === 4 ? (
-            <div style={stackStyle}>
-              <h2 style={headingStyle}>4. 상담 정리와 후속관리</h2>
+            <div className="wizard-stack">
+              <h2>4. 상담 정리와 후속관리</h2>
               {renderGroups(STEP_GROUPS[3]!)}
               <RowTable
                 title="4-2. 추가 확인사항"
@@ -812,16 +800,15 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 testId="intake-additional-table"
               />
               <WireCard title={<h3>담당 실무자 종합의견</h3>}>
-                <p style={captionStyle}>실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p>
-                <label style={fieldStyle}>
-                  <span style={labelStyle}>담당 실무자 종합의견</span>
+                <p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p>
+                <WireFormField label="담당 실무자 종합의견" control="textarea">
                   <textarea
                     aria-label="담당 실무자 종합의견"
+                    rows={3}
                     value={managerOpinion}
                     onChange={(event) => setManagerOpinion(event.target.value)}
-                    style={textareaStyle}
                   />
-                </label>
+                </WireFormField>
               </WireCard>
             </div>
           ) : null}
@@ -829,20 +816,29 @@ export function IntakeWizard(props: IntakeWizardProps) {
           {/* 남은 필수 항목은 콜아웃(안내줄 카드)이다(2026-08-07 Q 11차 "경고 카드 규칙
               사용" — 구 9차 알약 배지 대체: 알약은 읽기 전용 배지 전유물이고 문장이 길다).
               라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9).
-              내용은 A7(2026-08-08)의 "항목 이름까지" 목록이다. 콜아웃 본문이 p 라 ul 을
-              넣을 수 없어 줄 단위 span 으로 편다. 단계당 한 줄, 항목 이름은 그 줄 안의 병렬. */}
+              내용은 A7(2026-08-08)의 "항목 이름까지" 목록이다.
+
+              2026-08-09: 줄 단위 span 을 **진짜 목록**(콜아웃 items 슬롯)으로 바꿨다. 구 방식은
+              콜아웃 본문이 p 하나라 ul 을 못 넣어 span[display:block] 으로 흉내 낸 것인데,
+              줄 사이가 행간뿐이라 네 단계가 다 비면 한 덩어리로 뭉쳤고 줄바꿈된 둘째 줄이
+              번호 아래로 들어가 단계 경계가 사라졌다. 목록은 단계 이름을 굵게 세워
+              "어느 단계에 무엇이 남았나"가 한눈에 갈린다. */}
           {!canComplete ? (
-            <WireCallout tone="lavender" role="status" testId="intake-missing" title="완료하려면 남은 필수 항목을 채우세요">
-              {[
-                ...(heldAtMissing ? ['1. 상담일'] : []),
-                ...missingDetails.map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}: ${entry.missing.join(', ')}`),
-              ].map((line) => (
-                <span key={line} style={{ display: 'block' }}>{line}</span>
-              ))}
-            </WireCallout>
+            <WireCallout
+              tone="lavender"
+              role="status"
+              testId="intake-missing"
+              title="완료하려면 남은 필수 항목을 채우세요"
+              items={[
+                ...(heldAtMissing ? [<><strong>1. 상담일</strong></>] : []),
+                ...missingDetails.map((entry) => (
+                  <><strong>{entry.index + 1}. {STEP_TITLES[entry.index]}</strong> {entry.missing.join(', ')}</>
+                )),
+              ]}
+            />
           ) : null}
 
-          <div style={rowActionsStyle}>
+          <div className="wizard-actions">
             {step > 1 ? <WireButton onClick={() => { setStep(step - 1); setError(null); }}>이전</WireButton> : null}
             {step < STEP_TITLES.length
               ? <WireButton chevron onClick={() => { setStep(step + 1); setError(null); }}>다음: {STEP_TITLES[step]}</WireButton>

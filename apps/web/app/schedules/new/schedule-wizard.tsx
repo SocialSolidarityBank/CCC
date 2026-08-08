@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { GridContainer } from '../../components/wire/grid-container';
 import { WireCallout } from '../../components/wire/wire-callout';
 import { MetaRow } from '../../components/wire/meta-row';
@@ -89,36 +89,13 @@ function messageFor(status: string): string {
   return NOTICE_MESSAGES[status] ?? '상담을 등록하지 못했습니다.';
 }
 
-const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
-const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };
-// 라벨은 값 위 14/700 --sub. 입력 경계선 하나에 기대지 않기 위한 규칙이다(DESIGN.md §9).
-const labelStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sub)' };
-const captionStyle: CSSProperties = { margin: 0, fontSize: 14, color: 'var(--sub)' };
-// 오류는 --risk 글자 + 메시지 텍스트를 함께 둔다(§5 입력 오류).
-const errorStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--risk)' };
-const inputStyle: CSSProperties = {
-  width: '100%',
-  minHeight: 'var(--control-height)',
-  padding: '0 var(--space-3)',
-  background: 'var(--panel)',
-  border: '1px solid var(--line-control)',
-  borderRadius: 'var(--radius-control)',
-  color: 'var(--ink)',
-  fontSize: 16,
-};
-const textareaStyle: CSSProperties = {
-  width: '100%',
-  minHeight: 96,
-  padding: 'var(--space-3)',
-  background: 'var(--panel)',
-  border: '1px solid var(--line-control)',
-  borderRadius: 'var(--radius-control)',
-  color: 'var(--ink)',
-  fontSize: 16,
-  resize: 'vertical',
-  fontFamily: 'inherit',
-};
-const rowActionsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
+// 2026-08-09 Q: 이 화면의 인라인 스타일 객체 8종을 공용 클래스로 옮겼다. guard:tokens 는
+// layout.tsx·wire-styles.ts 두 파일만 훑으므로 인라인 값은 검사 밖이었고, 실제로 제목이
+// 계단에 없는 20px 로 서 있었다(다른 화면 h2 는 18). 대응은 아래와 같다.
+//   stackStyle → .wizard-stack · headingStyle → 그냥 h2(전역 18/600) · labelStyle·inputStyle·
+//   textareaStyle → WireFormField(§5 입력칸 계약) · captionStyle → .panel-meta ·
+//   errorStyle → .wire-field-error · rowActionsStyle → .wizard-actions
+// inputStyle 은 선언만 있고 쓰는 곳이 없어 함께 지웠다.
 
 /**
  * 상담 유형 (D35 · ADR-0014 §5). **케이스 상태로 기본값을 잡고 다른 유형은 접는다** —
@@ -146,20 +123,18 @@ function SessionKindPicker({
   const showIntakeWarning = hasIntake && value === 'intake';
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'grid', gap: 4 }}>
-        <span style={labelStyle}>상담 유형</span>
-        <strong style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>
-          {value === 'intake' ? '인테이크' : '기본 상담'}
-        </strong>
-        <span style={captionStyle}>
+    <div className="schedule-kind">
+      <div className="schedule-kind-value">
+        <span className="wire-form-label">상담 유형</span>
+        <strong className="schedule-kind-name">{value === 'intake' ? '인테이크' : '기본 상담'}</strong>
+        <span className="panel-meta">
           {defaultKind === 'intake'
             ? '아직 인테이크 기록이 없어 인테이크로 잡았습니다.'
             : '인테이크가 끝난 당사자라 기본 상담으로 잡았습니다.'}
         </span>
       </div>
       {open ? (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="schedule-kind-picker">
           <SearchInput
             label="상담 유형 선택하기"
             variant="select"
@@ -277,246 +252,259 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
 
   if (created) {
     return (
-      <main className="page-content">
-        <GridContainer>
-          <div style={stackStyle}>
-            <PageTitle>상담 일정 등록</PageTitle>
-            {contextBar}
-            {/* 기록 템플릿 안내 카드는 삭제했다(2026-08-08 일괄 검토 A2) — GAS 는 D43 보류,
-                AI 템플릿 조립은 D52 보류라 안내할 기능이 없다. */}
-            <h2 style={headingStyle}>등록을 완료했어요</h2>
-            <WireButton size="large" chevron href="/">다가오는 일정으로</WireButton>
-          </div>
-        </GridContainer>
-      </main>
+      <GridContainer as="main" className="page-content">
+        <div className="page-header"><PageTitle>상담 일정 등록</PageTitle></div>
+        <div className="wizard-stack">
+          {contextBar}
+          {/* 기록 템플릿 안내 카드는 삭제했다(2026-08-08 일괄 검토 A2) — GAS 는 D43 보류,
+              AI 템플릿 조립은 D52 보류라 안내할 기능이 없다. */}
+          <h2>등록을 완료했어요</h2>
+          <div className="wizard-actions"><WireButton size="large" chevron href="/">다가오는 일정으로</WireButton></div>
+        </div>
+      </GridContainer>
     );
   }
 
   return (
-    <main className="page-content">
-      <GridContainer>
-        <div style={stackStyle}>
-          <PageTitle>상담 일정 등록</PageTitle>
-          {noticeText !== undefined && (
-            <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
-          )}
-          <p style={captionStyle}>{step} / 3 단계</p>
-          {error !== null ? <p role="alert" style={errorStyle}>{error}</p> : null}
+    // 셸(장폭·좌우 여백·섹션 gap)은 .page-content 가 갖는다 — 구 구조는 main 안에 GridContainer
+    // 를, 그 안에 또 gap 20 짜리 div 를 두어 세로 간격이 24/24/20 세 겹으로 겹쳐 있었다.
+    // 다른 화면(15초 페이지·상담 기록·기록 작성)과 같은 한 겹으로 맞춘다(§4-6 규칙 3).
+    <GridContainer as="main" className="page-content">
+      <div className="page-header"><PageTitle>상담 일정 등록</PageTitle></div>
+      <div className="wizard-stack">
+        {noticeText !== undefined && (
+          <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
+        )}
+        <p className="panel-meta">{step} / 3 단계</p>
+        {error !== null ? <p role="alert" className="wire-field-error">{error}</p> : null}
 
-          {step === 1 ? (
-            /* 1단계 순서는 **당사자 → 상담 유형 → 일시**다 (D35 · ADR-0014 §5).
-               당사자가 정해지기 전에는 뒤 항목을 보이지 않는다 — 상담 유형 기본값이
-               그 케이스의 인테이크 유무로 갈리므로, 당사자를 모르면 물어볼 수 없다.
-               삭제한 것: **기관·참여 사업 선택**(사이드바 워크스페이스가 이미 정한 값을
-               다시 묻는 중복). 숨긴 것: **상담 방법**(현재 '대면' 하나뿐 — D4. 선택지가
-               늘면 되살린다). */
-            <div style={stackStyle}>
-              <h2 style={headingStyle}>당사자를 선택하세요</h2>
-              {candidates.length === 0 ? (
-                <p style={captionStyle}>담당 중인 활성 참여 사업이 없습니다. 당사자를 먼저 등록하세요.</p>
-              ) : (
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {candidates.map((candidate) => (
-                    <ListRow
-                      key={candidate.value}
-                      className="schedule-candidate-row"
-                      selected={selected?.value === candidate.value}
-                      onClick={() => selectCandidate(candidate)}
-                    >
-                      {candidateLabel(candidate)}
-                    </ListRow>
-                  ))}
-                </div>
-              )}
-
-              {selected !== null && (
-                <>
-                  <SessionKindPicker
-                    hasIntake={selected.intakeAt !== null}
-                    value={sessionKind}
-                    onChange={(kind) => { setSessionKind(kind); setError(null); }}
-                    recordHref={intakeRecordHref(selected)}
-                  />
-                  {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
-                      팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS).
-                      WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 .wire-input-box 의
-                      테두리·포커스 링이 없어 입력칸이 입력칸으로 보이지 않았다(기록 작성 화면과
-                      같은 조합). */}
-                  <WireFormField label="상담 일시" htmlFor="schedule-scheduled-at">
-                    <DateTimePickerControl
-                      id="schedule-scheduled-at"
-                      fieldLabel="상담 일시"
-                      value={scheduledAt}
-                      onChange={setScheduledAt}
-                    />
-                  </WireFormField>
-                </>
-              )}
-              <div style={rowActionsStyle}>
-                <WireButton size="large" chevron disabled={busy || selected === null || !isCompleteDateTime(scheduledAt)} onClick={goToGoals}>
-                  {sessionKind === 'intake' ? '다음: 상담 목표' : '다음: 이번 상담의 목표'}
-                </WireButton>
+        {step === 1 ? (
+          /* 1단계 순서는 **당사자 → 상담 유형 → 일시**다 (D35 · ADR-0014 §5).
+             당사자가 정해지기 전에는 뒤 항목을 보이지 않는다 — 상담 유형 기본값이
+             그 케이스의 인테이크 유무로 갈리므로, 당사자를 모르면 물어볼 수 없다.
+             삭제한 것: **기관·참여 사업 선택**(사이드바 워크스페이스가 이미 정한 값을
+             다시 묻는 중복). 숨긴 것: **상담 방법**(현재 '대면' 하나뿐 — D4. 선택지가
+             늘면 되살린다). */
+          <div className="wizard-stack">
+            <h2>당사자를 선택하세요</h2>
+            {candidates.length === 0 ? (
+              <p className="panel-meta">담당 중인 활성 참여 사업이 없습니다. 당사자를 먼저 등록하세요.</p>
+            ) : (
+              /* 후보 목록은 낱개 카드라 폭을 다 쓴다 — .wizard-form(520) 밖이다. */
+              <div className="schedule-candidate-list">
+                {candidates.map((candidate) => (
+                  <ListRow
+                    key={candidate.value}
+                    className="schedule-candidate-row"
+                    selected={selected?.value === candidate.value}
+                    onClick={() => selectCandidate(candidate)}
+                  >
+                    {candidateLabel(candidate)}
+                  </ListRow>
+                ))}
               </div>
-              {selected === null || !isCompleteDateTime(scheduledAt) ? (
-                <p style={captionStyle}>
-                  {selected === null
-                    ? '당사자를 선택하세요.'
-                    : '상담 일시를 선택하면 다음으로 넘어갈 수 있습니다.'}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+            )}
 
-          {step === 2 && sessionKind === 'intake' ? (
-            <div style={stackStyle}>
-              {contextBar}
-              <h2 style={headingStyle}>상담의 목표는 무엇인가요?</h2>
-              <p style={captionStyle}>
-                측정 가능한 문장으로 적습니다. 예: “월 5만원 저축을 3개월 유지한다”. 최대 3개까지 추가할 수 있어요.
+            {selected !== null && (
+              <div className="wizard-form">
+                <SessionKindPicker
+                  hasIntake={selected.intakeAt !== null}
+                  value={sessionKind}
+                  onChange={(kind) => { setSessionKind(kind); setError(null); }}
+                  recordHref={intakeRecordHref(selected)}
+                />
+                {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
+                    팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS).
+                    WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 .wire-input-box 의
+                    테두리·포커스 링이 없어 입력칸이 입력칸으로 보이지 않았다(기록 작성 화면과
+                    같은 조합). */}
+                <WireFormField label="상담 일시" htmlFor="schedule-scheduled-at">
+                  <DateTimePickerControl
+                    id="schedule-scheduled-at"
+                    fieldLabel="상담 일시"
+                    value={scheduledAt}
+                    onChange={setScheduledAt}
+                  />
+                </WireFormField>
+              </div>
+            )}
+            <div className="wizard-actions">
+              <WireButton size="large" chevron disabled={busy || selected === null || !isCompleteDateTime(scheduledAt)} onClick={goToGoals}>
+                {sessionKind === 'intake' ? '다음: 상담 목표' : '다음: 이번 상담의 목표'}
+              </WireButton>
+            </div>
+            {selected === null || !isCompleteDateTime(scheduledAt) ? (
+              <p className="panel-meta">
+                {selected === null
+                  ? '당사자를 선택하세요.'
+                  : '상담 일시를 선택하면 다음으로 넘어갈 수 있습니다.'}
               </p>
-              <div style={{ display: 'grid', gap: 16 }}>
-                {caseGoals.map((goal, index) => (
-                  <div key={index} style={{ display: 'grid', gap: 8 }}>
-                    <span style={labelStyle}>상담 목표 {index + 1}</span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {step === 2 && sessionKind === 'intake' ? (
+          <div className="wizard-stack">
+            {contextBar}
+            <h2>상담의 목표는 무엇인가요?</h2>
+            <p className="panel-meta">
+              측정 가능한 문장으로 적습니다. 예: “월 5만원 저축을 3개월 유지한다”. 최대 3개까지 추가할 수 있어요.
+            </p>
+            <div className="wizard-form">
+              {caseGoals.map((goal, index) => (
+                <div key={index} className="wizard-field">
+                  <WireFormField label={`상담 목표 ${index + 1}`} control="textarea" htmlFor={`case-goal-${index}`}>
                     <textarea
+                      id={`case-goal-${index}`}
                       aria-label={`상담 목표 ${index + 1}`}
+                      rows={4}
                       value={goal}
                       onChange={(event) => setCaseGoals((prev) => prev.map(
                         (item, itemIndex) => (itemIndex === index ? event.target.value : item),
                       ))}
-                      style={textareaStyle}
                     />
-                    {caseGoals.length > 1 ? (
+                  </WireFormField>
+                  {caseGoals.length > 1 ? (
+                    <div className="wizard-actions">
                       <WireButton
                         onClick={() => setCaseGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
                       >
                         이 목표 삭제
                       </WireButton>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
               {caseGoals.length < 3 ? (
-                <div style={rowActionsStyle}>
+                <div className="wizard-actions">
                   <WireButton onClick={() => setCaseGoals((prev) => [...prev, ''])}>추가하기</WireButton>
                 </div>
               ) : null}
-              <div style={rowActionsStyle}>
-                <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
-                <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
-                  다음: 맞춤형 질문
-                </WireButton>
+            </div>
+            <div className="wizard-actions">
+              <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
+              <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
+                다음: 맞춤형 질문
+              </WireButton>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 2 && sessionKind === 'regular' ? (
+          <div className="wizard-stack">
+            {contextBar}
+            <h2>이번 상담의 목표는 무엇인가요?</h2>
+            {/* 참고 카드 2장은 읽는 자료라 폭을 다 쓴다 — 입력 묶음(.wizard-form 520)과 다른 축이다. */}
+            <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
+              <div className="wire-col-6">
+                <WireCard title="상담별 목표">
+                  {(context?.caseGoals ?? []).length === 0 ? (
+                    <p className="panel-meta">등록된 케이스 목표가 없습니다.</p>
+                  ) : (
+                    <WireBullets items={(context?.caseGoals ?? []).map((goal) => goal.title)} />
+                  )}
+                </WireCard>
+              </div>
+              <div className="wire-col-6">
+                <WireCard title="지난 상담 브리핑">
+                  <p className="panel-meta">
+                    {context?.lastBriefing === null || context?.lastBriefing === undefined
+                      ? '지난 상담 기록이 없습니다.'
+                      : <MetaRow items={[context.lastBriefing.source === 'ai' ? '승인 요약' : '수기 메모', context.lastBriefing.text]} />}
+                  </p>
+                </WireCard>
               </div>
             </div>
-          ) : null}
-
-          {step === 2 && sessionKind === 'regular' ? (
-            <div style={stackStyle}>
-              {contextBar}
-              <h2 style={headingStyle}>이번 상담의 목표는 무엇인가요?</h2>
-              <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
-                <div className="wire-col-6">
-                  <WireCard title="상담별 목표">
-                    {(context?.caseGoals ?? []).length === 0 ? (
-                      <p style={captionStyle}>등록된 케이스 목표가 없습니다.</p>
-                    ) : (
-                      <WireBullets items={(context?.caseGoals ?? []).map((goal) => goal.title)} />
-                    )}
-                  </WireCard>
-                </div>
-                <div className="wire-col-6">
-                  <WireCard title="지난 상담 브리핑">
-                    <p style={captionStyle}>
-                      {context?.lastBriefing === null || context?.lastBriefing === undefined
-                        ? '지난 상담 기록이 없습니다.'
-                        : <MetaRow items={[context.lastBriefing.source === 'ai' ? '승인 요약' : '수기 메모', context.lastBriefing.text]} />}
-                    </p>
-                  </WireCard>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gap: 16 }}>
-                {sessionGoals.map((goal, index) => (
-                  <div key={index} style={{ display: 'grid', gap: 8 }}>
-                    <span style={labelStyle}>세션 목표 {index + 1}</span>
+            <div className="wizard-form">
+              {sessionGoals.map((goal, index) => (
+                <div key={index} className="wizard-field">
+                  <WireFormField label={`세션 목표 ${index + 1}`} control="textarea" htmlFor={`session-goal-${index}`}>
                     <textarea
+                      id={`session-goal-${index}`}
                       aria-label={`세션 목표 ${index + 1}`}
+                      rows={4}
                       value={goal.body}
                       onChange={(event) => setSessionGoals((prev) => prev.map(
                         (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
                       ))}
-                      style={textareaStyle}
                     />
-                    <SearchInput
-                      label="케이스 목표 연결"
-                      variant="select"
-                      value={goal.caseGoalId}
-                      options={goalOptions}
-                      onChange={(value) => setSessionGoals((prev) => prev.map(
-                        (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: value } : item),
-                      ))}
-                    />
-                    {sessionGoals.length > 1 ? (
+                  </WireFormField>
+                  <SearchInput
+                    label="케이스 목표 연결"
+                    variant="select"
+                    value={goal.caseGoalId}
+                    options={goalOptions}
+                    onChange={(value) => setSessionGoals((prev) => prev.map(
+                      (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: value } : item),
+                    ))}
+                  />
+                  {sessionGoals.length > 1 ? (
+                    <div className="wizard-actions">
                       <WireButton
                         onClick={() => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
                       >
                         이 목표 삭제
                       </WireButton>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <div style={rowActionsStyle}>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+              <div className="wizard-actions">
                 <WireButton onClick={() => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])}>
                   추가하기
                 </WireButton>
               </div>
-              <div style={rowActionsStyle}>
-                <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
-                <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
-                  다음: 맞춤형 질문
-                </WireButton>
-              </div>
             </div>
-          ) : null}
+            <div className="wizard-actions">
+              <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
+              <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
+                다음: 맞춤형 질문
+              </WireButton>
+            </div>
+          </div>
+        ) : null}
 
-          {step === 3 ? (
-            <div style={stackStyle}>
-              {contextBar}
-              <h2 style={headingStyle}>맞춤형 질문</h2>
-              <p style={captionStyle}>AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
-              <div style={{ display: 'grid', gap: 16 }}>
-                {customQuestions.map((question, index) => (
-                  <div key={index} style={{ display: 'grid', gap: 8 }}>
-                    <span style={labelStyle}>질문 {index + 1}</span>
+        {step === 3 ? (
+          <div className="wizard-stack">
+            {contextBar}
+            <h2>맞춤형 질문</h2>
+            <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
+            <div className="wizard-form">
+              {customQuestions.map((question, index) => (
+                <div key={index} className="wizard-field">
+                  <WireFormField label={`질문 ${index + 1}`} control="textarea" htmlFor={`custom-question-${index}`}>
                     <textarea
+                      id={`custom-question-${index}`}
                       aria-label={`맞춤형 질문 ${index + 1}`}
+                      rows={4}
                       value={question}
                       onChange={(event) => setCustomQuestions((prev) => prev.map(
                         (item, itemIndex) => (itemIndex === index ? event.target.value : item),
                       ))}
-                      style={textareaStyle}
                     />
-                    {customQuestions.length > 1 ? (
+                  </WireFormField>
+                  {customQuestions.length > 1 ? (
+                    <div className="wizard-actions">
                       <WireButton
                         onClick={() => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
                       >
                         이 질문 삭제
                       </WireButton>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <div style={rowActionsStyle}>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+              <div className="wizard-actions">
                 <WireButton onClick={() => setCustomQuestions((prev) => [...prev, ''])}>추가하기</WireButton>
               </div>
-              <div style={rowActionsStyle}>
-                <WireButton onClick={() => { setError(null); setStep(2); }}>이전</WireButton>
-                <WireButton size="large" chevron disabled={busy} onClick={complete}>완료</WireButton>
-              </div>
             </div>
-          ) : null}
-        </div>
-      </GridContainer>
-    </main>
+            <div className="wizard-actions">
+              <WireButton onClick={() => { setError(null); setStep(2); }}>이전</WireButton>
+              <WireButton size="large" chevron disabled={busy} onClick={complete}>완료</WireButton>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </GridContainer>
   );
 }

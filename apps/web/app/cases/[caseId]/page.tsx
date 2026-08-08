@@ -1,4 +1,6 @@
 import { WireButton } from '../../components/wire/wire-button';
+import { GridContainer } from '../../components/wire/grid-container';
+import { PageTitle } from '../../components/wire/page-title';
 import { redirect } from 'next/navigation';
 import {
   ANIMAL_SLUG_BENEFICIARY_ID_PATTERN,
@@ -24,5 +26,11 @@ export default async function LegacyCasePage({ params }: { params: Promise<{ cas
     redirect(`/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(legacySupportCaseId(beneficiaryId))}/briefing`);
   }
 
-  return <main className="page-content"><header className="page-header"><div><h1>15초 페이지</h1><p>이전 주소의 당사자 정보를 확인할 수 없습니다.</p></div></header><p className="wire-badge" data-tone="risk" role="alert">당사자 ID로 확인할 수 없는 이전 주소입니다.</p><div><WireButton variant="secondary" href="/">다가오는 일정으로 돌아가기</WireButton></div></main>;
+  // 오류 셸은 브리핑 오류 상태와 같은 모양이다(2026-08-09) — 제목은 PageTitle, 여백은 페이지
+  // 그리드의 gap 이 준다.
+  return <GridContainer as="main" className="page-content">
+    <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
+    <p className="wire-badge" data-tone="risk" role="alert">당사자 ID로 확인할 수 없는 이전 주소입니다.</p>
+    <div><WireButton variant="secondary" href="/">다가오는 일정으로 돌아가기</WireButton></div>
+  </GridContainer>;
 }
