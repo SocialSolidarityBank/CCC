@@ -1,3 +1,4 @@
+import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireError } from '../../../../../../components/wire/wire-state';
 import { redirect } from 'next/navigation';
 import { createCounselingRecordAction } from '../../../../../../actions';
@@ -389,7 +390,7 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
       저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.
     </WireCallout>;
   }
-  return <p className="wire-badge" data-tone={item.tone} role={item.role} aria-live="polite" data-recovery-state={state}>{item.text}</p>;
+  return <WireBadge tone={item.tone} role={item.role} aria-live="polite" data-recovery-state={state}>{item.text}</WireBadge>;
 }
 
 function Message({ code }: { code: LoadError | null }) {

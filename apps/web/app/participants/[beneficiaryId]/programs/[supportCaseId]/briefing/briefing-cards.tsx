@@ -507,9 +507,9 @@ export function BriefingCards({
                   {openActionItems.map((item) => (
                     <li key={item.id} className="briefing-action-row">
                       <span className="briefing-action-desc">{item.description}</span>
-                      <span className="wire-badge" data-tone="mint">담당 {actionOwnerLabels[item.owner]}</span>
+                      <WireBadge tone="mint">담당 {actionOwnerLabels[item.owner]}</WireBadge>
                       {item.dueDate !== null && (
-                        <span className="wire-badge" data-tone="blue">기한 {item.dueDate}</span>
+                        <WireBadge tone="blue">기한 {item.dueDate}</WireBadge>
                       )}
                     </li>
                   ))}

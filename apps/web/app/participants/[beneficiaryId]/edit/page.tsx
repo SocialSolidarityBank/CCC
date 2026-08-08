@@ -1,3 +1,4 @@
+import { WireBadge } from '../../../components/wire/wire-badge';
 import { WireError } from '../../../components/wire/wire-state';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
@@ -95,7 +96,7 @@ function EditScreen({
             <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
           </div>
         </div>
-        {noticeText === undefined ? null : <p className="wire-badge" data-tone="blue" role="status">{noticeText}</p>}
+        {noticeText === undefined ? null : <WireBadge tone="blue" role="status">{noticeText}</WireBadge>}
         {errorText === undefined ? null : <WireError>{errorText}</WireError>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />
       </GridContainer>

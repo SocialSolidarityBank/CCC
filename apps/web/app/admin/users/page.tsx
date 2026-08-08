@@ -1,3 +1,4 @@
+import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import Link from 'next/link';
 import { Chevron } from '../../components/wire/chevron';
 import { ListRow } from '../../components/wire/list-row';
@@ -60,9 +61,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
       <div className="wire-admin-cols">
         <section aria-label="실무자 목록">
           {usersError !== null ? (
-            <p className="wire-admin-empty" role="alert">{usersError}</p>
+            <WireError>{usersError}</WireError>
           ) : users.length === 0 ? (
-            <p className="wire-admin-empty">등록된 실무자가 없습니다.</p>
+            <WireEmpty>등록된 실무자가 없습니다.</WireEmpty>
           ) : (
             <div className="wire-admin-list">
               {users.map((user) => (
@@ -81,7 +82,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
         <section aria-label="담당 당사자">
           {selectedUser === undefined ? (
-            <p className="wire-admin-empty">실무자를 선택하면 담당 당사자가 표시됩니다.</p>
+            <WireEmpty>실무자를 선택하면 담당 당사자가 표시됩니다.</WireEmpty>
           ) : (
             <>
               <div className="wire-admin-detail-head">
@@ -91,9 +92,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                 </Link>
               </div>
               {assignmentsError !== null ? (
-                <p className="wire-admin-empty" role="alert">{assignmentsError}</p>
+                <WireError>{assignmentsError}</WireError>
               ) : assignments === null || assignments.participants.length === 0 ? (
-                <p className="wire-admin-empty">담당 당사자가 없습니다.</p>
+                <WireEmpty>담당 당사자가 없습니다.</WireEmpty>
               ) : (
                 <div className="wire-admin-list">
                   {assignments.participants.map((participant) => (
@@ -108,9 +109,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   "여기서 바꾸는 건가"를 물을 곳이 없었다. 실무자 상세 화면(/admin/users/[id])은
                   이미 같은 버튼을 갖고 있어, 목록에도 같은 규칙을 맞춘다. */}
               {assignmentsError === null ? (
-                <p className="wire-admin-empty" data-testid="admin-users-assign-hint">
+                <WireEmpty testId="admin-users-assign-hint">
                   담당을 바꾸려면 <Link className="wire-header-link" href="/admin/assign">배정 화면</Link>에서 당사자를 고르세요.
-                </p>
+                </WireEmpty>
               ) : null}
             </>
           )}

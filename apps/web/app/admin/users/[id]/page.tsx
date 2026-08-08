@@ -1,3 +1,4 @@
+import { WireEmpty, WireError } from '../../../components/wire/wire-state';
 import Link from 'next/link';
 import { ListRow } from '../../../components/wire/list-row';
 import { MetaRow } from '../../../components/wire/meta-row';
@@ -40,7 +41,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
     return (
       <>
         <PageTitle>실무자 상세</PageTitle>
-        <p className="wire-admin-empty" role="alert">{directoryError}</p>
+        <WireError>{directoryError}</WireError>
       </>
     );
   }
@@ -49,7 +50,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       <>
         <div className="wire-admin-back"><WireButton variant="ghost" height="sm" href="/admin/users">사용자 목록으로</WireButton></div>
         <PageTitle>실무자 상세</PageTitle>
-        <p className="wire-admin-empty" role="alert">해당 실무자를 찾을 수 없습니다.</p>
+        <WireError>해당 실무자를 찾을 수 없습니다.</WireError>
       </>
     );
   }
@@ -78,9 +79,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       <section className="wire-admin-section" aria-label="담당 당사자">
         <h2>담당 당사자</h2>
         {assignmentsError !== null ? (
-          <p className="wire-admin-empty" role="alert">{assignmentsError}</p>
+          <WireError>{assignmentsError}</WireError>
         ) : assignments === null || assignments.participants.length === 0 ? (
-          <p className="wire-admin-empty">담당 당사자가 없습니다.</p>
+          <WireEmpty>담당 당사자가 없습니다.</WireEmpty>
         ) : (
           <div className="wire-admin-list">
             {assignments.participants.map((participant) => (

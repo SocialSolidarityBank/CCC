@@ -1,3 +1,4 @@
+import { WireBadge } from './wire-badge';
 import Link from 'next/link';
 
 // 당사자 카드 (2026-08-06 Q · D60 후속) — **일정 카드와 당사자 목록 카드가 같은 부품이다.**
@@ -80,8 +81,8 @@ export function ParticipantCard({
               <span className="participant-card-cell" data-col="date">{schedule.date}</span>
               <span className="participant-card-cell">{schedule.time}</span>
               <span className="participant-card-badges">
-                <span className="wire-badge" data-tone="blue">{schedule.kindLabel}</span>
-                {schedule.statusLabel !== undefined && <span className="wire-badge">{schedule.statusLabel}</span>}
+                <WireBadge tone="blue">{schedule.kindLabel}</WireBadge>
+                {schedule.statusLabel !== undefined && <WireBadge>{schedule.statusLabel}</WireBadge>}
               </span>
             </div>
           </>
@@ -95,7 +96,9 @@ export function ParticipantCard({
               )}
               {statusBadge !== undefined && (
                 <span className="participant-card-badges">
-                  <span className="wire-badge" data-tone={statusBadge.tone}>{statusBadge.label}</span>
+                  {/* exactOptionalPropertyTypes: tone 이 undefined 일 수 있으므로 키를 뺀다
+                      (넘기면 '없음'이 아니라 '값이 undefined'로 읽혀 타입이 어긋난다). */}
+                  <WireBadge {...(statusBadge.tone === undefined ? {} : { tone: statusBadge.tone })}>{statusBadge.label}</WireBadge>
                 </span>
               )}
             </div>

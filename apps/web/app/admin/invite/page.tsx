@@ -1,3 +1,4 @@
+import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { PageTitle } from '../../components/wire/page-title';
 import { SearchInput } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
@@ -40,7 +41,7 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
         <p className="wire-admin-notice" role="status" aria-live="polite">{noticeMessages[notice]}</p>
       ) : null}
       {errorCode !== undefined ? (
-        <p className="wire-admin-error" role="alert">{errorMessages[errorCode] ?? '등록하지 못했습니다.'}</p>
+        <WireError>{errorMessages[errorCode] ?? '등록하지 못했습니다.'}</WireError>
       ) : null}
 
       <form className="wire-admin-form-row" action={registerCounselorAction}>

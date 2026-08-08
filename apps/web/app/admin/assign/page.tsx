@@ -1,3 +1,4 @@
+import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { ListRow } from '../../components/wire/list-row';
 import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
@@ -108,7 +109,7 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
         <p className="wire-admin-notice" role="status" aria-live="polite">{noticeMessages[notice]}</p>
       ) : null}
       {errorCode !== undefined ? (
-        <p className="wire-admin-error" role="alert">{errorMessages[errorCode] ?? '배정하지 못했습니다.'}</p>
+        <WireError>{errorMessages[errorCode] ?? '배정하지 못했습니다.'}</WireError>
       ) : null}
 
       <div className="wire-admin-list">
@@ -116,7 +117,7 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
       </div>
 
       {loadError !== null ? (
-        <p className="wire-admin-empty" role="alert">{loadError}</p>
+        <WireError>{loadError}</WireError>
       ) : (
         <>
           <form className="wire-admin-form-row" method="get">
@@ -131,12 +132,12 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
           </form>
 
           {selected !== undefined && selectedCandidate === undefined ? (
-            <p className="wire-admin-empty">활성 케이스를 선택하세요.</p>
+            <WireEmpty>활성 케이스를 선택하세요.</WireEmpty>
           ) : selectedCandidate !== undefined ? (
             <section className="wire-admin-section" aria-label="실무자 배정">
               <h2>{selectedCandidate.participantName ?? selectedCandidate.beneficiaryId} 배정</h2>
               {counselorOptions.length === 0 ? (
-                <p className="wire-admin-empty">추가할 실무자가 없습니다. 먼저 실무자를 등록하세요.</p>
+                <WireEmpty>추가할 실무자가 없습니다. 먼저 실무자를 등록하세요.</WireEmpty>
               ) : (
                 <form className="wire-admin-form-row" action={addSupportCaseAssigneeAction}>
                   <input type="hidden" name="supportCaseId" value={selectedCandidate.supportCaseId} />
@@ -148,9 +149,9 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
               <div className="wire-admin-section">
                 <h2>현재 배정된 실무자</h2>
                 {assigneesError !== null ? (
-                  <p className="wire-admin-empty" role="alert">{assigneesError}</p>
+                  <WireError>{assigneesError}</WireError>
                 ) : assignees.length === 0 ? (
-                  <p className="wire-admin-empty">배정된 실무자가 없습니다.</p>
+                  <WireEmpty>배정된 실무자가 없습니다.</WireEmpty>
                 ) : (
                   <div className="wire-admin-list">
                     {assignees.map((assignee) => (
