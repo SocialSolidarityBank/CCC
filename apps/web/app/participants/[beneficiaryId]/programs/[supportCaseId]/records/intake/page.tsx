@@ -1,5 +1,6 @@
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
+import { IntakeReadView } from './intake-read-view';
 import { IntakeWizard } from './intake-wizard';
 
 type LoadError = 'access_denied' | 'authentication_required' | 'forbidden' | 'not_found' | 'service_unavailable';
@@ -36,10 +37,13 @@ async function load(supportCaseId: string): Promise<{ data: IntakeRecordContext;
 
 export default async function NewIntakePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ beneficiaryId: string; supportCaseId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { beneficiaryId: rawBeneficiaryId, supportCaseId: rawSupportCaseId } = await params;
+  const query = await searchParams;
   const beneficiaryId = safeId(rawBeneficiaryId);
   const supportCaseId = safeId(rawSupportCaseId);
   const programPath = beneficiaryId === null || supportCaseId === null
@@ -60,10 +64,27 @@ export default async function NewIntakePage({
     return <main className="page-content"><p className="wire-badge" data-tone="risk" role="alert">{messages[context.error]}</p></main>;
   }
 
-  // 인테이크가 이미 있으면 같은 위저드를 **수정 모드**로 연다(2026-08-08 Q "확인/수정" —
-  // 구 "이미 있습니다" 차단 화면 대체). 작성 1회 규칙은 그대로다: 만들기는 한 번, 그 뒤는 수정.
+  // 인테이크가 이미 있으면 **조회가 기본**이다(CCC-58, 2026-08-08 Q "조회 기본 + 수정 버튼").
+  // 고치기는 ?edit=1 로만 들어온다 — 같은 위저드의 수정 모드다(2026-08-08 Q "확인/수정").
+  // 작성 1회 규칙은 그대로다: 만들기는 한 번, 그 뒤는 조회·수정.
   if (context.data.hasIntake && context.data.saved !== null) {
     const saved = context.data.saved;
+    const intakeHref = `${programPath}/records/intake`;
+    if (query.edit !== '1') {
+      return (
+        <IntakeReadView
+          beneficiaryId={beneficiaryId}
+          participant={context.data.participant}
+          extendedPii={context.data.extendedPii}
+          consent={context.data.consent}
+          saved={saved}
+          editHref={`${intakeHref}?edit=1`}
+          recordsHref={recordsHref}
+          participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
+          basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
+        />
+      );
+    }
     return (
       <IntakeWizard
         mode="edit"
@@ -77,7 +98,8 @@ export default async function NewIntakePage({
         basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
         sessionSequence={context.data.sessionSequence}
         recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
-        briefingHref={recordsHref}
+        // 수정 저장 후에는 조회로 돌아온다(CCC-58) — 고친 결과를 바로 읽는 자리다.
+        briefingHref={intakeHref}
         initial={{
           heldAt: saved.heldAt,
           answers: saved.answers,

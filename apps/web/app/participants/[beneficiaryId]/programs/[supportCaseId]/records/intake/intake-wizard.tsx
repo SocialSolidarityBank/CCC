@@ -21,6 +21,9 @@ import type {
 import type { CreateIntakeRecordActionInput, IntakeRecordActionResult } from '../../../../../../actions';
 import {
   ACTIVE_QUESTIONS,
+  ADDITIONAL_COLUMNS,
+  DEBT_COLUMNS,
+  LINKED_ORG_COLUMNS,
   NOT_APPLICABLE_CODE,
   NOT_APPLICABLE_OPTION,
   NO_RESPONSE_CODE,
@@ -29,6 +32,7 @@ import {
   STEP_TITLES,
   channelForMethod,
   type IntakeQuestion,
+  type IntakeTableColumn,
 } from './intake-questions';
 
 /**
@@ -109,33 +113,8 @@ interface IntakeDraftValues {
   managerOpinion: string;
 }
 
-interface ColumnSpec { key: string; label: string; placeholder?: string }
-
-// 2-1 대출·부채 현황: 채무별 기관·채권자, 구분, 잔액, 월 상환액, 연체 여부·상태.
-const DEBT_COLUMNS: readonly ColumnSpec[] = [
-  { key: 'creditor', label: '기관·채권자', placeholder: '예: OO은행 / 해당 없음' },
-  { key: 'kind', label: '구분', placeholder: '예: 신용대출' },
-  { key: 'balance', label: '잔액', placeholder: '예: 1,200만원' },
-  { key: 'monthlyPayment', label: '월 상환액', placeholder: '예: 30만원' },
-  { key: 'arrearsStatus', label: '연체 여부·상태', placeholder: '예: 3개월 연체' },
-];
-
-// 3-3 현재 연계된 기관·서비스.
-const LINKED_ORG_COLUMNS: readonly ColumnSpec[] = [
-  { key: 'orgName', label: '기관명', placeholder: '예: OO구 주민센터 / 해당 없음' },
-  { key: 'serviceName', label: '사업·서비스명', placeholder: '예: 긴급복지 생계지원' },
-  { key: 'supportDetail', label: '지원내용·금액', placeholder: '예: 생계비 713,100원' },
-  { key: 'usagePeriod', label: '이용기간', placeholder: '예: 2026.07~2026.09' },
-  { key: 'progressStatus', label: '진행상태·담당자', placeholder: '예: 심사 중 / 김OO 주무관' },
-];
-
-// 4-2 추가 확인사항.
-const ADDITIONAL_COLUMNS: readonly ColumnSpec[] = [
-  { key: 'item', label: '추가 확인사항', placeholder: '예: 전체 채무 잔액' },
-  { key: 'reason', label: '필요한 이유', placeholder: '예: 채무조정 가능성 판단' },
-  { key: 'method', label: '확인 방법', placeholder: '예: 신용정보조회서 확인' },
-  { key: 'dueNote', label: '확인 예정 시점', placeholder: '예: 다음 상담 전' },
-];
+// 표 3종의 열 정의는 intake-questions.ts 가 단일 원천이다(CCC-58 — 조회 화면과 공유).
+type ColumnSpec = IntakeTableColumn;
 
 const stackStyle: CSSProperties = { display: 'grid', gap: 20 };
 const headingStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--ink)' };

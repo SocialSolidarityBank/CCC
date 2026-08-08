@@ -77,7 +77,8 @@ function recordsHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/records`;
 }
 
-/** 인테이크 확인·수정 화면(2026-08-08 Q). 주소는 전체 상담 기록의 하위다. */
+/** 인테이크 화면(2026-08-08 Q). 주소는 전체 상담 기록의 하위다.
+ *  기록이 있으면 조회가 기본이고(CCC-58), 수정은 그 화면의 버튼이 연다. 없으면 작성 위저드다. */
 function intakeHref(beneficiaryId: string, supportCaseId: string): string {
   return `${recordsHref(beneficiaryId, supportCaseId)}/intake`;
 }
