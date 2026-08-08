@@ -32,6 +32,7 @@ import {
   COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
   closeGoal,
+  countUpcomingSchedulesLinkedToGoal,
   createBeneficiaryWithInitialSupportCase,
   createCase,
   createCounselingRecord,
@@ -94,6 +95,7 @@ import {
   registerRecording,
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
+  updateScheduleSessionGoals,
   searchParticipants,
   setSupportCaseOverallGoal,
   updateParticipantConsent,
@@ -966,6 +968,18 @@ function parseScheduleTransition(body: JsonObject) {
   return { expectedVersion: requiredExpectedVersion(body, 'expectedVersion') };
 }
 
+// 세션 목표 수정 (D62 §6 · CCC-70). 묶음 통째 교체라 sessionGoals 는 필수다.
+// 빈 배열은 "전부 지움"이고, 키 생략은 실수로 본다(생성의 선택 필드와 다른 계약).
+function parseScheduleSessionGoalsUpdate(body: JsonObject) {
+  requireOnlyKeys(body, ['expectedVersion', 'sessionGoals']);
+  const sessionGoals = parseScheduleSessionGoals(body);
+  if (sessionGoals === undefined) throw new ValidationError('sessionGoals is required');
+  return {
+    expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
+    sessionGoals,
+  };
+}
+
 function requestQuery(url: URL, allowed: readonly string[]): URLSearchParams {
   for (const key of new Set(url.searchParams.keys())) {
     if (!allowed.includes(key) || url.searchParams.getAll(key).length !== 1) {
@@ -1072,6 +1086,11 @@ function scheduleResponse(schedule: Awaited<ReturnType<typeof rescheduleCounseli
 function scheduleSessionPlanResponse(plan: Awaited<ReturnType<typeof getScheduleSessionPlan>>) {
   return {
     scheduleId: plan.scheduleId,
+    beneficiaryId: plan.beneficiaryId,
+    supportCaseId: plan.supportCaseId,
+    scheduledAt: plan.scheduledAt,
+    status: plan.status,
+    version: plan.version,
     sessionKind: plan.sessionKind,
     channel: plan.channel,
     sessionGoals: plan.sessionGoals.map((goal) => ({
@@ -1844,6 +1863,17 @@ export async function handleRequest(
         requestQuery(url, []);
         return json(scheduleSessionPlanResponse(await getScheduleSessionPlan(env, actor, scheduleId)));
       }
+      // 세션 목표 수정 (D62 §6 · CCC-70): 시작 시각 전까지만, 활성 세부 목표만 연결.
+      // 잠금·연결 규칙·낙관 잠금 전부 게이트웨이가 강제한다(R1).
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'plan') {
+        requestQuery(url, []);
+        return json(await updateScheduleSessionGoals(
+          env,
+          actor,
+          scheduleId,
+          parseScheduleSessionGoalsUpdate(await requestBody(request)),
+        ));
+      }
     }
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'participant') {
       // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 사람(실무자·관리자)만 —
@@ -2156,6 +2186,12 @@ export async function handleRequest(
         const body = await requestBody(request);
         // D62 §5: 구 종료+신설 승계(successor)는 받지 않는다. 사유는 선택값 3종.
         return json(await closeGoal(env, actor, goalId, requiredString(body, 'reason')));
+      }
+      // 미래 회기 연결 수 (D62 §5 · CCC-70): 닫기 시도 화면의 알림 한 줄 판정용.
+      // 알림일 뿐 닫기를 막지 않는다. 판정 SQL·권한·감사는 게이트웨이 내장(R1).
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'upcoming-links') {
+        requestQuery(url, []);
+        return json({ upcomingCount: await countUpcomingSchedulesLinkedToGoal(env, actor, goalId) });
       }
     }
     if (parts[0] === 'sessions' && parts[1] !== undefined) {

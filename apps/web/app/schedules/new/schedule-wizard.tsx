@@ -372,9 +372,11 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                 카드 높이에 맞추기") — 그 그리드가 이미 같은 줄 카드를 stretch 로 편다(2026-08-07).
                 구 .wire-container[data-grid] + wire-col-6 은 12칼럼 배치라 그 규칙이 안 걸렸다. */}
             <div className="card-grid">
-              <WireCard title="상담별 목표">
+              {/* D62 용어(CCC-70): 구 '상담별 목표'·'케이스 목표'는 세부 목표 층의 옛 이름이다.
+                  선택창에는 활성 세부 목표만 올린다(loadScheduleContextAction 이 거른다). */}
+              <WireCard title="세부 목표">
                 {(context?.caseGoals ?? []).length === 0 ? (
-                  <WireEmpty>등록된 케이스 목표가 없습니다.</WireEmpty>
+                  <WireEmpty>등록된 세부 목표가 없습니다.</WireEmpty>
                 ) : (
                   <WireBullets items={(context?.caseGoals ?? []).map((goal) => goal.title)} />
                 )}
@@ -385,7 +387,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                   : <p className="panel-meta"><MetaRow items={[context.lastBriefing.source === 'ai' ? '승인 요약' : '수기 메모', context.lastBriefing.text]} /></p>}
               </WireCard>
             </div>
-            {/* 목표 카드(2026-08-09 Q): 세션 목표와 케이스 목표 연결이 **나란히** 서고 전체가
+            {/* 목표 카드(2026-08-09 Q): 세션 목표와 세부 목표 연결이 **나란히** 서고 전체가
                 카드 한 장이다. 구 배치는 목표 입력 아래 선택창, 그 아래 삭제 버튼으로 세 줄이
                 쌓여 어느 선택창이 어느 목표에 붙는지가 여백으로만 구분됐다. */}
             <WireCard className="wire-form-card">
@@ -404,13 +406,19 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                         ))}
                       />
                     </WireFormField>
-                    <WireFormField label="케이스 목표 연결" control="select" htmlFor={`session-goal-case-${index}`}>
+                    <WireFormField label="세부 목표 연결" control="select" htmlFor={`session-goal-case-${index}`}>
                       <select
                         id={`session-goal-case-${index}`}
                         value={goal.caseGoalId}
-                        onChange={(event) => setSessionGoals((prev) => prev.map(
-                          (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: event.currentTarget.value } : item),
-                        ))}
+                        onChange={(event) => {
+                          // currentTarget 은 이벤트 디스패치가 끝나면 null 이 된다. 상태
+                          // 업데이터가 나중에 돌므로 값을 먼저 집어 둔다(CCC-70 에서 발견.
+                          // 세부 목표 층이 보류였을 때는 선택지가 늘 비어 있어 안 드러났다).
+                          const value = event.currentTarget.value;
+                          setSessionGoals((prev) => prev.map(
+                            (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: value } : item),
+                          ));
+                        }}
                       >
                         {goalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
