@@ -10,7 +10,6 @@ import { setupD1, testActors } from './support/d1';
 const { counselor, admin } = testActors;
 const t = setupD1();
 
-const INTAKE_AT = '2026-07-16T09:00:00.000Z';
 
 function headersFor(actor: { userId: string; orgId: string; role: string }): Record<string, string> {
   return {
@@ -34,7 +33,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       email: 'participant@example.test',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -55,7 +53,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       name: '  김성규  ',
       phone: '010-2233-1234',
       email: 'named@example.test',
@@ -78,7 +75,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       name: '   ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -91,7 +87,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       email: '  spaced@example.test  ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -107,7 +102,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       email: 'not-an-email',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -120,7 +114,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       email: '   ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -133,7 +126,6 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
     await t.reset();
     const response = await register({
       programType: 'financial_support_v1',
-      intakeAt: INTAKE_AT,
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
       consentRecordingAi: false,

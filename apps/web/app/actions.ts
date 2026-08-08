@@ -145,14 +145,6 @@ function canonicalUtcDateTime(formData: FormData, name: string): string {
   return parsed.toISOString();
 }
 
-// 인테이크 일시가 폼에 없으면(개편된 등록 폼, #37) 등록 시각을 인테이크로 본다 —
-// 게이트웨이 createCase 가 intakeAt ?? now() 로 쓰는 패턴과 같다. 값이 오면 그대로 정규화한다.
-function canonicalUtcDateTimeOrNow(formData: FormData, name: string): string {
-  return value(formData, name).trim().length === 0
-    ? new Date().toISOString()
-    : canonicalUtcDateTime(formData, name);
-}
-
 // 등록 이메일(선택, #37). 비면 undefined 라 바디에서 빠진다. 형식 검증(400)은 API 가 소유한다.
 function optionalEmail(formData: FormData, name: string): string | undefined {
   const input = value(formData, name).trim();
@@ -724,7 +716,8 @@ export async function createInitialParticipantProgramAction(formData: FormData):
       : undefined;
     const created = await createInitialParticipantProgram({
       programType: 'financial_support_v1',
-      intakeAt: canonicalUtcDateTimeOrNow(formData, 'intakeAt'),
+      // intakeAt 을 싣지 않는다(CCC-56): 등록 시각을 인테이크 완료로 기록하던 오염을 중단.
+      // 인테이크 완료 시각은 인테이크 기록 저장이 채운다.
       // 항목별 동의 2종(D49·D23·D44): ② 는 기본 미체크이고 미동의여도 등록은 진행된다.
       // ① 은 하드 게이트다(G1) — 미체크면 긴급 등록 사유가 있어야 서버가 받아 준다.
       consentPrivacy: checkbox(formData, 'consentPrivacy'),
@@ -772,7 +765,7 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
       schemaVersion: 1,
       submissionId: submissionId(formData),
       programType: 'financial_support_v1',
-      intakeAt: canonicalUtcDateTime(formData, 'intakeAt'),
+      // intakeAt 을 싣지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
       sourceSupportCaseId: opaqueId(formData, 'sourceSupportCaseId'),
       // D49: 두 번째 참여 사업도 2종을 여기서 받는다 — 전에는 ② 를 보낼 경로가 없었다.
       consentPrivacy: checkbox(formData, 'consentPrivacy'),

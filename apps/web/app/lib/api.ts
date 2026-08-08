@@ -498,7 +498,8 @@ export interface NewRecordContext {
 
 export interface CreateInitialParticipantProgramInput {
   programType: ParticipantProgramType;
-  intakeAt: string;
+  // intakeAt 은 없다(CCC-56): 등록은 인테이크가 아니다. 인테이크 완료 시각은 인테이크
+  // 기록 저장이 채우고, 그 전까지 위저드는 이 당사자를 '인테이크 전'으로 본다.
   initialAssigneeUserId?: string;
   // 항목별 동의 2종(D49·D23·D44). ② 는 기본 미동의이고 미동의여도 등록은 진행된다.
   // ① consentPrivacy 만은 **하드 게이트**다(G1) — 없으면 emergencyReason 이 있어야 통과한다.
@@ -536,7 +537,7 @@ export interface CreateSubsequentParticipantProgramInput {
   schemaVersion: 1;
   submissionId: string;
   programType: ParticipantProgramType;
-  intakeAt: string;
+  // intakeAt 은 없다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
   /** ① 개인정보 동의 (G1). 두 번째 참여 사업도 동의 2종이 미체크로 시작하므로 여기서 다시 받는다(D44). */

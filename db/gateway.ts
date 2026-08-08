@@ -4250,9 +4250,11 @@ export async function createCase(
   const intakeAt = input.intakeAt === undefined
     ? null
     : canonicalUtcInstant(input.intakeAt, 'intake time');
+  // intakeAt 은 legacyCompatibility 로만 전달한다(CCC-56) — canonicalInput 에 실으면
+  // "등록 시각을 인테이크로 본다"는 폐기된 패턴이 되살아난다.
   const canonicalInput: CreateBeneficiaryWithInitialSupportCaseInput = actor.role === 'admin'
-    ? { programType, intakeAt: intakeAt ?? now(), initialAssigneeUserId: actor.userId }
-    : { programType, intakeAt: intakeAt ?? now() };
+    ? { programType, initialAssigneeUserId: actor.userId }
+    : { programType };
   const creation = await createBeneficiaryWithInitialSupportCase(
     env,
     actor,
@@ -6913,7 +6915,13 @@ async function allocateBeneficiaryId(env: Env, orgId: string): Promise<string> {
 
 export interface CreateBeneficiaryWithInitialSupportCaseInput {
   programType: 'financial_support_v1';
-  intakeAt: string;
+  /**
+   * 인테이크 **완료** 시각(CCC-56). 등록은 인테이크가 아니므로 **등록 경로는 이 값을 보내지
+   * 않는다** — HTTP 등록 라우트는 키 자체를 거부하고, 미제공이면 NULL(아직 없음)로 만든다.
+   * 값을 실을 수 있는 곳은 직접 호출 하네스(테스트 픽스처)뿐이다. 실기록 경로는
+   * createIntakeRecord 가 저장 시점에 채운다.
+   */
+  intakeAt?: string | null;
   initialAssigneeUserId?: string;
   // 등록 시점에 받은 값은 금고에 AES-GCM 암호문으로 저장한다(선택, D3 · D24 · #32 · #37).
   // 등록 폼이 이름·연락처·이메일을 받으므로 셋 다 등록 경로가 연다. 계좌는 이후
@@ -7011,7 +7019,11 @@ export interface CreateSupportCaseInput {
   schemaVersion: 1;
   submissionId: string;
   programType: 'financial_support_v1';
-  intakeAt: string;
+  /**
+   * 인테이크 **완료** 시각(CCC-56). 추가 참여 사업도 등록 시점에는 인테이크 전이므로
+   * HTTP 라우트는 키를 거부하고, 미제공이면 NULL 로 시작한다. 채움은 createIntakeRecord 몫이다.
+   */
+  intakeAt?: string | null;
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
   /**
@@ -7239,12 +7251,14 @@ export async function createBeneficiaryWithInitialSupportCase(
 ): Promise<SupportCaseCreationResult> {
   await assertCurrentHumanActor(env, actor);
   const expectedKeys = actor.role === 'admin'
-    ? ['programType', 'intakeAt', 'initialAssigneeUserId']
-    : ['programType', 'intakeAt'];
+    ? ['programType', 'initialAssigneeUserId']
+    : ['programType'];
   // 이름·연락처·이메일은 선택 항목이므로 값이 있을 때만 허용 키에 넣는다(기존 등록 호출은 그대로).
+  // intakeAt 도 같은 방식이다(CCC-56) — 등록 라우트는 보내지 않고, 하네스만 값을 실을 수 있다.
   const optionalPiiKeys = (['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const)
     .filter((key) => input[key] !== undefined);
-  assertExactKeys(input, [...expectedKeys, ...optionalPiiKeys]);
+  const optionalIntakeKeys = input.intakeAt === undefined ? [] : ['intakeAt'];
+  assertExactKeys(input, [...expectedKeys, ...optionalIntakeKeys, ...optionalPiiKeys]);
   assertFinancialSupportProgramType(input.programType);
   for (const key of optionalPiiKeys) {
     const value = input[key];
@@ -7252,7 +7266,9 @@ export async function createBeneficiaryWithInitialSupportCase(
   }
   if (input.birthDate !== undefined && input.birthDate !== null) assertDateOnly(input.birthDate);
   const intakeAt = legacyCompatibility === undefined
-    ? canonicalUtcInstant(input.intakeAt, 'intake time')
+    ? (input.intakeAt === undefined || input.intakeAt === null
+      ? null
+      : canonicalUtcInstant(input.intakeAt, 'intake time'))
     : legacyCompatibility.intakeAt;
   await assertOrganizationSettings(env, actor.orgId);
   if (intakeAt !== null) {
@@ -7804,11 +7820,13 @@ export async function createSupportCase(
   await assertCurrentHumanActor(env, actor);
   assertBeneficiaryId(beneficiaryId);
   const baseKeys = actor.role === 'counselor'
-    ? ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'sourceSupportCaseId']
-    : ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'initialAssigneeUserId'];
+    ? ['schemaVersion', 'submissionId', 'programType', 'sourceSupportCaseId']
+    : ['schemaVersion', 'submissionId', 'programType', 'initialAssigneeUserId'];
   // ① 은 필수 키다(G1). 긴급 사유는 값이 있을 때만 허용 키에 넣는다(등록 경로의 선택 PII 와 같은 방식).
+  // intakeAt 도 값이 있을 때만 허용한다(CCC-56, 하네스 전용 — HTTP 라우트는 키를 거부한다).
   const expectedKeys = [
     ...baseKeys,
+    ...(input.intakeAt === undefined ? [] : ['intakeAt']),
     'consentPrivacy',
     // ② 는 선택이라 값이 있을 때만 허용 키에 넣는다(긴급 사유와 같은 방식).
     ...(input.consentRecordingAi === undefined ? [] : ['consentRecordingAi']),
@@ -7822,7 +7840,9 @@ export async function createSupportCase(
   if (input.schemaVersion !== 1) throw new ValidationError('schema version is invalid');
   assertCanonicalSubmissionId(input.submissionId);
   assertFinancialSupportProgramType(input.programType);
-  const intakeAt = canonicalUtcInstant(input.intakeAt, 'intake time');
+  const intakeAt = input.intakeAt === undefined || input.intakeAt === null
+    ? null
+    : canonicalUtcInstant(input.intakeAt, 'intake time');
   await assertOrganizationSettings(env, actor.orgId);
 
   let sourceSupportCaseId: string | null = null;
@@ -11583,6 +11603,22 @@ export async function createIntakeRecord(
 
   const statements: D1PreparedStatement[] = [sessionStatement];
 
+  // 인테이크 완료 시각(CCC-56): 등록은 더 이상 intake_at 을 채우지 않으므로, 인테이크
+  // 기록 저장이 곧 유일한 채움 지점이다. 값은 이 세션의 상담일(held_at)이다 — 위저드
+  // 기본 유형·1회 규칙 안내가 읽는 신호(ScheduleCandidate.intakeAt)와 기록 존재가 여기서
+  // 처음으로 같은 사실이 된다. 세션 INSERT 가 가드에 막히면 이 UPDATE 도 0행이다.
+  statements.push(env.DB.prepare(
+    `UPDATE support_cases
+     SET intake_at = ?, updated_at = ?
+     WHERE id = ? AND org_id = ? AND ${sessionExistsClause}`,
+  ).bind(
+    input.heldAt,
+    createdAt,
+    supportCaseId,
+    actor.orgId,
+    ...sessionExistsBindings,
+  ));
+
   // 목표(신설) + 각 목표 생성 감사(세션 트리거는 세션 행만 감사하므로 goals 는 명시 감사 — D14).
   for (const goal of goalInputs) {
     const goalId = newId();
@@ -11937,6 +11973,28 @@ export async function updateIntakeRecord(
       supportCaseId,
       detail: { kind: 'intake' },
     }),
+    // 인테이크 완료 시각 동기(CCC-56): 상담일(held_at)이 바뀌면 intake_at 도 따라간다.
+    // 앞 UPDATE 가 권한·상태 가드에 막혀 0행이면 여기도 0행이어야 하므로, 이 호출이 방금
+    // 쓴 값(held_at = ?, updated_at = ?)이 실제로 앉았는지를 조건으로 삼는다.
+    env.DB.prepare(
+      `UPDATE support_cases
+       SET intake_at = ?, updated_at = ?
+       WHERE id = ? AND org_id = ? AND EXISTS (
+         SELECT 1 FROM sessions
+         WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
+           AND held_at = ? AND updated_at = ?
+       )`,
+    ).bind(
+      input.heldAt,
+      updatedAt,
+      supportCaseId,
+      actor.orgId,
+      intakeRow.id,
+      actor.orgId,
+      supportCaseId,
+      input.heldAt,
+      updatedAt,
+    ),
   ]);
   const updated = results[0] as unknown as { meta?: { changes?: number } };
   if ((updated.meta?.changes ?? 0) < 1) {

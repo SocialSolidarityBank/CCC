@@ -3,10 +3,13 @@
  *
  * 이 파일은 raw D1 을 절대 만지지 않는다(guard allowlist 대상 아님) — 모든 쓰기는 게이트웨이
  * 공개 함수를 거친다. 참여자당 순서는 스펙을 엄수한다:
- *   1) createBeneficiaryWithInitialSupportCase(admin actor, initialAssigneeUserId 필수)
+ *   1) createBeneficiaryWithInitialSupportCase(admin actor, initialAssigneeUserId 필수 —
+ *      intakeAt 없음(CCC-56): 등록은 인테이크 전이고, intake_at 은 4)가 채운다)
  *   2) createCounselingSchedule(intake, caseGoals → 케이스 목표 생성)
  *   3) listGoals 로 목표 id 부트스트랩(인테이크 목표는 created_at 동률이라 title 로 매핑)
- *   4) createCounselingRecord(intake 일정 완료, 활성 목표 전부 채점)
+ *   4) createIntakeRecord(intake 일정 완료, kind='intake' 세션 + intake_at 채움 — CCC-56.
+ *      구 createCounselingRecord 는 kind='regular' 로 남아 "인테이크 기록 없음" 모순을 만들었다.
+ *      인테이크 회차 채점은 실흐름에 없으므로 뺀다: 채점은 정기 회차부터다)
  *   5) 정기 회차 반복(regular schedule → record). 중간 이벤트: closeGoal 교체, 액션 해결, 독립 플래그
  *   6) 향후 일정(scheduled 로 남김, record 없음)
  *
@@ -17,6 +20,7 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCounselingSchedule,
   createCounselingRecord,
+  createIntakeRecord,
   listGoals,
   closeGoal,
   createActionItem,
@@ -130,7 +134,8 @@ async function runParticipant(
     adminActor,
     {
       programType: FINANCIAL_SUPPORT_V1,
-      intakeAt: participant.intakeAt,
+      // intakeAt 없음(CCC-56): 등록 시점의 intake_at 은 NULL 이고, 아래 인테이크 기록
+      // 저장(createIntakeRecord)이 실흐름과 같은 배선으로 채운다.
       initialAssigneeUserId: participant.assigneeUserId,
       name: participant.name,
       phone: participant.phone,
@@ -203,16 +208,15 @@ async function runParticipant(
     active[slot] = { key: replacement.newGoal.key, id: successorId, title: replacement.newGoal.title };
   };
 
-  // 4) 인테이크 기록 — 인테이크 일정 완료 + 활성 목표 전부 채점.
+  // 4) 인테이크 기록 — 인테이크 일정 완료. kind='intake' 세션이 서고 intake_at 이 채워진다
+  //    (CCC-56 배선). 메모는 실기록과 같은 자리인 실무자 종합 의견(managerOpinion)에 싣는다 —
+  //    인테이크 세션의 memo 컬럼은 실흐름에서도 NULL 이다.
   mark();
-  await createCounselingRecord(env, primaryActor, supportCaseId, {
+  await createIntakeRecord(env, primaryActor, supportCaseId, {
     submissionId: crypto.randomUUID(),
     heldAt: participant.intakeAt,
     channel: 'in_person',
-    memo: participant.intakeMemo,
-    gasScores: scoreActiveGoals(active, participant.trajectory, 0),
-    actionItems: [],
-    flags: [],
+    managerOpinion: participant.intakeMemo,
     scheduleId: intakeSchedule.id,
     expectedScheduleVersion: 1,
   });

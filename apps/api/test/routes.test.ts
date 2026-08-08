@@ -1933,7 +1933,6 @@ async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
     headers: canonicalCounselorHeaders,
     body: JSON.stringify({
       programType: 'financial_support_v1',
-      intakeAt: '2026-07-15T09:00:00.000Z',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
       consentPrivacy: true,
     }),
@@ -1957,7 +1956,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       programType: 'financial_support_v1',
       status: 'active',
-      intakeAt: '2026-07-15T09:00:00.000Z',
+      // CCC-56: 등록만으로는 인테이크 전 — intake_at 은 인테이크 기록 저장이 채운다.
+      intakeAt: null,
       creationKind: 'initial',
       sourceSupportCase: null,
       participantName: null,
@@ -2407,7 +2407,6 @@ describe('canonical participant API routes', () => {
       // G1: 추가 참여 사업도 ① 을 다시 받는다(D44 — 두 번째 사업은 미체크로 시작).
       consentPrivacy: true,
       programType: 'financial_support_v1',
-      intakeAt: '2026-07-16T09:00:00.000Z',
       sourceSupportCaseId: creation.supportCaseId,
     };
     const createdResponse = await worker.fetch(new Request(
@@ -2465,8 +2464,9 @@ describe('canonical participant API routes', () => {
         method: 'POST',
         headers: canonicalCounselorHeaders,
         body: JSON.stringify({
+          // 같은 제출 id 로 내용만 다른 재시도 — ② 동의를 바꿔 영수증 해시를 어긋나게 한다.
           ...requestBody,
-          intakeAt: '2026-07-16T10:00:00.000Z',
+          consentRecordingAi: true,
         }),
       },
     ), t.env);
@@ -2730,7 +2730,6 @@ describe('canonical participant API routes', () => {
       headers: canonicalCounselorHeaders,
       body: JSON.stringify({
         programType: 'financial_support_v1',
-        intakeAt: '2026-07-15T09:00:00.000Z',
         initialAssigneeUserId: canonicalIds.hiddenCounselor,
       }),
     }), t.env);
@@ -2746,7 +2745,6 @@ describe('canonical participant API routes', () => {
           schemaVersion: 1,
           submissionId: 'not-a-uuid',
           programType: 'financial_support_v1',
-          intakeAt: '2026-07-15T09:00:00Z',
           sourceSupportCaseId: creation.supportCaseId,
           ignored: true,
         }),
@@ -2778,7 +2776,6 @@ describe('canonical participant API routes', () => {
       submissionId: '55555555-5555-4555-8555-555555555555',
       consentPrivacy: true,
       programType: 'financial_support_v1',
-      intakeAt: '2026-07-16T09:00:00.000Z',
       initialAssigneeUserId: canonicalIds.hiddenCounselor,
     };
     const hidden = await worker.fetch(new Request(

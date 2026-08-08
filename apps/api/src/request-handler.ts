@@ -376,24 +376,25 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
     ...(region === undefined ? {} : { region }),
     ...(gender === undefined ? {} : { gender }),
   };
+  // intakeAt 키는 받지 않는다(CCC-56): 등록은 인테이크가 아니다. intake_at 은 NULL 로
+  // 시작하고, 인테이크 기록 저장(createIntakeRecord)이 채운다. 모르는 키는 400 이므로
+  // 옛 클라이언트가 보내던 intakeAt 도 여기서 걸린다.
   const registrationKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['programType', 'intakeAt', 'initialAssigneeUserId', ...registrationKeys]);
+    requireOnlyKeys(body, ['programType', 'initialAssigneeUserId', ...registrationKeys]);
     return {
       input: {
         programType: requireFinancialSupportProgramType(body),
-        intakeAt: requiredCanonicalUtc(body, 'intakeAt'),
         initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
         ...optionalPii,
       },
       consent,
     };
   }
-  requireOnlyKeys(body, ['programType', 'intakeAt', ...registrationKeys]);
+  requireOnlyKeys(body, ['programType', ...registrationKeys]);
   return {
     input: {
       programType: requireFinancialSupportProgramType(body),
-      intakeAt: requiredCanonicalUtc(body, 'intakeAt'),
       ...optionalPii,
     },
     consent,
@@ -415,23 +416,22 @@ function parseSubsequentParticipantCreation(body: JsonObject, actor: Actor) {
     ...(consentRecordingAi === undefined ? {} : { consentRecordingAi }),
     ...(emergencyReason === undefined ? {} : { emergencyReason }),
   };
+  // intakeAt 키는 여기서도 받지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'initialAssigneeUserId', ...consentKeys]);
+    requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'initialAssigneeUserId', ...consentKeys]);
     return {
       schemaVersion: requiredSchemaVersion(body),
       submissionId: requiredUuid(body, 'submissionId'),
       programType: requireFinancialSupportProgramType(body),
-      intakeAt: requiredCanonicalUtc(body, 'intakeAt'),
       initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
       ...consentInput,
     };
   }
-  requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'intakeAt', 'sourceSupportCaseId', ...consentKeys]);
+  requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'sourceSupportCaseId', ...consentKeys]);
   return {
     schemaVersion: requiredSchemaVersion(body),
     submissionId: requiredUuid(body, 'submissionId'),
     programType: requireFinancialSupportProgramType(body),
-    intakeAt: requiredCanonicalUtc(body, 'intakeAt'),
     sourceSupportCaseId: requiredUuid(body, 'sourceSupportCaseId'),
     ...consentInput,
   };
