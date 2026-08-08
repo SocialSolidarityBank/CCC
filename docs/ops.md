@@ -96,7 +96,7 @@ pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/se
 `LOCAL_DEV_ACTOR_EMAIL`을 상담사 계정(예: ai00@ggbss.or.kr)으로 바꾸면 상담사 시점으로 볼 수 있다.
 시드 재생성은 `scripts/seed/out/seed.sql`을 덮어쓰므로, 운영 적용본 아카이브는 `out/prod-<날짜>/`에 백업해 둔다.
 
-#### 절차 함정 3건 (2026-07-26 실측)
+#### 절차 함정 4건 (①~③ 2026-07-26, ④ 2026-08-08 실측)
 
 **① 시드 생성은 레포 루트에서 돌려야 한다.** `scripts/seed/vitest.config.ts` 의 `include` 가
 `scripts/seed/generate.ts` 로 **루트 상대 경로**라, `apps/api` 에서 `--config ../../...` 로 돌리면
@@ -112,6 +112,16 @@ vitest 가 루트를 `apps/api` 로 잡아 `No test files found, exiting with co
 **③ 세션이 2개 이상이면 포트를 갈라야 한다.** 다른 세션이 이미 8787·3000 을 쓰고 있으면 wrangler·
 next 가 조용히 다음 포트(8788·3001)로 올라간다. 그때 웹의 `CCC_API_ORIGIN` 이 **남의 API** 를
 가리키게 되므로, 로그의 실제 포트를 확인하고 `--port` 와 `CCC_API_ORIGIN` 을 맞춰 다시 띄운다.
+
+**④ 한 번도 화면에 보인 적 없는 탭(숨긴 임베드 브라우저 패널 등)에서는 Suspense 화면 교체가
+영원히 안 일어난다** (2026-08-08 CCC-65 실측). React 19.2 SSR 스트리밍은 페이지의 첫 Suspense
+교체를 `requestAnimationFrame` 으로만 예약하는데, 숨겨진 문서에서는 브라우저가 rAF 콜백을
+실행하지 않아 "불러오는 중" 폴백이 그대로 남는다. dev·프리뷰·운영 공통이며(같은 런타임이
+프로덕션 번들에도 들어 있다), 실사용 브라우저는 탭이 보이는 순간 rAF 가 돌아 즉시 교체되므로
+사용자 영향은 없다. QA 측정에서 폴백 잔류를 버그로 오판하지 말 것.
+- 판별: `window.$RB` 길이가 2 이상이면 내용은 이미 도착했고 교체만 대기 중이다. 숨은 조각
+  `div[hidden][id^="S:"]` 와 경계 주석 `$~` 도 같은 신호다.
+- 해제: `javascript_exec` 로 `$RV($RB)` 를 한 번 호출하면 즉시 교체된다. 그 뒤에 DOM 을 읽는다.
 
 ### 미리보기 수동 배포 (Actions 가 멈췄을 때)
 
