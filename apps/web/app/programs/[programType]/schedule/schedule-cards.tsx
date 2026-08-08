@@ -21,9 +21,35 @@ export interface ScheduleCardItem {
   participantPhone: string | null;
 }
 
-export function ScheduleCards({ cards }: { cards: ScheduleCardItem[] }) {
+function CardGrid({ cards }: { cards: ScheduleCardItem[] }) {
+  return (
+    <div className="card-grid">
+      {cards.map((card) => (
+        <ParticipantCard
+          key={card.id}
+          href={card.href}
+          schedule={card.schedule}
+          name={card.participantName}
+          beneficiaryId={card.beneficiaryId}
+          phone={card.participantPhone}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 오늘 / 다가오는 두 구획(CCC-66, 2026-08-08 Q 결정). D21 이 정한 2섹션인데 구현에서
+ * 빠져 평평한 목록이 됐다(D35 는 셸만 대체했고 "화면 내용 결정은 유효"라고 적혀 있다).
+ * 오늘 상담이 다른 날짜에 섞여 있으면 "상담 5분 전에 한 화면" 콘셉트와 어긋난다.
+ *
+ * **오늘 칸만 상태를 거르지 않는다.** 다가오는 칸은 예정만 남긴다(CCC-57). 앞으로 할 일에
+ * 끝난 건이 서 있으면 유령이다. 반면 오늘은 "3건 중 1건 끝"을 보는 자리라 끝난 건도 남기고
+ * 완료·취소·불참 배지를 붙인다(전체 일정과 같은 어휘, D54).
+ */
+export function ScheduleCards({ today, upcoming }: { today: ScheduleCardItem[]; upcoming: ScheduleCardItem[] }) {
   const [ascending, setAscending] = useState(true);
-  const ordered = ascending ? cards : [...cards].reverse();
+  const order = (cards: ScheduleCardItem[]) => (ascending ? cards : [...cards].reverse());
 
   return (
     <>
@@ -37,22 +63,21 @@ export function ScheduleCards({ cards }: { cards: ScheduleCardItem[] }) {
         </WireButton>
       </div>
 
-      {ordered.length === 0 ? (
-        <WireEmpty live>예정된 상담이 없습니다.</WireEmpty>
-      ) : (
-        <div className="card-grid">
-          {ordered.map((card) => (
-            <ParticipantCard
-              key={card.id}
-              href={card.href}
-              schedule={card.schedule}
-              name={card.participantName}
-              beneficiaryId={card.beneficiaryId}
-              phone={card.participantPhone}
-            />
-          ))}
-        </div>
-      )}
+      {/* 오늘 칸은 비어도 그린다. 오늘 상담이 없다는 것 자체가 실무자가 알고 싶은 답이고,
+          칸이 사라지면 "오늘이 없는 건지 화면이 안 뜬 건지"를 알 수 없다. */}
+      <section aria-labelledby="schedule-today-heading" data-testid="schedule-today">
+        <h2 id="schedule-today-heading" className="record-section-title">오늘</h2>
+        {today.length === 0
+          ? <WireEmpty live>오늘 잡힌 상담이 없습니다.</WireEmpty>
+          : <CardGrid cards={order(today)} />}
+      </section>
+
+      <section aria-labelledby="schedule-upcoming-heading" data-testid="schedule-upcoming">
+        <h2 id="schedule-upcoming-heading" className="record-section-title">다가오는 일정</h2>
+        {upcoming.length === 0
+          ? <WireEmpty live>앞으로 7일 안에 예정된 상담이 없습니다.</WireEmpty>
+          : <CardGrid cards={order(upcoming)} />}
+      </section>
     </>
   );
 }
