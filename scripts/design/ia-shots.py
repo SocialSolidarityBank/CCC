@@ -47,7 +47,8 @@ PAGES = [
     ("admin-users", "/admin/users"),
     ("admin-assign", "/admin/assign"),
     ("admin-invite", "/admin/invite"),
-    ("admin-settings", "/admin/settings"),
+    # admin-settings 는 뺐다(CCC-55). /settings 를 관리자 레이아웃 안에 다시 그리던 중복
+    # 라우트였고, 위 "settings" 항목이 그 화면의 유일한 주소다.
     ("preview-gate", "/preview"),
 ]
 
