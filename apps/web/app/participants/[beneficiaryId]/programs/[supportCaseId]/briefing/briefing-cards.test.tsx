@@ -10,6 +10,7 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
     beneficiaryId: 'swallow-003',
     supportCaseId: '11111111-1111-4111-8111-111111111111',
     overallGoal: null,
+    activeGoals: [],
     canEditOverallGoal: true,
     participantHref: '/participants/swallow-003',
     recordsHref: '/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records',
@@ -33,7 +34,7 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
     upcomingSchedule: {
       id: 's1',
       scheduledAt: '2026-07-20T05:00:00Z',
-      sessionGoals: [{ body: '구직 상담', caseGoalId: 'g1', caseGoalTitle: '주거 안정' }],
+      sessionGoals: [{ body: '구직 상담', caseGoalId: 'g1', caseGoalTitle: '주거 안정', caseGoalStatus: 'active' }],
       customQuestions: ['이번 달 지출은 정리됐는지'],
     },
     ...overrides,
@@ -396,13 +397,14 @@ describe('BriefingCards — 실명 직표시와 폴백 (D24 · ADR-0005)', () =>
 
 });
 
-describe('BriefingCards — 전체 목표 카드 (D45 · CCC-41)', () => {
-  const goalCard = (container: HTMLElement): HTMLElement => {
-    const el = container.querySelector<HTMLElement>('.briefing-goal');
-    if (el === null) throw new Error('overall goal card not found');
-    return el;
-  };
+// 전체 목표 카드 셀렉터 — 전체 목표·활성 세부 목표(D62 §8) 테스트가 함께 쓴다.
+const goalCard = (container: HTMLElement): HTMLElement => {
+  const el = container.querySelector<HTMLElement>('.briefing-goal');
+  if (el === null) throw new Error('overall goal card not found');
+  return el;
+};
 
+describe('BriefingCards — 전체 목표 카드 (D45 · CCC-41)', () => {
   it('리스크 배너 아래·아코디언 위에 서고, 비어 있으면 설정 전으로 표기한다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = goalCard(container);
@@ -465,5 +467,90 @@ describe('BriefingCards — 전체 목표 카드 (D45 · CCC-41)', () => {
     const alert = goalCard(container).querySelector('[role="alert"]');
     expect(alert).not.toBeNull();
     expect(alert?.textContent).toContain('저장하지 못했습니다');
+  });
+});
+
+describe('활성 세부 목표 (D62 §8 · CCC-69)', () => {
+  const threeGoals = [
+    { id: 'g1', title: '월 지출 내역을 매주 기록한다' },
+    { id: 'g2', title: '이력서를 월 2회 제출한다' },
+    { id: 'g3', title: '주거 지원 신청 서류를 준비한다' },
+  ];
+
+  it('전체 목표 카드 안에 기본 펼침 한 줄씩 선다 — 접힘(details) 밖이다', () => {
+    const { container } = render(<BriefingCards {...baseProps({ activeGoals: threeGoals })} />);
+    const card = goalCard(container);
+    const rows = [...card.querySelectorAll('.briefing-subgoal-row')];
+    expect(rows.map((row) => row.textContent)).toEqual(threeGoals.map((goal) => goal.title));
+    // 눌러야 보이는 접힘 금지(ADR-0032 §8) — 줄이 details 안에 있으면 위반이다.
+    for (const row of rows) expect(row.closest('details')).toBeNull();
+    // 말줄임 규칙: 회차 행과 같은 한 줄 압축(.wire-fade-clip).
+    for (const row of rows) expect(row.classList.contains('wire-fade-clip')).toBe(true);
+  });
+
+  it('세부 목표가 없으면 구획 자체가 없다 — 빈 라벨을 세우지 않는다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    expect(goalCard(container).textContent).not.toContain('세부 목표');
+    expect(goalCard(container).querySelector('.briefing-subgoal-rows')).toBeNull();
+  });
+});
+
+describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () => {
+  it('부모가 활성이면 이름만 병기하고 흐림 표시가 없다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const parent = container.querySelector('.briefing-parent-goal');
+    expect(parent?.textContent).toContain('세부 목표: 주거 안정');
+    expect(parent?.classList.contains('is-closed')).toBe(false);
+    // 구 라벨은 사라졌다 — D62 위계 용어는 '세부 목표'다.
+    expect(container.textContent).not.toContain('케이스 목표');
+  });
+
+  it('부모가 닫혔으면 (종료) 문구와 흐림 클래스로 병기한다', () => {
+    const { container } = render(<BriefingCards {...baseProps({
+      upcomingSchedule: {
+        id: 's1',
+        scheduledAt: '2026-07-20T05:00:00Z',
+        sessionGoals: [{ body: '구직 상담', caseGoalId: 'g1', caseGoalTitle: '주거 안정', caseGoalStatus: 'closed' }],
+        customQuestions: [],
+      },
+    })} />);
+    const parent = container.querySelector('.briefing-parent-goal');
+    expect(parent?.textContent).toContain('세부 목표(종료): 주거 안정');
+    expect(parent?.classList.contains('is-closed')).toBe(true);
+  });
+});
+
+describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
+  const HINT_KEY = 'ccc:briefing-goal-hint-closed:v1:11111111-1111-4111-8111-111111111111';
+  afterEach(() => window.localStorage.clear());
+
+  it('전체 목표가 없으면 AI 제안 구획에 안내 한 줄이 뜬다 — 제안은 차단되지 않는다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const hint = container.querySelector('[data-testid="briefing-ai-goal-hint"]');
+    expect(hint?.textContent).toContain('전체 목표를 설정하면 AI 제안이 더 정확해집니다');
+    // 제안 자체는 그대로 나온다(재료이지 게이트가 아니다).
+    expect(container.querySelector('.briefing-suggestion')).not.toBeNull();
+  });
+
+  it('전체 목표가 있으면 안내가 없다', () => {
+    const { container } = render(<BriefingCards {...baseProps({ overallGoal: '주거 안정' })} />);
+    expect(container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
+  });
+
+  it('닫으면 사라지고 케이스 단위로 저장돼 다시 뜨지 않는다', () => {
+    const first = render(<BriefingCards {...baseProps()} />);
+    const hint = first.container.querySelector('[data-testid="briefing-ai-goal-hint"]');
+    expect(hint).not.toBeNull();
+    fireEvent.click(within(hint as HTMLElement).getByText('닫기'));
+    expect(first.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
+    expect(window.localStorage.getItem(HINT_KEY)).not.toBeNull();
+    cleanup();
+    // 같은 케이스를 다시 열어도 닫힘이 유지된다.
+    const again = render(<BriefingCards {...baseProps()} />);
+    expect(again.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
+    cleanup();
+    // 다른 케이스는 케이스 단위 저장이라 다시 뜬다.
+    const other = render(<BriefingCards {...baseProps({ supportCaseId: '22222222-2222-4222-8222-222222222222' })} />);
+    expect(other.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).not.toBeNull();
   });
 });

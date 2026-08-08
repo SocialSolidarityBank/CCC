@@ -283,6 +283,43 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 .participant-consent-block+.participant-consent-block{padding-top:var(--space-3);border-top:1px solid var(--line)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
 .participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 목표 트리 (D62 §8 · CCC-69) — 허브 '목표' 카드의 케이스별 구획. 위계는 들여쓰기와
+   크기 단으로 만든다: 구획 라벨 14/600 민트 deep(§2-2 단 ②) → 전체 목표·세부 목표 본문
+   16/400 --ink(단 ③) → 세션 목표 14/400 --sub(단 ④). 케이스 구획 사이는 --line 구분선
+   (동의서 묶음과 같은 계약). */
+.goal-tree-case{display:grid;gap:var(--space-4)}
+.goal-tree-case+.goal-tree-case{padding-top:var(--space-3);border-top:1px solid var(--line)}
+.goal-tree-case-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.goal-tree-section{display:grid;gap:var(--space-2)}
+.goal-tree-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
+.goal-tree-overall{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.goal-tree-overall-text{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+.goal-tree-overall-text.is-empty{color:var(--sub)}
+.goal-tree-goals{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.goal-tree-goal{display:grid;gap:var(--space-2)}
+.goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.goal-tree-goal-title{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+/* 닫힌 목표는 흐리게 — 기록으로 남기되 활성과 한눈에 갈린다(D62 §5). 사유는 배지가 말한다. */
+.goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}
+.goal-tree-goal-head .wire-badge{flex:none;white-space:nowrap}
+/* 세션 목표는 세부 목표 아래 들여쓴 가지다 — 회기 시각 · 문구. 왼쪽 --line 세로선이
+   소속을 만든다(트리의 가지 표시. 그라데이션 세로선은 인용 전용이라 쓰지 않는다 — §5). */
+.goal-tree-session-rows{display:grid;gap:var(--space-2);margin:0;padding-left:var(--space-4);border-left:1px solid var(--line);list-style:none}
+.goal-tree-session-row{font-size:var(--text-sm);color:var(--sub)}
+/* 문구 이력(D62 §4) — 기본 숨김, '이력 보기'로만 연다. 요약은 처리 이력(.briefing-history)과
+   같은 14/600 --sub 어휘로 목표 문구와 같은 줄 오른쪽에 서고, 펼친 이력은 줄을 통째로 쓴다.
+   details 가 상자를 버리고(display:contents) 자식을 그대로 flex 줄에 내놓는 동의 '전문 보기'
+   패턴이다. 전폭 규칙이 둘인 이유도 같다: 요즘 브라우저는 비-summary 자식을 ::details-content
+   상자로 감싸므로 그 상자가 flex 항목이고, 없는 브라우저에서는 목록 자신이 flex 항목이다. */
+.goal-tree-history{display:contents}
+.goal-tree-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub);line-height:normal}
+.goal-tree-history::details-content{flex-basis:100%;min-width:0}
+.goal-tree-history>.goal-tree-history-rows{flex-basis:100%;min-width:0}
+/* 펼치면 확정 문구(16)와 메타 줄(최초 작성/수정 · 수정자 · 시각)이 최신부터 쌓인다. */
+.goal-tree-history-rows{display:grid;gap:var(--space-3);margin:var(--space-1) 0 0;padding-left:var(--space-4);border-left:1px solid var(--line);list-style:none}
+.goal-tree-history-row{display:grid;gap:var(--space-1)}
+.goal-tree-history-title{margin:0;font-size:var(--text-md);color:var(--ink)}
+.goal-tree-history-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 최신 일정 카드의 한 줄(2026-08-07 Q 가로 행 개편) — 회차별 정리 행과 같은 어휘:
    날짜 · 종류 뱃지 · 참여 사업, 오른쪽 끝에 행동 버튼(margin-left:auto). 빈 상태도 같은
    행 골격을 쓴다(안내 문장 + 오른쪽 끝 상담 등록). 행간 normal 은 기하 정렬 계약. */

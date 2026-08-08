@@ -497,6 +497,17 @@ const briefingStyles = `
 .briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
 @media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
+/* 활성 세부 목표 (D62 §8 · CCC-69) — 전체 목표 카드 안, 가로선 아래 기본 펼침 최대 3줄.
+   말줄임 규칙: 회차 행과 같은 .wire-fade-clip(한 줄 압축 + 오른쪽 마스크 페이드),
+   767px 이하는 줄바꿈 전환(아래 모바일 블록). 본문 16/400 --ink(§2-2 단 ③). */
+.briefing-subgoal-rows{display:grid;gap:var(--space-2);margin:0;padding:0;list-style:none}
+.briefing-subgoal-row{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+/* 세션 목표에 병기하는 부모 세부 목표 이름 (D62 §5) — 부모가 닫혔으면 흐리게(--sub).
+   색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
+.briefing-parent-goal.is-closed{color:var(--sub)}
+/* 전체 목표 미설정 안내 한 줄 (D62 §7) — 설명·메타 단(14/400 --sub, §2-2 단 ④).
+   상자를 두르지 않는다(콜아웃 카드는 카드 안 카드가 된다 — D59 ③). */
+.briefing-ai-goal-hint{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 구획 사이는 --line 가로선이다(2026-08-06 Q —
@@ -634,6 +645,8 @@ const briefingStyles = `
   .briefing-session-row{flex-wrap:wrap}
   .briefing-session-memo:empty{display:none}
   .briefing-session-text.wire-fade-clip{flex-basis:100%;white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
+  /* 활성 세부 목표 줄(D62 §8 · CCC-69)도 좁은 화면에서는 줄바꿈으로 전환한다(말줄임 규칙). */
+  .briefing-subgoal-row.wire-fade-clip{white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
 }
 /* 767 블록에서 두 그리드를 1열로 강제하던 규칙은 지웠다 — 최소 폭(420·280)이 이미 접는다(락 10·11). */
 `;

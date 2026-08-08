@@ -349,7 +349,13 @@ export interface ParticipantBriefingSection {
 export interface BriefingUpcomingSchedule {
   id: string;
   scheduledAt: string;
-  sessionGoals: Array<{ body: string; caseGoalId: string | null; caseGoalTitle: string | null }>;
+  // caseGoalStatus: 부모(세부 목표)가 닫혔으면 'closed' — 화면이 부모 이름을 흐리게 병기한다(D62 §5).
+  sessionGoals: Array<{
+    body: string;
+    caseGoalId: string | null;
+    caseGoalTitle: string | null;
+    caseGoalStatus: 'active' | 'closed' | null;
+  }>;
   customQuestions: string[];
 }
 
@@ -358,6 +364,8 @@ export interface ParticipantBriefing {
   focusSupportCaseId: string;
   /** D45 전체 목표 — 포커스 케이스당 1개, null = 설정 전. */
   overallGoal: string | null;
+  /** D62 §8 (CCC-69): 포커스 케이스의 활성 세부 목표 — 전체 목표 카드 아래 최대 3줄(서버가 끊는다). */
+  activeGoals: Array<{ id: string; title: string }>;
   /** D45: 담당 실무자만 그 자리 편집. admin 은 열람만이라 false 로 온다. */
   canEditOverallGoal: boolean;
   // D24·ADR-0005: 담당·기관 관리자에게 기본 표시하는 실명·연락처. 미기입이면 null.
@@ -1402,6 +1410,46 @@ export async function getParticipantBriefing(
   return requestJson<ParticipantBriefing>(
     `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/briefing`,
   );
+}
+
+/** 목표 문구 이력 한 줄 (D62 §4). title null = 전체 목표를 지움. 이름 미입력 수정자는 null. */
+export interface GoalRevisionEntry {
+  title: string | null;
+  editedByName: string | null;
+  editedAt: string;
+}
+
+/** 허브 목표 트리의 세부 목표 한 그루 — 이력·연결된 세션 목표 포함 (D62 §8 · CCC-69). */
+export interface ParticipantGoalTreeGoal {
+  id: string;
+  title: string;
+  status: 'active' | 'closed';
+  closedReason: string | null;
+  closedAt: string | null;
+  /** 문구 이력, 최신부터. 최초 작성이 마지막 행이다. */
+  revisions: GoalRevisionEntry[];
+  sessionGoals: Array<{
+    id: string;
+    body: string;
+    scheduledAt: string;
+    scheduleStatus: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  }>;
+}
+
+/** 허브 목표 트리의 케이스 한 구획. 담당(또는 admin) 케이스만 온다(D36 — 목표는 상담 내용). */
+export interface ParticipantGoalTreeCase {
+  sourceSupportCase: SourceSupportCase;
+  overallGoal: string | null;
+  overallGoalRevisions: GoalRevisionEntry[];
+  goals: ParticipantGoalTreeGoal[];
+}
+
+/** 당사자 허브의 목표 트리(전체 > 세부 > 세션) — 케이스별 구획 (D62 §8 · CCC-69). */
+export async function getParticipantGoalTree(beneficiaryId: string): Promise<ParticipantGoalTreeCase[]> {
+  const payload = await requestJson<{ cases: ParticipantGoalTreeCase[] }>(
+    `/participants/${encodeURIComponent(beneficiaryId)}/goal-tree`,
+  );
+  return payload.cases;
 }
 
 export async function listSupportCaseRecords(
