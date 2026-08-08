@@ -54,6 +54,9 @@ export default async function NewIntakePage({
   // 저장 직후 브리핑 직행 + 1회성 안내줄(스펙 #78 US 17·18 · CCC-31). 파라미터가
   // 안내줄의 1회성 보장을 만든다 — 브리핑이 이 값으로 게이트하고 마운트 직후 URL에서 지운다.
   const briefingHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=intake_saved`;
+  // 인테이크는 저장됐는데 전체 목표 별개 호출만 실패한 경우(D62 · CCC-68)의 목적지 —
+  // 15초 페이지의 전체 목표 카드가 이 notice 로 오류 안내와 재시도 UI 를 그린다.
+  const overallGoalErrorHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=overall_goal_error`;
 
   if (beneficiaryId === null || supportCaseId === null) {
     return <main className="page-content"><WireError>{messages.not_found}</WireError></main>;
@@ -79,6 +82,7 @@ export default async function NewIntakePage({
           extendedPii={context.data.extendedPii}
           consent={context.data.consent}
           saved={saved}
+          overallGoal={context.data.overallGoal}
           editHref={`${intakeHref}?edit=1`}
           recordsHref={recordsHref}
           participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
@@ -99,6 +103,8 @@ export default async function NewIntakePage({
         basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
         sessionSequence={context.data.sessionSequence}
         recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
+        overallGoal={context.data.overallGoal}
+        overallGoalErrorHref={overallGoalErrorHref}
         // 수정 저장 후에는 조회로 돌아온다(CCC-58) — 고친 결과를 바로 읽는 자리다.
         briefingHref={intakeHref}
         initial={{
@@ -126,6 +132,8 @@ export default async function NewIntakePage({
       basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
       sessionSequence={context.data.sessionSequence}
       recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
+      overallGoal={context.data.overallGoal}
+      overallGoalErrorHref={overallGoalErrorHref}
       briefingHref={briefingHref}
       // 연결 일정 완료(CCC-57). 작성 경로에만 준다. 수정 경로(위 edit 분기)에는 서버에
       // 일정 연결 자리가 없으므로 넘기지 않는다.

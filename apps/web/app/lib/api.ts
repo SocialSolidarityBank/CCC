@@ -445,10 +445,16 @@ export interface SupportCaseRecord {
   sessionGoals: string[];
 }
 
+// 세부 목표 닫힘 사유(D62 §5). 게이트웨이 GOAL_CLOSE_REASONS 와 같은 값 — 화면은 한글 배지로 보인다.
+export const goalCloseReasons = ['achieved', 'stopped', 'reset'] as const;
+export type GoalCloseReason = (typeof goalCloseReasons)[number];
+
 export interface SupportCaseRecordGoal {
   id: string;
   title: string;
   status: 'active' | 'closed';
+  /** 닫힘 사유(D62 · CCC-68). 활성이거나 구 API 응답이면 null. */
+  closedReason: string | null;
 }
 
 /** 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 처리는 표시일 뿐 원본 기록은 불변이다. */
@@ -617,6 +623,8 @@ export interface IntakeRecordContext {
   consent: { privacy: boolean; recordingAi: boolean };
   // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 일 때만 온다.
   saved: IntakeSavedRecord | null;
+  // 전체 목표 현재값(D62 · CCC-68). 인테이크 화면의 전체 목표 칸 프리필 재료 — null 은 설정 전.
+  overallGoal: string | null;
   /**
    * 이 참여 사업의 다음 예정 일정(CCC-57). 인테이크를 저장하면서 이 일정을 완료로 넘기는
    * 배선의 재료다. 위저드가 id·version 을 그대로 실어 보낸다. 예정 건이 없으면 null.
@@ -994,6 +1002,8 @@ function decodeSupportCaseRecordGoal(value: unknown): SupportCaseRecordGoal {
     id: responseString(record, 'id'),
     title: responseString(record, 'title'),
     status: responseEnum(responseProperty(record, 'status'), caseStatuses),
+    // 배포 시차에 구 API 응답(closedReason 없음)을 만나면 null 로 낮춘다 — 배지만 빠진다.
+    closedReason: 'closedReason' in record ? responseNullableString(record, 'closedReason') : null,
   };
 }
 
@@ -1219,6 +1229,25 @@ export async function listGoals(caseId: string): Promise<Goal[]> {
 
 export async function createGoal(caseId: string, title: string): Promise<Goal> {
   return jsonRequest<Goal>(`/cases/${encodeURIComponent(caseId)}/goals`, 'POST', { title });
+}
+
+/** 세부 목표 문구 수정(D62 §4 — D12 수정 금지 폐지). 이전 문구 이력은 게이트웨이가 보존한다. */
+export async function updateGoalTitle(goalId: string, title: string): Promise<Goal> {
+  return jsonRequest<Goal>(`/goals/${encodeURIComponent(goalId)}/title`, 'PUT', { title });
+}
+
+/** 세부 목표 닫기(D62 §5). 사유는 달성/중단/재설정 선택값만 — 닫은 목표는 다시 열지 않는다. */
+export async function closeGoal(goalId: string, reason: GoalCloseReason): Promise<Goal> {
+  return jsonRequest<Goal>(`/goals/${encodeURIComponent(goalId)}/close`, 'POST', { reason });
+}
+
+/**
+ * 이 세부 목표에 연결된 미래 회기 수(D62 §5 · CCC-70 라우트). 닫기 시도 화면의 알림 한 줄
+ * 판정용이다 — 알림일 뿐 닫기를 막지 않고, 기존 연결은 그날 계획의 기록으로 그대로 남는다.
+ */
+export async function getGoalUpcomingLinkCount(goalId: string): Promise<number> {
+  const payload = responseObject(await requestJson<unknown>(`/goals/${encodeURIComponent(goalId)}/upcoming-links`));
+  return responseInteger(payload, 'upcomingCount');
 }
 
 export async function createManualSession(caseId: string, input: ManualSessionInput): Promise<ManualSession> {
@@ -1634,6 +1663,9 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     // 배포 2단위(web·api)가 순차로 구르는 짧은 시차에 구 API 응답(saved 없음)을 만나도
     // 화면이 죽지 않게 없으면 null 로 낮춘다 — 새 API 는 항상 싣는다.
     saved: 'saved' in record ? decodeIntakeSavedRecord(record.saved) : null,
+    // 전체 목표(D62 · CCC-68). saved 와 같은 이유로 없으면 null 로 낮춘다 — 그때는
+    // 프리필 없이 빈 칸으로 뜰 뿐 작성은 그대로 된다.
+    overallGoal: 'overallGoal' in record ? responseNullableString(record, 'overallGoal') : null,
     // 다음 예정 일정(CCC-57). saved 와 같은 이유로 없으면 null 로 낮춘다. 구 API 를 만나면
     // 완료 조작 칸이 안 뜰 뿐 인테이크 작성은 그대로 된다.
     schedule: record.schedule === null || record.schedule === undefined

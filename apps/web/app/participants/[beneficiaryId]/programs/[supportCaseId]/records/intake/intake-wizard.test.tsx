@@ -14,13 +14,13 @@ const LINKED_SCHEDULE = { id: '22222222-2222-4222-8222-222222222222', scheduledA
 
 function renderWizard(
   consent = { privacy: true, recordingAi: true },
-  extra: { schedule?: typeof LINKED_SCHEDULE | null } = {},
+  extra: { schedule?: typeof LINKED_SCHEDULE | null; overallGoal?: string | null; overallGoalSaved?: boolean } = {},
 ) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
     lastInput = input;
-    return { status: 'saved' };
+    return { status: 'saved', overallGoalSaved: extra.overallGoalSaved ?? true };
   };
   const utils = render(
     <IntakeWizard
@@ -35,6 +35,8 @@ function renderWizard(
       briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved"
       participantHref="/participants/swallow-003"
       basicInfoHref="/participants/swallow-003/edit"
+      overallGoal={extra.overallGoal ?? null}
+      overallGoalErrorHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=overall_goal_error"
       schedule={extra.schedule ?? null}
       submit={submit}
     />,
@@ -293,6 +295,8 @@ describe('IntakeWizard', () => {
         briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records/intake"
         participantHref="/participants/swallow-003"
         basicInfoHref="/participants/swallow-003/edit"
+        overallGoal={null}
+        overallGoalErrorHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=overall_goal_error"
         initial={{
           heldAt: '2026-08-01T05:00:00.000Z',
           answers: [],
@@ -302,7 +306,7 @@ describe('IntakeWizard', () => {
           managerOpinion: '기존 의견',
         }}
         schedule={LINKED_SCHEDULE}
-        submit={async (input) => { lastInput = input; return { status: 'saved' }; }}
+        submit={async (input) => { lastInput = input; return { status: 'saved', overallGoalSaved: true }; }}
       />,
     );
     const scoped = within(container);
@@ -323,12 +327,71 @@ describe('IntakeWizard', () => {
 
     const input = getLastInput();
     expect(input?.goals).toBeUndefined();
+    // 전체 목표 칸(D62)을 안 건드리면 키 자체가 없다 — 안 바뀐 저장마다 이력이 쌓이지 않는다.
+    expect(input?.overallGoal).toBeUndefined();
     expect(input?.consent).toBeUndefined();
     expect(input?.lifeAreas).toBeUndefined();
     expect(input?.helpNarrative).toBeUndefined();
     expect(input?.actions).toBeUndefined();
     // 상담 방법 6종은 답변으로 남고, 채널 컬럼에는 좁힌 값이 들어간다.
     expect(input?.channel).toBe('in_person');
+  });
+
+  // ── 전체 목표 칸 (D62 · ADR-0032 §2 · CCC-68) ────────────────────────────────
+  it('4단계에 전체 목표 칸이 안내 문구·질문지 참고 값과 함께 선다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+
+    // 3-1 지원욕구·4-3 지원방향을 답하면 전체 목표 카드가 참고로 되비춘다.
+    fireEvent.click(scoped.getByRole('button', { name: /3\. 필요한 도움과 활용 가능한 자원/ }));
+    fireEvent.change(scoped.getByLabelText('1순위 지원욕구'), { target: { value: '주거지원' } });
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+    fireEvent.change(scoped.getByLabelText('주요 지원방향'), { target: { value: '사례관리 진행' } });
+
+    const card = scoped.getByTestId('intake-overall-goal');
+    expect(card.textContent).toContain('첫 상담에서 합의가 어려우면 비워 두세요. 본 상담에서 채워도 됩니다');
+    expect(card.textContent).toContain('주거지원');
+    expect(card.textContent).toContain('사례관리 진행');
+    // 아직 안 답한 참고 값은 그 사실을 그대로 말한다.
+    expect(card.textContent).toContain('아직 답하지 않음');
+    // 질문지 항목이 아니라 무응답 선택지가 없다(D62 — '전 항목 필수'의 예외).
+    expect(within(card).queryByRole('button', { name: '무응답' })).toBeNull();
+  });
+
+  it('전체 목표를 적으면 제출에 실리고, 빈 채로 두면 완료를 막지 않는다', async () => {
+    const { container, getLastInput } = renderWizard();
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    fireEvent.change(scoped.getByLabelText(/^전체 목표/), { target: { value: '  3개월 안에 채무조정 신청을 마친다  ' } });
+    fireEvent.click(completeButton(scoped));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    // 앞뒤 공백은 잘라 보낸다 — 게이트웨이 비교·이력이 공백 차이로 갈리지 않는다.
+    expect(getLastInput()?.overallGoal).toBe('3개월 안에 채무조정 신청을 마친다');
+  });
+
+  it('프리필된 전체 목표를 지우면 null(설정 전으로 되돌림)로 실린다', async () => {
+    const { container, getLastInput } = renderWizard(undefined, { overallGoal: '기존 전체 목표' });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    const goalInput = scoped.getByLabelText(/^전체 목표/) as HTMLInputElement;
+    // 15초 페이지 카드에서 먼저 적은 값이 프리필로 서 있다 — 빈 칸 시작이면 저장이 지워 버린다.
+    expect(goalInput.value).toBe('기존 전체 목표');
+    fireEvent.change(goalInput, { target: { value: '' } });
+    fireEvent.click(completeButton(scoped));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(getLastInput()?.overallGoal).toBeNull();
+  });
+
+  it('인테이크는 저장됐는데 전체 목표만 실패하면 15초 페이지 오류 안내로 보낸다', async () => {
+    const { container } = renderWizard(undefined, { overallGoalSaved: false });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    fireEvent.change(scoped.getByLabelText(/^전체 목표/), { target: { value: '새 전체 목표' } });
+    fireEvent.click(completeButton(scoped));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenCalledWith(
+      '/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=overall_goal_error',
+    );
   });
 
   it('반복 행 표(부채·연계 기관·추가 확인사항)를 저장하고 브리핑으로 보낸다', async () => {

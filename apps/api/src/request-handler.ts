@@ -98,6 +98,7 @@ import {
   updateScheduleSessionGoals,
   searchParticipants,
   setSupportCaseOverallGoal,
+  updateGoalTitle,
   updateParticipantConsent,
   updateParticipantPii,
   upsertUser,
@@ -1238,6 +1239,8 @@ function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecor
     consent: context.consent,
     // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 없으면 null.
     saved: context.saved,
+    // 전체 목표 현재값(D62 · CCC-68) — 인테이크 화면의 전체 목표 칸 프리필 재료.
+    overallGoal: context.overallGoal,
     // 다음 예정 일정(CCC-57). 위저드가 완료 처리에 쓸 id·version 이고, 예정 건이 없으면 null.
     schedule: nextCounselingScheduleResponse(context.schedule),
   };
@@ -2070,7 +2073,8 @@ export async function handleRequest(
         const goalTitles = new Map(goals.map((goal): [string, string] => [goal.id, goal.title]));
         return json({
           records: records.map((record) => counselingRecordDetailsResponse(record, goalTitles)),
-          goals: goals.map((goal) => ({ id: goal.id, title: goal.title, status: goal.status })),
+          // closedReason 은 세부 목표 구획(D62 · CCC-68)의 닫힘 사유 배지 재료다.
+          goals: goals.map((goal) => ({ id: goal.id, title: goal.title, status: goal.status, closedReason: goal.closedReason })),
           schedule: nextCounselingScheduleResponse(schedule),
           recordErrorSessionIds,
           // 수정은 브리핑 몫이라 여기서는 값만 내려보낸다(D47 §1).
@@ -2192,6 +2196,11 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'upcoming-links') {
         requestQuery(url, []);
         return json({ upcomingCount: await countUpcomingSchedulesLinkedToGoal(env, actor, goalId) });
+      }
+      // D62 §4: 세부 목표 문구 수정 — 수정 금지(D12) 폐지. 이력 보존은 게이트웨이가 한다.
+      if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'title') {
+        const body = await requestBody(request);
+        return json(await updateGoalTitle(env, actor, goalId, requiredString(body, 'title')));
       }
     }
     if (parts[0] === 'sessions' && parts[1] !== undefined) {

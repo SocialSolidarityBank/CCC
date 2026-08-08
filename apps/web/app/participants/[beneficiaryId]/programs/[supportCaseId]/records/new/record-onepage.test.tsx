@@ -35,10 +35,14 @@ describe('RecordOnepage', () => {
     expect(rail.className).toContain('record-side');
     expect(rail.textContent).toContain('이번 상담 목표');
     expect(rail.textContent).toContain('임대차 계약 확인');
-    // 2026-08-09 Q: '세부 목표 작성' 칸은 연결 여부와 무관하게 늘 있다 — 이번 회차에서만
-    // 볼 것을 적는 자리이고, 구 라벨('이번 상담 목표(선택)')이 위 묶음 이름과 겹쳐 있었다.
+    // D62 위계(전체 > 세부 > 세션): 세션 목표가 연결된 부모는 **세부 목표**다 — 구 라벨
+    // '전체 목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
+    expect(rail.textContent).toContain('세부 목표: 월세 체납 해소');
+    // 폴백 자유 글 칸은 연결 여부와 무관하게 늘 있다. 라벨은 목표 낱말을 쓰지 않는다
+    // (ADR-0032 §6 — '세부 목표 작성'이라 부르면 본문의 세부 목표 구획과 층이 섞인다).
     expect(container.querySelector('input[name="sessionGoalNote"]')).not.toBeNull();
-    expect(rail.textContent).toContain('세부 목표 작성');
+    expect(rail.textContent).toContain('이번 상담에서 확인할 것');
+    expect(rail.textContent).not.toContain('세부 목표 작성');
   });
 
   // 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체).

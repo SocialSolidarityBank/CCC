@@ -30,7 +30,7 @@ function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE 
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
     lastInput = input;
-    return { status: 'saved' };
+    return { status: 'saved', overallGoalSaved: true };
   };
   const utils = render(
     <IntakeWizard
@@ -45,6 +45,8 @@ function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE 
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"
       participantHref="/participants/swallow-003"
       basicInfoHref="/participants/swallow-003/edit"
+      overallGoal={null}
+      overallGoalErrorHref="/participants/swallow-003/programs/case/briefing?notice=overall_goal_error"
       schedule={schedule}
       submit={submit}
     />,

@@ -11228,6 +11228,10 @@ export interface IntakeRecordContext {
   // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 가 true 일 때만 채워진다.
   // 위저드가 소유한 필드만 싣는다 — 동의·기본정보(금고)는 각자의 화면 몫이라 싣지 않는다.
   saved: IntakeSavedRecord | null;
+  // 전체 목표 현재값(D62 · CCC-68). 인테이크 화면이 주 입력 자리가 되면서 프리필 재료로
+  // 싣는다 — 이미 읽은 supportCase 행에서 꺼내므로 조회가 늘지 않는다. 저장은 이 함수가
+  // 아니라 setSupportCaseOverallGoal 몫이다(이력·감사 내장).
+  overallGoal: string | null;
   /**
    * 이 참여 사업의 다음 예정 일정(CCC-57). 인테이크를 저장할 때 이 일정을 완료로 넘기려면
    * 위저드가 id 와 version 을 알아야 한다. 그 배선이 없어서 인테이크를 마쳐도 일정이
@@ -11629,6 +11633,7 @@ export async function getIntakeRecordContext(
       recordingAi: consentRow?.recording_at != null || consentRow?.text_ai_at != null,
     },
     saved,
+    overallGoal: supportCase.overallGoal,
     schedule,
   };
 }

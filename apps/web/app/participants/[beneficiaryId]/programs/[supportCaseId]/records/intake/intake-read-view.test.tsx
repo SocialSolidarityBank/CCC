@@ -28,7 +28,10 @@ function savedRecord(overrides: Partial<IntakeSavedRecord> = {}): IntakeSavedRec
   };
 }
 
-function renderView(saved: IntakeSavedRecord = savedRecord()) {
+function renderView(
+  saved: IntakeSavedRecord = savedRecord(),
+  overallGoal: string | null = '3개월 안에 채무조정 신청을 마친다',
+) {
   return render(
     <IntakeReadView
       beneficiaryId="swallow-003"
@@ -36,6 +39,7 @@ function renderView(saved: IntakeSavedRecord = savedRecord()) {
       extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
       consent={{ privacy: true, recordingAi: false }}
       saved={saved}
+      overallGoal={overallGoal}
       editHref="/participants/swallow-003/programs/case-1/records/intake?edit=1"
       recordsHref="/participants/swallow-003/programs/case-1/records"
       participantHref="/participants/swallow-003"
@@ -104,5 +108,14 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(within(basic).getByText('홍서희')).toBeTruthy();
     expect(within(basic).getByText('1984-03-11')).toBeTruthy();
     expect(within(basic).getByText('서울시 은평구')).toBeTruthy();
+  });
+
+  // D62 · CCC-68: 인테이크가 전체 목표의 주 입력 자리라 조회 화면도 같은 자리(4단계)에서 읽는다.
+  it('전체 목표를 읽고, 비어 있으면 설정 전으로 보인다', () => {
+    const { unmount } = renderView();
+    expect(within(screen.getByTestId('intake-read-overall-goal')).getByText('3개월 안에 채무조정 신청을 마친다')).toBeTruthy();
+    unmount();
+    renderView(savedRecord(), null);
+    expect(within(screen.getByTestId('intake-read-overall-goal')).getByText('설정 전')).toBeTruthy();
   });
 });
