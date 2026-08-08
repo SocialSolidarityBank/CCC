@@ -10,11 +10,12 @@
  *   4) createIntakeRecord(intake 일정 완료, kind='intake' 세션 + intake_at 채움 — CCC-56.
  *      구 createCounselingRecord 는 kind='regular' 로 남아 "인테이크 기록 없음" 모순을 만들었다.
  *      인테이크 회차 채점은 실흐름에 없으므로 뺀다: 채점은 정기 회차부터다)
- *   5) 정기 회차 반복(regular schedule → record). 중간 이벤트: closeGoal 교체, 액션 해결, 독립 플래그
+ *   5) 정기 회차 반복(regular schedule → record). 중간 이벤트: closeGoal+createGoal 교체, 액션 해결, 독립 플래그
  *   6) 향후 일정(scheduled 로 남김, record 없음)
  *
  * 활성 목표 집합을 엔진이 직접 추적한다(assertActiveGoalsAreScored 하드 게이트) — 부트스트랩 이후엔
- * closeGoal successor 로만 변한다. 시나리오는 엄격히 순차 실행한다(Promise.all 금지).
+ * closeGoal(사유 선택값)+createGoal 짝으로만 변한다(D62 §5, 구 successor 승계 폐지).
+ * 시나리오는 엄격히 순차 실행한다(Promise.all 금지).
  */
 import {
   createBeneficiaryWithInitialSupportCase,
@@ -23,6 +24,7 @@ import {
   createIntakeRecord,
   listGoals,
   closeGoal,
+  createGoal,
   createActionItem,
   resolveActionItem,
   createFlag,
@@ -195,17 +197,16 @@ async function runParticipant(
     if (target === undefined) {
       throw new Error(`[seed] ${participantId}: replacement target not active: ${replacement.closeGoalKey}`);
     }
+    // D62 §5: 구 successor 승계 대신 닫기(사유 선택값)와 신설을 따로 부른다.
+    // 닫기가 먼저다: 활성 상한 3 이 찬 케이스에서 신설이 먼저 가면 상한에 걸린다.
     mark();
-    const result = await closeGoal(env, primaryActor, target.id, replacement.reason, {
+    await closeGoal(env, primaryActor, target.id, replacement.reason);
+    const successor = await createGoal(env, primaryActor, supportCaseId, {
       title: replacement.newGoal.title,
       scaleCriteria: replacement.newGoal.scaleCriteria,
     });
-    if (result.successor === null) {
-      throw new Error(`[seed] ${participantId}: closeGoal returned no successor`);
-    }
-    const successorId = result.successor.id;
     const slot = active.findIndex((goal) => goal.key === replacement.closeGoalKey);
-    active[slot] = { key: replacement.newGoal.key, id: successorId, title: replacement.newGoal.title };
+    active[slot] = { key: replacement.newGoal.key, id: successor.id, title: replacement.newGoal.title };
   };
 
   // 4) 인테이크 기록 — 인테이크 일정 완료. kind='intake' 세션이 서고 intake_at 이 채워진다

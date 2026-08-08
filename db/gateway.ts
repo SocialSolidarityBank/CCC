@@ -5149,10 +5149,35 @@ export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWor
 }
 
 /**
+ * 인테이크 답변에서 선택값 하나를 꺼낸다(AI 재료용, D62 §7). 'answered' 가 아니면
+ * (무응답·모름·해당없음) 재료에 싣지 않는다. JSON 이 깨졌으면 그냥 없음으로 본다.
+ * 재료 컨텍스트 때문에 마스킹 일감이 실패하면 안 된다(D8).
+ */
+function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | null {
+  if (typeof rawDetails !== 'string') return null;
+  const details = parseJson<Record<string, unknown>>(rawDetails);
+  if (details === null || !Array.isArray(details.answers)) return null;
+  for (const answer of details.answers) {
+    if (typeof answer !== 'object' || answer === null) continue;
+    const entry = answer as Record<string, unknown>;
+    if (entry.key !== key || entry.response !== 'answered') continue;
+    if (typeof entry.text === 'string' && entry.text.trim().length > 0) return entry.text.trim();
+  }
+  return null;
+}
+
+/**
  * 장비가 마스킹할 원문 — **1차 치환(등록 PII → 가명 ID)까지 마친** 공식 텍스트다.
  * 장비는 이 위에 NER 을 얹어 스냅샷을 만든다(D2 2단 방어). 1차 치환은 멱등이라
  * `recordMaskedSourceSnapshot` 이 다시 걸어도 해시가 어긋나지 않는다.
  * 동의·파일럿 게이트는 스냅샷 저장 시점에 다시 확인된다.
+ *
+ * AI 재료 배선(D62 §7 · CCC-73): 회차 텍스트 앞에 케이스 컨텍스트를 깐다.
+ * 전체 목표가 으뜸 재료, 인테이크 지원욕구·지원방향(선택값)이 기본 재료다. 자유 글인
+ * 전체 목표도 이 원문에 실려 장비 마스킹을 거친 스냅샷으로만 사업자에 나간다(D57 게이트,
+ * 사업자 호출부에서 원문을 직접 잇지 않는다). 일정 없이 쓴 워크인 회차의 폴백 자유 글
+ * ('이번 상담에서 확인할 것' = record_details.sessionGoalNote)도 같은 조건으로 싣는다.
+ * goal_revisions 의 이전 문구는 싣지 않는다. 재료는 마스킹 시점의 현재 문구뿐이다.
  */
 export async function getTextWorkItemSource(
   env: Env,
@@ -5173,8 +5198,8 @@ export async function getTextWorkItemSource(
   const sessionId = stringValue(item.session_id);
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
-  const [sessionRow, approvedRow] = await Promise.all([
-    env.DB.prepare('SELECT memo FROM sessions WHERE id = ? AND org_id = ?')
+  const [sessionRow, approvedRow, caseRow, intakeRow] = await Promise.all([
+    env.DB.prepare('SELECT memo, record_details FROM sessions WHERE id = ? AND org_id = ?')
       .bind(sessionId, actor.orgId).first<DbRow>(),
     env.DB.prepare(
       `SELECT summary_text FROM approved_ai_briefing_v1
@@ -5182,15 +5207,45 @@ export async function getTextWorkItemSource(
        ORDER BY approved_at DESC, draft_version DESC
        LIMIT 1`,
     ).bind(actor.orgId, sessionId).first<DbRow>(),
+    env.DB.prepare('SELECT overall_goal FROM support_cases WHERE id = ? AND org_id = ?')
+      .bind(scope.supportCaseId, actor.orgId).first<DbRow>(),
+    env.DB.prepare(
+      `SELECT intake_details FROM sessions
+       WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
+    ).bind(actor.orgId, scope.supportCaseId).first<DbRow>(),
   ]);
 
-  const parts: string[] = [];
-  const memo = sessionRow === null ? null : nullableString(sessionRow.memo);
-  if (memo !== null && memo.trim().length > 0) parts.push(memo);
-  const summary = approvedRow === null ? null : nullableString(approvedRow.summary_text);
-  if (summary !== null && summary.trim().length > 0) parts.push(summary);
-  if (parts.length === 0) {
+  // 공식 텍스트(수기 메모 또는 승인된 AI 정리)가 있어야 일감이 성립한다. 컨텍스트만으로
+  // 스냅샷을 만들지 않는다(listTextWorkItems 의 목록 필터와 같은 판정).
+  const memoRaw = sessionRow === null ? null : nullableString(sessionRow.memo);
+  const summaryRaw = approvedRow === null ? null : nullableString(approvedRow.summary_text);
+  const memo = memoRaw !== null && memoRaw.trim().length > 0 ? memoRaw : null;
+  const summary = summaryRaw !== null && summaryRaw.trim().length > 0 ? summaryRaw : null;
+  if (memo === null && summary === null) {
     throw new ValidationError('text work item has no official text');
+  }
+
+  const parts: string[] = [];
+  // 케이스 컨텍스트: 전체 목표 으뜸, 인테이크 선택값 기본(D62 §7 재료 우선순위).
+  const overallGoal = caseRow === null ? null : nullableString(caseRow.overall_goal);
+  if (overallGoal !== null && overallGoal.trim().length > 0) {
+    parts.push(`[전체 목표] ${overallGoal.trim()}`);
+  }
+  const intakeDetails = intakeRow === null ? null : intakeRow.intake_details;
+  for (const [label, key] of [
+    ['지원욕구 1순위', 'need_primary'],
+    ['지원욕구 2순위', 'need_secondary'],
+    ['지원방향', 'summary_direction'],
+  ] as const) {
+    const answer = intakeAnswerText(intakeDetails, key);
+    if (answer !== null) parts.push(`[${label}] ${answer}`);
+  }
+  if (memo !== null) parts.push(memo);
+  if (summary !== null) parts.push(summary);
+  // 워크인 폴백 자유 글(D62 §7): 일정 없이 쓴 회차의 '이번 상담에서 확인할 것'.
+  const goalNoteLines = sessionGoalNoteLines(sessionRow === null ? null : nullableString(sessionRow.record_details));
+  if (goalNoteLines.length > 0) {
+    parts.push(`[이번 상담에서 확인할 것] ${goalNoteLines.join('\n')}`);
   }
 
   const pii = await readPiiValues(env, actor.orgId, scope.caseId);
@@ -10325,16 +10380,6 @@ export interface CounselingRecordDetailsInput {
   counselorOpinion?: string;
 }
 
-/**
- * 목표 종료 + 신설(D12). 문구 수정은 금지이므로 기존 목표를 종료(사유 필수)하고 새 목표를
- * 신설해 replaced_by_goal_id 로 잇는다. 신설 없이 종료만 하는 것도 허용한다.
- */
-export interface CounselingRecordGoalTransitionInput {
-  closeGoalId: string;
-  closedReason: string;
-  newGoalTitle?: string;
-}
-
 export interface CreateCounselingRecordInput {
   submissionId: string;
   heldAt: string;
@@ -10348,8 +10393,7 @@ export interface CreateCounselingRecordInput {
   lifeAreas?: CounselingRecordLifeAreaInput[];
   // 서술형 항목(CCC-10). 생략 시 record_details 는 NULL.
   details?: CounselingRecordDetailsInput;
-  // 목표 종료+신설(CCC-10 · D12). 생략 시 목표는 변경하지 않는다.
-  goalTransition?: CounselingRecordGoalTransitionInput;
+  // 구 목표 종료+신설(goalTransition)은 D62 §5 로 폐지. 닫기는 closeGoal 단일 관문이다.
   scheduleId?: string;
   expectedScheduleVersion?: number;
 }
@@ -10390,7 +10434,6 @@ function assertCounselingRecordInput(input: CreateCounselingRecordInput): void {
   if (hasResolutions) expectedKeys.push('actionItemResolutions');
   if (hasLifeAreas) expectedKeys.push('lifeAreas');
   if (input.details !== undefined) expectedKeys.push('details');
-  if (input.goalTransition !== undefined) expectedKeys.push('goalTransition');
   if (hasSchedule) expectedKeys.push('scheduleId', 'expectedScheduleVersion');
   assertExactKeys(input, expectedKeys);
   assertCanonicalSubmissionId(input.submissionId);
@@ -10456,19 +10499,6 @@ function assertCounselingRecordInput(input: CreateCounselingRecordInput): void {
   }
   if (input.lifeAreas !== undefined) assertLifeAreaInputs(input.lifeAreas);
   if (input.details !== undefined) assertCounselingRecordDetails(input.details);
-  if (input.goalTransition !== undefined) {
-    assertExactKeys(
-      input.goalTransition,
-      input.goalTransition.newGoalTitle === undefined
-        ? ['closeGoalId', 'closedReason']
-        : ['closeGoalId', 'closedReason', 'newGoalTitle'],
-    );
-    assertOpaqueIdentifier(input.goalTransition.closeGoalId, 'goal id');
-    assertNonBlankText(input.goalTransition.closedReason, 'goal closed reason');
-    if (input.goalTransition.newGoalTitle !== undefined) {
-      assertNonBlankText(input.goalTransition.newGoalTitle, 'goal title');
-    }
-  }
 }
 
 /**
@@ -10646,7 +10676,6 @@ export async function createCounselingRecord(
     details: input.details ?? null,
     flags: input.flags,
     gasScores: input.gasScores,
-    goalTransition: input.goalTransition ?? null,
     heldAt: input.heldAt,
     lifeAreas: input.lifeAreas ?? null,
     memo: input.memo,
@@ -10658,24 +10687,6 @@ export async function createCounselingRecord(
   const replay = await recordReplay(env, actor, supportCaseId, input, submissionHash);
   if (replay !== null) return replay;
   await assertActionResolutionsAreOpenInSupportCase(env, actor.orgId, supportCaseId, actionItemResolutions);
-
-  // 목표 종료+신설(D12): 종료 대상은 이 참여사업의 활성 목표여야 하고, 종료 1건을 뺀 뒤에도
-  // 활성 목표 상한(MAX_ACTIVE_GOALS)을 넘지 않아야 한다. 상한 3에서 1종료+1신설은 통과한다.
-  if (input.goalTransition !== undefined) {
-    const target = await env.DB.prepare(
-      `SELECT id FROM goals
-       WHERE org_id = ? AND support_case_id = ? AND id = ? AND status = 'active'
-       LIMIT 1`,
-    ).bind(actor.orgId, supportCaseId, input.goalTransition.closeGoalId).first<{ id: string }>();
-    if (target === null) throw new ForbiddenError('record context is unavailable');
-    const activeGoals = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
-    ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
-    const remaining = Number(activeGoals?.count ?? 0) - 1 + (input.goalTransition.newGoalTitle === undefined ? 0 : 1);
-    if (remaining > MAX_ACTIVE_GOALS) {
-      throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
-    }
-  }
 
   let schedule: CounselingSchedule | null = null;
   if (input.scheduleId !== undefined) {
@@ -10783,57 +10794,6 @@ export async function createCounselingRecord(
     );
 
   const statements: D1PreparedStatement[] = [sessionStatement];
-
-  // 목표 종료+신설(D12): 신규 목표를 먼저 INSERT 한 뒤 종료 UPDATE 가 replaced_by_goal_id 로
-  // 잇는다(외래키 순서). 종료는 status·closed_reason·closed_at·replaced_by_goal_id 만 건드리며
-  // 목표 문구(title)는 절대 수정하지 않는다. goals 는 세션 트리거 감사 대상이 아니라 명시 감사(D14).
-  if (input.goalTransition !== undefined) {
-    const newGoalId = input.goalTransition.newGoalTitle === undefined ? null : newId();
-    if (newGoalId !== null && input.goalTransition.newGoalTitle !== undefined) {
-      statements.push(env.DB.prepare(
-        `INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at)
-         SELECT ?, ?, ?, ?, NULL, 'active', ?
-         WHERE ${sessionExistsClause}`,
-      ).bind(
-        newGoalId,
-        actor.orgId,
-        supportCaseId,
-        input.goalTransition.newGoalTitle.trim(),
-        createdAt,
-        ...sessionExistsBindings,
-      ));
-      statements.push(conditionalCanonicalAuditStatement(env, actor, {
-        action: 'create',
-        targetTable: 'goals',
-        targetId: newGoalId,
-        beneficiaryId: supportCase.beneficiaryId,
-        supportCaseId,
-        detail: { kind: 'regular', replacesGoalId: input.goalTransition.closeGoalId },
-      }));
-    }
-    statements.push(env.DB.prepare(
-      `UPDATE goals
-       SET status = 'closed', closed_reason = ?, closed_at = ?, replaced_by_goal_id = ?
-       WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'active'
-         AND ${sessionExistsClause}`,
-    ).bind(
-      input.goalTransition.closedReason.trim(),
-      createdAt,
-      newGoalId,
-      input.goalTransition.closeGoalId,
-      actor.orgId,
-      supportCaseId,
-      ...sessionExistsBindings,
-    ));
-    statements.push(conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update',
-      targetTable: 'goals',
-      targetId: input.goalTransition.closeGoalId,
-      beneficiaryId: supportCase.beneficiaryId,
-      supportCaseId,
-      detail: { closed: true, replacedByGoalId: newGoalId },
-    }));
-  }
 
   for (const score of input.gasScores) {
     statements.push(env.DB.prepare(

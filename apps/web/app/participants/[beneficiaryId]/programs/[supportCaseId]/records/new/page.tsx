@@ -264,20 +264,6 @@ function buildRecordFormData(formData: FormData): FormData {
   }
   payload.set('detailsJson', Object.keys(details).length === 0 ? '' : JSON.stringify(details));
 
-  // 목표 종료+신설(D12): 종료할 목표를 고른 경우에만 사유(필수)·새 목표(선택)를 함께 보낸다.
-  const closeGoalId = optionalStringValue(formData, 'closeGoalId').trim();
-  if (closeGoalId.length === 0) {
-    payload.set('goalTransitionJson', '');
-  } else {
-    if (safeId(closeGoalId) === null) throw new FormInputError();
-    const closedReason = optionalStringValue(formData, 'goalClosedReason').trim();
-    if (closedReason.length === 0) throw new FormInputError();
-    const newGoalTitle = optionalStringValue(formData, 'newGoalTitle').trim();
-    payload.set('goalTransitionJson', JSON.stringify(
-      newGoalTitle.length === 0 ? { closeGoalId, closedReason } : { closeGoalId, closedReason, newGoalTitle },
-    ));
-  }
-
   const scheduleChoice = optionalStringValue(formData, 'scheduleCompletion');
   if (scheduleChoice.length > 0) {
     const { id, version } = parseChoice(scheduleChoice);

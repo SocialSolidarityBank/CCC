@@ -272,7 +272,7 @@ function buildCaptureReport(
     '## 알려진 특성',
     '  - 인테이크 케이스 목표는 게이트웨이 설계상 scale_criteria=NULL 이다.',
     '    (createCounselingSchedule intake 경로). scale_criteria JSON 은 목표 교체',
-    '    successor(closeGoal, D12)에서만 실제 저장된다.',
+    '    신설분(closeGoal+createGoal, D62 §5)에서만 실제 저장된다.',
     '  - listGoals 부트스트랩으로 목표 id 를 확보하므로 read 감사(action=read, goals)가',
     '    참여자당 1건씩 방출된다(D14: 열람도 감사 대상 — 정상).',
     '',

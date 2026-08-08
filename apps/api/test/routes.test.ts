@@ -7,8 +7,10 @@ import {
   createGoal,
   createSupportCase,
   createManualSession,
+  listSupportCasesForBeneficiary,
   registerAiProviderConfiguration,
   registerRecording,
+  setSupportCaseOverallGoal,
   updateParticipantPii,
   createParticipantInvite,
 } from '../../../db/gateway';
@@ -730,6 +732,28 @@ describe('API routes', () => {
       }],
     }]);
     expect(JSON.stringify(adapter.invocations[0])).not.toContain('MANUAL_MEMO_PHASE1');
+  });
+
+  // CCC-73 완료 기준(D62 §7): 마스킹 안 된 목표 문구는 사업자 호출에 실리지 않는다.
+  // 전체 목표는 텍스트 일감 원문에 실려 장비 마스킹을 거친 스냅샷으로만 나간다.
+  // 원문 조립 쪽은 text-work-materials.test.ts 가 스냅샷 재료에 목표가 실리는 것을
+  // 고정하고, 여기서는 호출부가 케이스의 원문 목표를 직접 잇지 않는 것을 고정한다.
+  it('전체 목표 원문은 스냅샷을 거치지 않고는 사업자 호출에 실리지 않는다 (CCC-73 · D62 §7)', async () => {
+    const adapter = new FakeAiProviderAdapter();
+    const { caseRecord, counselor, env, session } = await setupPhase1AiFixture(adapter);
+    const { programs } = await listSupportCasesForBeneficiary(env, counselor, caseRecord.id);
+    const supportCaseId = programs[0]?.supportCase.id;
+    if (supportCaseId === undefined) throw new Error('expected initial support case');
+    await setSupportCaseOverallGoal(env, counselor, supportCaseId, 'RAW_GOAL_MARKER 전세 보증금 마련');
+
+    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    // 스냅샷에는 일부러 목표를 싣지 않는다. 호출부가 케이스에서 직접 이어 붙이면 여기서 샌다.
+    const receipt = await recordSourceSnapshot(env, session.id);
+    expect((await generateDraft(env, session.id, receipt.sourceSnapshotId)).status).toBe(201);
+
+    expect(adapter.calls).toBe(1);
+    expect(adapter.invocations[0]?.maskedText).toBe(MASKED_TEXT);
+    expect(JSON.stringify(adapter.invocations[0])).not.toContain('RAW_GOAL_MARKER');
   });
 
   it('accepts legitimate source mentions of prohibited concepts but rejects prohibited generated output without a draft', async () => {

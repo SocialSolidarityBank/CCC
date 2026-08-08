@@ -578,7 +578,6 @@ export interface CreateCounselingRecordInput {
   actionResolutions?: ManualActionItemResolution[];
   lifeAreas?: ManualLifeArea[];
   details?: ManualRecordDetails;
-  goalTransition?: ManualGoalTransition;
   scheduleId?: string;
   expectedScheduleVersion?: number;
 }
@@ -591,12 +590,6 @@ export interface ManualRecordDetails {
   counselorOpinion?: string;
 }
 
-// 목표 종료+신설(CCC-10 · D12). 문구 수정 금지 — 종료(사유 필수) 후 신설로만 바꾼다.
-export interface ManualGoalTransition {
-  closeGoalId: string;
-  closedReason: string;
-  newGoalTitle?: string;
-}
 
 export interface CreatedCounselingRecord {
   id: string;

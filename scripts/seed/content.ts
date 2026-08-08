@@ -13,7 +13,7 @@
  *   절대값으로 박으면 시드가 시간이 지나면서 낡는다(SEED_ANCHOR_DATE 주석 참고).
  * - 목표별 GAS 점수는 시나리오 엔진이 trajectory 로 결정론적으로 만든다(여기서는 추이 유형만 지정).
  */
-import type { FlagType } from '../../db/gateway';
+import type { FlagType, GoalCloseReason } from '../../db/gateway';
 import { COUNSELOR_IDS } from './preload-data';
 
 export type Trajectory = 'improving' | 'plateau' | 'decline' | 'mixed';
@@ -30,7 +30,7 @@ export interface SeedGoal {
   key: string;
   title: string;
   /** 인테이크 목표는 게이트웨이(createCounselingSchedule intake)가 scale_criteria=NULL 로 만든다.
-   *  이 값은 목표 교체(closeGoal successor) 경로에서만 실제로 저장된다(D12 데모). */
+   *  이 값은 목표 교체(closeGoal+createGoal, D62 §5) 경로에서만 실제로 저장된다. */
   scaleCriteria?: SeedScaleCriteria;
 }
 
@@ -61,7 +61,8 @@ export interface SeedGoalReplacement {
   /** 0=인테이크 직후, 1=정기 1회 직후 … 이 세션을 마친 뒤 목표를 교체한다. */
   afterSession: number;
   closeGoalKey: string;
-  reason: string;
+  /** D62 §5: closed_reason 은 선택값 3종만 저장한다(달성/중단/재설정). */
+  reason: GoalCloseReason;
   newGoal: SeedGoal;
 }
 
@@ -153,7 +154,7 @@ function email(n: number): string {
   return `seed${String(n).padStart(2, '0')}@example.com`;
 }
 
-/** 목표 교체 successor 에 붙일 5단계 척도 설명(대표 예시 재사용). */
+/** 목표 교체 신설분(createGoal)에 붙일 5단계 척도 설명(대표 예시 재사용). */
 const REPAYMENT_SCALE: SeedScaleCriteria = {
   '-2': '연체가 누적되고 상환 의지가 확인되지 않는다',
   '-1': '납부가 불규칙하고 약속한 금액에 미치지 못한다',
@@ -233,7 +234,8 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
       },
     ],
     goalReplacement: {
-      afterSession: 3, closeGoalKey: 'sales', reason: '매출 기록 습관이 정착되어 재고 회전 관리로 목표를 전환',
+      // 매출 기록 습관이 정착되어 재고 회전 관리로 목표를 전환하는 시나리오다(사유: 재설정).
+      afterSession: 3, closeGoalKey: 'sales', reason: 'reset',
       newGoal: { key: 'stock', title: '주간 재고 회전율을 점검해 과잉 매입을 줄인다', scaleCriteria: SAVINGS_SCALE },
     },
     futureSchedules: [{ scheduledAt: at(15, 3), goalLinks: ['repay', 'save'] }],
@@ -268,7 +270,7 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
  *   실무자는 자신이 담당인 케이스만 열 수 있어(D7) 다른 상담사에게 배정하면 화면이 빈다.
  * - 동의(D49): 4명 전원 ② AI 녹취기록 동의. 미동의(수기 폴백, D5) 케이스는 없다.
  * - GAS 추이: 개선 2(1·3) / 정체 1(2) / 악화 1(4).
- * - 목표 교체(D12): 1케이스(3) — closeGoal successor 로 scale_criteria JSON 저장.
+ * - 목표 교체(D62 §5): 1케이스(3) — closeGoal(reset)+createGoal 로 scale_criteria JSON 저장.
  * - 미해결 인라인 액션: 2건(1·4). 해결된 액션: 2건(2×2).
  * - confirmed 플래그 1건: 인라인 1(4 debt) — 브리핑 리스크 배너(D9)의 유일한 시연 케이스.
  * - 예정 일정 4건(08-03·04·05·06): 사람당 정확히 1건 — 일정 화면에서 같은 사람이 여러 줄로

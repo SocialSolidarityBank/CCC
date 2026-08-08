@@ -450,12 +450,10 @@ function parseRecordCreation(body: JsonObject) {
   const hasResolutions = Object.hasOwn(body, 'actionResolutions');
   const hasLifeAreas = Object.hasOwn(body, 'lifeAreas');
   const hasDetails = Object.hasOwn(body, 'details');
-  const hasGoalTransition = Object.hasOwn(body, 'goalTransition');
   const allowedKeys = ['submissionId', 'heldAt', 'channel', 'memo', 'gasScores', 'actions', 'flags'];
   if (hasResolutions) allowedKeys.push('actionResolutions');
   if (hasLifeAreas) allowedKeys.push('lifeAreas');
   if (hasDetails) allowedKeys.push('details');
-  if (hasGoalTransition) allowedKeys.push('goalTransition');
   if (hasSchedule) allowedKeys.push('scheduleId', 'expectedScheduleVersion');
   requireOnlyKeys(body, allowedKeys);
   const channelValue = requiredString(body, 'channel');
@@ -554,19 +552,6 @@ function parseRecordCreation(body: JsonObject) {
       return parsed;
     })()
     : undefined;
-  // 목표 종료+신설(CCC-10 · D12): 종료 대상·사유는 필수, 신설 목표 문구는 선택.
-  const goalTransition = hasGoalTransition
-    ? (() => {
-      const raw = asObject(body.goalTransition);
-      const hasNewGoalTitle = Object.hasOwn(raw, 'newGoalTitle');
-      requireOnlyKeys(raw, hasNewGoalTitle ? ['closeGoalId', 'closedReason', 'newGoalTitle'] : ['closeGoalId', 'closedReason']);
-      return {
-        closeGoalId: requiredUuid(raw, 'closeGoalId'),
-        closedReason: requiredString(raw, 'closedReason'),
-        ...(hasNewGoalTitle ? { newGoalTitle: requiredString(raw, 'newGoalTitle') } : {}),
-      };
-    })()
-    : undefined;
   return {
     submissionId: requiredUuid(body, 'submissionId'),
     heldAt: requiredCanonicalUtc(body, 'heldAt'),
@@ -578,7 +563,6 @@ function parseRecordCreation(body: JsonObject) {
     ...(actionItemResolutions === undefined ? {} : { actionItemResolutions }),
     ...(lifeAreas === undefined ? {} : { lifeAreas }),
     ...(details === undefined ? {} : { details }),
-    ...(goalTransition === undefined ? {} : { goalTransition }),
     ...(hasSchedule
       ? {
         scheduleId: requiredUuid(body, 'scheduleId'),
