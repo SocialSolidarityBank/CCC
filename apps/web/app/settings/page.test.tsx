@@ -20,13 +20,22 @@ vi.mock('../lib/api', () => ({
 // 역할 게이트(`me.role === 'admin' ? <AdminSection /> : null`)는 페이지의 자명한 조건문이다.
 
 describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
-  it('관리자 구역에 링크 4개가 순서대로 보인다', () => {
+  it('관리자 구역에 관리자 화면 4개와 온보딩 링크가 순서대로 보인다', () => {
     const { container } = render(<AdminSection />);
 
     expect(container.querySelector('#settings-admin-heading')?.textContent).toBe('관리자');
 
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite']);
+    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/onboarding']);
+  });
+
+  // CCC-61: /onboarding 은 셸에도 다른 화면에도 진입 링크가 없는 고아였다. 이 줄이 유일한
+  // 입구이므로 사라지면 다시 주소를 직접 쳐야만 갈 수 있는 화면이 된다.
+  it('온보딩으로 들어가는 유일한 입구를 갖는다', () => {
+    const { container } = render(<AdminSection />);
+    const entry = Array.from(container.querySelectorAll('a')).find((a) => a.getAttribute('href') === '/onboarding');
+    expect(entry).not.toBeUndefined();
+    expect(entry?.textContent).toBe('기관·사업 이름');
   });
 
   it('링크 목록이 관리자 탭 정의(adminMenu)와 그대로 같다', () => {
@@ -56,5 +65,16 @@ describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
     for (const item of adminMenu) {
       expect(item.href === '/admin' || item.href.startsWith('/admin/')).toBe(true);
     }
+  });
+
+  // CCC-60 완료 기준: 다른 화면으로 넘기기만 하던 옛 별칭 3종을 지웠다(2026-08-08 Q 확인,
+  // 밖으로 공유한 적 없음). 위 CCC-55 검사와 같은 이유로 라우트 부재를 직접 본다.
+  it('레거시 별칭 라우트 3종이 없다', () => {
+    const route = (relative: string) => resolve(process.cwd(), 'app', relative);
+    expect(existsSync(route('records/page.tsx'))).toBe(false);
+    expect(existsSync(route('cases'))).toBe(false);
+    expect(existsSync(route('sessions'))).toBe(false);
+    // 대조군: 진짜 기록 화면은 당사자 아래에 그대로 있다.
+    expect(existsSync(route('participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx'))).toBe(true);
   });
 });
