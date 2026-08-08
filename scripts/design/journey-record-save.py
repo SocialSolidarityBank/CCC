@@ -36,10 +36,12 @@ with sync_playwright() as p:
     page.goto(url, wait_until="networkidle")
 
     # 0) 접힌 아코디언을 전부 펼친다.
-    #    GAS·액션·리스크 플래그가 기본 접힘이라, 펼치지 않으면 입력 자체가 불가능하다
+    #    액션·리스크 플래그가 기본 접힘이라, 펼치지 않으면 입력 자체가 불가능하다
+    #    (GAS 칸은 D47 §6 으로 화면에서 빠졌다 — 이 줄의 구 목록에만 남아 있던 이름이다)
     #    (2026-07-27 실측: element is not visible 로 fill 실패). 이 사실 자체를 기록한다.
-    result["accordions_total"] = page.locator("details.record-accordion").count()
-    result["accordions_open_by_default"] = page.locator("details.record-accordion[open]").count()
+    # 2026-08-09: 접힘 칸이 WireCardDetails 로 바뀌어 선택자가 .wire-card-details 다.
+    result["accordions_total"] = page.locator("details.wire-card-details").count()
+    result["accordions_open_by_default"] = page.locator("details.wire-card-details[open]").count()
     page.eval_on_selector_all("details", "els => els.forEach(e => e.open = true)")
     page.wait_for_timeout(300)
 

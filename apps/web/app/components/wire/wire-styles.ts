@@ -122,7 +122,7 @@ details.surface-card{overflow:clip}
    얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
    배지는 자기 면(계열 tint)을 가진 독립 표면이라 건드리지 않는다. */
 details.surface-card[open]:not(.briefing-card)>.record-summary,
-.record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary{
   background:var(--gradient-action);
   color:var(--on-action);
 }
@@ -130,15 +130,20 @@ details.surface-card[open]:not(.briefing-card)>.record-summary>.record-ordinal,
 details.surface-card[open]:not(.briefing-card)>.record-summary>.record-held-at,
 details.surface-card[open]:not(.briefing-card)>.record-summary>.record-one-liner,
 details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{color:var(--on-action)}
-/* 아코디언은 카드가 패딩 16/20 을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로
-   면을 아웃라인까지 밀고 패딩으로 글자 자리를 되돌린다. 아래 여백은 본문의 padding-top 16 이
-   이미 준다. 회차 카드(.record-summary)는 카드에 패딩이 없어 이 보정이 필요 없다.
-   **아래 두 값은 .record-accordion 의 패딩(layout.tsx, 현재 16/20)을 그대로 뒤집은 것이다** —
-   그 패딩을 바꾸거나 아코디언을 카드 부품(WireCardDetails)으로 옮기면 여기도 함께 고쳐야
-   면이 아웃라인에 맞는다. */
-.record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
-  margin:calc(var(--space-4) * -1) calc(var(--space-5) * -1) 0;
-  padding:var(--space-4) var(--space-5);
+/* 접힘 카드 제목 줄 안 조각들. 제목은 자기 색(--ink)을, 꺽쇠는 자기 획색(--sub)을 갖고 있어
+   면만 채우면 회색 글자가 파스텔 위에 남는다. 메타 줄 세로선은 채운 면 전용 선색이다
+   (D56 --line-on-action, .wire-row 고른 행과 같은 계약). 배지는 자기 면을 가진 독립 표면이라
+   건드리지 않는다. */
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary .wire-card-arrow{border-color:var(--on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
+/* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
+   밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
+   따라온다(2026-08-09 — 구 손 계산 16/20 대체). 회차 카드(.record-summary)는 카드에 패딩이
+   없어 이 보정이 필요 없다. */
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary{
+  margin:calc(var(--card-pad, var(--space-6)) * -1) calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));
+  padding:var(--card-pad, var(--space-6));
 }
 /* 셸: 새 앱 헤더가 올라가는 전 페이지 컨테이너. body 배경은 덮지 않고 이 래퍼에만 캔버스색. */
 .wire-shell{min-height:100dvh;background:var(--canvas)}
@@ -325,7 +330,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-chevron[data-dir="right"]{transform:translateX(-.1875em) rotate(-45deg)}
 .wire-chevron[data-dir="left"]{transform:translateX(.1875em) rotate(135deg)}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
-.wire-card{padding:var(--space-6)}
+/* --card-pad 는 이 카드의 사방 패딩이다. 변수로 두는 이유는 **풀블리드 조각들이 그 값을
+   되읽어야 하기 때문**이다(펼친 제목 줄의 음수 마진). 예전에는 그 음수 값을 손으로 적어
+   두고 주석에 "패딩을 바꾸면 여기도 고쳐라"라고 써 뒀는데, 패딩이 다른 카드(위기·안전)가
+   생기자마자 어긋났다. 패딩을 바꾸는 카드는 --card-pad 만 덮으면 된다.
+   커스텀 속성은 자식에게 상속되지만 **카드마다 이 줄에서 다시 선언하므로** 카드 안 카드도
+   제 값을 읽는다. 되읽는 쪽에 폴백(var(--card-pad, var(--space-6)))을 다는 것은 .wire-card
+   바깥에서 같은 규칙이 걸리는 경우의 안전판이다(--divider-gap 과 같은 문법). */
+.wire-card{--card-pad:var(--space-6);padding:var(--card-pad)}
 /* 카드 제목은 16/600 이다(2026-08-07 Q "wire-card-title 폰트 크기 줄일 것" — 구 18 대체.
    18 은 카드 여러 장을 묶는 섹션 제목(h2, .record-section-title 류)의 몫으로 올라간다). */
 .wire-card-title{margin:0;font-size:var(--text-md);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
@@ -353,7 +365,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    translate 로 되민다(.wire-chevron[data-dir] 와 같은 보정 계약). */
 .wire-card-arrow{flex:none;width:.5625em;height:.5625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub);transform:translateX(-.125em) rotate(-45deg);transition:transform .15s ease}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
-.wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--space-6) * -1) var(--space-6);padding:0 var(--space-6) var(--space-6);border-bottom:1px solid var(--line)}
+.wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
 .wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-.125em) rotate(45deg)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
    이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */
