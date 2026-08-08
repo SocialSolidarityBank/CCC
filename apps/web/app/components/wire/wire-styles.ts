@@ -497,6 +497,13 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wizard-field{display:grid;gap:var(--space-2)}
 /* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
 .wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 안 채운 필수 보기 줄(2026-08-09 Q). 여러 개 고르기에는 입력 상자가 없어 WireFormField 의
+   invalid 를 빌릴 수 없으므로 **줄 자체가 경고 상자**가 된다. 레시피는 입력칸 오류와 같다
+   (--risk 1.5px · radius 6, §5). 안쪽 보기는 그대로 두고 상자만 생긴다 — 체크 켬은
+   --gradient-action 이라 리스크 면과 겹쳐도 어느 쪽이 켬인지 흐려지지 않는다. */
+/* optical: 안쪽 여백 8/10 은 상자가 없던 자리에 상자를 얹으면서 보기가 테두리에 붙지 않게
+   주는 값이다 — 이 줄만 갖는 상태라 간격 3단에 넣을 값이 아니다. */
+.wizard-choice-row[data-invalid="true"]{padding:8px 10px;border:1.5px solid var(--risk);border-radius:var(--radius-control)}
 /* 인테이크 조회의 값만 저장된 줄바꿈을 그대로 보인다 — 서술형 답변이 여러 줄로 들어온다.
    크기·색은 위 .wire-field-value(정보 필드) 그대로다. */
 .intake-read-value{white-space:pre-wrap}
