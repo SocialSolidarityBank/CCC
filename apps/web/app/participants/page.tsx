@@ -1,6 +1,7 @@
 import { ApiError, listAssignedParticipants, type AssignedParticipant } from '../lib/api';
 import { GridContainer } from '../components/wire/grid-container';
 import { PageTitle } from '../components/wire/page-title';
+import { WireError } from '../components/wire/wire-state';
 import { ParticipantCard } from '../components/wire/participant-card';
 import { WireButton } from '../components/wire/wire-button';
 import { ParticipantFilter } from './participant-filter';
@@ -50,7 +51,7 @@ export default async function ParticipantsPage() {
           </div>
         </div>
         {loadError !== null ? (
-          <p className="empty" role="alert">{loadError}</p>
+          <WireError>{loadError}</WireError>
         ) : sorted.length === 0 ? (
           <p className="empty">담당 중인 당사자가 없습니다. 당사자를 먼저 등록하세요.</p>
         ) : (

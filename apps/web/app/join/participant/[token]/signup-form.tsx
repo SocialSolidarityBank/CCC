@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { WireError } from '../../../components/wire/wire-state';
 import { signupParticipantAction, type ParticipantSignupResult } from '../../../actions';
 import { WireButton } from '../../../components/wire/wire-button';
 import { SearchInput } from '../../../components/wire/search-input';
@@ -56,7 +57,7 @@ export function SignupForm({ token }: { token: string }) {
 
   return (
     <form className="wire-register-form" onSubmit={handleSubmit}>
-      <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
+      <div className="wire-container" data-grid="true">
         <div className="wire-col-6">
           <SearchInput label="이름" name="name" placeholder="당사자 이름" />
         </div>
@@ -114,7 +115,7 @@ export function SignupForm({ token }: { token: string }) {
       </fieldset>
 
       {state.phase === 'error' && (
-        <p className="wire-badge" data-tone="risk" role="alert">{state.message}</p>
+        <WireError>{state.message}</WireError>
       )}
 
       <WireButton type="submit" size="large" chevron className="wire-register-submit" disabled={state.phase === 'working'}>

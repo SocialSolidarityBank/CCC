@@ -8,6 +8,7 @@ import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../components/wire/page-title';
 import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireButton } from '../../../../../../components/wire/wire-button';
+import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
@@ -403,16 +404,21 @@ function RowTable(props: {
               />
             </WireFormField>
           ))}
-          <div className="wizard-actions">
-            <WireButton onClick={() => onChange(rows.filter((_, entryIndex) => entryIndex !== index))}>
-              이 줄 삭제
-            </WireButton>
-          </div>
+          {/* 추가·삭제는 공용 세트다(2026-08-09 Q). 추가는 **마지막 줄에만** 붙고, 삭제는
+              줄이 둘 이상일 때만 붙는다 — 정본이 "없으면 첫 행에 '해당 없음'" 이라
+              적을 줄이 하나는 남아야 한다. */}
+          <WireRepeatActions
+            itemLabel="줄"
+            onAdd={index === rows.length - 1 ? () => onChange([...rows, emptyRow(columns)]) : undefined}
+            onRemove={rows.length > 1 ? () => onChange(rows.filter((_, entryIndex) => entryIndex !== index)) : undefined}
+          />
         </div>
       ))}
-      <div className="wizard-actions">
-        <WireButton onClick={() => onChange([...rows, emptyRow(columns)])}>줄 추가</WireButton>
-      </div>
+      {/* 줄이 하나도 없는 표(4-3 추가 확인사항)는 추가 버튼이 붙을 줄 자체가 없다 — 그
+          경우에만 세트를 카드 바닥에 따로 세운다. */}
+      {rows.length === 0 && (
+        <WireRepeatActions itemLabel="줄" onAdd={() => onChange([...rows, emptyRow(columns)])} />
+      )}
     </WireCard>
   );
 }
@@ -678,7 +684,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     <main className="page-content">
       {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
       <div className="page-header"><PageTitle>인테이크</PageTitle></div>
-      <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }}>
+      <div className="wire-container rail-grid" data-grid="true">
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
             .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}

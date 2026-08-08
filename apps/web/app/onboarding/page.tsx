@@ -2,6 +2,7 @@ import { ApiError, getMyIdentity, getOrganizationProfile, type OrganizationProfi
 import { completeOrganizationOnboardingAction } from '../actions';
 import { GridContainer } from '../components/wire/grid-container';
 import { PageTitle } from '../components/wire/page-title';
+import { WireError } from '../components/wire/wire-state';
 import { WireButton } from '../components/wire/wire-button';
 import { OnboardingWizard } from './onboarding-wizard';
 
@@ -62,11 +63,11 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       <main className="page-content">
         <GridContainer>
           <PageTitle>기관 온보딩</PageTitle>
-          <p className="empty" role="alert">
+          <WireError>
             {unavailable
               ? '온보딩 화면을 열 수 없습니다. 다시 로그인한 뒤 시도하세요.'
               : '이 화면은 기관 관리자만 접근할 수 있습니다.'}
-          </p>
+          </WireError>
         </GridContainer>
       </main>
     );
@@ -80,7 +81,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
         <PageTitle>기관 온보딩</PageTitle>
 
         {errorCode !== undefined ? (
-          <p className="schedule-form-error" role="alert">{errorMessages[errorCode] ?? '저장하지 못했습니다.'}</p>
+          <WireError>{errorMessages[errorCode] ?? '저장하지 못했습니다.'}</WireError>
         ) : null}
 
         {saved && profile !== null ? (

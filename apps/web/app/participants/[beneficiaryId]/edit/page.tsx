@@ -1,3 +1,4 @@
+import { WireError } from '../../../components/wire/wire-state';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
 import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
@@ -95,7 +96,7 @@ function EditScreen({
           </div>
         </div>
         {noticeText === undefined ? null : <p className="wire-badge" data-tone="blue" role="status">{noticeText}</p>}
-        {errorText === undefined ? null : <p className="wire-badge" data-tone="risk" role="alert">{errorText}</p>}
+        {errorText === undefined ? null : <WireError>{errorText}</WireError>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />
       </GridContainer>
     </main>

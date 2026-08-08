@@ -43,6 +43,11 @@ export interface WireButtonProps {
    * 버튼이 폼 바깥 마크업에 서야 할 때). href 로 렌더될 때는 무시된다.
    */
   form?: string;
+  /**
+   * 라벨이 아이콘뿐일 때의 접근성 이름(2026-08-09 — WireRepeatActions 의 +/- 버튼).
+   * 글자 라벨이 있으면 주지 않는다: 이름이 둘이면 스크린 리더가 라벨을 못 읽는다.
+   */
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -61,6 +66,7 @@ export function WireButton({
   name,
   value,
   form,
+  ariaLabel,
   className,
 }: WireButtonProps) {
   const resolvedVariant: WireButtonVariant = variant ?? (size === 'large' ? 'primary' : 'secondary');
@@ -76,7 +82,7 @@ export function WireButton({
 
   if (href !== undefined && !disabled) {
     return (
-      <Link className={classes} href={href} data-variant={resolvedVariant} data-height={height} data-justify={justify}>
+      <Link className={classes} href={href} aria-label={ariaLabel} data-variant={resolvedVariant} data-height={height} data-justify={justify}>
         {inner}
       </Link>
     );
@@ -91,6 +97,7 @@ export function WireButton({
       form={form}
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel}
       data-variant={resolvedVariant}
       data-height={height}
       data-justify={justify}

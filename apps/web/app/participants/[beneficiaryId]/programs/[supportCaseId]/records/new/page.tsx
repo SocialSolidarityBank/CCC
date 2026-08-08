@@ -1,3 +1,4 @@
+import { WireError } from '../../../../../../components/wire/wire-state';
 import { redirect } from 'next/navigation';
 import { createCounselingRecordAction } from '../../../../../../actions';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
@@ -392,7 +393,7 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
 
 function Message({ code }: { code: LoadError | null }) {
   if (code === null || messages[code] === undefined) return null;
-  return <p className="wire-badge" data-tone="risk" role="alert">{messages[code]}</p>;
+  return <WireError>{messages[code]}</WireError>;
 }
 
 export default async function NewRecordPage({

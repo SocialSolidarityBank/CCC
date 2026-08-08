@@ -1,3 +1,4 @@
+import { WireError } from '../../components/wire/wire-state';
 import { WireButton } from '../../components/wire/wire-button';
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageTitle } from '../../components/wire/page-title';
@@ -20,7 +21,7 @@ export function ErrorState({ kind }: { kind: ErrorKind }) {
     // 로드된 화면(PageTitle 600)과 굵기가 갈렸다.
     <GridContainer as="main" className="page-content">
       <div className="page-header"><PageTitle>당사자 정보</PageTitle></div>
-      <p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p>
+      <WireError>{errorMessages[kind]}</WireError>
       <p><WireButton variant="secondary" href="/participants">당사자 목록으로 돌아가기</WireButton></p>
     </GridContainer>
   );

@@ -16,7 +16,10 @@ export type IconName =
   | 'arrow-left'
   | 'arrow-right'
   | 'arrow-up'
-  | 'arrow-down';
+  | 'arrow-down'
+  // 반복 칸 추가·삭제(WireRepeatActions, 2026-08-09 Q "'+', '-' 로 해도 돼").
+  | 'plus'
+  | 'minus';
 
 export function Icon({ name, size = 16, className }: { name: IconName; size?: number; className?: string }) {
   const common = {
@@ -49,5 +52,9 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
       return <svg {...common}><path d="M8 13.5v-11M3.5 7 8 2.5 12.5 7" /></svg>;
     case 'arrow-down':
       return <svg {...common}><path d="M8 2.5v11M3.5 9 8 13.5 12.5 9" /></svg>;
+    case 'plus':
+      return <svg {...common}><path d="M8 3.5v9M3.5 8h9" /></svg>;
+    case 'minus':
+      return <svg {...common}><path d="M3.5 8h9" /></svg>;
   }
 }

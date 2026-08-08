@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ApiError, getMyIdentity, listOrgUsers, type DirectoryRole, type DirectoryUser, type MyIdentity } from '../lib/api';
 import { PageTitle } from '../components/wire/page-title';
+import { WireError } from '../components/wire/wire-state';
 import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
 import { WireCard } from '../components/wire/wire-card';
@@ -63,7 +64,7 @@ async function DirectorySection() {
     // 목록 조회가 실패해도 '내 계정' 섹션은 그대로 두고, 목록 자리에만 오류를 표시한다.
     return (
       <WireCard as="section" className="settings-section" labelledBy="settings-directory-heading" title={<h2 id="settings-directory-heading">기관 실무자 목록</h2>}>
-        <p className="empty" role="alert">실무자 목록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</p>
+        <WireError>실무자 목록을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</WireError>
       </WireCard>
     );
   }
@@ -115,7 +116,7 @@ export default async function SettingsPage() {
     return (
       <main className="page-content settings-page">
         <PageTitle>설정</PageTitle>
-        <p className="empty" role="alert">{message}</p>
+        <WireError>{message}</WireError>
       </main>
     );
   }

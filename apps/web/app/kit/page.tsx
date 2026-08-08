@@ -96,7 +96,7 @@ export default function KitPage() {
 
         <section className="wire-kit-section" aria-labelledby="kit-card">
           <h2 className="wire-kit-heading" id="kit-card">WireCard (2열)</h2>
-          <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
+          <div className="wire-container" data-grid="true">
             <div className="wire-col-6">
               <WireCard title="개인정보">
                 {/* D31: 화면은 실명 기본(마스킹 표기 데모도 제거). 예시는 가상 인물. */}

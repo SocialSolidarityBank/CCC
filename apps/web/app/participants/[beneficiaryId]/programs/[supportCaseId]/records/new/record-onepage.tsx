@@ -159,7 +159,7 @@ export function RecordOnepage({
   {/* 레이아웃은 인테이크와 같은 좌 4 / 우 8 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
       — 구 우측 200px 레일 대체). 좌측 레일이 이번 상담 목표·필수 진척도·저장/나가기를
       전부 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
-  return <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }} ref={draft.containerRef}>
+  return <div className="wire-container rail-grid" data-grid="true" ref={draft.containerRef}>
     <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
       <div className="surface-card record-rail">
         <p className="record-sticky-label">이번 상담 목표</p>

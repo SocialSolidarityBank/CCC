@@ -230,6 +230,33 @@ for (const file of markupFiles) {
   });
 }
 
+// ── 화면 파일의 인라인 스타일 검사 (2026-08-09 신설) ─────────────────────────
+// 위의 모든 검사는 TARGETS 두 파일(layout.tsx · wire-styles.ts)만 훑는다. 그래서 화면
+// 파일의 인라인 style={{}} 은 **검사가 한 줄도 보지 않는 사각지대**였고, 실제로 위저드
+// 두 곳이 계단 밖 20px 제목과 15px 값을 그 경로로 갖고 있었다(2026-08-09 발견).
+//
+// 값만 검사하지 않고 **인라인 자체를 막는다**. 이유: 인라인은 값이 맞아도 계약을 흩는다 —
+// 같은 격자가 여섯 화면에서 각자 style 을 들고 있으면 여백을 한 번에 바꿀 방법이 없어지고,
+// 그것이 2026-08-09 Q 지시 "같은 컴포넌트인데 다른 규칙"의 실제 발생 경로다.
+//
+// 런타임 계산값(진행률 폭 등)이 정말 필요하면 앞 줄에 /* inline-style: 사유 */ 를 단다.
+// optical 면제와 같은 문법이고, 넣는 것이 결정이며 사유 없이 남기는 것이 결함이다.
+for (const file of markupFiles) {
+  if (/\.test\.tsx?$/.test(file)) continue;
+  const raw = readFileSync(file, 'utf8');
+  const src = stripJsComments(raw);
+  const exemptInline = new Set();
+  raw.split('\n').forEach((line, i) => {
+    if (/\/\*\s*inline-style:/.test(line)) exemptInline.add(i + 2);
+  });
+  src.split('\n').forEach((line, idx) => {
+    const n = idx + 1;
+    if (!line.includes('style={{')) return;
+    if (exemptInline.has(n)) return;
+    add(file, n, 'inline-style', 'style={{}} 대신 클래스를 쓴다 — 인라인은 계단·간격 검사 밖이고 여백을 한 곳에서 못 바꾼다. 런타임 계산값이면 앞 줄에 /* inline-style: 사유 */ 를 단다');
+  });
+}
+
 // ── 다크 대응 검사 ────────────────────────────────────────────────────────────
 // 다크 블록(:root[data-theme="dark"])은 **덮어쓰기만** 담으므로, 라이트에서 원시 색값
 // (hex·rgba·그라데이션)으로 선언된 토큰을 빠뜨리면 그 자리만 라이트로 남는다. 눈으로는

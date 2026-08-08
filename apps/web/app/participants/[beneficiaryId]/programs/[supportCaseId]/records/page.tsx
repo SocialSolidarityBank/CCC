@@ -1,3 +1,4 @@
+import { WireError } from '../../../../../components/wire/wire-state';
 import Link from 'next/link';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PageTitle } from '../../../../../components/wire/page-title';
@@ -107,7 +108,7 @@ async function load<T>(request: Promise<T>): Promise<LoadResult<T>> {
 
 function Message({ code }: { code: ErrorKind | null }) {
   if (code === null) return null;
-  return <p className="wire-badge" data-tone="risk" role="alert">{messages[code]}</p>;
+  return <WireError>{messages[code]}</WireError>;
 }
 
 function Notice({ code }: { code: string | undefined }) {

@@ -1,6 +1,7 @@
 import { ApiError, listScheduleCandidates } from '../../lib/api';
 import { createSchedulePlanAction, loadScheduleContextAction } from '../../actions';
 import { getDisplayLabels } from '../../lib/display-labels';
+import { WireError } from '../../components/wire/wire-state';
 import { ScheduleWizard, type ScheduleWizardCandidate } from './schedule-wizard';
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -49,7 +50,7 @@ export default async function NewCounselingSchedulePage({
   if (loadError !== null) {
     return (
       <main className="page-content">
-        <p className="empty" role="alert">{loadError}</p>
+        <WireError>{loadError}</WireError>
       </main>
     );
   }

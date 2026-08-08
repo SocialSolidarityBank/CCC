@@ -1,3 +1,4 @@
+import { WireError } from '../../../../../../components/wire/wire-state';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
 import { IntakeReadView } from './intake-read-view';
@@ -55,13 +56,13 @@ export default async function NewIntakePage({
   const briefingHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=intake_saved`;
 
   if (beneficiaryId === null || supportCaseId === null) {
-    return <main className="page-content"><p className="wire-badge" data-tone="risk" role="alert">{messages.not_found}</p></main>;
+    return <main className="page-content"><WireError>{messages.not_found}</WireError></main>;
   }
 
   const [context, identity] = await Promise.all([load(supportCaseId), getMyIdentity().catch(() => null)]);
 
   if (context.error !== null) {
-    return <main className="page-content"><p className="wire-badge" data-tone="risk" role="alert">{messages[context.error]}</p></main>;
+    return <main className="page-content"><WireError>{messages[context.error]}</WireError></main>;
   }
 
   // 인테이크가 이미 있으면 **조회가 기본**이다(CCC-58, 2026-08-08 Q "조회 기본 + 수정 버튼").

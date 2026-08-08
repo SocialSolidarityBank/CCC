@@ -317,7 +317,13 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
    구 .status(.mint/.blue/.warning/.risk)는 같은 레시피의 복사본이라 삭제했다. */
 /* .panel 은 2026-08-09 에 지웠다 — 마지막 사용처였던 브리핑 빈 상태가 WireCard 로 바뀌면서
    쓰는 마크업이 0 이 됐다(guard:tokens dead-class 가 잡았다). 카드 패딩 24 는 .wire-card 몫이다. */
-.empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
+/* 빈 상태 한 줄(WireEmpty, 2026-08-09 전수 정리). 마크업은 그 부품을 쓴다.
+   구 min-height:92px 는 지웠다 — 높이 예약은 빈 상태의 뜻이 아니라 화면 레이아웃의 일이고,
+   그 값 때문에 브리핑이 .briefing-note 라는 두 번째 빈 상태 규칙을 따로 갖고 있었다
+   (한 카드에 빈 줄이 둘이면 92 × 2 = 184 가 비어 보인다). 크기는 §2-2 위계 4단 ④ 다. */
+.empty{display:flex;align-items:center;gap:var(--space-2);color:var(--sub);font-size:var(--text-sm)}
+/* 자리 예약은 **켜는 것**이다(WireEmpty reserve) — 이 줄이 카드의 유일한 내용일 때만. */
+.empty[data-reserve="true"]{min-height:92px}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
 .field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
@@ -519,7 +525,6 @@ const briefingStyles = `
 /* 브리핑 배지도 공용 배지(.wire-badge)를 쓴다(2026-08-07 통합, 구 .briefing-badge 삭제).
    승인 대기는 data-tone="lavender"(색 규율 5). */
 /* 빈 상태·처리됨 안내도 본문이다 — 16 기본(2026-08-06 Q). */
-.briefing-note{margin:0;font-size:var(--text-md);color:var(--sub)}
 /* 영역 ② 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지 → 수기 뱃지 →
    핵심 한 줄이 좌측정렬 고정 간격(12)으로 선다. 본문이 한 줄을 넘으면 줄바꿈 대신
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
@@ -684,7 +689,6 @@ const scheduleStyles = `
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
 .schedule-form-notice{color:var(--ink);font-weight:600}
-.schedule-form-error{color:var(--risk);font-weight:600}
 /* 동의 묶음은 카드 안 상자였다 — D59 '카드 안 카드 금지'로 플랫: 위 구분선 하나 + 여백. */
 .consent-fieldset{display:grid;gap:var(--space-3);margin:0;padding:var(--space-3) 0 0;border:0;border-top:1px solid var(--line);border-radius:0}
 /* legend 는 구획 타이틀 위계다(2026-08-07 Q — 구 14/600 --sub 라벨 대체): 소제목 16/600
