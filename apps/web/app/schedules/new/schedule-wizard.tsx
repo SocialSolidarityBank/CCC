@@ -1,5 +1,6 @@
 'use client';
 
+import { WireBadge } from '../../components/wire/wire-badge';
 import Link from 'next/link';
 import { useState } from 'react';
 import { GridContainer } from '../../components/wire/grid-container';
@@ -264,7 +265,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
       <div className="page-header"><PageTitle>상담 일정 등록</PageTitle></div>
       <div className="wizard-stack">
         {noticeText !== undefined && (
-          <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
+          <WireBadge tone="blue" role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
         {/* 인테이크는 목표 입력 단계가 없어 2단계다(CCC-64). 3단계 화면(맞춤형 질문)이
             인테이크에서는 두 번째로 보이므로 표기도 그에 맞춘다. */}

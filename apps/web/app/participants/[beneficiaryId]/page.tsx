@@ -315,7 +315,7 @@ async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; n
         {/* 페이지 타이틀(2026-08-08 Q "모든 페이지 상단에 페이지 타이틀"). */}
         <div className="page-header"><PageTitle>당사자 정보</PageTitle></div>
         {noticeText !== undefined && (
-          <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
+          <WireBadge tone="blue" role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
         {/* ParticipantHeroCard (D38 · D59 개편 2026-08-04): 허브는 케이스가 교차하는 화면이라
             단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).

@@ -23,6 +23,8 @@ export interface WireEmptyProps {
    * 쓰지 않는다: 한 카드에 빈 줄이 둘이면 92 × 2 가 통째로 비어 보인다.
    */
   reserve?: boolean;
+  /** 테스트 고정용 data-testid. 클래스로 잡던 자리를 부품으로 옮길 때 잇는다. */
+  testId?: string;
   className?: string;
 }
 
@@ -34,11 +36,12 @@ export interface WireEmptyProps {
  * 비어 보이게 만들어(92 × 2 = 184) 브리핑만 `.briefing-note` 라는 두 번째 규칙을
  * 따로 갖게 된 원인이었다. 높이 예약은 빈 상태의 뜻이 아니라 그 화면 레이아웃의 일이다.
  */
-export function WireEmpty({ children, live = false, reserve = false, className }: WireEmptyProps) {
+export function WireEmpty({ children, live = false, reserve = false, testId, className }: WireEmptyProps) {
   return (
     <p
       className={['empty', className].filter(Boolean).join(' ')}
       role="status"
+      data-testid={testId}
       {...(reserve ? { 'data-reserve': 'true' } : {})}
       {...(live ? { 'aria-live': 'polite' as const } : {})}
     >

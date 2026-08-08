@@ -1,3 +1,4 @@
+import { WireEmpty, WireError } from '../components/wire/wire-state';
 import { PageTitle } from '../components/wire/page-title';
 import { WireCallout } from '../components/wire/wire-callout';
 import { WireCard } from '../components/wire/wire-card';
@@ -52,7 +53,7 @@ export default async function AdminOrganizationPage() {
     return (
       <>
         <PageTitle>기관</PageTitle>
-        <p className="wire-admin-empty" role="alert">기관 정보를 확인할 수 없습니다. 잠시 후 다시 시도하세요.</p>
+        <WireError>기관 정보를 확인할 수 없습니다. 잠시 후 다시 시도하세요.</WireError>
       </>
     );
   }

@@ -278,7 +278,7 @@ export default function KitPage() {
               <summary className="record-summary">
                 <span className="record-ordinal">3회차</span>
                 <span className="record-held-at">3월 12일</span>
-                <span className="wire-badge" data-tone="blue">기본 상담</span>
+                <WireBadge tone="blue">기본 상담</WireBadge>
                 <span className="record-one-liner">상환 계획을 다시 짰고 다음 달 임대료 납부일을 확인했다.</span>
               </summary>
               <div className="record-body">

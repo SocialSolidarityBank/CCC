@@ -1,5 +1,6 @@
 'use client';
 
+import { WireBadge } from '../components/wire/wire-badge';
 import { useState } from 'react';
 import { SearchInput } from '../components/wire/search-input';
 import { WireButton } from '../components/wire/wire-button';
@@ -34,7 +35,7 @@ export function OnboardingWizard({ action, initialOrgName = '', initialProgramNa
   return (
     <form className="onboarding-form" action={action} aria-label="기관 온보딩">
       <article className="surface-card onboarding-card">
-        <p className="wire-badge" data-tone="blue" aria-live="polite">{step}단계 / 2단계</p>
+        <WireBadge tone="blue" aria-live="polite">{step}단계 / 2단계</WireBadge>
         {step === 1 ? (
           <>
             <h2>기관 이름을 입력하세요</h2>
