@@ -5,9 +5,11 @@ import {
   ValidationError,
   type CreateIntakeRecordInput,
   createBeneficiaryWithInitialSupportCase,
+  createCounselingSchedule,
   createIntakeRecord,
   updateIntakeRecord,
   getIntakeRecordContext,
+  getNextCounselingScheduleForSupportCase,
   getParticipantBasicInfo,
   updateParticipantPii,
   listCounselingRecords,
@@ -277,6 +279,56 @@ describe('createIntakeRecord', () => {
     await expect(createIntakeRecord(t.env, canonicalActors.secondCounselor, initial.supportCaseId, intakeInput()))
       .rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  // CCC-57 완료 기준: 인테이크를 저장하면 그 약속이 예정 목록에서 실제로 내려가야 한다.
+  // 페이로드가 id 를 실었는지가 아니라 일정 행이 완료로 바뀌었는지를 본다.
+  it('completes the linked appointment and takes it off the scheduled list', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    const schedule = await createCounselingSchedule(t.env, canonicalActors.counselor, {
+      beneficiaryId: initial.beneficiaryId,
+      supportCaseId: initial.supportCaseId,
+      scheduledAt: '2026-07-15T10:00:00.000Z',
+    });
+
+    const result = await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput({
+      scheduleId: schedule.id,
+      expectedScheduleVersion: schedule.version,
+    }));
+
+    const row = await t.db.prepare(
+      'SELECT status, completed_session_id FROM counseling_schedules WHERE id = ?',
+    ).bind(schedule.id).first<{ status: string; completed_session_id: string | null }>();
+    expect(row?.status).toBe('completed');
+    expect(row?.completed_session_id).toBe(result.record.id);
+    // 예정 목록에서 사라진다. '유령 예정 일정'이 남지 않는 것이 이 티켓의 목적이다.
+    await expect(getNextCounselingScheduleForSupportCase(
+      t.env,
+      canonicalActors.counselor,
+      initial.supportCaseId,
+    )).resolves.toBeNull();
+  });
+
+  // 버전 검사 유지(티켓 지시). 어긋나면 기록 자체가 서지 않는다. 일정만 조용히 넘어가거나
+  // 기록만 남는 반쪽 상태를 막으려는 설계다.
+  it('refuses the whole save when the appointment version moved', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    const schedule = await createCounselingSchedule(t.env, canonicalActors.counselor, {
+      beneficiaryId: initial.beneficiaryId,
+      supportCaseId: initial.supportCaseId,
+      scheduledAt: '2026-07-15T10:00:00.000Z',
+    });
+
+    await expect(createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput({
+      scheduleId: schedule.id,
+      expectedScheduleVersion: schedule.version + 1,
+    }))).rejects.toBeInstanceOf(ConflictError);
+
+    await expect(t.db.prepare(
+      "SELECT COUNT(*) AS count FROM sessions WHERE support_case_id = ? AND kind = 'intake'",
+    ).bind(initial.supportCaseId).first<{ count: number }>()).resolves.toEqual({ count: 0 });
+  });
 });
 
 describe('getIntakeRecordContext', () => {
@@ -291,6 +343,52 @@ describe('getIntakeRecordContext', () => {
     const after = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
     expect(after.hasIntake).toBe(true);
     expect(after.sessionSequence).toBe(2);
+  });
+
+  // CCC-57: 위저드가 연결 일정을 완료로 넘기려면 이 컨텍스트가 id·version 을 실어 줘야 한다.
+  // 그 배선이 없어서 인테이크를 마쳐도 약속이 계속 '예정'으로 남아 있었다.
+  it('carries the next scheduled appointment, and null when there is none', async () => {
+    await t.reset();
+    const initial = await seedCase();
+
+    const withoutSchedule = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(withoutSchedule.schedule).toBeNull();
+
+    const schedule = await createCounselingSchedule(t.env, canonicalActors.counselor, {
+      beneficiaryId: initial.beneficiaryId,
+      supportCaseId: initial.supportCaseId,
+      scheduledAt: '2026-07-20T01:00:00.000Z',
+    });
+    const context = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(context.schedule).toMatchObject({
+      id: schedule.id,
+      version: schedule.version,
+      status: 'scheduled',
+      supportCaseId: initial.supportCaseId,
+    });
+  });
+
+  // 예정 건이 여럿이면 getNextCounselingScheduleForSupportCase 와 같은 것을 고른다
+  // (scheduled_at 이 이른 순). 두 함수가 다른 일정을 가리키면 화면마다 말이 갈린다.
+  it('picks the same appointment as getNextCounselingScheduleForSupportCase', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    const later = await createCounselingSchedule(t.env, canonicalActors.counselor, {
+      beneficiaryId: initial.beneficiaryId,
+      supportCaseId: initial.supportCaseId,
+      scheduledAt: '2026-08-01T01:00:00.000Z',
+    });
+    const earlier = await createCounselingSchedule(t.env, canonicalActors.counselor, {
+      beneficiaryId: initial.beneficiaryId,
+      supportCaseId: initial.supportCaseId,
+      scheduledAt: '2026-07-20T01:00:00.000Z',
+    });
+
+    const context = await getIntakeRecordContext(t.env, canonicalActors.counselor, initial.supportCaseId);
+    const next = await getNextCounselingScheduleForSupportCase(t.env, canonicalActors.counselor, initial.supportCaseId);
+    expect(context.schedule?.id).toBe(earlier.id);
+    expect(context.schedule?.id).toBe(next?.id);
+    expect(context.schedule?.id).not.toBe(later.id);
   });
 
   it('denies an unassigned counselor', async () => {

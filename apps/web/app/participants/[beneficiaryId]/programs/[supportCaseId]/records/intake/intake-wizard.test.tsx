@@ -9,7 +9,13 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
 afterEach(cleanup);
 
-function renderWizard(consent = { privacy: true, recordingAi: true }) {
+/** CCC-57 연결 일정. 화면에 뜨는 표기와 제출 페이로드 둘 다 이 값으로 검증한다. */
+const LINKED_SCHEDULE = { id: '22222222-2222-4222-8222-222222222222', scheduledAt: '2026-08-12T05:00:00.000Z', version: 3 };
+
+function renderWizard(
+  consent = { privacy: true, recordingAi: true },
+  extra: { schedule?: typeof LINKED_SCHEDULE | null } = {},
+) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
@@ -29,6 +35,7 @@ function renderWizard(consent = { privacy: true, recordingAi: true }) {
       briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/briefing?notice=intake_saved"
       participantHref="/participants/swallow-003"
       basicInfoHref="/participants/swallow-003/edit"
+      schedule={extra.schedule ?? null}
       submit={submit}
     />,
   );
@@ -209,6 +216,90 @@ describe('IntakeWizard', () => {
     expect(getLastInput()?.answers).toContainEqual({
       key: 'summary_urgency', response: 'answered', text: '즉시 개입 필요',
     });
+  });
+
+  // CCC-57: 인테이크에는 완료 배선 자체가 없어서 인테이크를 마쳐도 그 약속이 계속
+  // '예정'으로 남았다. 기본은 켬이고, 두 값은 언제나 함께 실린다(한쪽만 오면 서버가
+  // 버전 검사를 못 한다).
+  it('연결된 예정 일정을 기본으로 완료 처리한다', async () => {
+    const { container, getLastInput } = renderWizard(undefined, { schedule: LINKED_SCHEDULE });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+
+    const card = scoped.getByTestId('intake-schedule-completion');
+    const checkbox = card.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+
+    fireEvent.click(completeButton(scoped));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(getLastInput()?.scheduleId).toBe(LINKED_SCHEDULE.id);
+    expect(getLastInput()?.expectedScheduleVersion).toBe(LINKED_SCHEDULE.version);
+  });
+
+  it('체크를 풀면 일정을 완료로 넘기지 않는다', async () => {
+    const { container, getLastInput } = renderWizard(undefined, { schedule: LINKED_SCHEDULE });
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+
+    const card = scoped.getByTestId('intake-schedule-completion');
+    fireEvent.click(card.querySelector('input[type="checkbox"]') as HTMLInputElement);
+
+    fireEvent.click(completeButton(scoped));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    // 둘 다 빠진다. 한쪽만 남으면 경계 검증이 요청을 통째로 막는다.
+    expect(getLastInput()?.scheduleId).toBeUndefined();
+    expect(getLastInput()?.expectedScheduleVersion).toBeUndefined();
+  });
+
+  it('예정 일정이 없으면 완료 카드를 그리지 않는다', async () => {
+    const { container, getLastInput } = renderWizard();
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    expect(scoped.queryByTestId('intake-schedule-completion')).toBeNull();
+
+    fireEvent.click(completeButton(scoped));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(getLastInput()?.scheduleId).toBeUndefined();
+  });
+
+  // 수정 경로에는 일정 연결 자리가 없다(서버 파서가 허용 키로 막는다). 실수로 실리면
+  // 인테이크 수정 자체가 통째로 거부되므로, 위저드 안에서도 한 겹 더 막는다.
+  it('수정 모드에서는 예정 일정이 있어도 완료 배선을 걸지 않는다', async () => {
+    push.mockClear();
+    let lastInput: CreateIntakeRecordActionInput | null = null;
+    const { container } = render(
+      <IntakeWizard
+        mode="edit"
+        beneficiaryId="swallow-003"
+        supportCaseId="11111111-1111-4111-8111-111111111111"
+        submissionId="a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"
+        participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
+        extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
+        consent={{ privacy: true, recordingAi: true }}
+        sessionSequence={2}
+        recorderLabel="이지은"
+        briefingHref="/participants/swallow-003/programs/11111111-1111-4111-8111-111111111111/records/intake"
+        participantHref="/participants/swallow-003"
+        basicInfoHref="/participants/swallow-003/edit"
+        initial={{
+          heldAt: '2026-08-01T05:00:00.000Z',
+          answers: [],
+          debts: [],
+          linkedOrgs: [],
+          additionalItems: [],
+          managerOpinion: '기존 의견',
+        }}
+        schedule={LINKED_SCHEDULE}
+        submit={async (input) => { lastInput = input; return { status: 'saved' }; }}
+      />,
+    );
+    const scoped = within(container);
+    fillAllQuestions(scoped);
+    expect(scoped.queryByTestId('intake-schedule-completion')).toBeNull();
+
+    fireEvent.click(scoped.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect((lastInput as CreateIntakeRecordActionInput | null)?.scheduleId).toBeUndefined();
   });
 
   it('목표를 보내지 않고, 동의·6영역·원하는 도움도 보내지 않는다', async () => {

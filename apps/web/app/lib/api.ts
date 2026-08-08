@@ -611,6 +611,11 @@ export interface IntakeRecordContext {
   consent: { privacy: boolean; recordingAi: boolean };
   // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 일 때만 온다.
   saved: IntakeSavedRecord | null;
+  /**
+   * 이 참여 사업의 다음 예정 일정(CCC-57). 인테이크를 저장하면서 이 일정을 완료로 넘기는
+   * 배선의 재료다. 위저드가 id·version 을 그대로 실어 보낸다. 예정 건이 없으면 null.
+   */
+  schedule: CounselingSchedule | null;
 }
 
 // 저장된 인테이크의 위저드 소유분 — 수정 화면 프리필 재료.
@@ -1622,6 +1627,11 @@ export async function getIntakeRecordContext(supportCaseId: string): Promise<Int
     // 배포 2단위(web·api)가 순차로 구르는 짧은 시차에 구 API 응답(saved 없음)을 만나도
     // 화면이 죽지 않게 없으면 null 로 낮춘다 — 새 API 는 항상 싣는다.
     saved: 'saved' in record ? decodeIntakeSavedRecord(record.saved) : null,
+    // 다음 예정 일정(CCC-57). saved 와 같은 이유로 없으면 null 로 낮춘다. 구 API 를 만나면
+    // 완료 조작 칸이 안 뜰 뿐 인테이크 작성은 그대로 된다.
+    schedule: record.schedule === null || record.schedule === undefined
+      ? null
+      : decodeCounselingSchedule(record.schedule),
   };
 }
 

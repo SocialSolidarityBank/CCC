@@ -126,6 +126,9 @@ export default async function NewIntakePage({
       sessionSequence={context.data.sessionSequence}
       recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
       briefingHref={briefingHref}
+      // 연결 일정 완료(CCC-57). 작성 경로에만 준다. 수정 경로(위 edit 분기)에는 서버에
+      // 일정 연결 자리가 없으므로 넘기지 않는다.
+      schedule={context.data.schedule}
       submit={createIntakeRecordAction}
     />
   );

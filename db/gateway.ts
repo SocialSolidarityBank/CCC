@@ -11041,6 +11041,13 @@ export interface IntakeRecordContext {
   // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 가 true 일 때만 채워진다.
   // 위저드가 소유한 필드만 싣는다 — 동의·기본정보(금고)는 각자의 화면 몫이라 싣지 않는다.
   saved: IntakeSavedRecord | null;
+  /**
+   * 이 참여 사업의 다음 예정 일정(CCC-57). 인테이크를 저장할 때 이 일정을 완료로 넘기려면
+   * 위저드가 id 와 version 을 알아야 한다. 그 배선이 없어서 인테이크를 마쳐도 일정이
+   * 계속 '예정'으로 남아 있었다. 예정 건이 없으면 null 이고, 그때 위저드는 조작 칸을
+   * 아예 그리지 않는다. 선정 규칙은 getNextCounselingScheduleForSupportCase 와 같다.
+   */
+  schedule: CounselingSchedule | null;
 }
 
 /**
@@ -11355,6 +11362,20 @@ export async function getIntakeRecordContext(
   const contacts = await loadParticipantContacts(env, actor.orgId, [supportCase.beneficiaryId]);
   // 감사를 한 행으로 합치려면 추가 금고 항목을 먼저 읽어 실제로 실린 필드를 알아야 한다.
   const extendedPii = await readIntakeExtendedPii(env, actor.orgId, supportCase.beneficiaryId);
+  // 다음 예정 일정(CCC-57). getNextCounselingScheduleForSupportCase 를 부르지 않고 같은
+  // SELECT 를 인라인한다. 그 함수는 접근 검사와 감사 행을 자기가 또 만들어서, 화면 조회
+  // 하나에 감사 두 행이 남는다(이 함수가 일부러 한 행으로 합쳐 온 것을 깨뜨린다).
+  // 감사 행을 따로 만들지 않는 것은 아래 회차 수·동의·저장분 조회와 같은 규칙이다.
+  // 화면 조회 1회 = 감사 1행이고, 일정 행에는 금고 값이 없다.
+  const scheduleRow = supportCase.status === 'active'
+    ? await env.DB.prepare(
+      `SELECT * FROM counseling_schedules
+       WHERE org_id = ? AND support_case_id = ? AND status = 'scheduled'
+       ORDER BY scheduled_at, id
+       LIMIT 1`,
+    ).bind(actor.orgId, supportCaseId).first<DbRow>()
+    : null;
+  const schedule = scheduleRow === null ? null : mapCounselingSchedule(scheduleRow);
   await auditParticipantPiiRead(env, actor, contacts, {
     targetId: supportCase.beneficiaryId,
     supportCaseId,
@@ -11421,6 +11442,7 @@ export async function getIntakeRecordContext(
       recordingAi: consentRow?.recording_at != null || consentRow?.text_ai_at != null,
     },
     saved,
+    schedule,
   };
 }
 
