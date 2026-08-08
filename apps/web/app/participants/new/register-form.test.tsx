@@ -61,19 +61,20 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(names.indexOf('gender')).toBeLessThan(names.indexOf('birthDate'));
   });
 
-  // Y8: 무엇을 비워도 되는지 알 수 없었다. 별표는 wire-form-required(--risk)를 재사용한다.
-  it('marks 이름·이메일·연락처 as required with the shared asterisk (Y8)', () => {
+  // 2026-08-08 Q: 구 Y8 별표를 내린다. 서버가 이름·이메일·연락처를 셋 다 선택 취급하고
+  // (createInitialParticipantProgramAction), D59 가 이름 없는 무응답 등록을 설계된 경우로
+  // 인정한다. 화면만 필수라고 말하면 서버 규칙과 어긋난 거짓 안내가 된다.
+  it('shows 이름·이메일·연락처 without required asterisks (서버 선택 취급과 일치)', () => {
     const { container } = render(<RegisterForm currentUser={currentUser} action={noop} />);
-    const marks = container.querySelectorAll('.wire-search-label .wire-form-required');
-    expect(marks.length).toBe(3);
-    for (const mark of marks) {
-      expect(mark.textContent).toBe('*');
-      expect(mark.getAttribute('aria-hidden')).toBe('true');
-    }
+    expect(container.querySelectorAll('.wire-search-label .wire-form-required').length).toBe(0);
     for (const label of ['이름', '이메일', '연락처']) {
       const owner = [...container.querySelectorAll('.wire-search-label')]
         .find((el) => el.textContent?.startsWith(label));
-      expect(owner?.querySelector('.wire-form-required')).not.toBeNull();
+      expect(owner).not.toBeUndefined();
+    }
+    // 입력 강제도 없다 — 서버 규칙(선택)과 같은 말을 한다.
+    for (const name of ['name', 'email', 'phone']) {
+      expect((container.querySelector(`input[name="${name}"]`) as HTMLInputElement).required).toBe(false);
     }
   });
 

@@ -17,15 +17,6 @@ const GENDER_OPTIONS = [
   { value: '무응답', label: '무응답' },
 ];
 
-/** 필수 칸 라벨. 별표는 `wire-form-required`(--risk)이고 읽어 주지 않는다 — 폼 검증이 실제 강제다. */
-function RequiredLabel({ children }: { children: string }) {
-  return (
-    <>
-      {children} <span className="wire-form-required" aria-hidden="true">*</span>
-    </>
-  );
-}
-
 export interface RegisterFormProps {
   /**
    * 로그인한 현재 사용자 — 등록자가 곧 담당 실무자다(등록자=담당 실무자, D7). 담당 실무자 지정 select 대신
@@ -86,18 +77,21 @@ export function RegisterForm({
         </p>
 
         <div className="wire-container" data-grid="true" style={{ padding: 0 }}>
+          {/* 이름·이메일·연락처는 필수 표시를 달지 않는다(2026-08-08 Q). 서버가 셋 다 선택
+              취급이고(createInitialParticipantProgramAction), D59 가 이름 없는 무응답 등록을
+              설계된 경우로 인정한다. 구 Y8 별표는 이 서버 규칙과 어긋나 내렸다. */}
           <div className="wire-col-6">
-            <SearchInput label={<RequiredLabel>이름</RequiredLabel>} name="name" placeholder="당사자 이름" />
+            <SearchInput label="이름" name="name" placeholder="당사자 이름" />
           </div>
           <div className="wire-col-6">
             <SearchInput
-              label={<RequiredLabel>이메일</RequiredLabel>}
+              label="이메일"
               name="email"
               placeholder="participant@example.com"
             />
           </div>
           <div className="wire-col-6">
-            <SearchInput label={<RequiredLabel>연락처</RequiredLabel>} name="phone" placeholder="010-0000-0000" />
+            <SearchInput label="연락처" name="phone" placeholder="010-0000-0000" />
           </div>
           {/* D41 1-1 · D42 ①: 인테이크 1단계의 기본정보는 여기서만 입력·수정한다. 값은 금고에
               암호화 저장되고(D3), 인테이크 화면은 읽어서 표시만 한다(세션 기록에 PII 미저장, R3).
