@@ -132,7 +132,10 @@ details.surface-card[open]:not(.briefing-card)>.record-summary>.record-one-liner
 details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{color:var(--on-action)}
 /* 아코디언은 카드가 패딩 16/20 을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로
    면을 아웃라인까지 밀고 패딩으로 글자 자리를 되돌린다. 아래 여백은 본문의 padding-top 16 이
-   이미 준다. 회차 카드(.record-summary)는 카드에 패딩이 없어 이 보정이 필요 없다. */
+   이미 준다. 회차 카드(.record-summary)는 카드에 패딩이 없어 이 보정이 필요 없다.
+   **아래 두 값은 .record-accordion 의 패딩(layout.tsx, 현재 16/20)을 그대로 뒤집은 것이다** —
+   그 패딩을 바꾸거나 아코디언을 카드 부품(WireCardDetails)으로 옮기면 여기도 함께 고쳐야
+   면이 아웃라인에 맞는다. */
 .record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
   margin:calc(var(--space-4) * -1) calc(var(--space-5) * -1) 0;
   padding:var(--space-4) var(--space-5);
@@ -441,8 +444,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 간격은 격자의 gap 하나가 준다(§4-6 규칙 3) — 전역 p 의 위 마진 8 이 남으면 캡션 **위**만
    28 이 되어 아래(20)와 어긋난다. 구 인라인 captionStyle 이 margin:0 을 갖고 있어 안 보이던
    결함이고, 클래스로 옮기며 드러났다. .panel-meta 자체는 건드리지 않는다 — 카드 제목 슬롯
-   (.wire-card-title)은 격자가 아니라 그 8 이 제목과 설명을 갈라 주는 유일한 여백이다. */
-.wizard-stack>p,.wizard-form>p{margin:0}
+   (.wire-card-title)은 격자가 아니라 그 8 이 제목과 설명을 갈라 주는 유일한 여백이다.
+   위저드 격자 셋(스택·폼·칸)의 직계 p 가 대상이다. 실제로 걸리는 것은 .panel-meta ·
+   .wire-field-error · .wire-badge · .wire-field-value 뿐이고 넷 다 0 이 맞다 — 인테이크
+   기본정보 줄은 이 규칙이 없으면 라벨↔값이 8(격자) + 8(p 마진) = 16 으로 벌어진다. */
+.wizard-stack>p,.wizard-form>p,.wizard-field>p{margin:0}
 /* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
 .wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
