@@ -859,10 +859,12 @@ const recordFormStyles = `
 }
 /* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
 .record-toolbar{display:flex;justify-content:flex-end}
-/* 이 세 패널은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
-   구 계약 CSS 복사 5줄 삭제). 여기 남는 것은 카드 패딩 3종 중 **좁은 보조 패널(16/20)**
-   (DESIGN.md §3-4, 2026-07-31)과 배치뿐이다: 이 화면은 우측 레일 200 을 떼고 남은 좁은
-   열에 서고 레일 자체는 200px 이라 좌우 24 를 주면 안쪽 글 폭이 152 로 떨어진다. */
+/* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
+   구 계약 CSS 복사 5줄 삭제). 패딩은 **본문 카드와 같은 24 사방**이다(2026-08-09 —
+   구 좁은 보조 패널 16/20 폐지): 그 예외는 레일이 200px 이던 시절 "좌우 24 를 주면 안쪽 글
+   폭이 152 로 떨어진다"가 근거였는데, 레일이 격자 4칸(1120 기준 약 360)으로 넓어지면서
+   근거가 사라졌다. 예외를 남겨 두면 같은 페이지에서 레일·아코디언만 글자 시작선이 4px
+   앞으로 나온다(2026-08-09 하니스 실측: 카드 49 · 아코디언 45 · 위기 44). */
 /* 구 상단 고정 헤더(.record-sticky)는 2026-08-08 좌측 레일 이전으로 삭제 — 목표·버튼이
    전부 레일로 갔다. 라벨·값·목록 세 줄 레시피만 레일 안에서 계속 쓴다. */
 .record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
@@ -872,19 +874,25 @@ const recordFormStyles = `
 /* 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체). 레일이 sticky 라
    어느 위치에서 쓰든 늘 같은 자리에 있다. §4-5 순서: 세컨더리 → 프라이머리. */
 .record-rail-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-top:var(--space-2)}
-.record-accordion{padding:var(--space-4) var(--space-5)}
-.record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
-.record-accordion-summary::-webkit-details-marker{display:none}
-.record-accordion-body{display:grid;gap:var(--space-4);padding-top:var(--space-4)}
-/* 위기 영역은 확인된 리스크와 같은 축이므로 --risk 균일 테두리 + 배경 틴트로 표시한다(D9). */
-/* optical: 15/19 는 눈대중이 아니라 **16/20 에서 테두리 1.5px 을 뺀 값**이다. 위기 아코디언만
-   테두리가 1.5px(다른 카드는 1px)이라, 패딩을 16/20 그대로 두면 이 카드 안쪽만 0.5px 씩
-   넓어져 옆 카드와 글자 시작선이 어긋난다. 토큰으로 스냅하면 그 어긋남이 돌아온다. */
-.record-accordion.is-crisis{--surface-fill:var(--risk-tint-solid);border:1.5px solid var(--risk);background:var(--risk-tint-solid);padding:15px 19px}
-.record-accordion.is-crisis .record-accordion-summary{color:var(--risk)}
-/* 좁은 보조 패널 16/20 (§3-4, 2026-08-07 여백 통일 — 구 16 사방). sticky 는 바깥
-   .record-side 가 갖는다(2026-08-08 좌측 이전). */
-.record-rail{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
+/* 접힘 칸 4개는 WireCardDetails 다(2026-08-09 — 구 .record-accordion 손 카드 4줄 삭제).
+   여기 남는 것은 위기·안전 칸의 리스크 어휘뿐이다.
+   **.is-crisis 는 이제 화면 전용 이름이 아니다** — 구 .record-accordion.is-crisis 는 이 화면에만
+   있는 클래스와 짝지어 있었지만, 지금은 접힘 카드면 어디서든 걸린다. 리스크 어휘는 배너와
+   이 칸의 것이므로(D9) 다른 화면에서 이 이름을 새로 붙이지 않는다. 규칙이 기록지 블록에
+   사는 것은 쓰는 자리가 여기뿐이기 때문이다.
+   위기 영역은 확인된 리스크와 같은 축이므로 --risk 균일 테두리 + 배경 틴트로 표시한다(D9).
+   이 규칙이 wireStyles 보다 **뒤에** 실려야 펼쳤을 때도 빨간 테두리가 산다 — 같은 명시도의
+   .surface-card[open] 이 border-color 를 투명으로 돌리기 때문이다(shellStyles 이음 순서).
+   optical: 패딩만 23.5 인 이유는 이 카드만 테두리가 1.5px 이기 때문이다. 다른 카드의 글자
+   시작선은 1 + 24 = 25 이고, 여기서도 1.5 + 23.5 = 25 로 맞춘다. --card-pad 로 덮으므로
+   펼친 제목 줄의 풀블리드도 같은 값을 따라간다. */
+.wire-card-details.is-crisis{--surface-fill:var(--risk-tint-solid);--card-pad:calc(var(--space-6) - 0.5px);border:1.5px solid var(--risk);background:var(--risk-tint-solid)}
+.wire-card-details.is-crisis>.wire-card-summary,
+.wire-card-details.is-crisis>.wire-card-summary>.wire-card-title{color:var(--risk)}
+/* 레일도 본문 카드와 같은 24 사방이다(2026-08-09 — 구 16/20). 구분선(.wire-card-divider)이
+   좌우 -24 로 풀블리드라, 패딩이 20 이던 동안에는 선이 카드 밖으로 4px 씩 삐져나왔다
+   (details 와 달리 div 는 overflow:clip 이 없다). sticky 는 바깥 .record-side 가 갖는다. */
+.record-rail{display:grid;gap:var(--space-2);padding:var(--space-6)}
 .record-rail-count{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);color:var(--sub)}
 .record-rail-list li[data-done="true"]{color:var(--ink);font-weight:600}

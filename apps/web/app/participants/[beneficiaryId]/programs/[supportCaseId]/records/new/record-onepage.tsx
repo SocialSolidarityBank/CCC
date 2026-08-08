@@ -6,7 +6,7 @@ import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
-import { WireCard } from '../../../../../../components/wire/wire-card';
+import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
 import { DATE_TEXT_HINT } from '../../../../../../components/wire/date-text-input';
@@ -282,62 +282,56 @@ export function RecordOnepage({
           DB·게이트웨이·기존 데이터는 그대로다 — 재활성 시 이 자리에 UI 만 되살린다. */}
 
       {/* 6. 회차 템플릿(D29) — 이번 범위는 자리 구조까지 */}
-      <details className="surface-card record-accordion">
-        <summary className="record-accordion-summary">회차 템플릿 항목 <small>(준비 중)</small></summary>
-        <div className="record-accordion-body">
-          <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
-          <p className="panel-meta">지금은 코어 항목(위의 액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
-        </div>
-      </details>
+      {/* 접힘 칸 4개는 전부 WireCardDetails 다(2026-08-09 Q, D60 ② — 구 손 카드
+          details.surface-card.record-accordion). 카드 모양·패딩·제목 줄·꺽쇠를 부품이 갖는다. */}
+      <WireCardDetails className="wire-form-card" title="회차 템플릿 항목" badge={<small>(준비 중)</small>}>
+        <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
+        <p className="panel-meta">지금은 코어 항목(위의 액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
+      </WireCardDetails>
 
       {/* 7. 새 액션 · 다음 만남 */}
-      <details className="surface-card record-accordion">
-        <summary className="record-accordion-summary"><MetaRow items={['새 액션', '다음 만남']} /> <small>(선택)</small></summary>
-        <div className="record-accordion-body">
-          <p>필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</p>
-          <div className="wire-fieldset-list">{[0, 1, 2].map((index) => <ActionItemFields index={index} key={index} />)}</div>
-          <WireFormField label="완료할 일정" note="(선택)" control="select" htmlFor="schedule-completion">
-            <select id="schedule-completion" name="scheduleCompletion" defaultValue=""><option value="">일정을 완료로 표시하지 않음</option>{schedules.filter((schedule) => schedule.status === 'scheduled').map((schedule) => <option key={schedule.id} value={JSON.stringify({ id: schedule.id, version: schedule.version })}>{dateTimeLabel(schedule.scheduledAt)} 일정 완료</option>)}</select>
-          </WireFormField>
-          <p className="panel-meta">다음 만남은 상담 일정 화면에서 등록합니다. 선택한 일정의 현재 버전을 함께 제출하며, 버전이 달라지면 완료 처리하지 않습니다.</p>
-          <WireFormField label="지난 상담 이후 달라진 일" note="(선택)" htmlFor="change-since-last">
-            <input id="change-since-last" name="changeSinceLast" type="text" maxLength={200} />
-          </WireFormField>
-        </div>
-      </details>
+      <WireCardDetails className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />} badge={<small>(선택)</small>}>
+        <p>필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</p>
+        <div className="wire-fieldset-list">{[0, 1, 2].map((index) => <ActionItemFields index={index} key={index} />)}</div>
+        <WireFormField label="완료할 일정" note="(선택)" control="select" htmlFor="schedule-completion">
+          <select id="schedule-completion" name="scheduleCompletion" defaultValue=""><option value="">일정을 완료로 표시하지 않음</option>{schedules.filter((schedule) => schedule.status === 'scheduled').map((schedule) => <option key={schedule.id} value={JSON.stringify({ id: schedule.id, version: schedule.version })}>{dateTimeLabel(schedule.scheduledAt)} 일정 완료</option>)}</select>
+        </WireFormField>
+        <p className="panel-meta">다음 만남은 상담 일정 화면에서 등록합니다. 선택한 일정의 현재 버전을 함께 제출하며, 버전이 달라지면 완료 처리하지 않습니다.</p>
+        <WireFormField label="지난 상담 이후 달라진 일" note="(선택)" htmlFor="change-since-last">
+          <input id="change-since-last" name="changeSinceLast" type="text" maxLength={200} />
+        </WireFormField>
+      </WireCardDetails>
 
-      {/* 8. 위기·안전 — 6영역 '위기' 선택 시 자동 펼침 + 강조 */}
-      <details
-        className={hasCrisis ? 'surface-card record-accordion is-crisis' : 'surface-card record-accordion'}
-        data-testid="safety-accordion"
+      {/* 8. 위기·안전 — 6영역 '위기' 선택 시 자동 펼침 + 강조.
+          is-crisis 클래스 이름은 그대로 둔다 — 위의 toggleAll 이 이 이름으로 '전체 접기'에서
+          이 칸만 빼기 때문이다(위기 선택 중에는 숨길 수 없다). */}
+      <WireCardDetails
+        className={hasCrisis ? 'wire-form-card is-crisis' : 'wire-form-card'}
+        testId="safety-accordion"
         open={safetyOpen}
         onToggle={(event) => setSafetyOpen(event.currentTarget.open)}
+        title="위기·안전 확인"
+        badge={hasCrisis ? <span className="wire-badge" data-tone="risk">확인 필요</span> : <small>(선택)</small>}
       >
-        <summary className="record-accordion-summary">위기·안전 확인 {hasCrisis ? <span className="wire-badge" data-tone="risk">확인 필요</span> : <small>(선택)</small>}</summary>
-        <div className="record-accordion-body">
-          {hasCrisis ? <p className="wire-badge" data-tone="risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</p> : null}
-          <p>당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
-          <WireFormField label="위기·안전 확인 내용" note="(선택)" control="textarea" htmlFor="safety-note">
-            <textarea id="safety-note" name="safetyNote" rows={4} />
-          </WireFormField>
-        </div>
-      </details>
+        {hasCrisis ? <p className="wire-badge" data-tone="risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</p> : null}
+        <p>당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
+        <WireFormField label="위기·안전 확인 내용" note="(선택)" control="textarea" htmlFor="safety-note">
+          <textarea id="safety-note" name="safetyNote" rows={4} />
+        </WireFormField>
+      </WireCardDetails>
 
       {/* 9. 플래그 수기 추가. '목표 종료 + 신설' fieldset 은 **제거됐다** (D47 §6 · ADR-0019)
           — 그것도 GAS 와 같은 세부 목표 층이라 D43 보류 대상이다. 이로써 앱 안에 세부 목표를
           만들거나 닫을 경로가 없어지는 것은 알고 받아들인 결과이고, 전체 목표 편집은 브리핑에
           남아 있다(D45). goals·closed_reason·replaced_by_goal_id 스키마는 그대로 둔다. */}
-      <details className="surface-card record-accordion">
-        <summary className="record-accordion-summary">리스크 플래그 <small>(조건부)</small></summary>
-        <div className="record-accordion-body">
-          <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
-          <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>
-            <div className="wire-choice-group">
-              {flagTypes.map(([value, label]) => <WireChoice key={value} label={label} type="checkbox" name="flagType" value={value} />)}
-            </div>
-          </fieldset>
-        </div>
-      </details>
+      <WireCardDetails className="wire-form-card" title="리스크 플래그" badge={<small>(조건부)</small>}>
+        <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
+        <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>
+          <div className="wire-choice-group">
+            {flagTypes.map(([value, label]) => <WireChoice key={value} label={label} type="checkbox" name="flagType" value={value} />)}
+          </div>
+        </fieldset>
+      </WireCardDetails>
 
       {/* 10. 담당 실무자 의견 — 접지 않고 항상 노출 */}
       <WireCard

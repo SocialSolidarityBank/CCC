@@ -7,7 +7,7 @@ import { GridContainer } from '../components/wire/grid-container';
 import { ListRow } from '../components/wire/list-row';
 import { PageTitle } from '../components/wire/page-title';
 import { SearchInput } from '../components/wire/search-input';
-import { WireBullets, WireCard, WireField } from '../components/wire/wire-card';
+import { WireBullets, WireCard, WireCardDetails, WireField } from '../components/wire/wire-card';
 import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
 import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
@@ -288,12 +288,9 @@ export default function KitPage() {
                 </div>
               </div>
             </details>
-            <details className="record-accordion is-crisis" open>
-              <summary className="record-accordion-summary">위기·안전 확인</summary>
-              <div className="record-accordion-body">
-                <p className="wire-kit-caption">확인된 리스크와 같은 축이라 리스크 균일 테두리 + 배경 틴트로 표시한다(D9).</p>
-              </div>
-            </details>
+            <WireCardDetails className="is-crisis" open title="위기·안전 확인">
+              <p className="wire-kit-caption">확인된 리스크와 같은 축이라 리스크 균일 테두리 + 배경 틴트로 표시한다(D9).</p>
+            </WireCardDetails>
           </div>
         </section>
 

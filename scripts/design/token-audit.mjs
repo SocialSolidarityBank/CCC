@@ -77,6 +77,9 @@ for (const file of TARGETS) {
       // .page-backbar 가 규칙 안에서 만드는 지역 변수(2026-08-04) — 컨테이너 상한(1120/960)을
       // 담아, 가로선 전폭 상태의 좌우 패딩 계산과 narrow 분기가 한 값을 본다.
       if (name === '--backbar-max') continue;
+      // .wire-card 가 규칙 안에서 만드는 지역 변수(2026-08-09) — 이 카드의 사방 패딩을 담아,
+      // 풀블리드 조각(펼친 제목 줄의 음수 마진)이 그 값을 손으로 베끼지 않고 되읽는다.
+      if (name === '--card-pad') continue;
       if (name.startsWith('--rdp-')) continue; // react-day-picker 라이브러리 소유
       if (!defined.has(name)) add(file, n, 'undefined-token', `${name} 는 design/tokens.css 에 없다`);
     }

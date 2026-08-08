@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, ToggleEvent } from 'react';
 
 // 카드 계약(2026-08-05 Q 개정 · ADR-0030): **아웃라인 카드**다 — 그림자가 아니라 선이 경계를
 // 만든다(Infisical·Cloudflare·Vercel·Supabase 레퍼런스). 기본은 회색 --line 1px, 선택·활성만
@@ -60,6 +60,12 @@ export interface WireCardDetailsProps {
   open?: boolean | undefined;
   /** 앵커 이동·일괄 토글의 대상 id. */
   id?: string | undefined;
+  /**
+   * 여닫힘을 바깥 상태와 맞춰야 할 때만 쓴다(기록지 위기·안전 칸: 6영역에서 '위기'를 고르면
+   * 자동으로 펼쳐지고, 실무자가 닫으면 그 사실을 화면이 알아야 한다). 네이티브 details 라
+   * 이 값을 주지 않으면 여닫힘은 그대로 브라우저가 갖는다.
+   */
+  onToggle?: ((event: ToggleEvent<HTMLDetailsElement>) => void) | undefined;
   testId?: string | undefined;
   className?: string | undefined;
 }
@@ -68,10 +74,10 @@ export interface WireCardDetailsProps {
  *  네이티브 details 위에 카드 계약을 얹은 것이라 '전체 접기'(details.open 일괄 토글)와
  *  앵커 진입이 그대로 동작한다. 펼친 카드가 곧 활성이라 그라데이션 테두리는
  *  .surface-card[open] 규칙이 이미 갖는다(D47과 같은 어휘). */
-export function WireCardDetails({ children, title, badge, open, id, testId, className }: WireCardDetailsProps) {
+export function WireCardDetails({ children, title, badge, open, id, onToggle, testId, className }: WireCardDetailsProps) {
   const classes = ['surface-card', 'wire-card', 'wire-card-details', className].filter(Boolean).join(' ');
   return (
-    <details className={classes} open={open} id={id} data-testid={testId}>
+    <details className={classes} open={open} id={id} onToggle={onToggle} data-testid={testId}>
       <summary className="wire-card-summary">
         <span className="wire-card-title">{title}</span>
         <span className="wire-card-summary-right">
