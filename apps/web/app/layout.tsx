@@ -840,8 +840,16 @@ const registerStyles = `
    두 줄로 접히는 긴 단계 이름까지 담으면서 32 알약보다 촘촘한 값이다. */
 .intake-step{display:flex;justify-content:space-between;gap:var(--space-2);padding:10px 12px;border:1px solid var(--line-control);border-radius:var(--radius-control);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:left;cursor:pointer}
 .intake-step[data-step-state="current"]{background:var(--blue-tint);color:var(--blue-deep)}
+/* 완료를 눌러 봤는데 필수가 남은 단계(2026-08-09 Q "좌측 사이드바에도 레드 컬러").
+   입력 오류와 같은 어휘다 — 테두리 1.5px --risk + 리스크 틴트 면(§5 입력칸 오류·D9 허용 자리). */
+/* optical: 9.5/11.5 는 눈대중이 아니라 **10/12 에서 테두리 0.5px 을 뺀 값**이다. 이 상태만
+   테두리가 1.5px 이라 그대로 두면 이 단계만 글자가 0.5px 안으로 밀린다. 위기·안전 카드의
+   23.5 와 같은 보정이고, 같은 이유로 레티나(DPR 2) 기준이다 — DPR 1 에서는 브라우저가
+   테두리를 1px 로 반올림하므로 0.5px 남는다(정수로 깎으면 레티나에서 1px 어긋난다). */
+.intake-step[data-step-state="missing"]{border:1.5px solid var(--risk);background:var(--risk-tint-solid);color:var(--risk);padding:9.5px 11.5px}
 .intake-step-count{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .intake-step[data-step-state="current"] .intake-step-count{color:var(--blue-deep)}
+.intake-step[data-step-state="missing"] .intake-step-count{color:var(--risk)}
 /* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
    단계 표시는 블루 계열(시간·상태 축, D34)이다. */
 .onboarding-form{display:grid;margin-top:var(--space-8)}

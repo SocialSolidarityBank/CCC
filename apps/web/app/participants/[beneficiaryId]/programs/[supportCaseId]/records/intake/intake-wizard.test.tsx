@@ -161,30 +161,42 @@ describe('IntakeWizard', () => {
     expect(scoped.getByTestId('intake-missing').textContent).not.toContain('1. 상담일');
   });
 
-  it('전 항목이 비면 완료가 비활성이고 남은 단계를 안내한다', () => {
-    const { container } = renderWizard();
+  it('전 항목이 비면 완료를 눌러도 저장되지 않고 빈 칸·단계가 red 로 표시된다', () => {
+    // 2026-08-09 Q: 완료는 **비활성이 아니다** — 못 눌리는 버튼은 왜 못 누르는지도 말해 주지
+    // 않는다. 눌러 본 뒤부터 빈 칸이 스스로를 알린다(칸 테두리 + 좌측 단계 red).
+    const { container, getLastInput } = renderWizard();
     const scoped = within(container);
-    expect(completeButton(scoped).disabled).toBe(true);
-    expect(scoped.getByTestId('intake-missing').textContent).toContain('2. 현재 생활상황');
-    expect(scoped.getByTestId('intake-missing').textContent).toContain('4. 상담 정리와 후속관리');
+    expect(completeButton(scoped).disabled).toBe(false);
+    expect(container.querySelectorAll('.intake-step[data-step-state="missing"]').length).toBe(0);
+
+    fireEvent.click(completeButton(scoped));
+    expect(getLastInput()).toBeNull();
+    expect(scoped.getByTestId('intake-missing').textContent).toContain('완료하려면 필수 항목을 채우세요');
+    // 남은 단계는 왼쪽 진행 단계에서 red 로 선다.
+    expect(container.querySelectorAll('.intake-step[data-step-state="missing"]').length).toBeGreaterThan(0);
+    // 빈 필수 칸은 입력 오류와 같은 어휘로 표시된다(§5 입력칸 오류).
+    expect(container.querySelectorAll('.wire-input-box[data-invalid="true"]').length).toBeGreaterThan(0);
   });
 
-  it('질문 밖 필수 3개(부채 표·연계 기관 표 첫 열, 종합의견)도 비면 완료가 막힌다', () => {
-    const { container } = renderWizard();
+  it('질문 밖 필수 3개(부채 표·연계 기관 표 첫 열, 종합의견)도 비면 저장되지 않는다', () => {
+    const { container, getLastInput } = renderWizard();
     const scoped = within(container);
     fillAllQuestions(scoped);
-    expect(completeButton(scoped).disabled).toBe(false);
+    // 전부 채우면 안내가 사라진다.
+    expect(scoped.queryByTestId('intake-missing')).toBeNull();
 
     fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
     fireEvent.change(scoped.getByLabelText('담당 실무자 종합의견'), { target: { value: '  ' } });
-    expect(completeButton(scoped).disabled).toBe(true);
-    expect(scoped.getByTestId('intake-missing').textContent).toContain('4. 상담 정리와 후속관리');
+    fireEvent.click(completeButton(scoped));
+    expect(getLastInput()).toBeNull();
+    expect(scoped.getByTestId('intake-missing')).not.toBeNull();
 
     fireEvent.change(scoped.getByLabelText('담당 실무자 종합의견'), { target: { value: '우선순위 높음' } });
     fireEvent.click(scoped.getByRole('button', { name: /2\. 현재 생활상황/ }));
     fireEvent.change(scoped.getByLabelText('기관·채권자 1'), { target: { value: '' } });
-    expect(completeButton(scoped).disabled).toBe(true);
-    expect(scoped.getByTestId('intake-missing').textContent).toContain('2. 현재 생활상황');
+    fireEvent.click(completeButton(scoped));
+    expect(getLastInput()).toBeNull();
+    expect(scoped.getByTestId('intake-missing')).not.toBeNull();
   });
 
   it("'무응답'은 빈칸이 아니라 응답 코드로 저장된다", async () => {
