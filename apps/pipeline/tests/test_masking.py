@@ -319,3 +319,59 @@ class OverlapPolicyTest(unittest.TestCase):
             text, lambda _t: [(4, 7)], None, lambda _t: [(0, 5)],
         )
         self.assertEqual(masked, "[인명]")
+
+
+# '짧은 목표 문장' 유형 (D62 §7 검수 반영 · ADR-0032 · CCC-73).
+# 목표 문장은 "아들 학원비 마련"처럼 짧아 앞뒤 맥락이 없고, D62 이후 전체 목표가
+# 텍스트 일감 원문에 실려 이 마스킹을 그대로 거친다. 여기서는 결정론 계층
+# (정규식·질병명 사전·스팬 적용 산수)이 짧은 문장에서도 어긋나지 않는 것을 고정한다.
+# NER 모델이 짧은 문장의 인명·지명을 실제로 잡아내는지는 실측 게이트 몫이며,
+# 그 실측은 이 말뭉치를 재사용한다.
+GOAL_SENTENCE_CORPUS: tuple[tuple[str, str], ...] = (
+    # 왼쪽은 짧은 목표 문장, 오른쪽은 마스킹 뒤 사라져야 하는 원문 조각이다.
+    ("우울증 약 복용을 거르지 않는다", "우울증"),
+    ("공황 장애 통원 치료를 이어 간다", "공황"),
+    ("알코올 의존증 자조 모임에 매주 나간다", "알코올"),
+    ("밀린 병원비 계좌 110-234-567890 정리", "567890"),
+    ("연락 두절 방지용 번호 010-1234-5678 유지", "1234"),
+)
+
+# 오탐 대조군: 결정론 계층은 이 문장들을 한 글자도 바꾸면 안 된다. 인명·지명이 든
+# "아들 학원비"·"공장 복직" 류는 NER 계층 몫이라 여기서는 원문 유지가 정답이다.
+GOAL_CONTEXT_CORPUS: tuple[str, ...] = (
+    "아들 학원비를 마련한다",
+    "공장 복직을 준비한다",
+    "보증금 500만원을 모은다",
+    "월세 체납을 해소한다",
+    "매출 기록 습관을 들인다",
+)
+
+
+class ShortGoalSentenceMaskingTest(unittest.TestCase):
+    """짧은 목표 문장 유형 — 결정론 계층의 치환율과 오탐, 경계 스팬 산수."""
+
+    def test_masks_every_fragment_in_the_goal_corpus(self):
+        missed = [
+            sentence
+            for sentence, fragment in GOAL_SENTENCE_CORPUS
+            if fragment in masking.mask_text(sentence)
+        ]
+        self.assertEqual(missed, [], "짧은 목표 문장에서 결정론 계층이 조각을 놓쳤다")
+
+    def test_leaves_plain_goal_sentences_untouched(self):
+        changed = [text for text in GOAL_CONTEXT_CORPUS if masking.mask_text(text) != text]
+        self.assertEqual(changed, [], "짧은 목표 문장이 결정론 계층에 과탐됐다")
+
+    def test_person_span_at_the_head_of_a_short_sentence(self):
+        # "OO공장 복직" 류: 문장 머리를 덮는 스팬이 오프셋을 밀지 않아야 한다.
+        masked = masking.mask_text("김철수 공장 복직", lambda _t: [(0, 3)])
+        self.assertEqual(masked, f"{masking.PERSON_TOKEN} 공장 복직")
+
+    def test_person_span_at_the_tail_of_a_short_sentence(self):
+        masked = masking.mask_text("복직 준비를 돕는 김철수", lambda _t: [(10, 13)])
+        self.assertEqual(masked, f"복직 준비를 돕는 {masking.PERSON_TOKEN}")
+
+    def test_span_covering_the_whole_short_sentence(self):
+        # 문장 전체가 이름 하나인 극단: 전부 토큰 하나로 덮여야 한다.
+        masked = masking.mask_text("김철수", lambda _t: [(0, 3)])
+        self.assertEqual(masked, masking.PERSON_TOKEN)

@@ -54,7 +54,6 @@ import {
   actionItemResolutionStatuses,
   type FlagType,
   type ManualGasScore,
-  type ManualGoalTransition,
   type ManualLifeArea,
   type ManualRecordDetails,
   type ManualRecordFlag,
@@ -347,29 +346,6 @@ function parseManualRecordDetails(formData: FormData): ManualRecordDetails | und
   }
   return Object.keys(parsed).length === 0 ? undefined : parsed;
 }
-
-/** 목표 종료+신설(CCC-10 · D12): 종료 대상·사유는 함께 와야 하고, 신설 문구는 선택이다. */
-function parseManualGoalTransition(formData: FormData): ManualGoalTransition | undefined {
-  const transition = jsonObjectOrUndefined(formData, 'goalTransitionJson');
-  if (transition === undefined) return undefined;
-  hasOnlyKeys(transition, ['closeGoalId', 'closedReason', 'newGoalTitle']);
-  const closeGoalId = transition.closeGoalId;
-  const closedReason = transition.closedReason;
-  const newGoalTitle = transition.newGoalTitle;
-  if (
-    typeof closeGoalId !== 'string'
-    || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(closeGoalId)
-    || typeof closedReason !== 'string'
-    || closedReason.trim().length === 0
-  ) throw new FormInputError();
-  if (newGoalTitle !== undefined && (typeof newGoalTitle !== 'string' || newGoalTitle.trim().length === 0)) {
-    throw new FormInputError();
-  }
-  return newGoalTitle === undefined
-    ? { closeGoalId, closedReason: closedReason.trim() }
-    : { closeGoalId, closedReason: closedReason.trim(), newGoalTitle: newGoalTitle.trim() };
-}
-
 
 function noticeFor(error: unknown): Notice {
   if (error instanceof FormInputError) return 'invalid_request';
@@ -1401,7 +1377,6 @@ export async function createCounselingRecordAction(
     const gasScores = parseManualGasScores(formData);
     const lifeAreas = parseManualLifeAreas(formData);
     const details = parseManualRecordDetails(formData);
-    const goalTransition = parseManualGoalTransition(formData);
     const result = await createCounselingRecord(supportCaseId, {
       submissionId: submissionId(formData),
       heldAt: canonicalUtcDateTime(formData, 'heldAt'),
@@ -1413,7 +1388,6 @@ export async function createCounselingRecordAction(
       actionResolutions: parseManualActionItemResolutions(formData),
       ...(lifeAreas === undefined ? {} : { lifeAreas }),
       ...(details === undefined ? {} : { details }),
-      ...(goalTransition === undefined ? {} : { goalTransition }),
       ...(scheduleId === undefined
         ? {}
         : { scheduleId, expectedScheduleVersion: positiveInteger(formData, 'expectedScheduleVersion') }),

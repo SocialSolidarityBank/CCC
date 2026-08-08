@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ForbiddenError,
   ValidationError,
   type CreateCounselingRecordInput,
   createBeneficiaryWithInitialSupportCase,
@@ -9,8 +8,9 @@ import {
 } from '../../../db/gateway';
 import { setupD1 } from './support/d1';
 
-// CCC-10 정기 기록지 원페이지: 서술형 항목(record_details · 0016)과 목표 종료+신설(D12)이
-// 기존 createCounselingRecord 한 번의 호출로 원자 저장되는지 검증한다.
+// CCC-10 정기 기록지 원페이지: 서술형 항목(record_details · 0016)이 createCounselingRecord
+// 한 번의 호출로 원자 저장되는지 검증한다. 구 목표 종료+신설(goalTransition)은 D62 §5 로
+// 폐지됐고, 여기서는 그 키가 거부되는 것만 고정한다(CCC-73).
 
 const t = setupD1();
 
@@ -120,75 +120,23 @@ describe('createCounselingRecord — 정기 기록지 원페이지 (CCC-10)', ()
     )).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('활성 목표 3개에서도 목표 1건 종료 + 1건 신설이 통과하고 replaced_by_goal_id 로 이어진다 (D12)', async () => {
-    await t.reset();
-    const { supportCaseId, goals } = await seedCaseWithGoals(['목표 하나', '목표 둘', '목표 셋']);
-    expect(goals).toHaveLength(3);
-    const closing = goalAt(goals, 0);
-
-    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      goalTransition: { closeGoalId: closing.id, closedReason: '달성해서 종료', newGoalTitle: '새 목표 문구' },
-    }));
-
-    const closed = await t.db.prepare(
-      'SELECT title, status, closed_reason, closed_at, replaced_by_goal_id FROM goals WHERE id = ?',
-    ).bind(closing.id).first<{
-      title: string;
-      status: string;
-      closed_reason: string | null;
-      closed_at: string | null;
-      replaced_by_goal_id: string | null;
-    }>();
-    expect(closed?.status).toBe('closed');
-    expect(closed?.closed_reason).toBe('달성해서 종료');
-    expect(closed?.closed_at).not.toBeNull();
-    // D12: 문구는 절대 수정하지 않는다.
-    expect(closed?.title).toBe(closing.title);
-
-    const replacement = await t.db.prepare(
-      'SELECT id, title, status FROM goals WHERE id = ?',
-    ).bind(closed?.replaced_by_goal_id).first<{ id: string; title: string; status: string }>();
-    expect(replacement?.title).toBe('새 목표 문구');
-    expect(replacement?.status).toBe('active');
-
-    const active = await t.db.prepare(
-      "SELECT COUNT(*) AS count FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
-    ).bind(actor.orgId, supportCaseId).first<{ count: number }>();
-    expect(Number(active?.count)).toBe(3);
-
-    // 목표 신설·종료는 세션 트리거 밖이라 명시 감사가 남는다(D14).
-    const audits = await t.db.prepare(
-      "SELECT action FROM audit_log WHERE target_table = 'goals' AND support_case_id = ? ORDER BY id",
-    ).bind(supportCaseId).all<{ action: string }>();
-    expect(audits.results.map((row) => row.action)).toContain('update');
-  });
-
-  it('종료만 하고 신설하지 않을 수도 있다', async () => {
-    await t.reset();
-    const { supportCaseId, goals } = await seedCaseWithGoals(['목표 하나', '목표 둘']);
-
-    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      goalTransition: { closeGoalId: goalAt(goals, 1).id, closedReason: '더는 맞지 않아 종료' },
-    }));
-
-    const closed = await t.db.prepare(
-      'SELECT status, replaced_by_goal_id FROM goals WHERE id = ?',
-    ).bind(goalAt(goals, 1).id).first<{ status: string; replaced_by_goal_id: string | null }>();
-    expect(closed?.status).toBe('closed');
-    expect(closed?.replaced_by_goal_id).toBeNull();
-  });
-
-  it('이미 종료된 목표나 다른 참여사업의 목표는 종료할 수 없다', async () => {
+  it('구 종료+신설(goalTransition) 키는 저장 경로가 거부한다 (D62 §5)', async () => {
     await t.reset();
     const { supportCaseId, goals } = await seedCaseWithGoals(['목표 하나']);
-    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
-      goalTransition: { closeGoalId: goalAt(goals, 0).id, closedReason: '종료' },
-    }));
+
+    // 대조군: 같은 입력이 goalTransition 없이는 저장된다. 거부가 다른 이유면 안 된다.
+    await createCounselingRecord(t.env, actor, supportCaseId, recordInput());
 
     await expect(createCounselingRecord(t.env, actor, supportCaseId, recordInput({
       submissionId: '01000000-0000-4000-8000-00000000bb02',
-      goalTransition: { closeGoalId: goalAt(goals, 0).id, closedReason: '두 번째 종료 시도' },
-    }))).rejects.toBeInstanceOf(ForbiddenError);
+      goalTransition: { closeGoalId: goalAt(goals, 0).id, closedReason: '달성해서 종료' },
+    } as never))).rejects.toBeInstanceOf(ValidationError);
+
+    // 목표는 그대로다. 닫기는 closeGoal 단일 관문만 남는다.
+    const goal = await t.db.prepare(
+      'SELECT status FROM goals WHERE id = ?',
+    ).bind(goalAt(goals, 0).id).first<{ status: string }>();
+    expect(goal?.status).toBe('active');
   });
 
   it('같은 제출 ID·같은 입력의 재시도는 재현으로 처리한다', async () => {
