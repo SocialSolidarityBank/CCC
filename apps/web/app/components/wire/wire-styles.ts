@@ -102,6 +102,41 @@ details.surface-card{overflow:clip}
   border-color:transparent;
   background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box;
 }
+/* ── 펼친 카드의 제목 줄 채움 (2026-08-09 Q) ──
+   '고른 행'(.wire-row[data-selected])이 쓰는 --gradient-action 면 + --on-action 글자를
+   **펼친 카드의 제목 줄**이 그대로 빌린다. 제목 줄은 구조적으로 행이므로 D60 ④ 를 고칠 일이
+   없다 — 카드는 여전히 --gradient-brand 아웃라인으로 활성을 알리고, 그 위에 행 어휘가 얹힌다.
+
+   카드 **전체**를 채우지 않는 이유: 펼친 카드의 본문은 읽는 면이다. 회차 본문과 기록지
+   아코디언 본문은 긴 글이라 파스텔 면 위에 앉으면 읽기가 나빠진다.
+
+   두 자리는 제외한다.
+     * **브리핑 3영역**(.briefing-card)은 open 이 기본값이라 늘 펼쳐져 있다 — '활성'이 아무
+       정보를 갖지 않는 자리다. 채우면 15초 페이지에 파스텔 띠 셋이 상시로 서서 조용한
+       화면(§0)이 무너지고 리스크 배너의 유일성(D9)도 함께 흐려진다.
+     * **위기·안전 아코디언**(.is-crisis)은 --risk 틴트·테두리를 갖는 자리다. 경고색 독점을
+       지키려면 그 위에 다른 채움을 얹지 않는다(D9).
+
+   **채운 면 위 글자는 늘 --on-action 이다.** --gradient-action 은 두 테마에서 같은 밝은
+   파스텔이라(tokens.css 다크 주석 ③) --ink 를 그대로 두면 다크에서 밝은 글자가 밝은 면에
+   얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
+   배지는 자기 면(계열 tint)을 가진 독립 표면이라 건드리지 않는다. */
+details.surface-card[open]:not(.briefing-card)>.record-summary,
+.record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
+  background:var(--gradient-action);
+  color:var(--on-action);
+}
+details.surface-card[open]:not(.briefing-card)>.record-summary>.record-ordinal,
+details.surface-card[open]:not(.briefing-card)>.record-summary>.record-held-at,
+details.surface-card[open]:not(.briefing-card)>.record-summary>.record-one-liner,
+details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{color:var(--on-action)}
+/* 아코디언은 카드가 패딩 16/20 을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로
+   면을 아웃라인까지 밀고 패딩으로 글자 자리를 되돌린다. 아래 여백은 본문의 padding-top 16 이
+   이미 준다. 회차 카드(.record-summary)는 카드에 패딩이 없어 이 보정이 필요 없다. */
+.record-accordion[open]:not(.is-crisis)>.record-accordion-summary{
+  margin:calc(var(--space-4) * -1) calc(var(--space-5) * -1) 0;
+  padding:var(--space-4) var(--space-5);
+}
 /* 셸: 새 앱 헤더가 올라가는 전 페이지 컨테이너. body 배경은 덮지 않고 이 래퍼에만 캔버스색. */
 .wire-shell{min-height:100dvh;background:var(--canvas)}
 /* GridContainer: 페이지 안의 **섹션 스택**이다. 장폭·좌우 여백은 갖지 않는다 —
