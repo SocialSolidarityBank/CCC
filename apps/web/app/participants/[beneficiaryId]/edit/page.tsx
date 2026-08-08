@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
 import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../components/wire/grid-container';
+import { PageLoading } from '../../../components/wire/page-loading';
 import { ParticipantName } from '../../../components/wire/participant-name';
 import { WireButton } from '../../../components/wire/wire-button';
 import { updateParticipantBasicInfoAction } from '../../../actions';
@@ -54,15 +55,9 @@ const ERRORS: Record<string, string> = {
   service_unavailable: '지금은 저장할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
 
+// 공용 로딩 부품(2026-08-09 Q "전역 로딩 화면 통일").
 function LoadingState() {
-  return (
-    <main className="page-content" aria-busy="true">
-      <GridContainer>
-        <div className="page-header"><div><h1>기본정보 수정</h1></div></div>
-        <p className="empty" role="status" aria-live="polite">기본정보를 불러오는 중입니다.</p>
-      </GridContainer>
-    </main>
-  );
+  return <PageLoading title="기본정보 수정" message="기본정보를 불러오는 중입니다." />;
 }
 
 function EditScreen({

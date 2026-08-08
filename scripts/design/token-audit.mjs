@@ -263,6 +263,29 @@ if (darkBlock) {
   }
 }
 
+// 굵기를 **선언했는지** 본다 (2026-08-09 신설). 지금까지 이 감사는 "쓰인 값이 400·500·600
+// 인가"만 봤는데, 700 이 새는 길은 하나 더 있었다 — **아무것도 안 쓰는 길**이다. h1·h2·strong
+// 은 크기·행간만 적히고 굵기가 비어 있어 UA 기본 bold(700)가 그대로 살았고(§2 는 700 을
+// 2026-08-03 에 폐지했다), 선언이 없으니 값 검사에 걸릴 것도 없었다. 실제로 로딩·오류 화면의
+// 페이지 제목 6곳과 온보딩·관리자의 h2 가 700 으로 서 있었다.
+// 요소 선택자(클래스 없는 h1{...} 류)만 대상이다 — 클래스는 겹쳐 쓰라고 있는 것이라 자기가
+// 굵기를 안 정해도 바닥 규칙이 받쳐 준다.
+// 브라우저가 보는 것은 파일이 아니라 이어붙인 한 장이므로(layout.tsx 의 shellStyles), 규칙이
+// 어느 파일에 있든 한 번만 있으면 된다 — 파일별로 재면 규칙을 안 가진 쪽이 늘 걸린다.
+const WEIGHT_REQUIRED = ['h1', 'h2', 'strong'];
+const sheet = TARGETS.map((file) => stripComments(readFileSync(file, 'utf8'))).join('\n');
+for (const selector of WEIGHT_REQUIRED) {
+  // `h1{...}` 처럼 선택자가 그 요소 하나뿐인 규칙을 찾는다(줄 시작 또는 } 직후).
+  const match = new RegExp(`(^|[};])\\s*${selector}\\s*\\{([^}]*)\\}`, 'm').exec(sheet);
+  if (match === null) {
+    add(TARGETS[0], 0, 'weight-undeclared', `${selector} 의 요소 규칙이 어느 앱 CSS 에도 없다 — UA 기본 bold(700)가 그대로 산다(§2 굵기 400·500·600)`);
+    continue;
+  }
+  if (/font-weight\s*:/.test(match[2])) continue;
+  add(TARGETS[0], sheet.slice(0, match.index).split('\n').length, 'weight-undeclared',
+    `${selector} 규칙에 font-weight 선언이 없다 — UA 기본 bold(700)가 살아 §2 계약(400·500·600) 밖으로 나간다`);
+}
+
 // 계단 자체가 tokens.css 에 살아 있는지 확인한다 — 위 검사들이 "토큰을 쓰라"고 말하는데
 // 그 토큰이 지워져 있으면 검사가 통과하면서도 화면은 깨진다.
 for (const step of TEXT_STEPS) {

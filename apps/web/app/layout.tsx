@@ -290,8 +290,18 @@ button,input,select,textarea{font:inherit}
 .page-header{display:flex;justify-content:space-between;gap:var(--space-6);align-items:center}
 /* 우상단 행동 묶음 (D35 — 사이드바=장소 / 페이지 우상단=행동). 주 행동이 오른쪽 끝이다. */
 .page-actions{display:flex;align-items:center;gap:var(--space-3);flex:none}
-h1{margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
-h2{margin:0;font-size:var(--text-lg);line-height:var(--leading-snug)}
+/* 굵기를 **선언해야** 한다(2026-08-09). 크기·행간만 적고 굵기를 비워 두면 UA 기본
+   font-weight:bold 가 살아 700 으로 렌더된다 — 700 은 2026-08-03 에 폐지한 굵기이고(§2
+   400·500·600), guard:tokens 는 '선언된 값'만 보므로 선언이 없어서 새는 이 경우를 못 잡았다.
+   클래스 없는 제목이 실제로 700 이던 자리: 로딩·오류·빈 상태의 h1 6곳, 온보딩·관리자·가입
+   완료의 h2. 클래스가 굵기를 정하는 제목(.wire-page-title·.record-section-title·
+   .wire-card-title>h2)은 그대로다 — 여기 값은 그 아래 깔리는 바닥이다. */
+h1{margin:0;font-size:var(--text-2xl);font-weight:600;line-height:var(--leading-tight)}
+h2{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-snug)}
+/* 본문 강조도 600 이다(D58 ② "본문 강조는 색이 아니라 굵기 600"). 위 h1·h2 와 같은 이유로
+   선언이 없으면 UA 기본 bold 700 이 산다 — 실제로 상담 기록의 '기록 오류' 강조와 킷 본문이
+   700 이었고, 상담 등록만 인라인으로 600 을 덮어쓰고 있었다. */
+strong{font-weight:600}
 p{margin:var(--space-2) 0 0;color:var(--sub)}
 /* 버튼 규칙은 **.wire-button 하나가 소유한다**(2026-07-31). 여기 있던 .button 4종
    (.button-primary·.button-ghost·.button-danger·.button-sm)은 지웠다 — 마크업이 한 곳도
@@ -305,7 +315,8 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 .panel-meta{color:var(--sub);font-size:var(--text-sm);font-weight:400}
 /* 상태 배지는 공용 배지 계약(.wire-badge, wire-styles.ts) 하나만 쓴다(2026-08-07 통합).
    구 .status(.mint/.blue/.warning/.risk)는 같은 레시피의 복사본이라 삭제했다. */
-.panel{padding:var(--space-6)}
+/* .panel 은 2026-08-09 에 지웠다 — 마지막 사용처였던 브리핑 빈 상태가 WireCard 로 바뀌면서
+   쓰는 마크업이 0 이 됐다(guard:tokens dead-class 가 잡았다). 카드 패딩 24 는 .wire-card 몫이다. */
 .empty{display:flex;align-items:center;gap:var(--space-2);min-height:92px;color:var(--sub);font-size:var(--text-sm)}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
@@ -453,7 +464,7 @@ const briefingStyles = `
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
    계열 3색은 목표를 서로 구분하는 회전일 뿐이고 점수 숫자는 항상 --ink 다. */
-/* GAS 전폭 섹션(CLAUDE.md 6장 · 2026-07-27 Q 결정 — 이 파일의 CSS 는 템플릿 리터럴이라 주석에 백틱을 쓰지 않는다). 섹션 제목은 카드 밖 h2 18/700 이고 그 아래 16 이다
+/* GAS 전폭 섹션(CLAUDE.md 6장 · 2026-07-27 Q 결정 — 이 파일의 CSS 는 템플릿 리터럴이라 주석에 백틱을 쓰지 않는다). 섹션 제목은 카드 밖 h2 18/600 이고 그 아래 16 이다
    — §4-3 세로 리듬(40/24/16/20)에서 '섹션 제목↔내용'에 해당한다. 섹션 사이 24 는 페이지
    그리드의 gap 이 이미 준다(§4-6 규칙 3: 화면에서 margin 으로 띄우지 않는다). */
 .briefing-page{display:grid;gap:var(--section-gap)}

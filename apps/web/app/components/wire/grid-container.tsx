@@ -10,6 +10,8 @@ export interface GridContainerProps {
   width?: 'content' | 'wide';
   /** true면 children을 12컬럼 grid로 배치. false(기본)면 단일 컬럼. */
   grid?: boolean;
+  /** 아직 내용을 기다리는 화면임을 보조기술에 알린다(로딩 fallback). */
+  ariaBusy?: boolean;
   className?: string;
 }
 
@@ -23,12 +25,18 @@ export function GridContainer({
   as = 'div',
   width = 'content',
   grid = false,
+  ariaBusy,
   className,
 }: GridContainerProps) {
   const classes = ['wire-container', className].filter(Boolean).join(' ');
   return createElement(
     as,
-    { className: classes, 'data-width': width, 'data-grid': grid ? 'true' : 'false' },
+    {
+      className: classes,
+      'data-width': width,
+      'data-grid': grid ? 'true' : 'false',
+      ...(ariaBusy === true ? { 'aria-busy': 'true' } : {}),
+    },
     children,
   );
 }

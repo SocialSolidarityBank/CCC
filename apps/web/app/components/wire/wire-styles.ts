@@ -34,6 +34,12 @@ export const wireStyles = `
    intake-saved-notice 가 인라인 스타일로 제각각 그리던 것을 한 계약으로 모았다(2026-08-05). */
 .notice-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .notice-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 안내줄 안 목록(2026-08-09) — 기하는 .wire-bullets 를 그대로 빌리고 크기·색만 본문 짝
+   (14/400 --sub)에 맞춘다. 16/--ink 로 두면 목록이 제목(16/600)과 같은 위계로 읽혀
+   "무엇이 남았나" 보다 목록 자체가 먼저 눈에 든다. 단일 항목(.wire-bullets-single)도 같은 값.
+   클래스 둘(0-2-0)로 적는 이유는 .wire-bullets 가 이 파일 뒤쪽에 있어 한 클래스끼리는
+   순서로 지기 때문이다(.wire-row.schedule-candidate-row 와 같은 처리). */
+.wire-bullets.notice-list,.wire-bullets-single.notice-list{font-size:var(--text-sm);color:var(--sub)}
 .notice-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 /* 자동 저장 상태 한 줄, 카드 밖 플랫 텍스트. 보조 정보라 400 이다(2026-08-07 짝 통일). */
 .notice-status{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}

@@ -829,17 +829,26 @@ export function IntakeWizard(props: IntakeWizardProps) {
           {/* 남은 필수 항목은 콜아웃(안내줄 카드)이다(2026-08-07 Q 11차 "경고 카드 규칙
               사용" — 구 9차 알약 배지 대체: 알약은 읽기 전용 배지 전유물이고 문장이 길다).
               라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9).
-              내용은 A7(2026-08-08)의 "항목 이름까지" 목록이다. 콜아웃 본문이 p 라 ul 을
-              넣을 수 없어 줄 단위 span 으로 편다. 단계당 한 줄, 항목 이름은 그 줄 안의 병렬. */}
+              내용은 A7(2026-08-08)의 "항목 이름까지" 목록이다.
+
+              2026-08-09: 줄 단위 span 을 **진짜 목록**(콜아웃 items 슬롯)으로 바꿨다. 구 방식은
+              콜아웃 본문이 p 하나라 ul 을 못 넣어 span[display:block] 으로 흉내 낸 것인데,
+              줄 사이가 행간뿐이라 네 단계가 다 비면 한 덩어리로 뭉쳤고 줄바꿈된 둘째 줄이
+              번호 아래로 들어가 단계 경계가 사라졌다. 목록은 단계 이름을 굵게 세워
+              "어느 단계에 무엇이 남았나"가 한눈에 갈린다. */}
           {!canComplete ? (
-            <WireCallout tone="lavender" role="status" testId="intake-missing" title="완료하려면 남은 필수 항목을 채우세요">
-              {[
-                ...(heldAtMissing ? ['1. 상담일'] : []),
-                ...missingDetails.map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}: ${entry.missing.join(', ')}`),
-              ].map((line) => (
-                <span key={line} style={{ display: 'block' }}>{line}</span>
-              ))}
-            </WireCallout>
+            <WireCallout
+              tone="lavender"
+              role="status"
+              testId="intake-missing"
+              title="완료하려면 남은 필수 항목을 채우세요"
+              items={[
+                ...(heldAtMissing ? [<><strong>1. 상담일</strong></>] : []),
+                ...missingDetails.map((entry) => (
+                  <><strong>{entry.index + 1}. {STEP_TITLES[entry.index]}</strong> {entry.missing.join(', ')}</>
+                )),
+              ]}
+            />
           ) : null}
 
           <div style={rowActionsStyle}>

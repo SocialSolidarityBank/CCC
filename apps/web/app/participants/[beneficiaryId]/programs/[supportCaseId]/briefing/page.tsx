@@ -4,8 +4,10 @@ import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { PageLoading } from '../../../../../components/wire/page-loading';
 import { PageTitle } from '../../../../../components/wire/page-title';
 import { WireButton } from '../../../../../components/wire/wire-button';
+import { WireCard } from '../../../../../components/wire/wire-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { BriefingCards } from './briefing-cards';
 import { IntakeSavedNotice } from './intake-saved-notice';
@@ -60,16 +62,29 @@ function recordNewHref(beneficiaryId: string, supportCaseId: string): string {
 
 // 상담 일정(홈)으로 돌아가는 상단 '목록으로' 링크의 목적지.
 
+// 로딩은 공용 부품이다(2026-08-09 Q "전역 로딩 화면 통일"). 제목은 로드된 화면과 같은
+// PageTitle 이라 내용이 도착해도 제목이 움직이지 않는다.
 function LoadingState() {
-  return <main className="page-content" aria-busy="true"><header className="page-header"><div><h1>15초 페이지</h1><p>승인된 상담 기록을 불러오는 중입니다.</p></div></header><div className="empty" role="status" aria-live="polite">15초 페이지를 불러오는 중입니다.</div></main>;
+  return <PageLoading title="15초 페이지" message="승인된 상담 기록을 불러오는 중입니다." />;
 }
 
+// 오류·빈 상태도 로딩과 **같은 셸**이다(2026-08-09). 셋이 제각각이면 로딩에서 오류로
+// 넘어갈 때 제목 자리와 여백이 함께 흔들린다 — 구 header+h1 은 페이지 그리드(gap 24) 밖에
+// 있어 카드와 버튼 사이 여백도 없었다.
 function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: ErrorKind }) {
-  return <main className="page-content"><header className="page-header"><div><h1>15초 페이지</h1><p>요청한 참여 사업을 표시할 수 없습니다.</p></div></header><p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
+  return <GridContainer as="main" className="page-content">
+    <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
+    <p className="wire-badge" data-tone="risk" role="alert">{errorMessages[kind]}</p>
+    <div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div>
+  </GridContainer>;
 }
 
 function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {
-  return <main className="page-content"><header className="page-header"><div><h1>15초 페이지</h1><p>표시할 승인된 상담 기록이 없습니다.</p></div></header><section className="surface-card panel"><div className="empty" role="status">상담 기록이 준비되면 이 화면에 표시합니다.</div></section><div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div></main>;
+  return <GridContainer as="main" className="page-content">
+    <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
+    <WireCard><p className="empty" role="status">표시할 승인된 상담 기록이 없습니다. 상담 기록이 준비되면 이 화면에 표시합니다.</p></WireCard>
+    <div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div>
+  </GridContainer>;
 }
 
 async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { beneficiaryId: string; supportCaseId: string; notice: string | undefined }) {
