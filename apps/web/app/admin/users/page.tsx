@@ -103,6 +103,15 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   ))}
                 </div>
               )}
+              {/* 배정을 바꾸는 곳은 '배정' 화면 하나다(CCC-62, 2026-08-08 Q 결정). 이 화면은
+                  같은 정보를 실무자 축으로 읽기만 한다. 그런데 그 사실을 말해 주지 않아
+                  "여기서 바꾸는 건가"를 물을 곳이 없었다. 실무자 상세 화면(/admin/users/[id])은
+                  이미 같은 버튼을 갖고 있어, 목록에도 같은 규칙을 맞춘다. */}
+              {assignmentsError === null ? (
+                <p className="wire-admin-empty" data-testid="admin-users-assign-hint">
+                  담당을 바꾸려면 <Link className="wire-header-link" href="/admin/assign">배정 화면</Link>에서 당사자를 고르세요.
+                </p>
+              ) : null}
             </>
           )}
         </section>

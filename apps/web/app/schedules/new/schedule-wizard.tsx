@@ -170,7 +170,6 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
   const [sessionKind, setSessionKind] = useState<'regular' | 'intake'>(
     preselected !== null && preselected.intakeAt === null ? 'intake' : 'regular',
   );
-  const [caseGoals, setCaseGoals] = useState<string[]>(['']);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
@@ -196,10 +195,11 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
       setError('당사자와 상담 일시를 먼저 선택하세요.');
       return;
     }
-    // 인테이크는 케이스 목표를 새로 만드는 흐름이라 기존 목표·브리핑 참고 데이터가 필요 없다.
+    // 인테이크는 세션 목표를 연결할 기존 목표가 아직 없으므로 참고 데이터를 부르지 않고,
+    // 목표 입력 단계도 없다(CCC-64). 맞춤형 질문으로 바로 간다.
     if (sessionKind === 'intake') {
       setError(null);
-      setStep(2);
+      setStep(3);
       return;
     }
     setBusy(true);
@@ -216,10 +216,6 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
 
   async function complete() {
     if (selected === null) return;
-    if (sessionKind === 'intake' && caseGoals.every((goal) => goal.trim().length === 0)) {
-      setError('상담의 목표를 측정 가능한 문장으로 최소 한 개 입력하세요.');
-      return;
-    }
     setBusy(true);
     const result = await submit({
       beneficiaryId: selected.beneficiaryId,
@@ -230,7 +226,6 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
         body: goal.body,
         caseGoalId: goal.caseGoalId.length === 0 ? null : goal.caseGoalId,
       })),
-      caseGoals,
       customQuestions,
     });
     setBusy(false);
@@ -271,7 +266,9 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
         {noticeText !== undefined && (
           <p className="wire-badge" data-tone="blue" role="status" aria-live="polite">{noticeText}</p>
         )}
-        <p className="panel-meta">{step} / 3 단계</p>
+        {/* 인테이크는 목표 입력 단계가 없어 2단계다(CCC-64). 3단계 화면(맞춤형 질문)이
+            인테이크에서는 두 번째로 보이므로 표기도 그에 맞춘다. */}
+        <p className="panel-meta">{sessionKind === 'intake' ? `${step === 3 ? 2 : step} / 2 단계` : `${step} / 3 단계`}</p>
         {error !== null ? <p role="alert" className="wire-field-error">{error}</p> : null}
 
         {step === 1 ? (
@@ -340,7 +337,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
             )}
             <div className="wizard-actions">
               <WireButton size="large" chevron disabled={busy || selected === null || !isCompleteDateTime(scheduledAt)} onClick={goToGoals}>
-                {sessionKind === 'intake' ? '다음: 상담 목표' : '다음: 이번 상담의 목표'}
+                {sessionKind === 'intake' ? '다음: 맞춤형 질문' : '다음: 이번 상담의 목표'}
               </WireButton>
             </div>
             {selected === null || !isCompleteDateTime(scheduledAt) ? (
@@ -353,55 +350,12 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           </div>
         ) : null}
 
-        {step === 2 && sessionKind === 'intake' ? (
-          <div className="wizard-stack">
-            {contextBar}
-            <div className="wizard-section-head">
-              <h2>상담의 목표는 무엇인가요?</h2>
-              <p className="panel-meta">
-                측정 가능한 문장으로 적습니다. 예: “월 5만원 저축을 3개월 유지한다”. 최대 3개까지 추가할 수 있어요.
-              </p>
-            </div>
-            {/* 목표 묶음은 카드 한 장이다(2026-08-09 Q) — 칸마다 흩어져 있던 추가·삭제
-                버튼을 카드 안으로 모아 칸과 조작의 여백을 한 곳에서 정한다. */}
-            <WireCard className="wire-form-card">
-              {/* 카드는 묶음을 보이게 하고, **읽기 폭은 .wizard-form(520)이 정한다** — 카드가
-                  장폭 1120 을 쓰므로 이 래퍼가 없으면 textarea 글줄이 1070 이 된다. */}
-              <div className="wizard-form">
-                {caseGoals.map((goal, index) => (
-                <div key={index} className="wizard-field">
-                  <WireFormField label={`상담 목표 ${index + 1}`} control="textarea" htmlFor={`case-goal-${index}`}>
-                    <textarea
-                      id={`case-goal-${index}`}
-                      aria-label={`상담 목표 ${index + 1}`}
-                      rows={4}
-                      value={goal}
-                      onChange={(event) => setCaseGoals((prev) => prev.map(
-                        (item, itemIndex) => (itemIndex === index ? event.target.value : item),
-                      ))}
-                    />
-                  </WireFormField>
-                  <WireRepeatActions
-                    itemLabel="목표"
-                    onAdd={index === caseGoals.length - 1 && caseGoals.length < 3
-                      ? () => setCaseGoals((prev) => [...prev, ''])
-                      : undefined}
-                    onRemove={caseGoals.length > 1
-                      ? () => setCaseGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                      : undefined}
-                  />
-                </div>
-              ))}
-              </div>
-            </WireCard>
-            <div className="wizard-actions">
-              <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
-              <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
-                다음: 맞춤형 질문
-              </WireButton>
-            </div>
-          </div>
-        ) : null}
+        {/* 인테이크 경로의 구 2단계('상담의 목표는 무엇인가요?', 필수 1~3개)는 없앴다
+            (CCC-64, 2026-08-08 Q 결정). 그 값은 goals 표로 들어가는데 D43 이 그 층을 보류해
+            읽는 화면이 없었다. 일정을 잡는 시점은 아직 당사자를 만나기 전이라, 목표를 미리
+            지어내게 하는 것 자체가 순서에 맞지 않는다. 목표는 첫 상담에서 대화로 정해
+            브리핑의 '전체 목표'에 적는다(D45). 인테이크는 이제 1단계에서 맞춤형 질문으로
+            바로 넘어간다. */}
 
         {step === 2 && sessionKind === 'regular' ? (
           <div className="wizard-stack">

@@ -927,10 +927,10 @@ export interface CreateSchedulePlanInput {
   beneficiaryId: string;
   supportCaseId: string;
   scheduledAt: string;
-  // 상담 유형(#36). 'intake' 면 세션 목표 대신 케이스 목표(caseGoals)를 신설한다.
+  // 상담 유형(#36). 'intake' 면 세션 목표를 연결할 기존 목표가 아직 없어 그 단계를 건너뛴다.
+  // 구 caseGoals(케이스 목표 신설)는 없앴다(CCC-64). 아래 createSchedulePlanAction 주석 참조.
   sessionKind: 'regular' | 'intake';
   sessionGoals: ScheduleWizardSessionGoal[];
-  caseGoals: string[];
   customQuestions: string[];
 }
 
@@ -1000,15 +1000,15 @@ export async function createSchedulePlanAction(
       .filter((question) => question.length > 0);
 
     if (input.sessionKind === 'intake') {
-      const caseGoals = input.caseGoals
-        .map((title) => title.trim())
-        .filter((title) => title.length > 0);
+      // 구 caseGoals(측정 가능한 문장 1~3개, 필수)는 보내지 않는다(CCC-64, 2026-08-08 Q 결정).
+      // 그 값은 goals 표로 들어가는데 D43 이 그 층을 보류해 읽는 화면이 없었고, 일정을 잡는
+      // 시점은 아직 당사자를 만나기 전이라 목표를 지어내게 하는 순서 자체가 틀렸다.
+      // 목표는 첫 상담에서 대화로 정해 브리핑의 '전체 목표'에 적는다(D45).
       await createCounselingSchedule({
         beneficiaryId: input.beneficiaryId,
         supportCaseId: input.supportCaseId,
         scheduledAt: scheduledAt.toISOString(),
         sessionKind: 'intake',
-        caseGoals,
         ...(customQuestions.length > 0 ? { customQuestions } : {}),
       });
     } else {
