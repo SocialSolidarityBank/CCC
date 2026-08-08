@@ -151,21 +151,37 @@ describe('인테이크 분기 — 상담 유형·방법 + 케이스 목표 (#36)
     expect(await countActiveGoals(seeded.supportCaseId)).toBe(0);
   });
 
-  it('인테이크는 케이스 목표가 최소 1개여야 한다(0개 거부)', async () => {
+  /**
+   * CCC-64(2026-08-08 Q 결정): 목표 없이도 인테이크 일정을 만든다. 구 계약은 최소 1개를
+   * 강제했는데, 그 목표는 goals 표(D43 이 보류한 세부 목표 층)로 들어가 어느 화면에도
+   * 보이지 않았다. 그런데도 필수라 실무자가 **당사자를 만나기 전에** 목표를 지어내야 했다.
+   * 목표는 첫 상담에서 대화로 정해 브리핑의 '전체 목표'에 적는다(D45, 저장소가 다르다).
+   */
+  it('인테이크는 케이스 목표 없이도 등록된다 (CCC-64)', async () => {
     await t.reset();
     const seeded = await seedOwnedCase();
 
-    const response = await postSchedule(testActors.counselor, {
+    // 빈 배열도, 키 자체가 없는 것도 통과한다. 화면은 이제 키를 보내지 않는다.
+    const empty = await postSchedule(testActors.counselor, {
       beneficiaryId: seeded.beneficiaryId,
       supportCaseId: seeded.supportCaseId,
       scheduledAt: '2026-07-16T01:00:00.000Z',
       sessionKind: 'intake',
       caseGoals: [],
     });
+    expect(empty.status).toBe(201);
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
-    expect(await countSchedules(seeded.supportCaseId)).toBe(0);
+    const omitted = await postSchedule(testActors.counselor, {
+      beneficiaryId: seeded.beneficiaryId,
+      supportCaseId: seeded.supportCaseId,
+      scheduledAt: '2026-07-17T01:00:00.000Z',
+      sessionKind: 'intake',
+    });
+    expect(omitted.status).toBe(201);
+
+    expect(await countSchedules(seeded.supportCaseId)).toBe(2);
+    // 목표를 안 보냈으니 goals 표에도 아무것도 안 생긴다.
+    expect(await countActiveGoals(seeded.supportCaseId)).toBe(0);
   });
 
   it('케이스 목표는 4개 이상이면 거부한다(케이스당 활성 최대 3개, D12)', async () => {

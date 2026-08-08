@@ -124,7 +124,7 @@ describe('ScheduleWizard', () => {
     expect((scoped.getByLabelText('상담 유형') as HTMLSelectElement).value).toBe('intake');
     expect(scoped.getByText(/아직 인테이크 기록이 없어/)).not.toBeNull();
     expect(scoped.queryByRole('alert')).toBeNull();
-    expect(scoped.getByRole('button', { name: /다음: 상담 목표/ })).not.toBeNull();
+    expect(scoped.getByRole('button', { name: /다음: 맞춤형 질문/ })).not.toBeNull();
   });
 
   it('당사자를 바꾸면 상담 유형 기본값도 다시 잡힌다', () => {
@@ -157,10 +157,13 @@ describe('ScheduleWizard', () => {
     // 경고일 뿐이므로 일시까지 채우면 다음으로 갈 수 있다.
     fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
     fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
-    expect((scoped.getByRole('button', { name: /다음: 상담 목표/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect((scoped.getByRole('button', { name: /다음: 맞춤형 질문/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('인테이크를 고르면 케이스 목표 입력으로 가고 참고 데이터를 부르지 않으며 인테이크로 제출한다', async () => {
+  // CCC-64: 인테이크 경로의 구 목표 입력 단계는 없앴다. 그 값은 goals 표(D43 이 보류한
+  // 세부 목표 층)로 들어가 어느 화면에도 안 보였는데 필수였다. 당사자를 만나기도 전에
+  // 목표를 지어내야 했다. 이제 1단계에서 맞춤형 질문으로 바로 넘어간다.
+  it('인테이크는 목표 입력 없이 맞춤형 질문으로 가고 참고 데이터를 부르지 않는다', async () => {
     const { container, calls, getLastInput } = renderWizard();
     const scoped = within(container);
 
@@ -169,22 +172,25 @@ describe('ScheduleWizard', () => {
     fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
     // 이 픽스처는 인테이크를 마친 케이스라 기본값이 '기본 상담'이다(D35 §5).
     fireEvent.change(scoped.getByLabelText('상담 유형'), { target: { value: 'intake' } });
-    fireEvent.click(scoped.getByRole('button', { name: /다음: 상담 목표/ }));
+    fireEvent.click(scoped.getByRole('button', { name: /다음: 맞춤형 질문/ }));
 
-    await waitFor(() => expect(scoped.getByText('상담의 목표는 무엇인가요?')).not.toBeNull());
+    await waitFor(() => expect(scoped.getByRole('button', { name: '완료' })).not.toBeNull());
     // 인테이크는 기존 케이스 목표·브리핑 참고 데이터를 부르지 않는다.
     expect(calls.load).toBe(0);
-    // 세션 목표 입력(기본 상담 전용)은 나타나지 않는다.
+    // 목표 입력은 어느 쪽도 나타나지 않는다.
+    expect(scoped.queryByText('상담의 목표는 무엇인가요?')).toBeNull();
     expect(scoped.queryByText('이번 상담의 목표는 무엇인가요?')).toBeNull();
+    expect(scoped.queryByLabelText('상담 목표 1')).toBeNull();
+    // 인테이크는 2단계다(구 3단계).
+    expect(scoped.getByText('2 / 2 단계')).not.toBeNull();
 
-    fireEvent.change(scoped.getByLabelText('상담 목표 1'), { target: { value: '월 5만원 저축을 3개월 유지한다' } });
-    fireEvent.click(scoped.getByRole('button', { name: /다음: 맞춤형 질문/ }));
     fireEvent.click(scoped.getByRole('button', { name: '완료' }));
 
     await waitFor(() => expect(calls.submit).toBe(1));
     const input = getLastInput();
     expect(input?.sessionKind).toBe('intake');
-    expect(input?.caseGoals).toContain('월 5만원 저축을 3개월 유지한다');
+    // 목표를 한 글자도 안 적어도 등록된다. 구 흐름은 여기서 막혔다.
+    expect(input).not.toHaveProperty('caseGoals');
   });
 
   it('당사자를 골라도 일시가 비어 있으면 다음이 눌리지 않고 무엇이 모자란지 알린다 (CCC-22)', () => {

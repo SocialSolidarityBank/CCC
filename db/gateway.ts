@@ -9649,9 +9649,11 @@ function normalizeIntakeCaseGoals(input: CreateCounselingScheduleInput): string[
     if (body.length === 0) throw new ValidationError('case goal text is required');
     return body;
   });
-  if (caseGoals.length < 1) {
-    throw new ValidationError('an intake schedule requires at least one case goal');
-  }
+  // 최소 1개 강제는 없앴다(CCC-64, 2026-08-08 Q 결정). 이 목표는 goals 표(세부 목표 층)로
+  // 들어가는데 그 층은 D43 이 보류했고 읽는 화면이 없다. 그런데도 필수라, 실무자가 **당사자를
+  // 만나기도 전에** 목표를 지어내야 했다. 목표는 첫 상담에서 대화로 정해 브리핑의 '전체 목표'
+  // (support_cases.overall_goal, 저장소가 다르다)에 적는 흐름이 정본이다(D45).
+  // 표와 이 입력 경로는 남긴다. D43 은 "스키마·데이터는 유지"이고, 보내오면 그대로 저장한다.
   if (caseGoals.length > MAX_ACTIVE_GOALS) {
     throw new ValidationError(`a case can have at most ${MAX_ACTIVE_GOALS} active goals`);
   }
