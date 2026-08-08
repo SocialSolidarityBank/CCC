@@ -579,6 +579,8 @@ const briefingStyles = `
    .wire-card-section>h3 과 같은 레시피 — 본문 16 과 크기가 겹치면 위계가 사라진다). */
 /* '기록 오류' 흔적 — 카드 안 상자였던 .note 를 플랫 한 줄로(2026-08-05 · 카드 안 카드 금지). */
 .record-error-note{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 인테이크 회차의 확인·수정 입구(2026-08-08 Q) — 버튼 한 줄, 전역 p 여백을 끈다. */
+.record-intake-entry{margin:0}
 /* 구획 라벨은 브리핑 영역 ① 과 같은 계약이다(2026-08-06 Q 컬러 규칙): 14/600 + 계열 컬러.
    수기 메모·액션 아이템 = 민트(사람·기록·상태 축), 플래그 = 라벨은 민트를 유지하고 리스크
    레드는 확인된 항목에만 남긴다(D9 — 색은 확인된 리스크 전용). */
@@ -817,28 +819,28 @@ const recordFormStyles = `
    아래 .record-layout 이 이미 갖고 있는 레일과 겹쳐 본문이 236px 로 짓눌렸다
    (2026-07-26 Q 보고 "너무 좁아서 쓸 수 없는 칸" 의 실제 원인). */
 .record-form{display:grid;gap:var(--section-gap)}
-.record-layout{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:var(--space-6);align-items:start}
+/* 2026-08-08 Q "인테이크랑 같은 레이아웃": 격자는 .wire-container[data-grid] 의 좌 4 / 우 8 이
+   대신 잡는다(구 .record-layout 1fr+우측 200px 레일 대체). 좌측 레일(.record-side)은 인테이크
+   진행 단계 레일과 같은 sticky 계약이고, 768 미만 한 열에서는 본문 위에 선다. */
 .record-main{display:grid;gap:var(--space-6);min-width:0}
+@media (min-width: 768px){
+  .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
+}
 /* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
 .record-toolbar{display:flex;justify-content:flex-end}
 /* 이 세 패널은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
    구 계약 CSS 복사 5줄 삭제). 여기 남는 것은 카드 패딩 3종 중 **좁은 보조 패널(16/20)**
    (DESIGN.md §3-4, 2026-07-31)과 배치뿐이다: 이 화면은 우측 레일 200 을 떼고 남은 좁은
    열에 서고 레일 자체는 200px 이라 좌우 24 를 주면 안쪽 글 폭이 152 로 떨어진다. */
-/* 고정 헤더는 스크롤 중 본문 위에 뜨는 층이라 그림자를 유지한다(ADR-0030 — 그림자는 떠
-   있는 층 전용). */
-.record-sticky{position:sticky;top:0;z-index:var(--z-sticky);box-shadow:var(--shadow-soft);display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
-.record-sticky-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:var(--space-3) var(--space-4)}
-.record-sticky-row>div:first-child{min-width:0;flex:1 1 240px}
+/* 구 상단 고정 헤더(.record-sticky)는 2026-08-08 좌측 레일 이전으로 삭제 — 목표·버튼이
+   전부 레일로 갔다. 라벨·값·목록 세 줄 레시피만 레일 안에서 계속 쓴다. */
 .record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .record-sticky-value{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
-/* 나가기·저장(2026-07-31 Q). 이 둘은 원래 화면 양 끝에 흩어져 있었다 — 나가기는 제목 옆에서
-   아무것과도 묶이지 않았고, 저장은 폼 맨 아래라 스크롤을 끝까지 내려야 보였다.
-   고정 헤더에 함께 두면 어느 위치에서 쓰든 나가는 길과 저장이 늘 같은 자리에 있다.
-   §4-5 순서를 따라 세컨더리 → 프라이머리이고, 좁아지면 줄바꿈한다. */
-.record-sticky-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-2);flex:none}
 .record-sticky-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체). 레일이 sticky 라
+   어느 위치에서 쓰든 늘 같은 자리에 있다. §4-5 순서: 세컨더리 → 프라이머리. */
+.record-rail-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-top:var(--space-2)}
 .record-accordion{padding:var(--space-4) var(--space-5)}
 .record-accordion-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .record-accordion-summary::-webkit-details-marker{display:none}
@@ -849,16 +851,15 @@ const recordFormStyles = `
    넓어져 옆 카드와 글자 시작선이 어긋난다. 토큰으로 스냅하면 그 어긋남이 돌아온다. */
 .record-accordion.is-crisis{--surface-fill:var(--risk-tint-solid);border:1.5px solid var(--risk);background:var(--risk-tint-solid);padding:15px 19px}
 .record-accordion.is-crisis .record-accordion-summary{color:var(--risk)}
-/* 좁은 보조 패널 16/20 (§3-4, 2026-08-07 여백 통일 — 구 16 사방). */
-.record-rail{position:sticky;top:0;display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
+/* 좁은 보조 패널 16/20 (§3-4, 2026-08-07 여백 통일 — 구 16 사방). sticky 는 바깥
+   .record-side 가 갖는다(2026-08-08 좌측 이전). */
+.record-rail{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5)}
 .record-rail-count{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);color:var(--sub)}
 .record-rail-list li[data-done="true"]{color:var(--ink);font-weight:600}
 .record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-/* 레일 해제는 **컨테이너 질의**로 한다(§4-2). 화면 폭으로 풀면 사이드바 240 이 있는 768~900 에서
-   본문이 228px 로 짓눌린다 — 2026-07-26 에 900 으로 잡아 뒀던 이유이자, 브레이크포인트를 767 하나로
-   모으면 되살아나는 결함이다. 644 = 본문 최소 420(--grid-min) + gap 24 + 레일 200. */
-@container (max-width:643px){.record-layout{grid-template-columns:minmax(0,1fr)}.record-rail{position:static;order:-1}}
+/* 구 컨테이너 질의(643px 레일 해제)는 2026-08-08 격자 이전으로 삭제 — 한 열 접힘은
+   .wire-container[data-grid] 의 767 규칙이 대신한다(인테이크와 같은 동작). */
 `;
 
 export const metadata: Metadata = { title: 'CCC 사례관리', description: '비영리 사례관리 내부 운영 도구' };

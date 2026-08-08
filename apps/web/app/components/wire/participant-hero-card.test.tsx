@@ -31,15 +31,15 @@ describe('ParticipantHeroCard', () => {
     ).toBe('010-1234-5678');
     // 정보 행이 생기면 구분선도 함께 선다(당사자 카드와 같은 문법).
     expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
-    expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('18px');
+    expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('20px');
   });
 
   it('상태 태그는 슬롯이다 — 넘기면 보이고 넘기지 않으면 없다 (허브)', () => {
     // 케이스 1개 화면(브리핑·기록)은 태그를 넘긴다.
     const withTag = render(
-      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" stageTag="상담 준비" />,
+      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" stageTag="15초 페이지" />,
     );
-    expect(withTag.container.querySelector('.wire-status-tag')?.textContent).toBe('상담 준비');
+    expect(withTag.container.querySelector('.wire-status-tag')?.textContent).toBe('15초 페이지');
 
     // 허브는 케이스가 교차해 단일 상태가 없다 — 태그 없이도 부품이 완전해야 한다.
     const withoutTag = render(

@@ -30,12 +30,12 @@ describe('ParticipantName', () => {
     expect(container.querySelector('.participant-name')?.textContent).toBe('swallow-003');
   });
 
-  it('실명 크기는 자리가 정한다 — hero 28 · h2 18 · row 16', () => {
+  it('실명 크기는 자리가 정한다 — hero 28 · h2 20 · row 16 (2026-08-08 Q +2px)', () => {
     const hero = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" size="hero" />);
     expect(hero.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('28px');
 
     const h2 = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" size="h2" />);
-    expect(h2.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('18px');
+    expect(h2.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('20px');
 
     const row = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" />);
     expect(row.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('16px');

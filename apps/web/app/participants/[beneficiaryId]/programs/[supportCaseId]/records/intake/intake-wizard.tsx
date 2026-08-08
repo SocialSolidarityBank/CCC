@@ -5,6 +5,7 @@ import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
+import { PageTitle } from '../../../../../../components/wire/page-title';
 import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
@@ -12,6 +13,7 @@ import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../com
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
+  IntakeAnswerInput,
   IntakeAnswerKey,
   IntakeAnswerResponse,
   IntakeExtendedPii,
@@ -61,6 +63,20 @@ export interface IntakeWizardProps {
   /** 1-1 기본정보를 고치러 가는 곳(당사자 기본정보 수정 화면, CCC-37). */
   basicInfoHref: string;
   submit: (input: CreateIntakeRecordActionInput) => Promise<IntakeRecordActionResult>;
+  /** 수정 모드(2026-08-08 Q "확인/수정"). 저장된 인테이크를 미리 채우고 덮어쓴다. */
+  mode?: 'create' | 'edit';
+  /** 수정 모드의 프리필 재료 — 서버의 saved 를 페이지가 이 모양으로 바꿔 준다. */
+  initial?: IntakeInitialValues;
+}
+
+/** 수정 모드 프리필 값. heldAt 은 ISO UTC 그대로 받고 화면이 로컬 표기로 바꾼다. */
+export interface IntakeInitialValues {
+  heldAt: string;
+  answers: IntakeAnswerInput[];
+  debts: TableRow[];
+  linkedOrgs: TableRow[];
+  additionalItems: TableRow[];
+  managerOpinion: string | null;
 }
 
 const NOTICE_MESSAGES: Record<string, string> = {
@@ -411,24 +427,45 @@ function RowTable(props: {
   );
 }
 
+/** 저장된 답변 목록 → 화면 상태. 빈 판(전 질문 키) 위에 저장분을 덮는다 — 상태 모양이
+ *  작성 모드와 같아야 진행 카운트·필드 렌더가 분기 없이 동작한다. */
+function answersFromInitial(initial: IntakeInitialValues): AnswerState {
+  const state = emptyAnswers();
+  for (const answer of initial.answers) {
+    state[answer.key] = { response: answer.response, text: answer.text ?? '' };
+  }
+  return state;
+}
+
 export function IntakeWizard(props: IntakeWizardProps) {
   const router = useRouter();
+  const editing = props.mode === 'edit';
+  const initial = editing ? props.initial : undefined;
   const [step, setStep] = useState(1);
   const [heldAt, setHeldAt] = useState('');
-  const [answers, setAnswers] = useState<AnswerState>(emptyAnswers);
-  const [debts, setDebts] = useState<TableRow[]>(() => [emptyRow(DEBT_COLUMNS)]);
-  const [linkedOrgs, setLinkedOrgs] = useState<TableRow[]>(() => [emptyRow(LINKED_ORG_COLUMNS)]);
-  const [additionalItems, setAdditionalItems] = useState<TableRow[]>([]);
-  const [managerOpinion, setManagerOpinion] = useState('');
+  const [answers, setAnswers] = useState<AnswerState>(() => (initial === undefined ? emptyAnswers() : answersFromInitial(initial)));
+  const [debts, setDebts] = useState<TableRow[]>(() => (
+    initial !== undefined && initial.debts.length > 0 ? initial.debts : [emptyRow(DEBT_COLUMNS)]
+  ));
+  const [linkedOrgs, setLinkedOrgs] = useState<TableRow[]>(() => (
+    initial !== undefined && initial.linkedOrgs.length > 0 ? initial.linkedOrgs : [emptyRow(LINKED_ORG_COLUMNS)]
+  ));
+  const [additionalItems, setAdditionalItems] = useState<TableRow[]>(() => initial?.additionalItems ?? []);
+  const [managerOpinion, setManagerOpinion] = useState(() => initial?.managerOpinion ?? '');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 상담일(1-3)은 화면을 연 시각으로 채운다(실무자가 바꿀 수 있음). 서버·클라이언트 시각 차이로
-  // 생기는 하이드레이션 불일치를 피하려고 마운트 후에 채운다.
+  // 생기는 하이드레이션 불일치를 피하려고 마운트 후에 채운다. 수정 모드는 저장된 상담일을
+  // 로컬 표기로 바꿔 채운다 — 이것도 시간대가 클라이언트 것이라 마운트 후여야 한다.
+  const initialHeldAt = initial?.heldAt;
   useEffect(() => {
-    setHeldAt((current) => (current === '' ? localDateTimeValue(new Date()) : current));
-  }, []);
+    setHeldAt((current) => {
+      if (current !== '') return current;
+      return initialHeldAt !== undefined ? localDateTimeValue(new Date(initialHeldAt)) : localDateTimeValue(new Date());
+    });
+  }, [initialHeldAt]);
 
   // ── 로컬 임시본(CCC-12) ────────────────────────────────────────────────────
   const storageKey = draftKey('intake', props.supportCaseId);
@@ -445,6 +482,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
   }), [step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion]);
 
   useEffect(() => {
+    // 수정 모드는 임시본을 켜지 않는다 — 서버 저장본이 정본이고, 작성 모드의 임시본과
+    // 저장소 키가 같아 섞이면 복원 배너가 수정 화면을 옛 작성 초안으로 덮는다.
+    if (editing) return;
     sweepExpiredDrafts();
     const stored = readDraft<unknown>(storageKey);
     if (stored === null) return;
@@ -455,9 +495,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
     }
     pendingDraft.current = values;
     setRestorable(stored.savedAt);
-  }, [storageKey]);
+  }, [storageKey, editing]);
 
   useEffect(() => {
+    if (editing) return;
     // 배너가 떠 있는 동안에는 저장하지 않는다 — 실무자가 고르기 전에 임시본을 덮어쓰면 안 된다.
     if (restorable !== null) return;
     if (!hasContent(draftValues)) return;
@@ -470,7 +511,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     return () => {
       if (saveTimer.current !== null) clearTimeout(saveTimer.current);
     };
-  }, [draftValues, restorable, storageKey]);
+  }, [draftValues, restorable, storageKey, editing]);
 
   function resumeDraft() {
     const values = pendingDraft.current;
@@ -588,13 +629,16 @@ export function IntakeWizard(props: IntakeWizardProps) {
     const result = await props.submit(payload);
     setBusy(false);
     if (result.status !== 'saved' && result.status !== 'replayed') {
-      setError(messageFor(result.status));
+      setError(editing && result.status === 'conflict'
+        ? '인테이크를 지금 수정할 수 없습니다. 참여 사업 상태를 확인하세요.'
+        : messageFor(result.status));
       return;
     }
     setError(null);
     // 서버에 남았으니 임시본을 지운다 — 남겨 두면 다음 기록에 섞인다(CCC-12).
-    clearDraft(storageKey);
-    // 저장 직후 브리핑으로 직행한다(스펙 #78 US 17 · CCC-31).
+    if (!editing) clearDraft(storageKey);
+    // 저장 직후 이동: 작성은 브리핑 직행(스펙 #78 US 17 · CCC-31), 수정은 페이지가
+    // 같은 prop 에 상담 기록 목록을 실어 보낸다.
     router.push(props.briefingHref);
   }
 
@@ -631,6 +675,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
   return (
     <main className="page-content">
+      {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
+      <div className="page-header"><PageTitle>인테이크</PageTitle></div>
       <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }}>
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
@@ -677,13 +723,15 @@ export function IntakeWizard(props: IntakeWizardProps) {
               <MetaRow items={participantParts} />
             </p>
             <p style={captionStyle}>
-              <MetaRow items={[`${step} / 4 단계`, `회차 ${props.sessionSequence}회`, `실무자 ${props.recorderLabel}`]} />
+              {/* 수정 모드의 '회차 N회'는 다음 회차 자동값이라 거짓 정보다 — 자리 자체를 수정 표시로 바꾼다. */}
+              <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : `회차 ${props.sessionSequence}회`, `실무자 ${props.recorderLabel}`]} />
             </p>
             <p style={captionStyle}>모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
           </WireCard>
-          {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
-          <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />
-          {restorable === null
+          {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다.
+              수정 모드는 임시본이 없으므로 두 줄 다 그리지 않는다. */}
+          {editing ? null : <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />}
+          {editing || restorable === null
             ? null
             : <DraftRestorePrompt savedAt={restorable} onResume={resumeDraft} onDiscard={discardDraft} />}
           {error !== null ? <p role="alert" style={errorStyle}>{error}</p> : null}
@@ -820,7 +868,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
             {step < STEP_TITLES.length
               ? <WireButton chevron onClick={() => { setStep(step + 1); setError(null); }}>다음: {STEP_TITLES[step]}</WireButton>
               : null}
-            <WireButton size="large" disabled={busy || !canComplete} onClick={complete}>완료</WireButton>
+            <WireButton size="large" disabled={busy || !canComplete} onClick={complete}>{editing ? '저장' : '완료'}</WireButton>
           </div>
         </section>
       </div>

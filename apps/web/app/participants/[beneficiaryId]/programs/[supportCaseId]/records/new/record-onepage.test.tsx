@@ -24,33 +24,34 @@ function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps 
 afterEach(cleanup);
 
 describe('RecordOnepage', () => {
-  it('고정 헤더에 이번 상담 목표를 항상 표시한다', () => {
+  // 2026-08-08 Q: 구 상단 고정 헤더가 좌측 레일로 옮겨 갔다(인테이크와 같은 레이아웃).
+  it('좌측 레일에 이번 상담 목표를 항상 표시한다', () => {
     const { container, getByTestId } = render(<RecordOnepage {...props({
       sessionGoals: [{ body: '임대차 계약 확인', caseGoalTitle: '월세 체납 해소' }],
     })} />);
 
-    const header = getByTestId('record-sticky-header');
-    expect(header.className).toContain('record-sticky');
-    expect(header.textContent).toContain('이번 상담 목표');
-    expect(header.textContent).toContain('임대차 계약 확인');
-    // 일정에 세션 목표가 있으면 헤더에서 따로 입력받지 않는다.
+    const rail = getByTestId('record-side-rail');
+    expect(rail.className).toContain('record-side');
+    expect(rail.textContent).toContain('이번 상담 목표');
+    expect(rail.textContent).toContain('임대차 계약 확인');
+    // 일정에 세션 목표가 있으면 레일에서 따로 입력받지 않는다.
     expect(container.querySelector('input[name="sessionGoalNote"]')).toBeNull();
   });
 
-  // 2026-07-31 Q: 나가기·저장이 화면 양 끝에 흩어져 있던 것을 고정 헤더로 모았다.
+  // 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체).
   // 저장이 폼 아래에 하나도 남아 있지 않으므로, 이 자리가 비면 저장할 길이 사라진다.
-  it('고정 헤더가 나가기·저장 버튼을 갖는다', () => {
+  it('좌측 레일이 나가기·저장 버튼을 갖는다', () => {
     const { getByTestId } = render(<RecordOnepage {...props()} />);
 
-    const header = getByTestId('record-sticky-header');
-    expect(header.textContent).toContain('상담 기록으로 돌아가기');
-    expect(header.querySelector('button[type="submit"]')?.textContent).toBe('저장');
+    const rail = getByTestId('record-side-rail');
+    expect(rail.textContent).toContain('상담 기록으로 돌아가기');
+    expect(rail.querySelector('button[type="submit"]')?.textContent).toBe('저장');
   });
 
-  it('세션 목표가 미연결이면 헤더에서 바로 이번 상담 목표를 추가할 수 있다', () => {
+  it('세션 목표가 미연결이면 레일에서 바로 이번 상담 목표를 추가할 수 있다', () => {
     const { container, getByTestId } = render(<RecordOnepage {...props()} />);
 
-    expect(getByTestId('record-sticky-header').textContent).toContain('미연결');
+    expect(getByTestId('record-side-rail').textContent).toContain('미연결');
     expect(container.querySelector('input[name="sessionGoalNote"]')).not.toBeNull();
   });
 

@@ -305,7 +305,7 @@ export function BriefingCards({
       <ParticipantHeroCard
         name={participant.name}
         beneficiaryId={beneficiaryId}
-        stageTag="상담 준비"
+        stageTag="15초 페이지"
         meta={<MetaRow items={[
           programLabel,
           upcomingSchedule === null ? '예정된 상담 없음' : formatKoreanDateTime(upcomingSchedule.scheduledAt),
@@ -316,7 +316,7 @@ export function BriefingCards({
               여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다. */}
           <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
           <WireButton className="briefing-more" href={recordsHref} variant="secondary">전체 상담 기록</WireButton>
-          <WireButton href={recordNewHref} variant="primary">상담 시작</WireButton>
+          <WireButton href={recordNewHref} variant="primary">상담 기록</WireButton>
         </>}
       />
 

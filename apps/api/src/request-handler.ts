@@ -36,6 +36,7 @@ import {
   createCase,
   createCounselingRecord,
   createIntakeRecord,
+  updateIntakeRecord,
   createParticipantInvite,
   completeParticipantSignup,
   getInviteForSignup,
@@ -793,6 +794,91 @@ function parseIntakeCreation(body: JsonObject) {
   };
 }
 
+/**
+ * 인테이크 수정 입력(2026-08-08 Q "확인/수정"). parseIntakeCreation 의 부분집합이다 —
+ * 위저드가 소유한 필드만 받고, 동의·목표·금고·일정 연결은 이 경로에 없다.
+ */
+function parseIntakeUpdate(body: JsonObject) {
+  const hasManagerOpinion = Object.hasOwn(body, 'managerOpinion');
+  const hasAnswers = Object.hasOwn(body, 'answers');
+  const hasAdditionalItems = Object.hasOwn(body, 'additionalItems');
+  const hasDebts = Object.hasOwn(body, 'debts');
+  const hasLinkedOrgs = Object.hasOwn(body, 'linkedOrgs');
+  const allowedKeys = ['heldAt', 'channel'];
+  if (hasAnswers) allowedKeys.push('answers');
+  if (hasAdditionalItems) allowedKeys.push('additionalItems');
+  if (hasDebts) allowedKeys.push('debts');
+  if (hasLinkedOrgs) allowedKeys.push('linkedOrgs');
+  if (hasManagerOpinion) allowedKeys.push('managerOpinion');
+  requireOnlyKeys(body, allowedKeys);
+
+  const channelValue = requiredString(body, 'channel');
+  if (channelValue !== 'in_person' && channelValue !== 'phone' && channelValue !== 'video') {
+    throw new ValidationError('record channel is invalid');
+  }
+
+  const answers = !hasAnswers ? undefined : objectArray(body.answers, 'answers').map((answer) => {
+    requireOnlyKeys(answer, Object.hasOwn(answer, 'text') ? ['key', 'response', 'text'] : ['key', 'response']);
+    const key = requiredString(answer, 'key');
+    if (!(INTAKE_ANSWER_KEYS as readonly string[]).includes(key)) {
+      throw new ValidationError('intake answer key is invalid');
+    }
+    const response = requiredString(answer, 'response');
+    if (!(INTAKE_ANSWER_RESPONSES as readonly string[]).includes(response)) {
+      throw new ValidationError('intake answer response is invalid');
+    }
+    return {
+      key: key as typeof INTAKE_ANSWER_KEYS[number],
+      response: response as typeof INTAKE_ANSWER_RESPONSES[number],
+      ...(Object.hasOwn(answer, 'text') ? { text: requiredString(answer, 'text') } : {}),
+    };
+  });
+
+  const additionalItems = !hasAdditionalItems
+    ? undefined
+    : objectArray(body.additionalItems, 'additionalItems').map((entry) => {
+      const entryKeys = ['item'];
+      for (const key of ['owner', 'dueDate', 'reason', 'method', 'dueNote']) {
+        if (Object.hasOwn(entry, key)) entryKeys.push(key);
+      }
+      requireOnlyKeys(entry, entryKeys);
+      return {
+        item: requiredString(entry, 'item'),
+        ...(Object.hasOwn(entry, 'owner') ? { owner: requiredString(entry, 'owner') } : {}),
+        ...(Object.hasOwn(entry, 'dueDate') ? { dueDate: canonicalDate(requiredString(entry, 'dueDate'), 'dueDate') } : {}),
+        ...(Object.hasOwn(entry, 'reason') ? { reason: requiredString(entry, 'reason') } : {}),
+        ...(Object.hasOwn(entry, 'method') ? { method: requiredString(entry, 'method') } : {}),
+        ...(Object.hasOwn(entry, 'dueNote') ? { dueNote: requiredString(entry, 'dueNote') } : {}),
+      };
+    });
+
+  function tableRows(value: unknown, label: string, requiredKey: string, optionalKeys: readonly string[]) {
+    return objectArray(value, label).map((row) => {
+      const keys = [requiredKey, ...optionalKeys.filter((key) => Object.hasOwn(row, key))];
+      requireOnlyKeys(row, keys);
+      return Object.fromEntries(keys.map((key) => [key, requiredString(row, key)]));
+    });
+  }
+  const debts = !hasDebts
+    ? undefined
+    : tableRows(body.debts, 'debts', 'creditor', ['kind', 'balance', 'monthlyPayment', 'arrearsStatus']) as Array<
+      { creditor: string; kind?: string; balance?: string; monthlyPayment?: string; arrearsStatus?: string }>;
+  const linkedOrgs = !hasLinkedOrgs
+    ? undefined
+    : tableRows(body.linkedOrgs, 'linkedOrgs', 'orgName', ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus']) as Array<
+      { orgName: string; serviceName?: string; supportDetail?: string; usagePeriod?: string; progressStatus?: string }>;
+
+  return {
+    heldAt: requiredCanonicalUtc(body, 'heldAt'),
+    channel: channelValue as 'in_person' | 'phone' | 'video',
+    ...(answers === undefined ? {} : { answers }),
+    ...(additionalItems === undefined ? {} : { additionalItems }),
+    ...(debts === undefined ? {} : { debts }),
+    ...(linkedOrgs === undefined ? {} : { linkedOrgs }),
+    ...(hasManagerOpinion ? { managerOpinion: requiredString(body, 'managerOpinion') } : {}),
+  };
+}
+
 function parseScheduleSessionGoals(body: JsonObject): Array<{ body: string; caseGoalId: string | null }> | undefined {
   if (!Object.hasOwn(body, 'sessionGoals')) return undefined;
   return objectArray(body.sessionGoals, 'sessionGoals').map((goal) => {
@@ -1131,6 +1217,8 @@ function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecor
     hasIntake: context.hasIntake,
     extendedPii: context.extendedPii,
     consent: context.consent,
+    // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 없으면 null.
+    saved: context.saved,
   };
 }
 
@@ -1985,6 +2073,14 @@ export async function handleRequest(
           { record: intakeRecordResponse(result.record), replayed: result.replayed },
           result.replayed ? 200 : 201,
         );
+      }
+      // 인테이크 수정(2026-08-08 Q "확인/수정") — 위저드 소유분만 덮어쓴다.
+      if (request.method === 'PUT' && parts.length === 4 && parts[2] === 'records' && parts[3] === 'intake') {
+        requestQuery(url, []);
+        const result = await updateIntakeRecord(env, actor, supportCaseId, parseIntakeUpdate(await requestBody(request)));
+        // 수정본도 수기 공식 기록이다(D5) — 공식화 시점 불일치 검출을 다시 돈다(CCC-43).
+        await onRecordOfficialized(env, actor, result.record.id, 'manual_record');
+        return json({ record: intakeRecordResponse(result.record) });
       }
     }
 

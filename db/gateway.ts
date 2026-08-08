@@ -11018,6 +11018,25 @@ export interface IntakeRecordContext {
   extendedPii: IntakeExtendedPii;
   // 1단계 동의 상태 표시용(D42 ②). 입력은 당사자 등록 화면 몫이라 여기서는 기록 여부만 읽는다.
   consent: { privacy: boolean; recordingAi: boolean };
+  // 저장된 인테이크 내용(2026-08-08 Q "확인/수정"). hasIntake 가 true 일 때만 채워진다.
+  // 위저드가 소유한 필드만 싣는다 — 동의·기본정보(금고)는 각자의 화면 몫이라 싣지 않는다.
+  saved: IntakeSavedRecord | null;
+}
+
+/**
+ * 저장된 인테이크의 위저드 소유분(2026-08-08 Q "확인/수정"). intake_details JSON 중
+ * 현행 위저드가 쓰고 고칠 수 있는 것만 꺼낸다. 구 6단계 위저드의 유산 키
+ * (helpNarrative·nextMeeting)는 화면에 없으므로 싣지 않는다 — 수정 저장에서도 보존만 한다.
+ */
+export interface IntakeSavedRecord {
+  sessionId: string;
+  heldAt: string;
+  channel: Session['channel'];
+  answers: IntakeAnswerInput[];
+  debts: IntakeDebtEntryInput[];
+  linkedOrgs: IntakeLinkedOrgInput[];
+  additionalItems: IntakeAdditionalItemInput[];
+  managerOpinion: string | null;
 }
 
 function assertIntakeLifeAreaInputs(lifeAreas: IntakeLifeAreaInput[]): void {
@@ -11342,6 +11361,29 @@ export async function getIntakeRecordContext(
      FROM support_cases WHERE id = ? AND org_id = ?`,
   ).bind(supportCaseId, actor.orgId)
     .first<{ recording_at: string | null; text_ai_at: string | null; privacy_at: string | null }>();
+  const hasIntake = Number(counts?.intake_count ?? 0) > 0;
+  // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 감사는 이 화면 조회 1건에
+  // 이미 합산돼 있다 — 위 read_participant_pii 가 이 조회의 감사다(행을 나누지 않는다).
+  let saved: IntakeSavedRecord | null = null;
+  if (hasIntake) {
+    const intakeRow = await env.DB.prepare(
+      `SELECT id, held_at, channel, intake_details FROM sessions
+       WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
+    ).bind(actor.orgId, supportCaseId).first<{ id: string; held_at: string; channel: string; intake_details: string | null }>();
+    if (intakeRow !== null) {
+      const details = parseJson<Record<string, unknown>>(intakeRow.intake_details) ?? {};
+      saved = {
+        sessionId: intakeRow.id,
+        heldAt: intakeRow.held_at,
+        channel: intakeRow.channel as Session['channel'],
+        answers: Array.isArray(details.answers) ? details.answers as IntakeAnswerInput[] : [],
+        debts: Array.isArray(details.debts) ? details.debts as IntakeDebtEntryInput[] : [],
+        linkedOrgs: Array.isArray(details.linkedOrgs) ? details.linkedOrgs as IntakeLinkedOrgInput[] : [],
+        additionalItems: Array.isArray(details.additionalItems) ? details.additionalItems as IntakeAdditionalItemInput[] : [],
+        managerOpinion: typeof details.managerOpinion === 'string' ? details.managerOpinion : null,
+      };
+    }
+  }
   return {
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
@@ -11351,13 +11393,14 @@ export async function getIntakeRecordContext(
       email: contact?.email ?? null,
     },
     sessionSequence: total + 1,
-    hasIntake: Number(counts?.intake_count ?? 0) > 0,
+    hasIntake,
     extendedPii,
     consent: {
       privacy: consentRow?.privacy_at != null,
       // D49 표시 규칙: 구 3종 기록은 두 컬럼 중 하나라도 찍혀 있으면 ② 동의로 읽는다.
       recordingAi: consentRow?.recording_at != null || consentRow?.text_ai_at != null,
     },
+    saved,
   };
 }
 
@@ -11762,6 +11805,155 @@ export async function createIntakeRecord(
       aiSummary: null,
       approvedAt: null,
       createdAt,
+    },
+    replayed: false,
+  };
+}
+
+/**
+ * 인테이크 수정 입력(2026-08-08 Q "확인/수정"). 현행 위저드가 소유한 필드만 받는다.
+ * 동의·기본정보(금고)·목표·다음 행동은 각자의 화면·수명 규칙이 있어 이 경로로 손대지
+ * 않는다 — 그 다섯은 CreateIntakeRecordInput 에만 남는다.
+ */
+export interface UpdateIntakeRecordInput {
+  heldAt: string;
+  channel: Session['channel'];
+  answers?: IntakeAnswerInput[];
+  debts?: IntakeDebtEntryInput[];
+  linkedOrgs?: IntakeLinkedOrgInput[];
+  additionalItems?: IntakeAdditionalItemInput[];
+  managerOpinion?: string;
+}
+
+function assertUpdateIntakeRecordInput(input: UpdateIntakeRecordInput): void {
+  const expectedKeys = ['heldAt', 'channel'];
+  if (input.answers !== undefined) expectedKeys.push('answers');
+  if (input.debts !== undefined) expectedKeys.push('debts');
+  if (input.linkedOrgs !== undefined) expectedKeys.push('linkedOrgs');
+  if (input.additionalItems !== undefined) expectedKeys.push('additionalItems');
+  if (input.managerOpinion !== undefined) expectedKeys.push('managerOpinion');
+  assertExactKeys(input, expectedKeys);
+  canonicalUtcInstant(input.heldAt, 'record time');
+  if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
+    throw new ValidationError('record channel is invalid');
+  }
+  if (input.answers !== undefined) assertIntakeAnswerInputs(input.answers);
+  if (input.additionalItems !== undefined) assertIntakeAdditionalItemInputs(input.additionalItems);
+  if (input.debts !== undefined) {
+    assertIntakeTableRows(
+      input.debts as unknown as Array<Record<string, unknown>>,
+      'debts',
+      'creditor',
+      INTAKE_DEBT_OPTIONAL_KEYS,
+    );
+  }
+  if (input.linkedOrgs !== undefined) {
+    assertIntakeTableRows(
+      input.linkedOrgs as unknown as Array<Record<string, unknown>>,
+      'linked orgs',
+      'orgName',
+      INTAKE_LINKED_ORG_OPTIONAL_KEYS,
+    );
+  }
+  if (input.managerOpinion !== undefined) assertNonBlankText(input.managerOpinion, 'manager opinion');
+}
+
+/**
+ * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드 소유분(intake_details 의
+ * answers·debts·linkedOrgs·additionalItems·managerOpinion + held_at·channel)만 덮어쓴다.
+ * 구 위저드의 유산 키(helpNarrative·nextMeeting)는 화면이 편집하지 않으므로 보존한다 —
+ * 지우면 과거 기록의 해석 재료가 사라진다. 세션 INSERT 감사 트리거는 UPDATE 를 덮지
+ * 않으므로 감사는 명시로 남긴다(D14). 승인 개념이 없는 회차라(ai_status 'none')
+ * R2 승인 게이트와 무관하다.
+ */
+export async function updateIntakeRecord(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  input: UpdateIntakeRecordInput,
+): Promise<IntakeRecordResult> {
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  assertUpdateIntakeRecordInput(input);
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  if (supportCase.status !== 'active') {
+    throw new ConflictError('support case is unavailable');
+  }
+  const intakeRow = await env.DB.prepare(
+    `SELECT id, intake_details, created_at FROM sessions
+     WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
+  ).bind(actor.orgId, supportCaseId).first<{ id: string; intake_details: string | null; created_at: string }>();
+  if (intakeRow === null) {
+    throw new ConflictError('intake record does not exist for this support case');
+  }
+  const existing = parseJson<Record<string, unknown>>(intakeRow.intake_details) ?? {};
+  const intakeDetails = stringifyJson({
+    helpNarrative: existing.helpNarrative ?? null,
+    managerOpinion: input.managerOpinion ?? null,
+    answers: input.answers ?? [],
+    additionalItems: input.additionalItems ?? [],
+    debts: input.debts ?? [],
+    linkedOrgs: input.linkedOrgs ?? [],
+    nextMeeting: existing.nextMeeting ?? null,
+  });
+  const updatedAt = now();
+  // 권한을 변경 배치의 WHERE 에서 반복한다 — 사전 검사만으로는 이후 상태 변화를 승인하지
+  // 못한다(레포 공통 패턴). 감사는 changes()=1 일 때만 같이 남는다.
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE sessions
+       SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?
+       WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
+         AND EXISTS (
+           SELECT 1 FROM support_cases AS support_case
+           WHERE support_case.id = sessions.support_case_id
+             AND support_case.org_id = sessions.org_id
+             AND support_case.status = 'active'
+         )
+         AND (
+           ? = 'admin' OR EXISTS (
+             SELECT 1 FROM support_case_assignees AS assignment
+             WHERE assignment.org_id = sessions.org_id
+               AND assignment.support_case_id = sessions.support_case_id
+               AND assignment.user_id = ?
+               AND assignment.unassigned_at IS NULL
+           )
+         )`,
+    ).bind(
+      input.heldAt,
+      input.channel,
+      intakeDetails,
+      updatedAt,
+      intakeRow.id,
+      actor.orgId,
+      supportCaseId,
+      actor.role,
+      actor.userId,
+    ),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'update',
+      targetTable: 'sessions',
+      targetId: intakeRow.id,
+      beneficiaryId: supportCase.beneficiaryId,
+      supportCaseId,
+      detail: { kind: 'intake' },
+    }),
+  ]);
+  const updated = results[0] as unknown as { meta?: { changes?: number } };
+  if ((updated.meta?.changes ?? 0) < 1) {
+    throw new ConflictError('intake record is no longer editable');
+  }
+  return {
+    record: {
+      id: intakeRow.id,
+      supportCaseId,
+      counselorId: actor.userId,
+      heldAt: input.heldAt,
+      channel: input.channel,
+      memo: '',
+      kind: 'intake',
+      aiSummary: null,
+      approvedAt: null,
+      createdAt: intakeRow.created_at,
     },
     replayed: false,
   };

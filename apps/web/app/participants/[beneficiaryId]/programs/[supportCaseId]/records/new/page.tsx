@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
 import { createCounselingRecordAction } from '../../../../../../actions';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
+import { PageTitle } from '../../../../../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
+import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { ApiError, getNewRecordContext, getParticipantDetail, lifeAreaKeys, lifeAreaStatuses, type ApiErrorCode, type NewRecordContext, type ParticipantDetail } from '../../../../../../lib/api';
 import { RecordOnepage } from './record-onepage';
 import { formatKoreanDate } from '../../../../../../lib/format-korean-date';
@@ -375,6 +377,13 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     unknown_outcome: { tone: 'risk', role: 'alert', text: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.' },
   };
   const item = content[state];
+  // 미저장 안내는 알약이 아니라 공용 안내줄이다(2026-08-08 Q — 주의·대기 축의 콜아웃,
+  // 인테이크 남은 필수·일정 경고와 같은 부품). 오류는 다른 화면과 같은 risk 배지 유지.
+  if (state === 'idle') {
+    return <WireCallout tone="lavender" role="status" testId="record-unsaved-notice" title="아직 서버에 저장되지 않았습니다">
+      저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.
+    </WireCallout>;
+  }
   return <p className="wire-badge" data-tone={item.tone} role={item.role} aria-live="polite" data-recovery-state={state}>{item.text}</p>;
 }
 
@@ -435,6 +444,8 @@ export default async function NewRecordPage({
   ].filter((item): item is string => item !== null);
 
   return <main className="page-content">
+    {/* 페이지 타이틀(2026-08-08 Q — 구 '상담 시작' 어휘 대체, 화면 이름은 '상담 기록'). */}
+    <div className="page-header"><PageTitle>상담 기록</PageTitle></div>
     {/* ParticipantHeroCard (D38): 이 화면도 URL 이 당사자 한 명을 가리키므로 공통 머리를
         단다 — 상담 기록 읽기 화면만 갖고 있던 것을 쓰기 화면에도 맞춘다.
         함께 없앤 것(둘 다 이미 확정된 결정인데 이 화면만 남아 있었다):
@@ -480,7 +491,8 @@ export default async function NewRecordPage({
         submissionFailed={state !== 'idle'}
       />
 
-      <p className="panel-meta">제출 ID {submissionId}. 서버가 즉시 재시도를 허용한 경우에만 같은 ID를 유지합니다.</p>
+      {/* 구 "제출 ID <uuid> …" 원문 표기는 삭제(2026-08-08 Q — 사람용 안내는 좌측 레일이
+          갖고, ID 는 위 숨은 폼 값으로만 다닌다). */}
     </form>}
   </main>;
 }

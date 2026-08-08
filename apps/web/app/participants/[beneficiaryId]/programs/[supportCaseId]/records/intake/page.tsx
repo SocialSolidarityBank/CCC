@@ -1,6 +1,5 @@
-import { WireButton } from '../../../../../../components/wire/wire-button';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
-import { createIntakeRecordAction } from '../../../../../../actions';
+import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
 import { IntakeWizard } from './intake-wizard';
 
 type LoadError = 'access_denied' | 'authentication_required' | 'forbidden' | 'not_found' | 'service_unavailable';
@@ -61,12 +60,34 @@ export default async function NewIntakePage({
     return <main className="page-content"><p className="wire-badge" data-tone="risk" role="alert">{messages[context.error]}</p></main>;
   }
 
-  if (context.data.hasIntake) {
+  // 인테이크가 이미 있으면 같은 위저드를 **수정 모드**로 연다(2026-08-08 Q "확인/수정" —
+  // 구 "이미 있습니다" 차단 화면 대체). 작성 1회 규칙은 그대로다: 만들기는 한 번, 그 뒤는 수정.
+  if (context.data.hasIntake && context.data.saved !== null) {
+    const saved = context.data.saved;
     return (
-      <main className="page-content">
-        <header className="page-header"><div><h1>인테이크 기록</h1><p>이 참여 사업에는 이미 인테이크 기록이 있습니다. 인테이크는 참여 사업당 한 번만 작성합니다.</p></div></header>
-        <div className="wire-form-actions"><WireButton variant="primary" href={recordsHref}>상담 기록으로</WireButton></div>
-      </main>
+      <IntakeWizard
+        mode="edit"
+        beneficiaryId={beneficiaryId}
+        supportCaseId={supportCaseId}
+        submissionId={crypto.randomUUID()}
+        participant={context.data.participant}
+        extendedPii={context.data.extendedPii}
+        consent={context.data.consent}
+        participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
+        basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
+        sessionSequence={context.data.sessionSequence}
+        recorderLabel={identity?.name ?? identity?.email ?? '로그인 사용자'}
+        briefingHref={recordsHref}
+        initial={{
+          heldAt: saved.heldAt,
+          answers: saved.answers,
+          debts: saved.debts,
+          linkedOrgs: saved.linkedOrgs,
+          additionalItems: saved.additionalItems,
+          managerOpinion: saved.managerOpinion,
+        }}
+        submit={updateIntakeRecordAction}
+      />
     );
   }
 

@@ -58,11 +58,10 @@ export interface RecordOnepageProps {
   lastRecordSummary: RecordLastSummary | null;
   briefingPath: string;
   /**
-   * 고정 헤더 오른쪽에 붙는 버튼(2026-07-31 Q). 나가기·저장이 여기 산다.
+   * 좌측 레일 바닥에 붙는 버튼(2026-08-08 Q — 구 상단 고정 헤더 우측). 나가기·저장이 여기 산다.
    *
    * 이 화면의 버튼 둘은 원래 서로 멀리 떨어져 있었다 — 나가기는 페이지 제목 옆, 저장은
-   * 폼 맨 아래. 저장은 스크롤을 끝까지 내려야 보였고 나가기는 어느 것과도 묶이지 않아
-   * 혼자 떠 있었다. 둘 다 **언제나 보이는 한 자리**(이 고정 헤더)로 모은다.
+   * 폼 맨 아래. 레일이 sticky 라 둘 다 **언제나 보이는 한 자리**에 있다.
    *
    * 슬롯으로 받는 이유는 저장이 `type="submit"` 이라 폼 소유자(page.tsx)가 쥐어야 하기
    * 때문이다. 이 부품은 폼 안에서 렌더되므로 여기 놓인 제출 버튼도 그대로 동작한다.
@@ -139,36 +138,20 @@ export function RecordOnepage({
     }
   };
 
-  return <div className="record-layout" ref={draft.containerRef}>
-    <div className="record-main" ref={accordionsRef}>
-      {draft.restorable === null
-        ? null
-        : <DraftRestorePrompt
-          savedAt={draft.restorable.savedAt}
-          uncertain={draft.restorable.uncertain}
-          onResume={draft.resume}
-          onDiscard={draft.discard}
-        />}
-
-      {/* 고정 헤더 — 스크롤해도 이번 상담 목표(D28)와 전체 목표 N 이 항상 보인다. */}
-      <header className="surface-card record-sticky" data-testid="record-sticky-header">
-        <div className="record-sticky-row">
-          <div>
-            <p className="record-sticky-label">이번 상담 목표</p>
-            {sessionGoals.length === 0
-              ? <p className="record-sticky-value">미연결 <small>아래에서 이번 상담 목표를 적을 수 있습니다.</small></p>
-              : <ul className="record-sticky-list">{sessionGoals.map((goal, index) => <li key={index}>
-                <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `전체 목표: ${goal.caseGoalTitle}`]} />
-              </li>)}</ul>}
-          </div>
-          {/* 여기 있던 `전체 목표 N` 카운트는 제거했다(D47 §6). 세던 것은 goals 테이블의
-              **세부 목표**라 D43 보류 대상이었고, 이름도 전체 목표(케이스당 1개, D33)와
-              달라 숫자가 늘 2 이상으로 보였다. 전체 목표는 브리핑이 한 줄로 보여준다.
-              그 자리를 나가기·저장 버튼이 이어받는다(2026-07-31 Q). */}
-          <div className="record-sticky-actions">{actions}</div>
-        </div>
+  {/* 레이아웃은 인테이크와 같은 좌 4 / 우 8 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
+      — 구 우측 200px 레일 대체). 좌측 레일이 이번 상담 목표·필수 진척도·저장/나가기를
+      전부 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
+  return <div className="wire-container" data-grid="true" style={{ padding: 0, gap: 24 }} ref={draft.containerRef}>
+    <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
+      <div className="surface-card record-rail">
+        <p className="record-sticky-label">이번 상담 목표</p>
         {sessionGoals.length === 0
-          ? <WireFormField label="이번 상담 목표" note="(선택, 일정에 연결된 목표가 없을 때)" htmlFor="session-goal-note">
+          ? <p className="record-sticky-value">미연결 <small>일정에 연결된 목표가 없습니다.</small></p>
+          : <ul className="record-sticky-list">{sessionGoals.map((goal, index) => <li key={index}>
+            <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `전체 목표: ${goal.caseGoalTitle}`]} />
+          </li>)}</ul>}
+        {sessionGoals.length === 0
+          ? <WireFormField label="이번 상담 목표" note="(선택)" htmlFor="session-goal-note">
             <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} placeholder="이번 상담에서 확인할 것" />
           </WireFormField>
           : null}
@@ -178,7 +161,33 @@ export function RecordOnepage({
             <MetaRow items={[`지난 상담(${dateTimeLabel(lastRecordSummary.heldAt)})`, `미해결 액션 ${openActionItems.length}건`]} />
             {' '}<Link href={briefingPath}>{lastRecordSummary.text} 브리핑에서 보기</Link>
           </p>}
-      </header>
+        <hr className="wire-card-divider" />
+        <p className="record-rail-count" data-testid="record-required-count">필수 {filledCount}/{requiredItems.length}</p>
+        <ul className="record-rail-list">
+          {requiredItems.map((item) => <li key={item.label} data-done={item.done}>
+            <span aria-hidden="true">{item.done ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />}</span> {item.label}
+            <span className="record-rail-state">{item.done ? ' 채움' : ' 남음'}</span>
+          </li>)}
+        </ul>
+        {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
+        <DraftStatus savedAt={draft.savedAt} available={draft.available} />
+        {/* 페이지 전체 안내는 사람 말로 여기 선다(2026-08-08 Q — 구 맨 아래 "제출 ID
+            d16b…" 원문 표기 대체. ID 는 숨은 폼 값으로만 다니고, 재시도 보호라는 뜻만 남긴다). */}
+        <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다. 저장 전 내용은 서버에 없고,
+          저장 버튼을 여러 번 눌러도 같은 기록이 두 번 만들어지지 않습니다.</p>
+        {/* 저장·나가기는 레일 바닥 고정이다(2026-08-08 Q — 구 상단 고정 헤더 우측 대체). */}
+        <div className="record-rail-actions">{actions}</div>
+      </div>
+    </aside>
+    <div className="wire-col-8 record-main" ref={accordionsRef}>
+      {draft.restorable === null
+        ? null
+        : <DraftRestorePrompt
+          savedAt={draft.restorable.savedAt}
+          uncertain={draft.restorable.uncertain}
+          onResume={draft.resume}
+          onDiscard={draft.discard}
+        />}
 
       {/* 여닫기 줄 — 브리핑과 같은 자리 규칙(조작 대상 바로 위, 오른쪽 정렬). */}
       <div className="record-toolbar">
@@ -192,10 +201,10 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="questions-title"
-        title={<><h2 id="questions-title">오늘 확인할 질문</h2><p className="panel-meta">일정에 등록한 맞춤형 질문입니다. 체크는 진행 표시용이며 저장하지 않습니다. AI가 만든 질문은 상담 준비 화면에서 확인하세요.</p></>}
+        title={<><h2 id="questions-title">오늘 확인할 질문</h2><p className="panel-meta">일정에 등록한 맞춤형 질문입니다. 체크는 진행 표시용이며 저장하지 않습니다. AI가 만든 질문은 15초 페이지에서 확인하세요.</p></>}
       >
         {customQuestions.length === 0
-          ? <p className="empty"><span>등록된 맞춤형 질문이 없습니다. <Link href={briefingPath}>상담 준비 화면</Link>에서 질문을 확인하세요.</span></p>
+          ? <p className="empty"><span>등록된 맞춤형 질문이 없습니다. <Link href={briefingPath}>15초 페이지</Link>에서 질문을 확인하세요.</span></p>
           : <fieldset className="wire-fieldset"><legend>질문 체크리스트</legend>
             <div className="wire-choice-group" data-layout="stack">
               {customQuestions.map((question, index) => <WireChoice key={index} label={question} type="checkbox" />)}
@@ -299,7 +308,7 @@ export function RecordOnepage({
 
       {/* 8. 위기·안전 — 6영역 '위기' 선택 시 자동 펼침 + 강조 */}
       <details
-        className={hasCrisis ? 'record-accordion is-crisis' : 'record-accordion'}
+        className={hasCrisis ? 'surface-card record-accordion is-crisis' : 'surface-card record-accordion'}
         data-testid="safety-accordion"
         open={safetyOpen}
         onToggle={(event) => setSafetyOpen(event.currentTarget.open)}
@@ -342,18 +351,5 @@ export function RecordOnepage({
         </WireFormField>
       </WireCard>
     </div>
-
-    <aside className="surface-card record-rail" aria-label="작성 진척도">
-      <p className="record-rail-count" data-testid="record-required-count">필수 {filledCount}/{requiredItems.length}</p>
-      {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
-      <DraftStatus savedAt={draft.savedAt} available={draft.available} />
-      <ul className="record-rail-list">
-        {requiredItems.map((item) => <li key={item.label} data-done={item.done}>
-          <span aria-hidden="true">{item.done ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />}</span> {item.label}
-          <span className="record-rail-state">{item.done ? ' 채움' : ' 남음'}</span>
-        </li>)}
-      </ul>
-      <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다. 나머지는 권장 항목입니다.</p>
-    </aside>
   </div>;
 }

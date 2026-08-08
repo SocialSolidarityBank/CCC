@@ -325,11 +325,11 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 });
 
 describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D38·D9)', () => {
-  it('HERO 우상단은 행동 3개(당사자 정보 → 전체 상담 기록 → 상담 시작)다 (2026-08-06 Q — 구 맨 아래 링크 대체)', () => {
+  it('HERO 우상단은 행동 3개(당사자 정보 → 전체 상담 기록 → 상담 기록)다 (2026-08-06 Q — 구 맨 아래 링크 대체)', () => {
     const { container, queryByText } = render(<BriefingCards {...baseProps()} />);
     const actions = hero(container).querySelector('.page-actions');
     expect([...(actions?.querySelectorAll('a') ?? [])].map((a) => a.textContent))
-      .toEqual(['당사자 정보', '전체 상담 기록', '상담 시작']);
+      .toEqual(['당사자 정보', '전체 상담 기록', '상담 기록']);
     // 이 화면만 D38 상한을 3개로 넓혔다(2026-08-06 Q). 프라이머리는 여전히 오른쪽 끝 1개다.
     expect(actions?.children).toHaveLength(3);
 
@@ -349,7 +349,7 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
     // 상태 태그는 §5 컨트롤 부품(2026-08-05 — 트랙 C 의 .is-stage 폐지와 같은 결론).
-    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('상담 준비');
+    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('15초 페이지');
     const meta = card.querySelector('.participant-hero-meta')?.textContent ?? '';
     expect(meta).toContain('마이크로크레딧');
     expect(meta).toContain('대면');

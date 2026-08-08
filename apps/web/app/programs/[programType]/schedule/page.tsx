@@ -25,13 +25,13 @@ const sessionKindLabels: Record<'regular' | 'intake', string> = {
 function scheduleErrorMessage(error: ApiError): string | null {
   switch (error.code) {
     case 'authentication_required':
-      return '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 상담 일정을 확인하세요.';
+      return '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 다가오는 일정을 확인하세요.';
     case 'access_denied':
     case 'forbidden':
     case 'not_found':
-      return '상담 일정 정보를 확인할 수 없습니다. 접근 권한을 확인하세요.';
+      return '다가오는 일정 정보를 확인할 수 없습니다. 접근 권한을 확인하세요.';
     case 'service_unavailable':
-      return '상담 일정을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.';
+      return '다가오는 일정을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.';
     default:
       return null;
   }
@@ -70,7 +70,7 @@ export default async function ProgramSchedulePage({
     <main className="page-content">
       <GridContainer>
         <div className="page-header">
-          <PageTitle>상담 일정</PageTitle>
+          <PageTitle>다가오는 일정</PageTitle>
           <div className="page-actions">
             <WireButton href="/participants/new">당사자 등록</WireButton>
             <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>

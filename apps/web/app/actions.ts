@@ -9,6 +9,7 @@ import {
   addSupportCaseAssignee,
   createCounselingRecord,
   createIntakeRecord,
+  updateIntakeRecord,
   intakeAnswerKeys,
   intakeAnswerResponses,
   type IntakeAdditionalItemInput,
@@ -1150,6 +1151,47 @@ export async function createIntakeRecordAction(
     });
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
     return { status: result.replayed ? 'replayed' : 'saved' };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+/**
+ * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드가 create 와 같은 입력형으로 부르므로
+ * 프런트 검증도 같은 규칙을 쓴다 — 다만 서버로는 수정 경로가 받는 위저드 소유분만 보낸다.
+ * submissionId 는 수정 경로에 없다(덮어쓰기는 본질상 멱등이라 재현 보호가 필요 없다).
+ */
+export async function updateIntakeRecordAction(
+  input: CreateIntakeRecordActionInput,
+): Promise<IntakeRecordActionResult> {
+  try {
+    assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
+    const heldAt = new Date(input.heldAt);
+    if (Number.isNaN(heldAt.valueOf())) throw new FormInputError();
+    if (input.channel !== 'in_person' && input.channel !== 'phone' && input.channel !== 'video') {
+      throw new FormInputError();
+    }
+    for (const answer of input.answers ?? []) {
+      if (
+        !(intakeAnswerKeys as readonly string[]).includes(answer.key)
+        || !(intakeAnswerResponses as readonly string[]).includes(answer.response)
+      ) throw new FormInputError();
+    }
+    await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
+    const managerOpinion = input.managerOpinion?.trim();
+    await updateIntakeRecord(input.supportCaseId, {
+      heldAt: heldAt.toISOString(),
+      channel: input.channel,
+      ...(input.answers === undefined || input.answers.length === 0 ? {} : { answers: input.answers }),
+      ...(input.debts === undefined || input.debts.length === 0 ? {} : { debts: input.debts }),
+      ...(input.linkedOrgs === undefined || input.linkedOrgs.length === 0 ? {} : { linkedOrgs: input.linkedOrgs }),
+      ...(input.additionalItems === undefined || input.additionalItems.length === 0
+        ? {}
+        : { additionalItems: input.additionalItems }),
+      ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
+    });
+    revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
+    return { status: 'saved' };
   } catch (error) {
     return { status: noticeFor(error) };
   }

@@ -234,6 +234,16 @@ details.surface-card{overflow:clip}
 .participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--control-height)}
 .participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 .participant-next-schedule-row>.wire-button{margin-left:auto}
+/* 행 전체가 브리핑 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체). 격자 좌 1fr / 우
+   auto: 내용은 좁으면 줄바꿈하되 꺽쇠는 **행 전체의 세로 중앙**에 남는다("가운데 정렬").
+   여러 행이면 --line 가로선으로 갈리고 상하 12 씩 눌러 클릭 면을 벌린다. 호버는 면 호버
+   tint 쌍(D60 ④ — 행 배경 --muted). */
+/* 좌우 -12 는 사이드바 알약과 같은 트릭 — 호버 면을 글자 밖까지 벌리되 글자는 카드
+   좌측선(24)에 남긴다. */
+.participant-next-schedule-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.participant-next-schedule-main{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
+.participant-next-schedule-link+.participant-next-schedule-link{border-top:1px solid var(--line)}
+@media (hover:hover){.participant-next-schedule-link:hover{background:var(--muted)}}
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
    (구분선 계약은 행이 한 컨테이너 안에 붙어 있을 때 성립한다 — 이 차이는 STATUS 에 남긴다).
@@ -400,6 +410,13 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-fieldset>legend{padding:0 var(--space-1-5);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-fieldset>legend small{font-weight:400}
 .wire-fieldset-list{display:grid;gap:var(--space-4)}
+/* 6영역 머리 줄(2026-08-08 Q): 가로선을 끄고 이름(600)과 직전 상태 배지를 한 줄 세로
+   중앙에 세운다. legend 는 float 로 일반 흐름에 앉힌다(consent-fieldset legend 트릭) —
+   기본 legend 는 fieldset 테두리 위에 걸터앉아 글줄이 어긋난다. */
+.life-area-fieldset{border-top:0;padding-top:0}
+.life-area-fieldset>legend.life-area-legend{float:left;width:100%;display:flex;align-items:center;gap:var(--space-2);padding:0}
+.life-area-name{font-size:var(--text-sm);font-weight:600;color:var(--ink)}
+.life-area-prior{margin-left:auto;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 /* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. */
 .wire-choice-group{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
 .wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}
@@ -747,6 +764,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 /* padding:0 은 UA 기본(1px 2px)을 걷는 값이다 — 안 걷으면 날짜칸 글자만 다른 입력칸보다
    2px 오른쪽에서 시작한다(2026-08-05 실측). */
 .wire-datetime-fields>input{height:100%;min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ink);font-size:var(--text-md);line-height:normal}
+/* 시각 칸의 네이티브 시계 아이콘은 끈다(2026-08-08 Q — 브라우저가 그리는 아이콘이라 다크
+   테마에서 안 보였고, 달력 토글 하나로 충분하다). 파이어폭스는 원래 없다. */
+.wire-datetime-fields>input[type="time"]::-webkit-calendar-picker-indicator{display:none}
 .wire-datetime-fields>input:focus,.wire-datetime-fields>input:focus-visible{outline:none}
 /* 날짜·시각은 **반반**이다(2026-08-07 Q 11차 "시간 필드가 너무 좁다" — 구 날짜 grow ·
    시각 128 고정은 날짜칸이 남는 폭을 다 가져갔다). 기준 50%/50% 에 min-width 만 남겨
