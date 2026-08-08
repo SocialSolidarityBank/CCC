@@ -1736,6 +1736,80 @@ export async function createCounselingSchedule(
   return decodeCounselingSchedule(await jsonRequest<unknown>('/schedules', 'POST', input));
 }
 
+/** 일정별 세션 목표·맞춤형 질문 + 일정 메타 (D62 §6 · CCC-70). 세션 목표 수정 화면이
+ *  잠금 판정(시작 시각·상태)과 낙관 잠금 제출(version)에 쓴다. */
+export interface SchedulePlanSessionGoal {
+  id: string;
+  body: string;
+  caseGoalId: string | null;
+  caseGoalTitle: string | null;
+  ordinal: number;
+}
+
+export interface ScheduleSessionPlan {
+  scheduleId: string;
+  beneficiaryId: string;
+  supportCaseId: string;
+  scheduledAt: string;
+  status: (typeof scheduleStatuses)[number];
+  version: number;
+  sessionKind: SessionKind;
+  sessionGoals: SchedulePlanSessionGoal[];
+  customQuestions: Array<{ id: string; body: string; ordinal: number }>;
+}
+
+export async function getScheduleSessionPlan(scheduleId: string): Promise<ScheduleSessionPlan> {
+  const record = responseObject(await requestJson<unknown>(`/schedules/${encodeURIComponent(scheduleId)}/plan`));
+  const version = responseInteger(record, 'version');
+  if (version < 1) contractViolation();
+  return {
+    scheduleId: responseString(record, 'scheduleId'),
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    supportCaseId: responseString(record, 'supportCaseId'),
+    scheduledAt: responseString(record, 'scheduledAt'),
+    status: responseEnum(responseProperty(record, 'status'), scheduleStatuses),
+    version,
+    sessionKind: responseEnum(responseProperty(record, 'sessionKind'), sessionKinds),
+    sessionGoals: responseArray(record, 'sessionGoals').map((value) => {
+      const goal = responseObject(value);
+      return {
+        id: responseString(goal, 'id'),
+        body: responseString(goal, 'body'),
+        caseGoalId: responseNullableString(goal, 'caseGoalId'),
+        caseGoalTitle: responseNullableString(goal, 'caseGoalTitle'),
+        ordinal: responseInteger(goal, 'ordinal'),
+      };
+    }),
+    customQuestions: responseArray(record, 'customQuestions').map((value) => {
+      const question = responseObject(value);
+      return {
+        id: responseString(question, 'id'),
+        body: responseString(question, 'body'),
+        ordinal: responseInteger(question, 'ordinal'),
+      };
+    }),
+  };
+}
+
+/** 세션 목표 묶음 교체 (D62 §6 · CCC-70). 시작 시각 후 잠금·활성 세부 목표만 연결·
+ *  낙관 잠금(version)은 전부 서버(게이트웨이)가 강제한다(R1). */
+export interface UpdateScheduleSessionGoalsInput {
+  expectedVersion: number;
+  sessionGoals: Array<{ body: string; caseGoalId: string | null }>;
+}
+
+export async function updateScheduleSessionGoals(
+  scheduleId: string,
+  input: UpdateScheduleSessionGoalsInput,
+): Promise<{ scheduleId: string; version: number }> {
+  const result = responseObject(await jsonRequest<unknown>(
+    `/schedules/${encodeURIComponent(scheduleId)}/plan`,
+    'PUT',
+    input,
+  ));
+  return { scheduleId: responseString(result, 'scheduleId'), version: responseInteger(result, 'version') };
+}
+
 export async function rescheduleCounselingSchedule(
   scheduleId: string,
   input: RescheduleCounselingScheduleInput,

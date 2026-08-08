@@ -38,6 +38,7 @@ import {
   reviewAiDraft,
   updateParticipantConsent,
   updateParticipantBasicInfo,
+  updateScheduleSessionGoals,
   updateSupportCaseOverallGoal,
   resolveDiscrepancy,
   type ManualActionItem,
@@ -1026,6 +1027,43 @@ export async function createSchedulePlanAction(
     revalidatePath('/');
     revalidatePath('/schedules/new');
     return { status: 'created' };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+// 세션 목표 수정 (D62 §6 · CCC-70): 일정 시작 시각 전까지만 묶음 통째 교체. 잠금·활성
+// 세부 목표만 연결·낙관 잠금은 API 게이트웨이가 강제한다(R1). 여기는 경계 검증과
+// 정리(trim·빈 줄 제거)만 한다. 브리핑 영역 ①이 같은 데이터를 읽으므로 함께 재검증한다.
+export interface UpdateSessionGoalsActionInput {
+  scheduleId: string;
+  beneficiaryId: string;
+  supportCaseId: string;
+  expectedVersion: number;
+  sessionGoals: ScheduleWizardSessionGoal[];
+}
+
+export type UpdateSessionGoalsActionResult = { status: 'saved'; version: number } | { status: Notice };
+
+export async function updateScheduleSessionGoalsAction(
+  input: UpdateSessionGoalsActionInput,
+): Promise<UpdateSessionGoalsActionResult> {
+  try {
+    assertScheduleTargetScope(input.beneficiaryId, input.supportCaseId);
+    if (!SCHEDULE_UUID_PATTERN.test(input.scheduleId)) throw new FormInputError();
+    if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 1) throw new FormInputError();
+    const sessionGoals = input.sessionGoals
+      .map((goal) => ({ body: goal.body.trim(), caseGoalId: normalizeCaseGoalId(goal.caseGoalId) }))
+      .filter((goal) => goal.body.length > 0);
+    const result = await updateScheduleSessionGoals(input.scheduleId, {
+      expectedVersion: input.expectedVersion,
+      sessionGoals,
+    });
+    revalidatePath(`/schedules/${input.scheduleId}/plan`);
+    revalidatePath(
+      `/participants/${input.beneficiaryId}/programs/${input.supportCaseId}/briefing`,
+    );
+    return { status: 'saved', version: result.version };
   } catch (error) {
     return { status: noticeFor(error) };
   }

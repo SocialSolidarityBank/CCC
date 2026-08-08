@@ -372,6 +372,18 @@ export function BriefingCards({
               : <WireBullets items={sessionGoals.map((goal) => (
                   goal.caseGoalTitle === null ? goal.body : <MetaRow items={[goal.body, `케이스 목표: ${goal.caseGoalTitle}`]} />
                 ))} />}
+            {/* 세션 목표 수정 진입점 (D62 §6 · CCC-70). 다가오는 일정이 있을 때만 단다.
+                포커스 일정은 정의상 시작 전이지만, 최종 잠금 판정은 수정 화면과
+                게이트웨이가 다시 한다. 이동 조작이라 그레이(neutral) 단이다(D58 ①). */}
+            {upcomingSchedule !== null && (
+              <WireButton
+                variant="neutral"
+                height="sm"
+                href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
+              >
+                세션 목표 수정
+              </WireButton>
+            )}
           </div>
           <div className="briefing-qsection">
             <p className="briefing-qlabel">맞춤형 질문</p>

@@ -4824,6 +4824,40 @@ export async function listGoals(env: Env, actor: Actor, caseId: string): Promise
   return result.results.map(mapGoal);
 }
 
+/**
+ * 이 세부 목표에 연결된 **아직 오지 않은 회기** 수 (D62 §5 · CCC-70). 닫기 시도 화면이
+ * "다가오는 일정 N건이 이 목표에 연결되어 있습니다" 알림 한 줄의 판정에 쓴다. 알림일 뿐
+ * 닫기를 막지 않고, 기존 연결은 그날 계획의 기록으로 그대로 남는다.
+ * '아직 오지 않은 회기' = status 'scheduled' 이고 시작 시각이 지나지 않은 일정.
+ * 취소·완료·불참·시작 시각 경과 건은 세지 않는다(세션 목표가 이미 잠긴 기록이다).
+ * 권한: 담당 실무자 | admin. 감사: read (일정 연결 열람).
+ */
+export async function countUpcomingSchedulesLinkedToGoal(
+  env: Env,
+  actor: Actor,
+  goalId: string,
+): Promise<number> {
+  assertHuman(actor);
+  const goal = await getGoalForOrg(env, actor.orgId, goalId);
+  await assertCaseAccess(env, actor, goal.caseId);
+  const row = await env.DB.prepare(
+    `SELECT COUNT(DISTINCT schedule.id) AS count
+     FROM schedule_session_goals AS session_goal
+     JOIN counseling_schedules AS schedule
+       ON schedule.id = session_goal.schedule_id AND schedule.org_id = session_goal.org_id
+     WHERE session_goal.org_id = ? AND session_goal.case_goal_id = ?
+       AND schedule.status = 'scheduled' AND schedule.scheduled_at > ?`,
+  ).bind(actor.orgId, goalId, now()).first<{ count: number }>();
+  await writeAudit(env, actor, {
+    action: 'read',
+    targetTable: 'schedule_session_goals',
+    targetId: goalId,
+    caseId: goal.caseId,
+    detail: { kind: 'goal_upcoming_links' },
+  });
+  return row?.count ?? 0;
+}
+
 // ============================================================================
 // 세션 (sessions) — D5 · R2 · R3 · R4
 // ============================================================================
@@ -9152,9 +9186,16 @@ export interface ScheduleCustomQuestion {
   ordinal: number;
 }
 
-/** 한 상담 일정에 등록된 세션 목표·맞춤형 질문. 브리핑·일정 상세가 함께 쓴다. */
+/** 한 상담 일정에 등록된 세션 목표·맞춤형 질문. 브리핑·일정 상세가 함께 쓴다.
+ *  일정 메타(시각·상태·version)를 함께 싣는다. 세션 목표 수정 화면(D62 §6 · CCC-70)이
+ *  잠금 판정(시작 시각 경과·취소)과 낙관 잠금 제출에 쓴다. */
 export interface ScheduleSessionPlan {
   scheduleId: string;
+  beneficiaryId: string;
+  supportCaseId: string;
+  scheduledAt: string;
+  status: CounselingScheduleStatus;
+  version: number;
   sessionKind: CounselingScheduleKind;
   channel: CounselingScheduleChannel;
   sessionGoals: ScheduleSessionGoal[];
@@ -10028,6 +10069,11 @@ export async function getScheduleSessionPlan(
   });
   return {
     scheduleId,
+    beneficiaryId: schedule.beneficiaryId,
+    supportCaseId: schedule.supportCaseId,
+    scheduledAt: schedule.scheduledAt,
+    status: schedule.status,
+    version: schedule.version,
     sessionKind: schedule.sessionKind,
     channel: schedule.channel,
     sessionGoals: entries.sessionGoals,

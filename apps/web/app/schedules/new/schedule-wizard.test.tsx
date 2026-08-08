@@ -80,8 +80,31 @@ describe('ScheduleWizard', () => {
 
     await waitFor(() => expect(scoped.getByText('이번 상담의 목표는 무엇인가요?')).not.toBeNull());
     expect(calls.load).toBe(1);
-    // 로드한 활성 케이스 목표가 '상담별 목표' 카드와 연결 선택지 양쪽에 반영된다.
+    // 로드한 활성 세부 목표가 '세부 목표' 카드와 연결 선택지 양쪽에 반영된다(D62 · CCC-70).
     expect(scoped.getAllByText('생활비 계획 유지').length).toBeGreaterThanOrEqual(1);
+    // 라벨은 '세부 목표 연결'이다. 구 '케이스 목표 연결'은 세부 목표 층의 옛 이름.
+    expect(scoped.getByLabelText('세부 목표 연결')).not.toBeNull();
+  });
+
+  it('세부 목표 연결을 고르면 제출 페이로드에 caseGoalId 로 실린다 (CCC-70 회귀)', async () => {
+    // 세부 목표 층이 보류였을 때는 선택지가 늘 비어 있어 이 경로가 한 번도 돌지 않았고,
+    // 상태 업데이터 안에서 event.currentTarget 을 늦게 읽는 잠복 버그가 숨어 있었다.
+    const { container, calls, getLastInput } = renderWizard();
+    const scoped = within(container);
+
+    fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
+    fireEvent.change(scoped.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
+    fireEvent.change(scoped.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
+    fireEvent.click(scoped.getByRole('button', { name: /다음: 이번 상담의 목표/ }));
+    await waitFor(() => expect(scoped.getByLabelText('세부 목표 연결')).not.toBeNull());
+
+    fireEvent.change(scoped.getByLabelText('세션 목표 1'), { target: { value: '구직 활동 점검' } });
+    fireEvent.change(scoped.getByLabelText('세부 목표 연결'), { target: { value: 'g1' } });
+    fireEvent.click(scoped.getByRole('button', { name: /다음: 맞춤형 질문/ }));
+    fireEvent.click(scoped.getByRole('button', { name: '완료' }));
+
+    await waitFor(() => expect(calls.submit).toBe(1));
+    expect(getLastInput()?.sessionGoals).toEqual([{ body: '구직 활동 점검', caseGoalId: 'g1' }]);
   });
 
   it('당사자를 고르기 전에는 상담 유형·일시가 보이지 않고 다음으로 갈 수 없다 (D35 §5)', () => {
