@@ -1,0 +1,129 @@
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, cleanup } from '@testing-library/react';
+import { GoalTreeCard } from './goal-tree';
+import type { ParticipantGoalTreeCase } from '../../lib/api';
+
+// 목표 트리 (D62 §8 · CCC-69) — 전체 > 세부 > 세션 위계, 닫힌 목표 흐리게, '이력 보기'.
+// 이력 보기가 이전 문구·수정자·시각을 표시하는 것이 티켓 완료 기준이다.
+
+afterEach(cleanup);
+
+const programLabels = { microcredit: '마이크로크레딧 씬파일러 금융지원·멘토링' } as never;
+
+function caseTree(overrides: Partial<ParticipantGoalTreeCase> = {}): ParticipantGoalTreeCase {
+  return {
+    sourceSupportCase: { id: 'case-1', programType: 'microcredit' as never, status: 'active' },
+    overallGoal: '안정적인 주거 확보와 채무 상환 계획 실행',
+    overallGoalRevisions: [
+      { title: '안정적인 주거 확보와 채무 상환 계획 실행', editedByName: '김실무', editedAt: '2026-08-05T02:00:00Z' },
+      { title: '주거 안정', editedByName: '박담당', editedAt: '2026-07-01T02:00:00Z' },
+    ],
+    goals: [
+      {
+        id: 'g1',
+        title: '월 지출 내역을 매주 기록한다',
+        status: 'active',
+        closedReason: null,
+        closedAt: null,
+        revisions: [
+          { title: '월 지출 내역을 매주 기록한다', editedByName: '김실무', editedAt: '2026-08-01T02:00:00Z' },
+        ],
+        sessionGoals: [
+          { id: 'sg1', body: '가계부 확인', scheduledAt: '2026-08-10T05:00:00Z', scheduleStatus: 'scheduled' },
+          { id: 'sg2', body: '지출 항목 정리', scheduledAt: '2026-07-20T05:00:00Z', scheduleStatus: 'completed' },
+        ],
+      },
+      {
+        id: 'g2',
+        title: '이력서를 월 2회 제출한다',
+        status: 'closed',
+        closedReason: 'achieved',
+        closedAt: '2026-08-01T02:00:00Z',
+        revisions: [
+          { title: '이력서를 월 2회 제출한다', editedByName: '김실무', editedAt: '2026-07-01T02:00:00Z' },
+        ],
+        sessionGoals: [],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
+  it('전체 > 세부 > 세션 위계가 케이스 구획 안에 선다', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    expect(container.textContent).toContain('전체 목표');
+    expect(container.textContent).toContain('안정적인 주거 확보와 채무 상환 계획 실행');
+    expect(container.textContent).toContain('월 지출 내역을 매주 기록한다');
+    // 세션 목표는 세부 목표 가지 아래 들여쓴 줄이다 — 회기 시각과 문구가 함께 남는다.
+    const sessionRows = [...container.querySelectorAll('.goal-tree-session-row')];
+    expect(sessionRows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('가계부 확인'),
+      expect.stringContaining('지출 항목 정리'),
+    ]);
+    expect(sessionRows[0]?.closest('.goal-tree-goal')?.textContent).toContain('월 지출 내역을 매주 기록한다');
+  });
+
+  it('닫힌 목표는 흐림 클래스와 사유 배지로 남는다 — 지워지지 않는다', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    const closed = [...container.querySelectorAll('.goal-tree-goal')]
+      .find((node) => node.textContent?.includes('이력서를 월 2회 제출한다'));
+    expect(closed?.classList.contains('is-closed')).toBe(true);
+    expect(closed?.querySelector('.wire-badge')?.textContent).toBe('종료(달성)');
+    const active = [...container.querySelectorAll('.goal-tree-goal')]
+      .find((node) => node.textContent?.includes('월 지출 내역'));
+    expect(active?.classList.contains('is-closed')).toBe(false);
+  });
+
+  it('이력 보기가 이전 문구·수정자·시각을 표시한다 (완료 기준)', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    const overallHistory = [...container.querySelectorAll('details.goal-tree-history')]
+      .find((details) => details.textContent?.includes('주거 안정'));
+    expect(overallHistory).not.toBeUndefined();
+    // 기본 숨김 — 네이티브 details 라 open 속성이 없어야 한다(D62 §4 "기본으로 숨기고").
+    expect(overallHistory?.hasAttribute('open')).toBe(false);
+    const rows = [...(overallHistory as HTMLElement).querySelectorAll('.goal-tree-history-row')];
+    expect(rows).toHaveLength(2);
+    // 최신부터: 현재 문구가 먼저, 이전 문구(최초 작성)가 마지막이다.
+    expect(rows[0]?.textContent).toContain('안정적인 주거 확보와 채무 상환 계획 실행');
+    expect(rows[0]?.textContent).toContain('김실무');
+    expect(rows[0]?.textContent).toContain('수정');
+    expect(rows[1]?.textContent).toContain('주거 안정');
+    expect(rows[1]?.textContent).toContain('박담당');
+    expect(rows[1]?.textContent).toContain('최초 작성');
+    // 시각 표기 — 공용 한국어 날짜 표기가 실제로 들어간다.
+    expect(rows[0]?.textContent).toContain('2026년 8월 5일');
+  });
+
+  it('이력이 없으면 이력 보기 토글 자체가 없다', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree({
+      overallGoalRevisions: [],
+      goals: [],
+    })]} programLabels={programLabels} />);
+    expect(container.querySelector('details.goal-tree-history')).toBeNull();
+    // 세부 목표가 없으면 빈 상태 안내가 선다.
+    expect(container.textContent).toContain('세부 목표가 없습니다');
+  });
+
+  it('전체 목표 미설정은 설정 전으로 읽히고, 케이스가 여럿이면 사업명 머리가 선다', () => {
+    const second = caseTree({
+      sourceSupportCase: { id: 'case-2', programType: 'microcredit' as never, status: 'closed' },
+      overallGoal: null,
+      overallGoalRevisions: [],
+      goals: [],
+    });
+    const { container } = render(<GoalTreeCard cases={[caseTree(), second]} programLabels={programLabels} />);
+    expect(container.textContent).toContain('설정 전');
+    const heads = [...container.querySelectorAll('.goal-tree-case-title')];
+    expect(heads).toHaveLength(2);
+    // 케이스 구획이 갈린다 — 두 번째 케이스(종결)에는 종결 배지가 선다.
+    const blocks = [...container.querySelectorAll('.goal-tree-case')];
+    expect(blocks).toHaveLength(2);
+    expect(blocks[1]?.textContent).toContain('종결');
+  });
+
+  it('케이스가 0건이면 카드를 그리지 않는다', () => {
+    const { container } = render(<GoalTreeCard cases={[]} programLabels={programLabels} />);
+    expect(container.querySelector('.participant-hub-card')).toBeNull();
+  });
+});

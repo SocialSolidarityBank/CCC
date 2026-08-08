@@ -115,6 +115,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           beneficiaryId={beneficiaryId}
           supportCaseId={supportCaseId}
           overallGoal={briefing.overallGoal}
+          activeGoals={briefing.activeGoals}
           canEditOverallGoal={briefing.canEditOverallGoal}
           overallGoalError={notice === 'overall_goal_error'}
           overallGoalAction={updateOverallGoalAction}

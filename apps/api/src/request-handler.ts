@@ -57,6 +57,7 @@ import {
   getLatestPilotTextAiConsentStatus,
   getParticipantBasicInfo,
   getParticipantBriefing,
+  getParticipantGoalTree,
   getPipelineAudioKey,
   getPipelineHealth,
   getMyIdentity,
@@ -1103,6 +1104,8 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
     focusSupportCaseId: briefing.focusedSupportCase.id,
     // D45 전체 목표 — 포커스 케이스당 1개, NULL = 설정 전. 편집 가능 여부는 게이트웨이 판정.
     overallGoal: briefing.overallGoal,
+    // D62 §8 (CCC-69): 포커스 케이스의 활성 세부 목표 — 전체 목표 카드 아래 최대 3줄.
+    activeGoals: briefing.focusActiveGoals.map((goal) => ({ id: goal.id, title: goal.title })),
     canEditOverallGoal: briefing.canEditOverallGoal,
     // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
     participant: briefing.participant,
@@ -1188,10 +1191,30 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
           body: goal.body,
           caseGoalId: goal.caseGoalId,
           caseGoalTitle: goal.caseGoalTitle,
+          // D62 §5 (CCC-69): 부모가 닫힌 세션 목표는 화면이 부모 이름을 흐리게 병기한다.
+          caseGoalStatus: goal.caseGoalStatus,
         })),
         customQuestions: briefing.focusUpcomingSchedule.customQuestions.map((question) => question.body),
       },
   };
+}
+
+/** 당사자 허브 목표 트리 (D62 §8 · CCC-69). 담당 케이스만 — 범위·감사는 게이트웨이가 강제한다(R1). */
+function participantGoalTreeResponse(tree: Awaited<ReturnType<typeof getParticipantGoalTree>>) {
+  return tree.map((entry) => ({
+    sourceSupportCase: entry.sourceSupportCase,
+    overallGoal: entry.overallGoal,
+    overallGoalRevisions: entry.overallGoalRevisions,
+    goals: entry.goals.map((goal) => ({
+      id: goal.id,
+      title: goal.title,
+      status: goal.status,
+      closedReason: goal.closedReason,
+      closedAt: goal.closedAt,
+      revisions: goal.revisions,
+      sessionGoals: goal.sessionGoals,
+    })),
+  }));
 }
 
 function counselingRecordResponse(record: Awaited<ReturnType<typeof createCounselingRecord>>['record']) {
@@ -1938,6 +1961,12 @@ export async function handleRequest(
           parseSubsequentParticipantCreation(await requestBody(request), actor),
         );
         return json(result, result.replayed ? 200 : 201);
+      }
+      // 당사자 허브 목표 트리 (D62 §8 · CCC-69). 담당(또는 admin) 케이스만 실린다 —
+      // 목표는 상담 내용이라 D36 공개 범위 밖이고, 범위·감사는 게이트웨이가 강제한다(R1).
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'goal-tree') {
+        requestQuery(url, []);
+        return json({ cases: participantGoalTreeResponse(await getParticipantGoalTree(env, actor, beneficiaryId)) });
       }
       // 기본정보 수정 화면(CCC-37). 읽기·쓰기 모두 담당 실무자 또는 기관 관리자만 —
       // 게이트웨이가 강제한다(R1). 응답에는 복호화된 금고 값이 실리므로 감사는 게이트웨이가

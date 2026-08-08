@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../../components/wire/wire-card';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
@@ -52,6 +52,8 @@ export interface BriefingCardsProps {
   supportCaseId: string;
   /** D45 전체 목표 — 케이스당 1개·수정 가능·점수 없음(D33). null = 설정 전. */
   overallGoal: string | null;
+  /** D62 §8 (CCC-69): 활성 세부 목표 — 전체 목표 카드 아래 기본 펼침 최대 3줄(서버가 끊는다). */
+  activeGoals: Array<{ id: string; title: string }>;
   /** 담당 실무자만 true(게이트웨이 판정). admin 은 열람만이라 편집 UI 를 그리지 않는다. */
   canEditOverallGoal: boolean;
   /** 직전 저장 실패 여부(리다이렉트 notice) — 카드 안에 한 줄로 알린다. */
@@ -91,11 +93,16 @@ export interface BriefingCardsProps {
 
 /** 전체 목표 카드 (D45 · CCC-41) — HERO·리스크 배너 아래 카드형 한 줄. 방향 문장만 —
     점수·게이지는 붙이지 않는다(D43). 비면 "설정 전"이고, 담당 실무자는 그 자리에서 바로
-    입력·수정한다(빈 칸 저장 = 설정 전으로 되돌림). 접힘 대상이 아니라 아코디언 밖이다. */
+    입력·수정한다(빈 칸 저장 = 설정 전으로 되돌림). 접힘 대상이 아니라 아코디언 밖이다.
+    D62 §8 (CCC-69): 활성 세부 목표를 같은 카드 아래에 기본 펼침 압축 한 줄씩 단다 —
+    눌러야 보이는 접힘은 금지(15초 훑기에서 한 번 더 눌러야 보이는 정보는 없는 정보다).
+    별도 카드로 세우지 않는 것은 한 화면 유지(완료 기준) 때문이고, 위계상으로도 전체 목표의
+    하위라 한 카드가 맞다. 없으면 구획 자체를 그리지 않는다 — 입력 자리는 상담 기록 작성이다. */
 function OverallGoalCard({
   beneficiaryId,
   supportCaseId,
   overallGoal,
+  activeGoals,
   canEdit,
   hasError,
   action,
@@ -103,6 +110,7 @@ function OverallGoalCard({
   beneficiaryId: string;
   supportCaseId: string;
   overallGoal: string | null;
+  activeGoals: Array<{ id: string; title: string }>;
   canEdit: boolean;
   hasError: boolean;
   action: ((formData: FormData) => Promise<void>) | undefined;
@@ -173,7 +181,60 @@ function OverallGoalCard({
           전체 목표를 저장하지 못했습니다. 담당 실무자만 수정할 수 있습니다. 잠시 후 다시 시도하세요.
         </p>
       )}
+      {/* 활성 세부 목표 (D62 §8) — 줄이 셋 이상 쌓이므로 가로선으로 가른다(§2-2 규칙 2ⓐ).
+          말줄임 규칙(이 티켓에서 확정): 한 줄 압축은 회차 행과 같은 .wire-fade-clip —
+          줄바꿈 대신 오른쪽 끝 마스크 페이드, 767px 이하에서는 줄바꿈으로 전환. */}
+      {activeGoals.length > 0 && (
+        <>
+          <hr className="wire-card-divider" />
+          <div className="briefing-qsection">
+            <p className="briefing-qlabel">세부 목표</p>
+            <ul className="briefing-subgoal-rows">
+              {activeGoals.map((goal) => (
+                <li key={goal.id} className="briefing-subgoal-row wire-fade-clip">{goal.title}</li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
     </WireCard>
+  );
+}
+
+/**
+ * 전체 목표 미설정 안내 한 줄 (D62 §7 · CCC-69). AI 제안을 차단하지 않고 안내만 한다 —
+ * "설정을 해야만 정확한 AI 조언"의 '해야만'은 차단이 아니라 이 안내로 확정됐다(2026-08-09 Q).
+ * 닫으면 케이스 단위로 브라우저에 남아 다시 뜨지 않는다(매번 뜨지 않게 — ADR-0032 §7).
+ * 서버에 저장하지 않는 이유: 케이스 데이터가 아니라 화면 안내이고, 실무자마다 따로 닫는 것이
+ * 자연스럽다. 저장 실패(시크릿 모드 등)의 대가는 다음 방문에 다시 뜨는 것뿐이다.
+ */
+const GOAL_HINT_STORE_PREFIX = 'ccc:briefing-goal-hint-closed:v1:';
+
+function AiGoalHint({ supportCaseId }: { supportCaseId: string }) {
+  // 첫 렌더는 서버·클라이언트 모두 숨김 — localStorage 는 마운트 뒤에만 읽을 수 있어
+  // 초기값으로 읽으면 하이드레이션이 어긋난다.
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`) === null) setVisible(true);
+    } catch {
+      setVisible(true);
+    }
+  }, [supportCaseId]);
+  if (!visible) return null;
+  const dismiss = () => {
+    setVisible(false);
+    try {
+      window.localStorage.setItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`, new Date().toISOString());
+    } catch {
+      // 닫힘을 남기지 못하면 다음 방문에 다시 뜬다 — 안내라 막을 일이 아니다.
+    }
+  };
+  return (
+    <p className="briefing-ai-goal-hint" role="note" data-testid="briefing-ai-goal-hint">
+      <span>전체 목표를 설정하면 AI 제안이 더 정확해집니다.</span>
+      <WireButton variant="neutral" height="sm" onClick={dismiss}>닫기</WireButton>
+    </p>
   );
 }
 
@@ -253,6 +314,7 @@ export function BriefingCards({
   beneficiaryId,
   supportCaseId,
   overallGoal,
+  activeGoals,
   canEditOverallGoal,
   overallGoalError = false,
   overallGoalAction,
@@ -340,6 +402,7 @@ export function BriefingCards({
         beneficiaryId={beneficiaryId}
         supportCaseId={supportCaseId}
         overallGoal={overallGoal}
+        activeGoals={activeGoals}
         canEdit={canEditOverallGoal}
         hasError={overallGoalError}
         action={overallGoalAction}
@@ -370,7 +433,18 @@ export function BriefingCards({
             {sessionGoals.length === 0
               ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
               : <WireBullets items={sessionGoals.map((goal) => (
-                  goal.caseGoalTitle === null ? goal.body : <MetaRow items={[goal.body, `케이스 목표: ${goal.caseGoalTitle}`]} />
+                  // 라벨은 D62 위계 용어 '세부 목표'다(구 '케이스 목표'). 부모가 닫힌 세션
+                  // 목표는 부모 이름을 흐리게 병기하고(D62 §5 · CCC-69), 색에만 기대지
+                  // 않도록 '(종료)'를 함께 쓴다.
+                  goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
+                    goal.body,
+                    <span
+                      key="parent"
+                      className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
+                    >
+                      {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
+                    </span>,
+                  ]} />
                 ))} />}
             {/* 세션 목표 수정 진입점 (D62 §6 · CCC-70). 다가오는 일정이 있을 때만 단다.
                 포커스 일정은 정의상 시작 전이지만, 최종 잠금 판정은 수정 화면과
@@ -393,6 +467,8 @@ export function BriefingCards({
           </div>
           <div className="briefing-qsection">
             <p className="briefing-qlabel" data-tone="ai">AI 제안</p>
+            {/* 전체 목표 미설정 안내 (D62 §7) — 제안을 차단하지 않는다. 닫으면 케이스 단위로 남는다. */}
+            {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
             {aiSuggestions.length === 0
               ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
               : (

@@ -1,0 +1,142 @@
+import type { ParticipantGoalTreeCase, ParticipantGoalTreeGoal, GoalRevisionEntry, ParticipantProgramType } from '../../lib/api';
+import { WireBadge } from '../../components/wire/wire-badge';
+import { WireCard } from '../../components/wire/wire-card';
+import { WireEmpty } from '../../components/wire/wire-state';
+import { MetaRow } from '../../components/wire/meta-row';
+import { formatKoreanDate, formatKoreanDateTime } from '../../lib/format-korean-date';
+
+// 목표 트리 (D62 §8 · CCC-69) — 당사자 허브의 케이스별 구획. 위계는 전체 > 세부 > 세션이고
+// 담당(또는 admin) 케이스만 온다(D36 — 목표는 상담 내용, 게이트웨이가 강제).
+//
+// - 닫힌 세부 목표는 흐리게 + 사유 배지(달성/중단/재설정)로 남는다 — 지우지 않는다(D62 §5).
+// - '이력 보기'는 네이티브 details 다. 문구 이력은 기본 숨김이고(D62 §4) 이전 문구·수정자·
+//   시각을 최신부터 보여준다. 최초 작성이 마지막 줄이라 "누가 처음 정했는지"가 함께 남는다.
+// - 세션 목표는 세부 목표에 연결된 것만 트리에 있다 — 연결 없이 적은 세션 목표는 위계 밖이라
+//   일정·기록 화면 몫이다(게이트웨이 주석과 같은 결정).
+
+const goalCloseReasonLabels: Record<string, string> = {
+  achieved: '달성',
+  stopped: '중단',
+  reset: '재설정',
+};
+
+const scheduleStatusSuffix: Record<string, string | null> = {
+  scheduled: null,
+  completed: null,
+  cancelled: '취소된 일정',
+  no_show: '불참',
+};
+
+/** 문구 이력 아코디언 — 등록 폼 '전문 보기'와 같은 네이티브 details 어휘의 소형 변형. */
+function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
+  if (revisions.length === 0) return null;
+  return (
+    <details className="goal-tree-history">
+      <summary>이력 보기</summary>
+      <ul className="goal-tree-history-rows">
+        {revisions.map((revision, index) => (
+          <li key={`${revision.editedAt}-${index}`} className="goal-tree-history-row">
+            {/* title null = 전체 목표를 지움(스키마 주석). 세부 목표에는 빈 문구가 없다. */}
+            <p className="goal-tree-history-title">{revision.title ?? '(비워 둠)'}</p>
+            <p className="goal-tree-history-meta">
+              <MetaRow items={[
+                index === revisions.length - 1 ? '최초 작성' : '수정',
+                revision.editedByName ?? '이름 미입력',
+                formatKoreanDateTime(revision.editedAt),
+              ]} />
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** 세부 목표 한 그루 — 제목 줄(상태·이력) + 연결된 세션 목표 목록. */
+function GoalNode({ goal }: { goal: ParticipantGoalTreeGoal }) {
+  const closed = goal.status === 'closed';
+  const reasonLabel = goal.closedReason === null ? null : goalCloseReasonLabels[goal.closedReason] ?? null;
+  return (
+    <li className={closed ? 'goal-tree-goal is-closed' : 'goal-tree-goal'}>
+      <div className="goal-tree-goal-head">
+        <span className="goal-tree-goal-title">{goal.title}</span>
+        {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
+        <RevisionHistory revisions={goal.revisions} />
+      </div>
+      {goal.sessionGoals.length > 0 && (
+        <ul className="goal-tree-session-rows">
+          {goal.sessionGoals.map((sessionGoal) => {
+            const suffix = scheduleStatusSuffix[sessionGoal.scheduleStatus] ?? null;
+            return (
+              <li key={sessionGoal.id} className="goal-tree-session-row">
+                <MetaRow items={[
+                  formatKoreanDate(sessionGoal.scheduledAt),
+                  sessionGoal.body,
+                  suffix,
+                ]} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/** 케이스 한 구획: 전체 목표 → 세부 목표(각각 세션 목표를 매단다). */
+function GoalTreeCaseBlock({ tree, programTitle, showTitle }: {
+  tree: ParticipantGoalTreeCase;
+  programTitle: string;
+  showTitle: boolean;
+}) {
+  const overallSet = tree.overallGoal !== null && tree.overallGoal.length > 0;
+  return (
+    <div className="goal-tree-case">
+      {showTitle && (
+        <div className="participant-program-head">
+          <h3 className="goal-tree-case-title">{programTitle}</h3>
+          {tree.sourceSupportCase.status === 'closed' && <WireBadge tone="mint">종결</WireBadge>}
+        </div>
+      )}
+      <div className="goal-tree-section">
+        <p className="goal-tree-label">전체 목표</p>
+        <div className="goal-tree-overall">
+          <span className={overallSet ? 'goal-tree-overall-text' : 'goal-tree-overall-text is-empty'}>
+            {overallSet ? tree.overallGoal : '설정 전'}
+          </span>
+          <RevisionHistory revisions={tree.overallGoalRevisions} />
+        </div>
+      </div>
+      <div className="goal-tree-section">
+        <p className="goal-tree-label">세부 목표</p>
+        {tree.goals.length === 0
+          ? <WireEmpty>세부 목표가 없습니다. 상담 기록을 작성할 때 세웁니다.</WireEmpty>
+          : (
+            <ul className="goal-tree-goals">
+              {tree.goals.map((goal) => <GoalNode key={goal.id} goal={goal} />)}
+            </ul>
+          )}
+      </div>
+    </div>
+  );
+}
+
+/** 목표 카드 — 담당 케이스가 여럿이면 구획 머리에 사업명이 선다(동의서 카드와 같은 문법). */
+export function GoalTreeCard({ cases, programLabels }: {
+  cases: ParticipantGoalTreeCase[];
+  programLabels: Record<ParticipantProgramType, string>;
+}) {
+  if (cases.length === 0) return null;
+  return (
+    <WireCard as="section" className="participant-hub-card" title="목표">
+      {cases.map((tree) => (
+        <GoalTreeCaseBlock
+          key={tree.sourceSupportCase.id}
+          tree={tree}
+          programTitle={programLabels[tree.sourceSupportCase.programType] ?? tree.sourceSupportCase.programType}
+          showTitle={cases.length > 1}
+        />
+      ))}
+    </WireCard>
+  );
+}

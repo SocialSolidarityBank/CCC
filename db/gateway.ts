@@ -8355,6 +8355,166 @@ export async function listSupportCasesForBeneficiary(
   };
 }
 
+/** 목표 문구 이력 한 줄 (D62 §4 · goal_revisions). 한 행 = 한 번의 문구 확정(최초 작성 포함). */
+export interface GoalRevisionEntry {
+  /** 확정된 문구. NULL = 전체 목표를 지움(세부 목표는 빈 문구가 없다). */
+  title: string | null;
+  /**
+   * 수정자 표시 이름. 이름 미입력이면 null — 이메일로 폴백하지 않는다
+   * (loadAssigneeNamesBySupportCase 와 같은 이유: 직원 이메일을 새로 공개하지 않는다).
+   */
+  editedByName: string | null;
+  editedAt: string;
+}
+
+/** 목표 트리의 세션 목표 한 줄 — 연결된 회기의 시각·상태를 함께 싣는다. */
+export interface ParticipantGoalTreeSessionGoal {
+  id: string;
+  body: string;
+  scheduledAt: string;
+  scheduleStatus: CounselingScheduleStatus;
+}
+
+/** 목표 트리의 세부 목표 한 그루 — 문구 이력과 연결된 세션 목표를 매단다. */
+export interface ParticipantGoalTreeGoal {
+  id: string;
+  title: string;
+  status: 'active' | 'closed';
+  /** 닫은 사유 (달성/중단/재설정 = GOAL_CLOSE_REASONS). 활성이면 null. */
+  closedReason: string | null;
+  closedAt: string | null;
+  /** 문구 이력, 최신부터. 최초 작성이 마지막 행이다. */
+  revisions: GoalRevisionEntry[];
+  /** 이 세부 목표에 연결된 세션 목표, 회기 시각 최신부터. 닫힌 목표의 기존 연결도 그대로다(D62 §5). */
+  sessionGoals: ParticipantGoalTreeSessionGoal[];
+}
+
+/** 당사자 허브 목표 트리의 케이스 한 구획 (D62 §8 · CCC-69). */
+export interface ParticipantGoalTreeCase {
+  sourceSupportCase: SourceSupportCase;
+  overallGoal: string | null;
+  /** 전체 목표 문구 이력 (goal_id NULL 행), 최신부터. */
+  overallGoalRevisions: GoalRevisionEntry[];
+  goals: ParticipantGoalTreeGoal[];
+}
+
+/**
+ * 당사자 허브의 목표 트리(전체 > 세부 > 세션) — 케이스별 구획 (D62 §8 · CCC-69).
+ *
+ * **담당(또는 admin) 케이스만 싣는다.** 목표는 상담 내용이라 D36 의 공개 범위(존재·담당
+ * 실무자 이름) 밖이다 — 허브 목록(listSupportCasesForBeneficiary)과 달리 비담당 케이스는
+ * 구획 자체가 없다. 담당 케이스가 1건도 없으면 허브와 같은 판정으로 페이지를 막는다.
+ *
+ * 세션 목표는 세부 목표에 연결된 것만 트리에 싣는다 — 연결 없이 적은 세션 목표는 위계
+ * 밖이라 일정·기록 화면 몫이다. 문구 이력(goal_revisions)은 기본 숨김 화면의 '이력 보기'
+ * 재료라 여기서 함께 내린다(이전 문구·수정자·시각, D62 §4).
+ */
+export async function getParticipantGoalTree(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+): Promise<ParticipantGoalTreeCase[]> {
+  const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  if (authorizedIds.length === 0) {
+    throw new ForbiddenError('participant is unavailable');
+  }
+  const placeholders = authorizedIds.map(() => '?').join(', ');
+  const scopedValues = [actor.orgId, ...authorizedIds];
+  const [supportCaseRows, goalRows, revisionRows, sessionGoalRows] = await Promise.all([
+    env.DB.prepare(
+      `SELECT * FROM support_cases
+       WHERE org_id = ? AND id IN (${placeholders})
+       ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, program_type, id`,
+    ).bind(...scopedValues).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT * FROM goals
+       WHERE org_id = ? AND support_case_id IN (${placeholders})
+       ORDER BY created_at, id`,
+    ).bind(...scopedValues).all<DbRow>(),
+    // 이력은 최신부터 — 화면의 '이력 보기'가 그대로 싣는 순서다. 수정자 이름은 미입력이면
+    // NULL 로 두고 이메일로 폴백하지 않는다(GoalRevisionEntry 주석).
+    env.DB.prepare(
+      `SELECT revision.support_case_id, revision.goal_id, revision.title, revision.edited_at,
+              NULLIF(TRIM(users.name), '') AS edited_by_name
+       FROM goal_revisions AS revision
+       LEFT JOIN users ON users.id = revision.edited_by AND users.org_id = revision.org_id
+       WHERE revision.org_id = ? AND revision.support_case_id IN (${placeholders})
+       ORDER BY revision.id DESC`,
+    ).bind(...scopedValues).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT session_goal.id, session_goal.body, session_goal.case_goal_id,
+              schedule.scheduled_at, schedule.status AS schedule_status
+       FROM schedule_session_goals AS session_goal
+       JOIN counseling_schedules AS schedule
+         ON schedule.id = session_goal.schedule_id AND schedule.org_id = session_goal.org_id
+       WHERE session_goal.org_id = ? AND session_goal.support_case_id IN (${placeholders})
+         AND session_goal.case_goal_id IS NOT NULL
+       ORDER BY schedule.scheduled_at DESC, schedule.id, session_goal.ordinal, session_goal.id`,
+    ).bind(...scopedValues).all<DbRow>(),
+  ]);
+
+  const overallRevisionsByCase = new Map<string, GoalRevisionEntry[]>();
+  const revisionsByGoal = new Map<string, GoalRevisionEntry[]>();
+  for (const row of revisionRows.results) {
+    const entry: GoalRevisionEntry = {
+      title: nullableString(row.title),
+      editedByName: nullableString(row.edited_by_name),
+      editedAt: stringValue(row.edited_at),
+    };
+    const goalId = nullableString(row.goal_id);
+    if (goalId === null) {
+      const list = overallRevisionsByCase.get(stringValue(row.support_case_id)) ?? [];
+      list.push(entry);
+      overallRevisionsByCase.set(stringValue(row.support_case_id), list);
+    } else {
+      const list = revisionsByGoal.get(goalId) ?? [];
+      list.push(entry);
+      revisionsByGoal.set(goalId, list);
+    }
+  }
+  const sessionGoalsByGoal = new Map<string, ParticipantGoalTreeSessionGoal[]>();
+  for (const row of sessionGoalRows.results) {
+    const goalId = stringValue(row.case_goal_id);
+    const list = sessionGoalsByGoal.get(goalId) ?? [];
+    list.push({
+      id: stringValue(row.id),
+      body: stringValue(row.body),
+      scheduledAt: stringValue(row.scheduled_at),
+      scheduleStatus: canonicalScheduleStatus(row.schedule_status),
+    });
+    sessionGoalsByGoal.set(goalId, list);
+  }
+  const goalsByCase = new Map<string, ParticipantGoalTreeGoal[]>();
+  for (const row of goalRows.results) {
+    const supportCaseId = stringValue(row.support_case_id);
+    const goalId = stringValue(row.id);
+    const list = goalsByCase.get(supportCaseId) ?? [];
+    list.push({
+      id: goalId,
+      title: stringValue(row.title),
+      status: toGoalStatus(row.status),
+      closedReason: nullableString(row.closed_reason),
+      closedAt: nullableString(row.closed_at),
+      revisions: revisionsByGoal.get(goalId) ?? [],
+      sessionGoals: sessionGoalsByGoal.get(goalId) ?? [],
+    });
+    goalsByCase.set(supportCaseId, list);
+  }
+
+  await writeCanonicalAudit(env, actor, {
+    action: 'read',
+    targetTable: 'participant_goal_tree',
+    targetId: beneficiaryId,
+    beneficiaryId,
+  });
+  return supportCaseRows.results.map(mapSupportCase).map((supportCase) => ({
+    sourceSupportCase: sourceSupportCase(supportCase),
+    overallGoal: supportCase.overallGoal,
+    overallGoalRevisions: overallRevisionsByCase.get(supportCase.id) ?? [],
+    goals: goalsByCase.get(supportCase.id) ?? [],
+  }));
+}
+
 /**
  * 사업별 가장 이른 예정(scheduled) 일정 (허브 '최신 일정' 카드, 2026-08-06 Q).
  * 브리핑의 focusUpcomingSchedule 과 같은 판정을 여러 케이스에 한 번에 낸다 — 감사·권한이
@@ -9232,6 +9392,8 @@ export interface ScheduleSessionGoal {
   body: string;
   caseGoalId: string | null;
   caseGoalTitle: string | null;
+  /** 연결된 세부 목표의 상태. 부모가 닫힌 세션 목표는 화면이 부모 이름을 흐리게 병기한다(D62 §5). */
+  caseGoalStatus: 'active' | 'closed' | null;
   ordinal: number;
 }
 
@@ -10073,7 +10235,8 @@ async function loadScheduleSessionEntries(
   const [goals, questions] = await Promise.all([
     env.DB.prepare(
       `SELECT session_goal.id, session_goal.body, session_goal.ordinal,
-              session_goal.case_goal_id, goal.title AS case_goal_title
+              session_goal.case_goal_id, goal.title AS case_goal_title,
+              goal.status AS case_goal_status
        FROM schedule_session_goals AS session_goal
        LEFT JOIN goals AS goal ON goal.id = session_goal.case_goal_id
          AND goal.org_id = session_goal.org_id
@@ -10092,6 +10255,9 @@ async function loadScheduleSessionEntries(
       body: stringValue(row.body),
       caseGoalId: nullableString(row.case_goal_id),
       caseGoalTitle: nullableString(row.case_goal_title),
+      caseGoalStatus: nullableString(row.case_goal_status) === null
+        ? null
+        : toGoalStatus(row.case_goal_status),
       ordinal: integerValue(row.ordinal) ?? 0,
     })),
     customQuestions: questions.results.map((row) => ({
@@ -12457,6 +12623,12 @@ export interface ParticipantBriefing {
   /** 포커스 참여사업의 전체 목표 (D45 · 0024). NULL = 설정 전. */
   overallGoal: string | null;
   /**
+   * 포커스 참여사업의 활성 세부 목표 (D62 §8 · CCC-69). 15초 페이지가 전체 목표 카드
+   * 아래에 기본 펼침 한 줄씩 보여준다. 활성 상한이 케이스당 3개(MAX_ACTIVE_GOALS)라
+   * 최대 3줄이 구조로 보장되고, 닫힌 목표는 싣지 않는다(허브 몫이다).
+   */
+  focusActiveGoals: Array<Pick<Goal, 'id' | 'title'>>;
+  /**
    * 전체 목표 그 자리 편집 가능 여부. 구 D45 는 '담당 실무자만' 이었으나
    * 2026-07-30 Q 결정으로 **기관 관리자도 수정한다**(ADR-0018 개정).
    * 접근은 assertSupportCaseAccess 가 이미 걸렀다 — counselor 는 활성 배정,
@@ -12645,6 +12817,12 @@ export async function getParticipantBriefing(
       case_id: row.support_case_id,
     }),
   ]));
+  // 포커스 케이스의 활성 세부 목표 (D62 §8 · CCC-69). goals 쿼리가 created_at 순이라
+  // 만든 순서가 보존된다. 활성 상한 3개는 createGoal 이 강제하지만 방어적으로 한 번 더 끊는다.
+  const focusActiveGoals = goals.results
+    .filter((row) => stringValue(row.support_case_id) === focusSupportCaseId && toGoalStatus(row.status) === 'active')
+    .slice(0, MAX_ACTIVE_GOALS)
+    .map((row) => ({ id: stringValue(row.id), title: stringValue(row.title) }));
   const trendByGoal = new Map<string, ParticipantBriefingGasTrend>();
   for (const row of gas.results) {
     const supportCaseId = stringValue(row.support_case_id);
@@ -12837,6 +13015,7 @@ export async function getParticipantBriefing(
     discrepancies,
     focusUpcomingSchedule,
     overallGoal: focus.overallGoal,
+    focusActiveGoals,
     canEditOverallGoal: actor.role === 'counselor' || actor.role === 'admin',
     participant: participantNamePhone(contacts.get(beneficiaryId)),
   };

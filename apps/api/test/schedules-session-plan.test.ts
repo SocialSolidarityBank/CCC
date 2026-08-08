@@ -191,25 +191,44 @@ describe('상담 일정의 세션 목표·맞춤형 질문 (#35)', () => {
       customQuestions: ['이번 주 지원 신청은 했는지'],
     });
 
-    const briefing = await worker.fetch(new Request(
-      `http://localhost/participants/${seeded.beneficiaryId}/programs/${seeded.supportCaseId}/briefing`,
-      { headers: headersFor(testActors.counselor) },
-    ), t.env);
-    expect(briefing.status).toBe(200);
-    const briefingBody = await briefing.json() as {
-      focusUpcomingSchedule: {
-        id: string;
-        scheduledAt: string;
-        sessionGoals: Array<{ body: string; caseGoalId: string | null; caseGoalTitle: string | null }>;
-        customQuestions: string[];
-      } | null;
+    const fetchBriefing = async () => {
+      const briefing = await worker.fetch(new Request(
+        `http://localhost/participants/${seeded.beneficiaryId}/programs/${seeded.supportCaseId}/briefing`,
+        { headers: headersFor(testActors.counselor) },
+      ), t.env);
+      expect(briefing.status).toBe(200);
+      return await briefing.json() as {
+        activeGoals: Array<{ id: string; title: string }>;
+        focusUpcomingSchedule: {
+          id: string;
+          scheduledAt: string;
+          sessionGoals: Array<{
+            body: string; caseGoalId: string | null; caseGoalTitle: string | null;
+            caseGoalStatus: 'active' | 'closed' | null;
+          }>;
+          customQuestions: string[];
+        } | null;
+      };
     };
+
+    const briefingBody = await fetchBriefing();
     expect(briefingBody.focusUpcomingSchedule).not.toBeNull();
     expect(briefingBody.focusUpcomingSchedule?.scheduledAt).toBe('2026-07-20T01:00:00.000Z');
     expect(briefingBody.focusUpcomingSchedule?.sessionGoals).toEqual([
-      { body: '구직 활동 점검', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지' },
+      { body: '구직 활동 점검', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', caseGoalStatus: 'active' },
     ]);
     expect(briefingBody.focusUpcomingSchedule?.customQuestions).toEqual(['이번 주 지원 신청은 했는지']);
+    // D62 §8 (CCC-69): 활성 세부 목표가 전체 목표 카드 아래 줄의 재료로 함께 실린다.
+    expect(briefingBody.activeGoals).toEqual([{ id: seeded.goalId, title: '생활비 계획 유지' }]);
+
+    // D62 §5 (CCC-69): 목표를 닫아도 기존 연결은 남고, 화면이 흐리게 병기할 수 있게
+    // 부모 상태가 closed 로 실린다. 활성 세부 목표 줄에서는 빠진다.
+    await closeGoal(t.env, testActors.counselor, seeded.goalId, 'stopped');
+    const afterClose = await fetchBriefing();
+    expect(afterClose.focusUpcomingSchedule?.sessionGoals).toEqual([
+      { body: '구직 활동 점검', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', caseGoalStatus: 'closed' },
+    ]);
+    expect(afterClose.activeGoals).toEqual([]);
   });
 });
 
@@ -245,8 +264,8 @@ describe('세션 목표 수정 (D62 §6 · CCC-71)', () => {
     });
     expect(result.version).toBe(2);
     expect(result.sessionGoals).toEqual([
-      { id: expect.any(String), body: '다듬은 계획', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', ordinal: 0 },
-      { id: expect.any(String), body: '추가 확인', caseGoalId: null, caseGoalTitle: null, ordinal: 1 },
+      { id: expect.any(String), body: '다듬은 계획', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', caseGoalStatus: 'active', ordinal: 0 },
+      { id: expect.any(String), body: '추가 확인', caseGoalId: null, caseGoalTitle: null, caseGoalStatus: null, ordinal: 1 },
     ]);
 
     // 닫힌 목표는 다시 저장하는 묶음에 넣을 수 없다(기존 연결 보존과 별개 — D62 §5).
@@ -353,7 +372,7 @@ describe('세션 목표 수정 HTTP 라우트 (D62 §6 · CCC-70)', () => {
     expect(updatedBody.scheduleId).toBe(scheduleId);
     expect(updatedBody.version).toBe(2);
     expect(updatedBody.sessionGoals).toEqual([
-      { id: expect.any(String), body: '다듬은 계획', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', ordinal: 0 },
+      { id: expect.any(String), body: '다듬은 계획', caseGoalId: seeded.goalId, caseGoalTitle: '생활비 계획 유지', caseGoalStatus: 'active', ordinal: 0 },
     ]);
 
     // 수정 화면의 잠금 판정·낙관 잠금 제출 재료. GET plan 이 일정 메타를 함께 싣는다.

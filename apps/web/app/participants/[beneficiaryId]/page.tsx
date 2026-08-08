@@ -3,7 +3,9 @@ import Link from 'next/link';
 import {
   ApiError,
   getParticipantDetail,
+  getParticipantGoalTree,
   type ParticipantDetail,
+  type ParticipantGoalTreeCase,
   type ParticipantProgram,
   type ParticipantProgramType,
 } from '../../lib/api';
@@ -26,6 +28,7 @@ import {
   type ConsentDetailSection,
 } from '../new/consent-copy';
 import { ErrorState, type ErrorKind } from './error-state';
+import { GoalTreeCard } from './goal-tree';
 
 // 당사자 정보 — **허브** (D35 · ADR-0014 §3, D36). 사람은 사업보다 크므로 이 페이지는
 // 사업 워크스페이스 범위를 벗어난다: 그 당사자의 **기관 내 전 참여 사업**이 보인다.
@@ -286,7 +289,12 @@ const NOTICES: Record<string, string> = {
   consent_updated: '동의 내용을 저장했습니다.',
 };
 
-async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; notice?: string }) {
+async function ParticipantHub({ detail, goalTree, notice }: {
+  detail: ParticipantDetail;
+  /** 목표 트리(D62 §8 · CCC-69) — 담당 케이스만 온다(게이트웨이가 D36 범위를 강제). */
+  goalTree: ParticipantGoalTreeCase[];
+  notice?: string;
+}) {
   const { programLabels } = await getDisplayLabels();
   // 진행 중을 먼저, 그 안에서는 사업명 순. 내 담당을 위로 올리지 않는다 — 사람 단위로
   // 무엇에 참여 중인지가 이 화면의 질문이고, 담당 여부는 카드 안에서 읽힌다.
@@ -362,6 +370,9 @@ async function ParticipantHub({ detail, notice }: { detail: ParticipantDetail; n
               programLabels={programLabels}
               recordsTarget={intakeTarget}
             />
+            {/* 목표 트리 (D62 §8 · CCC-69) — 전체 > 세부 > 세션을 케이스별로. 담당 케이스만
+                실리므로(D36 — 목표는 상담 내용) 비담당 사업은 구획 자체가 없다. */}
+            <GoalTreeCard cases={goalTree} programLabels={programLabels} />
             {/* 동의서는 맨 아래다(2026-08-06 Q — 구 사업 카드 안 동의 묶음 대체). 저장 단위는
                 여전히 참여 사업이라(D44) 담당 사업마다 한 묶음씩 서고, 사업이 여럿이면
                 묶음 머리에 사업명이 선다.
@@ -409,11 +420,16 @@ async function ParticipantContent({ beneficiaryId, notice }: { beneficiaryId: st
   if (!isBeneficiaryId(beneficiaryId)) return <ErrorState kind="access_or_not_found" />;
 
   try {
-    const detail = await getParticipantDetail(beneficiaryId);
+    // 목표 트리는 상세와 독립 조회다 — 같은 접근 판정(담당 케이스 0건이면 Forbidden)을
+    // 게이트웨이가 각각 강제하므로 병렬로 받는다.
+    const [detail, goalTree] = await Promise.all([
+      getParticipantDetail(beneficiaryId),
+      getParticipantGoalTree(beneficiaryId),
+    ]);
     if (detail.beneficiaryId !== beneficiaryId) {
       throw new Error('Participant detail response did not match the requested participant.');
     }
-    return <ParticipantHub detail={detail} {...(notice === undefined ? {} : { notice })} />;
+    return <ParticipantHub detail={detail} goalTree={goalTree} {...(notice === undefined ? {} : { notice })} />;
   } catch (error) {
     const kind = error instanceof ApiError ? expectedApiErrorKind(error) : null;
     if (kind === null) throw error;
