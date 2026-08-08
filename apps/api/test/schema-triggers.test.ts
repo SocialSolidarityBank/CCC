@@ -322,17 +322,59 @@ describe('schema triggers', () => {
   it('matches core trigger diagnostics and preserves rows after rejected mutations', async () => {
     await t.reset();
     const participant = await createCanonicalParticipant();
-    const goalId = 'immutable-goal';
+    const goalId = 'mutable-goal';
     await t.db.prepare(
       `INSERT INTO goals (id, org_id, support_case_id, title, status, created_at)
        VALUES (?, ?, ?, ?, 'active', ?)`,
-    ).bind(goalId, counselor.orgId, participant.supportCaseId, 'Immutable goal', CREATED_AT).run();
-    const goalBefore = await rowById('goals', goalId);
+    ).bind(goalId, counselor.orgId, participant.supportCaseId, 'Original goal', CREATED_AT).run();
 
-    await expect(t.db.prepare('UPDATE goals SET title = ? WHERE id = ?')
+    // D62: D12 의 문구 수정 금지 폐지 — goals_title_immutable 트리거가 없어져 UPDATE 가 통한다.
+    await t.db.prepare('UPDATE goals SET title = ? WHERE id = ?')
       .bind('Changed goal', goalId)
-      .run()).rejects.toThrow('D12: goal title is immutable');
-    expect(await rowById('goals', goalId)).toEqual(goalBefore);
+      .run();
+    expect((await rowById('goals', goalId)).title).toBe('Changed goal');
+
+    // D62: 닫은 목표는 다시 열지 못한다 (goals_no_reopen).
+    await t.db.prepare("UPDATE goals SET status = 'closed', closed_reason = 'reset', closed_at = ? WHERE id = ?")
+      .bind(CREATED_AT, goalId)
+      .run();
+    await expect(t.db.prepare("UPDATE goals SET status = 'active' WHERE id = ?")
+      .bind(goalId)
+      .run()).rejects.toThrow('D62: a closed goal cannot be reopened');
+    expect((await rowById('goals', goalId)).status).toBe('closed');
+
+    // D62: goal_revisions 삽입 정합 가드 — 타 케이스 goal_id·비활성 수정자·세부 목표의
+    // NULL 문구를 막고, 정상 행은 통과한다.
+    await t.db.prepare(
+      `INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(counselor.orgId, participant.supportCaseId, goalId, 'Changed goal', counselor.userId, CREATED_AT).run();
+    await expect(t.db.prepare(
+      `INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at)
+       VALUES (?, ?, 'goal-from-another-case', ?, ?, ?)`,
+    ).bind(counselor.orgId, participant.supportCaseId, 'Orphan link', counselor.userId, CREATED_AT)
+      .run()).rejects.toThrow('participant_schema_violation');
+    await expect(t.db.prepare(
+      `INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at)
+       VALUES (?, ?, ?, NULL, ?, ?)`,
+    ).bind(counselor.orgId, participant.supportCaseId, goalId, counselor.userId, CREATED_AT)
+      .run()).rejects.toThrow('participant_schema_violation');
+    await expect(t.db.prepare(
+      `INSERT INTO goal_revisions (org_id, support_case_id, goal_id, title, edited_by, edited_at)
+       VALUES (?, ?, ?, ?, 'nobody@example.invalid', ?)`,
+    ).bind(counselor.orgId, participant.supportCaseId, goalId, 'Changed goal', CREATED_AT)
+      .run()).rejects.toThrow('participant_schema_violation');
+
+    // D62: 이력은 덧붙이기 전용 — 쌓인 줄은 고치거나 지우지 못한다.
+    const revision = await t.db.prepare(
+      'SELECT id FROM goal_revisions WHERE goal_id = ? ORDER BY id DESC LIMIT 1',
+    ).bind(goalId).first<{ id: number }>();
+    await expect(t.db.prepare('UPDATE goal_revisions SET title = ? WHERE id = ?')
+      .bind('tampered', revision?.id ?? -1)
+      .run()).rejects.toThrow('D62: goal_revisions is append-only');
+    await expect(t.db.prepare('DELETE FROM goal_revisions WHERE id = ?')
+      .bind(revision?.id ?? -1)
+      .run()).rejects.toThrow('D62: goal_revisions is append-only');
 
     await expect(t.db.prepare(
       "INSERT INTO flags (id, org_id, support_case_id, flag_type, source, review_status, created_at) VALUES (?, ?, ?, 'crisis_utterance', 'ai', 'pending', ?)",

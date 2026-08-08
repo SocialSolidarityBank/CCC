@@ -557,7 +557,7 @@ describe('API routes', () => {
     });
   });
 
-  it('creates, lists, and immutably closes goals through the canonical routes', async () => {
+  it('creates, lists, and closes goals with a D62 reason pick through the canonical routes', async () => {
     await t.reset();
     const env = t.env;
     const caseResponse = await worker.fetch(new Request('http://localhost/cases', {
@@ -583,27 +583,26 @@ describe('API routes', () => {
       expect.objectContaining({ id: goal.id, status: 'active' }),
     ]);
 
+    // D62 §5: 사유는 선택값 3종만, 자유 텍스트는 거부한다. 구 종료+신설 승계는 없다.
+    const freeTextClose = await worker.fetch(new Request(`http://localhost/goals/${goal.id}/close`, {
+      method: 'POST',
+      headers: counselorHeaders,
+      body: JSON.stringify({ reason: 'The measurable target changed' }),
+    }), env);
+    expect(freeTextClose.status).toBe(400);
+
     const closeResponse = await worker.fetch(new Request(`http://localhost/goals/${goal.id}/close`, {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({
-        reason: 'The measurable target changed',
-        successor: { title: 'Maintain a revised living-cost plan' },
-      }),
+      body: JSON.stringify({ reason: 'reset' }),
     }), env);
     expect(closeResponse.status).toBe(200);
-    await expect(closeResponse.json()).resolves.toEqual({
-      closed: expect.objectContaining({
-        id: goal.id,
-        status: 'closed',
-        closedReason: 'The measurable target changed',
-        replacedByGoalId: expect.any(String),
-      }),
-      successor: expect.objectContaining({
-        status: 'active',
-        title: 'Maintain a revised living-cost plan',
-      }),
-    });
+    await expect(closeResponse.json()).resolves.toEqual(expect.objectContaining({
+      id: goal.id,
+      status: 'closed',
+      closedReason: 'reset',
+      replacedByGoalId: null,
+    }));
   });
 
   it('maps local admin headers to an admin but fails closed on unsigned Cloudflare Access headers', async () => {
