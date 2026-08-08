@@ -875,8 +875,8 @@ const recordFormStyles = `
 @media (min-width: 768px){
   .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
 }
-/* 여닫기 줄 — 브리핑(.briefing-toolbar)과 같은 계약이다. 오른쪽 정렬, 고스트 32px 하나. */
-.record-toolbar{display:flex;justify-content:flex-end}
+/* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
+   올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
    구 계약 CSS 복사 5줄 삭제). 패딩은 **본문 카드와 같은 24 사방**이다(2026-08-09 —
    구 좁은 보조 패널 16/20 폐지): 그 예외는 레일이 200px 이던 시절 "좌우 24 를 주면 안쪽 글
@@ -886,9 +886,9 @@ const recordFormStyles = `
 /* 구 상단 고정 헤더(.record-sticky)는 2026-08-08 좌측 레일 이전으로 삭제 — 목표·버튼이
    전부 레일로 갔다. 라벨·값·목록 세 줄 레시피만 레일 안에서 계속 쓴다. */
 .record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.record-sticky-value{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.record-sticky-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 구 .record-sticky-value·.record-sticky-meta 는 2026-08-09 삭제 — '미연결' 글자 표시는
+   빈 상태 부품으로, 지난 상담 메타 줄은 미해결 액션 강조 카드로 바뀌었다(Q 지시). */
 /* 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체). 레일이 sticky 라
    어느 위치에서 쓰든 늘 같은 자리에 있다. §4-5 순서: 세컨더리 → 프라이머리. */
 .record-rail-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-top:var(--space-2)}
@@ -907,6 +907,12 @@ const recordFormStyles = `
 .wire-card-details.is-crisis{--surface-fill:var(--risk-tint-solid);--card-pad:calc(var(--space-6) - 0.5px);border:1.5px solid var(--risk);background:var(--risk-tint-solid)}
 .wire-card-details.is-crisis>.wire-card-summary,
 .wire-card-details.is-crisis>.wire-card-summary>.wire-card-title{color:var(--risk)}
+/* 미해결 액션 카드(2026-08-09 Q "액션은 카드화"). 제목 줄이 2행이다 — 내용이 위, 담당·기한
+   배지가 아래다(구 legend 괄호 안 한 줄 대체: 배지가 글자 사이에 끼어 어느 쪽이 값인지
+   흐렸다). 배지 계열은 §5 계약 그대로다: 담당 = 민트(사람·소속) · 기한 = 블루(일정·시간). */
+.open-action-card>.wire-card-title{display:grid;gap:var(--space-2)}
+.open-action-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.open-action-meta{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-2)}
 /* 레일도 본문 카드와 같은 24 사방이다(2026-08-09 — 구 16/20). 구분선(.wire-card-divider)이
    좌우 -24 로 풀블리드라, 패딩이 20 이던 동안에는 선이 카드 밖으로 4px 씩 삐져나왔다
    (details 와 달리 div 는 overflow:clip 이 없다). sticky 는 바깥 .record-side 가 갖는다. */
