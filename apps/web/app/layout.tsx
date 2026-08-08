@@ -678,12 +678,18 @@ const scheduleStyles = `
 .schedule-candidate-name{font-weight:600}
 /* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 카드 12)이다(§3-4). */
 .schedule-candidate-list{display:grid;gap:var(--space-3)}
-/* 상담 유형 칸: 라벨(14/600 --sub) + 값(16/600) + 설명(14/400)의 짝 계약(§2-1 D61 ③).
-   구 인라인은 값에 fontSize 16 을 직접 박고 있었다. */
+/* 한 후보 = 고르는 행 + '당사자 정보' 버튼(2026-08-09 Q). 버튼은 행 밖 형제라 행 클릭이
+   '고르기' 하나만 뜻한다. 버튼은 늘어나지 않고 세로 가운데에 선다. */
+.schedule-candidate-item{display:flex;align-items:center;gap:var(--space-3)}
+.schedule-candidate-item>.wire-row{flex:1 1 auto;min-width:0}
+.schedule-candidate-item>.wire-button{flex:none}
+@media (max-width: 767px){
+  /* 좁은 화면에서는 버튼이 행 아래로 내려가 폭을 온전히 쓴다(§5 모바일 규칙과 같은 처리). */
+  .schedule-candidate-item{flex-direction:column;align-items:stretch}
+}
+/* 상담 유형 칸 = 선택창 하나 + (조건부) 경고 안내줄(2026-08-09 Q). 값·이름·접힘 세 클래스는
+   함께 지웠다 — 값을 보여 주는 자리와 고치는 자리가 하나로 합쳐지면서 쓸 곳이 없어졌다. */
 .schedule-kind{display:grid;gap:var(--space-3)}
-.schedule-kind-value{display:grid;gap:var(--space-1)}
-.schedule-kind-name{font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.schedule-kind-picker{display:grid;gap:var(--space-3)}
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
 /* 도움말 문구는 12(--text-xs, 2026-08-07 Q 전역 통일) — .wire-form-hint 와 같은 역할이다. */
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}

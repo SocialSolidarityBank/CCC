@@ -7,12 +7,12 @@ import { WireCallout } from '../../components/wire/wire-callout';
 import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
 import { ListRow } from '../../components/wire/list-row';
-import { SearchInput } from '../../components/wire/search-input';
 import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire/date-picker-control';
 import { WireFormField } from '../../components/wire/wire-form-field';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
 import { WireEmpty } from '../../components/wire/wire-state';
+import { WireRepeatActions } from '../../components/wire/wire-repeat-actions';
 import type {
   CreateSchedulePlanInput,
   CreateSchedulePlanResult,
@@ -99,9 +99,14 @@ function messageFor(status: string): string {
 // inputStyle 은 선언만 있고 쓰는 곳이 없어 함께 지웠다.
 
 /**
- * 상담 유형 (D35 · ADR-0014 §5). **케이스 상태로 기본값을 잡고 다른 유형은 접는다** —
- * 인테이크가 없으면 '인테이크', 있으면 '기본 상담'이 기본이다. 평소에는 고를 일이 없고,
- * 필요할 때만 펼치면 된다.
+ * 상담 유형 (D35 · ADR-0014 §5). 케이스 상태가 기본값을 잡는다 — 인테이크가 없으면
+ * '인테이크', 있으면 '기본 상담'이다.
+ *
+ * **2026-08-09 Q: 선택창 하나다**(구 '값 + 안내문 + 다른 유형 선택 버튼' 접힘 구조 대체).
+ * 구 구조는 라벨·값·안내문·버튼 네 줄이 같은 위계로 쌓여 §2-2 규칙 1·2 를 정면으로 어겼고,
+ * 실제로 화면에서 '기본 상담'이라는 낱말이 세 번 겹쳐 나왔다(값 · 안내문 · 선택창). 값을
+ * 보여 주는 자리와 고치는 자리를 하나로 합치면 그 겹침이 함께 사라진다. 기본값 자동 판정은
+ * 그대로이고, 왜 그 값인지는 선택창 아래 도움말 한 줄(12px)이 말한다.
  *
  * 이미 인테이크가 있는 케이스에서 인테이크를 다시 고르면 **경고와 기존 기록 링크**가 뜨되
  * **선택 자체를 막지 않는다**(CCC-14 의 "차단이 아니라 경고" 결정 유지 — 장기 중단 후 재개로
@@ -119,42 +124,32 @@ function SessionKindPicker({
   onChange: (kind: 'regular' | 'intake') => void;
   recordHref: string;
 }) {
-  const defaultKind: 'regular' | 'intake' = hasIntake ? 'regular' : 'intake';
-  const [open, setOpen] = useState(false);
   const showIntakeWarning = hasIntake && value === 'intake';
 
   return (
     <div className="schedule-kind">
-      <div className="schedule-kind-value">
-        <span className="wire-form-label">상담 유형</span>
-        <strong className="schedule-kind-name">{value === 'intake' ? '인테이크' : '기본 상담'}</strong>
-        <span className="panel-meta">
-          {defaultKind === 'intake'
-            ? '아직 인테이크 기록이 없어 인테이크로 잡았습니다.'
-            : '인테이크가 끝난 당사자라 기본 상담으로 잡았습니다.'}
-        </span>
-      </div>
-      {open ? (
-        <div className="schedule-kind-picker">
-          <SearchInput
-            label="상담 유형 선택하기"
-            variant="select"
-            value={value}
-            options={[
-              { value: 'regular', label: '기본 상담' },
-              { value: 'intake', label: '인테이크' },
-            ]}
-            onChange={(next) => onChange(next === 'intake' ? 'intake' : 'regular')}
-          />
-          {showIntakeWarning && (
-            <WireCallout tone="lavender" role="alert" title="이 당사자는 인테이크를 이미 마쳤습니다">
-              그대로 진행하면 인테이크가 두 번이 됩니다.{' '}
-              <Link href={recordHref}>기존 인테이크 기록 보기</Link>
-            </WireCallout>
-          )}
-        </div>
-      ) : (
-        <WireButton onClick={() => setOpen(true)}>다른 유형 선택</WireButton>
+      <WireFormField
+        label="상담 유형"
+        control="select"
+        htmlFor="schedule-session-kind"
+        hint={hasIntake
+          ? '인테이크가 끝난 당사자라 기본 상담으로 잡았습니다.'
+          : '아직 인테이크 기록이 없어 인테이크로 잡았습니다.'}
+      >
+        <select
+          id="schedule-session-kind"
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value === 'intake' ? 'intake' : 'regular')}
+        >
+          <option value="regular">기본 상담</option>
+          <option value="intake">인테이크</option>
+        </select>
+      </WireFormField>
+      {showIntakeWarning && (
+        <WireCallout tone="lavender" role="alert" title="이 당사자는 인테이크를 이미 마쳤습니다">
+          그대로 진행하면 인테이크가 두 번이 됩니다.{' '}
+          <Link href={recordHref}>기존 인테이크 기록 보기</Link>
+        </WireCallout>
       )}
     </div>
   );
@@ -294,39 +289,53 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               /* 후보 목록은 낱개 카드라 폭을 다 쓴다 — .wizard-form(520) 밖이다. */
               <div className="schedule-candidate-list">
                 {candidates.map((candidate) => (
-                  <ListRow
-                    key={candidate.value}
-                    className="schedule-candidate-row"
-                    selected={selected?.value === candidate.value}
-                    onClick={() => selectCandidate(candidate)}
-                  >
-                    {candidateLabel(candidate)}
-                  </ListRow>
+                  /* 행 자체가 '고르기'이고, 그 옆 버튼이 '보기'다(2026-08-09 Q "당사자 카드에
+                     당사자 정보 버튼 넣어서 정보 바로 확인"). 행 안에 링크를 겹쳐 두면 클릭
+                     하나가 두 뜻을 갖게 되므로 버튼을 행 **밖** 형제로 둔다 — 고르려고 누른
+                     것이 화면 이동이 되는 사고를 막는다. */
+                  <div key={candidate.value} className="schedule-candidate-item">
+                    <ListRow
+                      className="schedule-candidate-row"
+                      selected={selected?.value === candidate.value}
+                      onClick={() => selectCandidate(candidate)}
+                    >
+                      {candidateLabel(candidate)}
+                    </ListRow>
+                    <WireButton variant="neutral" height="sm" href={`/participants/${encodeURIComponent(candidate.beneficiaryId)}`}>
+                      당사자 정보
+                    </WireButton>
+                  </div>
                 ))}
               </div>
             )}
 
             {selected !== null && (
-              <div className="wizard-form">
-                <SessionKindPicker
-                  hasIntake={selected.intakeAt !== null}
-                  value={sessionKind}
-                  onChange={(kind) => { setSessionKind(kind); setError(null); }}
-                  recordHref={intakeRecordHref(selected)}
-                />
-                {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
-                    팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS).
-                    WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 .wire-input-box 의
-                    테두리·포커스 링이 없어 입력칸이 입력칸으로 보이지 않았다(기록 작성 화면과
-                    같은 조합). */}
-                <WireFormField label="상담 일시" htmlFor="schedule-scheduled-at">
-                  <DateTimePickerControl
-                    id="schedule-scheduled-at"
-                    fieldLabel="상담 일시"
-                    value={scheduledAt}
-                    onChange={setScheduledAt}
+              /* 상담 유형·상담 일시는 **나란히 선다**(2026-08-09 Q). 둘 다 "이 상담이
+                 무엇이고 언제인가"라는 한 묶음이라 세로로 쌓을 이유가 없었고, 세로로 두면
+                 유형 칸의 도움말이 일시 라벨과 붙어 §2-2 규칙 1(연속 금지)에 걸린다.
+                 767 미만은 .wire-form-grid 가 한 열로 접는다 — 새 격자를 만들지 않는다. */
+              <div className="wizard-row">
+                <div className="wire-form-grid">
+                  <SessionKindPicker
+                    hasIntake={selected.intakeAt !== null}
+                    value={sessionKind}
+                    onChange={(kind) => { setSessionKind(kind); setError(null); }}
+                    recordHref={intakeRecordHref(selected)}
                   />
-                </WireFormField>
+                  {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라
+                      팀원마다 달랐다(R6). 상담은 요일로 잡는 값이라 달력이 맞는 자리다(KRDS).
+                      WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 .wire-input-box 의
+                      테두리·포커스 링이 없어 입력칸이 입력칸으로 보이지 않았다(기록 작성 화면과
+                      같은 조합). */}
+                  <WireFormField label="상담 일시" htmlFor="schedule-scheduled-at">
+                    <DateTimePickerControl
+                      id="schedule-scheduled-at"
+                      fieldLabel="상담 일시"
+                      value={scheduledAt}
+                      onChange={setScheduledAt}
+                    />
+                  </WireFormField>
+                </div>
               </div>
             )}
             <div className="wizard-actions">
@@ -347,12 +356,19 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
         {step === 2 && sessionKind === 'intake' ? (
           <div className="wizard-stack">
             {contextBar}
-            <h2>상담의 목표는 무엇인가요?</h2>
-            <p className="panel-meta">
-              측정 가능한 문장으로 적습니다. 예: “월 5만원 저축을 3개월 유지한다”. 최대 3개까지 추가할 수 있어요.
-            </p>
-            <div className="wizard-form">
-              {caseGoals.map((goal, index) => (
+            <div className="wizard-section-head">
+              <h2>상담의 목표는 무엇인가요?</h2>
+              <p className="panel-meta">
+                측정 가능한 문장으로 적습니다. 예: “월 5만원 저축을 3개월 유지한다”. 최대 3개까지 추가할 수 있어요.
+              </p>
+            </div>
+            {/* 목표 묶음은 카드 한 장이다(2026-08-09 Q) — 칸마다 흩어져 있던 추가·삭제
+                버튼을 카드 안으로 모아 칸과 조작의 여백을 한 곳에서 정한다. */}
+            <WireCard className="wire-form-card">
+              {/* 카드는 묶음을 보이게 하고, **읽기 폭은 .wizard-form(520)이 정한다** — 카드가
+                  장폭 1120 을 쓰므로 이 래퍼가 없으면 textarea 글줄이 1070 이 된다. */}
+              <div className="wizard-form">
+                {caseGoals.map((goal, index) => (
                 <div key={index} className="wizard-field">
                   <WireFormField label={`상담 목표 ${index + 1}`} control="textarea" htmlFor={`case-goal-${index}`}>
                     <textarea
@@ -365,23 +381,19 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                       ))}
                     />
                   </WireFormField>
-                  {caseGoals.length > 1 ? (
-                    <div className="wizard-actions">
-                      <WireButton
-                        onClick={() => setCaseGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-                      >
-                        이 목표 삭제
-                      </WireButton>
-                    </div>
-                  ) : null}
+                  <WireRepeatActions
+                    itemLabel="목표"
+                    onAdd={index === caseGoals.length - 1 && caseGoals.length < 3
+                      ? () => setCaseGoals((prev) => [...prev, ''])
+                      : undefined}
+                    onRemove={caseGoals.length > 1
+                      ? () => setCaseGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                      : undefined}
+                  />
                 </div>
               ))}
-              {caseGoals.length < 3 ? (
-                <div className="wizard-actions">
-                  <WireButton onClick={() => setCaseGoals((prev) => [...prev, ''])}>추가하기</WireButton>
-                </div>
-              ) : null}
-            </div>
+              </div>
+            </WireCard>
             <div className="wizard-actions">
               <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
               <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
@@ -394,68 +406,74 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
         {step === 2 && sessionKind === 'regular' ? (
           <div className="wizard-stack">
             {contextBar}
-            <h2>이번 상담의 목표는 무엇인가요?</h2>
-            {/* 참고 카드 2장은 읽는 자료라 폭을 다 쓴다 — 입력 묶음(.wizard-form 520)과 다른 축이다. */}
-            <div className="wire-container" data-grid="true">
-              <div className="wire-col-6">
-                <WireCard title="상담별 목표">
-                  {(context?.caseGoals ?? []).length === 0 ? (
-                    <WireEmpty>등록된 케이스 목표가 없습니다.</WireEmpty>
-                  ) : (
-                    <WireBullets items={(context?.caseGoals ?? []).map((goal) => goal.title)} />
-                  )}
-                </WireCard>
-              </div>
-              <div className="wire-col-6">
-                <WireCard title="지난 상담 브리핑">
-                  <p className="panel-meta">
-                    {context?.lastBriefing === null || context?.lastBriefing === undefined
-                      ? '지난 상담 기록이 없습니다.'
-                      : <MetaRow items={[context.lastBriefing.source === 'ai' ? '승인 요약' : '수기 메모', context.lastBriefing.text]} />}
-                  </p>
-                </WireCard>
-              </div>
+            {/* 이름 카드와 이 물음 사이는 가로선으로 가른다(2026-08-09 Q) — 위는 "누구"이고
+                아래는 "무엇"이라 성격이 다른 구획인데, 여백만으로는 스택의 다른 간격과
+                구별되지 않았다(§2-2 규칙 2 ⓐ). */}
+            <div className="wizard-section-head">
+              <h2>이번 상담의 목표는 무엇인가요?</h2>
             </div>
-            <div className="wizard-form">
-              {sessionGoals.map((goal, index) => (
+            {/* 참고 카드 2장은 읽는 자료라 폭을 다 쓴다 — 입력 묶음(.wizard-form 520)과 다른 축이다.
+                .card-grid 를 쓰는 이유는 **높이 맞춤**이다(2026-08-09 Q "펼쳐져 있을 때의 최대
+                카드 높이에 맞추기") — 그 그리드가 이미 같은 줄 카드를 stretch 로 편다(2026-08-07).
+                구 .wire-container[data-grid] + wire-col-6 은 12칼럼 배치라 그 규칙이 안 걸렸다. */}
+            <div className="card-grid">
+              <WireCard title="상담별 목표">
+                {(context?.caseGoals ?? []).length === 0 ? (
+                  <WireEmpty>등록된 케이스 목표가 없습니다.</WireEmpty>
+                ) : (
+                  <WireBullets items={(context?.caseGoals ?? []).map((goal) => goal.title)} />
+                )}
+              </WireCard>
+              <WireCard title="지난 상담 브리핑">
+                {context?.lastBriefing === null || context?.lastBriefing === undefined
+                  ? <WireEmpty>지난 상담 기록이 없습니다.</WireEmpty>
+                  : <p className="panel-meta"><MetaRow items={[context.lastBriefing.source === 'ai' ? '승인 요약' : '수기 메모', context.lastBriefing.text]} /></p>}
+              </WireCard>
+            </div>
+            {/* 목표 카드(2026-08-09 Q): 세션 목표와 케이스 목표 연결이 **나란히** 서고 전체가
+                카드 한 장이다. 구 배치는 목표 입력 아래 선택창, 그 아래 삭제 버튼으로 세 줄이
+                쌓여 어느 선택창이 어느 목표에 붙는지가 여백으로만 구분됐다. */}
+            <WireCard className="wire-form-card">
+              <div className="wizard-row">
+                {sessionGoals.map((goal, index) => (
                 <div key={index} className="wizard-field">
-                  <WireFormField label={`세션 목표 ${index + 1}`} control="textarea" htmlFor={`session-goal-${index}`}>
-                    <textarea
-                      id={`session-goal-${index}`}
-                      aria-label={`세션 목표 ${index + 1}`}
-                      rows={4}
-                      value={goal.body}
-                      onChange={(event) => setSessionGoals((prev) => prev.map(
-                        (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
-                      ))}
-                    />
-                  </WireFormField>
-                  <SearchInput
-                    label="케이스 목표 연결"
-                    variant="select"
-                    value={goal.caseGoalId}
-                    options={goalOptions}
-                    onChange={(value) => setSessionGoals((prev) => prev.map(
-                      (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: value } : item),
-                    ))}
-                  />
-                  {sessionGoals.length > 1 ? (
-                    <div className="wizard-actions">
-                      <WireButton
-                        onClick={() => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+                  <div className="wire-form-grid">
+                    <WireFormField label={`세션 목표 ${index + 1}`} control="textarea" htmlFor={`session-goal-${index}`}>
+                      <textarea
+                        id={`session-goal-${index}`}
+                        aria-label={`세션 목표 ${index + 1}`}
+                        rows={4}
+                        value={goal.body}
+                        onChange={(event) => setSessionGoals((prev) => prev.map(
+                          (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
+                        ))}
+                      />
+                    </WireFormField>
+                    <WireFormField label="케이스 목표 연결" control="select" htmlFor={`session-goal-case-${index}`}>
+                      <select
+                        id={`session-goal-case-${index}`}
+                        value={goal.caseGoalId}
+                        onChange={(event) => setSessionGoals((prev) => prev.map(
+                          (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: event.currentTarget.value } : item),
+                        ))}
                       >
-                        이 목표 삭제
-                      </WireButton>
-                    </div>
-                  ) : null}
+                        {goalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </WireFormField>
+                  </div>
+                  <WireRepeatActions
+                    itemLabel="목표"
+                    onAdd={index === sessionGoals.length - 1
+                      ? () => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])
+                      : undefined}
+                    onRemove={sessionGoals.length > 1
+                      ? () => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                      : undefined}
+                  />
                 </div>
               ))}
-              <div className="wizard-actions">
-                <WireButton onClick={() => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])}>
-                  추가하기
-                </WireButton>
               </div>
-            </div>
+            </WireCard>
             <div className="wizard-actions">
               <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
               <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
@@ -468,10 +486,14 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
         {step === 3 ? (
           <div className="wizard-stack">
             {contextBar}
-            <h2>맞춤형 질문</h2>
-            <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
-            <div className="wizard-form">
-              {customQuestions.map((question, index) => (
+            <div className="wizard-section-head">
+              <h2>맞춤형 질문</h2>
+              <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
+            </div>
+            {/* 목표 카드와 **같은 레이아웃**이다(2026-08-09 Q "맞춤형 질문도 같은 레이아웃"). */}
+            <WireCard className="wire-form-card">
+              <div className="wizard-form">
+                {customQuestions.map((question, index) => (
                 <div key={index} className="wizard-field">
                   <WireFormField label={`질문 ${index + 1}`} control="textarea" htmlFor={`custom-question-${index}`}>
                     <textarea
@@ -484,21 +506,19 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                       ))}
                     />
                   </WireFormField>
-                  {customQuestions.length > 1 ? (
-                    <div className="wizard-actions">
-                      <WireButton
-                        onClick={() => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-                      >
-                        이 질문 삭제
-                      </WireButton>
-                    </div>
-                  ) : null}
+                  <WireRepeatActions
+                    itemLabel="질문"
+                    onAdd={index === customQuestions.length - 1
+                      ? () => setCustomQuestions((prev) => [...prev, ''])
+                      : undefined}
+                    onRemove={customQuestions.length > 1
+                      ? () => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                      : undefined}
+                  />
                 </div>
               ))}
-              <div className="wizard-actions">
-                <WireButton onClick={() => setCustomQuestions((prev) => [...prev, ''])}>추가하기</WireButton>
               </div>
-            </div>
+            </WireCard>
             <div className="wizard-actions">
               <WireButton onClick={() => { setError(null); setStep(2); }}>이전</WireButton>
               <WireButton size="large" chevron disabled={busy} onClick={complete}>완료</WireButton>
