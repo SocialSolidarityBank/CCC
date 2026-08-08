@@ -30,7 +30,7 @@ export default async function LegacyCasePage({ params }: { params: Promise<{ cas
   // 그리드의 gap 이 준다.
   return <GridContainer as="main" className="page-content">
     <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
-    <p className="wire-badge" data-tone="risk" role="alert">당사자 ID로 확인할 수 없는 이전 주소입니다. 이전 주소의 당사자 정보를 확인할 수 없습니다.</p>
+    <p className="wire-badge" data-tone="risk" role="alert">당사자 ID로 확인할 수 없는 이전 주소입니다.</p>
     <div><WireButton variant="secondary" href="/">다가오는 일정으로 돌아가기</WireButton></div>
   </GridContainer>;
 }

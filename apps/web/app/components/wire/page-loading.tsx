@@ -24,12 +24,28 @@ export interface PageLoadingProps {
   message?: string;
 }
 
+/**
+ * 목적격 조사 을/를. 한글 마지막 글자에 받침이 있으면 '을', 없으면 '를'이다.
+ * 유니코드 한글 음절은 (초성·중성·종성) 조합이 28 간격이라 나머지가 0 이면 받침이 없다.
+ * 한글이 아닌 글자로 끝나면 판정하지 않고 '를'로 둔다 — 화면 제목은 전부 한글이고,
+ * 아니라면 호출부가 message 를 직접 주는 쪽이 맞다.
+ */
+function objectParticle(word: string): string {
+  const last = word.trim().at(-1);
+  if (last === undefined) return '를';
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return '를';
+  return (code - 0xac00) % 28 === 0 ? '를' : '을';
+}
+
 export function PageLoading({ title, message }: PageLoadingProps) {
   return (
     <GridContainer as="main" className="page-content" ariaBusy>
       <div className="page-header"><PageTitle>{title}</PageTitle></div>
       <WireCard>
-        <p className="empty" role="status" aria-live="polite">{message ?? `${title}를 불러오는 중입니다.`}</p>
+        <p className="empty" role="status" aria-live="polite">
+          {message ?? `${title}${objectParticle(title)} 불러오는 중입니다.`}
+        </p>
       </WireCard>
     </GridContainer>
   );
