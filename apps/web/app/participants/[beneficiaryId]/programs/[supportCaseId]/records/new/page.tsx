@@ -359,7 +359,10 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     access_denied: { tone: 'risk', role: 'alert', text: '이 참여 사업에 상담 기록을 남길 권한이 없습니다. 권한을 확인한 뒤 새 상담 기록을 시작하세요.' },
     forbidden: { tone: 'risk', role: 'alert', text: '현재 권한으로는 이 상담 기록을 저장할 수 없습니다. 권한 상태를 확인하세요.' },
     not_found: { tone: 'risk', role: 'alert', text: '요청한 당사자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.' },
-    conflict: { tone: 'risk', role: 'alert', text: '같은 제출 ID에 다른 저장 요청이 있어 이 기록을 등록하지 않았습니다.' },
+    // CCC-57: 이 코드는 두 원인에서 온다. 같은 제출 ID의 다른 저장 요청, 그리고 완료할
+    // 일정이 그 사이 바뀐 경우(버전 불일치). 완료할 일정이 기본으로 골라지게 되면서 후자가
+    // 실제로 날 수 있는 길이 됐다. 서버가 둘을 다른 코드로 주지 않으므로 문구가 둘 다 덮는다.
+    conflict: { tone: 'risk', role: 'alert', text: '같은 제출 ID에 다른 저장 요청이 있거나, 완료할 일정이 그 사이 변경되어 이 기록을 등록하지 않았습니다.' },
     not_eligible_or_already_purged: { tone: 'risk', role: 'alert', text: '현재 참여 사업에는 상담 기록을 등록할 수 없습니다. 참여 사업 상태를 확인하세요.' },
     pilot_text_ai_consent_required: { tone: 'risk', role: 'alert', text: '텍스트 AI 파일럿 동의가 확인되지 않아 요청을 처리할 수 없습니다. 동의 상태를 확인하세요.' },
     text_ai_pilot_disabled: { tone: 'risk', role: 'alert', text: '텍스트 AI 파일럿이 현재 사용할 수 없어 요청을 처리할 수 없습니다.' },
@@ -465,8 +468,11 @@ export default async function NewRecordPage({
       <p>서버에 제출 결과 조회 기능이 없어 이 화면에서 같은 내용을 다시 구성하거나 재제출하지 않습니다.</p>
       <p>제출 ID {recoverySubmissionId ?? '확인 불가'}를 유지한 채 해당 참여 사업의 상담 기록에서 등록 여부를 확인하세요.</p>
       <div className="wire-form-actions"><WireButton variant="primary" href={historyPath}>상담 기록 확인</WireButton></div>
-    </WireCard> : mustStartFresh ? <WireCard as="section" labelledBy="conflict-record-title" title={<h2 id="conflict-record-title">새 제출 ID가 필요합니다.</h2>}>
-      <p>충돌한 제출 ID는 재사용하지 않습니다. 기존 상담 기록을 확인한 뒤 새 상담 기록을 시작하세요.</p>
+    {/* CCC-57: 이 자리는 conflict 코드 하나가 오는 곳인데 원인이 둘이다. 제출 ID 충돌과
+        완료할 일정의 버전 불일치. 서버가 둘을 가르지 않으므로 문구가 둘 다 덮는다. 어느
+        쪽이든 다시 여는 것이 답이고, 쓰던 내용은 임시본으로 남아 다시 열 때 복원된다. */}
+    </WireCard> : mustStartFresh ? <WireCard as="section" labelledBy="conflict-record-title" title={<h2 id="conflict-record-title">이 기록을 등록하지 않았습니다.</h2>}>
+      <p>같은 제출 ID에 다른 저장 요청이 있었거나, 완료할 일정이 그 사이 변경되었습니다. 기존 상담 기록과 일정을 확인한 뒤 새 상담 기록을 시작하세요. 쓰던 내용은 임시본으로 남아 있어 새로 열면 복원할 수 있습니다.</p>
       <div className="wire-form-actions">
         <WireButton variant="secondary" href={historyPath}>상담 기록 보기</WireButton>
         <WireButton variant="primary" href={newRecordPath}>새 상담 기록 작성</WireButton>

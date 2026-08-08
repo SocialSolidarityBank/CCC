@@ -1219,6 +1219,8 @@ function intakeContextResponse(context: Awaited<ReturnType<typeof getIntakeRecor
     consent: context.consent,
     // 저장된 인테이크 내용(확인/수정 화면 재료, 2026-08-08 Q). 없으면 null.
     saved: context.saved,
+    // 다음 예정 일정(CCC-57). 위저드가 완료 처리에 쓸 id·version 이고, 예정 건이 없으면 null.
+    schedule: nextCounselingScheduleResponse(context.schedule),
   };
 }
 

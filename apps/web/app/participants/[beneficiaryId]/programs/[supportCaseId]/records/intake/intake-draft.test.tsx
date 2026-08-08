@@ -22,7 +22,10 @@ const VAULT_PII = {
   gender: '여성',
 };
 
-function renderWizard(extendedPii = VAULT_PII) {
+/** CCC-57 연결 일정. 완료 체크의 켬·끔이 임시본을 건너 살아남는지 보는 데 쓴다. */
+const LINKED_SCHEDULE = { id: '22222222-2222-4222-8222-222222222222', scheduledAt: '2026-08-12T05:00:00.000Z', version: 3 };
+
+function renderWizard(extendedPii = VAULT_PII, schedule: typeof LINKED_SCHEDULE | null = null) {
   push.mockClear();
   let lastInput: CreateIntakeRecordActionInput | null = null;
   const submit = async (input: CreateIntakeRecordActionInput): Promise<IntakeRecordActionResult> => {
@@ -42,6 +45,7 @@ function renderWizard(extendedPii = VAULT_PII) {
       briefingHref="/participants/swallow-003/programs/case/briefing?notice=intake_saved"
       participantHref="/participants/swallow-003"
       basicInfoHref="/participants/swallow-003/edit"
+      schedule={schedule}
       submit={submit}
     />,
   );
@@ -93,6 +97,52 @@ describe('인테이크 임시본', () => {
     expect(raw).not.toContain('홍서희');
     // 실무자가 이 화면에서 직접 쓴 내용은 담긴다(그것이 이 기능의 목적이다).
     expect(raw).toContain('기초연금 수급');
+  });
+
+  // CCC-57: 완료 체크를 임시본에 담지 않으면 "이 일정은 완료로 넘기지 않겠다"가 복원에서
+  // 조용히 뒤집힌다. 완료 버튼은 단계와 무관하게 늘 떠 있어서, 1단계에서 이어쓰기를 누르고
+  // 그대로 저장하면 4단계를 다시 보지 않은 채 일정이 완료된다.
+  it('연결 일정 완료 체크를 끈 것도 임시본이 기억한다', async () => {
+    const first = renderWizard(VAULT_PII, LINKED_SCHEDULE);
+    const scoped = within(first.container);
+    // 임시본은 쓴 내용이 있을 때만 저장된다(hasContent). 체크 하나만 건드린 빈 폼은
+    // 되돌릴 것이 없어 저장하지 않는 것이 맞다. 실제 흐름대로 먼저 한 칸 채운다.
+    fireEvent.change(scoped.getByLabelText('기타 공적급여'), { target: { value: '기초연금 수급' } });
+    fireEvent.click(scoped.getByRole('button', { name: /^4\./ }));
+    const checkbox = within(scoped.getByTestId('intake-schedule-completion'))
+      .getByRole('checkbox') as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    fireEvent.click(checkbox);
+
+    await waitFor(() => {
+      const stored = readDraft<{ completeSchedule?: unknown }>(KEY);
+      expect(stored?.values.completeSchedule).toBe(false);
+    }, { timeout: 3000 });
+
+    cleanup();
+    const second = renderWizard(VAULT_PII, LINKED_SCHEDULE);
+    const reopened = within(second.container);
+    fireEvent.click(second.getByRole('button', { name: '이어쓰기' }));
+    fireEvent.click(reopened.getByRole('button', { name: /^4\./ }));
+    expect((within(reopened.getByTestId('intake-schedule-completion'))
+      .getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+
+  // 이 키가 없던 시절의 임시본은 새 폼과 같은 기본값(켬)으로 읽는다.
+  it('완료 체크가 없는 옛 임시본은 켠 상태로 읽는다', () => {
+    writeDraft(KEY, {
+      step: 1,
+      heldAt: '2026-07-20T13:00',
+      answers: { welfare_other: { response: 'answered', text: '기초연금 수급' } },
+      debts: [], linkedOrgs: [], additionalItems: [], managerOpinion: '',
+    }, 'editing');
+
+    const { container, getByRole } = renderWizard(VAULT_PII, LINKED_SCHEDULE);
+    const scoped = within(container);
+    fireEvent.click(getByRole('button', { name: '이어쓰기' }));
+    fireEvent.click(scoped.getByRole('button', { name: /^4\./ }));
+    expect((within(scoped.getByTestId('intake-schedule-completion'))
+      .getByRole('checkbox') as HTMLInputElement).checked).toBe(true);
   });
 
   it('작성하던 임시본이 있으면 이어쓰기 배너를 띄우고 입력을 되돌린다', () => {

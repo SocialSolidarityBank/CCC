@@ -47,6 +47,19 @@ function dateTimeLabel(value: string): string {
   return formatKoreanDateTime(value);
 }
 
+/**
+ * '완료할 일정' 선택칸의 값(CCC-57). **선택지와 기본값이 이 함수 하나를 같이 써야 한다.**
+ * 키 순서만 달라도 문자열이 어긋나 어느 선택지와도 안 맞고, 브라우저는 그때 조용히 첫
+ * 선택지로 되돌린다(타입도 렌더도 통과하므로 눈에 띄지 않는다).
+ *
+ * 그 조용한 되돌림이 덜 아프도록 아래 선택지는 **일정이 먼저, '표시하지 않음'이 마지막**이다.
+ * 어긋나도 "가장 이른 예정 일정"에 떨어질 뿐, 이 티켓이 고치는 그 버그(완료 안 함)로는
+ * 돌아가지 않는다.
+ */
+function scheduleChoiceValue(schedule: CounselingSchedule): string {
+  return JSON.stringify({ id: schedule.id, version: schedule.version });
+}
+
 export interface RecordOnepageProps {
   // goals(세부 목표)는 더 이상 받지 않는다 — GAS 입력·목표 종료+신설이 D47 §6 으로 빠지면서
   // 이 화면에서 쓸 곳이 없어졌다. 조회 API 는 그대로 내려보내므로 재활성 시 되돌리면 된다.
@@ -100,6 +113,11 @@ export function RecordOnepage({
   const accordionsRef = useRef<HTMLDivElement>(null);
   const [allOpen, setAllOpen] = useState(false);
 
+  // 완료 처리할 연결 일정(CCC-57). 예정 건 중 첫째가 기본으로 골라져 있다. 기록을 남겼는데
+  // 그 약속이 계속 '예정'으로 서 있는 것이 이 티켓이 고치는 오작동이다. 예정 건이 없으면
+  // 선택칸 자체를 그리지 않는다(고를 것이 '표시하지 않음' 하나뿐인 칸은 자리만 먹는다).
+  const scheduledSchedules = schedules.filter((schedule) => schedule.status === 'scheduled');
+  const linkedSchedule = scheduledSchedules[0];
   const openActionsHandled = openActionItems.length === 0 || resolvedActionIds.length === openActionItems.length;
   const hasCrisis = crisisAreas.length > 0;
   // P1 3종(설계 §2). 6영역은 기본값 '변화 없음'이 곧 유효한 입력이라 언제나 충족으로 센다.
@@ -254,6 +272,25 @@ export function RecordOnepage({
             <select id="record-channel" name="channel" defaultValue="in_person">{channelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           </WireFormField>
         </div>
+        {/* 완료할 일정(CCC-57, 2026-08-08 Q 승인). 접힌 '새 액션 · 다음 만남' 구획에서 여기로
+            올렸다. 기본이 켬이 된 이상 안 보이는 곳에서 일정이 완료되면 안 된다. "이 기록이
+            어느 약속의 기록인가"는 바로 위 상담 일시·상담 방식과 같은 성격이라 자리도 여기다. */}
+        {linkedSchedule === undefined ? null : <WireFormField
+          label="완료할 일정"
+          control="select"
+          htmlFor="schedule-completion"
+          hint="선택한 일정의 현재 버전을 함께 제출합니다. 그 사이 일정이 바뀌었으면 기록을 저장하지 않고 알려 줍니다."
+        >
+          <select
+            id="schedule-completion"
+            name="scheduleCompletion"
+            aria-describedby="schedule-completion-hint"
+            defaultValue={scheduleChoiceValue(linkedSchedule)}
+          >
+            {scheduledSchedules.map((schedule) => <option key={schedule.id} value={scheduleChoiceValue(schedule)}>{dateTimeLabel(schedule.scheduledAt)} 일정 완료</option>)}
+            <option value="">일정을 완료로 표시하지 않음</option>
+          </select>
+        </WireFormField>}
       </WireCard>
 
       {/* 3. 미해결 액션 원클릭 처리 */}
@@ -293,10 +330,8 @@ export function RecordOnepage({
       <WireCardDetails className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />} badge={<small>(선택)</small>}>
         <p>필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</p>
         <div className="wire-fieldset-list">{[0, 1, 2].map((index) => <ActionItemFields index={index} key={index} />)}</div>
-        <WireFormField label="완료할 일정" note="(선택)" control="select" htmlFor="schedule-completion">
-          <select id="schedule-completion" name="scheduleCompletion" defaultValue=""><option value="">일정을 완료로 표시하지 않음</option>{schedules.filter((schedule) => schedule.status === 'scheduled').map((schedule) => <option key={schedule.id} value={JSON.stringify({ id: schedule.id, version: schedule.version })}>{dateTimeLabel(schedule.scheduledAt)} 일정 완료</option>)}</select>
-        </WireFormField>
-        <p className="panel-meta">다음 만남은 상담 일정 화면에서 등록합니다. 선택한 일정의 현재 버전을 함께 제출하며, 버전이 달라지면 완료 처리하지 않습니다.</p>
+        {/* '완료할 일정'은 여기 있었다. CCC-57 로 '오늘 상담 내용' 카드로 올렸다. */}
+        <p className="panel-meta">다음 만남은 상담 일정 화면에서 등록합니다.</p>
         <WireFormField label="지난 상담 이후 달라진 일" note="(선택)" htmlFor="change-since-last">
           <input id="change-since-last" name="changeSinceLast" type="text" maxLength={200} />
         </WireFormField>

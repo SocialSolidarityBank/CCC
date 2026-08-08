@@ -11,6 +11,7 @@ import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
+import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
   IntakeAnswerInput,
@@ -67,6 +68,11 @@ export interface IntakeWizardProps {
   /** 1-1 기본정보를 고치러 가는 곳(당사자 기본정보 수정 화면, CCC-37). */
   basicInfoHref: string;
   submit: (input: CreateIntakeRecordActionInput) => Promise<IntakeRecordActionResult>;
+  /**
+   * 완료로 넘길 연결 일정(CCC-57). 예정 건이 없으면 null 이고, 그때는 조작 칸을 그리지
+   * 않는다. **작성 모드에서만 온다.** 수정 경로에는 일정 연결이 없다.
+   */
+  schedule?: { id: string; scheduledAt: string; version: number } | null;
   /** 수정 모드(2026-08-08 Q "확인/수정"). 저장된 인테이크를 미리 채우고 덮어쓴다. */
   mode?: 'create' | 'edit';
   /** 수정 모드의 프리필 재료 — 서버의 saved 를 페이지가 이 모양으로 바꿔 준다. */
@@ -89,7 +95,9 @@ const NOTICE_MESSAGES: Record<string, string> = {
   access_denied: '담당 중인 참여 사업에만 인테이크를 남길 수 있습니다.',
   forbidden: '담당 중인 참여 사업에만 인테이크를 남길 수 있습니다.',
   not_found: '당사자 또는 참여 사업을 찾을 수 없습니다.',
-  conflict: '이 참여 사업에는 이미 인테이크 기록이 있습니다.',
+  // CCC-57: 이 코드는 두 가지 원인에서 온다. 인테이크 중복, 그리고 연결된 일정이 그
+  // 사이 바뀐 경우(버전 불일치). 서버가 둘을 다른 코드로 주지 않으므로 문구가 둘 다 덮는다.
+  conflict: '이 참여 사업에 이미 인테이크 기록이 있거나, 연결된 상담 일정이 그 사이 변경되었습니다. 화면을 새로 열어 확인하세요.',
   authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
   service_unavailable: '지금 저장할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
@@ -111,6 +119,12 @@ interface IntakeDraftValues {
   linkedOrgs: TableRow[];
   additionalItems: TableRow[];
   managerOpinion: string;
+  /**
+   * 연결 일정을 완료로 넘길 것인가(CCC-57). 임시본에 담지 않으면 체크를 푼 사실이 복원에서
+   * 사라진다. 완료 버튼은 단계와 무관하게 늘 떠 있으므로, 1단계에서 복원하고 그대로 저장하면
+   * "완료하지 않겠다"가 조용히 뒤집힌다. 켜는 쪽으로 뒤집히는 것이라 더 눈에 안 띈다.
+   */
+  completeSchedule: boolean;
 }
 
 // 표 3종의 열 정의는 intake-questions.ts 가 단일 원천이다(CCC-58 — 조회 화면과 공유).
@@ -202,6 +216,8 @@ function normalizeDraft(raw: unknown): IntakeDraftValues | null {
     linkedOrgs: normalizeRows(raw.linkedOrgs, LINKED_ORG_COLUMNS, true),
     additionalItems: normalizeRows(raw.additionalItems, ADDITIONAL_COLUMNS),
     managerOpinion: textOf(raw.managerOpinion),
+    // 이 키가 없는 옛 임시본은 새 폼과 같은 기본값(켬)으로 읽는다. 끈 사실만 저장돼 있다.
+    completeSchedule: raw.completeSchedule !== false,
   };
 }
 
@@ -429,6 +445,11 @@ export function IntakeWizard(props: IntakeWizardProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 연결 일정 완료(CCC-57). 기본은 켬이다. 인테이크를 마쳤는데 그 약속이 계속 '예정'으로
+  // 남는 것이 이 티켓이 고치는 오작동이다. 실무자가 끄면 일정은 그대로 둔다.
+  // 수정 모드에는 이 배선이 없으므로(위 prop 주석) 예정 건이 있어도 링크를 잡지 않는다.
+  const linkedSchedule = editing ? null : props.schedule ?? null;
+  const [completeSchedule, setCompleteSchedule] = useState(true);
 
   // 상담일(1-3)은 화면을 연 시각으로 채운다(실무자가 바꿀 수 있음). 서버·클라이언트 시각 차이로
   // 생기는 하이드레이션 불일치를 피하려고 마운트 후에 채운다. 수정 모드는 저장된 상담일을
@@ -452,8 +473,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
   // 금고에서 내려온 기본정보(props.extendedPii·participant)는 이 객체에 없다 — 임시본에 담으면
   // pii_vault 값을 브라우저에 쓰게 된다. 1단계가 표시 전용이 된 뒤로는 더더욱 담을 이유가 없다.
   const draftValues: IntakeDraftValues = useMemo(() => ({
-    step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion,
-  }), [step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion]);
+    step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion, completeSchedule,
+  }), [step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion, completeSchedule]);
 
   useEffect(() => {
     // 수정 모드는 임시본을 켜지 않는다 — 서버 저장본이 정본이고, 작성 모드의 임시본과
@@ -499,6 +520,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     setLinkedOrgs(values.linkedOrgs);
     setAdditionalItems(values.additionalItems);
     setManagerOpinion(values.managerOpinion);
+    setCompleteSchedule(values.completeSchedule);
     // 금고 값은 되돌리지 않는다 — 임시본에 담기지 않았고, props 가 정본이다.
   }
 
@@ -600,6 +622,11 @@ export function IntakeWizard(props: IntakeWizardProps) {
     if (linkedRows.length > 0) payload.linkedOrgs = linkedRows as unknown as NonNullable<CreateIntakeRecordActionInput['linkedOrgs']>;
     if (extraRows.length > 0) payload.additionalItems = extraRows as unknown as NonNullable<CreateIntakeRecordActionInput['additionalItems']>;
     if (opinion.length > 0) payload.managerOpinion = opinion;
+    // 연결 일정 완료(CCC-57). 두 값은 언제나 함께 실린다. 서버가 버전으로 다시 확인한다.
+    if (linkedSchedule !== null && completeSchedule) {
+      payload.scheduleId = linkedSchedule.id;
+      payload.expectedScheduleVersion = linkedSchedule.version;
+    }
     const result = await props.submit(payload);
     setBusy(false);
     if (result.status !== 'saved' && result.status !== 'replayed') {
@@ -810,6 +837,22 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   />
                 </WireFormField>
               </WireCard>
+              {/* 연결 일정 완료(CCC-57). 예정 건이 있을 때만 그린다. 없으면 이 카드 자체가
+                  없다. 정기 기록지의 '완료할 일정'과 같은 성격이고, 거기와 마찬가지로
+                  기본이 켬이라 실무자가 저장 전에 눈으로 보고 끌 수 있어야 한다. */}
+              {linkedSchedule === null ? null : (
+                <WireCard title={<h3>연결된 상담 일정</h3>} testId="intake-schedule-completion">
+                  <p className="panel-meta">
+                    이 인테이크로 완료 처리할 예정 일정입니다. 체크를 풀면 일정은 예정 그대로 남습니다.
+                  </p>
+                  <WireChoice
+                    type="checkbox"
+                    label={`${formatKoreanDateTime(linkedSchedule.scheduledAt)} 일정을 완료로 표시`}
+                    checked={completeSchedule}
+                    onChange={setCompleteSchedule}
+                  />
+                </WireCard>
+              )}
             </div>
           ) : null}
 

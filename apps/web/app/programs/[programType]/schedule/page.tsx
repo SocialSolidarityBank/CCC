@@ -9,7 +9,8 @@ import { isKnownProgramType } from '../../../lib/labels';
 import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 
 // 재개편 T3(#33): 선택된 참여 사업의 상담 카드 목록. 데이터는 오늘 + 향후 7일 일정
-// (getUpcomingSchedules)을 사업 유형으로 거른 것. 실명·연락처는 T2(D24) 응답 필드
+// (getUpcomingSchedules)을 사업 유형과 상태로 거른 것(상태 거르기는 CCC-57 에서 붙였다.
+// 아래 filter 주석 참조). 실명·연락처는 T2(D24) 응답 필드
 // participantName·participantPhone을 그대로 쓴다(담당 실무자·기관 관리자·admin에게만 값,
 // 그 외 null → 가명 ID / '—' 폴백). 감사는 게이트웨이가 자동 처리한다.
 
@@ -86,6 +87,12 @@ export default async function ProgramSchedulePage({
     // getUpcomingSchedules는 scheduled_at·id 오름차순(시간순)으로 내려온다.
     const cards: ScheduleCardItem[] = board.schedules
       .filter((schedule) => schedule.programType === programType)
+      // 상태 거르기(CCC-57, 2026-08-08 Q 승인). 서버는 창 안의 일정을 상태 구분 없이
+      // 전부 내려 주는데, 이 화면은 이름 그대로 '앞으로 할 일'이라 끝난 건은 자리를
+      // 차지하면 안 된다. 카드에 상태 표시가 없어서 완료된 일정이 예정 건과 똑같이
+      // 보였고, 그것이 이 티켓이 없애려는 '유령 예정 일정'이다.
+      // 지난 일정은 '전체 일정' 화면이 완료·취소·불참 배지와 함께 보여 준다(D54).
+      .filter((schedule) => schedule.status === 'scheduled')
       .map((schedule) => ({
         id: schedule.id,
         href: briefingHref(schedule.beneficiaryId, schedule.supportCaseId),

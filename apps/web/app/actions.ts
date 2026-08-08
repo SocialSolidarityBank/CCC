@@ -1061,6 +1061,12 @@ export interface CreateIntakeRecordActionInput {
   linkedOrgs?: IntakeLinkedOrgInput[];
   nextMeeting?: IntakeNextMeetingInput;
   managerOpinion?: string;
+  /**
+   * 완료로 넘길 연결 일정(CCC-57). 둘은 언제나 함께 온다. 정기 기록지와 같은 규칙이다.
+   * **작성 경로 전용이다**: 수정 경로(updateIntakeRecordAction)는 실려 와도 버린다.
+   */
+  scheduleId?: string;
+  expectedScheduleVersion?: number;
 }
 
 export type IntakeRecordActionResult = { status: 'saved' } | { status: 'replayed' } | { status: Notice };
@@ -1095,6 +1101,15 @@ export async function createIntakeRecordAction(
       const nextMeetingAt = new Date(input.nextMeeting.heldAt);
       if (Number.isNaN(nextMeetingAt.valueOf())) throw new FormInputError();
     }
+    // 연결 일정 완료(CCC-57). 정기 기록지와 같은 짝 규칙이다. 둘 다 있거나 둘 다 없다.
+    // 한쪽만 오면 게이트웨이가 버전 검사를 못 하므로 여기서 막는다.
+    const hasSchedule = input.scheduleId !== undefined;
+    if (hasSchedule !== (input.expectedScheduleVersion !== undefined)) throw new FormInputError();
+    if (input.scheduleId !== undefined && !SCHEDULE_UUID_PATTERN.test(input.scheduleId)) throw new FormInputError();
+    if (
+      input.expectedScheduleVersion !== undefined
+      && (!Number.isSafeInteger(input.expectedScheduleVersion) || input.expectedScheduleVersion < 1)
+    ) throw new FormInputError();
     await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
     const managerOpinion = input.managerOpinion?.trim();
     const result = await createIntakeRecord(input.supportCaseId, {
@@ -1143,6 +1158,11 @@ export async function createIntakeRecordAction(
           },
         }),
       ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
+      // 연결 일정 완료(CCC-57). 게이트웨이가 소유·상태·버전을 다시 검사하고, 어긋나면
+      // 기록 저장 자체가 서지 않는다(버전 검사 유지, 티켓 지시).
+      ...(input.scheduleId === undefined || input.expectedScheduleVersion === undefined
+        ? {}
+        : { scheduleId: input.scheduleId, expectedScheduleVersion: input.expectedScheduleVersion }),
     });
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
     return { status: result.replayed ? 'replayed' : 'saved' };
@@ -1155,6 +1175,10 @@ export async function createIntakeRecordAction(
  * 인테이크 수정(2026-08-08 Q "확인/수정"). 위저드가 create 와 같은 입력형으로 부르므로
  * 프런트 검증도 같은 규칙을 쓴다 — 다만 서버로는 수정 경로가 받는 위저드 소유분만 보낸다.
  * submissionId 는 수정 경로에 없다(덮어쓰기는 본질상 멱등이라 재현 보호가 필요 없다).
+ *
+ * **일정 연결(scheduleId·expectedScheduleVersion)은 실려 와도 버린다**(CCC-57). 수정 경로
+ * 파서(parseIntakeUpdate)가 허용 키 목록으로 막고 있어 보내면 요청 전체가 거부된다.
+ * 일정 완료는 처음 저장할 때 한 번 하는 일이고, 고쳐 쓰기는 그 자리가 아니다.
  */
 export async function updateIntakeRecordAction(
   input: CreateIntakeRecordActionInput,

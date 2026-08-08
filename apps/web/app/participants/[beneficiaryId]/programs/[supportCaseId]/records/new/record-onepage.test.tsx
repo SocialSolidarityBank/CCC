@@ -150,4 +150,68 @@ describe('RecordOnepage', () => {
     const others = Array.from(container.querySelectorAll('details')).filter((d) => d !== safety);
     expect(others.every((details) => !details.open)).toBe(true);
   });
+
+  // CCC-57: 기록을 남겨도 연결된 약속이 '예정'으로 남던 것을 고친다. 기본값이 실제로 그
+  // 일정에 걸려 있는지를 본다. **선택지가 있는지가 아니라 골라져 있는지**다. 값은 JSON
+  // 문자열이라 키 순서만 달라도 어느 선택지와도 안 맞고, 브라우저가 조용히 첫 선택지로
+  // 되돌린다. 그 경우 "선택지가 있다"는 검사는 통과하면서 버그는 그대로 남는다.
+  it('연결된 예정 일정을 기본으로 골라 둔다', () => {
+    const schedule = {
+      id: 'sched-1',
+      beneficiaryId: 'swallow-003',
+      supportCaseId: 'case-1',
+      scheduledAt: '2026-08-12T05:00:00.000Z',
+      status: 'scheduled' as const,
+      version: 3,
+    };
+    const { container } = render(<RecordOnepage {...props({ schedules: [schedule] })} />);
+
+    const select = container.querySelector('select[name="scheduleCompletion"]') as HTMLSelectElement;
+    expect(select).not.toBeNull();
+    expect(select.value).toBe(JSON.stringify({ id: 'sched-1', version: 3 }));
+    // 끄는 길은 남아 있다. 자동 완료가 강제가 되면 안 된다.
+    expect([...select.options].some((option) => option.value === '')).toBe(true);
+  });
+
+  // 자리 이동(2026-08-08 Q 승인): 접힌 '새 액션 · 다음 만남' 구획에서 항상 보이는
+  // '오늘 상담 내용' 카드로 올렸다. 기본이 켬인 이상 안 보이는 곳에서 일정이 완료되면 안 된다.
+  it('완료할 일정은 접힌 구획이 아니라 상담 일시와 같은 카드에 있다', () => {
+    const { container } = render(<RecordOnepage {...props({
+      schedules: [{
+        id: 'sched-1',
+        beneficiaryId: 'swallow-003',
+        supportCaseId: 'case-1',
+        scheduledAt: '2026-08-12T05:00:00.000Z',
+        status: 'scheduled' as const,
+        version: 1,
+      }],
+    })} />);
+
+    const select = container.querySelector('select[name="scheduleCompletion"]') as HTMLSelectElement;
+    expect(select.closest('details')).toBeNull();
+    expect(select.closest('.wire-card')).toBe(
+      container.querySelector('select[name="channel"]')?.closest('.wire-card'),
+    );
+  });
+
+  // 예정 건이 없으면 칸 자체를 그리지 않는다. 고를 것이 '표시하지 않음' 하나뿐인 칸은
+  // 항상 보이는 자리에서 자리만 먹는다.
+  it('예정 일정이 없으면 완료할 일정 칸을 그리지 않는다', () => {
+    const { container } = render(<RecordOnepage {...props()} />);
+    expect(container.querySelector('select[name="scheduleCompletion"]')).toBeNull();
+  });
+
+  it('이미 완료·취소된 일정은 완료 대상으로 세지 않는다', () => {
+    const { container } = render(<RecordOnepage {...props({
+      schedules: [{
+        id: 'sched-done',
+        beneficiaryId: 'swallow-003',
+        supportCaseId: 'case-1',
+        scheduledAt: '2026-08-01T05:00:00.000Z',
+        status: 'completed' as const,
+        version: 2,
+      }],
+    })} />);
+    expect(container.querySelector('select[name="scheduleCompletion"]')).toBeNull();
+  });
 });

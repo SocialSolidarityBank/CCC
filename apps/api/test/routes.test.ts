@@ -2222,6 +2222,58 @@ describe('canonical participant API routes', () => {
       programType: 'financial_support_v1',
     });
   });
+  // CCC-57: 인테이크 위저드가 연결 일정을 완료로 넘기는 경로는 HTTP 경계를 지난다.
+  // parseIntakeCreation 의 허용 키에서 두 필드가 빠지면 위저드가 400 으로 죽는데,
+  // 게이트웨이 테스트는 그 경계를 지나지 않아 전부 통과한다. 그 구멍을 여기서 막는다.
+  it('carries the linked appointment on the intake context and completes it on POST (CCC-57)', async () => {
+    const creation = await setupCanonicalParticipant();
+    const schedule = await createCounselingSchedule(t.env, canonicalCounselor, {
+      beneficiaryId: creation.beneficiaryId,
+      supportCaseId: creation.supportCaseId,
+      scheduledAt: '2026-07-15T10:00:00.000Z',
+    });
+
+    const context = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    expect(context.status).toBe(200);
+    await expect(context.json()).resolves.toMatchObject({
+      hasIntake: false,
+      schedule: { id: schedule.id, version: schedule.version, status: 'scheduled', completedSessionId: null },
+    });
+
+    const created = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      {
+        method: 'POST',
+        headers: canonicalCounselorHeaders,
+        body: JSON.stringify({
+          submissionId: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3',
+          heldAt: '2026-07-15T09:30:00.000Z',
+          channel: 'in_person',
+          scheduleId: schedule.id,
+          expectedScheduleVersion: schedule.version,
+        }),
+      },
+    ), t.env);
+    expect(created.status).toBe(201);
+    const createdBody = await created.json() as { record: { id: string } };
+
+    // 일정이 완료로 넘어가고 그 회차를 가리킨다. 예정으로 남으면 '유령 예정 일정'이다.
+    const after = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records?official=true`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    await expect(after.json()).resolves.toMatchObject({ schedule: null });
+    await expect(t.env.DB.prepare(
+      'SELECT status, completed_session_id FROM counseling_schedules WHERE id = ?',
+    ).bind(schedule.id).first()).resolves.toMatchObject({
+      status: 'completed',
+      completed_session_id: createdBody.record.id,
+    });
+  });
+
   it('serves the intake context and stores an intake record once, replaying identical resubmissions (CCC-7)', async () => {
     const creation = await setupCanonicalParticipant();
 
