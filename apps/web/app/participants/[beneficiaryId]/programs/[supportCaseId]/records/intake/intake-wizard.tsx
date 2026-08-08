@@ -45,7 +45,10 @@ import {
  *  ① 기본정보(이름·생년월일·연락처·이메일·주소·성별) 입력 — 저장은 당사자 등록(금고)만.
  *     여기서는 읽어서 보여주기만 한다(D42 ① · R3: 세션 기록에 PII 미저장).
  *  ② 동의 입력 — 당사자 등록 화면 몫이다(D42 ② · D23). 여기서는 기록 여부만 표시한다.
- *  ③ 목표·GAS 기준 입력 — 통째로 빠졌다(D42 ③ · D43 GAS 보류).
+ *  ③ 세부 목표·GAS 기준 입력 — 빠진 채다(D42 ③ · D43 GAS 보류). **전체 목표 1칸만**
+ *     D62(ADR-0032 §2)가 되살렸다 — 인테이크가 전체 목표의 주 입력 자리이고 15초 페이지
+ *     카드는 보조가 된다. 질문지(D41 정본) 항목이 아니라 화면 기능이라 '전 항목 필수'의
+ *     예외이며 무응답 선택지도 없다(비워 두면 그냥 빈 것).
  *  ④ 원하는 도움 3문·6영역 상태·다음 행동·다음 만남 — 정본 질문지에 없는 항목이라 보내지
  *     않는다. 게이트웨이도 이 5종을 선택으로 받는다.
  *
@@ -79,6 +82,16 @@ export interface IntakeWizardProps {
   mode?: 'create' | 'edit';
   /** 수정 모드의 프리필 재료 — 서버의 saved 를 페이지가 이 모양으로 바꿔 준다. */
   initial?: IntakeInitialValues;
+  /**
+   * 전체 목표 현재값(D62 · CCC-68) — 작성·수정 모두 프리필한다. 15초 페이지 카드에서 먼저
+   * 적었을 수 있으므로, 프리필 없이 빈 칸으로 두면 저장이 그 값을 조용히 지운다.
+   */
+  overallGoal: string | null;
+  /**
+   * 인테이크는 저장됐는데 전체 목표 별개 호출만 실패했을 때 가는 곳 — 15초 페이지
+   * (?notice=overall_goal_error). 그 카드가 보조 입력 자리라 재시도 UI 를 이미 갖고 있다.
+   */
+  overallGoalErrorHref: string;
 }
 
 /** 수정 모드 프리필 값. heldAt 은 ISO UTC 그대로 받고 화면이 로컬 표기로 바꾼다. */
@@ -121,6 +134,8 @@ interface IntakeDraftValues {
   linkedOrgs: TableRow[];
   additionalItems: TableRow[];
   managerOpinion: string;
+  /** 전체 목표(D62). 임시본에 없던 옛 키라 복원은 서버 프리필 폴백을 갖는다(normalizeDraft). */
+  overallGoal: string;
   /**
    * 연결 일정을 완료로 넘길 것인가(CCC-57). 임시본에 담지 않으면 체크를 푼 사실이 복원에서
    * 사라진다. 완료 버튼은 단계와 무관하게 늘 떠 있으므로, 1단계에서 복원하고 그대로 저장하면
@@ -189,8 +204,11 @@ const RESPONSE_CODES: readonly IntakeAnswerResponse[] = ['answered', 'declined',
 /**
  * 임시본은 배포를 건너뛰고 살아남는다(보관 12시간). 필드가 빠지거나 모양이 달라진 임시본을
  * 그대로 상태에 부으면 화면이 렌더 중에 죽는다 — 되돌리기 전에 항상 기본값 위에 얹어 정규화한다.
+ *
+ * fallbackOverallGoal: 전체 목표 키(D62)가 없던 옛 임시본의 폴백은 빈 문자열이 아니라 **서버
+ * 프리필**이다 — 빈 값으로 복원하면 15초 페이지에서 먼저 적어 둔 목표를 저장이 조용히 지운다.
  */
-function normalizeDraft(raw: unknown): IntakeDraftValues | null {
+function normalizeDraft(raw: unknown, fallbackOverallGoal: string): IntakeDraftValues | null {
   if (!isRecordObject(raw)) return null;
 
   const answers = emptyAnswers();
@@ -218,6 +236,7 @@ function normalizeDraft(raw: unknown): IntakeDraftValues | null {
     linkedOrgs: normalizeRows(raw.linkedOrgs, LINKED_ORG_COLUMNS, true),
     additionalItems: normalizeRows(raw.additionalItems, ADDITIONAL_COLUMNS),
     managerOpinion: textOf(raw.managerOpinion),
+    overallGoal: typeof raw.overallGoal === 'string' ? raw.overallGoal : fallbackOverallGoal,
     // 이 키가 없는 옛 임시본은 새 폼과 같은 기본값(켬)으로 읽는다. 끈 사실만 저장돼 있다.
     completeSchedule: raw.completeSchedule !== false,
   };
@@ -230,8 +249,10 @@ function rowHasContent(rows: TableRow[]): boolean {
 /**
  * 상담 일시는 화면을 여는 순간 자동으로 채워진다. 그것만으로 임시본을 만들면 아무것도 안 쓰고
  * 나갔다 온 사람에게 이어쓰기 배너가 뜬다 — 실제 입력이 있을 때만 저장한다.
+ * 전체 목표도 같은 이유로 **서버 프리필과 달라졌을 때만** 입력으로 센다(D62).
  */
-function hasContent(values: IntakeDraftValues): boolean {
+function hasContent(values: IntakeDraftValues, baselineOverallGoal: string): boolean {
+  if (values.overallGoal.trim() !== baselineOverallGoal) return true;
   if (values.managerOpinion.trim().length > 0) return true;
   if (rowHasContent(values.debts) || rowHasContent(values.linkedOrgs) || rowHasContent(values.additionalItems)) return true;
   return ACTIVE_QUESTIONS.some((question) => {
@@ -251,6 +272,12 @@ function optionFromDraft(draft: AnswerDraft): string {
   if (draft.response === NO_RESPONSE_CODE) return NO_RESPONSE_OPTION;
   if (draft.response === NOT_APPLICABLE_CODE) return NOT_APPLICABLE_OPTION;
   return draft.text;
+}
+
+/** 전체 목표 카드의 참고 표시(D62): 질문지 3-1·4-3 답을 그대로 보여줘 같은 것을 다시 묻지 않는다. */
+function referenceValue(draft: AnswerDraft | undefined): string {
+  if (draft === undefined || !isFilled(draft)) return '아직 답하지 않음';
+  return optionFromDraft(draft);
 }
 
 function isFilled(draft: AnswerDraft | undefined): boolean {
@@ -467,6 +494,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
   ));
   const [additionalItems, setAdditionalItems] = useState<TableRow[]>(() => initial?.additionalItems ?? []);
   const [managerOpinion, setManagerOpinion] = useState(() => initial?.managerOpinion ?? '');
+  // 전체 목표(D62 · CCC-68). 작성·수정 모두 서버 현재값을 프리필한다 — 15초 페이지 카드에서
+  // 먼저 적었을 수 있고, 빈 칸으로 시작하면 저장이 그 값을 지운다.
+  const [overallGoal, setOverallGoal] = useState(() => props.overallGoal ?? '');
+  const baselineOverallGoal = (props.overallGoal ?? '').trim();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   /**
@@ -505,8 +536,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
   // 금고에서 내려온 기본정보(props.extendedPii·participant)는 이 객체에 없다 — 임시본에 담으면
   // pii_vault 값을 브라우저에 쓰게 된다. 1단계가 표시 전용이 된 뒤로는 더더욱 담을 이유가 없다.
   const draftValues: IntakeDraftValues = useMemo(() => ({
-    step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion, completeSchedule,
-  }), [step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion, completeSchedule]);
+    step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion, overallGoal, completeSchedule,
+  }), [step, heldAt, answers, debts, linkedOrgs, additionalItems, managerOpinion, overallGoal, completeSchedule]);
 
   useEffect(() => {
     // 수정 모드는 임시본을 켜지 않는다 — 서버 저장본이 정본이고, 작성 모드의 임시본과
@@ -515,20 +546,20 @@ export function IntakeWizard(props: IntakeWizardProps) {
     sweepExpiredDrafts();
     const stored = readDraft<unknown>(storageKey);
     if (stored === null) return;
-    const values = normalizeDraft(stored.values);
+    const values = normalizeDraft(stored.values, baselineOverallGoal);
     if (values === null) {
       clearDraft(storageKey);
       return;
     }
     pendingDraft.current = values;
     setRestorable(stored.savedAt);
-  }, [storageKey, editing]);
+  }, [storageKey, editing, baselineOverallGoal]);
 
   useEffect(() => {
     if (editing) return;
     // 배너가 떠 있는 동안에는 저장하지 않는다 — 실무자가 고르기 전에 임시본을 덮어쓰면 안 된다.
     if (restorable !== null) return;
-    if (!hasContent(draftValues)) return;
+    if (!hasContent(draftValues, baselineOverallGoal)) return;
     if (saveTimer.current !== null) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       const written = writeDraft(storageKey, draftValues, 'editing');
@@ -538,7 +569,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     return () => {
       if (saveTimer.current !== null) clearTimeout(saveTimer.current);
     };
-  }, [draftValues, restorable, storageKey, editing]);
+  }, [draftValues, restorable, storageKey, editing, baselineOverallGoal]);
 
   function resumeDraft() {
     const values = pendingDraft.current;
@@ -552,6 +583,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
     setLinkedOrgs(values.linkedOrgs);
     setAdditionalItems(values.additionalItems);
     setManagerOpinion(values.managerOpinion);
+    setOverallGoal(values.overallGoal);
     setCompleteSchedule(values.completeSchedule);
     // 금고 값은 되돌리지 않는다 — 임시본에 담기지 않았고, props 가 정본이다.
   }
@@ -652,6 +684,12 @@ export function IntakeWizard(props: IntakeWizardProps) {
       channel: channelForMethod(optionFromDraft(answers.counsel_method ?? { response: 'answered', text: '' })),
     };
     if (collected.length > 0) payload.answers = collected;
+    // 전체 목표(D62)는 **서버 프리필과 달라졌을 때만** 싣는다 — 안 바뀐 저장마다 이력·감사가
+    // 쌓이지 않게 한다. 빈 값으로 바뀌었으면 null(설정 전으로 지움)이다.
+    const nextOverallGoal = overallGoal.trim();
+    if (nextOverallGoal !== baselineOverallGoal) {
+      payload.overallGoal = nextOverallGoal.length === 0 ? null : nextOverallGoal;
+    }
     if (debtRows.length > 0) payload.debts = debtRows as unknown as NonNullable<CreateIntakeRecordActionInput['debts']>;
     if (linkedRows.length > 0) payload.linkedOrgs = linkedRows as unknown as NonNullable<CreateIntakeRecordActionInput['linkedOrgs']>;
     if (extraRows.length > 0) payload.additionalItems = extraRows as unknown as NonNullable<CreateIntakeRecordActionInput['additionalItems']>;
@@ -672,6 +710,12 @@ export function IntakeWizard(props: IntakeWizardProps) {
     setError(null);
     // 서버에 남았으니 임시본을 지운다 — 남겨 두면 다음 기록에 섞인다(CCC-12).
     if (!editing) clearDraft(storageKey);
+    // 인테이크는 저장됐는데 전체 목표 별개 호출만 실패한 경우(D62): 15초 페이지의 전체 목표
+    // 카드로 보낸다 — 보조 입력 자리라 오류 안내와 재시도 UI 를 이미 갖고 있다.
+    if (result.overallGoalSaved === false) {
+      router.push(props.overallGoalErrorHref);
+      return;
+    }
     // 저장 직후 이동: 작성은 브리핑 직행(스펙 #78 US 17 · CCC-31), 수정은 페이지가
     // 같은 prop 에 상담 기록 목록을 실어 보낸다.
     router.push(props.briefingHref);
@@ -873,6 +917,32 @@ export function IntakeWizard(props: IntakeWizardProps) {
             <div className="wizard-stack">
               <h2>4. 상담 정리와 후속관리</h2>
               {renderGroups(STEP_GROUPS[3]!)}
+              {/* 전체 목표(D62 · ADR-0032 §2 · CCC-68): 인테이크가 주 입력 자리이고 15초
+                  페이지 카드는 보조다. 질문지(D41 정본) 항목이 아니라 화면 기능이라 좌측
+                  진행 카운트에 세지 않고('전 항목 필수'의 예외), 무응답 선택지도 없다 —
+                  비워 두면 그냥 빈 것. 자리는 4-3 바로 아래다: 참고로 보여주는 지원욕구
+                  (3-1)·지원방향(4-3)이 방금 적은 값이라 같은 것을 다시 묻지 않는다. */}
+              <WireCard className="wire-form-card" title={<h3>전체 목표</h3>} testId="intake-overall-goal">
+                <p className="panel-meta">
+                  당사자와 합의한 지원 방향을 한 문장으로 적습니다.
+                  첫 상담에서 합의가 어려우면 비워 두세요. 본 상담에서 채워도 됩니다.
+                </p>
+                <div className="wire-form-grid">
+                  <ReadOnlyRow label="1순위 지원욕구 (3-1)" value={referenceValue(answers.need_primary)} />
+                  <ReadOnlyRow label="2순위 지원욕구 (3-1)" value={referenceValue(answers.need_secondary)} />
+                  <ReadOnlyRow label="주요 지원방향 (4-3)" value={referenceValue(answers.summary_direction)} />
+                </div>
+                <WireFormField label="전체 목표" note="(선택)" htmlFor="intake-overall-goal-input">
+                  <input
+                    id="intake-overall-goal-input"
+                    type="text"
+                    maxLength={200}
+                    value={overallGoal}
+                    placeholder="이 당사자와 무엇을 향해 가는지 한 문장으로 적습니다"
+                    onChange={(event) => setOverallGoal(event.target.value)}
+                  />
+                </WireFormField>
+              </WireCard>
               <RowTable
                 title="4-2. 추가 확인사항"
                 hint="다음 상담 전에 확인할 것을 적습니다."

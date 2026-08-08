@@ -64,8 +64,10 @@ function scheduleChoiceValue(schedule: CounselingSchedule): string {
 }
 
 export interface RecordOnepageProps {
-  // goals(세부 목표)는 더 이상 받지 않는다 — GAS 입력·목표 종료+신설이 D47 §6 으로 빠지면서
-  // 이 화면에서 쓸 곳이 없어졌다. 조회 API 는 그대로 내려보내므로 재활성 시 되돌리면 된다.
+  // goals(세부 목표)는 데이터로 받지 않는다 — D62(CCC-68)로 이 화면에 세부 목표 구획이
+  // 생겼지만, 구획은 서버 액션이 묶인 채 아래 goalSection 슬롯으로 통째로 들어온다
+  // (page.tsx 가 서버 컴포넌트라 액션 바인딩을 갖는다). 구 GAS 입력·종료+신설(D47 §6 제거)은
+  // 되살리지 않는다.
   schedules: CounselingSchedule[];
   openActionItems: OpenActionResolutionItem[];
   latestLifeAreaSnapshot: LifeAreaSnapshotEntry[];
@@ -86,6 +88,11 @@ export interface RecordOnepageProps {
    * 하나도 없는 기록지가 조용히 나간다.
    */
   actions: ReactNode;
+  /**
+   * 세부 목표 구획(D62 · CCC-68). page.tsx 가 서버 액션을 묶은 GoalSection 을 실어 보낸다 —
+   * '오늘 상담 내용' 아래에 선다. 기록지 폼과 별개의 즉시 저장이라 이 폼의 제출에는 안 실린다.
+   */
+  goalSection?: ReactNode;
   /** 임시본 키(참여 사업 1건당 1개). 없으면 자동 저장을 끈다. */
   supportCaseId?: string;
   /** 직전 제출이 오류로 이 화면에 되돌아왔는가 — 임시본 성공 판정에 쓴다(use-dom-draft). */
@@ -101,6 +108,7 @@ export function RecordOnepage({
   lastRecordSummary,
   briefingPath,
   actions,
+  goalSection,
   supportCaseId = '',
   submissionFailed = false,
 }: RecordOnepageProps) {
@@ -153,23 +161,22 @@ export function RecordOnepage({
   return <div className="wire-container rail-grid" data-grid="true" ref={draft.containerRef}>
     <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
       <div className="surface-card record-rail">
-        {/* 일정에 연결된 목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다.
-            없으면 빈 상태 한 줄이고, 다음 손짓은 아래 '세부 목표 작성' 칸이 받는다.
-            `yellow` **선택창은 이번에 넣지 않았다**(2026-08-09 Q 지시 보류 — PR 본문에 질문).
-            연결 대상이 될 층(세부 목표)은 D43 이 보류했고 읽는 화면이 없으며, 이 화면의 저장
-            경로에 목표 연결 필드가 없다(record_details 는 sessionGoalNote 자유 글만 받는다).
-            같은 이유로 오늘 #89 가 일정 위저드의 목표 입력을 걷어냈다 — 저장되지 않는
-            선택창을 다시 만들면 그 결정을 되돌리는 셈이다. */}
+        {/* 일정에 연결된 세션 목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다.
+            연결된 부모는 D62 위계(전체 > 세부 > 세션)대로 **세부 목표**다 — 구 라벨 '전체
+            목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
+            연결 선택창은 만들지 않는다(2026-08-09 Q 확정, ADR-0032 대체 관계 표 PR #91 행) —
+            연결은 일정 등록 몫이고, 세부 목표의 입력·수정·닫기는 본문의 세부 목표 구획이 갖는다. */}
         <p className="record-sticky-label">이번 상담 목표</p>
         {sessionGoals.length === 0
           ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
           : <ul className="record-sticky-list">{sessionGoals.map((goal, index) => <li key={index}>
-            <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `전체 목표: ${goal.caseGoalTitle}`]} />
+            <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `세부 목표: ${goal.caseGoalTitle}`]} />
           </li>)}</ul>}
-        {/* 연결과 별개로 이번 회차에서만 볼 것을 적는 칸(2026-08-09 Q — 구 라벨 '이번 상담
-            목표(선택)'는 위 묶음 이름과 겹쳤다). 필요할 때만 적는 자리다. */}
-        <WireFormField label="세부 목표 작성" note="(선택)" htmlFor="session-goal-note">
-          <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} placeholder="이번 상담에서 확인할 것" />
+        {/* 일정 없이 쓴 회차(워크인)의 폴백 자유 글(D62 §6 — 세션 목표의 이원 구조).
+            라벨은 목표 낱말을 쓰지 않는다 — '세부 목표 작성'이라 부르면 본문 구획의 세부
+            목표 층과 섞인다(ADR-0032 §6 "폴백 칸 라벨은 현행 문구 유지"). */}
+        <WireFormField label="이번 상담에서 확인할 것" note="(선택)" htmlFor="session-goal-note">
+          <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} />
         </WireFormField>
         {/* 미해결 액션은 **강조 카드**다(2026-08-09 Q) — 지난 상담의 남은 약속은 이 화면에서
             가장 먼저 눈에 들어와야 하는 값인데, 구 배치는 회색 메타 한 줄에 다른 정보와
@@ -291,6 +298,11 @@ export function RecordOnepage({
         </WireFormField>}
       </WireCard>
 
+      {/* 2-1. 세부 목표 구획(D62 · CCC-68) — 입력·수정·닫기. page.tsx 가 서버 액션을 묶어
+          실어 보낸 슬롯이라 여기서는 자리만 정한다. 오늘 상담 내용 바로 아래인 이유:
+          본 상담 1회차에 목표를 합의해 적는 흐름이 기록 작성과 같은 자리에서 이어진다. */}
+      {goalSection}
+
       {/* 3. 미해결 액션 원클릭 처리 */}
       <WireCard
         as="section"
@@ -353,10 +365,9 @@ export function RecordOnepage({
         </WireFormField>
       </WireCardDetails>
 
-      {/* 9. 플래그 수기 추가. '목표 종료 + 신설' fieldset 은 **제거됐다** (D47 §6 · ADR-0019)
-          — 그것도 GAS 와 같은 세부 목표 층이라 D43 보류 대상이다. 이로써 앱 안에 세부 목표를
-          만들거나 닫을 경로가 없어지는 것은 알고 받아들인 결과이고, 전체 목표 편집은 브리핑에
-          남아 있다(D45). goals·closed_reason·replaced_by_goal_id 스키마는 그대로 둔다. */}
+      {/* 9. 플래그 수기 추가. 구 '목표 종료 + 신설' fieldset 은 D47 §6 이 제거했고 되살리지
+          않는다 — D62 가 세부 목표를 부활시켰지만 닫기는 순수하게 사유의 기록이라(ADR-0032 §5)
+          위 세부 목표 구획이 갖고, 승계(종료+신설) 흐름은 만들지 않는다. */}
       <WireCardDetails className="wire-form-card" title="리스크 플래그" badge={<small>(조건부)</small>}>
         <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
         <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>

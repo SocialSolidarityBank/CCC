@@ -7,9 +7,16 @@ import { PREVIEW_COOKIE_NAME, requestPreviewUnlock } from './lib/api';
 import {
   ApiError,
   addSupportCaseAssignee,
+  closeGoal,
   createCounselingRecord,
+  createGoal,
   createIntakeRecord,
+  getGoalUpcomingLinkCount,
+  updateGoalTitle,
   updateIntakeRecord,
+  goalCloseReasons,
+  type Goal,
+  type GoalCloseReason,
   intakeAnswerKeys,
   intakeAnswerResponses,
   type IntakeAdditionalItemInput,
@@ -627,6 +634,92 @@ export async function updateOverallGoalAction(formData: FormData): Promise<void>
   redirect(participantBriefingPath(beneficiaryId, supportCaseId));
 }
 
+// ── 세부 목표 (D62 · CCC-68) ─────────────────────────────────────────────────
+// 상담 기록 작성 화면의 세부 목표 구획이 부른다. 기록지 폼과 별개의 즉시 저장이다 —
+// 목표는 제출 ID 로 재현 보호할 기록이 아니라 케이스에 붙는 현재 상태이기 때문이다.
+// 권한(담당 실무자·기관 관리자)·활성 상한 3개·사유 검증·이력 보존은 게이트웨이가 갖는다(R1).
+
+export type GoalActionResult = { status: 'saved'; goal: Goal } | { status: Notice };
+
+const GOAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+const MAX_GOAL_TITLE_LENGTH = 200;
+
+/** 세 액션 공용 입구: 대상 짝(당사자·참여 사업) 검증 + 소속 확인. */
+async function assertGoalActionScope(beneficiaryId: string, supportCaseId: string): Promise<void> {
+  if (!isBeneficiaryId(beneficiaryId) || !GOAL_ID_PATTERN.test(supportCaseId)) throw new FormInputError();
+  await getParticipantProgram(beneficiaryId, supportCaseId);
+}
+
+function goalTitleOf(raw: string): string {
+  if (typeof raw !== 'string') throw new FormInputError();
+  const title = raw.trim();
+  if (title.length === 0 || title.length > MAX_GOAL_TITLE_LENGTH) throw new FormInputError();
+  return title;
+}
+
+/** 세부 목표 신설(본 상담 1회차 흐름). 활성 상한 3개는 게이트웨이가 최종 강제한다. */
+export async function createGoalAction(
+  input: { beneficiaryId: string; supportCaseId: string; title: string },
+): Promise<GoalActionResult> {
+  try {
+    await assertGoalActionScope(input.beneficiaryId, input.supportCaseId);
+    const goal = await createGoal(input.supportCaseId, goalTitleOf(input.title));
+    revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
+    return { status: 'saved', goal };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+/** 세부 목표 문구 수정(D12 수정 금지 폐지). 이전 문구·수정자·시각은 게이트웨이가 이력으로 남긴다. */
+export async function updateGoalTitleAction(
+  input: { beneficiaryId: string; supportCaseId: string; goalId: string; title: string },
+): Promise<GoalActionResult> {
+  try {
+    if (!GOAL_ID_PATTERN.test(input.goalId)) throw new FormInputError();
+    await assertGoalActionScope(input.beneficiaryId, input.supportCaseId);
+    const goal = await updateGoalTitle(input.goalId, goalTitleOf(input.title));
+    revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
+    return { status: 'saved', goal };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type GoalUpcomingLinksResult = { status: 'ok'; upcomingCount: number } | { status: Notice };
+
+/**
+ * 이 세부 목표에 연결된 미래 회기 수(D62 §5). 닫기 패널의 알림 한 줄 판정용 — 알림일 뿐
+ * 닫기를 막지 않으므로, 화면은 이 액션이 실패해도 닫기 흐름을 그대로 진행한다.
+ */
+export async function countGoalUpcomingLinksAction(
+  input: { beneficiaryId: string; supportCaseId: string; goalId: string },
+): Promise<GoalUpcomingLinksResult> {
+  try {
+    if (!GOAL_ID_PATTERN.test(input.goalId)) throw new FormInputError();
+    await assertGoalActionScope(input.beneficiaryId, input.supportCaseId);
+    return { status: 'ok', upcomingCount: await getGoalUpcomingLinkCount(input.goalId) };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+/** 세부 목표 닫기. 사유는 달성/중단/재설정 선택값만 — 닫은 목표는 다시 열지 않는다(D62 §5). */
+export async function closeGoalAction(
+  input: { beneficiaryId: string; supportCaseId: string; goalId: string; reason: GoalCloseReason },
+): Promise<GoalActionResult> {
+  try {
+    if (!GOAL_ID_PATTERN.test(input.goalId)) throw new FormInputError();
+    if (!(goalCloseReasons as readonly string[]).includes(input.reason)) throw new FormInputError();
+    await assertGoalActionScope(input.beneficiaryId, input.supportCaseId);
+    const goal = await closeGoal(input.goalId, input.reason);
+    revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
+    return { status: 'saved', goal };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
 /**
  * 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 브리핑 영역 ③ 의 처리 버튼이 제출한다.
  * 처리는 표시일 뿐 원본 기록은 그대로다 — 여기서 바뀌는 것은 처리 상태뿐이다.
@@ -1103,9 +1196,21 @@ export interface CreateIntakeRecordActionInput {
    */
   scheduleId?: string;
   expectedScheduleVersion?: number;
+  /**
+   * 전체 목표(D62 · CCC-68). 인테이크 기록 화면이 주 입력 자리다. 세 값이 구분된다:
+   * undefined = 서버 현재값에서 안 바뀜(호출 안 함) / null = 지움(설정 전으로) / 문자열 = 새 값.
+   * 위저드가 서버 프리필과 비교해 바뀐 경우에만 싣는다 — 안 바뀐 저장마다 감사·이력이
+   * 쌓이지 않게 한다. 저장은 인테이크 기록과 별개 호출(setSupportCaseOverallGoal)이라
+   * 이력·권한·감사는 그쪽 게이트웨이가 갖는다.
+   */
+  overallGoal?: string | null;
 }
 
-export type IntakeRecordActionResult = { status: 'saved' } | { status: 'replayed' } | { status: Notice };
+export type IntakeRecordActionResult =
+  /** overallGoalSaved: 전체 목표 별개 호출의 결과(D62). 시도하지 않았으면(값 안 바뀜) true. */
+  | { status: 'saved'; overallGoalSaved: boolean }
+  | { status: 'replayed'; overallGoalSaved: boolean }
+  | { status: Notice };
 
 const INTAKE_SUBMISSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -1137,6 +1242,7 @@ export async function createIntakeRecordAction(
       const nextMeetingAt = new Date(input.nextMeeting.heldAt);
       if (Number.isNaN(nextMeetingAt.valueOf())) throw new FormInputError();
     }
+    assertIntakeOverallGoalInput(input.overallGoal);
     // 연결 일정 완료(CCC-57). 정기 기록지와 같은 짝 규칙이다. 둘 다 있거나 둘 다 없다.
     // 한쪽만 오면 게이트웨이가 버전 검사를 못 하므로 여기서 막는다.
     const hasSchedule = input.scheduleId !== undefined;
@@ -1200,10 +1306,32 @@ export async function createIntakeRecordAction(
         ? {}
         : { scheduleId: input.scheduleId, expectedScheduleVersion: input.expectedScheduleVersion }),
     });
+    // 전체 목표(D62 · CCC-68). 인테이크 저장이 선 다음에만 시도한다 — 보조 값의 실패가
+    // 주 기록 저장을 막으면 안 된다. 실패해도 인테이크는 저장된 채로, 화면이 15초 페이지
+    // 카드(보조 입력 자리)로 안내한다.
+    const overallGoalSaved = await saveIntakeOverallGoal(input.supportCaseId, input.overallGoal);
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    return { status: result.replayed ? 'replayed' : 'saved' };
+    return { status: result.replayed ? 'replayed' : 'saved', overallGoalSaved };
   } catch (error) {
     return { status: noticeFor(error) };
+  }
+}
+
+/** 전체 목표 입력 검증(D62). undefined = 안 바뀜, null = 지움, 문자열은 200자 상한(게이트웨이와 동일). */
+function assertIntakeOverallGoalInput(overallGoal: string | null | undefined): void {
+  if (overallGoal === undefined || overallGoal === null) return;
+  if (typeof overallGoal !== 'string' || overallGoal.trim().length > 200) throw new FormInputError();
+}
+
+/** 전체 목표 별개 호출(D62). 시도하지 않았으면 true, 시도해서 실패하면 false — 던지지 않는다. */
+async function saveIntakeOverallGoal(supportCaseId: string, overallGoal: string | null | undefined): Promise<boolean> {
+  if (overallGoal === undefined) return true;
+  try {
+    const trimmed = overallGoal === null ? null : overallGoal.trim();
+    await updateSupportCaseOverallGoal(supportCaseId, trimmed === null || trimmed.length === 0 ? null : trimmed);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -1232,6 +1360,7 @@ export async function updateIntakeRecordAction(
         || !(intakeAnswerResponses as readonly string[]).includes(answer.response)
       ) throw new FormInputError();
     }
+    assertIntakeOverallGoalInput(input.overallGoal);
     await getParticipantProgram(input.beneficiaryId, input.supportCaseId);
     const managerOpinion = input.managerOpinion?.trim();
     await updateIntakeRecord(input.supportCaseId, {
@@ -1245,8 +1374,11 @@ export async function updateIntakeRecordAction(
         : { additionalItems: input.additionalItems }),
       ...(managerOpinion === undefined || managerOpinion.length === 0 ? {} : { managerOpinion }),
     });
+    // 전체 목표(D62 · CCC-68). 작성 경로와 같은 규칙 — 바뀐 경우에만 실려 오고, 실패해도
+    // 인테이크 수정은 저장된 채다.
+    const overallGoalSaved = await saveIntakeOverallGoal(input.supportCaseId, input.overallGoal);
     revalidateParticipantProgram(input.beneficiaryId, input.supportCaseId);
-    return { status: 'saved' };
+    return { status: 'saved', overallGoalSaved };
   } catch (error) {
     return { status: noticeFor(error) };
   }

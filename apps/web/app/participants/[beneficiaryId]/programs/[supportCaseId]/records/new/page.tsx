@@ -1,7 +1,14 @@
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireError } from '../../../../../../components/wire/wire-state';
 import { redirect } from 'next/navigation';
-import { createCounselingRecordAction } from '../../../../../../actions';
+import {
+  closeGoalAction,
+  countGoalUpcomingLinksAction,
+  createCounselingRecordAction,
+  createGoalAction,
+  updateGoalTitleAction,
+} from '../../../../../../actions';
+import { GoalSection } from './goal-section';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
@@ -506,6 +513,19 @@ export default async function NewRecordPage({
           <WireButton variant="secondary" href={historyPath}>상담 기록</WireButton>
           <WireButton variant="primary" type="submit">저장</WireButton>
         </>}
+        // 세부 목표 구획(D62 · CCC-68). 서버 컴포넌트인 이 페이지가 액션을 묶어 슬롯으로
+        // 내려보낸다 — 기록지 폼과 별개의 즉시 저장이다(구획 주석 참조).
+        goalSection={(
+          <GoalSection
+            beneficiaryId={activeBeneficiaryId}
+            supportCaseId={activeSupportCaseId}
+            goals={goals}
+            createAction={createGoalAction}
+            renameAction={updateGoalTitleAction}
+            closeAction={closeGoalAction}
+            upcomingLinksAction={countGoalUpcomingLinksAction}
+          />
+        )}
         supportCaseId={activeSupportCaseId}
         submissionFailed={state !== 'idle'}
       />

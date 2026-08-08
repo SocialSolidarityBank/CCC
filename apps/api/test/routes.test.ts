@@ -583,6 +583,19 @@ describe('API routes', () => {
       expect.objectContaining({ id: goal.id, status: 'active' }),
     ]);
 
+    // D62 §4: 문구 수정 라우트(CCC-68) — 수정 금지(D12) 폐지. 이력 보존은 게이트웨이 몫.
+    const renameResponse = await worker.fetch(new Request(`http://localhost/goals/${goal.id}/title`, {
+      method: 'PUT',
+      headers: counselorHeaders,
+      body: JSON.stringify({ title: 'Keep a three-month living-cost plan current' }),
+    }), env);
+    expect(renameResponse.status).toBe(200);
+    await expect(renameResponse.json()).resolves.toEqual(expect.objectContaining({
+      id: goal.id,
+      title: 'Keep a three-month living-cost plan current',
+      status: 'active',
+    }));
+
     // D62 §5: 사유는 선택값 3종만, 자유 텍스트는 거부한다. 구 종료+신설 승계는 없다.
     const freeTextClose = await worker.fetch(new Request(`http://localhost/goals/${goal.id}/close`, {
       method: 'POST',
@@ -603,6 +616,14 @@ describe('API routes', () => {
       closedReason: 'reset',
       replacedByGoalId: null,
     }));
+
+    // 닫힌 목표는 기록이라 문구를 고칠 수 없다(D62 §4 — 활성만 수정).
+    const renameClosed = await worker.fetch(new Request(`http://localhost/goals/${goal.id}/title`, {
+      method: 'PUT',
+      headers: counselorHeaders,
+      body: JSON.stringify({ title: 'Should be rejected' }),
+    }), env);
+    expect(renameClosed.status).toBe(400);
   });
 
   it('maps local admin headers to an admin but fails closed on unsigned Cloudflare Access headers', async () => {
@@ -2202,7 +2223,8 @@ describe('canonical participant API routes', () => {
         memoExcerpt: recordBody.memo,
         sessionGoals: [],
       }],
-      goals: [{ id: goal.id, title: goal.title, status: 'active' }],
+      // closedReason 은 세부 목표 구획(D62 · CCC-68)의 닫힘 사유 배지 재료다. 활성은 null.
+      goals: [{ id: goal.id, title: goal.title, status: 'active', closedReason: null }],
       schedule: {
         id: schedule.id,
         beneficiaryId: creation.beneficiaryId,
@@ -2221,6 +2243,38 @@ describe('canonical participant API routes', () => {
       programType: 'financial_support_v1',
     });
   });
+  // D62 · CCC-68: 인테이크 화면의 전체 목표 칸과 15초 페이지 카드는 같은 값을 읽고 쓴다.
+  // 쓰기(PUT overall-goal, 인테이크 액션이 부르는 경로)가 인테이크 컨텍스트(프리필)와
+  // 15초 페이지 브리핑에 같은 값으로 보이는지 HTTP 경계에서 확인한다 — 완료 기준 그 자체다.
+  it('shows one overall goal to both the intake context and the 15-second page (D62 · CCC-68)', async () => {
+    const creation = await setupCanonicalParticipant();
+    const put = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/overall-goal`,
+      {
+        method: 'PUT',
+        headers: canonicalCounselorHeaders,
+        body: JSON.stringify({ overallGoal: '3개월 안에 채무조정 신청을 마친다' }),
+      },
+    ), t.env);
+    expect(put.status).toBe(200);
+
+    const context = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/records/intake`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    await expect(context.json()).resolves.toMatchObject({
+      overallGoal: '3개월 안에 채무조정 신청을 마친다',
+    });
+
+    const briefing = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    await expect(briefing.json()).resolves.toMatchObject({
+      overallGoal: '3개월 안에 채무조정 신청을 마친다',
+    });
+  });
+
   // CCC-57: 인테이크 위저드가 연결 일정을 완료로 넘기는 경로는 HTTP 경계를 지난다.
   // parseIntakeCreation 의 허용 키에서 두 필드가 빠지면 위저드가 400 으로 죽는데,
   // 게이트웨이 테스트는 그 경계를 지나지 않아 전부 통과한다. 그 구멍을 여기서 막는다.

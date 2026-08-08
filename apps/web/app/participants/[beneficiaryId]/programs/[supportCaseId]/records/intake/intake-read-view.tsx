@@ -39,6 +39,8 @@ export interface IntakeReadViewProps {
   extendedPii: IntakeExtendedPii;
   consent: { privacy: boolean; recordingAi: boolean };
   saved: IntakeSavedRecord;
+  /** 전체 목표 현재값(D62 · CCC-68). 주 입력 자리가 인테이크라 조회 화면도 함께 읽는다. */
+  overallGoal: string | null;
   /** 위저드 수정 모드 진입(?edit=1). */
   editHref: string;
   /** 전체 상담 기록 목록 — 이 화면의 출구(D35 좌측 세컨더리). */
@@ -128,6 +130,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
   ];
   const consentMissing = consentRows.some(([, recorded]) => !recorded);
   const heldAtLabel = formatKoreanDateTime(props.saved.heldAt);
+  const overallGoalText = (props.overallGoal ?? '').trim();
 
   // 위저드가 소절 안에 끼워 넣는 자동값(1-3)과 같은 자리 규칙 — 번호는 소절 하나에 하나다.
   const groupLeads: Readonly<Record<string, ReactNode>> = {
@@ -151,6 +154,11 @@ export function IntakeReadView(props: IntakeReadViewProps) {
       title: STEP_TITLES[3],
       extra: (
         <>
+          {/* 전체 목표(D62 · CCC-68): 작성 위저드와 같은 자리(4단계)에서 읽는다. 수정은
+              우상단 '수정'(위저드 수정 모드) 또는 15초 페이지 카드(보조 자리)가 갖는다. */}
+          <WireCard title={<h3>전체 목표</h3>} testId="intake-read-overall-goal">
+            <ReadRow label="전체 목표" value={overallGoalText.length === 0 ? '설정 전' : overallGoalText} />
+          </WireCard>
           <TableCard title="4-2. 추가 확인사항" columns={ADDITIONAL_COLUMNS} rows={props.saved.additionalItems} testId="intake-read-additional" />
           <WireCard title={<h3>담당 실무자 종합의견</h3>} testId="intake-read-opinion">
             <p className="wire-field-value intake-read-value">
