@@ -286,6 +286,17 @@ export function BriefingCards({
     }
   };
 
+  /**
+   * HERO 상태 태그 = **최신 회차의 유형 + 회차 수**(2026-08-09 Q — 구 화면 이름 '15초 페이지').
+   * 화면 이름은 사이드바와 제목이 이미 말한다. 이 자리에서 알고 싶은 것은 "지금 몇 회차이고
+   * 무슨 상담인가"다. sessionRows 는 최신순이라 [0] 이 최신이고 길이가 곧 회차 수다 —
+   * 브리핑 응답을 늘리지 않는다. 기록이 없으면 화면 이름으로 돌아간다.
+   */
+  const latestSession = sessionRows[0];
+  const latestSessionTag = latestSession === undefined
+    ? '15초 페이지'
+    : `${sessionKindLabels[latestSession.kind]} ${sessionRows.length}회`;
+
   // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
   const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
   const resolvedDiscrepancies = discrepancies.filter((item) => item.resolution !== null);
@@ -297,15 +308,17 @@ export function BriefingCards({
     <div className="briefing-page">
       {/* HERO — 공통 부품 ParticipantHeroCard(D38). 기록·허브와 같은 부품이라 여백·태그
           모양이 화면마다 갈리지 않는다(2026-08-05 컴포넌트화 — 구 손 마크업 대체).
-          '상담 준비'는 데이터가 아니라 **화면 상태 태그**다 — sourceSupportCase.status 는
-          active/closed 뿐이라 이 문구의 출처가 아니다(D22).
-          회차는 브리핑 응답에 없어 메타에 넣지 않는다. 상담 방식은 v1 이 대면뿐이다(D4).
+          2026-08-09 Q: 상태 태그가 **화면 이름 대신 최신 회차의 유형·회차**를 보인다 — 화면
+          이름은 이미 사이드바와 제목이 말하고 있고, 이 자리에서 알고 싶은 것은 "지금 몇 회차이고
+          무슨 상담인가"다. 회차 수는 영역 ② 재료(sessionRows)가 그대로 갖고 있어 새 응답
+          필드가 필요 없다. 기록이 하나도 없으면 화면 이름으로 돌아간다.
+          상담 방식은 v1 이 대면뿐이다(D4).
           상태 태그는 부품의 wire-status-tag 계약 — 트랙 C(PR #61)의 .is-stage 폐지와
           같은 결론이라 리베이스에서 컴포넌트 쪽으로 합쳤다. */}
       <ParticipantHeroCard
         name={participant.name}
         beneficiaryId={beneficiaryId}
-        stageTag="15초 페이지"
+        stageTag={latestSessionTag}
         meta={<MetaRow items={[
           programLabel,
           upcomingSchedule === null ? '예정된 상담 없음' : formatKoreanDateTime(upcomingSchedule.scheduledAt),

@@ -14,9 +14,11 @@ describe('LifeAreaFields', () => {
       expect((select as HTMLSelectElement).value).toBe('');
       expect(select.getAttribute('name')).toMatch(/^lifeAreaStatus_/);
     }
-    // 직전 스냅샷이 없으면 모든 영역이 '미기록'으로 표시된다.
-    expect(container.querySelectorAll('legend').length).toBe(6);
+    // 2026-08-09 Q: 영역 하나가 카드 하나다(구 fieldset+legend 대체 — §2-2 규칙 3).
+    expect(container.querySelectorAll('.life-area-card').length).toBe(6);
+    // 직전 스냅샷이 없으면 모든 영역이 '미기록'이고, 그 배지는 라벤더(대기 축)다.
     expect((container.textContent ?? '').match(/미기록/g) ?? []).toHaveLength(6);
+    expect(container.querySelectorAll('.wire-badge[data-tone="lavender"]').length).toBe(6);
   });
 
   it('직전 스냅샷이 있으면 영역별 직전 상태를 배지로 표시하고, 위기는 리스크 색(class=risk)을 준다', () => {

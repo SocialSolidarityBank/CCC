@@ -7,6 +7,8 @@ import { useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
+import { WireCallout } from '../../../../../../components/wire/wire-callout';
+import { WireEmpty } from '../../../../../../components/wire/wire-state';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
 import { DATE_TEXT_HINT } from '../../../../../../components/wire/date-text-input';
@@ -109,9 +111,9 @@ export function RecordOnepage({
   const [crisisAreas, setCrisisAreas] = useState<string[]>([]);
   const [resolvedActionIds, setResolvedActionIds] = useState<string[]>([]);
   const [safetyOpen, setSafetyOpen] = useState(false);
-  // 전체 열기/닫기 — 브리핑과 같은 규칙이다(버튼 하나, ref 일괄 토글). 기본은 접힘(CCC-5).
-  const accordionsRef = useRef<HTMLDivElement>(null);
-  const [allOpen, setAllOpen] = useState(false);
+  // 전체 열기/닫기는 HERO 안 작은 버튼이 갖는다(2026-08-09 Q — RecordAccordionToggle).
+  // 여기서 상태를 쥐지 않는 이유는 그 부품 주석에 있다(라벨 하나 때문에 HERO 를 클라이언트로
+  // 내리지 않는다). 범위 선택자가 .record-main 이므로 그 클래스는 유지한다.
 
   // 완료 처리할 연결 일정(CCC-57). 예정 건 중 첫째가 기본으로 골라져 있다. 기록을 남겼는데
   // 그 약속이 계속 '예정'으로 서 있는 것이 이 티켓이 고치는 오작동이다. 예정 건이 없으면
@@ -144,41 +146,43 @@ export function RecordOnepage({
     });
   }
 
-  const toggleAll = () => {
-    const next = !allOpen;
-    setAllOpen(next);
-    const scope = accordionsRef.current;
-    if (scope === null) return;
-    for (const details of scope.querySelectorAll('details')) {
-      // 위기·안전 칸의 자동 펼침은 일괄 접기보다 우선한다 — 위기 선택 중에는 숨길 수 없다.
-      if (!next && details.classList.contains('is-crisis')) continue;
-      details.open = next;
-    }
-  };
-
   {/* 레이아웃은 인테이크와 같은 좌 4 / 우 8 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
       — 구 우측 200px 레일 대체). 좌측 레일이 이번 상담 목표·필수 진척도·저장/나가기를
       전부 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
   return <div className="wire-container rail-grid" data-grid="true" ref={draft.containerRef}>
     <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
       <div className="surface-card record-rail">
+        {/* 일정에 연결된 목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다.
+            없으면 빈 상태 한 줄이고, 다음 손짓은 아래 '세부 목표 작성' 칸이 받는다.
+            `yellow` **선택창은 이번에 넣지 않았다**(2026-08-09 Q 지시 보류 — PR 본문에 질문).
+            연결 대상이 될 층(세부 목표)은 D43 이 보류했고 읽는 화면이 없으며, 이 화면의 저장
+            경로에 목표 연결 필드가 없다(record_details 는 sessionGoalNote 자유 글만 받는다).
+            같은 이유로 오늘 #89 가 일정 위저드의 목표 입력을 걷어냈다 — 저장되지 않는
+            선택창을 다시 만들면 그 결정을 되돌리는 셈이다. */}
         <p className="record-sticky-label">이번 상담 목표</p>
         {sessionGoals.length === 0
-          ? <p className="record-sticky-value">미연결 <small>일정에 연결된 목표가 없습니다.</small></p>
+          ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
           : <ul className="record-sticky-list">{sessionGoals.map((goal, index) => <li key={index}>
             <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `전체 목표: ${goal.caseGoalTitle}`]} />
           </li>)}</ul>}
-        {sessionGoals.length === 0
-          ? <WireFormField label="이번 상담 목표" note="(선택)" htmlFor="session-goal-note">
-            <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} placeholder="이번 상담에서 확인할 것" />
-          </WireFormField>
-          : null}
+        {/* 연결과 별개로 이번 회차에서만 볼 것을 적는 칸(2026-08-09 Q — 구 라벨 '이번 상담
+            목표(선택)'는 위 묶음 이름과 겹쳤다). 필요할 때만 적는 자리다. */}
+        <WireFormField label="세부 목표 작성" note="(선택)" htmlFor="session-goal-note">
+          <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} placeholder="이번 상담에서 확인할 것" />
+        </WireFormField>
+        {/* 미해결 액션은 **강조 카드**다(2026-08-09 Q) — 지난 상담의 남은 약속은 이 화면에서
+            가장 먼저 눈에 들어와야 하는 값인데, 구 배치는 회색 메타 한 줄에 다른 정보와
+            섞여 있었다. 톤은 lavender(주의·대기, D34) — 리스크는 배너 전용이다(D9).
+            '브리핑에서 보기' → '자세히 보기'(Q): 가는 곳 이름보다 무엇을 하는지가 라벨이다. */}
         {lastRecordSummary === null
           ? null
-          : <p className="record-sticky-meta">
-            <MetaRow items={[`지난 상담(${dateTimeLabel(lastRecordSummary.heldAt)})`, `미해결 액션 ${openActionItems.length}건`]} />
-            {' '}<Link href={briefingPath}>{lastRecordSummary.text} 브리핑에서 보기</Link>
-          </p>}
+          : <WireCallout
+            tone="lavender"
+            title={`미해결 액션 ${openActionItems.length}건`}
+            actions={<WireButton variant="neutral" height="sm" href={briefingPath}>자세히 보기</WireButton>}
+          >
+            <MetaRow items={[`지난 상담 ${dateTimeLabel(lastRecordSummary.heldAt)}`, lastRecordSummary.text]} />
+          </WireCallout>}
         <hr className="wire-card-divider" />
         <p className="record-rail-count" data-testid="record-required-count">필수 {filledCount}/{requiredItems.length}</p>
         <ul className="record-rail-list">
@@ -197,7 +201,7 @@ export function RecordOnepage({
         <div className="record-rail-actions">{actions}</div>
       </div>
     </aside>
-    <div className="wire-col-8 record-main" ref={accordionsRef}>
+    <div className="wire-col-8 record-main">
       {draft.restorable === null
         ? null
         : <DraftRestorePrompt
@@ -206,13 +210,6 @@ export function RecordOnepage({
           onResume={draft.resume}
           onDiscard={draft.discard}
         />}
-
-      {/* 여닫기 줄 — 브리핑과 같은 자리 규칙(조작 대상 바로 위, 오른쪽 정렬). */}
-      <div className="record-toolbar">
-        <WireButton onClick={toggleAll} variant="ghost" height="sm">
-          {allOpen ? '전체 접기' : '전체 열기'}
-        </WireButton>
-      </div>
 
       {/* 1. 오늘 확인할 질문 — 체크리스트(기록 대상 아님, 진행 표시용) */}
       <WireCard

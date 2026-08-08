@@ -528,10 +528,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 6영역 머리 줄(2026-08-08 Q): 가로선을 끄고 이름(600)과 직전 상태 배지를 한 줄 세로
    중앙에 세운다. legend 는 float 로 일반 흐름에 앉힌다(consent-fieldset legend 트릭) —
    기본 legend 는 fieldset 테두리 위에 걸터앉아 글줄이 어긋난다. */
-.life-area-fieldset{border-top:0;padding-top:0}
-.life-area-fieldset>legend.life-area-legend{float:left;width:100%;display:flex;align-items:center;gap:var(--space-2);padding:0}
-.life-area-name{font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-.life-area-prior{margin-left:auto;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
+/* 생활 6영역은 **영역 하나가 카드 하나**다(2026-08-09 Q). 구 fieldset 머리 줄(legend 를
+   float 로 되돌리던 보정 포함)은 지웠다 — 영역 이름이 카드 제목 자리로 올라가면서 필요가
+   없어졌다. 제목 줄은 2행이다: 이름이 위, '직전 상태 + 배지'가 아래(액션 카드와 같은 문법).
+   이름·배지를 한 줄에 두면 이름과 값이 같은 위계로 읽힌다(D37 HERO 좌측 묶음과 같은 이유). */
+.life-area-card>.wire-card-title{display:grid;gap:var(--space-2)}
+.life-area-name{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.life-area-prior{margin:0;display:flex;align-items:center;gap:var(--space-2)}
+.life-area-prior-label{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 /* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. */
 .wire-choice-group{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
 .wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}

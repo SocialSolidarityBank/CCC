@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { RecordOnepage, type RecordOnepageProps } from './record-onepage';
+import { RecordAccordionToggle } from './record-accordion-toggle';
 
 // CCC-10 정기 기록지 원페이지: 고정 헤더(이번 상담 목표·전체 목표 N), 우측 필수 채움 레일,
 // 6영역 '위기' 선택 시 위기·안전 아코디언 자동 펼침+강조를 검증한다.
@@ -34,8 +35,10 @@ describe('RecordOnepage', () => {
     expect(rail.className).toContain('record-side');
     expect(rail.textContent).toContain('이번 상담 목표');
     expect(rail.textContent).toContain('임대차 계약 확인');
-    // 일정에 세션 목표가 있으면 레일에서 따로 입력받지 않는다.
-    expect(container.querySelector('input[name="sessionGoalNote"]')).toBeNull();
+    // 2026-08-09 Q: '세부 목표 작성' 칸은 연결 여부와 무관하게 늘 있다 — 이번 회차에서만
+    // 볼 것을 적는 자리이고, 구 라벨('이번 상담 목표(선택)')이 위 묶음 이름과 겹쳐 있었다.
+    expect(container.querySelector('input[name="sessionGoalNote"]')).not.toBeNull();
+    expect(rail.textContent).toContain('세부 목표 작성');
   });
 
   // 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체).
@@ -48,10 +51,12 @@ describe('RecordOnepage', () => {
     expect(rail.querySelector('button[type="submit"]')?.textContent).toBe('저장');
   });
 
-  it('세션 목표가 미연결이면 레일에서 바로 이번 상담 목표를 추가할 수 있다', () => {
+  it('세션 목표가 미연결이면 빈 상태 한 줄과 세부 목표 칸이 뜬다', () => {
+    // 2026-08-09 Q: 구 '미연결' 글자 표시 대체. 상태만 말하고 다음 손짓을 말하지 않던 자리다.
     const { container, getByTestId } = render(<RecordOnepage {...props()} />);
 
-    expect(getByTestId('record-side-rail').textContent).toContain('미연결');
+    expect(getByTestId('record-side-rail').textContent).toContain('일정에 연결된 목표가 없습니다');
+    expect(getByTestId('record-side-rail').textContent).not.toContain('미연결');
     expect(container.querySelector('input[name="sessionGoalNote"]')).not.toBeNull();
   });
 
@@ -119,8 +124,10 @@ describe('RecordOnepage', () => {
     expect(container.textContent).not.toContain('목표 종료');
   });
 
+  // 2026-08-09 Q: 전체 여닫기 버튼은 HERO(당사자 카드) 안으로 갔다. 범위는 .record-main
+  // 선택자라 두 부품을 함께 렌더하면 실제 화면과 같은 조합이 된다.
   it('전체 열기/닫기가 아코디언을 일괄 조작하고 기본은 접힘이다 (CCC-24)', () => {
-    const { container, getByText } = render(<RecordOnepage {...props()} />);
+    const { container, getByText } = render(<><RecordAccordionToggle /><RecordOnepage {...props()} /></>);
     const allDetails = () => Array.from(container.querySelectorAll('details'));
 
     // 기본은 접힘 — CCC-5 결정. 위기·안전 자동 펼침이 없는 상태에서는 전부 닫혀 있다.
@@ -134,7 +141,7 @@ describe('RecordOnepage', () => {
   });
 
   it('위기 선택 중에는 전체 접기도 위기·안전 칸을 닫지 못한다 (CCC-24)', () => {
-    const { container, getByText } = render(<RecordOnepage {...props()} />);
+    const { container, getByText } = render(<><RecordAccordionToggle /><RecordOnepage {...props()} /></>);
 
     // 6영역에서 '위기'를 골라 위기·안전 칸을 자동 펼친다.
     const economy = container.querySelector('select[name="lifeAreaStatus_economy"]');

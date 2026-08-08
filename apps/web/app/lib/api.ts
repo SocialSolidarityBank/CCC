@@ -494,6 +494,12 @@ export interface NewRecordContext {
   customQuestions: string[];
   // 지난 상담 한 줄 요약(CCC-10). 수기 메모가 있는 최신 회차의 첫 줄. 없으면 null.
   lastRecordSummary: RecordLastSummary | null;
+  /**
+   * 지금 쓰는 기록이 몇 회차인가(2026-08-09 Q — HERO 배지가 화면 이름 대신 유형·회차를 보인다).
+   * 이미 불러 둔 기록 목록의 길이 + 1 이라 **게이트웨이 호출이 늘지 않는다**. 인테이크 화면의
+   * sessionSequence 와 같은 뜻이고, 그쪽은 서버가 세어 준다.
+   */
+  nextSessionSequence: number;
 }
 
 export interface CreateInitialParticipantProgramInput {
@@ -1427,6 +1433,7 @@ export async function getNewRecordContext(
     lastRecordSummary: lastRecordWithMemo === undefined
       ? null
       : { heldAt: lastRecordWithMemo.heldAt, text: firstLine(lastRecordWithMemo.memo) },
+    nextSessionSequence: history.records.length + 1,
   };
 }
 

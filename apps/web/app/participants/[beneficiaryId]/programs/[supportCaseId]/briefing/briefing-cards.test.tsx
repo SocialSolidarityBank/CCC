@@ -349,7 +349,9 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
     // 상태 태그는 §5 컨트롤 부품(2026-08-05 — 트랙 C 의 .is-stage 폐지와 같은 결론).
-    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('15초 페이지');
+    // 2026-08-09 Q: 상태 태그는 화면 이름이 아니라 **최신 회차의 유형·회차**다.
+    // 픽스처는 최신이 기본 상담이고 회차가 둘이다.
+    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('기본 상담 2회');
     const meta = card.querySelector('.participant-hero-meta')?.textContent ?? '';
     expect(meta).toContain('마이크로크레딧');
     expect(meta).toContain('대면');
