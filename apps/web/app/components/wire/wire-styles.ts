@@ -433,6 +433,21 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 기본정보 수정 폼 카드 스택(2026-08-07 Q 5차) — 폼 한 장 안에 카드 2장(기본·추가 정보)이
    페이지 스택 간격(여백 3단 ①)으로 쌓인다. 폼 요소 자체는 간격을 못 만들어 래퍼가 갖는다. */
 .basic-info-stack{display:grid;gap:var(--section-gap)}
+/* ── 위저드 공용 (2026-08-09 Q) ── 상담 등록과 인테이크 두 화면이 화면 전체를 인라인 스타일
+   객체로 그리고 있었다. guard:tokens 는 layout.tsx·wire-styles.ts 두 파일만 훑으므로 인라인
+   값은 검사 밖이었고, 실제로 제목이 계단에 없는 20px 로(다른 화면 h2 는 18) 서 있었다.
+   같은 블록이 두 파일에 복사돼 있어 한쪽만 고치면 두 화면이 갈라진다 — 함께 옮긴다. */
+.wizard-stack{display:grid;gap:var(--space-5);align-content:start}
+/* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
+.wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
+   자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
+   되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다. */
+.wizard-form{display:grid;gap:var(--space-4);max-width:520px}
+/* 칸 하나(라벨·컨트롤·딸린 버튼)의 세로 묶음. WireFormField 안쪽 간격과 같은 8 이다. */
+.wizard-field{display:grid;gap:var(--space-2)}
+/* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
+.wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 @media(max-width:767px){
   .wire-form-grid{grid-template-columns:minmax(0,1fr)}
 }

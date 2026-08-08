@@ -671,6 +671,14 @@ const scheduleStyles = `
    클래스 둘(0-2-0)로 이긴다. */
 .wire-row.schedule-candidate-row{font-weight:400}
 .schedule-candidate-name{font-weight:600}
+/* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 카드 12)이다(§3-4). */
+.schedule-candidate-list{display:grid;gap:var(--space-3)}
+/* 상담 유형 칸: 라벨(14/600 --sub) + 값(16/600) + 설명(14/400)의 짝 계약(§2-1 D61 ③).
+   구 인라인은 값에 fontSize 16 을 직접 박고 있었다. */
+.schedule-kind{display:grid;gap:var(--space-3)}
+.schedule-kind-value{display:grid;gap:var(--space-1)}
+.schedule-kind-name{font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.schedule-kind-picker{display:grid;gap:var(--space-3)}
 .schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
 /* 도움말 문구는 12(--text-xs, 2026-08-07 Q 전역 통일) — .wire-form-hint 와 같은 역할이다. */
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}
@@ -809,9 +817,21 @@ const registerStyles = `
    "당사자 카드는 스크롤하면 사라져야지" — 구 9차 sticky 지시 대체). sticky 기준은 헤더
    아래(사이드바와 같은 계약)이고, 768 미만은 한 열이라 고정하지 않는다 — 좁은 화면에서
    위가 붙박이면 본문이 안 보인다. */
+/* 레일은 세로 스택이고 위에 붙는다 — alignContent:start 가 없으면 grid 행들이 본문 길이만큼
+   늘어난 컬럼 높이를 균등 분배해 단계 버튼 하나가 500px 넘게 벌어진다(2026-08-09 인라인 정리로
+   여기 옮겼다). 단계 사이는 8 — .wizard-stack(20)보다 촘촘한 목록이다. */
+.intake-step-nav{display:grid;gap:var(--space-2);align-content:start}
 @media (min-width:768px){
-  .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
+  .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6))}
 }
+/* 단계 버튼: 입력칸과 같은 사각 어휘(radius 6 · --line-control 1px)다. 현재 단계는 시간·진행
+   축이라 블루 계열(§1-5 배정표) — 채움은 tint, 글자는 deep. */
+/* optical: 10/12 는 높이 40 짜리 컨트롤이 아니라 목록 줄이라 컨트롤 패딩(0 12)을 쓸 수 없다.
+   두 줄로 접히는 긴 단계 이름까지 담으면서 32 알약보다 촘촘한 값이다. */
+.intake-step{display:flex;justify-content:space-between;gap:var(--space-2);padding:10px 12px;border:1px solid var(--line-control);border-radius:var(--radius-control);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:left;cursor:pointer}
+.intake-step[data-step-state="current"]{background:var(--blue-tint);color:var(--blue-deep)}
+.intake-step-count{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
+.intake-step[data-step-state="current"] .intake-step-count{color:var(--blue-deep)}
 /* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
    단계 표시는 블루 계열(시간·상태 축, D34)이다. */
 .onboarding-form{display:grid;margin-top:var(--space-8)}

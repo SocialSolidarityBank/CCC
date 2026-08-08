@@ -114,6 +114,12 @@ export interface WireChoiceProps {
   onChange?: (checked: boolean) => void;
   /** 라벨 아래 설명 14/400. */
   desc?: ReactNode;
+  /**
+   * 컨트롤의 접근 이름을 라벨 텍스트 대신 직접 준다(2026-08-09). 같은 보기 낱말이 질문마다
+   * 되풀이되는 자리에서 필요하다 — 인테이크의 '무응답' 체크박스가 한 화면에 여럿이라
+   * 라벨 텍스트만으로는 어느 질문의 것인지 가려지지 않는다.
+   */
+  ariaLabel?: string;
   /** 리스크 변형 — 테두리만 --risk. 리스크 배너 안에서만 쓴다(D9). */
   tone?: 'risk';
   className?: string;
@@ -139,6 +145,7 @@ export function WireChoice({
   onChange,
   desc,
   tone,
+  ariaLabel,
   className,
 }: WireChoiceProps) {
   const classes = ['wire-choice', className].filter(Boolean).join(' ');
@@ -151,6 +158,7 @@ export function WireChoice({
         id={id}
         name={name}
         value={value}
+        aria-label={ariaLabel}
         checked={checked}
         defaultChecked={defaultChecked}
         disabled={disabled}

@@ -167,6 +167,18 @@ export default async function RecordHistoryPage({
   const currentSchedulePresentation = schedule === null ? null : schedulePresentation(schedule.status);
   // 인테이크(kind=intake)가 아직 없는 케이스에서만 인테이크 작성이 프라이머리다(1회 규칙).
   // 버튼을 하나 더 두지 않고 자리를 갈아끼워 D38 의 '최대 2개'를 지킨다(D47 §3).
+  //
+  // **2026-08-09 Q: 이 조건을 그대로 둔다.** "필수로 추가해야 할 내용이 있을 때만 띄운다"로
+  // 바꾸자는 검토가 있었는데, 조사해 보니 지금 조건이 이미 그 뜻이다. 근거 둘:
+  //  ① 인테이크 위저드는 42문항 + 부채표 첫 칸 + 연계기관표 첫 칸 + 종합의견을 전부 필수로 세고,
+  //     하나라도 비면 canComplete 가 false 라 저장 버튼이 잠긴다(intake-wizard.tsx).
+  //     따라서 **화면을 통해 저장된 인테이크는 필수 미완일 수 없다** — '있는데 비어 있는' 상태는
+  //     도달 불가다(질문지 정본이 늘어나 예전 인테이크가 소급 미완이 되는 경우만 예외).
+  //  ② 그 예외까지 정확히 판정하려면 저장된 답변을 읽어야 하는데, 답변을 실어 주는
+  //     getIntakeRecordContext 는 금고를 복호화하고 read_participant_pii 감사를 1건 남긴다
+  //     (db/gateway.ts). 전체 상담 기록을 열 때마다 PII 열람 감사가 쌓여 D14·D24 기록이 오염된다.
+  // 질문지가 늘어 소급 미완을 잡아야 할 때는 목록 API 가 저장된 답변 키를 함께 내려주는 길로 간다
+  // (금고를 안 건드리므로 감사가 늘지 않는다).
   const hasIntake = records.some((record) => record.kind === 'intake');
   // 최신 상담일이 목록 맨 위다(서버가 held_at DESC 로 준다).
   const latestHeldAt = records[0]?.heldAt ?? null;
