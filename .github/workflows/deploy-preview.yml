@@ -5,6 +5,8 @@ name: Deploy Preview
 # Cloudflare 자격증명은 GitHub secret 이름으로만 참조한다(값 등록은 프로비저닝 몫):
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 # 시드 주입은 이 잡에 넣지 않는다 — 별도 수동 스크립트(scripts/seed, docs/ops.md 참고).
+# 프리뷰 D1(ccc-preview, 가상 시드 전용) 마이그레이션은 배포 전에 자동 적용한다(2026-08-09 Q 승인).
+# 운영은 여전히 수동이다. deploy-production.yml 의 schema-gate 가 그 정책을 강제한다.
 
 on:
   push:
@@ -45,6 +47,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # 프리뷰 D1 마이그레이션 자동 적용. 스키마가 코드보다 먼저다(뒤집으면 새 코드가
+      # 없는 컬럼을 조회한다). 실패하면 배포가 여기서 멈춰 옛 화면이 유지된다.
+      - run: pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote
       # API 미리보기 워커 배포 (ccc-api-preview)
       - run: pnpm --filter @ccc/api exec wrangler deploy --env preview
       # WEB 미리보기 워커 배포 (ccc-preview) — OpenNext 빌드 후 preview env 로 배포
