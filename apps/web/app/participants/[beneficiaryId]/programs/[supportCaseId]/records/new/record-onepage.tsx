@@ -165,28 +165,10 @@ export function RecordOnepage({
       진척도 카드 한 장에 섞여 있던 목표·필수를 가른다): 이번 상담 목표 + 미해결 액션
       아코디언 + 체크리스트(필수 채움·저장). 맨 아래에 미저장 안내가 선다.
       sticky 는 aside 가 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
-  return <div className="wire-container rail-grid" data-grid="true" ref={draft.containerRef}>
-    {/* 레일은 3칸이다(2026-08-09 Q "TOC 넣어서 장폭 늘리기" — 구 4칸). 본문이 9칸으로
-        넓어지고, 레일 맨 위에 구획 바로가기 목차가 선다. */}
-    <aside className="wire-col-3 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
-      {/* ⓪ 구획 바로가기(2026-08-09 Q) — 세로로 긴 원페이지라 목차가 스크롤을 대신한다.
-          대상은 본문 구획 전부이고, 접힘 칸은 눌러도 접힌 채 제목 줄로만 이동한다. */}
-      <WireCard as="nav" labelledBy="record-toc-title" testId="record-toc"
-        title={<span id="record-toc-title">바로가기</span>}>
-        <ol className="record-toc-list">
-          <li><a href="#questions-title">오늘 확인할 질문</a></li>
-          <li><a href="#session-goal-note-title">이번 상담에서 확인할 것</a></li>
-          <li><a href="#record-form-title">오늘 상담 내용</a></li>
-          <li><a href="#record-goals-title">세부 목표</a></li>
-          <li><a href="#open-actions-title">미해결 액션 처리</a></li>
-          <li><a href="#life-areas-title">생활 6영역 변화 확인</a></li>
-          <li><a href="#record-template">회차 템플릿 항목</a></li>
-          <li><a href="#record-new-actions">새 액션·다음 만남</a></li>
-          <li><a href="#record-safety">위기·안전 확인</a></li>
-          <li><a href="#record-flags">리스크 플래그</a></li>
-          <li><a href="#opinion-title">담당 실무자 의견</a></li>
-        </ol>
-      </WireCard>
+  return <div className="wire-container rail-grid record-grid" data-grid="true" ref={draft.containerRef}>
+    {/* 좌 레일 4칸 / 본문 8칸(2026-08-09 Q 2차 "사이드바가 너무 좁으니 늘리고" — 구 3/9 를
+        하루 만에 대체). 바로가기 목차는 레일이 아니라 **우측 셋째 열**이다(맨 아래 nav 참조). */}
+    <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
       {/* ① 이번 상담 목표 카드(2026-08-09 Q "미해결 액션 위, 같은 크기") — 제목이 카드 제목
           계약(16/600)이라 미해결 액션 아코디언 제목과 같은 크기로 선다. 일정에 연결된 세션
           목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다(CCC-76 으로 폴백 입력칸이
@@ -248,7 +230,7 @@ export function RecordOnepage({
           본문 상단). 페이지가 제출 상태를 보고 넘겨주는 슬롯이라 여기서는 자리만 정한다. */}
       {unsavedNotice}
     </aside>
-    <div className="wire-col-9 record-main">
+    <div className="wire-col-8 record-main">
       {draft.restorable === null
         ? null
         : <DraftRestorePrompt
@@ -446,5 +428,27 @@ export function RecordOnepage({
         </WireFormField>
       </WireCard>
     </div>
+
+    {/* 구획 바로가기 목차 — **우측 셋째 열**, 광폭 전용(2026-08-09 Q 2차 "TOC 는 우측에",
+        "모바일·태블릿에서는 안 보여도 돼" — 구 레일 맨 위 카드 대체). 컨테이너 질의
+        ≥1150(.record-toc-rail 규칙)에서만 그려지고, 그 아래 폭에서는 CSS 가 숨긴다.
+        세로로 긴 원페이지라 목차가 스크롤을 대신한다. 접힘 칸은 눌러도 접힌 채 제목
+        줄로만 이동한다. */}
+    <WireCard as="nav" labelledBy="record-toc-title" testId="record-toc" className="record-toc-rail"
+      title={<span id="record-toc-title">바로가기</span>}>
+      <ol className="record-toc-list">
+        <li><a href="#questions-title">오늘 확인할 질문</a></li>
+        <li><a href="#session-goal-note-title">이번 상담에서 확인할 것</a></li>
+        <li><a href="#record-form-title">오늘 상담 내용</a></li>
+        <li><a href="#record-goals-title">세부 목표</a></li>
+        <li><a href="#open-actions-title">미해결 액션 처리</a></li>
+        <li><a href="#life-areas-title">생활 6영역 변화 확인</a></li>
+        <li><a href="#record-template">회차 템플릿 항목</a></li>
+        <li><a href="#record-new-actions">새 액션·다음 만남</a></li>
+        <li><a href="#record-safety">위기·안전 확인</a></li>
+        <li><a href="#record-flags">리스크 플래그</a></li>
+        <li><a href="#opinion-title">담당 실무자 의견</a></li>
+      </ol>
+    </WireCard>
   </div>;
 }

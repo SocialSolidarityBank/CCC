@@ -716,33 +716,32 @@ const scheduleStyles = `
 /* 상담 유형 칸 = 선택창 하나 + (조건부) 경고 안내줄(2026-08-09 Q). 값·이름·접힘 세 클래스는
    함께 지웠다 — 값을 보여 주는 자리와 고치는 자리가 하나로 합쳐지면서 쓸 곳이 없어졌다. */
 .schedule-kind{display:grid;gap:var(--space-3)}
-/* 목표·질문 입력 묶음(2026-08-09 Q 재개편): 한 항목 = 머리 줄 + 전폭 입력 줄, 폭 상한 없이
-   장폭을 다 쓴다(구 .wizard-row 720 · .wizard-form 520 상한 대체).
-   머리 줄 = [세부 목표 연결(그라데이션 아웃라인 선택창) 좌 | '세션 목표 N' 제목 우].
-   입력 줄 = [입력칸 남은 폭 전부 | +·- 세로]. 질문 항목은 연결이 없어 제목만 머리에 선다. */
+/* 목표·질문 입력 묶음(2026-08-09 Q 3차): 한 항목 = **연결 쌍 위, 세션 목표 쌍 아래**의
+   세로 스택이고 폭 상한 없이 장폭을 다 쓴다(구 .wizard-row 720 · .wizard-form 520 상한
+   대체). 여백 리듬: 쌍 안 라벨↔칸 8(입력칸 계약과 동일) · 쌍 사이 16 · 항목 사이 20. */
 .session-goal-list{display:grid;gap:var(--space-5)}
-.session-goal-entry{display:grid;gap:var(--space-2)}
-.session-goal-head{display:flex;justify-content:space-between;align-items:end;gap:var(--space-4)}
-.session-goal-head>.wire-form-field{flex:0 1 320px;min-width:220px}
-/* 머리 줄 두 조각과 라벨은 참고 카드 제목과 같은 16/600 --ink 다(Q "세부 목표 = 지난 상담
-   브리핑 = 세션 목표 1 = 세부 목표 연결 폰트 크기 동일"). 제목은 선택창 상자(40) 세로
-   가운데에 놓는다 — (40 - 글줄 20) / 2 = 10. */
+.session-goal-entry{display:grid;gap:var(--space-4)}
+.session-goal-entry>.session-goal-link{max-width:320px}
+.session-goal-field{display:grid;gap:var(--space-2)}
+/* 라벨 둘은 참고 카드 제목과 같은 16/600 --ink 다(Q "세부 목표 = 지난 상담 브리핑 =
+   세션 목표 1 = 세부 목표 연결 폰트 크기 동일"). */
 .session-goal-entry .wire-form-label{font-size:var(--text-md);color:var(--ink)}
-.session-goal-title{font-size:var(--text-md);font-weight:600;line-height:var(--leading-tight);color:var(--ink);padding-bottom:var(--space-2-5)}
-.session-goal-entry[data-kind="question"] .session-goal-title{padding-bottom:0}
+.session-goal-label{font-size:var(--text-md);font-weight:600;line-height:var(--leading-snug);color:var(--ink)}
 /* 연결 선택창은 아코디언 활성과 같은 그라데이션 아웃라인을 입는다(Q "아코디언 그라데이션
    스타일" — D60 ④ 선택·활성 어휘. 기본 펼침 채움 제외 명단과 같은 이유로 채움이 아니라
    아웃라인이다. 초점 링은 outline 이라 배경 2겹과 충돌하지 않는다). */
 .session-goal-link .wire-input-box{border-color:transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-brand) border-box}
-/* 입력 줄: 입력칸이 남은 폭을 다 쓰고 +·- 는 오른쪽 끝에 세로로 선다(Q). 바닥 정렬이라
-   버튼 기둥이 입력칸 상자와 나란하다. */
-.session-goal-input{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-3);align-items:end}
-.session-goal-input>.wire-repeat-actions{flex-direction:column;justify-content:flex-end}
+/* 입력 줄: 입력칸이 남은 폭을 다 쓰고 +·- 는 오른쪽 끝 세로, **+ 가 위 - 가 아래**로
+   입력칸 위쪽에 맞춘다(Q 3차 — 구 바닥 정렬·- 위 대체). DOM 은 공용 부품 순서(- 먼저,
+   + 나중) 그대로 두고 column-reverse 로 뒤집는다 — 공용 부품의 가로 배치(다른 화면)를
+   건드리지 않는다. 반전축에서는 기본 justify-content:flex-end 가 위쪽 팩킹이 된다. */
+.session-goal-input{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-3);align-items:start}
+.session-goal-input>.wire-repeat-actions{flex-direction:column-reverse}
 @media (max-width: 767px){
-  /* 한 열에서는 연결이 위, 제목이 그 아래로 내려오고 +·- 는 가로로 돌아간다. */
-  .session-goal-head{flex-wrap:wrap;align-items:start}
+  /* 한 열에서는 +·- 가 가로로 돌아간다 — 순서는 그대로 + 먼저다(row-reverse + 반전축
+     flex-end = 오른쪽 팩킹). */
   .session-goal-input{grid-template-columns:minmax(0,1fr)}
-  .session-goal-input>.wire-repeat-actions{flex-direction:row}
+  .session-goal-input>.wire-repeat-actions{flex-direction:row-reverse;justify-content:flex-start}
 }
 /* 지난 상담 브리핑 불릿 — 출처 배지 + 본문이 한 문장으로 흐르고 긴 글은 줄바꿈으로 행이 는다. */
 .schedule-briefing-item .wire-badge{margin-right:var(--space-1)}
@@ -943,13 +942,28 @@ const recordFormStyles = `
    본문 스택과 같은 24(D60 ③ 페이지 스택) — 좌우 열의 카드 리듬이 같아야 한 화면으로 읽힌다. */
 .record-side{display:grid;gap:var(--space-6)}
 @media (min-width: 768px){
-  /* 목차가 더해져 레일이 화면보다 길 수 있다(2026-08-09) — sticky 를 유지하려면 레일이
-     자기 안에서 스크롤해야 저장 버튼이 손 닿는 곳에 남는다(문서 사이트 목차 레일 문법). */
+  /* 레일이 화면보다 길 수 있다(2026-08-09) — sticky 를 유지하려면 레일이 자기 안에서
+     스크롤해야 저장 버튼이 손 닿는 곳에 남는다(문서 사이트 목차 레일 문법). */
   .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start;max-height:calc(100dvh - var(--header-height) - var(--space-6) * 2);overflow-y:auto}
 }
-/* 구획 바로가기 목차(2026-08-09 Q "TOC 넣어서 장폭 늘리기"). 링크 11개가 알약으로 서면 레일이
-   버튼 기둥이 되므로 문서 목차 문법의 텍스트 목록이다(D58 ⑥의 인라인 참조 축). 이동하면
-   대상 구획 머리가 셸 헤더 아래로 숨지 않게 본문 앵커에 스크롤 여백을 준다. */
+/* 구획 바로가기 목차(2026-08-09 Q 2차 "TOC 는 우측에, 모바일·태블릿은 안 보여도 돼" —
+   구 레일 맨 위 카드 대체). 기본은 숨김이고, **컨테이너 ≥1150 에서만 셋째 열**로 선다 —
+   장폭 1280 개정(§4-1)으로 광폭 모니터에서만 생기는 자리다. 화면 폭이 아니라 컨테이너
+   폭으로 판단한다(§4-2 와 같은 원리 — 사이드바 유무에 흔들리지 않는다). 발동하면 격자를
+   [레일 300 | 본문 1fr | 목차 200] 명시 트랙으로 바꾸고 12칸 span 을 푼다.
+   이 분기는 record-grid 전용이다 — rail-grid 는 인테이크와 공유라 건드리면 인테이크의
+   2열 격자가 빈 셋째 열을 갖게 된다. */
+.record-toc-rail{display:none}
+@container (min-width: 1150px){
+  /* 클래스 둘(0-2-0)로 적는 이유: 기본 12칸 규칙이 .wire-container[data-grid](0-2-0)라
+     .record-grid 한 클래스로는 순서와 무관하게 진다(하니스 실측으로 잡은 결함). */
+  .wire-container.record-grid{grid-template-columns:300px minmax(0,1fr) 200px}
+  .record-grid>.wire-col-4,.record-grid>.wire-col-8{grid-column:auto}
+  .record-toc-rail{display:block;position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
+}
+/* 링크 11개가 알약으로 서면 목차가 버튼 기둥이 되므로 문서 목차 문법의 텍스트 목록이다
+   (D58 ⑥의 인라인 참조 축). 이동하면 대상 구획 머리가 셸 헤더 아래로 숨지 않게 본문
+   앵커에 스크롤 여백을 준다. */
 .record-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm)}
 .record-toc-list a{color:var(--sub);text-decoration:none}
 .record-toc-list a:hover{color:var(--ink);text-decoration:underline}
