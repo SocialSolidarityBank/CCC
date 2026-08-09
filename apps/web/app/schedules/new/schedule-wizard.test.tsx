@@ -34,11 +34,12 @@ const freshCandidate: ScheduleWizardCandidate = {
   participantEmail: null,
   intakeAt: null,
 };
-const freshCandidateLabel = '남주원 010-0000-0016';
+const freshCandidateLabel = '남주원 rabbit-001 010-0000-0016';
 
-// D31: 당사자 행은 실명·연락처·이메일로 표기하고 사업명은 빼야 한다.
+// D31: 당사자 행은 실명·가명 ID·연락처·이메일로 표기하고 사업명은 빼야 한다(가명 ID 는
+// 2026-08-09 Q "아이디 넣고 컬러처리" — 이름 다음 자리).
 // 구분자 가운뎃점 대신 각 조각을 독립 노드(MetaRow)로 렌더하므로 접근성 이름은 공백으로 이어진다.
-const candidateLabel = '홍서희 010-1234-5678 seohee@example.test';
+const candidateLabel = '홍서희 swallow-003 010-1234-5678 seohee@example.test';
 
 function renderWizard(overrides: { candidates?: ScheduleWizardCandidate[] } = {}) {
   const calls = { load: 0, submit: 0 };
@@ -214,6 +215,36 @@ describe('ScheduleWizard', () => {
     expect(input?.sessionKind).toBe('intake');
     // 목표를 한 글자도 안 적어도 등록된다. 구 흐름은 여기서 막혔다.
     expect(input).not.toHaveProperty('caseGoals');
+  });
+
+  // 2026-08-09 Q: 카드 full-width + '당사자 정보' 버튼이 카드 안이다. 가명 ID 는 이름 다음
+  // 민트 컬러 조각으로 선다.
+  it('후보 카드가 가명 ID 조각과 당사자 정보 링크를 카드 안에 갖는다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+
+    const row = scoped.getByRole('button', { name: candidateLabel }).closest('.schedule-candidate-item') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.className).toContain('wire-row');
+    // ID 조각은 이름 바로 다음이다.
+    const id = row.querySelector('.schedule-candidate-id') as HTMLElement;
+    expect(id.textContent).toBe('swallow-003');
+    const name = row.querySelector('.schedule-candidate-name') as HTMLElement;
+    expect(name.compareDocumentPosition(id) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // '당사자 정보' 링크가 카드(행) **안**에 있다 — 구 행 밖 형제 배치 대체.
+    const link = within(row).getByRole('link', { name: '당사자 정보' });
+    expect(link.getAttribute('href')).toBe('/participants/swallow-003');
+  });
+
+  it('이름이 없어 가명 ID 가 이름 자리에 서면 ID 조각을 겹쳐 그리지 않는다', () => {
+    const { container } = renderWizard({
+      candidates: [{ ...freshCandidate, participantName: null }],
+    });
+    const scoped = within(container);
+
+    const row = scoped.getByRole('button', { name: 'rabbit-001 010-0000-0016' }).closest('.schedule-candidate-item') as HTMLElement;
+    expect(row.querySelector('.schedule-candidate-name')?.textContent).toBe('rabbit-001');
+    expect(row.querySelector('.schedule-candidate-id')).toBeNull();
   });
 
   it('당사자를 골라도 일시가 비어 있으면 다음이 눌리지 않고 무엇이 모자란지 알린다 (CCC-22)', () => {

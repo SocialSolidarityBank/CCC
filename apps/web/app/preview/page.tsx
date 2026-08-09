@@ -28,30 +28,29 @@ export default async function PreviewGatePage({ searchParams }: { searchParams: 
   const errorCode = queryValue(query, 'error');
 
   return (
-    <div className="page-content">
-      <div className="page-header">
-        <div>
-          <h1>미리보기 접속</h1>
-          <p>개발 중인 서비스를 미리 보려면 전달받은 코드를 입력하세요.</p>
-        </div>
+    /* 게이트 문법(2026-08-09 Q "컴포넌트 가운데 정렬로 전면 수정") — 셸 없는 공개 화면이라
+       화면 세로·가로 중앙에 제목·설명·카드가 한 축으로 선다. 구 .page-header 좌측 정렬과
+       .schedule-form(520, 일정 화면 부품 차용)은 함께 걷어냈다. */
+    <main className="page-content preview-gate">
+      <div className="preview-gate-head">
+        <h1>미리보기 접속</h1>
+        <p>개발 중인 서비스를 미리 보려면 전달받은 코드를 입력하세요.</p>
       </div>
 
       {errorCode !== undefined ? (
         <p role="alert" className="wire-field-error">{errorMessages[errorCode] ?? '확인하지 못했습니다.'}</p>
       ) : null}
 
-      <form className="surface-card schedule-form" action={unlockPreviewAction}>
+      <form className="surface-card preview-gate-card" action={unlockPreviewAction}>
         <WireFormField label="접속 코드" required htmlFor="preview-code">
           <input id="preview-code" type="password" name="code" autoComplete="off" autoFocus required />
         </WireFormField>
-        <div className="wire-form-actions">
-          <WireButton type="submit" variant="primary">입장</WireButton>
-        </div>
+        <WireButton type="submit" variant="primary" className="preview-gate-submit">입장</WireButton>
         {/* 화면 전체에 대한 안내라 입력칸의 도움말(hint)이 아니라 폼 아래 한 줄로 둔다. */}
         <p className="note-inline">
           이 미리보기는 가상 시드 데이터만 담고 있으며 실제 당사자 정보와 연결되어 있지 않습니다.
         </p>
       </form>
-    </div>
+    </main>
   );
 }

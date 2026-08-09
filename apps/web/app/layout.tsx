@@ -695,21 +695,59 @@ const scheduleStyles = `
    클래스 둘(0-2-0)로 이긴다. */
 .wire-row.schedule-candidate-row{font-weight:400}
 .schedule-candidate-name{font-weight:600}
+/* 가명 ID 는 이름 다음 민트 컬러다(2026-08-09 Q "아이디 넣고 컬러처리" — 사람·소속 축 D34.
+   14/600 은 §1-4 규칙 3 의 deep 글자 하한). 고른 행(그라데이션 면)에서는 다른 글자처럼
+   --on-action 으로 넘어간다 — 민트 deep 이 그라데이션 면 위에 남으면 묻힌다. */
+.schedule-candidate-id{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
+.wire-row[data-selected="true"] .schedule-candidate-id{color:var(--on-action)}
 /* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 카드 12)이다(§3-4). */
 .schedule-candidate-list{display:grid;gap:var(--space-3)}
-/* 한 후보 = 고르는 행 + '당사자 정보' 버튼(2026-08-09 Q). 버튼은 행 밖 형제라 행 클릭이
-   '고르기' 하나만 뜻한다. 버튼은 늘어나지 않고 세로 가운데에 선다. */
-.schedule-candidate-item{display:flex;align-items:center;gap:var(--space-3)}
-.schedule-candidate-item>.wire-row{flex:1 1 auto;min-width:0}
+/* 한 후보 = 카드 한 장이 장폭을 다 쓰고, '당사자 정보' 버튼도 카드 안 오른쪽 끝이다
+   (2026-08-09 Q — 구 행 밖 형제 버튼 대체). 카드 자체는 .wire-row 계약(72 높이·패딩)을
+   그대로 입되 div 라, 고르기는 안쪽 flex:1 버튼이 갖는다 — 버튼 속 버튼을 만들지 않으면서
+   행 면적 대부분이 '고르기'로 남는다. 안쪽 버튼은 행 글자 계약을 그대로 상속한다. */
+.schedule-candidate-item{cursor:default}
+.schedule-candidate-select{flex:1 1 auto;min-width:0;align-self:stretch;display:flex;align-items:center;margin:0;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere}
 .schedule-candidate-item>.wire-button{flex:none}
 @media (max-width: 767px){
-  /* 좁은 화면에서는 버튼이 행 아래로 내려가 폭을 온전히 쓴다(§5 모바일 규칙과 같은 처리). */
-  .schedule-candidate-item{flex-direction:column;align-items:stretch}
+  /* 좁은 화면에서는 버튼이 이름 묶음 아래로 내려간다(§5 모바일 규칙과 같은 처리). */
+  .schedule-candidate-item{flex-wrap:wrap}
 }
 /* 상담 유형 칸 = 선택창 하나 + (조건부) 경고 안내줄(2026-08-09 Q). 값·이름·접힘 세 클래스는
    함께 지웠다 — 값을 보여 주는 자리와 고치는 자리가 하나로 합쳐지면서 쓸 곳이 없어졌다. */
 .schedule-kind{display:grid;gap:var(--space-3)}
-.schedule-form{display:grid;gap:var(--space-5);max-width:520px;padding:var(--space-6)}
+/* 목표·질문 입력 묶음(2026-08-09 Q 재개편): 한 항목 = 머리 줄 + 전폭 입력 줄, 폭 상한 없이
+   장폭을 다 쓴다(구 .wizard-row 720 · .wizard-form 520 상한 대체).
+   머리 줄 = [세부 목표 연결(그라데이션 아웃라인 선택창) 좌 | '세션 목표 N' 제목 우].
+   입력 줄 = [입력칸 남은 폭 전부 | +·- 세로]. 질문 항목은 연결이 없어 제목만 머리에 선다. */
+.session-goal-list{display:grid;gap:var(--space-5)}
+.session-goal-entry{display:grid;gap:var(--space-2)}
+.session-goal-head{display:flex;justify-content:space-between;align-items:end;gap:var(--space-4)}
+.session-goal-head>.wire-form-field{flex:0 1 320px;min-width:220px}
+/* 머리 줄 두 조각과 라벨은 참고 카드 제목과 같은 16/600 --ink 다(Q "세부 목표 = 지난 상담
+   브리핑 = 세션 목표 1 = 세부 목표 연결 폰트 크기 동일"). 제목은 선택창 상자(40) 세로
+   가운데에 놓는다 — (40 - 글줄 20) / 2 = 10. */
+.session-goal-entry .wire-form-label{font-size:var(--text-md);color:var(--ink)}
+.session-goal-title{font-size:var(--text-md);font-weight:600;line-height:var(--leading-tight);color:var(--ink);padding-bottom:var(--space-2-5)}
+.session-goal-entry[data-kind="question"] .session-goal-title{padding-bottom:0}
+/* 연결 선택창은 아코디언 활성과 같은 그라데이션 아웃라인을 입는다(Q "아코디언 그라데이션
+   스타일" — D60 ④ 선택·활성 어휘. 기본 펼침 채움 제외 명단과 같은 이유로 채움이 아니라
+   아웃라인이다. 초점 링은 outline 이라 배경 2겹과 충돌하지 않는다). */
+.session-goal-link .wire-input-box{border-color:transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-brand) border-box}
+/* 입력 줄: 입력칸이 남은 폭을 다 쓰고 +·- 는 오른쪽 끝에 세로로 선다(Q). 바닥 정렬이라
+   버튼 기둥이 입력칸 상자와 나란하다. */
+.session-goal-input{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-3);align-items:end}
+.session-goal-input>.wire-repeat-actions{flex-direction:column;justify-content:flex-end}
+@media (max-width: 767px){
+  /* 한 열에서는 연결이 위, 제목이 그 아래로 내려오고 +·- 는 가로로 돌아간다. */
+  .session-goal-head{flex-wrap:wrap;align-items:start}
+  .session-goal-input{grid-template-columns:minmax(0,1fr)}
+  .session-goal-input>.wire-repeat-actions{flex-direction:row}
+}
+/* 지난 상담 브리핑 불릿 — 출처 배지 + 본문이 한 문장으로 흐르고 긴 글은 줄바꿈으로 행이 는다. */
+.schedule-briefing-item .wire-badge{margin-right:var(--space-1)}
+/* (.schedule-form 카드 표면은 2026-08-09 삭제 — 마지막 사용처였던 미리보기 게이트가 전용
+   .preview-gate-card 로 바뀌었다. -hint·-notice 는 등록·가입 화면이 계속 쓴다.) */
 /* 도움말 문구는 12(--text-xs, 2026-08-07 Q 전역 통일) — .wire-form-hint 와 같은 역할이다. */
 .schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
@@ -782,6 +820,16 @@ const monthScheduleStyles = `
 
 
 const registerStyles = `
+/* 미리보기 코드 게이트(2026-08-09 Q "컴포넌트 가운데 정렬로 전면 수정") — 셸 없는 공개
+   화면이라 로그인 게이트 문법이다: 화면 세로·가로 중앙, 제목·설명·오류·카드가 전부 가운데
+   축에 선다. 카드 폭은 400(입력 한 칸짜리 폼 — 장폭 카드는 빈 판으로 읽힌다), 카드 안은
+   입력 축이라 왼쪽 정렬을 유지하고 입장 버튼만 전폭이다. */
+.preview-gate{min-height:100dvh;align-content:center;justify-items:center;text-align:center}
+.preview-gate-head{display:grid;gap:var(--space-2);justify-items:center}
+.preview-gate-head>h1{margin:0}
+.preview-gate-head>p{margin:0;color:var(--sub)}
+.preview-gate-card{width:min(400px,100%);display:grid;gap:var(--space-5);padding:var(--space-6);text-align:left}
+.preview-gate-card .preview-gate-submit{width:100%;justify-content:center}
 /* 당사자 등록·초대 (#37) */
 .wire-register-form{display:grid;gap:var(--space-6);margin-top:var(--space-8)}
 .wire-register-submit{width:100%}
@@ -895,8 +943,18 @@ const recordFormStyles = `
    본문 스택과 같은 24(D60 ③ 페이지 스택) — 좌우 열의 카드 리듬이 같아야 한 화면으로 읽힌다. */
 .record-side{display:grid;gap:var(--space-6)}
 @media (min-width: 768px){
-  .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
+  /* 목차가 더해져 레일이 화면보다 길 수 있다(2026-08-09) — sticky 를 유지하려면 레일이
+     자기 안에서 스크롤해야 저장 버튼이 손 닿는 곳에 남는다(문서 사이트 목차 레일 문법). */
+  .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start;max-height:calc(100dvh - var(--header-height) - var(--space-6) * 2);overflow-y:auto}
 }
+/* 구획 바로가기 목차(2026-08-09 Q "TOC 넣어서 장폭 늘리기"). 링크 11개가 알약으로 서면 레일이
+   버튼 기둥이 되므로 문서 목차 문법의 텍스트 목록이다(D58 ⑥의 인라인 참조 축). 이동하면
+   대상 구획 머리가 셸 헤더 아래로 숨지 않게 본문 앵커에 스크롤 여백을 준다. */
+.record-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm)}
+.record-toc-list a{color:var(--sub);text-decoration:none}
+.record-toc-list a:hover{color:var(--ink);text-decoration:underline}
+.record-toc-list a:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.record-main [id]{scroll-margin-top:calc(var(--header-height) + var(--space-4))}
 /* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
    올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
@@ -906,11 +964,12 @@ const recordFormStyles = `
    근거가 사라졌다. 예외를 남겨 두면 같은 페이지에서 레일·아코디언만 글자 시작선이 4px
    앞으로 나온다(2026-08-09 하니스 실측: 카드 49 · 아코디언 45 · 위기 44). */
 /* 구 상단 고정 헤더(.record-sticky)는 2026-08-08 좌측 레일 이전으로 삭제 — 목표·버튼이
-   전부 레일로 갔다. 라벨·값·목록 세 줄 레시피만 레일 안에서 계속 쓴다. */
-/* 라벨 오른쪽에 목표 유무 배지가 앉는다(CCC-76) — flex 는 배지를 글줄 베이스라인이 아니라
-   라벨과 세로 중앙으로 맞춘다. */
-.record-sticky-label{margin:0;display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
+   전부 레일로 갔다. */
+/* 레일 카드 3장(2026-08-09 Q — 구 진척도 카드 한 장에서 분리): 이번 상담 목표 · 미해결
+   액션 아코디언 · 체크리스트. 제목은 전부 카드 제목 계약(16/600)이라 같은 크기다.
+   제목 오른쪽 배지는 flex 로 글줄 베이스라인이 아니라 세로 중앙에 맞춘다(CCC-76). */
+.record-rail-title{display:flex;align-items:center;gap:var(--space-2)}
+.record-rail-goals{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 구 .record-sticky-value·.record-sticky-meta 는 2026-08-09 삭제 — '미연결' 글자 표시는
    빈 상태 부품으로, 지난 상담 메타 줄은 미해결 액션 카드로 바뀌었다(Q 지시. 강조 콜아웃을
    거쳐 CCC-76 으로 레일 형제 아코디언 카드가 됐다 — 카드 안 카드 금지 해소, D59). */
@@ -941,11 +1000,9 @@ const recordFormStyles = `
 .open-action-card>.wire-card-title{display:grid;gap:var(--space-2)}
 .open-action-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .open-action-meta{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-2)}
-/* 레일도 본문 카드와 같은 24 사방이다(2026-08-09 — 구 16/20). 구분선(.wire-card-divider)이
-   좌우 -24 로 풀블리드라, 패딩이 20 이던 동안에는 선이 카드 밖으로 4px 씩 삐져나왔다
-   (details 와 달리 div 는 overflow:clip 이 없다). sticky 는 바깥 .record-side 가 갖는다. */
-.record-rail{display:grid;gap:var(--space-2);padding:var(--space-6)}
-.record-rail-count{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 구 .record-rail 손 카드·.record-rail-count 글줄은 2026-08-09 삭제 — 진척도 카드가
+   WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
+   갖고, 필수 카운트는 체크리스트 제목 옆 블루 배지가 됐다(§2-2 규칙 4). */
 .record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);color:var(--sub)}
 .record-rail-list li[data-done="true"]{color:var(--ink);font-weight:600}
 .record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

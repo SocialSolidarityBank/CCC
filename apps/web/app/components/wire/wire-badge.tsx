@@ -11,6 +11,8 @@ export interface WireBadgeProps {
   /** 상태 알림으로 읽혀야 하는 배지(role="status"·"alert")에만 준다. */
   role?: 'status' | 'alert';
   'aria-live'?: 'polite' | 'assertive';
+  /** 테스트 고정용 data-testid. 킷의 다른 부품(WireCard·WireCallout)과 같은 계약이다. */
+  testId?: string;
   className?: string;
 }
 
@@ -18,13 +20,14 @@ export interface WireBadgeProps {
  *  모양(.wire-badge)은 wire-styles.ts 한 곳이 소유한다. 배지를 새로 그리지 말고
  *  이 부품에 tone 만 골라 쓴다. 눌러서 상태를 바꾸는 태그는 배지가 아니라
  *  컨트롤(.wire-status-tag, radius 6)이다. */
-export function WireBadge({ children, tone = 'neutral', role, 'aria-live': ariaLive, className }: WireBadgeProps) {
+export function WireBadge({ children, tone = 'neutral', role, 'aria-live': ariaLive, testId, className }: WireBadgeProps) {
   return (
     <span
       className={['wire-badge', className].filter(Boolean).join(' ')}
       data-tone={tone === 'neutral' ? undefined : tone}
       role={role}
       aria-live={ariaLive}
+      data-testid={testId}
     >
       {children}
     </span>

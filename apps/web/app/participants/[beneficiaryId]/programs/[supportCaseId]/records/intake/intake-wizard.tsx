@@ -401,7 +401,9 @@ function QuestionField(props: {
           onChange={(event) => onChange({ response: 'answered', text: event.target.value })}
         />
       </WireFormField>
-      <div className="wizard-actions">
+      {/* 무응답·해당 없음 사이 간격은 입력칸↔버튼 줄 간격(.wizard-field gap 8)과 같다
+          (2026-08-09 Q — 공용 .wizard-actions 의 12 는 다른 화면 몫이라 여기만 좁힌다). */}
+      <div className="wizard-actions wizard-answer-actions">
         {([[NO_RESPONSE_OPTION, NO_RESPONSE_CODE], [NOT_APPLICABLE_OPTION, NOT_APPLICABLE_CODE]] as const).map(
           ([optionLabel, code]) => (
             <WireButton
@@ -761,7 +763,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
             .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}
-        <nav className="wire-col-4 intake-step-nav" aria-label="단계 진행">
+        {/* 레일은 3칸이다(2026-08-09 Q "TOC 넣어서 장폭 늘리기" — 구 4칸). 단계 목록이 곧
+            목차라 좁혀도 잃는 것이 없고, 입력 영역이 9칸으로 넓어진다. */}
+        <nav className="wire-col-3 intake-step-nav" aria-label="단계 진행">
           <h2>진행 단계</h2>
           {STEP_TITLES.map((title, index) => {
             const stepNumber = index + 1;
@@ -796,7 +800,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
           })}
         </nav>
 
-        <section className="wire-col-8 wizard-stack">
+        <section className="wire-col-9 wizard-stack">
           {/* 맥락 카드(2026-08-07 Q 9차·10차 개정): 누구의 인테이크인지(구 맨 아래 당사자
               줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
               static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
@@ -805,8 +809,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
               <MetaRow items={participantParts} />
             </p>
             <p className="panel-meta">
-              {/* 수정 모드의 '회차 N회'는 다음 회차 자동값이라 거짓 정보다 — 자리 자체를 수정 표시로 바꾼다. */}
-              <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : `회차 ${props.sessionSequence}회`, `실무자 ${props.recorderLabel}`]} />
+              {/* 수정 모드의 '회차 N회'는 다음 회차 자동값이라 거짓 정보다 — 자리 자체를 수정 표시로 바꾼다.
+                  회차는 분류 낱말이라 배지로 올린다(2026-08-09 Q "뱃지로 0회차" — §2-2 규칙 4, 블루 = 유형·정보). */}
+              <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : <WireBadge tone="blue">{props.sessionSequence}회차</WireBadge>, `실무자 ${props.recorderLabel}`]} />
             </p>
             <p className="panel-meta">모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
           </WireCard>

@@ -92,6 +92,11 @@ export interface RecordOnepageProps {
    * '오늘 상담 내용' 아래에 선다. 기록지 폼과 별개의 즉시 저장이라 이 폼의 제출에는 안 실린다.
    */
   goalSection?: ReactNode;
+  /**
+   * 미저장 안내(2026-08-09 Q). 레일 최하단, 저장 버튼 아래에 선다 — 구 자리는 HERO 아래
+   * 본문 상단이라 매 방문 첫 화면을 안내가 차지했다. 제출 상태 판단은 페이지 몫이라 슬롯이다.
+   */
+  unsavedNotice?: ReactNode;
   /** 임시본 키(참여 사업 1건당 1개). 없으면 자동 저장을 끈다. */
   supportCaseId?: string;
   /** 직전 제출이 오류로 이 화면에 되돌아왔는가 — 임시본 성공 판정에 쓴다(use-dom-draft). */
@@ -108,6 +113,7 @@ export function RecordOnepage({
   briefingPath,
   actions,
   goalSection,
+  unsavedNotice,
   supportCaseId = '',
   submissionFailed = false,
 }: RecordOnepageProps) {
@@ -155,12 +161,54 @@ export function RecordOnepage({
   }
 
   {/* 레이아웃은 인테이크와 같은 좌 4 / 우 8 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
-      — 구 우측 200px 레일 대체). 좌측 레일은 형제 카드 2장 스택이다(CCC-76 — 구 한 장짜리
-      카드 분리): 미해결 액션 아코디언 + 진척도 카드(이번 상담 목표·필수 체크리스트·저장).
+      — 구 우측 200px 레일 대체). 좌측 레일은 형제 카드 3장 스택이다(2026-08-09 Q — 구
+      진척도 카드 한 장에 섞여 있던 목표·필수를 가른다): 이번 상담 목표 + 미해결 액션
+      아코디언 + 체크리스트(필수 채움·저장). 맨 아래에 미저장 안내가 선다.
       sticky 는 aside 가 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
   return <div className="wire-container rail-grid" data-grid="true" ref={draft.containerRef}>
-    <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
-      {/* ① 미해결 액션 아코디언(CCC-76) — 구 WireCallout 은 레일 카드 **안**에 있어 카드 안
+    {/* 레일은 3칸이다(2026-08-09 Q "TOC 넣어서 장폭 늘리기" — 구 4칸). 본문이 9칸으로
+        넓어지고, 레일 맨 위에 구획 바로가기 목차가 선다. */}
+    <aside className="wire-col-3 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
+      {/* ⓪ 구획 바로가기(2026-08-09 Q) — 세로로 긴 원페이지라 목차가 스크롤을 대신한다.
+          대상은 본문 구획 전부이고, 접힘 칸은 눌러도 접힌 채 제목 줄로만 이동한다. */}
+      <WireCard as="nav" labelledBy="record-toc-title" testId="record-toc"
+        title={<span id="record-toc-title">바로가기</span>}>
+        <ol className="record-toc-list">
+          <li><a href="#questions-title">오늘 확인할 질문</a></li>
+          <li><a href="#session-goal-note-title">이번 상담에서 확인할 것</a></li>
+          <li><a href="#record-form-title">오늘 상담 내용</a></li>
+          <li><a href="#record-goals-title">세부 목표</a></li>
+          <li><a href="#open-actions-title">미해결 액션 처리</a></li>
+          <li><a href="#life-areas-title">생활 6영역 변화 확인</a></li>
+          <li><a href="#record-template">회차 템플릿 항목</a></li>
+          <li><a href="#record-new-actions">새 액션·다음 만남</a></li>
+          <li><a href="#record-safety">위기·안전 확인</a></li>
+          <li><a href="#record-flags">리스크 플래그</a></li>
+          <li><a href="#opinion-title">담당 실무자 의견</a></li>
+        </ol>
+      </WireCard>
+      {/* ① 이번 상담 목표 카드(2026-08-09 Q "미해결 액션 위, 같은 크기") — 제목이 카드 제목
+          계약(16/600)이라 미해결 액션 아코디언 제목과 같은 크기로 선다. 일정에 연결된 세션
+          목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다(CCC-76 으로 폴백 입력칸이
+          본문으로 떠나 레일은 온전히 읽기 전용이 됐다).
+          연결된 부모는 D62 위계(전체 > 세부 > 세션)대로 **세부 목표**다 — 구 라벨 '전체
+          목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
+          연결 선택창은 만들지 않는다(2026-08-09 Q 확정, ADR-0032 대체 관계 표 PR #91 행) —
+          연결은 일정 등록 몫이고, 세부 목표의 입력·수정·닫기는 본문의 세부 목표 구획이 갖는다.
+          배지(CCC-76): 있음 = 민트 N건(진행·상태 축), 없음 = 라벤더 미설정(주의·대기 축) —
+          레드는 D9 리스크 독점 위반이라 기각(Q 확정). */}
+      <WireCard testId="record-session-goal-card" title={<span className="record-rail-title">이번 상담 목표
+        {sessionGoals.length === 0
+          ? <WireBadge tone="lavender">미설정</WireBadge>
+          : <WireBadge tone="mint">{sessionGoals.length}건</WireBadge>}
+      </span>}>
+        {sessionGoals.length === 0
+          ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
+          : <ul className="record-rail-goals">{sessionGoals.map((goal, index) => <li key={index}>
+            <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `세부 목표: ${goal.caseGoalTitle}`]} />
+          </li>)}</ul>}
+      </WireCard>
+      {/* ② 미해결 액션 아코디언(CCC-76) — 구 WireCallout 은 레일 카드 **안**에 있어 카드 안
           카드 금지(D59)를 어겼다. 형제 카드로 꺼내며 접힘 카드가 됐다 — 건수는 제목이 항상
           보이고, 내용은 눌러서 편다. 본문은 액션 내용이 위·지난 상담 시각이 아래다(구 MetaRow
           한 줄은 시각이 먼저라 값보다 맥락이 앞섰다). '자세히 보기'는 15초 페이지의 미해결
@@ -173,28 +221,12 @@ export function RecordOnepage({
           <p className="panel-meta">지난 상담 {dateTimeLabel(lastRecordSummary.heldAt)}</p>
           <WireButton className="record-open-actions-link" variant="neutral" height="sm" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
         </WireCardDetails>}
-      {/* ② 진척도 카드 — 이번 상담 목표 + 필수 체크리스트 + 저장. */}
-      <div className="surface-card record-rail">
-        {/* 일정에 연결된 세션 목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다(CCC-76 으로
-            폴백 입력칸이 본문으로 떠나 레일은 온전히 읽기 전용이 됐다).
-            연결된 부모는 D62 위계(전체 > 세부 > 세션)대로 **세부 목표**다 — 구 라벨 '전체
-            목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
-            연결 선택창은 만들지 않는다(2026-08-09 Q 확정, ADR-0032 대체 관계 표 PR #91 행) —
-            연결은 일정 등록 몫이고, 세부 목표의 입력·수정·닫기는 본문의 세부 목표 구획이 갖는다.
-            배지(CCC-76): 있음 = 민트 N건(진행·상태 축), 없음 = 라벤더 미설정(주의·대기 축) —
-            레드는 D9 리스크 독점 위반이라 기각(Q 확정). */}
-        <p className="record-sticky-label">이번 상담 목표
-          {sessionGoals.length === 0
-            ? <WireBadge tone="lavender">미설정</WireBadge>
-            : <WireBadge tone="mint">{sessionGoals.length}건</WireBadge>}
-        </p>
-        {sessionGoals.length === 0
-          ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
-          : <ul className="record-sticky-list">{sessionGoals.map((goal, index) => <li key={index}>
-            <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `세부 목표: ${goal.caseGoalTitle}`]} />
-          </li>)}</ul>}
-        <hr className="wire-card-divider" />
-        <p className="record-rail-count" data-testid="record-required-count">필수 {filledCount}/{requiredItems.length}</p>
+      {/* ③ 체크리스트 카드(2026-08-09 Q "필수는 체크리스트로 분리") — 필수 채움 + 저장.
+          필수 카운트는 제목 옆 블루 배지다(진행 축, §2-2 규칙 4 — 구 '필수 N/3' 글줄은
+          카드 제목과 같은 16/600 이라 위계가 없었다). */}
+      <WireCard testId="record-checklist-card" title={<span className="record-rail-title">체크리스트
+        <WireBadge tone="blue" testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
+      </span>}>
         <ul className="record-rail-list">
           {requiredItems.map((item) => <li key={item.label} data-done={item.done}>
             <span aria-hidden="true">{item.done ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />}</span> {item.label}
@@ -207,12 +239,16 @@ export function RecordOnepage({
         <div className="record-rail-actions">{actions}</div>
         {/* 페이지 전체 안내는 사람 말로 저장 버튼 줄 아래 선다(CCC-76 이동 — 구 자리는 저장
             상태와 버튼 사이라 안내문이 행동을 가로막았다. ID 는 숨은 폼 값으로만 다니고,
-            재시도 보호라는 뜻만 남긴다 — 2026-08-08 Q, 구 "제출 ID d16b…" 원문 표기 대체). */}
-        <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다. 저장 전 내용은 서버에 없고,
+            재시도 보호라는 뜻만 남긴다 — 2026-08-08 Q, 구 "제출 ID d16b…" 원문 표기 대체.
+            "저장 전 내용은 서버에 없고"는 뺐다 — 바로 아래 미저장 안내가 같은 말을 한다). */}
+        <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다.
           저장 버튼을 여러 번 눌러도 같은 기록이 두 번 만들어지지 않습니다.</p>
-      </div>
+      </WireCard>
+      {/* ④ 미저장 안내 — 레일 최하단, 저장 버튼 아래(2026-08-09 Q — 구 자리는 HERO 아래
+          본문 상단). 페이지가 제출 상태를 보고 넘겨주는 슬롯이라 여기서는 자리만 정한다. */}
+      {unsavedNotice}
     </aside>
-    <div className="wire-col-8 record-main">
+    <div className="wire-col-9 record-main">
       {draft.restorable === null
         ? null
         : <DraftRestorePrompt
@@ -351,13 +387,13 @@ export function RecordOnepage({
       {/* 6. 회차 템플릿(D29) — 이번 범위는 자리 구조까지 */}
       {/* 접힘 칸 4개는 전부 WireCardDetails 다(2026-08-09 Q, D60 ② — 구 손 카드
           details.surface-card.record-accordion). 카드 모양·패딩·제목 줄·꺽쇠를 부품이 갖는다. */}
-      <WireCardDetails className="wire-form-card" title="회차 템플릿 항목" badge={<small>(준비 중)</small>}>
+      <WireCardDetails id="record-template" className="wire-form-card" title="회차 템플릿 항목" badge={<small>(준비 중)</small>}>
         <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
         <p className="panel-meta">지금은 코어 항목(위의 액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
       </WireCardDetails>
 
       {/* 7. 새 액션 · 다음 만남 */}
-      <WireCardDetails className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />} badge={<small>(선택)</small>}>
+      <WireCardDetails id="record-new-actions" className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />} badge={<small>(선택)</small>}>
         <p>필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</p>
         <div className="wire-fieldset-list">{[0, 1, 2].map((index) => <ActionItemFields index={index} key={index} />)}</div>
         {/* '완료할 일정'은 여기 있었다. CCC-57 로 '오늘 상담 내용' 카드로 올렸다. */}
@@ -371,6 +407,7 @@ export function RecordOnepage({
           is-crisis 클래스 이름은 그대로 둔다 — 위의 toggleAll 이 이 이름으로 '전체 접기'에서
           이 칸만 빼기 때문이다(위기 선택 중에는 숨길 수 없다). */}
       <WireCardDetails
+        id="record-safety"
         className={hasCrisis ? 'wire-form-card is-crisis' : 'wire-form-card'}
         testId="safety-accordion"
         open={safetyOpen}
@@ -388,7 +425,7 @@ export function RecordOnepage({
       {/* 9. 플래그 수기 추가. 구 '목표 종료 + 신설' fieldset 은 D47 §6 이 제거했고 되살리지
           않는다 — D62 가 세부 목표를 부활시켰지만 닫기는 순수하게 사유의 기록이라(ADR-0032 §5)
           위 세부 목표 구획이 갖고, 승계(종료+신설) 흐름은 만들지 않는다. */}
-      <WireCardDetails className="wire-form-card" title="리스크 플래그" badge={<small>(조건부)</small>}>
+      <WireCardDetails id="record-flags" className="wire-form-card" title="리스크 플래그" badge={<small>(조건부)</small>}>
         <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
         <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>
           <div className="wire-choice-group">
