@@ -126,4 +126,12 @@ describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
     const { container } = render(<GoalTreeCard cases={[]} programLabels={programLabels} />);
     expect(container.querySelector('.participant-hub-card')).toBeNull();
   });
+
+  it('목표 조회만 실패하면 카드 자리에 오류 한 줄이 남는다 — 허브는 계속 선다 (D8 폴백)', () => {
+    const { container } = render(<GoalTreeCard cases={[]} programLabels={programLabels} loadFailed />);
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('목표를 지금 불러올 수 없습니다');
+    // 카드 셸은 유지된다 — 구획이 통째로 사라지면 실무자가 목표가 없는 것으로 오독한다.
+    expect(container.querySelector('.participant-hub-card')).not.toBeNull();
+  });
 });

@@ -1,7 +1,7 @@
 import type { ParticipantGoalTreeCase, ParticipantGoalTreeGoal, GoalRevisionEntry, ParticipantProgramType } from '../../lib/api';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireCard } from '../../components/wire/wire-card';
-import { WireEmpty } from '../../components/wire/wire-state';
+import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { MetaRow } from '../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../lib/format-korean-date';
 
@@ -121,11 +121,21 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle }: {
   );
 }
 
-/** 목표 카드 — 담당 케이스가 여럿이면 구획 머리에 사업명이 선다(동의서 카드와 같은 문법). */
-export function GoalTreeCard({ cases, programLabels }: {
+/** 목표 카드 — 담당 케이스가 여럿이면 구획 머리에 사업명이 선다(동의서 카드와 같은 문법).
+ *  목표 조회만 실패했을 때는 카드 자리에 오류 한 줄을 남긴다 — 구획 하나의 장애가 허브
+ *  전체를 막지 않는다(D8 폴백 태도, 인테이크의 전체 목표 오류 안내와 같은 결정). */
+export function GoalTreeCard({ cases, programLabels, loadFailed = false }: {
   cases: ParticipantGoalTreeCase[];
   programLabels: Record<ParticipantProgramType, string>;
+  loadFailed?: boolean;
 }) {
+  if (loadFailed) {
+    return (
+      <WireCard as="section" className="participant-hub-card" title="목표">
+        <WireError>목표를 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</WireError>
+      </WireCard>
+    );
+  }
   if (cases.length === 0) return null;
   return (
     <WireCard as="section" className="participant-hub-card" title="목표">

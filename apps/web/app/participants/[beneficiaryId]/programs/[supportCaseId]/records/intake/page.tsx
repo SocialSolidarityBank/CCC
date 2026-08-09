@@ -1,4 +1,5 @@
-import { WireError } from '../../../../../../components/wire/wire-state';
+import { PageError } from '../../../../../../components/wire/page-error';
+import { WireButton } from '../../../../../../components/wire/wire-button';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
 import { IntakeReadView } from './intake-read-view';
@@ -58,14 +59,30 @@ export default async function NewIntakePage({
   // 15초 페이지의 전체 목표 카드가 이 notice 로 오류 안내와 재시도 UI 를 그린다.
   const overallGoalErrorHref = programPath === '/' ? '/' : `${programPath}/briefing?notice=overall_goal_error`;
 
+  // 오류도 로딩·빈 상태와 같은 셸이다(PageError, §5 로딩 행 ③) — 구 형태는 카드 없는
+  // 맨 알약 배지 한 줄이었다. 제목은 화면 이름 '인테이크'(2026-08-08 Q 용어).
   if (beneficiaryId === null || supportCaseId === null) {
-    return <main className="page-content"><WireError>{messages.not_found}</WireError></main>;
+    return (
+      <PageError
+        title="인테이크"
+        action={<WireButton variant="secondary" href="/participants">당사자 목록으로 돌아가기</WireButton>}
+      >
+        {messages.not_found}
+      </PageError>
+    );
   }
 
   const [context, identity] = await Promise.all([load(supportCaseId), getMyIdentity().catch(() => null)]);
 
   if (context.error !== null) {
-    return <main className="page-content"><WireError>{messages[context.error]}</WireError></main>;
+    return (
+      <PageError
+        title="인테이크"
+        action={<WireButton variant="secondary" href={recordsHref}>전체 상담 기록으로 돌아가기</WireButton>}
+      >
+        {messages[context.error]}
+      </PageError>
+    );
   }
 
   // 인테이크가 이미 있으면 **조회가 기본**이다(CCC-58, 2026-08-08 Q "조회 기본 + 수정 버튼").

@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { WireBadge } from './wire-badge';
 
 // 빈 상태와 오류 알림 (2026-08-09 Q 전수 정리).
 //
@@ -10,8 +9,14 @@ import { WireBadge } from './wire-badge';
 //
 // 이제 짝은 둘뿐이다:
 //   * 비었다  → WireEmpty (14/400 --sub 한 줄, role="status")
-//   * 실패했다 → WireError (리스크 배지, role="alert")
+//   * 실패했다 → WireError (14/600 --risk 한 줄, role="alert")
 // 새 화면이 빈 상태나 오류 문장을 손으로 그리지 않는다.
+//
+// WireError 는 처음에 리스크 **배지**였는데 같은 날 Q 가 물렸다("지금은 안 쓰는 알약 박스").
+// 배지는 inline-flex 알약이라 그리드·카드 본문(둘 다 grid)에 직접 서면 전폭으로 늘어난
+// 세로 여백 0 의 알약 막대가 된다 — 알약은 짧은 라벨 전유물이고(D61 ②), 문장 오류의
+// 계약은 §9 의 "오류·경고 텍스트"(--risk)다. 입력칸 오류(.wire-field-error 14/600)와
+// 같은 옷을 입어 오류 어휘도 텍스트 하나로 모인다.
 
 export interface WireEmptyProps {
   children: ReactNode;
@@ -52,20 +57,28 @@ export function WireEmpty({ children, live = false, reserve = false, testId, cla
 
 export interface WireErrorProps {
   children: ReactNode;
+  /** 이 줄이 카드의 유일한 내용일 때만 켠다(min-height 92) — WireEmpty reserve 와 같은 규칙. */
+  reserve?: boolean;
   className?: string;
 }
 
 /**
- * 오류 알림 한 줄 — 못 불러왔거나 못 저장했음을 알린다. 리스크 배지 톤이다(§5 risk 톤은
- * 확인된 리스크와 오류 상태 전용, D9 허용 자리).
+ * 오류 알림 한 줄 — 못 불러왔거나 못 저장했음을 알린다. 리스크 색 텍스트다(§9 "오류·경고
+ * 텍스트" — `[role="alert"]` 전역 규칙이 색·굵기를 갖고, 이 클래스는 크기·배치만 더한다).
  *
  * 입력칸 하나에 붙는 검증 오류는 이것이 아니라 `WireFormField` 의 `error` 슬롯이 맡는다
  * (§5 입력칸 계약: 테두리 1.5px + 칸 아래 메시지). 이 부품은 **화면·구획 수준**이다.
+ * 화면 전체가 실패했을 때는 이 줄을 맨 그리드에 세우지 말고 `PageError` 셸에 담는다
+ * (§5 로딩 행 ③ "오류·빈 상태도 같은 셸").
  */
-export function WireError({ children, className }: WireErrorProps) {
+export function WireError({ children, reserve = false, className }: WireErrorProps) {
   return (
-    <WireBadge tone="risk" role="alert" {...(className === undefined ? {} : { className })}>
+    <p
+      className={['wire-error', className].filter(Boolean).join(' ')}
+      role="alert"
+      {...(reserve ? { 'data-reserve': 'true' } : {})}
+    >
       {children}
-    </WireBadge>
+    </p>
   );
 }

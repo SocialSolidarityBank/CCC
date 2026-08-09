@@ -1,4 +1,3 @@
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireError } from '../../../../../../components/wire/wire-state';
 import { redirect } from 'next/navigation';
 import {
@@ -347,43 +346,43 @@ async function submitRecord(formData: FormData): Promise<void> {
 }
 
 function RecoveryStatus({ state }: { state: RecoveryState }) {
-  const content: Record<RecoveryState, { tone: 'lavender' | 'risk'; role: 'alert' | 'status'; text: string }> = {
-    idle: { tone: 'lavender', role: 'status', text: '아직 서버에 저장되지 않았습니다.' },
-    invalid_request: { tone: 'risk', role: 'alert', text: '입력 형식을 확인한 뒤 같은 제출 ID로 다시 시도하세요.' },
-    validation_error: { tone: 'risk', role: 'alert', text: '입력한 상담 기록을 확인한 뒤 같은 제출 ID로 다시 시도하세요.' },
-    authentication_required: { tone: 'risk', role: 'alert', text: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 새 상담 기록을 시작하세요.' },
-    access_denied: { tone: 'risk', role: 'alert', text: '이 참여 사업에 상담 기록을 남길 권한이 없습니다. 권한을 확인한 뒤 새 상담 기록을 시작하세요.' },
-    forbidden: { tone: 'risk', role: 'alert', text: '현재 권한으로는 이 상담 기록을 저장할 수 없습니다. 권한 상태를 확인하세요.' },
-    not_found: { tone: 'risk', role: 'alert', text: '요청한 당사자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.' },
+  const content: Record<RecoveryState, string> = {
+    idle: '아직 서버에 저장되지 않았습니다.',
+    invalid_request: '입력 형식을 확인한 뒤 같은 제출 ID로 다시 시도하세요.',
+    validation_error: '입력한 상담 기록을 확인한 뒤 같은 제출 ID로 다시 시도하세요.',
+    authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 새 상담 기록을 시작하세요.',
+    access_denied: '이 참여 사업에 상담 기록을 남길 권한이 없습니다. 권한을 확인한 뒤 새 상담 기록을 시작하세요.',
+    forbidden: '현재 권한으로는 이 상담 기록을 저장할 수 없습니다. 권한 상태를 확인하세요.',
+    not_found: '요청한 당사자 또는 참여 사업을 찾을 수 없습니다. 목록에서 참여 사업 상태를 확인하세요.',
     // CCC-57: 이 코드는 두 원인에서 온다. 같은 제출 ID의 다른 저장 요청, 그리고 완료할
     // 일정이 그 사이 바뀐 경우(버전 불일치). 완료할 일정이 기본으로 골라지게 되면서 후자가
     // 실제로 날 수 있는 길이 됐다. 서버가 둘을 다른 코드로 주지 않으므로 문구가 둘 다 덮는다.
-    conflict: { tone: 'risk', role: 'alert', text: '같은 제출 ID에 다른 저장 요청이 있거나, 완료할 일정이 그 사이 변경되어 이 기록을 등록하지 않았습니다.' },
-    not_eligible_or_already_purged: { tone: 'risk', role: 'alert', text: '현재 참여 사업에는 상담 기록을 등록할 수 없습니다. 참여 사업 상태를 확인하세요.' },
-    pilot_text_ai_consent_required: { tone: 'risk', role: 'alert', text: '텍스트 AI 파일럿 동의가 확인되지 않아 요청을 처리할 수 없습니다. 동의 상태를 확인하세요.' },
-    text_ai_pilot_disabled: { tone: 'risk', role: 'alert', text: '텍스트 AI 파일럿이 현재 사용할 수 없어 요청을 처리할 수 없습니다.' },
-    stale_draft_version: { tone: 'risk', role: 'alert', text: '기록 초안이 변경되어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
-    draft_version_required: { tone: 'risk', role: 'alert', text: '기록 초안 버전이 확인되지 않아 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
-    grounded_evidence_required: { tone: 'risk', role: 'alert', text: '확인 가능한 근거가 없어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.' },
-    ai_provider_not_configured: { tone: 'risk', role: 'alert', text: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.' },
-    ai_prohibited_output: { tone: 'risk', role: 'alert', text: '안전 기준에 맞지 않는 AI 결과가 감지되어 요청을 처리할 수 없습니다.' },
-    ai_provider_unavailable: { tone: 'risk', role: 'alert', text: '텍스트 AI 서비스를 지금 사용할 수 없어 요청을 처리할 수 없습니다.' },
+    conflict: '같은 제출 ID에 다른 저장 요청이 있거나, 완료할 일정이 그 사이 변경되어 이 기록을 등록하지 않았습니다.',
+    not_eligible_or_already_purged: '현재 참여 사업에는 상담 기록을 등록할 수 없습니다. 참여 사업 상태를 확인하세요.',
+    pilot_text_ai_consent_required: '텍스트 AI 파일럿 동의가 확인되지 않아 요청을 처리할 수 없습니다. 동의 상태를 확인하세요.',
+    text_ai_pilot_disabled: '텍스트 AI 파일럿이 현재 사용할 수 없어 요청을 처리할 수 없습니다.',
+    stale_draft_version: '기록 초안이 변경되어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
+    draft_version_required: '기록 초안 버전이 확인되지 않아 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
+    grounded_evidence_required: '확인 가능한 근거가 없어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
+    ai_provider_not_configured: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.',
+    ai_prohibited_output: '안전 기준에 맞지 않는 AI 결과가 감지되어 요청을 처리할 수 없습니다.',
+    ai_provider_unavailable: '텍스트 AI 서비스를 지금 사용할 수 없어 요청을 처리할 수 없습니다.',
     // G1 의 두 코드는 등록 화면에서 나는 실패다. 상담 기록 저장 경로에서는 나지 않지만
     // 공용 Notice 타입을 쓰므로 자리는 채워 둔다(빠지면 타입이 깨진다).
-    privacy_consent_required: { tone: 'risk', role: 'alert', text: '개인정보 수집·이용 동의가 확인되지 않아 요청을 처리할 수 없습니다. 당사자 정보 화면에서 동의 상태를 확인하세요.' },
-    emergency_reason_required: { tone: 'risk', role: 'alert', text: '긴급 등록 사유가 없어 요청을 처리할 수 없습니다.' },
-    service_unavailable: { tone: 'risk', role: 'alert', text: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.' },
-    unknown_outcome: { tone: 'risk', role: 'alert', text: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.' },
+    privacy_consent_required: '개인정보 수집·이용 동의가 확인되지 않아 요청을 처리할 수 없습니다. 당사자 정보 화면에서 동의 상태를 확인하세요.',
+    emergency_reason_required: '긴급 등록 사유가 없어 요청을 처리할 수 없습니다.',
+    service_unavailable: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.',
+    unknown_outcome: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.',
   };
-  const item = content[state];
   // 미저장 안내는 알약이 아니라 공용 안내줄이다(2026-08-08 Q — 주의·대기 축의 콜아웃,
-  // 인테이크 남은 필수·일정 경고와 같은 부품). 오류는 다른 화면과 같은 risk 배지 유지.
+  // 인테이크 남은 필수·일정 경고와 같은 부품). 오류는 다른 화면과 같은 WireError 텍스트 줄
+  // (2026-08-09 Q "알약 박스" 정정 — 문장 오류가 배지에 서면 전폭 알약 막대가 된다).
   if (state === 'idle') {
     return <WireCallout tone="lavender" role="status" testId="record-unsaved-notice" title="아직 서버에 저장되지 않았습니다">
       저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.
     </WireCallout>;
   }
-  return <WireBadge tone={item.tone} role={item.role} aria-live="polite" data-recovery-state={state}>{item.text}</WireBadge>;
+  return <WireError>{content[state]}</WireError>;
 }
 
 function Message({ code }: { code: LoadError | null }) {
