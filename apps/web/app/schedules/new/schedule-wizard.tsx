@@ -405,60 +405,58 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                   ]} />}
               </WireCard>
             </div>
-            {/* 목표 카드(2026-08-09 Q 재개편): 한 항목 = 머리 줄 + 전폭 입력 줄이다.
-                머리 줄은 **세부 목표 연결이 위(왼쪽)** 에 아코디언 활성과 같은 그라데이션
-                아웃라인을 입고("아코디언 그라데이션 스타일"), 우측에 '세션 목표 N' 제목이
-                선다. 아래 입력칸은 장폭을 끝까지 쓰고 +·- 가 입력칸 오른쪽 끝에 세로로
-                붙는다. 구 배치(목표 입력 아래 선택창, 그 아래 삭제 버튼 세 줄 쌓임)와 720
-                폭 상한(.wizard-row)을 함께 걷어냈다. 머리 줄 두 조각은 참고 카드 제목과
-                같은 16/600 이다(Q "세부 목표 = 지난 상담 브리핑 = 세션 목표 1 = 세부 목표
-                연결 폰트 크기 동일"). 제목이 머리 줄에 있으므로 입력칸의 보이는 라벨은
-                따로 두지 않는다 — 접근 이름은 aria-label 이 갖는다. */}
+            {/* 목표 카드(2026-08-09 Q 3차): 한 항목 = **연결 쌍이 위, 세션 목표 쌍이 아래**
+                ("세부 목표 연결 + 선택창 ↔ 세션 목표 1 + 입력창" — 구 2차의 머리 줄 + 우측
+                제목 대체). 쌍 안 라벨↔칸 8, 쌍 사이 16 으로 여백 리듬을 지킨다. 연결
+                선택창은 아코디언 활성과 같은 그라데이션 아웃라인("아코디언 그라데이션
+                스타일"), 입력칸은 장폭을 끝까지 쓰고 **+ 가 위, - 가 아래**로 입력칸
+                위쪽에 맞춰 선다(3차 — 구 바닥 정렬·- 위 + 아래 대체). 라벨 둘은 참고 카드
+                제목과 같은 16/600 이다(Q "세부 목표 = 지난 상담 브리핑 = 세션 목표 1 =
+                세부 목표 연결 폰트 크기 동일"). 720 폭 상한(.wizard-row)은 2차에서 걷어냈다. */}
             <WireCard className="wire-form-card">
               <div className="session-goal-list">
                 {sessionGoals.map((goal, index) => (
                 <div key={index} className="session-goal-entry" data-testid={`session-goal-entry-${index}`}>
-                  <div className="session-goal-head">
-                    <WireFormField label="세부 목표 연결" control="select" htmlFor={`session-goal-case-${index}`} className="session-goal-link">
-                      <select
-                        id={`session-goal-case-${index}`}
-                        value={goal.caseGoalId}
-                        onChange={(event) => {
-                          // currentTarget 은 이벤트 디스패치가 끝나면 null 이 된다. 상태
-                          // 업데이터가 나중에 돌므로 값을 먼저 집어 둔다(CCC-70 에서 발견.
-                          // 세부 목표 층이 보류였을 때는 선택지가 늘 비어 있어 안 드러났다).
-                          const value = event.currentTarget.value;
-                          setSessionGoals((prev) => prev.map(
-                            (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: value } : item),
-                          ));
-                        }}
-                      >
-                        {goalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </select>
-                    </WireFormField>
-                    <span className="session-goal-title">세션 목표 {index + 1}</span>
-                  </div>
-                  <div className="session-goal-input">
-                    <span className="wire-input-box" data-control="textarea">
-                      <textarea
-                        id={`session-goal-${index}`}
-                        aria-label={`세션 목표 ${index + 1}`}
-                        rows={2}
-                        value={goal.body}
-                        onChange={(event) => setSessionGoals((prev) => prev.map(
-                          (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
-                        ))}
+                  <WireFormField label="세부 목표 연결" control="select" htmlFor={`session-goal-case-${index}`} className="session-goal-link">
+                    <select
+                      id={`session-goal-case-${index}`}
+                      value={goal.caseGoalId}
+                      onChange={(event) => {
+                        // currentTarget 은 이벤트 디스패치가 끝나면 null 이 된다. 상태
+                        // 업데이터가 나중에 돌므로 값을 먼저 집어 둔다(CCC-70 에서 발견.
+                        // 세부 목표 층이 보류였을 때는 선택지가 늘 비어 있어 안 드러났다).
+                        const value = event.currentTarget.value;
+                        setSessionGoals((prev) => prev.map(
+                          (item, itemIndex) => (itemIndex === index ? { ...item, caseGoalId: value } : item),
+                        ));
+                      }}
+                    >
+                      {goalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </WireFormField>
+                  <div className="session-goal-field">
+                    <label className="session-goal-label" htmlFor={`session-goal-${index}`}>세션 목표 {index + 1}</label>
+                    <div className="session-goal-input">
+                      <span className="wire-input-box" data-control="textarea">
+                        <textarea
+                          id={`session-goal-${index}`}
+                          rows={2}
+                          value={goal.body}
+                          onChange={(event) => setSessionGoals((prev) => prev.map(
+                            (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
+                          ))}
+                        />
+                      </span>
+                      <WireRepeatActions
+                        itemLabel="목표"
+                        onAdd={index === sessionGoals.length - 1
+                          ? () => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])
+                          : undefined}
+                        onRemove={sessionGoals.length > 1
+                          ? () => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                          : undefined}
                       />
-                    </span>
-                    <WireRepeatActions
-                      itemLabel="목표"
-                      onAdd={index === sessionGoals.length - 1
-                        ? () => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])
-                        : undefined}
-                      onRemove={sessionGoals.length > 1
-                        ? () => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                        : undefined}
-                    />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -480,36 +478,37 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               <h2>맞춤형 질문</h2>
               <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
             </div>
-            {/* 목표 카드와 **같은 레이아웃**이다(2026-08-09 Q "맞춤형 질문도 같은 레이아웃") —
-                입력칸이 장폭을 다 쓰고 +·- 가 오른쪽 끝에 세로로 선다. 연결 선택창이 없으니
-                머리 줄은 라벨('질문 N', 같은 16/600)만 남는다. 구 .wizard-form 의 520 폭
-                상한도 함께 걷어냈다. */}
+            {/* 목표 카드와 **같은 레이아웃·같은 +·- 디자인**이다(2026-08-09 Q 3차) —
+                라벨 쌍 세로 배치, 입력칸 전폭, + 위 - 아래로 입력칸 위쪽 정렬. 연결
+                선택창만 없다. 구 .wizard-form 의 520 폭 상한은 2차에서 걷어냈다. */}
             <WireCard className="wire-form-card">
               <div className="session-goal-list">
                 {customQuestions.map((question, index) => (
                 <div key={index} className="session-goal-entry" data-kind="question">
-                  <span className="session-goal-title" id={`custom-question-title-${index}`}>질문 {index + 1}</span>
-                  <div className="session-goal-input">
-                    <span className="wire-input-box" data-control="textarea">
-                      <textarea
-                        id={`custom-question-${index}`}
-                        aria-label={`맞춤형 질문 ${index + 1}`}
-                        rows={2}
-                        value={question}
-                        onChange={(event) => setCustomQuestions((prev) => prev.map(
-                          (item, itemIndex) => (itemIndex === index ? event.target.value : item),
-                        ))}
+                  <div className="session-goal-field">
+                    <label className="session-goal-label" htmlFor={`custom-question-${index}`}>질문 {index + 1}</label>
+                    <div className="session-goal-input">
+                      <span className="wire-input-box" data-control="textarea">
+                        <textarea
+                          id={`custom-question-${index}`}
+                          aria-label={`맞춤형 질문 ${index + 1}`}
+                          rows={2}
+                          value={question}
+                          onChange={(event) => setCustomQuestions((prev) => prev.map(
+                            (item, itemIndex) => (itemIndex === index ? event.target.value : item),
+                          ))}
+                        />
+                      </span>
+                      <WireRepeatActions
+                        itemLabel="질문"
+                        onAdd={index === customQuestions.length - 1
+                          ? () => setCustomQuestions((prev) => [...prev, ''])
+                          : undefined}
+                        onRemove={customQuestions.length > 1
+                          ? () => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                          : undefined}
                       />
-                    </span>
-                    <WireRepeatActions
-                      itemLabel="질문"
-                      onAdd={index === customQuestions.length - 1
-                        ? () => setCustomQuestions((prev) => [...prev, ''])
-                        : undefined}
-                      onRemove={customQuestions.length > 1
-                        ? () => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                        : undefined}
-                    />
+                    </div>
                   </div>
                 </div>
               ))}

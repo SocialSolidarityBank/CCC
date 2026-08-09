@@ -86,18 +86,19 @@ describe('RecordOnepage', () => {
     expect(badge?.getAttribute('data-tone')).toBe('lavender');
   });
 
-  // 2026-08-09 Q: 레일은 형제 카드 4장 스택이다 — 구획 바로가기 목차(맨 위) + 이번 상담
-  // 목표 + 미해결 액션 아코디언 + 체크리스트(구 진척도 카드에서 목표·필수를 가른다).
+  // 2026-08-09 Q: 레일은 형제 카드 3장 스택이다 — 이번 상담 목표(맨 위) + 미해결 액션
+  // 아코디언 + 체크리스트(구 진척도 카드에서 목표·필수를 가른다). 바로가기 목차는 레일이
+  // 아니라 우측 셋째 열이다(같은 날 Q 2차 — 아래 목차 테스트).
   // 아코디언 본문은 액션 내용이 위, 지난 상담 시각이 아래고, '자세히 보기'는 15초 페이지
   // 미해결 액션 구획 앵커로 간다.
-  it('지난 상담이 있으면 레일이 목차·목표·미해결 액션·체크리스트 카드 4장이 된다', () => {
+  it('지난 상담이 있으면 레일이 목표·미해결 액션·체크리스트 카드 3장이 된다', () => {
     const { getByTestId } = render(<RecordOnepage {...props({
       lastRecordSummary: { heldAt: '2026-08-01T05:00:00.000Z', text: '서류 준비를 확인했다' },
       openActionItems: [{ id: 'action-1', description: '서류 제출', owner: 'beneficiary', dueDate: null }],
     })} />);
 
     const rail = getByTestId('record-side-rail');
-    expect(rail.querySelectorAll(':scope > .surface-card').length).toBe(4);
+    expect(rail.querySelectorAll(':scope > .surface-card').length).toBe(3);
 
     const accordion = getByTestId('record-open-actions') as HTMLDetailsElement;
     expect(accordion.tagName).toBe('DETAILS');
@@ -117,21 +118,25 @@ describe('RecordOnepage', () => {
     expect(link.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/briefing#open-actions');
   });
 
-  it('지난 상담이 없으면 레일은 목차·목표·체크리스트 카드 3장이다', () => {
+  it('지난 상담이 없으면 레일은 목표·체크리스트 카드 2장이다', () => {
     const { getByTestId, queryByTestId } = render(<RecordOnepage {...props()} />);
 
-    expect(getByTestId('record-side-rail').querySelectorAll(':scope > .surface-card').length).toBe(3);
+    expect(getByTestId('record-side-rail').querySelectorAll(':scope > .surface-card').length).toBe(2);
     expect(queryByTestId('record-open-actions')).toBeNull();
   });
 
-  // 2026-08-09 Q "TOC 넣어서 장폭 늘리기": 레일 맨 위 목차가 본문 구획 전부를 가리킨다.
-  it('구획 바로가기 목차가 레일 맨 위에 서고 본문 구획 앵커와 짝이 맞는다', () => {
+  // 2026-08-09 Q 2차 "TOC 는 우측에": 목차는 레일이 아니라 격자의 셋째 열(형제 nav)이고,
+  // 본문 구획 전부를 가리킨다. 광폭 전용 숨김·트랙 전환은 CSS(컨테이너 질의) 몫이라
+  // 하니스 실측이 잰다 — 여기서는 구조(형제·앵커 짝)만 고정한다.
+  it('구획 바로가기 목차가 레일 밖 형제 nav 로 서고 본문 구획 앵커와 짝이 맞는다', () => {
     const { container, getByTestId } = render(<RecordOnepage {...props()} />);
 
     const rail = getByTestId('record-side-rail');
     const toc = getByTestId('record-toc');
-    expect(rail.firstElementChild).toBe(toc);
+    expect(rail.contains(toc)).toBe(false);
+    expect(toc.parentElement).toBe(rail.parentElement);
     expect(toc.tagName).toBe('NAV');
+    expect(toc.className).toContain('record-toc-rail');
 
     // goalSection 슬롯(#record-goals-title)은 페이지가 실어 보내는 부품이라 이 렌더에는 없다.
     const anchors = Array.from(toc.querySelectorAll('a'))
