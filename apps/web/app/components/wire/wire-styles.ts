@@ -164,6 +164,25 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    본문이 12분의 1 칸으로 떨어져 글줄이 몇 어절에서 끊겼다(2026-07-26 확인). */
 .wire-col-8{grid-column:span 8}
 .wire-col-9{grid-column:span 9}
+/* ── 바로가기 목차 레일(2026-08-09) ── 상담 기록 작성·인테이크 작성·인테이크 조회 공용.
+   기본 숨김이고 광폭 컨테이너(≥1150 — 장폭 1280 개정으로 생기는 자리)에서만 우측 열로
+   선다. 모바일·태블릿·중폭 미표시는 Q 지시다. 트랙 정의(어느 열에 서나)는 화면 격자
+   (.record-grid·.intake-grid·.intake-read-grid)가 갖고, 여기는 옷과 붙박이만 둔다.
+   링크가 알약으로 서면 목차가 버튼 기둥이 되므로 문서 목차 문법의 텍스트 목록이다
+   (D58 ⑥의 인라인 참조 축). */
+.wire-toc-rail{display:none}
+@container (min-width: 1150px){
+  .wire-toc-rail{display:block;position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
+}
+.wire-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm)}
+/* 두 층 목차(인테이크 조회): 부(部) 링크는 600 --ink, 소절은 들여쓴 --sub — 위계를 가른다. */
+.wire-toc-list ol{margin:0;padding-left:var(--space-3);list-style:none;display:grid;gap:var(--space-1-5)}
+.wire-toc-list a{color:var(--sub);text-decoration:none}
+.wire-toc-list a.wire-toc-part{font-weight:600;color:var(--ink)}
+.wire-toc-list a:hover{color:var(--ink);text-decoration:underline}
+.wire-toc-list a:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+/* 목차 이동 시 대상 구획 머리가 스티키 헤더 아래로 숨지 않게 하는 전역 스크롤 여백. */
+.page-content [id]{scroll-margin-top:calc(var(--header-height) + var(--space-4))}
 .wire-col-12{grid-column:span 12}
 /* 레일 격자 — 좌 4(레일) / 우 8(본문) 화면이 함께 쓰는 이름이다(2026-08-09). 인테이크와
    상담 기록 작성이 **같은 레이아웃이어야 한다**는 것이 2026-08-08 Q 지시인데, 둘 다

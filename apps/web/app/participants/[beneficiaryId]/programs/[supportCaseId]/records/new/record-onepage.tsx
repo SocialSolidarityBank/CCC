@@ -434,9 +434,9 @@ export function RecordOnepage({
         ≥1150(.record-toc-rail 규칙)에서만 그려지고, 그 아래 폭에서는 CSS 가 숨긴다.
         세로로 긴 원페이지라 목차가 스크롤을 대신한다. 접힘 칸은 눌러도 접힌 채 제목
         줄로만 이동한다. */}
-    <WireCard as="nav" labelledBy="record-toc-title" testId="record-toc" className="record-toc-rail"
+    <WireCard as="nav" labelledBy="record-toc-title" testId="record-toc" className="wire-toc-rail"
       title={<span id="record-toc-title">바로가기</span>}>
-      <ol className="record-toc-list">
+      <ol className="wire-toc-list">
         <li><a href="#questions-title">오늘 확인할 질문</a></li>
         <li><a href="#session-goal-note-title">이번 상담에서 확인할 것</a></li>
         <li><a href="#record-form-title">오늘 상담 내용</a></li>

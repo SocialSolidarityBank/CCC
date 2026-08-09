@@ -102,6 +102,29 @@ describe('IntakeWizard', () => {
     expect(new Set(subHeadings).size).toBe(subHeadings.length);
   });
 
+  // 2026-08-09 3차: 우측 바로가기 목차는 현재 단계의 소절만 담고, 앵커는 전부 본문 대상과
+  // 짝이 맞아야 한다(광폭 표시·숨김은 CSS 몫이라 하니스가 잰다).
+  it('우측 바로가기 목차가 현재 단계 소절과 짝이 맞고 단계를 따라 바뀐다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+    const hrefs = () => Array.from(container.querySelectorAll('[data-testid="intake-toc"] a'))
+      .map((anchor) => anchor.getAttribute('href') ?? '');
+
+    for (let step = 1; step <= 4; step += 1) {
+      fireEvent.click(scoped.getByRole('button', { name: new RegExp(`^${step}\\.`) }));
+      const anchors = hrefs();
+      expect(anchors.length).toBeGreaterThanOrEqual(3);
+      for (const href of anchors) {
+        expect(container.querySelector(href), `${step}단계 ${href} 대상 없음`).not.toBeNull();
+      }
+    }
+
+    // 단계를 따라 바뀐다 — 2단계 목차에는 부채 표가 있고 1단계 항목(기본정보)은 없다.
+    fireEvent.click(scoped.getByRole('button', { name: /^2\./ }));
+    expect(hrefs().some((href) => href.includes('부채'))).toBe(true);
+    expect(hrefs().some((href) => href.includes('기본정보'))).toBe(false);
+  });
+
   it('자동 채움 항목(상담일·실무자·회차)은 1-3 소절 안에 있다', () => {
     const { container } = renderWizard();
     // 소절 상자는 WireCard 다(2026-08-05 컴포넌트화) — h3 는 제목 슬롯 안이라 카드로 올라간다.

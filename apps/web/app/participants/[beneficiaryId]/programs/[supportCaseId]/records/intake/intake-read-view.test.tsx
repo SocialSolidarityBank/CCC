@@ -110,6 +110,20 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(within(basic).getByText('서울시 은평구')).toBeTruthy();
   });
 
+  // 2026-08-09 3차: 우측 바로가기 목차(광폭 전용 — 표시·숨김은 CSS 몫이라 하니스가 재고,
+  // 여기서는 부·소절 앵커가 전부 본문 대상과 짝이 맞는지만 고정한다).
+  it('우측 바로가기 목차의 부·소절 앵커가 전부 본문 대상과 짝이 맞는다', () => {
+    const { container } = renderView();
+    const toc = screen.getByTestId('intake-read-toc');
+    expect(toc.tagName).toBe('NAV');
+    const anchors = Array.from(toc.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href') ?? '');
+    // 부 4 + 소절(1부 5·2부 7·3부 4·4부 5) = 25개.
+    expect(anchors.length).toBe(25);
+    for (const href of anchors) {
+      expect(container.querySelector(href), `${href} 대상 없음`).not.toBeNull();
+    }
+  });
+
   // D62 · CCC-68: 인테이크가 전체 목표의 주 입력 자리라 조회 화면도 같은 자리(4단계)에서 읽는다.
   it('전체 목표를 읽고, 비어 있으면 설정 전으로 보인다', () => {
     const { unmount } = renderView();
