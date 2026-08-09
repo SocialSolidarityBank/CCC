@@ -37,11 +37,6 @@ export interface ParticipantHeroCardProps {
   /** 메타 한 줄. 내용은 화면이 정한다. 구분선 아래 정보 행에 가명 ID·연락처와 함께 선다. */
   meta?: ReactNode;
   /**
-   * 이름 크기(2026-08-04 D59). 허브(당사자 정보)는 h2(18) — 이미 '그 사람' 화면이라
-   * 페이지 제목 크기가 과했다. 브리핑·기록 등 케이스 화면은 hero(28) 그대로.
-   */
-  nameSize?: 'hero' | 'h2';
-  /**
    * 연락처(2026-08-04 D59 — 구 개인정보 접힘 대체). 구분선 아래 정보 행에 선다
    * (2026-08-07 Q — 구 '이름 옆 나란'). 계좌·주소 등 추가 PII 는 여기 올리지 않는다(§5).
    */
@@ -61,7 +56,6 @@ export function ParticipantHeroCard({
   beneficiaryId,
   stageTag,
   meta,
-  nameSize = 'hero',
   contact,
   showId = false,
   actions,
@@ -86,7 +80,7 @@ export function ParticipantHeroCard({
     <header className={classes}>
       <div className="participant-hero-top">
         <h1 className="participant-hero-title">
-          <ParticipantName name={name} beneficiaryId={beneficiaryId} size={nameSize} />
+          <ParticipantName name={name} beneficiaryId={beneficiaryId} size="hero" />
           {stageTag !== undefined && <span className="wire-status-tag">{stageTag}</span>}
         </h1>
         {actions !== undefined && <div className="page-actions">{actions}</div>}

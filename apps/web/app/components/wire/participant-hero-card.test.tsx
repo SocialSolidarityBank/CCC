@@ -20,9 +20,9 @@ describe('ParticipantHeroCard', () => {
     expect(container.textContent).not.toContain('swallow-003');
   });
 
-  it('연락처 슬롯 — 구분선 아래 정보 행에 서고, 이름 크기는 h2 로 낮출 수 있다 (2026-08-07 위계 개편)', () => {
+  it('연락처 슬롯 — 구분선 아래 정보 행에 서고, 이름은 항상 hero 28 이다 (2026-08-09 CCC-77)', () => {
     const { container } = render(
-      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" nameSize="h2" contact="010-1234-5678" />,
+      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" contact="010-1234-5678" />,
     );
     // 1행(h1)에는 이름만 남는다 — 연락처·가명 ID 는 정보 행(2행)으로 내려간다.
     expect(container.querySelector('h1 .participant-hero-contact')).toBeNull();
@@ -31,7 +31,8 @@ describe('ParticipantHeroCard', () => {
     ).toBe('010-1234-5678');
     // 정보 행이 생기면 구분선도 함께 선다(당사자 카드와 같은 문법).
     expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
-    expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('20px');
+    // 구 nameSize="h2"(허브 축소)는 폐지. 전 화면 hero 28(--text-2xl) 통일(D59 ③ 부분 개정).
+    expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('var(--text-2xl)');
   });
 
   it('상태 태그는 슬롯이다 — 넘기면 보이고 넘기지 않으면 없다 (허브)', () => {

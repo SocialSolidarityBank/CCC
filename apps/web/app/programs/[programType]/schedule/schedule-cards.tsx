@@ -65,14 +65,14 @@ export function ScheduleCards({ today, upcoming }: { today: ScheduleCardItem[]; 
 
       {/* 오늘 칸은 비어도 그린다. 오늘 상담이 없다는 것 자체가 실무자가 알고 싶은 답이고,
           칸이 사라지면 "오늘이 없는 건지 화면이 안 뜬 건지"를 알 수 없다. */}
-      <section aria-labelledby="schedule-today-heading" data-testid="schedule-today">
+      <section className="schedule-section" aria-labelledby="schedule-today-heading" data-testid="schedule-today">
         <h2 id="schedule-today-heading" className="record-section-title">오늘</h2>
         {today.length === 0
           ? <WireEmpty live>오늘 잡힌 상담이 없습니다.</WireEmpty>
           : <CardGrid cards={order(today)} />}
       </section>
 
-      <section aria-labelledby="schedule-upcoming-heading" data-testid="schedule-upcoming">
+      <section className="schedule-section" aria-labelledby="schedule-upcoming-heading" data-testid="schedule-upcoming">
         <h2 id="schedule-upcoming-heading" className="record-section-title">다가오는 일정</h2>
         {upcoming.length === 0
           ? <WireEmpty live>앞으로 7일 안에 예정된 상담이 없습니다.</WireEmpty>
