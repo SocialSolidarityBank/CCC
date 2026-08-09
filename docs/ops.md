@@ -140,7 +140,7 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 ```
 
 - **Infisical 주입이 필요 없다.** 이 맥의 `wrangler`가 이미 OAuth 로그인돼 있어(`account@bss.or.kr`, write 권한) 워크플로가 쓰는 `CLOUDFLARE_API_TOKEN`·`CLOUDFLARE_ACCOUNT_ID` 없이 그대로 배포된다. 확인은 `pnpm --filter @ccc/api exec wrangler whoami`.
-- **마이그레이션은 자동으로 안 간다**(워크플로도 마찬가지다). 스키마 변경이 있으면 배포 뒤 `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote`를 따로 돌린다.
+- **이 수동 경로에서는 마이그레이션이 자동으로 안 간다.** `Deploy Preview` 워크플로는 2026-08-09 부터 배포 전에 프리뷰 D1 마이그레이션을 자동 적용하지만(프리뷰 한정 예외, 가상 시드 전용이라 저위험. 운영은 여전히 수동), 수동 배포는 그 단계를 건너뛴다. 스키마 변경이 있으면 **배포 전에** `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote`를 먼저 돌린다(코드가 스키마보다 앞서면 런타임에서 터진다).
 - **배포 후 확인**: 브라우저로 https://ccc-preview.account-855.workers.dev/preview 를 열어 눈으로 본다. 서브 CSS에 토큰이 실렸는지는 `curl`로도 볼 수 있지만 그것만으로는 레이아웃 깨짐을 못 잡는다.
 - CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다. 통과 못 한 상태로 배포하지 않는다.
 
@@ -178,7 +178,7 @@ pnpm deploy:production
 
 1. **확인 문구** — 실행할 때 `deploy-production` 을 그대로 입력해야 한다. 오타로 나가지 않게 하는 것이지 권한 검사가 아니다
 2. **verify** — `typecheck` · `test` · `guard:db` · `guard:tokens` (미리보기와 동일)
-3. **schema-gate** — 운영 D1 에 미적용 마이그레이션이 있으면 **막는다**. 위 "마이그레이션은 자동으로 안 간다" 정책을 주석이 아니라 잡으로 만든 것이다. 적용은 여전히 사람 몫이다: `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote`
+3. **schema-gate** — 운영 D1 에 미적용 마이그레이션이 있으면 **막는다**. "운영 마이그레이션은 자동으로 안 간다" 정책을 주석이 아니라 잡으로 만든 것이다(프리뷰는 2026-08-09 부터 워크플로가 자동 적용한다, 위 "미리보기 수동 배포" 참고). 적용은 여전히 사람 몫이다: `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote`
 4. **environment: production** — 승인 게이트
 
 `yellow` **오늘 돌리면 3번에서 실패한다. 그게 맞는 동작이다** — 운영 D1 에 마이그레이션 17개(0012~0028)가 미적용이다. 게이트를 풀어서 초록으로 만들지 않는다. 스키마보다 앞선 코드는 화면이 아니라 런타임에서 터진다(없는 컬럼을 조회한다).
