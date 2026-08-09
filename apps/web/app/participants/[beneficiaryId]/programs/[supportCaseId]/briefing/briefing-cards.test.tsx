@@ -101,6 +101,15 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(allDetails().every((details) => details.open)).toBe(true);
   });
 
+  // CCC-76: 상담 기록 작성 레일의 '자세히 보기'가 #open-actions 앵커로 이 카드에 온다.
+  // 기본 펼침 카드라 앵커 진입 시 내용이 바로 보인다.
+  it('미해결 액션 카드는 앵커 id open-actions 를 갖는다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const card = cardByTitle(container, '미해결 액션');
+    expect(card.id).toBe('open-actions');
+    expect(card.open).toBe(true);
+  });
+
   it('영역 ①은 실무자 입력(세션 목표·맞춤형 질문)이 위, AI 제안이 아래다 (D45·R5)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');

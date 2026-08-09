@@ -172,7 +172,10 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 .rail-grid{row-gap:var(--section-gap);column-gap:var(--section-gap)}
 @media(max-width:767px){
   .wire-container[data-grid="true"]{grid-template-columns:1fr}
-  .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-12{grid-column:auto}
+  /* col-8 이 이 목록에 빠져 있었다(CCC-76 실측) — 한 열 전환 후에도 span 8 이 남아 암묵
+     8열이 생기고, 레일(col-4)이 본문(col-8)보다 좁게 그려졌다(744px 실측 572 vs 712).
+     인테이크·상담 기록 작성의 레일 격자가 같은 이름을 쓴다. */
+  .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-8,.wire-col-12{grid-column:auto}
 }
 /* ── 카드-섹션 여백 3단 (2026-08-05 Q · ADR-0030) ── 카드가 전면 컴포넌트화되면서 간격도
    세 값으로 닫는다. **이 밖의 카드 간격을 새로 만들지 않는다**:

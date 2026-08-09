@@ -27,7 +27,7 @@ afterEach(cleanup);
 describe('RecordOnepage', () => {
   // 2026-08-08 Q: 구 상단 고정 헤더가 좌측 레일로 옮겨 갔다(인테이크와 같은 레이아웃).
   it('좌측 레일에 이번 상담 목표를 항상 표시한다', () => {
-    const { container, getByTestId } = render(<RecordOnepage {...props({
+    const { getByTestId } = render(<RecordOnepage {...props({
       sessionGoals: [{ body: '임대차 계약 확인', caseGoalTitle: '월세 체납 해소' }],
     })} />);
 
@@ -38,11 +38,29 @@ describe('RecordOnepage', () => {
     // D62 위계(전체 > 세부 > 세션): 세션 목표가 연결된 부모는 **세부 목표**다 — 구 라벨
     // '전체 목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
     expect(rail.textContent).toContain('세부 목표: 월세 체납 해소');
-    // 폴백 자유 글 칸은 연결 여부와 무관하게 늘 있다. 라벨은 목표 낱말을 쓰지 않는다
-    // (ADR-0032 §6 — '세부 목표 작성'이라 부르면 본문의 세부 목표 구획과 층이 섞인다).
-    expect(container.querySelector('input[name="sessionGoalNote"]')).not.toBeNull();
-    expect(rail.textContent).toContain('이번 상담에서 확인할 것');
     expect(rail.textContent).not.toContain('세부 목표 작성');
+    // CCC-76: 목표가 있으면 라벨 옆 민트 배지가 건수를 보인다(진행·상태 축).
+    const badge = rail.querySelector('.record-sticky-label .wire-badge');
+    expect(badge?.textContent).toBe('1건');
+    expect(badge?.getAttribute('data-tone')).toBe('mint');
+  });
+
+  // CCC-76: '이번 상담에서 확인할 것'(워크인 폴백 자유 글)은 레일에서 본문 폼 맨 위
+  // (오늘 상담 내용 위)로 옮겼다 — 레일은 읽기 전용이 된다. 라벨은 목표 낱말을 쓰지 않는다
+  // (ADR-0032 §6 — '세부 목표 작성'이라 부르면 본문의 세부 목표 구획과 층이 섞인다).
+  it('이번 상담에서 확인할 것 입력칸은 레일이 아니라 본문 오늘 상담 내용 위에 있다', () => {
+    const { container, getByTestId } = render(<RecordOnepage {...props()} />);
+
+    const input = container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(getByTestId('record-side-rail').contains(input)).toBe(false);
+    expect(input.closest('.record-main')).not.toBeNull();
+
+    const inputCard = input.closest('.wire-card') as HTMLElement;
+    const memoCard = container.querySelector('textarea[name="memo"]')?.closest('.wire-card') as HTMLElement;
+    expect(inputCard).not.toBe(memoCard);
+    // 입력칸의 카드가 '오늘 상담 내용' 카드보다 문서 순서상 앞이다.
+    expect(inputCard.compareDocumentPosition(memoCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체).
@@ -55,13 +73,68 @@ describe('RecordOnepage', () => {
     expect(rail.querySelector('button[type="submit"]')?.textContent).toBe('저장');
   });
 
-  it('세션 목표가 미연결이면 빈 상태 한 줄과 세부 목표 칸이 뜬다', () => {
+  it('세션 목표가 미연결이면 빈 상태 한 줄과 라벤더 미설정 배지가 뜬다', () => {
     // 2026-08-09 Q: 구 '미연결' 글자 표시 대체. 상태만 말하고 다음 손짓을 말하지 않던 자리다.
-    const { container, getByTestId } = render(<RecordOnepage {...props()} />);
+    // CCC-76: 배지는 라벤더 '미설정'(주의·대기 축) — 레드는 D9 리스크 독점 위반이라 기각.
+    const { getByTestId } = render(<RecordOnepage {...props()} />);
 
-    expect(getByTestId('record-side-rail').textContent).toContain('일정에 연결된 목표가 없습니다');
-    expect(getByTestId('record-side-rail').textContent).not.toContain('미연결');
-    expect(container.querySelector('input[name="sessionGoalNote"]')).not.toBeNull();
+    const rail = getByTestId('record-side-rail');
+    expect(rail.textContent).toContain('일정에 연결된 목표가 없습니다');
+    expect(rail.textContent).not.toContain('미연결');
+    const badge = rail.querySelector('.record-sticky-label .wire-badge');
+    expect(badge?.textContent).toBe('미설정');
+    expect(badge?.getAttribute('data-tone')).toBe('lavender');
+  });
+
+  // CCC-76: 레일은 형제 카드 2장 스택이다 — 미해결 액션 아코디언(구 레일 카드 안 콜아웃,
+  // 카드 안 카드 금지 위반 해소) + 진척도 카드. 아코디언 본문은 액션 내용이 위, 지난 상담
+  // 시각이 아래고, '자세히 보기'는 15초 페이지 미해결 액션 구획 앵커로 간다.
+  it('지난 상담이 있으면 레일이 미해결 액션 아코디언과 진척도 카드 2장이 된다', () => {
+    const { getByTestId } = render(<RecordOnepage {...props({
+      lastRecordSummary: { heldAt: '2026-08-01T05:00:00.000Z', text: '서류 준비를 확인했다' },
+      openActionItems: [{ id: 'action-1', description: '서류 제출', owner: 'beneficiary', dueDate: null }],
+    })} />);
+
+    const rail = getByTestId('record-side-rail');
+    expect(rail.querySelectorAll(':scope > .surface-card').length).toBe(2);
+
+    const accordion = getByTestId('record-open-actions') as HTMLDetailsElement;
+    expect(accordion.tagName).toBe('DETAILS');
+    expect(accordion.querySelector('.wire-card-title')?.textContent).toBe('미해결 액션 1건');
+
+    const paragraphs = Array.from(accordion.querySelectorAll('.wire-card-body p'));
+    expect(paragraphs[0]?.textContent).toBe('서류 준비를 확인했다');
+    // 시각 표기는 ICU 버전에 따라 공백 문자가 달라 날짜까지만 본다(Asia/Seoul 고정).
+    expect(paragraphs[1]?.textContent).toContain('지난 상담 2026년 8월 1일');
+
+    const link = accordion.querySelector('a.wire-button') as HTMLAnchorElement;
+    expect(link.textContent).toContain('자세히 보기');
+    expect(link.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/briefing#open-actions');
+  });
+
+  it('지난 상담이 없으면 레일은 진척도 카드 한 장이다', () => {
+    const { getByTestId, queryByTestId } = render(<RecordOnepage {...props()} />);
+
+    expect(getByTestId('record-side-rail').querySelectorAll(':scope > .surface-card').length).toBe(1);
+    expect(queryByTestId('record-open-actions')).toBeNull();
+  });
+
+  // CCC-76: 자동 저장 대기는 라벤더 배지다(주의·대기 축). 안내문(panel-meta)은 저장 버튼 줄
+  // 아래에 선다.
+  it('저장 구획은 대기 배지를 보이고 안내문이 저장 버튼 아래에 선다', () => {
+    const { getByTestId } = render(<RecordOnepage {...props()} />);
+
+    const status = getByTestId('draft-status');
+    const badge = status.querySelector('.wire-badge');
+    expect(badge?.textContent).toBe('자동 저장 대기');
+    expect(badge?.getAttribute('data-tone')).toBe('lavender');
+
+    const rail = getByTestId('record-side-rail');
+    const submit = rail.querySelector('button[type="submit"]') as HTMLElement;
+    const note = Array.from(rail.querySelectorAll('p.panel-meta'))
+      .find((p) => p.textContent?.includes('수기 메모 하나만')) as HTMLElement;
+    expect(note).not.toBeUndefined();
+    expect(submit.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('우측 레일에 필수 채움 카운트를 표시하고 수기 메모를 채우면 올라간다', () => {
@@ -142,6 +215,17 @@ describe('RecordOnepage', () => {
 
     fireEvent.click(getByText('전체 접기'));
     expect(allDetails().every((details) => !details.open)).toBe(true);
+  });
+
+  // CCC-76: 전체 여닫기 범위는 .record-main 이다 — 레일의 미해결 액션 아코디언은 본문
+  // 기록 칸이 아니라 지난 상담 참조라 일괄 조작 대상이 아니다.
+  it('전체 열기는 레일의 미해결 액션 아코디언을 건드리지 않는다', () => {
+    const { getByText, getByTestId } = render(<><RecordAccordionToggle /><RecordOnepage {...props({
+      lastRecordSummary: { heldAt: '2026-08-01T05:00:00.000Z', text: '서류 준비를 확인했다' },
+    })} /></>);
+
+    fireEvent.click(getByText('전체 열기'));
+    expect((getByTestId('record-open-actions') as HTMLDetailsElement).open).toBe(false);
   });
 
   it('위기 선택 중에는 전체 접기도 위기·안전 칸을 닫지 못한다 (CCC-24)', () => {
