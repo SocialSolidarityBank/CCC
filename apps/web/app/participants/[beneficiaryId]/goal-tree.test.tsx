@@ -127,6 +127,28 @@ describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
     expect(container.querySelector('.participant-hub-card')).toBeNull();
   });
 
+  it('세부 목표가 2개 이상일 때만 불릿 목록이 된다 (§5 불릿 규칙 · 2026-08-09 Q)', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    // 목표 2개 — 나열이라 구분자(불릿)를 얹는다.
+    expect(container.querySelector('.goal-tree-goals')?.classList.contains('wire-bullets')).toBe(true);
+    cleanup();
+    const single = render(<GoalTreeCard cases={[caseTree({
+      goals: [{ id: 'g1', title: '월 지출 내역을 매주 기록한다', status: 'active', closedReason: null, closedAt: null, revisions: [], sessionGoals: [] }],
+    })]} programLabels={programLabels} />);
+    // 한 항목뿐이면 목록이 아니라 문장이다 — 점도 들여쓰기도 두지 않는다.
+    expect(single.container.querySelector('.goal-tree-goals')?.classList.contains('wire-bullets')).toBe(false);
+  });
+
+  it('세션 목표 줄은 날짜와 문장을 각각 독립 노드로 둔다 — 세로선 구분자를 쓰지 않는다', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    const row = container.querySelector('.goal-tree-session-row');
+    // 날짜는 자기 노드다(색으로 구분하므로 문장과 한 노드에 섞이면 물들일 자리가 없다).
+    expect(row?.querySelector('.goal-tree-session-date')?.textContent).toBe('2026년 8월 10일');
+    expect(row?.querySelector('.goal-tree-session-body')?.textContent).toBe('가계부 확인');
+    // MetaRow 의 세로선 구분자는 문장이 접힐 때 본문 앞 막대로 남아 쓰지 않는다.
+    expect(row?.querySelector('.wire-meta-row')).toBeNull();
+  });
+
   it('목표 조회만 실패하면 카드 자리에 오류 한 줄이 남는다 — 허브는 계속 선다 (D8 폴백)', () => {
     const { container } = render(<GoalTreeCard cases={[]} programLabels={programLabels} loadFailed />);
     const alert = container.querySelector('[role="alert"]');

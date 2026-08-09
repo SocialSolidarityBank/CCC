@@ -160,15 +160,16 @@ export function RecordOnepage({
     });
   }
 
-  {/* 레이아웃은 인테이크와 같은 좌 4 / 우 8 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
+  {/* 레이아웃은 인테이크와 같은 레일 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
       — 구 우측 200px 레일 대체). 좌측 레일은 형제 카드 3장 스택이다(2026-08-09 Q — 구
       진척도 카드 한 장에 섞여 있던 목표·필수를 가른다): 이번 상담 목표 + 미해결 액션
       아코디언 + 체크리스트(필수 채움·저장). 맨 아래에 미저장 안내가 선다.
       sticky 는 aside 가 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
   return <div className="wire-container rail-grid record-grid" data-grid="true" ref={draft.containerRef}>
-    {/* 좌 레일 4칸 / 본문 8칸(2026-08-09 Q 2차 "사이드바가 너무 좁으니 늘리고" — 구 3/9 를
-        하루 만에 대체). 바로가기 목차는 레일이 아니라 **우측 셋째 열**이다(맨 아래 nav 참조). */}
-    <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
+    {/* 좌 레일은 고정 폭 트랙이다(2026-08-09 — 구 12칸 span 4 를 대체: 폭을 따라 줄어들다
+        카드 안쪽이 165px 까지 좁아졌다). 폭 계단은 공용 .rail-grid 가 갖고, 이 화면의 레일
+        폭은 --rail-width 300 이다. 바로가기 목차는 레일이 아니라 **우측 셋째 열**이다. */}
+    <aside className="record-side" aria-label="작성 진척도" data-testid="record-side-rail">
       {/* ① 이번 상담 목표 카드(2026-08-09 Q "미해결 액션 위, 같은 크기") — 제목이 카드 제목
           계약(16/600)이라 미해결 액션 아코디언 제목과 같은 크기로 선다. 일정에 연결된 세션
           목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다(CCC-76 으로 폴백 입력칸이
@@ -230,7 +231,7 @@ export function RecordOnepage({
           본문 상단). 페이지가 제출 상태를 보고 넘겨주는 슬롯이라 여기서는 자리만 정한다. */}
       {unsavedNotice}
     </aside>
-    <div className="wire-col-8 record-main">
+    <div className="record-main">
       {draft.restorable === null
         ? null
         : <DraftRestorePrompt

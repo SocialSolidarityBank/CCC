@@ -779,15 +779,17 @@ export function IntakeWizard(props: IntakeWizardProps) {
     <main className="page-content">
       {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
       <div className="page-header"><PageTitle>인테이크</PageTitle></div>
-      {/* intake-grid: 광폭(컨테이너 ≥1150)에서 [단계 레일 260 | 본문 1fr | 목차 200] 3열이
-          된다(2026-08-09 3차). 그 아래 폭에서는 3/9 두 열 그대로고 목차는 숨는다. */}
+      {/* intake-grid: 폭 계단은 공용 .rail-grid 다(2026-08-09) — 컨테이너 ≥1150 은
+          [단계 레일 260 | 본문 1fr | 목차 200] 3열, ≥880 은 목차 없는 2열, 그 아래는
+          한 열이라 단계 레일이 본문 위로 올라간다. */}
       <div className="wire-container rail-grid intake-grid" data-grid="true">
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
             .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}
-        {/* 레일은 3칸이다(2026-08-09 Q "TOC 넣어서 장폭 늘리기" — 구 4칸). 단계 목록이 곧
-            목차라 좁혀도 잃는 것이 없고, 입력 영역이 9칸으로 넓어진다. */}
-        <nav className="wire-col-3 intake-step-nav" aria-label="단계 진행">
+        {/* 레일은 고정 폭 트랙이다(2026-08-09 — 구 12칸 span 3 을 대체: 폭을 따라 계속
+            줄어들었다). 폭 계단은 공용 .rail-grid 가 갖고, 이 화면의 레일 폭은
+            --rail-width 260 이다. 단계 목록이 곧 목차라 좁아도 잃는 것이 없다. */}
+        <nav className="intake-step-nav" aria-label="단계 진행">
           <h2>진행 단계</h2>
           {STEP_TITLES.map((title, index) => {
             const stepNumber = index + 1;
@@ -822,7 +824,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
           })}
         </nav>
 
-        <section className="wire-col-9 wizard-stack">
+        <section className="wizard-stack">
           {/* 맥락 카드(2026-08-07 Q 9차·10차 개정): 누구의 인테이크인지(구 맨 아래 당사자
               줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
               static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
