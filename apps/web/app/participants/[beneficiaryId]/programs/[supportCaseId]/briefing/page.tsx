@@ -1,10 +1,10 @@
-import { WireError } from '../../../../../components/wire/wire-state';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { PageError } from '../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../components/wire/page-loading';
 import { PageTitle } from '../../../../../components/wire/page-title';
 import { WireButton } from '../../../../../components/wire/wire-button';
@@ -70,14 +70,16 @@ function LoadingState() {
 }
 
 // 오류·빈 상태도 로딩과 **같은 셸**이다(2026-08-09). 셋이 제각각이면 로딩에서 오류로
-// 넘어갈 때 제목 자리와 여백이 함께 흔들린다 — 구 header+h1 은 페이지 그리드(gap 24) 밖에
-// 있어 카드와 버튼 사이 여백도 없었다.
+// 넘어갈 때 제목 자리와 여백이 함께 흔들린다 — 셸은 PageError 부품이 갖는다.
 function ErrorState({ beneficiaryId, kind }: { beneficiaryId: string; kind: ErrorKind }) {
-  return <GridContainer as="main" className="page-content">
-    <div className="page-header"><PageTitle>15초 페이지</PageTitle></div>
-    <WireError>{errorMessages[kind]}</WireError>
-    <div><WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton></div>
-  </GridContainer>;
+  return (
+    <PageError
+      title="15초 페이지"
+      action={<WireButton variant="secondary" href={participantHref(beneficiaryId)}>참여 사업 목록으로 돌아가기</WireButton>}
+    >
+      {errorMessages[kind]}
+    </PageError>
+  );
 }
 
 function EmptyState({ beneficiaryId }: { beneficiaryId: string }) {

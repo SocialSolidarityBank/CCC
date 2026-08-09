@@ -792,6 +792,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    --ink 로 바꿨다. 리스크를 알리는 것은 획이 아니라 테두리이므로 신호는 잃지 않는다.
    (그래서 이제 data URI 안 원시 hex 는 --ink 한 값뿐이다 — 위 주석의 '두 줄'이 한 줄이 됐다.) */
 .wire-checkbox[data-tone="risk"]:checked{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.5l5 5 10-11' fill='none' stroke='%233D3445' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat,var(--gradient-action) padding-box,var(--gradient-deep) border-box}
+/* 오류 알림 한 줄(WireError, 2026-08-09 Q "알약 박스" 정정). 색·굵기는 layout.tsx 의
+   [role="alert"] 전역 규칙(--risk·600)이 갖고, 여기는 .empty 와 같은 배치 + 크기만 더한다 —
+   구 리스크 배지는 inline-flex 알약이라 그리드에 직접 서면 전폭 알약 막대가 됐다(D61 ②
+   알약은 배지 라벨 전유물). 자리 예약은 .empty 와 같은 규칙: 카드의 유일한 내용일 때만. */
+.wire-error{display:flex;align-items:center;gap:var(--space-2);margin:0;font-size:var(--text-sm)}
+.wire-error[data-reserve="true"]{min-height:92px}
 /* 빈 상태(§5): 무채색만. 라인 아이콘 28 + 제목 16/700 + 설명 14/400 + 다음 행동 버튼. */
 .wire-empty{display:grid;justify-items:center;gap:var(--space-2);padding:var(--space-10) var(--space-6);text-align:center}
 .wire-empty-icon{width:28px;height:28px;color:var(--sub)}
