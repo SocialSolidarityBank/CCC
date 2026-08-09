@@ -110,19 +110,22 @@ details.surface-card{overflow:clip}
    카드 **전체**를 채우지 않는 이유: 펼친 카드의 본문은 읽는 면이다. 회차 본문과 기록지
    아코디언 본문은 긴 글이라 파스텔 면 위에 앉으면 읽기가 나빠진다.
 
-   두 자리는 제외한다.
+   세 자리는 제외한다.
      * **브리핑 3영역**(.briefing-card)은 open 이 기본값이라 늘 펼쳐져 있다 — '활성'이 아무
        정보를 갖지 않는 자리다. 채우면 15초 페이지에 파스텔 띠 셋이 상시로 서서 조용한
        화면(§0)이 무너지고 리스크 배너의 유일성(D9)도 함께 흐려진다.
      * **위기·안전 아코디언**(.is-crisis)은 --risk 틴트·테두리를 갖는 자리다. 경고색 독점을
        지키려면 그 위에 다른 채움을 얹지 않는다(D9).
+     * **세션 목표 수정 카드**(.session-plan-card, CCC-75)도 브리핑과 같은 이유다 — 기본
+       전부 펼침 폼이라 채우면 목표 수만큼 파스텔 띠가 상시로 선다. 제목 줄은 회색 구분선
+       기본형([open]>.wire-card-summary)으로 남는다.
 
    **채운 면 위 글자는 늘 --on-action 이다.** --gradient-action 은 두 테마에서 같은 밝은
    파스텔이라(tokens.css 다크 주석 ③) --ink 를 그대로 두면 다크에서 밝은 글자가 밝은 면에
    얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
    배지는 자기 면(계열 tint)을 가진 독립 표면이라 건드리지 않는다. */
 details.surface-card[open]:not(.briefing-card)>.record-summary,
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary{
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary{
   background:var(--gradient-action);
   color:var(--on-action);
 }
@@ -134,14 +137,14 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    면만 채우면 회색 글자가 파스텔 위에 남는다. 메타 줄 세로선은 채운 면 전용 선색이다
    (D56 --line-on-action, .wire-row 고른 행과 같은 계약). 배지는 자기 면을 가진 독립 표면이라
    건드리지 않는다. */
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary .wire-card-arrow{border-color:var(--on-action)}
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary .wire-card-arrow{border-color:var(--on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
    밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
    따라온다(2026-08-09 — 구 손 계산 16/20 대체). 회차 카드(.record-summary)는 카드에 패딩이
    없어 이 보정이 필요 없다. */
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis)>.wire-card-summary{
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary{
   margin:calc(var(--card-pad, var(--space-6)) * -1) calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));
   padding:var(--card-pad, var(--space-6));
 }
@@ -530,8 +533,16 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wizard-section-head{display:grid;gap:var(--space-2);padding-top:var(--space-3);border-top:1px solid var(--line)}
 .wizard-section-head>h2{margin:0}
 .wizard-section-head>p{margin:0}
-/* 칸 하나(라벨·컨트롤·딸린 버튼)의 세로 묶음. WireFormField 안쪽 간격과 같은 8 이다. */
-.wizard-field{display:grid;gap:var(--space-2)}
+/* 칸 하나(라벨·컨트롤·딸린 버튼)의 세로 묶음. WireFormField 안쪽 간격과 같은 8 이다.
+   align-content:start 도 같은 계약이다(.wire-form-field 의 stretch 부풀림 방지와 같은 이유) —
+   2열 그리드에서 키 큰 이웃(목표 문장 textarea)이 행을 키우면 stretch 기본값이 남는 높이를
+   행 사이에 나눠 줘, "조작 대상 바로 아래"여야 할 +/- 세트가 칸 바닥으로 떨어진다(CCC-75 실측). */
+.wizard-field{display:grid;gap:var(--space-2);align-content:start}
+/* 세션 목표 수정의 카드 스택(CCC-75). 목표 한 묶음 = 전폭 접이식 카드(WireCardDetails)라
+   .wizard-row 의 읽기 폭 720 을 쓰지 않는다 — 2열 본문(.wire-form-grid)이 폭을 반씩 나눠
+   글줄이 읽기 폭 안에 선다. 간격은 §3-4 ① 페이지 스택 24 다(.briefing-accordions 와 같은
+   계약. 카드 안 body 20 은 .wire-form-card 가 갖는다). */
+.session-plan-stack{display:grid;gap:var(--section-gap)}
 /* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
 .wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 /* 안 채운 필수 보기 줄(2026-08-09 Q). 여러 개 고르기에는 입력 상자가 없어 WireFormField 의

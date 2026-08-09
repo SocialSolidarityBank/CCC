@@ -97,21 +97,21 @@ export default async function ScheduleSessionPlanPage({
       .filter((goal) => goal.status === 'active' || linkedIds.has(goal.id))
       .map((goal) => ({ id: goal.id, title: goal.title, closed: goal.status !== 'active' }));
 
-    return frame(
-      <div className="wizard-stack">
-        <WireCallout tone="info" title={`상담 일시: ${scheduledAtLabel}`}>
-          일정 시작 전까지 수정할 수 있습니다. 시작 시각이 지나면 그날 계획의 기록으로 잠깁니다.
-        </WireCallout>
+    // 편집 화면은 제목 줄(+ 우측 저장)까지 편집기가 그린다(CCC-75 — 저장 버튼·자동 저장
+    // 상태가 제목 줄에 서므로 클라이언트 상태가 필요하다). 잠금·오류 화면만 frame 을 쓴다.
+    return (
+      <GridContainer as="main" className="page-content">
         <SessionPlanEditor
           scheduleId={plan.scheduleId}
           beneficiaryId={plan.beneficiaryId}
           supportCaseId={plan.supportCaseId}
           version={plan.version}
+          scheduledAtLabel={scheduledAtLabel}
           initialGoals={plan.sessionGoals.map((goal) => ({ body: goal.body, caseGoalId: goal.caseGoalId ?? '' }))}
           goalOptions={goalOptions}
           submit={updateScheduleSessionGoalsAction}
         />
-      </div>,
+      </GridContainer>
     );
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
