@@ -548,8 +548,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    datetime-fields 가 이미 쓰는 패턴이다. */
 .wire-input-box>input:focus-visible,.wire-input-box>select:focus-visible,.wire-input-box>textarea:focus-visible{outline:none}
 .wire-input-box[data-invalid="true"]{border:1.5px solid var(--risk)}
-/* 도움말은 12(--text-xs)다(2026-08-07 Q "작게 표시해야 할 설명 문구는 12px 전역 통일"). */
-.wire-form-hint{font-size:var(--text-xs);font-weight:400;color:var(--sub)}
+/* 도움말은 14(--text-sm)다(2026-08-10 Q. 구 12 --text-xs 대체. 2026-08-07 '도움말 12 전역
+   통일'은 이 변경으로 완전히 걷혔고 본문 하한 14 가 예외 없이 돌아왔다). 당사자 등록 화면에서
+   같은 폼에 선 .schedule-form-hint 14 와 크기가 갈려 있던 것이 계기다. 아래 a 규칙의 deep 색
+   글자는 §6 규칙 3 이 '14 이상·굵기 600' 을 요구하는데 12 에서 이를 어기고 있었고, 14 로
+   올라가면서 그 예외도 함께 닫힌다. */
+.wire-form-hint{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .wire-form-hint a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
 /* 폼을 담은 카드는 본문 간격을 한 단 넓힌다 — 입력칸은 라벨·도움말을 달고 있어
    정보 카드(12)의 간격으로는 항목 경계가 안 읽힌다. */
