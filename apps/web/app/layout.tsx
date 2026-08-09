@@ -891,6 +891,9 @@ const recordFormStyles = `
    대신 잡는다(구 .record-layout 1fr+우측 200px 레일 대체). 좌측 레일(.record-side)은 인테이크
    진행 단계 레일과 같은 sticky 계약이고, 768 미만 한 열에서는 본문 위에 선다. */
 .record-main{display:grid;gap:var(--space-6);min-width:0}
+/* 레일은 형제 카드 2장 스택이다(CCC-76 — 미해결 액션 아코디언 + 진척도 카드). 간격은
+   본문 스택과 같은 24(D60 ③ 페이지 스택) — 좌우 열의 카드 리듬이 같아야 한 화면으로 읽힌다. */
+.record-side{display:grid;gap:var(--space-6)}
 @media (min-width: 768px){
   .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
 }
@@ -904,10 +907,16 @@ const recordFormStyles = `
    앞으로 나온다(2026-08-09 하니스 실측: 카드 49 · 아코디언 45 · 위기 44). */
 /* 구 상단 고정 헤더(.record-sticky)는 2026-08-08 좌측 레일 이전으로 삭제 — 목표·버튼이
    전부 레일로 갔다. 라벨·값·목록 세 줄 레시피만 레일 안에서 계속 쓴다. */
-.record-sticky-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* 라벨 오른쪽에 목표 유무 배지가 앉는다(CCC-76) — flex 는 배지를 글줄 베이스라인이 아니라
+   라벨과 세로 중앙으로 맞춘다. */
+.record-sticky-label{margin:0;display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .record-sticky-list{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 구 .record-sticky-value·.record-sticky-meta 는 2026-08-09 삭제 — '미연결' 글자 표시는
-   빈 상태 부품으로, 지난 상담 메타 줄은 미해결 액션 강조 카드로 바뀌었다(Q 지시). */
+   빈 상태 부품으로, 지난 상담 메타 줄은 미해결 액션 카드로 바뀌었다(Q 지시. 강조 콜아웃을
+   거쳐 CCC-76 으로 레일 형제 아코디언 카드가 됐다 — 카드 안 카드 금지 해소, D59). */
+/* 미해결 액션 아코디언 본문의 '자세히 보기'. 카드 본문이 grid 라 링크가 열 폭으로 늘어나는
+   것을 막는다 — 알약이 전폭이 되면 버튼이 아니라 막대로 읽힌다. */
+.record-open-actions-link{justify-self:start}
 /* 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체). 레일이 sticky 라
    어느 위치에서 쓰든 늘 같은 자리에 있다. §4-5 순서: 세컨더리 → 프라이머리. */
 .record-rail-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-top:var(--space-2)}

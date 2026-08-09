@@ -2,6 +2,7 @@
 
 import { WireButton } from '../wire/wire-button';
 import { formatKoreanTime } from '../../lib/format-korean-date';
+import { WireBadge } from '../wire/wire-badge';
 import { WireCallout } from '../wire/wire-callout';
 import { draftRetentionLabel } from '../../lib/form-draft';
 
@@ -55,12 +56,14 @@ export function DraftRestorePrompt({
  * 실무자는 저장되고 있는지 알 방법이 없다.
  */
 export function DraftStatus({ savedAt, available }: { savedAt: number | null; available: boolean }) {
-  const text = !available
+  // 대기만 라벤더 배지다(CCC-76 — 주의·대기 축, D34): 아직 아무것도 저장되지 않은 상태가
+  // 회색 글줄에 묻히면 저장된 것처럼 읽힌다. 저장됨·불가는 상태 서술이라 글줄 그대로 둔다.
+  const body = !available
     ? '이 브라우저에는 자동 저장할 수 없습니다'
     : savedAt === null
-      ? '자동 저장 대기'
+      ? <WireBadge tone="lavender">자동 저장 대기</WireBadge>
       : `자동 저장됨 ${clockLabel(savedAt)}`;
-  return <p className="notice-status" role="status" aria-live="polite" data-testid="draft-status">{text}</p>;
+  return <p className="notice-status" role="status" aria-live="polite" data-testid="draft-status">{body}</p>;
 }
 
 /** 임시본을 어디에 얼마나 두는지 입력칸 옆에서 밝힌다. 화면 문구와 보관 규율을 한 곳에서 맞춘다. */

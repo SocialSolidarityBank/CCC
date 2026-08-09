@@ -8,7 +8,6 @@ import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../..
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
-import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireEmpty } from '../../../../../../components/wire/wire-state';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
@@ -156,41 +155,44 @@ export function RecordOnepage({
   }
 
   {/* 레이아웃은 인테이크와 같은 좌 4 / 우 8 격자다(2026-08-08 Q "인테이크랑 같은 레이아웃"
-      — 구 우측 200px 레일 대체). 좌측 레일이 이번 상담 목표·필수 진척도·저장/나가기를
-      전부 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
+      — 구 우측 200px 레일 대체). 좌측 레일은 형제 카드 2장 스택이다(CCC-76 — 구 한 장짜리
+      카드 분리): 미해결 액션 아코디언 + 진척도 카드(이번 상담 목표·필수 체크리스트·저장).
+      sticky 는 aside 가 갖고, 스크롤해도 화면에 남는다(인테이크 진행 단계 레일과 같은 계약). */}
   return <div className="wire-container rail-grid" data-grid="true" ref={draft.containerRef}>
     <aside className="wire-col-4 record-side" aria-label="작성 진척도" data-testid="record-side-rail">
+      {/* ① 미해결 액션 아코디언(CCC-76) — 구 WireCallout 은 레일 카드 **안**에 있어 카드 안
+          카드 금지(D59)를 어겼다. 형제 카드로 꺼내며 접힘 카드가 됐다 — 건수는 제목이 항상
+          보이고, 내용은 눌러서 편다. 본문은 액션 내용이 위·지난 상담 시각이 아래다(구 MetaRow
+          한 줄은 시각이 먼저라 값보다 맥락이 앞섰다). '자세히 보기'는 15초 페이지의 미해결
+          액션 구획으로 바로 가는 앵커다. HERO 의 전체 여닫기는 .record-main 범위라 이 칸을
+          건드리지 않는다. */}
+      {lastRecordSummary === null
+        ? null
+        : <WireCardDetails title={`미해결 액션 ${openActionItems.length}건`} testId="record-open-actions">
+          <p>{lastRecordSummary.text}</p>
+          <p className="panel-meta">지난 상담 {dateTimeLabel(lastRecordSummary.heldAt)}</p>
+          <WireButton className="record-open-actions-link" variant="neutral" height="sm" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
+        </WireCardDetails>}
+      {/* ② 진척도 카드 — 이번 상담 목표 + 필수 체크리스트 + 저장. */}
       <div className="surface-card record-rail">
-        {/* 일정에 연결된 세션 목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다.
+        {/* 일정에 연결된 세션 목표가 있으면 그것이 이번 상담의 목표다 — 읽기만 한다(CCC-76 으로
+            폴백 입력칸이 본문으로 떠나 레일은 온전히 읽기 전용이 됐다).
             연결된 부모는 D62 위계(전체 > 세부 > 세션)대로 **세부 목표**다 — 구 라벨 '전체
             목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
             연결 선택창은 만들지 않는다(2026-08-09 Q 확정, ADR-0032 대체 관계 표 PR #91 행) —
-            연결은 일정 등록 몫이고, 세부 목표의 입력·수정·닫기는 본문의 세부 목표 구획이 갖는다. */}
-        <p className="record-sticky-label">이번 상담 목표</p>
+            연결은 일정 등록 몫이고, 세부 목표의 입력·수정·닫기는 본문의 세부 목표 구획이 갖는다.
+            배지(CCC-76): 있음 = 민트 N건(진행·상태 축), 없음 = 라벤더 미설정(주의·대기 축) —
+            레드는 D9 리스크 독점 위반이라 기각(Q 확정). */}
+        <p className="record-sticky-label">이번 상담 목표
+          {sessionGoals.length === 0
+            ? <WireBadge tone="lavender">미설정</WireBadge>
+            : <WireBadge tone="mint">{sessionGoals.length}건</WireBadge>}
+        </p>
         {sessionGoals.length === 0
           ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
           : <ul className="record-sticky-list">{sessionGoals.map((goal, index) => <li key={index}>
             <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `세부 목표: ${goal.caseGoalTitle}`]} />
           </li>)}</ul>}
-        {/* 일정 없이 쓴 회차(워크인)의 폴백 자유 글(D62 §6 — 세션 목표의 이원 구조).
-            라벨은 목표 낱말을 쓰지 않는다 — '세부 목표 작성'이라 부르면 본문 구획의 세부
-            목표 층과 섞인다(ADR-0032 §6 "폴백 칸 라벨은 현행 문구 유지"). */}
-        <WireFormField label="이번 상담에서 확인할 것" note="(선택)" htmlFor="session-goal-note">
-          <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} />
-        </WireFormField>
-        {/* 미해결 액션은 **강조 카드**다(2026-08-09 Q) — 지난 상담의 남은 약속은 이 화면에서
-            가장 먼저 눈에 들어와야 하는 값인데, 구 배치는 회색 메타 한 줄에 다른 정보와
-            섞여 있었다. 톤은 lavender(주의·대기, D34) — 리스크는 배너 전용이다(D9).
-            '브리핑에서 보기' → '자세히 보기'(Q): 가는 곳 이름보다 무엇을 하는지가 라벨이다. */}
-        {lastRecordSummary === null
-          ? null
-          : <WireCallout
-            tone="lavender"
-            title={`미해결 액션 ${openActionItems.length}건`}
-            actions={<WireButton variant="neutral" height="sm" href={briefingPath}>자세히 보기</WireButton>}
-          >
-            <MetaRow items={[`지난 상담 ${dateTimeLabel(lastRecordSummary.heldAt)}`, lastRecordSummary.text]} />
-          </WireCallout>}
         <hr className="wire-card-divider" />
         <p className="record-rail-count" data-testid="record-required-count">필수 {filledCount}/{requiredItems.length}</p>
         <ul className="record-rail-list">
@@ -201,12 +203,13 @@ export function RecordOnepage({
         </ul>
         {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
         <DraftStatus savedAt={draft.savedAt} available={draft.available} />
-        {/* 페이지 전체 안내는 사람 말로 여기 선다(2026-08-08 Q — 구 맨 아래 "제출 ID
-            d16b…" 원문 표기 대체. ID 는 숨은 폼 값으로만 다니고, 재시도 보호라는 뜻만 남긴다). */}
-        <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다. 저장 전 내용은 서버에 없고,
-          저장 버튼을 여러 번 눌러도 같은 기록이 두 번 만들어지지 않습니다.</p>
         {/* 저장·나가기는 레일 바닥 고정이다(2026-08-08 Q — 구 상단 고정 헤더 우측 대체). */}
         <div className="record-rail-actions">{actions}</div>
+        {/* 페이지 전체 안내는 사람 말로 저장 버튼 줄 아래 선다(CCC-76 이동 — 구 자리는 저장
+            상태와 버튼 사이라 안내문이 행동을 가로막았다. ID 는 숨은 폼 값으로만 다니고,
+            재시도 보호라는 뜻만 남긴다 — 2026-08-08 Q, 구 "제출 ID d16b…" 원문 표기 대체). */}
+        <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다. 저장 전 내용은 서버에 없고,
+          저장 버튼을 여러 번 눌러도 같은 기록이 두 번 만들어지지 않습니다.</p>
       </div>
     </aside>
     <div className="wire-col-8 record-main">
@@ -233,6 +236,23 @@ export function RecordOnepage({
               {customQuestions.map((question, index) => <WireChoice key={index} label={question} type="checkbox" />)}
             </div>
           </fieldset>}
+      </WireCard>
+
+      {/* 1-1. 이번 상담에서 확인할 것 — 일정 없이 쓴 회차(워크인)의 폴백 자유 글(D62 §6 —
+          세션 목표의 이원 구조). CCC-76 으로 레일에서 본문 폼 맨 위(오늘 상담 내용 위)로
+          옮겼다 — 읽기(레일)와 쓰기(본문)를 가른다. 라벨은 목표 낱말을 쓰지 않는다 —
+          '세부 목표 작성'이라 부르면 본문 세부 목표 구획과 층이 섞인다(ADR-0032 §6
+          "폴백 칸 라벨은 현행 문구 유지"). 카드 제목과 필드 라벨이 같은 문구인 것은
+          담당 실무자 의견 카드와 같은 짜임이다. */}
+      <WireCard
+        as="section"
+        className="wire-form-card"
+        labelledBy="session-goal-note-title"
+        title={<><h2 id="session-goal-note-title">이번 상담에서 확인할 것 <small>(선택)</small></h2><p className="panel-meta">일정에 연결된 목표가 없을 때 이번 상담에서 다룰 내용을 적어 둡니다. 연결된 목표는 좌측 레일에서 확인합니다.</p></>}
+      >
+        <WireFormField label="이번 상담에서 확인할 것" note="(선택)" htmlFor="session-goal-note">
+          <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} />
+        </WireFormField>
       </WireCard>
 
       {/* 2. 오늘 상담 내용 — 이 기록지의 유일한 실질 필수(P1) */}

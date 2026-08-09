@@ -584,7 +584,10 @@ export function BriefingCards({
         {/* 미해결 액션 (D45 표 7행). 개인정보 카드는 여기서 뺐다(2026-08-03 Q) — 개인 정보는
             당사자 정보 화면의 HERO(이름 클릭)에서 본다. 표준 그리드는 유지(D37). */}
         <div className="briefing-cards-grid">
-          <Card id="briefing-actions" title="미해결 액션">
+          {/* id 는 상담 기록 작성 레일의 '자세히 보기' 앵커가 여기로 온다(CCC-76 —
+              구 briefing-actions 개명, 다른 참조 0건 확인). 기본 펼침 카드라 앵커 진입
+              시 내용이 바로 보인다. */}
+          <Card id="open-actions" title="미해결 액션">
             {/* 액션 행(2026-08-06 Q): 내용은 왼쪽, 오른쪽 끝은 뱃지 둘 — 담당(민트 =
                 사람·담당 축)과 기한(블루 = 일정 축, D58 ④). '담당 실무자/당사자/기관'은
                 이 액션을 해 오기로 한 주체다(action_items.owner). */}
