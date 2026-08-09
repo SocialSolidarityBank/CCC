@@ -34,6 +34,7 @@ import {
   STEP_GROUPS,
   STEP_TITLES,
   channelForMethod,
+  intakeSectionAnchor,
   type IntakeQuestion,
   type IntakeTableColumn,
 } from './intake-questions';
@@ -291,10 +292,11 @@ function localDateTimeValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** 접힘 묶음. 동의 안내문과 같은 아코디언 패턴을 재사용한다 — 새 스타일 없음. */
-function Collapse(props: { title: string; open: boolean; onToggle: (open: boolean) => void; children: ReactNode }) {
+/** 접힘 묶음. 동의 안내문과 같은 아코디언 패턴을 재사용한다 — 새 스타일 없음.
+ *  id 는 우측 목차의 앵커 대상(2026-08-09 3차). */
+function Collapse(props: { title: string; open: boolean; onToggle: (open: boolean) => void; children: ReactNode; id?: string }) {
   return (
-    <details className="consent-detail" open={props.open} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
+    <details className="consent-detail" id={props.id} open={props.open} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
       <summary className="consent-detail-summary">
         <span>{props.title}</span>
         <span className="briefing-card-arrow" aria-hidden="true" />
@@ -432,7 +434,7 @@ function RowTable(props: {
 }) {
   const { columns, rows, onChange, invalid = false } = props;
   return (
-    <WireCard className="wire-form-card" title={<h3>{props.title}</h3>} testId={props.testId}>
+    <WireCard className="wire-form-card" title={<h3 id={intakeSectionAnchor(props.title)}>{props.title}</h3>} testId={props.testId}>
       <p className="panel-meta">{props.hint}</p>
       {rows.map((row, index) => (
         <div key={index} className="wizard-field">
@@ -734,7 +736,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
     extras: Readonly<Record<string, ReactNode>> = {},
   ) {
     return groups.map((group) => (
-      <WireCard key={group.title} className="wire-form-card" title={<h3>{group.title}</h3>}>
+      // h3 id 는 우측 목차의 앵커 대상이다(2026-08-09 3차 — 조회 화면과 같은 헬퍼).
+      <WireCard key={group.title} className="wire-form-card" title={<h3 id={intakeSectionAnchor(group.title)}>{group.title}</h3>}>
         {extras[group.title] ?? null}
         {group.questions.map((question) => (
           <QuestionField
@@ -755,11 +758,30 @@ export function IntakeWizard(props: IntakeWizardProps) {
   ];
   const consentMissing = consentRows.some(([, recorded]) => !recorded);
 
+  // 우측 바로가기 목차(2026-08-09 Q 3차 "인테이크 페이지에도 TOC"). 부(部) 이동은 좌측
+  // 단계 레일 몫이라, 이 목차는 **현재 단계의 소절**만 담는다 — 화면 렌더 순서 그대로.
+  // id 는 소절 카드가 같은 헬퍼(intakeSectionAnchor)로 단다.
+  const stepTocLabels: readonly string[] = step === 1
+    ? ['1-1. 당사자 기본정보', '동의 기록', ...STEP_GROUPS[0]!.map((group) => group.title)]
+    : step === 2
+      ? [...STEP_GROUPS[1]!.map((group) => group.title), '대출·부채 현황 표']
+      : step === 3
+        ? [...STEP_GROUPS[2]!.map((group) => group.title), '3-3. 현재 연계된 기관·서비스']
+        : [
+          ...STEP_GROUPS[3]!.map((group) => group.title),
+          '전체 목표',
+          '4-2. 추가 확인사항',
+          '담당 실무자 종합의견',
+          ...(linkedSchedule === null ? [] : ['연결된 상담 일정']),
+        ];
+
   return (
     <main className="page-content">
       {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
       <div className="page-header"><PageTitle>인테이크</PageTitle></div>
-      <div className="wire-container rail-grid" data-grid="true">
+      {/* intake-grid: 광폭(컨테이너 ≥1150)에서 [단계 레일 260 | 본문 1fr | 목차 200] 3열이
+          된다(2026-08-09 3차). 그 아래 폭에서는 3/9 두 열 그대로고 목차는 숨는다. */}
+      <div className="wire-container rail-grid intake-grid" data-grid="true">
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
             단계 버튼 하나가 500px 넘게 벌어진다 — 진행 표시는 위에 붙어 있어야 한다.
             .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}
@@ -827,7 +849,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
             <div className="wizard-stack">
               <h2>1. 상담 신청 및 기본정보</h2>
 
-              <WireCard title={<h3>1-1. 당사자 기본정보</h3>} testId="intake-basic-info">
+              <WireCard title={<h3 id={intakeSectionAnchor('1-1. 당사자 기본정보')}>1-1. 당사자 기본정보</h3>} testId="intake-basic-info">
                 <p className="panel-meta">
                   당사자 등록에 저장된 값입니다. 이 화면에서는 고칠 수 없고 상담 기록에도 남지 않습니다.{' '}
                   <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
@@ -840,7 +862,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 <ReadOnlyRow label="성별" value={props.extendedPii.gender ?? '미입력'} />
               </WireCard>
 
-              <WireCard title={<h3>동의 기록</h3>} testId="intake-consent-status">
+              <WireCard title={<h3 id={intakeSectionAnchor('동의 기록')}>동의 기록</h3>} testId="intake-consent-status">
                 {consentRows.map(([label, recorded]) => (
                   <ReadOnlyRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
                 ))}
@@ -886,6 +908,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               {renderGroups(STEP_GROUPS[1]!)}
               <Collapse
                 title="대출·부채 현황 표"
+                id={intakeSectionAnchor('대출·부채 현황 표')}
                 open={openSections.debts ?? true}
                 onToggle={(open) => toggleSection('debts', open)}
               >
@@ -927,7 +950,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   진행 카운트에 세지 않고('전 항목 필수'의 예외), 무응답 선택지도 없다 —
                   비워 두면 그냥 빈 것. 자리는 4-3 바로 아래다: 참고로 보여주는 지원욕구
                   (3-1)·지원방향(4-3)이 방금 적은 값이라 같은 것을 다시 묻지 않는다. */}
-              <WireCard className="wire-form-card" title={<h3>전체 목표</h3>} testId="intake-overall-goal">
+              <WireCard className="wire-form-card" title={<h3 id={intakeSectionAnchor('전체 목표')}>전체 목표</h3>} testId="intake-overall-goal">
                 <p className="panel-meta">
                   당사자와 합의한 지원 방향을 한 문장으로 적습니다.
                   첫 상담에서 합의가 어려우면 비워 두세요. 본 상담에서 채워도 됩니다.
@@ -956,7 +979,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 onChange={setAdditionalItems}
                 testId="intake-additional-table"
               />
-              <WireCard className="wire-form-card" title={<h3>담당 실무자 종합의견</h3>}>
+              <WireCard className="wire-form-card" title={<h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3>}>
                 <p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p>
                 <WireFormField label="담당 실무자 종합의견" control="textarea" invalid={submitAttempted && managerOpinion.trim().length === 0}>
                   <textarea
@@ -971,7 +994,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   없다. 정기 기록지의 '완료할 일정'과 같은 성격이고, 거기와 마찬가지로
                   기본이 켬이라 실무자가 저장 전에 눈으로 보고 끌 수 있어야 한다. */}
               {linkedSchedule === null ? null : (
-                <WireCard title={<h3>연결된 상담 일정</h3>} testId="intake-schedule-completion">
+                <WireCard title={<h3 id={intakeSectionAnchor('연결된 상담 일정')}>연결된 상담 일정</h3>} testId="intake-schedule-completion">
                   <p className="panel-meta">
                     이 인테이크로 완료 처리할 예정 일정입니다. 체크를 풀면 일정은 예정 그대로 남습니다.
                   </p>
@@ -1017,6 +1040,17 @@ export function IntakeWizard(props: IntakeWizardProps) {
             <WireButton size="large" disabled={busy} onClick={complete}>{editing ? '저장' : '완료'}</WireButton>
           </div>
         </section>
+
+        {/* 우측 바로가기 목차 — 광폭 전용 셋째 열(공용 .wire-toc-rail 이 숨김·붙박이를
+            갖는다). 접힘 표(대출·부채)는 눌러도 접힌 채 제목 줄로만 이동한다. */}
+        <WireCard as="nav" labelledBy="intake-toc-title" testId="intake-toc" className="wire-toc-rail"
+          title={<span id="intake-toc-title">바로가기</span>}>
+          <ol className="wire-toc-list">
+            {stepTocLabels.map((label) => (
+              <li key={label}><a href={`#${intakeSectionAnchor(label)}`}>{label}</a></li>
+            ))}
+          </ol>
+        </WireCard>
       </div>
     </main>
   );

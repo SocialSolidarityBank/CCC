@@ -405,3 +405,12 @@ export function channelForMethod(method: string): 'in_person' | 'phone' | 'video
   if (method === '온라인 화상') return 'video';
   return 'in_person';
 }
+
+/**
+ * 소절 앵커 id(2026-08-09 바로가기 목차). 제목이 곧 id 다 — 점만 빼고(선택자에서 클래스로
+ * 읽힌다) 공백을 - 로 접는다. 한글 id 는 유효하다. 작성 위저드와 조회 화면이 같은 헬퍼를
+ * 쓰므로 같은 제목은 두 화면에서 같은 자리로 간다.
+ */
+export function intakeSectionAnchor(title: string): string {
+  return `intake-sec-${title.replace(/\./g, '').replace(/\s+/g, '-')}`;
+}

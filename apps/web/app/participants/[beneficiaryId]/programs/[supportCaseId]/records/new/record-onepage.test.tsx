@@ -136,7 +136,7 @@ describe('RecordOnepage', () => {
     expect(rail.contains(toc)).toBe(false);
     expect(toc.parentElement).toBe(rail.parentElement);
     expect(toc.tagName).toBe('NAV');
-    expect(toc.className).toContain('record-toc-rail');
+    expect(toc.className).toContain('wire-toc-rail');
 
     // goalSection 슬롯(#record-goals-title)은 페이지가 실어 보내는 부품이라 이 렌더에는 없다.
     const anchors = Array.from(toc.querySelectorAll('a'))

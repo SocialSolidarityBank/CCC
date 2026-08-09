@@ -19,6 +19,7 @@ import {
   NO_RESPONSE_OPTION,
   STEP_GROUPS,
   STEP_TITLES,
+  intakeSectionAnchor,
   type IntakeQuestionGroup,
   type IntakeTableColumn,
 } from './intake-questions';
@@ -85,7 +86,8 @@ function GroupCard(props: {
   lead: ReactNode;
 }) {
   return (
-    <WireCard title={<h3>{props.group.title}</h3>}>
+    // h3 id 는 우측 목차의 앵커 대상이다(2026-08-09 3차 — 작성 위저드와 같은 헬퍼).
+    <WireCard title={<h3 id={intakeSectionAnchor(props.group.title)}>{props.group.title}</h3>}>
       {props.lead}
       {props.group.questions.map((question) => (
         <ReadRow key={question.key} label={question.label} value={answerText(props.answers, question.key)} />
@@ -102,7 +104,7 @@ function TableCard(props: {
   testId: string;
 }) {
   return (
-    <WireCard title={<h3>{props.title}</h3>} testId={props.testId}>
+    <WireCard title={<h3 id={intakeSectionAnchor(props.title)}>{props.title}</h3>} testId={props.testId}>
       {props.rows.length === 0 ? (
         <p className="panel-meta">기록 없음</p>
       ) : (
@@ -156,11 +158,11 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         <>
           {/* 전체 목표(D62 · CCC-68): 작성 위저드와 같은 자리(4단계)에서 읽는다. 수정은
               우상단 '수정'(위저드 수정 모드) 또는 15초 페이지 카드(보조 자리)가 갖는다. */}
-          <WireCard title={<h3>전체 목표</h3>} testId="intake-read-overall-goal">
+          <WireCard title={<h3 id={intakeSectionAnchor('전체 목표')}>전체 목표</h3>} testId="intake-read-overall-goal">
             <ReadRow label="전체 목표" value={overallGoalText.length === 0 ? '설정 전' : overallGoalText} />
           </WireCard>
           <TableCard title="4-2. 추가 확인사항" columns={ADDITIONAL_COLUMNS} rows={props.saved.additionalItems} testId="intake-read-additional" />
-          <WireCard title={<h3>담당 실무자 종합의견</h3>} testId="intake-read-opinion">
+          <WireCard title={<h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3>} testId="intake-read-opinion">
             <p className="wire-field-value intake-read-value">
               {(props.saved.managerOpinion ?? '').trim().length === 0 ? '기록 없음' : props.saved.managerOpinion}
             </p>
@@ -187,13 +189,16 @@ export function IntakeReadView(props: IntakeReadViewProps) {
           </>
         }
       />
+      {/* 광폭(컨테이너 ≥1150)에서 [본문 1fr | 목차 200] 2열이 된다(2026-08-09 3차 —
+          4부 45문항이 한 페이지라 목차의 효과가 가장 큰 화면). 좁으면 한 열, 목차 숨김. */}
+      <div className="intake-read-grid">
       <div className="wizard-stack" data-testid="intake-read-view">
         {sections.map((section, index) => (
           <section key={section.title} className="wizard-stack" aria-label={`${index + 1}. ${section.title}`}>
-            <h2>{index + 1}. {section.title}</h2>
+            <h2 id={`intake-read-part-${index + 1}`}>{index + 1}. {section.title}</h2>
             {index === 0 && (
               <>
-                <WireCard title={<h3>1-1. 당사자 기본정보</h3>} testId="intake-read-basic-info">
+                <WireCard title={<h3 id={intakeSectionAnchor('1-1. 당사자 기본정보')}>1-1. 당사자 기본정보</h3>} testId="intake-read-basic-info">
                   <p className="panel-meta">
                     당사자 등록에 저장된 값입니다. <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
                   </p>
@@ -204,7 +209,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
                   <ReadRow label="주소 또는 거주지역" value={props.extendedPii.region ?? '미입력'} />
                   <ReadRow label="성별" value={props.extendedPii.gender ?? '미입력'} />
                 </WireCard>
-                <WireCard title={<h3>동의 기록</h3>} testId="intake-read-consent">
+                <WireCard title={<h3 id={intakeSectionAnchor('동의 기록')}>동의 기록</h3>} testId="intake-read-consent">
                   {consentRows.map(([label, recorded]) => (
                     <ReadRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
                   ))}
@@ -222,6 +227,31 @@ export function IntakeReadView(props: IntakeReadViewProps) {
             {section.extra}
           </section>
         ))}
+      </div>
+
+      {/* 우측 바로가기 목차 — 부(部) + 소절 두 층, 화면 렌더 순서 그대로(공용 .wire-toc-rail
+          이 광폭 표시·붙박이를 갖는다). 소절 id 는 각 카드 h3 가 같은 헬퍼로 단다. */}
+      <WireCard as="nav" labelledBy="intake-read-toc-title" testId="intake-read-toc" className="wire-toc-rail"
+        title={<span id="intake-read-toc-title">바로가기</span>}>
+        <ol className="wire-toc-list">
+          {STEP_TITLES.map((title, index) => (
+            <li key={title}>
+              <a className="wire-toc-part" href={`#intake-read-part-${index + 1}`}>{index + 1}. {title}</a>
+              <ol>
+                {[
+                  ...(index === 0 ? ['1-1. 당사자 기본정보', '동의 기록'] : []),
+                  ...STEP_GROUPS[index]!.map((group) => group.title),
+                  ...(index === 1 ? ['대출·부채 현황 표'] : []),
+                  ...(index === 2 ? ['3-3. 현재 연계된 기관·서비스'] : []),
+                  ...(index === 3 ? ['전체 목표', '4-2. 추가 확인사항', '담당 실무자 종합의견'] : []),
+                ].map((label) => (
+                  <li key={label}><a href={`#${intakeSectionAnchor(label)}`}>{label}</a></li>
+                ))}
+              </ol>
+            </li>
+          ))}
+        </ol>
+      </WireCard>
       </div>
     </GridContainer>
   );

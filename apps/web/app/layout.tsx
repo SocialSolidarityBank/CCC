@@ -900,6 +900,18 @@ const registerStyles = `
 @media (min-width:768px){
   .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6))}
 }
+/* 인테이크 작성의 광폭 3열(2026-08-09 Q 3차 "인테이크 페이지에도 TOC") — 컨테이너 ≥1150
+   에서 [단계 레일 260 | 본문 1fr | 목차 200]. 목차 자체(.wire-toc-rail)는 공용 규칙이
+   숨김·표시를 갖고, 여기는 트랙만 둔다. 클래스 둘은 record-grid 와 같은 명시도 사정. */
+@container (min-width: 1150px){
+  .wire-container.intake-grid{grid-template-columns:260px minmax(0,1fr) 200px}
+  .intake-grid>.wire-col-3,.intake-grid>.wire-col-9{grid-column:auto}
+}
+/* 인테이크 조회의 광폭 2열 — 본문 스택 + 우측 목차. 좁으면 한 열이고 목차는 숨는다. */
+.intake-read-grid{display:grid;gap:var(--section-gap);align-items:start}
+@container (min-width: 1150px){
+  .intake-read-grid{grid-template-columns:minmax(0,1fr) 200px}
+}
 /* 단계 버튼: 입력칸과 같은 사각 어휘(radius 6 · --line-control 1px)다. 현재 단계는 시간·진행
    축이라 블루 계열(§1-5 배정표) — 채움은 tint, 글자는 deep. */
 /* optical: 10/12 는 높이 40 짜리 컨트롤이 아니라 목록 줄이라 컨트롤 패딩(0 12)을 쓸 수 없다.
@@ -947,28 +959,17 @@ const recordFormStyles = `
   .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start;max-height:calc(100dvh - var(--header-height) - var(--space-6) * 2);overflow-y:auto}
 }
 /* 구획 바로가기 목차(2026-08-09 Q 2차 "TOC 는 우측에, 모바일·태블릿은 안 보여도 돼" —
-   구 레일 맨 위 카드 대체). 기본은 숨김이고, **컨테이너 ≥1150 에서만 셋째 열**로 선다 —
-   장폭 1280 개정(§4-1)으로 광폭 모니터에서만 생기는 자리다. 화면 폭이 아니라 컨테이너
-   폭으로 판단한다(§4-2 와 같은 원리 — 사이드바 유무에 흔들리지 않는다). 발동하면 격자를
-   [레일 300 | 본문 1fr | 목차 200] 명시 트랙으로 바꾸고 12칸 span 을 푼다.
-   이 분기는 record-grid 전용이다 — rail-grid 는 인테이크와 공유라 건드리면 인테이크의
-   2열 격자가 빈 셋째 열을 갖게 된다. */
-.record-toc-rail{display:none}
+   구 레일 맨 위 카드 대체). 옷·붙박이·스크롤 여백은 공용 .wire-toc-rail/.wire-toc-list
+   (wire-styles — 3차에서 인테이크 두 화면과 공용화)가 갖고, 여기는 이 화면의 트랙만 둔다:
+   컨테이너 ≥1150 에서 [레일 300 | 본문 1fr | 목차 200] 명시 트랙으로 바꾸고 12칸 span 을
+   푼다. 이 분기는 record-grid 전용이다 — rail-grid 는 인테이크와 공유라 건드리면
+   인테이크의 2열 격자가 빈 셋째 열을 갖게 된다. */
 @container (min-width: 1150px){
   /* 클래스 둘(0-2-0)로 적는 이유: 기본 12칸 규칙이 .wire-container[data-grid](0-2-0)라
      .record-grid 한 클래스로는 순서와 무관하게 진다(하니스 실측으로 잡은 결함). */
   .wire-container.record-grid{grid-template-columns:300px minmax(0,1fr) 200px}
   .record-grid>.wire-col-4,.record-grid>.wire-col-8{grid-column:auto}
-  .record-toc-rail{display:block;position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start}
 }
-/* 링크 11개가 알약으로 서면 목차가 버튼 기둥이 되므로 문서 목차 문법의 텍스트 목록이다
-   (D58 ⑥의 인라인 참조 축). 이동하면 대상 구획 머리가 셸 헤더 아래로 숨지 않게 본문
-   앵커에 스크롤 여백을 준다. */
-.record-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm)}
-.record-toc-list a{color:var(--sub);text-decoration:none}
-.record-toc-list a:hover{color:var(--ink);text-decoration:underline}
-.record-toc-list a:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
-.record-main [id]{scroll-margin-top:calc(var(--header-height) + var(--space-4))}
 /* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
    올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
