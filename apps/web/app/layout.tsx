@@ -747,8 +747,9 @@ const scheduleStyles = `
 .schedule-briefing-item .wire-badge{margin-right:var(--space-1)}
 /* (.schedule-form 카드 표면은 2026-08-09 삭제 — 마지막 사용처였던 미리보기 게이트가 전용
    .preview-gate-card 로 바뀌었다. -hint·-notice 는 등록·가입 화면이 계속 쓴다.) */
-/* 안내 문구는 14(--text-sm)다 — 2026-08-09 Q 지시(구 12 --text-xs 대체. 입력칸에 붙는
-   .wire-form-hint 는 12 그대로라, 2026-08-07 '도움말 12 전역 통일'은 이 클래스에서만 풀린다).
+/* 안내 문구는 14(--text-sm)다 — 2026-08-09 Q 지시(구 12 --text-xs 대체). 입력칸에 붙는
+   .wire-form-hint 도 2026-08-10 Q 지시로 14 가 되면서 두 도움말 크기가 같아졌고, 2026-08-07
+   '도움말 12 전역 통일'은 완전히 걷혔다.
    이 클래스는 입력칸 아래 한 줄 도움말이 아니라 **구획 머리에 서는 안내 문단**이라 ④ 설명·메타
    단(14/400 --sub)으로 올라간다.
    위아래 여백 8 은 '마지막 기록' 줄(.participant-program-consent-meta)의 위 여백과 같은 값이다
