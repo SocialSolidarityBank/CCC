@@ -39,8 +39,8 @@ describe('RecordOnepage', () => {
     // '전체 목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
     expect(rail.textContent).toContain('세부 목표: 월세 체납 해소');
     expect(rail.textContent).not.toContain('세부 목표 작성');
-    // CCC-76: 목표가 있으면 라벨 옆 민트 배지가 건수를 보인다(진행·상태 축).
-    const badge = rail.querySelector('.record-sticky-label .wire-badge');
+    // CCC-76: 목표가 있으면 카드 제목 옆 민트 배지가 건수를 보인다(진행·상태 축).
+    const badge = getByTestId('record-session-goal-card').querySelector('.record-rail-title .wire-badge');
     expect(badge?.textContent).toBe('1건');
     expect(badge?.getAttribute('data-tone')).toBe('mint');
   });
@@ -81,26 +81,31 @@ describe('RecordOnepage', () => {
     const rail = getByTestId('record-side-rail');
     expect(rail.textContent).toContain('일정에 연결된 목표가 없습니다');
     expect(rail.textContent).not.toContain('미연결');
-    const badge = rail.querySelector('.record-sticky-label .wire-badge');
+    const badge = getByTestId('record-session-goal-card').querySelector('.record-rail-title .wire-badge');
     expect(badge?.textContent).toBe('미설정');
     expect(badge?.getAttribute('data-tone')).toBe('lavender');
   });
 
-  // CCC-76: 레일은 형제 카드 2장 스택이다 — 미해결 액션 아코디언(구 레일 카드 안 콜아웃,
-  // 카드 안 카드 금지 위반 해소) + 진척도 카드. 아코디언 본문은 액션 내용이 위, 지난 상담
-  // 시각이 아래고, '자세히 보기'는 15초 페이지 미해결 액션 구획 앵커로 간다.
-  it('지난 상담이 있으면 레일이 미해결 액션 아코디언과 진척도 카드 2장이 된다', () => {
+  // 2026-08-09 Q: 레일은 형제 카드 4장 스택이다 — 구획 바로가기 목차(맨 위) + 이번 상담
+  // 목표 + 미해결 액션 아코디언 + 체크리스트(구 진척도 카드에서 목표·필수를 가른다).
+  // 아코디언 본문은 액션 내용이 위, 지난 상담 시각이 아래고, '자세히 보기'는 15초 페이지
+  // 미해결 액션 구획 앵커로 간다.
+  it('지난 상담이 있으면 레일이 목차·목표·미해결 액션·체크리스트 카드 4장이 된다', () => {
     const { getByTestId } = render(<RecordOnepage {...props({
       lastRecordSummary: { heldAt: '2026-08-01T05:00:00.000Z', text: '서류 준비를 확인했다' },
       openActionItems: [{ id: 'action-1', description: '서류 제출', owner: 'beneficiary', dueDate: null }],
     })} />);
 
     const rail = getByTestId('record-side-rail');
-    expect(rail.querySelectorAll(':scope > .surface-card').length).toBe(2);
+    expect(rail.querySelectorAll(':scope > .surface-card').length).toBe(4);
 
     const accordion = getByTestId('record-open-actions') as HTMLDetailsElement;
     expect(accordion.tagName).toBe('DETAILS');
     expect(accordion.querySelector('.wire-card-title')?.textContent).toBe('미해결 액션 1건');
+
+    // 이번 상담 목표 카드가 미해결 액션 위에 선다(2026-08-09 Q).
+    const goalCard = getByTestId('record-session-goal-card');
+    expect(goalCard.compareDocumentPosition(accordion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const paragraphs = Array.from(accordion.querySelectorAll('.wire-card-body p'));
     expect(paragraphs[0]?.textContent).toBe('서류 준비를 확인했다');
@@ -112,11 +117,45 @@ describe('RecordOnepage', () => {
     expect(link.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/briefing#open-actions');
   });
 
-  it('지난 상담이 없으면 레일은 진척도 카드 한 장이다', () => {
+  it('지난 상담이 없으면 레일은 목차·목표·체크리스트 카드 3장이다', () => {
     const { getByTestId, queryByTestId } = render(<RecordOnepage {...props()} />);
 
-    expect(getByTestId('record-side-rail').querySelectorAll(':scope > .surface-card').length).toBe(1);
+    expect(getByTestId('record-side-rail').querySelectorAll(':scope > .surface-card').length).toBe(3);
     expect(queryByTestId('record-open-actions')).toBeNull();
+  });
+
+  // 2026-08-09 Q "TOC 넣어서 장폭 늘리기": 레일 맨 위 목차가 본문 구획 전부를 가리킨다.
+  it('구획 바로가기 목차가 레일 맨 위에 서고 본문 구획 앵커와 짝이 맞는다', () => {
+    const { container, getByTestId } = render(<RecordOnepage {...props()} />);
+
+    const rail = getByTestId('record-side-rail');
+    const toc = getByTestId('record-toc');
+    expect(rail.firstElementChild).toBe(toc);
+    expect(toc.tagName).toBe('NAV');
+
+    // goalSection 슬롯(#record-goals-title)은 페이지가 실어 보내는 부품이라 이 렌더에는 없다.
+    const anchors = Array.from(toc.querySelectorAll('a'))
+      .map((anchor) => anchor.getAttribute('href') ?? '')
+      .filter((href) => href !== '#record-goals-title');
+    expect(anchors.length).toBeGreaterThanOrEqual(10);
+    for (const href of anchors) {
+      expect(container.querySelector(href), `${href} 대상 없음`).not.toBeNull();
+    }
+  });
+
+  // 2026-08-09 Q: 미저장 안내는 레일 최하단, 저장 버튼 아래다 — 구 자리는 HERO 아래 본문
+  // 상단이라 매 방문 첫 화면을 안내가 차지했다.
+  it('미저장 안내 슬롯은 레일 맨 아래, 저장 버튼 아래에 선다', () => {
+    const { getByTestId } = render(<RecordOnepage {...props({
+      unsavedNotice: <p data-testid="record-unsaved-notice">아직 서버에 저장되지 않았습니다</p>,
+    })} />);
+
+    const rail = getByTestId('record-side-rail');
+    const notice = getByTestId('record-unsaved-notice');
+    expect(rail.contains(notice)).toBe(true);
+    expect(rail.lastElementChild).toBe(notice);
+    const submit = rail.querySelector('button[type="submit"]') as HTMLElement;
+    expect(submit.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // CCC-76: 자동 저장 대기는 라벤더 배지다(주의·대기 축). 안내문(panel-meta)은 저장 버튼 줄

@@ -41,8 +41,11 @@ export interface ScheduleWizardCandidate {
   participantEmail: string | null;
 }
 
-// D31: 당사자 행 라벨 — 실명·연락처·이메일 순. 실명이 없으면 가명 슬러그로 폴백하고,
-// 비어 있는 필드는 MetaRow 가 거른다(예: 연락처만 있으면 "제비-003" "010-0000-0000" 두 노드).
+// D31: 당사자 행 라벨 — 실명·가명 ID·연락처·이메일 순. 실명이 없으면 가명 슬러그가 이름
+// 자리에 서고, 비어 있는 필드는 MetaRow 가 거른다.
+// 가명 ID 는 이름 다음에 민트 컬러로 선다(2026-08-09 Q "아이디 넣고 컬러처리" — 사람·소속
+// 축 D34, 14/600 은 §1-4 규칙 3 의 deep 글자 하한). 이름이 없어 ID 가 이름 자리에 선
+// 경우는 같은 값을 두 번 적지 않는다(D31 폴백 변형).
 // 굵기는 당사자 카드와 같은 계약이다(2026-08-07 Q "텍스트 weight 수정") — 이름만 600,
 // 나머지 값은 행 기본 400. 행 자체의 400 은 .schedule-candidate-row 가 갖는다.
 function candidateLabel(candidate: ScheduleWizardCandidate) {
@@ -51,6 +54,9 @@ function candidateLabel(candidate: ScheduleWizardCandidate) {
       <span key="name" className="schedule-candidate-name">
         {candidate.participantName ?? candidate.beneficiaryId}
       </span>,
+      candidate.participantName === null
+        ? null
+        : <span key="id" className="schedule-candidate-id">{candidate.beneficiaryId}</span>,
       candidate.participantPhone,
       candidate.participantEmail,
     ]} />
@@ -287,18 +293,19 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               /* 후보 목록은 낱개 카드라 폭을 다 쓴다 — .wizard-form(520) 밖이다. */
               <div className="schedule-candidate-list">
                 {candidates.map((candidate) => (
-                  /* 행 자체가 '고르기'이고, 그 옆 버튼이 '보기'다(2026-08-09 Q "당사자 카드에
-                     당사자 정보 버튼 넣어서 정보 바로 확인"). 행 안에 링크를 겹쳐 두면 클릭
-                     하나가 두 뜻을 갖게 되므로 버튼을 행 **밖** 형제로 둔다 — 고르려고 누른
-                     것이 화면 이동이 되는 사고를 막는다. */
-                  <div key={candidate.value} className="schedule-candidate-item">
-                    <ListRow
-                      className="schedule-candidate-row"
-                      selected={selected?.value === candidate.value}
-                      onClick={() => selectCandidate(candidate)}
-                    >
+                  /* 카드가 곧 행이고 '당사자 정보' 버튼도 카드 안 오른쪽 끝이다(2026-08-09 Q
+                     "버튼도 카드 안에, 카드는 full-width" — 구 행 밖 형제 버튼 대체).
+                     행 전체를 button 으로 두면 안에 링크를 넣을 수 없으므로(버튼 속 버튼),
+                     카드 = div, 고르기 = 안쪽 flex:1 버튼, 보기 = 링크 형제로 가른다 —
+                     클릭 하나가 두 뜻을 갖지 않는 것은 그대로다. */
+                  <div
+                    key={candidate.value}
+                    className="surface-card wire-row schedule-candidate-row schedule-candidate-item"
+                    data-selected={selected?.value === candidate.value ? 'true' : undefined}
+                  >
+                    <button type="button" className="schedule-candidate-select" onClick={() => selectCandidate(candidate)}>
                       {candidateLabel(candidate)}
-                    </ListRow>
+                    </button>
                     <WireButton variant="neutral" height="sm" href={`/participants/${encodeURIComponent(candidate.beneficiaryId)}`}>
                       당사자 정보
                     </WireButton>
@@ -382,31 +389,37 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                 )}
               </WireCard>
               <WireCard title="지난 상담 브리핑">
+                {/* 세부 목표 카드와 같은 불릿 본문이다(2026-08-09 Q "세부 내용도 똑같이 불릿으로").
+                    출처는 배지로 가른다 — 수기 = 무채색(회차 목록 D5 와 같은 배지), 승인 요약 =
+                    라벤더(AI 축, D34). 긴 문장은 16 본문 계약(keep-all)대로 줄바꿈해 행이 는다 —
+                    구 panel-meta MetaRow 는 조각 사이 세로선이 줄바꿈마다 끊겨 표처럼 읽혔다. */}
                 {context?.lastBriefing === null || context?.lastBriefing === undefined
                   ? <WireEmpty>지난 상담 기록이 없습니다.</WireEmpty>
-                  : <p className="panel-meta"><MetaRow items={[context.lastBriefing.source === 'ai' ? '승인 요약' : '수기 메모', context.lastBriefing.text]} /></p>}
+                  : <WireBullets items={[
+                    <span key="briefing" className="schedule-briefing-item">
+                      {context.lastBriefing.source === 'ai'
+                        ? <WireBadge tone="lavender">승인 요약</WireBadge>
+                        : <WireBadge>수기</WireBadge>}
+                      {' '}{context.lastBriefing.text}
+                    </span>,
+                  ]} />}
               </WireCard>
             </div>
-            {/* 목표 카드(2026-08-09 Q): 세션 목표와 세부 목표 연결이 **나란히** 서고 전체가
-                카드 한 장이다. 구 배치는 목표 입력 아래 선택창, 그 아래 삭제 버튼으로 세 줄이
-                쌓여 어느 선택창이 어느 목표에 붙는지가 여백으로만 구분됐다. */}
+            {/* 목표 카드(2026-08-09 Q 재개편): 한 항목 = 머리 줄 + 전폭 입력 줄이다.
+                머리 줄은 **세부 목표 연결이 위(왼쪽)** 에 아코디언 활성과 같은 그라데이션
+                아웃라인을 입고("아코디언 그라데이션 스타일"), 우측에 '세션 목표 N' 제목이
+                선다. 아래 입력칸은 장폭을 끝까지 쓰고 +·- 가 입력칸 오른쪽 끝에 세로로
+                붙는다. 구 배치(목표 입력 아래 선택창, 그 아래 삭제 버튼 세 줄 쌓임)와 720
+                폭 상한(.wizard-row)을 함께 걷어냈다. 머리 줄 두 조각은 참고 카드 제목과
+                같은 16/600 이다(Q "세부 목표 = 지난 상담 브리핑 = 세션 목표 1 = 세부 목표
+                연결 폰트 크기 동일"). 제목이 머리 줄에 있으므로 입력칸의 보이는 라벨은
+                따로 두지 않는다 — 접근 이름은 aria-label 이 갖는다. */}
             <WireCard className="wire-form-card">
-              <div className="wizard-row">
+              <div className="session-goal-list">
                 {sessionGoals.map((goal, index) => (
-                <div key={index} className="wizard-field">
-                  <div className="wire-form-grid">
-                    <WireFormField label={`세션 목표 ${index + 1}`} control="textarea" htmlFor={`session-goal-${index}`}>
-                      <textarea
-                        id={`session-goal-${index}`}
-                        aria-label={`세션 목표 ${index + 1}`}
-                        rows={4}
-                        value={goal.body}
-                        onChange={(event) => setSessionGoals((prev) => prev.map(
-                          (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
-                        ))}
-                      />
-                    </WireFormField>
-                    <WireFormField label="세부 목표 연결" control="select" htmlFor={`session-goal-case-${index}`}>
+                <div key={index} className="session-goal-entry" data-testid={`session-goal-entry-${index}`}>
+                  <div className="session-goal-head">
+                    <WireFormField label="세부 목표 연결" control="select" htmlFor={`session-goal-case-${index}`} className="session-goal-link">
                       <select
                         id={`session-goal-case-${index}`}
                         value={goal.caseGoalId}
@@ -423,16 +436,30 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                         {goalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
                     </WireFormField>
+                    <span className="session-goal-title">세션 목표 {index + 1}</span>
                   </div>
-                  <WireRepeatActions
-                    itemLabel="목표"
-                    onAdd={index === sessionGoals.length - 1
-                      ? () => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])
-                      : undefined}
-                    onRemove={sessionGoals.length > 1
-                      ? () => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                      : undefined}
-                  />
+                  <div className="session-goal-input">
+                    <span className="wire-input-box" data-control="textarea">
+                      <textarea
+                        id={`session-goal-${index}`}
+                        aria-label={`세션 목표 ${index + 1}`}
+                        rows={2}
+                        value={goal.body}
+                        onChange={(event) => setSessionGoals((prev) => prev.map(
+                          (item, itemIndex) => (itemIndex === index ? { ...item, body: event.target.value } : item),
+                        ))}
+                      />
+                    </span>
+                    <WireRepeatActions
+                      itemLabel="목표"
+                      onAdd={index === sessionGoals.length - 1
+                        ? () => setSessionGoals((prev) => [...prev, { body: '', caseGoalId: '' }])
+                        : undefined}
+                      onRemove={sessionGoals.length > 1
+                        ? () => setSessionGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                        : undefined}
+                    />
+                  </div>
                 </div>
               ))}
               </div>
@@ -453,31 +480,37 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               <h2>맞춤형 질문</h2>
               <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
             </div>
-            {/* 목표 카드와 **같은 레이아웃**이다(2026-08-09 Q "맞춤형 질문도 같은 레이아웃"). */}
+            {/* 목표 카드와 **같은 레이아웃**이다(2026-08-09 Q "맞춤형 질문도 같은 레이아웃") —
+                입력칸이 장폭을 다 쓰고 +·- 가 오른쪽 끝에 세로로 선다. 연결 선택창이 없으니
+                머리 줄은 라벨('질문 N', 같은 16/600)만 남는다. 구 .wizard-form 의 520 폭
+                상한도 함께 걷어냈다. */}
             <WireCard className="wire-form-card">
-              <div className="wizard-form">
+              <div className="session-goal-list">
                 {customQuestions.map((question, index) => (
-                <div key={index} className="wizard-field">
-                  <WireFormField label={`질문 ${index + 1}`} control="textarea" htmlFor={`custom-question-${index}`}>
-                    <textarea
-                      id={`custom-question-${index}`}
-                      aria-label={`맞춤형 질문 ${index + 1}`}
-                      rows={4}
-                      value={question}
-                      onChange={(event) => setCustomQuestions((prev) => prev.map(
-                        (item, itemIndex) => (itemIndex === index ? event.target.value : item),
-                      ))}
+                <div key={index} className="session-goal-entry" data-kind="question">
+                  <span className="session-goal-title" id={`custom-question-title-${index}`}>질문 {index + 1}</span>
+                  <div className="session-goal-input">
+                    <span className="wire-input-box" data-control="textarea">
+                      <textarea
+                        id={`custom-question-${index}`}
+                        aria-label={`맞춤형 질문 ${index + 1}`}
+                        rows={2}
+                        value={question}
+                        onChange={(event) => setCustomQuestions((prev) => prev.map(
+                          (item, itemIndex) => (itemIndex === index ? event.target.value : item),
+                        ))}
+                      />
+                    </span>
+                    <WireRepeatActions
+                      itemLabel="질문"
+                      onAdd={index === customQuestions.length - 1
+                        ? () => setCustomQuestions((prev) => [...prev, ''])
+                        : undefined}
+                      onRemove={customQuestions.length > 1
+                        ? () => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                        : undefined}
                     />
-                  </WireFormField>
-                  <WireRepeatActions
-                    itemLabel="질문"
-                    onAdd={index === customQuestions.length - 1
-                      ? () => setCustomQuestions((prev) => [...prev, ''])
-                      : undefined}
-                    onRemove={customQuestions.length > 1
-                      ? () => setCustomQuestions((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                      : undefined}
-                  />
+                  </div>
                 </div>
               ))}
               </div>

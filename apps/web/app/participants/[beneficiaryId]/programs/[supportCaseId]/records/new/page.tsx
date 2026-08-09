@@ -345,9 +345,18 @@ async function submitRecord(formData: FormData): Promise<void> {
   redirect(recoveryDestination(beneficiaryId, supportCaseId, outcome, submissionId));
 }
 
+/** 미저장 안내(2026-08-09 Q) — 좌측 레일 최하단, 저장 버튼 아래 콜아웃. 구 자리는 HERO
+ *  아래 본문 상단이라 매 방문 첫 화면을 안내가 차지했다. 주의·대기 축 라벤더(D34). */
+function UnsavedNotice() {
+  return <WireCallout tone="lavender" role="status" testId="record-unsaved-notice" title="아직 서버에 저장되지 않았습니다">
+    저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.
+  </WireCallout>;
+}
+
 function RecoveryStatus({ state }: { state: RecoveryState }) {
   const content: Record<RecoveryState, string> = {
-    idle: '아직 서버에 저장되지 않았습니다.',
+    // idle 은 여기로 오지 않는다 — 미저장 안내는 레일 콜아웃(UnsavedNotice)이 맡는다.
+    idle: '',
     invalid_request: '입력 형식을 확인한 뒤 같은 제출 ID로 다시 시도하세요.',
     validation_error: '입력한 상담 기록을 확인한 뒤 같은 제출 ID로 다시 시도하세요.',
     authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인한 뒤 새 상담 기록을 시작하세요.',
@@ -374,14 +383,10 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     service_unavailable: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.',
     unknown_outcome: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.',
   };
-  // 미저장 안내는 알약이 아니라 공용 안내줄이다(2026-08-08 Q — 주의·대기 축의 콜아웃,
-  // 인테이크 남은 필수·일정 경고와 같은 부품). 오류는 다른 화면과 같은 WireError 텍스트 줄
-  // (2026-08-09 Q "알약 박스" 정정 — 문장 오류가 배지에 서면 전폭 알약 막대가 된다).
-  if (state === 'idle') {
-    return <WireCallout tone="lavender" role="status" testId="record-unsaved-notice" title="아직 서버에 저장되지 않았습니다">
-      저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.
-    </WireCallout>;
-  }
+  // 오류는 다른 화면과 같은 WireError 텍스트 줄(2026-08-09 Q "알약 박스" 정정 — 문장
+  // 오류가 배지에 서면 전폭 알약 막대가 된다). idle 미저장 안내는 위 UnsavedNotice 로
+  // 분리해 레일이 갖는다(2026-08-09 Q "좌측 사이드바 최하단으로").
+  if (state === 'idle') return null;
   return <WireError>{content[state]}</WireError>;
 }
 
@@ -513,6 +518,7 @@ export default async function NewRecordPage({
         )}
         supportCaseId={activeSupportCaseId}
         submissionFailed={state !== 'idle'}
+        unsavedNotice={state === 'idle' ? <UnsavedNotice /> : null}
       />
 
       {/* 구 "제출 ID <uuid> …" 원문 표기는 삭제(2026-08-08 Q — 사람용 안내는 좌측 레일이

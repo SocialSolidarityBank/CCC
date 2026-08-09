@@ -13,8 +13,9 @@ export interface WireCardProps {
   children: ReactNode;
   /** 카드 상단 타이틀. 있으면 아래 그라데이션 1px 구분선이 붙는다. */
   title?: ReactNode;
-  /** 카드가 독립적인 글 한 편이면 article, 페이지의 한 구획이면 section 으로 낸다. 기본 div. */
-  as?: 'div' | 'article' | 'section';
+  /** 카드가 독립적인 글 한 편이면 article, 페이지의 한 구획이면 section, 이동 목차면 nav 로
+   *  낸다(2026-08-09 기록지 바로가기). 기본 div. */
+  as?: 'div' | 'article' | 'section' | 'nav';
   /** 카드 이름을 짚어 주는 요소 id. as 를 함께 주지 않으면 랜드마크가 생기지 않는다. */
   labelledBy?: string;
   /**

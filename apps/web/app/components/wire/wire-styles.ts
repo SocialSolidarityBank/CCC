@@ -163,6 +163,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* col-8 은 인테이크 위저드(단계 목록 4 + 본문 8)가 쓰는데 규칙이 없어 span 이 안 먹었다 —
    본문이 12분의 1 칸으로 떨어져 글줄이 몇 어절에서 끊겼다(2026-07-26 확인). */
 .wire-col-8{grid-column:span 8}
+.wire-col-9{grid-column:span 9}
 .wire-col-12{grid-column:span 12}
 /* 레일 격자 — 좌 4(레일) / 우 8(본문) 화면이 함께 쓰는 이름이다(2026-08-09). 인테이크와
    상담 기록 작성이 **같은 레이아웃이어야 한다**는 것이 2026-08-08 Q 지시인데, 둘 다
@@ -175,7 +176,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
   /* col-8 이 이 목록에 빠져 있었다(CCC-76 실측) — 한 열 전환 후에도 span 8 이 남아 암묵
      8열이 생기고, 레일(col-4)이 본문(col-8)보다 좁게 그려졌다(744px 실측 572 vs 712).
      인테이크·상담 기록 작성의 레일 격자가 같은 이름을 쓴다. */
-  .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-8,.wire-col-12{grid-column:auto}
+  .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-8,.wire-col-9,.wire-col-12{grid-column:auto}
 }
 /* ── 카드-섹션 여백 3단 (2026-08-05 Q · ADR-0030) ── 카드가 전면 컴포넌트화되면서 간격도
    세 값으로 닫는다. **이 밖의 카드 간격을 새로 만들지 않는다**:
@@ -505,12 +506,17 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    28 이 되어 아래(20)와 어긋난다. 구 인라인 captionStyle 이 margin:0 을 갖고 있어 안 보이던
    결함이고, 클래스로 옮기며 드러났다. .panel-meta 자체는 건드리지 않는다 — 카드 제목 슬롯
    (.wire-card-title)은 격자가 아니라 그 8 이 제목과 설명을 갈라 주는 유일한 여백이다.
-   위저드 격자 셋(스택·폼·칸)의 직계 p 가 대상이다. 실제로 걸리는 것은 .panel-meta ·
+   위저드 격자 둘(스택·칸)의 직계 p 가 대상이다. 실제로 걸리는 것은 .panel-meta ·
    .wire-field-error · .wire-badge · .wire-field-value 뿐이고 넷 다 0 이 맞다 — 인테이크
-   기본정보 줄은 이 규칙이 없으면 라벨↔값이 8(격자) + 8(p 마진) = 16 으로 벌어진다. */
-.wizard-stack>p,.wizard-form>p,.wizard-field>p{margin:0}
+   기본정보 줄은 이 규칙이 없으면 라벨↔값이 8(격자) + 8(p 마진) = 16 으로 벌어진다.
+   (.wizard-form 은 2026-08-09 삭제 — 목표·질문 입력이 장폭 전폭으로 바뀌며 520 읽기 폭
+   래퍼의 마지막 사용처가 사라졌다.) */
+.wizard-stack>p,.wizard-field>p{margin:0}
 /* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
 .wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 무응답·해당 없음 줄(인테이크 서술 문항)만 8 — 버튼 사이가 입력칸↔버튼 줄 간격
+   (.wizard-field gap 8)과 같아야 한 묶음으로 읽힌다(2026-08-09 Q). */
+.wizard-answer-actions{gap:var(--space-2)}
 /* 반복 칸의 +/- 세트(WireRepeatActions, 2026-08-09). 한 쌍이 한 줄에 오른쪽으로 붙는다 —
    조작 대상 바로 아래이고, 간격은 행 스택 값 8 이다(둘이 한 쌍으로 읽혀야 하므로 조작 줄
    기본 12 보다 좁다). 아이콘 버튼은 정사각이라 폭을 높이에 맞춘다. */
@@ -521,8 +527,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다.
    2026-08-09: 목표·질문 묶음이 카드 안으로 들어갔지만 이 래퍼는 **카드 안에 그대로 남는다** —
    카드가 장폭 1120 을 쓰므로 래퍼를 빼면 textarea 글줄이 1070 이 되어 이 규칙이 무의미해진다.
-   카드는 묶음을 보이게 하고, 읽기 폭은 여전히 이 래퍼가 정한다. */
-.wizard-form{display:grid;gap:var(--space-4);max-width:520px}
+   카드는 묶음을 보이게 하고, 읽기 폭은 여전히 이 래퍼가 정한다.
+   → 2026-08-09 삭제: Q "입력 필드 길이 장폭에 맞춰서 최대로" 로 목표·질문 입력이 전폭
+   한 줄 문법(.session-goal-*)으로 바뀌며 마지막 사용처가 사라졌다. */
 /* 나란히 서는 컨트롤 줄(2026-08-09 Q "2 column grid"). 520 은 **글줄 폭**이라 여기 쓸 수
    없다 — 두 칸으로 나누면 250 이 되고, 날짜·시각 상자는 최소 288(칸 240 + 간격 8 + 달력
    버튼 40)이라 그 안에서 두 줄로 접힌다. 읽기 폭이 아니라 조작 폭이므로 §4-1 이 폼 화면
