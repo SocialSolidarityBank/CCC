@@ -19,9 +19,9 @@ export interface StoredDraft<T> {
   phase: DraftPhase;
 }
 
-/** 임시본 1건의 저장 키. 참여 사업 1건당 종류별로 1개다. */
-export function draftKey(kind: 'intake' | 'record', supportCaseId: string): string {
-  return `${KEY_PREFIX}${kind}:${supportCaseId}`;
+/** 임시본 1건의 저장 키. 인테이크·기록지는 참여 사업 1건당, 세션 목표는 일정 1건당 1개다. */
+export function draftKey(kind: 'intake' | 'record' | 'session-plan', scopeId: string): string {
+  return `${KEY_PREFIX}${kind}:${scopeId}`;
 }
 
 /**
