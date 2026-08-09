@@ -518,9 +518,11 @@ const briefingStyles = `
    AI 제안만 라벤더다 — AI·승인 대기 축(D58 ④). */
 .briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .briefing-qlabel[data-tone="ai"]{color:var(--lavender-deep)}
-/* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층. */
+/* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층.
+   행마다 라벤더 tint 상자(2026-08-09 Q, CCC-77). AI·승인 대기 축(D58 ④)을 면으로 편다.
+   글자는 --ink/--sub 그대로다: 라벤더 deep 글자는 tint 위 대비 미달이라 금지(§9). */
 .briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
-.briefing-suggestion{display:grid;gap:var(--space-1)}
+.briefing-suggestion{display:grid;gap:var(--space-1);padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--lavender-tint)}
 .briefing-suggestion-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 본문 16 기본(2026-08-06 Q) — 아코디언 안 읽는 글은 전부 16 이고, 14 는 라벨(qlabel)·
    메타(근거 링크·이력 요약)만 남는다. */
@@ -682,6 +684,10 @@ const settingsStyles = `
 `;
 
 const scheduleStyles = `
+/* 다가오는 일정: 오늘/다가오는 구획(CCC-66). 제목과 카드 그리드 사이 16 은 §4-3
+   (섹션 제목↔내용 16)이다(CCC-77). .record-section-title 은 다른 화면과 공유라
+   margin 을 주지 않고 구획 그리드 gap 으로 만든다. */
+.schedule-section{display:grid;gap:var(--space-4)}
 /* ticket-20: 상담 등록 */
 /* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
    당사자 카드의 굵기 계약(이름만 강조)을 위저드 행에도 잇는다.
