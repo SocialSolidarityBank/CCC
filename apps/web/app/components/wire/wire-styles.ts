@@ -184,18 +184,42 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 목차 이동 시 대상 구획 머리가 스티키 헤더 아래로 숨지 않게 하는 전역 스크롤 여백. */
 .page-content [id]{scroll-margin-top:calc(var(--header-height) + var(--space-4))}
 .wire-col-12{grid-column:span 12}
-/* 레일 격자 — 좌 4(레일) / 우 8(본문) 화면이 함께 쓰는 이름이다(2026-08-09). 인테이크와
+/* 레일 격자 — 레일 + 본문(+ 광폭 목차) 화면이 함께 쓰는 이름이다(2026-08-09). 인테이크와
    상담 기록 작성이 **같은 레이아웃이어야 한다**는 것이 2026-08-08 Q 지시인데, 둘 다
    인라인 style={{padding:0,gap:24}} 로 각자 들고 있어서 한쪽만 바뀔 수 있는 상태였다.
    격자 기본 gap 은 목록 간격 20 이고, 이 레일 화면들만 페이지 스택 간격 24 를 쓴다
-   (여백 3단 ①, 레일과 본문은 같은 목록의 형제가 아니라 페이지의 두 구획이다). */
-.rail-grid{row-gap:var(--section-gap);column-gap:var(--section-gap)}
+   (여백 3단 ①, 레일과 본문은 같은 목록의 형제가 아니라 페이지의 두 구획이다).
+   **클래스 둘로 적는다**(2026-08-09 정정) — 한 클래스 .rail-grid(0-1-0)는 기본값
+   .wire-container[data-grid="true"](0-2-0)에 져서 계약이 적힌 뒤로도 실제 간격은 20 이었다
+   (실측: 컨테이너 1200 에서 300+660+200 = 1160, 남은 40 이 20 짜리 두 칸). */
+.wire-container.rail-grid{row-gap:var(--section-gap);column-gap:var(--section-gap)}
 @media(max-width:767px){
   .wire-container[data-grid="true"]{grid-template-columns:1fr}
   /* col-8 이 이 목록에 빠져 있었다(CCC-76 실측) — 한 열 전환 후에도 span 8 이 남아 암묵
-     8열이 생기고, 레일(col-4)이 본문(col-8)보다 좁게 그려졌다(744px 실측 572 vs 712).
-     인테이크·상담 기록 작성의 레일 격자가 같은 이름을 쓴다. */
+     8열이 생기고, 레일(col-4)이 본문(col-8)보다 좁게 그려졌다(744px 실측 572 vs 712). */
   .wire-col-3,.wire-col-4,.wire-col-6,.wire-col-8,.wire-col-9,.wire-col-12{grid-column:auto}
+}
+/* ── 레일 화면 폭 계단(2026-08-09 Q "일정 폭 이하에선 사이드바가 안 보이거나 상단으로") ──
+   구 상태는 축이 둘로 갈려 있었다: 한 열 전환은 **뷰포트** 767, 3열 전환은 **컨테이너** 1150.
+   그 사이에서 레일은 12칸 중 3~4칸이라 폭을 따라 계속 줄었고, 카드 패딩 24 를 빼면 글이
+   설 자리가 사라졌다(실측: 뷰포트 1100 에서 레일 228·안쪽 165, 900 에서 162·안쪽 124 —
+   제목 '이번 상담 목표'가 두 줄로 접혔다). 축을 컨테이너 하나로 모으고 레일에 **고정 트랙**을
+   준다 — 레일은 설계 폭(--rail-width)에서 더 줄지 않고, 좁아지는 몫은 본문이 받는다.
+   숨김이 아니라 상단 이동인 이유: 이 레일들은 장식이 아니라 기능이다(상담 기록은 나가기·저장
+   버튼, 인테이크는 4단계 이동). 숨기면 화면이 못 쓰게 된다.
+   880 의 근거는 실측이다 — 흔한 1280 창의 컨테이너가 905 라 두 열이 살아 있어야 하고(레일
+   300 + 간격 24 + 본문 581), 그 아래(뷰포트 1254 부터)부터 한 열로 접는다.
+   레일 폭은 화면이 --rail-width 로 정하고, 안 정하면 트랙 기본값 300 이 선다(기본값을 이
+   규칙에 선언하지 않는 이유: 그러면 0-2-0 이 되어 화면의 한 클래스 선언이 조용히 지고,
+   렌더는 멀쩡해 보이는데 폭만 틀린 상태가 된다 — 실제로 인테이크가 260 대신 300 으로 났다). */
+.wire-container.rail-grid{grid-template-columns:minmax(0,1fr)}
+@container (min-width: 880px){
+  .wire-container.rail-grid{grid-template-columns:var(--rail-width, 300px) minmax(0,1fr)}
+}
+@container (min-width: 1150px){
+  /* 목차가 셋째 열로 선다(.wire-toc-rail 이 자기 숨김·붙박이를 갖는다 — 그 아래 폭에서는
+     display:none 이라 트랙을 차지하지 않는다). */
+  .wire-container.rail-grid{grid-template-columns:var(--rail-width, 300px) minmax(0,1fr) 200px}
 }
 /* ── 카드-섹션 여백 3단 (2026-08-05 Q · ADR-0030) ── 카드가 전면 컴포넌트화되면서 간격도
    세 값으로 닫는다. **이 밖의 카드 간격을 새로 만들지 않는다**:
@@ -321,7 +345,17 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 .goal-tree-overall{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 .goal-tree-overall-text{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 .goal-tree-overall-text.is-empty{color:var(--sub)}
-.goal-tree-goals{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+/* 세부 목표는 여럿이 나란히 서는 형제 목록이다 — 2026-08-09 Q "위계나 정리 없이 막 나열된
+   경향이 크다, 앞에 구분자를 넣어 달라". 구분자는 새로 만들지 않고 §5 불릿 목록 부품
+   (.wire-bullets — 6px 원형 --sub 점 + 들여쓰기 16)을 목록에 얹는다. 항목이 2개 이상일 때만
+   얹는 것도 그 부품의 규칙이라(2026-08-07) 클래스를 붙이는 쪽에서 가른다 — 한 항목뿐이면
+   목록이 아니라 문장이다. 글자 단은 그대로 ③ 값·본문(16/400 --ink)이라 §2-2 위계 4단에
+   다섯 번째 단이 생기지 않는다. */
+.goal-tree-goals{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
+/* 불릿 목록 기본 간격은 8 인데 여기는 16 이다(클래스 둘 0-2-0 — .wire-bullets 가 이 파일
+   뒤쪽이라 한 클래스끼리는 그쪽이 이긴다): 세부 목표마다 세션 목표 가지가 매달려 있어,
+   8 이면 옆 목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. */
+.goal-tree-goals.wire-bullets{gap:var(--space-4)}
 .goal-tree-goal{display:grid;gap:var(--space-2)}
 .goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 .goal-tree-goal-title{font-size:var(--text-md);line-height:normal;color:var(--ink)}
@@ -331,7 +365,18 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 세션 목표는 세부 목표 아래 들여쓴 가지다 — 회기 시각 · 문구. 왼쪽 --line 세로선이
    소속을 만든다(트리의 가지 표시. 그라데이션 세로선은 인용 전용이라 쓰지 않는다 — §5). */
 .goal-tree-session-rows{display:grid;gap:var(--space-2);margin:0;padding-left:var(--space-4);border-left:1px solid var(--line);list-style:none}
-.goal-tree-session-row{font-size:var(--text-sm);color:var(--sub)}
+/* 한 줄 = [날짜][문장][상태]. 날짜·상태는 줄지 않고 문장만 자기 칸 안에서 접힌다 — 구
+   MetaRow 한 줄은 문장이 접힐 때 조각 구분 세로선이 본문 앞 막대로 남았다(2026-08-09 Q 보고).
+   접힌 둘째 줄이 문장 시작선에 맞으므로 날짜 칸이 그대로 눈금 역할을 한다. */
+.goal-tree-session-row{display:flex;align-items:baseline;gap:var(--space-3);font-size:var(--text-sm);color:var(--sub)}
+/* 회기 날짜는 블루 계열이다(2026-08-09 Q "날짜는 컬러 처리해서 구분해 달라") — D58 ④ 의
+   고정 의미 블루=일정·시간. 둘 다 --sub 민짜여서 어디까지가 날짜인지 눈으로 갈리지 않았다.
+   deep 색 글자는 §6 규칙 3 대로 14 이상·굵기 600 에서만 쓴다(.note-inline a·.wire-form-hint a
+   와 같은 레시피). 이력 아코디언 안 시각은 그대로 둔다 — 거기는 '최초 작성 · 이름 · 시각'
+   세 조각짜리 메타 줄이라 날짜만 물들이면 나머지 두 조각과 위계가 뒤바뀐다. */
+.goal-tree-session-date{flex:none;color:var(--blue-deep);font-weight:600}
+.goal-tree-session-body{min-width:0}
+.goal-tree-session-suffix{flex:none}
 /* 문구 이력(D62 §4) — 기본 숨김, '이력 보기'로만 연다. 요약은 처리 이력(.briefing-history)과
    같은 14/600 --sub 어휘로 목표 문구와 같은 줄 오른쪽에 서고, 펼친 이력은 줄을 통째로 쓴다.
    details 가 상자를 버리고(display:contents) 자식을 그대로 flex 줄에 내놓는 동의 '전문 보기'

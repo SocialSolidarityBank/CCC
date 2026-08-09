@@ -747,8 +747,16 @@ const scheduleStyles = `
 .schedule-briefing-item .wire-badge{margin-right:var(--space-1)}
 /* (.schedule-form 카드 표면은 2026-08-09 삭제 — 마지막 사용처였던 미리보기 게이트가 전용
    .preview-gate-card 로 바뀌었다. -hint·-notice 는 등록·가입 화면이 계속 쓴다.) */
-/* 도움말 문구는 12(--text-xs, 2026-08-07 Q 전역 통일) — .wire-form-hint 와 같은 역할이다. */
-.schedule-form-hint{margin:0;color:var(--sub);font-size:var(--text-xs)}
+/* 안내 문구는 14(--text-sm)다 — 2026-08-09 Q 지시(구 12 --text-xs 대체. 입력칸에 붙는
+   .wire-form-hint 는 12 그대로라, 2026-08-07 '도움말 12 전역 통일'은 이 클래스에서만 풀린다).
+   이 클래스는 입력칸 아래 한 줄 도움말이 아니라 **구획 머리에 서는 안내 문단**이라 ④ 설명·메타
+   단(14/400 --sub)으로 올라간다.
+   위아래 여백 8 은 '마지막 기록' 줄(.participant-program-consent-meta)의 위 여백과 같은 값이다
+   (2026-08-09 Q). 부모 격자의 gap 12 와 합쳐 렌더 여백이 20 으로 맞는다 — 실측으로 확인한
+   '마지막 기록' 위 여백도 20 이다. 묶음의 첫 줄일 때는 위 여백을 걷는다: 그 자리는 카드
+   구분선 아래 24(카드 계약)라 8 을 더하면 32 로 튄다. */
+.schedule-form-hint{margin:var(--space-2) 0;color:var(--sub);font-size:var(--text-sm)}
+.schedule-form-hint:first-child{margin-top:0}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
 .schedule-form-notice{color:var(--ink);font-weight:600}
 /* 동의 묶음은 카드 안 상자였다 — D59 '카드 안 카드 금지'로 플랫: 위 구분선 하나 + 여백. */
@@ -897,16 +905,15 @@ const registerStyles = `
    늘어난 컬럼 높이를 균등 분배해 단계 버튼 하나가 500px 넘게 벌어진다(2026-08-09 인라인 정리로
    여기 옮겼다). 단계 사이는 8 — .wizard-stack(20)보다 촘촘한 목록이다. */
 .intake-step-nav{display:grid;gap:var(--space-2);align-content:start}
-@media (min-width:768px){
+/* 붙박이는 **두 열일 때만**이다(2026-08-09) — 기준을 .rail-grid 의 폭 계단과 같은 컨테이너
+   880 으로 옮겼다. 구 뷰포트 768 기준은 한 열이 된 뒤에도 살아 있어, 상단으로 내려온 레일이
+   본문 위에 붙박여 화면을 덮었다. */
+@container (min-width: 880px){
   .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6))}
 }
-/* 인테이크 작성의 광폭 3열(2026-08-09 Q 3차 "인테이크 페이지에도 TOC") — 컨테이너 ≥1150
-   에서 [단계 레일 260 | 본문 1fr | 목차 200]. 목차 자체(.wire-toc-rail)는 공용 규칙이
-   숨김·표시를 갖고, 여기는 트랙만 둔다. 클래스 둘은 record-grid 와 같은 명시도 사정. */
-@container (min-width: 1150px){
-  .wire-container.intake-grid{grid-template-columns:260px minmax(0,1fr) 200px}
-  .intake-grid>.wire-col-3,.intake-grid>.wire-col-9{grid-column:auto}
-}
+/* 인테이크 작성의 레일 폭(2026-08-09 Q 3차 "인테이크 페이지에도 TOC"). 트랙 배치와 폭 계단은
+   공용 .rail-grid 가 갖고, 화면은 자기 레일 폭만 정한다. */
+.intake-grid{--rail-width:260px}
 /* 인테이크 조회의 광폭 2열 — 본문 스택 + 우측 목차. 좁으면 한 열이고 목차는 숨는다. */
 .intake-read-grid{display:grid;gap:var(--section-gap);align-items:start}
 @container (min-width: 1150px){
@@ -953,23 +960,19 @@ const recordFormStyles = `
 /* 레일은 형제 카드 2장 스택이다(CCC-76 — 미해결 액션 아코디언 + 진척도 카드). 간격은
    본문 스택과 같은 24(D60 ③ 페이지 스택) — 좌우 열의 카드 리듬이 같아야 한 화면으로 읽힌다. */
 .record-side{display:grid;gap:var(--space-6)}
-@media (min-width: 768px){
+/* 붙박이·자체 스크롤은 **두 열일 때만**이다(2026-08-09 — 기준을 .rail-grid 폭 계단과 같은
+   컨테이너 880 으로 옮겼다. 구 뷰포트 768 기준은 한 열에서도 살아 있어, 상단으로 내려온
+   레일이 본문 위에 붙박이고 자기 높이 안에서 또 스크롤했다). */
+@container (min-width: 880px){
   /* 레일이 화면보다 길 수 있다(2026-08-09) — sticky 를 유지하려면 레일이 자기 안에서
      스크롤해야 저장 버튼이 손 닿는 곳에 남는다(문서 사이트 목차 레일 문법). */
   .record-side{position:sticky;top:calc(var(--header-height) + var(--space-6));align-self:start;max-height:calc(100dvh - var(--header-height) - var(--space-6) * 2);overflow-y:auto}
 }
 /* 구획 바로가기 목차(2026-08-09 Q 2차 "TOC 는 우측에, 모바일·태블릿은 안 보여도 돼" —
    구 레일 맨 위 카드 대체). 옷·붙박이·스크롤 여백은 공용 .wire-toc-rail/.wire-toc-list
-   (wire-styles — 3차에서 인테이크 두 화면과 공용화)가 갖고, 여기는 이 화면의 트랙만 둔다:
-   컨테이너 ≥1150 에서 [레일 300 | 본문 1fr | 목차 200] 명시 트랙으로 바꾸고 12칸 span 을
-   푼다. 이 분기는 record-grid 전용이다 — rail-grid 는 인테이크와 공유라 건드리면
-   인테이크의 2열 격자가 빈 셋째 열을 갖게 된다. */
-@container (min-width: 1150px){
-  /* 클래스 둘(0-2-0)로 적는 이유: 기본 12칸 규칙이 .wire-container[data-grid](0-2-0)라
-     .record-grid 한 클래스로는 순서와 무관하게 진다(하니스 실측으로 잡은 결함). */
-  .wire-container.record-grid{grid-template-columns:300px minmax(0,1fr) 200px}
-  .record-grid>.wire-col-4,.record-grid>.wire-col-8{grid-column:auto}
-}
+   (wire-styles — 3차에서 인테이크 두 화면과 공용화)가 갖고, 트랙 배치와 폭 계단은 공용
+   .rail-grid 가 갖는다. 화면은 자기 레일 폭만 정한다. */
+.record-grid{--rail-width:300px}
 /* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
    올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —

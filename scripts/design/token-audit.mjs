@@ -80,6 +80,10 @@ for (const file of TARGETS) {
       // .wire-card 가 규칙 안에서 만드는 지역 변수(2026-08-09) — 이 카드의 사방 패딩을 담아,
       // 풀블리드 조각(펼친 제목 줄의 음수 마진)이 그 값을 손으로 베끼지 않고 되읽는다.
       if (name === '--card-pad') continue;
+      // .rail-grid 화면(인테이크 작성·상담 기록 작성)이 규칙 안에서 만드는 지역 변수
+      // (2026-08-09) — 좌측 레일의 고정 트랙 폭을 담아, 폭 계단은 공용 격자가 갖고 값만
+      // 화면이 정한다(record 300 · intake 260).
+      if (name === '--rail-width') continue;
       if (name.startsWith('--rdp-')) continue; // react-day-picker 라이브러리 소유
       if (!defined.has(name)) add(file, n, 'undefined-token', `${name} 는 design/tokens.css 에 없다`);
     }
@@ -154,7 +158,9 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'wire-scrim',          // §5 모달 — 검토·승인 화면 미구현
   'is-selected-surface', // §5 '선택·활성 표면'을 details 가 아닌 곳에서 수동으로 켜는 훅
   'wire-card-section',   // §5 카드 안 하위 구획
-  'wire-col-3', 'wire-col-12', // 12칼럼 세트(4·6·8 은 사용 중)
+  // 12칼럼 세트(6·8 은 사용 중). 3·9 는 2026-08-09 에 비었다 — 인테이크 작성의 레일이
+  // 비율 span 에서 고정 트랙(--rail-width)으로 바뀌면서 span 클래스를 떼었다.
+  'wire-col-3', 'wire-col-9', 'wire-col-12',
   // §6 모션 3종(D58/ADR-0028): 어휘 정의는 CCC-50, 배선은 CCC-51·CCC-53 몫
   'motion-flow',
   'motion-press',

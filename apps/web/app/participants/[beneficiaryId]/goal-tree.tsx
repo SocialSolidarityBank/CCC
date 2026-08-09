@@ -67,13 +67,16 @@ function GoalNode({ goal }: { goal: ParticipantGoalTreeGoal }) {
         <ul className="goal-tree-session-rows">
           {goal.sessionGoals.map((sessionGoal) => {
             const suffix = scheduleStatusSuffix[sessionGoal.scheduleStatus] ?? null;
+            // MetaRow 를 쓰지 않는다(2026-08-09) — 이 줄은 짧은 메타 조각들이 아니라 **날짜 +
+            // 문장**이라, 조각 사이 세로선 구분자가 문장의 줄바꿈에 걸려 본문 앞 인용 막대처럼
+            // 보였다(Q 보고 "아래 날짜 | 중복 내용"). 날짜는 줄지 않는 칸으로 두고 문장만 자기
+            // 칸 안에서 접히게 한다. 구분은 세로선이 아니라 날짜 색이 맡는다(§10 은 문자
+            // 구분자를 금지할 뿐, 조각을 독립 노드로 두고 간격으로 띄우는 계약은 그대로다).
             return (
               <li key={sessionGoal.id} className="goal-tree-session-row">
-                <MetaRow items={[
-                  formatKoreanDate(sessionGoal.scheduledAt),
-                  sessionGoal.body,
-                  suffix,
-                ]} />
+                <span className="goal-tree-session-date">{formatKoreanDate(sessionGoal.scheduledAt)}</span>
+                <span className="goal-tree-session-body">{sessionGoal.body}</span>
+                {suffix === null ? null : <span className="goal-tree-session-suffix">{suffix}</span>}
               </li>
             );
           })}
@@ -112,7 +115,9 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle }: {
         {tree.goals.length === 0
           ? <WireEmpty>세부 목표가 없습니다. 상담 기록을 작성할 때 세웁니다.</WireEmpty>
           : (
-            <ul className="goal-tree-goals">
+            // 불릿은 항목이 2개 이상일 때만 얹는다(§5 불릿 목록 규칙) — 세부 목표가 하나뿐이면
+            // 나열이 아니라 문장이라 점도 들여쓰기도 두지 않는다.
+            <ul className={tree.goals.length > 1 ? 'goal-tree-goals wire-bullets' : 'goal-tree-goals'}>
               {tree.goals.map((goal) => <GoalNode key={goal.id} goal={goal} />)}
             </ul>
           )}
