@@ -230,13 +230,20 @@ async function buildHarness(): Promise<{ html: string; markup: Map<string, strin
   ).join('\n');
 
   // 하니스 자신의 스타일은 최소로 둔다. 잰 값이 하니스 탓인지 앱 탓인지 헷갈리면 안 되므로
-  // 글자에 닿는 선언은 하나도 두지 않는다 — 폭과 배경만 준다.
+  // 글자에 닿는 선언은 하나도 두지 않는다 — 배경만 준다.
+  //
+  // **폭과 패딩을 주지 않는다**(2026-08-10 정정). 처음엔 `max-width:1280px;padding:24px` 을
+  // 뒀는데, 화면 뿌리인 `.wire-container` 가 이미 자기 상한(--page-max)과 좌우 패딩
+  // (--page-pad-x)을 갖는다. 겹쳐 주면 이중 래핑이 되어 390 에서 가로 넘침이 났고(실측:
+  // 요소 16개가 뷰포트 밖), 더 나쁜 것은 **글 폭이 실제보다 48px 좁아져 줄바꿈이 이르게**
+  // 일어난다는 점이다 — 좁은 폭 실측(CCC-86)이 재려는 것이 바로 그 줄바꿈이라 전제가 흔들린다.
+  // 화면이 자기 폭을 정하게 두는 것이 곧 실제와 같게 재는 길이다.
   const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>위계 하니스</title>
 <style>${tokens}</style>
 <style>${layoutCss}</style>
 <style>${wireStyles}</style>
-<style>.harness-screen{max-width:1280px;margin:0 auto;padding:24px;background:var(--canvas)}</style>
+<style>.harness-screen{background:var(--canvas)}</style>
 </head><body>${sections}</body></html>`;
   return { html, markup };
 }
