@@ -32,15 +32,26 @@ screens_file = repo_root / "artifacts/hierarchy-harness/screens.json"
 baseline_file = repo_root / "scripts/design/hierarchy-adjacency-baseline.json"
 out_file = repo_root / "artifacts/hierarchy-harness/measure.json"
 
-# 하니스는 폭에 따라 위계가 갈리지 않지만(크기·굵기·색은 767 분기 밖에서 같다) 값을 재는
-# 이상 폭은 고정해 둔다. 767 미만은 제목 크기가 갈리므로 따로 재야 한다면 이 값을 바꾼다.
-VIEWPORT = {"width": 1280, "height": 900}
+# 재는 폭 (2026-08-10 CCC-86 으로 셋이 됐다, 구 1280 하나).
+#
+# 왜 좁은 폭이 따로 필요한가. **가로로 나란하던 것이 세로로 쌓이는 순간**이 규칙 1 이 처음
+# 적용되는 자리다. 넓은 폭에서 한 줄에 나란히 선 두 값은 이 실측이 건너뛰는데(같은 줄은
+# 쌓임이 아니다), 767 미만에서 열이 하나로 접히면 그 둘이 위아래로 붙는다. 그래서 1280 에서
+# 0건인 것이 390 에서도 0건이라는 보장이 없다. 제목 크기도 28 에서 24 로 갈린다(§2-1).
+#
+# 767 을 넣은 것은 경계 그 자체를 재기 위해서다. 브레이크포인트가 `max-width:767px` 라 767 은
+# 좁은 쪽에 속하고, 그 한 픽셀 차이가 실제로 어느 분기에 앉는지는 재 보는 편이 빠르다.
+WIDTHS = [1280, 767, 390]
+HEIGHT = 900
 
 MEASURE_JS = r"""
 () => {
   // 나열이라는 **표시**. 표시가 없으면 쌓임으로 본다 — 그래야 이름 없는 <p> 줄 세우기가 걸린다.
   const LIST_TAGS = new Set(['UL', 'OL', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'DL', 'MENU']);
-  const LIST_CLASSES = ['wire-bullets', 'card-grid', 'briefing-cards-grid', 'wire-choice-group'];
+  // `wire-meta-row` 는 2026-08-10(CCC-86) 에 더했다. MetaRow 는 "서로 다른 정보를 나란히
+  // 놓는 메타 줄"이고 자식 span 이 정의상 대등하다. 넓은 폭에서는 한 줄에 나란히 서서 건너뛰던
+  // 것이 767 미만에서 줄바꿈으로 위아래가 되며 쌓임처럼 보였다. 나열이라는 표시가 빠져 있었다.
+  const LIST_CLASSES = ['wire-bullets', 'card-grid', 'briefing-cards-grid', 'wire-choice-group', 'wire-meta-row'];
 
   const cls = (el) => el.getAttribute('class') || '';
   const trip = (el) => {
@@ -140,30 +151,40 @@ def main() -> int:
         print("  pnpm --filter @ccc/web exec vitest run app/kit/hierarchy-harness.test.tsx", file=sys.stderr)
         return 1
 
+    runs = {}
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport=VIEWPORT)
+        page = browser.new_page(viewport={"width": WIDTHS[0], "height": HEIGHT})
         page.goto(harness.as_uri())
-        result = page.evaluate(MEASURE_JS)
+        for width in WIDTHS:
+            # 브라우저는 한 번만 띄우고 폭만 바꾼다. 폭마다 새로 띄우면 비용이 폭 수만큼 는다.
+            page.set_viewport_size({"width": width, "height": HEIGHT})
+            runs[width] = page.evaluate(MEASURE_JS)
         browser.close()
 
     # 패널이 숨겨져 있으면 뷰포트가 0 이 되어 계산값이 전부 거짓이 된다(2026-08-10 실측에서
     # 실제로 겪었다). 폭을 단언하지 않으면 그 거짓이 조용히 보고서로 나간다.
-    body_width = result["bodyWidth"]
-    if body_width < VIEWPORT["width"] * 0.5:
-        print(f"본문 폭이 {body_width}px 이다. 뷰포트가 제대로 안 섰으니 잰 값을 믿을 수 없다.", file=sys.stderr)
-        return 1
+    for width, result in runs.items():
+        if result["bodyWidth"] < width * 0.5:
+            print(
+                f"{width} 에서 본문 폭이 {result['bodyWidth']}px 이다. 뷰포트가 제대로 안 섰으니 잰 값을 믿을 수 없다.",
+                file=sys.stderr,
+            )
+            return 1
 
-    findings = result["findings"]
-    prose = result["prose"]
-    sizes = result["sizes"]
+    findings = [dict(f, width=w) for w, r in runs.items() for f in r["findings"]]
+    prose = [dict(f, width=w) for w, r in runs.items() for f in r["prose"]]
     screens = load_json(screens_file, [])
     labels = {s["id"]: s["label"] for s in screens}
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(
         json.dumps(
-            {"bodyWidth": body_width, "sizes": sizes, "findings": findings, "prose": prose},
+            {
+                "widths": {str(w): {"bodyWidth": r["bodyWidth"], "sizes": r["sizes"]} for w, r in runs.items()},
+                "findings": findings,
+                "prose": prose,
+            },
             ensure_ascii=False,
             indent=2,
         )
@@ -171,26 +192,30 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    print(f"본문 폭 {body_width}px, 화면 {len(sizes)}개")
-    for sid, count in sizes.items():
-        hits = [f for f in findings if f["screen"] == sid]
-        para = [f for f in prose if f["screen"] == sid]
-        extra = f", 이어진 본문 문단 {len(para)}쌍" if para else ""
-        print(f"  {labels.get(sid, sid)}: 글자 줄 {count}개, 눌린 쌍 {len(hits)}개{extra}")
+    for width, result in runs.items():
+        print(f"폭 {width} (본문 {result['bodyWidth']}px), 화면 {len(result['sizes'])}개")
+        for sid, count in result["sizes"].items():
+            hits = [f for f in result["findings"] if f["screen"] == sid]
+            para = [f for f in result["prose"] if f["screen"] == sid]
+            extra = f", 이어진 본문 문단 {len(para)}쌍" if para else ""
+            print(f"  {labels.get(sid, sid)}: 글자 줄 {count}개, 눌린 쌍 {len(hits)}개{extra}")
     if prose:
         print("\n이어진 본문 문단은 위반으로 세지 않는다(원래 대등한 나열). measure.json 의 prose 에 남는다.")
 
     # 통제군. 킷 페이지 맨 위 '고치기 전' 칸은 일부러 눌린 쌓임이다. 저기서 아무것도 못 찾으면
     # 위반이 없는 것이 아니라 이 스크립트가 고장 난 것이다.
-    if not any(f["screen"] == "kit" for f in findings):
-        print("\n통제군 실패. 킷 페이지의 '고치기 전' 반례를 못 잡았다. 실측이 고장 났다.", file=sys.stderr)
+    # **폭마다** 본다 — 한 폭에서만 잡히면 나머지 폭은 아무것도 안 보고 있었을 수 있다.
+    blind = [w for w, r in runs.items() if not any(f["screen"] == "kit" for f in r["findings"])]
+    if blind:
+        print(f"\n통제군 실패. 폭 {blind} 에서 킷 반례를 못 잡았다. 그 폭의 실측이 고장 났다.", file=sys.stderr)
         return 1
 
     baseline = load_json(baseline_file, {"entries": []})
     known = set(baseline["entries"])
     # 킷은 통제군이라 래칫에서 뺀다. 저기 눌린 쌓임이 있는 것이 정상이고(일부러 만든 반례),
     # 기준선에 넣으면 "고치면 실패"와 "고장 나면 실패"가 한 줄에서 부딪힌다.
-    keys = {f"{f['screen']} | {f['parent']} | {f['combo']}" for f in findings if f["screen"] != "kit"}
+    # 키에 폭을 넣는다 — 같은 자리라도 폭이 다르면 다른 사실이다.
+    keys = {f"{f['width']} | {f['screen']} | {f['parent']} | {f['combo']}" for f in findings if f["screen"] != "kit"}
 
     if "--update-baseline" in sys.argv:
         baseline_file.write_text(
@@ -214,7 +239,9 @@ def main() -> int:
     if fresh:
         print(f"\n새로 눌린 쌓임 {len(fresh)}건:", file=sys.stderr)
         for key in fresh:
-            hit = next(f for f in findings if f"{f['screen']} | {f['parent']} | {f['combo']}" == key)
+            hit = next(
+                f for f in findings if f"{f['width']} | {f['screen']} | {f['parent']} | {f['combo']}" == key
+            )
             print(f"  {key}", file=sys.stderr)
             print(f"    '{hit['first']}' 다음에 '{hit['second']}' 가 같은 옷으로 온다", file=sys.stderr)
     if stale:
