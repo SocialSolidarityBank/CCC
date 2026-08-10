@@ -324,7 +324,7 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
 .empty{display:flex;align-items:center;gap:var(--space-2);color:var(--sub);font-size:var(--text-sm)}
 /* 자리 예약은 **켜는 것**이다(WireEmpty reserve) — 이 줄이 카드의 유일한 내용일 때만.
    태그를 붙여 0-2-1 로 올린다(2026-08-10). 아래 participantStyles 의 라이브 영역 바닥
-   `[aria-live="polite"]{min-height:1.5em}` 이 **같은 0-2-0** 이고 이음 순서상 뒤에 와서,
+   [aria-live="polite"] min-height:1.5em 이 **같은 0-2-0** 이고 이음 순서상 뒤에 와서,
    예약이 조용히 21px 로 덮여 있었다(실측: 로딩 카드 본문 30px). 켜 두었는데 안 켜지는
    상태였고 화면에서는 "글자가 위아래 가운데가 아니다"로 보였다. 순서에 기대지 않게 못 박는다. */
 p.empty[data-reserve="true"]{min-height:92px}
