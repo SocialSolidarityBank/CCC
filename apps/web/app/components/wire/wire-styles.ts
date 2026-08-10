@@ -86,9 +86,8 @@ export const wireStyles = `
 .participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none;margin-left:auto}
 /* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
    민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
-/* 계열 의미 정정(2026-08-10 Q, CCC-84): 참여 사업 수는 소속·진행 축이라 민트다. 라벤더는
-   AI 산출·승인 대기·주의 전용인데(D34·D58 ④) 사업 개수에 쓰이고 있었다. */
-.participant-card-programs{flex:none;font-size:var(--text-md);font-weight:400;line-height:normal;color:var(--mint-deep);white-space:nowrap}
+/* 참여 사업 수는 2026-08-10(CCC-87)에 배지가 됐다 — 분류·수량 낱말은 본문 글자로 두지
+   않는다(§2-2 규칙 4). 자기 클래스는 사라지고 톤만 민트로 남는다(마크업의 WireBadge). */
 /* 상세 화살표는 없다(2026-08-06 4차 — 구 '목록 카드 오른쪽 끝 고정' 폐지). 카드 전체가
    링크이고 호버 그라데이션 아웃라인이 눌림을 알린다 — 일정 카드와 같은 문법. */
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로

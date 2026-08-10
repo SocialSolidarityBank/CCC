@@ -547,7 +547,12 @@ const briefingStyles = `
 .briefing-session-memo>.wire-badge{width:100%}
 /* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q.
    1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다 — 당사자 카드 셀과 같은 계약). */
-.briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-md);line-height:normal;color:var(--ink);font-variant-numeric:tabular-nums}
+/* 날짜는 메타 단이다: 14/400 --sub (2026-08-10 CCC-87, 구 16/400 --ink).
+   좁은 화면에서 본문이 아래 줄로 접히면 날짜와 핵심 한 줄이 위아래로 붙는데 둘 다 16/400
+   --ink 라 무엇을 먼저 읽을지가 사라졌다(하니스 실측, 767·390). 훑을 때 잡혀야 하는 것은
+   핵심 한 줄이므로 날짜가 물러선다. 상담 기록의 .record-held-at 과 같은 값으로 맞춘다 —
+   두 화면이 같은 것을 보여 주면서 브리핑만 --ink 였다. 칸 폭 136 은 그대로다. */
+.briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
@@ -583,7 +588,9 @@ const briefingStyles = `
    (2026-08-07 Q 8차. 구 YYYY-MM-DD 96 은 표기 통일 뒤 두 줄로 접혔다).
    행간 normal 은 기하 정렬 계약이다. */
 .record-ordinal{flex:none;width:52px;font-size:var(--text-md);font-weight:600;line-height:normal;color:var(--ink)}
-.record-held-at{flex:none;width:136px;white-space:nowrap;font-size:var(--text-md);line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
+/* 브리핑 회차 줄과 같은 값으로 맞춘다(2026-08-10 CCC-87, 구 16 + 굵기 미선언). 여기는 이미
+   --sub 였고 크기만 갈렸다. 굵기를 안 적어 두면 검사가 조합을 확정하지 못한다(§2-1). */
+.record-held-at{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 /* 유형 칩은 공용 배지 블루 톤이다(2026-08-07 통합, 구 .record-kind 삭제). 시간·상태 축이라
    블루이고 인테이크도 같은 블루, 구분은 글자가 한다. 접힌 줄 안에서 줄어들지 않게만 잡는다. */
 .record-summary>.wire-badge{flex:none}
