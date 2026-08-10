@@ -453,19 +453,26 @@ const briefingStyles = `
 .risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:400;font-size:var(--text-sm)}
 /* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
    1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
+/* 아코디언이 나란할 때: **펼친 카드끼리는 높이를 맞추고, 접힌 카드는 요약 줄만 남긴다**(§4-2).
+   높이는 내용이 정한다 — JS 로 재서 박지 않는다.
+
+   2026-08-10 에 "접혀 있어도 맞춘다"로 한 번 바꿨다가 **실물을 보고 되돌렸다**(같은 날 Q
+   "무조건 높이를 맞추는 게 아니라, 접혀 있을 때는 높이를 따라가지 말아"). 하니스 실측:
+   접힘 카드가 요약 줄에 필요한 72 대신 246 이 되어 174 가 빈 채로 남았다. 이것이 §4-2 가
+   처음부터 이 규칙을 이렇게 정해 둔 이유였고, 문장만 읽고 그림으로 확인하지 않은 채
+   바꾼 것이 잘못이었다.
+   높이 맞춤이 필요한 것은 **읽는 자료 카드**다(일정 위저드의 참고 카드 2장 — .card-grid 와
+   .wire-container[data-grid] 가 이미 편다). 접힘은 "지금 안 보겠다"는 상태라 자리를 비운다. */
 .briefing-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));gap:var(--space-5);align-items:start}
-/* 아코디언이 나란할 때: 펼친 카드는 서로 높이를 맞추고, 접은 카드는 요약 줄만 남긴다(§4-2).
-   JS 로 높이를 재서 박지 않는다 — 접으면 행이 실제로 줄어든다. */
 .briefing-cards-grid>.briefing-card{align-self:start}
 .briefing-cards-grid>.briefing-card[open]{align-self:stretch}
 /* 브리핑 3영역·미해결 액션 = **접힘 카드**다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59
    플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
    여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
    접힘(details)은 유지된다 — 전체 접기·앵커는 그대로다. */
-/* optical: 꺽쇠 잉크 보정 translate 는 .wire-card-arrow 와 같은 계약(2026-08-06 실측).
-   크기는 em 이다(2026-08-07 Q 8차 "꺽쇠는 폰트 크기를 따라가게 전역 수정". 구 9px/2px
-   고정은 14px 글줄(전문 보기) 옆에서 과대했다). 16px 기준 상자 9·획 2 그대로다. */
-.briefing-card-arrow{flex:none;width:.5625em;height:.5625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub);transform:translateX(-.125em) rotate(-45deg);transition:transform .15s ease}
+/* 구 .briefing-card-arrow 는 2026-08-10 에 없앴다 — .wire-card-arrow 와 **값이 한 글자도
+   다르지 않은 복사본**이었다(폭·획·보정·전환 전부 동일). 화면 4곳이 복사본 쪽 이름을
+   쓰고 있었을 뿐이라 이름만 바꾸면 끝났다. 모양의 주인은 wire-styles.ts 한 곳이다. */
 .briefing-fields{display:grid;gap:var(--space-2-5)}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
@@ -510,31 +517,17 @@ const briefingStyles = `
 .briefing-ai-goal-hint{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
-/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 구획 사이는 --line 가로선이다(2026-08-06 Q —
-   여러 위계의 텍스트가 이어질 때 컬러 라벨 + 가로선이 경계를 만든다). */
-.briefing-qsection{display:grid;gap:var(--space-2)}
-.briefing-qsection+.briefing-qsection{padding-top:var(--space-4);border-top:1px solid var(--line)}
-/* 구획 라벨은 정보 필드 라벨(§5 민트 deep)과 같은 계약을 입는다(2026-08-06 Q "타이틀 컬러").
-   AI 제안만 라벤더다 — AI·승인 대기 축(D58 ④). */
-.briefing-qlabel{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
-.briefing-qlabel[data-tone="ai"]{color:var(--lavender-deep)}
-/* AI 제안(CCC-39·D45) — 항목마다 제목·이유·근거 회차 링크 3층.
-   행마다 라벤더 tint 상자(2026-08-09 Q, CCC-77). AI·승인 대기 축(D58 ④)을 면으로 편다.
-   글자는 --ink/--sub 그대로다: 라벤더 deep 글자는 tint 위 대비 미달이라 금지(§9). */
+/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 2026-08-10 부터 공용 부품 WireCardSection 이
+   맡는다(구 .briefing-qsection · .briefing-qlabel 폐지). 라벨 색·형제 가로선·세로 리듬은
+   전부 부품 계약으로 옮겼고, 2026-08-06 Q 가 정한 "컬러 라벨 + 가로선" 모양은 그대로다.
+   AI 제안 목록(CCC-39·D45)의 라벤더 tint 상자는 WireItem tone="lavender" 가 갖는다. */
 .briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
-.briefing-suggestion{display:grid;gap:var(--space-1);padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--lavender-tint)}
-.briefing-suggestion-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-/* 본문 16 기본(2026-08-06 Q) — 아코디언 안 읽는 글은 전부 16 이고, 14 는 라벨(qlabel)·
-   메타(근거 링크·이력 요약)만 남는다. */
-.briefing-suggestion-reason{margin:0;font-size:var(--text-md);color:var(--sub)}
-/* 근거 링크도 본문 16 이다(2026-08-06 Q "폰트 크기 정렬" — 영역 ① 안 14 는 라벨만 남는다). */
-.briefing-suggestion-link{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
 .briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
 .briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
 .briefing-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.briefing-history>.briefing-qsection{margin-top:var(--space-4)}
+.briefing-history>.wire-card-section{margin-top:var(--space-4)}
 /* 브리핑 배지도 공용 배지(.wire-badge)를 쓴다(2026-08-07 통합, 구 .briefing-badge 삭제).
    승인 대기는 data-tone="lavender"(색 규율 5). */
 /* 빈 상태·처리됨 안내도 본문이다 — 16 기본(2026-08-06 Q). */
@@ -800,8 +793,7 @@ const monthScheduleStyles = `
 .month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);overflow:clip}
 .month-nav-group .month-nav-label{border:0;border-radius:0;min-height:auto}
 .month-nav-seg{display:inline-flex;align-items:center;line-height:normal;gap:var(--space-3);padding:0 var(--space-3-5);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
-/* 조각의 꺽쇠도 조작 버튼과 같은 .5em(14px 글자에서 7) — 글자를 따라 줄어든다. */
-.month-nav-seg .wire-chevron{width:.5em;height:.5em}
+/* 달 이동 조각의 꺽쇠 예외(.5em = 7)도 2026-08-10 에 없앴다 — 전 화면 한 값(--chevron-box). */
 .month-nav-seg+.month-nav-label,.month-nav-label+.month-nav-seg{border-left:1px solid var(--line)}
 /* 상자 하나 안이라 포커스 링을 안으로 접는다 — overflow:clip 에 잘리지 않게. */
 .month-nav-seg:focus-visible{outline-offset:-2px}
@@ -875,19 +867,18 @@ const registerStyles = `
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
 /* 동의 요약 줄의 꺽쇠만 기준 글자를 .7 로 낮춘다(2026-08-08 Q "꺽쇠 크기 더 줄이기").
-   전역 em 계약(.5625em, 2026-08-07 Q 8차)은 16px 글줄에서 잡은 비율이라 14px 글줄에서는
-   글자 대비 여전히 컸다. 크기를 px 로 다시 박지 않고 기준 글자만 줄여, 상자와 획과
-   광학 보정 translate 가 한 비율로 함께 작아진다. 14px 글줄에서 상자 7.88 에서 5.5 로
-   내려간다(하니스 실측). 등록 폼 '자세히 읽어보기'와 허브 '전문 보기'는 같은 부품이라
-   한 선택자가 둘 다 덮는다. */
-.consent-detail-summary>.briefing-card-arrow{font-size:.7em}
+   전역 배수(--chevron-box)는 16px 글줄에서 잡은 값이라 14px 글줄에서는 글자 대비 여전히
+   컸다. 배수를 따로 두지 않고 기준 글자만 줄여, 상자와 획과 광학 보정이 한 비율로 함께
+   작아진다(14px 글줄에서 상자 7.9 에서 5.5 로). 등록 폼 '자세히 읽어보기'와 허브
+   '전문 보기'는 같은 부품이라 한 선택자가 둘 다 덮는다. */
+.consent-detail-summary>.wire-card-arrow{font-size:.7em}
 /* 인라인 변형의 요약 줄은 **작은 배지형 버튼**이다(2026-08-07 Q 9차 "전문보기를 작은
    뱃지형 버튼으로" — 구 텍스트+화살표 줄 대체). 모양은 기본 배지 레시피(높이 24 ·
    --sub 외곽선 · 알약 · 14/400 --ink)를 그대로 빌리고, 조작이므로 호버 면만 얹는다.
    화살표 크기는 바로 위 규칙이 정한다(기준 글자 .7em). */
 .consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-2);min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
 @media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
-.consent-detail[open]>.consent-detail-summary>.briefing-card-arrow{transform:translateY(-.125em) rotate(45deg)}
+.consent-detail[open]>.consent-detail-summary>.wire-card-arrow{transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg)}
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
    텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
    담고 읽기 폭을 72ch 로 막는다. 새 색 없음 — 배경은 --muted, 테두리는 --line 이다. */

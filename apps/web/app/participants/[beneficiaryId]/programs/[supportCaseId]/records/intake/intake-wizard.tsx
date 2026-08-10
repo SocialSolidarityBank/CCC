@@ -299,7 +299,7 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
     <details className="consent-detail" id={props.id} open={props.open} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
       <summary className="consent-detail-summary">
         <span>{props.title}</span>
-        <span className="briefing-card-arrow" aria-hidden="true" />
+        <span className="wire-card-arrow" aria-hidden="true" />
       </summary>
       <div className="consent-detail-body">{props.children}</div>
     </details>
