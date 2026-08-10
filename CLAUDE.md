@@ -272,6 +272,10 @@ GitHub Issues(`SocialSolidarityBank/CCC`)를 `gh` CLI로 사용한다. 상세: `
 
 단일 컨텍스트: 루트 `CONTEXT.md` + `docs/adr/`. 상세: `docs/agents/domain.md`.
 
+### Design docs
+
+**화면(페이지·컴포넌트·CSS) 작업 전에 루트 `DESIGN-RULES.md` 를 읽는다** (2026-08-10, ADR-0033). 지금 지켜야 하는 규칙만 추린 요약본이고, 근거와 이력은 `DESIGN.md` 에 그대로 있다(색값 SSOT 는 여전히 pen). 규칙을 바꾸는 커밋은 요약본도 같은 커밋에서 고친다.
+
 ### 문서 배치 규칙 (2026-07-25 Q 확정)
 
 - HTML 시안·용어집 등 **아티팩트는 루트 `artifacts/`** (구 docs/artifacts 폐지)
