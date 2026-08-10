@@ -322,8 +322,12 @@ p{margin:var(--space-2) 0 0;color:var(--sub)}
    그 값 때문에 브리핑이 .briefing-note 라는 두 번째 빈 상태 규칙을 따로 갖고 있었다
    (한 카드에 빈 줄이 둘이면 92 × 2 = 184 가 비어 보인다). 크기는 §2-2 위계 4단 ④ 다. */
 .empty{display:flex;align-items:center;gap:var(--space-2);color:var(--sub);font-size:var(--text-sm)}
-/* 자리 예약은 **켜는 것**이다(WireEmpty reserve) — 이 줄이 카드의 유일한 내용일 때만. */
-.empty[data-reserve="true"]{min-height:92px}
+/* 자리 예약은 **켜는 것**이다(WireEmpty reserve) — 이 줄이 카드의 유일한 내용일 때만.
+   태그를 붙여 0-2-1 로 올린다(2026-08-10). 아래 participantStyles 의 라이브 영역 바닥
+   `[aria-live="polite"]{min-height:1.5em}` 이 **같은 0-2-0** 이고 이음 순서상 뒤에 와서,
+   예약이 조용히 21px 로 덮여 있었다(실측: 로딩 카드 본문 30px). 켜 두었는데 안 켜지는
+   상태였고 화면에서는 "글자가 위아래 가운데가 아니다"로 보였다. 순서에 기대지 않게 못 박는다. */
+p.empty[data-reserve="true"]{min-height:92px}
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.42fr);gap:var(--space-5);align-items:start}
 /* 라벨은 14/700 --sub 로 값 위에 둔다 — 입력 경계선(1.28) 하나에 기대지 않기 위한 규칙(§9). */
 .field{display:grid;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
@@ -908,7 +912,19 @@ const registerStyles = `
    880 으로 옮겼다. 구 뷰포트 768 기준은 한 열이 된 뒤에도 살아 있어, 상단으로 내려온 레일이
    본문 위에 붙박여 화면을 덮었다. */
 @container (min-width: 880px){
-  .intake-step-nav{position:sticky;top:calc(var(--header-height) + var(--space-6))}
+  /* align-self·max-height·overflow 가 빠져 있어 **붙박이가 켜진 적이 없었다**(2026-08-10 실측:
+     nav 높이 3065px, 내용 231px). 격자 칸은 기본이 stretch 라 레일이 본문 길이만큼 늘어나고,
+     그러면 sticky 는 움직일 자리가 없다 — position 만 적혀 있고 아무 일도 안 하는 상태였다.
+     구 align-content:start 는 **안쪽 버튼 배치**만 고쳤지 요소 자체 높이는 그대로 뒀다.
+     레시피는 상담 기록 레일(.record-side)과 같다 — 두 화면이 같은 레이아웃이어야 한다는 것이
+     2026-08-08 Q 지시이고, 그쪽에는 셋이 이미 다 있었다. */
+  .intake-step-nav{
+    position:sticky;
+    top:calc(var(--header-height) + var(--space-6));
+    align-self:start;
+    max-height:calc(100dvh - var(--header-height) - var(--space-6) * 2);
+    overflow-y:auto;
+  }
 }
 /* 인테이크 작성의 레일 폭(2026-08-09 Q 3차 "인테이크 페이지에도 TOC"). 트랙 배치와 폭 계단은
    공용 .rail-grid 가 갖고, 화면은 자기 레일 폭만 정한다. */
