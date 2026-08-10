@@ -450,9 +450,19 @@ function main() {
   }
 
   if (process.argv.includes('--update-baseline')) {
+    // 조합별로 묶어 함께 적는다. 낱개 목록만 두면 "14건의 빚"으로 읽히지만, 실제로는 같은
+    // 조합이 여러 자리에 반복된 모양이다. 한 조합이 여러 곳에 있으면 그건 드리프트가 아니라
+    // 역할표에 빠진 단일 가능성이 크고, 그 판단은 사람이 해야 한다.
+    const byCombo = {};
+    for (const v of violations) {
+      (byCombo[v.combo] ??= []).push(v.selector);
+    }
     const payload = {
       note: '위계 감사 기준선. 여기 적힌 위반은 이미 있던 것이라 실패로 세지 않는다. 고치면 이 파일에서도 지운다.',
       generated: 'node scripts/design/hierarchy-audit.mjs --update-baseline',
+      byCombo: Object.fromEntries(
+        Object.entries(byCombo).sort((a, b) => b[1].length - a[1].length).map(([k, v]) => [k, v.sort()]),
+      ),
       entries: violations.map((v) => v.key).sort(),
     };
     writeFileSync(BASELINE, `${JSON.stringify(payload, null, 2)}\n`);
