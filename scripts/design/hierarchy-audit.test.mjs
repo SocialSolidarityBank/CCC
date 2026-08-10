@@ -124,6 +124,38 @@ for (const [size, weight, color] of [
   );
 }
 
+// --- 컨트롤 표 (2026-08-10 CCC-84) -----------------------------------------
+// 이 네 단언이 함께 있어야 의미가 있다. 컨트롤에 칸을 더하되 **본문 라벨 규율은 그대로**
+// 남는지를 보는 것이라, 셋째 단언이 빠지면 그냥 표를 헐겁게 만든 것과 구별되지 않는다.
+
+const CONTROL = '.probe{font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}';
+check('컨트롤의 14/600 --ink 는 안 잡힌다', run(CONTROL).violations.length === 0);
+check(
+  '컨트롤이 아니면 같은 조합이 잡힌다 (라벨 드리프트는 계속 막힌다)',
+  run(decl('--text-sm', '600', '--ink')).violations.length === 1,
+);
+check(
+  '컨트롤 표는 본문 표를 대신하지 않고 더한다',
+  run('.probe{font-size:var(--text-sm);font-weight:600;color:var(--sub);cursor:pointer}').violations.length === 0,
+);
+check(
+  'cursor 가 pointer 가 아니면 컨트롤이 아니다',
+  run('.probe{font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:default}').violations.length === 1,
+);
+
+// --- 값이 비면 물러서는 상태 -------------------------------------------------
+
+check(
+  '값이 빈 자리는 --sub 로 물러설 수 있다',
+  run('.goal{font-size:var(--text-md);font-weight:600;color:var(--ink)}\n.goal.is-empty{font-weight:400;color:var(--sub)}')
+    .violations.length === 0,
+);
+check(
+  'is-empty 가 아니면 같은 조합이 잡힌다',
+  run('.goal{font-size:var(--text-md);font-weight:600;color:var(--ink)}\n.goal.is-filled{font-weight:400;color:var(--sub)}')
+    .violations.length === 1,
+);
+
 check(
   '채운 면 위 글자(--on-action)는 크기·굵기가 계약 안이면 안 잡힌다',
   run(decl('--text-md', '600', '--on-action')).violations.length === 0,
@@ -133,8 +165,9 @@ check(
   run(decl('--text-lg', '400', '--on-action')).violations.length === 1,
 );
 check(
+  // 15/600 은 핵심 버튼 전용이라 컨트롤 표에만 있다. cursor 를 빼면 크기·굵기 짝부터 표 밖이다.
   '비활성은 색만 물러서므로 안 잡힌다',
-  run('.probe{font-size:var(--text-btn);font-weight:600;color:var(--ink)}\n.probe:disabled{color:var(--sub)}')
+  run('.probe{font-size:var(--text-btn);font-weight:600;color:var(--ink);cursor:pointer}\n.probe:disabled{color:var(--sub)}')
     .violations.length === 0,
 );
 

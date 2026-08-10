@@ -44,9 +44,12 @@ const SERIES_DEEP = ['var(--mint-deep)', 'var(--lavender-deep)', 'var(--blue-dee
 // 채운 면 위 글자(D60 ④). 선택·반전·프라이머리처럼 면이 채워진 자리는 글자색이 면을 따라가고,
 // 그때 위계를 지키는 축은 크기와 굵기다. 그래서 색 축은 자리마다 열거하지 않고 한 번에 둔다.
 const ON_SURFACE = ['var(--on-action)', 'var(--panel)', 'var(--canvas)'];
-// 비활성. 색만 물러서는 상태라 크기·굵기가 계약 안이면 조합으로 세지 않는다.
+// 색만 물러서는 상태. 크기·굵기가 계약 안이면 조합으로 세지 않는다.
 const DIMMED = ['var(--sub)', 'var(--muted)'];
 const isDisabled = (variants) => variants.some((v) => /disabled/.test(v));
+// 값이 아직 없는 자리(2026-08-10 CCC-84). '설정 전' 처럼 값이 비면 같은 크기에서 굵기와 색만
+// 물러선다. 목표 카드 세 곳이 똑같이 이렇게 하고 있어 상태 규칙으로 세운다. 비활성과 같은 자리다.
+const isEmptyState = (entry) => /(^|[.\s])is-empty($|[^-\w])/.test(entry.raw);
 
 // (크기, 굵기) → 허용 색 집합. 역할표의 각 행을 그대로 옮긴 것이라 행마다 근거를 적는다.
 const ROLES = [
@@ -68,10 +71,29 @@ const ROLES = [
   { size: 'var(--text-sm)', weight: '400', colors: ['var(--sub)'], role: '메타·설명' },
   // 배지·칩. 2026-08-06 Q 로 400 이고, 색은 계열 deep 이 원칙이되 무채색 배지가 있다
   { size: 'var(--text-sm)', weight: '400', colors: [...SERIES_DEEP, 'var(--risk)', 'var(--ink)'], role: '배지·칩' },
-  // 핵심 버튼(프라이머리·세컨더리·위험)
+  ];
+
+/**
+ * 컨트롤 표 (2026-08-10 CCC-84 신설). 누르는 것은 본문 위계표가 아니라 이 표를 쓴다.
+ *
+ * 왜 표를 가르나. 컨트롤은 자기 면과 테두리를 가지므로 §2-2 규칙 1 의 '한 축'을 이미
+ * 만족한다 — 하니스도 같은 이유로 자기 면을 가진 요소를 이웃 판정에서 뺀다. 그런데 정적
+ * 검사는 본문 표 하나로 재고 있었고, 그래서 작은 버튼·단계 버튼·눌린 시간 슬롯·비선택 탭이
+ * 전부 위반으로 나왔다(6곳). 6곳이면 드리프트가 아니라 **표에 칸이 빠진 것**이다.
+ *
+ * 본문 표에 14/600 `--ink` 를 그냥 더하지 않은 이유가 여기 있다. 그렇게 하면 구획 라벨을
+ * `--sub` 대신 `--ink` 로 쓴 것도 함께 합법이 되어, §2-1 이 막으려던 바로 그 드리프트가
+ * 열린다. 컨트롤인지는 `cursor:pointer` 를 스스로 선언했는지로 가른다(상속은 안 센다).
+ */
+const CONTROL_ROLES = [
   { size: 'var(--text-btn)', weight: '600', colors: ['var(--ink)', 'var(--risk)', ...SERIES_DEEP], role: '핵심 버튼' },
-  // 이동·보기 조작 알약(neutral·ghost)은 14/400 이고 색은 본문 계열
+  // 작은 컨트롤 — 작은 버튼(data-height="sm")·인테이크 단계 버튼·동의 토글 요약·완료 버튼·눌린 시간 슬롯
+  { size: 'var(--text-sm)', weight: '600', colors: ['var(--ink)', ...SERIES_DEEP, 'var(--risk)'], role: '작은 컨트롤' },
+  // 이동·보기 조작 알약(neutral·ghost)
   { size: 'var(--text-sm)', weight: '400', colors: ['var(--ink)', 'var(--sub)'], role: '조작 알약' },
+  // 탭·목표 표시 버튼처럼 본문 크기로 서는 컨트롤. 선택은 --ink, 비선택은 --sub 로 물러선다
+  { size: 'var(--text-md)', weight: '600', colors: ['var(--ink)', 'var(--sub)'], role: '본문 크기 컨트롤' },
+  { size: 'var(--text-md)', weight: '400', colors: ['var(--ink)', 'var(--sub)'], role: '본문 크기 컨트롤(물러섬)' },
 ];
 
 // 좁은 예외. 역할표 밖 조합이지만 결정으로 정당화된 자리만 사유와 함께 남긴다.
@@ -90,7 +112,32 @@ const ALLOW = [
     combo: `var(--text-md)/400/${MIXED_SUB}`,
     why: 'D59 — 이름 없는 경우의 HERO 가명 ID 폴백',
   },
+  // 아래 셋은 2026-08-10 Q 결정(CCC-84). `16/400 --sub` 는 **조합으로는 열 수 없다** — 킷
+  // 페이지의 '고치기 전' 반례가 정확히 그 조합이라, 표에 넣는 순간 반례가 반례가 아니게 된다.
+  // 그래서 자리를 지정해 예외로 둔다.
+  {
+    selector: '.participant-hero-contact',
+    combo: 'var(--text-md)/400/var(--sub)',
+    why: 'D59 결정 3 — HERO 는 이름이 28 이라 연락처가 16 에서도 충분히 물러선다',
+  },
+  {
+    selector: '.participant-card-cell[data-tone="sub"]',
+    combo: 'var(--text-md)/400/var(--sub)',
+    why: '당사자 카드 정보 칸의 보조 톤 — 이름 17 옆에 서는 같은 줄의 칸이다',
+  },
+  {
+    // 짝인 `.register-program-fixed-label` 은 14/600 민트 deep 으로 계약 안이다. 그 옆의
+    // **값**이라 라벨보다 물러설 수 없어 --ink 로 선다. 라벨 규율을 통째로 여는 대신 자리로 연다.
+    selector: '.register-program-fixed-value',
+    combo: 'var(--text-sm)/600/var(--ink)',
+    why: '민트 알약 안의 값 — 짝인 라벨이 계열 deep 이라 값은 --ink 다',
+  },
 ];
+
+// 킷 페이지 반례(`.wire-kit-flat>p.is-reason`)는 **여기 넣지 않는다.** 한 번 넣었다가 되돌렸다.
+// ALLOW 에 넣으면 위반 목록에서 아예 사라지는데, 그 자리의 값은 "일부러 어긋나게 둔 시범
+// 자료"인 동시에 "이 검사가 실제로 잡는다는 증거"다. 증거가 사라지면 검사가 무엇을 보는지
+// 아무도 확인할 수 없다. 그래서 기준선에 남긴다 — 잡히되 실패로 세지 않는 자리다.
 
 // ---------------------------------------------------------------------------
 // 2. CSS 추출 — 두 파일 다 CSS 를 템플릿 리터럴에 담고 있고 보간이 없다.
@@ -209,7 +256,8 @@ function parseDecls(body) {
     if (idx < 0) continue;
     const prop = d.slice(0, idx).trim().toLowerCase();
     const value = d.slice(idx + 1).trim();
-    if (prop === 'font-size' || prop === 'font-weight' || prop === 'color') {
+    // cursor 는 조합에 들어가지 않지만 **컨트롤 여부**를 가르는 신호라 함께 모은다.
+    if (prop === 'font-size' || prop === 'font-weight' || prop === 'color' || prop === 'cursor') {
       out[prop] = value;
     }
   }
@@ -331,14 +379,20 @@ function resolve(entries) {
   return entries.map((e) => {
     const merged = { ...ROOT };
     const declared = new Set();
+    let control = false;
     for (const o of entries) {
       if (!applies(o, e)) continue;
       for (const [prop, value] of Object.entries(o.decls)) {
+        if (prop === 'cursor') {
+          // 컨트롤 신호. 상속은 안 센다 — 버튼 안 글자까지 컨트롤로 보면 표가 통째로 헐거워진다.
+          if (value.trim() === 'pointer') control = true;
+          continue;
+        }
         merged[prop === 'font-size' ? 'size' : prop === 'font-weight' ? 'weight' : 'color'] = value;
         declared.add(prop);
       }
     }
-    return { ...e, resolved: merged, declared: [...declared] };
+    return { ...e, resolved: merged, declared: [...declared], control };
   });
 }
 
@@ -355,12 +409,18 @@ const comboKey = (r) => `${r.size}/${r.weight}/${r.color}`;
  * 열거하지 않는다 — 채운 면 위 글자(D60)와 비활성(색만 물러섬)이다. 둘 다 위계를 지키는 축은
  * 여전히 크기와 굵기이고, 색은 면이나 상태를 따라간다.
  */
-function legal(resolved, variants) {
-  const step = ROLES.filter((r) => r.size === resolved.size && r.weight === resolved.weight);
+function legal(entry) {
+  const { resolved, variants, control } = entry;
+  // 컨트롤은 본문 표를 **대신하지 않고 더한다**. 갈아치웠더니 원래 합법이던 자리 둘
+  // (`.briefing-history>summary`·`.goal-tree-history>summary`, 14/600 `--sub` 라벨 차림의
+  // 조용한 토글)이 새 위반으로 나왔다. 컨트롤 표가 하는 일은 칸을 더하는 것이지 빼는 것이 아니다.
+  const table = control ? [...ROLES, ...CONTROL_ROLES] : ROLES;
+  const step = table.filter((r) => r.size === resolved.size && r.weight === resolved.weight);
   if (step.length === 0) return false;
   if (step.some((r) => r.colors.includes(resolved.color))) return true;
   if (ON_SURFACE.includes(resolved.color)) return true;
   if (isDisabled(variants) && DIMMED.includes(resolved.color)) return true;
+  if (isEmptyState(entry) && DIMMED.includes(resolved.color)) return true;
   return false;
 }
 
@@ -391,7 +451,7 @@ export function audit(sources = readSources()) {
 
   for (const e of entries) {
     if (!judgeable(e)) continue;
-    if (legal(e.resolved, e.variants) || allowed(e)) continue;
+    if (legal(e) || allowed(e)) continue;
 
     // 기준선 키는 줄 번호를 쓰지 않는다 — 무관한 편집마다 흔들린다.
     // 변형까지 붙인 **원래 선택자**를 쓴다. 변형을 뗀 이름으로 키를 지었더니
