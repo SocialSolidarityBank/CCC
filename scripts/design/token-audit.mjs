@@ -324,6 +324,21 @@ for (const selector of WEIGHT_REQUIRED) {
     `${selector} 규칙에 font-weight 선언이 없다 — UA 기본 bold(700)가 살아 §2 계약(400·500·600) 밖으로 나간다`);
 }
 
+// CSS 주석 안의 백틱 (2026-08-10 신설). 이 파일들의 CSS 는 JS 템플릿 리터럴 안에 있어서
+// 주석에 백틱 하나가 들어가면 리터럴이 거기서 끊긴다. 실제로 겪은 일이라 검사로 옮긴다:
+// 주석에 `[aria-live="polite"]` 라고 코드 인용을 하려다 파일이 깨졌고, **커밋 훅은 통과했다**
+// (tsc 를 안 돌리므로). 더 나쁜 것은 조용한 쪽이었다 — 하니스의 CSS 추출기가 백틱을 리터럴
+// 경계로 읽어 그 사이 규칙을 통째로 빼먹었고, 그래서 실측이 "고쳤다"고 말하는데 실은 상대
+// 규칙이 사라진 상태였다. 검사가 통과하면서 화면이 깨지는 그 모양이다.
+for (const file of TARGETS) {
+  const raw = readFileSync(file, 'utf8');
+  for (const m of raw.matchAll(/\/\*[\s\S]*?\*\//g)) {
+    if (!m[0].includes('`')) continue;
+    add(file, raw.slice(0, m.index).split('\n').length, 'backtick-in-comment',
+      'CSS 주석에 백틱이 있다 — 이 CSS 는 템플릿 리터럴 안이라 파일이 거기서 끊긴다. 코드 인용은 백틱 없이 적는다');
+  }
+}
+
 // 계단 자체가 tokens.css 에 살아 있는지 확인한다 — 위 검사들이 "토큰을 쓰라"고 말하는데
 // 그 토큰이 지워져 있으면 검사가 통과하면서도 화면은 깨진다.
 for (const step of TEXT_STEPS) {

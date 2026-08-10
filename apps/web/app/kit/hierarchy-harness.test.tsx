@@ -25,6 +25,7 @@ import type { ReactElement } from 'react';
 import { extractCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import KitPage from './page';
+import { PageLoading } from '../components/wire/page-loading';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RecordOnepage, type RecordOnepageProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage';
 import { IntakeWizard } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard';
@@ -125,11 +126,22 @@ interface Screen {
    * §2-2 가 이름을 댄 '상담 유형 / 기본 상담 / 안내문 / 버튼' 4줄은 2단계에 있다.
    */
   walk?: () => Promise<string>;
+  /**
+   * 이 화면이 최소 몇 줄이어야 하는가. "덜 렌더된 화면"을 잡는 문턱이다.
+   *
+   * 전역 하한 하나로 두지 않는 이유. 로딩 화면은 제목과 한 문장, 정말로 두 줄뿐이라
+   * 공통 문턱에 걸린다. 거기 맞춰 전역을 2 로 낮추면 200줄짜리 상담 기록이 3줄로 나와도
+   * 통과한다. 화면마다 적으면 문턱이 오히려 촘촘해진다.
+   */
+  minLines?: number;
 }
 
 const SCREENS: Screen[] = [
   { id: 'kit', label: '컴포넌트 킷 (반례 포함)', node: <KitPage /> },
   { id: 'briefing', label: '15초 페이지', node: <BriefingCards {...briefingProps} /> },
+  // 로딩은 줄이 둘뿐이라 위계로 걸릴 것이 없지만, 한 줄이 카드를 통째로 채우는 유일한 화면이라
+  // 세로 중앙 정렬이 여기서만 눈에 띈다(2026-08-10 Q 지적). 재는 자리에 두어야 다시 어긋날 때 걸린다.
+  { id: 'loading', label: '로딩 화면', node: <PageLoading title="15초 페이지" />, minLines: 2 },
   { id: 'record-new', label: '상담 기록 작성', node: <RecordOnepage {...recordProps} /> },
   {
     id: 'intake',
@@ -218,13 +230,20 @@ async function buildHarness(): Promise<{ html: string; markup: Map<string, strin
   ).join('\n');
 
   // 하니스 자신의 스타일은 최소로 둔다. 잰 값이 하니스 탓인지 앱 탓인지 헷갈리면 안 되므로
-  // 글자에 닿는 선언은 하나도 두지 않는다 — 폭과 배경만 준다.
+  // 글자에 닿는 선언은 하나도 두지 않는다 — 배경만 준다.
+  //
+  // **폭과 패딩을 주지 않는다**(2026-08-10 정정). 처음엔 `max-width:1280px;padding:24px` 을
+  // 뒀는데, 화면 뿌리인 `.wire-container` 가 이미 자기 상한(--page-max)과 좌우 패딩
+  // (--page-pad-x)을 갖는다. 겹쳐 주면 이중 래핑이 되어 390 에서 가로 넘침이 났고(실측:
+  // 요소 16개가 뷰포트 밖), 더 나쁜 것은 **글 폭이 실제보다 48px 좁아져 줄바꿈이 이르게**
+  // 일어난다는 점이다 — 좁은 폭 실측(CCC-86)이 재려는 것이 바로 그 줄바꿈이라 전제가 흔들린다.
+  // 화면이 자기 폭을 정하게 두는 것이 곧 실제와 같게 재는 길이다.
   const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>위계 하니스</title>
 <style>${tokens}</style>
 <style>${layoutCss}</style>
 <style>${wireStyles}</style>
-<style>.harness-screen{max-width:1280px;margin:0 auto;padding:24px;background:var(--canvas)}</style>
+<style>.harness-screen{background:var(--canvas)}</style>
 </head><body>${sections}</body></html>`;
   return { html, markup };
 }
@@ -236,16 +255,16 @@ describe('위계 하니스 생성기', () => {
     // 화면 하나라도 빈 껍데기로 나오면 실측이 조용히 0건이 된다. 그 상태와 "위반 없음"이
     // 보고서에서 구별되지 않으므로 여기서 막는다.
     //
-    // 문턱을 낮게 잡은 것은 의도다. 이 단언이 잡을 것은 "덜 렌더된 화면"이지 "작은 화면"이
-    // 아니다. 실제로 처음엔 10 으로 뒀다가 세션 목표 수정 화면(줄이 원래 몇 개 안 된다)이
-    // 걸렸다. 대신 화면마다 글자 줄 수를 screens.json 에 적어 두고 실측 보고서가 그대로
-    // 보이게 한다 — 얇은 화면은 숨기는 것이 아니라 얇다고 적는다.
+    // 문턱은 화면마다 정한다(minLines, 기본 5). 이 단언이 잡을 것은 "덜 렌더된 화면"이지
+    // "작은 화면"이 아니다. 처음엔 전역 10 이었다가 세션 목표 수정 화면이 걸려 5 로 내렸고,
+    // 로딩 화면(정말로 두 줄)이 들어오면서 화면별로 갈랐다 — 전역을 2 로 내리면 200줄짜리
+    // 상담 기록이 3줄로 나와도 통과한다. 실제 줄 수는 screens.json 에 그대로 적어 둔다.
     const counts = new Map<string, number>();
-    for (const { id } of SCREENS) {
+    for (const { id, minLines = 5 } of SCREENS) {
       const body = markup.get(id) ?? '';
       const textNodes = body.match(/>[^<>\s][^<>]*</g) ?? [];
       counts.set(id, textNodes.length);
-      expect(textNodes.length, `${id} 화면이 덜 렌더됐다`).toBeGreaterThan(4);
+      expect(textNodes.length, `${id} 화면이 덜 렌더됐다`).toBeGreaterThanOrEqual(minLines);
     }
     // 통제군 — 킷의 '고치기 전' 반례가 하니스에 들어와야 실측이 자기 검증을 할 수 있다.
     expect(markup.get('kit')).toContain('wire-kit-flat');
