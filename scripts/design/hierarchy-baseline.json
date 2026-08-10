@@ -1,0 +1,20 @@
+{
+  "note": "위계 감사 기준선. 여기 적힌 위반은 이미 있던 것이라 실패로 세지 않는다. 고치면 이 파일에서도 지운다.",
+  "generated": "node scripts/design/hierarchy-audit.mjs --update-baseline",
+  "entries": [
+    ".briefing-goal-display.is-empty = var(--text-md)/400/var(--sub)",
+    ".briefing-goal-text.is-empty = var(--text-md)/400/var(--sub)",
+    ".consent-detail-summary = var(--text-sm)/600/var(--ink)",
+    ".intake-step = var(--text-sm)/600/var(--ink)",
+    ".participant-card-cell[data-tone=\"sub\"] = var(--text-md)/400/var(--sub)",
+    ".participant-card-programs = var(--text-md)/400/var(--lavender-deep)",
+    ".participant-hero-contact = var(--text-md)/400/var(--sub)",
+    ".record-goal-text.is-empty = var(--text-md)/400/var(--sub)",
+    ".register-program-fixed-value = var(--text-sm)/600/var(--ink)",
+    ".wire-button[data-height=\"sm\"] = var(--text-sm)/600/var(--ink)",
+    ".wire-datetime-done = var(--text-sm)/600/var(--ink)",
+    ".wire-kit-flat>p.is-reason = var(--text-md)/400/var(--sub)",
+    ".wire-tab = var(--text-md)/600/var(--sub)",
+    ".wire-time-slot[aria-pressed=\"true\"] = var(--text-sm)/600/var(--ink)"
+  ]
+}
