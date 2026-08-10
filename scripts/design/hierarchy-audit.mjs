@@ -96,8 +96,13 @@ const ALLOW = [
 // 2. CSS 추출 — 두 파일 다 CSS 를 템플릿 리터럴에 담고 있고 보간이 없다.
 // ---------------------------------------------------------------------------
 
-/** 파일에서 백틱 템플릿 리터럴 본문만 모은다. 줄 번호는 파일 기준으로 보존한다. */
-function extractCss(file) {
+/**
+ * 파일에서 백틱 템플릿 리터럴 본문만 모은다. 줄 번호는 파일 기준으로 보존한다.
+ *
+ * 하니스 생성기도 이 함수를 쓴다(apps/web 의 hierarchy-harness.test.tsx). 추출기를 두 벌 두면
+ * 검사와 하니스가 서로 다른 CSS 를 보게 되고, 그러면 둘의 결과를 맞대 볼 수 없다.
+ */
+export function extractCss(file) {
   const src = readFileSync(file, 'utf8');
   if (src.includes('${')) {
     throw new Error(`${relative(repoRoot, file)} 에 템플릿 보간이 생겼다 — 추출 방식을 다시 봐야 한다`);
