@@ -6,9 +6,6 @@
     "390 | intake | overflow-x | div.wire-container>section.wizard-stack>div.wizard-actions",
     "390 | intake | overflow-x | div.wire-container>section.wizard-stack>div.wizard-stack",
     "390 | intake | overflow-x | div.wire-container>section.wizard-stack>p.notice-status",
-    "390 | intake | overflow-x | div.wire-container>section.wizard-stack>section.surface-card",
-    "390 | intake | overflow-x | div.wizard-stack>div.surface-card>hr.wire-card-divider",
-    "390 | intake | overflow-x | section.wizard-stack>div.wizard-stack>div.surface-card",
-    "390 | intake | overflow-x | section.wizard-stack>div.wizard-stack>h2"
+    "390 | intake | overflow-x | div.wire-container>section.wizard-stack>section.surface-card"
   ]
 }

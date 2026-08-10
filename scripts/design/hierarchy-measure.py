@@ -204,7 +204,13 @@ GEOMETRY_JS = r"""
   // 잰 개수를 함께 낸다. 0 건이 "위반 없음"인지 "아무것도 안 봤음"인지 화면에서 같아 보이는
   // 것을 막는 유일한 장치다. 기하에는 킷 반례 같은 통제군이 없으므로(일부러 넘치는 화면을
   // 킷에 두면 그 화면이 실제로 390 에서 깨진다) 이 숫자가 통제군 노릇을 한다.
-  const probes = { elements: 0, reserve: 0, sticky: 0 };
+  //
+  // `overflowAll` 은 넘친 요소를 하나도 빼지 않고 센 값이다. 판정은 바깥 테두리만 세지만
+  // (아래 참조) 번짐의 크기는 보고서에 남겨 둔다. 이 숫자는 글꼴에 따라 크게 갈린다.
+  const probes = { elements: 0, reserve: 0, sticky: 0, overflowAll: 0 };
+  // 이미 넘친 것으로 판정된 요소. `querySelectorAll('*')` 이 문서 순서를 주므로 부모가 자식보다
+  // 항상 먼저 들어온다.
+  const overflowing = new Set();
 
   for (const screen of document.querySelectorAll('[data-screen]')) {
     const id = screen.getAttribute('data-screen');
@@ -260,8 +266,20 @@ GEOMETRY_JS = r"""
         const right = r.right - box.right;
         const left = box.left - r.left;
         if (right > EDGE_SLACK || left > EDGE_SLACK) {
-          const side = right > left ? `오른쪽으로 ${Math.round(right)}px` : `왼쪽으로 ${Math.round(left)}px`;
-          hit('overflow-x', `화면 상자 밖으로 ${side} 나간다`);
+          overflowing.add(el);
+          probes.overflowAll += 1;
+          // **바깥 테두리만 센다.** 부모가 이미 넘쳤으면 자식은 그것 때문에 따라 나간 것이라
+          // 새 사실이 아니다. 고칠 자리는 넘침이 시작되는 곳 하나다.
+          //
+          // 이 조건이 없으면 판정이 글꼴을 탄다. 2026-08-11 CI 에서 실제로 겪었다. 같은 결함이
+          // macOS 는 16건, 리눅스는 129건으로 나왔다. 원인(위저드 격자 트랙이 컨테이너보다
+          // 넓다)은 하나인데 글꼴이 넓어지면 더 깊은 자손까지 선을 넘기 때문이다. 바깥
+          // 테두리는 그 트랙을 채우는 격자 칸들이라 두 플랫폼에서 같다. 번짐의 크기는
+          // probes.overflowAll 에 남는다.
+          if (!overflowing.has(el.parentElement)) {
+            const side = right > left ? `오른쪽으로 ${Math.round(right)}px` : `왼쪽으로 ${Math.round(left)}px`;
+            hit('overflow-x', `화면 상자 밖으로 ${side} 나간다`);
+          }
         }
       }
     }
@@ -370,6 +388,10 @@ def main() -> int:
         for f in result["findings"]:
             by_rule[f["rule"]] = by_rule.get(f["rule"], 0) + 1
         detail = ", ".join(f"{r} {n}건" for r, n in sorted(by_rule.items())) or "위반 0"
+        # 넘침은 바깥 테두리만 세므로, 딸려 나간 자손 수를 따로 붙인다. 이 숫자가 크면 결함
+        # 하나가 화면을 얼마나 넓게 밀고 있는지가 보인다(글꼴에 따라 갈리므로 판정은 아니다).
+        spread = probe["overflowAll"] - by_rule.get("overflow-x", 0)
+        detail += f" (넘침에 딸려 나간 자손 {spread}개)" if spread else ""
         print(
             f"기하 폭 {width}: 요소 {probe['elements']}개(자리 예약 {probe['reserve']}, "
             f"붙박이 {probe['sticky']}), {detail}"

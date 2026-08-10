@@ -106,4 +106,6 @@
 
 기존 위반은 `scripts/design/hierarchy-baseline.json` 에 담겨 있고 새 위반만 막는다. 고쳤으면 기준선에서도 지운다(안 지우면 실패한다). 기준선을 다시 만드는 명령은 `pnpm guard:hierarchy:baseline` 이고, **새 위반을 기준선에 넣어 통과시키는 용도가 아니다.**
 
-실측 쪽 기준선은 레인마다 따로다. 이웃 관계는 `hierarchy-adjacency-baseline.json`, 기하는 `geometry-baseline.json` 이고 둘 다 `pnpm design:hierarchy -- --update-baseline` 이 함께 다시 쓴다. **기하 기준선에 지금 적혀 있는 8건은 승인된 예외가 아니라 아직 안 고친 결함이다**(인테이크 화면이 390 에서 12px 밖으로 나간다, CCC-91 실측).
+실측 쪽 기준선은 레인마다 따로다. 이웃 관계는 `hierarchy-adjacency-baseline.json`, 기하는 `geometry-baseline.json` 이고 둘 다 `pnpm design:hierarchy -- --update-baseline` 이 함께 다시 쓴다. **기하 기준선에 지금 적혀 있는 5건은 승인된 예외가 아니라 아직 안 고친 결함이다**(인테이크 화면이 390 에서 12px 밖으로 나간다, CCC-91 실측 · 고치는 것은 CCC-93).
+
+가로 넘침은 **넘침이 시작되는 바깥 테두리만** 센다. 부모가 이미 넘쳤으면 자식은 따라 나간 것이라 새 사실이 아니고, 자손까지 세면 판정이 글꼴을 타 리눅스 CI 와 macOS 가 갈린다(2026-08-11 실측: 같은 결함이 16건 대 129건).
