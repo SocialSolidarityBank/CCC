@@ -162,8 +162,11 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    **선언돼 있지 않아 계약이 아니었다** — 누가 align-items 를 건드리면 조용히 어긋나고,
    실제로 .card-grid 쪽은 이 일을 하려고 flex 두 줄을 따로 갖고 있었다. 여기 적어 둔다.
    카드가 칸을 채우도록 height 도 함께 준다: 칸(.wire-col-*)은 늘어나도 그 안의 카드는
-   블록이라 내용 높이에 머문다. 접힌 아코디언은 이 규칙 밖이다(§4-2 — 접으면 줄어드는 것이
-   아코디언의 뜻이고, 그 예외를 없앨지는 2026-08-10 Q 확인 대기). */
+   블록이라 내용 높이에 머문다.
+   **접힌 아코디언은 이 규칙 밖이다**(2026-08-10 Q 확정 — 같은 날 "접혀 있어도 맞춘다"로
+   바꿨다가 실물을 보고 되돌렸다. 접힘 카드가 요약 줄 72 대신 246 이 되어 174 가 빈 채로
+   남았다). 높이를 맞추는 대상은 **읽는 자료 카드**이고, 접힘은 "지금 안 보겠다"는 상태라
+   자리를 비운다. 규칙은 .briefing-cards-grid 가 갖는다(layout.tsx). */
 .wire-container[data-grid="true"]>[class*="wire-col-"]{display:flex;flex-direction:column}
 .wire-container[data-grid="true"]>[class*="wire-col-"]>.wire-card{flex:1 1 auto}
 .wire-col-3{grid-column:span 3}

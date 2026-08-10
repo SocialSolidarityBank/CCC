@@ -453,13 +453,19 @@ const briefingStyles = `
 .risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:400;font-size:var(--text-sm)}
 /* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
    1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
-/* **나란한 카드는 접혀 있어도 그 줄에서 가장 높은 카드에 높이를 맞춘다**(2026-08-10 Q —
-   §4-2 의 "접은 카드는 요약 줄만 남긴다"를 대체한다. 구 규칙은 접힌 카드와 펼친 카드가
-   나란할 때 짧은 상자 하나가 옆에 떠 있는 모양을 만들었다).
-   높이는 여전히 **내용이 정한다** — JS 로 재서 박지 않는다. 그래서 카드 안 글자가 커지면
-   (이름이 길어지거나 글자 크기가 올라가면) 줄 전체가 그만큼 함께 커진다(같은 날 Q 단서). */
-.briefing-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));gap:var(--space-5);align-items:stretch}
-.briefing-cards-grid>.briefing-card{align-self:stretch}
+/* 아코디언이 나란할 때: **펼친 카드끼리는 높이를 맞추고, 접힌 카드는 요약 줄만 남긴다**(§4-2).
+   높이는 내용이 정한다 — JS 로 재서 박지 않는다.
+
+   2026-08-10 에 "접혀 있어도 맞춘다"로 한 번 바꿨다가 **실물을 보고 되돌렸다**(같은 날 Q
+   "무조건 높이를 맞추는 게 아니라, 접혀 있을 때는 높이를 따라가지 말아"). 하니스 실측:
+   접힘 카드가 요약 줄에 필요한 72 대신 246 이 되어 174 가 빈 채로 남았다. 이것이 §4-2 가
+   처음부터 이 규칙을 이렇게 정해 둔 이유였고, 문장만 읽고 그림으로 확인하지 않은 채
+   바꾼 것이 잘못이었다.
+   높이 맞춤이 필요한 것은 **읽는 자료 카드**다(일정 위저드의 참고 카드 2장 — .card-grid 와
+   .wire-container[data-grid] 가 이미 편다). 접힘은 "지금 안 보겠다"는 상태라 자리를 비운다. */
+.briefing-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));gap:var(--space-5);align-items:start}
+.briefing-cards-grid>.briefing-card{align-self:start}
+.briefing-cards-grid>.briefing-card[open]{align-self:stretch}
 /* 브리핑 3영역·미해결 액션 = **접힘 카드**다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59
    플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
    여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
