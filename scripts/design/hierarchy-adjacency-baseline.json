@@ -1,0 +1,5 @@
+{
+  "note": "위계 실측 기준선(이웃한 두 줄). 여기 적힌 쌍은 이미 있던 것이라 실패로 세지 않는다.",
+  "generated": "pnpm design:hierarchy -- --update-baseline",
+  "entries": []
+}
