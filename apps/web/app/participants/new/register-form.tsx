@@ -211,12 +211,12 @@ export function RegisterForm({
           </div>
 
           {/* 정보 표시 전용 아코디언(기본 접힘) — briefing-cards.tsx의 briefing-subaccordion 패턴을
-              그대로 참고한다(요약 + .briefing-card-arrow 회전 화살표). 체크박스 이름·액션·저장
+              그대로 참고한다(요약 + .wire-card-arrow 회전 화살표). 체크박스 이름·액션·저장
               구조는 건드리지 않는다. */}
           <details className="consent-detail">
             <summary className="consent-detail-summary">
               <span>자세히 읽어보기</span>
-              <span aria-hidden="true" className="briefing-card-arrow" />
+              <span aria-hidden="true" className="wire-card-arrow" />
             </summary>
             <div className="consent-detail-body">
               <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>

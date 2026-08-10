@@ -8,6 +8,7 @@ import { ListRow } from '../components/wire/list-row';
 import { PageTitle } from '../components/wire/page-title';
 import { SearchInput } from '../components/wire/search-input';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../components/wire/wire-card';
+import { WireCardSection, WireItem } from '../components/wire/wire-section';
 import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
 import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
@@ -18,7 +19,6 @@ import { PROGRAM_LABELS } from '../lib/labels';
 // 실제 데이터·게이트웨이 호출은 없다(R1 무관). 의도적으로 어느 메뉴에도 링크하지 않는
 // 와이어 킷 데모 라우트(dev 전용) — 프로덕션 내비게이션에서 접근할 수 없다.
 export default function KitPage() {
-  const [accordionOpen, setAccordionOpen] = useState(true);
   const [selectedRow, setSelectedRow] = useState('first');
   const [search, setSearch] = useState('');
   const [program, setProgram] = useState('financial_support_v1');
@@ -28,11 +28,96 @@ export default function KitPage() {
       <GridContainer>
         <PageTitle>컴포넌트 킷</PageTitle>
 
+        {/* 2026-08-10 규칙집 리팩터 1단계 — 검토용 비교 구획. 부품이 자리를 잡으면 이 구획은
+            'WireCardSection · WireItem' 사용법 전시로 줄이고 반례 칸은 걷는다. */}
+        <section className="wire-kit-section" aria-labelledby="kit-hierarchy">
+          <h2 className="wire-kit-heading" id="kit-hierarchy">위계 부품 2종: 눌린 쌓임과 나열</h2>
+          <p className="wire-kit-caption">
+            눌린 쌓임은 중요도가 다른 값들이 같은 옷을 입고 세로로 쌓인 것이고, 고쳐야 한다.
+            나열은 원래 대등한 것들이 나란히 있는 것이고, 정상이다. 아래 왼쪽이 눌린 쌓임,
+            오른쪽이 부품으로 조립한 같은 내용이다. 왼쪽도 색과 크기는 전부 토큰이라
+            기계 검사(guard:tokens)를 그대로 통과한다.
+          </p>
+          <div className="wire-kit-compare">
+            <div className="wire-kit-stack">
+              <p className="wire-kit-compare-label">고치기 전 (손으로 쌓은 것)</p>
+              <WireCard title="오늘 만나기 전 꼭 기억할 것">
+                <div className="wire-kit-stack">
+                  <p>세션 목표</p>
+                  <p>구직 상담 이후 이력서 초안을 함께 본다</p>
+                  <p>맞춤형 질문</p>
+                  <p>이번 달 지출은 정리됐는지</p>
+                  <p>AI 제안</p>
+                  <div className="wire-kit-flat">
+                    <p>최근 구직 활동은 어땠는지</p>
+                    <p className="is-reason">지난 회차에서 면접 결과를 기다리고 있었다</p>
+                    <a href="#kit-hierarchy">근거 회차 보기 (2026년 7월 15일)</a>
+                  </div>
+                </div>
+              </WireCard>
+            </div>
+            <div className="wire-kit-stack">
+              <p className="wire-kit-compare-label">고친 후 (부품으로 조립한 것)</p>
+              <WireCard title="오늘 만나기 전 꼭 기억할 것">
+                <WireCardSection title="세션 목표" tone="mint">
+                  <WireBullets items={['구직 상담 이후 이력서 초안을 함께 본다']} />
+                </WireCardSection>
+                <WireCardSection title="맞춤형 질문" tone="mint">
+                  <WireBullets items={['이번 달 지출은 정리됐는지']} />
+                </WireCardSection>
+                <WireCardSection title="AI 제안" tone="lavender">
+                  <WireItem
+                    tone="lavender"
+                    title="최근 구직 활동은 어땠는지"
+                    description="지난 회차에서 면접 결과를 기다리고 있었다"
+                    action={<a href="#kit-hierarchy">근거 회차 보기 (2026년 7월 15일)</a>}
+                  />
+                </WireCardSection>
+              </WireCard>
+            </div>
+          </div>
+          <p className="wire-kit-caption">
+            달라진 것은 셋이다. 구획마다 계열 라벨이 서고, 구획이 이어지면 가로선이 저절로
+            붙고, AI 제안의 이유와 링크가 제목보다 한 단 물러선다. 화면이 판단하는 자리가 없다.
+            {' '}
+            이유와 링크는 14 다(2026-08-10 Q 확정). 2026-08-06 의 "아코디언 안 읽는 글은 전부
+            16" 지시와 부딪혔던 자리이고, 나중에 생긴 위계 4단 계약을 살리는 쪽으로 정해졌다.
+          </p>
+          <div className="wire-kit-compare">
+            <div className="wire-kit-stack">
+              <p className="wire-kit-compare-label">상태 낱말 (고치기 전)</p>
+              <WireCard>
+                <div className="wire-kit-flat">
+                  <p>2026년 7월 15일 상담</p>
+                  <p className="is-reason">미기록, 3회차</p>
+                </div>
+              </WireCard>
+            </div>
+            <div className="wire-kit-stack">
+              <p className="wire-kit-compare-label">상태 낱말 (고친 후)</p>
+              <WireCard>
+                <WireItem
+                  title="2026년 7월 15일 상담"
+                  status={<>
+                    <WireBadge tone="lavender">미기록</WireBadge>
+                    <WireBadge tone="blue">3회차</WireBadge>
+                  </>}
+                />
+              </WireCard>
+            </div>
+          </div>
+          <p className="wire-kit-caption">
+            분류와 상태를 나타내는 낱말은 본문 글자로 두지 않고 배지로 올린다. 배지는 자기 면과
+            테두리를 가지므로 이웃한 줄과 저절로 구분된다.
+          </p>
+        </section>
+
         <section className="wire-kit-section" aria-labelledby="kit-tokens">
           <h2 className="wire-kit-heading" id="kit-tokens">레이아웃과 색 토큰</h2>
           <p className="wire-kit-caption">
-            콘텐츠 컬럼 1120(폼·읽기 화면은 720), 좌우 여백 32, 섹션 간격 32. 값은 design/tokens.css 의
-            --page-max, --page-pad-x, --section-gap 하나뿐이고 화면이 폭을 따로 정하지 않는다 (DESIGN.md 4-1)
+            콘텐츠 컬럼 1280, 좌우 여백 40(767 미만 16), 섹션 간격 24. 값은 design/tokens.css 의
+            --page-max, --page-pad-x, --section-gap 하나뿐이고 화면이 폭을 따로 정하지 않는다 (DESIGN.md 4-1).
+            좁은 폭 960(.narrow)은 2026-08-05 에 폐지됐다
           </p>
           <div className="wire-container" data-grid="true">
             <div className="wire-col-6 wire-kit-swatch">col-6</div>
@@ -78,20 +163,11 @@ export default function KitPage() {
               선택 가능 로우 B
             </ListRow>
             <ListRow href="/kit" chevron="right">링크 로우 (/kit)</ListRow>
-            <ListRow
-              open={accordionOpen}
-              onClick={() => setAccordionOpen((prev) => !prev)}
-              ariaExpanded={accordionOpen}
-              ariaControls="kit-accordion-body"
-            >
-              아코디언 헤더 (open={String(accordionOpen)})
-            </ListRow>
-            {accordionOpen && (
-              <div id="kit-accordion-body">
-                <WireCard>펼쳐진 아코디언 본문</WireCard>
-              </div>
-            )}
           </div>
+          <p className="wire-kit-caption">
+            아코디언 변형은 2026-08-10 에 뺐다. 접히고 펼쳐지는 어휘는 아래 WireCardDetails
+            하나이고, 이 부품은 누르면 이동하거나 고르는 한 줄이다.
+          </p>
         </section>
 
         <section className="wire-kit-section" aria-labelledby="kit-card">

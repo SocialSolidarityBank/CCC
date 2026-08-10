@@ -22,11 +22,11 @@ describe('ListRow', () => {
     expect(container.querySelector('.wire-chevron')).toBeNull();
   });
 
-  it('open 상태로 체브론 방향을 파생한다(true=down, false=right)', () => {
-    const { container: openContainer } = render(<ListRow open>펼침</ListRow>);
-    expect(openContainer.querySelector('.wire-chevron')?.getAttribute('data-dir')).toBe('down');
-    const { container: closedContainer } = render(<ListRow open={false}>접힘</ListRow>);
-    expect(closedContainer.querySelector('.wire-chevron')?.getAttribute('data-dir')).toBe('right');
+  it('아코디언 변형은 없다 — 접힘 어휘는 WireCardDetails 하나다 (2026-08-10)', () => {
+    // 구 open prop 은 체브론 방향을 파생하고 aria-expanded 를 달았는데, 쓰는 화면이
+    // 한 곳도 없었다(킷 데모와 이 테스트뿐). 되살아나면 접힘 어휘가 다시 두 벌이 된다.
+    const { container } = render(<ListRow onClick={() => {}}>줄</ListRow>);
+    expect(container.querySelector('.wire-row')?.getAttribute('aria-expanded')).toBeNull();
   });
 
   it('selected면 뮤트 필 표시(data-selected)를 남긴다', () => {

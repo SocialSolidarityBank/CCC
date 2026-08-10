@@ -156,7 +156,16 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    콘텐츠 컬럼만 제멋대로 늘었다 줄었다 했다. 폭 결정권을 한 곳으로 모은 결과 이 클래스는
    "세로 리듬"만 담당한다. width prop 은 호출부 호환을 위해 남아 있으나 폭을 정하지 않는다. */
 .wire-container{width:100%;display:grid;gap:var(--section-gap);align-content:start}
-.wire-container[data-grid="true"]{grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--space-5);row-gap:var(--space-5)}
+.wire-container[data-grid="true"]{grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--space-5);row-gap:var(--space-5);align-items:stretch}
+/* **나란한 카드는 그 줄에서 가장 높은 카드에 높이를 맞춘다**(2026-08-10 Q "나란히 2개 이상이면
+   최대 펼침면에 높이 맞추기"). 격자 기본값이 이미 stretch 라 지금도 그렇게 그려지지만,
+   **선언돼 있지 않아 계약이 아니었다** — 누가 align-items 를 건드리면 조용히 어긋나고,
+   실제로 .card-grid 쪽은 이 일을 하려고 flex 두 줄을 따로 갖고 있었다. 여기 적어 둔다.
+   카드가 칸을 채우도록 height 도 함께 준다: 칸(.wire-col-*)은 늘어나도 그 안의 카드는
+   블록이라 내용 높이에 머문다. 접힌 아코디언은 이 규칙 밖이다(§4-2 — 접으면 줄어드는 것이
+   아코디언의 뜻이고, 그 예외를 없앨지는 2026-08-10 Q 확인 대기). */
+.wire-container[data-grid="true"]>[class*="wire-col-"]{display:flex;flex-direction:column}
+.wire-container[data-grid="true"]>[class*="wire-col-"]>.wire-card{flex:1 1 auto}
 .wire-col-3{grid-column:span 3}
 .wire-col-4{grid-column:span 4}
 .wire-col-6{grid-column:span 6}
@@ -437,12 +446,16 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-row[data-align="center"]{justify-content:center;text-align:center}
 .wire-row-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .wire-row[data-align="center"] .wire-row-text{flex:0 1 auto}
-/* 꺽쇠 크기는 em 이라 글줄 폰트 크기를 따라간다(2026-08-07 Q 8차 전역 계약, 16px 기준
-   상자 10·획 2 그대로). .wire-card-arrow·.briefing-card-arrow 도 같은 계약이다. */
-.wire-chevron{flex:none;width:.625em;height:.625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub)}
-.wire-chevron[data-dir="down"]{transform:translateY(-.1875em) rotate(45deg)}
-.wire-chevron[data-dir="right"]{transform:translateX(-.1875em) rotate(-45deg)}
-.wire-chevron[data-dir="left"]{transform:translateX(.1875em) rotate(135deg)}
+/* 꺽쇠(>) 한 벌 — 2026-08-10 Q "버튼과 listrow, 체브론 맞추기". **배수를 맞추는 것이지
+   픽셀을 맞추는 것이 아니다**(같은 날 Q: 꺽쇠는 폰트 크기를 따라가야 하고, 글자에 붙어 있는
+   자리는 특히 그렇다). 어긋나 있던 것은 배수가 넷이었다는 것이다 — .625 ListRow · .5625 카드 ·
+   .5333 핵심 버튼 · .5 조작 버튼. 이제 --chevron-box 하나를 전부가 본다.
+   광학 보정(translate)은 상자의 1/5 이다 — 회전한 사각형이라 잉크 중심이 기하 중심에서
+   벗어나고, 상자가 커지면 그 어긋남도 같은 비율로 커진다. */
+.wire-chevron{flex:none;width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub)}
+.wire-chevron[data-dir="down"]{transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg)}
+.wire-chevron[data-dir="right"]{transform:translateX(calc(var(--chevron-box) / -5)) rotate(-45deg)}
+.wire-chevron[data-dir="left"]{transform:translateX(calc(var(--chevron-box) / 5)) rotate(135deg)}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 /* --card-pad 는 이 카드의 사방 패딩이다. 변수로 두는 이유는 **풀블리드 조각들이 그 값을
    되읽어야 하기 때문**이다(펼친 제목 줄의 음수 마진). 예전에는 그 음수 값을 손으로 적어
@@ -477,24 +490,53 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* optical: 꺽쇠 잉크는 회전 때문에 상자 중앙에서 벗어난다(닫힘 › = 오른쪽으로, 열림 ⌄ =
    아래로 각 약 2px — 2026-08-06 실측). 레이아웃 상자가 아니라 잉크가 글줄 중앙에 오도록
    translate 로 되민다(.wire-chevron[data-dir] 와 같은 보정 계약). */
-.wire-card-arrow{flex:none;width:.5625em;height:.5625em;border-right:.125em solid var(--sub);border-bottom:.125em solid var(--sub);transform:translateX(-.125em) rotate(-45deg);transition:transform .15s ease}
+.wire-card-arrow{flex:none;width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateX(calc(var(--chevron-box) / -5)) rotate(-45deg);transition:transform .15s ease}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
-.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(-.125em) rotate(45deg)}
+.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
    이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */
 .wire-card-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
 .wire-card-head .wire-badge{flex:none;white-space:nowrap}
-/* 카드 안 하위 구획. h3 에 규칙이 없어 브라우저 기본 크기(18.7px)가 그대로 나오던 자리다 —
-   카드 제목(18)과 크기가 겹쳐 위계가 없었다. 구획 제목은 라벨이므로 14/700 --sub 다. */
+/* 카드 안 하위 구획(WireCardSection). h3 에 규칙이 없어 브라우저 기본 크기(18.7px)가 그대로
+   나오던 자리다. 카드 제목과 크기가 겹쳐 위계가 없었다. 구획 제목은 라벨이므로 14/600 이다.
+   2026-08-10: 선언만 있고 쓰인 곳이 0 이던 이 계약을 부품으로 살렸다(wire-section.tsx).
+   같은 레시피를 화면이 자기 이름으로 베껴 쓰던 두 벌(.briefing-qlabel · .record-block>h3)이
+   있었고, 그중 형제 사이 구분선을 가진 것은 브리핑 한 벌뿐이라 같은 모양의 구획이 화면마다
+   §2-2 규칙 2 를 지키기도 안 지키기도 했다. */
 .wire-card-section{display:grid;gap:var(--space-2)}
+/* **형제 구획이 이어지면 구분선이 자동으로 붙는다**(§2-2 규칙 2ⓐ). 화면이 판단하지 않는다.
+   전폭이 아니라 안쪽 선이다 — 카드를 가로지르는 풀블리드 선(.wire-card-divider)은 카드의
+   머리·본문을 가르는 어휘이고, 여기는 본문 안에서 구획을 가르는 한 단 아래다. */
+.wire-card-section+.wire-card-section{padding-top:var(--space-4);border-top:1px solid var(--line)}
 .wire-card-section>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-/* 수기 메모는 실무자가 줄바꿈한 그대로 읽혀야 한다. */
-.wire-card-section>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
-.wire-card-section>ul{margin:0;padding:0;display:grid;gap:var(--space-2);list-style:none;font-size:var(--text-md);color:var(--ink)}
+/* 라벨 계열 색(D34 고정 의미) — 기본은 무채색이고, 축이 분명한 구획만 계열을 입는다. */
+.wire-card-section[data-tone="mint"]>h3{color:var(--mint-deep)}
+.wire-card-section[data-tone="lavender"]>h3{color:var(--lavender-deep)}
+.wire-card-section[data-tone="blue"]>h3{color:var(--blue-deep)}
+/* 구획은 **안에 들어오는 것의 크기·색·여백을 정하지 않는다**(2026-08-10 — 구 자식 규칙
+   (>p, >ul) 폐지). 자식 선택자(0,1,1)는 부품 클래스(0,1,0)를 특정도에서 이기므로, 그 규칙이
+   있으면 구획에 들어온 부품이 자기 계약을 잃는다. 실제로 빈 줄(.empty 14/--sub)이 16/--ink 로
+   커지고 목록 간격이 12 에서 8 로 줄어드는 자리가 있었다. 구획이 갖는 것은 넷뿐이다:
+   세로 리듬 · 라벨 계약 · 계열 색 · 형제 구분선. */
+/* 한 항목(WireItem) — 제목·설명·상태·행동을 위계 4단 안에서만 조립한다. 톤을 주면 tint 면이
+   붙고, 안 주면 면 없이 줄만 선다. 크기·굵기·색을 바깥에서 정하는 길은 부품에 없다. */
+.wire-item{display:grid;gap:var(--space-1)}
+.wire-item[data-tone]{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control)}
+.wire-item[data-tone="mint"]{background:var(--mint-tint)}
+.wire-item[data-tone="lavender"]{background:var(--lavender-tint)}
+.wire-item[data-tone="blue"]{background:var(--blue-tint)}
+.wire-item-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.wire-item-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
+.wire-item-status{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+/* 행동 줄은 제목과 같은 소리를 내면 안 된다. 14/600 계열 색 밑줄은 이 앱의 인라인 링크
+   어휘 그대로다(.note-inline a · .wire-form-hint a). deep 색은 14 이상·600 에서만 쓴다(§9). */
+.wire-item-action{justify-self:start;font-size:var(--text-sm);font-weight:600;color:var(--blue-deep);text-decoration:underline}
 /* 정보 필드(§5): 라벨 14/700 민트 deep 위 · 값 16 아래. */
 .wire-field-row{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
-.wire-field-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
+/* margin 0 은 이 라벨이 격자 밖 한 줄(전체 목표 카드의 라벨처럼 p 로 서는 자리)에서도 같은
+   레시피를 쓰게 한다 — 전역 p 규칙의 위 여백 8 이 붙으면 같은 라벨이 자리마다 달라진다. */
+.wire-field-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .wire-field-value{color:var(--ink);font-size:var(--text-md);overflow-wrap:anywhere}
 /* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. 불릿은 2개 이상일 때만이다(2026-08-07 Q
    규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
@@ -715,12 +757,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
 /* 고스트: 배경·테두리 없음, --sub 글자. 조작 축이라 neutral 과 같은 14/400·32 다. */
 .wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
-/* 버튼 안 꺽쇠는 글자를 따라간다(2026-08-07 Q "등록하기 '>' 가 너무 크다" — 규칙으로 닫는다):
-   핵심 버튼(라벨 15) = 8, 조작 버튼(라벨 14) = 7. 본문·카드의 10px 꺽쇠 기본값은 그대로다. */
-/* 버튼 안 꺽쇠도 em — 라벨 크기를 따라간다(2026-08-07 Q 8차. 15px 라벨 8 · 14px 라벨 7,
-   구 px 고정값과 같은 크기다). */
-.wire-button .wire-chevron{width:.5333em;height:.5333em}
-.wire-button[data-variant="neutral"] .wire-chevron,.wire-button[data-variant="ghost"] .wire-chevron{width:.5em;height:.5em}
+/* 버튼 안 꺽쇠 크기 예외 2건은 2026-08-10 에 없앴다(Q "버튼과 listrow, 체브론 맞추기").
+   구 값은 라벨을 따라가는 .5333em(15px 라벨 8)·.5em(14px 라벨 7)이었고, 그래서 같은 화면의
+   버튼·행·카드 꺽쇠가 8·10·9 로 셋 다 달랐다. 이제 --chevron-box 하나를 함께 본다. */
 /* 위험: 되돌리기 어려운 행동에만. */
 .wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk)}
 .wire-button[data-justify="center"]{justify-content:center}
@@ -1098,4 +1137,17 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-stack{display:grid;gap:var(--space-3)}
 .wire-kit-row{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:flex-start}
 .wire-kit-swatch{display:grid;place-items:center;min-height:60px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted);color:var(--sub);font-size:var(--text-sm)}
+/* 나란히 놓고 보는 두 칸(고치기 전 / 고친 후). 좁아지면 위아래로 선다. */
+.wire-kit-compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:var(--space-5)}
+.wire-kit-compare-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* **반례 전용이다. 새 화면에서 이 셋을 쓰지 않는다.**
+   2026-08-10 이전 15초 페이지의 AI 제안이 실제로 입고 있던 옷을 그대로 보존한 것이고,
+   /kit 의 비교 구획에서 "고치기 전"을 보이려고만 남긴다. 값 자체는 전부 토큰이라
+   pnpm guard:tokens 를 통과한다 — 검사가 못 보는 것이 조합이라는 사실의 실물 증거다.
+   조합이 어긋난 자리 둘: 이유 줄이 16/400 --sub(위계 4단 표에 없는 조합)이고,
+   링크가 제목과 완전히 같은 16/600 --ink 라 먼저 읽을 것이 사라진다. */
+.wire-kit-flat{display:grid;gap:var(--space-1)}
+.wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
+.wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
 `;

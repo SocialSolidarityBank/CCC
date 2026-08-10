@@ -95,7 +95,7 @@ export function SignupForm({ token }: { token: string }) {
         <details className="consent-detail">
           <summary className="consent-detail-summary">
             <span>자세히 읽어보기</span>
-            <span aria-hidden="true" className="briefing-card-arrow" />
+            <span aria-hidden="true" className="wire-card-arrow" />
           </summary>
           <div className="consent-detail-body">
             <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>

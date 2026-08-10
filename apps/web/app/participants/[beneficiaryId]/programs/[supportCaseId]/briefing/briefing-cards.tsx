@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../../components/wire/wire-card';
+import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
@@ -124,7 +125,9 @@ function OverallGoalCard({
     // 카드로 통일한다. 수정 가능성은 안쪽 상자가 알린다.
     <WireCard as="section" className="briefing-goal" labelledBy="briefing-goal-label">
       <div className="briefing-goal-row">
-        <p className="briefing-qlabel" id="briefing-goal-label">전체 목표</p>
+        {/* 구획이 아니라 값 옆에 서는 한 줄 라벨이라 공용 라벨 레시피(.wire-field-label,
+            14/600 민트 deep)를 그대로 쓴다. 브리핑 전용 라벨 클래스는 2026-08-10 에 없앴다. */}
+        <p className="wire-field-label" id="briefing-goal-label">전체 목표</p>
         {editing && action !== undefined
           ? (
             <form className="briefing-goal-form" action={action}>
@@ -187,14 +190,13 @@ function OverallGoalCard({
       {activeGoals.length > 0 && (
         <>
           <hr className="wire-card-divider" />
-          <div className="briefing-qsection">
-            <p className="briefing-qlabel">세부 목표</p>
+          <WireCardSection title="세부 목표" tone="mint">
             <ul className="briefing-subgoal-rows">
               {activeGoals.map((goal) => (
                 <li key={goal.id} className="briefing-subgoal-row wire-fade-clip">{goal.title}</li>
               ))}
             </ul>
-          </div>
+          </WireCardSection>
         </>
       )}
     </WireCard>
@@ -257,8 +259,7 @@ function DiscrepancyItem({
   action: ((formData: FormData) => Promise<void>) | undefined;
 }) {
   return (
-    <div className="briefing-qsection">
-      <p className="briefing-qlabel">{discrepancyKindLabels[item.kind]}</p>
+    <WireCardSection title={discrepancyKindLabels[item.kind]} tone="mint">
       <div className="briefing-fields">
         {[item.left, item.right].map((side, index) => (
           <WireField key={`${item.id}-${index}`} label={`${formatKoreanDate(side.heldAt)} 회차`}>
@@ -295,7 +296,7 @@ function DiscrepancyItem({
           ))}
         </form>
       )}
-    </div>
+    </WireCardSection>
   );
 }
 
@@ -428,8 +429,7 @@ export function BriefingCards({
             직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
             근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
         <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
-          <div className="briefing-qsection">
-            <p className="briefing-qlabel">세션 목표</p>
+          <WireCardSection title="세션 목표" tone="mint">
             {sessionGoals.length === 0
               ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
               : <WireBullets items={sessionGoals.map((goal) => (
@@ -458,15 +458,13 @@ export function BriefingCards({
                 세션 목표 수정
               </WireButton>
             )}
-          </div>
-          <div className="briefing-qsection">
-            <p className="briefing-qlabel">맞춤형 질문</p>
+          </WireCardSection>
+          <WireCardSection title="맞춤형 질문" tone="mint">
             {customQuestions.length === 0
               ? <WireEmpty>실무자가 적은 맞춤형 질문이 없습니다.</WireEmpty>
               : <WireBullets items={customQuestions} />}
-          </div>
-          <div className="briefing-qsection">
-            <p className="briefing-qlabel" data-tone="ai">AI 제안</p>
+          </WireCardSection>
+          <WireCardSection title="AI 제안" tone="lavender">
             {/* 전체 목표 미설정 안내 (D62 §7) — 제안을 차단하지 않는다. 닫으면 케이스 단위로 남는다. */}
             {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
             {aiSuggestions.length === 0
@@ -475,23 +473,26 @@ export function BriefingCards({
                 <ul className="briefing-suggestions">
                   {/* 최대 3개는 서버 계약(D45)이지만 화면도 같은 상한을 지킨다 — 훑는 화면이다. */}
                   {aiSuggestions.slice(0, 3).map((suggestion) => (
-                    <li key={`${suggestion.sessionId}-${suggestion.title}`} className="briefing-suggestion">
-                      <p className="briefing-suggestion-title">{suggestion.title}</p>
-                      {suggestion.reason !== null && (
-                        <p className="briefing-suggestion-reason">{suggestion.reason}</p>
-                      )}
-                      {/* 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다. */}
-                      <Link
-                        className="briefing-suggestion-link"
-                        href={`${recordsHref}#record-${suggestion.sessionId}`}
-                      >
-                        근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
-                      </Link>
+                    <li key={`${suggestion.sessionId}-${suggestion.title}`}>
+                      {/* 2026-08-10: 손으로 쌓던 제목·이유·링크를 WireItem 으로 옮겼다. 이유가
+                          16/400 --sub 라는 계약 밖 조합이었고, 링크가 제목과 똑같은 16/600 --ink
+                          라 무엇을 먼저 읽어야 할지가 없었다(§2-2 위계 4단). */}
+                      <WireItem
+                        tone="lavender"
+                        title={suggestion.title}
+                        {...(suggestion.reason !== null ? { description: suggestion.reason } : {})}
+                        action={
+                          // 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다.
+                          <Link href={`${recordsHref}#record-${suggestion.sessionId}`}>
+                            근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
+                          </Link>
+                        }
+                      />
                     </li>
                   ))}
                 </ul>
               )}
-          </div>
+          </WireCardSection>
         </Card>
 
         {/* 영역 ② 상담 내용 회차별 정리 (D45) — 회차마다 상담일 · 유형 · 핵심 한 줄. 한 줄은

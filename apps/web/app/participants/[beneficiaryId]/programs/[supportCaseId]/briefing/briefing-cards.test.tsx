@@ -113,7 +113,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
   it('영역 ①은 실무자 입력(세션 목표·맞춤형 질문)이 위, AI 제안이 아래다 (D45·R5)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
-    const labels = [...card.querySelectorAll('.briefing-qlabel')].map((node) => node.textContent);
+    const labels = [...card.querySelectorAll('.wire-card-section>h3')].map((node) => node.textContent);
     expect(labels).toEqual(['세션 목표', '맞춤형 질문', 'AI 제안']);
     expect(card.textContent).toContain('구직 상담');
     expect(card.textContent).toContain('이번 달 지출은 정리됐는지');
@@ -122,11 +122,11 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 
   it('AI 제안은 제목·이유·근거 회차 링크 3층이고 링크는 해당 회차 기록 앵커로 간다 (CCC-39)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
-    const item = container.querySelector('.briefing-suggestion');
+    const item = container.querySelector('.wire-item');
     if (item === null) throw new Error('suggestion item not found');
-    expect(item.querySelector('.briefing-suggestion-title')?.textContent).toBe('최근 구직 활동은 어땠는지');
-    expect(item.querySelector('.briefing-suggestion-reason')?.textContent).toBe('지난 회차에서 면접 결과를 기다리고 있었다');
-    const link = item.querySelector('a.briefing-suggestion-link');
+    expect(item.querySelector('.wire-item-title')?.textContent).toBe('최근 구직 활동은 어땠는지');
+    expect(item.querySelector('.wire-item-desc')?.textContent).toBe('지난 회차에서 면접 결과를 기다리고 있었다');
+    const link = item.querySelector('.wire-item-action a');
     expect(link?.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
     expect(link?.textContent).toContain('근거 회차 보기');
     expect(link?.textContent).toContain('2026년 7월 15일');
@@ -142,11 +142,11 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({
       aiSuggestions: [suggestion(1), suggestion(2), suggestion(3), suggestion(4)],
     })} />);
-    const items = container.querySelectorAll('.briefing-suggestion');
+    const items = container.querySelectorAll('.wire-item');
     expect(items).toHaveLength(3);
     // reason=null(첫 항목)은 이유 줄 없이 제목·링크만 남는다.
-    expect(items[0]?.querySelector('.briefing-suggestion-reason')).toBeNull();
-    expect(items[1]?.querySelector('.briefing-suggestion-reason')?.textContent).toBe('이유 2');
+    expect(items[0]?.querySelector('.wire-item-desc')).toBeNull();
+    expect(items[1]?.querySelector('.wire-item-desc')?.textContent).toBe('이유 2');
     // heldAt 이 없으면 링크 라벨에 날짜 괄호가 붙지 않는다.
     expect(items[0]?.querySelector('a')?.textContent).toBe('근거 회차 보기');
   });
@@ -155,7 +155,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({ aiSuggestions: [] })} />);
     const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
     expect(card.textContent).toContain('승인된 상담 기록이 쌓이면 확인할 것을 제안합니다');
-    expect(card.querySelector('.briefing-suggestion')).toBeNull();
+    expect(card.querySelector('.wire-item')).toBeNull();
   });
 
   it('영역 ②는 회차마다 상담일·유형·한 줄을 표시하고, 수기 발췌에는 수기 배지가 붙는다 (CCC-38·D5)', () => {
@@ -538,7 +538,7 @@ describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
     const hint = container.querySelector('[data-testid="briefing-ai-goal-hint"]');
     expect(hint?.textContent).toContain('전체 목표를 설정하면 AI 제안이 더 정확해집니다');
     // 제안 자체는 그대로 나온다(재료이지 게이트가 아니다).
-    expect(container.querySelector('.briefing-suggestion')).not.toBeNull();
+    expect(container.querySelector('.wire-item')).not.toBeNull();
   });
 
   it('전체 목표가 있으면 안내가 없다', () => {

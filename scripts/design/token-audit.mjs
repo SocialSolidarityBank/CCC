@@ -157,7 +157,9 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'card-grid-dense',     // §4-2 조밀 그리드(GAS 가 D43 으로 보류되며 사용처가 비었다)
   'wire-scrim',          // §5 모달 — 검토·승인 화면 미구현
   'is-selected-surface', // §5 '선택·활성 표면'을 details 가 아닌 곳에서 수동으로 켜는 훅
-  'wire-card-section',   // §5 카드 안 하위 구획
+  // 'wire-card-section' 은 2026-08-10 에 이 목록에서 나갔다 — 부품(WireCardSection)이 생겨
+  // 실제로 쓰인다. 선언만 있고 쓰인 곳이 0 이던 동안 화면들은 같은 레시피를 자기 이름으로
+  // 두 벌 더 만들어 두고 있었다(.briefing-qlabel · .record-block>h3).
   // 12칼럼 세트(6·8 은 사용 중). 3·9 는 2026-08-09 에 비었다 — 인테이크 작성의 레일이
   // 비율 span 에서 고정 트랙(--rail-width)으로 바뀌면서 span 클래스를 떼었다.
   'wire-col-3', 'wire-col-9', 'wire-col-12',
