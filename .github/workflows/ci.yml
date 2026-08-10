@@ -40,6 +40,9 @@ jobs:
       # "아무것도 못 봄"이 화면에서 같아 보이기 때문에 검사보다 이 테스트가 먼저 있어야 한다.
       - run: pnpm guard:hierarchy:test
       - run: pnpm guard:hierarchy
+      # 배포 판정(CCC-89). 이 판정이 2026-08-10 에 거짓 성공을 냈다 — 안 나간 배포를 나갔다고
+      # 보고했고, API 를 따로 확인하지 않았으면 그대로 넘어갔다. 그 입력 모양을 고정한다.
+      - run: pnpm guard:deploy-verdict
 
   # 위계 실측(CCC-80). guard:hierarchy 가 CSS 만 보고 답할 수 없는 물음 하나를 맡는다 —
   # 세로로 이웃한 두 줄이 같은 옷인가(DESIGN.md 2-2 규칙 1). 렌더 결과를 봐야 하므로

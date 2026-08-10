@@ -24,6 +24,7 @@
     "guard:secrets:history": "node scripts/guard-secrets.mjs --history",
     "guard:secrets:allowlist": "node scripts/guard-secrets-allowlist.test.mjs",
     "deploy:production": "node scripts/deploy-production.mjs",
+    "guard:deploy-verdict": "node scripts/deploy-verdict.test.mjs",
     "deploy:production:check": "node scripts/deploy-production.mjs --preflight-only",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "seed:reschedule": "node scripts/seed/reschedule-upcoming.mjs"

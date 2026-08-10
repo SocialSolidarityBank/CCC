@@ -21,6 +21,7 @@
  */
 import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { verdict } from './deploy-verdict.mjs';
 
 const execFileAsync = promisify(execFile);
 const WORKFLOW = 'deploy-production.yml';
@@ -93,7 +94,20 @@ try {
 } catch (error) {
   migrationsOutput = `${error.stdout ?? ''}${error.stderr ?? ''}`;
 }
-if (!/No migrations to apply|적용할 마이그레이션/i.test(migrationsOutput)) {
+// `red` **조회 실패와 "미적용 있음"은 다른 사실이다** (2026-08-10 실측으로 갈랐다).
+// 예전에는 둘을 한 갈래로 묶어, 조회가 한 번 흔들렸을 때 "미적용 마이그레이션이 있다"고
+// 단언하고 **운영 D1 에 적용하라는 명령을 안내했다**. 그때 운영은 실제로 "No migrations to
+// apply" 상태였다 — 안내대로 눌렀으면 없는 이유로 운영 스키마를 건드릴 뻔했다.
+// 둘 다 배포를 막는 것은 같지만(fail-closed 유지), 사람에게 시키는 일이 정반대다.
+const cleanMarker = /No migrations to apply|적용할 마이그레이션/i.test(migrationsOutput);
+const pendingMarker = /\.sql\b/i.test(migrationsOutput); // 미적용 목록에는 파일명이 찍힌다
+if (!cleanMarker && !pendingMarker) {
+  fail(
+    '운영 D1 마이그레이션 상태를 확인하지 못했다 (조회가 답을 주지 않았다).',
+    '먼저 손으로 본다: pnpm --filter @ccc/api exec wrangler d1 migrations list ccc --env production --remote',
+  );
+}
+if (!cleanMarker) {
   fail(
     '운영 D1 에 미적용 마이그레이션이 있다 (코드를 스키마보다 앞세우지 않는다).',
     '적용: pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc --env production --remote',
@@ -141,33 +155,29 @@ console.log(`  실행 ${run.databaseId} — ${run.url}`);
 
 step('3/4 검증·스키마 게이트 통과 대기');
 
+/** 실행 상태와 잡 목록을 한 번에 읽는다 — 두 번 부르면 두 시점을 섞어 판정하게 된다. */
 async function runState() {
   const { stdout } = await execFileAsync('gh', [
-    'run', 'view', String(run.databaseId), '--json', 'status,conclusion',
+    'run', 'view', String(run.databaseId), '--json', 'status,conclusion,jobs',
   ]);
   return JSON.parse(stdout);
 }
 
-/** 승인 대기 여부는 잡 상태로 본다 — 실행 status 는 waiting 을 오래 안 들고 있을 수 있다. */
-async function waitingForApproval() {
-  const { stdout } = await execFileAsync('gh', [
-    'run', 'view', String(run.databaseId), '--json', 'jobs',
-  ]);
-  const { jobs } = JSON.parse(stdout);
-  return jobs.some((job) => job.name.includes('deploy-production') && job.status === 'waiting');
-}
-
 let announced = false;
+let settled = false;
 for (let tick = 0; tick < 400; tick += 1) {
   const state = await runState();
-  if (state.status === 'completed') {
-    if (state.conclusion !== 'success') {
-      console.error(`\n배포 실패 (${state.conclusion}) — ${run.url}`);
+  const now = verdict(state);
+  if (now.done) {
+    if (now.error !== undefined) {
+      console.error(`\n배포 실패 — ${now.error}`);
+      console.error(`  ${run.url}`);
       process.exit(1);
     }
+    settled = true;
     break;
   }
-  if (!announced && (state.status === 'waiting' || await waitingForApproval())) {
+  if (!announced && now.waiting) {
     announced = true;
     console.log('\n  ──────────────────────────────────────────────');
     console.log('  사람이 할 일은 여기 하나다 — 승인 클릭.');
@@ -177,6 +187,16 @@ for (let tick = 0; tick < 400; tick += 1) {
     console.log('\n  승인을 기다린다…');
   }
   await sleep(10000);
+}
+
+// 시간 초과와 성공이 구별되지 않으면 안 된다. 예전에는 루프가 끝까지 돌아도 그냥 아래
+// "배포 성공"으로 떨어졌다 — 승인을 아무도 안 눌러 66분이 지난 것과 배포가 끝난 것이
+// 화면에서 같은 문장이었다.
+if (!settled) {
+  console.error('\n대기 시간 초과 — 배포가 끝나지 않았다(승인이 안 눌렸을 가능성이 크다).');
+  console.error(`  ${run.url}`);
+  console.error('  승인 뒤 상태만 다시 보려면: gh run view <id> --json status,conclusion,jobs');
+  process.exit(1);
 }
 
 // ------------------------------------------------------------- 4) 배포 후 확인
