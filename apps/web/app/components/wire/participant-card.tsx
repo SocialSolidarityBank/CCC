@@ -91,8 +91,11 @@ export function ParticipantCard({
           <>
             <hr className="wire-card-divider" />
             <div className="participant-card-row">
+              {/* 분류·수량 낱말은 본문 글자가 아니라 배지다(§2-2 규칙 4 · §2-3). 민트인 것은
+                  참여 사업이 소속·진행 축이기 때문이다(D34) — 2026-08-10 까지 라벤더였는데
+                  라벤더는 AI 산출·승인 대기 전용이다. 옆의 상태 배지와 같은 줄, 같은 형태다. */}
               {programCount !== undefined && (
-                <span className="participant-card-programs">참여 사업 {programCount}개</span>
+                <WireBadge tone="mint">참여 사업 {programCount}개</WireBadge>
               )}
               {statusBadge !== undefined && (
                 <span className="participant-card-badges">

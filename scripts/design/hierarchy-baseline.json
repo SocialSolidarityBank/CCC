@@ -2,15 +2,11 @@
   "note": "위계 감사 기준선. 여기 적힌 위반은 이미 있던 것이라 실패로 세지 않는다. 고치면 이 파일에서도 지운다.",
   "generated": "node scripts/design/hierarchy-audit.mjs --update-baseline",
   "byCombo": {
-    "var(--text-md)/400/var(--mint-deep)": [
-      ".participant-card-programs"
-    ],
     "var(--text-md)/400/var(--sub)": [
       ".wire-kit-flat>p.is-reason"
     ]
   },
   "entries": [
-    ".participant-card-programs = var(--text-md)/400/var(--mint-deep)",
     ".wire-kit-flat>p.is-reason = var(--text-md)/400/var(--sub)"
   ]
 }
