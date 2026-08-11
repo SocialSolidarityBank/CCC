@@ -20,6 +20,7 @@
  * 사용: node scripts/deploy-production.mjs [--preflight-only]
  */
 import { execFileSync, execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { verdict } from './deploy-verdict.mjs';
 
@@ -60,6 +61,23 @@ if (localHead !== originMain) {
   );
 }
 console.log(`  작업본 = origin/main (${localHead.slice(0, 7)})`);
+
+// 버전은 세 곳에 같은 값으로 적혀 있어야 한다 (2026-08-11 Q 결정, docs/releases.md). 하나만
+// 올리면 "지금 몇 버전인가"의 답이 파일마다 달라지고, 그때 태그가 어느 값을 가리키는지도 흐려진다.
+// 문서에만 적은 규칙은 지켜지지 않으므로 배포가 막는다.
+const VERSION_FILES = ['package.json', 'apps/web/package.json', 'apps/api/package.json'];
+const versions = VERSION_FILES.map((file) => [
+  file,
+  JSON.parse(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')).version,
+]);
+const version = versions[0][1];
+if (versions.some(([, value]) => value !== version)) {
+  fail(
+    `버전이 파일마다 다르다 (${versions.map(([file, value]) => `${file}=${value}`).join(', ')}).`,
+    '세 곳을 같은 값으로 맞춘 뒤 다시 실행한다. 규칙은 docs/releases.md.',
+  );
+}
+console.log(`  버전 v${version} (세 곳 일치)`);
 
 // main 의 최신 CI 가 초록인가. 워크플로도 자체 verify 를 돌리지만, 빨간 main 을 배포
 // 방아쇠까지 끌고 가는 것 자체가 낭비다.
@@ -203,6 +221,12 @@ if (!settled) {
 
 step('4/4 배포 후 확인');
 console.log(`  배포 성공 — ${run.url}`);
+
+// 기록은 배포 직후가 아니면 안 남는다 — 다음 배포가 오면 "지금 뭐가 올라가 있나"의 답이 덮인다.
+console.log(`\n  이번 배포 = v${version} · ${originMain.slice(0, 7)}`);
+console.log('  docs/releases.md 이력 표에 행을 더한다.');
+console.log(`  번호를 올린 배포라면 태그도 단다: git tag -a v${version} ${originMain.slice(0, 7)} -m "운영 배포 v${version}" && git push origin v${version}`);
+console.log('  번호를 안 올린 배포(문서·도구만)라면 태그는 다시 달지 않는다.');
 
 // `wrangler deploy` 는 시크릿이 없어도 성공한다 — 워커가 런타임에 터질 뿐이다.
 // 그래서 초록을 "동작한다"로 읽지 않고 **이름**을 직접 확인한다(값은 읽지 않는다).
