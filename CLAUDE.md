@@ -276,6 +276,8 @@ GitHub Issues(`SocialSolidarityBank/CCC`)를 `gh` CLI로 사용한다. 상세: `
 
 **화면(페이지·컴포넌트·CSS) 작업 전에 루트 `DESIGN-RULES.md` 를 읽는다** (2026-08-10, ADR-0033). 지금 지켜야 하는 규칙만 추린 요약본이고, 근거와 이력은 `DESIGN.md` 에 그대로 있다(색값 SSOT 는 여전히 pen). 규칙을 바꾸는 커밋은 요약본도 같은 커밋에서 고친다.
 
+**작업 순서는 `design-lane` 스킬이 갖는다** (2026-08-11, ADR-0034). 계획, 구현, 검수 요청, 최종 수정 4단계와 단계별 체크리스트가 `.claude/skills/design-lane/SKILL.md` 에 있고, 검수는 읽기 전용 에이전트 `design-reviewer`(`.claude/agents/`)가 격리해서 맡는다. 이 레포의 화면 작업에서는 전역 `web-edit` 스킬보다 이 스킬이 우선한다. 규칙 사본은 두 파일 어디에도 두지 않는다. 규칙은 위 `DESIGN-RULES.md` 하나다.
+
 ### 문서 배치 규칙 (2026-07-25 Q 확정)
 
 - HTML 시안·용어집 등 **아티팩트는 루트 `artifacts/`** (구 docs/artifacts 폐지)
