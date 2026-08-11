@@ -1071,23 +1071,52 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    새 색·반경·그림자 0개. */
 /* 높이는 **상자가 정한다**(2026-08-09). 안쪽 묶음이 40 을 직접 갖고 있어서 테두리 2px 이
    덧붙어 이 칸만 42 로 서 있었다(다른 입력칸 40, 하니스 실측). 안쪽은 늘어나기만 한다. */
-.wire-datetime-control{position:relative;display:flex;flex-wrap:wrap;align-items:stretch;gap:var(--space-2);width:100%}
+/* 달력 버튼은 줄을 안 바꾼다(nowrap, CCC-93). 구 wrap 은 자리가 모자랄 때 **버튼을** 아래로
+   내려보냈고, 그러면 버튼만 18px 로 눌린 채 홀로 서고 접혀야 할 두 입력칸은 그대로 남았다
+   (폭 390 실측). 접히는 것은 안쪽 날짜·시각이어야 하므로 바깥은 줄을 고정하고, 자리가 모자라면
+   .wire-datetime-fields 가 min-width:0 으로 줄어들다가 자기 안에서 두 줄이 된다. */
+.wire-datetime-control{position:relative;display:flex;flex-wrap:nowrap;align-items:stretch;gap:var(--space-2);width:100%}
 .wire-input-box>.wire-datetime-control{align-self:stretch}
-.wire-datetime-fields{flex:1 1 240px;min-width:0;display:flex;align-items:stretch}
+/* 두 칸이 다 들어갈 자리가 없으면 **저절로 두 줄로 접힌다**(CCC-93). 접기 전에는 min-width
+   104 + 112 가 이 묶음의 최소 폭을 259 로 잡고 있었고, 그 값이 상자(+26) 카드(+50)를 거쳐
+   폭 390 에서 카드 최소 폭 371 을 만들어 들어갈 자리 343 을 28 넘겼다. 화면 전체가 12px
+   밖으로 밀린 원인이 이것이다. 접히면 각 칸이 한 줄을 통째로 쓰므로 최소 폭이 132 로 떨어져
+   여유가 99 생긴다. 값을 낮추는 대신 접는 이유는 104·112 가 12시간제에서 분이 잘리지 않는
+   실측값이라서다(2026-08-07 Q 11차).
+
+   화면 폭 분기를 새로 만들지 않는다 — 이 레포의 뷰포트 계단은 767 하나인데(D37) 그 폭에서는
+   칸이 700 이라 접을 이유가 없고, 컨테이너 질의(880·1150)는 페이지 격자의 축이라 이 칸의
+   폭을 모른다. 기준 폭을 px 로 두면 자리가 모자랄 때만 접혀 계단이 필요 없다.
+
+   구분선은 **틈이 만든다** — 접히면 세로선이 가로선이 되어야 하는데 border 로는 방향을 못
+   바꾼다. 묶음 바탕을 선 색으로 깔고 칸을 --panel 로 덮으면 남는 1px 이 곧 구분선이고, 한
+   줄일 때는 세로로 두 줄일 때는 가로로 저절로 선다. */
+/* optical: 1px 은 간격이 아니라 머리카락 선이다. 4의 배수 계단(--space-*)에 이 굵기가 없고,
+   구분선 굵기는 다른 곳에서도 1px 이다(.wire-card-divider · --line-control 테두리). */
+.wire-datetime-fields{flex:1 1 240px;min-width:0;display:flex;flex-wrap:wrap;align-items:stretch;gap:1px;background:var(--line-control)}
 /* padding:0 은 UA 기본(1px 2px)을 걷는 값이다 — 안 걷으면 날짜칸 글자만 다른 입력칸보다
-   2px 오른쪽에서 시작한다(2026-08-05 실측). */
-.wire-datetime-fields>input{height:100%;min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ink);font-size:var(--text-md);line-height:normal}
+   2px 오른쪽에서 시작한다(2026-08-05 실측).
+   height:100% 대신 min-height 를 쓴다 — 접히면 줄이 둘이라 100% 는 뜻을 잃는다(묶음 높이가
+   내용에서 나오므로 순환이 되어 auto 로 풀리고, 칸이 글자 높이인 19 로 주저앉는다).
+   40 이 아니라 40 빼기 2 인 이유: 상자(.wire-input-box)의 min-height 40 은 테두리를 포함한
+   바깥 값이라(border-box) 안쪽에 남는 자리가 38 이다. 여기에 40 을 주면 상자가 42 로 커져
+   옆에 선 다른 입력칸(40)과 높이가 갈린다 — 실제로 한 번 그렇게 났다. */
+.wire-datetime-fields>input{min-height:calc(var(--control-height) - 2px);min-width:0;padding:0;border:0;border-radius:0;background:var(--panel);color:var(--ink);font-size:var(--text-md);line-height:normal}
 /* 시각 칸의 네이티브 시계 아이콘은 끈다(2026-08-08 Q — 브라우저가 그리는 아이콘이라 다크
    테마에서 안 보였고, 달력 토글 하나로 충분하다). 파이어폭스는 원래 없다. */
 .wire-datetime-fields>input[type="time"]::-webkit-calendar-picker-indicator{display:none}
 .wire-datetime-fields>input:focus,.wire-datetime-fields>input:focus-visible{outline:none}
 /* 날짜·시각은 **반반**이다(2026-08-07 Q 11차 "시간 필드가 너무 좁다" — 구 날짜 grow ·
-   시각 128 고정은 날짜칸이 남는 폭을 다 가져갔다). 기준 50%/50% 에 min-width 만 남겨
-   좁은 화면에서 분이 잘리는 것을 막는다. */
-.wire-datetime-fields>input:first-child{flex:1 1 50%;min-width:104px;padding-right:var(--space-3)}
-/* 선택자를 자식 결합자로 쓴다 — 위 .wire-datetime-fields>input 의 border:0 을 이겨야 한다. */
-/* 시각 칸은 브라우저가 12시간제(오후 02:30)로 그릴 때가 있어 128px 이 필요하다 — 좁으면 분이 잘린다.
-   다만 좁은 화면에서는 줄어들어야 한다 — 고정 폭이면 375px 에서 상자가 화면을 넘어 가로 스크롤이 생긴다.
+   시각 128 고정은 날짜칸이 남는 폭을 다 가져갔다). 기준 폭을 둘 다 같은 px 로 두어 반반을
+   지킨다 — 남는 폭을 똑같이 나눠 가지므로 한 줄에 설 때 폭이 정확히 같다(구 50%/50% 와
+   같은 결과다). 50% 를 쓰면 둘의 합이 늘 100% 라 자리가 모자라도 접히지 않아 바꿨다. */
+.wire-datetime-fields>input:first-child{flex:1 1 112px;min-width:104px;padding-right:var(--space-3)}
+/* 시각 칸이 min-width 112 를 갖는 이유: 브라우저가 12시간제(오후 02:30)로 그릴 때가 있어
+   그보다 좁으면 분이 잘린다.
+   "좁은 화면에서는 줄어들어야 한다"고 적어 둔 자리가 여기다. 고정 폭을 min-width 로 바꿔
+   반쯤 풀었지만 min-width 도 폭 390 에서는 안 들어갔고(카드가 28 넘쳤다), 그것을 위
+   .wire-datetime-fields 의 접기가 마저 닫는다. 이제 이 값은 한 줄에 설 때만 폭을 정한다.
+   구분선(구 border-left)은 묶음의 틈이 그린다 — 접히면 방향이 바뀌어야 하기 때문이다.
    (이 파일은 자바스크립트 템플릿 문자열이라 주석에 백틱을 쓰면 문자열이 끊긴다.) */
 /* 달력 버튼도 같은 상자 안에 있으므로 테두리를 벗는다 — 상자 안의 상자를 만들지 않는다.
    날짜만 쓰는 자리(.wire-date-control)의 겉모습은 건드리지 않는다.
@@ -1110,7 +1139,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-datetime-control>.wire-date-toggle:hover{background:var(--muted)}
 /* 시각은 세로선에 붙는 좌측정렬이다(2026-08-07 Q 12차 — 구 가운데 정렬 대체). 왼쪽 12 는
    날짜칸이 상자 테두리에서 들어가는 값(.wire-input-box 패딩)과 같은 리듬이다. */
-.wire-datetime-fields>.wire-datetime-time{flex:1 1 50%;min-width:112px;padding:0 var(--space-2) 0 var(--space-3);border-left:1px solid var(--line-control);text-align:left}
+.wire-datetime-fields>.wire-datetime-time{flex:1 1 112px;min-width:112px;padding:0 var(--space-2) 0 var(--space-3);text-align:left}
 /* 팝오버는 달력 + 시각 목록 두 단이다. 목록은 달력 높이에 맞춰 스크롤한다.
    width:max-content 가 필요하다 — 절대 위치 요소의 자동 폭은 **감싸는 상자 폭**이 상한이라
    그냥 두면 입력칸 폭(약 330px)에 갇혀 시각 목록이 달력 아래로 접힌다. */
