@@ -2,7 +2,8 @@
 #
 # 설치 (노트북 Part B):
 #   1. 전용 계정으로 레포를 /opt/ccc(또는 전용 계정 홈)에 클론, ML 의존성 설치
-#   2. /etc/ccc-pipeline.env 생성(권한 600, 소유 root): CCC_PIPELINE_CLIENT_ID/SECRET 등
+#   2. /etc/ccc-pipeline.env 생성(권한 600, 소유 root): CCC_RUNTIME_ENVIRONMENT 필수.
+#      Preview면 CCC_PREVIEW_E2E_ACCESS_CODE만, 운영이면 CCC_PIPELINE_CLIENT_ID/SECRET만 둔다.
 #      환경 변수를 Infisical에서 하이드레이션해 기록한다 — 값은 레포·로그에 넣지 않는다
 #   3. sudo cp ccc-pipeline.service /etc/systemd/system/
 #   4. sudo systemctl enable --now ccc-pipeline

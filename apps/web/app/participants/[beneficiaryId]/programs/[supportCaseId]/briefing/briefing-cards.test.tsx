@@ -23,6 +23,7 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
     ],
     discrepancies: [],
     pendingApprovalCount: 2,
+    pendingReviewSessionIds: [],
     aiSuggestions: [{
       title: '최근 구직 활동은 어땠는지',
       reason: '지난 회차에서 면접 결과를 기다리고 있었다',
@@ -208,6 +209,37 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     cleanup();
     const none = render(<BriefingCards {...baseProps({ pendingApprovalCount: 0 })} />);
     expect(none.container.textContent).not.toContain('승인 대기');
+  });
+
+  it('승인 대기 fixture session id만 검수 화면 링크로 연결하고 초안 본문은 받지 않는다', () => {
+    const { container } = render(<BriefingCards {...baseProps({ pendingReviewSessionIds: ['s-2'] })} />);
+    const card = cardByTitle(container, '상담 내용 회차별 정리');
+    const link = within(card).getByRole('link', {
+      name: '2026년 7월 15일 기본 상담 테스트 산출물 검수',
+    });
+    expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}/s-2/review`);
+    const pendingSection = within(card).getByTestId('pending-fixture-reviews');
+    expect(pendingSection.textContent).toContain('2026년 7월 15일');
+    expect(pendingSection.textContent).toContain('기본 상담');
+    expect(card.textContent).not.toContain('fixture summary sentinel');
+
+    cleanup();
+    const none = render(<BriefingCards {...baseProps({ pendingReviewSessionIds: [] })} />);
+    expect(none.container.querySelector('[data-testid="pending-fixture-reviews"]')).toBeNull();
+  });
+
+  it('bounded 회차 목록 밖의 fixture도 검수 링크를 보존한다', () => {
+    const { container } = render(<BriefingCards {...baseProps({
+      pendingReviewSessionIds: ['fixture/session older'],
+      sessionRows: [],
+    })} />);
+    const card = cardByTitle(container, '상담 내용 회차별 정리');
+    const link = within(card).getByRole('link', { name: /테스트 산출물 검수/ });
+    expect(link.getAttribute('href')).toBe(
+      `${baseProps().recordsHref}/fixture%2Fsession%20older/review`,
+    );
+    expect(card.textContent).toContain('상담일 확인 필요');
+    expect(card.textContent).toContain('상담 유형 확인 필요');
   });
 
   it('영역 ③은 불일치가 없으면 빈 상태를 표시한다 (CCC-43)', () => {

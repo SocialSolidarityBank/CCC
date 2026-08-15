@@ -32,7 +32,13 @@ def main() -> int:
         print(f"device not ready: {error}", file=sys.stderr)
         return 2
 
-    client = ApiClient(config.api_base_url, config.client_id, config.client_secret)
+    client = ApiClient(
+        config.api_base_url,
+        config.client_id,
+        config.client_secret,
+        runtime_environment=config.runtime_environment,
+        preview_access_code=config.preview_access_code,
+    )
     if args.once:
         run_once(client, config)
         return 0

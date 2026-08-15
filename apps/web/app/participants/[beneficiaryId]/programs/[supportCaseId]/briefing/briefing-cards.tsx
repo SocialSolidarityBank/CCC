@@ -78,6 +78,8 @@ export interface BriefingCardsProps {
   discrepancyError?: boolean;
   /** 승인 대기 배지 — D45 가 영역 ② 머리로 옮겼다(구 '지난 상담 브리핑' 카드 자리). */
   pendingApprovalCount: number;
+  /** Preview fixture 초안 본문 없이 전용 검수 화면으로 잇는 회차 ID 목록. */
+  pendingReviewSessionIds: string[];
   /** D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차 링크. 재료는 승인본만(R2). */
   aiSuggestions: ParticipantBriefingSection['aiSuggestions'];
   openActionItems: ParticipantBriefingSection['openActionItems'];
@@ -329,6 +331,7 @@ export function BriefingCards({
   discrepancyAction,
   discrepancyError = false,
   pendingApprovalCount,
+  pendingReviewSessionIds,
   aiSuggestions,
   openActionItems,
   flags,
@@ -366,6 +369,14 @@ export function BriefingCards({
 
   const sessionGoals = upcomingSchedule?.sessionGoals ?? [];
   const customQuestions = upcomingSchedule?.customQuestions ?? [];
+  const pendingReviewRows = pendingReviewSessionIds.map((sessionId) => {
+    const row = sessionRows.find((candidate) => candidate.sessionId === sessionId);
+    return {
+      sessionId,
+      heldAtLabel: row === undefined ? '상담일 확인 필요' : formatKoreanDate(row.heldAt),
+      kindLabel: row === undefined ? '상담 유형 확인 필요' : sessionKindLabels[row.kind],
+    };
+  });
 
   return (
     <div className="briefing-page">
@@ -504,6 +515,33 @@ export function BriefingCards({
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
+          {pendingReviewRows.length > 0 && (
+            <WireCardSection
+              title="검수할 테스트 산출물"
+              tone="lavender"
+              testId="pending-fixture-reviews"
+            >
+              <ul className="briefing-suggestions">
+                {pendingReviewRows.map((row) => (
+                  <li key={row.sessionId}>
+                  <WireItem
+                    tone="lavender"
+                    title={row.heldAtLabel}
+                    description={row.kindLabel}
+                    action={(
+                      <Link
+                        href={`${recordsHref}/${encodeURIComponent(row.sessionId)}/review`}
+                        aria-label={`${row.heldAtLabel} ${row.kindLabel} 테스트 산출물 검수`}
+                      >
+                        테스트 산출물 검수
+                      </Link>
+                    )}
+                  />
+                  </li>
+                ))}
+              </ul>
+            </WireCardSection>
+          )}
           {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지(블루) →
               수기 뱃지 → 핵심 한 줄. 각 항목은 **고정 폭 칸**에 앉아 어느 행에서나 같은
               x 에서 시작한다(2026-08-07 Q 9차 — 수기 칸은 배지가 없어도 자리를 지켜

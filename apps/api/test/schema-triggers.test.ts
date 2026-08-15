@@ -1645,4 +1645,123 @@ describe('schema triggers', () => {
        WHERE action = 're_register_pii' AND beneficiary_id = ?`,
     ).bind(participant.beneficiaryId).first<{ count: number }>()).resolves.toEqual({ count: 1 });
   });
+
+  it('preserves non-empty AI draft and review rows across migration 0033', async () => {
+    const miniflare = new Miniflare({
+      compatibilityDate: '2026-07-06',
+      d1Databases: ['DB'],
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } };',
+    });
+    try {
+      const db = await miniflare.getD1Database('DB');
+      const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
+      const migrations = await readD1Migrations(migrationsUrl.pathname);
+      const fixtureMigration = migrations.at(-1);
+      if (
+        fixtureMigration === undefined
+        || !fixtureMigration.queries.some((query) => query.includes('fixture_generated'))
+      ) {
+        throw new Error('expected migration 0033 fixture provenance contract');
+      }
+      for (const migration of migrations.slice(0, -1)) {
+        await db.batch(migration.queries.map((query) => db.prepare(query)));
+      }
+
+      const upgradeEnv = {
+        DB: db,
+        PII_ENC_KEY: Buffer.alloc(32).toString('base64'),
+      };
+      await db.prepare(
+        `INSERT INTO organization_settings (
+           org_id, time_zone, pii_purge_grace_days, version, created_at, updated_at
+         ) VALUES (?, 'Asia/Seoul', 180, 1, ?, ?)`,
+      ).bind(counselor.orgId, CREATED_AT, CREATED_AT).run();
+      await db.prepare(
+        `INSERT INTO users (id, org_id, email, role, active)
+         VALUES (?, ?, 'migration-counselor@example.invalid', 'counselor', 1)`,
+      ).bind(counselor.userId, counselor.orgId).run();
+      const participant = await createBeneficiaryWithInitialSupportCase(upgradeEnv, counselor, {
+        programType: 'financial_support_v1',
+        intakeAt: '2026-07-14T09:00:00.000Z',
+      });
+      const sessionId = 'migration-0033-session';
+      const workItemId = 'migration-0033-work';
+      const draftId = 'migration-0033-draft';
+      const reviewId = 'migration-0033-review';
+      await db.prepare(
+        `INSERT INTO sessions (
+           id, org_id, support_case_id, counselor_id, held_at, channel, memo,
+           submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, 'in_person', ?, ?, ?, ?, 'none', ?, ?)`,
+      ).bind(
+        sessionId,
+        counselor.orgId,
+        participant.supportCaseId,
+        counselor.userId,
+        CREATED_AT,
+        'Migration fixture.',
+        '33333333-3333-4333-8333-333333333333',
+        SHA256,
+        counselor.userId,
+        CREATED_AT,
+        CREATED_AT,
+      ).run();
+      await db.prepare(
+        `INSERT INTO ai_work_items (
+           id, org_id, support_case_id, session_id, kind, created_at
+         ) VALUES (?, ?, ?, ?, 'text_ai_briefing', ?)`,
+      ).bind(workItemId, counselor.orgId, participant.supportCaseId, sessionId, CREATED_AT).run();
+      await db.prepare('DROP TRIGGER ai_draft_versions_legacy_import_cutover_guard').run();
+      await db.prepare(
+        `INSERT INTO ai_draft_versions (
+           id, work_item_id, version, parent_version_id, summary_text, questions_json,
+           source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id,
+           model_id, prompt_version, schema_version, origin, creation_mode, grounding_status,
+           created_by, created_at, one_liner
+         ) VALUES (?, ?, 1, NULL, ?, '[]', NULL, NULL, NULL, NULL,
+                   NULL, NULL, NULL, 'legacy_import', 'legacy_import', 'legacy_unverified',
+                   NULL, ?, NULL)`,
+      ).bind(draftId, workItemId, 'Historical approved summary.', CREATED_AT).run();
+      await db.prepare(
+        `INSERT INTO ai_review_events (
+           id, work_item_id, draft_version_id, decision, replacement_draft_id, actor_id, created_at
+         ) VALUES (?, ?, ?, 'approved', NULL, ?, ?)`,
+      ).bind(reviewId, workItemId, draftId, counselor.userId, CREATED_AT).run();
+
+      await db.batch(fixtureMigration.queries.map((query) => db.prepare(query)));
+
+      await expect(db.prepare(
+        `SELECT
+           draft.origin,
+           draft.creation_mode,
+           draft.summary_text,
+           draft.questions_json,
+           draft.one_liner,
+           (SELECT COUNT(*) FROM ai_review_events WHERE draft_version_id = draft.id) AS reviews,
+           (SELECT COUNT(*) FROM approved_ai_briefing_v1 WHERE draft_version_id = draft.id) AS approved_rows
+         FROM ai_draft_versions AS draft
+         WHERE draft.id = ?`,
+      ).bind(draftId).first()).resolves.toEqual({
+        origin: 'legacy_import',
+        creation_mode: 'legacy_import',
+        summary_text: 'Historical approved summary.',
+        questions_json: '[]',
+        one_liner: null,
+        reviews: 1,
+        approved_rows: 1,
+      });
+      await expect(db.prepare('PRAGMA foreign_key_check').all()
+        .then((result) => result.results)).resolves.toEqual([]);
+      await expect(db.prepare(
+        `INSERT INTO ai_draft_versions (
+           id, work_item_id, version, summary_text, questions_json,
+           origin, creation_mode, grounding_status, created_at
+         ) VALUES ('migration-0033-runtime-legacy', ?, 2, 'blocked', '[]',
+                   'legacy_import', 'legacy_import', 'legacy_unverified', ?)`,
+      ).bind(workItemId, CREATED_AT).run()).rejects.toThrow('runtime legacy AI import is prohibited');
+    } finally {
+      await miniflare.dispose();
+    }
+  });
 });

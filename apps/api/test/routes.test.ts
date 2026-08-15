@@ -29,6 +29,8 @@ import {
 import type { ApiEnv } from '../src/identity';
 import { setupD1 } from './support/d1';
 
+const MULTI_SCENARIO_TIMEOUT_MS = 15_000;
+
 const counselorHeaders = {
   'content-type': 'application/json',
   'X-CCC-User-Id': 'counselor.routes@example.invalid',
@@ -1076,9 +1078,13 @@ describe('API routes', () => {
     await expectNoDraft(env, session.id);
   });
 
-  it('rejects duplicate, unknown, mismatched, and extra provider evidence references without drafts', async () => {
-    const invalidOutputs: Array<(request: AiProviderRequest) => unknown> = [
-      (request) => {
+  const invalidEvidenceOutputs: readonly {
+    readonly name: string;
+    readonly output: (request: AiProviderRequest) => unknown;
+  }[] = [
+    {
+      name: 'a duplicate evidence reference',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1088,7 +1094,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'an unknown evidence id',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1098,7 +1107,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched evidence end offset',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1108,7 +1120,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched source reference',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1118,7 +1133,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched source hash',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1128,7 +1146,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched evidence quote',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1138,7 +1159,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched evidence start offset',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1148,7 +1172,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'an unsupported evidence field',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1158,9 +1185,12 @@ describe('API routes', () => {
           }],
         };
       },
-    ];
+    },
+  ];
 
-    for (const output of invalidOutputs) {
+  it.each(invalidEvidenceOutputs)(
+    'rejects provider evidence with $name without drafts',
+    async ({ output }) => {
       const adapter = new FakeAiProviderAdapter();
       adapter.output = (request) => ({
         questions: validProviderQuestions(request),
@@ -1174,22 +1204,38 @@ describe('API routes', () => {
       await expect(response.json()).resolves.toEqual({ error: 'ai_prohibited_output' });
       expect(adapter.calls).toBe(1);
       await expectNoDraft(env, session.id);
-    }
-  });
+    },
+  );
 
-  it('rejects ungrounded, duplicate, unsafe, and malformed briefing questions without drafts', async () => {
-    const invalidOutputs: Array<(request: AiProviderRequest) => unknown> = [
-      (request) => ({ ...validProviderOutput(request), questions: [] }),
-      (request) => ({ ...validProviderOutput(request), questions: validProviderQuestions(request).slice(0, 1) }),
-      (request) => ({
+  const invalidQuestionOutputs: readonly {
+    readonly name: string;
+    readonly output: (request: AiProviderRequest) => unknown;
+  }[] = [
+    {
+      name: 'an empty question list',
+      output: (request) => ({ ...validProviderOutput(request), questions: [] }),
+    },
+    {
+      name: 'only one question',
+      output: (request) => ({ ...validProviderOutput(request), questions: validProviderQuestions(request).slice(0, 1) }),
+    },
+    {
+      name: 'more than three questions',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: [...validProviderQuestions(request), ...validProviderQuestions(request)],
       }),
-      (request) => {
+    },
+    {
+      name: 'duplicate questions',
+      output: (request) => {
         const question = validProviderQuestions(request)[0]!;
         return { ...validProviderOutput(request), questions: [question, { ...question }] };
       },
-      (request) => {
+    },
+    {
+      name: 'four grounded questions',
+      output: (request) => {
         const evidence = { ...firstEvidence(request) };
         return {
           ...validProviderOutput(request),
@@ -1200,36 +1246,57 @@ describe('API routes', () => {
           ],
         };
       },
-      (request) => ({
+    },
+    {
+      name: 'questions without evidence',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: validProviderQuestions(request).map((question) => ({ ...question, evidence: [] })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'an unsafe PII question',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: [
           ...validProviderQuestions(request).slice(0, 1),
           { title: '연락처: 010-1234-5678을 확인할까요?', reason: '연락 수단 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
         ],
       }),
-      (request) => ({
+    },
+    {
+      name: 'an unsupported question field',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: validProviderQuestions(request).map((question) => ({ ...question, unsupported: true })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'a reserved question_9 claim key',
+      output: (request) => ({
         ...validProviderOutput(request),
         claims: validProviderOutput(request).claims.map((claim) => ({ ...claim, claimKey: 'question_9' })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'a malformed question_0 claim key',
+      output: (request) => ({
         ...validProviderOutput(request),
         claims: validProviderOutput(request).claims.map((claim) => ({ ...claim, claimKey: 'question_0' })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'a malformed question_1suffix claim key',
+      output: (request) => ({
         ...validProviderOutput(request),
         claims: validProviderOutput(request).claims.map((claim) => ({ ...claim, claimKey: 'question_1suffix' })),
       }),
-    ];
+    },
+  ];
 
-    for (const output of invalidOutputs) {
+  it.each(invalidQuestionOutputs)(
+    'rejects briefing questions with $name without drafts',
+    async ({ output }) => {
       const adapter = new FakeAiProviderAdapter();
       adapter.output = output;
       const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
@@ -1240,8 +1307,8 @@ describe('API routes', () => {
       expect(response.status).toBe(422);
       await expect(response.json()).resolves.toEqual({ error: 'ai_prohibited_output' });
       await expectNoDraft(env, session.id);
-    }
-  });
+    },
+  );
   it('accepts exactly three unique grounded briefing questions', async () => {
     const adapter = new FakeAiProviderAdapter();
     adapter.output = (request) => ({
@@ -1839,6 +1906,56 @@ describe('API routes', () => {
     }
   });
 
+  it('activates exactly the deployed provider runtime for an admin and replays safely', async () => {
+    await t.reset();
+    const adapter = new FakeAiProviderAdapter();
+    const env = {
+      ...t.env,
+      PREVIEW_MODE: 'true',
+      PREVIEW_ACCESS_CODE: 'fixture-preview-code',
+      AI_PROVIDER_ADAPTER: adapter,
+    };
+    const request = () => worker.fetch(new Request('http://localhost/ai/provider/activate-runtime', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ approvalRef: 'preview-closed-beta-2026-08-13' }),
+    }), env);
+
+    const first = await request();
+    expect(first.status).toBe(201);
+    await expect(first.json()).resolves.toEqual({
+      enabled: true,
+      adapterId: CODEX_PROVIDER_ID,
+      adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
+      configHash: await canonicalAiProviderConfigHash(adapter.config),
+      replayed: false,
+    });
+
+    const second = await request();
+    expect(second.status).toBe(200);
+    await expect(second.json()).resolves.toEqual(expect.objectContaining({ enabled: true, replayed: true }));
+    const rows = await t.db.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM ai_provider_configs WHERE org_id = ?) AS configs,
+         (SELECT COUNT(*) FROM ai_provider_activations WHERE org_id = ? AND deactivated_at IS NULL) AS active`,
+    ).bind('org_demo', 'org_demo').first<{ configs: number; active: number }>();
+    expect(rows).toEqual({ configs: 1, active: 1 });
+
+    const denied = await worker.fetch(new Request('http://localhost/ai/provider/activate-runtime', {
+      method: 'POST',
+      headers: counselorHeaders,
+      body: JSON.stringify({ approvalRef: 'preview-closed-beta-2026-08-13' }),
+    }), env);
+    expect(denied.status).toBe(403);
+
+    const production = await worker.fetch(new Request('http://localhost/ai/provider/activate-runtime', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ approvalRef: 'must-not-open-in-production' }),
+    }), { ...t.env, AI_PROVIDER_ADAPTER: adapter });
+    expect(production.status).toBe(404);
+  });
+
   it('selects the default Codex adapter with an authenticated JSON POST and rejects incompatible registry tuples', async () => {
     const request: AiProviderRequest = {
       maskedText: MASKED_TEXT,
@@ -1865,6 +1982,7 @@ describe('API routes', () => {
       expect(() => resolveAiProviderAdapter({
         AI_PROVIDER_CONFIG: JSON.stringify({ ...TEST_PROVIDER_CONFIG, unsupported: true }),
         CODEX_API_KEY: 'test-codex-key',
+        EXTERNAL_AI_CALLS_ENABLED: '1',
       })).toThrow('ai_provider_unavailable');
       for (const incompatibleConfig of [
         { registryVersion: 'phase1.v2' },
@@ -1874,12 +1992,14 @@ describe('API routes', () => {
         expect(() => resolveAiProviderAdapter({
           AI_PROVIDER_CONFIG: JSON.stringify({ ...TEST_PROVIDER_CONFIG, ...incompatibleConfig }),
           CODEX_API_KEY: 'test-codex-key',
+          EXTERNAL_AI_CALLS_ENABLED: '1',
         })).toThrow('ai_provider_unavailable');
       }
 
       const { adapter, config } = resolveAiProviderAdapter({
         AI_PROVIDER_CONFIG: JSON.stringify(TEST_PROVIDER_CONFIG),
         CODEX_API_KEY: 'test-codex-key',
+        EXTERNAL_AI_CALLS_ENABLED: '1',
       });
       expect(adapter).toBeInstanceOf(CodexProviderAdapter);
       expect(config).toEqual(TEST_PROVIDER_CONFIG);
@@ -1902,6 +2022,49 @@ describe('API routes', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('keeps paid external AI calls off unless explicitly enabled', () => {
+    for (const env of [
+      {
+        AI_PROVIDER_CONFIG: JSON.stringify(TEST_PROVIDER_CONFIG),
+        CODEX_API_KEY: 'test-codex-key',
+      },
+      {
+        AI_PROVIDER_CONFIG: JSON.stringify(TEST_PROVIDER_CONFIG),
+        CODEX_API_KEY: 'test-codex-key',
+        EXTERNAL_AI_CALLS_ENABLED: '0',
+      },
+    ]) {
+      try {
+        resolveAiProviderAdapter(env);
+        throw new Error('expected paid external AI calls to remain disabled');
+      } catch (error) {
+        expect(error).toMatchObject({ reason: 'external_calls_disabled' });
+      }
+    }
+  });
+
+  it('calls a receiver-sensitive provider fetch with the global runtime receiver', async () => {
+    const request: AiProviderRequest = {
+      maskedText: MASKED_TEXT,
+      evidence: [{
+        evidenceId: 'receiver-evidence-1',
+        sourceRef: 'memo:receiver-source',
+        sourceSha256: await sha256Hex(MASKED_TEXT),
+        evidenceQuote: MASKED_TEXT,
+        sourceStart: 0,
+        sourceEnd: Array.from(MASKED_TEXT).length,
+      }],
+    };
+    const receiverSensitiveFetch = function (this: unknown) {
+      if (this !== globalThis) throw new TypeError('illegal invocation');
+      return Promise.resolve(new Response(JSON.stringify({
+        output_text: JSON.stringify(validProviderOutput(request)),
+      }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    } as typeof fetch;
+    const adapter = new CodexProviderAdapter(TEST_PROVIDER_CONFIG, 'test-key', receiverSensitiveFetch);
+    await expect(adapter.generate(request)).resolves.toEqual(validProviderOutput(request));
   });
 });
 const canonicalIds = {
@@ -2042,6 +2205,7 @@ describe('canonical participant API routes', () => {
       },
       gasTrend: [],
       lastSessionSummary: null,
+      pendingReviewSessionIds: [],
       openActionItems: [],
       flags: [],
       aiSuggestions: [],
@@ -2849,7 +3013,7 @@ describe('canonical participant API routes', () => {
       officialAfterApproval,
       [pendingCanary, rejectedCanary, approvedCanary],
     );
-  });
+  }, MULTI_SCENARIO_TIMEOUT_MS);
 
   it('rejects role-confused, malformed, unknown-field, and hidden-case participant requests without disclosure', async () => {
     const creation = await setupCanonicalParticipant();

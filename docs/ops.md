@@ -45,9 +45,10 @@
 | `PII_ENC_KEY` | Workers 시크릿 | (없음) | PII AES-GCM 키(D3). 코드·로그 출력 금지(R3). |
 | `AI_PROVIDER_CONFIG` | Workers 환경 변수(JSON 문자열) | (없음) | 활성 AI 사업자 설정(레지스트리·어댑터·설정 버전·모델). **미설정이면 AI 호출 경로 전체가 fail closed** 된다 — 지금 운영·로컬 어디에도 없어 사업자 호출이 한 번도 실행된 적이 없다(D57·ADR-0027). |
 | `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
+| `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
 
-두 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`)은 **함께** 있어야 사업자 호출이 열린다. 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
+세 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`·`EXTERNAL_AI_CALLS_ENABLED=1`)이 **함께** 있어야 사업자 호출이 열린다. `EXTERNAL_AI_CALLS_ENABLED=1`은 유료 실호출을 별도로 승인받은 배포에만 둔다. 키 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 
 PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조직별로 저장한다. 값이 없거나 유효하지 않으면 종결·파기 예약을 fail closed하며, 코드에서 기본 기간을 추정하지 않는다. 내부 규정 확정 후 각 조직 설정을 명시적으로 등록한다(8장 미결).
 
@@ -205,8 +206,9 @@ pnpm deploy:production
 
 - 전용 워커: `ccc-api-preview`(API) + `ccc-preview`(웹). 각 `wrangler.toml`/`wrangler.jsonc`의 `[env.preview]`로 정의한다.
 - 전용 D1 `ccc-preview`: **가상 시드 데이터만** 담는다. 운영 D1(`ccc`)과 바인딩·데이터가 분리된다.
+- 전용 R2 `ccc-audio-preview`: 합성 음성과 동의받은 내부 테스트 녹음만 담는다. 운영 `ccc-audio`와 분리하며 `audio-30d-expiry` 수명 규칙으로 30일 뒤 자동 삭제한다.
 - 웹 미리보기 워커는 서비스 바인딩(`CCC_API`)과 self 참조를 모두 미리보기 워커로 재지정한다 — 안 하면 미리보기 웹이 운영 API를 친다.
-- R2(음성 버킷)는 미리보기에서 제외한다(가상 시드에 오디오 없음). 크론 트리거도 비활성(`[env.preview.triggers]` 없음).
+- Preview 크론 트리거는 명시적으로 비활성(`crons = []`)이다. 운영 워치독·파기 크론을 상속하지 않는다.
 
 ### 코드 게이트 동작 (Access보다 약한 잠금)
 

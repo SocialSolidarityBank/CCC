@@ -131,6 +131,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
           discrepancyAction={resolveDiscrepancyAction}
           discrepancyError={notice === 'discrepancy_error'}
           pendingApprovalCount={focused.lastSessionSummary?.pendingApprovalCount ?? 0}
+          pendingReviewSessionIds={focused.pendingReviewSessionIds}
           aiSuggestions={focused.aiSuggestions}
           openActionItems={focused.openActionItems}
           flags={focused.flags}

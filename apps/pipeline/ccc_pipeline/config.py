@@ -6,9 +6,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import chunking, repetition, transcribe  # 기본값 정본은 각 모듈에 둔다(중복 금지)
+from . import chunking, masking, repetition, transcribe  # 기본값 정본은 각 모듈에 둔다(중복 금지)
+from .backup import BACKUP_ADAPTERS, BackupPolicy, assert_backup_destination_available, validate_backup_policy
 
-DEFAULT_API_BASE_URL = "https://ccc-api.account-855.workers.dev"
+PRODUCTION_API_BASE_URL = "https://ccc-api.account-855.workers.dev"
+PREVIEW_API_BASE_URL = "https://ccc-api-preview.account-855.workers.dev"
 
 
 class ConfigError(Exception):
@@ -18,8 +20,9 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Config:
     api_base_url: str
-    client_id: str
-    client_secret: str
+    client_id: str | None
+    client_secret: str | None
+    preview_access_code: str | None
     poll_interval_seconds: int
     work_dir: Path
     whisper_model: str
@@ -40,6 +43,8 @@ class Config:
     condition_ner_model_id: str | None
     condition_ner_labels: tuple[str, ...]
     hf_token: str | None
+    runtime_environment: str
+    backup_policy: BackupPolicy
 
 
 def _positive_float(name: str, default: float) -> float:
@@ -82,6 +87,33 @@ def _required(name: str) -> str:
     return value
 
 
+def _optional(name: str) -> str | None:
+    value = os.environ.get(name, "").strip()
+    return value or None
+
+
+def _backup_policy() -> BackupPolicy:
+    enabled_raw = os.environ.get("CCC_ORIGINAL_BACKUP_ENABLED", "off").strip().lower()
+    if enabled_raw not in ("off", "false", "0", "on", "true", "1"):
+        raise ConfigError("environment variable CCC_ORIGINAL_BACKUP_ENABLED is invalid")
+    enabled = enabled_raw in ("on", "true", "1")
+    retention_raw = _optional("CCC_ORIGINAL_BACKUP_RETENTION_DAYS")
+    retention_days: int | None = None
+    if retention_raw is not None:
+        try:
+            retention_days = int(retention_raw)
+        except ValueError as error:
+            raise ConfigError("environment variable CCC_ORIGINAL_BACKUP_RETENTION_DAYS is invalid") from error
+    return BackupPolicy(
+        enabled=enabled,
+        environment=_optional("CCC_ORIGINAL_BACKUP_ENVIRONMENT"),
+        purpose=_optional("CCC_ORIGINAL_BACKUP_PURPOSE"),
+        destination_ref=_optional("CCC_ORIGINAL_BACKUP_DESTINATION_REF"),
+        retention_days=retention_days,
+        consent_notice_version=_optional("CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION"),
+    )
+
+
 def load_config() -> Config:
     interval_raw = os.environ.get("CCC_POLL_INTERVAL_SECONDS", "600").strip()
     try:
@@ -93,10 +125,44 @@ def load_config() -> Config:
 
     work_dir = Path(os.environ.get("CCC_WORK_DIR", "").strip() or Path.home() / ".cache" / "ccc-pipeline")
 
+    runtime_environment = _required("CCC_RUNTIME_ENVIRONMENT").lower()
+    if runtime_environment not in ("preview", "production"):
+        raise ConfigError("environment variable CCC_RUNTIME_ENVIRONMENT is invalid")
+
+    configured_url = _optional("CCC_API_BASE_URL")
+    client_id = _optional("CCC_PIPELINE_CLIENT_ID")
+    client_secret = _optional("CCC_PIPELINE_CLIENT_SECRET")
+    preview_access_code = _optional("CCC_PREVIEW_E2E_ACCESS_CODE")
+    if runtime_environment == "preview":
+        api_base_url = (configured_url or PREVIEW_API_BASE_URL).rstrip("/")
+        if api_base_url != PREVIEW_API_BASE_URL:
+            raise ConfigError("preview runtime requires the Preview API URL")
+        if client_id is not None or client_secret is not None:
+            raise ConfigError("preview runtime must not receive production Access credentials")
+        if preview_access_code is None:
+            raise ConfigError("environment variable CCC_PREVIEW_E2E_ACCESS_CODE is required")
+    else:
+        api_base_url = (configured_url or PRODUCTION_API_BASE_URL).rstrip("/")
+        if api_base_url != PRODUCTION_API_BASE_URL:
+            raise ConfigError("production runtime requires the production API URL")
+        if preview_access_code is not None:
+            raise ConfigError("production runtime must not receive Preview credentials")
+        if client_id is None:
+            raise ConfigError("environment variable CCC_PIPELINE_CLIENT_ID is required")
+        if client_secret is None:
+            raise ConfigError("environment variable CCC_PIPELINE_CLIENT_SECRET is required")
+    backup_policy = _backup_policy()
+    try:
+        validate_backup_policy(backup_policy, runtime_environment)
+        assert_backup_destination_available(backup_policy, BACKUP_ADAPTERS)
+    except Exception as error:
+        raise ConfigError("original recording backup policy is invalid") from error
+
     return Config(
-        api_base_url=os.environ.get("CCC_API_BASE_URL", "").strip().rstrip("/") or DEFAULT_API_BASE_URL,
-        client_id=_required("CCC_PIPELINE_CLIENT_ID"),
-        client_secret=_required("CCC_PIPELINE_CLIENT_SECRET"),
+        api_base_url=api_base_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        preview_access_code=preview_access_code,
         poll_interval_seconds=interval,
         work_dir=work_dir,
         whisper_model=os.environ.get("CCC_WHISPER_MODEL", "").strip() or "medium",
@@ -110,4 +176,6 @@ def load_config() -> Config:
         condition_ner_model_id=os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None,
         condition_ner_labels=_labels("CCC_CONDITION_NER_LABELS", masking.DEFAULT_CONDITION_LABELS),
         hf_token=os.environ.get("HF_TOKEN", "").strip() or None,
+        runtime_environment=runtime_environment,
+        backup_policy=backup_policy,
     )

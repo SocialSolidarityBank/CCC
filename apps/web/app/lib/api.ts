@@ -16,6 +16,7 @@ export type ApiErrorCode =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
+  | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
   | 'ai_provider_unavailable'
@@ -39,6 +40,7 @@ const knownErrorCodes = new Set<ApiErrorCode>([
   'stale_draft_version',
   'draft_version_required',
   'grounded_evidence_required',
+  'fixture_draft_approval_forbidden',
   'ai_provider_not_configured',
   'ai_prohibited_output',
   'ai_provider_unavailable',
@@ -123,9 +125,13 @@ export interface AiEvidence {
 }
 
 export type AiDraftReviewDecision = 'approved' | 'rejected' | 'superseded' | null;
+export type AiDraftOrigin = 'generated' | 'fixture_generated' | 'legacy_import';
+export type AiDraftCreationMode = 'provider_generated' | 'fixture_generated' | 'human_edited' | 'legacy_import';
 
 export interface AiDraft {
   version: number;
+  origin: AiDraftOrigin;
+  creationMode: AiDraftCreationMode;
   summaryText: string;
   /** D45 핵심 한 줄(CCC-38) — 승인 화면에서 요약·질문과 함께 검토된다. null = 레거시 초안. */
   oneLiner: string | null;
@@ -302,6 +308,7 @@ export interface ParticipantBriefingSection {
     text: string;
     pendingApprovalCount: number;
   } | null;
+  pendingReviewSessionIds: string[];
   openActionItems: Array<{
     id: string;
     description: string;

@@ -9,7 +9,8 @@ from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
 from ccc_pipeline.api_client import ApiClient, ApiError, USER_AGENT
-from ccc_pipeline.config import Config
+from ccc_pipeline.backup import BackupPolicy
+from ccc_pipeline.config import Config, ConfigError, load_config
 from ccc_pipeline.worker import run_once
 
 
@@ -18,6 +19,7 @@ def make_config(work_dir: Path) -> Config:
         api_base_url="https://api.example",
         client_id="cid",
         client_secret="csec",
+        preview_access_code=None,
         poll_interval_seconds=1,
         work_dir=work_dir,
         whisper_model="tiny",
@@ -31,6 +33,8 @@ def make_config(work_dir: Path) -> Config:
         condition_ner_model_id=None,
         condition_ner_labels=("DS",),
         hf_token=None,
+        runtime_environment="production",
+        backup_policy=BackupPolicy(),
     )
 
 
@@ -49,7 +53,7 @@ class FakeResponse(io.BytesIO):
 
 class ApiClientTest(unittest.TestCase):
     def test_requests_carry_service_token_headers_and_ua(self):
-        client = ApiClient("https://api.example/", "cid", "csec")
+        client = ApiClient("https://api.example/", "cid", "csec", runtime_environment="production")
         request = client._request("GET", "/pipeline/jobs")
         # Cloudflare 1010 차단 회피: 기본 python UA 대신 명시 UA
         self.assertEqual(request.get_header("User-agent"), USER_AGENT)
@@ -57,15 +61,33 @@ class ApiClientTest(unittest.TestCase):
         self.assertEqual(request.get_header("Cf-access-client-secret"), "csec")
         self.assertEqual(request.full_url, "https://api.example/pipeline/jobs")
 
+    def test_preview_unlocks_with_preview_code_and_never_sends_access_headers(self):
+        client = ApiClient(
+            "https://ccc-api-preview.account-855.workers.dev",
+            runtime_environment="preview",
+            preview_access_code="preview-fixture-code",
+        )
+        unlock = FakeResponse(json.dumps({"token": "preview-token", "maxAgeSeconds": 604800}).encode())
+        jobs = FakeResponse(json.dumps({"jobs": []}).encode())
+        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=[unlock, jobs]) as open_url:
+            self.assertEqual(client.list_jobs(), [])
+
+        unlock_request = open_url.call_args_list[0].args[0]
+        jobs_request = open_url.call_args_list[1].args[0]
+        self.assertEqual(unlock_request.full_url, "https://ccc-api-preview.account-855.workers.dev/preview/unlock")
+        self.assertNotIn("Cf-access-client-id", jobs_request.headers)
+        self.assertNotIn("Cf-access-client-secret", jobs_request.headers)
+        self.assertEqual(jobs_request.get_header("Cookie"), "ccc_preview=preview-token")
+
     def test_list_jobs_parses_jobs(self):
-        client = ApiClient("https://api.example", "cid", "csec")
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         payload = json.dumps({"jobs": [{"id": "s1", "audioAvailable": True}]}).encode()
         with mock.patch.object(api_client_module.urllib.request, "urlopen", return_value=FakeResponse(payload)):
             jobs = client.list_jobs()
         self.assertEqual(jobs[0]["id"], "s1")
 
     def test_http_error_maps_to_api_error_without_body_leak(self):
-        client = ApiClient("https://api.example", "cid", "csec")
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         error = api_client_module.urllib.error.HTTPError(
             "https://api.example/x", 403, "Forbidden", None, io.BytesIO(b'{"error":"forbidden","secret":"x"}')
         )
@@ -77,7 +99,7 @@ class ApiClientTest(unittest.TestCase):
         self.assertNotIn("secret", str(caught.exception))
 
     def test_download_audio_writes_bytes(self):
-        client = ApiClient("https://api.example", "cid", "csec")
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         with TemporaryDirectory() as tmp:
             dest = Path(tmp) / "nested" / "audio.bin"
             with mock.patch.object(api_client_module.urllib.request, "urlopen", return_value=FakeResponse(b"RIFFdata")):
@@ -132,6 +154,117 @@ class RunOnceTest(unittest.TestCase):
         self.assertTrue(created_dirs, "download should have run")
         for directory in created_dirs:
             self.assertFalse(directory.exists(), "work dir must be deleted (D13)")
+
+    def test_backup_adapter_failure_does_not_block_result_submission(self):
+        from ccc_pipeline.speaker_mapping import Segment, Turn
+        from ccc_pipeline.transcribe import TranscriptionResult
+        from ccc_pipeline.worker import process_job
+
+        client = mock.Mock()
+
+        def fake_download(job_id: str, dest: Path) -> Path:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"synthetic-audio")
+            return dest
+
+        class FailingBackupAdapter:
+            environment = "preview"
+            destination_ref = "approved:archive"
+
+            def copy_original(self, source: Path, *, job_id: str, retention_days: int) -> None:
+                raise RuntimeError("fixture backup outage")
+
+        client.download_audio.side_effect = fake_download
+        policy = BackupPolicy(
+            enabled=True,
+            environment="preview",
+            purpose="approved internal archive",
+            destination_ref="approved:archive",
+            retention_days=30,
+            consent_notice_version="recording-ai-v1",
+        )
+        with TemporaryDirectory() as tmp:
+            config = replace(make_config(Path(tmp)), runtime_environment="preview", backup_policy=policy)
+            with (
+                mock.patch("ccc_pipeline.worker.build_engine", return_value=mock.Mock()),
+                mock.patch(
+                    "ccc_pipeline.worker.transcribe_audio",
+                    return_value=TranscriptionResult([Segment(0.0, 1.0, "합성 문장")]),
+                ),
+                mock.patch("ccc_pipeline.diarize.diarize", return_value=[Turn(0.0, 1.0, "SPEAKER_00")]),
+                mock.patch("ccc_pipeline.emotion.build_text_scorer", return_value=lambda texts: [0.1]),
+                mock.patch("ccc_pipeline.emotion.build_speech_scorer", return_value=lambda path, spans: [0.1]),
+                mock.patch(
+                    "ccc_pipeline.worker._build_person_and_address_ner",
+                    return_value=(lambda text: [], None),
+                ),
+            ):
+                process_job(
+                    client,
+                    config,
+                    "job-1",
+                    {"approved:archive": FailingBackupAdapter()},
+                )
+
+        client.post_recording_result.assert_called_once()
+
+
+class EnvironmentIsolationTest(unittest.TestCase):
+    def base_env(self) -> dict[str, str]:
+        return {
+            "CCC_NER_MODEL_ID": "fixture/person-ner",
+            "CCC_ORIGINAL_BACKUP_ENABLED": "off",
+        }
+
+    def test_runtime_environment_is_explicit(self):
+        with mock.patch.dict("os.environ", self.base_env(), clear=True):
+            with self.assertRaisesRegex(ConfigError, "CCC_RUNTIME_ENVIRONMENT is required"):
+                load_config()
+
+    def test_preview_uses_only_preview_api_and_preview_credential(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            config = load_config()
+        self.assertEqual(config.api_base_url, "https://ccc-api-preview.account-855.workers.dev")
+        self.assertIsNone(config.client_id)
+        self.assertIsNone(config.client_secret)
+        self.assertEqual(config.preview_access_code, "fixture-preview-code")
+
+    def test_preview_rejects_production_credentials_or_url(self):
+        for extra in (
+            {"CCC_PIPELINE_CLIENT_ID": "prod-id", "CCC_PIPELINE_CLIENT_SECRET": "prod-secret"},
+            {"CCC_API_BASE_URL": "https://ccc-api.account-855.workers.dev"},
+        ):
+            env = {
+                **self.base_env(),
+                "CCC_RUNTIME_ENVIRONMENT": "preview",
+                "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+                **extra,
+            }
+            with self.subTest(extra=tuple(extra)):
+                with mock.patch.dict("os.environ", env, clear=True):
+                    with self.assertRaises(ConfigError):
+                        load_config()
+
+    def test_production_rejects_preview_credentials_or_url(self):
+        base = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "production",
+            "CCC_PIPELINE_CLIENT_ID": "fixture-id",
+            "CCC_PIPELINE_CLIENT_SECRET": "fixture-secret",
+        }
+        for extra in (
+            {"CCC_PREVIEW_E2E_ACCESS_CODE": "preview-code"},
+            {"CCC_API_BASE_URL": "https://ccc-api-preview.account-855.workers.dev"},
+        ):
+            with self.subTest(extra=tuple(extra)):
+                with mock.patch.dict("os.environ", {**base, **extra}, clear=True):
+                    with self.assertRaises(ConfigError):
+                        load_config()
 
 
 class TextJobTest(unittest.TestCase):
