@@ -1078,9 +1078,13 @@ describe('API routes', () => {
     await expectNoDraft(env, session.id);
   });
 
-  it('rejects duplicate, unknown, mismatched, and extra provider evidence references without drafts', async () => {
-    const invalidOutputs: Array<(request: AiProviderRequest) => unknown> = [
-      (request) => {
+  const invalidEvidenceOutputs: readonly {
+    readonly name: string;
+    readonly output: (request: AiProviderRequest) => unknown;
+  }[] = [
+    {
+      name: 'a duplicate evidence reference',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1090,7 +1094,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'an unknown evidence id',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1100,7 +1107,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched evidence end offset',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1110,7 +1120,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched source reference',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1120,7 +1133,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched source hash',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1130,7 +1146,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched evidence quote',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1140,7 +1159,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'a mismatched evidence start offset',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1150,7 +1172,10 @@ describe('API routes', () => {
           }],
         };
       },
-      (request) => {
+    },
+    {
+      name: 'an unsupported evidence field',
+      output: (request) => {
         const evidence = firstEvidence(request);
         return {
           claims: [{
@@ -1160,9 +1185,12 @@ describe('API routes', () => {
           }],
         };
       },
-    ];
+    },
+  ];
 
-    for (const output of invalidOutputs) {
+  it.each(invalidEvidenceOutputs)(
+    'rejects provider evidence with $name without drafts',
+    async ({ output }) => {
       const adapter = new FakeAiProviderAdapter();
       adapter.output = (request) => ({
         questions: validProviderQuestions(request),
@@ -1176,22 +1204,38 @@ describe('API routes', () => {
       await expect(response.json()).resolves.toEqual({ error: 'ai_prohibited_output' });
       expect(adapter.calls).toBe(1);
       await expectNoDraft(env, session.id);
-    }
-  }, MULTI_SCENARIO_TIMEOUT_MS);
+    },
+  );
 
-  it('rejects ungrounded, duplicate, unsafe, and malformed briefing questions without drafts', async () => {
-    const invalidOutputs: Array<(request: AiProviderRequest) => unknown> = [
-      (request) => ({ ...validProviderOutput(request), questions: [] }),
-      (request) => ({ ...validProviderOutput(request), questions: validProviderQuestions(request).slice(0, 1) }),
-      (request) => ({
+  const invalidQuestionOutputs: readonly {
+    readonly name: string;
+    readonly output: (request: AiProviderRequest) => unknown;
+  }[] = [
+    {
+      name: 'an empty question list',
+      output: (request) => ({ ...validProviderOutput(request), questions: [] }),
+    },
+    {
+      name: 'only one question',
+      output: (request) => ({ ...validProviderOutput(request), questions: validProviderQuestions(request).slice(0, 1) }),
+    },
+    {
+      name: 'more than three questions',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: [...validProviderQuestions(request), ...validProviderQuestions(request)],
       }),
-      (request) => {
+    },
+    {
+      name: 'duplicate questions',
+      output: (request) => {
         const question = validProviderQuestions(request)[0]!;
         return { ...validProviderOutput(request), questions: [question, { ...question }] };
       },
-      (request) => {
+    },
+    {
+      name: 'four grounded questions',
+      output: (request) => {
         const evidence = { ...firstEvidence(request) };
         return {
           ...validProviderOutput(request),
@@ -1202,36 +1246,57 @@ describe('API routes', () => {
           ],
         };
       },
-      (request) => ({
+    },
+    {
+      name: 'questions without evidence',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: validProviderQuestions(request).map((question) => ({ ...question, evidence: [] })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'an unsafe PII question',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: [
           ...validProviderQuestions(request).slice(0, 1),
           { title: '연락처: 010-1234-5678을 확인할까요?', reason: '연락 수단 확인이 필요합니다.', evidence: [{ ...firstEvidence(request) }] },
         ],
       }),
-      (request) => ({
+    },
+    {
+      name: 'an unsupported question field',
+      output: (request) => ({
         ...validProviderOutput(request),
         questions: validProviderQuestions(request).map((question) => ({ ...question, unsupported: true })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'a reserved question_9 claim key',
+      output: (request) => ({
         ...validProviderOutput(request),
         claims: validProviderOutput(request).claims.map((claim) => ({ ...claim, claimKey: 'question_9' })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'a malformed question_0 claim key',
+      output: (request) => ({
         ...validProviderOutput(request),
         claims: validProviderOutput(request).claims.map((claim) => ({ ...claim, claimKey: 'question_0' })),
       }),
-      (request) => ({
+    },
+    {
+      name: 'a malformed question_1suffix claim key',
+      output: (request) => ({
         ...validProviderOutput(request),
         claims: validProviderOutput(request).claims.map((claim) => ({ ...claim, claimKey: 'question_1suffix' })),
       }),
-    ];
+    },
+  ];
 
-    for (const output of invalidOutputs) {
+  it.each(invalidQuestionOutputs)(
+    'rejects briefing questions with $name without drafts',
+    async ({ output }) => {
       const adapter = new FakeAiProviderAdapter();
       adapter.output = output;
       const { caseRecord, env, session } = await setupPhase1AiFixture(adapter);
@@ -1242,8 +1307,8 @@ describe('API routes', () => {
       expect(response.status).toBe(422);
       await expect(response.json()).resolves.toEqual({ error: 'ai_prohibited_output' });
       await expectNoDraft(env, session.id);
-    }
-  }, MULTI_SCENARIO_TIMEOUT_MS);
+    },
+  );
   it('accepts exactly three unique grounded briefing questions', async () => {
     const adapter = new FakeAiProviderAdapter();
     adapter.output = (request) => ({
