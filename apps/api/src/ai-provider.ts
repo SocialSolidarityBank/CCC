@@ -174,6 +174,12 @@ export interface AiProviderTestAdapter extends AiProviderAdapter {
 export interface AiProviderRuntimeEnv {
   AI_PROVIDER_CONFIG?: string;
   CODEX_API_KEY?: string;
+  /**
+   * 유료 외부 사업자 호출의 최종 운영 스위치. 정확히 "1"일 때만 실제 HTTPS 호출을
+   * 허용한다. 설정·키가 배포돼 있어도 합성 스모크나 Preview 점검이 암묵적으로 비용을
+   * 만들지 않게 기본은 OFF다. 테스트 주입 어댑터는 네트워크를 쓰지 않으므로 예외다.
+   */
+  EXTERNAL_AI_CALLS_ENABLED?: string;
   /** In-process tests may inject an object binding that deployed Workers cannot provide. */
   AI_PROVIDER_ADAPTER?: AiProviderAdapter;
 }
@@ -198,6 +204,7 @@ export class AiProviderProhibitedOutputError extends Error {
 export type AiProviderUnavailableReason =
   | 'config_missing'
   | 'config_invalid'
+  | 'external_calls_disabled'
   | 'api_key_missing'
   | 'adapter_invalid'
   | 'network'
@@ -487,6 +494,41 @@ export function validateAiProviderRequest(value: unknown): AiProviderRequest {
     });
   }
   return { maskedText, evidence };
+}
+
+/**
+ * Deterministic Preview-only fixture output. It has no fetch implementation and
+ * can copy only evidence references that already passed request validation.
+ */
+export function generatePreviewFixtureAiDraft(request: AiProviderRequest): AiProviderOutput {
+  const evidence = request.evidence.map((reference) => ({ ...reference }));
+  return {
+    claims: [{
+      claimKey: 'fixture-claim',
+      text: '합성 녹음 처리가 완료되었습니다.',
+      evidence,
+    }],
+    questions: [
+      {
+        title: '합성 일정 확인',
+        reason: '가상 일정의 확인이 필요합니다.',
+        evidence: evidence.map((reference) => ({ ...reference })),
+      },
+      {
+        title: '합성 비용 확인',
+        reason: '가상 비용의 확인이 필요합니다.',
+        evidence: evidence.map((reference) => ({ ...reference })),
+      },
+    ],
+    oneLiner: '합성 녹음 처리 결과입니다.',
+  };
+}
+
+/** Preview fixture inputs do not attest a contradictory pair, so output is deterministically empty. */
+export function detectPreviewFixtureDiscrepancies(
+  _request: DiscrepancyDetectionRequest,
+): DiscrepancyDetectionOutput {
+  return { discrepancies: [] };
 }
 
 export function validateAiDraftSummary(value: unknown): string {
@@ -885,7 +927,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
     try {
       let response: Response;
       try {
-        response = await this.fetcher(CODEX_RESPONSES_URL, {
+        response = await Reflect.apply(this.fetcher, globalThis, [CODEX_RESPONSES_URL, {
           method: 'POST',
           headers: {
             authorization: `Bearer ${this.apiKey}`,
@@ -905,7 +947,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
             },
           }),
           signal: controller.signal,
-        });
+        }]);
       } catch {
         // 망 장애·타임아웃(AbortController). 사업자에 닿지도 못한 경우다.
         throw new AiProviderUnavailableError('network');
@@ -958,5 +1000,8 @@ export function resolveAiProviderAdapter(env: AiProviderRuntimeEnv): { adapter: 
   const config = resolveAiProviderConfig(env);
   const apiKey = env.CODEX_API_KEY?.trim();
   if (apiKey === undefined || apiKey.length === 0) throw new AiProviderUnavailableError('api_key_missing');
+  if (env.EXTERNAL_AI_CALLS_ENABLED !== '1') {
+    throw new AiProviderUnavailableError('external_calls_disabled');
+  }
   return { adapter: new CodexProviderAdapter(config, apiKey), config };
 }

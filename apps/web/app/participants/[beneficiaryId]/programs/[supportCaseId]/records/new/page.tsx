@@ -88,6 +88,7 @@ function recoveryState(value: string | undefined): RecoveryState {
     case 'stale_draft_version':
     case 'draft_version_required':
     case 'grounded_evidence_required':
+    case 'fixture_draft_approval_forbidden':
     case 'ai_provider_not_configured':
     case 'ai_prohibited_output':
     case 'ai_provider_unavailable':
@@ -294,6 +295,7 @@ function responseOutcome(result: unknown): SubmissionOutcome {
     case 'stale_draft_version':
     case 'draft_version_required':
     case 'grounded_evidence_required':
+    case 'fixture_draft_approval_forbidden':
     case 'ai_provider_not_configured':
     case 'ai_prohibited_output':
     case 'ai_provider_unavailable':
@@ -373,6 +375,7 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     stale_draft_version: '기록 초안이 변경되어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
     draft_version_required: '기록 초안 버전이 확인되지 않아 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
     grounded_evidence_required: '확인 가능한 근거가 없어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
+    fixture_draft_approval_forbidden: '테스트 산출물은 공식 기록으로 승인할 수 없습니다.',
     ai_provider_not_configured: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.',
     ai_prohibited_output: '안전 기준에 맞지 않는 AI 결과가 감지되어 요청을 처리할 수 없습니다.',
     ai_provider_unavailable: '텍스트 AI 서비스를 지금 사용할 수 없어 요청을 처리할 수 없습니다.',

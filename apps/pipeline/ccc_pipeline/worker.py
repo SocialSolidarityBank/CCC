@@ -15,9 +15,10 @@ from pathlib import Path
 
 from . import masking
 from .api_client import ApiClient, ApiError
-from .artifacts import build_artifacts
+from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
 from .emotion import aggregate_scores
+from .results import build_recording_result
 from .speaker_mapping import BENEFICIARY, assign_speakers, estimate_roles, format_transcript
 from .transcribe import build_engine, transcribe_audio
 
@@ -46,7 +47,12 @@ def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
     return masking.build_condition_ner(config.condition_ner_model_id, config.condition_ner_labels)
 
 
-def process_job(client: ApiClient, config: Config, job_id: str) -> None:
+def process_job(
+    client: ApiClient,
+    config: Config,
+    job_id: str,
+    backup_adapters=BACKUP_ADAPTERS,  # noqa: ANN001 - 테스트와 향후 adapter 등록을 위한 경계
+) -> None:
     """작업 1건: 다운로드 → 전사 → 화자 분리 → 역할 추정 → 감정 → 마스킹 → 전송."""
     # ML 모듈은 여기서만 임포트한다 — 미설치 환경에서도 워커 모듈 자체는 로드 가능하게.
     from .diarize import diarize  # noqa: PLC0415
@@ -57,6 +63,17 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
     try:
         audio_path = client.download_audio(job_id, work_dir / "audio.bin")
         logger.info("job %s: audio downloaded", job_id)
+
+        # 선택형 원본 백업은 전사·마스킹의 성공 경로를 막지 않는다. 현재 adapter 등록은
+        # 비어 있어 기본 OFF만 동작하며, ON 설정은 목적지가 실제로 붙기 전 fail closed한다.
+        backup_status = backup_original_if_enabled(
+            config.backup_policy,
+            config.runtime_environment,
+            audio_path,
+            job_id,
+            backup_adapters,
+        )
+        logger.info("job %s: original backup status=%s", job_id, backup_status)
 
         # 조각 분할 + 반복 검사를 거친다 (D53). 반복이 남으면 그 구간은 접히고
         # 경고가 전사에 실려 승인 화면에서 실무자가 본다 — 조용히 통과시키지 않는다.
@@ -100,8 +117,11 @@ def process_job(client: ApiClient, config: Config, job_id: str) -> None:
         # 마스킹 집계는 **건수만** 남긴다 — 치환된 원문은 로그에도 쓰지 않는다(R3, G3 검증용).
         logger.info("job %s: masked total=%d detail=%s", job_id, mask_report.total, mask_report.as_mapping())
 
-        client.post_artifacts(job_id, build_artifacts(transcript, emotion_scores))
-        logger.info("job %s: artifacts posted (%.1fs)", job_id, time.monotonic() - started)
+        client.post_recording_result(
+            job_id,
+            build_recording_result(transcript, emotion_scores, masking_pipeline_version(config)),
+        )
+        logger.info("job %s: result posted (%.1fs)", job_id, time.monotonic() - started)
     finally:
         # D13: 성공·실패와 무관하게 오디오·중간 파일을 즉시 삭제한다.
         shutil.rmtree(work_dir, ignore_errors=True)

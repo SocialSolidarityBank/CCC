@@ -113,6 +113,15 @@ export class GroundedEvidenceRequiredError extends Error {
     super('grounded_evidence_required');
   }
 }
+/** Preview fixture drafts are reviewable but can never become official records. */
+export class FixtureDraftApprovalForbiddenError extends Error {
+  readonly code = 'fixture_draft_approval_forbidden';
+  readonly statusCode = 409;
+
+  constructor() {
+    super('fixture_draft_approval_forbidden');
+  }
+}
 /** 파일럿용 Privacy/Security 승인 provider 설정이 활성화되지 않았다. */
 export class AiProviderNotConfiguredError extends Error {
   readonly code = 'ai_provider_not_configured';
@@ -490,14 +499,19 @@ function nullableInteger(value: unknown): number | null {
 }
 
 function toAiDraftOrigin(value: unknown): AiDraftOrigin {
-  if (value === 'generated' || value === 'legacy_import') {
+  if (value === 'generated' || value === 'fixture_generated' || value === 'legacy_import') {
     return value;
   }
 
   throw new ValidationError('AI draft origin is invalid');
 }
 function toAiDraftCreationMode(value: unknown): AiDraftCreationMode {
-  if (value === 'provider_generated' || value === 'human_edited' || value === 'legacy_import') {
+  if (
+    value === 'provider_generated'
+    || value === 'fixture_generated'
+    || value === 'human_edited'
+    || value === 'legacy_import'
+  ) {
     return value;
   }
 
@@ -1483,7 +1497,7 @@ function assertCurrentGeneratedPendingDraft(draft: AiDraftVersion, expectedVersi
   if (
     draft.version !== expectedVersion
     || draft.reviewDecision !== null
-    || draft.origin !== 'generated'
+    || (draft.origin !== 'generated' && draft.origin !== 'fixture_generated')
     || draft.groundingStatus !== 'grounded'
   ) {
     throw new StaleDraftVersionError();
@@ -1571,7 +1585,7 @@ function assertGeneratedAiDraftInput(
   }
 }
 
-async function maskGeneratedAiDraftInput<T extends AiDraftContentInput>(
+async function maskGeneratedAiDraftInput<T extends GroundedAiDraftContentInput>(
   env: Env,
   actor: Actor,
   caseId: string,
@@ -1822,11 +1836,24 @@ export interface RecordMaskedSourceSnapshotInput {
   evidence: MaskedSourceEvidenceItemInput[];
 }
 
+export interface RecordingResultInput extends RecordMaskedSourceSnapshotInput {
+  emotionScores: Record<string, unknown>;
+}
 
-export type AiDraftOrigin = 'generated' | 'legacy_import';
+export interface RecordingResultCommit {
+  sessionId: string;
+  snapshot: MaskedSourceSnapshot;
+  emotionScores: Record<string, unknown>;
+  replayed: boolean;
+  finalized: boolean;
+  downstreamReady: boolean;
+}
+
+
+export type AiDraftOrigin = 'generated' | 'fixture_generated' | 'legacy_import';
 export type AiDraftGroundingStatus = 'grounded' | 'legacy_unverified';
 export type AiReviewDecision = 'approved' | 'rejected' | 'superseded';
-export type AiDraftCreationMode = 'provider_generated' | 'human_edited' | 'legacy_import';
+export type AiDraftCreationMode = 'provider_generated' | 'fixture_generated' | 'human_edited' | 'legacy_import';
 
 /** 하나의 세션·출력종류에 대한 불변 AI 초안 계보의 루트. */
 export interface AiWorkItem {
@@ -1917,23 +1944,33 @@ export interface AiEvidenceInput {
   sourceEnd: number;   // exclusive Unicode code-point offset in the attested masked source
 }
 
-export interface AiDraftContentInput {
+export interface GroundedAiDraftContentInput {
   summaryText: string;
   /** D45 핵심 한 줄. 생성 경로는 필수, 편집 경로는 레거시 초안 호환으로 NULL 허용. */
   oneLiner?: string | null;
   questions: AiBriefingSuggestion[];
   sourceSnapshotId?: string;
   sourceSnapshotHash: string;
-  modelId: string;
   promptVersion: string;
   schemaVersion: string;
   evidence: AiEvidenceInput[];
+}
+
+export interface AiDraftContentInput extends GroundedAiDraftContentInput {
+  modelId: string;
 }
 
 export interface GeneratedAiDraftInput extends AiDraftContentInput {
   kind?: string;
   providerConfigId: string;
   consentEvidenceId: string;
+}
+
+/** Built-in Preview output. Provider identity is deliberately impossible to supply. */
+export interface FixtureGeneratedAiDraftInput extends GroundedAiDraftContentInput {
+  kind?: string;
+  origin: 'fixture_generated';
+  creationMode: 'fixture_generated';
 }
 
 export interface EditGeneratedAiDraftInput extends AiDraftContentInput {
@@ -2571,6 +2608,9 @@ function assertMaskedSourceSnapshotInput(input: RecordMaskedSourceSnapshotInput)
   if (!Array.isArray(input.evidence)) {
     throw new ValidationError('masked source evidence must be a list');
   }
+  if (input.evidence.length === 0) {
+    throw new ValidationError('masked source evidence is required');
+  }
 
   const evidenceIds = new Set<string>();
   const evidenceSpans = new Set<string>();
@@ -2604,18 +2644,53 @@ function assertMaskedSourceSnapshotInput(input: RecordMaskedSourceSnapshotInput)
   }
 }
 
+const UNMASKED_RESULT_PATTERNS = [
+  /(?<![\d-])\d{6}[-\s]?[1-4]\d{6}(?![\d-])/u,
+  /(?<![\d-])0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}(?![\d-])/u,
+  /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/u,
+  /(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{2,8})?(?![\d-])/u,
+] as const;
+
+function assertNoObviousUnmaskedPii(maskedText: string): void {
+  if (UNMASKED_RESULT_PATTERNS.some((pattern) => pattern.test(maskedText))) {
+    throw new ValidationError('masked source contains an unmasked sensitive pattern');
+  }
+}
+
+function assertMaskedSourceEvidenceContent(
+  maskedText: string,
+  snapshotHash: string,
+  evidence: MaskedSourceEvidenceItemInput[],
+): void {
+  for (const item of evidence) {
+    if (
+      item.sourceSha256 !== snapshotHash
+      || sourceTextSpan(maskedText, item.sourceStart, item.sourceEnd) !== item.evidenceQuote
+    ) {
+      throw new ValidationError('masked source evidence is invalid');
+    }
+  }
+}
+
+interface MaskedResultGrant {
+  session: Session;
+}
+
 /**
- * Persists an immutable, fully masked source snapshot before provider outbound.
- * The service sends local-NER-masked text; the gateway re-applies registered
- * PII substitution and verifies the resulting SHA-256 and every exact span.
+ * 텍스트와 녹음 결과가 함께 쓰는 마스킹 결과 커밋 관문이다. 호출자는 동의 종류만
+ * 고르고, 해시·근거 구간·등록 PII 재치환·스냅샷 저장·감사는 이 함수가 맡는다.
  */
-export async function recordMaskedSourceSnapshot(
+async function commitMaskedResult(
   env: Env,
   actor: Actor,
-  sessionId: string,
+  grant: MaskedResultGrant,
   input: RecordMaskedSourceSnapshotInput,
+  additionalStatements: (
+    snapshot: MaskedSourceSnapshot,
+    supportCaseId: string,
+  ) => D1PreparedStatement[] = () => [],
 ): Promise<MaskedSourceSnapshot> {
-  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  const sessionId = grant.session.id;
   const context = await resolveLegacyCaseContext(env, actor.orgId, grant.session.caseId);
   try {
     assertMaskedSourceSnapshotInput(input);
@@ -2638,6 +2713,7 @@ export async function recordMaskedSourceSnapshot(
   });
   const mask = (text: string): string => maskRegisteredPii(text, grant.session.caseId, pii);
   const maskedText = mask(input.maskedText);
+  assertNoObviousUnmaskedPii(maskedText);
   const snapshotHash = await sha256Hex(maskedText);
   if (snapshotHash !== input.sha256) {
     await writePhase1Denial(env, actor, {
@@ -2648,7 +2724,6 @@ export async function recordMaskedSourceSnapshot(
     });
     throw new ValidationError('masked source snapshot hash is invalid');
   }
-
   const evidence: MaskedSourceEvidenceItem[] = [];
   try {
     for (const item of input.evidence) {
@@ -2697,36 +2772,37 @@ export async function recordMaskedSourceSnapshot(
     })),
   };
   try {
-  await env.DB.batch([
-    env.DB.prepare(
-      'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).bind(
-      snapshot.id,
-      actor.orgId,
-      context.supportCaseId,
-      snapshot.sessionId,
-      snapshot.maskedText,
-      snapshot.sha256,
-      snapshot.maskingPipelineVersion,
-      actor.userId,
-      snapshot.createdAt,
-    ),
-    ...snapshot.evidence.map((item) => env.DB.prepare(
-      'INSERT INTO ai_masked_source_evidence_items (id, snapshot_id, org_id, support_case_id, session_id, source_ref, source_sha256, evidence_quote, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).bind(
-      item.id,
-      snapshot.id,
-      actor.orgId,
-      context.supportCaseId,
-      snapshot.sessionId,
-      item.sourceRef,
-      item.sourceSha256,
-      item.evidenceQuote,
-      item.sourceStart,
-      item.sourceEnd,
-      item.createdAt,
-    )),
-  ]);
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      ).bind(
+        snapshot.id,
+        actor.orgId,
+        context.supportCaseId,
+        snapshot.sessionId,
+        snapshot.maskedText,
+        snapshot.sha256,
+        snapshot.maskingPipelineVersion,
+        actor.userId,
+        snapshot.createdAt,
+      ),
+      ...snapshot.evidence.map((item) => env.DB.prepare(
+        'INSERT INTO ai_masked_source_evidence_items (id, snapshot_id, org_id, support_case_id, session_id, source_ref, source_sha256, evidence_quote, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      ).bind(
+        item.id,
+        snapshot.id,
+        actor.orgId,
+        context.supportCaseId,
+        snapshot.sessionId,
+        item.sourceRef,
+        item.sourceSha256,
+        item.evidenceQuote,
+        item.sourceStart,
+        item.sourceEnd,
+        item.createdAt,
+      )),
+      ...additionalStatements(snapshot, context.supportCaseId),
+    ]);
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       await writePhase1Denial(env, actor, {
@@ -2751,6 +2827,17 @@ export async function recordMaskedSourceSnapshot(
     },
   });
   return snapshot;
+}
+
+/** 텍스트 일감의 마스킹 결과. 파일럿 동의와 활성 스위치를 먼저 확인한다. */
+export async function recordMaskedSourceSnapshot(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  input: RecordMaskedSourceSnapshotInput,
+): Promise<MaskedSourceSnapshot> {
+  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  return commitMaskedResult(env, actor, grant, input);
 }
 
 /** Reloads only the immutable masked provider input for the granted session. */
@@ -3095,6 +3182,232 @@ export async function createGeneratedAiDraftForService(
 ): Promise<AiDraftVersion> {
   return createGeneratedAiDraft(env, actor, sessionId, input);
 }
+
+/**
+ * Creates the built-in Preview fixture branch without selecting, reading, or
+ * storing provider configuration. Source, current consent, and evidence
+ * attestation are identical to provider generation.
+ */
+export async function createFixtureGeneratedAiDraftForService(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  input: FixtureGeneratedAiDraftInput,
+): Promise<AiDraftVersion> {
+  const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  const session = serviceGrant.session;
+  const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
+  if (session.memo === null) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_draft_versions',
+      targetId: sessionId,
+      caseId: session.caseId,
+      reason: 'manual_memo_required',
+    });
+    throw new ValidationError('a manual memo is required for text AI generation');
+  }
+
+  const normalizedInput: FixtureGeneratedAiDraftInput = {
+    ...input,
+    kind: input.kind ?? AI_WORK_KIND_BRIEFING,
+  };
+  try {
+    if (
+      normalizedInput.origin !== 'fixture_generated'
+      || normalizedInput.creationMode !== 'fixture_generated'
+    ) {
+      throw new ValidationError('fixture AI draft provenance is invalid');
+    }
+    assertGeneratedAiDraftInput({
+      ...normalizedInput,
+      modelId: 'fixture',
+      providerConfigId: 'fixture',
+      consentEvidenceId: serviceGrant.consentEvidenceId,
+    } as GeneratedAiDraftInput, true);
+  } catch (error) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_draft_versions',
+      targetId: sessionId,
+      caseId: session.caseId,
+      reason: 'invalid_ai_draft',
+    });
+    throw error;
+  }
+
+  const sourceSnapshotId = normalizedInput.sourceSnapshotId;
+  if (sourceSnapshotId === undefined) throw new ValidationError('source snapshot id is required');
+  let sourceSnapshot: MaskedSourceSnapshot;
+  try {
+    sourceSnapshot = await loadMaskedSourceSnapshotForService(env, actor, session.id, sourceSnapshotId);
+    if (sourceSnapshot.sha256 !== normalizedInput.sourceSnapshotHash) {
+      throw new ValidationError('source snapshot hash is invalid');
+    }
+  } catch (error) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_masked_source_snapshots',
+      targetId: sourceSnapshotId,
+      caseId: session.caseId,
+      reason: 'source_snapshot_attestation_required',
+    });
+    throw error;
+  }
+
+  const maskedInput = await maskGeneratedAiDraftInput(env, actor, session.caseId, normalizedInput);
+  let attestedEvidence: AttestedAiEvidenceInput[];
+  try {
+    attestedEvidence = resolveAttestedAiEvidence(sourceSnapshot, maskedInput.evidence);
+  } catch (error) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_evidence_links',
+      targetId: sourceSnapshot.id,
+      caseId: session.caseId,
+      reason: 'source_evidence_attestation_required',
+    });
+    throw error;
+  }
+
+  const existingWorkItem = await findAiWorkItemForSession(
+    env,
+    actor.orgId,
+    sessionId,
+    AI_WORK_KIND_BRIEFING,
+  );
+  if (existingWorkItem !== null) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_work_items',
+      targetId: existingWorkItem.id,
+      caseId: session.caseId,
+      reason: 'stale_draft_version',
+    });
+    throw new StaleDraftVersionError();
+  }
+
+  const createdAt = now();
+  const workItem: AiWorkItem = {
+    id: newId(),
+    caseId: session.caseId,
+    sessionId,
+    kind: AI_WORK_KIND_BRIEFING,
+    createdAt,
+  };
+  const draftId = newId();
+  const evidence: AiEvidenceLink[] = attestedEvidence.map((item) => ({
+    id: newId(),
+    draftVersionId: draftId,
+    sourceEvidenceItemId: item.sourceEvidenceItemId,
+    claimKey: item.claimKey,
+    evidenceQuote: item.evidenceQuote,
+    sourceRef: item.sourceRef,
+    sourceStart: item.sourceStart,
+    sourceEnd: item.sourceEnd,
+    createdAt,
+  }));
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).bind(workItem.id, actor.orgId, context.supportCaseId, sessionId, workItem.kind, createdAt),
+    env.DB.prepare(
+      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(
+      draftId,
+      workItem.id,
+      1,
+      null,
+      maskedInput.summaryText,
+      maskedInput.oneLiner ?? null,
+      questionsToJson(maskedInput.questions),
+      sourceSnapshot.id,
+      sourceSnapshot.sha256,
+      serviceGrant.consentEvidenceId,
+      null,
+      null,
+      maskedInput.promptVersion,
+      maskedInput.schemaVersion,
+      'fixture_generated',
+      'fixture_generated',
+      'grounded',
+      actor.userId,
+      createdAt,
+    ),
+    ...evidence.map((link) => env.DB.prepare(
+      'INSERT INTO ai_evidence_links (id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(
+      link.id,
+      link.draftVersionId,
+      link.sourceEvidenceItemId,
+      link.claimKey,
+      link.evidenceQuote,
+      link.sourceRef,
+      link.sourceStart,
+      link.sourceEnd,
+      link.createdAt,
+    )),
+  ];
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    if (isUniqueConstraintError(error) || isStaleDraftVersionError(error)) {
+      await writePhase1Denial(env, actor, {
+        targetTable: 'ai_draft_versions',
+        targetId: sessionId,
+        caseId: session.caseId,
+        reason: 'stale_draft_version',
+      });
+      throw new StaleDraftVersionError();
+    }
+    throw error;
+  }
+
+  await writeAudit(env, actor, {
+    action: 'create',
+    targetTable: 'ai_work_items',
+    targetId: workItem.id,
+    caseId: workItem.caseId,
+    detail: { kind: workItem.kind },
+  });
+  await writeAudit(env, actor, {
+    action: 'create',
+    targetTable: 'ai_draft_versions',
+    targetId: draftId,
+    caseId: workItem.caseId,
+    detail: {
+      version: 1,
+      evidenceCount: evidence.length,
+      questionCount: maskedInput.questions.length,
+      origin: 'fixture_generated',
+      creationMode: 'fixture_generated',
+    },
+  });
+  return {
+    id: draftId,
+    workItemId: workItem.id,
+    caseId: workItem.caseId,
+    sessionId,
+    kind: workItem.kind,
+    version: 1,
+    parentVersionId: null,
+    summaryText: maskedInput.summaryText,
+    oneLiner: maskedInput.oneLiner ?? null,
+    questions: maskedInput.questions,
+    sourceSnapshotId: sourceSnapshot.id,
+    sourceSnapshotHash: sourceSnapshot.sha256,
+    consentEvidenceId: serviceGrant.consentEvidenceId,
+    providerConfigId: null,
+    modelId: null,
+    promptVersion: maskedInput.promptVersion,
+    schemaVersion: maskedInput.schemaVersion,
+    origin: 'fixture_generated',
+    creationMode: 'fixture_generated',
+    groundingStatus: 'grounded',
+    createdBy: actor.userId,
+    createdAt,
+    reviewDecision: null,
+    reviewedBy: null,
+    reviewedAt: null,
+    replacementDraftId: null,
+    evidence,
+  };
+}
 /**
  * Generated 초안을 수정하면 이전 행을 바꾸지 않고 새 버전을 삽입한 뒤 이전 버전에
  * superseded 검토 이벤트를 append한다. 동시 수정은 unique version 제약으로 stale 처리한다.
@@ -3390,6 +3703,16 @@ export async function reviewGeneratedAiDraft(
     throw error;
   }
 
+  if (decision === 'approved' && current.origin === 'fixture_generated') {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_review_events',
+      targetId: current.id,
+      caseId: workItem.caseId,
+      reason: 'fixture_draft_approval_forbidden',
+    });
+    throw new FixtureDraftApprovalForbiddenError();
+  }
+
   if (decision === 'approved' && !isCompleteGroundingEvidence(current.evidence, current.questions)) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_review_events',
@@ -3658,7 +3981,7 @@ export async function reviewAiDraftForSession(
     throw new StaleDraftVersionError();
   }
 
-  if (current.origin === 'generated') {
+  if (current.origin === 'generated' || current.origin === 'fixture_generated') {
     return reviewGeneratedAiDraft(env, actor, workItem.id, input);
   }
 
@@ -4931,13 +5254,33 @@ async function assertRecordingUploadAllowedForSession(
  * Read-only authorization and eligibility check for recording upload handling.
  * registerRecording repeats this check immediately before its mutation batch.
  */
-export async function assertRecordingUploadAllowed(
+async function assertRecordingResultNotCommitted(
   env: Env,
   actor: Actor,
-  sessionId: string,
+  session: Session,
 ): Promise<void> {
+  const committedResult = await env.DB.prepare(
+    `SELECT 1 AS present
+     FROM recording_result_commits
+     WHERE org_id = ? AND session_id = ?
+     LIMIT 1`,
+  ).bind(actor.orgId, session.id).first<{ present: number }>();
+  if (committedResult === null) return;
+  await writeAudit(env, actor, {
+    action: 'deny',
+    targetTable: 'recordings',
+    targetId: session.id,
+    caseId: session.caseId,
+  });
+  throw new ConflictError('recording result is already committed');
+}
+
+export async function assertRecordingUploadAllowed(env: Env,
+actor: Actor,
+sessionId: string,): Promise<void> {
   const session = await assertSessionAccess(env, actor, sessionId);
   await assertRecordingUploadAllowedForSession(env, actor, session);
+  await assertRecordingResultNotCommitted(env, actor, session);
 }
 
 /**
@@ -4956,6 +5299,7 @@ export async function registerRecording(
 ): Promise<Session> {
   const session = await assertSessionAccess(env, actor, sessionId);
   await assertRecordingUploadAllowedForSession(env, actor, session);
+  await assertRecordingResultNotCommitted(env, actor, session);
   if (audioR2Key.trim().length === 0) {
     throw new ValidationError('audio R2 key is required');
   }
@@ -4965,75 +5309,90 @@ export async function registerRecording(
   // check cannot authorize a later state change.
   const results = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE sessions
-       SET audio_r2_key = ?, ai_status = ?, transcript = NULL, ai_summary = NULL, ai_schema = NULL,
-           ai_contrast = NULL, emotion_scores = NULL, speaker_mapping_confirmed_at = NULL, updated_at = ?
-       WHERE id = ? AND org_id = ? AND approved_at IS NULL AND channel = 'in_person'
-         AND EXISTS (
-           SELECT 1 FROM support_cases AS support_case
-           WHERE support_case.id = sessions.support_case_id
-             AND support_case.org_id = sessions.org_id
-             AND support_case.consent_recording_at IS NOT NULL
-         )
-         AND (
-           ? = 'admin' OR EXISTS (
-             SELECT 1 FROM support_case_assignees AS assignment
-             WHERE assignment.org_id = sessions.org_id
-               AND assignment.support_case_id = sessions.support_case_id
-               AND assignment.user_id = ?
-               AND assignment.unassigned_at IS NULL
-           )
-         )`,
-    ).bind(audioR2Key, 'uploaded', updatedAt, sessionId, actor.orgId, actor.role, actor.userId),
-    env.DB.prepare(
-      `DELETE FROM ai_gas_evidence
-       WHERE org_id = ? AND session_id = ?
-         AND EXISTS (
-           SELECT 1 FROM sessions AS session
-           WHERE session.id = ? AND session.org_id = ? AND session.approved_at IS NULL
-             AND session.channel = 'in_person'
+          `UPDATE sessions
+           SET audio_r2_key = ?, ai_status = ?, transcript = NULL, ai_summary = NULL, ai_schema = NULL,
+               ai_contrast = NULL, emotion_scores = NULL, speaker_mapping_confirmed_at = NULL, updated_at = ?
+           WHERE id = ? AND org_id = ? AND approved_at IS NULL AND channel = 'in_person'
+             AND NOT EXISTS (
+               SELECT 1 FROM recording_result_commits AS result_commit
+               WHERE result_commit.session_id = sessions.id
+                 AND result_commit.org_id = sessions.org_id
+             )
              AND EXISTS (
                SELECT 1 FROM support_cases AS support_case
-               WHERE support_case.id = session.support_case_id
-                 AND support_case.org_id = session.org_id
+               WHERE support_case.id = sessions.support_case_id
+                 AND support_case.org_id = sessions.org_id
                  AND support_case.consent_recording_at IS NOT NULL
              )
              AND (
                ? = 'admin' OR EXISTS (
                  SELECT 1 FROM support_case_assignees AS assignment
-                 WHERE assignment.org_id = session.org_id
-                   AND assignment.support_case_id = session.support_case_id
+                 WHERE assignment.org_id = sessions.org_id
+                   AND assignment.support_case_id = sessions.support_case_id
                    AND assignment.user_id = ?
                    AND assignment.unassigned_at IS NULL
                )
-             )
-         )`,
-    ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
+             )`,
+        ).bind(audioR2Key, 'uploaded', updatedAt, sessionId, actor.orgId, actor.role, actor.userId),
+    env.DB.prepare(
+          `DELETE FROM ai_gas_evidence
+           WHERE org_id = ? AND session_id = ?
+             AND EXISTS (
+               SELECT 1 FROM sessions AS session
+               WHERE session.id = ? AND session.org_id = ? AND session.approved_at IS NULL
+                 AND session.channel = 'in_person'
+                 AND NOT EXISTS (
+                   SELECT 1 FROM recording_result_commits AS result_commit
+                   WHERE result_commit.session_id = session.id
+                     AND result_commit.org_id = session.org_id
+                 )
+                 AND EXISTS (
+                   SELECT 1 FROM support_cases AS support_case
+                   WHERE support_case.id = session.support_case_id
+                     AND support_case.org_id = session.org_id
+                     AND support_case.consent_recording_at IS NOT NULL
+                 )
+                 AND (
+                   ? = 'admin' OR EXISTS (
+                     SELECT 1 FROM support_case_assignees AS assignment
+                     WHERE assignment.org_id = session.org_id
+                       AND assignment.support_case_id = session.support_case_id
+                       AND assignment.user_id = ?
+                       AND assignment.unassigned_at IS NULL
+                   )
+                 )
+             )`,
+        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
     // 검토 전(pending) AI 플래그만 제거 — 실무자가 이미 확정/기각한 판단은 보존 (D9).
     env.DB.prepare(
-      `DELETE FROM flags
-       WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'
-         AND EXISTS (
-           SELECT 1 FROM sessions AS session
-           WHERE session.id = ? AND session.org_id = ? AND session.approved_at IS NULL
-             AND session.channel = 'in_person'
+          `DELETE FROM flags
+           WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'
              AND EXISTS (
-               SELECT 1 FROM support_cases AS support_case
-               WHERE support_case.id = session.support_case_id
-                 AND support_case.org_id = session.org_id
-                 AND support_case.consent_recording_at IS NOT NULL
-             )
-             AND (
-               ? = 'admin' OR EXISTS (
-                 SELECT 1 FROM support_case_assignees AS assignment
-                 WHERE assignment.org_id = session.org_id
-                   AND assignment.support_case_id = session.support_case_id
-                   AND assignment.user_id = ?
-                   AND assignment.unassigned_at IS NULL
-               )
-             )
-         )`,
-    ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
+               SELECT 1 FROM sessions AS session
+               WHERE session.id = ? AND session.org_id = ? AND session.approved_at IS NULL
+                 AND session.channel = 'in_person'
+                 AND NOT EXISTS (
+                   SELECT 1 FROM recording_result_commits AS result_commit
+                   WHERE result_commit.session_id = session.id
+                     AND result_commit.org_id = session.org_id
+                 )
+                 AND EXISTS (
+                   SELECT 1 FROM support_cases AS support_case
+                   WHERE support_case.id = session.support_case_id
+                     AND support_case.org_id = session.org_id
+                     AND support_case.consent_recording_at IS NOT NULL
+                 )
+                 AND (
+                   ? = 'admin' OR EXISTS (
+                     SELECT 1 FROM support_case_assignees AS assignment
+                     WHERE assignment.org_id = session.org_id
+                       AND assignment.support_case_id = session.support_case_id
+                       AND assignment.user_id = ?
+                       AND assignment.unassigned_at IS NULL
+                   )
+                 )
+             )`,
+        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
   ]);
   const updated = results[0] as unknown as { meta?: { changes?: number } };
   if ((updated.meta?.changes ?? 0) < 1) {
@@ -5051,6 +5410,300 @@ export async function registerRecording(
     emotionScores: null,
     speakerMappingConfirmedAt: null,
   };
+}
+
+
+function assertNumericJson(value: unknown, field: string): void {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new ValidationError(`${field} must contain finite numbers only`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) assertNumericJson(item, field);
+    return;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) assertNumericJson(item, field);
+    return;
+  }
+  throw new ValidationError(`${field} must contain numbers only`);
+}
+
+async function existingRecordingResultCommit(
+  env: Env,
+  actor: Actor,
+  session: Session,
+): Promise<RecordingResultCommit | null> {
+  const row = await env.DB.prepare(
+    `SELECT snapshot_id, result_sha256, emotion_scores, finalized_at
+     FROM recording_result_commits
+     WHERE session_id = ? AND org_id = ?`,
+  ).bind(session.id, actor.orgId).first<{
+    snapshot_id: string;
+    result_sha256: string;
+    emotion_scores: string;
+    finalized_at: string | null;
+  }>();
+  if (row === null) return null;
+  const snapshot = await getMaskedSourceSnapshotForOrg(
+    env,
+    actor.orgId,
+    session.caseId,
+    session.id,
+    row.snapshot_id,
+  );
+  return {
+    sessionId: session.id,
+    snapshot,
+    emotionScores: parseJson<Record<string, unknown>>(row.emotion_scores) ?? {},
+    replayed: true,
+    finalized: row.finalized_at !== null,
+    downstreamReady: false,
+  };
+}
+
+/**
+ * 녹음 결과 접수. 녹음 동의·서비스 역할·기관·uploaded/processing 상태를 검사하고,
+ * 공통 마스킹 커밋과 녹음 처리 메타데이터를 같은 D1 batch에 저장한다.
+ * 후속 AI 준비와 review_ready 전환은 finalizeRecordingResult가 맡는다.
+ */
+export async function commitRecordingResult(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  input: RecordingResultInput,
+): Promise<RecordingResultCommit> {
+  const session = await assertServiceSessionAccess(env, actor, sessionId, 'recording_result_commits');
+  const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
+  const supportCase = await env.DB.prepare(
+    'SELECT consent_recording_at, consent_text_ai_at FROM support_cases WHERE id = ? AND org_id = ?',
+  ).bind(context.supportCaseId, actor.orgId).first<{
+    consent_recording_at: string | null;
+    consent_text_ai_at: string | null;
+  }>();
+  if (
+    supportCase === null
+    || supportCase.consent_recording_at === null
+    || session.audioR2Key === null
+    || (session.aiStatus !== 'uploaded' && session.aiStatus !== 'processing' && session.aiStatus !== 'review_ready')
+  ) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'recording_result_commits',
+      targetId: sessionId,
+      caseId: session.caseId,
+      reason: 'recording_result_not_allowed',
+    });
+    throw new ForbiddenError('recording result is not allowed');
+  }
+  if (input === null || typeof input !== 'object' || Array.isArray(input.emotionScores)) {
+    throw new ValidationError('recording result input is invalid');
+  }
+  assertNumericJson(input.emotionScores, 'emotion scores');
+  assertMaskedSourceSnapshotInput(input);
+  assertNoObviousUnmaskedPii(input.maskedText);
+  if (await sha256Hex(input.maskedText) !== input.sha256) {
+    throw new ValidationError('masked source snapshot hash is invalid');
+  }
+  assertMaskedSourceEvidenceContent(input.maskedText, input.sha256, input.evidence);
+
+  const existing = await existingRecordingResultCommit(env, actor, session);
+  if (existing !== null) {
+    const emotionJson = canonicalizeJcs(input.emotionScores);
+    if (
+      existing.snapshot.sha256 !== input.sha256
+      || existing.snapshot.maskedText !== input.maskedText
+      || existing.snapshot.maskingPipelineVersion !== input.maskingPipelineVersion
+      || canonicalizeJcs(existing.emotionScores) !== emotionJson
+    ) {
+      await writePhase1Denial(env, actor, {
+        targetTable: 'recording_result_commits',
+        targetId: sessionId,
+        caseId: session.caseId,
+        reason: 'recording_result_conflict',
+      });
+      throw new ConflictError('recording result conflicts with the accepted result');
+    }
+    return {
+      ...existing,
+      downstreamReady: await findAiWorkItemForSession(
+        env,
+        actor.orgId,
+        session.id,
+        AI_WORK_KIND_BRIEFING,
+      ) !== null,
+    };
+  }
+
+  const emotionJson = canonicalizeJcs(input.emotionScores);
+  const createdAt = now();
+  let snapshot: MaskedSourceSnapshot;
+  try {
+    snapshot = await commitMaskedResult(env, actor, { session }, input, (saved, supportCaseId) => [
+      env.DB.prepare(
+        `INSERT INTO recording_result_commits (
+           session_id, org_id, support_case_id, snapshot_id, result_sha256,
+           emotion_scores, created_by, created_at, downstream_claimed_at, finalized_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+      ).bind(
+        session.id,
+        actor.orgId,
+        supportCaseId,
+        saved.id,
+        saved.sha256,
+        emotionJson,
+        actor.userId,
+        createdAt,
+      ),
+    ]);
+  } catch (error) {
+    // 동시에 같은 결과가 도착하면 세션 PK가 승자 한 건만 남긴다. 패자는 저장된
+    // 결과를 다시 읽어 같은 입력일 때만 멱등 성공으로 합류한다.
+    const raced = await existingRecordingResultCommit(env, actor, session);
+    if (
+      raced !== null
+      && raced.snapshot.sha256 === input.sha256
+      && raced.snapshot.maskedText === input.maskedText
+      && raced.snapshot.maskingPipelineVersion === input.maskingPipelineVersion
+      && canonicalizeJcs(raced.emotionScores) === emotionJson
+    ) {
+      return {
+        ...raced,
+        downstreamReady: await findAiWorkItemForSession(
+          env,
+          actor.orgId,
+          session.id,
+          AI_WORK_KIND_BRIEFING,
+        ) !== null,
+      };
+    }
+    throw error;
+  }
+  await writeAudit(env, actor, {
+    action: 'create',
+    targetTable: 'recording_results',
+    targetId: session.id,
+    caseId: session.caseId,
+    detail: { maskingPipelineVersion: snapshot.maskingPipelineVersion, evidenceItemCount: snapshot.evidence.length },
+  });
+  return {
+    sessionId: session.id,
+    snapshot,
+    emotionScores: input.emotionScores,
+    replayed: false,
+    finalized: false,
+    downstreamReady: false,
+  };
+}
+
+/** 후속 AI 호출은 결과당 한 요청만 선점한다. 내용은 저장하지 않고 시각만 남긴다. */
+const RECORDING_RESULT_DOWNSTREAM_CLAIM_LEASE_MS = 10 * 60 * 1000;
+
+export async function claimRecordingResultDownstream(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+): Promise<string | null> {
+  const session = await assertServiceSessionAccess(env, actor, sessionId, 'recording_result_commits');
+  const claimedAt = now();
+  const leaseExpiredBefore = new Date(
+    new Date(claimedAt).getTime() - RECORDING_RESULT_DOWNSTREAM_CLAIM_LEASE_MS,
+  ).toISOString();
+  const result = await env.DB.prepare(
+    `UPDATE recording_result_commits
+     SET downstream_claimed_at = ?
+     WHERE session_id = ? AND org_id = ? AND finalized_at IS NULL
+       AND (downstream_claimed_at IS NULL OR downstream_claimed_at < ?)`,
+  ).bind(claimedAt, session.id, actor.orgId, leaseExpiredBefore).run();
+  if ((result.meta.changes ?? 0) < 1) return null;
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'recording_result_commits',
+    targetId: session.id,
+    caseId: session.caseId,
+    detail: { state: 'downstream_claimed' },
+  });
+  return claimedAt;
+}
+
+/** 사업자 호출 실패 시 같은 마스킹 결과 재전송이 후속 단계를 다시 맡을 수 있게 한다. */
+export async function releaseRecordingResultDownstream(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  claimToken: string,
+): Promise<void> {
+  const session = await assertServiceSessionAccess(env, actor, sessionId, 'recording_result_commits');
+  const result = await env.DB.prepare(
+    `UPDATE recording_result_commits
+     SET downstream_claimed_at = NULL
+     WHERE session_id = ? AND org_id = ? AND finalized_at IS NULL
+       AND downstream_claimed_at = ?`,
+  ).bind(session.id, actor.orgId, claimToken).run();
+  if ((result.meta.changes ?? 0) > 0) {
+    await writeAudit(env, actor, {
+      action: 'update',
+      targetTable: 'recording_result_commits',
+      targetId: session.id,
+      caseId: session.caseId,
+      detail: { state: 'downstream_released' },
+    });
+  }
+}
+
+/** 저장과 후속 AI 준비가 끝난 결과만 review_ready로 원자 전환한다. */
+export async function finalizeRecordingResult(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+): Promise<boolean> {
+  const session = await assertServiceSessionAccess(env, actor, sessionId, 'recording_result_commits');
+  const finalizedAt = now();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE sessions
+       SET ai_status = 'review_ready',
+           transcript = (
+             SELECT snapshot.masked_text
+             FROM recording_result_commits AS result
+             JOIN ai_masked_source_snapshots AS snapshot ON snapshot.id = result.snapshot_id
+             WHERE result.session_id = sessions.id AND result.org_id = sessions.org_id
+           ),
+           emotion_scores = (
+             SELECT result.emotion_scores
+             FROM recording_result_commits AS result
+             WHERE result.session_id = sessions.id AND result.org_id = sessions.org_id
+           ),
+           ai_schema = NULL,
+           updated_at = ?
+       WHERE id = ? AND org_id = ? AND ai_status IN ('uploaded', 'processing')
+         AND EXISTS (
+           SELECT 1 FROM recording_result_commits AS result
+           WHERE result.session_id = sessions.id AND result.org_id = sessions.org_id
+             AND result.finalized_at IS NULL
+         )`,
+    ).bind(finalizedAt, session.id, actor.orgId),
+    env.DB.prepare(
+      `UPDATE recording_result_commits
+       SET finalized_at = ?
+       WHERE session_id = ? AND org_id = ? AND finalized_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM sessions
+           WHERE sessions.id = recording_result_commits.session_id
+             AND sessions.org_id = recording_result_commits.org_id
+             AND sessions.ai_status = 'review_ready'
+         )`,
+    ).bind(finalizedAt, session.id, actor.orgId),
+  ]);
+  const transition = results[0] as unknown as { meta?: { changes?: number } };
+  if ((transition.meta?.changes ?? 0) < 1) return false;
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'sessions',
+    targetId: session.id,
+    caseId: session.caseId,
+    detail: { aiStatus: 'review_ready', source: 'recording_result' },
+  });
+  return true;
 }
 
 
@@ -6018,7 +6671,7 @@ export async function listFlags(
 export const AI_CALL_AUDIT_ACTION = 'ai_call';
 
 /** 어느 호출 자리인가. D51 ④ 의 두 자리에 대응한다. */
-export type AiCallKind = 'discrepancy_detection';
+export type AiCallKind = 'discrepancy_detection' | 'draft_generation';
 
 /**
  * 한 번의 시도가 어떻게 끝났는가. **닫힌 목록**이라는 점이 핵심이다 — 자유 문자열을
@@ -6059,6 +6712,7 @@ export type AiCallOutcome =
 export type AiCallFailureReason =
   | 'config_missing'
   | 'config_invalid'
+  | 'external_calls_disabled'
   | 'api_key_missing'
   | 'adapter_invalid'
   | 'network'
@@ -12614,6 +13268,7 @@ export interface ParticipantBriefing {
   supportCases: SourceSupportCase[];
   gasTrends: ParticipantBriefingGasTrend[];
   summaries: ParticipantBriefingSummary[];
+  pendingReviewSessionIdsBySupportCase: Record<string, string[]>;
   sessionRows: ParticipantBriefingSessionRow[];
   actionItems: ParticipantBriefingAction[];
   flags: ParticipantBriefingFlag[];
@@ -12764,15 +13419,31 @@ export async function getParticipantBriefing(
        ORDER BY approved_at DESC, draft_version DESC`,
     ).bind(...scopedValues).all<DbRow>(),
     env.DB.prepare(
-      `SELECT work.support_case_id, COUNT(*) AS count
-       FROM ai_work_items AS work
-       WHERE work.org_id = ? AND work.support_case_id IN (${placeholders})
-         AND NOT EXISTS (
-           SELECT 1 FROM ai_review_events AS review
-           WHERE review.work_item_id = work.id
-         )
-       GROUP BY work.support_case_id`,
-    ).bind(...scopedValues).all<{ support_case_id: string; count: number }>(),
+          `SELECT work.support_case_id,
+                  SUM(CASE
+                    WHEN EXISTS (
+                      SELECT 1 FROM ai_draft_versions AS draft
+                      WHERE draft.work_item_id = work.id
+                        AND draft.origin = 'fixture_generated'
+                        AND draft.creation_mode = 'fixture_generated'
+                    ) THEN 0 ELSE 1
+                  END) AS count,
+                  GROUP_CONCAT(DISTINCT CASE
+                    WHEN EXISTS (
+                      SELECT 1 FROM ai_draft_versions AS draft
+                      WHERE draft.work_item_id = work.id
+                        AND draft.origin = 'fixture_generated'
+                        AND draft.creation_mode = 'fixture_generated'
+                    ) THEN work.session_id
+                  END) AS fixture_session_ids
+           FROM ai_work_items AS work
+           WHERE work.org_id = ? AND work.support_case_id IN (${placeholders})
+             AND NOT EXISTS (
+               SELECT 1 FROM ai_review_events AS review
+               WHERE review.work_item_id = work.id
+             )
+           GROUP BY work.support_case_id`,
+        ).bind(...scopedValues).all<{ support_case_id: string; count: number; fixture_session_ids: string | null }>(),
     env.DB.prepare(
       `SELECT * FROM action_items
        WHERE org_id = ? AND support_case_id IN (${placeholders}) AND resolved_at IS NULL
@@ -12857,10 +13528,13 @@ export async function getParticipantBriefing(
     const sessionId = stringValue(row.session_id);
     if (!approvedBySession.has(sessionId)) approvedBySession.set(sessionId, row);
   }
-  const pendingBySupportCase = new Map<string, number>(
-    pending.results.map((row): [string, number] => [
+  const pendingBySupportCase = new Map<string, { count: number; sessionIds: string[] }>(
+    pending.results.map((row): [string, { count: number; sessionIds: string[] }] => [
       stringValue(row.support_case_id),
-      Number(row.count) || 0,
+      {
+        count: Number(row.count) || 0,
+        sessionIds: nullableString(row.fixture_session_ids)?.split(',') ?? [],
+      },
     ]),
   );
   const latestSessionBySupportCase = new Map<string, DbRow>();
@@ -12876,13 +13550,14 @@ export async function getParticipantBriefing(
     const approvedRow = approvedBySession.get(stringValue(session.id));
     const text = approvedRow === undefined ? nullableString(session.memo) : stringValue(approvedRow.summary_text);
     if (text === null || text.length === 0) continue;
+    const pendingReview = pendingBySupportCase.get(supportCase.id);
     summaries.push({
-      sourceSupportCase: sourceSupportCase(supportCase),
-      sessionId: stringValue(session.id),
-      source: approvedRow === undefined ? 'memo' : 'ai',
-      text,
-      pendingApprovalCount: pendingBySupportCase.get(supportCase.id) ?? 0,
-    });
+          sourceSupportCase: sourceSupportCase(supportCase),
+          sessionId: stringValue(session.id),
+          source: approvedRow === undefined ? 'memo' : 'ai',
+          text,
+          pendingApprovalCount: pendingReview?.count ?? 0,
+        });
   }
 
   // D45 영역 ① AI 제안 — approved 쿼리가 승인 최신순(approved_at DESC)이라 참여 사업당
@@ -13003,22 +13678,25 @@ export async function getParticipantBriefing(
     supportCaseId: focusSupportCaseId,
   });
   return {
-    beneficiaryId,
-    focusedSupportCase: sourceSupportCase(focus),
-    supportCases: supportCases.map(sourceSupportCase),
-    gasTrends: [...trendByGoal.values()],
-    summaries,
-    sessionRows,
-    actionItems,
-    flags: briefingFlags,
-    aiSuggestions,
-    discrepancies,
-    focusUpcomingSchedule,
-    overallGoal: focus.overallGoal,
-    focusActiveGoals,
-    canEditOverallGoal: actor.role === 'counselor' || actor.role === 'admin',
-    participant: participantNamePhone(contacts.get(beneficiaryId)),
-  };
+      beneficiaryId,
+      focusedSupportCase: sourceSupportCase(focus),
+      supportCases: supportCases.map(sourceSupportCase),
+      gasTrends: [...trendByGoal.values()],
+      summaries,
+      pendingReviewSessionIdsBySupportCase: Object.fromEntries(
+        [...pendingBySupportCase.entries()].map(([supportCaseId, value]) => [supportCaseId, value.sessionIds]),
+      ),
+      sessionRows,
+      actionItems,
+      flags: briefingFlags,
+      aiSuggestions,
+      discrepancies,
+      focusUpcomingSchedule,
+      overallGoal: focus.overallGoal,
+      focusActiveGoals,
+      canEditOverallGoal: actor.role === 'counselor' || actor.role === 'admin',
+      participant: participantNamePhone(contacts.get(beneficiaryId)),
+    }
 }
 
 export async function assignSupportCase(
@@ -13730,4 +14408,3 @@ export async function completeParticipantSignup(
   }
   throw finalError instanceof Error ? finalError : new ConflictError('participant signup conflicted');
 }
-

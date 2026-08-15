@@ -72,6 +72,7 @@ const briefingProps: BriefingCardsProps = {
   ],
   discrepancies: [],
   pendingApprovalCount: 2,
+  pendingReviewSessionIds: [],
   aiSuggestions: [{
     title: '최근 구직 활동은 어땠는지',
     reason: '지난 회차에서 면접 결과를 기다리고 있었다',

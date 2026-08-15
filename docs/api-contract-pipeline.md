@@ -25,7 +25,7 @@
 | `review_ready` | 전사, 대조 3종, 감정 지표, AI 산출물이 저장돼 상담사 검토를 기다린다. |
 | `approved` | 상담사가 승인해 AI 산출물이 공식 기록이 됐다. |
 
-`POST /pipeline/jobs/:id/artifacts`는 `uploaded` 또는 `processing` 작업을 `review_ready`로 바꾼다. AI 산출물은 상담사 승인 전까지 브리핑과 통계에 쓰이지 않는다.
+`POST /pipeline/jobs/:id/result`는 마스킹 스냅샷과 숫자형 처리 메타데이터, 후속 AI 초안을 모두 저장한 뒤 `uploaded` 또는 `processing` 작업을 `review_ready`로 바꾼다. 같은 결과 재전송은 중복 저장이나 후속 AI 호출 없이 `204`를 돌려준다. AI 산출물은 실무자 승인 전까지 브리핑과 통계에 쓰이지 않는다.
 
 ## 엔드포인트
 
@@ -67,43 +67,37 @@
 
 음성 원본 30일 자동 삭제(스펙 2·5장)는 이 중계와 무관하게 `AUDIO_BUCKET`의 R2 lifecycle 규칙(계정 수준)으로 적용한다 — Cloudflare 계정 개설 후 설정한다.
 
-### `POST /pipeline/jobs/:id/artifacts`
+### `POST /pipeline/jobs/:id/result`
 
 처리 장비가 로컬에서 전사와 2차 NER 마스킹을 끝낸 뒤 호출한다. 등록된 PII 값의 1차 치환은 gateway 안에서 한 번 더 수행한다. 본문은 아래 필드를 모두 포함해야 한다.
 
 ```json
 {
-  "transcript": "NER 마스킹을 마친 전사",
-  "aiSummary": "AI 산출물 요약",
-  "aiSchema": {},
-  "aiContrast": {
-    "missingFromMemo": [],
-    "missingFromAudio": [],
-    "undiscussedGoals": []
-  },
+  "maskedText": "NER 마스킹을 마친 전사",
+  "sha256": "마스킹된 본문의 SHA-256 해시",
+  "maskingPipelineVersion": "ner-mask-v1",
+  "evidence": [
+    {
+      "id": "불투명 근거 ID",
+      "sourceRef": "recording-transcript",
+      "sourceSha256": "마스킹된 본문의 SHA-256 해시",
+      "evidenceQuote": "NER 마스킹을 마친 전사",
+      "sourceStart": 0,
+      "sourceEnd": 16
+    }
+  ],
   "emotionScores": {
     "speech": 0.42,
     "text": 0.71
-  },
-  "flagProposals": [
-    {
-      "flagType": "contact_loss_risk",
-      "quote": "마스킹된 전사 인용문"
-    }
-  ],
-  "gasEvidence": [
-    {
-      "goalId": "demo-goal-001",
-      "evidenceQuote": "마스킹된 전사 인용문"
-    }
-  ]
+  }
 }
 ```
 
 - `emotionScores`에는 유한한 숫자와 숫자 배열 또는 객체만 넣는다. 감정 상태를 설명하는 문장은 넣지 않는다.
-- `flagProposals.quote`와 `gasEvidence.evidenceQuote`는 비어 있으면 안 된다.
-- `gasEvidence.goalId`는 해당 세션의 케이스에 속한 목표여야 한다. AI는 근거 발췌만 제안하며 GAS 점수는 정하지 않는다.
-- `aiSchema`는 상담 템플릿 스펙(D29) 확정 전까지 구조를 정하지 않는 확장 슬롯이다.
+- `evidence`는 최소 1건이고 `maskedText`의 정확한 구간과 같은 해시를 가리켜야 한다.
+- 전화번호, 이메일, 주민번호, 계좌형 값이 명백한 원형으로 남아 있으면 `400`으로 거부한다.
+- 요약과 대조는 Workers가 저장된 마스킹 스냅샷만 재료로 만들어 별도 초안에 저장한다. 처리 장비는 `aiSummary`, `aiSchema`, `flagProposals`, `gasEvidence`를 제출하지 않는다.
+- 같은 해시와 감정값을 다시 보내면 멱등 재생으로 처리한다. 이미 받은 결과와 다른 값은 `409`로 거부한다.
 - 성공하면 본문 없이 `204`를 응답한다. 형식이나 규칙이 맞지 않으면 `400`, 서비스 역할이 아니면 `403`을 응답한다.
 
 ## 텍스트 일감 (D51 · D57 · ADR-0027)

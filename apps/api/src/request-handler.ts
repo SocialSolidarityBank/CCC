@@ -8,6 +8,7 @@ import {
   FLAG_TYPES,
   ForbiddenError,
   GroundedEvidenceRequiredError,
+  FixtureDraftApprovalForbiddenError,
   LIFE_AREA_KEYS,
   LIFE_AREA_STATUSES,
   INTAKE_ANSWER_KEYS,
@@ -24,6 +25,7 @@ import {
   assertPilotTextAiConsent,
   assertRecordingUploadAllowed,
   approveSession,
+  activateAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
   replaceSessionDiscrepancies,
   resolveSessionDiscrepancy,
@@ -45,6 +47,7 @@ import {
   createCounselingSchedule,
   listScheduleCandidates,
   createGeneratedAiDraftForService,
+  createFixtureGeneratedAiDraftForService,
   createGoal,
   createSupportCase,
   deactivateUser,
@@ -79,7 +82,11 @@ import {
   listTextWorkItems,
   getTextWorkItemSource,
   completeTextWorkItem,
+  claimRecordingResultDownstream,
+  commitRecordingResult,
   enqueueTextWorkItem,
+  finalizeRecordingResult,
+  releaseRecordingResultDownstream,
   listSessions,
   listSupportCaseAssignees,
   listAssignedParticipants,
@@ -93,6 +100,7 @@ import {
   recordAiCallOutcome,
   recordMaskedSourceSnapshot,
   recordPilotTextAiConsentEvidence,
+  registerAiProviderConfiguration,
   registerRecording,
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
@@ -123,6 +131,8 @@ import {
   AiProviderUnavailableError,
   type AiProviderUnavailableReason,
   canonicalAiProviderConfigHash,
+  detectPreviewFixtureDiscrepancies,
+  generatePreviewFixtureAiDraft,
   resolveAiProviderAdapter,
   validateAiDraftSummary,
   validateAiEvidenceIds,
@@ -1129,6 +1139,10 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             text: summary.text,
             pendingApprovalCount: summary.pendingApprovalCount,
           },
+        // 브리핑에는 승인 대기 초안 본문을 싣지 않는다(R2). fixture 회차 ID만 전용 검수
+        // 화면 입구로 내리고, 그 화면이 provenance를 다시 fail-closed 검증한다.
+        pendingReviewSessionIds:
+          briefing.pendingReviewSessionIdsBySupportCase[sourceSupportCase.id] ?? [],
         openActionItems: briefing.actionItems
           .filter((item) => item.sourceSupportCase.id === sourceSupportCase.id)
           .map(({ action }) => ({
@@ -1369,6 +1383,18 @@ function parseMaskedSourceSnapshot(body: JsonObject) {
   };
 }
 
+function parseRecordingResult(body: JsonObject) {
+  requireOnlyKeys(body, ['maskedText', 'sha256', 'maskingPipelineVersion', 'evidence', 'emotionScores']);
+  const snapshot = parseMaskedSourceSnapshot({
+    maskedText: body.maskedText,
+    sha256: body.sha256,
+    maskingPipelineVersion: body.maskingPipelineVersion,
+    evidence: body.evidence,
+  });
+  const emotionScores = asObject(body.emotionScores);
+  return { ...snapshot, emotionScores };
+}
+
 function parseAiDraftGeneration(body: JsonObject): { sourceSnapshotId: string } {
   requireOnlyKeys(body, ['sourceSnapshotId']);
   return { sourceSnapshotId: requiredString(body, 'sourceSnapshotId') };
@@ -1398,6 +1424,8 @@ function parseAiDraftReview(body: JsonObject) {
 function aiDraftResponse(draft: AiDraftVersion) {
   return {
     version: draft.version,
+    origin: draft.origin,
+    creationMode: draft.creationMode,
     summaryText: draft.summaryText,
     // 승인 화면의 핵심 한 줄 항목(CCC-38) — 요약·질문과 함께 검토·승인된다(R2).
     oneLiner: draft.oneLiner,
@@ -1428,6 +1456,7 @@ function requireAssignedCounselor(actor: Actor): void {
 const CONFIGURATION_REASONS: ReadonlySet<AiProviderUnavailableReason> = new Set([
   'config_missing',
   'config_invalid',
+  'external_calls_disabled',
   'api_key_missing',
   'adapter_invalid',
 ]);
@@ -1457,20 +1486,33 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
     // 텍스트 AI 동의 게이트 (D15 · D44) — 파일럿 중지·동의 부재면 여기서 던져 스킵된다.
     // 서비스 역할(장비 스냅샷 직후 경로)은 수집 단계에서 이미 같은 게이트를 통과했다.
     if (actor.role !== 'service') await assertPilotTextAiConsent(env, actor, material.caseId);
-    const { adapter, config } = resolveAiProviderAdapter(env);
-    model = config.model;
-    if (adapter.detectDiscrepancies === undefined) {
-      outcome = 'skipped_unsupported';
-      return;
-    }
     const providerRequest = validateDiscrepancyDetectionRequest({
       triggerRef: material.triggerSessionId,
       sources: material.sources.map((source) => ({ sourceRef: source.sessionId, text: source.text })),
     });
-    const output = validateDiscrepancyDetectionOutput(
-      await adapter.detectDiscrepancies(providerRequest),
-      providerRequest,
-    );
+    let rawOutput: unknown;
+    if (previewModeEnabled(env)) {
+      if (env.AI_PROVIDER_ADAPTER === undefined) {
+        rawOutput = detectPreviewFixtureDiscrepancies(providerRequest);
+      } else {
+        const { adapter, config } = resolveAiProviderAdapter(env);
+        model = config.model;
+        if (adapter.detectDiscrepancies === undefined) {
+          outcome = 'skipped_unsupported';
+          return;
+        }
+        rawOutput = await adapter.detectDiscrepancies(providerRequest);
+      }
+    } else {
+      const { adapter, config } = resolveAiProviderAdapter(env);
+      model = config.model;
+      if (adapter.detectDiscrepancies === undefined) {
+        outcome = 'skipped_unsupported';
+        return;
+      }
+      rawOutput = await adapter.detectDiscrepancies(providerRequest);
+    }
+    const output = validateDiscrepancyDetectionOutput(rawOutput, providerRequest);
     await replaceSessionDiscrepancies(env, actor, sessionId, output.discrepancies.map((item) => ({
       kind: item.kind,
       leftSessionId: item.leftRef,
@@ -1592,50 +1634,102 @@ async function generateAiDraft(
   sessionId: string,
   body: JsonObject,
 ): Promise<AiDraftVersion> {
+  const startedAt = Date.now();
+  let outcome: AiCallOutcome = 'failed_other';
+  let reason: AiCallFailureReason | null = null;
+  let status: number | null = null;
+  let model: string | null = null;
   const { sourceSnapshotId } = parseAiDraftGeneration(body);
-  const sourceSnapshot = await loadMaskedSourceSnapshotForService(env, actor, sessionId, sourceSnapshotId);
-  const { adapter, config } = resolveAiProviderAdapter(env);
-  const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
+  try {
+    const sourceSnapshot = await loadMaskedSourceSnapshotForService(env, actor, sessionId, sourceSnapshotId);
+    const providerRequest = validateAiProviderRequest({
+      maskedText: sourceSnapshot.maskedText,
+      evidence: sourceSnapshot.evidence.map((evidence) => ({
+        evidenceId: evidence.id,
+        sourceRef: evidence.sourceRef,
+        sourceSha256: evidence.sourceSha256,
+        evidenceQuote: evidence.evidenceQuote,
+        sourceStart: evidence.sourceStart,
+        sourceEnd: evidence.sourceEnd,
+      })),
+    });
 
-  const providerRequest = validateAiProviderRequest({
-    maskedText: sourceSnapshot.maskedText,
-    evidence: sourceSnapshot.evidence.map((evidence) => ({
-      evidenceId: evidence.id,
-      sourceRef: evidence.sourceRef,
-      sourceSha256: evidence.sourceSha256,
-      evidenceQuote: evidence.evidenceQuote,
-      sourceStart: evidence.sourceStart,
-      sourceEnd: evidence.sourceEnd,
-    })),
-  });
+    if (previewModeEnabled(env)) {
+      const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
+        ? generatePreviewFixtureAiDraft(providerRequest)
+        : await resolveAiProviderAdapter(env).adapter.generate(providerRequest);
+      const output = validateAiProviderOutput(rawOutput, providerRequest);
+      const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
+        origin: 'fixture_generated',
+        creationMode: 'fixture_generated',
+        summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
+        oneLiner: output.oneLiner,
+        sourceSnapshotId: sourceSnapshot.id,
+        sourceSnapshotHash: sourceSnapshot.sha256,
+        promptVersion: AI_DRAFT_PROMPT_VERSION,
+        schemaVersion: AI_DRAFT_SCHEMA_VERSION,
+        questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
+        evidence: providerEvidenceLinks(output),
+      });
+      outcome = 'stored';
+      return draft;
+    }
 
+    // 주입형 testOnly adapter는 기존 테스트 seam이다. Preview 전용 내장 fixture 선택과
+    // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
+    const { adapter, config } = resolveAiProviderAdapter(env);
+    model = config.model;
+    const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
 
-  // Provider and current consent are selected together as the final pre-outbound D1 read.
-  const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
-  if (
-    activeProvider.adapterId !== adapter.providerId
-    || activeProvider.adapterVersion !== adapter.adapterVersion
-    || activeProvider.configHash !== runtimeConfigHash
-  ) {
-    throw new AiProviderUnavailableError();
+    // Provider and current consent are selected together as the final pre-outbound D1 read.
+    const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
+    if (
+      activeProvider.adapterId !== adapter.providerId
+      || activeProvider.adapterVersion !== adapter.adapterVersion
+      || activeProvider.configHash !== runtimeConfigHash
+    ) {
+      throw new AiProviderUnavailableError();
+    }
+
+    const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
+    const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
+      summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
+      oneLiner: output.oneLiner,
+      sourceSnapshotId: sourceSnapshot.id,
+      sourceSnapshotHash: sourceSnapshot.sha256,
+      providerConfigId: activeProvider.providerConfigId,
+      consentEvidenceId: activeProvider.consentEvidenceId,
+      modelId: config.model,
+      promptVersion: AI_DRAFT_PROMPT_VERSION,
+      schemaVersion: AI_DRAFT_SCHEMA_VERSION,
+      questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
+      evidence: providerEvidenceLinks(output),
+    });
+    outcome = 'stored';
+    return draft;
+  } catch (error) {
+    if (error instanceof AiProviderUnavailableError) {
+      outcome = CONFIGURATION_REASONS.has(error.reason) ? 'provider_unavailable' : 'provider_error';
+      reason = error.reason;
+      status = error.status ?? null;
+    } else if (error instanceof AiProviderProhibitedOutputError) {
+      outcome = 'output_rejected';
+    } else if (error instanceof AiProviderInputError) {
+      outcome = 'request_invalid';
+    }
+    throw error;
+  } finally {
+    await recordAiCallOutcome(env, actor, {
+      kind: 'draft_generation',
+      outcome,
+      sessionId,
+      reason,
+      status,
+      durationMs: Date.now() - startedAt,
+      model,
+      promptVersion: AI_DRAFT_PROMPT_VERSION,
+    });
   }
-
-  const rawOutput = await adapter.generate(providerRequest);
-  const output = validateAiProviderOutput(rawOutput, providerRequest);
-  const summaryText = validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n'));
-  return createGeneratedAiDraftForService(env, actor, sessionId, {
-    summaryText,
-    oneLiner: output.oneLiner,
-    sourceSnapshotId: sourceSnapshot.id,
-    sourceSnapshotHash: sourceSnapshot.sha256,
-    providerConfigId: activeProvider.providerConfigId,
-    consentEvidenceId: activeProvider.consentEvidenceId,
-    modelId: config.model,
-    promptVersion: AI_DRAFT_PROMPT_VERSION,
-    schemaVersion: AI_DRAFT_SCHEMA_VERSION,
-    questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
-    evidence: providerEvidenceLinks(output),
-  });
 }
 
 /**
@@ -1689,6 +1783,7 @@ function errorResponse(error: unknown): Response {
   if (error instanceof StaleDraftVersionError) return json({ error: error.code }, error.statusCode);
   if (error instanceof DraftVersionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof GroundedEvidenceRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof FixtureDraftApprovalForbiddenError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderNotConfiguredError) return json({ error: error.code }, error.statusCode);
   // G1: ① 미동의·긴급 사유 누락은 'invalid_request' 로 뭉치지 않는다 — 화면이 "동의를
   // 체크하거나 긴급 등록을 고르라"고 안내하려면 원인이 코드로 구분돼야 한다(게이트 문서 §2 G1).
@@ -2278,6 +2373,45 @@ export async function handleRequest(
     if (request.method === 'GET' && parts.length === 3 && parts[0] === 'ai' && parts[1] === 'provider' && parts[2] === 'status') {
       return json(await getActiveAiProviderStatus(env, actor));
     }
+    if (
+      request.method === 'POST'
+      && parts.length === 3
+      && parts[0] === 'ai'
+      && parts[1] === 'provider'
+      && parts[2] === 'activate-runtime'
+    ) {
+      if (!previewModeEnabled(env)) return json({ error: 'not_found' }, 404);
+      const body = await requestBody(request);
+      requireOnlyKeys(body, ['approvalRef']);
+      const approvalRef = requiredString(body, 'approvalRef');
+      // 환경 변수의 정확한 레지스트리 tuple과 API 키를 먼저 검증한다. 호출자가 임의
+      // hash/model을 넣을 수 없고, 현재 배포 설정과 DB activation이 항상 함께 움직인다.
+      const { config } = resolveAiProviderAdapter(env);
+      const configHash = await canonicalAiProviderConfigHash(config);
+      const current = await getActiveAiProviderStatus(env, actor);
+      if (
+        current.enabled
+        && current.adapterId === config.providerId
+        && current.adapterVersion === config.adapterVersion
+        && current.configHash === configHash
+      ) {
+        return json({ ...current, replayed: true });
+      }
+      const registered = await registerAiProviderConfiguration(env, actor, {
+        adapterId: config.providerId,
+        adapterVersion: config.adapterVersion,
+        configHash,
+        approvalRefs: [approvalRef],
+      });
+      await activateAiProviderConfiguration(env, actor, registered.id);
+      return json({
+        enabled: true,
+        adapterId: registered.adapterId,
+        adapterVersion: registered.adapterVersion,
+        configHash: registered.configHash,
+        replayed: false,
+      }, 201);
+    }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
       // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 기관만.
       return json(await getPipelineHealth(env, actor));
@@ -2324,6 +2458,34 @@ export async function handleRequest(
         headers.set('content-type', object.httpMetadata?.contentType ?? 'application/octet-stream');
         headers.set('cache-control', 'no-store');
         return new Response(object.body, { status: 200, headers });
+      }
+      if (request.method === 'POST' && parts.length === 4 && parts[3] === 'result') {
+        const committed = await commitRecordingResult(
+          env,
+          actor,
+          sessionId,
+          parseRecordingResult(await requestBody(request)),
+        );
+        // 통합 동의의 텍스트 AI 증적과 활성 스위치도 최종 관문이다. 후속 초안은
+        // 마스킹 스냅샷만 재료로 만들며, 실패하면 review_ready로 올리지 않아 재시도된다.
+        let finalizedNow = false;
+        if (!committed.finalized) {
+          if (!committed.downstreamReady) {
+            const claimToken = await claimRecordingResultDownstream(env, actor, sessionId);
+            if (claimToken === null) {
+              throw new ConflictError('recording result downstream work is already in progress');
+            }
+            try {
+              await generateAiDraft(env, actor, sessionId, { sourceSnapshotId: committed.snapshot.id });
+            } catch (error) {
+              await releaseRecordingResultDownstream(env, actor, sessionId, claimToken);
+              throw error;
+            }
+          }
+          finalizedNow = await finalizeRecordingResult(env, actor, sessionId);
+        }
+        if (finalizedNow) await runDiscrepancyDetection(env, actor, sessionId);
+        return new Response(null, { status: 204 });
       }
     }
 

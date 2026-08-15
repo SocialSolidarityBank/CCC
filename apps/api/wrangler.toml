@@ -101,6 +101,9 @@ PREVIEW_SERVICE_ACTOR_EMAIL = "service-token-client-id.access"
 # 앞 네 값은 코드가 요구하는 고정값이고, model 만 고른다(2026-07-31 Q 선택: gpt-5.6-luna).
 # 교체 후보: gpt-5.4-mini · gpt-5-mini — 이 줄만 바꾸면 된다.
 AI_PROVIDER_CONFIG = '{"registryVersion":"phase1.v1","providerId":"codex","adapterVersion":"v1","configVersion":"v1","model":"gpt-5.6-luna"}'
+# 유료 외부 AI 실호출은 별도 승인 전까지 기본 OFF. AI_PROVIDER_CONFIG와 CODEX_API_KEY가
+# 이미 있어도 이 값이 정확히 "1"이 아니면 네트워크 호출을 시작하지 않는다.
+EXTERNAL_AI_CALLS_ENABLED = "0"
 # 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 사용되지 않고,
 # 텍스트 일감 큐도 비어 보인다(ADR-0027). 미리보기는 가상 시드 전용이라 켠다.
 TEXT_AI_PILOT_ENABLED = "1"
@@ -116,5 +119,8 @@ database_name = "ccc-preview"
 database_id = "0dc35280-1051-4916-9598-0e92f6e01844"
 migrations_dir = "../../migrations"
 
-# R2(음성 원본 버킷)는 미리보기에서 제외한다 — 가상 시드에는 오디오가 없어 업로드
-# 경로를 실사용하지 않는다. env.AUDIO_BUCKET 은 미바인딩(런타임 미참조)으로 남는다.
+# 클로즈 베타 녹음 검증용 전용 버킷. 운영 ccc-audio 와 분리하고, 계정 설정에서
+# lifecycle 규칙 audio-30d-expiry(30일 뒤 자동 삭제)를 별도로 적용한다.
+[[env.preview.r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "ccc-audio-preview"

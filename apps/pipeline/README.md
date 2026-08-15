@@ -5,12 +5,13 @@
 `docs/api-contract-pipeline.md` 계약을 그대로 따른다.
 
 - 처리 장비는 R2·D1에 직접 접근하지 않는다 — Workers API만 호출한다 (D13)
-- 전송 인증은 Cloudflare Access 서비스 토큰 헤더(`CF-Access-Client-Id/Secret`)다
+- 인증은 실행 모드별로 분리한다: Preview는 `CCC_PREVIEW_E2E_ACCESS_CODE`, 운영은
+  Cloudflare Access 서비스 토큰 헤더(`CF-Access-Client-Id/Secret`)만 쓴다. 두 자격은 한 실행에 섞지 않는다
 - 전사·중간 파일은 작업 디렉터리에 만들고 **작업 종료 시 무조건 삭제**한다 (D13)
 - 로그에는 세션 ID·건수·소요 시간만 남긴다. 전사 내용·PII는 로그 금지 (R3)
 - 감정은 숫자 점수만 산출한다. 문장형 감정 서술은 만들지 않는다 (R4)
-- AI 대조·요약은 사업자(OpenAI) 호출로 Workers 에서 한다(D57·ADR-0027) — 장비는 마스킹까지만 하고,
-  지금은 `aiSummary`에 자리표시 문구를 보낸다
+- AI 대조·요약은 사업자(OpenAI) 호출로 Workers 에서 한다(D57·ADR-0027). 장비는 마스킹된
+  원천과 숫자형 감정값만 보내며 요약이나 보류된 `aiSchema`를 만들지 않는다
 - **전사는 통짜로 넣지 않는다** — 무음 경계에서 조각으로 나누고 반복 붕괴를 검사한다 (D53·ADR-0024).
   실측에서 whisper large-v3가 34분 대화의 48%를 같은 문장 254번 반복으로 잃고 없던 문장을 지어냈다
 - **반복 구간은 지우지 않고 접어서 경고를 남긴다** — 그 시간대에 엔진이 무너졌다는 사실 자체가
@@ -33,7 +34,7 @@ ccc_pipeline/
   emotion.py         감정 점수 집계 (음성 0.3 + 텍스트 0.7 가중, R4, 순수 로직)
   masking.py         2차 PII 마스킹 — 정규식(전화·주민번호·이메일·계좌) + 질병명 사전(G3) + 선택적 NER (D2)
   condition_terms.py 질병명·진단명 사전 — 무엇을 일부러 뺐는지도 여기 적혀 있다 (G3)
-  artifacts.py       POST /pipeline/jobs/:id/artifacts 본문 조립
+  results.py         POST /pipeline/jobs/:id/result 마스킹 결과 본문 조립
   worker.py          폴링 루프 (작업 디렉터리 생성→처리→무조건 삭제)
 tests/               표준 라이브러리 unittest — ML 설치 없이 실행 가능
 systemd/             WSL2 자동 시작 유닛
@@ -48,16 +49,18 @@ systemd/             WSL2 자동 시작 유닛
 3. pyannote 게이트 모델은 Hugging Face 승인 + `HF_TOKEN` 필요
 4. 환경 변수(아래) 하이드레이션: Infisical에서 주입하거나 `/etc/ccc-pipeline.env`(600 권한)로.
    값을 레포·로그에 쓰지 않는다 (CLAUDE.md §10)
-5. 스모크: `python3 -m ccc_pipeline --once` (대기 작업이 없으면 "no jobs"로 끝난다)
+5. Preview 스모크는 `CCC_RUNTIME_ENVIRONMENT=preview`를 명시하고 Preview 자격만 주입해
+   `python3 -m ccc_pipeline --once`로 실행한다. 대기 작업이 없으면 "no jobs"로 끝난다
 6. 자동 시작: `systemd/ccc-pipeline.service` 설치 (파일 안 주석 참조)
 
 ## 환경 변수
 
 | 이름 | 필수 | 기본값 | 용도 |
 | --- | --- | --- | --- |
-| `CCC_PIPELINE_CLIENT_ID` | 필수 | — | Access 서비스 토큰 Client ID (Infisical `ggbss-agent/prod`) |
-| `CCC_PIPELINE_CLIENT_SECRET` | 필수 | — | Access 서비스 토큰 Client Secret (〃) |
-| `CCC_API_BASE_URL` | | `https://ccc-api.account-855.workers.dev` | Workers API 주소 |
+| `CCC_PIPELINE_CLIENT_ID` | 운영 필수 | — | 운영 Access 서비스 토큰 Client ID (Preview 모드에는 넣지 않는다) |
+| `CCC_PIPELINE_CLIENT_SECRET` | 운영 필수 | — | 운영 Access 서비스 토큰 Client Secret (Preview 모드에는 넣지 않는다) |
+| `CCC_PREVIEW_E2E_ACCESS_CODE` | Preview 필수 | — | Preview 처리 장비 전용 코드 (운영 모드에는 넣지 않는다) |
+| `CCC_API_BASE_URL` | | 모드별 고정값 | `preview`면 `https://ccc-api-preview.account-855.workers.dev`, `production`이면 `https://ccc-api.account-855.workers.dev`. 반대 환경 URL은 시작 실패 |
 | `CCC_POLL_INTERVAL_SECONDS` | | `600` | 폴링 주기(초). D8 SLA(다음 영업일) 안이면 조정 자유 |
 | `CCC_WORK_DIR` | | `~/.cache/ccc-pipeline` | 임시 작업 디렉터리(작업마다 하위 생성 후 삭제) |
 | `CCC_WHISPER_MODEL` | | `medium` | Whisper 모델 크기. VRAM 12GB에서 large-v3는 여유 확인 후 |
@@ -71,6 +74,24 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_CONDITION_NER_MODEL_ID` | | (없음) | 질병명 NER(G3). 미설정이면 사전 계층만 동작하고 **진행한다** — 인명과 달리 사전이 주 계층이다 |
 | `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
+| `CCC_RUNTIME_ENVIRONMENT` | **필수** | 없음 | 실행 환경. `preview` 또는 `production`을 반드시 명시하며, 인증·API URL·백업 목적지가 모두 같은 환경이어야 한다 |
+| `CCC_ORIGINAL_BACKUP_ENABLED` | | `off` | 원본 녹음 선택형 백업. 승인된 정책과 adapter가 생기기 전에는 켜지 않는다 |
+| `CCC_ORIGINAL_BACKUP_ENVIRONMENT` | 백업 ON | 없음 | 백업 정책 환경. 실행 환경과 정확히 같아야 한다 |
+| `CCC_ORIGINAL_BACKUP_PURPOSE` | 백업 ON | 없음 | 승인된 원본 보관 목적 |
+| `CCC_ORIGINAL_BACKUP_DESTINATION_REF` | 백업 ON | 없음 | 코드에 등록된 승인 목적지의 불투명 참조. 자격증명이나 실제 경로를 넣지 않는다 |
+| `CCC_ORIGINAL_BACKUP_RETENTION_DAYS` | 백업 ON | 없음 | 해당 사본의 승인된 보관 일수 |
+| `CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION` | 백업 ON | 없음 | 장기 원본 보관과 호환되는 동의 문안 버전 |
+
+### 선택형 원본 백업 정책
+
+원본 백업은 기본 OFF다. OFF이면 외부 저장소를 찾거나 호출하지 않는다. ON으로 바꾸려면
+목적, 승인 목적지 참조, 보관 기간, 동의 문안 버전, 실행 환경이 모두 있어야 하며 하나라도
+빠지면 처리 장비가 기동하지 않는다. 현재는 NAS와 Google Shared Drive adapter를 구현하지
+않았으므로 완전한 ON 설정도 승인 목적지 미등록 오류로 막힌다.
+
+향후 adapter를 붙여도 백업은 전사와 마스킹의 필수 경로가 아니다. 복사 실패는 내용 없는
+상태만 남기고 녹음 결과 처리는 계속된다. OFF 전환은 새 복사만 멈추며 이미 만들어진 사본의
+만료일을 바꾸거나 지우지 않는다. 기존 사본 즉시 삭제는 복사 경로와 분리된 별도 감사 작업이다.
 
 ### 인명 NER 모델 (2026-08-01 Q 승인)
 

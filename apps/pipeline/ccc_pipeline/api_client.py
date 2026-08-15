@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -27,18 +28,67 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, base_url: str, client_id: str, client_secret: str):
+    def __init__(
+        self,
+        base_url: str,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        *,
+        runtime_environment: str,
+        preview_access_code: str | None = None,
+    ):
+        if runtime_environment not in ("preview", "production"):
+            raise ValueError("runtime environment must be preview or production")
+        if runtime_environment == "preview":
+            if preview_access_code is None or client_id is not None or client_secret is not None:
+                raise ValueError("preview client requires only the Preview credential")
+        elif preview_access_code is not None or client_id is None or client_secret is None:
+            raise ValueError("production client requires only Access credentials")
         self._base_url = base_url.rstrip("/")
         self._client_id = client_id
         self._client_secret = client_secret
+        self._runtime_environment = runtime_environment
+        self._preview_access_code = preview_access_code
+        self._preview_token: str | None = None
+        self._preview_token_expires_at = 0.0
+
+    def _unlock_preview(self) -> str:
+        if self._preview_access_code is None:
+            raise ApiError(401, "preview credential unavailable")
+        request = urllib.request.Request(
+            self._base_url + "/preview/unlock",
+            data=json.dumps({"code": self._preview_access_code}).encode("utf-8"),
+            headers={"User-Agent": USER_AGENT, "Content-Type": "application/json"},
+            method="POST",
+        )
+        with self._open(request) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        token = payload.get("token") if isinstance(payload, dict) else None
+        max_age = payload.get("maxAgeSeconds") if isinstance(payload, dict) else None
+        if not isinstance(token, str) or token == "":
+            raise ApiError(200, "malformed preview unlock response")
+        self._preview_token = token
+        # 서버 TTL보다 60초 먼저 갱신해 장기 폴링 중 만료 경계에 걸리지 않게 한다.
+        self._preview_token_expires_at = time.monotonic() + max(0, max_age - 60) if isinstance(max_age, int) else 0.0
+        return token
+
+    def _preview_session_token(self) -> str:
+        if self._preview_token is None or time.monotonic() >= self._preview_token_expires_at:
+            return self._unlock_preview()
+        return self._preview_token
 
     def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> urllib.request.Request:
         data = None
         headers = {
             "User-Agent": USER_AGENT,
-            "CF-Access-Client-Id": self._client_id,
-            "CF-Access-Client-Secret": self._client_secret,
         }
+        if self._runtime_environment == "preview":
+            headers["Cookie"] = f"ccc_preview={self._preview_session_token()}"
+        else:
+            if self._client_id is None or self._client_secret is None:
+                raise ApiError(401, "production credential unavailable")
+            headers["CF-Access-Client-Id"] = self._client_id
+            headers["CF-Access-Client-Secret"] = self._client_secret
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -76,11 +126,11 @@ class ApiClient:
                 shutil.copyfileobj(response, file)
         return dest
 
-    def post_artifacts(self, job_id: str, artifacts: dict[str, Any]) -> None:
-        """POST /pipeline/jobs/:id/artifacts — 성공 시 204, 세션은 review_ready로 바뀐다."""
-        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/artifacts", artifacts)) as response:
+    def post_recording_result(self, job_id: str, result: dict[str, Any]) -> None:
+        """POST /pipeline/jobs/:id/result — 마스킹된 녹음 결과를 멱등 제출한다."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/result", result)) as response:
             if response.status != 204:
-                raise ApiError(response.status, "unexpected artifacts response")
+                raise ApiError(response.status, "unexpected recording result response")
 
     # ------------------------------------------------------------------
     # 텍스트 일감 (D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹.
