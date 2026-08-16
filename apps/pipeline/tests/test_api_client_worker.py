@@ -207,6 +207,9 @@ class RunOnceTest(unittest.TestCase):
                 )
 
         client.post_recording_result.assert_called_once()
+        # D64: 감정 보류 중에는 계산 없이 빈 dict 를 보낸다 — `{}` 가 아니면 회귀다.
+        body = client.post_recording_result.call_args.args[1]
+        self.assertEqual(body["emotionScores"], {})
 
 
 class EnvironmentIsolationTest(unittest.TestCase):
