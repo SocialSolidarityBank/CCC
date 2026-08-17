@@ -24,6 +24,8 @@ from .transcribe import build_engine, transcribe_audio
 
 logger = logging.getLogger("ccc_pipeline")
 
+EMOTION_DEFERRED = True  # D64: 감정 분석 보류. 켜려면 False. 스키마·모델·테스트는 그대로 둔다.
+
 
 def _build_person_and_address_ner(config: Config):  # noqa: ANN202
     """인명 NER 계층. **없으면 진행하지 않는다** (2026-07-31 Q 결정).
@@ -95,16 +97,19 @@ def process_job(
 
         # 감정은 수혜자 발화만 (D11). 점수는 숫자만 (R4).
         # 경고 줄은 사람 발화가 아니므로 감정 집계에서 뺀다 (D53 · R4).
-        beneficiary_segments = [
-            s for s in segments if not s.warning and roles.get(s.speaker or "") == BENEFICIARY
-        ]
-        text_scores = build_text_scorer()([s.text for s in beneficiary_segments]) if beneficiary_segments else []
-        speech_scores = (
-            build_speech_scorer()(str(audio_path), [(s.start, s.end) for s in beneficiary_segments])
-            if beneficiary_segments
-            else []
-        )
-        emotion_scores = aggregate_scores(speech_scores, text_scores)
+        if EMOTION_DEFERRED:
+            emotion_scores = {}
+        else:
+            beneficiary_segments = [
+                s for s in segments if not s.warning and roles.get(s.speaker or "") == BENEFICIARY
+            ]
+            text_scores = build_text_scorer()([s.text for s in beneficiary_segments]) if beneficiary_segments else []
+            speech_scores = (
+                build_speech_scorer()(str(audio_path), [(s.start, s.end) for s in beneficiary_segments])
+                if beneficiary_segments
+                else []
+            )
+            emotion_scores = aggregate_scores(speech_scores, text_scores)
 
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
         person_ner, address_ner = _build_person_and_address_ner(config)

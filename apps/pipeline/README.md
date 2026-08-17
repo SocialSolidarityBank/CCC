@@ -1,6 +1,6 @@
 # ccc-pipeline — 처리 장비(회사 노트북) 파이프라인 클라이언트
 
-상담 녹음을 Workers API에서 받아 전사·화자 분리·감정 분석·2차 PII 마스킹을 수행하고
+상담 녹음을 Workers API에서 받아 전사·화자 분리·감정 분석(D64 보류)·2차 PII 마스킹을 수행하고
 결과를 다시 API로 보내는 폴링 클라이언트다. CLAUDE.md §5 파이프라인 스펙과
 `docs/api-contract-pipeline.md` 계약을 그대로 따른다.
 
