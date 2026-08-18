@@ -5018,3 +5018,52 @@ CREATE TRIGGER goals_no_reopen
 BEFORE UPDATE OF status ON goals
 WHEN OLD.status = 'closed' AND NEW.status = 'active'
 BEGIN SELECT RAISE(ABORT, 'D62: a closed goal cannot be reopened'); END;
+
+
+-- ----------------------------------------------------------------------------
+-- ai_draft_source_materials · ai_draft_contrast_axes. 호출 ① 재료 증빙과 대조 3종
+-- (0035 · D69 · ADR-0036).
+-- 초안이 실제로 사업자에 실어 보낸 마스킹 스냅샷 전부(주 재료 포함)와, 축별 대조 결과를
+-- 초안 버전에 귀속시켜 남긴다. 축의 적용 여부는 AI 가 아니라 서버가 판정한다.
+-- 같은 마이그레이션이 ai_evidence_links_insert_guard 를 재료 표까지 보도록 넓힌다
+-- (근거 링크가 반대편 재료에서도 나올 수 있게. 이 스냅샷에는 0033 판 트리거 원문이
+-- 실려 있지 않아 여기서는 표 정의만 반영한다).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ai_draft_source_materials (
+  id               TEXT PRIMARY KEY,
+  draft_version_id TEXT NOT NULL REFERENCES ai_draft_versions (id),
+  org_id           TEXT NOT NULL,
+  support_case_id  TEXT NOT NULL REFERENCES support_cases (id),
+  session_id       TEXT NOT NULL REFERENCES sessions (id),
+  kind             TEXT NOT NULL CHECK (kind IN ('transcript', 'text_context')),
+  snapshot_id      TEXT NOT NULL REFERENCES ai_masked_source_snapshots (id),
+  snapshot_sha256  TEXT NOT NULL
+                   CHECK (length(snapshot_sha256) = 64 AND snapshot_sha256 NOT GLOB '*[^0-9a-f]*'),
+  created_at       TEXT NOT NULL,
+  UNIQUE (draft_version_id, kind),
+  UNIQUE (draft_version_id, snapshot_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_draft_source_materials_draft
+  ON ai_draft_source_materials (draft_version_id, kind);
+
+CREATE TABLE IF NOT EXISTS ai_draft_contrast_axes (
+  id               TEXT PRIMARY KEY,
+  draft_version_id TEXT NOT NULL REFERENCES ai_draft_versions (id),
+  org_id           TEXT NOT NULL,
+  support_case_id  TEXT NOT NULL REFERENCES support_cases (id),
+  axis             TEXT NOT NULL CHECK (axis IN (
+                     'missing_from_memo', 'missing_from_transcript', 'undiscussed_session_goal'
+                   )),
+  status           TEXT NOT NULL CHECK (status IN (
+                     'applied', 'no_transcript', 'no_text', 'no_session_goal'
+                   )),
+  findings_json    TEXT NOT NULL
+                   CHECK (json_valid(findings_json) AND json_type(findings_json) = 'array'),
+  created_at       TEXT NOT NULL,
+  UNIQUE (draft_version_id, axis),
+  CHECK (status = 'applied' OR json_array_length(findings_json) = 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_draft_contrast_axes_draft
+  ON ai_draft_contrast_axes (draft_version_id, axis);

@@ -627,7 +627,12 @@ function mapAiEvidenceLink(row: DbRow): AiEvidenceLink {
   };
 }
 
-function mapAiDraftVersion(row: DbRow, evidence: AiEvidenceLink[] = []): AiDraftVersion {
+function mapAiDraftVersion(
+  row: DbRow,
+  evidence: AiEvidenceLink[] = [],
+  materials: AiDraftSourceMaterialRef[] = [],
+  contrast: AiDraftContrastAxis[] = [],
+): AiDraftVersion {
   const version = integerValue(row.version);
   if (version === null || version < 1) {
     throw new ValidationError('AI draft version is invalid');
@@ -663,6 +668,8 @@ function mapAiDraftVersion(row: DbRow, evidence: AiEvidenceLink[] = []): AiDraft
     reviewedAt: nullableString(row.reviewed_at),
     replacementDraftId: nullableString(row.replacement_draft_id),
     evidence,
+    materials,
+    contrast,
   };
 }
 
@@ -1406,6 +1413,76 @@ async function listAiEvidenceLinks(env: Env, draftVersionId: string): Promise<Ai
   ).bind(draftVersionId).all<DbRow>();
   return result.results.map(mapAiEvidenceLink);
 }
+function toAiMaterialKind(value: unknown): AiMaterialKind {
+  return value === 'transcript' ? 'transcript' : 'text_context';
+}
+
+function toAiContrastAxis(value: unknown): AiContrastAxis {
+  if (value === 'missing_from_memo' || value === 'missing_from_transcript') return value;
+  return 'undiscussed_session_goal';
+}
+
+function toAiContrastAxisStatus(value: unknown): AiContrastAxisStatus {
+  if (value === 'no_transcript' || value === 'no_text' || value === 'no_session_goal') return value;
+  return 'applied';
+}
+
+/** 저장된 대조 항목 배열 복원. 형태는 0035 트리거가 저장 시점에 이미 강제한다. */
+function parseAiContrastFindings(value: unknown): AiContrastFinding[] {
+  if (typeof value !== 'string') return [];
+  const parsed = parseJson<unknown[]>(value);
+  if (!Array.isArray(parsed)) return [];
+  const findings: AiContrastFinding[] = [];
+  for (const item of parsed) {
+    if (item === null || typeof item !== 'object') continue;
+    const entry = item as Record<string, unknown>;
+    if (
+      typeof entry.description !== 'string'
+      || typeof entry.sourceRef !== 'string'
+      || typeof entry.quote !== 'string'
+    ) {
+      continue;
+    }
+    findings.push({
+      description: entry.description,
+      materialKind: toAiMaterialKind(entry.materialKind),
+      sourceRef: entry.sourceRef,
+      quote: entry.quote,
+    });
+  }
+  return findings;
+}
+
+async function listAiDraftSourceMaterials(
+  env: Env,
+  draftVersionId: string,
+): Promise<AiDraftSourceMaterialRef[]> {
+  const result = await env.DB.prepare(
+    `SELECT kind, snapshot_id, snapshot_sha256 FROM ai_draft_source_materials
+     WHERE draft_version_id = ? ORDER BY kind`,
+  ).bind(draftVersionId).all<DbRow>();
+  return result.results.map((row) => ({
+    kind: toAiMaterialKind(row.kind),
+    snapshotId: stringValue(row.snapshot_id),
+    snapshotSha256: stringValue(row.snapshot_sha256),
+  }));
+}
+
+async function listAiDraftContrastAxes(
+  env: Env,
+  draftVersionId: string,
+): Promise<AiDraftContrastAxis[]> {
+  const result = await env.DB.prepare(
+    `SELECT axis, status, findings_json FROM ai_draft_contrast_axes
+     WHERE draft_version_id = ? ORDER BY axis`,
+  ).bind(draftVersionId).all<DbRow>();
+  return result.results.map((row) => ({
+    axis: toAiContrastAxis(row.axis),
+    status: toAiContrastAxisStatus(row.status),
+    findings: parseAiContrastFindings(row.findings_json),
+  }));
+}
+
 async function listMaskedSourceEvidenceItems(
   env: Env,
   snapshotId: string,
@@ -1482,7 +1559,12 @@ async function getCurrentAiDraftVersion(env: Env, orgId: string, workItemId: str
   }
 
   const draft = mapAiDraftVersion(row);
-  return { ...draft, evidence: await listAiEvidenceLinks(env, draft.id) };
+  const [evidence, materials, contrast] = await Promise.all([
+    listAiEvidenceLinks(env, draft.id),
+    listAiDraftSourceMaterials(env, draft.id),
+    listAiDraftContrastAxes(env, draft.id),
+  ]);
+  return { ...draft, evidence, materials, contrast };
 }
 
 function requireExpectedDraftVersion(value: unknown): number {
@@ -1585,6 +1667,169 @@ function assertGeneratedAiDraftInput(
   }
 }
 
+const AI_CONTRAST_AXES: readonly AiContrastAxis[] = [
+  'missing_from_memo',
+  'missing_from_transcript',
+  'undiscussed_session_goal',
+];
+const AI_CONTRAST_AXIS_STATUSES: readonly AiContrastAxisStatus[] = [
+  'applied',
+  'no_transcript',
+  'no_text',
+  'no_session_goal',
+];
+/** 축당 항목 상한. 어댑터 출력 스키마의 상한과 같은 값이라 어긋나면 저장이 먼저 막힌다. */
+const MAX_AI_CONTRAST_FINDINGS_PER_AXIS = 8;
+const MAX_AI_CONTRAST_DESCRIPTION_LENGTH = 200;
+const MAX_AI_CONTRAST_QUOTE_LENGTH = 500;
+
+/**
+ * 재료 증빙과 대조 3종 입력 검증 (D69 · ADR-0036 · CCC-102).
+ *
+ * 재료는 1~2개이고 종류가 겹치지 않으며 주 재료(sourceSnapshotId)가 반드시 그중 하나다.
+ * 대조는 축 3개를 빠짐없이 한 번씩 담고, 적용되지 않은 축은 항목이 0개여야 한다
+ * 축 상태는 AI 가 아니라 서버가 판정한 값이라 여기서 어긋나면 조립이 틀린 것이다.
+ * 인용의 출처는 그 초안이 실제로 실은 재료여야 한다(없는 재료를 인용할 수 없다).
+ */
+function assertAiDraftMaterialsInput(input: AiDraftMaterialsInput, sourceSnapshotId: string): void {
+  if (!Array.isArray(input.materials) || input.materials.length === 0 || input.materials.length > 2) {
+    throw new ValidationError('AI draft materials are invalid');
+  }
+  const kinds = new Set<AiMaterialKind>();
+  const snapshotIdByKind = new Map<AiMaterialKind, string>();
+  for (const material of input.materials) {
+    if (material === null || typeof material !== 'object') {
+      throw new ValidationError('AI draft material is invalid');
+    }
+    if (material.kind !== 'transcript' && material.kind !== 'text_context') {
+      throw new ValidationError('AI draft material kind is invalid');
+    }
+    if (kinds.has(material.kind)) {
+      throw new ValidationError('AI draft material kinds must be unique');
+    }
+    assertOpaqueIdentifier(material.snapshotId, 'AI draft material snapshot id');
+    assertSha256(material.snapshotSha256, 'AI draft material snapshot hash');
+    kinds.add(material.kind);
+    snapshotIdByKind.set(material.kind, material.snapshotId);
+  }
+  if (!input.materials.some((material) => material.snapshotId === sourceSnapshotId)) {
+    throw new ValidationError('AI draft materials must include the source snapshot');
+  }
+
+  if (!Array.isArray(input.contrast) || input.contrast.length !== AI_CONTRAST_AXES.length) {
+    throw new ValidationError('AI draft contrast axes are invalid');
+  }
+  const seenAxes = new Set<AiContrastAxis>();
+  for (const axis of input.contrast) {
+    if (axis === null || typeof axis !== 'object') {
+      throw new ValidationError('AI draft contrast axis is invalid');
+    }
+    if (!AI_CONTRAST_AXES.includes(axis.axis) || seenAxes.has(axis.axis)) {
+      throw new ValidationError('AI draft contrast axis is invalid');
+    }
+    if (!AI_CONTRAST_AXIS_STATUSES.includes(axis.status)) {
+      throw new ValidationError('AI draft contrast axis status is invalid');
+    }
+    seenAxes.add(axis.axis);
+    if (!Array.isArray(axis.findings) || axis.findings.length > MAX_AI_CONTRAST_FINDINGS_PER_AXIS) {
+      throw new ValidationError('AI draft contrast findings are invalid');
+    }
+    if (axis.status !== 'applied' && axis.findings.length > 0) {
+      throw new ValidationError('an unavailable contrast axis cannot carry findings');
+    }
+    for (const finding of axis.findings) {
+      if (finding === null || typeof finding !== 'object') {
+        throw new ValidationError('AI draft contrast finding is invalid');
+      }
+      assertRequiredText(finding.description, 'AI contrast description');
+      assertRequiredText(finding.quote, 'AI contrast quote');
+      if (
+        finding.description.length > MAX_AI_CONTRAST_DESCRIPTION_LENGTH
+        || finding.quote.length > MAX_AI_CONTRAST_QUOTE_LENGTH
+      ) {
+        throw new ValidationError('AI draft contrast finding is too long');
+      }
+      if (snapshotIdByKind.get(finding.materialKind) !== finding.sourceRef) {
+        throw new ValidationError('AI contrast finding cites a material the draft did not use');
+      }
+    }
+  }
+}
+
+/** 대조 인용도 재료 원문의 부분 문자열이어야 한다. 게이트웨이 쪽 재검증(R5). */
+function assertAiContrastFindingsAttested(
+  contrast: readonly AiDraftContrastAxis[],
+  snapshotsById: ReadonlyMap<string, MaskedSourceSnapshot>,
+): void {
+  for (const axis of contrast) {
+    for (const finding of axis.findings) {
+      const snapshot = snapshotsById.get(finding.sourceRef);
+      if (snapshot === undefined || !snapshot.maskedText.includes(finding.quote)) {
+        throw new ValidationError('AI contrast quote is not attested by its material');
+      }
+    }
+  }
+}
+
+function contrastFindingsToJson(findings: readonly AiContrastFinding[]): string {
+  return stringifyJson(findings.map((finding) => ({
+    description: finding.description,
+    materialKind: finding.materialKind,
+    sourceRef: finding.sourceRef,
+    quote: finding.quote,
+  })));
+}
+
+interface AiDraftMaterialWriteScope {
+  draftId: string;
+  orgId: string;
+  supportCaseId: string;
+  sessionId: string;
+  createdAt: string;
+}
+
+/**
+ * 재료 증빙 행과 대조 축 행. **재료가 먼저** 들어가야 한다. 0035 의 대조 축 가드가
+ * 항목의 인용 출처를 재료 표에서 찾고, 근거 링크 가드도 재료 표를 본다.
+ */
+function aiDraftMaterialStatements(
+  env: Env,
+  scope: AiDraftMaterialWriteScope,
+  input: AiDraftMaterialsInput,
+): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = [];
+  for (const material of input.materials) {
+    statements.push(env.DB.prepare(
+      'INSERT INTO ai_draft_source_materials (id, draft_version_id, org_id, support_case_id, session_id, kind, snapshot_id, snapshot_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(
+      newId(),
+      scope.draftId,
+      scope.orgId,
+      scope.supportCaseId,
+      scope.sessionId,
+      material.kind,
+      material.snapshotId,
+      material.snapshotSha256,
+      scope.createdAt,
+    ));
+  }
+  for (const axis of input.contrast) {
+    statements.push(env.DB.prepare(
+      'INSERT INTO ai_draft_contrast_axes (id, draft_version_id, org_id, support_case_id, axis, status, findings_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(
+      newId(),
+      scope.draftId,
+      scope.orgId,
+      scope.supportCaseId,
+      axis.axis,
+      axis.status,
+      contrastFindingsToJson(axis.findings),
+      scope.createdAt,
+    ));
+  }
+  return statements;
+}
+
 async function maskGeneratedAiDraftInput<T extends GroundedAiDraftContentInput>(
   env: Env,
   actor: Actor,
@@ -1600,6 +1845,7 @@ async function maskGeneratedAiDraftInput<T extends GroundedAiDraftContentInput>(
     caseId,
   });
 
+  const contrast = (input as Partial<AiDraftMaterialsInput>).contrast;
   return {
     ...input,
     summaryText: mask(input.summaryText),
@@ -1612,6 +1858,19 @@ async function maskGeneratedAiDraftInput<T extends GroundedAiDraftContentInput>(
       ...item,
       evidenceQuote: mask(item.evidenceQuote),
     })),
+    // 1차 치환은 멱등이다. 스냅샷 본문도 이미 거쳤으므로 부분 문자열 관계가 유지된다.
+    ...(contrast === undefined ? {} : {
+      contrast: contrast.map((axis) => ({
+        axis: axis.axis,
+        status: axis.status,
+        findings: axis.findings.map((finding) => ({
+          description: mask(finding.description),
+          materialKind: finding.materialKind,
+          sourceRef: finding.sourceRef,
+          quote: mask(finding.quote),
+        })),
+      })),
+    }),
   } as T;
 }
 
@@ -1874,6 +2133,50 @@ export interface AiBriefingSuggestion {
   reason: string | null;
 }
 
+/**
+ * 호출 ① 재료의 종류 (D69 · ADR-0036 · CCC-102). 서버가 판정한다
+ * 전사는 녹음 결과 커밋(`recording_result_commits`)이 가리키는 스냅샷이고,
+ * 텍스트 맥락은 텍스트 일감 큐가 만든 스냅샷(수기 메모 + 목표 구획)이다.
+ */
+export type AiMaterialKind = 'transcript' | 'text_context';
+
+/** 대조 3종의 축. '미논의 목표' 의 판정 기준은 회기 목표뿐이다(ADR-0036 결정 3). */
+export type AiContrastAxis =
+  | 'missing_from_memo'
+  | 'missing_from_transcript'
+  | 'undiscussed_session_goal';
+
+/**
+ * 축의 적용 여부. AI 가 아니라 서버가 재료 구성으로 판정한다(ADR-0036 결정 2).
+ * applied 가 아니면 그 축의 항목은 반드시 0개다.
+ */
+export type AiContrastAxisStatus = 'applied' | 'no_transcript' | 'no_text' | 'no_session_goal';
+
+/**
+ * 대조 항목 하나. 판단이 아니라 근거 인용만 담는다(R5). 인용은 그 재료 원문의
+ * 정확한 부분 문자열이어야 검증을 통과한다(불일치 검출과 같은 태도).
+ */
+export interface AiContrastFinding {
+  description: string;
+  materialKind: AiMaterialKind;
+  /** 인용 출처 재료의 스냅샷 id. */
+  sourceRef: string;
+  quote: string;
+}
+
+export interface AiDraftContrastAxis {
+  axis: AiContrastAxis;
+  status: AiContrastAxisStatus;
+  findings: AiContrastFinding[];
+}
+
+/** 초안이 실제로 사업자에 실어 보낸 재료 하나의 증빙(id + 해시 + 종류). */
+export interface AiDraftSourceMaterialRef {
+  kind: AiMaterialKind;
+  snapshotId: string;
+  snapshotSha256: string;
+}
+
 /** 마스킹된 근거 링크. 링크가 없는 generated 초안은 검토할 수 있어도 승인할 수 없다. */
 export interface AiEvidenceLink {
   id: string;
@@ -1916,6 +2219,13 @@ export interface AiDraftVersion {
   reviewedAt: string | null;
   replacementDraftId: string | null;
   evidence: AiEvidenceLink[];
+  /**
+   * 이 초안이 쓴 재료 전부(주 재료 포함, D69 · ADR-0036). 재료 표가 생기기 전의
+   * 초안은 빈 배열이고 단수 컬럼 sourceSnapshotId/Hash 만 갖는다.
+   */
+  materials: AiDraftSourceMaterialRef[];
+  /** 대조 3종. v3 이전 초안은 빈 배열이다. 초안에 귀속되므로 승인 대상이다(R2). */
+  contrast: AiDraftContrastAxis[];
 }
 
 /** `approved_ai_briefing_v1`에서만 반환하는 공식 AI 브리핑 행. */
@@ -1960,14 +2270,24 @@ export interface AiDraftContentInput extends GroundedAiDraftContentInput {
   modelId: string;
 }
 
-export interface GeneratedAiDraftInput extends AiDraftContentInput {
+/**
+ * 호출 ① 이 실제로 실은 재료와 그 대조 결과 (D69 · ADR-0036 · CCC-102).
+ * 재료 목록에는 주 재료(sourceSnapshotId)도 한 항목으로 들어간다. 단수 컬럼은
+ * 호환용으로 남기고, 증빙의 정본은 이 목록이다.
+ */
+export interface AiDraftMaterialsInput {
+  materials: AiDraftSourceMaterialRef[];
+  contrast: AiDraftContrastAxis[];
+}
+
+export interface GeneratedAiDraftInput extends AiDraftContentInput, AiDraftMaterialsInput {
   kind?: string;
   providerConfigId: string;
   consentEvidenceId: string;
 }
 
 /** Built-in Preview output. Provider identity is deliberately impossible to supply. */
-export interface FixtureGeneratedAiDraftInput extends GroundedAiDraftContentInput {
+export interface FixtureGeneratedAiDraftInput extends GroundedAiDraftContentInput, AiDraftMaterialsInput {
   kind?: string;
   origin: 'fixture_generated';
   creationMode: 'fixture_generated';
@@ -2055,6 +2375,15 @@ export interface AiProviderConfigurationInput {
 
 /** 안정적인 기본 kind. 세션당 이 kind의 work item은 하나만 존재한다. */
 export const AI_WORK_KIND_BRIEFING = 'text_ai_briefing';
+
+/**
+ * 텍스트 재료 안의 회기 목표 구획 머리표 (D69 · ADR-0036 결정 3 · CCC-102).
+ *
+ * 쓰는 쪽은 `getTextWorkItemSource`, 읽는 쪽은 '미논의 목표' 축의 적용 여부 판정이다.
+ * 두 쪽이 같은 상수를 봐야 한다. 문구를 한쪽에서만 고치면 축이 조용히 영구 비활성으로
+ * 바뀌고 어떤 테스트도 빨간불이 되지 않는다.
+ */
+export const SESSION_GOAL_MATERIAL_LABEL = '[회기 목표]';
 
 // ============================================================================
 // Phase 1 텍스트 AI 증적 · 불변 초안 · 공식 투영
@@ -2887,14 +3216,121 @@ export async function loadMaskedSourceSnapshotForService(
   });
   return snapshot;
 }
+/** 호출 ① 에 실린 재료 하나. 종류 라벨과 그 스냅샷. */
+export interface AiCallMaterial {
+  kind: AiMaterialKind;
+  snapshot: MaskedSourceSnapshot;
+}
+
+export interface AiCallMaterialSet {
+  /** 요청이 지목한 재료. 초안의 단수 컬럼(source_snapshot_id)에 남는 주 재료다. */
+  requested: AiCallMaterial;
+  /** 전사 → 텍스트 순으로 고정 정렬한 재료 전부(주 재료 포함, 1개 또는 2개). */
+  materials: AiCallMaterial[];
+}
+
+/**
+ * 호출 ① 의 재료 조립 (D69 · ADR-0036 결정 2 · CCC-102).
+ *
+ * 요청 본문은 스냅샷 하나만 지목하고, 반대편 재료는 **서버가 붙인다**. 종류 판정은
+ * 추론이 아니라 사실 조회다. 녹음 결과 커밋(`recording_result_commits`)은 회차당 한 행
+ * (session_id 가 기본키)이라 그 행이 가리키는 스냅샷이 곧 전사이고, 나머지 최신 스냅샷이
+ * 텍스트 맥락이다. 반대편이 없으면 재료 하나로 돈다(기다리지 않는다, D8).
+ *
+ * 두 스냅샷 모두 `loadMaskedSourceSnapshotForService` 를 거친다. 동의·파일럿 게이트와
+ * 열람 감사(D14)를 재료마다 남기기 위해서다.
+ */
+export async function loadAiCallMaterialsForService(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  requestedSnapshotId: string,
+): Promise<AiCallMaterialSet> {
+  const requestedSnapshot = await loadMaskedSourceSnapshotForService(
+    env,
+    actor,
+    sessionId,
+    requestedSnapshotId,
+  );
+
+  const transcriptRow = await env.DB.prepare(
+    'SELECT snapshot_id FROM recording_result_commits WHERE session_id = ? AND org_id = ?',
+  ).bind(sessionId, actor.orgId).first<DbRow>();
+  const transcriptSnapshotId = transcriptRow === null ? null : nullableString(transcriptRow.snapshot_id);
+
+  const requestedKind: AiMaterialKind = transcriptSnapshotId === requestedSnapshot.id
+    ? 'transcript'
+    : 'text_context';
+
+  let counterpartId: string | null = null;
+  if (requestedKind === 'transcript') {
+    // 이 회차의 최신 텍스트 스냅샷 = 전사 스냅샷이 아닌 것 중 가장 최근.
+    const textRow = await env.DB.prepare(
+      `SELECT id FROM ai_masked_source_snapshots
+       WHERE org_id = ? AND session_id = ? AND id <> ?
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+    ).bind(actor.orgId, sessionId, requestedSnapshot.id).first<DbRow>();
+    counterpartId = textRow === null ? null : nullableString(textRow.id);
+  } else if (transcriptSnapshotId !== null) {
+    counterpartId = transcriptSnapshotId;
+  }
+
+  const requested: AiCallMaterial = { kind: requestedKind, snapshot: requestedSnapshot };
+  const materials: AiCallMaterial[] = [requested];
+  if (counterpartId !== null) {
+    materials.push({
+      kind: requestedKind === 'transcript' ? 'text_context' : 'transcript',
+      snapshot: await loadMaskedSourceSnapshotForService(env, actor, sessionId, counterpartId),
+    });
+  }
+  // 프롬프트·저장 순서를 재료 구성과 무관하게 고정한다(전사 먼저, 텍스트 다음).
+  materials.sort((left, right) => (left.kind === right.kind ? 0 : left.kind === 'transcript' ? -1 : 1));
+  return { requested, materials };
+}
+
+/**
+ * 초안이 선언한 재료를 전부 되읽는다. 사업자 호출 전에 읽은 것과 같은 게이트를 다시
+ * 거치고(동의·파일럿·감사) 해시까지 대조하므로, 조립과 저장 사이에 재료가 바뀌면 막힌다.
+ */
+async function loadDeclaredAiDraftMaterials(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  materials: readonly AiDraftSourceMaterialRef[],
+): Promise<Map<string, MaskedSourceSnapshot>> {
+  const loaded = new Map<string, MaskedSourceSnapshot>();
+  for (const material of materials) {
+    const snapshot = await loadMaskedSourceSnapshotForService(env, actor, sessionId, material.snapshotId);
+    if (snapshot.sha256 !== material.snapshotSha256) {
+      throw new ValidationError('AI draft material snapshot hash is invalid');
+    }
+    loaded.set(snapshot.id, snapshot);
+  }
+  return loaded;
+}
+
 type AttestedAiEvidenceInput = AiEvidenceInput & { sourceEvidenceItemId: string };
 
+/**
+ * 근거 대조는 **초안이 쓴 재료 전부**를 상대로 한다 (D69 · ADR-0036 · CCC-102).
+ * 재료가 하나뿐인 회차는 종전과 같은 동작이다. 각 근거 항목의 해시는 그 항목이 속한
+ * 스냅샷의 해시와 맞아야 한다. 재료를 넘나드는 위조를 막는 지점이라 스냅샷별로 본다.
+ */
 function resolveAttestedAiEvidence(
-  snapshot: MaskedSourceSnapshot,
+  snapshots: readonly MaskedSourceSnapshot[],
   evidence: AiEvidenceInput[],
 ): AttestedAiEvidenceInput[] {
+  const hashByItemId = new Map<string, string>();
+  const items: MaskedSourceEvidenceItem[] = [];
+  for (const snapshot of snapshots) {
+    for (const item of snapshot.evidence) {
+      hashByItemId.set(item.id, snapshot.sha256);
+      items.push(item);
+    }
+  }
+
   return evidence.map((link) => {
-    const exactMatches = snapshot.evidence.filter((item) => (
+    const exactMatches = items.filter((item) => (
       item.evidenceQuote === link.evidenceQuote
       && item.sourceRef === link.sourceRef
       && item.sourceStart === link.sourceStart
@@ -2902,7 +3338,7 @@ function resolveAttestedAiEvidence(
     ));
     const sourceItem = link.sourceEvidenceItemId === undefined
       ? exactMatches.length === 1 ? exactMatches[0] : undefined
-      : snapshot.evidence.find((item) => item.id === link.sourceEvidenceItemId);
+      : items.find((item) => item.id === link.sourceEvidenceItemId);
 
     if (
       sourceItem === undefined
@@ -2910,7 +3346,7 @@ function resolveAttestedAiEvidence(
       || sourceItem.sourceRef !== link.sourceRef
       || sourceItem.sourceStart !== link.sourceStart
       || sourceItem.sourceEnd !== link.sourceEnd
-      || sourceItem.sourceSha256 !== snapshot.sha256
+      || sourceItem.sourceSha256 !== hashByItemId.get(sourceItem.id)
     ) {
       throw new ValidationError('AI evidence is not attested by the source snapshot');
     }
@@ -2960,6 +3396,7 @@ export async function createGeneratedAiDraft(
       kind: input.kind ?? AI_WORK_KIND_BRIEFING,
     };
     assertGeneratedAiDraftInput(normalizedInput, true);
+    assertAiDraftMaterialsInput(normalizedInput, normalizedInput.sourceSnapshotId ?? '');
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_draft_versions',
@@ -2975,13 +3412,19 @@ export async function createGeneratedAiDraft(
     throw new ValidationError('source snapshot id is required');
   }
   let sourceSnapshot: MaskedSourceSnapshot;
+  let materialSnapshots: Map<string, MaskedSourceSnapshot>;
   try {
-    sourceSnapshot = await loadMaskedSourceSnapshotForService(
+    materialSnapshots = await loadDeclaredAiDraftMaterials(
       env,
       actor,
       session.id,
-      sourceSnapshotId,
+      normalizedInput.materials,
     );
+    const primary = materialSnapshots.get(sourceSnapshotId);
+    if (primary === undefined) {
+      throw new ValidationError('source snapshot id is required');
+    }
+    sourceSnapshot = primary;
     if (sourceSnapshot.sha256 !== normalizedInput.sourceSnapshotHash) {
       throw new ValidationError('source snapshot hash is invalid');
     }
@@ -3013,7 +3456,8 @@ export async function createGeneratedAiDraft(
   const maskedInput = await maskGeneratedAiDraftInput(env, actor, session.caseId, normalizedInput);
   let attestedEvidence: AttestedAiEvidenceInput[];
   try {
-    attestedEvidence = resolveAttestedAiEvidence(sourceSnapshot, maskedInput.evidence);
+    attestedEvidence = resolveAttestedAiEvidence([...materialSnapshots.values()], maskedInput.evidence);
+    assertAiContrastFindingsAttested(maskedInput.contrast, materialSnapshots);
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_evidence_links',
@@ -3092,6 +3536,13 @@ export async function createGeneratedAiDraft(
       actor.userId,
       createdAt,
     ));
+    statements.push(...aiDraftMaterialStatements(env, {
+      draftId,
+      orgId: actor.orgId,
+      supportCaseId: context.supportCaseId,
+      sessionId,
+      createdAt,
+    }, maskedInput));
     for (const link of evidence) {
       statements.push(env.DB.prepare(
         'INSERT INTO ai_evidence_links (id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -3171,6 +3622,8 @@ export async function createGeneratedAiDraft(
     reviewedAt: null,
     replacementDraftId: null,
     evidence,
+    materials: maskedInput.materials,
+    contrast: maskedInput.contrast,
   };
 }
 /** Explicit API-worker entry point for the service-only provider completion path. */
@@ -3224,6 +3677,7 @@ export async function createFixtureGeneratedAiDraftForService(
       providerConfigId: 'fixture',
       consentEvidenceId: serviceGrant.consentEvidenceId,
     } as GeneratedAiDraftInput, true);
+    assertAiDraftMaterialsInput(normalizedInput, normalizedInput.sourceSnapshotId ?? '');
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_draft_versions',
@@ -3237,8 +3691,17 @@ export async function createFixtureGeneratedAiDraftForService(
   const sourceSnapshotId = normalizedInput.sourceSnapshotId;
   if (sourceSnapshotId === undefined) throw new ValidationError('source snapshot id is required');
   let sourceSnapshot: MaskedSourceSnapshot;
+  let materialSnapshots: Map<string, MaskedSourceSnapshot>;
   try {
-    sourceSnapshot = await loadMaskedSourceSnapshotForService(env, actor, session.id, sourceSnapshotId);
+    materialSnapshots = await loadDeclaredAiDraftMaterials(
+      env,
+      actor,
+      session.id,
+      normalizedInput.materials,
+    );
+    const primary = materialSnapshots.get(sourceSnapshotId);
+    if (primary === undefined) throw new ValidationError('source snapshot id is required');
+    sourceSnapshot = primary;
     if (sourceSnapshot.sha256 !== normalizedInput.sourceSnapshotHash) {
       throw new ValidationError('source snapshot hash is invalid');
     }
@@ -3255,7 +3718,8 @@ export async function createFixtureGeneratedAiDraftForService(
   const maskedInput = await maskGeneratedAiDraftInput(env, actor, session.caseId, normalizedInput);
   let attestedEvidence: AttestedAiEvidenceInput[];
   try {
-    attestedEvidence = resolveAttestedAiEvidence(sourceSnapshot, maskedInput.evidence);
+    attestedEvidence = resolveAttestedAiEvidence([...materialSnapshots.values()], maskedInput.evidence);
+    assertAiContrastFindingsAttested(maskedInput.contrast, materialSnapshots);
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_evidence_links',
@@ -3329,6 +3793,13 @@ export async function createFixtureGeneratedAiDraftForService(
       actor.userId,
       createdAt,
     ),
+    ...aiDraftMaterialStatements(env, {
+      draftId,
+      orgId: actor.orgId,
+      supportCaseId: context.supportCaseId,
+      sessionId,
+      createdAt,
+    }, maskedInput),
     ...evidence.map((link) => env.DB.prepare(
       'INSERT INTO ai_evidence_links (id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
@@ -3406,6 +3877,8 @@ export async function createFixtureGeneratedAiDraftForService(
     reviewedAt: null,
     replacementDraftId: null,
     evidence,
+    materials: maskedInput.materials,
+    contrast: maskedInput.contrast,
   };
 }
 /**
@@ -3483,15 +3956,26 @@ async function editGeneratedAiDraft(
     throw error;
   }
 
-  let sourceSnapshot: MaskedSourceSnapshot;
+  // 부모 초안이 실제로 쓴 재료 전부를 되읽는다 (D69 · ADR-0036 · CCC-102). 재료 표가
+  // 없던 시절의 초안은 주 재료 하나뿐이라 종전과 같은 경로를 탄다.
+  const parentMaterials: AiDraftSourceMaterialRef[] = current.materials.length > 0
+    ? current.materials
+    : [{
+      kind: 'text_context',
+      snapshotId: current.sourceSnapshotId,
+      snapshotSha256: current.sourceSnapshotHash,
+    }];
+  const materialSnapshots: MaskedSourceSnapshot[] = [];
   try {
-    sourceSnapshot = await getMaskedSourceSnapshotForOrg(
-      env,
-      actor.orgId,
-      workItem.caseId,
-      workItem.sessionId,
-      current.sourceSnapshotId,
-    );
+    for (const material of parentMaterials) {
+      materialSnapshots.push(await getMaskedSourceSnapshotForOrg(
+        env,
+        actor.orgId,
+        workItem.caseId,
+        workItem.sessionId,
+        material.snapshotId,
+      ));
+    }
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_masked_source_snapshots',
@@ -3501,19 +3985,32 @@ async function editGeneratedAiDraft(
     });
     throw error;
   }
-  await writeAudit(env, actor, {
-    action: 'read',
-    targetTable: 'ai_masked_source_snapshots',
-    targetId: sourceSnapshot.id,
-    caseId: workItem.caseId,
-    detail: { purpose: 'human_edit_attestation' },
-  });
+  const sourceSnapshot = materialSnapshots.find((snapshot) => snapshot.id === current.sourceSnapshotId);
+  if (sourceSnapshot === undefined) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_masked_source_snapshots',
+      targetId: current.sourceSnapshotId,
+      caseId: workItem.caseId,
+      reason: 'source_snapshot_attestation_required',
+    });
+    throw new StaleDraftVersionError();
+  }
+  for (const snapshot of materialSnapshots) {
+    await writeAudit(env, actor, {
+      action: 'read',
+      targetTable: 'ai_masked_source_snapshots',
+      targetId: snapshot.id,
+      caseId: workItem.caseId,
+      detail: { purpose: 'human_edit_attestation' },
+    });
+  }
 
   const consentEvidence = await assertPilotTextAiConsent(env, actor, workItem.caseId);
+  const editContext = await resolveLegacyCaseContext(env, actor.orgId, workItem.caseId);
   const maskedInput = await maskGeneratedAiDraftInput(env, actor, workItem.caseId, input);
   let attestedEvidence: AttestedAiEvidenceInput[];
   try {
-    attestedEvidence = resolveAttestedAiEvidence(sourceSnapshot, maskedInput.evidence);
+    attestedEvidence = resolveAttestedAiEvidence(materialSnapshots, maskedInput.evidence);
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_evidence_links',
@@ -3565,6 +4062,16 @@ async function editGeneratedAiDraft(
         createdAt,
       ),
     ];
+    // 재료 증빙과 대조 3종은 새 버전으로 그대로 옮긴다. 편집은 근거 재선택일 뿐이고,
+    // 승인 대상은 여전히 대조를 포함한 초안이다(R2). 옮기지 않으면 편집 한 번에
+    // 대조가 사라진다.
+    statements.push(...aiDraftMaterialStatements(env, {
+      draftId,
+      orgId: actor.orgId,
+      supportCaseId: editContext.supportCaseId,
+      sessionId: workItem.sessionId,
+      createdAt,
+    }, { materials: current.materials, contrast: current.contrast }));
     for (const link of evidence) {
       statements.push(env.DB.prepare(
         'INSERT INTO ai_evidence_links (id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -3638,6 +4145,8 @@ async function editGeneratedAiDraft(
     reviewedAt: null,
     replacementDraftId: null,
     evidence,
+    materials: current.materials,
+    contrast: current.contrast,
   };
 }
 function isCompleteGroundingEvidence(evidence: AiEvidenceLink[], questions: AiBriefingSuggestion[]): boolean {
@@ -5983,7 +6492,7 @@ export async function getTextWorkItemSource(
     .map((row) => stringValue(row.body).trim())
     .filter((body) => body.length > 0);
   if (sessionGoalLines.length > 0) {
-    parts.push(`[회기 목표] ${sessionGoalLines.join('\n')}`);
+    parts.push(`${SESSION_GOAL_MATERIAL_LABEL} ${sessionGoalLines.join('\n')}`);
   }
   if (memo !== null) parts.push(memo);
   if (summary !== null) parts.push(summary);

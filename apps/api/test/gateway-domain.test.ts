@@ -68,6 +68,22 @@ import {
 } from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
 
+/**
+ * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
+ * 축은 셋 다 재료 없음이라 항목이 0개다.
+ */
+function singleTextMaterialInput(snapshotId: string, snapshotSha256: string) {
+  return {
+    materials: [{ kind: 'text_context' as const, snapshotId, snapshotSha256 }],
+    contrast: [
+      { axis: 'missing_from_memo' as const, status: 'no_transcript' as const, findings: [] },
+      { axis: 'missing_from_transcript' as const, status: 'no_transcript' as const, findings: [] },
+      { axis: 'undiscussed_session_goal' as const, status: 'no_session_goal' as const, findings: [] },
+    ],
+  };
+}
+
+
 const { counselor, admin, service } = testActors;
 
 const t = setupD1();
@@ -397,6 +413,7 @@ async function createReviewReadySession() {
     ],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
+    ...singleTextMaterialInput(source.snapshotId, source.snapshotHash),
     providerConfigId: selection.providerConfigId,
     consentEvidenceId: selection.consentEvidenceId,
     modelId: 'gpt-5-codex',
@@ -532,6 +549,7 @@ async function createPilotDraft(
     ],
     sourceSnapshotId: source.snapshotId,
     sourceSnapshotHash: source.snapshotHash,
+    ...singleTextMaterialInput(source.snapshotId, source.snapshotHash),
     providerConfigId: selection.providerConfigId,
     consentEvidenceId: selection.consentEvidenceId,
     modelId: 'gpt-5-codex',
