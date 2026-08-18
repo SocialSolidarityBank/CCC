@@ -516,8 +516,11 @@ export function BriefingCards({
           badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
           {pendingReviewRows.length > 0 && (
+            // 이 문은 이제 프리뷰 fixture 만이 아니라 실제 생성 초안도 담는다(D69 · ADR-0036
+            // · CCC-100 — 검토 화면이 "AI 초안 검토"로 넓어진 뒤 문구도 그 성격을 따라간다.
+            // 구조는 그대로다, 문구만 고친다).
             <WireCardSection
-              title="검수할 테스트 산출물"
+              title="검토할 AI 초안"
               tone="lavender"
               testId="pending-fixture-reviews"
             >
@@ -531,9 +534,9 @@ export function BriefingCards({
                     action={(
                       <Link
                         href={`${recordsHref}/${encodeURIComponent(row.sessionId)}/review`}
-                        aria-label={`${row.heldAtLabel} ${row.kindLabel} 테스트 산출물 검수`}
+                        aria-label={`${row.heldAtLabel} ${row.kindLabel} AI 초안 검토`}
                       >
-                        테스트 산출물 검수
+                        AI 초안 검토
                       </Link>
                     )}
                   />

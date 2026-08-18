@@ -128,6 +128,25 @@ export type AiDraftReviewDecision = 'approved' | 'rejected' | 'superseded' | nul
 export type AiDraftOrigin = 'generated' | 'fixture_generated' | 'legacy_import';
 export type AiDraftCreationMode = 'provider_generated' | 'fixture_generated' | 'human_edited' | 'legacy_import';
 
+/** 대조 3종의 축(D69 · ADR-0036). '미논의 목표' 판정 기준은 회기 목표뿐이다(결정 3). */
+export type AiContrastAxis = 'missing_from_memo' | 'missing_from_transcript' | 'undiscussed_session_goal';
+/** 축 적용 여부. 서버가 재료 구성으로 판정한다(결정 2) — applied 가 아니면 항목은 항상 0개다. */
+export type AiContrastAxisStatus = 'applied' | 'no_transcript' | 'no_text' | 'no_session_goal';
+/** 재료 종류(D69). 전사는 녹음 결과 커밋, 텍스트 맥락은 수기 메모 + 목표 구획. */
+export type AiMaterialKind = 'transcript' | 'text_context';
+
+export interface AiContrastFinding {
+  description: string;
+  materialKind: AiMaterialKind;
+  quote: string;
+}
+
+export interface AiDraftContrastAxis {
+  axis: AiContrastAxis;
+  status: AiContrastAxisStatus;
+  findings: AiContrastFinding[];
+}
+
 export interface AiDraft {
   version: number;
   origin: AiDraftOrigin;
@@ -139,6 +158,12 @@ export interface AiDraft {
   questions: Array<{ title: string; reason: string }>;
   reviewDecision: AiDraftReviewDecision;
   evidence: AiEvidence[];
+  /** 대조 3종(D69 · ADR-0036 · CCC-102). v3 이전 초안은 빈 배열이다. 승인 대상이다(R2). */
+  contrast: AiDraftContrastAxis[];
+  /** 재생성 노출 조건은 서버가 판정한다(D69 · ADR-0036 결정 2 · CCC-100, R1). */
+  regenerateAvailable: boolean;
+  /** 재생성 가능일 때 `/ai/generate` 에 그대로 실어 보낼 스냅샷 id. */
+  regenerateSourceSnapshotId: string | null;
 }
 
 export interface CreateCaseInput {
@@ -168,6 +193,11 @@ export interface EditAiDraftInput {
 export interface ReviewAiDraftInput {
   expectedVersion: number;
   decision: 'approved' | 'rejected';
+}
+
+/** 재생성 요청 입력(D69 · ADR-0036 결정 2 · CCC-100). GET 초안이 내려준 값을 그대로 싣는다. */
+export interface GenerateAiDraftInput {
+  sourceSnapshotId: string;
 }
 
 /** 사용자 디렉터리 역할(users 테이블). 화면 라벨은 페이지에서 CONTEXT.md 용어로 매핑한다. */
@@ -1296,6 +1326,12 @@ export async function reviewAiDraft(sessionId: string, input: ReviewAiDraftInput
     'POST',
     input,
   );
+}
+
+/** 재생성(D69 · ADR-0036 결정 2 · CCC-100). 노출 조건은 서버가 판정하고(GET 초안 응답),
+ *  이 호출은 담당 실무자·기관 관리자도 부를 수 있다. */
+export async function generateAiDraft(sessionId: string, input: GenerateAiDraftInput): Promise<AiDraft> {
+  return jsonRequest<AiDraft>(`/sessions/${encodeURIComponent(sessionId)}/ai/generate`, 'POST', input);
 }
 function dateOnly(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ApiError('invalid_request');

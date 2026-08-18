@@ -54,6 +54,7 @@ import {
   editAiDraftForSession,
   getActiveAiProviderRuntimeMetadataForService,
   getActiveAiProviderStatus,
+  getAiDraftRegenerationAvailability,
   getBriefing,
   getCase,
   getCurrentAiDraftForSession,
@@ -2425,7 +2426,14 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'ai') {
         requireAssignedCounselor(actor);
         const draft = await getCurrentAiDraftForSession(env, actor, sessionId);
-        return draft === null ? json({ error: 'not_found' }, 404) : json(aiDraftResponse(draft));
+        if (draft === null) return json({ error: 'not_found' }, 404);
+        // 재생성 노출 조건은 서버가 판정한다(D69 · ADR-0036 결정 2 · CCC-100, R1).
+        const regeneration = await getAiDraftRegenerationAvailability(env, actor, sessionId, draft);
+        return json({
+          ...aiDraftResponse(draft),
+          regenerateAvailable: regeneration.available,
+          regenerateSourceSnapshotId: regeneration.sourceSnapshotId,
+        });
       }
       if (request.method === 'POST' && parts.length === 4 && parts[2] === 'ai' && parts[3] === 'source') {
         const snapshot = await recordMaskedSourceSnapshot(env, actor, sessionId, parseMaskedSourceSnapshot(await requestBody(request)));

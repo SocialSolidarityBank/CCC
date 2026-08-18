@@ -1311,17 +1311,22 @@ async function assertServiceSessionAccess(
   }
 }
 
+/**
+ * 호출 ① 을 트리거할 수 있는 신원 판정. 기본은 처리 장비(service)뿐이다. `allowCounselor`
+ * 를 켠 호출부(재생성 경로, D69 · ADR-0036 결정 2 · CCC-100)만 담당 실무자·기관 관리자도
+ * 통과시킨다 — "재료가 늦게 도착하면 실무자가 재생성으로 다시 돌린다"는 결정 문구를
+ * 그대로 구현한다. `/ai/source`(장비가 마스킹 스냅샷을 올리는 경로)처럼 장비 전용이어야
+ * 하는 다른 호출부는 옵션을 켜지 않아 이 완화의 영향을 받지 않는다.
+ */
 async function assertServiceTextAiSessionGrant(
   env: Env,
   actor: Actor,
   sessionId: string,
+  options: { allowCounselor?: boolean } = {},
 ): Promise<{ session: Session; consentEvidenceId: string }> {
-  const session = await assertServiceSessionAccess(
-    env,
-    actor,
-    sessionId,
-    'pilot_text_ai_consent_evidence',
-  );
+  const session = options.allowCounselor === true && actor.role !== 'service'
+    ? await assertPhase1SessionAccess(env, actor, sessionId)
+    : await assertServiceSessionAccess(env, actor, sessionId, 'pilot_text_ai_consent_evidence');
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
   if (!isPilotTextAiEnabled(env)) {
     await writePhase1Denial(env, actor, {
@@ -2466,7 +2471,8 @@ export async function getActiveAiProviderRuntimeMetadataForService(
   actor: Actor,
   sessionId: string,
 ): Promise<AiProviderExecutionSelection> {
-  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  // 호출 ① 재실행 경로다(생성·재생성 공용) — 재생성은 담당 실무자·기관 관리자도 튼다.
+  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
   const row = await env.DB.prepare(
     `SELECT
        config.id AS config_id,
@@ -3169,14 +3175,17 @@ export async function recordMaskedSourceSnapshot(
   return commitMaskedResult(env, actor, grant, input);
 }
 
-/** Reloads only the immutable masked provider input for the granted session. */
+/**
+ * Reloads only the immutable masked provider input for the granted session.
+ * 호출 ① 재료 조립 전용이라(generateAiDraft 만 부른다) 재생성 경로를 함께 튼다.
+ */
 export async function loadMaskedSourceSnapshotForService(
   env: Env,
   actor: Actor,
   sessionId: string,
   snapshotId: string,
 ): Promise<MaskedSourceSnapshot> {
-  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
   try {
     assertOpaqueIdentifier(snapshotId, 'masked source snapshot id');
   } catch (error) {
@@ -3373,7 +3382,7 @@ export async function createGeneratedAiDraft(
   sessionId: string,
   input: GeneratedAiDraftInput,
 ): Promise<AiDraftVersion> {
-  const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
   const session = serviceGrant.session;
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
   if (session.memo === null) {
@@ -3468,24 +3477,31 @@ export async function createGeneratedAiDraft(
     throw error;
   }
 
+  // 재생성(D69 · ADR-0036 결정 2 · CCC-100): work item 이 이미 있으면 새 케이스가 아니라
+  // 같은 세션의 다음 버전이다. 이미 처리(승인·반려)된 초안은 공식 기록이라 다시 돌리지
+  // 않는다 — 재생성은 검토 대기(reviewDecision null) 초안에만 허용된다.
   const existingWorkItem = await findAiWorkItemForSession(
     env,
     actor.orgId,
     sessionId,
     AI_WORK_KIND_BRIEFING,
   );
+  let pendingDraft: AiDraftVersion | null = null;
   if (existingWorkItem !== null) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'ai_work_items',
-      targetId: existingWorkItem.id,
-      caseId: session.caseId,
-      reason: 'stale_draft_version',
-    });
-    throw new StaleDraftVersionError();
+    pendingDraft = await getCurrentAiDraftVersion(env, actor.orgId, existingWorkItem.id);
+    if (pendingDraft.reviewDecision !== null) {
+      await writePhase1Denial(env, actor, {
+        targetTable: 'ai_work_items',
+        targetId: existingWorkItem.id,
+        caseId: session.caseId,
+        reason: 'stale_draft_version',
+      });
+      throw new StaleDraftVersionError();
+    }
   }
 
   const createdAt = now();
-  const workItem: AiWorkItem = {
+  const workItem: AiWorkItem = existingWorkItem ?? {
     id: newId(),
     caseId: session.caseId,
     sessionId,
@@ -3493,8 +3509,8 @@ export async function createGeneratedAiDraft(
     createdAt,
   };
   const draftId = newId();
-  const draftVersion = 1;
-  const parentVersionId = null;
+  const draftVersion = pendingDraft === null ? 1 : pendingDraft.version + 1;
+  const parentVersionId = pendingDraft === null ? null : pendingDraft.id;
   const evidence: AiEvidenceLink[] = attestedEvidence.map((item) => ({
     id: newId(),
     draftVersionId: draftId,
@@ -3508,11 +3524,12 @@ export async function createGeneratedAiDraft(
   }));
 
   try {
-    const statements: D1PreparedStatement[] = [
-      env.DB.prepare(
+    const statements: D1PreparedStatement[] = [];
+    if (existingWorkItem === null) {
+      statements.push(env.DB.prepare(
         'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ).bind(workItem.id, actor.orgId, context.supportCaseId, workItem.sessionId, workItem.kind, workItem.createdAt),
-    ];
+      ).bind(workItem.id, actor.orgId, context.supportCaseId, workItem.sessionId, workItem.kind, workItem.createdAt));
+    }
     statements.push(env.DB.prepare(
       'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
@@ -3572,13 +3589,15 @@ export async function createGeneratedAiDraft(
     throw error;
   }
 
-  await writeAudit(env, actor, {
-    action: 'create',
-    targetTable: 'ai_work_items',
-    targetId: workItem.id,
-    caseId: workItem.caseId,
-    detail: { kind: workItem.kind },
-  });
+  if (existingWorkItem === null) {
+    await writeAudit(env, actor, {
+      action: 'create',
+      targetTable: 'ai_work_items',
+      targetId: workItem.id,
+      caseId: workItem.caseId,
+      detail: { kind: workItem.kind },
+    });
+  }
   await writeAudit(env, actor, {
     action: 'create',
     targetTable: 'ai_draft_versions',
@@ -3647,7 +3666,7 @@ export async function createFixtureGeneratedAiDraftForService(
   sessionId: string,
   input: FixtureGeneratedAiDraftInput,
 ): Promise<AiDraftVersion> {
-  const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
+  const serviceGrant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
   const session = serviceGrant.session;
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
   if (session.memo === null) {
@@ -3730,24 +3749,29 @@ export async function createFixtureGeneratedAiDraftForService(
     throw error;
   }
 
+  // 재생성(D69 · ADR-0036 결정 2 · CCC-100) — createGeneratedAiDraft 와 같은 규칙이다.
   const existingWorkItem = await findAiWorkItemForSession(
     env,
     actor.orgId,
     sessionId,
     AI_WORK_KIND_BRIEFING,
   );
+  let pendingDraft: AiDraftVersion | null = null;
   if (existingWorkItem !== null) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'ai_work_items',
-      targetId: existingWorkItem.id,
-      caseId: session.caseId,
-      reason: 'stale_draft_version',
-    });
-    throw new StaleDraftVersionError();
+    pendingDraft = await getCurrentAiDraftVersion(env, actor.orgId, existingWorkItem.id);
+    if (pendingDraft.reviewDecision !== null) {
+      await writePhase1Denial(env, actor, {
+        targetTable: 'ai_work_items',
+        targetId: existingWorkItem.id,
+        caseId: session.caseId,
+        reason: 'stale_draft_version',
+      });
+      throw new StaleDraftVersionError();
+    }
   }
 
   const createdAt = now();
-  const workItem: AiWorkItem = {
+  const workItem: AiWorkItem = existingWorkItem ?? {
     id: newId(),
     caseId: session.caseId,
     sessionId,
@@ -3755,6 +3779,8 @@ export async function createFixtureGeneratedAiDraftForService(
     createdAt,
   };
   const draftId = newId();
+  const draftVersion = pendingDraft === null ? 1 : pendingDraft.version + 1;
+  const parentVersionId = pendingDraft === null ? null : pendingDraft.id;
   const evidence: AiEvidenceLink[] = attestedEvidence.map((item) => ({
     id: newId(),
     draftVersionId: draftId,
@@ -3766,17 +3792,20 @@ export async function createFixtureGeneratedAiDraftForService(
     sourceEnd: item.sourceEnd,
     createdAt,
   }));
-  const statements: D1PreparedStatement[] = [
-    env.DB.prepare(
+  const statements: D1PreparedStatement[] = [];
+  if (existingWorkItem === null) {
+    statements.push(env.DB.prepare(
       'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(workItem.id, actor.orgId, context.supportCaseId, sessionId, workItem.kind, createdAt),
+    ).bind(workItem.id, actor.orgId, context.supportCaseId, sessionId, workItem.kind, createdAt));
+  }
+  statements.push(
     env.DB.prepare(
       'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
       draftId,
       workItem.id,
-      1,
-      null,
+      draftVersion,
+      parentVersionId,
       maskedInput.summaryText,
       maskedInput.oneLiner ?? null,
       questionsToJson(maskedInput.questions),
@@ -3813,7 +3842,7 @@ export async function createFixtureGeneratedAiDraftForService(
       link.sourceEnd,
       link.createdAt,
     )),
-  ];
+  );
   try {
     await env.DB.batch(statements);
   } catch (error) {
@@ -3829,20 +3858,22 @@ export async function createFixtureGeneratedAiDraftForService(
     throw error;
   }
 
-  await writeAudit(env, actor, {
-    action: 'create',
-    targetTable: 'ai_work_items',
-    targetId: workItem.id,
-    caseId: workItem.caseId,
-    detail: { kind: workItem.kind },
-  });
+  if (existingWorkItem === null) {
+    await writeAudit(env, actor, {
+      action: 'create',
+      targetTable: 'ai_work_items',
+      targetId: workItem.id,
+      caseId: workItem.caseId,
+      detail: { kind: workItem.kind },
+    });
+  }
   await writeAudit(env, actor, {
     action: 'create',
     targetTable: 'ai_draft_versions',
     targetId: draftId,
     caseId: workItem.caseId,
     detail: {
-      version: 1,
+      version: draftVersion,
       evidenceCount: evidence.length,
       questionCount: maskedInput.questions.length,
       origin: 'fixture_generated',
@@ -3855,8 +3886,8 @@ export async function createFixtureGeneratedAiDraftForService(
     caseId: workItem.caseId,
     sessionId,
     kind: workItem.kind,
-    version: 1,
-    parentVersionId: null,
+    version: draftVersion,
+    parentVersionId,
     summaryText: maskedInput.summaryText,
     oneLiner: maskedInput.oneLiner ?? null,
     questions: maskedInput.questions,
@@ -4326,6 +4357,56 @@ export async function getCurrentAiDraftForSession(
   return getCurrentGeneratedAiDraft(env, actor, workItem.id);
 }
 
+/** 재생성 노출 판정 결과. `sourceSnapshotId` 는 `/ai/generate` 호출에 그대로 실어 보낼 값이다. */
+export interface AiDraftRegenerationAvailability {
+  available: boolean;
+  sourceSnapshotId: string | null;
+}
+
+/**
+ * 재생성 노출 조건 (D69 · ADR-0036 결정 2 · CCC-100). **서버가 판정한다**(R1) — 화면은
+ * 이 값만 읽어 버튼을 켠다. 이미 처리(승인·반려)된 초안이거나(공식 기록, 다시 돌리지
+ * 않는다), 초안이 쓴 재료 이후 도착한 더 새로운 스냅샷(전사·텍스트)이 없으면 불가다.
+ * 전사는 `recording_result_commits` 가 가리키는 스냅샷, 텍스트는 그 세션의 가장 최근
+ * `ai_masked_source_snapshots` 행이다(loadAiCallMaterialsForService 와 같은 조회).
+ */
+export async function getAiDraftRegenerationAvailability(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  draft: AiDraftVersion,
+): Promise<AiDraftRegenerationAvailability> {
+  await assertPhase1SessionAccess(env, actor, sessionId);
+
+  if (draft.reviewDecision !== null || (draft.origin !== 'generated' && draft.origin !== 'fixture_generated')) {
+    return { available: false, sourceSnapshotId: null };
+  }
+
+  const usedSnapshotIds = new Set(draft.materials.map((material) => material.snapshotId));
+  if (draft.materials.length === 0 && draft.sourceSnapshotId !== null) {
+    usedSnapshotIds.add(draft.sourceSnapshotId);
+  }
+
+  const transcriptRow = await env.DB.prepare(
+    'SELECT snapshot_id FROM recording_result_commits WHERE session_id = ? AND org_id = ?',
+  ).bind(sessionId, actor.orgId).first<DbRow>();
+  const transcriptSnapshotId = transcriptRow === null ? null : nullableString(transcriptRow.snapshot_id);
+
+  const textRow = await env.DB.prepare(
+    `SELECT id FROM ai_masked_source_snapshots
+     WHERE org_id = ? AND session_id = ? AND id <> ?
+     ORDER BY created_at DESC, id DESC LIMIT 1`,
+  ).bind(actor.orgId, sessionId, transcriptSnapshotId ?? '').first<DbRow>();
+  const latestTextSnapshotId = textRow === null ? null : nullableString(textRow.id);
+
+  if (transcriptSnapshotId !== null && !usedSnapshotIds.has(transcriptSnapshotId)) {
+    return { available: true, sourceSnapshotId: transcriptSnapshotId };
+  }
+  if (latestTextSnapshotId !== null && !usedSnapshotIds.has(latestTextSnapshotId)) {
+    return { available: true, sourceSnapshotId: latestTextSnapshotId };
+  }
+  return { available: false, sourceSnapshotId: null };
+}
 
 function editInputForCurrentAiDraft(
   current: AiDraftVersion,
