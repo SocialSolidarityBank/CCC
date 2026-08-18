@@ -52,7 +52,7 @@ class FixtureAiProvider implements AiProviderTestAdapter {
   async generate(request: AiProviderRequest): Promise<AiProviderOutput> {
     this.calls += 1;
     if (this.failure !== null) throw this.failure;
-    const evidence = request.evidence[0];
+    const evidence = request.materials[0]?.evidence[0];
     if (evidence === undefined) throw new Error('fixture evidence is missing');
     return {
       claims: [{ claimKey: 'fixture-claim', text: '합성 녹음 처리가 완료되었습니다.', evidence: [{ ...evidence }] }],
@@ -61,6 +61,12 @@ class FixtureAiProvider implements AiProviderTestAdapter {
         { title: '합성 비용 확인', reason: '가상 비용의 확인이 필요합니다.', evidence: [{ ...evidence }] },
       ],
       oneLiner: '합성 녹음 처리 결과입니다.',
+      // 재료 구성과 무관하게 빈 대조는 언제나 합법이다(항목이 없는 것은 정상 결과).
+      contrast: {
+        missing_from_memo: [],
+        missing_from_transcript: [],
+        undiscussed_session_goal: [],
+      },
     };
   }
 }

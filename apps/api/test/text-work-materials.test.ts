@@ -35,6 +35,22 @@ import {
 } from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
 
+/**
+ * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
+ * 축은 셋 다 재료 없음이라 항목이 0개다.
+ */
+function singleTextMaterialInput(snapshotId: string, snapshotSha256: string) {
+  return {
+    materials: [{ kind: 'text_context' as const, snapshotId, snapshotSha256 }],
+    contrast: [
+      { axis: 'missing_from_memo' as const, status: 'no_transcript' as const, findings: [] },
+      { axis: 'missing_from_transcript' as const, status: 'no_transcript' as const, findings: [] },
+      { axis: 'undiscussed_session_goal' as const, status: 'no_session_goal' as const, findings: [] },
+    ],
+  };
+}
+
+
 // 픽스처가 케이스·인테이크·회차·동의를 매번 새로 만든다. 전체 스위트 병렬 실행에서
 // 기본 5초를 넘길 수 있어 discrepancies.test.ts 와 같은 이유로 여유를 준다.
 vi.setConfig({ testTimeout: 30_000 });
@@ -143,6 +159,7 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
     ],
     sourceSnapshotId: snapshot.id,
     sourceSnapshotHash: snapshot.sha256,
+    ...singleTextMaterialInput(snapshot.id, snapshot.sha256),
     providerConfigId: selection.providerConfigId,
     consentEvidenceId: selection.consentEvidenceId,
     modelId: 'gpt-5-codex',

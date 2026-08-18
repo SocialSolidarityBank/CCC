@@ -21,6 +21,8 @@ import {
   CodexProviderAdapter,
   canonicalAiProviderConfigHash,
   resolveAiProviderAdapter,
+  type AiContrastAxisStates,
+  type AiEvidenceReference,
   type AiProviderConfig,
   type AiProviderOutput,
   type AiProviderRequest,
@@ -86,6 +88,12 @@ const unauthenticatedHeaders = {
 
 const t = setupD1();
 const MASKED_TEXT = 'A001 [person] discussed grocery expenses.';
+/** 텍스트 재료 하나뿐일 때의 축 상태. 대조 두 축은 전사가 없고, 미논의는 회기 목표가 없다. */
+const SINGLE_TEXT_MATERIAL_AXES: AiContrastAxisStates = {
+  missing_from_memo: 'no_transcript',
+  missing_from_transcript: 'no_transcript',
+  undiscussed_session_goal: 'no_session_goal',
+};
 const TEST_PROVIDER_CONFIG = {
   registryVersion: AI_PROVIDER_REGISTRY_VERSION,
   providerId: CODEX_PROVIDER_ID,
@@ -109,10 +117,38 @@ interface SourceReceipt {
   evidenceIds: string[];
 }
 
-function firstEvidence(request: AiProviderRequest): AiProviderRequest['evidence'][number] {
-  const evidence = request.evidence[0];
+function firstMaterial(request: AiProviderRequest): AiProviderRequest['materials'][number] {
+  const material = request.materials[0];
+  if (material === undefined) throw new Error('test provider request is missing materials');
+  return material;
+}
+
+function firstEvidence(request: AiProviderRequest): AiEvidenceReference {
+  const evidence = firstMaterial(request).evidence[0];
   if (evidence === undefined) throw new Error('test provider request is missing evidence');
   return evidence;
+}
+
+/** 축 상태를 그대로 따르는 최소 대조 출력. applied 인 축만, 그 축의 재료에서 인용한다. */
+function validProviderContrast(request: AiProviderRequest): AiProviderOutput['contrast'] {
+  const byKind = new Map(request.materials.map((material) => [material.kind, material] as const));
+  const findings = (axis: 'missing_from_memo' | 'missing_from_transcript' | 'undiscussed_session_goal') => {
+    if (request.contrastAxes[axis] !== 'applied') return [];
+    const material = byKind.get(axis === 'missing_from_memo' ? 'transcript' : 'text_context');
+    const quote = material?.evidence[0]?.evidenceQuote;
+    if (material === undefined || quote === undefined) return [];
+    return [{
+      description: '대조 항목',
+      materialKind: material.kind,
+      sourceRef: material.sourceRef,
+      quote,
+    }];
+  };
+  return {
+    missing_from_memo: findings('missing_from_memo'),
+    missing_from_transcript: findings('missing_from_transcript'),
+    undiscussed_session_goal: findings('undiscussed_session_goal'),
+  };
 }
 function validProviderQuestions(request: AiProviderRequest): AiProviderOutput['questions'] {
   const evidence = { ...firstEvidence(request) };
@@ -131,6 +167,7 @@ function validProviderOutput(request: AiProviderRequest, text = 'A001 discussed 
     }],
     questions: validProviderQuestions(request),
     oneLiner: '생활비 지출 상황을 확인했다.',
+    contrast: validProviderContrast(request),
   };
 }
 
@@ -722,16 +759,23 @@ describe('API routes', () => {
       ]),
     }));
     expect(adapter.calls).toBe(1);
+    // 재료는 되읽은 스냅샷 하나뿐이고, 반대편(전사)이 없으므로 대조 두 축은 재료 없음이다
+    // (D69 · ADR-0036 결정 2). 재료 본문 외에 어떤 원문도 요청에 실리지 않는다.
     expect(adapter.invocations).toEqual([{
-      maskedText: MASKED_TEXT,
-      evidence: [{
-        evidenceId: 'source-evidence-1',
-        sourceRef: 'memo:source-1',
-        sourceSha256: receipt.sha256,
-        evidenceQuote: MASKED_TEXT,
-        sourceStart: 0,
-        sourceEnd: Array.from(MASKED_TEXT).length,
+      materials: [{
+        kind: 'text_context',
+        sourceRef: receipt.sourceSnapshotId,
+        maskedText: MASKED_TEXT,
+        evidence: [{
+          evidenceId: 'source-evidence-1',
+          sourceRef: 'memo:source-1',
+          sourceSha256: receipt.sha256,
+          evidenceQuote: MASKED_TEXT,
+          sourceStart: 0,
+          sourceEnd: Array.from(MASKED_TEXT).length,
+        }],
       }],
+      contrastAxes: SINGLE_TEXT_MATERIAL_AXES,
     }]);
     expect(JSON.stringify(adapter.invocations[0])).not.toContain('MANUAL_MEMO_PHASE1');
   });
@@ -754,7 +798,7 @@ describe('API routes', () => {
     expect((await generateDraft(env, session.id, receipt.sourceSnapshotId)).status).toBe(201);
 
     expect(adapter.calls).toBe(1);
-    expect(adapter.invocations[0]?.maskedText).toBe(MASKED_TEXT);
+    expect(adapter.invocations[0]?.materials[0]?.maskedText).toBe(MASKED_TEXT);
     expect(JSON.stringify(adapter.invocations[0])).not.toContain('RAW_GOAL_MARKER');
   });
 
@@ -1181,7 +1225,7 @@ describe('API routes', () => {
           claims: [{
             claimKey: 'extra-reference',
             text: 'A001 discussed grocery expenses.',
-            evidence: [{ ...evidence, unsupported: 'field' } as unknown as AiProviderRequest['evidence'][number]],
+            evidence: [{ ...evidence, unsupported: 'field' } as unknown as AiEvidenceReference],
           }],
         };
       },
@@ -1958,15 +2002,20 @@ describe('API routes', () => {
 
   it('selects the default Codex adapter with an authenticated JSON POST and rejects incompatible registry tuples', async () => {
     const request: AiProviderRequest = {
-      maskedText: MASKED_TEXT,
-      evidence: [{
-        evidenceId: 'default-evidence-1',
-        sourceRef: 'memo:default-source',
-        sourceSha256: await sha256Hex(MASKED_TEXT),
-        evidenceQuote: MASKED_TEXT,
-        sourceStart: 0,
-        sourceEnd: Array.from(MASKED_TEXT).length,
+      materials: [{
+        kind: 'text_context',
+        sourceRef: 'snapshot-default-1',
+        maskedText: MASKED_TEXT,
+        evidence: [{
+          evidenceId: 'default-evidence-1',
+          sourceRef: 'memo:default-source',
+          sourceSha256: await sha256Hex(MASKED_TEXT),
+          evidenceQuote: MASKED_TEXT,
+          sourceStart: 0,
+          sourceEnd: Array.from(MASKED_TEXT).length,
+        }],
       }],
+      contrastAxes: SINGLE_TEXT_MATERIAL_AXES,
     };
     const calls: Array<{ input: unknown; init?: RequestInit }> = [];
     vi.stubGlobal('fetch', async (input: unknown, init?: RequestInit) => {
@@ -2047,15 +2096,20 @@ describe('API routes', () => {
 
   it('calls a receiver-sensitive provider fetch with the global runtime receiver', async () => {
     const request: AiProviderRequest = {
-      maskedText: MASKED_TEXT,
-      evidence: [{
-        evidenceId: 'receiver-evidence-1',
-        sourceRef: 'memo:receiver-source',
-        sourceSha256: await sha256Hex(MASKED_TEXT),
-        evidenceQuote: MASKED_TEXT,
-        sourceStart: 0,
-        sourceEnd: Array.from(MASKED_TEXT).length,
+      materials: [{
+        kind: 'text_context',
+        sourceRef: 'snapshot-receiver-1',
+        maskedText: MASKED_TEXT,
+        evidence: [{
+          evidenceId: 'receiver-evidence-1',
+          sourceRef: 'memo:receiver-source',
+          sourceSha256: await sha256Hex(MASKED_TEXT),
+          evidenceQuote: MASKED_TEXT,
+          sourceStart: 0,
+          sourceEnd: Array.from(MASKED_TEXT).length,
+        }],
       }],
+      contrastAxes: SINGLE_TEXT_MATERIAL_AXES,
     };
     const receiverSensitiveFetch = function (this: unknown) {
       if (this !== globalThis) throw new TypeError('illegal invocation');

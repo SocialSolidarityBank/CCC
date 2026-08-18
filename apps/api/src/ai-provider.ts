@@ -14,13 +14,25 @@ export const AI_PROVIDER_REGISTRY = Object.freeze({
 // 텍스트에서 구조화 제안(짧은 제목 + 확인 이유)으로 바뀌었다. 버전을 올리면 활성 프로바이더
 // 설정 해시가 어긋나 재활성화 전까지 fail-closed 된다 — 구 스키마로 생성이 계속되는
 // 드리프트를 막는 의도된 동작이다.
-export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v2';
-export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v2';
+//
+// v3 (CCC-102 · D69 · ADR-0036): 요청이 재료 하나에서 재료 배열(전사 · 텍스트 맥락)로
+// 넓어지고, 출력에 대조 3종(contrast)이 붙는다. 같은 이유로 v2 활성 설정은 fail-closed 다.
+export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v3';
+export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v3';
 export const DISCREPANCY_PROMPT_VERSION = 'phase1.discrepancy.v1';
 export const DISCREPANCY_SCHEMA_VERSION = 'phase1.discrepancy-list.v1';
 
 const MAX_MASKED_TEXT_LENGTH = 24_000;
+/** 재료 하나가 실을 수 있는 근거 항목 수. */
 const MAX_EVIDENCE_ITEMS = 64;
+/** 재료 종류는 두 가지뿐이라 재료 수의 상한도 2다(D69 · ADR-0036). */
+const MAX_MATERIALS = 2;
+/** 편집 경로가 되돌려 보내는 근거 id 목록의 상한. 재료 전부의 합이다. */
+const MAX_TOTAL_EVIDENCE_ITEMS = MAX_EVIDENCE_ITEMS * MAX_MATERIALS;
+/** 대조 축당 항목 상한. db/gateway.ts 의 저장 상한과 같은 값이다. */
+const MAX_CONTRAST_FINDINGS_PER_AXIS = 8;
+const MAX_CONTRAST_DESCRIPTION_LENGTH = 200;
+const MAX_CONTRAST_QUOTE_LENGTH = 500;
 const MAX_CLAIMS = 32;
 const MAX_CLAIM_LENGTH = 2_000;
 const MIN_QUESTIONS = 2;
@@ -102,16 +114,77 @@ export interface AiGeneratedQuestion {
   evidence: readonly AiClaimEvidenceReference[];
 }
 
-export interface AiProviderRequest {
+/**
+ * 호출 ① 의 재료 하나 (D69 · ADR-0036 · CCC-102).
+ *
+ * `kind` 는 서버가 판정한다. 프로바이더가 고르는 값이 아니다. `sourceRef` 는 그 재료의
+ * 마스킹 스냅샷 식별자이고, 대조 항목이 어느 재료를 인용했는지 가리키는 데 쓴다.
+ * 재료 본문은 장비가 2차 마스킹한 `masked_text` 뿐이다(R3 · D57). 다른 원문은 없다.
+ */
+export type AiMaterialKind = 'transcript' | 'text_context';
+
+export interface AiProviderMaterial {
+  kind: AiMaterialKind;
+  sourceRef: string;
   maskedText: string;
   evidence: readonly AiEvidenceReference[];
 }
+
+/** 대조 3종의 축. '미논의 목표' 의 기준은 회기 목표뿐이다(ADR-0036 결정 3). */
+export type AiContrastAxis =
+  | 'missing_from_memo'
+  | 'missing_from_transcript'
+  | 'undiscussed_session_goal';
+
+/** 축의 적용 여부. 서버가 재료 구성에서 계산해 요청에 실어 보낸다(AI 가 정하지 않는다). */
+export type AiContrastAxisStatus = 'applied' | 'no_transcript' | 'no_text' | 'no_session_goal';
+
+export type AiContrastAxisStates = Readonly<Record<AiContrastAxis, AiContrastAxisStatus>>;
+
+export const AI_CONTRAST_AXES: readonly AiContrastAxis[] = [
+  'missing_from_memo',
+  'missing_from_transcript',
+  'undiscussed_session_goal',
+];
+
+/**
+ * 축마다 인용을 어느 재료에서 끌어와야 하는가. 축 정의가 곧 출처다
+ * '메모에 없는 내용' 은 전사에는 있고 메모에 없는 것이라 인용이 전사에서 나오고,
+ * 나머지 둘은 메모 쪽(텍스트 맥락)에서 나온다.
+ */
+const CONTRAST_AXIS_MATERIAL: Readonly<Record<AiContrastAxis, AiMaterialKind>> = {
+  missing_from_memo: 'transcript',
+  missing_from_transcript: 'text_context',
+  undiscussed_session_goal: 'text_context',
+};
+
+export interface AiProviderRequest {
+  /** 전사 → 텍스트 맥락 순으로 고정 정렬된 재료 1~2개. */
+  materials: readonly AiProviderMaterial[];
+  /** 서버가 판정한 축별 적용 여부. applied 가 아닌 축은 항목을 만들면 안 된다. */
+  contrastAxes: AiContrastAxisStates;
+}
+
+/**
+ * 대조 항목 하나. 짧은 설명 + 근거 인용. 어느 쪽이 맞는지 판단하지 않는다(R5).
+ * 인용은 명시한 재료 원문의 정확한 부분 문자열이어야 한다(불일치 검출과 같은 태도).
+ */
+export interface AiContrastFinding {
+  description: string;
+  materialKind: AiMaterialKind;
+  sourceRef: string;
+  quote: string;
+}
+
+export type AiContrastOutput = Readonly<Record<AiContrastAxis, readonly AiContrastFinding[]>>;
 
 export interface AiProviderOutput {
   claims: readonly AiGeneratedClaim[];
   questions: readonly AiGeneratedQuestion[];
   /** D45 영역 ② 핵심 한 줄 — 개행 없는 한 문장, 요약·질문과 함께 승인된다(R2). */
   oneLiner: string;
+  /** 대조 3종(R2 승인 대상). 적용되지 않은 축은 빈 배열이다. */
+  contrast: AiContrastOutput;
 }
 
 /**
@@ -467,33 +540,103 @@ export async function canonicalAiProviderConfigHash(config: AiProviderConfig): P
  */
 export function validateAiProviderRequest(value: unknown): AiProviderRequest {
   if (!isRecord(value)) throw new AiProviderInputError();
-  assertExactKeys(value, ['maskedText', 'evidence'], new AiProviderInputError());
-  const maskedText = value.maskedText;
-  assertSafeText(maskedText, MAX_MASKED_TEXT_LENGTH);
-  if (!Array.isArray(value.evidence) || value.evidence.length === 0 || value.evidence.length > MAX_EVIDENCE_ITEMS) {
+  assertExactKeys(value, ['materials', 'contrastAxes'], new AiProviderInputError());
+  if (
+    !Array.isArray(value.materials)
+    || value.materials.length === 0
+    || value.materials.length > MAX_MATERIALS
+  ) {
     throw new AiProviderInputError();
   }
 
-  const evidence: AiEvidenceReference[] = [];
+  const materials: AiProviderMaterial[] = [];
+  const materialKinds = new Set<AiMaterialKind>();
+  const materialRefs = new Set<string>();
+  // evidenceId 는 요청 전체에서 유일해야 한다. 출력이 id 하나로 근거를 되짚기 때문이다.
   const evidenceIds = new Set<string>();
-  const evidenceSpans = new Set<string>();
-  for (const item of value.evidence) {
-    assertEvidenceReference(item, maskedText);
-    if (evidenceIds.has(item.evidenceId) || evidenceSpans.has(evidenceSpanKey(item))) {
+  for (const rawMaterial of value.materials) {
+    if (!isRecord(rawMaterial)) throw new AiProviderInputError();
+    assertExactKeys(rawMaterial, ['kind', 'sourceRef', 'maskedText', 'evidence'], new AiProviderInputError());
+    const kind = stringField(rawMaterial, 'kind');
+    const sourceRef = stringField(rawMaterial, 'sourceRef');
+    if (
+      (kind !== 'transcript' && kind !== 'text_context')
+      || materialKinds.has(kind)
+      || sourceRef === null
+      || !isOpaqueReference(sourceRef)
+      || materialRefs.has(sourceRef)
+    ) {
       throw new AiProviderInputError();
     }
-    evidenceIds.add(item.evidenceId);
-    evidenceSpans.add(evidenceSpanKey(item));
-    evidence.push({
-      evidenceId: item.evidenceId,
-      sourceRef: item.sourceRef,
-      sourceSha256: item.sourceSha256,
-      evidenceQuote: item.evidenceQuote,
-      sourceStart: item.sourceStart,
-      sourceEnd: item.sourceEnd,
-    });
+    const maskedText = rawMaterial.maskedText;
+    assertSafeText(maskedText, MAX_MASKED_TEXT_LENGTH);
+    if (
+      !Array.isArray(rawMaterial.evidence)
+      || rawMaterial.evidence.length === 0
+      || rawMaterial.evidence.length > MAX_EVIDENCE_ITEMS
+    ) {
+      throw new AiProviderInputError();
+    }
+
+    const evidence: AiEvidenceReference[] = [];
+    // 구간 중복 검사는 **재료 안에서만** 한다. 서로 다른 재료가 같은 sourceRef·구간을
+    // 가질 수 있고(장비가 정하는 값이다) 그것은 충돌이 아니다.
+    const evidenceSpans = new Set<string>();
+    for (const item of rawMaterial.evidence) {
+      assertEvidenceReference(item, maskedText);
+      if (evidenceIds.has(item.evidenceId) || evidenceSpans.has(evidenceSpanKey(item))) {
+        throw new AiProviderInputError();
+      }
+      evidenceIds.add(item.evidenceId);
+      evidenceSpans.add(evidenceSpanKey(item));
+      evidence.push({
+        evidenceId: item.evidenceId,
+        sourceRef: item.sourceRef,
+        sourceSha256: item.sourceSha256,
+        evidenceQuote: item.evidenceQuote,
+        sourceStart: item.sourceStart,
+        sourceEnd: item.sourceEnd,
+      });
+    }
+    materialKinds.add(kind);
+    materialRefs.add(sourceRef);
+    materials.push({ kind, sourceRef, maskedText, evidence });
   }
-  return { maskedText, evidence };
+
+  const rawAxes = value.contrastAxes;
+  if (!isRecord(rawAxes)) throw new AiProviderInputError();
+  assertExactKeys(rawAxes, [...AI_CONTRAST_AXES], new AiProviderInputError());
+  const axes: Partial<Record<AiContrastAxis, AiContrastAxisStatus>> = {};
+  for (const axis of AI_CONTRAST_AXES) {
+    const status = stringField(rawAxes, axis);
+    if (
+      status !== 'applied'
+      && status !== 'no_transcript'
+      && status !== 'no_text'
+      && status !== 'no_session_goal'
+    ) {
+      throw new AiProviderInputError();
+    }
+    // applied 는 그 축이 요구하는 재료가 실제로 실려 있을 때만 성립한다. 서버 판정과
+    // 재료 구성이 어긋나면 조립이 틀린 것이므로 사업자에 닿기 전에 막는다.
+    if (status === 'applied' && !materialKinds.has(CONTRAST_AXIS_MATERIAL[axis])) {
+      throw new AiProviderInputError();
+    }
+    if (status === 'applied' && axis !== 'undiscussed_session_goal' && materialKinds.size < MAX_MATERIALS) {
+      // 두 대조 축은 양쪽 재료를 견줘야 성립한다.
+      throw new AiProviderInputError();
+    }
+    axes[axis] = status;
+  }
+
+  return {
+    materials,
+    contrastAxes: {
+      missing_from_memo: axes.missing_from_memo ?? 'no_text',
+      missing_from_transcript: axes.missing_from_transcript ?? 'no_transcript',
+      undiscussed_session_goal: axes.undiscussed_session_goal ?? 'no_session_goal',
+    },
+  };
 }
 
 /**
@@ -501,7 +644,26 @@ export function validateAiProviderRequest(value: unknown): AiProviderRequest {
  * can copy only evidence references that already passed request validation.
  */
 export function generatePreviewFixtureAiDraft(request: AiProviderRequest): AiProviderOutput {
-  const evidence = request.evidence.map((reference) => ({ ...reference }));
+  const primary = request.materials[0];
+  if (primary === undefined) throw new AiProviderInputError();
+  const evidence = primary.evidence.map((reference) => ({ ...reference }));
+  const byKind = new Map(request.materials.map((material) => [material.kind, material] as const));
+
+  // 축 상태가 applied 인 축만 항목을 갖는다. 재료 구성이 그대로 비쳐 보이게.
+  const fixtureFindings = (axis: AiContrastAxis): AiContrastFinding[] => {
+    if (request.contrastAxes[axis] !== 'applied') return [];
+    const material = byKind.get(CONTRAST_AXIS_MATERIAL[axis]);
+    if (material === undefined) return [];
+    const quote = material.evidence[0]?.evidenceQuote;
+    if (quote === undefined) return [];
+    return [{
+      description: '합성 대조 항목입니다.',
+      materialKind: material.kind,
+      sourceRef: material.sourceRef,
+      quote,
+    }];
+  };
+
   return {
     claims: [{
       claimKey: 'fixture-claim',
@@ -521,6 +683,11 @@ export function generatePreviewFixtureAiDraft(request: AiProviderRequest): AiPro
       },
     ],
     oneLiner: '합성 녹음 처리 결과입니다.',
+    contrast: {
+      missing_from_memo: fixtureFindings('missing_from_memo'),
+      missing_from_transcript: fixtureFindings('missing_from_transcript'),
+      undiscussed_session_goal: fixtureFindings('undiscussed_session_goal'),
+    },
   };
 }
 
@@ -537,7 +704,7 @@ export function validateAiDraftSummary(value: unknown): string {
   return value;
 }
 export function validateAiEvidenceIds(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_EVIDENCE_ITEMS) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TOTAL_EVIDENCE_ITEMS) {
     throw new AiProviderInputError();
   }
   const ids = value.map((item) => {
@@ -554,7 +721,7 @@ function validateOutputEvidenceReferences(
   value: unknown,
   allowedReferences: ReadonlyMap<string, AiEvidenceReference>,
 ): AiClaimEvidenceReference[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_EVIDENCE_ITEMS) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TOTAL_EVIDENCE_ITEMS) {
     throw new AiProviderProhibitedOutputError();
   }
 
@@ -598,7 +765,7 @@ function assertSafeGeneratedOutputText(value: unknown): asserts value is string 
 export function validateAiProviderOutput(value: unknown, request: AiProviderRequest): AiProviderOutput {
   if (!isRecord(value)) throw new AiProviderProhibitedOutputError();
   assertNoProhibitedKeys(value);
-  assertExactKeys(value, ['claims', 'questions', 'oneLiner'], new AiProviderProhibitedOutputError());
+  assertExactKeys(value, ['claims', 'questions', 'oneLiner', 'contrast'], new AiProviderProhibitedOutputError());
   if (!Array.isArray(value.claims) || value.claims.length === 0 || value.claims.length > MAX_CLAIMS) {
     throw new AiProviderProhibitedOutputError();
   }
@@ -610,10 +777,15 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
     throw new AiProviderProhibitedOutputError();
   }
 
-  const allowedReferences = new Map(request.evidence.map((evidence) => [evidence.evidenceId, evidence] as const));
-  const requestSpans = new Set(request.evidence.map(evidenceSpanKey));
-  if (allowedReferences.size !== request.evidence.length || requestSpans.size !== request.evidence.length) {
+  const requestEvidence = request.materials.flatMap((material) => [...material.evidence]);
+  const allowedReferences = new Map(requestEvidence.map((evidence) => [evidence.evidenceId, evidence] as const));
+  if (allowedReferences.size !== requestEvidence.length) {
     throw new AiProviderProhibitedOutputError();
+  }
+  // 구간 유일성은 재료 안에서만 요구한다. 재료가 다르면 같은 구간이 정상이다.
+  for (const material of request.materials) {
+    const spans = new Set(material.evidence.map(evidenceSpanKey));
+    if (spans.size !== material.evidence.length) throw new AiProviderProhibitedOutputError();
   }
 
   const claimKeys = new Set<string>();
@@ -664,7 +836,76 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
   if (oneLiner.includes('\n') || oneLiner.length > MAX_ONE_LINER_LENGTH) {
     throw new AiProviderProhibitedOutputError();
   }
-  return { claims, questions, oneLiner };
+  return { claims, questions, oneLiner, contrast: validateContrastOutput(value.contrast, request) };
+}
+
+/**
+ * 대조 3종 검증 (D69 · ADR-0036 · CCC-102).
+ *
+ * 축은 셋 다 있어야 하고, 서버가 applied 로 판정하지 않은 축은 항목이 0개여야 한다.
+ * 항목의 인용은 ① 그 축이 쓰는 재료에서 나와야 하고 ② 그 재료 원문의 정확한 부분
+ * 문자열이어야 한다. ②는 불일치 검출(validateDiscrepancyDetectionOutput)과 같은 태도다.
+ */
+function validateContrastOutput(value: unknown, request: AiProviderRequest): AiContrastOutput {
+  if (!isRecord(value)) throw new AiProviderProhibitedOutputError();
+  assertNoProhibitedKeys(value);
+  assertExactKeys(value, [...AI_CONTRAST_AXES], new AiProviderProhibitedOutputError());
+
+  const materialByRef = new Map(request.materials.map((material) => [material.sourceRef, material] as const));
+  const contrast: Partial<Record<AiContrastAxis, AiContrastFinding[]>> = {};
+  for (const axis of AI_CONTRAST_AXES) {
+    const rawFindings = value[axis];
+    if (!Array.isArray(rawFindings) || rawFindings.length > MAX_CONTRAST_FINDINGS_PER_AXIS) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    if (request.contrastAxes[axis] !== 'applied' && rawFindings.length > 0) {
+      throw new AiProviderProhibitedOutputError();
+    }
+
+    const expectedKind = CONTRAST_AXIS_MATERIAL[axis];
+    const findings: AiContrastFinding[] = [];
+    const seen = new Set<string>();
+    for (const rawFinding of rawFindings) {
+      if (!isRecord(rawFinding)) throw new AiProviderProhibitedOutputError();
+      assertNoProhibitedKeys(rawFinding);
+      assertExactKeys(
+        rawFinding,
+        ['description', 'materialKind', 'sourceRef', 'quote'],
+        new AiProviderProhibitedOutputError(),
+      );
+      const materialKind = stringField(rawFinding, 'materialKind');
+      const sourceRef = stringField(rawFinding, 'sourceRef');
+      const description = rawFinding.description;
+      const quote = rawFinding.quote;
+      if (materialKind !== expectedKind || sourceRef === null) {
+        throw new AiProviderProhibitedOutputError();
+      }
+      const material = materialByRef.get(sourceRef);
+      if (material === undefined || material.kind !== expectedKind) {
+        throw new AiProviderProhibitedOutputError();
+      }
+      assertSafeGeneratedOutputText(description);
+      assertSafeGeneratedOutputText(quote);
+      if (
+        description.length > MAX_CONTRAST_DESCRIPTION_LENGTH
+        || quote.length > MAX_CONTRAST_QUOTE_LENGTH
+        // 원문 인용 강제. 재료에 없는 문장은 인용이 아니다.
+        || !material.maskedText.includes(quote)
+      ) {
+        throw new AiProviderProhibitedOutputError();
+      }
+      const key = `${description} ${sourceRef} ${quote}`;
+      if (seen.has(key)) throw new AiProviderProhibitedOutputError();
+      seen.add(key);
+      findings.push({ description, materialKind, sourceRef, quote });
+    }
+    contrast[axis] = findings;
+  }
+  return {
+    missing_from_memo: contrast.missing_from_memo ?? [],
+    missing_from_transcript: contrast.missing_from_transcript ?? [],
+    undiscussed_session_goal: contrast.undiscussed_session_goal ?? [],
+  };
 }
 
 /** 검출 요청 검증 — 소스 텍스트는 가명 처리된 안전 텍스트여야 하고 참조는 유일해야 한다. */
@@ -772,12 +1013,39 @@ function responseText(response: unknown): string | null {
   return null;
 }
 
+const contrastFindingSchema = {
+  type: 'array',
+  maxItems: MAX_CONTRAST_FINDINGS_PER_AXIS,
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['description', 'materialKind', 'sourceRef', 'quote'],
+    properties: {
+      description: { type: 'string', minLength: 1, maxLength: MAX_CONTRAST_DESCRIPTION_LENGTH },
+      materialKind: { type: 'string', enum: ['transcript', 'text_context'] },
+      sourceRef: { type: 'string' },
+      quote: { type: 'string', minLength: 1, maxLength: MAX_CONTRAST_QUOTE_LENGTH },
+    },
+  },
+} as const;
+
 const codexResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['claims', 'questions', 'oneLiner'],
+  required: ['claims', 'questions', 'oneLiner', 'contrast'],
   properties: {
     oneLiner: { type: 'string', minLength: 1, maxLength: 120 },
+    // 대조 3종(D69 · ADR-0036). 판단 필드가 없다. 설명과 원문 인용뿐이다(R5).
+    contrast: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['missing_from_memo', 'missing_from_transcript', 'undiscussed_session_goal'],
+      properties: {
+        missing_from_memo: contrastFindingSchema,
+        missing_from_transcript: contrastFindingSchema,
+        undiscussed_session_goal: contrastFindingSchema,
+      },
+    },
     claims: {
       type: 'array',
       minItems: 1,
@@ -842,12 +1110,23 @@ const codexResponseSchema = {
   },
 } as const;
 
+// D69 · ADR-0036: 재료가 둘(전사 · 텍스트 맥락)일 수 있고 대조 3종이 출력에 붙는다.
+// 축의 적용 여부는 요청의 contrastAxes 가 이미 정해서 온다. 모델이 다시 판단하지 않는다.
 const CODEX_INSTRUCTIONS = [
-  'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions.',
+  'Each supplied material is masked counseling-record text: kind transcript is the recorded session, kind text_context is the worker memo together with labelled goal sections.',
+  'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions, using every supplied material.',
   'Each suggestion has a short title (80 characters or fewer) naming what to check in the next session, and a reason explaining why it needs checking.',
   'Also produce oneLiner: a single-line Korean gist of the session in 120 characters or fewer, with no line breaks.',
-  'Each claim and each suggestion must cite one or more supplied opaque evidence references exactly.',
+  'Each claim and each suggestion must cite one or more supplied opaque evidence references exactly, from any material.',
+  'Also produce contrast, three lists that compare the materials without judging them.',
+  'missing_from_memo lists what the transcript records but the text_context memo does not; quote the transcript.',
+  'missing_from_transcript lists what the text_context memo records but the transcript does not; quote the text_context.',
+  'undiscussed_session_goal lists entries of the text_context section labelled 회기 목표 that this session did not address; quote the text_context.',
+  'Judge undiscussed goals only against that 회기 목표 section; overall and detailed goals are background, never the test.',
+  'Each contrast entry carries a short Korean description, the materialKind and sourceRef of the material it quotes, and a quote that is a verbatim substring of that material.',
+  'Return an empty list for any contrast axis whose contrastAxes status is not applied, and for an applied axis with nothing to report.',
   'Do not produce GAS scores, confirmations, diagnoses, or decisions about support continuation.',
+  'Do not decide which material is correct, and do not interpret or recommend anything in contrast entries.',
   'Do not add names, contacts, accounts, or other personal data.',
 ].join(' ');
 
@@ -900,8 +1179,8 @@ export class CodexProviderAdapter implements AiProviderAdapter {
   async generate(request: AiProviderRequest): Promise<AiProviderOutput> {
     return await this.callStructured(
       CODEX_INSTRUCTIONS,
-      JSON.stringify({ maskedText: request.maskedText, evidence: request.evidence }),
-      'ccc_grounded_draft_v1',
+      JSON.stringify({ materials: request.materials, contrastAxes: request.contrastAxes }),
+      'ccc_grounded_draft_v3',
       codexResponseSchema,
     ) as AiProviderOutput;
   }

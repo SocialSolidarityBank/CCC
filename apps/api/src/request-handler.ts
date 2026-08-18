@@ -94,7 +94,7 @@ import {
   listPrivacyConsentFollowUps,
   listSupportCasesForBeneficiary,
   listUsers,
-  loadMaskedSourceSnapshotForService,
+  loadAiCallMaterialsForService,
   markCounselingScheduleNoShow,
   previewExpiredPii,
   purgeExpiredPiiAsAdmin,
@@ -112,9 +112,13 @@ import {
   updateParticipantConsent,
   updateParticipantPii,
   upsertUser,
+  SESSION_GOAL_MATERIAL_LABEL,
   type Actor,
   type AiCallFailureReason,
+  type AiCallMaterial,
   type AiCallOutcome,
+  type AiDraftContrastAxis,
+  type AiDraftSourceMaterialRef,
   type AiDraftVersion,
   type CounselingRecordDetails,
   type AssignedParticipant,
@@ -124,12 +128,17 @@ import {
 } from '../../../db/gateway';
 import { isBeneficiaryId } from '../../../db/animal-slugs';
 import {
+  AI_CONTRAST_AXES,
   AI_DRAFT_PROMPT_VERSION,
   AI_DRAFT_SCHEMA_VERSION,
   DISCREPANCY_PROMPT_VERSION,
   AiProviderInputError,
   AiProviderProhibitedOutputError,
   AiProviderUnavailableError,
+  type AiContrastAxisStates,
+  type AiContrastAxisStatus,
+  type AiProviderMaterial,
+  type AiProviderOutput,
   type AiProviderUnavailableReason,
   canonicalAiProviderConfigHash,
   detectPreviewFixtureDiscrepancies,
@@ -1437,6 +1446,17 @@ function aiDraftResponse(draft: AiDraftVersion) {
       claimKey: evidence.claimKey,
       quote: evidence.evidenceQuote,
     })),
+    // 대조 3종(D69 · ADR-0036). 승인 화면이 처리하는 항목이라 초안과 함께 나간다(R2).
+    // 축 상태는 서버 판정이고, 적용되지 않은 축은 항목 없이 사유만 실린다.
+    contrast: draft.contrast.map((axis) => ({
+      axis: axis.axis,
+      status: axis.status,
+      findings: axis.findings.map((finding) => ({
+        description: finding.description,
+        materialKind: finding.materialKind,
+        quote: finding.quote,
+      })),
+    })),
   };
 }
 
@@ -1646,6 +1666,67 @@ function providerEvidenceLinks(output: ReturnType<typeof validateAiProviderOutpu
   return links;
 }
 
+/**
+ * 축 적용 여부 판정 (D69 · ADR-0036 결정 2·3 · CCC-102). **서버가 정한다**. AI 는
+ * 이 값을 받기만 한다. 이름은 "무엇이 없는가" 로 붙인다(어느 검사가 먼저 걸렸는지가 아니라).
+ *
+ * - 메모에 없는 내용 / 음성에 없는 내용: 양쪽 재료를 견줘야 성립한다. 하나가 없으면
+ *   없는 쪽을 사유로 남긴다.
+ * - 미논의 목표: 텍스트 재료의 [회기 목표] 구획만이 기준이다(전체·세부 목표는 문맥 재료).
+ *   구획이 없으면 회기 목표가 없는 회차이므로 no_session_goal 이다.
+ */
+export function contrastAxisStates(materials: readonly AiProviderMaterial[]): AiContrastAxisStates {
+  const transcript = materials.find((material) => material.kind === 'transcript');
+  const text = materials.find((material) => material.kind === 'text_context');
+  const crossAxisStatus: AiContrastAxisStatus = transcript === undefined
+    ? 'no_transcript'
+    : text === undefined ? 'no_text' : 'applied';
+  return {
+    missing_from_memo: crossAxisStatus,
+    missing_from_transcript: crossAxisStatus,
+    undiscussed_session_goal: text === undefined
+      ? 'no_text'
+      : text.maskedText.includes(SESSION_GOAL_MATERIAL_LABEL) ? 'applied' : 'no_session_goal',
+  };
+}
+
+function providerMaterials(materials: readonly AiCallMaterial[]): AiProviderMaterial[] {
+  return materials.map((material) => ({
+    kind: material.kind,
+    sourceRef: material.snapshot.id,
+    maskedText: material.snapshot.maskedText,
+    evidence: material.snapshot.evidence.map((evidence) => ({
+      evidenceId: evidence.id,
+      sourceRef: evidence.sourceRef,
+      sourceSha256: evidence.sourceSha256,
+      evidenceQuote: evidence.evidenceQuote,
+      sourceStart: evidence.sourceStart,
+      sourceEnd: evidence.sourceEnd,
+    })),
+  }));
+}
+
+/** 초안에 남길 재료 증빙(id + 해시 + 종류). 주 재료도 한 항목으로 들어간다. */
+function draftMaterialRefs(materials: readonly AiCallMaterial[]): AiDraftSourceMaterialRef[] {
+  return materials.map((material) => ({
+    kind: material.kind,
+    snapshotId: material.snapshot.id,
+    snapshotSha256: material.snapshot.sha256,
+  }));
+}
+
+/** 어댑터 출력의 대조를 축 상태와 짝지어 저장 형태로 옮긴다. */
+function draftContrastAxes(
+  output: AiProviderOutput,
+  axes: AiContrastAxisStates,
+): AiDraftContrastAxis[] {
+  return AI_CONTRAST_AXES.map((axis) => ({
+    axis,
+    status: axes[axis],
+    findings: output.contrast[axis].map((finding) => ({ ...finding })),
+  }));
+}
+
 async function generateAiDraft(
   env: ApiEnv,
   actor: Actor,
@@ -1659,18 +1740,15 @@ async function generateAiDraft(
   let model: string | null = null;
   const { sourceSnapshotId } = parseAiDraftGeneration(body);
   try {
-    const sourceSnapshot = await loadMaskedSourceSnapshotForService(env, actor, sessionId, sourceSnapshotId);
+    // 요청은 스냅샷 하나만 지목하고, 반대편 재료는 게이트웨이가 붙인다(ADR-0036 결정 2).
+    const materialSet = await loadAiCallMaterialsForService(env, actor, sessionId, sourceSnapshotId);
+    const sourceSnapshot = materialSet.requested.snapshot;
+    const materials = providerMaterials(materialSet.materials);
     const providerRequest = validateAiProviderRequest({
-      maskedText: sourceSnapshot.maskedText,
-      evidence: sourceSnapshot.evidence.map((evidence) => ({
-        evidenceId: evidence.id,
-        sourceRef: evidence.sourceRef,
-        sourceSha256: evidence.sourceSha256,
-        evidenceQuote: evidence.evidenceQuote,
-        sourceStart: evidence.sourceStart,
-        sourceEnd: evidence.sourceEnd,
-      })),
+      materials,
+      contrastAxes: contrastAxisStates(materials),
     });
+    const materialRefs = draftMaterialRefs(materialSet.materials);
 
     if (previewModeEnabled(env)) {
       const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
@@ -1688,6 +1766,8 @@ async function generateAiDraft(
         schemaVersion: AI_DRAFT_SCHEMA_VERSION,
         questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
         evidence: providerEvidenceLinks(output),
+        materials: materialRefs,
+        contrast: draftContrastAxes(output, providerRequest.contrastAxes),
       });
       outcome = 'stored';
       return draft;
@@ -1722,6 +1802,8 @@ async function generateAiDraft(
       schemaVersion: AI_DRAFT_SCHEMA_VERSION,
       questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
       evidence: providerEvidenceLinks(output),
+      materials: materialRefs,
+      contrast: draftContrastAxes(output, providerRequest.contrastAxes),
     });
     outcome = 'stored';
     return draft;
