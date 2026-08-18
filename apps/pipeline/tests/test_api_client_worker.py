@@ -308,6 +308,85 @@ class TextJobTest(unittest.TestCase):
         self.assertEqual(evidence["sourceEnd"], len(snapshot["maskedText"]))
         client.complete_text_job.assert_called_once_with("item-1")
 
+    def test_goal_revised_reason_is_processed_like_any_other_reason(self):
+        """큐 reason 값(D69 · CCC-103 의 goal_revised 포함)은 처리 여부에 영향을 주지 않는다.
+
+        run_once 는 큐 항목에서 id·sessionId 만 읽고 reason 은 아예 보지 않는다(worker.py).
+        이 테스트는 reason 이 무엇이든 결과가 같다는 것을 대조군으로 고정한다. 워커 루프에
+        reason 분기가 생기면 이 테스트가 깨진다.
+        """
+        client = mock.Mock()
+        client.list_jobs.return_value = []
+        client.list_text_jobs.return_value = [
+            {"id": "item-1", "sessionId": "session-1", "reason": "goal_revised"},
+        ]
+        client.get_text_job_source.return_value = "아들 김철수에게 010-1234-5678 로 연락한다고 함"
+
+        def fake_person_ner(text: str):
+            start = text.find("김철수")
+            return [] if start < 0 else [(start, start + len("김철수"))]
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(fake_person_ner, None),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 1)
+
+        client.get_text_job_source.assert_called_once_with("item-1")
+        session_id, snapshot = client.post_masked_source.call_args.args
+        self.assertEqual(session_id, "session-1")
+        self.assertNotIn("010-1234-5678", snapshot["maskedText"])
+        self.assertNotIn("김철수", snapshot["maskedText"])
+        client.complete_text_job.assert_called_once_with("item-1")
+
+    def test_goal_section_labels_survive_masking_and_goal_text_is_masked(self):
+        """CCC-103 이 원문에 싣는 목표 구획 라벨은 살아남고, 목표 문구 속 PII 는 가려진다.
+
+        getTextWorkItemSource(db/gateway.ts)가 만드는 `[전체 목표]`·`[세부 목표]`·`[회기 목표]`
+        라벨은 NER 스팬이 아니라 원문 그대로 실린다. 마스킹이 라벨 자체를 지우면 안 되고,
+        라벨 뒤 목표 문구 속 인명은 다른 본문과 똑같이 가려져야 한다(R3).
+        """
+        from ccc_pipeline.worker import process_text_job
+
+        client = mock.Mock()
+        client.get_text_job_source.return_value = (
+            "[전체 목표] 딸 김영희와의 관계 회복\n"
+            "[세부 목표] 딸 김영희와 주 1회 연락하기\n"
+            "[회기 목표] 이번 주 통화 여부 확인\n"
+            "오늘 상담 본문입니다."
+        )
+
+        def fake_person_ner(text: str):
+            name = "김영희"
+            spans = []
+            start = 0
+            while True:
+                idx = text.find(name, start)
+                if idx < 0:
+                    break
+                spans.append((idx, idx + len(name)))
+                start = idx + len(name)
+            return spans
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(fake_person_ner, None),
+            ):
+                process_text_job(client, make_config(Path(tmp)), "item-1", "session-1")
+
+        _, snapshot = client.post_masked_source.call_args.args
+        masked = snapshot["maskedText"]
+        # 구획 라벨은 마스킹 대상이 아니라 원문 그대로 남는다.
+        self.assertIn("[전체 목표]", masked)
+        self.assertIn("[세부 목표]", masked)
+        self.assertIn("[회기 목표]", masked)
+        # 라벨 뒤 목표 문구 속 인명은 다른 본문과 동일하게 가려진다.
+        self.assertNotIn("김영희", masked)
+        self.assertEqual(masked.count("[인명]"), 2)
+        client.complete_text_job.assert_called_once_with("item-1")
+
     def test_failed_text_job_is_not_completed_and_does_not_stop_the_rest(self):
         client = mock.Mock()
         client.list_jobs.return_value = []
