@@ -84,6 +84,7 @@ import {
   completeTextWorkItem,
   claimRecordingResultDownstream,
   commitRecordingResult,
+  enqueueTextWorkForGoalChange,
   enqueueTextWorkItem,
   finalizeRecordingResult,
   releaseRecordingResultDownstream,
@@ -1583,6 +1584,23 @@ async function onRecordOfficialized(
   await runDiscrepancyDetection(env, actor, sessionId);
 }
 
+/**
+ * 목표 확정·수정 훅 (D69 · ADR-0036 결정 4 · CCC-103). 바뀐 목표 문구가 담긴 스냅샷을
+ * 장비가 새로 만들도록 그 케이스의 회차들을 텍스트 일감 큐에 다시 올린다. 기록 공식화
+ * 훅과 같은 최선 노력이다. 실패해도 목표 저장 응답을 막지 않는다(D8).
+ * 전체 목표를 지우는 것(null)도 재료가 바뀐 것이라 함께 올린다. 문구가 그대로인 저장도
+ * 올리지만 대기 행이 이미 있으면 부분 유니크 인덱스가 흡수하므로 큐가 부풀지 않는다.
+ * 회기 목표(updateScheduleSessionGoals)는 훅을 걸지 않는다. 근거는 getTextWorkItemSource
+ * 주석에 있다.
+ */
+async function onGoalRevised(env: ApiEnv, actor: Actor, caseRef: string): Promise<void> {
+  try {
+    await enqueueTextWorkForGoalChange(env, actor, caseRef);
+  } catch {
+    // 큐 적재 실패는 스킵이다(D8). 다음 목표 수정·기록 공식화 때 다시 쌓인다. 내용 무로깅(R3).
+  }
+}
+
 function providerEvidenceLinks(output: ReturnType<typeof validateAiProviderOutput>) {
   const links: Array<{
     sourceEvidenceItemId: string;
@@ -2144,7 +2162,9 @@ export async function handleRequest(
         const body = await requestBody(request);
         requireOnlyKeys(body, ['overallGoal']);
         const overallGoal = optionalNullableString(body, 'overallGoal') ?? null;
-        return json(await setSupportCaseOverallGoal(env, actor, supportCaseId, overallGoal));
+        const updatedGoal = await setSupportCaseOverallGoal(env, actor, supportCaseId, overallGoal);
+        await onGoalRevised(env, actor, supportCaseId);
+        return json(updatedGoal);
       }
       // 불일치 처리 3종 (D45 · CCC-42). 권한(담당 실무자·기관 관리자)은 게이트웨이가 강제한다(R1).
       // 처리는 표시일 뿐 원본 기록은 건드리지 않는다 — 바뀌는 것은 처리 3컬럼뿐이다(ADR-0018).
@@ -2262,10 +2282,12 @@ export async function handleRequest(
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'goals') {
         const body = await requestBody(request);
-        return json(await createGoal(env, actor, caseId, {
+        const created = await createGoal(env, actor, caseId, {
           title: requiredString(body, 'title'),
           ...(Object.hasOwn(body, 'scaleCriteria') ? { scaleCriteria: body.scaleCriteria } : {}),
-        }), 201);
+        });
+        await onGoalRevised(env, actor, caseId);
+        return json(created, 201);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'sessions') {
         return json((await listSessions(env, actor, caseId)).map(sessionResponse));
@@ -2297,7 +2319,9 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'close') {
         const body = await requestBody(request);
         // D62 §5: 구 종료+신설 승계(successor)는 받지 않는다. 사유는 선택값 3종.
-        return json(await closeGoal(env, actor, goalId, requiredString(body, 'reason')));
+        const closed = await closeGoal(env, actor, goalId, requiredString(body, 'reason'));
+        await onGoalRevised(env, actor, closed.caseId);
+        return json(closed);
       }
       // 미래 회기 연결 수 (D62 §5 · CCC-70): 닫기 시도 화면의 알림 한 줄 판정용.
       // 알림일 뿐 닫기를 막지 않는다. 판정 SQL·권한·감사는 게이트웨이 내장(R1).
@@ -2308,7 +2332,9 @@ export async function handleRequest(
       // D62 §4: 세부 목표 문구 수정 — 수정 금지(D12) 폐지. 이력 보존은 게이트웨이가 한다.
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'title') {
         const body = await requestBody(request);
-        return json(await updateGoalTitle(env, actor, goalId, requiredString(body, 'title')));
+        const retitled = await updateGoalTitle(env, actor, goalId, requiredString(body, 'title'));
+        await onGoalRevised(env, actor, retitled.caseId);
+        return json(retitled);
       }
     }
     if (parts[0] === 'sessions' && parts[1] !== undefined) {

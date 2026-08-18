@@ -1657,14 +1657,16 @@ describe('schema triggers', () => {
       const db = await miniflare.getD1Database('DB');
       const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
       const migrations = await readD1Migrations(migrationsUrl.pathname);
-      const fixtureMigration = migrations.at(-1);
-      if (
-        fixtureMigration === undefined
-        || !fixtureMigration.queries.some((query) => query.includes('fixture_generated'))
-      ) {
+      // 0033 을 내용으로 찾는다. 뒤에 다른 마이그레이션이 붙어도(0034 …) 이 테스트가
+      // 엉뚱한 파일을 검사하거나 헛돌지 않는다.
+      const fixtureIndex = migrations.findIndex(
+        (migration) => migration.queries.some((query) => query.includes('fixture_generated')),
+      );
+      const fixtureMigration = migrations[fixtureIndex];
+      if (fixtureMigration === undefined) {
         throw new Error('expected migration 0033 fixture provenance contract');
       }
-      for (const migration of migrations.slice(0, -1)) {
+      for (const migration of migrations.slice(0, fixtureIndex)) {
         await db.batch(migration.queries.map((query) => db.prepare(query)));
       }
 
