@@ -4916,7 +4916,7 @@ CREATE INDEX idx_support_cases_privacy_consent_followup
 
 
 -- ----------------------------------------------------------------------------
--- ai_text_work_queue — 텍스트 일감 큐 (0029 · D51 · ADR-0027).
+-- ai_text_work_queue — 텍스트 일감 큐 (0029 · D51 · ADR-0027, 0034 로 사유 확장).
 -- 수기 메모만 있는 회차도 처리 장비의 2차 마스킹을 거치게 하는 큐.
 -- (0031 반영 때 뒤늦게 스냅샷에 합류 — 0030 은 데이터 복구(UPDATE)뿐이라 스키마 변화 없음.)
 -- ----------------------------------------------------------------------------
@@ -4925,8 +4925,9 @@ CREATE TABLE IF NOT EXISTS ai_text_work_queue (
   org_id          TEXT NOT NULL,
   support_case_id TEXT NOT NULL REFERENCES support_cases (id),
   session_id      TEXT NOT NULL REFERENCES sessions (id),
-  -- 무엇이 이 일감을 만들었는가. 수기 저장(D5 즉시 공식) | AI 정리 승인(R2).
-  reason          TEXT NOT NULL CHECK (reason IN ('manual_record', 'ai_draft_approved')),
+  -- 무엇이 이 일감을 만들었는가. 수기 저장(D5 즉시 공식) | AI 정리 승인(R2) |
+  -- 목표 확정·수정(0034 · D69 · ADR-0036 결정 4).
+  reason          TEXT NOT NULL CHECK (reason IN ('manual_record', 'ai_draft_approved', 'goal_revised')),
   status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done')),
   enqueued_at     TEXT NOT NULL,
   completed_at    TEXT,

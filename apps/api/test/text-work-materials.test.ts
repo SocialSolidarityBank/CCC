@@ -1,18 +1,35 @@
 // CCC-73 — AI 재료 배선 (D62 §7 · ADR-0032)
-// 텍스트 일감 원문(getTextWorkItemSource)이 케이스 컨텍스트(전체 목표 으뜸, 인테이크
-// 지원욕구·지원방향 기본)를 깔고 회차 텍스트를 잇는지, 이력의 이전 문구·무응답 선택값이
-// 재료에서 빠지는지 고정한다. 이 원문은 장비 마스킹을 거친 스냅샷이 되어야만 사업자로
-// 나간다(D57 게이트). 사업자 호출부 쪽 보증은 routes.test.ts 의 CCC-73 테스트가 잡는다.
+// CCC-103: 목표와 메모를 AI 재료로 (D69 · ADR-0036)
+// 텍스트 일감 원문(getTextWorkItemSource)이 케이스 컨텍스트(전체 목표 으뜸, 활성 세부
+// 목표, 인테이크 지원욕구·지원방향, 완료 일정의 회기 목표)를 깔고 회차 텍스트를 잇는지,
+// 이력의 이전 문구·무응답 선택값·닫힌 목표가 재료에서 빠지는지 고정한다. 목표 확정·수정이
+// 큐에 다시 올리는 범위(enqueueTextWorkForGoalChange)와 마이그레이션 0034 도 여기서 잡는다.
+// 이 원문은 장비 마스킹을 거친 스냅샷이 되어야만 사업자로 나간다(D57 게이트). 사업자 호출부
+// 쪽 보증은 routes.test.ts 의 CCC-73 테스트가 잡는다.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
+import { Miniflare } from 'miniflare';
+import worker from './support/local-worker';
 import {
+  activateAiProviderConfiguration,
+  approveGeneratedAiDraft,
+  closeGoal,
+  createBeneficiaryWithInitialSupportCase,
   createCase,
   createCounselingRecord,
+  createCounselingSchedule,
+  createGeneratedAiDraft,
+  createGoal,
   createIntakeRecord,
+  enqueueTextWorkForGoalChange,
   enqueueTextWorkItem,
+  getActiveAiProviderRuntimeMetadataForService,
   getTextWorkItemSource,
   listSupportCasesForBeneficiary,
   listTextWorkItems,
+  recordMaskedSourceSnapshot,
   recordPilotTextAiConsentEvidence,
+  registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
   updateParticipantPii,
 } from '../../../db/gateway';
@@ -22,7 +39,7 @@ import { setupD1, testActors } from './support/d1';
 // 기본 5초를 넘길 수 있어 discrepancies.test.ts 와 같은 이유로 여유를 준다.
 vi.setConfig({ testTimeout: 30_000 });
 
-const { counselor, service } = testActors;
+const { admin, counselor, service } = testActors;
 const t = setupD1();
 
 beforeEach(async () => {
@@ -48,19 +65,104 @@ async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }>
 async function saveRecord(
   supportCaseId: string,
   memo: string,
-  details?: { sessionGoalNote?: string },
+  options?: {
+    details?: { sessionGoalNote?: string };
+    heldAt?: string;
+    schedule?: { id: string; version: number };
+  },
 ): Promise<string> {
   const result = await createCounselingRecord(t.env, counselor, supportCaseId, {
     submissionId: crypto.randomUUID(),
-    heldAt: '2026-07-08T10:00:00.000Z',
+    heldAt: options?.heldAt ?? '2026-07-08T10:00:00.000Z',
     channel: 'in_person',
     memo,
     gasScores: [],
     actionItems: [],
     flags: [],
-    ...(details === undefined ? {} : { details }),
+    ...(options?.details === undefined ? {} : { details: options.details }),
+    ...(options?.schedule === undefined
+      ? {}
+      : { scheduleId: options.schedule.id, expectedScheduleVersion: options.schedule.version }),
   });
   return result.record.id;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const encoded = new TextEncoder().encode(value);
+  const bytes = new Uint8Array(encoded.byteLength);
+  bytes.set(encoded);
+  const digest = await crypto.subtle.digest('SHA-256', bytes.buffer);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * 이 회차에 승인된 AI 정리를 만든다. approved_ai_briefing_v1 은 뷰라서 직접 넣을 수 없고,
+ * 프로바이더 설정 → 마스킹 스냅샷 → 초안 → 승인의 실제 경로를 다 밟아야 행이 생긴다
+ * (gateway-domain.test.ts 의 createPilotDraft 와 같은 골격).
+ */
+async function approveBriefingFor(caseId: string, sessionId: string): Promise<void> {
+  const config = await registerAiProviderConfiguration(t.env, admin, {
+    adapterId: 'codex',
+    adapterVersion: 'v1',
+    configHash: 'b'.repeat(64),
+    approvalRefs: ['privacy-security-approval'],
+  });
+  await activateAiProviderConfiguration(t.env, admin, config.id);
+
+  const evidenceQuote = 'MASKED_EVIDENCE_FOR_APPROVAL';
+  const snapshotHash = await sha256Hex(evidenceQuote);
+  const snapshot = await recordMaskedSourceSnapshot(t.env, service, sessionId, {
+    maskedText: evidenceQuote,
+    sha256: snapshotHash,
+    maskingPipelineVersion: 'ner-mask-v1',
+    evidence: [{
+      id: `approved-evidence-${sessionId}`,
+      sourceRef: 'memo:approved-source',
+      sourceSha256: snapshotHash,
+      evidenceQuote,
+      sourceStart: 0,
+      sourceEnd: evidenceQuote.length,
+    }],
+  });
+  if (snapshot.caseId !== caseId) throw new Error('masked source snapshot case mismatch');
+
+  const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, sessionId);
+  const link = {
+    sourceEvidenceItemId: `approved-evidence-${sessionId}`,
+    evidenceQuote,
+    sourceRef: 'memo:approved-source',
+    sourceStart: 0,
+    sourceEnd: evidenceQuote.length,
+  };
+  const draft = await createGeneratedAiDraft(t.env, service, sessionId, {
+    summaryText: 'APPROVED_AI_SUMMARY',
+    oneLiner: 'APPROVED_AI_ONE_LINER',
+    questions: [
+      { title: '지출 계획에 변동이 있었나요?', reason: '지난 회차에서 지출 변동이 언급되었습니다.' },
+      { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.' },
+    ],
+    sourceSnapshotId: snapshot.id,
+    sourceSnapshotHash: snapshot.sha256,
+    providerConfigId: selection.providerConfigId,
+    consentEvidenceId: selection.consentEvidenceId,
+    modelId: 'gpt-5-codex',
+    promptVersion: 'prompt-v1',
+    schemaVersion: 'schema-v1',
+    evidence: [
+      { ...link, claimKey: 'approved-claim' },
+      { ...link, claimKey: 'question_1' },
+      { ...link, claimKey: 'question_2' },
+    ],
+  });
+  await approveGeneratedAiDraft(t.env, counselor, draft.workItemId, draft.version);
+}
+
+/** 큐에 쌓인 행을 사유·상태까지 그대로 읽는다(테스트 전용 직접 조회). */
+async function queueRows(): Promise<Array<{ session_id: string; reason: string; status: string }>> {
+  const result = await t.db.prepare(
+    'SELECT session_id, reason, status FROM ai_text_work_queue ORDER BY enqueued_at, id',
+  ).all<{ session_id: string; reason: string; status: string }>();
+  return result.results;
 }
 
 /** 장비 폴링과 같은 경로로 일감을 찾아 원문을 꺼낸다. */
@@ -91,7 +193,7 @@ describe('getTextWorkItemSource — AI 재료 배선 (CCC-73 · D62 §7)', () =>
     const sessionId = await saveRecord(
       supportCaseId,
       '보증금 마련 계획을 함께 세웠다',
-      { sessionGoalNote: '대출 서류 준비 여부 확인' },
+      { details: { sessionGoalNote: '대출 서류 준비 여부 확인' } },
     );
 
     const text = await sourceForSession(sessionId);
@@ -144,5 +246,280 @@ describe('getTextWorkItemSource — AI 재료 배선 (CCC-73 · D62 §7)', () =>
     const text = await sourceForSession(sessionId);
     expect(text).toContain('[전체 목표]');
     expect(text).not.toContain('홍길동');
+  });
+});
+
+describe('getTextWorkItemSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', () => {
+  it('활성 세부 목표와 완료 일정의 회기 목표를 순서대로 깐다', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    await setSupportCaseOverallGoal(t.env, counselor, supportCaseId, '전세 보증금을 마련한다');
+    // 생성 시각을 일부러 삽입 순서와 반대로 둔다. 순서를 정하는 것이 삽입 순서가 아니라
+    // created_at 임을 이 대조가 증명한다(id 는 무작위 UUID 라 같은 밀리초에 만들어지면
+    // 흔들린다 - 시각을 갈라 그 흔들림도 함께 없앤다).
+    const later = await createGoal(t.env, counselor, caseId, { title: '주 1회 가계부 점검하기' });
+    const earlier = await createGoal(t.env, counselor, caseId, { title: '매달 30만원 저축하기' });
+    await t.db.prepare('UPDATE goals SET created_at = ? WHERE id = ?')
+      .bind('2026-07-11T00:00:00.000Z', later.id).run();
+    await t.db.prepare('UPDATE goals SET created_at = ? WHERE id = ?')
+      .bind('2026-07-10T00:00:00.000Z', earlier.id).run();
+    // 닫힌 세부 목표는 지난 기록이라 재료에서 빠진다(D62 §5).
+    const closing = await createGoal(t.env, counselor, caseId, { title: 'CLOSED_GOAL_PHRASE 폐기된 목표' });
+    await closeGoal(t.env, counselor, closing.id, 'stopped');
+
+    const schedule = await createCounselingSchedule(t.env, counselor, {
+      beneficiaryId: caseId,
+      supportCaseId,
+      scheduledAt: '2026-07-16T10:00:00.000Z',
+      sessionGoals: [{ body: '저축 통장 개설 확인' }, { body: '지출 항목 정리' }],
+    });
+    const sessionId = await saveRecord(supportCaseId, '통장을 개설하고 지출을 정리했다', {
+      heldAt: '2026-07-16T10:05:00.000Z',
+      schedule: { id: schedule.id, version: schedule.version },
+    });
+
+    const text = await sourceForSession(sessionId);
+    expect(text.split('\n')).toEqual([
+      '[전체 목표] 전세 보증금을 마련한다',
+      '[세부 목표] 매달 30만원 저축하기',
+      '주 1회 가계부 점검하기',
+      '[회기 목표] 저축 통장 개설 확인',
+      '지출 항목 정리',
+      '통장을 개설하고 지출을 정리했다',
+    ]);
+    expect(text).not.toContain('CLOSED_GOAL_PHRASE');
+  });
+
+  it('일정에 연결되지 않은 회차에는 회기 목표 구획이 없다', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    // 대조군: 회기 목표를 가진 일정이 같은 케이스에 실제로 있다. 그래도 이 회차가 그
+    // 일정을 닫지 않았으면 실리지 않아야 "연결로 고른다"가 증명된다(헛도는 테스트 방지).
+    await createCounselingSchedule(t.env, counselor, {
+      beneficiaryId: caseId,
+      supportCaseId,
+      scheduledAt: '2026-07-16T10:00:00.000Z',
+      sessionGoals: [{ body: 'UNLINKED_SESSION_GOAL_PHRASE' }],
+    });
+    const sessionId = await saveRecord(supportCaseId, '일정 없이 들른 상담을 적었다');
+
+    const text = await sourceForSession(sessionId);
+    expect(text).toBe('일정 없이 들른 상담을 적었다');
+    expect(text).not.toContain('회기 목표');
+    expect(text).not.toContain('UNLINKED_SESSION_GOAL_PHRASE');
+  });
+});
+
+describe('텍스트 일감 큐: 녹음 회차와 목표 수정 (CCC-103 · D69)', () => {
+  it('녹음 회차의 메모도 큐에 오르고 장비 목록에 보인다', async () => {
+    const { supportCaseId } = await fixtureCase();
+    const sessionId = await saveRecord(supportCaseId, '녹음과 함께 수기 메모도 남겼다');
+    // 이 회차에는 오디오가 있다. 오디오 큐(listPipelineJobs)와 텍스트 큐는 서로를 배제하지
+    // 않는다(ADR-0036 결정 2: "녹음 회차의 메모도 포함한다").
+    await t.db.prepare('UPDATE sessions SET audio_r2_key = ?, ai_status = ? WHERE id = ?')
+      .bind(`audio/${sessionId}/fixture`, 'uploaded', sessionId).run();
+
+    await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+    const items = await listTextWorkItems(t.env, service);
+    expect(items.map((item) => item.sessionId)).toContain(sessionId);
+    const { text } = await getTextWorkItemSource(t.env, service, items[0]!.id);
+    expect(text).toBe('녹음과 함께 수기 메모도 남겼다');
+  });
+
+  it('목표 수정은 미승인 공식 텍스트 회차만 goal_revised 로 올린다', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    const pendingSessionId = await saveRecord(supportCaseId, '아직 AI 정리를 승인하지 않은 회차');
+    const approvedSessionId = await saveRecord(supportCaseId, '이미 AI 정리를 승인한 회차', {
+      heldAt: '2026-07-09T10:00:00.000Z',
+    });
+    await approveBriefingFor(caseId, approvedSessionId);
+
+    await setSupportCaseOverallGoal(t.env, counselor, supportCaseId, '보증금과 생활비를 함께 본다');
+    await enqueueTextWorkForGoalChange(t.env, counselor, supportCaseId);
+
+    expect(await queueRows()).toEqual([
+      { session_id: pendingSessionId, reason: 'goal_revised', status: 'pending' },
+    ]);
+  });
+
+  it('이미 대기 중인 회차는 부분 유니크 인덱스가 흡수한다', async () => {
+    const { caseId, supportCaseId } = await fixtureCase();
+    const sessionId = await saveRecord(supportCaseId, '수기 저장으로 이미 큐에 오른 회차');
+    await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+
+    await createGoal(t.env, counselor, caseId, { title: '월세 연체 해소' });
+    await enqueueTextWorkForGoalChange(t.env, counselor, caseId);
+
+    // 행은 늘지 않고 먼저 쌓인 사유가 남는다. 장비는 최신 텍스트를 한 번만 마스킹한다.
+    expect(await queueRows()).toEqual([
+      { session_id: sessionId, reason: 'manual_record', status: 'pending' },
+    ]);
+  });
+
+  it('목표 API 네 곳이 큐 적재 훅을 건다', async () => {
+    const headers = {
+      'X-CCC-User-Id': counselor.userId,
+      'X-CCC-Org-Id': counselor.orgId,
+      'X-CCC-Role': counselor.role,
+      'content-type': 'application/json',
+    };
+    // 게이트웨이를 직접 부르는 픽스처 준비 단계는 훅을 돌리지 않는다. 큐는 매번 빈 채로
+    // 시작하고, 아래 요청 하나가 유일한 적재 원인이다.
+    async function routeFixture(): Promise<{ caseId: string; supportCaseId: string; sessionId: string; goalId: string }> {
+      await t.reset();
+      const { caseId, supportCaseId } = await fixtureCase();
+      const sessionId = await saveRecord(supportCaseId, '훅 배선 확인용 회차');
+      const goal = await createGoal(t.env, counselor, caseId, { title: '배선 확인 전 목표' });
+      expect(await queueRows()).toEqual([]);
+      return { caseId, supportCaseId, sessionId, goalId: goal.id };
+    }
+
+    const calls: Array<(fixture: Awaited<ReturnType<typeof routeFixture>>) => Request> = [
+      // ① 전체 목표 확정·수정
+      ({ supportCaseId }) => new Request(`http://localhost/support-cases/${supportCaseId}/overall-goal`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ overallGoal: '주거를 먼저 안정시킨다' }),
+      }),
+      // ② 세부 목표 신설
+      ({ caseId }) => new Request(`http://localhost/cases/${caseId}/goals`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ title: '보증금 300만원 모으기' }),
+      }),
+      // ③ 세부 목표 문구 수정
+      ({ goalId }) => new Request(`http://localhost/goals/${goalId}/title`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ title: '보증금 500만원 모으기' }),
+      }),
+      // ④ 세부 목표 닫기
+      ({ goalId }) => new Request(`http://localhost/goals/${goalId}/close`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ reason: 'achieved' }),
+      }),
+    ];
+
+    for (const buildRequest of calls) {
+      const fixture = await routeFixture();
+      const response = await worker.fetch(buildRequest(fixture), t.env);
+      expect(response.status).toBeLessThan(300);
+      expect(await queueRows()).toEqual([
+        { session_id: fixture.sessionId, reason: 'goal_revised', status: 'pending' },
+      ]);
+    }
+  });
+});
+
+describe('마이그레이션 0034: 텍스트 일감 큐 사유 확장 (CCC-103)', () => {
+  it('기존 행을 그대로 옮기고 goal_revised 를 받으면서 인덱스·트리거를 되살린다', async () => {
+    const miniflare = new Miniflare({
+      compatibilityDate: '2026-07-06',
+      d1Databases: ['DB'],
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } };',
+    });
+    try {
+      const db = await miniflare.getD1Database('DB');
+      const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
+      const migrations = await readD1Migrations(migrationsUrl.pathname);
+      // 0034 를 내용으로 찾는다. 뒤에 다른 마이그레이션이 붙어도 헛돌지 않는다.
+      const upgradeIndex = migrations.findIndex(
+        (migration) => migration.queries.some((query) => query.includes('goal_revised')),
+      );
+      const upgradeMigration = migrations[upgradeIndex];
+      if (upgradeMigration === undefined) {
+        throw new Error('expected migration 0034 goal_revised contract');
+      }
+      for (const migration of migrations.slice(0, upgradeIndex)) {
+        await db.batch(migration.queries.map((query) => db.prepare(query)));
+      }
+
+      const upgradeEnv = { DB: db, PII_ENC_KEY: 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=' };
+      const createdAt = '2026-07-14 09:00:00';
+      await db.prepare(
+        `INSERT INTO organization_settings (
+           org_id, time_zone, pii_purge_grace_days, version, created_at, updated_at
+         ) VALUES (?, 'Asia/Seoul', 180, 1, ?, ?)`,
+      ).bind(counselor.orgId, createdAt, createdAt).run();
+      await db.prepare(
+        `INSERT INTO users (id, org_id, email, role, active)
+         VALUES (?, ?, 'migration-0034@example.invalid', 'counselor', 1)`,
+      ).bind(counselor.userId, counselor.orgId).run();
+      const participant = await createBeneficiaryWithInitialSupportCase(upgradeEnv, counselor, {
+        programType: 'financial_support_v1',
+        intakeAt: '2026-07-14T09:00:00.000Z',
+      });
+
+      const sessionIds = ['migration-0034-session-a', 'migration-0034-session-b'];
+      for (const [index, sessionId] of sessionIds.entries()) {
+        await db.prepare(
+          `INSERT INTO sessions (
+             id, org_id, support_case_id, counselor_id, held_at, channel, memo,
+             submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 'in_person', ?, ?, ?, ?, 'none', ?, ?)`,
+        ).bind(
+          sessionId,
+          counselor.orgId,
+          participant.supportCaseId,
+          counselor.userId,
+          createdAt,
+          'Migration fixture memo.',
+          `4444444${index}-4444-4444-8444-444444444444`,
+          'a'.repeat(64),
+          counselor.userId,
+          createdAt,
+          createdAt,
+        ).run();
+      }
+      await db.prepare(
+        `INSERT INTO ai_text_work_queue (
+           id, org_id, support_case_id, session_id, reason, status, enqueued_at, completed_at
+         ) VALUES
+           ('queue-pending', ?, ?, ?, 'manual_record', 'pending', ?, NULL),
+           ('queue-done', ?, ?, ?, 'ai_draft_approved', 'done', ?, ?)`,
+      ).bind(
+        counselor.orgId, participant.supportCaseId, sessionIds[0], createdAt,
+        counselor.orgId, participant.supportCaseId, sessionIds[1], createdAt, createdAt,
+      ).run();
+
+      await db.batch(upgradeMigration.queries.map((query) => db.prepare(query)));
+
+      // 1) 옛 사유·상태·완료 시각이 그대로 살아 있다.
+      await expect(db.prepare(
+        'SELECT id, reason, status, completed_at FROM ai_text_work_queue ORDER BY id',
+      ).all().then((result) => result.results)).resolves.toEqual([
+        { id: 'queue-done', reason: 'ai_draft_approved', status: 'done', completed_at: createdAt },
+        { id: 'queue-pending', reason: 'manual_record', status: 'pending', completed_at: null },
+      ]);
+      await expect(db.prepare('PRAGMA foreign_key_check').all()
+        .then((result) => result.results)).resolves.toEqual([]);
+
+      // 2) 새 사유는 받고, 목록에 없는 사유는 여전히 막는다.
+      await db.prepare(
+        `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+         VALUES ('queue-goal', ?, ?, ?, 'goal_revised', 'pending', ?)`,
+      ).bind(counselor.orgId, participant.supportCaseId, sessionIds[1], createdAt).run();
+      await expect(db.prepare(
+        `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+         VALUES ('queue-bogus', ?, ?, ?, 'not_a_reason', 'pending', ?)`,
+      ).bind(counselor.orgId, participant.supportCaseId, sessionIds[1], createdAt).run())
+        .rejects.toThrow(/CHECK constraint failed/);
+
+      // 3) 회차당 대기 1건 부분 유니크 인덱스가 살아 있다.
+      await expect(db.prepare(
+        `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+         VALUES ('queue-duplicate', ?, ?, ?, 'goal_revised', 'pending', ?)`,
+      ).bind(counselor.orgId, participant.supportCaseId, sessionIds[1], createdAt).run())
+        .rejects.toThrow(/UNIQUE constraint failed/);
+
+      // 4) 완료 행 불변·삭제 금지 트리거 2종이 살아 있다(D14).
+      await expect(db.prepare(
+        "UPDATE ai_text_work_queue SET status = 'pending', completed_at = NULL WHERE id = 'queue-done'",
+      ).run()).rejects.toThrow('completed text work items are immutable');
+      await expect(db.prepare("DELETE FROM ai_text_work_queue WHERE id = 'queue-pending'").run())
+        .rejects.toThrow('text work items are append-only');
+    } finally {
+      await miniflare.dispose();
+    }
   });
 });

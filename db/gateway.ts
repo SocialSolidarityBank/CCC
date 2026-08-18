@@ -5717,7 +5717,7 @@ export async function finalizeRecordingResult(
 // 만든다. 스냅샷이 생겨야만 불일치 검출이 재료를 얻는다(R3).
 // ============================================================================
 
-export type TextWorkReason = 'manual_record' | 'ai_draft_approved';
+export type TextWorkReason = 'manual_record' | 'ai_draft_approved' | 'goal_revised';
 
 export interface TextWorkItem {
   id: string;
@@ -5742,6 +5742,59 @@ export async function enqueueTextWorkItem(
     `INSERT OR IGNORE INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
      VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
   ).bind(newId(), actor.orgId, scope.supportCaseId, sessionId, reason, now()).run();
+}
+
+/**
+ * 목표 확정·수정 훅 (D69 · ADR-0036 결정 4 · 마이그레이션 0034). 목표 문구에도 제3자
+ * 이름이 섞일 수 있어 목표 역시 장비 마스킹을 거친 스냅샷으로만 사업자에 나간다(R3 · D57).
+ * 문구가 바뀌면 그 케이스의 회차들을 다시 큐에 올려 새 문구가 담긴 스냅샷을 만들게 한다.
+ *
+ * 대상은 ① 공식 텍스트가 있고 ② 승인된 AI 정리가 아직 없는 회차다. ①·② 를 합치면
+ * 판정이 줄어든다. 승인 행이 없는 회차에서는 listTextWorkItems 의 '승인된 정리' 갈래가
+ * 죽은 가지라 결국 "수기 메모가 있고 승인 행이 없다"가 된다. 그래서 SQL 도 그 형태로
+ * 적었다. 승인된 회차를 빼는 이유는 그 회차가 이미 닫힌 기록이기 때문이다(R2).
+ *
+ * `supportCaseId` 는 정본 id 와 Phase-1 레거시 case id 를 모두 받는다
+ * (resolveLegacyCaseContext 가 둘 다 매칭한다). 목표 API 세 곳이 레거시 id 를 들고 온다.
+ * 대기 행이 이미 있는 회차는 부분 유니크 인덱스가 흡수한다(INSERT OR IGNORE). 먼저
+ * 쌓인 사유가 남고 행은 늘지 않는다. 실패해도 목표 저장 응답을 막지 않는다(D8, 호출부 계약).
+ * 권한: 담당 실무자 | admin (assertCaseAccess). 감사: create 1건.
+ */
+export async function enqueueTextWorkForGoalChange(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<void> {
+  await assertCaseAccess(env, actor, supportCaseId);
+  const context = await resolveLegacyCaseContext(env, actor.orgId, supportCaseId);
+
+  const candidates = await env.DB.prepare(
+    `SELECT session.id
+     FROM sessions AS session
+     WHERE session.org_id = ? AND session.support_case_id = ?
+       AND TRIM(COALESCE(session.memo, '')) <> ''
+       AND NOT EXISTS (
+         SELECT 1 FROM approved_ai_briefing_v1 AS approved
+         WHERE approved.org_id = session.org_id AND approved.session_id = session.id
+       )
+     ORDER BY session.held_at`,
+  ).bind(actor.orgId, context.supportCaseId).all<DbRow>();
+
+  const enqueuedAt = now();
+  const statements = candidates.results.map((row) => env.DB.prepare(
+    `INSERT OR IGNORE INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+     VALUES (?, ?, ?, ?, 'goal_revised', 'pending', ?)`,
+  ).bind(newId(), actor.orgId, context.supportCaseId, stringValue(row.id), enqueuedAt));
+  if (statements.length > 0) {
+    await env.DB.batch(statements);
+  }
+  // 목표 문구는 감사 detail 에 싣지 않는다(R3 태도). 몇 회차를 올렸는지만 남긴다.
+  await writeAudit(env, actor, {
+    action: 'create',
+    targetTable: 'ai_text_work_queue',
+    caseId: context.caseRecord.id,
+    detail: { reason: 'goal_revised', sessionCount: statements.length },
+  });
 }
 
 /**
@@ -5825,12 +5878,21 @@ function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | n
  * `recordMaskedSourceSnapshot` 이 다시 걸어도 해시가 어긋나지 않는다.
  * 동의·파일럿 게이트는 스냅샷 저장 시점에 다시 확인된다.
  *
- * AI 재료 배선(D62 §7 · CCC-73): 회차 텍스트 앞에 케이스 컨텍스트를 깐다.
- * 전체 목표가 으뜸 재료, 인테이크 지원욕구·지원방향(선택값)이 기본 재료다. 자유 글인
- * 전체 목표도 이 원문에 실려 장비 마스킹을 거친 스냅샷으로만 사업자에 나간다(D57 게이트,
- * 사업자 호출부에서 원문을 직접 잇지 않는다). 일정 없이 쓴 워크인 회차의 폴백 자유 글
- * ('이번 상담에서 확인할 것' = record_details.sessionGoalNote)도 같은 조건으로 싣는다.
- * goal_revisions 의 이전 문구는 싣지 않는다. 재료는 마스킹 시점의 현재 문구뿐이다.
+ * AI 재료 배선(D62 §7 · CCC-73, D69 · ADR-0036 로 목표 3층 완성 · CCC-103): 회차 텍스트
+ * 앞에 케이스 컨텍스트를 깐다. 전체 목표가 으뜸 재료, 그 다음이 활성 세부 목표, 인테이크
+ * 지원욕구·지원방향(선택값)이 기본 재료이고, 이 회차가 완료된 일정에 연결돼 있으면 그
+ * 일정의 회기 목표를 본문 바로 앞에 깐다. 자유 글인 목표 문구도 전부 이 원문에 실려 장비
+ * 마스킹을 거친 스냅샷으로만 사업자에 나간다(D57 게이트, 사업자 호출부에서 원문을 직접
+ * 잇지 않는다). 일정 없이 쓴 워크인 회차의 폴백 자유 글('이번 상담에서 확인할 것' =
+ * record_details.sessionGoalNote)도 같은 조건으로 싣는다.
+ * goal_revisions 의 이전 문구와 닫힌 세부 목표는 싣지 않는다. 재료는 마스킹 시점의 현재
+ * 문구뿐이다.
+ *
+ * 회기 목표에는 큐 투입 훅을 걸지 않는다(CCC-103). 회차와 일정의 연결은 기록 공식화
+ * 시점에만 생기고 그때 이미 잠금이 지난 뒤이며(D62 §6 은 시작 시각 후 수정을 막는다),
+ * 마스킹은 실행 시점의 현재 문구를 읽으므로 ADR-0036 결정 4 의 '잠금 시점 투입'이 저절로
+ * 지켜진다. 남는 틈은 시작 시각이 지났는데 회차가 끝내 공식화되지 않은 일정인데, 그 회차는
+ * 공식 텍스트가 없어 호출 ① 의 재료가 애초에 없다(ADR-0036 결정 2).
  */
 export async function getTextWorkItemSource(
   env: Env,
@@ -5851,7 +5913,7 @@ export async function getTextWorkItemSource(
   const sessionId = stringValue(item.session_id);
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
-  const [sessionRow, approvedRow, caseRow, intakeRow] = await Promise.all([
+  const [sessionRow, approvedRow, caseRow, intakeRow, detailGoalRows, sessionGoalRows] = await Promise.all([
     env.DB.prepare('SELECT memo, record_details FROM sessions WHERE id = ? AND org_id = ?')
       .bind(sessionId, actor.orgId).first<DbRow>(),
     env.DB.prepare(
@@ -5866,6 +5928,22 @@ export async function getTextWorkItemSource(
       `SELECT intake_details FROM sessions
        WHERE org_id = ? AND support_case_id = ? AND kind = 'intake' LIMIT 1`,
     ).bind(actor.orgId, scope.supportCaseId).first<DbRow>(),
+    // 활성 세부 목표만 싣는다. 닫힌 목표는 지난 기록이라 재료가 아니다(D62 §5).
+    env.DB.prepare(
+      `SELECT title FROM goals
+       WHERE org_id = ? AND support_case_id = ? AND status = 'active'
+       ORDER BY created_at, id`,
+    ).bind(actor.orgId, scope.supportCaseId).all<DbRow>(),
+    // 이 회차를 완료로 닫은 일정의 회기 목표. 일정에 연결되지 않은 워크인 회차는 0행이다.
+    env.DB.prepare(
+      `SELECT session_goal.body
+       FROM schedule_session_goals AS session_goal
+       JOIN counseling_schedules AS schedule
+         ON schedule.id = session_goal.schedule_id AND schedule.org_id = session_goal.org_id
+       WHERE session_goal.org_id = ? AND schedule.status = 'completed'
+         AND schedule.completed_session_id = ?
+       ORDER BY session_goal.ordinal`,
+    ).bind(actor.orgId, sessionId).all<DbRow>(),
   ]);
 
   // 공식 텍스트(수기 메모 또는 승인된 AI 정리)가 있어야 일감이 성립한다. 컨텍스트만으로
@@ -5879,10 +5957,17 @@ export async function getTextWorkItemSource(
   }
 
   const parts: string[] = [];
-  // 케이스 컨텍스트: 전체 목표 으뜸, 인테이크 선택값 기본(D62 §7 재료 우선순위).
+  // 케이스 컨텍스트: 전체 목표 으뜸, 활성 세부 목표가 그 다음, 인테이크 선택값 기본
+  // (D62 §7 재료 우선순위 · D69 가 목표 층을 채웠다).
   const overallGoal = caseRow === null ? null : nullableString(caseRow.overall_goal);
   if (overallGoal !== null && overallGoal.trim().length > 0) {
     parts.push(`[전체 목표] ${overallGoal.trim()}`);
+  }
+  const detailGoalLines = detailGoalRows.results
+    .map((row) => stringValue(row.title).trim())
+    .filter((title) => title.length > 0);
+  if (detailGoalLines.length > 0) {
+    parts.push(`[세부 목표] ${detailGoalLines.join('\n')}`);
   }
   const intakeDetails = intakeRow === null ? null : intakeRow.intake_details;
   for (const [label, key] of [
@@ -5892,6 +5977,13 @@ export async function getTextWorkItemSource(
   ] as const) {
     const answer = intakeAnswerText(intakeDetails, key);
     if (answer !== null) parts.push(`[${label}] ${answer}`);
+  }
+  // 이 회차에서 다루기로 한 것. '미논의 목표' 대조의 유일한 기준이다(ADR-0036 결정 3).
+  const sessionGoalLines = sessionGoalRows.results
+    .map((row) => stringValue(row.body).trim())
+    .filter((body) => body.length > 0);
+  if (sessionGoalLines.length > 0) {
+    parts.push(`[회기 목표] ${sessionGoalLines.join('\n')}`);
   }
   if (memo !== null) parts.push(memo);
   if (summary !== null) parts.push(summary);
