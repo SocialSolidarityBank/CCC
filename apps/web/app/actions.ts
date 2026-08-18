@@ -35,6 +35,7 @@ import {
   signupParticipant,
   createSubsequentParticipantProgram,
   editAiDraft,
+  generateAiDraft,
   getMyIdentity,
   getParticipantBriefing,
   getSession,
@@ -76,6 +77,7 @@ type Notice =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
+  | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
   | 'ai_provider_unavailable'
@@ -364,6 +366,7 @@ function noticeFor(error: unknown): Notice {
       case 'stale_draft_version':
       case 'draft_version_required':
       case 'grounded_evidence_required':
+      case 'fixture_draft_approval_forbidden':
       case 'ai_provider_not_configured':
       case 'service_unavailable':
       case 'ai_prohibited_output':
@@ -377,9 +380,12 @@ function noticeFor(error: unknown): Notice {
   throw error;
 }
 
-function withNotice(path: string, name: 'notice' | 'error', code: string): string {
+function withNotice(path: string, name: 'notice' | 'error', code: string, extra?: Record<string, string>): string {
   const destination = new URL(path, 'https://ccc.invalid');
   destination.searchParams.set(name, code);
+  if (extra !== undefined) {
+    for (const [key, value] of Object.entries(extra)) destination.searchParams.set(key, value);
+  }
   return `${destination.pathname}${destination.search}`;
 }
 
@@ -413,14 +419,9 @@ export async function unlockPreviewAction(formData: FormData): Promise<void> {
 }
 
 /**
- * AI 초안 액션 3종이 끝난 뒤 돌아갈 곳(CCC-60).
- *
- * 원래는 `/cases/:caseId` 와 `/sessions/new` 로 갔는데, 그 둘은 다른 화면으로 넘기기만 하던
- * 옛 별칭이라 이 티켓에서 지웠다. 그래서 이 액션들의 목적지가 없어졌다.
- *
- * **액션 자체는 남긴다.** 게이트웨이 호출과 버전 검사가 들어 있고, AI 승인 화면(CCC-67)이
- * 생기면 그대로 쓸 물건이다. 지금은 그 화면이 없어서 이 액션들을 부르는 곳도 0건이다.
- * 승인 화면이 생기는 날 이 상수를 그 화면 주소로 바꾼다.
+ * 편집 액션(evidenceIds 재선택)의 목적지(CCC-60). 검토 화면(CCC-67·CCC-100)은 승인·반려·
+ * 재생성 셋만 쓰고, 이 상수는 편집 전용으로 남는다 — 편집 UI 는 아직 없어 이 액션도
+ * 부르는 곳이 0건이다.
  */
 const AI_DRAFT_RETURN_PATH = '/';
 
@@ -443,6 +444,15 @@ function participantProgramPath(beneficiaryId: string, supportCaseId: string): s
 
 function participantBriefingPath(beneficiaryId: string, supportCaseId: string): string {
   return `${participantProgramPath(beneficiaryId, supportCaseId)}/briefing`;
+}
+
+function participantRecordsPath(beneficiaryId: string, supportCaseId: string): string {
+  return `${participantProgramPath(beneficiaryId, supportCaseId)}/records`;
+}
+
+/** AI 초안 검토·승인 화면(CCC-67·CCC-100). 승인·반려·재생성이 성공·실패 모두 여기로 돌아온다. */
+function sessionReviewPath(beneficiaryId: string, supportCaseId: string, sessionId: string): string {
+  return `${participantRecordsPath(beneficiaryId, supportCaseId)}/${encodeURIComponent(sessionId)}/review`;
 }
 
 function revalidateParticipantProgram(beneficiaryId: string, supportCaseId: string): void {
@@ -529,16 +539,23 @@ export async function editAiDraftAction(formData: FormData): Promise<void> {
   redirect(withNotice(AI_DRAFT_RETURN_PATH, 'notice', 'ai_draft_edited'));
 }
 
+/**
+ * 승인·반려 처리(D69 · ADR-0036 · CCC-100). 대조 3종을 확인하는 것이 곧 정합성 검증이다
+ * (R2). 검토 화면(세션 단위 주소)이 성공·실패 모두 돌아올 곳이라 beneficiaryId·
+ * supportCaseId 를 함께 받아 그 주소를 만든다 — 구 AI_DRAFT_RETURN_PATH('/')는 이 화면이
+ * 없던 시절의 임시 목적지였다(CCC-67 이 채운 간극).
+ */
 export async function reviewAiDraftAction(formData: FormData): Promise<void> {
-  let caseId: string | undefined;
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
   let sessionId: string | undefined;
   let decision: 'approved' | 'rejected' | undefined;
   try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
     sessionId = opaqueId(formData, 'sessionId');
     const session = await getSession(sessionId);
-    if (session.id !== sessionId) throw new FormInputError();
-    caseId = session.caseId;
-    rejectInconsistentCaseId(formData, caseId);
+    if (session.id !== sessionId || session.caseId !== supportCaseId) throw new FormInputError();
     const decisionValue = requiredValue(formData, 'decision');
     if (decisionValue !== 'approved' && decisionValue !== 'rejected') throw new FormInputError();
     decision = decisionValue;
@@ -547,14 +564,56 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
       decision,
     });
   } catch (error) {
-    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', noticeFor(error)));
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined
+      ? '/participants'
+      : sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
   }
 
-  if (caseId === undefined || sessionId === undefined || decision === undefined) {
-    redirect(withNotice(AI_DRAFT_RETURN_PATH, 'error', 'service_unavailable'));
+  if (beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined || decision === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
   }
-  revalidateCase();
-  redirect(withNotice(AI_DRAFT_RETURN_PATH, 'notice', `ai_${decision}`));
+  revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  const reviewPath = sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
+  revalidatePath(reviewPath);
+  redirect(withNotice(reviewPath, 'notice', `ai_${decision}`));
+}
+
+/**
+ * 재생성(D69 · ADR-0036 결정 2 · CCC-100). 노출 조건(있음·없음)과 쓸 스냅샷 id 는 서버가
+ * 판정해 검토 화면에 내려주므로(R1), 이 액션은 그 값을 그대로 실어 보낸다 — 화면이 직접
+ * 스냅샷을 고르지 않는다.
+ *
+ * 실패 리다이렉트에 `errorSource=regenerate` 를 함께 심는다(검수 지적 6) — 처리(승인·반려)
+ * 실패와 같은 ?error= 코드 공간을 쓰다 보니 화면이 "처리하지 못했습니다"로 뭉뚱그려 읽히던
+ * 것을, 어느 액션이 실패했는지로 갈라 페이지가 다른 문구를 고르게 한다.
+ */
+export async function generateAiDraftAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  let sessionId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    sessionId = opaqueId(formData, 'sessionId');
+    const session = await getSession(sessionId);
+    if (session.id !== sessionId || session.caseId !== supportCaseId) throw new FormInputError();
+    const sourceSnapshotId = opaqueId(formData, 'sourceSnapshotId');
+    await generateAiDraft(session.id, { sourceSnapshotId });
+  } catch (error) {
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined
+      ? '/participants'
+      : sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
+    redirect(withNotice(fallback, 'error', noticeFor(error), { errorSource: 'regenerate' }));
+  }
+
+  if (beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable', { errorSource: 'regenerate' }));
+  }
+  revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  const reviewPath = sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
+  revalidatePath(reviewPath);
+  redirect(withNotice(reviewPath, 'notice', 'ai_regenerated'));
 }
 /**
  * 동의 3종 수정·철회 (D44). 당사자 정보 페이지의 참여 사업 카드마다 붙는다.

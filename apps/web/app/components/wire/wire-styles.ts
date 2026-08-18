@@ -532,6 +532,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-item[data-tone="blue"]{background:var(--blue-tint)}
 .wire-item-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-item-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
+/* 구획(WireCardSection) 안에 WireItem 없이 바로 오는 읽는 값(§2-2 위계 4단 ③ 16/400
+   --ink). 구획은 자식 규칙을 갖지 않으므로(위 §2-2 안내 참고) 화면이 이 클래스로 직접
+   계약을 받는다 — 전역 p 규칙(margin 위 8 + --sub, layout.tsx)을 그대로 쓰면 라벨과의
+   간격이 구획 grid gap(8) 과 겹쳐 16 이 되고 색도 --sub 로 묻힌다(2026-08-19 CCC-100 검수). */
+.wire-section-value{margin:0;color:var(--ink)}
 .wire-item-status{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
 /* 행동 줄은 제목과 같은 소리를 내면 안 된다. 14/600 계열 색 밑줄은 이 앱의 인라인 링크
    어휘 그대로다(.note-inline a · .wire-form-hint a). deep 색은 14 이상·600 에서만 쓴다(§9). */

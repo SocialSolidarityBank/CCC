@@ -1501,8 +1501,11 @@ describe('API routes', () => {
 
     const sourceAsCounselor = await recordSource(env, session.id, await sourceBody(), counselorHeaders);
     expect(sourceAsCounselor.status).toBe(403);
-    const generateAsCounselor = await generateDraft(env, session.id, source.sourceSnapshotId, counselorHeaders);
-    expect(generateAsCounselor.status).toBe(403);
+    // 담당 실무자의 재생성 자체는 D69 · ADR-0036 결정 2 · CCC-100 으로 이제 열려 있다
+    // (별도 describe '재생성 노출과 트리거'가 성공 경로를 검증한다) — 여기서는 여전히
+    // 무자격인 배정 안 된 실무자로 "생성이 함부로 안 된다"는 취지를 그대로 지킨다.
+    const generateAsUnassignedCounselor = await generateDraft(env, session.id, source.sourceSnapshotId, unassignedCounselorHeaders);
+    expect(generateAsUnassignedCounselor.status).toBe(403);
     const generateOtherOrg = await generateDraft(env, session.id, source.sourceSnapshotId, otherOrgServiceHeaders);
     expect(generateOtherOrg.status).toBe(403);
     expect(adapter.calls).toBe(1);
@@ -1600,18 +1603,10 @@ describe('API routes', () => {
         expectedError: 'actor_authentication_required',
         request: () => generateDraft(env, session.id, source.sourceSnapshotId, unauthenticatedHeaders),
       },
-      {
-        name: 'generate admin',
-        expectedStatus: 403,
-        expectedError: 'forbidden',
-        request: () => generateDraft(env, session.id, source.sourceSnapshotId, adminHeaders),
-      },
-      {
-        name: 'generate assigned counselor',
-        expectedStatus: 403,
-        expectedError: 'forbidden',
-        request: () => generateDraft(env, session.id, source.sourceSnapshotId, counselorHeaders),
-      },
+      // 'generate admin'·'generate assigned counselor' 는 이 표에서 뺐다 — D69 · ADR-0036
+      // 결정 2 · CCC-100 으로 재생성이 담당 실무자·기관 관리자도 트리거할 수 있게 열려
+      // 더 이상 "무자격 행위자"가 아니다(성공 경로는 routes.test.ts 의 '재생성 노출과
+      // 트리거' describe 가 검증한다). 이 표는 여전히 무자격인 행위자만 남긴다.
       {
         name: 'generate unassigned counselor',
         expectedStatus: 403,
@@ -2201,6 +2196,109 @@ async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
   expect(response.status).toBe(201);
   return response.json() as Promise<ParticipantCreation>;
 }
+
+interface RouteAiDraftWithRegeneration extends RouteAiDraft {
+  regenerateAvailable: boolean;
+  regenerateSourceSnapshotId: string | null;
+}
+
+describe('재생성 노출과 트리거 (D69 · ADR-0036 결정 2 · CCC-100)', () => {
+  it('생성 직후에는 초안이 쓴 재료 그대로라 재생성이 노출되지 않는다', async () => {
+    const fixture = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
+    const receipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    expect((await generateDraft(fixture.env, fixture.session.id, receipt.sourceSnapshotId)).status).toBe(201);
+
+    const draftResponse = await currentDraft(fixture.env, fixture.session.id);
+    expect(draftResponse.status).toBe(200);
+    const draft = await draftResponse.json() as RouteAiDraftWithRegeneration;
+    expect(draft.regenerateAvailable).toBe(false);
+    expect(draft.regenerateSourceSnapshotId).toBeNull();
+  });
+
+  it('늦게 온 텍스트 재료가 있으면 재생성이 노출되고, 담당 실무자가 새 버전으로 재생성할 수 있다', async () => {
+    const fixture = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
+    const firstReceipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    const firstDraftResponse = await generateDraft(fixture.env, fixture.session.id, firstReceipt.sourceSnapshotId);
+    expect(firstDraftResponse.status).toBe(201);
+    const firstDraft = await firstDraftResponse.json() as RouteAiDraft;
+    expect(firstDraft.version).toBe(1);
+
+    // 늦게 도착한 텍스트 재료(장비가 나중에 올린 두 번째 마스킹 스냅샷).
+    const secondReceipt = await recordSourceSnapshot(
+      fixture.env,
+      fixture.session.id,
+      await sourceBody('A001 mentioned a later rent increase.', 'source-evidence-2'),
+    );
+
+    const beforeRegenerate = await currentDraft(fixture.env, fixture.session.id);
+    const beforeDraft = await beforeRegenerate.json() as RouteAiDraftWithRegeneration;
+    expect(beforeDraft.regenerateAvailable).toBe(true);
+    expect(beforeDraft.regenerateSourceSnapshotId).toBe(secondReceipt.sourceSnapshotId);
+
+    // 재생성은 담당 실무자가 서버가 내려준 값 그대로 트리거한다(service 토큰이 아니다).
+    const regenerated = await generateDraft(
+      fixture.env,
+      fixture.session.id,
+      beforeDraft.regenerateSourceSnapshotId!,
+      counselorHeaders,
+    );
+    expect(regenerated.status).toBe(201);
+    const regeneratedDraft = await regenerated.json() as RouteAiDraft;
+    expect(regeneratedDraft.version).toBe(2);
+
+    const afterRegenerate = await currentDraft(fixture.env, fixture.session.id);
+    const afterDraft = await afterRegenerate.json() as RouteAiDraftWithRegeneration;
+    expect(afterDraft.regenerateAvailable).toBe(false);
+    expect((await draftCount())).toBe(2);
+    // 재생성은 새 work item 이 아니라 같은 세션의 다음 버전이다.
+    const workItemRows = await t.db.prepare('SELECT COUNT(*) AS count FROM ai_work_items').first<{ count: number }>();
+    expect(Number(workItemRows?.count)).toBe(1);
+  });
+
+  it('배정되지 않은 실무자는 재생성을 트리거할 수 없다', async () => {
+    const fixture = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
+    const receipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    expect((await generateDraft(fixture.env, fixture.session.id, receipt.sourceSnapshotId)).status).toBe(201);
+    const secondReceipt = await recordSourceSnapshot(
+      fixture.env,
+      fixture.session.id,
+      await sourceBody('A001 mentioned a later rent increase.', 'source-evidence-2'),
+    );
+
+    const forbidden = await generateDraft(fixture.env, fixture.session.id, secondReceipt.sourceSnapshotId, unassignedCounselorHeaders);
+    expect(forbidden.status).toBe(403);
+  });
+
+  it('이미 승인된 초안은 늦게 온 재료가 있어도 재생성 노출과 트리거 둘 다 막는다', async () => {
+    const fixture = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
+    const receipt = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    const draftResponse = await generateDraft(fixture.env, fixture.session.id, receipt.sourceSnapshotId);
+    expect(draftResponse.status).toBe(201);
+    const draft = await draftResponse.json() as RouteAiDraft;
+    // 반려로 '이미 처리됨' 상태를 만든다 — 판정 기준은 reviewDecision !== null 이지 승인 여부가
+    // 아니므로 반려로도 재생성이 막히는지 확인할 수 있다.
+    expect((await reviewDraft(fixture.env, fixture.session.id, draft.version, 'rejected')).status).toBe(200);
+
+    const secondReceipt = await recordSourceSnapshot(
+      fixture.env,
+      fixture.session.id,
+      await sourceBody('A001 mentioned a later rent increase.', 'source-evidence-2'),
+    );
+
+    const afterReview = await currentDraft(fixture.env, fixture.session.id);
+    const afterReviewDraft = await afterReview.json() as RouteAiDraftWithRegeneration;
+    expect(afterReviewDraft.regenerateAvailable).toBe(false);
+    expect(afterReviewDraft.regenerateSourceSnapshotId).toBeNull();
+
+    const blocked = await generateDraft(fixture.env, fixture.session.id, secondReceipt.sourceSnapshotId, counselorHeaders);
+    expect(blocked.status).toBe(409);
+    await expect(blocked.json()).resolves.toEqual({ error: 'stale_draft_version' });
+  });
+});
 
 describe('canonical participant API routes', () => {
   it('serves the web participant, focused-briefing, today-schedule, and bounded record contracts', async () => {

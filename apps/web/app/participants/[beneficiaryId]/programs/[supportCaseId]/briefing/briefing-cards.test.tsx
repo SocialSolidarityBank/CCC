@@ -215,7 +215,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({ pendingReviewSessionIds: ['s-2'] })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
     const link = within(card).getByRole('link', {
-      name: '2026년 7월 15일 기본 상담 테스트 산출물 검수',
+      name: '2026년 7월 15일 기본 상담 AI 초안 검토',
     });
     expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}/s-2/review`);
     const pendingSection = within(card).getByTestId('pending-fixture-reviews');
@@ -234,7 +234,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
       sessionRows: [],
     })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
-    const link = within(card).getByRole('link', { name: /테스트 산출물 검수/ });
+    const link = within(card).getByRole('link', { name: /AI 초안 검토/ });
     expect(link.getAttribute('href')).toBe(
       `${baseProps().recordsHref}/fixture%2Fsession%20older/review`,
     );
