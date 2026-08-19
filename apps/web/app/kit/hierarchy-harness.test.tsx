@@ -28,6 +28,7 @@ import KitPage from './page';
 import { PageLoading } from '../components/wire/page-loading';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RecordOnepage, type RecordOnepageProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage';
+import { DraftReviewView, type DraftReviewViewProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view';
 import { IntakeWizard } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard';
 import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
 import { SessionPlanEditor } from '../schedules/[scheduleId]/plan/session-plan-editor';
@@ -46,6 +47,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..',
 const OUT_DIR = join(repoRoot, 'artifacts/hierarchy-harness');
 
 const CASE_ID = '11111111-1111-4111-8111-111111111111';
+const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 const noop = async () => ({ status: 'saved' as const });
 
 // ---------------------------------------------------------------------------
@@ -98,6 +100,57 @@ const recordProps: RecordOnepageProps = {
   lastRecordSummary: null,
   briefingPath: `/participants/swallow-003/programs/${CASE_ID}/briefing`,
   actions: <><button type="button">돌아가기</button><button type="submit">저장</button></>,
+};
+
+// 검토 화면 픽스처(CCC-104). 측정 표면을 최대로: 실초안(fixture 아님, 처리·재생성 UI가 다
+// 서는 조건), 대조 3종은 applied(재료 2종 인용 섞기) + 비적용 축(no_session_goal) 섞임.
+const reviewProps: DraftReviewViewProps = {
+  beneficiaryId: 'swallow-003',
+  supportCaseId: CASE_ID,
+  sessionId: SESSION_ID,
+  participantName: '홍서희',
+  stageTag: '검토 대기',
+  stageTagTone: 'lavender',
+  metaItems: ['2026년 7월 15일', '대면'],
+  recordsHref: `/participants/swallow-003/programs/${CASE_ID}/records`,
+  draft: {
+    origin: 'generated',
+    creationMode: 'provider_generated',
+    version: 3,
+    summaryText: '지난 상담 이후 월세 체납 문제와 구직 활동 근황을 확인했다. 이번 회차에서는 고정 지출을 정리하고 다음 상담까지의 계획을 세웠다.',
+    oneLiner: '월세 체납 해소 계획을 세우고 구직 활동 근황을 확인했다',
+    questions: [
+      { title: '최근 구직 활동은 어땠는지', reason: '지난 회차에서 면접 결과를 기다리고 있었다' },
+      { title: '이번 달 지출 정리는 계획대로 됐는지', reason: '고정 지출 정리를 목표로 잡았다' },
+    ],
+    evidence: [
+      { id: 'evidence-1', claimKey: 'rent-arrears', quote: '집주인이 이번 주까지 연락을 달라고 했어요' },
+      { id: 'evidence-2', claimKey: 'job-search', quote: '다음 주에 면접 결과가 나온다고 들었어요' },
+    ],
+    reviewDecision: null,
+    contrast: [
+      {
+        axis: 'missing_from_memo',
+        status: 'applied',
+        findings: [
+          { description: '메모에는 없지만 전사에서 확인된 임대차 갱신 언급', materialKind: 'transcript', quote: '재계약이 다음 달로 다가와서 걱정이에요' },
+          { description: '메모에는 없지만 목표 문구에서 확인된 지출 정리 계획', materialKind: 'text_context', quote: '고정 지출을 항목별로 정리하기로 함' },
+        ],
+      },
+      {
+        axis: 'missing_from_transcript',
+        status: 'applied',
+        findings: [
+          { description: '전사에는 없지만 메모에서 확인된 병원 진료 일정', materialKind: 'text_context', quote: '다음 주 화요일 병원 예약이 있음' },
+        ],
+      },
+      { axis: 'undiscussed_session_goal', status: 'no_session_goal', findings: [] },
+    ],
+    regenerateAvailable: true,
+    regenerateSourceSnapshotId: 'snapshot-9',
+  },
+  reviewAction: noop as never,
+  generateAction: noop as never,
 };
 
 const scheduleCandidates: ScheduleWizardCandidate[] = [{
@@ -207,6 +260,7 @@ const SCREENS: Screen[] = [
     label: '당사자 등록',
     node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} />,
   },
+  { id: 'review', label: 'AI 초안 검토', node: <DraftReviewView {...reviewProps} /> },
 ];
 
 // ---------------------------------------------------------------------------
