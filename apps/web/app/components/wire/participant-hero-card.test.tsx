@@ -49,6 +49,24 @@ describe('ParticipantHeroCard', () => {
     expect(withoutTag.container.querySelector('.wire-status-tag')).toBeNull();
   });
 
+  it('상태 태그 색 계열 — 기본은 블루라 기존 화면은 변화가 없다 (D61 ② 개정, CCC-106)', () => {
+    const defaultTone = render(
+      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" stageTag="15초 페이지" />,
+    );
+    // 기본값 blue 는 data-tone 을 달지 않는다 — 기존 .wire-status-tag 고정 블루 CSS 그대로다.
+    expect(defaultTone.container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBeNull();
+
+    const lavenderTone = render(
+      <ParticipantHeroCard
+        name="김미영"
+        beneficiaryId="swallow-003"
+        stageTag="검토 대기"
+        stageTagTone="lavender"
+      />,
+    );
+    expect(lavenderTone.container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('lavender');
+  });
+
   it('메타와 행동도 슬롯이다 — 없으면 빈 자리 없이 접힌다', () => {
     const bare = render(<ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />);
     expect(bare.container.querySelector('.participant-hero-meta')).toBeNull();

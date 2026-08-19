@@ -171,6 +171,7 @@ export async function ReviewContent({
         sessionId={sessionId}
         participantName={participant.name}
         stageTag={stageTagFor(draft.reviewDecision)}
+        stageTagTone="lavender"
         metaItems={[formatKoreanDate(session.heldAt), sessionChannelLabels[session.channel]]}
         recordsHref={recordsHref(beneficiaryId, supportCaseId)}
         draft={{

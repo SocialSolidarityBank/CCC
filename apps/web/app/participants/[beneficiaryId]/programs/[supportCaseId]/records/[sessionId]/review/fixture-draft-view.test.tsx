@@ -65,6 +65,12 @@ describe('DraftReviewView', () => {
     expect(container.querySelector('.wire-bullets-single')).toBeNull();
   });
 
+  // CCC-106: HERO 상태 태그는 stageTagTone 을 ParticipantHeroCard 로 그대로 넘긴다.
+  it('passes stageTagTone through to the HERO status tag', () => {
+    const { container } = render(<DraftReviewView {...props({ stageTagTone: 'lavender' })} />);
+    expect(container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('lavender');
+  });
+
   it('keeps every draft section visible when optional values are empty', () => {
     render(<DraftReviewView {...props({
       draft: {
