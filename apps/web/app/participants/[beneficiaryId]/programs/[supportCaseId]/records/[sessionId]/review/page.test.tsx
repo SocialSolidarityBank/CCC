@@ -94,7 +94,7 @@ async function renderContent(errorCode?: string, errorSource?: string) {
 
 describe('AI 초안 검토 페이지', () => {
   it('loads a draft only after session and participant scope match', async () => {
-    await renderContent();
+    const { container } = await renderContent();
 
     expect(listSupportCaseRecords).toHaveBeenCalledWith('swallow-003', 'case-1');
     expect(getParticipantDetail).toHaveBeenCalledWith('swallow-003');
@@ -103,6 +103,8 @@ describe('AI 초안 검토 페이지', () => {
     expect(screen.getByTestId('preview-fixture-badge').dataset.tone).toBe('lavender');
     expect(document.body.textContent).toContain('대면');
     expect(document.body.textContent).not.toContain('in_person');
+    // CCC-106: HERO 상태 태그는 이 화면에서 늘 AI 산출물 계열(라벤더)이다(D58 ④, D61 ② 개정).
+    expect(container.querySelector<HTMLElement>('.wire-status-tag')?.dataset.tone).toBe('lavender');
   });
 
   it('does not fetch or expose a draft when the session belongs to another case', async () => {
@@ -164,6 +166,7 @@ describe('AI 초안 검토 페이지', () => {
     });
     const { container } = await renderContent();
     expect(container.querySelector('.wire-status-tag')?.textContent).toBe('승인됨');
+    expect(container.querySelector<HTMLElement>('.wire-status-tag')?.dataset.tone).toBe('lavender');
   });
 
   it('shows a rejected stage tag when the draft has already been rejected', async () => {
@@ -182,6 +185,7 @@ describe('AI 초안 검토 페이지', () => {
     });
     const { container } = await renderContent();
     expect(container.querySelector('.wire-status-tag')?.textContent).toBe('반려됨');
+    expect(container.querySelector<HTMLElement>('.wire-status-tag')?.dataset.tone).toBe('lavender');
   });
 
   it('rejects a legacy_import draft — approval and regeneration assume materials this origin never has', async () => {

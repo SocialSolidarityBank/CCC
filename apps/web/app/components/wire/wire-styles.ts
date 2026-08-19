@@ -904,6 +904,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 상태 태그: 색·모양 레시피는 배지와 같다(2026-08-06 Q — radius 6 을 알약으로 통일, 굵기 400).
    화면 전체에서 이 클래스 하나만 쓴다(2026-08-07 통합). */
 .wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+/* 상태 태그 색 계열(D61 ② 개정, CCC-106): 기본은 위 블루. AI 산출·승인 대기 낱말(D58 ④)만
+   라벤더로 연다 — 다섯 계열을 미리 다 칠하지 않는다(쓰는 것만 연다). 글자는 배지와 같은
+   레시피로 --ink 그대로 두고 테두리·배경만 계열을 바꾼다. 변수 자체가 테마 토큰이라
+   다크(D56)에서 별도 선언 없이 함께 뒤집힌다. */
+.wire-status-tag[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}
 /* 체크박스(§5): 18px · radius 4 · --gradient-deep 1px 테두리. 리스크 변형은 테두리만 --risk. */
 .wire-checkbox{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-xs);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
 /* 리스크 변형: 테두리만 --risk 로 바꾼다(2026-07-26 Q 결정). 나머지는 기본과 같다.

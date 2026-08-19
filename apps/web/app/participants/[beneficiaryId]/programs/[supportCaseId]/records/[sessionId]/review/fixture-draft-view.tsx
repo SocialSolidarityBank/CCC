@@ -72,6 +72,8 @@ export interface DraftReviewViewProps {
   sessionId: string;
   participantName: string | null;
   stageTag: string;
+  /** 검토 대기·승인됨·반려됨 3종 전부 AI 산출물 상태다(D58 ④) — 라벤더로 연다(CCC-106). */
+  stageTagTone?: 'blue' | 'lavender' | undefined;
   metaItems: ReactNode[];
   recordsHref: string;
   draft: DraftReviewViewModel;
@@ -127,6 +129,7 @@ export function DraftReviewView({
   sessionId,
   participantName,
   stageTag,
+  stageTagTone,
   metaItems,
   recordsHref,
   draft,
@@ -152,6 +155,7 @@ export function DraftReviewView({
           name={participantName}
           beneficiaryId={beneficiaryId}
           stageTag={stageTag}
+          stageTagTone={stageTagTone}
           meta={<MetaRow items={metaItems} />}
           actions={<WireButton href={recordsHref} variant="secondary">전체 상담 기록</WireButton>}
         />
