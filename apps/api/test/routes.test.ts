@@ -1487,7 +1487,7 @@ describe('API routes', () => {
     );
   });
 
-  it('enforces service-only generation and assigned-counselor-only draft access without mutation', async () => {
+  it('enforces service-only generation and counselor-or-admin-only draft access without mutation', async () => {
     const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(env, session.id);
@@ -1510,7 +1510,10 @@ describe('API routes', () => {
     expect(generateOtherOrg.status).toBe(403);
     expect(adapter.calls).toBe(1);
 
-    for (const headers of [adminHeaders, serviceHeaders, unassignedCounselorHeaders, otherOrgCounselorHeaders]) {
+    // 기관 관리자는 D7 · CCC-105 로 검토 화면(조회 · 편집 · 승인)이 열려 있다. 별도
+    // describe '검토 화면 기관 관리자 열람'이 성공 경로를 검증한다. 여기서는 여전히
+    // 무자격인 행위자만 남긴다.
+    for (const headers of [serviceHeaders, unassignedCounselorHeaders, otherOrgCounselorHeaders]) {
       const response = await currentDraft(env, session.id, headers);
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: 'forbidden' });
@@ -1525,16 +1528,6 @@ describe('API routes', () => {
       },
     ), env);
     expect(editAsUnassigned.status).toBe(403);
-
-    const reviewAsAdmin = await worker.fetch(new Request(
-      `http://localhost/sessions/${session.id}/ai/drafts/${draft.version}/review`,
-      {
-        method: 'POST',
-        headers: adminHeaders,
-        body: JSON.stringify({ expectedVersion: draft.version, decision: 'approved' }),
-      },
-    ), env);
-    expect(reviewAsAdmin.status).toBe(403);
 
     const current = await currentDraft(env, session.id);
     expect(current.status).toBe(200);
@@ -1625,12 +1618,10 @@ describe('API routes', () => {
         expectedError: 'actor_authentication_required',
         request: () => currentDraft(env, session.id, unauthenticatedHeaders),
       },
-      {
-        name: 'read admin',
-        expectedStatus: 403,
-        expectedError: 'forbidden',
-        request: () => currentDraft(env, session.id, adminHeaders),
-      },
+      // 'read admin'·'edit admin'·'review admin' 은 이 표에서 뺐다. D7 · D40 · CCC-105 로
+      // 검토 화면 세 경로가 담당 실무자·기관 관리자 모두에게 열려 더 이상 "무자격 행위자"가
+      // 아니다(성공 경로는 '검토 화면 기관 관리자 열람' describe 가 검증한다). 이 표는
+      // 여전히 무자격인 행위자만 남긴다.
       {
         name: 'read service',
         expectedStatus: 403,
@@ -1656,12 +1647,6 @@ describe('API routes', () => {
         request: () => editDraft(env, session.id, draft.version, evidenceId, unauthenticatedHeaders),
       },
       {
-        name: 'edit admin',
-        expectedStatus: 403,
-        expectedError: 'forbidden',
-        request: () => editDraft(env, session.id, draft.version, evidenceId, adminHeaders),
-      },
-      {
         name: 'edit service',
         expectedStatus: 403,
         expectedError: 'forbidden',
@@ -1684,12 +1669,6 @@ describe('API routes', () => {
         expectedStatus: 401,
         expectedError: 'actor_authentication_required',
         request: () => reviewDraft(env, session.id, draft.version, 'approved', unauthenticatedHeaders),
-      },
-      {
-        name: 'review admin',
-        expectedStatus: 403,
-        expectedError: 'forbidden',
-        request: () => reviewDraft(env, session.id, draft.version, 'approved', adminHeaders),
       },
       {
         name: 'review service',
@@ -2201,6 +2180,66 @@ interface RouteAiDraftWithRegeneration extends RouteAiDraft {
   regenerateAvailable: boolean;
   regenerateSourceSnapshotId: string | null;
 }
+
+describe('검토 화면 기관 관리자 열람 (D7 · D40 · CCC-105)', () => {
+  it('기관 관리자가 초안 조회 · 근거 재선택 · 승인까지 검토 화면 세 경로를 전부 통과한다', async () => {
+    const { caseRecord, env, session } = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const source = await recordSourceSnapshot(env, session.id);
+    const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
+    expect(generatedResponse.status).toBe(201);
+    const draft = await generatedResponse.json() as RouteAiDraft;
+
+    const readAsAdmin = await currentDraft(env, session.id, adminHeaders);
+    expect(readAsAdmin.status).toBe(200);
+    await expect(readAsAdmin.json()).resolves.toEqual(
+      expect.objectContaining({ version: draft.version, reviewDecision: null }),
+    );
+
+    const evidenceId = draft.evidence[0]?.id;
+    if (evidenceId === undefined) throw new Error('generated draft evidence is missing');
+    const editAsAdmin = await editDraft(env, session.id, draft.version, evidenceId, adminHeaders);
+    expect(editAsAdmin.status).toBe(200);
+    const edited = await editAsAdmin.json() as RouteAiDraft;
+    expect(edited.version).toBe(draft.version + 1);
+
+    const reviewAsAdmin = await reviewDraft(env, session.id, edited.version, 'approved', adminHeaders);
+    expect(reviewAsAdmin.status).toBe(200);
+    await expect(reviewAsAdmin.json()).resolves.toEqual(
+      expect.objectContaining({ reviewDecision: 'approved' }),
+    );
+  });
+
+  it('배정 안 된 실무자는 검토 화면 세 경로에서 여전히 막힌다', async () => {
+    const { caseRecord, env, session } = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const source = await recordSourceSnapshot(env, session.id);
+    const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
+    expect(generatedResponse.status).toBe(201);
+    const draft = await generatedResponse.json() as RouteAiDraft;
+    const evidenceId = draft.evidence[0]?.id;
+    if (evidenceId === undefined) throw new Error('generated draft evidence is missing');
+
+    expect((await currentDraft(env, session.id, unassignedCounselorHeaders)).status).toBe(403);
+    expect((await editDraft(env, session.id, draft.version, evidenceId, unassignedCounselorHeaders)).status).toBe(403);
+    expect((await reviewDraft(env, session.id, draft.version, 'approved', unassignedCounselorHeaders)).status).toBe(403);
+  });
+
+  it('service 역할은 검토 화면 세 경로 모두 403 이다', async () => {
+    const { caseRecord, env, session } = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const source = await recordSourceSnapshot(env, session.id);
+    const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
+    expect(generatedResponse.status).toBe(201);
+    const draft = await generatedResponse.json() as RouteAiDraft;
+    const evidenceId = draft.evidence[0]?.id;
+    if (evidenceId === undefined) throw new Error('generated draft evidence is missing');
+
+    expect((await currentDraft(env, session.id, serviceHeaders)).status).toBe(403);
+    expect((await editDraft(env, session.id, draft.version, evidenceId, serviceHeaders)).status).toBe(403);
+    expect((await reviewDraft(env, session.id, draft.version, 'approved', serviceHeaders)).status).toBe(403);
+  });
+});
 
 describe('재생성 노출과 트리거 (D69 · ADR-0036 결정 2 · CCC-100)', () => {
   it('생성 직후에는 초안이 쓴 재료 그대로라 재생성이 노출되지 않는다', async () => {

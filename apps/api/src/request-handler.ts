@@ -1461,9 +1461,14 @@ function aiDraftResponse(draft: AiDraftVersion) {
   };
 }
 
-function requireAssignedCounselor(actor: Actor): void {
-  if (actor.role !== 'counselor') {
-    throw new ForbiddenError('assigned counselor role is required for AI draft review');
+/**
+ * 검토 화면(초안 조회 · 근거 재선택 · 승인/반려) 1차 역할 필터 (CCC-105 · D7 · D40).
+ * 담당 실무자 또는 기관 관리자만 통과시킨다 - 실제 담당 여부와 기관 경계는 게이트웨이
+ * 함수(assertCaseAccess 등)가 검사한다(R1). 이 함수는 역할만 거른다.
+ */
+function requireAiDraftReviewActor(actor: Actor): void {
+  if (actor.role !== 'counselor' && actor.role !== 'admin') {
+    throw new ForbiddenError('counselor or admin role is required for AI draft review');
   }
 }
 
@@ -2424,7 +2429,7 @@ export async function handleRequest(
       const sessionId = parts[1];
       if (request.method === 'GET' && parts.length === 2) return json(sessionResponse(await getSession(env, actor, sessionId)));
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'ai') {
-        requireAssignedCounselor(actor);
+        requireAiDraftReviewActor(actor);
         const draft = await getCurrentAiDraftForSession(env, actor, sessionId);
         if (draft === null) return json({ error: 'not_found' }, 404);
         // 재생성 노출 조건은 서버가 판정한다(D69 · ADR-0036 결정 2 · CCC-100, R1).
@@ -2457,7 +2462,7 @@ export async function handleRequest(
         && parts[3] === 'drafts'
         && parts[5] === 'edit'
       ) {
-        requireAssignedCounselor(actor);
+        requireAiDraftReviewActor(actor);
         const version = routeDraftVersion(parts[4] ?? '');
         const input = parseAiDraftEdit(await requestBody(request));
         if (input.expectedVersion !== version) throw new StaleDraftVersionError();
@@ -2470,7 +2475,7 @@ export async function handleRequest(
         && parts[3] === 'drafts'
         && parts[5] === 'review'
       ) {
-        requireAssignedCounselor(actor);
+        requireAiDraftReviewActor(actor);
         const version = routeDraftVersion(parts[4] ?? '');
         const input = parseAiDraftReview(await requestBody(request));
         if (input.expectedVersion !== version) throw new StaleDraftVersionError();
