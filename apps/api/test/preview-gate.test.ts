@@ -22,6 +22,9 @@ const previewEnv: ApiEnv = {
   PREVIEW_MODE: 'true',
   PREVIEW_ACCESS_CODE: TEST_CODE,
   PREVIEW_ACTOR_EMAIL: 'account@bss.or.kr',
+  // 공개 가입 표면 스위치(CCC-112). 실제 [env.preview.vars] 와 동일하게 켠다 —
+  // 켜져 있어도 미리보기에서는 아래 테스트대로 코드 세션이 먼저다.
+  PUBLIC_SIGNUP_ENABLED: '1',
 };
 
 // 관리자 시점이 켜진 env — 코드와 이메일이 **둘 다** 있어야 경로가 열린다.
@@ -111,6 +114,21 @@ describe('preview code gate (CCC-6)', () => {
       previewEnv,
     );
     expect(signup.status).toBe(401);
+  });
+
+  /**
+   * 기능 스위치(CCC-112)는 미리보기 코드 게이트보다 **앞**이다: 스위치가 닫힌 배포에서는
+   * 코드가 있어도 공개 가입 표면 자체가 존재하지 않는다(404). 401(코드 요구)이 아니라
+   * 404 라는 것이 순서의 증거다.
+   */
+  it('스위치가 닫히면 미리보기에서도 가입 경로는 코드와 무관하게 404', async () => {
+    const closedEnv: ApiEnv = { ...previewEnv };
+    delete closedEnv.PUBLIC_SIGNUP_ENABLED;
+    const invite = await worker.fetch(
+      new Request('http://localhost/invites/participant/0000000000000000000000000000000000000000000000000000000000000000'),
+      closedEnv,
+    );
+    expect(invite.status).toBe(404);
   });
 
   it('rejects a tampered session cookie (signature verification)', async () => {

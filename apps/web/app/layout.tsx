@@ -772,6 +772,8 @@ const scheduleStyles = `
    내려와 그리드 첫 행에 왼쪽 정렬로 선다(구 6px 들여쓰기 패딩도 함께 걷는다). */
 .consent-fieldset legend{float:left;padding:0;font-weight:600;font-size:var(--text-md);color:var(--ink)}
 .consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600}
+/* 케이스 종결 화면(CCC-107): 폼·요약의 세로 스택. 행 문법은 briefing-action-rows 재사용. */
+.close-case-stack{display:grid;gap:var(--space-4)}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
    리스크 변형(테두리만 --risk)을 덮어써 버린다 — 실제로 그 버그를 겪어 규칙을 한 곳으로 모았다. */
 .consent-checkbox input[type="checkbox"]:not(.wire-checkbox){width:18px;height:18px}

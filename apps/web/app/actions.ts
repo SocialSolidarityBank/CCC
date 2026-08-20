@@ -8,6 +8,7 @@ import {
   ApiError,
   addSupportCaseAssignee,
   closeGoal,
+  closeSupportCase,
   createCounselingRecord,
   createGoal,
   createIntakeRecord,
@@ -33,6 +34,8 @@ import {
   createParticipantInvite,
   getPublicInviteInfo,
   signupParticipant,
+  createWorkerInvite,
+  signupWorker,
   createSubsequentParticipantProgram,
   editAiDraft,
   generateAiDraft,
@@ -445,6 +448,10 @@ function participantProgramPath(beneficiaryId: string, supportCaseId: string): s
 function participantBriefingPath(beneficiaryId: string, supportCaseId: string): string {
   return `${participantProgramPath(beneficiaryId, supportCaseId)}/briefing`;
 }
+/** 케이스 종결 확인 화면(CCC-107) 주소. */
+function participantCloseCasePath(beneficiaryId: string, supportCaseId: string): string {
+  return `${participantProgramPath(beneficiaryId, supportCaseId)}/close`;
+}
 
 function participantRecordsPath(beneficiaryId: string, supportCaseId: string): string {
   return `${participantProgramPath(beneficiaryId, supportCaseId)}/records`;
@@ -756,6 +763,36 @@ export async function closeGoalAction(
 }
 
 /**
+ * 케이스 종결 (CCC-107) — "지원 기록을 닫고 보관 기간을 세기 시작한다".
+ * 종결 확인 화면(programs/[supportCaseId]/close)의 폼이 제출한다. 사유는 필수이고,
+ * 확인 체크 없이는 실행하지 않는다 — 종결은 이 화면에서 되돌릴 수 없는 행동이다.
+ * 권한(담당 실무자·기관 관리자)·감사(close 1행)는 게이트웨이가 강제하고(R1·D14),
+ * 파기 예정일(purge_due)은 DB 트리거가 정한다(D10). 파기 실행은 CCC-113 소관이다.
+ */
+export async function closeSupportCaseAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    const reason = requiredValue(formData, 'reason').trim();
+    if (!checkbox(formData, 'confirmClose')) throw new FormInputError();
+    await closeSupportCase(supportCaseId, reason);
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+    revalidatePath(participantCloseCasePath(beneficiaryId, supportCaseId));
+  } catch (error) {
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined
+      ? '/participants'
+      : participantCloseCasePath(beneficiaryId, supportCaseId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined || supportCaseId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  redirect(withNotice(participantCloseCasePath(beneficiaryId, supportCaseId), 'notice', 'case_closed'));
+}
+
+/**
  * 불일치 처리 3종 (D45 · ADR-0018 · CCC-42). 브리핑 영역 ③ 의 처리 버튼이 제출한다.
  * 처리는 표시일 뿐 원본 기록은 그대로다 — 여기서 바뀌는 것은 처리 상태뿐이다.
  * 권한(담당 실무자·기관 관리자)·감사(D14)는 게이트웨이가 판정한다.
@@ -1005,6 +1042,40 @@ export async function createParticipantInviteAction(): Promise<ParticipantInvite
   try {
     const invite = await createParticipantInvite('financial_support_v1');
     return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type WorkerInviteResult = { status: 'created'; token: string } | { status: Notice };
+
+// 실무자 초대 링크 발급(CCC-108 · CCC-33). 링크 조립·복사는 화면 몫이고 여기는 토큰만
+// 받아 넘긴다. 관리자 검사·감사는 API 게이트웨이가 강제한다(R1·D14).
+export async function createWorkerInviteAction(): Promise<WorkerInviteResult> {
+  try {
+    const invite = await createWorkerInvite();
+    return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type WorkerSignupResult =
+  | { status: 'created'; email: string }
+  | { status: Notice };
+
+/**
+ * 실무자 초대 가입(CCC-108). 공개 경로 — 인증 불필요. 성공 시 users 에 role=counselor 로
+ * 등재되고, 그 이메일로 Cloudflare Access 로그인해서 들어온다. 토큰 무효·이미 소비는
+ * not_found, 이메일 중복은 conflict. 리다이렉트 없음 — 클라이언트가 인라인 완료 상태를 표시한다.
+ */
+export async function signupWorkerAction(formData: FormData): Promise<WorkerSignupResult> {
+  const token = requiredValue(formData, 'token');
+  const name = requiredValue(formData, 'name');
+  const email = requiredValue(formData, 'email');
+  try {
+    const result = await signupWorker({ token: token.trim(), name: name.trim(), email: email.trim() });
+    return { status: 'created', email: result.email };
   } catch (error) {
     return { status: noticeFor(error) };
   }
