@@ -33,8 +33,11 @@ export async function runWatchdog(env: ApiEnv): Promise<PipelineHealth[]> {
     if (health.stale) {
       await notifyAdmins(
         env,
-        `pipeline stale for org ${health.orgId}: last poll ${health.lastPolledAt ?? 'never'}, `
-          + `${health.pendingJobCount} job(s) waiting (threshold ${health.thresholdHours}h)`,
+        `pipeline stale for org ${health.orgId} [${health.staleReasons.join(', ')}]: `
+          + `last poll ${health.lastPolledAt ?? 'never'}, last completion ${health.lastCompletedAt ?? 'never'}, `
+          + `${health.pendingTotalCount} job(s) waiting (audio ${health.pendingJobCount}, text ${health.pendingTextWorkCount}), `
+          + `oldest waiting ${health.oldestPendingHours ?? 0}h `
+          + `(poll threshold ${health.thresholdHours}h, queue threshold ${health.queueThresholdHours}h)`,
       );
     }
   }

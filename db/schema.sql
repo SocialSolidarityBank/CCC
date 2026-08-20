@@ -4916,30 +4916,48 @@ CREATE INDEX idx_support_cases_privacy_consent_followup
 
 
 -- ----------------------------------------------------------------------------
--- ai_text_work_queue — 텍스트 일감 큐 (0029 · D51 · ADR-0027, 0034 로 사유 확장).
+-- ai_text_work_queue — 텍스트 일감 큐 (0029 · D51 · ADR-0027, 0034 로 사유 확장,
+-- 0036 으로 임대 상태·완료 스냅샷 연결 · CCC-120).
 -- 수기 메모만 있는 회차도 처리 장비의 2차 마스킹을 거치게 하는 큐.
 -- (0031 반영 때 뒤늦게 스냅샷에 합류 — 0030 은 데이터 복구(UPDATE)뿐이라 스키마 변화 없음.)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_text_work_queue (
-  id              TEXT PRIMARY KEY,
-  org_id          TEXT NOT NULL,
-  support_case_id TEXT NOT NULL REFERENCES support_cases (id),
-  session_id      TEXT NOT NULL REFERENCES sessions (id),
+  id                    TEXT PRIMARY KEY,
+  org_id                TEXT NOT NULL,
+  support_case_id       TEXT NOT NULL REFERENCES support_cases (id),
+  session_id            TEXT NOT NULL REFERENCES sessions (id),
   -- 무엇이 이 일감을 만들었는가. 수기 저장(D5 즉시 공식) | AI 정리 승인(R2) |
   -- 목표 확정·수정(0034 · D69 · ADR-0036 결정 4).
-  reason          TEXT NOT NULL CHECK (reason IN ('manual_record', 'ai_draft_approved', 'goal_revised')),
-  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done')),
-  enqueued_at     TEXT NOT NULL,
-  completed_at    TEXT,
-  -- done 이면 완료 시각이 있고, pending 이면 없다. 상태와 시각이 어긋나지 못하게.
-  CHECK ((status = 'done') = (completed_at IS NOT NULL))
+  reason                TEXT NOT NULL CHECK (reason IN ('manual_record', 'ai_draft_approved', 'goal_revised')),
+  -- pending(대기) → processing(장비가 임대 중) → done(완료). 만료된 processing 은
+  -- 상태를 되돌리지 않고 다음 폴링이 임대를 덮어쓴다(임대 컬럼이 진실이다. 0036).
+  status                TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'done')),
+  enqueued_at           TEXT NOT NULL,
+  completed_at          TEXT,
+  -- 임대 (0036 · CCC-120): 폴링이 pending → processing 전환하며 부여한다.
+  lease_owner           TEXT,
+  lease_expires_at      TEXT,
+  -- 임대가 부여된 횟수. 만료 재분배가 일어날 때마다 1씩 오른다.
+  attempt_count         INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  -- 이 일감이 만든(같은 회차의) 마스킹 스냅샷. 완료 시 서버가 회차로 역추적해 연결한다.
+  -- 0036 이전에 완료된 행은 NULL 로 남는다(기존 행 호환).
+  completed_snapshot_id TEXT REFERENCES ai_masked_source_snapshots (id),
+  -- done 이면 완료 시각이 있고, 아니면 없다. 상태와 시각이 어긋나지 못하게.
+  CHECK ((status = 'done') = (completed_at IS NOT NULL)),
+  -- pending 은 임대가 없다. processing 은 임대 주인·만료가 반드시 있다.
+  -- done 은 마지막 임대를 기록으로 남긴다(0036 이전 완료 행은 임대 없이 done).
+  CHECK (status <> 'pending' OR (lease_owner IS NULL AND lease_expires_at IS NULL)),
+  CHECK (status <> 'processing' OR (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)),
+  CHECK (completed_snapshot_id IS NULL OR status = 'done')
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_text_work_queue_pending
   ON ai_text_work_queue (org_id, status, enqueued_at);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_text_work_queue_one_pending_per_session
-  ON ai_text_work_queue (org_id, session_id) WHERE status = 'pending';
+-- 같은 회차의 열린 행(대기 + 임대 중)은 1건이다. 0029·0034 의 '대기 1건' 을 0036 이
+-- 넓혔다: 임대 중에 재공식화가 와도 INSERT OR IGNORE 가 흡수해 행이 늘지 않는다.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_text_work_queue_one_open_per_session
+  ON ai_text_work_queue (org_id, session_id) WHERE status IN ('pending', 'processing');
 
 CREATE TRIGGER IF NOT EXISTS ai_text_work_queue_done_is_final
 BEFORE UPDATE ON ai_text_work_queue

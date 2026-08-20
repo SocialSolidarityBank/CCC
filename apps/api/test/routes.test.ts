@@ -355,7 +355,11 @@ async function reviewDraft(
   return worker.fetch(new Request(`http://localhost/sessions/${sessionId}/ai/drafts/${version}/review`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ expectedVersion: version, decision }),
+    // 승인 계약(CCC-114): 항목이 없는 초안도 처리 목록을 빈 배열로 명시해야 한다. 이 파일의
+    // 초안은 텍스트 재료뿐이라(대조 항목 0개·녹음 없음) 빈 배열이 전체를 덮는다.
+    body: JSON.stringify(decision === 'approved'
+      ? { expectedVersion: version, decision, contrastResolutions: [] }
+      : { expectedVersion: version, decision }),
   }), env);
 }
 
@@ -1807,7 +1811,8 @@ describe('API routes', () => {
       {
         method: 'POST',
         headers: counselorHeaders,
-        body: JSON.stringify({ expectedVersion: edited.version, decision: 'approved' }),
+        // 승인 계약(CCC-114): 항목이 없는 초안도 처리 목록을 빈 배열로 명시해야 한다.
+        body: JSON.stringify({ expectedVersion: edited.version, decision: 'approved', contrastResolutions: [] }),
       },
     ), env);
     expect(approvalResponse.status).toBe(200);
@@ -2215,6 +2220,33 @@ describe('검토 화면 기관 관리자 열람 (D7 · D40 · CCC-105)', () => {
     expect(reviewAsAdmin.status).toBe(200);
     await expect(reviewAsAdmin.json()).resolves.toEqual(
       expect.objectContaining({ reviewDecision: 'approved' }),
+    );
+  });
+
+  it('결정만 실은 승인 요청은 409 로 막힌다 (CCC-114 회귀)', async () => {
+    const { caseRecord, env, session } = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
+    const source = await recordSourceSnapshot(env, session.id);
+    const generatedResponse = await generateDraft(env, session.id, source.sourceSnapshotId);
+    expect(generatedResponse.status).toBe(201);
+    const draft = await generatedResponse.json() as RouteAiDraft;
+
+    const decisionOnly = await worker.fetch(new Request(
+      `http://localhost/sessions/${session.id}/ai/drafts/${draft.version}/review`,
+      {
+        method: 'POST',
+        headers: counselorHeaders,
+        body: JSON.stringify({ expectedVersion: draft.version, decision: 'approved' }),
+      },
+    ), env);
+    expect(decisionOnly.status).toBe(409);
+    expect(await decisionOnly.json()).toEqual({ error: 'contrast_resolution_required' });
+
+    // 막힌 시도는 아무것도 공식화하지 않는다 — 초안은 검토 대기 그대로다.
+    const current = await currentDraft(env, session.id);
+    expect(current.status).toBe(200);
+    await expect(current.json()).resolves.toEqual(
+      expect.objectContaining({ version: draft.version, reviewDecision: null }),
     );
   });
 

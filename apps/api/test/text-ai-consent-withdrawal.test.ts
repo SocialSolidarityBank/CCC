@@ -70,6 +70,13 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     const before = await listTextWorkItems(t.env, service);
     expect(before.some((item) => item.sessionId === sessionId)).toBe(true);
 
+    // 리스 의미론(CCC-120): 폴링이 곧 임대라 위 호출이 행을 processing 으로 바꿨다.
+    // 임대를 과거로 돌려 다시 후보가 되게 한다 — 이후 목록에서 안 보이는 이유가
+    // 임대가 아니라 **동의 철회**임을 고정하기 위해서다.
+    await t.db.prepare(
+      "UPDATE ai_text_work_queue SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE session_id = ?",
+    ).bind(sessionId).run();
+
     // 3) 철회 — ② 체크 해제가 support_cases.consent_text_ai_at 을 NULL 로 되돌린다.
     //    근거 행은 append-only 라 삭제·수정되지 않는다(이력 보존).
     await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
@@ -81,9 +88,10 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     const after = await listTextWorkItems(t.env, service);
     expect(after.some((item) => item.sessionId === sessionId)).toBe(false);
     const queueRow = await t.db.prepare(
-      "SELECT status FROM ai_text_work_queue WHERE session_id = ? AND status = 'pending'",
+      'SELECT status FROM ai_text_work_queue WHERE session_id = ?',
     ).bind(sessionId).first<{ status: string }>();
-    expect(queueRow?.status).toBe('pending');
+    // 임대(폴링)로 processing 이 된 행이 그대로 남는다 — 삭제가 아니라 필터다.
+    expect(queueRow?.status).toBe('processing');
 
     // 5) 스냅샷 저장 거부 — 과거 근거 행이 있어도 현재 동의가 없으면 grant 가 닫힌다.
     const maskedText = 'MASKED_AFTER_WITHDRAWAL';
