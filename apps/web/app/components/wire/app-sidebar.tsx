@@ -7,6 +7,7 @@ import { NavIcon } from './shell-icons';
 import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';
+import { clearAllDrafts } from '../../lib/form-draft';
 import { toggleThemeAction } from '../../theme-action';
 import type { Theme } from '../../lib/theme-cookie';
 import type { ParticipantProgramType } from '../../lib/api';
@@ -228,7 +229,10 @@ export function AppSidebar({
                 <NavIcon name={theme === 'dark' ? 'theme-light' : 'theme-dark'} />
               </button>
             </form>
-            <form action={logoutAction} className="header-action-form">
+            {/* 로그아웃 직전에 이 브라우저의 작성 중 임시본을 전부 지운다(P0-9 · CCC-111) —
+            서버 액션은 localStorage 를 만질 수 없고, 공용 기기에서 다음 사용자에게
+            작성 중 내용이 남으면 안 된다. */}
+        <form action={logoutAction} onSubmit={clearAllDrafts} className="header-action-form">
               <button type="submit" className="header-icon-button" aria-label="로그아웃" title="로그아웃">
                 <NavIcon name="logout" />
               </button>

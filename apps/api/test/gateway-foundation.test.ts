@@ -337,6 +337,13 @@ describe('gateway foundation', () => {
       capturedBy: counselor.userId,
       createdAt: expect.any(String),
     });
+    // CCC-110: 근거 행만으로는 여전히 거부다 — 사용 허용은 support_cases.consent_text_ai_at
+    // 이 결정한다. 현재 동의를 세운 뒤에야 최신 근거가 돌아온다.
+    await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
+      .rejects.toBeInstanceOf(PilotTextAiConsentRequiredError);
+    await t.db.prepare(
+      'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
+    ).bind('2026-01-01T00:00:00.000Z', created.id, created.id).run();
     await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
       .resolves.toEqual(evidence);
 
@@ -431,6 +438,14 @@ describe('gateway foundation', () => {
       detail: '{"purpose":"text_ai_pilot"}',
     }]);
     expect(deniedRows).toEqual([
+      {
+        actor_id: counselor.userId,
+        actor_role: counselor.role,
+        action: 'deny',
+        target_table: 'pilot_text_ai_consent_evidence',
+        detail: '{"reason":"pilot_text_ai_consent_required"}',
+      },
+      // CCC-110: 근거 행 기록 뒤, 현재 동의(consent_text_ai_at)를 세우기 전의 거부.
       {
         actor_id: counselor.userId,
         actor_role: counselor.role,

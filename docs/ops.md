@@ -29,9 +29,10 @@
 - 처리: `pii_vault`의 `enc_name`·`enc_phone`·`enc_account`를 `NULL`로 비우고 `purged_at`을 기록한다. **행을 삭제하지 않는다** — 스키마 규약(D10)대로 `pii_vault` 행과 가명 기록(`cases` 이하)은 통계용으로 보존한다.
 - 멱등성: `purged_at IS NULL` 조건이 이미 파기된 케이스를 자동으로 제외한다. 같은 케이스를 두 번 돌려도 두 번째는 아무것도 하지 않는다.
 - 감사: 케이스별 `purge_pii`. cron 실행이면 `actor_id=system:purge`, 관리자 수동 실행이면 요청 관리자.
+- **실행 스위치(CCC-113)**: `PII_PURGE_ENABLED`가 정확히 `1`일 때만 파기가 실행된다(기본 닫힘). 꺼져 있으면 cron 은 대상 건수만 세어 `파기 스위치 꺼짐, 대상 N건 대기`를 console.log 로 남기고(watchdog 알림 아님), 수동 실행은 409 `purge_disabled` 를 반환한다. 미리보기는 읽기 전용이라 스위치와 무관하다.
 - 수동 경로(관리자 전용):
-  - `GET /pii-purge/due` — 파기 예정(경과) 케이스 미리보기(파기하지 않음).
-  - `POST /pii-purge` — 자기 조직 경과분 즉시 파기.
+  - `GET /pii-purge/due` — 파기 예정(경과) 케이스 미리보기(파기하지 않음, 스위치 무관).
+  - `POST /pii-purge` — 자기 조직 경과분 즉시 파기(스위치가 켜져 있을 때만).
 
 > 참고: 개별 케이스 단위의 관리자 파기는 기존 `purgePii(env, actor, caseId)`(관리자, 단건)로도 가능하다. 위 자동/일괄 경로는 그 배치·조직 단위 형제 함수다 — 둘 다 값만 비우고 행은 보존하는 동일 규약을 따른다.
 
@@ -47,6 +48,7 @@
 | `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
+| `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | PII 즉시 파기 스위치(CCC-113, P0-3 1단계). 정확히 `1`일 때만 cron·수동 파기가 실행된다. 미설정·`0`이면 cron 은 파기 없이 `파기 스위치 꺼짐, 대상 N건 대기` 로그만 남기고, `POST /pii-purge` 는 409 `purge_disabled` 로 거절된다. D32·D46 아카이브·검토 절차가 구현되기 전에는 켜지 않는다(`docs/policy/deferred-blockers-v1.md` 1장). wrangler.toml 운영 env 에 두지 않는다 — 없는 것이 닫힘이다. |
 
 세 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`·`EXTERNAL_AI_CALLS_ENABLED=1`)이 **함께** 있어야 사업자 호출이 열린다. `EXTERNAL_AI_CALLS_ENABLED=1`은 유료 실호출을 별도로 승인받은 배포에만 둔다. 키 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 

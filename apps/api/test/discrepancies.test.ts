@@ -770,6 +770,10 @@ async function enableTextAiConsent(caseId: string): Promise<void> {
     evidenceSha256: 'f'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
+  // CCC-110: 사용 허용은 support_cases.consent_text_ai_at 이 결정한다 — 근거 행과 별개로 세운다.
+  await t.db.prepare(
+    'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
+  ).bind('2026-01-01T00:00:00.000Z', caseId, caseId).run();
 }
 
 describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기준)', () => {
