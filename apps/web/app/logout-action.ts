@@ -20,6 +20,10 @@ import { PREVIEW_COOKIE_NAME } from './lib/preview-cookie';
  *   그 외: Cloudflare Access 의 로그아웃 엔드포인트로. Access 는 계정 개설 전이라 아직
  *   지나갈 일이 없지만, 붙는 순간 이 경로가 맞게 동작하도록 지금 갈라 둔다.
  *
+ * 로컬 임시본(form-draft)은 여기서 지울 수 없다 — 서버 액션은 localStorage 에 손이 닿지
+ * 않는다. 그래서 이 액션을 부르는 두 로그아웃 폼(app-header·app-sidebar)이 제출 직전에
+ * clearAllDrafts() 로 지운다(P0-9 · CCC-111). 로그아웃 경로를 새로 만들면 같은 정리를 달 것.
+ *
  * 쿠키는 set(maxAge:0) 이 아니라 delete 로 지운다 — 같은 이름·경로로 정확히 만료시키는 것이
  * Next 의 계약이고, 경로가 어긋나면 지워진 것처럼 보이고 실제로는 남는다.
  */

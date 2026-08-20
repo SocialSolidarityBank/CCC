@@ -59,6 +59,22 @@ jobs:
             echo "확인 문구가 다르다 (기대: deploy-production)"
             exit 1
           fi
+      # 승인 게이트 실효성 확인 (CCC-117 · P1-1). environment: production 은 저장소 설정에
+      # 필수 리뷰어가 있어야 잠금이다 — 없으면 통과하는 라벨이고, 그 사실을 아무도 모른 채
+      # "승인 게이트가 있다"고 믿게 된다. 설정은 워크플로가 못 고치므로 로그에 경고로 남긴다.
+      - name: 승인 게이트 실효성 확인 (필수 리뷰어)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          reviewers=$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" \
+            --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' 2>/dev/null || echo "unknown")
+          if [ "$reviewers" = "unknown" ]; then
+            echo "::warning::Environment production 설정을 읽지 못했다 — 필수 리뷰어 여부를 확인할 수 없다. 저장소 Settings → Environments 에서 직접 확인한다."
+          elif [ "$reviewers" = "0" ]; then
+            echo "::warning::Environment production 에 필수 리뷰어가 없다 — environment: 줄은 승인 게이트가 아니라 통과하는 라벨이다. Settings → Environments → production 에서 Required reviewers 를 지정한다."
+          else
+            echo "Environment production 필수 리뷰어 규칙 확인 — 승인 게이트가 실제로 잠긴다."
+          fi
 
   verify:
     needs: confirm
@@ -144,8 +160,51 @@ jobs:
       # 파기 후보는 0건이다. purge_due 를 채우는 것은 0006 의 DB 트리거 하나뿐이고
       # (0031 까지 훑어 재확인), 그 트리거는 케이스 **종결 시에만** 걸리는데 운영에는
       # 종결 케이스가 없다.
-      - name: 배포 후 확인 안내
+      # 배포 후 스모크 (CCC-117 · P1-1) — deploy-production.mjs 4단계와 같은 3종이다.
+      # 초록 배포 ≠ 동작하는 서비스. 하나라도 실패하면 잡이 빨간불로 끝난다 —
+      # "배포 완료" 안내만 찍고 초록으로 끝나던 예전 단계를 게이트로 올렸다.
+      - name: 배포 후 스모크 (웹 생존 · API fail-closed · 크론)
         run: |
-          echo "배포 완료. 시크릿 누락은 배포 성공으로 가려지므로 런타임을 직접 확인한다:"
-          echo "  pnpm --filter @ccc/api exec wrangler secret list --env production"
-          echo "  crons: */30(워치독) · 0 3 * * *(PII 파기) 가 다시 등록됐다"
+          set -u
+          failed=0
+
+          # ① 웹이 살아 있는가 — GET / 이 200 또는 리다이렉트(3xx).
+          web_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://ccc.account-855.workers.dev/ || echo 000)
+          case "$web_status" in
+            200|3??) echo "스모크 ① 웹 GET / → $web_status (살아 있음)" ;;
+            *) echo "::error::스모크 ① 실패 — 웹 GET / 이 $web_status (200/3xx 가 아니다)"; failed=1 ;;
+          esac
+
+          # ② API 가 무인증을 거부하는가 — 401/403(또는 Access 가로채기 3xx)이어야 통과.
+          # 200 이면 인증 게이트가 꺼진 채 PII 경로가 열려 있다는 뜻이다(fail-closed 증명).
+          api_headers=$(curl -s -o /dev/null -D - --max-time 30 https://ccc-api.account-855.workers.dev/ || true)
+          api_status=$(printf '%s' "$api_headers" | head -1 | grep -oE '[0-9]{3}' | head -1 || echo 000)
+          api_location=$(printf '%s' "$api_headers" | grep -i '^location:' | head -1 || true)
+          if [ "$api_status" = "401" ] || [ "$api_status" = "403" ]; then
+            echo "스모크 ② API 무인증 → $api_status (fail-closed 확인)"
+          elif printf '%s' "$api_location" | grep -qi 'cloudflareaccess\.com'; then
+            echo "스모크 ② API 무인증 → $api_status (Access 가로채기 — fail-closed 확인)"
+          else
+            echo "::error::스모크 ② 실패 — API 무인증 요청이 $api_status (401/403 이 아니다. 200 이면 인증 게이트가 열려 있다)"
+            failed=1
+          fi
+
+          # ③ 크론이 다시 등록됐는가 — 배포 기록 출력에서 문자열로 확인한다.
+          crons=$(pnpm --filter @ccc/api exec wrangler deployments list --env production 2>&1 || true)
+          if printf '%s' "$crons" | grep -qF '*/30 * * * *' && printf '%s' "$crons" | grep -qF '0 3 * * *'; then
+            echo "스모크 ③ 크론 재등록 확인: */30(워치독 D8) · 0 3 * * *(PII 파기 D10)"
+          else
+            echo "::error::스모크 ③ 실패 — 배포 기록에서 크론(*/30 · 0 3 * * *)을 확인하지 못했다. 대시보드 Triggers 탭에서 직접 본다."
+            failed=1
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            echo ""
+            echo "복구 절차 (docs/ops.md 운영 배포 절, 둘 중 하나):"
+            echo "  A. 직전 배포로 롤백:"
+            echo "     pnpm --filter @ccc/api exec wrangler rollback --env production"
+            echo "     pnpm --filter @ccc/web exec wrangler rollback"
+            echo "  B. 이전 태그 재배포 (태그 목록은 docs/releases.md):"
+            echo "     gh workflow run deploy-production.yml --ref <이전태그> -f confirm=deploy-production"
+            exit 1
+          fi

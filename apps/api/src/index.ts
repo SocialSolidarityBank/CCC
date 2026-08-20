@@ -1,4 +1,6 @@
 import {
+  countDueParticipantPiiPurgeTargets,
+  isPiiPurgeEnabled,
   listEmergencyConsentDeadlines,
   purgeExpiredParticipantPii,
   runPipelineWatchdog,
@@ -31,8 +33,11 @@ export async function runWatchdog(env: ApiEnv): Promise<PipelineHealth[]> {
     if (health.stale) {
       await notifyAdmins(
         env,
-        `pipeline stale for org ${health.orgId}: last poll ${health.lastPolledAt ?? 'never'}, `
-          + `${health.pendingJobCount} job(s) waiting (threshold ${health.thresholdHours}h)`,
+        `pipeline stale for org ${health.orgId} [${health.staleReasons.join(', ')}]: `
+          + `last poll ${health.lastPolledAt ?? 'never'}, last completion ${health.lastCompletedAt ?? 'never'}, `
+          + `${health.pendingTotalCount} job(s) waiting (audio ${health.pendingJobCount}, text ${health.pendingTextWorkCount}), `
+          + `oldest waiting ${health.oldestPendingHours ?? 0}h `
+          + `(poll threshold ${health.thresholdHours}h, queue threshold ${health.queueThresholdHours}h)`,
       );
     }
   }
@@ -58,6 +63,13 @@ export async function remindEmergencyConsentDeadlines(env: ApiEnv): Promise<void
 
 /** Canonical participant PII purge (D10), safe for scheduled execution and direct tests. */
 export async function runPurge(env: ApiEnv): Promise<{ attempted: number; purged: number; noops: number }> {
+  // CCC-113 (P0-3 1단계): PII_PURGE_ENABLED 가 정확히 '1'이 아니면 파기하지 않는다(기본 닫힘).
+  // 대상 건수만 세어 로그로 남긴다 — 운영 관찰용이지 watchdog 알림(notifyAdmins)이 아니다.
+  if (!isPiiPurgeEnabled(env)) {
+    const waiting = await countDueParticipantPiiPurgeTargets(env);
+    console.log(`파기 스위치 꺼짐, 대상 ${waiting}건 대기`);
+    return { attempted: 0, purged: 0, noops: 0 };
+  }
   return purgeExpiredParticipantPii(env);
 }
 

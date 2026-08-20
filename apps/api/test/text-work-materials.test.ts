@@ -31,6 +31,7 @@ import {
   recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
+  updateParticipantConsent,
   updateParticipantPii,
 } from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
@@ -68,6 +69,13 @@ async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }>
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
   t.env.TEXT_AI_PILOT_ENABLED = '1';
+  // CCC-110: 사용 허용은 근거 행이 아니라 support_cases.consent_text_ai_at 이 결정한다.
+  // 실제 동의 경로(② 체크)로 현재 동의 컬럼을 세운다 — 근거 행만 있는 픽스처는
+  // 철회된 케이스와 구분되지 않아 가드에 걸린다.
+  await updateParticipantConsent(t.env, counselor, supportCaseId, {
+    privacy: true,
+    recordingAi: true,
+  });
   await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
     noticeVersion: 'pilot-text-ai-v1',
     noticeSha256: 'a'.repeat(64),

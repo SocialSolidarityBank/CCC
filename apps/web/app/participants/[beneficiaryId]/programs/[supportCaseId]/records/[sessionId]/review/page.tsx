@@ -29,6 +29,9 @@ const actionErrorMessages: Partial<Record<ApiErrorCode, string>> = {
   stale_draft_version: '다른 곳에서 이 초안이 바뀌었습니다. 새로고침한 뒤 다시 시도하세요.',
   fixture_draft_approval_forbidden: '테스트 산출물은 승인할 수 없습니다.',
   grounded_evidence_required: '근거 인용이 모두 붙어야 승인할 수 있습니다.',
+  // CCC-114: 승인 전제 미충족 — 어떤 입력이 빠졌는지 화면이 그대로 안내한다.
+  contrast_resolution_required: '대조 3종의 모든 항목에 처리 결과를 골라야 승인할 수 있습니다.',
+  speaker_confirmation_required: '녹음이 있는 회차는 화자 구분 확인을 마쳐야 승인할 수 있습니다.',
   access_denied: '담당 실무자와 기관 관리자만 처리할 수 있습니다.',
   forbidden: '담당 실무자와 기관 관리자만 처리할 수 있습니다.',
 };

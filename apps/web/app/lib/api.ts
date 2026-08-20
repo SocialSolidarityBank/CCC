@@ -16,6 +16,9 @@ export type ApiErrorCode =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
+  // CCC-114: 승인 전제 미충족 — 대조 3종 항목별 처리 누락 / 화자 확인 누락.
+  | 'contrast_resolution_required'
+  | 'speaker_confirmation_required'
   | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
@@ -40,6 +43,8 @@ const knownErrorCodes = new Set<ApiErrorCode>([
   'stale_draft_version',
   'draft_version_required',
   'grounded_evidence_required',
+  'contrast_resolution_required',
+  'speaker_confirmation_required',
   'fixture_draft_approval_forbidden',
   'ai_provider_not_configured',
   'ai_prohibited_output',
@@ -190,9 +195,20 @@ export interface EditAiDraftInput {
   evidenceIds: string[];
 }
 
+/** 대조 3종 한 항목의 실무자 처리(CCC-114). 처리 3종 값은 내용 불일치와 같다(상황 변경/기록 오류/확인 완료). */
+export interface ReviewContrastResolutionInput {
+  axis: 'missing_from_memo' | 'missing_from_transcript' | 'undiscussed_session_goal';
+  findingIndex: number;
+  status: 'situation_changed' | 'record_error' | 'confirmed';
+}
+
 export interface ReviewAiDraftInput {
   expectedVersion: number;
   decision: 'approved' | 'rejected';
+  /** approved 필수(CCC-114): 적용된 대조 축의 모든 항목에 대한 처리(항목이 없어도 빈 배열). */
+  contrastResolutions?: ReviewContrastResolutionInput[];
+  /** 녹음 재료 있는 회차의 approved 에서 화자 확인이 아직이면 이 확언으로 함께 기록한다(D11). */
+  speakerMappingConfirmed?: boolean;
 }
 
 /** 재생성 요청 입력(D69 · ADR-0036 결정 2 · CCC-100). GET 초안이 내려준 값을 그대로 싣는다. */

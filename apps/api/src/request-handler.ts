@@ -4,6 +4,8 @@ import {
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
   ConflictError,
+  ContrastResolutionRequiredError,
+  SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
   FLAG_TYPES,
   ForbiddenError,
@@ -22,6 +24,7 @@ import {
   ValidationError,
   PrivacyConsentRequiredError,
   EmergencyReasonRequiredError,
+  EmotionDeferredError,
   assertPilotTextAiConsent,
   assertRecordingUploadAllowed,
   approveSession,
@@ -103,6 +106,8 @@ import {
   loadAiCallMaterialsForService,
   markCounselingScheduleNoShow,
   previewExpiredPii,
+  isPiiPurgeEnabled,
+  PiiPurgeDisabledError,
   purgeExpiredPiiAsAdmin,
   recordAiCallOutcome,
   recordMaskedSourceSnapshot,
@@ -126,6 +131,8 @@ import {
   type AiDraftContrastAxis,
   type AiDraftSourceMaterialRef,
   type AiDraftVersion,
+  type AiDraftReviewInput,
+  type AiContrastResolutionInput,
   type CounselingRecordDetails,
   type AssignedParticipant,
   type ParticipantSearchResult,
@@ -1424,17 +1431,33 @@ function parseAiDraftEdit(body: JsonObject) {
   };
 }
 
-function parseAiDraftReview(body: JsonObject) {
-  requireOnlyKeys(body, ['expectedVersion', 'decision']);
+function parseAiDraftReview(body: JsonObject): AiDraftReviewInput {
+  // CCC-114: 승인은 대조 3종 항목별 처리(항목이 없어도 빈 배열)와 화자 확인을 실을 수 있다.
+  // 형태만 여기서 거르고, 완전성(모든 항목을 덮는가)은 게이트웨이가 판정한다(R1).
+  requireOnlyKeys(body, ['expectedVersion', 'decision', 'contrastResolutions', 'speakerMappingConfirmed']);
   const decisionValue = requiredString(body, 'decision');
   if (decisionValue !== 'approved' && decisionValue !== 'rejected') {
     throw new ValidationError('decision is invalid');
   }
   const decision: 'approved' | 'rejected' = decisionValue === 'approved' ? 'approved' : 'rejected';
-  return {
+  const review: AiDraftReviewInput = {
     expectedVersion: requiredDraftVersion(body.expectedVersion),
     decision,
   };
+  if (body.contrastResolutions !== undefined) {
+    review.contrastResolutions = objectArray(body.contrastResolutions, 'contrastResolutions').map((item) => {
+      requireOnlyKeys(item, ['axis', 'findingIndex', 'status']);
+      return {
+        axis: requiredString(item, 'axis'),
+        findingIndex: requiredInteger(item, 'findingIndex'),
+        status: requiredString(item, 'status'),
+      } as AiContrastResolutionInput;
+    });
+  }
+  if (body.speakerMappingConfirmed !== undefined) {
+    review.speakerMappingConfirmed = requiredBoolean(body, 'speakerMappingConfirmed');
+  }
+  return review;
 }
 
 function aiDraftResponse(draft: AiDraftVersion) {
@@ -1891,15 +1914,20 @@ function errorResponse(error: unknown): Response {
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
   if (error instanceof PilotTextAiConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof TextAiPilotDisabledError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof PiiPurgeDisabledError) return json({ error: error.code }, error.statusCode);
   if (error instanceof StaleDraftVersionError) return json({ error: error.code }, error.statusCode);
   if (error instanceof DraftVersionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof GroundedEvidenceRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof FixtureDraftApprovalForbiddenError) return json({ error: error.code }, error.statusCode);
+  // CCC-114: 승인 전제(대조 3종 항목별 처리 · 화자 확인) 미충족은 화면이 원인을 안내한다.
+  if (error instanceof ContrastResolutionRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof SpeakerConfirmationRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderNotConfiguredError) return json({ error: error.code }, error.statusCode);
   // G1: ① 미동의·긴급 사유 누락은 'invalid_request' 로 뭉치지 않는다 — 화면이 "동의를
   // 체크하거나 긴급 등록을 고르라"고 안내하려면 원인이 코드로 구분돼야 한다(게이트 문서 §2 G1).
   if (error instanceof PrivacyConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof EmergencyReasonRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof EmotionDeferredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderInputError) return json({ error: 'invalid_request' }, 400);
   if (error instanceof AiProviderProhibitedOutputError) return json({ error: 'ai_prohibited_output' }, 422);
   if (error instanceof AiProviderUnavailableError) return json({ error: 'ai_provider_unavailable' }, 503);
@@ -2634,6 +2662,9 @@ export async function handleRequest(
         return json({ due: await previewExpiredPii(env, actor) });
       }
       if (request.method === 'POST' && parts.length === 1) {
+        // CCC-113: 파기 스위치가 꺼져 있으면 실행하지 않고 명시적으로 거절한다.
+        // 미리보기(GET /pii-purge/due)는 읽기 전용이라 스위치와 무관하게 유지.
+        if (!isPiiPurgeEnabled(env)) return json({ error: 'purge_disabled' }, 409);
         return json(await purgeExpiredPiiAsAdmin(env, actor));
       }
     }
