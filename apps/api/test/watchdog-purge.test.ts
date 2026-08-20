@@ -39,6 +39,11 @@ function localEnv() {
   return t.env;
 }
 
+/** CCC-113: 파기 스위치가 켜진 환경 — '켜짐 = 기존(즉시 파기) 동작' 검증용. */
+function purgeEnabledEnv() {
+  return { ...t.env, PII_PURGE_ENABLED: '1' };
+}
+
 /** SQLite DEFAULT (datetime('now')) 형식으로 포맷: 'YYYY-MM-DD HH:MM:SS' (UTC, 공백 구분). */
 function sqliteUtc(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
@@ -233,9 +238,10 @@ describe('canonical participant PII purge (D10)', () => {
     await t.reset();
     const participant = await makeClosedParticipant({ overdue: true });
     const pending: Promise<unknown>[] = [];
+    // CCC-113: 파기는 PII_PURGE_ENABLED='1' 전제에서만 기존 동작이 나온다.
     await apiWorker.scheduled(
       { cron: PURGE_CRON } as ScheduledController,
-      t.env,
+      purgeEnabledEnv(),
       { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } as unknown as ExecutionContext,
     );
     await Promise.all(pending);
@@ -271,7 +277,7 @@ describe('canonical participant PII purge (D10)', () => {
   it('reports canonical purge counts and is idempotent for non-due and already-purged participants', async () => {
     await t.reset();
     const notDue = await makeClosedParticipant({ overdue: false });
-    await expect(runPurge(t.env)).resolves.toEqual({ attempted: 0, purged: 0, noops: 0 });
+    await expect(runPurge(purgeEnabledEnv())).resolves.toEqual({ attempted: 0, purged: 0, noops: 0 });
     const before = await t.db.prepare(
       'SELECT enc_name, purged_at FROM participant_pii_vault WHERE beneficiary_id = ?',
     ).bind(notDue.beneficiaryId).first<{ enc_name: string | null; purged_at: string | null }>();
@@ -279,15 +285,72 @@ describe('canonical participant PII purge (D10)', () => {
 
     await t.reset();
     const overdue = await makeClosedParticipant({ overdue: true });
-    await expect(runPurge(t.env)).resolves.toEqual({ attempted: 1, purged: 1, noops: 0 });
+    await expect(runPurge(purgeEnabledEnv())).resolves.toEqual({ attempted: 1, purged: 1, noops: 0 });
     const firstPurge = await t.db.prepare(
       'SELECT purged_at FROM participant_pii_vault WHERE beneficiary_id = ?',
     ).bind(overdue.beneficiaryId).first<{ purged_at: string | null }>();
     expect(firstPurge?.purged_at).toEqual(expect.any(String));
-    await expect(runPurge(t.env)).resolves.toEqual({ attempted: 0, purged: 0, noops: 0 });
+    await expect(runPurge(purgeEnabledEnv())).resolves.toEqual({ attempted: 0, purged: 0, noops: 0 });
     const secondPurge = await t.db.prepare(
       'SELECT purged_at FROM participant_pii_vault WHERE beneficiary_id = ?',
     ).bind(overdue.beneficiaryId).first<{ purged_at: string | null }>();
     expect(secondPurge?.purged_at).toBe(firstPurge?.purged_at);
+  });
+
+  // CCC-113 (P0-3 1단계): 스위치 없이(기본 닫힘) 두 파기 경로 모두 파기하지 않는다.
+  it('does not purge from the cron path when the switch is unset and logs the waiting count', async () => {
+    await t.reset();
+    const participant = await makeClosedParticipant({ overdue: true });
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // 경로 A: cron 진입점(scheduled → runPurge), 스위치 미설정.
+    const pending: Promise<unknown>[] = [];
+    await apiWorker.scheduled(
+      { cron: PURGE_CRON } as ScheduledController,
+      t.env,
+      { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } as unknown as ExecutionContext,
+    );
+    await Promise.all(pending);
+    await expect(runPurge(t.env)).resolves.toEqual({ attempted: 0, purged: 0, noops: 0 });
+    // watchdog 알림(notifyAdmins → console.error)이 아니라 console.log 한 줄만 남는다.
+    expect(consoleLog).toHaveBeenCalledWith('파기 스위치 꺼짐, 대상 1건 대기');
+
+    const vault = await t.db.prepare(
+      'SELECT enc_name, purged_at FROM participant_pii_vault WHERE beneficiary_id = ?',
+    ).bind(participant.beneficiaryId).first<{ enc_name: string | null; purged_at: string | null }>();
+    expect(vault).toEqual({ enc_name: expect.any(String), purged_at: null });
+    const audit = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'purge_pii'",
+    ).first<{ count: number }>();
+    expect(audit?.count).toBe(0);
+  });
+
+  it('rejects the manual purge endpoint with 409 while the switch is off and keeps the read-only preview', async () => {
+    await t.reset();
+    const env = localEnv();
+
+    // 경로 B: 수동 실행은 명시적 오류로 닫힌다.
+    const rejected = await worker.fetch(
+      new Request('http://localhost/pii-purge', { method: 'POST', headers: adminHeaders }),
+      env,
+    );
+    expect(rejected.status).toBe(409);
+    expect(await rejected.json()).toEqual({ error: 'purge_disabled' });
+
+    // 미리보기(GET /pii-purge/due)는 읽기 전용이라 스위치와 무관하게 살아 있다.
+    const preview = await worker.fetch(
+      new Request('http://localhost/pii-purge/due', { headers: adminHeaders }),
+      env,
+    );
+    expect(preview.status).toBe(200);
+    expect(await preview.json()).toEqual({ due: [] });
+
+    // 스위치가 켜지면 기존 동작(실행) 그대로다.
+    const enabled = await worker.fetch(
+      new Request('http://localhost/pii-purge', { method: 'POST', headers: adminHeaders }),
+      purgeEnabledEnv(),
+    );
+    expect(enabled.status).toBe(200);
+    expect(await enabled.json()).toEqual({ purgedCaseIds: [] });
   });
 });

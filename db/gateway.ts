@@ -43,6 +43,13 @@ export interface Env {
    * 허용한다. 기본값과 다른 모든 값은 수기 전용으로 fail-closed 한다.
    */
   TEXT_AI_PILOT_ENABLED?: string;
+  /**
+   * PII 즉시 파기 전역 스위치 (CCC-113, P0-3 1단계). 정확히 '1'일 때만 파기를 실행한다.
+   * 기본(미설정)은 닫힘 — D32·D46 이 요구하는 아카이브·검토 절차가 아직 없으므로
+   * 즉시 파기 진입점을 fail-closed 로 막는다(docs/policy/deferred-blockers-v1.md 1장).
+   * EXTERNAL_AI_CALLS_ENABLED 와 같은 패턴.
+   */
+  PII_PURGE_ENABLED?: string;
 }
 
 // ── 호출자(Actor) ───────────────────────────────────────────────────────────
@@ -84,6 +91,30 @@ export class TextAiPilotDisabledError extends Error {
 
   constructor() {
     super('text_ai_pilot_disabled');
+  }
+}
+/** PII 파기 스위치(PII_PURGE_ENABLED)가 꺼져 있어 파기를 실행할 수 없다 (CCC-113). */
+export class PiiPurgeDisabledError extends Error {
+  readonly code = 'purge_disabled';
+  readonly statusCode = 409;
+
+  constructor() {
+    super('purge_disabled');
+  }
+}
+/**
+ * D64: 감정 분석 보류 — 보류 중에는 처리 장비가 감정값을 보내면 안 된다.
+ * 재개 조건은 정식 서비스 단계(CONTEXT.md 감정 지표 항목,
+ * docs/policy/deferred-blockers-v1.md 3장). 재개 시 이 오류와
+ * commitRecordingResult 의 보류 검사만 제거하면 된다 — 스키마·기존
+ * 데이터·emotion.py 는 그대로다.
+ */
+export class EmotionDeferredError extends Error {
+  readonly code = 'emotion_deferred';
+  readonly statusCode = 409;
+
+  constructor() {
+    super('emotion_deferred');
   }
 }
 /** 호출자가 현재 초안이 아닌 버전을 전이하려 했다. */
@@ -730,6 +761,15 @@ function isPilotTextAiEnabled(env: Env): boolean {
   return env.TEXT_AI_PILOT_ENABLED === '1';
 }
 
+/**
+ * PII 즉시 파기 스위치 판정 (CCC-113). 정확히 '1'만 열림 — 그 외 전부 닫힘.
+ * 진입점(index.ts runPurge · request-handler POST /pii-purge)이 UX(대기 로그·409)를
+ * 위해 먼저 부르고, gateway 내부 게이트가 최후 방어선으로 같은 판정을 쓴다.
+ */
+export function isPiiPurgeEnabled(env: Env): boolean {
+  return env.PII_PURGE_ENABLED === '1';
+}
+
 function assertOpaqueIdentifier(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || !OPAQUE_IDENTIFIER.test(value)) {
     throw new ValidationError(`${field} is invalid`);
@@ -1337,12 +1377,18 @@ async function assertServiceTextAiSessionGrant(
     throw new TextAiPilotDisabledError();
   }
 
+  // CCC-110: 근거 행(pilot_text_ai_consent_evidence)은 append-only **이력**이라 철회해도 남는다.
+  // 현재 사용 허용은 support_cases.consent_text_ai_at 이 결정한다 — 철회가 이 컴럼을 NULL 로
+  // 되돌리므로, 이력 보존과 사용 허용을 분리해 둘 다 함께 본다.
   const evidence = await env.DB.prepare(
-    `SELECT id
-     FROM pilot_text_ai_consent_evidence
-     WHERE org_id = ? AND support_case_id = ?
-       AND effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-     ORDER BY effective_at DESC, created_at DESC, id DESC
+    `SELECT evidence.id
+     FROM pilot_text_ai_consent_evidence AS evidence
+     JOIN support_cases AS support_case
+       ON support_case.id = evidence.support_case_id AND support_case.org_id = evidence.org_id
+     WHERE evidence.org_id = ? AND evidence.support_case_id = ?
+       AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       AND support_case.consent_text_ai_at IS NOT NULL
+     ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
      LIMIT 1`,
   ).bind(actor.orgId, context.supportCaseId).first<{ id: string }>();
   if (evidence === null) {
@@ -2893,6 +2939,9 @@ export async function assertPilotTextAiConsent(
      JOIN support_cases AS support_case ON support_case.id = evidence.support_case_id
      WHERE evidence.org_id = ? AND evidence.support_case_id = ?
        AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       -- CCC-110: 근거 행은 append-only 이력이라 철회해도 삭제·수정하지 않는다. 현재
+       -- 사용 허용은 support_cases.consent_text_ai_at 이 결정한다(철회 시 NULL).
+       AND support_case.consent_text_ai_at IS NOT NULL
      ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
      LIMIT 1`,
   ).bind(actor.orgId, context.supportCaseId).first<DbRow>();
@@ -5394,6 +5443,11 @@ async function selectDuePii(
  * the canonical purge command. The vault trigger owns the sole success audit.
  */
 async function purgeDuePii(env: Env, actor: Actor, orgId: string | undefined): Promise<{ purgedCaseIds: string[] }> {
+  // 게이트를 진입점이 아니라 여기(gateway)에 두는 이유(CCC-113): 이 함수로
+  // purgeExpiredPiiAsAdmin(수동)과 purgeExpiredPii(export 됐지만 현재 미배선)가
+  // 함께 합류한다. 진입점마다 게이트를 복제하면 새 호출자·잊힌 배선이 생길 때
+  // 열린 채 시작하므로, 합류점에서 fail-closed 한다.
+  if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
   const nowIso = now();
   const due = await selectDuePii(env, nowIso, orgId);
   const purgedCaseIds: string[] = [];
@@ -6089,6 +6143,13 @@ export async function commitRecordingResult(
     throw new ValidationError('recording result input is invalid');
   }
   assertNumericJson(input.emotionScores, 'emotion scores');
+  // D64: 감정 분석 보류 — 장비(worker.py EMOTION_DEFERRED)가 계산을 멈춘 동안
+  // 서버도 비어 있지 않은 감정값(빈 객체·null 이외)을 받지 않는다. 재개 조건:
+  // 정식 서비스 단계(docs/policy/deferred-blockers-v1.md 3장, CONTEXT.md 감정
+  // 지표 항목). 재개 시 이 검사만 걷어낸다 — 스키마·기존 데이터·emotion.py 불변.
+  if (input.emotionScores !== null && Object.keys(input.emotionScores).length > 0) {
+    throw new EmotionDeferredError();
+  }
   assertMaskedSourceSnapshotInput(input);
   assertNoObviousUnmaskedPii(input.maskedText);
   if (await sha256Hex(input.maskedText) !== input.sha256) {
@@ -6415,6 +6476,15 @@ export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWor
          WHERE evidence.org_id = queue.org_id
            AND evidence.support_case_id = queue.support_case_id
            AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       )
+       -- CCC-110: 근거 행은 append-only 이력이라 철회해도 남는다. **현재** 동의는
+       -- support_cases.consent_text_ai_at 이 결정한다 — 철회(NULL)된 케이스의 일감은
+       -- 스냅샷 저장이 어차피 거부되므로 목록에서 아예 내보내지 않는다.
+       AND EXISTS (
+         SELECT 1 FROM support_cases AS support_case
+         WHERE support_case.id = queue.support_case_id
+           AND support_case.org_id = queue.org_id
+           AND support_case.consent_text_ai_at IS NOT NULL
        )
        -- 마스킹할 공식 텍스트가 있어야 한다(수기 메모 또는 승인된 AI 정리). 인테이크
        -- 회차는 memo 가 NULL 이라(본문은 intake_details) 승인된 정리가 생기기 전까지
@@ -8195,15 +8265,33 @@ async function assertActiveAssignment(
  * organization-scoped. Both paths reject non-published beneficiaries.
  */
 export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCaseId: string): Promise<SupportCase> {
-  assertHuman(actor);
-  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-  if (actor.role === 'admin') {
-    await assertActiveHumanUser(env, actor.orgId, actor.userId, 'admin');
+  try {
+    assertHuman(actor);
+    const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+    if (actor.role === 'admin') {
+      await assertActiveHumanUser(env, actor.orgId, actor.userId, 'admin');
+      return supportCase;
+    }
+    await assertCurrentHumanActor(env, actor);
+    await assertActiveAssignment(env, actor, supportCase.id);
     return supportCase;
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      // 접근 거부도 감사 대상(CCC-116). 행위자·역할·대상 케이스·시각만 남기고
+      // 내용(detail)은 싣지 않는다. 감사 쓰기 실패가 거부 응답을 막으면 안 되므로
+      // 삼킨다(D8 삼킴 계약과 같은 층).
+      try {
+        await writeAudit(env, actor, {
+          action: 'deny_access',
+          targetTable: 'support_cases',
+          targetId: supportCaseId,
+        });
+      } catch {
+        // 삼킴: 거부 응답이 우선한다.
+      }
+    }
+    throw error;
   }
-  await assertCurrentHumanActor(env, actor);
-  await assertActiveAssignment(env, actor, supportCase.id);
-  return supportCase;
 }
 
 /**
@@ -10667,6 +10755,9 @@ export async function purgeExpiredParticipantPii(
   env: Env,
   opts?: { limit?: number },
 ): Promise<{ attempted: number; purged: number; noops: number }> {
+  // CCC-113: cron 진입점(runPurge)이 먼저 스위치를 보지만, 이 함수도 export 라
+  // 직접 호출될 수 있다. 파기가 실제로 일어나는 함수 안에서 한 번 더 fail-closed.
+  if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
   const limit = opts?.limit ?? 100;
   if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
     throw new ValidationError('purge limit is invalid');
@@ -10696,6 +10787,24 @@ export async function purgeExpiredParticipantPii(
     purged,
     noops: candidates.results.length - purged,
   };
+}
+
+/**
+ * 파기 도래분(canonical cron 후보와 동일 조건) 건수만 센다 — 읽기 전용, 파기 없음.
+ * 스위치가 꺼진 동안 runPurge 가 '대상 N건 대기'를 로그로 남기는 데 쓴다(CCC-113).
+ */
+export async function countDueParticipantPiiPurgeTargets(env: Env): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS count
+     FROM participant_pii_vault
+     WHERE purged_at IS NULL AND purge_due IS NOT NULL AND purge_due <= datetime('now')
+       AND NOT EXISTS (
+         SELECT 1 FROM support_cases
+         WHERE support_cases.beneficiary_id = participant_pii_vault.beneficiary_id
+           AND support_cases.status = 'active'
+       )`,
+  ).first<{ count: number }>();
+  return row?.count ?? 0;
 }
 /**
  * 세션 목표 입력 (D28). body 는 "이번 회차에서 다룰 것", caseGoalId 는 이 케이스의

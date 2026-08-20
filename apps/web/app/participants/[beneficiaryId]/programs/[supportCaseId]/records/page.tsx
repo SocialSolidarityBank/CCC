@@ -17,6 +17,7 @@ import {
   type SupportCaseRecords,
 } from '../../../../../lib/api';
 import { RecordHashOpener } from './record-hash-opener';
+import { RecordDraftCleanup } from './record-draft-cleanup';
 import { RecordList, formatDateOnly, formatDateTime } from './record-list';
 
 // 상담 기록 — 회차 상세 (D47 · ADR-0019).
@@ -222,6 +223,8 @@ export default async function RecordHistoryPage({
     {result.data !== null && <OverallGoalRow overallGoal={result.data.overallGoal} briefingHref={`${basePath}/briefing`} />}
 
     <Notice code={notice} />
+    {/* 저장 성공 신호(notice)가 있을 때 이 참여 사업의 기록 임시본을 지운다(P0-9 · CCC-111). */}
+    <RecordDraftCleanup notice={notice} supportCaseId={supportCaseId} />
     <Message code={error} />
 
     {schedule === null || currentSchedulePresentation === null ? null : <WireCard

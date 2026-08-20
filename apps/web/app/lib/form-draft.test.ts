@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   DRAFT_TTL_MS,
   applyFieldValues,
+  clearAllDrafts,
   clearDraft,
   collectFieldValues,
   draftKey,
   readDraft,
+  sweepExpiredDrafts,
   writeDraft,
 } from './form-draft';
 
@@ -53,6 +55,34 @@ describe('임시본 보관 규율', () => {
     writeDraft(KEY, { memo: 'x' }, 'editing');
     clearDraft(KEY);
     expect(readDraft(KEY)).toBeNull();
+  });
+
+  it('구 형식(v1) 임시본은 훑을 때 만료와 무관하게 지운다', () => {
+    // P0-9 (CCC-111) 버전 처리: v1 임시본은 상담 메모 전문·안전 메모·실무자 의견까지 담았다.
+    // v2 부터 그 필드는 수집 대상이 아니므로, 남아 있는 구 사본은 한 번에 걷는다.
+    expect(KEY).toContain(':v2:');
+    const legacyKey = 'ccc:draft:v1:record:case-1';
+    window.localStorage.setItem(legacyKey, JSON.stringify({
+      values: { 'memo#0': '상담 메모 전문' }, savedAt: Date.now(), phase: 'editing',
+    }));
+
+    sweepExpiredDrafts();
+
+    expect(window.localStorage.getItem(legacyKey)).toBeNull();
+  });
+
+  it('로그아웃 정리는 임시본 전부(구 형식 포함)를 지우고 다른 키는 건드리지 않는다', () => {
+    // 로그아웃은 서버 액션이라 localStorage 에 손이 닿지 않는다 — 로그아웃 폼이 제출 직전에
+    // 이 함수를 부른다(공용 기기에서 다음 사용자에게 작성 중 내용이 넘어가면 안 된다, P0-9).
+    writeDraft(KEY, { heldAtDate: '2026-08-20' }, 'editing');
+    window.localStorage.setItem('ccc:draft:v1:intake:case-9', '{"values":{}}');
+    window.localStorage.setItem('unrelated', 'keep');
+
+    clearAllDrafts();
+
+    expect(readDraft(KEY)).toBeNull();
+    expect(window.localStorage.getItem('ccc:draft:v1:intake:case-9')).toBeNull();
+    expect(window.localStorage.getItem('unrelated')).toBe('keep');
   });
 });
 

@@ -22,6 +22,7 @@ import {
   ValidationError,
   PrivacyConsentRequiredError,
   EmergencyReasonRequiredError,
+  EmotionDeferredError,
   assertPilotTextAiConsent,
   assertRecordingUploadAllowed,
   approveSession,
@@ -98,6 +99,8 @@ import {
   loadAiCallMaterialsForService,
   markCounselingScheduleNoShow,
   previewExpiredPii,
+  isPiiPurgeEnabled,
+  PiiPurgeDisabledError,
   purgeExpiredPiiAsAdmin,
   recordAiCallOutcome,
   recordMaskedSourceSnapshot,
@@ -1886,6 +1889,7 @@ function errorResponse(error: unknown): Response {
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
   if (error instanceof PilotTextAiConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof TextAiPilotDisabledError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof PiiPurgeDisabledError) return json({ error: error.code }, error.statusCode);
   if (error instanceof StaleDraftVersionError) return json({ error: error.code }, error.statusCode);
   if (error instanceof DraftVersionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof GroundedEvidenceRequiredError) return json({ error: error.code }, error.statusCode);
@@ -1895,6 +1899,7 @@ function errorResponse(error: unknown): Response {
   // 체크하거나 긴급 등록을 고르라"고 안내하려면 원인이 코드로 구분돼야 한다(게이트 문서 §2 G1).
   if (error instanceof PrivacyConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof EmergencyReasonRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof EmotionDeferredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderInputError) return json({ error: 'invalid_request' }, 400);
   if (error instanceof AiProviderProhibitedOutputError) return json({ error: 'ai_prohibited_output' }, 422);
   if (error instanceof AiProviderUnavailableError) return json({ error: 'ai_provider_unavailable' }, 503);
@@ -2562,6 +2567,9 @@ export async function handleRequest(
         return json({ due: await previewExpiredPii(env, actor) });
       }
       if (request.method === 'POST' && parts.length === 1) {
+        // CCC-113: 파기 스위치가 꺼져 있으면 실행하지 않고 명시적으로 거절한다.
+        // 미리보기(GET /pii-purge/due)는 읽기 전용이라 스위치와 무관하게 유지.
+        if (!isPiiPurgeEnabled(env)) return json({ error: 'purge_disabled' }, 409);
         return json(await purgeExpiredPiiAsAdmin(env, actor));
       }
     }
