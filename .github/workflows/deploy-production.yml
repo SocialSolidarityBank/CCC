@@ -189,12 +189,16 @@ jobs:
             failed=1
           fi
 
-          # ③ 크론이 다시 등록됐는가 — 배포 기록 출력에서 문자열로 확인한다.
-          crons=$(pnpm --filter @ccc/api exec wrangler deployments list --env production 2>&1 || true)
+          # ③ 크론이 다시 등록됐는가 — schedules API 로 확인한다.
+          # `wrangler deployments list` 출력에는 크론이 없어 정상 배포를 항상 실패로
+          # 판정했다(2026-08-21 v0.3.0 실측 정정, CCC-117 미해결 노트의 그 함정).
+          crons=$(curl -s --max-time 30 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ccc-api/schedules" || true)
           if printf '%s' "$crons" | grep -qF '*/30 * * * *' && printf '%s' "$crons" | grep -qF '0 3 * * *'; then
             echo "스모크 ③ 크론 재등록 확인: */30(워치독 D8) · 0 3 * * *(PII 파기 D10)"
           else
-            echo "::error::스모크 ③ 실패 — 배포 기록에서 크론(*/30 · 0 3 * * *)을 확인하지 못했다. 대시보드 Triggers 탭에서 직접 본다."
+            echo "::error::스모크 ③ 실패 — 등록 목록에서 크론(*/30 · 0 3 * * *)을 확인하지 못했다. 대시보드 Workers > ccc-api > Triggers 탭에서 직접 본다."
             failed=1
           fi
 

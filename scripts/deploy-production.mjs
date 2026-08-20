@@ -41,6 +41,9 @@ const PREFLIGHT_ONLY = process.argv.includes('--preflight-only');
 // 운영 URL — workers.dev 를 그대로 쓴다(계정에 도메인 zone 없음, apps/api/wrangler.toml 주석).
 const WEB_PRODUCTION_URL = 'https://ccc.account-855.workers.dev/';
 const API_PRODUCTION_URL = 'https://ccc-api.account-855.workers.dev/';
+// 크론 스모크(③)의 schedules API 조회에 쓴다. 계정 ID 는 wrangler whoami 로 공개 조회되는
+// 값이라 시크릿이 아니다(위 URL 들과 같은 하드코딩 상수 취급).
+const CLOUDFLARE_ACCOUNT_ID = '8855a07cd6da28d8f6120fa95081854e';
 
 function sh(command, args, options = {}) {
   return execFileSync(command, args, { encoding: 'utf8', ...options }).trim();
@@ -303,22 +306,33 @@ try {
   smokeFailures.push(`API: GET ${API_PRODUCTION_URL} 연결 실패 — ${error.message}`);
 }
 
-// ③ 크론이 다시 등록됐는가 — "그럴 것이다"가 아니라 배포 기록 출력에서 문자열로 본다.
-let deploymentsOutput = '';
-try {
-  deploymentsOutput = sh('pnpm', [
-    '--filter', '@ccc/api', 'exec', 'wrangler', 'deployments', 'list', '--env', 'production',
-  ], { stdio: ['ignore', 'pipe', 'pipe'] });
-} catch (error) {
-  deploymentsOutput = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+// ③ 크론이 다시 등록됐는가 — "그럴 것이다"가 아니라 등록 목록에서 문자열로 본다.
+// `red` 재료는 schedules API 다(2026-08-21 v0.3.0 실측 정정). 처음에는 `wrangler
+// deployments list` 를 읽었는데 그 출력에는 크론이 아예 없어 정상 배포를 항상
+// 실패로 판정했다(CCC-117 미해결 노트가 경고한 그 함정). 조회에는
+// CLOUDFLARE_API_TOKEN 이 필요하고, 없으면 확인 불가 = 실패다(fail-closed —
+// "없다"와 "못 봤다"는 다른 사실이지만 둘 다 성공이 아니다).
+let schedulesOutput = '';
+if (process.env.CLOUDFLARE_API_TOKEN === undefined || process.env.CLOUDFLARE_API_TOKEN === '') {
+  schedulesOutput = '';
+} else {
+  try {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/ccc-api/schedules`,
+      { headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` } },
+    );
+    schedulesOutput = await response.text();
+  } catch {
+    schedulesOutput = '';
+  }
 }
-const crons = cronVerdict(deploymentsOutput);
+const crons = cronVerdict(schedulesOutput);
 if (crons.ok) {
   console.log('  스모크 ③ 크론 재등록 확인: */30(폴링 워치독 D8) · 0 3 * * *(PII 파기 D10)');
 } else {
   smokeFailures.push(
-    `크론: 배포 기록에서 ${crons.missing.join(' · ')} 를 확인하지 못했다 `
-    + '(수동 확인: pnpm --filter @ccc/api exec wrangler deployments list --env production, 또는 대시보드 Triggers 탭)',
+    `크론: 등록 목록에서 ${crons.missing.join(' · ')} 를 확인하지 못했다 `
+    + '(CLOUDFLARE_API_TOKEN 이 없으면 조회 자체가 불가 — 대시보드 Workers > ccc-api > Triggers 탭에서 직접 본다)',
   );
 }
 
