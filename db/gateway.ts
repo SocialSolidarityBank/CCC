@@ -11007,6 +11007,62 @@ export async function closeSupportCase(
   };
 }
 
+/** 종결 화면(CCC-107)이 읽는 종결 상태와 금고 보관 시계. 파기 실행은 CCC-113 소관이라 포함하지 않는다. */
+export interface SupportCaseClosureInfo {
+  supportCaseId: string;
+  beneficiaryId: string;
+  status: 'active' | 'closed';
+  closedAt: string | null;
+  closedReason: string | null;
+  /** 파기 예정일(D10). 마지막 활성 케이스 종결 시 DB 트리거가 채운다. NULL 이면 보관 시계 시작 전. */
+  purgeDue: string | null;
+  purgedAt: string | null;
+  /** 같은 당사자의 다른 활성 케이스 존재 여부 — purge_due 가 비어 있는 이유를 화면이 설명하는 재료. */
+  hasOtherActiveSupportCase: boolean;
+}
+
+/**
+ * 종결 화면 조회(CCC-107): 케이스 종결 상태에 금고의 보관 시계(purge_due·purged_at)를 붙여 읽는다.
+ * enc_* 는 복호화하지 않으므로 PII 열람 감사(D24)가 아닌 일반 read 감사만 남긴다.
+ * 아무것도 쓰지 않는다 — purge_due 는 스키마 트리거 소유(D10)다.
+ * 권한: 담당 실무자 | admin (assertSupportCaseAccess).
+ */
+export async function getSupportCaseClosureInfo(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCaseClosureInfo> {
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const vault = await env.DB.prepare(
+    `SELECT purge_due, purged_at FROM participant_pii_vault
+     WHERE beneficiary_id = ? AND org_id = ?`,
+  ).bind(supportCase.beneficiaryId, actor.orgId)
+    .first<{ purge_due: string | null; purged_at: string | null }>();
+  const sibling = await env.DB.prepare(
+    `SELECT 1 AS present FROM support_cases
+     WHERE beneficiary_id = ? AND org_id = ? AND status = 'active' AND id != ?
+     LIMIT 1`,
+  ).bind(supportCase.beneficiaryId, actor.orgId, supportCaseId).first<{ present: number }>();
+  await writeCanonicalAudit(env, actor, {
+    action: 'read',
+    targetTable: 'support_cases',
+    targetId: supportCaseId,
+    beneficiaryId: supportCase.beneficiaryId,
+    supportCaseId,
+    detail: { view: 'closure' },
+  });
+  return {
+    supportCaseId: supportCase.id,
+    beneficiaryId: supportCase.beneficiaryId,
+    status: supportCase.status,
+    closedAt: supportCase.closedAt,
+    closedReason: supportCase.closedReason,
+    purgeDue: vault === null ? null : nullableString(vault.purge_due),
+    purgedAt: vault === null ? null : nullableString(vault.purged_at),
+    hasOtherActiveSupportCase: sibling !== null,
+  };
+}
+
 export interface ParticipantPiiPurgeResult {
   beneficiaryId: string;
   purged: boolean;
@@ -15522,4 +15578,139 @@ export async function completeParticipantSignup(
     throw new ConflictError('invite token already used');
   }
   throw finalError instanceof Error ? finalError : new ConflictError('participant signup conflicted');
+}
+
+// ============================================================================
+// 실무자 초대 가입 (CCC-108 · CCC-33 · ADR-0016)
+//
+// 실무자는 당사자와 달리 users 디렉터리에 등재된다 — 이메일이 Cloudflare Access 의
+// 신원 키이므로 가입 화면은 이름과 함께 **이메일을 반드시** 받는다. 가입이 끝나면
+// 그 이메일로 Access 로그인해서 들어온다(별도 비밀번호 없음).
+// ============================================================================
+
+/** 실무자 초대 링크의 공개 정보. 화면이 "어느 기관의 초대인가"만 보여 준다. */
+export interface CounselorInvitePublicInfo {
+  /** 기관 표시 이름. 온보딩 전이면 null — 화면이 일반 문안으로 폴백한다. */
+  orgName: string | null;
+}
+
+/**
+ * 실무자 초대 토큰의 경계 조회(Actor 없음, CCC-108). 유효하면 기관 표시 이름만 돌려준다 —
+ * 토큰이 곧 자격이므로 그 이상(발급자·기관 id)은 공개 표면에 내보내지 않는다.
+ * 무효·이미 사용·종류 불일치는 전부 같은 ForbiddenError(getInviteForSignup 규약).
+ */
+export async function getCounselorInviteSignupInfo(
+  env: Env,
+  token: string,
+): Promise<CounselorInvitePublicInfo> {
+  const invite = await getInviteForSignup(env, token, 'counselor');
+  const row = await env.DB.prepare('SELECT org_name FROM organization_settings WHERE org_id = ?')
+    .bind(invite.orgId)
+    .first<DbRow>();
+  return { orgName: row === null ? null : nullableString(row.org_name) };
+}
+
+export interface CounselorSignupInput {
+  token: string;
+  name: string;
+  email: string;
+}
+
+export interface CounselorSignupResult {
+  userId: string;
+  email: string;
+}
+
+/**
+ * 실무자 초대 링크로 가입을 완료한다(원자, CCC-108). 토큰 검증 → users 등재(role=counselor)
+ * → 토큰 소비를 한 배치에 묶는다. 인증된 행위자를 받지 않는다(토큰이 자격).
+ *
+ * 감사 행위자 분리(당사자 자기 가입과 같은 규약): users 생성 감사는 발급자(관리자)를
+ * 후원 행위자로 복원해 남기고, invite_consume 감사는 시스템 행위자
+ * (INVITE_SIGNUP_ACTOR_ID)로 남긴다. 토큰 소비 UPDATE 는 상태 술어 없이 실행해
+ * 동시 이중 제출을 invite_tokens_no_double_consume 가드(0022)가 되감게 한다 —
+ * 진 쪽은 users 행도 함께 사라져 고아 계정이 남지 않는다.
+ *
+ * 이메일은 전역 UNIQUE(신원 키)다. 이미 등재된 이메일이면 ConflictError — 재가입이
+ * 아니라 관리자 화면(POST /users)의 재활성화 경로를 쓰라는 뜻이다.
+ */
+export async function completeCounselorSignup(
+  env: Env,
+  input: CounselorSignupInput,
+): Promise<CounselorSignupResult> {
+  assertExactKeys(input, ['token', 'name', 'email']);
+  assertNonBlankText(input.token, 'token');
+  assertNonBlankText(input.name, 'name');
+  assertNonBlankText(input.email, 'email');
+  const name = input.name.trim();
+  const email = input.email.trim();
+  if (email.length > 254 || !email.includes('@')) {
+    throw new ValidationError('email is invalid');
+  }
+
+  // 순차 이중 제출 게이트 — 이미 소비된 토큰은 여기서 거부한다(동시 경계는 배치 안 가드).
+  const invite = await getInviteForSignup(env, input.token, 'counselor');
+
+  // 후원 행위자 복원: 발급 관리자가 아직 활성인지 확인한다. 발급자가 비활성이면 그
+  // 초대는 근거를 잃는다(당사자 가입의 sponsor 규약과 동일).
+  const sponsorRow = await env.DB.prepare(
+    `SELECT id FROM users
+     WHERE id = ? AND org_id = ? AND active = 1 AND role = 'admin'`,
+  ).bind(invite.issuedBy, invite.orgId).first<{ id: string }>();
+  if (sponsorRow === null) {
+    throw new ForbiddenError('invite sponsor is unavailable');
+  }
+
+  // 이메일 선점 검사(순차 경로) — 전역 UNIQUE 라 기관 무관하게 걸린다. 동시 경계는
+  // 아래 INSERT 의 UNIQUE 제약이 배치 전체를 되감아 토큰도 소비되지 않는다.
+  const existing = await findUserByEmail(env, email);
+  if (existing !== null) {
+    throw new ConflictError('email is already registered');
+  }
+
+  const userId = newId();
+  const createdAt = now();
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO users (id, org_id, email, role, active, name) VALUES (?, ?, ?, ?, 1, ?)',
+      ).bind(userId, invite.orgId, email, 'counselor', name),
+      env.DB.prepare(
+        `INSERT INTO audit_log (
+           org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
+         ) VALUES (?, ?, 'admin', 'create', 'users', ?, NULL, ?, ?)`,
+      ).bind(
+        invite.orgId,
+        sponsorRow.id,
+        userId,
+        stringifyJson({ role: 'counselor', via: 'invite_signup' }),
+        createdAt,
+      ),
+      env.DB.prepare(
+        `UPDATE invite_tokens
+         SET status = 'used', used_at = ?, used_by_beneficiary_id = NULL, used_by_user_id = ?
+         WHERE token = ?`,
+      ).bind(createdAt, userId, input.token),
+      env.DB.prepare(
+        `INSERT INTO audit_log (
+           org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
+         ) VALUES (?, ?, 'service', 'invite_consume', 'invite_tokens', ?, NULL, ?, ?)`,
+      ).bind(
+        invite.orgId,
+        INVITE_SIGNUP_ACTOR_ID,
+        input.token,
+        stringifyJson({ kind: 'counselor', userId, via: 'signup' }),
+        createdAt,
+      ),
+    ]);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('invite_token_already_used')) {
+      throw new ConflictError('invite token already used');
+    }
+    if (isUniqueConstraintError(error)) {
+      throw new ConflictError('email is already registered');
+    }
+    throw error;
+  }
+  return { userId, email };
 }

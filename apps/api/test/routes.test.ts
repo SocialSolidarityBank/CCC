@@ -3727,11 +3727,17 @@ describe('public participant signup routes (CCC-28)', () => {
     return invite.token;
   }
 
+  // 공개 가입 표면 스위치(CCC-112)가 켜진 env. 라우트 동작 자체를 검증하는 아래
+  // 테스트들은 이 env 로 연다 — 배포에서는 [env.preview.vars] 의 "1" 에 해당한다.
+  function signupOpenEnv(): ApiEnv {
+    return { ...t.env, PUBLIC_SIGNUP_ENABLED: '1' };
+  }
+
   it('GET /invites/participant/:token returns programType for a valid token', async () => {
     const token = await issueToken();
     const res = await worker.fetch(
       new Request(`http://localhost/invites/participant/${token}`),
-      t.env,
+      signupOpenEnv(),
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ programType: 'financial_support_v1' });
@@ -3741,7 +3747,7 @@ describe('public participant signup routes (CCC-28)', () => {
     await t.reset();
     const res = await worker.fetch(
       new Request('http://localhost/invites/participant/0000000000000000000000000000000000000000000000000000000000000000'),
-      t.env,
+      signupOpenEnv(),
     );
     expect(res.status).toBe(404);
   });
@@ -3759,7 +3765,7 @@ describe('public participant signup routes (CCC-28)', () => {
           consent: { privacy: true, recordingAi: true },
         }),
       }),
-      t.env,
+      signupOpenEnv(),
     );
     expect(res.status).toBe(201);
     const body = await res.json() as { beneficiaryId: string; supportCaseId: string };
@@ -3780,7 +3786,7 @@ describe('public participant signup routes (CCC-28)', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
-      t.env,
+      signupOpenEnv(),
     );
     expect(first.status).toBe(201);
     const second = await worker.fetch(
@@ -3789,7 +3795,7 @@ describe('public participant signup routes (CCC-28)', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
-      t.env,
+      signupOpenEnv(),
     );
     expect(second.status).toBe(404);
   });
@@ -3802,8 +3808,187 @@ describe('public participant signup routes (CCC-28)', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token, name: '이름만' }),
       }),
-      t.env,
+      signupOpenEnv(),
     );
     expect(res.status).toBe(400);
   });
+
+  /**
+   * 기능 스위치(CCC-112 · P0-2): PUBLIC_SIGNUP_ENABLED 가 정확히 '1' 이 아니면 공개 가입
+   * 표면 전체가 404 다. 기본(미설정)이 닫힘이라는 것이 계약의 핵심 — 운영 env 에 변수를
+   * 두지 않는 것만으로 표면이 닫힌다(EXTERNAL_AI_CALLS_ENABLED 와 같은 fail closed 규약).
+   */
+  it('스위치 미설정이면 유효 토큰이어도 공개 가입 표면 전체가 404 (fail closed)', async () => {
+    const token = await issueToken();
+    // t.env 에는 PUBLIC_SIGNUP_ENABLED 가 없다 — 미설정 = 닫힘.
+    const invite = await worker.fetch(
+      new Request(`http://localhost/invites/participant/${token}`),
+      t.env,
+    );
+    expect(invite.status).toBe(404);
+
+    const signup = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, name: '테스트 당사자', consent: { privacy: true, recordingAi: true } }),
+      }),
+      t.env,
+    );
+    expect(signup.status).toBe(404);
+
+    // 발급 라우트(인증 필요)도 같은 스위치 안이다 — 아무도 못 쓰는 링크를 만들지 않는다.
+    const issue = await worker.fetch(
+      new Request('http://localhost/invites/participant', {
+        method: 'POST',
+        headers: counselorHeaders,
+        body: JSON.stringify({ programType: 'financial_support_v1' }),
+      }),
+      t.env,
+    );
+    expect(issue.status).toBe(404);
+
+    // 닫힌 동안 토큰은 소비되지 않는다 — 스위치를 켜면 같은 토큰으로 그대로 가입된다.
+    const reopened = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, name: '테스트 당사자', consent: { privacy: true, recordingAi: true } }),
+      }),
+      signupOpenEnv(),
+    );
+    expect(reopened.status).toBe(201);
+  });
+
+  it("정확히 '1' 만 연다 — '0'·'true' 는 닫힘", async () => {
+    const token = await issueToken();
+    for (const value of ['0', 'true']) {
+      const res = await worker.fetch(
+        new Request(`http://localhost/invites/participant/${token}`),
+        { ...t.env, PUBLIC_SIGNUP_ENABLED: value },
+      );
+      expect(res.status).toBe(404);
+    }
+  });
+});
+describe('support case closure routes (CCC-107)', () => {
+  it('closes a case with a required reason, leaves the close audit row, and starts the retention clock', async () => {
+    const creation = await setupCanonicalParticipant();
+    const closeUrl = `http://localhost/support-cases/${creation.supportCaseId}/close`;
+    const closureUrl = `http://localhost/support-cases/${creation.supportCaseId}/closure`;
+
+    // 종결 전 조회: 활성 상태 + 보관 시계 시작 전(purge_due null).
+    const before = await worker.fetch(new Request(closureUrl, { headers: canonicalCounselorHeaders }), t.env);
+    expect(before.status).toBe(200);
+    await expect(before.json()).resolves.toMatchObject({
+      supportCaseId: creation.supportCaseId,
+      beneficiaryId: creation.beneficiaryId,
+      status: 'active',
+      closedAt: null,
+      closedReason: null,
+      purgeDue: null,
+      purgedAt: null,
+      hasOtherActiveSupportCase: false,
+    });
+
+    // 사유 없는 종결은 400 — 사유는 필수다.
+    const missingReason = await worker.fetch(new Request(closeUrl, {
+      method: 'POST',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({}),
+    }), t.env);
+    expect(missingReason.status).toBe(400);
+
+    // 비담당 실무자는 403(D7) — 종결은 담당 실무자·기관 관리자의 일이다.
+    const unassigned = await worker.fetch(new Request(closeUrl, {
+      method: 'POST',
+      headers: canonicalUnassignedHeaders,
+      body: JSON.stringify({ reason: '비담당 시도' }),
+    }), t.env);
+    expect(unassigned.status).toBe(403);
+
+    // 담당 실무자 종결 성공.
+    const closed = await worker.fetch(new Request(closeUrl, {
+      method: 'POST',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ reason: '지원 목표 달성으로 종결' }),
+    }), t.env);
+    expect(closed.status).toBe(200);
+    const closedBody = await closed.json() as { status: string; closedAt: string | null; closedReason: string | null };
+    expect(closedBody.status).toBe('closed');
+    expect(closedBody.closedAt).not.toBeNull();
+    expect(closedBody.closedReason).toBe('지원 목표 달성으로 종결');
+
+    // 기존 계약 유지: close 감사 1행이 성공과 함께 남는다(D14).
+    const audit = await t.db.prepare(
+      `SELECT COUNT(*) AS count FROM audit_log
+       WHERE org_id = 'org_canonical' AND action = 'close'
+         AND target_table = 'support_cases' AND target_id = ?`,
+    ).bind(creation.supportCaseId).first<{ count: number }>();
+    expect(audit?.count).toBe(1);
+
+    // 마지막 활성 케이스 종결 → DB 트리거가 금고에 purge_due 를 건다(D10). 이 티켓은 표시만 한다.
+    const after = await worker.fetch(new Request(closureUrl, { headers: canonicalCounselorHeaders }), t.env);
+    expect(after.status).toBe(200);
+    const closure = await after.json() as {
+      status: string; closedAt: string | null; closedReason: string | null;
+      purgeDue: string | null; purgedAt: string | null; hasOtherActiveSupportCase: boolean;
+    };
+    expect(closure.status).toBe('closed');
+    expect(closure.closedAt).toBe(closedBody.closedAt);
+    expect(closure.closedReason).toBe('지원 목표 달성으로 종결');
+    expect(closure.purgeDue).not.toBeNull();
+    expect(closure.purgedAt).toBeNull();
+    expect(closure.hasOtherActiveSupportCase).toBe(false);
+
+    // 이미 종결된 케이스는 다시 닫을 수 없다 — 409.
+    const again = await worker.fetch(new Request(closeUrl, {
+      method: 'POST',
+      headers: canonicalCounselorHeaders,
+      body: JSON.stringify({ reason: '중복 종결 시도' }),
+    }), t.env);
+    expect(again.status).toBe(409);
+  }, MULTI_SCENARIO_TIMEOUT_MS);
+
+  it('lets the org admin close, and keeps the retention clock parked while another case is still active', async () => {
+    const creation = await setupCanonicalParticipant();
+    // 같은 당사자의 두 번째 케이스 — 첫 케이스를 닫아도 활성 케이스가 남는 상황을 만든다.
+    const second = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/support-cases`,
+      {
+        method: 'POST',
+        headers: canonicalAdminHeaders,
+        body: JSON.stringify({
+          schemaVersion: 1,
+          submissionId: 'aaaaaaaa-cccc-4ccc-8ccc-aaaaaaaaaaaa',
+          programType: 'financial_support_v1',
+          initialAssigneeUserId: canonicalIds.counselor,
+          consentPrivacy: true,
+        }),
+      },
+    ), t.env);
+    expect([200, 201]).toContain(second.status);
+
+    const closed = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/close`,
+      {
+        method: 'POST',
+        headers: canonicalAdminHeaders,
+        body: JSON.stringify({ reason: '관리자 정리 종결' }),
+      },
+    ), t.env);
+    expect(closed.status).toBe(200);
+
+    // 다른 활성 케이스가 남아 있으므로 purge_due 는 아직 비어 있고, 화면 안내용 플래그가 선다.
+    const closure = await worker.fetch(new Request(
+      `http://localhost/support-cases/${creation.supportCaseId}/closure`,
+      { headers: canonicalAdminHeaders },
+    ), t.env);
+    expect(closure.status).toBe(200);
+    await expect(closure.json()).resolves.toMatchObject({
+      status: 'closed',
+      purgeDue: null,
+      hasOtherActiveSupportCase: true,
+    });
+  }, MULTI_SCENARIO_TIMEOUT_MS);
 });

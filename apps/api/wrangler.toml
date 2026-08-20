@@ -6,6 +6,9 @@ compatibility_date = "2026-07-06"
 LOCAL_ACTOR_HEADER_MODE = "true"
 # D8 무폴링 판정 임계값(시간). 미설정이면 gateway 기본값 6시간.
 PIPELINE_STALE_HOURS = "6"
+# 공개 가입 표면 스위치(CCC-112). 정확히 "1"일 때만 공개 초대 조회·가입(과 초대 발급)이
+# 열린다. 로컬 개발에서는 켜서 /join 흐름을 그대로 돌린다.
+PUBLIC_SIGNUP_ENABLED = "1"
 
 # 예약 작업(D8·D10). src/index.ts scheduled 핸들러가 controller.cron으로 분기한다:
 #   - "0 3 * * *"  (매일 03:00 UTC): 파기 예정일 경과 PII 자동 파기(D10)
@@ -50,6 +53,8 @@ PII_KEY_VERSION = "2"
 # 값은 비밀이 아니며, API 직접 호출과 웹 Worker service binding 양쪽 신원을 허용한다.
 ACCESS_TEAM_DOMAIN = "socialsolidaritybank.cloudflareaccess.com"
 ACCESS_AUD = "3dbacf213494f7624c00676ce62742c414528997fd2a23c21e926c16d79404d2,52d5b26bf947ea0e6964336ed57dde622f8e8b6ac7f5f452edf1ebd0ac89c2b7"
+# PUBLIC_SIGNUP_ENABLED 는 의도적으로 **두지 않는다**(CCC-112) — 없음이 곧 닫힘이라
+# 운영 공개 가입 표면(초대 조회·가입·발급)은 404 다. 공개 오픈을 승인받은 배포에만 "1"을 둔다.
 
 [env.production.triggers]
 crons = ["*/30 * * * *", "0 3 * * *"]
@@ -107,6 +112,9 @@ EXTERNAL_AI_CALLS_ENABLED = "0"
 # 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 사용되지 않고,
 # 텍스트 일감 큐도 비어 보인다(ADR-0027). 미리보기는 가상 시드 전용이라 켠다.
 TEXT_AI_PILOT_ENABLED = "1"
+# 공개 가입 표면 스위치(CCC-112). 미리보기는 팀원이 코드 게이트 뒤에서 가입 흐름을
+# 검수하는 채널이므로 켠다 — 코드 세션 요구(preview-gate)는 이 값과 무관하게 유지된다.
+PUBLIC_SIGNUP_ENABLED = "1"
 
 # 크론 트리거는 미리보기에서 비활성. 주의: triggers 를 생략하면 top-level crons 가
 # 상속되므로(첫 배포에서 실측), 빈 배열로 명시해 상속을 끊는다.

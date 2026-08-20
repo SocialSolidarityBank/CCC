@@ -51,6 +51,7 @@
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
 | `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | PII 즉시 파기 스위치(CCC-113, P0-3 1단계). 정확히 `1`일 때만 cron·수동 파기가 실행된다. 미설정·`0`이면 cron 은 파기 없이 `파기 스위치 꺼짐, 대상 N건 대기` 로그만 남기고, `POST /pii-purge` 는 409 `purge_disabled` 로 거절된다. D32·D46 아카이브·검토 절차가 구현되기 전에는 켜지 않는다(`docs/policy/deferred-blockers-v1.md` 1장). wrangler.toml 운영 env 에 두지 않는다 — 없는 것이 닫힘이다. |
+| `PUBLIC_SIGNUP_ENABLED` | Workers 환경 변수 (`apps/api`·`apps/web` 양쪽) | (없음) | 공개 가입 표면(CCC-112)의 스위치. 정확히 `1`일 때만 공개 초대 조회·가입 API 와 초대 발급, 웹 `/join`·`/join/*` 화면이 열린다. 없거나 `0`이면 404 로 fail closed. 미리보기 env 에만 `1`(코드 게이트 뒤 팀 검수용), 운영에는 두지 않는다. |
 
 세 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`·`EXTERNAL_AI_CALLS_ENABLED=1`)이 **함께** 있어야 사업자 호출이 열린다. `EXTERNAL_AI_CALLS_ENABLED=1`은 유료 실호출을 별도로 승인받은 배포에만 둔다. 키 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 

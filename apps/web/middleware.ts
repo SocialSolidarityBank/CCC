@@ -31,7 +31,11 @@ export function middleware(request: NextRequest): NextResponse {
   // 사이드바가 그대로 떠서 **로그아웃한 화면에 앱 메뉴가 남아 있었다** — 나갔는데 안 나간
   // 것처럼 보인다. 이 헤더가 뜻하는 것은 '신원을 아직 모르는 화면'이고 /preview 가 정확히
   // 그것이므로, 새 판단을 더하는 것이 아니라 같은 판단에 화면 하나를 넣는 것이다.
-  const isPublic = pathname === '/join' || pathname.startsWith('/join/') || pathname === '/preview';
+  // 공개 입구 화면(/welcome · CCC-109)도 셸을 뺀다 — 서비스 소개와 로그인 안내라 신원을
+  // 아직 모르는 화면이고, 가입 **쓰기** 경로가 아니므로 가입 스위치(CCC-112)와 무관하게
+  // 언제나 공개다.
+  const isPublic =
+    pathname === '/join' || pathname.startsWith('/join/') || pathname === '/preview' || pathname === '/welcome';
   const requestHeaders = new Headers(request.headers);
   if (isPublic) requestHeaders.set('x-ccc-public', '1');
   else requestHeaders.delete('x-ccc-public');
@@ -41,7 +45,19 @@ export function middleware(request: NextRequest): NextResponse {
   // /join 도 지정 코드 뒤에 둔다 — 미리보기는 팀원 피드백용이고 팀원은 코드를 갖고
   // 있으므로 가입 흐름 검수에는 지장이 없다. 셸 제외용 헤더 저작은 위에서 이미 끝났으니
   // 여기서 빠져나가지 않아도 /join 의 화면 구성은 그대로다.
-  if (process.env.CCC_PREVIEW !== 'true') return NextResponse.next(forward);
+  if (process.env.CCC_PREVIEW !== 'true') {
+    // 기능 스위치(CCC-112 · P0-2): 운영·로컬에서 공개 가입 표면(/join·/join/*)은
+    // PUBLIC_SIGNUP_ENABLED 가 정확히 '1' 일 때만 열린다. 없거나 다른 값이면 404 —
+    // API 쪽 게이트(request-handler.ts)와 같은 fail closed 규약이고, 미리보기
+    // (CCC_PREVIEW='true')는 코드 게이트가 이미 앞에 있어 이 분기를 타지 않는다.
+    // /preview·/welcome(CCC-109) 같은 다른 공개 화면은 이 스위치와 무관하다 —
+    // 매칭을 isPublic 이 아니라 /join 정확 일치 + '/join/' 접두로만 좁힌 이유다.
+    const isJoinPath = pathname === '/join' || pathname.startsWith('/join/');
+    if (isJoinPath && process.env.PUBLIC_SIGNUP_ENABLED !== '1') {
+      return new NextResponse('Not Found', { status: 404 });
+    }
+    return NextResponse.next(forward);
+  }
 
   if (pathname === '/preview') return NextResponse.next(forward);
   if (request.cookies.get(PREVIEW_COOKIE_NAME) !== undefined) return NextResponse.next(forward);

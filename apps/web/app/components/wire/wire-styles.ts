@@ -322,6 +322,8 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 행 제목은 카드 제목(18)보다 한 단 아래 16 이다. 배지는 제목과 같은 y 세로 중앙이다
    (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
 .participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
+/* 상태 배지 + 종결 입구(CCC-107)를 오른쪽 끝에 한 덩이로 세운다. */
+.participant-program-head-status{display:flex;align-items:center;gap:var(--space-3)}
 .participant-program-head>h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 사업명 리스트 항목은 400 이다(2026-08-07 Q 8차, 리스트업이지 제목이 아니다). 동의서
    카드의 사업명 묶음 머리(.participant-consent-program)는 저장 버튼을 거느린 구획 제목이라

@@ -81,6 +81,11 @@ function recordsHref(beneficiaryId: string, supportCaseId: string): string {
   return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/records`;
 }
 
+/** 케이스 종결 확인 화면(CCC-107). 종결 뒤에는 같은 주소가 종결 정보 읽기 전용 화면이 된다. */
+function closeHref(beneficiaryId: string, supportCaseId: string): string {
+  return `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/close`;
+}
+
 /** 인테이크 화면(2026-08-08 Q). 주소는 전체 상담 기록의 하위다.
  *  기록이 있으면 조회가 기본이고(CCC-58), 수정은 그 화면의 버튼이 연다. 없으면 작성 위저드다. */
 function intakeHref(beneficiaryId: string, supportCaseId: string): string {
@@ -204,7 +209,8 @@ export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: strin
  *  메타를 뺐다(최신 일정 카드와 내용이 중복됐다). 남는 것은 사업명·상태 뱃지·담당 이름
  *  한 줄 — 담당 이름은 D36 이 허브에 보이라고 정한 값이라 유지한다. 버튼이 없어졌으므로
  *  구 '담당하지 않는 사업입니다' 잠금 문구도 설 자리가 없다. */
-function ProgramRow({ program, programTitle }: {
+function ProgramRow({ beneficiaryId, program, programTitle }: {
+  beneficiaryId: string;
   program: ParticipantProgram;
   programTitle: string;
 }) {
@@ -212,7 +218,18 @@ function ProgramRow({ program, programTitle }: {
     <div className="participant-program-row">
       <div className="participant-program-head">
         <h3>{programTitle}</h3>
-        <WireBadge tone="mint">{programStatus(program.status)}</WireBadge>
+        <span className="participant-program-head-status">
+          {/* 종결은 무채색이다 — 민트는 진행(사람·상태) 축의 색이라 닫힌 케이스에 어울리지 않는다(D58 ④). */}
+          <WireBadge tone={program.status === 'active' ? 'mint' : 'neutral'}>{programStatus(program.status)}</WireBadge>
+          {/* 케이스 종결 입구(CCC-107). 담당(또는 admin) 사업에만 선다 — D36 은 존재·담당
+              이름까지만 보여주자는 결정이지 쓰기 권한을 넓힌 것이 아니다. 진행 중이면 종결
+              확인 화면으로, 이미 종결이면 같은 주소가 종결일·파기 예정일 읽기 전용이 된다. */}
+          {program.authorized && (
+            <WireButton variant="neutral" height="sm" href={closeHref(beneficiaryId, program.id)}>
+              {program.status === 'active' ? '종결' : '종결 정보'}
+            </WireButton>
+          )}
+        </span>
       </div>
       <AssigneeLine names={program.assigneeNames} />
     </div>
@@ -361,6 +378,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
               {programs.map((program) => (
                 <ProgramRow
                   key={program.id}
+                  beneficiaryId={detail.beneficiaryId}
                   program={program}
                   programTitle={programName(programLabels, program.programType)}
                 />
