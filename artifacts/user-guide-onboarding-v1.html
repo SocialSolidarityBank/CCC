@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCC 사용 가이드 — 처음 시작부터 첫 상담까지</title>
+<style>
+  :root{
+    --canvas:#FAFAF9; --panel:#FFFFFF; --muted:#F5F5F4;
+    --ink:#3D3445; --sub:#534E57; --line:#E7E5E4; --line-control:#E3E3E3;
+    --blue-base:#93C1F5; --blue-deep:#67A9F0; --blue-tint:#E7EEF8;
+    --mint-base:#8ED9B8; --mint-deep:#56CC99; --mint-tint:#E4F4EC;
+    --lav-base:#CBA8E2; --lav-deep:#C890F0; --lav-tint:#F2E7F7;
+    --risk:#F071B4; --risk-tint-solid:#F7EEF2;
+    --note:#D9480F; --note-bg:#FFF1E8; /* 안내(주목) 전용 — 제품 팔레트 밖의 색 */
+    --gradient-brand:linear-gradient(90deg,#8ED9B8 0%,#CBA8E2 100%);
+    --shadow-soft:-2px 2px 8px rgba(86,204,153,.15), 2px 2px 8px rgba(200,144,240,.15);
+    --radius-card:12px; --radius-control:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--canvas); color:var(--ink);
+    font-family:"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+    letter-spacing:-0.01em; line-height:1.55; font-size:16px;
+  }
+  .page{max-width:880px;margin:0 auto;padding:40px 24px 80px}
+
+  /* ── 머리 ── */
+  header.hero{
+    background:var(--panel); border:1px solid transparent; border-radius:var(--radius-card);
+    background-image:linear-gradient(var(--panel),var(--panel)),var(--gradient-brand);
+    background-origin:border-box; background-clip:padding-box,border-box;
+    box-shadow:var(--shadow-soft); padding:32px; margin-bottom:24px;
+  }
+  header.hero .kicker{font-size:14px;font-weight:700;color:var(--blue-deep);margin-bottom:8px}
+  header.hero h1{font-size:28px;font-weight:700;line-height:1.25;margin-bottom:12px}
+  header.hero p{color:var(--sub);max-width:62ch}
+  .legend{
+    display:flex;align-items:center;gap:8px;margin-top:16px;
+    background:var(--note-bg);border-radius:var(--radius-control);padding:10px 14px;
+    font-size:14px;color:var(--note);font-weight:700;width:fit-content;
+  }
+  .legend .dot{width:18px;height:18px;border-radius:50%;background:var(--note);color:#fff;
+    font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+
+  /* ── 전체 흐름 다이어그램 ── */
+  .flow{background:var(--panel);border-radius:var(--radius-card);box-shadow:var(--shadow-soft);
+    padding:24px;margin-bottom:40px}
+  .flow h2{font-size:18px;font-weight:700;margin-bottom:16px}
+  .flow-steps{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .flow-step{background:var(--blue-tint);color:var(--ink);font-size:14px;font-weight:700;
+    border-radius:9999px;padding:6px 14px;white-space:nowrap}
+  .flow-step.mint{background:var(--mint-tint)} .flow-step.lav{background:var(--lav-tint)}
+  .flow-arrow{color:var(--sub);font-size:14px}
+  .flow p.note{margin-top:16px;color:var(--sub);font-size:14px}
+  .flow p.note strong{color:var(--ink)}
+
+  /* ── 단계 섹션 ── */
+  section.step{margin-bottom:40px}
+  .step-head{display:flex;align-items:baseline;gap:12px;margin-bottom:12px}
+  .step-num{flex:none;width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff;
+    font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    transform:translateY(6px)}
+  .step-head h2{font-size:22px;font-weight:700;line-height:1.35}
+  section.step > p{color:var(--ink);margin-bottom:12px;max-width:65ch}
+  section.step ul, section.step ol{margin:0 0 12px 22px;color:var(--ink)}
+  section.step li{margin-bottom:6px;max-width:60ch}
+  section.step li::marker{color:var(--sub)}
+  .aside{border-left:2px solid var(--lav-base);background:var(--lav-tint);
+    border-radius:0 var(--radius-control) var(--radius-control) 0;
+    padding:12px 16px;margin:0 0 12px;font-size:14px;color:var(--sub);max-width:62ch}
+  .aside strong{color:var(--ink)}
+
+  /* 목업 카드 */
+  figure.mock{
+    background:var(--panel);border:1px solid transparent;border-radius:var(--radius-card);
+    background-image:linear-gradient(var(--panel),var(--panel)),var(--gradient-brand);
+    background-origin:border-box;background-clip:padding-box,border-box;
+    box-shadow:var(--shadow-soft);padding:20px;margin:16px 0;
+  }
+  figure.mock svg{width:100%;height:auto;display:block;border-radius:var(--radius-control)}
+  figure.mock figcaption{margin-top:12px;font-size:14px;color:var(--sub)}
+  figure.mock figcaption .n{display:inline-flex;width:18px;height:18px;border-radius:50%;
+    background:var(--note);color:#fff;font-size:12px;font-weight:700;
+    align-items:center;justify-content:center;margin-right:4px;transform:translateY(3px)}
+
+  /* 중요 콜아웃 */
+  .callout{
+    background:var(--note-bg);border-radius:var(--radius-card);
+    padding:16px 20px;margin-top:12px;max-width:65ch;
+    display:flex;gap:12px;align-items:flex-start;
+  }
+  .callout .mark{flex:none;width:24px;height:24px;border-radius:50%;background:var(--note);
+    color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    transform:translateY(2px)}
+  .callout p{font-size:15px;color:var(--ink)}
+  .callout p strong{color:var(--note)}
+
+  /* 마무리 3가지 */
+  .rules{background:var(--panel);border-radius:var(--radius-card);box-shadow:var(--shadow-soft);
+    padding:24px;margin-top:8px}
+  .rules h2{font-size:18px;font-weight:700;margin-bottom:16px}
+  .rules ol{margin-left:22px}
+  .rules li{margin-bottom:12px;max-width:62ch}
+  .rules li strong{display:block}
+  .rules li span{color:var(--sub);font-size:15px}
+
+  footer{margin-top:40px;color:var(--sub);font-size:14px;text-align:center}
+
+  @media (max-width:767px){
+    .page{padding:24px 16px 60px}
+    header.hero{padding:24px}
+    header.hero h1{font-size:24px}
+    .step-head h2{font-size:19px}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="sb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E7EEF8"/><stop offset=".5" stop-color="#E4F4EC"/><stop offset="1" stop-color="#F2E7F7"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="hero">
+  <div class="kicker">CCC 사용 가이드</div>
+  <h1>처음 시작부터 첫 상담까지</h1>
+  <p>기관 관리자가 가입하는 순간부터 첫 세션의 목표가 브리핑 화면에 기록되기까지, 전체 워크플로우를 8단계로 안내합니다.</p>
+  <div class="legend"><span class="dot">1</span> 목업 위의 주황 표시가 각 화면에서 주목할 부분입니다</div>
+</header>
+
+<div class="flow">
+  <h2>전체 흐름 한눈에</h2>
+  <div class="flow-steps">
+    <span class="flow-step">① 기관 관리자 가입</span><span class="flow-arrow">→</span>
+    <span class="flow-step">② 사업(워크스페이스) 등록</span><span class="flow-arrow">→</span>
+    <span class="flow-step mint">③ 실무자 초대</span><span class="flow-arrow">→</span>
+    <span class="flow-step mint">④ 당사자 초대·등록</span><span class="flow-arrow">→</span>
+    <span class="flow-step mint">⑤ 인테이크 상담</span><span class="flow-arrow">→</span>
+    <span class="flow-step lav">⑥ 브리핑 생성</span><span class="flow-arrow">→</span>
+    <span class="flow-step lav">⑦ 첫 세션 · 목표 설정</span><span class="flow-arrow">→</span>
+    <span class="flow-step lav">⑧ 브리핑에 기록 반영</span>
+  </div>
+  <p class="note">이 서비스의 핵심 가치는 기록이 아니라 <strong>브리핑</strong>입니다. 모든 단계는 "다음 상담 5분 전, 한 화면을 15초 안에 훑는 순간"을 위해 존재합니다.</p>
+</div>
+
+<!-- ══════════ 1단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">1</span><h2>기관 관리자 가입</h2></div>
+  <p>CCC에는 공개 가입 페이지가 없습니다. 기관 관리자는 초대 링크를 받아 가입합니다(초대제).</p>
+  <ul>
+    <li>역할은 <strong>기관 관리자</strong>와 <strong>실무자</strong> 두 가지뿐입니다.</li>
+    <li>기관 관리자는 사업 등록, 실무자 초대, 당사자 배정을 담당합니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 300" role="img" aria-label="초대 가입 화면 목업">
+      <rect width="840" height="300" fill="#FAFAF9"/>
+      <rect x="250" y="36" width="340" height="228" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="420" y="80" text-anchor="middle" font-size="18" font-weight="700" fill="#3D3445">CCC에 오신 것을 환영합니다</text>
+      <text x="420" y="104" text-anchor="middle" font-size="12" fill="#534E57">초대받은 계정으로만 가입할 수 있습니다</text>
+      <rect x="286" y="126" width="268" height="34" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="300" y="148" font-size="12" fill="#534E57">admin@organization.or.kr</text>
+      <rect x="286" y="172" width="268" height="34" rx="17" fill="#E7EEF8"/>
+      <text x="420" y="193" text-anchor="middle" font-size="13" font-weight="700" fill="#3D3445">초대 수락하고 가입하기</text>
+      <text x="420" y="236" text-anchor="middle" font-size="11" fill="#534E57">역할: 기관 관리자 (초대에 지정됨)</text>
+      <!-- 주목 표시 -->
+      <rect x="278" y="164" width="284" height="50" rx="22" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="278" cy="164" r="12" fill="#D9480F"/>
+      <text x="278" y="169" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+      <rect x="318" y="222" width="205" height="22" rx="11" fill="none" stroke="#D9480F" stroke-width="2" stroke-dasharray="6 4"/>
+      <circle cx="318" cy="233" r="12" fill="#D9480F"/>
+      <text x="318" y="238" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+    </svg>
+    <figcaption><span class="n">1</span> 초대 링크로만 열리는 가입 버튼 · <span class="n">2</span> 역할은 초대할 때 이미 정해져 있습니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 초대 메일의 링크는 본인 계정 전용입니다. 다른 사람에게 전달하지 마세요.</p>
+  </div>
+</section>
+
+<!-- ══════════ 2단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">2</span><h2>사업(워크스페이스) 등록</h2></div>
+  <p>로그인하면 먼저 <strong>사업</strong>을 만듭니다. 사업은 기관이 운영하는 프로그램 하나입니다(예: 금전 지원 사업). 화면 왼쪽 사이드바의 <strong>사업 전환기</strong>로 오갑니다. 선택한 사업이 곧 작업 공간(워크스페이스)이 됩니다.</p>
+  <ul>
+    <li>사업 이름, 유형(금전지원형 v1), 담당 범위를 입력합니다.</li>
+    <li>이후 모든 등록·상담·기록은 "지금 선택된 사업" 안에서 일어납니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 320" role="img" aria-label="사업 등록 화면 목업">
+      <rect width="840" height="320" fill="#FAFAF9"/>
+      <!-- 사이드바 -->
+      <rect width="180" height="320" fill="url(#sb)"/>
+      <text x="20" y="34" font-size="14" font-weight="700" fill="#3D3445">사회연대은행</text>
+      <rect x="14" y="52" width="152" height="36" rx="6" fill="#fff"/>
+      <text x="26" y="74" font-size="12" font-weight="700" fill="#3D3445">금전 지원 사업 ▾</text>
+      <text x="24" y="122" font-size="12" fill="#534E57">다가오는 일정</text>
+      <text x="24" y="150" font-size="12" fill="#534E57">전체 일정</text>
+      <text x="24" y="178" font-size="12" fill="#534E57">참여자</text>
+      <text x="24" y="206" font-size="12" fill="#534E57">설정</text>
+      <!-- 본문 -->
+      <text x="216" y="44" font-size="16" font-weight="700" fill="#3D3445">새 사업 등록</text>
+      <rect x="216" y="64" width="480" height="200" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="100" font-size="12" font-weight="700" fill="#56CC99">사업 이름</text>
+      <rect x="240" y="110" width="300" height="30" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="252" y="130" font-size="12" fill="#3D3445">금전 지원 사업</text>
+      <text x="240" y="168" font-size="12" font-weight="700" fill="#56CC99">유형</text>
+      <rect x="240" y="178" width="160" height="30" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="252" y="198" font-size="12" fill="#3D3445">금전지원형 v1</text>
+      <rect x="240" y="222" width="96" height="30" rx="15" fill="#E7EEF8"/>
+      <text x="288" y="241" text-anchor="middle" font-size="12" font-weight="700" fill="#3D3445">등록</text>
+      <!-- 주목 표시 -->
+      <rect x="8" y="46" width="164" height="48" rx="10" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="172" cy="46" r="12" fill="#D9480F"/>
+      <text x="172" y="51" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+    </svg>
+    <figcaption><span class="n">1</span> 사이드바 맨 위의 사업 전환기 — 화면 전체의 기준이 되는 자리입니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 사이드바 맨 위의 사업 전환기. 화면의 모든 내용이 여기서 고른 사업 기준으로 바뀝니다.</p>
+  </div>
+</section>
+
+<!-- ══════════ 3단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">3</span><h2>실무자 초대</h2></div>
+  <p>설정 화면에서 실무자의 이메일을 입력해 초대합니다. 실무자가 초대를 수락하면 워크스페이스에 들어옵니다.</p>
+  <ul>
+    <li>실무자는 <strong>자신이 담당하는 케이스의 상담 내용만</strong> 열람할 수 있습니다.</li>
+    <li>같은 기관 실무자에게는 당사자의 참여 사업 목록과 담당 실무자 이름까지만 보입니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 280" role="img" aria-label="실무자 초대 화면 목업">
+      <rect width="840" height="280" fill="#FAFAF9"/>
+      <rect width="180" height="280" fill="url(#sb)"/>
+      <text x="20" y="34" font-size="14" font-weight="700" fill="#3D3445">사회연대은행</text>
+      <text x="24" y="76" font-size="12" fill="#534E57">다가오는 일정</text>
+      <text x="24" y="104" font-size="12" fill="#534E57">참여자</text>
+      <rect x="14" y="120" width="152" height="30" rx="6" fill="#E7EEF8"/>
+      <text x="24" y="139" font-size="12" font-weight="700" fill="#3D3445">설정</text>
+      <text x="216" y="44" font-size="16" font-weight="700" fill="#3D3445">실무자 초대</text>
+      <rect x="216" y="64" width="560" height="90" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <rect x="240" y="88" width="280" height="34" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="252" y="110" font-size="12" fill="#534E57">worker@organization.or.kr</text>
+      <rect x="536" y="88" width="120" height="34" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="548" y="110" font-size="12" font-weight="700" fill="#3D3445">실무자 ▾</text>
+      <rect x="672" y="88" width="80" height="34" rx="17" fill="#E4F4EC"/>
+      <text x="712" y="110" text-anchor="middle" font-size="12" font-weight="700" fill="#3D3445">초대</text>
+      <!-- 멤버 목록 -->
+      <rect x="216" y="170" width="560" height="88" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="200" font-size="13" font-weight="700" fill="#3D3445">김민정</text>
+      <rect x="300" y="186" width="76" height="22" rx="11" fill="#E4F4EC"/>
+      <text x="338" y="201" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">기관 관리자</text>
+      <text x="240" y="238" font-size="13" font-weight="700" fill="#3D3445">박서연</text>
+      <rect x="300" y="224" width="56" height="22" rx="11" fill="#E4F4EC"/>
+      <text x="328" y="239" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">실무자</text>
+      <!-- 주목 표시 -->
+      <rect x="528" y="80" width="136" height="50" rx="10" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="528" cy="80" r="12" fill="#D9480F"/>
+      <text x="528" y="85" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+    </svg>
+    <figcaption><span class="n">1</span> 초대할 때 고르는 역할 — 기관 관리자 권한은 신중하게 부여합니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 초대 시 역할 선택. 기관 관리자 권한은 꼭 필요한 사람에게만 주세요.</p>
+  </div>
+</section>
+
+<!-- ══════════ 4단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">4</span><h2>당사자 초대·등록</h2></div>
+  <p>당사자를 등록하고 담당 실무자를 배정합니다.</p>
+  <div class="aside"><strong>현행과 예정</strong> — 지금은 실무자가 당사자의 정보를 대신 입력합니다(대행 등록). 당사자가 링크로 직접 가입해 동의서를 작성하는 방식은 법률 검토가 끝난 뒤 열립니다.</div>
+  <ul>
+    <li>실명·연락처 같은 개인정보는 암호화 금고에 따로 저장되고, 시스템 내부에서는 <strong>가명 ID</strong>(예: swallow-003)로 다뤄집니다.</li>
+    <li>등록할 때 <strong>동의 3종</strong>을 기록합니다: ① 개인정보 수집·이용 ② 녹음·음성 분석 ③ 텍스트 AI 정리. 동의는 종이나 구두로 받고, 시스템에는 항목별 체크와 일시만 남깁니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 320" role="img" aria-label="당사자 등록 화면 목업">
+      <rect width="840" height="320" fill="#FAFAF9"/>
+      <rect width="180" height="320" fill="url(#sb)"/>
+      <text x="20" y="34" font-size="14" font-weight="700" fill="#3D3445">사회연대은행</text>
+      <rect x="14" y="52" width="152" height="30" rx="6" fill="#E7EEF8"/>
+      <text x="24" y="71" font-size="12" font-weight="700" fill="#3D3445">참여자</text>
+      <text x="216" y="44" font-size="16" font-weight="700" fill="#3D3445">당사자 등록</text>
+      <rect x="216" y="64" width="560" height="110" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="94" font-size="12" font-weight="700" fill="#56CC99">이름</text>
+      <rect x="240" y="102" width="180" height="30" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="252" y="122" font-size="12" fill="#3D3445">이하늘</text>
+      <text x="452" y="94" font-size="12" font-weight="700" fill="#56CC99">연락처</text>
+      <rect x="452" y="102" width="180" height="30" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="464" y="122" font-size="12" fill="#3D3445">010-2847-3316</text>
+      <text x="240" y="158" font-size="11" fill="#534E57">저장 시 암호화 금고에 보관 · 가명 ID (swallow-003) 자동 부여</text>
+      <!-- 동의 카드 -->
+      <rect x="216" y="190" width="560" height="106" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="218" font-size="13" font-weight="700" fill="#3D3445">동의 기록</text>
+      <rect x="240" y="232" width="14" height="14" rx="4" fill="#E4F4EC" stroke="#56CC99"/>
+      <text x="262" y="244" font-size="12" fill="#3D3445">개인정보 수집·이용 동의 · 2026-07-29</text>
+      <rect x="240" y="254" width="14" height="14" rx="4" fill="#E4F4EC" stroke="#56CC99"/>
+      <text x="262" y="266" font-size="12" fill="#3D3445">녹음·음성 분석 동의 · 2026-07-29</text>
+      <rect x="240" y="276" width="14" height="14" rx="4" fill="#fff" stroke="#E3E3E3"/>
+      <text x="262" y="288" font-size="12" fill="#534E57">텍스트 AI 정리 동의 · 미기록</text>
+      <!-- 주목 표시 -->
+      <rect x="230" y="224" width="330" height="74" rx="10" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="230" cy="224" r="12" fill="#D9480F"/>
+      <text x="230" y="229" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+      <rect x="234" y="146" width="380" height="20" rx="10" fill="none" stroke="#D9480F" stroke-width="2" stroke-dasharray="6 4"/>
+      <circle cx="614" cy="156" r="12" fill="#D9480F"/>
+      <text x="614" y="161" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+    </svg>
+    <figcaption><span class="n">1</span> 동의 3종을 항목별로 따로 기록합니다 · <span class="n">2</span> 개인정보는 금고로, 시스템 안에서는 가명 ID로</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 동의 3종 체크. 녹음에 동의하지 않아도 등록과 상담은 그대로 진행됩니다. 수기 기록 경로가 항상 열려 있습니다.</p>
+  </div>
+</section>
+
+<!-- ══════════ 5단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">5</span><h2>인테이크 상담</h2></div>
+  <p>첫 만남에서 인테이크 질문지(4부 고정 폼)를 따라 상담합니다.</p>
+  <ol>
+    <li>신청·기본정보 — 등록된 값을 화면에 보여주기만 하고, 수정은 등록 화면에서 합니다.</li>
+    <li>현재 생활상황</li>
+    <li>필요한 도움과 자원</li>
+    <li>정리와 후속관리</li>
+  </ol>
+  <ul>
+    <li>'긴급도'(일반/주의/긴급/즉시 개입)는 <strong>실무자가 직접</strong> 판단합니다. AI는 제안하지 않습니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 300" role="img" aria-label="인테이크 위저드 화면 목업">
+      <rect width="840" height="300" fill="#FAFAF9"/>
+      <text x="40" y="40" font-size="16" font-weight="700" fill="#3D3445">인테이크 — 이하늘 (swallow-003)</text>
+      <!-- 4단계 스텝바 -->
+      <circle cx="70" cy="80" r="14" fill="#67A9F0"/><text x="70" y="85" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+      <rect x="88" y="78" width="150" height="4" rx="2" fill="#E0E0E0"/>
+      <circle cx="256" cy="80" r="14" fill="#fff" stroke="#E3E3E3"/><text x="256" y="85" text-anchor="middle" font-size="12" fill="#534E57">2</text>
+      <rect x="274" y="78" width="150" height="4" rx="2" fill="#E0E0E0"/>
+      <circle cx="442" cy="80" r="14" fill="#fff" stroke="#E3E3E3"/><text x="442" y="85" text-anchor="middle" font-size="12" fill="#534E57">3</text>
+      <rect x="460" y="78" width="150" height="4" rx="2" fill="#E0E0E0"/>
+      <circle cx="628" cy="80" r="14" fill="#fff" stroke="#E3E3E3"/><text x="628" y="85" text-anchor="middle" font-size="12" fill="#534E57">4</text>
+      <text x="70" y="112" text-anchor="middle" font-size="11" fill="#3D3445">기본정보</text>
+      <text x="256" y="112" text-anchor="middle" font-size="11" fill="#534E57">생활상황</text>
+      <text x="442" y="112" text-anchor="middle" font-size="11" fill="#534E57">도움과 자원</text>
+      <text x="628" y="112" text-anchor="middle" font-size="11" fill="#534E57">정리·후속관리</text>
+      <!-- 읽기 전용 카드 -->
+      <rect x="40" y="132" width="620" height="130" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <rect x="60" y="150" width="90" height="22" rx="11" fill="#F5F5F4"/>
+      <text x="105" y="165" text-anchor="middle" font-size="11" font-weight="700" fill="#534E57">읽기 전용</text>
+      <text x="60" y="196" font-size="12" fill="#534E57">이름  이하늘</text>
+      <text x="60" y="220" font-size="12" fill="#534E57">연락처  010-2847-3316</text>
+      <text x="60" y="244" font-size="12" fill="#534E57">수정은 당사자 등록 화면에서 →</text>
+      <text x="360" y="196" font-size="12" font-weight="700" fill="#3D3445">긴급도 (실무자 판단)</text>
+      <rect x="360" y="208" width="52" height="24" rx="12" fill="#E7EEF8"/><text x="386" y="224" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">일반</text>
+      <rect x="420" y="208" width="52" height="24" rx="12" fill="#fff" stroke="#E3E3E3"/><text x="446" y="224" text-anchor="middle" font-size="11" fill="#534E57">주의</text>
+      <rect x="480" y="208" width="52" height="24" rx="12" fill="#fff" stroke="#E3E3E3"/><text x="506" y="224" text-anchor="middle" font-size="11" fill="#534E57">긴급</text>
+      <rect x="540" y="208" width="76" height="24" rx="12" fill="#fff" stroke="#E3E3E3"/><text x="578" y="224" text-anchor="middle" font-size="11" fill="#534E57">즉시 개입</text>
+      <!-- 주목 표시 -->
+      <rect x="52" y="142" width="106" height="38" rx="18" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="52" cy="142" r="12" fill="#D9480F"/>
+      <text x="52" y="147" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+      <rect x="352" y="182" width="272" height="60" rx="10" fill="none" stroke="#D9480F" stroke-width="2" stroke-dasharray="6 4"/>
+      <circle cx="624" cy="182" r="12" fill="#D9480F"/>
+      <text x="624" y="187" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+    </svg>
+    <figcaption><span class="n">1</span> 1단계 기본정보는 읽기 전용 · <span class="n">2</span> 긴급도는 AI 제안 없이 실무자가 직접 고릅니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 1단계 기본정보 화면은 읽기 전용입니다. 개인정보가 상담 기록에 섞여 저장되지 않게 막는 장치입니다.</p>
+  </div>
+</section>
+
+<!-- ══════════ 6단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">6</span><h2>브리핑(15초 페이지) 생성</h2></div>
+  <p>인테이크 기록이 저장되면 당사자의 <strong>상담 준비(브리핑) 화면</strong>이 만들어집니다. 위에서 아래로 HERO 카드, 리스크 경고 배너(확인된 플래그가 있을 때만), 전체 목표 카드, 오늘 만나기 전 꼭 기억할 것, 상담 내용 회차별 정리, 내용 불일치, 미해결 액션·개인정보 카드 순서입니다.</p>
+  <ul>
+    <li>실무자가 직접 쓴 수기 메모는 저장 즉시 공식 기록입니다.</li>
+    <li>AI가 만든 정리는 실무자가 <strong>승인하기 전까지</strong> 브리핑에 나오지 않습니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 420" role="img" aria-label="브리핑 화면 목업">
+      <rect width="840" height="420" fill="#FAFAF9"/>
+      <rect width="180" height="420" fill="url(#sb)"/>
+      <text x="20" y="34" font-size="14" font-weight="700" fill="#3D3445">사회연대은행</text>
+      <rect x="14" y="52" width="152" height="30" rx="6" fill="#E7EEF8"/>
+      <text x="24" y="71" font-size="12" font-weight="700" fill="#3D3445">다가오는 일정</text>
+      <!-- HERO -->
+      <rect x="216" y="28" width="584" height="72" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="62" font-size="18" font-weight="700" fill="#3D3445">이하늘 <tspan font-size="12" font-weight="400" fill="#534E57">(swallow-003)</tspan></text>
+      <rect x="240" y="72" width="64" height="20" rx="6" fill="#E7EEF8"/>
+      <text x="272" y="86" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">상담 준비</text>
+      <rect x="596" y="44" width="88" height="28" rx="14" fill="#fff" stroke="#E7E5E4"/>
+      <text x="640" y="62" text-anchor="middle" font-size="11" fill="#3D3445">당사자 정보</text>
+      <rect x="692" y="44" width="88" height="28" rx="14" fill="#E4F4EC"/>
+      <text x="736" y="62" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">상담 시작</text>
+      <!-- 전체 목표 카드 -->
+      <rect x="216" y="114" width="584" height="52" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="145" font-size="13" font-weight="700" fill="#3D3445">전체 목표</text>
+      <rect x="320" y="128" width="66" height="24" rx="12" fill="#F2E7F7"/>
+      <text x="353" y="144" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">설정 전</text>
+      <text x="400" y="145" font-size="12" fill="#534E57">첫 상담에서 당사자와 함께 정합니다</text>
+      <!-- 영역 1 -->
+      <rect x="216" y="180" width="584" height="88" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="208" font-size="13" font-weight="700" fill="#3D3445">오늘 만나기 전 꼭 기억할 것</text>
+      <text x="240" y="232" font-size="12" fill="#3D3445">· 세션 목표와 맞춤형 질문 (실무자 입력)</text>
+      <text x="240" y="254" font-size="12" fill="#534E57">· AI 제안 최대 3개 — 근거 회차 링크 필수</text>
+      <!-- 영역 2 -->
+      <rect x="216" y="282" width="584" height="62" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="308" font-size="13" font-weight="700" fill="#3D3445">상담 내용 회차별 정리</text>
+      <text x="240" y="330" font-size="12" fill="#534E57">07-29 · 인테이크 · <tspan fill="#3D3445">첫 면담, 생활상황과 필요 자원 확인</tspan></text>
+      <!-- 영역 3 + 액션 -->
+      <rect x="216" y="358" width="284" height="46" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="240" y="386" font-size="13" font-weight="700" fill="#3D3445">내용 불일치 <tspan font-weight="400" fill="#534E57">없음</tspan></text>
+      <rect x="516" y="358" width="284" height="46" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="540" y="386" font-size="13" font-weight="700" fill="#3D3445">미해결 액션 · 개인정보</text>
+      <!-- 주목 표시 -->
+      <rect x="208" y="108" width="600" height="64" rx="14" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="208" cy="108" r="12" fill="#D9480F"/>
+      <text x="208" y="113" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+    </svg>
+    <figcaption><span class="n">1</span> 전체 목표 카드의 "설정 전" 표시 — 다음 단계(첫 세션)에서 이 자리를 채웁니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 전체 목표 카드의 "설정 전" 표시. 다음 단계(첫 세션)에서 채웁니다.</p>
+  </div>
+</section>
+
+<!-- ══════════ 7단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">7</span><h2>첫 세션 — 목표 세우기</h2></div>
+  <p>첫 상담에서 당사자와 대화하며 <strong>전체 목표</strong>(케이스의 방향 한 줄)를 함께 정합니다.</p>
+  <ul>
+    <li>정한 목표는 브리핑 화면의 전체 목표 카드에서 <strong>그 자리에서 바로</strong> 입력합니다. 담당 실무자만 쓸 수 있습니다.</li>
+    <li>전체 목표는 점수를 매기지 않는 방향 표시이고 나중에 수정할 수 있습니다.</li>
+    <li>녹음에 동의했다면 상담 음성을 업로드합니다. 전사·화자 분리·감정 분석을 거쳐 다음 영업일 안에 검토 대기 상태가 됩니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 220" role="img" aria-label="전체 목표 입력 목업">
+      <rect width="840" height="220" fill="#FAFAF9"/>
+      <text x="40" y="40" font-size="14" font-weight="700" fill="#3D3445">상담 준비 — 이하늘 <tspan font-size="11" font-weight="400" fill="#534E57">(swallow-003)</tspan></text>
+      <!-- 전체 목표 카드 (편집 중) -->
+      <rect x="40" y="60" width="720" height="120" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="64" y="94" font-size="13" font-weight="700" fill="#3D3445">전체 목표</text>
+      <rect x="64" y="106" width="540" height="36" rx="6" fill="#fff" stroke="#E3E3E3"/>
+      <text x="78" y="129" font-size="13" fill="#3D3445">6개월 안에 고정 지출을 정리하고 안정적인 월 수입 흐름 만들기</text>
+      <rect x="620" y="106" width="72" height="36" rx="18" fill="#E4F4EC"/>
+      <text x="656" y="129" text-anchor="middle" font-size="12" font-weight="700" fill="#3D3445">저장</text>
+      <text x="64" y="164" font-size="11" fill="#534E57">점수 없음 · 방향 표시 · 담당 실무자만 수정 가능</text>
+      <!-- 주목 표시 -->
+      <rect x="54" y="98" width="652" height="52" rx="12" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="54" cy="98" r="12" fill="#D9480F"/>
+      <text x="54" y="103" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+    </svg>
+    <figcaption><span class="n">1</span> 브리핑 화면 그 자리에서 바로 입력 — 별도 메뉴가 없습니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — 목표 입력은 브리핑 화면 안에서 합니다. 별도 메뉴를 찾을 필요가 없습니다.</p>
+  </div>
+</section>
+
+<!-- ══════════ 8단계 ══════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">8</span><h2>기록이 브리핑으로 돌아온다</h2></div>
+  <p>세션이 끝나면 기록이 브리핑을 채웁니다.</p>
+  <ul>
+    <li>AI 정리가 도착하면 승인 화면에서 수기 메모와 대조해 확인합니다(메모에 없는 내용 / 음성에 없는 내용 / 미논의 목표).</li>
+    <li>승인하면 회차별 정리에 그 상담의 <strong>핵심 한 줄</strong>이 실리고, "오늘 만나기 전 꼭 기억할 것"의 AI 제안 재료가 됩니다.</li>
+    <li>승인 전이거나 녹음이 없으면 수기 메모 앞부분이 '수기' 배지와 함께 대신 표시됩니다.</li>
+  </ul>
+  <figure class="mock">
+    <svg viewBox="0 0 840 260" role="img" aria-label="승인 후 브리핑 반영 목업">
+      <rect width="840" height="260" fill="#FAFAF9"/>
+      <text x="40" y="40" font-size="14" font-weight="700" fill="#3D3445">상담 내용 회차별 정리</text>
+      <rect x="248" y="24" width="92" height="24" rx="12" fill="#F2E7F7"/>
+      <text x="294" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="#3D3445">승인 대기 1건</text>
+      <!-- 회차 행들 -->
+      <rect x="40" y="60" width="720" height="48" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="64" y="89" font-size="12" fill="#534E57">08-05 · 기본 상담 · </text>
+      <rect x="196" y="74" width="44" height="20" rx="10" fill="#F2E7F7"/>
+      <text x="218" y="88" text-anchor="middle" font-size="10" font-weight="700" fill="#3D3445">수기</text>
+      <text x="252" y="89" font-size="12" fill="#3D3445">지출 목록 함께 작성, 다음 주 은행 동행 약속</text>
+      <rect x="40" y="120" width="720" height="48" rx="12" fill="#fff" stroke="#E7E5E4"/>
+      <text x="64" y="149" font-size="12" fill="#534E57">07-29 · 인테이크 · </text>
+      <text x="196" y="149" font-size="12" fill="#3D3445">첫 면담, 생활상황과 필요 자원 확인</text>
+      <text x="700" y="149" font-size="11" fill="#56CC99">승인됨 ✓</text>
+      <!-- 승인 대조 안내 -->
+      <rect x="40" y="188" width="720" height="52" rx="12" fill="#F2E7F7"/>
+      <text x="64" y="212" font-size="12" font-weight="700" fill="#3D3445">승인 화면 대조 3종</text>
+      <text x="64" y="230" font-size="11" fill="#534E57">메모에 없는 내용 · 음성에 없는 내용 · 미논의 목표 — 처리해야 승인 완료</text>
+      <!-- 주목 표시 -->
+      <rect x="240" y="18" width="108" height="36" rx="18" fill="none" stroke="#D9480F" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <circle cx="348" cy="18" r="12" fill="#D9480F"/>
+      <text x="348" y="23" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+      <rect x="188" y="68" width="60" height="32" rx="14" fill="none" stroke="#D9480F" stroke-width="2" stroke-dasharray="6 4"/>
+      <circle cx="188" cy="100" r="12" fill="#D9480F"/>
+      <text x="188" y="105" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+    </svg>
+    <figcaption><span class="n">1</span> '승인 대기 N건' 배지 — 여기서 승인 화면으로 갑니다 · <span class="n">2</span> 승인 전에는 수기 메모가 '수기' 배지와 함께 표시됩니다</figcaption>
+  </figure>
+  <div class="callout"><span class="mark">!</span>
+    <p><strong>중요하게 볼 것</strong> — '승인 대기 N건' 배지. 승인은 단순 확인이 아니라 수기 기록과 녹취 정리를 맞춰 보는 정합성 검증입니다.</p>
+  </div>
+</section>
+
+<!-- ══════════ 마무리 ══════════ -->
+<div class="rules">
+  <h2>워크플로우에서 꼭 기억할 3가지</h2>
+  <ol>
+    <li><strong>승인 전 AI 초안은 공식 기록이 아닙니다.</strong><span>브리핑·통계 어디에도 나가지 않습니다.</span></li>
+    <li><strong>판단은 언제나 실무자 몫입니다.</strong><span>지원 지속·중단, 리스크 확정, 긴급도, 목표 점수 — AI는 근거 발췌와 제안까지만 합니다.</span></li>
+    <li><strong>개인정보는 AI에 가지 않습니다.</strong><span>실명·연락처는 가명 ID로 치환되고, 추가 마스킹을 거친 텍스트만 전송됩니다.</span></li>
+  </ol>
+</div>
+
+<footer>CCC 사용 가이드 v1 · 2026-07-29 · 목업은 이해를 돕기 위한 와이어프레임으로, 실제 화면과 다를 수 있습니다</footer>
+
+</div>
+</body>
+</html>

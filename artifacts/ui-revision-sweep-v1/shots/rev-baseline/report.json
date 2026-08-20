@@ -1,0 +1,323 @@
+[
+  {
+    "page": "home",
+    "path": "/",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "kit",
+    "path": "/kit",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "schedule",
+    "path": "/programs/financial_support_v1/schedule",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "schedule-all",
+    "path": "/programs/financial_support_v1/schedule/all",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "participants",
+    "path": "/participants",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "participant-hub",
+    "path": "/participants/firefly-001",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "participant-new",
+    "path": "/participants/new",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 960,
+        "x": 360
+      },
+      "container": {
+        "w": 880,
+        "x": 400
+      }
+    }
+  },
+  {
+    "page": "participant-invite",
+    "path": "/participants/invite",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 960,
+        "x": 360
+      },
+      "container": {
+        "w": 880,
+        "x": 400
+      }
+    }
+  },
+  {
+    "page": "briefing",
+    "path": "/participants/firefly-001/programs/3f029785-74ce-47d8-8256-1490dbe7df0c/briefing",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1120,
+        "x": 280
+      }
+    }
+  },
+  {
+    "page": "records",
+    "path": "/participants/firefly-001/programs/3f029785-74ce-47d8-8256-1490dbe7df0c/records",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": null
+    }
+  },
+  {
+    "page": "record-new",
+    "path": "/participants/firefly-001/programs/3f029785-74ce-47d8-8256-1490dbe7df0c/records/new",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": null
+    }
+  },
+  {
+    "page": "intake",
+    "path": "/participants/firefly-001/programs/3f029785-74ce-47d8-8256-1490dbe7df0c/records/intake",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "schedule-new",
+    "path": "/schedules/new",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 960,
+        "x": 360
+      },
+      "container": {
+        "w": 880,
+        "x": 400
+      }
+    }
+  },
+  {
+    "page": "session-new",
+    "path": "/sessions/new",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "settings",
+    "path": "/settings",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 960,
+        "x": 360
+      },
+      "container": null
+    }
+  },
+  {
+    "page": "admin",
+    "path": "/admin",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "admin-users",
+    "path": "/admin/users",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "admin-assign",
+    "path": "/admin/assign",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "admin-invite",
+    "path": "/admin/invite",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "admin-settings",
+    "path": "/admin/settings",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": {
+        "w": 1120,
+        "x": 280
+      },
+      "container": {
+        "w": 1040,
+        "x": 320
+      }
+    }
+  },
+  {
+    "page": "preview-gate",
+    "path": "/preview",
+    "status": 200,
+    "errors": [],
+    "metrics": {
+      "main": null,
+      "container": null
+    }
+  }
+]
