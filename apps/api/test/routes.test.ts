@@ -268,7 +268,7 @@ async function setupPhase1AiFixture(
 }
 
 async function recordPilotConsent(env: ApiEnv, caseId: string): Promise<Response> {
-  return worker.fetch(new Request(`http://localhost/cases/${caseId}/pilot-text-ai-consent`, {
+  const response = await worker.fetch(new Request(`http://localhost/cases/${caseId}/pilot-text-ai-consent`, {
     method: 'POST',
     headers: counselorHeaders,
     body: JSON.stringify({
@@ -279,6 +279,14 @@ async function recordPilotConsent(env: ApiEnv, caseId: string): Promise<Response
       effectiveAt: '2020-01-01T09:00:00.000Z',
     }),
   }), env);
+  // CCC-110: 근거 기록 라우트는 이력만 남긴다. 사용 허용은 support_cases.consent_text_ai_at
+  // 이 결정하고 그 컬럼은 참여자 동의 경로(② 체크) 몫이라, 픽스처에서는 성공 시 직접 세운다.
+  if (response.status === 201) {
+    await t.db.prepare(
+      'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
+    ).bind('2020-01-01T09:00:00.000Z', caseId, caseId).run();
+  }
+  return response;
 }
 
 async function recordSource(
@@ -3051,6 +3059,10 @@ describe('canonical participant API routes', () => {
       },
     ), env);
     expect(consent.status).toBe(201);
+    // CCC-110: 근거 기록 라우트는 이력만 남긴다 — 현재 동의 컬럼은 픽스처가 직접 세운다.
+    await t.db.prepare(
+      'UPDATE support_cases SET consent_text_ai_at = ? WHERE id = ?',
+    ).bind('2020-01-01T09:00:00.000Z', creation.supportCaseId).run();
 
     const submitManualRecord = async (
       submissionId: string,

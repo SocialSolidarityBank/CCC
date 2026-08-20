@@ -112,6 +112,13 @@ async function seedCanonicalDirectory(): Promise<void> {
     canonicalActors.admin.orgId,
   ).run();
 }
+
+/** CCC-110: 사용 허용은 support_cases.consent_text_ai_at 이 결정한다 — 근거 행과 별개로 세운다. */
+async function grantCurrentTextAiConsent(caseId: string): Promise<void> {
+  await t.db.prepare(
+    'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
+  ).bind('2026-01-01T00:00:00.000Z', caseId, caseId).run();
+}
 async function enablePilotForCase(caseId: string): Promise<void> {
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   await recordPilotTextAiConsentEvidence(t.env, counselor, caseId, {
@@ -121,6 +128,7 @@ async function enablePilotForCase(caseId: string): Promise<void> {
     evidenceSha256: 'f'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
+  await grantCurrentTextAiConsent(caseId);
 }
 const PILOT_SOURCE_SEEDS = [
   {
@@ -264,6 +272,7 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
     evidenceSha256: 'e'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
+  await grantCurrentTextAiConsent(caseRecord.id);
   const source = await seedMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
@@ -524,6 +533,7 @@ async function createPilotDraft(
     evidenceSha256: 'c'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
+  await grantCurrentTextAiConsent(caseRecord.id);
   const source = await seedMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
@@ -2426,6 +2436,7 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
       evidenceSha256: 'a'.repeat(64),
       effectiveAt: '2026-01-01T00:00:00.000Z',
     });
+    await grantCurrentTextAiConsent(caseRecord.id);
     const olderSession = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '01000000-0000-4000-8000-000000000011',
       heldAt: '2026-01-02T10:00:00.000Z',
