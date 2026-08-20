@@ -16,6 +16,9 @@ export type ApiErrorCode =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
+  // CCC-114: 승인 전제 미충족 — 대조 3종 항목별 처리 누락 / 화자 확인 누락.
+  | 'contrast_resolution_required'
+  | 'speaker_confirmation_required'
   | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
@@ -40,6 +43,8 @@ const knownErrorCodes = new Set<ApiErrorCode>([
   'stale_draft_version',
   'draft_version_required',
   'grounded_evidence_required',
+  'contrast_resolution_required',
+  'speaker_confirmation_required',
   'fixture_draft_approval_forbidden',
   'ai_provider_not_configured',
   'ai_prohibited_output',
@@ -206,9 +211,20 @@ export interface EditAiDraftInput {
   evidenceIds: string[];
 }
 
+/** 대조 3종 한 항목의 실무자 처리(CCC-114). 처리 3종 값은 내용 불일치와 같다(상황 변경/기록 오류/확인 완료). */
+export interface ReviewContrastResolutionInput {
+  axis: 'missing_from_memo' | 'missing_from_transcript' | 'undiscussed_session_goal';
+  findingIndex: number;
+  status: 'situation_changed' | 'record_error' | 'confirmed';
+}
+
 export interface ReviewAiDraftInput {
   expectedVersion: number;
   decision: 'approved' | 'rejected';
+  /** approved 필수(CCC-114): 적용된 대조 축의 모든 항목에 대한 처리(항목이 없어도 빈 배열). */
+  contrastResolutions?: ReviewContrastResolutionInput[];
+  /** 녹음 재료 있는 회차의 approved 에서 화자 확인이 아직이면 이 확언으로 함께 기록한다(D11). */
+  speakerMappingConfirmed?: boolean;
 }
 
 /** 재생성 요청 입력(D69 · ADR-0036 결정 2 · CCC-100). GET 초안이 내려준 값을 그대로 싣는다. */
@@ -1291,6 +1307,32 @@ export async function updateGoalTitle(goalId: string, title: string): Promise<Go
 }
 
 /** 세부 목표 닫기(D62 §5). 사유는 달성/중단/재설정 선택값만 — 닫은 목표는 다시 열지 않는다. */
+/** 케이스 종결 화면(CCC-107)이 읽는 종결 상태 + 금고 보관 시계. 값은 서버가 계산하고 화면은 표시만 한다. */
+export interface SupportCaseClosureInfo {
+  supportCaseId: string;
+  beneficiaryId: string;
+  status: 'active' | 'closed';
+  closedAt: string | null;
+  closedReason: string | null;
+  /** 파기 예정일(D10) — 마지막 활성 케이스 종결 시 DB 트리거가 채운다. null 이면 보관 기간 시작 전. */
+  purgeDue: string | null;
+  purgedAt: string | null;
+  /** 같은 당사자의 다른 진행 중 케이스 존재 여부 — purge_due 가 비어 있는 이유 안내용. */
+  hasOtherActiveSupportCase: boolean;
+}
+
+export async function getSupportCaseClosureInfo(supportCaseId: string): Promise<SupportCaseClosureInfo> {
+  return requestJson<SupportCaseClosureInfo>(`/support-cases/${encodeURIComponent(supportCaseId)}/closure`);
+}
+
+/** 케이스 종결(CCC-107). 사유 필수. 감사·권한은 게이트웨이가 강제하고 purge_due 는 DB 트리거가 정한다. */
+export async function closeSupportCase(
+  supportCaseId: string,
+  reason: string,
+): Promise<{ id: string; status: 'active' | 'closed'; closedAt: string | null }> {
+  return jsonRequest(`/support-cases/${encodeURIComponent(supportCaseId)}/close`, 'POST', { reason });
+}
+
 export async function closeGoal(goalId: string, reason: GoalCloseReason): Promise<Goal> {
   return jsonRequest<Goal>(`/goals/${encodeURIComponent(goalId)}/close`, 'POST', { reason });
 }
@@ -2269,5 +2311,95 @@ export async function signupParticipant(input: PublicSignupInput): Promise<Publi
   return {
     beneficiaryId: responseString(record, 'beneficiaryId'),
     supportCaseId: responseString(record, 'supportCaseId'),
+  };
+}
+
+
+/** 실무자 초대 링크(초대 토큰) 발급 결과 (CCC-108 · CCC-33). */
+export interface WorkerInvite {
+  token: string;
+  issuedAt: string;
+}
+
+/**
+ * 실무자 초대 링크 발급(POST /invites/counselor). 관리자 전용 — 권한·감사는 API
+ * 게이트웨이가 강제한다(R1·D14). 스위치(PUBLIC_SIGNUP_ENABLED)가 닫힌 배포에서는 404.
+ */
+export async function createWorkerInvite(): Promise<WorkerInvite> {
+  const raw = await jsonRequest<Record<string, unknown>>('/invites/counselor', 'POST', {});
+  if (typeof raw.token !== 'string' || typeof raw.issuedAt !== 'string') {
+    throw new ApiError('invalid_request');
+  }
+  return { token: raw.token, issuedAt: raw.issuedAt };
+}
+
+/** 공개 실무자 초대 링크 메타데이터(토큰이 유효할 때 기관 표시 이름). Access 불필요(CCC-108). */
+export interface PublicWorkerInviteInfo {
+  orgName: string | null;
+}
+
+/**
+ * 실무자 초대 링크의 공개 정보(기관 표시 이름)를 가져온다. 토큰이 없거나 이미 소비되었으면
+ * not_found(404). 인증 헤더를 보내지 않는다 — 공개 경로(CCC-108).
+ */
+export async function getPublicWorkerInviteInfo(token: string): Promise<PublicWorkerInviteInfo> {
+  const requestHeaders = new Headers({ accept: 'application/json' });
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint(`/invites/worker/${encodeURIComponent(token)}`), {
+      headers: requestHeaders,
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  const orgName = record.orgName;
+  return { orgName: typeof orgName === 'string' ? orgName : null };
+}
+
+export interface WorkerSignupInput {
+  token: string;
+  name: string;
+  /** Cloudflare Access 의 신원 키 — 이 이메일로 로그인하게 된다. 필수. */
+  email: string;
+}
+
+export interface WorkerSignupResult {
+  userId: string;
+  email: string;
+}
+
+/**
+ * 실무자 초대 가입을 완료한다(공개 경로, Access 불필요). 성공 시 201 + { userId, email }.
+ * 토큰 무효·이미 소비는 not_found(404), 이메일 중복은 conflict(409).
+ */
+export async function signupWorker(input: WorkerSignupInput): Promise<WorkerSignupResult> {
+  const requestHeaders = new Headers({
+    accept: 'application/json',
+    'content-type': 'application/json; charset=utf-8',
+  });
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint('/invites/worker'), {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(input),
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return {
+    userId: responseString(record, 'userId'),
+    email: responseString(record, 'email'),
   };
 }

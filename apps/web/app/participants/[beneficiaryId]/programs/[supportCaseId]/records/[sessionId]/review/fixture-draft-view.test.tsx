@@ -325,6 +325,75 @@ describe('DraftReviewView', () => {
       render(<DraftReviewView {...reviewProps({ errorMessage: '다른 곳에서 이 초안이 바뀌었습니다. 새로고침한 뒤 다시 시도하세요.' })} />);
       expect(screen.getByRole('alert').textContent).toBe('다른 곳에서 이 초안이 바뀌었습니다. 새로고침한 뒤 다시 시도하세요.');
     });
+
+    // CCC-114: 승인 요청은 대조 항목별 처리와 화자 확인을 실어 보낸다.
+    describe('항목별 처리·화자 확인 (CCC-114)', () => {
+      function contrastReviewProps(overrides: Partial<DraftReviewViewProps> = {}): DraftReviewViewProps {
+        return reviewProps({
+          draft: {
+            ...reviewProps().draft,
+            contrast: [
+              {
+                axis: 'missing_from_memo',
+                status: 'applied',
+                findings: [
+                  { description: '메모에 없던 언급', materialKind: 'transcript', quote: '전사 인용 1' },
+                  { description: '메모에 없던 언급 2', materialKind: 'transcript', quote: '전사 인용 2' },
+                ],
+              },
+              {
+                axis: 'missing_from_transcript',
+                status: 'applied',
+                findings: [{ description: '음성에 없던 내용', materialKind: 'text_context', quote: '메모 인용' }],
+              },
+              { axis: 'undiscussed_session_goal', status: 'no_session_goal', findings: [] },
+            ],
+          },
+          ...overrides,
+        });
+      }
+
+      it('renders a resolution select per applied finding, wired to the review form by id', () => {
+        const { container } = render(<DraftReviewView {...contrastReviewProps()} />);
+
+        const form = container.querySelector('form[action]');
+        expect(form?.getAttribute('id')).toBe('ai-draft-review-form');
+
+        const names = Array.from(container.querySelectorAll('select')).map((el) => el.getAttribute('name'));
+        expect(names).toEqual([
+          'contrastResolution.missing_from_memo.0',
+          'contrastResolution.missing_from_memo.1',
+          'contrastResolution.missing_from_transcript.0',
+        ]);
+        for (const select of Array.from(container.querySelectorAll('select'))) {
+          expect(select.getAttribute('form')).toBe('ai-draft-review-form');
+          expect(Array.from(select.querySelectorAll('option')).map((option) => option.textContent))
+            .toEqual(['처리 선택', '상황 변경', '기록 오류', '확인 완료']);
+        }
+      });
+
+      it('renders the speaker confirmation checkbox when a transcript-based axis was applied', () => {
+        const { container } = render(<DraftReviewView {...contrastReviewProps()} />);
+        const checkbox = container.querySelector('input[name="speakerMappingConfirmed"]') as HTMLInputElement | null;
+        expect(checkbox?.type).toBe('checkbox');
+        expect(checkbox?.value).toBe('true');
+        // 폼 안에 서므로 체크했을 때만 제출에 실린다(미체크 = 키 부재).
+        expect(checkbox?.closest('form')?.getAttribute('id')).toBe('ai-draft-review-form');
+      });
+
+      it('renders neither selects nor the checkbox when no axis was applied (text-only draft)', () => {
+        const { container } = render(<DraftReviewView {...reviewProps()} />);
+        expect(container.querySelector('select')).toBeNull();
+        expect(container.querySelector('input[name="speakerMappingConfirmed"]')).toBeNull();
+      });
+
+      it('does not render resolution selects once the draft has been reviewed', () => {
+        const { container } = render(<DraftReviewView {...contrastReviewProps({
+          draft: { ...contrastReviewProps().draft, reviewDecision: 'approved' },
+        })} />);
+        expect(container.querySelector('select')).toBeNull();
+      });
+    });
   });
 
   describe('재생성 (D69 · ADR-0036 결정 2)', () => {

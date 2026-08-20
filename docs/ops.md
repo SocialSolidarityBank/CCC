@@ -16,7 +16,8 @@
 ## 폴링 워치독 (D8)
 
 - 데이터 원천: `audit_log`의 최신 `poll_pipeline` 시각(처리 장비가 `GET /pipeline/jobs`를 부를 때마다 남는다).
-- 판정: 마지막 폴링이 임계값(`PIPELINE_STALE_HOURS`, 기본 6시간)을 넘으면 `stale`. 대기 작업이 있는데 폴링 이력 자체가 없어도 `stale`. 폴링 이력·대기 작업이 모두 없으면 `inactive`(알림 안 함).
+- 데이터 원천(추가): 대기 건수는 두 큐 합산이다 — 오디오 큐(`sessions`: `uploaded`·`processing` + 오디오 등록)와 텍스트 일감 큐(`ai_text_work_queue`: `pending`·`processing` — 임대(0036)가 만료된 채 멈춘 행도 미완료로 센다). 가장 오래된 대기 작업의 대기 시간(오디오는 `updated_at`, 텍스트는 `enqueued_at`)과 가장 최근 완료 시각(`recording_result_commits.finalized_at` · `ai_text_work_queue.completed_at`)도 함께 본다. 전부 집계 SELECT(읽기 전용)다.
+- 판정: 마지막 폴링이 임계값(`PIPELINE_STALE_HOURS`, 기본 6시간)을 넘으면 `stale`(`poll_overdue`). 대기 작업(두 큐 합산)이 있는데 폴링 이력 자체가 없어도 `stale`(`never_polled`). **폴링이 최신이어도** 가장 오래된 대기 작업이 큐 적체 임계값(`PIPELINE_QUEUE_STALE_HOURS`, 미설정이면 `PIPELINE_STALE_HOURS`와 동일)을 넘게 묵으면 `stale`(`queue_backlog`) — 장비가 폴링만 하고 일을 끝내지 못하는 장애를 잡는다. 폴링 이력·대기 작업이 모두 없으면 `inactive`(알림 안 함). 사유 목록은 응답·알림·감사의 `staleReasons`에 실린다.
 - 조회 경로: `GET /pipeline/health`(관리자 전용). 계약은 `docs/api-contract-pipeline.md` 참고.
 - 알림: `console.error("[WATCHDOG ALERT] …")`는 항상 남고(`wrangler tail`로 확인), `NOTIFY_WEBHOOK_URL` 시크릿이 설정되면 그 주소로 `{"text": ...}` JSON을 POST한다(Slack/Discord incoming webhook 호환). 발송 실패는 로그만 남기고 삼킨다 — 채널 장애가 cron을 죽이지 않는다. 채널 추가는 `apps/api/src/notify.ts`의 `notifyAdmins` 한 곳에만 붙인다.
 - 감사: 조직별 점검마다 `watchdog_check`(`actor_id=system:watchdog`, `actor_role=service`).
@@ -29,9 +30,10 @@
 - 처리: `pii_vault`의 `enc_name`·`enc_phone`·`enc_account`를 `NULL`로 비우고 `purged_at`을 기록한다. **행을 삭제하지 않는다** — 스키마 규약(D10)대로 `pii_vault` 행과 가명 기록(`cases` 이하)은 통계용으로 보존한다.
 - 멱등성: `purged_at IS NULL` 조건이 이미 파기된 케이스를 자동으로 제외한다. 같은 케이스를 두 번 돌려도 두 번째는 아무것도 하지 않는다.
 - 감사: 케이스별 `purge_pii`. cron 실행이면 `actor_id=system:purge`, 관리자 수동 실행이면 요청 관리자.
+- **실행 스위치(CCC-113)**: `PII_PURGE_ENABLED`가 정확히 `1`일 때만 파기가 실행된다(기본 닫힘). 꺼져 있으면 cron 은 대상 건수만 세어 `파기 스위치 꺼짐, 대상 N건 대기`를 console.log 로 남기고(watchdog 알림 아님), 수동 실행은 409 `purge_disabled` 를 반환한다. 미리보기는 읽기 전용이라 스위치와 무관하다.
 - 수동 경로(관리자 전용):
-  - `GET /pii-purge/due` — 파기 예정(경과) 케이스 미리보기(파기하지 않음).
-  - `POST /pii-purge` — 자기 조직 경과분 즉시 파기.
+  - `GET /pii-purge/due` — 파기 예정(경과) 케이스 미리보기(파기하지 않음, 스위치 무관).
+  - `POST /pii-purge` — 자기 조직 경과분 즉시 파기(스위치가 켜져 있을 때만).
 
 > 참고: 개별 케이스 단위의 관리자 파기는 기존 `purgePii(env, actor, caseId)`(관리자, 단건)로도 가능하다. 위 자동/일괄 경로는 그 배치·조직 단위 형제 함수다 — 둘 다 값만 비우고 행은 보존하는 동일 규약을 따른다.
 
@@ -40,6 +42,7 @@
 | 이름 | 위치 | 기본값 | 용도 |
 | --- | --- | --- | --- |
 | `PIPELINE_STALE_HOURS` | `wrangler.toml [vars]` 또는 Workers 환경 변수(문자열) | 6 | D8 무폴링 판정 임계값(시간). 부적합 값이면 기본값으로 되돌린다. |
+| `PIPELINE_QUEUE_STALE_HOURS` | `wrangler.toml [vars]` 또는 Workers 환경 변수(문자열) | (`PIPELINE_STALE_HOURS` 해석값) | D8 큐 적체 판정 임계값(시간) — 가장 오래된 대기 작업이 이보다 오래 묵으면 폴링이 최신이어도 `stale`. 부적합 값이면 폴링 임계값으로 되돌린다. |
 | `NOTIFY_WEBHOOK_URL` | Workers 시크릿 | (없음) | D8 관리자 알림 웹훅. 미설정 시 console.error 폴백만. URL은 시크릿 취급(로그 출력 금지). |
 | `LOCAL_ACTOR_HEADER_MODE` | `wrangler.toml [vars]` | (로컬 `"true"`) | 로컬 개발용 헤더 인증 모드. 프로덕션 미설정 시 fail closed(D16). |
 | `PII_ENC_KEY` | Workers 시크릿 | (없음) | PII AES-GCM 키(D3). 코드·로그 출력 금지(R3). |
@@ -47,6 +50,8 @@
 | `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
+| `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | PII 즉시 파기 스위치(CCC-113, P0-3 1단계). 정확히 `1`일 때만 cron·수동 파기가 실행된다. 미설정·`0`이면 cron 은 파기 없이 `파기 스위치 꺼짐, 대상 N건 대기` 로그만 남기고, `POST /pii-purge` 는 409 `purge_disabled` 로 거절된다. D32·D46 아카이브·검토 절차가 구현되기 전에는 켜지 않는다(`docs/policy/deferred-blockers-v1.md` 1장). wrangler.toml 운영 env 에 두지 않는다 — 없는 것이 닫힘이다. |
+| `PUBLIC_SIGNUP_ENABLED` | Workers 환경 변수 (`apps/api`·`apps/web` 양쪽) | (없음) | 공개 가입 표면(CCC-112)의 스위치. 정확히 `1`일 때만 공개 초대 조회·가입 API 와 초대 발급, 웹 `/join`·`/join/*` 화면이 열린다. 없거나 `0`이면 404 로 fail closed. 미리보기 env 에만 `1`(코드 게이트 뒤 팀 검수용), 운영에는 두지 않는다. |
 
 세 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`·`EXTERNAL_AI_CALLS_ENABLED=1`)이 **함께** 있어야 사업자 호출이 열린다. `EXTERNAL_AI_CALLS_ENABLED=1`은 유료 실호출을 별도로 승인받은 배포에만 둔다. 키 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 
@@ -163,7 +168,7 @@ pnpm deploy:production
 
 `red` **승인 게이트는 일부러 남겼다.** 그 기록이 "누가 언제 운영 배포를 허락했는가"의 유일한 증적이고 세션 대화가 그 자리를 대신하지 못한다. 보존·파기 파이프라인이 없는 지금은(8장) 실수로 운영에 나가는 것을 막는 마지막 장치이기도 하다.
 
-사전 점검 4종 — 워크플로도 대부분 같은 것을 보지만 **여기서 먼저 보면 승인을 기다리게 한 뒤에 떨어지는 낭비가 없다**:
+사전 점검 5종 — 워크플로도 대부분 같은 것을 보지만 **여기서 먼저 보면 승인을 기다리게 한 뒤에 떨어지는 낭비가 없다**:
 
 | 점검 | 막는 사고 |
 | --- | --- |
@@ -171,10 +176,28 @@ pnpm deploy:production
 | 버전 세 곳 일치 | 루트와 web, api 의 `package.json` 버전이 어긋나면 "지금 몇 버전인가"의 답이 파일마다 달라진다. 규칙은 `docs/releases.md` (2026-08-11 신설, 워크플로에는 없는 이 스크립트 전용 점검) |
 | main 최신 CI 초록 | 빨간 main 을 방아쇠까지 끌고 가지 않는다 |
 | 운영 D1 미적용 0건 | `schema-gate` 와 같은 판정 |
+| 필수 시크릿 **이름** 존재 (2026-08-20 · CCC-117) | `wrangler deploy` 는 시크릿이 없어도 성공한다 — 워커가 런타임에 터질 뿐이다. 최소 `PII_ENC_KEY`(목록은 `scripts/deploy-gates.mjs`). 값은 절대 읽지 않고, **조회 자체가 실패해도 중단한다**(fail-closed). 예전에는 배포 후 경고였는데 경고는 아무것도 막지 않아 배포 전 중단으로 올렸다 |
 
 **버전 기록은 `docs/releases.md` 가 갖는다** (2026-08-11 Q 결정). 운영에 지금 무엇이 올라가 있는지, 번호를 언제 올리는지, 태그를 어떻게 다는지가 거기 있다. 배포가 끝나면 스크립트가 이번 배포의 버전과 커밋을 찍어 주므로 그 줄을 이력 표에 옮긴다.
 
-배포 후에는 **시크릿 이름**을 확인한다(값은 읽지 않는다). `wrangler deploy` 는 시크릿이 없어도 성공하고 워커가 런타임에 터지므로, 초록을 "동작한다"로 읽지 않기 위해서다.
+**배포 후 스모크 3종** (2026-08-20 · CCC-117 · P1-1) — 스크립트와 워크플로가 같은 것을 본다. 초록 배포 ≠ 동작하는 서비스라서, 배포가 끝나면 런타임을 직접 찌른다:
+
+1. **웹 생존** — `GET /` 이 200 또는 리다이렉트(3xx). 5xx·연결 실패가 잡으려는 사고다
+2. **API fail-closed 증명** — 무인증 요청이 **401/403 으로 거부**돼야 통과다(Access 가로채기 3xx→`cloudflareaccess.com` 도 통과). 무인증에 200 이 나오면 인증 게이트가 꺼진 채 PII 경로가 열려 있다는 뜻 — 이 스모크가 잡으려는 최악의 사고다
+3. **크론 재등록** — `wrangler deployments list --env production` 출력에서 `*/30 * * * *` 과 `0 3 * * *` 를 문자열로 확인한다. "재등록됐을 것이다"를 안내문이 아니라 판정으로 만들었다
+
+하나라도 실패하면 **종료 코드 비0** 으로 끝나고 복구 절차를 찍는다. 판정 로직은 `scripts/deploy-gates.mjs` 에 있고 `pnpm guard:deploy-gates` 가 회귀를 고정한다(CI 포함).
+
+**스모크 실패 시 복구** (둘 중 하나, 복구 후 같은 스모크로 재확인):
+
+```bash
+# A. 직전 배포로 롤백 — 워커별이다. 웹은 최상위가 곧 운영이라 --env 가 없다
+pnpm --filter @ccc/api exec wrangler rollback --env production
+pnpm --filter @ccc/web exec wrangler rollback
+
+# B. 이전 태그 재배포 (태그 목록은 docs/releases.md 이력 표)
+gh workflow run deploy-production.yml --ref <이전태그> -f confirm=deploy-production
+```
 
 `yellow` `wrangler` 가 내는 경고 하나는 **정상이다** — `LOCAL_ACTOR_HEADER_MODE` 가 최상위에만 있고 `env.production.vars` 에 없다는 경고. 운영에 그 값이 없어야 헤더 인증이 fail-closed 된다(D16). 없는 것이 맞다.
 
@@ -189,7 +212,7 @@ pnpm deploy:production
 
 첫 실행 전에 사람이 해야 하는 일:
 
-- **저장소 설정에서 Environment `production` 을 만들고 필수 리뷰어를 지정한다.** 없으면 `environment:` 줄은 잠금이 아니라 통과하는 라벨이다
+- **저장소 설정에서 Environment `production` 을 만들고 필수 리뷰어를 지정한다.** 없으면 `environment:` 줄은 잠금이 아니라 통과하는 라벨이다 — 워크플로가 실행마다 이것을 확인해서, 필수 리뷰어가 없으면 **로그에 `::warning::` 을 남긴다**(2026-08-20 · CCC-117 · P1-1 권고. 설정은 워크플로가 못 고치므로 경고까지가 자동화의 몫이다)
 - 운영 시크릿 확인 — `wrangler deploy` 는 시크릿이 없어도 **성공한다**(워커가 런타임에 터질 뿐이다). 초록을 "동작한다"로 읽지 않는다. 이름만 확인: `pnpm --filter @ccc/api exec wrangler secret list --env production`
 
 `yellow` **이 워크플로가 있다는 것이 "배포해도 된다"는 뜻이 아니다.** `CLAUDE.md` 8장의 보존·파기 파이프라인 미구현, D46 의 동의 게이트·법률 검토 재개 조건은 그대로 열려 있다. 워크플로는 그 판단을 하지 않는다.

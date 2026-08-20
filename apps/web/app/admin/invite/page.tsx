@@ -4,6 +4,7 @@ import { SearchInput } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCallout } from '../../components/wire/wire-callout';
 import { registerCounselorAction } from '../../actions';
+import { WorkerInviteIssue } from './worker-invite-issue';
 
 const noticeMessages: Record<string, string> = {
   counselor_registered: '실무자를 등록했습니다.',
@@ -49,12 +50,16 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
         <WireButton type="submit">등록</WireButton>
       </form>
 
+      {/* 초대 링크 발급(CCC-108) — 링크를 받은 사람이 스스로 이름·이메일을 입력해 가입한다. */}
+      <WorkerInviteIssue />
+
       {/* 구 '실무자 초대' 폼(이메일 칸 + 영구 비활성 '초대 보내기')은 없앴다(CCC-63).
-          누를 수 없는 버튼이 상시 노출됐고, 버튼만 빼면 아무 데도 안 붙는 이메일 칸이 남는다.
-          지금 실제로 되는 길은 위의 '실무자 등록하기' 하나뿐이므로, 그 사실을 말로 적는다. */}
-      <WireCallout tone="lavender" role="status" testId="admin-invite-note" title="메일 초대는 아직 없습니다">
-        지금은 위에서 이메일로 실무자를 바로 등록합니다. 등록한 사람은 Cloudflare Access 로
-        로그인합니다. 메일을 보내 초대하는 방식은 Access 연동 뒤에 생깁니다.
+          지금 되는 길은 둘이다 — 위의 직접 등록과 초대 링크(CCC-108). 메일 자동 발송만
+          아직 없으므로, 그 사실을 말로 적는다. */}
+      <WireCallout tone="lavender" role="status" testId="admin-invite-note" title="초대 방법 두 가지">
+        이메일을 아는 실무자는 위에서 바로 등록하고, 아니면 초대 링크를 만들어 전달하세요.
+        링크를 받은 사람이 이름과 이메일을 입력해 가입하며, 두 경우 모두 Cloudflare Access 로
+        로그인합니다. 메일을 자동으로 보내 주는 기능은 아직 없습니다. 링크는 직접 전달해야 합니다.
       </WireCallout>
     </>
   );

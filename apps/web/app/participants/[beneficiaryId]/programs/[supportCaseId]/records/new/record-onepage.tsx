@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRef, useState, type ReactNode } from 'react';
-import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../../../../components/draft/draft-notice';
+import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
@@ -281,18 +281,24 @@ export function RecordOnepage({
         labelledBy="record-form-title"
         title={<><h2 id="record-form-title">오늘 상담 내용 <small>(필수)</small></h2><p className="panel-meta">수기 메모는 서버 저장 확인 후 즉시 공식 기록입니다. AI가 항목을 선택하거나 기록을 확정하지 않습니다.</p></>}
       >
+        {/* 수기 메모(상담 내용 전문)는 임시본(localStorage)에서 뺀다(P0-9 · CCC-111) —
+            브라우저에 남는 사본은 서버의 권한·감사·파기 통제를 우회한 상담 내용이 된다.
+            data-draft="skip" 이 form-draft 수집 단계(보관 규율 4)에서 이 칸을 거른다.
+            아래 위기·안전 확인 내용과 담당 실무자 의견도 같은 이유로 뺀다. 날짜·선택지 같은
+            비민감 칸의 자동 저장 편의는 그대로다. 도움말 문구도 이 동작과 같은 말을 한다. */}
         <WireFormField
           label="수기 메모"
           required
           control="textarea"
           htmlFor="record-memo"
-          hint={<>사실과 상담 내용을 직접 작성합니다. <DraftRetentionNote /></>}
+          hint={<>사실과 상담 내용을 직접 작성합니다. 이 칸의 내용은 브라우저에 임시 보관하지 않습니다. 저장 전에 화면을 닫으면 사라집니다.</>}
         >
           <textarea
             id="record-memo"
             name="memo"
             rows={14}
             required
+            data-draft="skip"
             aria-describedby="record-memo-hint"
             onChange={(event) => setMemoFilled(event.currentTarget.value.trim().length > 0)}
           />
@@ -401,7 +407,8 @@ export function RecordOnepage({
         {hasCrisis ? <WireBadge tone="risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</WireBadge> : null}
         <p>당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
         <WireFormField label="위기·안전 확인 내용" note="(선택)" control="textarea" htmlFor="safety-note">
-          <textarea id="safety-note" name="safetyNote" rows={4} />
+          {/* 안전 관련 메모도 임시본 제외다(P0-9 — 위 수기 메모 주석 참조). */}
+          <textarea id="safety-note" name="safetyNote" rows={4} data-draft="skip" />
         </WireFormField>
       </WireCardDetails>
 
@@ -425,7 +432,8 @@ export function RecordOnepage({
         title={<><h2 id="opinion-title">담당 실무자 의견 <small>(선택)</small></h2><p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p></>}
       >
         <WireFormField label="담당 실무자 의견" control="textarea" htmlFor="counselor-opinion">
-          <textarea id="counselor-opinion" name="counselorOpinion" rows={4} />
+          {/* 실무자 의견도 임시본 제외다(P0-9 — 수기 메모 주석 참조). */}
+          <textarea id="counselor-opinion" name="counselorOpinion" rows={4} data-draft="skip" />
         </WireFormField>
       </WireCard>
     </div>

@@ -8,6 +8,7 @@ import {
   ApiError,
   addSupportCaseAssignee,
   closeGoal,
+  closeSupportCase,
   createCounselingRecord,
   createGoal,
   createIntakeRecord,
@@ -33,6 +34,8 @@ import {
   createParticipantInvite,
   getPublicInviteInfo,
   signupParticipant,
+  createWorkerInvite,
+  signupWorker,
   createSubsequentParticipantProgram,
   editAiDraft,
   generateAiDraft,
@@ -44,6 +47,8 @@ import {
   recordPilotTextAiConsent,
   registerCounselor,
   reviewAiDraft,
+  type ReviewAiDraftInput,
+  type ReviewContrastResolutionInput,
   updateParticipantConsent,
   updateParticipantBasicInfo,
   updateScheduleSessionGoals,
@@ -77,6 +82,8 @@ type Notice =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
+  | 'contrast_resolution_required'
+  | 'speaker_confirmation_required'
   | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
@@ -366,6 +373,8 @@ function noticeFor(error: unknown): Notice {
       case 'stale_draft_version':
       case 'draft_version_required':
       case 'grounded_evidence_required':
+      case 'contrast_resolution_required':
+      case 'speaker_confirmation_required':
       case 'fixture_draft_approval_forbidden':
       case 'ai_provider_not_configured':
       case 'service_unavailable':
@@ -444,6 +453,10 @@ function participantProgramPath(beneficiaryId: string, supportCaseId: string): s
 
 function participantBriefingPath(beneficiaryId: string, supportCaseId: string): string {
   return `${participantProgramPath(beneficiaryId, supportCaseId)}/briefing`;
+}
+/** 케이스 종결 확인 화면(CCC-107) 주소. */
+function participantCloseCasePath(beneficiaryId: string, supportCaseId: string): string {
+  return `${participantProgramPath(beneficiaryId, supportCaseId)}/close`;
 }
 
 function participantRecordsPath(beneficiaryId: string, supportCaseId: string): string {
@@ -539,6 +552,28 @@ export async function editAiDraftAction(formData: FormData): Promise<void> {
   redirect(withNotice(AI_DRAFT_RETURN_PATH, 'notice', 'ai_draft_edited'));
 }
 
+
+// CCC-114: 검토 화면의 항목별 처리 select 는 `contrastResolution.<축>.<번호>` 이름으로 실린다.
+const CONTRAST_RESOLUTION_FIELD = /^contrastResolution\.(missing_from_memo|missing_from_transcript|undiscussed_session_goal)\.(\d{1,3})$/;
+const CONTRAST_RESOLUTION_STATUSES = ['situation_changed', 'record_error', 'confirmed'] as const;
+
+function contrastResolutions(formData: FormData): ReviewContrastResolutionInput[] {
+  const resolutions: ReviewContrastResolutionInput[] = [];
+  for (const [name, entry] of formData.entries()) {
+    const match = CONTRAST_RESOLUTION_FIELD.exec(name);
+    if (match === null) continue;
+    if (typeof entry !== 'string') throw new FormInputError();
+    const status = CONTRAST_RESOLUTION_STATUSES.find((candidate) => candidate === entry);
+    if (status === undefined) throw new FormInputError();
+    resolutions.push({
+      axis: match[1] as ReviewContrastResolutionInput['axis'],
+      findingIndex: Number(match[2]),
+      status,
+    });
+  }
+  return resolutions;
+}
+
 /**
  * 승인·반려 처리(D69 · ADR-0036 · CCC-100). 대조 3종을 확인하는 것이 곧 정합성 검증이다
  * (R2). 검토 화면(세션 단위 주소)이 성공·실패 모두 돌아올 곳이라 beneficiaryId·
@@ -559,10 +594,17 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
     const decisionValue = requiredValue(formData, 'decision');
     if (decisionValue !== 'approved' && decisionValue !== 'rejected') throw new FormInputError();
     decision = decisionValue;
-    await reviewAiDraft(session.id, {
+    const input: ReviewAiDraftInput = {
       expectedVersion: positiveInteger(formData, 'expectedVersion'),
       decision,
-    });
+    };
+    if (decision === 'approved') {
+      // CCC-114: 승인은 대조 3종 항목별 처리(항목이 없어도 빈 배열)와, 화면이 요구했을 때의
+      // 화자 확인 체크를 함께 실어 보낸다. 완전성 판정은 서버가 한다(R1).
+      input.contrastResolutions = contrastResolutions(formData);
+      if (checkbox(formData, 'speakerMappingConfirmed')) input.speakerMappingConfirmed = true;
+    }
+    await reviewAiDraft(session.id, input);
   } catch (error) {
     const fallback = beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined
       ? '/participants'
@@ -753,6 +795,36 @@ export async function closeGoalAction(
   } catch (error) {
     return { status: noticeFor(error) };
   }
+}
+
+/**
+ * 케이스 종결 (CCC-107) — "지원 기록을 닫고 보관 기간을 세기 시작한다".
+ * 종결 확인 화면(programs/[supportCaseId]/close)의 폼이 제출한다. 사유는 필수이고,
+ * 확인 체크 없이는 실행하지 않는다 — 종결은 이 화면에서 되돌릴 수 없는 행동이다.
+ * 권한(담당 실무자·기관 관리자)·감사(close 1행)는 게이트웨이가 강제하고(R1·D14),
+ * 파기 예정일(purge_due)은 DB 트리거가 정한다(D10). 파기 실행은 CCC-113 소관이다.
+ */
+export async function closeSupportCaseAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    const reason = requiredValue(formData, 'reason').trim();
+    if (!checkbox(formData, 'confirmClose')) throw new FormInputError();
+    await closeSupportCase(supportCaseId, reason);
+    revalidateParticipantProgram(beneficiaryId, supportCaseId);
+    revalidatePath(participantCloseCasePath(beneficiaryId, supportCaseId));
+  } catch (error) {
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined
+      ? '/participants'
+      : participantCloseCasePath(beneficiaryId, supportCaseId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+  if (beneficiaryId === undefined || supportCaseId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  redirect(withNotice(participantCloseCasePath(beneficiaryId, supportCaseId), 'notice', 'case_closed'));
 }
 
 /**
@@ -1005,6 +1077,40 @@ export async function createParticipantInviteAction(): Promise<ParticipantInvite
   try {
     const invite = await createParticipantInvite('financial_support_v1');
     return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type WorkerInviteResult = { status: 'created'; token: string } | { status: Notice };
+
+// 실무자 초대 링크 발급(CCC-108 · CCC-33). 링크 조립·복사는 화면 몫이고 여기는 토큰만
+// 받아 넘긴다. 관리자 검사·감사는 API 게이트웨이가 강제한다(R1·D14).
+export async function createWorkerInviteAction(): Promise<WorkerInviteResult> {
+  try {
+    const invite = await createWorkerInvite();
+    return { status: 'created', token: invite.token };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
+
+export type WorkerSignupResult =
+  | { status: 'created'; email: string }
+  | { status: Notice };
+
+/**
+ * 실무자 초대 가입(CCC-108). 공개 경로 — 인증 불필요. 성공 시 users 에 role=counselor 로
+ * 등재되고, 그 이메일로 Cloudflare Access 로그인해서 들어온다. 토큰 무효·이미 소비는
+ * not_found, 이메일 중복은 conflict. 리다이렉트 없음 — 클라이언트가 인라인 완료 상태를 표시한다.
+ */
+export async function signupWorkerAction(formData: FormData): Promise<WorkerSignupResult> {
+  const token = requiredValue(formData, 'token');
+  const name = requiredValue(formData, 'name');
+  const email = requiredValue(formData, 'email');
+  try {
+    const result = await signupWorker({ token: token.trim(), name: name.trim(), email: email.trim() });
+    return { status: 'created', email: result.email };
   } catch (error) {
     return { status: noticeFor(error) };
   }

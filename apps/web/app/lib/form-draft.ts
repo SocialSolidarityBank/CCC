@@ -7,6 +7,10 @@
 //  2. 서버 저장에 성공하면 즉시 지운다(phase 참조).
 //  3. 금고(pii_vault)에서 내려온 표시값은 임시본에 넣지 않는다 — 넣고 거르는 게 아니라
 //     처음부터 수집 대상에서 뺀다. 호출부가 그 필드를 values 에 담지 않는 것으로 지킨다.
+//  4. 민감 서술 필드(상담 메모 전문·안전 관련 메모·실무자 의견)는 처음부터 임시본에 넣지
+//     않는다(P0-9 · CCC-111) — localStorage 사본은 서버의 권한·감사·파기 통제를 우회한다.
+//     해당 입력칸이 data-draft="skip" 을 달아 수집 단계(collectFieldValues)에서 뺀다.
+//  5. 제출 성공(records 목록의 RecordDraftCleanup)·로그아웃(clearAllDrafts) 때도 지운다.
 // 화면 문구도 이 규율과 같은 말을 해야 한다(record-onepage 의 메모 도움말).
 
 export const DRAFT_TTL_MS = 12 * 60 * 60 * 1000;
@@ -107,7 +111,15 @@ export function draftRetentionLabel(): string {
   return `${DRAFT_TTL_MS / (60 * 60 * 1000)}시간`;
 }
 
-const KEY_PREFIX = 'ccc:draft:v1:';
+// v2 (CCC-111): v1 임시본은 상담 메모 전문·안전 관련 메모·실무자 의견까지 담았다.
+// v2 부터 그 필드는 수집 대상이 아니므로(보관 규율 4), 구 형식은 민감 사본으로 보고
+// 만료를 기다리지 않고 훑을 때(sweepExpiredDrafts) 즉시 지운다.
+const KEY_PREFIX = 'ccc:draft:v2:';
+const LEGACY_KEY_PREFIXES = ['ccc:draft:v1:'];
+
+function isLegacyKey(key: string): boolean {
+  return LEGACY_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
 
 /**
  * 만료를 읽는 순간에만 적용하면, 다시 열지 않은 임시본은 기기에 그대로 남는다 — 화면 문구가
@@ -119,12 +131,36 @@ export function sweepExpiredDrafts(now: number = Date.now()): void {
   if (store === null) return;
   let keys: string[];
   try {
-    keys = Object.keys(store).filter((key) => key.startsWith(KEY_PREFIX));
+    keys = Object.keys(store).filter((key) => key.startsWith(KEY_PREFIX) || isLegacyKey(key));
   } catch {
     return;
   }
-  // readDraft 가 만료분을 지운다 — 판정 규칙을 한 곳에만 둔다.
-  for (const key of keys) readDraft(key, now);
+  for (const key of keys) {
+    // 구 형식(v1)은 민감 필드가 담긴 사본이라 만료 판정 없이 한 번에 지운다(P0-9 버전 처리).
+    if (isLegacyKey(key)) {
+      clearDraft(key);
+      continue;
+    }
+    // readDraft 가 만료분을 지운다 — 판정 규칙을 한 곳에만 둔다.
+    readDraft(key, now);
+  }
+}
+
+/**
+ * 이 브라우저의 임시본 전부(구 형식 포함)를 지운다. 로그아웃 폼(app-header·app-sidebar)이
+ * 제출 직전에 부른다 — 로그아웃 자체는 서버 액션(logout-action.ts)이라 localStorage 를
+ * 만질 수 없고, 공용 기기에서 작성 중 내용이 다음 사용자에게 남으면 안 된다(P0-9).
+ */
+export function clearAllDrafts(): void {
+  const store = storage();
+  if (store === null) return;
+  let keys: string[];
+  try {
+    keys = Object.keys(store).filter((key) => key.startsWith(KEY_PREFIX) || isLegacyKey(key));
+  } catch {
+    return;
+  }
+  for (const key of keys) clearDraft(key);
 }
 
 // ── 이름 있는 입력칸을 그대로 담고 되돌리기(정기 기록지처럼 폼이 비제어일 때) ──────────

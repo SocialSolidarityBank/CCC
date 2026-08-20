@@ -4,6 +4,8 @@ import {
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
   ConflictError,
+  ContrastResolutionRequiredError,
+  SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
   FLAG_TYPES,
   ForbiddenError,
@@ -22,6 +24,7 @@ import {
   ValidationError,
   PrivacyConsentRequiredError,
   EmergencyReasonRequiredError,
+  EmotionDeferredError,
   assertPilotTextAiConsent,
   assertRecordingUploadAllowed,
   approveSession,
@@ -34,6 +37,8 @@ import {
   COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
   closeGoal,
+  closeSupportCase,
+  getSupportCaseClosureInfo,
   countUpcomingSchedulesLinkedToGoal,
   createBeneficiaryWithInitialSupportCase,
   createCase,
@@ -41,7 +46,10 @@ import {
   createIntakeRecord,
   updateIntakeRecord,
   createParticipantInvite,
+  createCounselorInvite,
   completeParticipantSignup,
+  completeCounselorSignup,
+  getCounselorInviteSignupInfo,
   getInviteForSignup,
   getIntakeRecordContext,
   createCounselingSchedule,
@@ -99,6 +107,8 @@ import {
   loadAiCallMaterialsForService,
   markCounselingScheduleNoShow,
   previewExpiredPii,
+  isPiiPurgeEnabled,
+  PiiPurgeDisabledError,
   purgeExpiredPiiAsAdmin,
   recordAiCallOutcome,
   recordMaskedSourceSnapshot,
@@ -122,6 +132,8 @@ import {
   type AiDraftContrastAxis,
   type AiDraftSourceMaterialRef,
   type AiDraftVersion,
+  type AiDraftReviewInput,
+  type AiContrastResolutionInput,
   type CounselingRecordDetails,
   type AssignedParticipant,
   type ParticipantSearchResult,
@@ -1440,17 +1452,33 @@ function parseAiDraftEdit(body: JsonObject) {
   };
 }
 
-function parseAiDraftReview(body: JsonObject) {
-  requireOnlyKeys(body, ['expectedVersion', 'decision']);
+function parseAiDraftReview(body: JsonObject): AiDraftReviewInput {
+  // CCC-114: 승인은 대조 3종 항목별 처리(항목이 없어도 빈 배열)와 화자 확인을 실을 수 있다.
+  // 형태만 여기서 거르고, 완전성(모든 항목을 덮는가)은 게이트웨이가 판정한다(R1).
+  requireOnlyKeys(body, ['expectedVersion', 'decision', 'contrastResolutions', 'speakerMappingConfirmed']);
   const decisionValue = requiredString(body, 'decision');
   if (decisionValue !== 'approved' && decisionValue !== 'rejected') {
     throw new ValidationError('decision is invalid');
   }
   const decision: 'approved' | 'rejected' = decisionValue === 'approved' ? 'approved' : 'rejected';
-  return {
+  const review: AiDraftReviewInput = {
     expectedVersion: requiredDraftVersion(body.expectedVersion),
     decision,
   };
+  if (body.contrastResolutions !== undefined) {
+    review.contrastResolutions = objectArray(body.contrastResolutions, 'contrastResolutions').map((item) => {
+      requireOnlyKeys(item, ['axis', 'findingIndex', 'status']);
+      return {
+        axis: requiredString(item, 'axis'),
+        findingIndex: requiredInteger(item, 'findingIndex'),
+        status: requiredString(item, 'status'),
+      } as AiContrastResolutionInput;
+    });
+  }
+  if (body.speakerMappingConfirmed !== undefined) {
+    review.speakerMappingConfirmed = requiredBoolean(body, 'speakerMappingConfirmed');
+  }
+  return review;
 }
 
 function aiDraftResponse(draft: AiDraftVersion) {
@@ -1907,15 +1935,20 @@ function errorResponse(error: unknown): Response {
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
   if (error instanceof PilotTextAiConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof TextAiPilotDisabledError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof PiiPurgeDisabledError) return json({ error: error.code }, error.statusCode);
   if (error instanceof StaleDraftVersionError) return json({ error: error.code }, error.statusCode);
   if (error instanceof DraftVersionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof GroundedEvidenceRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof FixtureDraftApprovalForbiddenError) return json({ error: error.code }, error.statusCode);
+  // CCC-114: 승인 전제(대조 3종 항목별 처리 · 화자 확인) 미충족은 화면이 원인을 안내한다.
+  if (error instanceof ContrastResolutionRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof SpeakerConfirmationRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderNotConfiguredError) return json({ error: error.code }, error.statusCode);
   // G1: ① 미동의·긴급 사유 누락은 'invalid_request' 로 뭉치지 않는다 — 화면이 "동의를
   // 체크하거나 긴급 등록을 고르라"고 안내하려면 원인이 코드로 구분돼야 한다(게이트 문서 §2 G1).
   if (error instanceof PrivacyConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof EmergencyReasonRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof EmotionDeferredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderInputError) return json({ error: 'invalid_request' }, 400);
   if (error instanceof AiProviderProhibitedOutputError) return json({ error: 'ai_prohibited_output' }, 422);
   if (error instanceof AiProviderUnavailableError) return json({ error: 'ai_provider_unavailable' }, 503);
@@ -1945,7 +1978,19 @@ export async function handleRequest(
     const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
     const publicSignupPath =
       (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
-      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant');
+      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant')
+      // 실무자 초대 가입(CCC-108)도 같은 공개 가입 표면이다 — 아래 두 worker 경로가
+      // CCC-112 스위치·미리보기 코드 게이트를 자동으로 함께 받는다.
+      || (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'worker')
+      || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'invites' && pubParts[1] === 'worker');
+    // ── 기능 스위치(CCC-112 · P0-2): 공개 가입 표면은 PUBLIC_SIGNUP_ENABLED 가 정확히
+    // '1' 일 때만 열린다. 없거나 다른 값이면 404 — 미지의 경로와 응답을 구분 불가하게
+    // 둔다(fail closed, EXTERNAL_AI_CALLS_ENABLED 와 같은 규약). 미리보기 코드 게이트보다
+    // **앞**이다: 스위치가 닫힌 배포에서는 코드가 있어도 이 표면이 존재하지 않는다.
+    // CCC-108 worker 가입 라우트도 이 게이트 안에 든다 — 새 게이트를 만들지 말고
+    // publicSignupPath 매칭에 worker 경로 패턴을 추가한다.
+    const publicSignupEnabled = env.PUBLIC_SIGNUP_ENABLED === '1';
+    if (publicSignupPath && !publicSignupEnabled) return json({ error: 'not_found' }, 404);
     if (publicSignupPath && previewModeEnabled(env)) await resolveActor(request, env);
     if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
       requestQuery(url, []);
@@ -1990,6 +2035,35 @@ export async function handleRequest(
         const result = await completeParticipantSignup(env, signupInput);
         return json(result, 201);
       } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
+    // ── 공개 경로: 실무자 초대 가입(토큰이 자격, Access 불필요, CCC-108 · CCC-33) ──
+    // participant 경로와 같은 규약: 실패는 전부 not_found(404)로 뭉쳐 열거 단서를 없앤다.
+    if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'worker') {
+      requestQuery(url, []);
+      const pathToken = pubParts[2] ?? '';
+      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
+      try {
+        return json(await getCounselorInviteSignupInfo(env, pathToken));
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
+    if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'invites' && pubParts[1] === 'worker') {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      const token = requiredString(body, 'token');
+      const name = requiredString(body, 'name');
+      // 이메일은 필수 — Cloudflare Access 의 신원 키다(users.email 전역 UNIQUE).
+      const email = requiredString(body, 'email');
+      try {
+        return json(await completeCounselorSignup(env, { token, name, email }), 201);
+      } catch (e) {
+        // 토큰 무효·이미 소비·발급자 비활성은 404. 이메일 중복·동시 이중 제출(ConflictError)은
+        // errorResponse 가 409 로 번역한다 — 화면이 "이미 등록된 이메일"을 구분해 안내해야 한다.
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
@@ -2110,10 +2184,21 @@ export async function handleRequest(
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'participant') {
       // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 사람(실무자·관리자)만 —
       // 권한·감사는 createParticipantInvite(R1 관문) 내장. 소비·가입은 CCC-28.
+      // 발급도 공개 가입 표면의 일부다(CCC-112): 스위치가 닫힌 배포에서 아무도 못 쓰는
+      // 링크를 만들 이유가 없으므로 같은 스위치로 404 한다.
+      if (!publicSignupEnabled) return json({ error: 'not_found' }, 404);
       requestQuery(url, []);
       const programType = (await requestBody(request)).programType;
       if (typeof programType !== 'string') throw new ValidationError('program type is required');
       return json(await createParticipantInvite(env, actor, { programType }), 201);
+    }
+    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'counselor') {
+      // 실무자 초대 링크 발급(CCC-108 · CCC-33). 관리자 전용 — 권한·감사는
+      // createCounselorInvite(R1 관문) 내장. 소비·가입은 위 공개 worker 경로.
+      // 발급도 공개 가입 표면의 일부다(CCC-112): 같은 스위치로 404 한다.
+      if (!publicSignupEnabled) return json({ error: 'not_found' }, 404);
+      requestQuery(url, []);
+      return json(await createCounselorInvite(env, actor), 201);
     }
     if (
       request.method === 'POST'
@@ -2232,6 +2317,21 @@ export async function handleRequest(
     }
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
+      // 케이스 종결(CCC-107) — 지원 기록을 닫고 보관 기간을 세기 시작한다. 담당 실무자 또는
+      // admin(게이트웨이의 assertSupportCaseAccess 강제, R1). 사유는 필수. purge_due 는
+      // 이 요청이 아니라 DB 트리거가 설정하고(D10), 파기 실행은 CCC-113 소관이다.
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'close') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['reason']);
+        const closed = await closeSupportCase(env, actor, supportCaseId, requiredString(body, 'reason'));
+        return json(closed);
+      }
+      // 종결 화면 조회(CCC-107): 종결 상태 + 금고 보관 시계(purge_due·purged_at) 읽기 전용.
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'closure') {
+        requestQuery(url, []);
+        return json(await getSupportCaseClosureInfo(env, actor, supportCaseId));
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignees') {
         // 케이스 담당 실무자 목록 — 담당 실무자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
         requestQuery(url, []);
@@ -2587,6 +2687,9 @@ export async function handleRequest(
         return json({ due: await previewExpiredPii(env, actor) });
       }
       if (request.method === 'POST' && parts.length === 1) {
+        // CCC-113: 파기 스위치가 꺼져 있으면 실행하지 않고 명시적으로 거절한다.
+        // 미리보기(GET /pii-purge/due)는 읽기 전용이라 스위치와 무관하게 유지.
+        if (!isPiiPurgeEnabled(env)) return json({ error: 'purge_disabled' }, 409);
         return json(await purgeExpiredPiiAsAdmin(env, actor));
       }
     }

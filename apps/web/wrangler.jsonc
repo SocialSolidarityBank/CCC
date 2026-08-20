@@ -46,7 +46,10 @@
       "vars": {
         // 프로비저닝 시 실제 미리보기 API URL 로 교체한다(첫 배포 후 확정).
         "CCC_API_ORIGIN": "https://ccc-api-preview.account-855.workers.dev",
-        "CCC_PREVIEW": "true"
+        "CCC_PREVIEW": "true",
+        // 공개 가입 표면 스위치(CCC-112). 미리보기는 켜서 팀 검수 흐름을 유지한다.
+        // 운영(top-level vars)에는 두지 않는다 — 없음이 곧 닫힘(/join·/join/* 404).
+        "PUBLIC_SIGNUP_ENABLED": "1"
       },
       "observability": {
         "enabled": true

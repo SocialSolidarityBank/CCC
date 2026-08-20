@@ -59,6 +59,13 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
   PREVIEW_E2E_ACCESS_CODE?: string;
   /** E2E 코드의 기본 신원 — 처리 장비 역할(users 디렉터리의 role='service' 행). */
   PREVIEW_SERVICE_ACTOR_EMAIL?: string;
+  /**
+   * 공개 가입 표면 스위치(CCC-112 · P0-2, request-handler.ts). 정확히 '1'일 때만
+   * 공개 초대 조회·가입 라우트(와 초대 발급)가 열리고, 없거나 다른 값이면 404 로
+   * fail closed 한다. [env.preview.vars] 에만 "1" 로 두고 운영 env 에는 정의하지
+   * 않는다 — 없음이 곧 닫힘이다(EXTERNAL_AI_CALLS_ENABLED 와 같은 규약).
+   */
+  PUBLIC_SIGNUP_ENABLED?: string;
 }
 
 export class ActorAuthenticationError extends Error {}

@@ -90,7 +90,8 @@ async function recordingResultBody(maskedText = MASKED_FIXTURE) {
       sourceStart: 0,
       sourceEnd: [...maskedText].length,
     }],
-    emotionScores: { combined: 0.25, utteranceCount: 1 },
+    // D64 보류 중 장비는 빈 감정만 보낸다 (worker.py EMOTION_DEFERRED)
+    emotionScores: {},
   };
 }
 
@@ -226,7 +227,7 @@ function runDeviceClient(baseUrl: string, sessionId: string): Promise<{ code: nu
     'from ccc_pipeline.results import build_recording_result',
     'import sys',
     'client = ApiClient(sys.argv[1], "fixture-client", "fixture-secret", runtime_environment="production")',
-    `result = build_recording_result(${JSON.stringify(MASKED_FIXTURE)}, {"combined": 0.25, "utteranceCount": 1.0}, "fixture-mask-v1")`,
+    `result = build_recording_result(${JSON.stringify(MASKED_FIXTURE)}, {}, "fixture-mask-v1")`,
     'client.post_recording_result(sys.argv[2], result)',
     'client.post_recording_result(sys.argv[2], result)',
   ].join('\n');
@@ -289,7 +290,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     expect(state).toEqual({
       ai_status: 'review_ready',
       transcript: MASKED_FIXTURE,
-      emotion_scores: JSON.stringify({ combined: 0.25, utteranceCount: 1 }),
+      emotion_scores: JSON.stringify({}),
       ai_schema: null,
     });
 
@@ -597,6 +598,11 @@ describe('recording result end-to-end contract (CCC-95)', () => {
         status: 400,
       },
       {
+        name: 'non-empty emotion while deferred (D64)',
+        body: { ...valid, emotionScores: { combined: 0.25, utteranceCount: 1 } },
+        status: 409,
+      },
+      {
         name: 'unmasked sensitive pattern',
         body: await recordingResultBody('연락처 010-1234-5678, test@example.org, 123-456-789012'),
         status: 400,
@@ -611,6 +617,24 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       expect(responseText).not.toContain('123-456-789012');
       expect(responseText).not.toContain('불안함');
     }
+    const counts = await t.db.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM ai_masked_source_snapshots WHERE session_id = ?) AS snapshots,
+         (SELECT COUNT(*) FROM recording_result_commits WHERE session_id = ?) AS commits`,
+    ).bind(session.id, session.id).first<{ snapshots: number; commits: number }>();
+    expect(counts).toEqual({ snapshots: 0, commits: 0 });
+  });
+
+  it('rejects non-empty emotion scores while emotion analysis is deferred (D64)', async () => {
+    await t.reset();
+    const { session } = await createUploadedRecording();
+    const body = await recordingResultBody();
+    const rejected = await postResult(t.env, session.id, {
+      ...body,
+      emotionScores: { combined: 0.25, utteranceCount: 1 },
+    });
+    expect(rejected.status).toBe(409);
+    expect(await rejected.json()).toEqual({ error: 'emotion_deferred' });
     const counts = await t.db.prepare(
       `SELECT
          (SELECT COUNT(*) FROM ai_masked_source_snapshots WHERE session_id = ?) AS snapshots,

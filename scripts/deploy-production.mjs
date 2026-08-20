@@ -7,11 +7,13 @@
  *
  * 하는 일:
  *   1) preflight — 작업본이 origin/main 과 같은가 · main CI 가 초록인가 · 운영 D1 에
- *      미적용 마이그레이션이 없는가. 워크플로도 같은 것을 보지만, **여기서 먼저 보면
- *      승인을 기다리게 한 뒤에 떨어지는 낭비를 막는다.**
+ *      미적용 마이그레이션이 없는가 · 필수 시크릿 **이름**이 있는가(값은 읽지 않는다,
+ *      CCC-117). 워크플로도 대부분 같은 것을 보지만, **여기서 먼저 보면 승인을
+ *      기다리게 한 뒤에 떨어지는 낭비를 막는다.**
  *   2) 방아쇠 — workflow_dispatch (확인 문구 포함)
  *   3) 대기 감시 — 승인 대기에 걸리면 눌러야 할 주소를 정확히 찍어 준다
- *   4) 배포 후 — 시크릿 **이름** 존재 확인(값은 읽지 않는다) · 크론 재등록 안내
+ *   4) 배포 후 스모크 — 웹 GET / 살아 있음 · API 무인증 거부(fail-closed 증명) ·
+ *      크론 재등록 확인. 하나라도 실패하면 종료 코드 비0 + 복구 절차를 찍는다(CCC-117)
  *
  * `red` 이 스크립트는 **배포해도 되는지**를 판단하지 않는다. 보존·파기 파이프라인
  * 미구현(CLAUDE.md 8장)과 D46 재개 조건은 여전히 열려 있다. 스키마가 맞는 것과 실서비스를
@@ -23,11 +25,22 @@ import { execFileSync, execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { verdict } from './deploy-verdict.mjs';
+import {
+  secretsVerdict,
+  webSmokeVerdict,
+  apiSmokeVerdict,
+  cronVerdict,
+  rollbackGuidance,
+  REQUIRED_PRODUCTION_SECRETS,
+} from './deploy-gates.mjs';
 
 const execFileAsync = promisify(execFile);
 const WORKFLOW = 'deploy-production.yml';
 const CONFIRM_PHRASE = 'deploy-production';
 const PREFLIGHT_ONLY = process.argv.includes('--preflight-only');
+// 운영 URL — workers.dev 를 그대로 쓴다(계정에 도메인 zone 없음, apps/api/wrangler.toml 주석).
+const WEB_PRODUCTION_URL = 'https://ccc.account-855.workers.dev/';
+const API_PRODUCTION_URL = 'https://ccc-api.account-855.workers.dev/';
 
 function sh(command, args, options = {}) {
   return execFileSync(command, args, { encoding: 'utf8', ...options }).trim();
@@ -133,6 +146,33 @@ if (!cleanMarker) {
 }
 console.log('  운영 D1 스키마 = 레포와 같음');
 
+// 필수 시크릿 **이름** 검사 (CCC-117 · P1-1). `wrangler deploy` 는 시크릿이 없어도 성공한다 —
+// 워커가 런타임에 터질 뿐이다. 예전에는 배포 **후** 경고만 찍었는데, 경고는 아무것도 막지
+// 않는다. 배포 **전** 중단으로 올렸다. 값은 절대 읽지 않는다(이름만 본다).
+// 조회 자체가 실패해도 중단한다 — "없다"와 "못 봤다"는 다른 사실이지만 둘 다 배포를 막는다.
+let secretsOutput = '';
+try {
+  secretsOutput = sh('pnpm', [
+    '--filter', '@ccc/api', 'exec', 'wrangler', 'secret', 'list', '--env', 'production',
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+} catch (error) {
+  secretsOutput = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+}
+const secretGate = secretsVerdict(secretsOutput);
+if (secretGate.unreadable) {
+  fail(
+    '운영 시크릿 이름을 조회하지 못했다 (없는 것과 다른 사실이지만, 확인 없이는 배포하지 않는다).',
+    '먼저 손으로 본다: pnpm --filter @ccc/api exec wrangler secret list --env production (wrangler 로그인 확인)',
+  );
+}
+if (!secretGate.ok) {
+  fail(
+    `필수 운영 시크릿이 없다: ${secretGate.missing.join(', ')} — 배포가 초록이어도 런타임에 터진다.`,
+    `등록(값 stdout 금지): pnpm --filter @ccc/api exec wrangler secret put ${secretGate.missing[0]} --env production < 파일`,
+  );
+}
+console.log(`  운영 시크릿 이름 확인 (필수 ${REQUIRED_PRODUCTION_SECRETS.join(', ')} 포함, ${secretGate.names.length}개)`);
+
 console.log('\n  `red` 이 점검이 통과했다는 것은 **배포가 기술적으로 가능하다**는 뜻일 뿐이다.');
 console.log('  보존·파기 파이프라인 미구현(CLAUDE.md 8장)과 D46 재개 조건은 그대로 열려 있다.');
 
@@ -228,18 +268,65 @@ console.log('  docs/releases.md 이력 표에 행을 더한다.');
 console.log(`  번호를 올린 배포라면 태그도 단다: git tag -a v${version} ${originMain.slice(0, 7)} -m "운영 배포 v${version}" && git push origin v${version}`);
 console.log('  번호를 안 올린 배포(문서·도구만)라면 태그는 다시 달지 않는다.');
 
-// `wrangler deploy` 는 시크릿이 없어도 성공한다 — 워커가 런타임에 터질 뿐이다.
-// 그래서 초록을 "동작한다"로 읽지 않고 **이름**을 직접 확인한다(값은 읽지 않는다).
+// ── 배포 후 스모크 (CCC-117 · P1-1) ────────────────────────────────────────
+// 초록 배포 ≠ 동작하는 서비스. 시크릿 이름은 배포 **전**에 이미 막았고(위 preflight),
+// 여기서는 런타임을 직접 찌른다. 하나라도 실패하면 종료 코드 비0 — "배포는 성공했다"는
+// 문장으로 끝나지 않는다. 실패는 다시 돌리면 되지만 거짓 성공은 안 되는 것을 된다고 믿게 만든다.
+
+// 스모크 실패는 모아서 마지막에 한 번에 판정한다 — 첫 실패에서 멈추면 나머지 상태를 모른 채 복구하게 된다.
+const smokeFailures = [];
+
+// ① 웹이 살아 있는가 — GET / 이 200 또는 리다이렉트.
 try {
-  const secrets = sh('pnpm', [
-    '--filter', '@ccc/api', 'exec', 'wrangler', 'secret', 'list', '--env', 'production',
-  ], { stdio: ['ignore', 'pipe', 'pipe'] });
-  const names = [...secrets.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((match) => match[1]);
-  console.log(`  운영 시크릿 이름 ${names.length}개: ${names.join(', ') || '(없음)'}`);
-  if (!names.includes('PII_ENC_KEY')) {
-    console.log('  `red` PII_ENC_KEY 가 없다 — 배포는 초록이어도 PII 경로가 런타임에 터진다.');
+  const webResponse = await fetch(WEB_PRODUCTION_URL, { redirect: 'manual' });
+  const webVerdict = webSmokeVerdict(webResponse.status);
+  if (webVerdict.ok) {
+    console.log(`  스모크 ① 웹 GET / → ${webResponse.status} (살아 있음)`);
+  } else {
+    smokeFailures.push(`웹: ${webVerdict.reason}`);
   }
-} catch {
-  console.log('  ⚠ 시크릿 이름 확인 실패 — wrangler 로그인 상태를 확인한다(배포 자체는 성공했다).');
+} catch (error) {
+  smokeFailures.push(`웹: GET ${WEB_PRODUCTION_URL} 연결 실패 — ${error.message}`);
 }
-console.log('  크론 재등록됨: */30(폴링 워치독 D8) · 0 3 * * *(PII 파기 D10)');
+
+// ② API 가 무인증을 **거부**하는가 — 401/403(또는 Access 가로채기)이어야 통과다.
+// 200 이 나오면 인증 게이트가 꺼진 채 PII 경로가 열려 있다는 뜻이다(fail-closed 증명, identity.ts).
+try {
+  const apiResponse = await fetch(API_PRODUCTION_URL, { redirect: 'manual' });
+  const apiVerdict = apiSmokeVerdict(apiResponse.status, apiResponse.headers.get('location') ?? '');
+  if (apiVerdict.ok) {
+    console.log(`  스모크 ② API 무인증 → ${apiResponse.status} (fail-closed 확인)`);
+  } else {
+    smokeFailures.push(`API: ${apiVerdict.reason}`);
+  }
+} catch (error) {
+  smokeFailures.push(`API: GET ${API_PRODUCTION_URL} 연결 실패 — ${error.message}`);
+}
+
+// ③ 크론이 다시 등록됐는가 — "그럴 것이다"가 아니라 배포 기록 출력에서 문자열로 본다.
+let deploymentsOutput = '';
+try {
+  deploymentsOutput = sh('pnpm', [
+    '--filter', '@ccc/api', 'exec', 'wrangler', 'deployments', 'list', '--env', 'production',
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+} catch (error) {
+  deploymentsOutput = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+}
+const crons = cronVerdict(deploymentsOutput);
+if (crons.ok) {
+  console.log('  스모크 ③ 크론 재등록 확인: */30(폴링 워치독 D8) · 0 3 * * *(PII 파기 D10)');
+} else {
+  smokeFailures.push(
+    `크론: 배포 기록에서 ${crons.missing.join(' · ')} 를 확인하지 못했다 `
+    + '(수동 확인: pnpm --filter @ccc/api exec wrangler deployments list --env production, 또는 대시보드 Triggers 탭)',
+  );
+}
+
+if (smokeFailures.length > 0) {
+  console.error('\n배포 후 스모크 실패 — 배포는 올라갔지만 검증을 통과하지 못했다:');
+  for (const failure of smokeFailures) console.error(`  ✗ ${failure}`);
+  console.error('');
+  for (const line of rollbackGuidance()) console.error(`  ${line}`);
+  process.exit(1);
+}
+console.log('\n  스모크 3종 통과 — 배포 완료.');
