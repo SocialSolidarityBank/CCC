@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CCC 상담일지</title>
+<style>
+:root{--ink:#24313a;--muted:#667680;--line:#d9e1e5;--soft:#f5f8f9;--accent:#2f6f67;--accent-soft:#eaf4f2;--warn:#9a4b42;--warn-soft:#fff3f1;--import:#2f5d91;--import-soft:#edf4fb}
+*{box-sizing:border-box}body{margin:0;background:#eef2f3;color:var(--ink);font-family:"Pretendard","Noto Sans KR","Apple SD Gothic Neo",Arial,sans-serif;line-height:1.65}
+.page{max-width:1080px;margin:36px auto;padding:48px;background:#fff;box-shadow:0 8px 30px rgba(28,47,58,.08);border-radius:18px}
+h1{margin:0 0 10px;font-size:32px;letter-spacing:-.04em}.subtitle{margin:0 0 28px;color:var(--muted);font-size:15px}.notice{padding:16px 18px;margin-bottom:28px;background:var(--accent-soft);border-left:5px solid var(--accent);border-radius:8px;font-size:14px}
+.major-section{display:block;margin:18px 0 26px;padding:28px;border:1px solid var(--line);border-radius:14px}.major-section h2{margin:0 0 8px;font-size:24px;letter-spacing:-.03em}.section-guide{margin:0 0 20px;color:var(--muted);font-size:14px}h3{margin:26px 0 12px;font-size:18px;color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.field{margin-bottom:17px}label,.label{display:block;margin-bottom:7px;font-weight:700;font-size:14px}.required{color:var(--warn);font-size:12px;margin-left:5px}
+input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;padding:11px 12px;border:1px solid #bcc9cf;border-radius:8px;background:#fff;color:var(--ink);font:inherit}textarea{min-height:96px;resize:vertical}.long{min-height:150px}
+.question{margin:17px 0;padding:16px;background:var(--soft);border-radius:10px}.question-title{margin-bottom:9px;font-weight:700}.helper{margin-top:6px;color:var(--muted);font-size:13px}.checks{display:flex;flex-wrap:wrap;gap:8px 18px;padding:8px 0}.checks label{margin:0;font-weight:500}
+.import-box{background:var(--import-soft);border:1px solid #c9d9ea}.import-label{display:inline-block;margin-bottom:12px;padding:5px 10px;border-radius:999px;background:var(--import);color:#fff;font-size:12px;font-weight:800}
+.readonly{background:#f4f7fa!important;color:#4f6170!important}
+.decision{margin-top:18px;padding:16px;border:1px dashed var(--accent);border-radius:10px;background:#fbfdfd}.decision-title{margin-bottom:10px;color:var(--accent);font-weight:800}
+.section-actions{display:flex;justify-content:space-between;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}.section-actions .right{display:flex;gap:10px;margin-left:auto}.footer-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:26px}
+button{padding:11px 18px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}button.secondary{background:#6d7a82}.page-label{display:inline-block;margin-bottom:12px;padding:4px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:800}
+.mini-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}.mini-table th,.mini-table td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}.mini-table th{background:var(--soft)}
+.tip{margin:10px 0 0;padding:12px 14px;border-radius:8px;background:var(--warn-soft);color:#70433e;font-size:13px}
+@media print{body{background:#fff}.page{margin:0;max-width:none;padding:12px;box-shadow:none}.section-actions,.footer-actions{display:none!important}.major-section{display:block!important;border:1px solid var(--line);padding:16px;break-before:auto;break-inside:avoid}.major-section:first-of-type{break-before:auto}}
+@media(max-width:760px){.page{margin:0;padding:22px;border-radius:0}.grid,.grid-3,.grid-4{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main class="page">
+<h1>CCC 상담일지</h1>
+<p class="subtitle">지원계획 수립 이후의 상담 내용, 변화, 실천과제와 후속조치를 한 페이지에서 회차별로 기록합니다.</p>
+<div class="notice"><strong>작성 원칙</strong><br>인테이크·초기상담 단계에서 이미 확인한 정보는 다시 입력하지 않고 <strong>‘인테이크지에서 정보 가져오기’</strong>로 표시합니다. 이번 회차에서 새롭게 확인된 변화와 다음 행동을 중심으로 기록합니다.</div>
+
+<form>
+<section class="major-section active" data-tab-panel="1">
+<span class="page-label">한 페이지 통합 작성</span><h2>1. 상담 기본정보</h2>
+<h3>1-1. 당사자·상담 정보</h3>
+<div class="question import-box"><span class="import-label">인테이크지에서 정보 가져오기</span>
+<div class="grid-3">
+<div class="field"><label>당사자 성명</label><input class="readonly" type="text" value="인테이크지에서 자동 불러오기" readonly></div>
+<div class="field"><label>생년월일</label><input class="readonly" id="birthdate" type="date" aria-label="인테이크지 생년월일" readonly></div>
+<div class="field"><label>나이</label><input class="readonly" id="age" type="text" value="생년월일 기준 자동 계산" readonly></div>
+<div class="field"><label>상담자 성명</label><input class="readonly" type="text" value="상담자 정보에서 자동 불러오기" readonly></div>
+<div class="field"><label>현재 상담 회차</label><input class="readonly" id="sessionProgress" type="text" value="이전 기록과 목표 상담횟수 기준 자동 계산" readonly></div>
+<div class="field"><label>연락 시 주의사항</label><input class="readonly" type="text" value="인테이크지에서 자동 불러오기" readonly></div>
+</div>
+<input id="priorSessionCount" type="hidden" value="0">
+<input id="plannedSessionCount" type="hidden" value="5">
+<div class="helper">인테이크 이후 첫 상담을 1회차로 계산합니다. 예: 이전 상담일지 2건, 목표 상담횟수 5회인 경우 이번 상담은 3/5회차로 표시됩니다.</div>
+</div>
+<h3>1-2. 이번 상담 운영정보</h3>
+<div class="grid-4">
+<div class="field"><label>상담일<span class="required">필수</span></label><input type="date" required></div>
+<div class="field"><label>시작시간<span class="required">필수</span></label><input id="startTime" type="time" required></div>
+<div class="field"><label>종료시간<span class="required">필수</span></label><input id="endTime" type="time" required></div>
+<div class="field"><label>상담 소요시간</label><input class="readonly" id="duration" type="text" value="시작·종료시간 기준 자동 계산" readonly></div>
+</div>
+<div class="grid">
+<div class="field"><label>상담 방법<span class="required">필수</span></label><select required><option value="">선택</option><option>대면</option><option>전화</option><option>온라인 화상</option><option>문자·메신저</option><option>가정·현장 방문</option><option>기타</option></select></div>
+<div class="field"><label>상담 장소<span class="required">필수</span></label><select required><option value="">선택</option><option>기관 상담실</option><option>당사자 자택</option><option>외부기관</option><option>온라인</option><option>기타</option></select></div>
+<div class="field"><label>상담 참여자</label><input type="text" placeholder="예: 당사자 본인, 배우자, 주민센터 담당자 / 당사자 본인만 참여"></div>
+<div class="field"><label>상담 시 특이사항</label><input type="text" placeholder="예: 통신 불안정으로 10분 지연 / 해당 없음"></div>
+</div>
+<h3>1-3. 목표와 직전 과제</h3>
+<div class="question import-box"><span class="import-label">인테이크·직전 상담일지에서 가져오기</span>
+<div class="field"><label>대목표</label><textarea class="readonly" readonly>인테이크에서 설정한 목표 자동 불러오기</textarea></div>
+<div class="field"><label>직전 상담에서 합의한 실천과제</label><textarea class="readonly" readonly>직전 상담일지의 실천과제 자동 불러오기</textarea></div>
+</div>
+<div class="field"><label>직전 실천과제 실행 결과<span class="required">필수</span></label><textarea placeholder="실행 여부(완료·일부 완료·미이행·확인하지 못함·해당 없음), 미완료·미이행 사유, 실제 실행 결과와 확인한 내용을 함께 작성하세요. 예: 일부 완료. 카드 이용내역은 준비했으나 대부업체 채무 잔액은 확인하지 못함. 업체 연락처를 찾는 데 어려움이 있었음." required></textarea></div>
+</section>
+
+<section class="major-section" data-tab-panel="2">
+<h2>2. 상담 내용 및 상담자 의견</h2>
+<h3>2-1. 상담 내용</h3>
+<div class="field"><label>상담주제<span class="required">필수·복수선택</span></label><div class="checks"><label><input type="checkbox"> 재무·부채</label><label><input type="checkbox"> 소득·일자리</label><label><input type="checkbox"> 주거</label><label><input type="checkbox"> 건강·의료</label><label><input type="checkbox"> 심리·정서</label><label><input type="checkbox"> 가족·돌봄</label><label><input type="checkbox"> 복지급여</label><label><input type="checkbox"> 법률·행정</label><label><input type="checkbox"> 자원연계</label><label><input type="checkbox"> 기타</label></div></div>
+<div class="field"><label>상담 내용<span class="required">필수</span></label><textarea class="long" placeholder="이번 상담에서 확인하거나 결정할 사항, 당사자의 현재 상황과 직전 상담 이후 변화, 새롭게 확인된 어려움·욕구, 상담자가 제공한 정보·지원, 당사자의 반응과 결정 내용을 함께 작성하세요." required></textarea></div>
+<h3>2-2. 상담자 의견</h3>
+<div class="field"><label>상담자 의견<span class="required">필수</span></label><textarea class="long" placeholder="새롭게 확인된 위험·기회 신호, 당사자의 변화, 지원계획 조정 필요성, 상담 방향, 추가 논의 또는 긴급 대응 필요 여부를 종합하여 작성하세요. 상담 중 관찰한 비언어적 요소(표정, 자세, 눈맞춤, 고개 끄덕임, 미소, 거리 유지, 접촉 여부, 의상, 신체적 외양 등)도 포함하되, 관찰한 사실과 상담자의 해석을 구분하여 작성합니다. 예: 당사자는 채무 이야기를 할 때 눈맞춤을 피하고 손을 반복적으로 만지는 모습이 관찰됨. 다음 달 연체 가능성이 있으나 주민센터 긴급복지 상담이 예정되어 있어 단기 집중상담이 필요함." required></textarea></div>
+</section>
+
+<section class="major-section" data-tab-panel="3">
+<h2>3. 후속 계획</h2>
+<h3>3-1. 후속 계획</h3>
+<div class="field"><label>후속 계획<span class="required">필수</span></label><textarea class="long" placeholder="당사자가 다음 상담 전까지 실천할 과제, 상담자가 확인하거나 조치할 사항, 필요한 자원연계 및 당사자의 요청사항을 함께 작성하세요. 각 내용에는 가능하면 담당 주체와 완료기한을 포함하세요." required></textarea></div>
+<h3>3-2. 다음 상담 일정</h3>
+<div class="grid-3"><div class="field"><label>다음 상담일</label><input type="date"></div><div class="field"><label>상담 방법</label><select><option value="">선택</option><option>대면</option><option>전화</option><option>온라인 화상</option><option>문자·메신저</option><option>방문</option><option>추후 협의</option></select></div><div class="field"><label>예정 시간</label><input type="time"></div></div>
+<div class="field"><label>다음 상담에서 확인할 내용</label><textarea placeholder="예: 전체 채무 잔액, 긴급복지 신청 여부, 다음 달 상환 가능성 확인"></textarea></div>
+</section>
+<div class="footer-actions"><button class="secondary" type="button" onclick="document.querySelector('form').reset()">입력 초기화</button><button type="button" onclick="window.print()">인쇄·PDF 저장</button></div>
+</form></main>
+<script>
+(function(){
+  const birthdate = document.getElementById('birthdate');
+  const age = document.getElementById('age');
+  const priorSessionCount = document.getElementById('priorSessionCount');
+  const plannedSessionCount = document.getElementById('plannedSessionCount');
+  const sessionProgress = document.getElementById('sessionProgress');
+  const startTime = document.getElementById('startTime');
+  const endTime = document.getElementById('endTime');
+  const duration = document.getElementById('duration');
+
+  function calculateAge(){
+    if(!birthdate.value){
+      age.value = '생년월일 기준 자동 계산';
+      return;
+    }
+    const birth = new Date(birthdate.value + 'T00:00:00');
+    const today = new Date();
+    let years = today.getFullYear() - birth.getFullYear();
+    const beforeBirthday = today.getMonth() < birth.getMonth() ||
+      (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate());
+    if(beforeBirthday) years -= 1;
+    age.value = `만 ${Math.max(0, years)}세`;
+  }
+
+  function calculateSessionProgress(){
+    const prior = Number(priorSessionCount.value || 0);
+    const planned = Number(plannedSessionCount.value || 0);
+    const current = prior + 1;
+    sessionProgress.value = planned > 0 ? `${current}/${planned}회차` : `${current}회차`;
+  }
+
+  function calculateDuration(){
+    if(!startTime.value || !endTime.value){
+      duration.value = '시작·종료시간 기준 자동 계산';
+      return;
+    }
+    const [sh, sm] = startTime.value.split(':').map(Number);
+    const [eh, em] = endTime.value.split(':').map(Number);
+    let minutes = (eh * 60 + em) - (sh * 60 + sm);
+    if(minutes < 0) minutes += 24 * 60;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    duration.value = hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+  }
+
+  birthdate.addEventListener('change', calculateAge);
+  startTime.addEventListener('input', calculateDuration);
+  endTime.addEventListener('input', calculateDuration);
+  calculateAge();
+  calculateSessionProgress();
+  calculateDuration();
+})();
+</script>
+</body></html>
