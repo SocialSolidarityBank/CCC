@@ -16,7 +16,8 @@
 ## 폴링 워치독 (D8)
 
 - 데이터 원천: `audit_log`의 최신 `poll_pipeline` 시각(처리 장비가 `GET /pipeline/jobs`를 부를 때마다 남는다).
-- 판정: 마지막 폴링이 임계값(`PIPELINE_STALE_HOURS`, 기본 6시간)을 넘으면 `stale`. 대기 작업이 있는데 폴링 이력 자체가 없어도 `stale`. 폴링 이력·대기 작업이 모두 없으면 `inactive`(알림 안 함).
+- 데이터 원천(추가): 대기 건수는 두 큐 합산이다 — 오디오 큐(`sessions`: `uploaded`·`processing` + 오디오 등록)와 텍스트 일감 큐(`ai_text_work_queue`: `pending`·`processing` — 임대(0036)가 만료된 채 멈춘 행도 미완료로 센다). 가장 오래된 대기 작업의 대기 시간(오디오는 `updated_at`, 텍스트는 `enqueued_at`)과 가장 최근 완료 시각(`recording_result_commits.finalized_at` · `ai_text_work_queue.completed_at`)도 함께 본다. 전부 집계 SELECT(읽기 전용)다.
+- 판정: 마지막 폴링이 임계값(`PIPELINE_STALE_HOURS`, 기본 6시간)을 넘으면 `stale`(`poll_overdue`). 대기 작업(두 큐 합산)이 있는데 폴링 이력 자체가 없어도 `stale`(`never_polled`). **폴링이 최신이어도** 가장 오래된 대기 작업이 큐 적체 임계값(`PIPELINE_QUEUE_STALE_HOURS`, 미설정이면 `PIPELINE_STALE_HOURS`와 동일)을 넘게 묵으면 `stale`(`queue_backlog`) — 장비가 폴링만 하고 일을 끝내지 못하는 장애를 잡는다. 폴링 이력·대기 작업이 모두 없으면 `inactive`(알림 안 함). 사유 목록은 응답·알림·감사의 `staleReasons`에 실린다.
 - 조회 경로: `GET /pipeline/health`(관리자 전용). 계약은 `docs/api-contract-pipeline.md` 참고.
 - 알림: `console.error("[WATCHDOG ALERT] …")`는 항상 남고(`wrangler tail`로 확인), `NOTIFY_WEBHOOK_URL` 시크릿이 설정되면 그 주소로 `{"text": ...}` JSON을 POST한다(Slack/Discord incoming webhook 호환). 발송 실패는 로그만 남기고 삼킨다 — 채널 장애가 cron을 죽이지 않는다. 채널 추가는 `apps/api/src/notify.ts`의 `notifyAdmins` 한 곳에만 붙인다.
 - 감사: 조직별 점검마다 `watchdog_check`(`actor_id=system:watchdog`, `actor_role=service`).
@@ -40,6 +41,7 @@
 | 이름 | 위치 | 기본값 | 용도 |
 | --- | --- | --- | --- |
 | `PIPELINE_STALE_HOURS` | `wrangler.toml [vars]` 또는 Workers 환경 변수(문자열) | 6 | D8 무폴링 판정 임계값(시간). 부적합 값이면 기본값으로 되돌린다. |
+| `PIPELINE_QUEUE_STALE_HOURS` | `wrangler.toml [vars]` 또는 Workers 환경 변수(문자열) | (`PIPELINE_STALE_HOURS` 해석값) | D8 큐 적체 판정 임계값(시간) — 가장 오래된 대기 작업이 이보다 오래 묵으면 폴링이 최신이어도 `stale`. 부적합 값이면 폴링 임계값으로 되돌린다. |
 | `NOTIFY_WEBHOOK_URL` | Workers 시크릿 | (없음) | D8 관리자 알림 웹훅. 미설정 시 console.error 폴백만. URL은 시크릿 취급(로그 출력 금지). |
 | `LOCAL_ACTOR_HEADER_MODE` | `wrangler.toml [vars]` | (로컬 `"true"`) | 로컬 개발용 헤더 인증 모드. 프로덕션 미설정 시 fail closed(D16). |
 | `PII_ENC_KEY` | Workers 시크릿 | (없음) | PII AES-GCM 키(D3). 코드·로그 출력 금지(R3). |

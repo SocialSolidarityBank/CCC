@@ -606,24 +606,63 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(axes.results.map((row) => row.status)).toEqual(['applied', 'applied', 'applied']);
   });
 
-  it('대조는 초안과 함께 승인된다 (R2)', async () => {
+  it('대조는 항목별 처리·화자 확인과 함께 승인된다 (R2 · CCC-114)', async () => {
     const { env, session } = await setupRouteFixture();
     await postTextSnapshot(env, session.id);
     expect((await postRecordingResult(env, session.id)).status).toBe(204);
     const draft = await readDraft(env, session.id);
 
-    const review = await worker.fetch(new Request(
+    const reviewRequest = (body: Record<string, unknown>) => worker.fetch(new Request(
       `http://localhost/sessions/${session.id}/ai/drafts/${draft.version}/review`,
-      {
-        method: 'POST',
-        headers: counselorHeaders,
-        body: JSON.stringify({ expectedVersion: draft.version, decision: 'approved' }),
-      },
+      { method: 'POST', headers: counselorHeaders, body: JSON.stringify(body) },
     ), env);
+
+    // CCC-114 회귀: 결정만 실은 승인은 막힌다 — 녹음 재료가 있으니 화자 확인부터 걸린다.
+    const decisionOnly = await reviewRequest({ expectedVersion: draft.version, decision: 'approved' });
+    expect(decisionOnly.status).toBe(409);
+    expect(await decisionOnly.json()).toEqual({ error: 'speaker_confirmation_required' });
+
+    // 화자 확인만 있고 항목 처리가 없으면 항목 처리에서 걸린다.
+    const noResolutions = await reviewRequest({
+      expectedVersion: draft.version,
+      decision: 'approved',
+      speakerMappingConfirmed: true,
+    });
+    expect(noResolutions.status).toBe(409);
+    expect(await noResolutions.json()).toEqual({ error: 'contrast_resolution_required' });
+
+    // 적용된 축의 항목 일부만 처리해도 막힌다 — 전체를 덮어야 한다.
+    const contrastResolutions = draft.contrast.flatMap((axis) => (axis.status === 'applied'
+      ? axis.findings.map((_, findingIndex) => ({ axis: axis.axis, findingIndex, status: 'confirmed' }))
+      : []));
+    expect(contrastResolutions.length).toBeGreaterThan(1);
+    const partial = await reviewRequest({
+      expectedVersion: draft.version,
+      decision: 'approved',
+      speakerMappingConfirmed: true,
+      contrastResolutions: contrastResolutions.slice(0, 1),
+    });
+    expect(partial.status).toBe(409);
+    expect(await partial.json()).toEqual({ error: 'contrast_resolution_required' });
+
+    // 모든 항목에 처리 3종 값 + 화자 확인 → 승인.
+    const review = await reviewRequest({
+      expectedVersion: draft.version,
+      decision: 'approved',
+      speakerMappingConfirmed: true,
+      contrastResolutions,
+    });
     expect(review.status).toBe(200);
     const approved = await review.json() as RouteDraft;
     expect(approved.contrast).toHaveLength(3);
     expect(approved.contrast.every((axis) => axis.status === 'applied')).toBe(true);
+
+    // 승인 요청의 확언으로 화자 확인 시각이 함께 기록된다(D11).
+    const sessionRow = await t.db.prepare(
+      'SELECT approved_at, speaker_mapping_confirmed_at FROM sessions WHERE id = ?',
+    ).bind(session.id).first<{ approved_at: string | null; speaker_mapping_confirmed_at: string | null }>();
+    expect(sessionRow?.approved_at).not.toBeNull();
+    expect(sessionRow?.speaker_mapping_confirmed_at).toBe(sessionRow?.approved_at);
   });
 
   it('v2 해시가 활성이면 fail-closed 이고 재활성화하면 통과한다', async () => {
@@ -685,12 +724,20 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
 
     // 셋째 절: 이미 검토가 끝난 초안에는 링크를 더 달 수 없다.
     const current = await readDraft(env, session.id);
+    // 승인 계약(CCC-114): 적용된 축의 모든 항목 처리 + 화자 확인을 함께 싣는다.
     const review = await worker.fetch(new Request(
       `http://localhost/sessions/${session.id}/ai/drafts/${current.version}/review`,
       {
         method: 'POST',
         headers: counselorHeaders,
-        body: JSON.stringify({ expectedVersion: current.version, decision: 'approved' }),
+        body: JSON.stringify({
+          expectedVersion: current.version,
+          decision: 'approved',
+          speakerMappingConfirmed: true,
+          contrastResolutions: current.contrast.flatMap((axis) => (axis.status === 'applied'
+            ? axis.findings.map((_, findingIndex) => ({ axis: axis.axis, findingIndex, status: 'confirmed' }))
+            : [])),
+        }),
       },
     ), env);
     expect(review.status).toBe(200);

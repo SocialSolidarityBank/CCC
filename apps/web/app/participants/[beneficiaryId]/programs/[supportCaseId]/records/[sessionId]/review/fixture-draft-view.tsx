@@ -17,6 +17,7 @@ import { WireCard } from '../../../../../../../components/wire/wire-card';
 import { WireBadge, type WireBadgeTone } from '../../../../../../../components/wire/wire-badge';
 import { WireButton } from '../../../../../../../components/wire/wire-button';
 import { WireCardSection, WireItem } from '../../../../../../../components/wire/wire-section';
+import { WireChoice, WireFormField } from '../../../../../../../components/wire/wire-form-field';
 import { WireEmpty, WireError } from '../../../../../../../components/wire/wire-state';
 
 // 대조 3종 축 표시 순서 + 한글 라벨(D69 · ADR-0036 결정 1·3, CCC-100).
@@ -38,6 +39,17 @@ const materialKindLabels: Record<AiMaterialKind, string> = {
   transcript: '전사',
   text_context: '텍스트',
 };
+
+// 항목별 처리 3종(CCC-114) — CONTEXT.md '내용 불일치'와 같은 낱말·순서(ADR-0018).
+const contrastResolutionOptions = ['situation_changed', 'record_error', 'confirmed'] as const;
+const contrastResolutionLabels: Record<(typeof contrastResolutionOptions)[number], string> = {
+  situation_changed: '상황 변경',
+  record_error: '기록 오류',
+  confirmed: '확인 완료',
+};
+
+// 처리 select 는 대조 카드에 서지만 제출은 처리 폼으로 실린다(form 속성 연결, CCC-114).
+const REVIEW_FORM_ID = 'ai-draft-review-form';
 
 // 축 상태 배지(검수 지적 8 — "돌리지 못함"과 "돌렸는데 차이 없음"을 옷으로 가른다).
 // v3 이전 초안(빈 배열)은 이유를 알 수 없으니 '돌리지 못함'과 다른 낱말을 쓴다(지적 7).
@@ -84,7 +96,12 @@ export interface DraftReviewViewProps {
   generateAction?: ((formData: FormData) => Promise<void>) | undefined;
 }
 
-function ContrastAxisSection({ axis, data }: { axis: AiContrastAxis; data: AiDraftContrastAxis | undefined }) {
+function ContrastAxisSection({ axis, data, resolutionFormId }: {
+  axis: AiContrastAxis;
+  data: AiDraftContrastAxis | undefined;
+  /** 있으면 항목마다 처리 select 를 그리고 이 폼 id 로 제출을 잇는다(CCC-114 — 검토 대기 초안만). */
+  resolutionFormId?: string | undefined;
+}) {
   const badge = axisBadge(data);
   return (
     <WireCardSection
@@ -115,6 +132,26 @@ function ContrastAxisSection({ axis, data }: { axis: AiContrastAxis; data: AiDra
                       status={<WireBadge tone="blue">{materialKindLabels[finding.materialKind]}</WireBadge>}
                     />
                     <WireQuote>{finding.quote}</WireQuote>
+                    {resolutionFormId !== undefined && (
+                      <WireFormField
+                        label="처리"
+                        control="select"
+                        htmlFor={`contrast-resolution-${axis}-${index}`}
+                        hint="승인하려면 모든 항목에 처리를 골라야 합니다."
+                      >
+                        <select
+                          id={`contrast-resolution-${axis}-${index}`}
+                          name={`contrastResolution.${axis}.${index}`}
+                          form={resolutionFormId}
+                          defaultValue=""
+                        >
+                          <option value="">처리 선택</option>
+                          {contrastResolutionOptions.map((status) => (
+                            <option key={status} value={status}>{contrastResolutionLabels[status]}</option>
+                          ))}
+                        </select>
+                      </WireFormField>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -143,6 +180,10 @@ export function DraftReviewView({
   // 다시 처리하는 UI 를 보여주지 않는다. fixture 는 애초에 승인 UI 자체가 없다(R2 서버 게이트).
   const showReviewActions = !isFixture && reviewAction !== undefined && draft.reviewDecision === null;
   const regenerateVisible = draft.regenerateAvailable && draft.regenerateSourceSnapshotId !== null && generateAction !== undefined;
+  // 화자 확인 체크(CCC-114 · D11): 전사 기반 대조 축이 적용된 초안 = 녹음 재료가 있는 회차.
+  // 서버가 최종 판정하므로(R1) 여기서는 체크를 그릴지들만 정한다.
+  const requiresSpeakerConfirmation = draft.contrast.some((axisData) => axisData.status === 'applied'
+    && (axisData.axis === 'missing_from_memo' || axisData.axis === 'missing_from_transcript'));
 
   return (
     <div data-testid="ai-draft-review">
@@ -251,7 +292,12 @@ export function DraftReviewView({
           title={<h2 id="ai-draft-contrast-title">대조 3종</h2>}
         >
           {contrastAxisOrder.map((axis) => (
-            <ContrastAxisSection key={axis} axis={axis} data={contrastByAxis.get(axis)} />
+            <ContrastAxisSection
+              key={axis}
+              axis={axis}
+              data={contrastByAxis.get(axis)}
+              resolutionFormId={showReviewActions ? REVIEW_FORM_ID : undefined}
+            />
           ))}
         </WireCard>
 
@@ -274,13 +320,22 @@ export function DraftReviewView({
         {showReviewActions && (
           <WireCard as="section" testId="ai-draft-review-actions" title="처리">
             <p className="panel-meta">
-              대조 3종을 확인한 뒤 승인하거나 반려하세요. 승인하면 이 초안이 공식 기록이 됩니다.
+              대조 3종의 각 항목에 처리를 고른 뒤 승인하거나 반려하세요. 승인하면 이 초안이 공식 기록이 됩니다.
             </p>
-            <form action={reviewAction}>
+            <form id={REVIEW_FORM_ID} action={reviewAction}>
               <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
               <input type="hidden" name="supportCaseId" value={supportCaseId} />
               <input type="hidden" name="sessionId" value={sessionId} />
               <input type="hidden" name="expectedVersion" value={draft.version} />
+              {requiresSpeakerConfirmation && (
+                <WireChoice
+                  type="checkbox"
+                  name="speakerMappingConfirmed"
+                  value="true"
+                  label="화자 구분(어느 발언이 실무자·당사자의 것인지)을 확인했습니다"
+                  desc="녹음 재료가 있는 회차는 이 확인이 있어야 승인할 수 있습니다."
+                />
+              )}
               <div className="wizard-actions">
                 <WireButton type="submit" name="decision" value="approved" variant="primary">승인</WireButton>
                 <WireButton type="submit" name="decision" value="rejected" variant="danger">반려</WireButton>

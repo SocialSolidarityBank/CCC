@@ -39,6 +39,12 @@ export interface Env {
    */
   PIPELINE_STALE_HOURS?: string;
   /**
+   * D8 큐 적체 판정 임계값(시간). 가장 오래된 대기 작업(오디오 세션 + 텍스트 일감)이
+   * 이 시간 이상 묵으면 폴링이 최신이어도 stale로 판정한다. 미설정이거나 부적합하면
+   * PIPELINE_STALE_HOURS(해석값)를 그대로 따른다.
+   */
+  PIPELINE_QUEUE_STALE_HOURS?: string;
+  /**
    * Phase 1 텍스트 AI 파일럿 전역 중지 스위치. 정확히 '1'일 때만 새 증적·초안·검토를
    * 허용한다. 기본값과 다른 모든 값은 수기 전용으로 fail-closed 한다.
    */
@@ -105,6 +111,24 @@ export class DraftVersionRequiredError extends Error {
   }
 }
 /** 생성 AI 초안을 공식화할 마스킹 근거 링크가 없다. */
+/** 승인 요청에 대조 3종 항목별 처리 결과가 없거나 모자란다 (R2 · CCC-114). */
+export class ContrastResolutionRequiredError extends Error {
+  readonly code = 'contrast_resolution_required';
+  readonly statusCode = 409;
+
+  constructor() {
+    super('contrast_resolution_required');
+  }
+}
+/** 녹음 재료 있는 회차의 승인에 화자 매핑 확인이 없다 (D11 · R2 · CCC-114). */
+export class SpeakerConfirmationRequiredError extends Error {
+  readonly code = 'speaker_confirmation_required';
+  readonly statusCode = 409;
+
+  constructor() {
+    super('speaker_confirmation_required');
+  }
+}
 export class GroundedEvidenceRequiredError extends Error {
   readonly code = 'grounded_evidence_required';
   readonly statusCode = 409;
@@ -220,6 +244,17 @@ function parseSqliteUtc(value: string): number {
   return Date.parse(value.replace(' ', 'T') + 'Z');
 }
 
+/**
+ * UTC 타임스탬프 파싱(두 형식 겸용). audit_log.created_at은 SQLite datetime 형식
+ * ('YYYY-MM-DD HH:MM:SS', 타임존 접미사 없음)이고, 게이트웨이 now()가 쓰는 열
+ * (sessions.updated_at · ai_text_work_queue.enqueued_at 등)은 ISO('…Z')다.
+ * 접미사가 없으면 UTC로 강제하고, 있으면 그대로 파싱한다. 유효하지 않으면 NaN.
+ */
+function parseUtcTimestamp(value: string): number {
+  const normalized = value.replace(' ', 'T');
+  return /(?:Z|[+-]\d\d:\d\d)$/i.test(normalized) ? Date.parse(normalized) : Date.parse(normalized + 'Z');
+}
+
 /** HTTP 행위자 없는 cron 컨텍스트용 감사 행위자. 역할은 'service'(CHECK 허용값). */
 function systemActor(userId: string, orgId: string): Actor {
   return { userId, orgId, role: 'service' };
@@ -233,6 +268,21 @@ function resolvePipelineStaleHours(env: Env): number {
   }
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : PIPELINE_STALE_HOURS_DEFAULT;
+}
+
+/**
+ * D8 큐 적체 임계값(시간) 해석: env.PIPELINE_QUEUE_STALE_HOURS(양수) 우선,
+ * 없거나 부적합하면 폴링 임계값(resolvePipelineStaleHours)과 동일.
+ */
+function resolvePipelineQueueStaleHours(env: Env): number {
+  const raw = env.PIPELINE_QUEUE_STALE_HOURS;
+  if (raw !== undefined) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return resolvePipelineStaleHours(env);
 }
 
 /**
@@ -2017,23 +2067,46 @@ export interface PipelineJob {
   audioAvailable: boolean;
 }
 
+/** D8 stale 판정 사유. 알림 문구·감사 detail에 그대로 실린다. */
+export type PipelineStaleReason = 'never_polled' | 'poll_overdue' | 'queue_backlog';
+
 /**
- * D8 파이프라인 폴링 건강도. 기관 1개 기준.
+ * D8 파이프라인 폴링 건강도. 기관 1개 기준. 무폴링 감시는 두 큐 합산이다 —
+ * 오디오 큐(sessions: uploaded|processing + audio_r2_key)와 텍스트 일감 큐
+ * (ai_text_work_queue: pending·processing — 임대(0036) 포함 미완료 전체).
  *  - lastPolledAt: 가장 최근 poll_pipeline 감사 시각(ISO, UTC). 폴링 기록이 없으면 null.
+ *  - lastCompletedAt: 가장 최근 완료 시각(ISO, UTC) — 오디오는 recording_result_commits.finalized_at,
+ *    텍스트는 ai_text_work_queue.completed_at의 최댓값. 완료 이력이 없으면 null.
  *  - pendingJobCount: 오디오가 등록됐지만 아직 처리 안 된 세션 수(uploaded|processing).
+ *  - pendingTextWorkCount: 텍스트 일감 큐의 미완료(pending·processing) 건수 —
+ *    임대(0036)가 만료된 채 멈춘 processing 행도 포함한다.
+ *  - pendingTotalCount: 두 큐 합산 대기 건수(판정 기준).
+ *  - oldestPendingSince / oldestPendingHours: 가장 오래된 대기 작업의 시각(ISO)과
+ *    대기 시간(시간, 소수 둘째 자리 반올림). 대기 작업이 없으면 둘 다 null.
  *  - status:
- *      'ok'       — 임계값 안에 최근 폴링이 있음.
- *      'stale'    — 임계값 초과로 무폴링(또는 대기 작업이 있는데 폴링 이력 자체가 없음).
+ *      'ok'       — 임계값 안에 최근 폴링이 있고 큐 적체도 없음.
+ *      'stale'    — staleReasons가 1개 이상: 무폴링(poll_overdue), 대기 작업이 있는데
+ *                   폴링 이력 자체가 없음(never_polled), 가장 오래된 대기 작업이
+ *                   queueThresholdHours를 초과(queue_backlog).
  *      'inactive' — 폴링 이력도 없고 대기 작업도 없음(알림 대상 아님).
  *  - stale: 관리자 알림 트리거 여부('stale' status일 때만 true).
+ *  - thresholdHours: 무폴링 판정 임계값(PIPELINE_STALE_HOURS).
+ *  - queueThresholdHours: 큐 적체 판정 임계값(PIPELINE_QUEUE_STALE_HOURS, 기본은 thresholdHours와 동일).
  */
 export interface PipelineHealth {
   orgId: string;
   lastPolledAt: string | null;
+  lastCompletedAt: string | null;
   stale: boolean;
   status: 'ok' | 'stale' | 'inactive';
+  staleReasons: PipelineStaleReason[];
   pendingJobCount: number;
+  pendingTextWorkCount: number;
+  pendingTotalCount: number;
+  oldestPendingSince: string | null;
+  oldestPendingHours: number | null;
   thresholdHours: number;
+  queueThresholdHours: number;
 }
 /**
  * Phase 1 텍스트 AI 파일럿 동의 증적. 원본 동의 내용은 D1에 저장하지 않고
@@ -2301,9 +2374,20 @@ export interface FixtureGeneratedAiDraftInput extends GroundedAiDraftContentInpu
 export interface EditGeneratedAiDraftInput extends AiDraftContentInput {
   expectedVersion: number;
 }
+/** 대조 3종 항목 하나에 대한 실무자 처리(CCC-114). 처리 3종 값은 내용 불일치와 같다(ADR-0018). */
+export interface AiContrastResolutionInput {
+  axis: AiContrastAxis;
+  /** 해당 축 findings 배열 안의 위치 — 불변 초안이라 버전 안에서 안정적이다. */
+  findingIndex: number;
+  status: DiscrepancyResolutionStatus;
+}
 export interface AiDraftReviewInput {
   expectedVersion: number;
   decision: 'approved' | 'rejected';
+  /** approved 필수(CCC-114): 적용된 대조 축의 모든 항목에 대한 처리 결과(항목이 없어도 빈 배열로 명시). */
+  contrastResolutions?: AiContrastResolutionInput[];
+  /** 녹음 재료 있는 회차의 approved 에서 아직 미확인이면 이 확언으로 확인 시각을 함께 기록한다(D11). */
+  speakerMappingConfirmed?: boolean;
 }
 export interface PilotTextAiConsentEvidenceInput {
   noticeVersion: string;
@@ -4193,6 +4277,52 @@ function isCompleteGroundingEvidence(evidence: AiEvidenceLink[], questions: AiBr
   );
 }
 
+// 처리 3종 상수 — resolveSessionDiscrepancy 와 같은 값(ADR-0018 · CCC-114).
+const AI_CONTRAST_RESOLUTION_STATUSES: readonly DiscrepancyResolutionStatus[] = [
+  'situation_changed',
+  'record_error',
+  'confirmed',
+];
+
+/**
+ * 승인 전 대조 3종 항목별 처리 완전성 검증(R2 · CCC-114) — 승인 경로 단일화의 핵심.
+ * 승인 요청은 처리 목록을 반드시 실어야 하고(항목이 없는 초안이라도 빈 배열로 명시),
+ * 적용된 축의 모든 항목에 정확히 하나씩 처리 3종(상황 변경/기록 오류/확인 완료) 값이 붙어야 한다.
+ */
+function assertContrastResolutionsComplete(
+  contrast: readonly AiDraftContrastAxis[],
+  resolutions: AiContrastResolutionInput[] | undefined,
+): void {
+  if (!Array.isArray(resolutions)) {
+    throw new ContrastResolutionRequiredError();
+  }
+  const pending = new Set<string>();
+  for (const axis of contrast) {
+    axis.findings.forEach((_, index) => pending.add(`${axis.axis}:${index}`));
+  }
+  const seen = new Set<string>();
+  for (const resolution of resolutions) {
+    if (
+      resolution === null
+      || typeof resolution !== 'object'
+      || !AI_CONTRAST_AXES.includes(resolution.axis)
+      || !Number.isInteger(resolution.findingIndex)
+      || resolution.findingIndex < 0
+      || !AI_CONTRAST_RESOLUTION_STATUSES.includes(resolution.status)
+    ) {
+      throw new ValidationError('AI contrast resolution is invalid');
+    }
+    const key = `${resolution.axis}:${resolution.findingIndex}`;
+    if (!pending.has(key) || seen.has(key)) {
+      throw new ValidationError('AI contrast resolution does not match a draft finding');
+    }
+    seen.add(key);
+  }
+  if (seen.size !== pending.size) {
+    throw new ContrastResolutionRequiredError();
+  }
+}
+
 /**
  * 현재 pending generated draft에만 하나의 terminal review event를 append한다. 승인 시
  * sessions 호환 컬럼도 같은 batch에서 갱신하지만, 공식 읽기는 항상 view를 사용한다.
@@ -4263,6 +4393,41 @@ export async function reviewGeneratedAiDraft(
     throw new GroundedEvidenceRequiredError();
   }
 
+  // 승인 = 정합성 검증(R2 · CCC-114): 세션 승인 경로(approveSession)와 같은 전제를 이
+  // 경로에도 강제한다 — 대조 3종의 모든 항목에 처리 결과가 있어야 하고, 녹음 재료가
+  // 있는 회차는 화자 매핑 확인(D11)이 끝나 있거나 이 요청의 확언으로 함께 기록돼야 한다.
+  let confirmSpeakerMappingNow = false;
+  if (decision === 'approved') {
+    const session = await getSessionForOrg(env, actor.orgId, workItem.sessionId);
+    const hasRecordingMaterial = session.audioR2Key !== null
+      || current.materials.some((material) => material.kind === 'transcript');
+    if (hasRecordingMaterial && session.speakerMappingConfirmedAt === null) {
+      if (input.speakerMappingConfirmed !== true) {
+        await writePhase1Denial(env, actor, {
+          targetTable: 'ai_review_events',
+          targetId: current.id,
+          caseId: workItem.caseId,
+          reason: 'speaker_confirmation_required',
+        });
+        throw new SpeakerConfirmationRequiredError();
+      }
+      confirmSpeakerMappingNow = true;
+    }
+    try {
+      assertContrastResolutionsComplete(current.contrast, input.contrastResolutions);
+    } catch (error) {
+      await writePhase1Denial(env, actor, {
+        targetTable: 'ai_review_events',
+        targetId: current.id,
+        caseId: workItem.caseId,
+        reason: error instanceof ContrastResolutionRequiredError
+          ? 'contrast_resolution_required'
+          : 'invalid_contrast_resolution',
+      });
+      throw error;
+    }
+  }
+
   const reviewedAt = now();
   try {
     const statements: D1PreparedStatement[] = [
@@ -4272,8 +4437,8 @@ export async function reviewGeneratedAiDraft(
     ];
     if (decision === 'approved') {
       statements.push(env.DB.prepare(
-        'UPDATE sessions SET ai_status = ?, ai_summary = ?, approved_at = ?, approved_by = ?, updated_at = ? WHERE id = ? AND org_id = ?',
-      ).bind('approved', current.summaryText, reviewedAt, actor.userId, reviewedAt, workItem.sessionId, actor.orgId));
+        'UPDATE sessions SET ai_status = ?, ai_summary = ?, approved_at = ?, approved_by = ?, speaker_mapping_confirmed_at = COALESCE(speaker_mapping_confirmed_at, ?), updated_at = ? WHERE id = ? AND org_id = ?',
+      ).bind('approved', current.summaryText, reviewedAt, actor.userId, confirmSpeakerMappingNow ? reviewedAt : null, reviewedAt, workItem.sessionId, actor.orgId));
     }
     await env.DB.batch(statements);
   } catch (error) {
@@ -4590,8 +4755,14 @@ export async function approveGeneratedAiDraft(
   actor: Actor,
   workItemId: string,
   expectedVersion: number,
+  review: Pick<AiDraftReviewInput, 'contrastResolutions' | 'speakerMappingConfirmed'> = {},
 ): Promise<AiDraftVersion> {
-  return reviewGeneratedAiDraft(env, actor, workItemId, { expectedVersion, decision: 'approved' });
+  return reviewGeneratedAiDraft(env, actor, workItemId, {
+    expectedVersion,
+    decision: 'approved',
+    contrastResolutions: review.contrastResolutions ?? [],
+    ...(review.speakerMappingConfirmed === undefined ? {} : { speakerMappingConfirmed: review.speakerMappingConfirmed }),
+  });
 }
 
 export async function rejectGeneratedAiDraft(
@@ -6309,11 +6480,21 @@ export async function finalizeRecordingResult(
 
 export type TextWorkReason = 'manual_record' | 'ai_draft_approved' | 'goal_revised';
 
+/**
+ * 임대 길이 (CCC-120). 장비 폴링 주기(수 분)보다 넉넉해야 정상 처리 중에 다른
+ * 장비로 넘어가지 않고, 무한하지 않아야 죽은 장비의 일감이 되살아난다.
+ */
+const TEXT_WORK_LEASE_MS = 15 * 60_000;
+
 export interface TextWorkItem {
   id: string;
   sessionId: string;
   reason: TextWorkReason;
   enqueuedAt: string;
+  /** 이 폴링이 부여한 임대의 만료 시각 (CCC-120). ISO-8601 UTC. */
+  leaseExpiresAt: string;
+  /** 임대가 부여된 누적 횟수. 1 이면 첫 시도, 2 이상이면 만료 재분배를 거쳍다. */
+  attemptCount: number;
 }
 
 /**
@@ -6388,8 +6569,14 @@ export async function enqueueTextWorkForGoalChange(
 }
 
 /**
- * 장비 폴링 — **지금 실제로 처리할 수 있는** 대기 일감만. 오디오 큐와 함께 D8 무폴링
- * 감시에 합산된다.
+ * 장비 폴링 — **지금 실제로 처리할 수 있는** 일감만 임대와 함께 내보낸다. 오디오
+ * 큐와 함께 D8 무폴링 감시에 합산된다.
+ *
+ * 폴링 = 임대 (CCC-120). 후보 선별(SELECT)과 임대 부여(UPDATE)가 한 문장이라 두
+ * 장비가 동시에 폴링해도 같은 일감이 두 번 나가지 않는다(D1 은 쓰기를 직렬화한다).
+ * 내보낸 행은 pending → processing 으로 바뀌고 임대 주인(서비스 토큰 식별자)·만료
+ * 시각을 얻는다. 임대가 만료된 processing 행은 후보에 다시 들어와 다른 장비로
+ * 넘어가며, 임대가 부여될 때마다 attempt_count 가 오른다.
  *
  * 처리 불가 조건을 목록 단계에서 걸러내는 이유: 스냅샷 저장(`recordMaskedSourceSnapshot`)
  * 은 파일럿 활성 + 텍스트 AI 동의 근거를 요구하고, 원문 조회는 공식 텍스트를 요구한다.
@@ -6404,38 +6591,57 @@ export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWor
   // 파일럿이 꺼져 있으면 스냅샷 저장이 전부 거부된다 — 아예 내보내지 않는다.
   if (!isPilotTextAiEnabled(env)) return [];
 
+  const polledAt = now();
+  const leaseExpiresAt = new Date(Date.now() + TEXT_WORK_LEASE_MS).toISOString();
   const result = await env.DB.prepare(
-    `SELECT queue.id, queue.session_id, queue.reason, queue.enqueued_at
-     FROM ai_text_work_queue AS queue
-     JOIN sessions AS session ON session.id = queue.session_id AND session.org_id = queue.org_id
-     WHERE queue.org_id = ? AND queue.status = 'pending'
-       -- ② 텍스트 AI 동의 근거가 효력 중이어야 스냅샷을 저장할 수 있다.
-       AND EXISTS (
-         SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
-         WHERE evidence.org_id = queue.org_id
-           AND evidence.support_case_id = queue.support_case_id
-           AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-       )
-       -- 마스킹할 공식 텍스트가 있어야 한다(수기 메모 또는 승인된 AI 정리). 인테이크
-       -- 회차는 memo 가 NULL 이라(본문은 intake_details) 승인된 정리가 생기기 전까지
-       -- 여기서 걸린다 — 원문 조회가 400 을 던질 행을 애초에 내보내지 않는다.
-       AND (
-         TRIM(COALESCE(session.memo, '')) <> ''
-         OR EXISTS (
-           SELECT 1 FROM approved_ai_briefing_v1 AS approved
-           WHERE approved.org_id = queue.org_id AND approved.session_id = queue.session_id
-             AND TRIM(COALESCE(approved.summary_text, '')) <> ''
+    `UPDATE ai_text_work_queue SET
+       status = 'processing',
+       lease_owner = ?1,
+       lease_expires_at = ?2,
+       attempt_count = attempt_count + 1
+     WHERE id IN (
+       SELECT queue.id
+       FROM ai_text_work_queue AS queue
+       JOIN sessions AS session ON session.id = queue.session_id AND session.org_id = queue.org_id
+       WHERE queue.org_id = ?3
+         AND (
+           queue.status = 'pending'
+           -- 만료된 임대는 재분배 대상 (CCC-120). ISO-8601 UTC 라 문자열 비교가 곧 시간 비교다.
+           OR (queue.status = 'processing' AND queue.lease_expires_at <= ?4)
          )
-       )
-     ORDER BY queue.enqueued_at
-     LIMIT 50`,
-  ).bind(actor.orgId).all<DbRow>();
+         -- ② 텍스트 AI 동의 근거가 효력 중이어야 스냅샷을 저장할 수 있다.
+         AND EXISTS (
+           SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
+           WHERE evidence.org_id = queue.org_id
+             AND evidence.support_case_id = queue.support_case_id
+             AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         )
+         -- 마스킹할 공식 텍스트가 있어야 한다(수기 메모 또는 승인된 AI 정리). 인테이크
+         -- 회차는 memo 가 NULL 이라(본문은 intake_details) 승인된 정리가 생기기 전까지
+         -- 여기서 걸린다 — 원문 조회가 400 을 던질 행을 애초에 내보내지 않는다.
+         AND (
+           TRIM(COALESCE(session.memo, '')) <> ''
+           OR EXISTS (
+             SELECT 1 FROM approved_ai_briefing_v1 AS approved
+             WHERE approved.org_id = queue.org_id AND approved.session_id = queue.session_id
+               AND TRIM(COALESCE(approved.summary_text, '')) <> ''
+           )
+         )
+       ORDER BY queue.enqueued_at
+       LIMIT 50
+     )
+     RETURNING id, session_id, reason, enqueued_at, lease_expires_at, attempt_count`,
+  ).bind(actor.userId, leaseExpiresAt, actor.orgId, polledAt).all<DbRow>();
   const items = result.results.map((row) => ({
     id: stringValue(row.id),
     sessionId: stringValue(row.session_id),
     reason: stringValue(row.reason) as TextWorkReason,
     enqueuedAt: stringValue(row.enqueued_at),
+    leaseExpiresAt: stringValue(row.lease_expires_at),
+    attemptCount: Number(row.attempt_count),
   }));
+  // RETURNING 의 행 순서는 보장이 없다 — 폴링 계약(오래된 것부터)을 여기서 지킨다.
+  items.sort((a, b) => (a.enqueuedAt < b.enqueuedAt ? -1 : a.enqueuedAt > b.enqueuedAt ? 1 : a.id < b.id ? -1 : 1));
   await writeAudit(env, actor, {
     action: 'poll_pipeline',
     targetTable: 'ai_text_work_queue',
@@ -6495,8 +6701,14 @@ export async function getTextWorkItemSource(
   assertOpaqueIdentifier(itemId, 'text work item id');
   const item = await env.DB.prepare(
     `SELECT session_id, support_case_id FROM ai_text_work_queue
-     WHERE id = ? AND org_id = ? AND status = 'pending'`,
-  ).bind(itemId, actor.orgId).first<DbRow>();
+     WHERE id = ? AND org_id = ?
+       AND (
+         status = 'pending'
+         -- 임대 중이면 임대 주인만 원문을 받는다 (CCC-120). 만료돼 다른 장비가
+         -- 재임대하면 lease_owner 가 바뀌어 옛 주인은 여기서 걸린다.
+         OR (status = 'processing' AND lease_owner = ?)
+       )`,
+  ).bind(itemId, actor.orgId, actor.userId).first<DbRow>();
   if (item === null) {
     throw new ForbiddenError('text work item is not available in this organization');
   }
@@ -6594,16 +6806,47 @@ export async function getTextWorkItemSource(
   return { sessionId, text: maskRegisteredPii(parts.join('\n'), scope.caseId, pii) };
 }
 
-/** 스냅샷 저장 후 장비가 부른다. 완료 행은 불변이다(0029 트리거). */
+/**
+ * 스냅샷 저장 후 장비가 부른다. 완료 행은 불변이다(0029 트리거).
+ *
+ * 완료는 같은 회차의 마스킹 스냅샷과 반드시 연결된다(CCC-120, completed_snapshot_id).
+ * 클라이언트가 스냅샷 ID 를 보내지 않아도 서버가 회차로 역추적해 가장 최근 스냅샷을
+ * 연결한다 — 계약 순서상 장비는 완료 직전에 `POST /sessions/:id/ai/source` 로 스냅샷을
+ * 만들었으므로 그 스냅샷이 곧 이 일감의 산출물이고, 구 장비 클라이언트도 그대로 동작한다.
+ * 스냅샷이 하나도 없으면 완료를 거부한다: 스냅샷 없는 완료는 "마스킹 산출물이 있다"는
+ * 거짓 기록이 되기 때문이다.
+ */
 export async function completeTextWorkItem(env: Env, actor: Actor, itemId: string): Promise<void> {
   if (actor.role !== 'service') {
     throw new ForbiddenError('service role is required for text work items');
   }
   assertOpaqueIdentifier(itemId, 'text work item id');
+  const item = await env.DB.prepare(
+    `SELECT session_id FROM ai_text_work_queue
+     WHERE id = ? AND org_id = ?
+       AND (status = 'pending' OR (status = 'processing' AND lease_owner = ?))`,
+  ).bind(itemId, actor.orgId, actor.userId).first<DbRow>();
+  if (item === null) {
+    throw new ForbiddenError('text work item is not available in this organization');
+  }
+  // 같은 회차의 가장 최근 스냅샷 = 이 일감의 산출물 (회차 역추적, CCC-120).
+  const snapshot = await env.DB.prepare(
+    `SELECT id FROM ai_masked_source_snapshots
+     WHERE org_id = ? AND session_id = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+  ).bind(actor.orgId, stringValue(item.session_id)).first<DbRow>();
+  if (snapshot === null) {
+    throw new ValidationError('text work item has no masked snapshot to link');
+  }
+  const completedSnapshotId = stringValue(snapshot.id);
+  // 조회와 전이 사이에 임대가 넘어갔을 수 있어 UPDATE 가 같은 조건을 다시 확인한다.
   const result = await env.DB.prepare(
-    `UPDATE ai_text_work_queue SET status = 'done', completed_at = ?
-     WHERE id = ? AND org_id = ? AND status = 'pending'`,
-  ).bind(now(), itemId, actor.orgId).run();
+    `UPDATE ai_text_work_queue
+     SET status = 'done', completed_at = ?, completed_snapshot_id = ?
+     WHERE id = ? AND org_id = ?
+       AND (status = 'pending' OR (status = 'processing' AND lease_owner = ?))`,
+  ).bind(now(), completedSnapshotId, itemId, actor.orgId, actor.userId).run();
   if ((result.meta?.changes ?? 0) === 0) {
     throw new ForbiddenError('text work item is not available in this organization');
   }
@@ -6611,7 +6854,7 @@ export async function completeTextWorkItem(env: Env, actor: Actor, itemId: strin
     action: 'update',
     targetTable: 'ai_text_work_queue',
     targetId: itemId,
-    detail: { status: 'done' },
+    detail: { status: 'done', completedSnapshotId },
   });
 }
 
@@ -6672,45 +6915,105 @@ export async function getPipelineAudioKey(
 
 /**
  * 한 기관의 폴링 건강도를 계산한다(감사 미기록 — 호출부가 감사 정책을 정한다).
- * 데이터 원천: audit_log의 최신 poll_pipeline 시각(listPipelineJobs가 남긴다) +
- * 처리 대기 세션 수. lastPolledAt은 SQLite datetime 형식이라 UTC로 파싱해 비교한다.
+ * 데이터 원천 4종(전부 집계 SELECT — 읽기 전용):
+ *   ① audit_log의 최신 poll_pipeline 시각(listPipelineJobs·listTextWorkItems가 남긴다)
+ *   ② 오디오 대기 세션 수 + 텍스트 일감 큐 미완료(pending·processing) 건수(두 큐 합산)
+ *   ③ 가장 오래된 대기 작업의 대기 시간(오디오는 updated_at, 텍스트는 enqueued_at)
+ *   ④ 가장 최근 완료 시각(recording_result_commits.finalized_at · ai_text_work_queue.completed_at)
+ * 판정: 무폴링(thresholdHours 초과)뿐 아니라, 폴링이 최신이어도 가장 오래된 대기
+ * 작업이 queueThresholdHours를 넘게 묵으면 stale(queue_backlog)다 — 장비가 폴링만
+ * 하고 일을 끝내지 못하는 장애를 잡는다. audit_log.created_at은 SQLite datetime
+ * 형식, 나머지 열은 ISO라 parseUtcTimestamp로 겸용 파싱한다.
  */
-async function computePipelineHealth(env: Env, orgId: string, thresholdHours: number): Promise<PipelineHealth> {
-  const [pollRow, pendingRow] = await Promise.all([
+async function computePipelineHealth(
+  env: Env,
+  orgId: string,
+  thresholdHours: number,
+  queueThresholdHours: number,
+): Promise<PipelineHealth> {
+  const [pollRow, audioRow, textRow, audioDoneRow, textDoneRow] = await Promise.all([
     env.DB.prepare(
       "SELECT created_at FROM audit_log WHERE org_id = ? AND action = 'poll_pipeline' ORDER BY id DESC LIMIT 1",
     ).bind(orgId).first<{ created_at: string }>(),
     env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM sessions WHERE org_id = ? AND audio_r2_key IS NOT NULL AND ai_status IN ('uploaded', 'processing')",
-    ).bind(orgId).first<{ count: number }>(),
+      "SELECT COUNT(*) AS count, MIN(updated_at) AS oldest FROM sessions WHERE org_id = ? AND audio_r2_key IS NOT NULL AND ai_status IN ('uploaded', 'processing')",
+    ).bind(orgId).first<{ count: number; oldest: string | null }>(),
+    env.DB.prepare(
+      // 임대(0036·CCC-120) 도입 후 미완료는 pending + processing 이다. 임대가 만료된
+      // 행도 status 는 processing 인 채로 남으므로, 'pending' 만 세면 죽은 장비가
+      // 안고 있는 일감이 적체 감시에서 사라진다 — 미완료 전체를 센다.
+      "SELECT COUNT(*) AS count, MIN(enqueued_at) AS oldest FROM ai_text_work_queue WHERE org_id = ? AND status IN ('pending', 'processing')",
+    ).bind(orgId).first<{ count: number; oldest: string | null }>(),
+    env.DB.prepare(
+      'SELECT MAX(finalized_at) AS at FROM recording_result_commits WHERE org_id = ? AND finalized_at IS NOT NULL',
+    ).bind(orgId).first<{ at: string | null }>(),
+    env.DB.prepare(
+      "SELECT MAX(completed_at) AS at FROM ai_text_work_queue WHERE org_id = ? AND status = 'done'",
+    ).bind(orgId).first<{ at: string | null }>(),
   ]);
 
-  const pendingJobCount = pendingRow?.count ?? 0;
-  const thresholdMs = thresholdHours * 60 * 60 * 1000;
+  const nowMs = Date.now();
+  const pendingJobCount = audioRow?.count ?? 0;
+  const pendingTextWorkCount = textRow?.count ?? 0;
+  const pendingTotalCount = pendingJobCount + pendingTextWorkCount;
 
+  const oldestCandidates = [audioRow?.oldest, textRow?.oldest]
+    .filter((value): value is string => typeof value === 'string')
+    .map(parseUtcTimestamp)
+    .filter((ms) => !Number.isNaN(ms));
+  const oldestPendingMs = oldestCandidates.length > 0 ? Math.min(...oldestCandidates) : null;
+  const oldestPendingSince = oldestPendingMs === null ? null : new Date(oldestPendingMs).toISOString();
+  const oldestPendingHours = oldestPendingMs === null
+    ? null
+    : Math.round(((nowMs - oldestPendingMs) / (60 * 60 * 1000)) * 100) / 100;
+
+  const completedCandidates = [audioDoneRow?.at, textDoneRow?.at]
+    .filter((value): value is string => typeof value === 'string')
+    .map(parseUtcTimestamp)
+    .filter((ms) => !Number.isNaN(ms));
+  const lastCompletedAt = completedCandidates.length > 0
+    ? new Date(Math.max(...completedCandidates)).toISOString()
+    : null;
+
+  const staleReasons: PipelineStaleReason[] = [];
+  let lastPolledAt: string | null = null;
   if (pollRow === null || pollRow.created_at === null) {
-    // 폴링 이력 없음: 대기 작업이 있으면 stale(파이프라인이 한 번도 돌지 않음),
-    // 없으면 inactive(감시할 것이 없음 — 알림 대상 아님).
-    const stale = pendingJobCount > 0;
-    return {
-      orgId,
-      lastPolledAt: null,
-      stale,
-      status: stale ? 'stale' : 'inactive',
-      pendingJobCount,
-      thresholdHours,
-    };
+    // 폴링 이력 없음: 대기 작업(두 큐 합산)이 있으면 stale(파이프라인이 한 번도
+    // 돌지 않음), 없으면 inactive(감시할 것이 없음 — 알림 대상 아님).
+    if (pendingTotalCount > 0) {
+      staleReasons.push('never_polled');
+    }
+  } else {
+    const lastPolledMs = parseSqliteUtc(pollRow.created_at);
+    if (Number.isNaN(lastPolledMs) || nowMs - lastPolledMs > thresholdHours * 60 * 60 * 1000) {
+      staleReasons.push('poll_overdue');
+    }
+    lastPolledAt = Number.isNaN(lastPolledMs) ? null : new Date(lastPolledMs).toISOString();
+  }
+  if (oldestPendingMs !== null && nowMs - oldestPendingMs > queueThresholdHours * 60 * 60 * 1000) {
+    staleReasons.push('queue_backlog');
   }
 
-  const lastPolledMs = parseSqliteUtc(pollRow.created_at);
-  const stale = Number.isNaN(lastPolledMs) || Date.now() - lastPolledMs > thresholdMs;
+  const stale = staleReasons.length > 0;
+  const status = stale
+    ? 'stale' as const
+    : (pollRow === null || pollRow.created_at === null) && pendingTotalCount === 0
+      ? 'inactive' as const
+      : 'ok' as const;
   return {
     orgId,
-    lastPolledAt: Number.isNaN(lastPolledMs) ? null : new Date(lastPolledMs).toISOString(),
+    lastPolledAt,
+    lastCompletedAt,
     stale,
-    status: stale ? 'stale' : 'ok',
+    status,
+    staleReasons,
     pendingJobCount,
+    pendingTextWorkCount,
+    pendingTotalCount,
+    oldestPendingSince,
+    oldestPendingHours,
     thresholdHours,
+    queueThresholdHours,
   };
 }
 
@@ -6720,11 +7023,22 @@ async function computePipelineHealth(env: Env, orgId: string, thresholdHours: nu
  */
 export async function getPipelineHealth(env: Env, actor: Actor): Promise<PipelineHealth> {
   assertAdmin(actor);
-  const health = await computePipelineHealth(env, actor.orgId, resolvePipelineStaleHours(env));
+  const health = await computePipelineHealth(
+    env,
+    actor.orgId,
+    resolvePipelineStaleHours(env),
+    resolvePipelineQueueStaleHours(env),
+  );
   await writeAudit(env, actor, {
     action: 'read',
     targetTable: 'pipeline_health',
-    detail: { stale: health.stale, status: health.status, pendingJobCount: health.pendingJobCount },
+    detail: {
+      stale: health.stale,
+      status: health.status,
+      staleReasons: health.staleReasons,
+      pendingJobCount: health.pendingJobCount,
+      pendingTextWorkCount: health.pendingTextWorkCount,
+    },
   });
   return health;
 }
@@ -6732,27 +7046,32 @@ export async function getPipelineHealth(env: Env, actor: Actor): Promise<Pipelin
 /**
  * 전 기관 폴링 워치독 (D8). scheduled(cron) 핸들러 전용 내부 진입점 —
  * HTTP 행위자가 없다. 안전성 근거: (1) scheduled 핸들러에서만 호출하고,
- * (2) 세션·감사 조회만 하는 읽기 전용이며, (3) 남기는 유일한 쓰기는 append-only
+ * (2) 세션·텍스트 일감 큐·완료 기록·감사 조회만 하는 읽기 전용(집계 SELECT)이며, (3) 남기는 유일한 쓰기는 append-only
  * 감사 행(watchdog_check)뿐이다. 기관별 건강도를 계산·감사하고 배열로 돌려준다.
  * 알림 발송 판단(stale)은 호출부(Workers scheduled 핸들러)가 한다 —
  * gateway는 D1만 만지고 알림 채널은 건드리지 않는다 (R1 정신).
  */
 export async function runPipelineWatchdog(env: Env): Promise<PipelineHealth[]> {
   const thresholdHours = resolvePipelineStaleHours(env);
+  const queueThresholdHours = resolvePipelineQueueStaleHours(env);
   const orgs = await env.DB.prepare('SELECT DISTINCT org_id FROM cases ORDER BY org_id').all<{ org_id: string }>();
   const healths: PipelineHealth[] = [];
 
   for (const row of orgs.results) {
     const orgId = stringValue(row.org_id);
-    const health = await computePipelineHealth(env, orgId, thresholdHours);
+    const health = await computePipelineHealth(env, orgId, thresholdHours, queueThresholdHours);
     await writeAudit(env, systemActor(WATCHDOG_ACTOR_ID, orgId), {
       action: 'watchdog_check',
       targetTable: 'sessions',
       detail: {
         stale: health.stale,
         status: health.status,
+        staleReasons: health.staleReasons,
         pendingJobCount: health.pendingJobCount,
+        pendingTextWorkCount: health.pendingTextWorkCount,
+        oldestPendingHours: health.oldestPendingHours,
         thresholdHours,
+        queueThresholdHours,
       },
     });
     healths.push(health);
@@ -6796,6 +7115,8 @@ export async function approveSession(
     missingFromMemo: Array<{ item: string; action: 'accept' | 'dismiss' }>;
     missingFromAudio: Array<{ item: string; action: 'confirmed' | 'corrected' }>;
     undiscussedGoals: Array<{ goalId: string; note?: string }>;
+    /** 초안의 대조 3종 항목별 처리(CCC-114) — 항목이 있는 초안이면 전부를 덮어야 한다. */
+    contrastResolutions?: AiContrastResolutionInput[];
   },
 ): Promise<Session> {
   const session = await assertSessionAccess(env, actor, sessionId);
@@ -6883,6 +7204,9 @@ export async function approveSession(
     approved = await reviewAiDraftForSession(env, actor, sessionId, {
       expectedVersion,
       decision: 'approved',
+      // 승인 성공 조건 단일화(CCC-114): 초안 대조 항목이 있으면 이 목록이 전부를 덮어야
+      // 하고, 화자 확인은 위에서 이미 검사한 speaker_mapping_confirmed_at 이 증명한다.
+      contrastResolutions: resolutions.contrastResolutions ?? [],
     });
   } catch (error) {
     if (error instanceof StaleDraftVersionError) {

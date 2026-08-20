@@ -100,19 +100,23 @@
 - 같은 해시와 감정값을 다시 보내면 멱등 재생으로 처리한다. 이미 받은 결과와 다른 값은 `409`로 거부한다.
 - 성공하면 본문 없이 `204`를 응답한다. 형식이나 규칙이 맞지 않으면 `400`, 서비스 역할이 아니면 `403`을 응답한다.
 
-## 텍스트 일감 (D51 · D57 · ADR-0027 · D69 · ADR-0036)
+## 텍스트 일감 (D51 · D57 · ADR-0027 · D69 · ADR-0036 · CCC-120)
 
-사업자로 나갈 텍스트의 **2차 마스킹**을 장비에 맡기는 큐다(`ai_text_work_queue`, 마이그레이션 0029, 사유 확장 0034). 기록이 공식화될 때마다(수기 저장 · AI 정리 승인) 한 행이 쌓이고, 목표가 확정·수정되면 그 참여 사업의 미승인 회차들이 다시 쌓인다(D69. 목표 문구도 마스킹을 거쳐야 나간다). 오디오가 있는 회차의 수기 메모도 대상이다. 장비는 오디오 큐와 같은 폴링에서 함께 가져간다. 셋 다 서비스 역할 전용이며, 아니면 `403`이다.
+사업자로 나갈 텍스트의 **2차 마스킹**을 장비에 맡기는 큐다(`ai_text_work_queue`, 마이그레이션 0029, 사유 확장 0034, 임대·완료 스냅샷 연결 0036). 기록이 공식화될 때마다(수기 저장 · AI 정리 승인) 한 행이 쌓이고, 목표가 확정·수정되면 그 참여 사업의 미승인 회차들이 다시 쌓인다(D69. 목표 문구도 마스킹을 거쳐야 나간다). 오디오가 있는 회차의 수기 메모도 대상이다. 장비는 오디오 큐와 같은 폴링에서 함께 가져간다. 셋 다 서비스 역할 전용이며, 아니면 `403`이다.
 
 ### `GET /pipeline/text-jobs`
 
-대기 중인 일감을 오래된 순으로 최대 50건 돌려준다. 호출 자체가 D8 폴링 신호(`poll_pipeline` 감사)가 된다 — 무폴링 감시는 두 큐 합산이다.
+처리할 수 있는 일감을 오래된 순으로 최대 50건 **임대와 함께** 돌려준다. 호출 자체가 D8 폴링 신호(`poll_pipeline` 감사)가 된다 — 무폴링 감시는 두 큐 합산이다.
 
 ```json
-{ "jobs": [{ "id": "…", "sessionId": "…", "reason": "manual_record", "enqueuedAt": "…" }] }
+{ "jobs": [{ "id": "…", "sessionId": "…", "reason": "manual_record", "enqueuedAt": "…", "leaseExpiresAt": "…", "attemptCount": 1 }] }
 ```
 
 `reason`은 `manual_record`(수기 저장, D5), `ai_draft_approved`(AI 정리 승인, R2), `goal_revised`(목표 확정·수정, D69) 셋 중 하나다. 장비 처리 방식은 셋이 같고, 사유는 왜 이 행이 생겼는지의 기록일 뿐이다.
+
+**폴링 = 임대다(0036 · CCC-120).** 목록에 나온 행은 그 순간 `pending → processing` 으로 바뀌고 호출한 장비(서비스 토큰 식별자)에게 임대된다. 같은 행이 두 장비에 동시에 나가지 않는다 — 다른 장비가 곧바로 폴링해도 임대 중인 행은 보이지 않는다. 임대가 `leaseExpiresAt`(현재 15분)을 넘기도록 완료되지 않으면 그 행은 다시 폴링에 노출되어 다른 장비로 넘어가고, 임대가 부여될 때마다 `attemptCount` 가 1씩 오른다(1 = 첫 시도). 자기 임대가 만료 전이라면 재폴링에 같은 행이 다시 나오지 않으므로, 받은 목록은 만료 전에 처리한다.
+
+`leaseExpiresAt` · `attemptCount` 는 응답 필드 **추가**라 구 장비 클라이언트는 몰라도 동작한다(모르는 필드는 무시하면 된다).
 
 **지금 처리할 수 있는 행만 나온다.** 아래 셋 중 하나라도 어긋나면 그 행은 목록에서 빠진다 — 큐는 삭제가 없어(0029), 실패할 행을 내보내면 매 폴링마다 같은 행에 걸려 영원히 쌓이기 때문이다. 조건이 갖춰지면 같은 행이 저절로 보인다.
 
@@ -130,34 +134,51 @@
 { "sessionId": "…", "text": "…" }
 ```
 
-공식 텍스트가 하나도 없으면 `400`, 대기 중인 일감이 아니면 `403`이다.
+공식 텍스트가 하나도 없으면 `400`이다. 자기가 임대한 일감(또는 아직 임대되지 않은 대기 행)이 아니면 `403`이다 — 임대가 만료돼 다른 장비로 넘어간 뒤 옛 임대 주인이 부르는 경우도 여기 해당한다.
 
 ### `POST /pipeline/text-jobs/:id/complete`
 
-스냅샷을 만든 뒤 호출한다. 성공하면 본문 없이 `204`. 완료 행은 불변이라 다시 완료할 수 없다(`403`).
+스냅샷을 만든 뒤 호출한다. 성공하면 본문 없이 `204`. 완료 행은 불변이라 다시 완료할 수 없다(`403`). 원문 조회와 같은 임대 규칙이 적용된다 — 임대가 다른 장비로 넘어갔으면 `403`.
 
 장비는 이 사이에 기존 `POST /sessions/:id/ai/source`로 2차 마스킹 스냅샷을 올린다. **그 호출이 내용 불일치 검출을 돌린다** — 스냅샷이 없는 회차는 검출 재료가 되지 않기 때문이다(R3 · ADR-0027). 근거(`evidence`)는 최소 1건이 필요하므로, 발췌할 것이 따로 없는 텍스트 일감은 마스킹된 본문 전체를 한 조각으로 보낸다.
+
+**완료는 스냅샷과 연결된다(0036 · CCC-120).** 서버가 그 일감의 회차로 역추적해 가장 최근 마스킹 스냅샷을 `completed_snapshot_id` 로 연결한다 — 계약 순서상 완료 직전에 올린 스냅샷이 곧 이 일감의 산출물이다. 클라이언트는 스냅샷 ID 를 보낼 필요가 없어 구 장비 클라이언트도 요청 변경 없이 동작한다. 그 회차에 스냅샷이 하나도 없으면 완료를 거부한다(`400`) — 스냅샷을 올린 뒤에 부르라는 뜻이다.
 
 ### `GET /pipeline/health`
 
 폴링 워치독의 조회 경로다(D8). 관리자 전용이며 자기 조직 기준으로 최신 `poll_pipeline` 감사 시각과 무폴링 여부를 돌려준다. `admin`이 아니면 `403`, 인증 정보가 없으면 `401`.
 
 - `lastPolledAt`: 가장 최근 `poll_pipeline` 감사 시각(ISO, UTC). 폴링 이력이 없으면 `null`. (`audit_log.created_at`은 SQLite `datetime('now')` 형식 `'YYYY-MM-DD HH:MM:SS'`(UTC)이라, 비교 시 UTC로 파싱한다.)
+- `lastCompletedAt`: 가장 최근 완료 시각(ISO, UTC) — 오디오 완료(`recording_result_commits.finalized_at`)와 텍스트 일감 완료(`ai_text_work_queue.completed_at`)의 최댓값. 완료 이력이 없으면 `null`.
 - `pendingJobCount`: 오디오가 등록됐지만 아직 처리 안 된 세션 수(`uploaded`·`processing`).
-- `thresholdHours`: 판정 임계값(기본 6, `PIPELINE_STALE_HOURS`로 조정).
-- `status` / `stale`:
-  - `ok` — 임계값 안에 최근 폴링이 있음. `stale=false`.
-  - `stale` — 임계값 초과 무폴링이거나, 대기 작업이 있는데 폴링 이력 자체가 없음. `stale=true`(관리자 알림 대상).
+- `pendingTextWorkCount`: 텍스트 일감 큐의 미완료(`pending`·`processing`) 건수 — 임대(0036)가 만료된 채 멈춘 `processing` 행도 포함한다.
+- `pendingTotalCount`: 두 큐 합산 대기 건수(판정 기준).
+- `oldestPendingSince` / `oldestPendingHours`: 가장 오래된 대기 작업의 시각(ISO)과 대기 시간(시간). 대기 작업이 없으면 둘 다 `null`.
+- `thresholdHours`: 무폴링 판정 임계값(기본 6, `PIPELINE_STALE_HOURS`로 조정).
+- `queueThresholdHours`: 큐 적체 판정 임계값(`PIPELINE_QUEUE_STALE_HOURS`, 미설정이면 `thresholdHours`와 동일).
+- `status` / `stale` / `staleReasons`:
+  - `ok` — 임계값 안에 최근 폴링이 있고 큐 적체도 없음. `stale=false`, `staleReasons=[]`.
+  - `stale` — `stale=true`(관리자 알림 대상). 사유는 `staleReasons` 배열에 1개 이상:
+    - `poll_overdue` — 임계값 초과 무폴링.
+    - `never_polled` — 대기 작업이 있는데 폴링 이력 자체가 없음.
+    - `queue_backlog` — 폴링이 최신이어도 가장 오래된 대기 작업이 `queueThresholdHours`를 초과해 묵음.
   - `inactive` — 폴링 이력도 없고 대기 작업도 없음. `stale=false`(감시 대상 아님).
 
 ```json
 {
   "orgId": "org_demo",
   "lastPolledAt": "2026-07-10T02:00:00.000Z",
+  "lastCompletedAt": "2026-07-09T23:00:00.000Z",
   "stale": true,
   "status": "stale",
+  "staleReasons": ["queue_backlog"],
   "pendingJobCount": 1,
-  "thresholdHours": 6
+  "pendingTextWorkCount": 2,
+  "pendingTotalCount": 3,
+  "oldestPendingSince": "2026-07-09T20:00:00.000Z",
+  "oldestPendingHours": 8.5,
+  "thresholdHours": 6,
+  "queueThresholdHours": 6
 }
 ```
 
