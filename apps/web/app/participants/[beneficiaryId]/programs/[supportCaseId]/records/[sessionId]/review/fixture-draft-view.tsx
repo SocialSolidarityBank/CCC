@@ -7,6 +7,7 @@ import type {
   AiDraftOrigin,
   AiDraftReviewDecision,
   AiMaterialKind,
+  TranscriptQuality,
 } from '../../../../../../../lib/api';
 import { GridContainer } from '../../../../../../../components/wire/grid-container';
 import { MetaRow } from '../../../../../../../components/wire/meta-row';
@@ -40,6 +41,16 @@ const materialKindLabels: Record<AiMaterialKind, string> = {
   text_context: '텍스트',
 };
 
+// 전사 경고 사유 코드 → 안내 문구 (CCC-124). 모르는 코드는 코드 그대로 보여준다 —
+// 화면이 원인 불명 경고를 숨기지 않는다.
+const transcriptWarningReasonLabels: Record<string, string> = {
+  repetition: '같은 문장 반복(전사 붕괴)',
+};
+
+function transcriptClock(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
 // 항목별 처리 3종(CCC-114) — CONTEXT.md '내용 불일치'와 같은 낱말·순서(ADR-0018).
 const contrastResolutionOptions = ['situation_changed', 'record_error', 'confirmed'] as const;
 const contrastResolutionLabels: Record<(typeof contrastResolutionOptions)[number], string> = {
@@ -76,6 +87,8 @@ export interface DraftReviewViewModel {
   /** 재생성 노출 조건은 서버가 판정한다(R1) — 화면은 이 값만 읽는다. */
   regenerateAvailable: boolean;
   regenerateSourceSnapshotId: string | null;
+  /** 전사 품질 (CCC-124). null = 녹음 결과 없음 또는 레거시 결과(품질 미상). */
+  transcriptQuality: TranscriptQuality | null;
 }
 
 export interface DraftReviewViewProps {
@@ -213,6 +226,30 @@ export function DraftReviewView({
         )}
 
         {errorMessage !== undefined && <WireError>{errorMessage}</WireError>}
+
+        {/* 전사 신뢰 불가 구간 표시 (CCC-124). 표시만 한다 — 승인 차단은 CCC-114 후속.
+            어느 쪽이 맞는지 정하는 것은 사람 몫이다(R5). */}
+        {draft.transcriptQuality !== null && !draft.transcriptQuality.transcriptReliable && (
+          <WireCallout
+            title="전사를 신뢰할 수 없는 구간이 있습니다"
+            role="alert"
+            testId="transcript-quality-warning"
+          >
+            <p className="panel-meta">
+              아래 시간대는 전사가 붕괴해 내용이 정확하지 않을 수 있습니다. 녹음을 직접
+              확인하거나 수기 메모와 대조한 뒤 검토하세요.
+            </p>
+            <ul className="briefing-suggestions" data-testid="transcript-quality-warning-spans">
+              {draft.transcriptQuality.warnings.map((warning, index) => (
+                <li key={`${warning.startSeconds}-${warning.endSeconds}-${warning.reason}-${index}`}>
+                  {transcriptClock(warning.startSeconds)}~{transcriptClock(warning.endSeconds)}
+                  {': '}
+                  {transcriptWarningReasonLabels[warning.reason] ?? warning.reason}
+                </li>
+              ))}
+            </ul>
+          </WireCallout>
+        )}
 
         <WireCard
           as="section"

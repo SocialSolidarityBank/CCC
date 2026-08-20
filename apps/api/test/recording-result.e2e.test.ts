@@ -739,3 +739,135 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     expect(provider.calls).toBe(2);
   });
 });
+describe('recording result transcript quality (CCC-124)', () => {
+  function previewEnv(): ApiEnv {
+    return {
+      ...t.env,
+      PREVIEW_MODE: 'true',
+      PREVIEW_ACCESS_CODE: 'fixture-preview-code',
+      TEXT_AI_PILOT_ENABLED: '1',
+      EXTERNAL_AI_CALLS_ENABLED: '0',
+    };
+  }
+
+  async function consentedRecording(submissionId: `${string}-${string}-${string}-${string}-${string}`) {
+    const env = previewEnv();
+    const { caseRecord, session } = await createUploadedRecording(submissionId);
+    await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
+      noticeVersion: 'recording-result-e2e-v1',
+      noticeSha256: 'a'.repeat(64),
+      evidenceRef: 'fixture:recording-consent',
+      evidenceSha256: 'b'.repeat(64),
+      effectiveAt: '2020-01-01T00:00:00.000Z',
+    });
+    return { env, caseRecord, session };
+  }
+
+  async function storedQuality(sessionId: string): Promise<string | null> {
+    const row = await t.db.prepare(
+      'SELECT transcript_quality FROM recording_result_commits WHERE session_id = ?',
+    ).bind(sessionId).first<{ transcript_quality: string | null }>();
+    if (row === null) throw new Error('recording result commit is missing');
+    return row.transcript_quality;
+  }
+
+  it('stores structured warnings and exposes them on the review draft endpoint', async () => {
+    await t.reset();
+    const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000124');
+    const body = {
+      ...(await recordingResultBody()),
+      transcriptReliable: false,
+      transcriptWarnings: [
+        { startSeconds: 305.5, endSeconds: 512, reason: 'repetition' },
+      ],
+    };
+    const response = await postResult(env, session.id, body);
+    expect(response.status, await response.text()).toBe(204);
+
+    const stored = await storedQuality(session.id);
+    if (stored === null) throw new Error('transcript quality is missing');
+    expect(JSON.parse(stored)).toEqual({
+      transcriptReliable: false,
+      warnings: [{ startSeconds: 305.5, endSeconds: 512, reason: 'repetition' }],
+    });
+    // R3: 구조화 컬럼에는 시간 구간·사유 코드만 담긴다 — 전사 내용이 새면 안 된다.
+    expect(stored).not.toContain(MASKED_FIXTURE);
+
+    const draft = await worker.fetch(new Request(
+      `http://localhost/sessions/${session.id}/ai`,
+      { headers: counselorHeaders },
+    ), env);
+    expect(draft.status).toBe(200);
+    const draftBody = await draft.json<{ transcriptQuality: unknown }>();
+    expect(draftBody.transcriptQuality).toEqual({
+      transcriptReliable: false,
+      warnings: [{ startSeconds: 305.5, endSeconds: 512, reason: 'repetition' }],
+    });
+  });
+
+  it('stores a reliable verdict with an empty warning list', async () => {
+    await t.reset();
+    const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000125');
+    const body = {
+      ...(await recordingResultBody()),
+      transcriptReliable: true,
+      transcriptWarnings: [],
+    };
+    expect((await postResult(env, session.id, body)).status).toBe(204);
+    const stored = await storedQuality(session.id);
+    if (stored === null) throw new Error('transcript quality is missing');
+    expect(JSON.parse(stored)).toEqual({ transcriptReliable: true, warnings: [] });
+  });
+
+  it('keeps legacy results without quality fields as unknown (NULL)', async () => {
+    await t.reset();
+    const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000126');
+    expect((await postResult(env, session.id, await recordingResultBody())).status).toBe(204);
+    expect(await storedQuality(session.id)).toBeNull();
+
+    const draft = await worker.fetch(new Request(
+      `http://localhost/sessions/${session.id}/ai`,
+      { headers: counselorHeaders },
+    ), env);
+    expect(draft.status).toBe(200);
+    expect((await draft.json<{ transcriptQuality: unknown }>()).transcriptQuality).toBeNull();
+  });
+
+  it('rejects malformed quality fields without committing', async () => {
+    await t.reset();
+    const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000127');
+    const valid = await recordingResultBody();
+    const malformed: Array<Record<string, unknown>> = [
+      // 두 필드는 함께만 온다.
+      { ...valid, transcriptWarnings: [] },
+      { ...valid, transcriptReliable: false },
+      { ...valid, transcriptReliable: 'false', transcriptWarnings: [] },
+      // 구간이 뒤집히면 거부.
+      {
+        ...valid,
+        transcriptReliable: false,
+        transcriptWarnings: [{ startSeconds: 90, endSeconds: 30, reason: 'repetition' }],
+      },
+      // 사유는 고정 코드 형식만 — 자유 문장(전사 내용 유출 경로)은 거부(R3).
+      {
+        ...valid,
+        transcriptReliable: false,
+        transcriptWarnings: [{ startSeconds: 0, endSeconds: 5, reason: '같은 문장 반복 구간' }],
+      },
+      // 경고 항목에 여분 키(텍스트 등) 금지.
+      {
+        ...valid,
+        transcriptReliable: false,
+        transcriptWarnings: [{ startSeconds: 0, endSeconds: 5, reason: 'repetition', text: 'leak' }],
+      },
+    ];
+    for (const body of malformed) {
+      const response = await postResult(env, session.id, body);
+      expect(response.status, JSON.stringify(body)).toBe(400);
+    }
+    const commits = await t.db.prepare(
+      'SELECT COUNT(*) AS count FROM recording_result_commits WHERE session_id = ?',
+    ).bind(session.id).first<{ count: number }>();
+    expect(commits?.count).toBe(0);
+  });
+});

@@ -34,10 +34,53 @@ function props(overrides: Partial<DraftReviewViewProps> = {}): DraftReviewViewPr
       contrast: singleTextMaterialContrast,
       regenerateAvailable: false,
       regenerateSourceSnapshotId: null,
+      transcriptQuality: null,
     },
     ...overrides,
   };
 }
+
+describe('DraftReviewView transcript quality (CCC-124)', () => {
+  it('shows warning spans when the transcript is not reliable', () => {
+    render(<DraftReviewView {...props({
+      draft: {
+        ...props().draft,
+        transcriptQuality: {
+          transcriptReliable: false,
+          warnings: [
+            { startSeconds: 305, endSeconds: 512, reason: 'repetition' },
+            { startSeconds: 1000, endSeconds: 1090, reason: 'unknown_future_reason' },
+          ],
+        },
+      },
+    })} />);
+
+    const callout = screen.getByTestId('transcript-quality-warning');
+    expect(callout.textContent).toContain('전사를 신뢰할 수 없는 구간이 있습니다');
+    const spans = within(screen.getByTestId('transcript-quality-warning-spans')).getAllByRole('listitem');
+    expect(spans).toHaveLength(2);
+    expect(spans[0]?.textContent).toContain('05:05~08:32');
+    expect(spans[0]?.textContent).toContain('같은 문장 반복(전사 붕괴)');
+    // 모르는 사유 코드는 숨기지 않고 코드 그대로 보여준다.
+    expect(spans[1]?.textContent).toContain('16:40~18:10');
+    expect(spans[1]?.textContent).toContain('unknown_future_reason');
+  });
+
+  it('shows no warning when the transcript is reliable', () => {
+    render(<DraftReviewView {...props({
+      draft: {
+        ...props().draft,
+        transcriptQuality: { transcriptReliable: true, warnings: [] },
+      },
+    })} />);
+    expect(screen.queryByTestId('transcript-quality-warning')).toBeNull();
+  });
+
+  it('shows no warning for legacy results without quality data', () => {
+    render(<DraftReviewView {...props()} />);
+    expect(screen.queryByTestId('transcript-quality-warning')).toBeNull();
+  });
+});
 
 describe('DraftReviewView', () => {
   it('renders fixture provenance and draft values without review or regenerate controls', () => {

@@ -2221,12 +2221,30 @@ export interface RecordMaskedSourceSnapshotInput {
 
 export interface RecordingResultInput extends RecordMaskedSourceSnapshotInput {
   emotionScores: Record<string, unknown>;
+  // 전사 품질 구조화 필드 (CCC-124). 없으면 레거시 파이프라인 결과다 — 품질 미상으로
+  // NULL 저장한다(거짓으로 채우지 않는다). 두 필드는 항상 함께 온다.
+  transcriptReliable?: boolean;
+  transcriptWarnings?: TranscriptQualityWarning[];
+}
+
+/** 전사 경고 한 구간 (CCC-124). 시간과 고정 사유 코드만 — 전사 내용은 싣지 않는다(R3). */
+export interface TranscriptQualityWarning {
+  startSeconds: number;
+  endSeconds: number;
+  reason: string;
+}
+
+export interface TranscriptQuality {
+  transcriptReliable: boolean;
+  warnings: TranscriptQualityWarning[];
 }
 
 export interface RecordingResultCommit {
   sessionId: string;
   snapshot: MaskedSourceSnapshot;
   emotionScores: Record<string, unknown>;
+  /** null = 구조화 품질 필드가 없던 레거시 결과 (품질 미상). */
+  transcriptQuality: TranscriptQuality | null;
   replayed: boolean;
   finalized: boolean;
   downstreamReady: boolean;
@@ -6244,19 +6262,77 @@ function assertNumericJson(value: unknown, field: string): void {
   throw new ValidationError(`${field} must contain numbers only`);
 }
 
+const TRANSCRIPT_WARNING_REASON = /^[a-z][a-z0-9_-]{0,63}$/;
+
+/**
+ * 전사 품질 구조화 필드 검증 (CCC-124). 두 필드는 함께만 온다. 경고에는 시간
+ * 구간과 고정 사유 코드만 허용한다 — 자유 문장을 받으면 2차 마스킹을 거치지 않은
+ * 전사 내용이 이 컬럼으로 샐 수 있다(R3).
+ */
+function parseTranscriptQualityInput(input: RecordingResultInput): TranscriptQuality | null {
+  const hasReliable = input.transcriptReliable !== undefined;
+  const hasWarnings = input.transcriptWarnings !== undefined;
+  if (!hasReliable && !hasWarnings) return null;
+  if (!hasReliable || !hasWarnings) {
+    throw new ValidationError('transcript quality fields must be provided together');
+  }
+  if (typeof input.transcriptReliable !== 'boolean') {
+    throw new ValidationError('transcript reliability must be a boolean');
+  }
+  if (!Array.isArray(input.transcriptWarnings)) {
+    throw new ValidationError('transcript warnings must be a list');
+  }
+  const warnings = input.transcriptWarnings.map((item): TranscriptQualityWarning => {
+    if (item === null || typeof item !== 'object') {
+      throw new ValidationError('transcript warning item is invalid');
+    }
+    if (
+      typeof item.startSeconds !== 'number' || !Number.isFinite(item.startSeconds)
+      || typeof item.endSeconds !== 'number' || !Number.isFinite(item.endSeconds)
+      || item.startSeconds < 0 || item.endSeconds <= item.startSeconds
+    ) {
+      throw new ValidationError('transcript warning span is invalid');
+    }
+    if (typeof item.reason !== 'string' || !TRANSCRIPT_WARNING_REASON.test(item.reason)) {
+      throw new ValidationError('transcript warning reason must be a short code');
+    }
+    return { startSeconds: item.startSeconds, endSeconds: item.endSeconds, reason: item.reason };
+  });
+  return { transcriptReliable: input.transcriptReliable, warnings };
+}
+
+/**
+ * 검토 화면용 전사 품질 조회 (CCC-124). 상담사·관리자가 승인 전에 전사 신뢰 불가
+ * 구간을 보는 용도라 서비스 역할 검사 대신 케이스 접근 검사(assertPhase1SessionAccess)를
+ * 쓴다. null = 녹음 결과가 없거나 구조화 필드가 없던 레거시 결과(품질 미상).
+ */
+export async function getTranscriptQualityForSession(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+): Promise<TranscriptQuality | null> {
+  const session = await assertPhase1SessionAccess(env, actor, sessionId);
+  const row = await env.DB.prepare(
+    'SELECT transcript_quality FROM recording_result_commits WHERE session_id = ? AND org_id = ?',
+  ).bind(session.id, actor.orgId).first<{ transcript_quality: string | null }>();
+  if (row === null || row.transcript_quality === null) return null;
+  return parseJson<TranscriptQuality>(row.transcript_quality);
+}
+
 async function existingRecordingResultCommit(
   env: Env,
   actor: Actor,
   session: Session,
 ): Promise<RecordingResultCommit | null> {
   const row = await env.DB.prepare(
-    `SELECT snapshot_id, result_sha256, emotion_scores, finalized_at
+    `SELECT snapshot_id, result_sha256, emotion_scores, transcript_quality, finalized_at
      FROM recording_result_commits
      WHERE session_id = ? AND org_id = ?`,
   ).bind(session.id, actor.orgId).first<{
     snapshot_id: string;
     result_sha256: string;
     emotion_scores: string;
+    transcript_quality: string | null;
     finalized_at: string | null;
   }>();
   if (row === null) return null;
@@ -6271,6 +6347,9 @@ async function existingRecordingResultCommit(
     sessionId: session.id,
     snapshot,
     emotionScores: parseJson<Record<string, unknown>>(row.emotion_scores) ?? {},
+    transcriptQuality: row.transcript_quality === null
+      ? null
+      : parseJson<TranscriptQuality>(row.transcript_quality),
     replayed: true,
     finalized: row.finalized_at !== null,
     downstreamReady: false,
@@ -6321,6 +6400,8 @@ export async function commitRecordingResult(
   if (input.emotionScores !== null && Object.keys(input.emotionScores).length > 0) {
     throw new EmotionDeferredError();
   }
+  const transcriptQuality = parseTranscriptQualityInput(input);
+  const transcriptQualityJson = transcriptQuality === null ? null : canonicalizeJcs(transcriptQuality);
   assertMaskedSourceSnapshotInput(input);
   assertNoObviousUnmaskedPii(input.maskedText);
   if (await sha256Hex(input.maskedText) !== input.sha256) {
@@ -6331,11 +6412,15 @@ export async function commitRecordingResult(
   const existing = await existingRecordingResultCommit(env, actor, session);
   if (existing !== null) {
     const emotionJson = canonicalizeJcs(input.emotionScores);
+    const existingQualityJson = existing.transcriptQuality === null
+      ? null
+      : canonicalizeJcs(existing.transcriptQuality);
     if (
       existing.snapshot.sha256 !== input.sha256
       || existing.snapshot.maskedText !== input.maskedText
       || existing.snapshot.maskingPipelineVersion !== input.maskingPipelineVersion
       || canonicalizeJcs(existing.emotionScores) !== emotionJson
+      || existingQualityJson !== transcriptQualityJson
     ) {
       await writePhase1Denial(env, actor, {
         targetTable: 'recording_result_commits',
@@ -6364,8 +6449,8 @@ export async function commitRecordingResult(
       env.DB.prepare(
         `INSERT INTO recording_result_commits (
            session_id, org_id, support_case_id, snapshot_id, result_sha256,
-           emotion_scores, created_by, created_at, downstream_claimed_at, finalized_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+           emotion_scores, transcript_quality, created_by, created_at, downstream_claimed_at, finalized_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
       ).bind(
         session.id,
         actor.orgId,
@@ -6373,6 +6458,7 @@ export async function commitRecordingResult(
         saved.id,
         saved.sha256,
         emotionJson,
+        transcriptQualityJson,
         actor.userId,
         createdAt,
       ),
@@ -6387,6 +6473,7 @@ export async function commitRecordingResult(
       && raced.snapshot.maskedText === input.maskedText
       && raced.snapshot.maskingPipelineVersion === input.maskingPipelineVersion
       && canonicalizeJcs(raced.emotionScores) === emotionJson
+      && (raced.transcriptQuality === null ? null : canonicalizeJcs(raced.transcriptQuality)) === transcriptQualityJson
     ) {
       return {
         ...raced,
@@ -6411,6 +6498,7 @@ export async function commitRecordingResult(
     sessionId: session.id,
     snapshot,
     emotionScores: input.emotionScores,
+    transcriptQuality,
     replayed: false,
     finalized: false,
     downstreamReady: false,

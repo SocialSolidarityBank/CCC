@@ -148,6 +148,7 @@ const reviewProps: DraftReviewViewProps = {
     ],
     regenerateAvailable: true,
     regenerateSourceSnapshotId: 'snapshot-9',
+    transcriptQuality: null,
   },
   reviewAction: noop as never,
   generateAction: noop as never,
