@@ -186,6 +186,7 @@ export async function ReviewContent({
           contrast: draft.contrast,
           regenerateAvailable: draft.regenerateAvailable,
           regenerateSourceSnapshotId: draft.regenerateSourceSnapshotId,
+          transcriptQuality: draft.transcriptQuality ?? null,
         }}
         errorMessage={errorMessageFor(errorCode, errorSource)}
         reviewAction={reviewAiDraftAction}

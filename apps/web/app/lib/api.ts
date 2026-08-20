@@ -147,6 +147,19 @@ export interface AiDraftContrastAxis {
   findings: AiContrastFinding[];
 }
 
+/** 전사 경고 한 구간 (CCC-124). 시간과 고정 사유 코드만 — 전사 내용은 실리지 않는다(R3). */
+export interface TranscriptQualityWarning {
+  startSeconds: number;
+  endSeconds: number;
+  reason: string;
+}
+
+/** 전사 품질 (CCC-124). GET /sessions/:id/ai 가 초안과 함께 내려준다. */
+export interface TranscriptQuality {
+  transcriptReliable: boolean;
+  warnings: TranscriptQualityWarning[];
+}
+
 export interface AiDraft {
   version: number;
   origin: AiDraftOrigin;
@@ -164,6 +177,9 @@ export interface AiDraft {
   regenerateAvailable: boolean;
   /** 재생성 가능일 때 `/ai/generate` 에 그대로 실어 보낼 스냅샷 id. */
   regenerateSourceSnapshotId: string | null;
+  /** 전사 품질 (CCC-124). null = 녹음 결과 없음 또는 레거시 결과(품질 미상).
+   *  GET /sessions/:id/ai 만 내려준다 — 편집·승인 응답에는 없다. */
+  transcriptQuality?: TranscriptQuality | null;
 }
 
 export interface CreateCaseInput {

@@ -14,6 +14,7 @@ class BuildRecordingResultTest(unittest.TestCase):
                 "ner-mask-v1",
             )
 
+        # 레거시 형태(구조화 품질 필드 없음) — 구 서버 폴백이 보내는 페이로드다(CCC-124).
         self.assertEqual(
             set(body),
             {"maskedText", "sha256", "maskingPipelineVersion", "evidence", "emotionScores"},
@@ -29,6 +30,46 @@ class BuildRecordingResultTest(unittest.TestCase):
             "sourceStart": 0,
             "sourceEnd": len(body["maskedText"]),
         }])
+
+    def test_structured_transcript_quality_fields(self):
+        # CCC-124: 전사 품질은 텍스트 안 경고 문장이 아니라 구조화 필드로 나간다.
+        warnings = [{"startSeconds": 5.0, "endSeconds": 30.0, "reason": "repetition"}]
+        body = build_recording_result(
+            "[상담자] 마스킹 완료 본문",
+            {},
+            "ner-mask-v1",
+            transcript_reliable=False,
+            transcript_warnings=warnings,
+        )
+        self.assertEqual(
+            set(body),
+            {
+                "maskedText", "sha256", "maskingPipelineVersion", "evidence", "emotionScores",
+                "transcriptReliable", "transcriptWarnings",
+            },
+        )
+        self.assertIs(body["transcriptReliable"], False)
+        self.assertEqual(body["transcriptWarnings"], warnings)
+
+    def test_reliable_transcript_sends_empty_warning_list(self):
+        body = build_recording_result(
+            "[상담자] 마스킹 완료 본문",
+            {},
+            "ner-mask-v1",
+            transcript_reliable=True,
+            transcript_warnings=[],
+        )
+        self.assertIs(body["transcriptReliable"], True)
+        self.assertEqual(body["transcriptWarnings"], [])
+
+    def test_warnings_without_reliability_flag_are_rejected(self):
+        with self.assertRaises(ValueError):
+            build_recording_result(
+                "본문",
+                {},
+                "ner-mask-v1",
+                transcript_warnings=[{"startSeconds": 0.0, "endSeconds": 1.0, "reason": "repetition"}],
+            )
 
     def test_rejects_empty_masked_transcript(self):
         with self.assertRaises(ValueError):

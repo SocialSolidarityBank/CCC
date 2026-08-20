@@ -58,6 +58,7 @@ import {
   getBriefing,
   getCase,
   getCurrentAiDraftForSession,
+  getTranscriptQualityForSession,
   getLatestPilotTextAiConsentStatus,
   getParticipantBasicInfo,
   getParticipantBriefing,
@@ -1395,7 +1396,11 @@ function parseMaskedSourceSnapshot(body: JsonObject) {
 }
 
 function parseRecordingResult(body: JsonObject) {
-  requireOnlyKeys(body, ['maskedText', 'sha256', 'maskingPipelineVersion', 'evidence', 'emotionScores']);
+  requireOnlyKeys(body, [
+    'maskedText', 'sha256', 'maskingPipelineVersion', 'evidence', 'emotionScores',
+    // 전사 품질 구조화 필드 (CCC-124). 없으면 레거시 파이프라인 결과다.
+    'transcriptReliable', 'transcriptWarnings',
+  ]);
   const snapshot = parseMaskedSourceSnapshot({
     maskedText: body.maskedText,
     sha256: body.sha256,
@@ -1403,7 +1408,23 @@ function parseRecordingResult(body: JsonObject) {
     evidence: body.evidence,
   });
   const emotionScores = asObject(body.emotionScores);
-  return { ...snapshot, emotionScores };
+  if (!Object.hasOwn(body, 'transcriptReliable') && !Object.hasOwn(body, 'transcriptWarnings')) {
+    return { ...snapshot, emotionScores };
+  }
+  // 두 필드는 함께만 온다. 깊은 검증(시간 순서·사유 코드 형식)은 게이트웨이가 한다(R1).
+  if (typeof body.transcriptReliable !== 'boolean') {
+    throw new ValidationError('transcriptReliable must be a boolean');
+  }
+  const transcriptWarnings = objectArray(body.transcriptWarnings, 'transcriptWarnings').map((item) => {
+    requireOnlyKeys(item, ['startSeconds', 'endSeconds', 'reason']);
+    const startSeconds = item.startSeconds;
+    const endSeconds = item.endSeconds;
+    if (typeof startSeconds !== 'number' || typeof endSeconds !== 'number') {
+      throw new ValidationError('transcript warning span is invalid');
+    }
+    return { startSeconds, endSeconds, reason: requiredString(item, 'reason') };
+  });
+  return { ...snapshot, emotionScores, transcriptReliable: body.transcriptReliable, transcriptWarnings };
 }
 
 function parseAiDraftGeneration(body: JsonObject): { sourceSnapshotId: string } {
@@ -2434,10 +2455,14 @@ export async function handleRequest(
         if (draft === null) return json({ error: 'not_found' }, 404);
         // 재생성 노출 조건은 서버가 판정한다(D69 · ADR-0036 결정 2 · CCC-100, R1).
         const regeneration = await getAiDraftRegenerationAvailability(env, actor, sessionId, draft);
+        // 전사 품질 (CCC-124) — 승인 화면이 전사 신뢰 불가 구간을 표시한다.
+        // null = 녹음 결과가 없거나 구조화 필드가 없던 레거시 결과(품질 미상).
+        const transcriptQuality = await getTranscriptQualityForSession(env, actor, sessionId);
         return json({
           ...aiDraftResponse(draft),
           regenerateAvailable: regeneration.available,
           regenerateSourceSnapshotId: regeneration.sourceSnapshotId,
+          transcriptQuality,
         });
       }
       if (request.method === 'POST' && parts.length === 4 && parts[2] === 'ai' && parts[3] === 'source') {

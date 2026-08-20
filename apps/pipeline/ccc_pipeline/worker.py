@@ -13,7 +13,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import masking
+from . import masking, repetition
 from .api_client import ApiClient, ApiError
 from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
@@ -77,8 +77,9 @@ def process_job(
         )
         logger.info("job %s: original backup status=%s", job_id, backup_status)
 
-        # 조각 분할 + 반복 검사를 거친다 (D53). 반복이 남으면 그 구간은 접히고
-        # 경고가 전사에 실려 승인 화면에서 실무자가 본다 — 조용히 통과시키지 않는다.
+        # 조각 분할 + 반복 검사를 거친다 (D53). 반복이 남으면 그 구간은 접히고, 시간
+        # 구간·사유가 구조화 필드로 API 에 실려 승인 화면에서 실무자가 본다 (CCC-124)
+        # — 조용히 통과시키지 않는다.
         transcription = transcribe_audio(
             str(audio_path),
             work_dir,
@@ -96,7 +97,7 @@ def process_job(
         logger.info("job %s: transcribed segments=%d speakers=%d", job_id, len(segments), len(roles))
 
         # 감정은 수혜자 발화만 (D11). 점수는 숫자만 (R4).
-        # 경고 줄은 사람 발화가 아니므로 감정 집계에서 뺀다 (D53 · R4).
+        # 접힌 반복 구간(warning)은 믿을 수 없는 전사라 감정 집계에서 뺀다 (D53 · R4).
         if EMOTION_DEFERRED:
             emotion_scores = {}
         else:
@@ -113,19 +114,47 @@ def process_job(
 
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
         person_ner, address_ner = _build_person_and_address_ner(config)
+        condition_ner = _build_condition_ner_or_none(config)
         transcript, mask_report = masking.mask_text_with_report(
             format_transcript(segments, roles),
             person_ner,
-            _build_condition_ner_or_none(config),
+            condition_ner,
             address_ner,
         )
         # 마스킹 집계는 **건수만** 남긴다 — 치환된 원문은 로그에도 쓰지 않는다(R3, G3 검증용).
         logger.info("job %s: masked total=%d detail=%s", job_id, mask_report.total, mask_report.as_mapping())
 
-        client.post_recording_result(
-            job_id,
-            build_recording_result(transcript, emotion_scores, masking_pipeline_version(config)),
+        # 전사 품질은 텍스트 안 경고 문장이 아니라 구조화 필드로 싣는다 (CCC-124).
+        # 구조화 필드에는 시간 구간·사유 코드만 담는다 — 반복된 문장은 넣지 않는다(R3).
+        result = build_recording_result(
+            transcript,
+            emotion_scores,
+            masking_pipeline_version(config),
+            transcript_reliable=transcription.reliable,
+            transcript_warnings=repetition.warning_spans(transcription.warnings),
         )
+        try:
+            client.post_recording_result(job_id, result)
+        except ApiError as error:
+            # 구조화 필드를 모르는 구 서버는 미지의 키를 400 으로 거부한다(requireOnlyKeys).
+            # 그때만 옛 형식 — 경고 문장을 전사에 끼워 넣은 레거시 페이로드 — 로 한 번
+            # 재시도한다. 진짜 검증 실패(PII 잔존 등)라면 재시도도 같은 400 으로 떨어진다.
+            if error.status != 400:
+                raise
+            logger.warning(
+                "job %s: structured transcript fields rejected (400) — retrying with legacy payload", job_id,
+            )
+            legacy_segments = repetition.inject_legacy_warnings(segments, transcription.warnings)
+            legacy_transcript, _ = masking.mask_text_with_report(
+                format_transcript(legacy_segments, roles),
+                person_ner,
+                condition_ner,
+                address_ner,
+            )
+            client.post_recording_result(
+                job_id,
+                build_recording_result(legacy_transcript, emotion_scores, masking_pipeline_version(config)),
+            )
         logger.info("job %s: result posted (%.1fs)", job_id, time.monotonic() - started)
     finally:
         # D13: 성공·실패와 무관하게 오디오·중간 파일을 즉시 삭제한다.

@@ -89,11 +89,17 @@
   "emotionScores": {
     "speech": 0.42,
     "text": 0.71
-  }
+  },
+  "transcriptReliable": false,
+  "transcriptWarnings": [
+    { "startSeconds": 305.5, "endSeconds": 512.0, "reason": "repetition" }
+  ]
 }
 ```
 
 - `emotionScores`에는 유한한 숫자와 숫자 배열 또는 객체만 넣는다. 감정 상태를 설명하는 문장은 넣지 않는다.
+- **전사 품질 구조화 필드 (CCC-124, 선택):** `transcriptReliable`(불리언)과 `transcriptWarnings`(배열)는 **함께만** 보낸다. 경고 항목은 `{startSeconds, endSeconds, reason}` 세 키만 갖는다 — `0 <= startSeconds < endSeconds`(유한 숫자), `reason`은 소문자로 시작하는 짧은 코드(소문자·숫자·`_`·`-`, 최대 64자, 예: `repetition`)다. 자유 문장이나 전사 발췌를 `reason`에 넣으면 `400`이다 — 이 필드는 2차 마스킹을 거치지 않으므로 전사 내용을 실으면 안 된다(R3). 두 필드를 생략한 결과는 레거시로 취급해 품질 미상(NULL)으로 저장한다. 신뢰 가능하면 `transcriptReliable: true` + 빈 배열을 보낸다. 저장된 값은 검토 화면용 `GET /sessions/:id/ai` 응답의 `transcriptQuality`로 노출된다.
+  - 하위 호환: 이 필드를 모르는 구버전 서버는 미지의 키로 `400`을 돌려준다. 처리 장비는 그 경우 경고 문장을 전사 텍스트에 도로 주입한 레거시 형식으로 1회 재전송한다(장비 쪽 폴백, `apps/pipeline/ccc_pipeline/worker.py`).
 - `evidence`는 최소 1건이고 `maskedText`의 정확한 구간과 같은 해시를 가리켜야 한다.
 - 전화번호, 이메일, 주민번호, 계좌형 값이 명백한 원형으로 남아 있으면 `400`으로 거부한다.
 - 요약과 대조는 Workers가 저장된 마스킹 스냅샷만 재료로 만들어 별도 초안에 저장한다. 처리 장비는 `aiSummary`, `aiSchema`, `flagProposals`, `gasEvidence`를 제출하지 않는다.
