@@ -31,11 +31,16 @@ export function middleware(request: NextRequest): NextResponse {
   // 사이드바가 그대로 떠서 **로그아웃한 화면에 앱 메뉴가 남아 있었다** — 나갔는데 안 나간
   // 것처럼 보인다. 이 헤더가 뜻하는 것은 '신원을 아직 모르는 화면'이고 /preview 가 정확히
   // 그것이므로, 새 판단을 더하는 것이 아니라 같은 판단에 화면 하나를 넣는 것이다.
+  // 기관 관리자 전용 입력 화면(/preview/admin)과 일반 POST 수신 경로(/preview/unlock)도
+  // 쿠키가 생기기 전 도달해야 한다(2026-08-22). 특히 unlock 을 비공개로 두면 미들웨어가
+  // POST 를 /preview GET 으로 바꿔 버려 코드 검증 자체가 실행되지 않는다.
   // 공개 입구 화면(/welcome · CCC-109)도 셸을 뺀다 — 서비스 소개와 로그인 안내라 신원을
   // 아직 모르는 화면이고, 가입 **쓰기** 경로가 아니므로 가입 스위치(CCC-112)와 무관하게
   // 언제나 공개다.
+  const isPreviewEntry =
+    pathname === '/preview' || pathname === '/preview/admin' || pathname === '/preview/unlock';
   const isPublic =
-    pathname === '/join' || pathname.startsWith('/join/') || pathname === '/preview' || pathname === '/welcome';
+    pathname === '/join' || pathname.startsWith('/join/') || isPreviewEntry || pathname === '/welcome';
   const requestHeaders = new Headers(request.headers);
   if (isPublic) requestHeaders.set('x-ccc-public', '1');
   else requestHeaders.delete('x-ccc-public');
@@ -59,7 +64,7 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next(forward);
   }
 
-  if (pathname === '/preview') return NextResponse.next(forward);
+  if (isPreviewEntry) return NextResponse.next(forward);
   if (request.cookies.get(PREVIEW_COOKIE_NAME) !== undefined) return NextResponse.next(forward);
 
   const redirectUrl = request.nextUrl.clone();

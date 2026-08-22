@@ -1,9 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { PREVIEW_COOKIE_NAME, requestPreviewUnlock } from './lib/api';
 import {
   ApiError,
   addSupportCaseAssignee,
@@ -394,35 +392,6 @@ function withNotice(path: string, name: 'notice' | 'error', code: string, extra?
     for (const [key, value] of Object.entries(extra)) destination.searchParams.set(key, value);
   }
   return `${destination.pathname}${destination.search}`;
-}
-
-/**
- * 미리보기 코드 게이트 해제(CCC-6). 코드를 API 로 보내 검증하고, 성공하면 받은 서명
- * 토큰을 웹 도메인의 HttpOnly 쿠키로 심은 뒤 홈으로 보낸다. 실패는 진입 화면으로 되돌린다.
- * CCC_PREVIEW 가 아닌 환경에서는 진입 화면 자체가 없으므로 이 액션도 호출되지 않는다.
- */
-export async function unlockPreviewAction(formData: FormData): Promise<void> {
-  const code = value(formData, 'code');
-  if (code.trim().length === 0) redirect(withNotice('/preview', 'error', 'invalid_request'));
-
-  let result: Awaited<ReturnType<typeof requestPreviewUnlock>> | undefined;
-  try {
-    result = await requestPreviewUnlock(code);
-  } catch (error) {
-    redirect(withNotice('/preview', 'error', noticeFor(error)));
-  }
-
-  if (result === undefined) redirect(withNotice('/preview', 'error', 'service_unavailable'));
-
-  const store = await cookies();
-  store.set(PREVIEW_COOKIE_NAME, result.token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: result.maxAgeSeconds,
-  });
-  redirect('/');
 }
 
 /**

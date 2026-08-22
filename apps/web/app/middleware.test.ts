@@ -107,14 +107,20 @@ describe('middleware · x-ccc-public 저작', () => {
     expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBeNull();
   });
 
-  it('코드 입력 화면은 셸 없이 렌더된다', () => {
+  it('코드 입력·기관 관리자 입력·잠금 해제 POST 경로는 셸 없이 열린다', () => {
     // 2026-07-31: /preview 를 공개(셸 제외) 목록에 넣었다. 안 그러면 로그아웃한 화면에
     // 사이드바가 그대로 남아 "나갔는데 안 나간 것"처럼 보인다.
+    // 2026-08-22: /preview/admin 과 일반 POST 수신 경로 /preview/unlock 도 쿠키 전에
+    // 도달해야 한다. 잠금 해제 POST 가 미들웨어에서 /preview 로 튕기면 로그인이 불가능하다.
     // 값이 '1' 인 것은 **미들웨어가 세웠기 때문**이지 클라이언트가 보내서가 아니다 —
     // 미들웨어는 모든 경로에서 이 헤더를 다시 저작하므로 위조분은 언제나 덮인다.
     vi.stubEnv('CCC_PREVIEW', 'true');
-    const request = makeRequest('/preview');
-    expect(effectiveHeader(middleware(request), request, 'x-ccc-public')).toBe('1');
+    for (const path of ['/preview', '/preview/admin', '/preview/unlock']) {
+      const request = makeRequest(path);
+      const response = middleware(request);
+      expect(response.headers.get('location')).toBeNull();
+      expect(effectiveHeader(response, request, 'x-ccc-public')).toBe('1');
+    }
   });
 });
 
