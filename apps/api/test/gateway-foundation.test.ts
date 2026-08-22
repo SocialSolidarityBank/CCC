@@ -10,7 +10,8 @@ import {
   listAuditLog,
   listAssignees,
   listCases,
-  purgePii,
+  processParticipantPiiRetention,
+  purgeParticipantPii,
   recordPilotTextAiConsentEvidence,
   registerPii,
   revealPii,
@@ -204,12 +205,13 @@ describe('gateway foundation', () => {
     }
   });
 
-  it('enforces the purge due date while preserving the vault row', async () => {
+  it('requires archive review before purge while preserving the vault row', async () => {
     await t.reset();
     const created = await createCase(t.env, counselor, {});
     await registerPii(t.env, admin, created.id, { name: 'NAME_DEMO' });
 
-    await expect(purgePii(t.env, admin, created.id)).rejects.toThrow('not due');
+    await expect(processParticipantPiiRetention(t.env))
+      .resolves.toEqual({ attempted: 0, archived: 0, requeued: 0 });
 
     await t.db
       .prepare(
@@ -223,7 +225,8 @@ describe('gateway foundation', () => {
       )
       .bind(counselor.userId, created.id, counselor.orgId)
       .run();
-    await purgePii(t.env, admin, created.id);
+    await processParticipantPiiRetention(t.env);
+    await purgeParticipantPii({ ...t.env, PII_PURGE_ENABLED: '1' }, admin, created.id);
 
     await expect(revealPii(t.env, admin, created.id)).resolves.toEqual({
       name: null,

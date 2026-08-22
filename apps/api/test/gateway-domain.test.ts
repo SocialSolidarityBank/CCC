@@ -46,6 +46,7 @@ import {
   listOpenActionItems,
   listSessions,
   markCounselingScheduleNoShow,
+  processParticipantPiiRetention,
   purgeParticipantPii,
   recordGasScores,
   recordMaskedSourceSnapshot,
@@ -2112,12 +2113,6 @@ describe('canonical participant gateway', () => {
       'SELECT purge_due FROM participant_pii_vault WHERE beneficiary_id = ?',
     ).bind(initial.beneficiaryId).first<{ purge_due: string | null }>();
     expect(dueAfterLastClose?.purge_due).not.toBeNull();
-    await expect(purgeParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId))
-      .resolves.toEqual({ beneficiaryId: initial.beneficiaryId, purged: false });
-    await expect(t.db.prepare(
-      `SELECT COUNT(*) AS count FROM audit_log
-       WHERE action = 'purge_pii_noop' AND beneficiary_id = ?`,
-    ).bind(initial.beneficiaryId).first<{ count: number }>()).resolves.toEqual({ count: 1 });
 
     const later = await createSupportCase(t.env, canonicalActors.admin, initial.beneficiaryId, {
       consentPrivacy: true,
@@ -2155,7 +2150,12 @@ describe('canonical participant gateway', () => {
       '2020-01-01 00:00:00',
       initial.supportCaseId,
     ).run();
-    await expect(purgeParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId))
+    await processParticipantPiiRetention(t.env);
+    await expect(purgeParticipantPii(
+      { ...t.env, PII_PURGE_ENABLED: '1' },
+      canonicalActors.admin,
+      initial.beneficiaryId,
+    ))
       .resolves.toEqual({ beneficiaryId: initial.beneficiaryId, purged: true });
     const purgedVault = await t.db.prepare(
       'SELECT version FROM participant_pii_vault WHERE beneficiary_id = ?',

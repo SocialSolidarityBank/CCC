@@ -4,6 +4,7 @@ import { Miniflare } from 'miniflare';
 import {
   createBeneficiaryWithInitialSupportCase,
   createSupportCase,
+  processParticipantPiiRetention,
   purgeParticipantPii,
   reRegisterParticipantPii,
   updateParticipantPii,
@@ -1587,7 +1588,12 @@ describe('schema triggers', () => {
        FROM participant_pii_vault WHERE beneficiary_id = ?`,
     ).bind(participant.beneficiaryId).first()).resolves.toEqual(beforeMalformedPurge);
 
-    await expect(purgeParticipantPii(t.env, admin, participant.beneficiaryId))
+    await processParticipantPiiRetention(t.env);
+    await expect(purgeParticipantPii(
+      { ...t.env, PII_PURGE_ENABLED: '1' },
+      admin,
+      participant.beneficiaryId,
+    ))
       .resolves.toEqual({ beneficiaryId: participant.beneficiaryId, purged: true });
     await expect(t.db.prepare(
       `SELECT actor_id, actor_role, action FROM audit_log
@@ -1609,7 +1615,7 @@ describe('schema triggers', () => {
       purged_by: admin.userId,
       purged_by_role: 'admin',
       retention_change_kind: 'purge_pii',
-      version: 6,
+      version: 7,
     });
 
     await expect(t.db.prepare(

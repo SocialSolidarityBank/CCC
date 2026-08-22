@@ -5,6 +5,7 @@ const root = resolve(process.cwd());
 // 숨김 디렉터리(.claude 워크트리, .omc 등 도구 상태)는 프로젝트 소스가 아니므로 전부 제외한다.
 const ignoredDirectories = new Set(['coverage', 'dist', 'node_modules']);
 const isIgnoredDirectory = (name) => name.startsWith('.') || ignoredDirectories.has(name);
+const sourceRoots = ['apps', 'db', 'scripts'].map((path) => resolve(root, path));
 const sourceExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
 // 시드 툴(scripts/seed)은 게이트웨이 공개 함수를 경유해 쓴다. raw D1 접근은 하니스 계층
 // (Miniflare 부트·프리로드·캡처 프록시·재생 diff)에만 국한되므로 그 세 파일만 예외로 둔다.
@@ -35,7 +36,10 @@ async function sourceFiles(directory) {
 
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      if (!isIgnoredDirectory(entry.name)) files.push(...await sourceFiles(resolve(directory, entry.name)));
+      const child = resolve(directory, entry.name);
+      if (!isIgnoredDirectory(entry.name)) {
+        files.push(...await sourceFiles(child));
+      }
       continue;
     }
     if (entry.isFile() && sourceExtensions.has(entry.name.slice(entry.name.lastIndexOf('.')))) {
@@ -68,10 +72,12 @@ function findingsFor(content, path) {
 }
 
 const violations = [];
-for (const file of await sourceFiles(root)) {
-  const path = normalize(relative(root, file));
-  if (allowedFiles.has(path) || isFixtureOrMigration(path)) continue;
-  violations.push(...findingsFor(await readFile(file, 'utf8'), path));
+for (const sourceRoot of sourceRoots) {
+  for (const file of await sourceFiles(sourceRoot)) {
+    const path = normalize(relative(root, file));
+    if (allowedFiles.has(path) || isFixtureOrMigration(path)) continue;
+    violations.push(...findingsFor(await readFile(file, 'utf8'), path));
+  }
 }
 
 if (violations.length > 0) {

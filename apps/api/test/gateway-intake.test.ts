@@ -14,6 +14,7 @@ import {
   updateParticipantPii,
   listCounselingRecords,
   listGoals,
+  processParticipantPiiRetention,
   purgeParticipantPii,
 } from '../../../db/gateway';
 import { setupD1 } from './support/d1';
@@ -514,7 +515,12 @@ describe('intake extended PII (migration 0015)', () => {
       '2020-01-01 00:00:00',
       initial.supportCaseId,
     ).run();
-    await expect(purgeParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId))
+    await processParticipantPiiRetention(t.env);
+    await expect(purgeParticipantPii(
+      { ...t.env, PII_PURGE_ENABLED: '1' },
+      canonicalActors.admin,
+      initial.beneficiaryId,
+    ))
       .resolves.toEqual({ beneficiaryId: initial.beneficiaryId, purged: true });
     await expect(t.db.prepare(
       `SELECT enc_birth_date, enc_region, enc_emergency_contact, enc_gender

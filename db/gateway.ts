@@ -51,10 +51,8 @@ export interface Env {
    */
   TEXT_AI_PILOT_ENABLED?: string;
   /**
-   * PII 즉시 파기 전역 스위치 (CCC-113, P0-3 1단계). 정확히 '1'일 때만 파기를 실행한다.
-   * 기본(미설정)은 닫힘 — D32·D46 이 요구하는 아카이브·검토 절차가 아직 없으므로
-   * 즉시 파기 진입점을 fail-closed 로 막는다(docs/policy/deferred-blockers-v1.md 1장).
-   * EXTERNAL_AI_CALLS_ENABLED 와 같은 패턴.
+   * 기관 관리자 최종 PII 파기 스위치(CCC-113·CCC-121). 정확히 '1'일 때만
+   * 검토가 끝난 한 건의 비가역 파기를 허용한다. 아카이브·재검토 cron은 이 값과 무관하다.
    */
   PII_PURGE_ENABLED?: string;
 }
@@ -222,10 +220,8 @@ export const PIPELINE_STALE_HOURS_DEFAULT = 6;
  * audit_log.actor_role CHECK는 admin|counselor|service만 허용하므로 역할은 'service'를
  * 쓰고, 사람/파이프라인 서비스와 구분은 이 actor_id로 한다 (D14).
  *   - 워치독 점검(watchdog_check): 읽기 전용, scheduled 핸들러에서만 호출.
- *   - 자동 파기(purge_pii): purge_due 경과분 일괄 처리, scheduled 핸들러에서만 호출.
  */
 export const WATCHDOG_ACTOR_ID = 'system:watchdog';
-export const PURGE_ACTOR_ID = 'system:purge';
 
 /** 케이스당 활성 목표 상한 (CLAUDE.md 3장) */
 export const MAX_ACTIVE_GOALS = 3;
@@ -811,12 +807,36 @@ function isPilotTextAiEnabled(env: Env): boolean {
 }
 
 /**
- * PII 즉시 파기 스위치 판정 (CCC-113). 정확히 '1'만 열림 — 그 외 전부 닫힘.
- * 진입점(index.ts runPurge · request-handler POST /pii-purge)이 UX(대기 로그·409)를
- * 위해 먼저 부르고, gateway 내부 게이트가 최후 방어선으로 같은 판정을 쓴다.
+ * PII 최종 파기 스위치 판정 (CCC-113·CCC-121). 정확히 '1'만 열림.
+ * 아카이브와 재검토 cron은 이 값과 무관하고, 기관 관리자 승인 파기만 잠근다.
  */
 export function isPiiPurgeEnabled(env: Env): boolean {
   return env.PII_PURGE_ENABLED === '1';
+}
+
+/** 종결 뒤 보존 상한. 기관별로 달라지지 않는 D46 전역 계약이다. */
+export const RETENTION_CAP_YEARS = 5;
+
+function retentionCapAt(closedAt: string): string {
+  const closedAtMs = parseUtcTimestamp(closedAt);
+  if (Number.isNaN(closedAtMs)) {
+    throw new ValidationError('retention context is invalid');
+  }
+  const closed = new Date(closedAtMs);
+  const month = closed.getUTCMonth();
+  const capped = new Date(Date.UTC(
+    closed.getUTCFullYear() + RETENTION_CAP_YEARS,
+    month,
+    closed.getUTCDate(),
+    closed.getUTCHours(),
+    closed.getUTCMinutes(),
+    closed.getUTCSeconds(),
+    closed.getUTCMilliseconds(),
+  ));
+  if (capped.getUTCMonth() !== month) {
+    capped.setUTCDate(0);
+  }
+  return capped.toISOString();
 }
 
 function assertOpaqueIdentifier(value: unknown, field: string): asserts value is string {
@@ -1044,6 +1064,19 @@ function assertAdmin(actor: Actor): void {
   }
 }
 
+async function assertInstitutionAdmin(env: Env, actor: Actor): Promise<void> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  const role = await env.DB.prepare(
+    `SELECT 1 AS allowed
+     FROM user_role_assignments
+     WHERE user_id = ? AND org_id = ? AND role = 'institution_admin' AND revoked_at IS NULL`,
+  ).bind(actor.userId, actor.orgId).first<{ allowed: number }>();
+  if (role === null) {
+    throw new ForbiddenError('institution admin role is required');
+  }
+}
+
 interface LegacyCaseContext {
   caseRecord: Case;
   supportCaseId: string;
@@ -1084,7 +1117,13 @@ async function resolveLegacyCaseContext(
       AND vault.org_id = support_case.org_id
      WHERE (support_case.legacy_case_id = ? OR support_case.id = ?)
        AND support_case.org_id = ?
-       AND beneficiary.initialization_state = 'complete'`,
+       AND beneficiary.initialization_state = 'complete'
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives AS archive
+         WHERE archive.beneficiary_id = support_case.beneficiary_id
+           AND archive.org_id = support_case.org_id
+           AND archive.review_status <> 'purged'
+       )`,
   ).bind(caseId, caseId, orgId).first<DbRow>();
 
   if (row === null) {
@@ -1227,10 +1266,15 @@ async function readPiiValues(
 ): Promise<{ name: string | null; phone: string | null; account: string | null; email: string | null }> {
   const context = await resolveLegacyCaseContext(env, orgId, caseId);
   const row = await env.DB.prepare(
-    'SELECT enc_name, enc_phone, enc_account, enc_email FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ?',
+    `SELECT enc_name, enc_phone, enc_account, enc_email
+     FROM participant_pii_vault
+     WHERE beneficiary_id = ? AND org_id = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives
+         WHERE beneficiary_id = ? AND org_id = ? AND review_status <> 'purged'
+       )`,
   )
-
-    .bind(context.beneficiaryId, orgId)
+    .bind(context.beneficiaryId, orgId, context.beneficiaryId, orgId)
     .first<{ enc_name: string | null; enc_phone: string | null; enc_account: string | null; enc_email: string | null }>();
 
   if (row === null) {
@@ -5758,169 +5802,6 @@ export async function revealPii(
   return pii;
 }
 
-/**
- * PII 파기 (D10). purge_due 경과 확인 후 enc_* 값을 비우고 purged_at 기록.
- * 행과 가명 기록은 보존한다(통계용). 권한: admin. 감사: purge_pii.
- */
-export async function purgePii(env: Env, actor: Actor, caseId: string): Promise<void> {
-  await getCaseForAdmin(env, actor, caseId);
-  const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
-  const vault = await env.DB.prepare(
-    'SELECT purge_due, purged_at FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ?',
-  ).bind(context.beneficiaryId, actor.orgId).first<{
-    purge_due: string | null;
-    purged_at: string | null;
-  }>();
-  if (
-    vault === null
-    || vault.purged_at !== null
-    || vault.purge_due === null
-    || parseSqliteUtc(vault.purge_due) > Date.now()
-  ) {
-    throw new ValidationError('PII is not due for purge');
-  }
-
-  const purgedAt = now();
-  const result = await env.DB.prepare(
-    `UPDATE participant_pii_vault
-     SET enc_name = NULL, enc_phone = NULL, enc_account = NULL, enc_email = NULL,
-           enc_birth_date = NULL, enc_region = NULL, enc_emergency_contact = NULL, enc_gender = NULL, purge_due = NULL,
-         purged_at = ?, purged_by = ?, purged_by_role = ?,
-         retention_changed_by = ?, retention_change_kind = 'purge_pii',
-         retention_changed_at = ?, version = version + 1, updated_at = ?
-     WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
-       AND purge_due IS NOT NULL AND purge_due <= datetime('now')`,
-  ).bind(
-    purgedAt,
-    actor.userId,
-    actor.role,
-    actor.userId,
-    purgedAt,
-    purgedAt,
-    context.beneficiaryId,
-    actor.orgId,
-  ).run();
-  if ((result.meta?.changes ?? 0) < 1) {
-    throw new ValidationError('PII is not due for purge');
-  }
-}
-
-/**
- * 파기 예정일이 지난 미파기 PII를 SELECT한다(공통 조회).
- * 조건: 종결됐고(closed_at), purge_due가 있고 현재 시각 이하이며, 아직 파기 안 됨
- * (pii_vault.purged_at IS NULL). purge_due·now는 둘 다 toISOString(UTC, 동일 포맷)이라
- * 문자열 사전순 비교가 곧 시간순 비교다. orgId를 주면 그 기관으로 한정한다.
- */
-
-async function selectDuePii(
-  env: Env,
-  nowIso: string,
-  orgId?: string,
-): Promise<Array<{ caseId: string; beneficiaryId: string; orgId: string; purgeDue: string }>> {
-  const base = `SELECT
-    support_case.legacy_case_id AS case_id,
-    support_case.beneficiary_id,
-    support_case.org_id,
-    vault.purge_due
-    FROM support_cases AS support_case
-    JOIN participant_pii_vault AS vault
-      ON vault.beneficiary_id = support_case.beneficiary_id
-     AND vault.org_id = support_case.org_id
-    WHERE support_case.legacy_case_id IS NOT NULL
-      AND vault.purge_due IS NOT NULL
-      AND vault.purge_due <= ?
-      AND vault.purged_at IS NULL`;
-  const result = orgId === undefined
-    ? await env.DB.prepare(`${base} ORDER BY support_case.legacy_case_id`).bind(nowIso).all<DbRow>()
-    : await env.DB.prepare(`${base} AND support_case.org_id = ? ORDER BY support_case.legacy_case_id`).bind(nowIso, orgId).all<DbRow>();
-  return result.results.map((row) => ({
-    caseId: stringValue(row.case_id),
-    beneficiaryId: stringValue(row.beneficiary_id),
-    orgId: stringValue(row.org_id),
-    purgeDue: stringValue(row.purge_due),
-  }));
-}
-
-/**
- * Purges each legacy-visible due vault through the same guarded transition as
- * the canonical purge command. The vault trigger owns the sole success audit.
- */
-async function purgeDuePii(env: Env, actor: Actor, orgId: string | undefined): Promise<{ purgedCaseIds: string[] }> {
-  // 게이트를 진입점이 아니라 여기(gateway)에 두는 이유(CCC-113): 이 함수로
-  // purgeExpiredPiiAsAdmin(수동)과 purgeExpiredPii(export 됐지만 현재 미배선)가
-  // 함께 합류한다. 진입점마다 게이트를 복제하면 새 호출자·잊힌 배선이 생길 때
-  // 열린 채 시작하므로, 합류점에서 fail-closed 한다.
-  if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
-  const nowIso = now();
-  const due = await selectDuePii(env, nowIso, orgId);
-  const purgedCaseIds: string[] = [];
-
-  for (const row of due) {
-    const purgedAt = now();
-    const result = await env.DB.prepare(
-      `UPDATE participant_pii_vault
-       SET enc_name = NULL, enc_phone = NULL, enc_account = NULL, enc_email = NULL,
-           enc_birth_date = NULL, enc_region = NULL, enc_emergency_contact = NULL, enc_gender = NULL, purge_due = NULL,
-           purged_at = ?, purged_by = ?, purged_by_role = ?,
-           retention_changed_by = ?, retention_change_kind = 'purge_pii',
-           retention_changed_at = ?, version = version + 1, updated_at = ?
-       WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
-         AND purge_due IS NOT NULL AND purge_due <= datetime('now')
-         AND NOT EXISTS (
-           SELECT 1 FROM support_cases
-           WHERE support_cases.beneficiary_id = participant_pii_vault.beneficiary_id
-             AND support_cases.status = 'active'
-         )`,
-    ).bind(
-      purgedAt,
-      actor.userId,
-      actor.role,
-      actor.userId,
-      purgedAt,
-      purgedAt,
-      row.beneficiaryId,
-      row.orgId,
-    ).run();
-    if ((result.meta?.changes ?? 0) > 0) {
-      purgedCaseIds.push(row.caseId);
-    }
-  }
-
-  return { purgedCaseIds };
-}
-
-/**
- * 전 기관 자동 파기 (D10). scheduled(cron) 핸들러 전용 내부 진입점 — HTTP 행위자 없음.
- * 안전성 근거: scheduled 핸들러에서만 호출하고, 파기 대상은 purge_due 경과분으로 한정되며,
- * 각 파기가 append-only 감사(purge_pii, actor_id='system:purge')를 남긴다.
- */
-export async function purgeExpiredPii(env: Env): Promise<{ purgedCaseIds: string[] }> {
-  return purgeDuePii(env, systemActor(PURGE_ACTOR_ID, ''), undefined);
-}
-
-/**
- * 관리자 수동 파기 실행 (D10). 권한: admin 전용, 자기 기관 경과분만.
- * 감사: 케이스별 purge_pii(행위자=요청 관리자).
- */
-export async function purgeExpiredPiiAsAdmin(env: Env, actor: Actor): Promise<{ purgedCaseIds: string[] }> {
-  assertAdmin(actor);
-  return purgeDuePii(env, actor, actor.orgId);
-}
-
-/**
- * 파기 예정 미리보기 (D10). 실제 파기 없이 대상 케이스만 나열한다.
- * 권한: admin 전용, 자기 기관. 감사: read(pii_vault, 미리보기 표시).
- */
-export async function previewExpiredPii(env: Env, actor: Actor): Promise<Array<{ caseId: string; purgeDue: string }>> {
-  assertAdmin(actor);
-  const due = await selectDuePii(env, now(), actor.orgId);
-  await writeAudit(env, actor, {
-    action: 'read',
-    targetTable: 'participant_pii_vault',
-    detail: { duePurgePreview: true, count: due.length },
-  });
-  return due.map((row) => ({ caseId: row.caseId, purgeDue: row.purgeDue }));
-}
 
 // ============================================================================
 // 담당 실무자 (case_assignees) — D7
@@ -8814,7 +8695,13 @@ async function getSupportCaseForOrg(
      JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
        AND beneficiaries.org_id = support_cases.org_id
      WHERE support_cases.id = ? AND support_cases.org_id = ?
-       ${opts?.completeOnly === true ? " AND beneficiaries.initialization_state = 'complete'" : ''}`,
+       ${opts?.completeOnly === true ? " AND beneficiaries.initialization_state = 'complete'" : ''}
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives AS archive
+         WHERE archive.beneficiary_id = support_cases.beneficiary_id
+           AND archive.org_id = support_cases.org_id
+           AND archive.review_status <> 'purged'
+       )`,
   ).bind(supportCaseId, orgId).first<DbRow>();
   if (row === null) {
     throw new ForbiddenError('support case is unavailable');
@@ -10348,6 +10235,12 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
      WHERE support_cases.org_id = ?
        AND support_cases.beneficiary_id = ?
        AND beneficiaries.initialization_state = 'complete'
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives AS archive
+         WHERE archive.beneficiary_id = support_cases.beneficiary_id
+           AND archive.org_id = support_cases.org_id
+           AND archive.review_status <> 'purged'
+       )
        AND (
          EXISTS (
            SELECT 1
@@ -10485,6 +10378,13 @@ export async function listSupportCasesForBeneficiary(
   actor: Actor,
   beneficiaryId: string,
 ): Promise<ParticipantProgramList> {
+  const archived = await env.DB.prepare(
+    `SELECT 1 AS present FROM participant_pii_archives
+     WHERE beneficiary_id = ? AND org_id = ? AND review_status <> 'purged'`,
+  ).bind(beneficiaryId, actor.orgId).first<{ present: number }>();
+  if (archived !== null) {
+    throw new ForbiddenError('participant is unavailable');
+  }
   // **집합이 둘이다 — 섞으면 안 된다** (D36 · ADR-0014 '개정' 1번).
   //  ① 접근 판정용: 내가 담당(또는 admin)인 사업. **1건도 없으면 페이지 자체가 안 열린다.**
   //  ② 표시용: 그 당사자의 기관 내 전 사업. 비담당 사업은 존재와 담당 실무자 이름까지만 보인다.
@@ -10819,6 +10719,12 @@ export async function listAssignedParticipants(
          AND support_cases.org_id = beneficiaries.org_id
        WHERE beneficiaries.org_id = ?
          AND beneficiaries.initialization_state = 'complete'
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = beneficiaries.id
+             AND archive.org_id = beneficiaries.org_id
+             AND archive.review_status <> 'purged'
+         )
        GROUP BY beneficiaries.id
        ORDER BY beneficiaries.id`
     : `SELECT beneficiaries.id AS beneficiary_id,
@@ -10833,6 +10739,12 @@ export async function listAssignedParticipants(
          AND support_case_assignees.unassigned_at IS NULL
        WHERE beneficiaries.org_id = ?
          AND beneficiaries.initialization_state = 'complete'
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = beneficiaries.id
+             AND archive.org_id = beneficiaries.org_id
+             AND archive.review_status <> 'purged'
+         )
        GROUP BY beneficiaries.id
        ORDER BY beneficiaries.id`;
   const bindings = actor.role === 'admin' ? [actor.orgId] : [actor.userId, actor.orgId];
@@ -10929,6 +10841,12 @@ export async function searchParticipants(
          AND support_cases.org_id = beneficiaries.org_id
        WHERE beneficiaries.org_id = ?
          AND beneficiaries.initialization_state = 'complete'
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = beneficiaries.id
+             AND archive.org_id = beneficiaries.org_id
+             AND archive.review_status <> 'purged'
+         )
          AND ${matchClause}
        GROUP BY beneficiaries.id
        ORDER BY beneficiaries.id
@@ -10945,6 +10863,12 @@ export async function searchParticipants(
          AND support_case_assignees.unassigned_at IS NULL
        WHERE beneficiaries.org_id = ?
          AND beneficiaries.initialization_state = 'complete'
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = beneficiaries.id
+             AND archive.org_id = beneficiaries.org_id
+             AND archive.review_status <> 'purged'
+         )
          AND ${matchClause}
        GROUP BY beneficiaries.id
        ORDER BY beneficiaries.id
@@ -11021,8 +10945,12 @@ async function getParticipantPiiVaultForOrg(
     `SELECT beneficiary_id, enc_name, enc_phone, enc_account, enc_email,
             enc_birth_date, enc_region, enc_gender, version, purge_due, purged_at
      FROM participant_pii_vault
-     WHERE beneficiary_id = ? AND org_id = ?`,
-  ).bind(beneficiaryId, orgId).first<ParticipantPiiVaultRow>();
+     WHERE beneficiary_id = ? AND org_id = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives
+         WHERE beneficiary_id = ? AND org_id = ? AND review_status <> 'purged'
+       )`,
+  ).bind(beneficiaryId, orgId, beneficiaryId, orgId).first<ParticipantPiiVaultRow>();
   if (row === null) {
     throw new ForbiddenError('participant data is unavailable');
   }
@@ -11319,7 +11247,13 @@ async function loadParticipantContacts(
   const rows = await env.DB.prepare(
     `SELECT beneficiary_id, enc_name, enc_phone, enc_email
      FROM participant_pii_vault
-     WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})`,
+     WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives AS archive
+         WHERE archive.beneficiary_id = participant_pii_vault.beneficiary_id
+           AND archive.org_id = participant_pii_vault.org_id
+           AND archive.review_status <> 'purged'
+       )`,
   ).bind(orgId, ...unique).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null }>();
   for (const row of rows.results) {
     contacts.set(stringValue(row.beneficiary_id), {
@@ -11538,129 +11472,392 @@ export async function getSupportCaseClosureInfo(
   };
 }
 
+export type ParticipantPiiRetentionReasonKind =
+  | 'extended_consent'
+  | 'active_work'
+  | 'legal_requirement';
+
+export type ParticipantPiiRetentionReviewInput =
+  | {
+    decision: 'retain';
+    reasonKind: ParticipantPiiRetentionReasonKind;
+    reason: string;
+    retainUntil: string;
+  }
+  | {
+    decision: 'purge';
+  };
+
+export interface ParticipantPiiRetentionReview {
+  beneficiaryId: string;
+  status: 'pending' | 'retained' | 'purged';
+  archivedAt: string;
+  reviewDueAt: string;
+  retentionCapDueAt: string;
+  reasonKind: ParticipantPiiRetentionReasonKind | null;
+  retainUntil: string | null;
+}
+
+interface ParticipantPiiArchiveCandidate extends DbRow {
+  beneficiary_id: string;
+  org_id: string;
+  enc_name: string | null;
+  enc_phone: string | null;
+  enc_account: string | null;
+  enc_email: string | null;
+  enc_birth_date: string | null;
+  enc_region: string | null;
+  enc_emergency_contact: string | null;
+  enc_gender: string | null;
+  key_version: number | string;
+  context_closed_at: string;
+}
+
+function retentionReviewStatus(value: unknown): ParticipantPiiRetentionReview['status'] {
+  if (value === 'pending' || value === 'retained' || value === 'purged') return value;
+  throw new ValidationError('PII retention review is invalid');
+}
+
+function retentionReasonKind(value: unknown): ParticipantPiiRetentionReasonKind | null {
+  if (value === null || value === undefined) return null;
+  if (value === 'extended_consent' || value === 'active_work' || value === 'legal_requirement') {
+    return value;
+  }
+  throw new ValidationError('PII retention review is invalid');
+}
+
+function mapParticipantPiiRetentionReview(row: DbRow): ParticipantPiiRetentionReview {
+  const status = retentionReviewStatus(row.review_status);
+  const reasonKind = retentionReasonKind(row.review_reason_kind);
+  return {
+    beneficiaryId: stringValue(row.beneficiary_id),
+    status,
+    archivedAt: stringValue(row.archived_at),
+    reviewDueAt: stringValue(row.review_due_at),
+    retentionCapDueAt: stringValue(row.retention_cap_due_at),
+    reasonKind,
+    retainUntil: status === 'retained' ? stringValue(row.review_due_at) : null,
+  };
+}
+
+async function archiveParticipantPii(
+  env: Env,
+  candidate: ParticipantPiiArchiveCandidate,
+): Promise<boolean> {
+  const archivedAt = now();
+  const retentionCapDueAt = retentionCapAt(candidate.context_closed_at);
+  const keyVersion = integerValue(candidate.key_version);
+  if (keyVersion === null || keyVersion < 1) {
+    throw new ValidationError('participant PII vault is invalid');
+  }
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO participant_pii_archives (
+         id, beneficiary_id, org_id, enc_name, enc_phone, enc_account, enc_email,
+         enc_birth_date, enc_region, enc_emergency_contact, enc_gender, key_version,
+         archived_at, archived_by, retention_cap_due_at,
+         review_status, review_due_at,
+         state_changed_by, state_changed_by_role, state_changed_at,
+         created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'system:retention', ?,
+                 'pending', ?, 'system:retention', 'service', ?, ?, ?)`,
+    ).bind(
+      newId(),
+      candidate.beneficiary_id,
+      candidate.org_id,
+      candidate.enc_name,
+      candidate.enc_phone,
+      candidate.enc_account,
+      candidate.enc_email,
+      candidate.enc_birth_date,
+      candidate.enc_region,
+      candidate.enc_emergency_contact,
+      candidate.enc_gender,
+      keyVersion,
+      archivedAt,
+      retentionCapDueAt,
+      archivedAt,
+      archivedAt,
+      archivedAt,
+      archivedAt,
+    ),
+    env.DB.prepare(
+      `UPDATE participant_pii_vault
+       SET enc_name = NULL, enc_phone = NULL, enc_account = NULL, enc_email = NULL,
+           enc_birth_date = NULL, enc_region = NULL, enc_emergency_contact = NULL, enc_gender = NULL,
+           version = version + 1, updated_at = ?
+       WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM participant_pii_archives
+           WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'
+         )`,
+    ).bind(
+      archivedAt,
+      candidate.beneficiary_id,
+      candidate.org_id,
+      candidate.beneficiary_id,
+      candidate.org_id,
+    ),
+  ]);
+  return (results[0]?.meta?.changes ?? 0) >= 1 && (results[1]?.meta?.changes ?? 0) >= 1;
+}
+
+/**
+ * cron은 가역 전이만 수행한다. 도래한 PII를 별도 아카이브로 옮기고,
+ * 보존 결정 기한이 다시 온 행을 검토 대기로 되돌릴 뿐 값을 파기하지 않는다.
+ */
+export async function processParticipantPiiRetention(
+  env: Env,
+  opts?: { limit?: number; at?: string },
+): Promise<{ attempted: number; archived: number; requeued: number }> {
+  const limit = opts?.limit ?? 100;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+    throw new ValidationError('retention limit is invalid');
+  }
+  const processedAt = opts?.at === undefined
+    ? now()
+    : canonicalUtcInstant(opts.at, 'retention process time');
+  let attempted = 0;
+  let archived = 0;
+
+  while (true) {
+    const candidates = await env.DB.prepare(
+      `SELECT vault.*, context_case.closed_at AS context_closed_at
+       FROM participant_pii_vault AS vault
+       JOIN support_cases AS context_case
+         ON context_case.id = COALESCE(
+           vault.retention_context_support_case_id,
+           (
+             SELECT fallback_case.id
+             FROM support_cases AS fallback_case
+             WHERE fallback_case.beneficiary_id = vault.beneficiary_id
+               AND fallback_case.org_id = vault.org_id
+               AND fallback_case.status = 'closed'
+               AND fallback_case.closed_at IS NOT NULL
+             ORDER BY julianday(fallback_case.closed_at) DESC, fallback_case.id DESC
+             LIMIT 1
+           )
+         )
+        AND context_case.org_id = vault.org_id
+        AND context_case.beneficiary_id = vault.beneficiary_id
+       WHERE vault.purged_at IS NULL
+         AND vault.purge_due IS NOT NULL
+         AND min(
+           julianday(vault.purge_due),
+           julianday(
+             CASE strftime('%m-%d', context_case.closed_at)
+               WHEN '02-29' THEN datetime(context_case.closed_at, '+5 years', '-1 day')
+               ELSE datetime(context_case.closed_at, '+5 years')
+             END
+           )
+         ) <= julianday(?)
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = vault.beneficiary_id AND archive.org_id = vault.org_id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM support_cases AS active_case
+           WHERE active_case.beneficiary_id = vault.beneficiary_id
+             AND active_case.org_id = vault.org_id
+             AND active_case.status = 'active'
+         )
+       ORDER BY min(
+         julianday(vault.purge_due),
+         julianday(
+           CASE strftime('%m-%d', context_case.closed_at)
+             WHEN '02-29' THEN datetime(context_case.closed_at, '+5 years', '-1 day')
+             ELSE datetime(context_case.closed_at, '+5 years')
+           END
+         )
+       ), vault.beneficiary_id
+       LIMIT ?`,
+    ).bind(processedAt, limit).all<ParticipantPiiArchiveCandidate>();
+    if (candidates.results.length === 0) break;
+
+    attempted += candidates.results.length;
+    for (const candidate of candidates.results) {
+      if (!await archiveParticipantPii(env, candidate)) {
+        throw new ConflictError('participant PII archive transition failed');
+      }
+      archived += 1;
+    }
+  }
+
+  const requeued = await env.DB.prepare(
+    `UPDATE participant_pii_archives
+     SET review_status = 'pending', review_due_at = ?,
+         review_reason_kind = NULL, review_reason = NULL,
+         reviewed_by = NULL, reviewed_at = NULL,
+         state_changed_by = 'system:retention', state_changed_by_role = 'service',
+         state_changed_at = ?, updated_at = ?
+     WHERE review_status = 'retained' AND julianday(review_due_at) <= julianday(?)`,
+  ).bind(processedAt, processedAt, processedAt, processedAt).run();
+
+  return { attempted, archived, requeued: requeued.meta?.changes ?? 0 };
+}
+
+
+export async function listParticipantPiiRetentionReviews(
+  env: Env,
+  actor: Actor,
+): Promise<ParticipantPiiRetentionReview[]> {
+  await assertInstitutionAdmin(env, actor);
+  const rows = await env.DB.prepare(
+    `SELECT beneficiary_id, archived_at, review_status, review_due_at,
+            retention_cap_due_at, review_reason_kind
+     FROM participant_pii_archives
+     WHERE org_id = ? AND review_status = 'pending'
+     ORDER BY review_due_at, beneficiary_id`,
+  ).bind(actor.orgId).all<DbRow>();
+  await writeCanonicalAudit(env, actor, {
+    action: 'read',
+    targetTable: 'participant_pii_archives',
+    detail: { list: 'pii_retention_reviews', resultCount: rows.results.length },
+  });
+  return rows.results.map(mapParticipantPiiRetentionReview);
+}
+
+export async function reviewParticipantPiiRetention(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+  input: ParticipantPiiRetentionReviewInput,
+): Promise<ParticipantPiiRetentionReview> {
+  await assertInstitutionAdmin(env, actor);
+  assertBeneficiaryId(beneficiaryId);
+  const current = await env.DB.prepare(
+    `SELECT id AS archive_id, beneficiary_id, archived_at, review_status, review_due_at,
+            retention_cap_due_at, review_reason_kind
+     FROM participant_pii_archives
+     WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
+  ).bind(beneficiaryId, actor.orgId).first<DbRow>();
+  if (current === null) {
+    throw new ConflictError('PII retention review is unavailable');
+  }
+
+  const changedAt = now();
+  if (input.decision === 'retain') {
+    const reason = input.reason.trim();
+    if (reason.length < 1 || reason.length > 500) {
+      throw new ValidationError('retention reason is invalid');
+    }
+    const retainUntil = canonicalUtcInstant(input.retainUntil, 'retention end');
+    if (retainUntil <= changedAt) {
+      throw new ValidationError('retention end is invalid');
+    }
+    const capDueAt = stringValue(current.retention_cap_due_at);
+    if (input.reasonKind !== 'legal_requirement' && retainUntil > capDueAt) {
+      throw new ValidationError('retention end exceeds the retention cap');
+    }
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO participant_pii_retention_decisions (
+           id, archive_id, org_id, beneficiary_id, decision, reason_kind, reason,
+           retain_until, decided_by, decided_at
+         ) VALUES (?, ?, ?, ?, 'retain', ?, ?, ?, ?, ?)`,
+      ).bind(
+        newId(),
+        stringValue(current.archive_id),
+        actor.orgId,
+        beneficiaryId,
+        input.reasonKind,
+        reason,
+        retainUntil,
+        actor.userId,
+        changedAt,
+      ),
+      env.DB.prepare(
+        `UPDATE participant_pii_archives
+         SET review_status = 'retained', review_due_at = ?,
+             review_reason_kind = ?, review_reason = ?,
+             reviewed_by = ?, reviewed_at = ?,
+             state_changed_by = ?, state_changed_by_role = 'admin',
+             state_changed_at = ?, updated_at = ?
+         WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
+      ).bind(
+        retainUntil,
+        input.reasonKind,
+        reason,
+        actor.userId,
+        changedAt,
+        actor.userId,
+        changedAt,
+        changedAt,
+        beneficiaryId,
+        actor.orgId,
+      ),
+    ]);
+    if ((results[1]?.meta?.changes ?? 0) < 1) {
+      throw new ConflictError('PII retention review is unavailable');
+    }
+  } else {
+    if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO participant_pii_retention_decisions (
+           id, archive_id, org_id, beneficiary_id, decision, reason_kind, reason,
+           retain_until, decided_by, decided_at
+         ) VALUES (?, ?, ?, ?, 'purge', NULL, NULL, NULL, ?, ?)`,
+      ).bind(
+        newId(),
+        stringValue(current.archive_id),
+        actor.orgId,
+        beneficiaryId,
+        actor.userId,
+        changedAt,
+      ),
+      env.DB.prepare(
+        `UPDATE participant_pii_archives
+         SET review_status = 'approved',
+             approved_by = ?, approved_at = ?,
+             state_changed_by = ?, state_changed_by_role = 'admin',
+             state_changed_at = ?, updated_at = ?
+         WHERE beneficiary_id = ? AND org_id = ? AND review_status = 'pending'`,
+      ).bind(
+        actor.userId,
+        changedAt,
+        actor.userId,
+        changedAt,
+        changedAt,
+        beneficiaryId,
+        actor.orgId,
+      ),
+    ]);
+    if ((results[1]?.meta?.changes ?? 0) < 1) {
+      throw new ConflictError('PII retention review is unavailable');
+    }
+  }
+
+  const reviewed = await env.DB.prepare(
+    `SELECT beneficiary_id, archived_at, review_status, review_due_at,
+            retention_cap_due_at, review_reason_kind
+     FROM participant_pii_archives
+     WHERE beneficiary_id = ? AND org_id = ?`,
+  ).bind(beneficiaryId, actor.orgId).first<DbRow>();
+  if (reviewed === null) {
+    throw new ConflictError('PII retention review is unavailable');
+  }
+  return mapParticipantPiiRetentionReview(reviewed);
+}
+
 export interface ParticipantPiiPurgeResult {
   beneficiaryId: string;
   purged: boolean;
 }
 
-async function purgeParticipantPiiForActor(
-  env: Env,
-  actor: Actor,
-  beneficiaryId: string,
-): Promise<boolean> {
-  const purgedAt = now();
-  const result = await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE participant_pii_vault
-       SET enc_name = NULL, enc_phone = NULL, enc_account = NULL, enc_email = NULL,
-           enc_birth_date = NULL, enc_region = NULL, enc_emergency_contact = NULL, enc_gender = NULL,
-           purge_due = NULL, purged_at = ?, purged_by = ?, purged_by_role = ?,
-           retention_changed_by = ?, retention_change_kind = 'purge_pii',
-           retention_changed_at = ?, version = version + 1, updated_at = ?
-       WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
-         AND purge_due IS NOT NULL AND purge_due <= datetime('now')
-         AND NOT EXISTS (
-           SELECT 1 FROM support_cases
-           WHERE support_cases.beneficiary_id = participant_pii_vault.beneficiary_id
-             AND support_cases.status = 'active'
-         )`,
-    ).bind(
-      purgedAt,
-      actor.userId,
-      actor.role,
-      actor.userId,
-      purgedAt,
-      purgedAt,
-      beneficiaryId,
-      actor.orgId,
-    ),
-  ]);
-  const update = result[0] as unknown as { meta?: { changes?: number } };
-  return (update.meta?.changes ?? 0) > 0;
-}
-
-/** An eligible successful purge is audited only by the vault transition trigger. */
+/** 기관 관리자 승인까지 끝난 아카이브 한 건의 최종 파기 진입점. */
 export async function purgeParticipantPii(
   env: Env,
   actor: Actor,
   beneficiaryId: string,
 ): Promise<ParticipantPiiPurgeResult> {
-
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
-  assertBeneficiaryId(beneficiaryId);
-  await getBeneficiaryForOrg(env, actor.orgId, beneficiaryId, { completeOnly: true });
-  const purged = await purgeParticipantPiiForActor(env, actor, beneficiaryId);
-  if (!purged) {
-    await writeCanonicalAudit(env, actor, {
-      action: 'purge_pii_noop',
-      targetTable: 'participant_pii_vault',
-      targetId: beneficiaryId,
-      beneficiaryId,
-      detail: { reason: 'not_eligible_or_already_purged' },
-    });
-  }
-  return { beneficiaryId, purged };
-}
-
-/**
- * Cron uses the same conditional transition. It intentionally emits no
- * per-row no-op audit; successful transitions have the schema-owned audit.
- */
-export async function purgeExpiredParticipantPii(
-  env: Env,
-  opts?: { limit?: number },
-): Promise<{ attempted: number; purged: number; noops: number }> {
-  // CCC-113: cron 진입점(runPurge)이 먼저 스위치를 보지만, 이 함수도 export 라
-  // 직접 호출될 수 있다. 파기가 실제로 일어나는 함수 안에서 한 번 더 fail-closed.
-  if (!isPiiPurgeEnabled(env)) throw new PiiPurgeDisabledError();
-  const limit = opts?.limit ?? 100;
-  if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
-    throw new ValidationError('purge limit is invalid');
-  }
-  const candidates = await env.DB.prepare(
-    `SELECT beneficiary_id, org_id
-     FROM participant_pii_vault
-     WHERE purged_at IS NULL AND purge_due IS NOT NULL AND purge_due <= datetime('now')
-       AND NOT EXISTS (
-         SELECT 1 FROM support_cases
-         WHERE support_cases.beneficiary_id = participant_pii_vault.beneficiary_id
-           AND support_cases.status = 'active'
-       )
-     ORDER BY purge_due, beneficiary_id
-     LIMIT ?`,
-  ).bind(limit).all<{ beneficiary_id: string; org_id: string }>();
-
-  let purged = 0;
-  for (const candidate of candidates.results) {
-    const actor = systemActor(PURGE_ACTOR_ID, stringValue(candidate.org_id));
-    if (await purgeParticipantPiiForActor(env, actor, stringValue(candidate.beneficiary_id))) {
-      purged += 1;
-    }
-  }
-  return {
-    attempted: candidates.results.length,
-    purged,
-    noops: candidates.results.length - purged,
-  };
-}
-
-/**
- * 파기 도래분(canonical cron 후보와 동일 조건) 건수만 센다 — 읽기 전용, 파기 없음.
- * 스위치가 꺼진 동안 runPurge 가 '대상 N건 대기'를 로그로 남기는 데 쓴다(CCC-113).
- */
-export async function countDueParticipantPiiPurgeTargets(env: Env): Promise<number> {
-  const row = await env.DB.prepare(
-    `SELECT COUNT(*) AS count
-     FROM participant_pii_vault
-     WHERE purged_at IS NULL AND purge_due IS NOT NULL AND purge_due <= datetime('now')
-       AND NOT EXISTS (
-         SELECT 1 FROM support_cases
-         WHERE support_cases.beneficiary_id = participant_pii_vault.beneficiary_id
-           AND support_cases.status = 'active'
-       )`,
-  ).first<{ count: number }>();
-  return row?.count ?? 0;
+  const review = await reviewParticipantPiiRetention(
+    env,
+    actor,
+    beneficiaryId,
+    { decision: 'purge' },
+  );
+  return { beneficiaryId, purged: review.status === 'purged' };
 }
 /**
  * 세션 목표 입력 (D28). body 는 "이번 회차에서 다룰 것", caseGoalId 는 이 케이스의
@@ -11955,6 +12152,12 @@ export async function getTodaySchedules(
        JOIN support_cases AS support_case ON support_case.id = schedule.support_case_id
          AND support_case.org_id = schedule.org_id
        WHERE schedule.org_id = ? AND schedule.scheduled_at >= ? AND schedule.scheduled_at < ?
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = schedule.beneficiary_id
+             AND archive.org_id = schedule.org_id
+             AND archive.review_status <> 'purged'
+         )
        ORDER BY schedule.scheduled_at, schedule.id`,
     ).bind(actor.orgId, interval.startUtc, interval.endUtc).all<DbRow>()
     : await env.DB.prepare(
@@ -11967,6 +12170,12 @@ export async function getTodaySchedules(
          AND assignment.org_id = schedule.org_id
        WHERE schedule.org_id = ? AND schedule.scheduled_at >= ? AND schedule.scheduled_at < ?
          AND assignment.user_id = ? AND assignment.unassigned_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = schedule.beneficiary_id
+             AND archive.org_id = schedule.org_id
+             AND archive.review_status <> 'purged'
+         )
        ORDER BY schedule.scheduled_at, schedule.id`,
     ).bind(actor.orgId, interval.startUtc, interval.endUtc, actor.userId).all<DbRow>();
 
@@ -13961,8 +14170,12 @@ async function readIntakeExtendedPii(
   const row = await env.DB.prepare(
     `SELECT enc_birth_date, enc_region, enc_emergency_contact, enc_gender
      FROM participant_pii_vault
-     WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL`,
-  ).bind(beneficiaryId, orgId).first<{
+     WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives
+         WHERE beneficiary_id = ? AND org_id = ? AND review_status <> 'purged'
+       )`,
+  ).bind(beneficiaryId, orgId, beneficiaryId, orgId).first<{
     enc_birth_date: string | null;
     enc_region: string | null;
     enc_emergency_contact: string | null;
@@ -15688,6 +15901,12 @@ export async function listCounselorAssignments(
      WHERE support_case_assignees.org_id = ?
        AND support_case_assignees.user_id = ?
        AND support_case_assignees.unassigned_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM participant_pii_archives AS archive
+         WHERE archive.beneficiary_id = support_cases.beneficiary_id
+           AND archive.org_id = support_cases.org_id
+           AND archive.review_status <> 'purged'
+       )
      ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
               support_cases.beneficiary_id, support_cases.id`,
   ).bind(actor.orgId, userId).all<DbRow>();

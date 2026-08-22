@@ -1,6 +1,6 @@
 # 운영 스케줄·환경 변수
 
-이 문서는 1단계-b(스캐폴드) 범위에서 Workers `scheduled` 핸들러가 도는 두 주기 작업 — 폴링 워치독(D8)과 PII 자동 파기(D10) — 의 동작과 관련 환경 변수를 정리한다. 실제 스케줄은 Cloudflare 계정 개설·배포 후 활성화된다(D16). 로컬(miniflare)에서는 cron이 자동 실행되지 않으므로, 테스트는 `runWatchdog(env)`·`runPurge(env)`를 직접 호출한다.
+이 문서는 Workers `scheduled` 핸들러가 도는 두 주기 작업인 폴링 워치독(D8)과 PII 보존 생애주기(D32·D46)의 동작과 관련 환경 변수를 정리한다. 로컬(miniflare)에서는 cron이 자동 실행되지 않으므로, 테스트는 `runWatchdog(env)`와 `runRetentionLifecycle(env)`를 직접 호출한다.
 
 ## 스케줄 (wrangler.toml `[triggers].crons`)
 
@@ -9,9 +9,9 @@
 | cron | 작업 | 내용 |
 | --- | --- | --- |
 | `*/30 * * * *` | 폴링 워치독 (D8) | 전 조직 폴링 건강도 계산 → `stale`인 조직마다 관리자 알림 |
-| `0 3 * * *` (매일 03:00 UTC) | PII 자동 파기 (D10) | `purge_due` 경과 케이스의 PII 값 파기 |
+| `0 3 * * *` (매일 03:00 UTC) | PII 보존 생애주기 (D32·D46) | `purge_due` 경과분 아카이브, 보존기한 재도래분 검토 큐 복귀 |
 
-파기를 매 틱이 아니라 하루 1회로 둔 이유: 파기는 되돌릴 수 없는 쓰기이고 케이스별 감사 행을 남기므로, 조회는 인덱스(`idx_cases_purge`)로 가볍지만 실행 빈도는 낮게 유지한다. 워치독은 읽기 중심이라 30분 간격으로 자주 돈다.
+보존 생애주기를 하루 1회로 둔 이유는 실시간 처리가 필요 없고 케이스별 감사 행을 남기기 때문이다. 이 cron은 암호문을 별도 아카이브로 옮기거나 재검토 상태로 되돌리는 가역 전이만 수행하며, PII를 자동 파기하지 않는다. 워치독은 읽기 중심이라 30분 간격으로 돈다.
 
 ## 폴링 워치독 (D8)
 
@@ -24,18 +24,16 @@
 
 시간 비교 주의: `audit_log.created_at`은 SQLite `datetime('now')` 형식(`'YYYY-MM-DD HH:MM:SS'`, UTC, 타임존 접미사 없음)이다. JS `Date`는 공백 구분 문자열을 로컬 시간으로 해석하므로, gateway는 `'T'`+`'Z'`를 붙여 UTC로 강제 파싱한 뒤 `Date.now()`와 비교한다.
 
-## PII 자동 파기 (D10)
+## PII 보존·파기 생애주기 (D10·D32·D46)
 
-- 대상: 종결됐고(`closed_at`), `purge_due`가 현재 시각 이하이며, 아직 파기되지 않은(`pii_vault.purged_at IS NULL`) 케이스.
-- 처리: `pii_vault`의 `enc_name`·`enc_phone`·`enc_account`를 `NULL`로 비우고 `purged_at`을 기록한다. **행을 삭제하지 않는다** — 스키마 규약(D10)대로 `pii_vault` 행과 가명 기록(`cases` 이하)은 통계용으로 보존한다.
-- 멱등성: `purged_at IS NULL` 조건이 이미 파기된 케이스를 자동으로 제외한다. 같은 케이스를 두 번 돌려도 두 번째는 아무것도 하지 않는다.
-- 감사: 케이스별 `purge_pii`. cron 실행이면 `actor_id=system:purge`, 관리자 수동 실행이면 요청 관리자.
-- **실행 스위치(CCC-113)**: `PII_PURGE_ENABLED`가 정확히 `1`일 때만 파기가 실행된다(기본 닫힘). 꺼져 있으면 cron 은 대상 건수만 세어 `파기 스위치 꺼짐, 대상 N건 대기`를 console.log 로 남기고(watchdog 알림 아님), 수동 실행은 409 `purge_disabled` 를 반환한다. 미리보기는 읽기 전용이라 스위치와 무관하다.
-- 수동 경로(관리자 전용):
-  - `GET /pii-purge/due` — 파기 예정(경과) 케이스 미리보기(파기하지 않음, 스위치 무관).
-  - `POST /pii-purge` — 자기 조직 경과분 즉시 파기(스위치가 켜져 있을 때만).
+1. 마지막 활성 케이스가 종결되면 `purge_due`가 설정돼 보존 시계가 시작된다.
+2. `purge_due`가 지나면 cron이 암호문을 `participant_pii_archives`로 옮기고 기존 금고에서는 비운다. `purged_at`은 기록하지 않으므로 이 단계는 파기가 아니다.
+3. 아카이브된 당사자는 일반 조회·검색 경로에서 제외된다. 새 케이스가 시작되면 암호문과 접근 상태가 원복된다.
+4. 기관 관리자는 `GET /pii-retention/reviews`에서 자기 기관 검토 대기분만 본다.
+5. `POST /pii-retention/reviews/:beneficiaryId`에서 보존 또는 파기를 결정한다. 보존은 연장 동의, 진행 중 업무, 법적 보존 사유 중 하나와 설명·재검토일을 요구한다. 법적 사유가 아니면 종결 후 5년 상한을 넘길 수 없다.
+6. 파기 결정은 기관 관리자만 할 수 있고 `PII_PURGE_ENABLED=1`일 때만 열린다. 승인된 한 건의 아카이브 암호문과 금고 암호문만 비우고 `purged_at`을 기록한다. 가명 기록은 통계용으로 남는다.
 
-> 참고: 개별 케이스 단위의 관리자 파기는 기존 `purgePii(env, actor, caseId)`(관리자, 단건)로도 가능하다. 위 자동/일괄 경로는 그 배치·조직 단위 형제 함수다 — 둘 다 값만 비우고 행은 보존하는 동일 규약을 따른다.
+감사 순서는 `schedule_pii_purge_due` → `archive_pii` → `retain_archived_pii` 또는 `approve_pii_purge` → `purge_pii`다. 새 케이스로 복원되면 `restore_archived_pii`가 남는다. cron은 `archive_pii`와 `requeue_pii_retention`까지만 기록한다.
 
 ## 환경 변수
 
@@ -50,7 +48,7 @@
 | `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
-| `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | PII 즉시 파기 스위치(CCC-113, P0-3 1단계). 정확히 `1`일 때만 cron·수동 파기가 실행된다. 미설정·`0`이면 cron 은 파기 없이 `파기 스위치 꺼짐, 대상 N건 대기` 로그만 남기고, `POST /pii-purge` 는 409 `purge_disabled` 로 거절된다. D32·D46 아카이브·검토 절차가 구현되기 전에는 켜지 않는다(`docs/policy/deferred-blockers-v1.md` 1장). wrangler.toml 운영 env 에 두지 않는다 — 없는 것이 닫힘이다. |
+| `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | 최종 관리자 승인 파기 스위치. 정확히 `1`일 때만 `decision=purge`가 실행된다. 미설정·`0`이어도 cron의 아카이브·재검토는 계속되며, 최종 파기 요청만 409 `purge_disabled`로 거절된다. |
 | `PUBLIC_SIGNUP_ENABLED` | Workers 환경 변수 (`apps/api`·`apps/web` 양쪽) | (없음) | 공개 가입 표면(CCC-112)의 스위치. 정확히 `1`일 때만 공개 초대 조회·가입 API 와 초대 발급, 웹 `/join`·`/join/*` 화면이 열린다. 없거나 `0`이면 404 로 fail closed. 미리보기 env 에만 `1`(코드 게이트 뒤 팀 검수용), 운영에는 두지 않는다. |
 
 세 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`·`EXTERNAL_AI_CALLS_ENABLED=1`)이 **함께** 있어야 사업자 호출이 열린다. `EXTERNAL_AI_CALLS_ENABLED=1`은 유료 실호출을 별도로 승인받은 배포에만 둔다. 키 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.

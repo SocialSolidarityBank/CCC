@@ -102,14 +102,12 @@ import {
   listSupportCaseAssignees,
   listAssignedParticipants,
   listPrivacyConsentFollowUps,
+  listParticipantPiiRetentionReviews,
   listSupportCasesForBeneficiary,
   listUsers,
   loadAiCallMaterialsForService,
   markCounselingScheduleNoShow,
-  previewExpiredPii,
-  isPiiPurgeEnabled,
   PiiPurgeDisabledError,
-  purgeExpiredPiiAsAdmin,
   recordAiCallOutcome,
   recordMaskedSourceSnapshot,
   recordPilotTextAiConsentEvidence,
@@ -117,6 +115,7 @@ import {
   registerRecording,
   rescheduleCounselingSchedule,
   reviewAiDraftForSession,
+  reviewParticipantPiiRetention,
   updateScheduleSessionGoals,
   searchParticipants,
   setSupportCaseOverallGoal,
@@ -132,6 +131,7 @@ import {
   type AiDraftContrastAxis,
   type AiDraftSourceMaterialRef,
   type AiDraftVersion,
+  type ParticipantPiiRetentionReviewInput,
   type AiDraftReviewInput,
   type CounselingRecordDetails,
   type AssignedParticipant,
@@ -232,6 +232,30 @@ function optionalBoolean(body: JsonObject, key: string): boolean {
   if (value === undefined) return false;
   if (typeof value !== 'boolean') throw new ValidationError(key + ' must be a boolean');
   return value;
+}
+
+function parseParticipantPiiRetentionReview(body: JsonObject): ParticipantPiiRetentionReviewInput {
+  const decision = requiredString(body, 'decision');
+  if (decision === 'purge') {
+    return { decision };
+  }
+  if (decision !== 'retain') {
+    throw new ValidationError('retention decision is invalid');
+  }
+  const reasonKind = requiredString(body, 'reasonKind');
+  if (
+    reasonKind !== 'extended_consent'
+    && reasonKind !== 'active_work'
+    && reasonKind !== 'legal_requirement'
+  ) {
+    throw new ValidationError('retention reason kind is invalid');
+  }
+  return {
+    decision,
+    reasonKind,
+    reason: requiredString(body, 'reason'),
+    retainUntil: requiredString(body, 'retainUntil'),
+  };
 }
 
 // 등록 이메일(#37 · T2 enc_email): 선택 항목. 형식 검증은 라우트가 소유하고(잘못된 형식은
@@ -2694,16 +2718,18 @@ export async function handleRequest(
         }
       }
     }
-    if (parts[0] === 'pii-purge') {
-      // D10 PII 파기 — 관리자 전용(gateway 내부에서 강제). 미리보기(GET)와 실행(POST) 분리.
-      if (request.method === 'GET' && parts.length === 2 && parts[1] === 'due') {
-        return json({ due: await previewExpiredPii(env, actor) });
+    if (parts[0] === 'pii-retention' && parts[1] === 'reviews') {
+      // CCC-121: cron은 아카이브만 하고, 기관 관리자가 이 큐에서 보존 또는 파기를 결정한다.
+      if (request.method === 'GET' && parts.length === 2) {
+        return json({ reviews: await listParticipantPiiRetentionReviews(env, actor) });
       }
-      if (request.method === 'POST' && parts.length === 1) {
-        // CCC-113: 파기 스위치가 꺼져 있으면 실행하지 않고 명시적으로 거절한다.
-        // 미리보기(GET /pii-purge/due)는 읽기 전용이라 스위치와 무관하게 유지.
-        if (!isPiiPurgeEnabled(env)) return json({ error: 'purge_disabled' }, 409);
-        return json(await purgeExpiredPiiAsAdmin(env, actor));
+      if (request.method === 'POST' && parts.length === 3 && parts[2] !== undefined) {
+        return json(await reviewParticipantPiiRetention(
+          env,
+          actor,
+          parts[2],
+          parseParticipantPiiRetentionReview(await requestBody(request)),
+        ));
       }
     }
     if (parts[0] === 'pipeline' && parts[1] === 'jobs' && parts[2] !== undefined) {
