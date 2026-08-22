@@ -7,6 +7,7 @@ export type ShellIconName =
   | 'calendar'
   | 'participants'
   | 'settings'
+  | 'admin'
   | 'org'
   | 'logout'
   | 'theme-dark'
@@ -44,6 +45,10 @@ export function NavIcon({ name }: { name: ShellIconName }) {
     // 16px 에서 해(라이트 모드) 아이콘과 같은 모양으로 렌더돼 테마 항목과 겹쳐 보였다.
     case 'settings':
       return <svg {...common}><path d="M2.5 4.5h5.2M12.3 4.5h1.2M2.5 11.5h1.2M7.3 11.5h6.2" /><circle cx="10.2" cy="4.5" r="1.9" /><circle cx="5.4" cy="11.5" r="1.9" /></svg>;
+    // 관리자 방패 (2026-08-22 — 셸에 관리자 입구 신설). org 육각형과 어휘를 같이하되
+    // 안에 체크 한 획을 얹어 '승인된 관리자'를 말한다.
+    case 'admin':
+      return <svg {...common}><path d="M8 1.8l5 2v4.2c0 2.8-2 5-5 6.2-3-1.2-5-3.4-5-6.2V3.8z" /><path d="M5.8 7.8l1.6 1.6 2.8-2.9" /></svg>;
     case 'org':
       return <svg {...common}><path d="M8 1.8l5.4 3.1v6.2L8 14.2 2.6 11.1V4.9z" /></svg>;
     case 'logout':

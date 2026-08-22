@@ -72,6 +72,10 @@ export interface AppSidebarProps {
    * 때문이다. 생략하면 라이트로 그린다(테스트·스토리 렌더가 지금까지처럼 동작한다).
    */
   theme?: Theme;
+  /**
+   * 관리자 여부 (2026-08-22). AppHeader 와 같은 계약 — 관리자에게만 /admin 입구를 보여준다.
+   */
+  isAdmin?: boolean;
 }
 
 /**
@@ -85,6 +89,7 @@ export function AppSidebar({
   orgLabel = ORG_LABEL,
   programLabels = PROGRAM_LABELS,
   theme = 'light',
+  isAdmin = false,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
@@ -153,6 +158,7 @@ export function AppSidebar({
   );
 
   const settingsActive = current === '/settings' || current.startsWith('/settings/');
+  const adminActive = current === '/admin' || current.startsWith('/admin/');
 
   return (
     <>
@@ -208,6 +214,18 @@ export function AppSidebar({
             <NavIcon name="sidebar" />
           </button>
           <div className="sidebar-actions">
+            {isAdmin ? (
+              <Link
+                className="header-icon-button"
+                href="/admin"
+                aria-label="관리자"
+                title="관리자"
+                data-current={adminActive ? 'true' : undefined}
+                aria-current={adminActive ? 'page' : undefined}
+              >
+                <NavIcon name="admin" />
+              </Link>
+            ) : null}
             <Link
               className="header-icon-button"
               href="/settings"

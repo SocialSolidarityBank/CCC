@@ -71,4 +71,18 @@ describe('AppHeader (2026-08-05 상단 헤더 — Infisical 레퍼런스)', () =
     expect(container.querySelector('.program-switcher:not(.org-switcher) .program-switcher-name')?.textContent)
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
+
+  it('관리자에게는 관리자 입구가 계정 행동 맨 앞에 뜬다(2026-08-22)', () => {
+    const { container } = render(<AppHeader activePath="/participants" isAdmin />);
+    const actions = Array.from(container.querySelectorAll('.header-actions .header-icon-button'));
+    expect(actions.map((el) => el.getAttribute('aria-label'))).toEqual(['관리자', '설정', '다크 모드', '로그아웃']);
+    const admin = container.querySelector<HTMLAnchorElement>('.header-actions a[href="/admin"]');
+    expect(admin).not.toBeNull();
+    expect(admin?.getAttribute('aria-label')).toBe('관리자');
+  });
+
+  it('관리자가 아니면 관리자 입구가 아예 렌더되지 않는다', () => {
+    const { container } = render(<AppHeader activePath="/participants" />);
+    expect(container.querySelector('a[href="/admin"]')).toBeNull();
+  });
 });

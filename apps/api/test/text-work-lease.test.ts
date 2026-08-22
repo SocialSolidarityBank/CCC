@@ -78,7 +78,10 @@ async function sha256Hex(value: string): Promise<string> {
 
 /** 장비가 하듯 회차의 2차 마스킹 스냅샷을 올린다. */
 async function uploadSnapshot(sessionId: string): Promise<{ id: string }> {
-  const maskedText = `MASKED_LEASE_TEXT_${sessionId}`;
+  // UUID 를 그대로 붙이면 16진수 숫자가 하이픈과 어울려 계좌번호 금지 패턴
+  // (UNMASKED_RESULT_PATTERNS) 에 우연히 걸린다(R3 가드 · CI 실측). 숫자·하이픈을
+  // 자리바꿈자로 바꿔 길이와 위치만 유지한다 — 이 텍스트는 PII 가 아니다.
+  const maskedText = `MASKED_LEASE_TEXT_${sessionId.replace(/[0-9-]/g, 'x')}`;
   const sha256 = await sha256Hex(maskedText);
   return recordMaskedSourceSnapshot(t.env, service, sessionId, {
     maskedText,
