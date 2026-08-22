@@ -71,5 +71,4 @@ describe('AppHeader (2026-08-05 상단 헤더 — Infisical 레퍼런스)', () =
     expect(container.querySelector('.program-switcher:not(.org-switcher) .program-switcher-name')?.textContent)
       .toBe(PROGRAM_LABELS[DEFAULT_PROGRAM_TYPE]);
   });
-
 });
