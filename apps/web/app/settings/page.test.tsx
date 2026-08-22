@@ -23,7 +23,7 @@ describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
   it('관리자 구역에 관리자 화면 4개와 온보딩 링크가 순서대로 보인다', () => {
     const { container } = render(<AdminSection />);
 
-    expect(container.querySelector('#settings-admin-heading')?.textContent).toBe('관리자');
+    expect(container.querySelector('#settings-admin-heading')?.textContent).toBe('기관 관리자 설정');
 
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/onboarding']);

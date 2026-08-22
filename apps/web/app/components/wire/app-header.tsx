@@ -41,11 +41,6 @@ export interface AppHeaderProps {
   programLabels?: Record<ParticipantProgramType, string>;
   /** 현재 테마 (D56 · ADR-0026). 루트 레이아웃이 쿠키에서 읽어 넣는다. */
   theme?: Theme;
-  /**
-   * 관리자 여부 (2026-08-22). 루트 레이아웃이 /me 로 판별해 넣는다 — 관리자에게만
-   * 관리자 화면(/admin) 입구를 보여준다. 생략·false 면 입구가 아예 렌더되지 않는다.
-   */
-  isAdmin?: boolean;
 }
 
 export function AppHeader({
@@ -54,13 +49,11 @@ export function AppHeader({
   orgLabel = ORG_LABEL,
   programLabels = PROGRAM_LABELS,
   theme = 'light',
-  isAdmin = false,
 }: AppHeaderProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
   const activeProgram = resolveActiveProgram(current, programType);
   const settingsActive = current === '/settings' || current.startsWith('/settings/');
-  const adminActive = current === '/admin' || current.startsWith('/admin/');
 
   return (
     <header className="app-header">
@@ -73,18 +66,6 @@ export function AppHeader({
       <div className="header-actions">
         {/* 계정 행동 3개는 아이콘 원형 버튼이다 — 드로어 닫기 X 와 같은 세컨더리 옷(그라데이션
             1px 테두리 + --panel 채움, 32×32 원). 라벨은 aria-label + title 로 남긴다. */}
-        {isAdmin ? (
-          <Link
-            className="header-icon-button"
-            href="/admin"
-            aria-label="관리자"
-            title="관리자"
-            data-current={adminActive ? 'true' : undefined}
-            aria-current={adminActive ? 'page' : undefined}
-          >
-            <NavIcon name="admin" />
-          </Link>
-        ) : null}
         <Link
           className="header-icon-button"
           href="/settings"
