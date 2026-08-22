@@ -6,6 +6,7 @@ const getParticipantDetail = vi.hoisted(() => vi.fn());
 const getAiDraft = vi.hoisted(() => vi.fn());
 const reviewAiDraftAction = vi.hoisted(() => vi.fn());
 const generateAiDraftAction = vi.hoisted(() => vi.fn());
+const createActionItemFromAiClaimAction = vi.hoisted(() => vi.fn());
 
 class FakeApiError extends Error {
   constructor(readonly code: string) {
@@ -23,6 +24,7 @@ vi.mock('../../../../../../../lib/api', () => ({
 vi.mock('../../../../../../../actions', () => ({
   reviewAiDraftAction: (...args: unknown[]) => reviewAiDraftAction(...args),
   generateAiDraftAction: (...args: unknown[]) => generateAiDraftAction(...args),
+  createActionItemFromAiClaimAction: (...args: unknown[]) => createActionItemFromAiClaimAction(...args),
 }));
 
 // 재료가 하나(텍스트)뿐일 때의 축 상태(D69 · ADR-0036 결정 2).
@@ -38,6 +40,7 @@ beforeEach(() => {
   getAiDraft.mockReset();
   reviewAiDraftAction.mockReset();
   generateAiDraftAction.mockReset();
+  createActionItemFromAiClaimAction.mockReset();
   listSupportCaseRecords.mockResolvedValue({
     records: [{
       id: 'session-1',
@@ -69,6 +72,7 @@ beforeEach(() => {
     origin: 'fixture_generated',
     creationMode: 'fixture_generated',
     summaryText: 'fixture summary sentinel',
+    claims: [],
     oneLiner: 'fixture one-liner sentinel',
     questions: [],
     reviewDecision: null,
@@ -81,7 +85,7 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-async function renderContent(errorCode?: string, errorSource?: string) {
+async function renderContent(errorCode?: string, errorSource?: string, noticeCode?: string) {
   const { ReviewContent } = await import('./page');
   return render(await ReviewContent({
     beneficiaryId: 'swallow-003',
@@ -89,6 +93,7 @@ async function renderContent(errorCode?: string, errorSource?: string) {
     sessionId: 'session-1',
     errorCode,
     errorSource,
+    noticeCode,
   }));
 }
 
@@ -130,6 +135,7 @@ describe('AI 초안 검토 페이지', () => {
       origin: 'generated',
       creationMode: 'provider_generated',
       summaryText: 'provider summary sentinel',
+      claims: [],
       oneLiner: null,
       questions: [],
       reviewDecision: null,
@@ -156,6 +162,7 @@ describe('AI 초안 검토 페이지', () => {
       origin: 'generated',
       creationMode: 'provider_generated',
       summaryText: 'approved summary sentinel',
+      claims: [],
       oneLiner: null,
       questions: [],
       reviewDecision: 'approved',
@@ -175,6 +182,7 @@ describe('AI 초안 검토 페이지', () => {
       origin: 'generated',
       creationMode: 'provider_generated',
       summaryText: 'rejected summary sentinel',
+      claims: [],
       oneLiner: null,
       questions: [],
       reviewDecision: 'rejected',
@@ -194,6 +202,7 @@ describe('AI 초안 검토 페이지', () => {
       origin: 'legacy_import',
       creationMode: 'legacy_import',
       summaryText: 'legacy summary sentinel',
+      claims: [],
       oneLiner: null,
       questions: [],
       reviewDecision: 'approved',
@@ -211,6 +220,11 @@ describe('AI 초안 검토 페이지', () => {
   it('shows the error message mapped from the redirected error code', async () => {
     await renderContent('stale_draft_version');
     expect(screen.getByRole('alert').textContent).toBe('다른 곳에서 이 초안이 바뀌었습니다. 새로고침한 뒤 다시 시도하세요.');
+  });
+
+  it('shows action-item registration success on return', async () => {
+    await renderContent(undefined, undefined, 'action_item_created');
+    expect(screen.getByText('액션 아이템을 등록했습니다.')).toBeTruthy();
   });
 
   // 검수 지적 6: 재생성 실패는 처리 실패와 같은 기본 문구로 읽히지 않는다 — 같은 error 코드

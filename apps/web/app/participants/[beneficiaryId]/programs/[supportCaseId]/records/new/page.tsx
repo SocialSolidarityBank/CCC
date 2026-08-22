@@ -31,9 +31,10 @@ class FormInputError extends Error {}
 const flagTypes = [
   ['crisis_utterance', '위기 발언'],
   ['contact_loss_risk', '연락 두절 위험'],
-  ['housing_livelihood_shock', '주거·생계 급변'],
+  ['housing_livelihood_shock', '주거·생계·건강 급변'],
   ['debt_deterioration', '부채 악화'],
   ['repeated_noncompliance', '약속 불이행 반복'],
+  ['violence_exploitation', '폭력·착취 피해'],
 ] as const;
 
 // 서술형 항목(CCC-10 · 0016). 폼 필드 이름과 record_details 키가 1:1이다.
@@ -375,9 +376,8 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     stale_draft_version: '기록 초안이 변경되어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
     draft_version_required: '기록 초안 버전이 확인되지 않아 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
     grounded_evidence_required: '확인 가능한 근거가 없어 요청을 처리할 수 없습니다. 최신 상태를 확인하세요.',
-    // CCC-114 의 두 코드는 AI 초안 검토 화면에서 나는 실패다. 이 저장 경로에서는 나지
-    // 않지만 공용 Notice 타입을 쓰므로 자리는 채워 둔다(빠지면 타입이 깨진다).
-    contrast_resolution_required: '대조 3종의 모든 항목에 처리 결과가 있어야 승인할 수 있습니다.',
+    // 화자 확인 코드는 AI 초안 검토 화면에서 나는 실패다. 이 저장 경로에서는 나지
+    // 않지만 공용 Notice 타입을 쓰므로 자리는 채워 둔다.
     speaker_confirmation_required: '녹음이 있는 회차는 화자 구분 확인을 마쳐야 승인할 수 있습니다.',
     fixture_draft_approval_forbidden: '테스트 산출물은 공식 기록으로 승인할 수 없습니다.',
     ai_provider_not_configured: '텍스트 AI 서비스를 현재 설정할 수 없어 요청을 처리할 수 없습니다.',

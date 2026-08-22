@@ -3,6 +3,7 @@ import type {
   AiContrastAxis,
   AiContrastAxisStatus,
   AiDraftContrastAxis,
+  AiClaimSection,
   AiDraftCreationMode,
   AiDraftOrigin,
   AiDraftReviewDecision,
@@ -13,7 +14,7 @@ import { GridContainer } from '../../../../../../../components/wire/grid-contain
 import { MetaRow } from '../../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../../../../../../components/wire/participant-hero-card';
-import { WireCallout, WireQuote } from '../../../../../../../components/wire/wire-callout';
+import { WireCallout, WireSourceQuotes } from '../../../../../../../components/wire/wire-callout';
 import { WireCard } from '../../../../../../../components/wire/wire-card';
 import { WireBadge, type WireBadgeTone } from '../../../../../../../components/wire/wire-badge';
 import { WireButton } from '../../../../../../../components/wire/wire-button';
@@ -51,16 +52,17 @@ function transcriptClock(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
-// 항목별 처리 3종(CCC-114) — CONTEXT.md '내용 불일치'와 같은 낱말·순서(ADR-0018).
-const contrastResolutionOptions = ['situation_changed', 'record_error', 'confirmed'] as const;
-const contrastResolutionLabels: Record<(typeof contrastResolutionOptions)[number], string> = {
-  situation_changed: '상황 변경',
-  record_error: '기록 오류',
-  confirmed: '확인 완료',
-};
-
-// 처리 select 는 대조 카드에 서지만 제출은 처리 폼으로 실린다(form 속성 연결, CCC-114).
 const REVIEW_FORM_ID = 'ai-draft-review-form';
+const claimSectionOrder: AiClaimSection[] = [
+  'session_goal_discussion',
+  'other_topics',
+  'next_session_commitments',
+];
+const claimSectionLabels: Record<AiClaimSection, string> = {
+  session_goal_discussion: '회기 목표별 논의 내용',
+  other_topics: '목표 밖 주요 내용',
+  next_session_commitments: '다음 회차까지의 약속과 할 일',
+};
 
 // 축 상태 배지(검수 지적 8 — "돌리지 못함"과 "돌렸는데 차이 없음"을 옷으로 가른다).
 // v3 이전 초안(빈 배열)은 이유를 알 수 없으니 '돌리지 못함'과 다른 낱말을 쓴다(지적 7).
@@ -77,6 +79,7 @@ export interface DraftReviewViewModel {
   creationMode: AiDraftCreationMode;
   version: number;
   summaryText: string;
+  claims: Array<{ claimKey: string; section: AiClaimSection; text: string }>;
   oneLiner: string | null;
   questions: Array<{ title: string; reason: string }>;
   evidence: Array<{ id: string; claimKey: string; quote: string }>;
@@ -104,16 +107,17 @@ export interface DraftReviewViewProps {
   draft: DraftReviewViewModel;
   /** 처리(승인·반려) 실패 안내(리다이렉트 뒤 notice 파라미터). */
   errorMessage?: string | undefined;
+  successMessage?: string | undefined;
   /** 서버 액션. 없으면(테스트 등) 처리·재생성 UI 를 그리지 않는다(R2 는 뒷단이 갖는다). */
   reviewAction?: ((formData: FormData) => Promise<void>) | undefined;
   generateAction?: ((formData: FormData) => Promise<void>) | undefined;
+  actionItemAction?: ((formData: FormData) => Promise<void>) | undefined;
 }
 
-function ContrastAxisSection({ axis, data, resolutionFormId }: {
+function ContrastAxisSection({ axis, data, sourceHref }: {
   axis: AiContrastAxis;
   data: AiDraftContrastAxis | undefined;
-  /** 있으면 항목마다 처리 select 를 그리고 이 폼 id 로 제출을 잇는다(CCC-114 — 검토 대기 초안만). */
-  resolutionFormId?: string | undefined;
+  sourceHref: string;
 }) {
   const badge = axisBadge(data);
   return (
@@ -144,27 +148,7 @@ function ContrastAxisSection({ axis, data, resolutionFormId }: {
                       title={finding.description}
                       status={<WireBadge tone="blue">{materialKindLabels[finding.materialKind]}</WireBadge>}
                     />
-                    <WireQuote>{finding.quote}</WireQuote>
-                    {resolutionFormId !== undefined && (
-                      <WireFormField
-                        label="처리"
-                        control="select"
-                        htmlFor={`contrast-resolution-${axis}-${index}`}
-                        hint="승인하려면 모든 항목에 처리를 골라야 합니다."
-                      >
-                        <select
-                          id={`contrast-resolution-${axis}-${index}`}
-                          name={`contrastResolution.${axis}.${index}`}
-                          form={resolutionFormId}
-                          defaultValue=""
-                        >
-                          <option value="">처리 선택</option>
-                          {contrastResolutionOptions.map((status) => (
-                            <option key={status} value={status}>{contrastResolutionLabels[status]}</option>
-                          ))}
-                        </select>
-                      </WireFormField>
-                    )}
+                    <WireSourceQuotes quotes={[finding.quote]} sourceHref={sourceHref} />
                   </li>
                 ))}
               </ul>
@@ -184,8 +168,10 @@ export function DraftReviewView({
   recordsHref,
   draft,
   errorMessage,
+  successMessage,
   reviewAction,
   generateAction,
+  actionItemAction,
 }: DraftReviewViewProps) {
   const isFixture = draft.origin === 'fixture_generated';
   const contrastByAxis = new Map(draft.contrast.map((axis) => [axis.axis, axis]));
@@ -197,6 +183,17 @@ export function DraftReviewView({
   // 서버가 최종 판정하므로(R1) 여기서는 체크를 그릴지들만 정한다.
   const requiresSpeakerConfirmation = draft.contrast.some((axisData) => axisData.status === 'applied'
     && (axisData.axis === 'missing_from_memo' || axisData.axis === 'missing_from_transcript'));
+  const claimsBySection = new Map(claimSectionOrder.map((section) => [
+    section,
+    draft.claims.filter((claim) => claim.section === section),
+  ] as const));
+  const sourceQuotesByClaim = new Map<string, string[]>();
+  for (const evidence of draft.evidence) {
+    const quotes = sourceQuotesByClaim.get(evidence.claimKey) ?? [];
+    if (!quotes.includes(evidence.quote)) quotes.push(evidence.quote);
+    sourceQuotesByClaim.set(evidence.claimKey, quotes);
+  }
+  const sourceHref = `${recordsHref}#record-${sessionId}`;
 
   return (
     <div data-testid="ai-draft-review">
@@ -226,6 +223,9 @@ export function DraftReviewView({
         )}
 
         {errorMessage !== undefined && <WireError>{errorMessage}</WireError>}
+        {successMessage !== undefined && (
+          <WireCallout title={successMessage} tone="mint" role="status" />
+        )}
 
         {/* 전사 신뢰 불가 구간 표시 (CCC-124). 표시만 한다 — 승인 차단은 CCC-114 후속.
             어느 쪽이 맞는지 정하는 것은 사람 몫이다(R5). */}
@@ -271,13 +271,97 @@ export function DraftReviewView({
               : <p className="wire-section-value">{draft.oneLiner}</p>}
           </WireCardSection>
 
-          <WireCardSection
-            title="요약"
-            tone="lavender"
-            testId="ai-draft-section-summary"
-          >
-            <p className="wire-section-value">{draft.summaryText}</p>
-          </WireCardSection>
+          {draft.claims.length === 0
+            ? (
+              <WireCardSection
+                title="요약"
+                tone="lavender"
+                testId="ai-draft-section-summary"
+              >
+                <p className="wire-section-value">{draft.summaryText}</p>
+              </WireCardSection>
+            )
+            : claimSectionOrder.map((section) => {
+              const claims = claimsBySection.get(section) ?? [];
+              return (
+                <WireCardSection
+                  key={section}
+                  title={claimSectionLabels[section]}
+                  tone="lavender"
+                  testId={`ai-draft-claims-${section}`}
+                >
+                  {claims.length === 0
+                    ? (
+                      <WireEmpty>
+                        {section === 'session_goal_discussion'
+                          ? '이번 회기의 세션 목표가 없어 이 구획을 만들지 않았습니다.'
+                          : '이 구획에 정리된 내용이 없습니다.'}
+                      </WireEmpty>
+                    )
+                    : (
+                      <ul className="briefing-suggestions">
+                        {claims.map((claim) => (
+                          <li key={claim.claimKey}>
+                            <WireItem tone="lavender" title={claim.text} />
+                            <WireSourceQuotes
+                              quotes={sourceQuotesByClaim.get(claim.claimKey) ?? []}
+                              sourceHref={sourceHref}
+                            />
+                            {section === 'next_session_commitments' && !isFixture && actionItemAction !== undefined && (
+                              <form
+                                action={actionItemAction}
+                                data-testid={`ai-commitment-action-${claim.claimKey}`}
+                              >
+                                <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+                                <input type="hidden" name="supportCaseId" value={supportCaseId} />
+                                <input type="hidden" name="sessionId" value={sessionId} />
+                                <WireFormField
+                                  label="할 일 문구"
+                                  control="input"
+                                  htmlFor={`action-description-${claim.claimKey}`}
+                                >
+                                  <input
+                                    id={`action-description-${claim.claimKey}`}
+                                    name="description"
+                                    defaultValue={claim.text}
+                                    required
+                                  />
+                                </WireFormField>
+                                <WireFormField
+                                  label="담당"
+                                  control="select"
+                                  htmlFor={`action-owner-${claim.claimKey}`}
+                                >
+                                  <select
+                                    id={`action-owner-${claim.claimKey}`}
+                                    name="owner"
+                                    defaultValue=""
+                                    required
+                                  >
+                                    <option value="" disabled>담당 선택</option>
+                                    <option value="counselor">실무자</option>
+                                    <option value="beneficiary">당사자</option>
+                                    <option value="org">기관</option>
+                                  </select>
+                                </WireFormField>
+                                <WireFormField
+                                  label="기한"
+                                  control="input"
+                                  htmlFor={`action-due-${claim.claimKey}`}
+                                  hint="기한이 없으면 비워 두세요."
+                                >
+                                  <input id={`action-due-${claim.claimKey}`} name="dueDate" type="date" />
+                                </WireFormField>
+                                <WireButton type="submit" variant="secondary">액션으로 등록</WireButton>
+                              </form>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                </WireCardSection>
+              );
+            })}
 
           <WireCardSection
             title="확인할 질문"
@@ -288,13 +372,17 @@ export function DraftReviewView({
               ? <WireEmpty>확인할 질문이 없습니다.</WireEmpty>
               : (
                 <ul className="briefing-suggestions">
-                  {draft.questions.map((question) => (
-                    <li key={`${question.title} ${question.reason}`}>
-                    <WireItem
-                      tone="lavender"
-                      title={question.title}
-                      description={question.reason}
-                    />
+                  {draft.questions.map((question, index) => (
+                    <li key={`${question.title}\u0000${question.reason}`}>
+                      <WireItem
+                        tone="lavender"
+                        title={question.title}
+                        description={question.reason}
+                      />
+                      <WireSourceQuotes
+                        quotes={sourceQuotesByClaim.get(`question_${index + 1}`) ?? []}
+                        sourceHref={sourceHref}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -312,7 +400,7 @@ export function DraftReviewView({
                 <ul className="briefing-suggestions">
                   {draft.evidence.map((evidence) => (
                     <li key={evidence.id}>
-                      <WireQuote>{evidence.quote}</WireQuote>
+                      <WireSourceQuotes quotes={[evidence.quote]} sourceHref={sourceHref} />
                     </li>
                   ))}
                 </ul>
@@ -333,7 +421,7 @@ export function DraftReviewView({
               key={axis}
               axis={axis}
               data={contrastByAxis.get(axis)}
-              resolutionFormId={showReviewActions ? REVIEW_FORM_ID : undefined}
+              sourceHref={sourceHref}
             />
           ))}
         </WireCard>
@@ -357,7 +445,7 @@ export function DraftReviewView({
         {showReviewActions && (
           <WireCard as="section" testId="ai-draft-review-actions" title="처리">
             <p className="panel-meta">
-              대조 3종의 각 항목에 처리를 고른 뒤 승인하거나 반려하세요. 승인하면 이 초안이 공식 기록이 됩니다.
+              대조 3종을 모두 확인한 뒤 승인하거나 반려하세요. 승인하면 이 초안이 공식 기록이 됩니다.
             </p>
             <form id={REVIEW_FORM_ID} action={reviewAction}>
               <input type="hidden" name="beneficiaryId" value={beneficiaryId} />

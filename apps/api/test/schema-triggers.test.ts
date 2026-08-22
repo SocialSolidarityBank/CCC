@@ -319,6 +319,51 @@ async function createApprovedGeneratedProvenance(
 }
 
 describe('schema triggers', () => {
+  it('keeps flags session references inside the same support case after migration 0039', async () => {
+    await t.reset();
+    const first = await createCanonicalParticipant();
+    const second = await createSupportCase(t.env, admin, first.beneficiaryId, {
+      consentPrivacy: true,
+      schemaVersion: 1,
+      submissionId: '91919191-9191-4191-8191-919191919191',
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-15T09:00:00.000Z',
+      initialAssigneeUserId: counselor.userId,
+    });
+    const secondSessionId = 'flag-scope-second-session';
+    await t.db.prepare(
+      `INSERT INTO sessions (
+         id, org_id, support_case_id, counselor_id, held_at, channel, memo,
+         submission_id, submission_hash, submitted_by, ai_status, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, 'in_person', ?, ?, ?, ?, 'none', ?, ?)`,
+    ).bind(
+      secondSessionId,
+      counselor.orgId,
+      second.supportCaseId,
+      counselor.userId,
+      CREATED_AT,
+      '다른 참여 사업의 회차',
+      '92929292-9292-4292-8292-929292929292',
+      SHA256,
+      counselor.userId,
+      CREATED_AT,
+      CREATED_AT,
+    ).run();
+
+    await expect(t.db.prepare(
+      `INSERT INTO flags (
+         id, org_id, support_case_id, session_id, flag_type, source,
+         review_status, created_at
+       ) VALUES (?, ?, ?, ?, 'debt_deterioration', 'counselor', 'confirmed', ?)`,
+    ).bind(
+      'cross-support-case-flag',
+      counselor.orgId,
+      first.supportCaseId,
+      secondSessionId,
+      CREATED_AT,
+    ).run()).rejects.toThrow('participant_schema_violation');
+  });
+
   it('matches core trigger diagnostics and preserves rows after rejected mutations', async () => {
     await t.reset();
     const participant = await createCanonicalParticipant();

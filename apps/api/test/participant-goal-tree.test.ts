@@ -4,6 +4,7 @@ import {
   ForbiddenError,
   closeGoal,
   createBeneficiaryWithInitialSupportCase,
+  createCounselingRecord,
   createCounselingSchedule,
   createGoal,
   getParticipantGoalTree,
@@ -52,14 +53,30 @@ async function seedTree() {
       { body: '연결 없는 계획' },
     ],
   });
-  await createCounselingSchedule(t.env, testActors.counselor, {
+  const completedSchedule = await createCounselingSchedule(t.env, testActors.counselor, {
     beneficiaryId: owned.beneficiaryId,
     supportCaseId: owned.supportCaseId,
     scheduledAt: '2026-07-23T01:00:00.000Z',
     sessionGoals: [{ body: '지출 항목 정리', caseGoalId: active.id }],
   });
+  const completed = await createCounselingRecord(t.env, testActors.counselor, owned.supportCaseId, {
+    submissionId: '77777777-7777-4777-8777-777777777777',
+    heldAt: '2026-07-23T01:00:00.000Z',
+    channel: 'in_person',
+    memo: '지출 항목을 정리했다.',
+    gasScores: [],
+    actionItems: [],
+    flags: [],
+    scheduleId: completedSchedule.id,
+    expectedScheduleVersion: completedSchedule.version,
+  });
 
-  return { ...owned, activeGoalId: active.id, closedGoalId: closed.id };
+  return {
+    ...owned,
+    activeGoalId: active.id,
+    closedGoalId: closed.id,
+    linkedSessionId: completed.record.id,
+  };
 }
 
 describe('getParticipantGoalTree (D62 §8 · CCC-69)', () => {
@@ -87,9 +104,16 @@ describe('getParticipantGoalTree (D62 §8 · CCC-69)', () => {
     expect(active.sessionGoals.map((sessionGoal) => sessionGoal.body))
       .toEqual(['지출 항목 정리', '가계부 확인']);
     expect(active.sessionGoals[0]?.scheduledAt).toBe('2026-07-23T01:00:00.000Z');
-    expect(active.sessionGoals[0]?.scheduleStatus).toBe('scheduled');
+    expect(active.sessionGoals[0]?.scheduleStatus).toBe('completed');
     expect(entry.goals.flatMap((goal) => goal.sessionGoals.map((sessionGoal) => sessionGoal.body)))
       .not.toContain('연결 없는 계획');
+    // D73: 완료 일정의 기존 연결을 따라 실제 회차를 역방향으로 싣는다. 승인 한 줄이 없으면
+    // 값을 꾸며내지 않고 null 이다.
+    expect(active.linkedSessions).toEqual([{
+      sessionId: seeded.linkedSessionId,
+      heldAt: '2026-07-23T01:00:00.000Z',
+      oneLiner: null,
+    }]);
 
     // 닫힌 목표는 사유·시각과 함께 남는다 — 지우지 않는다(D62 §5).
     const closed = entry.goals.find((goal) => goal.id === seeded.closedGoalId)!;
@@ -109,9 +133,9 @@ describe('getParticipantGoalTree (D62 §8 · CCC-69)', () => {
     const seeded = await seedTree();
     await expect(getParticipantGoalTree(t.env, testActors.unassignedCounselor, seeded.beneficiaryId))
       .rejects.toBeInstanceOf(ForbiddenError);
-    // admin 은 기관 범위 — 담당 배정 없이도 본다.
-    const asAdmin = await getParticipantGoalTree(t.env, testActors.admin, seeded.beneficiaryId);
-    expect(asAdmin).toHaveLength(1);
+    // 기관 관리자도 담당 배정 없이 상담 목표를 볼 수 없다(D74).
+    await expect(getParticipantGoalTree(t.env, testActors.admin, seeded.beneficiaryId))
+      .rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('goal-tree 라우트가 cases 로 감싸 내리고, 비담당은 403 이다', async () => {
@@ -128,12 +152,14 @@ describe('getParticipantGoalTree (D62 §8 · CCC-69)', () => {
         sourceSupportCase: { id: string };
         overallGoal: string | null;
         overallGoalRevisions: Array<{ title: string | null; editedByName: string | null; editedAt: string }>;
-        goals: Array<{ id: string; status: string; sessionGoals: unknown[] }>;
+        goals: Array<{ id: string; status: string; sessionGoals: unknown[]; linkedSessions: unknown[] }>;
       }>;
     };
     expect(body.cases).toHaveLength(1);
     expect(body.cases[0]?.overallGoal).toBe('주거 안정과 채무 상환 계획 실행');
     expect(body.cases[0]?.goals).toHaveLength(2);
+    expect(body.cases[0]?.goals.find((goal) => goal.id === seeded.activeGoalId)?.linkedSessions)
+      .toEqual([{ sessionId: seeded.linkedSessionId, heldAt: '2026-07-23T01:00:00.000Z', oneLiner: null }]);
 
     const forbidden = await worker.fetch(new Request(
       `http://localhost/participants/${seeded.beneficiaryId}/goal-tree`,

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ParticipantGoalTreeCase, ParticipantGoalTreeGoal, GoalRevisionEntry, ParticipantProgramType } from '../../lib/api';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireCard } from '../../components/wire/wire-card';
@@ -53,44 +54,65 @@ function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
 }
 
 /** 세부 목표 한 그루 — 제목 줄(상태·이력) + 연결된 세션 목표 목록. */
-function GoalNode({ goal }: { goal: ParticipantGoalTreeGoal }) {
+function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; recordsHref: string }) {
   const closed = goal.status === 'closed';
   const reasonLabel = goal.closedReason === null ? null : goalCloseReasonLabels[goal.closedReason] ?? null;
   return (
     <li className={closed ? 'goal-tree-goal is-closed' : 'goal-tree-goal'}>
-      <div className="goal-tree-goal-head">
-        <span className="goal-tree-goal-title">{goal.title}</span>
-        {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
-        <RevisionHistory revisions={goal.revisions} />
-      </div>
-      {goal.sessionGoals.length > 0 && (
-        <ul className="goal-tree-session-rows">
-          {goal.sessionGoals.map((sessionGoal) => {
+      <details className="goal-tree-goal-details">
+        <summary className="goal-tree-goal-head">
+          <span className="goal-tree-goal-title">{goal.title}</span>
+          {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
+          <WireBadge tone="blue">연결 회차 {goal.linkedSessions.length}건</WireBadge>
+        </summary>
+        <div className="goal-tree-goal-body">
+          <RevisionHistory revisions={goal.revisions} />
+          {goal.linkedSessions.length === 0
+            ? <WireEmpty>연결된 상담 회차가 없습니다.</WireEmpty>
+            : <ul className="goal-tree-session-rows">
+                {goal.linkedSessions.map((session) => (
+                  <li key={session.sessionId}>
+                    <Link
+                      className="goal-tree-linked-session"
+                      href={`${recordsHref}#record-${session.sessionId}`}
+                    >
+                      <span className="goal-tree-session-date">{formatKoreanDate(session.heldAt)}</span>
+                      <span className="goal-tree-session-body">{session.oneLiner ?? '핵심 한 줄이 없습니다.'}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>}
+          {goal.sessionGoals.length > 0 && (
+            <ul className="goal-tree-session-rows">
+              {goal.sessionGoals.map((sessionGoal) => {
             const suffix = scheduleStatusSuffix[sessionGoal.scheduleStatus] ?? null;
             // MetaRow 를 쓰지 않는다(2026-08-09) — 이 줄은 짧은 메타 조각들이 아니라 **날짜 +
             // 문장**이라, 조각 사이 세로선 구분자가 문장의 줄바꿈에 걸려 본문 앞 인용 막대처럼
             // 보였다(Q 보고 "아래 날짜 | 중복 내용"). 날짜는 줄지 않는 칸으로 두고 문장만 자기
             // 칸 안에서 접히게 한다. 구분은 세로선이 아니라 날짜 색이 맡는다(§10 은 문자
             // 구분자를 금지할 뿐, 조각을 독립 노드로 두고 간격으로 띄우는 계약은 그대로다).
-            return (
-              <li key={sessionGoal.id} className="goal-tree-session-row">
-                <span className="goal-tree-session-date">{formatKoreanDate(sessionGoal.scheduledAt)}</span>
-                <span className="goal-tree-session-body">{sessionGoal.body}</span>
-                {suffix === null ? null : <span className="goal-tree-session-suffix">{suffix}</span>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                return (
+                  <li key={sessionGoal.id} className="goal-tree-session-row">
+                    <span className="goal-tree-session-date">{formatKoreanDate(sessionGoal.scheduledAt)}</span>
+                    <span className="goal-tree-session-body">{sessionGoal.body}</span>
+                    {suffix === null ? null : <WireBadge>{suffix}</WireBadge>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </details>
     </li>
   );
 }
 
 /** 케이스 한 구획: 전체 목표 → 세부 목표(각각 세션 목표를 매단다). */
-function GoalTreeCaseBlock({ tree, programTitle, showTitle }: {
+function GoalTreeCaseBlock({ tree, programTitle, showTitle, recordsHref }: {
   tree: ParticipantGoalTreeCase;
   programTitle: string;
   showTitle: boolean;
+  recordsHref: string;
 }) {
   const overallSet = tree.overallGoal !== null && tree.overallGoal.length > 0;
   return (
@@ -118,7 +140,7 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle }: {
             // 불릿은 항목이 2개 이상일 때만 얹는다(§5 불릿 목록 규칙) — 세부 목표가 하나뿐이면
             // 나열이 아니라 문장이라 점도 들여쓰기도 두지 않는다.
             <ul className={tree.goals.length > 1 ? 'goal-tree-goals wire-bullets' : 'goal-tree-goals'}>
-              {tree.goals.map((goal) => <GoalNode key={goal.id} goal={goal} />)}
+              {tree.goals.map((goal) => <GoalNode key={goal.id} goal={goal} recordsHref={recordsHref} />)}
             </ul>
           )}
       </div>
@@ -129,7 +151,8 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle }: {
 /** 목표 카드 — 담당 케이스가 여럿이면 구획 머리에 사업명이 선다(동의서 카드와 같은 문법).
  *  목표 조회만 실패했을 때는 카드 자리에 오류 한 줄을 남긴다 — 구획 하나의 장애가 허브
  *  전체를 막지 않는다(D8 폴백 태도, 인테이크의 전체 목표 오류 안내와 같은 결정). */
-export function GoalTreeCard({ cases, programLabels, loadFailed = false }: {
+export function GoalTreeCard({ beneficiaryId, cases, programLabels, loadFailed = false }: {
+  beneficiaryId: string;
   cases: ParticipantGoalTreeCase[];
   programLabels: Record<ParticipantProgramType, string>;
   loadFailed?: boolean;
@@ -150,6 +173,7 @@ export function GoalTreeCard({ cases, programLabels, loadFailed = false }: {
           tree={tree}
           programTitle={programLabels[tree.sourceSupportCase.programType] ?? tree.sourceSupportCase.programType}
           showTitle={cases.length > 1}
+          recordsHref={`/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(tree.sourceSupportCase.id)}/records`}
         />
       ))}
     </WireCard>

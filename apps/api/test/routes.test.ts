@@ -162,12 +162,14 @@ function validProviderOutput(request: AiProviderRequest, text = 'A001 discussed 
   return {
     claims: [{
       claimKey: 'grocery-expenses',
+      section: 'other_topics',
       text,
       evidence: [{ ...firstEvidence(request) }],
     }],
     questions: validProviderQuestions(request),
     oneLiner: '생활비 지출 상황을 확인했다.',
     contrast: validProviderContrast(request),
+    flagSuggestions: [],
   };
 }
 
@@ -355,11 +357,8 @@ async function reviewDraft(
   return worker.fetch(new Request(`http://localhost/sessions/${sessionId}/ai/drafts/${version}/review`, {
     method: 'POST',
     headers,
-    // 승인 계약(CCC-114): 항목이 없는 초안도 처리 목록을 빈 배열로 명시해야 한다. 이 파일의
-    // 초안은 텍스트 재료뿐이라(대조 항목 0개·녹음 없음) 빈 배열이 전체를 덮는다.
-    body: JSON.stringify(decision === 'approved'
-      ? { expectedVersion: version, decision, contrastResolutions: [] }
-      : { expectedVersion: version, decision }),
+    // D71: 대조 항목은 읽기 전용이고 실무자는 초안 전체를 통째 승인한다.
+    body: JSON.stringify({ expectedVersion: version, decision }),
   }), env);
 }
 
@@ -1811,8 +1810,8 @@ describe('API routes', () => {
       {
         method: 'POST',
         headers: counselorHeaders,
-        // 승인 계약(CCC-114): 항목이 없는 초안도 처리 목록을 빈 배열로 명시해야 한다.
-        body: JSON.stringify({ expectedVersion: edited.version, decision: 'approved', contrastResolutions: [] }),
+        // D71: 대조는 읽기 전용이고 초안 전체를 통째 승인한다.
+        body: JSON.stringify({ expectedVersion: edited.version, decision: 'approved' }),
       },
     ), env);
     expect(approvalResponse.status).toBe(200);
@@ -2194,8 +2193,8 @@ interface RouteAiDraftWithRegeneration extends RouteAiDraft {
   regenerateSourceSnapshotId: string | null;
 }
 
-describe('검토 화면 기관 관리자 열람 (D7 · D40 · CCC-105)', () => {
-  it('기관 관리자가 초안 조회 · 근거 재선택 · 승인까지 검토 화면 세 경로를 전부 통과한다', async () => {
+describe('검토 화면 기관 관리자 경계 (D74)', () => {
+  it('담당이 아닌 기관 관리자는 초안 조회 · 근거 재선택 · 승인 세 경로에서 거부된다', async () => {
     const { caseRecord, env, session } = await setupPhase1AiFixture();
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(env, session.id);
@@ -2204,26 +2203,17 @@ describe('검토 화면 기관 관리자 열람 (D7 · D40 · CCC-105)', () => {
     const draft = await generatedResponse.json() as RouteAiDraft;
 
     const readAsAdmin = await currentDraft(env, session.id, adminHeaders);
-    expect(readAsAdmin.status).toBe(200);
-    await expect(readAsAdmin.json()).resolves.toEqual(
-      expect.objectContaining({ version: draft.version, reviewDecision: null }),
-    );
+    expect(readAsAdmin.status).toBe(403);
 
     const evidenceId = draft.evidence[0]?.id;
     if (evidenceId === undefined) throw new Error('generated draft evidence is missing');
     const editAsAdmin = await editDraft(env, session.id, draft.version, evidenceId, adminHeaders);
-    expect(editAsAdmin.status).toBe(200);
-    const edited = await editAsAdmin.json() as RouteAiDraft;
-    expect(edited.version).toBe(draft.version + 1);
-
-    const reviewAsAdmin = await reviewDraft(env, session.id, edited.version, 'approved', adminHeaders);
-    expect(reviewAsAdmin.status).toBe(200);
-    await expect(reviewAsAdmin.json()).resolves.toEqual(
-      expect.objectContaining({ reviewDecision: 'approved' }),
-    );
+    expect(editAsAdmin.status).toBe(403);
+    const reviewAsAdmin = await reviewDraft(env, session.id, draft.version, 'approved', adminHeaders);
+    expect(reviewAsAdmin.status).toBe(403);
   });
 
-  it('결정만 실은 승인 요청은 409 로 막힌다 (CCC-114 회귀)', async () => {
+  it('대조 항목별 처리 없이 초안 전체를 통째 승인한다 (D71)', async () => {
     const { caseRecord, env, session } = await setupPhase1AiFixture();
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(env, session.id);
@@ -2239,14 +2229,9 @@ describe('검토 화면 기관 관리자 열람 (D7 · D40 · CCC-105)', () => {
         body: JSON.stringify({ expectedVersion: draft.version, decision: 'approved' }),
       },
     ), env);
-    expect(decisionOnly.status).toBe(409);
-    expect(await decisionOnly.json()).toEqual({ error: 'contrast_resolution_required' });
-
-    // 막힌 시도는 아무것도 공식화하지 않는다 — 초안은 검토 대기 그대로다.
-    const current = await currentDraft(env, session.id);
-    expect(current.status).toBe(200);
-    await expect(current.json()).resolves.toEqual(
-      expect.objectContaining({ version: draft.version, reviewDecision: null }),
+    expect(decisionOnly.status).toBe(200);
+    await expect(decisionOnly.json()).resolves.toEqual(
+      expect.objectContaining({ version: draft.version, reviewDecision: 'approved' }),
     );
   });
 
@@ -2630,7 +2615,9 @@ describe('canonical participant API routes', () => {
           flagType: 'contact_loss_risk',
           source: 'counselor',
           reviewStatus: 'confirmed',
+          quote: null,
         }],
+        discrepancies: [],
         lifeAreaSnapshot: [
           { areaKey: 'economy', status: 'crisis', note: 'CANONICAL_ECONOMY' },
         ],
@@ -3161,7 +3148,7 @@ describe('canonical participant API routes', () => {
           text: string;
           pendingApprovalCount: number;
         } | null;
-        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null }>;
+        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null; sourceQuotes: string[] }>;
       }>;
     };
     const officialBeforeApproval = await officialBeforeApprovalResponse.json() as {
@@ -3221,7 +3208,7 @@ describe('canonical participant API routes', () => {
           text: string;
           pendingApprovalCount: number;
         } | null;
-        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null }>;
+        aiSuggestions: Array<{ title: string; reason: string | null; sessionId: string; heldAt: string | null; sourceQuotes: string[] }>;
       }>;
     };
     const officialAfterApproval = await officialAfterApprovalResponse.json() as {
@@ -3234,8 +3221,8 @@ describe('canonical participant API routes', () => {
         pendingApprovalCount: 1,
       },
       aiSuggestions: [
-        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z' },
-        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z' },
+        { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z', sourceQuotes: ['MASKED_CANONICAL_APPROVED_SOURCE'] },
+        { title: '주거비 변화가 있었나요?', reason: '지난 회차에서 주거비 부담이 화제였습니다.', sessionId: approvedSessionId, heldAt: '2026-07-15T12:00:00.000Z', sourceQuotes: ['MASKED_CANONICAL_APPROVED_SOURCE'] },
       ],
     })]);
     expectContentFree(focusedAfterApproval, [pendingCanary, rejectedCanary]);
@@ -3523,13 +3510,13 @@ describe('canonical participant API routes', () => {
     ).bind(canonicalCounselor.orgId, creation.beneficiaryId).all<{ detail: string | null }>();
     expectContentFree({ vault, auditLog: participantAuditLog.results }, Object.values(pii));
 
-    // admin 도 실명 열람 권한을 갖는다.
+    // 기관 관리자는 PII 권한이 있어도 담당 배정 없이 상담 브리핑을 열 수 없다(D74).
     const adminBriefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalAdminHeaders },
     ), t.env);
-    expect(adminBriefing.status).toBe(200);
-    expect((await adminBriefing.json() as { participant: { name: string | null } }).participant.name).toBe(pii.name);
+    expect(adminBriefing.status).toBe(403);
+    expectContentFree(await adminBriefing.text(), Object.values(pii));
 
     // 비담당 실무자는 브리핑(실명 포함) 접근이 막힌다 — 실명이 전혀 새지 않는다.
     const denied = await worker.fetch(new Request(
@@ -3666,12 +3653,12 @@ describe('support case overall goal route (D45 · CCC-41)', () => {
       canEditOverallGoal: true,
     });
 
-    // 기관 관리자도 수정한다(2026-07-30 Q 결정 — ADR-0018 개정, 구 '담당 실무자만' 대체).
+    // 기관 관리자는 목표를 수정할 수 있지만 담당 배정 없이 상담 브리핑은 열지 못한다(D74).
     const adminBriefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalAdminHeaders },
     ), t.env);
-    await expect(adminBriefing.json()).resolves.toMatchObject({ canEditOverallGoal: true });
+    expect(adminBriefing.status).toBe(403);
     const adminPut = await worker.fetch(new Request(url, {
       method: 'PUT',
       headers: canonicalAdminHeaders,

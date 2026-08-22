@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../../components/wire/wire-card';
 import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
+import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
@@ -262,7 +263,7 @@ function DiscrepancyItem({
 }) {
   return (
     <WireCardSection title={discrepancyKindLabels[item.kind]} tone="mint">
-      <div className="briefing-fields">
+      <div className="briefing-fields" id={`discrepancy-${item.id}`}>
         {[item.left, item.right].map((side, index) => (
           <WireField key={`${item.id}-${index}`} label={`${formatKoreanDate(side.heldAt)} 회차`}>
             <span>“{side.quote}”</span>
@@ -407,7 +408,7 @@ export function BriefingCards({
         </>}
       />
 
-      <RiskBanner flags={flags} />
+      <RiskBanner flags={flags} recordsHref={recordsHref} />
 
       {/* 전체 목표 카드는 리스크 배너 아래·아코디언 위다(D45 표 3행). */}
       <OverallGoalCard
@@ -498,6 +499,10 @@ export function BriefingCards({
                             근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
                           </Link>
                         }
+                      />
+                      <WireSourceQuotes
+                        quotes={suggestion.sourceQuotes}
+                        sourceHref={`${recordsHref}#record-${suggestion.sessionId}`}
                       />
                     </li>
                   ))}
@@ -643,6 +648,9 @@ export function BriefingCards({
                       <WireBadge tone="mint">담당 {actionOwnerLabels[item.owner]}</WireBadge>
                       {item.dueDate !== null && (
                         <WireBadge tone="blue">기한 {item.dueDate}</WireBadge>
+                      )}
+                      {item.sessionId !== null && (
+                        <Link className="briefing-action-source" href={`${recordsHref}#record-${item.sessionId}`}>출처 회차 보기</Link>
                       )}
                     </li>
                   ))}

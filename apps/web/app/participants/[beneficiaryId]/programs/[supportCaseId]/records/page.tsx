@@ -243,6 +243,8 @@ export default async function RecordHistoryPage({
       records={records}
       recordErrorSessionIds={recordErrorSessionIds}
       unavailable={result.data === null}
+      recordsHref={`${basePath}/records`}
+      briefingHref={`${basePath}/briefing`}
       {...(beneficiaryId === null || supportCaseId === null ? {} : { intakeHref: `${basePath}/records/intake` })}
     />
   </GridContainer>;

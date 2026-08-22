@@ -160,6 +160,12 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
   };
   const draft = await createGeneratedAiDraft(t.env, service, sessionId, {
     summaryText: 'APPROVED_AI_SUMMARY',
+    claims: [{
+      claimKey: 'approved-claim',
+      section: 'other_topics',
+      text: 'APPROVED_AI_SUMMARY',
+    }],
+    flagSuggestions: [],
     oneLiner: 'APPROVED_AI_ONE_LINER',
     questions: [
       { title: '지출 계획에 변동이 있었나요?', reason: '지난 회차에서 지출 변동이 언급되었습니다.' },

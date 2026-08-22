@@ -28,6 +28,7 @@ function record(overrides: Partial<SupportCaseRecord> = {}): SupportCaseRecord {
     aiOneLiner: null,
     memoExcerpt: '주거 계약 연장 구두 합의',
     sessionGoals: [],
+    discrepancies: [],
     ...overrides,
   };
 }
@@ -37,6 +38,8 @@ function renderList(records: SupportCaseRecord[], errorIds: string[] = []) {
     records={records}
     recordErrorSessionIds={new Set(errorIds)}
     unavailable={false}
+    recordsHref="/participants/swallow-003/programs/case-1/records"
+    briefingHref="/participants/swallow-003/programs/case-1/briefing"
   />);
 }
 
@@ -116,28 +119,60 @@ describe('RecordList', () => {
   it('리스크 레드는 확인된 플래그에만 쓴다 (§5 · D9)', () => {
     const { container } = renderList([record({
       flags: [
-        { id: 'f1', flagType: 'housing_livelihood_shock', source: 'counselor', reviewStatus: 'confirmed' },
-        { id: 'f2', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'rejected' },
+        { id: 'f1', flagType: 'housing_livelihood_shock', source: 'counselor', reviewStatus: 'confirmed', quote: null },
+        { id: 'f2', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'rejected', quote: null },
       ],
     })]);
 
     const flags = Array.from(container.querySelectorAll('.record-flag'));
     const confirmed = flags.filter((node) => node.getAttribute('data-confirmed') === 'true');
     const plain = flags.filter((node) => node.getAttribute('data-confirmed') === 'false');
-    // 확인된 것: 접힌 줄의 '⚠ 리스크' 표시 + 본문 항목 = 2곳. 제외됨은 무채색 1곳뿐이다.
+    // D73 '이 회차에서 나온 것'에는 확인된 플래그만 보인다.
     expect(confirmed).toHaveLength(2);
-    expect(plain).toHaveLength(1);
-    expect(plain[0]?.textContent).toContain('부채 악화');
-    // AI 가 제안한 플래그는 출처 칩으로만 표시한다(라벤더 축).
-    expect(container.querySelector('.wire-badge[data-tone="lavender"]')?.textContent).toBe('AI 제안');
+    expect(plain).toHaveLength(0);
+    expect(container.textContent).not.toContain('부채 악화');
   });
 
   it('확인된 플래그가 없으면 접힌 줄에 리스크 표시가 없다 (§5)', () => {
     const { container } = renderList([record({
-      flags: [{ id: 'f1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'pending' }],
+      flags: [{ id: 'f1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'pending', quote: null }],
     })]);
 
     expect(container.querySelector('.record-summary .record-flag')).toBeNull();
+  });
+
+  it("펼친 카드의 '이 회차에서 나온 것'에 승인 한 줄, 확인 플래그, 관련 불일치를 모은다 (D73)", () => {
+    const { container } = renderList([record({
+      id: 'session-1',
+      aiOneLiner: '상환 계획을 세우기로 했다.',
+      flags: [{
+        id: 'flag-1',
+        flagType: 'debt_deterioration',
+        source: 'ai',
+        reviewStatus: 'confirmed',
+        quote: '이자를 석 달째 내지 못했다.',
+      }],
+      discrepancies: [{
+        id: 'discrepancy-1',
+        kind: 'cross_session',
+        leftSessionId: 'session-1',
+        rightSessionId: 'session-2',
+        resolutionStatus: null,
+      }],
+    })]);
+
+    const section = [...container.querySelectorAll('.wire-card-section')]
+      .find((candidate) => candidate.querySelector('h3')?.textContent === '이 회차에서 나온 것');
+    expect(section).not.toBeUndefined();
+    expect(section?.textContent).toContain('상환 계획을 세우기로 했다.');
+    expect(section?.textContent).toContain('부채 악화');
+    expect(section?.textContent).toContain('회차 간 불일치');
+    const hrefs = [...(section?.querySelectorAll('a') ?? [])].map((link) => link.getAttribute('href'));
+    expect(hrefs).toContain('/participants/swallow-003/programs/case-1/briefing#discrepancy-discrepancy-1');
+    expect(hrefs).toContain('#record-session-1');
+    const quote = section?.querySelector('details[data-source-quotes]');
+    expect(quote?.hasAttribute('open')).toBe(false);
+    expect(quote?.textContent).toContain('이자를 석 달째 내지 못했다.');
   });
 
   it("'기록 오류'로 처리된 회차에 표시만 붙이고 본문은 원본 그대로 둔다 (CCC-42)", () => {

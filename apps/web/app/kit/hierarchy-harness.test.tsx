@@ -80,8 +80,9 @@ const briefingProps: BriefingCardsProps = {
     reason: '지난 회차에서 면접 결과를 기다리고 있었다',
     sessionId: 's-2',
     heldAt: '2026-07-15T05:00:00Z',
+    sourceQuotes: ['면접 결과는 다음 주에 나와요.'],
   }],
-  openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20' }],
+  openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20', sessionId: 's-2' }],
   flags: [],
   upcomingSchedule: {
     id: 's1',
@@ -118,6 +119,11 @@ const reviewProps: DraftReviewViewProps = {
     creationMode: 'provider_generated',
     version: 3,
     summaryText: '지난 상담 이후 월세 체납 문제와 구직 활동 근황을 확인했다. 이번 회차에서는 고정 지출을 정리하고 다음 상담까지의 계획을 세웠다.',
+    claims: [
+      { claimKey: 'goal-rent', section: 'session_goal_discussion', text: '월세 체납 해소 계획을 점검했다.' },
+      { claimKey: 'other-job', section: 'other_topics', text: '구직 활동 근황을 확인했다.' },
+      { claimKey: 'commit-budget', section: 'next_session_commitments', text: '다음 상담 전까지 고정 지출을 정리하기로 했다.' },
+    ],
     oneLiner: '월세 체납 해소 계획을 세우고 구직 활동 근황을 확인했다',
     questions: [
       { title: '최근 구직 활동은 어땠는지', reason: '지난 회차에서 면접 결과를 기다리고 있었다' },

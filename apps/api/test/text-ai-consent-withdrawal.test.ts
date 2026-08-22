@@ -112,6 +112,12 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     // 6) AI 초안 생성 경로 거부 — grant 검사가 입력 검증보다 먼저 닫힌다.
     await expect(createGeneratedAiDraft(t.env, service, sessionId, {
       summaryText: 'SHOULD_NOT_BE_STORED',
+      claims: [{
+        claimKey: 'withdrawal-claim',
+        section: 'other_topics',
+        text: 'SHOULD_NOT_BE_STORED',
+      }],
+      flagSuggestions: [],
       oneLiner: 'SHOULD_NOT_BE_STORED',
       questions: [
         { title: '질문 1이 있었나요?', reason: '거부되어야 하므로 저장되지 않습니다.' },

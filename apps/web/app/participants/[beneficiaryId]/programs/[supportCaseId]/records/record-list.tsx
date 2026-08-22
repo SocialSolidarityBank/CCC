@@ -1,9 +1,13 @@
+import Link from 'next/link';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import { Icon } from '../../../../../components/wire/wire-icon';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../components/wire/wire-card';
+import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
+import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
+import { WireEmpty } from '../../../../../components/wire/wire-state';
 import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
 
 // 회차 목록 (D47 · ADR-0019 §1·§2·§4).
@@ -26,9 +30,10 @@ const channelLabels: Record<SupportCaseRecord['channel'], string> = {
 const flagLabels: Record<FlagType, string> = {
   crisis_utterance: '위기 발언',
   contact_loss_risk: '연락 두절 위험',
-  housing_livelihood_shock: '주거·생계 급변',
+  housing_livelihood_shock: '주거·생계·건강 급변',
   debt_deterioration: '부채 악화',
   repeated_noncompliance: '약속 불이행 반복',
+  violence_exploitation: '폭력·착취 피해',
 };
 const actionOwnerLabels: Record<ActionOwner, string> = {
   counselor: '실무자',
@@ -43,6 +48,10 @@ const flagReviewStatusLabels: Record<FlagReviewStatus, string> = {
 const sessionKindLabels: Record<SupportCaseRecord['kind'], string> = {
   intake: '인테이크',
   regular: '기본 상담',
+};
+const discrepancyKindLabels: Record<SupportCaseRecord['discrepancies'][number]['kind'], string> = {
+  cross_session: '회차 간 불일치',
+  within_session: '회차 내 모순',
 };
 
 function actionOwnerLabel(owner: ActionOwner): string {
@@ -94,19 +103,24 @@ export function RecordCard({
   ordinal,
   recordError,
   defaultOpen,
+  recordsHref,
+  briefingHref,
   intakeHref,
 }: {
   record: SupportCaseRecord;
   ordinal: number;
   recordError: boolean;
   defaultOpen: boolean;
+  recordsHref: string;
+  briefingHref: string;
   /** 인테이크 회차에만 온다 — 펼친 본문에서 확인·수정 화면으로 가는 입구(2026-08-08 Q). */
   intakeHref?: string;
 }) {
   // 핵심 한 줄은 승인된 AI 산출물만(R2). 승인 전·녹음 없음·레거시면 수기 발췌로 낮추고
   // '수기' 배지를 단다(D5) — 브리핑 영역 ②와 같은 폴백이라 두 화면이 같은 문장을 보여준다.
   const oneLiner = record.aiOneLiner ?? record.memoExcerpt;
-  const hasConfirmedFlag = record.flags.some((flag) => flag.reviewStatus === 'confirmed');
+  const confirmedFlags = record.flags.filter((flag) => flag.reviewStatus === 'confirmed');
+  const hasConfirmedFlag = confirmedFlags.length > 0;
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
     {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지(세로선으로 읽혔다). 날짜는 공용 표기
@@ -165,19 +179,41 @@ export function RecordCard({
             </li>)}</ul>}
       </section>
 
-      <section className="record-block" aria-labelledby={`flags-${record.id}`}>
-        <h3 id={`flags-${record.id}`}>플래그</h3>
-        {record.flags.length === 0
-          ? <p className="record-item-meta">표시된 플래그가 없습니다.</p>
-          : <ul>{record.flags.map((flag) => <li key={flag.id}>
-              {/* 리스크 레드는 확인된 것에만(D9·D34) — 제외됨·검토 대기는 무채색이다. */}
-              <span className="record-flag" data-confirmed={flag.reviewStatus === 'confirmed' ? 'true' : 'false'}>
-                {flag.reviewStatus === 'confirmed' && <><Icon name="warning" size={14} />{' '}</>}{flagLabel(flag.flagType)}
-              </span>
-              {flag.source === 'ai' && <WireBadge tone="lavender">AI 제안</WireBadge>}
-              <span className="record-item-meta">{flagReviewStatusLabel(flag.reviewStatus)}</span>
-            </li>)}</ul>}
-      </section>
+      <WireCardSection title="이 회차에서 나온 것" tone="mint">
+        {record.aiOneLiner === null && confirmedFlags.length === 0 && record.discrepancies.length === 0
+          ? <WireEmpty>이 회차에 연결된 승인 산출물이 없습니다.</WireEmpty>
+          : <ul className="briefing-suggestions">
+              {record.aiOneLiner !== null && <li>
+                <WireItem
+                  tone="lavender"
+                  title={record.aiOneLiner}
+                  status={<WireBadge tone="lavender">승인된 핵심 한 줄</WireBadge>}
+                  action={<Link href={`${recordsHref}/${encodeURIComponent(record.id)}/review`}>승인 내용 보기</Link>}
+                />
+              </li>}
+              {confirmedFlags.map((flag) => <li key={flag.id}>
+                <WireItem
+                  title={<span className="record-flag" data-confirmed={flag.reviewStatus === 'confirmed' ? 'true' : 'false'}>
+                    {flag.reviewStatus === 'confirmed' && <><Icon name="warning" size={14} />{' '}</>}{flagLabel(flag.flagType)}
+                  </span>}
+                  description={flagReviewStatusLabel(flag.reviewStatus)}
+                  {...(flag.source === 'ai' ? { status: <WireBadge tone="lavender">AI 제안</WireBadge> } : {})}
+                />
+                {flag.quote !== null && (
+                  <WireSourceQuotes quotes={[flag.quote]} sourceHref={`#record-${record.id}`} />
+                )}
+              </li>)}
+              {record.discrepancies.map((discrepancy) => <li key={discrepancy.id}>
+                <WireItem
+                  title={discrepancyKindLabels[discrepancy.kind]}
+                  status={<WireBadge tone={discrepancy.resolutionStatus === null ? 'lavender' : 'neutral'}>
+                    {discrepancy.resolutionStatus === null ? '미처리' : '처리됨'}
+                  </WireBadge>}
+                  action={<Link href={`${briefingHref}#discrepancy-${discrepancy.id}`}>불일치 보기</Link>}
+                />
+              </li>)}
+            </ul>}
+      </WireCardSection>
     </div>
 
     <p className="record-foot">
@@ -190,11 +226,15 @@ export function RecordList({
   records,
   recordErrorSessionIds,
   unavailable,
+  recordsHref,
+  briefingHref,
   intakeHref,
 }: {
   records: SupportCaseRecord[];
   recordErrorSessionIds: ReadonlySet<string>;
   unavailable: boolean;
+  recordsHref: string;
+  briefingHref: string;
   /** 인테이크 확인·수정 화면(2026-08-08 Q — 인테이크 진입은 이 목록 안이다). */
   intakeHref?: string;
 }) {
@@ -222,6 +262,8 @@ export function RecordList({
       recordError={recordErrorSessionIds.has(record.id)}
       // 최신 1개만 펼친 채 온다. 나머지는 브리핑 앵커나 클릭으로 열린다.
       defaultOpen={index === 0}
+      recordsHref={recordsHref}
+      briefingHref={briefingHref}
       {...(record.kind === 'intake' && intakeHref !== undefined ? { intakeHref } : {})}
     />)}
   </section>;

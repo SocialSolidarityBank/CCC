@@ -453,7 +453,8 @@ const briefingStyles = `
 /* 항목은 흰 배경 행(radius 6 · --line 1px)에 체크박스 + 16/700 --ink.
    그림자는 아웃라인으로 대체됐다(2026-08-05 Q · ADR-0030 — 본문 카드는 선이 경계를 만든다). */
 .risk-banner-list{margin:var(--space-3) 0 0;padding:0;display:grid;gap:var(--space-2);list-style:none}
-.risk-banner-list li{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600}
+.risk-banner-list li{display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600}
+.risk-banner-item-head{display:flex;align-items:center;gap:var(--space-2)}
 .risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:400;font-size:var(--text-sm)}
 /* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
    1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
@@ -566,6 +567,7 @@ const briefingStyles = `
 .briefing-action-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
 .briefing-action-desc{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink);overflow-wrap:anywhere}
 .briefing-action-row .wire-badge{flex:none;white-space:nowrap}
+.briefing-action-source{flex:none;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--blue-deep)}
 /* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
    회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
    그 회차가 추가로 열린다. 카드 계약(.surface-card)과 '펼친 것이 곧 활성'(surface-card[open])은

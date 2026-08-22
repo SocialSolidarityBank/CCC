@@ -1,3 +1,4 @@
+// 호출 ①과 호출 ②의 외부 AI 계약, 검증, 어댑터를 한곳에서 관리한다.
 export const AI_PROVIDER_REGISTRY_VERSION = 'phase1.v1';
 export const CODEX_PROVIDER_ID = 'codex';
 export const CODEX_PROVIDER_ADAPTER_VERSION = 'v1';
@@ -17,8 +18,12 @@ export const AI_PROVIDER_REGISTRY = Object.freeze({
 //
 // v3 (CCC-102 · D69 · ADR-0036): 요청이 재료 하나에서 재료 배열(전사 · 텍스트 맥락)로
 // 넓어지고, 출력에 대조 3종(contrast)이 붙는다. 같은 이유로 v2 활성 설정은 fail-closed 다.
-export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v3';
-export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v3';
+//
+// v4 (CCC-126 · D70~D72 · ADR-0037): claims 에 목표 중심 구획 라벨을 붙이고, 전사
+// 원문으로만 뒷받침되는 리스크 플래그 제안을 같은 호출에서 받는다. v3 활성 설정은
+// 해시가 어긋나 재활성화 전까지 fail-closed 된다.
+export const AI_DRAFT_PROMPT_VERSION = 'phase1.grounded.v4';
+export const AI_DRAFT_SCHEMA_VERSION = 'phase1.grounded-draft.v4';
 export const DISCREPANCY_PROMPT_VERSION = 'phase1.discrepancy.v1';
 export const DISCREPANCY_SCHEMA_VERSION = 'phase1.discrepancy-list.v1';
 
@@ -35,6 +40,8 @@ const MAX_CONTRAST_DESCRIPTION_LENGTH = 200;
 const MAX_CONTRAST_QUOTE_LENGTH = 500;
 const MAX_CLAIMS = 32;
 const MAX_CLAIM_LENGTH = 2_000;
+const MAX_FLAG_SUGGESTIONS = 8;
+const MAX_FLAG_QUOTE_LENGTH = 500;
 const MIN_QUESTIONS = 2;
 const MAX_QUESTIONS = 3;
 // D45: "짧은 제목" — 화면에서 한 줄에 앉는 길이로 강제한다.
@@ -102,10 +109,34 @@ export interface AiEvidenceReference {
 
 export interface AiClaimEvidenceReference extends AiEvidenceReference {}
 
+export const AI_CLAIM_SECTIONS = [
+  'session_goal_discussion',
+  'other_topics',
+  'next_session_commitments',
+] as const;
+export type AiClaimSection = (typeof AI_CLAIM_SECTIONS)[number];
+
+export const AI_FLAG_TYPES = [
+  'crisis_utterance',
+  'contact_loss_risk',
+  'housing_livelihood_shock',
+  'debt_deterioration',
+  'repeated_noncompliance',
+  'violence_exploitation',
+] as const;
+export type AiFlagType = (typeof AI_FLAG_TYPES)[number];
+
 export interface AiGeneratedClaim {
   claimKey: string;
+  section: AiClaimSection;
   text: string;
   evidence: readonly AiClaimEvidenceReference[];
+}
+
+export interface AiFlagSuggestion {
+  type: AiFlagType;
+  sourceRef: string;
+  quote: string;
 }
 /** D45 영역 ① 구조화 제안 — 짧은 제목 + 확인해야 하는 이유. 근거는 evidence 가 강제한다. */
 export interface AiGeneratedQuestion {
@@ -185,6 +216,8 @@ export interface AiProviderOutput {
   oneLiner: string;
   /** 대조 3종(R2 승인 대상). 적용되지 않은 축은 빈 배열이다. */
   contrast: AiContrastOutput;
+  /** 전사 발언만 인용하는 미확정 리스크 플래그 제안(D72). 전사가 없으면 빈 배열이다. */
+  flagSuggestions: readonly AiFlagSuggestion[];
 }
 
 /**
@@ -667,6 +700,7 @@ export function generatePreviewFixtureAiDraft(request: AiProviderRequest): AiPro
   return {
     claims: [{
       claimKey: 'fixture-claim',
+      section: 'other_topics',
       text: '합성 녹음 처리가 완료되었습니다.',
       evidence,
     }],
@@ -688,6 +722,7 @@ export function generatePreviewFixtureAiDraft(request: AiProviderRequest): AiPro
       missing_from_transcript: fixtureFindings('missing_from_transcript'),
       undiscussed_session_goal: fixtureFindings('undiscussed_session_goal'),
     },
+    flagSuggestions: [],
   };
 }
 
@@ -697,6 +732,7 @@ export function detectPreviewFixtureDiscrepancies(
 ): DiscrepancyDetectionOutput {
   return { discrepancies: [] };
 }
+
 
 export function validateAiDraftSummary(value: unknown): string {
   assertSafeText(value, MAX_MASKED_TEXT_LENGTH);
@@ -765,7 +801,11 @@ function assertSafeGeneratedOutputText(value: unknown): asserts value is string 
 export function validateAiProviderOutput(value: unknown, request: AiProviderRequest): AiProviderOutput {
   if (!isRecord(value)) throw new AiProviderProhibitedOutputError();
   assertNoProhibitedKeys(value);
-  assertExactKeys(value, ['claims', 'questions', 'oneLiner', 'contrast'], new AiProviderProhibitedOutputError());
+  assertExactKeys(
+    value,
+    ['claims', 'questions', 'oneLiner', 'contrast', 'flagSuggestions'],
+    new AiProviderProhibitedOutputError(),
+  );
   if (!Array.isArray(value.claims) || value.claims.length === 0 || value.claims.length > MAX_CLAIMS) {
     throw new AiProviderProhibitedOutputError();
   }
@@ -790,19 +830,35 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
 
   const claimKeys = new Set<string>();
   const claims: AiGeneratedClaim[] = [];
+  let previousSectionIndex = -1;
   for (const rawClaim of value.claims) {
     if (!isRecord(rawClaim)) throw new AiProviderProhibitedOutputError();
     assertNoProhibitedKeys(rawClaim);
-    assertExactKeys(rawClaim, ['claimKey', 'text', 'evidence'], new AiProviderProhibitedOutputError());
+    assertExactKeys(
+      rawClaim,
+      ['claimKey', 'section', 'text', 'evidence'],
+      new AiProviderProhibitedOutputError(),
+    );
     const claimKey = stringField(rawClaim, 'claimKey');
+    const section = stringField(rawClaim, 'section');
     const text = rawClaim.text;
-    if (claimKey === null || !isOpaqueId(claimKey) || claimKeys.has(claimKey)) {
+    const sectionIndex = section === null
+      ? -1
+      : (AI_CLAIM_SECTIONS as readonly string[]).indexOf(section);
+    if (
+      claimKey === null
+      || !isOpaqueId(claimKey)
+      || claimKeys.has(claimKey)
+      || sectionIndex < 0
+      || sectionIndex < previousSectionIndex
+    ) {
       throw new AiProviderProhibitedOutputError();
     }
     assertSafeGeneratedOutputText(text);
     const evidence = validateOutputEvidenceReferences(rawClaim.evidence, allowedReferences);
     claimKeys.add(claimKey);
-    claims.push({ claimKey, text, evidence });
+    previousSectionIndex = sectionIndex;
+    claims.push({ claimKey, section: section as AiClaimSection, text, evidence });
   }
 
   const questionTitles = new Set<string>();
@@ -836,7 +892,56 @@ export function validateAiProviderOutput(value: unknown, request: AiProviderRequ
   if (oneLiner.includes('\n') || oneLiner.length > MAX_ONE_LINER_LENGTH) {
     throw new AiProviderProhibitedOutputError();
   }
-  return { claims, questions, oneLiner, contrast: validateContrastOutput(value.contrast, request) };
+  return {
+    claims,
+    questions,
+    oneLiner,
+    contrast: validateContrastOutput(value.contrast, request),
+    flagSuggestions: validateFlagSuggestions(value.flagSuggestions, request),
+  };
+}
+
+function validateFlagSuggestions(value: unknown, request: AiProviderRequest): AiFlagSuggestion[] {
+  if (!Array.isArray(value) || value.length > MAX_FLAG_SUGGESTIONS) {
+    throw new AiProviderProhibitedOutputError();
+  }
+  const transcript = request.materials.find((material) => material.kind === 'transcript');
+  if (transcript === undefined && value.length > 0) {
+    throw new AiProviderProhibitedOutputError();
+  }
+
+  const suggestions: AiFlagSuggestion[] = [];
+  const seen = new Set<string>();
+  for (const rawSuggestion of value) {
+    if (!isRecord(rawSuggestion)) throw new AiProviderProhibitedOutputError();
+    assertNoProhibitedKeys(rawSuggestion);
+    assertExactKeys(
+      rawSuggestion,
+      ['type', 'sourceRef', 'quote'],
+      new AiProviderProhibitedOutputError(),
+    );
+    const type = stringField(rawSuggestion, 'type');
+    const sourceRef = stringField(rawSuggestion, 'sourceRef');
+    const quote = rawSuggestion.quote;
+    if (
+      type === null
+      || !(AI_FLAG_TYPES as readonly string[]).includes(type)
+      || sourceRef === null
+      || transcript === undefined
+      || sourceRef !== transcript.sourceRef
+    ) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    assertSafeGeneratedOutputText(quote);
+    if (quote.length > MAX_FLAG_QUOTE_LENGTH || !transcript.maskedText.includes(quote)) {
+      throw new AiProviderProhibitedOutputError();
+    }
+    const key = `${type}\u0000${sourceRef}\u0000${quote}`;
+    if (seen.has(key)) throw new AiProviderProhibitedOutputError();
+    seen.add(key);
+    suggestions.push({ type: type as AiFlagType, sourceRef, quote });
+  }
+  return suggestions;
 }
 
 /**
@@ -894,7 +999,7 @@ function validateContrastOutput(value: unknown, request: AiProviderRequest): AiC
       ) {
         throw new AiProviderProhibitedOutputError();
       }
-      const key = `${description} ${sourceRef} ${quote}`;
+      const key = `${description}\u0000${sourceRef}\u0000${quote}`;
       if (seen.has(key)) throw new AiProviderProhibitedOutputError();
       seen.add(key);
       findings.push({ description, materialKind, sourceRef, quote });
@@ -992,7 +1097,7 @@ export function validateDiscrepancyDetectionOutput(
     ) {
       throw new AiProviderProhibitedOutputError();
     }
-    const key = [kind, leftRef, leftQuote, rightRef, rightQuote].join(' ');
+    const key = [kind, leftRef, leftQuote, rightRef, rightQuote].join('\u0000');
     if (seen.has(key)) throw new AiProviderProhibitedOutputError();
     seen.add(key);
     discrepancies.push({ kind, leftRef, leftQuote, rightRef, rightQuote });
@@ -1032,7 +1137,7 @@ const contrastFindingSchema = {
 const codexResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['claims', 'questions', 'oneLiner', 'contrast'],
+  required: ['claims', 'questions', 'oneLiner', 'contrast', 'flagSuggestions'],
   properties: {
     oneLiner: { type: 'string', minLength: 1, maxLength: 120 },
     // 대조 3종(D69 · ADR-0036). 판단 필드가 없다. 설명과 원문 인용뿐이다(R5).
@@ -1052,9 +1157,10 @@ const codexResponseSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['claimKey', 'text', 'evidence'],
+        required: ['claimKey', 'section', 'text', 'evidence'],
         properties: {
           claimKey: { type: 'string' },
+          section: { type: 'string', enum: AI_CLAIM_SECTIONS },
           text: { type: 'string' },
           evidence: {
             type: 'array',
@@ -1073,6 +1179,20 @@ const codexResponseSchema = {
               },
             },
           },
+        },
+      },
+    },
+    flagSuggestions: {
+      type: 'array',
+      maxItems: MAX_FLAG_SUGGESTIONS,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'sourceRef', 'quote'],
+        properties: {
+          type: { type: 'string', enum: AI_FLAG_TYPES },
+          sourceRef: { type: 'string' },
+          quote: { type: 'string', minLength: 1, maxLength: MAX_FLAG_QUOTE_LENGTH },
         },
       },
     },
@@ -1114,7 +1234,11 @@ const codexResponseSchema = {
 // 축의 적용 여부는 요청의 contrastAxes 가 이미 정해서 온다. 모델이 다시 판단하지 않는다.
 const CODEX_INSTRUCTIONS = [
   'Each supplied material is masked counseling-record text: kind transcript is the recorded session, kind text_context is the worker memo together with labelled goal sections.',
-  'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions, using every supplied material.',
+  'Generate only grounded counseling-record draft claims and exactly two or three structured briefing suggestions, using every supplied material without treating either transcript or worker memo as more authoritative.',
+  'Give every claim exactly one section label and keep claims grouped in this order: session_goal_discussion, other_topics, next_session_commitments.',
+  'Use session_goal_discussion for what was discussed under each labelled 회기 목표; omit that section when no session goal is supplied.',
+  'Use other_topics for important matters outside session goals in chronological order.',
+  'Use next_session_commitments only for grounded promises and tasks before the next session; describe them without inventing an owner or due date.',
   'Each suggestion has a short title (80 characters or fewer) naming what to check in the next session, and a reason explaining why it needs checking.',
   'Also produce oneLiner: a single-line Korean gist of the session in 120 characters or fewer, with no line breaks.',
   'Each claim and each suggestion must cite one or more supplied opaque evidence references exactly, from any material.',
@@ -1127,6 +1251,9 @@ const CODEX_INSTRUCTIONS = [
   'Return an empty list for any contrast axis whose contrastAxes status is not applied, and for an applied axis with nothing to report.',
   'Do not produce GAS scores, confirmations, diagnoses, or decisions about support continuation.',
   'Do not decide which material is correct, and do not interpret or recommend anything in contrast entries.',
+  'Also produce flagSuggestions using only verbatim transcript quotes and only these six types: crisis_utterance, contact_loss_risk, housing_livelihood_shock, debt_deterioration, repeated_noncompliance, violence_exploitation.',
+  'For crisis_utterance and violence_exploitation, suggest a flag when the transcript reasonably indicates a possible safety concern; for the other four types require a clear, concrete participant statement.',
+  'Never create flagSuggestions from text_context, and return an empty list when no transcript material is supplied.',
   'Do not add names, contacts, accounts, or other personal data.',
 ].join(' ');
 
@@ -1180,7 +1307,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
     return await this.callStructured(
       CODEX_INSTRUCTIONS,
       JSON.stringify({ materials: request.materials, contrastAxes: request.contrastAxes }),
-      'ccc_grounded_draft_v3',
+      'ccc_grounded_draft_v4',
       codexResponseSchema,
     ) as AiProviderOutput;
   }

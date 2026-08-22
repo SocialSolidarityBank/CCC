@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   ConflictError,
-  ContrastResolutionRequiredError,
   SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
   ForbiddenError,
@@ -418,6 +417,12 @@ async function createReviewReadySession() {
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'AI_SUMMARY_DEMO',
+    claims: [{
+      claimKey: 'review-claim',
+      section: 'other_topics',
+      text: 'AI_SUMMARY_DEMO',
+    }],
+    flagSuggestions: [],
     oneLiner: 'AI_ONE_LINER_DEMO',
     questions: [
       { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
@@ -555,6 +560,12 @@ async function createPilotDraft(
   const selection = await getActiveAiProviderRuntimeMetadataForService(t.env, service, session.id);
   const draft = await createGeneratedAiDraft(t.env, service, session.id, {
     summaryText: 'GROUNDED_AI_SUMMARY_DEMO',
+    claims: [{
+      claimKey: evidence[0]?.claimKey ?? 'claim-1',
+      section: 'other_topics',
+      text: 'GROUNDED_AI_SUMMARY_DEMO',
+    }],
+    flagSuggestions: [],
     oneLiner: 'GROUNDED_AI_ONE_LINER_DEMO',
     questions: [
       { title: '상황 일정에 변동이 있었나요?', reason: '지난 회차에서 일정 변동 가능성이 언급되었습니다.' },
@@ -838,11 +849,8 @@ describe('gateway domain records', () => {
     if (aiFlag === undefined) throw new Error('expected AI flag fixture');
 
     await expect(recordGasScores(t.env, service, session.id, [{ goalId: goal.id, score: 1 }])).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(approveSession(t.env, service, session.id, {
-      missingFromMemo: [],
-      missingFromAudio: [],
-      undiscussedGoals: [],
-    })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(approveSession(t.env, service, session.id, {}))
+      .rejects.toBeInstanceOf(ForbiddenError);
     await expect(reviewFlag(t.env, service, aiFlag.id, 'confirmed')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -904,28 +912,17 @@ describe('gateway domain records', () => {
     await t.reset();
     const { session } = await createReviewReadySession();
 
-    await expect(approveSession(t.env, counselor, session.id, {
-      missingFromMemo: [],
-      missingFromAudio: [],
-      undiscussedGoals: [],
-    })).rejects.toBeInstanceOf(DraftVersionRequiredError);
+    await expect(approveSession(t.env, counselor, session.id, {}))
+      .rejects.toBeInstanceOf(DraftVersionRequiredError);
   });
 
-  it('결정만 실은 승인은 화자 확인·항목 처리 전제에서 막힌다 (CCC-114 회귀)', async () => {
+  it('녹음 재료 승인은 화자 확인 전제에서 막힌다 (D11 회귀)', async () => {
     await t.reset();
     const { session, draft } = await createReviewReadySession();
 
     // 녹음 재료가 있는 회차 — 화자 확인 없는 승인이 먼저 걸린다.
     await expect(approveGeneratedAiDraft(t.env, counselor, draft.workItemId, draft.version))
       .rejects.toBeInstanceOf(SpeakerConfirmationRequiredError);
-    // 화자 확인만 있고 항목 처리 목록이 아예 없으면 항목 처리에서 걸린다 — 항목이 없는
-    // 초안이라도 빈 배열로 명시해야 한다(승인 = 정합성 검증, R2).
-    await expect(reviewGeneratedAiDraft(t.env, counselor, draft.workItemId, {
-      expectedVersion: draft.version,
-      decision: 'approved',
-      speakerMappingConfirmed: true,
-    })).rejects.toBeInstanceOf(ContrastResolutionRequiredError);
-
     // 실패한 시도는 아무것도 공식화하지 않는다.
     const row = await t.db.prepare(
       'SELECT approved_at, speaker_mapping_confirmed_at FROM sessions WHERE id = ?',
@@ -935,13 +932,11 @@ describe('gateway domain records', () => {
       .toEqual({ count: 0 });
   });
 
-  it('항목 처리와 화자 확인을 갖춘 승인은 확인 시각까지 함께 기록한다 (CCC-114)', async () => {
+  it('화자 확인 뒤 대조를 통째 승인하고 확인 시각을 함께 기록한다 (D71)', async () => {
     await t.reset();
     const { session, draft } = await createReviewReadySession();
 
     const approved = await approveGeneratedAiDraft(t.env, counselor, draft.workItemId, draft.version, {
-      // 이 초안의 대조 축은 셋 다 항목 0개라 빈 배열이 전체를 덮는다.
-      contrastResolutions: [],
       speakerMappingConfirmed: true,
     });
     expect(approved.reviewDecision).toBe('approved');
@@ -1365,7 +1360,8 @@ describe('canonical participant gateway', () => {
       initial.beneficiaryId,
     )).programs;
     expect(adminPrograms).toHaveLength(3);
-    expect(adminPrograms.every((entry) => entry.authorized)).toBe(true);
+    // 기관 관리자는 PII와 사업 존재를 보지만 담당 배정 없이 상담 내용 링크는 열리지 않는다(D74).
+    expect(adminPrograms.filter((entry) => entry.authorized)).toHaveLength(0);
     await expect(t.db.prepare(
       `SELECT enc_name, enc_phone, enc_account
        FROM participant_pii_vault WHERE beneficiary_id = ?`,
@@ -2308,7 +2304,7 @@ describe('canonical participant gateway', () => {
       actionItems: [],
       flags: [],
     });
-    await createCounselingRecord(t.env, canonicalActors.admin, hidden.supportCaseId, {
+    await createCounselingRecord(t.env, canonicalActors.secondCounselor, hidden.supportCaseId, {
       submissionId: '66666666-6666-4666-8666-666666666666',
       heldAt: '2026-07-16T10:00:00.000Z',
       channel: 'in_person',
@@ -2486,6 +2482,7 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
         heldAt: '2026-01-10T10:00:00.000Z',
         title: 'NEWER_TITLE_1',
         reason: 'NEWER_REASON_1',
+        sourceQuotes: ['MASKED_sugg-newer_EVIDENCE'],
       },
       {
         sourceSupportCase: expect.objectContaining({ id: scope.id }),
@@ -2493,6 +2490,7 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
         heldAt: '2026-01-10T10:00:00.000Z',
         title: 'NEWER_TITLE_2',
         reason: 'NEWER_REASON_2',
+        sourceQuotes: ['MASKED_sugg-newer_EVIDENCE'],
       },
       {
         sourceSupportCase: expect.objectContaining({ id: scope.id }),
@@ -2500,6 +2498,7 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
         heldAt: '2026-01-10T10:00:00.000Z',
         title: 'NEWER_TITLE_3',
         reason: 'NEWER_REASON_3',
+        sourceQuotes: ['MASKED_sugg-newer_EVIDENCE'],
       },
     ]);
   });
@@ -2532,14 +2531,13 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
     )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
 
-    // 기관 관리자도 수정한다(2026-07-30 Q 결정 — ADR-0018 개정, 구 '담당 실무자만' 대체).
-    // 브리핑도 편집 가능으로 알린다.
+    // 기관 관리자는 업무 목표를 수정할 수 있지만, 담당 배정 없이 상담 브리핑은 열지 못한다(D74).
     await expect(setSupportCaseOverallGoal(
       t.env, canonicalActors.admin, created.supportCaseId, '관리자가 고친 전체 목표',
     )).resolves.toMatchObject({ overallGoal: '관리자가 고친 전체 목표' });
     await expect(getParticipantBriefing(
       t.env, canonicalActors.admin, created.beneficiaryId, created.supportCaseId,
-    )).resolves.toMatchObject({ overallGoal: '관리자가 고친 전체 목표', canEditOverallGoal: true });
+    )).rejects.toBeInstanceOf(ForbiddenError);
 
     // 되돌려 놓는다 — 아래 단정들이 이 값을 이어서 쓴다.
     await expect(setSupportCaseOverallGoal(

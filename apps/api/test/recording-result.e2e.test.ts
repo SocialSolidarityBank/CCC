@@ -55,7 +55,12 @@ class FixtureAiProvider implements AiProviderTestAdapter {
     const evidence = request.materials[0]?.evidence[0];
     if (evidence === undefined) throw new Error('fixture evidence is missing');
     return {
-      claims: [{ claimKey: 'fixture-claim', text: '합성 녹음 처리가 완료되었습니다.', evidence: [{ ...evidence }] }],
+      claims: [{
+        claimKey: 'fixture-claim',
+        section: 'other_topics',
+        text: '합성 녹음 처리가 완료되었습니다.',
+        evidence: [{ ...evidence }],
+      }],
       questions: [
         { title: '합성 일정 확인', reason: '가상 일정의 확인이 필요합니다.', evidence: [{ ...evidence }] },
         { title: '합성 비용 확인', reason: '가상 비용의 확인이 필요합니다.', evidence: [{ ...evidence }] },
@@ -67,6 +72,7 @@ class FixtureAiProvider implements AiProviderTestAdapter {
         missing_from_transcript: [],
         undiscussed_session_goal: [],
       },
+      flagSuggestions: [],
     };
   }
 }

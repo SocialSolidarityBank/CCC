@@ -70,8 +70,8 @@ function goalTree() {
     overallGoal: null,
     overallGoalRevisions: [],
     goals: [
-      { id: 'goal-1', title: '주거 안정 확보', status: 'active', closedReason: null, closedAt: null, revisions: [], sessionGoals: [] },
-      { id: 'goal-2', title: '이미 닫힌 목표', status: 'closed', closedReason: 'achieved', closedAt: '2026-08-01T00:00:00.000Z', revisions: [], sessionGoals: [] },
+      { id: 'goal-1', title: '주거 안정 확보', status: 'active', closedReason: null, closedAt: null, revisions: [], sessionGoals: [], linkedSessions: [] },
+      { id: 'goal-2', title: '이미 닫힌 목표', status: 'closed', closedReason: 'achieved', closedAt: '2026-08-01T00:00:00.000Z', revisions: [], sessionGoals: [], linkedSessions: [] },
     ],
   }];
 }

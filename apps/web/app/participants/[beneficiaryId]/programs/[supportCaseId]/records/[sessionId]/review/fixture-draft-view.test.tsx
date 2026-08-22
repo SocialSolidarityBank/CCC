@@ -27,6 +27,11 @@ function props(overrides: Partial<DraftReviewViewProps> = {}): DraftReviewViewPr
       creationMode: 'fixture_generated',
       version: 1,
       summaryText: '요약 값',
+      claims: [
+        { claimKey: 'goal-1', section: 'session_goal_discussion', text: '회기 목표를 점검했다.' },
+        { claimKey: 'other-1', section: 'other_topics', text: '주거비 변화를 확인했다.' },
+        { claimKey: 'commitment-1', section: 'next_session_commitments', text: '상환 계획을 적어 보기로 했다.' },
+      ],
       oneLiner: '핵심 한 줄 값',
       questions: [{ title: '질문 제목', reason: '질문 이유' }],
       evidence: [{ id: 'evidence-1', claimKey: 'fixture-claim', quote: '근거 인용 값' }],
@@ -93,7 +98,9 @@ describe('DraftReviewView', () => {
     expect(screen.getByTestId('preview-fixture-notice')).toBeTruthy();
     expect(screen.getByTestId('ai-draft-card')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-one-liner')).getByText('핵심 한 줄 값')).toBeTruthy();
-    expect(within(screen.getByTestId('ai-draft-section-summary')).getByText('요약 값')).toBeTruthy();
+    expect(screen.getByTestId('ai-draft-claims-session_goal_discussion').textContent).toContain('회기 목표를 점검했다.');
+    expect(screen.getByTestId('ai-draft-claims-other_topics').textContent).toContain('주거비 변화를 확인했다.');
+    expect(screen.getByTestId('ai-draft-claims-next_session_commitments').textContent).toContain('상환 계획을 적어 보기로 했다.');
     expect(within(screen.getByTestId('ai-draft-section-questions')).getByText('질문 제목')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-questions')).getByText('질문 이유')).toBeTruthy();
     expect(within(screen.getByTestId('ai-draft-section-questions')).getByRole('list')).toBeTruthy();
@@ -134,6 +141,49 @@ describe('DraftReviewView', () => {
     expect(screen.getByTestId('ai-draft-card')).toBeTruthy();
   });
 
+  it('keeps claim and suggestion source quotes collapsed in place with a source-record link (D73)', () => {
+    const { container } = render(<DraftReviewView {...props({
+      draft: {
+        ...props().draft,
+        evidence: [
+          { id: 'claim-evidence', claimKey: 'goal-1', quote: '목표 주장 근거' },
+          { id: 'question-evidence', claimKey: 'question_1', quote: '질문 제안 근거' },
+        ],
+      },
+    })} />);
+
+    const claim = screen.getByText('회기 목표를 점검했다.').closest('li');
+    const question = screen.getByText('질문 제목').closest('li');
+    for (const item of [claim, question]) {
+      const disclosure = item?.querySelector('details[data-source-quotes]');
+      expect(disclosure).not.toBeNull();
+      expect(disclosure?.hasAttribute('open')).toBe(false);
+      expect(disclosure?.querySelector('a')?.getAttribute('href'))
+        .toBe('/participants/swallow-003/programs/case-1/records#record-session-1');
+    }
+    expect(claim?.textContent).toContain('목표 주장 근거');
+    expect(question?.textContent).toContain('질문 제안 근거');
+    expect(container.textContent).not.toContain('전사 전문');
+  });
+
+  it('shows the D62 notice when no session-goal claim section exists', () => {
+    render(<DraftReviewView {...props({
+      draft: {
+        ...props().draft,
+        claims: props().draft.claims.filter((claim) => claim.section !== 'session_goal_discussion'),
+      },
+    })} />);
+    expect(screen.getByTestId('ai-draft-claims-session_goal_discussion').textContent)
+      .toContain('이번 회기의 세션 목표가 없어 이 구획을 만들지 않았습니다.');
+  });
+
+  it('keeps the legacy summary fallback when a pre-v4 draft has no claims', () => {
+    render(<DraftReviewView {...props({
+      draft: { ...props().draft, claims: [] },
+    })} />);
+    expect(within(screen.getByTestId('ai-draft-section-summary')).getByText('요약 값')).toBeTruthy();
+  });
+
   // 검수 지적 1·2·3·4 (CCC-100 후속): 카드 제목 계약(.wire-card-title 직계) · 처리·재생성도
   // title 슬롯을 쓰는지 · 본문 값이 --ink 클래스를 받는지를 구조로 확인한다. jsdom 은 외부
   // 스타일시트를 계산하지 않아 실제 픽셀 값은 못 재지만, 계약을 깨는 구조(중첩 h2·title 밖
@@ -145,12 +195,10 @@ describe('DraftReviewView', () => {
       expect(card?.querySelector(':scope > .wire-card-title')?.textContent).toContain('AI 초안');
     });
 
-    it('gives the 핵심 한 줄·요약 paragraphs the wire-section-value class (16/400 --ink, margin 0)', () => {
+    it('gives the 핵심 한 줄 paragraph the wire-section-value class (16/400 --ink, margin 0)', () => {
       render(<DraftReviewView {...props()} />);
       const oneLiner = within(screen.getByTestId('ai-draft-section-one-liner')).getByText('핵심 한 줄 값');
-      const summary = within(screen.getByTestId('ai-draft-section-summary')).getByText('요약 값');
       expect(oneLiner.className).toContain('wire-section-value');
-      expect(summary.className).toContain('wire-section-value');
     });
   });
 
@@ -199,6 +247,10 @@ describe('DraftReviewView', () => {
       expect(within(axisSection).getByText('메모에 없던 언급')).toBeTruthy();
       expect(within(axisSection).getByText('전사')).toBeTruthy();
       expect(within(axisSection).getByText('원문 인용 발췌')).toBeTruthy();
+      const disclosure = axisSection.querySelector('details[data-source-quotes]');
+      expect(disclosure?.hasAttribute('open')).toBe(false);
+      expect(disclosure?.querySelector('a')?.getAttribute('href'))
+        .toBe('/participants/swallow-003/programs/case-1/records#record-session-1');
     });
 
     // 검수 지적 7: v3 이전 초안(빈 배열)은 "돌리지 못함"류의 사유 있는 문구가 아니라, 사유를
@@ -326,8 +378,7 @@ describe('DraftReviewView', () => {
       expect(screen.getByRole('alert').textContent).toBe('다른 곳에서 이 초안이 바뀌었습니다. 새로고침한 뒤 다시 시도하세요.');
     });
 
-    // CCC-114: 승인 요청은 대조 항목별 처리와 화자 확인을 실어 보낸다.
-    describe('항목별 처리·화자 확인 (CCC-114)', () => {
+    describe('읽기 전용 대조와 화자 확인 (D71)', () => {
       function contrastReviewProps(overrides: Partial<DraftReviewViewProps> = {}): DraftReviewViewProps {
         return reviewProps({
           draft: {
@@ -353,23 +404,14 @@ describe('DraftReviewView', () => {
         });
       }
 
-      it('renders a resolution select per applied finding, wired to the review form by id', () => {
+      it('keeps every contrast finding read-only without resolution controls', () => {
         const { container } = render(<DraftReviewView {...contrastReviewProps()} />);
 
         const form = container.querySelector('form[action]');
         expect(form?.getAttribute('id')).toBe('ai-draft-review-form');
-
-        const names = Array.from(container.querySelectorAll('select')).map((el) => el.getAttribute('name'));
-        expect(names).toEqual([
-          'contrastResolution.missing_from_memo.0',
-          'contrastResolution.missing_from_memo.1',
-          'contrastResolution.missing_from_transcript.0',
-        ]);
-        for (const select of Array.from(container.querySelectorAll('select'))) {
-          expect(select.getAttribute('form')).toBe('ai-draft-review-form');
-          expect(Array.from(select.querySelectorAll('option')).map((option) => option.textContent))
-            .toEqual(['처리 선택', '상황 변경', '기록 오류', '확인 완료']);
-        }
+        expect(container.querySelector('select[name^="contrastResolution."]')).toBeNull();
+        expect(screen.getByText('전사 인용 1')).toBeTruthy();
+        expect(screen.getByText('메모 인용')).toBeTruthy();
       });
 
       it('renders the speaker confirmation checkbox when a transcript-based axis was applied', () => {
@@ -387,12 +429,25 @@ describe('DraftReviewView', () => {
         expect(container.querySelector('input[name="speakerMappingConfirmed"]')).toBeNull();
       });
 
-      it('does not render resolution selects once the draft has been reviewed', () => {
+      it('does not introduce resolution selects after the draft has been reviewed', () => {
         const { container } = render(<DraftReviewView {...contrastReviewProps({
           draft: { ...contrastReviewProps().draft, reviewDecision: 'approved' },
         })} />);
         expect(container.querySelector('select')).toBeNull();
       });
+    });
+
+    it('prefills a commitment action form while leaving owner and due date to the worker', () => {
+      const actionItemAction = vi.fn(async () => undefined);
+      const { container } = render(<DraftReviewView {...reviewProps({ actionItemAction })} />);
+      const actionForm = screen.getByTestId('ai-commitment-action-commitment-1');
+      const field = (name: string) => actionForm.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | null;
+      expect(field('description')?.value).toBe('상환 계획을 적어 보기로 했다.');
+      expect(field('sessionId')?.value).toBe('session-1');
+      expect(field('owner')?.getAttribute('required')).not.toBeNull();
+      expect(field('dueDate')).not.toBeNull();
+      expect(within(actionForm).getByRole('button', { name: '액션으로 등록' })).toBeTruthy();
+      expect(container.querySelector('[name="owner"] option:checked')?.textContent).toBe('담당 선택');
     });
   });
 

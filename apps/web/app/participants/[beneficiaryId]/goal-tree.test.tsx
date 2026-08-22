@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
-import { GoalTreeCard } from './goal-tree';
+import type { ComponentProps } from 'react';
+import { GoalTreeCard as GoalTreeCardView } from './goal-tree';
 import type { ParticipantGoalTreeCase } from '../../lib/api';
 
 // 목표 트리 (D62 §8 · CCC-69) — 전체 > 세부 > 세션 위계, 닫힌 목표 흐리게, '이력 보기'.
@@ -9,6 +10,10 @@ import type { ParticipantGoalTreeCase } from '../../lib/api';
 afterEach(cleanup);
 
 const programLabels = { microcredit: '마이크로크레딧 씬파일러 금융지원·멘토링' } as never;
+
+function GoalTreeCard(props: Omit<ComponentProps<typeof GoalTreeCardView>, 'beneficiaryId'>) {
+  return <GoalTreeCardView beneficiaryId="swallow-003" {...props} />;
+}
 
 function caseTree(overrides: Partial<ParticipantGoalTreeCase> = {}): ParticipantGoalTreeCase {
   return {
@@ -32,6 +37,11 @@ function caseTree(overrides: Partial<ParticipantGoalTreeCase> = {}): Participant
           { id: 'sg1', body: '가계부 확인', scheduledAt: '2026-08-10T05:00:00Z', scheduleStatus: 'scheduled' },
           { id: 'sg2', body: '지출 항목 정리', scheduledAt: '2026-07-20T05:00:00Z', scheduleStatus: 'completed' },
         ],
+        linkedSessions: [{
+          sessionId: 'session-2',
+          heldAt: '2026-07-20T05:00:00Z',
+          oneLiner: '지출 항목을 정리하고 다음 확인일을 정했다.',
+        }],
       },
       {
         id: 'g2',
@@ -43,6 +53,7 @@ function caseTree(overrides: Partial<ParticipantGoalTreeCase> = {}): Participant
           { title: '이력서를 월 2회 제출한다', editedByName: '김실무', editedAt: '2026-07-01T02:00:00Z' },
         ],
         sessionGoals: [],
+        linkedSessions: [],
       },
     ],
     ...overrides,
@@ -62,6 +73,19 @@ describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
       expect.stringContaining('지출 항목 정리'),
     ]);
     expect(sessionRows[0]?.closest('.goal-tree-goal')?.textContent).toContain('월 지출 내역을 매주 기록한다');
+  });
+
+  it('세부 목표를 펼치면 연결된 회차의 날짜와 핵심 한 줄이 기록 앵커 링크로 보인다 (D73)', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    const goal = [...container.querySelectorAll('details.goal-tree-goal-details')]
+      .find((details) => details.textContent?.includes('월 지출 내역을 매주 기록한다'));
+    expect(goal).not.toBeUndefined();
+    expect(goal?.hasAttribute('open')).toBe(false);
+    const sessionLink = goal?.querySelector('.goal-tree-linked-session');
+    expect(sessionLink?.textContent).toContain('2026년 7월 20일');
+    expect(sessionLink?.textContent).toContain('지출 항목을 정리하고 다음 확인일을 정했다.');
+    expect(sessionLink?.getAttribute('href'))
+      .toBe('/participants/swallow-003/programs/case-1/records#record-session-2');
   });
 
   it('닫힌 목표는 흐림 클래스와 사유 배지로 남는다 — 지워지지 않는다', () => {
@@ -133,7 +157,7 @@ describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
     expect(container.querySelector('.goal-tree-goals')?.classList.contains('wire-bullets')).toBe(true);
     cleanup();
     const single = render(<GoalTreeCard cases={[caseTree({
-      goals: [{ id: 'g1', title: '월 지출 내역을 매주 기록한다', status: 'active', closedReason: null, closedAt: null, revisions: [], sessionGoals: [] }],
+      goals: [{ id: 'g1', title: '월 지출 내역을 매주 기록한다', status: 'active', closedReason: null, closedAt: null, revisions: [], sessionGoals: [], linkedSessions: [] }],
     })]} programLabels={programLabels} />);
     // 한 항목뿐이면 목록이 아니라 문장이다 — 점도 들여쓰기도 두지 않는다.
     expect(single.container.querySelector('.goal-tree-goals')?.classList.contains('wire-bullets')).toBe(false);

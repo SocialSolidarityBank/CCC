@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WireBullets, WireCard, type WireCardTone } from './wire-card';
 
@@ -64,5 +65,25 @@ export function WireQuote({ children, time }: WireQuoteProps) {
       {children}
       {time !== undefined && <span className="wire-quote-time">{time}</span>}
     </blockquote>
+  );
+}
+
+export interface WireSourceQuotesProps {
+  quotes: readonly string[];
+  sourceHref: string;
+}
+
+/** D73 source disclosure. Quotes stay collapsed beside the output and end at the source record. */
+export function WireSourceQuotes({ quotes, sourceHref }: WireSourceQuotesProps) {
+  if (quotes.length === 0) return null;
+
+  return (
+    <details className="wire-source-quotes" data-source-quotes>
+      <summary>근거 인용 보기</summary>
+      <div className="wire-source-quotes-body">
+        {quotes.map((quote, index) => <WireQuote key={`${index}-${quote}`}>{quote}</WireQuote>)}
+        <Link className="wire-source-quotes-link" href={sourceHref}>출처 회차 보기</Link>
+      </div>
+    </details>
   );
 }

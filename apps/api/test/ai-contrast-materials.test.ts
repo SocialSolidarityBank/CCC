@@ -101,7 +101,12 @@ function bothMaterialsRequest(axes: AiContrastAxisStates = ALL_APPLIED): AiProvi
 function baseOutput(request: AiProviderRequest): AiProviderOutput {
   const evidence = request.materials.flatMap((item) => item.evidence.map((reference) => ({ ...reference })));
   return {
-    claims: [{ claimKey: 'move-plan', text: '이사 준비 상황을 확인했다.', evidence }],
+    claims: [{
+      claimKey: 'move-plan',
+      section: 'other_topics',
+      text: '이사 준비 상황을 확인했다.',
+      evidence,
+    }],
     questions: [
       { title: '이사 일정 확인', reason: '다음 회차에 확정 일정을 물어야 합니다.', evidence: [{ ...evidence[0]! }] },
       { title: '관리비 체납 확인', reason: '체납 규모가 아직 확인되지 않았습니다.', evidence: [{ ...evidence[0]! }] },
@@ -112,13 +117,14 @@ function baseOutput(request: AiProviderRequest): AiProviderOutput {
       missing_from_transcript: [],
       undiscussed_session_goal: [],
     },
+    flagSuggestions: [],
   };
 }
 
-describe('호출 ① 재료 다중화와 대조 3종 v3 (D69 · ADR-0036 · CCC-102)', () => {
-  it('버전이 v3 으로 올라간다', () => {
-    expect(AI_DRAFT_PROMPT_VERSION).toBe('phase1.grounded.v3');
-    expect(AI_DRAFT_SCHEMA_VERSION).toBe('phase1.grounded-draft.v3');
+describe('호출 ① 재료 다중화와 대조 3종 v4 (D69 · ADR-0036 · CCC-102)', () => {
+  it('버전이 v4 로 올라간다', () => {
+    expect(AI_DRAFT_PROMPT_VERSION).toBe('phase1.grounded.v4');
+    expect(AI_DRAFT_SCHEMA_VERSION).toBe('phase1.grounded-draft.v4');
   });
 
   it('재료 두 개와 대조 3종을 담은 출력이 왕복한다', () => {
@@ -351,7 +357,12 @@ class ContrastAdapter implements AiProviderTestAdapter {
       return [{ description: `${axis} 항목`, materialKind: source.kind, sourceRef: source.sourceRef, quote }];
     };
     return {
-      claims: [{ claimKey: 'contrast-claim', text: '회차 내용을 정리했다.', evidence }],
+      claims: [{
+        claimKey: 'contrast-claim',
+        section: 'other_topics',
+        text: '회차 내용을 정리했다.',
+        evidence,
+      }],
       questions: [
         { title: '이사 일정 확인', reason: '확정 일정을 물어야 합니다.', evidence: [{ ...evidence[0]! }] },
         { title: '관리비 확인', reason: '체납 규모가 확인되지 않았습니다.', evidence: [{ ...evidence[0]! }] },
@@ -362,6 +373,14 @@ class ContrastAdapter implements AiProviderTestAdapter {
         missing_from_transcript: finding('missing_from_transcript'),
         undiscussed_session_goal: finding('undiscussed_session_goal'),
       },
+      flagSuggestions: request.materials
+        .filter((material) => material.kind === 'transcript')
+        .slice(0, 1)
+        .map((material) => ({
+          type: 'violence_exploitation',
+          sourceRef: material.sourceRef,
+          quote: material.evidence[0]!.evidenceQuote,
+        })),
     };
   }
 }
@@ -471,6 +490,7 @@ async function generateFromSnapshot(env: ApiEnv, sessionId: string, sourceSnapsh
 
 interface RouteDraft {
   version: number;
+  claims: Array<{ claimKey: string; section: string; text: string }>;
   evidence: Array<{ id: string; claimKey: string; quote: string }>;
   contrast: Array<{ axis: string; status: string; findings: Array<{ materialKind: string; quote: string }> }>;
 }
@@ -514,6 +534,11 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(transcriptRow?.snapshot_sha256).toBe(await sha256Hex(TRANSCRIPT_TEXT));
 
     const draft = await readDraft(env, session.id);
+    expect(draft.claims).toEqual([{
+      claimKey: 'contrast-claim',
+      section: 'other_topics',
+      text: '회차 내용을 정리했다.',
+    }]);
     expect(draft.contrast.map((axis) => axis.axis)).toEqual([
       'missing_from_memo',
       'missing_from_transcript',
@@ -524,6 +549,48 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
       .toBe('transcript');
     expect(draft.contrast.find((axis) => axis.axis === 'undiscussed_session_goal')?.findings[0]?.quote)
       .toBe(TEXT_CONTEXT_TEXT);
+
+    const flags = await t.db.prepare(
+      `SELECT id, flag_type, quote, source, review_status
+       FROM flags WHERE session_id = ? ORDER BY created_at, id`,
+    ).bind(session.id).all<{
+      id: string;
+      flag_type: string;
+      quote: string;
+      source: string;
+      review_status: string;
+    }>();
+    expect(flags.results).toEqual([expect.objectContaining({
+      flag_type: 'violence_exploitation',
+      quote: TRANSCRIPT_TEXT,
+      source: 'ai',
+      review_status: 'pending',
+    })]);
+    const firstFlagId = flags.results[0]?.id;
+    if (firstFlagId === undefined) throw new Error('initial pending flag is missing');
+
+    expect((await generateFromSnapshot(env, session.id, text.sourceSnapshotId)).status).toBe(201);
+    const replacementFlags = await t.db.prepare(
+      `SELECT id, flag_type, quote, source, review_status
+       FROM flags WHERE session_id = ? ORDER BY created_at, id`,
+    ).bind(session.id).all<{
+      id: string;
+      flag_type: string;
+      quote: string;
+      source: string;
+      review_status: string;
+    }>();
+    expect(replacementFlags.results).toHaveLength(1);
+    expect(replacementFlags.results[0]?.id).not.toBe(firstFlagId);
+    const flagAudits = await t.db.prepare(
+      `SELECT action, target_id FROM audit_log
+       WHERE target_table = 'flags' ORDER BY id`,
+    ).all<{ action: string; target_id: string }>();
+    expect(flagAudits.results).toEqual([
+      { action: 'create', target_id: firstFlagId },
+      { action: 'delete', target_id: firstFlagId },
+      { action: 'create', target_id: replacementFlags.results[0]?.id },
+    ]);
   });
 
   it('반대편 재료가 없으면 재료 하나로 돌고 축은 재료 없음으로 기록된다', async () => {
@@ -606,7 +673,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(axes.results.map((row) => row.status)).toEqual(['applied', 'applied', 'applied']);
   });
 
-  it('대조는 항목별 처리·화자 확인과 함께 승인된다 (R2 · CCC-114)', async () => {
+  it('대조는 읽기 전용이며 화자 확인 뒤 통째 승인된다 (R2 · D71)', async () => {
     const { env, session } = await setupRouteFixture();
     await postTextSnapshot(env, session.id);
     expect((await postRecordingResult(env, session.id)).status).toBe(204);
@@ -622,35 +689,21 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     expect(decisionOnly.status).toBe(409);
     expect(await decisionOnly.json()).toEqual({ error: 'speaker_confirmation_required' });
 
-    // 화자 확인만 있고 항목 처리가 없으면 항목 처리에서 걸린다.
-    const noResolutions = await reviewRequest({
+    // D71: 대조 항목은 읽기 전용이다. 구 항목별 처리 필드는 API 경계에서 받지 않는다.
+    const legacyResolution = await reviewRequest({
       expectedVersion: draft.version,
       decision: 'approved',
       speakerMappingConfirmed: true,
+      contrastResolutions: [],
     });
-    expect(noResolutions.status).toBe(409);
-    expect(await noResolutions.json()).toEqual({ error: 'contrast_resolution_required' });
+    expect(legacyResolution.status).toBe(400);
+    expect(await legacyResolution.json()).toEqual({ error: 'invalid_request' });
 
-    // 적용된 축의 항목 일부만 처리해도 막힌다 — 전체를 덮어야 한다.
-    const contrastResolutions = draft.contrast.flatMap((axis) => (axis.status === 'applied'
-      ? axis.findings.map((_, findingIndex) => ({ axis: axis.axis, findingIndex, status: 'confirmed' }))
-      : []));
-    expect(contrastResolutions.length).toBeGreaterThan(1);
-    const partial = await reviewRequest({
-      expectedVersion: draft.version,
-      decision: 'approved',
-      speakerMappingConfirmed: true,
-      contrastResolutions: contrastResolutions.slice(0, 1),
-    });
-    expect(partial.status).toBe(409);
-    expect(await partial.json()).toEqual({ error: 'contrast_resolution_required' });
-
-    // 모든 항목에 처리 3종 값 + 화자 확인 → 승인.
+    // 화자 확인이 있으면 대조 항목별 처리 없이 통째 승인된다.
     const review = await reviewRequest({
       expectedVersion: draft.version,
       decision: 'approved',
       speakerMappingConfirmed: true,
-      contrastResolutions,
     });
     expect(review.status).toBe(200);
     const approved = await review.json() as RouteDraft;
@@ -724,7 +777,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
 
     // 셋째 절: 이미 검토가 끝난 초안에는 링크를 더 달 수 없다.
     const current = await readDraft(env, session.id);
-    // 승인 계약(CCC-114): 적용된 축의 모든 항목 처리 + 화자 확인을 함께 싣는다.
+    // D71 승인 계약: 대조는 읽기 전용이고 화자 확인 뒤 통째 승인한다.
     const review = await worker.fetch(new Request(
       `http://localhost/sessions/${session.id}/ai/drafts/${current.version}/review`,
       {
@@ -734,9 +787,6 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
           expectedVersion: current.version,
           decision: 'approved',
           speakerMappingConfirmed: true,
-          contrastResolutions: current.contrast.flatMap((axis) => (axis.status === 'applied'
-            ? axis.findings.map((_, findingIndex) => ({ axis: axis.axis, findingIndex, status: 'confirmed' }))
-            : [])),
         }),
       },
     ), env);
@@ -744,7 +794,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     await expect(insertLink(draft.id, 'guard-probe-2')).rejects.toThrow('stale_draft_version');
   });
 
-  it('프리뷰 경로도 v3 대조를 저장한다', async () => {
+  it('프리뷰 경로도 v4 구획과 대조를 저장한다', async () => {
     const { env, session } = await setupRouteFixture();
     // 프리뷰 내장 픽스처 갈래를 타려면 주입 어댑터가 없어야 한다.
     const { AI_PROVIDER_ADAPTER: _injected, ...withoutAdapter } = env;

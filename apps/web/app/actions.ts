@@ -9,6 +9,7 @@ import {
   addSupportCaseAssignee,
   closeGoal,
   closeSupportCase,
+  createActionItem,
   createCounselingRecord,
   createGoal,
   createIntakeRecord,
@@ -48,7 +49,6 @@ import {
   registerCounselor,
   reviewAiDraft,
   type ReviewAiDraftInput,
-  type ReviewContrastResolutionInput,
   updateParticipantConsent,
   updateParticipantBasicInfo,
   updateScheduleSessionGoals,
@@ -82,7 +82,6 @@ type Notice =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
-  | 'contrast_resolution_required'
   | 'speaker_confirmation_required'
   | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
@@ -373,7 +372,6 @@ function noticeFor(error: unknown): Notice {
       case 'stale_draft_version':
       case 'draft_version_required':
       case 'grounded_evidence_required':
-      case 'contrast_resolution_required':
       case 'speaker_confirmation_required':
       case 'fixture_draft_approval_forbidden':
       case 'ai_provider_not_configured':
@@ -553,27 +551,6 @@ export async function editAiDraftAction(formData: FormData): Promise<void> {
 }
 
 
-// CCC-114: 검토 화면의 항목별 처리 select 는 `contrastResolution.<축>.<번호>` 이름으로 실린다.
-const CONTRAST_RESOLUTION_FIELD = /^contrastResolution\.(missing_from_memo|missing_from_transcript|undiscussed_session_goal)\.(\d{1,3})$/;
-const CONTRAST_RESOLUTION_STATUSES = ['situation_changed', 'record_error', 'confirmed'] as const;
-
-function contrastResolutions(formData: FormData): ReviewContrastResolutionInput[] {
-  const resolutions: ReviewContrastResolutionInput[] = [];
-  for (const [name, entry] of formData.entries()) {
-    const match = CONTRAST_RESOLUTION_FIELD.exec(name);
-    if (match === null) continue;
-    if (typeof entry !== 'string') throw new FormInputError();
-    const status = CONTRAST_RESOLUTION_STATUSES.find((candidate) => candidate === entry);
-    if (status === undefined) throw new FormInputError();
-    resolutions.push({
-      axis: match[1] as ReviewContrastResolutionInput['axis'],
-      findingIndex: Number(match[2]),
-      status,
-    });
-  }
-  return resolutions;
-}
-
 /**
  * 승인·반려 처리(D69 · ADR-0036 · CCC-100). 대조 3종을 확인하는 것이 곧 정합성 검증이다
  * (R2). 검토 화면(세션 단위 주소)이 성공·실패 모두 돌아올 곳이라 beneficiaryId·
@@ -590,7 +567,7 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
     supportCaseId = opaqueId(formData, 'supportCaseId');
     sessionId = opaqueId(formData, 'sessionId');
     const session = await getSession(sessionId);
-    if (session.id !== sessionId || session.caseId !== supportCaseId) throw new FormInputError();
+    if (session.id !== sessionId) throw new FormInputError();
     const decisionValue = requiredValue(formData, 'decision');
     if (decisionValue !== 'approved' && decisionValue !== 'rejected') throw new FormInputError();
     decision = decisionValue;
@@ -599,9 +576,7 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
       decision,
     };
     if (decision === 'approved') {
-      // CCC-114: 승인은 대조 3종 항목별 처리(항목이 없어도 빈 배열)와, 화면이 요구했을 때의
-      // 화자 확인 체크를 함께 실어 보낸다. 완전성 판정은 서버가 한다(R1).
-      input.contrastResolutions = contrastResolutions(formData);
+      // D71: 대조 3종은 읽기 전용이고 승인 자체가 전체 확인을 뜻한다.
       if (checkbox(formData, 'speakerMappingConfirmed')) input.speakerMappingConfirmed = true;
     }
     await reviewAiDraft(session.id, input);
@@ -619,6 +594,46 @@ export async function reviewAiDraftAction(formData: FormData): Promise<void> {
   const reviewPath = sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
   revalidatePath(reviewPath);
   redirect(withNotice(reviewPath, 'notice', `ai_${decision}`));
+}
+
+/** D70 구획 ③ 문장을 출처 회차가 있는 액션 아이템으로 등록한다. */
+export async function createActionItemFromAiClaimAction(formData: FormData): Promise<void> {
+  let beneficiaryId: string | undefined;
+  let supportCaseId: string | undefined;
+  let sessionId: string | undefined;
+  try {
+    beneficiaryId = participantId(formData, 'beneficiaryId');
+    supportCaseId = opaqueId(formData, 'supportCaseId');
+    sessionId = opaqueId(formData, 'sessionId');
+    const session = await getSession(sessionId);
+    if (session.id !== sessionId || session.caseId !== supportCaseId) throw new FormInputError();
+
+    const ownerValue = requiredValue(formData, 'owner');
+    if (ownerValue !== 'counselor' && ownerValue !== 'beneficiary' && ownerValue !== 'org') {
+      throw new FormInputError();
+    }
+    const dueDate = value(formData, 'dueDate').trim();
+    if (dueDate.length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) throw new FormInputError();
+    await createActionItem(supportCaseId, {
+      description: requiredValue(formData, 'description').trim(),
+      owner: ownerValue,
+      sessionId,
+      ...(dueDate.length === 0 ? {} : { dueDate }),
+    });
+  } catch (error) {
+    const fallback = beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined
+      ? '/participants'
+      : sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
+    redirect(withNotice(fallback, 'error', noticeFor(error)));
+  }
+
+  if (beneficiaryId === undefined || supportCaseId === undefined || sessionId === undefined) {
+    redirect(withNotice('/participants', 'error', 'service_unavailable'));
+  }
+  revalidateParticipantProgram(beneficiaryId, supportCaseId);
+  const reviewPath = sessionReviewPath(beneficiaryId, supportCaseId, sessionId);
+  revalidatePath(reviewPath);
+  redirect(withNotice(reviewPath, 'notice', 'action_item_created'));
 }
 
 /**

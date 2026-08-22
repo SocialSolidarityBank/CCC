@@ -392,7 +392,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
             />
             {/* 목표 트리 (D62 §8 · CCC-69) — 전체 > 세부 > 세션을 케이스별로. 담당 케이스만
                 실리므로(D36 — 목표는 상담 내용) 비담당 사업은 구획 자체가 없다. */}
-            <GoalTreeCard cases={goalTree} programLabels={programLabels} loadFailed={goalTreeFailed} />
+            <GoalTreeCard beneficiaryId={detail.beneficiaryId} cases={goalTree} programLabels={programLabels} loadFailed={goalTreeFailed} />
             {/* 동의서는 맨 아래다(2026-08-06 Q — 구 사업 카드 안 동의 묶음 대체). 저장 단위는
                 여전히 참여 사업이라(D44) 담당 사업마다 한 묶음씩 서고, 사업이 여럿이면
                 묶음 머리에 사업명이 선다.

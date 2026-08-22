@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev --config wrangler.toml",
     "typecheck": "pnpm --workspace-root exec tsc --noEmit --project apps/api/tsconfig.json",
+    "eval:flags": "node --disable-warning=ExperimentalWarning --experimental-transform-types eval/run-flag-eval.ts",
     "build": "pnpm --workspace-root exec tsc --noEmit --project apps/api/tsconfig.json",
     "test": "pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts --maxWorkers=4"
   }

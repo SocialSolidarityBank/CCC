@@ -4,7 +4,6 @@ import {
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
   ConflictError,
-  ContrastResolutionRequiredError,
   SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
   FLAG_TYPES,
@@ -43,6 +42,7 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCase,
   createCounselingRecord,
+  createActionItem,
   createIntakeRecord,
   updateIntakeRecord,
   createParticipantInvite,
@@ -133,7 +133,6 @@ import {
   type AiDraftSourceMaterialRef,
   type AiDraftVersion,
   type AiDraftReviewInput,
-  type AiContrastResolutionInput,
   type CounselingRecordDetails,
   type AssignedParticipant,
   type ParticipantSearchResult,
@@ -268,6 +267,7 @@ function objectArray(value: unknown, key: string): JsonObject[] {
 
 
 function parseApproval(body: JsonObject) {
+  requireOnlyKeys(body, ['expectedDraftVersion']);
   const expectedDraftVersion = body.expectedDraftVersion;
   if (
     expectedDraftVersion !== undefined
@@ -275,26 +275,7 @@ function parseApproval(body: JsonObject) {
   ) {
     throw new DraftVersionRequiredError();
   }
-  return {
-    ...(expectedDraftVersion === undefined ? {} : { expectedDraftVersion }),
-    missingFromMemo: objectArray(body.missingFromMemo, 'missingFromMemo').map((item) => {
-      const actionValue = requiredString(item, 'action');
-      if (actionValue !== 'accept' && actionValue !== 'dismiss') throw new ValidationError('missingFromMemo action is invalid');
-      const action: 'accept' | 'dismiss' = actionValue;
-      return { item: requiredString(item, 'item'), action };
-    }),
-    missingFromAudio: objectArray(body.missingFromAudio, 'missingFromAudio').map((item) => {
-      const actionValue = requiredString(item, 'action');
-      if (actionValue !== 'confirmed' && actionValue !== 'corrected') throw new ValidationError('missingFromAudio action is invalid');
-      const action: 'confirmed' | 'corrected' = actionValue;
-      return { item: requiredString(item, 'item'), action };
-    }),
-    undiscussedGoals: objectArray(body.undiscussedGoals, 'undiscussedGoals').map((item) => {
-      const goalId = requiredString(item, 'goalId');
-      const note = optionalString(item, 'note');
-      return note === undefined ? { goalId } : { goalId, note };
-    }),
-  };
+  return expectedDraftVersion === undefined ? {} : { expectedDraftVersion };
 }
 
 function requireOnlyKeys(body: JsonObject, allowed: readonly string[]): void {
@@ -1174,6 +1155,7 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             description: action.description,
             owner: action.owner,
             dueDate: action.dueDate,
+            sessionId: action.sessionId,
           })),
         flags: briefing.flags
           .filter((item) => item.sourceSupportCase.id === sourceSupportCase.id)
@@ -1182,6 +1164,8 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             flagType: flag.flagType,
             source: flag.source,
             reviewStatus: flag.reviewStatus,
+            sessionId: flag.sessionId,
+            quote: flag.quote,
           })),
         // D45 영역 ① AI 제안 (CCC-39) — 제목·이유·근거 회차(sessionId·heldAt). 최대 3개는
         // 게이트웨이가 이미 끊었다. 화면은 sessionId 로 해당 회차 기록에 링크를 건다.
@@ -1192,6 +1176,7 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
             reason: suggestion.reason,
             sessionId: suggestion.sessionId,
             heldAt: suggestion.heldAt,
+            sourceQuotes: suggestion.sourceQuotes,
           })),
         // D45 영역 ② 회차별 정리 — 상담일·유형·핵심 한 줄(승인분)·수기 발췌 (최신순, 게이트웨이 정렬 보존).
         sessionRows: briefing.sessionRows
@@ -1251,6 +1236,7 @@ function participantGoalTreeResponse(tree: Awaited<ReturnType<typeof getParticip
       closedAt: goal.closedAt,
       revisions: goal.revisions,
       sessionGoals: goal.sessionGoals,
+      linkedSessions: goal.linkedSessions,
     })),
   }));
 }
@@ -1320,6 +1306,7 @@ function counselingRecordDetailsResponse(
       flagType: flag.flagType,
       source: flag.source,
       reviewStatus: flag.reviewStatus,
+      quote: flag.quote,
     })),
     lifeAreaSnapshot: record.lifeAreaSnapshot.map((area) => ({
       areaKey: area.areaKey,
@@ -1330,6 +1317,7 @@ function counselingRecordDetailsResponse(
     aiOneLiner: record.aiOneLiner,
     memoExcerpt: record.memoExcerpt,
     sessionGoals: record.sessionGoals,
+    discrepancies: record.discrepancies,
   };
 }
 
@@ -1453,9 +1441,8 @@ function parseAiDraftEdit(body: JsonObject) {
 }
 
 function parseAiDraftReview(body: JsonObject): AiDraftReviewInput {
-  // CCC-114: 승인은 대조 3종 항목별 처리(항목이 없어도 빈 배열)와 화자 확인을 실을 수 있다.
-  // 형태만 여기서 거르고, 완전성(모든 항목을 덮는가)은 게이트웨이가 판정한다(R1).
-  requireOnlyKeys(body, ['expectedVersion', 'decision', 'contrastResolutions', 'speakerMappingConfirmed']);
+  // D71: 대조 항목은 읽기 전용이고 승인 자체가 전체 확인을 뜻한다. 화자 확인만 별도 확언한다.
+  requireOnlyKeys(body, ['expectedVersion', 'decision', 'speakerMappingConfirmed']);
   const decisionValue = requiredString(body, 'decision');
   if (decisionValue !== 'approved' && decisionValue !== 'rejected') {
     throw new ValidationError('decision is invalid');
@@ -1465,16 +1452,6 @@ function parseAiDraftReview(body: JsonObject): AiDraftReviewInput {
     expectedVersion: requiredDraftVersion(body.expectedVersion),
     decision,
   };
-  if (body.contrastResolutions !== undefined) {
-    review.contrastResolutions = objectArray(body.contrastResolutions, 'contrastResolutions').map((item) => {
-      requireOnlyKeys(item, ['axis', 'findingIndex', 'status']);
-      return {
-        axis: requiredString(item, 'axis'),
-        findingIndex: requiredInteger(item, 'findingIndex'),
-        status: requiredString(item, 'status'),
-      } as AiContrastResolutionInput;
-    });
-  }
   if (body.speakerMappingConfirmed !== undefined) {
     review.speakerMappingConfirmed = requiredBoolean(body, 'speakerMappingConfirmed');
   }
@@ -1487,6 +1464,7 @@ function aiDraftResponse(draft: AiDraftVersion) {
     origin: draft.origin,
     creationMode: draft.creationMode,
     summaryText: draft.summaryText,
+    claims: draft.claims,
     // 승인 화면의 핵심 한 줄 항목(CCC-38) — 요약·질문과 함께 검토·승인된다(R2).
     oneLiner: draft.oneLiner,
     reviewDecision: draft.reviewDecision,
@@ -1814,6 +1792,16 @@ async function generateAiDraft(
         origin: 'fixture_generated',
         creationMode: 'fixture_generated',
         summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
+        claims: output.claims.map((claim) => ({
+          claimKey: claim.claimKey,
+          section: claim.section,
+          text: claim.text,
+        })),
+        flagSuggestions: output.flagSuggestions.map((suggestion) => ({
+          flagType: suggestion.type,
+          sourceRef: suggestion.sourceRef,
+          quote: suggestion.quote,
+        })),
         oneLiner: output.oneLiner,
         sourceSnapshotId: sourceSnapshot.id,
         sourceSnapshotHash: sourceSnapshot.sha256,
@@ -1847,6 +1835,16 @@ async function generateAiDraft(
     const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
+      claims: output.claims.map((claim) => ({
+        claimKey: claim.claimKey,
+        section: claim.section,
+        text: claim.text,
+      })),
+      flagSuggestions: output.flagSuggestions.map((suggestion) => ({
+        flagType: suggestion.type,
+        sourceRef: suggestion.sourceRef,
+        quote: suggestion.quote,
+      })),
       oneLiner: output.oneLiner,
       sourceSnapshotId: sourceSnapshot.id,
       sourceSnapshotHash: sourceSnapshot.sha256,
@@ -1940,8 +1938,7 @@ function errorResponse(error: unknown): Response {
   if (error instanceof DraftVersionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof GroundedEvidenceRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof FixtureDraftApprovalForbiddenError) return json({ error: error.code }, error.statusCode);
-  // CCC-114: 승인 전제(대조 3종 항목별 처리 · 화자 확인) 미충족은 화면이 원인을 안내한다.
-  if (error instanceof ContrastResolutionRequiredError) return json({ error: error.code }, error.statusCode);
+  // 녹음 회차 승인 전 화자 확인 미충족은 화면이 원인을 안내한다.
   if (error instanceof SpeakerConfirmationRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof AiProviderNotConfiguredError) return json({ error: error.code }, error.statusCode);
   // G1: ① 미동의·긴급 사유 누락은 'invalid_request' 로 뭉치지 않는다 — 화면이 "동의를
@@ -2497,6 +2494,22 @@ export async function handleRequest(
         });
         await onGoalRevised(env, actor, caseId);
         return json(created, 201);
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'action-items') {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['description', 'owner', 'dueDate', 'sessionId']);
+        const owner = requiredString(body, 'owner');
+        if (owner !== 'counselor' && owner !== 'beneficiary' && owner !== 'org') {
+          throw new ValidationError('action item owner is invalid');
+        }
+        const dueDate = optionalString(body, 'dueDate');
+        const sessionId = optionalString(body, 'sessionId');
+        return json(await createActionItem(env, actor, caseId, {
+          description: requiredString(body, 'description'),
+          owner,
+          ...(dueDate === undefined || dueDate.length === 0 ? {} : { dueDate }),
+          ...(sessionId === undefined ? {} : { sessionId }),
+        }), 201);
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'sessions') {
         return json((await listSessions(env, actor, caseId)).map(sessionResponse));

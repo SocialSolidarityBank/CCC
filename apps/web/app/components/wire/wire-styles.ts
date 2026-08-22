@@ -372,7 +372,10 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    8 이면 옆 목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. */
 .goal-tree-goals.wire-bullets{gap:var(--space-4)}
 .goal-tree-goal{display:grid;gap:var(--space-2)}
+.goal-tree-goal-details>summary{cursor:pointer;list-style:none}
+.goal-tree-goal-details>summary::-webkit-details-marker{display:none}
 .goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
 .goal-tree-goal-title{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 /* 닫힌 목표는 흐리게 — 기록으로 남기되 활성과 한눈에 갈린다(D62 §5). 사유는 배지가 말한다. */
 .goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}
@@ -383,7 +386,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 한 줄 = [날짜][문장][상태]. 날짜·상태는 줄지 않고 문장만 자기 칸 안에서 접힌다 — 구
    MetaRow 한 줄은 문장이 접힐 때 조각 구분 세로선이 본문 앞 막대로 남았다(2026-08-09 Q 보고).
    접힌 둘째 줄이 문장 시작선에 맞으므로 날짜 칸이 그대로 눈금 역할을 한다. */
-.goal-tree-session-row{display:flex;align-items:baseline;gap:var(--space-3);font-size:var(--text-sm);color:var(--sub)}
+.goal-tree-session-row,.goal-tree-linked-session{display:flex;align-items:baseline;gap:var(--space-3);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 회기 날짜는 블루 계열이다(2026-08-09 Q "날짜는 컬러 처리해서 구분해 달라") — D58 ④ 의
    고정 의미 블루=일정·시간. 둘 다 --sub 민짜여서 어디까지가 날짜인지 눈으로 갈리지 않았다.
    deep 색 글자는 §6 규칙 3 대로 14 이상·굵기 600 에서만 쓴다(.note-inline a·.wire-form-hint a
@@ -391,7 +394,6 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    세 조각짜리 메타 줄이라 날짜만 물들이면 나머지 두 조각과 위계가 뒤바뀐다. */
 .goal-tree-session-date{flex:none;color:var(--blue-deep);font-weight:600}
 .goal-tree-session-body{min-width:0}
-.goal-tree-session-suffix{flex:none}
 /* 문구 이력(D62 §4) — 기본 숨김, '이력 보기'로만 연다. 요약은 처리 이력(.briefing-history)과
    같은 14/600 --sub 어휘로 목표 문구와 같은 줄 오른쪽에 서고, 펼친 이력은 줄을 통째로 쓴다.
    details 가 상자를 버리고(display:contents) 자식을 그대로 flex 줄에 내놓는 동의 '전문 보기'
@@ -961,6 +963,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 인용 블록(§5): AI 제안의 근거 발언 전용. 세로선은 --gradient-brand-v(흐르는 방향과 같게). */
 .wire-quote{margin:0;padding-left:var(--space-3);border-left:2px solid transparent;background:var(--gradient-brand-v) left/2px 100% no-repeat;font-size:var(--text-sm);color:var(--sub)}
 .wire-quote-time{display:block;margin-top:var(--space-1);font-size:var(--text-sm);font-weight:600;color:var(--sub);letter-spacing:var(--tracking-numeric)}
+/* D73 근거 인용 접힘. 산출물 바로 아래에서만 열고, 링크는 회차 카드 앵커가 종점이다. */
+.wire-source-quotes{margin-top:var(--space-2)}
+.wire-source-quotes>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
+.wire-source-quotes-body{display:grid;gap:var(--space-2);margin-top:var(--space-2)}
+.wire-source-quotes-link{font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--blue-deep)}
 /* 모달(§5): 폭 520 · radius 12 · 스크림 --scrim · --shadow-modal.
    하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */
 .wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:var(--scrim)}

@@ -33,9 +33,10 @@ import { OpenActionResolutions, type OpenActionResolutionItem } from './open-act
 const flagTypes = [
   ['crisis_utterance', '위기 발언'],
   ['contact_loss_risk', '연락 두절 위험'],
-  ['housing_livelihood_shock', '주거·생계 급변'],
+  ['housing_livelihood_shock', '주거·생계·건강 급변'],
   ['debt_deterioration', '부채 악화'],
   ['repeated_noncompliance', '약속 불이행 반복'],
+  ['violence_exploitation', '폭력·착취 피해'],
 ] as const;
 
 const channelOptions = [

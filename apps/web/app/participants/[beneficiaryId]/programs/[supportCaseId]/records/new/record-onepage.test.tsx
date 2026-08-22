@@ -230,6 +230,23 @@ describe('RecordOnepage', () => {
     expect(safety.open).toBe(true);
   });
 
+  it('리스크 플래그는 D72 고정 6종을 빠짐없이 보여준다', () => {
+    const { container } = render(<RecordOnepage {...props()} />);
+    const values = Array.from(container.querySelectorAll('input[name="flagType"]'))
+      .map((input) => (input as HTMLInputElement).value);
+
+    expect(values).toEqual([
+      'crisis_utterance',
+      'contact_loss_risk',
+      'housing_livelihood_shock',
+      'debt_deterioration',
+      'repeated_noncompliance',
+      'violence_exploitation',
+    ]);
+    expect(container.textContent).toContain('주거·생계·건강 급변');
+    expect(container.textContent).toContain('폭력·착취 피해');
+  });
+
   // D47 §6 · ADR-0019 — GAS 점수와 '목표 종료+신설'은 화면에서 내렸다. D43 이 보류한 것은
   // 'GAS 와 세부 목표 층' 둘 다인데 브리핑만 정리되고 이 화면에는 남아 있었다(UI 훑기 R1).
   // 이 테스트는 그것들이 조용히 되살아나는 것을 막는다 — 되살릴 때는 D43 해제가 먼저다.

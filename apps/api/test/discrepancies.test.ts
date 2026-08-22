@@ -11,6 +11,7 @@ import {
   listTextWorkItems,
   recordMaskedSourceSnapshot,
   getParticipantBriefing,
+  listCounselingRecords,
   listRecordErrorSessionIds,
   listSupportCasesForBeneficiary,
   recordPilotTextAiConsentEvidence,
@@ -517,6 +518,31 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
     expect(resolved).not.toHaveProperty('resolvedBy');
   });
 
+  it('상담 기록 조회가 각 회차에 걸린 불일치 연결을 함께 싣는다 (D73)', async () => {
+    const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
+    const [first, second] = fixture.sessionIds;
+    const [stored] = await replaceSessionDiscrepancies(t.env, counselor, second ?? '', [{
+      kind: 'cross_session',
+      leftSessionId: first ?? '',
+      leftQuote: '첫 메모',
+      rightSessionId: second ?? '',
+      rightQuote: '둘째 메모',
+    }]);
+
+    const records = await listCounselingRecords(t.env, counselor, fixture.supportCaseId);
+    const firstRecord = records.find((record) => record.id === first);
+    const secondRecord = records.find((record) => record.id === second);
+    const expected = [{
+      id: stored?.id,
+      kind: 'cross_session',
+      leftSessionId: first,
+      rightSessionId: second,
+      resolutionStatus: null,
+    }];
+    expect(firstRecord?.discrepancies).toEqual(expected);
+    expect(secondRecord?.discrepancies).toEqual(expected);
+  });
+
   it('처리된 이력은 최근 20건까지만 싣고 미처리는 자르지 않는다', async () => {
     const fixture = await createCaseWithSessions(['첫 메모', '둘째 메모']);
     const [first, second] = fixture.sessionIds;
@@ -564,6 +590,13 @@ describe('getParticipantBriefing — 영역 ③은 저장된 결과만 읽는다
       .map((item) => item.resolution?.resolvedAt ?? '')
       .sort()[0];
     expect(oldest).toBe('2026-07-06T00:00:00.000Z');
+
+    const records = await listCounselingRecords(t.env, counselor, fixture.supportCaseId);
+    const recordDiscrepancyIds = new Set(
+      records.flatMap((record) => record.discrepancies.map((item) => item.id)),
+    );
+    const briefingDiscrepancyIds = new Set(briefing.discrepancies.map((item) => item.id));
+    expect(recordDiscrepancyIds).toEqual(briefingDiscrepancyIds);
   });
 });
 
@@ -652,11 +685,15 @@ describe('resolveSessionDiscrepancy — 처리 3종·원본 불변·감사 (CCC-
     expect(row?.resolution_status).toBeNull();
   });
 
-  it('기관 관리자도 처리할 수 있다 (D7 — 전체 목표의 "담당 실무자만"과 다른 층)', async () => {
+  it('담당이 아닌 기관 관리자는 불일치를 처리할 수 없다 (D74)', async () => {
     const fixture = await storedPair();
-    const resolved = await resolveSessionDiscrepancy(t.env, admin, fixture.id, 'confirmed');
-    expect(resolved.resolutionStatus).toBe('confirmed');
-    expect(resolved.resolvedBy).toBe(admin.userId);
+    await expect(
+      resolveSessionDiscrepancy(t.env, admin, fixture.id, 'confirmed'),
+    ).rejects.toThrowError(ForbiddenError);
+    const row = await t.db.prepare(
+      'SELECT resolution_status, resolved_by FROM session_discrepancies WHERE id = ?',
+    ).bind(fixture.id).first<{ resolution_status: string | null; resolved_by: string | null }>();
+    expect(row).toEqual({ resolution_status: null, resolved_by: null });
   });
 
   it("'기록 오류' 처리는 원본을 지우지 않고 그 회차를 표시 대상으로만 올린다", async () => {
@@ -855,7 +892,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
     expect(briefing.discrepancies).toHaveLength(0);
   });
 
-  it('관리자용 확인: 검출 결과는 admin 열람에도 그대로 보인다 (D7)', async () => {
+  it('담당이 아닌 기관 관리자는 검출 결과 브리핑을 열람할 수 없다 (D74)', async () => {
     const fixture = await createCaseWithSessions(['첫 메모']);
     const trigger = fixture.sessionIds[0] ?? '';
     await replaceSessionDiscrepancies(t.env, counselor, trigger, [{
@@ -865,8 +902,9 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
       rightSessionId: trigger,
       rightQuote: '첫 메모',
     }]);
-    const briefing = await getParticipantBriefing(t.env, admin, fixture.caseId, fixture.supportCaseId);
-    expect(briefing.discrepancies).toHaveLength(1);
+    await expect(
+      getParticipantBriefing(t.env, admin, fixture.caseId, fixture.supportCaseId),
+    ).rejects.toThrowError(ForbiddenError);
   });
 });
 

@@ -16,8 +16,6 @@ export type ApiErrorCode =
   | 'stale_draft_version'
   | 'draft_version_required'
   | 'grounded_evidence_required'
-  // CCC-114: 승인 전제 미충족 — 대조 3종 항목별 처리 누락 / 화자 확인 누락.
-  | 'contrast_resolution_required'
   | 'speaker_confirmation_required'
   | 'fixture_draft_approval_forbidden'
   | 'ai_provider_not_configured'
@@ -43,7 +41,6 @@ const knownErrorCodes = new Set<ApiErrorCode>([
   'stale_draft_version',
   'draft_version_required',
   'grounded_evidence_required',
-  'contrast_resolution_required',
   'speaker_confirmation_required',
   'fixture_draft_approval_forbidden',
   'ai_provider_not_configured',
@@ -132,6 +129,12 @@ export interface AiEvidence {
 export type AiDraftReviewDecision = 'approved' | 'rejected' | 'superseded' | null;
 export type AiDraftOrigin = 'generated' | 'fixture_generated' | 'legacy_import';
 export type AiDraftCreationMode = 'provider_generated' | 'fixture_generated' | 'human_edited' | 'legacy_import';
+export type AiClaimSection = 'session_goal_discussion' | 'other_topics' | 'next_session_commitments';
+export interface AiDraftClaim {
+  claimKey: string;
+  section: AiClaimSection;
+  text: string;
+}
 
 /** 대조 3종의 축(D69 · ADR-0036). '미논의 목표' 판정 기준은 회기 목표뿐이다(결정 3). */
 export type AiContrastAxis = 'missing_from_memo' | 'missing_from_transcript' | 'undiscussed_session_goal';
@@ -170,6 +173,8 @@ export interface AiDraft {
   origin: AiDraftOrigin;
   creationMode: AiDraftCreationMode;
   summaryText: string;
+  /** D70 목표 중심 3구획 요약. v4 이전 초안은 빈 배열이다. */
+  claims: AiDraftClaim[];
   /** D45 핵심 한 줄(CCC-38) — 승인 화면에서 요약·질문과 함께 검토된다. null = 레거시 초안. */
   oneLiner: string | null;
   /** CCC-39: 구조화 제안(제목+이유). 승인 흐름에서 요약과 함께 승인된다(R2). */
@@ -211,20 +216,18 @@ export interface EditAiDraftInput {
   evidenceIds: string[];
 }
 
-/** 대조 3종 한 항목의 실무자 처리(CCC-114). 처리 3종 값은 내용 불일치와 같다(상황 변경/기록 오류/확인 완료). */
-export interface ReviewContrastResolutionInput {
-  axis: 'missing_from_memo' | 'missing_from_transcript' | 'undiscussed_session_goal';
-  findingIndex: number;
-  status: 'situation_changed' | 'record_error' | 'confirmed';
-}
-
 export interface ReviewAiDraftInput {
   expectedVersion: number;
   decision: 'approved' | 'rejected';
-  /** approved 필수(CCC-114): 적용된 대조 축의 모든 항목에 대한 처리(항목이 없어도 빈 배열). */
-  contrastResolutions?: ReviewContrastResolutionInput[];
   /** 녹음 재료 있는 회차의 approved 에서 화자 확인이 아직이면 이 확언으로 함께 기록한다(D11). */
   speakerMappingConfirmed?: boolean;
+}
+
+export interface CreateActionItemInput {
+  description: string;
+  owner: 'counselor' | 'beneficiary' | 'org';
+  dueDate?: string;
+  sessionId: string;
 }
 
 /** 재생성 요청 입력(D69 · ADR-0036 결정 2 · CCC-100). GET 초안이 내려준 값을 그대로 싣는다. */
@@ -265,7 +268,8 @@ export type FlagType =
   | 'contact_loss_risk'
   | 'housing_livelihood_shock'
   | 'debt_deterioration'
-  | 'repeated_noncompliance';
+  | 'repeated_noncompliance'
+  | 'violence_exploitation';
 
 
 export interface SourceSupportCase {
@@ -376,12 +380,15 @@ export interface ParticipantBriefingSection {
     description: string;
     owner: 'counselor' | 'beneficiary' | 'org';
     dueDate: string | null;
+    sessionId: string | null;
   }>;
   flags: Array<{
     id: string;
     flagType: FlagType;
     source: 'ai' | 'counselor';
     reviewStatus: 'confirmed';
+    sessionId: string | null;
+    quote: string | null;
   }>;
   // D45 영역 ① AI 제안(CCC-39) — 제목·이유·근거 회차. 최대 3개(서버가 끊는다).
   // reason=null 은 구조화 이전(v1) 단문 질문 저장분 — 화면은 이유 줄만 생략한다.
@@ -390,6 +397,7 @@ export interface ParticipantBriefingSection {
     reason: string | null;
     sessionId: string;
     heldAt: string | null;
+    sourceQuotes: string[];
   }>;
   // D45 영역 ② 회차별 정리 — 상담일·유형·핵심 한 줄(최신순). 승인된 AI 한 줄이 없으면
   // 화면이 수기 발췌 + '수기' 배지로 폴백한다(D5·CCC-38).
@@ -509,6 +517,7 @@ export interface SupportCaseRecord {
     flagType: FlagType;
     source: 'ai' | 'counselor';
     reviewStatus: 'confirmed' | 'rejected' | 'pending';
+    quote: string | null;
   }>;
   lifeAreaSnapshot: LifeAreaSnapshotEntry[];
   // 기록 종류(CCC-7) — 목록에서 인테이크/정기 구분 표시용.
@@ -520,6 +529,13 @@ export interface SupportCaseRecord {
   memoExcerpt: string | null;
   /** D47 '이번 상담의 목표'(GAS 가 있던 자리). 빈 배열이면 블록을 그리지 않는다 — ADR-0019 §2. */
   sessionGoals: string[];
+  discrepancies: Array<{
+    id: string;
+    kind: 'cross_session' | 'within_session';
+    leftSessionId: string;
+    rightSessionId: string;
+    resolutionStatus: DiscrepancyResolutionStatus | null;
+  }>;
 }
 
 // 세부 목표 닫힘 사유(D62 §5). 게이트웨이 GOAL_CLOSE_REASONS 와 같은 값 — 화면은 한글 배지로 보인다.
@@ -882,7 +898,10 @@ const flagTypes = [
   'housing_livelihood_shock',
   'debt_deterioration',
   'repeated_noncompliance',
+  'violence_exploitation',
 ] as const;
+const discrepancyKinds = ['cross_session', 'within_session'] as const;
+const discrepancyResolutionStatuses = ['situation_changed', 'record_error', 'confirmed'] as const;
 const scheduleStatuses = ['scheduled', 'completed', 'cancelled', 'no_show'] as const;
 const directoryRoles = ['admin', 'counselor', 'service'] as const;
 // 생활 6영역(CCC-8). 키·라벨 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D.
@@ -939,6 +958,10 @@ function responseArray(record: Record<string, unknown>, name: string): unknown[]
 function responseEnum<T extends string>(value: unknown, allowed: readonly T[]): T {
   if (typeof value !== 'string' || !allowed.includes(value as T)) contractViolation();
   return value as T;
+}
+
+function responseNullableEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+  return value === null ? null : responseEnum(value, allowed);
 }
 
 function decodeSourceSupportCase(value: unknown): SourceSupportCase {
@@ -1043,6 +1066,7 @@ function decodeSupportCaseRecord(value: unknown): SupportCaseRecord {
         flagType: responseEnum(responseProperty(item, 'flagType'), flagTypes),
         source: responseEnum(responseProperty(item, 'source'), flagSources),
         reviewStatus: responseEnum(responseProperty(item, 'reviewStatus'), flagReviewStatuses),
+        quote: responseNullableString(item, 'quote'),
       };
     }),
     lifeAreaSnapshot: responseArray(record, 'lifeAreaSnapshot').map(decodeLifeAreaSnapshotEntry),
@@ -1053,6 +1077,16 @@ function decodeSupportCaseRecord(value: unknown): SupportCaseRecord {
     sessionGoals: responseArray(record, 'sessionGoals').map((goal) => {
       if (typeof goal !== 'string') contractViolation();
       return goal;
+    }),
+    discrepancies: responseArray(record, 'discrepancies').map((value) => {
+      const discrepancy = responseObject(value);
+      return {
+        id: responseString(discrepancy, 'id'),
+        kind: responseEnum(responseProperty(discrepancy, 'kind'), discrepancyKinds),
+        leftSessionId: responseString(discrepancy, 'leftSessionId'),
+        rightSessionId: responseString(discrepancy, 'rightSessionId'),
+        resolutionStatus: responseNullableEnum(responseProperty(discrepancy, 'resolutionStatus'), discrepancyResolutionStatuses),
+      };
     }),
   };
 }
@@ -1350,6 +1384,10 @@ export async function createManualSession(caseId: string, input: ManualSessionIn
   return jsonRequest<ManualSession>(`/cases/${encodeURIComponent(caseId)}/sessions`, 'POST', input);
 }
 
+export async function createActionItem(caseId: string, input: CreateActionItemInput): Promise<OpenActionItem> {
+  return jsonRequest<OpenActionItem>(`/cases/${encodeURIComponent(caseId)}/action-items`, 'POST', input);
+}
+
 export async function getBriefing(caseId: string): Promise<Briefing> {
   return requestJson<Briefing>(`/cases/${encodeURIComponent(caseId)}/briefing`);
 }
@@ -1534,6 +1572,11 @@ export interface ParticipantGoalTreeGoal {
     body: string;
     scheduledAt: string;
     scheduleStatus: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  }>;
+  linkedSessions: Array<{
+    sessionId: string;
+    heldAt: string;
+    oneLiner: string | null;
   }>;
 }
 

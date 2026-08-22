@@ -188,20 +188,21 @@ describe('audio upload and relay', () => {
     await expectDeniedAudioRequest(response, session.id, { status: 403, body: { error: 'forbidden' } }, 0, before);
   });
 
-  it('allows the same-org admin upload path retained by the Phase-1 access model', async () => {
+  it('rejects an unassigned institution administrator upload without mutating the recording', async () => {
     await t.reset();
     const env = localEnv();
     const { session } = await makeInPersonSession(true);
+    const before = await recordingState(session.id);
 
     const response = await putAudio(session.id, env, adminHeaders);
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.not.toHaveProperty('audioR2Key');
-    expect(await bucketCount()).toBe(1);
-    expect(await recordingState(session.id)).toEqual({
-      audio_r2_key: expect.any(String),
-      ai_status: 'uploaded',
-    });
+    await expectDeniedAudioRequest(
+      response,
+      session.id,
+      { status: 403, body: { error: 'forbidden' } },
+      0,
+      before,
+    );
   });
 
   it('rejects an unassigned counselor upload without creating audio or mutating the recording', async () => {

@@ -344,10 +344,11 @@ export default function KitPage() {
           </p>
           <div className="wire-kit-stack">
             <RiskBanner
+              recordsHref="/kit"
               flags={[
-                { id: 'kit-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed' },
-                { id: 'kit-2', flagType: 'contact_loss_risk', source: 'counselor', reviewStatus: 'confirmed' },
-                { id: 'kit-3', flagType: 'crisis_utterance', source: 'ai', reviewStatus: 'pending' },
+                { id: 'kit-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed', sessionId: 'kit-session', quote: '이자를 석 달째 내지 못했다.' },
+                { id: 'kit-2', flagType: 'contact_loss_risk', source: 'counselor', reviewStatus: 'confirmed', sessionId: 'kit-session', quote: null },
+                { id: 'kit-3', flagType: 'crisis_utterance', source: 'ai', reviewStatus: 'pending', sessionId: 'kit-session', quote: null },
               ]}
             />
             <details className="surface-card" open>

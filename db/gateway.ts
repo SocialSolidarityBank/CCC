@@ -18,6 +18,7 @@
  */
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from './animal-slugs';
+import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import { CONSENT_TEXT_AI_NOTICE_TEXT, CONSENT_TEXT_AI_NOTICE_VERSION } from './consent-notice';
 
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
@@ -142,15 +143,6 @@ export class DraftVersionRequiredError extends Error {
   }
 }
 /** 생성 AI 초안을 공식화할 마스킹 근거 링크가 없다. */
-/** 승인 요청에 대조 3종 항목별 처리 결과가 없거나 모자란다 (R2 · CCC-114). */
-export class ContrastResolutionRequiredError extends Error {
-  readonly code = 'contrast_resolution_required';
-  readonly statusCode = 409;
-
-  constructor() {
-    super('contrast_resolution_required');
-  }
-}
 /** 녹음 재료 있는 회차의 승인에 화자 매핑 확인이 없다 (D11 · R2 · CCC-114). */
 export class SpeakerConfirmationRequiredError extends Error {
   readonly code = 'speaker_confirmation_required';
@@ -245,13 +237,14 @@ export const MAX_ACTIVE_GOALS = 3;
 export const GOAL_CLOSE_REASONS = ['achieved', 'stopped', 'reset'] as const;
 export type GoalCloseReason = (typeof GOAL_CLOSE_REASONS)[number];
 
-/** D9 리스크 플래그 고정 유형 목록 — 유일 출처. FlagType·toFlagType이 이 배열을 따른다. */
+/** D72 확정 리스크 플래그 6종. FlagType과 toFlagType이 이 배열을 따른다. */
 export const FLAG_TYPES = [
   'crisis_utterance',
   'contact_loss_risk',
   'housing_livelihood_shock',
   'debt_deterioration',
   'repeated_noncompliance',
+  'violence_exploitation',
 ] as const;
 
 type DbRow = Record<string, unknown>;
@@ -398,6 +391,7 @@ function mapAssignee(row: DbRow): Assignee {
     caseId: stringValue(row.case_id),
     userId: stringValue(row.user_id),
     role: toAssigneeRole(row.role),
+
     assignedAt: stringValue(row.assigned_at),
     unassignedAt: nullableString(row.unassigned_at),
   };
@@ -720,6 +714,7 @@ function mapAiDraftVersion(
   }
   const origin = toAiDraftOrigin(row.origin);
   const questions = parseAiDraftQuestions(row.questions_json, origin);
+  const claims = parseAiDraftClaims(row.claims_json, origin);
 
   return {
     id: stringValue(row.draft_id ?? row.id),
@@ -730,6 +725,7 @@ function mapAiDraftVersion(
     version,
     parentVersionId: nullableString(row.parent_version_id),
     summaryText: stringValue(row.summary_text),
+    claims,
     oneLiner: nullableString(row.one_liner),
     questions,
     sourceSnapshotId: nullableString(row.source_snapshot_id),
@@ -761,6 +757,7 @@ function mapApprovedAiBriefing(row: DbRow): ApprovedAiBriefing {
   }
   const origin = toAiDraftOrigin(row.origin);
   const questions = parseAiDraftQuestions(row.questions_json, origin);
+  const claims = parseAiDraftClaims(row.claims_json, origin);
 
   return {
     workItemId: stringValue(row.work_item_id),
@@ -769,6 +766,7 @@ function mapApprovedAiBriefing(row: DbRow): ApprovedAiBriefing {
     sessionId: stringValue(row.session_id),
     version,
     summaryText: stringValue(row.summary_text),
+    claims,
     oneLiner: nullableString(row.one_liner),
     questions,
     origin,
@@ -797,6 +795,7 @@ function mapAiProviderConfiguration(row: DbRow): AiProviderConfiguration {
     createdAt: stringValue(row.created_at),
   };
 }
+
 
 function mapActiveAiProviderConfiguration(row: DbRow): ActiveAiProviderConfiguration {
   return {
@@ -969,6 +968,55 @@ function questionsToJson(questions: AiBriefingSuggestion[]): string {
       : { title: suggestion.title, reason: suggestion.reason }
   )));
 }
+
+function parseAiDraftClaims(value: unknown, origin: AiDraftOrigin): AiDraftClaim[] {
+  const parsed = parseJson<unknown>(value);
+  if (!Array.isArray(parsed)) throw new ValidationError('AI draft claims must be a list');
+  if (origin === 'legacy_import' || parsed.length === 0) return [];
+  if (parsed.length > 32) throw new ValidationError('AI draft claims are invalid');
+
+  const claims: AiDraftClaim[] = [];
+  const keys = new Set<string>();
+  let previousSectionIndex = -1;
+  for (const item of parsed) {
+    if (item === null || Array.isArray(item) || typeof item !== 'object') {
+      throw new ValidationError('AI draft claim is invalid');
+    }
+    const claim = item as Record<string, unknown>;
+    if (
+      Object.keys(claim).some((key) => !['claimKey', 'section', 'text'].includes(key))
+      || typeof claim.claimKey !== 'string'
+      || !OPAQUE_IDENTIFIER.test(claim.claimKey)
+      || keys.has(claim.claimKey)
+      || typeof claim.section !== 'string'
+      || typeof claim.text !== 'string'
+      || claim.text.trim().length === 0
+    ) {
+      throw new ValidationError('AI draft claim is invalid');
+    }
+    const sectionIndex = (AI_CLAIM_SECTIONS as readonly string[]).indexOf(claim.section);
+    if (sectionIndex < 0 || sectionIndex < previousSectionIndex) {
+      throw new ValidationError('AI draft claim section is invalid');
+    }
+    keys.add(claim.claimKey);
+    previousSectionIndex = sectionIndex;
+    claims.push({
+      claimKey: claim.claimKey,
+      section: claim.section as AiClaimSection,
+      text: claim.text,
+    });
+  }
+  return claims;
+}
+
+function claimsToJson(claims: AiDraftClaim[]): string {
+  return stringifyJson(claims.map((claim) => ({
+    claimKey: claim.claimKey,
+    section: claim.section,
+    text: claim.text,
+  })));
+}
+
 function assertTimestamp(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
     throw new ValidationError(`${field} is invalid`);
@@ -1056,25 +1104,8 @@ async function getCaseForOrg(env: Env, orgId: string, caseId: string): Promise<C
 
 async function assertCaseAccess(env: Env, actor: Actor, caseId: string): Promise<Case> {
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
-
-  if (actor.role === 'admin') {
-    return context.caseRecord;
-  }
-
-  if (actor.role !== 'counselor') {
-    throw new ForbiddenError('service role cannot access case records');
-  }
-
-  const assignment = await env.DB.prepare(
-    'SELECT id FROM support_case_assignees WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL',
-  )
-    .bind(actor.orgId, context.supportCaseId, actor.userId)
-    .first<{ id: string }>();
-
-  if (assignment === null) {
-    throw new ForbiddenError('active case assignment is required');
-  }
-
+  await assertCurrentHumanActor(env, actor);
+  await assertActiveAssignment(env, actor, context.supportCaseId);
   return context.caseRecord;
 }
 
@@ -1198,6 +1229,7 @@ async function readPiiValues(
   const row = await env.DB.prepare(
     'SELECT enc_name, enc_phone, enc_account, enc_email FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ?',
   )
+
     .bind(context.beneficiaryId, orgId)
     .first<{ enc_name: string | null; enc_phone: string | null; enc_account: string | null; enc_email: string | null }>();
 
@@ -1598,6 +1630,7 @@ async function getMaskedSourceSnapshotForOrg(
   env: Env,
   orgId: string,
   caseId: string,
+
   sessionId: string,
   snapshotId: string,
 ): Promise<MaskedSourceSnapshot> {
@@ -1623,6 +1656,7 @@ async function getCurrentAiDraftVersion(env: Env, orgId: string, workItemId: str
        draft.version,
        draft.parent_version_id,
        draft.summary_text,
+       draft.claims_json,
        draft.one_liner,
        draft.questions_json,
        draft.source_snapshot_id,
@@ -1693,6 +1727,8 @@ function assertGeneratedAiDraftInput(
   requireSourceSnapshot = requireKind,
 ): void {
   assertRequiredText(input.summaryText, 'AI summary');
+  const claims = parseAiDraftClaims(claimsToJson(input.claims), 'generated');
+  if (claims.length === 0) throw new ValidationError('AI draft claims are required');
   // 핵심 한 줄(D45·CCC-38)은 새 생성 경로(requireKind)에서 필수, 편집 경로는 레거시
   // 초안(v1 스키마, one_liner 없음)의 재버전을 위해 NULL 을 허용한다.
   assertAiOneLiner(input.oneLiner, requireKind);
@@ -1701,6 +1737,24 @@ function assertGeneratedAiDraftInput(
   assertOpaqueIdentifier(input.modelId, 'model id');
   assertVersionIdentifier(input.promptVersion, 'prompt version');
   assertVersionIdentifier(input.schemaVersion, 'schema version');
+  if (!Array.isArray(input.flagSuggestions) || input.flagSuggestions.length > 8) {
+    throw new ValidationError('AI flag suggestions are invalid');
+  }
+  const flagKeys = new Set<string>();
+  for (const suggestion of input.flagSuggestions) {
+    if (suggestion === null || typeof suggestion !== 'object') {
+      throw new ValidationError('AI flag suggestion is invalid');
+    }
+    toFlagType(suggestion.flagType);
+    assertOpaqueIdentifier(suggestion.sourceRef, 'AI flag source reference');
+    assertRequiredText(suggestion.quote, 'AI flag quote');
+    if (suggestion.quote.length > 500) {
+      throw new ValidationError('AI flag quote is too long');
+    }
+    const key = `${suggestion.flagType}\u0000${suggestion.sourceRef}\u0000${suggestion.quote}`;
+    if (flagKeys.has(key)) throw new ValidationError('AI flag suggestions must be unique');
+    flagKeys.add(key);
+  }
   if (requireKind) {
     const generated = input as GeneratedAiDraftInput;
     assertOpaqueIdentifier(generated.providerConfigId, 'provider config id');
@@ -1725,6 +1779,8 @@ function assertGeneratedAiDraftInput(
     input.questions.map((_, index) => questionClaimKey(index)),
   );
   const questionEvidenceKeys = new Set<string>();
+  const claimEvidenceKeys = new Set<string>();
+  const requiredClaimEvidenceKeys = new Set(claims.map((claim) => claim.claimKey));
   let hasSummaryEvidence = false;
 
   for (const item of input.evidence) {
@@ -1741,6 +1797,7 @@ function assertGeneratedAiDraftInput(
       questionEvidenceKeys.add(evidence.claimKey);
     } else if (!isQuestionClaimKey(evidence.claimKey)) {
       hasSummaryEvidence = true;
+      claimEvidenceKeys.add(evidence.claimKey);
     }
     assertRequiredText(evidence.evidenceQuote, 'AI evidence quote');
     assertOpaqueReference(evidence.sourceRef, 'AI evidence source reference');
@@ -1761,6 +1818,11 @@ function assertGeneratedAiDraftInput(
   for (const claimKey of requiredQuestionEvidenceKeys) {
     if (!questionEvidenceKeys.has(claimKey)) {
       throw new ValidationError('AI briefing question evidence is required');
+    }
+  }
+  for (const claimKey of requiredClaimEvidenceKeys) {
+    if (!claimEvidenceKeys.has(claimKey)) {
+      throw new ValidationError('AI draft claim evidence is required');
     }
   }
   if (!hasSummaryEvidence) {
@@ -1872,6 +1934,28 @@ function assertAiContrastFindingsAttested(
   }
 }
 
+function assertAiFlagSuggestionsAttested(
+  suggestions: readonly AiFlagSuggestionInput[],
+  materials: readonly AiDraftSourceMaterialRef[],
+  snapshotsById: ReadonlyMap<string, MaskedSourceSnapshot>,
+): void {
+  const transcript = materials.find((material) => material.kind === 'transcript');
+  if (transcript === undefined && suggestions.length > 0) {
+    throw new ValidationError('AI flags require a transcript material');
+  }
+  for (const suggestion of suggestions) {
+    const snapshot = snapshotsById.get(suggestion.sourceRef);
+    if (
+      transcript === undefined
+      || suggestion.sourceRef !== transcript.snapshotId
+      || snapshot === undefined
+      || !snapshot.maskedText.includes(suggestion.quote)
+    ) {
+      throw new ValidationError('AI flag quote is not attested by the transcript');
+    }
+  }
+}
+
 function contrastFindingsToJson(findings: readonly AiContrastFinding[]): string {
   return stringifyJson(findings.map((finding) => ({
     description: finding.description,
@@ -1931,6 +2015,113 @@ function aiDraftMaterialStatements(
   return statements;
 }
 
+interface PendingAiFlag {
+  id: string;
+  flagType: FlagType;
+  quote: string;
+}
+
+interface PendingAiFlagPlan {
+  create: PendingAiFlag[];
+  replaceIds: string[];
+}
+
+async function pendingAiFlagsForDraft(
+  env: Env,
+  orgId: string,
+  sessionId: string,
+  suggestions: readonly AiFlagSuggestionInput[],
+): Promise<PendingAiFlagPlan> {
+  const existing = await env.DB.prepare(
+    `SELECT id, flag_type, quote, review_status FROM flags
+     WHERE org_id = ? AND session_id = ? AND source = 'ai'`,
+  ).bind(orgId, sessionId).all<{
+    id: string;
+    flag_type: string;
+    quote: string | null;
+    review_status: string;
+  }>();
+  const reviewedKeys = new Set(
+    existing.results
+      .filter((row) => row.review_status !== 'pending')
+      .map((row) => `${row.flag_type}\u0000${row.quote ?? ''}`),
+  );
+  return {
+    create: suggestions
+      .filter((suggestion) => !reviewedKeys.has(`${suggestion.flagType}\u0000${suggestion.quote}`))
+      .map((suggestion) => ({
+      id: newId(),
+      flagType: suggestion.flagType,
+      quote: suggestion.quote,
+      })),
+    replaceIds: existing.results
+      .filter((row) => row.review_status === 'pending')
+      .map((row) => row.id),
+  };
+}
+
+function aiFlagStatements(
+  env: Env,
+  scope: Omit<AiDraftMaterialWriteScope, 'draftId'>,
+  flags: readonly PendingAiFlag[],
+): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `DELETE FROM flags
+       WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'`,
+    ).bind(scope.orgId, scope.sessionId),
+  ];
+  for (const flag of flags) {
+    statements.push(env.DB.prepare(
+      `INSERT INTO flags (
+         id, org_id, support_case_id, session_id, flag_type, quote, source, review_status,
+         reviewed_by, reviewed_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, 'ai', 'pending', NULL, NULL, ?)`,
+    ).bind(
+      flag.id,
+      scope.orgId,
+      scope.supportCaseId,
+      scope.sessionId,
+      flag.flagType,
+      flag.quote,
+      scope.createdAt,
+    ));
+  }
+  return statements;
+}
+
+function aiFlagAuditStatements(
+  env: Env,
+  actor: Actor,
+  scope: {
+    caseId: string;
+    beneficiaryId: string;
+    supportCaseId: string;
+  },
+  plan: PendingAiFlagPlan,
+): D1PreparedStatement[] {
+  return [
+    ...plan.replaceIds.map((flagId) => canonicalAuditStatement(env, actor, {
+      action: 'delete',
+      targetTable: 'flags',
+      targetId: flagId,
+      beneficiaryId: scope.beneficiaryId,
+      supportCaseId: scope.supportCaseId,
+      caseId: scope.caseId,
+      detail: { source: 'ai', reviewStatus: 'pending', reason: 'draft_regenerated' },
+    })),
+    ...plan.create.map((flag) => canonicalAuditStatement(env, actor, {
+      action: 'create',
+      targetTable: 'flags',
+      targetId: flag.id,
+      beneficiaryId: scope.beneficiaryId,
+      supportCaseId: scope.supportCaseId,
+      caseId: scope.caseId,
+      detail: { source: 'ai', reviewStatus: 'pending', flagType: flag.flagType },
+    })),
+  ];
+}
+
 async function maskGeneratedAiDraftInput<T extends GroundedAiDraftContentInput>(
   env: Env,
   actor: Actor,
@@ -1950,6 +2141,16 @@ async function maskGeneratedAiDraftInput<T extends GroundedAiDraftContentInput>(
   return {
     ...input,
     summaryText: mask(input.summaryText),
+    claims: input.claims.map((claim) => ({
+      claimKey: claim.claimKey,
+      section: claim.section,
+      text: mask(claim.text),
+    })),
+    flagSuggestions: input.flagSuggestions.map((suggestion) => ({
+      flagType: suggestion.flagType,
+      sourceRef: suggestion.sourceRef,
+      quote: mask(suggestion.quote),
+    })),
     oneLiner: input.oneLiner == null ? input.oneLiner : mask(input.oneLiner),
     questions: input.questions.map((suggestion) => ({
       title: mask(suggestion.title),
@@ -1998,6 +2199,7 @@ export interface Assignee {
   assignedAt: string;
   unassignedAt: string | null;
 }
+
 
 export interface Goal {
   id: string;
@@ -2081,6 +2283,13 @@ export interface Flag {
   reviewStatus: 'pending' | 'confirmed' | 'rejected';
   reviewedBy: string | null;
   reviewedAt: string | null;
+}
+
+export interface AiFlagSuggestionInput {
+  flagType: FlagType;
+  /** 전사 재료의 스냅샷 id. 텍스트 맥락 스냅샷은 허용하지 않는다(D72). */
+  sourceRef: string;
+  quote: string;
 }
 
 /** 브리핑 화면 응답 — 노출 5항목 고정 (CLAUDE.md 6장) */
@@ -2275,6 +2484,19 @@ export interface AiBriefingSuggestion {
   reason: string | null;
 }
 
+export const AI_CLAIM_SECTIONS = [
+  'session_goal_discussion',
+  'other_topics',
+  'next_session_commitments',
+] as const;
+export type AiClaimSection = (typeof AI_CLAIM_SECTIONS)[number];
+
+export interface AiDraftClaim {
+  claimKey: string;
+  section: AiClaimSection;
+  text: string;
+}
+
 /**
  * 호출 ① 재료의 종류 (D69 · ADR-0036 · CCC-102). 서버가 판정한다
  * 전사는 녹음 결과 커밋(`recording_result_commits`)이 가리키는 스냅샷이고,
@@ -2341,6 +2563,8 @@ export interface AiDraftVersion {
   version: number;
   parentVersionId: string | null;
   summaryText: string;
+  /** D70 목표 중심 3구획 요약. v4 이전 초안은 빈 배열이다. */
+  claims: AiDraftClaim[];
   /** D45 영역 ② 핵심 한 줄. NULL = 스키마 v1 레거시 초안(한 줄 없음). */
   oneLiner: string | null;
   questions: AiBriefingSuggestion[];
@@ -2378,6 +2602,8 @@ export interface ApprovedAiBriefing {
   sessionId: string;
   version: number;
   summaryText: string;
+  /** D70 목표 중심 3구획 요약. v4 이전 승인분은 빈 배열이다. */
+  claims: AiDraftClaim[];
   /** D45 영역 ② 핵심 한 줄. NULL = 한 줄이 없던 시절의 승인 초안. */
   oneLiner: string | null;
   questions: AiBriefingSuggestion[];
@@ -2398,6 +2624,9 @@ export interface AiEvidenceInput {
 
 export interface GroundedAiDraftContentInput {
   summaryText: string;
+  claims: AiDraftClaim[];
+  flagSuggestions: AiFlagSuggestionInput[];
+
   /** D45 핵심 한 줄. 생성 경로는 필수, 편집 경로는 레거시 초안 호환으로 NULL 허용. */
   oneLiner?: string | null;
   questions: AiBriefingSuggestion[];
@@ -2438,18 +2667,9 @@ export interface FixtureGeneratedAiDraftInput extends GroundedAiDraftContentInpu
 export interface EditGeneratedAiDraftInput extends AiDraftContentInput {
   expectedVersion: number;
 }
-/** 대조 3종 항목 하나에 대한 실무자 처리(CCC-114). 처리 3종 값은 내용 불일치와 같다(ADR-0018). */
-export interface AiContrastResolutionInput {
-  axis: AiContrastAxis;
-  /** 해당 축 findings 배열 안의 위치 — 불변 초안이라 버전 안에서 안정적이다. */
-  findingIndex: number;
-  status: DiscrepancyResolutionStatus;
-}
 export interface AiDraftReviewInput {
   expectedVersion: number;
   decision: 'approved' | 'rejected';
-  /** approved 필수(CCC-114): 적용된 대조 축의 모든 항목에 대한 처리 결과(항목이 없어도 빈 배열로 명시). */
-  contrastResolutions?: AiContrastResolutionInput[];
   /** 녹음 재료 있는 회차의 approved 에서 아직 미확인이면 이 확언으로 확인 시각을 함께 기록한다(D11). */
   speakerMappingConfirmed?: boolean;
 }
@@ -2798,6 +3018,7 @@ export async function activateAiProviderConfiguration(
   const prior = await env.DB.prepare(
     'SELECT id FROM ai_provider_activations WHERE org_id = ? AND deactivated_at IS NULL',
   ).bind(actor.orgId).first<{ id: string }>();
+
   if (prior?.id !== undefined) {
     const activeConfig = await env.DB.prepare(
       'SELECT config_id FROM ai_provider_activations WHERE id = ? AND org_id = ?',
@@ -3198,6 +3419,7 @@ async function commitMaskedResult(
     caseId: grant.session.caseId,
   });
   const mask = (text: string): string => maskRegisteredPii(text, grant.session.caseId, pii);
+
   const maskedText = mask(input.maskedText);
   assertNoObviousUnmaskedPii(maskedText);
   const snapshotHash = await sha256Hex(maskedText);
@@ -3598,6 +3820,7 @@ export async function createGeneratedAiDraft(
     throw error;
   }
 
+
   const providerRuntime = await getActiveAiProviderRuntimeMetadataForService(env, actor, session.id);
   if (
     providerRuntime.providerConfigId !== normalizedInput.providerConfigId
@@ -3618,6 +3841,7 @@ export async function createGeneratedAiDraft(
   try {
     attestedEvidence = resolveAttestedAiEvidence([...materialSnapshots.values()], maskedInput.evidence);
     assertAiContrastFindingsAttested(maskedInput.contrast, materialSnapshots);
+    assertAiFlagSuggestionsAttested(maskedInput.flagSuggestions, maskedInput.materials, materialSnapshots);
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_evidence_links',
@@ -3673,6 +3897,12 @@ export async function createGeneratedAiDraft(
     sourceEnd: item.sourceEnd,
     createdAt,
   }));
+  const pendingFlagPlan = await pendingAiFlagsForDraft(
+    env,
+    actor.orgId,
+    sessionId,
+    maskedInput.flagSuggestions,
+  );
 
   try {
     const statements: D1PreparedStatement[] = [];
@@ -3682,13 +3912,14 @@ export async function createGeneratedAiDraft(
       ).bind(workItem.id, actor.orgId, context.supportCaseId, workItem.sessionId, workItem.kind, workItem.createdAt));
     }
     statements.push(env.DB.prepare(
-      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
       draftId,
       workItem.id,
       draftVersion,
       parentVersionId,
       maskedInput.summaryText,
+      claimsToJson(maskedInput.claims),
       maskedInput.oneLiner ?? null,
       questionsToJson(maskedInput.questions),
       sourceSnapshot.id,
@@ -3711,6 +3942,17 @@ export async function createGeneratedAiDraft(
       sessionId,
       createdAt,
     }, maskedInput));
+    statements.push(...aiFlagStatements(env, {
+      orgId: actor.orgId,
+      supportCaseId: context.supportCaseId,
+      sessionId,
+      createdAt,
+    }, pendingFlagPlan.create));
+    statements.push(...aiFlagAuditStatements(env, actor, {
+      caseId: workItem.caseId,
+      beneficiaryId: context.beneficiaryId,
+      supportCaseId: context.supportCaseId,
+    }, pendingFlagPlan));
     for (const link of evidence) {
       statements.push(env.DB.prepare(
         'INSERT INTO ai_evidence_links (id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -3773,6 +4015,7 @@ export async function createGeneratedAiDraft(
     version: draftVersion,
     parentVersionId,
     summaryText: maskedInput.summaryText,
+    claims: maskedInput.claims,
     oneLiner: maskedInput.oneLiner ?? null,
     questions: maskedInput.questions,
     sourceSnapshotId: sourceSnapshot.id,
@@ -3890,6 +4133,7 @@ export async function createFixtureGeneratedAiDraftForService(
   try {
     attestedEvidence = resolveAttestedAiEvidence([...materialSnapshots.values()], maskedInput.evidence);
     assertAiContrastFindingsAttested(maskedInput.contrast, materialSnapshots);
+    assertAiFlagSuggestionsAttested(maskedInput.flagSuggestions, maskedInput.materials, materialSnapshots);
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_evidence_links',
@@ -3943,6 +4187,12 @@ export async function createFixtureGeneratedAiDraftForService(
     sourceEnd: item.sourceEnd,
     createdAt,
   }));
+  const pendingFlagPlan = await pendingAiFlagsForDraft(
+    env,
+    actor.orgId,
+    sessionId,
+    maskedInput.flagSuggestions,
+  );
   const statements: D1PreparedStatement[] = [];
   if (existingWorkItem === null) {
     statements.push(env.DB.prepare(
@@ -3951,13 +4201,14 @@ export async function createFixtureGeneratedAiDraftForService(
   }
   statements.push(
     env.DB.prepare(
-      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
       draftId,
       workItem.id,
       draftVersion,
       parentVersionId,
       maskedInput.summaryText,
+      claimsToJson(maskedInput.claims),
       maskedInput.oneLiner ?? null,
       questionsToJson(maskedInput.questions),
       sourceSnapshot.id,
@@ -3980,6 +4231,17 @@ export async function createFixtureGeneratedAiDraftForService(
       sessionId,
       createdAt,
     }, maskedInput),
+    ...aiFlagStatements(env, {
+      orgId: actor.orgId,
+      supportCaseId: context.supportCaseId,
+      sessionId,
+      createdAt,
+    }, pendingFlagPlan.create),
+    ...aiFlagAuditStatements(env, actor, {
+      caseId: workItem.caseId,
+      beneficiaryId: context.beneficiaryId,
+      supportCaseId: context.supportCaseId,
+    }, pendingFlagPlan),
     ...evidence.map((link) => env.DB.prepare(
       'INSERT INTO ai_evidence_links (id, draft_version_id, source_evidence_item_id, claim_key, evidence_quote, source_ref, source_start, source_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
@@ -3998,6 +4260,7 @@ export async function createFixtureGeneratedAiDraftForService(
     await env.DB.batch(statements);
   } catch (error) {
     if (isUniqueConstraintError(error) || isStaleDraftVersionError(error)) {
+
       await writePhase1Denial(env, actor, {
         targetTable: 'ai_draft_versions',
         targetId: sessionId,
@@ -4040,6 +4303,7 @@ export async function createFixtureGeneratedAiDraftForService(
     version: draftVersion,
     parentVersionId,
     summaryText: maskedInput.summaryText,
+    claims: maskedInput.claims,
     oneLiner: maskedInput.oneLiner ?? null,
     questions: maskedInput.questions,
     sourceSnapshotId: sourceSnapshot.id,
@@ -4123,6 +4387,7 @@ async function editGeneratedAiDraft(
       || input.schemaVersion !== current.schemaVersion
       || (input.sourceSnapshotId !== undefined && input.sourceSnapshotId !== current.sourceSnapshotId)
       || questionsToJson(input.questions) !== questionsToJson(current.questions)
+      || claimsToJson(input.claims) !== claimsToJson(current.claims)
       // 핵심 한 줄도 질문과 같이 AI 산출물이다 — 사람 편집은 증거 재선택뿐, 한 줄은 부모 그대로.
       || (input.oneLiner ?? null) !== current.oneLiner
     ) {
@@ -4221,13 +4486,14 @@ async function editGeneratedAiDraft(
   try {
     const statements: D1PreparedStatement[] = [
       env.DB.prepare(
-        'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         draftId,
         workItem.id,
         nextVersion,
         current.id,
         maskedInput.summaryText,
+        claimsToJson(maskedInput.claims),
         maskedInput.oneLiner ?? null,
         questionsToJson(maskedInput.questions),
         current.sourceSnapshotId,
@@ -4308,6 +4574,7 @@ async function editGeneratedAiDraft(
     version: nextVersion,
     parentVersionId: current.id,
     summaryText: maskedInput.summaryText,
+    claims: maskedInput.claims,
     oneLiner: maskedInput.oneLiner ?? null,
     questions: maskedInput.questions,
     sourceSnapshotId: current.sourceSnapshotId,
@@ -4344,52 +4611,6 @@ function isCompleteGroundingEvidence(evidence: AiEvidenceLink[], questions: AiBr
   );
 }
 
-// 처리 3종 상수 — resolveSessionDiscrepancy 와 같은 값(ADR-0018 · CCC-114).
-const AI_CONTRAST_RESOLUTION_STATUSES: readonly DiscrepancyResolutionStatus[] = [
-  'situation_changed',
-  'record_error',
-  'confirmed',
-];
-
-/**
- * 승인 전 대조 3종 항목별 처리 완전성 검증(R2 · CCC-114) — 승인 경로 단일화의 핵심.
- * 승인 요청은 처리 목록을 반드시 실어야 하고(항목이 없는 초안이라도 빈 배열로 명시),
- * 적용된 축의 모든 항목에 정확히 하나씩 처리 3종(상황 변경/기록 오류/확인 완료) 값이 붙어야 한다.
- */
-function assertContrastResolutionsComplete(
-  contrast: readonly AiDraftContrastAxis[],
-  resolutions: AiContrastResolutionInput[] | undefined,
-): void {
-  if (!Array.isArray(resolutions)) {
-    throw new ContrastResolutionRequiredError();
-  }
-  const pending = new Set<string>();
-  for (const axis of contrast) {
-    axis.findings.forEach((_, index) => pending.add(`${axis.axis}:${index}`));
-  }
-  const seen = new Set<string>();
-  for (const resolution of resolutions) {
-    if (
-      resolution === null
-      || typeof resolution !== 'object'
-      || !AI_CONTRAST_AXES.includes(resolution.axis)
-      || !Number.isInteger(resolution.findingIndex)
-      || resolution.findingIndex < 0
-      || !AI_CONTRAST_RESOLUTION_STATUSES.includes(resolution.status)
-    ) {
-      throw new ValidationError('AI contrast resolution is invalid');
-    }
-    const key = `${resolution.axis}:${resolution.findingIndex}`;
-    if (!pending.has(key) || seen.has(key)) {
-      throw new ValidationError('AI contrast resolution does not match a draft finding');
-    }
-    seen.add(key);
-  }
-  if (seen.size !== pending.size) {
-    throw new ContrastResolutionRequiredError();
-  }
-}
-
 /**
  * 현재 pending generated draft에만 하나의 terminal review event를 append한다. 승인 시
  * sessions 호환 컬럼도 같은 batch에서 갱신하지만, 공식 읽기는 항상 view를 사용한다.
@@ -4398,6 +4619,7 @@ export async function reviewGeneratedAiDraft(
   env: Env,
   actor: Actor,
   workItemId: string,
+
   input: AiDraftReviewInput,
 ): Promise<AiDraftVersion> {
   const workItem = await assertAiWorkItemAccess(env, actor, workItemId);
@@ -4460,9 +4682,8 @@ export async function reviewGeneratedAiDraft(
     throw new GroundedEvidenceRequiredError();
   }
 
-  // 승인 = 정합성 검증(R2 · CCC-114): 세션 승인 경로(approveSession)와 같은 전제를 이
-  // 경로에도 강제한다 — 대조 3종의 모든 항목에 처리 결과가 있어야 하고, 녹음 재료가
-  // 있는 회차는 화자 매핑 확인(D11)이 끝나 있거나 이 요청의 확언으로 함께 기록돼야 한다.
+  // 승인 = 대조 3종 전체 확인(R2 · D71). 항목별 처리 상태는 두지 않고, 녹음 재료가 있는
+  // 회차는 화자 매핑 확인(D11)이 끝나 있거나 이 요청의 확언으로 함께 기록돼야 한다.
   let confirmSpeakerMappingNow = false;
   if (decision === 'approved') {
     const session = await getSessionForOrg(env, actor.orgId, workItem.sessionId);
@@ -4479,19 +4700,6 @@ export async function reviewGeneratedAiDraft(
         throw new SpeakerConfirmationRequiredError();
       }
       confirmSpeakerMappingNow = true;
-    }
-    try {
-      assertContrastResolutionsComplete(current.contrast, input.contrastResolutions);
-    } catch (error) {
-      await writePhase1Denial(env, actor, {
-        targetTable: 'ai_review_events',
-        targetId: current.id,
-        caseId: workItem.caseId,
-        reason: error instanceof ContrastResolutionRequiredError
-          ? 'contrast_resolution_required'
-          : 'invalid_contrast_resolution',
-      });
-      throw error;
     }
   }
 
@@ -4720,6 +4928,9 @@ function editInputForCurrentAiDraft(
   return {
     expectedVersion,
     summaryText,
+    claims: current.claims,
+    // 플래그 제안은 생성 시 이미 별도 flags 행으로 저장됐다. 근거 재선택 편집은 재생성하지 않는다.
+    flagSuggestions: [],
     // 편집은 증거 재선택이다 — 핵심 한 줄은 부모 초안의 값을 그대로 잇는다(레거시면 NULL).
     oneLiner: current.oneLiner,
     questions: current.questions,
@@ -4798,6 +5009,7 @@ export async function reviewAiDraftForSession(
       targetTable: 'ai_review_events',
       targetId: workItem.id,
       caseId: workItem.caseId,
+
       reason: 'stale_draft_version',
     });
     throw new StaleDraftVersionError();
@@ -4822,12 +5034,11 @@ export async function approveGeneratedAiDraft(
   actor: Actor,
   workItemId: string,
   expectedVersion: number,
-  review: Pick<AiDraftReviewInput, 'contrastResolutions' | 'speakerMappingConfirmed'> = {},
+  review: Pick<AiDraftReviewInput, 'speakerMappingConfirmed'> = {},
 ): Promise<AiDraftVersion> {
   return reviewGeneratedAiDraft(env, actor, workItemId, {
     expectedVersion,
     decision: 'approved',
-    contrastResolutions: review.contrastResolutions ?? [],
     ...(review.speakerMappingConfirmed === undefined ? {} : { speakerMappingConfirmed: review.speakerMappingConfirmed }),
   });
 }
@@ -4863,6 +5074,7 @@ async function loadApprovedAiBriefings(
        session_id,
        draft_version,
        summary_text,
+       claims_json,
        one_liner,
        questions_json,
        origin,
@@ -5167,7 +5379,7 @@ export async function replaceSessionDiscrepancies(
     await assertPilotTextAiConsentForService(env, actor, triggerSessionId);
   } else {
     assertHuman(actor);
-    await assertSupportCaseAccess(env, actor, scope.supportCaseId);
+    await assertSupportCaseWriteAccess(env, actor, scope.supportCaseId);
   }
 
   const referencedIds = new Set<string>([triggerSessionId]);
@@ -5198,6 +5410,7 @@ export async function replaceSessionDiscrepancies(
     if (item.leftSessionId !== triggerSessionId && item.rightSessionId !== triggerSessionId) {
       throw new ValidationError('discrepancy must involve the trigger session');
     }
+
     referencedIds.add(item.leftSessionId);
     referencedIds.add(item.rightSessionId);
   }
@@ -5328,7 +5541,7 @@ export async function resolveSessionDiscrepancy(
     throw new ForbiddenError('discrepancy does not belong to this support case');
   }
   const scope = await resolveSessionScope(env, actor.orgId, current.triggerSessionId);
-  await assertSupportCaseAccess(env, actor, current.supportCaseId);
+  await assertSupportCaseWriteAccess(env, actor, current.supportCaseId);
 
   const resolvedAt = now();
   await env.DB.batch([
@@ -5598,6 +5811,7 @@ export async function purgePii(env: Env, actor: Actor, caseId: string): Promise<
  * (pii_vault.purged_at IS NULL). purge_due·now는 둘 다 toISOString(UTC, 동일 포맷)이라
  * 문자열 사전순 비교가 곧 시간순 비교다. orgId를 주면 그 기관으로 한정한다.
  */
+
 async function selectDuePii(
   env: Env,
   nowIso: string,
@@ -5726,7 +5940,7 @@ export async function assignCase(
   await assertCurrentHumanActor(env, actor);
   await assertOrganizationSettings(env, actor.orgId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
-  await assertSupportCaseAccess(env, actor, context.supportCaseId);
+  await assertSupportCaseAssignedOrAdminAccess(env, actor, context.supportCaseId);
   assertOpaqueIdentifier(userId, 'assignee user id');
   await assertActiveHumanUser(env, actor.orgId, userId);
   const existing = await env.DB.prepare(
@@ -5802,8 +6016,8 @@ export async function listAssignees(
   opts?: { includeHistory?: boolean },
 ): Promise<Assignee[]> {
   assertHuman(actor);
-  await assertCaseAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
+  await assertSupportCaseReadOrAdminAccess(env, actor, context.supportCaseId);
   const historyClause = opts?.includeHistory === true ? '' : 'AND assignment.unassigned_at IS NULL';
   const result = await env.DB.prepare(
     `SELECT assignment.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
@@ -5998,6 +6212,7 @@ export async function countUpcomingSchedulesLinkedToGoal(
   await assertCaseAccess(env, actor, goal.caseId);
   const row = await env.DB.prepare(
     `SELECT COUNT(DISTINCT schedule.id) AS count
+
      FROM schedule_session_goals AS session_goal
      JOIN counseling_schedules AS schedule
        ON schedule.id = session_goal.schedule_id AND schedule.org_id = session_goal.org_id
@@ -6398,6 +6613,7 @@ export async function commitRecordingResult(
   // 정식 서비스 단계(docs/policy/deferred-blockers-v1.md 3장, CONTEXT.md 감정
   // 지표 항목). 재개 시 이 검사만 걷어낸다 — 스키마·기존 데이터·emotion.py 불변.
   if (input.emotionScores !== null && Object.keys(input.emotionScores).length > 0) {
+
     throw new EmotionDeferredError();
   }
   const transcriptQuality = parseTranscriptQualityInput(input);
@@ -6798,6 +7014,7 @@ export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWor
     leaseExpiresAt: stringValue(row.lease_expires_at),
     attemptCount: Number(row.attempt_count),
   }));
+
   // RETURNING 의 행 순서는 보장이 없다 — 폴링 계약(오래된 것부터)을 여기서 지킨다.
   items.sort((a, b) => (a.enqueuedAt < b.enqueuedAt ? -1 : a.enqueuedAt > b.enqueuedAt ? 1 : a.id < b.id ? -1 : 1));
   await writeAudit(env, actor, {
@@ -7198,6 +7415,7 @@ export async function getPipelineHealth(env: Env, actor: Actor): Promise<Pipelin
       pendingTextWorkCount: health.pendingTextWorkCount,
     },
   });
+
   return health;
 }
 
@@ -7259,7 +7477,7 @@ export async function confirmSpeakerMapping(
 /**
  * 세션 승인 (R2: 승인 = 정합성 검증). 전제 조건을 모두 검사한다:
  *   - ai_status='review_ready' 이고 화자 매핑 확인 완료 (D11)
- *   - 대조 3종 각 항목에 대한 실무자 처리 결과(resolutions)가 제출됨
+ *   - 대조 3종은 읽기 전용으로 모두 확인됨(D71)
  *   - GAS 점수는 recordGasScores로 먼저 저장됨 (D6)
  * 통과 시 approved_at/approved_by 기록 → 이후 브리핑·통계에 반영.
  * 권한: 담당 실무자 | admin. 감사: approve.
@@ -7268,20 +7486,13 @@ export async function approveSession(
   env: Env,
   actor: Actor,
   sessionId: string,
-  resolutions: {
-    expectedDraftVersion?: number;
-    missingFromMemo: Array<{ item: string; action: 'accept' | 'dismiss' }>;
-    missingFromAudio: Array<{ item: string; action: 'confirmed' | 'corrected' }>;
-    undiscussedGoals: Array<{ goalId: string; note?: string }>;
-    /** 초안의 대조 3종 항목별 처리(CCC-114) — 항목이 있는 초안이면 전부를 덮어야 한다. */
-    contrastResolutions?: AiContrastResolutionInput[];
-  },
+  review: { expectedDraftVersion?: number },
 ): Promise<Session> {
   const session = await assertSessionAccess(env, actor, sessionId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
   let expectedVersion: number;
   try {
-    expectedVersion = requireExpectedDraftVersion(resolutions?.expectedDraftVersion);
+    expectedVersion = requireExpectedDraftVersion(review?.expectedDraftVersion);
   } catch (error) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_review_events',
@@ -7321,23 +7532,6 @@ export async function approveSession(
     });
     throw new NotApprovedError('session contrast is missing');
   }
-  const memoItems = resolutions.missingFromMemo.map((item) => item.item);
-  const audioItems = resolutions.missingFromAudio.map((item) => item.item);
-  const goalItems = resolutions.undiscussedGoals.map((item) => item.goalId);
-  if (
-    !sameStringItems(session.aiContrast.missingFromMemo, memoItems)
-    || !sameStringItems(session.aiContrast.missingFromAudio, audioItems)
-    || !sameStringItems(session.aiContrast.undiscussedGoals, goalItems)
-  ) {
-    await writePhase1Denial(env, actor, {
-      targetTable: 'ai_review_events',
-      targetId: workItem.id,
-      caseId: session.caseId,
-      reason: 'contrast_resolution_required',
-    });
-    throw new NotApprovedError('all contrast items require a counselor resolution');
-  }
-
   const activeGoals = await env.DB.prepare(
     "SELECT id FROM goals WHERE org_id = ? AND support_case_id = ? AND status = 'active'",
   ).bind(actor.orgId, context.supportCaseId).all<{ id: string }>();
@@ -7362,9 +7556,6 @@ export async function approveSession(
     approved = await reviewAiDraftForSession(env, actor, sessionId, {
       expectedVersion,
       decision: 'approved',
-      // 승인 성공 조건 단일화(CCC-114): 초안 대조 항목이 있으면 이 목록이 전부를 덮어야
-      // 하고, 화자 확인은 위에서 이미 검사한 speaker_mapping_confirmed_at 이 증명한다.
-      contrastResolutions: resolutions.contrastResolutions ?? [],
     });
   } catch (error) {
     if (error instanceof StaleDraftVersionError) {
@@ -7598,6 +7789,7 @@ export async function recordGasScores(
       throw new ForbiddenError('goal is not available in this organization');
     }
     if (goalCaseId !== session.caseId) {
+
       throw new ValidationError('GAS score goal must belong to the session case');
     }
     const evidenceQuote = item.evidenceQuote ?? null;
@@ -7645,7 +7837,8 @@ export async function createActionItem(
   }
   if (input.sessionId !== undefined) {
     const session = await getSessionForOrg(env, actor.orgId, input.sessionId);
-    if (session.caseId !== caseId) {
+    const sessionContext = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
+    if (sessionContext.supportCaseId !== context.supportCaseId) {
       throw new ValidationError('action item session must belong to the case');
     }
   }
@@ -7998,6 +8191,7 @@ export async function listAuditLog(
   const result = await env.DB.prepare(
     `SELECT id, actor_id, actor_role, action, target_table, target_id, case_id, created_at FROM audit_log WHERE ${conditions.join(' AND ')} ORDER BY id`,
   ).bind(...values).all<DbRow>();
+
   await writeAudit(env, actor, { action: 'read', targetTable: 'audit_log', detail: { filter: true } });
 
   return result.results.map((row) => ({
@@ -8398,6 +8592,7 @@ function mapBeneficiary(row: DbRow): Beneficiary {
   };
 }
 
+
 function mapSupportCase(row: DbRow): SupportCase {
   const programType = row.program_type;
   assertFinancialSupportProgramType(programType);
@@ -8671,21 +8866,73 @@ async function assertActiveAssignment(
   return mapSupportCaseAssignee(row);
 }
 
+async function resolveSupportCaseContentAccessDecision(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCaseContentAccessDecision> {
+  const row = await env.DB.prepare(
+    `SELECT
+       EXISTS (
+         SELECT 1
+         FROM support_case_assignees AS direct_assignment
+         WHERE direct_assignment.org_id = ?
+           AND direct_assignment.support_case_id = ?
+           AND direct_assignment.user_id = ?
+           AND direct_assignment.unassigned_at IS NULL
+       ) AS has_active_assignment,
+       EXISTS (
+         SELECT 1
+         FROM team_supervisor_grants AS supervisor_grant
+         JOIN teams AS team
+           ON team.id = supervisor_grant.team_id
+          AND team.org_id = supervisor_grant.org_id
+          AND team.archived_at IS NULL
+         JOIN team_memberships AS membership
+           ON membership.team_id = team.id
+          AND membership.org_id = team.org_id
+          AND membership.ended_at IS NULL
+         JOIN support_case_assignees AS team_assignment
+           ON team_assignment.user_id = membership.user_id
+          AND team_assignment.org_id = membership.org_id
+          AND team_assignment.support_case_id = ?
+          AND team_assignment.unassigned_at IS NULL
+         WHERE supervisor_grant.org_id = ?
+           AND supervisor_grant.supervisor_user_id = ?
+           AND supervisor_grant.revoked_at IS NULL
+       ) AS has_active_team_supervision`,
+  ).bind(
+    actor.orgId,
+    supportCaseId,
+    actor.userId,
+    supportCaseId,
+    actor.orgId,
+    actor.userId,
+  ).first<{
+    has_active_assignment: number;
+    has_active_team_supervision: number;
+  }>();
+
+  return decideSupportCaseContentAccess({
+    hasActiveAssignment: row?.has_active_assignment === 1,
+    hasActiveTeamSupervision: row?.has_active_team_supervision === 1,
+  });
+}
+
 /**
- * Authorizes a SupportCase without granting mutation authority over a closed
- * participation. Counselors require an active assignment; administrators are
- * organization-scoped. Both paths reject non-published beneficiaries.
+ * Authorizes SupportCase content without granting mutation authority over a
+ * closed participation. Access requires an active assignment or an active
+ * team supervision grant. Institution administration alone is not a content
+ * access basis. All paths reject non-published beneficiaries.
  */
 export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCaseId: string): Promise<SupportCase> {
   try {
-    assertHuman(actor);
     const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-    if (actor.role === 'admin') {
-      await assertActiveHumanUser(env, actor.orgId, actor.userId, 'admin');
-      return supportCase;
-    }
     await assertCurrentHumanActor(env, actor);
-    await assertActiveAssignment(env, actor, supportCase.id);
+    const decision = await resolveSupportCaseContentAccessDecision(env, actor, supportCase.id);
+    if (decision.kind === 'denied') {
+      throw new ForbiddenError('support case is unavailable');
+    }
     return supportCase;
   } catch (error) {
     if (error instanceof ForbiddenError) {
@@ -8706,6 +8953,43 @@ export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCas
   }
 }
 
+async function assertSupportCaseWriteAccess(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCase> {
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  await assertCurrentHumanActor(env, actor);
+  await assertActiveAssignment(env, actor, supportCase.id);
+  return supportCase;
+}
+
+async function assertSupportCaseAssignedOrAdminAccess(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCase> {
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  await assertCurrentHumanActor(env, actor);
+  if (actor.role !== 'admin') {
+    await assertActiveAssignment(env, actor, supportCase.id);
+  }
+  return supportCase;
+}
+
+async function assertSupportCaseReadOrAdminAccess(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<SupportCase> {
+  if (actor.role === 'admin') {
+    const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+    await assertCurrentHumanActor(env, actor);
+    return supportCase;
+  }
+  return assertSupportCaseAccess(env, actor, supportCaseId);
+}
+
 /**
  * A mutating participant context always names one active SupportCase. It never
  * probes siblings, so a counselor's current assignment cannot disclose them.
@@ -8717,7 +9001,23 @@ export async function assertActiveSupportCaseContext(
   supportCaseId: string,
 ): Promise<SupportCase> {
   assertBeneficiaryId(beneficiaryId);
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId);
+  if (supportCase.beneficiaryId !== beneficiaryId || supportCase.status !== 'active') {
+    throw new ForbiddenError('support case is unavailable');
+  }
+  return supportCase;
+}
+
+async function assertActivePiiSupportCaseContext(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+  supportCaseId: string,
+): Promise<SupportCase> {
+  assertBeneficiaryId(beneficiaryId);
+  const supportCase = actor.role === 'admin'
+    ? await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId)
+    : await assertSupportCaseAccess(env, actor, supportCaseId);
   if (supportCase.beneficiaryId !== beneficiaryId || supportCase.status !== 'active') {
     throw new ForbiddenError('support case is unavailable');
   }
@@ -8798,6 +9098,7 @@ function conditionalCanonicalAuditStatement(
   },
 ): D1PreparedStatement {
   return env.DB.prepare(
+
     `INSERT INTO audit_log (
        org_id, actor_id, actor_role, action, target_table, target_id, case_id,
        beneficiary_id, support_case_id, detail, created_at
@@ -9166,7 +9467,7 @@ async function supportCaseReceiptReplay(
 
   const supportCase = actor.role === 'counselor'
     ? await assertActiveSupportCaseContext(env, actor, beneficiaryId, receipt.id)
-    : await assertSupportCaseAccess(env, actor, receipt.id);
+    : await assertSupportCaseAssignedOrAdminAccess(env, actor, receipt.id);
   if (supportCase.beneficiaryId !== beneficiaryId) {
     throw new ForbiddenError('support case is unavailable');
   }
@@ -9198,6 +9499,7 @@ export async function createBeneficiaryWithInitialSupportCase(
   actor: Actor,
   input: CreateBeneficiaryWithInitialSupportCaseInput,
   legacyCompatibility?: LegacyInitialSupportCaseCompatibility,
+
   consent?: ParticipantConsentInput,
 ): Promise<SupportCaseCreationResult> {
   await assertCurrentHumanActor(env, actor);
@@ -9492,7 +9794,7 @@ export async function updateParticipantConsent(
   for (const key of ['privacy', 'recordingAi'] as const) {
     if (typeof consent[key] !== 'boolean') throw new ValidationError('consent is invalid');
   }
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId);
   await assertCurrentHumanActor(env, actor);
 
   const recordedAt = now();
@@ -9512,7 +9814,7 @@ export async function updateParticipantConsent(
       id: newId(),
       noticeSha256: await sha256Hex(CONSENT_TEXT_AI_NOTICE_TEXT),
       evidenceRef: `internal://participant-consent-records/${consentRecordId}`,
-      evidenceSha256: await sha256Hex(`${consentRecordId} ${supportCaseId} ${recordedAt}`),
+      evidenceSha256: await sha256Hex(`${consentRecordId}\u0000${supportCaseId}\u0000${recordedAt}`),
     }
     : null;
 
@@ -9598,6 +9900,7 @@ export interface PrivacyConsentFollowUp {
   /** 보완 기한. 긴급 등록 건에만 있다. */
   consentPrivacyDueAt: string | null;
   /** 기한이 지났는가. 기한이 없으면 false. */
+
   overdue: boolean;
 }
 
@@ -9729,7 +10032,7 @@ export async function setSupportCaseOverallGoal(
   if (nextGoal !== null && nextGoal.length > MAX_OVERALL_GOAL_LENGTH) {
     throw new ValidationError(`overall goal must be at most ${MAX_OVERALL_GOAL_LENGTH} characters`);
   }
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId);
   // D45 는 '담당 실무자만' 이었으나 2026-07-30 Q 결정으로 기관 관리자도 수정한다
   // (ADR-0018 개정). 담당 실무자는 assertSupportCaseAccess 가 활성 배정을 이미
   // 강제했고, admin 은 같은 함수가 기관 범위로 통과시킨다 — 여기서는 역할만 본다.
@@ -9998,6 +10301,7 @@ export async function createSupportCase(
       conditionalCanonicalAuditStatement(env, actor, {
         action: 'record_consent',
         targetTable: 'participant_consent_records',
+
         targetId: consentRecordId,
         beneficiaryId,
         supportCaseId,
@@ -10028,7 +10332,7 @@ export async function createSupportCase(
   };
 }
 
-/** Lists only the SupportCase ids already authorized for this actor. */
+/** Lists SupportCase ids whose counseling content this actor may read. */
 export async function listAuthorizedSupportCaseIdsForBeneficiary(
   env: Env,
   actor: Actor,
@@ -10036,32 +10340,72 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
 ): Promise<string[]> {
   assertBeneficiaryId(beneficiaryId);
   await assertCurrentHumanActor(env, actor);
-  const result = actor.role === 'admin'
-    ? await env.DB.prepare(
-      `SELECT support_cases.id
-       FROM support_cases
-       JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
-         AND beneficiaries.org_id = support_cases.org_id
-       WHERE support_cases.org_id = ? AND support_cases.beneficiary_id = ?
-         AND beneficiaries.initialization_state = 'complete'
-       ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
-                support_cases.program_type, support_cases.id`,
-    ).bind(actor.orgId, beneficiaryId).all<{ id: string }>()
-    : await env.DB.prepare(
-      `SELECT support_cases.id
-       FROM support_cases
-       JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
-         AND beneficiaries.org_id = support_cases.org_id
-       JOIN support_case_assignees ON support_case_assignees.support_case_id = support_cases.id
-       WHERE support_cases.org_id = ? AND support_cases.beneficiary_id = ?
-         AND beneficiaries.initialization_state = 'complete'
-         AND support_case_assignees.org_id = ?
-         AND support_case_assignees.user_id = ?
-         AND support_case_assignees.unassigned_at IS NULL
-       ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
-                support_cases.program_type, support_cases.id`,
-    ).bind(actor.orgId, beneficiaryId, actor.orgId, actor.userId).all<{ id: string }>();
+  const result = await env.DB.prepare(
+    `SELECT support_cases.id
+     FROM support_cases
+     JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
+       AND beneficiaries.org_id = support_cases.org_id
+     WHERE support_cases.org_id = ?
+       AND support_cases.beneficiary_id = ?
+       AND beneficiaries.initialization_state = 'complete'
+       AND (
+         EXISTS (
+           SELECT 1
+           FROM support_case_assignees AS direct_assignment
+           WHERE direct_assignment.org_id = support_cases.org_id
+             AND direct_assignment.support_case_id = support_cases.id
+             AND direct_assignment.user_id = ?
+             AND direct_assignment.unassigned_at IS NULL
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM team_supervisor_grants AS supervisor_grant
+           JOIN teams AS team
+             ON team.id = supervisor_grant.team_id
+            AND team.org_id = supervisor_grant.org_id
+            AND team.archived_at IS NULL
+           JOIN team_memberships AS membership
+             ON membership.team_id = team.id
+            AND membership.org_id = team.org_id
+            AND membership.ended_at IS NULL
+           JOIN support_case_assignees AS team_assignment
+             ON team_assignment.user_id = membership.user_id
+            AND team_assignment.org_id = membership.org_id
+            AND team_assignment.support_case_id = support_cases.id
+            AND team_assignment.unassigned_at IS NULL
+           WHERE supervisor_grant.org_id = support_cases.org_id
+             AND supervisor_grant.supervisor_user_id = ?
+             AND supervisor_grant.revoked_at IS NULL
+         )
+       )
+     ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
+              support_cases.program_type, support_cases.id`,
+  ).bind(actor.orgId, beneficiaryId, actor.userId, actor.userId).all<{ id: string }>();
 
+  return result.results.map((row) => stringValue(row.id));
+}
+
+async function listPiiAuthorizedSupportCaseIdsForBeneficiary(
+  env: Env,
+  actor: Actor,
+  beneficiaryId: string,
+): Promise<string[]> {
+  if (actor.role !== 'admin') {
+    return listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  }
+  assertBeneficiaryId(beneficiaryId);
+  await assertCurrentHumanActor(env, actor);
+  const result = await env.DB.prepare(
+    `SELECT support_cases.id
+     FROM support_cases
+     JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
+       AND beneficiaries.org_id = support_cases.org_id
+     WHERE support_cases.org_id = ?
+       AND support_cases.beneficiary_id = ?
+       AND beneficiaries.initialization_state = 'complete'
+     ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
+              support_cases.program_type, support_cases.id`,
+  ).bind(actor.orgId, beneficiaryId).all<{ id: string }>();
   return result.results.map((row) => stringValue(row.id));
 }
 
@@ -10147,11 +10491,12 @@ export async function listSupportCasesForBeneficiary(
   //
   // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라
   // PII를 보고 있다")가 무너진다 — 표시 범위를 넓히면서 같이 지우기 쉬우니 주의한다.
-  const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
-  if (authorizedIds.length === 0) {
+  const piiAuthorizedIds = await listPiiAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  if (piiAuthorizedIds.length === 0) {
     throw new ForbiddenError('participant is unavailable');
   }
-  const authorized = new Set(authorizedIds);
+  const contentAuthorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  const authorized = new Set(contentAuthorizedIds);
   const result = await env.DB.prepare(
     `SELECT support_cases.* FROM support_cases
      JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
@@ -10177,7 +10522,11 @@ export async function listSupportCasesForBeneficiary(
     supportCases.map((supportCase) => supportCase.id),
   );
   const consentRecordedAt = await loadLastConsentRecordedAt(env, actor.orgId, beneficiaryId);
-  const upcomingSchedules = await loadUpcomingScheduleBySupportCase(env, actor.orgId, authorizedIds);
+  const upcomingSchedules = await loadUpcomingScheduleBySupportCase(
+    env,
+    actor.orgId,
+    contentAuthorizedIds,
+  );
   return {
     participant: participantNamePhone(contacts.get(beneficiaryId)),
     programs: supportCases.map((supportCase) => ({
@@ -10211,6 +10560,13 @@ export interface ParticipantGoalTreeSessionGoal {
   scheduleStatus: CounselingScheduleStatus;
 }
 
+export interface ParticipantGoalTreeLinkedSession {
+  sessionId: string;
+  heldAt: string;
+  /** 승인된 핵심 한 줄. 승인본이 없거나 레거시 승인분이면 null. */
+  oneLiner: string | null;
+}
+
 /** 목표 트리의 세부 목표 한 그루 — 문구 이력과 연결된 세션 목표를 매단다. */
 export interface ParticipantGoalTreeGoal {
   id: string;
@@ -10223,6 +10579,8 @@ export interface ParticipantGoalTreeGoal {
   revisions: GoalRevisionEntry[];
   /** 이 세부 목표에 연결된 세션 목표, 회기 시각 최신부터. 닫힌 목표의 기존 연결도 그대로다(D62 §5). */
   sessionGoals: ParticipantGoalTreeSessionGoal[];
+  /** 완료 일정의 기존 목표 연결을 따라 찾은 실제 상담 회차, 최신부터(D73). */
+  linkedSessions: ParticipantGoalTreeLinkedSession[];
 }
 
 /** 당사자 허브 목표 트리의 케이스 한 구획 (D62 §8 · CCC-69). */
@@ -10256,7 +10614,7 @@ export async function getParticipantGoalTree(
   }
   const placeholders = authorizedIds.map(() => '?').join(', ');
   const scopedValues = [actor.orgId, ...authorizedIds];
-  const [supportCaseRows, goalRows, revisionRows, sessionGoalRows] = await Promise.all([
+  const [supportCaseRows, goalRows, revisionRows, sessionGoalRows, linkedSessionRows] = await Promise.all([
     env.DB.prepare(
       `SELECT * FROM support_cases
        WHERE org_id = ? AND id IN (${placeholders})
@@ -10286,6 +10644,22 @@ export async function getParticipantGoalTree(
        WHERE session_goal.org_id = ? AND session_goal.support_case_id IN (${placeholders})
          AND session_goal.case_goal_id IS NOT NULL
        ORDER BY schedule.scheduled_at DESC, schedule.id, session_goal.ordinal, session_goal.id`,
+    ).bind(...scopedValues).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT DISTINCT session_goal.case_goal_id, session.id AS session_id, session.held_at,
+              (SELECT briefing.one_liner
+               FROM approved_ai_briefing_v1 AS briefing
+               WHERE briefing.org_id = session.org_id AND briefing.session_id = session.id
+               ORDER BY briefing.approved_at DESC, briefing.draft_version DESC
+               LIMIT 1) AS one_liner
+       FROM schedule_session_goals AS session_goal
+       JOIN counseling_schedules AS schedule
+         ON schedule.id = session_goal.schedule_id AND schedule.org_id = session_goal.org_id
+       JOIN sessions AS session
+         ON session.id = schedule.completed_session_id AND session.org_id = schedule.org_id
+       WHERE session_goal.org_id = ? AND session_goal.support_case_id IN (${placeholders})
+         AND session_goal.case_goal_id IS NOT NULL
+       ORDER BY session.held_at DESC, session.id DESC`,
     ).bind(...scopedValues).all<DbRow>(),
   ]);
 
@@ -10320,6 +10694,17 @@ export async function getParticipantGoalTree(
     });
     sessionGoalsByGoal.set(goalId, list);
   }
+  const linkedSessionsByGoal = new Map<string, ParticipantGoalTreeLinkedSession[]>();
+  for (const row of linkedSessionRows.results) {
+    const goalId = stringValue(row.case_goal_id);
+    const list = linkedSessionsByGoal.get(goalId) ?? [];
+    list.push({
+      sessionId: stringValue(row.session_id),
+      heldAt: stringValue(row.held_at),
+      oneLiner: nullableString(row.one_liner),
+    });
+    linkedSessionsByGoal.set(goalId, list);
+  }
   const goalsByCase = new Map<string, ParticipantGoalTreeGoal[]>();
   for (const row of goalRows.results) {
     const supportCaseId = stringValue(row.support_case_id);
@@ -10333,6 +10718,7 @@ export async function getParticipantGoalTree(
       closedAt: nullableString(row.closed_at),
       revisions: revisionsByGoal.get(goalId) ?? [],
       sessionGoals: sessionGoalsByGoal.get(goalId) ?? [],
+      linkedSessions: linkedSessionsByGoal.get(goalId) ?? [],
     });
     goalsByCase.set(supportCaseId, list);
   }
@@ -10398,6 +10784,7 @@ async function loadLastConsentRecordedAt(
      WHERE org_id = ? AND beneficiary_id = ?
      GROUP BY support_case_id`,
   ).bind(orgId, beneficiaryId).all<DbRow>();
+
   for (const row of result.results) {
     const value = nullableString(row.recorded_at);
     if (value !== null) recorded.set(stringValue(row.support_case_id), value);
@@ -10760,9 +11147,8 @@ export interface ParticipantBasicInfo {
 }
 
 /**
- * 기본정보 수정 화면(CCC-37)의 읽기 관문. 쓰기(`updateParticipantPii`)와 **같은 문**을
- * 지난다 — 활성 참여 사업 컨텍스트를 여기서 정해 돌려주고, 화면은 그 값을 그대로 저장에
- * 실어 보낸다. 읽기와 쓰기가 서로 다른 케이스를 고르는 일이 생기지 않는다.
+ * 기본정보 수정 화면(CCC-37)의 읽기 관문. 기관 관리자의 PII 범위와 실무 책임자의
+ * 감독 범위를 허용하되, 저장은 담당 실무자 또는 기관 관리자만 가능하다(D74).
  *
  * 감사는 **화면 조회당 read_participant_pii 1행**이다(D14·D24·ADR-0005). 실명·연락처
  * 외에 복호화해 실은 항목(이메일·계좌·생년월일·주소·성별)은 행을 나누지 않고 같은 행의
@@ -10774,7 +11160,7 @@ export async function getParticipantBasicInfo(
   beneficiaryId: string,
 ): Promise<ParticipantBasicInfo> {
   // 담당(또는 admin) 사업이 1건도 없으면 이 당사자의 금고는 열리지 않는다(D36 전제 게이트).
-  const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  const authorizedIds = await listPiiAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
   if (authorizedIds.length === 0) {
     throw new ForbiddenError('participant is unavailable');
   }
@@ -10789,7 +11175,7 @@ export async function getParticipantBasicInfo(
     throw new ForbiddenError('support case is unavailable');
   }
   const supportCaseContextId = stringValue(activeRow.id);
-  await assertActiveSupportCaseContext(env, actor, beneficiaryId, supportCaseContextId);
+  await assertActivePiiSupportCaseContext(env, actor, beneficiaryId, supportCaseContextId);
 
   const vault = await getParticipantPiiVaultForOrg(env, actor.orgId, beneficiaryId);
   const version = integerValue(vault.version);
@@ -10798,6 +11184,7 @@ export async function getParticipantBasicInfo(
   }
   const values = {
     name: await decryptPii(env, vault.enc_name),
+
     phone: await decryptPii(env, vault.enc_phone),
     email: await decryptPii(env, vault.enc_email),
     account: await decryptPii(env, vault.enc_account),
@@ -10990,7 +11377,7 @@ export async function updateSupportCaseExtra(
   supportCaseId: string,
   extra: Record<string, unknown>,
 ): Promise<void> {
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   const updatedAt = now();
   const results = await env.DB.batch([
     env.DB.prepare(
@@ -11021,7 +11408,7 @@ export async function closeSupportCase(
   reason: string,
 ): Promise<SupportCase> {
   assertNonBlankText(reason, 'close reason');
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId);
   if (supportCase.status !== 'active') {
     throw new ConflictError('support case is unavailable');
   }
@@ -11120,7 +11507,7 @@ export async function getSupportCaseClosureInfo(
   actor: Actor,
   supportCaseId: string,
 ): Promise<SupportCaseClosureInfo> {
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseReadOrAdminAccess(env, actor, supportCaseId);
   const vault = await env.DB.prepare(
     `SELECT purge_due, purged_at FROM participant_pii_vault
      WHERE beneficiary_id = ? AND org_id = ?`,
@@ -11198,6 +11585,7 @@ export async function purgeParticipantPii(
   actor: Actor,
   beneficiaryId: string,
 ): Promise<ParticipantPiiPurgeResult> {
+
   assertAdmin(actor);
   await assertCurrentHumanActor(env, actor);
   assertBeneficiaryId(beneficiaryId);
@@ -11526,7 +11914,7 @@ export async function getNextCounselingScheduleForSupportCase(
   supportCaseId: string,
 ): Promise<CounselingSchedule | null> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseReadOrAdminAccess(env, actor, supportCaseId);
   const row = supportCase.status === 'active'
     ? await env.DB.prepare(
       `SELECT * FROM counseling_schedules
@@ -11598,6 +11986,7 @@ export async function getTodaySchedules(
     result.results.map((row) => stringValue(row.beneficiary_id)),
   );
   await auditParticipantPiiRead(env, actor, contacts, {});
+
   return {
     ...interval,
     schedules: result.results.map((row) => {
@@ -11998,6 +12387,7 @@ async function createIntakeCounselingSchedule(
       channel,
       actor.userId,
       actor.userId,
+
       createdAt,
       createdAt,
     ),
@@ -12350,6 +12740,14 @@ export interface CounselingRecordCompletedSchedule {
   version: number;
 }
 
+export interface CounselingRecordDiscrepancy {
+  id: string;
+  kind: DiscrepancyKind;
+  leftSessionId: string;
+  rightSessionId: string;
+  resolutionStatus: DiscrepancyResolutionStatus | null;
+}
+
 export interface CounselingRecordDetails extends CounselingRecord {
   completedSchedule: CounselingRecordCompletedSchedule | null;
   gasScores: CounselingRecordGasScore[];
@@ -12372,6 +12770,8 @@ export interface CounselingRecordDetails extends CounselingRecord {
    * 내려간다. **둘 다 없으면 빈 배열**이고 화면은 블록 자체를 그리지 않는다(인테이크가 그 경우).
    */
   sessionGoals: string[];
+  /** 이 회차가 양쪽 중 하나로 걸린 내용 불일치. 원문은 브리핑에서 읽는다(D73). */
+  discrepancies: CounselingRecordDiscrepancy[];
 }
 
 export interface CounselingRecordGasScoreInput {
@@ -12398,6 +12798,7 @@ export interface CounselingRecordActionItemResolutionInput {
   actionItemId: string;
   status: ActionItemResolutionStatus;
   note?: string;
+
 }
 
 /**
@@ -12740,7 +13141,7 @@ export async function createCounselingRecord(
 ): Promise<CounselingRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertCounselingRecordInput(input);
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   if (supportCase.status !== 'active') {
     throw new ConflictError('support case is unavailable');
   }
@@ -12798,6 +13199,7 @@ export async function createCounselingRecord(
         }
       }
     }
+
   }
 
   const id = newId();
@@ -13198,6 +13600,7 @@ export interface IntakeDebtEntryInput {
   kind?: string;
   balance?: string;
   monthlyPayment?: string;
+
   arrearsStatus?: string;
 }
 
@@ -13598,6 +14001,7 @@ export async function getIntakeRecordContext(
   // 감사 행을 따로 만들지 않는 것은 아래 회차 수·동의·저장분 조회와 같은 규칙이다.
   // 화면 조회 1회 = 감사 1행이고, 일정 행에는 금고 값이 없다.
   const scheduleRow = supportCase.status === 'active'
+
     ? await env.DB.prepare(
       `SELECT * FROM counseling_schedules
        WHERE org_id = ? AND support_case_id = ? AND status = 'scheduled'
@@ -13691,7 +14095,7 @@ export async function createIntakeRecord(
 ): Promise<IntakeRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertIntakeRecordInput(input);
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   if (supportCase.status !== 'active') {
     throw new ConflictError('support case is unavailable');
   }
@@ -13998,6 +14402,7 @@ export async function createIntakeRecord(
      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
      WHERE ${sessionExistsClause}`,
   ).bind(
+
     consentRecordId,
     actor.orgId,
     supportCase.beneficiaryId,
@@ -14163,7 +14568,7 @@ export async function updateIntakeRecord(
 ): Promise<IntakeRecordResult> {
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertUpdateIntakeRecordInput(input);
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   if (supportCase.status !== 'active') {
     throw new ConflictError('support case is unavailable');
   }
@@ -14294,7 +14699,7 @@ export async function listCounselingRecords(
   }
 
   const placeholders = sessionIds.map(() => '?').join(', ');
-  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas] = await Promise.all([
+  const [approved, scores, actionItems, confirmedFlags, completedSchedules, lifeAreas, discrepancyRows] = await Promise.all([
     env.DB.prepare(
       // one_liner 는 D47 접힌 줄의 핵심 한 줄(0025) — 브리핑 영역 ②와 같은 승인 경로에서 읽는다(R2).
       `SELECT session_id, summary_text, approved_at, one_liner
@@ -14329,6 +14734,24 @@ export async function listCounselingRecords(
        WHERE org_id = ? AND session_id IN (${placeholders})
        ORDER BY session_id, area_key`,
     ).bind(actor.orgId, ...sessionIds).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, kind, left_session_id, right_session_id, resolution_status
+       FROM (
+         SELECT discrepancy.*,
+                ROW_NUMBER() OVER (
+                  PARTITION BY (discrepancy.resolution_status IS NULL)
+                  ORDER BY discrepancy.resolved_at DESC, discrepancy.id
+                ) AS resolved_rank
+         FROM session_discrepancies AS discrepancy
+         WHERE discrepancy.org_id = ? AND discrepancy.support_case_id = ?
+           AND (
+             discrepancy.left_session_id IN (${placeholders})
+             OR discrepancy.right_session_id IN (${placeholders})
+           )
+       )
+       WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
+       ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
+    ).bind(actor.orgId, supportCaseId, ...sessionIds, ...sessionIds).all<DbRow>(),
   ]);
   const approvedBySession = new Map(
     approved.results.map((row) => [
@@ -14390,6 +14813,22 @@ export async function listCounselingRecords(
     current.push(mapLifeAreaSnapshotRow(row));
     lifeAreasBySession.set(sessionId, current);
   }
+  const discrepanciesBySession = new Map<string, CounselingRecordDiscrepancy[]>();
+  for (const row of discrepancyRows.results) {
+    const mapped = mapSessionDiscrepancy({ ...row, support_case_id: supportCaseId });
+    const discrepancy: CounselingRecordDiscrepancy = {
+      id: mapped.id,
+      kind: mapped.kind,
+      leftSessionId: mapped.leftSessionId,
+      rightSessionId: mapped.rightSessionId,
+      resolutionStatus: mapped.resolutionStatus,
+    };
+    for (const sessionId of new Set([mapped.leftSessionId, mapped.rightSessionId])) {
+      const current = discrepanciesBySession.get(sessionId) ?? [];
+      current.push(discrepancy);
+      discrepanciesBySession.set(sessionId, current);
+    }
+  }
   const completedScheduleBySession = new Map<string, CounselingRecordCompletedSchedule>();
   for (const row of completedSchedules.results) {
     const completedSessionId = nullableString(row.completed_session_id);
@@ -14398,6 +14837,7 @@ export async function listCounselingRecords(
       throw new ValidationError('counseling schedule is invalid');
     }
     completedScheduleBySession.set(completedSessionId, {
+
       id: stringValue(row.id),
       scheduledAt: stringValue(row.scheduled_at),
       status: canonicalScheduleStatus(row.status),
@@ -14433,6 +14873,7 @@ export async function listCounselingRecords(
       aiOneLiner: projected?.oneLiner ?? null,
       memoExcerpt: sessionMemoExcerpt(nullableString(row.memo)),
       sessionGoals,
+      discrepancies: discrepanciesBySession.get(sessionId) ?? [],
     };
   });
 }
@@ -14485,6 +14926,7 @@ export interface ParticipantBriefingSuggestion {
   heldAt: string | null;
   title: string;
   reason: string | null;
+  sourceQuotes: string[];
 }
 
 /** D45: AI 제안은 최대 3개 — 그 이상은 '오늘 만나기 전'이 훑기 화면이 아니게 된다. */
@@ -14646,7 +15088,7 @@ export async function getParticipantBriefing(
   );
   const scopedValues = [actor.orgId, ...authorizedIds];
 
-  const [goals, gas, sessions, approved, pending, actions, flags, discrepancyRows] = await Promise.all([
+  const [goals, gas, sessions, approved, pending, actions, flags, discrepancyRows, suggestionEvidenceRows] = await Promise.all([
     env.DB.prepare(
       `SELECT * FROM goals
        WHERE org_id = ? AND support_case_id IN (${placeholders})
@@ -14672,7 +15114,7 @@ export async function getParticipantBriefing(
        ORDER BY held_at DESC, id DESC`,
     ).bind(...scopedValues).all<DbRow>(),
     env.DB.prepare(
-      `SELECT support_case_id, session_id, summary_text, one_liner, questions_json, approved_at
+      `SELECT support_case_id, session_id, draft_version_id, summary_text, one_liner, questions_json, approved_at
        FROM approved_ai_briefing_v1
        WHERE org_id = ? AND support_case_id IN (${placeholders})
        ORDER BY approved_at DESC, draft_version DESC`,
@@ -14738,6 +15180,14 @@ export async function getParticipantBriefing(
        WHERE resolution_status IS NULL OR resolved_rank <= ${DISCREPANCY_RESOLVED_HISTORY_LIMIT}
        ORDER BY (resolution_status IS NULL) DESC, detected_at DESC, id`,
     ).bind(...scopedValues).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT briefing.draft_version_id, evidence.claim_key, evidence.evidence_quote
+       FROM approved_ai_briefing_v1 AS briefing
+       JOIN ai_evidence_links AS evidence ON evidence.draft_version_id = briefing.draft_version_id
+       WHERE briefing.org_id = ? AND briefing.support_case_id IN (${placeholders})
+         AND evidence.claim_key LIKE 'question_%'
+       ORDER BY evidence.created_at, evidence.id`,
+    ).bind(...scopedValues).all<DbRow>(),
   ]);
 
   const goalsById = new Map<string, Goal>(goals.results.map((row): [string, Goal] => [
@@ -14798,6 +15248,7 @@ export async function getParticipantBriefing(
   );
   const latestSessionBySupportCase = new Map<string, DbRow>();
   for (const row of sessions.results) {
+
     const supportCaseId = stringValue(row.support_case_id);
     if (!latestSessionBySupportCase.has(supportCaseId)) latestSessionBySupportCase.set(supportCaseId, row);
   }
@@ -14824,6 +15275,14 @@ export async function getParticipantBriefing(
   const heldAtBySession = new Map<string, string>(
     sessions.results.map((row): [string, string] => [stringValue(row.id), stringValue(row.held_at)]),
   );
+  const sourceQuotesByDraftClaim = new Map<string, string[]>();
+  for (const row of suggestionEvidenceRows.results) {
+    const key = `${stringValue(row.draft_version_id)}\u0000${stringValue(row.claim_key)}`;
+    const quotes = sourceQuotesByDraftClaim.get(key) ?? [];
+    const quote = stringValue(row.evidence_quote);
+    if (!quotes.includes(quote)) quotes.push(quote);
+    sourceQuotesByDraftClaim.set(key, quotes);
+  }
   const aiSuggestions: ParticipantBriefingSuggestion[] = [];
   const suggestionCountBySupportCase = new Map<string, number>();
   for (const row of approved.results) {
@@ -14831,7 +15290,7 @@ export async function getParticipantBriefing(
     const source = sources.get(supportCaseId);
     if (source === undefined) continue;
     const sessionId = stringValue(row.session_id);
-    for (const suggestion of briefingSuggestions(row)) {
+    for (const [index, suggestion] of briefingSuggestions(row).entries()) {
       const count = suggestionCountBySupportCase.get(supportCaseId) ?? 0;
       if (count >= MAX_BRIEFING_AI_SUGGESTIONS) break;
       suggestionCountBySupportCase.set(supportCaseId, count + 1);
@@ -14841,6 +15300,9 @@ export async function getParticipantBriefing(
         heldAt: heldAtBySession.get(sessionId) ?? null,
         title: suggestion.title,
         reason: suggestion.reason,
+        sourceQuotes: sourceQuotesByDraftClaim.get(
+          `${stringValue(row.draft_version_id)}\u0000${questionClaimKey(index)}`,
+        ) ?? [],
       });
     }
   }
@@ -15163,7 +15625,7 @@ export async function listSupportCaseAssignees(
   supportCaseId: string,
   opts?: { includeHistory?: boolean },
 ): Promise<SupportCaseAssignee[]> {
-  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseReadOrAdminAccess(env, actor, supportCaseId);
   const result = await env.DB.prepare(
     `SELECT * FROM support_case_assignees
      WHERE org_id = ? AND support_case_id = ?
@@ -15198,6 +15660,7 @@ export interface CounselorAssignments {
 
 /**
  * 한 실무자(userId)의 활성 배정 당사자 목록 — 관리자 영역 사용자/실무자 상세 화면용(재개편 T8, D25).
+
  * 접근: admin 전용(assertAdmin), 자기 기관만. 실무자가 담당(활성 배정, unassigned_at IS NULL)한
  * 참여사업을 케이스 단위로 돌려주고, 각 당사자의 실명·연락처를 배치 복호화해 함께 싣는다.
  * 감사: 배정 목록 조회 1건(read, support_case_assignees) + 실명이 1건 이상 실리면 화면 단위
@@ -15598,6 +16061,7 @@ export async function completeParticipantSignup(
       statements.push(
         env.DB.prepare(
           `INSERT INTO participant_consent_records (
+
              id, org_id, beneficiary_id, support_case_id, consent_recording_at,
              consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

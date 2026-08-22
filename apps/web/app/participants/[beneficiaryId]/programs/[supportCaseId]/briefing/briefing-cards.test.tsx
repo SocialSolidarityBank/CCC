@@ -29,8 +29,9 @@ function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsPr
       reason: '지난 회차에서 면접 결과를 기다리고 있었다',
       sessionId: 's-2',
       heldAt: '2026-07-15T05:00:00Z',
+      sourceQuotes: ['면접 결과는 다음 주에 나와요.'],
     }],
-    openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20' }],
+    openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20', sessionId: 's-2' }],
     flags: [],
     upcomingSchedule: {
       id: 's1',
@@ -75,7 +76,8 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const gridCards = container.querySelectorAll<HTMLDetailsElement>('.briefing-cards-grid > details.briefing-card');
     expect([...gridCards].map((card) => card.querySelector('.wire-card-summary')?.textContent?.trim()))
       .toEqual(GRID_TITLES);
-    expect([...container.querySelectorAll<HTMLDetailsElement>('details')].every((card) => card.open)).toBe(true);
+    expect([...container.querySelectorAll<HTMLDetailsElement>('details.briefing-card')].every((card) => card.open)).toBe(true);
+    expect([...container.querySelectorAll<HTMLDetailsElement>('details[data-source-quotes]')].every((item) => !item.open)).toBe(true);
   });
 
   it('구 카드와 GAS 표시는 어디에도 없다 (D43 이행 + D45 대체)', () => {
@@ -133,12 +135,24 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(link?.textContent).toContain('2026년 7월 15일');
   });
 
+  it('AI 제안 근거 인용을 그 자리에서 접어 두고 출처 회차로 연결한다 (D73)', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const item = container.querySelector('.wire-item');
+    const disclosure = item?.parentElement?.querySelector('details[data-source-quotes]');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure?.hasAttribute('open')).toBe(false);
+    expect(disclosure?.textContent).toContain('면접 결과는 다음 주에 나와요.');
+    expect(disclosure?.querySelector('a')?.getAttribute('href'))
+      .toBe(`${baseProps().recordsHref}#record-s-2`);
+  });
+
   it('AI 제안은 최대 3개만 렌더되고, 구(v1) 저장분(reason=null)은 이유 줄을 생략한다', () => {
     const suggestion = (n: number) => ({
       title: `제안 ${n}`,
       reason: n === 1 ? null : `이유 ${n}`,
       sessionId: `s-${n}`,
       heldAt: null,
+      sourceQuotes: [],
     });
     const { container } = render(<BriefingCards {...baseProps({
       aiSuggestions: [suggestion(1), suggestion(2), suggestion(3), suggestion(4)],
@@ -240,6 +254,13 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     );
     expect(card.textContent).toContain('상담일 확인 필요');
     expect(card.textContent).toContain('상담 유형 확인 필요');
+  });
+
+  it('미해결 액션은 action_items.session_id 출처 회차 링크를 표시한다 (D73)', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const card = cardByTitle(container, '미해결 액션');
+    const link = within(card).getByRole('link', { name: '출처 회차 보기' });
+    expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
   });
 
   it('영역 ③은 불일치가 없으면 빈 상태를 표시한다 (CCC-43)', () => {
@@ -401,7 +422,7 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
 
   it('확인된 리스크 플래그가 있으면 경고 배너를 표시한다 (D9)', () => {
     const { container } = render(<BriefingCards {...baseProps({
-      flags: [{ id: 'f1', flagType: 'crisis_utterance', source: 'counselor', reviewStatus: 'confirmed' }],
+      flags: [{ id: 'f1', flagType: 'crisis_utterance', source: 'counselor', reviewStatus: 'confirmed', sessionId: 's-2', quote: null }],
     })} />);
     const banner = container.querySelector('.risk-banner');
     expect(banner).not.toBeNull();

@@ -29,8 +29,15 @@ export function RecordHashOpener() {
     }
 
     openFromHash();
+    // Next App Router가 다른 경로의 해시 링크로 이동할 때는 이 컴포넌트가 마운트된 뒤
+    // location.hash를 붙일 수 있다. 그 전환은 hashchange를 따로 내지 않으므로 다음
+    // 페인트 직전에 한 번 더 확인해야 접힌 과거 회차도 확실히 열린다.
+    const frame = window.requestAnimationFrame(openFromHash);
     window.addEventListener('hashchange', openFromHash);
-    return () => window.removeEventListener('hashchange', openFromHash);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('hashchange', openFromHash);
+    };
   }, []);
 
   return null;
