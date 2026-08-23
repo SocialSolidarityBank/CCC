@@ -19,6 +19,7 @@ function record(overrides: Partial<SupportCaseRecord> = {}): SupportCaseRecord {
     heldAt: '2026-07-28T05:00:00.000Z',
     channel: 'in_person',
     memo: '주거 계약 연장 구두 합의',
+    managerOpinion: null,
     gasScores: [],
     actionItems: [],
     flags: [],
@@ -186,5 +187,38 @@ describe('RecordList', () => {
     const { container } = renderList([]);
     expect(container.textContent).toContain('아직 상담 기록이 없습니다');
     expect(container.querySelector('details')).toBeNull();
+  });
+
+  it('담당 실무자 의견은 값이 있을 때만 보인다 (CCC-11)', () => {
+    const { container } = renderList([record({ managerOpinion: '상담 계속 진행. 주거 문제 우선' })]);
+    const opinion = container.querySelector('.record-manager-opinion');
+    expect(opinion).not.toBeNull();
+    expect(opinion?.textContent).toContain('상담 계속 진행. 주거 문제 우선');
+  });
+
+  it('담당 실무자 의견이 없으면 블록을 그리지 않는다 (CCC-11)', () => {
+    const { container } = renderList([record({ managerOpinion: null })]);
+    expect(container.querySelector('.record-manager-opinion')).toBeNull();
+  });
+
+  it('생활 6영역 스냅샷은 라벨·상태·메모를 함께 보인다 (CCC-11)', () => {
+    const { container } = renderList([record({
+      lifeAreaSnapshot: [
+        { areaKey: 'economy', status: 'strained', note: '월세 두 달 밀림' },
+        { areaKey: 'housing', status: 'crisis', note: null },
+      ],
+    })]);
+    const section = container.querySelector('.record-life-areas');
+    expect(section).not.toBeNull();
+    expect(section?.textContent).toContain('경제·생계');
+    expect(section?.textContent).toContain('긴장');
+    expect(section?.textContent).toContain('월세 두 달 밀림');
+    expect(section?.textContent).toContain('주거');
+    expect(section?.textContent).toContain('위기');
+  });
+
+  it('생활 6영역 스냅샷이 없으면 블록을 그리지 않는다 (CCC-11)', () => {
+    const { container } = renderList([record({ lifeAreaSnapshot: [] })]);
+    expect(container.querySelector('.record-life-areas')).toBeNull();
   });
 });

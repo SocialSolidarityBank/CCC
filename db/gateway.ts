@@ -13220,6 +13220,8 @@ export interface CounselingRecordDetails extends CounselingRecord {
   confirmedFlags: Flag[];
   // 이 회차 시점의 6영역 스냅샷(CCC-8). 스냅샷 미보유 회차는 빈 배열.
   lifeAreaSnapshot: LifeAreaSnapshotEntry[];
+  /** 담당 실무자 의견(CCC-10 · 0016 record_details). 기록지에 안 쓰면 null. */
+  managerOpinion: string | null;
   /**
    * D47 접힌 줄의 핵심 한 줄. **승인된 AI 한 줄만** 싣는다(0025 · R2) — 미승인·녹음 없음·
    * 레거시 초안이면 null 이고, 화면은 `memoExcerpt` 로 낮춰 '승인 대기' 배지를 붙인다(D5).
@@ -15354,6 +15356,7 @@ export async function listCounselingRecords(
       lifeAreaSnapshot: lifeAreasBySession.get(sessionId) ?? [],
       aiOneLiner: projected?.oneLiner ?? null,
       memoExcerpt: sessionMemoExcerpt(nullableString(row.memo)),
+      managerOpinion: recordDetailManagerOpinion(nullableString(row.record_details)),
       sessionGoals,
       discrepancies: discrepanciesBySession.get(sessionId) ?? [],
     };
@@ -15524,6 +15527,24 @@ function sessionMemoExcerpt(memo: string | null): string | null {
   const firstLine = memo.split('\n').find((line) => line.trim().length > 0)?.trim() ?? '';
   if (firstLine.length === 0) return null;
   return firstLine.length > 60 ? `${firstLine.slice(0, 60)}…` : firstLine;
+}
+
+/**
+ * record_details(0016) 의 담당 실무자 의견 — CCC-11 기록 단일 뷰의 재료.
+ * 정기 기록지의 서술형 키는 `counselorOpinion`(화면 표기 '담당 실무자 의견').
+ * JSON 이 깨졌거나 키가 없거나 빈 문자열이면 null(화면은 블록을 그리지 않는다).
+ */
+function recordDetailManagerOpinion(recordDetails: string | null): string | null {
+  if (recordDetails === null) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(recordDetails);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+  const opinion = (parsed as Record<string, unknown>).counselorOpinion;
+  return typeof opinion === 'string' && opinion.trim().length > 0 ? opinion : null;
 }
 
 /**

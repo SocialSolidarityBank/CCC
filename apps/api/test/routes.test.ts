@@ -2605,6 +2605,7 @@ describe('canonical participant API routes', () => {
         heldAt: recordBody.heldAt,
         channel: recordBody.channel,
         memo: recordBody.memo,
+        managerOpinion: null,
         createdAt: expect.any(String),
         gasScores: [{
           goalId: goal.id,

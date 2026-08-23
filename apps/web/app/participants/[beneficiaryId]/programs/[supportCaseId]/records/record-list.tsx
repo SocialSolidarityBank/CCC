@@ -8,7 +8,8 @@ import { WireCard } from '../../../../../components/wire/wire-card';
 import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
 import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
-import type { FlagType, SupportCaseRecord } from '../../../../../lib/api';
+import { lifeAreaOrder, lifeAreaStatusLabels } from '../../../../../lib/life-area-labels';
+import type { FlagType, LifeAreaKey, SupportCaseRecord } from '../../../../../lib/api';
 
 // 회차 목록 (D47 · ADR-0019 §1·§2·§4).
 //
@@ -81,6 +82,16 @@ function flagReviewStatusLabel(reviewStatus: FlagReviewStatus): string {
 function sessionKindLabel(kind: SupportCaseRecord['kind']): string {
   const label = sessionKindLabels[kind];
   if (label === undefined) throw new Error('Record kind was invalid.');
+  return label;
+}
+
+// 생활 6영역 영역 이름. 쓰는 순서는 lifeAreaOrder(CCC-8)를 따른다 — 읽기 화면도 작성 화면과
+// 같은 순서로 보여야 실무자가 같은 목록을 보고 있다고 느낀다.
+const lifeAreaLabels = Object.fromEntries(lifeAreaOrder) as Record<LifeAreaKey, string>;
+
+function lifeAreaStatusLabel(status: SupportCaseRecord['lifeAreaSnapshot'][number]['status']): string {
+  const label = lifeAreaStatusLabels[status];
+  if (label === undefined) throw new Error('Life area status was invalid.');
   return label;
 }
 
@@ -167,6 +178,15 @@ export function RecordCard({
         <p>{record.memo}</p>
       </section>
 
+      {/* CCC-11: 저장된 항목은 모두 보이고 빈 항목은 생략한다. 담당 실무자 의견은
+          정기 기록지의 선택 항목이라 값이 있을 때만 블록을 그린다(D47 §6 목록의 항목). */}
+      {record.managerOpinion !== null && record.managerOpinion.trim().length > 0 && (
+        <section className="record-block record-manager-opinion" aria-labelledby={`opinion-${record.id}`}>
+          <h3 id={`opinion-${record.id}`}>담당 실무자 의견</h3>
+          <p>{record.managerOpinion}</p>
+        </section>
+      )}
+
       <section className="record-block" aria-labelledby={`actions-${record.id}`}>
         <h3 id={`actions-${record.id}`}>액션 아이템</h3>
         {record.actionItems.length === 0
@@ -178,6 +198,30 @@ export function RecordCard({
               {item.resolved ? <WireBadge>완료</WireBadge> : <WireBadge tone="lavender">미완료</WireBadge>}
             </li>)}</ul>}
       </section>
+
+      {/* CCC-11: 6영역 스냅샷도 저장된 항목이라 읽기 화면에서 보인다. 스냅샷이 없는
+          회차(인테이크 등)는 블록 자체를 그리지 않는다. 배지 톤은 계열 의미(DESIGN-RULES §4)를
+          따른다: 위기=라벤더(주의), 그 외=무채색(상태 값은 D9 플래그가 아니므로 리스크 레드는
+          쓰지 않는다 — D47 §5). */}
+      {record.lifeAreaSnapshot.length > 0 && <section
+        className="record-block record-life-areas"
+        aria-labelledby={`life-areas-${record.id}`}
+      >
+        <h3 id={`life-areas-${record.id}`}>생활 6영역</h3>
+        <ul className="record-life-area-list">
+          {record.lifeAreaSnapshot.map((area) => (
+            <li key={area.areaKey}>
+              <span className="record-life-area-name">{lifeAreaLabels[area.areaKey]}</span>
+              <WireBadge {...(area.status === 'crisis' ? { tone: 'lavender' } : {})}>
+                {lifeAreaStatusLabel(area.status)}
+              </WireBadge>
+              {area.note !== null && area.note.trim().length > 0 && (
+                <span className="record-item-meta">{area.note}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>}
 
       <WireCardSection title="이 회차에서 나온 것" tone="mint">
         {record.aiOneLiner === null && confirmedFlags.length === 0 && record.discrepancies.length === 0

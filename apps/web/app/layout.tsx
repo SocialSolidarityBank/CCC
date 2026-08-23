@@ -623,6 +623,8 @@ const briefingStyles = `
 .record-block>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap}
 .record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
 .record-block li{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);font-size:var(--text-md);color:var(--ink)}
+/* 생활 6영역 행의 영역 이름(CCC-11) — 값과 구분되게 라벨로 센다. 배지·메모는 기존 행 계약. */
+.record-life-area-name{font-weight:600;color:var(--ink)}
 /* '이번 상담의 목표' — GAS 가 있던 자리(D47 §2). 실무자가 정한 것이라 사람 축(민트)이다.
    재료가 없으면 이 블록 자체를 그리지 않는다 — 빈 블록은 뺀 자리를 다시 빈칸으로 만든다. */
 .record-session-goal{display:grid;gap:var(--space-1);border-radius:var(--radius-control);background:var(--mint-tint);padding:var(--space-3) var(--space-4)}

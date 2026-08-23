@@ -3,33 +3,12 @@
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
-import type { LifeAreaKey, LifeAreaSnapshotEntry, LifeAreaStatus } from '../../../../../../lib/api';
+import type { LifeAreaKey, LifeAreaSnapshotEntry } from '../../../../../../lib/api';
+import { lifeAreaOrder, lifeAreaStatusLabels, lifeAreaStatusOptions } from '../../../../../../lib/life-area-labels';
 
-// 6영역 표시 순서·라벨(CCC-8). 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D.
-const lifeAreaOrder: ReadonlyArray<readonly [LifeAreaKey, string]> = [
-  ['economy', '경제·생계'],
-  ['housing', '주거'],
-  ['employment', '일·고용·학업'],
-  ['health', '건강'],
-  ['mental_health', '심리·정서'],
-  ['family', '가족·관계·돌봄'],
-];
+const statusOptions = lifeAreaStatusOptions;
 
-const statusOptions: ReadonlyArray<readonly [LifeAreaStatus, string]> = [
-  ['okay', '괜찮음'],
-  ['strained', '긴장'],
-  ['crisis', '위기'],
-  ['not_applicable', '해당없음'],
-  ['declined', '답변거부'],
-];
-
-const statusLabels: Record<LifeAreaStatus, string> = {
-  okay: '괜찮음',
-  strained: '긴장',
-  crisis: '위기',
-  not_applicable: '해당없음',
-  declined: '답변거부',
-};
+const statusLabels = lifeAreaStatusLabels;
 
 /**
  * onStatusChange(CCC-10): 상위 원페이지 화면이 '위기' 선택을 알아채 위기·안전 아코디언을
