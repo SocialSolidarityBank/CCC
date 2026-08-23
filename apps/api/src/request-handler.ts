@@ -1337,6 +1337,8 @@ function counselingRecordDetailsResponse(
       status: area.status,
       note: area.note,
     })),
+    // CCC-11: 담당 실무자 의견 — 저장된 값만 싣는다. 화면은 비면 블록을 그리지 않는다.
+    managerOpinion: record.managerOpinion,
     // D47 접힌 줄·회차 카드용 3종. 저장된 값을 싣기만 한다 — 새 스키마 없음(ADR-0019 영향).
     aiOneLiner: record.aiOneLiner,
     memoExcerpt: record.memoExcerpt,

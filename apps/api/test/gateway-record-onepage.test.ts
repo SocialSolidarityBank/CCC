@@ -5,6 +5,7 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCounselingRecord,
   createIntakeRecord,
+  listCounselingRecords,
 } from '../../../db/gateway';
 import { setupD1 } from './support/d1';
 
@@ -104,6 +105,24 @@ describe('createCounselingRecord — 정기 기록지 원페이지 (CCC-10)', ()
     expect(details.changeSinceLast).toBe('지난주 아르바이트를 시작했다');
     expect(details.safetyNote).toBe('거주지 안전 확인함');
     expect(details.counselorOpinion).toBe('서류 준비 속도를 함께 맞출 필요가 있다');
+  });
+
+  it('기록 조회가 담당 실무자 의견을 내려주고, 안 쓴 회차는 null 이다 (CCC-11)', async () => {
+    await t.reset();
+    const { supportCaseId } = await seedCaseWithGoals(['월세 체납 해소']);
+    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
+      details: { counselorOpinion: '상담은 계속, 주거 문제 우선' },
+    }));
+    await createCounselingRecord(t.env, actor, supportCaseId, recordInput({
+      submissionId: '01000000-0000-4000-8000-00000000bb03',
+      heldAt: '2026-07-25T10:00:00.000Z',
+      memo: '의견 없는 회차',
+    }));
+
+    const records = await listCounselingRecords(t.env, actor, supportCaseId);
+    // held_at DESC — 최신(의견 없음)이 먼저다.
+    expect(records[0]?.managerOpinion).toBeNull();
+    expect(records[1]?.managerOpinion).toBe('상담은 계속, 주거 문제 우선');
   });
 
   it('빈 details 객체와 알 수 없는 키는 거부한다', async () => {

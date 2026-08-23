@@ -504,6 +504,8 @@ export interface SupportCaseRecord {
   heldAt: string;
   channel: 'in_person' | 'phone' | 'video';
   memo: string;
+  /** 담당 실무자 의견(정기 기록지, CCC-10). 비어 있으면 화면은 블록을 그리지 않는다(CCC-11). */
+  managerOpinion: string | null;
   gasScores: Array<ManualGasScore & { goalTitle: string }>;
   actionItems: Array<{
     id: string;
@@ -1041,6 +1043,7 @@ function decodeSupportCaseRecord(value: unknown): SupportCaseRecord {
     heldAt: responseString(record, 'heldAt'),
     channel: responseEnum(responseProperty(record, 'channel'), recordChannels),
     memo: responseString(record, 'memo'),
+    managerOpinion: responseNullableString(record, 'managerOpinion'),
     gasScores: responseArray(record, 'gasScores').map((score) => {
       const item = responseObject(score);
       return {
