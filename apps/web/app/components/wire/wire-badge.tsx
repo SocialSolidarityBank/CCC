@@ -1,9 +1,19 @@
 import type { ReactNode } from 'react';
 
-/** 배지 계열(DESIGN.md §5 상태 배지, D58 ④ 계열 의미 고정).
+/** 배지 계열(DESIGN.md §5 상태 배지).
  *  neutral = 무채색 기본형, blue = 일정·유형·정보, mint = 진행·상태·담당(사람),
- *  lavender = AI·승인 대기, risk = 확인된 리스크·오류 상태(D9 허용 자리). */
-export type WireBadgeTone = 'neutral' | 'blue' | 'mint' | 'lavender' | 'risk';
+ *  lavender = AI·승인 대기, risk = 확인된 리스크·오류 상태(D9 허용 자리).
+ *  coral·amber·lime·cyan은 여러 형제 배지를 구분하는 variation 전용이다. */
+export type WireBadgeTone =
+  | 'neutral'
+  | 'blue'
+  | 'mint'
+  | 'lavender'
+  | 'coral'
+  | 'amber'
+  | 'lime'
+  | 'cyan'
+  | 'risk';
 
 export type WireBadgeSize = 'md' | 'sm';
 

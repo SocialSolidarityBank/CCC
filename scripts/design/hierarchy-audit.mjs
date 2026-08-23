@@ -99,6 +99,19 @@ const CONTROL_ROLES = [
 // 좁은 예외. 역할표 밖 조합이지만 결정으로 정당화된 자리만 사유와 함께 남긴다.
 // 여기 넣는 기준: 근거가 되는 결정 문서가 있고, 그 자리 하나에만 쓰이는가.
 const MIXED_SUB = 'color-mix(in srgb,var(--sub) 80%,var(--panel))';
+const BADGE_TONES = ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'risk'];
+const BADGE_ALLOW = BADGE_TONES.flatMap((tone) => [
+  {
+    selector: `.wire-badge[data-tone="${tone}"]`,
+    combo: 'var(--text-sm)/400/var(--on-badge)',
+    why: '색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: `.wire-badge[data-tone="${tone}"][data-size="sm"]`,
+    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
+    why: '컴팩트 색상 배지의 테마 고정 전경색',
+  },
+]);
 const ALLOW = [
   {
     // 2026-08-23 Q: 당사자 카드 헤더의 곁다리 배지만 12px 컴팩트 토큰을 쓴다.
@@ -107,46 +120,7 @@ const ALLOW = [
     combo: 'var(--text-badge-compact)/400/var(--ink)',
     why: '당사자 카드 헤더 전용 컴팩트 배지',
   },
-  {
-    selector: '.wire-badge[data-tone="blue"]',
-    combo: 'var(--text-sm)/400/var(--on-badge)',
-    why: '색상 배지의 테마 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="mint"]',
-    combo: 'var(--text-sm)/400/var(--on-badge)',
-    why: '색상 배지의 테마 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="lavender"]',
-    combo: 'var(--text-sm)/400/var(--on-badge)',
-    why: '색상 배지의 테마 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="blue"][data-size="sm"]',
-    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
-    why: '컴팩트 색상 배지의 테마 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="mint"][data-size="sm"]',
-    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
-    why: '컴팩트 색상 배지의 테마 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="lavender"][data-size="sm"]',
-    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
-    why: '컴팩트 색상 배지의 테마 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="risk"]',
-    combo: 'var(--text-sm)/400/var(--on-badge)',
-    why: '기존 리스크 면과 테마별 고정 전경색',
-  },
-  {
-    selector: '.wire-badge[data-tone="risk"][data-size="sm"]',
-    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
-    why: '컴팩트 리스크 배지의 고정 전경색',
-  },
+  ...BADGE_ALLOW,
   {
     // 2026-08-23 Q: 당사자 카드의 가명 ID만 12px으로 낮춘다.
     selector: '.participant-card-id',

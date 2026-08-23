@@ -903,14 +903,19 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    굵기 400 은 2026-08-06 Q 재개정(강조 아닌 표시 값이라 본문과 같은 기본 굵기). */
 .wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=일정·유형·정보(D58 ④).
-   기존 deep 면과 테마별 전경을 써 색상 규칙을 배지에서도 그대로 유지한다. */
+   코랄·앰버·라임·시안은 여러 형제 배지의 구분 variation이다. 전용 surface 토큰이
+   라이트 deep 면과 다크 base 면을 갈아 끼우며 전경은 --on-badge가 맡는다. */
 /* sm(2026-08-23 Q "뱃지 안 텍스트 12px"): 높이 20 · 좌우 패딩 8 · 글자 12.
    카드 헤더처럼 이름 옆 곁다리로 서는 자리 전용이다. 본문 계열의 14px 하한을 풀지 않고
    단일 배지 계약 안에 컴팩트 크기만 추가한다(D61 ②). */
 .wire-badge[data-size="sm"]{min-height:var(--space-5);padding:0 var(--space-2);font-size:var(--text-badge-compact)}
-.wire-badge[data-tone="mint"]{border-color:var(--mint-deep);background:var(--mint-deep);color:var(--on-badge)}
-.wire-badge[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-deep);color:var(--on-badge)}
-.wire-badge[data-tone="blue"]{border-color:var(--blue-deep);background:var(--blue-deep);color:var(--on-badge)}
+.wire-badge[data-tone="mint"]{border-color:var(--badge-mint);background:var(--badge-mint);color:var(--on-badge)}
+.wire-badge[data-tone="lavender"]{border-color:var(--badge-lavender);background:var(--badge-lavender);color:var(--on-badge)}
+.wire-badge[data-tone="blue"]{border-color:var(--badge-blue);background:var(--badge-blue);color:var(--on-badge)}
+.wire-badge[data-tone="coral"]{border-color:var(--badge-coral);background:var(--badge-coral);color:var(--on-badge)}
+.wire-badge[data-tone="amber"]{border-color:var(--badge-amber);background:var(--badge-amber);color:var(--on-badge)}
+.wire-badge[data-tone="lime"]{border-color:var(--badge-lime);background:var(--badge-lime);color:var(--on-badge)}
+.wire-badge[data-tone="cyan"]{border-color:var(--badge-cyan);background:var(--badge-cyan);color:var(--on-badge)}
 /* 리스크 배지: 확인된 리스크·오류 상태 전용(D9 리스크 색 독점의 허용 자리, 구 .status.risk). */
 .wire-badge[data-tone="risk"]{border-color:var(--risk);background:var(--risk);color:var(--on-badge)}
 /* 상태 태그: 색·모양 레시피는 배지와 같다(2026-08-06 Q — radius 6 을 알약으로 통일, 굵기 400).

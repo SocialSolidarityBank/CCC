@@ -30,6 +30,17 @@
   --lavender-deep: #7D4E9B;  /* tint 위 5.11 / 패널 위 6.11 */
   --lavender-tint: #F2E7F7;
 
+  /* 배지 전용 7색 면. 일반 deep 글자 토큰과 분리해 배지 배경만 Pen 승인값을 따른다.
+   * 라이트는 deep 계열, 다크는 아래 블록의 base 계열을 쓴다. 코랄·앰버·라임·시안은
+   * 여러 형제 배지를 구분할 때만 쓰는 variation이고 성공·경고·우선순위를 뜻하지 않는다. */
+  --badge-blue:     #67A9F0;
+  --badge-mint:     #56CC99;
+  --badge-lavender: #C890F0;
+  --badge-coral:    #F48978;
+  --badge-amber:    #D7A137;
+  --badge-lime:     #A1B84E;
+  --badge-cyan:     #02C1D4;
+
   /* 채운 면 위의 글자·획. --gradient-action 으로 칠한 자리(프라이머리 버튼 · 켠 체크박스·
    * 라디오 · 고른 리스트 행)에 쓴다. */
   --on-action: #3D3445;
@@ -316,6 +327,15 @@
   --lavender-deep: #D6AFF3;  /* 자기 tint 위 8.53 */
   --lavender-tint: #281E33;
 
+  /* 배지는 밝은 base 면과 어두운 --on-badge 글자를 쓴다. */
+  --badge-blue:     #93C1F5;
+  --badge-mint:     #8ED9B8;
+  --badge-lavender: #CBA8E2;
+  --badge-coral:    #F2A99C;
+  --badge-amber:    #DDB87B;
+  --badge-lime:     #B7C786;
+  --badge-cyan:     #74CFDB;
+
   /* 리스크 — H328 자리는 그대로 두고 밝기만 올린다. 라이트의 어두운 핑크 면 위에는
    * 밝은 글자를, 다크의 밝은 핑크 면 위에는 어두운 글자를 얹는다. */
   --risk:            #F58BC4;
@@ -351,6 +371,13 @@
   --blue-deep:     #CFE3FB;
   --mint-deep:     #B4ECD3;
   --lavender-deep: #E9D2FA;
+  --badge-blue:     #93C1F5;
+  --badge-mint:     #8ED9B8;
+  --badge-lavender: #CBA8E2;
+  --badge-coral:    #F2A99C;
+  --badge-amber:    #DDB87B;
+  --badge-lime:     #B7C786;
+  --badge-cyan:     #74CFDB;
   --line-control:  #8F8799;
   --track:         #8F8799;
 }
@@ -364,6 +391,13 @@
   --blue-deep:     #496B9A;  /* tint 위 4.67 */
   --mint-deep:     #3C775E;  /* tint 위 4.62 */
   --lavender-deep: #8256A3;  /* tint 위 4.61 */
+  --badge-blue:     #486997;
+  --badge-mint:     #397158;
+  --badge-lavender: #7D4E9B;
+  --badge-coral:    #AC5346;
+  --badge-amber:    #936907;
+  --badge-lime:     #697B1A;
+  --badge-cyan:     #02818D;
   --line-control:  #948E89;  /* 패널 위 3.24 */
   --track:         #948E89;  /* 패널 위 3.24 */
 }

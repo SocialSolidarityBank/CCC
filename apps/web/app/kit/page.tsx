@@ -288,14 +288,18 @@ export default function KitPage() {
           <h2 className="wire-kit-heading" id="kit-badge">배지와 상태 태그</h2>
           <p className="wire-kit-caption">
             배지는 WireBadge 하나가 전부다(2026-08-07 통합, 구 화면별 레시피 8종 대체). 기본형은
-            색 없이 테두리로만 서고, 계열은 tint 배경이 가른다. 블루=일정과 유형, 민트=진행과
-            담당, 라벤더=AI와 대기, 리스크=확인된 위험과 오류 전용이다.
+            색 없이 테두리로만 선다. 블루=일정과 유형, 민트=진행과 담당, 라벤더=AI와 대기,
+            리스크=확인된 위험과 오류 전용이다. 추가 4색은 여러 형제 배지를 구분할 때만 쓴다.
           </p>
           <div className="wire-kit-row">
             <WireBadge>공식 기록</WireBadge>
             <WireBadge tone="mint">마이크로크레딧</WireBadge>
             <WireBadge tone="lavender">승인 대기 2건</WireBadge>
             <WireBadge tone="blue">3회차</WireBadge>
+            <WireBadge tone="coral">코랄</WireBadge>
+            <WireBadge tone="amber">앰버</WireBadge>
+            <WireBadge tone="lime">라임</WireBadge>
+            <WireBadge tone="cyan">시안</WireBadge>
             <WireBadge tone="risk">확인 필요</WireBadge>
             <button type="button" className="wire-status-tag">15초 페이지</button>
           </div>

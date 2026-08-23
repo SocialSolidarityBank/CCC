@@ -152,7 +152,7 @@ check(
   run('.wire-field-label{font-size:var(--text-badge-compact);font-weight:400;color:var(--sub)}').violations.length === 1,
 );
 
-for (const tone of ['blue', 'mint', 'lavender', 'risk']) {
+for (const tone of ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'risk']) {
   check(
     `${tone} 채움 배지는 테마 고정 전경색을 쓴다`,
     run(`.wire-badge[data-tone="${tone}"][data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:var(--on-badge)}`).violations.length === 0,
@@ -174,9 +174,13 @@ const wireStylesSource = readFileSync(
   'utf8',
 );
 for (const [tone, outline, surface] of [
-  ['blue', 'var(--blue-deep)', 'var(--blue-deep)'],
-  ['mint', 'var(--mint-deep)', 'var(--mint-deep)'],
-  ['lavender', 'var(--lavender-deep)', 'var(--lavender-deep)'],
+  ['blue', 'var(--badge-blue)', 'var(--badge-blue)'],
+  ['mint', 'var(--badge-mint)', 'var(--badge-mint)'],
+  ['lavender', 'var(--badge-lavender)', 'var(--badge-lavender)'],
+  ['coral', 'var(--badge-coral)', 'var(--badge-coral)'],
+  ['amber', 'var(--badge-amber)', 'var(--badge-amber)'],
+  ['lime', 'var(--badge-lime)', 'var(--badge-lime)'],
+  ['cyan', 'var(--badge-cyan)', 'var(--badge-cyan)'],
   ['risk', 'var(--risk)', 'var(--risk)'],
 ]) {
   check(

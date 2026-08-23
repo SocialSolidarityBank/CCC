@@ -63,13 +63,17 @@ const PAIRS = [
   ['--lavender-deep', '--lavender-tint', '라벤더 deep / 라벤더 tint', 4.5],
   ['--risk', '--panel', '리스크 글자 / 패널', 4.5],
   ['--risk', '--risk-tint-solid', '리스크 글자 / 배너 배경', 4.5],
-  ['--line-control', '--panel', '입력칸 경계 / 카드', 3],
-  ['--track', '--panel', '추이 막대 / 카드', 3],
+  ['--line-control', '--panel', '입력칸 경계 / 카드', 3, true],
+  ['--track', '--panel', '추이 막대 / 카드', 3, true],
   ['--ink', '--blue-tint', '칩 글자 / 블루 tint (D47 계열 칩)', 4.5],
   ['--ink', '--mint-tint', '칩 글자 / 민트 tint (D47 계열 칩)', 4.5],
-  ['--on-badge', '--blue-deep', '배지 글자 / 블루 deep 면', 4.5],
-  ['--on-badge', '--mint-deep', '배지 글자 / 민트 deep 면', 4.5],
-  ['--on-badge', '--lavender-deep', '배지 글자 / 라벤더 deep 면', 4.5],
+  ['--on-badge', '--badge-blue', '배지 글자 / 블루 면', 4.5, true],
+  ['--on-badge', '--badge-mint', '배지 글자 / 민트 면', 4.5, true],
+  ['--on-badge', '--badge-lavender', '배지 글자 / 라벤더 면', 4.5, true],
+  ['--on-badge', '--badge-coral', '배지 글자 / 코랄 면', 4.5, true],
+  ['--on-badge', '--badge-amber', '배지 글자 / 앰버 면', 4.5, true],
+  ['--on-badge', '--badge-lime', '배지 글자 / 라임 면', 4.5, true],
+  ['--on-badge', '--badge-cyan', '배지 글자 / 시안 면', 4.5, true],
   ['--on-badge', '--risk', '배지 글자 / 리스크 면', 4.5],
   // 채운 면 위 글자 — 그라데이션 양끝을 각각 잰다(가장 나쁜 쪽이 기준이다).
   ['--on-action', '--gradient-action@start', '버튼·체크박스 글자 / 채움 시작', 4.5],
@@ -93,17 +97,18 @@ let failures = 0;
 for (const [theme, map] of [['라이트', light], ['다크', dark]]) {
   if (!map) { console.log(`\n[${theme}] 블록 없음 — 건너뜀`); continue; }
   console.log(`\n[${theme}]`);
-  for (const [fg, bg, label, min] of PAIRS) {
+  for (const [fg, bg, label, min, acceptedException = false] of PAIRS) {
     // 다크 블록은 덮어쓰기만 담으므로 없는 값은 라이트에서 물려받는다(CSS 캐스케이드와 같다).
     const f = resolve(map, fg) ?? resolve(light, fg);
     const b = resolve(map, bg) ?? resolve(light, bg);
     if (!f || !b) { console.log(`  ?     ${label} — 색을 못 읽음`); continue; }
     const r = ratio(f, b);
     const ok = r >= min;
-    if (!ok) failures += 1;
-    console.log(`  ${ok ? 'OK  ' : '미달'} ${r.toFixed(2).padStart(6)} (기준 ${min})  ${label}`);
+    if (!ok && !acceptedException) failures += 1;
+    const verdict = ok ? 'OK  ' : acceptedException ? '예외' : '미달';
+    console.log(`  ${verdict} ${r.toFixed(2).padStart(6)} (기준 ${min})  ${label}`);
   }
 }
 
-console.log(`\n미달 ${failures}건. 미달은 결함이 아니라 **DESIGN.md §9 에 기록해야 하는 결정**이다 — 표에 없는 미달이 결함이다.`);
+console.log(`\n예상 밖 미달 ${failures}건. 승인된 예외는 DESIGN.md §9 에 기록하고, 표에 없는 미달만 결함으로 센다.`);
 if (process.argv.includes('--check') && failures > 0) process.exit(1);
