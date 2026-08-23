@@ -46,6 +46,8 @@ export interface ParticipantCardProps {
   statusBadge?: { label: string; tone?: 'mint' | undefined } | undefined;
   /** 참여 사업 개수 — 컬러 글자로 표시. */
   programCount?: number | undefined;
+  /** CCC-26 새 가입 배지 — 인테이크 전 케이스로 담당자가 아직 확인하지 않은 당사자. */
+  newSignup?: boolean | undefined;
 }
 
 export function ParticipantCard({
@@ -57,6 +59,7 @@ export function ParticipantCard({
   email,
   statusBadge,
   programCount,
+  newSignup,
 }: ParticipantCardProps) {
   return (
     <Link className="participant-card-link" href={href}>
@@ -97,6 +100,7 @@ export function ParticipantCard({
               {programCount !== undefined && (
                 <WireBadge tone="mint">참여 사업 {programCount}개</WireBadge>
               )}
+              {newSignup === true && <WireBadge tone="mint">새 가입</WireBadge>}
               {statusBadge !== undefined && (
                 <span className="participant-card-badges">
                   {/* exactOptionalPropertyTypes: tone 이 undefined 일 수 있으므로 키를 뺀다

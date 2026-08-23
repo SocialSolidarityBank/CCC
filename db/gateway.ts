@@ -11072,6 +11072,8 @@ export async function listAssignedParticipants(
   const ids = result.results.map((row) => stringValue(row.beneficiary_id));
   const contacts = await loadParticipantContacts(env, actor.orgId, ids);
   await auditParticipantPiiRead(env, actor, contacts, {});
+  // CCC-26: 새 가입 배지 재료를 한 번에 묶어 계산한다(단위 배치). 감사는 위 목록 읽기 한 건대로.
+  const newSignups = await newSignupBeneficiaryIds(env, actor, hasInstitutionAdminAccess);
   return result.results.map((row) => {
     const beneficiaryId = stringValue(row.beneficiary_id);
     const contact = contacts.get(beneficiaryId);
@@ -11081,8 +11083,81 @@ export async function listAssignedParticipants(
       programCount: integerValue(row.program_count) ?? 0,
       name: contact?.name ?? null,
       phone: contact?.phone ?? null,
+      newSignup: newSignups.has(beneficiaryId),
     };
   });
+}
+
+/**
+ * CCC-26 새 가입 배지의 파생 값 — 새로 개설된 인테이크 전 케이스 중 담당 실무자가 아직
+ * 확인하지 않은 당사자. **새 알림 테이블을 두지 않는다.** 케이스 상태에서 파생한다:
+ *   - status=active 이고 intake_at 이 비어 있고(인테이크 전) legacy_import 가 아닌 케이스
+ *   - 인테이크 일정을 등록하면(counseling_schedules 존재) 소멸
+ *   - 당사자 허브를 열면(케이스 읽기 감사 by 행위자, case_id) 소멸
+ *   - 인테이크가 완료되면(intake_at 채워짐) 소멸
+ * 범위는 listAssignedParticipants 와 같다(실무자=담당 케이스, 기관 관리자=기관 전체).
+ * 아카이브·파기 대상과 initialization_state 도 목록과 같은 조건으로 거른다.
+ */
+async function newSignupBeneficiaryIds(
+  env: Env,
+  actor: Actor,
+  hasInstitutionAdminAccess: boolean,
+): Promise<Set<string>> {
+  const assignmentClause = hasInstitutionAdminAccess ? '' : `JOIN support_case_assignees AS assignment
+         ON assignment.support_case_id = cases.id
+        AND assignment.org_id = cases.org_id
+        AND assignment.user_id = ?
+        AND assignment.unassigned_at IS NULL`;
+  const prefixBindings = hasInstitutionAdminAccess ? [] : [actor.userId];
+  const rows = await env.DB.prepare(
+    `SELECT DISTINCT cases.beneficiary_id
+     FROM support_cases AS cases
+     ${assignmentClause}
+     WHERE cases.org_id = ?
+       AND cases.status = 'active'
+       AND cases.intake_at IS NULL
+       AND cases.creation_kind <> 'legacy_import'
+       AND NOT EXISTS (
+         SELECT 1 FROM counseling_schedules AS schedule
+         WHERE schedule.support_case_id = cases.id
+           AND schedule.org_id = cases.org_id
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM audit_log AS audit
+         WHERE audit.case_id = cases.id
+           AND audit.org_id = cases.org_id
+           AND audit.actor_id = ?
+           AND audit.action = 'read'
+           AND julianday(audit.created_at) > julianday(cases.created_at)
+       )
+       AND EXISTS (
+         SELECT 1 FROM beneficiaries AS beneficiary
+         WHERE beneficiary.id = cases.beneficiary_id
+           AND beneficiary.org_id = cases.org_id
+           AND beneficiary.initialization_state = 'complete'
+           AND NOT EXISTS (
+             SELECT 1 FROM participant_pii_archives AS archive
+             WHERE archive.beneficiary_id = beneficiary.id
+               AND archive.org_id = beneficiary.org_id
+               AND archive.review_status <> 'purged'
+           )
+       )`,
+  ).bind(...prefixBindings, actor.orgId, actor.userId).all<DbRow>();
+  return new Set(rows.results.map((row) => stringValue(row.beneficiary_id)));
+}
+
+/** CCC-26 사이드바 '참여자' 메뉴의 미확인 숫자 배지 (listAssignedParticipants 와 같은 범위). */
+export async function countNewSignups(env: Env, actor: Actor): Promise<number> {
+  return (await listNewSignupBeneficiaryIds(env, actor)).size;
+}
+
+/** CCC-26 새 가입 당사자 목록 — 감사 추가 없이 파생 값만 돌려준다(위치는 목록 API 가 감사). */
+export async function listNewSignupBeneficiaryIds(env: Env, actor: Actor): Promise<Set<string>> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
+  return newSignupBeneficiaryIds(env, actor, hasInstitutionAdminAccess);
 }
 
 export interface AssignedParticipant {
@@ -11093,6 +11168,11 @@ export interface AssignedParticipant {
   // D24·ADR-0005: 역할 기준 기본 표시. 범위 밖이거나 미기입이면 null.
   name: string | null;
   phone: string | null;
+  /**
+   * CCC-26 새 가입 배지 — 새로 개설된 인테이크 전 케이스 중 담당자가 아직 확인하지 않은 것.
+   * 새 알림 테이블 없이 케이스·일정·감사에서 파생한다 (newSignupBeneficiaryIds 참조).
+   */
+  newSignup: boolean;
 }
 
 export interface ParticipantSearchResult {

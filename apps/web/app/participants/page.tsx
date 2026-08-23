@@ -72,6 +72,8 @@ export default async function ParticipantsPage() {
                     ? { label: statusLabel(entry.status), tone: 'mint' }
                     : { label: statusLabel(entry.status) }}
                   programCount={entry.programCount}
+                  // CCC-26 새 가입 배지 — 인테이크 전 케이스로 아직 확인하지 않은 당사자.
+                  newSignup={entry.newSignup}
                 />
               ),
             }))}

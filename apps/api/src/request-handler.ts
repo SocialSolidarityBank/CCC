@@ -103,6 +103,7 @@ import {
   releaseRecordingResultDownstream,
   listSessions,
   listSupportCaseAssignees,
+  countNewSignups,
   requestSupportCaseAssignment,
   listAssignedParticipants,
   listPrivacyConsentFollowUps,
@@ -1036,6 +1037,8 @@ function assignedParticipantResponse(participant: AssignedParticipant) {
     programCount: participant.programCount,
     name: participant.name,
     phone: participant.phone,
+    // CCC-26 새 가입 배지 — 케이스에서 파생한 값이다(목록 API 가 감사 한 건을 이미 남긴다).
+    newSignup: participant.newSignup,
   };
 }
 
@@ -2273,6 +2276,17 @@ export async function handleRequest(
       if (searchQuery === null) throw new ValidationError('search query is required');
       const results = await searchParticipants(env, actor, { query: searchQuery });
       return json({ results: results.map(participantSearchResultResponse) });
+    }
+    if (
+      request.method === 'GET'
+      && parts.length === 2
+      && parts[0] === 'participants'
+      && parts[1] === 'new-signup-count'
+    ) {
+      // CCC-26 사이드바 '참여자' 메뉴의 미확인 숫자 — 목록과 같은 범위·파생 규칙.
+      // 'search' 와 같은 이유로 일반 당사자 상세 라우트보다 먼저 처리한다.
+      requestQuery(url, []);
+      return json({ count: await countNewSignups(env, actor) });
     }
     if (
       request.method === 'GET'

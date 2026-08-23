@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { NavIcon } from './shell-icons';
+import { WireBadge } from './wire-badge';
 import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';
@@ -67,6 +68,11 @@ export interface AppSidebarProps {
   /** 온보딩이 저장한 사업 표시 이름 매핑 (CCC-32). 생략하면 labels.ts 폴백. */
   programLabels?: Record<ParticipantProgramType, string>;
   /**
+   * CCC-26 '참여자' 메뉴의 미확인 새 가입 숫자. 루트 레이아웃이 서버에서 읽어 넣는다.
+   * 0 이거나 undefined 면 배지를 그리지 않는다.
+   */
+  newSignupCount?: number;
+  /**
    * 현재 테마 (D56 · ADR-0026). 루트 레이아웃이 쿠키에서 읽어 넣는다 — 여기서 직접 읽지
    * 않는 이유는 이 컴포넌트가 클라이언트이고 쿠키 판정은 첫 페인트 전에 끝나 있어야 하기
    * 때문이다. 생략하면 라이트로 그린다(테스트·스토리 렌더가 지금까지처럼 동작한다).
@@ -85,6 +91,7 @@ export function AppSidebar({
   orgLabel = ORG_LABEL,
   programLabels = PROGRAM_LABELS,
   theme = 'light',
+  newSignupCount = 0,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
@@ -145,6 +152,11 @@ export function AppSidebar({
               <NavIcon name={item.icon} />
               <span>{item.label}</span>
               {item.soon ? <span className="navigation-soon">준비 중</span> : null}
+              {/* CCC-26: 새 가입 미확인 숫자 — 사람·소속 축의 민트 배지(WireBadge 계약).
+                  확인 행위로 사라지는 값이라 재방문 시 자리가 안 흔들린다. */}
+              {item.icon === 'participants' && newSignupCount > 0 && (
+                <WireBadge tone="mint" role="status">{newSignupCount}</WireBadge>
+              )}
             </Link>
           </li>
         );

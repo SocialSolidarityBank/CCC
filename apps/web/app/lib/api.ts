@@ -326,6 +326,8 @@ export interface AssignedParticipant {
   programCount: number;
   name: string | null;
   phone: string | null;
+  /** CCC-26 새 가입 배지 — 인테이크 전 케이스 중 담당자가 아직 확인하지 않은 것. */
+  newSignup: boolean;
 }
 
 export interface ParticipantSearchResult {
@@ -1023,7 +1025,15 @@ function decodeAssignedParticipant(value: unknown): AssignedParticipant {
     programCount: responseInteger(record, 'programCount'),
     name: responseNullableString(record, 'name'),
     phone: responseNullableString(record, 'phone'),
+    newSignup: responseBoolean(record, 'newSignup'),
   };
+}
+
+/** CCC-26 사이드바 '참여자' 메뉴의 미확인 숫자 (listAssignedParticipants 와 같은 범위·파생). */
+export async function getNewSignupCount(): Promise<number> {
+  const payload = await requestJson<unknown>('/participants/new-signup-count');
+  const record = responseObject(payload);
+  return responseInteger(record, 'count');
 }
 
 function decodeParticipantSearchResult(value: unknown): ParticipantSearchResult {
