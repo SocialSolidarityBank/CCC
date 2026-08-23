@@ -24,7 +24,7 @@ const assigneeRoleLabel: Record<SupportCaseAssignee['role'], string> = {
 };
 
 const noticeMessages: Record<string, string> = {
-  assignee_added: '실무자를 배정했습니다.',
+  assignee_requested: '배정 요청을 보냈습니다.',
 };
 
 const errorMessages: Record<string, string> = {

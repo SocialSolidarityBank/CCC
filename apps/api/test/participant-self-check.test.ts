@@ -5,6 +5,7 @@ import {
   createCounselingSchedule,
   createParticipantInvite,
   getParticipantSelfCheck,
+  requestSupportCaseAssignment,
   type ParticipantSelfCheck,
 } from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
@@ -79,6 +80,26 @@ describe('getParticipantSelfCheck (CCC-27)', () => {
       ['email', 'name', 'pastSchedules', 'phone', 'programs', 'upcomingSchedules'],
     );
     expect(JSON.stringify(check)).not.toMatch(/memo|summary|flag|briefing|oneLiner|gas/i);
+  });
+
+  it('활성 담당이 끝난 뒤 requested 배정만 있으면 담당 실무자 이름을 노출하지 않는다', async () => {
+    await t.reset();
+    const joined = await seedJoinedParticipant();
+    await t.db.prepare(
+      `UPDATE support_case_assignees
+       SET status = 'ended', unassigned_at = datetime('now')
+       WHERE support_case_id = ? AND status = 'active'`,
+    ).bind(joined.supportCaseId).run();
+    await requestSupportCaseAssignment(
+      t.env,
+      admin,
+      joined.supportCaseId,
+      testActors.unassignedCounselor.userId,
+      'primary',
+    );
+
+    const check = await getParticipantSelfCheck(t.env, joined.token);
+    expect(check.programs[0]?.counselorName).toBeNull();
   });
 
   it('미소비(issued)·무효 토큰은 거부한다 (구분 불가, 열거 단서 금지)', async () => {

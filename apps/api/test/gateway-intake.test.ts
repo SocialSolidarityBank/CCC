@@ -199,6 +199,62 @@ describe('createIntakeRecord', () => {
             return target.batch(statements);
           };
         }
+        const value: unknown = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as D1Database;
+
+    await expect(updateIntakeRecord(
+      { ...t.env, DB: raceDb },
+      canonicalActors.counselor,
+      initial.supportCaseId,
+      {
+        heldAt: '2026-07-22T14:00:00.000Z',
+        channel: 'phone',
+      },
+    )).rejects.toBeInstanceOf(ConflictError);
+    await expect(t.db.prepare(
+      'SELECT held_at FROM sessions WHERE support_case_id = ? AND kind = ?',
+    ).bind(initial.supportCaseId, 'intake').first<{ held_at: string }>())
+      .resolves.toEqual({ held_at: '2026-07-15T10:00:00.000Z' });
+  });
+
+  it('does not accept a requested assignment in the intake mutation batch', async () => {
+    await t.reset();
+    const initial = await seedCase();
+    await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
+    let intercepted = false;
+    const raceDb = new Proxy(t.db, {
+      get(target, property, receiver) {
+        if (property === 'batch') {
+          return async (statements: D1PreparedStatement[]) => {
+            if (!intercepted) {
+              intercepted = true;
+              await target.prepare(
+                `UPDATE support_case_assignees
+                 SET status = 'ended', unassigned_at = datetime('now')
+                 WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND status = 'active'`,
+              ).bind(
+                canonicalActors.counselor.orgId,
+                initial.supportCaseId,
+                canonicalActors.counselor.userId,
+              ).run();
+              await target.prepare(
+                `INSERT INTO support_case_assignees (
+                   id, org_id, support_case_id, user_id, role, status,
+                   acceptance_requested_by, assigned_at
+                 ) VALUES (?, ?, ?, ?, 'primary', 'requested', ?, datetime('now'))`,
+              ).bind(
+                'requested-assignment-intake-race',
+                canonicalActors.counselor.orgId,
+                initial.supportCaseId,
+                canonicalActors.counselor.userId,
+                canonicalActors.admin.userId,
+              ).run();
+            }
+            return target.batch(statements);
+          };
+        }
         const value = Reflect.get(target, property, receiver) as unknown;
         return typeof value === 'function' ? value.bind(target) : value;
       },

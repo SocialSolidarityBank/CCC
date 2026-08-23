@@ -167,8 +167,8 @@ describe('GET /users/:id/assignments (route)', () => {
   });
 });
 
-describe('POST /support-cases/:id/assignees (route, D7)', () => {
-  it('adds a co-assignee for an admin', async () => {
+describe('POST /support-cases/:id/assignees (route, D74 assignment request)', () => {
+  it('creates a requested assignment, hides it from active listings, and activates it only after assignee acceptance', async () => {
     const seeded = await seedAssignedParticipant();
     const response = await worker.fetch(new Request(
       `http://localhost/support-cases/${seeded.supportCaseId}/assignees`,
@@ -179,9 +179,31 @@ describe('POST /support-cases/:id/assignees (route, D7)', () => {
       },
     ), t.env);
     expect(response.status).toBe(201);
-    const payload = await response.json() as { userId: string; role: string };
+    const payload = await response.json() as {
+      id: string;
+      userId: string;
+      role: string;
+      status: string;
+    };
     expect(payload.userId).toBe(testActors.unassignedCounselor.userId);
     expect(payload.role).toBe('secondary');
+    expect(payload.status).toBe('requested');
+
+    const pendingResponse = await worker.fetch(new Request(
+      'http://localhost/assignment-requests',
+      { headers: headersFor(testActors.unassignedCounselor) },
+    ), t.env);
+    expect(pendingResponse.status).toBe(200);
+    const pendingPayload = await pendingResponse.json() as {
+      requests: Array<{ id: string; status: string; participantName: string | null }>;
+    };
+    expect(pendingPayload.requests).toEqual([
+      expect.objectContaining({
+        id: payload.id,
+        status: 'requested',
+        participantName: pii.name,
+      }),
+    ]);
 
     const listResponse = await worker.fetch(new Request(
       `http://localhost/support-cases/${seeded.supportCaseId}/assignees`,
@@ -189,7 +211,31 @@ describe('POST /support-cases/:id/assignees (route, D7)', () => {
     ), t.env);
     expect(listResponse.status).toBe(200);
     const list = await listResponse.json() as { assignees: Array<{ role: string }> };
-    expect(list.assignees).toHaveLength(2);
+    expect(list.assignees).toHaveLength(1);
+
+    const accepted = await worker.fetch(new Request(
+      `http://localhost/support-cases/${seeded.supportCaseId}/assignees/${payload.id}/accept`,
+      {
+        method: 'POST',
+        headers: headersFor(testActors.unassignedCounselor),
+      },
+    ), t.env);
+    expect(accepted.status).toBe(200);
+
+    const after = await worker.fetch(new Request(
+      `http://localhost/support-cases/${seeded.supportCaseId}/assignees`,
+      { headers: headersFor(testActors.admin) },
+    ), t.env);
+    expect(after.status).toBe(200);
+    const afterPayload = await after.json() as { assignees: Array<{ role: string }> };
+    expect(afterPayload.assignees).toHaveLength(2);
+
+    const noPending = await worker.fetch(new Request(
+      'http://localhost/assignment-requests',
+      { headers: headersFor(testActors.unassignedCounselor) },
+    ), t.env);
+    expect(noPending.status).toBe(200);
+    await expect(noPending.json()).resolves.toEqual({ requests: [] });
   });
 
   it('denies co-assignment by a non-admin actor (403)', async () => {
@@ -203,5 +249,36 @@ describe('POST /support-cases/:id/assignees (route, D7)', () => {
       },
     ), t.env);
     expect(response.status).toBe(403);
+  });
+});
+
+describe('POST /support-cases/:id/force-transfer (route, D74)', () => {
+  it('requires an admin and records participant notification confirmation using the actor identity', async () => {
+    const seeded = await seedAssignedParticipant();
+    const response = await worker.fetch(new Request(
+      `http://localhost/support-cases/${seeded.supportCaseId}/force-transfer`,
+      {
+        method: 'POST',
+        headers: headersFor(testActors.admin),
+        body: JSON.stringify({
+          toUserId: testActors.unassignedCounselor.userId,
+          reason: '장기 부재',
+          participantNotified: true,
+        }),
+      },
+    ), t.env);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ transferred: true });
+
+    const row = await t.db.prepare(
+      `SELECT status, notified_by AS notifiedBy, notified_at AS notifiedAt
+       FROM support_case_assignees
+       WHERE support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
+    ).bind(seeded.supportCaseId, testActors.unassignedCounselor.userId).first();
+    expect(row).toMatchObject({
+      status: 'active',
+      notifiedBy: testActors.admin.userId,
+      notifiedAt: expect.any(String),
+    });
   });
 });

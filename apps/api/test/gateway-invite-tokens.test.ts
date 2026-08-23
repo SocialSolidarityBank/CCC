@@ -121,4 +121,22 @@ describe('invite tokens (CCC-29)', () => {
     ).bind(invite.token).first<{ actor_id: string }>();
     expect(audit?.actor_id).toBe(INVITE_SIGNUP_ACTOR_ID);
   });
+
+  it('검증 뒤 폐기된 토큰도 DB 경계에서 소비되지 않는다', async () => {
+    await t.reset();
+    const invite = await createCounselorInvite(t.env, admin);
+    await expect(getInviteForSignup(t.env, invite.token, 'counselor')).resolves.toBeTruthy();
+    await t.db.prepare(
+      'UPDATE invite_tokens SET revoked_at = datetime(\'now\') WHERE token = ?',
+    ).bind(invite.token).run();
+
+    await expect(t.db.prepare(
+      `UPDATE invite_tokens
+       SET status = 'used', used_at = datetime('now')
+       WHERE token = ?`,
+    ).bind(invite.token).run()).rejects.toThrow('invite_token_revoked');
+    await expect(t.db.prepare(
+      'SELECT status FROM invite_tokens WHERE token = ?',
+    ).bind(invite.token).first<{ status: string }>()).resolves.toEqual({ status: 'issued' });
+  });
 });

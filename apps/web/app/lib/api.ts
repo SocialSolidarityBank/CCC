@@ -2139,6 +2139,7 @@ export async function listOrgUsers(): Promise<DirectoryUser[]> {
 
 // 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 + 케이스 담당 실무자 배정.
 const assignmentRoles = ['primary', 'secondary'] as const;
+const assignmentStatuses = ['requested', 'active', 'ended'] as const;
 
 /** 관리자 영역 사용자/실무자 상세에 실리는 실무자별 활성 배정 당사자 행(실명 포함). */
 export interface AdminAssignmentParticipant {
@@ -2162,7 +2163,19 @@ export interface SupportCaseAssignee {
   supportCaseId: string;
   userId: string;
   role: 'primary' | 'secondary';
+  status: 'requested' | 'active' | 'ended';
   assignedAt: string;
+}
+
+export interface AssignmentRequest {
+  id: string;
+  supportCaseId: string;
+  beneficiaryId: string;
+  participantName: string | null;
+  programType: ParticipantProgramType;
+  role: 'primary' | 'secondary';
+  status: 'requested';
+  requestedAt: string;
 }
 
 function decodeAdminAssignmentParticipant(value: unknown): AdminAssignmentParticipant {
@@ -2185,8 +2198,39 @@ function decodeSupportCaseAssignee(value: unknown): SupportCaseAssignee {
     supportCaseId: responseString(record, 'supportCaseId'),
     userId: responseString(record, 'userId'),
     role: responseEnum(responseProperty(record, 'role'), assignmentRoles),
+    status: responseEnum(responseProperty(record, 'status'), assignmentStatuses),
     assignedAt: responseString(record, 'assignedAt'),
   };
+}
+
+function decodeAssignmentRequest(value: unknown): AssignmentRequest {
+  const record = responseObject(value);
+  const status = responseEnum(responseProperty(record, 'status'), assignmentStatuses);
+  if (status !== 'requested') contractViolation();
+  return {
+    id: responseString(record, 'id'),
+    supportCaseId: responseString(record, 'supportCaseId'),
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    participantName: responseNullableString(record, 'participantName'),
+    programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
+    role: responseEnum(responseProperty(record, 'role'), assignmentRoles),
+    status,
+    requestedAt: responseString(record, 'requestedAt'),
+  };
+}
+
+/** 로그인한 본인의 수락 대기 배정 요청. 상담 내용·연락처는 포함하지 않는다. */
+export async function listAssignmentRequests(): Promise<AssignmentRequest[]> {
+  const payload = responseObject(await requestJson<unknown>('/assignment-requests'));
+  return responseArray(payload, 'requests').map(decodeAssignmentRequest);
+}
+
+/** 배정받은 실무자 본인이 요청을 수락한다. */
+export async function acceptAssignmentRequest(supportCaseId: string, assignmentId: string): Promise<void> {
+  await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/assignees/${encodeURIComponent(assignmentId)}/accept`,
+    { method: 'POST' },
+  );
 }
 
 /** 실무자별 활성 배정 당사자(실명 포함). 기관 관리자만 호출한다(비관리자에게는 403). */
