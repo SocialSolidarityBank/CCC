@@ -40,6 +40,8 @@ export interface DateTextInputProps {
    */
   value?: string | undefined;
   required?: boolean | undefined;
+  /** 호출부가 판정한 오류 상태. 오류 문구는 `describedBy` 로 별도 연결한다. */
+  invalid?: boolean | undefined;
   /** 도움말 문구의 id — KRDS '레이블·설명은 프로그래밍적으로 연결'. */
   describedBy?: string | undefined;
   /**
@@ -76,6 +78,7 @@ export function DateTextInput({
   defaultValue = '',
   value: controlledValue,
   required = false,
+  invalid = false,
   describedBy,
   ariaLabel,
   autoComplete = 'off',
@@ -96,6 +99,7 @@ export function DateTextInput({
       placeholder={DATE_TEXT_PLACEHOLDER}
       maxLength={10}
       required={required}
+      aria-invalid={invalid || undefined}
       pattern="\d{4}-\d{2}-\d{2}"
       title={DATE_TEXT_HINT}
       aria-describedby={describedBy}
