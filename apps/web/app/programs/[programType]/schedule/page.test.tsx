@@ -3,7 +3,10 @@ import { cleanup, render } from '@testing-library/react';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다. 없으면 파일이 끝난 뒤
 // jsdom 이 내려가는 동안 React 가 남은 작업을 돌려 종료코드가 1 이 된다.
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const getUpcomingSchedules = vi.fn();
 const getMonthSchedules = vi.fn();
@@ -70,11 +73,13 @@ function cards(container: HTMLElement): HTMLElement[] {
 }
 
 function dayHeadings(container: HTMLElement): (string | null)[] {
-  return Array.from(container.querySelectorAll('.schedule-section > .record-section-title'))
+  return Array.from(container.querySelectorAll('.schedule-day-heading'))
     .map((el) => el.textContent);
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-02-15T03:00:00.000Z'));
   getUpcomingSchedules.mockReset();
   getMonthSchedules.mockReset();
 });
@@ -133,8 +138,7 @@ describe('통합 일정 화면 (D75) — 다가오는 7일', () => {
       .toContain('완료');
   });
 
-  // D75 그릴링 5: 가장 가까운 예정 상담 카드 한 장만 선택 어휘(그라데이션 아웃라인). 배지 없음.
-  it('가장 가까운 예정 상담 카드 한 장만 선택 아웃라인을 입는다', async () => {
+  it('오늘 상담은 상태와 관계없이 모두 선택 아웃라인을 입는다', async () => {
     getUpcomingSchedules.mockResolvedValue(weekBoard([
       schedule({ id: 'today-done', status: 'completed', completedSessionId: 'sess-1', participantName: '오늘끝난사람' }),
       schedule({ id: 'next', status: 'scheduled', participantName: '다음사람', scheduledAt: '2026-02-15T05:00:00.000Z' }),
@@ -144,10 +148,13 @@ describe('통합 일정 화면 (D75) — 다가오는 7일', () => {
     const { container } = await renderPage();
 
     const selected = Array.from(container.querySelectorAll('.participant-card[data-selected="true"]'));
-    expect(selected).toHaveLength(1);
-    expect(selected[0]?.textContent).toContain('다음사람');
-    // 강조는 테두리뿐이다 — '다음 상담' 같은 추가 배지를 만들지 않는다.
-    expect(container.textContent).not.toContain('다음 상담');
+    expect(selected).toHaveLength(2);
+    expect(selected.map((card) => card.textContent)).toEqual([
+      expect.stringContaining('오늘끝난사람'),
+      expect.stringContaining('다음사람'),
+    ]);
+    expect(selected.some((card) => card.textContent?.includes('그다음사람'))).toBe(false);
+    expect(selected[0]?.getAttribute('data-muted')).toBe('true');
   });
 
   // '오늘'은 기관 시간대로 정한다. UTC 로 자르면 자정 근처 일정이 하루씩 밀린다.
@@ -182,19 +189,21 @@ describe('통합 일정 화면 (D75) — 다가오는 7일', () => {
     expect(container.textContent).not.toContain('다른사업사람');
   });
 
-  it('범위 전환 두 개가 서고 기본 범위는 다가오는 7일이다', async () => {
+  it('현재 ISO 주간과 별도 월 선택이 상시로 서고 주간이 기본이다', async () => {
     getUpcomingSchedules.mockResolvedValue(weekBoard([schedule()]));
 
     const { container } = await renderPage();
 
-    const segs = Array.from(container.querySelectorAll<HTMLAnchorElement>('.schedule-range-seg'));
-    expect(segs.map((seg) => seg.textContent)).toEqual(['다가오는 7일', '월 전체']);
-    expect(segs.map((seg) => seg.getAttribute('href'))).toEqual([
-      '/programs/financial_support_v1/schedule',
-      '/programs/financial_support_v1/schedule?range=month',
-    ]);
-    expect(segs[0]?.getAttribute('data-selected')).toBe('true');
-    expect(segs[1]?.getAttribute('data-selected')).toBeNull();
+    const weekControl = container.querySelector<HTMLAnchorElement>('.schedule-week-control');
+    const monthControl = container.querySelector<HTMLAnchorElement>('.month-nav-label');
+    expect(weekControl?.textContent).toContain('2026년 7주');
+    expect(weekControl?.textContent).toContain('2026년 2월 9일(월)-15일(일)');
+    expect(weekControl?.getAttribute('href')).toBe('/programs/financial_support_v1/schedule');
+    expect(weekControl?.getAttribute('data-selected')).toBe('true');
+    expect(monthControl?.textContent).toBe('2026년 2월');
+    expect(monthControl?.getAttribute('href'))
+      .toBe('/programs/financial_support_v1/schedule?range=month&month=2026-02');
+    expect(monthControl?.getAttribute('data-selected')).toBeNull();
     // 정렬 토글은 D75 로 뺐다 — 날짜 묶음 제목이 순서를 이미 말한다.
     expect(container.textContent).not.toContain('시간순');
   });
@@ -210,7 +219,7 @@ describe('통합 일정 화면 (D75) — 다가오는 7일', () => {
 });
 
 describe('통합 일정 화면 (D75) — 월 전체', () => {
-  it('?range=month 는 한 달 창을 1일부터 날짜순으로 묶어 보여준다', async () => {
+  it('오늘 주차를 먼저 두고 미래 주차 다음에 지난 주차를 접어서 보여준다', async () => {
     getMonthSchedules.mockResolvedValue(monthBoard([
       schedule({ id: 's1', scheduledAt: '2026-02-03T01:00:00.000Z', status: 'completed', completedSessionId: 'sess-3', participantName: '지난사람' }),
       schedule({ id: 's2', scheduledAt: '2026-02-15T01:00:00.000Z', participantName: '중간사람' }),
@@ -222,11 +231,36 @@ describe('통합 일정 화면 (D75) — 월 전체', () => {
     expect(getMonthSchedules).toHaveBeenCalledWith('2026-02');
     const headings = dayHeadings(container);
     expect(headings).toHaveLength(3);
-    expect(headings[0]).toContain('2월 3일');
-    expect(headings[1]).toContain('2월 15일');
-    expect(headings[2]).toContain('2월 20일');
+    expect(headings[0]).toContain('2월 15일');
+    expect(headings[1]).toContain('2월 20일');
+    expect(headings[2]).toContain('2월 3일');
+    const weeks = Array.from(container.querySelectorAll('.schedule-week-title')).map((heading) => heading.textContent);
+    expect(weeks).toEqual([
+      expect.stringContaining('2026년 7주'),
+      expect.stringContaining('2026년 8주'),
+      expect.stringContaining('2026년 6주'),
+    ]);
+    const past = container.querySelector<HTMLDetailsElement>('.schedule-past-day');
+    expect(past?.open).toBe(false);
+    expect(past?.querySelector('summary')?.textContent).toContain('지난사람');
+    expect(past?.querySelector('.participant-card')?.getAttribute('data-muted')).toBe('true');
+    expect(container.querySelector('.schedule-day[data-temporal="future"] .participant-card')).not.toBeNull();
     // 시각은 카드 안에 공용 포매터 값으로 남는다.
     expect(container.textContent).toContain(formatKoreanTime('2026-02-15T01:00:00.000Z'));
+  });
+
+  it('연말 ISO 주차는 53주와 월요일부터 일요일까지의 범위를 표시한다', async () => {
+    vi.setSystemTime(new Date('2026-12-31T03:00:00.000Z'));
+    getMonthSchedules.mockResolvedValue({
+      ...monthBoard([schedule({ scheduledAt: '2026-12-31T01:00:00.000Z' })]),
+      date: '2026-12-01',
+    });
+
+    const { container } = await renderPage({ range: 'month', month: '2026-12' });
+
+    const title = container.querySelector('.schedule-week-title')?.textContent;
+    expect(title).toContain('2026년 53주');
+    expect(title).toContain('2026년 12월 28일(월)-2027년 1월 3일(일)');
   });
 
   it('상태 뱃지는 지난 일정에만 붙고 예정에는 붙지 않는다', async () => {
@@ -255,10 +289,8 @@ describe('통합 일정 화면 (D75) — 월 전체', () => {
     const { container } = await renderPage({ range: 'month', month: '2026-02' });
 
     const hrefs = Array.from(container.querySelectorAll('.card-grid a')).map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual([
-      '/participants/swallow-003/programs/case-1/records#record-sess-9',
-      '/participants/swallow-003/programs/case-1/briefing',
-    ]);
+    expect(hrefs).toContain('/participants/swallow-003/programs/case-1/records#record-sess-9');
+    expect(hrefs).toContain('/participants/swallow-003/programs/case-1/briefing');
   });
 
   it('월 이동 링크가 range 를 유지한 채 앞뒤 달을 가리키고 해 경계를 넘는다', async () => {
@@ -269,6 +301,7 @@ describe('통합 일정 화면 (D75) — 월 전체', () => {
     const navHrefs = Array.from(container.querySelectorAll('.month-nav a')).map((a) => a.getAttribute('href'));
     expect(navHrefs).toEqual([
       '/programs/financial_support_v1/schedule?range=month&month=2025-12',
+      '/programs/financial_support_v1/schedule?range=month&month=2026-01',
       '/programs/financial_support_v1/schedule?range=month&month=2026-02',
     ]);
     expect(container.querySelector('.month-nav-label')?.textContent).toBe('2026년 1월');
@@ -290,14 +323,16 @@ describe('통합 일정 화면 (D75) — 월 전체', () => {
 
     expect(container.querySelector('.wire-empty-title')?.textContent).toBe('2026년 2월에는 상담이 없습니다');
     // 빈 달에서도 앞뒤로 옮겨갈 수 있어야 한다 — 없으면 빈 화면에 갇힌다.
-    expect(container.querySelectorAll('.month-nav a')).toHaveLength(2);
+    expect(container.querySelectorAll('.month-nav a')).toHaveLength(3);
   });
 
-  it('week 범위에는 월 이동이 서지 않는다', async () => {
+  it('week 범위에도 월 선택은 서되 현재 주간만 선택 상태다', async () => {
     getUpcomingSchedules.mockResolvedValue(weekBoard([schedule()]));
 
     const { container } = await renderPage();
 
-    expect(container.querySelector('.month-nav')).toBeNull();
+    expect(container.querySelector('.month-nav')).not.toBeNull();
+    expect(container.querySelector('.schedule-week-control')?.getAttribute('data-selected')).toBe('true');
+    expect(container.querySelector('.month-nav-label')?.getAttribute('data-selected')).toBeNull();
   });
 });

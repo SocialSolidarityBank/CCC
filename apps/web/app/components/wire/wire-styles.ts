@@ -76,7 +76,7 @@ export const wireStyles = `
    각지고 링이 삐져나온다(킷 '그라데이션 테두리 3종'에서 실측). 레이어 승격(will-change)으로는
    안 고쳐지고 클립만 고친다. summary 포커스 링은 안쪽(-2px)으로 옮겨 잘리지 않게 한다. */
 details.surface-card{overflow:clip}
-.surface-card[data-selected="true"],.surface-card[aria-current="true"],.surface-card[open],.is-selected-surface{
+.surface-card[data-selected="true"],.surface-card[aria-current="true"],.surface-card[open]:not(.schedule-past-day),.is-selected-surface{
   border-color:transparent;
   background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box;
 }
@@ -104,7 +104,7 @@ details.surface-card{overflow:clip}
    색상 배지는 계열 deep 면과 테마별 --on-badge 글자를 가진 독립 표면이라 같은 예외를 따른다.
    neutral 배지는 기존 --ink 전경색을 유지하고 risk 배지는 다른 색상 배지와 같은 --on-badge를 쓴다. */
 details.surface-card[open]:not(.briefing-card)>.record-summary,
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary{
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day)>.wire-card-summary{
   background:var(--gradient-action);
   color:var(--on-action);
 }
@@ -116,14 +116,14 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    면만 채우면 회색 글자가 파스텔 위에 남는다. 메타 줄 세로선은 채운 면 전용 선색이다
    (D56 --line-on-action, .wire-row 고른 행과 같은 계약). 배지는 자기 면을 가진 독립 표면이라
    건드리지 않는다. */
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary .wire-card-arrow{border-color:var(--on-action)}
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day)>.wire-card-summary .wire-card-arrow{border-color:var(--on-action)}
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
    밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
    따라온다(2026-08-09 — 구 손 계산 16/20 대체). 회차 카드(.record-summary)는 카드에 패딩이
    없어 이 보정이 필요 없다. */
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary{
+.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day)>.wire-card-summary{
   margin:calc(var(--card-pad, var(--space-6)) * -1) calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));
   padding:var(--card-pad, var(--space-6));
 }

@@ -29,10 +29,11 @@ interface ParticipantCardBaseProps {
   readonly beneficiaryId: string;
   readonly phone?: string | null | undefined;
   /**
-   * 선택·활성 어휘(그라데이션 아웃라인, D60 ④). 통합 일정 화면이 가장 가까운 예정 상담
-   * 카드 한 장에만 켠다(D75) — 배지 없이 테두리만으로 "다음 상담"을 알린다.
+   * 선택·활성 어휘(그라데이션 아웃라인, D60 ④). 일정 화면은 오늘 상담 모두에 켠다.
    */
   readonly selected?: boolean | undefined;
+  /** 지난 날짜이거나 완료된 상담을 보조 정보로 물릴 때만 켠다. */
+  readonly muted?: boolean | undefined;
 }
 
 interface ParticipantScheduleCardProps extends ParticipantCardBaseProps {
@@ -64,6 +65,7 @@ export function ParticipantCard({
   programCount,
   newSignup,
   selected,
+  muted,
 }: ParticipantCardProps) {
   const isNameMissing = name === null || name.length === 0;
   const displayName = isNameMissing ? beneficiaryId : name;
@@ -73,7 +75,11 @@ export function ParticipantCard({
 
   return (
     <Link aria-label={linkLabel} className="participant-card-link" href={href}>
-      <article className="surface-card participant-card" data-selected={selected === true ? 'true' : undefined}>
+      <article
+        className="surface-card participant-card"
+        data-selected={selected === true ? 'true' : undefined}
+        data-muted={muted === true ? 'true' : undefined}
+      >
         <header className="participant-card-header">
           <span className="participant-card-identity">
             {/* 이름 없음은 새 단이 아니라 상태다(§1 is-empty) — 크기·굵기 유지, 색만 물러선다. */}
