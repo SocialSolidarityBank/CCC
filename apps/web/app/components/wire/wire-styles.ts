@@ -249,9 +249,8 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
-/* 2행 골격(2026-08-06 Q · 2026-08-07 위계 개편): 1행 = 이름·태그(좌) + 버튼(우), 구분선
-   아래 2행 = 정보 행(가명 ID·연락처·메타 — wire-meta-row 세로선으로 가른다). 연락처·ID 를
-   1행에서 내려 이름만 위계 위에 남긴다(당사자 카드와 같은 문법: 이름 위, 정보는 선 아래).
+/* 기본 골격은 2행이다. 1행 = 이름·태그(좌) + 버튼(우), 구분선 아래 2행 = 연락처·메타.
+   당사자 정보 허브(showId)는 이름 - 가명 ID - 연락처를 1행에 묶어 구분선을 만들지 않는다.
    1행은 flex-wrap 이라 좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다 — 이름도
    버튼도 뭉개지지 않는다(767 미만은 기존 모바일 규칙이 버튼을 세로로 쌓는다). */
 /* gap 24 = 세로 패딩과 같은 값 — 1행(이름)·2행(정보)이 아웃라인과 구분선 사이
@@ -265,11 +264,11 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    레시피는 아래 .wire-status-tag 가 소유한다). 줄바꿈 금지만 HERO 한정으로 남긴다. */
 .participant-hero-title .wire-status-tag{white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-/* 연락처는 구분선 아래 정보 행에 선다(2026-08-07 Q — 구 '이름 옆 나란' 대체).
-   읽는 값이라 당사자 카드 정보 칸과 같은 16/400 --sub 다. */
+.participant-hero-inline-item{display:inline-flex;align-items:baseline;gap:var(--space-3);white-space:nowrap}
+/* 연락처와 가명 ID는 읽는 값이라 당사자 카드 정보 칸과 같은 16/400 --sub 다. */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
-/* 가명 ID(허브 한정, 2026-08-06 Q) — 당사자 카드 정보 칸과 같은 옅은 그레이 대조용 값. */
 .participant-hero-id{color:color-mix(in srgb,var(--sub) 80%,var(--panel));font-size:var(--text-md);font-weight:400;white-space:nowrap}
+.participant-hero-separator{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
 /* 767 미만: 메타 조각이 세로로 눕고 세로선은 끈다(2026-08-06 Q — 좁은 폭에서 긴 조각이
    줄 중간에서 꺾이며 뭉개지는 것을 막는다). */
 @media(max-width:767px){
@@ -290,6 +289,11 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 당사자 정보 허브 (D35 §3 · D36 · 2026-08-06 Q 개편). 사업별 낱개 카드를 걷고
    '참여중인 사업'·'최신 일정' 두 카드(WireCard)가 나란히 선다. 사업은 카드 안 **행**이고
    행 사이는 --line 구분선이다(카드 안 카드 금지 — D59 ③). 동의서는 맨 아래 카드로 옮겼다. */
+/* 카드 경계 프로토타입의 strong 안을 이 화면에 적용한다. 선 굵기와 구조는 그대로 두고
+   패널 대비만 높여 그림자 없이도 카드 범위가 또렷하게 읽히게 한다. */
+.participant-hub-page .surface-card{border-color:color-mix(in srgb,var(--ink) 26%,var(--panel))}
+.participant-hub-card>.wire-card-divider{display:none}
+.participant-hub-card>.wire-card-body{margin-top:var(--space-5)}
 /* 허브 카드 3장(참여중인 사업·최신 일정·동의서)의 제목은 18 이다(2026-08-07 Q 8차
    "폰트 크기 2px 키우기". 전역 카드 제목 16 위의 이 화면 예외로, 섹션 역할의 전폭
    카드라 섹션 제목 단(--text-lg)을 쓴다). */
@@ -318,6 +322,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{margin-top:0}
+.participant-consent-nowrap{white-space:nowrap}
 .participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    --line 구분선, 묶음 안 fieldset 의 자체 윗선은 끈다(카드 제목 구분선과 겹쳐 이중선이 된다). */
@@ -404,12 +409,17 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 .goal-tree-history-row{display:grid;gap:var(--space-1)}
 .goal-tree-history-title{margin:0;font-size:var(--text-md);color:var(--ink)}
 .goal-tree-history-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
-/* 최신 일정 카드의 한 줄(2026-08-07 Q 가로 행 개편) — 회차별 정리 행과 같은 어휘:
-   날짜 · 종류 뱃지 · 참여 사업, 오른쪽 끝에 행동 버튼(margin-left:auto). 빈 상태도 같은
-   행 골격을 쓴다(안내 문장 + 오른쪽 끝 상담 등록). 행간 normal 은 기하 정렬 계약. */
+/* 최신 일정 카드 행동은 제목 줄 오른쪽에 한 행으로 묶는다. */
+.participant-next-schedule-actions{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-3);flex-wrap:wrap}
+@media(max-width:767px){
+  .participant-hub-card .wire-card-head{flex-wrap:wrap}
+  .participant-next-schedule-actions{width:100%;justify-content:flex-start;flex-wrap:nowrap}
+}
+/* 일정 내용은 회차별 정리 행과 같은 어휘다: 날짜, 종류 배지, 참여 사업.
+   빈 상태도 같은 행 높이를 유지한다. */
 .participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--control-height)}
 .participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-md);line-height:normal;color:var(--ink)}
-.participant-next-schedule-row>.wire-button{margin-left:auto}
+.participant-next-schedule-program{white-space:nowrap}
 /* 행 전체가 브리핑 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체). 격자 좌 1fr / 우
    auto: 내용은 좁으면 줄바꿈하되 꺽쇠는 **행 전체의 세로 중앙**에 남는다("가운데 정렬").
    여러 행이면 --line 가로선으로 갈리고 상하 12 씩 눌러 클릭 면을 벌린다. 호버는 면 호버

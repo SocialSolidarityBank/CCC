@@ -35,6 +35,26 @@ describe('ParticipantHeroCard', () => {
     expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('var(--text-2xl)');
   });
 
+  it('당사자 정보 허브: 이름, 가명 ID, 연락처를 구분선 없이 한 행에 둔다', () => {
+    const { container } = render(
+      <ParticipantHeroCard
+        name="김미영"
+        beneficiaryId="swallow-003"
+        contact="010-1234-5678"
+        showId
+      />,
+    );
+
+    expect(container.querySelector('h1 .participant-name')?.textContent).toBe('김미영');
+    expect(container.querySelector('h1 .participant-hero-id')?.textContent).toBe('swallow-003');
+    expect(container.querySelector('h1 .participant-hero-contact')?.textContent).toBe('010-1234-5678');
+    expect(container.querySelectorAll('h1 .participant-hero-separator')).toHaveLength(2);
+    expect(container.querySelector('h1 .participant-hero-id')?.parentElement?.classList).toContain('participant-hero-inline-item');
+    expect(container.querySelector('h1 .participant-hero-contact')?.parentElement?.classList).toContain('participant-hero-inline-item');
+    expect(container.querySelector('.participant-hero-divider')).toBeNull();
+    expect(container.querySelector('.participant-hero-meta')).toBeNull();
+  });
+
   it('상태 태그는 슬롯이다 — 넘기면 보이고 넘기지 않으면 없다 (허브)', () => {
     // 케이스 1개 화면(브리핑·기록)은 태그를 넘긴다.
     const withTag = render(

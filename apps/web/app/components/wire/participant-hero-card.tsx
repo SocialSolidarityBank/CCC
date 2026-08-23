@@ -42,13 +42,14 @@ export interface ParticipantHeroCardProps {
   /** 메타 한 줄. 내용은 화면이 정한다. 구분선 아래 정보 행에 가명 ID·연락처와 함께 선다. */
   meta?: ReactNode;
   /**
-   * 연락처(2026-08-04 D59 — 구 개인정보 접힘 대체). 구분선 아래 정보 행에 선다
-   * (2026-08-07 Q — 구 '이름 옆 나란'). 계좌·주소 등 추가 PII 는 여기 올리지 않는다(§5).
+   * 연락처(2026-08-04 D59, 구 개인정보 접힘 대체). 기본은 구분선 아래 정보 행에 선다.
+   * 당사자 정보 허브에서는 showId와 함께 이름, 가명 ID, 연락처 한 행으로 합친다.
+   * 계좌·주소 등 추가 PII 는 여기 올리지 않는다(§5).
    */
   contact?: string;
   /**
-   * 가명 ID 를 정보 행에 표시한다(2026-08-06 Q — 당사자 정보 허브 한정. D59 ② 부분
-   * 재개정의 당사자 카드 정보 칸과 같은 표기: 연락처보다 옅은 그레이, 대조용 값).
+   * 가명 ID 를 이름과 연락처 사이에 표시한다(당사자 정보 허브 한정).
+   * D59 ② 부분 재개정의 당사자 카드와 같은 옅은 그레이 대조용 값이다.
    */
   showId?: boolean;
   /** 우상단 행동 버튼. 세컨더리 → 프라이머리 순서로 넘긴다(§4-5). */
@@ -70,13 +71,10 @@ export function ParticipantHeroCard({
   const classes = ['page-header', 'surface-card', 'participant-hero-card', className]
     .filter(Boolean)
     .join(' ');
-  // 정보 행 조각(2026-08-07 Q): 가명 ID → 연락처 → 메타 순. 없는 조각은 MetaRow 가 거른다.
-  // 이름 폴백이 이미 ID 인 경우(무응답·파기)는 같은 값을 두 번 적지 않는다.
+  // 당사자 정보 허브(showId)는 이름, 가명 ID, 연락처를 한 행으로 묶는다.
+  // 다른 당사자 화면은 연락처와 메타를 기존 정보 행에 둔다.
   const infoItems: (ReactNode | null)[] = [
-    showId && name !== null && name.length > 0
-      ? <span className="participant-hero-id">{beneficiaryId}</span>
-      : null,
-    contact !== undefined && contact.length > 0
+    !showId && contact !== undefined && contact.length > 0
       ? <span className="participant-hero-contact">{contact}</span>
       : null,
     meta ?? null,
@@ -87,6 +85,18 @@ export function ParticipantHeroCard({
       <div className="participant-hero-top">
         <h1 className="participant-hero-title">
           <ParticipantName name={name} beneficiaryId={beneficiaryId} size="hero" />
+          {showId && name !== null && name.length > 0 && (
+            <span className="participant-hero-inline-item">
+              <span aria-hidden="true" className="participant-hero-separator">-</span>
+              <span className="participant-hero-id">{beneficiaryId}</span>
+            </span>
+          )}
+          {showId && contact !== undefined && contact.length > 0 && (
+            <span className="participant-hero-inline-item">
+              <span aria-hidden="true" className="participant-hero-separator">-</span>
+              <span className="participant-hero-contact">{contact}</span>
+            </span>
+          )}
           {stageTag !== undefined && (
             <span
               className="wire-status-tag"

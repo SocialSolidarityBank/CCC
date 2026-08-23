@@ -174,7 +174,8 @@ export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: strin
           이미 구획을 말한다). 접근성 이름은 aria-label 이 잇는다. */}
       <fieldset className="consent-fieldset" aria-label="동의">
         <p className="schedule-form-hint">
-          동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
+          동의는 오프라인(종이·구두)으로 받고, 시스템에는{' '}
+          <span className="participant-consent-nowrap">체크·일시·기록자만</span> 남깁니다.
           체크를 풀면 철회로 기록되며, 이전 기록은 지워지지 않습니다.
         </p>
         {CONSENT_ITEMS.map((item) => (
@@ -259,21 +260,21 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
     <WireCard
       as="section"
       className="participant-hub-card"
-      // '전체 상담 기록' 입구는 이 카드 제목 줄 우측이다(2026-08-08 Q — HERO 는 D38 상한
-      // 2개가 찼다. 동의서 카드의 '저장'과 같은 자리 문법).
       title={
-        recordsTarget === undefined ? '최신 일정' : (
-          <div className="wire-card-head">
-            <span>최신 일정</span>
-            <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
+        <div className="wire-card-head">
+          <span>최신 일정</span>
+          <div className="participant-next-schedule-actions">
+            <WireButton href="/schedules/new">상담 등록</WireButton>
+            {recordsTarget !== undefined && (
+              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
+            )}
           </div>
-        )
+        </div>
       }
     >
       {candidates.length === 0 ? (
         <div className="participant-next-schedule-row">
           <p className="participant-program-meta">예정된 상담이 없습니다.</p>
-          <WireButton href="/schedules/new">상담 등록</WireButton>
         </div>
       ) : (
         // 행 전체가 브리핑으로 가는 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체).
@@ -337,7 +338,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
   const noticeText = notice === undefined ? undefined : NOTICES[notice];
 
   return (
-    <main className="page-content">
+    <main className="page-content participant-hub-page">
       <GridContainer>
         {/* 페이지 타이틀(2026-08-08 Q "모든 페이지 상단에 페이지 타이틀"). */}
         <div className="page-header"><PageTitle>당사자 정보</PageTitle></div>
