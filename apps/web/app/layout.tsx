@@ -699,21 +699,40 @@ const settingsStyles = `
 `;
 
 const scheduleStyles = `
-/* 통합 일정 화면(D75)의 날짜 묶음. 제목과 카드 그리드 사이 16 은 §4-3
-   (섹션 제목↔내용 16)이다(CCC-77). .record-section-title 은 다른 화면과 공유라
-   margin 을 주지 않고 구획 그리드 gap 으로 만든다. */
+/* 일정은 ISO 주차 → 날짜 → 카드 세 층이다. 주차는 월요일-일요일이고 현재 주차를
+   최상단에 둔다. 같은 주 안에서는 오늘 → 미래 → 지난 날짜 순이다. */
+.schedule-week{display:grid;gap:var(--space-5)}
+.schedule-week-title{display:flex;align-items:center;gap:var(--space-3);margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal);color:var(--ink)}
+.schedule-week-days{display:grid;gap:var(--section-gap)}
+/* 날짜 제목과 카드 그리드 사이 16 은 §4-3(섹션 제목↔내용 16)이다. */
 .schedule-section{display:grid;gap:var(--space-4)}
 /* 날짜 묶음 제목 옆 건수 — ④ 설명·메타 단(14/400 --sub). 제목 flex 의 gap 이 간격을 만든다. */
 .schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
-/* 범위 전환(다가오는 7일 | 월 전체, D75). 조작 버튼 계약(사각 6 · 높이 32 · 14)이고,
-   고른 쪽만 '지금 정한 것' 어휘(--gradient-action 면 + --on-action 글자, D58 ③)를 입는다.
-   달 이동(.month-nav-seg)과 같은 호버·눌림 리듬이다. */
-.schedule-range{display:flex;align-items:center;gap:var(--space-2)}
+/* 현재 ISO 주간과 월 선택은 상시 나란히 선다. 고른 쪽만 '지금 정한 것' 어휘를 입는다. */
+.schedule-period-controls{display:flex;align-items:stretch;flex-wrap:wrap;gap:var(--space-3)}
 .schedule-range-seg{display:inline-flex;align-items:center;line-height:normal;min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
 @media (hover:hover){.schedule-range-seg:not([data-selected="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 .schedule-range-seg:active{transform:translateY(1px)}
 .schedule-range-seg:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 .schedule-range-seg[data-selected="true"]{border-color:var(--line-on-action);background:var(--gradient-action);color:var(--on-action);font-weight:600}
+.schedule-week-control{gap:var(--space-2)}
+/* 일정 카드 전용 고정 2열. 일반 .card-grid 의 auto-fit 계약은 유지하고 이 화면만 승인된
+   빈 트랙을 남긴다. 767px 이하는 승인대로 한 열이다. */
+.card-grid.schedule-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.schedule-card-grid>.participant-card-link>.participant-card{height:100%}
+.schedule-card-grid .participant-card[data-muted="true"]{opacity:.56}
+/* 지난 날짜는 이름만 남는 중립 아코디언이다. 펼침은 조회일 뿐 선택이 아니므로
+   WireCardDetails 의 활성 그라데이션을 쓰지 않는다. */
+.schedule-past-day{opacity:.7}
+.schedule-past-summary-title{display:flex;align-items:baseline;gap:var(--space-3);min-width:0}
+.schedule-past-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+@media(max-width:767px){
+  .schedule-period-controls{display:grid;grid-template-columns:minmax(0,1fr)}
+  .schedule-week-control{justify-content:center;white-space:normal;text-align:center}
+  .card-grid.schedule-card-grid{grid-template-columns:minmax(0,1fr)}
+  .schedule-week-title{align-items:flex-start;flex-direction:column;gap:var(--space-2)}
+  .schedule-past-summary-title{align-items:flex-start;flex-direction:column;gap:var(--space-1)}
+}
 /* ticket-20: 상담 등록 */
 /* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
    당사자 카드의 굵기 계약(이름만 강조)을 위저드 행에도 잇는다.
@@ -808,14 +827,14 @@ const scheduleStyles = `
 // CCC-19: 전체 일정(한 달 창). 행 어휘는 상담 기록 화면(D47)의 접힌 줄을 그대로 빌린다 —
 // 같은 것을 두 화면에서 다르게 그리지 않기 위해서다. 새 색·새 반경은 없다.
 const monthScheduleStyles = `
-/* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 조각 — 사이드바=장소, 여기=창 이동이다.
-   통합 일정 화면(D75)의 월 범위에서만 선다. 시안은 ①(상자 하나)로 확정됐고(2026-08-23),
-   2026-08-06 의 ?nav=2 임시 스위치와 ② 반전 시안 CSS 는 걷었다.
-   형태는 D61(2026-08-07)로 직사각 radius 6 이다 — 구 알약 문구 대체. */
+/* 월 이동 줄. 현재 주간 옆에 상시 서며 가운데 달 이름을 누르면 월간 목록으로 간다.
+   형태는 D61(2026-08-07)로 직사각 radius 6 이다. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
 /* 달 라벨은 이 줄의 **값**이라 조작 버튼보다 한 발 선다(2026-08-06 Q "상대적으로 작아 보인다")
    — 크기 +1(15) · 600. 당사자 카드 이름과 같은 계단 광학 예외 형식이다(§2-1). */
-.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);white-space:nowrap}
+.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);text-decoration:none;white-space:nowrap}
+.month-nav-label[data-selected="true"]{background:var(--gradient-action);color:var(--on-action)}
+.month-nav-label:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
 /* ── 시안 ① 하나의 상자 ── 겉 테두리는 neutral 버튼·카드와 같은 --line(2026-08-07 Q 통일,
    구 --line-action), 조각 사이 세로선도 --line. 높이도 조작 버튼과 같은 32 다.
    모서리 밖 삐침은 clip 으로 자른다. */
