@@ -175,14 +175,10 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 목차 이동 시 대상 구획 머리가 스티키 헤더 아래로 숨지 않게 하는 전역 스크롤 여백. */
 .page-content [id]{scroll-margin-top:calc(var(--header-height) + var(--space-4))}
 .wire-col-12{grid-column:span 12}
-/* 레일 격자 — 레일 + 본문(+ 광폭 목차) 화면이 함께 쓰는 이름이다(2026-08-09). 인테이크와
-   상담 기록 작성이 **같은 레이아웃이어야 한다**는 것이 2026-08-08 Q 지시인데, 둘 다
-   인라인 style={{padding:0,gap:24}} 로 각자 들고 있어서 한쪽만 바뀔 수 있는 상태였다.
-   격자 기본 gap 은 목록 간격 20 이고, 이 레일 화면들만 페이지 스택 간격 24 를 쓴다
-   (여백 3단 ①, 레일과 본문은 같은 목록의 형제가 아니라 페이지의 두 구획이다).
-   **클래스 둘로 적는다**(2026-08-09 정정) — 한 클래스 .rail-grid(0-1-0)는 기본값
-   .wire-container[data-grid="true"](0-2-0)에 져서 계약이 적힌 뒤로도 실제 간격은 20 이었다
-   (실측: 컨테이너 1200 에서 300+660+200 = 1160, 남은 40 이 20 짜리 두 칸). */
+/* 레일 격자는 레일, 본문, 광폭 목차 화면이 함께 쓴다. 인테이크와 상담 기록 작성이
+   같은 레이아웃을 쓰도록 공용화했다. 기본 목록 gap은 20이고 레일과 본문은 서로 다른
+   페이지 구획이므로 spacing v2의 --section-gap 32를 쓴다. 선택자 우선순위를 맞추려고
+   .wire-container.rail-grid 두 클래스로 적는다. */
 .wire-container.rail-grid{row-gap:var(--section-gap);column-gap:var(--section-gap)}
 @media(max-width:767px){
   .wire-container[data-grid="true"]{grid-template-columns:1fr}
@@ -198,8 +194,8 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    준다 — 레일은 설계 폭(--rail-width)에서 더 줄지 않고, 좁아지는 몫은 본문이 받는다.
    숨김이 아니라 상단 이동인 이유: 이 레일들은 장식이 아니라 기능이다(상담 기록은 나가기·저장
    버튼, 인테이크는 4단계 이동). 숨기면 화면이 못 쓰게 된다.
-   880 의 근거는 실측이다 — 흔한 1280 창의 컨테이너가 905 라 두 열이 살아 있어야 하고(레일
-   300 + 간격 24 + 본문 581), 그 아래(뷰포트 1254 부터)부터 한 열로 접는다.
+   880의 근거는 실측이다. 흔한 1280 창의 컨테이너에서도 레일 300, 간격 32, 본문이 함께 서고
+   그보다 좁은 컨테이너에서는 한 열로 접는다.
    레일 폭은 화면이 --rail-width 로 정하고, 안 정하면 트랙 기본값 300 이 선다(기본값을 이
    규칙에 선언하지 않는 이유: 그러면 0-2-0 이 되어 화면의 한 클래스 선언이 조용히 지고,
    렌더는 멀쩡해 보이는데 폭만 틀린 상태가 된다 — 실제로 인테이크가 260 대신 300 으로 났다). */
@@ -212,19 +208,14 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
      display:none 이라 트랙을 차지하지 않는다). */
   .wire-container.rail-grid{grid-template-columns:var(--rail-width, 300px) minmax(0,1fr) 200px}
 }
-/* ── 카드-섹션 여백 3단 (2026-08-05 Q · ADR-0030) ── 카드가 전면 컴포넌트화되면서 간격도
-   세 값으로 닫는다. **이 밖의 카드 간격을 새로 만들지 않는다**:
-     ① 페이지 세로 스택(구획 카드·HERO·배너 사이) = 24 (--section-gap)
-     ② 같은 목록 안 카드 사이(그리드·스택)     = 20 (--space-5)
-     ③ 행 카드 스택(접힌 회차 줄·당사자 행)     = 12 (--space-3)
-   카드 안 패딩은 §3-4 그대로다(본문 24 · 머리/행 16/24 · 좁은 보조 패널 16/20).
-   전용 유틸 클래스는 두지 않는다 — 화면 목록 클래스(.card-grid·.record-list·.briefing-page 등)가
-   위 세 값만 쓰는지를 계약으로 삼는다(가드가 죽은 클래스를 막는다). */
-/* ── 카드 목록 ── 기본은 폭 전체를 쓰고, 칸이 늘어나면 --grid-min 을 기준으로 열이 갈린다
-   (D37 §4-2: 표준 420 → 1120 에서 2열 각 510 · 화면 1180 미만에서 1열). 화면마다
-   grid-template-columns 를 다시 쓰지 않고 **열 수도 직접 지정하지 않는다**(락 10).
-   auto-fill 이 아니라 **auto-fit** 이다 — auto-fill 은 빈 트랙을 남겨서 카드가 1개일 때도
-   화면 절반만 차지한다(2026-07-26 Q 지시: 기본은 폭 전체). */
+/* 카드-섹션 여백은 세 값이다:
+     ① 페이지 세로 스택 = 32 (--section-gap)
+     ② 같은 목록 안 카드 사이 = 20 (--space-5)
+     ③ 행 카드 스택 = 12 (--space-3)
+   카드 안 패딩은 24다. 화면 목록 클래스가 위 세 값만 쓰며 별도 유틸은 만들지 않는다. */
+/* 카드 목록은 기본 폭 전체를 쓰고 --grid-min이 열을 만든다. 표준 420은 spacing v2 최대
+   장폭에서 3열까지 열리고 컨테이너가 좁아지면 2열과 1열로 접힌다. 열 수는 직접 쓰지 않고
+   빈 트랙을 남기지 않는 auto-fit을 사용한다. */
 /* 나란한 카드는 높이를 맞춘다(2026-08-07 Q — 구 align-items:start 대체). 그리드 기본
    stretch 가 같은 줄 카드를 같은 높이로 편다. */
 .card-grid{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr))}
@@ -686,10 +677,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    2열 그리드에서 키 큰 이웃(목표 문장 textarea)이 행을 키우면 stretch 기본값이 남는 높이를
    행 사이에 나눠 줘, "조작 대상 바로 아래"여야 할 +/- 세트가 칸 바닥으로 떨어진다(CCC-75 실측). */
 .wizard-field{display:grid;gap:var(--space-2);align-content:start}
-/* 세션 목표 수정의 카드 스택(CCC-75). 목표 한 묶음 = 전폭 접이식 카드(WireCardDetails)라
-   .wizard-row 의 읽기 폭 720 을 쓰지 않는다 — 2열 본문(.wire-form-grid)이 폭을 반씩 나눠
-   글줄이 읽기 폭 안에 선다. 간격은 §3-4 ① 페이지 스택 24 다(.briefing-accordions 와 같은
-   계약. 카드 안 body 20 은 .wire-form-card 가 갖는다). */
+/* 세션 목표 수정의 카드 스택이다. 목표 한 묶음은 전폭 접이식 카드라 .wizard-row의 읽기
+   폭을 쓰지 않는다. 2열 본문이 폭을 나누고 간격은 spacing v2 페이지 스택 32를 쓴다.
+   카드 안 body 20은 .wire-form-card가 갖는다. */
 .session-plan-stack{display:grid;gap:var(--section-gap)}
 /* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
 .wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}

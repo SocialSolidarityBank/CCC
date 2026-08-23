@@ -42,9 +42,9 @@ button,input,select,textarea{font:inherit}
    **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. 메뉴가 넘치면
    아래 .navigation-list 만 안에서 스크롤한다.
    768 미만 드로어 블록이 position:fixed 로 덮으므로 여기 값은 데스크톱에만 산다.
-   헤더가 1행을 차지하므로 sticky 기준은 헤더 아래(top 56)이고, 위 패딩 20 은 첫 메뉴 항목의
-   윗변을 본문 열 '뒤로' 알약의 윗변(56+20=76)과 같은 높이에 세운다. */
-.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-5) var(--space-6) var(--space-6);background:var(--canvas);color:var(--ink);position:sticky;top:var(--header-height);height:calc(100dvh - var(--header-height));overflow:visible}
+   헤더가 1행을 차지하므로 sticky 기준은 var(--header-height) 아래다. 위 패딩 32는
+   첫 메뉴 항목과 본문 열 '뒤로' 알약의 윗변을 같은 높이에 세운다. */
+.sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-8) var(--space-6) var(--space-6);background:var(--canvas);color:var(--ink);position:sticky;top:var(--header-height);height:calc(100dvh - var(--header-height));overflow:visible}
 .sidebar::after{content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:var(--gradient-frame-v)}
 /* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
 .sidebar>.navigation-list{overflow-y:auto;min-height:0}
@@ -122,8 +122,7 @@ button,input,select,textarea{font:inherit}
 .navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
 /* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
    전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
-/* 높이는 '뒤로' 알약과 같은 32 다(2026-08-06 Q — 구 40. 첫 메뉴 윗변 = 뒤로 윗변(76)
-   계약과 짝: 높이까지 같아야 두 크롬이 한 리듬으로 읽힌다). */
+/* 높이는 '뒤로' 알약과 같은 32다. 첫 메뉴와 뒤로 버튼은 헤더 아래 32에서 함께 시작한다. */
 .navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
@@ -193,7 +192,7 @@ button,input,select,textarea{font:inherit}
    가른다(같은 날 Q — ① 면 배경안 폐지 "라인으로만" ② 라인 색은 3색 그라데이션).
    sticky 라 스크롤해도 남는다. 768 미만에는 없다 — 손잡이 바 + 드로어가 담는다(§4-4). */
 /* gap 32 는 기관명↔사업명 간격을 2배로 벌린 값이다(2026-08-05 Q — 구 16). */
-.app-header{grid-column:1/-1;position:sticky;top:0;z-index:var(--z-sticky);display:flex;align-items:center;gap:var(--space-8);height:var(--header-height);padding:0 var(--space-6);background:var(--canvas)}
+.app-header{grid-column:1/-1;position:sticky;top:0;z-index:var(--z-sticky);display:flex;align-items:center;gap:var(--space-10);height:var(--header-height);padding:0 var(--space-8);background:var(--canvas)}
 .app-header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--gradient-frame)}
 /* optical: -7 은 기관 마크(32px 상자) 중심을 아래 메뉴 아이콘 중심(x=33: 패딩 24 + 알약 테두리 1
    + 아이콘 반폭 8)에 맞추는 값이다(2026-08-05 Q "메뉴 아이콘이랑 조직 로고랑 가운데 정렬") —
@@ -250,9 +249,8 @@ button,input,select,textarea{font:inherit}
    grid + gap 으로 섹션 간격도 여기서 한 번에 정한다 — 화면마다 margin 을 따로 주지 않는다. */
 .page-content{
   width:100%;
-  /* D37 §4-1: 1120 은 **패딩을 포함한** 컨테이너 폭이다(box-sizing:border-box). 이전에는
-     calc(--page-max + 패딩*2) 라 실제 총폭이 1200 이었고 글 폭이 1120 으로 나왔다 —
-     계약이 정한 글 폭은 1040(한 줄 약 65자)이다. */
+  /* spacing v2에서 컨테이너 최대 폭은 패딩을 포함한 1440이다.
+     긴 설명은 페이지 폭이 아니라 해당 부품의 72ch 읽기 폭이 제한한다. */
   max-width:var(--page-max);
   margin-inline:auto;
   padding:var(--page-pad-y) var(--page-pad-x);
@@ -263,8 +261,7 @@ button,input,select,textarea{font:inherit}
      화면 폭으로 풀면 사이드바가 있고 없고에 따라 같은 폭에서 다른 결과가 나온다. */
   container-type:inline-size;
 }
-/* (.narrow 960 은 2026-08-05 폐지 — Q "특별한 이유가 없으면 장폭은 가장 넓은 페이지에 맞춰
-   고정". 장폭은 --page-max 1120 하나다. 폼의 읽기 폭은 페이지가 아니라 폼 자신이 좁힌다.) */
+/* .narrow 960은 폐지 상태다. 화면은 --page-max 하나를 쓰고 폼과 긴 글이 읽기 폭을 좁힌다. */
 /* ── 뒤로가기 줄(2026-07-31) ── 본문 열을 감싸는 div 와 그 안 첫 줄.
    min-width:0 이 필요하다 — 그리드 아이템의 기본 min-width:auto 때문에 내용이 넓으면
    본문 열이 트랙을 넘어 사이드바를 밀어낸다(표·코드 블록에서 실제로 난다). */
@@ -275,9 +272,9 @@ button,input,select,textarea{font:inherit}
    왼쪽 끝 = 페이지 제목·툴바·카드의 왼쪽 끝이다.
    뒤로가 안 그려지는 화면(히스토리 없음)은 이 줄이 0 높이다. */
 .page-backbar{padding:0}
-.page-backbar:has(.page-back){width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--space-5) var(--page-pad-x) 0}
-/* 뒤로 알약이 있으면 본문 위 여백은 40 대신 24 — 알약 줄이 이미 20 을 벌렸다. */
-.page-backbar:has(.page-back)+.page-content{padding-top:var(--space-6)}
+.page-backbar:has(.page-back){width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--space-8) var(--page-pad-x) 0}
+/* 뒤로 알약 아래는 별도 탐색 구획이다. 본문 제목이 버튼에 붙어 보이지 않도록 40 을 둔다. */
+.page-backbar:has(.page-back)+.page-content{padding-top:var(--space-10)}
 /* 뒤로가기도 버튼이다(2026-08-04 Q, 구 투명 텍스트 대체. 형태는 2026-08-07 직사각 radius 6,
    구 알약 대체). 옷은 **일반(neutral)**
    그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
@@ -362,8 +359,8 @@ textarea{min-height:216px;resize:vertical}
      패널도 같은 쪽에서 나와야 손과 눈이 이어진다. 구 왼쪽 대체). */
   .sidebar{
     position:fixed;top:0;bottom:0;right:0;left:auto;
-    /* height 해제가 필수다 — 데스크톱 규칙의 calc(100dvh - 56px)가 남으면 top·bottom 을
-       둘 다 박아도 height 가 이겨 드로어가 화면 아래 56px 을 못 덮는다(844 실측 788). */
+  /* height 해제가 필수다. 데스크톱의 calc(100dvh - var(--header-height))가 남으면
+     top과 bottom을 함께 정해도 height가 이겨 드로어가 화면 아래를 못 덮는다. */
     height:auto;
     width:280px;max-width:82vw;
     /* 위 패딩 0: 머리 줄이 스스로 높이 56 을 갖는다(아래 .sidebar-head — 바와 같은 높이).
@@ -410,7 +407,8 @@ textarea{min-height:216px;resize:vertical}
   /* 뒤로 알약의 좌측선 = 컨테이너 패딩 16 (2026-08-05 Q 2차 "메뉴 - 뒤로 - 상담 일정 좌측
      정렬"). 데스크톱의 24 는 사이드바 안쪽선 정렬인데 모바일엔 사이드바가 없다 — 바 내용·
      본문 제목과 같은 16 에 세운다. */
-  .page-backbar:has(.page-back){padding:var(--space-5) var(--space-4) 0}
+  .page-backbar:has(.page-back){padding:var(--space-6) var(--space-4) 0}
+  .page-backbar:has(.page-back)+.page-content{padding-top:var(--space-8)}
   .form{grid-template-columns:1fr}
 }`;
 const participantStyles = `
@@ -461,8 +459,8 @@ const briefingStyles = `
 .risk-banner-list li{display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600}
 .risk-banner-item-head{display:flex;align-items:center;gap:var(--space-2)}
 .risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:400;font-size:var(--text-sm)}
-/* 표준 카드 그리드(D37 §4-2) — **열 수를 쓰지 않는다**(락 10). 최소 폭 420 이 열을 만든다:
-   1120 에서 2열(각 510)이고 컨테이너가 좁아지면 스스로 1열이 된다. */
+/* 표준 카드 그리드(D37 §4-2)는 열 수를 쓰지 않는다. 최소 폭 420이 열을 만들며,
+   spacing v2 최대 장폭에서는 3열까지 열리고 컨테이너가 좁아지면 2열과 1열로 접힌다. */
 /* 아코디언이 나란할 때: **펼친 카드끼리는 높이를 맞추고, 접힌 카드는 요약 줄만 남긴다**(§4-2).
    높이는 내용이 정한다 — JS 로 재서 박지 않는다.
 
@@ -487,9 +485,8 @@ const briefingStyles = `
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
    계열 3색은 목표를 서로 구분하는 회전일 뿐이고 점수 숫자는 항상 --ink 다. */
-/* GAS 전폭 섹션(CLAUDE.md 6장 · 2026-07-27 Q 결정 — 이 파일의 CSS 는 템플릿 리터럴이라 주석에 백틱을 쓰지 않는다). 섹션 제목은 카드 밖 h2 18/600 이고 그 아래 16 이다
-   — §4-3 세로 리듬(40/24/16/20)에서 '섹션 제목↔내용'에 해당한다. 섹션 사이 24 는 페이지
-   그리드의 gap 이 이미 준다(§4-6 규칙 3: 화면에서 margin 으로 띄우지 않는다). */
+/* GAS 전폭 섹션의 제목은 카드 밖 h2 18/600이고 그 아래 16이다.
+   섹션 사이 32는 페이지 그리드의 gap이 주며 화면이 margin으로 별도 여백을 만들지 않는다. */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
 /* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화 — 구 .briefing-hero
@@ -674,7 +671,7 @@ const settingsStyles = `
    .sidebar{position:relative} 가 뒤 문자열에 있어 드로어의 position:fixed 를 덮었고,
    그래서 768 미만에서 드로어가 화면 높이를 못 채우고 내용 높이(531px)로 떠 있었다.
    (주석에 백틱을 쓰지 않는 이유는 이 CSS 가 템플릿 리터럴이기 때문이다 — 쓰면 앱 전체가 500 이다.) */
-/* 페이지 스택 간격은 여백 3단 ①(24, ADR-0030)을 따른다 — 구 32 를 24 로 모았다. */
+/* 페이지 스택 간격은 spacing v2의 --section-gap 32를 따른다. */
 .settings-page{display:grid;gap:var(--section-gap)}
 /* 설정 구획은 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체). 카드 모양·제목
    구분선은 WireCard 가 갖고, .settings-section 은 훅으로만 남는다. */
@@ -801,7 +798,7 @@ const scheduleStyles = `
    (2026-08-09 Q). 부모 격자의 gap 12 와 합쳐 렌더 여백이 20 으로 맞는다 — 실측으로 확인한
    '마지막 기록' 위 여백도 20 이다. 묶음의 첫 줄일 때는 위 여백을 걷는다: 그 자리는 카드
    구분선 아래 24(카드 계약)라 8 을 더하면 32 로 튄다. */
-.schedule-form-hint{margin:var(--space-2) 0;color:var(--sub);font-size:var(--text-sm)}
+.schedule-form-hint{margin:var(--space-2) 0;max-width:72ch;color:var(--sub);font-size:var(--text-sm);text-wrap:pretty}
 .schedule-form-hint:first-child{margin-top:0}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */
 .schedule-form-notice{color:var(--ink);font-weight:600}
@@ -1106,7 +1103,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const labels = await getDisplayLabels();
   // CCC-26 새 가입 미확인 숫자. 조회 실패(아직 셸 밖 접근 등)면 0 — 배지가 안 그려질 뿐 화면은 성립한다.
   const newSignupCount = await getNewSignupCount().catch(() => 0);
-  // 본문 열을 div 로 한 번 감싼다 — 뒤로가기 줄이 본문과 **같은 컨테이너**(폭 1120·좌우 40)를
+  // 본문 열을 div로 한 번 감싼다. 뒤로가기 줄이 본문과 같은 1440 컨테이너와 좌우 32 패딩을
   // 써야 제목과 왼쪽 끝이 맞기 때문이다. 감싸지 않고 셸의 형제로 두면 그리드 다음 행,
   // 즉 사이드바 아래로 떨어진다.
   return (
