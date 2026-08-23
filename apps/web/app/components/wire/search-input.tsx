@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Chevron } from './chevron';
 import { DATE_TEXT_HINT, DateTextInput } from './date-text-input';
 
@@ -29,9 +29,11 @@ export interface SearchInputProps {
    * 값을 주지 않아 드러나지 않는다. 값을 부모가 쥐어야 하면 `DateTextInput` 을 직접 쓰면
    * 된다 — 그쪽에는 D48 에서 제어형 경로(`value`)가 생겼다.
    */
-  type?: 'text' | 'date';
+  type?: 'text' | 'date' | 'email';
   /** 입력칸 아래 도움말. 'date' 는 주지 않아도 KRDS 문구가 기본으로 붙는다. */
   hint?: ReactNode;
+  /** 해당 칸에서 고쳐야 할 오류. 도움말과 분리해 스크린 리더에 즉시 알린다. */
+  error?: ReactNode;
   required?: boolean;
   name?: string;
   id?: string;
@@ -49,6 +51,7 @@ export function SearchInput({
   variant = 'text',
   type = 'text',
   hint,
+  error,
   required = false,
   name,
   id,
@@ -58,21 +61,34 @@ export function SearchInput({
   options = [],
   className,
 }: SearchInputProps) {
-  const fieldId = id ?? name;
+  const generatedId = useId();
+  const fieldId = id ?? name ?? generatedId;
   const classes = ['wire-search', className].filter(Boolean).join(' ');
   const resolvedHint = hint ?? (type === 'date' ? DATE_TEXT_HINT : undefined);
   // 도움말을 컨트롤에 이어야 스크린 리더가 형식 안내를 함께 읽는다(KRDS · WCAG 2.1 A).
   // 그러려면 도움말에 id 가 필요하고, id 는 필드 id 에서 파생한다.
-  const hintId = resolvedHint === undefined || fieldId === undefined ? undefined : `${fieldId}-hint`;
+  const hintId = resolvedHint === undefined ? undefined : `${fieldId}-hint`;
+  const errorId = error === undefined ? undefined : `${fieldId}-error`;
+  const describedBy = [errorId, hintId]
+    .filter((item): item is string => item !== undefined)
+    .join(' ') || undefined;
 
   return (
-    <label className={classes} htmlFor={fieldId}>
-      <span className="wire-search-label">{label}</span>
-      <span className="wire-search-box">
+    <div className={classes}>
+      <label className="wire-search-label" htmlFor={fieldId}>{label}</label>
+      <span className="wire-search-box" data-invalid={error === undefined ? undefined : 'true'}>
         {variant === 'select' ? (
           <>
             {onChange ? (
-              <select id={fieldId} name={name} value={value} onChange={(event) => onChange(event.target.value)}>
+              <select
+                id={fieldId}
+                name={name}
+                value={value}
+                required={required}
+                aria-invalid={error === undefined ? undefined : true}
+                aria-describedby={describedBy}
+                onChange={(event) => onChange(event.target.value)}
+              >
                 {options.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -80,7 +96,14 @@ export function SearchInput({
                 ))}
               </select>
             ) : (
-              <select id={fieldId} name={name} defaultValue={value}>
+              <select
+                id={fieldId}
+                name={name}
+                defaultValue={value}
+                required={required}
+                aria-invalid={error === undefined ? undefined : true}
+                aria-describedby={describedBy}
+              >
                 {options.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -98,7 +121,8 @@ export function SearchInput({
             name={name}
             defaultValue={value}
             required={required}
-            describedBy={hintId}
+            invalid={error !== undefined}
+            describedBy={describedBy}
             autoComplete="bday"
             onValueChange={onChange}
           />
@@ -110,6 +134,8 @@ export function SearchInput({
             placeholder={placeholder}
             value={value}
             required={required}
+            aria-invalid={error === undefined ? undefined : true}
+            aria-describedby={describedBy}
             readOnly={value !== undefined && onChange === undefined}
             onChange={onChange ? (event) => onChange(event.target.value) : undefined}
           />
@@ -120,6 +146,11 @@ export function SearchInput({
           {resolvedHint}
         </span>
       )}
-    </label>
+      {error === undefined ? null : (
+        <span className="wire-field-error" id={errorId} role="alert">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }

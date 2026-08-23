@@ -62,10 +62,28 @@ export function RegisterForm({
   // 클릭으로 원인 없는 실패에 닿는다.
   const [privacy, setPrivacy] = useState(false);
   const [emergency, setEmergency] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState<string>();
   return (
     /* Y6: 등록 화면만 폼이 배경 위에 놓여 다른 화면의 카드 언어와 달랐다. 카드 안으로 넣는다. */
     <WireCard className="register-card">
-      <form className="wire-register-form" action={action}>
+      <form
+        className="wire-register-form"
+        action={action}
+        noValidate
+        onSubmit={(event) => {
+          const emailInput = event.currentTarget.elements.namedItem('email');
+          if (
+            emailInput instanceof HTMLInputElement
+            && emailInput.value.length > 0
+            && !emailInput.validity.valid
+          ) {
+            event.preventDefault();
+            setEmailError('이메일 형식으로 입력해 주세요. 예: participant@example.com');
+            emailInput.focus();
+          }
+        }}
+      >
         {/* 참여 사업은 고를 값이 아니다(2026-07-30 Q) — 초대 시점에 정해지고, 서버도 폼이 보낸
             값을 읽지 않는다(actions.ts 가 financial_support_v1 하드코딩). 그래서 select 를 없애고
             지금 등록하는 사업 하나만 고정 표시한다. 참여 사업이 여럿이어도 이 화면은 이번 것만 말한다.
@@ -87,7 +105,14 @@ export function RegisterForm({
             <SearchInput
               label="이메일"
               name="email"
+              type="email"
               placeholder="participant@example.com"
+              value={email}
+              error={emailError}
+              onChange={(nextEmail) => {
+                setEmail(nextEmail);
+                if (emailError !== undefined) setEmailError(undefined);
+              }}
             />
           </div>
           <div className="wire-col-6">

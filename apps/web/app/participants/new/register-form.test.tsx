@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, fireEvent, within, cleanup } from '@testing-library/react';
 import { RegisterForm } from './register-form';
 
@@ -134,6 +134,30 @@ describe('RegisterForm (#37 당사자 등록 폼)', () => {
     expect(data.get('email')).toBe('participant@example.test');
     // 체크된 동의만 폼에 실린다(미체크 = 키 부재 = 미동의, D15). 서버 액션이 명시 boolean 으로 정규화한다.
     expect(data.get('consentRecordingAi')).toBe('on');
+  });
+
+  it('shows an invalid email beside the field and preserves the other entered values', () => {
+    const action = vi.fn();
+    const { container } = render(<RegisterForm currentUser={currentUser} action={action} />);
+    const form = container.querySelector('form') as HTMLFormElement;
+    const name = container.querySelector('input[name="name"]') as HTMLInputElement;
+    const email = container.querySelector('input[name="email"]') as HTMLInputElement;
+    const phone = container.querySelector('input[name="phone"]') as HTMLInputElement;
+
+    fireEvent.change(name, { target: { value: '김당사자' } });
+    fireEvent.change(email, { target: { value: 'not-an-email' } });
+    fireEvent.change(phone, { target: { value: '010-1234-5678' } });
+    fireEvent.submit(form);
+
+    const error = within(email.closest('.wire-search') as HTMLElement).getByRole('alert');
+    expect(error.textContent).toContain('이메일 형식');
+    expect(email.getAttribute('aria-invalid')).toBe('true');
+    expect(within(email.closest('.wire-search') as HTMLElement).getByRole('textbox', { name: '이메일' })).toBe(email);
+    expect(document.activeElement).toBe(email);
+    expect(name.value).toBe('김당사자');
+    expect(email.value).toBe('not-an-email');
+    expect(phone.value).toBe('010-1234-5678');
+    expect(action).not.toHaveBeenCalled();
   });
 
   it('renders a collapsed "자세히 읽어보기" accordion with the consent detail copy (D15·D23)', () => {
