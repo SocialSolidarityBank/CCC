@@ -35,19 +35,27 @@ def record(page, name: str, note: str = "") -> dict[str, object]:
     )
     buttons = page.eval_on_selector_all(
         "button, input[type=submit]",
-        "els => els.map(e => ({t: (e.innerText||e.value||'').trim().slice(0,40), d: e.disabled}))",
+        "els => els.map(e => ({t: (e.innerText||e.value||'').trim().slice(0,40), d: e.disabled, type: e.type}))",
     )
-    enabled_actions = [button for button in buttons if not button["d"]]
+    enabled_actions = [
+        button for button in buttons
+        if not button["d"] and button["t"] and button["type"] == "submit"
+    ]
     body_text = page.inner_text("body")
     # 공개 가입 표면에는 직원 앱으로 돌아가는 링크를 일부러 두지 않는다. 대신 가입 전에는
     # 활성 제출 버튼이 출구이고, 가입 완료·자기 확인은 그 자체가 의도된 종점이다.
-    terminal = any(marker in body_text for marker in ("가입이 완료되었습니다", "당사자 자기 확인"))
+    terminal_markers = {
+        "05-join-submitted": "가입이 완료되었습니다",
+        "06-self-check": "당사자 자기 확인",
+    }
+    terminal_marker = terminal_markers.get(name)
+    terminal = terminal_marker is not None and terminal_marker in body_text
     shell = {"/participants", "/settings", "/programs/financial_support_v1/schedule"}
     own = [l for l in links
            if l["h"] and l["h"] not in shell
            and "/schedule/all" not in l["h"]]
-    # D35 기준: 사이드바(셸)가 곧 복귀 경로다. 앱 화면은 전부 셸 링크를 갖고, 공개 화면도
-    # 나가는 링크가 있다. 진짜 막다른 화면 = 페이지에 앵커가 하나도 없는 경우뿐이다.
+    # D35 기준: 앱 화면은 셸 링크가 복귀 경로다. 공개 가입 화면은 이름 있는 submit
+    # 버튼이나 명시적 완료 종점으로 막다름 여부를 판별한다.
     entry = {
         "step": name,
         "url": page.url,
@@ -55,7 +63,7 @@ def record(page, name: str, note: str = "") -> dict[str, object]:
         "links_total": len(links),
         "links_own": own[:14],
         "buttons": [b for b in buttons][:14],
-        "enabled_actions": len(enabled_actions),
+        "enabled_actions": enabled_actions,
         "terminal": terminal,
         "own_exits": len(own),
         "dead_end": len(links) == 0 and len(enabled_actions) == 0 and not terminal,
