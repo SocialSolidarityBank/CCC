@@ -4,6 +4,7 @@ import { WireBadge } from '../../components/wire/wire-badge';
 import { WireCard } from '../../components/wire/wire-card';
 import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { MetaRow } from '../../components/wire/meta-row';
+import { WireTimeline, WireTimelineItem } from '../../components/wire/wire-timeline';
 import { formatKoreanDate, formatKoreanDateTime } from '../../lib/format-korean-date';
 
 // 목표 트리 (D62 §8 · CCC-69) — 당사자 허브의 케이스별 구획. 위계는 전체 > 세부 > 세션이고
@@ -34,9 +35,9 @@ function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
   return (
     <details className="goal-tree-history">
       <summary>이력 보기</summary>
-      <ul className="goal-tree-history-rows">
+      <WireTimeline>
         {revisions.map((revision, index) => (
-          <li key={`${revision.editedAt}-${index}`} className="goal-tree-history-row">
+          <WireTimelineItem key={`${revision.editedAt}-${index}`} className="goal-tree-history-row">
             {/* title null = 전체 목표를 지움(스키마 주석). 세부 목표에는 빈 문구가 없다. */}
             <p className="goal-tree-history-title">{revision.title ?? '(비워 둠)'}</p>
             <p className="goal-tree-history-meta">
@@ -46,9 +47,9 @@ function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
                 formatKoreanDateTime(revision.editedAt),
               ]} />
             </p>
-          </li>
+          </WireTimelineItem>
         ))}
-      </ul>
+      </WireTimeline>
     </details>
   );
 }

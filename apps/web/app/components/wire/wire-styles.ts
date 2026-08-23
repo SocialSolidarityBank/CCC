@@ -402,9 +402,13 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 .goal-tree-history{display:contents}
 .goal-tree-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub);line-height:normal}
 .goal-tree-history::details-content{flex-basis:100%;min-width:0}
-.goal-tree-history>.goal-tree-history-rows{flex-basis:100%;min-width:0}
+.wire-timeline{list-style:none;margin:var(--space-1) 0 0;padding:0;display:grid;gap:var(--space-3)}
+.wire-timeline-item{position:relative;display:grid;gap:var(--space-1);padding-left:var(--space-5)}
+.wire-timeline-item::before{content:"";position:absolute;left:0;top:5px;width:7px;height:7px;background:var(--ink)}
+.wire-timeline-item::after{content:"";position:absolute;left:3px;top:18px;bottom:-14px;width:1px;background:var(--line)}
+.wire-timeline-item:last-child::after{display:none}
 /* 펼치면 확정 문구(16)와 메타 줄(최초 작성/수정 · 수정자 · 시각)이 최신부터 쌓인다. */
-.goal-tree-history-rows{display:grid;gap:var(--space-3);margin:var(--space-1) 0 0;padding-left:var(--space-4);border-left:1px solid var(--line);list-style:none}
+.goal-tree-history{display:contents}
 .goal-tree-history-row{display:grid;gap:var(--space-1)}
 .goal-tree-history-title{margin:0;font-size:var(--text-md);color:var(--ink)}
 .goal-tree-history-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
