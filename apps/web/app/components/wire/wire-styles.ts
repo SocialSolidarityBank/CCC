@@ -236,9 +236,8 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
    **3열 아니면 1열이다** — 2열이면 3개짜리 묶음(D33 세부 목표)이 둘 + 외톨이 하나로 앉는다. */
 .card-grid-dense{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min-dense)),1fr));align-items:start}
 @container (max-width:879px){.card-grid-dense{grid-template-columns:minmax(0,1fr)}}
-/* 목록 위 조작 줄(정렬·필터 등). 왼쪽이 주 조작, 오른쪽이 보조다. 아래 여백은 주지 않는다 —
-   섹션 간격은 페이지 셸(--section-gap)이 갖는다. */
-.list-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);flex-wrap:wrap}
+/* (.list-toolbar 는 2026-08-23 D75 로 삭제 — 마지막 사용처였던 일정 화면 시간순 정렬
+   토글이 통합에서 빠졌다. 날짜 묶음 제목이 순서를 이미 말한다.) */
 /* 인라인 강조 링크. AppHeader(D35 로 폐기) 시절 클래스지만 관리자 사용자 상세가 계속 쓴다. */
 .wire-header-link{font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-header-link:hover{text-decoration:underline}

@@ -40,14 +40,12 @@ interface NavItem {
 /**
  * 사업 범위 안의 메뉴. '오늘 상담'을 따로 두지 않는 것은 의도다 — 오늘+다가오는이 한 화면에
  * 있어야 "오늘 걸 보려면 어느 메뉴지"를 판단하지 않는다 (ADR-0014 §2).
+ * '다가오는 일정'과 '전체 일정' 두 메뉴는 D75(ADR-0039)로 `일정` 하나가 됐다 — 두 창의
+ * 경계는 메뉴가 아니라 화면 안 범위 전환(다가오는 7일 | 월 전체)이 말한다.
  */
 function programMenu(programType: ParticipantProgramType): NavItem[] {
   return [
-    { label: '다가오는 일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
-    // '전체 일정'은 CCC-19 가 만든다. 여기서는 메뉴 자리만 잡는다.
-    // '준비 중' 배지는 CCC-19 로 화면이 생기면서 뗐다 — 화면이 있는 메뉴에 남겨 두면
-    // 안 만들어진 것으로 읽힌다.
-    { label: '전체 일정', href: `/programs/${programType}/schedule/all`, icon: 'calendar' },
+    { label: '일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
     { label: '당사자', href: '/participants', icon: 'participants' },
   ];
 }
