@@ -6260,3 +6260,32 @@ BEGIN
     )
   );
 END;
+
+-- 0044: 배정 상태 머신 (요청/활성/종료) — D74 · CCC-123
+-- ============================================================================
+
+ALTER TABLE support_case_assignees ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
+  CHECK (status IN ('requested', 'active', 'ended'));
+
+ALTER TABLE support_case_assignees ADD COLUMN acceptance_requested_by TEXT;
+ALTER TABLE support_case_assignees ADD COLUMN accepted_at TEXT;
+ALTER TABLE support_case_assignees ADD COLUMN transfer_reason TEXT;
+ALTER TABLE support_case_assignees ADD COLUMN notified_by TEXT;
+ALTER TABLE support_case_assignees ADD COLUMN notified_at TEXT;
+
+DROP INDEX IF EXISTS uq_support_case_assignees_active;
+CREATE UNIQUE INDEX uq_support_case_assignees_active
+  ON support_case_assignees (support_case_id, user_id)
+  WHERE unassigned_at IS NULL AND status IN ('requested', 'active');
+
+CREATE INDEX idx_support_case_assignees_status
+  ON support_case_assignees (org_id, status, unassigned_at);
+
+-- 주담당 하나 제약을 인덱스에서 트랜잭션으로 옮긴다. 정책 §2.3은 '수락 시점에 이전 담당
+-- 권한 종료'라 요청 단계에서는 활성 주담당과 공존해야 하는데, 기존 unique(role=primary,
+-- unassigned_at IS NULL)가 이를 막는다. '활성 주담당 ≤ 1'은 accept·force 이관 게이트웨이가
+-- 원자 배치 안에서 유지한다(테스트로 고정).
+DROP INDEX IF EXISTS uq_support_case_assignees_primary;
+
+-- 퇴사·휴직 체크리스트(CCC-123): 발급자 비활성화 시 미사용 초대 토큰을 폐기한다.
+ALTER TABLE invite_tokens ADD COLUMN revoked_at TEXT;
