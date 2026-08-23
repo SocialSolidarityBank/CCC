@@ -9,7 +9,7 @@ import {
   reRegisterParticipantPii,
   updateParticipantPii,
 } from '../../../db/gateway';
-import { setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const counselor = testActors.counselor;
 const t = setupD1();
@@ -1491,6 +1491,7 @@ describe('schema triggers', () => {
        SET status = 'closed', closed_at = ?, closed_reason = ?, closed_by_actor_id = ?
        WHERE id = ?`,
     ).bind('2020-01-01 00:00:00', 'program complete', counselor.userId, participant.supportCaseId).run();
+    await grantTestPractitionerRole(t.db, admin);
     const unassignedSource = await createSupportCase(t.env, admin, participant.beneficiaryId, {
       consentPrivacy: true,
       schemaVersion: 1,

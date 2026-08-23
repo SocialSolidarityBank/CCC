@@ -4,8 +4,12 @@ import {
   assertSupportCaseAccess,
   createActionItem,
   createBeneficiaryWithInitialSupportCase,
+  createCounselingSchedule,
   getParticipantBasicInfo,
   getParticipantBriefing,
+  getTodaySchedules,
+  listAssignedParticipants,
+  updateScheduleSessionGoals,
   updateParticipantPii,
 } from '../../../db/gateway';
 import { setupD1, testActors } from './support/d1';
@@ -64,7 +68,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     expect(row).toEqual({ count: 0 });
   });
 
-  it('rejects an unassigned institution administrator despite organization membership', async () => {
+  it('allows an institution administrator to read an unassigned case', async () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
@@ -72,7 +76,123 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     });
 
     await expect(assertSupportCaseAccess(t.env, admin, created.supportCaseId))
+      .resolves.toMatchObject({ id: created.supportCaseId });
+
+    const row = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'deny_access' AND actor_id = ?",
+    ).bind(admin.userId).first<{ count: number }>();
+    expect(row).toEqual({ count: 0 });
+  });
+
+  it('does not let an administrator without a practitioner role mutate case content even when assigned', async () => {
+    await t.reset();
+
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+      programType: 'financial_support_v1',
+    });
+    await createCounselingSchedule(t.env, counselor, {
+      beneficiaryId: created.beneficiaryId,
+      supportCaseId: created.supportCaseId,
+      scheduledAt: '2099-01-01T09:00:00.000Z',
+      sessionKind: 'regular',
+      channel: 'in_person',
+    });
+    await t.db.batch([
+      t.db.prepare(
+        `INSERT INTO user_role_assignments (
+           id, org_id, user_id, role, source, granted_by
+         ) VALUES (?, ?, ?, 'practitioner', 'manual', ?)`,
+      ).bind(
+        'admin-practitioner-for-write-boundary',
+        admin.orgId,
+        admin.userId,
+        admin.userId,
+      ),
+      t.db.prepare(
+        `INSERT INTO support_case_assignees (
+           id, org_id, support_case_id, user_id, role, assigned_at
+         ) VALUES (?, ?, ?, ?, 'secondary', datetime('now'))`,
+      ).bind(
+        'assigned-admin-without-practitioner',
+        admin.orgId,
+        created.supportCaseId,
+        admin.userId,
+      ),
+    ]);
+    await t.db.prepare(
+      `UPDATE user_role_assignments SET revoked_at = datetime('now')
+       WHERE id = ? AND revoked_at IS NULL`,
+    ).bind('admin-practitioner-for-write-boundary').run();
+
+    await expect(createActionItem(
+      t.env,
+      admin,
+      created.supportCaseId,
+      { description: 'must remain unavailable', owner: 'counselor' },
+    )).rejects.toBeInstanceOf(ForbiddenError);
+
+    const denial = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'deny_access' AND actor_id = ?",
+    ).bind(admin.userId).first<{ count: number }>();
+    expect(denial).toEqual({ count: 1 });
+  });
+
+  it('rejects assigning a case to a user without an active practitioner role at the database boundary', async () => {
+    await t.reset();
+
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+      programType: 'financial_support_v1',
+    });
+
+    await expect(t.db.prepare(
+      `INSERT INTO support_case_assignees (
+         id, org_id, support_case_id, user_id, role, assigned_at
+       ) VALUES (?, ?, ?, ?, 'secondary', datetime('now'))`,
+    ).bind(
+      'invalid-admin-assignment',
+      admin.orgId,
+      created.supportCaseId,
+      admin.userId,
+    ).run()).rejects.toThrow(/participant_schema_violation/);
+  });
+
+  it('denies counseling reads after the institution administrator role is revoked', async () => {
+    await t.reset();
+
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+      programType: 'financial_support_v1',
+    });
+    await t.db.prepare(
+      `UPDATE user_role_assignments SET revoked_at = datetime('now')
+       WHERE org_id = ? AND user_id = ? AND role = 'institution_admin' AND revoked_at IS NULL`,
+    ).bind(admin.orgId, admin.userId).run();
+
+    await expect(assertSupportCaseAccess(t.env, admin, created.supportCaseId))
       .rejects.toBeInstanceOf(ForbiddenError);
+    await expect(listAssignedParticipants(t.env, admin))
+      .rejects.toBeInstanceOf(ForbiddenError);
+    await expect(getTodaySchedules(t.env, admin, { date: '2099-01-01' }))
+      .rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('does not let an unassigned institution administrator rewrite session goals', async () => {
+    await t.reset();
+
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+      programType: 'financial_support_v1',
+    });
+    const schedule = await createCounselingSchedule(t.env, counselor, {
+      beneficiaryId: created.beneficiaryId,
+      supportCaseId: created.supportCaseId,
+      scheduledAt: '2099-01-01T09:00:00.000Z',
+      sessionKind: 'regular',
+      channel: 'in_person',
+    });
+
+    await expect(updateScheduleSessionGoals(t.env, admin, schedule.id, {
+      expectedVersion: schedule.version,
+      sessionGoals: [{ body: '다음 회기에서 확인할 목표' }],
+    })).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('allows a supervisor to read a case assigned to an active team member', async () => {

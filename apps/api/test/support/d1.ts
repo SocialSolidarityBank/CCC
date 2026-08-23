@@ -27,6 +27,23 @@ export const testActors = {
   service: { userId: 'service@example.invalid', orgId: 'org_demo', role: 'service' },
 } satisfies Record<string, Actor>;
 
+export async function grantTestPractitionerRole(
+  db: D1Database,
+  actor: Actor,
+  grantedBy: Actor = testActors.admin,
+): Promise<void> {
+  await db.prepare(
+    `INSERT INTO user_role_assignments (
+       id, org_id, user_id, role, source, granted_by
+     ) VALUES (?, ?, ?, 'practitioner', 'manual', ?)`,
+  ).bind(
+    `test-practitioner:${actor.orgId}:${actor.userId}`,
+    actor.orgId,
+    actor.userId,
+    grantedBy.userId,
+  ).run();
+}
+
 const testOrganizationSettings = [
   { orgId: 'org_demo', timeZone: 'Asia/Seoul' },
   { orgId: 'org_other', timeZone: 'UTC' },

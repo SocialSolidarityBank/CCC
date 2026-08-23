@@ -9,7 +9,7 @@ import {
   createParticipantInvite,
   type ParticipantSignupResult,
 } from '../../../db/gateway';
-import { setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin } = testActors;
 
@@ -108,6 +108,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('관리자가 발급한 링크의 담당 실무자는 그 관리자다 (겸임 1계정)', async () => {
     await t.reset();
+    await grantTestPractitionerRole(t.db, admin);
     const invite = await createParticipantInvite(t.env, admin, { programType: 'financial_support_v1' });
 
     const result = await completeParticipantSignup(t.env, {

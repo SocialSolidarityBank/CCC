@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import worker from './support/local-worker';
 import {
+  ConflictError,
   createCase,
   createManualSession,
   registerRecording,
@@ -142,6 +143,40 @@ describe('audio upload and relay', () => {
     const sessionResponse = await worker.fetch(new Request('http://localhost/sessions/' + session.id, { headers: counselorHeaders }), env);
     expect(sessionResponse.status).toBe(200);
     expect(await sessionResponse.json()).toMatchObject({ aiStatus: 'uploaded' });
+  });
+  it('rechecks the practitioner role inside the recording mutation batch', async () => {
+    await t.reset();
+    const { session } = await makeInPersonSession(true);
+    let intercepted = false;
+    const raceDb = new Proxy(t.db, {
+      get(target, property, receiver) {
+        if (property === 'batch') {
+          return async (statements: D1PreparedStatement[]) => {
+            if (!intercepted) {
+              intercepted = true;
+              await target.prepare(
+                `UPDATE user_role_assignments SET revoked_at = datetime('now')
+                 WHERE org_id = ? AND user_id = ? AND role = 'practitioner' AND revoked_at IS NULL`,
+              ).bind(counselor.orgId, counselor.userId).run();
+            }
+            return target.batch(statements);
+          };
+        }
+        const value = Reflect.get(target, property, receiver) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as D1Database;
+
+    await expect(registerRecording(
+      { ...t.env, DB: raceDb },
+      counselor,
+      session.id,
+      'audio/race/revoked-practitioner',
+    )).rejects.toBeInstanceOf(ConflictError);
+    await expect(recordingState(session.id)).resolves.toEqual({
+      audio_r2_key: null,
+      ai_status: 'none',
+    });
   });
   it('rejects raw audio key registration so human actors cannot link arbitrary objects', async () => {
     await t.reset();

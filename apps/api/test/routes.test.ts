@@ -678,7 +678,7 @@ describe('API routes', () => {
     expect(renameClosed.status).toBe(400);
   });
 
-  it('maps local admin headers to an admin but fails closed on unsigned Cloudflare Access headers', async () => {
+  it('maps local admin headers without treating them as a practitioner and rejects unsigned Access headers', async () => {
     await t.reset();
     const localEnv = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
     const localAdminResponse = await worker.fetch(new Request('http://localhost/cases', {
@@ -686,7 +686,8 @@ describe('API routes', () => {
       headers: adminHeaders,
       body: JSON.stringify({ programType: 'financial_support_v1' }),
     }), localEnv);
-    expect(localAdminResponse.status).toBe(201);
+    expect(localAdminResponse.status).toBe(403);
+    await expect(localAdminResponse.json()).resolves.toEqual({ error: 'forbidden' });
 
     const accessAdminResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
@@ -1607,10 +1608,15 @@ describe('API routes', () => {
         expectedError: 'actor_authentication_required',
         request: () => generateDraft(env, session.id, source.sourceSnapshotId, unauthenticatedHeaders),
       },
-      // 'generate admin'·'generate assigned counselor' 는 이 표에서 뺐다 — D69 · ADR-0036
-      // 결정 2 · CCC-100 으로 재생성이 담당 실무자·기관 관리자도 트리거할 수 있게 열려
-      // 더 이상 "무자격 행위자"가 아니다(성공 경로는 routes.test.ts 의 '재생성 노출과
-      // 트리거' describe 가 검증한다). 이 표는 여전히 무자격인 행위자만 남긴다.
+      {
+        name: 'generate admin',
+        expectedStatus: 403,
+        expectedError: 'forbidden',
+        request: () => generateDraft(env, session.id, source.sourceSnapshotId, adminHeaders),
+      },
+      // 'generate assigned counselor' 만 이 표에서 뺐다. D69 · ADR-0036 결정 2 ·
+      // CCC-100 으로 재생성은 담당 실무자가 트리거할 수 있다. 기관 관리자는 같은
+      // 기관의 초안을 읽지만, 담당 실무자 배정 없이는 새 초안을 만들 수 없다(D74).
       {
         name: 'generate unassigned counselor',
         expectedStatus: 403,
@@ -1629,10 +1635,9 @@ describe('API routes', () => {
         expectedError: 'actor_authentication_required',
         request: () => currentDraft(env, session.id, unauthenticatedHeaders),
       },
-      // 'read admin'·'edit admin'·'review admin' 은 이 표에서 뺐다. D7 · D40 · CCC-105 로
-      // 검토 화면 세 경로가 담당 실무자·기관 관리자 모두에게 열려 더 이상 "무자격 행위자"가
-      // 아니다(성공 경로는 '검토 화면 기관 관리자 열람' describe 가 검증한다). 이 표는
-      // 여전히 무자격인 행위자만 남긴다.
+      // 'read admin' 만 이 표에서 뺐다. D74 후속 개정으로 기관 관리자는 초안을 읽지만
+      // 편집·승인은 담당 실무자 배정이 있어야 한다. 그 두 거부 경로는 아래
+      // '검토 화면 기관 관리자 경계' describe 가 검증한다.
       {
         name: 'read service',
         expectedStatus: 403,
@@ -2194,7 +2199,7 @@ interface RouteAiDraftWithRegeneration extends RouteAiDraft {
 }
 
 describe('검토 화면 기관 관리자 경계 (D74)', () => {
-  it('담당이 아닌 기관 관리자는 초안 조회 · 근거 재선택 · 승인 세 경로에서 거부된다', async () => {
+  it('담당이 아닌 기관 관리자는 초안을 읽되 근거 재선택과 승인은 할 수 없다', async () => {
     const { caseRecord, env, session } = await setupPhase1AiFixture();
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(env, session.id);
@@ -2203,7 +2208,10 @@ describe('검토 화면 기관 관리자 경계 (D74)', () => {
     const draft = await generatedResponse.json() as RouteAiDraft;
 
     const readAsAdmin = await currentDraft(env, session.id, adminHeaders);
-    expect(readAsAdmin.status).toBe(403);
+    expect(readAsAdmin.status).toBe(200);
+    await expect(readAsAdmin.json()).resolves.toEqual(
+      expect.objectContaining({ version: draft.version, summaryText: draft.summaryText }),
+    );
 
     const evidenceId = draft.evidence[0]?.id;
     if (evidenceId === undefined) throw new Error('generated draft evidence is missing');
@@ -3510,13 +3518,18 @@ describe('canonical participant API routes', () => {
     ).bind(canonicalCounselor.orgId, creation.beneficiaryId).all<{ detail: string | null }>();
     expectContentFree({ vault, auditLog: participantAuditLog.results }, Object.values(pii));
 
-    // 기관 관리자는 PII 권한이 있어도 담당 배정 없이 상담 브리핑을 열 수 없다(D74).
+    // 기관 관리자는 담당 배정 없이도 같은 기관의 상담 브리핑을 읽는다.
     const adminBriefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalAdminHeaders },
     ), t.env);
-    expect(adminBriefing.status).toBe(403);
-    expectContentFree(await adminBriefing.text(), Object.values(pii));
+    expect(adminBriefing.status).toBe(200);
+    const adminBriefingBody = await adminBriefing.json();
+    expect(adminBriefingBody).toMatchObject({
+      participant: { name: pii.name, phone: pii.phone },
+      canEditOverallGoal: false,
+    });
+    expectContentFree(adminBriefingBody, [pii.account]);
 
     // 비담당 실무자는 브리핑(실명 포함) 접근이 막힌다 — 실명이 전혀 새지 않는다.
     const denied = await worker.fetch(new Request(
@@ -3653,25 +3666,22 @@ describe('support case overall goal route (D45 · CCC-41)', () => {
       canEditOverallGoal: true,
     });
 
-    // 기관 관리자는 목표를 수정할 수 있지만 담당 배정 없이 상담 브리핑은 열지 못한다(D74).
+    // 기관 관리자는 상담 브리핑을 읽지만 담당 배정 없이는 목표를 수정하지 못한다.
     const adminBriefing = await worker.fetch(new Request(
       `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
       { headers: canonicalAdminHeaders },
     ), t.env);
-    expect(adminBriefing.status).toBe(403);
+    expect(adminBriefing.status).toBe(200);
+    await expect(adminBriefing.json()).resolves.toMatchObject({
+      overallGoal: '자립 기반 마련',
+      canEditOverallGoal: false,
+    });
     const adminPut = await worker.fetch(new Request(url, {
       method: 'PUT',
       headers: canonicalAdminHeaders,
       body: JSON.stringify({ overallGoal: '관리자가 고친 전체 목표' }),
     }), t.env);
-    expect(adminPut.status).toBe(200);
-    // 되돌려 놓는다 — 아래 단정들이 앞의 값을 이어서 쓴다.
-    const restorePut = await worker.fetch(new Request(url, {
-      method: 'PUT',
-      headers: canonicalCounselorHeaders,
-      body: JSON.stringify({ overallGoal: '자립 기반 마련' }),
-    }), t.env);
-    expect(restorePut.status).toBe(200);
+    expect(adminPut.status).toBe(403);
 
     // 비담당 실무자는 접근 자체가 403(D7). 알 수 없는 키는 400.
     const unassignedPut = await worker.fetch(new Request(url, {
