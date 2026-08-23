@@ -198,8 +198,8 @@ export default async function ProgramScheduleAllPage({
   }
 
   return frame(month, (
-    // 다가오는 일정과 **같은 당사자 카드**다(2026-08-06 Q — 구 날짜 묶음 카드 + 행 대체).
-    // 지난 일정의 상태(완료/취소/불참)만 무채색 뱃지로 더 얹는다.
+    // 다가오는 일정과 같은 당사자 카드다. 이름·ID와 우상단 배지는 공통이고 상담 일시와
+    // 연락처는 라벨·값 한 행으로 세로 배치한다. 지난 일정 상태만 무채색 배지로 더 얹는다.
     <div className="card-grid">
       {rows.map(({ schedule, date, time }) => (
         <ParticipantCard

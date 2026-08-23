@@ -34,7 +34,7 @@ export function ParticipantFilter({ rows }: { rows: ParticipantFilterRow[] }) {
       <SearchInput
         label="당사자 찾기"
         name="participantQuery"
-        placeholder="이름, 가명 ID, 연락처"
+        placeholder="이름, ID, 연락처"
         value={query}
         onChange={setQuery}
       />

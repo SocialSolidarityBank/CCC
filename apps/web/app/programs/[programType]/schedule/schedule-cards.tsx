@@ -4,8 +4,8 @@
 // 열 수는 .card-grid 가 정한다(2026-07-26) — wire-col-6 을 박아 두면 카드가 1장일 때도
 // 화면 절반만 차지한다.
 // 서버가 시간순(오름차순)으로 정렬·직렬화한 카드를 받아, 내림차순은 뒤집어 렌더한다.
-// 카드 모양은 공용 당사자 카드(ParticipantCard, 2026-08-06 Q)가 갖는다 — 전체 일정과
-// 같은 디자인이다. 1행 날짜·시간·종류 뱃지 / 2행 이름·가명 ID·연락처.
+// 카드 모양은 공용 ParticipantCard가 갖는다. 이름·ID와 우상단 배지는 공통이고 이 화면에서는
+// 상담 일시와 연락처를 라벨·값 한 행으로 세로 배치한다.
 import { useState } from 'react';
 import { Icon } from '../../../components/wire/wire-icon';
 import { WireButton } from '../../../components/wire/wire-button';

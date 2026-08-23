@@ -60,8 +60,8 @@ export default async function ParticipantsPage() {
               beneficiaryId: entry.beneficiaryId,
               // 검색어 대조용 문자열. 이름·가명 ID·연락처를 한 줄로 이어 둔다.
               haystack: [entry.name ?? '', entry.beneficiaryId, entry.phone ?? ''].join(' ').toLowerCase(),
-              // 일정 화면과 같은 당사자 카드(2026-08-06 Q) — 2행 골격(1행 참여 사업·상태,
-              // 2행 이름·ID·연락처). 카드 전체가 상세(허브)로 가는 링크다.
+              // 일정 화면과 같은 공용 카드 골격이다. 이름 옆에 ID, 우상단에 상태 배지를 두고
+              // 참여 사업과 연락처는 라벨·값 한 행으로 세로 배치한다.
               node: (
                 <ParticipantCard
                   href={`/participants/${encodeURIComponent(entry.beneficiaryId)}`}

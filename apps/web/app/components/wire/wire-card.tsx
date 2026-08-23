@@ -91,15 +91,40 @@ export function WireCardDetails({ children, title, badge, open, id, onToggle, te
   );
 }
 
+export type WireFieldLayout = 'row' | 'stack';
+export type WireFieldTone = 'mint' | 'blue' | 'sub';
+export type WireFieldSize = 'md' | 'sm';
+
 export interface WireFieldProps {
-  label: ReactNode;
-  children: ReactNode;
+  readonly label: ReactNode;
+  readonly children: ReactNode;
+  readonly layout?: WireFieldLayout;
+  readonly tone?: WireFieldTone;
+  /** 값 크기. 기본 md(16). sm 은 라벨과 같은 14 로 내려 제목과의 대비를 키운다. */
+  readonly size?: WireFieldSize;
+  readonly compact?: boolean;
+  readonly truncate?: boolean;
 }
 
-/** 정보 필드(§5): 라벨 14/700 민트 deep + 값 16 --ink. 라벨은 고정폭. */
-export function WireField({ label, children }: WireFieldProps) {
+/** 정보 필드: 라벨 14/600 + 값 16/400. 기본은 고정폭 가로형이고 필요하면 간격·넘침만 명시한다. */
+export function WireField({
+  label,
+  children,
+  layout = 'row',
+  tone = 'mint',
+  size = 'md',
+  compact = false,
+  truncate = false,
+}: WireFieldProps) {
   return (
-    <div className="wire-field-row">
+    <div
+      className="wire-field-row"
+      data-compact={compact ? 'true' : undefined}
+      data-layout={layout === 'row' ? undefined : layout}
+      data-size={size === 'md' ? undefined : size}
+      data-tone={tone === 'mint' ? undefined : tone}
+      data-truncate={truncate ? 'true' : undefined}
+    >
       <span className="wire-field-label">{label}</span>
       <span className="wire-field-value">{children}</span>
     </div>

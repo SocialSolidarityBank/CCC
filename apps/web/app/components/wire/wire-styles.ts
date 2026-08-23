@@ -101,8 +101,8 @@ details.surface-card{overflow:clip}
    **채운 면 위 글자는 늘 --on-action 이다.** --gradient-action 은 두 테마에서 같은 밝은
    파스텔이라(tokens.css 다크 주석 ③) --ink 를 그대로 두면 다크에서 밝은 글자가 밝은 면에
    얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
-   색상 배지는 계열 deep 면과 --on-action 글자를 가진 독립 표면이라 같은 예외를 따른다.
-   neutral·risk 배지는 기존 --ink 전경색을 유지한다. */
+   색상 배지는 계열 deep 면과 테마별 --on-badge 글자를 가진 독립 표면이라 같은 예외를 따른다.
+   neutral 배지는 기존 --ink 전경색을 유지하고 risk 배지는 다른 색상 배지와 같은 --on-badge를 쓴다. */
 details.surface-card[open]:not(.briefing-card)>.record-summary,
 .wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary{
   background:var(--gradient-action);
@@ -902,7 +902,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    전부 이 클래스 + data-tone 으로 대체했다. 배지 모양을 고칠 일이 생기면 여기 한 곳만
    고치면 전 화면이 함께 바뀐다. 마크업은 WireBadge 컴포넌트(wire-badge.tsx)를 쓴다.
    굵기 400 은 2026-08-06 Q 재개정(강조 아닌 표시 값이라 본문과 같은 기본 굵기). */
-.wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:var(--muted);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+.wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=일정·유형·정보(D58 ④).
    기존 deep 면과 테마별 전경을 써 색상 규칙을 배지에서도 그대로 유지한다. */
 /* sm(2026-08-23 Q "뱃지 안 텍스트 12px"): 높이 20 · 좌우 패딩 8 · 글자 12.

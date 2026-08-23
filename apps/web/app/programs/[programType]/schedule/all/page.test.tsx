@@ -56,8 +56,8 @@ function cards(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>('.participant-card'));
 }
 
-function cellTexts(card: HTMLElement): (string | null)[] {
-  return Array.from(card.querySelectorAll('.participant-card-cell')).map((el) => el.textContent);
+function fieldTexts(card: HTMLElement): (string | null)[] {
+  return Array.from(card.querySelectorAll('.wire-field-row')).map((el) => el.textContent);
 }
 
 function badgeTexts(card: HTMLElement): (string | null)[] {
@@ -68,11 +68,10 @@ beforeEach(() => {
   getMonthSchedules.mockReset();
 });
 
-// 2026-08-06 Q 카드 통일: 날짜 묶음이 사라지고 다가오는 일정과 같은 당사자 카드가 됐다.
-// 2026-08-07 행 순서 교체: 이름 행이 위, 날짜·시간·종류 뱃지(지난 일정은 상태 뱃지 추가)는
-// 가로선 아래다.
+// 전체 일정도 다가오는 일정과 같은 ParticipantCard 계약을 쓴다. 이름과 배지는 공통 헤더에,
+// 일정 맥락은 라벨·값 정보 격자에 표시한다.
 describe('전체 일정 화면 (CCC-19)', () => {
-  it('일정마다 당사자 카드 한 장 — 이름 행 위, 날짜·시간·종류 뱃지는 가로선 아래', async () => {
+  it('일정마다 이름·배지 헤더와 일정 정보 격자를 가진 카드 한 장을 표시한다', async () => {
     getMonthSchedules.mockResolvedValue(board([
       schedule(),
       schedule({ id: 's2', scheduledAt: '2026-02-15T05:00:00.000Z', participantName: '이영희', beneficiaryId: 'crane-001' }),
@@ -85,14 +84,15 @@ describe('전체 일정 화면 (CCC-19)', () => {
     expect(rendered).toHaveLength(3);
 
     // 서버가 준 시간순 그대로다.
-    const first = cellTexts(rendered[0]!);
-    expect(first).toContain('2026년 2월 15일');
-    expect(first).toContain(formatKoreanTime('2026-02-15T01:00:00.000Z'));
-    expect(first).toContain('김철수');
-    expect(first).toContain('swallow-003'); // 가명 ID 칸(2026-08-06 복귀)
-    expect(first).toContain('010-1234-5678');
-    expect(cellTexts(rendered[1]!)).toContain(formatKoreanTime('2026-02-15T05:00:00.000Z'));
-    expect(cellTexts(rendered[2]!)).toContain('2026년 2월 20일');
+    const first = rendered[0]!;
+    expect(first.querySelector('.participant-card-header')?.textContent).toContain('김철수');
+    expect(first.querySelector('.participant-card-id')?.textContent).toBe('swallow-003');
+    expect(fieldTexts(first)).toContain(`상담 일시2026년 2월 15일 ${formatKoreanTime('2026-02-15T01:00:00.000Z')}`);
+    expect(fieldTexts(first)).not.toContain('가명 IDswallow-003');
+    expect(fieldTexts(first)).toContain('연락처010-1234-5678');
+    expect(first.querySelector('[data-layout="stack"]')).toBeNull();
+    expect(fieldTexts(rendered[1]!)).toContain(`상담 일시2026년 2월 15일 ${formatKoreanTime('2026-02-15T05:00:00.000Z')}`);
+    expect(fieldTexts(rendered[2]!)).toContain(`상담 일시2026년 2월 20일 ${formatKoreanTime('2026-02-20T01:00:00.000Z')}`);
 
     // 상담 종류 뱃지 — 블루 계열(일정 축, D34).
     expect(badgeTexts(rendered[0]!)).toContain('기본 상담');

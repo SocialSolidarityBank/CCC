@@ -74,7 +74,7 @@ button,input,select,textarea{font:inherit}
 .program-switcher{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
 /* 흰 상자가 곧 선택창이다. 드롭다운의 기준점(position:relative)도 여기다.
    경계 --line-control 1px 은 2026-08-05 에 얹었다 — 드로어 배경이 그라데이션에서 캔버스로
-   바뀌어, 캔버스(#FAFAF9) 위 흰 상자는 경계 없이는 형태가 안 잡힌다(§5 입력칸 계약). */
+   바뀌어, 캔버스(#F4F1EC) 위 패널 상자는 경계 없이는 형태가 안 잡힌다(§5 입력칸 계약). */
 .program-switcher-box{position:relative;flex:1;min-width:0;display:grid;padding:var(--space-2) var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
 /* (구 .sidebar>.program-switcher 구분선 규칙 2026-08-06 제거 — 드로어에서 기관·사업
    블록이 빠져 선의 주인이 머리 줄(.sidebar-head::after, 모바일 블록)로 옮겨 갔다.) */
@@ -147,7 +147,7 @@ button,input,select,textarea{font:inherit}
    위에 얹으면 대비가 1.9 라 라벨이 읽히지 않고, 비활성(--sub #534e57)보다 오히려 흐려져
    위계가 뒤집힌다. DESIGN.md §9 의 대비 예외는 '보조 정보 한정'이라 주 메뉴 라벨은 대상이 아니다.
    블루 신호는 아이콘이 갖는다 — 색은 남고 글자는 읽힌다. */
-/* 활성 = tint 채움 + --gradient-brand 1px 테두리 (2026-08-04 Q — --blue-tint #E7EEF8 가
+/* 활성 = tint 채움 + --gradient-brand 1px 테두리 (2026-08-04 Q — --blue-tint #DCE8F4 가
    사이드바 그라데이션 최상단 색과 동일해 위쪽 메뉴에서 활성 상자가 아예 안 보였다.
    그라데이션 테두리는 D58 '선택·활성' 어휘다). */
 .navigation-link[data-current="true"]{background:linear-gradient(var(--blue-tint),var(--blue-tint)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-weight:600}

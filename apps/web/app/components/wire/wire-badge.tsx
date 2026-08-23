@@ -5,9 +5,13 @@ import type { ReactNode } from 'react';
  *  lavender = AI·승인 대기, risk = 확인된 리스크·오류 상태(D9 허용 자리). */
 export type WireBadgeTone = 'neutral' | 'blue' | 'mint' | 'lavender' | 'risk';
 
+export type WireBadgeSize = 'md' | 'sm';
+
 export interface WireBadgeProps {
   children: ReactNode;
   tone?: WireBadgeTone;
+  /** 크기. 기본 md(높이 24·글자 14). sm(높이 20·패딩 8·글자 12)은 당사자 카드 헤더 전용이다. */
+  size?: WireBadgeSize;
   /** 상태 알림으로 읽혀야 하는 배지(role="status"·"alert")에만 준다. */
   role?: 'status' | 'alert';
   'aria-live'?: 'polite' | 'assertive';
@@ -20,10 +24,11 @@ export interface WireBadgeProps {
  *  모양(.wire-badge)은 wire-styles.ts 한 곳이 소유한다. 배지를 새로 그리지 말고
  *  이 부품에 tone 만 골라 쓴다. 눌러서 상태를 바꾸는 태그는 배지가 아니라
  *  컨트롤(.wire-status-tag, radius 6)이다. */
-export function WireBadge({ children, tone = 'neutral', role, 'aria-live': ariaLive, testId, className }: WireBadgeProps) {
+export function WireBadge({ children, tone = 'neutral', size = 'md', role, 'aria-live': ariaLive, testId, className }: WireBadgeProps) {
   return (
     <span
       className={['wire-badge', className].filter(Boolean).join(' ')}
+      data-size={size === 'md' ? undefined : size}
       data-tone={tone === 'neutral' ? undefined : tone}
       role={role}
       aria-live={ariaLive}

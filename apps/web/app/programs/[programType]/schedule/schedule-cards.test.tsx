@@ -9,8 +9,8 @@ import { ScheduleCards, type ScheduleCardItem } from './schedule-cards';
 // pull_request 런은 통과 — 부하에 따라 갈리는 타이밍 의존이라 '플레이크'로 보였던 것이다).
 afterEach(cleanup);
 
-// 2026-08-06 Q 카드 통일: 카드는 공용 ParticipantCard 다 — 1행 날짜·시간·종류 뱃지,
-// 2행 이름·가명 ID·연락처. 이 테스트는 그 구조를 계약으로 고정한다.
+// 공용 ParticipantCard 는 이름과 우상단 배지를 공통 헤더로 쓰고, 화면 맥락에 맞는
+// 라벨·값만 아래 정보 격자에 표시한다.
 const cards: ScheduleCardItem[] = [
   {
     id: 's1',
@@ -30,35 +30,36 @@ const cards: ScheduleCardItem[] = [
   },
 ];
 
-function cellTexts(container: HTMLElement): (string | null)[] {
-  return Array.from(container.querySelectorAll('.participant-card-cell')).map((el) => el.textContent);
-}
-
-/** 카드 렌더 순서 — 날짜 칸을 카드 순서대로 뽑는다(2026-08-07 행 순서 교체로 날짜는
- *  첫 칸이 아니라 data-col 로 짚는다 — 이름 행이 위, 일정 행이 가로선 아래다). */
+/** 카드 렌더 순서. 날짜는 상담 일시 값의 data-col 로 짚는다. */
 function cardDates(container: HTMLElement): (string | null)[] {
   return Array.from(container.querySelectorAll('.participant-card'))
-    .map((card) => card.querySelector('.participant-card-cell[data-col="date"]')?.textContent ?? null);
+    .map((card) => card.querySelector('.participant-card-date[data-col="date"]')?.textContent ?? null);
 }
 
 describe('ScheduleCards', () => {
-  it('이름 행이 위, 날짜·시간·종류 뱃지는 가로선 아래를 표시한다 (2026-08-07 행 순서 교체)', () => {
+  it('공통 헤더 아래 일정 맥락의 라벨과 값만 표시한다', () => {
     const { container } = render(<ScheduleCards today={[]} upcoming={cards} />);
-    const values = cellTexts(container);
-    expect(values).toContain('김철수'); // 실명(T2 응답)
-    expect(values).toContain('swallow-003'); // 가명 ID 칸(2026-08-06 복귀)
-    expect(values).toContain('010-1234-5678'); // 연락처
-    expect(values).toContain('미기입'); // participantName=null → 이름 칸 폴백(ID 칸이 따로 있다)
-    expect(values).toContain('7월 17일 (목)');
-    expect(values).toContain('10:00');
+    const cardsRendered = Array.from(container.querySelectorAll('.participant-card'));
+    const firstCard = cardsRendered[0];
+    expect(firstCard?.querySelector('.participant-card-header')?.textContent).toContain('김철수');
+    expect(firstCard?.querySelector('.participant-card-id')?.textContent).toBe('swallow-003');
+    expect(firstCard?.querySelector('.participant-card-header')?.textContent).toContain('기본 상담');
+    expect(firstCard?.querySelector('.participant-card-fields')?.textContent).toContain('상담 일시');
+    expect(firstCard?.querySelector('.participant-card-fields')?.textContent).toContain('7월 17일 (목) 10:00');
+    expect(firstCard?.querySelector('.participant-card-fields')?.textContent).toContain('연락처');
+    expect(firstCard?.querySelector('.participant-card-fields')?.textContent).toContain('010-1234-5678');
+    expect(firstCard?.querySelector('.participant-card-fields')?.textContent).not.toContain('가명 ID');
+    expect(firstCard?.querySelector('.participant-card-fields')?.textContent).not.toContain('swallow-003');
+    expect(firstCard?.querySelector('.participant-card-fields [data-layout="stack"]')).toBeNull();
+    expect(cardsRendered[1]?.querySelector('.participant-card-name')?.textContent).toBe('otter-001');
 
     // 상담 종류는 블루 뱃지다(D34 일정 축).
     const badges = Array.from(container.querySelectorAll('.wire-badge')).map((el) => el.textContent);
     expect(badges).toContain('기본 상담');
     expect(badges).toContain('인테이크');
 
-    // 행 구분선은 회색 풀블리드 한 줄이다(2026-08-06).
-    expect(container.querySelectorAll('.participant-card .wire-card-divider')).toHaveLength(2);
+    // 정보는 위계와 여백으로 묶으며 카드 안 구분선은 쓰지 않는다.
+    expect(container.querySelector('.participant-card .wire-card-divider')).toBeNull();
 
     // 카드는 상담 준비(브리핑)로 링크된다. 열 수는 .card-grid 가 정한다(2026-07-26).
     const links = Array.from(container.querySelectorAll('.card-grid > a')).map((el) => el.getAttribute('href'));
@@ -67,12 +68,12 @@ describe('ScheduleCards', () => {
 
   it('시간순 정렬 토글을 누르면 카드 순서가 뒤집힌다', () => {
     const { container } = render(<ScheduleCards today={[]} upcoming={cards} />);
-    expect(cardDates(container)).toEqual(['7월 17일 (목)', '7월 18일 (금)']); // 기본 오름차순
+    expect(cardDates(container)).toEqual(['7월 17일 (목) 10:00', '7월 18일 (금) 14:00']); // 기본 오름차순
 
     const toggle = container.querySelector('button.wire-button');
     expect(toggle).not.toBeNull();
     fireEvent.click(toggle as HTMLButtonElement);
-    expect(cardDates(container)).toEqual(['7월 18일 (금)', '7월 17일 (목)']); // 내림차순
+    expect(cardDates(container)).toEqual(['7월 18일 (금) 14:00', '7월 17일 (목) 10:00']); // 내림차순
   });
 
   // CCC-66: D21 이 정한 '오늘' 구분이 구현에서 빠져 평평한 목록이 됐다. 오늘 상담이 다른

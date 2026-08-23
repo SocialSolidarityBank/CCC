@@ -18,16 +18,16 @@
   /* ── 파스텔 3계열 ── pen '색 토큰' 페이지 값 그대로.
    * base = 면(게이지·막대) 전용 / deep = 글자·아이콘·채움형 배지 면 전용.
    * tint = 옅은 배경 전용.
-   * deep 3색은 자기 tint 위에서 WCAG AA는 물론 large text 3:1에도 미달한다.
-   * 수치와 완화 방법은 DESIGN.md §9 알려진 접근성 예외. */
+   * deep 3색은 자기 tint와 패널 위에서 WCAG AA를 통과한다.
+   * 수치는 DESIGN.md §9와 §11-4를 따른다. */
   --blue:          #93C1F5;
-  --blue-deep:     #486997;  /* tint 위 4.51 / 패널 위 4.51 */
+  --blue-deep:     #486997;  /* tint 위 4.80 / 패널 위 5.61 */
   --blue-tint:     #E7EEF8;
   --mint:          #8ED9B8;
-  --mint-deep:     #397158;  /* tint 위 4.63 / 패널 위 4.63 */
+  --mint-deep:     #397158;  /* tint 위 5.02 / 패널 위 5.71 */
   --mint-tint:     #E4F4EC;
   --lavender:      #CBA8E2;
-  --lavender-deep: #7D4E9B;  /* tint 위 4.63 / 패널 위 4.63 */
+  --lavender-deep: #7D4E9B;  /* tint 위 5.11 / 패널 위 6.11 */
   --lavender-tint: #F2E7F7;
 
   /* 채운 면 위의 글자·획. --gradient-action 으로 칠한 자리(프라이머리 버튼 · 켠 체크박스·
@@ -46,7 +46,7 @@
 
   /* ── Semantic ── */
   --risk:            #B52573;                   /* 확인된 리스크 전용 — 유일한 경고색
-                                                 * (흰 위 6.04 · 배너 배경 위 5.31 — §9 참조) */
+                                                 * (패널 위 6.04 · 배너 배경 위 5.31 — §9 참조) */
   --risk-tint:       rgba(240, 113, 180, 0.05); /* 리스크 배너 배경 (반투명) */
   --risk-tint-solid: #F7EEF2;                   /* 같은 배경의 불투명 등가값 —
                                                  * 그라데이션 테두리(padding-box 채움)에 필요 */
