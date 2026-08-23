@@ -33,6 +33,7 @@ jobs:
       - run: pnpm test
       - run: pnpm guard:db
       - run: pnpm guard:doc-numbers
+      - run: pnpm guard:consent-copy
       - run: pnpm guard:tokens
       - run: pnpm guard:align
       # 위계 감사(CCC-80). guard:tokens 가 값 한 축씩을 보는 자리에서, 이쪽은 한 요소에 최종적으로

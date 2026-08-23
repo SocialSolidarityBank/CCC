@@ -19,7 +19,12 @@
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from './animal-slugs';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
-import { CONSENT_TEXT_AI_NOTICE_TEXT, CONSENT_TEXT_AI_NOTICE_VERSION } from './consent-notice';
+import {
+  CONSENT_PRIVACY_NOTICE_TEXT,
+  CONSENT_PRIVACY_NOTICE_VERSION,
+  CONSENT_TEXT_AI_NOTICE_TEXT,
+  CONSENT_TEXT_AI_NOTICE_VERSION,
+} from './consent-notice';
 
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
 export interface Env {
@@ -875,6 +880,27 @@ function assertSha256(value: unknown, field: string): asserts value is string {
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+interface PrivacyNoticeEvidence {
+  noticeVersion: string | null;
+  noticeSha256: string | null;
+  evidenceRef: string | null;
+}
+
+/** 개인정보 ① 동의 문안 증거는 클라이언트 값이 아니라 서버 정본에서만 만든다(CCC-125). */
+async function privacyNoticeEvidence(
+  consentRecordId: string,
+  consentPrivacyAt: string | null,
+): Promise<PrivacyNoticeEvidence> {
+  if (consentPrivacyAt === null) {
+    return { noticeVersion: null, noticeSha256: null, evidenceRef: null };
+  }
+  return {
+    noticeVersion: CONSENT_PRIVACY_NOTICE_VERSION,
+    noticeSha256: await sha256Hex(CONSENT_PRIVACY_NOTICE_TEXT),
+    evidenceRef: `offline://participant-consent-records/${consentRecordId}`,
+  };
 }
 
 function sourceTextSpan(value: string, start: number, end: number): string {
@@ -9633,6 +9659,9 @@ export async function createBeneficiaryWithInitialSupportCase(
       ? null
       : { at: createdAt, reason: emergencyValidated.reason, dueAt: emergencyConsentDueAt(createdAt) };
     const consentRecordId = consent === undefined ? null : newId();
+    const privacyEvidence = consentRecordId === null
+      ? null
+      : await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
     try {
       const statements: D1PreparedStatement[] = [
         env.DB.prepare(
@@ -9721,8 +9750,10 @@ detail: { role: 'primary', initial: true },
           env.DB.prepare(
             `INSERT INTO participant_consent_records (
                id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-               consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               consent_text_ai_at, consent_privacy_at, privacy_notice_version,
+               privacy_notice_sha256, privacy_evidence_ref,
+               recorded_by, recorded_at, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             consentRecordId,
             actor.orgId,
@@ -9731,6 +9762,9 @@ detail: { role: 'primary', initial: true },
             consentRecordingAt,
             consentTextAiAt,
             consentPrivacyAt,
+            privacyEvidence?.noticeVersion ?? null,
+            privacyEvidence?.noticeSha256 ?? null,
+            privacyEvidence?.evidenceRef ?? null,
             actor.userId,
             createdAt,
             createdAt,
@@ -9745,6 +9779,9 @@ detail: { role: 'primary', initial: true },
             detail: {
               privacy: consent.privacy === true,
               recordingAi: consent.recordingAi,
+              ...(privacyEvidence?.noticeVersion === null || privacyEvidence === null
+                ? {}
+                : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
               ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
             },
             caseId: legacyCaseId,
@@ -9853,6 +9890,7 @@ export async function updateParticipantConsent(
   const recordingAt = consent.recordingAi ? recordedAt : null;
   const textAiAt = consent.recordingAi ? recordedAt : null;
   const consentRecordId = newId();
+  const privacyEvidence = await privacyNoticeEvidence(consentRecordId, privacyAt);
 
   // ② 체크는 AI 초안 저장의 근거 행도 만든다 (ADR-0027). 이 행이 없으면 동의를 다
   // 받은 케이스에서도 0026 트리거가 초안을 거부한다 — 화면과 파이프라인이 서로
@@ -9877,8 +9915,10 @@ export async function updateParticipantConsent(
     env.DB.prepare(
       `INSERT INTO participant_consent_records (
          id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-         consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         consent_text_ai_at, consent_privacy_at, privacy_notice_version,
+         privacy_notice_sha256, privacy_evidence_ref,
+         recorded_by, recorded_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       consentRecordId,
       actor.orgId,
@@ -9887,6 +9927,9 @@ export async function updateParticipantConsent(
       recordingAt,
       textAiAt,
       privacyAt,
+      privacyEvidence.noticeVersion,
+      privacyEvidence.noticeSha256,
+      privacyEvidence.evidenceRef,
       actor.userId,
       recordedAt,
       recordedAt,
@@ -9898,7 +9941,14 @@ export async function updateParticipantConsent(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       // 동의 **여부**만 남긴다 — 동의 문안·PII 는 감사 detail 에 넣지 않는다(R3).
-      detail: { privacy: consent.privacy, recordingAi: consent.recordingAi, kind: 'update' },
+      detail: {
+        privacy: consent.privacy,
+        recordingAi: consent.recordingAi,
+        kind: 'update',
+        ...(privacyEvidence.noticeVersion === null
+          ? {}
+          : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
+      },
       caseId: supportCase.legacyCaseId,
     }),
     ...(textAiEvidence === null ? [] : [
@@ -10199,6 +10249,7 @@ export async function createSupportCase(
   const assignmentId = newId();
   const consentRecordId = newId();
   const consentPrivacyAt = input.consentPrivacy === true ? createdAt : null;
+  const privacyEvidence = await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
   // D49: ② 한 체크 → 두 컬럼에 같은 시각(insert 가드 정합).
   const consentRecordingAiAt = input.consentRecordingAi === true ? createdAt : null;
   const creationBoundary = actor.role === 'counselor'
@@ -10322,9 +10373,11 @@ export async function createSupportCase(
       env.DB.prepare(
         `INSERT INTO participant_consent_records (
            id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-           consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
+           consent_text_ai_at, consent_privacy_at, privacy_notice_version,
+           privacy_notice_sha256, privacy_evidence_ref,
+           recorded_by, recorded_at, created_at
          )
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE EXISTS (
            SELECT 1 FROM support_cases
            WHERE id = ? AND org_id = ? AND beneficiary_id = ?
@@ -10337,6 +10390,9 @@ export async function createSupportCase(
         consentRecordingAiAt,
         consentRecordingAiAt,
         consentPrivacyAt,
+        privacyEvidence.noticeVersion,
+        privacyEvidence.noticeSha256,
+        privacyEvidence.evidenceRef,
         actor.userId,
         createdAt,
         createdAt,
@@ -10355,6 +10411,9 @@ export async function createSupportCase(
         detail: {
           privacy: input.consentPrivacy === true,
           recordingAi: input.consentRecordingAi === true,
+          ...(privacyEvidence.noticeVersion === null
+            ? {}
+            : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
           ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
         },
       }),
@@ -14803,13 +14862,15 @@ export async function createIntakeRecord(
   // 없는 동의를 인테이크 저장이 대신 남기면 등록 화면의 동의 기록과 어긋난다.
   if (input.consent !== undefined) {
   const consentRecordId = newId();
+  const privacyEvidence = await privacyNoticeEvidence(consentRecordId, createdAt);
   statements.push(env.DB.prepare(
     `INSERT INTO participant_consent_records (
        id, org_id, beneficiary_id, support_case_id,
        consent_recording_at, consent_text_ai_at, consent_privacy_at,
+       privacy_notice_version, privacy_notice_sha256, privacy_evidence_ref,
        recorded_by, recorded_at, created_at
      )
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
      WHERE ${sessionExistsClause}`,
   ).bind(
 
@@ -14820,6 +14881,9 @@ export async function createIntakeRecord(
     createdAt,
     createdAt,
     createdAt,
+    privacyEvidence.noticeVersion,
+    privacyEvidence.noticeSha256,
+    privacyEvidence.evidenceRef,
     actor.userId,
     createdAt,
     createdAt,
@@ -14842,7 +14906,12 @@ export async function createIntakeRecord(
     targetId: consentRecordId,
     beneficiaryId: supportCase.beneficiaryId,
     supportCaseId,
-    detail: { privacy: true, recordingAi: true, kind: 'intake' },
+    detail: {
+      privacy: true,
+      recordingAi: true,
+      kind: 'intake',
+      privacyNoticeVersion: privacyEvidence.noticeVersion,
+    },
   }));
   }
 
@@ -16403,6 +16472,7 @@ export async function completeParticipantSignup(
     const consentRecordingAt = input.consent.recordingAi ? createdAt : null;
     const consentTextAiAt = input.consent.recordingAi ? createdAt : null;
     const consentPrivacyAt = input.consent.privacy ? createdAt : null;
+    const privacyEvidence = await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
     try {
       const statements: D1PreparedStatement[] = [
         env.DB.prepare(
@@ -16480,8 +16550,10 @@ export async function completeParticipantSignup(
           `INSERT INTO participant_consent_records (
 
              id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-             consent_text_ai_at, consent_privacy_at, recorded_by, recorded_at, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             consent_text_ai_at, consent_privacy_at, privacy_notice_version,
+             privacy_notice_sha256, privacy_evidence_ref,
+             recorded_by, recorded_at, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           consentRecordId,
           invite.orgId,
@@ -16490,6 +16562,9 @@ export async function completeParticipantSignup(
           consentRecordingAt,
           consentTextAiAt,
           consentPrivacyAt,
+          privacyEvidence.noticeVersion,
+          privacyEvidence.noticeSha256,
+          privacyEvidence.evidenceRef,
           PARTICIPANT_SELF_RECORDER,
           createdAt,
           createdAt,
@@ -16504,6 +16579,7 @@ export async function completeParticipantSignup(
             privacy: input.consent.privacy,
             recordingAi: input.consent.recordingAi,
             recorder: PARTICIPANT_SELF_RECORDER,
+            privacyNoticeVersion: privacyEvidence.noticeVersion,
           },
           caseId: null,
         }),
