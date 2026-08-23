@@ -26,7 +26,7 @@ describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
     expect(container.querySelector('#settings-admin-heading')?.textContent).toBe('기관 관리자 설정');
 
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/onboarding']);
+    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/admin/ai-provider', '/onboarding']);
   });
 
   // CCC-61: /onboarding 은 셸에도 다른 화면에도 진입 링크가 없는 고아였다. 이 줄이 유일한
@@ -41,7 +41,7 @@ describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
   it('링크 목록이 관리자 탭 정의(adminMenu)와 그대로 같다', () => {
     // 두 곳이 어긋나지 않도록 같은 정의를 재사용하는지 고정한다.
     // CCC-55 로 걸러낼 것이 없어졌다 — 구 '/admin/settings' 는 라우트도 메뉴 항목도 사라졌다.
-    expect(adminMenu.map((item) => item.href)).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite']);
+    expect(adminMenu.map((item) => item.href)).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/admin/ai-provider']);
     expect(adminMenu.some((item) => item.href === '/admin/settings')).toBe(false);
   });
 

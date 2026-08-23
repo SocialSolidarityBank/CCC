@@ -28,6 +28,7 @@ export const adminMenu: AdminMenuItem[] = [
   { label: '배정', href: '/admin/assign' },
   { label: '사용자', href: '/admin/users' },
   { label: '실무자 초대', href: '/admin/invite' },
+  { label: 'AI 사업자', href: '/admin/ai-provider' },
 ];
 
 /**

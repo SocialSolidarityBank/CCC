@@ -1927,12 +1927,22 @@ describe('API routes', () => {
     const { adapter, env } = await setupPhase1AiFixture();
     const response = await worker.fetch(new Request('http://localhost/ai/provider/status', { headers: adminHeaders }), env);
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    const payload = await response.json() as Record<string, unknown>;
+    expect(payload).toMatchObject({
       enabled: true,
       adapterId: CODEX_PROVIDER_ID,
       adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
       configHash: await canonicalAiProviderConfigHash(adapter.config),
     });
+    // CCC-44: 배포 런타임과의 대조 — 활성화된 설정과 env 설정이 같으면 matches=true 로 표시된다.
+    expect(payload.runtime).toEqual({
+      configured: true,
+      adapterId: CODEX_PROVIDER_ID,
+      adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
+      configHash: payload.configHash,
+      matches: true,
+    });
+    expect(payload).not.toHaveProperty('modelSpec');
 
     for (const headers of [counselorHeaders, serviceHeaders]) {
       const denied = await worker.fetch(new Request('http://localhost/ai/provider/status', { headers }), env);
@@ -1986,9 +1996,13 @@ describe('API routes', () => {
     const production = await worker.fetch(new Request('http://localhost/ai/provider/activate-runtime', {
       method: 'POST',
       headers: adminHeaders,
-      body: JSON.stringify({ approvalRef: 'must-not-open-in-production' }),
+      body: JSON.stringify({ approvalRef: 'operating-2026-08-23-ccc44' }),
     }), { ...t.env, AI_PROVIDER_ADAPTER: adapter });
-    expect(production.status).toBe(404);
+    // CCC-44: 운영(비 프리뷰)에서도 기관 관리자가 배포 런타임을 활성화한다(개방).
+    // 위 프리뷰 실행이 같은 어댑터를 이미 활성화했으므로 이 호출은 재생(200·replayed)이다 —
+    // 404 게이트가 사라졌음을 증명한다(권한·레지스트리 검증은 게이트웨이와 env 확인이 맡는다, D66).
+    expect(production.status).toBe(200);
+    await expect(production.json()).resolves.toEqual(expect.objectContaining({ enabled: true, replayed: true }));
   });
 
   it('selects the default Codex adapter with an authenticated JSON POST and rejects incompatible registry tuples', async () => {

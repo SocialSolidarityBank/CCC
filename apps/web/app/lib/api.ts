@@ -2376,6 +2376,52 @@ function decodeSelfCheckSchedule(value: unknown): ParticipantSelfCheck['upcoming
   };
 }
 
+/** CCC-44 AI 사업자 상태 — 활성 설정 + 배포 런타임 대조(불일치 사유 화면 표시용). */
+export interface AiProviderStatus {
+  enabled: boolean;
+  adapterId: string | null;
+  adapterVersion: string | null;
+  configHash: string | null;
+  runtime: {
+    configured: boolean;
+    adapterId: string | null;
+    adapterVersion: string | null;
+    configHash: string | null;
+    matches: boolean | null;
+  };
+}
+
+/** 기관 관리자 전용: 현재 AI 사업자 활성·런타임 설정 대조 상태 (CCC-44 · D66). */
+export async function getAiProviderStatus(): Promise<AiProviderStatus> {
+  const payload = await requestJson<unknown>('/ai/provider/status');
+  const record = responseObject(payload);
+  const runtime = responseObject(responseProperty(record, 'runtime'));
+  return {
+    enabled: responseBoolean(record, 'enabled'),
+    adapterId: responseNullableString(record, 'adapterId'),
+    adapterVersion: responseNullableString(record, 'adapterVersion'),
+    configHash: responseNullableString(record, 'configHash'),
+    runtime: {
+      configured: responseBoolean(runtime, 'configured'),
+      adapterId: responseNullableString(runtime, 'adapterId'),
+      adapterVersion: responseNullableString(runtime, 'adapterVersion'),
+      configHash: responseNullableString(runtime, 'configHash'),
+      matches: (() => {
+        const value = runtime.matches;
+        return value === null ? null : responseBoolean(runtime, 'matches');
+      })(),
+    },
+  };
+}
+
+/** 기관 관리자 전용: 배포된 런타임을 등록·활성화 (CCC-44 · D66 약관 확인 참조 포함). */
+export async function activateAiProviderRuntime(approvalRef: string): Promise<void> {
+  await requestJson<unknown>('/ai/provider/activate-runtime', {
+    method: 'POST',
+    body: JSON.stringify({ approvalRef }),
+  });
+}
+
 export interface PublicSignupInput {
   token: string;
   name: string;

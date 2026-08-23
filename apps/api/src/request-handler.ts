@@ -2671,7 +2671,40 @@ export async function handleRequest(
       }
     }
     if (request.method === 'GET' && parts.length === 3 && parts[0] === 'ai' && parts[1] === 'provider' && parts[2] === 'status') {
-      return json(await getActiveAiProviderStatus(env, actor));
+      // CCC-44: 활성 설정 + **배포 런타임 설정과의 대조**를 함께 내려준다 — 해시 불일치가
+      // 초안 생성을 막는 사유를 화면이 그대로 보여줄 수 있어야 한다(R5 유지, 값을 새지 않게).
+      const active = await getActiveAiProviderStatus(env, actor);
+      let runtime: {
+        configured: boolean;
+        adapterId: string | null;
+        adapterVersion: string | null;
+        configHash: string | null;
+        matches: boolean | null;
+      };
+      try {
+        const { config } = resolveAiProviderAdapter(env);
+        const configHash = await canonicalAiProviderConfigHash(config);
+        runtime = {
+          configured: true,
+          adapterId: config.providerId,
+          adapterVersion: config.adapterVersion,
+          configHash,
+          matches: !active.enabled ? false : (
+            active.adapterId === config.providerId
+            && active.adapterVersion === config.adapterVersion
+            && active.configHash === configHash
+          ),
+        };
+      } catch {
+        runtime = {
+          configured: false,
+          adapterId: null,
+          adapterVersion: null,
+          configHash: null,
+          matches: null,
+        };
+      }
+      return json({ ...active, runtime });
     }
     if (
       request.method === 'POST'
@@ -2680,7 +2713,10 @@ export async function handleRequest(
       && parts[1] === 'provider'
       && parts[2] === 'activate-runtime'
     ) {
-      if (!previewModeEnabled(env)) return json({ error: 'not_found' }, 404);
+      // CCC-44: 기관 관리자가 넣은 승인 참조로 **배포된 런타임만** 등록·활성화한다(운영 포함).
+      // 환경 변수의 정확한 레지스트리 tuple과 API 키를 먼저 검증한다. 호출자가 임의
+      // hash/model을 넣을 수 없고, 현재 배포 설정과 DB activation이 항상 함께 움직인다.
+      // 권한(기관 관리자)은 등록·활성화 게이트웨이가 강제한다(D66 · R1).
       const body = await requestBody(request);
       requireOnlyKeys(body, ['approvalRef']);
       const approvalRef = requiredString(body, 'approvalRef');
