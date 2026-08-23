@@ -63,8 +63,25 @@ import {
   type ManualRecordFlag,
   lifeAreaKeys,
   lifeAreaStatuses,
+  activateAiProviderRuntime,
 } from './lib/api';
 import { isBeneficiaryId } from '../../../db/animal-slugs';
+
+/**
+ * CCC-44 기관 관리자 전용: 배포된 AI 사업자 런타임을 등록·활성화한다. 성공 시
+ * revalidate 로 상태 화면이 반영된다. 실패 사유는 notice 로 폼에 되돌아온다
+ * (활성 설정이 배포 설정과 어긋난 경우가 대표적인 실패다 — R5 값을 새지 않게).
+ */
+export async function activateAiProviderRuntimeAction(formData: FormData): Promise<{ status: string }> {
+  const approvalRef = (formData.get('approvalRef') ?? '').toString().trim();
+  if (approvalRef.length === 0) return { status: 'approval_ref_required' };
+  try {
+    await activateAiProviderRuntime(approvalRef);
+    return { status: 'activated' };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
 
 type Notice =
   | 'invalid_request'

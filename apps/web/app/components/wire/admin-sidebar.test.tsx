@@ -35,7 +35,7 @@ describe('AdminSidebar', () => {
   it('기관·배정·사용자·실무자 초대 4개 메뉴를 순서대로 렌더한다', () => {
     const { container } = render(<AdminSidebar activePath="/admin" />);
     const hrefs = Array.from(container.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href'));
-    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite']);
+    expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/admin/ai-provider']);
     // 관리자 레이아웃 밖으로 나가는 링크는 이 탭줄에 두지 않는다.
     expect(hrefs).not.toContain('/settings');
   });
