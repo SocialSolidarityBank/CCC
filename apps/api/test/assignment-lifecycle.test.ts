@@ -286,6 +286,23 @@ describe('forced transfer (CCC-123)', () => {
       testActors.counselor.userId,
       targetRow.id,
     ).run()).rejects.toThrow('assignment_lifecycle_immutable');
+
+    await deactivateUser(
+      t.env,
+      testActors.admin,
+      testActors.unassignedCounselor.userId,
+      { reason: '퇴사' },
+    );
+    await expect(t.db.prepare(
+      'SELECT transfer_reason AS reason FROM support_case_assignees WHERE id = ?',
+    ).bind(targetRow.id).first()).resolves.toEqual({
+      reason: '퇴사로 인한 강제 이관',
+    });
+    await expect(t.db.prepare(
+      'UPDATE support_case_assignees SET transfer_reason = ? WHERE id = ?',
+    ).bind('사후 덮어쓰기', targetRow.id).run()).rejects.toThrow(
+      'assignment_lifecycle_immutable',
+    );
   });
 });
 

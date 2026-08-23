@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
-import { AdminSection } from './page';
+import { cleanup, render, screen } from '@testing-library/react';
+import { AdminSection, AssignmentRequestList } from './page';
 import { adminMenu } from '../admin/admin-format';
 
 afterEach(cleanup);
@@ -12,12 +12,43 @@ afterEach(cleanup);
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
   getMyIdentity: vi.fn(),
+  listAssignmentRequests: vi.fn(),
   listOrgUsers: vi.fn(),
+}));
+vi.mock('../actions', () => ({
+  acceptSupportCaseAssignmentAction: vi.fn(),
+}));
+vi.mock('../lib/display-labels', () => ({
+  getDisplayLabels: vi.fn(),
 }));
 
 // 설정 페이지 전체는 async 서버 컴포넌트라 jsdom 에서 렌더할 수 없다.
 // AdminSection 은 동기·무데이터 부품이라 직접 렌더해 단언한다(admin-sidebar.test.tsx 패턴).
 // 역할 게이트(`me.role === 'admin' ? <AdminSection /> : null`)는 페이지의 자명한 조건문이다.
+
+describe('설정 화면 — 배정 요청 수락 (CCC-123)', () => {
+  it('당사자·사업·역할과 수락 행동을 한 카드에서 보여준다', () => {
+    render(<AssignmentRequestList
+      requests={[{
+        id: '49e972df-2b2b-4185-b781-e231fd848c62',
+        supportCaseId: 'b5ad5d10-7c68-4f2c-a78b-7865438463d1',
+        beneficiaryId: 'swallow-001',
+        participantName: '김한나',
+        programType: 'financial_support_v1',
+        role: 'secondary',
+        status: 'requested',
+        requestedAt: '2026-08-23T06:00:00.000Z',
+      }]}
+      programLabels={{ financial_support_v1: '긴급생활안정자금' }}
+    />);
+
+    expect(screen.getByRole('heading', { name: '배정 요청' })).toBeTruthy();
+    expect(screen.getByText('김한나')).toBeTruthy();
+    expect(screen.getByText('긴급생활안정자금')).toBeTruthy();
+    expect(screen.getByText('공동 담당')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '수락' })).toBeTruthy();
+  });
+});
 
 describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
   it('관리자 구역에 관리자 화면 4개와 온보딩 링크가 순서대로 보인다', () => {

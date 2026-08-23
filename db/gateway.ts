@@ -8453,7 +8453,7 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string, opt
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE support_case_assignees
-       SET unassigned_at = ?, status = 'ended', transfer_reason = ?
+       SET unassigned_at = ?, status = 'ended', transfer_reason = COALESCE(transfer_reason, ?)
        WHERE org_id = ? AND user_id = ? AND unassigned_at IS NULL
          AND status IN ('requested', 'active')`,
     ).bind(endedAt, reason, actor.orgId, userId),
@@ -8603,6 +8603,17 @@ export interface SupportCaseAssignee {
   notifiedAt: string | null;
   assignedAt: string;
   unassignedAt: string | null;
+}
+
+export interface SupportCaseAssignmentRequest {
+  id: string;
+  supportCaseId: string;
+  beneficiaryId: string;
+  participantName: string | null;
+  programType: 'financial_support_v1';
+  role: 'primary' | 'secondary';
+  status: 'requested';
+  requestedAt: string;
 }
 
 export interface ParticipantPiiVault {
@@ -16230,7 +16241,7 @@ export async function forceTransferSupportCase(
     batch.push(
       env.DB.prepare(
         `UPDATE support_case_assignees
-         SET unassigned_at = ?, status = 'ended', transfer_reason = ?
+         SET unassigned_at = ?, status = 'ended', transfer_reason = COALESCE(transfer_reason, ?)
          WHERE id = ? AND org_id = ? AND status = 'active'`,
       ).bind(transferredAt, reason, stringValue(current.id), actor.orgId),
     );
@@ -16434,6 +16445,53 @@ export async function listSupportCaseAssignees(
     supportCaseId,
   });
   return result.results.map(mapSupportCaseAssignee);
+}
+
+/**
+ * 로그인한 본인의 배정 요청 목록. requested는 상담 내용·케이스 접근을 열지 않지만, 수락할
+ * 요청을 식별할 수 있도록 기관 내 기본 식별정보인 당사자 이름과 사업만 반환한다(D74).
+ * 상담 기록·연락처는 포함하지 않는다. 조회와 PII 복호화는 각각 감사한다(D14).
+ */
+export async function listMySupportCaseAssignmentRequests(
+  env: Env,
+  actor: Actor,
+): Promise<SupportCaseAssignmentRequest[]> {
+  await assertCurrentHumanActor(env, actor);
+  const result = await env.DB.prepare(
+    `SELECT assignment.id, assignment.support_case_id, assignment.role, assignment.assigned_at,
+            support_case.beneficiary_id, support_case.program_type
+     FROM support_case_assignees AS assignment
+     JOIN support_cases AS support_case
+       ON support_case.id = assignment.support_case_id
+      AND support_case.org_id = assignment.org_id
+     WHERE assignment.org_id = ? AND assignment.user_id = ?
+       AND assignment.status = 'requested' AND assignment.unassigned_at IS NULL
+     ORDER BY assignment.assigned_at, assignment.id`,
+  ).bind(actor.orgId, actor.userId).all<DbRow>();
+  await writeAudit(env, actor, {
+    action: 'read',
+    targetTable: 'support_case_assignees',
+    targetId: actor.userId,
+    detail: { pendingForSelf: true, count: result.results.length },
+  });
+  const beneficiaryIds = result.results.map((row) => stringValue(row.beneficiary_id));
+  const contacts = await loadParticipantContacts(env, actor.orgId, beneficiaryIds);
+  await auditParticipantPiiRead(env, actor, contacts, { targetId: actor.userId });
+  return result.results.map((row) => {
+    const programType = row.program_type;
+    assertFinancialSupportProgramType(programType);
+    const beneficiaryId = stringValue(row.beneficiary_id);
+    return {
+      id: stringValue(row.id),
+      supportCaseId: stringValue(row.support_case_id),
+      beneficiaryId,
+      participantName: contacts.get(beneficiaryId)?.name ?? null,
+      programType,
+      role: toAssigneeRole(row.role),
+      status: 'requested',
+      requestedAt: stringValue(row.assigned_at),
+    };
+  });
 }
 
 /** 관리자 영역(재개편 T8)이 실무자 상세·사용자 화면에 싣는 '실무자별 활성 배정 당사자' 행. */

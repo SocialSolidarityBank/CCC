@@ -1,11 +1,23 @@
 import Link from 'next/link';
-import { ApiError, getMyIdentity, listOrgUsers, type DirectoryRole, type DirectoryUser, type MyIdentity } from '../lib/api';
+import {
+  ApiError,
+  getMyIdentity,
+  listAssignmentRequests,
+  listOrgUsers,
+  type AssignmentRequest,
+  type DirectoryRole,
+  type DirectoryUser,
+  type MyIdentity,
+  type ParticipantProgramType,
+} from '../lib/api';
+import { acceptSupportCaseAssignmentAction } from '../actions';
 import { PageTitle } from '../components/wire/page-title';
 import { WireError } from '../components/wire/wire-state';
 import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
 import { WireCard } from '../components/wire/wire-card';
 import { adminMenu, userLabel } from '../admin/admin-format';
+import { getDisplayLabels } from '../lib/display-labels';
 
 // 역할 화면 라벨 — CONTEXT.md 용어집 준수(기관 관리자·담당 실무자). service는 처리 장비(Mac Mini) 계정.
 const roleLabel: Record<DirectoryRole, string> = {
@@ -52,6 +64,73 @@ function AccountSection({ name, email, role }: { name: string | null; email: str
       </dl>
     </WireCard>
   );
+}
+
+const assignmentRoleLabel: Record<AssignmentRequest['role'], string> = {
+  primary: '주 담당',
+  secondary: '공동 담당',
+};
+
+export function AssignmentRequestList({
+  requests,
+  programLabels,
+}: {
+  requests: AssignmentRequest[];
+  programLabels: Record<ParticipantProgramType, string>;
+}) {
+  return (
+    <WireCard
+      as="section"
+      className="settings-section"
+      labelledBy="settings-assignment-requests-heading"
+      title={<h2 id="settings-assignment-requests-heading">배정 요청</h2>}
+    >
+      <ul className="settings-user-list">
+        {requests.map((request) => (
+          <li className="settings-user-row" key={request.id}>
+            <div>
+              <p className="settings-user-email">{request.participantName ?? '이름 미입력'}</p>
+              <p className="settings-user-role">{programLabels[request.programType]}</p>
+            </div>
+            <WireBadge tone="mint">{assignmentRoleLabel[request.role]}</WireBadge>
+            <form action={acceptSupportCaseAssignmentAction}>
+              <input type="hidden" name="supportCaseId" value={request.supportCaseId} />
+              <input type="hidden" name="assignmentId" value={request.id} />
+              <WireButton type="submit" variant="primary" height="sm">수락</WireButton>
+            </form>
+          </li>
+        ))}
+      </ul>
+    </WireCard>
+  );
+}
+
+async function AssignmentRequestSection() {
+  try {
+    const [requests, labels] = await Promise.all([
+      listAssignmentRequests(),
+      getDisplayLabels(),
+    ]);
+    if (requests.length === 0) return null;
+    return (
+      <AssignmentRequestList
+        requests={requests}
+        programLabels={labels.programLabels}
+      />
+    );
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return (
+      <WireCard
+        as="section"
+        className="settings-section"
+        labelledBy="settings-assignment-requests-heading"
+        title={<h2 id="settings-assignment-requests-heading">배정 요청</h2>}
+      >
+        <WireError>배정 요청을 지금 불러올 수 없습니다. 잠시 후 다시 시도하세요.</WireError>
+      </WireCard>
+    );
+  }
 }
 
 async function DirectorySection() {
@@ -133,6 +212,7 @@ export default async function SettingsPage() {
     <main className="page-content settings-page">
       <PageTitle>설정</PageTitle>
       <AccountSection name={me.name} email={me.email} role={me.role} />
+      <AssignmentRequestSection />
       {/* 기관 실무자 목록은 기관 관리자 역할에게만 노출한다(비관리자는 내 계정만). */}
       {me.role === 'admin' ? <DirectorySection /> : null}
       {me.role === 'admin' ? <AdminSection /> : null}

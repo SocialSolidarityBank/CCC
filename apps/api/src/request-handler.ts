@@ -89,6 +89,7 @@ import {
   listCases,
   listCounselingRecords,
   listCounselorAssignments,
+  listMySupportCaseAssignmentRequests,
   listGoals,
   listPipelineJobs,
   listTextWorkItems,
@@ -2861,6 +2862,11 @@ export async function handleRequest(
         if (finalizedNow) await runDiscrepancyDetection(env, actor, sessionId);
         return new Response(null, { status: 204 });
       }
+    }
+
+    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'assignment-requests') {
+      requestQuery(url, []);
+      return json({ requests: await listMySupportCaseAssignmentRequests(env, actor) });
     }
 
     if (parts[0] === 'users') {

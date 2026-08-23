@@ -6346,6 +6346,7 @@ WHEN
     AND NOT (
       OLD.status IN ('requested', 'active') AND NEW.status = 'ended'
       AND OLD.unassigned_at IS NULL AND NEW.unassigned_at IS NOT NULL
+      AND OLD.transfer_reason IS NULL
       AND NEW.transfer_reason IS NOT NULL
     )
   )

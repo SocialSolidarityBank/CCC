@@ -189,6 +189,22 @@ describe('POST /support-cases/:id/assignees (route, D74 assignment request)', ()
     expect(payload.role).toBe('secondary');
     expect(payload.status).toBe('requested');
 
+    const pendingResponse = await worker.fetch(new Request(
+      'http://localhost/assignment-requests',
+      { headers: headersFor(testActors.unassignedCounselor) },
+    ), t.env);
+    expect(pendingResponse.status).toBe(200);
+    const pendingPayload = await pendingResponse.json() as {
+      requests: Array<{ id: string; status: string; participantName: string | null }>;
+    };
+    expect(pendingPayload.requests).toEqual([
+      expect.objectContaining({
+        id: payload.id,
+        status: 'requested',
+        participantName: pii.name,
+      }),
+    ]);
+
     const listResponse = await worker.fetch(new Request(
       `http://localhost/support-cases/${seeded.supportCaseId}/assignees`,
       { headers: headersFor(testActors.admin) },
@@ -213,6 +229,13 @@ describe('POST /support-cases/:id/assignees (route, D74 assignment request)', ()
     expect(after.status).toBe(200);
     const afterPayload = await after.json() as { assignees: Array<{ role: string }> };
     expect(afterPayload.assignees).toHaveLength(2);
+
+    const noPending = await worker.fetch(new Request(
+      'http://localhost/assignment-requests',
+      { headers: headersFor(testActors.unassignedCounselor) },
+    ), t.env);
+    expect(noPending.status).toBe(200);
+    await expect(noPending.json()).resolves.toEqual({ requests: [] });
   });
 
   it('denies co-assignment by a non-admin actor (403)', async () => {

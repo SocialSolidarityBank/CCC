@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   ApiError,
+  acceptAssignmentRequest,
   addSupportCaseAssignee,
   closeGoal,
   closeSupportCase,
@@ -1018,7 +1019,7 @@ function userIdentifier(formData: FormData, name: string): string {
   return input;
 }
 
-// 관리자 영역(재개편 T8, #38): 공동 담당 추가(D7). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+// 관리자 영역: 배정 요청(D74). 수락 전에는 상담 내용·PII가 열리지 않는다.
 export async function addSupportCaseAssigneeAction(formData: FormData): Promise<void> {
   let supportCaseId: string | undefined;
   try {
@@ -1034,7 +1035,21 @@ export async function addSupportCaseAssigneeAction(formData: FormData): Promise<
   if (supportCaseId === undefined) redirect(withNotice('/admin/assign', 'error', 'service_unavailable'));
   revalidatePath('/admin/assign');
   revalidatePath('/admin/users');
-  redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_added'));
+  redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_requested'));
+}
+
+// 로그인한 실무자가 본인의 pending 배정 요청을 수락한다(D74). 요청 목록은 /settings에 있다.
+export async function acceptSupportCaseAssignmentAction(formData: FormData): Promise<void> {
+  try {
+    const supportCaseId = opaqueId(formData, 'supportCaseId');
+    const assignmentId = opaqueId(formData, 'assignmentId');
+    await acceptAssignmentRequest(supportCaseId, assignmentId);
+  } catch (error) {
+    redirect(withNotice('/settings', 'error', noticeFor(error)));
+  }
+  revalidatePath('/settings');
+  revalidatePath('/participants');
+  redirect(withNotice('/settings', 'notice', 'assignment_accepted'));
 }
 
 // 실무자 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
