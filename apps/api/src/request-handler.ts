@@ -51,6 +51,7 @@ import {
   completeCounselorSignup,
   getCounselorInviteSignupInfo,
   getInviteForSignup,
+  getParticipantSelfCheck,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -2001,6 +2002,7 @@ export async function handleRequest(
     const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
     const publicSignupPath =
       (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
+      || (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me')
       || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant')
       // 실무자 초대 가입(CCC-108)도 같은 공개 가입 표면이다 — 아래 두 worker 경로가
       // CCC-112 스위치·미리보기 코드 게이트를 자동으로 함께 받는다.
@@ -2024,6 +2026,19 @@ export async function handleRequest(
         const invite = await getInviteForSignup(env, pathToken, 'participant');
         if (invite.programType === null) return json({ error: 'not_found' }, 404);
         return json({ programType: invite.programType });
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
+    if (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me') {
+      // CCC-27 당사자 자기 확인 — 소비된(가입 완료) 토큰만 자기 정보를 연다. 무효·미소비·
+      // 실무자용 토큰은 위 가입 조회와 같은 404 로 뭉친다(구분 불가 — 토큰 유효성 누설 금지).
+      requestQuery(url, []);
+      const pathToken = pubParts[2] ?? '';
+      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
+      try {
+        return json(await getParticipantSelfCheck(env, pathToken));
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
