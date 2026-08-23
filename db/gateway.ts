@@ -1064,16 +1064,74 @@ function assertAdmin(actor: Actor): void {
   }
 }
 
+type HumanRoleAssignment = 'institution_admin' | 'practitioner';
+
+function isMissingRoleAssignmentsTable(error: unknown): boolean {
+  return error instanceof Error
+    && error.message.includes('no such table: user_role_assignments');
+}
+
+async function hasActiveHumanRoleAssignment(
+  env: Env,
+  actor: Actor,
+  role: HumanRoleAssignment,
+): Promise<boolean> {
+  try {
+    const assignment = await env.DB.prepare(
+      `SELECT 1 AS allowed
+       FROM user_role_assignments
+       WHERE user_id = ? AND org_id = ? AND role = ? AND revoked_at IS NULL`,
+    ).bind(actor.userId, actor.orgId, role).first<{ allowed: number }>();
+    return assignment !== null;
+  } catch (error) {
+    // Migration regression tests intentionally execute the current gateway
+    // against persisted pre-0040 schemas. Those schemas only have users.role.
+    if (!isMissingRoleAssignmentsTable(error)) throw error;
+    return role === 'institution_admin'
+      ? actor.role === 'admin'
+      : actor.role === 'counselor';
+  }
+}
+
 async function assertInstitutionAdmin(env: Env, actor: Actor): Promise<void> {
   assertHuman(actor);
   await assertCurrentHumanActor(env, actor);
-  const role = await env.DB.prepare(
-    `SELECT 1 AS allowed
-     FROM user_role_assignments
-     WHERE user_id = ? AND org_id = ? AND role = 'institution_admin' AND revoked_at IS NULL`,
-  ).bind(actor.userId, actor.orgId).first<{ allowed: number }>();
-  if (role === null) {
+  if (!(await hasActiveHumanRoleAssignment(env, actor, 'institution_admin'))) {
     throw new ForbiddenError('institution admin role is required');
+  }
+}
+
+async function assertPractitioner(env: Env, actor: Actor): Promise<void> {
+  assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  if (!(await hasActiveHumanRoleAssignment(env, actor, 'practitioner'))) {
+    throw new ForbiddenError('practitioner role is required');
+  }
+}
+
+async function assertActivePractitionerUser(
+  env: Env,
+  orgId: string,
+  userId: string,
+): Promise<void> {
+  await assertActiveHumanUser(env, orgId, userId);
+  let assignment: { allowed: number } | null;
+  try {
+    assignment = await env.DB.prepare(
+      `SELECT 1 AS allowed
+       FROM user_role_assignments
+       WHERE user_id = ? AND org_id = ? AND role = 'practitioner' AND revoked_at IS NULL`,
+    ).bind(userId, orgId).first<{ allowed: number }>();
+  } catch (error) {
+    if (!isMissingRoleAssignmentsTable(error)) throw error;
+    assignment = await env.DB.prepare(
+      `SELECT 1 AS allowed
+       FROM users
+       WHERE id = ? AND org_id = ? AND active = 1 AND role = 'counselor'`,
+    ).bind(userId, orgId).first<{ allowed: number }>();
+  }
+  if (assignment === null) {
+    throw new ForbiddenError('practitioner role is required');
   }
 }
 
@@ -1143,13 +1201,18 @@ async function getCaseForOrg(env: Env, orgId: string, caseId: string): Promise<C
 
 async function assertCaseAccess(env: Env, actor: Actor, caseId: string): Promise<Case> {
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
-  await assertCurrentHumanActor(env, actor);
-  await assertActiveAssignment(env, actor, context.supportCaseId);
+  await assertSupportCaseAccess(env, actor, context.supportCaseId);
+  return context.caseRecord;
+}
+
+async function assertCaseWriteAccess(env: Env, actor: Actor, caseId: string): Promise<Case> {
+  const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
+  await assertSupportCaseWriteAccess(env, actor, context.supportCaseId);
   return context.caseRecord;
 }
 
 async function getCaseForAdmin(env: Env, actor: Actor, caseId: string): Promise<Case> {
-  assertAdmin(actor);
+  await assertInstitutionAdmin(env, actor);
   return getCaseForOrg(env, actor.orgId, caseId);
 }
 
@@ -1347,6 +1410,13 @@ async function assertSessionAccess(env: Env, actor: Actor, sessionId: string): P
   return session;
 }
 
+async function assertSessionWriteAccess(env: Env, actor: Actor, sessionId: string): Promise<Session> {
+  assertHuman(actor);
+  const session = await getSessionForOrg(env, actor.orgId, sessionId);
+  await assertCaseWriteAccess(env, actor, session.caseId);
+  return session;
+}
+
 async function getActionItemForOrg(env: Env, orgId: string, actionItemId: string): Promise<ActionItem> {
   const row = await env.DB.prepare(
     `SELECT action_item.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
@@ -1450,6 +1520,23 @@ async function assertPhase1SessionAccess(env: Env, actor: Actor, sessionId: stri
     throw error;
   }
 }
+
+async function assertPhase1SessionWriteAccess(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+): Promise<Session> {
+  try {
+    return await assertSessionWriteAccess(env, actor, sessionId);
+  } catch (error) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'sessions',
+      targetId: sessionId,
+      reason: error instanceof ForbiddenError ? 'forbidden' : 'invalid_actor',
+    });
+    throw error;
+  }
+}
 async function assertServiceSessionAccess(
   env: Env,
   actor: Actor,
@@ -1479,8 +1566,8 @@ async function assertServiceSessionAccess(
 
 /**
  * 호출 ① 을 트리거할 수 있는 신원 판정. 기본은 처리 장비(service)뿐이다. `allowCounselor`
- * 를 켠 호출부(재생성 경로, D69 · ADR-0036 결정 2 · CCC-100)만 담당 실무자·기관 관리자도
- * 통과시킨다 — "재료가 늦게 도착하면 실무자가 재생성으로 다시 돌린다"는 결정 문구를
+ * 를 켠 호출부(재생성 경로, D69 · ADR-0036 결정 2 · CCC-100)만 담당 실무자도
+ * 통과시킨다. "재료가 늦게 도착하면 실무자가 재생성으로 다시 돌린다"는 결정 문구를
  * 그대로 구현한다. `/ai/source`(장비가 마스킹 스냅샷을 올리는 경로)처럼 장비 전용이어야
  * 하는 다른 호출부는 옵션을 켜지 않아 이 완화의 영향을 받지 않는다.
  */
@@ -1491,7 +1578,7 @@ async function assertServiceTextAiSessionGrant(
   options: { allowCounselor?: boolean } = {},
 ): Promise<{ session: Session; consentEvidenceId: string }> {
   const session = options.allowCounselor === true && actor.role !== 'service'
-    ? await assertPhase1SessionAccess(env, actor, sessionId)
+    ? await assertPhase1SessionWriteAccess(env, actor, sessionId)
     : await assertServiceSessionAccess(env, actor, sessionId, 'pilot_text_ai_consent_evidence');
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
   if (!isPilotTextAiEnabled(env)) {
@@ -1578,6 +1665,26 @@ async function assertAiWorkItemAccess(env: Env, actor: Actor, workItemId: string
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_work_items',
       targetId: workItemId,
+      reason: error instanceof ForbiddenError ? 'forbidden' : 'invalid_actor',
+    });
+    throw error;
+  }
+}
+
+async function assertAiWorkItemWriteAccess(
+  env: Env,
+  actor: Actor,
+  workItemId: string,
+): Promise<AiWorkItem> {
+  const workItem = await assertAiWorkItemAccess(env, actor, workItemId);
+  try {
+    await assertCaseWriteAccess(env, actor, workItem.caseId);
+    return workItem;
+  } catch (error) {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'ai_work_items',
+      targetId: workItemId,
+      caseId: workItem.caseId,
       reason: error instanceof ForbiddenError ? 'forbidden' : 'invalid_actor',
     });
     throw error;
@@ -4381,7 +4488,7 @@ async function editGeneratedAiDraft(
   workItemId: string,
   input: EditGeneratedAiDraftInput,
 ): Promise<AiDraftVersion> {
-  const workItem = await assertAiWorkItemAccess(env, actor, workItemId);
+  const workItem = await assertAiWorkItemWriteAccess(env, actor, workItemId);
 
   let expectedVersion: number;
   try {
@@ -4666,7 +4773,7 @@ export async function reviewGeneratedAiDraft(
 
   input: AiDraftReviewInput,
 ): Promise<AiDraftVersion> {
-  const workItem = await assertAiWorkItemAccess(env, actor, workItemId);
+  const workItem = await assertAiWorkItemWriteAccess(env, actor, workItemId);
 
   let expectedVersion: number;
   let decision: 'approved' | 'rejected';
@@ -5405,7 +5512,7 @@ function mapSessionDiscrepancy(row: DbRow): SessionDiscrepancy {
  * 처리된 행은 접힌 이력이라 남는다(ADR-0018, DB 트리거도 삭제를 막는다). 이미 이 참여 사업에
  * 있는 쌍(처리됨 또는 다른 트리거 회차의 미처리)은 새로 넣지 않는다 — 중복 방지. 인용은 저장 전에
  * 길이·유형 정합을 다시 검증하고, 회차 참조가 이 참여 사업의 회차인지도 확인한다.
- * 권한: 담당 실무자 | admin (D7). 감사: create 1건(D14).
+ * 권한: 담당 실무자 배정. 감사: create 1건(D14).
  */
 export async function replaceSessionDiscrepancies(
   env: Env,
@@ -5660,6 +5767,11 @@ export async function createCase(
   },
 ): Promise<Case> {
   assertHuman(actor);
+  if (actor.role === 'admin') {
+    await assertInstitutionAdmin(env, actor);
+  } else {
+    await assertPractitioner(env, actor);
+  }
   const programType = input.programType ?? FINANCIAL_SUPPORT_V1;
   assertFinancialSupportProgramType(programType);
   const intakeAt = input.intakeAt === undefined
@@ -5704,10 +5816,13 @@ export async function listCases(
   filter?: { status?: 'active' | 'closed' },
 ): Promise<Case[]> {
   assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
   const status = filter?.status;
   let result: D1Result<DbRow>;
 
-  if (actor.role === 'admin') {
+  if (hasInstitutionAdminAccess) {
     result = status === undefined
       ? await env.DB.prepare('SELECT * FROM cases WHERE org_id = ? ORDER BY id').bind(actor.orgId).all<DbRow>()
       : await env.DB.prepare('SELECT * FROM cases WHERE org_id = ? AND status = ? ORDER BY id').bind(actor.orgId, status).all<DbRow>();
@@ -5772,7 +5887,7 @@ export async function registerPii(
   caseId: string,
   pii: { name?: string; phone?: string; account?: string; email?: string },
 ): Promise<void> {
-  assertAdmin(actor);
+  await assertInstitutionAdmin(env, actor);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const vault = await getParticipantPiiVaultForOrg(env, actor.orgId, context.beneficiaryId);
   const version = integerValue(vault.version);
@@ -5817,13 +5932,12 @@ export async function assignCase(
   userId: string,
   role?: 'primary' | 'secondary',
 ): Promise<void> {
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
+  await assertInstitutionAdmin(env, actor);
   await assertOrganizationSettings(env, actor.orgId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   await assertSupportCaseAssignedOrAdminAccess(env, actor, context.supportCaseId);
   assertOpaqueIdentifier(userId, 'assignee user id');
-  await assertActiveHumanUser(env, actor.orgId, userId);
+  await assertActivePractitionerUser(env, actor.orgId, userId);
   const existing = await env.DB.prepare(
     'SELECT id FROM support_case_assignees WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL',
   ).bind(actor.orgId, context.supportCaseId, userId).first<{ id: string }>();
@@ -5857,8 +5971,7 @@ export async function transferCase(
   fromUserId: string,
   toUserId: string,
 ): Promise<void> {
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
+  await assertInstitutionAdmin(env, actor);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   await transferSupportCase(env, actor, context.supportCaseId, fromUserId, toUserId);
 }
@@ -5918,7 +6031,7 @@ export async function listAssignees(
 /**
  * 목표 신설. 활성 목표가 MAX_ACTIVE_GOALS(3개) 이상이면 거부.
  * 최초 작성도 이력의 첫 줄로 남긴다(D62 §4 — "누가 처음 정했는지"가 함께 남는다).
- * 권한: 담당 실무자 | admin. 감사: create.
+ * 권한: 담당 실무자 배정. 감사: create.
  */
 export async function createGoal(
   env: Env,
@@ -5927,7 +6040,7 @@ export async function createGoal(
   input: { title: string; scaleCriteria?: unknown },
 ): Promise<Goal> {
   assertHuman(actor);
-  await assertCaseAccess(env, actor, caseId);
+  await assertCaseWriteAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const title = input.title.trim();
 
@@ -5977,7 +6090,7 @@ export async function createGoal(
  * 세부 목표 문구 수정 (D62 §4 — D12 수정 금지 폐지). 이전 문구·수정자·시각은
  * goal_revisions 에 덧붙여 보존한다. 닫힌 목표는 기록이라 고치지 않고, 종결 케이스도
  * 잠근다(전체 목표와 같은 규칙). 같은 문구면 아무것도 쓰지 않는다.
- * 권한: 담당 실무자 | admin. 감사: update (문구는 detail 에 싣지 않는다 — R3 태도).
+ * 권한: 담당 실무자 배정. 감사: update (문구는 detail 에 싣지 않는다 — R3 태도).
  */
 export async function updateGoalTitle(
   env: Env,
@@ -5987,7 +6100,7 @@ export async function updateGoalTitle(
 ): Promise<Goal> {
   assertHuman(actor);
   const goal = await getGoalForOrg(env, actor.orgId, goalId);
-  const caseRecord = await assertCaseAccess(env, actor, goal.caseId);
+  const caseRecord = await assertCaseWriteAccess(env, actor, goal.caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, goal.caseId);
 
   const nextTitle = typeof title === 'string' ? title.trim() : '';
@@ -6028,7 +6141,7 @@ export async function updateGoalTitle(
  * 구 '종료+신설' 승계는 만들지 않는다 — 수정이 자유로워져 문구를 바꾸려고 닫을 일이
  * 없고, 닫기는 순수하게 사유의 기록이다. 닫은 목표는 다시 열지 않는다(DB 트리거
  * goals_no_reopen 이 결정론으로 강제).
- * 권한: 담당 실무자 | admin. 감사: close.
+ * 권한: 담당 실무자 배정. 감사: close.
  */
 export async function closeGoal(
   env: Env,
@@ -6038,7 +6151,7 @@ export async function closeGoal(
 ): Promise<Goal> {
   assertHuman(actor);
   const goal = await getGoalForOrg(env, actor.orgId, goalId);
-  await assertCaseAccess(env, actor, goal.caseId);
+  await assertCaseWriteAccess(env, actor, goal.caseId);
 
   if (goal.status !== 'active') {
     throw new ValidationError('only an active goal can be closed');
@@ -6207,7 +6320,7 @@ async function assertRecordingResultNotCommitted(
 export async function assertRecordingUploadAllowed(env: Env,
 actor: Actor,
 sessionId: string,): Promise<void> {
-  const session = await assertSessionAccess(env, actor, sessionId);
+  const session = await assertSessionWriteAccess(env, actor, sessionId);
   await assertRecordingUploadAllowedForSession(env, actor, session);
   await assertRecordingResultNotCommitted(env, actor, session);
 }
@@ -6218,7 +6331,7 @@ sessionId: string,): Promise<void> {
  * 이미 승인된 세션은 재등록할 수 없다(승인된 공식 기록 보호, R2).
  * 미승인 세션을 재등록하면 이전 실행의 AI 산출물(전사·요약·대조·감정·화자 확인·
  * ai_gas_evidence·검토 전 AI 플래그)을 함께 비워 새 실행과 섞이지 않게 한다.
- * 권한: 담당 실무자 | admin. 감사: update.
+ * 권한: 담당 실무자 배정. 감사: update.
  */
 export async function registerRecording(
   env: Env,
@@ -6226,7 +6339,7 @@ export async function registerRecording(
   sessionId: string,
   audioR2Key: string,
 ): Promise<Session> {
-  const session = await assertSessionAccess(env, actor, sessionId);
+  const session = await assertSessionWriteAccess(env, actor, sessionId);
   await assertRecordingUploadAllowedForSession(env, actor, session);
   await assertRecordingResultNotCommitted(env, actor, session);
   if (audioR2Key.trim().length === 0) {
@@ -6253,16 +6366,20 @@ export async function registerRecording(
                  AND support_case.org_id = sessions.org_id
                  AND support_case.consent_recording_at IS NOT NULL
              )
-             AND (
-               ? = 'admin' OR EXISTS (
-                 SELECT 1 FROM support_case_assignees AS assignment
-                 WHERE assignment.org_id = sessions.org_id
-                   AND assignment.support_case_id = sessions.support_case_id
-                   AND assignment.user_id = ?
-                   AND assignment.unassigned_at IS NULL
-               )
+             AND EXISTS (
+               SELECT 1
+               FROM support_case_assignees AS assignment
+               JOIN user_role_assignments AS practitioner_role
+                 ON practitioner_role.org_id = assignment.org_id
+                AND practitioner_role.user_id = assignment.user_id
+                AND practitioner_role.role = 'practitioner'
+                AND practitioner_role.revoked_at IS NULL
+               WHERE assignment.org_id = sessions.org_id
+                 AND assignment.support_case_id = sessions.support_case_id
+                 AND assignment.user_id = ?
+                 AND assignment.unassigned_at IS NULL
              )`,
-        ).bind(audioR2Key, 'uploaded', updatedAt, sessionId, actor.orgId, actor.role, actor.userId),
+        ).bind(audioR2Key, 'uploaded', updatedAt, sessionId, actor.orgId, actor.userId),
     env.DB.prepare(
           `DELETE FROM ai_gas_evidence
            WHERE org_id = ? AND session_id = ?
@@ -6281,17 +6398,21 @@ export async function registerRecording(
                      AND support_case.org_id = session.org_id
                      AND support_case.consent_recording_at IS NOT NULL
                  )
-                 AND (
-                   ? = 'admin' OR EXISTS (
-                     SELECT 1 FROM support_case_assignees AS assignment
-                     WHERE assignment.org_id = session.org_id
-                       AND assignment.support_case_id = session.support_case_id
-                       AND assignment.user_id = ?
-                       AND assignment.unassigned_at IS NULL
-                   )
+                 AND EXISTS (
+                   SELECT 1
+                   FROM support_case_assignees AS assignment
+                   JOIN user_role_assignments AS practitioner_role
+                     ON practitioner_role.org_id = assignment.org_id
+                    AND practitioner_role.user_id = assignment.user_id
+                    AND practitioner_role.role = 'practitioner'
+                    AND practitioner_role.revoked_at IS NULL
+                   WHERE assignment.org_id = session.org_id
+                     AND assignment.support_case_id = session.support_case_id
+                     AND assignment.user_id = ?
+                     AND assignment.unassigned_at IS NULL
                  )
              )`,
-        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
+        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
     // 검토 전(pending) AI 플래그만 제거 — 실무자가 이미 확정/기각한 판단은 보존 (D9).
     env.DB.prepare(
           `DELETE FROM flags
@@ -6311,17 +6432,21 @@ export async function registerRecording(
                      AND support_case.org_id = session.org_id
                      AND support_case.consent_recording_at IS NOT NULL
                  )
-                 AND (
-                   ? = 'admin' OR EXISTS (
-                     SELECT 1 FROM support_case_assignees AS assignment
-                     WHERE assignment.org_id = session.org_id
-                       AND assignment.support_case_id = session.support_case_id
-                       AND assignment.user_id = ?
-                       AND assignment.unassigned_at IS NULL
-                   )
+                 AND EXISTS (
+                   SELECT 1
+                   FROM support_case_assignees AS assignment
+                   JOIN user_role_assignments AS practitioner_role
+                     ON practitioner_role.org_id = assignment.org_id
+                    AND practitioner_role.user_id = assignment.user_id
+                    AND practitioner_role.role = 'practitioner'
+                    AND practitioner_role.revoked_at IS NULL
+                   WHERE assignment.org_id = session.org_id
+                     AND assignment.support_case_id = session.support_case_id
+                     AND assignment.user_id = ?
+                     AND assignment.unassigned_at IS NULL
                  )
              )`,
-        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.role, actor.userId),
+        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
   ]);
   const updated = results[0] as unknown as { meta?: { changes?: number } };
   if ((updated.meta?.changes ?? 0) < 1) {
@@ -6775,14 +6900,14 @@ export async function enqueueTextWorkItem(
  * (resolveLegacyCaseContext 가 둘 다 매칭한다). 목표 API 세 곳이 레거시 id 를 들고 온다.
  * 대기 행이 이미 있는 회차는 부분 유니크 인덱스가 흡수한다(INSERT OR IGNORE). 먼저
  * 쌓인 사유가 남고 행은 늘지 않는다. 실패해도 목표 저장 응답을 막지 않는다(D8, 호출부 계약).
- * 권한: 담당 실무자 | admin (assertCaseAccess). 감사: create 1건.
+ * 권한: 담당 실무자 배정(assertCaseWriteAccess). 감사: create 1건.
  */
 export async function enqueueTextWorkForGoalChange(
   env: Env,
   actor: Actor,
   supportCaseId: string,
 ): Promise<void> {
-  await assertCaseAccess(env, actor, supportCaseId);
+  await assertCaseWriteAccess(env, actor, supportCaseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, supportCaseId);
 
   const candidates = await env.DB.prepare(
@@ -7339,14 +7464,14 @@ export async function runPipelineWatchdog(env: Env): Promise<PipelineHealth[]> {
 
 /**
  * 화자 매핑 확인 (D11: 자동 추정 → 실무자 1회 확인).
- * 권한: 담당 실무자 | admin. 감사: update.
+ * 권한: 담당 실무자 배정. 감사: update.
  */
 export async function confirmSpeakerMapping(
   env: Env,
   actor: Actor,
   sessionId: string,
 ): Promise<Session> {
-  const session = await assertSessionAccess(env, actor, sessionId);
+  const session = await assertSessionWriteAccess(env, actor, sessionId);
   const confirmedAt = now();
   await env.DB.prepare('UPDATE sessions SET speaker_mapping_confirmed_at = ?, updated_at = ? WHERE id = ? AND org_id = ?')
     .bind(confirmedAt, confirmedAt, sessionId, actor.orgId)
@@ -7361,7 +7486,7 @@ export async function confirmSpeakerMapping(
  *   - 대조 3종은 읽기 전용으로 모두 확인됨(D71)
  *   - GAS 점수는 recordGasScores로 먼저 저장됨 (D6)
  * 통과 시 approved_at/approved_by 기록 → 이후 브리핑·통계에 반영.
- * 권한: 담당 실무자 | admin. 감사: approve.
+ * 권한: 담당 실무자 배정. 감사: approve.
  */
 export async function approveSession(
   env: Env,
@@ -7369,7 +7494,7 @@ export async function approveSession(
   sessionId: string,
   review: { expectedDraftVersion?: number },
 ): Promise<Session> {
-  const session = await assertSessionAccess(env, actor, sessionId);
+  const session = await assertSessionWriteAccess(env, actor, sessionId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
   let expectedVersion: number;
   try {
@@ -7636,7 +7761,7 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
 /**
  * GAS 점수 기록. scored_by는 항상 사람(실무자) — service 역할은 호출 불가 (D6).
  * AI가 제안한 근거 발췌(evidenceQuote)는 함께 저장할 수 있다.
- * 권한: 담당 실무자 | admin. 감사: create.
+ * 권한: 담당 실무자 배정. 감사: create.
  */
 export async function recordGasScores(
   env: Env,
@@ -7648,7 +7773,7 @@ export async function recordGasScores(
     evidenceQuote?: string;
   }>,
 ): Promise<GasScore[]> {
-  const session = await assertSessionAccess(env, actor, sessionId);
+  const session = await assertSessionWriteAccess(env, actor, sessionId);
   if (scores.length === 0) {
     throw new ValidationError('at least one GAS score is required');
   }
@@ -7695,7 +7820,7 @@ export async function recordGasScores(
 // 액션 아이템 (action_items)
 // ============================================================================
 
-/** 액션 아이템 생성. 권한: 담당 실무자 | admin. 감사: create. */
+/** 액션 아이템 생성. 권한: 담당 실무자 배정. 감사: create. */
 export async function createActionItem(
   env: Env,
   actor: Actor,
@@ -7708,7 +7833,7 @@ export async function createActionItem(
   },
 ): Promise<ActionItem> {
   assertHuman(actor);
-  await assertCaseAccess(env, actor, caseId);
+  await assertCaseWriteAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   if (input.description.trim().length === 0) {
     throw new ValidationError('action item description is required');
@@ -7749,7 +7874,7 @@ export async function createActionItem(
   return action;
 }
 
-/** 액션 아이템 해결 처리. 권한: 담당 실무자 | admin. 감사: update. */
+/** 액션 아이템 해결 처리. 권한: 담당 실무자 배정. 감사: update. */
 export async function resolveActionItem(
   env: Env,
   actor: Actor,
@@ -7757,7 +7882,7 @@ export async function resolveActionItem(
 ): Promise<ActionItem> {
   assertHuman(actor);
   const action = await getActionItemForOrg(env, actor.orgId, actionItemId);
-  await assertCaseAccess(env, actor, action.caseId);
+  await assertCaseWriteAccess(env, actor, action.caseId);
   const resolvedAt = now();
   await env.DB.prepare('UPDATE action_items SET resolved_at = ?, resolved_by = ? WHERE id = ? AND org_id = ?')
     .bind(resolvedAt, actor.userId, actionItemId, actor.orgId)
@@ -7793,7 +7918,7 @@ export async function listOpenActionItems(
 /**
  * 실무자 직접 플래그 생성 (source='counselor', 생성 즉시 confirmed).
  * AI 제안 플래그는 ingestSessionArtifacts 경유로만 들어온다(quote 필수).
- * 권한: 담당 실무자 | admin. 감사: create.
+ * 권한: 담당 실무자 배정. 감사: create.
  */
 export async function createFlag(
   env: Env,
@@ -7802,7 +7927,7 @@ export async function createFlag(
   input: { flagType: FlagType; quote?: string; sessionId?: string },
 ): Promise<Flag> {
   assertHuman(actor);
-  await assertCaseAccess(env, actor, caseId);
+  await assertCaseWriteAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   const flagType = toFlagType(input.flagType);
   if (input.sessionId !== undefined) {
@@ -7846,7 +7971,7 @@ export async function createFlag(
 /**
  * AI 제안 플래그 확인 — 맞음(confirmed)/틀림(rejected) (D9).
  * rejected도 삭제하지 않고 보존한다(분기별 적중률 점검 루프의 데이터).
- * 권한: 담당 실무자 | admin. 감사: update.
+ * 권한: 담당 실무자 배정. 감사: update.
  */
 export async function reviewFlag(
   env: Env,
@@ -7856,7 +7981,7 @@ export async function reviewFlag(
 ): Promise<Flag> {
   assertHuman(actor);
   const flag = await getFlagForOrg(env, actor.orgId, flagId);
-  await assertCaseAccess(env, actor, flag.caseId);
+  await assertCaseWriteAccess(env, actor, flag.caseId);
   if (flag.source !== 'ai') {
     throw new ValidationError('only AI-proposed flags require review');
   }
@@ -8089,7 +8214,7 @@ export async function listAuditLog(
 
 /**
  * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
- * R2: 승인된 기록만 포함. 권한: 담당 실무자 | admin. 감사: export (D14).
+ * R2: 승인된 기록만 포함. 권한: 담당 실무자 배정. 감사: export (D14).
  */
 export async function exportCase(
   env: Env,
@@ -8097,7 +8222,7 @@ export async function exportCase(
   caseId: string,
 ): Promise<{ case: Case; goals: Goal[]; sessions: Session[]; gasScores: GasScore[] }> {
   assertHuman(actor);
-  const caseRecord = await assertCaseAccess(env, actor, caseId);
+  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   // 서로 독립적인 조회는 병렬로 실행한다.
   const [goals, sessionRows, gasScores, approvedBriefings] = await Promise.all([
@@ -8763,6 +8888,11 @@ async function resolveSupportCaseContentAccessDecision(
        EXISTS (
          SELECT 1
          FROM support_case_assignees AS direct_assignment
+         JOIN user_role_assignments AS practitioner_role
+           ON practitioner_role.org_id = direct_assignment.org_id
+          AND practitioner_role.user_id = direct_assignment.user_id
+          AND practitioner_role.role = 'practitioner'
+          AND practitioner_role.revoked_at IS NULL
          WHERE direct_assignment.org_id = ?
            AND direct_assignment.support_case_id = ?
            AND direct_assignment.user_id = ?
@@ -8784,10 +8914,23 @@ async function resolveSupportCaseContentAccessDecision(
           AND team_assignment.org_id = membership.org_id
           AND team_assignment.support_case_id = ?
           AND team_assignment.unassigned_at IS NULL
+         JOIN user_role_assignments AS team_practitioner_role
+           ON team_practitioner_role.org_id = team_assignment.org_id
+          AND team_practitioner_role.user_id = team_assignment.user_id
+          AND team_practitioner_role.role = 'practitioner'
+          AND team_practitioner_role.revoked_at IS NULL
          WHERE supervisor_grant.org_id = ?
            AND supervisor_grant.supervisor_user_id = ?
            AND supervisor_grant.revoked_at IS NULL
-       ) AS has_active_team_supervision`,
+       ) AS has_active_team_supervision,
+       EXISTS (
+         SELECT 1
+         FROM user_role_assignments AS admin_role
+         WHERE admin_role.org_id = ?
+           AND admin_role.user_id = ?
+           AND admin_role.role = 'institution_admin'
+           AND admin_role.revoked_at IS NULL
+       ) AS has_active_institution_admin_role`,
   ).bind(
     actor.orgId,
     supportCaseId,
@@ -8795,22 +8938,27 @@ async function resolveSupportCaseContentAccessDecision(
     supportCaseId,
     actor.orgId,
     actor.userId,
+    actor.orgId,
+    actor.userId,
   ).first<{
     has_active_assignment: number;
     has_active_team_supervision: number;
+    has_active_institution_admin_role: number;
   }>();
 
   return decideSupportCaseContentAccess({
     hasActiveAssignment: row?.has_active_assignment === 1,
     hasActiveTeamSupervision: row?.has_active_team_supervision === 1,
+    hasActiveInstitutionAdminRole: row?.has_active_institution_admin_role === 1,
   });
 }
 
 /**
  * Authorizes SupportCase content without granting mutation authority over a
- * closed participation. Access requires an active assignment or an active
- * team supervision grant. Institution administration alone is not a content
- * access basis. All paths reject non-published beneficiaries.
+ * closed participation. Access requires an active assignment, an active team
+ * supervision grant, or an active institution administrator role. Mutation
+ * requires both an active practitioner role and an active assignment. All
+ * paths reject non-published beneficiaries.
  */
 export async function assertSupportCaseAccess(env: Env, actor: Actor, supportCaseId: string): Promise<SupportCase> {
   try {
@@ -8845,10 +8993,25 @@ async function assertSupportCaseWriteAccess(
   actor: Actor,
   supportCaseId: string,
 ): Promise<SupportCase> {
-  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-  await assertCurrentHumanActor(env, actor);
-  await assertActiveAssignment(env, actor, supportCase.id);
-  return supportCase;
+  try {
+    const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+    await assertPractitioner(env, actor);
+    await assertActiveAssignment(env, actor, supportCase.id);
+    return supportCase;
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      try {
+        await writeAudit(env, actor, {
+          action: 'deny_access',
+          targetTable: 'support_cases',
+          targetId: supportCaseId,
+        });
+      } catch {
+        // 삼킴: 거부 응답이 우선한다.
+      }
+    }
+    throw error;
+  }
 }
 
 async function assertSupportCaseAssignedOrAdminAccess(
@@ -8858,9 +9021,11 @@ async function assertSupportCaseAssignedOrAdminAccess(
 ): Promise<SupportCase> {
   const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
   await assertCurrentHumanActor(env, actor);
-  if (actor.role !== 'admin') {
-    await assertActiveAssignment(env, actor, supportCase.id);
+  if (await hasActiveHumanRoleAssignment(env, actor, 'institution_admin')) {
+    return supportCase;
   }
+  await assertPractitioner(env, actor);
+  await assertActiveAssignment(env, actor, supportCase.id);
   return supportCase;
 }
 
@@ -8869,11 +9034,6 @@ async function assertSupportCaseReadOrAdminAccess(
   actor: Actor,
   supportCaseId: string,
 ): Promise<SupportCase> {
-  if (actor.role === 'admin') {
-    const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-    await assertCurrentHumanActor(env, actor);
-    return supportCase;
-  }
   return assertSupportCaseAccess(env, actor, supportCaseId);
 }
 
@@ -8902,9 +9062,7 @@ async function assertActivePiiSupportCaseContext(
   supportCaseId: string,
 ): Promise<SupportCase> {
   assertBeneficiaryId(beneficiaryId);
-  const supportCase = actor.role === 'admin'
-    ? await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId)
-    : await assertSupportCaseAccess(env, actor, supportCaseId);
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
   if (supportCase.beneficiaryId !== beneficiaryId || supportCase.status !== 'active') {
     throw new ForbiddenError('support case is unavailable');
   }
@@ -9390,6 +9548,11 @@ export async function createBeneficiaryWithInitialSupportCase(
   consent?: ParticipantConsentInput,
 ): Promise<SupportCaseCreationResult> {
   await assertCurrentHumanActor(env, actor);
+  if (actor.role === 'admin') {
+    await assertInstitutionAdmin(env, actor);
+  } else {
+    await assertPractitioner(env, actor);
+  }
   const expectedKeys = actor.role === 'admin'
     ? ['programType', 'initialAssigneeUserId']
     : ['programType'];
@@ -9439,7 +9602,7 @@ export async function createBeneficiaryWithInitialSupportCase(
     ? actor.userId
     : input.initialAssigneeUserId;
   assertOpaqueIdentifier(effectiveAssigneeUserId, 'initial assignee user id');
-  await assertActiveHumanUser(env, actor.orgId, effectiveAssigneeUserId);
+  await assertActivePractitionerUser(env, actor.orgId, effectiveAssigneeUserId);
 
   // ① 하드 게이트(G1)는 가명 ID 재시도 루프 **밖에서** 한 번만 판정한다 — 입력 결함으로
   // 가명 ID 를 소모하지 않게 한다. 시각만 각 시도의 createdAt 으로 다시 맞춘다.
@@ -9808,7 +9971,9 @@ export async function listPrivacyConsentFollowUps(
 ): Promise<PrivacyConsentFollowUp[]> {
   assertHuman(actor);
   await assertCurrentHumanActor(env, actor);
-  const sql = actor.role === 'admin'
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
+  const sql = hasInstitutionAdminAccess
     ? `SELECT support_cases.id, support_cases.beneficiary_id, support_cases.program_type,
               support_cases.status, support_cases.emergency_registration_at,
               support_cases.consent_privacy_due_at
@@ -9829,7 +9994,7 @@ export async function listPrivacyConsentFollowUps(
          AND support_cases.status = 'active'
        ORDER BY support_cases.consent_privacy_due_at IS NULL,
                 support_cases.consent_privacy_due_at, support_cases.id`;
-  const bindings = actor.role === 'admin' ? [actor.orgId] : [actor.userId, actor.orgId];
+  const bindings = hasInstitutionAdminAccess ? [actor.orgId] : [actor.userId, actor.orgId];
   const result = await env.DB.prepare(sql).bind(...bindings).all<DbRow>();
   await writeCanonicalAudit(env, actor, {
     action: 'read',
@@ -9919,13 +10084,7 @@ export async function setSupportCaseOverallGoal(
   if (nextGoal !== null && nextGoal.length > MAX_OVERALL_GOAL_LENGTH) {
     throw new ValidationError(`overall goal must be at most ${MAX_OVERALL_GOAL_LENGTH} characters`);
   }
-  const supportCase = await assertSupportCaseAssignedOrAdminAccess(env, actor, supportCaseId);
-  // D45 는 '담당 실무자만' 이었으나 2026-07-30 Q 결정으로 기관 관리자도 수정한다
-  // (ADR-0018 개정). 담당 실무자는 assertSupportCaseAccess 가 활성 배정을 이미
-  // 강제했고, admin 은 같은 함수가 기관 범위로 통과시킨다 — 여기서는 역할만 본다.
-  if (actor.role !== 'counselor' && actor.role !== 'admin') {
-    throw new ForbiddenError('only an assigned counselor or an org admin can edit the overall goal');
-  }
+  const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   if (supportCase.status !== 'active') {
     throw new ValidationError('overall goal can only be edited on an active support case');
   }
@@ -10004,7 +10163,7 @@ export async function createSupportCase(
     effectiveAssigneeUserId = input.initialAssigneeUserId as string;
     assertOpaqueIdentifier(effectiveAssigneeUserId, 'initial assignee user id');
     await getBeneficiaryForOrg(env, actor.orgId, beneficiaryId, { completeOnly: true });
-    await assertActiveHumanUser(env, actor.orgId, effectiveAssigneeUserId);
+    await assertActivePractitionerUser(env, actor.orgId, effectiveAssigneeUserId);
   }
 
   // ① 하드 게이트(G1). 영수증 해시 이전에 판정한다 — 동의 없는 요청이 재생(replay)으로
@@ -10245,35 +10404,59 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
          EXISTS (
            SELECT 1
            FROM support_case_assignees AS direct_assignment
+           JOIN user_role_assignments AS practitioner_role
+             ON practitioner_role.org_id = direct_assignment.org_id
+            AND practitioner_role.user_id = direct_assignment.user_id
+            AND practitioner_role.role = 'practitioner'
+            AND practitioner_role.revoked_at IS NULL
            WHERE direct_assignment.org_id = support_cases.org_id
              AND direct_assignment.support_case_id = support_cases.id
              AND direct_assignment.user_id = ?
              AND direct_assignment.unassigned_at IS NULL
          )
-         OR EXISTS (
-           SELECT 1
-           FROM team_supervisor_grants AS supervisor_grant
-           JOIN teams AS team
-             ON team.id = supervisor_grant.team_id
-            AND team.org_id = supervisor_grant.org_id
-            AND team.archived_at IS NULL
-           JOIN team_memberships AS membership
-             ON membership.team_id = team.id
-            AND membership.org_id = team.org_id
-            AND membership.ended_at IS NULL
-           JOIN support_case_assignees AS team_assignment
-             ON team_assignment.user_id = membership.user_id
-            AND team_assignment.org_id = membership.org_id
-            AND team_assignment.support_case_id = support_cases.id
-            AND team_assignment.unassigned_at IS NULL
-           WHERE supervisor_grant.org_id = support_cases.org_id
-             AND supervisor_grant.supervisor_user_id = ?
-             AND supervisor_grant.revoked_at IS NULL
-         )
-       )
-     ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
-              support_cases.program_type, support_cases.id`,
-  ).bind(actor.orgId, beneficiaryId, actor.userId, actor.userId).all<{ id: string }>();
+          OR EXISTS (
+            SELECT 1
+            FROM team_supervisor_grants AS supervisor_grant
+            JOIN teams AS team
+              ON team.id = supervisor_grant.team_id
+             AND team.org_id = supervisor_grant.org_id
+             AND team.archived_at IS NULL
+            JOIN team_memberships AS membership
+              ON membership.team_id = team.id
+             AND membership.org_id = team.org_id
+             AND membership.ended_at IS NULL
+            JOIN support_case_assignees AS team_assignment
+              ON team_assignment.user_id = membership.user_id
+             AND team_assignment.org_id = membership.org_id
+             AND team_assignment.support_case_id = support_cases.id
+             AND team_assignment.unassigned_at IS NULL
+            JOIN user_role_assignments AS team_practitioner_role
+              ON team_practitioner_role.org_id = team_assignment.org_id
+             AND team_practitioner_role.user_id = team_assignment.user_id
+             AND team_practitioner_role.role = 'practitioner'
+             AND team_practitioner_role.revoked_at IS NULL
+            WHERE supervisor_grant.org_id = support_cases.org_id
+              AND supervisor_grant.supervisor_user_id = ?
+              AND supervisor_grant.revoked_at IS NULL
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM user_role_assignments AS admin_role
+            WHERE admin_role.org_id = support_cases.org_id
+              AND admin_role.user_id = ?
+              AND admin_role.role = 'institution_admin'
+              AND admin_role.revoked_at IS NULL
+          )
+        )
+      ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
+               support_cases.program_type, support_cases.id`,
+  ).bind(
+    actor.orgId,
+    beneficiaryId,
+    actor.userId,
+    actor.userId,
+    actor.userId,
+  ).all<{ id: string }>();
 
   return result.results.map((row) => stringValue(row.id));
 }
@@ -10283,7 +10466,7 @@ async function listPiiAuthorizedSupportCaseIdsForBeneficiary(
   actor: Actor,
   beneficiaryId: string,
 ): Promise<string[]> {
-  if (actor.role !== 'admin') {
+  if (!(await hasActiveHumanRoleAssignment(env, actor, 'institution_admin'))) {
     return listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
   }
   assertBeneficiaryId(beneficiaryId);
@@ -10304,12 +10487,12 @@ async function listPiiAuthorizedSupportCaseIdsForBeneficiary(
 
 /**
  * 당사자 정보 페이지(허브)가 보여주는 참여 사업 한 건 (D36 · ADR-0014 '개정' 1번).
- * `authorized` 가 false 면 **내가 담당하지 않는 사업**이다 — 존재와 담당 실무자 이름까지만
- * 보이고 상담 내용(브리핑·기록·목표)으로는 들어갈 수 없다.
+ * `authorized` 가 false 면 이 사용자가 상담 내용을 읽을 수 없는 사업이다. 담당 배정,
+ * 팀 감독, 기관 관리자 역할 중 하나가 있으면 true다.
  */
 export interface ParticipantProgramEntry {
   supportCase: SupportCase;
-  /** 내가 담당(또는 admin)인가. 화면은 이 값으로 링크를 걸거나 잠근다. */
+  /** 상담 내용 읽기 권한이 있는가. 화면은 이 값으로 링크를 걸거나 잠근다. */
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
   assigneeNames: string[];
@@ -10321,9 +10504,8 @@ export interface ParticipantProgramEntry {
   consentRecordedAt: string | null;
   /**
    * 이 사업의 가장 이른 예정(scheduled) 일정 — 허브의 '최신 일정' 카드가 쓴다(2026-08-06 Q).
-   * **담당(또는 admin)인 사업에만 싣는다** — D36 은 비담당 사업의 존재·담당 실무자까지만
-   * 열었고, 일정은 상담 내용 쪽이다. 브리핑의 focusUpcomingSchedule 과 같은 판정
-   * (status='scheduled' 최조기 1건)이다.
+   * **상담 내용 읽기 권한이 있는 사업에만 싣는다.** 브리핑의
+   * focusUpcomingSchedule 과 같은 판정(status='scheduled' 최조기 1건)이다.
    */
   upcomingSchedule: { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind } | null;
 }
@@ -10386,7 +10568,7 @@ export async function listSupportCasesForBeneficiary(
     throw new ForbiddenError('participant is unavailable');
   }
   // **집합이 둘이다 — 섞으면 안 된다** (D36 · ADR-0014 '개정' 1번).
-  //  ① 접근 판정용: 내가 담당(또는 admin)인 사업. **1건도 없으면 페이지 자체가 안 열린다.**
+  //  ① 접근 판정용: 상담 내용 읽기 권한이 있는 사업. **1건도 없으면 페이지 자체가 안 열린다.**
   //  ② 표시용: 그 당사자의 기관 내 전 사업. 비담당 사업은 존재와 담당 실무자 이름까지만 보인다.
   //
   // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라
@@ -10495,9 +10677,9 @@ export interface ParticipantGoalTreeCase {
 /**
  * 당사자 허브의 목표 트리(전체 > 세부 > 세션) — 케이스별 구획 (D62 §8 · CCC-69).
  *
- * **담당(또는 admin) 케이스만 싣는다.** 목표는 상담 내용이라 D36 의 공개 범위(존재·담당
- * 실무자 이름) 밖이다 — 허브 목록(listSupportCasesForBeneficiary)과 달리 비담당 케이스는
- * 구획 자체가 없다. 담당 케이스가 1건도 없으면 허브와 같은 판정으로 페이지를 막는다.
+ * **상담 내용 읽기 권한이 있는 케이스만 싣는다.** 목표는 상담 내용이라 D36 의 공개
+ * 범위(존재·담당 실무자 이름) 밖이다. 권한이 있는 케이스가 1건도 없으면 허브와 같은
+ * 판정으로 페이지를 막는다.
  *
  * 세션 목표는 세부 목표에 연결된 것만 트리에 싣는다 — 연결 없이 적은 세션 목표는 위계
  * 밖이라 일정·기록 화면 몫이다. 문구 이력(goal_revisions)은 기본 숨김 화면의 '이력 보기'
@@ -10710,7 +10892,9 @@ export async function listAssignedParticipants(
 ): Promise<AssignedParticipant[]> {
   assertHuman(actor);
   await assertCurrentHumanActor(env, actor);
-  const sql = actor.role === 'admin'
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
+  const sql = hasInstitutionAdminAccess
     ? `SELECT beneficiaries.id AS beneficiary_id,
               MAX(CASE WHEN support_cases.status = 'active' THEN 1 ELSE 0 END) AS has_active,
               COUNT(DISTINCT support_cases.id) AS program_count
@@ -10747,7 +10931,7 @@ export async function listAssignedParticipants(
          )
        GROUP BY beneficiaries.id
        ORDER BY beneficiaries.id`;
-  const bindings = actor.role === 'admin' ? [actor.orgId] : [actor.userId, actor.orgId];
+  const bindings = hasInstitutionAdminAccess ? [actor.orgId] : [actor.userId, actor.orgId];
   const result = await env.DB.prepare(sql).bind(...bindings).all<DbRow>();
   await writeCanonicalAudit(env, actor, {
     action: 'read',
@@ -10813,6 +10997,7 @@ export async function searchParticipants(
   input: { query: string; limit?: number },
 ): Promise<ParticipantSearchResult[]> {
   assertHuman(actor);
+  await assertCurrentHumanActor(env, actor);
   const query = input.query.trim();
   if (query.length === 0) throw new ValidationError('search query is required');
   if (query.length > PARTICIPANT_SEARCH_MAX_QUERY_LENGTH) throw new ValidationError('search query is too long');
@@ -10832,7 +11017,9 @@ export async function searchParticipants(
   }
   const matchClause = `(${matchConditions.join(' OR ')})`;
 
-  const sql = actor.role === 'admin'
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
+  const sql = hasInstitutionAdminAccess
     ? `SELECT beneficiaries.id AS beneficiary_id,
               MAX(CASE WHEN support_cases.status = 'active' THEN 1 ELSE 0 END) AS has_active,
               COUNT(DISTINCT support_cases.id) AS program_count
@@ -10874,7 +11061,7 @@ export async function searchParticipants(
        ORDER BY beneficiaries.id
        LIMIT ?`;
 
-  const bindings = actor.role === 'admin'
+  const bindings = hasInstitutionAdminAccess
     ? [actor.orgId, ...matchBindings, limit]
     : [actor.userId, actor.orgId, ...matchBindings, limit];
 
@@ -12145,7 +12332,9 @@ export async function getTodaySchedules(
   opts?: { date?: string; days?: number },
 ): Promise<AuthoritativeDayInterval & { schedules: TodayScheduleCard[] }> {
   const interval = await resolveAuthoritativeTodayInterval(env, actor, opts);
-  const result = actor.role === 'admin'
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
+  const result = hasInstitutionAdminAccess
     ? await env.DB.prepare(
       `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
        FROM counseling_schedules AS schedule
@@ -12188,7 +12377,7 @@ export async function getTodaySchedules(
     },
   });
   // 카드에 실명·연락처를 실으려 배치 복호화한다(N+1 회피). 결과 행은 이미 접근 범위
-  // (담당 활성 배정 또는 admin org-wide)로 걸러졌으므로 전부 열람 권한 대상이다.
+  // (담당 활성 배정 또는 활성 기관 관리자 org-wide)로 걸러졌으므로 전부 열람 권한 대상이다.
   const contacts = await loadParticipantContacts(
     env,
     actor.orgId,
@@ -12224,7 +12413,7 @@ export async function getTodaySchedules(
  * Window for the merged 상담 일정 screen: today plus the next 7 calendar days
  * (오늘 + 향후 7일 → 8 calendar days, `[today, today+8)`; D21). The upcoming
  * section renders days 1..7. Reuses `getTodaySchedules`, so the R1 gateway
- * access rules (담당 케이스 한정, admin org-wide) and audit apply unchanged.
+ * access rules (담당 케이스 한정, 활성 기관 관리자 org-wide) and audit apply unchanged.
  */
 export const UPCOMING_SCHEDULE_WINDOW_DAYS = 8;
 
@@ -12253,7 +12442,7 @@ function daysInMonth(month: string): number {
 
 /**
  * 한 달 창의 상담 일정 (전체 일정 화면, CCC-19 · D35). '다가오는 일정'과 같은
- * `getTodaySchedules` 를 쓰므로 접근 범위(담당 활성 배정 또는 admin org-wide, D7)와
+ * `getTodaySchedules` 를 쓰므로 접근 범위(담당 활성 배정 또는 활성 기관 관리자 org-wide, D74)와
  * 감사(read + read_participant_pii 각 1행, D24)가 그대로 적용된다. 상태를 거르지 않아
  * 지난 일정(완료·취소·불참)도 함께 나온다 — 이 화면의 목적이 '지난·앞으로 둘 다'다.
  *
@@ -12302,7 +12491,9 @@ export async function listScheduleCandidates(
   actor: Actor,
 ): Promise<ScheduleCandidate[]> {
   assertHuman(actor);
-  const result = actor.role === 'admin'
+  const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
+  if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
+  const result = hasInstitutionAdminAccess
     ? await env.DB.prepare(
       `SELECT id AS support_case_id, beneficiary_id, program_type, intake_at
        FROM support_cases
@@ -12483,6 +12674,9 @@ export async function createCounselingSchedule(
     throw new ValidationError('only intake schedules create case goals');
   }
   const plan = normalizeSchedulePlanInput(input);
+  if (plan.sessionGoals.length > 0 || plan.customQuestions.length > 0) {
+    await assertSupportCaseWriteAccess(env, actor, input.supportCaseId);
+  }
   await assertSessionGoalLinksActive(
     env,
     actor.orgId,
@@ -12570,6 +12764,9 @@ async function createIntakeCounselingSchedule(
   const caseGoals = normalizeIntakeCaseGoals(input);
   // 맞춤형 질문 정규화는 재사용한다(세션 목표는 비운 채로).
   const { customQuestions } = normalizeSchedulePlanInput({ ...input, sessionGoals: [] });
+  if (caseGoals.length > 0 || customQuestions.length > 0) {
+    await assertSupportCaseWriteAccess(env, actor, input.supportCaseId);
+  }
 
   // 기존 active 목표와 신설분의 합이 케이스당 상한(MAX_ACTIVE_GOALS)을 넘지 않아야 한다(D12).
   const active = await env.DB.prepare(
@@ -12829,7 +13026,7 @@ export interface UpdateScheduleSessionGoalsInput {
  * 동시성은 일정 행의 version 낙관 잠금을 그대로 쓴다(reschedule 과 같은 계약). 모든
  * 쓰기 문장이 같은 조건(EXISTS: scheduled·version·시작 전)을 달아, 경합하면 전부
  * 무변경으로 끝나고 ConflictError 를 던진다.
- * 권한: 담당 실무자 | admin (활성 케이스 배정 — assertScheduleMutationAccess).
+ * 권한: 담당 실무자 배정(assertSupportCaseWriteAccess).
  * 감사: update (변경이 실제로 적용됐을 때만 1건).
  */
 export async function updateScheduleSessionGoals(
@@ -12843,7 +13040,7 @@ export async function updateScheduleSessionGoals(
     throw new ValidationError('schedule version is invalid');
   }
   const schedule = await getCounselingScheduleForOrg(env, actor.orgId, scheduleId);
-  await assertScheduleMutationAccess(env, actor, schedule);
+  await assertSupportCaseWriteAccess(env, actor, schedule.supportCaseId);
   if (schedule.sessionKind === 'intake') {
     throw new ValidationError('intake schedule cannot carry session goals');
   }
@@ -14816,14 +15013,18 @@ export async function updateIntakeRecord(
              AND support_case.org_id = sessions.org_id
              AND support_case.status = 'active'
          )
-         AND (
-           ? = 'admin' OR EXISTS (
-             SELECT 1 FROM support_case_assignees AS assignment
-             WHERE assignment.org_id = sessions.org_id
-               AND assignment.support_case_id = sessions.support_case_id
-               AND assignment.user_id = ?
-               AND assignment.unassigned_at IS NULL
-           )
+         AND EXISTS (
+           SELECT 1
+           FROM support_case_assignees AS assignment
+           JOIN user_role_assignments AS practitioner_role
+             ON practitioner_role.org_id = assignment.org_id
+            AND practitioner_role.user_id = assignment.user_id
+            AND practitioner_role.role = 'practitioner'
+            AND practitioner_role.revoked_at IS NULL
+           WHERE assignment.org_id = sessions.org_id
+             AND assignment.support_case_id = sessions.support_case_id
+             AND assignment.user_id = ?
+             AND assignment.unassigned_at IS NULL
          )`,
     ).bind(
       input.heldAt,
@@ -14833,7 +15034,6 @@ export async function updateIntakeRecord(
       intakeRow.id,
       actor.orgId,
       supportCaseId,
-      actor.role,
       actor.userId,
     ),
     conditionalCanonicalAuditStatement(env, actor, {
@@ -15197,12 +15397,7 @@ export interface ParticipantBriefing {
    * 최대 3줄이 구조로 보장되고, 닫힌 목표는 싣지 않는다(허브 몫이다).
    */
   focusActiveGoals: Array<Pick<Goal, 'id' | 'title'>>;
-  /**
-   * 전체 목표 그 자리 편집 가능 여부. 구 D45 는 '담당 실무자만' 이었으나
-   * 2026-07-30 Q 결정으로 **기관 관리자도 수정한다**(ADR-0018 개정).
-   * 접근은 assertSupportCaseAccess 가 이미 걸렀다 — counselor 는 활성 배정,
-   * admin 은 기관 범위 — 그래서 여기서는 역할만 보면 된다.
-   */
+  /** 전체 목표 그 자리 편집 가능 여부. 활성 담당 배정이 있어야 한다. */
   canEditOverallGoal: boolean;
   // D24·ADR-0005: 담당·기관 관리자(=접근 권한 통과자)에게 실명·연락처를 기본 표시.
   // 접근 자체가 assertSupportCaseAccess 로 이미 걸러졌으므로 여기 도달하면 열람 권한이 있다.
@@ -15279,6 +15474,12 @@ export async function getParticipantBriefing(
   if (focus.beneficiaryId !== beneficiaryId) {
     throw new ForbiddenError('participant is unavailable');
   }
+  const editableOverallGoal = await env.DB.prepare(
+    `SELECT 1 AS allowed
+     FROM support_case_assignees
+     WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL
+     LIMIT 1`,
+  ).bind(actor.orgId, focusSupportCaseId, actor.userId).first<{ allowed: number }>();
 
   const authorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
   if (!authorizedIds.includes(focusSupportCaseId)) {
@@ -15604,7 +15805,7 @@ export async function getParticipantBriefing(
     beneficiaryId,
     supportCaseId: focusSupportCaseId,
   });
-  // 접근 권한은 assertSupportCaseAccess(focus)로 이미 통과했다 — 담당(활성 배정) 또는 admin.
+  // 접근 권한은 assertSupportCaseAccess(focus)로 이미 통과했다 — 담당·팀 감독 또는 활성 기관 관리자.
   // 실명·연락처를 복호화해 실어 주고, 값이 있으면 화면 단위 감사 1건(read_participant_pii).
   const contacts = await loadParticipantContacts(env, actor.orgId, [beneficiaryId]);
   await auditParticipantPiiRead(env, actor, contacts, {
@@ -15628,7 +15829,7 @@ export async function getParticipantBriefing(
       focusUpcomingSchedule,
       overallGoal: focus.overallGoal,
       focusActiveGoals,
-      canEditOverallGoal: actor.role === 'counselor' || actor.role === 'admin',
+      canEditOverallGoal: editableOverallGoal !== null,
       participant: participantNamePhone(contacts.get(beneficiaryId)),
     }
 }
@@ -15640,15 +15841,14 @@ export async function assignSupportCase(
   userId: string,
   role: 'primary' | 'secondary' = 'secondary',
 ): Promise<SupportCaseAssignee> {
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
+  await assertInstitutionAdmin(env, actor);
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertOpaqueIdentifier(userId, 'assignee user id');
   if (role !== 'primary' && role !== 'secondary') {
     throw new ValidationError('assignee role is invalid');
   }
   const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-  await assertActiveHumanUser(env, actor.orgId, userId);
+  await assertActivePractitionerUser(env, actor.orgId, userId);
   const existing = await env.DB.prepare(
     `SELECT id FROM support_case_assignees
      WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
@@ -15690,8 +15890,7 @@ export async function transferSupportCase(
   fromUserId: string,
   toUserId: string,
 ): Promise<void> {
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
+  await assertInstitutionAdmin(env, actor);
   await assertOrganizationSettings(env, actor.orgId);
   assertOpaqueIdentifier(supportCaseId, 'support case id');
   assertOpaqueIdentifier(fromUserId, 'from user id');
@@ -15700,7 +15899,7 @@ export async function transferSupportCase(
     throw new ValidationError('transfer users must differ');
   }
   const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
-  await assertActiveHumanUser(env, actor.orgId, toUserId);
+  await assertActivePractitionerUser(env, actor.orgId, toUserId);
   const current = await env.DB.prepare(
     `SELECT * FROM support_case_assignees
      WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
@@ -15795,8 +15994,7 @@ export async function unassignSupportCase(
   supportCaseId: string,
   userId: string,
 ): Promise<void> {
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
+  await assertInstitutionAdmin(env, actor);
   const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
   const active = await env.DB.prepare(
     `SELECT id FROM support_case_assignees
@@ -15874,7 +16072,7 @@ export interface CounselorAssignments {
 /**
  * 한 실무자(userId)의 활성 배정 당사자 목록 — 관리자 영역 사용자/실무자 상세 화면용(재개편 T8, D25).
 
- * 접근: admin 전용(assertAdmin), 자기 기관만. 실무자가 담당(활성 배정, unassigned_at IS NULL)한
+ * 접근: 활성 기관 관리자 전용(assertInstitutionAdmin), 자기 기관만. 실무자가 담당(활성 배정, unassigned_at IS NULL)한
  * 참여사업을 케이스 단위로 돌려주고, 각 당사자의 실명·연락처를 배치 복호화해 함께 싣는다.
  * 감사: 배정 목록 조회 1건(read, support_case_assignees) + 실명이 1건 이상 실리면 화면 단위
  * read_participant_pii 1건(D14·D24, loadParticipantContacts·auditParticipantPiiRead 공용 관문).
@@ -15885,7 +16083,7 @@ export async function listCounselorAssignments(
   actor: Actor,
   userId: string,
 ): Promise<CounselorAssignments> {
-  assertAdmin(actor);
+  await assertInstitutionAdmin(env, actor);
   assertOpaqueIdentifier(userId, 'assignee user id');
   // 대상 실무자가 자기 기관 사용자인지 확인한다(없으면 ForbiddenError). 교차 기관 조회 차단.
   await getUserForOrg(env, actor.orgId, userId);
@@ -15992,7 +16190,7 @@ export async function createParticipantInvite(
   actor: Actor,
   input: { programType: string },
 ): Promise<InviteToken> {
-  assertHuman(actor);
+  await assertPractitioner(env, actor);
   assertFinancialSupportProgramType(input.programType);
 
   const token = newInviteTokenValue();

@@ -128,7 +128,6 @@ BEGIN
   SELECT RAISE(ABORT, 'D12: goal title is immutable — close and create a new goal');
 END;
 
-
 -- ----------------------------------------------------------------------------
 -- sessions — 상담 세션 기록. 수기 메모와 AI 산출물을 한 행에 나란히 둔다.
 --   * D5: memo(수기 메모)는 저장 즉시 공식 기록. 승인 대상이 아니다.
@@ -6128,4 +6127,80 @@ BEGIN
         julianday(OLD.purge_due)
       )
     ) > julianday('now');
+END;
+
+-- ============================================================================
+-- 0042: 활성 실무자 역할이 있는 사용자만 담당 배정
+-- ============================================================================
+
+INSERT INTO user_role_assignments (
+  id, org_id, user_id, role, source, granted_by, granted_at
+)
+SELECT
+  'assignment-practitioner:' || assignment.org_id || ':' || assignment.user_id,
+  assignment.org_id,
+  assignment.user_id,
+  'practitioner',
+  'legacy',
+  NULL,
+  MIN(assignment.assigned_at)
+FROM support_case_assignees AS assignment
+JOIN users AS user
+  ON user.id = assignment.user_id
+ AND user.org_id = assignment.org_id
+ AND user.active = 1
+WHERE assignment.unassigned_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM user_role_assignments AS practitioner_role
+    WHERE practitioner_role.org_id = assignment.org_id
+      AND practitioner_role.user_id = assignment.user_id
+      AND practitioner_role.role = 'practitioner'
+      AND practitioner_role.revoked_at IS NULL
+  )
+GROUP BY assignment.org_id, assignment.user_id;
+
+DROP TRIGGER support_case_assignees_insert_guard;
+
+CREATE TRIGGER support_case_assignees_insert_guard
+BEFORE INSERT ON support_case_assignees
+BEGIN
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM support_cases
+    WHERE id = NEW.support_case_id AND org_id = NEW.org_id
+  );
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM users
+    JOIN user_role_assignments AS practitioner_role
+      ON practitioner_role.user_id = users.id
+     AND practitioner_role.org_id = users.org_id
+     AND practitioner_role.role = 'practitioner'
+     AND practitioner_role.revoked_at IS NULL
+    WHERE users.id = NEW.user_id
+      AND users.org_id = NEW.org_id
+      AND users.active = 1
+      AND users.role IN ('admin', 'counselor')
+  );
+
+  SELECT RAISE(ABORT, 'participant_schema_violation')
+  WHERE EXISTS (
+    SELECT 1 FROM support_cases
+    WHERE id = NEW.support_case_id AND creation_kind = 'subsequent'
+  )
+    AND NOT EXISTS (
+      SELECT 1 FROM support_case_assignees
+      WHERE support_case_id = NEW.support_case_id AND unassigned_at IS NULL
+    )
+    AND (
+      NEW.role <> 'primary'
+      OR NEW.user_id <> (
+        SELECT initial_assignee_user_id
+        FROM support_cases
+        WHERE id = NEW.support_case_id
+      )
+    );
 END;

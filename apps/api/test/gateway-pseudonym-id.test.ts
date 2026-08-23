@@ -14,7 +14,7 @@ import {
   LEGACY_BENEFICIARY_ID_PATTERN,
   isBeneficiaryId,
 } from '../../../db/animal-slugs';
-import { setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin } = testActors;
 const t = setupD1();
@@ -119,6 +119,7 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
 
   it('issues distinct valid ids under concurrent creation (F7 retry)', async () => {
     await t.reset();
+    await grantTestPractitionerRole(t.db, admin);
     const [first, second] = await Promise.all([
       createCase(t.env, counselor, {}),
       createCase(t.env, admin, { intakeAt: '2026-07-16T09:00:00.000Z' }),
@@ -146,6 +147,7 @@ describe('dual-format acceptance (expand — 기존 A형식 요청 보존)', () 
 
   it('accepts both id formats on participant routes and still rejects malformed ids', async () => {
     await t.reset();
+    await grantTestPractitionerRole(t.db, admin);
 
     const invalid = await worker.fetch(
       new Request('http://localhost/participants/dragon-001/support-cases', { headers: adminHeaders }),

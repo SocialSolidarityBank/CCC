@@ -8,7 +8,7 @@ import {
   createParticipantInvite,
   getInviteForSignup,
 } from '../../../db/gateway';
-import { setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin, service } = testActors;
 
@@ -40,6 +40,7 @@ describe('invite tokens (CCC-29)', () => {
 
   it('관리자도 당사자 초대를 발급할 수 있다 (겸임 1계정, D39)', async () => {
     await t.reset();
+    await grantTestPractitionerRole(t.db, admin);
 
     const invite = await createParticipantInvite(t.env, admin, {
       programType: 'financial_support_v1',

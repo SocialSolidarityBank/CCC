@@ -8,7 +8,7 @@ import {
   type ParticipantConsentInput,
 } from '../../../db/gateway';
 import { CONSENT_TEXT_AI_NOTICE_VERSION } from '../../../db/consent-notice';
-import { setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin, unassignedCounselor } = testActors;
 const t = setupD1();
@@ -131,6 +131,7 @@ describe('당사자 등록 동의 기록 (D49 · D23 · 티켓 #19)', () => {
 
   it('is append-only: consent records reject UPDATE and DELETE (D23)', async () => {
     await t.reset();
+    await grantTestPractitionerRole(t.db, admin);
     const creation = await register(admin, { recordingAi: true });
     const row = await consentRow(creation.beneficiaryId);
     const id = row?.id as string;

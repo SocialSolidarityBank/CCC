@@ -13,7 +13,7 @@ import {
   listPrivacyConsentFollowUps,
   updateParticipantConsent,
 } from '../../../db/gateway';
-import { setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 // G1 (docs/consent/consent-implementation-gates-v1.md §2 · 2026-07-29 Q 결정1):
 // ① 개인정보 수집·이용 동의는 등록의 **하드 게이트**이고, 급박한 위기 개입만 "긴급 등록"
@@ -329,6 +329,7 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
 
   it('기한이 지난 긴급 등록은 워치독 집계에 잡힌다 (만료 전·후 알림)', async () => {
     await t.reset();
+    await grantTestPractitionerRole(t.db, admin);
     const urgent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       admin,

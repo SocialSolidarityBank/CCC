@@ -16,12 +16,13 @@ export const UNSCOPED_INSTITUTION_ROLES = [
 export interface SupportCaseContentAccessFacts {
   readonly hasActiveAssignment: boolean;
   readonly hasActiveTeamSupervision: boolean;
+  readonly hasActiveInstitutionAdminRole: boolean;
 }
 
 export type SupportCaseContentAccessDecision =
   | {
       readonly kind: 'allowed';
-      readonly basis: 'assignment' | 'team_supervision';
+      readonly basis: 'assignment' | 'team_supervision' | 'institution_admin';
     }
   | {
       readonly kind: 'denied';
@@ -35,6 +36,9 @@ export function decideSupportCaseContentAccess(
   }
   if (facts.hasActiveTeamSupervision) {
     return { kind: 'allowed', basis: 'team_supervision' };
+  }
+  if (facts.hasActiveInstitutionAdminRole) {
+    return { kind: 'allowed', basis: 'institution_admin' };
   }
   return { kind: 'denied' };
 }

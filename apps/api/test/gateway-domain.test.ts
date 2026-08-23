@@ -87,7 +87,7 @@ function singleTextMaterialInput(snapshotId: string, snapshotSha256: string) {
 }
 
 
-const { counselor, admin, service } = testActors;
+const { counselor, admin, otherOrgAdmin, service } = testActors;
 
 const t = setupD1();
 const SHA256 = 'a'.repeat(64);
@@ -855,6 +855,39 @@ describe('gateway domain records', () => {
     await expect(reviewFlag(t.env, service, aiFlag.id, 'confirmed')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
+  it('keeps an unassigned institution administrator read-only across legacy counseling records', async () => {
+    await t.reset();
+    const { caseRecord, goal, session, draft } = await createReviewReadySession();
+
+    await expect(getSession(t.env, admin, session.id))
+      .resolves.toMatchObject({ id: session.id });
+    await expect(getCurrentGeneratedAiDraft(t.env, admin, draft.workItemId))
+      .resolves.toMatchObject({ id: draft.id });
+    await expect(getSession(t.env, otherOrgAdmin, session.id))
+      .rejects.toBeInstanceOf(ForbiddenError);
+    await expect(approveGeneratedAiDraft(
+      t.env,
+      admin,
+      draft.workItemId,
+      draft.version,
+      { speakerMappingConfirmed: true },
+    )).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(approveSession(t.env, admin, session.id, {}))
+      .rejects.toBeInstanceOf(ForbiddenError);
+    await expect(recordGasScores(
+      t.env,
+      admin,
+      session.id,
+      [{ goalId: goal.id, score: 1 }],
+    )).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(createFlag(t.env, admin, caseRecord.id, {
+      flagType: 'debt_deterioration',
+      sessionId: session.id,
+    })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(exportCase(t.env, admin, caseRecord.id))
+      .rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it('manages action items and flags while excluding unapproved AI data from export', async () => {
     await t.reset();
     const { caseRecord, session } = await createReviewReadySession();
@@ -1361,8 +1394,8 @@ describe('canonical participant gateway', () => {
       initial.beneficiaryId,
     )).programs;
     expect(adminPrograms).toHaveLength(3);
-    // 기관 관리자는 PII와 사업 존재를 보지만 담당 배정 없이 상담 내용 링크는 열리지 않는다(D74).
-    expect(adminPrograms.filter((entry) => entry.authorized)).toHaveLength(0);
+    // 기관 관리자는 같은 기관의 상담 내용을 읽기 전용으로 열람한다.
+    expect(adminPrograms.filter((entry) => entry.authorized)).toHaveLength(3);
     await expect(t.db.prepare(
       `SELECT enc_name, enc_phone, enc_account
        FROM participant_pii_vault WHERE beneficiary_id = ?`,
@@ -1476,7 +1509,7 @@ describe('canonical participant gateway', () => {
       t.env,
       canonicalActors.admin,
       initial.supportCaseId,
-      canonicalActors.admin.userId,
+      canonicalActors.secondCounselor.userId,
       'secondary',
     );
     await expect(unassignSupportCase(
@@ -1493,14 +1526,14 @@ describe('canonical participant gateway', () => {
       t.env,
       canonicalActors.admin,
       initial.supportCaseId,
-      canonicalActors.admin.userId,
+      canonicalActors.secondCounselor.userId,
     );
     await transferSupportCase(
       t.env,
       canonicalActors.admin,
       initial.supportCaseId,
       canonicalActors.counselor.userId,
-      canonicalActors.admin.userId,
+      canonicalActors.secondCounselor.userId,
     );
 
     // 이관으로 배정을 잃은 실무자는 브리핑(실명 포함) 접근이 막힌다 — 상담 관계가 끊긴다.
@@ -2010,14 +2043,24 @@ describe('canonical participant gateway', () => {
   it('does not fork concurrent secondary assignment transfers', async () => {
     await t.reset();
     await seedCanonicalDirectory();
-    await t.db.prepare(
-      `INSERT INTO users (id, org_id, email, role, active, time_zone)
-       VALUES (?, ?, ?, 'counselor', 1, NULL)`,
-    ).bind(
-      'user-counselor-3',
-      canonicalActors.counselor.orgId,
-      'canonical-counselor-3@example.invalid',
-    ).run();
+    await t.db.batch([
+      t.db.prepare(
+        `INSERT INTO users (id, org_id, email, role, active, time_zone)
+         VALUES (?, ?, ?, 'counselor', 1, NULL)`,
+      ).bind(
+        'user-counselor-3',
+        canonicalActors.counselor.orgId,
+        'canonical-counselor-3@example.invalid',
+      ),
+      t.db.prepare(
+        `INSERT INTO users (id, org_id, email, role, active, time_zone)
+         VALUES (?, ?, ?, 'counselor', 1, NULL)`,
+      ).bind(
+        'user-counselor-4',
+        canonicalActors.counselor.orgId,
+        'canonical-counselor-4@example.invalid',
+      ),
+    ]);
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
       programType: 'financial_support_v1',
       intakeAt: '2026-07-15T09:00:00.000Z',
@@ -2026,24 +2069,23 @@ describe('canonical participant gateway', () => {
       t.env,
       canonicalActors.admin,
       initial.supportCaseId,
-      canonicalActors.admin.userId,
+      canonicalActors.secondCounselor.userId,
       'secondary',
     );
-
     const outcomes = await Promise.allSettled([
       transferSupportCase(
         t.env,
         canonicalActors.admin,
         initial.supportCaseId,
-        canonicalActors.admin.userId,
         canonicalActors.secondCounselor.userId,
+        'user-counselor-3',
       ),
       transferSupportCase(
         t.env,
         canonicalActors.admin,
         initial.supportCaseId,
-        canonicalActors.admin.userId,
-        'user-counselor-3',
+        canonicalActors.secondCounselor.userId,
+        'user-counselor-4',
       ),
     ]);
     expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
@@ -2061,7 +2103,7 @@ describe('canonical participant gateway', () => {
     const activeUserIds = active.results.map((assignment) => assignment.user_id);
     expect(activeUserIds).toContain(canonicalActors.counselor.userId);
     expect(activeUserIds.filter((userId) => (
-      userId === canonicalActors.secondCounselor.userId || userId === 'user-counselor-3'
+      userId === 'user-counselor-3' || userId === 'user-counselor-4'
     ))).toHaveLength(1);
     await expect(t.db.prepare(
       `SELECT COUNT(*) AS count FROM audit_log
@@ -2237,7 +2279,13 @@ describe('canonical participant gateway', () => {
     ).bind(legacyCase.id, counselor.orgId).first<{ id: string }>();
     if (supportCase === null) throw new Error('expected legacy SupportCase');
 
-    await assignSupportCase(t.env, admin, supportCase.id, admin.userId, 'secondary');
+    await assignSupportCase(
+      t.env,
+      admin,
+      supportCase.id,
+      testActors.unassignedCounselor.userId,
+      'secondary',
+    );
     await expect(unassignCase(t.env, admin, legacyCase.id, counselor.userId))
       .rejects.toBeInstanceOf(ValidationError);
 
@@ -2531,18 +2579,13 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.beneficiaryId, created.supportCaseId,
     )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
 
-    // 기관 관리자는 업무 목표를 수정할 수 있지만, 담당 배정 없이 상담 브리핑은 열지 못한다(D74).
+    // 기관 관리자는 기관 전체 상담 내용을 읽되, 담당 배정 없이는 전체 목표를 수정하지 못한다.
     await expect(setSupportCaseOverallGoal(
       t.env, canonicalActors.admin, created.supportCaseId, '관리자가 고친 전체 목표',
-    )).resolves.toMatchObject({ overallGoal: '관리자가 고친 전체 목표' });
+    )).rejects.toBeInstanceOf(ForbiddenError);
     await expect(getParticipantBriefing(
       t.env, canonicalActors.admin, created.beneficiaryId, created.supportCaseId,
-    )).rejects.toBeInstanceOf(ForbiddenError);
-
-    // 되돌려 놓는다 — 아래 단정들이 이 값을 이어서 쓴다.
-    await expect(setSupportCaseOverallGoal(
-      t.env, canonicalActors.counselor, created.supportCaseId, '자립 기반 마련',
-    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련' });
+    )).resolves.toMatchObject({ overallGoal: '자립 기반 마련', canEditOverallGoal: false });
 
     // 같은 문구 재저장 — 감사는 남지만 이력은 늘지 않는다(D62 §4).
     await expect(setSupportCaseOverallGoal(
@@ -2564,21 +2607,21 @@ describe('overall goal (D45 · CCC-41)', () => {
       t.env, canonicalActors.counselor, created.supportCaseId, '가'.repeat(201),
     )).rejects.toBeInstanceOf(ValidationError);
 
-    // 변경 전건 감사(D14) — 성공한 쓰기 6건(입력·수정·관리자 수정·원복·같은 문구 재저장·지움)이
-    // 전부 남고, 목표 문장은 detail 에 없다.
+    // 변경 전건 감사(D14) — 성공한 쓰기 4건(입력·수정·같은 문구 재저장·지움)이
+    // 전부 남고, 거부된 관리자 쓰기는 남지 않는다. 목표 문장은 detail 에 없다.
     const audits = await t.db.prepare(
       `SELECT detail FROM audit_log
        WHERE action = 'update' AND target_table = 'support_cases' AND target_id = ?`,
     ).bind(created.supportCaseId).all<{ detail: string }>();
     const goalAudits = audits.results.filter((row) => row.detail.includes('overall_goal'));
-    expect(goalAudits).toHaveLength(6);
+    expect(goalAudits).toHaveLength(4);
     for (const row of goalAudits) {
       expect(row.detail).not.toContain('자립 기반 마련');
       expect(row.detail).not.toContain('주거 안정');
       expect(row.detail).not.toContain('관리자가 고친');
     }
 
-    // 이력(D62 §4) — 문구가 실제로 바뀐 5번(최초 작성·수정·관리자 수정·원복·지움)만
+    // 이력(D62 §4) — 문구가 실제로 바뀐 3번(최초 작성·수정·지움)만
     // goal_revisions 에 남는다. goal_id NULL = 전체 목표, title NULL = 지움.
     const revisions = await t.db.prepare(
       'SELECT title, edited_by FROM goal_revisions WHERE support_case_id = ? AND goal_id IS NULL ORDER BY id',
@@ -2586,11 +2629,9 @@ describe('overall goal (D45 · CCC-41)', () => {
     expect(revisions.results.map((row) => row.title)).toEqual([
       '주거 안정과 채무 상환 계획 실행',
       '자립 기반 마련',
-      '관리자가 고친 전체 목표',
-      '자립 기반 마련',
       null,
     ]);
-    expect(revisions.results[2]?.edited_by).toBe(canonicalActors.admin.userId);
+    expect(revisions.results[1]?.edited_by).toBe(canonicalActors.counselor.userId);
   });
 
   it('rejects editing on a closed support case', async () => {

@@ -892,7 +892,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
     expect(briefing.discrepancies).toHaveLength(0);
   });
 
-  it('담당이 아닌 기관 관리자는 검출 결과 브리핑을 열람할 수 없다 (D74)', async () => {
+  it('담당이 아닌 기관 관리자도 검출 결과 브리핑을 읽을 수 있다', async () => {
     const fixture = await createCaseWithSessions(['첫 메모']);
     const trigger = fixture.sessionIds[0] ?? '';
     await replaceSessionDiscrepancies(t.env, counselor, trigger, [{
@@ -904,7 +904,14 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
     }]);
     await expect(
       getParticipantBriefing(t.env, admin, fixture.caseId, fixture.supportCaseId),
-    ).rejects.toThrowError(ForbiddenError);
+    ).resolves.toMatchObject({
+      discrepancies: [
+        expect.objectContaining({
+          left: expect.objectContaining({ quote: '첫 메모' }),
+          right: expect.objectContaining({ quote: '첫 메모' }),
+        }),
+      ],
+    });
   });
 });
 

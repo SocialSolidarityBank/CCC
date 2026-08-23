@@ -128,14 +128,13 @@ describe('getParticipantGoalTree (D62 §8 · CCC-69)', () => {
     expect(audit?.count).toBe(1);
   });
 
-  it('담당 케이스가 없으면 페이지 판정 그대로 막는다 (D36 — 목표는 상담 내용)', async () => {
+  it('비담당 실무자는 막고 기관 관리자는 목표를 읽을 수 있다', async () => {
     await t.reset();
     const seeded = await seedTree();
     await expect(getParticipantGoalTree(t.env, testActors.unassignedCounselor, seeded.beneficiaryId))
       .rejects.toBeInstanceOf(ForbiddenError);
-    // 기관 관리자도 담당 배정 없이 상담 목표를 볼 수 없다(D74).
     await expect(getParticipantGoalTree(t.env, testActors.admin, seeded.beneficiaryId))
-      .rejects.toBeInstanceOf(ForbiddenError);
+      .resolves.toHaveLength(1);
   });
 
   it('goal-tree 라우트가 cases 로 감싸 내리고, 비담당은 403 이다', async () => {
