@@ -144,6 +144,30 @@ describe('audio upload and relay', () => {
     expect(sessionResponse.status).toBe(200);
     expect(await sessionResponse.json()).toMatchObject({ aiStatus: 'uploaded' });
   });
+
+  it('다운로드가 원본 바이트를 그대로 돌려주고 감사를 남긴다 (CCC-94 녹음 보관함 왕복)', async () => {
+    await t.reset();
+    const env = localEnv();
+    const { session } = await makeInPersonSession(true);
+    const upload = await putAudio(session.id, env);
+    expect(upload.status).toBe(200);
+    await expect(recordingState(session.id)).resolves.toEqual({
+      audio_r2_key: expect.stringMatching(/^audio\/.+/),
+      ai_status: 'uploaded',
+    });
+
+    const download = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${session.id}/audio`, {
+      headers: serviceHeaders,
+    }), env);
+    expect(download.status).toBe(200);
+    expect(download.headers.get('content-type')).toBe('audio/mpeg');
+    // 원본 보존 — 바이트 단위로 같아야 보관함이 손을 대지 않은 증거다(CCC-94).
+    expect(Array.from(new Uint8Array(await download.arrayBuffer()))).toEqual(Array.from(AUDIO_BYTES));
+    // 열람(다운로드)은 감사에 남는다(D14).
+    await expect(downloadAuditCount(session.id)).resolves.toBeGreaterThan(0);
+    // 프리뷰 보관함만 쓴다 — 프로덕션 바인딩은 프리뷰 환경에 없다(운영 D1·R2 변경 0).
+    expect(await bucketCount()).toBe(1);
+  });
   it('rechecks the practitioner role inside the recording mutation batch', async () => {
     await t.reset();
     const { session } = await makeInPersonSession(true);
