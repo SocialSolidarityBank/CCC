@@ -16246,6 +16246,8 @@ export interface InviteToken {
   status: 'issued' | 'used';
   issuedAt: string;
   usedAt: string | null;
+  /** 스스로 가입한 당사자(D39 · CCC-28). 감독·감사 조회용으로 초대 호출부가 함께 채운다. */
+  usedByBeneficiaryId: string | null;
 }
 
 /** 초대 소비를 감사할 때 쓰는 시스템 행위자 id. 가입자는 아직 디렉터리에 없다. */
@@ -16267,6 +16269,7 @@ function mapInviteToken(row: DbRow): InviteToken {
     status: stringValue(row.status) as InviteToken['status'],
     issuedAt: stringValue(row.issued_at),
     usedAt: row.used_at === null ? null : stringValue(row.used_at),
+    usedByBeneficiaryId: row.used_by_beneficiary_id === null ? null : stringValue(row.used_by_beneficiary_id),
   };
 }
 
@@ -16383,6 +16386,132 @@ export async function consumeInviteToken(
   });
 
   return getInviteTokenOrThrow(env, token);
+}
+
+/** 자기 가입·자기 확인이 감사를 남길 후원 행위자(토큰 발급자, 실제 사용자). */
+async function sponsorActorFor(env: Env, invite: InviteToken): Promise<Actor> {
+  const sponsorRow = await env.DB.prepare(
+    'SELECT id, role FROM users WHERE id = ? AND org_id = ?',
+  ).bind(invite.issuedBy, invite.orgId).first<{ id: string; role: string }>();
+  if (sponsorRow === null) {
+    throw new ForbiddenError('invite sponsor is unavailable');
+  }
+  return { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
+}
+
+export interface ParticipantSelfCheckProgram {
+  programType: string;
+  /** 담당 실무자 표시 이름(D36). 배정이 없거나 미기입이면 null. */
+  counselorName: string | null;
+  consent: { privacy: boolean; recordingAi: boolean };
+}
+
+export interface ParticipantSelfCheckSchedule {
+  id: string;
+  scheduledAt: string;
+  status: CounselingScheduleStatus;
+}
+
+/** CCC-27 자기 확인 응답 — 정확히 이 다섯 갈래뿐(기록 내용 없음). */
+export interface ParticipantSelfCheck {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  programs: ParticipantSelfCheckProgram[];
+  upcomingSchedules: ParticipantSelfCheckSchedule[];
+  pastSchedules: ParticipantSelfCheckSchedule[];
+}
+
+/**
+ * CCC-27 자기 확인(당사자) — 가입 링크(소비된 토큰)로 여는 본인 정보. **토큰이 자격이다.**
+ * 보이는 것은 정확히 다섯 갈래다: 이름·연락처, 참여 사업+담당 실무자 이름, 다가오는/지난
+ * 상담 일정, 동의 상태. 상담 기록 내용(요약·GAS·플래그·브리핑)은 이 응답에 없다 — 표시
+ * 범위를 화면이 아니라 응답에서 고정한다(테스트가 키를 검증).
+ * 무효·미소비(issued)·실무자(kind=counselor) 토큰은 전부 ForbiddenError 로 뭉쳐 라우트가
+ * 404 로 답하게 한다 — 어느 토큰이 살아 있는지 구분 불가하게.
+ */
+export async function getParticipantSelfCheck(
+  env: Env,
+  token: string,
+): Promise<ParticipantSelfCheck> {
+  const invite = await getInviteTokenOrThrow(env, token);
+  if (invite.kind !== 'participant' || invite.status !== 'used' || invite.usedByBeneficiaryId === null) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  const beneficiaryId = invite.usedByBeneficiaryId;
+
+  // PII(이름·연락처) 노출은 토큰 보유자(본인)에 대한 것이다 — 감사는 자기 가입과 같은
+  // 후원 행위자(발급 실무자)로 남긴다(토큰 흐름엔 실무자 세션이 없고, D14 보존 요구).
+  const contacts = await loadParticipantContacts(env, invite.orgId, [beneficiaryId]);
+  await auditParticipantPiiRead(env, await sponsorActorFor(env, invite), contacts, { targetId: beneficiaryId });
+
+  const [caseRows, upcomingRows, pastRows, assigneeRows] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id, program_type, consent_privacy_at, consent_recording_at
+       FROM support_cases
+       WHERE org_id = ? AND beneficiary_id = ?
+       ORDER BY created_at, id`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, scheduled_at, status
+       FROM counseling_schedules
+       WHERE org_id = ? AND beneficiary_id = ?
+         AND julianday(scheduled_at) >= julianday('now')
+       ORDER BY scheduled_at, id
+       LIMIT 10`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, scheduled_at, status
+       FROM counseling_schedules
+       WHERE org_id = ? AND beneficiary_id = ?
+         AND julianday(scheduled_at) < julianday('now')
+       ORDER BY scheduled_at DESC, id DESC
+       LIMIT 10`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT assignment.support_case_id, users.name AS user_name, users.email AS user_email
+       FROM support_case_assignees AS assignment
+       JOIN support_cases AS case_row ON case_row.id = assignment.support_case_id
+         AND case_row.org_id = assignment.org_id
+       JOIN users ON users.id = assignment.user_id AND users.org_id = assignment.org_id
+       WHERE assignment.org_id = ? AND case_row.beneficiary_id = ?
+         AND assignment.unassigned_at IS NULL
+       ORDER BY assignment.assigned_at, assignment.id`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+  ]);
+
+  const counselorByCase = new Map<string, string | null>();
+  for (const row of assigneeRows.results) {
+    const supportCaseId = stringValue(row.support_case_id);
+    if (counselorByCase.has(supportCaseId)) continue;
+    const displayName = nullableString(row.user_name) ?? nullableString(row.user_email);
+    counselorByCase.set(supportCaseId, displayName === null ? null : displayName);
+  }
+
+  const contact = contacts.get(beneficiaryId);
+  return {
+    name: contact?.name ?? null,
+    phone: contact?.phone ?? null,
+    email: contact?.email ?? null,
+    programs: caseRows.results.map((row) => ({
+      programType: stringValue(row.program_type),
+      counselorName: counselorByCase.get(stringValue(row.id)) ?? null,
+      consent: {
+        privacy: nullableString(row.consent_privacy_at) !== null,
+        recordingAi: nullableString(row.consent_recording_at) !== null,
+      },
+    })),
+    upcomingSchedules: upcomingRows.results.map((row) => ({
+      id: stringValue(row.id),
+      scheduledAt: stringValue(row.scheduled_at),
+      status: canonicalScheduleStatus(row.status),
+    })),
+    pastSchedules: pastRows.results.map((row) => ({
+      id: stringValue(row.id),
+      scheduledAt: stringValue(row.scheduled_at),
+      status: canonicalScheduleStatus(row.status),
+    })),
+  };
 }
 // ============================================================================
 // 당사자 자기 가입(self signup) — 토 권한 원자 트랜잭션 (D39 · ADR-0016 · CCC-28)

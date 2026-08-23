@@ -2315,6 +2315,67 @@ export async function getPublicInviteInfo(token: string): Promise<PublicInviteIn
   return { programType: responseString(record, 'programType') };
 }
 
+/**
+ * CCC-27 당사자 자기 확인 — 가입 링크(소비된 토큰)로 여는 본인 정보. 토큰이 자격이고
+ * 인증 헤더를 보내지 않는다(공개 경로, 가입과 같은 표면). 무효·미소비 토큰은 404.
+ * 응답은 정확히 다섯 갈래뿐 — 상담 기록 내용은 없다(테스트가 키로 고정).
+ */
+export interface ParticipantSelfCheck {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  programs: Array<{
+    programType: string;
+    counselorName: string | null;
+    consent: { privacy: boolean; recordingAi: boolean };
+  }>;
+  upcomingSchedules: Array<{ id: string; scheduledAt: string; status: CounselingScheduleStatus }>;
+  pastSchedules: Array<{ id: string; scheduledAt: string; status: CounselingScheduleStatus }>;
+}
+
+export async function getParticipantSelfCheck(token: string): Promise<ParticipantSelfCheck> {
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}/me`), {
+      headers: new Headers({ accept: 'application/json' }),
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return {
+    name: responseNullableString(record, 'name'),
+    phone: responseNullableString(record, 'phone'),
+    email: responseNullableString(record, 'email'),
+    programs: responseArray(record, 'programs').map((item) => {
+      const program = responseObject(item);
+      return {
+        programType: responseString(program, 'programType'),
+        counselorName: responseNullableString(program, 'counselorName'),
+        consent: {
+          privacy: responseBoolean(responseObject(responseProperty(program, 'consent')), 'privacy'),
+          recordingAi: responseBoolean(responseObject(responseProperty(program, 'consent')), 'recordingAi'),
+        },
+      };
+    }),
+    upcomingSchedules: responseArray(record, 'upcomingSchedules').map(decodeSelfCheckSchedule),
+    pastSchedules: responseArray(record, 'pastSchedules').map(decodeSelfCheckSchedule),
+  };
+}
+
+function decodeSelfCheckSchedule(value: unknown): ParticipantSelfCheck['upcomingSchedules'][number] {
+  const item = responseObject(value);
+  return {
+    id: responseString(item, 'id'),
+    scheduledAt: responseString(item, 'scheduledAt'),
+    status: responseEnum(responseProperty(item, 'status'), scheduleStatuses),
+  };
+}
+
 export interface PublicSignupInput {
   token: string;
   name: string;
