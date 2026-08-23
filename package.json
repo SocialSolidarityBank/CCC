@@ -13,6 +13,7 @@
     "test": "pnpm --filter @ccc/api run test && pnpm --filter @ccc/web run test",
     "guard:db": "node scripts/guard-db-gateway.mjs",
     "guard:doc-numbers": "node scripts/guard-doc-numbers.mjs",
+    "guard:consent-copy": "pnpm --filter @ccc/web exec vitest run app/participants/new/consent-copy.test.ts",
     "guard:tokens": "node scripts/design/token-audit.mjs",
     "guard:align": "node scripts/design/align-audit.mjs",
     "guard:hierarchy": "node scripts/design/hierarchy-audit.mjs",

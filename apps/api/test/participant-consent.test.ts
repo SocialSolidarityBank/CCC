@@ -7,13 +7,23 @@ import {
   ForbiddenError,
   type ParticipantConsentInput,
 } from '../../../db/gateway';
-import { CONSENT_TEXT_AI_NOTICE_VERSION } from '../../../db/consent-notice';
+import {
+  CONSENT_PRIVACY_NOTICE_TEXT,
+  CONSENT_PRIVACY_NOTICE_VERSION,
+  CONSENT_TEXT_AI_NOTICE_VERSION,
+} from '../../../db/consent-notice';
 import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin, unassignedCounselor } = testActors;
 const t = setupD1();
 
 const INTAKE_AT = '2026-07-16T09:00:00.000Z';
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 function headersFor(actor: { userId: string; orgId: string; role: string }): Record<string, string> {
   return {
@@ -53,6 +63,9 @@ describe('당사자 등록 동의 기록 (D49 · D23 · 티켓 #19)', () => {
     expect(row?.consent_text_ai_at).not.toBeNull();
     expect(row?.consent_recording_at).toBe(row?.recorded_at);
     expect(row?.consent_text_ai_at).toBe(row?.recorded_at);
+    expect(row?.privacy_notice_version).toBe(CONSENT_PRIVACY_NOTICE_VERSION);
+    expect(row?.privacy_notice_sha256).toBe(await sha256Hex(CONSENT_PRIVACY_NOTICE_TEXT));
+    expect(row?.privacy_evidence_ref).toBe(`offline://participant-consent-records/${String(row?.id)}`);
 
     // 파이프라인 게이트(support_cases.consent_*_at, D15)가 동의 시각과 일치한다.
     const supportCase = await t.db.prepare(
@@ -68,6 +81,29 @@ describe('당사자 등록 동의 기록 (D49 · D23 · 티켓 #19)', () => {
     expect(audit).not.toBeNull();
     expect(audit?.support_case_id).toBe(creation.supportCaseId);
     expect(audit?.target_table).toBe('participant_consent_records');
+  });
+
+  it('rejects a privacy consent snapshot without server notice evidence', async () => {
+    await t.reset();
+    const creation = await register(counselor, { recordingAi: false });
+    const recordedAt = '2026-07-16T10:00:00.000Z';
+
+    await expect(t.db.prepare(
+      `INSERT INTO participant_consent_records (
+         id, org_id, beneficiary_id, support_case_id,
+         consent_recording_at, consent_text_ai_at, consent_privacy_at,
+         recorded_by, recorded_at, created_at
+       ) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?)`,
+    ).bind(
+      'consent-without-privacy-evidence',
+      counselor.orgId,
+      creation.beneficiaryId,
+      creation.supportCaseId,
+      recordedAt,
+      counselor.userId,
+      recordedAt,
+      recordedAt,
+    ).run()).rejects.toThrow('participant_schema_violation');
   });
 
   it('allows registration with no consent (D15 미동의 경로) and stores NULL item times', async () => {
@@ -349,6 +385,18 @@ describe('동의 2종 — 등록 저장 · 설정 수정 · 인테이크 읽기 
     });
     const after = await getIntakeRecordContext(t.env, counselor, creation.supportCaseId);
     expect(after.consent).toEqual({ privacy: false, recordingAi: false });
+    const withdrawal = await t.db.prepare(
+      `SELECT privacy_notice_version, privacy_notice_sha256, privacy_evidence_ref
+       FROM participant_consent_records
+       WHERE support_case_id = ?
+       ORDER BY recorded_at DESC, created_at DESC
+       LIMIT 1`,
+    ).bind(creation.supportCaseId).first<Record<string, unknown>>();
+    expect(withdrawal).toEqual({
+      privacy_notice_version: null,
+      privacy_notice_sha256: null,
+      privacy_evidence_ref: null,
+    });
   });
 
   it('rejects an edit by a counselor who is not assigned to the case', async () => {
