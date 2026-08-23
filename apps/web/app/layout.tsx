@@ -12,6 +12,7 @@ import { AppHeader } from './components/wire/app-header';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
 import { getDisplayLabels } from './lib/display-labels';
+import { getNewSignupCount } from './lib/api';
 import { THEME_COOKIE_NAME, parseTheme } from './lib/theme-cookie';
 import { wireStyles } from './components/wire/wire-styles';
 
@@ -1081,6 +1082,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
   const labels = await getDisplayLabels();
+  // CCC-26 새 가입 미확인 숫자. 조회 실패(아직 셸 밖 접근 등)면 0 — 배지가 안 그려질 뿐 화면은 성립한다.
+  const newSignupCount = await getNewSignupCount().catch(() => 0);
   // 본문 열을 div 로 한 번 감싼다 — 뒤로가기 줄이 본문과 **같은 컨테이너**(폭 1120·좌우 40)를
   // 써야 제목과 왼쪽 끝이 맞기 때문이다. 감싸지 않고 셸의 형제로 두면 그리드 다음 행,
   // 즉 사이드바 아래로 떨어진다.
@@ -1093,7 +1096,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               (사이드바 위까지). 기관 마크가 사이드바 메뉴와 같은 좌측선(24)에 선다.
               768 미만에서는 렌더만 되고 CSS 가 숨긴다(손잡이 바 + 드로어가 담당). */}
           <AppHeader orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
-          <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
+          <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} newSignupCount={newSignupCount} />
           <div className="content-column">
             {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
                 랜드마크 이동에서 통째로 건너뛴다. */}
