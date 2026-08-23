@@ -20,6 +20,21 @@ function parse(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function formatKoreanParts(formatter: Intl.DateTimeFormat, date: Date): string {
+  const localized = formatter.formatToParts(date).map((part) => {
+    if (part.type !== 'dayPeriod') return part.value;
+    switch (part.value.trim().toUpperCase()) {
+      case 'AM':
+        return '오전';
+      case 'PM':
+        return '오후';
+      default:
+        return part.value;
+    }
+  }).join('');
+  return localized.replace(/(오전|오후)[\s\u00a0]*(?=\d)/g, '$1 ');
+}
+
 /** "2026년 8월 7일" */
 export function formatKoreanDate(value: string, timeZone: string = DEFAULT_TIME_ZONE): string {
   const date = parse(value);
@@ -31,12 +46,19 @@ export function formatKoreanDate(value: string, timeZone: string = DEFAULT_TIME_
 export function formatKoreanTime(value: string, timeZone: string = DEFAULT_TIME_ZONE): string {
   const date = parse(value);
   if (date === null) return value;
-  return new Intl.DateTimeFormat('ko-KR', { timeStyle: 'short', timeZone }).format(date);
+  const formatter = new Intl.DateTimeFormat('ko-KR', { timeStyle: 'short', hour12: true, timeZone });
+  return formatKoreanParts(formatter, date);
 }
 
 /** "2026년 8월 7일 오후 1:00" */
 export function formatKoreanDateTime(value: string, timeZone: string = DEFAULT_TIME_ZONE): string {
   const date = parse(value);
   if (date === null) return value;
-  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long', timeStyle: 'short', timeZone }).format(date);
+  const formatter = new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    hour12: true,
+    timeZone,
+  });
+  return formatKoreanParts(formatter, date);
 }
