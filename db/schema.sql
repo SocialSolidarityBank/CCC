@@ -6267,6 +6267,34 @@ END;
 ALTER TABLE support_case_assignees ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
   CHECK (status IN ('requested', 'active', 'ended'));
 
+-- 레거시 /cases 호환 view도 활성 배정만 노출한다.
+DROP TRIGGER IF EXISTS case_assignees_legacy_insert_unsupported;
+DROP TRIGGER IF EXISTS case_assignees_legacy_update_unsupported;
+DROP TRIGGER IF EXISTS case_assignees_legacy_delete_unsupported;
+DROP VIEW IF EXISTS case_assignees;
+CREATE VIEW case_assignees AS
+SELECT
+  assignment.id,
+  assignment.org_id,
+  support_case.legacy_case_id AS case_id,
+  assignment.user_id,
+  assignment.role,
+  assignment.assigned_at,
+  assignment.unassigned_at
+FROM support_case_assignees AS assignment
+JOIN support_cases AS support_case ON support_case.id = assignment.support_case_id
+WHERE support_case.legacy_case_id IS NOT NULL
+  AND assignment.status = 'active';
+CREATE TRIGGER case_assignees_legacy_insert_unsupported
+INSTEAD OF INSERT ON case_assignees
+BEGIN SELECT RAISE(ABORT, 'legacy_case_write_unsupported'); END;
+CREATE TRIGGER case_assignees_legacy_update_unsupported
+INSTEAD OF UPDATE ON case_assignees
+BEGIN SELECT RAISE(ABORT, 'legacy_case_write_unsupported'); END;
+CREATE TRIGGER case_assignees_legacy_delete_unsupported
+INSTEAD OF DELETE ON case_assignees
+BEGIN SELECT RAISE(ABORT, 'legacy_case_write_unsupported'); END;
+
 ALTER TABLE support_case_assignees ADD COLUMN acceptance_requested_by TEXT;
 ALTER TABLE support_case_assignees ADD COLUMN accepted_at TEXT;
 ALTER TABLE support_case_assignees ADD COLUMN transfer_reason TEXT;
@@ -6281,11 +6309,55 @@ CREATE UNIQUE INDEX uq_support_case_assignees_active
 CREATE INDEX idx_support_case_assignees_status
   ON support_case_assignees (org_id, status, unassigned_at);
 
--- 주담당 하나 제약을 인덱스에서 트랜잭션으로 옮긴다. 정책 §2.3은 '수락 시점에 이전 담당
--- 권한 종료'라 요청 단계에서는 활성 주담당과 공존해야 하는데, 기존 unique(role=primary,
--- unassigned_at IS NULL)가 이를 막는다. '활성 주담당 ≤ 1'은 accept·force 이관 게이트웨이가
--- 원자 배치 안에서 유지한다(테스트로 고정).
+-- requested 주담당은 활성 주담당과 공존하지만 active 주담당은 DB에서 하나만 허용한다.
 DROP INDEX IF EXISTS uq_support_case_assignees_primary;
+CREATE UNIQUE INDEX uq_support_case_assignees_primary_active
+  ON support_case_assignees (support_case_id)
+  WHERE role = 'primary' AND unassigned_at IS NULL AND status = 'active';
+
+CREATE TRIGGER support_case_assignees_lifecycle_update_guard
+BEFORE UPDATE OF
+  status, acceptance_requested_by, accepted_at, transfer_reason, notified_by, notified_at
+ON support_case_assignees
+WHEN
+  NEW.acceptance_requested_by IS NOT OLD.acceptance_requested_by
+  OR NEW.notified_by IS NOT OLD.notified_by
+  OR NEW.notified_at IS NOT OLD.notified_at
+  OR (
+    NEW.status IS NOT OLD.status
+    AND NOT (
+      (OLD.status = 'requested' AND NEW.status = 'active'
+       AND OLD.accepted_at IS NULL AND NEW.accepted_at IS NOT NULL
+       AND NEW.unassigned_at IS NULL)
+      OR
+      (OLD.status IN ('requested', 'active') AND NEW.status = 'ended'
+       AND OLD.unassigned_at IS NULL AND NEW.unassigned_at IS NOT NULL)
+    )
+  )
+  OR (
+    NEW.accepted_at IS NOT OLD.accepted_at
+    AND NOT (
+      OLD.status = 'requested' AND NEW.status = 'active'
+      AND OLD.accepted_at IS NULL AND NEW.accepted_at IS NOT NULL
+    )
+  )
+  OR (
+    NEW.transfer_reason IS NOT OLD.transfer_reason
+    AND NOT (
+      OLD.status IN ('requested', 'active') AND NEW.status = 'ended'
+      AND OLD.unassigned_at IS NULL AND NEW.unassigned_at IS NOT NULL
+      AND NEW.transfer_reason IS NOT NULL
+    )
+  )
+BEGIN
+  SELECT RAISE(ABORT, 'assignment_lifecycle_immutable');
+END;
 
 -- 퇴사·휴직 체크리스트(CCC-123): 발급자 비활성화 시 미사용 초대 토큰을 폐기한다.
 ALTER TABLE invite_tokens ADD COLUMN revoked_at TEXT;
+CREATE TRIGGER invite_tokens_no_revoked_consume
+BEFORE UPDATE ON invite_tokens
+WHEN NEW.status = 'used' AND OLD.revoked_at IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'invite_token_revoked');
+END;

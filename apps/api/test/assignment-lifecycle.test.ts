@@ -8,6 +8,8 @@ import {
   deactivateUser,
   forceTransferSupportCase,
   getInviteForSignup,
+  listCounselorAssignments,
+  listSupportCaseAssignees,
   reactivateUser,
   requestSupportCaseAssignment,
 } from '../../../db/gateway';
@@ -51,19 +53,38 @@ describe('assignment request (CCC-123 requested status)', () => {
     await expect(
       assertSupportCaseAccess(t.env, testActors.unassignedCounselor, seeded.supportCaseId),
     ).rejects.toThrow(ForbiddenError);
+    const pendingCounselorAssignments = await listCounselorAssignments(
+      t.env,
+      testActors.admin,
+      testActors.unassignedCounselor.userId,
+    );
+    expect(pendingCounselorAssignments.participants).toHaveLength(0);
+    await expect(
+      listSupportCaseAssignees(t.env, testActors.admin, seeded.supportCaseId),
+    ).resolves.toHaveLength(1);
+    const assignmentHistory = await listSupportCaseAssignees(
+      t.env,
+      testActors.admin,
+      seeded.supportCaseId,
+      { includeHistory: true },
+    );
+    expect(assignmentHistory.map((assignment) => assignment.status).sort()).toEqual([
+      'active',
+      'requested',
+    ]);
 
     // 배정받은 본인만 수락할 수 있다(제3자는 Forbidden).
     const pending = await t.db.prepare(
       `SELECT id FROM support_case_assignees
        WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND status = 'requested'`,
     ).bind(testActors.admin.orgId, seeded.supportCaseId, testActors.unassignedCounselor.userId).first<{ id: string }>();
-    expect(pending).not.toBeNull();
+    if (pending === null) throw new Error('requested assignment fixture is missing');
     await expect(
-      acceptSupportCaseAssignment(t.env, testActors.admin, pending!.id),
+      acceptSupportCaseAssignment(t.env, testActors.admin, pending.id),
     ).rejects.toThrow(ForbiddenError);
 
     // 수락 → 활성 + 이전 주담당 종료.
-    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending!.id);
+    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending.id);
     await expect(
       assertSupportCaseAccess(t.env, testActors.unassignedCounselor, seeded.supportCaseId),
     ).resolves.toBeTruthy();
@@ -82,13 +103,12 @@ describe('assignment request (CCC-123 requested status)', () => {
     expect(actives).toHaveLength(1);
   });
 
-  it('treats a one-person-org self assignment as immediately accepted', async () => {
+  it('keeps an admin self-assignment requested when the institution has multiple active people', async () => {
     await t.reset();
     const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
       programType: 'financial_support_v1',
       intakeAt: '2026-07-02T00:00:00.000Z',
     });
-    // 관리자 역할 겸임자가 스스로 담당을 요청 → 즉시 active(정책 §2.3).
     await t.db.prepare(
       `INSERT OR IGNORE INTO user_role_assignments (
          id, org_id, user_id, role, source, granted_by
@@ -102,15 +122,97 @@ describe('assignment request (CCC-123 requested status)', () => {
     await requestSupportCaseAssignment(
       t.env, testActors.admin, created.supportCaseId, testActors.admin.userId, 'primary',
     );
-    await expect(
-      assertSupportCaseAccess(t.env, testActors.admin, created.supportCaseId),
-    ).resolves.toBeTruthy();
+    await expect(t.db.prepare(
+      `SELECT status FROM support_case_assignees
+       WHERE support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
+    ).bind(created.supportCaseId, testActors.admin.userId).first()).resolves.toEqual({
+      status: 'requested',
+    });
+  });
+
+  it('immediately accepts a self-assignment only when one active human remains', async () => {
+    await t.reset();
+    const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
+      programType: 'financial_support_v1',
+      intakeAt: '2026-07-02T00:00:00.000Z',
+    });
+    await t.db.prepare(
+      `INSERT OR IGNORE INTO user_role_assignments (
+         id, org_id, user_id, role, source, granted_by
+       ) VALUES (?, ?, ?, 'practitioner', 'manual', ?)`,
+    ).bind(
+      `test-practitioner:${testActors.admin.orgId}:${testActors.admin.userId}`,
+      testActors.admin.orgId,
+      testActors.admin.userId,
+      testActors.admin.userId,
+    ).run();
+    await t.db.prepare(
+      `UPDATE support_case_assignees
+       SET status = 'ended', unassigned_at = datetime('now')
+       WHERE support_case_id = ? AND status = 'active'`,
+    ).bind(created.supportCaseId).run();
+    await t.db.prepare(
+      `UPDATE users SET active = 0
+       WHERE org_id = ? AND id <> ? AND role IN ('admin', 'counselor')`,
+    ).bind(testActors.admin.orgId, testActors.admin.userId).run();
+
+    await requestSupportCaseAssignment(
+      t.env, testActors.admin, created.supportCaseId, testActors.admin.userId, 'primary',
+    );
+    await expect(t.db.prepare(
+      `SELECT status, accepted_at AS acceptedAt FROM support_case_assignees
+       WHERE support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
+    ).bind(created.supportCaseId, testActors.admin.userId).first()).resolves.toMatchObject({
+      status: 'active',
+      acceptedAt: expect.any(String),
+    });
+  });
+
+  it('allows requested primary overlap but the database rejects a second active primary', async () => {
+    const seeded = await seedCase();
+    await requestSupportCaseAssignment(
+      t.env, testActors.admin, seeded.supportCaseId, testActors.unassignedCounselor.userId, 'primary',
+    );
+    await t.db.prepare(
+      `INSERT OR IGNORE INTO user_role_assignments (
+         id, org_id, user_id, role, source, granted_by
+       ) VALUES (?, ?, ?, 'practitioner', 'manual', ?)`,
+    ).bind(
+      `test-practitioner:${testActors.admin.orgId}:${testActors.admin.userId}`,
+      testActors.admin.orgId,
+      testActors.admin.userId,
+      testActors.admin.userId,
+    ).run();
+
+    await expect(t.db.prepare(
+      `INSERT INTO support_case_assignees (
+         id, org_id, support_case_id, user_id, role, status, accepted_at, assigned_at
+       ) VALUES (?, ?, ?, ?, 'primary', 'active', datetime('now'), datetime('now'))`,
+    ).bind(
+      'second-active-primary',
+      testActors.admin.orgId,
+      seeded.supportCaseId,
+      testActors.admin.userId,
+    ).run()).rejects.toThrow('UNIQUE constraint failed');
+
+    const counts = await t.db.prepare(
+      `SELECT
+         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS activeCount,
+         SUM(CASE WHEN status = 'requested' THEN 1 ELSE 0 END) AS requestedCount
+       FROM support_case_assignees WHERE support_case_id = ? AND role = 'primary'`,
+    ).bind(seeded.supportCaseId).first<{ activeCount: number; requestedCount: number }>();
+    expect(counts).toEqual({ activeCount: 1, requestedCount: 1 });
   });
 });
 
 describe('forced transfer (CCC-123)', () => {
   it('requires a reason, ends the current primary immediately, and records the notice check', async () => {
     const seeded = await seedCase();
+    const previous = await t.db.prepare(
+      `SELECT id, user_id AS userId FROM support_case_assignees
+       WHERE support_case_id = ? AND role = 'primary' AND status = 'active'`,
+    ).bind(seeded.supportCaseId).first<{ id: string; userId: string }>();
+    if (previous === null) throw new Error('active primary fixture is missing');
 
     // 사유 없이 이관 시도 → 거부.
     await expect(
@@ -131,10 +233,22 @@ describe('forced transfer (CCC-123)', () => {
 
     // 기존 담당은 즉시 ended, 새 담당은 active(수락 없이).
     const targetRow = await t.db.prepare(
-      `SELECT status, transfer_reason AS reason, notified_by AS notifiedBy, notified_at AS notifiedAt
+      `SELECT id, status, transfer_reason AS reason, notified_by AS notifiedBy, notified_at AS notifiedAt
        FROM support_case_assignees WHERE org_id = ? AND support_case_id = ? AND user_id = ?`,
-    ).bind(testActors.admin.orgId, seeded.supportCaseId, testActors.unassignedCounselor.userId).first();
+    ).bind(
+      testActors.admin.orgId,
+      seeded.supportCaseId,
+      testActors.unassignedCounselor.userId,
+    ).first<{
+      id: string;
+      status: string;
+      reason: string;
+      notifiedBy: string;
+      notifiedAt: string;
+    }>();
+    if (targetRow === null) throw new Error('forced transfer target fixture is missing');
     expect(targetRow).toEqual({
+      id: expect.any(String),
       status: 'active', reason: '퇴사로 인한 강제 이관',
       notifiedBy: testActors.admin.userId, notifiedAt: '2026-08-23T09:00:00.000Z',
     });
@@ -145,13 +259,33 @@ describe('forced transfer (CCC-123)', () => {
       assertSupportCaseAccess(t.env, testActors.counselor, seeded.supportCaseId),
     ).rejects.toThrow(ForbiddenError);
 
-    // 전건 감사 2건 이상(이관 + 안내 확인 기록은 같은 detail 에).
-    const audits = await t.db.prepare(
-      `SELECT target_table AS tt, action FROM audit_log
+    const audit = await t.db.prepare(
+      `SELECT detail FROM audit_log
        WHERE org_id = ? AND support_case_id = ? AND action = 'update'
-         AND detail LIKE '%forcedTransfer%'`,
-    ).bind(testActors.admin.orgId, seeded.supportCaseId).all();
-    expect(audits.results.length).toBeGreaterThanOrEqual(1);
+         AND target_id = ?`,
+    ).bind(
+      testActors.admin.orgId,
+      seeded.supportCaseId,
+      targetRow.id,
+    ).first<{ detail: string }>();
+    expect(JSON.parse(audit?.detail ?? '{}')).toEqual({
+      forcedTransfer: true,
+      reason: '퇴사로 인한 강제 이관',
+      notified: true,
+      notifiedBy: testActors.admin.userId,
+      notifiedAt: '2026-08-23T09:00:00.000Z',
+      previousAssignmentId: previous.id,
+      previousUserId: previous.userId,
+    });
+
+    await expect(t.db.prepare(
+      `UPDATE support_case_assignees
+       SET notified_by = ?, notified_at = datetime('now')
+       WHERE id = ?`,
+    ).bind(
+      testActors.counselor.userId,
+      targetRow.id,
+    ).run()).rejects.toThrow('assignment_lifecycle_immutable');
   });
 });
 
@@ -166,7 +300,8 @@ describe('offboarding checklist (CCC-123 deactivate/reactivate)', () => {
       `SELECT id FROM support_case_assignees
        WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND status = 'requested'`,
     ).bind(testActors.admin.orgId, seeded.supportCaseId, testActors.unassignedCounselor.userId).first<{ id: string }>();
-    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending!.id);
+    if (pending === null) throw new Error('requested assignment fixture is missing');
+    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending.id);
     // 실무자(unassignedCounselor)가 발급한 미사용 초대 토큰 하나를 직접 심는다.
     await t.db.prepare(
       `INSERT INTO invite_tokens (
@@ -187,8 +322,9 @@ describe('offboarding checklist (CCC-123 deactivate/reactivate)', () => {
     expect(rows.results).toEqual([{ status: 'ended', reason: '퇴사' }]);
 
     const token = await t.db.prepare('SELECT revoked_at AS revokedAt FROM invite_tokens WHERE token = ?')
-      .bind('ccc-offboard-test-token').first();
-    expect(token!.revokedAt).not.toBeNull();
+      .bind('ccc-offboard-test-token').first<{ revokedAt: string | null }>();
+    if (token === null) throw new Error('invite fixture is missing');
+    expect(token.revokedAt).not.toBeNull();
     await expect(getInviteForSignup(t.env, 'ccc-offboard-test-token', 'counselor'))
       .rejects.toThrow(ForbiddenError);
 
@@ -197,8 +333,13 @@ describe('offboarding checklist (CCC-123 deactivate/reactivate)', () => {
     const still = await t.db.prepare(
       `SELECT status FROM support_case_assignees
        WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NOT NULL`,
-    ).bind(testActors.admin.orgId, seeded.supportCaseId, testActors.unassignedCounselor.userId).first();
-    expect(still!.status).toBe('ended');
+    ).bind(
+      testActors.admin.orgId,
+      seeded.supportCaseId,
+      testActors.unassignedCounselor.userId,
+    ).first<{ status: string }>();
+    if (still === null) throw new Error('ended assignment fixture is missing');
+    expect(still.status).toBe('ended');
     await expect(
       assertSupportCaseAccess(t.env, testActors.unassignedCounselor, seeded.supportCaseId),
     ).rejects.toThrow(ForbiddenError);

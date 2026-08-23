@@ -32,12 +32,13 @@ import {
   replaceSessionDiscrepancies,
   resolveSessionDiscrepancy,
   listRecordErrorSessionIds,
-  assignSupportCase,
+  acceptSupportCaseAssignment,
   COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
   closeGoal,
   closeSupportCase,
   getSupportCaseClosureInfo,
+  forceTransferSupportCase,
   countUpcomingSchedulesLinkedToGoal,
   createBeneficiaryWithInitialSupportCase,
   createCase,
@@ -101,6 +102,7 @@ import {
   releaseRecordingResultDownstream,
   listSessions,
   listSupportCaseAssignees,
+  requestSupportCaseAssignment,
   listAssignedParticipants,
   listPrivacyConsentFollowUps,
   listParticipantPiiRetentionReviews,
@@ -1094,6 +1096,12 @@ function supportCaseAssigneeResponse(
     supportCaseId: assignee.supportCaseId,
     userId: assignee.userId,
     role: assignee.role,
+    status: assignee.status,
+    acceptanceRequestedBy: assignee.acceptanceRequestedBy,
+    acceptedAt: assignee.acceptedAt,
+    transferReason: assignee.transferReason,
+    notifiedBy: assignee.notifiedBy,
+    notifiedAt: assignee.notifiedAt,
     assignedAt: assignee.assignedAt,
   };
 }
@@ -2370,6 +2378,19 @@ export async function handleRequest(
         requestQuery(url, []);
         return json(await getSupportCaseClosureInfo(env, actor, supportCaseId));
       }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'force-transfer') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['toUserId', 'reason', 'participantNotified']);
+        const participantNotified = requiredBoolean(body, 'participantNotified');
+        await forceTransferSupportCase(env, actor, {
+          supportCaseId,
+          toUserId: requiredString(body, 'toUserId'),
+          reason: requiredString(body, 'reason'),
+          ...(participantNotified ? { notifiedBy: actor.userId } : {}),
+        });
+        return json({ transferred: true });
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignees') {
         // 케이스 담당 실무자 목록 — 담당 실무자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
         requestQuery(url, []);
@@ -2377,18 +2398,30 @@ export async function handleRequest(
         return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'assignees') {
-        // 공동 담당 추가(D7) — admin 전용(gateway 의 assertAdmin 강제). 기본 역할은 secondary.
+        // 배정 요청(D74) — admin 전용. 수락 전에는 상담 내용과 PII가 열리지 않는다.
         requestQuery(url, []);
         const body = await requestBody(request);
+        requireOnlyKeys(body, ['userId', 'role']);
         const userId = requiredString(body, 'userId');
         const roleValue = optionalString(body, 'role');
         if (roleValue !== undefined && roleValue !== 'primary' && roleValue !== 'secondary') {
           throw new ValidationError('assignee role is invalid');
         }
         const assignee = roleValue === undefined
-          ? await assignSupportCase(env, actor, supportCaseId, userId)
-          : await assignSupportCase(env, actor, supportCaseId, userId, roleValue);
+          ? await requestSupportCaseAssignment(env, actor, supportCaseId, userId)
+          : await requestSupportCaseAssignment(env, actor, supportCaseId, userId, roleValue);
         return json(supportCaseAssigneeResponse(assignee), 201);
+      }
+      if (
+        request.method === 'POST'
+        && parts.length === 5
+        && parts[2] === 'assignees'
+        && parts[4] === 'accept'
+      ) {
+        requestQuery(url, []);
+        const assignmentId = requireRouteUuid(parts[3] ?? '', 'assignment id');
+        await acceptSupportCaseAssignment(env, actor, assignmentId);
+        return json({ accepted: true });
       }
       // 동의 2종 수정·철회 (D44 · 항목 수는 D49). 담당 실무자 또는 기관 관리자만 —
       // 게이트웨이의 assertSupportCaseAccess 가 강제한다(R1). 두 값은 항상 함께 온다(현재 상태 전체).

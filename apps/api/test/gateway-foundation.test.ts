@@ -10,6 +10,7 @@ import {
   listAuditLog,
   listAssignees,
   listCases,
+  requestSupportCaseAssignment,
   processParticipantPiiRetention,
   purgeParticipantPii,
   recordPilotTextAiConsentEvidence,
@@ -45,6 +46,29 @@ describe('gateway foundation', () => {
 
     const audit = await listAuditLog(t.env, admin, { caseId: created.id });
     expect(audit.map((entry) => entry.action)).toEqual(expect.arrayContaining(['create', 'assign']));
+  });
+
+  it('does not expose a legacy case through a requested assignment', async () => {
+    await t.reset();
+    const created = await createCase(t.env, counselor, { programType: 'financial_support_v1' });
+    const supportCase = await t.db.prepare(
+      'SELECT id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
+    ).bind(created.id, counselor.orgId).first<{ id: string }>();
+    if (supportCase === null) throw new Error('support case fixture is missing');
+    await t.db.prepare(
+      `UPDATE support_case_assignees
+       SET status = 'ended', unassigned_at = datetime('now')
+       WHERE support_case_id = ? AND status = 'active'`,
+    ).bind(supportCase.id).run();
+    await requestSupportCaseAssignment(
+      t.env,
+      admin,
+      supportCase.id,
+      unassignedCounselor.userId,
+      'primary',
+    );
+
+    await expect(listCases(t.env, unassignedCounselor)).resolves.toEqual([]);
   });
   it('fails legacy case creation, assignment, and transfer closed without organization settings', async () => {
     await t.reset();
