@@ -37,6 +37,11 @@ def record(page, name: str, note: str = "") -> dict[str, object]:
         "button, input[type=submit]",
         "els => els.map(e => ({t: (e.innerText||e.value||'').trim().slice(0,40), d: e.disabled}))",
     )
+    enabled_actions = [button for button in buttons if not button["d"]]
+    body_text = page.inner_text("body")
+    # 공개 가입 표면에는 직원 앱으로 돌아가는 링크를 일부러 두지 않는다. 대신 가입 전에는
+    # 활성 제출 버튼이 출구이고, 가입 완료·자기 확인은 그 자체가 의도된 종점이다.
+    terminal = any(marker in body_text for marker in ("가입이 완료되었습니다", "당사자 자기 확인"))
     shell = {"/participants", "/settings", "/programs/financial_support_v1/schedule"}
     own = [l for l in links
            if l["h"] and l["h"] not in shell
@@ -50,8 +55,10 @@ def record(page, name: str, note: str = "") -> dict[str, object]:
         "links_total": len(links),
         "links_own": own[:14],
         "buttons": [b for b in buttons][:14],
+        "enabled_actions": len(enabled_actions),
+        "terminal": terminal,
         "own_exits": len(own),
-        "dead_end": len(links) == 0,
+        "dead_end": len(links) == 0 and len(enabled_actions) == 0 and not terminal,
         "title": page.title(),
     }
     steps.append(entry)
