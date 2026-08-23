@@ -1,6 +1,7 @@
 'use client';
 
 import { WireBadge } from '../../components/wire/wire-badge';
+import { WireSteps } from '../../components/wire/wire-steps';
 import Link from 'next/link';
 import { useState } from 'react';
 import { GridContainer } from '../../components/wire/grid-container';
@@ -274,8 +275,14 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           <WireBadge tone="blue" role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
         {/* 인테이크는 목표 입력 단계가 없어 2단계다(CCC-64). 3단계 화면(맞춤형 질문)이
-            인테이크에서는 두 번째로 보이므로 표기도 그에 맞춘다. */}
-        <p className="panel-meta">{sessionKind === 'intake' ? `${step === 3 ? 2 : step} / 2 단계` : `${step} / 3 단계`}</p>
+            인테이크에서는 두 번째로 보이므로 표기도 그에 맞춘다. CCC-81 단계 부품을 쓴다. */}
+        <WireSteps
+          className="schedule-wizard-steps"
+          current={sessionKind === 'intake' ? (step === 3 ? 2 : step) : step}
+          steps={sessionKind === 'intake'
+            ? [{ label: '당사자 선택' }, { label: '맞춤형 질문' }]
+            : [{ label: '당사자 선택' }, { label: '상담 일시·유형' }, { label: '맞춤형 질문' }]}
+        />
         {error !== null ? <p role="alert" className="wire-field-error">{error}</p> : null}
 
         {step === 1 ? (
