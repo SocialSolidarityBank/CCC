@@ -205,8 +205,12 @@ describe('ScheduleWizard', () => {
     expect(scoped.queryByText('상담의 목표는 무엇인가요?')).toBeNull();
     expect(scoped.queryByText('이번 상담의 목표는 무엇인가요?')).toBeNull();
     expect(scoped.queryByLabelText('상담 목표 1')).toBeNull();
-    // 인테이크는 2단계다(구 3단계).
-    expect(scoped.getByText('2 / 2 단계')).not.toBeNull();
+    // 인테이크는 2단계다(구 3단계) — CCC-81 단계 부품으로 표기된다.
+    const steps = container.querySelector('ol.wire-steps');
+    expect(steps).not.toBeNull();
+    const labels = [...(steps?.querySelectorAll('.wire-step-label') ?? [])].map((el) => el.textContent);
+    expect(labels).toEqual(['당사자 선택', '맞춤형 질문']);
+    expect(container.querySelector('.wire-step[aria-current="step"]')?.textContent).toContain('맞춤형 질문');
 
     fireEvent.click(scoped.getByRole('button', { name: '완료' }));
 

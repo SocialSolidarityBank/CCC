@@ -407,6 +407,20 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 .wire-timeline-item::before{content:"";position:absolute;left:0;top:5px;width:7px;height:7px;background:var(--ink)}
 .wire-timeline-item::after{content:"";position:absolute;left:3px;top:18px;bottom:-14px;width:1px;background:var(--line)}
 .wire-timeline-item:last-child::after{display:none}
+/* CCC-81 단계 표시 부품 — 진행 상태는 블루 축(D34), 현재=채움·완료=tint·대기=무채색. */
+.wire-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);align-items:center}
+.wire-step{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
+.wire-step-marker{display:grid;place-items:center;min-width:20px;height:20px;padding:0 var(--space-1);border-radius:var(--radius-control);font-size:var(--text-sm);font-weight:600}
+.wire-step-current .wire-step-marker{background:var(--blue);color:var(--on-action)}
+.wire-step-done .wire-step-marker{background:var(--blue-tint);color:var(--blue-deep)}
+.wire-step-upcoming{color:var(--sub)}
+.wire-step-upcoming .wire-step-marker{background:var(--panel);color:var(--sub);font-weight:400}
+/* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
+.wire-data-rows{display:grid;margin:0;gap:0;border-top:1px solid var(--line)}
+.wire-data-row{display:grid;grid-template-columns:minmax(160px,260px) minmax(0,1fr);gap:var(--space-3);border-bottom:1px solid var(--line);padding:var(--space-2) 0}
+.wire-data-row>dt{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+.wire-data-row>dd{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:767px){.wire-data-row{grid-template-columns:1fr;gap:var(--space-1)}}
 /* 펼치면 확정 문구(16)와 메타 줄(최초 작성/수정 · 수정자 · 시각)이 최신부터 쌓인다. */
 .goal-tree-history{display:contents}
 .goal-tree-history-row{display:grid;gap:var(--space-1)}
