@@ -102,7 +102,7 @@ export function SignupForm({ token }: { token: string }) {
             {CONSENT_DETAIL_SECTIONS.map((section) => (
               <div className="consent-detail-section" key={section.heading}>
                 <h3>{section.heading}</h3>
-                {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                {section.paragraphs?.map((paragraph) => <p className="consent-detail-paragraph" key={paragraph}>{paragraph}</p>)}
                 {section.items === undefined ? null : (
                   <ul>
                     {section.items.map((item) => <li key={item}>{item}</li>)}

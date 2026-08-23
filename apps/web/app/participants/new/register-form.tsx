@@ -248,7 +248,9 @@ export function RegisterForm({
               {CONSENT_DETAIL_SECTIONS.map((section) => (
                 <div className="consent-detail-section" key={section.heading}>
                   <h3>{section.heading}</h3>
-                  {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                  {/* 같은 클래스를 단 형제는 '나열'로 읽는다(위계 실측 계약) — 동의 문단은
+                      한 구획 안에서 대등한 순서열이라 쌓임(눌린 쌓임)이 아니다. */}
+                  {section.paragraphs?.map((paragraph) => <p className="consent-detail-paragraph" key={paragraph}>{paragraph}</p>)}
                   {section.items === undefined ? null : (
                     <ul>
                       {section.items.map((item) => <li key={item}>{item}</li>)}
