@@ -23,6 +23,7 @@ import {
   type IntakeQuestionGroup,
   type IntakeTableColumn,
 } from './intake-questions';
+import { WireDataRow, WireDataRows } from '../../../../../../components/wire/wire-data-rows';
 
 /**
  * 인테이크 조회 화면(CCC-58). 저장된 질문지 4부·표 3종·종합의견을 **한 페이지로 읽는다** —
@@ -61,10 +62,7 @@ export interface IntakeReadViewProps {
 // 조회 값만 줄바꿈을 원문대로 살린다(pre-wrap) — 서술형 답변이 여러 줄로 저장되기 때문이다.
 function ReadRow(props: { label: string; value: string }) {
   return (
-    <div className="wizard-field" data-testid="intake-read-row">
-      <span className="wire-field-label">{props.label}</span>
-      <p className="wire-field-value intake-read-value">{props.value}</p>
-    </div>
+    <WireDataRow label={props.label} value={<span className="intake-read-value">{props.value}</span>} />
   );
 }
 
@@ -88,10 +86,13 @@ function GroupCard(props: {
   return (
     // h3 id 는 우측 목차의 앵커 대상이다(2026-08-09 3차 — 작성 위저드와 같은 헬퍼).
     <WireCard title={<h3 id={intakeSectionAnchor(props.group.title)}>{props.group.title}</h3>}>
-      {props.lead}
-      {props.group.questions.map((question) => (
-        <ReadRow key={question.key} label={question.label} value={answerText(props.answers, question.key)} />
-      ))}
+      {/* CCC-81 표 부품: 질문지 문답을 정의 목록 2열(라벨 | 값)로 — 세로 적층 눌린 쌓임의 대안. */}
+      <WireDataRows data-testid="intake-read-rows">
+        {props.lead}
+        {props.group.questions.map((question) => (
+          <WireDataRow key={question.key} label={question.label} value={<span className="intake-read-value">{answerText(props.answers, question.key)}</span>} />
+        ))}
+      </WireDataRows>
     </WireCard>
   );
 }
@@ -136,7 +137,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
 
   // 위저드가 소절 안에 끼워 넣는 자동값(1-3)과 같은 자리 규칙 — 번호는 소절 하나에 하나다.
   const groupLeads: Readonly<Record<string, ReactNode>> = {
-    '1-3. 상담 운영정보': <ReadRow label="상담일" value={heldAtLabel} />,
+    '1-3. 상담 운영정보': <WireDataRows><ReadRow label="상담일" value={heldAtLabel} /></WireDataRows>,
   };
 
   const sections: ReadonlyArray<{ title: string; extra: ReactNode }> = [
@@ -159,7 +160,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
           {/* 전체 목표(D62 · CCC-68): 작성 위저드와 같은 자리(4단계)에서 읽는다. 수정은
               우상단 '수정'(위저드 수정 모드) 또는 15초 페이지 카드(보조 자리)가 갖는다. */}
           <WireCard title={<h3 id={intakeSectionAnchor('전체 목표')}>전체 목표</h3>} testId="intake-read-overall-goal">
-            <ReadRow label="전체 목표" value={overallGoalText.length === 0 ? '설정 전' : overallGoalText} />
+            <WireDataRows><ReadRow label="전체 목표" value={overallGoalText.length === 0 ? '설정 전' : overallGoalText} /></WireDataRows>
           </WireCard>
           <TableCard title="4-2. 추가 확인사항" columns={ADDITIONAL_COLUMNS} rows={props.saved.additionalItems} testId="intake-read-additional" />
           <WireCard title={<h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3>} testId="intake-read-opinion">

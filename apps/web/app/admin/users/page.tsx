@@ -1,8 +1,8 @@
 import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import Link from 'next/link';
 import { Chevron } from '../../components/wire/chevron';
-import { ListRow } from '../../components/wire/list-row';
-import { MetaRow } from '../../components/wire/meta-row';
+import { WireBadge } from '../../components/wire/wire-badge';
+import { WireCardSection, WireItem } from '../../components/wire/wire-section';
 import { PageTitle } from '../../components/wire/page-title';
 import {
   ApiError,
@@ -59,28 +59,26 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     <>
       <PageTitle>사용자</PageTitle>
       <div className="wire-admin-cols">
-        <section aria-label="실무자 목록">
+        <WireCardSection title="실무자 목록">
           {usersError !== null ? (
             <WireError>{usersError}</WireError>
           ) : users.length === 0 ? (
             <WireEmpty>등록된 실무자가 없습니다.</WireEmpty>
           ) : (
-            <div className="wire-admin-list">
-              {users.map((user) => (
-                <ListRow
-                  key={user.id}
-                  href={`/admin/users?selected=${encodeURIComponent(user.id)}`}
-                  selected={user.id === selected}
-                  chevron="right"
-                >
-                  <MetaRow items={[userLabel(user), roleLabel[user.role]]} />
-                </ListRow>
-              ))}
-            </div>
+            users.map((user) => (
+              // CCC-90: 역할 낱말은 제목과 같은 옷이 아니라 status 슬롯(배지)로 구분한다.
+              <WireItem
+                key={user.id}
+                title={userLabel(user)}
+                tone={user.id === selected ? 'mint' : 'plain'}
+                status={<WireBadge tone="mint">{roleLabel[user.role]}</WireBadge>}
+                action={<Link href={`/admin/users?selected=${encodeURIComponent(user.id)}`}>선택</Link>}
+              />
+            ))
           )}
-        </section>
+        </WireCardSection>
 
-        <section aria-label="담당 당사자">
+        <WireCardSection title="담당 당사자">
           {selectedUser === undefined ? (
             <WireEmpty>실무자를 선택하면 담당 당사자가 표시됩니다.</WireEmpty>
           ) : (
@@ -98,9 +96,12 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
               ) : (
                 <div className="wire-admin-list">
                   {assignments.participants.map((participant) => (
-                    <ListRow key={participant.supportCaseId}>
-                      <MetaRow items={[...assignmentSummaryItems(participant), assignmentStatusLabel[participant.status]]} />
-                    </ListRow>
+                    // CCC-90: 배정 상태 낱말은 status 슬롯(배지)로 구분한다.
+                    <WireItem
+                      key={participant.supportCaseId}
+                      title={assignmentSummaryItems(participant).join(' ')}
+                      status={<WireBadge tone="mint">{assignmentStatusLabel[participant.status]}</WireBadge>}
+                    />
                   ))}
                 </div>
               )}
@@ -115,7 +116,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
               ) : null}
             </>
           )}
-        </section>
+        </WireCardSection>
       </div>
     </>
   );

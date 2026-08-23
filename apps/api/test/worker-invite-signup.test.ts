@@ -177,6 +177,42 @@ describe('POST /invites/worker (공개 가입 완료)', () => {
     expect(users.some((user) => user.email === 'second.worker@example.invalid')).toBe(false);
   });
 
+  it('검증 뒤 발급자가 비활성화해 토큰이 폐기되면 가입 배치가 계정을 만들지 않는다', async () => {
+    const token = await issueWorkerToken();
+    let intercepted = false;
+    const raceDb = new Proxy(t.db, {
+      get(target, property, receiver) {
+        if (property === 'batch') {
+          return async (statements: D1PreparedStatement[]) => {
+            if (!intercepted) {
+              intercepted = true;
+              await target.prepare(
+                'UPDATE invite_tokens SET revoked_at = datetime(\'now\') WHERE token = ?',
+              ).bind(token).run();
+            }
+            return target.batch(statements);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as D1Database;
+
+    const response = await worker.fetch(
+      signupRequest({ token, name: '폐기 뒤 가입', email: 'revoked.worker@example.invalid' }),
+      { ...openEnv(), DB: raceDb },
+    );
+    expect(response.status).toBe(404);
+    const users = await listUsers(t.env, admin);
+    expect(users.some((user) => user.email === 'revoked.worker@example.invalid')).toBe(false);
+    await expect(t.db.prepare(
+      'SELECT status, revoked_at AS revokedAt FROM invite_tokens WHERE token = ?',
+    ).bind(token).first()).resolves.toMatchObject({
+      status: 'issued',
+      revokedAt: expect.any(String),
+    });
+  });
+
   it('이미 등재된 이메일이면 409 — 토큰은 소비되지 않아 다른 이메일로 다시 쓸 수 있다', async () => {
     const token = await issueWorkerToken();
     const dup = await worker.fetch(

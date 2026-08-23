@@ -677,6 +677,8 @@ const settingsStyles = `
 /* 설정 구획은 카드다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59 플랫 대체). 카드 모양·제목
    구분선은 WireCard 가 갖고, .settings-section 은 훅으로만 남는다. */
 .settings-account{display:grid;gap:var(--space-4);margin:0}
+/* CCC-44 AI 사업자 상태 행 — 배지와 값이 한 줄로 나란히, 넘치면 다음 줄(css만, 값은 그대로). */
+.settings-value-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}
 .settings-field{display:grid;gap:var(--space-1)}
 /* 사람 정보 라벨은 민트 계열. */
 .settings-field dt{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}

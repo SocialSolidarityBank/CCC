@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   ApiError,
+  acceptAssignmentRequest,
   addSupportCaseAssignee,
   closeGoal,
   closeSupportCase,
@@ -63,8 +64,25 @@ import {
   type ManualRecordFlag,
   lifeAreaKeys,
   lifeAreaStatuses,
+  activateAiProviderRuntime,
 } from './lib/api';
 import { isBeneficiaryId } from '../../../db/animal-slugs';
+
+/**
+ * CCC-44 기관 관리자 전용: 배포된 AI 사업자 런타임을 등록·활성화한다. 성공 시
+ * revalidate 로 상태 화면이 반영된다. 실패 사유는 notice 로 폼에 되돌아온다
+ * (활성 설정이 배포 설정과 어긋난 경우가 대표적인 실패다 — R5 값을 새지 않게).
+ */
+export async function activateAiProviderRuntimeAction(formData: FormData): Promise<{ status: string }> {
+  const approvalRef = (formData.get('approvalRef') ?? '').toString().trim();
+  if (approvalRef.length === 0) return { status: 'approval_ref_required' };
+  try {
+    await activateAiProviderRuntime(approvalRef);
+    return { status: 'activated' };
+  } catch (error) {
+    return { status: noticeFor(error) };
+  }
+}
 
 type Notice =
   | 'invalid_request'
@@ -1001,7 +1019,7 @@ function userIdentifier(formData: FormData, name: string): string {
   return input;
 }
 
-// 관리자 영역(재개편 T8, #38): 공동 담당 추가(D7). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).
+// 관리자 영역: 배정 요청(D74). 수락 전에는 상담 내용·PII가 열리지 않는다.
 export async function addSupportCaseAssigneeAction(formData: FormData): Promise<void> {
   let supportCaseId: string | undefined;
   try {
@@ -1017,7 +1035,21 @@ export async function addSupportCaseAssigneeAction(formData: FormData): Promise<
   if (supportCaseId === undefined) redirect(withNotice('/admin/assign', 'error', 'service_unavailable'));
   revalidatePath('/admin/assign');
   revalidatePath('/admin/users');
-  redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_added'));
+  redirect(withNotice(`/admin/assign?supportCaseId=${encodeURIComponent(supportCaseId)}`, 'notice', 'assignee_requested'));
+}
+
+// 로그인한 실무자가 본인의 pending 배정 요청을 수락한다(D74). 요청 목록은 /settings에 있다.
+export async function acceptSupportCaseAssignmentAction(formData: FormData): Promise<void> {
+  try {
+    const supportCaseId = opaqueId(formData, 'supportCaseId');
+    const assignmentId = opaqueId(formData, 'assignmentId');
+    await acceptAssignmentRequest(supportCaseId, assignmentId);
+  } catch (error) {
+    redirect(withNotice('/settings', 'error', noticeFor(error)));
+  }
+  revalidatePath('/settings');
+  revalidatePath('/participants');
+  redirect(withNotice('/settings', 'notice', 'assignment_accepted'));
 }
 
 // 실무자 등록(기존 POST /users, role=counselor). 관리자 검사·감사는 API 게이트웨이가 강제한다(R1).

@@ -5965,7 +5965,7 @@ export async function assignCase(
   assertOpaqueIdentifier(userId, 'assignee user id');
   await assertActivePractitionerUser(env, actor.orgId, userId);
   const existing = await env.DB.prepare(
-    'SELECT id FROM support_case_assignees WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL',
+    'SELECT id FROM support_case_assignees WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL AND status = \'active\'',
   ).bind(actor.orgId, context.supportCaseId, userId).first<{ id: string }>();
   if (existing !== null) {
     throw new ValidationError('user is already an active assignee');
@@ -6019,7 +6019,7 @@ export async function unassignCase(
     if (!(error instanceof ValidationError)) throw error;
     const active = await env.DB.prepare(
       `SELECT COUNT(*) AS count FROM support_case_assignees
-       WHERE org_id = ? AND support_case_id = ? AND unassigned_at IS NULL`,
+       WHERE org_id = ? AND support_case_id = ? AND unassigned_at IS NULL AND status = 'active'`,
     ).bind(actor.orgId, context.supportCaseId).first<{ count: number }>();
     if ((active?.count ?? 0) <= 1) {
       throw new ValidationError('cannot unassign the last active assignee');
@@ -6038,7 +6038,7 @@ export async function listAssignees(
   assertHuman(actor);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   await assertSupportCaseReadOrAdminAccess(env, actor, context.supportCaseId);
-  const historyClause = opts?.includeHistory === true ? '' : 'AND assignment.unassigned_at IS NULL';
+  const historyClause = opts?.includeHistory === true ? '' : 'AND assignment.unassigned_at IS NULL AND assignment.status = \'active\'';
   const result = await env.DB.prepare(
     `SELECT assignment.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
      FROM support_case_assignees AS assignment
@@ -6404,6 +6404,7 @@ export async function registerRecording(
                  AND assignment.support_case_id = sessions.support_case_id
                  AND assignment.user_id = ?
                  AND assignment.unassigned_at IS NULL
+                 AND assignment.status = 'active'
              )`,
         ).bind(audioR2Key, 'uploaded', updatedAt, sessionId, actor.orgId, actor.userId),
     env.DB.prepare(
@@ -6436,6 +6437,7 @@ export async function registerRecording(
                      AND assignment.support_case_id = session.support_case_id
                      AND assignment.user_id = ?
                      AND assignment.unassigned_at IS NULL
+                     AND assignment.status = 'active'
                  )
              )`,
         ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
@@ -6470,6 +6472,7 @@ export async function registerRecording(
                      AND assignment.support_case_id = session.support_case_id
                      AND assignment.user_id = ?
                      AND assignment.unassigned_at IS NULL
+                     AND assignment.status = 'active'
                  )
              )`,
         ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
@@ -8431,7 +8434,7 @@ export async function upsertUser(
  * (관리자 없는 기관 방지 + 자기 축출로 인한 잠금 방지).
  * 권한: admin 전용, 자기 기관만. 감사: update(users).
  */
-export async function deactivateUser(env: Env, actor: Actor, userId: string): Promise<User> {
+export async function deactivateUser(env: Env, actor: Actor, userId: string, opts?: { reason?: string }): Promise<User> {
   assertAdmin(actor);
   const user = await getUserForOrg(env, actor.orgId, userId);
   if (user.id === actor.userId) {
@@ -8440,11 +8443,44 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string): Pr
   if (user.role === 'admin' && user.active) {
     await assertNotLastActiveAdmin(env, actor.orgId, userId);
   }
-  await env.DB.prepare('UPDATE users SET active = 0 WHERE id = ? AND org_id = ?')
-    .bind(userId, actor.orgId)
-    .run();
-  await writeAudit(env, actor, { action: 'update', targetTable: 'users', targetId: userId, detail: { active: false } });
+  const endedAt = now();
+  const reason = opts?.reason?.trim() ?? '퇴사·휴직 비활성화';
+  if (reason.length === 0) {
+    throw new ValidationError('deactivation reason must not be blank');
+  }
+  // 퇴사·휴직 체크리스트 (CCC-123 · 정책 §2.3): ① 담당 배정 전부 종료 ② 사용자 비활성
+  // ③ 발급한 미사용 초대 토큰 폐기. 재활성화해도 배정은 복원되지 않는다(ended 그대로).
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE support_case_assignees
+       SET unassigned_at = ?, status = 'ended', transfer_reason = COALESCE(transfer_reason, ?)
+       WHERE org_id = ? AND user_id = ? AND unassigned_at IS NULL
+         AND status IN ('requested', 'active')`,
+    ).bind(endedAt, reason, actor.orgId, userId),
+    env.DB.prepare(
+      `UPDATE invite_tokens SET revoked_at = ?
+       WHERE org_id = ? AND issued_by = ? AND status = 'issued' AND revoked_at IS NULL`,
+    ).bind(endedAt, actor.orgId, userId),
+    env.DB.prepare('UPDATE users SET active = 0 WHERE id = ? AND org_id = ?')
+      .bind(userId, actor.orgId),
+  ]);
+  await writeCanonicalAudit(env, actor, { action: 'update', targetTable: 'users', targetId: userId, detail: { active: false, offboardedAssignments: true, offboardReason: reason } });
   return { ...user, active: false };
+}
+
+/** 퇴사·휴직 후 재활성화 (CCC-123): 사용자만 다시 켠다. 배정은 ended 로 남는다(미복원). */
+export async function reactivateUser(env: Env, actor: Actor, userId: string): Promise<User> {
+  assertAdmin(actor);
+  const user = await getUserForOrg(env, actor.orgId, userId);
+  if (user.role !== 'counselor') {
+    throw new ValidationError('reactivation applies to counselor users only');
+  }
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET active = 1 WHERE id = ? AND org_id = ?')
+      .bind(userId, actor.orgId),
+  ]);
+  await writeCanonicalAudit(env, actor, { action: 'update', targetTable: 'users', targetId: userId, detail: { active: true } });
+  return { ...user, active: true };
 }
 
 /**
@@ -8559,8 +8595,25 @@ export interface SupportCaseAssignee {
   supportCaseId: string;
   userId: string;
   role: 'primary' | 'secondary';
+  status: 'requested' | 'active' | 'ended';
+  acceptanceRequestedBy: string | null;
+  acceptedAt: string | null;
+  transferReason: string | null;
+  notifiedBy: string | null;
+  notifiedAt: string | null;
   assignedAt: string;
   unassignedAt: string | null;
+}
+
+export interface SupportCaseAssignmentRequest {
+  id: string;
+  supportCaseId: string;
+  beneficiaryId: string;
+  participantName: string | null;
+  programType: 'financial_support_v1';
+  role: 'primary' | 'secondary';
+  status: 'requested';
+  requestedAt: string;
 }
 
 export interface ParticipantPiiVault {
@@ -8649,11 +8702,21 @@ function mapSupportCase(row: DbRow): SupportCase {
 }
 
 function mapSupportCaseAssignee(row: DbRow): SupportCaseAssignee {
+  const status = row.status;
+  if (status !== 'requested' && status !== 'active' && status !== 'ended') {
+    throw new ValidationError('support case assignment status is invalid');
+  }
   return {
     id: stringValue(row.id),
     supportCaseId: stringValue(row.support_case_id),
     userId: stringValue(row.user_id),
     role: toAssigneeRole(row.role),
+    status,
+    acceptanceRequestedBy: nullableString(row.acceptance_requested_by),
+    acceptedAt: nullableString(row.accepted_at),
+    transferReason: nullableString(row.transfer_reason),
+    notifiedBy: nullableString(row.notified_by),
+    notifiedAt: nullableString(row.notified_at),
     assignedAt: stringValue(row.assigned_at),
     unassignedAt: nullableString(row.unassigned_at),
   };
@@ -8896,6 +8959,7 @@ async function assertActiveAssignment(
   const row = await env.DB.prepare(
     `SELECT * FROM support_case_assignees
      WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL
+       AND status = 'active'
      LIMIT 1`,
   ).bind(actor.orgId, supportCaseId, actor.userId).first<DbRow>();
   if (row === null) {
@@ -8923,6 +8987,7 @@ async function resolveSupportCaseContentAccessDecision(
            AND direct_assignment.support_case_id = ?
            AND direct_assignment.user_id = ?
            AND direct_assignment.unassigned_at IS NULL
+           AND direct_assignment.status = 'active'
        ) AS has_active_assignment,
        EXISTS (
          SELECT 1
@@ -8940,6 +9005,7 @@ async function resolveSupportCaseContentAccessDecision(
           AND team_assignment.org_id = membership.org_id
           AND team_assignment.support_case_id = ?
           AND team_assignment.unassigned_at IS NULL
+          AND team_assignment.status = 'active'
          JOIN user_role_assignments AS team_practitioner_role
            ON team_practitioner_role.org_id = team_assignment.org_id
           AND team_practitioner_role.user_id = team_assignment.user_id
@@ -10040,6 +10106,7 @@ export async function listPrivacyConsentFollowUps(
          AND support_case_assignees.org_id = support_cases.org_id
          AND support_case_assignees.user_id = ?
          AND support_case_assignees.unassigned_at IS NULL
+         AND support_case_assignees.status = 'active'
        WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
          AND support_cases.status = 'active'
        ORDER BY support_cases.consent_privacy_due_at IS NULL,
@@ -10273,6 +10340,7 @@ export async function createSupportCase(
           AND source_case.status = 'active'
           AND assignment.user_id = ?
           AND assignment.unassigned_at IS NULL
+          AND assignment.status = 'active'
           AND assigned_user.active = 1
           AND assigned_user.role = 'counselor'
       )`,
@@ -10472,6 +10540,7 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
              AND direct_assignment.support_case_id = support_cases.id
              AND direct_assignment.user_id = ?
              AND direct_assignment.unassigned_at IS NULL
+             AND direct_assignment.status = 'active'
          )
           OR EXISTS (
             SELECT 1
@@ -10489,6 +10558,7 @@ export async function listAuthorizedSupportCaseIdsForBeneficiary(
              AND team_assignment.org_id = membership.org_id
              AND team_assignment.support_case_id = support_cases.id
              AND team_assignment.unassigned_at IS NULL
+             AND team_assignment.status = 'active'
             JOIN user_role_assignments AS team_practitioner_role
               ON team_practitioner_role.org_id = team_assignment.org_id
              AND team_practitioner_role.user_id = team_assignment.user_id
@@ -10601,6 +10671,7 @@ async function loadAssigneeNamesBySupportCase(
      WHERE assignment.org_id = ?
        AND assignment.support_case_id IN (${placeholders})
        AND assignment.unassigned_at IS NULL
+       AND assignment.status = 'active'
      ORDER BY assignment.assigned_at`,
   ).bind(orgId, ...supportCaseIds).all<DbRow>();
   for (const row of result.results) {
@@ -10980,6 +11051,7 @@ export async function listAssignedParticipants(
          AND support_case_assignees.org_id = support_cases.org_id
          AND support_case_assignees.user_id = ?
          AND support_case_assignees.unassigned_at IS NULL
+         AND support_case_assignees.status = 'active'
        WHERE beneficiaries.org_id = ?
          AND beneficiaries.initialization_state = 'complete'
          AND NOT EXISTS (
@@ -11187,6 +11259,7 @@ export async function searchParticipants(
          AND support_case_assignees.org_id = support_cases.org_id
          AND support_case_assignees.user_id = ?
          AND support_case_assignees.unassigned_at IS NULL
+         AND support_case_assignees.status = 'active'
        WHERE beneficiaries.org_id = ?
          AND beneficiaries.initialization_state = 'complete'
          AND NOT EXISTS (
@@ -12498,6 +12571,7 @@ export async function getTodaySchedules(
          AND assignment.org_id = schedule.org_id
        WHERE schedule.org_id = ? AND schedule.scheduled_at >= ? AND schedule.scheduled_at < ?
          AND assignment.user_id = ? AND assignment.unassigned_at IS NULL
+         AND assignment.status = 'active'
          AND NOT EXISTS (
            SELECT 1 FROM participant_pii_archives AS archive
            WHERE archive.beneficiary_id = schedule.beneficiary_id
@@ -12653,6 +12727,7 @@ export async function listScheduleCandidates(
          AND support_cases.status = 'active'
          AND support_case_assignees.user_id = ?
          AND support_case_assignees.unassigned_at IS NULL
+         AND support_case_assignees.status = 'active'
        ORDER BY support_cases.beneficiary_id, support_cases.created_at DESC`,
     ).bind(actor.orgId, actor.userId).all<DbRow>();
 
@@ -15176,6 +15251,7 @@ export async function updateIntakeRecord(
              AND assignment.support_case_id = sessions.support_case_id
              AND assignment.user_id = ?
              AND assignment.unassigned_at IS NULL
+             AND assignment.status = 'active'
          )`,
     ).bind(
       input.heldAt,
@@ -16048,11 +16124,240 @@ export async function assignSupportCase(
     supportCaseId,
     userId,
     role,
+    status: 'active',
+    acceptanceRequestedBy: null,
+    acceptedAt: assignedAt,
+    transferReason: null,
+    notifiedBy: null,
+    notifiedAt: null,
     assignedAt,
     unassignedAt: null,
   };
 }
 
+/**
+ * 배정 요청 (CCC-123 · D74 · 정책 §2.3). 기관 관리자가 실무자에게 케이스 담당을 제안한다.
+ *
+ * status='requested' 로 들어가며 **어떤 접근 게이트에서도 열리지 않는다** — 수락(본인) 또는
+ * 강제 이관(관리자)이 있어야 status='active' 가 된다. 1인 기관에서 자신에게 배정하는 경우만
+ * 즉시 수락으로 처리한다(status='active', accepted_at 기록).
+ *
+ * 감사: assign(support_case_assignees) 1건. 배정 요청 자체는 PII·상담 내용을 열지 않으므로
+ * 별도 열람 감사가 없다.
+ */
+export async function requestSupportCaseAssignment(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  userId: string,
+  role: 'primary' | 'secondary' = 'secondary',
+): Promise<SupportCaseAssignee> {
+  await assertInstitutionAdmin(env, actor);
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  assertOpaqueIdentifier(userId, 'assignee user id');
+  if (role !== 'primary' && role !== 'secondary') {
+    throw new ValidationError('assignee role is invalid');
+  }
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  await assertActivePractitionerUser(env, actor.orgId, userId);
+  const existing = await env.DB.prepare(
+    `SELECT id FROM support_case_assignees
+     WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
+  ).bind(actor.orgId, supportCaseId, userId).first<{ id: string }>();
+  if (existing !== null) {
+    throw new ConflictError('support case assignment already exists');
+  }
+  const id = newId();
+  const requestedAt = now();
+  // 1인 기관 자기 배정만 즉시 수락한다(정책 §2.3). 단순히 요청자=대상인 다인 기관은
+  // 일반 요청으로 남겨 수락 단계와 권한 시작 시점을 건너뛰지 않는다.
+  const activeHumans = await env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM users
+     WHERE org_id = ? AND active = 1 AND role IN ('admin', 'counselor')`,
+  ).bind(actor.orgId).first<{ count: number }>();
+  const immediateAccept = actor.userId === userId && (activeHumans?.count ?? 0) === 1;
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO support_case_assignees (
+         id, org_id, support_case_id, user_id, role, assigned_at,
+         status, acceptance_requested_by, accepted_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      id, actor.orgId, supportCaseId, userId, role, requestedAt,
+      immediateAccept ? 'active' : 'requested', actor.userId,
+      immediateAccept ? requestedAt : null,
+    ),
+    canonicalAuditStatement(env, actor, {
+      action: 'assign',
+      targetTable: 'support_case_assignees',
+      targetId: id,
+      beneficiaryId: supportCase.beneficiaryId,
+      supportCaseId,
+      detail: { role, status: immediateAccept ? 'active' : 'requested' },
+    }),
+  ]);
+  return {
+    id,
+    supportCaseId,
+    userId,
+    role,
+    status: immediateAccept ? 'active' : 'requested',
+    acceptanceRequestedBy: actor.userId,
+    acceptedAt: immediateAccept ? requestedAt : null,
+    transferReason: null,
+    notifiedBy: null,
+    notifiedAt: null,
+    assignedAt: requestedAt,
+    unassignedAt: null,
+  };
+}
+
+/** 이관 수락 (CCC-123 · 정책 §2.3). 배정된 실무자 본인만, status='requested' 행만. */
+export async function acceptSupportCaseAssignment(
+  env: Env,
+  actor: Actor,
+  assignmentId: string,
+): Promise<void> {
+  await assertCurrentHumanActor(env, actor);
+  assertOpaqueIdentifier(assignmentId, 'assignment id');
+  const row = await env.DB.prepare(
+    `SELECT * FROM support_case_assignees
+     WHERE id = ? AND org_id = ? AND user_id = ?
+       AND unassigned_at IS NULL AND status = 'requested'`,
+  ).bind(assignmentId, actor.orgId, actor.userId).first<DbRow>();
+  if (row === null) {
+    throw new ForbiddenError('support case assignment is unavailable');
+  }
+  const acceptedAt = now();
+  const beneficiary = await env.DB.prepare(
+    'SELECT beneficiary_id AS beneficiaryId FROM support_cases WHERE id = ? AND org_id = ?',
+  ).bind(stringValue(row.support_case_id), actor.orgId).first<{ beneficiaryId: string }>();
+  const batch: D1PreparedStatement[] = [];
+  // 주담당 수락은 그 케이스의 다른 활성 주담당 권한을 끝낸다(수락 시점 이전 담당 종료).
+  if (stringValue(row.role) === 'primary') {
+    const others = await env.DB.prepare(
+      `SELECT id FROM support_case_assignees
+       WHERE org_id = ? AND support_case_id = ? AND id <> ?
+         AND unassigned_at IS NULL AND status = 'active' AND role = 'primary'`,
+    ).bind(actor.orgId, stringValue(row.support_case_id), assignmentId).all<{ id: string }>();
+    for (const other of others.results) {
+      batch.push(
+        env.DB.prepare(
+          `UPDATE support_case_assignees
+           SET unassigned_at = ?, status = 'ended'
+           WHERE id = ? AND org_id = ? AND status = 'active'`,
+        ).bind(acceptedAt, other.id, actor.orgId),
+      );
+    }
+  }
+  batch.push(
+    env.DB.prepare(
+      `UPDATE support_case_assignees SET status = 'active', accepted_at = ?
+       WHERE id = ? AND org_id = ? AND status = 'requested'`,
+    ).bind(acceptedAt, assignmentId, actor.orgId),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'update',
+      targetTable: 'support_case_assignees',
+      targetId: assignmentId,
+      beneficiaryId: beneficiary?.beneficiaryId ?? '',
+      supportCaseId: stringValue(row.support_case_id),
+      detail: { accepted: true },
+    }),
+  );
+  await env.DB.batch(batch);
+}
+
+/**
+ * 강제 이관 (CCC-123 · 정책 §2.3). 퇴사·장기 부재 등 정상 수락이 불가능할 때만 쓰는 예외 절차.
+ * 사유 필수, 실행과 동시에 권한 전환, 전건 감사 + 당사자 안내 확인 기록.
+ *
+ * notifiedBy·notifiedAt 는 시스템 밖(전화·대면) 안내·의사 확인 결과 기록 전용이다.
+ * 체크하지 않아도 이관을 막지는 않지만, 체크한 사람·시각이 있으면 기둥에 남는다.
+ */
+export async function forceTransferSupportCase(
+  env: Env,
+  actor: Actor,
+  input: {
+    supportCaseId: string;
+    toUserId: string;
+    reason: string;
+    notifiedBy?: string;
+    notifiedAt?: string;
+  },
+): Promise<void> {
+  await assertInstitutionAdmin(env, actor);
+  assertOpaqueIdentifier(input.supportCaseId, 'support case id');
+  assertOpaqueIdentifier(input.toUserId, 'assignee user id');
+  const reason = input.reason.trim();
+  const notifiedBy = input.notifiedBy?.trim();
+  if (reason.length === 0) {
+    throw new ValidationError('force transfer reason is required');
+  }
+  if (notifiedBy !== undefined && notifiedBy.length === 0) {
+    throw new ValidationError('notified check actor must not be blank');
+  }
+  if (input.notifiedAt !== undefined && notifiedBy === undefined) {
+    throw new ValidationError('notified check actor is required with timestamp');
+  }
+  const notifiedAt = input.notifiedAt !== undefined ? input.notifiedAt : now();
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, input.supportCaseId, { completeOnly: true });
+  await assertActivePractitionerUser(env, actor.orgId, input.toUserId);
+  const current = await env.DB.prepare(
+    `SELECT * FROM support_case_assignees
+     WHERE org_id = ? AND support_case_id = ?
+       AND unassigned_at IS NULL AND status = 'active' AND role = 'primary'`,
+  ).bind(actor.orgId, input.supportCaseId).first<DbRow>();
+  const target = await env.DB.prepare(
+    `SELECT id FROM support_case_assignees
+     WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND unassigned_at IS NULL`,
+  ).bind(actor.orgId, input.supportCaseId, input.toUserId).first<{ id: string }>();
+  if (target !== null) {
+    throw new ConflictError('support case assignment already exists');
+  }
+  const transferredAt = now();
+  const newAssignmentId = newId();
+  const batch: D1PreparedStatement[] = [];
+  if (current !== null) {
+    batch.push(
+      env.DB.prepare(
+        `UPDATE support_case_assignees
+         SET unassigned_at = ?, status = 'ended', transfer_reason = COALESCE(transfer_reason, ?)
+         WHERE id = ? AND org_id = ? AND status = 'active'`,
+      ).bind(transferredAt, reason, stringValue(current.id), actor.orgId),
+    );
+  }
+  batch.push(
+    env.DB.prepare(
+      `INSERT INTO support_case_assignees (
+         id, org_id, support_case_id, user_id, role, assigned_at,
+         status, acceptance_requested_by, accepted_at, transfer_reason, notified_by, notified_at
+       ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
+    ).bind(
+      newAssignmentId, actor.orgId, input.supportCaseId, input.toUserId, 'primary', transferredAt,
+      actor.userId, transferredAt, reason, notifiedBy !== undefined ? notifiedBy : null,
+      notifiedBy !== undefined ? notifiedAt : null,
+    ),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'update',
+      targetTable: 'support_case_assignees',
+      targetId: newAssignmentId,
+      beneficiaryId: supportCase.beneficiaryId,
+      supportCaseId: input.supportCaseId,
+      detail: {
+        forcedTransfer: true,
+        reason,
+        notified: notifiedBy !== undefined,
+        notifiedBy: notifiedBy ?? null,
+        notifiedAt: notifiedBy !== undefined ? notifiedAt : null,
+        previousAssignmentId: current === null ? null : stringValue(current.id),
+        previousUserId: current === null ? null : stringValue(current.user_id),
+      },
+    }),
+  );
+  await env.DB.batch(batch);
+}
+
+/** 퇴사·휴직 체크리스트 (CCC-123 · 정책 §2.3): 담당 배정 전부 종료 + 사용자 비활성 + 초대 토큰 폐기. */
 export async function transferSupportCase(
   env: Env,
   actor: Actor,
@@ -16089,7 +16394,7 @@ export async function transferSupportCase(
   const targetRole = toAssigneeRole(current.role);
   const results = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE support_case_assignees SET unassigned_at = ?
+      `UPDATE support_case_assignees SET unassigned_at = ?, status = 'ended'
        WHERE id = ? AND org_id = ? AND unassigned_at IS NULL`,
     ).bind(transferredAt, stringValue(current.id), actor.orgId),
     env.DB.prepare(
@@ -16186,7 +16491,7 @@ export async function unassignSupportCase(
   const unassignedAt = now();
   await env.DB.batch([
     env.DB.prepare(
-      `UPDATE support_case_assignees SET unassigned_at = ?
+      `UPDATE support_case_assignees SET unassigned_at = ?, status = 'ended'
        WHERE id = ? AND org_id = ? AND unassigned_at IS NULL`,
     ).bind(unassignedAt, assigned.id, actor.orgId),
     conditionalCanonicalAuditStatement(env, actor, {
@@ -16210,7 +16515,7 @@ export async function listSupportCaseAssignees(
   const result = await env.DB.prepare(
     `SELECT * FROM support_case_assignees
      WHERE org_id = ? AND support_case_id = ?
-       ${opts?.includeHistory === true ? '' : 'AND unassigned_at IS NULL'}
+       ${opts?.includeHistory === true ? '' : "AND unassigned_at IS NULL AND status = 'active'"}
      ORDER BY assigned_at, id`,
   ).bind(actor.orgId, supportCaseId).all<DbRow>();
   await writeCanonicalAudit(env, actor, {
@@ -16220,6 +16525,53 @@ export async function listSupportCaseAssignees(
     supportCaseId,
   });
   return result.results.map(mapSupportCaseAssignee);
+}
+
+/**
+ * 로그인한 본인의 배정 요청 목록. requested는 상담 내용·케이스 접근을 열지 않지만, 수락할
+ * 요청을 식별할 수 있도록 기관 내 기본 식별정보인 당사자 이름과 사업만 반환한다(D74).
+ * 상담 기록·연락처는 포함하지 않는다. 조회와 PII 복호화는 각각 감사한다(D14).
+ */
+export async function listMySupportCaseAssignmentRequests(
+  env: Env,
+  actor: Actor,
+): Promise<SupportCaseAssignmentRequest[]> {
+  await assertCurrentHumanActor(env, actor);
+  const result = await env.DB.prepare(
+    `SELECT assignment.id, assignment.support_case_id, assignment.role, assignment.assigned_at,
+            support_case.beneficiary_id, support_case.program_type
+     FROM support_case_assignees AS assignment
+     JOIN support_cases AS support_case
+       ON support_case.id = assignment.support_case_id
+      AND support_case.org_id = assignment.org_id
+     WHERE assignment.org_id = ? AND assignment.user_id = ?
+       AND assignment.status = 'requested' AND assignment.unassigned_at IS NULL
+     ORDER BY assignment.assigned_at, assignment.id`,
+  ).bind(actor.orgId, actor.userId).all<DbRow>();
+  await writeAudit(env, actor, {
+    action: 'read',
+    targetTable: 'support_case_assignees',
+    targetId: actor.userId,
+    detail: { pendingForSelf: true, count: result.results.length },
+  });
+  const beneficiaryIds = result.results.map((row) => stringValue(row.beneficiary_id));
+  const contacts = await loadParticipantContacts(env, actor.orgId, beneficiaryIds);
+  await auditParticipantPiiRead(env, actor, contacts, { targetId: actor.userId });
+  return result.results.map((row) => {
+    const programType = row.program_type;
+    assertFinancialSupportProgramType(programType);
+    const beneficiaryId = stringValue(row.beneficiary_id);
+    return {
+      id: stringValue(row.id),
+      supportCaseId: stringValue(row.support_case_id),
+      beneficiaryId,
+      participantName: contacts.get(beneficiaryId)?.name ?? null,
+      programType,
+      role: toAssigneeRole(row.role),
+      status: 'requested',
+      requestedAt: stringValue(row.assigned_at),
+    };
+  });
 }
 
 /** 관리자 영역(재개편 T8)이 실무자 상세·사용자 화면에 싣는 '실무자별 활성 배정 당사자' 행. */
@@ -16269,6 +16621,7 @@ export async function listCounselorAssignments(
      WHERE support_case_assignees.org_id = ?
        AND support_case_assignees.user_id = ?
        AND support_case_assignees.unassigned_at IS NULL
+       AND support_case_assignees.status = 'active'
        AND NOT EXISTS (
          SELECT 1 FROM participant_pii_archives AS archive
          WHERE archive.beneficiary_id = support_cases.beneficiary_id
@@ -16326,6 +16679,10 @@ export interface InviteToken {
   status: 'issued' | 'used';
   issuedAt: string;
   usedAt: string | null;
+  /** CCC-123: 발급자 퇴사·휴직 시 폐기 마킹(가입 게이트가 revoked_at NULL 을 요구). */
+  revokedAt: string | null;
+  /** 스스로 가입한 당사자(D39 · CCC-28). 감독·감사 조회용으로 초대 호출부가 함께 채운다. */
+  usedByBeneficiaryId: string | null;
 }
 
 /** 초대 소비를 감사할 때 쓰는 시스템 행위자 id. 가입자는 아직 디렉터리에 없다. */
@@ -16347,6 +16704,8 @@ function mapInviteToken(row: DbRow): InviteToken {
     status: stringValue(row.status) as InviteToken['status'],
     issuedAt: stringValue(row.issued_at),
     usedAt: row.used_at === null ? null : stringValue(row.used_at),
+    revokedAt: row.revoked_at === null ? null : stringValue(row.revoked_at),
+    usedByBeneficiaryId: row.used_by_beneficiary_id === null ? null : stringValue(row.used_by_beneficiary_id),
   };
 }
 
@@ -16403,7 +16762,7 @@ export async function createCounselorInvite(env: Env, actor: Actor): Promise<Inv
 }
 
 async function getInviteTokenOrThrow(env: Env, token: string): Promise<InviteToken> {
-  const row = await env.DB.prepare('SELECT * FROM invite_tokens WHERE token = ?')
+  const row = await env.DB.prepare("SELECT * FROM invite_tokens WHERE token = ? AND revoked_at IS NULL")
     .bind(token)
     .first<DbRow>();
   if (row === null) {
@@ -16448,7 +16807,7 @@ export async function consumeInviteToken(
   const result = await env.DB.prepare(
     `UPDATE invite_tokens
      SET status = 'used', used_at = datetime('now'), used_by_beneficiary_id = ?, used_by_user_id = ?
-     WHERE token = ? AND status = 'issued'`,
+     WHERE token = ? AND status = 'issued' AND revoked_at IS NULL`,
   ).bind(usedBy.beneficiaryId ?? null, usedBy.userId ?? null, token).run();
 
   if (result.meta.changes !== 1) {
@@ -16463,6 +16822,133 @@ export async function consumeInviteToken(
   });
 
   return getInviteTokenOrThrow(env, token);
+}
+
+/** 자기 가입·자기 확인이 감사를 남길 후원 행위자(토큰 발급자, 실제 사용자). */
+async function sponsorActorFor(env: Env, invite: InviteToken): Promise<Actor> {
+  const sponsorRow = await env.DB.prepare(
+    'SELECT id, role FROM users WHERE id = ? AND org_id = ?',
+  ).bind(invite.issuedBy, invite.orgId).first<{ id: string; role: string }>();
+  if (sponsorRow === null) {
+    throw new ForbiddenError('invite sponsor is unavailable');
+  }
+  return { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
+}
+
+export interface ParticipantSelfCheckProgram {
+  programType: string;
+  /** 담당 실무자 표시 이름(D36). 배정이 없거나 미기입이면 null. */
+  counselorName: string | null;
+  consent: { privacy: boolean; recordingAi: boolean };
+}
+
+export interface ParticipantSelfCheckSchedule {
+  id: string;
+  scheduledAt: string;
+  status: CounselingScheduleStatus;
+}
+
+/** CCC-27 자기 확인 응답 — 정확히 이 다섯 갈래뿐(기록 내용 없음). */
+export interface ParticipantSelfCheck {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  programs: ParticipantSelfCheckProgram[];
+  upcomingSchedules: ParticipantSelfCheckSchedule[];
+  pastSchedules: ParticipantSelfCheckSchedule[];
+}
+
+/**
+ * CCC-27 자기 확인(당사자) — 가입 링크(소비된 토큰)로 여는 본인 정보. **토큰이 자격이다.**
+ * 보이는 것은 정확히 다섯 갈래다: 이름·연락처, 참여 사업+담당 실무자 이름, 다가오는/지난
+ * 상담 일정, 동의 상태. 상담 기록 내용(요약·GAS·플래그·브리핑)은 이 응답에 없다 — 표시
+ * 범위를 화면이 아니라 응답에서 고정한다(테스트가 키를 검증).
+ * 무효·미소비(issued)·실무자(kind=counselor) 토큰은 전부 ForbiddenError 로 뭉쳐 라우트가
+ * 404 로 답하게 한다 — 어느 토큰이 살아 있는지 구분 불가하게.
+ */
+export async function getParticipantSelfCheck(
+  env: Env,
+  token: string,
+): Promise<ParticipantSelfCheck> {
+  const invite = await getInviteTokenOrThrow(env, token);
+  if (invite.kind !== 'participant' || invite.status !== 'used' || invite.usedByBeneficiaryId === null) {
+    throw new ForbiddenError('invite token is not available');
+  }
+  const beneficiaryId = invite.usedByBeneficiaryId;
+
+  // PII(이름·연락처) 노출은 토큰 보유자(본인)에 대한 것이다 — 감사는 자기 가입과 같은
+  // 후원 행위자(발급 실무자)로 남긴다(토큰 흐름엔 실무자 세션이 없고, D14 보존 요구).
+  const contacts = await loadParticipantContacts(env, invite.orgId, [beneficiaryId]);
+  await auditParticipantPiiRead(env, await sponsorActorFor(env, invite), contacts, { targetId: beneficiaryId });
+
+  const [caseRows, upcomingRows, pastRows, assigneeRows] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id, program_type, consent_privacy_at, consent_recording_at
+       FROM support_cases
+       WHERE org_id = ? AND beneficiary_id = ?
+       ORDER BY created_at, id`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, scheduled_at, status
+       FROM counseling_schedules
+       WHERE org_id = ? AND beneficiary_id = ?
+         AND julianday(scheduled_at) >= julianday('now')
+       ORDER BY scheduled_at, id
+       LIMIT 10`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT id, scheduled_at, status
+       FROM counseling_schedules
+       WHERE org_id = ? AND beneficiary_id = ?
+         AND julianday(scheduled_at) < julianday('now')
+       ORDER BY scheduled_at DESC, id DESC
+       LIMIT 10`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    env.DB.prepare(
+      `SELECT assignment.support_case_id, users.name AS user_name, users.email AS user_email
+       FROM support_case_assignees AS assignment
+       JOIN support_cases AS case_row ON case_row.id = assignment.support_case_id
+         AND case_row.org_id = assignment.org_id
+       JOIN users ON users.id = assignment.user_id AND users.org_id = assignment.org_id
+       WHERE assignment.org_id = ? AND case_row.beneficiary_id = ?
+         AND assignment.unassigned_at IS NULL
+         AND assignment.status = 'active'
+       ORDER BY assignment.assigned_at, assignment.id`,
+    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+  ]);
+
+  const counselorByCase = new Map<string, string | null>();
+  for (const row of assigneeRows.results) {
+    const supportCaseId = stringValue(row.support_case_id);
+    if (counselorByCase.has(supportCaseId)) continue;
+    const displayName = nullableString(row.user_name) ?? nullableString(row.user_email);
+    counselorByCase.set(supportCaseId, displayName === null ? null : displayName);
+  }
+
+  const contact = contacts.get(beneficiaryId);
+  return {
+    name: contact?.name ?? null,
+    phone: contact?.phone ?? null,
+    email: contact?.email ?? null,
+    programs: caseRows.results.map((row) => ({
+      programType: stringValue(row.program_type),
+      counselorName: counselorByCase.get(stringValue(row.id)) ?? null,
+      consent: {
+        privacy: nullableString(row.consent_privacy_at) !== null,
+        recordingAi: nullableString(row.consent_recording_at) !== null,
+      },
+    })),
+    upcomingSchedules: upcomingRows.results.map((row) => ({
+      id: stringValue(row.id),
+      scheduledAt: stringValue(row.scheduled_at),
+      status: canonicalScheduleStatus(row.status),
+    })),
+    pastSchedules: pastRows.results.map((row) => ({
+      id: stringValue(row.id),
+      scheduledAt: stringValue(row.scheduled_at),
+      status: canonicalScheduleStatus(row.status),
+    })),
+  };
 }
 // ============================================================================
 // 당사자 자기 가입(self signup) — 토 권한 원자 트랜잭션 (D39 · ADR-0016 · CCC-28)
@@ -16773,9 +17259,9 @@ export interface CounselorSignupResult {
  *
  * 감사 행위자 분리(당사자 자기 가입과 같은 규약): users 생성 감사는 발급자(관리자)를
  * 후원 행위자로 복원해 남기고, invite_consume 감사는 시스템 행위자
- * (INVITE_SIGNUP_ACTOR_ID)로 남긴다. 토큰 소비 UPDATE 는 상태 술어 없이 실행해
- * 동시 이중 제출을 invite_tokens_no_double_consume 가드(0022)가 되감게 한다 —
- * 진 쪽은 users 행도 함께 사라져 고아 계정이 남지 않는다.
+ * (INVITE_SIGNUP_ACTOR_ID)로 남긴다. 배치의 첫 문장이 issued + 미폐기 토큰을 소비하고,
+ * 뒤 INSERT 들은 직전 changes()=1일 때만 이어진다. 경합에서 토큰 소비가 0행이면 계정과
+ * 감사도 0행이라 고아 계정이 남지 않는다.
  *
  * 이메일은 전역 UNIQUE(신원 키)다. 이미 등재된 이메일이면 ConflictError — 재가입이
  * 아니라 관리자 화면(POST /users)의 재활성화 경로를 쓰라는 뜻이다.
@@ -16817,14 +17303,22 @@ export async function completeCounselorSignup(
   const userId = newId();
   const createdAt = now();
   try {
-    await env.DB.batch([
+    const results = await env.DB.batch([
       env.DB.prepare(
-        'INSERT INTO users (id, org_id, email, role, active, name) VALUES (?, ?, ?, ?, 1, ?)',
+        `UPDATE invite_tokens
+         SET status = 'used', used_at = ?, used_by_beneficiary_id = NULL, used_by_user_id = ?
+         WHERE token = ? AND status = 'issued' AND revoked_at IS NULL`,
+      ).bind(createdAt, userId, input.token),
+      env.DB.prepare(
+        `INSERT INTO users (id, org_id, email, role, active, name)
+         SELECT ?, ?, ?, ?, 1, ? WHERE changes() = 1`,
       ).bind(userId, invite.orgId, email, 'counselor', name),
       env.DB.prepare(
         `INSERT INTO audit_log (
            org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
-         ) VALUES (?, ?, 'admin', 'create', 'users', ?, NULL, ?, ?)`,
+         )
+         SELECT ?, ?, 'admin', 'create', 'users', ?, NULL, ?, ?
+         WHERE changes() = 1`,
       ).bind(
         invite.orgId,
         sponsorRow.id,
@@ -16833,14 +17327,11 @@ export async function completeCounselorSignup(
         createdAt,
       ),
       env.DB.prepare(
-        `UPDATE invite_tokens
-         SET status = 'used', used_at = ?, used_by_beneficiary_id = NULL, used_by_user_id = ?
-         WHERE token = ?`,
-      ).bind(createdAt, userId, input.token),
-      env.DB.prepare(
         `INSERT INTO audit_log (
            org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
-         ) VALUES (?, ?, 'service', 'invite_consume', 'invite_tokens', ?, NULL, ?, ?)`,
+         )
+         SELECT ?, ?, 'service', 'invite_consume', 'invite_tokens', ?, NULL, ?, ?
+         WHERE changes() = 1`,
       ).bind(
         invite.orgId,
         INVITE_SIGNUP_ACTOR_ID,
@@ -16849,6 +17340,10 @@ export async function completeCounselorSignup(
         createdAt,
       ),
     ]);
+    const tokenChanges = results[0]?.meta.changes ?? 0;
+    if (tokenChanges !== 1) {
+      throw new ForbiddenError('invite token is not available');
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes('invite_token_already_used')) {
       throw new ConflictError('invite token already used');

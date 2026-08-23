@@ -1,6 +1,7 @@
 import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { ListRow } from '../../components/wire/list-row';
-import { MetaRow } from '../../components/wire/meta-row';
+import { WireCardSection, WireItem } from '../../components/wire/wire-section';
+import { WireBadge } from '../../components/wire/wire-badge';
 import { PageTitle } from '../../components/wire/page-title';
 import { SearchInput, type SearchSelectOption } from '../../components/wire/search-input';
 import { WireButton } from '../../components/wire/wire-button';
@@ -23,7 +24,7 @@ const assigneeRoleLabel: Record<SupportCaseAssignee['role'], string> = {
 };
 
 const noticeMessages: Record<string, string> = {
-  assignee_added: '실무자를 배정했습니다.',
+  assignee_requested: '배정 요청을 보냈습니다.',
 };
 
 const errorMessages: Record<string, string> = {
@@ -134,8 +135,7 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
           {selected !== undefined && selectedCandidate === undefined ? (
             <WireEmpty>활성 케이스를 선택하세요.</WireEmpty>
           ) : selectedCandidate !== undefined ? (
-            <section className="wire-admin-section" aria-label="실무자 배정">
-              <h2>{selectedCandidate.participantName ?? selectedCandidate.beneficiaryId} 배정</h2>
+            <WireCardSection title={`${selectedCandidate.participantName ?? selectedCandidate.beneficiaryId} 배정`}>
               {counselorOptions.length === 0 ? (
                 <WireEmpty>추가할 실무자가 없습니다. 먼저 실무자를 등록하세요.</WireEmpty>
               ) : (
@@ -146,23 +146,24 @@ export default async function AdminAssignPage({ searchParams }: { searchParams: 
                 </form>
               )}
 
-              <div className="wire-admin-section">
-                <h2>현재 배정된 실무자</h2>
+              {/* CCC-90: 중첩 구획 제목을 부품 라벨 단으로(구 h2 두 벌이 같은 옷이던 자리). */}
+              <WireCardSection title="현재 배정된 실무자">
                 {assigneesError !== null ? (
                   <WireError>{assigneesError}</WireError>
                 ) : assignees.length === 0 ? (
                   <WireEmpty>배정된 실무자가 없습니다.</WireEmpty>
                 ) : (
-                  <div className="wire-admin-list">
-                    {assignees.map((assignee) => (
-                      <ListRow key={assignee.id}>
-                        <MetaRow items={[labelById.get(assignee.userId) ?? assignee.userId, assigneeRoleLabel[assignee.role]]} />
-                      </ListRow>
-                    ))}
-                  </div>
+                  assignees.map((assignee) => (
+                    // CCC-90: 담당 유형은 status 슬롯(배지)로 — 실무자 이름과 같은 옷이던 것을 구분한다.
+                    <WireItem
+                      key={assignee.id}
+                      title={labelById.get(assignee.userId) ?? assignee.userId}
+                      status={<WireBadge tone="mint">{assigneeRoleLabel[assignee.role]}</WireBadge>}
+                    />
+                  ))
                 )}
-              </div>
-            </section>
+              </WireCardSection>
+            </WireCardSection>
           ) : null}
         </>
       )}

@@ -32,12 +32,13 @@ import {
   replaceSessionDiscrepancies,
   resolveSessionDiscrepancy,
   listRecordErrorSessionIds,
-  assignSupportCase,
+  acceptSupportCaseAssignment,
   COUNSELING_RECORD_DETAIL_KEYS,
   cancelCounselingSchedule,
   closeGoal,
   closeSupportCase,
   getSupportCaseClosureInfo,
+  forceTransferSupportCase,
   countUpcomingSchedulesLinkedToGoal,
   createBeneficiaryWithInitialSupportCase,
   createCase,
@@ -51,6 +52,7 @@ import {
   completeCounselorSignup,
   getCounselorInviteSignupInfo,
   getInviteForSignup,
+  getParticipantSelfCheck,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -87,6 +89,7 @@ import {
   listCases,
   listCounselingRecords,
   listCounselorAssignments,
+  listMySupportCaseAssignmentRequests,
   listGoals,
   listPipelineJobs,
   listTextWorkItems,
@@ -101,6 +104,7 @@ import {
   listSessions,
   listSupportCaseAssignees,
   countNewSignups,
+  requestSupportCaseAssignment,
   listAssignedParticipants,
   listPrivacyConsentFollowUps,
   listParticipantPiiRetentionReviews,
@@ -1096,6 +1100,12 @@ function supportCaseAssigneeResponse(
     supportCaseId: assignee.supportCaseId,
     userId: assignee.userId,
     role: assignee.role,
+    status: assignee.status,
+    acceptanceRequestedBy: assignee.acceptanceRequestedBy,
+    acceptedAt: assignee.acceptedAt,
+    transferReason: assignee.transferReason,
+    notifiedBy: assignee.notifiedBy,
+    notifiedAt: assignee.notifiedAt,
     assignedAt: assignee.assignedAt,
   };
 }
@@ -2004,6 +2014,7 @@ export async function handleRequest(
     const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
     const publicSignupPath =
       (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
+      || (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me')
       || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant')
       // 실무자 초대 가입(CCC-108)도 같은 공개 가입 표면이다 — 아래 두 worker 경로가
       // CCC-112 스위치·미리보기 코드 게이트를 자동으로 함께 받는다.
@@ -2027,6 +2038,19 @@ export async function handleRequest(
         const invite = await getInviteForSignup(env, pathToken, 'participant');
         if (invite.programType === null) return json({ error: 'not_found' }, 404);
         return json({ programType: invite.programType });
+      } catch (e) {
+        if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
+        throw e;
+      }
+    }
+    if (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me') {
+      // CCC-27 당사자 자기 확인 — 소비된(가입 완료) 토큰만 자기 정보를 연다. 무효·미소비·
+      // 실무자용 토큰은 위 가입 조회와 같은 404 로 뭉친다(구분 불가 — 토큰 유효성 누설 금지).
+      requestQuery(url, []);
+      const pathToken = pubParts[2] ?? '';
+      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
+      try {
+        return json(await getParticipantSelfCheck(env, pathToken));
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
@@ -2369,6 +2393,19 @@ export async function handleRequest(
         requestQuery(url, []);
         return json(await getSupportCaseClosureInfo(env, actor, supportCaseId));
       }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'force-transfer') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['toUserId', 'reason', 'participantNotified']);
+        const participantNotified = requiredBoolean(body, 'participantNotified');
+        await forceTransferSupportCase(env, actor, {
+          supportCaseId,
+          toUserId: requiredString(body, 'toUserId'),
+          reason: requiredString(body, 'reason'),
+          ...(participantNotified ? { notifiedBy: actor.userId } : {}),
+        });
+        return json({ transferred: true });
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'assignees') {
         // 케이스 담당 실무자 목록 — 담당 실무자 또는 admin(gateway 의 assertSupportCaseAccess 강제). 관리자 배정 화면용.
         requestQuery(url, []);
@@ -2376,18 +2413,30 @@ export async function handleRequest(
         return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'assignees') {
-        // 공동 담당 추가(D7) — admin 전용(gateway 의 assertAdmin 강제). 기본 역할은 secondary.
+        // 배정 요청(D74) — admin 전용. 수락 전에는 상담 내용과 PII가 열리지 않는다.
         requestQuery(url, []);
         const body = await requestBody(request);
+        requireOnlyKeys(body, ['userId', 'role']);
         const userId = requiredString(body, 'userId');
         const roleValue = optionalString(body, 'role');
         if (roleValue !== undefined && roleValue !== 'primary' && roleValue !== 'secondary') {
           throw new ValidationError('assignee role is invalid');
         }
         const assignee = roleValue === undefined
-          ? await assignSupportCase(env, actor, supportCaseId, userId)
-          : await assignSupportCase(env, actor, supportCaseId, userId, roleValue);
+          ? await requestSupportCaseAssignment(env, actor, supportCaseId, userId)
+          : await requestSupportCaseAssignment(env, actor, supportCaseId, userId, roleValue);
         return json(supportCaseAssigneeResponse(assignee), 201);
+      }
+      if (
+        request.method === 'POST'
+        && parts.length === 5
+        && parts[2] === 'assignees'
+        && parts[4] === 'accept'
+      ) {
+        requestQuery(url, []);
+        const assignmentId = requireRouteUuid(parts[3] ?? '', 'assignment id');
+        await acceptSupportCaseAssignment(env, actor, assignmentId);
+        return json({ accepted: true });
       }
       // 동의 2종 수정·철회 (D44 · 항목 수는 D49). 담당 실무자 또는 기관 관리자만 —
       // 게이트웨이의 assertSupportCaseAccess 가 강제한다(R1). 두 값은 항상 함께 온다(현재 상태 전체).
@@ -2670,7 +2719,40 @@ export async function handleRequest(
       }
     }
     if (request.method === 'GET' && parts.length === 3 && parts[0] === 'ai' && parts[1] === 'provider' && parts[2] === 'status') {
-      return json(await getActiveAiProviderStatus(env, actor));
+      // CCC-44: 활성 설정 + **배포 런타임 설정과의 대조**를 함께 내려준다 — 해시 불일치가
+      // 초안 생성을 막는 사유를 화면이 그대로 보여줄 수 있어야 한다(R5 유지, 값을 새지 않게).
+      const active = await getActiveAiProviderStatus(env, actor);
+      let runtime: {
+        configured: boolean;
+        adapterId: string | null;
+        adapterVersion: string | null;
+        configHash: string | null;
+        matches: boolean | null;
+      };
+      try {
+        const { config } = resolveAiProviderAdapter(env);
+        const configHash = await canonicalAiProviderConfigHash(config);
+        runtime = {
+          configured: true,
+          adapterId: config.providerId,
+          adapterVersion: config.adapterVersion,
+          configHash,
+          matches: !active.enabled ? false : (
+            active.adapterId === config.providerId
+            && active.adapterVersion === config.adapterVersion
+            && active.configHash === configHash
+          ),
+        };
+      } catch {
+        runtime = {
+          configured: false,
+          adapterId: null,
+          adapterVersion: null,
+          configHash: null,
+          matches: null,
+        };
+      }
+      return json({ ...active, runtime });
     }
     if (
       request.method === 'POST'
@@ -2679,7 +2761,10 @@ export async function handleRequest(
       && parts[1] === 'provider'
       && parts[2] === 'activate-runtime'
     ) {
-      if (!previewModeEnabled(env)) return json({ error: 'not_found' }, 404);
+      // CCC-44: 기관 관리자가 넣은 승인 참조로 **배포된 런타임만** 등록·활성화한다(운영 포함).
+      // 환경 변수의 정확한 레지스트리 tuple과 API 키를 먼저 검증한다. 호출자가 임의
+      // hash/model을 넣을 수 없고, 현재 배포 설정과 DB activation이 항상 함께 움직인다.
+      // 권한(기관 관리자)은 등록·활성화 게이트웨이가 강제한다(D66 · R1).
       const body = await requestBody(request);
       requireOnlyKeys(body, ['approvalRef']);
       const approvalRef = requiredString(body, 'approvalRef');
@@ -2791,6 +2876,11 @@ export async function handleRequest(
         if (finalizedNow) await runDiscrepancyDetection(env, actor, sessionId);
         return new Response(null, { status: 204 });
       }
+    }
+
+    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'assignment-requests') {
+      requestQuery(url, []);
+      return json({ requests: await listMySupportCaseAssignmentRequests(env, actor) });
     }
 
     if (parts[0] === 'users') {

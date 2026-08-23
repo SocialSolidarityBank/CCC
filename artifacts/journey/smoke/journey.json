@@ -1,0 +1,517 @@
+{
+  "steps": [
+    {
+      "step": "01-home",
+      "url": "http://localhost:3000/programs/financial_support_v1/schedule",
+      "note": "로그인 후 첫 화면",
+      "links_total": 7,
+      "links_own": [
+        {
+          "t": "당사자 등록",
+          "h": "/participants/new"
+        },
+        {
+          "t": "상담 등록",
+          "h": "/schedules/new"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 2,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    },
+    {
+      "step": "02-participants",
+      "url": "http://localhost:3000/participants",
+      "note": "참여자 목록(새 가입 배지 확인)",
+      "links_total": 7,
+      "links_own": [
+        {
+          "t": "당사자 초대",
+          "h": "/participants/invite"
+        },
+        {
+          "t": "당사자 등록",
+          "h": "/participants/new"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 2,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    },
+    {
+      "step": "03-invite",
+      "url": "http://localhost:3000/participants/invite",
+      "note": "참여자 초대 발급",
+      "links_total": 5,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "가입 링크 만들기",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 0,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    },
+    {
+      "step": "07-participants-again",
+      "url": "http://localhost:3000/participants",
+      "note": "가입 후 참여자 목록(새 가입 배지)",
+      "links_total": 7,
+      "links_own": [
+        {
+          "t": "당사자 초대",
+          "h": "/participants/invite"
+        },
+        {
+          "t": "당사자 등록",
+          "h": "/participants/new"
+        }
+      ],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 2,
+      "dead_end": false,
+      "title": "CCC 사례관리",
+      "body_has_new_signup": false
+    },
+    {
+      "step": "08-schedule-new",
+      "url": "http://localhost:3000/schedules/new",
+      "note": "다가오는 일정 등록(1단계)",
+      "links_total": 5,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 0,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    },
+    {
+      "step": "09-hub",
+      "url": "http://localhost:3000/participants/whale-001",
+      "note": "담당 참여자 허브",
+      "links_total": 6,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 0,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    },
+    {
+      "step": "13-schedule-next",
+      "url": "http://localhost:3000/schedules/new",
+      "note": "다음 상담 등록",
+      "links_total": 5,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 0,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    },
+    {
+      "step": "14-settings",
+      "url": "http://localhost:3000/settings",
+      "note": "설정",
+      "links_total": 5,
+      "links_own": [],
+      "buttons": [
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "사회연대은행",
+          "d": false
+        },
+        {
+          "t": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        },
+        {
+          "t": "뒤로",
+          "d": false
+        },
+        {
+          "t": "",
+          "d": false
+        }
+      ],
+      "own_exits": 0,
+      "dead_end": false,
+      "title": "CCC 사례관리"
+    }
+  ],
+  "page_errors": []
+}

@@ -2149,6 +2149,7 @@ export async function listOrgUsers(): Promise<DirectoryUser[]> {
 
 // 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 + 케이스 담당 실무자 배정.
 const assignmentRoles = ['primary', 'secondary'] as const;
+const assignmentStatuses = ['requested', 'active', 'ended'] as const;
 
 /** 관리자 영역 사용자/실무자 상세에 실리는 실무자별 활성 배정 당사자 행(실명 포함). */
 export interface AdminAssignmentParticipant {
@@ -2172,7 +2173,19 @@ export interface SupportCaseAssignee {
   supportCaseId: string;
   userId: string;
   role: 'primary' | 'secondary';
+  status: 'requested' | 'active' | 'ended';
   assignedAt: string;
+}
+
+export interface AssignmentRequest {
+  id: string;
+  supportCaseId: string;
+  beneficiaryId: string;
+  participantName: string | null;
+  programType: ParticipantProgramType;
+  role: 'primary' | 'secondary';
+  status: 'requested';
+  requestedAt: string;
 }
 
 function decodeAdminAssignmentParticipant(value: unknown): AdminAssignmentParticipant {
@@ -2195,8 +2208,39 @@ function decodeSupportCaseAssignee(value: unknown): SupportCaseAssignee {
     supportCaseId: responseString(record, 'supportCaseId'),
     userId: responseString(record, 'userId'),
     role: responseEnum(responseProperty(record, 'role'), assignmentRoles),
+    status: responseEnum(responseProperty(record, 'status'), assignmentStatuses),
     assignedAt: responseString(record, 'assignedAt'),
   };
+}
+
+function decodeAssignmentRequest(value: unknown): AssignmentRequest {
+  const record = responseObject(value);
+  const status = responseEnum(responseProperty(record, 'status'), assignmentStatuses);
+  if (status !== 'requested') contractViolation();
+  return {
+    id: responseString(record, 'id'),
+    supportCaseId: responseString(record, 'supportCaseId'),
+    beneficiaryId: responseString(record, 'beneficiaryId'),
+    participantName: responseNullableString(record, 'participantName'),
+    programType: responseEnum(responseProperty(record, 'programType'), participantProgramTypes),
+    role: responseEnum(responseProperty(record, 'role'), assignmentRoles),
+    status,
+    requestedAt: responseString(record, 'requestedAt'),
+  };
+}
+
+/** 로그인한 본인의 수락 대기 배정 요청. 상담 내용·연락처는 포함하지 않는다. */
+export async function listAssignmentRequests(): Promise<AssignmentRequest[]> {
+  const payload = responseObject(await requestJson<unknown>('/assignment-requests'));
+  return responseArray(payload, 'requests').map(decodeAssignmentRequest);
+}
+
+/** 배정받은 실무자 본인이 요청을 수락한다. */
+export async function acceptAssignmentRequest(supportCaseId: string, assignmentId: string): Promise<void> {
+  await requestJson<unknown>(
+    `/support-cases/${encodeURIComponent(supportCaseId)}/assignees/${encodeURIComponent(assignmentId)}/accept`,
+    { method: 'POST' },
+  );
 }
 
 /** 실무자별 활성 배정 당사자(실명 포함). 기관 관리자만 호출한다(비관리자에게는 403). */
@@ -2323,6 +2367,113 @@ export async function getPublicInviteInfo(token: string): Promise<PublicInviteIn
   if (!response.ok) throw new ApiError(errorCode(response.status, payload));
   const record = responseObject(payload);
   return { programType: responseString(record, 'programType') };
+}
+
+/**
+ * CCC-27 당사자 자기 확인 — 가입 링크(소비된 토큰)로 여는 본인 정보. 토큰이 자격이고
+ * 인증 헤더를 보내지 않는다(공개 경로, 가입과 같은 표면). 무효·미소비 토큰은 404.
+ * 응답은 정확히 다섯 갈래뿐 — 상담 기록 내용은 없다(테스트가 키로 고정).
+ */
+export interface ParticipantSelfCheck {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  programs: Array<{
+    programType: string;
+    counselorName: string | null;
+    consent: { privacy: boolean; recordingAi: boolean };
+  }>;
+  upcomingSchedules: Array<{ id: string; scheduledAt: string; status: CounselingScheduleStatus }>;
+  pastSchedules: Array<{ id: string; scheduledAt: string; status: CounselingScheduleStatus }>;
+}
+
+export async function getParticipantSelfCheck(token: string): Promise<ParticipantSelfCheck> {
+  let response: Response;
+  try {
+    response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}/me`), {
+      headers: new Headers({ accept: 'application/json' }),
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ApiError('service_unavailable');
+  }
+  let payload: unknown = null;
+  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
+  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
+  const record = responseObject(payload);
+  return {
+    name: responseNullableString(record, 'name'),
+    phone: responseNullableString(record, 'phone'),
+    email: responseNullableString(record, 'email'),
+    programs: responseArray(record, 'programs').map((item) => {
+      const program = responseObject(item);
+      return {
+        programType: responseString(program, 'programType'),
+        counselorName: responseNullableString(program, 'counselorName'),
+        consent: {
+          privacy: responseBoolean(responseObject(responseProperty(program, 'consent')), 'privacy'),
+          recordingAi: responseBoolean(responseObject(responseProperty(program, 'consent')), 'recordingAi'),
+        },
+      };
+    }),
+    upcomingSchedules: responseArray(record, 'upcomingSchedules').map(decodeSelfCheckSchedule),
+    pastSchedules: responseArray(record, 'pastSchedules').map(decodeSelfCheckSchedule),
+  };
+}
+
+function decodeSelfCheckSchedule(value: unknown): ParticipantSelfCheck['upcomingSchedules'][number] {
+  const item = responseObject(value);
+  return {
+    id: responseString(item, 'id'),
+    scheduledAt: responseString(item, 'scheduledAt'),
+    status: responseEnum(responseProperty(item, 'status'), scheduleStatuses),
+  };
+}
+
+/** CCC-44 AI 사업자 상태 — 활성 설정 + 배포 런타임 대조(불일치 사유 화면 표시용). */
+export interface AiProviderStatus {
+  enabled: boolean;
+  adapterId: string | null;
+  adapterVersion: string | null;
+  configHash: string | null;
+  runtime: {
+    configured: boolean;
+    adapterId: string | null;
+    adapterVersion: string | null;
+    configHash: string | null;
+    matches: boolean | null;
+  };
+}
+
+/** 기관 관리자 전용: 현재 AI 사업자 활성·런타임 설정 대조 상태 (CCC-44 · D66). */
+export async function getAiProviderStatus(): Promise<AiProviderStatus> {
+  const payload = await requestJson<unknown>('/ai/provider/status');
+  const record = responseObject(payload);
+  const runtime = responseObject(responseProperty(record, 'runtime'));
+  return {
+    enabled: responseBoolean(record, 'enabled'),
+    adapterId: responseNullableString(record, 'adapterId'),
+    adapterVersion: responseNullableString(record, 'adapterVersion'),
+    configHash: responseNullableString(record, 'configHash'),
+    runtime: {
+      configured: responseBoolean(runtime, 'configured'),
+      adapterId: responseNullableString(runtime, 'adapterId'),
+      adapterVersion: responseNullableString(runtime, 'adapterVersion'),
+      configHash: responseNullableString(runtime, 'configHash'),
+      matches: (() => {
+        const value = runtime.matches;
+        return value === null ? null : responseBoolean(runtime, 'matches');
+      })(),
+    },
+  };
+}
+
+/** 기관 관리자 전용: 배포된 런타임을 등록·활성화 (CCC-44 · D66 약관 확인 참조 포함). */
+export async function activateAiProviderRuntime(approvalRef: string): Promise<void> {
+  await requestJson<unknown>('/ai/provider/activate-runtime', {
+    method: 'POST',
+    body: JSON.stringify({ approvalRef }),
+  });
 }
 
 export interface PublicSignupInput {
