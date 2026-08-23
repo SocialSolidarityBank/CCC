@@ -258,7 +258,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           {/* 기록 템플릿 안내 카드는 삭제했다(2026-08-08 일괄 검토 A2) — GAS 는 D43 보류,
               AI 템플릿 조립은 D52 보류라 안내할 기능이 없다. */}
           <h2>등록을 완료했어요</h2>
-          <div className="wizard-actions"><WireButton size="large" chevron href="/">다가오는 일정으로</WireButton></div>
+          <div className="wizard-actions"><WireButton size="large" chevron href="/">일정으로</WireButton></div>
         </div>
       </GridContainer>
     );

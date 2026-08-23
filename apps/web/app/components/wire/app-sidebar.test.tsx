@@ -36,9 +36,9 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     // 상단 줄이 메뉴보다 위다.
     expect(head.compareDocumentPosition(container.querySelector('.sidebar .navigation-list') as Node))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    // 메뉴는 장소 3개뿐이다.
+    // 메뉴는 장소 2개뿐이다 — 일정 두 메뉴는 D75 로 `일정` 하나가 됐다.
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자']);
+      .toEqual(['일정', '당사자']);
     // 드로어에는 기관명·사업 전환기가 없다 — 두 벌 두면 다시 갈라진다.
     expect(container.querySelector('.sidebar .program-switcher')).toBeNull();
     expect(container.querySelector('.sidebar .brand')).toBeNull();
@@ -122,19 +122,14 @@ describe('AppSidebar (D35 · ADR-0014 §2)', () => {
     const { container } = render(<AppSidebar activePath={`/programs/${type}/schedule`} />);
     const links = sidebarLinks(container);
     expect(links[0]).toMatchObject({ href: `/programs/${type}/schedule`, current: true });
-    expect(links[1]?.href).toBe(`/programs/${type}/schedule/all`);
   });
 
-  // 구 CCC-23 은 '전체 일정에만 준비 중 배지가 붙는다'를 고정했다. CCC-19 로 그 화면이
-  // 생기면서 배지를 뗐으므로 단정을 그 메뉴에 대해서만 뒤집는다 — 배지가 남으면 있는 화면이
-  // 없는 것으로 읽힌다. `soon` 기구 자체는 남겨 두므로 "어느 메뉴에도 없다"까지 고정하지
-  // 않는다(나중에 다른 메뉴가 정당하게 붙일 때 이 테스트가 엉뚱하게 터진다).
-  it("전체 일정에는 '준비 중' 배지가 없다 (CCC-19 — 화면이 생겼다)", () => {
+  // D75(ADR-0039): '전체 일정' 메뉴는 통합으로 사라졌다 — 두 창의 경계는 화면 안 범위
+  // 전환이 말한다. 메뉴가 되살아나면 같은 화면으로 가는 문이 둘이 된다.
+  it("'전체 일정' 메뉴는 없다 — 일정 하나로 통합 (D75)", () => {
     const { container } = render(<AppSidebar />);
-    const allLink = container.querySelector('a[href$="/schedule/all"]');
-    // 메뉴 자체는 그대로 있다 — 사라진 것이 아니라 배지만 뗀 것이다.
-    expect(allLink).not.toBeNull();
-    expect(allLink!.querySelector('.navigation-soon')).toBeNull();
+    expect(container.querySelector('a[href$="/schedule/all"]')).toBeNull();
+    expect(sidebarLinks(container).map((link) => link.label)).not.toContain('전체 일정');
   });
 
 });
@@ -201,7 +196,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     expect(drawer.querySelector('.brand')).toBeNull();
     expect(drawer.querySelector('.program-switcher')).toBeNull();
     expect(sidebarLinks(container).map((link) => link.label))
-      .toEqual(['다가오는 일정', '전체 일정', '당사자']);
+      .toEqual(['일정', '당사자']);
     // 계정 행동은 상단 줄의 원형 아이콘 버튼 3개다(웹 헤더와 같은 옷).
     expect(Array.from(drawer.querySelectorAll('.sidebar-actions .header-icon-button'))
       .map((el) => el.getAttribute('aria-label'))).toEqual(['설정', '다크 모드', '로그아웃']);
@@ -211,7 +206,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
       .map((el) => el.querySelector('span:not(.navigation-soon)')?.textContent?.trim());
-    expect(labels).toEqual(['다가오는 일정', '전체 일정', '당사자']);
+    expect(labels).toEqual(['일정', '당사자']);
   });
 });
 

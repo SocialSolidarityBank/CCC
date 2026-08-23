@@ -697,10 +697,21 @@ const settingsStyles = `
 `;
 
 const scheduleStyles = `
-/* 다가오는 일정: 오늘/다가오는 구획(CCC-66). 제목과 카드 그리드 사이 16 은 §4-3
+/* 통합 일정 화면(D75)의 날짜 묶음. 제목과 카드 그리드 사이 16 은 §4-3
    (섹션 제목↔내용 16)이다(CCC-77). .record-section-title 은 다른 화면과 공유라
    margin 을 주지 않고 구획 그리드 gap 으로 만든다. */
 .schedule-section{display:grid;gap:var(--space-4)}
+/* 날짜 묶음 제목 옆 건수 — ④ 설명·메타 단(14/400 --sub). 제목 flex 의 gap 이 간격을 만든다. */
+.schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+/* 범위 전환(다가오는 7일 | 월 전체, D75). 조작 버튼 계약(사각 6 · 높이 32 · 14)이고,
+   고른 쪽만 '지금 정한 것' 어휘(--gradient-action 면 + --on-action 글자, D58 ③)를 입는다.
+   달 이동(.month-nav-seg)과 같은 호버·눌림 리듬이다. */
+.schedule-range{display:flex;align-items:center;gap:var(--space-2)}
+.schedule-range-seg{display:inline-flex;align-items:center;line-height:normal;min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
+@media (hover:hover){.schedule-range-seg:not([data-selected="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
+.schedule-range-seg:active{transform:translateY(1px)}
+.schedule-range-seg:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.schedule-range-seg[data-selected="true"]{border-color:var(--line-on-action);background:var(--gradient-action);color:var(--on-action);font-weight:600}
 /* ticket-20: 상담 등록 */
 /* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
    당사자 카드의 굵기 계약(이름만 강조)을 위저드 행에도 잇는다.
@@ -795,17 +806,11 @@ const scheduleStyles = `
 // CCC-19: 전체 일정(한 달 창). 행 어휘는 상담 기록 화면(D47)의 접힌 줄을 그대로 빌린다 —
 // 같은 것을 두 화면에서 다르게 그리지 않기 위해서다. 새 색·새 반경은 없다.
 const monthScheduleStyles = `
-/* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 버튼 — 사이드바=장소, 여기=창 이동이다. */
-/* 월 이동 줄(2026-08-06 Q 개정): 버튼은 일반(neutral) 그레이 아웃라인, 꺽쇠는 당사자
-   카드와 같은 부품(.wire-chevron)을 버튼 안 크기(8)로, 글자와 꺽쇠 사이는 12 로 벌린다. */
-/* 2026-08-06 Q 후속 — 시안 2종을 data-variant 로 나란히 둔다(확정 전 임시 스위치 ?nav=2):
-   ① group = 이전 달·달 라벨·다음 달 세 조각이 **상자 하나**에 든다.
-   ② inverse = 세 버튼을 유지하고 **달 라벨만 반전** — 라이트 = 어두운 면 + 그라데이션 글자
-     ↔ 다크 = 그라데이션 면 + --on-action 글자(사이드바 내비 반전 호버와 같은 계약,
-     ADR-0030 테마 규칙 ③). 확정되면 남는 시안 하나로 접는다.
+/* 월 이동 줄. 가운데 달 이름을 두고 좌우 화살표 조각 — 사이드바=장소, 여기=창 이동이다.
+   통합 일정 화면(D75)의 월 범위에서만 선다. 시안은 ①(상자 하나)로 확정됐고(2026-08-23),
+   2026-08-06 의 ?nav=2 임시 스위치와 ② 반전 시안 CSS 는 걷었다.
    형태는 D61(2026-08-07)로 직사각 radius 6 이다 — 구 알약 문구 대체. */
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
-.month-nav .wire-button{gap:var(--space-3)}
 /* 달 라벨은 이 줄의 **값**이라 조작 버튼보다 한 발 선다(2026-08-06 Q "상대적으로 작아 보인다")
    — 크기 +1(15) · 600. 당사자 카드 이름과 같은 계단 광학 예외 형식이다(§2-1). */
 .month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);white-space:nowrap}
@@ -821,16 +826,8 @@ const monthScheduleStyles = `
 .month-nav-seg:focus-visible{outline-offset:-2px}
 @media (hover:hover){.month-nav-seg:hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 .month-nav-seg:active{transform:translateY(1px)}
-/* ── 시안 ② 현재 달 반전 ── 글자 그라데이션은 안쪽 span 에 clip 으로 얹는다(겉은 어두운 면). */
-.month-nav[data-variant="inverse"] .month-nav-label{background:var(--ink);border-color:transparent}
-.month-nav[data-variant="inverse"] .month-nav-label>span{background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
-[data-theme="dark"] .month-nav[data-variant="inverse"] .month-nav-label{background:var(--gradient-brand)}
-[data-theme="dark"] .month-nav[data-variant="inverse"] .month-nav-label>span{background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--on-action)}
-/* 768 미만: ② 는 기존 그리드(라벨 위 전폭, 이동 두 버튼 아래 반반)를 유지하고,
-   ① 은 상자가 전폭으로 늘며 라벨이 남는 폭을 가진다. */
+/* 768 미만: 상자가 전폭으로 늘며 라벨이 남는 폭을 가진다. */
 @media(max-width:767px){
-  .month-nav[data-variant="inverse"]{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
-  .month-nav[data-variant="inverse"] .month-nav-label{grid-column:1/-1;grid-row:1}
   .month-nav-group{width:100%}
   .month-nav-group .month-nav-label{flex:1;min-width:0}
   .month-nav-seg{flex:none}
