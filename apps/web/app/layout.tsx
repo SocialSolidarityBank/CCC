@@ -49,6 +49,8 @@ button,input,select,textarea{font:inherit}
 /* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
 .sidebar>.navigation-list{overflow-y:auto;min-height:0}
 .navigation-link{display:flex;align-items:center;gap:var(--space-2)}
+/* CCC-26: 새 가입 숫자 배지는 메뉴 라벨 뒤가 아니라 trailing chip 자리(준비 중과 같은 우측 끝)에 둔다. */
+.navigation-link>.wire-badge{margin-left:auto}
 /* 드로어 머리 줄(768 미만 전용): 계정 행동 묶음(좌) + 닫기 X(우) — 2026-08-06 Q,
    구 기관명(브랜드 링크) 줄 대체. 기관·사업 맥락은 모바일 바가 전담한다. */
 .sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
