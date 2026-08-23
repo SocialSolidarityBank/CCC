@@ -43,53 +43,30 @@ export const wireStyles = `
 .notice-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 /* 자동 저장 상태 한 줄, 카드 밖 플랫 텍스트. 보조 정보라 400 이다(2026-08-07 짝 통일). */
 .notice-status{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
-/* ── 당사자 카드 (2026-08-06 Q) ── 일정(다가오는·전체)과 당사자 목록이 같은 부품을 쓴다.
-   글자는 전부 16/400 — 크기·굵기를 카드 안에서 갈라 쓰지 않는다. 칸은 장폭에 고르게
-   펴고(space-between), 세로는 가운데 정렬이다. 행 구분선은 회색 --line 이고 카드
-   아웃라인까지 가로지른다(패딩만큼 음수 마진). */
+/* ── 당사자 카드 ── 일정과 당사자 목록은 이름·ID·우상단 배지·정보 행의 공통 골격을 쓴다.
+   내부 선 없이 14/600 라벨과 16/400 값을 같은 줄에 놓고 정보 행은 세로로 쌓는다. */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
-/* --divider-gap 20 = 이 카드의 세로 패딩 — 행이 아웃라인·가로선 사이 정중앙에 선다(9차). */
-.participant-card{display:grid;align-content:center;min-height:72px;padding:var(--space-5) var(--space-6);--divider-gap:var(--space-5)}
-/* 칸은 **앞 아이템을 따라 붙는 좌측정렬**이다(2026-08-06 Q 5차 — 구 고정 폭 칸 대체:
-   가명 ID 가 길면 고정 96px 칸 안에서 줄바꿈해 답답했고, 날짜 고정 104px 칸은 짧은 날짜
-   옆 시간을 멀리 밀어냈다). 1행 틈은 12 유지, 2행(정보 칸)만 20 으로 한 단 넓힌다. */
-.participant-card-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--badge-height)}
-.participant-card-row[data-row="info"]{gap:var(--space-5)}
-/* 정보 칸 사이 세로선(2026-08-07 Q "아이디·연락처가 오는 경우 세로선 모두 넣어서 여백
-   구분" — global). HERO 정보 행(wire-meta-row)과 같은 문법이다. gap 20 에 padding 20 을
-   더해 선이 두 칸의 정중앙에 선다. */
-.participant-card-row[data-row="info"]>.participant-card-cell+.participant-card-cell{border-left:1px solid var(--line-control);padding-left:var(--space-5)}
-/* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q,
-   버튼·입력칸과 같은 계약. 1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다). */
-.participant-card-cell{min-width:0;font-size:var(--text-md);font-weight:400;line-height:normal;color:var(--ink);overflow-wrap:anywhere}
-.participant-card-cell[data-tone="sub"]{color:var(--sub)}
-/* 이름은 강조 600 + 계단 16 에 광학 +1px (2026-08-06 Q "볼드 + 폰트 1px" — 당사자 카드
-   이름 한정 예외, DESIGN.md §2-1 기록). */
-.participant-card-cell[data-col="name"]{font-weight:600;font-size:calc(var(--text-md) + 1px)}
-/* 가명 ID 는 연락처(--sub)보다 한 발 옅은 그레이다(2026-08-06 3차) — 대조용 값이라 물러선다.
-   양끝이 테마 토큰이라 다크에서도 따라 뒤집힌다. 흰 위 4.78 로 AA(4.5) 통과 실계산. */
-.participant-card-cell[data-col="id"]{color:color-mix(in srgb,var(--sub) 80%,var(--panel))}
-/* 행 구분선은 카드 공용 구분선(.wire-card-divider) 하나를 쓴다(2026-08-07 통합,
-   구 .participant-card-divider 는 같은 선언의 복사본이라 삭제). */
-/* 호버 그라데이션 채움 위에서는 회색 --line 이 묻힌다(2026-08-06 Q 5차) — 구분선을 카드
-   표면색(라이트=화이트)으로 뒤집어 살린다. 다크의 표면색은 호버 tint 와 밝기가 겹쳐
-   더 밝은 --line-control 로 잇는다. */
-@media (hover:hover){
-  .participant-card-link:hover .wire-card-divider{border-top-color:var(--panel)}
-  [data-theme="dark"] .participant-card-link:hover .wire-card-divider{border-top-color:var(--line-control)}
-  /* 정보 칸 세로선도 같은 이유로 카드 표면색으로 뒤집는다(2026-08-07 Q "호버 시 세로선
-     화이트"). 다크는 가로 구분선과 같은 --line-control 로 잇는다. */
-  .participant-card-link:hover .participant-card-row[data-row="info"]>.participant-card-cell+.participant-card-cell{border-left-color:var(--panel)}
-  [data-theme="dark"] .participant-card-link:hover .participant-card-row[data-row="info"]>.participant-card-cell+.participant-card-cell{border-left-color:var(--line-control)}
-}
-/* 1행 뱃지 묶음도 오른쪽 끝 — 좌측은 고정 칸(날짜·시간)의 자리다. */
-.participant-card-badges{display:inline-flex;gap:var(--space-2);flex:none;margin-left:auto}
-/* 참여 사업 N개 — 컬러 정보 표시(2026-08-06 Q ⑦). 정보 3색 배분: 블루=일정(종류 뱃지) ·
-   민트=상태(진행 중 뱃지) · 라벤더=참여 사업. 보조 정보라 §9 완화 대상이다. */
-/* 참여 사업 수는 2026-08-10(CCC-87)에 배지가 됐다 — 분류·수량 낱말은 본문 글자로 두지
-   않는다(§2-2 규칙 4). 자기 클래스는 사라지고 톤만 민트로 남는다(마크업의 WireBadge). */
-/* 상세 화살표는 없다(2026-08-06 4차 — 구 '목록 카드 오른쪽 끝 고정' 폐지). 카드 전체가
-   링크이고 호버 그라데이션 아웃라인이 눌림을 알린다 — 일정 카드와 같은 문법. */
+/* 헤더와 정보행 사이도 정보행 간격과 같은 10 이다(2026-08-23 Q "이름-라벨 간격을 필드
+   행간과 시각적으로 맞출 것"). 이름 18(행상자 27)의 하프리딩이 라벨 14(행상자 21)보다
+   1px 커서, 기하 10 = 잉크 간격 18 ≈ 행간 잉크 간격 17 로 시각적으로 같은 리듬이 된다. */
+.participant-card{display:grid;align-content:start;gap:var(--space-2-5);min-width:0;overflow:hidden;padding:var(--space-5) var(--space-6)}
+.participant-card-header{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);min-width:0}
+.participant-card-identity{display:flex;flex:1 1 auto;align-items:center;gap:var(--space-2);min-width:0;overflow:hidden}
+/* 이름은 18/600(--text-lg) — 상세 값 14 와의 대비가 카드의 위계다(2026-08-22 Q "이름 18,
+   상세 14". 구 계단 예외 calc(+1px)은 이 개정으로 폐지 — 계단 안 값으로 복귀). */
+.participant-card-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
+.participant-card-name.is-empty{color:var(--sub)}
+.participant-card-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2-5)}
+.participant-card-fields>.wire-field-row{min-width:0}
+.participant-card-date,.participant-card-emphasis{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 참여 사업 수는 14/600 민트 deep — 진행·소속 축(D34)의 강조 값이라 역할표 라벨 행 안이다. */
+.participant-card-emphasis{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
+/* 가명 ID 는 설명 단(14/400 --sub)으로 이름보다 한 발 물러선다. */
+/* 가명 ID는 당사자 카드에서만 이름을 보조하는 12/400 정보다. 본문 계단과 배지 토큰을
+   재사용하지 않고 전용 토큰으로 자리를 잠근다(2026-08-23 Q). */
+.participant-card-id{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);font-size:var(--text-participant-id);font-weight:400;line-height:var(--leading-normal)}
+/* 배지는 두 화면 모두 같은 우상단 자리다. 지난 일정만 유형 옆에 상태 배지가 하나 더 붙는다. */
+.participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
@@ -124,7 +101,8 @@ details.surface-card{overflow:clip}
    **채운 면 위 글자는 늘 --on-action 이다.** --gradient-action 은 두 테마에서 같은 밝은
    파스텔이라(tokens.css 다크 주석 ③) --ink 를 그대로 두면 다크에서 밝은 글자가 밝은 면에
    얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
-   배지는 자기 면(계열 tint)을 가진 독립 표면이라 건드리지 않는다. */
+   색상 배지는 계열 deep 면과 --on-action 글자를 가진 독립 표면이라 같은 예외를 따른다.
+   neutral·risk 배지는 기존 --ink 전경색을 유지한다. */
 details.surface-card[open]:not(.briefing-card)>.record-summary,
 .wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card)>.wire-card-summary{
   background:var(--gradient-action);
@@ -308,7 +286,8 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{colo
 /* 찾기 칸과 목록 사이 가로선(2026-08-06 Q). 컨테이너 전폭 --line 1px. */
 .participant-search-divider{height:0;margin:0;border:0;border-top:1px solid var(--line)}
 /* 당사자 행도 카드다 — 수가 늘면 열이 갈린다(2026-07-26 Q 지시). */
-.participant-row-list{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:start}
+.participant-row-list{display:grid;gap:var(--space-5);grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));align-items:stretch}
+.participant-row-list>div,.participant-row-list>div>.participant-card-link,.participant-row-list>div>.participant-card-link>.participant-card{height:100%}
 /* 당사자 정보 허브 (D35 §3 · D36 · 2026-08-06 Q 개편). 사업별 낱개 카드를 걷고
    '참여중인 사업'·'최신 일정' 두 카드(WireCard)가 나란히 선다. 사업은 카드 안 **행**이고
    행 사이는 --line 구분선이다(카드 안 카드 금지 — D59 ③). 동의서는 맨 아래 카드로 옮겼다. */
@@ -463,7 +442,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-row[data-selected="true"] .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 고른 행도 **채운다**(2026-07-31 Q 지시 "리스트도 채운다"). 체크박스 켬과 같은
    --gradient-action 이라, 화면 어디서든 '내가 지금 고른 것'이 한 어휘로 읽힌다.
-   구 --muted(#F5F5F4)는 흰 카드 위에서 호버와 같은 색이라 고른 것인지 지나가는 중인지
+   구 --muted(#F5F5F4)는 패널 위에서 호버와 같은 색이라 고른 것인지 지나가는 중인지
    구분되지 않았다 — 실제로 아래 :hover 규칙이 같은 값을 쓴다.
    background 를 직접 쓰되 **테두리 그라데이션을 살려야 하므로 배경 2겹을 유지한다**
    (--surface-fill 변수로는 못 한다: linear-gradient() 의 색 자리에 그라데이션을 넣을 수 없다).
@@ -563,12 +542,21 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 행동 줄은 제목과 같은 소리를 내면 안 된다. 14/600 계열 색 밑줄은 이 앱의 인라인 링크
    어휘 그대로다(.note-inline a · .wire-form-hint a). deep 색은 14 이상·600 에서만 쓴다(§9). */
 .wire-item-action{justify-self:start;font-size:var(--text-sm);font-weight:600;color:var(--blue-deep);text-decoration:underline}
-/* 정보 필드(§5): 라벨 14/700 민트 deep 위 · 값 16 아래. */
-.wire-field-row{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:baseline}
+/* 정보 필드: 라벨 14/600 + 값 16/400. 글자 크기가 달라도 베이스라인이 아니라 가운데를 맞춘다. */
+.wire-field-row{display:grid;grid-template-columns:80px minmax(0,1fr);gap:var(--space-3);align-items:center}
+.wire-field-row[data-compact="true"]{gap:var(--space-2-5)}
+.wire-field-row[data-layout="stack"]{grid-template-columns:minmax(0,1fr);gap:var(--space-1);align-items:start}
 /* margin 0 은 이 라벨이 격자 밖 한 줄(전체 목표 카드의 라벨처럼 p 로 서는 자리)에서도 같은
    레시피를 쓰게 한다 — 전역 p 규칙의 위 여백 8 이 붙으면 같은 라벨이 자리마다 달라진다. */
-.wire-field-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
-.wire-field-value{color:var(--ink);font-size:var(--text-md);overflow-wrap:anywhere}
+.wire-field-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
+.wire-field-row[data-tone="blue"]>.wire-field-label{color:var(--blue-deep)}
+/* sub 톤 라벨은 400 이다(2026-08-23 Q) — 14/400 --sub 메타·설명 단. 이름 18/600 이 위계를
+   이미 만들어 라벨 굵기가 물러선다. 기본(민트 deep) 라벨은 600 그대로다(§9 deep 은 600에서만). */
+.wire-field-row[data-tone="sub"]>.wire-field-label{color:var(--sub);font-weight:400}
+.wire-field-value{min-width:0;color:var(--ink);font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);overflow-wrap:anywhere}
+.wire-field-row[data-truncate="true"]>.wire-field-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* size sm: 값을 라벨과 같은 14 로 내린다 — 제목(18)과의 대비를 키우는 카드 전용 단(2026-08-22 Q). */
+.wire-field-row[data-size="sm"]>.wire-field-value{font-size:var(--text-sm)}
 /* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. 불릿은 2개 이상일 때만이다(2026-08-07 Q
    규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
 .wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-md)}
@@ -753,8 +741,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    **라벨은 줄바꿈하지 않는다**(R7 · 2026-07-30): 한글은 어디서나 끊길 수 있어 칸이 좁아지면
    '당사자 정 / 보' 처럼 낱글자로 쪼개진다. 버튼은 한 번에 읽히는 한 덩어리라 넘칠지언정
    쪼개지지 않는 쪽이 옳다 — 좁은 화면의 자리는 세로 배치가 만든다(layout.tsx 768 미만). */
-/* 세컨더리(기본형). 테두리를 --line-control(#E3E3E3, 흰 위 1.28)에서 **--line-action
-   (잉크 50%)** 으로 올린다(2026-07-31). 흰 카드 위에서 1.28 짜리 테두리는 사실상 안 보여
+/* 세컨더리(기본형). 테두리를 --line-control(#E3E3E3, 패널 위 1.24)에서 **--line-action
+   (잉크 50%)** 으로 올린다(2026-07-31). 패널 위에서 1.24 짜리 테두리는 사실상 안 보여
    버튼이 버튼으로 읽히지 않았다 — 입력칸은 라벨이 형태를 알려 주지만(§9 완화) 버튼에는
    그 장치가 없다. 새 색이 아니라 프라이머리가 이미 쓰던 토큰이다.
    그래서 **일반 버튼과 강조 버튼의 구분이 테두리 굵기가 아니라 면으로 옮겨간다**:
@@ -906,23 +894,26 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-fade-clip{white-space:nowrap;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 48px),transparent)}
 /* 배지·칩(§5): 높이 24 · 패딩 0 10 · 14/400(굵기는 2026-08-06 Q — 뱃지 글자는 본문과
    같은 400, 강조가 아니라 분류 표시다). 기본형은 색 없이 --sub 테두리로만 선다.
-   2026-08-05 Q 재규정(구 tint 배경 + deep 글자 대체): 계열 구분은 **tint 배경**이 맡고,
-   글자는 전부 --ink 로 통일하며, 계열의 deep 색은 글자에서 **흐린 외곽선 1px** 로 옮긴다.
-   세 값 모두 테마 토큰이라 다크(D56)에서 배경·외곽선·글자가 함께 뒤집힌다 — deep 글자
-   시절의 tint 위 대비 미달(§9 1.76~2.11)도 이 재규정으로 함께 사라진다. */
+  2026-08-23 Q 재규정: 색상 배지는 기존 계열 **deep 면**과 같은 외곽선을 쓰고,
+  전경은 테마에 따라 --on-badge 로 반전한다. 라이트는 밝은 글자, 다크는 어두운 글자다. */
 /* **이 클래스가 화면 전체의 유일한 배지 계약이다**(2026-08-07 Q 리팩터링). 같은 레시피를
    제각각 복사하던 8개 클래스(.status 계열, .briefing-badge, .record-kind, .record-owner,
    .record-ai-source, .settings-user-status, .onboarding-step, .consent-upload-slot-state)를
    전부 이 클래스 + data-tone 으로 대체했다. 배지 모양을 고칠 일이 생기면 여기 한 곳만
    고치면 전 화면이 함께 바뀐다. 마크업은 WireBadge 컴포넌트(wire-badge.tsx)를 쓴다.
    굵기 400 은 2026-08-06 Q 재개정(강조 아닌 표시 값이라 본문과 같은 기본 굵기). */
-.wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
-/* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=일정·유형·정보(D58 ④). */
-.wire-badge[data-tone="mint"]{border-color:var(--mint-deep);background:var(--mint-tint)}
-.wire-badge[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}
-.wire-badge[data-tone="blue"]{border-color:var(--blue-deep);background:var(--blue-tint)}
+.wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:var(--muted);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+/* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=일정·유형·정보(D58 ④).
+   기존 deep 면과 테마별 전경을 써 색상 규칙을 배지에서도 그대로 유지한다. */
+/* sm(2026-08-23 Q "뱃지 안 텍스트 12px"): 높이 20 · 좌우 패딩 8 · 글자 12.
+   카드 헤더처럼 이름 옆 곁다리로 서는 자리 전용이다. 본문 계열의 14px 하한을 풀지 않고
+   단일 배지 계약 안에 컴팩트 크기만 추가한다(D61 ②). */
+.wire-badge[data-size="sm"]{min-height:var(--space-5);padding:0 var(--space-2);font-size:var(--text-badge-compact)}
+.wire-badge[data-tone="mint"]{border-color:var(--mint-deep);background:var(--mint-deep);color:var(--on-badge)}
+.wire-badge[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-deep);color:var(--on-badge)}
+.wire-badge[data-tone="blue"]{border-color:var(--blue-deep);background:var(--blue-deep);color:var(--on-badge)}
 /* 리스크 배지: 확인된 리스크·오류 상태 전용(D9 리스크 색 독점의 허용 자리, 구 .status.risk). */
-.wire-badge[data-tone="risk"]{border-color:var(--risk);background:var(--risk-tint-solid)}
+.wire-badge[data-tone="risk"]{border-color:var(--risk);background:var(--risk);color:var(--on-badge)}
 /* 상태 태그: 색·모양 레시피는 배지와 같다(2026-08-06 Q — radius 6 을 알약으로 통일, 굵기 400).
    화면 전체에서 이 클래스 하나만 쓴다(2026-08-07 통합). */
 .wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
@@ -940,7 +931,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    이유: input 은 replaced element 라 Firefox 가 생성 콘텐츠를 렌더하지 않는다 — ::after 로 그리면
    Firefox 에서 체크 표시가 조용히 사라져 선택·미선택이 구분되지 않는다. 동의 체크박스(D23)에서는
    그게 가장 위험한 자리다. background-image 는 전 브라우저에서 동작한다.
-   data URI 안에는 var() 를 쓸 수 없어 획 색만 hex 로 박힌다 — --ink(#3D3445)·--risk(#F071B4)와
+   data URI 안에는 var() 를 쓸 수 없어 획 색만 hex 로 박힌다 — --ink(#3D3445)·--risk(#B52573)와
    같은 값이며, 토큰이 바뀌면 이 두 줄도 함께 고쳐야 하는 유일한 자리다. */
 /* 켬 = **면이 칠해진다**(2026-07-31 Q 결정). 이전에는 켜고 끄고가 12px 체크 글리프 하나로만
    갈렸다 — 18px 상자 안에서 그 차이는 훑을 때 잡히지 않고, 동의 체크박스(D23·D49)처럼

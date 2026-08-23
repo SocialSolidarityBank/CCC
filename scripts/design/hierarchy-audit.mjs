@@ -38,12 +38,12 @@ const TARGETS = [
 // 전역 기본. body 는 크기만 적고 굵기를 안 적으므로 400 이 기본이고, :root 가 색을 --ink 로 둔다.
 const ROOT = { size: 'var(--text-md)', weight: '400', color: 'var(--ink)' };
 
-// 계열 deep 3종. 라벨·배지의 색 축은 이 집합에서만 온다(§2-1 · D34).
+// 계열 deep 3종. 일반 라벨·아이콘의 색 축은 이 집합에서만 온다(§2-1 · D34).
 const SERIES_DEEP = ['var(--mint-deep)', 'var(--lavender-deep)', 'var(--blue-deep)'];
 
 // 채운 면 위 글자(D60 ④). 선택·반전·프라이머리처럼 면이 채워진 자리는 글자색이 면을 따라가고,
 // 그때 위계를 지키는 축은 크기와 굵기다. 그래서 색 축은 자리마다 열거하지 않고 한 번에 둔다.
-const ON_SURFACE = ['var(--on-action)', 'var(--panel)', 'var(--canvas)'];
+const ON_SURFACE = ['var(--on-action)', 'var(--on-badge)', 'var(--panel)', 'var(--canvas)'];
 // 색만 물러서는 상태. 크기·굵기가 계약 안이면 조합으로 세지 않는다.
 const DIMMED = ['var(--sub)', 'var(--muted)'];
 const isDisabled = (variants) => variants.some((v) => /disabled/.test(v));
@@ -100,6 +100,59 @@ const CONTROL_ROLES = [
 // 여기 넣는 기준: 근거가 되는 결정 문서가 있고, 그 자리 하나에만 쓰이는가.
 const MIXED_SUB = 'color-mix(in srgb,var(--sub) 80%,var(--panel))';
 const ALLOW = [
+  {
+    // 2026-08-23 Q: 당사자 카드 헤더의 곁다리 배지만 12px 컴팩트 토큰을 쓴다.
+    // 다른 필드가 이 토큰을 빌리면 14px 본문 계단을 우회하므로 자리로 한정한다.
+    selector: '.wire-badge[data-size="sm"]',
+    combo: 'var(--text-badge-compact)/400/var(--ink)',
+    why: '당사자 카드 헤더 전용 컴팩트 배지',
+  },
+  {
+    selector: '.wire-badge[data-tone="blue"]',
+    combo: 'var(--text-sm)/400/var(--on-badge)',
+    why: '색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="mint"]',
+    combo: 'var(--text-sm)/400/var(--on-badge)',
+    why: '색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="lavender"]',
+    combo: 'var(--text-sm)/400/var(--on-badge)',
+    why: '색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="blue"][data-size="sm"]',
+    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
+    why: '컴팩트 색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="mint"][data-size="sm"]',
+    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
+    why: '컴팩트 색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="lavender"][data-size="sm"]',
+    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
+    why: '컴팩트 색상 배지의 테마 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="risk"]',
+    combo: 'var(--text-sm)/400/var(--on-badge)',
+    why: '기존 리스크 면과 테마별 고정 전경색',
+  },
+  {
+    selector: '.wire-badge[data-tone="risk"][data-size="sm"]',
+    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
+    why: '컴팩트 리스크 배지의 고정 전경색',
+  },
+  {
+    // 2026-08-23 Q: 당사자 카드의 가명 ID만 12px으로 낮춘다.
+    selector: '.participant-card-id',
+    combo: 'var(--text-participant-id)/400/var(--sub)',
+    why: '당사자 카드 가명 ID 전용 컴팩트 글자',
+  },
   {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
     selector: '.participant-card-cell',
@@ -438,7 +491,7 @@ function judgeable(e) {
   // 내는 자리(background-clip)라 둘 다 조합을 만들지 않는다.
   if (Object.values(e.resolved).some((v) => v === 'inherit' || v === 'transparent')) return false;
   // 계단 밖 크기(em·calc)는 guard:tokens 의 물음이다. 여기서 조합으로 다시 세지 않는다.
-  if (!/^var\(--text-[a-z0-9]+\)$/.test(e.resolved.size)) return false;
+  if (!/^var\(--text-[a-z0-9-]+\)$/.test(e.resolved.size)) return false;
   return true;
 }
 

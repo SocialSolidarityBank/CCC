@@ -124,6 +124,69 @@ for (const [size, weight, color] of [
   );
 }
 
+const compactTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8')
+  .match(/^\s*--text-badge-compact:\s*([^;]+)/m)?.[1]
+  ?.trim();
+check(
+  '컴팩트 배지 토큰은 12px 이다',
+  compactTokenValue === '12px',
+  `현재값: ${compactTokenValue ?? '없음'}`,
+);
+
+const participantIdTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8')
+  .match(/^\s*--text-participant-id:\s*([^;]+)/m)?.[1]
+  ?.trim();
+check(
+  '당사자 카드 ID 토큰은 12px 이다',
+  participantIdTokenValue === '12px',
+  `현재값: ${participantIdTokenValue ?? '없음'}`,
+);
+
+const COMPACT_BADGE = '.wire-badge[data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:var(--ink)}';
+check(
+  '12px 컴팩트 배지는 지정된 sm 배지 자리에서만 허용된다',
+  run(COMPACT_BADGE).violations.length === 0,
+);
+check(
+  '12px 컴팩트 배지를 다른 필드에 쓰면 잡힌다',
+  run('.wire-field-label{font-size:var(--text-badge-compact);font-weight:400;color:var(--sub)}').violations.length === 1,
+);
+
+for (const tone of ['blue', 'mint', 'lavender', 'risk']) {
+  check(
+    `${tone} 채움 배지는 테마 고정 전경색을 쓴다`,
+    run(`.wire-badge[data-tone="${tone}"][data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:var(--on-badge)}`).violations.length === 0,
+  );
+}
+
+const PARTICIPANT_ID = '.participant-card-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}';
+check(
+  '12px 당사자 카드 ID는 지정된 ID 자리에서만 허용된다',
+  run(PARTICIPANT_ID).violations.length === 0,
+);
+check(
+  '12px 당사자 카드 ID 토큰을 다른 필드에 쓰면 잡힌다',
+  run('.wire-field-label{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}').violations.length === 1,
+);
+
+const wireStylesSource = readFileSync(
+  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  'utf8',
+);
+for (const [tone, outline, surface] of [
+  ['blue', 'var(--blue-deep)', 'var(--blue-deep)'],
+  ['mint', 'var(--mint-deep)', 'var(--mint-deep)'],
+  ['lavender', 'var(--lavender-deep)', 'var(--lavender-deep)'],
+  ['risk', 'var(--risk)', 'var(--risk)'],
+]) {
+  check(
+    `${tone} 배지는 기존 계열 면과 같은 deep 규칙을 쓴다`,
+    wireStylesSource.includes(
+      `.wire-badge[data-tone="${tone}"]{border-color:${outline};background:${surface};color:var(--on-badge)}`,
+    ),
+  );
+}
+
 // --- 컨트롤 표 (2026-08-10 CCC-84) -----------------------------------------
 // 이 네 단언이 함께 있어야 의미가 있다. 컨트롤에 칸을 더하되 **본문 라벨 규율은 그대로**
 // 남는지를 보는 것이라, 셋째 단언이 빠지면 그냥 표를 헐겁게 만든 것과 구별되지 않는다.
