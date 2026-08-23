@@ -375,8 +375,10 @@ textarea{min-height:216px;resize:vertical}
     transform:translateX(100%);transition:transform var(--motion-base) var(--ease-standard);
   }
   /* 데스크톱의 오른쪽 세로 프레임 라인은 드로어에서 **왼쪽** 모서리로 옮긴다 — 패널이
-     오른쪽에서 나오므로 본문과 만나는 모서리가 왼쪽이다. */
-  .sidebar::after{right:auto;left:0}
+     오른쪽에서 나오므로 본문과 만나는 모서리가 왼쪽이다. 닫힌 상태에서는 선만 숨긴다 —
+     scrollbar-gutter 가 만든 15px 예약 폭 때문에 100% 이동 뒤에도 선이 화면 끝에 남는다. */
+  .sidebar::after{right:auto;left:0;opacity:0}
+  .sidebar[data-drawer-open="true"]::after{opacity:1}
   .sidebar[data-drawer-open="true"]{transform:none}
   .sidebar .drawer-dismiss{display:grid}
   /* 머리 줄 높이 = 바 높이 56, 아래 1px 구분선이 정확히 y 56 — **본문 바의 프레임 라인과
