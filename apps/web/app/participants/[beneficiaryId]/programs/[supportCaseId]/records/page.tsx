@@ -115,7 +115,7 @@ function Message({ code }: { code: ErrorKind | null }) {
 
 function Notice({ code }: { code: string | undefined }) {
   if (code !== 'record_submission_processed') return null;
-  return <WireBadge tone="blue" role="status" aria-live="polite">상담 기록 화면으로 이동했습니다. 아래 목록에서 제출 결과를 확인하세요.</WireBadge>;
+    return <WireBadge role="status" aria-live="polite">상담 기록 화면으로 이동했습니다. 아래 목록에서 제출 결과를 확인하세요.</WireBadge>;
 }
 
 /**

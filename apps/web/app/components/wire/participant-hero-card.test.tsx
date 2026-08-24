@@ -69,12 +69,11 @@ describe('ParticipantHeroCard', () => {
     expect(withoutTag.container.querySelector('.wire-status-tag')).toBeNull();
   });
 
-  it('상태 태그 색 계열 — 기본은 블루라 기존 화면은 변화가 없다 (D61 ② 개정, CCC-106)', () => {
+  it('상태 태그 색 계열 — 기본은 neutral이고 AI 상태만 lavender다', () => {
     const defaultTone = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" stageTag="15초 페이지" />,
     );
-    // 기본값 blue 는 data-tone 을 달지 않는다 — 기존 .wire-status-tag 고정 블루 CSS 그대로다.
-    expect(defaultTone.container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBeNull();
+    expect(defaultTone.container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('neutral');
 
     const lavenderTone = render(
       <ParticipantHeroCard

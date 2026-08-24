@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import { Icon } from '../../../../../components/wire/wire-icon';
+import { ConsultationTypeBadge } from '../../../../../components/wire/consultation-type-badge';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../components/wire/wire-card';
@@ -46,10 +47,6 @@ const flagReviewStatusLabels: Record<FlagReviewStatus, string> = {
   rejected: '제외됨',
   pending: '검토 대기',
 };
-const sessionKindLabels: Record<SupportCaseRecord['kind'], string> = {
-  intake: '인테이크',
-  regular: '기본 상담',
-};
 const discrepancyKindLabels: Record<SupportCaseRecord['discrepancies'][number]['kind'], string> = {
   cross_session: '회차 간 불일치',
   within_session: '회차 내 모순',
@@ -76,12 +73,6 @@ function flagLabel(flagType: FlagType): string {
 function flagReviewStatusLabel(reviewStatus: FlagReviewStatus): string {
   const label = flagReviewStatusLabels[reviewStatus];
   if (label === undefined) throw new Error('Record flag review status was invalid.');
-  return label;
-}
-
-function sessionKindLabel(kind: SupportCaseRecord['kind']): string {
-  const label = sessionKindLabels[kind];
-  if (label === undefined) throw new Error('Record kind was invalid.');
   return label;
 }
 
@@ -140,7 +131,7 @@ export function RecordCard({
     <summary className="record-summary">
       <span className="record-ordinal">{ordinal}회차</span>
       <span className="record-held-at">{formatKoreanDate(record.heldAt)}</span>
-      <WireBadge tone="blue">{sessionKindLabel(record.kind)}</WireBadge>
+      <ConsultationTypeBadge kind={record.kind} />
       <span className={record.aiOneLiner === null ? 'record-one-liner wire-fade-clip is-memo' : 'record-one-liner wire-fade-clip'}>
         {/* 일괄 검토 A9 (2026-08-08): 인테이크는 메모가 없어 항상 빈말이 나오던 자리다. */}
         {oneLiner ?? (record.kind === 'intake' ? '인테이크 질문지 작성 회차' : '핵심 한 줄이 아직 없습니다')}

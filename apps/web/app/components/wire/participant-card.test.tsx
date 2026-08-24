@@ -12,7 +12,7 @@ describe('ParticipantCard', () => {
         schedule={{
           date: '8월 27일 (목)',
           time: '14:00',
-          kindLabel: '기본 상담',
+          kind: 'regular',
         }}
         name="김민서"
         beneficiaryId="swallow-003"
@@ -25,6 +25,7 @@ describe('ParticipantCard', () => {
     expect(header?.textContent).toContain('김민서');
     expect(header?.querySelector('.participant-card-id')?.textContent).toBe('swallow-003');
     expect(header?.textContent).toContain('기본 상담');
+    expect(header?.querySelector('.wire-badge')?.getAttribute('data-tone')).toBe('mint');
     expect(fields?.textContent).toContain('상담 일시8월 27일 (목) 14:00');
     expect(fields?.textContent).toContain('연락처010-0000-1234');
     expect(fields?.textContent).not.toContain('가명 ID');
@@ -42,6 +43,25 @@ describe('ParticipantCard', () => {
     expect(container.querySelector('.participant-card .wire-card-divider')).toBeNull();
     expect(container.querySelector('a')?.getAttribute('aria-label'))
       .toBe('김민서, 8월 27일 (목) 14:00 기본 상담');
+  });
+
+  it('인테이크 일정 카드는 lavender 유형 배지를 표시한다', () => {
+    const { container } = render(
+      <ParticipantCard
+        href="/participants/swallow-003"
+        schedule={{
+          date: '8월 27일 (목)',
+          time: '14:00',
+          kind: 'intake',
+        }}
+        name="김민서"
+        beneficiaryId="swallow-003"
+      />,
+    );
+
+    const badge = container.querySelector('.participant-card-header .wire-badge');
+    expect(badge?.textContent).toBe('인테이크');
+    expect(badge?.getAttribute('data-tone')).toBe('lavender');
   });
 
   it('당사자 목록 카드에서 이름 옆 ID와 세로 정보행을 표시한다', () => {

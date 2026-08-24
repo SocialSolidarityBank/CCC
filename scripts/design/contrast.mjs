@@ -65,8 +65,8 @@ const PAIRS = [
   ['--risk', '--risk-tint-solid', '리스크 글자 / 배너 배경', 4.5],
   ['--line-control', '--panel', '입력칸 경계 / 카드', 3, true],
   ['--track', '--panel', '추이 막대 / 카드', 3, true],
-  ['--ink', '--blue-tint', '칩 글자 / 블루 tint (D47 계열 칩)', 4.5],
-  ['--ink', '--mint-tint', '칩 글자 / 민트 tint (D47 계열 칩)', 4.5],
+  ['--ink', '--blue-tint', '일반 글자 / 블루 tint 정보 표면 (배지 아님)', 4.5],
+  ['--ink', '--mint-tint', '일반 글자 / 민트 tint 사람·소속 표면 (배지 아님)', 4.5],
   ['--on-badge', '--badge-blue', '배지 글자 / 블루 면', 4.5, true],
   ['--on-badge', '--badge-mint', '배지 글자 / 민트 면', 4.5, true],
   ['--on-badge', '--badge-lavender', '배지 글자 / 라벤더 면', 4.5, true],
@@ -74,6 +74,8 @@ const PAIRS = [
   ['--on-badge', '--badge-amber', '배지 글자 / 앰버 면', 4.5, true],
   ['--on-badge', '--badge-lime', '배지 글자 / 라임 면', 4.5, true],
   ['--on-badge', '--badge-cyan', '배지 글자 / 시안 면', 4.5, true],
+  // 라이트마젠타는 공용 --on-badge 가 아니라 전용 전경을 쓴다. 예외 표시 없이 기준을 그대로 재다.
+  ['--on-badge-light-magenta', '--badge-light-magenta', '배지 글자 / 라이트마젠타 면', 4.5],
   ['--on-badge', '--risk', '배지 글자 / 리스크 면', 4.5],
   // 채운 면 위 글자 — 그라데이션 양끝을 각각 잰다(가장 나쁜 쪽이 기준이다).
   ['--on-action', '--gradient-action@start', '버튼·체크박스 글자 / 채움 시작', 4.5],

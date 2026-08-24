@@ -206,10 +206,10 @@ export function RecordOnepage({
           <WireButton className="record-open-actions-link" variant="neutral" height="sm" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
         </WireCardDetails>}
       {/* ③ 체크리스트 카드(2026-08-09 Q "필수는 체크리스트로 분리") — 필수 채움 + 저장.
-          필수 카운트는 제목 옆 블루 배지다(진행 축, §2-2 규칙 4 — 구 '필수 N/3' 글줄은
+          필수 카운트는 제목 옆 neutral 배지다(§2-2 규칙 4 — 구 '필수 N/3' 글줄은
           카드 제목과 같은 16/600 이라 위계가 없었다). */}
       <WireCard testId="record-checklist-card" title={<span className="record-rail-title">체크리스트
-        <WireBadge tone="blue" testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
+        <WireBadge testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
       </span>}>
         <ul className="record-rail-list">
           {requiredItems.map((item) => <li key={item.label} data-done={item.done}>

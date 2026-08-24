@@ -272,7 +272,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
       <div className="page-header"><PageTitle>상담 일정 등록</PageTitle></div>
       <div className="wizard-stack">
         {noticeText !== undefined && (
-          <WireBadge tone="blue" role="status" aria-live="polite">{noticeText}</WireBadge>
+      <WireBadge role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
         {/* 인테이크는 목표 입력 단계가 없어 2단계다(CCC-64). 3단계 화면(맞춤형 질문)이
             인테이크에서는 두 번째로 보이므로 표기도 그에 맞춘다. CCC-81 단계 부품을 쓴다. */}

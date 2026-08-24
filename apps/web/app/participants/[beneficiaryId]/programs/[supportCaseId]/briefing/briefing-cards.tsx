@@ -9,6 +9,8 @@ import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
+import { ConsultationTypeBadge, consultationTypeLabel } from '../../../../../components/wire/consultation-type-badge';
+import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
@@ -26,12 +28,6 @@ const actionOwnerLabels: Record<ActionOwner, string> = {
   counselor: '실무자',
   beneficiary: '당사자',
   org: '기관',
-};
-
-// 상담 유형은 현행 2종으로 시작한다(D45) — 세분 유형(초기상담·사정·개입 등)은 §8 미결과 함께.
-const sessionKindLabels: Record<'regular' | 'intake', string> = {
-  regular: '기본 상담',
-  intake: '인테이크',
 };
 
 // D45 영역 ③ — 사실 관계 라벨만. "충돌"·"오류" 같은 판단 어휘를 쓰지 않는다(R5).
@@ -362,7 +358,7 @@ export function BriefingCards({
   const latestSession = sessionRows[0];
   const latestSessionTag = latestSession === undefined
     ? '15초 페이지'
-    : `${sessionKindLabels[latestSession.kind]} ${sessionRows.length}회`;
+    : `${consultationTypeLabel(latestSession.kind)} ${sessionRows.length}회`;
 
   // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
   const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
@@ -375,7 +371,7 @@ export function BriefingCards({
     return {
       sessionId,
       heldAtLabel: row === undefined ? '상담일 확인 필요' : formatKoreanDate(row.heldAt),
-      kindLabel: row === undefined ? '상담 유형 확인 필요' : sessionKindLabels[row.kind],
+      kindLabel: row === undefined ? '상담 유형 확인 필요' : consultationTypeLabel(row.kind),
     };
   });
 
@@ -550,7 +546,7 @@ export function BriefingCards({
               </ul>
             </WireCardSection>
           )}
-          {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 뱃지(블루) →
+          {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 배지 →
               수기 뱃지 → 핵심 한 줄. 각 항목은 **고정 폭 칸**에 앉아 어느 행에서나 같은
               x 에서 시작한다(2026-08-07 Q 9차 — 수기 칸은 배지가 없어도 자리를 지켜
               본문 시작점이 안 흔들린다). 한 줄이 넘치는 본문은 줄바꿈 대신 오른쪽 끝에서
@@ -563,7 +559,7 @@ export function BriefingCards({
                   <li key={row.sessionId} className="briefing-session-row">
                     <span className="briefing-session-date">{formatKoreanDate(row.heldAt)}</span>
                     <span className="briefing-session-kind">
-                      <WireBadge tone="blue">{sessionKindLabels[row.kind]}</WireBadge>
+                      <ConsultationTypeBadge kind={row.kind} />
                     </span>
                     <span className="briefing-session-memo">
                       {row.aiOneLiner === null && row.memoExcerpt !== null && (
@@ -647,7 +643,7 @@ export function BriefingCards({
                       <span className="briefing-action-desc">{item.description}</span>
                       <WireBadge tone="mint">담당 {actionOwnerLabels[item.owner]}</WireBadge>
                       {item.dueDate !== null && (
-                        <WireBadge tone="blue">기한 {item.dueDate}</WireBadge>
+                    <TimeAxisBadge>기한 {item.dueDate}</TimeAxisBadge>
                       )}
                       {item.sessionId !== null && (
                         <Link className="briefing-action-source" href={`${recordsHref}#record-${item.sessionId}`}>출처 회차 보기</Link>

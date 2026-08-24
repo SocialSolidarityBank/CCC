@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { formatKoreanDate, formatKoreanTime } from '../../../lib/format-korean-date';
 import type { TodaySchedule } from '../../../lib/api';
 import { ParticipantCard } from '../../../components/wire/participant-card';
-import { WireBadge } from '../../../components/wire/wire-badge';
+import { TimeAxisBadge } from '../../../components/wire/time-axis-badge';
 import { WireCardDetails } from '../../../components/wire/wire-card';
 import {
   dayHeading,
@@ -13,11 +13,6 @@ import {
   weekRangeLabel,
   type DayGroup,
 } from './schedule-calendar';
-
-const sessionKindLabels: Record<TodaySchedule['sessionKind'], string> = {
-  regular: '기본 상담',
-  intake: '인테이크',
-};
 
 const statusLabels: Record<TodaySchedule['status'], string | null> = {
   scheduled: null,
@@ -54,7 +49,7 @@ function ScheduleCard({
       schedule={{
         date: formatKoreanDate(schedule.scheduledAt, timeZone),
         time: formatKoreanTime(schedule.scheduledAt, timeZone),
-        kindLabel: sessionKindLabels[schedule.sessionKind],
+        kind: schedule.sessionKind,
         ...(statusLabel === null ? {} : { statusLabel }),
       }}
       name={schedule.participantName}
@@ -98,7 +93,7 @@ function OpenDay({ day, timeZone }: { readonly day: DayGroup; readonly timeZone:
     >
       <h3 className="record-section-title schedule-day-heading">
         {dayHeading(day.key)}
-        {day.temporal === 'today' && <WireBadge tone="blue">오늘</WireBadge>}
+        {day.temporal === 'today' && <TimeAxisBadge>오늘</TimeAxisBadge>}
         <span className="schedule-day-count">{day.schedules.length}건</span>
       </h3>
       <div className="card-grid schedule-card-grid">
@@ -131,7 +126,7 @@ export function ScheduleGroups({
       {weeks.map((week) => (
         <section key={week.startKey} className="schedule-week" aria-label={weekRangeLabel(week)}>
           <h2 className="schedule-week-title">
-            <WireBadge tone="blue">{week.isoYear}년 {week.isoWeek}주</WireBadge>
+            <TimeAxisBadge>{week.isoYear}년 {week.isoWeek}주</TimeAxisBadge>
             <span>{weekRangeLabel(week)}</span>
           </h2>
           <div className="schedule-week-days">

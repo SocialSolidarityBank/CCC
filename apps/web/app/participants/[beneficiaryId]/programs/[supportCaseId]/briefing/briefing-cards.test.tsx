@@ -185,6 +185,8 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(rows[1]).toContain('2026년 7월 1일');
     expect(rows[1]).toContain('인테이크');
     expect(rows[1]).toContain('채무 현황과 정서적 어려움 확인');
+    const typeBadges = [...card.querySelectorAll('.briefing-session-kind .wire-badge')];
+    expect(typeBadges.map((badge) => badge.getAttribute('data-tone'))).toEqual(['mint', 'lavender']);
   });
 
   it('승인된 AI 한 줄이 있는 회차는 그 한 줄을 싣고 수기 배지를 붙이지 않는다 (CCC-38·R2)', () => {

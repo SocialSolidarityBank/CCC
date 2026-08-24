@@ -197,7 +197,7 @@ export function SessionPlanEditor({
           <WireButton type="submit" variant="primary" form="session-plan-form" disabled={busy}>저장</WireButton>
         </div>
       </div>
-      {saved && <WireBadge tone="blue" role="status" aria-live="polite">세션 목표를 저장했습니다.</WireBadge>}
+      {saved && <WireBadge role="status" aria-live="polite">세션 목표를 저장했습니다.</WireBadge>}
       {error !== null ? <p role="alert" className="wire-field-error">{error}</p> : null}
       <WireCallout tone="info" title={`상담 일시: ${scheduledAtLabel}`}>
         일정 시작 전까지 수정할 수 있습니다. 시작 시각이 지나면 그날 계획의 기록으로 잠깁니다. <DraftRetentionNote />

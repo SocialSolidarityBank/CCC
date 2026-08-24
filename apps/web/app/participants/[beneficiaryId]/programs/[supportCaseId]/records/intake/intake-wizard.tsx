@@ -834,8 +834,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
             </p>
             <p className="panel-meta">
               {/* 수정 모드의 '회차 N회'는 다음 회차 자동값이라 거짓 정보다 — 자리 자체를 수정 표시로 바꾼다.
-                  회차는 분류 낱말이라 배지로 올린다(2026-08-09 Q "뱃지로 0회차" — §2-2 규칙 4, 블루 = 유형·정보). */}
-              <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : <WireBadge tone="blue">{props.sessionSequence}회차</WireBadge>, `실무자 ${props.recorderLabel}`]} />
+                  회차는 분류 낱말이라 neutral 배지로 올린다(2026-08-09 Q "뱃지로 0회차" — §2-2 규칙 4). */}
+            <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : <WireBadge>{props.sessionSequence}회차</WireBadge>, `실무자 ${props.recorderLabel}`]} />
             </p>
             <p className="panel-meta">모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
           </WireCard>
@@ -890,12 +890,12 @@ export function IntakeWizard(props: IntakeWizardProps) {
                     {/* 실무자·회차는 자동으로 채워지는 값이라 한 줄에 나란히 둔다(2026-08-09 Q):
                         구 배치는 '실무자 / 이름 / 상담 회차 / 8회' 네 줄이 이어졌고, 그 아래
                         바로 '다음 상담 방법' 질문이 붙어 글자만 쌓였다(§2-2 규칙 1·2).
-                        회차는 분류·상태를 나타내는 낱말이라 배지로 올린다(규칙 4, 블루 = 유형·정보). */}
+                        회차는 분류·상태를 나타내는 낱말이라 neutral 배지로 올린다(규칙 4). */}
                     <div className="wire-form-grid">
                       <ReadOnlyRow label="실무자" value={props.recorderLabel} />
                       <div className="wizard-field" data-testid="intake-readonly-row">
                         <span className="wire-field-label">상담 회차</span>
-                        <span><WireBadge tone="blue">{props.sessionSequence}회</WireBadge></span>
+              <span><WireBadge>{props.sessionSequence}회</WireBadge></span>
                       </div>
                     </div>
                   </>

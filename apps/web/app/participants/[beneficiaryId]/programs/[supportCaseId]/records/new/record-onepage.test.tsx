@@ -186,6 +186,7 @@ describe('RecordOnepage', () => {
 
     // 미해결 액션 0건·6영역 기본값은 충족, 수기 메모만 남은 상태.
     expect(getByTestId('record-required-count').textContent).toBe('필수 2/3');
+    expect(getByTestId('record-required-count').getAttribute('data-tone')).toBeNull();
 
     const memo = container.querySelector('textarea[name="memo"]');
     expect(memo).not.toBeNull();

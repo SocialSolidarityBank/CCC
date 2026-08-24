@@ -30,9 +30,12 @@
   --lavender-deep: #7D4E9B;  /* tint 위 5.11 / 패널 위 6.11 */
   --lavender-tint: #F2E7F7;
 
-  /* 배지 전용 7색 면. 일반 deep 글자 토큰과 분리해 배지 배경만 Pen 승인값을 따른다.
-   * 라이트는 deep 계열, 다크는 아래 블록의 base 계열을 쓴다. 코랄·앰버·라임·시안은
-   * 여러 형제 배지를 구분할 때만 쓰는 variation이고 성공·경고·우선순위를 뜻하지 않는다. */
+  /* 배지 전용 8색 면. 일반 deep 글자 토큰과 분리해 배지 배경만 Pen 승인값을 따른다.
+   * 라이트는 deep 계열, 다크는 아래 블록의 base 계열을 쓴다. 코랄·시안·라이트마젠타·앰버·라임은
+   * 여러 형제 배지를 구분할 때만 쓰는 variation이고 성공·경고·우선순위를 뜻하지 않는다.
+   * 기본 배정 순서는 민트, 라벤더, 코랄, 시안, 라이트마젠타이고 라임과 앰버는 최후순위다
+   * (2026-08-24 Q 결정). 라이트마젠타만 승인 hex 하나를 두 테마에서 같이 쓰고, 그 면 위
+   * 글자만 아래 --on-badge-light-magenta 를 쓴다. */
   --badge-blue:     #67A9F0;
   --badge-mint:     #56CC99;
   --badge-lavender: #C890F0;
@@ -40,6 +43,12 @@
   --badge-amber:    #D7A137;
   --badge-lime:     #A1B84E;
   --badge-cyan:     #02C1D4;
+  /* 승인 hex #D96BC8 하나만 쓴다(2026-08-24 Q 결정). 다크 별도 음영을 만들지 않는다. */
+  --badge-light-magenta: #D96BC8;
+  /* 이 면 위 글자만 쓰는 전용 전경. 새 색조가 아니라 다크 캔버스 중립색 #100E13 을
+   * 그대로 빌렸다. 두 테마와 고대비에서 같은 값이고 면 위 대비 6.29 로 AA 를 넘는다
+   * (공용 --on-badge 흰 글자는 이 면에서 3.05 라 쓸 수 없다). */
+  --on-badge-light-magenta: #100E13;
 
   /* 채운 면 위의 글자·획. --gradient-action 으로 칠한 자리(프라이머리 버튼 · 켠 체크박스·
    * 라디오 · 고른 리스트 행)에 쓴다. */
@@ -326,6 +335,8 @@
   --badge-amber:    #DDB87B;
   --badge-lime:     #B7C786;
   --badge-cyan:     #74CFDB;
+  --badge-light-magenta: #D96BC8;
+  --on-badge-light-magenta: #100E13;
 
   /* 리스크 — H328 자리는 그대로 두고 밝기만 올린다. 라이트의 어두운 핑크 면 위에는
    * 밝은 글자를, 다크의 밝은 핑크 면 위에는 어두운 글자를 얹는다. */
@@ -369,6 +380,8 @@
   --badge-amber:    #DDB87B;
   --badge-lime:     #B7C786;
   --badge-cyan:     #74CFDB;
+  --badge-light-magenta: #D96BC8;
+  --on-badge-light-magenta: #100E13;
   --line-control:  #8F8799;
   --track:         #8F8799;
 }
@@ -389,6 +402,8 @@
   --badge-amber:    #936907;
   --badge-lime:     #697B1A;
   --badge-cyan:     #02818D;
+  --badge-light-magenta: #D96BC8;
+  --on-badge-light-magenta: #100E13;
   --line-control:  #948E89;  /* 패널 위 3.24 */
   --track:         #948E89;  /* 패널 위 3.24 */
 }

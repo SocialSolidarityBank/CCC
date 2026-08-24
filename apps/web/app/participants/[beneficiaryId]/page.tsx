@@ -14,6 +14,7 @@ import { GridContainer } from '../../components/wire/grid-container';
 import { PageLoading } from '../../components/wire/page-loading';
 import { PageTitle } from '../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
+import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
 import { Chevron } from '../../components/wire/chevron';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
@@ -237,11 +238,6 @@ function ProgramRow({ beneficiaryId, program, programTitle }: {
   );
 }
 
-const scheduleKindLabels: Record<'regular' | 'intake', string> = {
-  regular: '기본 상담',
-  intake: '인테이크',
-};
-
 /** 최신 일정 카드(2026-08-06 Q · 2026-08-07 가로 행 개편) — 담당 사업들의 예정 일정 중
  *  가장 이른 1건. 행 문법은 브리핑 '상담 내용 회차별 정리'와 같다: 날짜 · 상담 종류 뱃지 ·
  *  참여 사업, 오른쪽 끝에 상담 준비 버튼. 날짜는 공용 표기(년 월 일 오전/오후 시간)다. */
@@ -291,7 +287,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
               <span className="participant-next-schedule-date">
                 {formatKoreanDateTime(candidate.upcomingSchedule!.scheduledAt)}
               </span>
-              <WireBadge tone="blue">{scheduleKindLabels[candidate.upcomingSchedule!.sessionKind]}</WireBadge>
+              <ConsultationTypeBadge kind={candidate.upcomingSchedule!.sessionKind} />
               <span className="participant-next-schedule-program">{programName(programLabels, candidate.programType)}</span>
             </span>
             <Chevron dir="right" />
@@ -343,7 +339,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
         {/* 페이지 타이틀(2026-08-08 Q "모든 페이지 상단에 페이지 타이틀"). */}
         <div className="page-header"><PageTitle>당사자 정보</PageTitle></div>
         {noticeText !== undefined && (
-          <WireBadge tone="blue" role="status" aria-live="polite">{noticeText}</WireBadge>
+          <WireBadge role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
         {/* ParticipantHeroCard (D38 · D59 개편 2026-08-04): 허브는 케이스가 교차하는 화면이라
             단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).

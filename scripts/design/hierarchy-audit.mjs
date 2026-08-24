@@ -99,16 +99,21 @@ const CONTROL_ROLES = [
 // 좁은 예외. 역할표 밖 조합이지만 결정으로 정당화된 자리만 사유와 함께 남긴다.
 // 여기 넣는 기준: 근거가 되는 결정 문서가 있고, 그 자리 하나에만 쓰이는가.
 const MIXED_SUB = 'color-mix(in srgb,var(--sub) 80%,var(--panel))';
-const BADGE_TONES = ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'risk'];
+const BADGE_TONES = ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'light-magenta', 'risk'];
+// 라이트마젠타만 전용 전경을 쓴다(2026-08-24 Q 결정). 면은 승인 hex 하나고,
+// 그 위 흰 글자는 대비가 모자라 다크 캔버스 중립색을 재사용한 토큰을 따로 둔다.
+const badgeForeground = (tone) => (
+  tone === 'light-magenta' ? 'var(--on-badge-light-magenta)' : 'var(--on-badge)'
+);
 const BADGE_ALLOW = BADGE_TONES.flatMap((tone) => [
   {
     selector: `.wire-badge[data-tone="${tone}"]`,
-    combo: 'var(--text-sm)/400/var(--on-badge)',
+    combo: `var(--text-sm)/400/${badgeForeground(tone)}`,
     why: '색상 배지의 테마 고정 전경색',
   },
   {
     selector: `.wire-badge[data-tone="${tone}"][data-size="sm"]`,
-    combo: 'var(--text-badge-compact)/400/var(--on-badge)',
+    combo: `var(--text-badge-compact)/400/${badgeForeground(tone)}`,
     why: '컴팩트 색상 배지의 테마 고정 전경색',
   },
 ]);

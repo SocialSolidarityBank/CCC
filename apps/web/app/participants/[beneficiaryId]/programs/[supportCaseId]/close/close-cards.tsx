@@ -1,6 +1,7 @@
 'use client';
 
 import { WireBadge } from '../../../../../components/wire/wire-badge';
+import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard, WireField } from '../../../../../components/wire/wire-card';
 import { WireFormField } from '../../../../../components/wire/wire-form-field';
@@ -32,7 +33,7 @@ export function OpenActionItemsCard({ items }: { items: OpenActionItem[] }) {
                 <span className="briefing-action-desc">{item.description}</span>
                 <WireBadge tone="mint">담당 {actionOwnerLabels[item.owner]}</WireBadge>
                 {item.dueDate !== null && (
-                  <WireBadge tone="blue">기한 {item.dueDate}</WireBadge>
+                  <TimeAxisBadge>기한 {item.dueDate}</TimeAxisBadge>
                 )}
               </li>
             ))}

@@ -1,3 +1,5 @@
+import type { SessionKind } from '../../lib/api';
+import { ConsultationTypeBadge, consultationTypeLabel } from './consultation-type-badge';
 import { WireBadge } from './wire-badge';
 import { WireField } from './wire-card';
 import Link from 'next/link';
@@ -17,8 +19,8 @@ export interface ParticipantCardSchedule {
   readonly date: string;
   /** "14:00" */
   readonly time: string;
-  /** 상담 종류(인테이크/기본 상담). 블루 계열 뱃지다. */
-  readonly kindLabel: string;
+  /** 상담 종류. 기본 상담은 mint, 인테이크는 lavender 배지다. */
+  readonly kind: SessionKind;
   /** 지난 일정 상태(완료/취소/불참). 예정에는 붙이지 않는다. */
   readonly statusLabel?: string | undefined;
 }
@@ -70,7 +72,7 @@ export function ParticipantCard({
   const isNameMissing = name === null || name.length === 0;
   const displayName = isNameMissing ? beneficiaryId : name;
   const linkLabel = schedule !== undefined
-    ? `${displayName}, ${schedule.date} ${schedule.time} ${schedule.kindLabel}`
+    ? `${displayName}, ${schedule.date} ${schedule.time} ${consultationTypeLabel(schedule.kind)}`
     : `${displayName}, 참여 사업 ${programCount}개, ${statusBadge.label}`;
 
   return (
@@ -90,7 +92,7 @@ export function ParticipantCard({
           </span>
           {schedule !== undefined ? (
             <span className="participant-card-badges">
-              <WireBadge size="sm" tone="blue">{schedule.kindLabel}</WireBadge>
+              <ConsultationTypeBadge kind={schedule.kind} size="sm" />
               {schedule.statusLabel !== undefined && <WireBadge size="sm">{schedule.statusLabel}</WireBadge>}
             </span>
           ) : statusBadge !== undefined ? (

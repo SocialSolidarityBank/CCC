@@ -64,7 +64,7 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
         <summary className="goal-tree-goal-head">
           <span className="goal-tree-goal-title">{goal.title}</span>
           {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
-          <WireBadge tone="blue">연결 회차 {goal.linkedSessions.length}건</WireBadge>
+              <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
         </summary>
         <div className="goal-tree-goal-body">
           <RevisionHistory revisions={goal.revisions} />
