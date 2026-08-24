@@ -65,7 +65,10 @@ describe('SessionPlanEditor (CCC-70)', () => {
       expectedVersion: 1,
       sessionGoals: [{ body: '다듬은 계획', caseGoalId: null }],
     });
-    expect(scoped.getAllByRole('status').some((node) => node.textContent?.includes('저장했습니다'))).toBe(true);
+    const savedStatus = scoped.getAllByRole('status')
+      .find((node) => node.textContent?.includes('저장했습니다'));
+    expect(savedStatus).not.toBeUndefined();
+    expect(savedStatus?.getAttribute('data-tone')).toBeNull();
   });
 
   it('저장 성공 후 다음 저장은 서버가 돌려준 새 version 으로 제출한다', async () => {

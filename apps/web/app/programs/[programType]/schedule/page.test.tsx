@@ -101,6 +101,8 @@ describe('통합 일정 화면 (D75) — 다가오는 7일', () => {
     expect(headings[0]).toContain('1건');
     expect(headings[1]).toContain('2월 18일');
     expect(headings[1]).not.toContain('오늘');
+    expect(container.querySelector('.schedule-week-title .wire-badge')?.getAttribute('data-tone')).toBe('blue');
+    expect(container.querySelector('.schedule-day-heading .wire-badge')?.getAttribute('data-tone')).toBe('blue');
     expect(cards(container)).toHaveLength(2);
   });
 

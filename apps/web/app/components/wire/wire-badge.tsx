@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 
 /** 배지 계열(DESIGN.md §5 상태 배지).
- *  neutral = 무채색 기본형, blue = 일정·유형·정보, mint = 진행·상태·담당(사람),
- *  lavender = AI·승인 대기, risk = 확인된 리스크·오류 상태(D9 허용 자리).
- *  coral·amber·lime·cyan은 여러 형제 배지를 구분하는 variation 전용이다. */
+ *  neutral = 무채색 기본형, blue = 시간 축(TimeAxisBadge 전용), risk = 확인된 리스크·오류 상태(D9 허용 자리).
+ *  나머지 색상은 형제 배지 구분 variation이고 기본 배정 순서는
+ *  mint → lavender → coral → cyan → light-magenta 이며 lime·amber 는 최후순위 폴리백이다(2026-08-24 Q 결정).
+ *  상담 유형은 기본 상담=mint, 인테이크=lavender로 고정한다.
+ *  light-magenta 면은 승인 hex #D96BC8 하나만 쓰고(다크 별도 음영을 만들지 않는다),
+ *  그 면 위 글자만 전용 --on-badge-light-magenta 를 써 두 테마에서 대비 6.29 로 기준을 넘는다. */
 export type WireBadgeTone =
   | 'neutral'
   | 'blue'
@@ -13,6 +16,7 @@ export type WireBadgeTone =
   | 'amber'
   | 'lime'
   | 'cyan'
+  | 'light-magenta'
   | 'risk';
 
 export type WireBadgeSize = 'md' | 'sm';

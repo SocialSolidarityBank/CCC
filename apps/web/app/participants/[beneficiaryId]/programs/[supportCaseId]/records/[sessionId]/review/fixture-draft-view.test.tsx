@@ -245,7 +245,7 @@ describe('DraftReviewView', () => {
 
       const axisSection = screen.getByTestId('ai-draft-contrast-missing_from_memo');
       expect(within(axisSection).getByText('메모에 없던 언급')).toBeTruthy();
-      expect(within(axisSection).getByText('전사')).toBeTruthy();
+      expect(within(axisSection).getByText('전사').getAttribute('data-tone')).toBeNull();
       expect(within(axisSection).getByText('원문 인용 발췌')).toBeTruthy();
       const disclosure = axisSection.querySelector('details[data-source-quotes]');
       expect(disclosure?.hasAttribute('open')).toBe(false);

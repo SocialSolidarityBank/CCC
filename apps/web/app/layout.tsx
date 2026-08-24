@@ -599,8 +599,8 @@ const briefingStyles = `
 /* 브리핑 회차 줄과 같은 값으로 맞춘다(2026-08-10 CCC-87, 구 16 + 굵기 미선언). 여기는 이미
    --sub 였고 크기만 갈렸다. 굵기를 안 적어 두면 검사가 조합을 확정하지 못한다(§2-1). */
 .record-held-at{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
-/* 유형 칩은 공용 배지 블루 톤이다(2026-08-07 통합, 구 .record-kind 삭제). 시간·상태 축이라
-   블루이고 인테이크도 같은 블루, 구분은 글자가 한다. 접힌 줄 안에서 줄어들지 않게만 잡는다. */
+/* 유형 칩은 ConsultationTypeBadge가 기본 상담=mint, 인테이크=lavender로 고정한다
+   (2026-08-24 CCC-132 후속 개정, 구 lime/amber 대체). 접힌 줄 안에서 줄어들지 않게만 잡는다. */
 .record-summary>.wire-badge{flex:none}
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). 넘침은 공용
    .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 브리핑 회차 행과 같은 규칙(2026-08-06 Q). */
@@ -1062,7 +1062,7 @@ const recordFormStyles = `
 .open-action-meta{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-2)}
 /* 구 .record-rail 손 카드·.record-rail-count 글줄은 2026-08-09 삭제 — 진척도 카드가
    WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
-   갖고, 필수 카운트는 체크리스트 제목 옆 블루 배지가 됐다(§2-2 규칙 4). */
+     갖고, 필수 카운트는 체크리스트 제목 옆 neutral 배지가 됐다(§2-2 규칙 4). */
 .record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);color:var(--sub)}
 .record-rail-list li[data-done="true"]{color:var(--ink);font-weight:600}
 .record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

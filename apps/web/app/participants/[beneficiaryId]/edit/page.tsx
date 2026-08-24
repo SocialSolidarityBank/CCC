@@ -96,7 +96,7 @@ function EditScreen({
             <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
           </div>
         </div>
-        {noticeText === undefined ? null : <WireBadge tone="blue" role="status">{noticeText}</WireBadge>}
+        {noticeText === undefined ? null : <WireBadge role="status">{noticeText}</WireBadge>}
         {errorText === undefined ? null : <WireError>{errorText}</WireError>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />
       </GridContainer>

@@ -62,7 +62,7 @@ function SelfCheckView({ data }: { data: ParticipantSelfCheck }) {
               {data.upcomingSchedules.map((schedule) => (
                 <p className="self-check-row" key={schedule.id}>
                   <strong>{formatKoreanDateTime(schedule.scheduledAt)}</strong>
-                  <WireBadge tone="blue">예정</WireBadge>
+                  <WireBadge>예정</WireBadge>
                 </p>
               ))}
               {data.pastSchedules.map((schedule) => (

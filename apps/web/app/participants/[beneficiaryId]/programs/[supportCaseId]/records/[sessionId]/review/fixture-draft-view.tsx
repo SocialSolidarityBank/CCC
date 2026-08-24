@@ -101,7 +101,7 @@ export interface DraftReviewViewProps {
   participantName: string | null;
   stageTag: string;
   /** 검토 대기·승인됨·반려됨 3종 전부 AI 산출물 상태다(D58 ④) — 라벤더로 연다(CCC-106). */
-  stageTagTone?: 'blue' | 'lavender' | undefined;
+  stageTagTone?: 'neutral' | 'lavender' | undefined;
   metaItems: ReactNode[];
   recordsHref: string;
   draft: DraftReviewViewModel;
@@ -146,7 +146,7 @@ function ContrastAxisSection({ axis, data, sourceHref }: {
                     <WireItem
                       tone="lavender"
                       title={finding.description}
-                      status={<WireBadge tone="blue">{materialKindLabels[finding.materialKind]}</WireBadge>}
+                        status={<WireBadge>{materialKindLabels[finding.materialKind]}</WireBadge>}
                     />
                     <WireSourceQuotes quotes={[finding.quote]} sourceHref={sourceHref} />
                   </li>

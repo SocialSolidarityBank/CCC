@@ -35,10 +35,10 @@ export interface ParticipantHeroCardProps {
   /** 화면 상태 태그 문구(예: '상담 준비'). 케이스 1개 화면에서만 넘긴다. */
   stageTag?: string;
   /**
-   * 상태 태그 색 계열(D61 ② 개정, CCC-106). 기본은 블루(일정·상태)라 넘기지 않으면
-   * 기존 화면은 변화가 없다. AI 산출·승인 대기 계열 낱말(D58 ④)에만 lavender 를 넘긴다.
+   * 상태 태그 색 계열(D61 ② 개정, CCC-106). 기본은 neutral이다.
+   * AI 산출·승인 대기 계열 낱말(D58 ④)에만 lavender를 넘긴다.
    */
-  stageTagTone?: 'blue' | 'lavender' | undefined;
+  stageTagTone?: 'neutral' | 'lavender' | undefined;
   /** 메타 한 줄. 내용은 화면이 정한다. 구분선 아래 정보 행에 가명 ID·연락처와 함께 선다. */
   meta?: ReactNode;
   /**
@@ -61,7 +61,7 @@ export function ParticipantHeroCard({
   name,
   beneficiaryId,
   stageTag,
-  stageTagTone = 'blue',
+  stageTagTone = 'neutral',
   meta,
   contact,
   showId = false,
@@ -100,7 +100,7 @@ export function ParticipantHeroCard({
           {stageTag !== undefined && (
             <span
               className="wire-status-tag"
-              data-tone={stageTagTone === 'blue' ? undefined : stageTagTone}
+              data-tone={stageTagTone}
             >
               {stageTag}
             </span>

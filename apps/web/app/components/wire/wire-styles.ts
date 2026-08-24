@@ -518,7 +518,6 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* 라벨 계열 색(D34 고정 의미) — 기본은 무채색이고, 축이 분명한 구획만 계열을 입는다. */
 .wire-card-section[data-tone="mint"]>h3{color:var(--mint-deep)}
 .wire-card-section[data-tone="lavender"]>h3{color:var(--lavender-deep)}
-.wire-card-section[data-tone="blue"]>h3{color:var(--blue-deep)}
 /* 구획은 **안에 들어오는 것의 크기·색·여백을 정하지 않는다**(2026-08-10 — 구 자식 규칙
    (>p, >ul) 폐지). 자식 선택자(0,1,1)는 부품 클래스(0,1,0)를 특정도에서 이기므로, 그 규칙이
    있으면 구획에 들어온 부품이 자기 계약을 잃는다. 실제로 빈 줄(.empty 14/--sub)이 16/--ink 로
@@ -530,7 +529,6 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-item[data-tone]{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control)}
 .wire-item[data-tone="mint"]{background:var(--mint-tint)}
 .wire-item[data-tone="lavender"]{background:var(--lavender-tint)}
-.wire-item[data-tone="blue"]{background:var(--blue-tint)}
 .wire-item-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-item-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 구획(WireCardSection) 안에 WireItem 없이 바로 오는 읽는 값(§2-2 위계 4단 ③ 16/400
@@ -549,7 +547,6 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 /* margin 0 은 이 라벨이 격자 밖 한 줄(전체 목표 카드의 라벨처럼 p 로 서는 자리)에서도 같은
    레시피를 쓰게 한다 — 전역 p 규칙의 위 여백 8 이 붙으면 같은 라벨이 자리마다 달라진다. */
 .wire-field-label{margin:0;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
-.wire-field-row[data-tone="blue"]>.wire-field-label{color:var(--blue-deep)}
 /* sub 톤 라벨은 400 이다(2026-08-23 Q) — 14/400 --sub 메타·설명 단. 이름 18/600 이 위계를
    이미 만들어 라벨 굵기가 물러선다. 기본(민트 deep) 라벨은 600 그대로다(§9 deep 은 600에서만). */
 .wire-field-row[data-tone="sub"]>.wire-field-label{color:var(--sub);font-weight:400}
@@ -908,9 +905,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    고치면 전 화면이 함께 바뀐다. 마크업은 WireBadge 컴포넌트(wire-badge.tsx)를 쓴다.
    굵기 400 은 2026-08-06 Q 재개정(강조 아닌 표시 값이라 본문과 같은 기본 굵기). */
 .wire-badge{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
-/* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=일정·유형·정보(D58 ④).
-   코랄·앰버·라임·시안은 여러 형제 배지의 구분 variation이다. 전용 surface 토큰이
-   라이트 deep 면과 다크 base 면을 갈아 끼우며 전경은 --on-badge가 맡는다. */
+/* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=시간 축(TimeAxisBadge 전용).
+   코랄·시안·라이트마젠타·앰버·라임은 여러 형제 배지의 구분 variation이다(기본 배정 순서는
+   mint → lavender → coral → cyan → light-magenta, lime·amber 최후순위 — 2026-08-24 Q 결정).
+   전용 surface 토큰이 라이트 deep 면과 다크 base 면을 갈아 끼우며 전경은 --on-badge가 맡는다.
+   light-magenta 만 예외로 승인 hex #D96BC8 하나를 두 테마에서 같이 쓰고, 그 면 위 글자는
+   전용 --on-badge-light-magenta(다크 캔버스 중립색 재사용)로 두 테마 모두 AA 를 넘긴다. */
 /* sm(2026-08-23 Q "뱃지 안 텍스트 12px"): 높이 20 · 좌우 패딩 8 · 글자 12.
    카드 헤더처럼 이름 옆 곁다리로 서는 자리 전용이다. 본문 계열의 14px 하한을 풀지 않고
    단일 배지 계약 안에 컴팩트 크기만 추가한다(D61 ②). */
@@ -922,13 +922,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-badge[data-tone="amber"]{border-color:var(--badge-amber);background:var(--badge-amber);color:var(--on-badge)}
 .wire-badge[data-tone="lime"]{border-color:var(--badge-lime);background:var(--badge-lime);color:var(--on-badge)}
 .wire-badge[data-tone="cyan"]{border-color:var(--badge-cyan);background:var(--badge-cyan);color:var(--on-badge)}
+.wire-badge[data-tone="light-magenta"]{border-color:var(--badge-light-magenta);background:var(--badge-light-magenta);color:var(--on-badge-light-magenta)}
 /* 리스크 배지: 확인된 리스크·오류 상태 전용(D9 리스크 색 독점의 허용 자리, 구 .status.risk). */
 .wire-badge[data-tone="risk"]{border-color:var(--risk);background:var(--risk);color:var(--on-badge)}
-/* 상태 태그: 색·모양 레시피는 배지와 같다(2026-08-06 Q — radius 6 을 알약으로 통일, 굵기 400).
+/* 상태 태그: 기본은 neutral이고 AI 산출·승인 대기 낱말만 lavender다.
    화면 전체에서 이 클래스 하나만 쓴다(2026-08-07 통합). */
-.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--blue-deep);border-radius:var(--radius-pill);background:var(--blue-tint);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
-/* 상태 태그 색 계열(D61 ② 개정, CCC-106): 기본은 위 블루. AI 산출·승인 대기 낱말(D58 ④)만
-   라벤더로 연다 — 다섯 계열을 미리 다 칠하지 않는다(쓰는 것만 연다). 글자는 배지와 같은
+.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+/* 상태 태그 색 계열(D61 ② 개정, CCC-106): AI 산출·승인 대기 낱말(D58 ④)만
+   라벤더로 연다. 다섯 계열을 미리 다 칠하지 않는다(쓰는 것만 연다). 글자는 배지와 같은
    레시피로 --ink 그대로 두고 테두리·배경만 계열을 바꾼다. 변수 자체가 테마 토큰이라
    다크(D56)에서 별도 선언 없이 함께 뒤집힌다. */
 .wire-status-tag[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}

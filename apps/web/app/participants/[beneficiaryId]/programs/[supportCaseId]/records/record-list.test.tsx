@@ -71,8 +71,15 @@ describe('RecordList', () => {
 
     const ordinals = Array.from(container.querySelectorAll('.record-ordinal')).map((node) => node.textContent);
     expect(ordinals).toEqual(['3회차', '2회차', '1회차']);
-    const kinds = Array.from(container.querySelectorAll('.record-summary .wire-badge[data-tone="blue"]')).map((node) => node.textContent);
-    expect(kinds).toEqual(['기본 상담', '기본 상담', '인테이크']);
+    const kinds = Array.from(container.querySelectorAll('.record-summary')).map((summary) => {
+      const badge = summary.querySelector('.wire-badge');
+      return [badge?.textContent, badge?.getAttribute('data-tone')];
+    });
+    expect(kinds).toEqual([
+      ['기본 상담', 'mint'],
+      ['기본 상담', 'mint'],
+      ['인테이크', 'lavender'],
+    ]);
   });
 
   it('승인된 핵심 한 줄이 있으면 그대로 쓰고 수기 배지를 달지 않는다 (§4)', () => {

@@ -206,7 +206,7 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 | D44 | 동의 3종 흐름 | 동의는 당사자 등록 시 받고 정보 페이지에서 수정·철회, 인테이크는 읽기만. 현재값은 `support_cases.consent_*_at`, 이력은 append-only. **① 지위는 D46이, '3종' 표기는 D49가 대체**. 원문: [decisions-detail](docs/decisions-detail.md) |
 | D45 | 브리핑 3영역 재구성 | ①꼭 기억할 것 ②회차별 정리 ③내용 불일치. **D22 아코디언 대체, D43 봉인 해제**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0018 |
 | D46 | 동의 게이트·보존 상한 | 개인정보 동의를 등록 **하드 게이트**로 승격(긴급 등록은 예외). 보존 **총 5년 상한** 후 파기 검토 큐 → 기관 관리자 확인. 마스킹을 질병명까지 확대. **2026-07-30 구현·법률 검토 두 트랙 모두 MVP 범위에서 종료**(G2 는 구조·API 까지, 실서비스 개시 전 재개). 게이트 문서 `docs/consent/consent-implementation-gates-v1.md`. 원문: [decisions-detail](docs/decisions-detail.md) |
-| D47 | 상담 기록 화면 정리 | 최신 회차만 펼침, GAS 제거, HERO 버튼 2개, 리스크 배너 없음. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0019 |
+| D47 | 상담 기록 화면 정리 | 최신 회차만 펼침, GAS 제거, HERO 버튼 2개, 리스크 배너 없음. 상담 유형 배지는 기본 상담을 민트, 인테이크를 라벤더로 구분한다. blue 채움 배지는 `TimeAxisBadge`가 만드는 오늘, 날짜, 주차, 기한에만 쓰고 그 밖의 정보와 상태 배지는 neutral이다. 형제 배지 variation의 기본 배정 순서는 민트, 라벤더, 코랄, 시안, 라이트마젠타(#D96BC8)이고 라임과 앰버는 최후순위 폴리백이다(2026-08-24 CCC-132 후속 개정, 구 라임/앰버 대체). 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0019 |
 | D49 | 동의 2종 통합 | 개인정보 + AI 녹취기록 2종. **D15 분리 동의·D44 3종 표기 대체**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0021 |
 | D50 | 셸 내비게이션 5건 | 기관명=홈, 사업 전환기 드롭다운, 로그아웃 신설, 뒤로가기 노출. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0014 |
 | D51 | AI 처리 위치 | LLM 호출은 처리 장비에서만. 텍스트 일감 표 신설, 동의 배선. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0022 |

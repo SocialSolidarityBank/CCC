@@ -1,6 +1,7 @@
 'use client';
 
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
+import { TimeAxisBadge } from '../../../../../../components/wire/time-axis-badge';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { WireEmpty } from '../../../../../../components/wire/wire-state';
@@ -56,7 +57,7 @@ export function OpenActionResolutions({
         <p className="open-action-title">{action.description}</p>
         <p className="open-action-meta">
           <WireBadge tone="mint">{ownerLabels[action.owner]}</WireBadge>
-          {action.dueDate === null ? null : <WireBadge tone="blue">기한 {action.dueDate}</WireBadge>}
+          {action.dueDate === null ? null : <TimeAxisBadge>기한 {action.dueDate}</TimeAxisBadge>}
         </p>
       </>}
     >

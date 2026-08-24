@@ -152,12 +152,21 @@ check(
   run('.wire-field-label{font-size:var(--text-badge-compact);font-weight:400;color:var(--sub)}').violations.length === 1,
 );
 
-for (const tone of ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'risk']) {
+// 라이트마젠타만 전용 전경 토큰을 쓴다(2026-08-24 Q 결정).
+const badgeForegroundVar = (tone) => (
+  tone === 'light-magenta' ? 'var(--on-badge-light-magenta)' : 'var(--on-badge)'
+);
+
+for (const tone of ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'light-magenta', 'risk']) {
   check(
     `${tone} 채움 배지는 테마 고정 전경색을 쓴다`,
-    run(`.wire-badge[data-tone="${tone}"][data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:var(--on-badge)}`).violations.length === 0,
+    run(`.wire-badge[data-tone="${tone}"][data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:${badgeForegroundVar(tone)}}`).violations.length === 0,
   );
 }
+
+// 공용 --on-badge 는 ON_SURFACE 라 어느 선택자에서든 합법이다. 그래서 "라이트마젠타에 흰 글자를
+// 쓰면 잡힌다"는 이 감사의 물음이 아니다. 전용 전경 계약은 아래 wire-styles 원문 대조가 잠그고,
+// 색값 토큰은 wire-badge-palette 테스트와 design:contrast 가 재는다.
 
 const PARTICIPANT_ID = '.participant-card-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}';
 check(
@@ -181,12 +190,13 @@ for (const [tone, outline, surface] of [
   ['amber', 'var(--badge-amber)', 'var(--badge-amber)'],
   ['lime', 'var(--badge-lime)', 'var(--badge-lime)'],
   ['cyan', 'var(--badge-cyan)', 'var(--badge-cyan)'],
+  ['light-magenta', 'var(--badge-light-magenta)', 'var(--badge-light-magenta)'],
   ['risk', 'var(--risk)', 'var(--risk)'],
 ]) {
   check(
     `${tone} 배지는 기존 계열 면과 같은 deep 규칙을 쓴다`,
     wireStylesSource.includes(
-      `.wire-badge[data-tone="${tone}"]{border-color:${outline};background:${surface};color:var(--on-badge)}`,
+      `.wire-badge[data-tone="${tone}"]{border-color:${outline};background:${surface};color:${badgeForegroundVar(tone)}}`,
     ),
   );
 }

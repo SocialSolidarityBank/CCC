@@ -118,7 +118,7 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
         <GridContainer as="main" className="page-content">
           <div className="page-header"><PageTitle>케이스 종결</PageTitle></div>
           {noticeText !== undefined && (
-            <WireBadge tone="blue" role="status" aria-live="polite">{noticeText}</WireBadge>
+          <WireBadge role="status" aria-live="polite">{noticeText}</WireBadge>
           )}
           <ClosedCaseSummary info={closure} />
           <div>

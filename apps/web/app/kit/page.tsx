@@ -10,6 +10,8 @@ import { SearchInput } from '../components/wire/search-input';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../components/wire/wire-card';
 import { WireCardSection, WireItem } from '../components/wire/wire-section';
 import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
+import { ConsultationTypeBadge } from '../components/wire/consultation-type-badge';
+import { TimeAxisBadge } from '../components/wire/time-axis-badge';
 import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
 import { WireCallout, WireQuote } from '../components/wire/wire-callout';
@@ -100,7 +102,7 @@ export default function KitPage() {
                   title="2026년 7월 15일 상담"
                   status={<>
                     <WireBadge tone="lavender">미기록</WireBadge>
-                    <WireBadge tone="blue">3회차</WireBadge>
+                <TimeAxisBadge>오늘</TimeAxisBadge>
                   </>}
                 />
               </WireCard>
@@ -288,18 +290,22 @@ export default function KitPage() {
           <h2 className="wire-kit-heading" id="kit-badge">배지와 상태 태그</h2>
           <p className="wire-kit-caption">
             배지는 WireBadge 하나가 전부다(2026-08-07 통합, 구 화면별 레시피 8종 대체). 기본형은
-            색 없이 테두리로만 선다. 블루=일정과 유형, 민트=진행과 담당, 라벤더=AI와 대기,
-            리스크=확인된 위험과 오류 전용이다. 추가 4색은 여러 형제 배지를 구분할 때만 쓴다.
+            색 없이 테두리로만 선다. 블루 배지는 오늘, 날짜, 주차, 기한 전용이고,
+            민트=진행과 담당, 라벤더=AI와 대기,
+            리스크=확인된 위험과 오류 전용이다. 상담 유형은 기본 상담=민트, 인테이크=라벤더다.
+            추가 5색은 여러 형제 배지를 구분할 때만 쓰고, 기본 배정 순서는 민트, 라벤더, 코랄, 시안,
+            라이트마젠타이며 라임과 앰버는 최후순위 폴리백이다.
           </p>
           <div className="wire-kit-row">
             <WireBadge>공식 기록</WireBadge>
             <WireBadge tone="mint">마이크로크레딧</WireBadge>
             <WireBadge tone="lavender">승인 대기 2건</WireBadge>
-            <WireBadge tone="blue">3회차</WireBadge>
+            <TimeAxisBadge>오늘</TimeAxisBadge>
             <WireBadge tone="coral">코랄</WireBadge>
-            <WireBadge tone="amber">앰버</WireBadge>
-            <WireBadge tone="lime">라임</WireBadge>
             <WireBadge tone="cyan">시안</WireBadge>
+            <WireBadge tone="light-magenta">라이트마젠타</WireBadge>
+            <WireBadge tone="lime">라임</WireBadge>
+            <WireBadge tone="amber">앰버</WireBadge>
             <WireBadge tone="risk">확인 필요</WireBadge>
             <button type="button" className="wire-status-tag">15초 페이지</button>
           </div>
@@ -359,7 +365,7 @@ export default function KitPage() {
               <summary className="record-summary">
                 <span className="record-ordinal">3회차</span>
                 <span className="record-held-at">3월 12일</span>
-                <WireBadge tone="blue">기본 상담</WireBadge>
+                <ConsultationTypeBadge kind="regular" />
                 <span className="record-one-liner">상환 계획을 다시 짰고 다음 달 임대료 납부일을 확인했다.</span>
               </summary>
               <div className="record-body">
@@ -399,7 +405,7 @@ export default function KitPage() {
           <h2 className="wire-kit-heading" id="kit-callout">콜아웃 (WireCallout)</h2>
           <p className="wire-kit-caption">
             제목 16/600, 본문 14/400, 행동 줄 순서의 안내 카드다. 톤은 계열 의미를 따른다:
-            info(블루)=시간과 상태 안내, mint=사람과 소속, lavender=주의와 대기. 리스크 어휘는
+            info(블루 tint, 배지 아님)=시간과 상태 안내, mint=사람과 소속, lavender=주의와 대기. 리스크 어휘는
             배너 전용이라 콜아웃에 없다(D9).
           </p>
           <div className="wire-kit-stack">

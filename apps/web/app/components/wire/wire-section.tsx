@@ -18,8 +18,8 @@ import type { ReactNode } from 'react';
 // 셋 중 형제 구획 사이에 구분선을 자동으로 넣는 것은 브리핑 한 벌뿐이라, 같은 모양의 구획이
 // 화면에 따라 §2-2 규칙 2 를 지키기도 하고 안 지키기도 했다. 부품은 그 차이를 없앤다.
 
-/** 구획 라벨의 계열 색(D34 고정 의미). sub = 무채색 기본, mint = 사람·기록, lavender = AI·대기, blue = 일정·시간. */
-export type WireSectionTone = 'sub' | 'mint' | 'lavender' | 'blue';
+/** 구획 라벨의 계열 색(D34 고정 의미). sub = 무채색 기본, mint = 사람·기록, lavender = AI·대기. */
+export type WireSectionTone = 'sub' | 'mint' | 'lavender';
 
 export interface WireCardSectionProps {
   /** 구획 라벨. 제목이 아니라 **라벨**이다 — 14/600 으로 본문 16 아래에 선다(§2-2 위계 4단 ②). */
@@ -55,7 +55,7 @@ export function WireCardSection({ title, children, tone = 'sub', titleId, labell
 }
 
 /** 항목의 면 색. 톤을 주면 tint 면 + 안쪽 여백이 붙고, 안 주면 면 없이 줄만 선다. */
-export type WireItemTone = 'plain' | 'mint' | 'lavender' | 'blue';
+export type WireItemTone = 'plain' | 'mint' | 'lavender';
 
 export interface WireItemProps {
   /** 항목 제목 — 16/600 --ink (§2-2 위계 4단 ①). */
