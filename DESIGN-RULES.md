@@ -110,7 +110,7 @@ lavender deep 글자로 반전한다. 접히면 기존 색상 면과 `--on-badge
 `WireToolbarField`가 화면에 숨긴 접근성 라벨과 입력 셸을 함께 소유한다. 호출부가
 `wire-input-box`나 검색 셸을 손으로 복사하지 않는다.
 
-표준 읽는 글자의 하한은 14px이다. 단, `--text-badge-compact` 12px은 `.wire-badge[data-size="sm"]`에서, `--text-participant-id` 12px은 `.participant-card-id`에서만 허용한다. 두 예외 모두 지정된 자리의 가로 여백을 확보하기 위한 것이며, 본문·라벨·메타·계열 deep 글자에는 적용하지 않는다. `--text-xs`는 2026-08-10 폐지했으며, 두 12px 토큰은 별도 부품 계약으로만 쓴다. 코드에 px 숫자를 직접 쓰지 않고 토큰을 사용한다.
+표준 읽는 글자의 하한은 14px이다. 단, `--text-badge-compact` 12px은 `.wire-badge[data-size="sm"]`에서, `--text-participant-id` 12px은 이름 옆 가명 ID 조각(`.participant-card-id`·`.participant-hero-id`, 2026-08-26 통일)에서만 허용한다. 두 예외 모두 지정된 자리의 가로 여백을 확보하기 위한 것이며, 본문·라벨·메타·계열 deep 글자에는 적용하지 않는다. `--text-xs`는 2026-08-10 폐지했으며, 두 12px 토큰은 별도 부품 계약으로만 쓴다. 코드에 px 숫자를 직접 쓰지 않고 토큰을 사용한다.
 
 ## 6. 굵기 3단 (§2-1)
 

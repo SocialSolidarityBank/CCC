@@ -202,8 +202,9 @@ export function ScheduleNav({
         </Link>
       </div>
       <div className="schedule-nav-actions">
+        {/* 업무 바는 전부 32 다(layout.tsx .schedule-nav 주석) — 주 행동도 sm 으로 같은 키에 선다. */}
         <WireButton href="/participants/new" height="sm">당사자 등록</WireButton>
-        <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>
+        <WireButton href="/schedules/new" variant="primary" height="sm">상담 등록</WireButton>
       </div>
     </nav>
   );

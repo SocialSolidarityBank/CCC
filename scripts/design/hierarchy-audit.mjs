@@ -132,21 +132,21 @@ const ALLOW = [
   ...BADGE_ALLOW,
   {
     // 2026-08-23 Q: 당사자 카드의 가명 ID만 12px으로 낮춘다.
+    // 2026-08-26 Q: HERO 의 이름 옆 ID 도 같은 레시피다("당사자와 일정의 ID 가 다르다" 통일).
     selector: '.participant-card-id',
     combo: 'var(--text-participant-id)/400/var(--sub)',
     why: '당사자 카드 가명 ID 전용 컴팩트 글자',
+  },
+  {
+    selector: '.participant-hero-id',
+    combo: 'var(--text-participant-id)/400/var(--sub)',
+    why: '이름 옆 가명 ID 조각 — 카드 칩과 같은 레시피(2026-08-26 통일)',
   },
   {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
     selector: '.participant-card-cell',
     combo: `var(--text-md)/400/${MIXED_SUB}`,
     why: 'D59 부분 재개정 — 당사자 카드 정보 칸의 가명 ID',
-  },
-  {
-    // 같은 D59 근거 — 이름이 없는 두 경우에만 HERO 이름 자리에 서는 폴백.
-    selector: '.participant-hero-id',
-    combo: `var(--text-md)/400/${MIXED_SUB}`,
-    why: 'D59 — 이름 없는 경우의 HERO 가명 ID 폴백',
   },
   // 아래 셋은 2026-08-10 Q 결정(CCC-84). `16/400 --sub` 는 **조합으로는 열 수 없다** — 킷
   // 페이지의 '고치기 전' 반례가 정확히 그 조합이라, 표에 넣는 순간 반례가 반례가 아니게 된다.

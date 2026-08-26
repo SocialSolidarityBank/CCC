@@ -404,8 +404,8 @@ describe('CCC-133 통합 업무 바', () => {
     expect(links.map((link) => link.textContent)).toEqual(['당사자 등록', '상담 등록']);
     expect(links.map((link) => link.getAttribute('href')))
       .toEqual(['/participants/new', '/schedules/new']);
-    expect(links[0]?.getAttribute('data-height')).toBe('sm');
-    expect(links[1]?.getAttribute('data-height')).toBe('md');
+    // 업무 바는 전부 32 다(2026-08-26 Q "버튼 모양 다르다" — 주 행동도 sm).
+    expect(links.every((link) => link.getAttribute('data-height') === 'sm')).toBe(true);
     expect(layoutSource).not.toContain('.schedule-nav-actions>.wire-button{flex:1 1 0');
   });
 });

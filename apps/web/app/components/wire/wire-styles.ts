@@ -266,15 +266,17 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 .participant-hero-title .wire-status-tag{white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 .participant-hero-inline-item{display:inline-flex;align-items:baseline;gap:var(--space-3);white-space:nowrap}
-/* 연락처와 가명 ID는 읽는 값이라 당사자 카드 정보 칸과 같은 16/400 --sub 다. */
+/* 연락처는 읽는 값이라 당사자 카드 정보 칸과 같은 16/400 --sub 다. 가명 ID 는 화면 어디서나
+   같은 조각이다(2026-08-26 Q "당사자와 일정의 ID 가 다르다" — 카드 칩과 같은 12/400 --sub,
+   구 16/400 옅은 색 폐지). */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
-.participant-hero-id{color:color-mix(in srgb,var(--sub) 80%,var(--panel));font-size:var(--text-md);font-weight:400;white-space:nowrap}
+.participant-hero-id{color:var(--sub);font-size:var(--text-participant-id);font-weight:400;white-space:nowrap}
 /* 767 이하는 이름을 18/600 normal로 내려 페이지 제목과 경쟁하지 않게 하고, 정보와
    메타는 설명 단으로 정리한다. */
 @media(max-width:767px){
   .participant-name-group[data-size] .participant-name{font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
   .participant-hero-title{gap:var(--space-2);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
-  .participant-hero-contact,.participant-hero-id{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
+  .participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
   .participant-hero-meta .wire-meta-row{flex-direction:column;align-items:flex-start;gap:var(--space-1)}
   .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
 }

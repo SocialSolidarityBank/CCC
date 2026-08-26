@@ -26,8 +26,9 @@ const TARGETS = [
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
 const SCOPED_TEXT_TOKENS = new Map([
-  ['--text-badge-compact', '.wire-badge[data-size="sm"]'],
-  ['--text-participant-id', '.participant-card-id'],
+  ['--text-badge-compact', ['.wire-badge[data-size="sm"]']],
+  // 이름 옆 가명 ID 조각 한 벌(2026-08-26 Q 통일) — 카드와 HERO 가 같은 레시피를 쓴다.
+  ['--text-participant-id', ['.participant-card-id', '.participant-hero-id']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.
@@ -90,9 +91,9 @@ for (const file of TARGETS) {
       if (name === '--rail-width') continue;
       if (name.startsWith('--rdp-')) continue; // react-day-picker 라이브러리 소유
       if (!defined.has(name)) add(file, n, 'undefined-token', `${name} 는 design/tokens.css 에 없다`);
-      const owner = SCOPED_TEXT_TOKENS.get(name);
-      if (owner !== undefined && !line.includes(owner)) {
-        add(file, n, 'scoped-text-token', `${name} 는 ${owner} 에서만 쓴다`);
+      const owners = SCOPED_TEXT_TOKENS.get(name);
+      if (owners !== undefined && !owners.some((owner) => line.includes(owner))) {
+        add(file, n, 'scoped-text-token', `${name} 는 ${owners.join(', ')} 에서만 쓴다`);
       }
     }
 

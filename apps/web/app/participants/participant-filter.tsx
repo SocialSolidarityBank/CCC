@@ -50,7 +50,8 @@ export function ParticipantFilter({
           />
         </WireToolbarField>
         <div className="participant-toolbar-actions">
-          <WireButton href="/participants/invite" height="sm">당사자 초대</WireButton>
+          {/* 툴바 한 줄은 한 키다(2026-08-26 Q "초대·등록 버튼 모양 다르다") — 검색칸과 같은 40. */}
+          <WireButton href="/participants/invite">당사자 초대</WireButton>
           <WireButton href="/participants/new" variant="primary">당사자 등록</WireButton>
         </div>
       </div>
