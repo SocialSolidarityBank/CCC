@@ -205,8 +205,8 @@ button,input,select,textarea{font:inherit}
 .header-actions{margin-left:auto;display:flex;align-items:center;gap:var(--space-2)}
 .header-action-form{margin:0;display:flex}
 /* 계정 행동 3개 = 32px 원형 아이콘 버튼 — 드로어 닫기 X 와 같은 세컨더리 옷(그라데이션
-   2px 테두리 + --panel 채움). 라벨은 aria-label + title 이 갖는다. */
-.header-icon-button{--button-fill:var(--panel);display:grid;place-items:center;width:32px;height:32px;padding:0;border:2px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
+   1px 테두리 + --panel 채움). 라벨은 aria-label + title 이 갖는다. */
+.header-icon-button{--button-fill:var(--panel);display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
 @media (hover:hover){.header-icon-button:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 .header-icon-button:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 /* 설정이 현재 화면이면 활성 어휘(블루 tint 채움 + 블루 아이콘)를 입는다 — 내비 활성과 같은 신호. */
@@ -285,7 +285,7 @@ button,input,select,textarea{font:inherit}
    "뒤로 아웃라인을 카드 div 아웃라인과 맞출 것" — neutral 버튼과 같은 개정).
    화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
    --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:2px solid var(--line-control);border-radius:var(--radius-pill);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 /* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
