@@ -29,6 +29,8 @@ const SCOPED_TEXT_TOKENS = new Map([
   ['--text-badge-compact', ['.wire-badge[data-size="sm"]']],
   // 이름 옆 가명 ID 조각 한 벌(2026-08-26 Q 통일) — 카드와 HERO 가 같은 레시피를 쓴다.
   ['--text-participant-id', ['.participant-card-id', '.participant-hero-id']],
+  // 당사자 이름 전용 21px(2026-08-26 Q) — 카드·HERO 공통 한 벌.
+  ['--text-participant-name', ['.participant-name']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.

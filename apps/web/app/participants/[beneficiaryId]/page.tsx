@@ -356,10 +356,10 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
           actions={
             <>
               {intakeTarget !== undefined && (
-                <WireButton height="sm" href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크</WireButton>
+                <WireButton href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크</WireButton>
               )}
               {editable && (
-                <WireButton height="sm" href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
+                <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
               )}
             </>
           }

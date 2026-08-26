@@ -53,9 +53,13 @@ export const wireStyles = `
    1px 커서, 기하 10 = 잉크 간격 18 ≈ 행간 잉크 간격 17 로 시각적으로 같은 리듬이 된다. */
 .participant-card{display:grid;align-content:start;gap:var(--space-2-5);min-width:0;overflow:hidden;padding:var(--space-5) var(--space-6)}
 .participant-card-header{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);min-width:0}
-.participant-card-identity{display:flex;flex:1 1 auto;align-items:center;gap:var(--space-2);min-width:0;overflow:hidden}
-/* 이름은 전역 24/600(--text-xl)이다(2026-08-25 Q). 일정·목록·HERO를 오갈 때 크기가
-   바뀌지 않고, 상세 값 14와의 위계는 같은 카드 안에서 유지한다. */
+/* 이름 열과 ID 는 정보 행의 라벨 열(80px, .wire-field-row)과 같은 격자를 쓴다
+   (2026-08-26 Q "participant-card-id 를 participant-card-date 와 열 맞추기") — 이름이
+   80px 안이면 ID 가 아래 값들과 같은 x 에서 시작하고, 길면 자연히 밀린다.
+   column-gap 은 compact 행과 같은 --space-2-5 다. */
+.participant-card-identity{display:grid;grid-template-columns:minmax(80px,max-content) minmax(0,1fr);column-gap:var(--space-2-5);flex:1 1 auto;align-items:center;min-width:0;overflow:hidden}
+/* 이름은 전역 21/600(--text-participant-name, 2026-08-26 Q — 구 24). 일정·목록·HERO를
+   오갈 때 크기가 바뀌지 않고, 상세 값 14와의 위계는 같은 카드 안에서 유지한다. */
 .participant-card-name-group{flex:0 1 auto;min-width:0;overflow:hidden}
 .participant-card-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:600}
 .participant-card-name.is-empty{color:var(--sub)}
@@ -247,7 +251,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
    동명이인 구분은 전화번호가 맡는다(전체 번호, 자리는 화면이 정한다). */
 .participant-name-group{display:inline-flex;align-items:baseline;gap:var(--space-1);flex-wrap:wrap}
 .participant-name{color:var(--ink);font-weight:600;overflow-wrap:anywhere}
-.participant-name-group[data-size] .participant-name{font-size:var(--text-xl);font-weight:600;line-height:var(--leading-tight)}
+.participant-name-group[data-size] .participant-name{font-size:var(--text-participant-name);font-weight:600;line-height:var(--leading-tight)}
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
