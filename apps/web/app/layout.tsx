@@ -205,8 +205,8 @@ button,input,select,textarea{font:inherit}
 .header-actions{margin-left:auto;display:flex;align-items:center;gap:var(--space-2)}
 .header-action-form{margin:0;display:flex}
 /* 계정 행동 3개 = 32px 원형 아이콘 버튼 — 드로어 닫기 X 와 같은 세컨더리 옷(그라데이션
-   1px 테두리 + --panel 채움). 라벨은 aria-label + title 이 갖는다. */
-.header-icon-button{--button-fill:var(--panel);display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
+   2px 테두리 + --panel 채움). 라벨은 aria-label + title 이 갖는다. */
+.header-icon-button{--button-fill:var(--panel);display:grid;place-items:center;width:32px;height:32px;padding:0;border:2px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
 @media (hover:hover){.header-icon-button:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 .header-icon-button:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 /* 설정이 현재 화면이면 활성 어휘(블루 tint 채움 + 블루 아이콘)를 입는다 — 내비 활성과 같은 신호. */
@@ -282,7 +282,7 @@ button,input,select,textarea{font:inherit}
    "뒤로 아웃라인을 카드 div 아웃라인과 맞출 것" — neutral 버튼과 같은 개정).
    화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
    --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-3-5);border:2px solid var(--line-control);border-radius:var(--radius-control);background:var(--button-fill);color:var(--ink);font-size:var(--text-sm);font-weight:400;cursor:pointer}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 /* 눌림 모션(1px 가라앉음)은 일부러 없다(2026-08-04 Q) — 바로 아래 가로선에 걸려 보인다. */
 .page-back:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -707,7 +707,7 @@ const scheduleStyles = `
 .schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 현재 ISO 주간과 월 선택은 상시 나란히 선다. 고른 쪽만 '지금 정한 것' 어휘를 입는다. */
 .schedule-period-controls{display:flex;align-items:stretch;flex-wrap:wrap;gap:var(--space-3)}
-.schedule-range-seg{display:inline-flex;align-items:center;line-height:normal;min-height:var(--pill-height);padding:0 var(--space-3-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
+.schedule-range-seg{display:inline-flex;align-items:center;line-height:normal;min-height:var(--pill-height);padding:0 var(--space-3-5);border:2px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
 @media (hover:hover){.schedule-range-seg:not([data-selected="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
 .schedule-range-seg:active{transform:translateY(1px)}
 .schedule-range-seg:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -829,13 +829,14 @@ const monthScheduleStyles = `
 .month-nav{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-4)}
 /* 달 라벨은 이 줄의 **값**이라 조작 버튼보다 한 발 선다(2026-08-06 Q "상대적으로 작아 보인다")
    — 크기 +1(15) · 600. 당사자 카드 이름과 같은 계단 광학 예외 형식이다(§2-1). */
-.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);text-decoration:none;white-space:nowrap}
+.month-nav-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-width:9ch;min-height:var(--pill-height);padding:0 var(--space-3-5);border:2px solid var(--line-control);border-radius:var(--radius-control);font-size:calc(var(--text-sm) + 1px);font-weight:600;color:var(--ink);text-decoration:none;white-space:nowrap}
 .month-nav-label[data-selected="true"]{background:var(--gradient-action);color:var(--on-action)}
 .month-nav-label:focus-visible{outline:2px solid var(--blue-deep);outline-offset:-2px}
-/* ── 시안 ① 하나의 상자 ── 겉 테두리는 neutral 버튼·카드와 같은 --line(2026-08-07 Q 통일,
-   구 --line-action), 조각 사이 세로선도 --line. 높이도 조작 버튼과 같은 32 다.
+/* ── 시안 ① 하나의 상자 ── 겉 테두리는 neutral 버튼과 같은 --line-control 2px
+   (2026-08-26 아웃라인 강화, 구 --line 1px). 조각 사이 세로선은 --line 1px 그대로다
+   (구분선은 아웃라인이 아니다). 높이도 조작 버튼과 같은 32, 패딩도 같은 14 다.
    모서리 밖 삐침은 clip 으로 자른다. */
-.month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);overflow:clip}
+.month-nav-group{display:inline-flex;align-items:stretch;min-height:var(--pill-height);border:2px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);overflow:clip}
 .month-nav-group .month-nav-label{border:0;border-radius:0;min-height:auto}
 .month-nav-seg{display:inline-flex;align-items:center;line-height:normal;gap:var(--space-3);padding:0 var(--space-3-5);color:var(--ink);font-size:var(--text-sm);font-weight:400;white-space:nowrap}
 /* 달 이동 조각의 꺽쇠 예외(.5em = 7)도 2026-08-10 에 없앴다 — 전 화면 한 값(--chevron-box). */

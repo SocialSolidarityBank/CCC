@@ -750,36 +750,42 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    뜨는 것은 이 면 대비이지 테두리 진하기가 아니다. */
 /* 정렬 기본은 **가운데**다(2026-08-02 D58/CCC-50 — 구 왼쪽 기본은 버그, DESIGN.md §5).
    왼쪽·양끝 정렬은 data-justify 명시 옵션으로만 쓴다.
-   세컨더리(기본형) 테두리는 **--gradient-brand 1px 아웃라인**이다(2026-08-02 D58/CCC-51 —
-   구 --line-action 을 대체, §3-3 배경 2겹 방식). 채움은 --button-fill 로만 바꾼다 —
+   세컨더리(기본형) 테두리는 **--gradient-brand 아웃라인**이다(2026-08-02 D58/CCC-51 —
+   구 --line-action 을 대체, §3-3 배경 2겹 방식. 두께는 아래 2px 계약). 채움은 --button-fill 로만 바꾼다 —
    background 를 통째로 덮으면 테두리 층이 날아간다(카드 계약과 같은 함정). 프라이머리·
    고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
 /* 행간은 default(normal)다 — 2026-08-06 Q: 단일행 컨트롤의 세로 중앙은 광학 보정이 아니라
    기하 정렬(flex 상하좌우 center + 기본 행간)이 만든다(구 --leading-none 대체). */
 /* 크기 두 갈래(2026-08-06 Q): 핵심 버튼(프라이머리·세컨더리·위험) = --text-btn 15,
    이동·보기 조작(neutral·ghost) = 계단 14. 굵기도 갈린다 — 강조(핵심)만 600, 조작은 400. */
-.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-control);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-btn);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
-.wire-button[data-height="sm"]{min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm)}
-/* 프라이머리: --gradient-action 배경 + --line-on-action 1px. 그림자는 없다(2026-08-06,
+/* 좌우 패딩은 크기·종류와 무관하게 14(--space-3-5) 하나다(2026-08-26 Q "여백이 14, 16
+   두 가지" 통일. 16 통일 시안과 실물 비교 후 14 확정, 구 핵심 16 은 폐기). */
+/* 테두리는 전 종류 2px 다(2026-08-26 Q "아웃라인 더 잘 보이도록". 카드 아웃라인 1px 과
+   갈려 누를 수 있는 것이 선 두께로 선다. 1.5px 는 크로뮴이 zoom 1 에서 1px 로 내림해
+   화면에 없는 값이었다, 2026-08-26 실측. 위험 버튼의 구 1.5 도 실제로는 1 로 그려졌다). */
+.wire-button{--button-fill:var(--panel);display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3-5);border:2px solid transparent;border-radius:var(--radius-control);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-btn);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
+.wire-button[data-height="sm"]{min-height:var(--pill-height);font-size:var(--text-sm)}
+/* 프라이머리: --gradient-action 배경 + --line-on-action 테두리. 그림자는 없다(2026-08-06,
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
-.wire-button[data-variant="primary"]{background:var(--gradient-action);border:1px solid var(--line-on-action);color:var(--on-action);background-size:200% auto;background-position:50% 0}
+.wire-button[data-variant="primary"]{background:var(--gradient-action);border-color:var(--line-on-action);color:var(--on-action);background-size:200% auto;background-position:50% 0}
 /* 일반(neutral): 그레이 아웃라인(2026-08-06 Q 위계 재편). 이동·보기 조작(뒤로,
    시간순, 달 이동)이 쓴다. 컬러는 중요 행동의 어휘로 올라간다: 세컨더리 = 컬러 아웃라인,
-   프라이머리 = 그라데이션 면. 테두리는 카드 아웃라인과 같은 --line 이다(2026-08-07 Q
-   "뒤로·시간순·달 이동 아웃라인을 카드 div 아웃라인과 맞출 것" — 구 --line-action(잉크
-   50%) 대체. 조작 버튼은 카드와 같은 표면 어휘로 물러선다). 호버는 기본형과 같은
-   잉크 워시(--button-fill 변수만 바뀐다). */
-/* 조작 버튼은 크기도 한 단이다(2026-08-06 Q "텍스트 크기가 같은데 버튼 크기가 달라서
-   이상") — 뒤로 버튼과 같은 32(--pill-height)·패딩 14 로 통일한다. 핵심 버튼만 40 이다. */
-.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
+   프라이머리 = 그라데이션 면. 테두리는 컨트롤 경계 --line-control 다(2026-08-26 Q
+   "아웃라인 더 잘 보이도록", 구 --line 1px 대체. 카드는 표면이고 버튼은 컨트롤이라
+   경계 토큰을 입력칸과 나눠 갖는다. 라이트에서는 2px 두께가, 다크에서는 토큰값이
+   가시성을 만든다). 호버는 기본형과 같은 잉크 워시(--button-fill 변수만 바뀐다). */
+/* 조작 버튼은 크기가 한 단이다(2026-08-06 Q "텍스트 크기가 같은데 버튼 크기가 달라서
+   이상"): 뒤로 버튼과 같은 32(--pill-height), 핵심 버튼만 40 이다. 패딩은 2026-08-26
+   부터 전 크기 14 하나라 여기서 다시 정하지 않는다. */
+.wire-button[data-variant="neutral"]{background:var(--button-fill);border-color:var(--line-control);min-height:var(--pill-height);font-size:var(--text-sm);font-weight:400}
 /* 고스트: 배경·테두리 없음, --sub 글자. 조작 축이라 neutral 과 같은 14/400·32 다. */
-.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);padding:0 var(--space-3-5);font-size:var(--text-sm);font-weight:400}
+.wire-button[data-variant="ghost"]{background:transparent;border-color:transparent;color:var(--sub);min-height:var(--pill-height);font-size:var(--text-sm);font-weight:400}
 /* 버튼 안 꺽쇠 크기 예외 2건은 2026-08-10 에 없앴다(Q "버튼과 listrow, 체브론 맞추기").
    구 값은 라벨을 따라가는 .5333em(15px 라벨 8)·.5em(14px 라벨 7)이었고, 그래서 같은 화면의
    버튼·행·카드 꺽쇠가 8·10·9 로 셋 다 달랐다. 이제 --chevron-box 하나를 함께 본다. */
-/* 위험: 되돌리기 어려운 행동에만. */
-.wire-button[data-variant="danger"]{background:var(--panel);border:1.5px solid var(--risk);color:var(--risk)}
+/* 위험: 되돌리기 어려운 행동에만. 두께 2 는 기본 계약이 갖는다(구 1.5 는 1 로 그려졌다). */
+.wire-button[data-variant="danger"]{background:var(--panel);border-color:var(--risk);color:var(--risk)}
 .wire-button[data-justify="center"]{justify-content:center}
 .wire-button[data-justify="left"]{justify-content:flex-start;text-align:left}
 .wire-button[data-justify="between"]{justify-content:space-between;text-align:left}
@@ -1071,7 +1077,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-date-control{position:relative;display:flex;align-items:center;gap:var(--space-2);width:100%}
 .wire-date-control>input{flex:1 1 auto;min-width:0}
 /* 달력 버튼은 입력칸 높이에 맞춘 정사각형이다. 아이콘만 있으므로 접근성 이름은 aria-label 이 준다. */
-.wire-date-toggle{flex:none;display:grid;place-items:center;line-height:normal;width:var(--control-height);height:var(--control-height);padding:0;border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub);cursor:pointer}
+.wire-date-toggle{flex:none;display:grid;place-items:center;line-height:normal;width:var(--control-height);height:var(--control-height);padding:0;border:2px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--sub);cursor:pointer}
 .wire-date-toggle:hover{background:var(--muted);color:var(--ink)}
 .wire-date-toggle:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 .wire-date-toggle[aria-expanded="true"]{background:var(--blue-tint);color:var(--ink)}
@@ -1186,7 +1192,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    읽어야 하는 값에 deep 글자를 쓰지 않는다(§9 대비 예외는 보조 정보 한정). */
 .wire-time-slot[aria-pressed="true"]{background:var(--blue);color:var(--ink);font-weight:600}
 .wire-datetime-popover-foot{flex:1 0 100%;display:flex;justify-content:flex-end;padding-top:var(--space-2);border-top:1px solid var(--line)}
-.wire-datetime-done{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.wire-datetime-done{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--pill-height);padding:0 var(--space-3-5);border:2px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .wire-datetime-done:hover{background:var(--muted)}
 .wire-datetime-done:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 @media (max-width:767px){
