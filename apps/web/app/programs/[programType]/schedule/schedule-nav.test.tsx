@@ -362,12 +362,18 @@ describe('CCC-133 통합 업무 바', () => {
     expect(rule('.schedule-nav-step')).not.toContain('border-radius:0');
   });
 
-  it('버튼·카드·배지는 같은 중립 아웃라인 변수와 1px 굵기를 쓴다', () => {
-    for (const selector of ['.surface-card', '.wire-button', '.wire-badge']) {
+  it('카드·배지는 중립 1px, 버튼만 컨트롤 2px 아웃라인을 쓴다 (2026-08-26 Q)', () => {
+    // 표면(카드)과 읽기 전용 알약(배지)은 --line 1px 그대로, 누르는 것(버튼)만
+    // --line-control 2px 로 갈린다. 셋 다 같은 --wire-outline-* 변수 체계를 쓴다.
+    for (const selector of ['.surface-card', '.wire-badge']) {
       const shared = baseRule(selector);
       expect(shared).toContain('--wire-outline-color:var(--line)');
       expect(shared).toContain('--wire-outline-width:1px');
     }
+    const button = baseRule('.wire-button');
+    expect(button).toContain('--wire-outline-color:var(--line-control)');
+    expect(button).toContain('--wire-outline-width:2px');
+    expect(button).toContain('padding:0 var(--space-3-5)');
     expect(wireSource).not.toContain('.participant-hub-page .surface-card{border-color:');
   });
 
