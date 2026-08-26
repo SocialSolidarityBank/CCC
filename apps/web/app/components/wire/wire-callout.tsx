@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WireBullets, WireCard, type WireCardTone } from './wire-card';
+import { WireButton } from './wire-button';
 
 // 콜아웃(안내줄) 계약, 2026-08-07 Q 리팩터링으로 컴포넌트 확정.
 // draft-notice 와 intake-saved-notice 가 손으로 조립하던 안내줄(WireCard tone
@@ -82,7 +82,14 @@ export function WireSourceQuotes({ quotes, sourceHref }: WireSourceQuotesProps) 
       <summary>근거 인용 보기</summary>
       <div className="wire-source-quotes-body">
         {quotes.map((quote, index) => <WireQuote key={`${index}-${quote}`}>{quote}</WireQuote>)}
-        <Link className="wire-source-quotes-link" href={sourceHref}>출처 회차 보기</Link>
+        <WireButton
+          className="wire-source-quotes-link"
+          variant="neutral"
+          height="sm"
+          href={sourceHref}
+        >
+          출처 회차 보기
+        </WireButton>
       </div>
     </details>
   );

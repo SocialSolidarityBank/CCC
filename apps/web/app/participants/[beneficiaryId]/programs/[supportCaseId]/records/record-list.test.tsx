@@ -1,7 +1,15 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { RecordList } from './record-list';
 import type { SupportCaseRecord } from '../../../../../lib/api';
+
+const wireStylesSource = readFileSync(
+  resolve(process.cwd(), 'app/components/wire/wire-styles.ts'),
+  'utf8',
+);
+const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
 
 // D47 · ADR-0019 — 상담 기록 회차 목록. 고정하는 것은 네 가지다:
 //  ① 최신 1개만 펼침 + 나머지는 접힘 (§1)
@@ -45,6 +53,27 @@ function renderList(records: SupportCaseRecord[], errorIds: string[] = []) {
 }
 
 describe('RecordList', () => {
+  it('펼친 회차의 유형 배지는 색 면과 글자를 접근 가능한 deep 색으로 반전한다', () => {
+    expect(wireStylesSource).toMatch(
+      /details\.surface-card\[open\]:not\(\.briefing-card\)>\.record-summary \.wire-badge\[data-tone="mint"\]\{[^}]*background:var\(--on-badge\);color:var\(--mint-deep\)/,
+    );
+    expect(wireStylesSource).toMatch(
+      /details\.surface-card\[open\]:not\(\.briefing-card\)>\.record-summary \.wire-badge\[data-tone="lavender"\]\{[^}]*background:var\(--on-badge\);color:var\(--lavender-deep\)/,
+    );
+  });
+
+  it('좁은 회차 카드는 핵심 한 줄을 두 번째 행에 최대 두 줄로 둔다', () => {
+    expect(layoutSource).toMatch(
+      /\.record-list\{[^}]*container-type:inline-size/,
+    );
+    expect(layoutSource).toMatch(
+      /@container \(max-width:600px\)\{[\s\S]*?\.record-one-liner\.wire-fade-clip\{[^}]*flex:1 0 100%;[^}]*white-space:normal;[^}]*-webkit-line-clamp:2/,
+    );
+    expect(layoutSource).not.toMatch(
+      /\.record-one-liner\.wire-fade-clip\{[^}]*color:/,
+    );
+  });
+
   it('최신 1개만 펼치고 나머지는 접어 둔다 (§1)', () => {
     const { container } = renderList([
       record({ id: 'latest', heldAt: '2026-07-28T05:00:00.000Z' }),

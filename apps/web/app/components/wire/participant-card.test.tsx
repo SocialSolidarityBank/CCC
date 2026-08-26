@@ -64,7 +64,7 @@ describe('ParticipantCard', () => {
     expect(badge?.getAttribute('data-tone')).toBe('lavender');
   });
 
-  it('당사자 목록 카드에서 이름 옆 ID와 세로 정보행을 표시한다', () => {
+  it('당사자 목록 카드에서 ID를 참여 사업·연락처와 같은 값 열에 표시한다', () => {
     const { container } = render(
       <ParticipantCard
         href="/participants/swallow-003"
@@ -79,12 +79,13 @@ describe('ParticipantCard', () => {
     const header = container.querySelector('.participant-card-header');
     const fields = container.querySelector('.participant-card-fields');
     expect(header?.textContent).toContain('김민서');
-    expect(header?.querySelector('.participant-card-id')?.textContent).toBe('swallow-003');
+    expect(header?.querySelector('.participant-name')).not.toBeNull();
+    expect(header?.querySelector('.participant-card-id')).toBeNull();
     expect(header?.textContent).toContain('진행 중');
+    expect(fields?.textContent).toContain('IDswallow-003');
     expect(fields?.textContent).toContain('참여 사업2개');
     expect(fields?.textContent).toContain('연락처010-0000-1234');
     expect(fields?.textContent).not.toContain('가명 ID');
-    expect(fields?.textContent).not.toContain('swallow-003');
     expect(fields?.textContent).not.toContain('상담 일시');
     expect(fields?.textContent).not.toContain('기본 상담');
     expect(fields?.querySelector('[data-layout="stack"]')).toBeNull();

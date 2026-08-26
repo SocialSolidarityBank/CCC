@@ -63,10 +63,14 @@ const ROLES = [
   { size: 'var(--text-md)', weight: '600', colors: ['var(--ink)', 'var(--risk)'], role: '카드 제목·행 강조' },
   // 셸 기본(사이드바·헤더). 비활성 내비는 --sub, 활성은 --ink
   { size: 'var(--text-md)', weight: '500', colors: ['var(--ink)', 'var(--sub)'], role: '셸 기본' },
-  // 본문 · 입력값
-  { size: 'var(--text-md)', weight: '400', colors: ['var(--ink)'], role: '본문·입력값' },
+  // 본문
+  { size: 'var(--text-md)', weight: '400', colors: ['var(--ink)'], role: '본문' },
   // 라벨(구획 라벨·입력칸 라벨). 색은 --sub 또는 계열 deep
-  { size: 'var(--text-sm)', weight: '600', colors: ['var(--sub)', ...SERIES_DEEP, 'var(--risk)'], role: '라벨' },
+  { size: 'var(--text-sm)', weight: '600', colors: ['var(--sub)', ...SERIES_DEEP, 'var(--discrepancy)', 'var(--risk)'], role: '라벨' },
+  // 일정 기간 값 — 2026-08-25 Q. 일정 기간 이름 한 자리 전용(§2-1 역할표 같은 행).
+  { size: 'var(--text-sm)', weight: '500', colors: ['var(--ink)'], role: '일정 기간 값' },
+  // 공통 입력값 — 2026-08-25 Q. input·select·textarea 공통.
+  { size: 'var(--text-sm)', weight: '400', colors: ['var(--ink)'], role: '입력값' },
   // 메타·설명·도움말
   { size: 'var(--text-sm)', weight: '400', colors: ['var(--sub)'], role: '메타·설명' },
   // 배지·칩. 2026-08-06 Q 로 400 이고, 색은 계열 deep 이 원칙이되 무채색 배지가 있다

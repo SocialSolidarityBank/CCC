@@ -30,11 +30,12 @@ describe('ParticipantName', () => {
     expect(container.querySelector('.participant-name')?.textContent).toBe('swallow-003');
   });
 
-  it('실명 크기는 자리가 정한다 — hero 28 · row 16, h2 단은 폐지 (2026-08-09 CCC-77)', () => {
-    const hero = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" size="hero" />);
-    expect(hero.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('var(--text-2xl)');
-
-    const row = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" />);
-    expect(row.container.querySelector<HTMLElement>('.participant-name')?.style.fontSize).toBe('var(--text-md)');
+  it('실명 크기는 data-size 계약이 정하고 인라인 스타일로 모바일 규칙을 막지 않는다', () => {
+    for (const size of ['hero', 'hub', 'row'] as const) {
+      const view = render(<ParticipantName name="김미영" beneficiaryId="swallow-003" size={size} />);
+      expect(view.container.querySelector('.participant-name-group')?.getAttribute('data-size')).toBe(size);
+      expect(view.container.querySelector('.participant-name')?.getAttribute('style')).toBeNull();
+      view.unmount();
+    }
   });
 });

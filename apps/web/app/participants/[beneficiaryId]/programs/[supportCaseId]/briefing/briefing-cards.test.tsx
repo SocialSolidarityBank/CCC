@@ -1,9 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, fireEvent, within, cleanup } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { BriefingCards, type BriefingCardsProps } from './briefing-cards';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다 — 렌더 누적을 막기 위해 명시 정리.
 afterEach(cleanup);
+
+const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
 
 function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsProps {
   return {
@@ -116,7 +120,9 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
   it('영역 ①은 실무자 입력(세션 목표·맞춤형 질문)이 위, AI 제안이 아래다 (D45·R5)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
-    const labels = [...card.querySelectorAll('.wire-card-section>h3')].map((node) => node.textContent);
+    const labels = [...card.querySelectorAll('.wire-card-section')].map(
+      (section) => section.querySelector('h3')?.textContent,
+    );
     expect(labels).toEqual(['세션 목표', '맞춤형 질문', 'AI 제안']);
     expect(card.textContent).toContain('구직 상담');
     expect(card.textContent).toContain('이번 달 지출은 정리됐는지');
@@ -263,6 +269,17 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const card = cardByTitle(container, '미해결 액션');
     const link = within(card).getByRole('link', { name: '출처 회차 보기' });
     expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
+    expect(link.classList.contains('wire-button')).toBe(true);
+    expect(link.getAttribute('data-variant')).toBe('neutral');
+  });
+
+  it('AI 제안과 접힌 근거의 회차 출처도 모두 버튼 표면을 쓴다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const suggestion = within(cardByTitle(container, '오늘 만나기 전 꼭 기억할 것'))
+      .getByRole('link', { name: /근거 회차 보기/ });
+    expect(suggestion.classList.contains('wire-button')).toBe(true);
+    const source = container.querySelector('.wire-source-quotes-link');
+    expect(source?.classList.contains('wire-button')).toBe(true);
   });
 
   it('영역 ③은 불일치가 없으면 빈 상태를 표시한다 (CCC-43)', () => {
@@ -297,6 +314,10 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const card = cardByTitle(container, '내용 불일치');
     // 건수 배지 — 영역 ② '승인 대기'와 같은 자리 문법.
     expect(card.querySelector('.wire-card-summary')?.textContent).toContain('2건');
+    expect(card.querySelector('.wire-card-summary .wire-badge')?.getAttribute('data-tone')).toBe('coral');
+    expect([...card.querySelectorAll('.wire-card-section')].every(
+      (section) => section.getAttribute('data-tone') === 'discrepancy',
+    )).toBe(true);
     // 유형 라벨 2종.
     expect(card.textContent).toContain('회차 간 불일치');
     expect(card.textContent).toContain('회차 내 모순');
@@ -307,6 +328,9 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const links = [...card.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toContain(`${recordsHref}#record-s-1`);
     expect(links).toContain(`${recordsHref}#record-s-2`);
+    const recordButtons = within(card).getAllByRole('link', { name: '기록 보기' });
+    expect(recordButtons).toHaveLength(4);
+    expect(recordButtons.every((link) => link.classList.contains('wire-button'))).toBe(true);
     // 각 인용 옆에 상담일이 붙는다.
     expect(card.textContent).toContain('2026년 7월 1일 회차');
     expect(card.textContent).toContain('2026년 7월 15일 회차');
@@ -557,6 +581,16 @@ describe('활성 세부 목표 (D62 §8 · CCC-69)', () => {
     expect(goalCard(container).textContent).not.toContain('세부 목표');
     expect(goalCard(container).querySelector('.briefing-subgoal-rows')).toBeNull();
   });
+
+  it('전체 목표·세부 목표·세션 목표 라벨은 neutral 계약을 쓴다', () => {
+    const { container } = render(<BriefingCards {...baseProps({ activeGoals: threeGoals })} />);
+    expect(goalCard(container).querySelector('.goal-tree-label')).not.toBeNull();
+    const neutralTitles = [...container.querySelectorAll('.wire-card-section:not([data-tone]) h3')]
+      .map((title) => title.textContent);
+    expect(neutralTitles).toContain('세부 목표');
+    expect(neutralTitles).toContain('세션 목표');
+    expect(container.querySelector('.briefing-parent-goal')?.getAttribute('data-tone')).toBeNull();
+  });
 });
 
 describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () => {
@@ -581,6 +615,40 @@ describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () 
     const parent = container.querySelector('.briefing-parent-goal');
     expect(parent?.textContent).toContain('세부 목표(종료): 주거 안정');
     expect(parent?.classList.contains('is-closed')).toBe(true);
+  });
+
+  it('세션 목표 수정은 구획 제목 오른쪽 버튼으로 선다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const section = [...container.querySelectorAll('.wire-card-section')].find(
+      (candidate) => candidate.querySelector('h3')?.textContent === '세션 목표',
+    );
+    const head = section?.querySelector('.wire-card-section-head');
+    expect(head?.querySelector('h3')?.textContent).toBe('세션 목표');
+    expect(head?.querySelector('.wire-button')?.textContent).toBe('세션 목표 수정');
+    expect(section?.querySelector(':scope > .wire-button')).toBeNull();
+  });
+});
+
+describe('BriefingCards — 바깥 제목 정렬', () => {
+  it('상담 전 꼭 봐야할 내용 제목 줄은 카드 본문 시작선만큼 안으로 맞춘다', () => {
+    expect(layoutSource).toMatch(
+      /\.record-section-title\{[^}]*padding-inline:var\(--space-6\)/,
+    );
+    expect(layoutSource).not.toMatch(
+      /\.briefing-toolbar\{[^}]*padding-inline:/,
+    );
+  });
+
+  it('모바일 전체 목표는 라벨 한 줄 뒤 값과 수정 버튼을 한 행에 둔다', () => {
+    expect(layoutSource).toMatch(
+      /\.briefing-goal-row\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/,
+    );
+    expect(layoutSource).toMatch(
+      /\.briefing-goal-row>\.goal-tree-label\{grid-column:1\/-1\}/,
+    );
+    expect(layoutSource).toMatch(
+      /\.briefing-goal-display,\.briefing-goal-text\{[^}]*min-width:0;[^}]*width:100%/,
+    );
   });
 });
 

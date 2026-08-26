@@ -18,14 +18,16 @@ import type { ReactNode } from 'react';
 // 셋 중 형제 구획 사이에 구분선을 자동으로 넣는 것은 브리핑 한 벌뿐이라, 같은 모양의 구획이
 // 화면에 따라 §2-2 규칙 2 를 지키기도 하고 안 지키기도 했다. 부품은 그 차이를 없앤다.
 
-/** 구획 라벨의 계열 색(D34 고정 의미). sub = 무채색 기본, mint = 사람·기록, lavender = AI·대기. */
-export type WireSectionTone = 'sub' | 'mint' | 'lavender';
+/** 구획 라벨의 계열 색(D34 고정 의미). discrepancy 는 리스크와 분리한 기록 차이 전용이다. */
+export type WireSectionTone = 'sub' | 'mint' | 'lavender' | 'discrepancy';
 
 export interface WireCardSectionProps {
   /** 구획 라벨. 제목이 아니라 **라벨**이다 — 14/600 으로 본문 16 아래에 선다(§2-2 위계 4단 ②). */
   title: ReactNode;
   children: ReactNode;
   tone?: WireSectionTone;
+  /** 제목 줄 오른쪽 행동 하나. 제목과 같은 줄에서 독립 버튼으로 렌더한다. */
+  action?: ReactNode;
   /** 라벨 요소의 id. 구획에 이름을 지어 줄 때 labelledBy 와 짝으로 쓴다. */
   titleId?: string;
   labelledBy?: string;
@@ -40,7 +42,16 @@ export interface WireCardSectionProps {
  * 쌓이면 장치를 쓴다"고 요구하는데, 구획이 둘 이상 이어진다는 것이 곧 그 조건이므로 장치 ⓐ
  * (가로선)를 부품이 자동으로 만족시킨다.
  */
-export function WireCardSection({ title, children, tone = 'sub', titleId, labelledBy, testId }: WireCardSectionProps) {
+export function WireCardSection({
+  title,
+  children,
+  tone = 'sub',
+  action,
+  titleId,
+  labelledBy,
+  testId,
+}: WireCardSectionProps) {
+  const titleElement = <h3 {...(titleId !== undefined ? { id: titleId } : {})}>{title}</h3>;
   return (
     <section
       className="wire-card-section"
@@ -48,7 +59,14 @@ export function WireCardSection({ title, children, tone = 'sub', titleId, labell
       {...(labelledBy !== undefined ? { 'aria-labelledby': labelledBy } : {})}
       {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
-      <h3 {...(titleId !== undefined ? { id: titleId } : {})}>{title}</h3>
+      {action === undefined
+        ? titleElement
+        : (
+            <div className="wire-card-section-head">
+              {titleElement}
+              {action}
+            </div>
+          )}
       {children}
     </section>
   );

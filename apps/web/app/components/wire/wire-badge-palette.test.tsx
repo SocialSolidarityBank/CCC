@@ -74,7 +74,7 @@ describe('WireBadge palette', () => {
   it('모든 색상 배지는 전용 surface 토큰과 지정된 전경을 쓴다', () => {
     for (const entry of BADGE_PALETTE) {
       expect(stylesSource).toContain(
-        `.wire-badge[data-tone="${entry.tone}"]{border-color:var(--badge-${entry.tone});background:var(--badge-${entry.tone});color:var(${foregroundToken(entry)})}`,
+        `.wire-badge[data-tone="${entry.tone}"]{--wire-outline-color:var(--badge-${entry.tone});background:var(--badge-${entry.tone});color:var(${foregroundToken(entry)})}`,
       );
     }
   });

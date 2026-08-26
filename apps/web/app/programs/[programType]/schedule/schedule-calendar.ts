@@ -18,10 +18,6 @@ export interface DayGroup {
   readonly schedules: readonly TodaySchedule[];
 }
 
-export interface WeekGroup extends IsoWeek {
-  readonly days: readonly DayGroup[];
-}
-
 function parseDateKey(key: string): Date {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
   if (match === null) throw new RangeError(`Invalid calendar date key: ${key}`);
@@ -65,17 +61,6 @@ function dateLabel(key: string, includeYear: boolean): string {
   return `${prefix}${date.getUTCMonth() + 1}월 ${date.getUTCDate()}일(${weekdayLabels[date.getUTCDay()]})`;
 }
 
-export function weekRangeLabel(week: IsoWeek): string {
-  const start = parseDateKey(week.startKey);
-  const end = parseDateKey(week.endKey);
-  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
-  const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth();
-  if (sameMonth) {
-    return `${dateLabel(week.startKey, true)}-${end.getUTCDate()}일(${weekdayLabels[end.getUTCDay()]})`;
-  }
-  return `${dateLabel(week.startKey, true)}-${dateLabel(week.endKey, !sameYear)}`;
-}
-
 export function dayHeading(key: string): string {
   return dateLabel(key, false);
 }
@@ -111,60 +96,16 @@ function groupByDay(
     .map(([key, rows]) => ({ key, temporal: temporalPosition(key, todayKey), schedules: rows }));
 }
 
-function groupByWeek(days: readonly DayGroup[], todayKey: string): readonly WeekGroup[] {
-  // Builder only: collect immutable DayGroup values before returning readonly week values.
-  const grouped = new Map<string, { isoYear: number; isoWeek: number; endKey: string; days: DayGroup[] }>();
-  for (const day of days) {
-    const week = isoWeekOf(day.key);
-    const existing = grouped.get(week.startKey);
-    if (existing === undefined) {
-      grouped.set(week.startKey, {
-        isoYear: week.isoYear,
-        isoWeek: week.isoWeek,
-        endKey: week.endKey,
-        days: [day],
-      });
-    } else {
-      existing.days.push(day);
-    }
-  }
-
-  const currentWeekStart = isoWeekOf(todayKey).startKey;
-  const rank = (startKey: string): number => {
-    if (startKey === currentWeekStart) return 0;
-    return startKey > currentWeekStart ? 1 : 2;
-  };
-  return [...grouped.entries()]
-    .map(([startKey, week]) => ({
-      startKey,
-      endKey: week.endKey,
-      isoYear: week.isoYear,
-      isoWeek: week.isoWeek,
-      days: [...week.days].sort((left, right) => {
-        const leftRank = left.temporal === 'today' ? 0 : left.temporal === 'future' ? 1 : 2;
-        const rightRank = right.temporal === 'today' ? 0 : right.temporal === 'future' ? 1 : 2;
-        if (leftRank !== rightRank) return leftRank - rightRank;
-        return left.temporal === 'past'
-          ? right.key.localeCompare(left.key)
-          : left.key.localeCompare(right.key);
-      }),
-    }))
-    .sort((left, right) => {
-      const leftRank = rank(left.startKey);
-      const rightRank = rank(right.startKey);
-      if (leftRank !== rightRank) return leftRank - rightRank;
-      return leftRank === 2
-        ? right.startKey.localeCompare(left.startKey)
-        : left.startKey.localeCompare(right.startKey);
-    });
-}
-
-export function groupSchedulesByWeek(
+/**
+ * CCC-133 본문의 묶음 단위. 세 뷰 모두 일정이 있는 날짜만 시간순으로 그린다.
+ * 주차 제목은 내비가 갖으므로 본문은 주차로 묶지 않는다(D75 본문 묶음 대체).
+ */
+export function groupSchedulesByDay(
   schedules: readonly TodaySchedule[],
   timeZone: string,
   todayKey: string,
-): readonly WeekGroup[] {
-  return groupByWeek(groupByDay(schedules, timeZone, todayKey), todayKey);
+): readonly DayGroup[] {
+  return groupByDay(schedules, timeZone, todayKey);
 }
 
 export function formatMonthLabel(month: string): string {
@@ -176,4 +117,102 @@ export function shiftMonth(month: string, delta: number): string {
   const [year, monthIndex] = month.split('-').map(Number);
   const shifted = new Date(Date.UTC(year ?? 0, (monthIndex ?? 1) - 1 + delta, 1));
   return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// CCC-133 다중 뷰. 뷰 3종과 기간 파라미터를 URL 이 갖고, 어긋난 값은 조용히 버려
+// 서버가 기관 시간대로 정한 기본값(오늘, 이번 달)으로 떨어진다.
+
+export type ScheduleView = 'day' | 'week' | 'month';
+
+export interface ScheduleQuery {
+  readonly view: ScheduleView;
+  /** day·week 전용 기준 날짜(YYYY-MM-DD). week 는 이 날짜가 속한 ISO 주간을 고른다. */
+  readonly date?: string;
+  /** month 전용 기준 달(YYYY-MM). */
+  readonly month?: string;
+}
+
+type ScheduleSearchParams = Record<string, string | readonly string[] | undefined>;
+
+const scheduleViews = ['day', 'week', 'month'] as const;
+
+/** 같은 이름이 여러 번 온 쿼리는 배열이 된다. 고를 근거가 없으므로 버린다. */
+function singleValue(value: string | readonly string[] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** 실재하는 날짜만 통과시킨다. 2026-02-30 처럼 모양만 맞는 값은 버린다. */
+function validDateKey(value: string | undefined): string | undefined {
+  if (value === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.valueOf())) return undefined;
+  return date.toISOString().slice(0, 10) === value ? value : undefined;
+}
+
+function validMonth(value: string | undefined): string | undefined {
+  return value !== undefined && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : undefined;
+}
+
+/** 기간 파라미터는 자기 뷰에서만 읽는다. 남의 뷰 것이 섞여 와도 무시한다. */
+function periodQuery(view: ScheduleView, query: ScheduleSearchParams): ScheduleQuery {
+  if (view === 'month') {
+    const month = validMonth(singleValue(query.month));
+    return month === undefined ? { view } : { view, month };
+  }
+  const date = validDateKey(singleValue(query.date));
+  return date === undefined ? { view } : { view, date };
+}
+
+export function parseScheduleQuery(query: ScheduleSearchParams): ScheduleQuery {
+  const requested = singleValue(query.view);
+  const view = scheduleViews.find((candidate) => candidate === requested);
+  if (view !== undefined) return periodQuery(view, query);
+  // 구 ?range= 계약(D75). month 만 월 뷰로 옮기고 나머지 값은 주간으로 떨어진다.
+  return singleValue(query.range) === 'month' ? periodQuery('month', query) : { view: 'week' };
+}
+
+/** 이전·다음 이동. 일간은 하루, 주간은 7일, 월간은 한 달이다. */
+export function shiftSchedulePeriod(view: ScheduleView, anchor: string, delta: number): string {
+  if (view === 'month') return shiftMonth(anchor, delta);
+  return addDays(anchor, view === 'week' ? delta * 7 : delta);
+}
+
+export function dayPeriodLabel(key: string): string {
+  return dateLabel(key, true);
+}
+
+/**
+ * 주간 기간 이름. 주차 번호는 적지 않는다. 실무자에게는 몇째 주인지보다 어느 날짜인지가
+ * 중요하다. 일간·월간과 같이 한 줄이고, 시작에는 연도를 붙이며 끝에는 달부터 적되
+ * 해가 바뀔 때만 연도를 다시 붙인다.
+ */
+export function weekPeriodLabel(week: IsoWeek): string {
+  const sameYear = parseDateKey(week.startKey).getUTCFullYear()
+    === parseDateKey(week.endKey).getUTCFullYear();
+  return `${dateLabel(week.startKey, true)}-${dateLabel(week.endKey, !sameYear)}`;
+}
+
+export function schedulePeriodHref(basePath: string, view: ScheduleView, anchor: string): string {
+  const period = view === 'month' ? `month=${anchor}` : `date=${anchor}`;
+  return `${basePath}?view=${view}&${period}`;
+}
+
+/** [오늘]. 보던 뷰는 유지하고 기간 파라미터만 뗀다. */
+export function scheduleTodayHref(basePath: string, view: ScheduleView): string {
+  return `${basePath}?view=${view}`;
+}
+
+/**
+ * 보기 선택창 이동. 보던 자리를 잡은 채 기간 크기만 바꾼다.
+ * 월간에서 주간·일간으로 갈 때는 그 달 1일을 기준으로 잡는다.
+ */
+export function scheduleViewHref(
+  basePath: string,
+  from: ScheduleView,
+  anchor: string,
+  to: ScheduleView,
+): string {
+  if (to === from) return schedulePeriodHref(basePath, to, anchor);
+  if (to === 'month') return schedulePeriodHref(basePath, 'month', anchor.slice(0, 7));
+  return schedulePeriodHref(basePath, to, from === 'month' ? `${anchor}-01` : anchor);
 }

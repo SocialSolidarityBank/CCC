@@ -6,6 +6,28 @@ import { Chevron } from './chevron';
 /** 입력칸 안에 들어가는 컨트롤 종류. select 는 꺽쇠를 직접 그리고, textarea 는 박스가 세로로 늘어난다. */
 export type WireControl = 'input' | 'select' | 'textarea';
 
+export interface WireToolbarFieldProps {
+  /** 업무 바의 접근성 이름. 화면에는 숨기되 실제 label 관계는 유지한다. */
+  label: ReactNode;
+  /** input/select와 장식 아이콘. control은 이 label 안에 직접 둔다. */
+  children: ReactNode;
+  className?: string;
+}
+
+/**
+ * 업무 바 전용 입력 셸. 일반 폼은 라벨을 위에 보이지만, 업무 바는 압축된 조작면이라
+ * 접근성 라벨만 남긴다. 검색·보기 선택이 이 부품을 함께 써 손 입력 셸을 만들지 않는다.
+ */
+export function WireToolbarField({ label, children, className }: WireToolbarFieldProps) {
+  const classes = ['wire-input-box', className].filter(Boolean).join(' ');
+  return (
+    <label className={classes}>
+      <span className="wire-toolbar-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export interface WireFormFieldProps {
   /** 라벨. 항상 입력칸 위에 둔다 — 자리표시자가 라벨을 대신하지 않는다(DESIGN.md §5 '입력칸'). */
   label: ReactNode;

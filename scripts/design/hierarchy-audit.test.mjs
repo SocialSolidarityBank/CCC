@@ -196,7 +196,7 @@ for (const [tone, outline, surface] of [
   check(
     `${tone} 배지는 기존 계열 면과 같은 deep 규칙을 쓴다`,
     wireStylesSource.includes(
-      `.wire-badge[data-tone="${tone}"]{border-color:${outline};background:${surface};color:${badgeForegroundVar(tone)}}`,
+      `.wire-badge[data-tone="${tone}"]{--wire-outline-color:${outline};background:${surface};color:${badgeForegroundVar(tone)}}`,
     ),
   );
 }
