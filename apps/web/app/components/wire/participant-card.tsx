@@ -9,8 +9,9 @@ import Link from 'next/link';
 //
 // 공통 헤더: 이름은 왼쪽, 현재 화면에서 가장 중요한 분류·상태 배지는 오른쪽.
 // 정보 행: sub 톤 14/400 라벨과 14/400 값을 같은 줄에 두고, 행은 세로로 쌓는다.
-// 일정 화면: 빠른 식별을 위해 ID를 이름 옆에 두고 상담 일시·연락처를 아래에 둔다.
-// 당사자 목록: ID·참여 사업·연락처를 같은 값 열에 맞춘다. 케이스 상태는 헤더 배지.
+// 가명 ID 는 두 화면 모두 이름 옆 12/400 그레이 조각이다(D59 ② — 2026-08-26 Q "일정과
+// 당사자의 ID 표현이 다르다" 통일. 구 당사자 목록의 'ID' 라벨 행은 폐지).
+// 일정 화면: 상담 일시·연락처를 아래에 둔다. 당사자 목록: 참여 사업·연락처를 같은 값 열에 맞춘다.
 //
 // 이름이 없으면 가명 ID가 이름 자리를 대신한다. 없는 선택 정보는 라벨까지 숨긴다.
 // 카드 전체가 링크이고 별도 화살표는 두지 않는다.
@@ -92,7 +93,7 @@ export function ParticipantCard({
               beneficiaryId={beneficiaryId}
               nameClassName={isNameMissing ? 'participant-card-name is-empty' : 'participant-card-name'}
             />
-            {!isNameMissing && schedule !== undefined && (
+            {!isNameMissing && (
               <span className="participant-card-id">{beneficiaryId}</span>
             )}
           </span>
@@ -112,11 +113,6 @@ export function ParticipantCard({
         </header>
 
         <div className="participant-card-fields">
-          {schedule === undefined && !isNameMissing && (
-            <WireField compact label="ID" size="sm" tone="sub" truncate>
-              {beneficiaryId}
-            </WireField>
-          )}
           {schedule !== undefined && (
             <WireField compact label="상담 일시" size="sm" tone="sub" truncate>
               <span className="participant-card-date" data-col="date">{schedule.date} {schedule.time}</span>
