@@ -1033,7 +1033,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
           ) : null}
 
           <div className="wizard-actions">
-            {step > 1 ? <WireButton onClick={() => { setStep(step - 1); setError(null); }}>이전</WireButton> : null}
+            {step > 1 ? <WireButton chevron="left" onClick={() => { setStep(step - 1); setError(null); }}>이전</WireButton> : null}
             {step < STEP_TITLES.length
               ? <WireButton chevron onClick={() => { setStep(step + 1); setError(null); }}>다음: {STEP_TITLES[step]}</WireButton>
               : null}

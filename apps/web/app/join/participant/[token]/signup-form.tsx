@@ -118,7 +118,7 @@ export function SignupForm({ token }: { token: string }) {
         <WireError>{state.message}</WireError>
       )}
 
-      <WireButton type="submit" size="large" chevron className="wire-register-submit" disabled={state.phase === 'working'}>
+      <WireButton type="submit" size="large" className="wire-register-submit" disabled={state.phase === 'working'}>
         {state.phase === 'working' ? '처리 중…' : '가입 완료'}
       </WireButton>
     </form>

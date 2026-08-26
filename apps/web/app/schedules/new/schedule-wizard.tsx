@@ -470,7 +470,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               </div>
             </WireCard>
             <div className="wizard-actions">
-              <WireButton onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
+              <WireButton chevron="left" onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
               <WireButton size="large" chevron onClick={() => { setError(null); setStep(3); }}>
                 다음: 맞춤형 질문
               </WireButton>
@@ -522,8 +522,8 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
               </div>
             </WireCard>
             <div className="wizard-actions">
-              <WireButton onClick={() => { setError(null); setStep(2); }}>이전</WireButton>
-              <WireButton size="large" chevron disabled={busy} onClick={complete}>완료</WireButton>
+              <WireButton chevron="left" onClick={() => { setError(null); setStep(2); }}>이전</WireButton>
+              <WireButton size="large" disabled={busy} onClick={complete}>완료</WireButton>
             </div>
           </div>
         ) : null}
