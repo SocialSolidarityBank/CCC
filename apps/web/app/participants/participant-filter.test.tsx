@@ -29,8 +29,8 @@ describe('ParticipantFilter (D21 당사자 찾기의 새 자리)', () => {
     expect(actions.map((action) => action.textContent)).toEqual(['당사자 초대', '당사자 등록']);
     expect(actions.map((action) => action.getAttribute('href')))
       .toEqual(['/participants/invite', '/participants/new']);
-    // 툴바 한 줄은 한 키다(2026-08-26 Q) — 검색칸과 같은 md 40 으로 나란히 선다.
-    expect(actions.every((action) => action.getAttribute('data-height') === 'md')).toBe(true);
+    // 업무 바는 전부 32 다(2026-08-26 Q — 일정 업무 바와 같은 키, 검색칸도 32).
+    expect(actions.every((action) => action.getAttribute('data-height') === 'sm')).toBe(true);
   });
 
   it('입력이 없으면 전원을 보여준다', () => {
