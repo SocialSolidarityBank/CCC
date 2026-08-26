@@ -1,5 +1,3 @@
-import type { CSSProperties } from 'react';
-
 // 이름 표기 계약 (D59 · 2026-08-04 — 구 D34 "어디서나 이름 (가명 ID) 한 줄"을 대체).
 //
 // **가명 ID 는 화면에 표시하지 않는다** — 백엔드 전용 식별자로 회귀한다(D31 의 원래 정의).
@@ -9,31 +7,40 @@ import type { CSSProperties } from 'react';
 //  1. 이름 무응답 등록(D41 무응답 원칙) — 실명이 금고에 없다.
 //  2. 보존 기간 경과로 금고가 파기된 당사자(D10·D32) — 실명·연락처가 영구 소실됐다.
 //
-// 실명은 그 자리의 제목 크기를 물려받는다(hero 28 · row 16) — 크기는 호출부가 정한다.
-// h2 단은 2026-08-09 Q 로 폐지(CCC-77, D59 ③ 부분 개정). 허브도 HERO 실명은 28 로 통일한다.
+// 실명 크기는 data-size가 CSS 계약을 고른다. 데스크톱은 세 자리 모두 24이고,
+// 767 이하는 18/600 normal로 내려 페이지 제목과 경쟁하지 않는다.
+
+export type ParticipantNameSize = 'hero' | 'hub' | 'row';
 
 export interface ParticipantNameProps {
   /** 복호화된 실명. 미기입이거나 파기됐으면 null. */
   name: string | null;
   /** 가명 ID(동물 슬러그, D20). 실명이 없을 때만 화면에 나온다(위 폴백 2경우). */
   beneficiaryId: string;
-  /** 실명 크기. 자리마다 다르므로 호출부가 정한다(기본 = 리스트 행 16/600). */
-  size?: 'hero' | 'row';
+  /** 자리의 의미. 데스크톱은 24px, 767 이하는 세 자리 모두 18px다. */
+  size?: ParticipantNameSize;
+  /** 실제 이름 글자에 붙이는 클래스. 카드의 말줄임·빈 상태처럼 글자 자체 스타일만 확장한다. */
+  nameClassName?: string;
   className?: string;
 }
 
-const nameSize: Record<'hero' | 'row', CSSProperties> = {
-  hero: { fontSize: 'var(--text-2xl)', lineHeight: 'var(--leading-tight)' },
-  row: { fontSize: 'var(--text-md)', lineHeight: 'var(--leading-body)' },
-};
+export function participantDisplayName(name: string | null, beneficiaryId: string): string {
+  return typeof name === 'string' && name.length > 0 ? name : beneficiaryId;
+}
 
-export function ParticipantName({ name, beneficiaryId, size = 'row', className }: ParticipantNameProps) {
+export function ParticipantName({
+  name,
+  beneficiaryId,
+  size = 'row',
+  nameClassName,
+  className,
+}: ParticipantNameProps) {
   const classes = ['participant-name-group', className].filter(Boolean).join(' ');
-  const hasName = typeof name === 'string' && name.length > 0;
+  const nameClasses = ['participant-name', nameClassName].filter(Boolean).join(' ');
   return (
-    <span className={classes}>
-      <span className="participant-name" style={nameSize[size]}>
-        {hasName ? name : beneficiaryId}
+    <span className={classes} data-size={size}>
+      <span className={nameClasses}>
+        {participantDisplayName(name, beneficiaryId)}
       </span>
     </span>
   );

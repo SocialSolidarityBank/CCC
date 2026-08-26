@@ -219,19 +219,19 @@ function ProgramRow({ beneficiaryId, program, programTitle }: {
   return (
     <div className="participant-program-row">
       <div className="participant-program-head">
-        <h3>{programTitle}</h3>
-        <span className="participant-program-head-status">
+        <span className="participant-program-head-main">
+          <h3>{programTitle}</h3>
           {/* 종결은 무채색이다 — 민트는 진행(사람·상태) 축의 색이라 닫힌 케이스에 어울리지 않는다(D58 ④). */}
           <WireBadge tone={program.status === 'active' ? 'mint' : 'neutral'}>{programStatus(program.status)}</WireBadge>
-          {/* 케이스 종결 입구(CCC-107). 담당(또는 admin) 사업에만 선다 — D36 은 존재·담당
-              이름까지만 보여주자는 결정이지 쓰기 권한을 넓힌 것이 아니다. 진행 중이면 종결
-              확인 화면으로, 이미 종결이면 같은 주소가 종결일·파기 예정일 읽기 전용이 된다. */}
-          {program.authorized && (
-            <WireButton variant="neutral" height="sm" href={closeHref(beneficiaryId, program.id)}>
-              {program.status === 'active' ? '종결' : '종결 정보'}
-            </WireButton>
-          )}
         </span>
+        {/* 케이스 종결 입구(CCC-107). 담당(또는 admin) 사업에만 선다 — D36 은 존재·담당
+               이름까지만 보여주자는 결정이지 쓰기 권한을 넓힌 것이 아니다. 진행 중이면 종결
+               확인 화면으로, 이미 종결이면 같은 주소가 종결일·파기 예정일 읽기 전용이 된다. */}
+        {program.authorized && (
+          <WireButton variant="secondary" height="sm" href={closeHref(beneficiaryId, program.id)}>
+            {program.status === 'active' ? '종결' : '종결 정보'}
+          </WireButton>
+        )}
       </div>
       <AssigneeLine names={program.assigneeNames} />
     </div>
@@ -260,9 +260,9 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
         <div className="wire-card-head">
           <span>최신 일정</span>
           <div className="participant-next-schedule-actions">
-            <WireButton href="/schedules/new">상담 등록</WireButton>
+            <WireButton height="sm" href="/schedules/new">상담 등록</WireButton>
             {recordsTarget !== undefined && (
-              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
+              <WireButton height="sm" href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
             )}
           </div>
         </div>
@@ -343,23 +343,23 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
         )}
         {/* ParticipantHeroCard (D38 · D59 개편 2026-08-04): 허브는 케이스가 교차하는 화면이라
             단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).
-            이름은 hero 28 이다. 구 h2(18→20)는 2026-08-09 Q 로 폐지, 전 화면 28 통일
-            (CCC-77, D59 ③ 부분 개정). 연락처·가명 ID 는 구분선 아래 정보 행이다
+            이름은 데스크톱 24, 767 이하는 18 이다. 연락처·가명 ID 는 구분선 아래 정보 행이다
             (2026-08-07 Q 위계 개편 — 부품이 배치를 갖는다). */}
         <ParticipantHeroCard
           name={detail.name}
           beneficiaryId={detail.beneficiaryId}
           showId
+          nameSize="hub"
           {...(detail.phone !== null && detail.phone.length > 0 ? { contact: detail.phone } : {})}
           // 기본정보 수정(CCC-37)은 당사자 단위라 행동 슬롯(④)에 둔다. 인테이크 기록도
           // 같은 슬롯이다(2026-08-06 Q) — 세컨더리 2개, D38 상한(버튼 최대 2개) 안이다.
           actions={
             <>
               {intakeTarget !== undefined && (
-                <WireButton href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크</WireButton>
+                <WireButton height="sm" href={intakeHref(detail.beneficiaryId, intakeTarget.id)}>인테이크</WireButton>
               )}
               {editable && (
-                <WireButton href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
+                <WireButton height="sm" href={participantEditHref(detail.beneficiaryId)}>기본정보 수정</WireButton>
               )}
             </>
           }
@@ -371,7 +371,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
             {/* 참여중인 사업·최신 일정은 **가로로 긴 전폭 카드 2장 스택**이다(2026-08-07 Q —
                 구 2열 나란 배치 대체: 좁은 카드에서 행이 접혔다). 카드 사이 간격은 페이지
                 스택 24(--section-gap, GridContainer)다. */}
-            <WireCard as="section" className="participant-hub-card" title="참여중인 사업">
+            <WireCard as="section" className="participant-hub-card" title="참여 중인 사업">
               {programs.map((program) => (
                 <ProgramRow
                   key={program.id}

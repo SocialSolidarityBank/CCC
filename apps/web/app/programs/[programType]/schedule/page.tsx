@@ -3,30 +3,33 @@ import { notFound } from 'next/navigation';
 import {
   ApiError,
   getMonthSchedules,
+  getTodaySchedules,
   getUpcomingSchedules,
   rememberLastProgramType,
+  type TodaySchedule,
 } from '../../../lib/api';
 import { GridContainer } from '../../../components/wire/grid-container';
 import { PageTitle } from '../../../components/wire/page-title';
-import { WireButton } from '../../../components/wire/wire-button';
 import { WireError } from '../../../components/wire/wire-state';
 import { isKnownProgramType } from '../../../lib/labels';
+import { ScheduleBody, ScheduleNav } from './schedule-view';
 import {
-  ScheduleControls,
-  ScheduleGroups,
-} from './schedule-view';
-import { formatMonthLabel } from './schedule-calendar';
+  dayPeriodLabel,
+  formatMonthLabel,
+  isoWeekOf,
+  parseScheduleQuery,
+  type ScheduleView,
+} from './schedule-calendar';
 
-// 통합 일정 화면 (D75 · ADR-0039, 2026-08-23 결정 · 2026-08-24 후속 개정).
-// `일정` 한 화면에서 현재 ISO 주간과 별도 월 선택이 상시 나란히 선다.
+// 통합 일정 화면. D75(ADR-0039)가 두 화면을 하나로 합쳤고, CCC-133 이 그 위에 뷰 3종을 올렸다.
 //
-//   · 기본(week)은 오늘 + 7일 창(getUpcomingSchedules), month 는 선택한 한 달 창이다.
-//   · 둘 다 ISO 주차(월요일-일요일) → 날짜 → 카드 순으로 묶고 빈 날짜는 그리지 않는다.
-//   · 현재 주차와 오늘을 최상단에 두고, 오늘 카드는 전부 그라데이션 아웃라인을 입는다.
-//   · 미래는 펼치고 지난 날짜는 이름만 남는 아코디언으로 접는다.
+//   · 일간은 하루(getTodaySchedules), 주간은 ISO 월요일부터 7일, 월간은 한 달이다.
+//   · 범위는 URL 이 갖는다(?view= 와 기간 파라미터). 어긋난 값은 조용히 서버 기본으로 떨어진다.
+//   · 주간은 8일 창(getUpcomingSchedules)을 받아 끝의 다음 월요일 하루를 잘라 월-일로 맞춘다.
+//     새 엔드포인트도 새 SQL 도 만들지 않는다.
 //
 // 상태 규칙은 기존 결정 그대로다: 오늘 묶음은 끝난 상담도 배지와 함께 남고(CCC-66),
-// 내일 이후 묶음은 예정만 남는다(CCC-57). 월 범위는 지난 일정의 상태를 전부 보여 준다(D54).
+// 내일 이후 묶음은 예정만 남는다(CCC-57). 지난 날짜는 상태를 전부 보여 준다(D54).
 
 /**
  * 기관 시간대 기준 달력 날짜(YYYY-MM-DD). 서버가 준 board.date 와 같은 모양이라 그대로
@@ -76,12 +79,84 @@ function EmptyState({ title, description }: { title: string; description: string
       </svg>
       <p className="wire-empty-title">{title}</p>
       <p className="wire-empty-desc">{description}</p>
-      <WireButton href="/schedules/new">상담 등록</WireButton>
     </div>
   );
 }
 
 type SearchParams = Record<string, string | string[] | undefined>;
+
+interface ScheduleBoard {
+  readonly view: ScheduleView;
+  /** 내비가 가리키는 기간의 기준값. day·week 는 날짜, month 는 달이다. */
+  readonly anchor: string;
+  readonly timeZone: string;
+  readonly todayKey: string;
+  readonly schedules: readonly TodaySchedule[];
+}
+
+function emptyStateFor(view: ScheduleView, anchor: string): { title: string; description: string } {
+  if (view === 'day') {
+    return {
+      title: `${dayPeriodLabel(anchor)}에는 상담이 없습니다`,
+      description: '다른 날짜로 옮겨 보거나 새 상담을 등록하세요.',
+    };
+  }
+  if (view === 'month') {
+    return {
+      title: `${formatMonthLabel(anchor)}에는 상담이 없습니다`,
+      description: '이전 달과 다음 달로 옮겨 보거나 새 상담을 등록하세요.',
+    };
+  }
+  return {
+    title: '이 주에는 상담이 없습니다',
+    description: '다른 주로 옮겨 보거나 새 상담을 등록하세요.',
+  };
+}
+
+/** 뷰마다 창이 다르다. 주간만 8일 창을 받아 월요일부터 7일로 잘라 쓴다. */
+async function loadBoard(
+  view: ScheduleView,
+  date: string | undefined,
+  month: string | undefined,
+): Promise<ScheduleBoard> {
+  if (view === 'month') {
+    const board = await getMonthSchedules(month);
+    return {
+      view,
+      anchor: board.date.slice(0, 7),
+      timeZone: board.timeZone,
+      todayKey: orgDateKey(new Date().toISOString(), board.timeZone),
+      schedules: board.schedules,
+    };
+  }
+  if (view === 'day') {
+    const board = await getTodaySchedules(date);
+    return {
+      view,
+      anchor: board.date,
+      timeZone: board.timeZone,
+      todayKey: orgDateKey(new Date().toISOString(), board.timeZone),
+      schedules: board.schedules,
+    };
+  }
+  // 주간은 기준 날짜가 속한 ISO 주의 월요일부터 연다. date 가 없으면 서버가 정한 오늘로
+  // 먼저 기관 시간대의 '오늘'을 알아낸 뒤 그 주의 월요일로 다시 부른다.
+  const monday = date === undefined
+    ? isoWeekOf((await getTodaySchedules()).date).startKey
+    : isoWeekOf(date).startKey;
+  const board = await getUpcomingSchedules(monday);
+  const sunday = isoWeekOf(monday).endKey;
+  return {
+    view,
+    anchor: monday,
+    timeZone: board.timeZone,
+    todayKey: orgDateKey(new Date().toISOString(), board.timeZone),
+    // 8일 창의 마지막 하루(다음 월요일)를 잘라 월-일 7일로 맞춘다.
+    schedules: board.schedules.filter(
+      (schedule) => orgDateKey(schedule.scheduledAt, board.timeZone) <= sunday,
+    ),
+  };
+}
 
 export default async function ProgramSchedulePage({
   params,
@@ -92,9 +167,7 @@ export default async function ProgramSchedulePage({
 }) {
   const { programType } = await params;
   if (!isKnownProgramType(programType)) notFound();
-  const query = await searchParams;
-  // 범위는 URL 에 남는다 — 새로고침·공유에도 유지된다. week 외 값은 조용히 기본으로.
-  const range: 'week' | 'month' = query.month !== undefined || query.range === 'month' ? 'month' : 'week';
+  const query = parseScheduleQuery(await searchParams);
 
   // 이 화면에 온 것이 곧 "이 사업을 골랐다"이다(ADR-0014 §2). 기억에 실패해도 화면은 뜬다.
   try {
@@ -104,86 +177,51 @@ export default async function ProgramSchedulePage({
   }
 
   const basePath = `/programs/${encodeURIComponent(programType)}/schedule`;
-  const fallbackTodayKey = new Date().toISOString().slice(0, 10);
-  const frame = (month: string, todayKey: string, body: ReactNode) => (
+  const frame = (view: ScheduleView, anchor: string, body: ReactNode) => (
     <main className="page-content">
       <GridContainer>
         <div className="page-header">
           <PageTitle>일정</PageTitle>
-          {/* D35 축: 등록 2개는 사이드바가 아니라 페이지 우상단(행동 자리)이다. */}
-          <div className="page-actions">
-            <WireButton href="/participants/new">당사자 등록</WireButton>
-            <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>
-          </div>
         </div>
-        <ScheduleControls basePath={basePath} range={range} todayKey={todayKey} month={month} />
+        <ScheduleNav basePath={basePath} view={view} anchor={anchor} />
         {body}
       </GridContainer>
     </main>
   );
 
-  if (range === 'month') {
-    // 형식이 어긋난 month 는 조용히 버리고 서버가 정한 이번 달로 떨어진다.
-    const requested = typeof query.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(query.month)
-      ? query.month
-      : undefined;
-
-    let board;
-    try {
-      board = await getMonthSchedules(requested);
-    } catch (error) {
-      if (!(error instanceof ApiError)) throw error;
-      const message = scheduleErrorMessage(error);
-      if (message === null) throw error;
-      const month = requested ?? fallbackTodayKey.slice(0, 7);
-      return frame(month, fallbackTodayKey, <WireError>{message}</WireError>);
-    }
-
-    // 응답의 date 는 그 달의 1일이다 — 기본 달은 서버가 기관 시간대로 정한다.
-    const month = board.date.slice(0, 7);
-    const mine = board.schedules.filter((schedule) => schedule.programType === programType);
-    const todayKey = orgDateKey(new Date().toISOString(), board.timeZone);
-    if (mine.length === 0) {
-      return frame(month, todayKey, (
-        <EmptyState
-          title={`${formatMonthLabel(month)}에는 상담이 없습니다`}
-          description="이전 달·다음 달로 옮겨 보거나 새 상담을 등록하세요."
-        />
-      ));
-    }
-
-    return frame(month, todayKey, (
-      <ScheduleGroups schedules={mine} timeZone={board.timeZone} todayKey={todayKey} />
-    ));
-  }
-
+  let board: ScheduleBoard;
   try {
-    const board = await getUpcomingSchedules();
-    const mine = board.schedules.filter((schedule) => schedule.programType === programType);
-    // 오늘 묶음은 상태를 거르지 않고(CCC-66 — "3건 중 1건 끝"을 보는 자리), 내일 이후는
-    // 예정만 남긴다(CCC-57 — 끝난 건이 서 있으면 유령 예정 일정이다).
-    const visible = mine.filter((schedule) =>
-      orgDateKey(schedule.scheduledAt, board.timeZone) === board.date || schedule.status === 'scheduled');
-    if (visible.length === 0) {
-      return frame(board.date.slice(0, 7), board.date, (
-        <EmptyState
-          title="앞으로 7일 안에 잡힌 상담이 없습니다"
-          description="월 선택으로 지난 일정을 훑거나 새 상담을 등록하세요."
-        />
-      ));
-    }
-
-    return frame(board.date.slice(0, 7), board.date, (
-      <ScheduleGroups schedules={visible} timeZone={board.timeZone} todayKey={board.date} />
-    ));
+    board = await loadBoard(query.view, query.date, query.month);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     const message = scheduleErrorMessage(error);
     if (message === null) throw error;
-    return frame(
-      fallbackTodayKey.slice(0, 7),
-      fallbackTodayKey,
-      <WireError>{message}</WireError>,
-    );
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const anchor = query.view === 'month'
+      ? query.month ?? todayKey.slice(0, 7)
+      : query.date ?? todayKey;
+    return frame(query.view, anchor, <WireError>{message}</WireError>);
   }
+
+  const mine = board.schedules.filter((schedule) => schedule.programType === programType);
+  // 오늘 묶음은 상태를 거르지 않고(CCC-66 "3건 중 1건 끝"을 보는 자리), 내일 이후는 예정만
+  // 남긴다(CCC-57 끝난 건이 서 있으면 유령 예정 일정이다). 지난 날짜는 전부 보여 준다(D54).
+  const visible = mine.filter((schedule) => {
+    const key = orgDateKey(schedule.scheduledAt, board.timeZone);
+    return key <= board.todayKey || schedule.status === 'scheduled';
+  });
+
+  if (visible.length === 0) {
+    const { title, description } = emptyStateFor(board.view, board.anchor);
+    return frame(board.view, board.anchor, <EmptyState title={title} description={description} />);
+  }
+
+  return frame(board.view, board.anchor, (
+    <ScheduleBody
+      view={board.view}
+      schedules={visible}
+      timeZone={board.timeZone}
+      todayKey={board.todayKey}
+    />
+  ));
 }

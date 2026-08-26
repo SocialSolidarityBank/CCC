@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const router = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 const { BackLink } = await import('./back-link');
+const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -44,5 +47,11 @@ describe('BackLink (2026-07-31)', () => {
     expect(control?.tagName).toBe('BUTTON');
     expect(control?.getAttribute('type')).toBe('button');
     expect(control?.textContent).toContain('뒤로');
+  });
+
+  it('뒤로가기 버튼도 전역 버튼처럼 알약 반경을 쓴다', () => {
+    expect(layoutSource).toMatch(
+      /\.page-back\{[^}]*border-radius:var\(--radius-pill\)/,
+    );
   });
 });

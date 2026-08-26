@@ -1,11 +1,18 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ParticipantHeroCard } from './participant-hero-card';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다. 정리하지 않으면 파일이 끝난 뒤
 // jsdom 이 내려가는 동안 React 가 남은 작업을 돌려 'window is not defined' 가 던져지고,
 // 테스트는 전부 통과해도 `pnpm test` 가 1 로 끝난다(CI 실패).
 afterEach(cleanup);
+
+const participantPageSource = readFileSync(
+  resolve(process.cwd(), 'app/participants/[beneficiaryId]/page.tsx'),
+  'utf8',
+);
 
 // ParticipantHeroCard 계약 (D38 · DESIGN.md §5).
 // 고정 1층(이름) + 슬롯 3층(상태 태그·메타·행동).
@@ -20,39 +27,49 @@ describe('ParticipantHeroCard', () => {
     expect(container.textContent).not.toContain('swallow-003');
   });
 
-  it('연락처 슬롯 — 구분선 아래 정보 행에 서고, 이름은 항상 hero 28 이다 (2026-08-09 CCC-77)', () => {
+  it('연락처 슬롯은 구분선 아래에 서고 이름은 반응형 data-size 계약을 쓴다', () => {
     const { container } = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" contact="010-1234-5678" />,
     );
-    // 1행(h1)에는 이름만 남는다 — 연락처·가명 ID 는 정보 행(2행)으로 내려간다.
     expect(container.querySelector('h1 .participant-hero-contact')).toBeNull();
     expect(
       container.querySelector('.participant-hero-meta .participant-hero-contact')?.textContent,
     ).toBe('010-1234-5678');
-    // 정보 행이 생기면 구분선도 함께 선다(당사자 카드와 같은 문법).
     expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
-    // 구 nameSize="h2"(허브 축소)는 폐지. 전 화면 hero 28(--text-2xl) 통일(D59 ③ 부분 개정).
-    expect(container.querySelector<HTMLElement>('h1 .participant-name')?.style.fontSize).toBe('var(--text-2xl)');
+    expect(container.querySelector('h1 .participant-name-group')?.getAttribute('data-size')).toBe('hero');
+    expect(container.querySelector('h1 .participant-name')?.getAttribute('style')).toBeNull();
   });
 
-  it('당사자 정보 허브: 이름, 가명 ID, 연락처를 구분선 없이 한 행에 둔다', () => {
+  it('당사자 정보 허브: 이름과 ID는 한 줄, 연락처는 다음 정보 줄에 둔다', () => {
     const { container } = render(
       <ParticipantHeroCard
         name="김미영"
         beneficiaryId="swallow-003"
         contact="010-1234-5678"
         showId
+        nameSize="hub"
       />,
     );
 
     expect(container.querySelector('h1 .participant-name')?.textContent).toBe('김미영');
     expect(container.querySelector('h1 .participant-hero-id')?.textContent).toBe('swallow-003');
-    expect(container.querySelector('h1 .participant-hero-contact')?.textContent).toBe('010-1234-5678');
-    expect(container.querySelectorAll('h1 .participant-hero-separator')).toHaveLength(2);
+    expect(container.querySelector('h1 .participant-hero-contact')).toBeNull();
+    expect(container.querySelector('.participant-hero-meta .participant-hero-contact')?.textContent)
+      .toBe('010-1234-5678');
+    expect(container.querySelectorAll('.participant-hero-separator')).toHaveLength(0);
     expect(container.querySelector('h1 .participant-hero-id')?.parentElement?.classList).toContain('participant-hero-inline-item');
-    expect(container.querySelector('h1 .participant-hero-contact')?.parentElement?.classList).toContain('participant-hero-inline-item');
-    expect(container.querySelector('.participant-hero-divider')).toBeNull();
-    expect(container.querySelector('.participant-hero-meta')).toBeNull();
+    expect(container.querySelector('h1 .participant-hero-id')?.parentElement?.previousElementSibling?.classList)
+      .toContain('participant-name-group');
+    expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
+    expect(container.querySelector('h1 .participant-name-group')?.getAttribute('data-size')).toBe('hub');
+    expect(container.querySelector('h1 .participant-name')?.getAttribute('style')).toBeNull();
+  });
+
+  it('참여 사업 행은 사업명 바로 뒤에 배지를 두고 종결은 그라데이션 아웃라인 버튼이다', () => {
+    expect(participantPageSource).toContain('participant-program-head-main');
+    expect(participantPageSource).toMatch(
+      /participant-program-head-main[\s\S]*<h3>[\s\S]*<WireBadge[\s\S]*variant="secondary"/,
+    );
   });
 
   it('상태 태그는 슬롯이다 — 넘기면 보이고 넘기지 않으면 없다 (허브)', () => {

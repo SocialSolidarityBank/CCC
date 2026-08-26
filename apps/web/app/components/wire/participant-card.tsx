@@ -2,14 +2,15 @@ import type { SessionKind } from '../../lib/api';
 import { ConsultationTypeBadge, consultationTypeLabel } from './consultation-type-badge';
 import { WireBadge } from './wire-badge';
 import { WireField } from './wire-card';
+import { ParticipantName, participantDisplayName } from './participant-name';
 import Link from 'next/link';
 
 // 당사자 카드. 일정 화면과 당사자 목록이 같은 골격을 쓰고 화면 맥락에 맞는 필드만 바꾼다.
 //
-// 공통 헤더: 이름과 가명 ID는 왼쪽, 현재 화면에서 가장 중요한 분류·상태 배지는 오른쪽.
+// 공통 헤더: 이름은 왼쪽, 현재 화면에서 가장 중요한 분류·상태 배지는 오른쪽.
 // 정보 행: sub 톤 14/400 라벨과 14/400 값을 같은 줄에 두고, 행은 세로로 쌓는다.
-// 일정 화면: 상담 일시와 연락처. 상담 유형과 지난 일정 상태는 헤더 배지.
-// 당사자 목록: 참여 사업과 연락처. 케이스 상태는 헤더 배지.
+// 일정 화면: 빠른 식별을 위해 ID를 이름 옆에 두고 상담 일시·연락처를 아래에 둔다.
+// 당사자 목록: ID·참여 사업·연락처를 같은 값 열에 맞춘다. 케이스 상태는 헤더 배지.
 //
 // 이름이 없으면 가명 ID가 이름 자리를 대신한다. 없는 선택 정보는 라벨까지 숨긴다.
 // 카드 전체가 링크이고 별도 화살표는 두지 않는다.
@@ -70,7 +71,7 @@ export function ParticipantCard({
   muted,
 }: ParticipantCardProps) {
   const isNameMissing = name === null || name.length === 0;
-  const displayName = isNameMissing ? beneficiaryId : name;
+  const displayName = participantDisplayName(name, beneficiaryId);
   const linkLabel = schedule !== undefined
     ? `${displayName}, ${schedule.date} ${schedule.time} ${consultationTypeLabel(schedule.kind)}`
     : `${displayName}, 참여 사업 ${programCount}개, ${statusBadge.label}`;
@@ -85,10 +86,15 @@ export function ParticipantCard({
         <header className="participant-card-header">
           <span className="participant-card-identity">
             {/* 이름 없음은 새 단이 아니라 상태다(§1 is-empty) — 크기·굵기 유지, 색만 물러선다. */}
-            <span className={isNameMissing ? 'participant-card-name is-empty' : 'participant-card-name'}>
-              {displayName}
-            </span>
-            {!isNameMissing && <span className="participant-card-id">{beneficiaryId}</span>}
+            <ParticipantName
+              className="participant-card-name-group"
+              name={name}
+              beneficiaryId={beneficiaryId}
+              nameClassName={isNameMissing ? 'participant-card-name is-empty' : 'participant-card-name'}
+            />
+            {!isNameMissing && schedule !== undefined && (
+              <span className="participant-card-id">{beneficiaryId}</span>
+            )}
           </span>
           {schedule !== undefined ? (
             <span className="participant-card-badges">
@@ -106,6 +112,11 @@ export function ParticipantCard({
         </header>
 
         <div className="participant-card-fields">
+          {schedule === undefined && !isNameMissing && (
+            <WireField compact label="ID" size="sm" tone="sub" truncate>
+              {beneficiaryId}
+            </WireField>
+          )}
           {schedule !== undefined && (
             <WireField compact label="상담 일시" size="sm" tone="sub" truncate>
               <span className="participant-card-date" data-col="date">{schedule.date} {schedule.time}</span>

@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { SearchInput } from '../components/wire/search-input';
+import { WireButton } from '../components/wire/wire-button';
+import { WireToolbarField } from '../components/wire/wire-form-field';
+import { WireError } from '../components/wire/wire-state';
 
 // 당사자 목록 좁히기 (D21 '상단 당사자 검색'의 새 자리 — 상단 헤더 폐기로 옮겨왔다).
 //
@@ -20,7 +22,13 @@ export interface ParticipantFilterRow {
   node: ReactNode;
 }
 
-export function ParticipantFilter({ rows }: { rows: ParticipantFilterRow[] }) {
+export function ParticipantFilter({
+  rows,
+  error = null,
+}: {
+  rows: ParticipantFilterRow[];
+  error?: string | null;
+}) {
   const [query, setQuery] = useState('');
 
   const visible = useMemo(() => {
@@ -31,16 +39,26 @@ export function ParticipantFilter({ rows }: { rows: ParticipantFilterRow[] }) {
 
   return (
     <div className="participant-search-layout">
-      <SearchInput
-        label="당사자 찾기"
-        name="participantQuery"
-        placeholder="이름, ID, 연락처"
-        value={query}
-        onChange={setQuery}
-      />
-      {/* 찾기 칸과 목록 사이 가로선(2026-08-06 Q) — 입력 구획과 결과 구획을 가른다. */}
-      <hr className="participant-search-divider" />
-      {visible.length === 0 ? (
+      <div className="participant-toolbar work-toolbar">
+        <WireToolbarField label="당사자 검색" className="participant-toolbar-search">
+          <input
+            aria-label="당사자 검색"
+            name="participantQuery"
+            placeholder="이름, ID, 연락처"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+        </WireToolbarField>
+        <div className="participant-toolbar-actions">
+          <WireButton href="/participants/invite" height="sm">당사자 초대</WireButton>
+          <WireButton href="/participants/new" variant="primary">당사자 등록</WireButton>
+        </div>
+      </div>
+      {error !== null ? (
+        <WireError>{error}</WireError>
+      ) : rows.length === 0 ? (
+        <p className="empty">담당 중인 당사자가 없습니다. 당사자를 먼저 등록하세요.</p>
+      ) : visible.length === 0 ? (
         <p className="empty" role="status" aria-live="polite">
           찾는 당사자가 없습니다. 이름 일부만 입력해 보세요.
         </p>

@@ -1,9 +1,7 @@
 import { ApiError, listAssignedParticipants, type AssignedParticipant } from '../lib/api';
 import { GridContainer } from '../components/wire/grid-container';
 import { PageTitle } from '../components/wire/page-title';
-import { WireError } from '../components/wire/wire-state';
 import { ParticipantCard } from '../components/wire/participant-card';
-import { WireButton } from '../components/wire/wire-button';
 import { ParticipantFilter } from './participant-filter';
 
 // 사이드바 '당사자' 메뉴의 도착지 (D35 · ADR-0014 §2·§3). 여기서 당사자를 고르면
@@ -40,45 +38,33 @@ export default async function ParticipantsPage() {
   return (
     <main className="page-content">
       <GridContainer>
-        {/* 축은 사이드바=장소 / 페이지 우상단=행동이다(§2). 등록은 행동이라 여기 남는다.
-            당사자 초대는 2026-08-06 Q 지시로 본문 아래 보조 링크에서 **기본(세컨더리) 버튼**으로
-            승격해 등록 옆에 선다(§4-5 순서: 세컨더리 → 프라이머리). */}
         <div className="page-header">
           <PageTitle>당사자</PageTitle>
-          <div className="page-actions">
-            <WireButton href="/participants/invite">당사자 초대</WireButton>
-            <WireButton href="/participants/new" variant="primary">당사자 등록</WireButton>
-          </div>
         </div>
-        {loadError !== null ? (
-          <WireError>{loadError}</WireError>
-        ) : sorted.length === 0 ? (
-          <p className="empty">담당 중인 당사자가 없습니다. 당사자를 먼저 등록하세요.</p>
-        ) : (
-          <ParticipantFilter
-            rows={sorted.map((entry) => ({
-              beneficiaryId: entry.beneficiaryId,
-              // 검색어 대조용 문자열. 이름·가명 ID·연락처를 한 줄로 이어 둔다.
-              haystack: [entry.name ?? '', entry.beneficiaryId, entry.phone ?? ''].join(' ').toLowerCase(),
-              // 일정 화면과 같은 공용 카드 골격이다. 이름 옆에 ID, 우상단에 상태 배지를 두고
-              // 참여 사업과 연락처는 라벨·값 한 행으로 세로 배치한다.
-              node: (
-                <ParticipantCard
-                  href={`/participants/${encodeURIComponent(entry.beneficiaryId)}`}
-                  name={entry.name}
-                  beneficiaryId={entry.beneficiaryId}
-                  phone={entry.phone}
-                  statusBadge={entry.status === 'active'
-                    ? { label: statusLabel(entry.status), tone: 'mint' }
-                    : { label: statusLabel(entry.status) }}
-                  programCount={entry.programCount}
-                  // CCC-26 새 가입 배지 — 인테이크 전 케이스로 아직 확인하지 않은 당사자.
-                  newSignup={entry.newSignup}
-                />
-              ),
-            }))}
-          />
-        )}
+        <ParticipantFilter
+          error={loadError}
+          rows={sorted.map((entry) => ({
+            beneficiaryId: entry.beneficiaryId,
+            // 검색어 대조용 문자열. 이름·가명 ID·연락처를 한 줄로 이어 둔다.
+            haystack: [entry.name ?? '', entry.beneficiaryId, entry.phone ?? ''].join(' ').toLowerCase(),
+            // 일정 화면과 같은 공용 카드 골격이다. 이름 옆에 ID, 우상단에 상태 배지를 두고
+            // 참여 사업과 연락처는 라벨·값 한 행으로 세로 배치한다.
+            node: (
+              <ParticipantCard
+                href={`/participants/${encodeURIComponent(entry.beneficiaryId)}`}
+                name={entry.name}
+                beneficiaryId={entry.beneficiaryId}
+                phone={entry.phone}
+                statusBadge={entry.status === 'active'
+                  ? { label: statusLabel(entry.status), tone: 'mint' }
+                  : { label: statusLabel(entry.status) }}
+                programCount={entry.programCount}
+                // CCC-26 새 가입 배지 — 인테이크 전 케이스로 아직 확인하지 않은 당사자.
+                newSignup={entry.newSignup}
+              />
+            ),
+          }))}
+        />
       </GridContainer>
     </main>
   );

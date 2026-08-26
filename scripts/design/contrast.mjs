@@ -61,6 +61,7 @@ const PAIRS = [
   ['--blue-deep', '--blue-tint', '블루 deep / 블루 tint', 4.5],
   ['--mint-deep', '--mint-tint', '민트 deep / 민트 tint', 4.5],
   ['--lavender-deep', '--lavender-tint', '라벤더 deep / 라벤더 tint', 4.5],
+  ['--discrepancy', '--panel', '불일치 글자 / 패널', 4.5],
   ['--risk', '--panel', '리스크 글자 / 패널', 4.5],
   ['--risk', '--risk-tint-solid', '리스크 글자 / 배너 배경', 4.5],
   ['--line-control', '--panel', '입력칸 경계 / 카드', 3, true],

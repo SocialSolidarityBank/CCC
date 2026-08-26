@@ -124,9 +124,8 @@ function OverallGoalCard({
     // 카드로 통일한다. 수정 가능성은 안쪽 상자가 알린다.
     <WireCard as="section" className="briefing-goal" labelledBy="briefing-goal-label">
       <div className="briefing-goal-row">
-        {/* 구획이 아니라 값 옆에 서는 한 줄 라벨이라 공용 라벨 레시피(.wire-field-label,
-            14/600 민트 deep)를 그대로 쓴다. 브리핑 전용 라벨 클래스는 2026-08-10 에 없앴다. */}
-        <p className="wire-field-label" id="briefing-goal-label">전체 목표</p>
+        {/* 목표는 사람·소속 축이 아니므로 공용 목표 라벨(14/600 --sub)을 쓴다. */}
+        <p className="goal-tree-label" id="briefing-goal-label">전체 목표</p>
         {editing && action !== undefined
           ? (
             <form className="briefing-goal-form" action={action}>
@@ -189,7 +188,7 @@ function OverallGoalCard({
       {activeGoals.length > 0 && (
         <>
           <hr className="wire-card-divider" />
-          <WireCardSection title="세부 목표" tone="mint">
+          <WireCardSection title="세부 목표">
             <ul className="briefing-subgoal-rows">
               {activeGoals.map((goal) => (
                 <li key={goal.id} className="briefing-subgoal-row wire-fade-clip">{goal.title}</li>
@@ -258,13 +257,18 @@ function DiscrepancyItem({
   action: ((formData: FormData) => Promise<void>) | undefined;
 }) {
   return (
-    <WireCardSection title={discrepancyKindLabels[item.kind]} tone="mint">
+    <WireCardSection title={discrepancyKindLabels[item.kind]} tone="discrepancy">
       <div className="briefing-fields" id={`discrepancy-${item.id}`}>
         {[item.left, item.right].map((side, index) => (
           <WireField key={`${item.id}-${index}`} label={`${formatKoreanDate(side.heldAt)} 회차`}>
             <span>“{side.quote}”</span>
-            {' '}
-            <Link href={`${recordsHref}#record-${side.sessionId}`}>기록 보기</Link>
+            <WireButton
+              variant="neutral"
+              height="sm"
+              href={`${recordsHref}#record-${side.sessionId}`}
+            >
+              기록 보기
+            </WireButton>
           </WireField>
         ))}
       </div>
@@ -398,8 +402,8 @@ export function BriefingCards({
         actions={<>
           {/* '전체 상담 기록'은 2026-08-06 Q 로 페이지 맨 아래(구 '자세한 상담 기록 보기')에서
               여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다. */}
-          <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
-          <WireButton className="briefing-more" href={recordsHref} variant="secondary">전체 상담 기록</WireButton>
+          <WireButton height="sm" href={participantHref} variant="secondary">당사자 정보</WireButton>
+          <WireButton height="sm" className="briefing-more" href={recordsHref} variant="secondary">전체 상담 기록</WireButton>
           <WireButton href={recordNewHref} variant="primary">상담 기록</WireButton>
         </>}
       />
@@ -437,7 +441,20 @@ export function BriefingCards({
             직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
             근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
         <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
-          <WireCardSection title="세션 목표" tone="mint">
+          <WireCardSection
+            title="세션 목표"
+            action={upcomingSchedule === null
+              ? undefined
+              : (
+                  <WireButton
+                    variant="neutral"
+                    height="sm"
+                    href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
+                  >
+                    세션 목표 수정
+                  </WireButton>
+                )}
+          >
             {sessionGoals.length === 0
               ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
               : <WireBullets items={sessionGoals.map((goal) => (
@@ -454,18 +471,6 @@ export function BriefingCards({
                     </span>,
                   ]} />
                 ))} />}
-            {/* 세션 목표 수정 진입점 (D62 §6 · CCC-70). 다가오는 일정이 있을 때만 단다.
-                포커스 일정은 정의상 시작 전이지만, 최종 잠금 판정은 수정 화면과
-                게이트웨이가 다시 한다. 이동 조작이라 그레이(neutral) 단이다(D58 ①). */}
-            {upcomingSchedule !== null && (
-              <WireButton
-                variant="neutral"
-                height="sm"
-                href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
-              >
-                세션 목표 수정
-              </WireButton>
-            )}
           </WireCardSection>
           <WireCardSection title="맞춤형 질문" tone="mint">
             {customQuestions.length === 0
@@ -491,9 +496,13 @@ export function BriefingCards({
                         {...(suggestion.reason !== null ? { description: suggestion.reason } : {})}
                         action={
                           // 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다.
-                          <Link href={`${recordsHref}#record-${suggestion.sessionId}`}>
+                          <WireButton
+                            variant="neutral"
+                            height="sm"
+                            href={`${recordsHref}#record-${suggestion.sessionId}`}
+                          >
                             근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
-                          </Link>
+                          </WireButton>
                         }
                       />
                       <WireSourceQuotes
@@ -587,7 +596,7 @@ export function BriefingCards({
           id="briefing-discrepancies"
           title="내용 불일치"
           badge={unresolvedDiscrepancies.length > 0
-            ? <WireBadge tone="lavender">{unresolvedDiscrepancies.length}건</WireBadge>
+            ? <WireBadge tone="coral">{unresolvedDiscrepancies.length}건</WireBadge>
             : null}
         >
           {unresolvedDiscrepancies.length === 0
@@ -646,7 +655,14 @@ export function BriefingCards({
                     <TimeAxisBadge>기한 {item.dueDate}</TimeAxisBadge>
                       )}
                       {item.sessionId !== null && (
-                        <Link className="briefing-action-source" href={`${recordsHref}#record-${item.sessionId}`}>출처 회차 보기</Link>
+                        <WireButton
+                          className="briefing-action-source"
+                          variant="neutral"
+                          height="sm"
+                          href={`${recordsHref}#record-${item.sessionId}`}
+                        >
+                          출처 회차 보기
+                        </WireButton>
                       )}
                     </li>
                   ))}
