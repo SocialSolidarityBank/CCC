@@ -258,13 +258,14 @@ export default function KitPage() {
         <section className="wire-kit-section" aria-labelledby="kit-button">
           <h2 className="wire-kit-heading" id="kit-button">버튼 5종 × 크기 2단</h2>
           <p className="wire-kit-caption">
-            종류가 색과 테두리를 정하고, 크기는 높이만 바꾼다(40 / 32). 2026-07-26 Q 결정.
+            종류는 색과 테두리만, 크기는 크기 축만 정한다(md 40, 15/600, sm 32, 14/600).
+            2026-07-26 Q 결정, 2026-08-26 4차 개정으로 복원.
           </p>
           <p className="wire-kit-caption">
-            2026-08-07: 형태는 <strong>직사각형 + radius 6</strong>이다(구 알약 대체). 입력칸, 카드와
-            같은 사각 어휘라 조작 요소가 한 계열로 읽힌다. 알약은 배지의 전유물이고 원형은 32px
-            아이콘 버튼만 남는다. 강조는 면(그라데이션)이 만들고, 마우스를 올리면 잉크 워시가
-            깔리고, 누르면 1px 내려간다.
+            2026-08-25: 형태는 <strong>알약</strong>이다(구 직사각 radius 6 대체). 2026-08-26:
+            아웃라인 버튼(세컨더리, 일반)은 그라데이션 1px 로, 아웃라인 없는 버튼은
+            면(프라이머리 그라데이션, 고스트 muted)으로 선다. 위험만 리스크색 아웃라인이다.
+            마우스를 올리면 잉크 워시가 깔리고, 누르면 1px 내려간다.
           </p>
           <div className="wire-kit-row">
             <WireButton variant="primary" align="center">프라이머리</WireButton>

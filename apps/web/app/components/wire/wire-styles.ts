@@ -788,8 +788,11 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
    고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
 /* 행간은 default(normal)다 — 2026-08-06 Q: 단일행 컨트롤의 세로 중앙은 광학 보정이 아니라
    기하 정렬(flex 상하좌우 center + 기본 행간)이 만든다(구 --leading-none 대체). */
-/* 크기 두 갈래(2026-08-06 Q): 핵심 버튼(프라이머리·세컨더리·위험) = --text-btn 15,
-   이동·보기 조작(neutral·ghost) = 계단 14. 굵기도 갈린다 — 강조(핵심)만 600, 조작은 400. */
+/* 크기는 크기 축(data-height)만 정한다(2026-08-26 Q 4차 "버튼 2종 크기가 제각각" —
+   2026-07-26 "종류와 크기는 별개 축" 원칙 복원). md = 40·15/600, sm = 32·14/600.
+   구 "크기 두 갈래"(핵심 15/600, 조작 14/400)는 폐지: 종류가 크기·굵기를 끌고 다녀
+   같은 줄의 라인 버튼과 컬러배경 버튼이 서로 다른 키로 섰다. 굵기는 전 버튼 600
+   하나다(굵기 3단의 '강조 600', 조작 400 예외 폐지). */
 /* 좌우 패딩은 크기·종류와 무관하게 16(--space-4) 하나다(2026-08-26 Q 최종. 같은 날 14
    통일안을 실물 확인 후 16 으로 확정, --space-3-5 는 마지막 사용처가 사라져 폐기). */
 /* 아웃라인 언어 둘(2026-08-26 Q 최종): 아웃라인이 있는 버튼은 전부 **--gradient-brand
@@ -802,15 +805,13 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
 .wire-button[data-variant="primary"]{--wire-outline-color:var(--line-on-action);background:var(--gradient-action);border:var(--wire-outline-width) solid var(--wire-outline-color);color:var(--on-action);background-size:200% auto;background-position:50% 0}
-/* 일반(neutral): 이동·보기 조작(뒤로, 시간순, 달 이동)이 쓴다. 2026-08-26 Q 최종 개정으로
-   그레이 아웃라인을 폐지하고 세컨더리와 같은 그라데이션 아웃라인을 입는다(알약화 이후
-   그레이 아웃라인 알약이 중립 배지와 똑같이 읽혔다). 세컨더리와의 구분은 크기와 굵기다:
-   조작 32(--pill-height)·14/400, 핵심 40·15/600. 채움·테두리 선언을 겹쳐 쓰지 않아야
-   기본 계약의 배경 2겹이 산다. */
-.wire-button[data-variant="neutral"]{min-height:var(--pill-height);font-size:var(--text-sm);font-weight:400}
+/* 일반(neutral): 색이 세컨더리와 같은 라인 버튼이다(2026-08-26 4차 — 크기·굵기 전유를
+   폐지해 별도 규칙이 없다). 이동·보기 조작 자리의 이름으로만 남고, 그 자리들은
+   height="sm" 을 명시한다. */
 /* 고스트: 아웃라인이 없는 버튼은 면으로 선다(2026-08-26 Q "아웃라인 없는 경우 백그라운드
-   컬러로 고정") — 보조 표면 --muted 채움, --sub 글자. 크기는 조작 축(32·14/400). */
-.wire-button[data-variant="ghost"]{background:var(--muted);border-color:transparent;color:var(--sub);min-height:var(--pill-height);font-size:var(--text-sm);font-weight:400}
+   컬러로 고정") — 보조 표면 --muted 채움. 글자는 기본 --ink 그대로다(--sub 로 내리면
+   비활성(muted 면 + --sub)과 똑같아지고 위계 조합 표 §2-1 밖이다). 크기는 크기 축이 정한다. */
+.wire-button[data-variant="ghost"]{background:var(--muted);border-color:transparent}
 /* 버튼 안 꺽쇠 크기 예외 2건은 2026-08-10 에 없앴다(Q "버튼과 listrow, 체브론 맞추기").
    구 값은 라벨을 따라가는 .5333em(15px 라벨 8)·.5em(14px 라벨 7)이었고, 그래서 같은 화면의
    버튼·행·카드 꺽쇠가 8·10·9 로 셋 다 달랐다. 이제 --chevron-box 하나를 함께 본다. */
@@ -830,7 +831,7 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
   /* 세컨더리 호버는 --button-fill 만 바꾼다 — background 를 덮으면 그라데이션 테두리가 사라진다. */
   .wire-button:not(:disabled):not([aria-disabled="true"]):hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}
   .wire-button[data-variant="primary"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--gradient-action);filter:brightness(.96)}
-  .wire-button[data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--muted));color:var(--ink)}
+  .wire-button[data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover{background:color-mix(in srgb,var(--ink) 6%,var(--muted))}
   .wire-button[data-variant="danger"]:not(:disabled):not([aria-disabled="true"]):hover{background:var(--risk-tint-solid)}
   /* 흐름(§6·CCC-53): 그라데이션을 가진 버튼만 — 아웃라인 버튼(세컨더리·일반)은 아웃라인이,
      프라이머리는 채움이 흐른다. 고스트·위험·비활성은 그라데이션이 없어 흐를 것이 없다. */
@@ -916,9 +917,10 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 /* 버튼 라벨 안 아이콘은 글자 세로 중앙에 맞춘다(2026-08-06 Q "시간순 화살표가 가운데가
    아니다" — 본문용 -0.15em 은 버튼 16px 라벨 옆에서 0.9px 낮게 실측됐다). */
 .wire-button .wire-icon{vertical-align:-0.09em}
-/* optical: 조작 알약(14px 라벨)은 본문 기본 보정(-0.15em)이 맞다 — 위 -0.09em 은 16px
-   라벨 실측값이라 14px 옆에서 0.75px 떠 보였다(2026-08-07 실측, 보정 후 잔차 0.09px). */
-.wire-button[data-variant="neutral"] .wire-icon,.wire-button[data-variant="ghost"] .wire-icon{vertical-align:-0.15em}
+/* optical: sm 버튼(14px 라벨)은 본문 기본 보정(-0.15em)이 맞다 — 위 -0.09em 은 15px 이상
+   라벨 실측값이라 14px 옆에서 0.75px 떠 보였다(2026-08-07 실측, 보정 후 잔차 0.09px.
+   2026-08-26 4차: 키를 종류에서 크기 축으로 옮겼다 — 14px 라벨은 sm 이 정한다). */
+.wire-button[data-height="sm"] .wire-icon{vertical-align:-0.15em}
 /* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다.
    조각 사이는 **세로선 1px** 로 가른다(2026-08-06 Q — 여러 위계·성격의 값이 한 줄에 설 때
    간격만으로는 경계가 안 읽힌다). */
