@@ -146,12 +146,6 @@ const ALLOW = [
     why: '이름 옆 가명 ID 조각 — 카드 칩과 같은 레시피(2026-08-26 통일)',
   },
   {
-    // 2026-08-26 Q: 당사자 이름은 카드·HERO 공통 21px 한 벌이다(구 24, 상세 값 14 옆에서 과대).
-    selector: '.participant-name',
-    combo: 'var(--text-participant-name)/600/var(--ink)',
-    why: '당사자 이름 전용 21px — 카드·HERO 공통(2026-08-26 Q)',
-  },
-  {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
     selector: '.participant-card-cell',
     combo: `var(--text-md)/400/${MIXED_SUB}`,

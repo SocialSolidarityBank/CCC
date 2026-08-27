@@ -7,8 +7,9 @@
 //  1. 이름 무응답 등록(D41 무응답 원칙) — 실명이 금고에 없다.
 //  2. 보존 기간 경과로 금고가 파기된 당사자(D10·D32) — 실명·연락처가 영구 소실됐다.
 //
-// 실명 크기는 data-size가 CSS 계약을 고른다. 데스크톱은 세 자리 모두 24이고,
-// 767 이하는 18/600 normal로 내려 페이지 제목과 경쟁하지 않는다.
+// 실명 크기는 data-size가 CSS 계약을 고른다(2026-08-27 Q 두 단, 구 전역 21 한 벌 대체).
+// row(목록·일정 카드)는 카드 내용과 같은 16/600, hero·hub(당사자 정보·HERO)는
+// 카드 제목과 같은 18/600이다. 767 이하도 같다.
 
 export type ParticipantNameSize = 'hero' | 'hub' | 'row';
 
@@ -17,7 +18,7 @@ export interface ParticipantNameProps {
   name: string | null;
   /** 가명 ID(동물 슬러그, D20). 실명이 없을 때만 화면에 나온다(위 폴백 2경우). */
   beneficiaryId: string;
-  /** 자리의 의미. 데스크톱은 24px, 767 이하는 세 자리 모두 18px다. */
+  /** 자리의 의미. row = 16px(카드 내용 단), hero·hub = 18px(카드 제목 단). */
   size?: ParticipantNameSize;
   /** 실제 이름 글자에 붙이는 클래스. 카드의 말줄임·빈 상태처럼 글자 자체 스타일만 확장한다. */
   nameClassName?: string;
