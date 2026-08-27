@@ -58,8 +58,9 @@ export const wireStyles = `
    80px 안이면 ID 가 아래 값들과 같은 x 에서 시작하고, 길면 자연히 밀린다.
    column-gap 은 compact 행과 같은 --space-2-5 다. */
 .participant-card-identity{display:grid;grid-template-columns:minmax(80px,max-content) minmax(0,1fr);column-gap:var(--space-2-5);flex:1 1 auto;align-items:center;min-width:0;overflow:hidden}
-/* 이름은 전역 21/600(--text-participant-name, 2026-08-26 Q — 구 24). 일정·목록·HERO를
-   오갈 때 크기가 바뀌지 않고, 상세 값 14와의 위계는 같은 카드 안에서 유지한다. */
+/* 이름 크기는 자리 두 단이다(2026-08-27 Q, 구 전역 21 한 벌 대체). 목록·일정 카드(row)는
+   카드 내용과 같은 16/600, 당사자 정보·HERO(hero·hub)는 카드 제목과 같은 18/600(§2 짝 계약).
+   전용 토큰(--text-participant-name)은 마지막 사용처가 사라져 폐기, 계단 토큰만 쓴다. */
 .participant-card-name-group{flex:0 1 auto;min-width:0;overflow:hidden}
 .participant-card-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:600}
 .participant-card-name.is-empty{color:var(--sub)}
@@ -251,7 +252,9 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
    동명이인 구분은 전화번호가 맡는다(전체 번호, 자리는 화면이 정한다). */
 .participant-name-group{display:inline-flex;align-items:baseline;gap:var(--space-1);flex-wrap:wrap}
 .participant-name{color:var(--ink);font-weight:600;overflow-wrap:anywhere}
-.participant-name-group[data-size] .participant-name{font-size:var(--text-participant-name);font-weight:600;line-height:var(--leading-tight)}
+.participant-name-group[data-size="row"] .participant-name{font-size:var(--text-md);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
+.participant-name-group[data-size="hero"] .participant-name,
+.participant-name-group[data-size="hub"] .participant-name{font-size:var(--text-lg);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
@@ -275,10 +278,9 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
    구 16/400 옅은 색 폐지). */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
 .participant-hero-id{color:var(--sub);font-size:var(--text-participant-id);font-weight:400;white-space:nowrap}
-/* 767 이하는 이름을 18/600 normal로 내려 페이지 제목과 경쟁하지 않게 하고, 정보와
-   메타는 설명 단으로 정리한다. */
+/* 767 이하도 이름 크기는 데스크톱과 같다(row 16, hero·hub 18. 2026-08-27 두 단 분리로
+   구 '모바일 18 강제'가 무의미해짐). 정보와 메타는 설명 단으로 정리한다. */
 @media(max-width:767px){
-  .participant-name-group[data-size] .participant-name{font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
   .participant-hero-title{gap:var(--space-2);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
   .participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
   .participant-hero-meta .wire-meta-row{flex-direction:column;align-items:flex-start;gap:var(--space-1)}
