@@ -399,9 +399,12 @@ textarea{min-height:216px;resize:vertical}
   .drawer-bar .program-switcher-box{position:static}
   .drawer-bar .program-switcher-menu{left:var(--space-4);right:var(--space-4);width:auto;min-width:0;max-width:none}
   /* 모바일 페이지와 HERO 행동은 내용 크기의 가로 묶음으로 모이고, 자리가 부족하면
-     자연스럽게 다음 줄로 넘어간다. 세컨더리 → 프라이머리 순서와 오른쪽 행동 축을 유지한다. */
+     자연스럽게 다음 줄로 넘어간다. 세컨더리 → 프라이머리 순서와 오른쪽 행동 축을 유지한다.
+     flex:0 1 auto + min-width:0 이 없으면 기본 규칙의 flex:none(수축 0)이 살아, 묶음이
+     내용 최대폭 밑으로 못 줄어 자체 wrap 이 영영 발동하지 않는다. 글자 폭이 넓은
+     환경(CI 폰트)에서 390 오른쪽 19px 넘침의 원인이었다(2026-08-27 실측). */
   .page-header{flex-direction:column;align-items:stretch}
-  .page-actions{width:auto;align-self:flex-end;flex-direction:row;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .page-actions{width:auto;min-width:0;flex:0 1 auto;align-self:flex-end;flex-direction:row;align-items:center;justify-content:flex-end;flex-wrap:wrap}
   .page-header .wire-button{width:auto;justify-content:center}
   /* 뒤로 알약의 좌측선 = 컨테이너 패딩 16 (2026-08-05 Q 2차 "메뉴 - 뒤로 - 상담 일정 좌측
      정렬"). 데스크톱의 24 는 사이드바 안쪽선 정렬인데 모바일엔 사이드바가 없다 — 바 내용·
