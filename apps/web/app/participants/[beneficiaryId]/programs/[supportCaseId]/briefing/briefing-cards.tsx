@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { WireBullets, WireCard, WireCardDetails, WireField } from '../../../../../components/wire/wire-card';
+import { WireBullets, WireCard, WireCardDetails } from '../../../../../components/wire/wire-card';
 import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
-import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
+import { WireQuote, WireSourceQuotes } from '../../../../../components/wire/wire-callout';
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
@@ -258,10 +258,14 @@ function DiscrepancyItem({
 }) {
   return (
     <WireCardSection title={discrepancyKindLabels[item.kind]} tone="discrepancy">
-      <div className="briefing-fields" id={`discrepancy-${item.id}`}>
+      <div className="briefing-discrepancy-sides" id={`discrepancy-${item.id}`}>
         {[item.left, item.right].map((side, index) => (
-          <WireField key={`${item.id}-${index}`} label={`${formatKoreanDate(side.heldAt)} 회차`}>
-            <span>“{side.quote}”</span>
+          <div key={`${item.id}-${index}`} className="briefing-discrepancy-side">
+            {/* 라벨 레시피는 격자 밖에서도 같다(.wire-field-label margin 0 계약). */}
+            <p className="wire-field-label">{formatKoreanDate(side.heldAt)} 회차</p>
+            {/* 인용은 공용 인용 어휘다(D61 ⑤ WireQuote — 구 맨 span 따옴표 대체.
+                2026-08-28 Q "다른 컴포넌트 구성과 같이 맞출 것"). */}
+            <WireQuote>{side.quote}</WireQuote>
             <WireButton
               variant="neutral"
               height="sm"
@@ -269,7 +273,7 @@ function DiscrepancyItem({
             >
               기록 보기
             </WireButton>
-          </WireField>
+          </div>
         ))}
       </div>
       {item.resolution !== null && (
@@ -427,6 +431,9 @@ export function BriefingCards({
           왼쪽은 섹션 제목이다(2026-08-07 Q — 구 카드 바로가기 알약 4개 삭제: 카드 제목과
           같은 문구가 두 번 서 소음이었다). 카드 여러 장을 묶는 섹션 제목이라 카드 밖 예외
           자리이고(§7-6), 상담 기록의 '회차별 기록'과 같은 스타일(18/600)을 쓴다. */}
+      {/* 섹션 제목과 그 아래 항목은 한 묶음이다(2026-08-28 Q — .record-section 공용 계약).
+          제목-내용 간격 16 은 래퍼가 갖고, 섹션 사이는 페이지 스택(--section-gap 32)이 그대로 가른다. */}
+      <section className="record-section">
       <div className="briefing-toolbar">
         <h2 className="record-section-title">상담 전 꼭 봐야할 내용</h2>
         {/* 보기 조작이라 일반(neutral) 그레이 버튼이다(2026-08-07 Q — 구 세컨더리). */}
@@ -672,6 +679,7 @@ export function BriefingCards({
           </Card>
         </div>
       </div>
+      </section>
 
       {/* 맨 아래 '자세한 상담 기록 보기'는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
           HERO 행동 줄(당사자 정보 옆)로 올라갔다. */}

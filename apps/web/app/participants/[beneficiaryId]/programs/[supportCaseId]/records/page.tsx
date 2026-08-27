@@ -238,14 +238,17 @@ export default async function RecordHistoryPage({
       <p>{formatDateTime(schedule.scheduledAt)} {currentSchedulePresentation.message}</p>
     </WireCard>}
 
-    <h2 className="record-section-title">회차별 기록</h2>
-    <RecordList
-      records={records}
-      recordErrorSessionIds={recordErrorSessionIds}
-      unavailable={result.data === null}
-      recordsHref={`${basePath}/records`}
-      briefingHref={`${basePath}/briefing`}
-      {...(beneficiaryId === null || supportCaseId === null ? {} : { intakeHref: `${basePath}/records/intake` })}
-    />
+    {/* 섹션 제목과 그 아래 목록은 한 묶음이다(2026-08-28 Q — .record-section 공용 계약). */}
+    <section className="record-section">
+      <h2 className="record-section-title">회차별 기록</h2>
+      <RecordList
+        records={records}
+        recordErrorSessionIds={recordErrorSessionIds}
+        unavailable={result.data === null}
+        recordsHref={`${basePath}/records`}
+        briefingHref={`${basePath}/briefing`}
+        {...(beneficiaryId === null || supportCaseId === null ? {} : { intakeHref: `${basePath}/records/intake` })}
+      />
+    </section>
   </GridContainer>;
 }

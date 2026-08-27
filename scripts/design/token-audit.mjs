@@ -147,7 +147,7 @@ for (const file of TARGETS) {
     if (line.includes('var(--radius-pill)')) {
       // consent-detail-summary: 전문 보기 배지형 버튼(2026-08-07 Q 9차 — 배지 레시피를 빌린 조작).
       // schedule-past-day: 일정 날짜 아코디언의 상하 상태 표시 원(2026-08-25 Q).
-      const PILL_ALLOWED = ['wire-badge', 'navigation-soon', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag', 'consent-detail-summary', 'wire-button', 'page-back', 'schedule-past-day'];
+      const PILL_ALLOWED = ['wire-badge', 'navigation-soon', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag', 'consent-detail-summary', 'wire-button', 'page-back', 'wire-card-arrow'];
       if (!PILL_ALLOWED.some((name) => line.includes(name))) {
         add(file, n, 'pill-outside-badge', `--radius-pill 은 배지·원형 아이콘·라디오·불릿·글자 버튼만 쓴다. 입력칸과 내비 항목은 var(--radius-control)`);
       }
