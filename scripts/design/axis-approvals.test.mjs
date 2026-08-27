@@ -77,3 +77,17 @@ test("실측 조합은 두 테마와 세 폭의 재생성 경로를 모두 기�
   }
 });
 
+test("실측 PNG는 실제로 존재하고 IHDR 폭이 파일명 폭과 맞는다 (DPR 2)", () => {
+  for (const [theme, width] of expectedMeasurements) {
+    const file = resolve(
+      ledgerDirectory,
+      `../../artifacts/design-unification/kit-measurements/${theme}-${width}.png`,
+    );
+    const head = readFileSync(file).subarray(0, 24);
+    assert.equal(head.readUInt32BE(0), 0x89504e47, `${theme}-${width}: PNG 시그니처가 아니다`);
+    assert.equal(head.toString("latin1", 12, 16), "IHDR", `${theme}-${width}: IHDR 청크가 없다`);
+    const actualWidth = head.readUInt32BE(16);
+    assert.equal(actualWidth, Number(width) * 2, `${theme}-${width}: 실폭 ${actualWidth} != ${width}x2`);
+  }
+});
+

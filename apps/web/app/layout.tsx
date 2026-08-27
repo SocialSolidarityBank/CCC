@@ -305,7 +305,10 @@ h2{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-s
    선언이 없으면 UA 기본 bold 700 이 산다 — 실제로 상담 기록의 '기록 오류' 강조와 킷 본문이
    700 이었고, 상담 등록만 인라인으로 600 을 덮어쓰고 있었다. */
 strong{font-weight:600}
-p{margin:var(--space-2) 0 0;color:var(--sub)}
+/* 전역 p 는 body 상속과 합쳐 16/400 --sub 로 선다. 이 조합은 §1 표 밖(기존 부채)이라
+   위계 baseline 에 등재돼 있다(2026-08-27 검수). 여기 세 축을 실효값 그대로 명시한 것은
+   감사가 이 부채를 보게 하기 위함이며 시각 변화는 없다. 고칠 때 baseline 도 함께 지운다. */
+p{margin:var(--space-2) 0 0;font-size:var(--text-md);font-weight:400;color:var(--sub)}
 /* 버튼 규칙은 **.wire-button 하나가 소유한다**(2026-07-31). 여기 있던 .button 4종
    (.button-primary·.button-ghost·.button-danger·.button-sm)은 지웠다 — 마크업이 한 곳도
    쓰지 않는 죽은 CSS 였는데, 같은 계약을 두 벌로 적어 둔 탓에 §5 를 고칠 때마다 어느 쪽을

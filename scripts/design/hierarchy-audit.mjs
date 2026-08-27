@@ -370,9 +370,11 @@ const NON_TEXT_SELECTORS = new Set([
   '.wire-date-popover .rdp-button_next',
   '.wire-card-details.is-crisis>.wire-card-summary',
 ]);
-// 전역 p는 크기·굵기를 body에서 상속시키는 바닥 규칙이다. 최종 역할 선택자가 아니며,
-// 구체적인 p 클래스는 각자 세 축을 선언해 아래 감사 대상이 된다.
-const INHERITANCE_FOUNDATIONS = new Set(['p']);
+// 전역 p는 한때 여기 면제로 두었지만, 클래스 없는 p가 body 상속과 합쳐져 16/400 --sub
+// (§1이 이름 박은 표 밖 조합)로 서는 것을 감사 밖으로 숨겼다(2026-08-27 검수 지적).
+// 지금은 layout.tsx의 전역 p가 세 축을 실효값 그대로 선언해 감사 대상이며, 그 조합은
+// 기존 부채로 baseline에 있다. 고치는 날 baseline에서 지운다.
+const INHERITANCE_FOUNDATIONS = new Set([]);
 
 /** 감사 대상 CSS 를 모은다. 테스트는 파일 대신 문자열을 넣는다. */
 function readSources() {

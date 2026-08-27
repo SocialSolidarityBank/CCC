@@ -20,9 +20,9 @@
 `page.tsx`와 인벤토리의 경로·fixture·권한·통일 판정, 라우트당 라이트·다크와
 1280·767·390의 6개 조합을 브라우저 없이 확인한다.
 
-`pnpm design:sweep:capture`는 API(8797)와 웹(3000) 로컬 프리뷰를 띄운 뒤
+`pnpm design:sweep:capture`는 API(8787)와 웹(3000) 로컬 프리뷰를 띄워 둔 상태에서 실행한다.
 `scripts/design/ia-shots.py`로 `artifacts/ia-shots/ac3-six-matrix`에 30개 라우트 x
-2테마 x 3폭 캡처와 `report.json`을 생성한다. 포트가 다르면 `SHOT_BASE`와
+2테마 x 3폭 캡처와 `report.json`을 생성한다. 포트가 점유돼 갈랐다면(`--port`) `SHOT_BASE`와
 `CCC_API_ORIGIN`을 맞춘다. 초대 토큰 등 런타임 fixture는 `route-inventory.json`의
 `fixtureEnvironment` 환경 변수로 주입한다.
 
