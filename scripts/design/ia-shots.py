@@ -53,7 +53,17 @@ def _matrix(data: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]
     ]
 
 
-def build_plan(data: dict[str, Any]) -> list[dict[str, Any]]:
+def _lenient_resolve(template: str, values: dict[str, Any]) -> str:
+    """verify·plan 모드용: 없는 fixture는 자리표시 이름 그대로 둔다.
+
+    보고서 대조는 representativeUrl 템플릿 기준이라 실값이 필요 없다.
+    실값 강제는 캡처 모드에서만 한다."""
+    return shots.PLACEHOLDER.sub(
+        lambda match: str(values.get(match.group(1), match.group(1))), template
+    )
+
+
+def build_plan(data: dict[str, Any], *, strict: bool = True) -> list[dict[str, Any]]:
     values = shots.fixture_values(data)
     actor_selector = os.environ.get("SHOT_PERMISSION_ACTOR")
     routes = shots.selected_routes(data, actor_selector)
@@ -63,7 +73,11 @@ def build_plan(data: dict[str, Any]) -> list[dict[str, Any]]:
             plan.append(
                 {
                     **route,
-                    "resolvedUrl": shots.resolve_url(route["representativeUrl"], values),
+                    "resolvedUrl": (
+                        shots.resolve_url(route["representativeUrl"], values)
+                        if strict
+                        else _lenient_resolve(route["representativeUrl"], values)
+                    ),
                     "theme": theme["name"],
                     "width": viewport["width"],
                     "height": viewport["height"],
@@ -248,7 +262,7 @@ def main() -> int:
 
     try:
         data = load_inventory()
-        plan = build_plan(data)
+        plan = build_plan(data, strict=args.label is not None)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         parser.error(str(error))
     if args.plan:
