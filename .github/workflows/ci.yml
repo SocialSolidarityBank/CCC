@@ -46,6 +46,26 @@ jobs:
       - run: pnpm guard:deploy-verdict
       - run: pnpm guard:deploy-gates
 
+  # 전 라우트 인벤토리 동기화(디자인 통일 시드 AC5). page.tsx 집합과
+  # scripts/design/route-inventory.json 이 어긋나면 머지를 막는다. 라우트가 늘었는데
+  # 실측 대상에 안 잡히는 표류가 이 잡의 표적이다. 실측 자체(브라우저)는 hierarchy-measure 가,
+  # 6조합 캡처 검증(pnpm design:sweep)은 로컬 절차가 맡는다(axis-approvals.md).
+  design-sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm design:routes
+      - run: pnpm test:design-routes
+
   # 위계 실측(CCC-80). guard:hierarchy 가 CSS 만 보고 답할 수 없는 물음 하나를 맡는다 —
   # 세로로 이웃한 두 줄이 같은 옷인가(DESIGN.md 2-2 규칙 1). 렌더 결과를 봐야 하므로
   # 브라우저가 필요하고, 그래서 verify 와 갈라 둔다(설치가 verify 를 1분 넘게 늦춘다).
