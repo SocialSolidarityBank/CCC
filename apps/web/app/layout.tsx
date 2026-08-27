@@ -476,6 +476,9 @@ const briefingStyles = `
 .briefing-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--grid-min)),1fr));gap:var(--space-5);align-items:start}
 .briefing-cards-grid>.briefing-card{align-self:start}
 .briefing-cards-grid>.briefing-card[open]{align-self:stretch}
+/* 브리핑 카드가 컨테이너다(2026-08-28) — 카드 안 2단 배치가 화면 폭이 아니라 **자기 폭**을
+   본다(그리드 반칸이면 좁은 것이다. .record-list 와 같은 계약). */
+.briefing-card{container-type:inline-size;min-width:0}
 /* 브리핑 3영역·미해결 액션 = **접힘 카드**다(2026-08-05 Q 카드화 · ADR-0030 — 구 D59
    플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
    여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
@@ -483,7 +486,12 @@ const briefingStyles = `
 /* 구 .briefing-card-arrow 는 2026-08-10 에 없앴다 — .wire-card-arrow 와 **값이 한 글자도
    다르지 않은 복사본**이었다(폭·획·보정·전환 전부 동일). 화면 4곳이 복사본 쪽 이름을
    쓰고 있었을 뿐이라 이름만 바꾸면 끝났다. 모양의 주인은 wire-styles.ts 한 곳이다. */
-.briefing-fields{display:grid;gap:var(--space-2-5)}
+/* 불일치 양쪽 인용(2026-08-28 Q "가로 장폭이 길 때 화면을 적절하게" — 구 .briefing-fields
+   세로 쌓임 대체): 대등한 짝 정보는 넓은 카드에서 2단으로 나란히 선다 — 대조가 한눈에
+   들어온다. 카드가 좁으면(모바일·그리드 반칸) 세로로 돌아간다. */
+.briefing-discrepancy-sides{display:grid;gap:var(--space-4)}
+.briefing-discrepancy-side{display:grid;gap:var(--space-2);justify-items:start;min-width:0}
+@container (min-width:720px){.briefing-discrepancy-sides{grid-template-columns:1fr 1fr;column-gap:var(--space-6)}}
 /* 카드 내 중첩 아코디언(기본정보의 전체 참여사업). 기본 접힘. */
 /* GAS — 목표별 최신 점수. 점수의 좋고 나쁨을 색으로 표시하지 않는다(D6·R4):
    계열 3색은 목표를 서로 구분하는 회전일 뿐이고 점수 숫자는 항상 --ink 다. */
@@ -531,7 +539,7 @@ const briefingStyles = `
    맡는다(구 .briefing-qsection · .briefing-qlabel 폐지). 라벨 색·형제 가로선·세로 리듬은
    전부 부품 계약으로 옮겼고, 2026-08-06 Q 가 정한 "컬러 라벨 + 가로선" 모양은 그대로다.
    AI 제안 목록(CCC-39·D45)의 라벤더 tint 상자는 WireItem tone="lavender" 가 갖는다. */
-.briefing-suggestions{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-suggestions{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
 .briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
@@ -545,12 +553,12 @@ const briefingStyles = `
    핵심 한 줄이 좌측정렬 고정 간격(12)으로 선다. 본문이 한 줄을 넘으면 줄바꿈 대신
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
    전문은 근거 회차(상담 기록)에서 읽는다. */
-.briefing-session-rows{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
+.briefing-session-rows{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
    없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게. 회차 목록(.record-summary)
    의 고정 칸과 같은 계약이고, 날짜 폭 136 도 .record-held-at 과 같은 값이다. */
-.briefing-session-row{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+.briefing-session-row{display:flex;align-items:center;gap:var(--space-4);min-width:0}
 .briefing-session-kind{flex:none;width:84px;display:inline-flex}
 .briefing-session-kind>.wire-badge{width:100%}
 .briefing-session-memo{flex:none;width:52px;display:inline-flex}
@@ -568,8 +576,8 @@ const briefingStyles = `
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
 /* 미해결 액션 행(2026-08-06 Q): 내용은 왼쪽, 담당(민트 — 사람·담당 축)과 기한(블루 —
    일정 축)은 행 오른쪽 끝 뱃지다(D58 ④). 내용이 남는 폭을 갖고 뱃지를 끝으로 민다. */
-.briefing-action-rows{display:grid;gap:var(--space-3);margin:0;padding:0;list-style:none}
-.briefing-action-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
+.briefing-action-rows{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
+.briefing-action-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;min-width:0}
 .briefing-action-desc{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink);overflow-wrap:anywhere}
 .briefing-action-row .wire-badge{flex:none;white-space:nowrap}
 .briefing-action-source{flex:none}
@@ -583,10 +591,10 @@ const briefingStyles = `
    한 줄 자체의 min-width:0 만으로는 안 풀린다 — 그건 레이아웃 때 줄어들 자유를 줄 뿐,
    컨테이너의 **고유 min-content 계산**에는 항목의 내용 폭이 그대로 들어가기 때문이다.
    그래서 바닥을 없애야 하는 곳은 한 줄이 아니라 그것을 담은 그리드 아이템이다. */
-.record-list{container-type:inline-size;display:grid;gap:var(--space-3);min-width:0}
+.record-list{container-type:inline-size;display:grid;gap:var(--space-4);min-width:0}
 .record-list>details{min-width:0}
 /* 접힌 줄 = 펼친 카드의 머리. 두 상태가 같은 줄이라 자리가 안 흔들린다. */
-.record-summary{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);cursor:pointer;list-style:none}
+.record-summary{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4) var(--space-6);cursor:pointer;list-style:none}
 .record-summary::-webkit-details-marker{display:none}
 /* 카드가 overflow:clip 이라(그라데이션 테두리 하단 라운드 버그 수리, wire-styles 참조)
    바깥 링은 잘린다 — 안쪽 링으로 바꾼다. */
@@ -652,6 +660,9 @@ const briefingStyles = `
 /* 카드 밖 구획 제목은 카드 본문과 같은 24px 시작선에 선다. 일정의 펼친 날짜 h3와
    브리핑 구획 h2가 같은 공용 제목을 쓰므로 화면별 바깥 래퍼 패딩을 만들지 않는다. */
 .record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;padding-inline:var(--space-6);font-size:var(--text-lg);font-weight:600;color:var(--ink)}
+/* 섹션 제목 + 그 아래 항목 = 한 묶음(2026-08-28 Q — 구 페이지 스택 위 형제 나열 대체).
+   제목-내용 간격 16 은 래퍼가 갖고, 섹션 사이는 페이지 스택(--section-gap 32)이 그대로 가른다. */
+.record-section{display:grid;gap:var(--space-4);min-width:0}
 @container (max-width:600px){
   .record-summary{flex-wrap:wrap}
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
@@ -779,8 +790,8 @@ const scheduleStyles = `
    --on-action 으로 넘어간다 — 민트 deep 이 그라데이션 면 위에 남으면 묻힌다. */
 .schedule-candidate-id{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .wire-row[data-selected="true"] .schedule-candidate-id{color:var(--on-action)}
-/* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 카드 12)이다(§3-4). */
-.schedule-candidate-list{display:grid;gap:var(--space-3)}
+/* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 스택 16)이다(§3-4). */
+.schedule-candidate-list{display:grid;gap:var(--space-4)}
 /* 한 후보 = 카드 한 장이 장폭을 다 쓰고, '당사자 정보' 버튼도 카드 안 오른쪽 끝이다
    (2026-08-09 Q — 구 행 밖 형제 버튼 대체). 카드 자체는 .wire-row 계약(72 높이·패딩)을
    그대로 입되 div 라, 고르기는 안쪽 flex:1 버튼이 갖는다 — 버튼 속 버튼을 만들지 않으면서
@@ -911,7 +922,9 @@ const registerStyles = `
    컸다. 배수를 따로 두지 않고 기준 글자만 줄여, 상자와 획과 광학 보정이 한 비율로 함께
    작아진다(14px 글줄에서 상자 7.9 에서 5.5 로). 등록 폼 '자세히 읽어보기'와 허브
    '전문 보기'는 같은 부품이라 한 선택자가 둘 다 덮는다. */
-.consent-detail-summary>.wire-card-arrow{font-size:.7em}
+/* 동의 요약 줄은 배지형 버튼 안이라 원형 컨테이너를 겹치지 않는다(알약 안 알약 금지) —
+   꺽쇠 잉크만 남기고 기준 글자 .7em 축소(2026-08-08 Q)는 유지한다. */
+.consent-detail-summary>.wire-card-arrow{font-size:.7em;width:auto;height:auto;border:0;border-radius:0;background:none}
 /* 인라인 변형의 요약 줄은 **작은 배지형 버튼**이다(2026-08-07 Q 9차 "전문보기를 작은
    뱃지형 버튼으로" — 구 텍스트+화살표 줄 대체). 모양은 기본 배지 레시피(높이 24 ·
    --sub 외곽선 · 알약 · 14/400 --ink)를 그대로 빌리고, 조작이므로 호버 면만 얹는다.

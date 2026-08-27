@@ -96,46 +96,56 @@ details.surface-card{overflow:clip}
    카드 **전체**를 채우지 않는 이유: 펼친 카드의 본문은 읽는 면이다. 회차 본문과 기록지
    아코디언 본문은 긴 글이라 파스텔 면 위에 앉으면 읽기가 나빠진다.
 
-   세 자리는 제외한다.
-     * **브리핑 3영역**(.briefing-card)은 open 이 기본값이라 늘 펼쳐져 있다 — '활성'이 아무
-       정보를 갖지 않는 자리다. 채우면 15초 페이지에 파스텔 띠 셋이 상시로 서서 조용한
-       화면(§0)이 무너지고 리스크 배너의 유일성(D9)도 함께 흐려진다.
+   **전면 적용이다(2026-08-28 Q "펼침 상단 바 그라데이션 모든 페이지 전체 적용" — 구
+   브리핑 3영역·세션 목표 수정·일정 날짜 제외 폐지).** 구 제외 근거(open 기본값 카드는
+   파스텔 띠가 상시로 선다)는 Q 가 화면을 보고 통일 쪽으로 기각했다. 예외는 하나만 남는다.
      * **위기·안전 아코디언**(.is-crisis)은 --risk 틴트·테두리를 갖는 자리다. 경고색 독점을
-       지키려면 그 위에 다른 채움을 얹지 않는다(D9).
-     * **세션 목표 수정 카드**(.session-plan-card, CCC-75)도 브리핑과 같은 이유다 — 기본
-       전부 펼침 폼이라 채우면 목표 수만큼 파스텔 띠가 상시로 선다. 제목 줄은 회색 구분선
-       기본형([open]>.wire-card-summary)으로 남는다.
+       지키려면 그 위에 다른 채움을 얹지 않는다(D9. 2026-08-28 Q 예외 승인).
 
    **채운 면 위 글자는 늘 --on-action 이다.** --gradient-action 은 두 테마에서 같은 밝은
    파스텔이라(tokens.css 다크 주석 ③) --ink 를 그대로 두면 다크에서 밝은 글자가 밝은 면에
    얹힌다. 제목 줄 안 조각들이 저마다 --ink·--sub 를 선언하고 있어 하나씩 덮는다.
-   색상 배지는 계열 deep 면과 테마별 --on-badge 글자를 가진 독립 표면이라 같은 예외를 따른다.
-   neutral 배지는 기존 --ink 전경색을 유지하고 risk 배지는 다른 색상 배지와 같은 --on-badge를 쓴다. */
-details.surface-card[open]:not(.briefing-card)>.record-summary,
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day):not(.schedule-day-accordion)>.wire-card-summary{
+   색상 배지는 계열 deep 면과 테마별 --on-badge 글자를 가진 독립 표면이라 같은 예외를 따른다. */
+details.surface-card[open]>.record-summary,
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary{
   background:var(--gradient-action);
   color:var(--on-action);
 }
-details.surface-card[open]:not(.briefing-card)>.record-summary>.record-ordinal,
-details.surface-card[open]:not(.briefing-card)>.record-summary>.record-held-at,
-details.surface-card[open]:not(.briefing-card)>.record-summary>.record-one-liner,
-details.surface-card[open]:not(.briefing-card)>.record-summary .record-flag{color:var(--on-action)}
-/* 회차별 기록이 열리면 유형 배지만 색 면과 글자를 뒤집는다. 색상 base를 글자로 쓰면
-   라이트 패널 위 대비가 부족하므로 접근 가능한 deep 글자와 --on-badge 면을 짝지은다. */
-details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-tone="mint"]{--wire-outline-color:var(--mint-deep);background:var(--on-badge);color:var(--mint-deep)}
-details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-tone="lavender"]{--wire-outline-color:var(--lavender-deep);background:var(--on-badge);color:var(--lavender-deep)}
-/* 접힘 카드 제목 줄 안 조각들. 제목은 자기 색(--ink)을, 꺽쇠는 자기 획색(--sub)을 갖고 있어
-   면만 채우면 회색 글자가 파스텔 위에 남는다. 메타 줄 세로선은 채운 면 전용 선색이다
-   (D56 --line-on-action, .wire-row 고른 행과 같은 계약). 회차 유형 배지만 위 규칙으로
-   반전하고 다른 아코디언 배지는 독립 표면으로 남긴다. */
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day):not(.schedule-day-accordion)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day):not(.schedule-day-accordion)>.wire-card-summary .wire-card-arrow{border-color:var(--on-action)}
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day):not(.schedule-day-accordion)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
+details.surface-card[open]>.record-summary>.record-ordinal,
+details.surface-card[open]>.record-summary>.record-held-at,
+details.surface-card[open]>.record-summary>.record-one-liner,
+details.surface-card[open]>.record-summary .record-flag{color:var(--on-action)}
+/* 채운 면 위 배지 계약(2026-08-28 Q "수기 배지가 그라데이션에 묻힘" — 구 회차 유형
+   mint·lavender 2종 한정을 대체): 색상 배지는 deep 글자 + --on-badge 면으로 뒤집고
+   (base 를 글자로 쓰면 라이트 패널 위 대비 부족), **톤 없는 배지는 채운 면 전용
+   선·글자로 선다**(--line-on-action·--on-action — 구 --line·--ink 가 그라데이션에
+   묻히던 버그의 수정). deep 짝이 없는 변형 톤(coral·amber·lime·cyan·light-magenta)은
+   불투명 단색 면이라 채운 면 위에서도 그대로 읽힌다. */
+details.surface-card[open]>.record-summary .wire-badge[data-tone="mint"],
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="mint"]{--wire-outline-color:var(--mint-deep);background:var(--on-badge);color:var(--mint-deep)}
+details.surface-card[open]>.record-summary .wire-badge[data-tone="lavender"],
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="lavender"]{--wire-outline-color:var(--lavender-deep);background:var(--on-badge);color:var(--lavender-deep)}
+details.surface-card[open]>.record-summary .wire-badge[data-tone="blue"],
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="blue"]{--wire-outline-color:var(--blue-deep);background:var(--on-badge);color:var(--blue-deep)}
+details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk);background:var(--on-badge);color:var(--risk)}
+details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge:not([data-tone]){--wire-outline-color:var(--line-on-action);color:var(--on-action)}
+/* 접힘 카드 제목 줄 안 조각들. 제목은 자기 색(--ink)을 갖고 있어 면만 채우면 회색 글자가
+   파스텔 위에 남는다. 화살표는 원형 컨테이너라 면(--panel)이 대비를 만들고 테두리만 채운
+   면 전용 선색으로 바꾼다. 메타 줄 세로선도 같은 계약(D56 --line-on-action)이다. */
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-card-arrow{border-color:var(--line-on-action)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
+/* 새로 편입된 일정 날짜 아코디언(2026-08-28)의 이름 목록·건수도 채운 면 글자다
+   (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다). */
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-past-names,
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-count{color:var(--on-action)}
 /* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
    밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
    따라온다(2026-08-09 — 구 손 계산 16/20 대체). 회차 카드(.record-summary)는 카드에 패딩이
    없어 이 보정이 필요 없다. */
-.wire-card-details[open]:not(.briefing-card):not(.is-crisis):not(.session-plan-card):not(.schedule-past-day):not(.schedule-day-accordion)>.wire-card-summary{
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary{
   margin:calc(var(--card-pad, var(--space-6)) * -1) calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));
   padding:var(--card-pad, var(--space-6));
 }
@@ -406,7 +416,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 .goal-tree-history{display:contents}
 .goal-tree-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub);line-height:normal}
 .goal-tree-history::details-content{flex-basis:100%;min-width:0}
-.wire-timeline{list-style:none;margin:var(--space-1) 0 0;padding:0;display:grid;gap:var(--space-3)}
+.wire-timeline{list-style:none;margin:var(--space-1) 0 0;padding:0;display:grid;gap:var(--space-4)}
 .wire-timeline-item{position:relative;display:grid;gap:var(--space-1);padding-left:var(--space-5)}
 .wire-timeline-item::before{content:"";position:absolute;left:0;top:5px;width:7px;height:7px;background:var(--ink)}
 .wire-timeline-item::after{content:"";position:absolute;left:3px;top:18px;bottom:-14px;width:1px;background:var(--line)}
@@ -519,7 +529,7 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    그라데이션 테두리를 그대로 받는다(D47 회차 카드와 같은 어휘).
    제목 아래 그라데이션 1px 은 WireCard 의 구분선과 같은 선인데, 접혀 있으면 본문이 없어
    선도 없다 — 카드 바닥에 선만 남는 모양을 막는다. */
-.wire-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none}
+.wire-card-summary{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);cursor:pointer;list-style:none}
 /* 접힌 카드에서는 보이는 카드 면 전체가 summary 클릭 영역이다. 카드 padding 안쪽의 제목만
    눌리던 구 계약은 일정 날짜 카드에서 22px짜리 표적을 만들었다(2026-08-25 시각 QA). */
 .wire-card-details:not([open])>.wire-card-summary{margin:calc(var(--card-pad, var(--space-6)) * -1);padding:var(--card-pad, var(--space-6))}
@@ -527,25 +537,26 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    좌우 2px가 잘리지 않게 한다. */
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
-.wire-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
+.wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
 /* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘 = 아래 꺽쇠("펼칠 수 있음"), 펼침 = 위 꺽쇠.
    오른쪽 꺽쇠는 **페이지 이동 전용**이라 아코디언에 쓰지 않는다(구 닫힘 오른쪽이 이동
-   링크와 혼동을 만들던 것을 대체). optical: 꺽쇠 잉크는 회전 때문에 상자 중앙에서
-   벗어난다. 잉크가 글줄 중앙에 오도록 translate 로 되민다(.wire-chevron 과 같은 보정 계약). */
-.wire-card-arrow{flex:none;display:inline-block;vertical-align:middle;width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform .15s ease}
+   링크와 혼동을 만들던 것을 대체). **모양은 원형 컨테이너 하나다**(2026-08-28 Q "버튼화
+   통일" — 구 맨 꺽쇠 기본형 + 일정 전용 원형 변형 2벌을 이 기본형이 대체). summary 전체가
+   클릭 영역이고 원은 상태 표시라 버튼을 중첩하지 않는다. 모션도 토큰 한 쌍
+   (--motion-fast·--ease-standard)이다 — 구 하드코딩 .15s ease 폐지. optical: 꺽쇠 잉크는
+   회전 때문에 상자 중앙에서 벗어난다. translate 로 되민다(.wire-chevron 과 같은 보정 계약). */
+.wire-card-arrow{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
+.wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
 /* 펼침 = 위. 셀렉터를 details[open] 제네릭으로 두어 WireCardDetails·동의 전문·목표 트리
-   같은 모든 아코디언이 한 규칙을 본다. 네이티브 마커는 화살표가 있는 summary 에서 숨긴다. */
-details[open]>summary .wire-card-arrow{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
-summary:has(.wire-card-arrow){list-style:none}
+   같은 모든 아코디언이 한 규칙을 본다. 회전은 컨테이너가 아니라 꺽쇠 잉크(::before)만 한다. */
+details[open]>summary .wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
+/* 화살표 있는 summary 는 네이티브 마커를 숨기고, 화살표와 옆 항목·텍스트의 간격을 한 값으로
+   갖는다(2026-08-28 Q "여백 동일하게, 조금 더 넉넉하게" — 행 안 간격 16). 플레인 텍스트
+   summary(이력 보기·근거 인용 류)도 flex 로 세워 같은 간격 계약을 받는다. */
+summary:has(.wire-card-arrow){display:flex;align-items:center;gap:var(--space-4);list-style:none}
 summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
-/* 일정 날짜 아코디언은 밀도 높은 목록에서 시인성을 위해 원 안의 상하 화살표를 쓴다(방향
-   어휘는 위 기본과 같다). summary 전체가 클릭 영역이고 원은 상태 표시라 버튼을 중첩하지 않는다. */
-.wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow,.wire-card-details.schedule-day-accordion>.wire-card-summary .wire-card-arrow{display:grid;place-items:center;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel);transform:none}
-.wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow::before,.wire-card-details.schedule-day-accordion>.wire-card-summary .wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
-.wire-card-details.schedule-past-day[open]>.wire-card-summary .wire-card-arrow,.wire-card-details.schedule-day-accordion[open]>.wire-card-summary .wire-card-arrow{transform:none}
-.wire-card-details.schedule-past-day[open]>.wire-card-summary .wire-card-arrow::before,.wire-card-details.schedule-day-accordion[open]>.wire-card-summary .wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
    이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */
 .wire-card-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
@@ -1065,7 +1076,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-admin-back a:hover{text-decoration:underline}
 /* 두 컬럼의 첫 줄이 같은 높이에서 시작해야 한다(2026-08-03 Q '박스와 텍스트 여백 정렬') —
    좌열만 갖던 여분 margin-top 을 없앤다. 세로 간격은 .wire-admin-cols 의 margin 이 준다. */
-.wire-admin-list{display:grid;gap:var(--space-3)}
+.wire-admin-list{display:grid;gap:var(--space-4)}
 /* 좌열(실무자 목록)은 '이메일  역할' 한 줄이 랩 없이 들어가는 최소 폭을 보장한다. */
 .wire-admin-cols{display:grid;grid-template-columns:minmax(400px,1fr) minmax(0,1.2fr);gap:var(--space-6);margin-top:var(--space-6);align-items:start}
 .wire-admin-cols>section{display:grid;gap:0;min-width:0}

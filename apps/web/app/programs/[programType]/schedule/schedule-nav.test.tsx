@@ -219,21 +219,19 @@ describe('CCC-133 지난 일정 대비 정제(2026-08-25 Q)', () => {
     expect(baseRule('.briefing-toolbar')).not.toContain('padding-inline');
   });
 
-  it('접힌 날짜는 원 안의 아래 화살표이고 열리면 위 화살표가 된다', () => {
-    const circle = baseRule(
-      '.wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow,.wire-card-details.schedule-day-accordion>.wire-card-summary .wire-card-arrow',
-    );
+  it('아코디언 화살표는 원 안의 아래 꺽쇠이고 열리면 위 꺽쇠가 된다 (2026-08-28 전 아코디언 기본형)', () => {
+    const circle = baseRule('.wire-card-arrow');
     expect(circle).toContain('width:var(--pill-height)');
     expect(circle).toContain('height:var(--pill-height)');
     expect(circle).toContain('border-radius:var(--radius-pill)');
-    const closed = baseRule(
-      '.wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow::before,.wire-card-details.schedule-day-accordion>.wire-card-summary .wire-card-arrow::before',
-    );
+    const closed = baseRule('.wire-card-arrow::before');
     expect(closed).toContain('rotate(45deg)');
-    const open = baseRule(
-      '.wire-card-details.schedule-past-day[open]>.wire-card-summary .wire-card-arrow::before,.wire-card-details.schedule-day-accordion[open]>.wire-card-summary .wire-card-arrow::before',
-    );
+    // 모션은 토큰 한 쌍이다 — 구 하드코딩 .15s ease 회귀 방지.
+    expect(closed).toContain('transition:transform var(--motion-fast) var(--ease-standard)');
+    const open = baseRule('details[open]>summary .wire-card-arrow::before');
     expect(open).toContain('rotate(-135deg)');
+    // 일정 전용 원형 변형 2벌은 기본형 승격으로 폐지됐다.
+    expect(wireSource).not.toContain('.wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow');
   });
 
   it('보이는 select와 접힌 카드 면 전체가 실제 클릭 영역이다', () => {
