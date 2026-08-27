@@ -50,6 +50,9 @@ const isDisabled = (variants) => variants.some((v) => /disabled/.test(v));
 // 값이 아직 없는 자리(2026-08-10 CCC-84). '설정 전' 처럼 값이 비면 같은 크기에서 굵기와 색만
 // 물러선다. 목표 카드 세 곳이 똑같이 이렇게 하고 있어 상태 규칙으로 세운다. 비활성과 같은 자리다.
 const isEmptyState = (entry) => /(^|[.\s])is-empty($|[^-\w])/.test(entry.raw);
+// 공식 AI 한 줄이 없는 수기 폴백과 닫힌 목표도 값 자체의 역할은 유지한 채 색만 물러선다.
+// 둘 다 문구·상태를 함께 표시하므로 색만으로 상태를 전달하지 않는다.
+const isSubduedState = (entry) => /(^|[.\s])(is-memo|is-closed)($|[^-\w])/.test(entry.raw);
 
 // (크기, 굵기) → 허용 색 집합. 역할표의 각 행을 그대로 옮긴 것이라 행마다 근거를 적는다.
 const ROLES = [
@@ -357,6 +360,19 @@ const isSubset = (a, b) => a.every((x) => b.includes(x));
 
 // 글자가 아닌 것. 색은 아이콘 획을 칠하고 크기는 꺽쇠 상자를 잰다 — 타이포 조합이 아니다.
 const NON_TEXT_TAGS = ['svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon'];
+// 선택자만 보면 span/button 이지만 실제 마크업에서 글자 없이 아이콘만 담는 자리와,
+// 자식 제목이 타이포를 소유하는 표면 컨테이너다. 세 축 조합의 판정 대상이 아니다.
+const NON_TEXT_SELECTORS = new Set([
+  '.program-switcher-trigger .switcher-updown',
+  '.risk-banner-icon',
+  '.wire-empty-icon',
+  '.wire-date-popover .rdp-button_previous',
+  '.wire-date-popover .rdp-button_next',
+  '.wire-card-details.is-crisis>.wire-card-summary',
+]);
+// 전역 p는 크기·굵기를 body에서 상속시키는 바닥 규칙이다. 최종 역할 선택자가 아니며,
+// 구체적인 p 클래스는 각자 세 축을 선언해 아래 감사 대상이 된다.
+const INHERITANCE_FOUNDATIONS = new Set(['p']);
 
 /** 감사 대상 CSS 를 모은다. 테스트는 파일 대신 문자열을 넣는다. */
 function readSources() {
@@ -401,7 +417,19 @@ function collect(sources) {
  *   변형 — `o` 의 변형이 `e` 의 부분집합이다(기본형 → 선택 상태, 그 반대는 아니다)
  */
 function applies(o, e) {
-  if (o.ancestors !== '' && !e.ancestors.endsWith(o.ancestors)) return false;
+  if (o.ancestors !== '') {
+    // 조상 사이에 상태·래퍼가 하나 더 끼어도 같은 대상 규칙은 적용된다.
+    // 예: `.wire-date-popover .rdp-day_button` 은
+    // `.wire-date-popover .rdp-outside .rdp-day_button` 에도 적용된다.
+    // 문자열 includes 는 `.foo` 와 `.foobar` 를 섞으므로 compound 단위 연속 부분열로 본다.
+    const compounds = (ancestors) => ancestors.split(/[>+~ ]+/).filter(Boolean);
+    const base = compounds(o.ancestors);
+    const target = compounds(e.ancestors);
+    const containsBase = target.some((_, start) => (
+      base.every((compound, offset) => target[start + offset] === compound)
+    ));
+    if (!containsBase) return false;
+  }
   if (!isSubset(o.set, e.set)) return false;
   if (!isSubset(o.variants, e.variants)) return false;
   // 자기 미디어 분기이거나 기본 분기의 선언만 받는다.
@@ -463,6 +491,7 @@ function legal(entry) {
   if (ON_SURFACE.includes(resolved.color)) return true;
   if (isDisabled(variants) && DIMMED.includes(resolved.color)) return true;
   if (isEmptyState(entry) && DIMMED.includes(resolved.color)) return true;
+  if (isSubduedState(entry) && DIMMED.includes(resolved.color)) return true;
   return false;
 }
 
@@ -476,6 +505,7 @@ function allowed(entry) {
 /** 판정 대상인가. 글자가 아닌 것과 계단 밖 크기는 이 감사의 물음이 아니다. */
 function judgeable(e) {
   if (e.set.some((t) => NON_TEXT_TAGS.includes(t))) return false;
+  if (NON_TEXT_SELECTORS.has(e.raw) || INHERITANCE_FOUNDATIONS.has(e.raw)) return false;
   // inherit 은 "부모를 따른다"는 선언이고, transparent 는 글자를 지우고 그라데이션을 오려
   // 내는 자리(background-clip)라 둘 다 조합을 만들지 않는다.
   if (Object.values(e.resolved).some((v) => v === 'inherit' || v === 'transparent')) return false;
@@ -548,7 +578,7 @@ function main() {
       console.log(`  ${u.file}:${u.line}  ${u.selector}`);
       console.log(`    추정 ${u.combo}, 안 적힌 축 ${u.missing.join(', ')}`);
     }
-    return 0;
+    return unresolved.length === 0 ? 0 : 1;
   }
 
   if (process.argv.includes('--update-baseline')) {
@@ -583,6 +613,12 @@ function main() {
 
   const { fresh, stale } = compare(violations, baseline.entries);
 
+  for (const u of unresolved) {
+    console.error(`미확정 ${u.file}:${u.line}`);
+    console.error(`  ${u.selector}`);
+    console.error(`  안 적힌 축 ${u.missing.join(', ')}. 세 축을 명시해 정적 판정을 닫는다`);
+  }
+
   for (const v of fresh) {
     console.error(`위반 ${v.file}:${v.line}`);
     console.error(`  ${v.selector}`);
@@ -598,12 +634,12 @@ function main() {
     for (const k of stale) console.error(`  ${k}`);
   }
 
-  if (fresh.length === 0 && stale.length === 0) {
+  if (fresh.length === 0 && stale.length === 0 && unresolved.length === 0) {
     console.log(`위계 감사 통과. 새 위반 0건, 기준선에 남은 기존 위반 ${violations.length}건`);
-    console.log(`세 축 미확정 ${unresolved.length}건은 --unresolved 로 본다(하니스 몫).`);
+    console.log('세 축 미확정 0건');
     return 0;
   }
-  console.error(`\n새 위반 ${fresh.length}건, 낡은 기준선 ${stale.length}건.`);
+  console.error(`\n새 위반 ${fresh.length}건, 낡은 기준선 ${stale.length}건, 미확정 ${unresolved.length}건.`);
   return 1;
 }
 

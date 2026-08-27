@@ -66,6 +66,14 @@ check(
   `).includes('var(--text-md)/600/var(--sub)'),
 );
 
+check(
+  '조상 사이에 상태 래퍼가 끼어도 기본 대상 규칙을 물려받는다',
+  run(`
+    .popover .day{font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+    .popover .outside .day{color:var(--sub)}
+  `).unresolved.length === 0,
+);
+
 // 변형은 기본형에서 물려받되 거꾸로 주지 않는다. 그래서 아래에서 걸려야 하는 것은
 // `.row[data-selected="true"]` 하나뿐이고 기본형 `.row` 는 나오면 안 된다.
 const variantKeys = keys(`
@@ -298,6 +306,11 @@ check(
   '기준선이 비어 있지 않다',
   baseline.entries.length > 0,
   '기준선이 0건이면 감사가 아무것도 못 보고 있다는 뜻일 수 있다',
+);
+check(
+  '실제 앱 CSS의 세 축 미확정이 0건이다',
+  live.unresolved.length === 0,
+  `미확정 ${live.unresolved.length}건`,
 );
 
 // ---------------------------------------------------------------------------

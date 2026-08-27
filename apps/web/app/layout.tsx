@@ -514,7 +514,7 @@ const briefingStyles = `
 .briefing-subgoal-row{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 /* 세션 목표에 병기하는 부모 세부 목표 이름 (D62 §5) — 부모가 닫혔으면 흐리게(--sub).
    색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
-.briefing-parent-goal{color:var(--sub);font-weight:600}
+.briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
 .briefing-parent-goal.is-closed{color:var(--sub)}
 /* 전체 목표 미설정 안내 한 줄 (D62 §7) — 설명·메타 단(14/400 --sub, §2-2 단 ④).
    상자를 두르지 않는다(콜아웃 카드는 카드 안 카드가 된다 — D59 ③). */
@@ -602,7 +602,7 @@ const briefingStyles = `
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). 넘침은 공용
    .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 브리핑 회차 행과 같은 규칙(2026-08-06 Q). */
 .record-one-liner{flex:1;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
-.record-one-liner.is-memo{color:var(--sub)}
+.record-one-liner.is-memo{color:var(--sub);font-weight:400}
 .record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
 /* 펼친 본문. 머리와 본문은 --gradient-brand 1px 로 나눈다(§5 카드 계약 — 그라데이션이
    남는 자리는 카드 안쪽 구분선뿐이다). */
@@ -634,7 +634,7 @@ const briefingStyles = `
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
 /* 리스크 레드는 **확인된** 플래그에만(D9·D34). 조회 API 가 확인된 것만 내려보내지만,
    색을 상태에 걸어 두면 나중에 범위가 넓어져도 규율이 깨지지 않는다. */
-.record-flag{font-weight:600;color:var(--sub)}
+.record-flag{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .record-flag[data-confirmed="true"]{color:var(--risk)}
 .record-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-4);border-top:1px solid var(--line);padding:var(--space-3) var(--space-6);font-size:var(--text-sm);color:var(--sub)}
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
@@ -861,7 +861,7 @@ const registerStyles = `
 .preview-gate{min-height:100dvh;align-content:center;justify-items:center;text-align:center}
 .preview-gate-head{display:grid;gap:var(--space-2);justify-items:center}
 .preview-gate-head>h1{margin:0}
-.preview-gate-head>p{margin:0;color:var(--sub)}
+.preview-gate-head>p{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .preview-gate-card{width:min(400px,100%);display:grid;gap:var(--space-5);padding:var(--space-6);text-align:left}
 .preview-gate-card .preview-gate-submit{width:100%;justify-content:center}
 /* 당사자 등록·초대 (#37) */

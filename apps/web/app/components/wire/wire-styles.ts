@@ -182,7 +182,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 .wire-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm)}
 /* 두 층 목차(인테이크 조회): 부(部) 링크는 600 --ink, 소절은 들여쓴 --sub — 위계를 가른다. */
 .wire-toc-list ol{margin:0;padding-left:var(--space-3);list-style:none;display:grid;gap:var(--space-1-5)}
-.wire-toc-list a{color:var(--sub);text-decoration:none}
+.wire-toc-list a{font-size:var(--text-sm);font-weight:400;color:var(--sub);text-decoration:none;cursor:pointer}
 .wire-toc-list a.wire-toc-part{font-weight:600;color:var(--ink)}
 .wire-toc-list a:hover{color:var(--ink);text-decoration:underline}
 .wire-toc-list a:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -263,7 +263,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 .participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
 .participant-hero-top{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4) var(--space-5);flex-wrap:wrap;min-width:0}
 .participant-hero-divider{height:0;margin:0 calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
-.participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-2xl);line-height:var(--leading-tight)}
+.participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-2xl);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
 /* HERO 의 '상담 준비' 태그도 .wire-status-tag 하나를 쓴다(2026-08-07 통합 — 구
    .participant-hero-stage 는 같은 선언의 복사본이라 삭제. 알약·400 재개정은 2026-08-06 Q,
    레시피는 아래 .wire-status-tag 가 소유한다). 줄바꿈 금지만 HERO 한정으로 남긴다. */
@@ -286,7 +286,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 }
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:var(--text-sm)}
-.note-inline a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
+.note-inline a{font-size:var(--text-sm);color:var(--blue-deep);font-weight:600;text-decoration:underline}
 /* 일정·당사자 목록의 한 줄 업무 도구. 페이지 제목과 행동을 다시 나누지 않고 검색·기간
    조작·등록을 한 면에 묶는다. 그림자는 없고 카드 안 카드를 만들지 않는다. */
 .work-toolbar{padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
@@ -336,7 +336,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 .participant-program-head-main .wire-badge{flex:none;white-space:nowrap}
 .participant-program-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 .participant-program-assignee{display:flex;gap:var(--space-2);align-items:baseline;font-size:var(--text-sm);color:var(--ink)}
-.participant-program-assignee-label{color:var(--mint-deep);font-weight:600}
+.participant-program-assignee-label{font-size:var(--text-sm);color:var(--mint-deep);font-weight:600}
 /* 구 .participant-program-actions(카드 하단 버튼 줄)는 2026-08-07 가로 행 개편으로 삭제 —
    버튼은 일정 행의 오른쪽 끝(margin-left:auto)에 선다. */
 /* 구 .participant-program-locked(담당하지 않는 사업 잠금 문구)는 2026-08-07 사업명
@@ -380,7 +380,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 .goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
 .goal-tree-goal-title{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 /* 닫힌 목표는 흐리게 — 기록으로 남기되 활성과 한눈에 갈린다(D62 §5). 사유는 배지가 말한다. */
-.goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}
+.goal-tree-goal.is-closed .goal-tree-goal-title{font-weight:400;color:var(--sub)}
 .goal-tree-goal-head .wire-badge{flex:none;white-space:nowrap}
 /* 세션 목표는 세부 목표 아래 들여쓴 가지다 — 회기 시각 · 문구. 왼쪽 --line 세로선이
    소속을 만든다(트리의 가지 표시. 그라데이션 세로선은 인용 전용이라 쓰지 않는다 — §5). */
@@ -394,7 +394,7 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
    deep 색 글자는 §6 규칙 3 대로 14 이상·굵기 600 에서만 쓴다(.note-inline a·.wire-form-hint a
    와 같은 레시피). 이력 아코디언 안 시각은 그대로 둔다 — 거기는 '최초 작성 · 이름 · 시각'
    세 조각짜리 메타 줄이라 날짜만 물들이면 나머지 두 조각과 위계가 뒤바뀐다. */
-.goal-tree-session-date{flex:none;color:var(--blue-deep);font-weight:600}
+.goal-tree-session-date{flex:none;font-size:var(--text-sm);color:var(--blue-deep);font-weight:600}
 .goal-tree-session-body{min-width:0}
 /* 문구 이력(D62 §4) — 기본 숨김, '이력 보기'로만 연다. 요약은 처리 이력(.briefing-history)과
    같은 14/600 --sub 어휘로 목표 문구와 같은 줄 오른쪽에 서고, 펼친 이력은 줄을 통째로 쓴다.
@@ -412,10 +412,10 @@ details.surface-card[open]:not(.briefing-card)>.record-summary .wire-badge[data-
 /* CCC-81 단계 표시 부품 — 진행 상태는 블루 축(D34), 현재=채움·완료=tint·대기=무채색. */
 .wire-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);align-items:center}
 .wire-step{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
-.wire-step-marker{display:grid;place-items:center;min-width:20px;height:20px;padding:0 var(--space-1);border-radius:var(--radius-control);font-size:var(--text-sm);font-weight:600}
+.wire-step-marker{display:grid;place-items:center;min-width:20px;height:20px;padding:0 var(--space-1);border-radius:var(--radius-control);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-step-current .wire-step-marker{background:var(--blue);color:var(--on-action)}
 .wire-step-done .wire-step-marker{background:var(--blue-tint);color:var(--blue-deep)}
-.wire-step-upcoming{color:var(--sub)}
+.wire-step-upcoming{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .wire-step-upcoming .wire-step-marker{background:var(--panel);color:var(--sub);font-weight:400}
 /* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
 .wire-data-rows{display:grid;margin:0;gap:0;border-top:1px solid var(--line)}
@@ -629,9 +629,9 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-form-field{display:grid;gap:var(--space-2);align-content:start}
 .wire-form-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 /* 필수 별표는 --risk 지만 리스크 독점(D9)의 예외가 아니다 — 오류·필수 표시는 §9 가 허용한 자리다. */
-.wire-form-required{color:var(--risk)}
+.wire-form-required{font-size:var(--text-sm);font-weight:600;color:var(--risk)}
 /* 라벨 옆 '(선택)' 같은 보조 문구. 라벨과 같은 줄이므로 굵기만 낮춘다. */
-.wire-form-note{margin-left:var(--space-1);color:var(--sub);font-weight:400}
+.wire-form-note{margin-left:var(--space-1);font-size:var(--text-sm);color:var(--sub);font-weight:400}
 .wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
@@ -657,7 +657,7 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
    글자는 §6 규칙 3 이 '14 이상·굵기 600' 을 요구하는데 12 에서 이를 어기고 있었고, 14 로
    올라가면서 그 예외도 함께 닫힌다. */
 .wire-form-hint{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
-.wire-form-hint a{color:var(--blue-deep);font-weight:600;text-decoration:underline}
+.wire-form-hint a{font-size:var(--text-sm);color:var(--blue-deep);font-weight:600;text-decoration:underline}
 /* 폼을 담은 카드는 본문 간격을 한 단 넓힌다 — 입력칸은 라벨·도움말을 달고 있어
    정보 카드(12)의 간격으로는 항목 경계가 안 읽힌다. */
 .wire-form-card>.wire-card-body{gap:var(--space-5)}
@@ -1034,7 +1034,7 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:var(--scrim)}
 .wire-modal{width:100%;max-width:520px;padding:var(--space-6);border-radius:var(--radius-card);background:var(--panel);box-shadow:var(--shadow-modal)}
 .wire-modal-title{margin:0;font-size:var(--text-lg);font-weight:600;color:var(--ink)}
-.wire-modal-desc{margin:var(--space-2) 0 0;font-size:var(--text-md);color:var(--sub)}
+.wire-modal-desc{margin:var(--space-2) 0 0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .wire-modal-body{margin-top:var(--space-5)}
 .wire-modal-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-6)}
 /* 관리자 2차 내비(CCC-18a): 좌측 335px 컬럼 → 가로 탭. 셸 사이드바 옆에 기둥이 둘 서면
@@ -1104,7 +1104,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:600}
 /* Y10 의 muted 배경은 D59 플랫화로 걷었다 — 동의 묶음은 이제 상자가 아니라 구분선이다. */
-.consent-fieldset.register-consent>legend{color:var(--mint-deep)}
+.consent-fieldset.register-consent>legend{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
@@ -1132,7 +1132,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-date-popover .rdp-month_caption{font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 요일 머리글은 라벨이다 — 14/700 --sub(§2). */
 .wire-date-popover .rdp-weekday{font-size:var(--text-sm);font-weight:600;color:var(--sub);text-transform:none}
-.wire-date-popover .rdp-day_button{border-radius:var(--radius-control);font-size:var(--text-sm);color:var(--ink)}
+.wire-date-popover .rdp-day_button{border-radius:var(--radius-control);font-size:var(--text-sm);color:var(--ink);cursor:pointer}
 .wire-date-popover .rdp-day_button:hover{background:var(--muted)}
 .wire-date-popover .rdp-day_button:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
 /* red — 선택일은 **면**을 블루 base 로 칠하고 글자는 --ink 다. --blue-deep 글자는 흰 위 대비
