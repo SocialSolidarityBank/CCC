@@ -1,0 +1,270 @@
+{
+  "version": 1,
+  "sourceRoot": "apps/web/app",
+  "fixtureDefaults": {
+    "beneficiaryId": "crane-001",
+    "supportCaseId": "5d60b9ba-3092-4a91-b3f2-06f00bfd0270",
+    "programType": "financial_support_v1",
+    "userId": "08debf30-ba77-4b7c-8854-1d2d738781e1"
+  },
+  "fixtureEnvironment": {
+    "supportCaseId": "SHOT_SUPPORT_CASE_ID",
+    "participantInviteToken": "SHOT_PARTICIPANT_INVITE_TOKEN",
+    "workerInviteToken": "SHOT_WORKER_INVITE_TOKEN",
+    "sessionId": "SHOT_SESSION_ID",
+    "scheduleId": "SHOT_SCHEDULE_ID"
+  },
+  "measurementMatrix": {
+    "themes": [
+      { "name": "light", "cookieValue": "light" },
+      { "name": "dark", "cookieValue": "dark" }
+    ],
+    "viewports": [
+      { "name": "desktop", "width": 1280, "height": 900 },
+      { "name": "breakpoint", "width": 767, "height": 1024 },
+      { "name": "mobile", "width": 390, "height": 844 }
+    ]
+  },
+  "routes": [
+    {
+      "page": "apps/web/app/page.tsx",
+      "routePattern": "/",
+      "representativeUrl": "/",
+      "seedFixture": "preview-seed/default-workspace",
+      "permission": { "state": "allowed", "actor": "authenticated-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/admin/page.tsx",
+      "routePattern": "/admin",
+      "representativeUrl": "/admin",
+      "seedFixture": "preview-seed/institution-admin",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/admin/ai-provider/page.tsx",
+      "routePattern": "/admin/ai-provider",
+      "representativeUrl": "/admin/ai-provider",
+      "seedFixture": "preview-seed/institution-admin",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/admin/assign/page.tsx",
+      "routePattern": "/admin/assign",
+      "representativeUrl": "/admin/assign?supportCaseId={{supportCaseId}}",
+      "seedFixture": "preview-seed/assigned-case",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/admin/invite/page.tsx",
+      "routePattern": "/admin/invite",
+      "representativeUrl": "/admin/invite",
+      "seedFixture": "preview-seed/institution-admin",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/admin/users/page.tsx",
+      "routePattern": "/admin/users",
+      "representativeUrl": "/admin/users",
+      "seedFixture": "preview-seed/user-directory",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/admin/users/[id]/page.tsx",
+      "routePattern": "/admin/users/:id",
+      "representativeUrl": "/admin/users/{{userId}}",
+      "seedFixture": "preview-seed/active-practitioner",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/join/participant/[token]/page.tsx",
+      "routePattern": "/join/participant/:token",
+      "representativeUrl": "/join/participant/{{participantInviteToken}}",
+      "seedFixture": "runtime-issued/participant-invite",
+      "permission": { "state": "public", "actor": "participant-invitee" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/join/worker/[token]/page.tsx",
+      "routePattern": "/join/worker/:token",
+      "representativeUrl": "/join/worker/{{workerInviteToken}}",
+      "seedFixture": "runtime-issued/worker-invite",
+      "permission": { "state": "public", "actor": "worker-invitee" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/kit/page.tsx",
+      "routePattern": "/kit",
+      "representativeUrl": "/kit",
+      "seedFixture": "component-kit/baseline-counterexample",
+      "permission": { "state": "allowed", "actor": "authenticated-practitioner" },
+      "unification": false
+    },
+    {
+      "page": "apps/web/app/onboarding/page.tsx",
+      "routePattern": "/onboarding",
+      "representativeUrl": "/onboarding",
+      "seedFixture": "preview-seed/onboarding-entry",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/page.tsx",
+      "routePattern": "/participants",
+      "representativeUrl": "/participants",
+      "seedFixture": "preview-seed/participant-directory",
+      "permission": { "state": "allowed", "actor": "institution-member" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/invite/page.tsx",
+      "routePattern": "/participants/invite",
+      "representativeUrl": "/participants/invite",
+      "seedFixture": "preview-seed/participant-invite-issuer",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/new/page.tsx",
+      "routePattern": "/participants/new",
+      "representativeUrl": "/participants/new",
+      "seedFixture": "preview-seed/new-participant",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/page.tsx",
+      "routePattern": "/participants/:beneficiaryId",
+      "representativeUrl": "/participants/{{beneficiaryId}}",
+      "seedFixture": "preview-seed/assigned-case",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/edit/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/edit",
+      "representativeUrl": "/participants/{{beneficiaryId}}/edit",
+      "seedFixture": "preview-seed/assigned-case",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/briefing",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/briefing",
+      "seedFixture": "preview-seed/assigned-case",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/close",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/close",
+      "seedFixture": "preview-seed/active-assigned-case",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/records",
+      "seedFixture": "preview-seed/record-history",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/records/{{sessionId}}/review",
+      "seedFixture": "runtime-issued/reviewable-session",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records/intake",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/records/intake",
+      "seedFixture": "preview-seed/intake-record",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records/new",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/records/new",
+      "seedFixture": "preview-seed/new-record",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/preview/page.tsx",
+      "routePattern": "/preview",
+      "representativeUrl": "/preview",
+      "seedFixture": "preview-gate/locked",
+      "permission": { "state": "public", "actor": "preview-reviewer" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/preview/admin/page.tsx",
+      "routePattern": "/preview/admin",
+      "representativeUrl": "/preview/admin",
+      "seedFixture": "preview-gate/admin-locked",
+      "permission": { "state": "public", "actor": "preview-reviewer" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/programs/[programType]/schedule/page.tsx",
+      "routePattern": "/programs/:programType/schedule",
+      "representativeUrl": "/programs/{{programType}}/schedule",
+      "seedFixture": "preview-seed/upcoming-schedules",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/programs/[programType]/schedule/all/page.tsx",
+      "routePattern": "/programs/:programType/schedule/all",
+      "representativeUrl": "/programs/{{programType}}/schedule/all",
+      "seedFixture": "preview-seed/month-schedules",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/schedules/new/page.tsx",
+      "routePattern": "/schedules/new",
+      "representativeUrl": "/schedules/new?target={{beneficiaryId}}%7C{{supportCaseId}}",
+      "seedFixture": "preview-seed/schedule-candidate",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/schedules/[scheduleId]/plan/page.tsx",
+      "routePattern": "/schedules/:scheduleId/plan",
+      "representativeUrl": "/schedules/{{scheduleId}}/plan",
+      "seedFixture": "runtime-issued/plannable-schedule",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/settings/page.tsx",
+      "routePattern": "/settings",
+      "representativeUrl": "/settings",
+      "seedFixture": "preview-seed/institution-settings",
+      "permission": { "state": "allowed", "actor": "institution-admin" },
+      "unification": true
+    },
+    {
+      "page": "apps/web/app/welcome/page.tsx",
+      "routePattern": "/welcome",
+      "representativeUrl": "/welcome",
+      "seedFixture": "public/welcome",
+      "permission": { "state": "public", "actor": "anonymous" },
+      "unification": true
+    }
+  ]
+}

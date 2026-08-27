@@ -69,3 +69,4 @@ omp-session-*.html
 /.local-decisions/
 /docs/_local/
 /.local-flowmap/
+artifacts/ia-shots/

@@ -305,7 +305,10 @@ h2{margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-s
    선언이 없으면 UA 기본 bold 700 이 산다 — 실제로 상담 기록의 '기록 오류' 강조와 킷 본문이
    700 이었고, 상담 등록만 인라인으로 600 을 덮어쓰고 있었다. */
 strong{font-weight:600}
-p{margin:var(--space-2) 0 0;color:var(--sub)}
+/* 전역 p 는 body 상속과 합쳐 16/400 --sub 로 선다. 이 조합은 §1 표 밖(기존 부채)이라
+   위계 baseline 에 등재돼 있다(2026-08-27 검수). 여기 세 축을 실효값 그대로 명시한 것은
+   감사가 이 부채를 보게 하기 위함이며 시각 변화는 없다. 고칠 때 baseline 도 함께 지운다. */
+p{margin:var(--space-2) 0 0;font-size:var(--text-md);font-weight:400;color:var(--sub)}
 /* 버튼 규칙은 **.wire-button 하나가 소유한다**(2026-07-31). 여기 있던 .button 4종
    (.button-primary·.button-ghost·.button-danger·.button-sm)은 지웠다 — 마크업이 한 곳도
    쓰지 않는 죽은 CSS 였는데, 같은 계약을 두 벌로 적어 둔 탓에 §5 를 고칠 때마다 어느 쪽을
@@ -396,9 +399,12 @@ textarea{min-height:216px;resize:vertical}
   .drawer-bar .program-switcher-box{position:static}
   .drawer-bar .program-switcher-menu{left:var(--space-4);right:var(--space-4);width:auto;min-width:0;max-width:none}
   /* 모바일 페이지와 HERO 행동은 내용 크기의 가로 묶음으로 모이고, 자리가 부족하면
-     자연스럽게 다음 줄로 넘어간다. 세컨더리 → 프라이머리 순서와 오른쪽 행동 축을 유지한다. */
+     자연스럽게 다음 줄로 넘어간다. 세컨더리 → 프라이머리 순서와 오른쪽 행동 축을 유지한다.
+     flex:0 1 auto + min-width:0 이 없으면 기본 규칙의 flex:none(수축 0)이 살아, 묶음이
+     내용 최대폭 밑으로 못 줄어 자체 wrap 이 영영 발동하지 않는다. 글자 폭이 넓은
+     환경(CI 폰트)에서 390 오른쪽 19px 넘침의 원인이었다(2026-08-27 실측). */
   .page-header{flex-direction:column;align-items:stretch}
-  .page-actions{width:auto;align-self:flex-end;flex-direction:row;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .page-actions{width:auto;min-width:0;flex:0 1 auto;align-self:flex-end;flex-direction:row;align-items:center;justify-content:flex-end;flex-wrap:wrap}
   .page-header .wire-button{width:auto;justify-content:center}
   /* 뒤로 알약의 좌측선 = 컨테이너 패딩 16 (2026-08-05 Q 2차 "메뉴 - 뒤로 - 상담 일정 좌측
      정렬"). 데스크톱의 24 는 사이드바 안쪽선 정렬인데 모바일엔 사이드바가 없다 — 바 내용·
@@ -514,7 +520,7 @@ const briefingStyles = `
 .briefing-subgoal-row{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 /* 세션 목표에 병기하는 부모 세부 목표 이름 (D62 §5) — 부모가 닫혔으면 흐리게(--sub).
    색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
-.briefing-parent-goal{color:var(--sub);font-weight:600}
+.briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
 .briefing-parent-goal.is-closed{color:var(--sub)}
 /* 전체 목표 미설정 안내 한 줄 (D62 §7) — 설명·메타 단(14/400 --sub, §2-2 단 ④).
    상자를 두르지 않는다(콜아웃 카드는 카드 안 카드가 된다 — D59 ③). */
@@ -602,7 +608,7 @@ const briefingStyles = `
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). 넘침은 공용
    .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 브리핑 회차 행과 같은 규칙(2026-08-06 Q). */
 .record-one-liner{flex:1;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
-.record-one-liner.is-memo{color:var(--sub)}
+.record-one-liner.is-memo{color:var(--sub);font-weight:400}
 .record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
 /* 펼친 본문. 머리와 본문은 --gradient-brand 1px 로 나눈다(§5 카드 계약 — 그라데이션이
    남는 자리는 카드 안쪽 구분선뿐이다). */
@@ -634,7 +640,7 @@ const briefingStyles = `
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
 /* 리스크 레드는 **확인된** 플래그에만(D9·D34). 조회 API 가 확인된 것만 내려보내지만,
    색을 상태에 걸어 두면 나중에 범위가 넓어져도 규율이 깨지지 않는다. */
-.record-flag{font-weight:600;color:var(--sub)}
+.record-flag{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .record-flag[data-confirmed="true"]{color:var(--risk)}
 .record-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-4);border-top:1px solid var(--line);padding:var(--space-3) var(--space-6);font-size:var(--text-sm);color:var(--sub)}
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
@@ -861,7 +867,7 @@ const registerStyles = `
 .preview-gate{min-height:100dvh;align-content:center;justify-items:center;text-align:center}
 .preview-gate-head{display:grid;gap:var(--space-2);justify-items:center}
 .preview-gate-head>h1{margin:0}
-.preview-gate-head>p{margin:0;color:var(--sub)}
+.preview-gate-head>p{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .preview-gate-card{width:min(400px,100%);display:grid;gap:var(--space-5);padding:var(--space-6);text-align:left}
 .preview-gate-card .preview-gate-submit{width:100%;justify-content:center}
 /* 당사자 등록·초대 (#37) */
