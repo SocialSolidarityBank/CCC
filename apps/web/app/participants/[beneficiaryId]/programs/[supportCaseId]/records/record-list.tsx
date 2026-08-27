@@ -125,9 +125,11 @@ export function RecordCard({
   const hasConfirmedFlag = confirmedFlags.length > 0;
 
   return <details className="surface-card" id={`record-${record.id}`} open={defaultOpen}>
-    {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지(세로선으로 읽혔다). 날짜는 공용 표기
-        ("2026년 8월 7일")고, 고정 칸(.record-held-at 136px)이 최장 날짜까지 한 줄로 담아
-        좌측 정렬이 성립한다. 넘침은 공용 .wire-fade-clip. */}
+    {/* 회차 앞 꺽쇠는 2026-08-06 Q 로 폐지했었다(닫힘 오른쪽 꺽쇠가 세로선으로 읽혔다).
+        2026-08-27 화살표 어휘 통일(아코디언 = 닫힘 아래·펼침 위)로 그 반론이 해소돼
+        오른쪽 끝에 복원한다. 날짜는 공용 표기("2026년 8월 7일")고, 고정 칸
+        (.record-held-at 136px)이 최장 날짜까지 한 줄로 담아 좌측 정렬이 성립한다.
+        넘침은 공용 .wire-fade-clip. */}
     <summary className="record-summary">
       <span className="record-ordinal">{ordinal}회차</span>
       <span className="record-held-at">{formatKoreanDate(record.heldAt)}</span>
@@ -140,6 +142,7 @@ export function RecordCard({
         {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}
         {/* 리스크 배너는 두지 않는다(D47 §5) — 대신 어느 회차에서 나왔는지를 이 표시가 알린다. */}
         {hasConfirmedFlag && <span className="record-flag" data-confirmed="true"><Icon name="warning" size={14} /> 리스크</span>}
+        <span className="wire-card-arrow" aria-hidden="true" />
       </span>
     </summary>
 

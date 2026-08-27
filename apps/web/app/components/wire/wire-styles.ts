@@ -528,15 +528,20 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-3)}
-/* optical: 꺽쇠 잉크는 회전 때문에 상자 중앙에서 벗어난다(닫힘 › = 오른쪽으로, 열림 ⌄ =
-   아래로 각 약 2px — 2026-08-06 실측). 레이아웃 상자가 아니라 잉크가 글줄 중앙에 오도록
-   translate 로 되민다(.wire-chevron[data-dir] 와 같은 보정 계약). */
-.wire-card-arrow{flex:none;width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateX(calc(var(--chevron-box) / -5)) rotate(-45deg);transition:transform .15s ease}
+/* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘 = 아래 꺽쇠("펼칠 수 있음"), 펼침 = 위 꺽쇠.
+   오른쪽 꺽쇠는 **페이지 이동 전용**이라 아코디언에 쓰지 않는다(구 닫힘 오른쪽이 이동
+   링크와 혼동을 만들던 것을 대체). optical: 꺽쇠 잉크는 회전 때문에 상자 중앙에서
+   벗어난다. 잉크가 글줄 중앙에 오도록 translate 로 되민다(.wire-chevron 과 같은 보정 계약). */
+.wire-card-arrow{flex:none;display:inline-block;vertical-align:middle;width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform .15s ease}
+/* 펼침 = 위. 셀렉터를 details[open] 제네릭으로 두어 WireCardDetails·동의 전문·목표 트리
+   같은 모든 아코디언이 한 규칙을 본다. 네이티브 마커는 화살표가 있는 summary 에서 숨긴다. */
+details[open]>summary .wire-card-arrow{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
+summary:has(.wire-card-arrow){list-style:none}
+summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
-.wire-card-details[open]>.wire-card-summary .wire-card-arrow{transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg)}
-/* 일정 날짜 아코디언은 오른쪽 꺽쇠만으로는 열리는 방향이 읽히지 않아 원 안의 상하
-   화살표를 쓴다. summary 전체가 클릭 영역이고 원은 상태 표시라 별도 버튼을 중첩하지 않는다. */
+/* 일정 날짜 아코디언은 밀도 높은 목록에서 시인성을 위해 원 안의 상하 화살표를 쓴다(방향
+   어휘는 위 기본과 같다). summary 전체가 클릭 영역이고 원은 상태 표시라 버튼을 중첩하지 않는다. */
 .wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow,.wire-card-details.schedule-day-accordion>.wire-card-summary .wire-card-arrow{display:grid;place-items:center;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel);transform:none}
 .wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow::before,.wire-card-details.schedule-day-accordion>.wire-card-summary .wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
 .wire-card-details.schedule-past-day[open]>.wire-card-summary .wire-card-arrow,.wire-card-details.schedule-day-accordion[open]>.wire-card-summary .wire-card-arrow{transform:none}
