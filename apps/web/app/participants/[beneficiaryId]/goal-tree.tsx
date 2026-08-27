@@ -34,7 +34,7 @@ function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
   if (revisions.length === 0) return null;
   return (
     <details className="goal-tree-history">
-      <summary>이력 보기</summary>
+      <summary>이력 보기 <span className="wire-card-arrow" aria-hidden="true" /></summary>
       <WireTimeline>
         {revisions.map((revision, index) => (
           <WireTimelineItem key={`${revision.editedAt}-${index}`} className="goal-tree-history-row">
@@ -65,6 +65,7 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
           <span className="goal-tree-goal-title">{goal.title}</span>
           {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
               <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
+          <span className="wire-card-arrow" aria-hidden="true" />
         </summary>
         <div className="goal-tree-goal-body">
           <RevisionHistory revisions={goal.revisions} />

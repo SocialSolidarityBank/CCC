@@ -619,7 +619,7 @@ export function BriefingCards({
           )}
           {resolvedDiscrepancies.length > 0 && (
             <details className="briefing-history">
-              <summary>처리된 항목 {resolvedDiscrepancies.length}건</summary>
+              <summary>처리된 항목 {resolvedDiscrepancies.length}건 <span className="wire-card-arrow" aria-hidden="true" /></summary>
               {resolvedDiscrepancies.map((item) => (
                 <DiscrepancyItem
                   key={item.id}

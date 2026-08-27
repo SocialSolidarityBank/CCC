@@ -918,7 +918,8 @@ const registerStyles = `
    화살표 크기는 바로 위 규칙이 정한다(기준 글자 .7em). */
 .consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-2);min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
 @media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
-.consent-detail[open]>.consent-detail-summary>.wire-card-arrow{transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg)}
+/* 열림 방향은 공용 규칙(details[open]>summary .wire-card-arrow = 위 꺽쇠)이 정한다
+   (2026-08-27 화살표 어휘 통일, 구 개별 규칙 삭제). */
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
    텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
    담고 읽기 폭을 72ch 로 막는다. 새 색 없음 — 배경은 --muted, 테두리는 --line 이다. */
