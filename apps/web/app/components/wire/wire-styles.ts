@@ -117,9 +117,10 @@ details.surface-card[open]>.record-summary>.record-one-liner,
 details.surface-card[open]>.record-summary .record-flag{color:var(--on-action)}
 /* 채운 면 위 배지 계약(2026-08-28 Q "수기 배지가 그라데이션에 묻힘" — 구 회차 유형
    mint·lavender 2종 한정을 대체): 색상 배지는 deep 글자 + --on-badge 면으로 뒤집고
-   (base 를 글자로 쓰면 라이트 패널 위 대비 부족), **톤 없는 배지는 채운 면 전용
-   선·글자로 선다**(--line-on-action·--on-action — 구 --line·--ink 가 그라데이션에
-   묻히던 버그의 수정). deep 짝이 없는 변형 톤(coral·amber·lime·cyan·light-magenta)은
+   (base 를 글자로 쓰면 라이트 패널 위 대비 부족), **톤 없는 배지도 같은 --on-badge 흰
+   면으로 뒤집되 글자는 --ink 가 맡는다**(구 --line-on-action·--on-action 는 라이트에서
+   --on-action 이 --ink 와 같아 투명 배지로 남아 홀로 안 반전돼 보이던 버그를 수정).
+   deep 짝이 없는 변형 톤(coral·amber·lime·cyan·light-magenta)은
    불투명 단색 면이라 채운 면 위에서도 그대로 읽힌다. */
 details.surface-card[open]>.record-summary .wire-badge[data-tone="mint"],
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="mint"]{--wire-outline-color:var(--mint-deep);background:var(--on-badge);color:var(--mint-deep)}
@@ -129,8 +130,12 @@ details.surface-card[open]>.record-summary .wire-badge[data-tone="blue"],
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="blue"]{--wire-outline-color:var(--blue-deep);background:var(--on-badge);color:var(--blue-deep)}
 details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk);background:var(--on-badge);color:var(--risk)}
+/* 톤 없는 배지('수기' 등)도 채운 면 위에서 **흰 면으로 반전**한다(2026-08-28 Q — 구 규칙은
+   테두리·글자색만 바꿔 라이트에서 --on-action 이 --ink 와 같아 채움 없는 투명 배지로 남았고,
+   흰 면으로 채워지는 톤 배지 옆에서 홀로 안 반전된 것처럼 읽혔다). 톤 배지의 deep 글자
+   자리를 neutral 은 --ink 가 맡는다(두 테마 모두 --on-badge 면 위 대비 통과). */
 details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge:not([data-tone]){--wire-outline-color:var(--line-on-action);color:var(--on-action)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge:not([data-tone]){--wire-outline-color:var(--ink);background:var(--on-badge);color:var(--ink)}
 /* 접힘 카드 제목 줄 안 조각들. 제목은 자기 색(--ink)을 갖고 있어 면만 채우면 회색 글자가
    파스텔 위에 남는다. 화살표는 원형 컨테이너라 면(--panel)이 대비를 만들고 테두리만 채운
    면 전용 선색으로 바꾼다. 메타 줄 세로선도 같은 계약(D56 --line-on-action)이다. */
@@ -723,14 +728,6 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    버튼 40)이라 그 안에서 두 줄로 접힌다. 읽기 폭이 아니라 조작 폭이므로 §4-1 이 폼 화면
    폭으로 적어 둔 720 을 쓴다(칸마다 350). 767 미만 한 열은 .wire-form-grid 가 갖는다. */
 .wizard-row{display:grid;gap:var(--space-4);max-width:720px}
-/* 구획 머리(2026-08-09 Q "이름 카드 아래 물음 사이의 여백 더 주고 가로선으로 구분하기").
-   위 카드와 성격이 다른 구획이 시작된다는 표시다 — 여백만으로는 스택의 다른 간격과
-   구별되지 않았다(§2-2 규칙 2 ⓐ). 선은 회색 --line 1px, 카드 안 구분선과 같은 어휘다.
-   위 여백은 스택 gap 20 위에 12 를 더해 32 로 벌린다(§3-4 여백 3단 밖의 새 값을 만들지
-   않고 토큰 둘을 겹친다). 제목 자체의 크기·굵기는 전역 h2 계약 그대로다. */
-.wizard-section-head{display:grid;gap:var(--space-2);padding-top:var(--space-3);border-top:1px solid var(--line)}
-.wizard-section-head>h2{margin:0}
-.wizard-section-head>p{margin:0}
 /* 칸 하나(라벨·컨트롤·딸린 버튼)의 세로 묶음. WireFormField 안쪽 간격과 같은 8 이다.
    align-content:start 도 같은 계약이다(.wire-form-field 의 stretch 부풀림 방지와 같은 이유) —
    2열 그리드에서 키 큰 이웃(목표 문장 textarea)이 행을 키우면 stretch 기본값이 남는 높이를
@@ -1119,8 +1116,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--mint-tint)}
 .register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:600}
-/* Y10 의 muted 배경은 D59 플랫화로 걷었다 — 동의 묶음은 이제 상자가 아니라 구분선이다. */
-.consent-fieldset.register-consent>legend{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
+/* Y10 의 muted 배경은 D59 플랫화로 걷었다 — 동의 묶음은 상자가 아니라 구분선이다.
+   2026-08-28 Q: 낭독·전달용 화면이라 '동의'(legend)·'자세히 읽어보기'(summary)를 16 으로
+   올리고(§1 예외 — 둘 다 ① 16/600 --ink 조합), 위 구분선(fieldset border-top)은 카드
+   양끝까지 full-bleed 한다(구 카드 패딩 24 안쪽). 내용은 padding-inline 으로 제자리에 둔다. */
+.consent-fieldset.register-consent{max-width:none;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6)}
+.consent-fieldset.register-consent>legend{font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.register-consent .consent-detail-summary{font-size:var(--text-md)}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}

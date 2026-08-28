@@ -62,9 +62,10 @@ describe('RecordList', () => {
     expect(wireStylesSource).toMatch(
       /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="lavender"\],[^{]*\{[^}]*background:var\(--on-badge\);color:var\(--lavender-deep\)/,
     );
-    // '수기' 같은 톤 없는 배지도 채운 면 위에서 선다(2026-08-28 Q 버그 수정).
+    // '수기' 같은 톤 없는 배지도 톤 배지처럼 흰 --on-badge 면으로 반전한다(2026-08-28 Q
+    // 버그 수정 — 구 --line-on-action·--on-action 은 라이트에서 투명하게 남아 안 반전돼 보였다).
     expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge:not\(\[data-tone\]\),[^{]*\{[^}]*--wire-outline-color:var\(--line-on-action\);color:var\(--on-action\)/,
+      /details\.surface-card\[open\]>\.record-summary \.wire-badge:not\(\[data-tone\]\),[^{]*\{[^}]*--wire-outline-color:var\(--ink\);background:var\(--on-badge\);color:var\(--ink\)/,
     );
   });
 

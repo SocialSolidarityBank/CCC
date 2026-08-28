@@ -789,11 +789,13 @@ const scheduleStyles = `
    클래스 둘(0-2-0)로 이긴다. */
 .wire-row.schedule-candidate-row{font-weight:400}
 .schedule-candidate-name{font-weight:600}
-/* 가명 ID 는 이름 다음 민트 컬러다(2026-08-09 Q "아이디 넣고 컬러처리" — 사람·소속 축 D34.
-   14/600 은 §1-4 규칙 3 의 deep 글자 하한). 고른 행(그라데이션 면)에서는 다른 글자처럼
-   --on-action 으로 넘어간다 — 민트 deep 이 그라데이션 면 위에 남으면 묻힌다. */
-.schedule-candidate-id{font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
-.wire-row[data-selected="true"] .schedule-candidate-id{color:var(--on-action)}
+/* 가명 ID 는 다른 당사자 카드·HERO 와 같은 조각이다 — 후보 행도 전용 클래스가 아니라
+   공용 .participant-card-id 를 그대로 입어(회색 12/400 --sub) 화면 간 통일감을 준다
+   (2026-08-28 Q "ID 가 다른 데와 달리 컬러 처리됨 → 당사자 카드 디자인 통일"). 구
+   2026-08-09 "아이디 컬러처리"(전용 .schedule-candidate-id mint-deep 14/600)를 대체.
+   MetaRow 의 각 조각은 제 wrapper span 안에 들어 .participant-card-id 의 flex 는 inert 다.
+   고른 행(그라데이션 면)에서만 다른 글자처럼 --on-action 으로 넘어간다. */
+.wire-row[data-selected="true"] .participant-card-id{color:var(--on-action)}
 /* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 스택 16)이다(§3-4). */
 .schedule-candidate-list{display:grid;gap:var(--space-4)}
 /* 한 후보 = 카드 한 장이 장폭을 다 쓰고, '당사자 정보' 버튼도 카드 안 오른쪽 끝이다
@@ -810,6 +812,11 @@ const scheduleStyles = `
 /* 상담 유형 칸 = 선택창 하나 + (조건부) 경고 안내줄(2026-08-09 Q). 값·이름·접힘 세 클래스는
    함께 지웠다 — 값을 보여 주는 자리와 고치는 자리가 하나로 합쳐지면서 쓸 곳이 없어졌다. */
 .schedule-kind{display:grid;gap:var(--space-3)}
+/* 목표 패널(2026-08-28 Q item ③): '이번 상담의 목표는 무엇인가요?' 물음과 하위목표·지난
+   브리핑·세부 목표 연결·세션 목표를 한 묶음으로 감싼다. hero 카드와 물음 사이 가로선(구
+   .wizard-section-head border-top)을 없앤 자리다 — 카드가 아니라 제목+묶음만 갖는 플랫 div
+   라 안의 WireCard 가 카드 속 카드가 되지 않는다. 세로 간격은 목록 스택 20 이다(§3-4). */
+.wizard-goal-panel{display:grid;gap:var(--space-5)}
 /* 목표·질문 입력 묶음(2026-08-09 Q 3차): 한 항목 = **연결 쌍 위, 세션 목표 쌍 아래**의
    세로 스택이고 폭 상한 없이 장폭을 다 쓴다(구 .wizard-row 720 · .wizard-form 520 상한
    대체). 여백 리듬: 쌍 안 라벨↔칸 8(입력칸 계약과 동일) · 쌍 사이 16 · 항목 사이 20. */
@@ -894,7 +901,11 @@ const registerStyles = `
 .wire-invite-section{display:grid;gap:var(--space-3)}
 /* 왼쪽 정렬이다 — 가운데 정렬은 아래 입력칸 축에서 떨어져 나와 페이지마다 글이 다른 데서
    시작하는 것처럼 보인다(§5 '페이지 제목'이 가운데 정렬을 폐기한 것과 같은 이유). */
-.wire-invite-caption{margin:0;font-size:var(--text-sm);color:var(--sub)}
+.wire-invite-caption{margin:0;font-size:var(--text-md);color:var(--ink)}
+/* 낭독·전달용 화면이라 라벨·힌트를 16 진한색으로 올린다(2026-08-28 Q — §1 예외: 라벨
+   ① 16/600 --ink, 힌트 ③ 16/400 --ink. 당사자에게 링크·QR·문안을 보여 주며 읽는 자리다). */
+.wire-invite-stack .wire-form-label{font-size:var(--text-md);color:var(--ink)}
+.wire-invite-stack .wire-form-hint{font-size:var(--text-md);color:var(--ink)}
 /* CCC-29: QR 은 입력칸이 아니라 카드 계약(--line 1px · radius 12)을 빌린 정사각 패널이다. */
 .wire-invite-qr{display:inline-flex;justify-self:start;padding:var(--space-4);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
 /* 버튼은 내용만큼만 차지한다 — 그리드 아이템 기본 stretch 를 그대로 두면 카드 폭(880)을
