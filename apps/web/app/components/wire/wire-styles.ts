@@ -639,7 +639,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* align-content:start — 폼 입력칸(.wire-form-field)과 같은 stretch 부풀림 방지 계약. */
 .wire-search{display:grid;gap:var(--space-2);align-content:start}
 .wire-search-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad-x);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 /* 행간 normal — 단일행 컨트롤의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q, 버튼과 동일). */
 .wire-search-box input,.wire-search-box select{width:100%;border:0;background:transparent;color:var(--ink);outline:0;font-size:var(--text-sm);line-height:normal;-webkit-appearance:none;appearance:none}
 /* select 는 네이티브 화살표를 끄고 꺽쇠를 직접 그린다 — 네이티브는 테두리에 붙어 다른 입력칸과 안 맞는다. */
@@ -662,7 +662,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-form-required{font-size:var(--text-sm);font-weight:600;color:var(--risk)}
 /* 라벨 옆 '(선택)' 같은 보조 문구. 라벨과 같은 줄이므로 굵기만 낮춘다. */
 .wire-form-note{margin-left:var(--space-1);font-size:var(--text-sm);color:var(--sub);font-weight:400}
-.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad-x);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
 .wire-input-box>input,.wire-input-box>select{line-height:normal}
@@ -670,7 +670,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-input-box>select{padding-right:var(--space-6)}
 .schedule-nav .schedule-view-select>select{align-self:stretch;height:auto}
 /* textarea 는 박스가 세로로 늘어난다 — 높이 40 고정은 한 줄 컨트롤 계약이다. */
-.wire-input-box[data-control="textarea"]{align-items:stretch;padding:var(--control-pad-x)}
+.wire-input-box[data-control="textarea"]{align-items:stretch;padding:var(--control-pad)}
 /* min-height 를 0 으로 되돌리는 이유: layout.tsx 의 전역 textarea 규칙(min-height 216px)이
    rows 지정을 덮어써서 rows=4 인 담당 실무자 의견과 rows=14 인 수기 메모가 같은 높이로 나온다.
    전역 규칙은 아직 레거시 화면들이 기대고 있어 두고, 킷 입력칸 안에서만 rows 가 높이를 정한다.
@@ -697,6 +697,11 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    한 줄로 내린다(2026-08-29 Q). 필드 다음 grid 자식으로 두고 두 열을 가로질러 한 줄에
    읽히게 한다 — aria-describedby 는 힌트 id 로 그대로 이어진다. */
 .wire-form-grid>.wire-form-grid-hint{grid-column:1/-1}
+/* 힌트가 첫 필드(상담 일시)에 딸렸는데 그 뒤에 다른 필드(상담 방식)가 있으면, 1열로 접히는
+   767 이하에서 전폭 힌트가 남의 필드 아래로 밀린다. 그 화면(.record-datetime-grid)에서만
+   1열일 때 뒤 필드를 힌트 다음 순서로 미뤄 힌트가 자기 필드 바로 아래 서게 한다(2026-08-29
+   Q item 8 검수 반영). 데스크톱 2열에서는 order 를 건드리지 않는다. */
+@media(max-width:767px){.record-datetime-grid>.wire-form-field:nth-of-type(2){order:1}}
 /* 폼 하단 버튼 줄: 오른쪽 정렬, 프라이머리가 오른쪽 끝(모달 하단과 같은 어휘). */
 .wire-form-actions{display:flex;justify-content:flex-end;gap:var(--space-3)}
 /* 기본정보 수정 폼 카드 스택(2026-08-07 Q 5차) — 폼 한 장 안에 카드 2장(기본·추가 정보)이

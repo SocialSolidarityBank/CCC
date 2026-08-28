@@ -304,7 +304,7 @@ export function RecordOnepage({
             onChange={(event) => setMemoFilled(event.currentTarget.value.trim().length > 0)}
           />
         </WireFormField>
-        <div className="wire-form-grid">
+        <div className="wire-form-grid record-datetime-grid">
           {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라 팀원마다
               달랐다(R6). 상담 일시는 요일로 잡는 값이라 KRDS 기준 달력이 맞는 자리다 —
               입력칸은 그대로 두고 달력을 옆에 붙인다. 제출값은 예전과 같은 문자열이다. */}

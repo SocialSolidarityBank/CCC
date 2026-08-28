@@ -516,10 +516,10 @@ const briefingStyles = `
    가른다. 한 결정의 두 갈래라 사이 간격은 입력칸과의 12 보다 좁은 8 이다. */
 .briefing-goal-buttons{display:flex;align-items:center;gap:var(--space-2)}
 /* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
-.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--control-pad-x);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
+.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 /* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
    목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
-.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--control-pad-x);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
+.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
 .briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
 @media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
@@ -659,7 +659,9 @@ const briefingStyles = `
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
 /* 전체 목표 — 카드 모양은 WireCard 가 갖고(2026-08-05 컴포넌트화), 여기는 안쪽 한 줄 배치만. */
 .record-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
-.record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* 전체 목표 라벨도 민트 deep 이다 — 목표 라벨은 화면 어디서나 같은 민트다(2026-08-29 Q,
+   §4. goal-tree-label 과 같은 계약. 구 14/600 --sub). 값(record-goal-text)은 --ink 그대로. */
+.record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
 /* 섹션 제목(h2). 2026-08-28 부터 흰 패널 카드(.record-section) 안에 서므로 자기 좌우 패딩을
