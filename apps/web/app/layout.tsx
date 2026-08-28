@@ -815,8 +815,9 @@ const scheduleStyles = `
 /* 목표 패널(2026-08-28 Q item ③): '이번 상담의 목표는 무엇인가요?' 물음과 하위목표·지난
    브리핑·세부 목표 연결·세션 목표를 한 묶음으로 감싼다. hero 카드와 물음 사이 가로선(구
    .wizard-section-head border-top)을 없앤 자리다 — 카드가 아니라 제목+묶음만 갖는 플랫 div
-   라 안의 WireCard 가 카드 속 카드가 되지 않는다. 세로 간격은 목록 스택 20 이다(§3-4). */
-.wizard-goal-panel{display:grid;gap:var(--space-5)}
+   라 안의 WireCard 가 카드 속 카드가 되지 않는다. 세로 간격은 목록 스택 20 이고, hero 와의
+   경계는 가로선 대신 위 여백 32(스택 20 + margin 12, 구 section-head 실효값)로 낸다. */
+.wizard-goal-panel{display:grid;gap:var(--space-5);margin-top:var(--space-3)}
 /* 목표·질문 입력 묶음(2026-08-09 Q 3차): 한 항목 = **연결 쌍 위, 세션 목표 쌍 아래**의
    세로 스택이고 폭 상한 없이 장폭을 다 쓴다(구 .wizard-row 720 · .wizard-form 520 상한
    대체). 여백 리듬: 쌍 안 라벨↔칸 8(입력칸 계약과 동일) · 쌍 사이 16 · 항목 사이 20. */

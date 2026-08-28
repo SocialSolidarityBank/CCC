@@ -1117,11 +1117,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:600}
 /* Y10 의 muted 배경은 D59 플랫화로 걷었다 — 동의 묶음은 상자가 아니라 구분선이다.
-   2026-08-28 Q: 낭독·전달용 화면이라 '동의'(legend)·'자세히 읽어보기'(summary)를 16 으로
-   올리고(§1 예외 — 둘 다 ① 16/600 --ink 조합), 위 구분선(fieldset border-top)은 카드
-   양끝까지 full-bleed 한다(구 카드 패딩 24 안쪽). 내용은 padding-inline 으로 제자리에 둔다. */
+   2026-08-28 Q: 낭독·전달용 화면이라 '자세히 읽어보기'(summary)를 16 으로 올리고(§1 예외
+   ③ 16/400), 위 구분선(fieldset border-top)은 카드 양끝까지 full-bleed 한다(구 카드 패딩
+   24 안쪽). 내용은 padding-inline 으로 제자리에 둔다. legend '동의'는 base 계약(16/600
+   --ink, D61 ③)이라 따로 손대지 않는다 — 구 register 전용 14/mint 격하만 걷었다. */
 .consent-fieldset.register-consent{max-width:none;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6)}
-.consent-fieldset.register-consent>legend{font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .register-consent .consent-detail-summary{font-size:var(--text-md)}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */

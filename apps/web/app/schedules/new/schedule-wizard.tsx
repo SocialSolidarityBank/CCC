@@ -286,6 +286,18 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
     </div>
   );
 
+  // 맞춤형 질문 카드 — 기본 상담(목표 옆 열)과 인테이크(단독)가 같은 부품을 쓴다(자리가
+  // 갈리지 않게). 설명은 제목 슬롯에 두어 본문이 바로 질문 목록으로 시작한다 — 본문 첫 줄에
+  // p 를 두면 전역 p 위 마진 8 이 얹혀 옆 카드 시작선과 어긋난다(검수 반영).
+  const questionsCard = (
+    <WireCard
+      className="wire-form-card"
+      title={<>맞춤형 질문<p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p></>}
+    >
+      {customQuestionsList}
+    </WireCard>
+  );
+
   if (created) {
     return (
       <GridContainer as="main" className="page-content">
@@ -449,7 +461,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                     2열로 둔다(구 별도 3단계 대체 — 단계 축소). .wire-form-grid 가 같은 폭 두 칸을
                     만들고 767 미만에서 한 열로 접는다. 두 칸 다 카드 안 body 20 을 쓴다. */}
                 <div className="wire-form-grid">
-                  <WireCard className="wire-form-card" title="세션 목표">
+                  <WireCard className="wire-form-card">
                     <div className="session-goal-list">
                       {sessionGoals.map((goal, index) => (
                       <div key={index} className="session-goal-entry" data-testid={`session-goal-entry-${index}`}>
@@ -497,22 +509,13 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                     ))}
                     </div>
                   </WireCard>
-                  <WireCard className="wire-form-card" title="맞춤형 질문">
-                    <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
-                    {customQuestionsList}
-                  </WireCard>
+                  {questionsCard}
                 </div>
               </div>
             ) : (
-              /* 인테이크는 연결할 세부 목표가 아직 없어 목표 칸이 없다(CCC-64). 맞춤형 질문만
-                 받는다 — hero 와 물음 사이 가로선도 두지 않는다(item ③ 취지). */
-              <>
-                <h2>맞춤형 질문</h2>
-                <p className="panel-meta">AI가 만드는 질문과 별개로, 이번 상담에서 직접 묻고 싶은 것을 적습니다.</p>
-                <WireCard className="wire-form-card">
-                  {customQuestionsList}
-                </WireCard>
-              </>
+              /* 인테이크는 연결할 세부 목표가 아직 없어 목표 칸이 없다(CCC-64). 맞춤형 질문
+                 카드만 선다 — 기본 상담의 오른쪽 열과 같은 부품이라 자리가 갈리지 않는다. */
+              questionsCard
             )}
             <div className="wizard-actions">
               <WireButton chevron="left" onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
