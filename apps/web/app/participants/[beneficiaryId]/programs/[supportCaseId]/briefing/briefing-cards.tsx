@@ -268,7 +268,6 @@ function DiscrepancyItem({
             <WireQuote>{side.quote}</WireQuote>
             <WireButton
               variant="neutral"
-             
               href={`${recordsHref}#record-${side.sessionId}`}
             >
               기록 보기
@@ -456,7 +455,6 @@ export function BriefingCards({
               : (
                   <WireButton
                     variant="neutral"
-                   
                     href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
                   >
                     세션 목표 수정
@@ -506,7 +504,6 @@ export function BriefingCards({
                           // 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다.
                           <WireButton
                             variant="neutral"
-                           
                             href={`${recordsHref}#record-${suggestion.sessionId}`}
                           >
                             근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
@@ -666,7 +663,6 @@ export function BriefingCards({
                         <WireButton
                           className="briefing-action-source"
                           variant="neutral"
-                         
                           href={`${recordsHref}#record-${item.sessionId}`}
                         >
                           출처 회차 보기

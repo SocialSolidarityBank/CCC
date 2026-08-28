@@ -377,7 +377,7 @@ describe('CCC-133 통합 업무 바', () => {
     const ghost = baseRule('.wire-button[data-variant="ghost"]');
     expect(ghost).toContain('background:var(--muted)');
     expect(ghost).not.toContain('min-height');
-    // 일반(neutral)은 색이 세컨더리와 같아 규칙 자체가 없다. 크기는 크기 축만 정한다.
+    // 일반(neutral)은 색이 세컨더리와 같아 규칙 자체가 없다. 높이는 전 버튼 32 단일이다(2026-08-28).
     expect(wireSource).not.toContain('.wire-button[data-variant="neutral"]{');
     expect(wireSource).not.toContain('.participant-hub-page .surface-card{border-color:');
   });

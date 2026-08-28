@@ -615,13 +615,13 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-field-row[data-truncate="true"]>.wire-field-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* size sm: 값을 라벨과 같은 14 로 내린다 — 제목(18)과의 대비를 키우는 카드 전용 단(2026-08-22 Q). */
 .wire-field-row[data-size="sm"]>.wire-field-value{font-size:var(--text-sm)}
-/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. 불릿은 2개 이상일 때만이다(2026-08-07 Q
+/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 14/400(2026-08-28 Q 본문 14). 불릿은 2개 이상일 때만이다(2026-08-07 Q
    규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
 .wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-sm)}
 .wire-bullets>li{position:relative;padding-left:var(--space-4)}
 .wire-bullets>li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--sub)}
 /* 단일 항목 — 목록이 아니라 문장이다. 크기·색은 불릿 항목과 같고 불릿·들여쓰기만 없다. */
-.wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-md)}
+.wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-sm)}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
 /* align-content:start — 폼 입력칸(.wire-form-field)과 같은 stretch 부풀림 방지 계약. */
 .wire-search{display:grid;gap:var(--space-2);align-content:start}
@@ -828,11 +828,11 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
 .wire-button[data-variant="primary"]{--wire-outline-color:var(--line-on-action);background:var(--gradient-action);border:var(--wire-outline-width) solid var(--wire-outline-color);color:var(--on-action);background-size:200% auto;background-position:50% 0}
 /* 일반(neutral): 색이 세컨더리와 같은 라인 버튼이다(2026-08-26 4차 — 크기·굵기 전유를
-   폐지해 별도 규칙이 없다). 이동·보기 조작 자리의 이름으로만 남고, 그 자리들은
-   height="sm" 을 명시한다. */
+   폐지해 별도 규칙이 없다). 이동·보기 조작 자리의 이름으로만 남는다(높이는 전 버튼 32
+   단일이라 자리마다 지정하지 않는다, 2026-08-28 Q). */
 /* 고스트: 아웃라인이 없는 버튼은 면으로 선다(2026-08-26 Q "아웃라인 없는 경우 백그라운드
    컬러로 고정") — 보조 표면 --muted 채움. 글자는 기본 --ink 그대로다(--sub 로 내리면
-   비활성(muted 면 + --sub)과 똑같아지고 위계 조합 표 §2-1 밖이다). 크기는 크기 축이 정한다. */
+   비활성(muted 면 + --sub)과 똑같아지고 위계 조합 표 §2-1 밖이다). 높이는 전 버튼 32 단일이다(2026-08-28). */
 .wire-button[data-variant="ghost"]{background:var(--muted);border-color:transparent}
 /* 버튼 안 꺽쇠 크기 예외 2건은 2026-08-10 에 없앴다(Q "버튼과 listrow, 체브론 맞추기").
    구 값은 라벨을 따라가는 .5333em(15px 라벨 8)·.5em(14px 라벨 7)이었고, 그래서 같은 화면의

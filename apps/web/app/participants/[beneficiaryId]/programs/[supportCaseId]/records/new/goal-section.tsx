@@ -263,7 +263,6 @@ export function GoalSection({
                   <div className="wizard-actions">
                     <WireButton
                       variant="neutral"
-                     
                       onClick={() => { setEditingId(goal.id); setEditTitle(goal.title); setClosingId(null); setNotice(null); }}
                     >
                       수정

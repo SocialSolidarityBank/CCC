@@ -517,7 +517,7 @@ const briefingStyles = `
 .briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 /* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
    목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
-.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
+.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
 .briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
 @media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
@@ -636,7 +636,7 @@ const briefingStyles = `
    수기 메모·액션 아이템 = 민트(사람·기록·상태 축), 플래그 = 라벨은 민트를 유지하고 리스크
    레드는 확인된 항목에만 남긴다(D9 — 색은 확인된 리스크 전용). */
 .record-block>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
-.record-block>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap}
+.record-block>p{margin:0;font-size:var(--text-sm);color:var(--ink);white-space:pre-wrap}
 .record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
 .record-block li{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);font-size:var(--text-md);color:var(--ink)}
 /* 생활 6영역 행의 영역 이름(CCC-11) — 값과 구분되게 라벨로 센다. 배지·메모는 기존 행 계약. */
@@ -645,7 +645,7 @@ const briefingStyles = `
    재료가 없으면 이 블록 자체를 그리지 않는다 — 빈 블록은 뺀 자리를 다시 빈칸으로 만든다. */
 .record-session-goal{display:grid;gap:var(--space-1);border-radius:var(--radius-control);background:var(--mint-tint);padding:var(--space-3) var(--space-4)}
 .record-session-goal-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.record-session-goal p{margin:0;font-size:var(--text-md);color:var(--ink)}
+.record-session-goal p{margin:0;font-size:var(--text-sm);color:var(--ink)}
 /* 담당 칩(민트)과 AI 출처 칩(라벤더)도 공용 배지 톤이다(2026-08-07 통합,
    구 .record-owner, .record-ai-source 삭제). */
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
@@ -658,7 +658,7 @@ const briefingStyles = `
 /* 전체 목표 — 카드 모양은 WireCard 가 갖고(2026-08-05 컴포넌트화), 여기는 안쪽 한 줄 배치만. */
 .record-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
 .record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:400;color:var(--ink)}
+.record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
 /* 섹션 제목(h2). 2026-08-28 부터 흰 패널 카드(.record-section) 안에 서므로 자기 좌우 패딩을
    갖지 않는다 — 패널 패딩 24 가 시작선을 정해 다른 카드 제목과 좌측이 맞는다. */
@@ -671,7 +671,7 @@ const briefingStyles = `
 .record-section{display:grid;gap:var(--space-4);min-width:0;padding:var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 /* 카드 본문 문단은 14 다(2026-08-28 Q — 카드 안 카드로 폭이 좁아져 긴 본문은 14 가 읽기 낫다.
    회차 본문의 수기 메모·세션 목표·담당 의견 등. 짧은 값·제목·폼 안내 문단은 §1 그대로 16). */
-.record-body p,.record-session-goal p{font-size:var(--text-sm)}
+.record-body p{font-size:var(--text-sm)}
 @container (max-width:600px){
   .record-summary{flex-wrap:wrap}
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
