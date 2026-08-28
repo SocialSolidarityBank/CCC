@@ -615,13 +615,13 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-field-row[data-truncate="true"]>.wire-field-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* size sm: 값을 라벨과 같은 14 로 내린다 — 제목(18)과의 대비를 키우는 카드 전용 단(2026-08-22 Q). */
 .wire-field-row[data-size="sm"]>.wire-field-value{font-size:var(--text-sm)}
-/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 16/400. 불릿은 2개 이상일 때만이다(2026-08-07 Q
+/* 불릿 목록(§5): 6px 원형 --sub 불릿 + 14/400(2026-08-28 Q 본문 14). 불릿은 2개 이상일 때만이다(2026-08-07 Q
    규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
-.wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-md)}
+.wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-sm)}
 .wire-bullets>li{position:relative;padding-left:var(--space-4)}
 .wire-bullets>li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--sub)}
 /* 단일 항목 — 목록이 아니라 문장이다. 크기·색은 불릿 항목과 같고 불릿·들여쓰기만 없다. */
-.wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-md)}
+.wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-sm)}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
 /* align-content:start — 폼 입력칸(.wire-form-field)과 같은 stretch 부풀림 방지 계약. */
 .wire-search{display:grid;gap:var(--space-2);align-content:start}
@@ -811,31 +811,28 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    고스트·위험·비활성은 background 를 덮어쓰므로 이 층의 영향을 받지 않는다. */
 /* 행간은 default(normal)다 — 2026-08-06 Q: 단일행 컨트롤의 세로 중앙은 광학 보정이 아니라
    기하 정렬(flex 상하좌우 center + 기본 행간)이 만든다(구 --leading-none 대체). */
-/* 크기는 크기 축(data-height)만 정한다(2026-08-26 Q 4차 "버튼 2종 크기가 제각각" —
-   2026-07-26 "종류와 크기는 별개 축" 원칙 복원). md = 40, sm = 32 — **라벨은 두 단 모두
-   14/600 이다**(2026-08-28 Q, 구 md 15 하프스텝 폐지: md 만 15 라 이질감을 만들었다).
-   구 "크기 두 갈래"(핵심 15/600, 조작 14/400)는 폐지: 종류가 크기·굵기를 끌고 다녀
-   같은 줄의 라인 버튼과 컬러배경 버튼이 서로 다른 키로 섰다. 굵기는 전 버튼 600
-   하나다(굵기 3단의 '강조 600', 조작 400 예외 폐지). */
-/* 좌우 패딩은 크기·종류와 무관하게 14(--space-3-5) 하나다(2026-08-28 Q "패딩 14" —
-   구 2026-08-26 16 최종을 대체. 같은 날 14
-   통일안을 실물 확인 후 16 으로 확정, --space-3-5 는 마지막 사용처가 사라져 폐기). */
+/* 높이는 전 버튼 32 하나다(2026-08-28 Q "버튼 컴포넌트 높이 전부 32" — 구 md 40 / sm 32
+   2단 폐지). HERO·폼 행동이 40 이라 툴바·목록 32 옆에서 홀로 커 보이던 것을 없앤다.
+   입력칸에 붙은 조작(달력 토글·인라인 값 편집)만 입력 높이 정렬 계약(40, --control-height)을
+   따르는데 그건 .wire-button 이 아니라 자기 클래스라 이 규칙 밖이다. 라벨은 14/600,
+   굵기는 전 버튼 600 하나(굵기 3단의 '강조 600', 조작 400 예외 폐지). */
+/* 좌우 패딩은 14(--space-3-5) 하나다(2026-08-28 Q "패딩 14" — 2026-08-26 "16 최종"을
+   실화면에서 둔중하다고 되돌린 값. --space-3-5 부활 이력은 tokens.css 주석에 있다). */
 /* 아웃라인 언어 둘(2026-08-26 Q 최종): 아웃라인이 있는 버튼은 전부 **--gradient-brand
    1px**(알약화 이후 그레이 아웃라인 버튼이 중립 배지와 똑같이 읽혀 그레이를 폐지),
    아웃라인이 없는 버튼은 **면 채움**으로 선다(프라이머리 = --gradient-action,
    고스트 = --muted). 위험만 의미색 --risk 아웃라인이다. 두께는 --wire-outline-width. */
-.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3-5);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
-.wire-button[data-height="sm"]{min-height:var(--pill-height)}
+.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-3-5);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
 /* 프라이머리: --gradient-action 배경 + --line-on-action 테두리. 그림자는 없다(2026-08-06,
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
 .wire-button[data-variant="primary"]{--wire-outline-color:var(--line-on-action);background:var(--gradient-action);border:var(--wire-outline-width) solid var(--wire-outline-color);color:var(--on-action);background-size:200% auto;background-position:50% 0}
 /* 일반(neutral): 색이 세컨더리와 같은 라인 버튼이다(2026-08-26 4차 — 크기·굵기 전유를
-   폐지해 별도 규칙이 없다). 이동·보기 조작 자리의 이름으로만 남고, 그 자리들은
-   height="sm" 을 명시한다. */
+   폐지해 별도 규칙이 없다). 이동·보기 조작 자리의 이름으로만 남는다(높이는 전 버튼 32
+   단일이라 자리마다 지정하지 않는다, 2026-08-28 Q). */
 /* 고스트: 아웃라인이 없는 버튼은 면으로 선다(2026-08-26 Q "아웃라인 없는 경우 백그라운드
    컬러로 고정") — 보조 표면 --muted 채움. 글자는 기본 --ink 그대로다(--sub 로 내리면
-   비활성(muted 면 + --sub)과 똑같아지고 위계 조합 표 §2-1 밖이다). 크기는 크기 축이 정한다. */
+   비활성(muted 면 + --sub)과 똑같아지고 위계 조합 표 §2-1 밖이다). 높이는 전 버튼 32 단일이다(2026-08-28). */
 .wire-button[data-variant="ghost"]{background:var(--muted);border-color:transparent}
 /* 버튼 안 꺽쇠 크기 예외 2건은 2026-08-10 에 없앴다(Q "버튼과 listrow, 체브론 맞추기").
    구 값은 라벨을 따라가는 .5333em(15px 라벨 8)·.5em(14px 라벨 7)이었고, 그래서 같은 화면의
@@ -969,10 +966,12 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    전용 surface 토큰이 라이트 deep 면과 다크 base 면을 갈아 끼우며 전경은 --on-badge가 맡는다.
    light-magenta 만 예외로 승인 hex #D96BC8 하나를 두 테마에서 같이 쓰고, 그 면 위 글자는
    전용 --on-badge-light-magenta(다크 캔버스 중립색 재사용)로 두 테마 모두 AA 를 넘긴다. */
-/* sm(2026-08-23 Q "뱃지 안 텍스트 12px"): 높이 20 · 좌우 패딩 8 · 글자 12.
-   카드 헤더처럼 이름 옆 곁다리로 서는 자리 전용이다. 본문 계열의 14px 하한을 풀지 않고
-   단일 배지 계약 안에 컴팩트 크기만 추가한다(D61 ②). */
-.wire-badge[data-size="sm"]{min-height:var(--space-5);padding:0 var(--space-2);font-size:var(--text-badge-compact)}
+/* sm(2026-08-23 Q "뱃지 안 텍스트 12px"): 높이 20 · 글자 12. 카드 헤더처럼 이름 옆
+   곁다리로 서는 자리 전용이다. 본문 계열의 14px 하한을 풀지 않고 단일 배지 계약 안에
+   컴팩트 크기만 추가한다(D61 ②). **좌우 패딩은 기본 배지와 같은 10(--space-2-5)으로
+   통일한다**(2026-08-28 Q "뱃지 좌우 패딩 통일" — 구 8 은 md 배지와 나란할 때 제각각으로
+   읽혔다. 컴팩트는 높이·글자만 줄이고 좌우 리듬은 배지 하나로 맞춘다). */
+.wire-badge[data-size="sm"]{min-height:var(--space-5);padding:0 var(--space-2-5);font-size:var(--text-badge-compact)}
 .wire-badge[data-tone="mint"]{--wire-outline-color:var(--badge-mint);background:var(--badge-mint);color:var(--on-badge)}
 .wire-badge[data-tone="lavender"]{--wire-outline-color:var(--badge-lavender);background:var(--badge-lavender);color:var(--on-badge)}
 .wire-badge[data-tone="blue"]{--wire-outline-color:var(--badge-blue);background:var(--badge-blue);color:var(--on-badge)}

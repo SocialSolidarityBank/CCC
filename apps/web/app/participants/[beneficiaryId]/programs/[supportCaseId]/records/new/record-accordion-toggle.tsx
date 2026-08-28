@@ -33,7 +33,7 @@ export function RecordAccordionToggle() {
   };
 
   return (
-    <WireButton onClick={toggleAll} variant="neutral" height="sm">
+    <WireButton onClick={toggleAll} variant="neutral">
       {allOpen ? '전체 접기' : '전체 열기'}
     </WireButton>
   );

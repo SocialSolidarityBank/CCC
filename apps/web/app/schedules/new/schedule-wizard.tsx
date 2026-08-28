@@ -313,7 +313,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
                     <button type="button" className="schedule-candidate-select" onClick={() => selectCandidate(candidate)}>
                       {candidateLabel(candidate)}
                     </button>
-                    <WireButton variant="neutral" height="sm" href={`/participants/${encodeURIComponent(candidate.beneficiaryId)}`}>
+                    <WireButton variant="neutral" href={`/participants/${encodeURIComponent(candidate.beneficiaryId)}`}>
                       당사자 정보
                     </WireButton>
                   </div>

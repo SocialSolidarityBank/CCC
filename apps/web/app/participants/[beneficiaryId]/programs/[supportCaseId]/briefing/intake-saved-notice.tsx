@@ -42,7 +42,7 @@ export function IntakeSavedNotice({
   return (
     <WireCallout tone="info" role="status" testId="intake-saved-notice" title="인테이크 기록을 저장했습니다"
       actions={
-        <WireButton variant="secondary" height="sm" href={scheduleHref(beneficiaryId, supportCaseId)}>
+        <WireButton variant="secondary" href={scheduleHref(beneficiaryId, supportCaseId)}>
           다음 상담 등록
         </WireButton>
       }>

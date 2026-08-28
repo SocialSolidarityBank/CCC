@@ -215,7 +215,7 @@ describe('CCC-133 지난 일정 대비 정제(2026-08-25 Q)', () => {
     const title = rule('.schedule-day-summary-title');
     expect(title).toContain('justify-content:flex-start');
     expect(title).toContain('text-align:left');
-    expect(baseRule('.record-section-title')).toContain('padding-inline:var(--space-6)');
+    expect(baseRule('.record-section-title')).not.toContain('padding-inline');
     expect(baseRule('.briefing-toolbar')).not.toContain('padding-inline');
   });
 
@@ -377,7 +377,7 @@ describe('CCC-133 통합 업무 바', () => {
     const ghost = baseRule('.wire-button[data-variant="ghost"]');
     expect(ghost).toContain('background:var(--muted)');
     expect(ghost).not.toContain('min-height');
-    // 일반(neutral)은 색이 세컨더리와 같아 규칙 자체가 없다. 크기는 크기 축만 정한다.
+    // 일반(neutral)은 색이 세컨더리와 같아 규칙 자체가 없다. 높이는 전 버튼 32 단일이다(2026-08-28).
     expect(wireSource).not.toContain('.wire-button[data-variant="neutral"]{');
     expect(wireSource).not.toContain('.participant-hub-page .surface-card{border-color:');
   });
@@ -402,8 +402,10 @@ describe('CCC-133 통합 업무 바', () => {
     expect(links.map((link) => link.textContent)).toEqual(['당사자 등록', '상담 등록']);
     expect(links.map((link) => link.getAttribute('href')))
       .toEqual(['/participants/new', '/schedules/new']);
-    // 업무 바는 전부 32 다(2026-08-26 Q "버튼 모양 다르다" — 주 행동도 sm).
-    expect(links.every((link) => link.getAttribute('data-height') === 'sm')).toBe(true);
+    // 버튼은 전 32 단일 높이다(2026-08-28 Q — 구 md/sm 2단·data-height 축 폐지).
+    expect(links.every((link) => link.getAttribute('data-height') === null)).toBe(true);
+    expect(baseRule('.wire-button')).toContain('min-height:var(--pill-height)');
+    expect(wireSource).not.toContain('data-height');
     expect(layoutSource).not.toContain('.schedule-nav-actions>.wire-button{flex:1 1 0');
   });
 });

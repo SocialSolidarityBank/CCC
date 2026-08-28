@@ -153,7 +153,7 @@ button,input,select,textarea{font:inherit}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
-.navigation-soon{margin-left:auto;padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
+.navigation-soon{margin-left:auto;display:inline-flex;align-items:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
@@ -507,7 +507,7 @@ const briefingStyles = `
    카드 모양은 WireCard 가 갖고, 수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가
    알린다. 점수·게이지 자리는 없다(D43). */
 .briefing-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
-.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:400;color:var(--ink)}
+.briefing-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .briefing-goal-text.is-empty{color:var(--sub);font-weight:400}
 .briefing-goal-form{display:flex;flex:1;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 /* 저장·취소 묶음(2026-08-06 Q): 둘 다 버튼이고 컬러(세컨더리 아웃라인 vs 그레이 아웃라인)로
@@ -517,7 +517,7 @@ const briefingStyles = `
 .briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 /* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
    목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
-.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-md);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
+.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
 .briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
 @media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
@@ -573,14 +573,17 @@ const briefingStyles = `
 .briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
-.briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
-/* 미해결 액션 행(2026-08-06 Q): 내용은 왼쪽, 담당(민트 — 사람·담당 축)과 기한(블루 —
-   일정 축)은 행 오른쪽 끝 뱃지다(D58 ④). 내용이 남는 폭을 갖고 뱃지를 끝으로 민다. */
+.briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
+/* 미해결 액션 행(2026-08-06 Q · 2026-08-28 Q 개정): 내용과 담당(민트)·기한(블루) 뱃지가
+   **왼쪽에 한 묶음으로 붙고**, 출처 회차 버튼만 오른쪽 끝으로 떨어진다. 구 "내용이 남는
+   폭을 갖고 뱃지를 끝으로 민다"는 뱃지가 버튼 옆에 붙어 크기가 안 맞은 한 쌍처럼 읽혔다
+   (Q "버튼과 뱃지가 나란히 있어서 교정이 안 된 것처럼"). 내용은 자라지 않고(flex:0 1 auto)
+   뱃지가 그 뒤에 서며, 버튼은 margin-left:auto 로 밀려 뱃지와 갈린다. */
 .briefing-action-rows{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
 .briefing-action-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;min-width:0}
-.briefing-action-desc{flex:1 1 auto;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink);overflow-wrap:anywhere}
+.briefing-action-desc{flex:0 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink);overflow-wrap:anywhere}
 .briefing-action-row .wire-badge{flex:none;white-space:nowrap}
-.briefing-action-source{flex:none}
+.briefing-action-source{flex:none;margin-left:auto}
 /* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
    회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
    그 회차가 추가로 열린다. 카드 계약(.surface-card)과 '펼친 것이 곧 활성'(surface-card[open])은
@@ -615,7 +618,7 @@ const briefingStyles = `
 .record-summary>.wire-badge{flex:none}
 /* 핵심 한 줄. 승인 전 폴백(수기 메모 발췌)은 --sub 로 낮춘다(D5). 넘침은 공용
    .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 브리핑 회차 행과 같은 규칙(2026-08-06 Q). */
-.record-one-liner{flex:1;min-width:0;font-size:var(--text-md);line-height:normal;color:var(--ink)}
+.record-one-liner{flex:1;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
 .record-one-liner.is-memo{color:var(--sub);font-weight:400}
 .record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
 /* 펼친 본문. 머리와 본문은 --gradient-brand 1px 로 나눈다(§5 카드 계약 — 그라데이션이
@@ -633,7 +636,7 @@ const briefingStyles = `
    수기 메모·액션 아이템 = 민트(사람·기록·상태 축), 플래그 = 라벨은 민트를 유지하고 리스크
    레드는 확인된 항목에만 남긴다(D9 — 색은 확인된 리스크 전용). */
 .record-block>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
-.record-block>p{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap}
+.record-block>p{margin:0;font-size:var(--text-sm);color:var(--ink);white-space:pre-wrap}
 .record-block ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
 .record-block li{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);font-size:var(--text-md);color:var(--ink)}
 /* 생활 6영역 행의 영역 이름(CCC-11) — 값과 구분되게 라벨로 센다. 배지·메모는 기존 행 계약. */
@@ -642,7 +645,7 @@ const briefingStyles = `
    재료가 없으면 이 블록 자체를 그리지 않는다 — 빈 블록은 뺀 자리를 다시 빈칸으로 만든다. */
 .record-session-goal{display:grid;gap:var(--space-1);border-radius:var(--radius-control);background:var(--mint-tint);padding:var(--space-3) var(--space-4)}
 .record-session-goal-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.record-session-goal p{margin:0;font-size:var(--text-md);color:var(--ink)}
+.record-session-goal p{margin:0;font-size:var(--text-sm);color:var(--ink)}
 /* 담당 칩(민트)과 AI 출처 칩(라벤더)도 공용 배지 톤이다(2026-08-07 통합,
    구 .record-owner, .record-ai-source 삭제). */
 .record-item-meta{font-size:var(--text-sm);color:var(--sub)}
@@ -655,14 +658,20 @@ const briefingStyles = `
 /* 전체 목표 — 카드 모양은 WireCard 가 갖고(2026-08-05 컴포넌트화), 여기는 안쪽 한 줄 배치만. */
 .record-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
 .record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-md);font-weight:400;color:var(--ink)}
+.record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
-/* 카드 밖 구획 제목은 카드 본문과 같은 24px 시작선에 선다. 일정의 펼친 날짜 h3와
-   브리핑 구획 h2가 같은 공용 제목을 쓰므로 화면별 바깥 래퍼 패딩을 만들지 않는다. */
-.record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;padding-inline:var(--space-6);font-size:var(--text-lg);font-weight:600;color:var(--ink)}
-/* 섹션 제목 + 그 아래 항목 = 한 묶음(2026-08-28 Q — 구 페이지 스택 위 형제 나열 대체).
-   제목-내용 간격 16 은 래퍼가 갖고, 섹션 사이는 페이지 스택(--section-gap 32)이 그대로 가른다. */
-.record-section{display:grid;gap:var(--space-4);min-width:0}
+/* 섹션 제목(h2). 2026-08-28 부터 흰 패널 카드(.record-section) 안에 서므로 자기 좌우 패딩을
+   갖지 않는다 — 패널 패딩 24 가 시작선을 정해 다른 카드 제목과 좌측이 맞는다. */
+.record-section-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-lg);font-weight:600;color:var(--ink)}
+/* 섹션 제목 + 그 아래 카드 = 한 흰 패널 카드(2026-08-28 Q "A안 + 배경 화이트"). 다른 카드와
+   같은 흰 면·--line 테두리·radius 12·패딩 24 라 HERO·전체목표 카드와 한 표면 어휘로 선다.
+   제목은 자기 padding-inline 을 버리고(위) 패널 패딩에 기대어 다른 h2 제목과 좌측이 맞는다.
+   **카드 안 카드 예외**: 안쪽 회차·브리핑 카드가 이 패널 안에 들어 §5 '카드 안 카드 금지'의
+   예외다(Q 승인). 제목-내용 간격 16 은 grid gap, 섹션 사이는 페이지 스택 32 가 가른다. */
+.record-section{display:grid;gap:var(--space-4);min-width:0;padding:var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+/* 카드 본문 문단은 14 다(2026-08-28 Q — 카드 안 카드로 폭이 좁아져 긴 본문은 14 가 읽기 낫다.
+   회차 본문의 수기 메모·세션 목표·담당 의견 등. 짧은 값·제목·폼 안내 문단은 §1 그대로 16). */
+.record-body p{font-size:var(--text-sm)}
 @container (max-width:600px){
   .record-summary{flex-wrap:wrap}
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}

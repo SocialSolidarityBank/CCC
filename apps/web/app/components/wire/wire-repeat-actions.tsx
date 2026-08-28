@@ -31,12 +31,12 @@ export function WireRepeatActions({ itemLabel, onAdd, onRemove }: WireRepeatActi
   return (
     <div className="wire-repeat-actions">
       {onRemove !== undefined && (
-        <WireButton variant="neutral" height="sm" onClick={onRemove} ariaLabel={`이 ${itemLabel} 삭제`}>
+        <WireButton variant="neutral" onClick={onRemove} ariaLabel={`이 ${itemLabel} 삭제`}>
           <Icon name="minus" size={14} />
         </WireButton>
       )}
       {onAdd !== undefined && (
-        <WireButton variant="neutral" height="sm" onClick={onAdd} ariaLabel={`${itemLabel} 추가`}>
+        <WireButton variant="neutral" onClick={onAdd} ariaLabel={`${itemLabel} 추가`}>
           <Icon name="plus" size={14} />
         </WireButton>
       )}

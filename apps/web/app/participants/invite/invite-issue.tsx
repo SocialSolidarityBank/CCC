@@ -43,7 +43,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <WireButton
       variant="secondary"
-      height="sm"
       onClick={() => {
         void navigator.clipboard.writeText(text).then(() => {
           setCopied(true);

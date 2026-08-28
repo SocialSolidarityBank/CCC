@@ -29,8 +29,8 @@ describe('ParticipantFilter (D21 당사자 찾기의 새 자리)', () => {
     expect(actions.map((action) => action.textContent)).toEqual(['당사자 초대', '당사자 등록']);
     expect(actions.map((action) => action.getAttribute('href')))
       .toEqual(['/participants/invite', '/participants/new']);
-    // 업무 바는 전부 32 다(2026-08-26 Q — 일정 업무 바와 같은 키, 검색칸도 32).
-    expect(actions.every((action) => action.getAttribute('data-height') === 'sm')).toBe(true);
+    // 버튼은 전 32 단일 높이다(2026-08-28 Q — 구 md/sm 2단·data-height 축 폐지).
+    expect(actions.every((action) => action.classList.contains('wire-button') && action.getAttribute('data-height') === null)).toBe(true);
   });
 
   it('입력이 없으면 전원을 보여준다', () => {
