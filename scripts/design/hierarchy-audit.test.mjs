@@ -250,9 +250,9 @@ check(
   run(decl('--text-lg', '400', '--on-action')).violations.length === 1,
 );
 check(
-  // 15/600 은 핵심 버튼 전용이라 컨트롤 표에만 있다. cursor 를 빼면 크기·굵기 짝부터 표 밖이다.
+  // 14/600 컨트롤은 컨트롤 표에만 있다(구 15 하프스텝은 2026-08-28 폐지). cursor 를 빼면 표 밖이다.
   '비활성은 색만 물러서므로 안 잡힌다',
-  run('.probe{font-size:var(--text-btn);font-weight:600;color:var(--ink);cursor:pointer}\n.probe:disabled{color:var(--sub)}')
+  run('.probe{font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}\n.probe:disabled{color:var(--sub)}')
     .violations.length === 0,
 );
 

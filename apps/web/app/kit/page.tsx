@@ -258,8 +258,8 @@ export default function KitPage() {
         <section className="wire-kit-section" aria-labelledby="kit-button">
           <h2 className="wire-kit-heading" id="kit-button">버튼 5종 × 크기 2단</h2>
           <p className="wire-kit-caption">
-            종류는 색과 테두리만, 크기는 크기 축만 정한다(md 40, 15/600, sm 32, 14/600).
-            2026-07-26 Q 결정, 2026-08-26 4차 개정으로 복원.
+            종류는 색과 테두리만, 크기 축은 높이만 정한다(md 40 / sm 32, 라벨은 두 단 모두 14/600.
+            2026-08-28 Q, 구 md 15 하프스텝 폐지). 2026-07-26 Q 결정, 2026-08-26 4차 개정으로 복원.
           </p>
           <p className="wire-kit-caption">
             2026-08-25: 형태는 <strong>알약</strong>이다(구 직사각 radius 6 대체). 2026-08-26:

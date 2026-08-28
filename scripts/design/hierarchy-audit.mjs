@@ -93,8 +93,8 @@ const ROLES = [
  * 열린다. 컨트롤인지는 `cursor:pointer` 를 스스로 선언했는지로 가른다(상속은 안 센다).
  */
 const CONTROL_ROLES = [
-  { size: 'var(--text-btn)', weight: '600', colors: ['var(--ink)', 'var(--risk)', ...SERIES_DEEP], role: '핵심 버튼' },
-  // 작은 컨트롤 — 작은 버튼(data-height="sm")·인테이크 단계 버튼·동의 토글 요약·완료 버튼·눌린 시간 슬롯
+  // 버튼 전 종류(2026-08-28 Q — 구 --text-btn 15 폐지로 핵심 버튼 행이 이 행에 흡수됐다)
+  // ·인테이크 단계 버튼·동의 토글 요약·완료 버튼·눌린 시간 슬롯
   { size: 'var(--text-sm)', weight: '600', colors: ['var(--ink)', ...SERIES_DEEP, 'var(--risk)'], role: '작은 컨트롤' },
   // 이동·보기 조작 알약(neutral·ghost)
   { size: 'var(--text-sm)', weight: '400', colors: ['var(--ink)', 'var(--sub)'], role: '조작 알약' },

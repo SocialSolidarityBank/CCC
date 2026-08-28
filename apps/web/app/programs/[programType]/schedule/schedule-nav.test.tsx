@@ -145,9 +145,10 @@ describe('리파인먼트 4, 공유 입력 타이포', () => {
     );
   });
 
-  it('본문은 16 을 유지한다 — 입력만 줄인다', () => {
-    expect(rule('.record-section-title.schedule-day-heading'))
-      .not.toContain('var(--text-sm)');
+  it('구 플랫 구획 제목 규칙은 폐지 상태를 유지한다 (2026-08-28)', () => {
+    // 오늘·미래도 날짜 묶음 카드라 h3 축소 규칙이 되살아나면 죽은 CSS 다.
+    expect(SCHEDULE_CSS).not.toContain('.record-section-title.schedule-day-heading');
+    expect(SCHEDULE_CSS).not.toContain('.schedule-section{');
   });
 });
 
@@ -194,10 +195,9 @@ describe('CCC-133 타이포 정제(2026-08-25 Q)', () => {
     expect(mobile).not.toContain('font-weight');
   });
 
-  it('날짜 묶음 제목은 16 이고 공유 섹션 제목은 18 그대로다', () => {
-    expect(rule('.record-section-title.schedule-day-heading'))
-      .toContain('font-size:var(--text-md)');
-    // 공유 클래스를 건드렸으면 회차별 기록과 브리핑 제목까지 같이 줄어든다.
+  it('날짜 묶음 제목은 카드 제목 계약(16)을 그대로 받고 공유 섹션 제목은 18 그대로다', () => {
+    // 날짜 제목은 WireCardDetails 의 .wire-card-title 슬롯 안 span 이라 별도 규칙이 없다.
+    expect(baseRule('.wire-card-title')).toContain('font-size:var(--text-md)');
     expect(baseRule('.record-section-title')).toContain('font-size:var(--text-lg)');
   });
 });
@@ -212,7 +212,7 @@ describe('CCC-133 지난 일정 대비 정제(2026-08-25 Q)', () => {
   });
 
   it('접힌 날짜 제목은 카드 본문 시작선에 맞춰 왼쪽 정렬한다', () => {
-    const title = rule('.schedule-past-summary-title');
+    const title = rule('.schedule-day-summary-title');
     expect(title).toContain('justify-content:flex-start');
     expect(title).toContain('text-align:left');
     expect(baseRule('.record-section-title')).toContain('padding-inline:var(--space-6)');

@@ -310,8 +310,7 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
  *  라벨은 민트다(2026-08-07 Q 9차 "태그에 컬러" — 사람·기록 축, .record-block>h3 과
  *  같은 계약). 값(--ink)과 색으로 갈라져 짝이 한눈에 읽힌다. */
 function ReadOnlyRow(props: { label: string; value: string }) {
-  // 값은 16(--text-md)이다 — 구 15 는 §2-1 의 **버튼 전용** 하프스텝(--text-btn)이라 버튼 밖에
-  // 쓰면 계단 밖 값이다. 라벨·값 색은 §5 '정보 필드' 계약(.wire-field-label/.wire-field-value)이 갖는다.
+  // 값은 16(--text-md)이다 — 15 하프스텝은 2026-08-28 폐지됐고 버튼 글자도 계단의 14 다. 라벨·값 색은 §5 '정보 필드' 계약(.wire-field-label/.wire-field-value)이 갖는다.
   return (
     <div className="wizard-field" data-testid="intake-readonly-row">
       <span className="wire-field-label">{props.label}</span>
