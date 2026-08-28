@@ -327,7 +327,9 @@ p{margin:var(--space-2) 0 0;font-size:var(--text-md);font-weight:400;color:var(-
    구 min-height:92px 는 지웠다 — 높이 예약은 빈 상태의 뜻이 아니라 화면 레이아웃의 일이고,
    그 값 때문에 브리핑이 .briefing-note 라는 두 번째 빈 상태 규칙을 따로 갖고 있었다
    (한 카드에 빈 줄이 둘이면 92 × 2 = 184 가 비어 보인다). 크기는 §2-2 위계 4단 ④ 다. */
-.empty{display:flex;align-items:center;gap:var(--space-2);color:var(--sub);font-size:var(--text-sm)}
+/* margin:0 — 전역 p{margin-top:8}이 새면 reserve 92 안에서 위로만 8 밀려 가운데 정렬이
+   깨진다(2026-08-29 Q "위에만 여백"). 형제와의 간격은 부품이 아니라 묶음 gap 이 만든다(§7). */
+.empty{margin:0;display:flex;align-items:center;gap:var(--space-2);color:var(--sub);font-size:var(--text-sm)}
 /* 자리 예약은 **켜는 것**이다(WireEmpty reserve) — 이 줄이 카드의 유일한 내용일 때만.
    태그를 붙여 0-2-1 로 올린다(2026-08-10). 아래 participantStyles 의 라이브 영역 바닥
    [aria-live="polite"] min-height:1.5em 이 **같은 0-2-0** 이고 이음 순서상 뒤에 와서,
@@ -514,10 +516,10 @@ const briefingStyles = `
    가른다. 한 결정의 두 갈래라 사이 간격은 입력칸과의 12 보다 좁은 8 이다. */
 .briefing-goal-buttons{display:flex;align-items:center;gap:var(--space-2)}
 /* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
-.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
+.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 /* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
    목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
-.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
+.briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
 .briefing-goal-display.is-empty{color:var(--sub);font-weight:400}
 @media (hover:hover){.briefing-goal-display:hover{border-color:var(--blue-deep)}}
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
@@ -657,7 +659,9 @@ const briefingStyles = `
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
 /* 전체 목표 — 카드 모양은 WireCard 가 갖고(2026-08-05 컴포넌트화), 여기는 안쪽 한 줄 배치만. */
 .record-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
-.record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* 전체 목표 라벨도 민트 deep 이다 — 목표 라벨은 화면 어디서나 같은 민트다(2026-08-29 Q,
+   §4. goal-tree-label 과 같은 계약. 구 14/600 --sub). 값(record-goal-text)은 --ink 그대로. */
+.record-goal-label{flex:none;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .record-goal-text{flex:1;min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .record-goal-text.is-empty{font-weight:400;color:var(--sub)}
 /* 섹션 제목(h2). 2026-08-28 부터 흰 패널 카드(.record-section) 안에 서므로 자기 좌우 패딩을
@@ -731,11 +735,15 @@ const scheduleStyles = `
 .schedule-day-list{display:grid;gap:var(--section-gap)}
 /* 구 오늘·미래 플랫 구획(.schedule-section + 18 제목 축소 규칙)은 2026-08-28 Q 로 폐지 —
    세 상태 모두 날짜 묶음 카드(WireCardDetails) 하나를 쓴다. */
-/* 날짜 묶음 제목 옆 건수 — ④ 설명·메타 단(14/400 --sub). 제목 flex 의 gap 이 간격을 만든다. */
-.schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+/* 날짜 묶음 제목 옆 건수 — 16/400 --ink(③ 본문, 2026-08-29 Q "16px로". 구 14/400 --sub ④ —
+   16px 에는 --sub 조합이 §1 표에 없어 본문 단으로 올린다). 제목 flex 의 gap 이 간격을 만든다. */
+.schedule-day-count{font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 /* 일정 업무 바. 양쪽 1fr 이 가운데 기간 묶음을 페이지 정중앙에 고정한다. 왼쪽은
    [오늘]+보기 선택창, 오른쪽은 등록 행동 둘이고 전부 32 높이다. */
 .schedule-nav{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--space-3)}
+/* 일정 업무 바만 안쪽 여백을 20 으로 넓힌다(2026-08-29 Q, 구 공용 .work-toolbar 12). 조작이
+   빽빽해 숨 쉴 자리가 필요한 자리다 — 다른 업무 바(당사자 목록)는 12 를 유지한다. */
+.schedule-nav.work-toolbar{padding:var(--space-5)}
 .schedule-nav-controls,.schedule-nav-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
 .schedule-nav-actions{justify-content:flex-end}
 .schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3)}
@@ -759,7 +767,7 @@ const scheduleStyles = `
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
 .schedule-day-summary-title{display:flex;align-items:baseline;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
-.schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 /* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
    컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */
 @container (max-width:760px){

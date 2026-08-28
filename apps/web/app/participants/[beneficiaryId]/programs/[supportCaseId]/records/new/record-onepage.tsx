@@ -304,11 +304,11 @@ export function RecordOnepage({
             onChange={(event) => setMemoFilled(event.currentTarget.value.trim().length > 0)}
           />
         </WireFormField>
-        <div className="wire-form-grid">
+        <div className="wire-form-grid record-datetime-grid">
           {/* D48: 네이티브 datetime-local 은 표기가 보는 사람의 브라우저 언어를 따라 팀원마다
               달랐다(R6). 상담 일시는 요일로 잡는 값이라 KRDS 기준 달력이 맞는 자리다 —
               입력칸은 그대로 두고 달력을 옆에 붙인다. 제출값은 예전과 같은 문자열이다. */}
-          <WireFormField label="상담 일시" required htmlFor="record-held-at" hint={DATE_TEXT_HINT}>
+          <WireFormField label="상담 일시" required htmlFor="record-held-at">
             <DateTimePickerControl
               id="record-held-at"
               name="heldAt"
@@ -322,6 +322,9 @@ export function RecordOnepage({
           <WireFormField label="상담 방식" control="select" htmlFor="record-channel">
             <select id="record-channel" name="channel" defaultValue="in_person">{channelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           </WireFormField>
+          {/* 날짜 형식 도움말은 좁은 2열 칸에서 줄바꿈하므로 그리드 전폭 한 줄로 내린다
+              (2026-08-29 Q item 8). describedBy=record-held-at-hint 는 이 span 을 가리킨다. */}
+          <span className="wire-form-hint wire-form-grid-hint" id="record-held-at-hint">{DATE_TEXT_HINT}</span>
         </div>
         {/* 완료할 일정(CCC-57, 2026-08-08 Q 승인). 접힌 '새 액션 · 다음 만남' 구획에서 여기로
             올렸다. 기본이 켬이 된 이상 안 보이는 곳에서 일정이 완료되면 안 된다. "이 기록이

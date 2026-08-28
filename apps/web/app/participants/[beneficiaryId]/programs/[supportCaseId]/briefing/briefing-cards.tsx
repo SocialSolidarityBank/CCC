@@ -124,7 +124,7 @@ function OverallGoalCard({
     // 카드로 통일한다. 수정 가능성은 안쪽 상자가 알린다.
     <WireCard as="section" className="briefing-goal" labelledBy="briefing-goal-label">
       <div className="briefing-goal-row">
-        {/* 목표는 사람·소속 축이 아니므로 공용 목표 라벨(14/600 --sub)을 쓴다. */}
+        {/* 목표 라벨은 민트(진행 축)로 눈에 들게 통일한다(2026-08-29 Q, 구 --sub). */}
         <p className="goal-tree-label" id="briefing-goal-label">전체 목표</p>
         {editing && action !== undefined
           ? (
@@ -188,7 +188,7 @@ function OverallGoalCard({
       {activeGoals.length > 0 && (
         <>
           <hr className="wire-card-divider" />
-          <WireCardSection title="세부 목표">
+          <WireCardSection title="세부 목표" tone="mint">
             <ul className="briefing-subgoal-rows">
               {activeGoals.map((goal) => (
                 <li key={goal.id} className="briefing-subgoal-row wire-fade-clip">{goal.title}</li>
@@ -450,6 +450,7 @@ export function BriefingCards({
         <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
           <WireCardSection
             title="세션 목표"
+            tone="mint"
             action={upcomingSchedule === null
               ? undefined
               : (

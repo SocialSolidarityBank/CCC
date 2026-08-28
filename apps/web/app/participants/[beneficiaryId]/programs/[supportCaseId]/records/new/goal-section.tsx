@@ -257,10 +257,12 @@ export function GoalSection({
                 </div>
               </>
             ) : (
-              <>
+              // 제목과 조작 버튼을 한 행에 둔다(2026-08-29 Q) — 제목 왼쪽, 수정·닫기 오른쪽.
+              // 두 버튼은 8 간격으로 붙여 한 세트로 읽힌다(.record-goal-actions).
+              <div className="record-goal-view">
                 <p className="wire-field-value">{goal.title}</p>
                 {editable ? (
-                  <div className="wizard-actions">
+                  <div className="wizard-actions record-goal-actions">
                     <WireButton
                       variant="neutral"
                       onClick={() => { setEditingId(goal.id); setEditTitle(goal.title); setClosingId(null); setNotice(null); }}
@@ -270,7 +272,7 @@ export function GoalSection({
                     <WireButton variant="neutral" onClick={() => startClose(goal.id)}>닫기</WireButton>
                   </div>
                 ) : null}
-              </>
+              </div>
             )}
           </div>
         ))}
