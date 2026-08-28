@@ -817,13 +817,14 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    구 "크기 두 갈래"(핵심 15/600, 조작 14/400)는 폐지: 종류가 크기·굵기를 끌고 다녀
    같은 줄의 라인 버튼과 컬러배경 버튼이 서로 다른 키로 섰다. 굵기는 전 버튼 600
    하나다(굵기 3단의 '강조 600', 조작 400 예외 폐지). */
-/* 좌우 패딩은 크기·종류와 무관하게 16(--space-4) 하나다(2026-08-26 Q 최종. 같은 날 14
+/* 좌우 패딩은 크기·종류와 무관하게 14(--space-3-5) 하나다(2026-08-28 Q "패딩 14" —
+   구 2026-08-26 16 최종을 대체. 같은 날 14
    통일안을 실물 확인 후 16 으로 확정, --space-3-5 는 마지막 사용처가 사라져 폐기). */
 /* 아웃라인 언어 둘(2026-08-26 Q 최종): 아웃라인이 있는 버튼은 전부 **--gradient-brand
    1px**(알약화 이후 그레이 아웃라인 버튼이 중립 배지와 똑같이 읽혀 그레이를 폐지),
    아웃라인이 없는 버튼은 **면 채움**으로 선다(프라이머리 = --gradient-action,
    고스트 = --muted). 위험만 의미색 --risk 아웃라인이다. 두께는 --wire-outline-width. */
-.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
+.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3-5);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
 .wire-button[data-height="sm"]{min-height:var(--pill-height)}
 /* 프라이머리: --gradient-action 배경 + --line-on-action 테두리. 그림자는 없다(2026-08-06,
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.

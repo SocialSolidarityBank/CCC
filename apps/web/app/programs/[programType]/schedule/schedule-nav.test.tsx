@@ -372,7 +372,7 @@ describe('CCC-133 통합 업무 바', () => {
     expect(button).toContain('--wire-outline-width:1px');
     expect(button).toContain('border:var(--wire-outline-width) solid transparent');
     expect(button).toContain('var(--gradient-brand) border-box');
-    expect(button).toContain('padding:0 var(--space-4)');
+    expect(button).toContain('padding:0 var(--space-3-5)'); // 2026-08-28 Q 패딩 14 (구 16)
     expect(button).not.toContain('--line-control');
     const ghost = baseRule('.wire-button[data-variant="ghost"]');
     expect(ghost).toContain('background:var(--muted)');
