@@ -139,7 +139,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 새로 편입된 일정 날짜 아코디언(2026-08-28)의 이름 목록·건수도 채운 면 글자다
    (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다). */
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-past-names,
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-names,
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-count{color:var(--on-action)}
 /* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
    밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
@@ -401,12 +401,11 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    MetaRow 한 줄은 문장이 접힐 때 조각 구분 세로선이 본문 앞 막대로 남았다(2026-08-09 Q 보고).
    접힌 둘째 줄이 문장 시작선에 맞으므로 날짜 칸이 그대로 눈금 역할을 한다. */
 .goal-tree-session-row,.goal-tree-linked-session{display:flex;align-items:baseline;gap:var(--space-3);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
-/* 회기 날짜는 블루 계열이다(2026-08-09 Q "날짜는 컬러 처리해서 구분해 달라") — D58 ④ 의
-   고정 의미 블루=일정·시간. 둘 다 --sub 민짜여서 어디까지가 날짜인지 눈으로 갈리지 않았다.
-   deep 색 글자는 §6 규칙 3 대로 14 이상·굵기 600 에서만 쓴다(.note-inline a·.wire-form-hint a
-   와 같은 레시피). 이력 아코디언 안 시각은 그대로 둔다 — 거기는 '최초 작성 · 이름 · 시각'
-   세 조각짜리 메타 줄이라 날짜만 물들이면 나머지 두 조각과 위계가 뒤바뀐다. */
-.goal-tree-session-date{flex:none;font-size:var(--text-sm);color:var(--blue-deep);font-weight:600}
+/* 날짜는 메타 단이다(브리핑 회차 날짜 .briefing-session-date 와 같은 계약 — 14/400 --sub
+   + tabular + line-height normal). 구 --blue-deep 600(2026-08-09 "컬러로 구분")은 deep 을
+   라벨 축 밖 본문 날짜에 쓴 계단 밖 조합이라 폐지했다(2026-08-28 Q). 이력 아코디언 안
+   시각은 원래부터 메타 줄이라 그대로다. */
+.goal-tree-session-date{flex:none;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .goal-tree-session-body{min-width:0}
 /* 문구 이력(D62 §4) — 기본 숨김, '이력 보기'로만 연다. 요약은 처리 이력(.briefing-history)과
    같은 14/600 --sub 어휘로 목표 문구와 같은 줄 오른쪽에 서고, 펼친 이력은 줄을 통째로 쓴다.
@@ -813,7 +812,8 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* 행간은 default(normal)다 — 2026-08-06 Q: 단일행 컨트롤의 세로 중앙은 광학 보정이 아니라
    기하 정렬(flex 상하좌우 center + 기본 행간)이 만든다(구 --leading-none 대체). */
 /* 크기는 크기 축(data-height)만 정한다(2026-08-26 Q 4차 "버튼 2종 크기가 제각각" —
-   2026-07-26 "종류와 크기는 별개 축" 원칙 복원). md = 40·15/600, sm = 32·14/600.
+   2026-07-26 "종류와 크기는 별개 축" 원칙 복원). md = 40, sm = 32 — **라벨은 두 단 모두
+   14/600 이다**(2026-08-28 Q, 구 md 15 하프스텝 폐지: md 만 15 라 이질감을 만들었다).
    구 "크기 두 갈래"(핵심 15/600, 조작 14/400)는 폐지: 종류가 크기·굵기를 끌고 다녀
    같은 줄의 라인 버튼과 컬러배경 버튼이 서로 다른 키로 섰다. 굵기는 전 버튼 600
    하나다(굵기 3단의 '강조 600', 조작 400 예외 폐지). */
@@ -823,8 +823,8 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    1px**(알약화 이후 그레이 아웃라인 버튼이 중립 배지와 똑같이 읽혀 그레이를 폐지),
    아웃라인이 없는 버튼은 **면 채움**으로 선다(프라이머리 = --gradient-action,
    고스트 = --muted). 위험만 의미색 --risk 아웃라인이다. 두께는 --wire-outline-width. */
-.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-btn);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
-.wire-button[data-height="sm"]{min-height:var(--pill-height);font-size:var(--text-sm)}
+.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-4);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
+.wire-button[data-height="sm"]{min-height:var(--pill-height)}
 /* 프라이머리: --gradient-action 배경 + --line-on-action 테두리. 그림자는 없다(2026-08-06,
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
@@ -939,12 +939,10 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    플렉스 줄에서는 줄어들지 않는다. */
 .wire-icon{display:inline-block;vertical-align:-0.15em;flex:none}
 /* 버튼 라벨 안 아이콘은 글자 세로 중앙에 맞춘다(2026-08-06 Q "시간순 화살표가 가운데가
-   아니다" — 본문용 -0.15em 은 버튼 16px 라벨 옆에서 0.9px 낮게 실측됐다). */
-.wire-button .wire-icon{vertical-align:-0.09em}
-/* optical: sm 버튼(14px 라벨)은 본문 기본 보정(-0.15em)이 맞다 — 위 -0.09em 은 15px 이상
-   라벨 실측값이라 14px 옆에서 0.75px 떠 보였다(2026-08-07 실측, 보정 후 잔차 0.09px.
-   2026-08-26 4차: 키를 종류에서 크기 축으로 옮겼다 — 14px 라벨은 sm 이 정한다). */
-.wire-button[data-height="sm"] .wire-icon{vertical-align:-0.15em}
+   아니다"). 값은 아래 optical 주석이 갖는다. */
+.wire-button .wire-icon{vertical-align:-0.15em}
+/* optical: -0.15em 은 14px 라벨 실측값(2026-08-07, 보정 후 잔차 0.09px). 버튼 라벨이 두 단
+   모두 14 가 되면서(2026-08-28) 구 15px 실측값 -0.09em 과 sm 분기를 걷고 한 값이 됐다. */
 /* 메타 줄(§10): 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다.
    조각 사이는 **세로선 1px** 로 가른다(2026-08-06 Q — 여러 위계·성격의 값이 한 줄에 설 때
    간격만으로는 경계가 안 읽힌다). */

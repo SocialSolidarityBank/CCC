@@ -97,7 +97,8 @@ function groupByDay(
 }
 
 /**
- * CCC-133 본문의 묶음 단위. 세 뷰 모두 일정이 있는 날짜만 시간순으로 그린다.
+ * CCC-133 본문의 묶음 단위. 일정이 있는 날짜만 시간순(달력 순)으로 묶어 돌려주고,
+ * 뷰별 재배열(월간 오늘 최상단, 2026-08-28 Q)은 ScheduleBody 가 한다.
  * 주차 제목은 내비가 갖으므로 본문은 주차로 묶지 않는다(D75 본문 묶음 대체).
  */
 export function groupSchedulesByDay(

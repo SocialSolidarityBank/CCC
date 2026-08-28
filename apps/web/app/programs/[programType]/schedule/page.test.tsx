@@ -106,10 +106,14 @@ describe('다중 뷰 일정 화면 (CCC-133), 주간', () => {
     expect(container.textContent).not.toContain('다음월요일사람');
   });
 
-  it('지난 날짜는 접힌 줄, 오늘과 미래는 펼친 구획이다', async () => {
+  it('지난 날짜는 접힌 카드, 오늘과 미래는 펼친 카드다 — 셋 다 같은 날짜 묶음이다', async () => {
+    // 기관 오늘을 주 중간(수)으로 옮긴다 — 기본 오늘(일요일)은 주의 마지막 날이라
+    // 같은 주에 미래 날짜가 성립할 수 없다. todayKey 는 시스템 시계에서 파생된다.
+    vi.setSystemTime(new Date('2026-02-11T03:00:00.000Z'));
     getUpcomingSchedules.mockResolvedValue(board(mondayKey, [
       schedule({ id: 'past', scheduledAt: '2026-02-10T01:00:00.000Z', status: 'completed', completedSessionId: 'sess-1', participantName: '지난사람' }),
-      schedule({ id: 'today', participantName: '오늘사람' }),
+      schedule({ id: 'today', scheduledAt: '2026-02-11T01:00:00.000Z', participantName: '오늘사람' }),
+      schedule({ id: 'future', scheduledAt: '2026-02-14T01:00:00.000Z', participantName: '미래사람' }),
     ]));
 
     const { container } = await renderPage({ view: 'week', date: '2026-02-11' });
@@ -117,8 +121,12 @@ describe('다중 뷰 일정 화면 (CCC-133), 주간', () => {
     const past = container.querySelector<HTMLDetailsElement>('.schedule-past-day');
     expect(past?.open).toBe(false);
     expect(past?.querySelector('summary')?.textContent).toContain('지난사람');
-    expect(container.querySelector('.schedule-day[data-temporal="today"]')?.textContent)
-      .toContain('오늘사람');
+    // 2026-08-28 Q: 오늘·미래도 플랫 구획이 아니라 날짜 묶음 카드 안이고, 둘 다 펼침이다.
+    const openDays = Array.from(container.querySelectorAll<HTMLDetailsElement>('details.schedule-day-accordion'));
+    expect(openDays).toHaveLength(2);
+    expect(openDays.every((day) => day.open)).toBe(true);
+    expect(openDays[0]?.textContent).toContain('오늘사람');
+    expect(openDays[1]?.textContent).toContain('미래사람');
   });
 
   it('오늘 상담은 상태와 관계없이 모두 선택 아웃라인을 입고 완료 카드만 흐려진다', async () => {
@@ -203,7 +211,7 @@ describe('다중 뷰 일정 화면 (CCC-133), 일간', () => {
 });
 
 describe('다중 뷰 일정 화면 (CCC-133), 월간', () => {
-  it('모든 날짜가 접힘 줄이고 기관 시간대의 오늘만 펼쳐 둔다', async () => {
+  it('오늘이 최상단이고 미래·지난 순으로 이어지며 오늘만 펼쳐 둔다 (2026-08-28 Q)', async () => {
     getMonthSchedules.mockResolvedValue(board('2026-02-01', [
       schedule({ id: 'past', scheduledAt: '2026-02-03T01:00:00.000Z', status: 'completed', completedSessionId: 'sess-3', participantName: '지난사람' }),
       schedule({ id: 'today', participantName: '오늘사람' }),
@@ -215,12 +223,12 @@ describe('다중 뷰 일정 화면 (CCC-133), 월간', () => {
     expect(getMonthSchedules).toHaveBeenCalledWith('2026-02');
     const rows = Array.from(container.querySelectorAll<HTMLDetailsElement>('details'));
     expect(rows).toHaveLength(3);
-    expect(rows.map((row) => row.open)).toEqual([false, true, false]);
-    // 시간순이다. 주차로 묶지 않는다.
+    // 예약이 많은 달에서 오늘이 시간순에 묻히지 않는다 — D75 '오늘 최상단' 계약의 월간 적용.
+    expect(rows.map((row) => row.open)).toEqual([true, false, false]);
     expect(dayHeadings(container)).toEqual([
-      expect.stringContaining('2월 3일'),
       expect.stringContaining('2월 15일'),
       expect.stringContaining('2월 20일'),
+      expect.stringContaining('2월 3일'),
     ]);
     expect(container.querySelector('.schedule-week-title')).toBeNull();
   });
@@ -244,7 +252,7 @@ describe('다중 뷰 일정 화면 (CCC-133), 월간', () => {
 
     const openRow = container.querySelector<HTMLDetailsElement>('details[open]');
     expect(openRow?.className).toContain('schedule-day-accordion');
-    // wire-styles 의 활성 그라데이션 :not() 목록이 이 클래스를 빼야 조회로 읽힌다.
+    // 2026-08-28 채움 전면 적용 후에도 지난 날짜 흐림(.schedule-past-day)과는 갈려야 한다.
     expect(openRow?.className).not.toContain('schedule-past-day');
   });
 

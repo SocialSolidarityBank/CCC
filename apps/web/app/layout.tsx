@@ -720,13 +720,8 @@ const scheduleStyles = `
 /* 일정은 날짜 → 카드 두 층이다(CCC-133). 세 뷰 모두 일정이 있는 날짜만
    시간순으로 그리고, 기간 이름은 본문이 아니라 내비가 갖는다. */
 .schedule-day-list{display:grid;gap:var(--section-gap)}
-/* 날짜 제목과 카드 그리드 사이 16 은 §4-3(섹션 제목↔내용 16)이다. */
-.schedule-section{display:grid;gap:var(--space-4)}
-/* 날짜 묶음 제목은 셀션 제목(18)이 아니라 16 이다(2026-08-25 Q). 일정 본문은 날짜가
-   카드를 묶는 자리라 카드 제목과 같은 단이 맞다. 공유 클래스(.record-section-title)를
-   건드리면 회차별 기록·브리핑 제목까지 같이 줄어들므로 복합 선택자로만 잠근다.
-   16/600 --ink 는 이미 역할표에 있는 조합이라 계약 변경은 없다. */
-.record-section-title.schedule-day-heading{font-size:var(--text-md)}
+/* 구 오늘·미래 플랫 구획(.schedule-section + 18 제목 축소 규칙)은 2026-08-28 Q 로 폐지 —
+   세 상태 모두 날짜 묶음 카드(WireCardDetails) 하나를 쓴다. */
 /* 날짜 묶음 제목 옆 건수 — ④ 설명·메타 단(14/400 --sub). 제목 flex 의 gap 이 간격을 만든다. */
 .schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 일정 업무 바. 양쪽 1fr 이 가운데 기간 묶음을 페이지 정중앙에 고정한다. 왼쪽은
@@ -754,8 +749,8 @@ const scheduleStyles = `
 /* 기간 이름은 누를 수 없는 14/500 읽는 값이다. 세 뷰 모두 자기 글자 폭만 차지하므로
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
-.schedule-past-summary-title{display:flex;align-items:baseline;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
-.schedule-past-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.schedule-day-summary-title{display:flex;align-items:baseline;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
+.schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
    컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */
 @container (max-width:760px){
@@ -776,7 +771,7 @@ const scheduleStyles = `
   .briefing-goal-display,.briefing-goal-text{min-width:0;width:100%}
   .briefing-goal-form{grid-column:1/-1;min-width:0;width:100%}
   .card-grid.schedule-card-grid{grid-template-columns:minmax(0,1fr)}
-  .schedule-past-summary-title{align-items:flex-start;flex-direction:column;gap:var(--space-1)}
+  .schedule-day-summary-title{align-items:flex-start;flex-direction:column;gap:var(--space-1)}
 }
 /* ticket-20: 상담 등록 */
 /* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
