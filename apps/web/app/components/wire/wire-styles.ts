@@ -375,7 +375,10 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .goal-tree-case+.goal-tree-case{padding-top:var(--space-3);border-top:1px solid var(--line)}
 .goal-tree-case-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .goal-tree-section{display:grid;gap:var(--space-2)}
-.goal-tree-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* 목표 라벨은 민트 deep 이다(2026-08-29 Q "목표 라벨 컬러처리해서 눈에 잘 들어오게" — 구
+   14/600 --sub. §4 민트 '진행' 축, §1 ② '14/600 계열 deep' 조합). 전체·세부·세션 목표
+   라벨을 화면 어디서나 같은 민트로 통일한다. 목표 값(overall-text 등)은 --ink 그대로다. */
+.goal-tree-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .goal-tree-overall{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 .goal-tree-overall-text{font-size:var(--text-md);line-height:normal;color:var(--ink)}
 .goal-tree-overall-text.is-empty{color:var(--sub)}
@@ -528,6 +531,11 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    비대칭이었다). 세로 패딩이 24 가 아닌 카드는 --divider-gap 으로 제 패딩을 알린다. */
 .wire-card-divider{height:0;margin:var(--divider-gap,var(--space-6)) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .wire-card-body{display:grid;gap:var(--space-3)}
+/* body(grid gap 12) 안에 놓인 구분선은 gap 이 margin 에 더해져 24 계약이 36 이 된다
+   (2026-08-29 Q "가로선 위아래 여백 과도해 가운데 정렬 무너짐"). 세로 margin 에서 그 gap 을
+   빼 divider 총 여백을 --divider-gap(24)로 되돌린다 — 카드 padding(24)과 같은 리듬이 된다.
+   제목 카드의 divider 는 .wire-card 직계(block)라 grid gap 이 없어 이 규칙 밖이다. */
+.wire-card-body>.wire-card-divider{margin-block:calc(var(--divider-gap,var(--space-6)) - var(--space-3))}
 /* WireCardDetails — 접힘 카드(2026-08-05 카드화 · ADR-0030, 구 브리핑 플랫 아코디언).
    접힌 상태 = 제목 줄만 남은 회색 카드, 펼친 상태 = 활성이라 .surface-card[open] 의
    그라데이션 테두리를 그대로 받는다(D47 회차 카드와 같은 어휘).
@@ -631,7 +639,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* align-content:start — 폼 입력칸(.wire-form-field)과 같은 stretch 부풀림 방지 계약. */
 .wire-search{display:grid;gap:var(--space-2);align-content:start}
 .wire-search-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad-x);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 /* 행간 normal — 단일행 컨트롤의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q, 버튼과 동일). */
 .wire-search-box input,.wire-search-box select{width:100%;border:0;background:transparent;color:var(--ink);outline:0;font-size:var(--text-sm);line-height:normal;-webkit-appearance:none;appearance:none}
 /* select 는 네이티브 화살표를 끄고 꺽쇠를 직접 그린다 — 네이티브는 테두리에 붙어 다른 입력칸과 안 맞는다. */
@@ -654,7 +662,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-form-required{font-size:var(--text-sm);font-weight:600;color:var(--risk)}
 /* 라벨 옆 '(선택)' 같은 보조 문구. 라벨과 같은 줄이므로 굵기만 낮춘다. */
 .wire-form-note{margin-left:var(--space-1);font-size:var(--text-sm);color:var(--sub);font-weight:400}
-.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--space-3);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad-x);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
 .wire-input-box>input,.wire-input-box>select{line-height:normal}
@@ -662,7 +670,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-input-box>select{padding-right:var(--space-6)}
 .schedule-nav .schedule-view-select>select{align-self:stretch;height:auto}
 /* textarea 는 박스가 세로로 늘어난다 — 높이 40 고정은 한 줄 컨트롤 계약이다. */
-.wire-input-box[data-control="textarea"]{align-items:stretch;padding:var(--space-3)}
+.wire-input-box[data-control="textarea"]{align-items:stretch;padding:var(--control-pad-x)}
 /* min-height 를 0 으로 되돌리는 이유: layout.tsx 의 전역 textarea 규칙(min-height 216px)이
    rows 지정을 덮어써서 rows=4 인 담당 실무자 의견과 rows=14 인 수기 메모가 같은 높이로 나온다.
    전역 규칙은 아직 레거시 화면들이 기대고 있어 두고, 킷 입력칸 안에서만 rows 가 높이를 정한다.
@@ -685,6 +693,10 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-form-card>.wire-card-body{gap:var(--space-5)}
 /* 폼 2열. 화면마다 grid-template-columns 를 다시 쓰지 않는다(.card-grid 와 같은 취지). */
 .wire-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}
+/* 2열 폼에서 도움말이 좁은 칸에 눌려 줄바꿈하면, 힌트를 필드 아래가 아니라 그리드 전폭
+   한 줄로 내린다(2026-08-29 Q). 필드 다음 grid 자식으로 두고 두 열을 가로질러 한 줄에
+   읽히게 한다 — aria-describedby 는 힌트 id 로 그대로 이어진다. */
+.wire-form-grid>.wire-form-grid-hint{grid-column:1/-1}
 /* 폼 하단 버튼 줄: 오른쪽 정렬, 프라이머리가 오른쪽 끝(모달 하단과 같은 어휘). */
 .wire-form-actions{display:flex;justify-content:flex-end;gap:var(--space-3)}
 /* 기본정보 수정 폼 카드 스택(2026-08-07 Q 5차) — 폼 한 장 안에 카드 2장(기본·추가 정보)이
@@ -710,6 +722,14 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* 무응답·해당 없음 줄(인테이크 서술 문항)만 8 — 버튼 사이가 입력칸↔버튼 줄 간격
    (.wizard-field gap 8)과 같아야 한 묶음으로 읽힌다(2026-08-09 Q). */
 .wizard-answer-actions{gap:var(--space-2)}
+/* 세부 목표 한 줄(2026-08-29 Q "버튼을 텍스트 오른쪽 같은 행에") — 제목이 왼쪽에서 폭을
+   채우고 수정·닫기 조작이 오른쪽 끝에 선다. 두 버튼은 위 answer 줄과 같은 8 로 붙여
+   한 세트로 읽힌다. 수정·닫기 폼(editing·closing)은 세로 스택이라 이 규칙 밖이다. */
+.record-goal-view{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0}
+/* margin:0 — 제목이 <p> 라 전역 p{margin-top:8}을 상속한다. 구 .wizard-field>p 직계 리셋이
+   이 래퍼로 감싸며 안 닿게 됐고, 그 8 이 flex 세로 중앙을 4px 어긋냈다(align-check 실측). */
+.record-goal-view>.wire-field-value{flex:1 1 auto;margin:0}
+.record-goal-actions{flex:none;gap:var(--space-2)}
 /* 반복 칸의 +/- 세트(WireRepeatActions, 2026-08-09). 한 쌍이 한 줄에 오른쪽으로 붙는다 —
    조작 대상 바로 아래이고, 간격은 행 스택 값 8 이다(둘이 한 쌍으로 읽혀야 하므로 조작 줄
    기본 12 보다 좁다). 아이콘 버튼은 정사각이라 폭을 높이에 맞춘다. */
@@ -1040,7 +1060,9 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* D73 근거 인용 접힘. 산출물 바로 아래에서만 열고, 링크는 회차 카드 앵커가 종점이다. */
 .wire-source-quotes{margin-top:var(--space-2)}
 .wire-source-quotes>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
-.wire-source-quotes-body{display:grid;gap:var(--space-2);margin-top:var(--space-2)}
+/* 근거 인용은 곁다리 접힘이라 여백을 6 으로 좁혀 균등하게 둔다(2026-08-29 Q "위아래 같게,
+   더 줄여") — summary→인용(margin-top)과 인용→링크(gap)를 같은 6 으로 맞춘다. */
+.wire-source-quotes-body{display:grid;gap:var(--space-1-5);margin-top:var(--space-1-5)}
 .wire-source-quotes-link{justify-self:start}
 /* 모달(§5): 폭 520 · radius 12 · 스크림 --scrim · --shadow-modal.
    하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */

@@ -116,6 +116,9 @@
   --radius-xs:      4px;    /* 체크박스 */
   --radius-bar:     2px;    /* 추이 막대 */
   --control-height: 40px;
+  /* 입력칸·선택창·검색창 내부 좌우 여백. 컨트롤 전용이라 목록·카드가 쓰는 --space-3(12)을
+   * 전역으로 바꾸지 않고 입력 내부 텍스트만 좁힌다(2026-08-29 Q). 값은 하프스텝 10 이다. */
+  --control-pad-x:  var(--space-2-5);
   --badge-height:   24px;
   --pill-height:    32px;
   /* 꺽쇠(>) 한 벌 — 2026-08-10 Q "버튼과 listrow, 체브론 맞추기".

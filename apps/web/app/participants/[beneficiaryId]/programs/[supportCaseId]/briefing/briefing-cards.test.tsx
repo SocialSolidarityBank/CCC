@@ -582,13 +582,15 @@ describe('활성 세부 목표 (D62 §8 · CCC-69)', () => {
     expect(goalCard(container).querySelector('.briefing-subgoal-rows')).toBeNull();
   });
 
-  it('전체 목표·세부 목표·세션 목표 라벨은 neutral 계약을 쓴다', () => {
+  it('전체 목표·세부 목표·세션 목표 라벨은 민트(진행 축) 계약을 쓴다 (2026-08-29 Q)', () => {
     const { container } = render(<BriefingCards {...baseProps({ activeGoals: threeGoals })} />);
+    // 전체 목표 라벨(.goal-tree-label)은 민트 deep 이다 — 색값은 CSS(wire-styles)가 갖는다.
     expect(goalCard(container).querySelector('.goal-tree-label')).not.toBeNull();
-    const neutralTitles = [...container.querySelectorAll('.wire-card-section:not([data-tone]) h3')]
+    const mintTitles = [...container.querySelectorAll('.wire-card-section[data-tone="mint"] h3')]
       .map((title) => title.textContent);
-    expect(neutralTitles).toContain('세부 목표');
-    expect(neutralTitles).toContain('세션 목표');
+    expect(mintTitles).toContain('세부 목표');
+    expect(mintTitles).toContain('세션 목표');
+    // 세션 목표에 병기하는 부모 세부 목표 이름은 라벨이 아니라 흐린 메타라 톤을 갖지 않는다.
     expect(container.querySelector('.briefing-parent-goal')?.getAttribute('data-tone')).toBeNull();
   });
 });
