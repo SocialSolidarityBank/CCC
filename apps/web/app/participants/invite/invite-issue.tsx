@@ -106,15 +106,13 @@ export function InviteIssue() {
         </p>
 
         <div className="wire-invite-section">
-          {/* 한 줄 입력칸에 넣으면 64자 토큰이 오른쪽에서 잘려 "덜 만들어진 링크"처럼 보인다.
-              두 줄 칸에 흘려 전체를 보여 준다 — 아래 이메일 문안 칸과 같은 처리다. */}
-          <WireFormField label="웹 링크 주소" htmlFor="invite-url" control="textarea">
-            {/* 3줄인 이유는 좁은 화면이다 — 1440 에서는 두 줄에 들어가지만 390 에서는 세 줄이라,
-                2줄로 두면 모바일에서 다시 링크 끝이 잘려 보인다. */}
-            <textarea
+          {/* 1행 입력칸이다(2026-08-28 Q "넓은 창일 이유가 없다") — 긴 토큰은 가로로 흐르고
+              전체는 복사 버튼이 담는다. 구 3줄 textarea 는 링크를 다 보여 주려던 것이었다. */}
+          <WireFormField label="웹 링크 주소" htmlFor="invite-url" control="input">
+            <input
               id="invite-url"
+              type="text"
               readOnly
-              rows={3}
               value={state.url}
               onFocus={(event) => event.currentTarget.select()}
             />

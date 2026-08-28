@@ -37,7 +37,7 @@ const freshCandidate: ScheduleWizardCandidate = {
 const freshCandidateLabel = '남주원 rabbit-001 010-0000-0016';
 
 // D31: 당사자 행은 실명·가명 ID·연락처·이메일로 표기하고 사업명은 빼야 한다(가명 ID 는
-// 2026-08-09 Q "아이디 넣고 컬러처리" — 이름 다음 자리).
+// 다른 당사자 카드와 같은 공용 .participant-card-id 회색 조각 — 2026-08-28 Q 통일).
 // 구분자 가운뎃점 대신 각 조각을 독립 노드(MetaRow)로 렌더하므로 접근성 이름은 공백으로 이어진다.
 const candidateLabel = '홍서희 swallow-003 010-1234-5678 seohee@example.test';
 
@@ -101,7 +101,6 @@ describe('ScheduleWizard', () => {
 
     fireEvent.change(scoped.getByLabelText('세션 목표 1'), { target: { value: '구직 활동 점검' } });
     fireEvent.change(scoped.getByLabelText('세부 목표 연결'), { target: { value: 'g1' } });
-    fireEvent.click(scoped.getByRole('button', { name: /다음: 맞춤형 질문/ }));
     fireEvent.click(scoped.getByRole('button', { name: '완료' }));
 
     await waitFor(() => expect(calls.submit).toBe(1));
@@ -222,7 +221,7 @@ describe('ScheduleWizard', () => {
   });
 
   // 2026-08-09 Q: 카드 full-width + '당사자 정보' 버튼이 카드 안이다. 가명 ID 는 이름 다음
-  // 민트 컬러 조각으로 선다.
+  // 공용 .participant-card-id 조각으로 선다(2026-08-28 Q 통일 — 구 mint 전용 클래스 대체).
   it('후보 카드가 가명 ID 조각과 당사자 정보 링크를 카드 안에 갖는다', () => {
     const { container } = renderWizard();
     const scoped = within(container);
@@ -231,7 +230,7 @@ describe('ScheduleWizard', () => {
     expect(row).not.toBeNull();
     expect(row.className).toContain('wire-row');
     // ID 조각은 이름 바로 다음이다.
-    const id = row.querySelector('.schedule-candidate-id') as HTMLElement;
+    const id = row.querySelector('.participant-card-id') as HTMLElement;
     expect(id.textContent).toBe('swallow-003');
     const name = row.querySelector('.schedule-candidate-name') as HTMLElement;
     expect(name.compareDocumentPosition(id) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -248,7 +247,7 @@ describe('ScheduleWizard', () => {
 
     const row = scoped.getByRole('button', { name: 'rabbit-001 010-0000-0016' }).closest('.schedule-candidate-item') as HTMLElement;
     expect(row.querySelector('.schedule-candidate-name')?.textContent).toBe('rabbit-001');
-    expect(row.querySelector('.schedule-candidate-id')).toBeNull();
+    expect(row.querySelector('.participant-card-id')).toBeNull();
   });
 
   it('당사자를 골라도 일시가 비어 있으면 다음이 눌리지 않고 무엇이 모자란지 알린다 (CCC-22)', () => {
