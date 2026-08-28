@@ -4,7 +4,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Chevron } from './chevron';
 
-/** 버튼 종류 5종(DESIGN.md §5). 색·테두리 규칙은 종류가 정하고, 크기는 높이만 바꾼다.
+/** 버튼 종류 5종(DESIGN.md §5). 색·테두리 규칙은 종류가 정한다. 높이는 전 버튼 32 단일이다
+ *  (2026-08-28 Q — 구 md 40 / sm 32 2단 폐지: 툴바·목록 버튼과 HERO·폼 버튼이 한 높이로 선다).
  *  neutral 은 2026-08-06 Q 위계 재편으로 신설: 이동·보기 조작(뒤로, 시간순, 달 이동)은
  *  그레이 아웃라인, 컬러(아웃라인·그라데이션 면)는 중요 행동(등록·저장류)만 갖는다. */
 export type WireButtonVariant = 'primary' | 'secondary' | 'neutral' | 'ghost' | 'danger';
@@ -19,8 +20,6 @@ export interface WireButtonProps {
   size?: 'small' | 'large';
   /** 종류. 미지정 시 size 에서 도출한다. */
   variant?: WireButtonVariant;
-  /** 높이 축(§5 · 2026-07-26 Q 결정): md = 40px(기본), sm = 32px. 색 규칙은 동일하다. */
-  height?: 'md' | 'sm';
   /** 텍스트 정렬. 기본 center(2026-08-02 D58 — 구 left 기본은 버그). 체브론이 있으면
    *  텍스트 좌측·체브론 우측으로 배치된다. */
   align?: 'left' | 'center';
@@ -51,12 +50,11 @@ export interface WireButtonProps {
   className?: string;
 }
 
-/** 버튼 4종 × 크기 2단(DESIGN.md §5). 전부 radius pill, 높이만 40/32로 갈린다. */
+/** 버튼 5종(DESIGN.md §5). 전부 radius pill · 높이 32 단일(2026-08-28 Q). 종류가 색·면만 가른다. */
 export function WireButton({
   children,
   size = 'small',
   variant,
-  height = 'md',
   align = 'center',
   chevron = false,
   disabled = false,
@@ -82,7 +80,7 @@ export function WireButton({
 
   if (href !== undefined && !disabled) {
     return (
-      <Link className={classes} href={href} aria-label={ariaLabel} data-variant={resolvedVariant} data-height={height} data-justify={justify}>
+      <Link className={classes} href={href} aria-label={ariaLabel} data-variant={resolvedVariant} data-justify={justify}>
         {inner}
       </Link>
     );
@@ -99,7 +97,6 @@ export function WireButton({
       disabled={disabled}
       aria-label={ariaLabel}
       data-variant={resolvedVariant}
-      data-height={height}
       data-justify={justify}
     >
       {inner}

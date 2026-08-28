@@ -180,7 +180,7 @@ export function ScheduleNav({
       {/* 양쪽 1fr 이 가운데 칸을 페이지 정중앙에 고정한다. 왼·오른 폭이 달라도 기간
           네비는 안 밀린다. */}
       <div className="schedule-nav-controls">
-        <WireButton href={scheduleTodayHref(basePath, view)} variant="neutral" height="sm">오늘</WireButton>
+        <WireButton href={scheduleTodayHref(basePath, view)} variant="neutral">오늘</WireButton>
         <ScheduleViewSelect basePath={basePath} view={view} anchor={anchor} />
       </div>
       <div className="schedule-nav-period">
@@ -202,8 +202,8 @@ export function ScheduleNav({
       </div>
       <div className="schedule-nav-actions">
         {/* 업무 바는 전부 32 다(layout.tsx .schedule-nav 주석) — 주 행동도 sm 으로 같은 키에 선다. */}
-        <WireButton href="/participants/new" height="sm">당사자 등록</WireButton>
-        <WireButton href="/schedules/new" variant="primary" height="sm">상담 등록</WireButton>
+        <WireButton href="/participants/new">당사자 등록</WireButton>
+        <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>
       </div>
     </nav>
   );

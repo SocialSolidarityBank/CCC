@@ -228,7 +228,7 @@ function ProgramRow({ beneficiaryId, program, programTitle }: {
                이름까지만 보여주자는 결정이지 쓰기 권한을 넓힌 것이 아니다. 진행 중이면 종결
                확인 화면으로, 이미 종결이면 같은 주소가 종결일·파기 예정일 읽기 전용이 된다. */}
         {program.authorized && (
-          <WireButton variant="secondary" height="sm" href={closeHref(beneficiaryId, program.id)}>
+          <WireButton variant="secondary" href={closeHref(beneficiaryId, program.id)}>
             {program.status === 'active' ? '종결' : '종결 정보'}
           </WireButton>
         )}
@@ -260,9 +260,9 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
         <div className="wire-card-head">
           <span>최신 일정</span>
           <div className="participant-next-schedule-actions">
-            <WireButton height="sm" href="/schedules/new">상담 등록</WireButton>
+            <WireButton href="/schedules/new">상담 등록</WireButton>
             {recordsTarget !== undefined && (
-              <WireButton height="sm" href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
+              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
             )}
           </div>
         </div>

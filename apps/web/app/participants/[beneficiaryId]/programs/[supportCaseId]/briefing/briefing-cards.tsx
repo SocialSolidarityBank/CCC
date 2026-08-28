@@ -145,8 +145,8 @@ function OverallGoalCard({
               {/* 저장·취소 둘 다 버튼이고 컬러로 가른다(2026-08-06 Q): 저장 = 세컨더리
                   (그라데이션 아웃라인), 취소 = 일반(그레이 아웃라인). 사이 간격은 8. */}
               <span className="briefing-goal-buttons">
-                <WireButton type="submit" variant="secondary" height="sm">저장</WireButton>
-                <WireButton variant="neutral" height="sm" onClick={() => setEditing(false)}>취소</WireButton>
+                <WireButton type="submit" variant="secondary">저장</WireButton>
+                <WireButton variant="neutral" onClick={() => setEditing(false)}>취소</WireButton>
               </span>
             </form>
           )
@@ -170,7 +170,7 @@ function OverallGoalCard({
                   </p>
                 )}
               {editable && (
-                <WireButton variant="secondary" height="sm" onClick={() => setEditing(true)}>
+                <WireButton variant="secondary" onClick={() => setEditing(true)}>
                   {isSet ? '수정' : '입력'}
                 </WireButton>
               )}
@@ -233,7 +233,7 @@ function AiGoalHint({ supportCaseId }: { supportCaseId: string }) {
   return (
     <p className="briefing-ai-goal-hint" role="note" data-testid="briefing-ai-goal-hint">
       <span>전체 목표를 설정하면 AI 제안이 더 정확해집니다.</span>
-      <WireButton variant="neutral" height="sm" onClick={dismiss}>닫기</WireButton>
+      <WireButton variant="neutral" onClick={dismiss}>닫기</WireButton>
     </p>
   );
 }
@@ -268,7 +268,7 @@ function DiscrepancyItem({
             <WireQuote>{side.quote}</WireQuote>
             <WireButton
               variant="neutral"
-              height="sm"
+             
               href={`${recordsHref}#record-${side.sessionId}`}
             >
               기록 보기
@@ -437,7 +437,7 @@ export function BriefingCards({
       <div className="briefing-toolbar">
         <h2 className="record-section-title">상담 전 꼭 봐야할 내용</h2>
         {/* 보기 조작이라 일반(neutral) 그레이 버튼이다(2026-08-07 Q — 구 세컨더리). */}
-        <WireButton onClick={toggleAll} variant="neutral" height="sm">
+        <WireButton onClick={toggleAll} variant="neutral">
           {allOpen ? '전체 접기' : '전체 열기'}
         </WireButton>
       </div>
@@ -456,7 +456,7 @@ export function BriefingCards({
               : (
                   <WireButton
                     variant="neutral"
-                    height="sm"
+                   
                     href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
                   >
                     세션 목표 수정
@@ -506,7 +506,7 @@ export function BriefingCards({
                           // 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다.
                           <WireButton
                             variant="neutral"
-                            height="sm"
+                           
                             href={`${recordsHref}#record-${suggestion.sessionId}`}
                           >
                             근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
@@ -666,7 +666,7 @@ export function BriefingCards({
                         <WireButton
                           className="briefing-action-source"
                           variant="neutral"
-                          height="sm"
+                         
                           href={`${recordsHref}#record-${item.sessionId}`}
                         >
                           출처 회차 보기

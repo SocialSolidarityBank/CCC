@@ -52,8 +52,8 @@ export function ParticipantFilter({
         <div className="participant-toolbar-actions">
           {/* 업무 바(work-toolbar)는 압축 조작면이라 전부 32 다(§5 예외, 일정 업무 바와 같은 키.
               2026-08-26 Q "participant-toolbar 와 schedule-nav 크기 체크") — 검색칸도 32 로 서 있다. */}
-          <WireButton href="/participants/invite" height="sm">당사자 초대</WireButton>
-          <WireButton href="/participants/new" variant="primary" height="sm">당사자 등록</WireButton>
+          <WireButton href="/participants/invite">당사자 초대</WireButton>
+          <WireButton href="/participants/new" variant="primary">당사자 등록</WireButton>
         </div>
       </div>
       {error !== null ? (

@@ -86,7 +86,7 @@ export function WireSourceQuotes({ quotes, sourceHref }: WireSourceQuotesProps) 
         <WireButton
           className="wire-source-quotes-link"
           variant="neutral"
-          height="sm"
+         
           href={sourceHref}
         >
           출처 회차 보기

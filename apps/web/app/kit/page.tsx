@@ -276,10 +276,10 @@ export default function KitPage() {
             <WireButton disabled align="center">비활성</WireButton>
           </div>
           <div className="wire-kit-row">
-            <WireButton variant="primary" height="sm" align="center">프라이머리 32</WireButton>
-            <WireButton variant="secondary" height="sm" align="center">기록에 추가</WireButton>
-            <WireButton variant="ghost" height="sm" align="center">넘어가기</WireButton>
-            <WireButton variant="danger" height="sm" align="center">삭제</WireButton>
+            <WireButton variant="primary" align="center">프라이머리 32</WireButton>
+            <WireButton variant="secondary" align="center">기록에 추가</WireButton>
+            <WireButton variant="ghost" align="center">넘어가기</WireButton>
+            <WireButton variant="danger" align="center">삭제</WireButton>
           </div>
           <div className="wire-kit-stack">
             <WireButton size="large" chevron>대형 + 체브론 (프라이머리로 해석)</WireButton>
@@ -411,7 +411,7 @@ export default function KitPage() {
           </p>
           <div className="wire-kit-stack">
             <WireCallout tone="info" title="인테이크 기록을 저장했습니다"
-              actions={<WireButton variant="secondary" height="sm">다음 상담 등록</WireButton>}>
+              actions={<WireButton variant="secondary">다음 상담 등록</WireButton>}>
               다음 상담을 등록해 두면 상담 일정과 기록 작성으로 바로 이어갈 수 있습니다.
             </WireCallout>
             <WireCallout tone="mint" title="담당 실무자가 바뀌었습니다">
@@ -434,7 +434,7 @@ export default function KitPage() {
               </svg>
               <p className="wire-empty-title">예정된 상담이 없습니다</p>
               <p className="wire-empty-desc">상담을 등록하면 이 자리에 날짜별로 모입니다.</p>
-              <WireButton variant="secondary" height="sm" align="center" href="/kit">상담 등록</WireButton>
+              <WireButton variant="secondary" align="center" href="/kit">상담 등록</WireButton>
             </div>
           </WireCard>
         </section>

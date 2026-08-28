@@ -203,7 +203,7 @@ export function RecordOnepage({
         : <WireCardDetails title={`미해결 액션 ${openActionItems.length}건`} testId="record-open-actions">
           <p>{lastRecordSummary.text}</p>
           <p className="panel-meta">지난 상담 {dateTimeLabel(lastRecordSummary.heldAt)}</p>
-          <WireButton className="record-open-actions-link" variant="neutral" height="sm" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
+          <WireButton className="record-open-actions-link" variant="neutral" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
         </WireCardDetails>}
       {/* ③ 체크리스트 카드(2026-08-09 Q "필수는 체크리스트로 분리") — 필수 채움 + 저장.
           필수 카운트는 제목 옆 neutral 배지다(§2-2 규칙 4 — 구 '필수 N/3' 글줄은

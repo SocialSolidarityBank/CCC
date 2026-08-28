@@ -630,12 +630,13 @@ describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () 
 });
 
 describe('BriefingCards — 바깥 제목 정렬', () => {
-  it('상담 전 꼭 봐야할 내용 제목 줄은 카드 본문 시작선만큼 안으로 맞춘다', () => {
-    expect(layoutSource).toMatch(
-      /\.record-section-title\{[^}]*padding-inline:var\(--space-6\)/,
-    );
+  it('제목은 패널 카드 안에서 자기 padding-inline 없이 카드 패딩에 기대 좌측정렬한다 (2026-08-28)', () => {
+    // 섹션이 흰 패널 카드가 되며(.record-section 패딩 24) 제목의 구 padding-inline 은 폐지됐다.
     expect(layoutSource).not.toMatch(
-      /\.briefing-toolbar\{[^}]*padding-inline:/,
+      /\.record-section-title\{[^}]*padding-inline/,
+    );
+    expect(layoutSource).toMatch(
+      /\.record-section\{[^}]*padding:var\(--space-6\)[^}]*border:1px solid var\(--line\)/,
     );
   });
 

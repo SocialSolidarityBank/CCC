@@ -220,8 +220,8 @@ export function GoalSection({
                   />
                 </WireFormField>
                 <div className="wizard-actions">
-                  <WireButton variant="secondary" height="sm" disabled={busy} onClick={() => void submitRename(goal.id)}>저장</WireButton>
-                  <WireButton variant="neutral" height="sm" onClick={() => { setEditingId(null); setNotice(null); }}>취소</WireButton>
+                  <WireButton variant="secondary" disabled={busy} onClick={() => void submitRename(goal.id)}>저장</WireButton>
+                  <WireButton variant="neutral" onClick={() => { setEditingId(null); setNotice(null); }}>취소</WireButton>
                 </div>
               </>
             ) : closingId === goal.id ? (
@@ -252,8 +252,8 @@ export function GoalSection({
                 </WireFormField>
                 <div className="wizard-actions">
                   {/* 되돌리기 어려운 행동이라 위험 버튼이다(§5 버튼 5종 — 재개 불가, D62 §5). */}
-                  <WireButton variant="danger" height="sm" disabled={busy} onClick={() => void submitClose(goal.id)}>목표 닫기</WireButton>
-                  <WireButton variant="neutral" height="sm" onClick={() => { setClosingId(null); setNotice(null); }}>취소</WireButton>
+                  <WireButton variant="danger" disabled={busy} onClick={() => void submitClose(goal.id)}>목표 닫기</WireButton>
+                  <WireButton variant="neutral" onClick={() => { setClosingId(null); setNotice(null); }}>취소</WireButton>
                 </div>
               </>
             ) : (
@@ -263,12 +263,12 @@ export function GoalSection({
                   <div className="wizard-actions">
                     <WireButton
                       variant="neutral"
-                      height="sm"
+                     
                       onClick={() => { setEditingId(goal.id); setEditTitle(goal.title); setClosingId(null); setNotice(null); }}
                     >
                       수정
                     </WireButton>
-                    <WireButton variant="neutral" height="sm" onClick={() => startClose(goal.id)}>닫기</WireButton>
+                    <WireButton variant="neutral" onClick={() => startClose(goal.id)}>닫기</WireButton>
                   </div>
                 ) : null}
               </>
@@ -296,7 +296,7 @@ export function GoalSection({
               />
             </WireFormField>
             <div className="wizard-actions">
-              <WireButton variant="secondary" height="sm" disabled={busy} onClick={() => void submitCreate()}>목표 추가</WireButton>
+              <WireButton variant="secondary" disabled={busy} onClick={() => void submitCreate()}>목표 추가</WireButton>
             </div>
           </>
         )

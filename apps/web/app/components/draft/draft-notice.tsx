@@ -40,8 +40,8 @@ export function DraftRestorePrompt({
         /* 이어쓰기가 우선 행동이라 세컨더리(그라데이션 아웃라인), 새로 시작은 고스트다.
            프라이머리는 화면 주 행동(HERO·폼 제출) 몫이라 안내줄에서는 쓰지 않는다(§4-5). */
         <>
-          <WireButton variant="secondary" height="sm" onClick={onResume}>이어쓰기</WireButton>
-          <WireButton variant="ghost" height="sm" onClick={onDiscard}>새로 시작</WireButton>
+          <WireButton variant="secondary" onClick={onResume}>이어쓰기</WireButton>
+          <WireButton variant="ghost" onClick={onDiscard}>새로 시작</WireButton>
         </>
       }>
       {uncertain
