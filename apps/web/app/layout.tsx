@@ -725,6 +725,9 @@ const settingsStyles = `
 .settings-user-role{color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* 활성 여부 배지는 공용 배지(.wire-badge)다(2026-08-07 통합, 구 .settings-user-status 삭제). */
 .settings-user-row>.wire-badge{justify-self:start}
+/* 관리자 진입 링크 버튼도 1fr 칸에서 스트레치되지 않는다 — 버튼은 내용 폭이 계약이다
+   (2026-08-29 결함 ⑥. register-form Y6 "풀폭 버튼 예외 되돌리기"와 같은 결론). */
+.settings-user-row>.wire-button{justify-self:start}
 .settings-user-row[data-active="false"]{opacity:.6}
 @media(max-width:767px){.settings-user-row{grid-template-columns:1fr;gap:var(--space-1)}.settings-user-role{justify-self:start}}
 `;

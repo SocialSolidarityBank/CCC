@@ -50,17 +50,21 @@ export default async function AdminInvitePage({ searchParams }: { searchParams: 
         <WireButton type="submit">등록</WireButton>
       </form>
 
-      {/* 초대 링크 발급(CCC-108) — 링크를 받은 사람이 스스로 이름·이메일을 입력해 가입한다. */}
-      <WorkerInviteIssue />
+      {/* 초대 링크 발급(CCC-108) — 링크를 받은 사람이 스스로 이름·이메일을 입력해 가입한다.
+          래퍼는 admin 영역 세로 스택 관례(.wire-admin-section margin-top 24)다 — 등록 폼
+          행과 이 카드가 여백 0 으로 붙어 있었다(2026-08-29 결함 ⑦). */}
+      <div className="wire-admin-section"><WorkerInviteIssue /></div>
 
       {/* 구 '실무자 초대' 폼(이메일 칸 + 영구 비활성 '초대 보내기')은 없앴다(CCC-63).
           지금 되는 길은 둘이다 — 위의 직접 등록과 초대 링크(CCC-108). 메일 자동 발송만
           아직 없으므로, 그 사실을 말로 적는다. */}
-      <WireCallout tone="lavender" role="status" testId="admin-invite-note" title="초대 방법 두 가지">
-        이메일을 아는 실무자는 위에서 바로 등록하고, 아니면 초대 링크를 만들어 전달하세요.
-        링크를 받은 사람이 이름과 이메일을 입력해 가입하며, 두 경우 모두 Cloudflare Access 로
-        로그인합니다. 메일을 자동으로 보내 주는 기능은 아직 없습니다. 링크는 직접 전달해야 합니다.
-      </WireCallout>
+      <div className="wire-admin-section">
+        <WireCallout tone="lavender" role="status" testId="admin-invite-note" title="초대 방법 두 가지">
+          이메일을 아는 실무자는 위에서 바로 등록하고, 아니면 초대 링크를 만들어 전달하세요.
+          링크를 받은 사람이 이름과 이메일을 입력해 가입하며, 두 경우 모두 Cloudflare Access 로
+          로그인합니다. 메일을 자동으로 보내 주는 기능은 아직 없습니다. 링크는 직접 전달해야 합니다.
+        </WireCallout>
+      </div>
     </>
   );
 }

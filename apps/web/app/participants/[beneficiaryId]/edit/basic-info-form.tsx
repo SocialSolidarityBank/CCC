@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { WireCard } from '../../../components/wire/wire-card';
 import { WireFormField } from '../../../components/wire/wire-form-field';
-import { DATE_TEXT_HINT, DateTextInput } from '../../../components/wire/date-text-input';
+import { DateTextInput, dateTextHint } from '../../../components/wire/date-text-input';
 import type { ParticipantBasicInfo } from '../../../lib/api';
 
 // 성별 선택값은 정본 질문지 1-1 그대로다(D41) — 등록 폼(register-form.tsx)과 같은 목록을
@@ -106,7 +106,7 @@ export function BasicInfoForm({ basicInfo, action }: BasicInfoFormProps) {
           {/* 레인 D: 등록 화면(register-form)과 **같은 부품**을 쓴다. 두 화면이 같은 값을
               다르게 받으면 다음 수정에서 갈라진다. 도움말은 WireFormField 의 hint 슬롯이
               그리고, DateTextInput 이 aria-describedby 로 그것을 가리킨다(KRDS). */}
-          <WireFormField label="생년월일" htmlFor="basicInfoBirthDate" hint={DATE_TEXT_HINT} {...warningFor('birthDate')}>
+          <WireFormField label="생년월일" htmlFor="basicInfoBirthDate" hint={dateTextHint('1985-03-27')} {...warningFor('birthDate')}>
             <DateTextInput
               id="basicInfoBirthDate"
               name="birthDate"

@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { DATE_TEXT_HINT, DateTextInput, formatDateDigits } from './date-text-input';
+import { DateTextInput, dateTextHint, formatDateDigits } from './date-text-input';
 import { SearchInput } from './search-input';
 
 // 레인 D — 날짜 입력. 여기 걸린 어서션은 전부 실제 결함(훑기 R6)과 KRDS 규격에서 나왔다:
@@ -102,7 +102,7 @@ describe('SearchInput type="date"', () => {
     const { container } = render(<SearchInput label="생년월일" type="date" name="birthDate" />);
 
     const hint = container.querySelector('#birthDate-hint');
-    expect(hint?.textContent).toBe(DATE_TEXT_HINT);
+    expect(hint?.textContent).toBe(dateTextHint('1985-03-27'));
     expect(container.querySelector('input')?.getAttribute('aria-describedby')).toBe('birthDate-hint');
   });
 

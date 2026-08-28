@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DatePickerControl } from '../../../../../../components/wire/date-picker-control';
-import { DATE_TEXT_HINT } from '../../../../../../components/wire/date-text-input';
+import { dateTextHint } from '../../../../../../components/wire/date-text-input';
 
 const owners = [
   ['counselor', '실무자'],
@@ -54,7 +54,7 @@ export function ActionItemFields({ index }: { index: number }) {
         />
       </WireFormField>
       {/* 날짜 도움말은 좁은 2열 칸에서 줄바꿈하므로 그리드 전폭 한 줄로 내린다(2026-08-29 Q). */}
-      <span className="wire-form-hint wire-form-grid-hint" id={`action-due-date-${index}-hint`}>{DATE_TEXT_HINT}</span>
+      <span className="wire-form-hint wire-form-grid-hint" id={`action-due-date-${index}-hint`}>{dateTextHint('2026-08-05')}</span>
     </div>
   </fieldset>;
 }
