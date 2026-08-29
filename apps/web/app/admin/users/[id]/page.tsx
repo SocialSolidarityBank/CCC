@@ -94,7 +94,10 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       </section>
 
       <div className="wire-admin-section">
-        <WireButton href="/admin/assign" size="large" align="center" chevron>배정하기</WireButton>
+        {/* 이동 진입 버튼 — 구 size="large" 는 구획 grid 스트레치와 겹쳐 전폭 바가 됐다
+            (2026-08-29 결함 ⑤). 버튼은 내용 폭 알약이 계약이고(§3·§7), 이동·보기 조작이라
+            neutral 이다(D58 ① · 2026-08-29 검수 ⓐ Q 결정 — 구 primary 도출값 대체). */}
+        <WireButton href="/admin/assign" variant="neutral" chevron>배정하기</WireButton>
       </div>
     </>
   );

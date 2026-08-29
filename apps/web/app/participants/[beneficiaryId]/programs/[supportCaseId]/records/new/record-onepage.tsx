@@ -11,7 +11,7 @@ import { WireCard, WireCardDetails } from '../../../../../../components/wire/wir
 import { WireEmpty } from '../../../../../../components/wire/wire-state';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
-import { DATE_TEXT_HINT } from '../../../../../../components/wire/date-text-input';
+import { dateTextHint } from '../../../../../../components/wire/date-text-input';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { draftKey } from '../../../../../../lib/form-draft';
 import { useDomDraft } from '../../../../../../lib/use-dom-draft';
@@ -324,7 +324,7 @@ export function RecordOnepage({
           </WireFormField>
           {/* 날짜 형식 도움말은 좁은 2열 칸에서 줄바꿈하므로 그리드 전폭 한 줄로 내린다
               (2026-08-29 Q item 8). describedBy=record-held-at-hint 는 이 span 을 가리킨다. */}
-          <span className="wire-form-hint wire-form-grid-hint" id="record-held-at-hint">{DATE_TEXT_HINT}</span>
+          <span className="wire-form-hint wire-form-grid-hint" id="record-held-at-hint">{dateTextHint('2026-08-05')}</span>
         </div>
         {/* 완료할 일정(CCC-57, 2026-08-08 Q 승인). 접힌 '새 액션 · 다음 만남' 구획에서 여기로
             올렸다. 기본이 켬이 된 이상 안 보이는 곳에서 일정이 완료되면 안 된다. "이 기록이

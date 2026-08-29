@@ -428,12 +428,15 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-timeline-item::before{content:"";position:absolute;left:0;top:5px;width:7px;height:7px;background:var(--ink)}
 .wire-timeline-item::after{content:"";position:absolute;left:3px;top:18px;bottom:-14px;width:1px;background:var(--line)}
 .wire-timeline-item:last-child::after{display:none}
-/* CCC-81 단계 표시 부품 — 진행 상태는 블루 축(D34), 현재=채움·완료=tint·대기=무채색. */
+/* CCC-81 단계 표시 부품 — 2026-08-29 개정: 구 블루 채움이 §4 "블루 채움 = 시간 축 전용"
+   (2026-08-24 CCC-132)과 충돌해, 현재 단계는 활성 어휘(--gradient-action, 체크·라디오 켬과
+   같은 문법)로, 완료 단계는 진행 계열(민트 tint 면 + deep 글자, §4 민트=진행)로 옮긴다.
+   대기 단계는 무채색 유지. */
 .wire-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);align-items:center}
 .wire-step{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
 .wire-step-marker{display:grid;place-items:center;min-width:20px;height:20px;padding:0 var(--space-1);border-radius:var(--radius-control);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.wire-step-current .wire-step-marker{background:var(--blue);color:var(--on-action)}
-.wire-step-done .wire-step-marker{background:var(--blue-tint);color:var(--blue-deep)}
+.wire-step-current .wire-step-marker{background:var(--gradient-action);color:var(--on-action)}
+.wire-step-done .wire-step-marker{background:var(--mint-tint);color:var(--mint-deep)}
 .wire-step-upcoming{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 .wire-step-upcoming .wire-step-marker{background:var(--panel);color:var(--sub);font-weight:400}
 /* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
@@ -1105,6 +1108,9 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-admin-detail-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3)}
 .wire-admin-detail-name{margin:0;font-size:var(--text-lg);font-weight:600;color:var(--ink);overflow-wrap:anywhere}
 .wire-admin-section{display:grid;gap:var(--space-3);margin-top:var(--space-6)}
+/* 구획의 grid 가 자식을 전폭으로 늘린다 — 버튼은 내용 폭이 계약이라 스트레치를 끊는다
+   (2026-08-29. register-form Y6 "풀폭 버튼 예외 되돌리기"와 같은 결론). */
+.wire-admin-section>.wire-button{justify-self:start}
 .wire-admin-section>h2{margin:0;font-size:var(--text-lg);font-weight:600;color:var(--ink)}
 .wire-admin-form{display:grid;gap:var(--space-4);margin-top:var(--space-5)}
 .wire-admin-form-row{display:flex;gap:var(--space-3);align-items:flex-end;margin-top:var(--space-5)}

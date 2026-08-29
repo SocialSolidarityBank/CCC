@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from 'react';
 import { Chevron } from './chevron';
-import { DATE_TEXT_HINT, DateTextInput } from './date-text-input';
+import { DateTextInput, dateTextHint } from './date-text-input';
 
 export interface SearchSelectOption {
   value: string;
@@ -64,7 +64,9 @@ export function SearchInput({
   const generatedId = useId();
   const fieldId = id ?? name ?? generatedId;
   const classes = ['wire-search', className].filter(Boolean).join(' ');
-  const resolvedHint = hint ?? (type === 'date' ? DATE_TEXT_HINT : undefined);
+  // date 기본 도움말의 예시는 생년월일이다 — 기본값의 유일한 소비자가 등록 화면 생년월일 칸이라서다.
+  // 다른 맥락(상담 일시·기한)은 호출부가 hint 로 자기 예시를 넘긴다(2026-08-29).
+  const resolvedHint = hint ?? (type === 'date' ? dateTextHint('1985-03-27') : undefined);
   // 도움말을 컨트롤에 이어야 스크린 리더가 형식 안내를 함께 읽는다(KRDS · WCAG 2.1 A).
   // 그러려면 도움말에 id 가 필요하고, id 는 필드 id 에서 파생한다.
   const hintId = resolvedHint === undefined ? undefined : `${fieldId}-hint`;

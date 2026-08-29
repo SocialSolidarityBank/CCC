@@ -7,8 +7,13 @@ import { useState } from 'react';
  * 화면마다 따로 쓰면 문구가 갈라진다(레인 D 착수 문서 §4).
  */
 export const DATE_TEXT_PLACEHOLDER = 'YYYY-MM-DD';
-/** KRDS: 자리 표시자는 입력을 시작하면 사라지므로 자릿수·예시는 **입력칸 아래 도움말**에 둔다. */
-export const DATE_TEXT_HINT = '숫자 8자리를 적으면 하이픈이 자동으로 들어갑니다. 예: 1985-03-27';
+/** KRDS: 자리 표시자는 입력을 시작하면 사라지므로 자릿수·예시는 **입력칸 아래 도움말**에 둔다.
+ *  예시 날짜는 칸의 맥락이 정한다(2026-08-29 — 상담 일시·기한 칸에 생년월일 예시 1985-03-27
+ *  이 그대로 서 있었다). 생년월일은 1985-03-27, 상담·기한 칸은 2026-08-05 를 쓴다. */
+const DATE_TEXT_FORMAT = '숫자 8자리를 적으면 하이픈이 자동으로 들어갑니다.';
+export function dateTextHint(example: string): string {
+  return `${DATE_TEXT_FORMAT} 예: ${example}`;
+}
 
 /**
  * 입력 중 자동 하이픈. 숫자만 남기고 연(4)·월(2)·일(2)로 끊는다.
@@ -101,7 +106,7 @@ export function DateTextInput({
       required={required}
       aria-invalid={invalid || undefined}
       pattern="\d{4}-\d{2}-\d{2}"
-      title={DATE_TEXT_HINT}
+      title={DATE_TEXT_FORMAT}
       aria-describedby={describedBy}
       aria-label={ariaLabel}
       value={value}
