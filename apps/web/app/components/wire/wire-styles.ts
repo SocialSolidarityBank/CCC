@@ -1353,10 +1353,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
 .wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
-`;
-
-/* .briefing-memo-item wrappers for 3rd round componentization; restore sibling section gap */
-.briefing-memo-item + .briefing-memo-item .wire-card-section {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
+  /* .briefing-memo-item wrappers for 3rd round componentization; restore sibling section gap */
+  .briefing-memo-item + .briefing-memo-item .wire-card-section {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+ `;
+ 

@@ -175,8 +175,7 @@ export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: strin
           이미 구획을 말한다). 접근성 이름은 aria-label 이 잇는다. */}
       <fieldset className="consent-fieldset" aria-label="동의">
         <p className="schedule-form-hint">
-          동의는 오프라인(종이·구두)으로 받고, 시스템에는{' '}
-          <span className="participant-consent-nowrap">체크·일시·기록자만</span> 남깁니다.
+          <span className="participant-consent-nowrap">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.</span>{' '}
           체크를 풀면 철회로 기록되며, 이전 기록은 지워지지 않습니다.
         </p>
         {CONSENT_ITEMS.map((item) => (
