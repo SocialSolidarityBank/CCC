@@ -448,78 +448,76 @@ export function BriefingCards({
             직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
             근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
         <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
-          <WireCardSection
-            title="세션 목표"
-            tone="mint"
-            action={upcomingSchedule === null
-              ? undefined
-              : (
-                  <WireButton
-                    variant="neutral"
-                    href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
-                  >
-                    세션 목표 수정
-                  </WireButton>
-                )}
-          >
-            {sessionGoals.length === 0
-              ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
-              : <WireBullets items={sessionGoals.map((goal) => (
-                  // 라벨은 D62 위계 용어 '세부 목표'다(구 '케이스 목표'). 부모가 닫힌 세션
-                  // 목표는 부모 이름을 흐리게 병기하고(D62 §5 · CCC-69), 색에만 기대지
-                  // 않도록 '(종료)'를 함께 쓴다.
-                  goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
-                    goal.body,
-                    <span
-                      key="parent"
-                      className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
+          <div className="briefing-memo-item">
+            <WireCardSection
+              title="세션 목표"
+              tone="mint"
+              action={upcomingSchedule === null
+                ? undefined
+                : (
+                    <WireButton
+                      variant="neutral"
+                      href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
                     >
-                      {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
-                    </span>,
-                  ]} />
-                ))} />}
-          </WireCardSection>
-          <WireCardSection title="맞춤형 질문" tone="mint">
-            {customQuestions.length === 0
-              ? <WireEmpty>실무자가 적은 맞춤형 질문이 없습니다.</WireEmpty>
-              : <WireBullets items={customQuestions} />}
-          </WireCardSection>
-          <WireCardSection title="AI 제안" tone="lavender">
-            {/* 전체 목표 미설정 안내 (D62 §7) — 제안을 차단하지 않는다. 닫으면 케이스 단위로 남는다. */}
-            {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
-            {aiSuggestions.length === 0
-              ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
-              : (
-                <ul className="briefing-suggestions">
-                  {/* 최대 3개는 서버 계약(D45)이지만 화면도 같은 상한을 지킨다 — 훑는 화면이다. */}
-                  {aiSuggestions.slice(0, 3).map((suggestion) => (
-                    <li key={`${suggestion.sessionId}-${suggestion.title}`}>
-                      {/* 2026-08-10: 손으로 쌓던 제목·이유·링크를 WireItem 으로 옮겼다. 이유가
-                          16/400 --sub 라는 계약 밖 조합이었고, 링크가 제목과 똑같은 16/600 --ink
-                          라 무엇을 먼저 읽어야 할지가 없었다(§2-2 위계 4단). */}
-                      <WireItem
-                        tone="lavender"
-                        title={suggestion.title}
-                        {...(suggestion.reason !== null ? { description: suggestion.reason } : {})}
-                        action={
-                          // 근거 회차 링크 — 상담 기록 페이지의 해당 회차 앵커(#record-{id})로 간다.
-                          <WireButton
-                            variant="neutral"
-                            href={`${recordsHref}#record-${suggestion.sessionId}`}
-                          >
-                            근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
-                          </WireButton>
-                        }
-                      />
-                      <WireSourceQuotes
-                        quotes={suggestion.sourceQuotes}
-                        sourceHref={`${recordsHref}#record-${suggestion.sessionId}`}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-          </WireCardSection>
+                      세션 목표 수정
+                    </WireButton>
+                  )}
+            >
+              {sessionGoals.length === 0
+                ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
+                : <WireBullets items={sessionGoals.map((goal) => (
+                    goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
+                      goal.body,
+                      <span
+                        key="parent"
+                        className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
+                      >
+                        {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
+                      </span>,
+                    ]} />
+                  ))} />}
+            </WireCardSection>
+          </div>
+          <div className="briefing-memo-item">
+            <WireCardSection title="맞춤형 질문" tone="mint">
+              {customQuestions.length === 0
+                ? <WireEmpty>실무자가 적은 맞춤형 질문이 없습니다.</WireEmpty>
+                : <WireBullets items={customQuestions} />}
+            </WireCardSection>
+          </div>
+          <div className="briefing-memo-item">
+            <WireCardSection title="AI 제안" tone="lavender">
+              {/* 전체 목표 미설정 안내 (D62 §7) — 제안을 차단하지 않는다. 닫으면 케이스 단위로 남는다. */}
+              {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
+              {aiSuggestions.length === 0
+                ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
+                : (
+                  <ul className="briefing-suggestions">
+                    {aiSuggestions.slice(0, 3).map((suggestion) => (
+                      <li key={`${suggestion.sessionId}-${suggestion.title}`}>
+                        <WireItem
+                          tone="lavender"
+                          title={suggestion.title}
+                          {...(suggestion.reason !== null ? { description: suggestion.reason } : {})}
+                          action={
+                            <WireButton
+                              variant="neutral"
+                              href={`${recordsHref}#record-${suggestion.sessionId}`}
+                            >
+                              근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
+                            </WireButton>
+                          }
+                        />
+                        <WireSourceQuotes
+                          quotes={suggestion.sourceQuotes}
+                          sourceHref={`${recordsHref}#record-${suggestion.sessionId}`}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+            </WireCardSection>
+          </div>
         </Card>
 
         {/* 영역 ② 상담 내용 회차별 정리 (D45) — 회차마다 상담일 · 유형 · 핵심 한 줄. 한 줄은
