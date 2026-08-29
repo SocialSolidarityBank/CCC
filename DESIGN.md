@@ -702,3 +702,8 @@ D37 이 값을 정하기 전에 main 에서 셸을 세우며 확인된 것들이
 
 > **§9의 예외 7건이 다크에서는 전부 해소된다.** 어두운 면 위에서는 밝은 파스텔이 유리하기 때문이고, 다크 값은 Q 동결 대상이 아니라 기준을 넘도록 고를 수 있었기 때문이다. 즉 **§9 '알려진 접근성 예외'는 라이트 전용 표**다. 다크에는 예외가 없다. 라이트마젠타 배지도 전용 전경 덕에 두 테마 모두 6.29 로 통과한다.
 > 다크+고대비를 함께 켜면 값이 한 번 더 올라간다. 라이트용 고대비 값은 **밝은 배경 기준**이라 어두운 면 위에서는 오히려 대비가 떨어지므로, 조합 전용 블록을 따로 뒀다.
+
+## Mint-deep #56CC99 unification (2026-08-29 Q, round 3)
+Changed per explicit user request from #397158 to #56CC99 (badge-mint value). 
+Contrast on --mint-tint ~1.76 (below standard 4.5). Accepted as exception.
+See design/tokens.css and review findings for this round.
