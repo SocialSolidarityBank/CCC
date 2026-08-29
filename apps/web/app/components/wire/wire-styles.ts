@@ -305,8 +305,10 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .note-inline{color:var(--sub);font-size:var(--text-sm)}
 .note-inline a{font-size:var(--text-sm);color:var(--blue-deep);font-weight:600;text-decoration:underline}
 /* 일정·당사자 목록의 한 줄 업무 도구. 페이지 제목과 행동을 다시 나누지 않고 검색·기간
-   조작·등록을 한 면에 묶는다. 그림자는 없고 카드 안 카드를 만들지 않는다. */
-.work-toolbar{padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+   조작·등록을 한 면에 묶는다. 그림자는 없고 카드 안 카드를 만들지 않는다.
+   안쪽 여백은 20 하나다(2026-08-29 Q "당사자 툴바도 일정 바와 같은 패딩" — 구 공용 12 +
+   일정만 20 예외를 걷고 두 업무 바를 한 값으로 통일). */
+.work-toolbar{padding:var(--space-5);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 /* 모든 글자 버튼은 알약이다(2026-08-25 Q). 이 업무 바의 검색·선택창은 사각 6,
    화살표 전용 링크는 면 없는 고정 슬롯을 유지한다. */
 /* 당사자 목록 — 찾기 칸 + 행동 버튼 + 행 목록. 행은 gap 그리드에 낱개로 놓이므로 카드
@@ -327,18 +329,21 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .participant-row-list>div,.participant-row-list>div>.participant-card-link,.participant-row-list>div>.participant-card-link>.participant-card{height:100%}
 /* 당사자 정보 허브 (D35 §3 · D36 · 2026-08-06 Q 개편). 사업별 낱개 카드를 걷고
    '참여중인 사업'·'최신 일정' 두 카드(WireCard)가 나란히 선다. 사업은 카드 안 **행**이고
-   행 사이는 --line 구분선이다(카드 안 카드 금지 — D59 ③). 동의서는 맨 아래 카드로 옮겼다. */
+   행 하나가 낱개 카드다(2026-08-29 Q — 구 --line 구분선 리스트 대체. 반복 행 카드 예외는
+   DESIGN-RULES.md §3). 동의서는 맨 아래 카드로 옮겼다. */
 /* 카드 경계 프로토타입의 strong 안을 이 화면에 적용한다. 선 굵기와 구조는 그대로 두고
    패널 대비만 높여 그림자 없이도 카드 범위가 또렷하게 읽히게 한다. */
 .participant-hub-card>.wire-card-divider{display:none}
-.participant-hub-card>.wire-card-body{margin-top:var(--space-5)}
+/* 허브 카드 본문은 행 카드 스택이다(2026-08-29 Q "항목이 추가되는 케이스는 card div 처리")
+   — §7 행 카드 스택 16. */
+.participant-hub-card>.wire-card-body{margin-top:var(--space-5);gap:var(--space-4)}
 /* 허브 카드 3장(참여중인 사업·최신 일정·동의서)의 제목은 18 이다(2026-08-07 Q 8차
    "폰트 크기 2px 키우기". 전역 카드 제목 16 위의 이 화면 예외로, 섹션 역할의 전폭
    카드라 섹션 제목 단(--text-lg)을 쓴다). */
 .participant-hub-card>.wire-card-title{font-size:var(--text-lg)}
-.participant-program-row{display:grid;gap:var(--space-2);min-width:0}
-/* 행 구분선 위아래 12/12 — 위 간격은 카드 본문 gap(12)이 주므로 패딩도 12 로 맞춘다(9차). */
-.participant-program-row+.participant-program-row{padding-top:var(--space-3);border-top:1px solid var(--line)}
+/* 사업 행 하나가 카드다(2026-08-29 Q "항목이 추가되는 케이스는 card div" — 구 --line
+   구분선 리스트 대체). 경계는 중립 카드선, 간격은 본문 gap 이 만든다. */
+.participant-program-row{display:grid;gap:var(--space-2);min-width:0;padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 /* 행 제목은 카드 제목(18)보다 한 단 아래 16 이다. 배지는 제목과 같은 y 세로 중앙이다
    (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
 .participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);min-width:0}
@@ -363,10 +368,9 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .participant-consent-nowrap{white-space:nowrap}
 .participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
-   --line 구분선, 묶음 안 fieldset 의 자체 윗선은 끈다(카드 제목 구분선과 겹쳐 이중선이 된다). */
-.participant-consent-block{display:grid;gap:var(--space-2)}
-/* 위 12(본문 gap)/아래 12(패딩) — 구분선 중심 대칭(9차, .participant-program-row 와 같은 계약). */
-.participant-consent-block+.participant-consent-block{padding-top:var(--space-3);border-top:1px solid var(--line)}
+   행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은
+   끈다(카드 테두리와 겹쳐 이중선이 된다). */
+.participant-consent-block{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
 .participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 목표 트리 (D62 §8 · CCC-69) — 목표는 사람·소속·진행 축이 아니므로 구획 라벨은
@@ -393,6 +397,10 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    뒤쪽이라 한 클래스끼리는 그쪽이 이긴다): 세부 목표마다 세션 목표 가지가 매달려 있어,
    8 이면 옆 목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. */
 .goal-tree-goals.wire-bullets{gap:var(--space-4)}
+/* 목표 li 의 첫 줄은 32px 원형 화살표가 키운 head 행이다 — 공용 불릿의 .55em(자기 14px
+   글줄 기준)은 그 행 중앙보다 5px 위에 찍힌다(2026-08-29 실측). 점 중심을 head 행
+   (--pill-height) 세로 중앙에 맞춘다: top = 32/2 - 점 반지름 3. */
+.goal-tree-goals.wire-bullets>li::before{top:calc(var(--pill-height) / 2 - 3px)}
 .goal-tree-goal{display:grid;gap:var(--space-2)}
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
@@ -428,17 +436,16 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-timeline-item::before{content:"";position:absolute;left:0;top:5px;width:7px;height:7px;background:var(--ink)}
 .wire-timeline-item::after{content:"";position:absolute;left:3px;top:18px;bottom:-14px;width:1px;background:var(--line)}
 .wire-timeline-item:last-child::after{display:none}
-/* CCC-81 단계 표시 부품 — 2026-08-29 개정: 구 블루 채움이 §4 "블루 채움 = 시간 축 전용"
-   (2026-08-24 CCC-132)과 충돌해, 현재 단계는 활성 어휘(--gradient-action, 체크·라디오 켬과
-   같은 문법)로, 완료 단계는 진행 계열(민트 tint 면 + deep 글자, §4 민트=진행)로 옮긴다.
-   대기 단계는 무채색 유지. */
-.wire-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);align-items:center}
-.wire-step{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
-.wire-step-marker{display:grid;place-items:center;min-width:20px;height:20px;padding:0 var(--space-1);border-radius:var(--radius-control);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
-.wire-step-current .wire-step-marker{background:var(--gradient-action);color:var(--on-action)}
-.wire-step-done .wire-step-marker{background:var(--mint-tint);color:var(--mint-deep)}
-.wire-step-upcoming{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
-.wire-step-upcoming .wire-step-marker{background:var(--panel);color:var(--sub);font-weight:400}
+/* CCC-81 단계 표시 부품 — 2026-08-29 Q 2차 개정 "버튼·뱃지 형태로 공간 확보": 단계 하나가
+   맨 텍스트+20px 마디가 아니라 **읽기 전용 상태 칩**(알약, 배지 레시피)이다. 색 어휘는
+   1차 개정 그대로 — 현재 = 활성 채움(--gradient-action), 완료 = 진행 계열(민트 tint 면 +
+   deep 글자, §4), 대기 = 무채색 외곽선. 누르는 조작이 아니므로 호버 면은 없다. */
+.wire-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-3);align-items:center}
+.wire-step{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid var(--line);border-radius:var(--radius-pill);/* wire-step: 단계 상태 칩(pill 허용목록 등재) */font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);background:var(--panel)}
+/* 번호는 칩 안에서 굵기만 세운다 — 구 사각 마디 상자는 칩 형태로 옮기며 걷었다. */
+.wire-step-marker{font-weight:600;color:inherit}
+.wire-step-current{background:var(--gradient-action);border-color:transparent;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--on-action)}
+.wire-step-done{background:var(--mint-tint);border-color:var(--mint-deep);font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--mint-deep)}
 /* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
 .wire-data-rows{display:grid;margin:0;gap:0;border-top:1px solid var(--line)}
 .wire-data-row{display:grid;grid-template-columns:minmax(160px,260px) minmax(0,1fr);gap:var(--space-3);border-bottom:1px solid var(--line);padding:var(--space-2) 0}
@@ -463,13 +470,10 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .participant-next-schedule-program{white-space:nowrap}
 /* 행 전체가 브리핑 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체). 격자 좌 1fr / 우
    auto: 내용은 좁으면 줄바꿈하되 꺽쇠는 **행 전체의 세로 중앙**에 남는다("가운데 정렬").
-   여러 행이면 --line 가로선으로 갈리고 상하 12 씩 눌러 클릭 면을 벌린다. 호버는 면 호버
-   tint 쌍(D60 ④ — 행 배경 --muted). */
-/* 좌우 -12 는 사이드바 알약과 같은 트릭 — 호버 면을 글자 밖까지 벌리되 글자는 카드
-   좌측선(24)에 남긴다. */
-.participant-next-schedule-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+   행 하나가 카드다(2026-08-29 Q "카드 div로" — 구 --line 가로선 + 좌우 -12 호버 트릭
+   대체). 경계는 중립 카드선, 간격은 허브 본문 gap(16)이 만든다. 호버는 면 호버 tint 쌍. */
+.participant-next-schedule-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);color:inherit;text-decoration:none;border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 .participant-next-schedule-main{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
-.participant-next-schedule-link+.participant-next-schedule-link{border-top:1px solid var(--line)}
 @media (hover:hover){.participant-next-schedule-link:hover{background:var(--muted)}}
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
@@ -1149,13 +1153,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--mint-tint)}
 .register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:600}
-/* Y10 의 muted 배경은 D59 플랫화로 걷었다 — 동의 묶음은 상자가 아니라 구분선이다.
+/* Y10 의 muted 배경은 D59 플랫화로 걷었고, 2026-08-29 Q 가 텍스트 덩어리를 다시 상자로
+   올렸다(아래 .register-consent-block — 그림자 금지는 그대로다).
    2026-08-28 Q: 낭독·전달용 화면이라 '자세히 읽어보기'(summary)를 16 으로 올리고(§1 예외
    ③ 16/400), 위 구분선(fieldset border-top)은 카드 양끝까지 full-bleed 한다(구 카드 패딩
    24 안쪽). 내용은 padding-inline 으로 제자리에 둔다. legend '동의'는 base 계약(16/600
    --ink, D61 ③)이라 따로 손대지 않는다 — 구 register 전용 14/mint 격하만 걷었다. */
-.consent-fieldset.register-consent{max-width:none;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6)}
+.consent-fieldset.register-consent{max-width:none;margin-inline:calc(var(--space-6) * -1);padding-block:var(--space-5) 0;padding-inline:var(--space-6);gap:var(--space-4)}
 .register-consent .consent-detail-summary{font-size:var(--text-md)}
+/* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한
+   상자다. 상자는 카드 안 묶음 어휘(consent-detail-body·upload-slot 과 같은 radius 6 ·
+   --line 1px)라 카드 안 카드 그림자 금지(Y10)와 충돌하지 않는다. 위아래 여백은 fieldset
+   padding-top 20 + gap 16 + 상자 패딩 16/20 이 만든다(구 12/12 — "좁아 보이지 않게"). */
+.register-consent-block{display:grid;gap:var(--space-3);padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel)}
+/* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. */
+.register-consent .consent-emergency{background:none;padding-top:0}
+/* '자세히 읽어보기' 위 가로선도 fieldset 상단선처럼 카드 양끝까지 — 선이 중간에 끊기지
+   않는다(2026-08-29 Q). */
+.register-consent .consent-detail{margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6)}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}

@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { GridContainer } from '../../components/wire/grid-container';
 import { WireCallout } from '../../components/wire/wire-callout';
-import { MetaRow } from '../../components/wire/meta-row';
 import { PageTitle } from '../../components/wire/page-title';
 import { ListRow } from '../../components/wire/list-row';
 import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire/date-picker-control';
@@ -43,24 +42,35 @@ export interface ScheduleWizardCandidate {
 }
 
 // D31: 당사자 행 라벨 — 실명·가명 ID·연락처·이메일 순. 실명이 없으면 가명 슬러그가 이름
-// 자리에 서고, 비어 있는 필드는 MetaRow 가 거른다.
+// 자리에 서고, 비어 있는 필드는 조각을 그리지 않는다(구 MetaRow 필터와 같은 규칙).
 // 가명 ID 는 다른 당사자 카드·HERO 와 같은 공용 .participant-card-id 조각이다(회색 12/400
 // --sub, 2026-08-28 Q "당사자 카드 디자인 통일" — 구 2026-08-09 mint 컬러 전용 클래스 대체).
 // 이름이 없어 ID 가 이름 자리에 선 경우는 같은 값을 두 번 적지 않는다(D31 폴백 변형).
 // 굵기는 당사자 카드와 같은 계약이다(2026-08-07 Q "텍스트 weight 수정") — 이름만 600,
 // 나머지 값은 행 기본 400. 행 자체의 400 은 .schedule-candidate-row 가 갖는다.
+// 2026-08-29 Q "카드끼리 같은 정보 세로 정렬": 조각마다 열 클래스를 달아 선택 목록에서는
+// 고정폭 격자(layout.tsx .schedule-candidate-select>.wire-meta-row)에 오르고, 2단계 맥락
+// 바에서는 종전 인라인 메타 줄 그대로다. MetaRow 부품 대신 같은 .wire-meta-row 계약을
+// 직접 그린다 — 부품은 조각을 익명 span 으로 감싸 열을 지정할 수 없다.
+
 function candidateLabel(candidate: ScheduleWizardCandidate) {
   return (
-    <MetaRow items={[
-      <span key="name" className="schedule-candidate-name">
-        {candidate.participantName ?? candidate.beneficiaryId}
-      </span>,
-      candidate.participantName === null
-        ? null
-        : <span key="id" className="participant-card-id">{candidate.beneficiaryId}</span>,
-      candidate.participantPhone,
-      candidate.participantEmail,
-    ]} />
+    <span className="wire-meta-row">
+      <span className="schedule-candidate-name-cell">
+        <span className="schedule-candidate-name">
+          {candidate.participantName ?? candidate.beneficiaryId}
+        </span>
+        {candidate.participantName !== null && (
+          <span className="participant-card-id">{candidate.beneficiaryId}</span>
+        )}
+      </span>
+      {candidate.participantPhone !== null && candidate.participantPhone !== '' && (
+        <span className="schedule-candidate-phone">{candidate.participantPhone}</span>
+      )}
+      {candidate.participantEmail !== null && candidate.participantEmail !== '' && (
+        <span className="schedule-candidate-email">{candidate.participantEmail}</span>
+      )}
+    </span>
   );
 }
 
