@@ -465,17 +465,21 @@ export function BriefingCards({
             >
               {sessionGoals.length === 0
                 ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
-                : <WireBullets items={sessionGoals.map((goal) => (
-                    goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
-                      goal.body,
-                      <span
-                        key="parent"
-                        className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
-                      >
-                        {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
-                      </span>,
-                    ]} />
-                  ))} />}
+                : (
+                  <WireBullets
+                    items={sessionGoals.map((goal) => (
+                      goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
+                        goal.body,
+                        <span
+                          key="parent"
+                          className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
+                        >
+                          {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
+                        </span>,
+                      ]} />
+                    ))}
+                  />
+                )}
             </WireCardSection>
           </div>
           <div className="briefing-memo-item">
@@ -493,8 +497,10 @@ export function BriefingCards({
                 ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
                 : (
                   <ul className="briefing-suggestions">
+                    {/* D45: slice(0,3) mirrors server cap (CCC-39); 재료는 승인본만 (R2) */}
                     {aiSuggestions.slice(0, 3).map((suggestion) => (
                       <li key={`${suggestion.sessionId}-${suggestion.title}`}>
+                        {/* 2026-08-10: WireItem으로 교체 (이유 16/400 --sub, 링크 제목과 동일 16/600 --ink → 위계 사라짐 방지) */}
                         <WireItem
                           tone="lavender"
                           title={suggestion.title}

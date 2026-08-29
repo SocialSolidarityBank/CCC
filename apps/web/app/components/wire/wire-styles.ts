@@ -446,7 +446,30 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-step-marker{font-weight:600;color:inherit}
 .wire-step-current{background:var(--gradient-action);border-color:transparent;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--on-action)}
 .wire-step-done{background:var(--mint-tint);border-color:var(--mint-deep);font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--mint-deep)}
-/* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
+
+/* 상담일정 등록 전용: 아웃라인(border) 처리 (사용자 요청, round 3)
+   current: border + gradation
+   done: border + dark (light) / white badge (dark) */
+.schedule-wizard-steps .wire-step {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink);
+}
+.schedule-wizard-steps .wire-step-current {
+  border-color: transparent;
+  background: var(--gradient-action);
+  color: var(--on-action);
+}
+.schedule-wizard-steps .wire-step-done {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 400;
+}
+ /* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
 .wire-data-rows{display:grid;margin:0;gap:0;border-top:1px solid var(--line)}
 .wire-data-row{display:grid;grid-template-columns:minmax(160px,260px) minmax(0,1fr);gap:var(--space-3);border-bottom:1px solid var(--line);padding:var(--space-2) 0}
 .wire-data-row>dt{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
@@ -1330,10 +1353,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
 .wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
-`;
-
-/* .briefing-memo-item wrappers for 3rd round componentization; restore sibling section gap */
-.briefing-memo-item + .briefing-memo-item .wire-card-section {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
+  /* .briefing-memo-item wrappers for 3rd round componentization; restore sibling section gap */
+  .briefing-memo-item + .briefing-memo-item .wire-card-section {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+ `;
+ 
