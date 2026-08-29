@@ -148,44 +148,48 @@ export function RegisterForm({
           </p>
         </div>
 
-        {/* Y10(안 A, 2026-07-30 Q "추천안대로"): 카드 안에서는 그림자를 쓰지 않는다 — 카드 안에 또
-            카드가 되고 카드 계약(wire-card.tsx)·동의 수정 허브(wire-styles.ts '동의 3종 수정')와
-            어긋난다. 테두리 1px 을 유지한 채 배경을 한 톤 낮춰 '카드 안의 한 덩어리'로 읽히게 한다.
+        {/* Y10(안 A, 2026-07-30 Q "추천안대로"): 카드 안에서는 그림자를 쓰지 않는다. 2026-08-29
+            Q 가 동의 텍스트 덩어리를 테두리 상자(.register-consent-block)로 올렸다 — 그림자
+            없는 --line 1px 상자라 Y10 과 충돌하지 않는다.
             `register-consent` 로 범위를 좁힌다 — `.consent-fieldset` 자체는 자기 가입 폼·동의 수정
             허브와 공유하는 규칙이라 덮으면 손대지 않은 화면 2개가 함께 바뀐다. */}
         <fieldset className="consent-fieldset register-consent">
           {/* 괄호 보충("항목별, 기본 미동의")은 뺐다(2026-08-07 Q "legend 는 타이틀 위계 +
               필요 없는 텍스트 삭제") — 기본 미동의·필수 여부는 바로 아래 안내문이 말한다. */}
           <legend>동의</legend>
-          <p className="schedule-form-hint">
-            동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
-            개인정보 수집·이용 동의는 등록에 반드시 필요하며, AI를 활용한 녹취기록은 미동의여도 등록이 진행됩니다.
-          </p>
-          {/* G1(2026-07-29 Q 결정1): ① 개인정보 수집·이용 동의는 **등록의 하드 게이트**다.
-              체크 없이 제출하면 서버가 privacy_consent_required 로 되돌린다. 급박한 위기
-              개입만 아래 '긴급 등록'으로 통과하며, 그때는 사유와 보완 기한이 함께 남는다. */}
-          <label className="consent-checkbox">
-            <input
-              type="checkbox"
-              className="wire-checkbox"
-              name="consentPrivacy"
-              value="on"
-              required={!emergency}
-              checked={privacy}
-              onChange={(event) => {
-                setPrivacy(event.currentTarget.checked);
-                if (event.currentTarget.checked) setEmergency(false);
-              }}
-            />
-            <span>개인정보 수집·이용 동의 (필수)</span>
-          </label>
-          {/* D49: 구 ② 녹음·음성 분석 + 구 ③ 텍스트 AI 정리를 한 체크로 합쳤다. 체크 하나가
-              두 컬럼에 같은 시각을 찍는다(DB 3컬럼 유지 — 법률 검토가 분리를 요구하면
-              화면만 다시 펴면 된다). 하드 게이트는 여전히 ① 하나다(G1). */}
-          <label className="consent-checkbox">
-            <input type="checkbox" className="wire-checkbox" name="consentRecordingAi" value="on" />
-            <span>AI를 활용한 녹취기록 동의</span>
-          </label>
+          {/* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 안내문+동의 체크 2개가 한 상자다.
+              서명 첨부 자리는 이미 자기 상자(점선)라 형제로 둔다. */}
+          <div className="register-consent-block">
+            <p className="schedule-form-hint">
+              동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
+              개인정보 수집·이용 동의는 등록에 반드시 필요하며, AI를 활용한 녹취기록은 미동의여도 등록이 진행됩니다.
+            </p>
+            {/* G1(2026-07-29 Q 결정1): ① 개인정보 수집·이용 동의는 **등록의 하드 게이트**다.
+                체크 없이 제출하면 서버가 privacy_consent_required 로 되돌린다. 급박한 위기
+                개입만 아래 '긴급 등록'으로 통과하며, 그때는 사유와 보완 기한이 함께 남는다. */}
+            <label className="consent-checkbox">
+              <input
+                type="checkbox"
+                className="wire-checkbox"
+                name="consentPrivacy"
+                value="on"
+                required={!emergency}
+                checked={privacy}
+                onChange={(event) => {
+                  setPrivacy(event.currentTarget.checked);
+                  if (event.currentTarget.checked) setEmergency(false);
+                }}
+              />
+              <span>개인정보 수집·이용 동의 (필수)</span>
+            </label>
+            {/* D49: 구 ② 녹음·음성 분석 + 구 ③ 텍스트 AI 정리를 한 체크로 합쳤다. 체크 하나가
+                두 컬럼에 같은 시각을 찍는다(DB 3컬럼 유지 — 법률 검토가 분리를 요구하면
+                화면만 다시 펴면 된다). 하드 게이트는 여전히 ① 하나다(G1). */}
+            <label className="consent-checkbox">
+              <input type="checkbox" className="wire-checkbox" name="consentRecordingAi" value="on" />
+              <span>AI를 활용한 녹취기록 동의</span>
+            </label>
+          </div>
 
           {/* 2026-07-30 Q: 자필 서명·스캔 파일로 받은 동의서를 올릴 **자리만** 만든다.
               파일 입력을 두지 않는 것이 의도다 — 올릴 수 있어 보이면 실무자가 스캔 동의서를
@@ -203,7 +207,7 @@ export function RegisterForm({
           {/* G1 예외: 긴급 등록. 동의를 받을 수 없는 급박한 개입에서만 쓰고, 사유가 케이스에
               남으며 보완 기한(기본 14일) 전에 알림이 간다. 예외 경로일 뿐 확인된 리스크가
               아니므로 리스크 레드를 쓰지 않는다(D9 — 리스크 색 독점). */}
-          <div className="consent-emergency">
+          <div className="consent-emergency register-consent-block">
             <label className="consent-checkbox">
               <input
                 type="checkbox"

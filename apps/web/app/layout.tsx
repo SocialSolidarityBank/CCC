@@ -744,9 +744,6 @@ const scheduleStyles = `
 /* 일정 업무 바. 양쪽 1fr 이 가운데 기간 묶음을 페이지 정중앙에 고정한다. 왼쪽은
    [오늘]+보기 선택창, 오른쪽은 등록 행동 둘이고 전부 32 높이다. */
 .schedule-nav{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--space-3)}
-/* 일정 업무 바만 안쪽 여백을 20 으로 넓힌다(2026-08-29 Q, 구 공용 .work-toolbar 12). 조작이
-   빽빽해 숨 쉴 자리가 필요한 자리다 — 다른 업무 바(당사자 목록)는 12 를 유지한다. */
-.schedule-nav.work-toolbar{padding:var(--space-5)}
 .schedule-nav-controls,.schedule-nav-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
 .schedule-nav-actions{justify-content:flex-end}
 .schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3)}
@@ -798,7 +795,7 @@ const scheduleStyles = `
    당사자 카드의 굵기 계약(이름만 강조)을 위저드 행에도 잇는다.
    .wire-row 를 겹쳐 쓰는 이유: 버튼 행은 button.wire-row(0-1-1)가 600 을 다시 얹으므로
    클래스 둘(0-2-0)로 이긴다. */
-.wire-row.schedule-candidate-row{font-weight:400}
+.wire-row.schedule-candidate-row{font-weight:400;padding-block:var(--space-5)}
 .schedule-candidate-name{font-weight:600}
 /* 가명 ID 는 다른 당사자 카드·HERO 와 같은 조각이다 — 후보 행도 전용 클래스가 아니라
    공용 .participant-card-id 를 그대로 입어(회색 12/400 --sub) 화면 간 통일감을 준다
@@ -807,6 +804,17 @@ const scheduleStyles = `
    MetaRow 의 각 조각은 제 wrapper span 안에 들어 .participant-card-id 의 flex 는 inert 다.
    고른 행(그라데이션 면)에서만 다른 글자처럼 --on-action 으로 넘어간다. */
 .wire-row[data-selected="true"] .participant-card-id{color:var(--on-action)}
+/* 후보 정보는 카드끼리 같은 세로선에 선다(2026-08-29 Q "텍스트 위치 고정·세로 정렬") —
+   이름 묶음·연락처 열은 고정폭이라 어느 카드에서나 같은 x 에서 시작하고, 이메일이 남은
+   폭을 쓴다. 이름·이메일은 길면 말줄임(…)이다. 빈 조각은 그리지 않되 연락처·이메일이
+   자기 열 번호를 갖고 있어 앞 조각이 없어도 열이 밀리지 않는다.
+   .wire-meta-row 를 그대로 입어 세로 구분선과 선택·호버 선색 계약을 재사용한다. */
+.schedule-candidate-select>.wire-meta-row{display:grid;flex:1 1 auto;grid-template-columns:240px 150px minmax(0,1fr);align-items:baseline;min-width:0}
+.schedule-candidate-name-cell{display:flex;align-items:baseline;gap:var(--space-2);min-width:0}
+.schedule-candidate-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.schedule-candidate-name-cell>.participant-card-id{flex:none}
+.schedule-candidate-select>.wire-meta-row>.schedule-candidate-phone{grid-column:2;white-space:nowrap}
+.schedule-candidate-select>.wire-meta-row>.schedule-candidate-email{grid-column:3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 후보 목록(2026-08-09 인라인 정리) — 낱개 카드 스택이라 여백 3단 ③(행 스택 16)이다(§3-4). */
 .schedule-candidate-list{display:grid;gap:var(--space-4)}
 /* 한 후보 = 카드 한 장이 장폭을 다 쓰고, '당사자 정보' 버튼도 카드 안 오른쪽 끝이다
@@ -819,6 +827,16 @@ const scheduleStyles = `
 @media (max-width: 767px){
   /* 좁은 화면에서는 버튼이 이름 묶음 아래로 내려간다(§5 모바일 규칙과 같은 처리). */
   .schedule-candidate-item{flex-wrap:wrap}
+}
+/* 열 정렬 격자는 화면 폭이 아니라 **본문 폭**으로 접는다(검수 실측: 768~900 viewport 는
+   데스크톱 셸이지만 본문이 좁아 고정 3열이 이메일을 13px 로 눌렀다). schedule-nav 와 같은
+   컨테이너 질의 760 — 본문이 좁으면 한 열로 접고 세로 구분선을 걷는다(허브 HERO 메타와
+   같은 처리). */
+@container (max-width:760px){
+  .schedule-candidate-select>.wire-meta-row{grid-template-columns:minmax(0,1fr)}
+  .schedule-candidate-select>.wire-meta-row>.schedule-candidate-phone,
+  .schedule-candidate-select>.wire-meta-row>.schedule-candidate-email{grid-column:auto}
+  .schedule-candidate-select>.wire-meta-row>span+span{border-left:0;padding-left:0}
 }
 /* 상담 유형 칸 = 선택창 하나 + (조건부) 경고 안내줄(2026-08-09 Q). 값·이름·접힘 세 클래스는
    함께 지웠다 — 값을 보여 주는 자리와 고치는 자리가 하나로 합쳐지면서 쓸 곳이 없어졌다. */
