@@ -466,22 +466,19 @@ export function BriefingCards({
               {sessionGoals.length === 0
                 ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
                 : (
-                  <ul className="briefing-subgoal-rows">
-                    {sessionGoals.map((goal) => (
-                      <li key={goal.id} className="briefing-subgoal-row wire-fade-clip">
-                        {goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
-                          goal.body,
-                          {/* D62 §5: 부모 세부 목표 이름 (종료 시 '(종료)' 병기) */}
-                          <span
-                            key="parent"
-                            className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
-                          >
-                            {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
-                          </span>,
-                        ]} />}
-                      </li>
+                  <WireBullets
+                    items={sessionGoals.map((goal) => (
+                      goal.caseGoalTitle === null ? goal.body : <MetaRow items={[
+                        goal.body,
+                        <span
+                          key="parent"
+                          className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
+                        >
+                          {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
+                        </span>,
+                      ]} />
                     ))}
-                  </ul>
+                  />
                 )}
             </WireCardSection>
           </div>
@@ -499,8 +496,8 @@ export function BriefingCards({
               {aiSuggestions.length === 0
                 ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
                 : (
-                  {/* D45: slice(0,3) mirrors server cap (CCC-39); 재료는 승인본만 (R2) */}
                   <ul className="briefing-suggestions">
+                    {/* D45: slice(0,3) mirrors server cap (CCC-39); 재료는 승인본만 (R2) */}
                     {aiSuggestions.slice(0, 3).map((suggestion) => (
                       <li key={`${suggestion.sessionId}-${suggestion.title}`}>
                         {/* 2026-08-10: WireItem으로 교체 (이유 16/400 --sub, 링크 제목과 동일 16/600 --ink → 위계 사라짐 방지) */}
