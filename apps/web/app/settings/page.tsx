@@ -177,7 +177,7 @@ export function AdminSection() {
       <ul className="settings-user-list">
         {adminMenu.map((item) => (
           <li key={item.href} className="settings-user-row">
-            <WireButton variant="secondary" href={item.href}>{item.label}</WireButton>
+            <WireButton variant="neutral" href={item.href}>{item.label}</WireButton>
           </li>
         ))}
         {/* 온보딩 진입 링크(CCC-61, 2026-08-08 Q 결정). 이 화면이 유일한 입구다. 그전에는
@@ -185,7 +185,7 @@ export function AdminSection() {
             그 목록이 관리자 탭줄도 함께 그리는데 /onboarding 은 관리자 영역 밖이기 때문이다.
             라벨은 '온보딩' 대신 그 화면이 실제로 하는 일로 적는다. */}
         <li className="settings-user-row">
-          <WireButton variant="secondary" href="/onboarding">기관·사업 이름</WireButton>
+          <WireButton variant="neutral" href="/onboarding">기관·사업 이름</WireButton>
         </li>
       </ul>
     </WireCard>
