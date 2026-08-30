@@ -241,8 +241,11 @@ export function RegisterForm({
 
           {/* 정보 표시 전용 아코디언(기본 접힘) — briefing-cards.tsx의 briefing-subaccordion 패턴을
               그대로 참고한다(요약 + .wire-card-arrow 회전 화살표). 체크박스 이름·액션·저장
-              구조는 건드리지 않는다. */}
-          <details className="consent-detail">
+              구조는 건드리지 않는다.
+              2026-08-30 Q: 위 두 상자와 같은 낱개 상자다("위 div 컴포넌트처럼 div 컴포넌트 안에
+              텍스트 넣기") — 구 전폭 가로선은 상자 테두리가 대신한다("위 가로선 없애고").
+              아래 '등록하기'는 이 상자에 넣지 않는다(같은 Q — 그대로 fieldset 밖 폼 행동). */}
+          <details className="consent-detail register-consent-block wire-repeat-card">
             <summary className="consent-detail-summary">
               <span>자세히 읽어보기</span>
               <span aria-hidden="true" className="wire-card-arrow" />

@@ -157,11 +157,15 @@ button,input,select,textarea{font:inherit}
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
 .navigation-soon{margin-left:auto;display:inline-flex;align-items:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
 /* 하위 메뉴(2026-08-30 Q "사이드바에 페이지를 모두 + 하위 서브 메뉴 신설" — D35 '등록은
-   우상단 행동' 축의 부분 개정, DESIGN.md §4-5): 일정 아래 상담 등록, 당사자 아래 당사자
-   등록·당사자 초대. 부모와 같은 내비 옷(16/500·높이 32)이고 **들여쓰기(아이콘 16 + gap 8)가
-   층을 말한다** — 위계 표(§1)는 읽는 줄 계약이라 누르는 내비에 새 단을 만들지 않는다. */
-.navigation-sublist{display:grid;gap:var(--space-1);margin:var(--space-1) 0 0;padding:0;list-style:none}
-.navigation-sublist .navigation-link{padding-left:calc(var(--space-3) + var(--space-6))}
+   우상단 행동' 축의 부분 개정, DESIGN.md §4-5): 일정 아래 상담 일정 등록, 당사자 아래
+   당사자 등록·당사자 초대.
+   **층은 왼쪽 세로선과 들여쓰기가 말한다**(같은 날 Q 2차 "아이콘 구분만 있음 … 여백을
+   주고 왼쪽 라인으로 처리"). 세로선은 **부모 아이콘 중심**(리스트 좌측 12 + 아이콘 절반 8
+   = 20)에 서서 부모에서 갈라져 나온 것으로 읽힌다. 그 오른쪽 8 을 띄우고 하위 링크가
+   자기 패딩 12 를 갖는다 — 하위 아이콘은 부모 아이콘에서 29 오른쪽이다.
+   **글자는 줄이지 않는다** — 셸 글자 하한 16(§5 · DESIGN.md §2-1 '사이드바' 행)이라
+   층 구분을 크기로 만들면 규칙을 깬다. 아이콘은 부모와 같은 16 라인 아이콘이다. */
+.navigation-sublist{display:grid;gap:var(--space-1);margin:var(--space-1) 0 0 var(--space-5);padding-left:var(--space-2);border-left:1px solid var(--line);list-style:none}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
@@ -550,10 +554,17 @@ const briefingStyles = `
 .briefing-ai-goal-hint>.wire-button{flex:none}
 /* 안내가 선 라벨 행 아래의 --line 가로선이 제안 목록과 표처럼 가른다(구 안내 행의
    border-bottom 을 라벨 행이 승계). 선은 구획 카드(.briefing-memo-item, 좌우 24) 양끝까지
-   가고, **선 위 여백(padding-bottom 8) = 선 아래 여백(.wire-card-section grid gap 8)** 이다
-   (2026-08-30 Q "가로선 기준 아래위 여백" 정합 — 구 위 12/아래 8 비대칭 대체).
-   design:align 게이트가 실측으로 지킨다(scripts/design/align-check.py). */
-.wire-card-section-head:has(>.briefing-ai-goal-hint){flex-wrap:wrap;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6);padding-bottom:var(--space-2);border-bottom:1px solid var(--line)}
+   간다.
+   **선 위·아래 여백과 항목 사이 여백이 한 값(16)이다**(2026-08-30 Q 3차 "아이템 ↔ 가로선
+   ↔ 아이템의 여백이 맞도록" — 구 8/8 은 서로 대칭이었지만 제안 목록의 항목 리듬
+   (.briefing-suggestions gap 16)과 어긋나 내용이 생성되면 선이 위 묶음에 붙어 보였다).
+   16 은 이 카드의 세로 패딩과도 같다 — 카드 안 풀블리드 가로선의 세로 여백은 그 카드의
+   세로 패딩과 같은 값이라는 계약(DESIGN.md §3-4 '가로선 중심 대칭')을 반복 행 카드
+   (.wire-repeat-card 패딩 16/24)에서 만족시킨다.
+   선 아래 16 은 구획의 row-gap 이 만든다(기본 8 을 이 자리에서만 올린다).
+   design:align 게이트가 실측으로 지킨다(scripts/design/align-check.py — gap-rhythm 축). */
+.wire-card-section:has(>.wire-card-section-head>.briefing-ai-goal-hint){row-gap:var(--space-4)}
+.wire-card-section-head:has(>.briefing-ai-goal-hint){flex-wrap:wrap;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6);padding-bottom:var(--space-4);border-bottom:1px solid var(--line)}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 2026-08-10 부터 공용 부품 WireCardSection 이
@@ -586,10 +597,12 @@ const briefingStyles = `
    의 고정 칸과 같은 계약이고, 날짜 폭 136 도 .record-held-at 과 같은 값이다. */
 /* 행 전체가 원문 회차 앵커로 가는 링크다(2026-08-30 Q "원본 연결" · D73 ① — a 요소가
    행 배치를 그대로 갖는다). 꺽쇠는 이동 어휘의 오른쪽 꺽쇠(§8 · .wire-chevron)로 행 끝.
-   호버는 면 호버(--muted — 반복 카드 안 전행 링크 .participant-next-schedule-link 전례),
-   눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다(2026-08-30 검수 반영). */
+   호버는 리스트 행 계약인 tint 쌍 --gradient-hover 다(§5 리스트 행 · 2026-08-03 Q — 구
+   --muted 단색은 그날 폐지됐다. 2026-08-30 검수 후 정정: 처음 배선할 때 드리프트가 남은
+   전례(.participant-next-schedule-link)를 따라 --muted 로 넣었다), 눌림은 공용 배선
+   (wire-styles.ts §6 목록)이 갖는다. */
 .briefing-session-row{display:flex;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
-@media (hover:hover){.briefing-session-row:hover{background:var(--muted)}}
+@media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
 .briefing-session-kind{flex:none;width:84px;display:inline-flex}
 .briefing-session-kind>.wire-badge{width:100%}
 .briefing-session-memo{flex:none;width:52px;display:inline-flex}
@@ -974,6 +987,10 @@ const registerStyles = `
 /* 왼쪽 정렬이다 — 가운데 정렬은 아래 입력칸 축에서 떨어져 나와 페이지마다 글이 다른 데서
    시작하는 것처럼 보인다(§5 '페이지 제목'이 가운데 정렬을 폐기한 것과 같은 이유). */
 .wire-invite-caption{margin:0;font-size:var(--text-md);color:var(--ink)}
+/* 당사자 초대 화면의 안내 문단만 14 다(2026-08-30 Q "링크에는..나타납니다 텍스트 14px").
+   같은 클래스를 쓰는 실무자 초대·공개 가입 화면은 낭독·전달용 16 계약(아래 2026-08-28 Q)
+   그대로다 — 그래서 전역이 아니라 이 화면 스코프로 좁힌다(.register-consent 선례). */
+.participant-invite-stack .wire-invite-caption{font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 낭독·전달용 화면이라 라벨·힌트를 16 진한색으로 올린다(2026-08-28 Q — §1 예외: 라벨
    ① 16/600 --ink, 힌트 ③ 16/400 --ink. 당사자에게 링크·QR·문안을 보여 주며 읽는 자리다). */
 .wire-invite-stack .wire-form-label{font-size:var(--text-md);color:var(--ink)}

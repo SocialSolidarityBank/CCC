@@ -1207,7 +1207,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    "낭독·전달용")과 체크 라벨 16 을 이 화면에서 14 로 내린다. 안내문(.schedule-form-hint)은
    줄바꿈을 줄이도록 카드 장폭을 전부 쓴다(구 72ch 읽기 폭 해제). */
 .consent-fieldset.register-consent{max-width:none;margin-inline:calc(var(--space-6) * -1);padding-block:var(--space-5) 0;padding-inline:var(--space-6);gap:var(--space-4)}
-.register-consent .consent-checkbox{font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+/* 동의 체크 라벨은 **14/600 --ink** 다(2026-08-30 Q 3차 "동의 내용은 텍스트 bold 처리" —
+   구 14/400. 크기 14 는 같은 날 2차 "동의 아래 텍스트 전부 14" 그대로다). 라벨이 곧
+   체크박스를 누르는 자리라 cursor 를 자기 선언으로 갖는다 — 위계 판정도 이 신호로 컨트롤
+   표(14/600 --ink '작은 컨트롤')를 쓴다(hierarchy-audit CONTROL_ROLES 주석). */
+.register-consent .consent-checkbox{font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
 .register-card .schedule-form-hint{max-width:none}
 /* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한
    상자다. 상자는 공용 .wire-repeat-card(마크업에서 병기)가 갖고, 여기는 배치와 radius 만
@@ -1219,9 +1223,23 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 /* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. padding-top:0 잔재는
    걷는다(2026-08-30 Q "여백 통일" — 상자 패딩 16/24 는 공용 .wire-repeat-card 가 갖는다). */
 .register-consent .consent-emergency{background:none}
-/* '자세히 읽어보기' 위 가로선도 fieldset 상단선처럼 카드 양끝까지 — 선이 중간에 끊기지
-   않는다(2026-08-29 Q). */
-.register-consent .consent-detail{margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6)}
+/* '자세히 읽어보기' 는 위 두 상자와 같은 낱개 상자다(2026-08-30 Q 3차 — 구 전폭 가로선
+   대체: 상자 테두리가 선을 대신한다). 상자 레시피는 공용 .wire-repeat-card, radius 6 은
+   .register-consent-block 이 갖는다(마크업에서 병기).
+   **여기서 하는 일은 면을 되세우는 것 하나다** — 구 .consent-detail 의 위 1px 은 배경
+   그라데이션이라, 같은 요소에 병기된 .wire-repeat-card 의 --panel 면과 한 축을 다툰다.
+   이 화면에서만 명시적으로 --panel 을 다시 선언해 선을 지운다(같은 클래스를 쓰는 동의
+   수정 허브의 '전문 보기'는 그대로 선을 갖는다).
+   패딩은 건드리지 않는다(2026-08-30 검수 반영 — 구 padding-top:0 은 배경선의 짝인 구
+   padding-top 8 을 걷으려던 것이었지만 명시도(0-2-0)가 레시피(0-1-0)의 16 까지 덮어
+   상자가 위 6 / 아래 22 로 기울었다. 형제 상자와 같은 16/24 는 레시피가 갖는다).
+   면을 --panel 로 유지하는 덕에 guard:align 의 묶음 상자 패딩 검사(테두리 + radius 토큰 +
+   --panel 면)가 이 상자도 승인 쌍으로 잰다 — 같은 결함이 다시 나면 커밋에서 걸린다. */
+.register-consent .consent-detail{background:var(--panel)}
+/* 상자가 된 뒤에는 전문 본문이 자기 상자를 벗는다 — 상자 안 상자가 되면 카드 안 카드 금지
+   (§3)의 예외를 한 겹 더 쌓는다. 읽기 폭 72ch 와 구획 간격은 그대로 두고 면·테두리·패딩만
+   내려놓는다(간격은 .register-consent-block 의 gap 12 이 만든다). */
+.register-consent .consent-detail-body{margin-top:0;padding:0;background:none;border:0}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}

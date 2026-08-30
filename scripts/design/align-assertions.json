@@ -1,19 +1,36 @@
 [
   {
     "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
-    "selectors": [".wire-card-section-head:has(>.briefing-ai-goal-hint)>h3", ".briefing-ai-goal-hint"],
+    "selectors": [
+      "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)>h3",
+      "#align-content .briefing-ai-goal-hint"
+    ],
     "axis": "y",
     "tolerance": 1
   },
   {
-    "name": "AI 제안 안내 행 가로선의 위아래 여백이 같다",
-    "selectors": [".wire-card-section-head:has(>.briefing-ai-goal-hint)", "#briefing-remember [data-tone=\"lavender\"] .empty"],
+    "name": "제안 없음: AI 제안 안내 행 가로선의 위아래 여백이 같다",
+    "selectors": [
+      "#align-empty .wire-card-section-head:has(>.briefing-ai-goal-hint)",
+      "#align-empty #briefing-remember [data-tone=\"lavender\"] .empty"
+    ],
     "axis": "gap-y",
     "tolerance": 1
   },
   {
+    "name": "제안 있음: 항목 ↔ 가로선 ↔ 항목 여백이 한 값",
+    "selectors": [
+      "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)",
+      "#align-content #briefing-remember .briefing-suggestions",
+      "#align-content #briefing-remember .briefing-suggestions>li:nth-child(1)",
+      "#align-content #briefing-remember .briefing-suggestions>li:nth-child(2)"
+    ],
+    "axis": "gap-rhythm",
+    "tolerance": 1
+  },
+  {
     "name": "세부 목표 불릿 점은 첫 줄 세로 중앙",
-    "selectors": [".briefing-subgoal-rows.wire-bullets>li"],
+    "selectors": ["#align-content .briefing-subgoal-rows.wire-bullets>li"],
     "axis": "bullet-y",
     "tolerance": 1
   }

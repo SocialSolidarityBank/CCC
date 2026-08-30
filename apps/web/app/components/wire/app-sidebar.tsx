@@ -30,14 +30,19 @@ import { ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 // 활성 항목 --blue-tint 배경 + --gradient-brand 테두리. 클래스는 layout.tsx 의
 // .sidebar / .navigation-link / .sidebar-head / .sidebar-actions 를 그대로 쓴다.
 
+type NavIconName = 'upcoming' | 'calendar' | 'participants' | 'participant-add' | 'invite';
+
 interface NavItem {
   label: string;
   href: string;
-  icon: 'upcoming' | 'calendar' | 'participants';
+  icon: NavIconName;
   /** 아직 화면이 없는 메뉴. 누르기 전에 알린다 — 눌러 보고 실망하지 않게 (CCC-23). */
   soon?: boolean;
-  /** 하위 메뉴(2026-08-30 Q). 부모와 같은 내비 옷, 들여쓰기가 층을 말한다. 아이콘 없음. */
-  children?: { label: string; href: string }[];
+  /**
+   * 하위 메뉴(2026-08-30 Q). 부모와 같은 내비 옷이고 **아이콘도 전부 갖는다**(같은 날 Q 2차
+   * "적당한 아이콘은 모두 넣되"). 층은 들여쓰기와 왼쪽 세로선이 말한다.
+   */
+  children?: { label: string; href: string; icon: NavIconName }[];
 }
 
 /**
@@ -52,15 +57,15 @@ function programMenu(programType: ParticipantProgramType): NavItem[] {
       label: '일정',
       href: `/programs/${programType}/schedule`,
       icon: 'upcoming',
-      children: [{ label: '상담 등록', href: '/schedules/new' }],
+      children: [{ label: '상담 일정 등록', href: '/schedules/new', icon: 'calendar' }],
     },
     {
       label: '당사자',
       href: '/participants',
       icon: 'participants',
       children: [
-        { label: '당사자 등록', href: '/participants/new' },
-        { label: '당사자 초대', href: '/participants/invite' },
+        { label: '당사자 등록', href: '/participants/new', icon: 'participant-add' },
+        { label: '당사자 초대', href: '/participants/invite', icon: 'invite' },
       ],
     },
   ];
@@ -189,6 +194,7 @@ export function AppSidebar({
                         data-current={childActive ? 'true' : undefined}
                         aria-current={childActive ? 'page' : undefined}
                       >
+                        <NavIcon name={child.icon} />
                         <span>{child.label}</span>
                       </Link>
                     </li>

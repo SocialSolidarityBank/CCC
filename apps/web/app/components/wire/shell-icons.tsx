@@ -6,6 +6,8 @@ export type ShellIconName =
   | 'upcoming'
   | 'calendar'
   | 'participants'
+  | 'participant-add'
+  | 'invite'
   | 'settings'
   | 'org'
   | 'logout'
@@ -40,6 +42,12 @@ export function NavIcon({ name }: { name: ShellIconName }) {
       return <svg {...common}><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /></svg>;
     case 'participants':
       return <svg {...common}><circle cx="8" cy="5.5" r="2.5" /><path d="M3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4" /></svg>;
+    // 하위 메뉴 아이콘 2종(2026-08-30 Q "적당한 아이콘은 모두 넣되"). 부모 '당사자'(사람)와
+    // 같은 어휘에서 갈라진다 — 등록은 사람+더하기, 초대는 건네는 링크(고리 두 개).
+    case 'participant-add':
+      return <svg {...common}><circle cx="6.5" cy="5.5" r="2.5" /><path d="M2 13.5c0-2.3 2-3.8 4.5-3.8" /><path d="M11.5 9.5v4.5M9.25 11.75h4.5" /></svg>;
+    case 'invite':
+      return <svg {...common}><path d="M6.4 9.6 9.6 6.4" /><path d="M8.6 4.9 10 3.5a2.5 2.5 0 0 1 3.5 3.5l-1.4 1.4" /><path d="M7.4 11.1 6 12.5A2.5 2.5 0 0 1 2.5 9l1.4-1.4" /></svg>;
     // 설정은 톱니(원+방사선)가 아니라 **슬라이더**다(2026-08-02 CCC-52) — 방사선 톱니는
     // 16px 에서 해(라이트 모드) 아이콘과 같은 모양으로 렌더돼 테마 항목과 겹쳐 보였다.
     case 'settings':
