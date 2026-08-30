@@ -1,0 +1,20 @@
+[
+  {
+    "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
+    "selectors": [".wire-card-section-head:has(>.briefing-ai-goal-hint)>h3", ".briefing-ai-goal-hint"],
+    "axis": "y",
+    "tolerance": 1
+  },
+  {
+    "name": "AI 제안 안내 행 가로선의 위아래 여백이 같다",
+    "selectors": [".wire-card-section-head:has(>.briefing-ai-goal-hint)", "#briefing-remember [data-tone=\"lavender\"] .empty"],
+    "axis": "gap-y",
+    "tolerance": 1
+  },
+  {
+    "name": "세부 목표 불릿 점은 첫 줄 세로 중앙",
+    "selectors": [".briefing-subgoal-rows.wire-bullets>li"],
+    "axis": "bullet-y",
+    "tolerance": 1
+  }
+]

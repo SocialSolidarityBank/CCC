@@ -9,6 +9,7 @@ import { WireQuote, WireSourceQuotes } from '../../../../../components/wire/wire
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
+import { Chevron } from '../../../../../components/wire/chevron';
 import { ConsultationTypeBadge, consultationTypeLabel } from '../../../../../components/wire/consultation-type-badge';
 import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
@@ -204,8 +205,10 @@ function OverallGoalCard({
 }
 
 /**
- * 전체 목표 미설정 안내 한 줄 (D62 §7 · CCC-69). AI 제안을 차단하지 않고 안내만 한다 —
+ * 전체 목표 미설정 안내 (D62 §7 · CCC-69). AI 제안을 차단하지 않고 안내만 한다 —
  * "설정을 해야만 정확한 AI 조언"의 '해야만'은 차단이 아니라 이 안내로 확정됐다(2026-08-09 Q).
+ * 자리는 'AI 제안' 라벨 행의 오른쪽이다(2026-08-30 Q "같은 행의 오른쪽에 안내 문구로" —
+ * 구 본문 위 전폭 행 대체. 본문처럼 읽히던 문제를 안내 자리로 푼다).
  * 닫으면 케이스 단위로 브라우저에 남아 다시 뜨지 않는다(매번 뜨지 않게 — ADR-0032 §7).
  * 서버에 저장하지 않는 이유: 케이스 데이터가 아니라 화면 안내이고, 실무자마다 따로 닫는 것이
  * 자연스럽다. 저장 실패(시크릿 모드 등)의 대가는 다음 방문에 다시 뜨는 것뿐이다.
@@ -213,19 +216,21 @@ function OverallGoalCard({
 const GOAL_HINT_STORE_PREFIX = 'ccc:briefing-goal-hint-closed:v1:';
 
 function AiGoalHint({ supportCaseId }: { supportCaseId: string }) {
-  // 첫 렌더는 서버·클라이언트 모두 숨김 — localStorage 는 마운트 뒤에만 읽을 수 있어
-  // 초기값으로 읽으면 하이드레이션이 어긋난다.
-  const [visible, setVisible] = useState(false);
+  // 첫 렌더부터 보인다(2026-08-30 — 구 "마운트 뒤 표시" 반전). 정적 렌더(하니스·align
+  // 게이트)가 이 행을 재야 하고, 안 닫은 다수에게 마운트 후 내용이 밀리던 것도 없앤다.
+  // 닫았던 사람만 마운트 직후 사라진다 — localStorage 는 마운트 뒤에만 읽을 수 있어
+  // 서버·클라이언트 첫 렌더를 같게 두는 방식은 그대로다(하이드레이션 정합).
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`) === null) setVisible(true);
+      if (window.localStorage.getItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`) !== null) setDismissed(true);
     } catch {
-      setVisible(true);
+      // 저장소를 못 읽으면 안내를 그대로 둔다 — 안내라 막을 일이 아니다.
     }
   }, [supportCaseId]);
-  if (!visible) return null;
+  if (dismissed) return null;
   const dismiss = () => {
-    setVisible(false);
+    setDismissed(true);
     try {
       window.localStorage.setItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`, new Date().toISOString());
     } catch {
@@ -233,10 +238,10 @@ function AiGoalHint({ supportCaseId }: { supportCaseId: string }) {
     }
   };
   return (
-    <p className="briefing-ai-goal-hint" role="note" data-testid="briefing-ai-goal-hint">
+    <span className="briefing-ai-goal-hint" role="note" data-testid="briefing-ai-goal-hint">
       <span>전체 목표를 설정하면 AI 제안이 더 정확해집니다.</span>
       <WireButton variant="neutral" onClick={dismiss}>닫기</WireButton>
-    </p>
+    </span>
   );
 }
 
@@ -492,9 +497,13 @@ export function BriefingCards({
             </WireCardSection>
           </div>
           <div className="briefing-memo-item wire-repeat-card">
-            <WireCardSection title="AI 제안" tone="lavender">
-              {/* 전체 목표 미설정 안내 (D62 §7) — 제안을 차단하지 않는다. 닫으면 케이스 단위로 남는다. */}
-              {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
+            {/* 전체 목표 미설정 안내(D62 §7)는 라벨 행 오른쪽 action 슬롯이다(2026-08-30 Q).
+                제안을 차단하지 않는다. 닫으면 케이스 단위로 남고, 닫힌 뒤에는 라벨만 남는다. */}
+            <WireCardSection
+              title="AI 제안"
+              tone="lavender"
+              action={overallGoal === null ? <AiGoalHint supportCaseId={supportCaseId} /> : undefined}
+            >
               {aiSuggestions.length === 0
                 ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
                 : (
@@ -580,22 +589,28 @@ export function BriefingCards({
             : (
               <ul className="briefing-session-rows">
                 {sessionRows.map((row) => (
-                  <li key={row.sessionId} className="briefing-session-row">
-                    <span className="briefing-session-date">{formatKoreanDate(row.heldAt)}</span>
-                    <span className="briefing-session-kind">
-                      <ConsultationTypeBadge kind={row.kind} />
-                    </span>
-                    <span className="briefing-session-memo">
-                      {row.aiOneLiner === null && row.memoExcerpt !== null && (
-                        <WireBadge>수기</WireBadge>
-                      )}
-                    </span>
-                    <span className="briefing-session-text wire-fade-clip">
-                      {/* 일괄 검토 A9 (2026-08-08): 인테이크는 메모 칸이 없어 '수기 메모 없음'이
-                          항상 나오는 빈말이었다 — 질문지 회차임을 알리는 문구로 낮춘다. */}
-                      {row.aiOneLiner ?? row.memoExcerpt
-                        ?? (row.kind === 'intake' ? '인테이크 질문지 작성 회차' : '수기 메모 없음')}
-                    </span>
+                  <li key={row.sessionId}>
+                    {/* 행 전체가 원문 회차로 가는 링크다(2026-08-30 Q "원본 연결" · D73 ① —
+                        도착지는 전체 상담 기록의 회차 앵커(#record-{id}, RecordHashOpener 가
+                        접힌 회차를 펼친다). 꺽쇠는 이동 어휘의 오른쪽 꺽쇠(§8). */}
+                    <Link className="briefing-session-row" href={`${recordsHref}#record-${row.sessionId}`}>
+                      <span className="briefing-session-date">{formatKoreanDate(row.heldAt)}</span>
+                      <span className="briefing-session-kind">
+                        <ConsultationTypeBadge kind={row.kind} />
+                      </span>
+                      <span className="briefing-session-memo">
+                        {row.aiOneLiner === null && row.memoExcerpt !== null && (
+                          <WireBadge>수기</WireBadge>
+                        )}
+                      </span>
+                      <span className="briefing-session-text wire-fade-clip">
+                        {/* 일괄 검토 A9 (2026-08-08): 인테이크는 메모 칸이 없어 '수기 메모 없음'이
+                            항상 나오는 빈말이었다 — 질문지 회차임을 알리는 문구로 낮춘다. */}
+                        {row.aiOneLiner ?? row.memoExcerpt
+                          ?? (row.kind === 'intake' ? '인테이크 질문지 작성 회차' : '수기 메모 없음')}
+                      </span>
+                      <Chevron dir="right" />
+                    </Link>
                   </li>
                 ))}
               </ul>

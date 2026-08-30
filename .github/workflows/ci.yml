@@ -93,6 +93,10 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
       - name: 하니스 생성과 실측
         run: pnpm design:hierarchy
+      # 정렬 실측(2026-08-30 Q — align-check 스킬 계약의 레포 게이트). 같은 브라우저·폰트
+      # 셋업을 재사용하므로 이 잡에 얹는다. 하니스는 자기 생성기가 따로 만든다.
+      - name: 정렬 실측
+        run: pnpm design:align
       - name: 실측 결과 보관
         if: always()
         uses: actions/upload-artifact@v5

@@ -119,7 +119,9 @@ button,input,select,textarea{font:inherit}
 /* 좌우 -12(--space-3)는 항목의 안쪽 패딩만큼 알약을 되밀어 **아이콘·글자가 사이드바
    좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
    알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다. */
-.navigation-list{display:grid;gap:var(--space-1);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
+/* 행 사이 여백은 8 이다(2026-08-30 Q "각 ROW 여백을 늘려서 조율" — 구 4. 하위 메뉴가
+   생기며 4 는 층 구분 없이 빽빽했다). */
+.navigation-list{display:grid;gap:var(--space-2);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
 /* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
    전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
 /* 높이는 '뒤로' 알약과 같은 32다. 첫 메뉴와 뒤로 버튼은 헤더 아래 32에서 함께 시작한다. */
@@ -154,6 +156,12 @@ button,input,select,textarea{font:inherit}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
 .navigation-soon{margin-left:auto;display:inline-flex;align-items:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
+/* 하위 메뉴(2026-08-30 Q "사이드바에 페이지를 모두 + 하위 서브 메뉴 신설" — D35 '등록은
+   우상단 행동' 축의 부분 개정, DESIGN.md §4-5): 일정 아래 상담 등록, 당사자 아래 당사자
+   등록·당사자 초대. 부모와 같은 내비 옷(16/500·높이 32)이고 **들여쓰기(아이콘 16 + gap 8)가
+   층을 말한다** — 위계 표(§1)는 읽는 줄 계약이라 누르는 내비에 새 단을 만들지 않는다. */
+.navigation-sublist{display:grid;gap:var(--space-1);margin:var(--space-1) 0 0;padding:0;list-style:none}
+.navigation-sublist .navigation-link{padding-left:calc(var(--space-3) + var(--space-6))}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
@@ -535,12 +543,17 @@ const briefingStyles = `
    색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
 .briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
 .briefing-parent-goal.is-closed{color:var(--sub)}
-/* 전체 목표 미설정 안내 한 줄 (D62 §7) — 설명·메타 단(14/400 --sub, §2-2 단 ④).
-   한 행이 구획 폭을 전부 쓰고 '닫기'는 오른쪽 끝이다(2026-08-30 Q 2차 "버튼이 너무 커서
-   행을 나누라" — 구 글줄 옆 흘림 대체). 아래 --line 가로선이 제안 목록과 표처럼 가른다.
-   선은 구획 카드(.briefing-memo-item, 좌우 24) 양끝까지 간다. */
-.briefing-ai-goal-hint{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;margin:0 calc(var(--space-6) * -1);padding:0 var(--space-6) var(--space-3);border-bottom:1px solid var(--line);font-size:var(--text-sm);color:var(--sub)}
-.briefing-ai-goal-hint>.wire-button{flex:none;margin-left:auto}
+/* 전체 목표 미설정 안내 (D62 §7) — 'AI 제안' 라벨 행 오른쪽의 안내 조각이다(2026-08-30 Q
+   "같은 행의 오른쪽에 안내 문구로" — 구 본문 위 전폭 행 대체: 안내가 본문처럼 읽혔다).
+   글자는 설명·메타 단(14/400 --sub, §2-2 단 ④), 닫기 버튼(32)이 행 높이를 정한다. */
+.briefing-ai-goal-hint{display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);color:var(--sub)}
+.briefing-ai-goal-hint>.wire-button{flex:none}
+/* 안내가 선 라벨 행 아래의 --line 가로선이 제안 목록과 표처럼 가른다(구 안내 행의
+   border-bottom 을 라벨 행이 승계). 선은 구획 카드(.briefing-memo-item, 좌우 24) 양끝까지
+   가고, **선 위 여백(padding-bottom 8) = 선 아래 여백(.wire-card-section grid gap 8)** 이다
+   (2026-08-30 Q "가로선 기준 아래위 여백" 정합 — 구 위 12/아래 8 비대칭 대체).
+   design:align 게이트가 실측으로 지킨다(scripts/design/align-check.py). */
+.wire-card-section-head:has(>.briefing-ai-goal-hint){flex-wrap:wrap;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6);padding-bottom:var(--space-2);border-bottom:1px solid var(--line)}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 2026-08-10 부터 공용 부품 WireCardSection 이
@@ -571,7 +584,12 @@ const briefingStyles = `
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
    없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게. 회차 목록(.record-summary)
    의 고정 칸과 같은 계약이고, 날짜 폭 136 도 .record-held-at 과 같은 값이다. */
-.briefing-session-row{display:flex;align-items:center;gap:var(--space-4);min-width:0}
+/* 행 전체가 원문 회차 앵커로 가는 링크다(2026-08-30 Q "원본 연결" · D73 ① — a 요소가
+   행 배치를 그대로 갖는다). 꺽쇠는 이동 어휘의 오른쪽 꺽쇠(§8 · .wire-chevron)로 행 끝.
+   호버는 면 호버(--muted — 반복 카드 안 전행 링크 .participant-next-schedule-link 전례),
+   눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다(2026-08-30 검수 반영). */
+.briefing-session-row{display:flex;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+@media (hover:hover){.briefing-session-row:hover{background:var(--muted)}}
 .briefing-session-kind{flex:none;width:84px;display:inline-flex}
 .briefing-session-kind>.wire-badge{width:100%}
 .briefing-session-memo{flex:none;width:52px;display:inline-flex}

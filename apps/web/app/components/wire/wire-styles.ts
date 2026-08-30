@@ -409,9 +409,9 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    뒤쪽이라 한 클래스끼리는 그쪽이 이긴다): 세부 목표마다 세션 목표 가지가 매달려 있어,
    8 이면 옆 목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. */
 .goal-tree-goals.wire-bullets{gap:var(--space-4)}
-/* 목표 li 의 첫 줄은 32px 원형 화살표가 키운 head 행이다 — 공용 불릿의 .55em(자기 14px
-   글줄 기준)은 그 행 중앙보다 5px 위에 찍힌다(2026-08-29 실측). 점 중심을 head 행
-   (--pill-height) 세로 중앙에 맞춘다: top = 32/2 - 점 반지름 3. */
+/* 목표 li 의 첫 줄은 32px 원형 화살표가 키운 head 행이다 — 공용 불릿의 첫 줄 중앙 공식
+   (자기 14px 글줄 기준)은 그 행 중앙보다 위에 찍힌다. 점 중심을 head 행(--pill-height)
+   세로 중앙에 맞춘다: top = 32/2 - 점 반지름 3. */
 .goal-tree-goals.wire-bullets>li::before{top:calc(var(--pill-height) / 2 - 3px)}
 .goal-tree-goal{display:grid;gap:var(--space-2)}
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
@@ -673,10 +673,13 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-field-value[data-size="sm"]{font-size:var(--text-sm)}
 .wire-field-value[data-emphasis="true"]{font-weight:600}
 /* 불릿 목록(§5): 6px 원형 --sub 불릿 + 14/400(2026-08-28 Q 본문 14). 불릿은 2개 이상일 때만이다(2026-08-07 Q
-   규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
+   규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다).
+   점은 **첫 줄 상자의 세로 중앙**이다(2026-08-30 Q "불렛이 아래로 쳐져있다" — 구 top:.55em
+   은 중앙보다 약 2px 아래였다. 1lh = 자기 행간이라 글자 크기가 바뀌어도 따라온다).
+   design:align 게이트가 실측으로 지킨다(scripts/design/align-check.py). */
 .wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-sm)}
 .wire-bullets>li{position:relative;padding-left:var(--space-4)}
-.wire-bullets>li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--sub)}
+.wire-bullets>li::before{content:"";position:absolute;left:0;top:calc((1lh - 6px) / 2);width:6px;height:6px;border-radius:var(--radius-pill);background:var(--sub)}
 /* 단일 항목 — 목록이 아니라 문장이다. 크기·색은 불릿 항목과 같고 불릿·들여쓰기만 없다. */
 .wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-sm)}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
@@ -997,7 +1000,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 }
 .motion-press:active{transform:translateY(1px)}
 /* 눌림 배선(§6·CCC-53): 모든 클릭 요소가 같은 어휘를 쓴다. 버튼은 위 :active 규칙이 이미 갖는다. */
-.wire-row:not([data-static="true"]):active,.record-summary:active,.navigation-link:active,.wire-tab:active,.program-switcher-trigger:active{transform:translateY(1px)}
+.wire-row:not([data-static="true"]):active,.record-summary:active,.navigation-link:active,.wire-tab:active,.program-switcher-trigger:active,.briefing-session-row:active{transform:translateY(1px)}
 /* 떠오름(구 §6 ③)은 2026-08-04 Q 결정으로 폐지 — 로딩·스크롤 진입 모션은 없다.
    모션은 호버(흐름)·눌림 두 계열만 남는다(ADR-0028 개정 기록). */
 /* 공용 아이콘(CCC-49): 문장 속에 서면 베이스라인에 맞춰 살짝 내린다(em 비례라 크기를 따라간다).

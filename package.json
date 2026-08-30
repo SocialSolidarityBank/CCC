@@ -24,6 +24,7 @@
     "guard:hierarchy:test": "node scripts/design/hierarchy-audit.test.mjs",
     "guard:hierarchy:baseline": "node scripts/design/hierarchy-audit.mjs --update-baseline",
     "design:hierarchy": "pnpm --filter @ccc/web exec vitest run app/kit/hierarchy-harness.test.tsx && ${HIERARCHY_PYTHON:-python3} scripts/design/hierarchy-measure.py",
+    "design:align": "pnpm --filter @ccc/web exec vitest run app/kit/align-harness.test.tsx && ${HIERARCHY_PYTHON:-python3} scripts/design/align-check.py",
     "design:contrast": "node scripts/design/contrast.mjs",
     "guard:secrets": "node scripts/guard-secrets.mjs",
     "guard:secrets:history": "node scripts/guard-secrets.mjs --history",

@@ -71,6 +71,12 @@ pnpm guard:tokens && pnpm guard:align && pnpm guard:hierarchy
 pnpm design:hierarchy
 ```
 
+선언된 정렬 단언(가로선 여백·불릿 중앙 등)까지 실측하려면(마찬가지로 브라우저, CI 동일):
+
+```bash
+pnpm design:align
+```
+
 ## 3. 검수 요청, 읽기 전용 에이전트
 
 **자기가 만든 것을 같은 맥락에서 승인하지 않는다**(`CLAUDE.md` 실행 규약). 검수는 격리된
