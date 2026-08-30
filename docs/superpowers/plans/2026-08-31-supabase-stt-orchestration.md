@@ -128,6 +128,8 @@ git commit -m "docs(plan): Supabase와 STT 전환 계획 통합"
 
 ADR-0040, CLAUDE.md D76부터 D79, vendor matrix를 함께 만든다. 기존 그릴링 플랜의 긴 대시 1건은 새 문서에 복사하지 않는다.
 
+이 Wave에서는 총괄 계획이 우선한다. 두 실행 계획 Task 1의 마지막 개별 커밋 단계는 건너뛰고, 아래 Step 3의 통합 커밋 하나만 만든다.
+
 - [ ] **Step 2: prep 스펙을 main으로 복사하지 않는다**
 
 두 새 실행 계획이 필요한 계약과 단계 전체를 흡수했으므로 오래된 prep 스펙을 새 SSOT로 승격하지 않는다. origin prep 브랜치는 근거 보존용으로 둔다.
