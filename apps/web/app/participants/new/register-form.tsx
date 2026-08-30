@@ -159,7 +159,7 @@ export function RegisterForm({
           <legend>동의</legend>
           {/* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 안내문+동의 체크 2개가 한 상자다.
               서명 첨부 자리는 이미 자기 상자(점선)라 형제로 둔다. */}
-          <div className="register-consent-block">
+          <div className="register-consent-block wire-repeat-card">
             <p className="schedule-form-hint">
               동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.
               개인정보 수집·이용 동의는 등록에 반드시 필요하며, AI를 활용한 녹취기록은 미동의여도 등록이 진행됩니다.
@@ -207,7 +207,7 @@ export function RegisterForm({
           {/* G1 예외: 긴급 등록. 동의를 받을 수 없는 급박한 개입에서만 쓰고, 사유가 케이스에
               남으며 보완 기한(기본 14일) 전에 알림이 간다. 예외 경로일 뿐 확인된 리스크가
               아니므로 리스크 레드를 쓰지 않는다(D9 — 리스크 색 독점). */}
-          <div className="consent-emergency register-consent-block">
+          <div className="consent-emergency register-consent-block wire-repeat-card">
             <label className="consent-checkbox">
               <input
                 type="checkbox"
