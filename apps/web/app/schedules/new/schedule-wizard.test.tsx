@@ -220,6 +220,29 @@ describe('ScheduleWizard', () => {
     expect(input).not.toHaveProperty('caseGoals');
   });
 
+  // 2026-08-30 Q: 기본 상담의 2단계 칩은 그 단계에 실제로 선 것 둘을 다 부른다. 2026-08-28 Q
+  // 가 목표와 맞춤형 질문을 한 단계 2열로 합쳤는데 칩은 '상담 목표' 하나만 부르고 있었다 —
+  // 인테이크 칩은 자기 내용을 전부 부르므로 두 경로의 충실도가 어긋나 있었다.
+  // 가운뎃점 대신 '와' 로 잇는다(§10 구분자 가운뎃점 금지 — guard:tokens 가 강제).
+  it('기본 상담 2단계 칩은 목표와 맞춤형 질문을 함께 부른다', () => {
+    const { container } = renderWizard({ candidates: [candidates[0]!, freshCandidate] });
+    const scoped = within(container);
+
+    // 미선택 기본값은 기본 상담이다.
+    expect([...container.querySelectorAll('.wire-step-label')].map((el) => el.textContent))
+      .toEqual(['당사자 선택', '상담 목표와 맞춤형 질문']);
+
+    // 인테이크 없는 당사자를 고르면 유형이 인테이크로 잡히고 칩도 그 단계 이름으로 바뀐다.
+    fireEvent.click(scoped.getByRole('button', { name: freshCandidateLabel }));
+    expect([...container.querySelectorAll('.wire-step-label')].map((el) => el.textContent))
+      .toEqual(['당사자 선택', '맞춤형 질문']);
+
+    // 인테이크를 마친 당사자로 되돌리면 다시 기본 상담 칩이다.
+    fireEvent.click(scoped.getByRole('button', { name: candidateLabel }));
+    expect([...container.querySelectorAll('.wire-step-label')].map((el) => el.textContent))
+      .toEqual(['당사자 선택', '상담 목표와 맞춤형 질문']);
+  });
+
   // 2026-08-09 Q: 카드 full-width + '당사자 정보' 버튼이 카드 안이다. 가명 ID 는 이름 다음
   // 공용 .participant-card-id 조각으로 선다(2026-08-28 Q 통일 — 구 mint 전용 클래스 대체).
   it('후보 카드가 가명 ID 조각과 당사자 정보 링크를 카드 안에 갖는다', () => {

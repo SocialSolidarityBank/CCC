@@ -251,7 +251,6 @@ const MARKUP_HOOKS = new Set([
   'participant-hub-page',   // 허브 페이지 뿌리 훅(page-content 가 옷을 가짐)
   'session-plan-card',      // 세션 목표 카드 식별 훅(WireCard 가 옷을 가짐)
   'wire-signup-done',       // 가입 완료 구획 훅(wire-invite-stack 이 옷을 가짐)
-  'consent-policy-slot',    // 동의 안내 자리 표지(2026-08-30 Q — 옷은 hint-slot 이 가짐)
   'wire-step-label',        // 스텝 라벨 조각 — 옷은 칩(.wire-step)이 갖고, 위저드 테스트 앵커
   'consent-detail-paragraph', // 동의 문단 나열 판정 훅 — 같은 클래스 형제 = 나열(위계 실측 계약)
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)

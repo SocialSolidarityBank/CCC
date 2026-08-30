@@ -40,14 +40,16 @@ button,input,select,textarea{font:inherit}
 /* 사이드바(§4): **캔버스 배경 + 오른쪽 1px 그라데이션 라인**(2026-08-05 Q — 구 --gradient-sidebar
    면 배경 폐지: "모두 라인으로 영역 구분". 라인 3색은 그 배경의 블루→민트→라벤더 축 그대로).
    **뷰포트 고정**(2026-08-02 D58/CCC-52): 본문이 스크롤해도 제자리다. 메뉴가 넘치면
-   아래 .navigation-list 만 안에서 스크롤한다.
+   아래 .navigation-groups 만 안에서 스크롤한다(2026-08-30 Q 3차 — 목록이 묶음마다 하나씩).
    768 미만 드로어 블록이 position:fixed 로 덮으므로 여기 값은 데스크톱에만 산다.
    헤더가 1행을 차지하므로 sticky 기준은 var(--header-height) 아래다. 위 패딩 32는
    첫 메뉴 항목과 본문 열 '뒤로' 알약의 윗변을 같은 높이에 세운다. */
 .sidebar{display:flex;flex-direction:column;gap:var(--space-8);padding:var(--space-8) var(--space-6) var(--space-6);background:var(--canvas);color:var(--ink);position:sticky;top:var(--header-height);height:calc(100dvh - var(--header-height));overflow:visible}
 .sidebar::after{content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:var(--gradient-frame-v)}
-/* 메뉴만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해 안 줄어든다). */
-.sidebar>.navigation-list{overflow-y:auto;min-height:0}
+/* 메뉴 묶음만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해
+   안 줄어든다). 2026-08-30 Q 3차로 스크롤 주인이 목록에서 묶음 래퍼로 옮겼다 — 목록이
+   묶음마다 하나씩 있어 어느 하나가 스크롤을 맡을 수 없다. */
+.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start}
 .navigation-link{display:flex;align-items:center;gap:var(--space-2)}
 /* CCC-26: 새 가입 숫자 배지는 메뉴 라벨 뒤가 아니라 trailing chip 자리(준비 중과 같은 우측 끝)에 둔다. */
 .navigation-link>.wire-badge{margin-left:auto}
@@ -156,16 +158,21 @@ button,input,select,textarea{font:inherit}
 /* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
    파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
 .navigation-soon{margin-left:auto;display:inline-flex;align-items:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
-/* 하위 메뉴(2026-08-30 Q "사이드바에 페이지를 모두 + 하위 서브 메뉴 신설" — D35 '등록은
-   우상단 행동' 축의 부분 개정, DESIGN.md §4-5): 일정 아래 상담 일정 등록, 당사자 아래
-   당사자 등록·당사자 초대.
-   **층은 왼쪽 세로선과 들여쓰기가 말한다**(같은 날 Q 2차 "아이콘 구분만 있음 … 여백을
-   주고 왼쪽 라인으로 처리"). 세로선은 **부모 아이콘 중심**(리스트 좌측 12 + 아이콘 절반 8
-   = 20)에 서서 부모에서 갈라져 나온 것으로 읽힌다. 그 오른쪽 8 을 띄우고 하위 링크가
-   자기 패딩 12 를 갖는다 — 하위 아이콘은 부모 아이콘에서 29 오른쪽이다.
-   **글자는 줄이지 않는다** — 셸 글자 하한 16(§5 · DESIGN.md §2-1 '사이드바' 행)이라
-   층 구분을 크기로 만들면 규칙을 깬다. 아이콘은 부모와 같은 16 라인 아이콘이다. */
-.navigation-sublist{display:grid;gap:var(--space-1);margin:var(--space-1) 0 0 var(--space-5);padding-left:var(--space-2);border-left:1px solid var(--line);list-style:none}
+/* 메뉴 묶음(2026-08-30 Q 3차 "섹션 아래 … 로 나누고 … 서브 메뉴 없이 메뉴는 1개의 계층으로
+   통일" — 구 부모 링크 + 하위 목록(세로선·들여쓰기) 대체. D35 축 개정 기록은 DESIGN.md §4-5):
+   '일정' 아래 상담 일정 보기·상담 일정 등록, '당사자' 아래 당사자 목록·당사자 등록·당사자 초대.
+   묶음 사이는 24, 제목과 첫 항목 사이는 8 이다 — 제목이 자기 목록에 붙어 읽힌다.
+   제목은 **누를 수 없는 라벨**이라 항목(16/500)과 크기·굵기·색이 전부 갈린다(14/600 --sub,
+   §1 단 ② 라벨). 셸 글자 하한 16 은 **누르는 내비 항목**의 계약이고 묶음 머리는 그 밖이다
+   (DESIGN.md §2-1 '사이드바' 행 2026-08-30 개정 — 그 한 자리 예외다).
+   **제목은 목록과 같은 -12/+12 틀을 받는다**(2026-08-30 검수 반영): 항목은 목록의 -12 되밀기
+   덕에 아이콘이 사이드바 좌측선(패딩 24)에 서는데, 제목만 그 틀을 못 받아 12 오른쪽에 서
+   있었다. 같은 틀을 주면 제목 글자와 항목 아이콘이 한 축이다(드로어는 목록과 함께 마진만
+   0 으로 되돌아간다 — 그쪽은 아이콘도 12 오른쪽이라 축이 유지된다).
+   투명 테두리 1.5 까지 함께 받는 이유: 항목은 활성 아웃라인 자리를 그 두께로 미리 예약해
+   두므로(위 .navigation-link 규칙) 제목이 그것을 안 받으면 글자가 1.5 왼쪽에 선다. */
+.navigation-group{display:grid;gap:var(--space-2)}
+.navigation-section-title{margin:0 calc(var(--space-3) * -1);padding:0 var(--space-3);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
@@ -384,7 +391,7 @@ textarea{min-height:216px;resize:vertical}
     height:auto;
     width:280px;max-width:82vw;
     /* 위 패딩 0: 머리 줄이 스스로 높이 56 을 갖는다(아래 .sidebar-head — 바와 같은 높이).
-       세로 스크롤은 데스크톱과 같은 구조로 메뉴 목록(.navigation-list)이 안에서만 맡는다. */
+       세로 스크롤은 데스크톱과 같은 구조로 메뉴 묶음(.navigation-groups)이 안에서만 맡는다. */
     padding:0 var(--space-6) var(--space-6);overflow:visible;
     z-index:var(--z-modal);
     /* 모션 토큰 준수(§6 — 시간 2단 + 이징 1종): 구 .15s ease 는 계약 밖 값이었고 감속이
@@ -405,8 +412,10 @@ textarea{min-height:216px;resize:vertical}
   .sidebar-head::after{content:"";position:absolute;left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);bottom:0;height:1px;background:var(--line-sidebar)}
   /* 드로어 안 모든 아이템의 좌우 시작선을 맞춘다(2026-08-06 Q ③): 메뉴 알약의 -12 좌측
      보정을 풀면 활성 배경 상자·계정 행동 버튼(좌 24)과 닫기 X·상자 우변(우 24)이 한 줄에
-     선다. 데스크톱의 -12 는 아이콘·글자를 24 에 세우는 보정이라 그대로 둔다. */
+     선다. 데스크톱의 -12 는 아이콘·글자를 24 에 세우는 보정이라 그대로 둔다. 묶음 머리도
+     같은 축이라 좌우 패딩을 함께 0 으로 되돌린다(2026-08-30 Q 3차). */
   .sidebar .navigation-list{margin-inline:0}
+  .sidebar .navigation-section-title{margin-inline:0}
   /* 바의 선택창 목록은 상자가 아니라 **바 전폭**에 떨어진다 — 상자 기준 왼쪽/오른쪽 닻은
      어느 쪽이든 좁은 화면을 뚫거나 이름을 다시 자른다. 상자의 positioning 을 풀면 기준이
      바(sticky = positioned)로 올라가고, 좌우 16 만 남기고 화면 폭을 온전히 쓴다. */

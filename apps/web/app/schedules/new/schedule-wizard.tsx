@@ -341,7 +341,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
           current={step}
           steps={sessionKind === 'intake'
             ? [{ label: '당사자 선택' }, { label: '맞춤형 질문' }]
-            : [{ label: '당사자 선택' }, { label: '상담 목표' }]}
+            : [{ label: '당사자 선택' }, { label: '상담 목표와 맞춤형 질문' }]}
         />
         {error !== null ? <p role="alert" className="wire-field-error">{error}</p> : null}
 

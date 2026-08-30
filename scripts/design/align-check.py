@@ -25,6 +25,12 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
             축(2026-08-30 Q 3차 "아이템 ↔ 가로선 ↔ 아이템의 여백이 맞도록"). 선 위·선 아래
             여백이 서로 같기만 한 것으로는 부족하고, 그 값이 형제 항목 사이 간격과도 같아야
             한다 — 대칭인데 리듬이 다르면 선이 위 묶음에 붙어 보인다(구 8/8 대 항목 16).
+  inset-y : selectors=[컨테이너, 첫 자식, 마지막 자식] — 컨테이너 위 여백(첫 자식 top −
+            컨테이너 top)과 아래 여백(컨테이너 bottom − 마지막 자식 bottom)이 같은가
+            (2026-08-30 Q 3차 "펼치기 전에는 가운데 정렬 … 펼친 후에도 전체 가운데 정렬 유지").
+            접힘은 [상자, 요약, 요약], 펼침은 [상자, 요약, 본문] 으로 같은 축이 두 상태를 잰다.
+            내용이 자기 마진·패딩을 들고 있어 컨테이너 패딩만 대칭이어도 기울 수 있어, 계산값이
+            아니라 실제 자리로 잰다.
 
     pnpm design:align
     # 또는
@@ -95,6 +101,23 @@ CHECK_JS = r"""
         name: a.name,
         pass: worst <= tol,
         detail: `선 위 ${lineAbove.toFixed(2)}px / 선 아래 ${lineBelow.toFixed(2)}px / 항목 사이 ${rhythm.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
+    if (a.axis === 'inset-y') {
+      const [boxSel, firstSel, lastSel] = a.selectors;
+      const box = document.querySelector(boxSel);
+      const first = document.querySelector(firstSel);
+      const last = document.querySelector(lastSel);
+      if (!box || !first || !last) return { name: a.name, pass: false, detail: '요소 없음' };
+      const boxRect = box.getBoundingClientRect();
+      const top = first.getBoundingClientRect().top - boxRect.top;
+      const bottom = boxRect.bottom - last.getBoundingClientRect().bottom;
+      const delta = Math.abs(top - bottom);
+      return {
+        name: a.name,
+        pass: delta <= tol,
+        detail: `위 ${top.toFixed(2)}px / 아래 ${bottom.toFixed(2)}px (허용 ${tol})`,
       };
     }
 
