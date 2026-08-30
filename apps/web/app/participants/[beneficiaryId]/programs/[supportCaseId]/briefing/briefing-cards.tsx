@@ -189,7 +189,9 @@ function OverallGoalCard({
         <>
           <hr className="wire-card-divider" />
           <WireCardSection title="세부 목표" tone="mint">
-            <ul className="briefing-subgoal-rows">
+            {/* 불릿·14 는 CSS(.briefing-subgoal-row)와 .wire-bullets 가 갖는다(2026-08-30 Q
+                — 불릿은 2개 이상일 때만, 목표 트리와 같은 규칙). */}
+            <ul className={activeGoals.length > 1 ? 'briefing-subgoal-rows wire-bullets' : 'briefing-subgoal-rows'}>
               {activeGoals.map((goal) => (
                 <li key={goal.id} className="briefing-subgoal-row wire-fade-clip">{goal.title}</li>
               ))}
@@ -535,10 +537,12 @@ export function BriefingCards({
           title="상담 내용 회차별 정리"
           badge={pendingApprovalCount > 0 ? <WireBadge tone="lavender">승인 대기 {pendingApprovalCount}건</WireBadge> : null}
         >
+          {/* 이 문은 이제 프리뷰 fixture 만이 아니라 실제 생성 초안도 담는다(D69 · ADR-0036
+              · CCC-100 — 검토 화면이 "AI 초안 검토"로 넓어진 뒤 문구도 그 성격을 따라간다.
+              구획 카드(.briefing-memo-item)는 2026-08-30 Q "div 컴포넌트화" — 영역 ① 과
+              같은 반복 행 카드다. */}
           {pendingReviewRows.length > 0 && (
-            // 이 문은 이제 프리뷰 fixture 만이 아니라 실제 생성 초안도 담는다(D69 · ADR-0036
-            // · CCC-100 — 검토 화면이 "AI 초안 검토"로 넓어진 뒤 문구도 그 성격을 따라간다.
-            // 구조는 그대로다, 문구만 고친다).
+            <div className="briefing-memo-item">
             <WireCardSection
               title="검토할 AI 초안"
               tone="lavender"
@@ -564,6 +568,7 @@ export function BriefingCards({
                 ))}
               </ul>
             </WireCardSection>
+            </div>
           )}
           {/* 회차 행(2026-08-06 Q — 구 불릿 + 메타 줄 대체): 날짜 → 유형 배지 →
               수기 뱃지 → 핵심 한 줄. 각 항목은 **고정 폭 칸**에 앉아 어느 행에서나 같은

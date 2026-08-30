@@ -176,14 +176,18 @@ for (const tone of ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan'
 // 쓰면 잡힌다"는 이 감사의 물음이 아니다. 전용 전경 계약은 아래 wire-styles 원문 대조가 잠그고,
 // 색값 토큰은 wire-badge-palette 테스트와 design:contrast 가 재는다.
 
-const PARTICIPANT_ID = '.participant-card-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}';
+const PARTICIPANT_ID = '.participant-hero-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}';
 check(
-  '12px 당사자 카드 ID는 지정된 ID 자리에서만 허용된다',
+  '12px 가명 ID는 지정된 HERO 자리에서만 허용된다(2026-08-30 카드 조각 14 승격)',
   run(PARTICIPANT_ID).violations.length === 0,
 );
 check(
-  '12px 당사자 카드 ID 토큰을 다른 필드에 쓰면 잡힌다',
+  '12px 가명 ID 토큰을 다른 필드에 쓰면 잡힌다',
   run('.wire-field-label{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}').violations.length === 1,
+);
+check(
+  '카드 가명 ID 조각이 12px 토큰으로 돌아가면 잡힌다(2026-08-30 Q "카드 ID 는 14")',
+  run('.participant-card-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}').violations.length === 1,
 );
 
 const wireStylesSource = readFileSync(

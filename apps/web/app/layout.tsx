@@ -525,9 +525,11 @@ const briefingStyles = `
 .briefing-goal-error{margin:0;font-size:var(--text-sm);color:var(--risk)}
 /* 활성 세부 목표 (D62 §8 · CCC-69) — 전체 목표 카드 안, 가로선 아래 기본 펼침 최대 3줄.
    말줄임 규칙: 회차 행과 같은 .wire-fade-clip(한 줄 압축 + 오른쪽 마스크 페이드),
-   767px 이하는 줄바꿈 전환(아래 모바일 블록). 본문 16/400 --ink(§2-2 단 ③). */
+   767px 이하는 줄바꿈 전환(아래 모바일 블록). 항목은 불릿 목록 14/400 --ink 다
+   (2026-08-30 Q "불릿 처리 + 14" — 구 16 ③ 대체. §1 '긴 읽는 본문 14' 계약. 불릿
+   .wire-bullets 는 2개 이상일 때만 얹는다 — 목표 트리와 같은 규칙, 마크업이 가른다). */
 .briefing-subgoal-rows{display:grid;gap:var(--space-2);margin:0;padding:0;list-style:none}
-.briefing-subgoal-row{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+.briefing-subgoal-row{font-size:var(--text-sm);line-height:normal;color:var(--ink)}
 /* 세션 목표에 병기하는 부모 세부 목표 이름 (D62 §5) — 부모가 닫혔으면 흐리게(--sub).
    색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
 .briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
@@ -541,6 +543,12 @@ const briefingStyles = `
    맡는다(구 .briefing-qsection · .briefing-qlabel 폐지). 라벨 색·형제 가로선·세로 리듬은
    전부 부품 계약으로 옮겼고, 2026-08-06 Q 가 정한 "컬러 라벨 + 가로선" 모양은 그대로다.
    AI 제안 목록(CCC-39·D45)의 라벤더 tint 상자는 WireItem tone="lavender" 가 갖는다. */
+/* 브리핑 카드 구획(세션 목표·맞춤형 질문·AI 제안·검토할 AI 초안)은 구획 하나가 낱개
+   카드다(2026-08-30 Q "div 컴포넌트화" — 동의 묶음과 같은 반복 행 카드 레시피,
+   DESIGN-RULES §3. 구 형제 구분선 대체). 카드 사이 16 은 본문 grid gap 이 만든다(§7 행
+   카드 스택). */
+.briefing-card>.wire-card-body{gap:var(--space-4)}
+.briefing-memo-item{display:grid;min-width:0;padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 .briefing-suggestions{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
@@ -622,11 +630,14 @@ const briefingStyles = `
    .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 브리핑 회차 행과 같은 규칙(2026-08-06 Q). */
 .record-one-liner{flex:1;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
 .record-one-liner.is-memo{color:var(--sub);font-weight:400}
-.record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-2)}
-/* 펼친 본문. 머리와 본문은 --gradient-brand 1px 로 나눈다(§5 카드 계약 — 그라데이션이
-   남는 자리는 카드 안쪽 구분선뿐이다). */
+/* 오른쪽 묶음(리스크 → 수기 → 화살표)의 간격도 줄 간격과 같은 16 이다(2026-08-30 Q
+   "여백 균일" — 구 8). 리스크는 수기 왼쪽에 선다(마크업 순서). */
+.record-summary-right{flex:none;display:flex;align-items:center;gap:var(--space-4)}
+/* 펼친 본문. 머리와 본문 구분선도 카드 아웃라인과 같은 --line 이다(2026-08-30 검수 —
+   지시 "가로선 색이 다르면 아웃라인 색으로". 앱에 하나 남았던 --gradient-brand 안쪽
+   구분선을 걷어 §5 '회색 풀블리드 구분선'(2026-08-06)과 한 벌이 된다). */
 /* 본문 패딩은 카드 본문 24 사방(2026-08-07 여백 통일, 구 20/24 대체 — WireCard 와 같은 값). */
-.record-body{border-top:1px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-brand) border-box;display:grid;gap:var(--space-5);padding:var(--space-6)}
+.record-body{border-top:1px solid var(--line);display:grid;gap:var(--space-5);padding:var(--space-6)}
 .record-block{display:grid;gap:var(--space-2)}
 /* 카드 안 구획 제목은 라벨이다: 14/600 --sub (2026-08-07 타이포 짝 통일, 구 16/600 --ink 대체.
    .wire-card-section>h3 과 같은 레시피 — 본문 16 과 크기가 겹치면 위계가 사라진다). */
@@ -656,6 +667,16 @@ const briefingStyles = `
 .record-flag{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .record-flag[data-confirmed="true"]{color:var(--risk)}
 .record-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-4);border-top:1px solid var(--line);padding:var(--space-3) var(--space-6);font-size:var(--text-sm);color:var(--sub)}
+/* 상담 일정 카드 본문 한 줄(2026-08-30 Q "본문 14"): 긴 읽는 본문 14/400 --ink(§1 ⑥ 재사용).
+   전역 p 위 여백 8 을 꺼 가로선(24)·카드 바닥(24)과 위아래가 같아진다. */
+.record-schedule-note{margin:0;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
+/* '이 회차에서 나온 것'(D73)은 항목 하나가 낱개 카드다(2026-08-30 Q "이 파트도 div화" —
+   반복 행 카드 레시피, DESIGN-RULES §3). 항목 머리는 세로 쌓임 대신 가로로 편다(같은 Q
+   "가로로 넓게, 아래로 늘어뜨리지 말 것") — 제목·설명·배지·행동이 한 줄에서 흐르고 좁으면
+   줄바꿈한다. 글자 계약(크기·굵기·색)은 WireItem 그대로다. */
+.record-body .briefing-suggestions>li{padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+.record-body .briefing-suggestions .wire-item{display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--space-4);row-gap:var(--space-1)}
+.record-body .briefing-suggestions .wire-item-action{margin-left:auto}
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
 /* 전체 목표 — 카드 모양은 WireCard 가 갖고(2026-08-05 컴포넌트화), 여기는 안쪽 한 줄 배치만. */
 .record-goal-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
@@ -798,9 +819,10 @@ const scheduleStyles = `
 .wire-row.schedule-candidate-row{font-weight:400;padding-block:var(--space-5)}
 .schedule-candidate-name{font-weight:600}
 /* 가명 ID 는 다른 당사자 카드·HERO 와 같은 조각이다 — 후보 행도 전용 클래스가 아니라
-   공용 .participant-card-id 를 그대로 입어(회색 12/400 --sub) 화면 간 통일감을 준다
-   (2026-08-28 Q "ID 가 다른 데와 달리 컬러 처리됨 → 당사자 카드 디자인 통일"). 구
-   2026-08-09 "아이디 컬러처리"(전용 .schedule-candidate-id mint-deep 14/600)를 대체.
+   공용 .participant-card-id 를 그대로 입어(회색 14/400 --sub, 2026-08-30 Q "카드 ID 14")
+   화면 간 통일감을 준다(2026-08-28 Q "ID 가 다른 데와 달리 컬러 처리됨 → 당사자 카드
+   디자인 통일"). 구 2026-08-09 "아이디 컬러처리"(전용 .schedule-candidate-id mint-deep
+   14/600)를 대체.
    MetaRow 의 각 조각은 제 wrapper span 안에 들어 .participant-card-id 의 flex 는 inert 다.
    고른 행(그라데이션 면)에서만 다른 글자처럼 --on-action 으로 넘어간다. */
 .wire-row[data-selected="true"] .participant-card-id{color:var(--on-action)}
@@ -996,6 +1018,10 @@ const registerStyles = `
    늘어난 컬럼 높이를 균등 분배해 단계 버튼 하나가 500px 넘게 벌어진다(2026-08-09 인라인 정리로
    여기 옮겼다). 단계 사이는 8 — .wizard-stack(20)보다 촘촘한 목록이다. */
 .intake-step-nav{display:grid;gap:var(--space-2);align-content:start}
+/* 레일 머리: '진행 단계' 제목 옆에 자동 저장 상태가 선다(2026-08-30 Q "자동 저장 대기
+   배지를 진행 단계 텍스트 옆으로" — 구 본문 맥락 카드 아래). 제목 왼쪽, 상태 오른쪽 끝. */
+.intake-step-nav-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);min-width:0}
+.intake-step-nav-head>h2{margin:0}
 /* 붙박이는 **두 열일 때만**이다(2026-08-09) — 기준을 .rail-grid 의 폭 계단과 같은 컨테이너
    880 으로 옮겼다. 구 뷰포트 768 기준은 한 열이 된 뒤에도 살아 있어, 상단으로 내려온 레일이
    본문 위에 붙박여 화면을 덮었다. */
