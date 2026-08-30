@@ -42,7 +42,7 @@ export function NavIcon({ name }: { name: ShellIconName }) {
       return <svg {...common}><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /></svg>;
     case 'participants':
       return <svg {...common}><circle cx="8" cy="5.5" r="2.5" /><path d="M3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4" /></svg>;
-    // 하위 메뉴 아이콘 2종(2026-08-30 Q "적당한 아이콘은 모두 넣되"). 부모 '당사자'(사람)와
+    // 메뉴 아이콘 2종(2026-08-30 Q "적당한 아이콘은 모두 넣되"). '당사자 목록'(사람)과
     // 같은 어휘에서 갈라진다 — 등록은 사람+더하기, 초대는 건네는 링크(고리 두 개).
     case 'participant-add':
       return <svg {...common}><circle cx="6.5" cy="5.5" r="2.5" /><path d="M2 13.5c0-2.3 2-3.8 4.5-3.8" /><path d="M11.5 9.5v4.5M9.25 11.75h4.5" /></svg>;

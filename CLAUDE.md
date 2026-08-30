@@ -194,7 +194,7 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 | D32 | 보존·아카이브 | 기간 경과 시 즉시 파기 아닌 **자동 아카이브 전환**. **D10 실행 방식 대체**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0010 |
 | D33 | 목표 3층 구조 | 전체→세션→세부. GAS는 세부에만. **D12·D28 대체 → D43이 부분 보류**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0013 |
 | D34 | 파스텔 3색 액센트 | 웜 뉴트럴+파스텔 3계열+리스크 레드. **D30 색 규율 대체**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0012 |
-| D35 | 사업 워크스페이스 IA | 좌측 사이드바 240px, 사이드바=장소·우상단=행동. **D21 셸 부분 대체**. **2026-08-30 Q 부분 개정**: 사이드바에 하위 메뉴 신설(일정>상담 일정 등록, 당사자>당사자 등록·당사자 초대) — 등록·초대가 장소로도 서고 우상단 행동은 유지. 같은 날 2차로 시각 구분 확정(왼쪽 세로선 + 들여쓰기 + 하위도 아이콘 전부, 글자는 셸 하한 16 유지), 상세 DESIGN.md §4-5. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0014 |
+| D35 | 사업 워크스페이스 IA | 좌측 사이드바 240px, 사이드바=장소·우상단=행동. **D21 셸 부분 대체**. **2026-08-30 Q 부분 개정**: 사이드바가 등록·초대까지 장소로 품고(우상단 행동은 유지), 같은 날 3차로 **묶음 제목 + 한 계층**으로 확정 — '일정'(상담 일정 보기·상담 일정 등록), '당사자'(당사자 목록·당사자 등록·당사자 초대). 제목은 누를 수 없는 14/600 라벨이고 항목은 전부 16/500 + 아이콘이다(1·2차의 부모 링크 + 하위 목록 대체). 상세 DESIGN.md §4-5. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0014 |
 | D36 | 참여자 허브 열람 범위 | 상담 내용은 담당만, 참여 사업 존재·담당자 이름은 기관 내 공개. **D7 재진술**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0014 |
 | D37 | 레이아웃 계약 | 1440 캔버스 역산 — 사이드바 240+컨테이너 1120, 브레이크포인트 767px 하나. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0015 |
 | D38 | 참여자 HERO 공통 계약 | `/participants/:id/**` 는 공통 `ParticipantHeroCard` 를 단다 — 고정 1층(이름)+슬롯 3층(상태 태그·메타 한 줄·행동 버튼 최대 2개). 상세 DESIGN.md §5. 원문: [decisions-detail](docs/decisions-detail.md) |

@@ -38,32 +38,41 @@ interface NavItem {
   icon: NavIconName;
   /** 아직 화면이 없는 메뉴. 누르기 전에 알린다 — 눌러 보고 실망하지 않게 (CCC-23). */
   soon?: boolean;
-  /**
-   * 하위 메뉴(2026-08-30 Q). 부모와 같은 내비 옷이고 **아이콘도 전부 갖는다**(같은 날 Q 2차
-   * "적당한 아이콘은 모두 넣되"). 층은 들여쓰기와 왼쪽 세로선이 말한다.
-   */
-  children?: { label: string; href: string; icon: NavIconName }[];
+}
+
+/**
+ * 메뉴 묶음 하나. **제목은 누를 수 없는 구획 머리**이고 항목은 전부 같은 한 계층이다
+ * (2026-08-30 Q 3차 "서브 메뉴 없이 메뉴는 1개의 계층으로 통일" — 구 부모 링크 + 하위 목록
+ * 대체. 부모가 링크이면서 동시에 묶음 머리였던 이중 역할을 없앤다).
+ */
+interface NavSection {
+  title: string;
+  items: NavItem[];
 }
 
 /**
  * 사업 범위 안의 메뉴. '오늘 상담'을 따로 두지 않는 것은 의도다 — 오늘+다가오는이 한 화면에
  * 있어야 "오늘 걸 보려면 어느 메뉴지"를 판단하지 않는다 (ADR-0014 §2).
- * '다가오는 일정'과 '전체 일정' 두 메뉴는 D75(ADR-0039)로 `일정` 하나가 됐다 — 두 창의
- * 경계는 메뉴가 아니라 화면 안 범위 전환(다가오는 7일 | 월 전체)이 말한다.
+ * '다가오는 일정'과 '전체 일정' 두 메뉴는 D75(ADR-0039)로 화면 하나가 됐다 — 두 창의
+ * 경계는 메뉴가 아니라 화면 안 범위 전환(일간·주간·월간)이 말한다.
+ *
+ * 2026-08-30 Q 3차: 묶음 머리('일정'·'당사자')는 제목이고, 그 아래가 전부 같은 계층의
+ * 항목이다. 구 부모 링크 '일정'·'당사자'는 각자 도착지 이름을 얻었다 — '상담 일정 보기',
+ * '당사자 목록'.
  */
-function programMenu(programType: ParticipantProgramType): NavItem[] {
+function programMenu(programType: ParticipantProgramType): NavSection[] {
   return [
     {
-      label: '일정',
-      href: `/programs/${programType}/schedule`,
-      icon: 'upcoming',
-      children: [{ label: '상담 일정 등록', href: '/schedules/new', icon: 'calendar' }],
+      title: '일정',
+      items: [
+        { label: '상담 일정 보기', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
+        { label: '상담 일정 등록', href: '/schedules/new', icon: 'calendar' },
+      ],
     },
     {
-      label: '당사자',
-      href: '/participants',
-      icon: 'participants',
-      children: [
+      title: '당사자',
+      items: [
+        { label: '당사자 목록', href: '/participants', icon: 'participants' },
         { label: '당사자 등록', href: '/participants/new', icon: 'participant-add' },
         { label: '당사자 초대', href: '/participants/invite', icon: 'invite' },
       ],
@@ -149,63 +158,52 @@ export function AppSidebar({
   // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 보고,
   // 겹치는 후보 중 **가장 긴 href 하나만** 활성이다(2026-08-03 Q 보고 — '전체 일정'
   // /schedule/all 에서 '다가오는 일정' /schedule 이 접두사 일치로 같이 켜져 둘이 동시
-  // 선택된 것처럼 보였다). 하위 메뉴도 같은 풀에서 겨룬다(2026-08-30) — /participants/new
-  // 에서는 '당사자 등록'(더 긴 href) 하나만 켜지고 부모 '당사자'는 쉰다.
-  const allEntries = menu.flatMap((item) => [
-    { href: item.href },
-    ...(item.children ?? []).map((child) => ({ href: child.href })),
-  ]);
-  const matches = allEntries.filter((item) => current === item.href || current.startsWith(`${item.href}/`));
+  // 선택된 것처럼 보였다). 항목이 한 계층이 된 뒤에도 판정은 같다(2026-08-30 Q 3차) —
+  // /participants/new 에서는 '당사자 등록'(더 긴 href) 하나만 켜지고 '당사자 목록'은 쉰다.
+  const allItems = menu.flatMap((section) => section.items);
+  const matches = allItems.filter((item) => current === item.href || current.startsWith(`${item.href}/`));
   const activeHref = matches.reduce<string | null>(
     (longest, item) => (longest === null || item.href.length > longest.length ? item.href : longest),
     null,
   );
 
+  // 묶음 머리는 `p` + `aria-labelledby` 로 목록에 이름을 준다 — 누를 수 없는 제목이라
+  // 링크·버튼으로 두지 않는다(2026-08-30 Q 3차).
   const navigation = (
-    <ul className="navigation-list">
-      {menu.map((item) => {
-        const active = item.href === activeHref;
+    <div className="navigation-groups">
+      {menu.map((section) => {
+        const titleId = `nav-section-${section.title}`;
         return (
-          <li key={item.href}>
-            <Link
-              className="navigation-link"
-              href={item.href}
-              data-current={active ? 'true' : undefined}
-              aria-current={active ? 'page' : undefined}
-            >
-              <NavIcon name={item.icon} />
-              <span>{item.label}</span>
-              {item.soon ? <span className="navigation-soon">준비 중</span> : null}
-              {/* CCC-26: 새 가입 미확인 숫자 — 사람·소속 축의 민트 배지(WireBadge 계약).
-                  확인 행위로 사라지는 값이라 재방문 시 자리가 안 흔들린다. */}
-              {item.icon === 'participants' && newSignupCount > 0 && (
-                <WireBadge tone="mint" role="status">{newSignupCount}</WireBadge>
-              )}
-            </Link>
-            {item.children !== undefined && (
-              <ul className="navigation-sublist">
-                {item.children.map((child) => {
-                  const childActive = child.href === activeHref;
-                  return (
-                    <li key={child.href}>
-                      <Link
-                        className="navigation-link"
-                        href={child.href}
-                        data-current={childActive ? 'true' : undefined}
-                        aria-current={childActive ? 'page' : undefined}
-                      >
-                        <NavIcon name={child.icon} />
-                        <span>{child.label}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </li>
+          <div className="navigation-group" key={section.title}>
+            <p className="navigation-section-title" id={titleId}>{section.title}</p>
+            <ul className="navigation-list" aria-labelledby={titleId}>
+              {section.items.map((item) => {
+                const active = item.href === activeHref;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      className="navigation-link"
+                      href={item.href}
+                      data-current={active ? 'true' : undefined}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      <NavIcon name={item.icon} />
+                      <span>{item.label}</span>
+                      {item.soon ? <span className="navigation-soon">준비 중</span> : null}
+                      {/* CCC-26: 새 가입 미확인 숫자 — 사람·소속 축의 민트 배지(WireBadge 계약).
+                          확인 행위로 사라지는 값이라 재방문 시 자리가 안 흔들린다. */}
+                      {item.icon === 'participants' && newSignupCount > 0 && (
+                        <WireBadge tone="mint" role="status">{newSignupCount}</WireBadge>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         );
       })}
-    </ul>
+    </div>
   );
 
   const settingsActive = current === '/settings' || current.startsWith('/settings/');

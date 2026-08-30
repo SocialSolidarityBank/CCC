@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { extractCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
+import { RegisterForm } from '../participants/new/register-form';
 import { PROGRAM_LABELS } from '../lib/labels';
 
 // 정렬 실측 하니스 (2026-08-30 Q — align-check 스킬 계약을 레포 게이트로).
@@ -80,9 +81,20 @@ const contentProps: BriefingCardsProps = {
 };
 
 describe('정렬 하니스 생성기', () => {
-  it('제안 없음·제안 있음 두 변형의 15초 페이지 정적 HTML 을 만든다', () => {
+  it('브리핑 두 변형 + 등록 동의 상자 접힘·펼침의 정적 HTML 을 만든다', () => {
     const empty = renderToStaticMarkup(<BriefingCards {...baseProps} />);
     const content = renderToStaticMarkup(<BriefingCards {...contentProps} />);
+    const register = renderToStaticMarkup(
+      <RegisterForm
+        currentUser={{ name: '홍길동', email: 'worker@example.test' }}
+        action={() => {}}
+        programLabel={PROGRAM_LABELS.financial_support_v1}
+      />,
+    );
+    // 펼친 상태는 **생성된 마크업에 open 속성만 얹어** 만든다 — 마크업을 손으로 옮겨 적으면
+    // 부품이 바뀌어도 옛 모양을 재게 된다(위계 하니스와 같은 이유). 여는 방법은 이 한 줄뿐이다:
+    // details 는 서버 렌더에서 열 수 있는 프롭이 RegisterForm 에 없고, 실측 대상은 열린 상자다.
+    const registerOpen = register.replace('<details class="consent-detail', '<details open class="consent-detail');
 
     // 단언 대상이 실제로 렌더에 서야 실측이 성립한다. 빈 껍데기면 실측이 "요소 없음"으로
     // 늦게 죽는 대신 여기서 원인(어느 fixture 가 비었나)을 말하며 막는다.
@@ -92,6 +104,8 @@ describe('정렬 하니스 생성기', () => {
     }
     expect(empty, '제안 없음: 빈 상태 줄이 없다').toContain('승인된 상담 기록이 쌓이면');
     expect(content, '제안 있음: 제안 목록이 없다').toContain('briefing-suggestions');
+    expect(register, '등록: 동의 전문 상자가 없다').toContain('consent-detail register-consent-block wire-repeat-card');
+    expect(registerOpen, '등록: 펼침 변형에 open 이 안 붙었다').toContain('<details open class="consent-detail');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
     const layoutCss = extractCss(join(repoRoot, 'apps/web/app/layout.tsx'));
@@ -104,6 +118,8 @@ describe('정렬 하니스 생성기', () => {
 </head><body>
 <div id="align-empty">${empty}</div>
 <div id="align-content">${content}</div>
+<div id="align-register">${register}</div>
+<div id="align-register-open">${registerOpen}</div>
 </body></html>`;
 
     mkdirSync(OUT_DIR, { recursive: true });

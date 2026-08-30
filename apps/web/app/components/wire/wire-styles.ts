@@ -372,10 +372,9 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    끈다(카드 테두리와 겹쳐 이중선이 된다). */
 .participant-consent-block{display:grid;gap:var(--space-2)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
-/* 동의 안내 문구 자리(2026-08-30 Q "문구 삭제, 영역은 보존") — 정책 확정 전까지 비워 두되
-   구 안내 두 줄 높이를 예약해, 문구가 돌아와도 아래 체크 줄이 안 움직인다. */
-/* optical: 42 = 14px 안내 두 줄(행간 1.5) 자리 예약 — 여백이 아니라 예약 높이라 4 배수 밖 */
-.participant-consent-hint-slot{min-height:calc(var(--text-sm) * 3)}
+/* (구 .participant-consent-hint-slot 은 2026-08-30 Q 3차로 제거 — 문구가 사라진 뒤 남은
+   예약 높이가 그대로 빈 띠로 읽혔다. "위에 텍스트가 있던 자리 없애고, div 최적화".
+   문구가 돌아오면 그때 자리를 다시 만든다 — 없는 문구의 자리를 미리 지키지 않는다.) */
 .participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 /* 목표 트리 (D62 §8 · CCC-69). 전체·세부 목표 구획은 각자 낱개 카드다(2026-08-30 Q
    "각각의 목표 div 안의 카드 div로" — 동의 묶음(.participant-consent-block)과 같은 반복 행
@@ -404,15 +403,18 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    얹는 것도 그 부품의 규칙이라(2026-08-07) 클래스를 붙이는 쪽에서 가른다 — 한 항목뿐이면
    목록이 아니라 문장이다. 글자 단은 그대로 ③ 값·본문(16/400 --ink)이라 §2-2 위계 4단에
    다섯 번째 단이 생기지 않는다. */
-.goal-tree-goals{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
-/* 불릿 목록 기본 간격은 8 인데 여기는 16 이다(클래스 둘 0-2-0 — .wire-bullets 가 이 파일
-   뒤쪽이라 한 클래스끼리는 그쪽이 이긴다): 세부 목표마다 세션 목표 가지가 매달려 있어,
-   8 이면 옆 목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. */
-.goal-tree-goals.wire-bullets{gap:var(--space-4)}
-/* 목표 li 의 첫 줄은 32px 원형 화살표가 키운 head 행이다 — 공용 불릿의 첫 줄 중앙 공식
-   (자기 14px 글줄 기준)은 그 행 중앙보다 위에 찍힌다. 점 중심을 head 행(--pill-height)
-   세로 중앙에 맞춘다: top = 32/2 - 점 반지름 3. */
-.goal-tree-goals.wire-bullets>li::before{top:calc(var(--pill-height) / 2 - 3px)}
+.goal-tree-goals{display:grid;gap:var(--space-2);margin:0;padding:0;list-style:none}
+/* 불릿 간격은 공용 기본 8 이다(2026-08-30 Q 3차 "불렛 사이의 간격을 줄인다(펼치기 전 기준)").
+   구 16 의 근거는 **펼친 상태**였다 — 세부 목표마다 세션 목표 가지가 매달려 있어, 8 이면 옆
+   목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. Q 가 접힘
+   기준으로 8 을 지시했으므로 접힘은 8 로 두고, **펼친 목표만 아래 8 을 더해 16 을 회복한다**
+   (2026-08-30 검수 반영 — 가지가 실제로 매달린 그 상태에서만 경계를 벌린다. 가지의 왼쪽
+   --line 세로선은 소속 표시일 뿐 목표 사이 경계까지 대신하지 못한다).
+   점은 head 행 세로 중앙이다 — 작은 화살표가 그 행 높이를 정한다: top = 24/2 - 반지름 3.
+   24 는 컨트롤 높이 토큰(--badge-height)이다(같은 검수 — 구 --space-6 은 여백 토큰이라
+   여백 계단을 고치면 컨트롤 크기와 이 공식이 함께 흔들린다). */
+.goal-tree-goals.wire-bullets>li::before{top:calc(var(--badge-height) / 2 - 3px)}
+.goal-tree-goals>li:has(>details[open]){margin-bottom:var(--space-2)}
 .goal-tree-goal{display:grid;gap:var(--space-2)}
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
@@ -602,6 +604,12 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
    회전 때문에 상자 중앙에서 벗어난다. translate 로 되민다(.wire-chevron 과 같은 보정 계약). */
 .wire-card-arrow{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
 .wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
+/* **작은 단(24)** — 좁은 목록 행의 아코디언 전용 전역 변형이다(2026-08-30 Q 3차 "이렇게 좁은
+   목록 불렛에서 쓸때는 작게 … 리스트 ROW 형태일 때는 전역 작은 버튼으로"). 32 원형은 14px
+   글줄 행보다 커서 행 높이를 자기 크기로 끌어올리고, 그 행이 목록의 리듬(불릿 간격·점 위치)
+   까지 벌린다. 꺽쇠 잉크는 em 배수라 컨테이너만 줄이면 함께 줄어든다(§8 꺽쇠 배수).
+   기본 32 는 카드 제목 줄처럼 자기 행을 갖는 아코디언의 값 그대로다. */
+.wire-card-arrow[data-size="sm"]{width:var(--badge-height);height:var(--badge-height);font-size:var(--text-sm)}
 /* 펼침 = 위. 셀렉터를 details[open] 제네릭으로 두어 WireCardDetails·동의 전문·목표 트리
    같은 모든 아코디언이 한 규칙을 본다. 회전은 컨테이너가 아니라 꺽쇠 잉크(::before)만 한다. */
 details[open]>summary .wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
@@ -1239,11 +1247,21 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    상자가 위 6 / 아래 22 로 기울었다. 형제 상자와 같은 16/24 는 레시피가 갖는다).
    면을 --panel 로 유지하는 덕에 guard:align 의 묶음 상자 패딩 검사(테두리 + radius 토큰 +
    --panel 면)가 이 상자도 승인 쌍으로 잰다 — 같은 결함이 다시 나면 커밋에서 걸린다. */
-.register-consent .consent-detail{background:var(--panel)}
+.register-consent .consent-detail{display:block;background:var(--panel)}
+/* 상자가 된 뒤 요약 줄은 자기 세로 패딩을 내려놓는다(2026-08-30 Q 3차 "펼치기 전에는 가운데
+   정렬 … 펼친 후에도 전체 가운데 정렬 유지"). 공용 6/6 을 그대로 두면 상자 패딩 16 위에
+   6 이 얹혀 접힘에서는 대칭이지만(22/22) 펼침에서는 위 22 / 아래 16 으로 기운다 — 요약과
+   본문이 한 덩어리로 상자 정중앙에 서야 한다.
+   **격자도 벗는다** — 닫힌 details 의 ::details-content 는 높이 0 이어도 격자 항목으로 남아
+   .register-consent-block 의 gap 12 를 상자 바닥에 유령 여백으로 남긴다(접힘 실측 위 17 /
+   아래 29). block 으로 두고 그 12 를 본문 자기 margin-top 이 갖게 하면 접힘에서는 여백이
+   아예 생기지 않고 펼침에서는 같은 12 가 선다.
+   design:align 의 inset-y 축이 접힘·펼침 두 상태를 실측한다. */
+.register-consent .consent-detail-summary{padding-block:0}
 /* 상자가 된 뒤에는 전문 본문이 자기 상자를 벗는다 — 상자 안 상자가 되면 카드 안 카드 금지
    (§3)의 예외를 한 겹 더 쌓는다. 읽기 폭 72ch 와 구획 간격은 그대로 두고 면·테두리·패딩만
-   내려놓는다(간격은 .register-consent-block 의 gap 12 이 만든다). */
-.register-consent .consent-detail-body{margin-top:0;padding:0;background:none;border:0}
+   내려놓는다. 요약 줄과의 간격 12 는 위 규칙 설명대로 이 본문의 margin-top 이 갖는다). */
+.register-consent .consent-detail-body{margin-top:var(--space-3);padding:0;background:none;border:0}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
 .consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
