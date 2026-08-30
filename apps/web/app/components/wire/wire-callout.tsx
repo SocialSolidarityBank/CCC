@@ -82,7 +82,11 @@ export function WireSourceQuotes({ quotes, sourceHref }: WireSourceQuotesProps) 
       {/* 아코디언 화살표 어휘(2026-08-27): 닫힘 아래·펼침 위. 공용 .wire-card-arrow 하나를 쓴다. */}
       <summary>근거 인용 보기 <span className="wire-card-arrow" aria-hidden="true" /></summary>
       <div className="wire-source-quotes-body">
-        {quotes.map((quote, index) => <WireQuote key={`${index}-${quote}`}>{quote}</WireQuote>)}
+        {/* 인용 묶음은 왼쪽 폭을 쓰고 출처 버튼은 같은 행 오른쪽이다(2026-08-30 Q 2차 —
+            구 세로 스택. 좁으면 버튼이 아랫줄로 접힌다). */}
+        <div className="wire-source-quotes-list">
+          {quotes.map((quote, index) => <WireQuote key={`${index}-${quote}`}>{quote}</WireQuote>)}
+        </div>
         <WireButton
           className="wire-source-quotes-link"
           variant="neutral"
