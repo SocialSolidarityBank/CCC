@@ -369,7 +369,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은
    끈다(카드 테두리와 겹쳐 이중선이 된다). */
-.participant-consent-block{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+.participant-consent-block{display:grid;gap:var(--space-2)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
 /* 동의 안내 문구 자리(2026-08-30 Q "문구 삭제, 영역은 보존") — 정책 확정 전까지 비워 두되
    구 안내 두 줄 높이를 예약해, 문구가 돌아와도 아래 체크 줄이 안 움직인다. */
@@ -386,7 +386,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    .wire-card-section 형제 선과 같은 --card-pad 되읽기 레시피). */
 .goal-tree-case+.goal-tree-case{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-top:var(--space-3);padding-inline:var(--card-pad,var(--space-6));border-top:1px solid var(--line)}
 .goal-tree-case-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.goal-tree-section{display:grid;gap:var(--space-2);align-content:start;min-width:0;padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+.goal-tree-section{display:grid;gap:var(--space-2);align-content:start;min-width:0}
 @media (max-width:767px){.goal-tree-case{grid-template-columns:minmax(0,1fr)}}
 /* 목표 라벨은 민트 deep 이다(2026-08-29 Q "목표 라벨 컬러처리해서 눈에 잘 들어오게" — 구
    14/600 --sub. §4 민트 '진행' 축, §1 ② '14/600 계열 deep' 조합). 전체·세부·세션 목표
@@ -560,6 +560,12 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    24 가 아닌 카드에서도 선이 아웃라인까지 닿는다). */
 .wire-card-divider{height:0;margin:var(--divider-gap,var(--space-6)) calc(var(--card-pad,var(--space-6)) * -1);border:0;border-top:1px solid var(--line)}
 .wire-card-body{display:grid;gap:var(--space-3)}
+/* 반복 행 카드 공용 레시피(2026-08-30 검수 반영 — 구 4벌 복제 대체): 항목이 추가되며
+   자라는 반복 단위의 낱개 카드다(DESIGN-RULES §3 예외 — 동의 묶음·목표 구획·브리핑 구획·
+   회차 산출물 항목). 상자(패딩·선·radius·면)만 여기 있고 배치(grid·gap)는 각자 클래스가
+   갖는다. 등록 동의 텍스트 상자(radius 6 묶음 상자 어휘)와 사업 행·최신 일정 링크는
+   아직 자기 복제본을 쓴다(CCC-90 스윕 후보). */
+.wire-repeat-card{padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 /* body(grid gap 12) 안에 놓인 구분선은 gap 이 margin 에 더해져 24 계약이 36 이 된다
    (2026-08-29 Q "가로선 위아래 여백 과도해 가운데 정렬 무너짐"). 세로 margin 에서 그 gap 을
    빼 divider 총 여백을 --divider-gap(24)로 되돌린다 — 카드 padding(24)과 같은 리듬이 된다.

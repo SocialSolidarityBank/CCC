@@ -450,7 +450,7 @@ export function BriefingCards({
             직접 정한 것이 AI 제안에 밀리지 않는다(R5 의 태도). AI 제안(CCC-39)은 제목·이유·
             근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
         <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
-          <div className="briefing-memo-item">
+          <div className="briefing-memo-item wire-repeat-card">
             <WireCardSection
               title="세션 목표"
               tone="mint"
@@ -484,14 +484,14 @@ export function BriefingCards({
                 )}
             </WireCardSection>
           </div>
-          <div className="briefing-memo-item">
+          <div className="briefing-memo-item wire-repeat-card">
             <WireCardSection title="맞춤형 질문" tone="mint">
               {customQuestions.length === 0
                 ? <WireEmpty>실무자가 적은 맞춤형 질문이 없습니다.</WireEmpty>
                 : <WireBullets items={customQuestions} />}
             </WireCardSection>
           </div>
-          <div className="briefing-memo-item">
+          <div className="briefing-memo-item wire-repeat-card">
             <WireCardSection title="AI 제안" tone="lavender">
               {/* 전체 목표 미설정 안내 (D62 §7) — 제안을 차단하지 않는다. 닫으면 케이스 단위로 남는다. */}
               {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
@@ -542,7 +542,7 @@ export function BriefingCards({
               구획 카드(.briefing-memo-item)는 2026-08-30 Q "div 컴포넌트화" — 영역 ① 과
               같은 반복 행 카드다. */}
           {pendingReviewRows.length > 0 && (
-            <div className="briefing-memo-item">
+            <div className="briefing-memo-item wire-repeat-card">
             <WireCardSection
               title="검토할 AI 초안"
               tone="lavender"

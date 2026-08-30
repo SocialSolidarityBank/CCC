@@ -222,7 +222,7 @@ export function RecordCard({
         {record.aiOneLiner === null && confirmedFlags.length === 0 && record.discrepancies.length === 0
           ? <WireEmpty>이 회차에 연결된 승인 산출물이 없습니다.</WireEmpty>
           : <ul className="briefing-suggestions">
-              {record.aiOneLiner !== null && <li>
+              {record.aiOneLiner !== null && <li className="wire-repeat-card">
                 <WireItem
                   tone="lavender"
                   title={record.aiOneLiner}
@@ -230,7 +230,7 @@ export function RecordCard({
                   action={<Link href={`${recordsHref}/${encodeURIComponent(record.id)}/review`}>승인 내용 보기</Link>}
                 />
               </li>}
-              {confirmedFlags.map((flag) => <li key={flag.id}>
+              {confirmedFlags.map((flag) => <li key={flag.id} className="wire-repeat-card">
                 <WireItem
                   title={<span className="record-flag" data-confirmed={flag.reviewStatus === 'confirmed' ? 'true' : 'false'}>
                     {flag.reviewStatus === 'confirmed' && <><Icon name="warning" size={14} />{' '}</>}{flagLabel(flag.flagType)}
@@ -242,7 +242,7 @@ export function RecordCard({
                   <WireSourceQuotes quotes={[flag.quote]} sourceHref={`#record-${record.id}`} />
                 )}
               </li>)}
-              {record.discrepancies.map((discrepancy) => <li key={discrepancy.id}>
+              {record.discrepancies.map((discrepancy) => <li key={discrepancy.id} className="wire-repeat-card">
                 <WireItem
                   title={discrepancyKindLabels[discrepancy.kind]}
                   status={<WireBadge tone={discrepancy.resolutionStatus === null ? 'lavender' : 'neutral'}>

@@ -544,11 +544,10 @@ const briefingStyles = `
    전부 부품 계약으로 옮겼고, 2026-08-06 Q 가 정한 "컬러 라벨 + 가로선" 모양은 그대로다.
    AI 제안 목록(CCC-39·D45)의 라벤더 tint 상자는 WireItem tone="lavender" 가 갖는다. */
 /* 브리핑 카드 구획(세션 목표·맞춤형 질문·AI 제안·검토할 AI 초안)은 구획 하나가 낱개
-   카드다(2026-08-30 Q "div 컴포넌트화" — 동의 묶음과 같은 반복 행 카드 레시피,
-   DESIGN-RULES §3. 구 형제 구분선 대체). 카드 사이 16 은 본문 grid gap 이 만든다(§7 행
-   카드 스택). */
+   카드다(2026-08-30 Q "div 컴포넌트화" — 상자는 공용 .wire-repeat-card 가 갖는다.
+   구 형제 구분선 대체). 카드 사이 16 은 본문 grid gap 이 만든다(§7 행 카드 스택). */
 .briefing-card>.wire-card-body{gap:var(--space-4)}
-.briefing-memo-item{display:grid;min-width:0;padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+.briefing-memo-item{display:grid;min-width:0}
 .briefing-suggestions{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
@@ -671,10 +670,9 @@ const briefingStyles = `
    전역 p 위 여백 8 을 꺼 가로선(24)·카드 바닥(24)과 위아래가 같아진다. */
 .record-schedule-note{margin:0;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 /* '이 회차에서 나온 것'(D73)은 항목 하나가 낱개 카드다(2026-08-30 Q "이 파트도 div화" —
-   반복 행 카드 레시피, DESIGN-RULES §3). 항목 머리는 세로 쌓임 대신 가로로 편다(같은 Q
-   "가로로 넓게, 아래로 늘어뜨리지 말 것") — 제목·설명·배지·행동이 한 줄에서 흐르고 좁으면
-   줄바꿈한다. 글자 계약(크기·굵기·색)은 WireItem 그대로다. */
-.record-body .briefing-suggestions>li{padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+   상자는 공용 .wire-repeat-card 가 갖는다. 마크업이 li 에 단다). 항목 머리는 세로 쌓임
+   대신 가로로 편다(같은 Q "가로로 넓게, 아래로 늘어뜨리지 말 것") — 제목·설명·배지·행동이
+   한 줄에서 흐르고 좁으면 줄바꿈한다. 글자 계약(크기·굵기·색)은 WireItem 그대로다. */
 .record-body .briefing-suggestions .wire-item{display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--space-4);row-gap:var(--space-1)}
 .record-body .briefing-suggestions .wire-item-action{margin-left:auto}
 /* 전체 목표 한 줄 — 브리핑과 같은 어휘이되 이 화면은 읽기 전용이다(입력칸·저장 버튼 없음). */
