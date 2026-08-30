@@ -217,7 +217,7 @@ function ProgramRow({ beneficiaryId, program, programTitle }: {
   programTitle: string;
 }) {
   return (
-    <div className="participant-program-row">
+    <div className="participant-program-row wire-repeat-card">
       <div className="participant-program-head">
         <span className="participant-program-head-main">
           <h3>{programTitle}</h3>
@@ -278,7 +278,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
         candidates.map((candidate) => (
           <Link
             key={candidate.id}
-            className="participant-next-schedule-link"
+            className="participant-next-schedule-link wire-repeat-card"
             href={briefingHref(beneficiaryId, candidate.id)}
           >
             {/* 내용은 좁으면 줄바꿈하되 꺽쇠는 행 전체의 세로 중앙에 남는다(2026-08-08 Q

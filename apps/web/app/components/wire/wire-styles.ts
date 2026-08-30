@@ -342,8 +342,9 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    카드라 섹션 제목 단(--text-lg)을 쓴다). */
 .participant-hub-card>.wire-card-title{font-size:var(--text-lg)}
 /* 사업 행 하나가 카드다(2026-08-29 Q "항목이 추가되는 케이스는 card div" — 구 --line
-   구분선 리스트 대체). 경계는 중립 카드선, 간격은 본문 gap 이 만든다. */
-.participant-program-row{display:grid;gap:var(--space-2);min-width:0;padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+   구분선 리스트 대체). 상자는 공용 .wire-repeat-card(마크업에서 병기), 여기는 배치만
+   갖는다(2026-08-30 CCC-90 스윕 — 구 자기 복제본 대체). 간격은 본문 gap 이 만든다. */
+.participant-program-row{display:grid;gap:var(--space-2);min-width:0}
 /* 행 제목은 카드 제목(18)보다 한 단 아래 16 이다. 배지는 제목과 같은 y 세로 중앙이다
    (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
 .participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);min-width:0}
@@ -491,8 +492,11 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 /* 행 전체가 브리핑 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체). 격자 좌 1fr / 우
    auto: 내용은 좁으면 줄바꿈하되 꺽쇠는 **행 전체의 세로 중앙**에 남는다("가운데 정렬").
    행 하나가 카드다(2026-08-29 Q "카드 div로" — 구 --line 가로선 + 좌우 -12 호버 트릭
-   대체). 경계는 중립 카드선, 간격은 허브 본문 gap(16)이 만든다. 호버는 면 호버 tint 쌍. */
-.participant-next-schedule-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-6);color:inherit;text-decoration:none;border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+   대체). 상자는 공용 .wire-repeat-card(마크업에서 병기), 여기는 배치와 링크 옷 지우기만
+   갖는다(2026-08-30 CCC-90 스윕 — 구 자기 복제본 대체). 간격은 허브 본문 gap(16)이
+   만든다. 호버는 ListRow 어휘의 --muted 다(2026-08-30 검수 정정 — 구 주석 "tint 쌍"은
+   코드와 달랐다). :hover 명시도(0,2,0)가 레시피 면(0,1,0)을 덮는다. */
+.participant-next-schedule-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);color:inherit;text-decoration:none}
 .participant-next-schedule-main{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
 @media (hover:hover){.participant-next-schedule-link:hover{background:var(--muted)}}
 /* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
@@ -562,9 +566,9 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-card-body{display:grid;gap:var(--space-3)}
 /* 반복 행 카드 공용 레시피(2026-08-30 검수 반영 — 구 4벌 복제 대체): 항목이 추가되며
    자라는 반복 단위의 낱개 카드다(DESIGN-RULES §3 예외 — 동의 묶음·목표 구획·브리핑 구획·
-   회차 산출물 항목). 상자(패딩·선·radius·면)만 여기 있고 배치(grid·gap)는 각자 클래스가
-   갖는다. 등록 동의 텍스트 상자(radius 6 묶음 상자 어휘)와 사업 행·최신 일정 링크는
-   아직 자기 복제본을 쓴다(CCC-90 스윕 후보). */
+   회차 산출물 항목·사업 행·최신 일정 링크·등록 동의 상자, 2026-08-30 CCC-90 스윕으로
+   전 자리 통합). 상자(패딩·선·radius·면)만 여기 있고 배치(grid·gap)는 각자 클래스가
+   갖는다. 등록 동의 상자만 radius 6(묶음 상자 어휘)을 .register-consent-block 이 덮는다. */
 .wire-repeat-card{padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 /* body(grid gap 12) 안에 놓인 구분선은 gap 이 margin 에 더해져 24 계약이 36 이 된다
    (2026-08-29 Q "가로선 위아래 여백 과도해 가운데 정렬 무너짐"). 세로 margin 에서 그 gap 을
@@ -1203,12 +1207,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-consent .consent-checkbox{font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 .register-card .schedule-form-hint{max-width:none}
 /* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한
-   상자다. 상자는 카드 안 묶음 어휘(radius 6 · --line 1px)라 카드 안 카드 그림자 금지(Y10)와
-   충돌하지 않는다. 패딩은 반복 행 카드와 같은 16/24 다(2026-08-30 Q "여백이 다른 컴포넌트와
-   안 맞다" — 구 16/20 대체. 형제 상자 패딩 통일은 guard:align 상자 패딩 검사가 강제한다). */
-.register-consent-block{display:grid;gap:var(--space-3);padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel)}
+   상자다. 상자는 공용 .wire-repeat-card(마크업에서 병기)가 갖고, 여기는 배치와 radius 만
+   남는다(2026-08-30 CCC-90 스윕 — 구 자기 복제본 대체. 패딩 16/24 통일은 guard:align
+   상자 패딩 검사가 강제한다). radius 6 은 카드 안 묶음 상자 어휘라 레시피의 12 를 이
+   자리만 덮는다(DESIGN.md §5 예외 2 — 같은 시트 뒤 순서라 이긴다). 그림자 금지(Y10)는
+   그대로다. */
+.register-consent-block{display:grid;gap:var(--space-3);border-radius:var(--radius-control)}
 /* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. padding-top:0 잔재는
-   걷는다(2026-08-30 Q "여백 통일" — 상자 패딩 16/24 는 .register-consent-block 이 갖는다). */
+   걷는다(2026-08-30 Q "여백 통일" — 상자 패딩 16/24 는 공용 .wire-repeat-card 가 갖는다). */
 .register-consent .consent-emergency{background:none}
 /* '자세히 읽어보기' 위 가로선도 fieldset 상단선처럼 카드 양끝까지 — 선이 중간에 끊기지
    않는다(2026-08-29 Q). */
