@@ -26,7 +26,8 @@ export interface WireCardSectionProps {
   title: ReactNode;
   children: ReactNode;
   tone?: WireSectionTone;
-  /** 제목 줄 오른쪽 행동 하나. 제목과 같은 줄에서 독립 버튼으로 렌더한다. */
+  /** 제목 줄 오른쪽 슬롯 — 행동 하나(독립 버튼) 또는 안내 조각(2026-08-30 Q, 브리핑 AI 제안의
+      목표 미설정 안내). 제목과 같은 줄에서 렌더한다. */
   action?: ReactNode;
   /** 라벨 요소의 id. 구획에 이름을 지어 줄 때 labelledBy 와 짝으로 쓴다. */
   titleId?: string;

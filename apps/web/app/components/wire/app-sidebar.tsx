@@ -14,9 +14,10 @@ import type { Theme } from '../../lib/theme-cookie';
 import type { ParticipantProgramType } from '../../lib/api';
 import { ORG_LABEL, PROGRAM_LABELS } from '../../lib/labels';
 
-// 앱 셸의 좌측 사이드바 (D35 · ADR-0014 §2). 축은 **사이드바 = 장소 / 페이지 우상단 = 행동**이라
-// 등록 2개(상담·당사자)는 여기 넣지 않는다 — 섞이면 누를 때마다 "화면이 바뀌는 것"과
-// "새로 만드는 것"을 판별해야 한다.
+// 앱 셸의 좌측 사이드바 (D35 · ADR-0014 §2). 축은 **사이드바 = 장소 / 페이지 우상단 = 행동**
+// 이었으나, **2026-08-30 Q 부분 개정**으로 등록·초대 화면은 하위 메뉴(장소)로도 선다 —
+// "사이드바에 페이지를 모두 보여주고 하위 서브 메뉴 신설": 일정 > 상담 등록, 당사자 >
+// 당사자 등록·당사자 초대. 우상단 행동 버튼은 그대로다(두 입구 공존, DESIGN.md §4-5).
 //
 // 2026-08-05 Q — 상단 헤더 신설(Infisical 레퍼런스)로 축이 한 층 더 갈렸다:
 // **헤더 = 맥락(기관·사업) + 계정 행동(설정·테마·로그아웃) / 사이드바 = 장소(메뉴)**.
@@ -35,6 +36,8 @@ interface NavItem {
   icon: 'upcoming' | 'calendar' | 'participants';
   /** 아직 화면이 없는 메뉴. 누르기 전에 알린다 — 눌러 보고 실망하지 않게 (CCC-23). */
   soon?: boolean;
+  /** 하위 메뉴(2026-08-30 Q). 부모와 같은 내비 옷, 들여쓰기가 층을 말한다. 아이콘 없음. */
+  children?: { label: string; href: string }[];
 }
 
 /**
@@ -45,8 +48,21 @@ interface NavItem {
  */
 function programMenu(programType: ParticipantProgramType): NavItem[] {
   return [
-    { label: '일정', href: `/programs/${programType}/schedule`, icon: 'upcoming' },
-    { label: '당사자', href: '/participants', icon: 'participants' },
+    {
+      label: '일정',
+      href: `/programs/${programType}/schedule`,
+      icon: 'upcoming',
+      children: [{ label: '상담 등록', href: '/schedules/new' }],
+    },
+    {
+      label: '당사자',
+      href: '/participants',
+      icon: 'participants',
+      children: [
+        { label: '당사자 등록', href: '/participants/new' },
+        { label: '당사자 초대', href: '/participants/invite' },
+      ],
+    },
   ];
 }
 
@@ -128,8 +144,13 @@ export function AppSidebar({
   // '/participants' 가 '/participants/new' 까지 먹지 않도록 정확 일치 + 경계(/) 만 보고,
   // 겹치는 후보 중 **가장 긴 href 하나만** 활성이다(2026-08-03 Q 보고 — '전체 일정'
   // /schedule/all 에서 '다가오는 일정' /schedule 이 접두사 일치로 같이 켜져 둘이 동시
-  // 선택된 것처럼 보였다).
-  const matches = menu.filter((item) => current === item.href || current.startsWith(`${item.href}/`));
+  // 선택된 것처럼 보였다). 하위 메뉴도 같은 풀에서 겨룬다(2026-08-30) — /participants/new
+  // 에서는 '당사자 등록'(더 긴 href) 하나만 켜지고 부모 '당사자'는 쉰다.
+  const allEntries = menu.flatMap((item) => [
+    { href: item.href },
+    ...(item.children ?? []).map((child) => ({ href: child.href })),
+  ]);
+  const matches = allEntries.filter((item) => current === item.href || current.startsWith(`${item.href}/`));
   const activeHref = matches.reduce<string | null>(
     (longest, item) => (longest === null || item.href.length > longest.length ? item.href : longest),
     null,
@@ -156,6 +177,25 @@ export function AppSidebar({
                 <WireBadge tone="mint" role="status">{newSignupCount}</WireBadge>
               )}
             </Link>
+            {item.children !== undefined && (
+              <ul className="navigation-sublist">
+                {item.children.map((child) => {
+                  const childActive = child.href === activeHref;
+                  return (
+                    <li key={child.href}>
+                      <Link
+                        className="navigation-link"
+                        href={child.href}
+                        data-current={childActive ? 'true' : undefined}
+                        aria-current={childActive ? 'page' : undefined}
+                      >
+                        <span>{child.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </li>
         );
       })}

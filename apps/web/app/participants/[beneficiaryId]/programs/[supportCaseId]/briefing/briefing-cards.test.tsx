@@ -667,6 +667,14 @@ describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
     expect(container.querySelector('.wire-item')).not.toBeNull();
   });
 
+  it("안내는 'AI 제안' 라벨 행(head)의 오른쪽 조각이다 (2026-08-30 Q — 구 본문 위 전폭 행 대체)", () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const hint = container.querySelector('[data-testid="briefing-ai-goal-hint"]');
+    const head = hint?.closest('.wire-card-section-head');
+    expect(head).not.toBeNull();
+    expect(head?.querySelector('h3')?.textContent).toBe('AI 제안');
+  });
+
   it('전체 목표가 있으면 안내가 없다', () => {
     const { container } = render(<BriefingCards {...baseProps({ overallGoal: '주거 안정' })} />);
     expect(container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
@@ -687,5 +695,20 @@ describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
     // 다른 케이스는 케이스 단위 저장이라 다시 뜬다.
     const other = render(<BriefingCards {...baseProps({ supportCaseId: '22222222-2222-4222-8222-222222222222' })} />);
     expect(other.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).not.toBeNull();
+  });
+});
+
+describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => {
+  it('회차 행은 전체 상담 기록의 그 회차 앵커로 가는 링크다', () => {
+    const { container } = render(<BriefingCards {...baseProps()} />);
+    const rows = Array.from(container.querySelectorAll('.briefing-session-row'));
+    expect(rows.length).toBe(2);
+    // 앵커가 바뀌면 RecordCard 의 id 계약(#record-{회차ID})과 함께 끊긴다.
+    expect(rows.map((row) => [row.tagName, row.getAttribute('href')])).toEqual([
+      ['A', `${baseProps().recordsHref}#record-s-2`],
+      ['A', `${baseProps().recordsHref}#record-s-1`],
+    ]);
+    // 이동 어휘의 오른쪽 꺽쇠가 행 끝에 선다(§8).
+    for (const row of rows) expect(row.querySelector('.wire-chevron')).not.toBeNull();
   });
 });
