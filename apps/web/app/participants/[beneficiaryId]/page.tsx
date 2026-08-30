@@ -412,7 +412,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
                 }
               >
                 {consentPrograms.map((program) => (
-                  <div key={program.id} className="participant-consent-block">
+                  <div key={program.id} className="participant-consent-block wire-repeat-card">
                     {consentPrograms.length > 1 && (
                       <div className="participant-program-head">
                         <h3 className="participant-consent-program">{programName(programLabels, program.programType)}</h3>

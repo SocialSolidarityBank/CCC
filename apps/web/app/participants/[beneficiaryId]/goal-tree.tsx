@@ -125,7 +125,7 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle, recordsHref }: {
           {tree.sourceSupportCase.status === 'closed' && <WireBadge tone="mint">종결</WireBadge>}
         </div>
       )}
-      <div className="goal-tree-section">
+      <div className="goal-tree-section wire-repeat-card">
         <p className="goal-tree-label">전체 목표</p>
         <div className="goal-tree-overall">
           <span className={overallSet ? 'goal-tree-overall-text' : 'goal-tree-overall-text is-empty'}>
@@ -134,7 +134,7 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle, recordsHref }: {
           <RevisionHistory revisions={tree.overallGoalRevisions} />
         </div>
       </div>
-      <div className="goal-tree-section">
+      <div className="goal-tree-section wire-repeat-card">
         <p className="goal-tree-label">세부 목표</p>
         {tree.goals.length === 0
           ? <WireEmpty>세부 목표가 없습니다. 상담 기록을 작성할 때 세웁니다.</WireEmpty>
