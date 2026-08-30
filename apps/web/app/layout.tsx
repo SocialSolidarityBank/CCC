@@ -598,9 +598,10 @@ const briefingStyles = `
 /* 행 전체가 원문 회차 앵커로 가는 링크다(2026-08-30 Q "원본 연결" · D73 ① — a 요소가
    행 배치를 그대로 갖는다). 꺽쇠는 이동 어휘의 오른쪽 꺽쇠(§8 · .wire-chevron)로 행 끝.
    호버는 리스트 행 계약인 tint 쌍 --gradient-hover 다(§5 리스트 행 · 2026-08-03 Q — 구
-   --muted 단색은 그날 폐지됐다. 2026-08-30 검수 후 정정: 처음 배선할 때 드리프트가 남은
-   전례(.participant-next-schedule-link)를 따라 --muted 로 넣었다), 눌림은 공용 배선
-   (wire-styles.ts §6 목록)이 갖는다. */
+   --muted 단색은 그날 폐지됐다. 처음 배선할 때 그 개정을 못 받은 전례
+   (.participant-next-schedule-link)를 따라 --muted 로 넣었고, 2026-08-30 검수 후 이 자리와
+   전례를 함께 고쳤다 — 남은 --muted 호버 4곳은 버튼·컨트롤이라 이 규칙 대상이 아니다),
+   눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다. */
 .briefing-session-row{display:flex;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
 @media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
 .briefing-session-kind{flex:none;width:84px;display:inline-flex}

@@ -494,12 +494,16 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    행 하나가 카드다(2026-08-29 Q "카드 div로" — 구 --line 가로선 + 좌우 -12 호버 트릭
    대체). 상자는 공용 .wire-repeat-card(마크업에서 병기), 여기는 배치와 링크 옷 지우기만
    갖는다(2026-08-30 CCC-90 스윕 — 구 자기 복제본 대체). 간격은 허브 본문 gap(16)이
-   만든다. 호버는 ListRow 어휘의 --muted 다(2026-08-30 검수 정정 — 구 주석 "tint 쌍"은
-   코드와 달랐다). :hover 명시도(0,2,0)가 레시피 면(0,1,0)을 덮는다. */
+   만든다. 호버는 카드·행 공통 tint 쌍 --gradient-hover 다(§5 호버·선택 규칙 ① · 2026-08-03 Q
+   결정으로 --muted 단색이 폐지된 뒤의 값. **2026-08-30 정정** — 이 자리가 그 개정을 못 받고
+   --muted 로 남아 있었고, 브리핑 회차 행이 이 전례를 따라 같은 드리프트를 한 번 더 냈다.
+   전례를 고쳐 실을 끊는다). :hover 명시도(0,2,0)가 레시피 면(0,1,0)을 덮는다. */
 .participant-next-schedule-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3);color:inherit;text-decoration:none}
 .participant-next-schedule-main{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0}
-@media (hover:hover){.participant-next-schedule-link:hover{background:var(--muted)}}
-/* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --muted.
+@media (hover:hover){.participant-next-schedule-link:hover{background:var(--gradient-hover)}}
+/* ListRow (§5 리스트 행): 패딩 16/24 · 호버 --gradient-hover(2026-08-30 주석 정정 — 코드는
+   아래 규칙대로 2026-08-03 부터 그라데이션인데 이 줄만 구 --muted 를 계약처럼 적고 있었다.
+   실제로 그 문구를 읽고 새 행에 --muted 를 배선한 사고가 났다).
    화면들이 행을 gap 으로 띄운 그리드에 낱개로 놓으므로, 행 사이 구분선 대신 카드 표면을 쓴다
    (구분선 계약은 행이 한 컨테이너 안에 붙어 있을 때 성립한다 — 이 차이는 STATUS 에 남긴다).
    호버·선택은 --surface-fill 만 바꾼다: background 를 덮으면 그라데이션 테두리가 사라진다. */
