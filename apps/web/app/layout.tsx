@@ -515,8 +515,9 @@ const briefingStyles = `
 /* 저장·취소 묶음(2026-08-06 Q): 둘 다 버튼이고 컬러(세컨더리 아웃라인 vs 그레이 아웃라인)로
    가른다. 한 결정의 두 갈래라 사이 간격은 입력칸과의 12 보다 좁은 8 이다. */
 .briefing-goal-buttons{display:flex;align-items:center;gap:var(--space-2)}
-/* 입력칸 계약(§5): 높이 40 · radius 6 · --line-control 1px. */
-.briefing-goal-input{flex:1;min-width:min(100%,240px);height:40px;padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
+/* 입력칸 계약(§5): 높이 40(--control-height, 2026-08-30 토큰화 — 구 raw 40px) · radius 6 ·
+   --line-control 1px. */
+.briefing-goal-input{flex:1;min-width:min(100%,240px);height:var(--control-height);padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 /* 목표 **표시**도 같은 상자다(2026-08-03 Q) — 맨글자는 수정 불가로 읽혀서, 수정할 수 있는
    목표는 입력칸과 같은 형태로 그리고 누르면 바로 편집이 시작된다. */
 .briefing-goal-display{flex:1;min-width:min(100%,240px);display:flex;align-items:center;line-height:normal;min-height:var(--control-height);padding:0 var(--control-pad);border:1px solid var(--line-control);border-radius:var(--radius-control);background:var(--panel);font:inherit;font-size:var(--text-sm);font-weight:400;text-align:left;color:var(--ink);cursor:pointer}
@@ -535,8 +536,11 @@ const briefingStyles = `
 .briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
 .briefing-parent-goal.is-closed{color:var(--sub)}
 /* 전체 목표 미설정 안내 한 줄 (D62 §7) — 설명·메타 단(14/400 --sub, §2-2 단 ④).
-   상자를 두르지 않는다(콜아웃 카드는 카드 안 카드가 된다 — D59 ③). */
-.briefing-ai-goal-hint{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:0;font-size:var(--text-sm);color:var(--sub)}
+   한 행이 구획 폭을 전부 쓰고 '닫기'는 오른쪽 끝이다(2026-08-30 Q 2차 "버튼이 너무 커서
+   행을 나누라" — 구 글줄 옆 흘림 대체). 아래 --line 가로선이 제안 목록과 표처럼 가른다.
+   선은 구획 카드(.briefing-memo-item, 좌우 24) 양끝까지 간다. */
+.briefing-ai-goal-hint{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;margin:0 calc(var(--space-6) * -1);padding:0 var(--space-6) var(--space-3);border-bottom:1px solid var(--line);font-size:var(--text-sm);color:var(--sub)}
+.briefing-ai-goal-hint>.wire-button{flex:none;margin-left:auto}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 2026-08-10 부터 공용 부품 WireCardSection 이
@@ -1001,7 +1005,7 @@ const registerStyles = `
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
    텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
    담고 읽기 폭을 72ch 로 막는다. 새 색 없음 — 배경은 --muted, 테두리는 --line 이다. */
-.consent-detail-body{display:grid;gap:var(--space-4);margin-top:var(--space-3);padding:var(--space-4) var(--space-5);max-width:72ch;background:var(--muted);border:1px solid var(--line);border-radius:var(--radius-control)}
+.consent-detail-body{display:grid;gap:var(--space-4);margin-top:var(--space-3);padding:var(--space-4) var(--space-6);max-width:72ch;background:var(--muted);border:1px solid var(--line);border-radius:var(--radius-control)}
 .consent-detail-disclaimer{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .consent-detail-section{display:grid;gap:var(--space-1-5)}
 .consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}

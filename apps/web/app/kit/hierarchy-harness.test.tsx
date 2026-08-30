@@ -83,7 +83,16 @@ const briefingProps: BriefingCardsProps = {
     sourceQuotes: ['면접 결과는 다음 주에 나와요.'],
   }],
   openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20', sessionId: 's-2' }],
-  flags: [],
+  // 확인된 리스크 더미(2026-08-30 Q "Dummy 데이터 추가해서 표현") — 리스크 배너와 그 안
+  // 근거 인용 접힘이 측정·검수 표면에 실제로 선다(구 빈 배열은 배너가 아예 안 그려졌다).
+  flags: [{
+    id: 'flag-1',
+    flagType: 'debt_deterioration',
+    source: 'ai',
+    reviewStatus: 'confirmed',
+    sessionId: 's-2',
+    quote: '이자가 계속 불어나서 이제 원금은 손도 못 대요.',
+  }],
   upcomingSchedule: {
     id: 's1',
     scheduledAt: '2026-07-20T05:00:00Z',

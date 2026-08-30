@@ -458,13 +458,13 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-step-current{background:var(--gradient-action);border-color:transparent;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--on-action)}
 .wire-step-done{background:var(--mint-tint);border-color:var(--mint-deep);font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--mint-deep)}
 
-/* 상담일정 등록 전용 아웃라인 스텝(2026-08-30 Q "아웃라인 처리" — 구 라운드3 임시 주석
-   대체): 세 상태 전부 테두리를 가진다. 현재 = 그라데이션 아웃라인 + 활성 채움(선택 어휘,
-   .wire-row[data-selected] 와 같은 배경 2겹), 완료 = 어두운 면(--ink) + --on-badge 글자
-   (다크에서는 --ink 가 밝아 흰 배지로 뒤집힌다 — Q "라이트는 다크 컬러, 다크는 화이트"),
-   대기 = 무채색 아웃라인. */
+/* 상담일정 등록 전용 아웃라인 스텝(2026-08-30 Q 2차 — 구 1차 그라데이션 테두리 대체):
+   세 상태 전부 테두리를 가진다. 현재 = 프라이머리 버튼과 같은 --line-action 1px 아웃라인
+   (Q "다른 버튼처럼 rgba(61,52,69,.5)") + 활성 채움(--gradient-action), 완료 = 어두운 면
+   (--ink) + --on-badge 글자(다크에서는 --ink 가 밝아 흰 배지로 뒤집힌다), 대기 = 무채색
+   --line 아웃라인. */
 .schedule-wizard-steps .wire-step{border:1px solid var(--line);border-radius:var(--radius-control);padding:var(--space-1) var(--space-3);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
-.schedule-wizard-steps .wire-step-current{border-color:transparent;background:var(--gradient-action) padding-box,var(--gradient-brand) border-box;color:var(--on-action)}
+.schedule-wizard-steps .wire-step-current{border-color:var(--line-action);background:var(--gradient-action);color:var(--on-action)}
 .schedule-wizard-steps .wire-step-done{border-color:var(--ink);background:var(--ink);color:var(--on-badge);font-weight:400}
  /* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
 .wire-data-rows{display:grid;margin:0;gap:0;border-top:1px solid var(--line)}
@@ -1106,10 +1106,12 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* D73 근거 인용 접힘. 산출물 바로 아래에서만 열고, 링크는 회차 카드 앵커가 종점이다. */
 .wire-source-quotes{margin-top:var(--space-2)}
 .wire-source-quotes>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
-/* 근거 인용 본문은 균등 12 다(2026-08-30 Q "여백 더 넉넉하게" — 구 2026-08-29 6 대체).
-   summary→인용(margin-top)과 인용→링크(gap)를 같은 12 로 맞춘다. */
-.wire-source-quotes-body{display:grid;gap:var(--space-3);margin-top:var(--space-3)}
-.wire-source-quotes-link{justify-self:start}
+/* 근거 인용 본문(2026-08-30 Q 2차 — 구 세로 스택 대체): 인용은 왼쪽 폭을 쓰고 '출처 회차
+   보기' 버튼은 같은 행 오른쪽 끝이다(가로 폭 활용, 세로로 안 늘어뜨린다). 좁으면 버튼이
+   아랫줄로 접힌다. 인용 사이·버튼과의 간격은 균등 12 다(2026-08-30 1차 유지). */
+.wire-source-quotes-body{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);margin-top:var(--space-3)}
+.wire-source-quotes-list{flex:1 1 auto;min-width:min(100%,240px);display:grid;gap:var(--space-3)}
+.wire-source-quotes-link{flex:none;margin-left:auto}
 /* 모달(§5): 폭 520 · radius 12 · 스크림 --scrim · --shadow-modal.
    하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */
 .wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:var(--scrim)}
@@ -1182,32 +1184,38 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 /* Y6: 풀폭 제출 버튼은 이 화면만의 예외였다. 그리드 항목이 늘어나지 않게 왼쪽에 세운다. */
 .register-submit{justify-self:start}
 /* 참여 사업 고정 표시(2026-07-30 Q): 고를 값이 아니라 이미 정해진 값이므로 입력칸이 아니다.
-   민트 계열 = '사람·소속' 축이고 사업 라벨이 그 축에 든다(D34). 알약이 아니라 radius 6 이다 —
+   라벨은 민트 deep('사람·소속' 축, D34)이되 **면은 중립 --muted + --line 1px 이다**
+   (2026-08-30 Q "텍스트가 민트인데 배경도 민트 계열" — 구 --mint-tint 면 대체. deep/tint
+   쌍은 §9 라이트 대비 미달 조합이라 면이 물러선다). 알약이 아니라 radius 6 이다 —
    행동 버튼이 아니다(§4-5, 사이드바 사업 전환기와 같은 이유). */
-.register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:var(--mint-tint)}
+.register-program-fixed{display:inline-flex;align-items:baseline;gap:var(--space-2);margin:0;padding:var(--space-2) var(--space-3);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--muted)}
 .register-program-fixed-label{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600}
 .register-program-fixed-value{color:var(--ink);font-size:var(--text-sm);font-weight:600}
 /* Y10 의 muted 배경은 D59 플랫화로 걷었고, 2026-08-29 Q 가 텍스트 덩어리를 다시 상자로
    올렸다(아래 .register-consent-block — 그림자 금지는 그대로다).
-   2026-08-28 Q: 낭독·전달용 화면이라 '자세히 읽어보기'(summary)를 16 으로 올리고(§1 예외
-   ③ 16/400), 위 구분선(fieldset border-top)은 카드 양끝까지 full-bleed 한다(구 카드 패딩
-   24 안쪽). 내용은 padding-inline 으로 제자리에 둔다. legend '동의'는 base 계약(16/600
-   --ink, D61 ③)이라 따로 손대지 않는다 — 구 register 전용 14/mint 격하만 걷었다. */
+   위 구분선(fieldset border-top)은 카드 양끝까지 full-bleed 한다(구 카드 패딩 24 안쪽,
+   2026-08-28 Q). 내용은 padding-inline 으로 제자리에 둔다. legend '동의'는 base 계약
+   (16/600 --ink, D61 ③) 그대로다.
+   2026-08-30 Q: 동의 아래 텍스트는 전부 14 다 — '자세히 읽어보기' 16 격상(구 2026-08-28
+   "낭독·전달용")과 체크 라벨 16 을 이 화면에서 14 로 내린다. 안내문(.schedule-form-hint)은
+   줄바꿈을 줄이도록 카드 장폭을 전부 쓴다(구 72ch 읽기 폭 해제). */
 .consent-fieldset.register-consent{max-width:none;margin-inline:calc(var(--space-6) * -1);padding-block:var(--space-5) 0;padding-inline:var(--space-6);gap:var(--space-4)}
-.register-consent .consent-detail-summary{font-size:var(--text-md)}
+.register-consent .consent-checkbox{font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+.register-card .schedule-form-hint{max-width:none}
 /* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한
-   상자다. 상자는 카드 안 묶음 어휘(consent-detail-body·upload-slot 과 같은 radius 6 ·
-   --line 1px)라 카드 안 카드 그림자 금지(Y10)와 충돌하지 않는다. 위아래 여백은 fieldset
-   padding-top 20 + gap 16 + 상자 패딩 16/20 이 만든다(구 12/12 — "좁아 보이지 않게"). */
-.register-consent-block{display:grid;gap:var(--space-3);padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel)}
-/* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. */
-.register-consent .consent-emergency{background:none;padding-top:0}
+   상자다. 상자는 카드 안 묶음 어휘(radius 6 · --line 1px)라 카드 안 카드 그림자 금지(Y10)와
+   충돌하지 않는다. 패딩은 반복 행 카드와 같은 16/24 다(2026-08-30 Q "여백이 다른 컴포넌트와
+   안 맞다" — 구 16/20 대체. 형제 상자 패딩 통일은 guard:align 상자 패딩 검사가 강제한다). */
+.register-consent-block{display:grid;gap:var(--space-3);padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel)}
+/* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. padding-top:0 잔재는
+   걷는다(2026-08-30 Q "여백 통일" — 상자 패딩 16/24 는 .register-consent-block 이 갖는다). */
+.register-consent .consent-emergency{background:none}
 /* '자세히 읽어보기' 위 가로선도 fieldset 상단선처럼 카드 양끝까지 — 선이 중간에 끊기지
    않는다(2026-08-29 Q). */
 .register-consent .consent-detail{margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6)}
 /* 서명 동의서 첨부 자리(2026-07-30 Q) — **일부러 조작할 수 없다.** 파일 입력도 버튼도 없다:
    올릴 수 있어 보이면 실무자가 스캔 동의서를 제출했다고 믿는다. 기능이 붙는 날 이 자리를 쓴다. */
-.consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
+.consent-upload-slot{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px dashed var(--line-control);border-radius:var(--radius-control);background:var(--panel)}
 .consent-upload-slot-label{color:var(--sub);font-size:var(--text-sm);font-weight:600}
 /* '준비 중' 은 상태 표시다. 라벤더 = 'AI·승인 대기' 축이라 대기 상태가 그 축에 든다(D34).
    모양은 공용 배지(.wire-badge[data-tone="lavender"])가 갖고, 여기는 그리드 안 자리만 잡는다. */
