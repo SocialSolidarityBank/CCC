@@ -21,6 +21,10 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
             border-bottom 이라 선 자체는 요소가 아니다.
   bullet-y: selectors=[li 셀렉터] — 각 li 의 ::before 점 중심이 자기 첫 줄 상자의 세로
             중앙과 같은가. 의사 요소는 셀렉터로 못 잡아 계산값(top·height)으로 잰다.
+  gap-rhythm: selectors=[위 요소, 아래 요소, 항목 A, 항목 B] — gap-y 에 **항목 리듬**을 더한
+            축(2026-08-30 Q 3차 "아이템 ↔ 가로선 ↔ 아이템의 여백이 맞도록"). 선 위·선 아래
+            여백이 서로 같기만 한 것으로는 부족하고, 그 값이 형제 항목 사이 간격과도 같아야
+            한다 — 대칭인데 리듬이 다르면 선이 위 묶음에 붙어 보인다(구 8/8 대 항목 16).
 
     pnpm design:align
     # 또는
@@ -69,6 +73,28 @@ CHECK_JS = r"""
         name: a.name,
         pass: delta <= tol,
         detail: `선 위 ${aboveGap.toFixed(2)}px / 선 아래 ${belowGap.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
+    if (a.axis === 'gap-rhythm') {
+      const [aboveSel, belowSel, itemASel, itemBSel] = a.selectors;
+      const above = document.querySelector(aboveSel);
+      const below = document.querySelector(belowSel);
+      const itemA = document.querySelector(itemASel);
+      const itemB = document.querySelector(itemBSel);
+      if (!above || !below || !itemA || !itemB) return { name: a.name, pass: false, detail: '요소 없음' };
+      const lineAbove = parseFloat(getComputedStyle(above).paddingBottom);
+      const lineBelow = below.getBoundingClientRect().top - above.getBoundingClientRect().bottom;
+      const rhythm = itemB.getBoundingClientRect().top - itemA.getBoundingClientRect().bottom;
+      const worst = Math.max(
+        Math.abs(lineAbove - lineBelow),
+        Math.abs(lineAbove - rhythm),
+        Math.abs(lineBelow - rhythm),
+      );
+      return {
+        name: a.name,
+        pass: worst <= tol,
+        detail: `선 위 ${lineAbove.toFixed(2)}px / 선 아래 ${lineBelow.toFixed(2)}px / 항목 사이 ${rhythm.toFixed(2)}px (허용 ${tol})`,
       };
     }
 

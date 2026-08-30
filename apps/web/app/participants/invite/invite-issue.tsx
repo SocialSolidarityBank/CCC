@@ -73,7 +73,7 @@ export function InviteIssue() {
   if (state.phase !== 'created') {
     return (
       <WireCard title="가입 링크">
-        <div className="wire-invite-stack">
+        <div className="wire-invite-stack participant-invite-stack">
           <p className="wire-invite-caption">
             링크에는 사업({PROGRAM_LABELS.financial_support_v1})과 발급한 실무자가 함께 담깁니다.
             당사자가 가입을 마치면 내 당사자 목록에 나타납니다.
@@ -98,7 +98,7 @@ export function InviteIssue() {
   // 스택 기본 간격(24)에 낱개로 두면 버튼이 어느 칸의 것인지 흐려진다.
   return (
     <WireCard title="가입 링크">
-      <div className="wire-invite-stack">
+      <div className="wire-invite-stack participant-invite-stack">
         {/* 상태 알림은 이 한 줄만 읽히게 둔다 — 카드 전체를 라이브 영역으로 만들면
             스크린 리더가 아래 이메일 문안 9줄까지 통째로 읽는다. */}
         <p className="wire-invite-caption" role="status">
