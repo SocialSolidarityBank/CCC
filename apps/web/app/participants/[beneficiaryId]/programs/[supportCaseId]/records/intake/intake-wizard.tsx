@@ -835,7 +835,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
               static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
           <WireCard testId="intake-context">
-            <p className="intake-participant-line" data-testid="intake-participant">
+            <p data-testid="intake-participant">
               <MetaRow items={participantParts} />
             </p>
             <p className="panel-meta">
