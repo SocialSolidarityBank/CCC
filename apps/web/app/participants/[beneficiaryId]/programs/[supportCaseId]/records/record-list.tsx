@@ -203,7 +203,7 @@ export function RecordCard({
         aria-labelledby={`life-areas-${record.id}`}
       >
         <h3 id={`life-areas-${record.id}`}>생활 6영역</h3>
-        <ul className="record-life-area-list">
+        <ul>
           {record.lifeAreaSnapshot.map((area) => (
             <li key={area.areaKey}>
               <span className="record-life-area-name">{lifeAreaLabels[area.areaKey]}</span>

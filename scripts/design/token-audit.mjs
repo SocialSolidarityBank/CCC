@@ -227,6 +227,86 @@ for (const [name, rec] of declaredClasses) {
   add(rec.file, rec.line, 'dead-class', `.${name} 를 쓰는 마크업이 없다 — 지우거나, 계약이면 token-audit 의 UNUSED_BUT_CONTRACTED 에 사유와 함께 넣는다`);
 }
 
+// ── 무옷 클래스 검사 (dead-class 의 역방향, 2026-08-30 신설) ─────────────────
+// 마크업이 클래스를 다는데 CSS 어디에도 그 이름의 선택자가 없으면 둘 중 하나다 —
+// ① 규칙이 편집에서 증발했다(2026-08-30 하루에 두 번: .wire-steps 베이스 4줄,
+//    .briefing-parent-goal. 화면이 소리 없이 상속 기본값으로 퇴행하고 어떤 검사도
+//    못 잡았다 — DOM 테스트는 클래스 존재만 보고, jsdom 은 스타일을 계산하지 않는다)
+// ② 처음부터 스타일 없는 훅(격자 자리·앵커·부품 조립 조각)으로 태어났다.
+// ② 는 MARKUP_HOOKS 에 사유와 함께 등재한다 — 넣는 것이 결정이고, 사유 없이 남기는
+// 것이 결함이다(UNUSED_BUT_CONTRACTED 와 같은 계약).
+//
+// kit 페이지는 제외한다 — 전시·하니스 표면이라 감사 대상이 아니다(§3 버튼 감사 제외와
+// 같은 결정). 테스트 파일도 제외한다(화면에 나가지 않는다).
+// 동적 조립 조각(끝이 '-' 인 접두어, 템플릿 ${} 안)은 판정 불가라 건너뛴다.
+const MARKUP_HOOKS = new Set([
+  // 카드화·컴포넌트화로 옷이 부품(.wire-card 등)으로 옮겨 간 뒤 남은 구획 식별 훅.
+  // 테스트·검수가 구획을 짚는 앵커라 지우지 않는다.
+  'settings-section',       // 설정 구획 — "훅으로만 남는다"(layout.tsx 주석, 2026-08-05 카드화)
+  'briefing-goal',          // 전체 목표 카드 식별 훅(브리핑 테스트 앵커)
+  'record-goal',            // 기록 화면 전체 목표 카드 식별 훅
+  'record-life-areas',      // 생활 6영역 구획 훅(record-block 이 옷을 가짐)
+  'record-manager-opinion', // 담당 의견 구획 훅(record-block 이 옷을 가짐)
+  'intake-read-view',       // 인테이크 조회 화면 뿌리 훅
+  'participant-hub-page',   // 허브 페이지 뿌리 훅(page-content 가 옷을 가짐)
+  'session-plan-card',      // 세션 목표 카드 식별 훅(WireCard 가 옷을 가짐)
+  'wire-signup-done',       // 가입 완료 구획 훅(wire-invite-stack 이 옷을 가짐)
+  'consent-policy-slot',    // 동의 안내 자리 표지(2026-08-30 Q — 옷은 hint-slot 이 가짐)
+  'wire-step-label',        // 스텝 라벨 조각 — 옷은 칩(.wire-step)이 갖고, 위저드 테스트 앵커
+  'consent-detail-paragraph', // 동의 문단 나열 판정 훅 — 같은 클래스 형제 = 나열(위계 실측 계약)
+  'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
+  'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본
+  'schedule-day-heading',   // 날짜 제목 조각 — 옷은 .schedule-day-summary-title 상속, 테스트 앵커
+  'self-check-block',       // 당사자 자기확인 화면 구획 훅(D26 최소 구현 — 아직 자기 옷 없음)
+  'self-check-row',         // 당사자 자기확인 행 훅(위와 같음)
+]);
+
+const usedClasses = new Map(); // name -> { file, line } 첫 등장
+const collectClassNames = (src, file) => {
+  const attr = /className\s*=\s*/g;
+  let m;
+  while ((m = attr.exec(src)) !== null) {
+    const start = attr.lastIndex;
+    const open = src[start];
+    let chunk = '';
+    let end = start;
+    if (open === '"' || open === "'") {
+      end = src.indexOf(open, start + 1);
+      if (end < 0) continue;
+      chunk = src.slice(start + 1, end);
+    } else if (open === '{') {
+      let depth = 0;
+      for (end = start; end < src.length; end++) {
+        if (src[end] === '{') depth++;
+        else if (src[end] === '}') { depth--; if (depth === 0) break; }
+      }
+      // 표현식 안 문자열 리터럴만 취한다. 비교 피연산자('past' === … 의 오른쪽 값)는
+      // 클래스가 아니라 상태 값이라 먼저 지우고, 템플릿 ${} 는 동적 조각이라 지운다.
+      const expr = src.slice(start + 1, end).replace(/[=!]==?\s*(["'`])(?:\\.|(?!\1).)*\1/g, ' ');
+      chunk = [...expr.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)]
+        .map((s) => s[2].replace(/\$\{[\s\S]*?\}/g, ' '))
+        .join(' ');
+    } else continue;
+    const line = src.slice(0, m.index).split('\n').length;
+    for (const word of chunk.split(/\s+/)) {
+      if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(word)) continue;
+      if (word.endsWith('-')) continue; // 동적 접두어
+      if (!usedClasses.has(word)) usedClasses.set(word, { file, line });
+    }
+  }
+};
+for (const file of markupFiles) {
+  if (/\.test\.tsx?$/.test(file)) continue;
+  if (file.includes(join('apps/web/app', 'kit') + '/')) continue;
+  let src = readFileSync(file, 'utf8');
+  if (TARGETS.includes(file)) src = src.replace(/`[\s\S]*?`/g, ' ');
+  collectClassNames(src, file);
+}
+for (const [name, loc] of usedClasses) {
+  if (declaredClasses.has(name) || MARKUP_HOOKS.has(name)) continue;
+  add(loc.file, loc.line, 'unstyled-class', `.${name} 를 마크업이 다는데 CSS 선택자가 없다 — 규칙이 증발했으면 복원하고, 스타일 없는 훅이면 token-audit 의 MARKUP_HOOKS 에 사유와 함께 넣는다`);
+}
+
 // ── UI 문안 부호 검사 ─────────────────────────────────────────────────────────
 // DESIGN.md §10: 화면 문자열에 긴 대시(—)를 쓰지 않고, 서로 다른 정보를 잇는 구분자
 // 가운뎃점(' · ')을 쓰지 않는다(한 낱말 병렬 '주거·생계'는 공백이 없어 잡히지 않는다).
