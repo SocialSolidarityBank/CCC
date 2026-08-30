@@ -139,9 +139,10 @@ export function RecordCard({
         {oneLiner ?? (record.kind === 'intake' ? '인테이크 질문지 작성 회차' : '핵심 한 줄이 아직 없습니다')}
       </span>
       <span className="record-summary-right">
-        {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}
-        {/* 리스크 배너는 두지 않는다(D47 §5) — 대신 어느 회차에서 나왔는지를 이 표시가 알린다. */}
+        {/* 리스크 배너는 두지 않는다(D47 §5) — 대신 어느 회차에서 나왔는지를 이 표시가
+            알린다. 리스크는 수기 왼쪽이다(2026-08-30 Q "리스크는 수기 좌측으로"). */}
         {hasConfirmedFlag && <span className="record-flag" data-confirmed="true"><Icon name="warning" size={14} /> 리스크</span>}
+        {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}
         <span className="wire-card-arrow" aria-hidden="true" />
       </span>
     </summary>

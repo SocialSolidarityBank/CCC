@@ -309,12 +309,13 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
 /** 읽기 전용 한 줄(기본정보·동의). 입력 컨트롤을 두지 않는 것이 이 부품의 계약이다.
  *  라벨은 민트다(2026-08-07 Q 9차 "태그에 컬러" — 사람·기록 축, .record-block>h3 과
  *  같은 계약). 값(--ink)과 색으로 갈라져 짝이 한눈에 읽힌다. */
-function ReadOnlyRow(props: { label: string; value: string }) {
-  // 값은 16(--text-md)이다 — 15 하프스텝은 2026-08-28 폐지됐고 버튼 글자도 계단의 14 다. 라벨·값 색은 §5 '정보 필드' 계약(.wire-field-label/.wire-field-value)이 갖는다.
+function ReadOnlyRow(props: { label: string; value: string; emphasis?: boolean }) {
+  // 값은 14 다(2026-08-30 Q "16 → 14" — §1 ⑥ 조합 재사용, 구 16 대체). 강조 줄(이름)만
+  // 16/600 ① 로 세운다. 라벨·값 색은 §5 '정보 필드' 계약(.wire-field-label/.wire-field-value).
   return (
     <div className="wizard-field" data-testid="intake-readonly-row">
       <span className="wire-field-label">{props.label}</span>
-      <p className="wire-field-value">{props.value}</p>
+      <p className="wire-field-value" {...(props.emphasis === true ? { 'data-emphasis': 'true' } : { 'data-size': 'sm' })}>{props.value}</p>
     </div>
   );
 }
@@ -789,7 +790,13 @@ export function IntakeWizard(props: IntakeWizardProps) {
             줄어들었다). 폭 계단은 공용 .rail-grid 가 갖고, 이 화면의 레일 폭은
             --rail-width 260 이다. 단계 목록이 곧 목차라 좁아도 잃는 것이 없다. */}
         <nav className="intake-step-nav" aria-label="단계 진행">
-          <h2>진행 단계</h2>
+          <div className="intake-step-nav-head">
+            <h2>진행 단계</h2>
+            {/* 자동 저장 상태는 진행 단계 제목 옆이다(2026-08-30 Q "자동 저장 대기 배지를
+                진행 단계 텍스트 옆으로" — 구 본문 맥락 카드 아래). 수정 모드는 임시본이
+                없으므로 그리지 않는다. */}
+            {editing ? null : <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />}
+          </div>
           {STEP_TITLES.map((title, index) => {
             const stepNumber = index + 1;
             const entry = progress[index]!;
@@ -838,9 +845,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
             </p>
             <p className="panel-meta">모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
           </WireCard>
-          {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다.
-              수정 모드는 임시본이 없으므로 두 줄 다 그리지 않는다. */}
-          {editing ? null : <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />}
+          {/* 자동 저장 상태 줄은 진행 단계 레일 머리로 옮겼다(2026-08-30 Q). 복원 안내만 남는다. */}
           {editing || restorable === null
             ? null
             : <DraftRestorePrompt savedAt={restorable} onResume={resumeDraft} onDiscard={discardDraft} />}
@@ -855,7 +860,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   당사자 등록에 저장된 값입니다. 이 화면에서는 고칠 수 없고 상담 기록에도 남지 않습니다.{' '}
                   <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
                 </p>
-                <ReadOnlyRow label="이름" value={props.participant.name ?? '미입력'} />
+                <ReadOnlyRow label="이름" value={props.participant.name ?? '미입력'} emphasis />
                 <ReadOnlyRow label="생년월일" value={props.extendedPii.birthDate ?? '미입력'} />
                 <ReadOnlyRow label="휴대전화번호" value={props.participant.phone ?? '미입력'} />
                 <ReadOnlyRow label="이메일" value={props.participant.email ?? '미입력'} />

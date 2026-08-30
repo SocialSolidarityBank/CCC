@@ -174,10 +174,10 @@ export function ConsentEditor({ beneficiaryId, program }: { beneficiaryId: strin
       {/* legend 는 없다(2026-08-07 Q "'동의' 텍스트는 필요 없어 보이네" — 카드 제목 '동의서'가
           이미 구획을 말한다). 접근성 이름은 aria-label 이 잇는다. */}
       <fieldset className="consent-fieldset" aria-label="동의">
-        <p className="schedule-form-hint">
-          <span className="participant-consent-nowrap">동의는 오프라인(종이·구두)으로 받고, 시스템에는 체크·일시·기록자만 남깁니다.</span>{' '}
-          체크를 풀면 철회로 기록되며, 이전 기록은 지워지지 않습니다.
-        </p>
+        {/* 동의 안내 문구는 정책 확정 전까지 비운다(2026-08-30 Q "동의는…않습니다 텍스트
+            삭제, 영역은 보존") — 구 안내 두 줄 높이를 예약해(.participant-consent-hint-slot)
+            문구가 돌아와도 아래 체크 줄이 안 움직인다. */}
+        <p className="schedule-form-hint participant-consent-hint-slot" data-testid="consent-policy-slot" aria-hidden="true" />
         {CONSENT_ITEMS.map((item) => (
           // 체크 라벨과 '전문 보기'가 한 줄에 서고, 펼친 전문만 그 아래로 떨어진다
           // (2026-08-08 Q "우측에 나란히 가운데 정렬"). 배치는 .consent-item 이 갖는다.

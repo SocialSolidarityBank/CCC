@@ -235,7 +235,8 @@ export default async function RecordHistoryPage({
         <span className={currentSchedulePresentation.className}>{currentSchedulePresentation.label}</span>
       </div>}
     >
-      <p>{formatDateTime(schedule.scheduledAt)} {currentSchedulePresentation.message}</p>
+      {/* 본문 한 줄은 14 다(2026-08-30 Q). 여백 대칭은 .record-schedule-note 가 갖는다. */}
+      <p className="record-schedule-note">{formatDateTime(schedule.scheduledAt)} {currentSchedulePresentation.message}</p>
     </WireCard>}
 
     {/* 섹션 제목과 그 아래 목록은 한 묶음이다(2026-08-28 Q — .record-section 공용 계약). */}

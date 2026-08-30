@@ -69,10 +69,10 @@ export const wireStyles = `
 .participant-card-date,.participant-card-emphasis{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 참여 사업 수는 14/600 민트 deep — 진행·소속 축(D34)의 강조 값이라 역할표 라벨 행 안이다. */
 .participant-card-emphasis{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
-/* 가명 ID 는 설명 단(14/400 --sub)으로 이름보다 한 발 물러선다. */
-/* 가명 ID는 당사자 카드에서만 이름을 보조하는 12/400 정보다. 본문 계단과 배지 토큰을
-   재사용하지 않고 전용 토큰으로 자리를 잠근다(2026-08-23 Q). */
-.participant-card-id{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);font-size:var(--text-participant-id);font-weight:400;line-height:var(--leading-normal)}
+/* 가명 ID 는 카드에서 이름을 보조하는 14/400 --sub 조각이다(2026-08-30 Q "ID 가 정렬된
+   카드에서는 전부 14" — 구 12 전용 토큰 대체. §1 ④ 설명 단이라 별도 예외가 필요 없다).
+   12 전용 토큰(--text-participant-id)은 HERO 조각(.participant-hero-id)에만 남는다. */
+.participant-card-id{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
 /* 배지는 두 화면 모두 같은 우상단 자리다. 지난 일정만 유형 옆에 상태 배지가 하나 더 붙는다. */
 .participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
@@ -365,26 +365,37 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{min-width:0;max-width:100%;margin-top:0}
-.participant-consent-nowrap{white-space:nowrap}
 .participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은
    끈다(카드 테두리와 겹쳐 이중선이 된다). */
 .participant-consent-block{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 .participant-consent-block .consent-fieldset{border-top:0;padding-top:0}
+/* 동의 안내 문구 자리(2026-08-30 Q "문구 삭제, 영역은 보존") — 정책 확정 전까지 비워 두되
+   구 안내 두 줄 높이를 예약해, 문구가 돌아와도 아래 체크 줄이 안 움직인다. */
+/* optical: 42 = 14px 안내 두 줄(행간 1.5) 자리 예약 — 여백이 아니라 예약 높이라 4 배수 밖 */
+.participant-consent-hint-slot{min-height:calc(var(--text-sm) * 3)}
 .participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-/* 목표 트리 (D62 §8 · CCC-69) — 목표는 사람·소속·진행 축이 아니므로 구획 라벨은
-   14/600 neutral, 값은 16/400 --ink로 둔다. 케이스 구획 사이는 --line 구분선이다. */
-.goal-tree-case{display:grid;gap:var(--space-4)}
-.goal-tree-case+.goal-tree-case{padding-top:var(--space-3);border-top:1px solid var(--line)}
+/* 목표 트리 (D62 §8 · CCC-69). 전체·세부 목표 구획은 각자 낱개 카드다(2026-08-30 Q
+   "각각의 목표 div 안의 카드 div로" — 동의 묶음(.participant-consent-block)과 같은 반복 행
+   카드 레시피, DESIGN-RULES §3 예외). 두 카드는 가로 2열이고 767 이하는 1열로 접힌다.
+   케이스 구획 사이는 --line 구분선, 사업명 머리는 전폭이다. */
+.goal-tree-case{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
+.goal-tree-case>.participant-program-head{grid-column:1/-1}
+/* 케이스 사이 선도 전폭이다(2026-08-30 검수 — 지시 "가로선은 양쪽 끝까지" 잔여.
+   .wire-card-section 형제 선과 같은 --card-pad 되읽기 레시피). */
+.goal-tree-case+.goal-tree-case{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-top:var(--space-3);padding-inline:var(--card-pad,var(--space-6));border-top:1px solid var(--line)}
 .goal-tree-case-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.goal-tree-section{display:grid;gap:var(--space-2)}
+.goal-tree-section{display:grid;gap:var(--space-2);align-content:start;min-width:0;padding:var(--space-4) var(--space-6);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
+@media (max-width:767px){.goal-tree-case{grid-template-columns:minmax(0,1fr)}}
 /* 목표 라벨은 민트 deep 이다(2026-08-29 Q "목표 라벨 컬러처리해서 눈에 잘 들어오게" — 구
    14/600 --sub. §4 민트 '진행' 축, §1 ② '14/600 계열 deep' 조합). 전체·세부·세션 목표
    라벨을 화면 어디서나 같은 민트로 통일한다. 목표 값(overall-text 등)은 --ink 그대로다. */
 .goal-tree-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
 .goal-tree-overall{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-.goal-tree-overall-text{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+/* 문구는 긴 읽는 본문 14/400 --ink 다(2026-08-30 검수 — §1 '전체 목표 문구' 목록.
+   브리핑 .briefing-goal-text·기록 .record-goal-text 와 같은 값, 구 16 허브 잔여 해소). */
+.goal-tree-overall-text{font-size:var(--text-sm);line-height:normal;color:var(--ink)}
 .goal-tree-overall-text.is-empty{color:var(--sub)}
 /* 세부 목표는 여럿이 나란히 서는 형제 목록이다 — 2026-08-09 Q "위계나 정리 없이 막 나열된
    경향이 크다, 앞에 구분자를 넣어 달라". 구분자는 새로 만들지 않고 §5 불릿 목록 부품
@@ -447,28 +458,14 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-step-current{background:var(--gradient-action);border-color:transparent;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--on-action)}
 .wire-step-done{background:var(--mint-tint);border-color:var(--mint-deep);font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--mint-deep)}
 
-/* 상담일정 등록 전용: 아웃라인(border) 처리 (사용자 요청, round 3)
-   current: border + gradation
-   done: border + dark (light) / white badge (dark) */
-.schedule-wizard-steps .wire-step {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: 400;
-  color: var(--ink);
-}
-.schedule-wizard-steps .wire-step-current {
-  border-color: transparent;
-  background: var(--gradient-action);
-  color: var(--on-action);
-}
-.schedule-wizard-steps .wire-step-done {
-  border-color: var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  font-weight: 400;
-}
+/* 상담일정 등록 전용 아웃라인 스텝(2026-08-30 Q "아웃라인 처리" — 구 라운드3 임시 주석
+   대체): 세 상태 전부 테두리를 가진다. 현재 = 그라데이션 아웃라인 + 활성 채움(선택 어휘,
+   .wire-row[data-selected] 와 같은 배경 2겹), 완료 = 어두운 면(--ink) + --on-badge 글자
+   (다크에서는 --ink 가 밝아 흰 배지로 뒤집힌다 — Q "라이트는 다크 컬러, 다크는 화이트"),
+   대기 = 무채색 아웃라인. */
+.schedule-wizard-steps .wire-step{border:1px solid var(--line);border-radius:var(--radius-control);padding:var(--space-1) var(--space-3);font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+.schedule-wizard-steps .wire-step-current{border-color:transparent;background:var(--gradient-action) padding-box,var(--gradient-brand) border-box;color:var(--on-action)}
+.schedule-wizard-steps .wire-step-done{border-color:var(--ink);background:var(--ink);color:var(--on-badge);font-weight:400}
  /* CCC-81 표 부품: 라벨 고정폭 + 값이 유연한 정의 목록 2열 — 세로 적층 눌린 쌓임의 대안. */
 .wire-data-rows{display:grid;margin:0;gap:0;border-top:1px solid var(--line)}
 .wire-data-row{display:grid;grid-template-columns:minmax(160px,260px) minmax(0,1fr);gap:var(--space-3);border-bottom:1px solid var(--line);padding:var(--space-2) 0}
@@ -558,8 +555,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    안쪽 구분선 대체. 그라데이션 3색은 구조선이 아니라 정보 표시로 옮겨 간다).
    세로 여백은 **카드의 세로 패딩과 같게** 맞춰 각 구획이 아웃라인과 가로선의 정중앙에
    선다(2026-08-07 Q 9차 "가로선 기준 위아래 정렬" — 구 16 고정은 위 24/아래 16 로
-   비대칭이었다). 세로 패딩이 24 가 아닌 카드는 --divider-gap 으로 제 패딩을 알린다. */
-.wire-card-divider{height:0;margin:var(--divider-gap,var(--space-6)) calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
+   비대칭이었다). 세로 패딩이 24 가 아닌 카드는 --divider-gap 으로 제 패딩을 알린다.
+   가로 음수 마진은 --card-pad 를 되읽는다(2026-08-30 Q "가로선은 양쪽 끝까지" — 패딩이
+   24 가 아닌 카드에서도 선이 아웃라인까지 닿는다). */
+.wire-card-divider{height:0;margin:var(--divider-gap,var(--space-6)) calc(var(--card-pad,var(--space-6)) * -1);border:0;border-top:1px solid var(--line)}
 .wire-card-body{display:grid;gap:var(--space-3)}
 /* body(grid gap 12) 안에 놓인 구분선은 gap 이 margin 에 더해져 24 계약이 36 이 된다
    (2026-08-29 Q "가로선 위아래 여백 과도해 가운데 정렬 무너짐"). 세로 margin 에서 그 gap 을
@@ -611,9 +610,10 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    §2-2 규칙 2 를 지키기도 안 지키기도 했다. */
 .wire-card-section{display:grid;gap:var(--space-2)}
 /* **형제 구획이 이어지면 구분선이 자동으로 붙는다**(§2-2 규칙 2ⓐ). 화면이 판단하지 않는다.
-   전폭이 아니라 안쪽 선이다 — 카드를 가로지르는 풀블리드 선(.wire-card-divider)은 카드의
-   머리·본문을 가르는 어휘이고, 여기는 본문 안에서 구획을 가르는 한 단 아래다. */
-.wire-card-section+.wire-card-section{padding-top:var(--space-4);border-top:1px solid var(--line)}
+   선은 카드 전폭이다(2026-08-30 Q "가로선은 div 너비만큼, 양쪽 끊김 금지" — 구 안쪽 선
+   대체). 카드 패딩을 --card-pad 로 되읽어 음수 마진으로 아웃라인까지 닿고, 안쪽 여백은
+   패딩으로 되돌린다. 색은 카드 아웃라인과 같은 --line 하나다. */
+.wire-card-section+.wire-card-section{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-top:var(--space-4);padding-inline:var(--card-pad,var(--space-6));border-top:1px solid var(--line)}
 .wire-card-section>h3,.wire-card-section-head>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-card-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .wire-card-section-head>.wire-button{flex:none}
@@ -658,6 +658,10 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wire-field-row[data-truncate="true"]>.wire-field-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* size sm: 값을 라벨과 같은 14 로 내린다 — 제목(18)과의 대비를 키우는 카드 전용 단(2026-08-22 Q). */
 .wire-field-row[data-size="sm"]>.wire-field-value{font-size:var(--text-sm)}
+/* 인테이크 기본정보 읽기 줄(2026-08-30 Q "16 → 14, 이름만 16 유지 + bold"): 값 기본을 14 로
+   내리고(§1 ⑥ 조합 재사용), 강조 줄(이름)만 16/600 ① 로 세운다. 부착은 ReadOnlyRow 가 한다. */
+.wire-field-value[data-size="sm"]{font-size:var(--text-sm)}
+.wire-field-value[data-emphasis="true"]{font-weight:600}
 /* 불릿 목록(§5): 6px 원형 --sub 불릿 + 14/400(2026-08-28 Q 본문 14). 불릿은 2개 이상일 때만이다(2026-08-07 Q
    규칙 신설) — 단일 항목은 아래 .wire-bullets-single 문장으로 그린다(WireBullets 가 가른다). */
 .wire-bullets{margin:0;padding-left:0;display:grid;gap:var(--space-2);list-style:none;color:var(--ink);font-size:var(--text-sm)}
@@ -754,9 +758,10 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 .wizard-stack>p,.wizard-field>p{margin:0}
 /* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
 .wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
-/* 무응답·해당 없음 줄(인테이크 서술 문항)만 8 — 버튼 사이가 입력칸↔버튼 줄 간격
-   (.wizard-field gap 8)과 같아야 한 묶음으로 읽힌다(2026-08-09 Q). */
-.wizard-answer-actions{gap:var(--space-2)}
+/* 무응답·해당 없음 줄(인테이크 서술 문항): 버튼 사이는 8 로 촘촘하되, 위 입력칸과는
+   margin 8 을 더해 16 으로 띄운다(2026-08-30 Q "입력칸과의 여백 더 늘릴 것" — 구 2026-08-09
+   '입력칸과 같은 8 한 묶음'을 대체. .wizard-field gap 8 + 8 = 16). */
+.wizard-answer-actions{gap:var(--space-2);margin-top:var(--space-2)}
 /* 세부 목표 한 줄(2026-08-29 Q "버튼을 텍스트 오른쪽 같은 행에") — 제목이 왼쪽에서 폭을
    채우고 수정·닫기 조작이 오른쪽 끝에 선다. 두 버튼은 위 answer 줄과 같은 8 로 붙여
    한 세트로 읽힌다. 수정·닫기 폼(editing·closing)은 세로 스택이라 이 규칙 밖이다. */
@@ -1095,9 +1100,9 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 /* D73 근거 인용 접힘. 산출물 바로 아래에서만 열고, 링크는 회차 카드 앵커가 종점이다. */
 .wire-source-quotes{margin-top:var(--space-2)}
 .wire-source-quotes>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
-/* 근거 인용은 곁다리 접힘이라 여백을 6 으로 좁혀 균등하게 둔다(2026-08-29 Q "위아래 같게,
-   더 줄여") — summary→인용(margin-top)과 인용→링크(gap)를 같은 6 으로 맞춘다. */
-.wire-source-quotes-body{display:grid;gap:var(--space-1-5);margin-top:var(--space-1-5)}
+/* 근거 인용 본문은 균등 12 다(2026-08-30 Q "여백 더 넉넉하게" — 구 2026-08-29 6 대체).
+   summary→인용(margin-top)과 인용→링크(gap)를 같은 12 로 맞춘다. */
+.wire-source-quotes-body{display:grid;gap:var(--space-3);margin-top:var(--space-3)}
 .wire-source-quotes-link{justify-self:start}
 /* 모달(§5): 폭 520 · radius 12 · 스크림 --scrim · --shadow-modal.
    하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */
@@ -1353,10 +1358,5 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
 .wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
-  /* .briefing-memo-item wrappers for 3rd round componentization; restore sibling section gap */
-  .briefing-memo-item + .briefing-memo-item .wire-card-section {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--line);
-  }
  `;
  

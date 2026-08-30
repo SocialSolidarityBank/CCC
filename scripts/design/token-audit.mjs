@@ -27,8 +27,9 @@ const TARGETS = [
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
 const SCOPED_TEXT_TOKENS = new Map([
   ['--text-badge-compact', ['.wire-badge[data-size="sm"]']],
-  // 이름 옆 가명 ID 조각 한 벌(2026-08-26 Q 통일) — 카드와 HERO 가 같은 레시피를 쓴다.
-  ['--text-participant-id', ['.participant-card-id', '.participant-hero-id']],
+  // HERO 이름 옆 가명 ID 조각 한 벌(2026-08-30 Q 부분 개정 — 카드 조각(.participant-card-id)은
+  // 14 계단으로 올라가 이 토큰을 떠났다. 구 2026-08-26 카드·HERO 통일).
+  ['--text-participant-id', ['.participant-hero-id']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.

@@ -134,16 +134,11 @@ const ALLOW = [
   },
   ...BADGE_ALLOW,
   {
-    // 2026-08-23 Q: 당사자 카드의 가명 ID만 12px으로 낮춘다.
-    // 2026-08-26 Q: HERO 의 이름 옆 ID 도 같은 레시피다("당사자와 일정의 ID 가 다르다" 통일).
-    selector: '.participant-card-id',
-    combo: 'var(--text-participant-id)/400/var(--sub)',
-    why: '당사자 카드 가명 ID 전용 컴팩트 글자',
-  },
-  {
+    // 2026-08-23 Q: 가명 ID 12px 컴팩트 조각. 2026-08-30 Q 부분 개정 — 카드 조각
+    // (.participant-card-id)은 14 계단(④ 설명 단)으로 올라가 예외를 떠났고 HERO 만 남는다.
     selector: '.participant-hero-id',
     combo: 'var(--text-participant-id)/400/var(--sub)',
-    why: '이름 옆 가명 ID 조각 — 카드 칩과 같은 레시피(2026-08-26 통일)',
+    why: 'HERO 이름 옆 가명 ID 조각 전용 컴팩트 글자(2026-08-30 카드 조각 14 승격)',
   },
   {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
