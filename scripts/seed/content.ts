@@ -508,13 +508,13 @@ export const PARTICIPANTS: readonly SeedParticipant[] = SEED_PROFILE === 'previe
 
 /*
  * 집계 목표(검증 기준). 운영 프로파일(기본, 4명):
- * - 참여자 4명. 주담당은 전원 ai00 — 미리보기 고정 데모 실무자(PREVIEW_ACTOR_EMAIL)가 ai00 이고,
+ * - 참여자 4명. 주담당은 전원 ai00 이다. 미리보기 고정 데모 실무자(PREVIEW_ACTOR_EMAIL)가 ai00 이고,
  *   실무자는 자신이 담당인 케이스만 열 수 있어(D7) 다른 상담사에게 배정하면 화면이 빈다.
  * - 동의(D49): 4명 전원 ② AI 녹취기록 동의. 미동의(수기 폴백, D5) 케이스는 없다.
  * - GAS 추이: 개선 2(1·3) / 정체 1(2) / 악화 1(4).
- * - 목표 교체(D62 §5): 1케이스(3) — closeGoal(reset)+createGoal 로 scale_criteria JSON 저장.
+ * - 목표 교체(D62 §5): 1케이스(3). closeGoal(reset)+createGoal 로 scale_criteria JSON 저장.
  * - 미해결 인라인 액션: 2건(1·4). 해결된 액션: 2건(2×2).
- * - confirmed 플래그 1건: 인라인 1(4 debt) — 브리핑 리스크 배너(D9)의 유일한 시연 케이스.
+ * - confirmed 플래그 1건: 인라인 1(4 debt). 브리핑 리스크 배너(D9)의 유일한 시연 케이스.
  * - 예정 일정 4건: 사람당 정확히 1건. 일정 화면에서 같은 사람이 여러 줄로
  *   반복되지 않게 한다(2026-07-31 Q 지적: 프리뷰에서 한 명이 일정 9건으로 아홉 번 나왔다).
  * - 세션: 인테이크 4 + 정기 11 = 15. 세션당 sessions_manual_submission_audit 트리거 감사 15건.
