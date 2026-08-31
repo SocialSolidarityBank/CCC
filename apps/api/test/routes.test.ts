@@ -31,8 +31,6 @@ import {
 import type { ApiEnv } from '../src/identity';
 import { setupD1 } from './support/d1';
 
-const MULTI_SCENARIO_TIMEOUT_MS = 15_000;
-
 const counselorHeaders = {
   'content-type': 'application/json',
   'X-CCC-User-Id': 'counselor.routes@example.invalid',
@@ -3258,7 +3256,7 @@ describe('canonical participant API routes', () => {
       officialAfterApproval,
       [pendingCanary, rejectedCanary, approvedCanary],
     );
-  }, MULTI_SCENARIO_TIMEOUT_MS);
+  });
 
   it('rejects role-confused, malformed, unknown-field, and hidden-case participant requests without disclosure', async () => {
     const creation = await setupCanonicalParticipant();
@@ -3960,7 +3958,7 @@ describe('support case closure routes (CCC-107)', () => {
       body: JSON.stringify({ reason: '중복 종결 시도' }),
     }), t.env);
     expect(again.status).toBe(409);
-  }, MULTI_SCENARIO_TIMEOUT_MS);
+  });
 
   it('lets the org admin close, and keeps the retention clock parked while another case is still active', async () => {
     const creation = await setupCanonicalParticipant();
@@ -4002,5 +4000,5 @@ describe('support case closure routes (CCC-107)', () => {
       purgeDue: null,
       hasOtherActiveSupportCase: true,
     });
-  }, MULTI_SCENARIO_TIMEOUT_MS);
+  });
 });
