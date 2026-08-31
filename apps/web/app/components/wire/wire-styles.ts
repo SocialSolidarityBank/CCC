@@ -360,7 +360,9 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{min-width:0;max-width:100%;margin-top:0}
-.participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
+/* 반복 행 카드가 상하 16px을 이미 갖는다. 마지막 기록의 옛 아래 마진을 더하면 하단만
+   12px 두꺼워지므로, 메타 줄은 위 분리 여백만 갖고 카드 하단은 부모 패딩에 맡긴다. */
+.participant-program-consent-meta{margin:var(--space-2) 0 0;color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은
    끈다(카드 테두리와 겹쳐 이중선이 된다). */
@@ -398,6 +400,12 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
 .goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex-wrap:nowrap}
+/* 14px 세부 목표 줄은 24px 원을 유지하되 꺽쇠 잉크만 .7em으로 줄인다. 회전한 L자 테두리의
+   보이는 경계 중심은 원점에서 꺽쇠 상자의 약 1/3만큼 밀리므로, 닫힘과 펼침을 반대 방향으로
+   보정한다. 원 자체를 줄이면 행의 터치·상태 표시 크기까지 함께 줄어든다. */
+.goal-tree-goal-head>.wire-card-arrow[data-size="sm"]{font-size:.7em}
+.goal-tree-goal-head>.wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / -3)) rotate(45deg)}
+.goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 3)) rotate(-135deg)}
 .goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
 .goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 .goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}

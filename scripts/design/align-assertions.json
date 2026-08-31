@@ -127,5 +127,77 @@
     "axis": "overflow-x",
     "tolerance": 0,
     "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 작은 원 정중앙",
+    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.45
+  },
+  {
+    "name": "당사자 정보 세부 목표 펼침 꺽쇠 잉크가 작은 원 정중앙",
+    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.45
+  },
+  {
+    "name": "390px 당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 작은 원 정중앙",
+    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.45,
+    "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "390px 당사자 정보 세부 목표 펼침 꺽쇠 잉크가 작은 원 정중앙",
+    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.45,
+    "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "당사자 정보 동의 묶음 접힘 위아래 여백이 같다",
+    "selectors": [
+      "#align-hub-consent .participant-consent-block",
+      "#align-hub-consent .consent-item:first-of-type",
+      "#align-hub-consent .participant-program-consent-meta"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1
+  },
+  {
+    "name": "당사자 정보 동의 묶음 펼침 위아래 여백이 같다",
+    "selectors": [
+      "#align-hub-consent-open .participant-consent-block",
+      "#align-hub-consent-open .consent-item:first-of-type",
+      "#align-hub-consent-open .participant-program-consent-meta"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1
+  },
+  {
+    "name": "390px 당사자 정보 동의 묶음 접힘 위아래 여백이 같다",
+    "selectors": [
+      "#align-hub-consent .participant-consent-block",
+      "#align-hub-consent .consent-item:first-of-type",
+      "#align-hub-consent .participant-program-consent-meta"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "390px 당사자 정보 동의 묶음 펼침 위아래 여백이 같다",
+    "selectors": [
+      "#align-hub-consent-open .participant-consent-block",
+      "#align-hub-consent-open .consent-item:first-of-type",
+      "#align-hub-consent-open .participant-program-consent-meta"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "viewport": { "width": 390, "height": 900 }
   }
 ]
