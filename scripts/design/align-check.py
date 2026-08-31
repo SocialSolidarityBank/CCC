@@ -8,7 +8,7 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
 재는 대상은 `artifacts/align-harness/align.html` 이고, 그 파일은 **실제 부품으로** 렌더한
 것이다(생성기: apps/web/app/kit/align-harness.test.tsx — 위계 하니스와 같은 원칙).
 단언은 `scripts/design/align-assertions.json` 이 선언한다. 기본 형식은 스킬 원본의
-{name, selectors, axis, tolerance}이고 chevron-xy만 maxRatio를 함께 받는다.
+{name, selectors, axis, tolerance}이고 chevron-xy는 maxRatio와 선택 expectedSize를 함께 받는다.
 
 축 — 원본 3종:
   x  : 매칭된 모든 요소의 center-x 가 tolerance 안에서 일치(세로선 정렬)
@@ -20,8 +20,8 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   no-overlap-x-each: selectors=[행, 왼쪽 자식, 오른쪽 자식]. 반복 행의 두 자식이 겹치는가.
   bullet-y: selectors=[li 셀렉터]. 각 li 의 ::before 점 중심이 자기 첫 줄 중심과 같은가.
   chevron-xy: selectors=[꺽쇠 셀렉터]. ::before 잉크가 원 정중앙이고 maxRatio보다 작은가.
-  gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격이 같은가.
-  inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 실제 여백이 같은가.
+  gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격과 선택 expectedGap을 잰다.
+  inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 여백과 선택 expectedInset을 잰다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
 
 단언에 viewport={width,height}를 주면 그 폭에서 다시 배치한 뒤 잰다. 화면을 줄였을 때만
@@ -68,8 +68,12 @@ CHECK_JS = r"""
       let worstX = 0;
       let worstY = 0;
       let largestRatio = 0;
+      let worstSize = 0;
       for (const arrow of arrows) {
         const arrowRect = arrow.getBoundingClientRect();
+        if (a.expectedSize !== undefined) {
+          worstSize = Math.max(worstSize, Math.abs(arrowRect.width - a.expectedSize), Math.abs(arrowRect.height - a.expectedSize));
+        }
         const style = getComputedStyle(arrow, '::before');
         const width = parseFloat(style.width);
         const height = parseFloat(style.height);
@@ -100,8 +104,8 @@ CHECK_JS = r"""
       const maxRatio = a.maxRatio ?? Infinity;
       return {
         name: a.name,
-        pass: worstX <= tol && worstY <= tol && largestRatio <= maxRatio,
-        detail: `dx ${worstX.toFixed(2)}px / dy ${worstY.toFixed(2)}px / 잉크 비율 ${largestRatio.toFixed(3)} (허용 ${tol}px, 최대 ${maxRatio})`,
+        pass: worstX <= tol && worstY <= tol && largestRatio <= maxRatio && worstSize <= tol,
+        detail: `dx ${worstX.toFixed(2)}px / dy ${worstY.toFixed(2)}px / 잉크 비율 ${largestRatio.toFixed(3)} / 크기 오차 ${worstSize.toFixed(2)}px (허용 ${tol}px, 최대 ${maxRatio})`,
       };
     }
 
@@ -112,10 +116,13 @@ CHECK_JS = r"""
       const first = gapOf(els[0], els[1]);
       const second = gapOf(els[2], els[3]);
       const delta = Math.abs(first - second);
+      const expectedDelta = a.expectedGap === undefined
+        ? 0
+        : Math.max(Math.abs(first - a.expectedGap), Math.abs(second - a.expectedGap));
       return {
         name: a.name,
-        pass: delta <= tol,
-        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px (허용 ${tol})`,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 
@@ -129,10 +136,13 @@ CHECK_JS = r"""
       const top = first.getBoundingClientRect().top - boxRect.top;
       const bottom = boxRect.bottom - last.getBoundingClientRect().bottom;
       const delta = Math.abs(top - bottom);
+      const expectedDelta = a.expectedInset === undefined
+        ? 0
+        : Math.max(Math.abs(top - a.expectedInset), Math.abs(bottom - a.expectedInset));
       return {
         name: a.name,
-        pass: delta <= tol,
-        detail: `위 ${top.toFixed(2)}px / 아래 ${bottom.toFixed(2)}px (허용 ${tol})`,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `위 ${top.toFixed(2)}px / 아래 ${bottom.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 

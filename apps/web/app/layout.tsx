@@ -1020,7 +1020,7 @@ const registerStyles = `
 .wire-invite-stack .wire-button{justify-self:start}
 /* D15·D23: 동의 문안 "자세히 읽어보기"·"전문 보기" — briefing-subaccordion 패턴 재사용.
    등록 폼(자세히 읽어보기)과 동의 수정 허브(항목별 전문 보기, 2026-08-07 Q)가 같은 부품이다. */
-.consent-detail{padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
+.consent-detail:not(.register-consent-block){padding-top:var(--space-2);background:linear-gradient(var(--line),var(--line)) top/100% 1px no-repeat}
 /* 동의 항목 한 줄 = 체크 라벨 + '전문 보기' 알약이고, 펼친 전문만 그 아래 줄을 통째로
    쓴다(2026-08-08 Q "우측에 나란히 가운데 정렬"). 구 배치는 알약이 라벨 아래로 떨어져
    항목 하나가 두 줄을 먹었다.
@@ -1039,14 +1039,10 @@ const registerStyles = `
    끝으로 떨어져 라벨과 남남으로 읽혔다). */
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
-/* 동의 요약 줄의 꺽쇠만 기준 글자를 .7 로 낮춘다(2026-08-08 Q "꺽쇠 크기 더 줄이기").
-   전역 배수(--chevron-box)는 16px 글줄에서 잡은 값이라 14px 글줄에서는 글자 대비 여전히
-   컸다. 배수를 따로 두지 않고 기준 글자만 줄여, 상자와 획과 광학 보정이 한 비율로 함께
-   작아진다(14px 글줄에서 상자 7.9 에서 5.5 로). 등록 폼 '자세히 읽어보기'와 허브
-   '전문 보기'는 같은 부품이라 한 선택자가 둘 다 덮는다. */
-/* 동의 요약 줄은 배지형 버튼 안이라 원형 컨테이너를 겹치지 않는다(알약 안 알약 금지) —
-   꺽쇠 잉크만 남기고 기준 글자 .7em 축소(2026-08-08 Q)는 유지한다. */
-.consent-detail-summary>.wire-card-arrow{font-size:.7em;width:auto;height:auto;border:0;border-radius:0;background:none}
+/* 카드가 아닌 동의 요약 줄은 배지형 버튼 안에 있으므로 원형 컨테이너를 겹치지 않는다
+   (알약 안 알약 금지). 등록 화면의 자세히 읽어보기는 register-consent-block 카드라 이
+   예외에서 빠지고 공용 원형 화살표를 쓴다. */
+.consent-detail:not(.register-consent-block)>.consent-detail-summary>.wire-card-arrow{font-size:.7em;width:auto;height:auto;border:0;border-radius:0;background:none}
 /* 인라인 변형의 요약 줄은 **작은 배지형 버튼**이다(2026-08-07 Q 9차 "전문보기를 작은
    뱃지형 버튼으로" — 구 텍스트+화살표 줄 대체). 모양은 기본 배지 레시피(높이 24 ·
    --sub 외곽선 · 알약 · 14/400 --ink)를 그대로 빌리고, 조작이므로 호버 면만 얹는다.

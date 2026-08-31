@@ -5,6 +5,9 @@
 /** 파일에서 백틱 템플릿 리터럴 본문만 모은다. 줄 번호는 파일 기준으로 보존한다. */
 export function extractCss(file: string): string;
 
+/** layout.tsx의 shellStyles 식과 같은 캐스케이드 순서로 CSS를 조립한다. */
+export function composeRuntimeCss(file: string, injectedWireStyles: string): string;
+
 export interface HierarchyRecord {
   key: string;
   file: string;

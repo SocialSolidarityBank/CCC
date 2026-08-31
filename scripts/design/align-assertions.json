@@ -17,13 +17,75 @@
       "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>.empty"
     ],
     "axis": "gap-pair",
-    "tolerance": 1
+    "tolerance": 1,
+    "expectedGap": 8
   },
   {
     "name": "세부 목표 불릿 점은 첫 줄 세로 중앙",
     "selectors": ["#align-content .briefing-subgoal-rows.wire-bullets>li"],
     "axis": "bullet-y",
     "tolerance": 1
+  },
+  {
+    "name": "등록 동의 안내 아래 간격은 체크 항목 사이 간격과 같다",
+    "selectors": [
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.schedule-form-hint",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:last-of-type"
+    ],
+    "axis": "gap-pair",
+    "tolerance": 1,
+    "expectedGap": 12
+  },
+  {
+    "name": "등록 동의 안내와 체크 묶음은 상자 정중앙",
+    "selectors": [
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.schedule-form-hint",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:last-of-type"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "expectedInset": 17
+  },
+  {
+    "name": "긴급 등록 내용 묶음은 상자 정중앙",
+    "selectors": [
+      "#align-register .register-consent>.consent-emergency",
+      "#align-register .register-consent>.consent-emergency>.consent-checkbox",
+      "#align-register .register-consent>.consent-emergency>.schedule-form-hint"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "expectedInset": 17
+  },
+  {
+    "name": "서명 동의서 안내 묶음은 상자 정중앙",
+    "selectors": [
+      "#align-register .register-consent>.consent-upload-slot",
+      "#align-register .register-consent>.consent-upload-slot>.consent-upload-slot-label",
+      "#align-register .register-consent>.consent-upload-slot>.schedule-form-hint"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "expectedInset": 17
+  },
+  {
+    "name": "등록 동의 전문 닫힘 꺽쇠 잉크가 작은 원 정중앙",
+    "selectors": ["#align-register .consent-detail:not([open])>.consent-detail-summary>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.45,
+    "expectedSize": 24
+  },
+  {
+    "name": "등록 동의 전문 펼침 꺽쇠 잉크가 작은 원 정중앙",
+    "selectors": ["#align-register-open .consent-detail[open]>.consent-detail-summary>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.45,
+    "expectedSize": 24
   },
   {
     "name": "등록 동의 전문 상자: 접힘 요약 줄이 상자 정중앙",
@@ -33,7 +95,8 @@
       "#align-register .consent-detail>.consent-detail-summary"
     ],
     "axis": "inset-y",
-    "tolerance": 1
+    "tolerance": 1,
+    "expectedInset": 17
   },
   {
     "name": "등록 동의 전문 상자: 펼쳐도 내용 묶음이 상자 정중앙",
@@ -43,7 +106,20 @@
       "#align-register-open .consent-detail .consent-detail-body"
     ],
     "axis": "inset-y",
-    "tolerance": 1
+    "tolerance": 1,
+    "expectedInset": 17
+  },
+  {
+    "name": "등록 동의 전문 요약과 본문 간격은 카드 안 줄 간격과 같다",
+    "selectors": [
+      "#align-register-open .consent-detail>.consent-detail-summary",
+      "#align-register-open .consent-detail>.consent-detail-body",
+      "#align-register-open .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type",
+      "#align-register-open .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:last-of-type"
+    ],
+    "axis": "gap-pair",
+    "tolerance": 1,
+    "expectedGap": 12
   },
   {
     "name": "390px 회차 링크 꺽쇠가 자기 행 세로 중앙",
@@ -133,14 +209,16 @@
     "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45
+    "maxRatio": 0.45,
+    "expectedSize": 24
   },
   {
     "name": "당사자 정보 세부 목표 펼침 꺽쇠 잉크가 작은 원 정중앙",
     "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45
+    "maxRatio": 0.45,
+    "expectedSize": 24
   },
   {
     "name": "390px 당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 작은 원 정중앙",
@@ -148,6 +226,7 @@
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.45,
+    "expectedSize": 24,
     "viewport": { "width": 390, "height": 900 }
   },
   {
@@ -156,6 +235,7 @@
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.45,
+    "expectedSize": 24,
     "viewport": { "width": 390, "height": 900 }
   },
   {
@@ -166,7 +246,8 @@
       "#align-hub-consent .participant-program-consent-meta"
     ],
     "axis": "inset-y",
-    "tolerance": 1
+    "tolerance": 1,
+    "expectedInset": 17
   },
   {
     "name": "당사자 정보 동의 묶음 펼침 위아래 여백이 같다",
@@ -176,7 +257,8 @@
       "#align-hub-consent-open .participant-program-consent-meta"
     ],
     "axis": "inset-y",
-    "tolerance": 1
+    "tolerance": 1,
+    "expectedInset": 17
   },
   {
     "name": "390px 당사자 정보 동의 묶음 접힘 위아래 여백이 같다",
@@ -187,6 +269,7 @@
     ],
     "axis": "inset-y",
     "tolerance": 1,
+    "expectedInset": 17,
     "viewport": { "width": 390, "height": 900 }
   },
   {
@@ -198,6 +281,7 @@
     ],
     "axis": "inset-y",
     "tolerance": 1,
+    "expectedInset": 17,
     "viewport": { "width": 390, "height": 900 }
   }
 ]

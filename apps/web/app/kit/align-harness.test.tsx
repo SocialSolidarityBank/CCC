@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { extractCss } from '../../../../scripts/design/hierarchy-audit.mjs';
+import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RegisterForm } from '../participants/new/register-form';
@@ -162,12 +162,11 @@ describe('정렬 하니스 생성기', () => {
     expect(content, '제안 있음: 수기 배지 없는 회차 변형이 없다').toContain('<span class="briefing-session-memo"></span>');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
-    const layoutCss = extractCss(join(repoRoot, 'apps/web/app/layout.tsx'));
+    const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
     const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>정렬 하니스</title>
 <style>${tokens}</style>
-<style>${layoutCss}</style>
-<style>${wireStyles}</style>
+<style>${runtimeCss}</style>
 <style>body{background:var(--canvas)}</style>
 </head><body>
 <div id="align-empty">${empty}</div>
