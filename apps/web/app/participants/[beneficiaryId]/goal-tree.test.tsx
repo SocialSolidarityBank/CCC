@@ -75,6 +75,14 @@ describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
     expect(sessionRows[0]?.closest('.goal-tree-goal')?.textContent).toContain('월 지출 내역을 매주 기록한다');
   });
 
+
+  it('축약되는 전체·세부 목표는 전체 문구를 title 속성으로 보존한다', () => {
+    const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
+    const overall = container.querySelector('.goal-tree-overall-text');
+    const detail = container.querySelector('.goal-tree-goal-title');
+    expect(overall?.getAttribute('title')).toBe('안정적인 주거 확보와 채무 상환 계획 실행');
+    expect(detail?.getAttribute('title')).toBe('월 지출 내역을 매주 기록한다');
+  });
   it('세부 목표를 펼치면 연결된 회차의 날짜와 핵심 한 줄이 기록 앵커 링크로 보인다 (D73)', () => {
     const { container } = render(<GoalTreeCard cases={[caseTree()]} programLabels={programLabels} />);
     const goal = [...container.querySelectorAll('details.goal-tree-goal-details')]

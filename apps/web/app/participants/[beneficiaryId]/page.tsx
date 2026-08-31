@@ -219,7 +219,7 @@ function ProgramRow({ beneficiaryId, program, programTitle }: {
     <div className="participant-program-row wire-repeat-card">
       <div className="participant-program-head">
         <span className="participant-program-head-main">
-          <h3>{programTitle}</h3>
+          <h3 title={programTitle}>{programTitle}</h3>
           {/* 종결은 무채색이다 — 민트는 진행(사람·상태) 축의 색이라 닫힌 케이스에 어울리지 않는다(D58 ④). */}
           <WireBadge tone={program.status === 'active' ? 'mint' : 'neutral'}>{programStatus(program.status)}</WireBadge>
         </span>

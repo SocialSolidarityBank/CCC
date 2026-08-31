@@ -134,26 +134,13 @@ const ALLOW = [
   },
   ...BADGE_ALLOW,
   {
-    // 2026-08-23 Q: 가명 ID 12px 컴팩트 조각. 2026-08-30 Q 부분 개정 — 카드 조각
-    // (.participant-card-id)은 14 계단(④ 설명 단)으로 올라가 예외를 떠났고 HERO 만 남는다.
-    selector: '.participant-hero-id',
-    combo: 'var(--text-participant-id)/400/var(--sub)',
-    why: 'HERO 이름 옆 가명 ID 조각 전용 컴팩트 글자(2026-08-30 카드 조각 14 승격)',
-  },
-  {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
     selector: '.participant-card-cell',
     combo: `var(--text-md)/400/${MIXED_SUB}`,
     why: 'D59 부분 재개정 — 당사자 카드 정보 칸의 가명 ID',
   },
-  // 아래 셋은 2026-08-10 Q 결정(CCC-84). `16/400 --sub` 는 **조합으로는 열 수 없다** — 킷
-  // 페이지의 '고치기 전' 반례가 정확히 그 조합이라, 표에 넣는 순간 반례가 반례가 아니게 된다.
+  // 아래 둘은 2026-08-10 Q 결정(CCC-84). `16/400 --sub` 는 **조합으로는 열 수 없다**.
   // 그래서 자리를 지정해 예외로 둔다.
-  {
-    selector: '.participant-hero-contact',
-    combo: 'var(--text-md)/400/var(--sub)',
-    why: 'D59 결정 3 — HERO 는 이름이 28 이라 연락처가 16 에서도 충분히 물러선다',
-  },
   {
     selector: '.participant-card-cell[data-tone="sub"]',
     combo: 'var(--text-md)/400/var(--sub)',

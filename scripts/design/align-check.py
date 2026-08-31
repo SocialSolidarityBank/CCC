@@ -15,19 +15,16 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   y  : center-y 일치(가로 한 줄 정렬)
   xy : selectors=[자식, 컨테이너] — 자식이 컨테이너의 정중앙(버튼 안 텍스트 등)
 
-확장 3종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
-  bullet-y: selectors=[li 셀렉터] — 각 li 의 ::before 점 중심이 자기 첫 줄 상자의 세로
-            중앙과 같은가. 의사 요소는 셀렉터로 못 잡아 계산값(top·height)으로 잰다.
+확장 6종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
+  center-y-each: selectors=[행, 행 안 자식]. 반복 행마다 자식이 자기 행의 세로 중앙인가.
+  no-overlap-x-each: selectors=[행, 왼쪽 자식, 오른쪽 자식]. 반복 행의 두 자식이 겹치는가.
+  bullet-y: selectors=[li 셀렉터]. 각 li 의 ::before 점 중심이 자기 첫 줄 중심과 같은가.
   gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격이 같은가.
-            형제 구획이 같은 리듬으로 서는지 재는 축이다(2026-08-30 Q 4차 결정 D, AI 제안
-            구획의 라벨 행 아래 간격이 형제 구획과 같아야 한다. 구 gap-y·gap-rhythm 은 라벨 행
-            아래 가로선을 전제한 축이었고, 그 선이 폐지되며 함께 걷었다).
-  inset-y : selectors=[컨테이너, 첫 자식, 마지막 자식] — 컨테이너 위 여백(첫 자식 top −
-            컨테이너 top)과 아래 여백(컨테이너 bottom − 마지막 자식 bottom)이 같은가
-            (2026-08-30 Q 3차 "펼치기 전에는 가운데 정렬 … 펼친 후에도 전체 가운데 정렬 유지").
-            접힘은 [상자, 요약, 요약], 펼침은 [상자, 요약, 본문] 으로 같은 축이 두 상태를 잰다.
-            내용이 자기 마진·패딩을 들고 있어 컨테이너 패딩만 대칭이어도 기울 수 있어, 계산값이
-            아니라 실제 자리로 잰다.
+  inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 실제 여백이 같은가.
+  overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
+
+단언에 viewport={width,height}를 주면 그 폭에서 다시 배치한 뒤 잰다. 화면을 줄였을 때만
+드러나는 꺽쇠·줄바꿈 회귀를 데스크톱 단언과 같은 파일에서 막는다.
 
     pnpm design:align
     # 또는
@@ -95,6 +92,38 @@ CHECK_JS = r"""
       };
     }
 
+    if (a.axis === 'center-y-each') {
+      const rows = [...document.querySelectorAll(a.selectors[0])];
+      if (rows.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
+      let worst = 0;
+      for (const row of rows) {
+        const child = row.querySelector(a.selectors[1]);
+        if (!child) return { name: a.name, pass: false, detail: '행 안 자식 없음' };
+        worst = Math.max(worst, Math.abs(center(row.getBoundingClientRect(), 'y') - center(child.getBoundingClientRect(), 'y')));
+      }
+      return { name: a.name, pass: worst <= tol, detail: `최대 어긋남 ${worst.toFixed(2)}px, 행 ${rows.length}개 (허용 ${tol})` };
+    }
+    if (a.axis === 'no-overlap-x-each') {
+      const rows = [...document.querySelectorAll(a.selectors[0])];
+      if (rows.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
+      let minimum = Infinity;
+      for (const row of rows) {
+        const left = row.querySelector(a.selectors[1]);
+        const right = row.querySelector(a.selectors[2]);
+        if (!left || !right) return { name: a.name, pass: false, detail: '행 안 자식 없음' };
+        minimum = Math.min(minimum, right.getBoundingClientRect().left - left.getBoundingClientRect().right);
+      }
+      return { name: a.name, pass: minimum >= -tol, detail: `최소 가로 여유 ${minimum.toFixed(2)}px, 행 ${rows.length}개 (허용 겹침 ${tol})` };
+    }
+
+
+    if (a.axis === 'overflow-x') {
+      const els = a.selectors.flatMap((sel) => [...document.querySelectorAll(sel)]);
+      if (els.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
+      const worst = Math.max(...els.map((el) => el.scrollWidth - el.clientWidth));
+      return { name: a.name, pass: worst <= tol, detail: `최대 가로 넘침 ${worst.toFixed(2)}px (허용 ${tol})` };
+    }
+
     if (a.axis === 'bullet-y') {
       const items = [...document.querySelectorAll(a.selectors[0])];
       if (items.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
@@ -134,11 +163,23 @@ def main() -> int:
         return 1
     asserts = json.loads(assertions_file.read_text(encoding="utf-8"))
 
+    groups = {}
+    for assertion in asserts:
+        viewport = assertion.get("viewport", VIEWPORT)
+        key = (int(viewport["width"]), int(viewport["height"]))
+        groups.setdefault(key, []).append(assertion)
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport=VIEWPORT)
-        page.goto(harness.as_uri())
-        results = page.evaluate(CHECK_JS, asserts)
+        results = []
+        for (width, height), group in groups.items():
+            page.set_viewport_size({"width": width, "height": height})
+            page.goto(harness.as_uri())
+            batch = page.evaluate(CHECK_JS, group)
+            for result in batch:
+                result["viewport"] = f"{width}x{height}"
+            results.extend(batch)
         browser.close()
 
     all_pass = True
@@ -147,7 +188,7 @@ def main() -> int:
         mark = "통과" if result["pass"] else "실패"
         if not result["pass"]:
             all_pass = False
-        print(f"  {mark} — {result['name']}: {result.get('detail', '')}")
+        print(f"  {mark} — {result['name']} [{result['viewport']}]: {result.get('detail', '')}")
     return 0 if all_pass else 1
 
 

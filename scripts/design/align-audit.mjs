@@ -87,6 +87,9 @@ const BOX_BORDER = /border:\s*1px\s+(?:solid|dashed)\s+var\(--line(?:-control)?\
 const BOX_RADIUS = /border-radius:\s*var\(--radius-(?:card|control)\)/;
 const BOX_FILL = /background:\s*var\(--(?:panel|muted)\)/;
 const BOX_PADDING = /(?:^|;)\s*padding:\s*([^;]+)/;
+// 체크 라벨과 동의 전문 요약은 고정 높이 토큰이 없지만, 체크박스·꺽쇠와 한 줄에 서는
+// 공용 조작 행이다. 두 선택자가 다시 상속 행간으로 돌아가면 등록과 당사자 정보가 함께 어긋난다.
+const REQUIRED_CENTER_ROWS = new Set(['.consent-checkbox', '.consent-detail-summary']);
 const ALLOWED_BOX_PADDING = new Set([
   'var(--space-6)',                    // 카드 24 사방
   'var(--card-pad)',                   // 카드 패딩 되읽기
@@ -124,6 +127,22 @@ for (const file of TARGETS) {
     }
     if (!LINE_NORMAL.test(rec.decls)) {
       add(file, rec.line, 'center-contract', `${selector} — 단일행 컨트롤인데 line-height:normal 이 없다. 상속 행간(1.55)은 글꼴 상자를 중앙에서 밀어낸다(2026-08-06 실측 0.9px)`);
+    }
+  }
+
+  if (file.endsWith('layout.tsx')) {
+    for (const selector of REQUIRED_CENTER_ROWS) {
+      const rec = bySelector.get(selector);
+      if (rec === undefined) {
+        add(file, 1, 'center-row-missing', `${selector} 공용 정렬 규칙이 없다`);
+        continue;
+      }
+      if (!CENTERED.test(rec.decls)) {
+        add(file, rec.line, 'center-contract', `${selector}는 체크박스·꺽쇠와 한 줄에 서므로 align-items:center가 필요하다`);
+      }
+      if (!LINE_NORMAL.test(rec.decls)) {
+        add(file, rec.line, 'center-contract', `${selector}는 상속 행간 대신 line-height:normal을 써야 한다`);
+      }
     }
   }
 
