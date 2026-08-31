@@ -172,9 +172,13 @@ const SAVINGS_SCALE: SeedScaleCriteria = {
 };
 
 /**
- * 가상 참여자 4명. 배정·동의·추이·회차·이벤트 분포는 파일 하단 주석의 집계 목표를 충족한다.
+ * 운영 정본 참여자 4명. 배정·동의·추이·회차·이벤트 분포는 파일 하단 주석의 집계 목표를 충족한다.
+ *
+ * **이 배열은 늘리지 않는다.** 화면을 보려고 데이터를 늘리는 것은 프리뷰의 일이고, 운영 D1 에
+ * 들어가는 가상 데이터는 적을수록 좋다(실서비스 개시 전 정리 대상이라서다). 사례를 더 보고
+ * 싶으면 아래 PREVIEW_ONLY_PARTICIPANTS 에 넣고 SEED_PROFILE=preview 로 만든다.
  */
-export const PARTICIPANTS: readonly SeedParticipant[] = [
+export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 1 (ai00, improving, 목표2, 정기3, 미래일정) ──────────────────────────────
   {
     name: '김서준', phone: phone(1), email: email(1), assigneeUserId: COUNSELOR_IDS.ai00,
@@ -264,8 +268,246 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
   },
 ];
 
+/**
+ * 프리뷰 전용 참여자 10명(2026-08-30 Q "텍스트가 풍부하고 여러 가지 사례를 고루 볼 수 있는
+ * 데이터를 다량으로, 프리뷰사이트에서만").
+ *
+ * **운영 시드에는 들어가지 않는다**: SEED_PROFILE=preview 일 때만 합쳐진다(파일 끝 PARTICIPANTS).
+ * 프리뷰 D1 은 가상 데이터 전용이고 통째로 다시 세우는 것이 정상 절차라(RUNBOOK §5) 여기서
+ * 사례를 늘려도 운영에 번지지 않는다.
+ *
+ * 고르게 덮는 축:
+ * - 리스크 플래그 6종 전부(D72): 위기 발언·연락 두절·주거·생계·건강 급변·부채 악화·
+ *   약속 불이행 반복·폭력·착취 피해. 브리핑 리스크 배너와 회차 카드 '이 회차에서 나온 것'이
+ *   여섯 유형 모두에서 어떻게 읽히는지 한 화면씩 볼 수 있다.
+ * - 녹취 미동의 1명(5): 수기 폴백(D5)만으로 브리핑이 서는 모양. 운영 시드에는 없던 축이다.
+ * - 목표 닫기 사유 3종(D62 §5): 달성(11)·중단(12)·재설정(운영 3에 이미 있다).
+ * - 추이 4종: 개선·정체·악화·혼재.
+ * - 회차 수 2~6: 회차별 정리 목록이 짧을 때와 길 때, 접힘·펼침 리듬.
+ * - 메모 길이: 두 줄짜리와 여섯 줄짜리를 섞었다. 카드 폭에서 줄바꿈·말줄임이 어떻게
+ *   걸리는지 보려면 긴 문장이 실제로 있어야 한다.
+ */
+export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
+  // ── 5 (녹취 미동의 · plateau · 수기 폴백만으로 브리핑) ─────────────────────────
+  {
+    name: '정하윤', phone: phone(5), email: email(5), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-96), consent: { recordingAi: false }, trajectory: 'plateau',
+    goals: [{ key: 'ledger', title: '매일 지출을 한 줄로 적는다' }],
+    intakeMemo: '반찬가게에서 일하며 밤에는 배달을 뛴다. 두 일을 합쳐도 월세와 관리비를 내면 남는 것이 거의 없다고 한다. 녹음은 부담스럽다고 분명히 말해 동의를 받지 않았고, 기록은 상담 중 손으로 적는 메모로만 남기기로 합의했다. 우선 돈이 어디로 나가는지 눈으로 보는 것부터 시작한다.',
+    regulars: [
+      { heldAt: at(-75), memo: '한 줄 기록을 열흘쯤 이어갔다. 커피와 편의점 지출이 생각보다 크다는 것을 본인이 먼저 발견했다.' },
+      {
+        heldAt: at(-54), memo: '기록은 유지되지만 지출이 줄지는 않았다. 배달 수입이 들쭉날쭉해 예산을 세워도 무너진다고 한다. 수입이 적은 주를 기준으로 최소 예산을 먼저 잡아보기로 했다.',
+        customQuestions: ['수입이 가장 적었던 주에는 무엇을 먼저 포기하게 되나요?'],
+      },
+    ],
+    futureSchedules: [{ scheduledAt: at(1, 11), customQuestions: ['최소 예산안을 함께 손봅시다'] }],
+  },
+  // ── 6 (위기 발언 플래그 · decline · 미해결 액션) ───────────────────────────────
+  {
+    name: '오세라', phone: phone(6), email: email(6), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-71), consent: { recordingAi: true }, trajectory: 'decline',
+    goals: [
+      { key: 'repay', title: '연체된 통신비와 공과금을 순서대로 정리한다' },
+      { key: 'support', title: '주 1회는 사람을 만나 이야기한다' },
+    ],
+    intakeMemo: '온라인 쇼핑몰을 접은 뒤 남은 재고와 미납금이 함께 남았다. 가족과 연락을 끊은 상태로 혼자 지내며, 낮에는 거의 눈을 붙이지 못한다고 한다. 돈 문제와 고립이 함께 있어 정리 순서와 사람 만나는 일을 같이 목표로 잡았다.',
+    regulars: [
+      {
+        heldAt: at(-50), memo: '통신비는 분할 납부로 돌렸다. 대화 중 "다 정리하고 사라지고 싶다"는 말이 나와 그 자리에서 안전 확인을 했고, 지역 상담센터 연락처를 함께 저장했다. 다음 상담까지 매주 안부 연락을 하기로 약속했다.',
+        actionItems: [{ description: '주 1회 안부 연락(실무자 발신)과 응답 여부를 기록한다', owner: 'counselor', dueDate: day(3) }],
+        flags: [{ flagType: 'crisis_utterance', quote: '다 정리하고 그냥 사라지고 싶다는 생각이 자주 들어요.' }],
+      },
+      { heldAt: at(-29), memo: '안부 연락에는 대체로 답했다. 공과금 한 건은 아직 손대지 못했고, 사람 만나는 일은 지역 모임 한 번 참석으로 시작했다.' },
+      {
+        heldAt: at(-8), memo: '수면이 조금 나아졌다고 한다. 다만 재고 처분이 진행되지 않아 조바심이 크다.',
+        customQuestions: ['이번 주에 연락하고 지낸 사람이 있었나요?'],
+      },
+    ],
+    futureSchedules: [{ scheduledAt: at(3, 14), goalLinks: ['support'] }],
+  },
+  // ── 7 (연락 두절 위험 · mixed · 해결된 액션) ───────────────────────────────────
+  {
+    name: '강민재', phone: phone(7), email: email(7), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-64), consent: { recordingAi: true }, trajectory: 'mixed',
+    goals: [{ key: 'contact', title: '상담 일정을 미리 확인하고 변경은 하루 전에 알린다' }],
+    intakeMemo: '일용직 현장을 옮겨 다니며 일한다. 일이 잡히면 연락이 끊기고 없으면 다시 오는 식이 반복돼, 우선 연락 리듬을 만드는 것을 목표로 잡았다.',
+    regulars: [
+      {
+        heldAt: at(-43), memo: '두 차례 무응답 뒤 세 번째 연락에 답했다. 현장이 지방으로 잡히면 전화를 받기 어렵다고 해, 문자로 먼저 남기는 방식으로 바꿨다.',
+        flags: [{ flagType: 'contact_loss_risk', quote: '전화를 못 받으면 그냥 잊어버려요. 다시 연락 안 하실 줄 알았어요.' }],
+      },
+      { heldAt: at(-15), memo: '문자로 바꾼 뒤 응답이 붙었다. 일정 변경도 하루 전에 알려 왔다.' },
+    ],
+    resolvedActions: [
+      { description: '문자 우선 연락으로 바꾸고 응답 방식을 케이스에 기록한다', owner: 'counselor', dueDate: day(-40) },
+      { description: '다음 현장 일정이 잡히면 날짜를 미리 알려 준다', owner: 'beneficiary', dueDate: day(-20) },
+    ],
+    futureSchedules: [{ scheduledAt: at(5, 10), goalLinks: ['contact'] }],
+  },
+  // ── 8 (주거·생계·건강 급변 · decline · 정기 3) ─────────────────────────────────
+  {
+    name: '서지우', phone: phone(8), email: email(8), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-88), consent: { recordingAi: true }, trajectory: 'decline',
+    goals: [
+      { key: 'housing', title: '이번 달 안에 거주지 계약 상태를 확인해 정리한다' },
+      { key: 'budget', title: '고정지출을 한 장으로 정리한다' },
+    ],
+    intakeMemo: '작은 인쇄소를 운영하다 기계 고장으로 두 달을 쉬었다. 그 사이 월세가 밀리고 보증금에서 차감되기 시작했다. 거주 문제가 가장 급해 그것부터 목표로 올렸다.',
+    regulars: [
+      { heldAt: at(-67), memo: '집주인과 분할 상환을 구두로 합의했다. 고정지출 정리는 시작만 해 둔 상태다.' },
+      {
+        heldAt: at(-46), memo: '허리 통증으로 열흘을 일하지 못해 합의한 금액을 다시 넘겼다. 보증금이 두 달치 더 깎였고, 계약 종료가 두 달 앞이라 대안을 알아봐야 한다.',
+        flags: [{ flagType: 'housing_livelihood_shock', quote: '보증금에서 계속 까이니까 나갈 때 남는 게 없을 것 같아요.' }],
+        actionItems: [{ description: '주거 지원 제도 두 곳의 신청 요건을 확인해 정리한다', owner: 'org', dueDate: day(6) }],
+      },
+      { heldAt: at(-25), memo: '통증은 나아졌지만 일감이 줄어 수입이 회복되지 않았다. 고정지출 표는 절반쯤 채웠다.' },
+    ],
+    futureSchedules: [{ scheduledAt: at(7, 15), goalLinks: ['housing'] }],
+  },
+  // ── 9 (약속 불이행 반복 · plateau · 정기 4) ────────────────────────────────────
+  {
+    name: '문가온', phone: phone(9), email: email(9), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-121), consent: { recordingAi: true }, trajectory: 'plateau',
+    goals: [
+      { key: 'plan', title: '상담에서 정한 할 일을 다음 상담까지 하나는 마친다' },
+      { key: 'sales', title: '주 3회 이상 가게 문을 정시에 연다' },
+    ],
+    intakeMemo: '수선집을 물려받아 운영한다. 손기술은 좋지만 문 여는 시간이 일정하지 않아 단골이 빠졌다. 약속을 작게 쪼개는 방식으로 접근하기로 했다.',
+    regulars: [
+      { heldAt: at(-100), memo: '개점 시간을 오전 10시로 정했다. 첫 주는 세 번 지켰다.' },
+      {
+        heldAt: at(-79), memo: '가져오기로 한 매출 메모를 이번에도 잊었다. 세 번째 미이행이라 이유를 함께 짚었다. 종이 대신 사진으로 찍어 보내기로 방식을 바꿨다.',
+        flags: [{ flagType: 'repeated_noncompliance', quote: '적어 놓긴 했는데 어디 뒀는지 못 찾겠어요. 매번 이래요.' }],
+      },
+      { heldAt: at(-58), memo: '사진 전송으로 바꾼 뒤 두 주는 들어왔다. 개점 시간은 다시 흔들렸다.' },
+      {
+        heldAt: at(-37), memo: '문 여는 시간은 주 3회 기준을 맞췄다. 할 일 하나 마치기는 절반 정도 지켜진다.',
+        customQuestions: ['다음 상담까지 딱 하나만 하기로 하면 무엇을 고르겠어요?'],
+      },
+    ],
+    futureSchedules: [{ scheduledAt: at(9, 11), goalLinks: ['plan'] }],
+  },
+  // ── 10 (폭력·착취 피해 · mixed · 담담한 인용) ──────────────────────────────────
+  {
+    name: '배유진', phone: phone(10), email: email(10), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-59), consent: { recordingAi: true }, trajectory: 'mixed',
+    goals: [{ key: 'safety', title: '본인 명의 계좌와 급여 입금 경로를 분리해 확인한다' }],
+    intakeMemo: '친척이 운영하는 가게에서 일하며 급여를 현금으로 받아 왔다. 일한 시간에 비해 받은 금액이 맞지 않는데 문제를 제기하기 어려운 관계라고 한다. 우선 본인 명의 통장으로 급여를 받는 것부터 정리한다.',
+    regulars: [
+      {
+        heldAt: at(-38), memo: '급여 일부를 친척이 보관해 왔고 요청해도 돌려받지 못한 달이 있었다고 한다. 근로 조건과 지급 내역을 시간 순으로 적어 두기로 했고, 상담 기록으로 남기는 것에 동의받았다.',
+        flags: [{ flagType: 'violence_exploitation', quote: '제 몫이라고 말하면 관계가 끊길 것 같아서 그냥 넘겼어요.' }],
+        actionItems: [{ description: '지급 내역과 근무 시간을 달별로 정리해 온다', owner: 'beneficiary', dueDate: day(2) }],
+      },
+      { heldAt: at(-17), memo: '본인 명의 계좌를 새로 만들었다. 급여 입금 경로 변경은 아직 이야기하지 못했다.' },
+    ],
+    futureSchedules: [{ scheduledAt: at(11, 13), goalLinks: ['safety'] }],
+  },
+  // ── 11 (목표 달성으로 닫기 · improving · 정기 5) ───────────────────────────────
+  {
+    name: '신태리', phone: phone(11), email: email(11), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-146), consent: { recordingAi: true }, trajectory: 'improving',
+    goals: [
+      { key: 'repay', title: '월 상환액 25만원을 정기 납부한다' },
+      { key: 'ledger', title: '주 1회 매출과 지출을 함께 적는다' },
+    ],
+    intakeMemo: '아동복 온라인 판매를 2년째 한다. 매출은 있으나 카드 정산 주기와 상환일이 어긋나 매달 돌려막기를 해 왔다. 정산일을 기준으로 상환일을 옮기는 것부터 손봤다.',
+    regulars: [
+      { heldAt: at(-125), memo: '상환일을 정산 다음 날로 옮기자 돌려막기가 사라졌다.' },
+      { heldAt: at(-104), memo: '두 달 연속 정액 납부. 기록은 주 1회 리듬이 잡혔다.' },
+      { heldAt: at(-83), memo: '세 달 연속. 상환 목표는 사실상 자리를 잡아 다음 단계를 이야기했다.', goalLinks: ['repay'] },
+      { heldAt: at(-62), memo: '납부는 안정적이고 기록도 유지된다. 상환 목표를 달성으로 닫고 재고 관리로 옮기기로 정했다.' },
+      {
+        heldAt: at(-41), memo: '새 목표로 옮긴 뒤 사입 주기를 2주로 줄였다. 재고가 쌓이는 품목이 눈에 보인다고 한다.',
+        customQuestions: ['2주 주기로 바꾼 뒤 남는 재고가 줄었나요?'],
+      },
+    ],
+    goalReplacement: {
+      afterSession: 4, closeGoalKey: 'repay', reason: 'achieved',
+      newGoal: { key: 'stock', title: '사입 주기를 2주로 줄여 재고를 관리한다', scaleCriteria: REPAYMENT_SCALE },
+    },
+    futureSchedules: [{ scheduledAt: at(13, 10), goalLinks: ['ledger'] }],
+  },
+  // ── 12 (목표 중단으로 닫기 · mixed · 정기 3) ───────────────────────────────────
+  {
+    name: '홍은수', phone: phone(12), email: email(12), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-102), consent: { recordingAi: true }, trajectory: 'mixed',
+    goals: [
+      { key: 'class', title: '바리스타 자격 과정을 수료한다' },
+      { key: 'budget', title: '월 고정지출을 10만원 줄인다' },
+    ],
+    intakeMemo: '카페 창업을 준비하며 자격 과정을 등록했다. 수강료와 생활비가 겹쳐 부담이 커진 상태다.',
+    regulars: [
+      { heldAt: at(-81), memo: '과정 절반을 들었다. 고정지출은 통신 요금제를 바꿔 조금 줄였다.' },
+      {
+        heldAt: at(-60), memo: '야간 근무가 늘어 수업을 두 번 빠졌다. 과정을 지금 이어가는 것이 무리라고 판단해 중단으로 닫고, 대신 생활비 목표에 집중하기로 정했다.',
+      },
+      { heldAt: at(-39), memo: '고정지출은 두 달째 목표를 맞췄다. 자격 과정은 다음 분기에 다시 보기로 했다.' },
+    ],
+    goalReplacement: {
+      afterSession: 2, closeGoalKey: 'class', reason: 'stopped',
+      newGoal: { key: 'shift', title: '야간 근무를 주 2회 이하로 조정한다', scaleCriteria: SAVINGS_SCALE },
+    },
+    futureSchedules: [{ scheduledAt: at(16, 14), goalLinks: ['budget'] }],
+  },
+  // ── 13 (회차 6 · 부채 악화 단독 플래그 · improving) ────────────────────────────
+  {
+    name: '유선호', phone: phone(13), email: email(13), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-165), consent: { recordingAi: true }, trajectory: 'improving',
+    goals: [
+      { key: 'repay', title: '대출 두 건을 한 건으로 정리한다' },
+      { key: 'ledger', title: '월말에 수입과 지출을 맞춰 본다' },
+      { key: 'save', title: '비상금 30만원을 적립한다' },
+    ],
+    intakeMemo: '트럭으로 과일을 받아다 판다. 성수기와 비수기 격차가 커서 비수기에 대출을 늘려 버티는 방식이 반복됐다. 대출을 합치는 것과 월말 정산 습관을 함께 목표로 잡았다.',
+    regulars: [
+      { heldAt: at(-144), memo: '두 건 중 이자가 높은 쪽을 먼저 갈아탈 조건을 알아봤다.' },
+      { heldAt: at(-123), memo: '갈아타기를 마쳤다. 월 이자 부담이 줄어 상환 여력이 생겼다.' },
+      { heldAt: at(-102), memo: '월말 정산을 두 달 이어갔다. 비수기 대비 금액을 계산해 봤다.' },
+      { heldAt: at(-81), memo: '적립을 시작했다. 금액은 작지만 끊기지 않는 것을 우선했다.', goalLinks: ['save'] },
+      { heldAt: at(-60), memo: '성수기 수입으로 적립을 두 배로 늘렸다. 정산 습관은 유지된다.' },
+      {
+        heldAt: at(-39), memo: '비수기에 접어들며 매출이 줄었지만 대출을 늘리지 않고 적립분으로 버텼다. 처음 있는 일이라고 한다.',
+        customQuestions: ['올해 비수기는 지난해와 무엇이 달랐나요?'],
+      },
+    ],
+    standaloneFlag: { flagType: 'debt_deterioration', quote: '작년 이맘때는 카드로 돌려서 버텼는데 올해는 안 그랬어요.' },
+    futureSchedules: [{ scheduledAt: at(18, 9), goalLinks: ['repay', 'save'] }],
+  },
+  // ── 14 (장문 인테이크 · plateau · 정기 2) ──────────────────────────────────────
+  {
+    name: '임채원', phone: phone(14), email: email(14), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(-77), consent: { recordingAi: true }, trajectory: 'plateau',
+    goals: [{ key: 'income', title: '고정 수입원 하나를 만든다' }],
+    intakeMemo: '프리랜서로 간판 도안을 그린다. 일이 들어오는 달과 없는 달의 차이가 커서 한 달은 여유가 있고 다음 달은 카드로 버티는 식이 3년째 이어졌다. 큰 일감 하나에 기대는 구조라 그 일감이 밀리면 생활이 함께 밀린다고 한다. 작은 일감을 꾸준히 받는 쪽으로 방향을 바꾸고 싶지만, 단가가 낮아 시간만 쓰고 남는 것이 없을까 걱정한다고 했다. 우선 매달 들어오는 고정 수입 한 줄을 만드는 것을 목표로 잡고, 기존 거래처 중 정기 발주가 가능한 곳을 추려 보기로 했다.',
+    regulars: [
+      { heldAt: at(-56), memo: '거래처 두 곳에 정기 발주 가능성을 물었다. 한 곳은 월 1회 소량이라도 가능하다고 답했다.' },
+      {
+        heldAt: at(-35), memo: '월 1회 발주가 두 번 들어왔다. 금액은 작지만 처음으로 예측 가능한 수입이 생겼다.',
+        customQuestions: ['고정 발주를 한 곳 더 늘릴 여지가 있을까요?'],
+      },
+    ],
+    futureSchedules: [{ scheduledAt: at(20, 16), goalLinks: ['income'] }],
+  },
+];
+
+/**
+ * 시드 프로파일. 기본은 운영 정본(4명)이고 `SEED_PROFILE=preview` 일 때만 프리뷰 사례가 붙는다.
+ *
+ * 환경변수 하나로 가르는 이유: 산출물(seed.sql)이 어느 DB 로 갈지는 만드는 사람이 알고 있고,
+ * 프리뷰용 데이터가 운영 산출물에 섞이는 사고는 그 한 줄로 막힌다. 검증 기대치
+ * (verify.sql·manifest)는 전부 이 배열 길이에서 파생하므로 프로파일을 바꿔도 따라온다.
+ */
+export const SEED_PROFILE: 'operational' | 'preview' =
+  process.env.SEED_PROFILE === 'preview' ? 'preview' : 'operational';
+
+export const PARTICIPANTS: readonly SeedParticipant[] = SEED_PROFILE === 'preview'
+  ? [...OPERATIONAL_PARTICIPANTS, ...PREVIEW_ONLY_PARTICIPANTS]
+  : OPERATIONAL_PARTICIPANTS;
+
 /*
- * 집계 목표(검증 기준):
+ * 집계 목표(검증 기준). 운영 프로파일(기본, 4명):
  * - 참여자 4명. 주담당은 전원 ai00 — 미리보기 고정 데모 실무자(PREVIEW_ACTOR_EMAIL)가 ai00 이고,
  *   실무자는 자신이 담당인 케이스만 열 수 있어(D7) 다른 상담사에게 배정하면 화면이 빈다.
  * - 동의(D49): 4명 전원 ② AI 녹취기록 동의. 미동의(수기 폴백, D5) 케이스는 없다.
@@ -273,7 +515,17 @@ export const PARTICIPANTS: readonly SeedParticipant[] = [
  * - 목표 교체(D62 §5): 1케이스(3) — closeGoal(reset)+createGoal 로 scale_criteria JSON 저장.
  * - 미해결 인라인 액션: 2건(1·4). 해결된 액션: 2건(2×2).
  * - confirmed 플래그 1건: 인라인 1(4 debt) — 브리핑 리스크 배너(D9)의 유일한 시연 케이스.
- * - 예정 일정 4건(08-03·04·05·06): 사람당 정확히 1건 — 일정 화면에서 같은 사람이 여러 줄로
+ * - 예정 일정 4건: 사람당 정확히 1건. 일정 화면에서 같은 사람이 여러 줄로
  *   반복되지 않게 한다(2026-07-31 Q 지적: 프리뷰에서 한 명이 일정 9건으로 아홉 번 나왔다).
  * - 세션: 인테이크 4 + 정기 11 = 15. 세션당 sessions_manual_submission_audit 트리거 감사 15건.
+ *
+ * 프리뷰 프로파일(SEED_PROFILE=preview, 14명 = 4 + 10):
+ * - 리스크 플래그 6종 전부 등장(위기 발언 6 · 연락 두절 7 · 주거·생계·건강 급변 8 ·
+ *   약속 불이행 반복 9 · 폭력·착취 피해 10 · 부채 악화 4와 13).
+ * - 녹취 미동의 1명(5): 브리핑이 수기 메모만으로 서는 폴백(D5)을 화면에서 볼 수 있다.
+ * - 목표 닫기 사유 3종: 달성(11) · 중단(12) · 재설정(3).
+ * - 추이 4종 전부: 개선(1·3·11·13) · 정체(2·5·9·14) · 악화(4·6·8) · 혼재(7·10·12).
+ * - 회차 수 2~6: 가장 긴 케이스는 13(정기 6 + 인테이크 1).
+ * - 예정 일정도 사람당 1건이고 기준일 +0 ~ +20 일에 흩어 둔다(일간·주간·월간 뷰가 모두
+ *   비지 않게).
  */

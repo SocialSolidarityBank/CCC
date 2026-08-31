@@ -9,23 +9,14 @@
     "tolerance": 1
   },
   {
-    "name": "제안 없음: AI 제안 안내 행 가로선의 위아래 여백이 같다",
+    "name": "AI 제안 구획의 라벨 행 아래 간격은 형제 구획과 같다",
     "selectors": [
-      "#align-empty .wire-card-section-head:has(>.briefing-ai-goal-hint)",
-      "#align-empty #briefing-remember [data-tone=\"lavender\"] .empty"
+      "#align-content #briefing-remember .wire-card-section[data-tone=\"lavender\"]>.wire-card-section-head",
+      "#align-content #briefing-remember .wire-card-section[data-tone=\"lavender\"]>.briefing-suggestions",
+      "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>h3",
+      "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>.empty"
     ],
-    "axis": "gap-y",
-    "tolerance": 1
-  },
-  {
-    "name": "제안 있음: 항목 ↔ 가로선 ↔ 항목 여백이 한 값",
-    "selectors": [
-      "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)",
-      "#align-content #briefing-remember .briefing-suggestions",
-      "#align-content #briefing-remember .briefing-suggestions>li:nth-child(1)",
-      "#align-content #briefing-remember .briefing-suggestions>li:nth-child(2)"
-    ],
-    "axis": "gap-rhythm",
+    "axis": "gap-pair",
     "tolerance": 1
   },
   {

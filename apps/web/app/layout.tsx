@@ -48,8 +48,13 @@ button,input,select,textarea{font:inherit}
 .sidebar::after{content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:var(--gradient-frame-v)}
 /* 메뉴 묶음만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해
    안 줄어든다). 2026-08-30 Q 3차로 스크롤 주인이 목록에서 묶음 래퍼로 옮겼다 — 목록이
-   묶음마다 하나씩 있어 어느 하나가 스크롤을 맡을 수 없다. */
-.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start}
+   묶음마다 하나씩 있어 어느 하나가 스크롤을 맡을 수 없다.
+   **-12 되밀기는 이 스크롤 컨테이너가 갖는다**(2026-08-30 Q 4차 수리): 자식(목록·묶음 머리)에
+   두면 내용이 컨테이너보다 24 넓어져 overflow-y:auto 가 가로축까지 auto 로 승격되고,
+   가로 스크롤바가 생기며 활성 알약 오른쪽이 잘린다(실측 client 232 / scroll 244).
+   컨테이너 자신이 되밀면 자식은 안에 들어오고, 사이드바는 overflow:visible 이라 12 만 넘쳐
+   보인다. 잘림도 스크롤바도 없다. */
+.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start;margin-inline:calc(var(--space-3) * -1)}
 .navigation-link{display:flex;align-items:center;gap:var(--space-2)}
 /* CCC-26: 새 가입 숫자 배지는 메뉴 라벨 뒤가 아니라 trailing chip 자리(준비 중과 같은 우측 끝)에 둔다. */
 .navigation-link>.wire-badge{margin-left:auto}
@@ -120,12 +125,14 @@ button,input,select,textarea{font:inherit}
    헤더는 z-sticky 라 팝업(z-dropdown)이 본문 위에 선다. 드로어(768 미만)는 z-modal 그대로다.) */
 /* 좌우 -12(--space-3)는 항목의 안쪽 패딩만큼 알약을 되밀어 **아이콘·글자가 사이드바
    좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
-   알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다. 묶음 머리도 같은 틀을 받는다
-   (2026-08-30 검수 반영 — .navigation-section-title). */
+   알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다.
+   **되밀기는 목록이 아니라 스크롤 컨테이너(.navigation-groups)가 갖는다**(2026-08-30 Q 4차
+   수리, 위 규칙 참조: 자식이 되밀면 스크롤 컨테이너에서 가로 넘침이 되어 알약이 잘렸다).
+   목록과 묶음 머리는 그 안에서 패딩 12 만으로 같은 축에 선다. */
 /* 항목 사이 여백은 8 이다(2026-08-30 Q "각 ROW 여백을 늘려서 조율" — 구 4 는 층 구분 없이
    빽빽했다. 같은 날 Q 3차로 메뉴가 한 계층이 된 뒤에도 이 값 그대로다 — 층은 묶음 제목이
    말하고 묶음 사이 24 가 가른다). */
-.navigation-list{display:grid;gap:var(--space-2);padding:0;margin:0 calc(var(--space-3) * -1);list-style:none}
+.navigation-list{display:grid;gap:var(--space-2);padding:0;margin:0;list-style:none}
 /* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
    전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
 /* 높이는 '뒤로' 알약과 같은 32다. 첫 메뉴와 뒤로 버튼은 헤더 아래 32에서 함께 시작한다. */
@@ -167,14 +174,15 @@ button,input,select,textarea{font:inherit}
    제목은 **누를 수 없는 라벨**이라 항목(16/500)과 크기·굵기·색이 전부 갈린다(14/600 --sub,
    §1 단 ② 라벨). 셸 글자 하한 16 은 **누르는 내비 항목**의 계약이고 묶음 머리는 그 밖이다
    (DESIGN.md §2-1 '사이드바' 행 2026-08-30 개정 — 그 한 자리 예외다).
-   **제목은 목록과 같은 -12/+12 틀을 받는다**(2026-08-30 검수 반영): 항목은 목록의 -12 되밀기
-   덕에 아이콘이 사이드바 좌측선(패딩 24)에 서는데, 제목만 그 틀을 못 받아 12 오른쪽에 서
-   있었다. 같은 틀을 주면 제목 글자와 항목 아이콘이 한 축이다(드로어는 목록과 함께 마진만
-   0 으로 되돌아간다 — 그쪽은 아이콘도 12 오른쪽이라 축이 유지된다).
-   투명 테두리 1.5 까지 함께 받는 이유: 항목은 활성 아웃라인 자리를 그 두께로 미리 예약해
-   두므로(위 .navigation-link 규칙) 제목이 그것을 안 받으면 글자가 1.5 왼쪽에 선다. */
+   **제목은 항목과 같은 좌측 패딩 12 + 투명 테두리 1.5 를 받는다**(2026-08-30 검수 반영 ·
+   같은 날 4차 수리로 되밀기가 스크롤 컨테이너로 옮겨 마진은 0 이다): 항목은 활성 아웃라인
+   자리를 그 두께로 미리 예약하므로, 제목이 그것을 안 받으면 글자가 1.5 왼쪽에 선다.
+   **글자는 그라데이션이다**(2026-08-30 Q 4차 "섹션 타이틀은 그라데이션 컬러 텍스트로 처리해서
+   구분을 확실하게"): 면을 --gradient-deep 으로 깔고 글자 모양으로 잘라낸다(내비 호버가 쓰는
+   것과 같은 기법). deep 쌍을 쓰는 이유는 base 쌍이 캔버스 위에서 더 흐리기 때문이다.
+   측정값과 접근성 예외 기록은 DESIGN.md §9 에 있다. */
 .navigation-group{display:grid;gap:var(--space-2)}
-.navigation-section-title{margin:0 calc(var(--space-3) * -1);padding:0 var(--space-3);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
+.navigation-section-title{margin:0;padding:0 var(--space-3);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);background:var(--gradient-deep);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —
@@ -414,10 +422,10 @@ textarea{min-height:216px;resize:vertical}
   .sidebar-head::after{content:"";position:absolute;left:calc(var(--space-6) * -1);right:calc(var(--space-6) * -1);bottom:0;height:1px;background:var(--line-sidebar)}
   /* 드로어 안 모든 아이템의 좌우 시작선을 맞춘다(2026-08-06 Q ③): 메뉴 알약의 -12 좌측
      보정을 풀면 활성 배경 상자·계정 행동 버튼(좌 24)과 닫기 X·상자 우변(우 24)이 한 줄에
-     선다. 데스크톱의 -12 는 아이콘·글자를 24 에 세우는 보정이라 그대로 둔다. 묶음 머리도
-     같은 -12 틀을 받으므로 함께 되돌린다(2026-08-30 Q 3차). */
-  .sidebar .navigation-list{margin-inline:0}
-  .sidebar .navigation-section-title{margin-inline:0}
+     선다. 데스크톱의 -12 는 아이콘·글자를 24 에 세우는 보정이라 그대로 둔다. 되밀기의 주인이
+     스크롤 컨테이너라 되돌리는 자리도 거기 하나다(2026-08-30 Q 4차 수리, 구 목록·묶음 머리
+     두 줄 대체). */
+  .sidebar .navigation-groups{margin-inline:0}
   /* 바의 선택창 목록은 상자가 아니라 **바 전폭**에 떨어진다 — 상자 기준 왼쪽/오른쪽 닻은
      어느 쪽이든 좁은 화면을 뚫거나 이름을 다시 자른다. 상자의 positioning 을 풀면 기준이
      바(sticky = positioned)로 올라가고, 좌우 16 만 남기고 화면 폭을 온전히 쓴다. */
@@ -563,19 +571,13 @@ const briefingStyles = `
    글자는 설명·메타 단(14/400 --sub, §2-2 단 ④), 닫기 버튼(32)이 행 높이를 정한다. */
 .briefing-ai-goal-hint{display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);color:var(--sub)}
 .briefing-ai-goal-hint>.wire-button{flex:none}
-/* 안내가 선 라벨 행 아래의 --line 가로선이 제안 목록과 표처럼 가른다(구 안내 행의
-   border-bottom 을 라벨 행이 승계). 선은 구획 카드(.briefing-memo-item, 좌우 24) 양끝까지
-   간다.
-   **선 위·아래 여백과 항목 사이 여백이 한 값(16)이다**(2026-08-30 Q 3차 "아이템 ↔ 가로선
-   ↔ 아이템의 여백이 맞도록" — 구 8/8 은 서로 대칭이었지만 제안 목록의 항목 리듬
-   (.briefing-suggestions gap 16)과 어긋나 내용이 생성되면 선이 위 묶음에 붙어 보였다).
-   16 은 이 카드의 세로 패딩과도 같다 — 카드 안 풀블리드 가로선의 세로 여백은 그 카드의
-   세로 패딩과 같은 값이라는 계약(DESIGN.md §3-4 '가로선 중심 대칭')을 반복 행 카드
-   (.wire-repeat-card 패딩 16/24)에서 만족시킨다.
-   선 아래 16 은 구획의 row-gap 이 만든다(기본 8 을 이 자리에서만 올린다).
-   design:align 게이트가 실측으로 지킨다(scripts/design/align-check.py — gap-rhythm 축). */
-.wire-card-section:has(>.wire-card-section-head>.briefing-ai-goal-hint){row-gap:var(--space-4)}
-.wire-card-section-head:has(>.briefing-ai-goal-hint){flex-wrap:wrap;margin-inline:calc(var(--space-6) * -1);padding-inline:var(--space-6);padding-bottom:var(--space-4);border-bottom:1px solid var(--line)}
+/* 라벨 행 아래 가로선은 없다(2026-08-30 Q 4차 결정 D "선을 없앤다", 구 안내 행에서 승계한
+   --line 가로선 폐지). 상자 자체가 이미 구획을 가르고, 버튼을 거느린 형제 구획(세션 목표)이
+   선 없이도 읽히는 것이 실측으로 확인됐다. 선이 안내가 있을 때만 서던 탓에 같은 구획이
+   상태에 따라 모양이 바뀌던 문제도 함께 사라진다. 라벨 행과 내용 사이 간격은 구획 기본
+   row-gap 8 이라 형제 셋이 같은 리듬이다.
+   좁은 폭에서 라벨과 안내가 한 줄에 안 들어가면 줄바꿈만 남긴다. */
+.wire-card-section-head:has(>.briefing-ai-goal-hint){flex-wrap:wrap}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 2026-08-10 부터 공용 부품 WireCardSection 이
@@ -1003,10 +1005,14 @@ const registerStyles = `
    같은 클래스를 쓰는 실무자 초대·공개 가입 화면은 낭독·전달용 16 계약(아래 2026-08-28 Q)
    그대로다 — 그래서 전역이 아니라 이 화면 스코프로 좁힌다(.register-consent 선례). */
 .participant-invite-stack .wire-invite-caption{font-size:var(--text-sm);font-weight:400;color:var(--ink)}
-/* 낭독·전달용 화면이라 라벨·힌트를 16 진한색으로 올린다(2026-08-28 Q — §1 예외: 라벨
-   ① 16/600 --ink, 힌트 ③ 16/400 --ink. 당사자에게 링크·QR·문안을 보여 주며 읽는 자리다). */
+/* 당사자에게 보여 주는 값(링크 주소·QR·이메일 문안)의 라벨은 낭독·전달용 16 이다(2026-08-28 Q,
+   §1 예외: 라벨 ① 16/600 --ink). **도움말은 실무자에게 하는 설명이라 14 다**(2026-08-30 Q
+   4차 결정 B "실무자에게 하는 말은 다 14". 같은 화면에서 설명 문단 14 와 도움말 16 이
+   갈려 있었다. 기준은 한 문장이다: 설명은 14, 당사자에게 보여 주는 값은 16).
+   당사자 초대 화면 스코프로만 내린다. 실무자 초대·공개 가입 화면은 16 그대로다. */
 .wire-invite-stack .wire-form-label{font-size:var(--text-md);color:var(--ink)}
 .wire-invite-stack .wire-form-hint{font-size:var(--text-md);color:var(--ink)}
+.wire-invite-stack.participant-invite-stack .wire-form-hint{font-size:var(--text-sm)}
 /* CCC-29: QR 은 입력칸이 아니라 카드 계약(--line 1px · radius 12)을 빌린 정사각 패널이다. */
 .wire-invite-qr{display:inline-flex;justify-self:start;padding:var(--space-4);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card)}
 /* 버튼은 내용만큼만 차지한다 — 그리드 아이템 기본 stretch 를 그대로 두면 카드 폭(880)을

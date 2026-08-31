@@ -111,13 +111,18 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --file ../../sc
   `d1_migrations` 는 **포함**해야 마이그레이션이 처음부터 다시 적용된다.
 - `wrangler d1 migrations apply` 는 확인 프롬프트에서 멈춘다. `CI=true ... < /dev/null` 로
   비대화형 실행하면 "fallback value in non-interactive context: yes" 로 진행한다.
+- **미리보기 시드는 `SEED_PROFILE=preview` 로 만든다**(2026-08-30 신설). 붙이지 않으면 운영 정본
+  4명만 나온다. 프리뷰 프로파일은 거기에 사례 10명을 더해 14명이고, 플래그 6종·녹취 미동의·
+  목표 닫기 사유 3종·회차 2~6 을 고루 덮는다(`scripts/seed/content.ts` 의
+  `PREVIEW_ONLY_PARTICIPANTS`). 화면을 더 보려고 운영 배열을 늘리지 않는다.
 - **미리보기 키는 `PII_ENC_KEY` 가 아니라 `PREVIEW_PII_ENC_KEY` 다**(운영 키와 다른 값,
   2026-07-31 실측). 시드 생성기는 `PII_ENC_KEY` 라는 이름을 읽으므로 주입 시 갈아끼운다:
   ```bash
   TOK="$(op read 'op://seongqkim-bss/infisical/ggbss_project_access_token')"
   infisical run --token="$TOK" --env=prod --path=/ --silent -- \
-    sh -c 'PII_ENC_KEY="$PREVIEW_PII_ENC_KEY" pnpm exec vitest run --config scripts/seed/vitest.config.ts'
+    sh -c 'SEED_PROFILE=preview PII_ENC_KEY="$PREVIEW_PII_ENC_KEY" pnpm exec vitest run --config scripts/seed/vitest.config.ts'
   ```
+  생성 뒤 `manifest.json` 의 `participants` 가 14 인지 확인한다. 4 면 프로파일이 안 붙은 것이다.
 - `audit_log` 도 함께 사라진다. 가상 데이터의 감사 흔적이라 미리보기에서는 문제되지 않는다.
 
 ## 금지
