@@ -15,16 +15,13 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   y  : center-y 일치(가로 한 줄 정렬)
   xy : selectors=[자식, 컨테이너] — 자식이 컨테이너의 정중앙(버튼 안 텍스트 등)
 
-확장 2종 — 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
-  gap-y   : selectors=[위 요소, 아래 요소] — 위 요소의 padding-bottom(가로선 위 여백)과
-            두 요소 사이 간격(가로선 아래 여백)이 같은가. 가로선이 위 요소의
-            border-bottom 이라 선 자체는 요소가 아니다.
+확장 3종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
   bullet-y: selectors=[li 셀렉터] — 각 li 의 ::before 점 중심이 자기 첫 줄 상자의 세로
             중앙과 같은가. 의사 요소는 셀렉터로 못 잡아 계산값(top·height)으로 잰다.
-  gap-rhythm: selectors=[위 요소, 아래 요소, 항목 A, 항목 B] — gap-y 에 **항목 리듬**을 더한
-            축(2026-08-30 Q 3차 "아이템 ↔ 가로선 ↔ 아이템의 여백이 맞도록"). 선 위·선 아래
-            여백이 서로 같기만 한 것으로는 부족하고, 그 값이 형제 항목 사이 간격과도 같아야
-            한다 — 대칭인데 리듬이 다르면 선이 위 묶음에 붙어 보인다(구 8/8 대 항목 16).
+  gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격이 같은가.
+            형제 구획이 같은 리듬으로 서는지 재는 축이다(2026-08-30 Q 4차 결정 D, AI 제안
+            구획의 라벨 행 아래 간격이 형제 구획과 같아야 한다. 구 gap-y·gap-rhythm 은 라벨 행
+            아래 가로선을 전제한 축이었고, 그 선이 폐지되며 함께 걷었다).
   inset-y : selectors=[컨테이너, 첫 자식, 마지막 자식] — 컨테이너 위 여백(첫 자식 top −
             컨테이너 top)과 아래 여백(컨테이너 bottom − 마지막 자식 bottom)이 같은가
             (2026-08-30 Q 3차 "펼치기 전에는 가운데 정렬 … 펼친 후에도 전체 가운데 정렬 유지").
@@ -67,40 +64,17 @@ CHECK_JS = r"""
       return { name: a.name, pass: dx <= tol && dy <= tol, detail: `dx ${dx.toFixed(2)} dy ${dy.toFixed(2)} (허용 ${tol})` };
     }
 
-    if (a.axis === 'gap-y') {
-      const [aboveSel, belowSel] = a.selectors;
-      const above = document.querySelector(aboveSel);
-      const below = document.querySelector(belowSel);
-      if (!above || !below) return { name: a.name, pass: false, detail: '요소 없음' };
-      const aboveGap = parseFloat(getComputedStyle(above).paddingBottom);
-      const belowGap = below.getBoundingClientRect().top - above.getBoundingClientRect().bottom;
-      const delta = Math.abs(aboveGap - belowGap);
+    if (a.axis === 'gap-pair') {
+      const els = a.selectors.map((sel) => document.querySelector(sel));
+      if (els.some((el) => !el)) return { name: a.name, pass: false, detail: '요소 없음' };
+      const gapOf = (top, bottom) => bottom.getBoundingClientRect().top - top.getBoundingClientRect().bottom;
+      const first = gapOf(els[0], els[1]);
+      const second = gapOf(els[2], els[3]);
+      const delta = Math.abs(first - second);
       return {
         name: a.name,
         pass: delta <= tol,
-        detail: `선 위 ${aboveGap.toFixed(2)}px / 선 아래 ${belowGap.toFixed(2)}px (허용 ${tol})`,
-      };
-    }
-
-    if (a.axis === 'gap-rhythm') {
-      const [aboveSel, belowSel, itemASel, itemBSel] = a.selectors;
-      const above = document.querySelector(aboveSel);
-      const below = document.querySelector(belowSel);
-      const itemA = document.querySelector(itemASel);
-      const itemB = document.querySelector(itemBSel);
-      if (!above || !below || !itemA || !itemB) return { name: a.name, pass: false, detail: '요소 없음' };
-      const lineAbove = parseFloat(getComputedStyle(above).paddingBottom);
-      const lineBelow = below.getBoundingClientRect().top - above.getBoundingClientRect().bottom;
-      const rhythm = itemB.getBoundingClientRect().top - itemA.getBoundingClientRect().bottom;
-      const worst = Math.max(
-        Math.abs(lineAbove - lineBelow),
-        Math.abs(lineAbove - rhythm),
-        Math.abs(lineBelow - rhythm),
-      );
-      return {
-        name: a.name,
-        pass: worst <= tol,
-        detail: `선 위 ${lineAbove.toFixed(2)}px / 선 아래 ${lineBelow.toFixed(2)}px / 항목 사이 ${rhythm.toFixed(2)}px (허용 ${tol})`,
+        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px (허용 ${tol})`,
       };
     }
 
