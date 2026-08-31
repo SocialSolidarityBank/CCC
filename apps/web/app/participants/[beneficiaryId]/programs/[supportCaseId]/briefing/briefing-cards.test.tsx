@@ -711,4 +711,28 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
     // 이동 어휘의 오른쪽 꺽쇠가 행 끝에 선다(§8).
     for (const row of rows) expect(row.querySelector('.wire-chevron')).not.toBeNull();
   });
+
+  it('좁은 화면에서도 꺽쇠는 별도 끝 칸에 남고 핵심 문구는 그 앞에서 두 줄로 끝난다', () => {
+    expect(layoutSource).toMatch(
+      /\.briefing-session-row\{display:grid;grid-template-columns:136px 84px 52px minmax\(0,1fr\) auto;/,
+    );
+    expect(layoutSource).toMatch(
+      /\.briefing-session-row>\.wire-chevron\{[^}]*grid-column:-1;[^}]*justify-self:end;[^}]*font-size:var\(--text-sm\)/,
+    );
+    expect(layoutSource).toMatch(
+      /@media \(max-width:767px\)\{[\s\S]*?\.briefing-session-row\{grid-template-columns:136px minmax\(0,1fr\) auto;[^}]*\}/,
+    );
+    expect(layoutSource).toMatch(
+      /\.briefing-session-text\.wire-fade-clip\{[^}]*grid-column:2\/3;[^}]*overflow:hidden;[^}]*-webkit-line-clamp:2;/,
+    );
+    expect(layoutSource).toMatch(
+      /\.briefing-session-row:not\(:has\(\.briefing-session-memo>\.wire-badge\)\) \.briefing-session-text\.wire-fade-clip\{grid-column:1\/3\}/,
+    );
+  });
+
+  it('AI 안내와 닫기 버튼은 AI 제안 라벨 바로 옆에 간격을 두고 선다', () => {
+    expect(layoutSource).toMatch(
+      /\.wire-card-section-head:has\(>\.briefing-ai-goal-hint\)\{[^}]*justify-content:flex-start;[^}]*column-gap:var\(--space-4\)/,
+    );
+  });
 });

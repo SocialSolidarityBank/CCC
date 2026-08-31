@@ -69,9 +69,8 @@ export const wireStyles = `
 .participant-card-date,.participant-card-emphasis{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 참여 사업 수는 14/600 민트 deep — 진행·소속 축(D34)의 강조 값이라 역할표 라벨 행 안이다. */
 .participant-card-emphasis{color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
-/* 가명 ID 는 카드에서 이름을 보조하는 14/400 --sub 조각이다(2026-08-30 Q "ID 가 정렬된
-   카드에서는 전부 14" — 구 12 전용 토큰 대체. §1 ④ 설명 단이라 별도 예외가 필요 없다).
-   12 전용 토큰(--text-participant-id)은 HERO 조각(.participant-hero-id)에만 남는다. */
+/* 가명 ID 는 이름을 보조하는 14/400 --sub 조각이다. 카드와 HERO 모두 표준 14 계단을
+   공유하며 12px 전용 토큰은 폐지했다(2026-08-31 Q). */
 .participant-card-id{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
 /* 배지는 두 화면 모두 같은 우상단 자리다. 지난 일정만 유형 옆에 상태 배지가 하나 더 붙는다. */
 .participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}
@@ -262,9 +261,8 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 /* 인라인 강조 링크. AppHeader(D35 로 폐기) 시절 클래스지만 관리자 사용자 상세가 계속 쓴다. */
 .wire-header-link{font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-header-link:hover{text-decoration:underline}
-/* 이름 표기 (D59 · 2026-08-04): 화면 표기는 실명 하나 — 가명 ID 는 백엔드 전용이고,
-   이름이 없는 두 경우(무응답·파기)에만 ID 가 이름 자리에 폴백으로 나온다.
-   동명이인 구분은 전화번호가 맡는다(전체 번호, 자리는 화면이 정한다). */
+/* 이름 표기는 공용 ParticipantName이 맡는다. 이름이 있으면 화면 계약에 따라 가명 ID를 옆에
+   붙이고, 이름이 없으면 ID가 이름 자리를 대신한다. 동명이인 구분은 전화번호가 맡는다. */
 .participant-name-group{display:inline-flex;align-items:baseline;gap:var(--space-1);flex-wrap:wrap}
 .participant-name{color:var(--ink);font-weight:600;overflow-wrap:anywhere}
 .participant-name-group[data-size="row"] .participant-name{font-size:var(--text-md);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
@@ -288,16 +286,14 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .participant-hero-title .wire-status-tag{white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
 .participant-hero-inline-item{display:inline-flex;align-items:baseline;gap:var(--space-3);white-space:nowrap}
-/* 연락처는 읽는 값이라 당사자 카드 정보 칸과 같은 16/400 --sub 다. 가명 ID 는 화면 어디서나
-   같은 조각이다(2026-08-26 Q "당사자와 일정의 ID 가 다르다" — 카드 칩과 같은 12/400 --sub,
-   구 16/400 옅은 색 폐지). */
-.participant-hero-contact{color:var(--sub);font-size:var(--text-md);font-weight:400;white-space:nowrap}
-.participant-hero-id{color:var(--sub);font-size:var(--text-participant-id);font-weight:400;white-space:nowrap}
+/* 연락처와 가명 ID 는 이름을 보조하는 읽기 전용 값이다. 두 조각 모두 14/400 --sub 로
+   통일해 당사자 카드와 정보 허브 사이 크기 회귀를 막는다(2026-08-31 Q). */
+.participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
+.participant-hero-id{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
 /* 767 이하도 이름 크기는 데스크톱과 같다(row 16, hero·hub 18. 2026-08-27 두 단 분리로
    구 '모바일 18 강제'가 무의미해짐). 정보와 메타는 설명 단으로 정리한다. */
 @media(max-width:767px){
   .participant-hero-title{gap:var(--space-2);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
-  .participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
   .participant-hero-meta .wire-meta-row{flex-direction:column;align-items:flex-start;gap:var(--space-1)}
   .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
 }
@@ -336,7 +332,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .participant-hub-card>.wire-card-divider{display:none}
 /* 허브 카드 본문은 행 카드 스택이다(2026-08-29 Q "항목이 추가되는 케이스는 card div 처리")
    — §7 행 카드 스택 16. */
-.participant-hub-card>.wire-card-body{margin-top:var(--space-5);gap:var(--space-4)}
+.participant-hub-card>.wire-card-body{margin-top:var(--space-5);gap:var(--space-4);font-size:var(--text-sm);line-height:var(--leading-normal)}
 /* 허브 카드 3장(참여중인 사업·최신 일정·동의서)의 제목은 18 이다(2026-08-07 Q 8차
    "폰트 크기 2px 키우기". 전역 카드 제목 16 위의 이 화면 예외로, 섹션 역할의 전폭
    카드라 섹션 제목 단(--text-lg)을 쓴다). */
@@ -345,15 +341,13 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    구분선 리스트 대체). 상자는 공용 .wire-repeat-card(마크업에서 병기), 여기는 배치만
    갖는다(2026-08-30 CCC-90 스윕 — 구 자기 복제본 대체). 간격은 본문 gap 이 만든다. */
 .participant-program-row{display:grid;gap:var(--space-2);min-width:0}
-/* 행 제목은 카드 제목(18)보다 한 단 아래 16 이다. 배지는 제목과 같은 y 세로 중앙이다
-   (2026-08-07 Q "뱃지를 제목과 같은 y값에 가운데 정렬" — 구 flex-start 는 배지가 위로 붙었다). */
+/* 사업 행 내용은 허브의 14/400 값 단이다. 배지는 같은 행에서 세로 중앙이다. */
 .participant-program-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);min-width:0}
 .participant-program-head-main{display:flex;align-items:center;gap:var(--space-2);min-width:0;flex:1 1 0;flex-wrap:nowrap}
-.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 .participant-program-head>.wire-button{flex:none}
-/* 사업명 리스트 항목은 400 이다(2026-08-07 Q 8차, 리스트업이지 제목이 아니다). 동의서
-   카드의 사업명 묶음 머리(.participant-consent-program)는 저장 버튼을 거느린 구획 제목이라
-   600 을 유지한다. */
+/* 사업명은 목록 값이라 14/400이다. 동의서의 사업명 묶음 머리는 저장 버튼을 거느린
+   구획 라벨이라 14/600을 쓴다. */
 .participant-program-row .participant-program-head-main>h3{font-weight:400}
 /* 배지는 줄바꿈하지 않는다 — 사업명이 길면 "진행/중" 으로 쪼개져 읽힌다. */
 .participant-program-head-main .wire-badge{flex:none;white-space:nowrap}
@@ -375,57 +369,40 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 /* (구 .participant-consent-hint-slot 은 2026-08-30 Q 3차로 제거 — 문구가 사라진 뒤 남은
    예약 높이가 그대로 빈 띠로 읽혔다. "위에 텍스트가 있던 자리 없애고, div 최적화".
    문구가 돌아오면 그때 자리를 다시 만든다 — 없는 문구의 자리를 미리 지키지 않는다.) */
-.participant-consent-program{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-/* 목표 트리 (D62 §8 · CCC-69). 전체·세부 목표 구획은 각자 낱개 카드다(2026-08-30 Q
-   "각각의 목표 div 안의 카드 div로" — 동의 묶음(.participant-consent-block)과 같은 반복 행
-   카드 레시피, DESIGN-RULES §3 예외). 두 카드는 가로 2열이고 767 이하는 1열로 접힌다.
-   케이스 구획 사이는 --line 구분선, 사업명 머리는 전폭이다. */
-.goal-tree-case{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
+.participant-consent-program{margin:0;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
+/* 목표 트리는 전체 목표와 세부 목표를 위아래 두 행으로 쌓는다(2026-08-31 Q). 가로 2열은
+   긴 문구와 상태 배지가 서로 폭을 빼앗아 줄바꿈과 넘침을 만들었다. */
+.goal-tree-case{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4)}
 .goal-tree-case>.participant-program-head{grid-column:1/-1}
-/* 케이스 사이 선도 전폭이다(2026-08-30 검수 — 지시 "가로선은 양쪽 끝까지" 잔여.
-   .wire-card-section 형제 선과 같은 --card-pad 되읽기 레시피). */
+/* 케이스 사이 선도 전폭이다(2026-08-30 검수). */
 .goal-tree-case+.goal-tree-case{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-top:var(--space-3);padding-inline:var(--card-pad,var(--space-6));border-top:1px solid var(--line)}
 .goal-tree-case-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
-.goal-tree-section{display:grid;gap:var(--space-2);align-content:start;min-width:0}
-@media (max-width:767px){.goal-tree-case{grid-template-columns:minmax(0,1fr)}}
+.goal-tree-section{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);align-content:start;min-width:0}
 /* 목표 라벨은 민트 deep 이다(2026-08-29 Q "목표 라벨 컬러처리해서 눈에 잘 들어오게" — 구
    14/600 --sub. §4 민트 '진행' 축, §1 ② '14/600 계열 deep' 조합). 전체·세부·세션 목표
    라벨을 화면 어디서나 같은 민트로 통일한다. 목표 값(overall-text 등)은 --ink 그대로다. */
 .goal-tree-label{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--mint-deep)}
-.goal-tree-overall{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-/* 문구는 긴 읽는 본문 14/400 --ink 다(2026-08-30 검수 — §1 '전체 목표 문구' 목록.
-   브리핑 .briefing-goal-text·기록 .record-goal-text 와 같은 값, 구 16 허브 잔여 해소). */
-.goal-tree-overall-text{font-size:var(--text-sm);line-height:normal;color:var(--ink)}
+.goal-tree-overall{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex-wrap:nowrap}
+/* 전체 목표는 한 줄로 훑고, 남는 폭에서 말줄임한다. 전체 문구는 title 속성으로 보존한다. */
+.goal-tree-overall-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 .goal-tree-overall-text.is-empty{color:var(--sub)}
-/* 세부 목표는 여럿이 나란히 서는 형제 목록이다 — 2026-08-09 Q "위계나 정리 없이 막 나열된
-   경향이 크다, 앞에 구분자를 넣어 달라". 구분자는 새로 만들지 않고 §5 불릿 목록 부품
-   (.wire-bullets — 6px 원형 --sub 점 + 들여쓰기 16)을 목록에 얹는다. 항목이 2개 이상일 때만
-   얹는 것도 그 부품의 규칙이라(2026-08-07) 클래스를 붙이는 쪽에서 가른다 — 한 항목뿐이면
-   목록이 아니라 문장이다. 글자 단은 그대로 ③ 값·본문(16/400 --ink)이라 §2-2 위계 4단에
-   다섯 번째 단이 생기지 않는다. */
-.goal-tree-goals{display:grid;gap:var(--space-2);margin:0;padding:0;list-style:none}
-/* 불릿 간격은 공용 기본 8 이다(2026-08-30 Q 3차 "불렛 사이의 간격을 줄인다(펼치기 전 기준)").
-   구 16 의 근거는 **펼친 상태**였다 — 세부 목표마다 세션 목표 가지가 매달려 있어, 8 이면 옆
-   목표의 가지와 자기 제목이 같은 간격으로 붙어 어디까지가 한 목표인지 흐려진다. Q 가 접힘
-   기준으로 8 을 지시했으므로 접힘은 8 로 두고, **펼친 목표만 아래 8 을 더해 16 을 회복한다**
-   (2026-08-30 검수 반영 — 가지가 실제로 매달린 그 상태에서만 경계를 벌린다. 가지의 왼쪽
-   --line 세로선은 소속 표시일 뿐 목표 사이 경계까지 대신하지 못한다).
-   점은 head 행 세로 중앙이다 — 작은 화살표가 그 행 높이를 정한다: top = 24/2 - 반지름 3.
-   24 는 컨트롤 높이 토큰(--badge-height)이다(같은 검수 — 구 --space-6 은 여백 토큰이라
-   여백 계단을 고치면 컨트롤 크기와 이 공식이 함께 흔들린다). */
+/* 세부 목표는 여럿이 나란히 서는 형제 목록이다. 항목이 2개 이상일 때만 공용 불릿을 얹고,
+   한 항목뿐이면 문장으로 둔다. 값은 당사자 정보의 14/400 본문 계약을 쓴다. */
+.goal-tree-goals{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);min-width:0;margin:0;padding:0;list-style:none}
+/* 접힘은 8 간격, 펼친 목표만 아래 8 을 더해 가지와 다음 목표의 경계를 회복한다.
+   점은 24px 작은 화살표 행의 첫 줄 중앙에 선다. */
 .goal-tree-goals.wire-bullets>li::before{top:calc(var(--badge-height) / 2 - 3px)}
 .goal-tree-goals>li:has(>details[open]){margin-bottom:var(--space-2)}
-.goal-tree-goal{display:grid;gap:var(--space-2)}
+.goal-tree-goal{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);min-width:0}
+.goal-tree-goal-details{min-width:0}
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
-.goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex-wrap:nowrap}
 .goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
-.goal-tree-goal-title{font-size:var(--text-md);line-height:normal;color:var(--ink)}
-/* 닫힌 목표는 흐리게 — 기록으로 남기되 활성과 한눈에 갈린다(D62 §5). 사유는 배지가 말한다. */
-.goal-tree-goal.is-closed .goal-tree-goal-title{font-weight:400;color:var(--sub)}
+.goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
+.goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}
 .goal-tree-goal-head .wire-badge{flex:none;white-space:nowrap}
-/* 세션 목표는 세부 목표 아래 들여쓴 가지다 — 회기 시각 · 문구. 왼쪽 --line 세로선이
-   소속을 만든다(트리의 가지 표시. 그라데이션 세로선은 인용 전용이라 쓰지 않는다 — §5). */
+/* 세션 목표는 세부 목표 아래 들여쓴 가지다. 왼쪽 --line 세로선이 소속을 만든다. */
 .goal-tree-session-rows{display:grid;gap:var(--space-2);margin:0;padding-left:var(--space-4);border-left:1px solid var(--line);list-style:none}
 /* 한 줄 = [날짜][문장][상태]. 날짜·상태는 줄지 않고 문장만 자기 칸 안에서 접힌다 — 구
    MetaRow 한 줄은 문장이 접힐 때 조각 구분 세로선이 본문 앞 막대로 남았다(2026-08-09 Q 보고).
@@ -475,10 +452,10 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-data-row>dt{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-data-row>dd{margin:0;font-size:var(--text-md);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:767px){.wire-data-row{grid-template-columns:1fr;gap:var(--space-1)}}
-/* 펼치면 확정 문구(16)와 메타 줄(최초 작성/수정 · 수정자 · 시각)이 최신부터 쌓인다. */
+/* 펼치면 확정 문구와 메타 줄이 14px 값 단으로 최신부터 쌓인다. */
 .goal-tree-history{display:contents}
 .goal-tree-history-row{display:grid;gap:var(--space-1)}
-.goal-tree-history-title{margin:0;font-size:var(--text-md);color:var(--ink)}
+.goal-tree-history-title{margin:0;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink);white-space:normal;overflow-wrap:anywhere}
 .goal-tree-history-meta{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 최신 일정 카드 행동은 제목 줄 오른쪽에 한 행으로 묶는다. */
 .participant-next-schedule-actions{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-3);flex-wrap:wrap}
@@ -489,7 +466,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 /* 일정 내용은 회차별 정리 행과 같은 어휘다: 날짜, 종류 배지, 참여 사업.
    빈 상태도 같은 행 높이를 유지한다. */
 .participant-next-schedule-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--control-height)}
-.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-md);line-height:normal;color:var(--ink)}
+.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 .participant-next-schedule-program{white-space:nowrap}
 /* 행 전체가 브리핑 링크다(2026-08-08 Q — 구 '상담 준비' 버튼 대체). 격자 좌 1fr / 우
    auto: 내용은 좁으면 줄바꿈하되 꺽쇠는 **행 전체의 세로 중앙**에 남는다("가운데 정렬").

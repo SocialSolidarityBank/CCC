@@ -145,8 +145,8 @@ const participantIdTokenValue = readFileSync(join(repoRoot, 'design/tokens.css')
   .match(/^\s*--text-participant-id:\s*([^;]+)/m)?.[1]
   ?.trim();
 check(
-  '당사자 카드 ID 토큰은 12px 이다',
-  participantIdTokenValue === '12px',
+  '12px 가명 ID 토큰은 폐지 상태다',
+  participantIdTokenValue === undefined,
   `현재값: ${participantIdTokenValue ?? '없음'}`,
 );
 
@@ -176,24 +176,36 @@ for (const tone of ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan'
 // 쓰면 잡힌다"는 이 감사의 물음이 아니다. 전용 전경 계약은 아래 wire-styles 원문 대조가 잠그고,
 // 색값 토큰은 wire-badge-palette 테스트와 design:contrast 가 재는다.
 
-const PARTICIPANT_ID = '.participant-hero-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}';
+const PARTICIPANT_ID = '.participant-hero-id{font-size:var(--text-sm);font-weight:400;color:var(--sub)}';
 check(
-  '12px 가명 ID는 지정된 HERO 자리에서만 허용된다(2026-08-30 카드 조각 14 승격)',
+  '가명 ID는 HERO와 카드 모두 14px 설명 단을 쓴다',
   run(PARTICIPANT_ID).violations.length === 0,
 );
 check(
-  '12px 가명 ID 토큰을 다른 필드에 쓰면 잡힌다',
-  run('.wire-field-label{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}').violations.length === 1,
-);
-check(
-  '카드 가명 ID 조각이 12px 토큰으로 돌아가면 잡힌다(2026-08-30 Q "카드 ID 는 14")',
-  run('.participant-card-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}').violations.length === 1,
+  '폐지한 12px 가명 ID 토큰을 다시 쓰면 잡힌다',
+  run('.participant-hero-id{font-size:var(--text-participant-id);font-weight:400;color:var(--sub)}').violations.length === 1,
 );
 
 const wireStylesSource = readFileSync(
   join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
   'utf8',
 );
+const layoutSource = readFileSync(join(repoRoot, 'apps/web/app/layout.tsx'), 'utf8');
+
+for (const [name, snippet] of [
+  ['HERO 연락처', '.participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}'],
+  ['HERO 가명 ID', '.participant-hero-id{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}'],
+  ['당사자 허브 사업명', '.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}'],
+  ['당사자 허브 최신 일정', '.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
+  ['당사자 허브 세부 목표', '.goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
+  ['동의 체크 라벨', '.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}'],
+  ['동의 전문 제목', '.consent-detail-section h3{margin:0;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}'],
+]) {
+  check(
+    `${name}은 14px 중심 계약을 유지한다`,
+    wireStylesSource.includes(snippet) || layoutSource.includes(snippet),
+  );
+}
 for (const [tone, outline, surface] of [
   ['blue', 'var(--badge-blue)', 'var(--badge-blue)'],
   ['mint', 'var(--badge-mint)', 'var(--badge-mint)'],

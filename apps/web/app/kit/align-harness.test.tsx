@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,17 @@ import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RegisterForm } from '../participants/new/register-form';
 import { PROGRAM_LABELS } from '../lib/labels';
+import { ConsentEditor } from '../participants/[beneficiaryId]/page';
+import { GoalTreeCard } from '../participants/[beneficiaryId]/goal-tree';
+import type { ParticipantGoalTreeCase, ParticipantProgram } from '../lib/api';
+
+vi.mock('../lib/api', () => ({
+  ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
+  getParticipantDetail: vi.fn(),
+  getParticipantGoalTree: vi.fn(),
+}));
+vi.mock('../lib/display-labels', () => ({ getDisplayLabels: vi.fn() }));
+vi.mock('../actions', () => ({ updateParticipantConsentAction: vi.fn() }));
 
 // 정렬 실측 하니스 (2026-08-30 Q — align-check 스킬 계약을 레포 게이트로).
 //
@@ -19,19 +30,46 @@ import { PROGRAM_LABELS } from '../lib/labels';
 // 이쪽은 **선언된 정렬 단언**(scripts/design/align-assertions.json — 중심 공유·여백 대칭·
 // 항목 리듬·불릿 중앙)이다.
 //
-// **변형 둘을 함께 낸다**(2026-08-30 Q 3차). AI 제안 구획의 가로선은 위·아래 여백이 서로
-// 같기만 해서는 부족하고 **제안 목록의 항목 리듬과도 같아야** 한다 — 그 어긋남은 제안이
-// 생성된 상태에서만 보인다. 그래서 `#align-empty`(제안 없음)와 `#align-content`(제안 2건)를
-// 한 페이지에 나란히 렌더한다. 두 변형은 같은 부품이라 카드 id 가 겹치는데, 단언 셀렉터가
-// 래퍼 id 로 범위를 좁히므로 실측에는 영향이 없다(이 파일은 배포물이 아니라 측정 산출물이다).
+// AI 제안 유무, 등록 동의 접힘·펼침, 긴급 등록, 당사자 정보 동의, 긴 모바일 회차,
+// 목표 트리를 한 페이지에 렌더한다. 셀렉터는 각 래퍼 id로 범위를 좁힌다.
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const OUT_DIR = join(repoRoot, 'artifacts/align-harness');
 
 const CASE_ID = '11111111-1111-4111-8111-111111111111';
 
-// 전체 목표 미설정(overallGoal: null) — AI 제안 라벨 행의 안내 문구(AiGoalHint)가 첫 렌더부터
-// 서고, 그 행이 아래 가로선을 갖는다. 세부 목표 2개는 불릿 목록이 서는 조건이다.
+const hubProgram: ParticipantProgram = {
+  id: CASE_ID,
+  beneficiaryId: 'swallow-003',
+  programType: 'financial_support_v1',
+  status: 'active',
+  intakeAt: '2026-07-01T00:00:00.000Z',
+  creationKind: 'initial',
+  sourceSupportCase: null,
+  authorized: true,
+  assigneeNames: ['홍길동'],
+  consent: { privacy: true, recordingAi: true },
+  consentRecordedAt: '2026-07-01T00:00:00.000Z',
+  upcomingSchedule: null,
+};
+
+const goalTreeCases: ParticipantGoalTreeCase[] = [{
+  sourceSupportCase: { id: CASE_ID, programType: 'financial_support_v1', status: 'active' },
+  overallGoal: '안정적인 주거를 유지하면서 월 고정 지출과 채무 상환 계획을 함께 실행한다',
+  overallGoalRevisions: [],
+  goals: [{
+    id: 'g1',
+    title: '매주 지출 내역을 기록하고 다음 상담 전까지 상환 가능 금액을 확정한다',
+    status: 'active',
+    closedReason: null,
+    closedAt: null,
+    revisions: [],
+    sessionGoals: [],
+    linkedSessions: [],
+  }],
+}];
+
+// 전체 목표 미설정이라 AI 제안 라벨 옆 안내가 첫 렌더부터 선다. 세부 목표는 불릿 2개다.
 const baseProps: BriefingCardsProps = {
   beneficiaryId: 'swallow-003',
   supportCaseId: CASE_ID,
@@ -47,8 +85,8 @@ const baseProps: BriefingCardsProps = {
   programLabel: PROGRAM_LABELS.financial_support_v1,
   participant: { name: '홍서희', phone: '010-1234-5678' },
   sessionRows: [
-    { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', kind: 'regular', aiOneLiner: null, memoExcerpt: '구직 활동 근황과 지출 정리를 확인했다' },
-    { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', kind: 'intake', aiOneLiner: null, memoExcerpt: '채무 현황과 정서적 어려움 확인' },
+    { sessionId: 's-2', heldAt: '2026-07-15T05:00:00Z', kind: 'regular', aiOneLiner: null, memoExcerpt: '구직 활동 근황과 지출 정리를 확인하고 다음 상담 전까지 매주 기록할 항목과 실행 순서를 함께 정했다' },
+    { sessionId: 's-1', heldAt: '2026-07-01T05:00:00Z', kind: 'intake', aiOneLiner: '인테이크 질문지에서 확인한 채무 현황과 다음 상담에서 먼저 다룰 생활비 계획을 정리했다', memoExcerpt: '채무 현황과 정서적 어려움 확인' },
   ],
   discrepancies: [],
   pendingApprovalCount: 0,
@@ -81,7 +119,7 @@ const contentProps: BriefingCardsProps = {
 };
 
 describe('정렬 하니스 생성기', () => {
-  it('브리핑 두 변형 + 등록 동의 상자 접힘·펼침의 정적 HTML 을 만든다', () => {
+  it('정렬 대상 실제 부품의 정적 HTML을 만든다', () => {
     const empty = renderToStaticMarkup(<BriefingCards {...baseProps} />);
     const content = renderToStaticMarkup(<BriefingCards {...contentProps} />);
     const register = renderToStaticMarkup(
@@ -90,6 +128,12 @@ describe('정렬 하니스 생성기', () => {
         action={() => {}}
         programLabel={PROGRAM_LABELS.financial_support_v1}
       />,
+    );
+    const hubConsent = renderToStaticMarkup(
+      <ConsentEditor beneficiaryId="swallow-003" program={hubProgram} />,
+    );
+    const goalTree = renderToStaticMarkup(
+      <GoalTreeCard beneficiaryId="swallow-003" cases={goalTreeCases} programLabels={PROGRAM_LABELS} />,
     );
     // 펼친 상태는 **생성된 마크업에 open 속성만 얹어** 만든다 — 마크업을 손으로 옮겨 적으면
     // 부품이 바뀌어도 옛 모양을 재게 된다(위계 하니스와 같은 이유). 여는 방법은 이 한 줄뿐이다:
@@ -106,6 +150,9 @@ describe('정렬 하니스 생성기', () => {
     expect(content, '제안 있음: 제안 목록이 없다').toContain('briefing-suggestions');
     expect(register, '등록: 동의 전문 상자가 없다').toContain('consent-detail register-consent-block wire-repeat-card');
     expect(registerOpen, '등록: 펼침 변형에 open 이 안 붙었다').toContain('<details open class="consent-detail');
+    expect(hubConsent, '당사자 정보 동의 행이 없다').toContain('consent-item');
+    expect(goalTree, '당사자 정보 목표 트리가 없다').toContain('goal-tree-case');
+    expect(content, '제안 있음: 수기 배지 없는 회차 변형이 없다').toContain('<span class="briefing-session-memo"></span>');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
     const layoutCss = extractCss(join(repoRoot, 'apps/web/app/layout.tsx'));
@@ -120,6 +167,8 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-content">${content}</div>
 <div id="align-register">${register}</div>
 <div id="align-register-open">${registerOpen}</div>
+<div id="align-hub-consent">${hubConsent}</div>
+<div id="align-goal-tree">${goalTree}</div>
 </body></html>`;
 
     mkdirSync(OUT_DIR, { recursive: true });

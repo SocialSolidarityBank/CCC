@@ -577,13 +577,11 @@ const briefingStyles = `
    상태에 따라 모양이 바뀌던 문제도 함께 사라진다. 라벨 행과 내용 사이 간격은 구획 기본
    row-gap 8 이라 형제 셋이 같은 리듬이다.
    좁은 폭에서 라벨과 안내가 한 줄에 안 들어가면 줄바꿈만 남긴다. */
-.wire-card-section-head:has(>.briefing-ai-goal-hint){flex-wrap:wrap}
+.wire-card-section-head:has(>.briefing-ai-goal-hint){justify-content:flex-start;column-gap:var(--space-4);flex-wrap:wrap}
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
-/* 영역 ① — 실무자 입력·AI 제안의 세 섹션. 2026-08-10 부터 공용 부품 WireCardSection 이
-   맡는다(구 .briefing-qsection · .briefing-qlabel 폐지). 라벨 색·형제 가로선·세로 리듬은
-   전부 부품 계약으로 옮겼고, 2026-08-06 Q 가 정한 "컬러 라벨 + 가로선" 모양은 그대로다.
-   AI 제안 목록(CCC-39·D45)의 라벤더 tint 상자는 WireItem tone="lavender" 가 갖는다. */
+/* 영역 ①의 실무자 입력과 AI 제안은 공용 WireCardSection 이 맡는다. 라벨과 세로 리듬은
+   부품 계약을 따르고, AI 제안 목록은 WireItem tone="lavender" 의 tint 상자를 쓴다. */
 /* 브리핑 카드 구획(세션 목표·맞춤형 질문·AI 제안·검토할 AI 초안)은 구획 하나가 낱개
    카드다(2026-08-30 Q "div 컴포넌트화" — 상자는 공용 .wire-repeat-card 가 갖는다.
    구 형제 구분선 대체). 카드 사이 16 은 본문 grid gap 이 만든다(§7 행 카드 스택). */
@@ -615,7 +613,7 @@ const briefingStyles = `
    (.participant-next-schedule-link)를 따라 --muted 로 넣었고, 2026-08-30 검수 후 이 자리와
    전례를 함께 고쳤다 — 남은 --muted 호버 4곳은 버튼·컨트롤이라 이 규칙 대상이 아니다),
    눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다. */
-.briefing-session-row{display:flex;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.briefing-session-row{display:grid;grid-template-columns:136px 84px 52px minmax(0,1fr) auto;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
 @media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
 .briefing-session-kind{flex:none;width:84px;display:inline-flex}
 .briefing-session-kind>.wire-badge{width:100%}
@@ -623,15 +621,13 @@ const briefingStyles = `
 .briefing-session-memo>.wire-badge{width:100%}
 /* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q.
    1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다 — 당사자 카드 셀과 같은 계약). */
-/* 날짜는 메타 단이다: 14/400 --sub (2026-08-10 CCC-87, 구 16/400 --ink).
-   좁은 화면에서 본문이 아래 줄로 접히면 날짜와 핵심 한 줄이 위아래로 붙는데 둘 다 16/400
-   --ink 라 무엇을 먼저 읽을지가 사라졌다(하니스 실측, 767·390). 훑을 때 잡혀야 하는 것은
-   핵심 한 줄이므로 날짜가 물러선다. 상담 기록의 .record-held-at 과 같은 값으로 맞춘다 —
-   두 화면이 같은 것을 보여 주면서 브리핑만 --ink 였다. 칸 폭 136 은 그대로다. */
+/* 날짜는 14/400 --sub 메타, 핵심 문구는 14/400 --ink 값이다. 좁은 화면에서 두 줄로
+   쌓여도 색으로 역할이 갈리고, 날짜 폭 136은 상담 기록의 날짜 칸과 같다. */
 .briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
+.briefing-session-row>.wire-chevron{grid-column:-1;grid-row:1/-1;align-self:center;justify-self:end;font-size:var(--text-sm)}
 /* 미해결 액션 행(2026-08-06 Q · 2026-08-28 Q 개정): 내용과 담당(민트)·기한(블루) 뱃지가
    **왼쪽에 한 묶음으로 붙고**, 출처 회차 버튼만 오른쪽 끝으로 떨어진다. 구 "내용이 남는
    폭을 갖고 뱃지를 끝으로 민다"는 뱃지가 버튼 옆에 붙어 크기가 안 맞은 한 쌍처럼 읽혔다
@@ -756,9 +752,13 @@ const briefingStyles = `
   /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
   /* 브리핑 회차 행도 같은 접힘 — 고정 칸(136+84+48)이 좁은 화면 폭을 다 먹는다(9차). */
-  .briefing-session-row{flex-wrap:wrap}
+  .briefing-session-row{grid-template-columns:136px minmax(0,1fr) auto;grid-template-rows:auto auto}
+  .briefing-session-kind{grid-column:2;grid-row:1}
+  .briefing-session-row>.wire-chevron{grid-column:3;grid-row:1/3}
+  .briefing-session-memo{grid-column:1;grid-row:2}
   .briefing-session-memo:empty{display:none}
-  .briefing-session-text.wire-fade-clip{flex-basis:100%;white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
+  .briefing-session-text.wire-fade-clip{display:-webkit-box;grid-column:2/3;grid-row:2;white-space:normal;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
+  .briefing-session-row:not(:has(.briefing-session-memo>.wire-badge)) .briefing-session-text.wire-fade-clip{grid-column:1/3}
   /* 활성 세부 목표 줄(D62 §8 · CCC-69)도 좁은 화면에서는 줄바꿈으로 전환한다(말줄임 규칙). */
   .briefing-subgoal-row.wire-fade-clip{white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
 }
@@ -967,7 +967,7 @@ const scheduleStyles = `
    들여쓰는 것)을 끄는 표준 장치다 — float 가 none 이 아니면 legend 는 일반 자식으로
    내려와 그리드 첫 행에 왼쪽 정렬로 선다(구 6px 들여쓰기 패딩도 함께 걷는다). */
 .consent-fieldset legend{float:left;padding:0;font-weight:600;font-size:var(--text-md);color:var(--ink)}
-.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-md);font-weight:600}
+.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}
 /* 케이스 종결 화면(CCC-107): 폼·요약의 세로 스택. 행 문법은 briefing-action-rows 재사용. */
 .close-case-stack{display:grid;gap:var(--space-4)}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
@@ -1037,7 +1037,7 @@ const registerStyles = `
 .consent-detail[data-inline="true"]>.consent-detail-body{grid-column:1/-1}
 /* 화살표는 텍스트 바로 옆이다(2026-08-07 Q 9차 — 구 space-between 은 화살표가 오른쪽
    끝으로 떨어져 라벨과 남남으로 읽혔다). */
-.consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer;list-style:none}
+.consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
 /* 동의 요약 줄의 꺽쇠만 기준 글자를 .7 로 낮춘다(2026-08-08 Q "꺽쇠 크기 더 줄이기").
    전역 배수(--chevron-box)는 16px 글줄에서 잡은 값이라 14px 글줄에서는 글자 대비 여전히
@@ -1061,7 +1061,7 @@ const registerStyles = `
 .consent-detail-body{display:grid;gap:var(--space-4);margin-top:var(--space-3);padding:var(--space-4) var(--space-6);max-width:72ch;background:var(--muted);border:1px solid var(--line);border-radius:var(--radius-control)}
 .consent-detail-disclaimer{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .consent-detail-section{display:grid;gap:var(--space-1-5)}
-.consent-detail-section h3{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.consent-detail-section h3{margin:0;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
 .consent-detail-section p,.consent-detail-section li{margin:0;font-size:var(--text-sm);color:var(--sub)}
 .consent-detail-section ul{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1-5)}
 /* 인테이크 위저드 고정 요소(2026-08-07 Q 9차·10차 개정): **진행 단계 레일만** 스크롤해도

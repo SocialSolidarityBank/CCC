@@ -64,7 +64,7 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
     <li className={closed ? 'goal-tree-goal is-closed' : 'goal-tree-goal'}>
       <details className="goal-tree-goal-details">
         <summary className="goal-tree-goal-head">
-          <span className="goal-tree-goal-title">{goal.title}</span>
+          <span className="goal-tree-goal-title" title={goal.title}>{goal.title}</span>
           {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
               <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
           {/* 좁은 목록 행의 아코디언은 작은 단(24)이다(2026-08-30 Q 3차 — 32 원형이 14px
@@ -132,7 +132,10 @@ function GoalTreeCaseBlock({ tree, programTitle, showTitle, recordsHref }: {
       <div className="goal-tree-section wire-repeat-card">
         <p className="goal-tree-label">전체 목표</p>
         <div className="goal-tree-overall">
-          <span className={overallSet ? 'goal-tree-overall-text' : 'goal-tree-overall-text is-empty'}>
+          <span
+            className={overallSet ? 'goal-tree-overall-text' : 'goal-tree-overall-text is-empty'}
+            title={tree.overallGoal ?? '설정 전'}
+          >
             {overallSet ? tree.overallGoal : '설정 전'}
           </span>
           <RevisionHistory revisions={tree.overallGoalRevisions} />

@@ -65,10 +65,9 @@ describe('ParticipantHeroCard', () => {
     expect(container.querySelector('h1 .participant-name')?.getAttribute('style')).toBeNull();
   });
 
-  it('참여 사업 행은 사업명 바로 뒤에 배지를 두고 종결은 그라데이션 아웃라인 버튼이다', () => {
-    expect(participantPageSource).toContain('participant-program-head-main');
+  it('참여 사업 행은 전체 사업명을 보존하고 배지와 종결 버튼을 같은 머리에 둔다', () => {
     expect(participantPageSource).toMatch(
-      /participant-program-head-main[\s\S]*<h3>[\s\S]*<WireBadge[\s\S]*variant="secondary"/,
+      /participant-program-head-main[\s\S]*<h3 title=\{programTitle\}>[\s\S]*<WireBadge[\s\S]*variant="secondary"/,
     );
   });
 
