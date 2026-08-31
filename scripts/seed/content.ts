@@ -136,7 +136,13 @@ function resolveAnchorDate(): string {
 const ANCHOR_MS = Date.parse(`${SEED_ANCHOR_DATE}T00:00:00.000Z`);
 const DAY_MS = 86_400_000;
 
-/** 기준일 + `dayOffset` 일의 시각(UTC ISO). 음수는 과거 — 지난 회차는 전부 음수다. */
+/**
+ * 기준일 + `dayOffset` 일의 시각(UTC ISO). 음수는 과거이고 지난 회차는 전부 음수다.
+ *
+ * `hour` 는 **UTC** 다. 기관 시간대(KST, +9)로 업무시간에 두려면 **0~8** 을 쓴다(09:00~17:00).
+ * 9 이상을 넣으면 화면에 저녁으로 뜨고, 15 이상은 다음 날로 넘어가 일정이 하루 밀린다
+ * (2026-08-31 프리뷰 실측: at(1, 11) 이 '오후 8:00' 로, at(20, 16) 이 다음 날로 떨어졌다).
+ */
 function at(dayOffset: number, hour = 10, minute = 0): string {
   return new Date(ANCHOR_MS + dayOffset * DAY_MS + hour * 3_600_000 + minute * 60_000).toISOString();
 }
@@ -295,13 +301,13 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     goals: [{ key: 'ledger', title: '매일 지출을 한 줄로 적는다' }],
     intakeMemo: '반찬가게에서 일하며 밤에는 배달을 뛴다. 두 일을 합쳐도 월세와 관리비를 내면 남는 것이 거의 없다고 한다. 녹음은 부담스럽다고 분명히 말해 동의를 받지 않았고, 기록은 상담 중 손으로 적는 메모로만 남기기로 합의했다. 우선 돈이 어디로 나가는지 눈으로 보는 것부터 시작한다.',
     regulars: [
-      { heldAt: at(-75), memo: '한 줄 기록을 열흘쯤 이어갔다. 커피와 편의점 지출이 생각보다 크다는 것을 본인이 먼저 발견했다.' },
+      { heldAt: at(-75), memo: '한 줄 기록을 열흘쯤 이어갔다. 커피와 편의점 지출이 생각보다 크다는 것을 본인이 먼저 발견했다.', goalLinks: ['ledger'] },
       {
-        heldAt: at(-54), memo: '기록은 유지되지만 지출이 줄지는 않았다. 배달 수입이 들쭉날쭉해 예산을 세워도 무너진다고 한다. 수입이 적은 주를 기준으로 최소 예산을 먼저 잡아보기로 했다.',
+        heldAt: at(-54), memo: '기록은 유지되지만 지출이 줄지는 않았다. 배달 수입이 들쭉날쭉해 예산을 세워도 무너진다고 한다. 수입이 적은 주를 기준으로 최소 예산을 먼저 잡아보기로 했다.', goalLinks: ['ledger'],
         customQuestions: ['수입이 가장 적었던 주에는 무엇을 먼저 포기하게 되나요?'],
       },
     ],
-    futureSchedules: [{ scheduledAt: at(1, 11), customQuestions: ['최소 예산안을 함께 손봅시다'] }],
+    futureSchedules: [{ scheduledAt: at(1, 2), customQuestions: ['최소 예산안을 함께 손봅시다'] }],
   },
   // ── 6 (위기 발언 플래그 · decline · 미해결 액션) ───────────────────────────────
   {
@@ -314,17 +320,17 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     intakeMemo: '온라인 쇼핑몰을 접은 뒤 남은 재고와 미납금이 함께 남았다. 가족과 연락을 끊은 상태로 혼자 지내며, 낮에는 거의 눈을 붙이지 못한다고 한다. 돈 문제와 고립이 함께 있어 정리 순서와 사람 만나는 일을 같이 목표로 잡았다.',
     regulars: [
       {
-        heldAt: at(-50), memo: '통신비는 분할 납부로 돌렸다. 대화 중 "다 정리하고 사라지고 싶다"는 말이 나와 그 자리에서 안전 확인을 했고, 지역 상담센터 연락처를 함께 저장했다. 다음 상담까지 매주 안부 연락을 하기로 약속했다.',
+        heldAt: at(-50), memo: '통신비는 분할 납부로 돌렸다. 대화 중 "다 정리하고 사라지고 싶다"는 말이 나와 그 자리에서 안전 확인을 했고, 지역 상담센터 연락처를 함께 저장했다. 다음 상담까지 매주 안부 연락을 하기로 약속했다.', goalLinks: ['repay'],
         actionItems: [{ description: '주 1회 안부 연락(실무자 발신)과 응답 여부를 기록한다', owner: 'counselor', dueDate: day(3) }],
         flags: [{ flagType: 'crisis_utterance', quote: '다 정리하고 그냥 사라지고 싶다는 생각이 자주 들어요.' }],
       },
-      { heldAt: at(-29), memo: '안부 연락에는 대체로 답했다. 공과금 한 건은 아직 손대지 못했고, 사람 만나는 일은 지역 모임 한 번 참석으로 시작했다.' },
+      { heldAt: at(-29), memo: '안부 연락에는 대체로 답했다. 공과금 한 건은 아직 손대지 못했고, 사람 만나는 일은 지역 모임 한 번 참석으로 시작했다.', goalLinks: ['support'] },
       {
-        heldAt: at(-8), memo: '수면이 조금 나아졌다고 한다. 다만 재고 처분이 진행되지 않아 조바심이 크다.',
+        heldAt: at(-8), memo: '수면이 조금 나아졌다고 한다. 다만 재고 처분이 진행되지 않아 조바심이 크다.', goalLinks: ['repay', 'support'],
         customQuestions: ['이번 주에 연락하고 지낸 사람이 있었나요?'],
       },
     ],
-    futureSchedules: [{ scheduledAt: at(3, 14), goalLinks: ['support'] }],
+    futureSchedules: [{ scheduledAt: at(3, 5), goalLinks: ['support'] }],
   },
   // ── 7 (연락 두절 위험 · mixed · 해결된 액션) ───────────────────────────────────
   {
@@ -334,16 +340,16 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     intakeMemo: '일용직 현장을 옮겨 다니며 일한다. 일이 잡히면 연락이 끊기고 없으면 다시 오는 식이 반복돼, 우선 연락 리듬을 만드는 것을 목표로 잡았다.',
     regulars: [
       {
-        heldAt: at(-43), memo: '두 차례 무응답 뒤 세 번째 연락에 답했다. 현장이 지방으로 잡히면 전화를 받기 어렵다고 해, 문자로 먼저 남기는 방식으로 바꿨다.',
+        heldAt: at(-43), memo: '두 차례 무응답 뒤 세 번째 연락에 답했다. 현장이 지방으로 잡히면 전화를 받기 어렵다고 해, 문자로 먼저 남기는 방식으로 바꿨다.', goalLinks: ['contact'],
         flags: [{ flagType: 'contact_loss_risk', quote: '전화를 못 받으면 그냥 잊어버려요. 다시 연락 안 하실 줄 알았어요.' }],
       },
-      { heldAt: at(-15), memo: '문자로 바꾼 뒤 응답이 붙었다. 일정 변경도 하루 전에 알려 왔다.' },
+      { heldAt: at(-15), memo: '문자로 바꾼 뒤 응답이 붙었다. 일정 변경도 하루 전에 알려 왔다.', goalLinks: ['contact'] },
     ],
     resolvedActions: [
       { description: '문자 우선 연락으로 바꾸고 응답 방식을 케이스에 기록한다', owner: 'counselor', dueDate: day(-40) },
       { description: '다음 현장 일정이 잡히면 날짜를 미리 알려 준다', owner: 'beneficiary', dueDate: day(-20) },
     ],
-    futureSchedules: [{ scheduledAt: at(5, 10), goalLinks: ['contact'] }],
+    futureSchedules: [{ scheduledAt: at(5, 1), goalLinks: ['contact'] }],
   },
   // ── 8 (주거·생계·건강 급변 · decline · 정기 3) ─────────────────────────────────
   {
@@ -355,15 +361,15 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     intakeMemo: '작은 인쇄소를 운영하다 기계 고장으로 두 달을 쉬었다. 그 사이 월세가 밀리고 보증금에서 차감되기 시작했다. 거주 문제가 가장 급해 그것부터 목표로 올렸다.',
     regulars: [
-      { heldAt: at(-67), memo: '집주인과 분할 상환을 구두로 합의했다. 고정지출 정리는 시작만 해 둔 상태다.' },
+      { heldAt: at(-67), memo: '집주인과 분할 상환을 구두로 합의했다. 고정지출 정리는 시작만 해 둔 상태다.', goalLinks: ['housing'] },
       {
-        heldAt: at(-46), memo: '허리 통증으로 열흘을 일하지 못해 합의한 금액을 다시 넘겼다. 보증금이 두 달치 더 깎였고, 계약 종료가 두 달 앞이라 대안을 알아봐야 한다.',
+        heldAt: at(-46), memo: '허리 통증으로 열흘을 일하지 못해 합의한 금액을 다시 넘겼다. 보증금이 두 달치 더 깎였고, 계약 종료가 두 달 앞이라 대안을 알아봐야 한다.', goalLinks: ['housing'],
         flags: [{ flagType: 'housing_livelihood_shock', quote: '보증금에서 계속 까이니까 나갈 때 남는 게 없을 것 같아요.' }],
         actionItems: [{ description: '주거 지원 제도 두 곳의 신청 요건을 확인해 정리한다', owner: 'org', dueDate: day(6) }],
       },
-      { heldAt: at(-25), memo: '통증은 나아졌지만 일감이 줄어 수입이 회복되지 않았다. 고정지출 표는 절반쯤 채웠다.' },
+      { heldAt: at(-25), memo: '통증은 나아졌지만 일감이 줄어 수입이 회복되지 않았다. 고정지출 표는 절반쯤 채웠다.', goalLinks: ['budget'] },
     ],
-    futureSchedules: [{ scheduledAt: at(7, 15), goalLinks: ['housing'] }],
+    futureSchedules: [{ scheduledAt: at(7, 6), goalLinks: ['housing'] }],
   },
   // ── 9 (약속 불이행 반복 · plateau · 정기 4) ────────────────────────────────────
   {
@@ -375,18 +381,18 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     intakeMemo: '수선집을 물려받아 운영한다. 손기술은 좋지만 문 여는 시간이 일정하지 않아 단골이 빠졌다. 약속을 작게 쪼개는 방식으로 접근하기로 했다.',
     regulars: [
-      { heldAt: at(-100), memo: '개점 시간을 오전 10시로 정했다. 첫 주는 세 번 지켰다.' },
+      { heldAt: at(-100), memo: '개점 시간을 오전 10시로 정했다. 첫 주는 세 번 지켰다.', goalLinks: ['sales'] },
       {
-        heldAt: at(-79), memo: '가져오기로 한 매출 메모를 이번에도 잊었다. 세 번째 미이행이라 이유를 함께 짚었다. 종이 대신 사진으로 찍어 보내기로 방식을 바꿨다.',
+        heldAt: at(-79), memo: '가져오기로 한 매출 메모를 이번에도 잊었다. 세 번째 미이행이라 이유를 함께 짚었다. 종이 대신 사진으로 찍어 보내기로 방식을 바꿨다.', goalLinks: ['plan'],
         flags: [{ flagType: 'repeated_noncompliance', quote: '적어 놓긴 했는데 어디 뒀는지 못 찾겠어요. 매번 이래요.' }],
       },
-      { heldAt: at(-58), memo: '사진 전송으로 바꾼 뒤 두 주는 들어왔다. 개점 시간은 다시 흔들렸다.' },
+      { heldAt: at(-58), memo: '사진 전송으로 바꾼 뒤 두 주는 들어왔다. 개점 시간은 다시 흔들렸다.', goalLinks: ['sales'] },
       {
-        heldAt: at(-37), memo: '문 여는 시간은 주 3회 기준을 맞췄다. 할 일 하나 마치기는 절반 정도 지켜진다.',
+        heldAt: at(-37), memo: '문 여는 시간은 주 3회 기준을 맞췄다. 할 일 하나 마치기는 절반 정도 지켜진다.', goalLinks: ['plan'],
         customQuestions: ['다음 상담까지 딱 하나만 하기로 하면 무엇을 고르겠어요?'],
       },
     ],
-    futureSchedules: [{ scheduledAt: at(9, 11), goalLinks: ['plan'] }],
+    futureSchedules: [{ scheduledAt: at(9, 2), goalLinks: ['plan'] }],
   },
   // ── 10 (폭력·착취 피해 · mixed · 담담한 인용) ──────────────────────────────────
   {
@@ -396,13 +402,13 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     intakeMemo: '친척이 운영하는 가게에서 일하며 급여를 현금으로 받아 왔다. 일한 시간에 비해 받은 금액이 맞지 않는데 문제를 제기하기 어려운 관계라고 한다. 우선 본인 명의 통장으로 급여를 받는 것부터 정리한다.',
     regulars: [
       {
-        heldAt: at(-38), memo: '급여 일부를 친척이 보관해 왔고 요청해도 돌려받지 못한 달이 있었다고 한다. 근로 조건과 지급 내역을 시간 순으로 적어 두기로 했고, 상담 기록으로 남기는 것에 동의받았다.',
+        heldAt: at(-38), memo: '급여 일부를 친척이 보관해 왔고 요청해도 돌려받지 못한 달이 있었다고 한다. 근로 조건과 지급 내역을 시간 순으로 적어 두기로 했고, 상담 기록으로 남기는 것에 동의받았다.', goalLinks: ['safety'],
         flags: [{ flagType: 'violence_exploitation', quote: '제 몫이라고 말하면 관계가 끊길 것 같아서 그냥 넘겼어요.' }],
         actionItems: [{ description: '지급 내역과 근무 시간을 달별로 정리해 온다', owner: 'beneficiary', dueDate: day(2) }],
       },
-      { heldAt: at(-17), memo: '본인 명의 계좌를 새로 만들었다. 급여 입금 경로 변경은 아직 이야기하지 못했다.' },
+      { heldAt: at(-17), memo: '본인 명의 계좌를 새로 만들었다. 급여 입금 경로 변경은 아직 이야기하지 못했다.', goalLinks: ['safety'] },
     ],
-    futureSchedules: [{ scheduledAt: at(11, 13), goalLinks: ['safety'] }],
+    futureSchedules: [{ scheduledAt: at(11, 4), goalLinks: ['safety'] }],
   },
   // ── 11 (목표 달성으로 닫기 · improving · 정기 5) ───────────────────────────────
   {
@@ -414,12 +420,12 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     intakeMemo: '아동복 온라인 판매를 2년째 한다. 매출은 있으나 카드 정산 주기와 상환일이 어긋나 매달 돌려막기를 해 왔다. 정산일을 기준으로 상환일을 옮기는 것부터 손봤다.',
     regulars: [
-      { heldAt: at(-125), memo: '상환일을 정산 다음 날로 옮기자 돌려막기가 사라졌다.' },
-      { heldAt: at(-104), memo: '두 달 연속 정액 납부. 기록은 주 1회 리듬이 잡혔다.' },
+      { heldAt: at(-125), memo: '상환일을 정산 다음 날로 옮기자 돌려막기가 사라졌다.', goalLinks: ['repay'] },
+      { heldAt: at(-104), memo: '두 달 연속 정액 납부. 기록은 주 1회 리듬이 잡혔다.', goalLinks: ['repay', 'ledger'] },
       { heldAt: at(-83), memo: '세 달 연속. 상환 목표는 사실상 자리를 잡아 다음 단계를 이야기했다.', goalLinks: ['repay'] },
-      { heldAt: at(-62), memo: '납부는 안정적이고 기록도 유지된다. 상환 목표를 달성으로 닫고 재고 관리로 옮기기로 정했다.' },
+      { heldAt: at(-62), memo: '납부는 안정적이고 기록도 유지된다. 상환 목표를 달성으로 닫고 재고 관리로 옮기기로 정했다.', goalLinks: ['ledger'] },
       {
-        heldAt: at(-41), memo: '새 목표로 옮긴 뒤 사입 주기를 2주로 줄였다. 재고가 쌓이는 품목이 눈에 보인다고 한다.',
+        heldAt: at(-41), memo: '새 목표로 옮긴 뒤 사입 주기를 2주로 줄였다. 재고가 쌓이는 품목이 눈에 보인다고 한다.', goalLinks: ['stock'],
         customQuestions: ['2주 주기로 바꾼 뒤 남는 재고가 줄었나요?'],
       },
     ],
@@ -427,7 +433,7 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
       afterSession: 4, closeGoalKey: 'repay', reason: 'achieved',
       newGoal: { key: 'stock', title: '사입 주기를 2주로 줄여 재고를 관리한다', scaleCriteria: REPAYMENT_SCALE },
     },
-    futureSchedules: [{ scheduledAt: at(13, 10), goalLinks: ['ledger'] }],
+    futureSchedules: [{ scheduledAt: at(13, 1), goalLinks: ['ledger'] }],
   },
   // ── 12 (목표 중단으로 닫기 · mixed · 정기 3) ───────────────────────────────────
   {
@@ -439,17 +445,17 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     intakeMemo: '카페 창업을 준비하며 자격 과정을 등록했다. 수강료와 생활비가 겹쳐 부담이 커진 상태다.',
     regulars: [
-      { heldAt: at(-81), memo: '과정 절반을 들었다. 고정지출은 통신 요금제를 바꿔 조금 줄였다.' },
+      { heldAt: at(-81), memo: '과정 절반을 들었다. 고정지출은 통신 요금제를 바꿔 조금 줄였다.', goalLinks: ['class'] },
       {
-        heldAt: at(-60), memo: '야간 근무가 늘어 수업을 두 번 빠졌다. 과정을 지금 이어가는 것이 무리라고 판단해 중단으로 닫고, 대신 생활비 목표에 집중하기로 정했다.',
+        heldAt: at(-60), memo: '야간 근무가 늘어 수업을 두 번 빠졌다. 과정을 지금 이어가는 것이 무리라고 판단해 중단으로 닫고, 대신 생활비 목표에 집중하기로 정했다.', goalLinks: ['budget'],
       },
-      { heldAt: at(-39), memo: '고정지출은 두 달째 목표를 맞췄다. 자격 과정은 다음 분기에 다시 보기로 했다.' },
+      { heldAt: at(-39), memo: '고정지출은 두 달째 목표를 맞췄다. 자격 과정은 다음 분기에 다시 보기로 했다.', goalLinks: ['shift', 'budget'] },
     ],
     goalReplacement: {
       afterSession: 2, closeGoalKey: 'class', reason: 'stopped',
       newGoal: { key: 'shift', title: '야간 근무를 주 2회 이하로 조정한다', scaleCriteria: SAVINGS_SCALE },
     },
-    futureSchedules: [{ scheduledAt: at(16, 14), goalLinks: ['budget'] }],
+    futureSchedules: [{ scheduledAt: at(16, 5), goalLinks: ['budget'] }],
   },
   // ── 13 (회차 6 · 부채 악화 단독 플래그 · improving) ────────────────────────────
   {
@@ -462,18 +468,18 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     intakeMemo: '트럭으로 과일을 받아다 판다. 성수기와 비수기 격차가 커서 비수기에 대출을 늘려 버티는 방식이 반복됐다. 대출을 합치는 것과 월말 정산 습관을 함께 목표로 잡았다.',
     regulars: [
-      { heldAt: at(-144), memo: '두 건 중 이자가 높은 쪽을 먼저 갈아탈 조건을 알아봤다.' },
-      { heldAt: at(-123), memo: '갈아타기를 마쳤다. 월 이자 부담이 줄어 상환 여력이 생겼다.' },
-      { heldAt: at(-102), memo: '월말 정산을 두 달 이어갔다. 비수기 대비 금액을 계산해 봤다.' },
+      { heldAt: at(-144), memo: '두 건 중 이자가 높은 쪽을 먼저 갈아탈 조건을 알아봤다.', goalLinks: ['repay'] },
+      { heldAt: at(-123), memo: '갈아타기를 마쳤다. 월 이자 부담이 줄어 상환 여력이 생겼다.', goalLinks: ['repay'] },
+      { heldAt: at(-102), memo: '월말 정산을 두 달 이어갔다. 비수기 대비 금액을 계산해 봤다.', goalLinks: ['ledger'] },
       { heldAt: at(-81), memo: '적립을 시작했다. 금액은 작지만 끊기지 않는 것을 우선했다.', goalLinks: ['save'] },
-      { heldAt: at(-60), memo: '성수기 수입으로 적립을 두 배로 늘렸다. 정산 습관은 유지된다.' },
+      { heldAt: at(-60), memo: '성수기 수입으로 적립을 두 배로 늘렸다. 정산 습관은 유지된다.', goalLinks: ['save'] },
       {
-        heldAt: at(-39), memo: '비수기에 접어들며 매출이 줄었지만 대출을 늘리지 않고 적립분으로 버텼다. 처음 있는 일이라고 한다.',
+        heldAt: at(-39), memo: '비수기에 접어들며 매출이 줄었지만 대출을 늘리지 않고 적립분으로 버텼다. 처음 있는 일이라고 한다.', goalLinks: ['ledger', 'save'],
         customQuestions: ['올해 비수기는 지난해와 무엇이 달랐나요?'],
       },
     ],
     standaloneFlag: { flagType: 'debt_deterioration', quote: '작년 이맘때는 카드로 돌려서 버텼는데 올해는 안 그랬어요.' },
-    futureSchedules: [{ scheduledAt: at(18, 9), goalLinks: ['repay', 'save'] }],
+    futureSchedules: [{ scheduledAt: at(18, 0), goalLinks: ['repay', 'save'] }],
   },
   // ── 14 (장문 인테이크 · plateau · 정기 2) ──────────────────────────────────────
   {
@@ -482,13 +488,13 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     goals: [{ key: 'income', title: '고정 수입원 하나를 만든다' }],
     intakeMemo: '프리랜서로 간판 도안을 그린다. 일이 들어오는 달과 없는 달의 차이가 커서 한 달은 여유가 있고 다음 달은 카드로 버티는 식이 3년째 이어졌다. 큰 일감 하나에 기대는 구조라 그 일감이 밀리면 생활이 함께 밀린다고 한다. 작은 일감을 꾸준히 받는 쪽으로 방향을 바꾸고 싶지만, 단가가 낮아 시간만 쓰고 남는 것이 없을까 걱정한다고 했다. 우선 매달 들어오는 고정 수입 한 줄을 만드는 것을 목표로 잡고, 기존 거래처 중 정기 발주가 가능한 곳을 추려 보기로 했다.',
     regulars: [
-      { heldAt: at(-56), memo: '거래처 두 곳에 정기 발주 가능성을 물었다. 한 곳은 월 1회 소량이라도 가능하다고 답했다.' },
+      { heldAt: at(-56), memo: '거래처 두 곳에 정기 발주 가능성을 물었다. 한 곳은 월 1회 소량이라도 가능하다고 답했다.', goalLinks: ['income'] },
       {
-        heldAt: at(-35), memo: '월 1회 발주가 두 번 들어왔다. 금액은 작지만 처음으로 예측 가능한 수입이 생겼다.',
+        heldAt: at(-35), memo: '월 1회 발주가 두 번 들어왔다. 금액은 작지만 처음으로 예측 가능한 수입이 생겼다.', goalLinks: ['income'],
         customQuestions: ['고정 발주를 한 곳 더 늘릴 여지가 있을까요?'],
       },
     ],
-    futureSchedules: [{ scheduledAt: at(20, 16), goalLinks: ['income'] }],
+    futureSchedules: [{ scheduledAt: at(20, 7), goalLinks: ['income'] }],
   },
 ];
 
