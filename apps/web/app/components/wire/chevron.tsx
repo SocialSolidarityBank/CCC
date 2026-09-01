@@ -26,23 +26,24 @@ export function Chevron({ dir }: { dir: ChevronDir }) {
   );
 }
 
-export type DisclosureChevronSize = 'md' | 'sm';
-export type DisclosureChevronFrame = 'circle' | 'none';
+export type DisclosureChevronVariant = 'button' | 'plain';
 
-/** 네이티브 details 요약 줄의 상태 슬롯. 잉크는 위 Chevron 한 벌만 쓴다. */
+/**
+ * 네이티브 details 요약 줄의 상태 표시.
+ * button은 일정 기간 이동과 같은 공용 원형 면, plain은 12px 잉크 슬롯만 쓴다.
+ */
 export function DisclosureChevron({
-  size = 'md',
-  frame = 'circle',
+  variant = 'button',
 }: {
-  size?: DisclosureChevronSize;
-  frame?: DisclosureChevronFrame;
+  variant?: DisclosureChevronVariant;
 }) {
   return (
     <span
       aria-hidden="true"
-      className="wire-disclosure-chevron"
-      data-frame={frame === 'circle' ? undefined : frame}
-      data-size={size === 'md' ? undefined : size}
+      className={variant === 'button'
+        ? 'wire-disclosure-chevron wire-chevron-button'
+        : 'wire-disclosure-chevron'}
+      data-variant={variant}
     >
       <Chevron dir="down" />
     </span>

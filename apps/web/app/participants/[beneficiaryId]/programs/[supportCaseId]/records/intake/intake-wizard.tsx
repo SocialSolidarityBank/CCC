@@ -300,7 +300,7 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
     <details className="consent-detail" id={props.id} open={props.open} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
       <summary className="consent-detail-summary">
         <span>{props.title}</span>
-        <DisclosureChevron frame="none" />
+        <DisclosureChevron variant="plain" />
       </summary>
       <div className="consent-detail-body">{props.children}</div>
     </details>

@@ -114,6 +114,9 @@ describe('GoalTreeCard — 목표 트리 (D62 §8)', () => {
     expect(overallHistory).not.toBeUndefined();
     // 기본 숨김 — 네이티브 details 라 open 속성이 없어야 한다(D62 §4 "기본으로 숨기고").
     expect(overallHistory?.hasAttribute('open')).toBe(false);
+    const historyChevron = overallHistory?.querySelector('.wire-disclosure-chevron');
+    expect(historyChevron?.getAttribute('data-variant')).toBe('plain');
+    expect(historyChevron?.classList.contains('wire-chevron-button')).toBe(false);
     const rows = [...(overallHistory as HTMLElement).querySelectorAll('.goal-tree-history-row')];
     expect(rows).toHaveLength(2);
     // 최신부터: 현재 문구가 먼저, 이전 문구(최초 작성)가 마지막이다.

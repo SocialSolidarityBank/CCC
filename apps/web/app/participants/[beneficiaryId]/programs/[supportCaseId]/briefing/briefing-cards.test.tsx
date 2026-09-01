@@ -400,6 +400,9 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const history = card.querySelector('.briefing-history');
     if (history === null) throw new Error('history not found');
     expect(history.querySelector('summary')?.textContent).toContain('처리된 항목 1건');
+    const historyChevron = history.querySelector('.wire-disclosure-chevron');
+    expect(historyChevron?.getAttribute('data-variant')).toBe('plain');
+    expect(historyChevron?.classList.contains('wire-chevron-button')).toBe(false);
     // 접혀 있을 뿐 지워지지 않는다 — 인용도 처리 상태도 이력 안에 남는다.
     expect(history.textContent).toContain('이번 달 지출을 정리했다');
     expect(history.textContent).toContain('상황 변경으로 처리됨');

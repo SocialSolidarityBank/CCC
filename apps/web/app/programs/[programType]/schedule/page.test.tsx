@@ -334,7 +334,7 @@ describe('다중 뷰 일정 화면 (CCC-133), 내비', () => {
     // 이전·다음은 묶인 사각 컨트롤이 아니라 각각 독립 원형 버튼으로 선다.
     const steps = container.querySelectorAll('.schedule-nav-period a.schedule-nav-step');
     expect(steps).toHaveLength(2);
-    expect(Array.from(steps).every((el) => el.classList.contains('header-icon-button'))).toBe(true);
+    expect(Array.from(steps).every((el) => el.classList.contains('wire-chevron-button'))).toBe(true);
     expect(container.querySelector('.month-nav-group')).toBeNull();
   });
 

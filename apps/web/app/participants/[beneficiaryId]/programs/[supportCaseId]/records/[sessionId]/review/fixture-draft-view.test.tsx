@@ -245,7 +245,7 @@ describe('DraftReviewView', () => {
 
       const axisSection = screen.getByTestId('ai-draft-contrast-missing_from_memo');
       expect(within(axisSection).getByText('메모에 없던 언급')).toBeTruthy();
-      expect(within(axisSection).getByText('전사').getAttribute('data-tone')).toBeNull();
+      expect((within(axisSection).getByText('전사').closest('.wire-badge') as HTMLElement).dataset.tone).toBeUndefined();
       expect(within(axisSection).getByText('원문 인용 발췌')).toBeTruthy();
       const disclosure = axisSection.querySelector('details[data-source-quotes]');
       expect(disclosure?.hasAttribute('open')).toBe(false);
@@ -270,8 +270,8 @@ describe('DraftReviewView', () => {
     describe('축 상태 배지 (검수 지적 8)', () => {
       it('marks a not-applied axis with a neutral 돌리지 못함 badge', () => {
         render(<DraftReviewView {...props()} />);
-        const badge = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('돌리지 못함');
-        expect(badge.dataset.tone).toBeUndefined();
+        const label = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('돌리지 못함');
+        expect((label.closest('.wire-badge') as HTMLElement).dataset.tone).toBeUndefined();
       });
 
       it('marks an applied axis with no findings with a mint 차이 없음 badge', () => {
@@ -285,8 +285,8 @@ describe('DraftReviewView', () => {
             ],
           },
         })} />);
-        const badge = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('차이 없음');
-        expect(badge.dataset.tone).toBe('mint');
+        const label = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('차이 없음');
+        expect((label.closest('.wire-badge') as HTMLElement).dataset.tone).toBe('mint');
       });
 
       it('marks an applied axis with findings with a lavender 차이 있음 badge', () => {
@@ -304,14 +304,14 @@ describe('DraftReviewView', () => {
             ],
           },
         })} />);
-        const badge = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('차이 있음');
-        expect(badge.dataset.tone).toBe('lavender');
+        const label = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('차이 있음');
+        expect((label.closest('.wire-badge') as HTMLElement).dataset.tone).toBe('lavender');
       });
 
       it('marks a pre-v3 axis (no data) with a neutral 정보 없음 badge, distinct from 돌리지 못함', () => {
         render(<DraftReviewView {...props({ draft: { ...props().draft, contrast: [] } })} />);
-        const badge = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('정보 없음');
-        expect(badge.dataset.tone).toBeUndefined();
+        const label = within(screen.getByTestId('ai-draft-contrast-missing_from_memo')).getByText('정보 없음');
+        expect((label.closest('.wire-badge') as HTMLElement).dataset.tone).toBeUndefined();
       });
     });
   });

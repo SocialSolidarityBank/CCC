@@ -89,7 +89,7 @@
   },
   {
     "name": "근거 인용 꺽쇠가 요약 행 세로 중앙",
-    "selectors": ["#align-content .wire-source-quotes>summary", ".wire-disclosure-chevron[data-frame=\"none\"]"],
+    "selectors": ["#align-content .wire-source-quotes>summary", ".wire-disclosure-chevron[data-variant=\"plain\"]"],
     "axis": "center-y-each",
     "tolerance": 1
   },
@@ -244,7 +244,7 @@
   },
   {
     "name": "당사자 정보 세부 목표 꺽쇠가 제목 행 세로 중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-head", ".wire-disclosure-chevron[data-frame=\"none\"]"],
+    "selectors": ["#align-goal-tree .goal-tree-goal-head", ".wire-disclosure-chevron[data-variant=\"plain\"]"],
     "axis": "center-y-each",
     "tolerance": 1
   },
@@ -372,5 +372,55 @@
     "selectors": ["#align-goal-tree .goal-tree-goals.wire-bullets>li"],
     "axis": "bullet-y",
     "tolerance": 1
+  },
+  {
+    "name": "주간 일정 오늘 배지는 날짜 제목 행 세로 중앙",
+    "selectors": [
+      "#align-schedule-body .schedule-day-heading",
+      "#align-schedule-body .schedule-day-summary-title>.wire-badge[data-tone=\"blue\"]",
+      "#align-schedule-body .schedule-day-names"
+    ],
+    "axis": "y",
+    "tolerance": 1
+  },
+  {
+    "name": "시간축 배지 라벨은 모든 배지 면 세로 중앙",
+    "selectors": [".wire-badge[data-tone=\"blue\"]", ".wire-badge-label"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "브리핑 기한 배지는 액션 행 세로 중앙",
+    "selectors": ["#align-content .briefing-action-row", ".wire-badge[data-tone=\"blue\"]"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "종결 기한 배지는 액션 행 세로 중앙",
+    "selectors": ["#align-close-actions .briefing-action-row", ".wire-badge[data-tone=\"blue\"]"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "기록 작성 기한 배지는 담당 배지 행 세로 중앙",
+    "selectors": ["#align-action-resolutions .open-action-meta", ".wire-badge[data-tone=\"blue\"]"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "아코디언 버튼형 꺽쇠는 32px 원 하나",
+    "selectors": ["#align-schedule-body .wire-chevron-button"],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 32,
+    "expectedHeight": 32
+  },
+  {
+    "name": "아코디언 버튼형 꺽쇠 path가 원 정중앙",
+    "selectors": ["#align-schedule-body .wire-chevron-button"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.25,
+    "expectedSize": 32
   }
 ]

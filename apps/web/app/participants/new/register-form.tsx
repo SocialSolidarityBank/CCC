@@ -248,7 +248,7 @@ export function RegisterForm({
           <details className="consent-detail register-consent-block wire-repeat-card">
             <summary className="consent-detail-summary">
               <span>자세히 읽어보기</span>
-              <DisclosureChevron frame="none" />
+              <DisclosureChevron variant="plain" />
             </summary>
             <div className="consent-detail-body">
               <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>

@@ -61,6 +61,15 @@ describe('WireBadge palette', () => {
     ))).toEqual(BADGE_PALETTE.map(({ tone }) => tone));
   });
 
+  it('배지 내용은 공용 라벨 상자 하나로 감싸 세로 여백을 잴 수 있다', () => {
+    const { container } = render(<WireBadge tone="blue">오늘</WireBadge>);
+    const badge = container.querySelector('.wire-badge');
+    const label = badge?.querySelector('.wire-badge-label');
+
+    expect(label?.textContent).toBe('오늘');
+    expect(badge?.children).toHaveLength(1);
+  });
+
   it('라이트는 Pen deep, 다크는 base 배지 토큰을 쓴다', () => {
     const light = readBlock(':root {');
     const dark = readBlock(':root[data-theme="dark"]');
