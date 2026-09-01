@@ -81,7 +81,7 @@ export function WireSourceQuotes({ quotes, sourceHref }: WireSourceQuotesProps) 
   return (
     <details className="wire-source-quotes" data-source-quotes>
       {/* 좁은 근거 행은 12px 무형 슬롯의 공용 꺽쇠를 쓴다. */}
-      <summary>근거 인용 보기 <DisclosureChevron frame="none" /></summary>
+      <summary>근거 인용 보기 <DisclosureChevron variant="plain" /></summary>
       <div className="wire-source-quotes-body">
         {/* 인용 묶음은 왼쪽 폭을 쓰고 출처 버튼은 같은 행 오른쪽이다(2026-08-30 Q 2차 —
             구 세로 스택. 좁으면 버튼이 아랫줄로 접힌다). */}

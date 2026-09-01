@@ -814,9 +814,8 @@ const scheduleStyles = `
 .schedule-nav-controls,.schedule-nav-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
 .schedule-nav-actions{justify-content:flex-end}
 .schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3)}
-/* 이전·다음은 공용 32px 원형 아이콘 버튼이다. 면과 포커스 링은 header-icon-button이 갖고,
-   안의 방향 표시는 공용 12px Chevron을 쓴다. */
-.schedule-nav-step{width:var(--pill-height);height:var(--pill-height)}
+/* 이전·다음은 공용 꺽쇠 버튼 면과 공용 12px SVG를 함께 쓴다. */
+.schedule-nav-step{justify-self:center}
 /* [오늘] 바로 옆 보기 선택창. B 균형형(2026-09-02 Q): 96×32, 좌 12, 우 10이다. */
 .schedule-nav .schedule-view-select{width:96px;flex:0 0 96px;min-height:var(--pill-height);padding-left:var(--space-3);padding-right:var(--space-2-5)}
 .schedule-nav .schedule-view-select select{padding-right:var(--space-6)}
@@ -833,7 +832,7 @@ const scheduleStyles = `
 /* 기간 이름은 누를 수 없는 14/500 읽는 값이다. 세 뷰 모두 자기 글자 폭만 차지하므로
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
-.schedule-day-summary-title{display:flex;align-items:baseline;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
+.schedule-day-summary-title{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
 .schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 /* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
    컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */

@@ -67,21 +67,24 @@ function renderNav(view: 'day' | 'week' | 'month', anchor: string) {
 }
 
 describe('디자인 레인, 이전·다음 원형 버튼', () => {
-  it('이전·다음은 공용 원형 아이콘 버튼 면을 쓴다', () => {
-    const step = rule('.schedule-nav-step');
-    expect(step).not.toContain('background:none');
-    expect(step).not.toContain('border:0');
-    expect(step).not.toContain('border-radius:0');
-    const iconButton = baseRule('.header-icon-button');
-    expect(iconButton).toContain('border-radius:var(--radius-pill)');
-    expect(iconButton).toContain('var(--gradient-brand) border-box');
+  it('이전·다음은 공용 꺽쇠 버튼 면을 직접 쓴다', () => {
+    const { container } = renderNav('week', '2026-02-09');
+    const steps = [...container.querySelectorAll('.schedule-nav-step')];
+    expect(steps).toHaveLength(2);
+    expect(steps.every((step) => step.classList.contains('wire-chevron-button'))).toBe(true);
+    expect(steps.every((step) => !step.classList.contains('header-icon-button'))).toBe(true);
+
+    const button = baseRule('.wire-chevron-button');
+    expect(button).toContain('border-radius:var(--radius-pill)');
+    expect(button).toContain('var(--gradient-brand) border-box');
+    expect(button).toContain('background:linear-gradient(');
   });
 
-  it('32px 원형 버튼과 초점 링을 유지한다', () => {
-    const step = rule('.schedule-nav-step');
-    expect(step).toContain('width:var(--pill-height)');
-    expect(step).toContain('height:var(--pill-height)');
-    expect(layoutSource).toMatch(/\.header-icon-button:focus-visible\{/);
+  it('공용 꺽쇠 버튼은 32px 원과 한 초점 링만 유지한다', () => {
+    const button = baseRule('.wire-chevron-button');
+    expect(button).toContain('width:var(--pill-height)');
+    expect(button).toContain('height:var(--pill-height)');
+    expect(wireSource).toMatch(/\.wire-chevron-button:focus-visible\{/);
   });
 
   it('세 뷰는 기간 글자 너비만큼만 쓰고 화살표 간격을 같은 값으로 맞춘다', () => {
@@ -219,11 +222,20 @@ describe('CCC-133 지난 일정 대비 정제(2026-08-25 Q)', () => {
     expect(baseRule('.briefing-toolbar')).not.toContain('padding-inline');
   });
 
-  it('아코디언은 공용 SVG 꺽쇠를 원 안에 두고 열리면 위로 회전한다', () => {
-    const circle = baseRule('.wire-disclosure-chevron');
-    expect(circle).toContain('width:var(--pill-height)');
-    expect(circle).toContain('height:var(--pill-height)');
-    expect(circle).toContain('border-radius:var(--radius-pill)');
+  it('주간 날짜와 오늘 배지는 세로 중앙이고 모바일 세로 묶음은 왼쪽 정렬한다', () => {
+    expect(rule('.schedule-day-summary-title')).toContain('align-items:center');
+    expect(rule('.schedule-day-summary-title', MOBILE_AT)).toContain('align-items:flex-start');
+  });
+
+  it('아코디언 버튼형과 일반형은 공용 SVG 꺽쇠만 공유한다', () => {
+    const button = baseRule('.wire-chevron-button');
+    expect(button).toContain('width:var(--pill-height)');
+    expect(button).toContain('height:var(--pill-height)');
+    expect(button).toContain('border-radius:var(--radius-pill)');
+    const plain = baseRule('.wire-disclosure-chevron[data-variant="plain"]');
+    expect(plain).toContain('width:12px');
+    expect(plain).toContain('height:12px');
+    expect(plain).toContain('border:0');
     const glyph = baseRule('.wire-chevron');
     expect(glyph).toContain('width:12px');
     expect(glyph).toContain('height:12px');
@@ -289,7 +301,7 @@ describe('CCC-133 내비 회귀, 이전과 다음', () => {
     const steps = container.querySelectorAll('a.schedule-nav-step');
     expect(steps).toHaveLength(2);
     for (const step of steps) {
-      expect(step.classList.contains('header-icon-button')).toBe(true);
+      expect(step.classList.contains('wire-chevron-button')).toBe(true);
       expect(step.querySelector('.wire-chevron')).not.toBeNull();
     }
     expect(steps[0]?.getAttribute('aria-label')).toBe('이전 기간');
@@ -299,12 +311,12 @@ describe('CCC-133 내비 회귀, 이전과 다음', () => {
     expect(container.querySelector('.month-nav-seg')).toBeNull();
   });
 
-  it('고정 슬롯과 원형 외관을 함께 유지한다', () => {
-    const step = rule('.schedule-nav-step');
-    expect(step).toContain('width:var(--pill-height)');
-    expect(step).toContain('height:var(--pill-height)');
-    expect(step).not.toContain('border-radius:0');
-    expect(baseRule('.header-icon-button')).toContain('border-radius:var(--radius-pill)');
+  it('고정 슬롯과 원형 외관을 공용 꺽쇠 버튼에서 함께 유지한다', () => {
+    const button = baseRule('.wire-chevron-button');
+    expect(button).toContain('width:var(--pill-height)');
+    expect(button).toContain('height:var(--pill-height)');
+    expect(button).toContain('border-radius:var(--radius-pill)');
+    expect(rule('.schedule-nav-step')).toContain('justify-self:center');
   });
 });
 
@@ -313,7 +325,7 @@ describe('CCC-133 내비 회귀, 컨트롤 높이 계약', () => {
   // 근거로 삼는지를 잠가, 한 자리만 조용히 다른 값으로 갈라지는 것을 막는다.
   it('오늘 · 기간 이름 · 화살표 슬롯 · 보기 선택창이 모두 32px 단을 쓴다', () => {
     expect(rule('.schedule-period-label')).toContain('height:var(--pill-height)');
-    expect(rule('.schedule-nav-step')).toContain('height:var(--pill-height)');
+    expect(baseRule('.wire-chevron-button')).toContain('height:var(--pill-height)');
     expect(rule('.schedule-nav .schedule-view-select')).toContain('min-height:var(--pill-height)');
   });
 

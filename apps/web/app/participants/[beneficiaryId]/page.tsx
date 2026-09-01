@@ -131,7 +131,7 @@ function ConsentDetailAccordion({ sections }: { sections: ConsentDetailSection[]
     <details className="consent-detail" data-inline="true">
       <summary className="consent-detail-summary">
         <span>전문 보기</span>
-        <DisclosureChevron frame="none" />
+        <DisclosureChevron variant="plain" />
       </summary>
       <div className="consent-detail-body">
         <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>

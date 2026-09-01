@@ -20,13 +20,23 @@ describe('Chevron', () => {
     expect(path?.getAttribute('vector-effect')).toBe('non-scaling-stroke');
   });
 
-  it('아코디언 슬롯도 공용 아래 꺽쇠만 품는다', () => {
-    const { container } = render(<DisclosureChevron frame="none" size="sm" />);
+  it('버튼형은 일정 이동과 같은 공용 원형 면을 쓴다', () => {
+    const { container } = render(<DisclosureChevron />);
     const slot = container.querySelector('.wire-disclosure-chevron');
     const glyph = slot?.querySelector('svg.wire-chevron');
 
-    expect(slot?.getAttribute('data-frame')).toBe('none');
-    expect(slot?.getAttribute('data-size')).toBe('sm');
+    expect(slot?.classList.contains('wire-chevron-button')).toBe(true);
+    expect(slot?.getAttribute('data-variant')).toBe('button');
+    expect(glyph?.getAttribute('data-dir')).toBe('down');
+  });
+
+  it('일반형은 12px 슬롯만 남기고 버튼 면을 쓰지 않는다', () => {
+    const { container } = render(<DisclosureChevron variant="plain" />);
+    const slot = container.querySelector('.wire-disclosure-chevron');
+    const glyph = slot?.querySelector('svg.wire-chevron');
+
+    expect(slot?.classList.contains('wire-chevron-button')).toBe(false);
+    expect(slot?.getAttribute('data-variant')).toBe('plain');
     expect(glyph?.getAttribute('data-dir')).toBe('down');
   });
 });

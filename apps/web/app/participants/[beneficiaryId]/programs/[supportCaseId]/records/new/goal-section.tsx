@@ -314,7 +314,7 @@ export function GoalSection({
         // 접힌 이력 패턴 재사용(브리핑 '처리된 항목'과 같은 계약 — 새 스타일 없음).
         // 여기는 방금 닫은 결과 확인 자리이고, 닫힌 목표의 본 자리는 당사자 정보 허브다(D62 §8).
         <details className="briefing-history" data-testid="record-goal-closed">
-          <summary>닫힌 목표 {closedGoals.length}건 <DisclosureChevron /></summary>
+          <summary>닫힌 목표 {closedGoals.length}건 <DisclosureChevron variant="plain" /></summary>
           {closedGoals.map((goal) => {
             const label = reasonLabel(goal.closedReason);
             return (

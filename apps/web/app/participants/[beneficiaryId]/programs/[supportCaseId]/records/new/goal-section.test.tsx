@@ -111,6 +111,9 @@ describe('GoalSection (D62 · CCC-68)', () => {
 
     // 활성 목록에서 내려가고, 접힌 이력에 한글 사유 배지로 남는다.
     await waitFor(() => expect(screen.getByTestId('record-goal-closed').textContent).toContain('닫힌 목표 1건'));
+    const historyChevron = screen.getByTestId('record-goal-closed').querySelector('.wire-disclosure-chevron');
+    expect(historyChevron?.getAttribute('data-variant')).toBe('plain');
+    expect(historyChevron?.classList.contains('wire-chevron-button')).toBe(false);
     expect(screen.getByTestId('record-goal-closed').textContent).toContain('재설정');
     expect(screen.getByTestId('record-goal-section').textContent).toContain('활성 1/3');
   });

@@ -186,7 +186,7 @@ export function ScheduleNav({
       </div>
       <div className="schedule-nav-period">
         <Link
-          className="header-icon-button schedule-nav-step"
+          className="wire-chevron-button schedule-nav-step"
           href={schedulePeriodHref(basePath, view, shiftSchedulePeriod(view, anchor, -1))}
           aria-label="이전 기간"
         >
@@ -194,7 +194,7 @@ export function ScheduleNav({
         </Link>
         <span className="schedule-period-label">{periodLabelText(view, anchor)}</span>
         <Link
-          className="header-icon-button schedule-nav-step"
+          className="wire-chevron-button schedule-nav-step"
           href={schedulePeriodHref(basePath, view, shiftSchedulePeriod(view, anchor, 1))}
           aria-label="다음 기간"
         >

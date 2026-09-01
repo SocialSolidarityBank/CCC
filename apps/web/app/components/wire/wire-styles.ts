@@ -135,11 +135,9 @@ details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
    자리를 neutral 은 --ink 가 맡는다(두 테마 모두 --on-badge 면 위 대비 통과). */
 details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge:not([data-tone]){--wire-outline-color:var(--ink);background:var(--on-badge);color:var(--ink)}
-/* 접힘 카드 제목 줄 안 조각들. 제목은 자기 색(--ink)을 갖고 있어 면만 채우면 회색 글자가
-   파스텔 위에 남는다. 화살표는 원형 컨테이너라 면(--panel)이 대비를 만들고 테두리만 채운
-   면 전용 선색으로 바꾼다. 메타 줄 세로선도 같은 계약(D56 --line-on-action)이다. */
+/* 접힘 카드 제목 줄 안 조각들. 제목과 메타 구분선은 채운 면 전용 색을 받는다.
+   꺽쇠 버튼은 열림 상태와 무관하게 공용 그라데이션 아웃라인을 유지한다. */
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-disclosure-chevron{border-color:var(--line-on-action)}
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 새로 편입된 일정 날짜 아코디언(2026-08-28)의 이름 목록·건수도 채운 면 글자다
    (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다). */
@@ -574,11 +572,13 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
-/* 아코디언 상태 슬롯. 꺽쇠 잉크는 공용 Chevron SVG만 쓰고, 이 컨테이너는 원형 프레임과
-   슬롯 크기만 맡는다. 기본은 32px, 좁은 목록의 원형은 24px, 텍스트 옆 무형 슬롯은 12px다. */
-.wire-disclosure-chevron{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
-.wire-disclosure-chevron[data-size="sm"]{width:var(--badge-height);height:var(--badge-height)}
-.wire-disclosure-chevron[data-frame="none"]{width:12px;height:12px;border:0;border-radius:0;background:none}
+/* 꺽쇠는 두 종류뿐이다. 버튼형은 일정 기간 이동을 정본으로 삼은 32px 원이고,
+   일반형은 글자 옆 12px 슬롯이다. 둘은 공용 Chevron SVG 잉크만 공유한다. */
+.wire-chevron-button{--button-fill:var(--panel);flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);cursor:pointer}
+@media (hover:hover){.wire-chevron-button:hover,summary:hover .wire-chevron-button{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}
+.wire-chevron-button:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.wire-disclosure-chevron{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal}
+.wire-disclosure-chevron[data-variant="plain"]{width:12px;height:12px;border:0;border-radius:0;background:none}
 .wire-disclosure-chevron .wire-chevron{transition:transform var(--motion-fast) var(--ease-standard)}
 /* 펼침 = 위. 모든 details가 같은 SVG 회전 규칙을 본다. */
 details[open]>summary .wire-disclosure-chevron .wire-chevron{transform:rotate(180deg)}
@@ -938,9 +938,9 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);cursor:not-allowed}
 .wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{--chevron-color:var(--sub)}
 .wire-button .wire-chevron{--chevron-color:currentColor}
-/* 한글 광학 보정(tokens.css --nudge-hangul). 고정 높이 단일행 컨트롤의 텍스트와 12px 슬롯을
-   같은 값으로 옮겨 세로 중심을 유지한다. */
-.wire-button-text,.wire-badge,.wire-input-box>input,.wire-input-box>select,.wire-search-box input,.wire-search-box select{transform:translateY(var(--nudge-hangul))}
+/* 한글 광학 보정(tokens.css --nudge-hangul). 배지 면은 움직이지 않고 라벨만 옮겨
+   위아래 여백을 보존한다. 버튼 텍스트와 12px 슬롯도 같은 값으로 맞춘다. */
+.wire-button-text,.wire-badge-label,.wire-input-box>input,.wire-input-box>select,.wire-search-box input,.wire-search-box select{transform:translateY(var(--nudge-hangul))}
 .wire-button .wire-chevron,.wire-search-box .wire-chevron,.wire-input-box .wire-chevron{position:relative;top:var(--nudge-hangul)}
 /* 선택창 꺽쇠는 클릭을 통과시킨다. 네이티브 화살표를 끈 자리의 유일한 표시라 지우지 않고
    선택창 위에 얹는다. 절대 위치와 pointer-events:none으로 그 자리까지 select 클릭면이 되고,
@@ -1000,6 +1000,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    고치면 전 화면이 함께 바뀐다. 마크업은 WireBadge 컴포넌트(wire-badge.tsx)를 쓴다.
    굵기 400 은 2026-08-06 Q 재개정(강조 아닌 표시 값이라 본문과 같은 기본 굵기). */
 .wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+.wire-badge-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal}
 /* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=시간 축(TimeAxisBadge 전용).
    코랄·시안·라이트마젠타·앰버·라임은 여러 형제 배지의 구분 variation이다(기본 배정 순서는
    mint → lavender → coral → cyan → light-magenta, lime·amber 최후순위 — 2026-08-24 Q 결정).

@@ -30,13 +30,13 @@ const scheduleStatusSuffix: Record<string, string | null> = {
   no_show: '불참',
 };
 
-/** 문구 이력 아코디언 — 등록 폼 '전문 보기'와 같은 네이티브 details 어휘의 소형 변형. */
+/** 문구 이력 아코디언. 좁은 글줄이라 원형 버튼 대신 12px 일반형 꺽쇠를 쓴다. */
 function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
   if (revisions.length === 0) return null;
   return (
     <details className="goal-tree-history">
-      {/* 이력 줄의 24px 원형 상태 슬롯은 부모 목표 줄의 24px 배지 높이와 같은 단이다. */}
-      <summary>이력 보기 <DisclosureChevron size="sm" /></summary>
+      {/* 좁은 이력 줄은 승인된 일반형 꺽쇠다. 버튼형 32px 원을 축소하지 않는다. */}
+      <summary>이력 보기 <DisclosureChevron variant="plain" /></summary>
       <WireTimeline>
         {revisions.map((revision, index) => (
           <WireTimelineItem key={`${revision.editedAt}-${index}`} className="goal-tree-history-row">
@@ -68,7 +68,7 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
           {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
           <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
           {/* 좁은 목록 행은 12px 무형 슬롯을 써 14px 글줄보다 작게 둔다. */}
-          <DisclosureChevron frame="none" />
+          <DisclosureChevron variant="plain" />
         </summary>
         <div className="goal-tree-goal-body">
           <RevisionHistory revisions={goal.revisions} />

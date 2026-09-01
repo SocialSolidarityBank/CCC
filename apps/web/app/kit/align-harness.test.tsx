@@ -7,13 +7,15 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
+import { OpenActionItemsCard } from '../participants/[beneficiaryId]/programs/[supportCaseId]/close/close-cards';
+import { OpenActionResolutions } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/open-action-resolutions';
 import { RegisterForm } from '../participants/new/register-form';
 import { PROGRAM_LABELS } from '../lib/labels';
 import { ConsentEditor } from '../participants/[beneficiaryId]/page';
 import { GoalTreeCard } from '../participants/[beneficiaryId]/goal-tree';
-import type { ParticipantGoalTreeCase, ParticipantProgram } from '../lib/api';
+import type { ParticipantGoalTreeCase, ParticipantProgram, TodaySchedule } from '../lib/api';
 import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
-import { ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
+import { ScheduleBody, ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -31,11 +33,11 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // 손으로 옮겨 적으면 부품이 바뀌어도 옛 모양을 재고 초록불이 거짓이 된다.
 //
 // 위계 하니스와 따로 두는 이유: 재는 물음이 다르다. 그쪽은 이웃 줄의 옷과 기하 결함이고,
-// 이쪽은 **선언된 정렬 단언**(scripts/design/align-assertions.json — 중심 공유·여백 대칭·
-// 항목 리듬·불릿 중앙)이다.
+// 이쪽은 선언된 정렬 단언의 중심 공유, 여백 대칭, 항목 리듬, 꺽쇠와 배지 중앙을 잰다.
 //
 // AI 제안 유무, 등록 동의 접힘·펼침, 긴급 등록, 당사자 정보 동의, 긴 모바일 회차,
-// 목표 트리, 일정 업무 바를 한 페이지에 렌더한다. 셀렉터는 각 래퍼 id로 범위를 좁힌다.
+// 목표 트리, 일정 업무 바와 주간 날짜, 시간축 배지 생산 사용처를 실제 부품으로 렌더한다.
+// 셀렉터는 각 래퍼 id로 범위를 좁힌다.
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const OUT_DIR = join(repoRoot, 'artifacts/align-harness');
@@ -96,6 +98,27 @@ const scheduleCandidates: ScheduleWizardCandidate[] = [{
   intakeAt: '2026-07-01T00:00:00.000Z',
 }];
 
+const actionFixture = {
+  id: 'action-1',
+  description: '임대인에게 분할 납부 가능 여부를 확인한다',
+  owner: 'beneficiary' as const,
+  dueDate: '2026-09-10',
+  sessionId: 's-2',
+};
+
+const scheduleRows: TodaySchedule[] = [{
+  id: 'schedule-today',
+  beneficiaryId: 'swallow-003',
+  supportCaseId: CASE_ID,
+  scheduledAt: '2026-09-02T04:00:00.000Z',
+  programType: 'financial_support_v1',
+  status: 'scheduled',
+  participantName: '홍서희',
+  participantPhone: '010-1234-5678',
+  sessionKind: 'regular',
+  completedSessionId: null,
+}];
+
 // 전체 목표 미설정이라 AI 제안 라벨 옆 안내가 첫 렌더부터 선다. 세부 목표는 불릿 2개다.
 const baseProps: BriefingCardsProps = {
   beneficiaryId: 'swallow-003',
@@ -119,7 +142,7 @@ const baseProps: BriefingCardsProps = {
   pendingApprovalCount: 0,
   pendingReviewSessionIds: [],
   aiSuggestions: [],
-  openActionItems: [],
+  openActionItems: [actionFixture],
   flags: [],
   upcomingSchedule: null,
 };
@@ -171,6 +194,18 @@ describe('정렬 하니스 생성기', () => {
         anchor="2026-09-02"
       />,
     );
+    const scheduleBody = renderToStaticMarkup(
+      <ScheduleBody
+        view="week"
+        schedules={scheduleRows}
+        timeZone="Asia/Seoul"
+        todayKey="2026-09-02"
+      />,
+    );
+    const closeActions = renderToStaticMarkup(<OpenActionItemsCard items={[actionFixture]} />);
+    const actionResolutions = renderToStaticMarkup(
+      <OpenActionResolutions actions={[actionFixture]} />,
+    );
     const scheduleView = render(
       <ScheduleWizard
         candidates={scheduleCandidates}
@@ -217,6 +252,11 @@ describe('정렬 하니스 생성기', () => {
     expect(scheduleGoals, '일정 등록: 목표 선택창이 없다').toContain('session-goal-link');
     expect(scheduleGoals, '일정 등록: 세션 목표 입력칸이 없다').toContain('session-goal-input');
     expect(scheduleNav, '일정 업무 바: 보기 선택창이 없다').toContain('schedule-view-select');
+    expect(scheduleBody, '일정 주간: 오늘 배지가 있는 날짜 묶음이 없다').toContain('schedule-day-summary-title');
+    expect(scheduleBody, '일정 주간: 오늘 시간축 배지가 없다').toContain('data-tone="blue"');
+    expect(content, '브리핑: 기한 시간축 배지가 없다').toContain('data-tone="blue"');
+    expect(closeActions, '종결: 기한 시간축 배지가 없다').toContain('data-tone="blue"');
+    expect(actionResolutions, '기록 작성: 기한 시간축 배지가 없다').toContain('data-tone="blue"');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
     const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
@@ -236,6 +276,9 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-goal-tree-open">${goalTreeOpen}</div>
 <div id="align-schedule-goals">${scheduleGoals}</div>
 <div id="align-schedule-nav">${scheduleNav}</div>
+<div id="align-schedule-body">${scheduleBody}</div>
+<div id="align-close-actions">${closeActions}</div>
+<div id="align-action-resolutions">${actionResolutions}</div>
 </body></html>`;
 
     mkdirSync(OUT_DIR, { recursive: true });

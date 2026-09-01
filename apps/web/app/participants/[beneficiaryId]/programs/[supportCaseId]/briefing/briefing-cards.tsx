@@ -648,7 +648,7 @@ export function BriefingCards({
           )}
           {resolvedDiscrepancies.length > 0 && (
             <details className="briefing-history">
-              <summary>처리된 항목 {resolvedDiscrepancies.length}건 <DisclosureChevron /></summary>
+              <summary>처리된 항목 {resolvedDiscrepancies.length}건 <DisclosureChevron variant="plain" /></summary>
               {resolvedDiscrepancies.map((item) => (
                 <DiscrepancyItem
                   key={item.id}
