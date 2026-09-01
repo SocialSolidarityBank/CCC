@@ -576,29 +576,27 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
-/* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘 = 아래 꺽쇠("펼칠 수 있음"), 펼침 = 위 꺽쇠.
-   오른쪽 꺽쇠는 **페이지 이동 전용**이라 아코디언에 쓰지 않는다(구 닫힘 오른쪽이 이동
-   링크와 혼동을 만들던 것을 대체). **모양은 원형 컨테이너 하나다**(2026-08-28 Q "버튼화
-   통일" — 구 맨 꺽쇠 기본형 + 일정 전용 원형 변형 2벌을 이 기본형이 대체). summary 전체가
-   클릭 영역이고 원은 상태 표시라 버튼을 중첩하지 않는다. 모션도 토큰 한 쌍
-   (--motion-fast·--ease-standard)이다 — 구 하드코딩 .15s ease 폐지. optical: 꺽쇠 잉크는
-   회전 때문에 상자 중앙에서 벗어난다. translate 로 되민다(.wire-chevron 과 같은 보정 계약). */
+/* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘은 아래, 펼침은 위 꺽쇠다.
+   오른쪽 꺽쇠는 페이지 이동 전용이라 아코디언에 쓰지 않는다. 기본은 32px 원형 상태
+   컨테이너이고 summary 전체가 클릭 영역이다. 좁은 정보 줄은 data-glyph="legible"로 원을
+   없애고 같은 자리 안의 잉크만 또렷하게 만든다(2026-09-01 Q). 모션은
+   --motion-fast와 --ease-standard 한 쌍이다. optical: 회전한 꺽쇠 잉크는 translate로
+   보이는 경계 중심을 되민다(.wire-chevron과 같은 보정 계약). */
 .wire-card-arrow{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
 .wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
-/* **작은 단(24)** — 좁은 목록 행의 아코디언 전용 전역 변형이다(2026-08-30 Q 3차 "이렇게 좁은
-   목록 불렛에서 쓸때는 작게 … 리스트 ROW 형태일 때는 전역 작은 버튼으로"). 32 원형은 14px
-   글줄 행보다 커서 행 높이를 자기 크기로 끌어올리고, 그 행이 목록의 리듬(불릿 간격·점 위치)
-   까지 벌린다. 꺽쇠 잉크는 em 배수라 컨테이너만 줄이면 함께 줄어든다(§8 꺽쇠 배수).
-   기본 32 는 카드 제목 줄처럼 자기 행을 갖는 아코디언의 값 그대로다. */
+/* 작은 슬롯 24는 좁은 목록 행이 쓴다. 기본 32 원을 14px 글줄에 두면 행 높이와 목록
+   리듬을 함께 벌리므로 컨트롤 높이 토큰인 --badge-height로 낮춘다. 16 슬롯은 알약 안의
+   인라인 꺽쇠 전용이다. */
 .wire-card-arrow[data-size="sm"]{width:var(--badge-height);height:var(--badge-height);font-size:var(--text-sm)}
-/* 14px 줄의 작은 원은 꺽쇠 잉크도 .7em으로 낮춘다. 회전한 L자 테두리의 보이는 경계
-   중심은 원점에서 꺽쇠 상자의 약 1/3만큼 밀리므로 닫힘과 펼침을 반대로 보정한다. */
-.wire-card-arrow[data-glyph="compact"]{font-size:.7em}
-.wire-card-arrow[data-glyph="compact"]::before{transform:translateY(calc(var(--chevron-box) / -3)) rotate(45deg)}
+.wire-card-arrow[data-size="xs"]{width:var(--text-md);height:var(--text-md)}
+/* optical: 16px 기준 7px 잉크와 2px 획이다. 24px 슬롯에서는 작게 남되 1px로 뭉개지지
+   않는다. 원을 없애 summary 전체가 조작면임을 드러내고, 회전 경계는 1/3만큼 보정한다. */
+.wire-card-arrow[data-glyph="legible"]{--chevron-box:.4375em;font-size:var(--text-md);border:0;border-radius:0;background:none}
+.wire-card-arrow[data-glyph="legible"]::before{transform:translateY(calc(var(--chevron-box) / -3)) rotate(45deg)}
 /* 펼침 = 위. 셀렉터를 details[open] 제네릭으로 두어 WireCardDetails·동의 전문·목표 트리
    같은 모든 아코디언이 한 규칙을 본다. 회전은 컨테이너가 아니라 꺽쇠 잉크(::before)만 한다. */
 details[open]>summary .wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
-details[open]>summary .wire-card-arrow[data-glyph="compact"]::before{transform:translateY(calc(var(--chevron-box) / 3)) rotate(-135deg)}
+details[open]>summary .wire-card-arrow[data-glyph="legible"]::before{transform:translateY(calc(var(--chevron-box) / 3)) rotate(-135deg)}
 /* 화살표 있는 summary 는 네이티브 마커를 숨기고, 화살표와 옆 항목·텍스트의 간격을 한 값으로
    갖는다(2026-08-28 Q "여백 동일하게, 조금 더 넉넉하게" — 행 안 간격 16). 플레인 텍스트
    summary(이력 보기·근거 인용 류)도 flex 로 세워 같은 간격 계약을 받는다. */

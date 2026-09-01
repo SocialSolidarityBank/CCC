@@ -916,12 +916,12 @@ const scheduleStyles = `
    라 안의 WireCard 가 카드 속 카드가 되지 않는다. 세로 간격은 목록 스택 20 이고, hero 와의
    경계는 가로선 대신 위 여백 32(스택 20 + margin 12, 구 section-head 실효값)로 낸다. */
 .wizard-goal-panel{display:grid;gap:var(--space-5);margin-top:var(--space-3)}
-/* 목표·질문 입력 묶음(2026-08-09 Q 3차): 한 항목 = **연결 쌍 위, 세션 목표 쌍 아래**의
-   세로 스택이고 폭 상한 없이 장폭을 다 쓴다(구 .wizard-row 720 · .wizard-form 520 상한
-   대체). 여백 리듬: 쌍 안 라벨↔칸 8(입력칸 계약과 동일) · 쌍 사이 16 · 항목 사이 20. */
+/* 목표 입력 묶음: 한 항목은 연결 선택창 위, 세션 목표 입력 아래의 세로 스택이다.
+   데스크톱에서 두 입력 표면의 폭을 맞춘다. 선택창은 목표 입력 오른쪽의 32px 반복 조작 레일과
+   간격 12px을 뺀 폭을 쓰고, 조작 레일이 아랫줄로 내려가는 모바일에서는 둘 다 100%다. */
 .session-goal-list{display:grid;gap:var(--space-5)}
 .session-goal-entry{display:grid;gap:var(--space-4)}
-.session-goal-entry>.session-goal-link{max-width:320px}
+.session-goal-entry>.session-goal-link{width:calc(100% - var(--pill-height) - var(--space-3));max-width:none}
 .session-goal-field{display:grid;gap:var(--space-2)}
 /* 라벨 둘은 참고 카드 제목과 같은 16/600 --ink 다(Q "세부 목표 = 지난 상담 브리핑 =
    세션 목표 1 = 세부 목표 연결 폰트 크기 동일"). */
@@ -942,6 +942,7 @@ const scheduleStyles = `
      flex-end = 오른쪽 팩킹). */
   .session-goal-input{grid-template-columns:minmax(0,1fr)}
   .session-goal-input>.wire-repeat-actions{flex-direction:row-reverse;justify-content:flex-start}
+  .session-goal-entry>.session-goal-link{width:100%}
 }
 /* 지난 상담 브리핑 불릿 — 출처 배지 + 본문이 한 문장으로 흐르고 긴 글은 줄바꿈으로 행이 는다. */
 .schedule-briefing-item .wire-badge{margin-right:var(--space-1)}
@@ -1039,14 +1040,12 @@ const registerStyles = `
    끝으로 떨어져 라벨과 남남으로 읽혔다). */
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
-/* 카드가 아닌 동의 요약 줄은 배지형 버튼 안에 있으므로 원형 컨테이너를 겹치지 않는다
-   (알약 안 알약 금지). 등록 화면의 자세히 읽어보기는 register-consent-block 카드라 이
-   예외에서 빠지고 공용 원형 화살표를 쓴다. */
-.consent-detail:not(.register-consent-block)>.consent-detail-summary>.wire-card-arrow{font-size:.7em;width:auto;height:auto;border:0;border-radius:0;background:none}
-/* 인라인 변형의 요약 줄은 **작은 배지형 버튼**이다(2026-08-07 Q 9차 "전문보기를 작은
-   뱃지형 버튼으로" — 구 텍스트+화살표 줄 대체). 모양은 기본 배지 레시피(높이 24 ·
-   --sub 외곽선 · 알약 · 14/400 --ink)를 그대로 빌리고, 조작이므로 호버 면만 얹는다.
-   화살표 크기는 바로 위 규칙이 정한다(기준 글자 .7em). */
+/* 카드가 아닌 동의 요약 줄의 기존 화살표는 배지형 버튼 안에서 원을 겹치지 않는다.
+   data-glyph="legible"는 공용 무형 슬롯이 크기와 잉크를 직접 정하므로 이 레거시 축소를
+   받지 않는다. */
+.consent-detail:not(.register-consent-block)>.consent-detail-summary>.wire-card-arrow:not([data-glyph="legible"]){font-size:.7em;width:auto;height:auto;border:0;border-radius:0;background:none}
+/* 인라인 변형의 요약 줄은 작은 배지형 버튼이다. 모양은 높이 24, --sub 외곽선, 알약,
+   14/400 --ink를 그대로 빌린다. 전문 보기의 꺽쇠는 16px 무형 슬롯 안에서 세로 중앙에 선다. */
 .consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-2);min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
 @media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
 /* 열림 방향은 공용 규칙(details[open]>summary .wire-card-arrow = 위 꺽쇠)이 정한다

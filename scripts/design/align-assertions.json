@@ -72,20 +72,42 @@
     "expectedInset": 17
   },
   {
-    "name": "등록 동의 전문 닫힘 꺽쇠 잉크가 작은 원 정중앙",
+    "name": "등록 동의 전문 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
     "selectors": ["#align-register .consent-detail:not([open])>.consent-detail-summary>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45,
+    "maxRatio": 0.55,
     "expectedSize": 24
   },
   {
-    "name": "등록 동의 전문 펼침 꺽쇠 잉크가 작은 원 정중앙",
+    "name": "등록 동의 전문 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
     "selectors": ["#align-register-open .consent-detail[open]>.consent-detail-summary>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45,
+    "maxRatio": 0.55,
     "expectedSize": 24
+  },
+  {
+    "name": "근거 인용 꺽쇠가 요약 행 세로 중앙",
+    "selectors": ["#align-content .wire-source-quotes>summary", ".wire-card-arrow[data-glyph=\"legible\"]"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "근거 인용 꺽쇠 잉크가 무형 슬롯 정중앙",
+    "selectors": ["#align-content .wire-source-quotes:not([open])>summary>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.55,
+    "expectedSize": 24
+  },
+  {
+    "name": "당사자 정보 전문 보기 꺽쇠 잉크가 무형 슬롯 정중앙",
+    "selectors": ["#align-hub-consent .consent-detail[data-inline=\"true\"]:not([open])>.consent-detail-summary>.wire-card-arrow"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.81,
+    "expectedSize": 16
   },
   {
     "name": "등록 동의 전문 상자: 접힘 요약 줄이 상자 정중앙",
@@ -205,36 +227,42 @@
     "viewport": { "width": 390, "height": 900 }
   },
   {
-    "name": "당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 작은 원 정중앙",
+    "name": "당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
     "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45,
+    "maxRatio": 0.55,
     "expectedSize": 24
   },
   {
-    "name": "당사자 정보 세부 목표 펼침 꺽쇠 잉크가 작은 원 정중앙",
+    "name": "당사자 정보 세부 목표 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
     "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45,
+    "maxRatio": 0.55,
     "expectedSize": 24
   },
   {
-    "name": "390px 당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 작은 원 정중앙",
+    "name": "당사자 정보 세부 목표 꺽쇠가 제목 행 세로 중앙",
+    "selectors": ["#align-goal-tree .goal-tree-goal-head", ".wire-card-arrow[data-glyph=\"legible\"]"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "390px 당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
     "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45,
+    "maxRatio": 0.55,
     "expectedSize": 24,
     "viewport": { "width": 390, "height": 900 }
   },
   {
-    "name": "390px 당사자 정보 세부 목표 펼침 꺽쇠 잉크가 작은 원 정중앙",
+    "name": "390px 당사자 정보 세부 목표 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
     "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.45,
+    "maxRatio": 0.55,
     "expectedSize": 24,
     "viewport": { "width": 390, "height": 900 }
   },
@@ -282,6 +310,25 @@
     "axis": "inset-y",
     "tolerance": 1,
     "expectedInset": 17,
+    "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "일정 등록 목표 연결 선택창과 목표 입력칸 폭이 같다",
+    "selectors": [
+      "#align-schedule-goals .session-goal-link",
+      "#align-schedule-goals .session-goal-input>.wire-input-box"
+    ],
+    "axis": "width",
+    "tolerance": 1
+  },
+  {
+    "name": "390px 일정 등록 목표 연결 선택창과 목표 입력칸 폭이 같다",
+    "selectors": [
+      "#align-schedule-goals .session-goal-link",
+      "#align-schedule-goals .session-goal-input>.wire-input-box"
+    ],
+    "axis": "width",
+    "tolerance": 1,
     "viewport": { "width": 390, "height": 900 }
   }
 ]
