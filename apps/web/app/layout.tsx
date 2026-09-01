@@ -516,9 +516,8 @@ const briefingStyles = `
    플랫 구획 대체). 카드 모양·제목 줄·화살표는 WireCardDetails(wire-styles.ts)가 갖고,
    여기는 .briefing-card 로 남은 그리드 정렬 훅뿐이다.
    접힘(details)은 유지된다 — 전체 접기·앵커는 그대로다. */
-/* 구 .briefing-card-arrow 는 2026-08-10 에 없앴다 — .wire-card-arrow 와 **값이 한 글자도
-   다르지 않은 복사본**이었다(폭·획·보정·전환 전부 동일). 화면 4곳이 복사본 쪽 이름을
-   쓰고 있었을 뿐이라 이름만 바꾸면 끝났다. 모양의 주인은 wire-styles.ts 한 곳이다. */
+/* 브리핑 접힘 카드는 공용 DisclosureChevron을 쓴다. 프레임은 WireCardDetails가, 네 방향
+   SVG 잉크는 chevron.tsx와 wire-styles.ts가 한 벌로 소유한다. */
 /* 불일치 양쪽 인용(2026-08-28 Q "가로 장폭이 길 때 화면을 적절하게" — 구 .briefing-fields
    세로 쌓임 대체): 대등한 짝 정보는 넓은 카드에서 2단으로 나란히 선다 — 대조가 한눈에
    들어온다. 카드가 좁으면(모바일·그리드 반칸) 세로로 돌아간다. */
@@ -627,7 +626,7 @@ const briefingStyles = `
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
-.briefing-session-row>.wire-chevron{grid-column:-1;grid-row:1/-1;align-self:center;justify-self:end;font-size:var(--text-sm)}
+.briefing-session-row>.wire-chevron{grid-column:-1;grid-row:1/-1;align-self:center;justify-self:end}
 /* 미해결 액션 행(2026-08-06 Q · 2026-08-28 Q 개정): 내용과 담당(민트)·기한(블루) 뱃지가
    **왼쪽에 한 묶음으로 붙고**, 출처 회차 버튼만 오른쪽 끝으로 떨어진다. 구 "내용이 남는
    폭을 갖고 뱃지를 끝으로 민다"는 뱃지가 버튼 옆에 붙어 크기가 안 맞은 한 쌍처럼 읽혔다
@@ -815,13 +814,13 @@ const scheduleStyles = `
 .schedule-nav-controls,.schedule-nav-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
 .schedule-nav-actions{justify-content:flex-end}
 .schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3)}
-/* 이전·다음은 공용 원형 아이콘 버튼이다. 32px 면과 포커스 링은 header-icon-button이
-   갖고, 여기서는 일정 글자에 맞춘 glyph 굵기와 고정 크기만 잠근다. */
-.schedule-nav-step{width:var(--pill-height);height:var(--pill-height);font-size:var(--text-md);font-weight:600;line-height:normal}
-/* [오늘] 바로 옆의 보기 선택창. 글자와 꺽쇠가 들어갈 최소 폭만 남긴다. */
-.schedule-nav .schedule-view-select{width:84px;flex:0 0 84px;min-height:var(--pill-height);padding-left:var(--space-2);padding-right:var(--space-1)}
-.schedule-nav .schedule-view-select select{padding-right:var(--space-4)}
-.schedule-nav .schedule-view-select .wire-chevron{right:var(--space-2)}
+/* 이전·다음은 공용 32px 원형 아이콘 버튼이다. 면과 포커스 링은 header-icon-button이 갖고,
+   안의 방향 표시는 공용 12px Chevron을 쓴다. */
+.schedule-nav-step{width:var(--pill-height);height:var(--pill-height)}
+/* [오늘] 바로 옆 보기 선택창. B 균형형(2026-09-02 Q): 96×32, 좌 12, 우 10이다. */
+.schedule-nav .schedule-view-select{width:96px;flex:0 0 96px;min-height:var(--pill-height);padding-left:var(--space-3);padding-right:var(--space-2-5)}
+.schedule-nav .schedule-view-select select{padding-right:var(--space-6)}
+.schedule-nav .schedule-view-select .wire-chevron{right:var(--space-2-5)}
 /* 일정 카드 전용 고정 2열. 일반 .card-grid 의 auto-fit 계약은 유지하고 이 화면만 승인된
    빈 트랙을 남긴다. 767px 이하는 승인대로 한 열이다. */
 .card-grid.schedule-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -1040,16 +1039,12 @@ const registerStyles = `
    끝으로 떨어져 라벨과 남남으로 읽혔다). */
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
-/* 카드가 아닌 동의 요약 줄의 기존 화살표는 배지형 버튼 안에서 원을 겹치지 않는다.
-   data-glyph="legible"는 공용 무형 슬롯이 크기와 잉크를 직접 정하므로 이 레거시 축소를
-   받지 않는다. */
-.consent-detail:not(.register-consent-block)>.consent-detail-summary>.wire-card-arrow:not([data-glyph="legible"]){font-size:.7em;width:auto;height:auto;border:0;border-radius:0;background:none}
-/* 인라인 변형의 요약 줄은 작은 배지형 버튼이다. 모양은 높이 24, --sub 외곽선, 알약,
-   14/400 --ink를 그대로 빌린다. 전문 보기의 꺽쇠는 16px 무형 슬롯 안에서 세로 중앙에 선다. */
-.consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-2);min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
+/* 카드가 아닌 동의 요약 줄은 무형 DisclosureChevron을 써 원형 상태 컨테이너를 겹치지 않는다. */
+/* 인라인 변형의 요약 줄은 높이 24, --sub 외곽선, 알약, 14/400 --ink인 배지형 버튼이다.
+   전문 보기 B 균형형(2026-09-02 Q)은 좌 10, 간격 6, 12px 슬롯, 우 8로 실제 잉크 여백을 맞춘다. */
+.consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-1-5);min-height:var(--badge-height);padding:0 var(--space-2) 0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
 @media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
-/* 열림 방향은 공용 규칙(details[open]>summary .wire-card-arrow = 위 꺽쇠)이 정한다
-   (2026-08-27 화살표 어휘 통일, 구 개별 규칙 삭제). */
+/* 열림 방향은 공용 details[open] DisclosureChevron 규칙이 아래를 위로 회전한다. */
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
    텍스트는 글줄이 카드 폭 전체로 늘어져 혼자 길었다). 서명 첨부 자리와 같은 문법의 상자에
    담고 읽기 폭을 72ch 로 막는다. 새 색 없음 — 배경은 --muted, 테두리는 --line 이다. */

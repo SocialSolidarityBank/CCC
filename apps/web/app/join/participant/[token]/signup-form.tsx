@@ -6,6 +6,7 @@ import { signupParticipantAction, type ParticipantSignupResult } from '../../../
 import { WireButton } from '../../../components/wire/wire-button';
 import { SearchInput } from '../../../components/wire/search-input';
 import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from '../../../participants/new/consent-copy';
+import { DisclosureChevron } from '../../../components/wire/chevron';
 
 // 공개 당사자 가입 폼(CCC-28 · D39 · ADR-0016 #4). 인증 없는 공개 경로에서 동작하므로
 // 서버 액션도 공개 API(signupParticipant)만 부른다. 성공 시 리다이렉트 없이 인라인
@@ -95,7 +96,7 @@ export function SignupForm({ token }: { token: string }) {
         <details className="consent-detail">
           <summary className="consent-detail-summary">
             <span>자세히 읽어보기</span>
-            <span aria-hidden="true" className="wire-card-arrow" />
+            <DisclosureChevron frame="none" />
           </summary>
           <div className="consent-detail-body">
             <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>

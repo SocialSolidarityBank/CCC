@@ -93,10 +93,10 @@ describe('디자인 레인, 이전·다음 원형 버튼', () => {
     expect(rule('.schedule-period-label')).not.toContain('width:22ch');
   });
 
-  it('주간 기준 기존 8px의 1.5배인 12px을 세 뷰에 함께 쓴다', () => {
+  it('공용 12px SVG 꺽쇠를 세 뷰에 함께 쓴다', () => {
     expect(rule('.schedule-nav-period')).toContain('gap:var(--space-3)');
-    expect(rule('.schedule-nav-step')).toContain('font-size:var(--text-md)');
-    expect(rule('.schedule-nav-step')).toContain('font-weight:600');
+    expect(baseRule('.wire-chevron')).toContain('width:12px');
+    expect(baseRule('.wire-chevron')).toContain('height:12px');
   });
 });
 
@@ -219,19 +219,19 @@ describe('CCC-133 지난 일정 대비 정제(2026-08-25 Q)', () => {
     expect(baseRule('.briefing-toolbar')).not.toContain('padding-inline');
   });
 
-  it('아코디언 화살표는 원 안의 아래 꺽쇠이고 열리면 위 꺽쇠가 된다 (2026-08-28 전 아코디언 기본형)', () => {
-    const circle = baseRule('.wire-card-arrow');
+  it('아코디언은 공용 SVG 꺽쇠를 원 안에 두고 열리면 위로 회전한다', () => {
+    const circle = baseRule('.wire-disclosure-chevron');
     expect(circle).toContain('width:var(--pill-height)');
     expect(circle).toContain('height:var(--pill-height)');
     expect(circle).toContain('border-radius:var(--radius-pill)');
-    const closed = baseRule('.wire-card-arrow::before');
-    expect(closed).toContain('rotate(45deg)');
-    // 모션은 토큰 한 쌍이다 — 구 하드코딩 .15s ease 회귀 방지.
-    expect(closed).toContain('transition:transform var(--motion-fast) var(--ease-standard)');
-    const open = baseRule('details[open]>summary .wire-card-arrow::before');
-    expect(open).toContain('rotate(-135deg)');
-    // 일정 전용 원형 변형 2벌은 기본형 승격으로 폐지됐다.
-    expect(wireSource).not.toContain('.wire-card-details.schedule-past-day>.wire-card-summary .wire-card-arrow');
+    const glyph = baseRule('.wire-chevron');
+    expect(glyph).toContain('width:12px');
+    expect(glyph).toContain('height:12px');
+    const transition = baseRule('.wire-disclosure-chevron .wire-chevron');
+    expect(transition).toContain('transition:transform var(--motion-fast) var(--ease-standard)');
+    const open = baseRule('details[open]>summary .wire-disclosure-chevron .wire-chevron');
+    expect(open).toContain('rotate(180deg)');
+    expect(wireSource).not.toContain('.wire-card-arrow');
   });
 
   it('보이는 select와 접힌 카드 면 전체가 실제 클릭 영역이다', () => {
@@ -390,9 +390,10 @@ describe('CCC-133 통합 업무 바', () => {
     expect(controls?.querySelector('.wire-toolbar-label')?.textContent).toBe('기간 단위');
     expect(controls?.querySelector('select')).not.toBeNull();
     const compact = rule('.schedule-nav .schedule-view-select');
-    expect(compact).toContain('width:84px');
-    expect(compact).toContain('flex:0 0 84px');
-    expect(compact).toContain('padding-left:var(--space-2)');
+    expect(compact).toContain('width:96px');
+    expect(compact).toContain('flex:0 0 96px');
+    expect(compact).toContain('padding-left:var(--space-3)');
+    expect(compact).toContain('padding-right:var(--space-2-5)');
   });
 
   it('당사자 등록과 상담 등록이 업무 바 오른쪽 안에 선다', () => {

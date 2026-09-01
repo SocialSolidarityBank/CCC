@@ -9,6 +9,7 @@ import { WireCard } from '../../../../../components/wire/wire-card';
 import { WireSourceQuotes } from '../../../../../components/wire/wire-callout';
 import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
+import { DisclosureChevron } from '../../../../../components/wire/chevron';
 import { lifeAreaOrder, lifeAreaStatusLabels } from '../../../../../lib/life-area-labels';
 import type { FlagType, LifeAreaKey, SupportCaseRecord } from '../../../../../lib/api';
 
@@ -143,7 +144,7 @@ export function RecordCard({
             알린다. 리스크는 수기 왼쪽이다(2026-08-30 Q "리스크는 수기 좌측으로"). */}
         {hasConfirmedFlag && <span className="record-flag" data-confirmed="true"><Icon name="warning" size={14} /> 리스크</span>}
         {record.aiOneLiner === null && record.memoExcerpt !== null && <WireBadge>수기</WireBadge>}
-        <span className="wire-card-arrow" aria-hidden="true" />
+        <DisclosureChevron />
       </span>
     </summary>
 

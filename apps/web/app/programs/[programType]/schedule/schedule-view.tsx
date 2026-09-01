@@ -5,6 +5,7 @@ import { ParticipantCard } from '../../../components/wire/participant-card';
 import { TimeAxisBadge } from '../../../components/wire/time-axis-badge';
 import { WireButton } from '../../../components/wire/wire-button';
 import { WireCardDetails } from '../../../components/wire/wire-card';
+import { Chevron } from '../../../components/wire/chevron';
 import {
   dayHeading,
   dayPeriodLabel,
@@ -189,7 +190,7 @@ export function ScheduleNav({
           href={schedulePeriodHref(basePath, view, shiftSchedulePeriod(view, anchor, -1))}
           aria-label="이전 기간"
         >
-          <span aria-hidden="true" className="wire-chevron" data-dir="left" />
+          <Chevron dir="left" />
         </Link>
         <span className="schedule-period-label">{periodLabelText(view, anchor)}</span>
         <Link
@@ -197,7 +198,7 @@ export function ScheduleNav({
           href={schedulePeriodHref(basePath, view, shiftSchedulePeriod(view, anchor, 1))}
           aria-label="다음 기간"
         >
-          <span aria-hidden="true" className="wire-chevron" data-dir="right" />
+          <Chevron dir="right" />
         </Link>
       </div>
       <div className="schedule-nav-actions">
