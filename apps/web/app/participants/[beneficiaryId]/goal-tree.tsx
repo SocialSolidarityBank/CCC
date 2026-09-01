@@ -67,9 +67,9 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
           <span className="goal-tree-goal-title" title={goal.title}>{goal.title}</span>
           {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
               <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
-          {/* 좁은 목록 행의 아코디언은 작은 단(24)이다(2026-08-30 Q 3차 — 32 원형이 14px
-              글줄 행을 키워 불릿 간격까지 벌렸다). 전역 변형이라 다른 리스트 행도 쓴다. */}
-          <span className="wire-card-arrow" data-size="sm" aria-hidden="true" />
+          {/* 좁은 목록 행은 24px 무형 슬롯과 또렷한 꺽쇠를 쓴다. 등록 동의와 같은
+              14px 줄이라 잉크 크기와 광학 보정을 공유한다. */}
+          <span className="wire-card-arrow" data-size="sm" data-glyph="legible" aria-hidden="true" />
         </summary>
         <div className="goal-tree-goal-body">
           <RevisionHistory revisions={goal.revisions} />

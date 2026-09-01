@@ -360,7 +360,9 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{min-width:0;max-width:100%;margin-top:0}
-.participant-program-consent-meta{margin:var(--space-2) 0 var(--space-3);color:var(--sub);font-size:var(--text-sm)}
+/* 반복 행 카드가 상하 16px을 이미 갖는다. 마지막 기록의 옛 아래 마진을 더하면 하단만
+   12px 두꺼워지므로, 메타 줄은 위 분리 여백만 갖고 카드 하단은 부모 패딩에 맡긴다. */
+.participant-program-consent-meta{margin:var(--space-2) 0 0;color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은
    끈다(카드 테두리와 겹쳐 이중선이 된다). */
@@ -398,6 +400,8 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
 .goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex-wrap:nowrap}
+/* 14px 세부 목표 줄은 공용 작은 원과 compact 꺽쇠 잉크를 쓴다. 같은 조합을 등록 동의
+   자세히 읽어보기도 쓰므로 크기와 광학 보정은 아래 data-glyph 공용 규칙이 소유한다. */
 .goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
 .goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 .goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}
@@ -572,24 +576,27 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
-/* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘 = 아래 꺽쇠("펼칠 수 있음"), 펼침 = 위 꺽쇠.
-   오른쪽 꺽쇠는 **페이지 이동 전용**이라 아코디언에 쓰지 않는다(구 닫힘 오른쪽이 이동
-   링크와 혼동을 만들던 것을 대체). **모양은 원형 컨테이너 하나다**(2026-08-28 Q "버튼화
-   통일" — 구 맨 꺽쇠 기본형 + 일정 전용 원형 변형 2벌을 이 기본형이 대체). summary 전체가
-   클릭 영역이고 원은 상태 표시라 버튼을 중첩하지 않는다. 모션도 토큰 한 쌍
-   (--motion-fast·--ease-standard)이다 — 구 하드코딩 .15s ease 폐지. optical: 꺽쇠 잉크는
-   회전 때문에 상자 중앙에서 벗어난다. translate 로 되민다(.wire-chevron 과 같은 보정 계약). */
+/* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘은 아래, 펼침은 위 꺽쇠다.
+   오른쪽 꺽쇠는 페이지 이동 전용이라 아코디언에 쓰지 않는다. 기본은 32px 원형 상태
+   컨테이너이고 summary 전체가 클릭 영역이다. 좁은 정보 줄은 data-glyph="legible"로 원을
+   없애고 같은 자리 안의 잉크만 또렷하게 만든다(2026-09-01 Q). 모션은
+   --motion-fast와 --ease-standard 한 쌍이다. optical: 회전한 꺽쇠 잉크는 translate로
+   보이는 경계 중심을 되민다(.wire-chevron과 같은 보정 계약). */
 .wire-card-arrow{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
 .wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
-/* **작은 단(24)** — 좁은 목록 행의 아코디언 전용 전역 변형이다(2026-08-30 Q 3차 "이렇게 좁은
-   목록 불렛에서 쓸때는 작게 … 리스트 ROW 형태일 때는 전역 작은 버튼으로"). 32 원형은 14px
-   글줄 행보다 커서 행 높이를 자기 크기로 끌어올리고, 그 행이 목록의 리듬(불릿 간격·점 위치)
-   까지 벌린다. 꺽쇠 잉크는 em 배수라 컨테이너만 줄이면 함께 줄어든다(§8 꺽쇠 배수).
-   기본 32 는 카드 제목 줄처럼 자기 행을 갖는 아코디언의 값 그대로다. */
+/* 작은 슬롯 24는 좁은 목록 행이 쓴다. 기본 32 원을 14px 글줄에 두면 행 높이와 목록
+   리듬을 함께 벌리므로 컨트롤 높이 토큰인 --badge-height로 낮춘다. 16 슬롯은 알약 안의
+   인라인 꺽쇠 전용이다. */
 .wire-card-arrow[data-size="sm"]{width:var(--badge-height);height:var(--badge-height);font-size:var(--text-sm)}
+.wire-card-arrow[data-size="xs"]{width:var(--text-md);height:var(--text-md)}
+/* optical: 16px 기준 7px 잉크와 2px 획이다. 24px 슬롯에서는 작게 남되 1px로 뭉개지지
+   않는다. 원을 없애 summary 전체가 조작면임을 드러내고, 회전 경계는 1/3만큼 보정한다. */
+.wire-card-arrow[data-glyph="legible"]{--chevron-box:.4375em;font-size:var(--text-md);border:0;border-radius:0;background:none}
+.wire-card-arrow[data-glyph="legible"]::before{transform:translateY(calc(var(--chevron-box) / -3)) rotate(45deg)}
 /* 펼침 = 위. 셀렉터를 details[open] 제네릭으로 두어 WireCardDetails·동의 전문·목표 트리
    같은 모든 아코디언이 한 규칙을 본다. 회전은 컨테이너가 아니라 꺽쇠 잉크(::before)만 한다. */
 details[open]>summary .wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
+details[open]>summary .wire-card-arrow[data-glyph="legible"]::before{transform:translateY(calc(var(--chevron-box) / 3)) rotate(-135deg)}
 /* 화살표 있는 summary 는 네이티브 마커를 숨기고, 화살표와 옆 항목·텍스트의 간격을 한 값으로
    갖는다(2026-08-28 Q "여백 동일하게, 조금 더 넉넉하게" — 행 안 간격 16). 플레인 텍스트
    summary(이력 보기·근거 인용 류)도 flex 로 세워 같은 간격 계약을 받는다. */
@@ -1201,6 +1208,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    체크박스를 누르는 자리라 cursor 를 자기 선언으로 갖는다 — 위계 판정도 이 신호로 컨트롤
    표(14/600 --ink '작은 컨트롤')를 쓴다(hierarchy-audit CONTROL_ROLES 주석). */
 .register-consent .consent-checkbox{font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
+/* 이 구획 안에서는 각 상자의 grid gap이 줄 사이 간격을 소유한다. 공용 schedule-form-hint의
+   위아래 margin 8을 더하면 안내와 첫 체크가 20, 체크끼리는 12가 되고 마지막 안내가 상자
+   아래에 8을 더 남긴다. 등록 동의 범위에서는 margin을 걷어 중복 간격을 막는다. */
+.register-consent .schedule-form-hint{margin-block:0}
 .register-card .schedule-form-hint{max-width:none}
 /* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한
    상자다. 상자는 공용 .wire-repeat-card(마크업에서 병기)가 갖고, 여기는 배치와 radius 만

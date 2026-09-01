@@ -6,6 +6,7 @@
 // 눌리는 원인은 값이 아니라 조합이다: 16/400 `--sub` 는 세 값이 다 합법인데 역할표에 없는
 // 조합이고, 그 자리가 15초 페이지 AI 제안의 '이유' 줄이었다(wire-section.tsx 주석 참조).
 //
+//
 // 이 감사가 보는 것과 못 보는 것:
 //   본다   — 한 요소에 최종적으로 적히는 (크기, 굵기, 색) 조합이 역할표 밖인가
 //   못 본다 — 이웃한 두 줄이 같은 옷인가(§2-2 규칙 1). 그건 DOM 순서를 알아야 하므로
@@ -22,7 +23,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
-
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASELINE = join(repoRoot, 'scripts/design/hierarchy-baseline.json');
 // guard:tokens 와 같은 대상이다 — 앱 CSS 는 이 둘뿐이다.
@@ -191,6 +191,50 @@ export function extractCss(file) {
   return out;
 }
 
+/**
+ * layout.tsx가 실제로 <style>에 싣는 순서로 CSS를 조립한다.
+ *
+ * extractCss 뒤에 wireStyles를 덧붙이면 registerStyles보다 wireStyles가 늦게 적용되어 실제
+ * RootLayout과 캐스케이드가 뒤집힌다. 2026-09-01 등록 동의 전문 상자의 위 패딩 결함을 그
+ * 거짓 순서가 숨겼다. 아래 배열은 layout.tsx의 shellStyles 식과 같은 순서다.
+ */
+export function composeRuntimeCss(file, injectedWireStyles) {
+  const src = readFileSync(file, 'utf8');
+  const quote = String.fromCharCode(96);
+  const order = [
+    'styles',
+    'participantStyles',
+    'briefingStyles',
+    'settingsStyles',
+    'scheduleStyles',
+    'wireStyles',
+    'registerStyles',
+    'recordFormStyles',
+  ];
+  const shellMarker = 'const shellStyles = ';
+  const shellStart = src.indexOf(shellMarker);
+  const shellEnd = shellStart < 0 ? -1 : src.indexOf(';', shellStart + shellMarker.length);
+  if (shellStart < 0 || shellEnd < 0) throw new Error(`${relative(repoRoot, file)} 에 shellStyles 식이 없다`);
+  const actualOrder = src.slice(shellStart + shellMarker.length, shellEnd)
+    .match(/\b(?:styles|[A-Za-z]\w*Styles)\b/g) ?? [];
+  if (actualOrder.join('|') !== order.join('|')) {
+    throw new Error(`${relative(repoRoot, file)} 의 shellStyles 순서가 바뀌었다: composeRuntimeCss를 함께 갱신해야 한다`);
+  }
+  const take = (name) => {
+    if (name === 'wireStyles') return injectedWireStyles;
+    const marker = `const ${name} = ${quote}`;
+    const start = src.indexOf(marker);
+    if (start < 0) throw new Error(`${relative(repoRoot, file)} 에 ${name} CSS 묶음이 없다`);
+    const bodyStart = start + marker.length;
+    const end = src.indexOf(quote, bodyStart);
+    if (end < 0) throw new Error(`${relative(repoRoot, file)} 의 ${name} CSS 묶음이 닫히지 않았다`);
+    const body = src.slice(bodyStart, end);
+    if (body.includes('${')) throw new Error(`${relative(repoRoot, file)} 의 ${name} CSS 묶음에 보간이 생겼다`);
+    return body;
+  };
+  return order.map(take).join('\n');
+}
+
 /** CSS 주석 제거. 줄 번호 보존을 위해 개행만 남긴다. */
 const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
 
@@ -285,8 +329,6 @@ function parseDecls(body) {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// 3. 병합 — 같은 요소를 겨냥한 규칙들을 모아 최종 조합을 세운다.
 // ---------------------------------------------------------------------------
 
 /**

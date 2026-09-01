@@ -3,7 +3,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { extractCss } from '../../../../scripts/design/hierarchy-audit.mjs';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RegisterForm } from '../participants/new/register-form';
@@ -11,6 +12,7 @@ import { PROGRAM_LABELS } from '../lib/labels';
 import { ConsentEditor } from '../participants/[beneficiaryId]/page';
 import { GoalTreeCard } from '../participants/[beneficiaryId]/goal-tree';
 import type { ParticipantGoalTreeCase, ParticipantProgram } from '../lib/api';
+import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -69,6 +71,17 @@ const goalTreeCases: ParticipantGoalTreeCase[] = [{
   }],
 }];
 
+const scheduleCandidates: ScheduleWizardCandidate[] = [{
+  value: `swallow-003|${CASE_ID}`,
+  beneficiaryId: 'swallow-003',
+  supportCaseId: CASE_ID,
+  programLabel: PROGRAM_LABELS.financial_support_v1,
+  participantName: '홍서희',
+  participantPhone: '010-1234-5678',
+  participantEmail: null,
+  intakeAt: '2026-07-01T00:00:00.000Z',
+}];
+
 // 전체 목표 미설정이라 AI 제안 라벨 옆 안내가 첫 렌더부터 선다. 세부 목표는 불릿 2개다.
 const baseProps: BriefingCardsProps = {
   beneficiaryId: 'swallow-003',
@@ -119,7 +132,7 @@ const contentProps: BriefingCardsProps = {
 };
 
 describe('정렬 하니스 생성기', () => {
-  it('정렬 대상 실제 부품의 정적 HTML을 만든다', () => {
+  it('정렬 대상 실제 부품의 정적 HTML을 만든다', async () => {
     const empty = renderToStaticMarkup(<BriefingCards {...baseProps} />);
     const content = renderToStaticMarkup(<BriefingCards {...contentProps} />);
     const register = renderToStaticMarkup(
@@ -130,15 +143,37 @@ describe('정렬 하니스 생성기', () => {
       />,
     );
     const hubConsent = renderToStaticMarkup(
-      <ConsentEditor beneficiaryId="swallow-003" program={hubProgram} />,
+      <div className="participant-consent-block wire-repeat-card">
+        <ConsentEditor beneficiaryId="swallow-003" program={hubProgram} />
+      </div>,
     );
     const goalTree = renderToStaticMarkup(
       <GoalTreeCard beneficiaryId="swallow-003" cases={goalTreeCases} programLabels={PROGRAM_LABELS} />,
     );
+    const scheduleView = render(
+      <ScheduleWizard
+        candidates={scheduleCandidates}
+        loadContext={(async () => ({
+          status: 'loaded',
+          caseGoals: [{ id: 'g1', title: '월세 체납 해소' }],
+          lastBriefing: null,
+        })) as never}
+        submit={(async () => ({ status: 'saved' as const })) as never}
+      />,
+    );
+    fireEvent.click(scheduleView.getByRole('button', { name: /홍서희/ }));
+    fireEvent.change(scheduleView.getByLabelText('상담 일시 날짜'), { target: { value: '2026-07-20' } });
+    fireEvent.change(scheduleView.getByLabelText('상담 일시 시각'), { target: { value: '13:00' } });
+    fireEvent.click(scheduleView.getByRole('button', { name: /다음: 이번 상담의 목표/ }));
+    await waitFor(() => expect(scheduleView.getByLabelText('세부 목표 연결')).not.toBeNull());
+    const scheduleGoals = scheduleView.container.innerHTML;
+    cleanup();
     // 펼친 상태는 **생성된 마크업에 open 속성만 얹어** 만든다 — 마크업을 손으로 옮겨 적으면
     // 부품이 바뀌어도 옛 모양을 재게 된다(위계 하니스와 같은 이유). 여는 방법은 이 한 줄뿐이다:
     // details 는 서버 렌더에서 열 수 있는 프롭이 RegisterForm 에 없고, 실측 대상은 열린 상자다.
     const registerOpen = register.replace('<details class="consent-detail', '<details open class="consent-detail');
+    const hubConsentOpen = hubConsent.replace('<details class="consent-detail', '<details open class="consent-detail');
+    const goalTreeOpen = goalTree.replace('<details class="goal-tree-goal-details', '<details open class="goal-tree-goal-details');
 
     // 단언 대상이 실제로 렌더에 서야 실측이 성립한다. 빈 껍데기면 실측이 "요소 없음"으로
     // 늦게 죽는 대신 여기서 원인(어느 fixture 가 비었나)을 말하며 막는다.
@@ -151,16 +186,20 @@ describe('정렬 하니스 생성기', () => {
     expect(register, '등록: 동의 전문 상자가 없다').toContain('consent-detail register-consent-block wire-repeat-card');
     expect(registerOpen, '등록: 펼침 변형에 open 이 안 붙었다').toContain('<details open class="consent-detail');
     expect(hubConsent, '당사자 정보 동의 행이 없다').toContain('consent-item');
+    expect(hubConsent, '당사자 정보 동의 묶음 상자가 없다').toContain('participant-consent-block wire-repeat-card');
+    expect(hubConsentOpen, '당사자 정보 동의 전문 펼침 변형이 없다').toContain('<details open class="consent-detail');
     expect(goalTree, '당사자 정보 목표 트리가 없다').toContain('goal-tree-case');
+    expect(goalTreeOpen, '당사자 정보 세부 목표 펼침 변형이 없다').toContain('<details open class="goal-tree-goal-details');
     expect(content, '제안 있음: 수기 배지 없는 회차 변형이 없다').toContain('<span class="briefing-session-memo"></span>');
+    expect(scheduleGoals, '일정 등록: 목표 선택창이 없다').toContain('session-goal-link');
+    expect(scheduleGoals, '일정 등록: 세션 목표 입력칸이 없다').toContain('session-goal-input');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
-    const layoutCss = extractCss(join(repoRoot, 'apps/web/app/layout.tsx'));
+    const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
     const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>정렬 하니스</title>
 <style>${tokens}</style>
-<style>${layoutCss}</style>
-<style>${wireStyles}</style>
+<style>${runtimeCss}</style>
 <style>body{background:var(--canvas)}</style>
 </head><body>
 <div id="align-empty">${empty}</div>
@@ -168,7 +207,10 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-register">${register}</div>
 <div id="align-register-open">${registerOpen}</div>
 <div id="align-hub-consent">${hubConsent}</div>
+<div id="align-hub-consent-open">${hubConsentOpen}</div>
 <div id="align-goal-tree">${goalTree}</div>
+<div id="align-goal-tree-open">${goalTreeOpen}</div>
+<div id="align-schedule-goals">${scheduleGoals}</div>
 </body></html>`;
 
     mkdirSync(OUT_DIR, { recursive: true });

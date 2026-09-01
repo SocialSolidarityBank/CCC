@@ -7,21 +7,23 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
 
 재는 대상은 `artifacts/align-harness/align.html` 이고, 그 파일은 **실제 부품으로** 렌더한
 것이다(생성기: apps/web/app/kit/align-harness.test.tsx — 위계 하니스와 같은 원칙).
-단언은 `scripts/design/align-assertions.json` 이 선언한다. 형식은 스킬 원본 그대로
-{name, selectors, axis, tolerance} 다.
+단언은 `scripts/design/align-assertions.json` 이 선언한다. 기본 형식은 스킬 원본의
+{name, selectors, axis, tolerance}이고 chevron-xy는 maxRatio와 선택 expectedSize를 함께 받는다.
 
 축 — 원본 3종:
   x  : 매칭된 모든 요소의 center-x 가 tolerance 안에서 일치(세로선 정렬)
   y  : center-y 일치(가로 한 줄 정렬)
   xy : selectors=[자식, 컨테이너] — 자식이 컨테이너의 정중앙(버튼 안 텍스트 등)
 
-확장 6종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
+확장 8종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
   center-y-each: selectors=[행, 행 안 자식]. 반복 행마다 자식이 자기 행의 세로 중앙인가.
   no-overlap-x-each: selectors=[행, 왼쪽 자식, 오른쪽 자식]. 반복 행의 두 자식이 겹치는가.
   bullet-y: selectors=[li 셀렉터]. 각 li 의 ::before 점 중심이 자기 첫 줄 중심과 같은가.
-  gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격이 같은가.
-  inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 실제 여백이 같은가.
+  chevron-xy: selectors=[꺽쇠 셀렉터]. ::before 잉크가 슬롯 정중앙이고 maxRatio보다 작은가.
+  gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격과 선택 expectedGap을 잰다.
+  inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 여백과 선택 expectedInset을 잰다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
+  width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
 
 단언에 viewport={width,height}를 주면 그 폭에서 다시 배치한 뒤 잰다. 화면을 줄였을 때만
 드러나는 꺽쇠·줄바꿈 회귀를 데스크톱 단언과 같은 파일에서 막는다.
@@ -61,6 +63,53 @@ CHECK_JS = r"""
       return { name: a.name, pass: dx <= tol && dy <= tol, detail: `dx ${dx.toFixed(2)} dy ${dy.toFixed(2)} (허용 ${tol})` };
     }
 
+    if (a.axis === 'chevron-xy') {
+      const arrows = a.selectors.flatMap((sel) => [...document.querySelectorAll(sel)]);
+      if (arrows.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
+      let worstX = 0;
+      let worstY = 0;
+      let largestRatio = 0;
+      let worstSize = 0;
+      for (const arrow of arrows) {
+        const arrowRect = arrow.getBoundingClientRect();
+        if (a.expectedSize !== undefined) {
+          worstSize = Math.max(worstSize, Math.abs(arrowRect.width - a.expectedSize), Math.abs(arrowRect.height - a.expectedSize));
+        }
+        const style = getComputedStyle(arrow, '::before');
+        const width = parseFloat(style.width);
+        const height = parseFloat(style.height);
+        const borderLeft = parseFloat(style.borderLeftWidth);
+        const borderRight = parseFloat(style.borderRightWidth);
+        const borderTop = parseFloat(style.borderTopWidth);
+        const borderBottom = parseFloat(style.borderBottomWidth);
+        const boxWidth = width + borderLeft + borderRight;
+        const boxHeight = height + borderTop + borderBottom;
+        const rectangles = [];
+        if (borderRight > 0) rectangles.push([boxWidth - borderRight, 0, boxWidth, boxHeight]);
+        if (borderBottom > 0) rectangles.push([0, boxHeight - borderBottom, boxWidth, boxHeight]);
+        if (rectangles.length === 0) return { name: a.name, pass: false, detail: '꺽쇠 테두리 없음' };
+        const matrix = style.transform === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(style.transform);
+        const points = rectangles.flatMap(([left, top, right, bottom]) => [
+          [left, top], [right, top], [right, bottom], [left, bottom],
+        ]).map(([x, y]) => new DOMPoint(x - boxWidth / 2, y - boxHeight / 2).matrixTransform(matrix));
+        const xs = points.map((point) => point.x);
+        const ys = points.map((point) => point.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        worstX = Math.max(worstX, Math.abs((minX + maxX) / 2));
+        worstY = Math.max(worstY, Math.abs((minY + maxY) / 2));
+        largestRatio = Math.max(largestRatio, (maxX - minX) / arrowRect.width, (maxY - minY) / arrowRect.height);
+      }
+      const maxRatio = a.maxRatio ?? Infinity;
+      return {
+        name: a.name,
+        pass: worstX <= tol && worstY <= tol && largestRatio <= maxRatio && worstSize <= tol,
+        detail: `dx ${worstX.toFixed(2)}px / dy ${worstY.toFixed(2)}px / 잉크 비율 ${largestRatio.toFixed(3)} / 크기 오차 ${worstSize.toFixed(2)}px (허용 ${tol}px, 최대 ${maxRatio})`,
+      };
+    }
+
     if (a.axis === 'gap-pair') {
       const els = a.selectors.map((sel) => document.querySelector(sel));
       if (els.some((el) => !el)) return { name: a.name, pass: false, detail: '요소 없음' };
@@ -68,10 +117,13 @@ CHECK_JS = r"""
       const first = gapOf(els[0], els[1]);
       const second = gapOf(els[2], els[3]);
       const delta = Math.abs(first - second);
+      const expectedDelta = a.expectedGap === undefined
+        ? 0
+        : Math.max(Math.abs(first - a.expectedGap), Math.abs(second - a.expectedGap));
       return {
         name: a.name,
-        pass: delta <= tol,
-        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px (허용 ${tol})`,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 
@@ -85,10 +137,13 @@ CHECK_JS = r"""
       const top = first.getBoundingClientRect().top - boxRect.top;
       const bottom = boxRect.bottom - last.getBoundingClientRect().bottom;
       const delta = Math.abs(top - bottom);
+      const expectedDelta = a.expectedInset === undefined
+        ? 0
+        : Math.max(Math.abs(top - a.expectedInset), Math.abs(bottom - a.expectedInset));
       return {
         name: a.name,
-        pass: delta <= tol,
-        detail: `위 ${top.toFixed(2)}px / 아래 ${bottom.toFixed(2)}px (허용 ${tol})`,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `위 ${top.toFixed(2)}px / 아래 ${bottom.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 
@@ -144,6 +199,14 @@ CHECK_JS = r"""
       }
       if (measured === 0) return { name: a.name, pass: false, detail: '측정 가능한 li 없음' };
       return { name: a.name, pass: worst <= tol, detail: `최대 어긋남 ${worst.toFixed(2)}px, li ${measured}개 (허용 ${tol})` };
+    }
+
+    if (a.axis === 'width') {
+      const els = a.selectors.flatMap((sel) => [...document.querySelectorAll(sel)]);
+      if (els.length < 2) return { name: a.name, pass: false, detail: `폭 비교에 2개 이상 필요(찾음 ${els.length})` };
+      const widths = els.map((el) => el.getBoundingClientRect().width);
+      const spread = Math.max(...widths) - Math.min(...widths);
+      return { name: a.name, pass: spread <= tol, detail: `폭 차이 ${spread.toFixed(2)}px, ${els.length}개 (허용 ${tol})` };
     }
 
     const els = a.selectors.flatMap((sel) => [...document.querySelectorAll(sel)]);

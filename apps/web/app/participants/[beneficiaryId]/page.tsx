@@ -131,7 +131,7 @@ function ConsentDetailAccordion({ sections }: { sections: ConsentDetailSection[]
     <details className="consent-detail" data-inline="true">
       <summary className="consent-detail-summary">
         <span>전문 보기</span>
-        <span aria-hidden="true" className="wire-card-arrow" />
+        <span aria-hidden="true" className="wire-card-arrow" data-size="xs" data-glyph="legible" />
       </summary>
       <div className="consent-detail-body">
         <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>
