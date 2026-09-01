@@ -6,6 +6,7 @@ import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { MetaRow } from '../../components/wire/meta-row';
 import { WireTimeline, WireTimelineItem } from '../../components/wire/wire-timeline';
 import { formatKoreanDate, formatKoreanDateTime } from '../../lib/format-korean-date';
+import { DisclosureChevron } from '../../components/wire/chevron';
 
 // 목표 트리 (D62 §8 · CCC-69) — 당사자 허브의 케이스별 구획. 위계는 전체 > 세부 > 세션이고
 // 담당(또는 admin) 케이스만 온다(D36 — 목표는 상담 내용, 게이트웨이가 강제).
@@ -34,9 +35,8 @@ function RevisionHistory({ revisions }: { revisions: GoalRevisionEntry[] }) {
   if (revisions.length === 0) return null;
   return (
     <details className="goal-tree-history">
-      {/* 이력 줄도 좁은 목록 행이다 — 화살표는 작은 단(24)이다(2026-08-30 검수 반영: 기본
-          32 를 두면 자식 줄의 화살표가 부모 목표 줄(24)보다 커져 위계가 뒤집힌다). */}
-      <summary>이력 보기 <span className="wire-card-arrow" data-size="sm" aria-hidden="true" /></summary>
+      {/* 이력 줄의 24px 원형 상태 슬롯은 부모 목표 줄의 24px 배지 높이와 같은 단이다. */}
+      <summary>이력 보기 <DisclosureChevron size="sm" /></summary>
       <WireTimeline>
         {revisions.map((revision, index) => (
           <WireTimelineItem key={`${revision.editedAt}-${index}`} className="goal-tree-history-row">
@@ -66,10 +66,9 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
         <summary className="goal-tree-goal-head">
           <span className="goal-tree-goal-title" title={goal.title}>{goal.title}</span>
           {closed && <WireBadge>{reasonLabel === null ? '종료' : `종료(${reasonLabel})`}</WireBadge>}
-              <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
-          {/* 좁은 목록 행은 24px 무형 슬롯과 또렷한 꺽쇠를 쓴다. 등록 동의와 같은
-              14px 줄이라 잉크 크기와 광학 보정을 공유한다. */}
-          <span className="wire-card-arrow" data-size="sm" data-glyph="legible" aria-hidden="true" />
+          <WireBadge>연결 회차 {goal.linkedSessions.length}건</WireBadge>
+          {/* 좁은 목록 행은 12px 무형 슬롯을 써 14px 글줄보다 작게 둔다. */}
+          <DisclosureChevron frame="none" />
         </summary>
         <div className="goal-tree-goal-body">
           <RevisionHistory revisions={goal.revisions} />

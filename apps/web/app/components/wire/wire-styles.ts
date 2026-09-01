@@ -139,7 +139,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    파스텔 위에 남는다. 화살표는 원형 컨테이너라 면(--panel)이 대비를 만들고 테두리만 채운
    면 전용 선색으로 바꾼다. 메타 줄 세로선도 같은 계약(D56 --line-on-action)이다. */
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-card-arrow{border-color:var(--line-on-action)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-disclosure-chevron{border-color:var(--line-on-action)}
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 새로 편입된 일정 날짜 아코디언(2026-08-28)의 이름 목록·건수도 채운 면 글자다
    (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다). */
@@ -259,7 +259,7 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 /* (.list-toolbar 는 2026-08-23 D75 로 삭제 — 마지막 사용처였던 일정 화면 시간순 정렬
    토글이 통합에서 빠졌다. 날짜 묶음 제목이 순서를 이미 말한다.) */
 /* 인라인 강조 링크. AppHeader(D35 로 폐기) 시절 클래스지만 관리자 사용자 상세가 계속 쓴다. */
-.wire-header-link{font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.wire-header-link{display:inline-flex;align-items:center;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-header-link:hover{text-decoration:underline}
 /* 이름 표기는 공용 ParticipantName이 맡는다. 이름이 있으면 화면 계약에 따라 가명 ID를 옆에
    붙이고, 이름이 없으면 ID가 이름 자리를 대신한다. 동명이인 구분은 전화번호가 맡는다. */
@@ -400,8 +400,8 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
 .goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex-wrap:nowrap}
-/* 14px 세부 목표 줄은 공용 작은 원과 compact 꺽쇠 잉크를 쓴다. 같은 조합을 등록 동의
-   자세히 읽어보기도 쓰므로 크기와 광학 보정은 아래 data-glyph 공용 규칙이 소유한다. */
+/* 14px 세부 목표 줄은 12px 무형 슬롯의 공용 SVG 꺽쇠를 쓴다. 줄 높이는 연결 회차 배지가
+   24px로 유지해 불릿 점과 형제 목표의 첫 줄 축을 맞춘다. */
 .goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
 .goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
 .goal-tree-goal.is-closed .goal-tree-goal-title{color:var(--sub)}
@@ -516,16 +516,14 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 .wire-row[data-align="center"]{justify-content:center;text-align:center}
 .wire-row-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .wire-row[data-align="center"] .wire-row-text{flex:0 1 auto}
-/* 꺽쇠(>) 한 벌 — 2026-08-10 Q "버튼과 listrow, 체브론 맞추기". **배수를 맞추는 것이지
-   픽셀을 맞추는 것이 아니다**(같은 날 Q: 꺽쇠는 폰트 크기를 따라가야 하고, 글자에 붙어 있는
-   자리는 특히 그렇다). 어긋나 있던 것은 배수가 넷이었다는 것이다 — .625 ListRow · .5625 카드 ·
-   .5333 핵심 버튼 · .5 조작 버튼. 이제 --chevron-box 하나를 전부가 본다.
-   광학 보정(translate)은 상자의 1/5 이다 — 회전한 사각형이라 잉크 중심이 기하 중심에서
-   벗어나고, 상자가 커지면 그 어긋남도 같은 비율로 커진다. */
-.wire-chevron{flex:none;width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub)}
-.wire-chevron[data-dir="down"]{transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg)}
-.wire-chevron[data-dir="right"]{transform:translateX(calc(var(--chevron-box) / -5)) rotate(-45deg)}
-.wire-chevron[data-dir="left"]{transform:translateX(calc(var(--chevron-box) / 5)) rotate(135deg)}
+/* 네 방향 공용 꺽쇠(2026-09-02 Q). 12px 슬롯 안의 6.9×4.2px 둥근 SVG 경로 한 벌을
+   회전한다. 글자 크기에 따라 CSS 테두리 사각형을 키우던 구 계약은 자리마다 11~13px로
+   커진 실측 때문에 폐지했다. 고정 슬롯과 중앙 경로라 방향이 바뀌어도 글줄 중심이 흔들리지 않는다. */
+.wire-chevron{flex:none;display:inline-block;width:12px;height:12px;overflow:visible;transform-origin:center}
+.wire-chevron[data-dir="up"]{transform:rotate(180deg)}
+.wire-chevron[data-dir="down"]{transform:rotate(0deg)}
+.wire-chevron[data-dir="right"]{transform:rotate(-90deg)}
+.wire-chevron[data-dir="left"]{transform:rotate(90deg)}
 /* WireCard (§5 카드): 헤더/본문을 회색 --line 1px 풀블리드 선으로 나눈다(2026-08-06 Q). */
 /* --card-pad 는 이 카드의 사방 패딩이다. 변수로 두는 이유는 **풀블리드 조각들이 그 값을
    되읽어야 하기 때문**이다(펼친 제목 줄의 음수 마진). 예전에는 그 음수 값을 손으로 적어
@@ -576,32 +574,17 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
-/* 아코디언 화살표 어휘(2026-08-27 Q): 닫힘은 아래, 펼침은 위 꺽쇠다.
-   오른쪽 꺽쇠는 페이지 이동 전용이라 아코디언에 쓰지 않는다. 기본은 32px 원형 상태
-   컨테이너이고 summary 전체가 클릭 영역이다. 좁은 정보 줄은 data-glyph="legible"로 원을
-   없애고 같은 자리 안의 잉크만 또렷하게 만든다(2026-09-01 Q). 모션은
-   --motion-fast와 --ease-standard 한 쌍이다. optical: 회전한 꺽쇠 잉크는 translate로
-   보이는 경계 중심을 되민다(.wire-chevron과 같은 보정 계약). */
-.wire-card-arrow{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
-.wire-card-arrow::before{content:"";width:var(--chevron-box);height:var(--chevron-box);border-right:var(--chevron-stroke) solid var(--sub);border-bottom:var(--chevron-stroke) solid var(--sub);transform:translateY(calc(var(--chevron-box) / -5)) rotate(45deg);transition:transform var(--motion-fast) var(--ease-standard)}
-/* 작은 슬롯 24는 좁은 목록 행이 쓴다. 기본 32 원을 14px 글줄에 두면 행 높이와 목록
-   리듬을 함께 벌리므로 컨트롤 높이 토큰인 --badge-height로 낮춘다. 16 슬롯은 알약 안의
-   인라인 꺽쇠 전용이다. */
-.wire-card-arrow[data-size="sm"]{width:var(--badge-height);height:var(--badge-height);font-size:var(--text-sm)}
-.wire-card-arrow[data-size="xs"]{width:var(--text-md);height:var(--text-md)}
-/* optical: 16px 기준 7px 잉크와 2px 획이다. 24px 슬롯에서는 작게 남되 1px로 뭉개지지
-   않는다. 원을 없애 summary 전체가 조작면임을 드러내고, 회전 경계는 1/3만큼 보정한다. */
-.wire-card-arrow[data-glyph="legible"]{--chevron-box:.4375em;font-size:var(--text-md);border:0;border-radius:0;background:none}
-.wire-card-arrow[data-glyph="legible"]::before{transform:translateY(calc(var(--chevron-box) / -3)) rotate(45deg)}
-/* 펼침 = 위. 셀렉터를 details[open] 제네릭으로 두어 WireCardDetails·동의 전문·목표 트리
-   같은 모든 아코디언이 한 규칙을 본다. 회전은 컨테이너가 아니라 꺽쇠 잉크(::before)만 한다. */
-details[open]>summary .wire-card-arrow::before{transform:translateY(calc(var(--chevron-box) / 5)) rotate(-135deg)}
-details[open]>summary .wire-card-arrow[data-glyph="legible"]::before{transform:translateY(calc(var(--chevron-box) / 3)) rotate(-135deg)}
-/* 화살표 있는 summary 는 네이티브 마커를 숨기고, 화살표와 옆 항목·텍스트의 간격을 한 값으로
-   갖는다(2026-08-28 Q "여백 동일하게, 조금 더 넉넉하게" — 행 안 간격 16). 플레인 텍스트
-   summary(이력 보기·근거 인용 류)도 flex 로 세워 같은 간격 계약을 받는다. */
-summary:has(.wire-card-arrow){display:flex;align-items:center;gap:var(--space-4);list-style:none}
-summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
+/* 아코디언 상태 슬롯. 꺽쇠 잉크는 공용 Chevron SVG만 쓰고, 이 컨테이너는 원형 프레임과
+   슬롯 크기만 맡는다. 기본은 32px, 좁은 목록의 원형은 24px, 텍스트 옆 무형 슬롯은 12px다. */
+.wire-disclosure-chevron{flex:none;display:inline-grid;place-items:center;vertical-align:middle;line-height:normal;width:var(--pill-height);height:var(--pill-height);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:var(--panel)}
+.wire-disclosure-chevron[data-size="sm"]{width:var(--badge-height);height:var(--badge-height)}
+.wire-disclosure-chevron[data-frame="none"]{width:12px;height:12px;border:0;border-radius:0;background:none}
+.wire-disclosure-chevron .wire-chevron{transition:transform var(--motion-fast) var(--ease-standard)}
+/* 펼침 = 위. 모든 details가 같은 SVG 회전 규칙을 본다. */
+details[open]>summary .wire-disclosure-chevron .wire-chevron{transform:rotate(180deg)}
+/* 화살표 있는 summary는 네이티브 마커를 숨기고, 화살표와 옆 항목 사이 간격을 한 값으로 갖는다. */
+summary:has(.wire-disclosure-chevron){display:flex;align-items:center;gap:var(--space-4);list-style:none}
+summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
@@ -900,9 +883,7 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
    컬러로 고정") — 보조 표면 --muted 채움. 글자는 기본 --ink 그대로다(--sub 로 내리면
    비활성(muted 면 + --sub)과 똑같아지고 위계 조합 표 §2-1 밖이다). 높이는 전 버튼 32 단일이다(2026-08-28). */
 .wire-button[data-variant="ghost"]{background:var(--muted);border-color:transparent}
-/* 버튼 안 꺽쇠 크기 예외 2건은 2026-08-10 에 없앴다(Q "버튼과 listrow, 체브론 맞추기").
-   구 값은 라벨을 따라가는 .5333em(15px 라벨 8)·.5em(14px 라벨 7)이었고, 그래서 같은 화면의
-   버튼·행·카드 꺽쇠가 8·10·9 로 셋 다 달랐다. 이제 --chevron-box 하나를 함께 본다. */
+/* 버튼도 공용 12px SVG 슬롯을 그대로 쓴다. 별도 크기 예외를 만들지 않는다. */
 /* 위험: 되돌리기 어려운 행동에만. 의미색 --risk 아웃라인, 두께는 기본 계약(1px)이 갖는다. */
 .wire-button[data-variant="danger"]{background:var(--panel);border-color:var(--risk);color:var(--risk)}
 .wire-button[data-justify="center"]{justify-content:center}
@@ -955,22 +936,15 @@ summary:has(.wire-card-arrow)::-webkit-details-marker{display:none}
 }
 .wire-button:not(:disabled):not([aria-disabled="true"]):active{transform:translateY(1px)}
 .wire-button:disabled,.wire-button[aria-disabled="true"]{background:var(--muted);border-color:var(--line);color:var(--sub);cursor:not-allowed}
-.wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{border-color:var(--sub)}
-.wire-button .wire-chevron{border-color:currentColor}
-/* 한글 광학 보정(tokens.css --nudge-hangul) — 고정 높이 단일행 컨트롤의 텍스트만 내린다. */
+.wire-button:disabled .wire-chevron,.wire-button[aria-disabled="true"] .wire-chevron{--chevron-color:var(--sub)}
+.wire-button .wire-chevron{--chevron-color:currentColor}
+/* 한글 광학 보정(tokens.css --nudge-hangul). 고정 높이 단일행 컨트롤의 텍스트와 12px 슬롯을
+   같은 값으로 옮겨 세로 중심을 유지한다. */
 .wire-button-text,.wire-badge,.wire-input-box>input,.wire-input-box>select,.wire-search-box input,.wire-search-box select{transform:translateY(var(--nudge-hangul))}
-/* 텍스트 옆에 서는 꺽쇠도 같은 값으로 따라 내린다(2026-08-06 실측) — 글자만 내리면 버튼의
-   화살표가 라벨보다 0.7px 떠 보인다. 꺽쇠는 회전 transform 을 이미 갖고 있어 합성 대신
-   position 오프셋으로 옮긴다(기존 translateX·rotate 와 독립). */
 .wire-button .wire-chevron,.wire-search-box .wire-chevron,.wire-input-box .wire-chevron{position:relative;top:var(--nudge-hangul)}
-/* 선택창 꺽쇠는 **클릭을 통과시킨다** (2026-08-09 Q "클릭이 안 됨"). 네이티브 화살표를 끈
-   자리라 이 꺽쇠가 선택창의 유일한 표시인데, 꺽쇠가 자기 칸을 차지하고 있어서 정확히 그
-   위를 누르면 아무 일도 안 일어났다 — 버튼처럼 생겼는데 반응이 없는 상태다.
-   지우면 선택창이 글자 입력칸과 똑같아 보이므로(네이티브 화살표가 이미 꺼져 있다) 지우는
-   대신 **선택창 위에 얹고 통과시킨다**: 꺽쇠를 절대 위치로 빼면 선택창이 상자 폭을 다
-   쓰므로 꺽쇠 자리 밑에도 선택창이 깔리고, pointer-events:none 이 클릭을 그리로 넘긴다.
-   세로 가운데는 transform 이 아니라 inset+auto 마진으로 잡는다 — 회전(rotate 45deg)이
-   이미 transform 을 쓰고 있어 겹치면 한쪽이 지워진다. 형태·크기·색은 그대로다. */
+/* 선택창 꺽쇠는 클릭을 통과시킨다. 네이티브 화살표를 끈 자리의 유일한 표시라 지우지 않고
+   선택창 위에 얹는다. 절대 위치와 pointer-events:none으로 그 자리까지 select 클릭면이 되고,
+   top·bottom 0과 auto 여백이 고정 12px 슬롯을 상자 정중앙에 둔다. */
 .wire-input-box,.wire-search-box{position:relative}
 .wire-input-box .wire-chevron,.wire-search-box .wire-chevron{
   position:absolute;

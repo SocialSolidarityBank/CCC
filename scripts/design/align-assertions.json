@@ -73,41 +73,41 @@
   },
   {
     "name": "등록 동의 전문 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-register .consent-detail:not([open])>.consent-detail-summary>.wire-card-arrow"],
+    "selectors": ["#align-register .consent-detail:not([open])>.consent-detail-summary>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24
+    "maxRatio": 0.6,
+    "expectedSize": 12
   },
   {
     "name": "등록 동의 전문 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-register-open .consent-detail[open]>.consent-detail-summary>.wire-card-arrow"],
+    "selectors": ["#align-register-open .consent-detail[open]>.consent-detail-summary>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24
+    "maxRatio": 0.6,
+    "expectedSize": 12
   },
   {
     "name": "근거 인용 꺽쇠가 요약 행 세로 중앙",
-    "selectors": ["#align-content .wire-source-quotes>summary", ".wire-card-arrow[data-glyph=\"legible\"]"],
+    "selectors": ["#align-content .wire-source-quotes>summary", ".wire-disclosure-chevron[data-frame=\"none\"]"],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "근거 인용 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-content .wire-source-quotes:not([open])>summary>.wire-card-arrow"],
+    "selectors": ["#align-content .wire-source-quotes:not([open])>summary>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24
+    "maxRatio": 0.6,
+    "expectedSize": 12
   },
   {
     "name": "당사자 정보 전문 보기 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-hub-consent .consent-detail[data-inline=\"true\"]:not([open])>.consent-detail-summary>.wire-card-arrow"],
+    "selectors": ["#align-hub-consent .consent-detail[data-inline=\"true\"]:not([open])>.consent-detail-summary>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.81,
-    "expectedSize": 16
+    "maxRatio": 0.6,
+    "expectedSize": 12
   },
   {
     "name": "등록 동의 전문 상자: 접힘 요약 줄이 상자 정중앙",
@@ -182,7 +182,7 @@
   },
   {
     "name": "자세히 읽어보기 화살표가 행 세로 중앙",
-    "selectors": ["#align-register .consent-detail-summary", ".wire-card-arrow"],
+    "selectors": ["#align-register .consent-detail-summary", ".wire-disclosure-chevron"],
     "axis": "center-y-each",
     "tolerance": 1
   },
@@ -194,7 +194,7 @@
   },
   {
     "name": "당사자 정보 전문 보기 화살표가 행 세로 중앙",
-    "selectors": ["#align-hub-consent .consent-detail-summary", ".wire-card-arrow"],
+    "selectors": ["#align-hub-consent .consent-detail-summary", ".wire-disclosure-chevron"],
     "axis": "center-y-each",
     "tolerance": 1
   },
@@ -214,7 +214,7 @@
   },
   {
     "name": "390px 동의 전문 보기 화살표가 모든 행 세로 중앙",
-    "selectors": [".consent-detail-summary", ".wire-card-arrow"],
+    "selectors": [".consent-detail-summary", ".wire-disclosure-chevron"],
     "axis": "center-y-each",
     "tolerance": 1,
     "viewport": { "width": 390, "height": 900 }
@@ -228,42 +228,42 @@
   },
   {
     "name": "당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
+    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24
+    "maxRatio": 0.6,
+    "expectedSize": 12
   },
   {
     "name": "당사자 정보 세부 목표 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
+    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24
+    "maxRatio": 0.6,
+    "expectedSize": 12
   },
   {
     "name": "당사자 정보 세부 목표 꺽쇠가 제목 행 세로 중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-head", ".wire-card-arrow[data-glyph=\"legible\"]"],
+    "selectors": ["#align-goal-tree .goal-tree-goal-head", ".wire-disclosure-chevron[data-frame=\"none\"]"],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "390px 당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-card-arrow"],
+    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24,
+    "maxRatio": 0.6,
+    "expectedSize": 12,
     "viewport": { "width": 390, "height": 900 }
   },
   {
     "name": "390px 당사자 정보 세부 목표 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-card-arrow"],
+    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-disclosure-chevron"],
     "axis": "chevron-xy",
     "tolerance": 0.5,
-    "maxRatio": 0.55,
-    "expectedSize": 24,
+    "maxRatio": 0.6,
+    "expectedSize": 12,
     "viewport": { "width": 390, "height": 900 }
   },
   {
@@ -330,5 +330,47 @@
     "axis": "width",
     "tolerance": 1,
     "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "일정 보기 선택창은 96×32",
+    "selectors": ["#align-schedule-nav .schedule-view-select"],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 96,
+    "expectedHeight": 32
+  },
+  {
+    "name": "일정 보기 선택창 꺽쇠가 상자 세로 중앙",
+    "selectors": ["#align-schedule-nav .schedule-view-select", ".wire-chevron"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "일정 보기 선택창 꺽쇠 path가 슬롯 정중앙",
+    "selectors": ["#align-schedule-nav .schedule-view-select .wire-chevron"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.6,
+    "expectedSize": 12
+  },
+  {
+    "name": "일정 이전과 다음 꺽쇠가 원형 버튼 세로 중앙",
+    "selectors": ["#align-schedule-nav .schedule-nav-step", ".wire-chevron"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "일정 이전과 다음 꺽쇠 path가 슬롯 정중앙",
+    "selectors": ["#align-schedule-nav .schedule-nav-step .wire-chevron"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.6,
+    "expectedSize": 12
+  },
+  {
+    "name": "당사자 정보 세부 목표 불릿 점은 제목 행 세로 중앙",
+    "selectors": ["#align-goal-tree .goal-tree-goals.wire-bullets>li"],
+    "axis": "bullet-y",
+    "tolerance": 1
   }
 ]

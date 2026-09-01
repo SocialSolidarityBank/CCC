@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { WireBullets, WireCard, type WireCardTone } from './wire-card';
 import { WireButton } from './wire-button';
+import { DisclosureChevron } from './chevron';
 
 // 콜아웃(안내줄) 계약, 2026-08-07 Q 리팩터링으로 컴포넌트 확정.
 // draft-notice 와 intake-saved-notice 가 손으로 조립하던 안내줄(WireCard tone
@@ -79,8 +80,8 @@ export function WireSourceQuotes({ quotes, sourceHref }: WireSourceQuotesProps) 
 
   return (
     <details className="wire-source-quotes" data-source-quotes>
-      {/* 좁은 근거 행은 24px 무형 슬롯의 또렷한 꺽쇠를 쓴다. */}
-      <summary>근거 인용 보기 <span className="wire-card-arrow" data-size="sm" data-glyph="legible" aria-hidden="true" /></summary>
+      {/* 좁은 근거 행은 12px 무형 슬롯의 공용 꺽쇠를 쓴다. */}
+      <summary>근거 인용 보기 <DisclosureChevron frame="none" /></summary>
       <div className="wire-source-quotes-body">
         {/* 인용 묶음은 왼쪽 폭을 쓰고 출처 버튼은 같은 행 오른쪽이다(2026-08-30 Q 2차 —
             구 세로 스택. 좁으면 버튼이 아랫줄로 접힌다). */}

@@ -13,6 +13,7 @@ import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
+import { DisclosureChevron } from '../../../../../../components/wire/chevron';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
@@ -299,7 +300,7 @@ function Collapse(props: { title: string; open: boolean; onToggle: (open: boolea
     <details className="consent-detail" id={props.id} open={props.open} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
       <summary className="consent-detail-summary">
         <span>{props.title}</span>
-        <span className="wire-card-arrow" aria-hidden="true" />
+        <DisclosureChevron frame="none" />
       </summary>
       <div className="consent-detail-body">{props.children}</div>
     </details>

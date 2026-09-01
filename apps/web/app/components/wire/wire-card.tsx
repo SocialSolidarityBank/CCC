@@ -1,4 +1,5 @@
 import type { ReactNode, ToggleEvent } from 'react';
+import { DisclosureChevron } from './chevron';
 
 // 카드 계약(2026-08-05 Q 개정 · ADR-0030): **아웃라인 카드**다 — 그림자가 아니라 선이 경계를
 // 만든다(Infisical·Cloudflare·Vercel·Supabase 레퍼런스). 기본은 회색 --line 1px, 선택·활성만
@@ -83,7 +84,7 @@ export function WireCardDetails({ children, title, badge, open, id, onToggle, te
         <span className="wire-card-title">{title}</span>
         <span className="wire-card-summary-right">
           {badge}
-          <span aria-hidden="true" className="wire-card-arrow" />
+          <DisclosureChevron />
         </span>
       </summary>
       <div className="wire-card-body">{children}</div>

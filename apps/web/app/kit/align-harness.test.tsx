@@ -13,6 +13,7 @@ import { ConsentEditor } from '../participants/[beneficiaryId]/page';
 import { GoalTreeCard } from '../participants/[beneficiaryId]/goal-tree';
 import type { ParticipantGoalTreeCase, ParticipantProgram } from '../lib/api';
 import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
+import { ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -21,6 +22,7 @@ vi.mock('../lib/api', () => ({
 }));
 vi.mock('../lib/display-labels', () => ({ getDisplayLabels: vi.fn() }));
 vi.mock('../actions', () => ({ updateParticipantConsentAction: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 // 정렬 실측 하니스 (2026-08-30 Q — align-check 스킬 계약을 레포 게이트로).
 //
@@ -33,7 +35,7 @@ vi.mock('../actions', () => ({ updateParticipantConsentAction: vi.fn() }));
 // 항목 리듬·불릿 중앙)이다.
 //
 // AI 제안 유무, 등록 동의 접힘·펼침, 긴급 등록, 당사자 정보 동의, 긴 모바일 회차,
-// 목표 트리를 한 페이지에 렌더한다. 셀렉터는 각 래퍼 id로 범위를 좁힌다.
+// 목표 트리, 일정 업무 바를 한 페이지에 렌더한다. 셀렉터는 각 래퍼 id로 범위를 좁힌다.
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const OUT_DIR = join(repoRoot, 'artifacts/align-harness');
@@ -59,16 +61,28 @@ const goalTreeCases: ParticipantGoalTreeCase[] = [{
   sourceSupportCase: { id: CASE_ID, programType: 'financial_support_v1', status: 'active' },
   overallGoal: '안정적인 주거를 유지하면서 월 고정 지출과 채무 상환 계획을 함께 실행한다',
   overallGoalRevisions: [],
-  goals: [{
-    id: 'g1',
-    title: '매주 지출 내역을 기록하고 다음 상담 전까지 상환 가능 금액을 확정한다',
-    status: 'active',
-    closedReason: null,
-    closedAt: null,
-    revisions: [],
-    sessionGoals: [],
-    linkedSessions: [],
-  }],
+  goals: [
+    {
+      id: 'g1',
+      title: '매주 지출 내역을 기록하고 다음 상담 전까지 상환 가능 금액을 확정한다',
+      status: 'active',
+      closedReason: null,
+      closedAt: null,
+      revisions: [],
+      sessionGoals: [],
+      linkedSessions: [],
+    },
+    {
+      id: 'g2',
+      title: '월세 자동이체일 전에 생활비 통장 잔액을 확인한다',
+      status: 'active',
+      closedReason: null,
+      closedAt: null,
+      revisions: [],
+      sessionGoals: [],
+      linkedSessions: [],
+    },
+  ],
 }];
 
 const scheduleCandidates: ScheduleWizardCandidate[] = [{
@@ -150,6 +164,13 @@ describe('정렬 하니스 생성기', () => {
     const goalTree = renderToStaticMarkup(
       <GoalTreeCard beneficiaryId="swallow-003" cases={goalTreeCases} programLabels={PROGRAM_LABELS} />,
     );
+    const scheduleNav = renderToStaticMarkup(
+      <ScheduleNav
+        basePath="/programs/financial_support_v1/schedule"
+        view="week"
+        anchor="2026-09-02"
+      />,
+    );
     const scheduleView = render(
       <ScheduleWizard
         candidates={scheduleCandidates}
@@ -190,9 +211,12 @@ describe('정렬 하니스 생성기', () => {
     expect(hubConsentOpen, '당사자 정보 동의 전문 펼침 변형이 없다').toContain('<details open class="consent-detail');
     expect(goalTree, '당사자 정보 목표 트리가 없다').toContain('goal-tree-case');
     expect(goalTreeOpen, '당사자 정보 세부 목표 펼침 변형이 없다').toContain('<details open class="goal-tree-goal-details');
+    expect(goalTree, '당사자 정보 세부 목표 연결 회차 배지가 없다').toContain('연결 회차 0건');
+    expect(goalTree, '당사자 정보 세부 목표 불릿 목록이 없다').toContain('goal-tree-goals wire-bullets');
     expect(content, '제안 있음: 수기 배지 없는 회차 변형이 없다').toContain('<span class="briefing-session-memo"></span>');
     expect(scheduleGoals, '일정 등록: 목표 선택창이 없다').toContain('session-goal-link');
     expect(scheduleGoals, '일정 등록: 세션 목표 입력칸이 없다').toContain('session-goal-input');
+    expect(scheduleNav, '일정 업무 바: 보기 선택창이 없다').toContain('schedule-view-select');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
     const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
@@ -211,6 +235,7 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-goal-tree">${goalTree}</div>
 <div id="align-goal-tree-open">${goalTreeOpen}</div>
 <div id="align-schedule-goals">${scheduleGoals}</div>
+<div id="align-schedule-nav">${scheduleNav}</div>
 </body></html>`;
 
     mkdirSync(OUT_DIR, { recursive: true });

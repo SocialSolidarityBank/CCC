@@ -15,15 +15,16 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   y  : center-y 일치(가로 한 줄 정렬)
   xy : selectors=[자식, 컨테이너] — 자식이 컨테이너의 정중앙(버튼 안 텍스트 등)
 
-확장 8종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
+확장 9종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
   center-y-each: selectors=[행, 행 안 자식]. 반복 행마다 자식이 자기 행의 세로 중앙인가.
   no-overlap-x-each: selectors=[행, 왼쪽 자식, 오른쪽 자식]. 반복 행의 두 자식이 겹치는가.
   bullet-y: selectors=[li 셀렉터]. 각 li 의 ::before 점 중심이 자기 첫 줄 중심과 같은가.
-  chevron-xy: selectors=[꺽쇠 셀렉터]. ::before 잉크가 슬롯 정중앙이고 maxRatio보다 작은가.
+  chevron-xy: selectors=[꺽쇠 슬롯]. 내부 SVG path 잉크가 슬롯 정중앙이고 maxRatio보다 작은가.
   gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격과 선택 expectedGap을 잰다.
   inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 여백과 선택 expectedInset을 잰다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
   width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
+  size: selectors=[상자]. 렌더된 가로·세로가 expectedWidth·expectedHeight와 같은가.
 
 단언에 viewport={width,height}를 주면 그 폭에서 다시 배치한 뒤 잰다. 화면을 줄였을 때만
 드러나는 꺽쇠·줄바꿈 회귀를 데스크톱 단언과 같은 파일에서 막는다.
@@ -75,32 +76,16 @@ CHECK_JS = r"""
         if (a.expectedSize !== undefined) {
           worstSize = Math.max(worstSize, Math.abs(arrowRect.width - a.expectedSize), Math.abs(arrowRect.height - a.expectedSize));
         }
-        const style = getComputedStyle(arrow, '::before');
-        const width = parseFloat(style.width);
-        const height = parseFloat(style.height);
-        const borderLeft = parseFloat(style.borderLeftWidth);
-        const borderRight = parseFloat(style.borderRightWidth);
-        const borderTop = parseFloat(style.borderTopWidth);
-        const borderBottom = parseFloat(style.borderBottomWidth);
-        const boxWidth = width + borderLeft + borderRight;
-        const boxHeight = height + borderTop + borderBottom;
-        const rectangles = [];
-        if (borderRight > 0) rectangles.push([boxWidth - borderRight, 0, boxWidth, boxHeight]);
-        if (borderBottom > 0) rectangles.push([0, boxHeight - borderBottom, boxWidth, boxHeight]);
-        if (rectangles.length === 0) return { name: a.name, pass: false, detail: '꺽쇠 테두리 없음' };
-        const matrix = style.transform === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(style.transform);
-        const points = rectangles.flatMap(([left, top, right, bottom]) => [
-          [left, top], [right, top], [right, bottom], [left, bottom],
-        ]).map(([x, y]) => new DOMPoint(x - boxWidth / 2, y - boxHeight / 2).matrixTransform(matrix));
-        const xs = points.map((point) => point.x);
-        const ys = points.map((point) => point.y);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        worstX = Math.max(worstX, Math.abs((minX + maxX) / 2));
-        worstY = Math.max(worstY, Math.abs((minY + maxY) / 2));
-        largestRatio = Math.max(largestRatio, (maxX - minX) / arrowRect.width, (maxY - minY) / arrowRect.height);
+        const glyph = arrow.matches('svg.wire-chevron') ? arrow : arrow.querySelector('svg.wire-chevron');
+        const path = glyph?.querySelector('path');
+        if (!glyph || !path) return { name: a.name, pass: false, detail: '공용 SVG 꺽쇠 없음' };
+        const pathRect = path.getBoundingClientRect();
+        const stroke = Number.parseFloat(path.getAttribute('stroke-width') ?? '0');
+        const inkWidth = pathRect.width + stroke;
+        const inkHeight = pathRect.height + stroke;
+        worstX = Math.max(worstX, Math.abs(center(pathRect, 'x') - center(arrowRect, 'x')));
+        worstY = Math.max(worstY, Math.abs(center(pathRect, 'y') - center(arrowRect, 'y')));
+        largestRatio = Math.max(largestRatio, inkWidth / arrowRect.width, inkHeight / arrowRect.height);
       }
       const maxRatio = a.maxRatio ?? Infinity;
       return {
@@ -170,6 +155,21 @@ CHECK_JS = r"""
       }
       return { name: a.name, pass: minimum >= -tol, detail: `최소 가로 여유 ${minimum.toFixed(2)}px, 행 ${rows.length}개 (허용 겹침 ${tol})` };
     }
+    if (a.axis === 'size') {
+      const els = a.selectors.flatMap((sel) => [...document.querySelectorAll(sel)]);
+      if (els.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
+      if (a.expectedWidth === undefined || a.expectedHeight === undefined) {
+        return { name: a.name, pass: false, detail: 'expectedWidth·expectedHeight 없음' };
+      }
+      const worstWidth = Math.max(...els.map((el) => Math.abs(el.getBoundingClientRect().width - a.expectedWidth)));
+      const worstHeight = Math.max(...els.map((el) => Math.abs(el.getBoundingClientRect().height - a.expectedHeight)));
+      return {
+        name: a.name,
+        pass: worstWidth <= tol && worstHeight <= tol,
+        detail: `가로 오차 ${worstWidth.toFixed(2)}px / 세로 오차 ${worstHeight.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
 
 
     if (a.axis === 'overflow-x') {

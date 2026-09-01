@@ -9,7 +9,7 @@ import { WireQuote, WireSourceQuotes } from '../../../../../components/wire/wire
 import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
-import { Chevron } from '../../../../../components/wire/chevron';
+import { Chevron, DisclosureChevron } from '../../../../../components/wire/chevron';
 import { ConsultationTypeBadge, consultationTypeLabel } from '../../../../../components/wire/consultation-type-badge';
 import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
@@ -648,7 +648,7 @@ export function BriefingCards({
           )}
           {resolvedDiscrepancies.length > 0 && (
             <details className="briefing-history">
-              <summary>처리된 항목 {resolvedDiscrepancies.length}건 <span className="wire-card-arrow" aria-hidden="true" /></summary>
+              <summary>처리된 항목 {resolvedDiscrepancies.length}건 <DisclosureChevron /></summary>
               {resolvedDiscrepancies.map((item) => (
                 <DiscrepancyItem
                   key={item.id}

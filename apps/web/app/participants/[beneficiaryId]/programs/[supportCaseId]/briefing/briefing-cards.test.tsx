@@ -709,7 +709,10 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
       ['A', `${baseProps().recordsHref}#record-s-1`],
     ]);
     // 이동 어휘의 오른쪽 꺽쇠가 행 끝에 선다(§8).
-    for (const row of rows) expect(row.querySelector('.wire-chevron')).not.toBeNull();
+    for (const row of rows) {
+      const chevron = row.querySelector('svg.wire-chevron');
+      expect(chevron?.getAttribute('data-dir')).toBe('right');
+    }
   });
 
   it('좁은 화면에서도 꺽쇠는 별도 끝 칸에 남고 핵심 문구는 그 앞에서 두 줄로 끝난다', () => {
@@ -717,7 +720,7 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
       /\.briefing-session-row\{display:grid;grid-template-columns:136px 84px 52px minmax\(0,1fr\) auto;/,
     );
     expect(layoutSource).toMatch(
-      /\.briefing-session-row>\.wire-chevron\{[^}]*grid-column:-1;[^}]*justify-self:end;[^}]*font-size:var\(--text-sm\)/,
+      /\.briefing-session-row>\.wire-chevron\{[^}]*grid-column:-1;[^}]*justify-self:end/,
     );
     expect(layoutSource).toMatch(
       /@media \(max-width:767px\)\{[\s\S]*?\.briefing-session-row\{grid-template-columns:136px minmax\(0,1fr\) auto;[^}]*\}/,

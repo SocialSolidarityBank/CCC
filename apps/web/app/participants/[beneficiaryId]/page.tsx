@@ -15,7 +15,7 @@ import { PageLoading } from '../../components/wire/page-loading';
 import { PageTitle } from '../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
 import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
-import { Chevron } from '../../components/wire/chevron';
+import { Chevron, DisclosureChevron } from '../../components/wire/chevron';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
@@ -131,7 +131,7 @@ function ConsentDetailAccordion({ sections }: { sections: ConsentDetailSection[]
     <details className="consent-detail" data-inline="true">
       <summary className="consent-detail-summary">
         <span>전문 보기</span>
-        <span aria-hidden="true" className="wire-card-arrow" data-size="xs" data-glyph="legible" />
+        <DisclosureChevron frame="none" />
       </summary>
       <div className="consent-detail-body">
         <p className="consent-detail-disclaimer">{CONSENT_DETAIL_DISCLAIMER}</p>
