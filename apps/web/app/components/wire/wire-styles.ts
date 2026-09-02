@@ -1203,6 +1203,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 /* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. padding-top:0 잔재는
    걷는다(2026-08-30 Q "여백 통일" — 상자 패딩 16/24 는 공용 .wire-repeat-card 가 갖는다). */
 .register-consent .consent-emergency{background:none}
+/* 긴급 등록이 닫혀 체크와 설명이 바로 이웃할 때만 gap을 10으로 줄여 실제 글자 간격을
+   일반 동의 체크와 같은 14±1px에 맞춘다. 사유 칸이 열리면 세 행이므로 기본 12를 유지한다. */
+.register-consent .consent-emergency:not(:has(.field)){gap:var(--space-2-5)}
 /* '자세히 읽어보기' 는 위 두 상자와 같은 낱개 상자다(2026-08-30 Q 3차 — 구 전폭 가로선
    대체: 상자 테두리가 선을 대신한다). 상자 레시피는 공용 .wire-repeat-card, radius 6 은
    .register-consent-block 이 갖는다(마크업에서 병기).
