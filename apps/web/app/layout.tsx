@@ -305,14 +305,12 @@ button,input,select,textarea{font:inherit}
 .page-backbar:has(.page-back){width:100%;max-width:var(--page-max);margin-inline:auto;padding:var(--space-8) var(--page-pad-x) 0}
 /* 뒤로 알약 아래는 별도 탐색 구획이다. 본문 제목이 버튼에 붙어 보이지 않도록 40 을 둔다. */
 .page-backbar:has(.page-back)+.page-content{padding-top:var(--space-10)}
-/* 뒤로가기도 버튼이다(2026-08-04 Q, 구 투명 텍스트 대체. 형태는 2026-08-07 직사각 radius 6,
-   구 알약 대체). 옷은 **일반(neutral)**
-   그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
-   그레이, 컬러는 중요 행동만). 테두리는 카드 아웃라인과 같은 --line 이다(2026-08-07 Q
-   "뒤로 아웃라인을 카드 div 아웃라인과 맞출 것" — neutral 버튼과 같은 개정).
-   꺽쇠와 글자 사이는 6이다. 왼쪽 패딩 12, 오른쪽 16은 실제 잉크 여백을 각각 16.9px,
-   17px로 맞춘 값이다(2026-09-02 Q align-check, 구 좌우 16 대체).
-   --button-fill은 .wire-button과 같은 지역 변수 패턴이다. */
+/* 뒤로가기도 글자 버튼이다(2026-08-04 Q, 구 투명 텍스트 대체). 전역 버튼 계약에 따라
+   radius pill, --panel 면, --gradient-brand 1px 아웃라인을 쓴다(2026-08-25·26 Q,
+   구 직사각 radius 6과 무채색 --line 테두리 대체). 꺽쇠와 글자 사이는 6이다.
+   왼쪽 패딩 12, 오른쪽 16은 실제 잉크 여백을 각각 16.9px, 17px로 맞춘 값이다
+   (2026-09-02 Q align-check, 구 좌우 16 대체). --button-fill은 .wire-button과 같은
+   지역 변수 패턴이다. */
 .page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-4) 0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 /* 공용 꺽쇠의 기본 --sub 대신 버튼 라벨과 같은 currentColor를 쓴다. 구 Icon 색 계약 유지. */
 .page-back .wire-chevron{--chevron-color:currentColor}

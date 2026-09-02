@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
@@ -276,8 +276,13 @@ describe('정렬 하니스 생성기', () => {
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
     const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
+    const pretendardCssUrl = pathToFileURL(join(
+      process.cwd(),
+      'node_modules/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css',
+    )).href;
     const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>정렬 하니스</title>
+<link rel="stylesheet" href="${pretendardCssUrl}">
 <style>${tokens}</style>
 <style>${runtimeCss}</style>
 <style>body{background:var(--canvas)}</style>
@@ -302,5 +307,6 @@ describe('정렬 하니스 생성기', () => {
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(join(OUT_DIR, 'align.html'), html);
     expect(html).toContain('--text-sm');
+    expect(html).toContain('pretendardvariable-dynamic-subset.css');
   });
 });

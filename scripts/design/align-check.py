@@ -297,6 +297,11 @@ def main() -> int:
         for (width, height), group in groups.items():
             page.set_viewport_size({"width": width, "height": height})
             page.goto(harness.as_uri())
+            page.evaluate("() => document.fonts.ready")
+            if not page.evaluate("""() => document.fonts.check('14px "Pretendard Variable"')"""):
+                print("정렬 하니스가 제품 글꼴 Pretendard Variable을 불러오지 못했다.")
+                browser.close()
+                return 1
             batch = page.evaluate(CHECK_JS, group)
             for result in batch:
                 result["viewport"] = f"{width}x{height}"
