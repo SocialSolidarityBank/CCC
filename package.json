@@ -1,6 +1,6 @@
 {
   "name": "ccc",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "packageManager": "pnpm@11.5.3",
   "engines": {
