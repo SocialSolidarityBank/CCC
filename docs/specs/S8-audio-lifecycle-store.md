@@ -1,8 +1,8 @@
 # S8: 원음 생명주기와 AudioStore
 
 - 상태: 확정 (2026-09-03)
-- 근거: ADR-0041 D76, D77, D81, D83; ADR-0042 D84의 read-only preflight 범위
-- 입력: `ADR-0041`, `ADR-0042`, `CCC_OPEN_PILOT_PLAN.md`의 공통 포트·SG8·E1-3·E5-6·E6-3·E7-1a·E8-9 계약
+- 근거: ADR-0041 D76, D77, D81, D83; ADR-0042 D84의 read-only preflight 범위; ADR-0043 D85
+- 입력: `ADR-0041`, `ADR-0042`, `ADR-0043`, `CCC_OPEN_PILOT_PLAN.md`의 공통 포트·SG8·E1-3·E5-6·E6-3·E7-1a·E8-9 계약
 - 산출: 세 모드가 공유하는 `AudioStore` 스트리밍 포트, 원음 상태 기계, 삭제 증거와 계약 fixture
 - 관련 티켓: E1-3, E5-6, E6-3, E7-1a, E8-9
 
@@ -129,16 +129,16 @@ Cloud upload target과 Local의 직접 `put`은 **유효한 recording consent와
 | 현재 | 사건·원자 조건 | 다음 | 실패·경합 처리 |
 |---|---|---|---|
 | 없음 | recording/external-STT consent 유효 + 현재 healthy·eligible·capacity 있는 Agent 확인을 포함한 upload admission CAS 성공 후 intent 생성 | `pending_upload` | admission 실패면 원음 object를 만들지 않고 manual-note outbox만 공식 기록 |
-| `pending_upload` | target upload 완료 후 길이·MIME 검증 | `available` | client hash는 `client_asserted_sha256`에만 저장 |
+| `pending_upload` | target upload 완료 후 길이·MIME 검증과 upload 시점에 capture한 recording/external-STT consent revision/effectiveness 재검사 | `available` | consent가 withdrawn/stale하거나 검증 실패면 `available`로 만들지 않고 `deletion_pending` (`consent_withdrawal` 또는 `rejected_upload`)로 즉시 cleanup; Cloud는 signed target expiry+60s까지 late/replayed bytes를 재조정 |
 | `pending_upload` | 부분·wrong MIME·wrong length·target expiry, object가 있거나 cleanup 필요 | `deletion_pending` (`rejected_upload`/`upload_abandoned`) | objectSha는 trusted re-hash 전 null; same deletion evidence/retry path |
 | `deletion_pending` (`rejected_upload`/`hash_mismatch`/`upload_abandoned`) | target expiry+60s 뒤 fresh four booleans true | `upload_abandoned` | 실제 Agent re-hash가 없을 때만 null hash 허용 |
 | `available` | business-day gate 후 eligible Agent가 이 object의 claim CAS에 성공하고 configured STT provider가 healthy+capacity 있으며 recording/external-STT consent version이 CAS에 포함됨 (`retention_hard_cap_at > now`, `processing_deadline_at IS NULL OR processing_deadline_at > now`) | `claimed` 및 `first_agent_available_at` 기록 | 빈/global poll, STT off, unhealthy provider, capacity 없음, stale/withdrawn consent, 다른 object claim 실패는 기회를 만들지 않음 |
 | `claimed` | claim owner가 Agent re-hash를 성공하고 processing-start CAS (`retention_hard_cap_at > now`, `processing_deadline_at > now`, consent version current) | `processing` | hash mismatch는 `deletion_pending` (`hash_mismatch`), provider call 0회, 늦은/비소유 start 거부 |
 | `claimed` | lease 만료 recovery, deadline 전 | `available` | claim token 폐기·재claim 허용; first availability/deadline 보존 |
-| `available`/`claimed`/`processing` | consent withdrawal CAS 승리 | `deletion_pending` (`consent_withdrawal`) | 즉시 delete/unlink intent·incident/manual-note outbox, 새 mint/provider call 0회 |
-| `processing` | permanent provider/processing failure | `deletion_pending` (`processing_failed`) | result commit 전이면 processed deletion 금지; manual note 제공 |
+| `pending_upload`/`available`/`claimed`/`processing` | consent withdrawal CAS 승리 | `deletion_pending` (`consent_withdrawal`) | 즉시 delete/unlink intent·incident/manual-note outbox, 새 mint/provider call 0회 |
+| `available`/`claimed`/`processing` | `processing_deadline_at` 도달; claim/processing token·lease·download token을 원자적으로 revoke | `deletion_pending` (`unprocessed_expiry`) | 즉시 delete/unlink; admin incident와 manual-note outbox를 같은 DB batch에 기록; CAS 승자만 가능, late claim/start/result는 거부 |
 | `available`/`claimed`/`processing` | retry budget 소진 | `deletion_pending` (`retry_exhausted`) | committed result/deletion intent 중복 0건; manual note 제공 |
-| `available`/`claimed`/`processing`/`deletion_pending` | `retention_hard_cap_at` 도달; claim/processing token 무효화 | `deletion_pending` (`retention_hard_cap`) | opportunity/result 유무와 무관하게 CAS 승자만 원음 delete; incident/manual-note outbox를 함께 기록 |
+| `pending_upload`/`available`/`claimed`/`processing`/`deletion_pending` | `retention_hard_cap_at = uploaded_at + 7*24h` UTC 도달; claim/processing lease와 download token을 원자적으로 revoke | `deletion_pending` (`retention_hard_cap`) | opportunity/result 유무와 무관하게 CAS 승자만 원음 delete; 즉시 delete/unlink와 admin incident/manual-note outbox를 같은 DB batch에 기록 |
 | `processing` | successful STT/result commit **및 processed deletion intent를 같은 DB batch/outbox 경계에서** 기록 | `deletion_pending` (`processed`) | input/hash verification만으로 deletion intent를 만들지 않음; commit 직후 delete/unlink 요청 |
 | `deletion_pending` | reason별 즉시 delete/unlink 후 adapter propagation wait와 generation-bound fresh delete/list/metadata/direct-read cycle four true | `processed_deleted` (`processed`) / `unprocessed_expired` (`unprocessed_expiry`, `consent_withdrawal`, `processing_failed`, `retry_exhausted`) / `upload_abandoned` (`rejected_upload`, `hash_mismatch`, `upload_abandoned`) / `retention_capped` (`retention_hard_cap`) | terminal CAS 한 번만 성공; incident/manual obligations가 함께 durable해야 함 |
 | `deletion_pending` | boolean 일부 false, timeout, generation mismatch, evidence write 실패 | `deletion_pending` | 5분 주기 retry, exponential backoff max 1h+alert; false completion 0건 |
@@ -188,7 +188,7 @@ R2 adapter는 E1-3의 계약/reference fixture로만 유지하며 Community Clou
 - [ ] exact state machine에서 upload admission, claim/start/deadline/cap CAS, active-claim preemption, result-commit-before-delete, failed-upload cleanup, closed reason-to-terminal mapping, startup/reconcile race가 닫혀 있다.
 - [ ] 네 fresh deletion boolean, generation/attempt binding, adapter별 acceptance/absence evidence, per-delete propagation wait와 false terminal 금지가 완결되어 있다.
 - [ ] expiry/consent-withdrawal/incident/manual-note outbox가 같은 DB batch에서 durable하고 idempotent하며 D8 재녹음·provider fallback이 없다.
-- [ ] 아래 fixture 14종의 입력·기대 state/evidence/권한 결과와 검증 명령·실패 판정이 §6에 있다.
+- [ ] 아래 fixture 16종의 입력·기대 state/evidence/권한 결과와 검증 명령·실패 판정이 §6에 있다.
 
 ## 6. 검증 방법
 
@@ -214,12 +214,14 @@ R2 adapter는 E1-3의 계약/reference fixture로만 유지하며 Community Clou
 | A8 no-poll watchdog | Agent successful poll 없음, 6h/24h watchdog, 7*24h UTC cap 도달 | 6h alert 1건 후 daily alert; cap 전 deadline/terminal 임의 생성 없음; cap에서 retention deletion+incident/manual-note outbox; manual note 1건, 재녹음 CTA 0건 |
 | A9 immediate result deletion | claim Agent re-hash PASS, STT result commit+processed intent same batch | input/hash 확인만으로 delete 0건; result commit 직후 모든 adapter에서 delete/unlink 요청; fresh four true 뒤 `processed_deleted` |
 | A10 forged hash | Cloud client asserts wrong hash; first claim re-hash mismatch | provider call 0회, client/actual hash 각각 보존, trusted object hash mismatch cleanup `deletion_pending(hash_mismatch)`; manual note, 재녹음 CTA 0건 |
-| A11 claim/start/deadline race | two eligible Agents, active claim at deadline, delayed scheduler, active processing, late result | one CAS winner; deadline/cap preempts active claimed/processing; late claim/start/result reject; committed result/deletion intent duplicate 0건(외부 call exact-once는 요구하지 않음) |
+| A11 claim/start/deadline race | two eligible Agents, active claim at deadline, delayed scheduler, active processing, late result | one CAS winner; deadline/cap preempts active claimed/processing with `unprocessed_expiry` or `retention_hard_cap` reason; late claim/start/result reject; committed result/deletion intent duplicate 0건(외부 call exact-once는 요구하지 않음) |
 | A12 deletion/reconcile crash | delete/unlink 뒤 evidence write crash, one fresh absence false, generation reappearance, restart | stale true 재사용 0건; journal 복구·5m retry·max1h alert; same attempt/outbox idempotent; fresh four true+generation match일 때만 terminal; duplicate incident/note 0건 |
 | A13 upload admission | recording 또는 external-STT consent 없음, healthy eligible Agent 없음, provider unhealthy/capacity 없음 | upload target/직접 put reject; 원음 object 0건; manual-note outbox 1건; client/body가 Storage에 도달하지 않음 |
-| A14 consent and cap race | URL mint 뒤 withdrawal, claim/start withdrawal race, result 직전 withdrawal, `uploaded_at+7d` exact boundary | 새 mint/provider call 0건 after withdrawal CAS; bounded URL residual만 audit; cap CAS가 active lease/result와 무관하게 승리; reason별 terminal mapping과 four fresh evidence 적용 |
+| A14 consent and cap race | URL mint 뒤 withdrawal, claim/start withdrawal race, result 직전 withdrawal, `uploaded_at+7d` exact boundary | 새 mint/provider call 0건 after withdrawal CAS; bounded URL residual만 audit; cap CAS가 active lease/result와 무관하게 `retention_hard_cap`으로 승리; reason별 terminal mapping과 four fresh evidence 적용 |
+| A15 mint-withdraw-late-upload | Cloud upload target mint 후 consent 철회, signed target을 재사용한 late upload와 completion | consent revision 재검사 실패, `available` 전이·STT call 0건; late bytes는 `consent_withdrawal` cleanup; target expiry+60s 뒤 fresh four evidence |
+| A16 local-midstream-withdrawal | Local `put` streamed body 중간에 consent 철회 | stream abort/discard, `available` 전이·STT call 0건; `consent_withdrawal` incident/manual-note outbox; 원음 orphan 0건 |
 
-A1~A14 중 하나라도 four boolean이 fresh true가 아닌 상태에서 terminal을 만들거나, upload+24h로 A7을 삭제하거나, `uploaded_at + 7*24h` UTC cap을 넘기거나, retention cap 사유가 아닌데 full opportunity window 전에 삭제하거나, human/public/long URL·stale consent call·re-record CTA·provider automatic fallback이 관찰되면 suite와 `guard:audio-lifecycle`은 실패한다. 기존 assertion 삭제·skip·완화도 실패다.
+A1~A16 중 하나라도 four boolean이 fresh true가 아닌 상태에서 terminal을 만들거나, upload+24h로 A7을 삭제하거나, `uploaded_at + 7*24h` UTC cap을 넘기거나, retention cap 사유가 아닌데 full opportunity window 전에 삭제하거나, human/public/long URL·stale consent call·re-record CTA·provider automatic fallback이 관찰되면 suite와 `guard:audio-lifecycle`은 실패한다. 기존 assertion 삭제·skip·완화도 실패다.
 
 ## 7. 이번에 안 하는 것
 
