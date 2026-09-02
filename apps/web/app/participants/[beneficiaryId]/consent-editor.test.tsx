@@ -1,13 +1,13 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
-import { ConsentEditor } from './page';
-import type { ParticipantProgram } from '../../lib/api';
+import { ConsentEditor, participantHeroDetails } from './page';
+import type { ParticipantHubDetail, ParticipantProgram } from '../../lib/api';
 
 // page.tsx 가 lib/api 를 import 하므로 모듈 로드가 server-only·@opennextjs/cloudflare 변환에
 // 걸린다. ConsentEditor 는 API 를 쓰지 않으므로 최소 목만 둔다(settings/page.test.tsx 패턴).
 vi.mock('../../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
-  getParticipantDetail: vi.fn(),
+  getParticipantHubDetail: vi.fn(),
 }));
 vi.mock('../../lib/display-labels', () => ({ getDisplayLabels: vi.fn() }));
 vi.mock('../../actions', () => ({ updateParticipantConsentAction: vi.fn() }));
@@ -30,6 +30,20 @@ function program(consent: ParticipantProgram['consent']): ParticipantProgram {
     upcomingSchedule: null,
   };
 }
+
+describe('당사자 정보 HERO 항목', () => {
+  it('이름이 없으면 제목 폴백과 같은 가명 ID를 정보 격자에 반복하지 않는다', () => {
+    const detail: ParticipantHubDetail = {
+      beneficiaryId: 'swallow-003',
+      name: null,
+      phone: '010-1234-5678',
+      email: 'participant@example.test',
+      programs: [],
+    };
+
+    expect(participantHeroDetails(detail).map((item) => item.label)).toEqual(['연락처', '이메일']);
+  });
+});
 
 // D49: 동의 수정 허브는 **철회가 사는 유일한 자리**다(D44). 체크박스 이름이 서버 액션의
 // `checkbox(formData, 'consentRecordingAi')` 와 어긋나면 값이 빈 것으로 읽혀 조용히 철회가

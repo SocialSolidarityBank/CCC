@@ -283,15 +283,18 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    레시피는 아래 .wire-status-tag 가 소유한다). 줄바꿈 금지만 HERO 한정으로 남긴다. */
 .participant-hero-title .wire-status-tag{white-space:nowrap}
 .participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-.participant-hero-inline-item{display:inline-flex;align-items:baseline;gap:var(--space-3);white-space:nowrap}
-/* 연락처와 가명 ID 는 이름을 보조하는 읽기 전용 값이다. 두 조각 모두 14/400 --sub 로
-   통일해 당사자 카드와 정보 허브 사이 크기 회귀를 막는다(2026-08-31 Q). */
+/* 당사자 정보 허브의 라벨형 정보 격자. 세 칸을 기본으로 쓰고 항목이 늘면 다음 줄로 흐른다.
+   라벨과 값은 WireField(stack, sm)가 14/600 민트 + 14/400 잉크 계약으로 만든다. */
+.participant-hero-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-5) var(--space-6);min-width:0}
+/* 기존 한 줄 메타의 연락처는 이름을 보조하는 14/400 --sub 값이다. */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
+/* 기본정보 수정은 공통 HERO가 아닌 페이지 제목 줄 예외라 ID를 이름 옆에 유지한다. */
 .participant-hero-id{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
 /* 767 이하도 이름 크기는 데스크톱과 같다(row 16, hero·hub 18. 2026-08-27 두 단 분리로
    구 '모바일 18 강제'가 무의미해짐). 정보와 메타는 설명 단으로 정리한다. */
 @media(max-width:767px){
   .participant-hero-title{gap:var(--space-2);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-normal)}
+  .participant-hero-details{grid-template-columns:minmax(0,1fr)}
   .participant-hero-meta .wire-meta-row{flex-direction:column;align-items:flex-start;gap:var(--space-1)}
   .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
 }
@@ -358,9 +361,10 @@ details.surface-card[open]>.record-summary .wire-badge:not([data-tone]),
    리스트업 단순화로 삭제 — 행에 버튼이 없어져 잠금을 설명할 대상도 없다. */
 /* 동의 2종 수정(D44 · 항목 수는 D49). 등록 폼의 consent-fieldset 를 그대로 재사용하고 카드 안 간격만 준다. */
 .participant-program-consent{min-width:0;max-width:100%;margin-top:0}
-/* 반복 행 카드가 상하 16px을 이미 갖는다. 마지막 기록의 옛 아래 마진을 더하면 하단만
-   12px 두꺼워지므로, 메타 줄은 위 분리 여백만 갖고 카드 하단은 부모 패딩에 맡긴다. */
-.participant-program-consent-meta{margin:var(--space-2) 0 0;color:var(--sub);font-size:var(--text-sm)}
+/* 반복 행 카드가 상하 16px을 이미 갖는다. 이 메타 줄의 실제 글자와 앞 체크 행의 글자 간격은
+   체크 행끼리의 20px과 같아야 한다. fieldset gap 12에 2px만 더하면 잉크 간격이 20px이다
+   (2026-09-02 Q 픽셀 실측, 구 margin-top 8은 26px으로 벌어졌다). */
+.participant-program-consent-meta{margin:var(--space-0-5) 0 0;color:var(--sub);font-size:var(--text-sm)}
 /* 동의서 카드 안 사업별 묶음 — 사업이 여럿일 때만 머리(사업명)가 선다. 묶음 사이는
    행마다 카드다(2026-08-29 Q — 구 --line 구분선 대체). 묶음 안 fieldset 의 자체 윗선은
    끈다(카드 테두리와 겹쳐 이중선이 된다). */
@@ -1189,12 +1193,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .register-consent .schedule-form-hint{margin-block:0}
 .register-card .schedule-form-hint{max-width:none}
 /* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한
-   상자다. 상자는 공용 .wire-repeat-card(마크업에서 병기)가 갖고, 여기는 배치와 radius 만
-   남는다(2026-08-30 CCC-90 스윕 — 구 자기 복제본 대체. 패딩 16/24 통일은 guard:align
-   상자 패딩 검사가 강제한다). radius 6 은 카드 안 묶음 상자 어휘라 레시피의 12 를 이
-   자리만 덮는다(DESIGN.md §5 예외 2 — 같은 시트 뒤 순서라 이긴다). 그림자 금지(Y10)는
-   그대로다. */
+   상자다. 상자는 공용 .wire-repeat-card(마크업에서 병기)가 갖고, 여기는 배치와 radius만
+   남는다(2026-08-30 CCC-90 스윕). 패딩 16/24는 guard:align이 강제한다. */
 .register-consent-block{display:grid;gap:var(--space-3);border-radius:var(--radius-control)}
+/* 안내문은 다중행 본문이라 body 행간 1.55를 유지한다. 같은 12px grid gap을 쓰면 반행간이
+   더해져 첫 체크와의 실제 글자 간격이 16.69px, 체크끼리는 14px이 된다. 안내 뒤 gap만 10px,
+   둘째 체크는 2px을 보태 실제 글자 간격을 14±1px로 맞춘다(2026-09-02 Q 픽셀 실측). */
+.register-consent-block:not(.consent-emergency):has(>.schedule-form-hint){gap:var(--space-2-5)}
+.register-consent-block:not(.consent-emergency)>.consent-checkbox+.consent-checkbox{margin-top:var(--space-0-5)}
 /* 긴급 등록이 상자가 되면서 구 위 가로선은 상자 테두리가 대신한다. padding-top:0 잔재는
    걷는다(2026-08-30 Q "여백 통일" — 상자 패딩 16/24 는 공용 .wire-repeat-card 가 갖는다). */
 .register-consent .consent-emergency{background:none}

@@ -2,9 +2,9 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import {
   ApiError,
-  getParticipantDetail,
+  getParticipantHubDetail,
   getParticipantGoalTree,
-  type ParticipantDetail,
+  type ParticipantHubDetail,
   type ParticipantGoalTreeCase,
   type ParticipantProgram,
   type ParticipantProgramType,
@@ -13,7 +13,7 @@ import { isBeneficiaryId } from '../../../../../db/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageLoading } from '../../components/wire/page-loading';
 import { PageTitle } from '../../components/wire/page-title';
-import { ParticipantHeroCard } from '../../components/wire/participant-hero-card';
+import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../components/wire/participant-hero-card';
 import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
 import { Chevron, DisclosureChevron } from '../../components/wire/chevron';
 import { WireBadge } from '../../components/wire/wire-badge';
@@ -302,8 +302,24 @@ const NOTICES: Record<string, string> = {
   consent_updated: '동의 내용을 저장했습니다.',
 };
 
+export function participantHeroDetails(detail: ParticipantHubDetail): ParticipantHeroDetail[] {
+  const items: ParticipantHeroDetail[] = [];
+  // 이름이 없으면 ParticipantName이 가명 ID를 제목으로 쓰므로 정보 격자에서 반복하지 않는다.
+  if (detail.name !== null && detail.name.length > 0) {
+    items.push({ label: '당사자 ID', value: detail.beneficiaryId });
+  }
+  if (detail.phone !== null && detail.phone.length > 0) {
+    items.push({ label: '연락처', value: detail.phone });
+  }
+  if (detail.email !== null && detail.email.length > 0) {
+    items.push({ label: '이메일', value: detail.email });
+  }
+  return items;
+}
+
+
 async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
-  detail: ParticipantDetail;
+  detail: ParticipantHubDetail;
   /** 목표 트리(D62 §8 · CCC-69) — 담당 케이스만 온다(게이트웨이가 D36 범위를 강제). */
   goalTree: ParticipantGoalTreeCase[];
   /** 목표 조회만 실패했다 — 목표 카드 자리에 오류 한 줄을 남긴다(허브는 그대로 선다). */
@@ -331,6 +347,8 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
   const consentPrograms = programs.filter((program) => program.authorized);
 
   const noticeText = notice === undefined ? undefined : NOTICES[notice];
+  const heroDetails = participantHeroDetails(detail);
+
 
   return (
     <main className="page-content participant-hub-page">
@@ -340,16 +358,14 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
         {noticeText !== undefined && (
           <WireBadge role="status" aria-live="polite">{noticeText}</WireBadge>
         )}
-        {/* ParticipantHeroCard (D38 · D59 개편 2026-08-04): 허브는 케이스가 교차하는 화면이라
-            단일 상태가 없어 상태 태그를 생략한다(슬롯 ②).
-            이름은 데스크톱 24, 767 이하는 18 이다. 연락처·가명 ID 는 구분선 아래 정보 행이다
-            (2026-08-07 Q 위계 개편 — 부품이 배치를 갖는다). */}
+        {/* ParticipantHeroCard (D38, 2026-09-02 Q A안): 허브는 케이스가 교차하는 화면이라
+            단일 상태 태그를 생략한다. 이름 아래 정보 격자는 ID·연락처·이메일을 세 칸에 두고,
+            값이 없으면 그 항목을 접는다. 항목이 늘면 다음 줄, 모바일에서는 한 열로 흐른다. */}
         <ParticipantHeroCard
           name={detail.name}
           beneficiaryId={detail.beneficiaryId}
-          showId
           nameSize="hub"
-          {...(detail.phone !== null && detail.phone.length > 0 ? { contact: detail.phone } : {})}
+          details={heroDetails}
           // 기본정보 수정(CCC-37)은 당사자 단위라 행동 슬롯(④)에 둔다. 인테이크 기록도
           // 같은 슬롯이다(2026-08-06 Q) — 세컨더리 2개, D38 상한(버튼 최대 2개) 안이다.
           actions={
@@ -442,7 +458,7 @@ async function ParticipantContent({ beneficiaryId, notice }: { beneficiaryId: st
     // 허브 전체를 오류 화면으로 바꾸면 안 된다(D8 폴백 태도). 접근·인증 오류는 삼키지
     // 않는다: 상세 조회가 같은 판정을 내리므로 페이지 판정과 어긋날 수 없다.
     const [detail, goalTreeResult] = await Promise.all([
-      getParticipantDetail(beneficiaryId),
+      getParticipantHubDetail(beneficiaryId),
       getParticipantGoalTree(beneficiaryId).then(
         (cases) => ({ cases, failed: false }),
         (error: unknown) => {

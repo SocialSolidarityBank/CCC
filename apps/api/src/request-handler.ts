@@ -109,6 +109,7 @@ import {
   listPrivacyConsentFollowUps,
   listParticipantPiiRetentionReviews,
   listSupportCasesForBeneficiary,
+  type ParticipantProgramList,
   listUsers,
   loadAiCallMaterialsForService,
   markCounselingScheduleNoShow,
@@ -1043,8 +1044,8 @@ function assignedParticipantResponse(participant: AssignedParticipant) {
 }
 
 function participantProgramResponse(
-  entry: Awaited<ReturnType<typeof listSupportCasesForBeneficiary>>['programs'][number],
-  participant: Awaited<ReturnType<typeof listSupportCasesForBeneficiary>>['participant'],
+  entry: ParticipantProgramList['programs'][number],
+  participant: ParticipantProgramList['participant'],
 ) {
   const { supportCase } = entry;
   return {
@@ -1055,7 +1056,7 @@ function participantProgramResponse(
     intakeAt: supportCase.intakeAt,
     creationKind: supportCase.creationKind,
     sourceSupportCase: null,
-    // D24·ADR-0005: 당사자 상세는 실명·연락처를 기본 표시. 한 당사자의 프로그램들이라 값은 동일.
+    // 일반 사업 목록 소비자는 실명·연락처만 받는다. 이메일은 hub 응답에서만 직렬화한다.
     participantName: participant.name,
     participantPhone: participant.phone,
     // D36: 내가 담당하지 않는 사업도 목록에 나오되 상담 내용으로는 들어갈 수 없다.
@@ -1074,6 +1075,19 @@ function participantProgramResponse(
     consentRecordedAt: entry.consentRecordedAt,
     // 허브 '최신 일정' 카드(2026-08-06 Q). 담당 사업에만 실리고 비담당은 null 이다(D36).
     upcomingSchedule: entry.upcomingSchedule,
+  };
+}
+
+function participantHubResponse(
+  beneficiaryId: string,
+  programList: ParticipantProgramList,
+) {
+  return {
+    beneficiaryId,
+    participantName: programList.participant.name,
+    participantPhone: programList.participant.phone,
+    participantEmail: programList.participant.email,
+    programs: programList.programs.map((program) => participantProgramResponse(program, programList.participant)),
   };
 }
 
@@ -2307,6 +2321,16 @@ export async function handleRequest(
     }
     if (parts[0] === 'participants' && parts[1] !== undefined) {
       const beneficiaryId = requireBeneficiaryId(parts[1]);
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'hub') {
+        requestQuery(url, []);
+        const programList = await listSupportCasesForBeneficiary(
+          env,
+          actor,
+          beneficiaryId,
+          { includeEmail: true },
+        );
+        return json(participantHubResponse(beneficiaryId, programList));
+      }
       if (
         request.method === 'GET'
         && parts.length === 3

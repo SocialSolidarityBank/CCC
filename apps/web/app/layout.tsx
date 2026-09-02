@@ -49,12 +49,11 @@ button,input,select,textarea{font:inherit}
 /* 메뉴 묶음만 내부 스크롤 담당(min-height:0 이 없으면 flex 아이템이 내용 높이를 고집해
    안 줄어든다). 2026-08-30 Q 3차로 스크롤 주인이 목록에서 묶음 래퍼로 옮겼다 — 목록이
    묶음마다 하나씩 있어 어느 하나가 스크롤을 맡을 수 없다.
-   **-12 되밀기는 이 스크롤 컨테이너가 갖는다**(2026-08-30 Q 4차 수리): 자식(목록·묶음 머리)에
-   두면 내용이 컨테이너보다 24 넓어져 overflow-y:auto 가 가로축까지 auto 로 승격되고,
-   가로 스크롤바가 생기며 활성 알약 오른쪽이 잘린다(실측 client 232 / scroll 244).
-   컨테이너 자신이 되밀면 자식은 안에 들어오고, 사이드바는 overflow:visible 이라 12 만 넘쳐
-   보인다. 잘림도 스크롤바도 없다. */
-.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start;margin-inline:calc(var(--space-3) * -1)}
+   **-8 되밀기는 이 스크롤 컨테이너가 갖는다**(2026-09-02 Q 실측 개정, 구 -12 대체).
+   280px 사이드바 안 선택·호버 상자를 248px로 줄여 좌우 16px 여백을 만들면서, 자식의
+   좌우 패딩을 8px로 줄여 아이콘·글자 시작선 24px은 그대로 유지한다. 자식에 음수 마진을
+   두면 overflow-y:auto가 가로축까지 auto로 승격되어 상자가 잘리므로 컨테이너가 되민다. */
+.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start;margin-inline:calc(var(--space-2) * -1)}
 .navigation-link{display:flex;align-items:center;gap:var(--space-2)}
 /* CCC-26: 새 가입 숫자 배지는 메뉴 라벨 뒤가 아니라 trailing chip 자리(준비 중과 같은 우측 끝)에 둔다. */
 .navigation-link>.wire-badge{margin-left:auto}
@@ -123,20 +122,19 @@ button,input,select,textarea{font:inherit}
 /* (구 2026-08-04 :has z-lift 규칙은 2026-08-05 에 걷었다 — 데스크톱 전환기가 상단 헤더로
    옮겨 가, 팝업이 sticky 사이드바의 스태킹 컨텍스트에 갇히는 문제 자체가 사라졌다.
    헤더는 z-sticky 라 팝업(z-dropdown)이 본문 위에 선다. 드로어(768 미만)는 z-modal 그대로다.) */
-/* 좌우 -12(--space-3)는 항목의 안쪽 패딩만큼 알약을 되밀어 **아이콘·글자가 사이드바
-   좌측선(패딩 24)에 서게** 한다(2026-08-04 Q — 기관 마크·'사업' 라벨·선택창 상자와 한 줄).
-   알약 배경은 12까지 삐져나오지만 콘텐츠 정렬이 우선이다.
+/* 좌우 -8(--space-2)은 280px 사이드바 안 선택·호버 상자를 248px로 줄여 좌우 16px 여백을
+   만든다(2026-09-02 Q 픽셀 실측). 항목과 묶음 머리의 안쪽 패딩도 8이라 아이콘·글자는
+   기존 사이드바 본문 시작선 24px에 그대로 선다.
    **되밀기는 목록이 아니라 스크롤 컨테이너(.navigation-groups)가 갖는다**(2026-08-30 Q 4차
-   수리, 위 규칙 참조: 자식이 되밀면 스크롤 컨테이너에서 가로 넘침이 되어 알약이 잘렸다).
-   목록과 묶음 머리는 그 안에서 패딩 12 만으로 같은 축에 선다. */
+   수리 유지): 자식이 되밀면 스크롤 컨테이너에서 가로 넘침이 되어 상자가 잘린다. */
 /* 항목 사이 여백은 8 이다(2026-08-30 Q "각 ROW 여백을 늘려서 조율" — 구 4 는 층 구분 없이
    빽빽했다. 같은 날 Q 3차로 메뉴가 한 계층이 된 뒤에도 이 값 그대로다 — 층은 묶음 제목이
    말하고 묶음 사이 24 가 가른다). */
 .navigation-list{display:grid;gap:var(--space-2);padding:0;margin:0;list-style:none}
 /* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
    전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
-/* 높이는 '뒤로' 알약과 같은 32다. 첫 메뉴와 뒤로 버튼은 헤더 아래 32에서 함께 시작한다. */
-.navigation-link{min-height:var(--pill-height);padding:0 var(--space-3);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
+/* 선택·호버 상자는 입력 컨트롤과 같은 40px 높이다(2026-09-02 Q, 구 32). */
+.navigation-link{min-height:var(--control-height);padding:0 var(--space-2);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -174,15 +172,15 @@ button,input,select,textarea{font:inherit}
    제목은 **누를 수 없는 라벨**이라 항목(16/500)과 크기·굵기·색이 전부 갈린다(14/600 --sub,
    §1 단 ② 라벨). 셸 글자 하한 16 은 **누르는 내비 항목**의 계약이고 묶음 머리는 그 밖이다
    (DESIGN.md §2-1 '사이드바' 행 2026-08-30 개정 — 그 한 자리 예외다).
-   **제목은 항목과 같은 좌측 패딩 12 + 투명 테두리 1.5 를 받는다**(2026-08-30 검수 반영 ·
-   같은 날 4차 수리로 되밀기가 스크롤 컨테이너로 옮겨 마진은 0 이다): 항목은 활성 아웃라인
-   자리를 그 두께로 미리 예약하므로, 제목이 그것을 안 받으면 글자가 1.5 왼쪽에 선다.
+   **제목은 항목과 같은 좌측 패딩 8 + 투명 테두리 1.5를 받는다**(2026-09-02 Q, 구 12):
+   항목은 활성 아웃라인 자리를 그 두께로 미리 예약하므로, 제목이 그것을 안 받으면 글자가
+   1.5px 왼쪽에 선다.
    **글자는 그라데이션이다**(2026-08-30 Q 4차 "섹션 타이틀은 그라데이션 컬러 텍스트로 처리해서
    구분을 확실하게"): 면을 --gradient-deep 으로 깔고 글자 모양으로 잘라낸다(내비 호버가 쓰는
    것과 같은 기법). deep 쌍을 쓰는 이유는 base 쌍이 캔버스 위에서 더 흐리기 때문이다.
    측정값과 접근성 예외 기록은 DESIGN.md §9 에 있다. */
 .navigation-group{display:grid;gap:var(--space-2)}
-.navigation-section-title{margin:0;padding:0 var(--space-3);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);background:var(--gradient-deep);-webkit-background-clip:text;background-clip:text;color:transparent}
+.navigation-section-title{margin:0;padding:0 var(--space-2);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);background:var(--gradient-deep);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
 /* 데스크톱(768 이상): 머리(기관명)·사업 전환기·하단 묶음은 상단 헤더로 옮겨 갔다(2026-08-05 Q —

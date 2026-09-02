@@ -40,29 +40,32 @@ describe('ParticipantHeroCard', () => {
     expect(container.querySelector('h1 .participant-name')?.getAttribute('style')).toBeNull();
   });
 
-  it('당사자 정보 허브: 이름과 ID는 한 줄, 연락처는 다음 정보 줄에 둔다', () => {
+  it('당사자 정보 허브: 이름 아래 정보 격자에 ID, 연락처, 이메일과 추가 값을 둔다', () => {
     const { container } = render(
       <ParticipantHeroCard
         name="김미영"
         beneficiaryId="swallow-003"
-        contact="010-1234-5678"
-        showId
         nameSize="hub"
+        details={[
+          { label: '당사자 ID', value: 'swallow-003' },
+          { label: '연락처', value: '010-1234-5678' },
+          { label: '이메일', value: 'miyoung@example.org' },
+          { label: '담당 실무자', value: '김하늘' },
+        ]}
       />,
     );
 
     expect(container.querySelector('h1 .participant-name')?.textContent).toBe('김미영');
-    expect(container.querySelector('h1 .participant-hero-id')?.textContent).toBe('swallow-003');
-    expect(container.querySelector('h1 .participant-hero-contact')).toBeNull();
-    expect(container.querySelector('.participant-hero-meta .participant-hero-contact')?.textContent)
-      .toBe('010-1234-5678');
-    expect(container.querySelectorAll('.participant-hero-separator')).toHaveLength(0);
-    expect(container.querySelector('h1 .participant-hero-id')?.parentElement?.classList).toContain('participant-hero-inline-item');
-    expect(container.querySelector('h1 .participant-hero-id')?.parentElement?.previousElementSibling?.classList)
-      .toContain('participant-name-group');
+    expect(container.querySelector('h1 .participant-hero-id')).toBeNull();
+    expect(container.querySelectorAll('.participant-hero-details .wire-field-row')).toHaveLength(4);
+    expect(
+      [...container.querySelectorAll('.participant-hero-details .wire-field-label')].map((node) => node.textContent),
+    ).toEqual(['당사자 ID', '연락처', '이메일', '담당 실무자']);
+    expect(
+      [...container.querySelectorAll('.participant-hero-details .wire-field-value')].map((node) => node.textContent),
+    ).toEqual(['swallow-003', '010-1234-5678', 'miyoung@example.org', '김하늘']);
     expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
     expect(container.querySelector('h1 .participant-name-group')?.getAttribute('data-size')).toBe('hub');
-    expect(container.querySelector('h1 .participant-name')?.getAttribute('style')).toBeNull();
   });
 
   it('참여 사업 행은 전체 사업명을 보존하고 배지와 종결 버튼을 같은 머리에 둔다', () => {

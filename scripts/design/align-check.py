@@ -22,6 +22,7 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   chevron-xy: selectors=[꺽쇠 슬롯]. 내부 SVG path 잉크가 슬롯 정중앙이고 maxRatio보다 작은가.
   gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격과 선택 expectedGap을 잰다.
   inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 여백과 선택 expectedInset을 잰다.
+  text-gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 각 요소의 실제 글자 첫줄·끝줄 사이 간격을 잰다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
   width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
   size: selectors=[상자]. 렌더된 가로·세로가 expectedWidth·expectedHeight와 같은가.
@@ -101,6 +102,35 @@ CHECK_JS = r"""
       const gapOf = (top, bottom) => bottom.getBoundingClientRect().top - top.getBoundingClientRect().bottom;
       const first = gapOf(els[0], els[1]);
       const second = gapOf(els[2], els[3]);
+      const delta = Math.abs(first - second);
+      const expectedDelta = a.expectedGap === undefined
+        ? 0
+        : Math.max(Math.abs(first - a.expectedGap), Math.abs(second - a.expectedGap));
+      return {
+        name: a.name,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
+    if (a.axis === 'text-gap-pair') {
+      const els = a.selectors.map((sel) => document.querySelector(sel));
+      if (els.some((el) => !el)) return { name: a.name, pass: false, detail: '요소 없음' };
+      const textRects = (el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return [...range.getClientRects()];
+      };
+      const firstRects = textRects(els[0]);
+      const firstNextRects = textRects(els[1]);
+      const secondRects = textRects(els[2]);
+      const secondNextRects = textRects(els[3]);
+      if ([firstRects, firstNextRects, secondRects, secondNextRects].some((rects) => rects.length === 0)) {
+        return { name: a.name, pass: false, detail: '측정 가능한 글자 없음' };
+      }
+      const textGap = (topRects, bottomRects) => bottomRects[0].top - topRects.at(-1).bottom;
+      const first = textGap(firstRects, firstNextRects);
+      const second = textGap(secondRects, secondNextRects);
       const delta = Math.abs(first - second);
       const expectedDelta = a.expectedGap === undefined
         ? 0
