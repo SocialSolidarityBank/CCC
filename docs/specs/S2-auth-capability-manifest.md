@@ -59,7 +59,7 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 | 모드 | Bearer 발급·검증 | canonical Actor 매핑 |
 |---|---|---|
 | Community Cloud | Supabase Auth access JWT. 모든 human role은 `aal=aal2`인 세션만 업무 Actor로 허용한다. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT `aal=aal2` → `authn.assurance='aal2'`, source roles를 lossless `roles[]`에 담는다. `aal1`은 모든 human role에서 403 `mfa_required`다. |
-| Local Single | Electron 앱 잠금 후 local-service가 발급하는 opaque bearer. token hash만 보관하고 DPAPI handshake를 거친 요청만 발급한다. | 설치된 유일 human account의 `stableUserId → userId`, `authn.assurance='app-lock'`, source role bundle `institution-admin`, `technical-admin`, `worker`를 분리해 `roles[]`에 담는다. `multi_user=false`다. |
+| Local Single | Electron 앱 잠금 후 local-service가 발급하는 opaque bearer. token hash만 보관하고 DPAPI handshake를 거친 요청만 발급한다. | 설치된 유일 human account의 `stableUserId → userId`, bearer 발급 때 생성한 random opaque `sessionId → authn.sessionId`, `authn.assurance='app-lock'`, source role bundle `institution-admin`, `technical-admin`, `worker`를 분리해 `roles[]`에 담는다. `multi_user=false`다. |
 | Local Office | Argon2id 로컬 계정 로그인 후, privileged role이면 MFA를 완료한 뒤 local-service가 opaque bearer를 발급한다. | 로컬 `users.id → userId`, `orgId`는 설치 기관, 세션의 `sessionId` → `authn.sessionId`, `mfaVerifiedAt` → `authn.assurance='mfa'`, source roles를 `roles[]`에 담는다. |
 | 세 모드의 Agent | SG5 service principal이 pairing 후 발급하는 opaque bearer. 서버에는 hash와 installation binding만 두며 사람용 bearer와 섞지 않는다. | `kind='agent'`, `userId=agent:<installationId>`, `orgId`와 active 상태는 `agent_installations` 등록 행에서 읽고 `roles=['service']`로 투영한다. |
 | 기존 Access adapter | E2-7 cutover 전 E4-1이 현행 `Cf-Access-Jwt-Assertion`을 검증한다. 이 환경 adapter는 canonical final Bearer path 밖의 임시 business auth이며 E2-7 뒤 제거한다. | Access email/common_name을 기존 users directory에 대조해 lossless `Actor`로 투영하며, 기존 접근 판정과 미등록·inactive 403 동작을 바꾸지 않는다. |
@@ -142,7 +142,7 @@ Supabase logout, password reset, MFA 변경, 관리자 계정 비활성화는 re
 
 `stableUserId`는 첫 설치 시 CSPRNG로 생성한 UUIDv4(128 bit)다. SID, username, host, fingerprint, 네트워크 주소, 시간값으로 유도하지 않는다. DPAPI `CurrentUser`로 보호한 install record와 SG9 Recovery Kit에 저장하며 backup/restore와 새 PC 이전 뒤에도 같다. 이 값은 식별자이지 인증 비밀이 아니며 bootstrap, capability, 브라우저 저장소에 넣지 않는다.
 
-앱 잠금 passphrase는 local-service가 Argon2id hash로 확인하고 DPAPI 보호 install data에 둔다. Electron main은 DPAPI 보호 handshake secret과 endpoint record를 읽고 challenge를 생성한다. renderer가 passphrase를 받지 않으며, main이 loopback `POST /auth/unlock`에 one-time challenge proof와 `X-CCC-Install-Id`를 전송할 때만 local-service가 검증 후 bearer를 발급한다. loopback 밖의 unlock 요청, handshake 재사용, DPAPI record 불일치는 401이다. bearer와 handshake secret은 main process와 service의 memory에만 둔다.
+앱 잠금 passphrase는 local-service가 Argon2id hash로 확인하고 DPAPI 보호 install data에 둔다. Electron main은 DPAPI 보호 handshake secret과 endpoint record를 읽고 challenge를 생성한다. renderer가 passphrase를 받지 않으며, main이 loopback `POST /auth/unlock`에 one-time challenge proof와 `X-CCC-Install-Id`를 전송할 때만 local-service가 random opaque `sessionId`를 생성해 bearer를 발급한다. `revokeSession(sessionId, reason)`은 이 ID와 token hash를 함께 폐기한다. loopback 밖의 unlock 요청, handshake 재사용, DPAPI record 불일치는 401이다. bearer와 handshake secret은 main process와 service의 memory에만 둔다.
 
 ### 2.6 Cloud scheduler 경계
 
@@ -160,7 +160,7 @@ interface PublicBootstrap {
 }
 ```
 
-이 파일에는 서명 비밀, bearer, refresh token, Supabase service role key, `orgId`, `userId`, email, 기관명, capability 값과 사용자 데이터가 없다. unsigned bootstrap은 같은 static client origin의 고정 `ccc-install-manifest.json`을 가리키는 것 외에 다른 API 또는 manifest 주소를 가리키지 않는다. trusted 값은 설치기가 검증하는 signed install manifest로만 읽는다.
+이 파일에는 서명 비밀, bearer, refresh token, Supabase service role key, `orgId`, `userId`, email, 기관명, capability 값과 사용자 데이터가 없다. unsigned bootstrap은 같은 static client origin의 고정 `ccc-install-manifest.json`을 가리키는 것 외에 다른 API 또는 manifest 주소를 가리키지 않는다. `supabaseAuthOrigin`과 `supabasePublishableKey`는 bootstrap에 복사하지 않으며, client가 signed manifest 검증과 equality를 끝낸 뒤에만 직접 읽는다. trusted 값은 설치기가 검증하는 signed install manifest로만 읽는다.
 
 ```ts
 interface SignedInstallManifest {
@@ -177,12 +177,15 @@ interface SignedInstallManifest {
   publishedAt: string;
   expiresAt: string;
   approvedSttEngineIds: readonly string[]; // signed exact registry members; initial value []
+  supabaseProjectRef: string | null;     // Community Cloud만, apiBase와 동일 project ref
+  supabaseAuthOrigin: string | null;     // Community Cloud만 exact HTTPS origin
+  supabasePublishableKey: string | null; // public key, signed manifest에서만 읽음
   signingKeyId: string;
   ed25519Signature: string;       // RFC 8785 JCS 나머지 필드 서명
 }
 ```
 
-서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻는다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
+서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻는다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 signed `apiBase`의 project ref와 같아야 한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
 
 client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. `bootstrap.mode === signedManifest.mode === capabilities.mode`이어야 하며, Cloud/Office의 `bootstrap.apiBase === signedManifest.apiBase === effectiveApiBase`여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
 
@@ -267,11 +270,10 @@ Vary: Origin
 정적 client CSP는 다음을 사용한다.
 
 ```http
-Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' <apiBase> <supabaseAuthOrigin>; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; form-action 'self'
+Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' <signed apiBase> <signed supabaseAuthOrigin>; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; form-action 'self'
 ```
 
-third-party script, inline script, `eval`, 외부 font·image·frame은 0건이다. service worker는 정적 asset과 app shell만 cache하며 token·PII·API response는 cache하지 않는다. `localStorage`, `sessionStorage`, IndexedDB, Cache API, cookie, URL query/hash/path, crash dump, console, analytics에는 bearer·refresh token·PII를 저장하지 않는다. Cloud PWA는 Supabase client `persistSession=false`, `autoRefreshToken=true`로 memory-only session을 사용한다. reload와 새 tab은 login과 필요한 MFA를 다시 요구한다.
-Single은 DPAPI endpoint record를 renderer를 처음 만들기 전에 읽는다. main process가 `http://127.0.0.1:<discoveredPort>`를 signed host/scheme와 비교한 뒤 그 exact origin을 `connect-src`에 주입한 CSP로 첫 renderer document를 로드한다. broad loopback, wildcard, 나중에 바꾸는 CSP로 시작하지 않는다.
+third-party script, inline script, `eval`, 외부 font·image·frame은 0건이다. service worker는 정적 asset과 app shell만 cache하며 token·PII·API response는 cache하지 않는다. `localStorage`, `sessionStorage`, IndexedDB, Cache API, cookie, URL query/hash/path, crash dump, console, analytics에는 bearer·refresh token·PII를 저장하지 않는다. Cloud PWA는 Supabase client `persistSession=false`, `autoRefreshToken=true`로 memory-only session을 사용하며 client initialization은 signed manifest의 `supabaseAuthOrigin`, `supabasePublishableKey`만 사용한다. reload와 새 tab은 login과 필요한 MFA를 다시 요구한다.
 
 Electron은 `file://`와 `Origin: null`을 사용하지 않는다. `app.ready` 전에 다음처럼 `ccc`를 standard·secure scheme으로 등록하고 built client만 제공한다.
 
@@ -290,7 +292,7 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 
 1. invitation URL은 반드시 `/join#t=<token>` fragment를 사용한다. fragment는 static host, API log, Referer에 전송되지 않는다. 정적 HTML 응답과 Electron/local-service 문서에 `Referrer-Policy: no-referrer`와 `<meta name="referrer" content="no-referrer">`를 적용하고 exchange/complete fetch에도 `referrerPolicy: 'no-referrer'`를 지정한다.
 2. client는 fragment token을 읽어 `POST /public/join/exchange` body `{ token }`으로 한 번만 보낸다. 응답은 `{ joinKind, expiresAt, formSchemaVersion, nonce }`뿐이며 nonce는 invite ID에 묶인 CSPRNG 128 bit 이상, TTL 15분 이하, single-use다. URL은 즉시 `history.replaceState(null, '', '/join')`으로 scrub한다.
-3. `POST /public/join/complete` body `{ nonce, ...form }`은 최소 가입·동의 데이터만 저장한다. participant의 self-check 정보는 이 complete 응답에 한 번만 포함하며 별도 token 재사용 endpoint를 만들지 않는다. worker complete는 Cloud와 Local Office에서만 허용하며 Cloud에서는 Edge Function의 Supabase service-role admin invite로 Auth user를 만들고 `users.auth_subject`를 저장한 뒤 worker가 정상 로그인하도록 한다. Local Single의 worker invite는 `multi_user=false`이므로 403 `worker_join_unsupported`다. service-role key는 browser에 없다.
+3. `POST /public/join/complete` body `{ nonce, ...form }`은 최소 가입·동의 데이터만 저장한다. participant의 self-check 정보는 이 complete 응답에 한 번만 포함하며 별도 token 재사용 endpoint를 만들지 않는다. worker complete는 Cloud에서만 허용하며 Edge Function의 Supabase service-role admin invite로 Auth user를 만들고 `users.auth_subject`를 저장한 뒤 worker가 정상 로그인하도록 한다. Local Office는 E4-3이 nonce-bound invite exchange와 Argon2id credential creation을 확정하기 전까지 403 `worker_join_unsupported`이고, E4-3 final contract를 통과한 뒤에만 worker join을 연다. Local Single의 worker invite도 `multi_user=false`이므로 403 `worker_join_unsupported`다. service-role key는 browser에 없다.
 4. legacy `/invites/*` path token과 token 재사용 self-check는 E2-5c cutover 때 삭제한다. join token/nonce는 `GET /capabilities`, 케이스·상담·PII·Agent endpoint의 Bearer가 아니며 이 endpoint들은 401 또는 403이다. public join은 signed manifest 검증, bootstrap의 mode/apiBase equality, effective `apiBase` 확정 뒤에만 시작하며 capability를 조회하지 않는다.
 5. join page에는 third-party resource·analytics·external link가 없다. token 원문은 static/API 로그, errors, cache, Referer, history에 남지 않는다. 가입 완료 뒤 self-check에는 내 정보·참여 사업·담당 실무자·일정·동의 상태만 있고 상담 기록·요약·GAS·flag·기관 전체 목록은 없다.
 소유: join route·fragment cutover는 E2-5c, Cloud Auth user linkage와 service-role 경계는 E4-2, Local join transport는 E7/E8이다. S3는 E2-5c cutover 뒤 이 endpoint/DTO 표를 참조한다.
@@ -310,14 +312,14 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 | cloud_audio_temp | true | false | false |
 | public_signup | env switch `PUBLIC_SIGNUP_ENABLED=1` | env switch | env switch |
 
-Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant join만 허용한다. Office와 Cloud만 worker invitation capability를 제공한다.
+Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant join만 허용한다. Cloud만 worker invitation capability를 제공하고, Local Office는 E4-3이 nonce-bound invite exchange와 Argon2id credential creation을 확정한 뒤에 연다.
 
 세 모드는 canonical Actor, API DTO, capability key를 공유한다. 차이는 Identity·SecretStore·origin·저장소 adapter뿐이다.
 - [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
 - [ ] canonical `Identity.resolve(request)`, `revokeAll(userId, reason)`, `revokeSession(sessionId, reason)`를 사용하고, 세 mode의 Bearer, lossless role projection, 401/403/503 판정이 완결되어 있다.
 
 - [ ] Supabase `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 JWKS rotation, negative cache/cooldown, revocation과 TTL이 완결되어 있다.
-- [ ] signed manifest의 JCS, expiry, sequence, installationId, key revocation, Single dynamic endpoint discovery와 public two-key bootstrap이 완결되어 있다.
+- [ ] signed manifest의 JCS, expiry, sequence, installationId, key revocation, nullable Supabase Auth origin/project ref/publishable key, Single dynamic endpoint discovery와 public two-key bootstrap이 완결되어 있다.
 - [ ] exact CapabilityManifest schema, deterministic feature/status invariants, 18개 combination fixture가 있고 secret field가 없다.
 - [ ] exact CORS/CSP, absent Origin service rule, Electron privileged protocol/navigation, browser memory-only session과 no-persistence가 완결되어 있다.
 - [ ] E2-5c public join exchange/complete, fragment Referrer 방지, worker Auth linkage와 authenticated business data 분리가 완결되어 있다.
@@ -325,11 +327,11 @@ Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant jo
 
 ## 5. 검증 방법
 
-- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-admin-aal1`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked는 403, store unavailable은 503이어야 한다.
+- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked는 403, store unavailable은 503이어야 한다.
 - `pnpm test:contracts --jwt`: `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 key metadata, HS256 rejection, old/new key rotation, unknown-kid negative cache/cooldown을 검사한다. unknown-kid마다 upstream fetch가 발생하거나 HS256이 통과하면 실패다.
 
-- `pnpm test:contracts --capabilities`: 18개 조합을 decode하고 schemaVersion, exact key set, option cardinality/order, engine/status/feature invariants, secret·PII field 부재를 검사한다. 조합 하나라도 표현되지 않거나 추가 key가 나오면 실패다.
-- `pnpm test:security --bootstrap`: valid/tampered/expired/sequence-replay/wrong-install/key-revoked manifest와 `single-dynamic-port` fixture를 검사한다. signature mismatch, non-loopback endpoint, unsigned bootstrap apiBase 사용이 발생하면 실패다.
+- `pnpm test:contracts --capabilities`: synthetic signed-registry context를 포함한 18개 조합을 decode하고 schemaVersion, exact key set, option cardinality/order, branded engine membership, status/feature invariants, secret·PII field 부재를 검사한다. 조합 하나라도 표현되지 않거나 추가 key가 나오면 실패다.
+- `pnpm test:security --bootstrap`: valid/tampered/expired/sequence-replay/wrong-install/key-revoked manifest와 `single-dynamic-port`, Supabase Auth origin/project-ref/key equality fixture를 검사한다. signature mismatch, non-loopback endpoint, unsigned bootstrap apiBase 사용, local mode의 non-null Supabase field가 발생하면 실패다.
 - `pnpm test:security --browser-boundary`: CORS preflight와 absent Origin service call, CSP, Electron `ccc://app` Origin, API navigation denial, service-worker cache, memory-only Cloud reload, storage boundary를 검사한다. `*`, credential cookie, `Origin: null`, API document navigation, token/PII persistence가 관측되면 실패다.
 - `pnpm test:golden --join`: fragment → exchange → replaceState → complete와 worker/participant flow를 검사한다. token이 static/API log·Referer·cache에 남거나 join token으로 capabilities·상담 데이터를 읽으면 실패다.
 
