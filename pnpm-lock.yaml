@@ -61,7 +61,7 @@ importers:
     devDependencies:
       '@opennextjs/cloudflare':
         specifier: ^1.20.1
-        version: 1.20.1(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(wrangler@4.107.1(@cloudflare/workers-types@5.20260708.1))
+        version: 1.20.1(encoding@0.1.13)(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(wrangler@4.107.1(@cloudflare/workers-types@5.20260708.1))
       '@testing-library/dom':
         specifier: ^10.4.0
         version: 10.4.1
@@ -1692,6 +1692,9 @@ packages:
   encodeurl@2.0.0:
     resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
     engines: {node: '>= 0.8'}
+
+  encoding@0.1.13:
+    resolution: {integrity: sha512-ETBauow1T35Y/WZMkio9jiM0Z5xjHHmJ4XmjZOq1l/dXz3lr2sRn87nJy20RupqSh1F2m3HHPSp8ShIPQJrJ3A==}
 
   enquirer@2.4.1:
     resolution: {integrity: sha512-rRqJg/6gd538VHvR3PSrdRBb/1Vy2YfzHqzvbhGIQpDRKIa4FgV/54b5Q1xYSxOOwKvjXweS26E0Q+nAMwp2pQ==}
@@ -3810,13 +3813,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opennextjs/cloudflare@1.20.1(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(wrangler@4.107.1(@cloudflare/workers-types@5.20260708.1))':
+  '@opennextjs/cloudflare@1.20.1(encoding@0.1.13)(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(wrangler@4.107.1(@cloudflare/workers-types@5.20260708.1))':
     dependencies:
       '@ast-grep/napi': 0.40.5
       '@dotenvx/dotenvx': 1.31.0
       '@opennextjs/aws': 4.0.2(next@16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
       ci-info: 4.4.0
-      cloudflare: 4.5.0
+      cloudflare: 4.5.0(encoding@0.1.13)
       comment-json: 4.6.2
       enquirer: 2.4.1
       glob: 12.0.0
@@ -4300,7 +4303,7 @@ snapshots:
       strip-ansi: 7.2.0
       wrap-ansi: 9.0.2
 
-  cloudflare@4.5.0:
+  cloudflare@4.5.0(encoding@0.1.13):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -4308,7 +4311,7 @@ snapshots:
       agentkeepalive: 4.6.0
       form-data-encoder: 1.7.2
       formdata-node: 4.4.1
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
@@ -4397,6 +4400,11 @@ snapshots:
   emoji-regex@10.6.0: {}
 
   encodeurl@2.0.0: {}
+
+  encoding@0.1.13:
+    dependencies:
+      iconv-lite: 0.6.3
+    optional: true
 
   enquirer@2.4.1:
     dependencies:
@@ -4906,9 +4914,11 @@ snapshots:
 
   node-domexception@1.0.0: {}
 
-  node-fetch@2.7.0:
+  node-fetch@2.7.0(encoding@0.1.13):
     dependencies:
       whatwg-url: 5.0.0
+    optionalDependencies:
+      encoding: 0.1.13
 
   npm-run-path@4.0.1:
     dependencies:

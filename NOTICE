@@ -1,0 +1,21 @@
+CCC Open Pilot
+Copyright 2026 Social Solidarity Bank (사회연대은행)
+
+This distribution is provided under the Apache License, Version 2.0. The
+complete license text is in LICENSE.
+
+Third-party npm packages are documented in the CycloneDX SBOM produced by
+`pnpm release:verify`. Their SPDX license identifiers are checked against
+`supply-chain/license-allowlist.json`; package notices remain governed by the
+upstream package metadata and are not replaced by this file.
+
+No machine-learning model binary is bundled by this repository. Runtime model
+identifiers and their license sources are recorded in
+`supply-chain/model-license-manifest.json`; every future model must be added
+there before release.
+
+The optional `@img/sharp-libvips-*` packages are conditionally permitted under
+LGPL-3.0-or-later only with the obligations in
+`supply-chain/conditional-license-obligations.json`, including a separate
+replaceable library file and preserved license notice/text. Final artifact
+evidence is owned by E10-3 and E10-6.

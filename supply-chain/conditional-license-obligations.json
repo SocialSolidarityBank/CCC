@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "pythonDependencySbom": {
+    "requiredForFinalArtifact": true,
+    "artifactPath": "third-party/python-sbom.cdx.json",
+    "owners": ["E5-7", "E10-1"]
+  },
+  "obligations": [
+    {
+      "packageNamePrefix": "@img/sharp-libvips-",
+      "versions": ["1.2.4"],
+      "license": "LGPL-3.0-or-later",
+      "licenseText": "LGPL-3.0-or-later; full text: https://spdx.org/licenses/LGPL-3.0-or-later.html",
+      "noticeText": "This distribution contains libvips under LGPL-3.0-or-later. Preserve this notice and the license text with the release artifact.",
+      "sourceUrl": "https://github.com/lovell/sharp-libvips",
+      "dynamicSeparateFileRequired": true,
+      "replaceabilityRequired": true,
+      "reverseEngineeringRestrictionsProhibited": true,
+      "finalArtifactEvidenceOwners": ["E10-3", "E10-6"],
+      "artifactEvidencePattern": "third-party/libvips/{name}.NOTICE"
+    }
+  ]
+}
