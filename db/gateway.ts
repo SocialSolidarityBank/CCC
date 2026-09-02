@@ -10640,9 +10640,14 @@ export interface ParticipantProgramEntry {
 }
 
 export interface ParticipantProgramList {
-  participant: ParticipantNameContact;
+  participant: ParticipantDetailContact;
   programs: ParticipantProgramEntry[];
 }
+interface ParticipantProgramListOptions {
+  /** 당사자 정보 허브에서만 이메일 복호화를 연다. 기본 경로는 name·phone 경계를 유지한다. */
+  includeEmail?: boolean;
+}
+
 
 /**
  * 한 당사자의 기관 내 활성 담당 실무자 표시 이름을 사업별로 모은다.
@@ -10689,6 +10694,7 @@ export async function listSupportCasesForBeneficiary(
   env: Env,
   actor: Actor,
   beneficiaryId: string,
+  options: ParticipantProgramListOptions = {},
 ): Promise<ParticipantProgramList> {
   const archived = await env.DB.prepare(
     `SELECT 1 AS present FROM participant_pii_archives
@@ -10724,9 +10730,14 @@ export async function listSupportCasesForBeneficiary(
     targetId: beneficiaryId,
     beneficiaryId,
   });
-  // 실명·연락처는 ①을 통과했으므로 내려도 된다(D24·D31). 값이 있으면 화면 단위 감사 1건.
-  const contacts = await loadParticipantContacts(env, actor.orgId, [beneficiaryId]);
-  await auditParticipantPiiRead(env, actor, contacts, { targetId: beneficiaryId });
+  const includeEmail = options.includeEmail === true;
+  // 이메일 복호화는 당사자 정보 허브 요청에서만 연다. 일반 기록 화면은 name·phone만 읽는다.
+  const contacts = await loadParticipantContacts(env, actor.orgId, [beneficiaryId], includeEmail);
+  const participantContact = contacts.get(beneficiaryId);
+  await auditParticipantPiiRead(env, actor, contacts, {
+    targetId: beneficiaryId,
+    extraFields: includeEmail && participantContact?.email != null ? ['email'] : [],
+  });
   const supportCases = result.results.map(mapSupportCase);
   const assigneeNames = await loadAssigneeNamesBySupportCase(
     env,
@@ -10740,7 +10751,7 @@ export async function listSupportCasesForBeneficiary(
     contentAuthorizedIds,
   );
   return {
-    participant: participantNamePhone(contacts.get(beneficiaryId)),
+    participant: participantDetailContact(contacts.get(beneficiaryId)),
     programs: supportCases.map((supportCase) => ({
       supportCase,
       authorized: authorized.has(supportCase.id),
@@ -11613,31 +11624,41 @@ export interface ParticipantContact {
   email: string | null;
 }
 
-/** 브리핑·상세가 노출하는 당사자 필드 — 실명·연락처만(이메일 제외, D31). */
+/** 브리핑이 노출하는 당사자 필드. 이메일은 당사자 정보 허브 전용이라 여기서는 제외한다. */
 export interface ParticipantNameContact {
   name: string | null;
   phone: string | null;
 }
 
-/**
- * 브리핑·상세 등 기존 소비자는 실명·연락처만 노출한다(이메일은 당사자 선택 UI 전용, D31).
- * loadParticipantContacts 가 이메일까지 복호화하더라도 이 경계에서 name·phone 만 추려
- * 이메일이 그 응답들로 새지 않게 한다.
- */
+/** 당사자 정보 허브가 노출하는 기본 식별 정보(D24, 2026-09-02 Q). */
+export interface ParticipantDetailContact extends ParticipantNameContact {
+  email: string | null;
+}
+
+/** 브리핑 등 기존 소비자의 name·phone 경계를 유지한다. */
 function participantNamePhone(contact: ParticipantContact | undefined): ParticipantNameContact {
   return { name: contact?.name ?? null, phone: contact?.phone ?? null };
 }
 
+/** 접근 검사를 마친 당사자 정보 허브에는 이메일까지 내린다. 계좌와 주소는 포함하지 않는다. */
+function participantDetailContact(contact: ParticipantContact | undefined): ParticipantDetailContact {
+  return {
+    name: contact?.name ?? null,
+    phone: contact?.phone ?? null,
+    email: contact?.email ?? null,
+  };
+}
+
 /**
- * D24·ADR-0005 역할 기준 실명 표시의 공용 복호화 관문. 이미 접근 범위로 걸러진
- * (담당 활성 배정 또는 admin) 당사자 집합의 실명·연락처를 한 번의 배치 조회로
- * 복호화해 돌려준다 — 목록 응답의 N+1 을 피한다. 파기된 금고(purged_at)는 제외한다.
- * 접근 검사는 호출부가 이미 수행했다는 계약이다(비담당 실무자의 행은 애초에 결과에 없다).
+ * D24·ADR-0005 역할 기준 당사자 연락처의 공용 복호화 관문. 이미 접근 범위로 걸러진
+ * 당사자 집합을 한 번의 배치 조회로 읽어 N+1을 피한다. 파기된 금고는 제외한다.
+ * 이메일은 명시한 화면에서만 복호화하며 기본값 true는 기존 이메일 소비자를 보존한다.
  */
 async function loadParticipantContacts(
   env: Env,
   orgId: string,
   beneficiaryIds: readonly string[],
+  includeEmail = true,
 ): Promise<Map<string, ParticipantContact>> {
   const contacts = new Map<string, ParticipantContact>();
   const unique = [...new Set(beneficiaryIds)];
@@ -11658,18 +11679,16 @@ async function loadParticipantContacts(
     contacts.set(stringValue(row.beneficiary_id), {
       name: await decryptPii(env, row.enc_name),
       phone: await decryptPii(env, row.enc_phone),
-      email: await decryptPii(env, row.enc_email),
+      email: includeEmail ? await decryptPii(env, row.enc_email) : null,
     });
   }
   return contacts;
 }
 
 /**
- * PII(실명·연락처)가 1건 이상 실린 응답을 만든 게이트웨이 호출마다 화면 단위 감사
- * 1건을 남긴다(read_participant_pii, D14·D24). 값이 전부 null 이면(등록만 되고 PII
- * 미기입) 감사하지 않는다. 대상 당사자 목록은 detail 에 담아 이상 열람 분석이
- * 케이스 단위로 추적할 수 있게 한다. 클릭 단위(reveal)·마스킹 표시(masked) 감사를
- * 대체한다.
+ * 복호화된 PII가 1건 이상 실린 응답을 만든 게이트웨이 호출마다 화면 단위 감사 1건을 남긴다
+ * (read_participant_pii, D14·D24). 값이 전부 null이면 감사하지 않는다. 대상 당사자 목록은
+ * detail에 담아 이상 열람 분석이 케이스 단위로 추적할 수 있게 한다.
  */
 async function auditParticipantPiiRead(
   env: Env,

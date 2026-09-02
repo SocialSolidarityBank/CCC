@@ -312,11 +312,14 @@ export interface ParticipantConsent {
 
 export interface ParticipantDetail {
   beneficiaryId: string;
-  // D24·D31: 역할 기준 실명·연락처 기본 표시. 미기입이거나 범위 밖이면 null(슬러그 폴백).
-  // 서버가 이미 화면 단위 감사를 남기므로(db/gateway.ts) 화면에서 감사를 또 남기지 않는다.
+  // 일반 기록 화면은 실명·연락처만 받는다. 이메일은 ParticipantHubDetail 전용이다.
   name: string | null;
   phone: string | null;
   programs: ParticipantProgram[];
+}
+
+export interface ParticipantHubDetail extends ParticipantDetail {
+  email: string | null;
 }
 
 /** 당사자 목록(사이드바 '당사자'의 도착지). 케이스 상태로 거르지 않는다 — 종결만 남은 당사자도 나온다. */
@@ -1497,13 +1500,7 @@ export async function listParticipantPrograms(beneficiaryId: string): Promise<Pa
   return programs;
 }
 
-/**
- * 당사자 정보 페이지(허브)가 쓰는 당사자 1명 + 그 사람의 기관 내 전 참여 사업 (D36).
- *
- * 실명·연락처는 **API 가 이미 내려주고 있고 감사도 이미 남는다**(`db/gateway.ts` 의
- * `listSupportCasesForBeneficiary`). 사업마다 같은 값이 실려 오므로 첫 행에서 한 번만
- * 읽는다 — 화면에서 감사를 새로 붙이면 화면 조회당 1건(D24)이 중복된다.
- */
+/** 일반 기록 화면이 쓰는 당사자 실명·연락처와 참여 사업. 이메일은 이 응답에 없다. */
 export async function getParticipantDetail(beneficiaryId: string): Promise<ParticipantDetail> {
   const payload = await requestJson<unknown>(
     `/participants/${encodeURIComponent(beneficiaryId)}/support-cases`,
@@ -1517,6 +1514,23 @@ export async function getParticipantDetail(beneficiaryId: string): Promise<Parti
     beneficiaryId,
     name: contact === null ? null : responseNullableString(contact, 'participantName'),
     phone: contact === null ? null : responseNullableString(contact, 'participantPhone'),
+    programs,
+  };
+}
+
+/** 당사자 정보 허브 전용 집계. 이메일은 이 경로에서만 복호화·직렬화한다. */
+export async function getParticipantHubDetail(beneficiaryId: string): Promise<ParticipantHubDetail> {
+  const record = responseObject(await requestJson<unknown>(
+    `/participants/${encodeURIComponent(beneficiaryId)}/hub`,
+  ));
+  if (responseString(record, 'beneficiaryId') !== beneficiaryId) contractViolation();
+  const programs = responseArray(record, 'programs').map(decodeParticipantProgram);
+  if (programs.some((program) => program.beneficiaryId !== beneficiaryId)) contractViolation();
+  return {
+    beneficiaryId,
+    name: responseNullableString(record, 'participantName'),
+    phone: responseNullableString(record, 'participantPhone'),
+    email: responseNullableString(record, 'participantEmail'),
     programs,
   };
 }

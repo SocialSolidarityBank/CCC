@@ -15,13 +15,15 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   y  : center-y 일치(가로 한 줄 정렬)
   xy : selectors=[자식, 컨테이너] — 자식이 컨테이너의 정중앙(버튼 안 텍스트 등)
 
-확장 9종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
+확장 10종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
   center-y-each: selectors=[행, 행 안 자식]. 반복 행마다 자식이 자기 행의 세로 중앙인가.
   no-overlap-x-each: selectors=[행, 왼쪽 자식, 오른쪽 자식]. 반복 행의 두 자식이 겹치는가.
   bullet-y: selectors=[li 셀렉터]. 각 li 의 ::before 점 중심이 자기 첫 줄 중심과 같은가.
   chevron-xy: selectors=[꺽쇠 슬롯]. 내부 SVG path 잉크가 슬롯 정중앙이고 maxRatio보다 작은가.
   gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 두 묶음의 세로 간격과 선택 expectedGap을 잰다.
   inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 여백과 선택 expectedInset을 잰다.
+  text-gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 각 요소의 실제 글자 첫줄·끝줄 사이 간격을 잰다.
+  inset-x-ink: selectors=[컨테이너, 왼쪽 SVG path, 오른쪽 글자]. 실제 잉크의 좌우 여백을 비교한다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
   width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
   size: selectors=[상자]. 렌더된 가로·세로가 expectedWidth·expectedHeight와 같은가.
@@ -109,6 +111,62 @@ CHECK_JS = r"""
         name: a.name,
         pass: delta <= tol && expectedDelta <= tol,
         detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
+    if (a.axis === 'text-gap-pair') {
+      const els = a.selectors.map((sel) => document.querySelector(sel));
+      if (els.some((el) => !el)) return { name: a.name, pass: false, detail: '요소 없음' };
+      const textRects = (el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return [...range.getClientRects()];
+      };
+      const firstRects = textRects(els[0]);
+      const firstNextRects = textRects(els[1]);
+      const secondRects = textRects(els[2]);
+      const secondNextRects = textRects(els[3]);
+      if ([firstRects, firstNextRects, secondRects, secondNextRects].some((rects) => rects.length === 0)) {
+        return { name: a.name, pass: false, detail: '측정 가능한 글자 없음' };
+      }
+      const textGap = (topRects, bottomRects) => bottomRects[0].top - topRects.at(-1).bottom;
+      const first = textGap(firstRects, firstNextRects);
+      const second = textGap(secondRects, secondNextRects);
+      const delta = Math.abs(first - second);
+      const expectedDelta = a.expectedGap === undefined
+        ? 0
+        : Math.max(Math.abs(first - a.expectedGap), Math.abs(second - a.expectedGap));
+      return {
+        name: a.name,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `한쪽 ${first.toFixed(2)}px / 다른 쪽 ${second.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
+    if (a.axis === 'inset-x-ink') {
+      const [boxSel, leftInkSel, rightTextSel] = a.selectors;
+      const box = document.querySelector(boxSel);
+      const leftInk = document.querySelector(leftInkSel);
+      const rightText = document.querySelector(rightTextSel);
+      if (!box || !leftInk || !rightText) return { name: a.name, pass: false, detail: '요소 없음' };
+      const boxRect = box.getBoundingClientRect();
+      const leftRect = leftInk.getBoundingClientRect();
+      const stroke = Number.parseFloat(leftInk.getAttribute('stroke-width') ?? '0');
+      const range = document.createRange();
+      range.selectNodeContents(rightText);
+      const textRects = [...range.getClientRects()];
+      if (textRects.length === 0) return { name: a.name, pass: false, detail: '측정 가능한 글자 없음' };
+      const left = leftRect.left - stroke / 2 - boxRect.left;
+      const right = boxRect.right - textRects.at(-1).right;
+      const delta = Math.abs(left - right);
+      const expectedDelta = Math.max(
+        a.expectedLeft === undefined ? 0 : Math.abs(left - a.expectedLeft),
+        a.expectedRight === undefined ? 0 : Math.abs(right - a.expectedRight),
+      );
+      return {
+        name: a.name,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `왼쪽 잉크 여백 ${left.toFixed(2)}px / 오른쪽 글자 여백 ${right.toFixed(2)}px / 차이 ${delta.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 

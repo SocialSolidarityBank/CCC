@@ -1,5 +1,48 @@
 [
   {
+    "name": "사이드바 선택과 호버 상자는 248×40",
+    "selectors": ["#align-sidebar .navigation-link"],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 248,
+    "expectedHeight": 40
+  },
+  {
+    "name": "사이드바 선택과 호버 상자는 가로 정중앙",
+    "selectors": [
+      "#align-sidebar .sidebar",
+      "#align-sidebar .navigation-link"
+    ],
+    "axis": "x",
+    "tolerance": 0.5
+  },
+  {
+    "name": "뒤로 버튼 왼쪽 꺽쇠 잉크가 공용 슬롯 정중앙",
+    "selectors": ["#align-back .page-back>.wire-chevron[data-dir=\"left\"]"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.6,
+    "expectedSize": 12
+  },
+  {
+    "name": "뒤로 버튼 왼쪽 꺽쇠가 버튼 행 세로 중앙",
+    "selectors": ["#align-back .page-back", ".wire-chevron[data-dir=\"left\"]"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "뒤로 버튼의 왼쪽 꺽쇠와 오른쪽 라벨 잉크 여백이 같다",
+    "selectors": [
+      "#align-back .page-back",
+      "#align-back .page-back>.wire-chevron[data-dir=\"left\"]>path",
+      "#align-back .page-back>span"
+    ],
+    "axis": "inset-x-ink",
+    "tolerance": 1,
+    "expectedLeft": 16.9,
+    "expectedRight": 17
+  },
+  {
     "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
     "selectors": [
       "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)>h3",
@@ -27,16 +70,28 @@
     "tolerance": 1
   },
   {
-    "name": "등록 동의 안내 아래 간격은 체크 항목 사이 간격과 같다",
+    "name": "등록 동의 안내와 체크 항목의 실제 글자 간격이 같다",
     "selectors": [
       "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.schedule-form-hint",
-      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type",
-      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type",
-      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:last-of-type"
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type>span",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type>span",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:last-of-type>span"
     ],
-    "axis": "gap-pair",
+    "axis": "text-gap-pair",
     "tolerance": 1,
-    "expectedGap": 12
+    "expectedGap": 14
+  },
+  {
+    "name": "긴급 등록 체크와 설명의 실제 글자 간격도 일반 체크 항목과 같다",
+    "selectors": [
+      "#align-register .register-consent>.consent-emergency>.consent-checkbox>span",
+      "#align-register .register-consent>.consent-emergency>.schedule-form-hint",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:first-of-type>span",
+      "#align-register .register-consent>div.register-consent-block:not(.consent-emergency)>.consent-checkbox:last-of-type>span"
+    ],
+    "axis": "text-gap-pair",
+    "tolerance": 1,
+    "expectedGap": 14
   },
   {
     "name": "등록 동의 안내와 체크 묶음은 상자 정중앙",
@@ -191,6 +246,18 @@
     "selectors": ["#align-hub-consent .consent-item", ".consent-checkbox"],
     "axis": "center-y-each",
     "tolerance": 1
+  },
+  {
+    "name": "당사자 정보 체크 항목과 마지막 기록의 실제 글자 간격이 같다",
+    "selectors": [
+      "#align-hub-consent .consent-item:first-of-type .consent-checkbox>span",
+      "#align-hub-consent .consent-item:last-of-type .consent-checkbox>span",
+      "#align-hub-consent .consent-item:last-of-type .consent-checkbox>span",
+      "#align-hub-consent .participant-program-consent-meta"
+    ],
+    "axis": "text-gap-pair",
+    "tolerance": 1,
+    "expectedGap": 20
   },
   {
     "name": "당사자 정보 전문 보기 화살표가 행 세로 중앙",

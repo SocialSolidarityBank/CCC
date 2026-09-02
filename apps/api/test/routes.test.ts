@@ -3472,6 +3472,66 @@ describe('canonical participant API routes', () => {
     });
   });
 
+  it('shows email on the participant information route without widening the briefing contract', async () => {
+    const creation = await setupCanonicalParticipant();
+    const pii = {
+      name: 'HUB_NAME_CANARY',
+      phone: 'HUB_PHONE_CANARY',
+      email: 'hub-email-canary@example.test',
+      account: 'HUB_ACCOUNT_CANARY',
+    };
+    await updateParticipantPii(t.env, canonicalAdmin, creation.beneficiaryId, {
+      supportCaseContextId: creation.supportCaseId,
+      expectedVersion: 1,
+      ...pii,
+    });
+
+    const generic = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/support-cases`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    expect(generic.status).toBe(200);
+    const genericBody = await generic.text();
+    expectContentFree(genericBody, [pii.email, pii.account]);
+
+    const participant = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/hub`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    expect(participant.status).toBe(200);
+    const participantBody = await participant.text();
+    expect(JSON.parse(participantBody)).toMatchObject({
+      beneficiaryId: creation.beneficiaryId,
+      participantName: pii.name,
+      participantPhone: pii.phone,
+      participantEmail: pii.email,
+      programs: [expect.objectContaining({ id: creation.supportCaseId })],
+    });
+    expectContentFree(participantBody, [pii.account]);
+    const hubAudit = await t.db.prepare(
+      `SELECT detail FROM audit_log
+       WHERE action = 'read_participant_pii' AND beneficiary_id = ?
+       ORDER BY id DESC LIMIT 1`,
+    ).bind(creation.beneficiaryId).first<{ detail: string }>();
+    expect(JSON.parse(hubAudit?.detail ?? 'null')).toMatchObject({
+      fields: ['name', 'phone', 'email'],
+      beneficiaryIds: [creation.beneficiaryId],
+      count: 1,
+    });
+
+
+    const briefing = await worker.fetch(new Request(
+      `http://localhost/participants/${creation.beneficiaryId}/programs/${creation.supportCaseId}/briefing`,
+      { headers: canonicalCounselorHeaders },
+    ), t.env);
+    expect(briefing.status).toBe(200);
+    const briefingBody = await briefing.text();
+    expect(JSON.parse(briefingBody)).toMatchObject({
+      participant: { name: pii.name, phone: pii.phone },
+    });
+    expectContentFree(briefingBody, [pii.email, pii.account]);
+  });
+
   it('serves the participant realname in the briefing for the assignee, denies non-owners, and never leaks the account', async () => {
     const creation = await setupCanonicalParticipant();
     const pii = {
