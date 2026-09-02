@@ -8,6 +8,8 @@
 
 **Tech Stack:** Cloudflare Workers, Hyperdrive, Supabase PostgreSQL 서울, Supabase Auth, Supabase Storage, TypeScript, Vitest, PostgreSQL RLS
 
+> **역사 표식 (ADR-0041):** 이 2026-08-31 계획에서 사용한 D76~D79 초안 번호와 의미는 비정본이며 ADR-0041의 D76~D83 번호와 의미로 대체한다. Hyperdrive를 통한 관리형 Workers 연결 전제와 30일 원음 보관 정책도 ADR-0041이 대체한다. Supabase 기관 프로젝트, Auth, 좁은 Database·AudioStore 포트와 이 계획의 조사 기록은 충돌하지 않는 범위에서 역사 자료로 보존한다. read-only `plan` 사전 점검은 ADR-0042/D84가 정본이다.
+
 ## Global Constraints
 
 - D76과 D77이 D65의 PostgreSQL 연기 결정과 Cloudflare Access 인증 결정을 대체한다.
@@ -383,6 +385,8 @@ git commit -m "feat(auth): Supabase 초대 가입과 관리자 MFA 추가"
 ---
 
 ### Task 6: Supabase Storage와 30일 삭제
+
+> **부분 대체 표식 (ADR-0041):** 이 Task의 Supabase private Storage 어댑터와 `AudioStore` 계약은 보존한다. Workers가 승인 뒤 byte stream을 중계하고 Workers 시크릿에 service-role key를 보관한다는 경로, 30일 고정 수명 registry·cron과 그에 의존하는 완료 조건은 ADR-0041의 기관 소유 private Storage, Agent 처리 기회, 처리 직후 삭제, 첫 처리 가능 시점부터 24시간 상한으로 대체한다.
 
 **Files:**
 - Modify: `apps/api/src/audio-store.ts`
