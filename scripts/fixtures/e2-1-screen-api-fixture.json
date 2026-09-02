@@ -1,0 +1,1595 @@
+{
+  "version": 1,
+  "sourceRoot": "apps/web/app",
+  "apiSourceRoot": "apps/api/src",
+  "routes": [
+    {
+      "routePattern": "/",
+      "page": "apps/web/app/page.tsx",
+      "kind": "redirect",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/me",
+          "dto": "MeWire"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/admin",
+      "page": "apps/web/app/admin/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "dto": "OrganizationProfile"
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "dto": "DirectoryUser[]"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/admin/ai-provider",
+      "page": "apps/web/app/admin/ai-provider/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/ai/provider/status",
+          "dto": "AiProviderStatus"
+        }
+      ],
+      "actions": [
+        {
+          "name": "activateAiProviderRuntimeAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/ai/provider/activate-runtime",
+              "dto": "AiProviderStatus"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/admin/assign",
+      "page": "apps/web/app/admin/assign/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/schedules/candidates",
+          "dto": "ScheduleCandidate[]"
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "dto": "DirectoryUser[]"
+        },
+        {
+          "method": "GET",
+          "path": "/support-cases/:id/assignees",
+          "dto": "SupportCaseAssignee[]"
+        }
+      ],
+      "actions": [
+        {
+          "name": "addSupportCaseAssigneeAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/support-cases/:id/assignees",
+              "dto": "SupportCaseAssigneeWire"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/admin/invite",
+      "page": "apps/web/app/admin/invite/page.tsx",
+      "kind": "screen",
+      "pageApis": [],
+      "actions": [
+        {
+          "name": "registerCounselorAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/users",
+              "dto": "DirectoryUser"
+            }
+          ]
+        },
+        {
+          "name": "createWorkerInviteAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/invites/counselor",
+              "dto": "WorkerInvite"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/admin/users",
+      "page": "apps/web/app/admin/users/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/users",
+          "dto": "DirectoryUser[]"
+        },
+        {
+          "method": "GET",
+          "path": "/users/:id/assignments",
+          "dto": "CounselorAssignments"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/admin/users/:id",
+      "page": "apps/web/app/admin/users/[id]/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/users",
+          "dto": "DirectoryUser[]"
+        },
+        {
+          "method": "GET",
+          "path": "/users/:id/assignments",
+          "dto": "CounselorAssignments"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/join/participant/:token",
+      "page": "apps/web/app/join/participant/[token]/page.tsx",
+      "kind": "public",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/invites/participant/:token",
+          "dto": "PublicInviteInfo"
+        },
+        {
+          "method": "GET",
+          "path": "/invites/participant/:token/me",
+          "dto": "ParticipantSelfCheck"
+        }
+      ],
+      "actions": [
+        {
+          "name": "signupParticipantAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/signup/participant",
+              "dto": "PublicSignupResult"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/join/worker/:token",
+      "page": "apps/web/app/join/worker/[token]/page.tsx",
+      "kind": "public",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/invites/worker/:token",
+          "dto": "PublicWorkerInviteInfo"
+        }
+      ],
+      "actions": [
+        {
+          "name": "signupWorkerAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/invites/worker",
+              "dto": "WorkerSignupResult"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/kit",
+      "page": "apps/web/app/kit/page.tsx",
+      "kind": "kit",
+      "pageApis": [],
+      "actions": []
+    },
+    {
+      "routePattern": "/onboarding",
+      "page": "apps/web/app/onboarding/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/me",
+          "dto": "MyIdentity"
+        },
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "dto": "OrganizationProfile"
+        }
+      ],
+      "actions": [
+        {
+          "name": "completeOrganizationOnboardingAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/organization/onboarding",
+              "dto": "OrganizationProfile"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants",
+      "page": "apps/web/app/participants/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/participants",
+          "dto": "AssignedParticipant[]"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/participants/invite",
+      "page": "apps/web/app/participants/invite/page.tsx",
+      "kind": "screen",
+      "pageApis": [],
+      "actions": [
+        {
+          "name": "createParticipantInviteAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/invites/participant",
+              "dto": "ParticipantInvite"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/new",
+      "page": "apps/web/app/participants/new/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/me",
+          "dto": "MyIdentity"
+        }
+      ],
+      "actions": [
+        {
+          "name": "createInitialParticipantProgramAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/participants",
+              "dto": "ParticipantProgramCreation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId",
+      "page": "apps/web/app/participants/[beneficiaryId]/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/participants/:id/hub",
+          "dto": "ParticipantHubDetail"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/:id/goal-tree",
+          "dto": "ParticipantGoalTreeCase[]"
+        }
+      ],
+      "actions": [
+        {
+          "name": "updateParticipantConsentAction",
+          "calls": [
+            {
+              "method": "PUT",
+              "path": "/support-cases/:id/consent",
+              "dto": "ParticipantConsent"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/edit",
+      "page": "apps/web/app/participants/[beneficiaryId]/edit/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/participants/:id/basic-info",
+          "dto": "ParticipantBasicInfo"
+        }
+      ],
+      "actions": [
+        {
+          "name": "updateParticipantBasicInfoAction",
+          "calls": [
+            {
+              "method": "PUT",
+              "path": "/participants/:id/basic-info",
+              "dto": "void"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/briefing",
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/briefing/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/participants/:id/programs/:case/briefing",
+          "dto": "ParticipantBriefing"
+        }
+      ],
+      "actions": [
+        {
+          "name": "updateOverallGoalAction",
+          "calls": [
+            {
+              "method": "PUT",
+              "path": "/support-cases/:id/overall-goal",
+              "dto": "OverallGoalUpdate"
+            }
+          ]
+        },
+        {
+          "name": "resolveDiscrepancyAction",
+          "calls": [
+            {
+              "method": "PUT",
+              "path": "/support-cases/:id/discrepancies/:discrepancyId/resolution",
+              "dto": "SessionDiscrepancy"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/close",
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/close/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/support-cases/:id/closure",
+          "dto": "SupportCaseClosureInfo"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/:id/programs/:case/briefing",
+          "dto": "ParticipantBriefing"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/:id/goal-tree",
+          "dto": "ParticipantGoalTreeCase[]"
+        }
+      ],
+      "actions": [
+        {
+          "name": "closeSupportCaseAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/support-cases/:id/close",
+              "dto": "SupportCase"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records",
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/support-cases/:id/records?official=true",
+          "dto": "SupportCaseRecords"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/:id/support-cases",
+          "dto": "ParticipantProgram[]"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review",
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/support-cases/:id/records?official=true",
+          "dto": "SupportCaseRecords"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/:id/support-cases",
+          "dto": "ParticipantProgram[]"
+        },
+        {
+          "method": "GET",
+          "path": "/sessions/:id/ai",
+          "dto": "AiDraft"
+        }
+      ],
+      "actions": [
+        {
+          "name": "reviewAiDraftAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/sessions/:id",
+              "dto": "ManualSession"
+            },
+            {
+              "method": "POST",
+              "path": "/sessions/:id/ai/drafts/:version/review",
+              "dto": "AiDraftMutationWire"
+            }
+          ]
+        },
+        {
+          "name": "generateAiDraftAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/sessions/:id",
+              "dto": "ManualSession"
+            },
+            {
+              "method": "POST",
+              "path": "/sessions/:id/ai/generate",
+              "dto": "AiDraftMutationWire"
+            }
+          ]
+        },
+        {
+          "name": "createActionItemFromAiClaimAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/sessions/:id",
+              "dto": "ManualSession"
+            },
+            {
+              "method": "POST",
+              "path": "/cases/:id/action-items",
+              "dto": "OpenActionItemWire"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records/intake",
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/support-cases/:id/records/intake",
+          "dto": "IntakeRecordContext"
+        },
+        {
+          "method": "GET",
+          "path": "/me",
+          "dto": "MyIdentity"
+        }
+      ],
+      "actions": [
+        {
+          "name": "createIntakeRecordAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "POST",
+              "path": "/support-cases/:id/records/intake",
+              "dto": "CreateIntakeRecordResult"
+            }
+          ]
+        },
+        {
+          "name": "updateIntakeRecordAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "PUT",
+              "path": "/support-cases/:id/records/intake",
+              "dto": "CreatedIntakeRecord"
+            }
+          ]
+        },
+        {
+          "name": "updateOverallGoalAction",
+          "calls": [
+            {
+              "method": "PUT",
+              "path": "/support-cases/:id/overall-goal",
+              "dto": "OverallGoalUpdate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records/new",
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/new/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/support-cases/:id/records?official=true",
+          "dto": "SupportCaseRecords"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/:id/support-cases",
+          "dto": "ParticipantProgram[]"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/:id/plan",
+          "dto": "ScheduleSessionPlan"
+        }
+      ],
+      "actions": [
+        {
+          "name": "createCounselingRecordAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "POST",
+              "path": "/support-cases/:id/records",
+              "dto": "CreateCounselingRecordResult"
+            }
+          ]
+        },
+        {
+          "name": "createGoalAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "POST",
+              "path": "/cases/:id/goals",
+              "dto": "Goal"
+            }
+          ]
+        },
+        {
+          "name": "updateGoalTitleAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "PUT",
+              "path": "/goals/:id/title",
+              "dto": "Goal"
+            }
+          ]
+        },
+        {
+          "name": "closeGoalAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "POST",
+              "path": "/goals/:id/close",
+              "dto": "Goal"
+            }
+          ]
+        },
+        {
+          "name": "createActionItemAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/participants/:id/support-cases",
+              "dto": "ParticipantProgram[]"
+            },
+            {
+              "method": "POST",
+              "path": "/cases/:id/action-items",
+              "dto": "OpenActionItemWire"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/preview",
+      "page": "apps/web/app/preview/page.tsx",
+      "kind": "public",
+      "pageApis": [],
+      "actions": [],
+      "routeHandler": {
+        "name": "previewUnlockRouteHandler",
+        "calls": [
+          {
+            "method": "POST",
+            "path": "/preview/unlock",
+            "dto": "PreviewUnlockWire"
+          }
+        ]
+      }
+    },
+    {
+      "routePattern": "/preview/admin",
+      "page": "apps/web/app/preview/admin/page.tsx",
+      "kind": "public",
+      "pageApis": [],
+      "actions": [],
+      "routeHandler": {
+        "name": "previewUnlockRouteHandler",
+        "calls": [
+          {
+            "method": "POST",
+            "path": "/preview/unlock",
+            "dto": "PreviewUnlockWire"
+          }
+        ]
+      }
+    },
+    {
+      "routePattern": "/programs/:programType/schedule",
+      "page": "apps/web/app/programs/[programType]/schedule/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/schedules/today",
+          "dto": "TodaySchedules"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/upcoming",
+          "dto": "TodaySchedules"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/month",
+          "dto": "TodaySchedules"
+        },
+        {
+          "method": "PUT",
+          "path": "/me/last-program",
+          "dto": "LastProgramUpdate"
+        }
+      ],
+      "actions": []
+    },
+    {
+      "routePattern": "/programs/:programType/schedule/all",
+      "page": "apps/web/app/programs/[programType]/schedule/all/page.tsx",
+      "kind": "redirect",
+      "pageApis": [],
+      "actions": []
+    },
+    {
+      "routePattern": "/schedules/new",
+      "page": "apps/web/app/schedules/new/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/schedules/candidates",
+          "dto": "ScheduleCandidate[]"
+        }
+      ],
+      "actions": [
+        {
+          "name": "loadScheduleContextAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/cases/:id/goals",
+              "dto": "Goal[]"
+            },
+            {
+              "method": "GET",
+              "path": "/participants/:id/programs/:case/briefing",
+              "dto": "ParticipantBriefing"
+            }
+          ]
+        },
+        {
+          "name": "createSchedulePlanAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/schedules",
+              "dto": "CounselingSchedule"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/schedules/:scheduleId/plan",
+      "page": "apps/web/app/schedules/[scheduleId]/plan/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/schedules/:id/plan",
+          "dto": "ScheduleSessionPlan"
+        },
+        {
+          "method": "GET",
+          "path": "/cases/:id/goals",
+          "dto": "Goal[]"
+        }
+      ],
+      "actions": [
+        {
+          "name": "updateScheduleSessionGoalsAction",
+          "calls": [
+            {
+              "method": "PUT",
+              "path": "/schedules/:id/plan",
+              "dto": "SchedulePlanUpdate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/settings",
+      "page": "apps/web/app/settings/page.tsx",
+      "kind": "screen",
+      "pageApis": [
+        {
+          "method": "GET",
+          "path": "/me",
+          "dto": "MyIdentity"
+        },
+        {
+          "method": "GET",
+          "path": "/assignment-requests",
+          "dto": "AssignmentRequest[]"
+        },
+        {
+          "method": "GET",
+          "path": "/users",
+          "dto": "DirectoryUser[]"
+        }
+      ],
+      "actions": [
+        {
+          "name": "acceptSupportCaseAssignmentAction",
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/support-cases/:id/assignees/:assignmentId/accept",
+              "dto": "AssignmentAccepted"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "routePattern": "/welcome",
+      "page": "apps/web/app/welcome/page.tsx",
+      "kind": "public",
+      "pageApis": [],
+      "actions": []
+    }
+  ],
+  "inherited": {
+    "root": {
+      "apis": [
+        {
+          "method": "GET",
+          "path": "/organization/profile",
+          "dto": "OrganizationProfile"
+        },
+        {
+          "method": "GET",
+          "path": "/participants/new-signup-count",
+          "dto": "NewSignupCount"
+        }
+      ],
+      "actions": [
+        "toggleThemeAction",
+        "logoutAction"
+      ]
+    },
+    "admin": {
+      "apis": [
+        {
+          "method": "GET",
+          "path": "/me",
+          "dto": "MyIdentity"
+        }
+      ],
+      "actions": []
+    }
+  },
+  "pii": [
+    {
+      "dto": "ParticipantHubDetail",
+      "field": "email",
+      "actors": [
+        "admin",
+        "assigned-counselor"
+      ],
+      "routes": [
+        "/participants/:beneficiaryId"
+      ]
+    },
+    {
+      "dto": "PublicInviteInfo",
+      "field": "programType",
+      "actors": [
+        "participant-token"
+      ],
+      "routes": [
+        "/join/participant/:token"
+      ]
+    },
+    {
+      "dto": "WorkerSignupResult",
+      "field": "email",
+      "actors": [
+        "worker-token"
+      ],
+      "routes": [
+        "/join/worker/:token"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "ai-mutation-client-cast",
+      "kind": "contract-observation",
+      "subject": "AiDraftMutationWire client cast",
+      "status": "declared-current-gap"
+    },
+    {
+      "id": "legacy-pilot-consent-action",
+      "kind": "server-action",
+      "subject": "recordPilotTextAiConsentAction",
+      "status": "declared-current-gap"
+    }
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/me",
+      "wireKeys": [
+        "id",
+        "orgId",
+        "email",
+        "role",
+        "active",
+        "name",
+        "lastProgramType"
+      ],
+      "projectionKeys": [
+        "lastProgramType"
+      ],
+      "dto": "MeWire"
+    },
+    {
+      "method": "GET",
+      "path": "/organization/profile",
+      "wireKeys": [
+        "orgId",
+        "orgName",
+        "programDisplayName"
+      ],
+      "projectionKeys": [
+        "orgId",
+        "orgName",
+        "programDisplayName"
+      ],
+      "dto": "OrganizationProfile"
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "DirectoryUser[]"
+    },
+    {
+      "method": "GET",
+      "path": "/ai/provider/status",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AiProviderStatus"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/provider/activate-runtime",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AiProviderStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/schedules/candidates",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ScheduleCandidate[]"
+    },
+    {
+      "method": "GET",
+      "path": "/support-cases/:id/assignees",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SupportCaseAssignee[]"
+    },
+    {
+      "method": "POST",
+      "path": "/support-cases/:id/assignees",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SupportCaseAssigneeWire"
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "wireKeys": [
+        "id",
+        "orgId",
+        "email",
+        "role",
+        "active",
+        "name"
+      ],
+      "projectionKeys": [
+        "id",
+        "orgId",
+        "email",
+        "role",
+        "active",
+        "name"
+      ],
+      "dto": "DirectoryUser"
+    },
+    {
+      "method": "POST",
+      "path": "/invites/counselor",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "WorkerInvite"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id/assignments",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "CounselorAssignments"
+    },
+    {
+      "method": "GET",
+      "path": "/invites/participant/:token",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "PublicInviteInfo"
+    },
+    {
+      "method": "GET",
+      "path": "/invites/participant/:token/me",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantSelfCheck"
+    },
+    {
+      "method": "POST",
+      "path": "/signup/participant",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "PublicSignupResult"
+    },
+    {
+      "method": "GET",
+      "path": "/invites/worker/:token",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "PublicWorkerInviteInfo"
+    },
+    {
+      "method": "POST",
+      "path": "/invites/worker",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "WorkerSignupResult"
+    },
+    {
+      "method": "POST",
+      "path": "/organization/onboarding",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "OrganizationProfile"
+    },
+    {
+      "method": "GET",
+      "path": "/participants",
+      "wireKeys": [
+        "results"
+      ],
+      "projectionKeys": [
+        "results"
+      ],
+      "dto": "AssignedParticipant[]"
+    },
+    {
+      "method": "POST",
+      "path": "/invites/participant",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantInvite"
+    },
+    {
+      "method": "POST",
+      "path": "/participants",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantProgramCreation"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/hub",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantHubDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/goal-tree",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantGoalTreeCase[]"
+    },
+    {
+      "method": "PUT",
+      "path": "/support-cases/:id/consent",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantConsent"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/basic-info",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantBasicInfo"
+    },
+    {
+      "method": "PUT",
+      "path": "/participants/:id/basic-info",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "void"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/programs/:case/briefing",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantBriefing"
+    },
+    {
+      "method": "PUT",
+      "path": "/support-cases/:id/overall-goal",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "OverallGoalUpdate"
+    },
+    {
+      "method": "PUT",
+      "path": "/support-cases/:id/discrepancies/:discrepancyId/resolution",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SessionDiscrepancy"
+    },
+    {
+      "method": "GET",
+      "path": "/support-cases/:id/closure",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SupportCaseClosureInfo"
+    },
+    {
+      "method": "POST",
+      "path": "/support-cases/:id/close",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SupportCase"
+    },
+    {
+      "method": "GET",
+      "path": "/support-cases/:id/records?official=true",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SupportCaseRecords"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/support-cases",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ParticipantProgram[]"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/:id/ai",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AiDraft"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/:id",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ManualSession"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:id/ai/drafts/:version/review",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AiDraftMutationWire"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:id/ai/generate",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AiDraftMutationWire"
+    },
+    {
+      "method": "POST",
+      "path": "/cases/:id/action-items",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "OpenActionItemWire"
+    },
+    {
+      "method": "GET",
+      "path": "/support-cases/:id/records/intake",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "IntakeRecordContext"
+    },
+    {
+      "method": "POST",
+      "path": "/support-cases/:id/records/intake",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "CreateIntakeRecordResult"
+    },
+    {
+      "method": "PUT",
+      "path": "/support-cases/:id/records/intake",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "CreatedIntakeRecord"
+    },
+    {
+      "method": "GET",
+      "path": "/schedules/:id/plan",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "ScheduleSessionPlan"
+    },
+    {
+      "method": "POST",
+      "path": "/support-cases/:id/records",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "CreateCounselingRecordResult"
+    },
+    {
+      "method": "POST",
+      "path": "/cases/:id/goals",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "Goal"
+    },
+    {
+      "method": "PUT",
+      "path": "/goals/:id/title",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "Goal"
+    },
+    {
+      "method": "POST",
+      "path": "/goals/:id/close",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "Goal"
+    },
+    {
+      "method": "POST",
+      "path": "/preview/unlock",
+      "wireKeys": [
+        "token",
+        "maxAgeSeconds",
+        "expiresAt"
+      ],
+      "projectionKeys": [
+        "token",
+        "maxAgeSeconds"
+      ],
+      "dto": "PreviewUnlockWire"
+    },
+    {
+      "method": "GET",
+      "path": "/schedules/today",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "TodaySchedules"
+    },
+    {
+      "method": "GET",
+      "path": "/schedules/upcoming",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "TodaySchedules"
+    },
+    {
+      "method": "GET",
+      "path": "/schedules/month",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "TodaySchedules"
+    },
+    {
+      "method": "PUT",
+      "path": "/me/last-program",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "LastProgramUpdate"
+    },
+    {
+      "method": "GET",
+      "path": "/cases/:id/goals",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "Goal[]"
+    },
+    {
+      "method": "POST",
+      "path": "/schedules",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "CounselingSchedule"
+    },
+    {
+      "method": "PUT",
+      "path": "/schedules/:id/plan",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "SchedulePlanUpdate"
+    },
+    {
+      "method": "GET",
+      "path": "/assignment-requests",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AssignmentRequest[]"
+    },
+    {
+      "method": "POST",
+      "path": "/support-cases/:id/assignees/:assignmentId/accept",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "AssignmentAccepted"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "wireKeys": [
+        "status",
+        "service"
+      ],
+      "projectionKeys": [],
+      "dto": "Health",
+      "status": "unmapped-by-current-page",
+      "actor": "none"
+    },
+    {
+      "method": "POST",
+      "path": "/cases/:id/pilot-text-ai-consent",
+      "wireKeys": [
+        "caseId",
+        "status",
+        "evidenceId",
+        "noticeVersion",
+        "noticeHash",
+        "evidenceHash",
+        "effectiveAt"
+      ],
+      "projectionKeys": [],
+      "dto": "PilotTextAiConsent",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/new-signup-count",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [
+        "fixture"
+      ],
+      "dto": "NewSignupCount"
+    }
+  ]
+}
