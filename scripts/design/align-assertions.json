@@ -38,7 +38,9 @@
       "#align-back .page-back>span"
     ],
     "axis": "inset-x-ink",
-    "tolerance": 1
+    "tolerance": 1,
+    "expectedLeft": 16.9,
+    "expectedRight": 17
   },
   {
     "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",

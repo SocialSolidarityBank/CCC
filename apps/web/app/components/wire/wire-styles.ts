@@ -1187,9 +1187,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    체크박스를 누르는 자리라 cursor 를 자기 선언으로 갖는다 — 위계 판정도 이 신호로 컨트롤
    표(14/600 --ink '작은 컨트롤')를 쓴다(hierarchy-audit CONTROL_ROLES 주석). */
 .register-consent .consent-checkbox{font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
-/* 이 구획 안에서는 각 상자의 grid gap이 줄 사이 간격을 소유한다. 공용 schedule-form-hint의
-   위아래 margin 8을 더하면 안내와 첫 체크가 20, 체크끼리는 12가 되고 마지막 안내가 상자
-   아래에 8을 더 남긴다. 등록 동의 범위에서는 margin을 걷어 중복 간격을 막는다. */
+/* 등록 동의 안에서는 공용 schedule-form-hint의 margin 8을 걷는다. 실제 글자 간격은 아래
+   전용 규칙이 안내 뒤 gap 10px, 둘째 체크 위 2px으로 나눠 14±1px에 맞춘다. */
 .register-consent .schedule-form-hint{margin-block:0}
 .register-card .schedule-form-hint{max-width:none}
 /* 2026-08-29 Q "텍스트 덩어리는 div 카드에": 동의 안내+체크 묶음과 긴급 등록이 각각 한

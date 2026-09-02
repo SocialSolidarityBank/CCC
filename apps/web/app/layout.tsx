@@ -947,15 +947,11 @@ const scheduleStyles = `
 .schedule-briefing-item .wire-badge{margin-right:var(--space-1)}
 /* (.schedule-form 카드 표면은 2026-08-09 삭제 — 마지막 사용처였던 미리보기 게이트가 전용
    .preview-gate-card 로 바뀌었다. -hint·-notice 는 등록·가입 화면이 계속 쓴다.) */
-/* 안내 문구는 14(--text-sm)다 — 2026-08-09 Q 지시(구 12 --text-xs 대체). 입력칸에 붙는
-   .wire-form-hint 도 2026-08-10 Q 지시로 14 가 되면서 두 도움말 크기가 같아졌고, 2026-08-07
-   '도움말 12 전역 통일'은 완전히 걷혔다.
-   이 클래스는 입력칸 아래 한 줄 도움말이 아니라 **구획 머리에 서는 안내 문단**이라 ④ 설명·메타
-   단(14/400 --sub)으로 올라간다.
-   위아래 여백 8 은 '마지막 기록' 줄(.participant-program-consent-meta)의 위 여백과 같은 값이다
-   (2026-08-09 Q). 부모 격자의 gap 12 와 합쳐 렌더 여백이 20 으로 맞는다 — 실측으로 확인한
-   '마지막 기록' 위 여백도 20 이다. 묶음의 첫 줄일 때는 위 여백을 걷는다: 그 자리는 카드
-   구분선 아래 24(카드 계약)라 8 을 더하면 32 로 튄다. */
+/* 안내 문구는 14(--text-sm)다(2026-08-09 Q, 구 12 대체). 이 클래스는 입력칸 아래 한 줄
+   도움말이 아니라 구획 머리에 서는 안내 문단이라 ④ 설명·메타 단(14/400 --sub)을 쓴다.
+   기본 위아래 여백은 8이고 묶음의 첫 줄이면 위 여백을 걷는다. 당사자 등록 동의 상자는
+   이 기본 margin을 0으로 덮고, 전용 10px gap과 2px 보정으로 실제 글자 간격을 맞춘다.
+   당사자 정보의 마지막 기록은 별도 2px 구조 여백을 쓰므로 이 기본값과 연결하지 않는다. */
 .schedule-form-hint{margin:var(--space-2) 0;max-width:72ch;color:var(--sub);font-size:var(--text-sm);text-wrap:pretty}
 .schedule-form-hint:first-child{margin-top:0}
 /* 성공색은 이 시스템에 없다(D6·R4). 완료 알림은 중립 잉크 + 문구로 알린다. */

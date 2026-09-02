@@ -159,10 +159,14 @@ CHECK_JS = r"""
       const left = leftRect.left - stroke / 2 - boxRect.left;
       const right = boxRect.right - textRects.at(-1).right;
       const delta = Math.abs(left - right);
+      const expectedDelta = Math.max(
+        a.expectedLeft === undefined ? 0 : Math.abs(left - a.expectedLeft),
+        a.expectedRight === undefined ? 0 : Math.abs(right - a.expectedRight),
+      );
       return {
         name: a.name,
-        pass: delta <= tol,
-        detail: `왼쪽 잉크 여백 ${left.toFixed(2)}px / 오른쪽 글자 여백 ${right.toFixed(2)}px / 차이 ${delta.toFixed(2)}px (허용 ${tol})`,
+        pass: delta <= tol && expectedDelta <= tol,
+        detail: `왼쪽 잉크 여백 ${left.toFixed(2)}px / 오른쪽 글자 여백 ${right.toFixed(2)}px / 차이 ${delta.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 
