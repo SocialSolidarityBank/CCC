@@ -56,6 +56,12 @@ describe('BackLink (2026-07-31)', () => {
     expect(container.querySelector('.page-back .wire-icon')).toBeNull();
   });
 
+  it('왼쪽 꺽쇠는 뒤로 라벨과 같은 현재 글자색을 쓴다', () => {
+    expect(layoutSource).toMatch(
+      /\.page-back \.wire-chevron\{--chevron-color:currentColor\}/,
+    );
+  });
+
   it('뒤로가기 버튼도 전역 버튼처럼 알약 반경을 쓴다', () => {
     expect(layoutSource).toMatch(
       /\.page-back\{[^}]*border-radius:var\(--radius-pill\)/,
