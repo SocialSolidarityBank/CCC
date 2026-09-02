@@ -2067,8 +2067,9 @@ describe('API routes', () => {
       }));
       const body = calls[0]!.init?.body;
       if (typeof body !== 'string') throw new Error('Codex request body is not a string');
-      const mapped = JSON.parse(body) as { model: string; input: string; text: { format: { schema: unknown } } };
+      const mapped = JSON.parse(body) as { model: string; store: boolean; input: string; text: { format: { schema: unknown } } };
       expect(mapped.model).toBe(TEST_PROVIDER_CONFIG.model);
+      expect(mapped.store).toBe(false);
       expect(JSON.parse(mapped.input)).toEqual(request);
       expect(mapped.text.format.schema).toEqual(expect.objectContaining({ additionalProperties: false }));
     } finally {
