@@ -67,7 +67,7 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 
 roles의 업무 의미는 lossless하게 유지한다. `institution-admin`은 기관 업무와 허용된 PII 업무를 수행하고, `technical-admin`은 설치·진단·업데이트만 수행하며 케이스·상담·PII business route에는 403이다. `supervisor`는 지정 팀의 읽기 전용 감독 범위, `worker`는 활성 담당 케이스 쓰기 범위를 가진다. `service`는 아래 Agent route만 가진다. 복수 role은 합집합으로 권한을 계산하며 `roles=[]`인 human은 business route에서 403이다.
 
-기관 관리자·기술 관리자의 privileged API와 PII 열람은 **Community Cloud `Actor.authn.assurance='aal2'`**를 요구한다. `aal1`이면 human Actor를 만들 수 있지만 privileged route에서는 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
+Community Cloud의 모든 human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `Actor.authn.assurance='aal2'`인 세션만 허용한다. `aal1` 또는 다른 assurance는 human Actor를 만들지 않고 403 `mfa_required`다. Local Office에서는 privileged role을 투영하기 전에 `mfaVerifiedAt`이 있어야 하고 그 결과만 `Actor.authn.assurance='mfa'`로 기록한다. MFA 없는 Office 세션은 worker 업무만 가능하다. Local Single의 유일 human account는 설치 시 `institution-admin`, `technical-admin`, `worker` bundle과 practitioner self-assignment를 가지며 앱 잠금 해제 결과는 `app-lock` assurance다.
 
 Agent service Actor의 scope는 정확히 다음 여섯 개다.
 
@@ -136,7 +136,7 @@ interface AuthRevocation {
 | Agent refresh credential | 30일 | 30일 | rotate-on-use, 이전 값 재사용 또는 pairing revoke 시 전부 폐기 |
 | Cloud scheduler credential | 30일 이내에 회전 | 해당 없음 | Vault와 Edge secret을 함께 교체하고 이전 값을 즉시 폐기 |
 
-Supabase logout, password reset, MFA 변경, 관리자 계정 비활성화는 refresh session을 폐기하고 `session_id` 또는 actor revocation을 기록한다. revocation 상태를 읽지 못하면 503이며 업무 데이터를 반환하지 않는다. Office session 행은 `sessionHash`, `userId`, `issuedAt`, `expiresAt`, `mfaVerifiedAt`, `revokedAt`을 가진다. 계정 disable, password/MFA reset, 관리자 revoke는 그 계정의 모든 세션을 폐기한다.
+Supabase logout, password reset, MFA 변경, 관리자 계정 비활성화는 refresh session을 폐기하고 `session_id` 또는 actor revocation을 기록한다. revocation 상태를 읽지 못하면 503이며 업무 데이터를 반환하지 않는다. Office session 행은 opaque `sessionId`, `sessionHash`, `userId`, `issuedAt`, `expiresAt`, `mfaVerifiedAt`, `revokedAt`을 가진다. bearer의 `Actor.authn.sessionId`는 이 행의 `sessionId`이며 비어 있을 수 없다. 계정 disable, password/MFA reset, 관리자 revoke는 그 계정의 모든 세션을 폐기한다.
 
 ### 2.5 Local Single 안정 ID와 잠금 handshake
 
@@ -218,29 +218,28 @@ provider option의 disabled reason은 deterministic하다. STT local과 azure는
 - `features.ai_draft === (llmMode === 'openai')`다. AI가 켜진 선택 row의 `agentStatus`는 `connected`, `delayed`, `authentication_error`, `quota_exceeded` 중 하나이며 `inactive`일 수 없다. 두 축이 모두 off인 row의 AgentStatus는 `inactive`다.
 - `features.recording`은 세 mode에서 true, `multi_user`는 Cloud/Office true와 Single false, `offline`은 Single/Office true와 Cloud false, `cloud_audio_temp`는 Cloud true와 Local false다. `public_signup`은 배포 환경 스위치가 `1`인 경우에만 true이며 그 외에는 false다.
 - capability에는 key 이름·값·hash, token, endpoint credential, `orgId`, `userId`, email, provider raw error가 없다.
+18개 조합 fixture는 requested tuple, synthetic signed engine registry context, actual output을 함께 고정한다. production signed registry는 현재 비어 있으므로 production pre-Q output은 모든 mode에서 `sttMode='off'`, `sttEngine=null`이고 local/azure option은 `unverified`다. 아래 `synthetic-*` registry는 fixture에만 서명해 주입하는 테스트 context이며 production registry를 미리 결정하지 않는다. fixture의 `actual llmMode`는 필요한 key, Agent, 동의 gate가 통과한 결과다.
 
-18개 조합은 requested tuple과 현재 pre-Q manifest 결과를 함께 고정한다. 현재 signed registry가 비어 있으므로 18개 모두의 actual `sttMode`와 `sttEngine`은 off/null이고, requested local/azure 축은 `unverified` option으로 남는다. 승인된 registry가 채워진 뒤에도 tuple의 mode와 LLM 축, feature/status 규칙은 그대로 유지한다.
-
-| # | mode | requested sttMode | requested llmMode | pre-Q actual sttMode | pre-Q sttEngine | fixture AgentStatus |
-|---:|---|---|---|---|---|---|
-| 1 | community-cloud | off | off | off | null | inactive |
-| 2 | community-cloud | off | openai | off | null | connected |
-| 3 | community-cloud | local | off | off | null | connected |
-| 4 | community-cloud | local | openai | off | null | connected |
-| 5 | community-cloud | azure | off | off | null | connected |
-| 6 | community-cloud | azure | openai | off | null | connected |
-| 7 | local-single | off | off | off | null | inactive |
-| 8 | local-single | off | openai | off | null | connected |
-| 9 | local-single | local | off | off | null | connected |
-| 10 | local-single | local | openai | off | null | connected |
-| 11 | local-single | azure | off | off | null | connected |
-| 12 | local-single | azure | openai | off | null | connected |
-| 13 | local-office | off | off | off | null | inactive |
-| 14 | local-office | off | openai | off | null | connected |
-| 15 | local-office | local | off | off | null | connected |
-| 16 | local-office | local | openai | off | null | connected |
-| 17 | local-office | azure | off | off | null | connected |
-| 18 | local-office | azure | openai | off | null | connected |
+| # | mode | synthetic signed registry | requested sttMode | requested llmMode | actual sttMode | actual sttEngine | actual llmMode | fixture AgentStatus |
+|---:|---|---|---|---|---|---|---|---|
+| 1 | community-cloud | registry-empty | off | off | off | null | off | inactive |
+| 2 | community-cloud | registry-empty | off | openai | off | null | openai | connected |
+| 3 | community-cloud | synthetic-local-whisper-medium | local | off | local | local-whisper-medium | off | connected |
+| 4 | community-cloud | synthetic-local-whisper-medium | local | openai | local | local-whisper-medium | openai | connected |
+| 5 | community-cloud | synthetic-azure-speech-koreacentral | azure | off | azure | azure-speech-koreacentral | off | connected |
+| 6 | community-cloud | synthetic-azure-speech-koreacentral | azure | openai | azure | azure-speech-koreacentral | openai | connected |
+| 7 | local-single | registry-empty | off | off | off | null | off | inactive |
+| 8 | local-single | registry-empty | off | openai | off | null | openai | connected |
+| 9 | local-single | synthetic-local-whisper-medium | local | off | local | local-whisper-medium | off | connected |
+| 10 | local-single | synthetic-local-whisper-medium | local | openai | local | local-whisper-medium | openai | connected |
+| 11 | local-single | synthetic-azure-speech-koreacentral | azure | off | azure | azure-speech-koreacentral | off | connected |
+| 12 | local-single | synthetic-azure-speech-koreacentral | azure | openai | azure | azure-speech-koreacentral | openai | connected |
+| 13 | local-office | registry-empty | off | off | off | null | off | inactive |
+| 14 | local-office | registry-empty | off | openai | off | null | openai | connected |
+| 15 | local-office | synthetic-local-whisper-medium | local | off | local | local-whisper-medium | off | connected |
+| 16 | local-office | synthetic-local-whisper-medium | local | openai | local | local-whisper-medium | openai | connected |
+| 17 | local-office | synthetic-azure-speech-koreacentral | azure | off | azure | azure-speech-koreacentral | off | connected |
+| 18 | local-office | synthetic-azure-speech-koreacentral | azure | openai | azure | azure-speech-koreacentral | openai | connected |
 
 ### 2.9 CORS, CSP, Electron과 브라우저 저장
 소유: exact CORS와 Edge response는 E6-2, custom protocol은 E7-2, Office TLS origin은 E8-2, browser transport와 service worker는 E2-2/E2-3다.
@@ -317,7 +316,6 @@ Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant jo
 - [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
 - [ ] canonical `Identity.resolve(request)`, `revokeAll(userId, reason)`, `revokeSession(sessionId, reason)`를 사용하고, 세 mode의 Bearer, lossless role projection, 401/403/503 판정이 완결되어 있다.
 
-- [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
 - [ ] Supabase `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 JWKS rotation, negative cache/cooldown, revocation과 TTL이 완결되어 있다.
 - [ ] signed manifest의 JCS, expiry, sequence, installationId, key revocation, Single dynamic endpoint discovery와 public two-key bootstrap이 완결되어 있다.
 - [ ] exact CapabilityManifest schema, deterministic feature/status invariants, 18개 combination fixture가 있고 secret field가 없다.
