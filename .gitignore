@@ -72,3 +72,6 @@ omp-session-*.html
 /docs/_local/
 /.local-flowmap/
 artifacts/ia-shots/
+
+# S13 fixture audio is fetched from the GitHub Release asset and never committed.
+artifacts/pilot/fixtures/s13-v1/audio/
