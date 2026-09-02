@@ -16,5 +16,6 @@
     "OFL-1.1",
     "Unlicense",
     "Zlib"
-  ]
+  ],
+  "allowedSpdxExceptions": []
 }

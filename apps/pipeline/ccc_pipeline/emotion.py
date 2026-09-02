@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 
+from .model_registry import ModelRegistryError, role_spec
 SPEECH_WEIGHT = 0.3
 TEXT_WEIGHT = 0.7
 
@@ -63,10 +64,14 @@ def aggregate_scores(speech_scores: list[float], text_scores: list[float]) -> di
 
 
 def build_text_scorer(model_id: str = "LimYeri/HowRU-KoELECTRA-Emotion-Classifier"):  # noqa: ANN201
-    """텍스트 감정 분류기(MIT) 래퍼 — 발화 텍스트 목록 → 점수 목록. 지연 임포트."""
+    """텍스트 감정 분류기(MIT) 래퍼 — manifest revision으로 고정한다."""
     from transformers import pipeline  # noqa: PLC0415
 
-    classifier = pipeline("text-classification", model=model_id, top_k=None)
+    try:
+        spec = role_spec("text-emotion", model_id)
+    except ModelRegistryError as error:
+        raise ValueError("text emotion model is not declared in model manifest") from error
+    classifier = pipeline("text-classification", model=spec.name, revision=spec.revision, top_k=None)
 
     def score(texts: list[str]) -> list[float]:
         results = classifier(texts)
@@ -76,15 +81,15 @@ def build_text_scorer(model_id: str = "LimYeri/HowRU-KoELECTRA-Emotion-Classifie
 
 
 def build_speech_scorer(model_id: str = "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition"):  # noqa: ANN201
-    """음성 감정 분류기(Apache-2.0) 래퍼 — 발화 구간 오디오 → 점수 목록. 지연 임포트.
-
-    librosa로 16kHz 모노 로드 후 구간을 잘라 분류한다. 너무 짧은 구간(<0.5초)은
-    모델 입력으로 불안정해 건너뛴다.
-    """
+    """음성 감정 분류기(Apache-2.0) 래퍼 — manifest revision으로 고정한다."""
     import librosa  # noqa: PLC0415
     from transformers import pipeline  # noqa: PLC0415
 
-    classifier = pipeline("audio-classification", model=model_id, top_k=None)
+    try:
+        spec = role_spec("speech-emotion", model_id)
+    except ModelRegistryError as error:
+        raise ValueError("speech emotion model is not declared in model manifest") from error
+    classifier = pipeline("audio-classification", model=spec.name, revision=spec.revision, top_k=None)
 
     def score(audio_path: str, spans: list[tuple[float, float]]) -> list[float]:
         waveform, rate = librosa.load(audio_path, sr=16000, mono=True)

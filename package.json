@@ -45,6 +45,9 @@
     "@types/node": "^24.0.0",
     "miniflare": "^4.20260702.1",
     "postgres": "^3.4.9",
+    "spdx-exceptions": "2.5.0",
+    "spdx-expression-parse": "3.0.1",
+    "spdx-license-ids": "3.0.22",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0",
     "wrangler": "^4.107.0"

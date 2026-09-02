@@ -6,11 +6,14 @@
  * manifest, and the approved fixture scan are all required. A missing tool is
  * an actionable failure, never a skipped check.
  */
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import {
   cpSync,
   existsSync,
   lstatSync,
+  realpathSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,6 +24,10 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+const require = createRequire(import.meta.url);
+const parseSpdx = require('spdx-expression-parse');
+const spdxExceptions = require('spdx-exceptions');
+const spdxLicenseIds = require('spdx-license-ids');
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFAULT_ALLOWLIST = join(repoRoot, 'supply-chain/license-allowlist.json');
@@ -137,72 +144,31 @@ function licenseExpressions(component) {
   return expressions;
 }
 
-function expressionAllowed(expression, allowedSpdx) {
+function expressionAllowed(expression, allowedSpdx, allowedExceptions = new Set()) {
   if (typeof expression !== 'string' || expression.length === 0 || /unknown|see license in/i.test(expression)) return false;
-  const tokenPattern = /\s*(\(|\)|AND\b|OR\b|WITH\b|[A-Za-z0-9][A-Za-z0-9.+-]*)/gy;
-  const tokens = [];
-  let offset = 0;
-  while (offset < expression.length) {
-    tokenPattern.lastIndex = offset;
-    const match = tokenPattern.exec(expression);
-    if (match === null) return false;
-    tokens.push(match[1]);
-    offset = tokenPattern.lastIndex;
-  }
-  let cursor = 0;
-  const parsePrimary = () => {
-    if (tokens[cursor] === '(') {
-      cursor += 1;
-      const node = parseOr();
-      if (tokens[cursor] !== ')') throw new Error('unbalanced SPDX expression');
-      cursor += 1;
-      return node;
-    }
-    const id = tokens[cursor];
-    if (id === undefined || ['AND', 'OR', 'WITH', ')'].includes(id)) throw new Error('invalid SPDX expression');
-    cursor += 1;
-    return { kind: 'license', id };
-  };
-  const parseWith = () => {
-    const base = parsePrimary();
-    if (tokens[cursor] === 'WITH') {
-      cursor += 1;
-      const exception = tokens[cursor];
-      if (exception === undefined || ['AND', 'OR', 'WITH', '(', ')'].includes(exception)) throw new Error('invalid SPDX exception');
-      cursor += 1;
-      return { kind: 'with', base, exception };
-    }
-    return base;
-  };
-  const parseAnd = () => {
-    let node = parseWith();
-    while (tokens[cursor] === 'AND') {
-      cursor += 1;
-      node = { kind: 'and', left: node, right: parseWith() };
-    }
-    return node;
-  };
-  const parseOr = () => {
-    let node = parseAnd();
-    while (tokens[cursor] === 'OR') {
-      cursor += 1;
-      node = { kind: 'or', left: node, right: parseAnd() };
-    }
-    return node;
-  };
+  let ast;
   try {
-    const ast = parseOr();
-    if (cursor !== tokens.length) return false;
-    const evaluate = (node) => {
-      if (node.kind === 'license') return allowedSpdx.has(node.id);
-      if (node.kind === 'with') return evaluate(node.base);
-      if (node.kind === 'and') return evaluate(node.left) && evaluate(node.right);
-      return evaluate(node.left) || evaluate(node.right);
-    };
-    return evaluate(ast);
+    ast = parseSpdx(expression);
   } catch {
     return false;
   }
+  const knownLicenses = new Set(spdxLicenseIds);
+  const knownExceptions = new Set(Array.isArray(spdxExceptions) ? spdxExceptions : Object.values(spdxExceptions));
+  const evaluate = (node) => {
+    if (node.exception !== undefined) {
+      return knownExceptions.has(node.exception)
+        && allowedExceptions.has(node.exception)
+        && knownLicenses.has(node.license)
+        && allowedSpdx.has(node.license);
+    }
+    if (node.license !== undefined) {
+      return knownLicenses.has(node.license) && allowedSpdx.has(node.license);
+    }
+    if (node.conjunction === 'and') return evaluate(node.left) && evaluate(node.right);
+    if (node.conjunction === 'or') return evaluate(node.left) || evaluate(node.right);
+    return false;
+  };
+  return evaluate(ast);
 }
 
 function licenseInventory() {
@@ -226,10 +192,11 @@ function licenseInventory() {
   }
 
   const inventory = new Map();
-  for (const [license, entries] of Object.entries(data ?? {})) {
-    if (!Array.isArray(entries)) continue;
+  for (const [license, value] of Object.entries(data ?? {})) {
+    const entries = Array.isArray(value) ? value : [value];
     for (const entry of entries) {
-      for (const version of entry.versions ?? []) {
+      if (typeof entry?.name !== 'string' || !Array.isArray(entry.versions)) continue;
+      for (const version of entry.versions) {
         inventory.set(`${entry.name}@${version}`, license);
       }
     }
@@ -296,14 +263,21 @@ function lockfilePlatformExcludes(name, version) {
   }
   saveCurrent();
 
+  const target = `${name}@${version}`;
   const entry = [...metadataByKey.entries()]
-    .filter(([key]) => key.includes(`${name}@${version}`))
+    .filter(([key]) => key === target || key.startsWith(`${target}(`))
     .map(([, value]) => value)
     .join('\n');
   if (!/^\s+optional:\s*true\s*$/m.test(entry)) return false;
   const values = (field) => {
     const match = entry.match(new RegExp(`^    ${field}: \\[([^\\]]*)\\]$`, 'm'));
     return match ? match[1].split(',').map((value) => value.trim().replace(/^['"]|['"]$/g, '')) : [];
+  };
+  const constraintAllows = (constraintValues, hostValues) => {
+    const negatives = constraintValues.filter((value) => value.startsWith('!')).map((value) => value.slice(1));
+    const positives = constraintValues.filter((value) => !value.startsWith('!'));
+    if (hostValues.some((value) => negatives.includes(value))) return false;
+    return positives.length === 0 || positives.some((value) => hostValues.includes(value));
   };
   const os = values('os');
   const cpu = values('cpu');
@@ -312,16 +286,16 @@ function lockfilePlatformExcludes(name, version) {
   const hostLibc = process.platform !== 'linux'
     ? []
     : (process.report?.getReport?.().header?.glibcVersionRuntime ? ['glibc'] : ['musl']);
-  return (os.length > 0 && !os.includes(process.platform))
-    || (cpu.length > 0 && !cpu.some((value) => hostCpu.includes(value)))
-    || (libc.length > 0 && !libc.some((value) => hostLibc.includes(value)));
+  return !constraintAllows(os, [process.platform])
+    || !constraintAllows(cpu, hostCpu)
+    || !constraintAllows(libc, hostLibc);
 }
 
 function conditionalObligationFor(name, version, obligations) {
   return obligations.find((entry) => name.startsWith(entry.packageNamePrefix) && entry.versions.includes(version)) ?? null;
 }
 
-function validateConditionalManifest(path, artifactDir) {
+function validateConditionalManifest(path, artifactDir, allowedSpdx, allowedExceptions) {
   ensureFile(path, 'conditional license obligations');
   const manifest = readJson(path, 'conditional license obligations');
   if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.obligations)) {
@@ -335,6 +309,9 @@ function validateConditionalManifest(path, artifactDir) {
     || pythonSbom.owners.length === 0) {
     violations.push('Python dependency SBOM의 최종 artifact 요구와 owner가 닫히지 않음');
   } else if (artifactDir !== null) {
+    if (typeof pythonSbom.requirementsPath !== 'string' || typeof pythonSbom.lockPath !== 'string') {
+      violations.push('Python dependency requirements/lock 경로가 없다');
+    }
     const pathValue = artifactEvidencePath(artifactDir, { artifactEvidencePattern: pythonSbom.artifactPath }, '');
     const pythonContent = pathValue !== null && existsSync(pathValue) && lstatSync(pathValue).isFile()
       ? readFileSync(pathValue, 'utf8') : '';
@@ -343,9 +320,12 @@ function validateConditionalManifest(path, artifactDir) {
     } else {
       try {
         const pythonBom = JSON.parse(pythonContent);
-        if (pythonBom.bomFormat !== 'CycloneDX' || typeof pythonBom.specVersion !== 'string'
-          || !Array.isArray(pythonBom.components) || pythonBom.components.length === 0) {
-          violations.push(`Python dependency SBOM이 유효한 CycloneDX 문서가 아니다 (owner: ${pythonSbom.owners.join(', ')})`);
+        if (typeof pythonSbom.requirementsPath === 'string' && typeof pythonSbom.lockPath === 'string') {
+          const requirementsPath = isAbsolute(pythonSbom.requirementsPath)
+            ? pythonSbom.requirementsPath : resolve(repoRoot, pythonSbom.requirementsPath);
+          const lockPath = isAbsolute(pythonSbom.lockPath)
+            ? pythonSbom.lockPath : resolve(repoRoot, pythonSbom.lockPath);
+          validatePythonSbom(pythonBom, requirementsPath, lockPath, allowedSpdx, allowedExceptions, violations);
         }
       } catch {
         violations.push(`Python dependency SBOM JSON을 읽을 수 없다 (owner: ${pythonSbom.owners.join(', ')})`);
@@ -353,11 +333,19 @@ function validateConditionalManifest(path, artifactDir) {
     }
   }
   for (const obligation of manifest.obligations) {
-    const requiredStrings = ['packageNamePrefix', 'license', 'licenseText', 'noticeText', 'sourceUrl', 'artifactEvidencePattern'];
+    const requiredStrings = [
+      'packageNamePrefix', 'license', 'licenseText', 'noticeText', 'sourceUrl',
+      'sourceArchiveVersion', 'sourceArchiveUrl', 'sourceArchiveSha256',
+      'canonicalLicenseTextPath', 'canonicalLicenseTextSha256', 'artifactEvidencePattern',
+    ];
     for (const field of requiredStrings) {
       if (typeof obligation[field] !== 'string' || obligation[field].length === 0) {
         violations.push(`${obligation.packageNamePrefix ?? '<package>'}: ${field}가 없다`);
       }
+    }
+    if (!validSha256(obligation.sourceArchiveSha256)
+      || !validSha256(obligation.canonicalLicenseTextSha256)) {
+      violations.push(`${obligation.packageNamePrefix ?? '<package>'}: canonical/source SHA-256 pin이 유효하지 않음`);
     }
     if (!Array.isArray(obligation.versions) || obligation.versions.length === 0) {
       violations.push(`${obligation.packageNamePrefix ?? '<package>'}: versions가 비어 있다`);
@@ -381,20 +369,174 @@ function artifactEvidencePath(artifactDir, obligation, name) {
   if (relativePath.includes('..') || relativePath.startsWith('/')) return null;
   return join(artifactDir, relativePath);
 }
-function validateSbom(sbomPath, allowedSpdx, conditionalPath, crossEvidencePath, artifactDir) {
-  const obligations = validateConditionalManifest(conditionalPath, artifactDir);
+function sha256Hex(value) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+function artifactFile(artifactDir, relativePath) {
+  if (typeof relativePath !== 'string' || relativePath.length === 0
+    || relativePath.includes('..') || relativePath.startsWith('/')) return null;
+  try {
+    const root = realpathSync(artifactDir);
+    const rawCandidate = join(root, relativePath);
+    const candidate = realpathSync(rawCandidate);
+    const escaped = relative(root, candidate);
+    if (isAbsolute(escaped) || escaped === '..' || escaped.startsWith(`..${sep}`) || escaped.startsWith('../')) return null;
+    if (!lstatSync(rawCandidate).isFile() || !lstatSync(candidate).isFile()) return null;
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+function sha256File(path) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function validateConditionalEvidence(content, name, version, obligation, artifactDir, violations) {
+  let evidence;
+  try {
+    evidence = JSON.parse(content);
+  } catch {
+    violations.push(`${name}@${version}: final artifact license evidence가 JSON이 아니다`);
+    return;
+  }
+  const packageName = evidence?.package?.name;
+  const packageVersion = evidence?.package?.version;
+  const licenseText = evidence?.licenseText;
+  const noticeText = evidence?.noticeText;
+  const source = evidence?.source;
+  const library = evidence?.replaceableLibrary;
+  const procedure = evidence?.replacementProcedure;
+  const bundledLicenseFile = artifactFile(artifactDir, licenseText?.path);
+  const canonicalLicensePath = typeof obligation.canonicalLicenseTextPath === 'string'
+    ? resolve(repoRoot, obligation.canonicalLicenseTextPath) : null;
+  const canonicalLicenseHash = canonicalLicensePath !== null && existsSync(canonicalLicensePath)
+    && lstatSync(canonicalLicensePath).isFile() ? sha256File(canonicalLicensePath) : null;
+  const text = bundledLicenseFile === null ? '' : readFileSync(bundledLicenseFile, 'utf8');
+  const notice = typeof noticeText?.text === 'string' ? noticeText.text : '';
+  const libraryFile = artifactFile(artifactDir, library?.path);
+  const sourceFile = artifactFile(artifactDir, source?.path);
+  const libraryHash = libraryFile === null ? null : sha256File(libraryFile);
+  const sourceHash = sourceFile === null ? null : sha256File(sourceFile);
+  if (evidence?.schemaVersion !== 1 || packageName !== name || packageVersion !== version
+    || evidence.licenseExpression !== obligation.license
+    || canonicalLicenseHash !== obligation.canonicalLicenseTextSha256
+    || bundledLicenseFile === null || sha256File(bundledLicenseFile) !== canonicalLicenseHash
+    || !validSha256(licenseText?.sha256) || licenseText.sha256 !== canonicalLicenseHash
+    || notice !== obligation.noticeText
+    || !validSha256(noticeText?.sha256) || sha256Hex(notice) !== noticeText.sha256.toLowerCase()
+    || source?.url !== obligation.sourceArchiveUrl || source?.version !== obligation.sourceArchiveVersion
+    || sourceFile === null || !validSha256(source?.sha256)
+    || sourceHash !== obligation.sourceArchiveSha256 || sourceHash !== source.sha256.toLowerCase()
+    || libraryFile === null || library?.dynamic !== true || library?.replaceable !== true
+    || !validSha256(library?.sha256) || libraryHash !== library.sha256.toLowerCase()
+    || typeof procedure?.text !== 'string' || procedure.text.trim().length < 20
+    || procedure.separateFile !== true
+    || evidence.reverseEngineeringRestrictionsProhibited !== true) {
+    violations.push(`${name}@${version}: final artifact license evidence가 LGPL 전문·고지·정확한 source·교체 가능한 별도 library를 증명하지 못함`);
+  }
+}
+function validatePythonSbom(
+  pythonBom,
+  requirementsPath,
+  lockPath,
+  allowedSpdx,
+  allowedExceptions,
+  violations,
+) {
+  if (pythonBom?.bomFormat !== 'CycloneDX' || !['1.5', '1.6', '1.7'].includes(String(pythonBom.specVersion))
+    || !Array.isArray(pythonBom.components) || pythonBom.components.length === 0) {
+    violations.push('Python dependency SBOM이 유효한 CycloneDX 문서가 아니다');
+    return;
+  }
+  ensureFile(requirementsPath, 'pinned Python requirements');
+  ensureFile(lockPath, 'Python dependency lock evidence');
+  const lock = readJson(lockPath, 'Python dependency lock evidence');
+  if (lock.schemaVersion !== 1 || lock.complete !== true || !Array.isArray(lock.components)
+    || lock.components.length === 0) {
+    violations.push('Python dependency lock evidence가 없거나 E10-1 생성이 완료되지 않음');
+    return;
+  }
+  const normalizePythonName = (value) => value.toLowerCase().replace(/[-_.]+/g, '-');
+  const requirements = readFileSync(requirementsPath, 'utf8').split('\n')
+    .map((line) => line.replace(/#.*/, '').trim()).filter(Boolean);
+  const expectedRoots = new Set();
+  for (const line of requirements) {
+    const match = line.match(/^([A-Za-z0-9][A-Za-z0-9_.-]*)==([^;\s]+)$/);
+    if (!match) {
+      violations.push(`pinned Python requirements 항목이 고정되지 않음: ${line}`);
+    } else {
+      expectedRoots.add(`${normalizePythonName(match[1])}@${match[2]}`);
+    }
+  }
+  const hashes = (entries) => (entries ?? [])
+    .map((hash) => `${hash?.alg}:${hash?.content}`)
+    .sort();
+  const identity = (component) => {
+    const purl = typeof component?.purl === 'string' ? component.purl : '';
+    const rawName = purl.startsWith('pkg:pypi/')
+      ? decodeURIComponent(purl.slice('pkg:pypi/'.length).split('@')[0])
+      : String(component?.name ?? '');
+    return `${normalizePythonName(rawName)}@${String(component?.version ?? '')}`;
+  };
+  const lockByKey = new Map(lock.components.map((component) => [
+    `${normalizePythonName(component?.name ?? '')}@${String(component?.version ?? '')}`, component,
+  ]));
+  const actualKeys = new Set();
+  for (const component of pythonBom.components) {
+    const key = identity(component);
+    if (actualKeys.has(key)) violations.push(`Python dependency SBOM 중복 component: ${key}`);
+    actualKeys.add(key);
+    const expected = lockByKey.get(key);
+    const expressions = licenseExpressions(component);
+    const sourceProperty = (component.properties ?? []).find((entry) => entry?.name === 'ccc:license-source');
+    const distribution = (component.externalReferences ?? []).find((entry) => entry?.type === 'distribution');
+    if (expected === undefined
+      || component.purl !== expected.purl
+      || expressions.length !== 1 || expressions[0] !== expected.license
+      || !expressionAllowed(expressions[0], allowedSpdx, allowedExceptions)
+      || sourceProperty?.value !== expected.licenseSource
+      || JSON.stringify(hashes(component.hashes)) !== JSON.stringify(hashes(expected.hashes))
+      || JSON.stringify(hashes(distribution?.hashes)) !== JSON.stringify(hashes(expected.distributionHashes))) {
+      violations.push(`Python dependency ${key}: independent lock identity/license/source/hash mismatch`);
+    }
+  }
+  for (const [key] of lockByKey) {
+    if (!actualKeys.has(key)) violations.push(`Python dependency SBOM에 lock component가 없다: ${key}`);
+  }
+  for (const key of expectedRoots) {
+    if (!actualKeys.has(key)) violations.push(`Python dependency SBOM에 pinned dependency가 없다: ${key}`);
+  }
+}
+
+function validSha256(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+}
+function validateSbom(
+  sbomPath,
+  allowedSpdx,
+  allowedExceptions,
+  conditionalPath,
+  crossEvidencePath,
+  artifactDir,
+  authoritativeSbomPath = sbomPath,
+) {
+  const obligations = validateConditionalManifest(conditionalPath, artifactDir, allowedSpdx, allowedExceptions);
   const crossEvidence = crossPlatformInventory(crossEvidencePath);
   const bom = readJson(sbomPath, 'CycloneDX SBOM');
-  if (bom.bomFormat !== 'CycloneDX' || typeof bom.specVersion !== 'string') {
+  const authoritativeBom = readJson(authoritativeSbomPath, 'authoritative CycloneDX SBOM');
+  if (bom.bomFormat !== 'CycloneDX' || typeof bom.specVersion !== 'string'
+    || authoritativeBom.bomFormat !== 'CycloneDX' || typeof authoritativeBom.specVersion !== 'string') {
     throw new Error('CycloneDX SBOM이 아니거나 specVersion이 없다.');
   }
-  if (!Array.isArray(bom.components) || bom.components.length === 0) {
+  if (!Array.isArray(bom.components) || bom.components.length === 0
+    || !Array.isArray(authoritativeBom.components) || authoritativeBom.components.length === 0) {
     throw new Error('CycloneDX SBOM에 dependency component가 없다.');
   }
 
-  const inventory = bom.components.some((component) => licenseExpressions(component).length === 0)
-    ? licenseInventory()
-    : new Map();
+  // SBOM license fields are untrusted artifact claims. Resolve policy licenses
+  // from package-manager metadata and separately reviewed platform evidence.
+  const inventory = licenseInventory();
   const violations = [];
   const skippedOptional = [];
   const usedCrossEvidence = new Set();
@@ -402,13 +544,20 @@ function validateSbom(sbomPath, allowedSpdx, conditionalPath, crossEvidencePath,
     const name = npmComponentName(component) || '<이름 없음>';
     const version = String(component?.version ?? '<버전 없음>');
     const key = `${name}@${version}`;
-    const expressions = licenseExpressions(component);
     const inventoryLicense = inventory.get(key);
     const crossLicense = crossEvidence.get(key);
-    if (expressions.length === 0 && inventoryLicense === undefined && crossLicense !== undefined) {
-      usedCrossEvidence.add(key);
+    if (crossLicense !== undefined) usedCrossEvidence.add(key);
+    if (inventoryLicense !== undefined && crossLicense !== undefined && inventoryLicense !== crossLicense) {
+      violations.push(`${name}@${version}: 독립 license evidence가 일치하지 않음`);
+      continue;
     }
-    const resolved = expressions.length > 0 ? expressions : [inventoryLicense ?? crossLicense];
+    const resolved = inventoryLicense !== undefined
+      ? [inventoryLicense]
+      : (crossLicense !== undefined ? [crossLicense] : []);
+    if (lockfilePlatformExcludes(name, version)) {
+      skippedOptional.push(`${name}@${version}`);
+      continue;
+    }
     const conditional = conditionalObligationFor(name, version, obligations);
     const conditionalMatch = conditional !== null
       && resolved.length > 0
@@ -422,18 +571,23 @@ function validateSbom(sbomPath, allowedSpdx, conditionalPath, crossEvidencePath,
         const evidencePath = artifactEvidencePath(artifactDir, conditional, name);
         const evidenceContent = evidencePath !== null && existsSync(evidencePath)
           && lstatSync(evidencePath).isFile() ? readFileSync(evidencePath, 'utf8') : '';
-        if (evidencePath === null || evidenceContent.trim().length === 0
-          || !evidenceContent.includes(conditional.license)) {
-          violations.push(`${name}@${version}: final artifact license evidence가 없거나 license text가 없다`);
+        if (evidencePath === null || evidenceContent.trim().length === 0) {
+          violations.push(`${name}@${version}: final artifact license evidence가 없다`);
+        } else {
+          validateConditionalEvidence(evidenceContent, name, version, conditional, artifactDir, violations);
         }
       }
       continue;
     }
-    if (resolved.some((expression) => !expressionAllowed(expression, allowedSpdx))) {
+    if (resolved.length === 0 || resolved.some((expression) => !expressionAllowed(
+      expression,
+      allowedSpdx,
+      allowedExceptions,
+    ))) {
       if (lockfilePlatformExcludes(name, version)) {
         skippedOptional.push(`${name}@${version}`);
       } else {
-        violations.push(`${name}@${version}: SPDX license가 표기되지 않거나 허용되지 않음`);
+        violations.push(`${name}@${version}: SPDX license가 표기되지 않거나 허용되지 않음 (독립 evidence 없음)`);
       }
     }
   }
@@ -450,8 +604,7 @@ function validateSbom(sbomPath, allowedSpdx, conditionalPath, crossEvidencePath,
   return { count: bom.components.length, skippedOptional };
 }
 
-function validateModels(manifestPath, allowedSpdx) {
-  ensureFile(manifestPath, 'model license manifest');
+function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
   const manifest = readJson(manifestPath, 'model license manifest');
   if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.models)) {
     throw new Error('model license manifest schemaVersion 1/models 배열이 필요하다.');
@@ -460,6 +613,17 @@ function validateModels(manifestPath, allowedSpdx) {
     throw new Error('model license manifest가 비어 있다. 현재 runtime 모델을 모두 기록하라.');
   }
   const violations = [];
+  const requiredRuntimeModels = new Set([
+    'openai/whisper@medium',
+    'pyannote/speaker-diarization-3.1@3.1',
+    'jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition@latest-approved',
+    'LimYeri/HowRU-KoELECTRA-Emotion-Classifier@latest-approved',
+    'FrameByFrame/korean-pii-e5-base@latest-approved',
+  ]);
+  const manifestModels = new Set(manifest.models.map((model) => `${model?.name}@${model?.version}`));
+  for (const required of requiredRuntimeModels) {
+    if (!manifestModels.has(required)) violations.push(`runtime model manifest에 필수 모델이 없다: ${required}`);
+  }
   for (const model of manifest.models) {
     const name = String(model?.name ?? '<이름 없음>');
     const version = String(model?.version ?? '<버전 없음>');
@@ -468,13 +632,13 @@ function validateModels(manifestPath, allowedSpdx) {
       violations.push(`${name}@${version}: license가 표기되지 않음`);
       continue;
     }
-    if (!expressionAllowed(license, allowedSpdx)) {
+    if (!expressionAllowed(license, allowedSpdx, allowedExceptions)) {
       violations.push(`${name}@${version}: 허용되지 않은 license ${license}`);
     }
     if (typeof model.source !== 'string' || model.source.length === 0) {
       violations.push(`${name}@${version}: license 출처(source)가 없다`);
     }
-    if (typeof model.revision !== 'string' || model.revision.length === 0) {
+    if (typeof model.revision !== 'string' || !/^[a-f0-9]{40}$/i.test(model.revision)) {
       violations.push(`${name}@${version}: revision이 고정되지 않음`);
     }
     if (name === 'openai/whisper'
@@ -619,14 +783,38 @@ function generateSbom(outputPath) {
 }
 
 function componentIdentity(component) {
-  return `${npmComponentName(component)}@${String(component?.version ?? '')}`;
+  return typeof component?.purl === 'string' && component.purl.length > 0
+    ? component.purl
+    : `${npmComponentName(component)}@${String(component?.version ?? '')}`;
+}
+
+function distributionReferences(component) {
+  return (component.externalReferences ?? [])
+    .filter((entry) => entry?.type === 'distribution')
+    .map((entry) => ({
+      type: entry.type,
+      url: entry.url,
+      hashes: (entry.hashes ?? []).map((hash) => ({ alg: hash.alg, content: hash.content }))
+        .sort((left, right) => `${left.alg}:${left.content}`.localeCompare(`${right.alg}:${right.content}`)),
+    }))
+    .sort((left, right) => `${left.url}`.localeCompare(`${right.url}`));
 }
 
 function compareSuppliedSbom(suppliedPath, currentPath) {
   const supplied = readJson(suppliedPath, 'supplied CycloneDX SBOM');
   const current = readJson(currentPath, 'current CycloneDX SBOM');
-  const suppliedComponents = new Map((supplied.components ?? []).map((component) => [componentIdentity(component), component]));
-  const currentComponents = new Map((current.components ?? []).map((component) => [componentIdentity(component), component]));
+  const index = (bom, label) => {
+    if (!Array.isArray(bom.components)) throw new Error(`${label} component 배열이 없다.`);
+    const map = new Map();
+    for (const component of bom.components) {
+      const key = componentIdentity(component);
+      if (map.has(key)) throw new Error(`${label} component identity가 중복된다: ${key}`);
+      map.set(key, component);
+    }
+    return map;
+  };
+  const suppliedComponents = index(supplied, 'supplied SBOM');
+  const currentComponents = index(current, 'current SBOM');
   const suppliedKeys = [...suppliedComponents.keys()].sort();
   const currentKeys = [...currentComponents.keys()].sort();
   if (JSON.stringify(suppliedKeys) !== JSON.stringify(currentKeys)) {
@@ -635,12 +823,14 @@ function compareSuppliedSbom(suppliedPath, currentPath) {
   for (const key of currentKeys) {
     const expected = currentComponents.get(key);
     const actual = suppliedComponents.get(key);
-    if (expected.purl !== undefined && actual.purl !== expected.purl) {
-      throw new Error(`supplied SBOM purl이 현재 lockfile과 다르다: ${key}`);
+    if (actual.purl !== expected.purl
+      || actual.name !== expected.name
+      || actual.version !== expected.version
+      || actual.group !== expected.group) {
+      throw new Error(`supplied SBOM component identity/purl이 현재 lockfile과 다르다: ${key}`);
     }
-    if (Array.isArray(expected.hashes)
-      && JSON.stringify(actual.hashes ?? []) !== JSON.stringify(expected.hashes)) {
-      throw new Error(`supplied SBOM integrity가 현재 lockfile과 다르다: ${key}`);
+    if (JSON.stringify(distributionReferences(actual)) !== JSON.stringify(distributionReferences(expected))) {
+      throw new Error(`supplied SBOM distribution externalReference hash가 현재 lockfile과 다르다: ${key}`);
     }
   }
 }
@@ -664,25 +854,40 @@ function main() {
     }
     const allowedSpdx = new Set(allowlist.allowedSpdx);
     if (allowedSpdx.size === 0) throw new Error('license allowlist가 비어 있다.');
+    const allowedExceptions = new Set(allowlist.allowedSpdxExceptions ?? []);
+    if (!Array.isArray(allowlist.allowedSpdxExceptions ?? [])
+      || [...allowedExceptions].some((exception) => !Object.hasOwn(spdxExceptions, exception))) {
+      throw new Error('license allowlist allowedSpdxExceptions가 유효하지 않다.');
+    }
 
     const suppliedSbom = argumentValue('--sbom') ?? process.env.CCC_SBOM_FILE;
     let sbomPath = suppliedSbom ? configuredPath('--sbom', 'CCC_SBOM_FILE', suppliedSbom) : null;
+    let authoritativeSbomPath = sbomPath;
     let tempOutput = null;
     if (sbomPath === null) {
       tempOutput = mkdtempSync(join(tmpdir(), 'ccc-release-sbom-'));
       sbomPath = join(tempOutput, 'bom.json');
+      authoritativeSbomPath = sbomPath;
       generateSbom(sbomPath);
     } else {
       ensureFile(sbomPath, 'CycloneDX SBOM');
       tempOutput = mkdtempSync(join(tmpdir(), 'ccc-release-current-sbom-'));
-      const currentSbomPath = join(tempOutput, 'bom.json');
-      generateSbom(currentSbomPath);
-      compareSuppliedSbom(sbomPath, currentSbomPath);
+      authoritativeSbomPath = join(tempOutput, 'bom.json');
+      generateSbom(authoritativeSbomPath);
+      compareSuppliedSbom(sbomPath, authoritativeSbomPath);
     }
 
     try {
-      const dependencyResult = validateSbom(sbomPath, allowedSpdx, conditionalPath, crossEvidencePath, artifactDir);
-      const modelCount = validateModels(modelManifestPath, allowedSpdx);
+      const dependencyResult = validateSbom(
+        sbomPath,
+        allowedSpdx,
+        allowedExceptions,
+        conditionalPath,
+        crossEvidencePath,
+        artifactDir,
+        authoritativeSbomPath,
+      );
+      const modelCount = validateModels(modelManifestPath, allowedSpdx, allowedExceptions);
       const fixtureCount = validateFixtures();
       const scannedCount = runSecretScan();
       const skipped = dependencyResult.skippedOptional.length;

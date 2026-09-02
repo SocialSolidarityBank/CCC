@@ -22,7 +22,7 @@ def make_config(work_dir: Path) -> Config:
         preview_access_code=None,
         poll_interval_seconds=1,
         work_dir=work_dir,
-        whisper_model="tiny",
+        whisper_model="medium",
         stt_engine="whisper",
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
@@ -215,7 +215,7 @@ class RunOnceTest(unittest.TestCase):
 class EnvironmentIsolationTest(unittest.TestCase):
     def base_env(self) -> dict[str, str]:
         return {
-            "CCC_NER_MODEL_ID": "fixture/person-ner",
+            "CCC_NER_MODEL_ID": "FrameByFrame/korean-pii-e5-base",
             "CCC_ORIGINAL_BACKUP_ENABLED": "off",
         }
 
