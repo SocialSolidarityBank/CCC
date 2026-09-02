@@ -176,7 +176,7 @@ export interface CapabilityManifest {
 ### 3. 실행 웨이브와 날짜 관문
 
 1. Wave A: E0-5a로 Q 결정을 기록하고 E0-5b로 열린 PR을 정리한다. E0-4, E1-1, SG1~SG15 작성은 병렬로 시작한다. E0-1이 승인된 ADR을 발행해야 SG1~SG12와 SG15를 닫을 수 있다.
-2. Wave B: E1 코어 계약을 직렬 완료한다. SG가 닫힌 E2-1, E5-1a, E5-4, E11-2a는 병렬로 시작한다.
+2. Wave B: E1 코어 계약을 직렬 완료한다. SG가 닫힌 E2-1, E5-1a, E5-4는 병렬로 시작한다.
 3. Wave C: D1 회귀 뒤 E4-1과 E4-4a/b를 먼저 끝내고 E3 SQLite, E7 Local Single, E2 정적 client를 연결한다. PostgreSQL과 Supabase preflight는 별도 worktree에서 병렬로 진행한다.
 4. Wave D: 공통 계약과 저장 어댑터가 고정되면 E4-2/E4-3/E4-5, E5 Agent, E6 Cloud, E8 Office를 병렬 실행한다. 같은 migration snapshot을 고치는 E5-6과 E3-8은 충돌 방지를 위해 직렬 병합한다.
 5. Wave E: E9 Setup Assistant, E10 릴리스, E11 파일럿을 세 모드의 합성 골든 플로우 위에서 실행한다. 실데이터는 E9-3과 E11-1b가 모두 통과하고 Q가 승인한 모드에만 넣는다.
@@ -298,8 +298,8 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 | E5-5 코어 재검증 | E5-1a, E5-4, E1-5, E3-8 | 정규식, 금고 값, hash, pipeline version, result 시점 동의를 검사한다. 일곱 code와 화면 문구가 1:1이고 실패 packet은 AIProvider 호출 0회다. consent 검사에는 6영역 schema와 literal만 필요하며 client cutover를 기다리지 않는다. |
 | E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | E0-5a가 고른 시계와 우선순위로 `migrations/sqlite/0046_audio_objects.sql`, `migrations/postgres/0003_audio_objects.sql`과 parity를 추가하고 처리 완료, 만료, 기동 경합, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
 | E5-7 Windows Agent 설치기 | E5-1b, E5-2, E5-4 | embedded Python, ffmpeg, SecretStore, checksum model downloader를 설치한다. 새 Windows PC에서 install, health, Local 합성 처리, uninstall을 통과한다. |
-| E5-8a STT benchmark fixture | SG13 | 합성 대화 음성, 정답 전사, 화자 label, SHA-256, license manifest를 만들고 입력 재현성을 검증한다. |
-| E5-8 `STT-G1~STT-G3` 엔진 판정 | E5-2, E5-8a | faster-whisper와 benchmark-only Qwen을 같은 fixture로 측정하고 CER, 반복률, RTF, DER, safety를 원문 없이 보고한다. Q 승인 전 제품 설정은 바꾸지 않는다. |
+| E5-8a STT benchmark fixture | SG13 | 합성 대화 음성, 정답 전사, 두 화자 truth와 silence/overlap range, SHA-256, license manifest를 `scripts/stt/fixtures/manifest.json`, `scripts/stt/fixtures/reference/`, `scripts/stt/fixtures/licenses.json`에 고정하고 GitHub Release `s13-fixture-v1` 음성을 `artifacts/pilot/fixtures/s13-v1/audio/`에 fetch한다. `scripts/stt/verify_fixture.py`가 `artifacts/pilot/fixtures/s13-v1-verification.json`에 manifest hash와 count, duration, speaker, range, license 검사를 남긴다. WAV는 저장소에 커밋하지 않는다. |
+| E5-8 `STT-G1~STT-G3` 엔진 판정 | E5-2, E5-8a | `scripts/stt/benchmark.py`가 같은 fixture를 측정해 per-session과 pooled CER, repetition rate, RTF, DER, safety를 `artifacts/pilot/results/{runId}/`에 원문 없이 보고한다. RTF는 Windows CPU target에서 판정하고 Q 승인 전 제품 설정은 바꾸지 않는다. |
 | E5-9 장문 AI Packet | E5-4, E5-5, E2-7, SG15 | 시간 청크, 분할 호출, 부분 실패 재시도, 병합과 근거 보존을 구현한다. `detectDiscrepancies` 미지원은 조용히 건너뛰지 않고 명시적 상태로 표시한다. |
 
 #### E6 Community Cloud, 11개
@@ -371,11 +371,11 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 |---|---|---|
 | E11-1a 법무 상태표 | E0-4 | ADR이 요구하는 9개 법무 항목마다 담당자, 마감, 증빙 위치를 기록한다. 외부 회신을 기다리지 않고 상태표 자체를 닫는다. |
 | E11-1b 법무 게이트 `LG1~LG3` 통과 | E11-1a, SG14 | 모든 증빙과 모드별 Q real-data green 기록이 연결될 때만 Done이다. 미통과면 9월 18일 뒤에도 열린 상태를 유지한다. |
-| E11-2a 감지 정답표 제작 | SG13 | 30개 synthetic cases와 case당 5 sessions의 TP/FP/FN 정답표를 고정하고 사후 threshold 조정을 막는다. |
+| E11-2a 감지 정답표 제작 | E5-8a | E5-8a fixture의 30개 synthetic cases와 case당 5 sessions에서 TP/FP/FN 정답표를 독립적으로 고정하고 사후 threshold 조정을 막는다. |
 | E11-2 감지 정확도 | E2-4c, E11-2a | precision, recall, 95% bootstrap interval과 모든 오답 example ID를 산출한다. |
 | E11-3 합성 실무자 사용 시험 | E6-5b, E7-5, E8-4, E9-1 | 실무자 3명이 세 모드 합성 flow를 수행하고 작성 시간, 준비 시간, AI 수정량을 비교한다. 실데이터 시험은 E12-5가 소유한다. |
 | E11-4 Local 현장 시험 | E5-7, E7-5, E8-5, E8-6, E8-9 | Single 새 PC와 Office server 1대/client 2대에서 install, Agent, offline, AI Off, conflict, backup과 server replacement를 검증한다. |
-| E11-5 시험과 임팩트 보고서 | E5-8a, E11-2a | 제출 시점에 마스킹, STT, backup, security, 감지 정확도와 시간 변화의 원 증거를 연결한다. 미완 결과는 미측정, 실패 결과는 FAIL로 남기며 관련 실행 티켓을 닫지 않는다. |
+| E11-5 시험과 임팩트 보고서 | E5-5, E5-8a, E6-7, E7-3, E8-5, E10-2, E11-2a, E11-2 | 제출 시점에 E5-5 privacy/masking, E6-7/E7-3/E8-5 backup, E10-2 security/supply-chain, STT, 감지 정확도와 시간 변화의 원 증거를 각각 연결한다. 미완 결과는 미측정, 실패 결과는 FAIL로 남기며 관련 실행 티켓을 닫지 않는다. |
 
 #### E12 9월 18일 이후 후속, 9개
 
