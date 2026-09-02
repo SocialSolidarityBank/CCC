@@ -1341,6 +1341,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
           },
           body: JSON.stringify({
             model: this.config.model,
+            store: false,
             instructions,
             input,
             text: {
