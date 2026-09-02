@@ -185,7 +185,7 @@ interface SignedInstallManifest {
 }
 ```
 
-서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻는다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 signed `apiBase`의 project ref와 같아야 한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
+서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻는다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 signed `apiBase`의 project ref와 같아야 한다. `supabasePublishableKey`는 `^sb_publishable_[A-Za-z0-9_-]+$` 형식 또는 JWT 세 부분을 가진 legacy key만 허용하며 legacy payload의 decoded `role`이 정확히 `anon`이어야 한다. `sb_secret_*`, `service_role` JWT, 빈 값, malformed/unknown key는 manifest에 쓰기 전에 거부한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
 
 client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. `bootstrap.mode === signedManifest.mode === capabilities.mode`이어야 하며, Cloud/Office의 `bootstrap.apiBase === signedManifest.apiBase === effectiveApiBase`여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
 
@@ -196,6 +196,7 @@ client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public 
 ```ts
 export type DeploymentMode = 'community-cloud' | 'local-single' | 'local-office';
 export type SttMode = 'off' | 'local' | 'azure';
+export type LlmMode = 'off' | 'openai';
 export type ApprovedSttEngineId = string & { readonly __brand: 'ApprovedSttEngineId' };
 export type SttEngine = ApprovedSttEngineId | null;
 export type AgentStatus = 'connected' | 'delayed' | 'authentication_error' | 'quota_exceeded' | 'inactive';
@@ -327,11 +328,11 @@ Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant jo
 
 ## 5. 검증 방법
 
-- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked는 403, store unavailable은 503이어야 한다.
+- `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret`, `agent-linked-user-mismatch` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked 또는 linked user mismatch는 403, store unavailable은 503이어야 한다.
 - `pnpm test:contracts --jwt`: `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 key metadata, HS256 rejection, old/new key rotation, unknown-kid negative cache/cooldown을 검사한다. unknown-kid마다 upstream fetch가 발생하거나 HS256이 통과하면 실패다.
 
 - `pnpm test:contracts --capabilities`: synthetic signed-registry context를 포함한 18개 조합을 decode하고 schemaVersion, exact key set, option cardinality/order, branded engine membership, status/feature invariants, secret·PII field 부재를 검사한다. 조합 하나라도 표현되지 않거나 추가 key가 나오면 실패다.
-- `pnpm test:security --bootstrap`: valid/tampered/expired/sequence-replay/wrong-install/key-revoked manifest와 `single-dynamic-port`, Supabase Auth origin/project-ref/key equality fixture를 검사한다. signature mismatch, non-loopback endpoint, unsigned bootstrap apiBase 사용, local mode의 non-null Supabase field가 발생하면 실패다.
+- `pnpm test:security --bootstrap`: valid/tampered/expired/sequence-replay/wrong-install/key-revoked manifest, `single-dynamic-port`, Supabase Auth origin/project-ref/key equality와 `publishable-sb-valid`, `publishable-legacy-anon`, `publishable-secret-reject`, `publishable-service-role-reject`, `publishable-malformed` fixture를 검사한다. signature mismatch, non-loopback endpoint, unsigned bootstrap apiBase 사용, local mode의 non-null Supabase field, 잘못된 publishable key가 발생하면 실패다.
 - `pnpm test:security --browser-boundary`: CORS preflight와 absent Origin service call, CSP, Electron `ccc://app` Origin, API navigation denial, service-worker cache, memory-only Cloud reload, storage boundary를 검사한다. `*`, credential cookie, `Origin: null`, API document navigation, token/PII persistence가 관측되면 실패다.
 - `pnpm test:golden --join`: fragment → exchange → replaceState → complete와 worker/participant flow를 검사한다. token이 static/API log·Referer·cache에 남거나 join token으로 capabilities·상담 데이터를 읽으면 실패다.
 
