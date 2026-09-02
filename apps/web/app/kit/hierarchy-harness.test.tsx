@@ -19,7 +19,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ReactElement } from 'react';
 
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
@@ -287,6 +287,10 @@ async function buildHarness(): Promise<{ html: string; markup: Map<string, strin
   const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
   // 실제 RootLayout의 shellStyles 식과 같은 순서로 조립한다. 순서가 다르면 캐스케이드 실측이 거짓이다.
   const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
+  const pretendardCssUrl = pathToFileURL(join(
+    process.cwd(),
+    'node_modules/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css',
+  )).href;
 
   // 렌더 결과를 따로 들고 있는다. 조립된 HTML 을 문자열로 되잘라 길이를 재려다 한 번
   // 속았다 — 화면 안에 <section> 이 중첩돼 있어 첫 닫는 태그에서 잘렸고, 킷 페이지 480줄이
@@ -311,6 +315,7 @@ async function buildHarness(): Promise<{ html: string; markup: Map<string, strin
   // 화면이 자기 폭을 정하게 두는 것이 곧 실제와 같게 재는 길이다.
   const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>위계 하니스</title>
+<link rel="stylesheet" href="${pretendardCssUrl}">
 <style>${tokens}</style>
 <style>${runtimeCss}</style>
 <style>.harness-screen{background:var(--canvas)}</style>
@@ -350,5 +355,6 @@ describe('위계 하니스 생성기', () => {
         2,
       )}\n`,
     );
+    expect(html).toContain('pretendardvariable-dynamic-subset.css');
   });
 });

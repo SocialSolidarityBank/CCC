@@ -331,9 +331,22 @@ def main() -> int:
     runs = {}
     geo = {}
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--allow-file-access-from-files"])
         page = browser.new_page(viewport={"width": WIDTHS[0], "height": HEIGHT})
         page.goto(harness.as_uri())
+        font_loaded = page.evaluate(
+            """async () => {
+              const spec = '14px "Pretendard Variable"';
+              const sample = '뒤로 당사자 동의';
+              await document.fonts.load(spec, sample);
+              await document.fonts.ready;
+              return document.fonts.check(spec, sample);
+            }"""
+        )
+        if not font_loaded:
+            print("위계 하니스가 한국어 표본에 Pretendard Variable을 불러오지 못했다.", file=sys.stderr)
+            browser.close()
+            return 1
         for width in WIDTHS:
             # 브라우저는 한 번만 띄우고 폭만 바꾼다. 폭마다 새로 띄우면 비용이 폭 수만큼 는다.
             page.set_viewport_size({"width": width, "height": HEIGHT})
