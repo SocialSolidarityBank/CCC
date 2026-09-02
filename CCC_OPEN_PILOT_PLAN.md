@@ -104,12 +104,14 @@ export interface AudioStore {
   ): Promise<{ url: string; expiresAt: string } | null>;
   createDownloadTarget(key: string, expiresInSeconds: 600): Promise<{ url: string; expiresAt: string } | null>;
 }
+export type RevocationReason = 'logout' | 'password-reset' | 'mfa-reset' | 'admin-disable' | 'pairing-revoked' | 'security-event';
 export interface Identity {
   resolve(request: Request): Promise<Actor>;
-  revokeAll(userId: string): Promise<void>;
+  revokeAll(userId: string, reason: RevocationReason): Promise<void>;
+  revokeSession(sessionId: string, reason: RevocationReason): Promise<void>;
 }
 export type CoreSecretName = 'CODEX_API_KEY' | 'PII_ENC_KEY' | 'NOTIFY_WEBHOOK_URL';
-export type PlatformSecretName = 'DB_MASTER_KEY' | 'FILE_ENC_KEY' | 'OFFICE_CA_KEY' | 'SUPABASE_SERVICE_ROLE_KEY';
+export type PlatformSecretName = 'DB_MASTER_KEY' | 'FILE_ENC_KEY' | 'OFFICE_CA_KEY' | 'SUPABASE_SERVICE_ROLE_KEY' | 'SCHEDULER_SECRET';
 export type SecretName = CoreSecretName | PlatformSecretName;
 export interface SecretStore {
   get(name: SecretName): Promise<string | null>;
@@ -129,11 +131,13 @@ export interface AIProvider {
 - `packages/core/src/scheduled-job-runner.ts`는 `run(kind: ScheduledJobKind, nowIso: string): Promise<JobReport>`를 export한다. Workers cron, Supabase pg_cron에서 호출하는 Edge HTTP, Node timer가 같은 runner를 부르고, audio 삭제 도래 판단은 `audio_objects.purge_due`를 gateway로 조회한다.
 - 일곱 번째 포트 `STTProvider`는 Agent의 `apps/pipeline/ccc_pipeline/stt/provider.py`에 둔다. `transcribe(self, audio_path: Path, config: PipelineConfig) -> list[Segment]` Python Protocol을 faster-whisper와 Azure adapter가 구현한다. TypeScript contracts에는 `TranscriptResult` DTO와 `sttEngine`, `route` literal만 두며 Azure key와 Agent refresh token은 TypeScript `SecretStore`에 넣지 않는다.
 
-- SG2는 배포/install 단계가 쓰는 `apps/client/public/ccc-bootstrap.json`을 `{ "apiBase": string, "mode": DeploymentMode }` 형태로 고정하고, 저장소에는 값 없는 `.example`만 둔다. 이 public file에는 시크릿과 사용자 데이터가 없다. 설치기는 서명된 manifest의 허용 origin과 `apiBase`를 묶고, 클라이언트는 허용 목록 밖 주소로 Bearer를 보내지 않는다. Electron은 `file://`와 `Origin: null`을 쓰지 않고 custom protocol 또는 local-service same-origin으로 정적 client를 제공한다. mode별 로그인을 끝낸 뒤 Bearer로 `GET /capabilities`를 호출한다. public join route는 bootstrap의 API 주소만 쓰고 capability나 업무 데이터를 조회하지 않으며 token은 URL Referrer로 나가지 않는다.
+- SG2는 배포/install 단계가 쓰는 `apps/client/public/ccc-bootstrap.json`을 `{ "apiBase": string, "mode": DeploymentMode }` 형태로 고정하고, 저장소에는 값 없는 `.example`만 둔다. 이 public file에는 시크릿과 사용자 데이터가 없다. 설치기는 서명된 manifest를 먼저 검증한 뒤 그 manifest의 `installationId`, `mode`, 허용 origin과 `apiBase`를 bootstrap, renderer의 유효 origin, `GET /capabilities` 응답과 전부 정확히 대조한다. 어느 하나라도 다르면 첫 renderer load와 Bearer 전송 전에 실패한다. Single의 OS 할당 포트는 discovery 뒤 그 정확한 origin을 CSP에 주입하고 나서만 renderer를 연다. Electron은 `file://`와 `Origin: null`을 쓰지 않고 custom protocol 또는 local-service same-origin으로 정적 client를 제공한다. mode별 로그인을 끝낸 뒤 Bearer로 `GET /capabilities`를 호출한다. public join route도 검증된 signed manifest와 일치하는 bootstrap 주소만 쓰며 token은 URL Referrer로 나가지 않는다. 현행 Access header와 Preview `ccc_preview` cookie는 E2-7까지의 명시적 전환 예외이고, production의 최종 업무 인증은 Bearer만 허용한다.
+- `ApprovedSttEngineId`는 signed engine registry 검증을 통과한 값만 생성하는 branded type이다. 현재 Q 승인 registry는 비어 있으므로 `STT-G1~STT-G3` 결정 전에는 `local`과 `azure` 선택지가 모두 disabled이고 `sttEngine`은 `null`이다. faster-whisper와 Azure Speech는 후보이며 이 정본에서 제품 기본값으로 확정하지 않는다.
 
 ```ts
 export type DeploymentMode = 'community-cloud' | 'local-single' | 'local-office';
 export type SttMode = 'off' | 'local' | 'azure';
+export type ApprovedSttEngineId = string & { readonly __approvedSttEngineId: unique symbol };
 export type LlmMode = 'off' | 'openai';
 export type AgentStatus = 'connected' | 'delayed' | 'authentication_error' | 'quota_exceeded' | 'inactive';
 export type CapabilityDisabledReason = 'unverified' | 'missing_key' | 'unsupported' | null;
@@ -141,7 +145,7 @@ export interface CapabilityManifest {
   schemaVersion: 1;
   mode: DeploymentMode;
   sttMode: SttMode;
-  sttEngine: string | null;
+  sttEngine: ApprovedSttEngineId | null;
   sttOptions: Array<{ mode: SttMode; enabled: boolean; disabledReason: CapabilityDisabledReason }>;
   llmMode: LlmMode;
   llmOptions: Array<{ mode: LlmMode; enabled: boolean; disabledReason: CapabilityDisabledReason }>;
@@ -278,8 +282,8 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 
 | 티켓 | 의존 | 변경과 완료 조건 |
 |---|---|---|
-| E4-1 Identity 포트와 Access 어댑터 | E1-5, SG2 | 현행 Access JWT에서 `Actor`로 가는 동작을 adapter에 보존하고 기존 테스트를 통과한다. |
-| E4-2 Supabase Auth | E4-1, E3-5 | JWT issuer/audience/JWKS 회전, 초대 가입, MFA와 세션 회수를 증명한다. browser에는 publishable key만 둔다. |
+| E4-1 Identity 포트와 Access 어댑터 | E1-5, E3-1a, SG2 | 현행 Access JWT에서 `Actor`로 가는 동작을 adapter에 보존하고 기존 테스트를 통과한다. `users.auth_subject`, nullable local `users.email`, `auth_revocations`, `agent_installations`의 SQLite paired migration을 만들고 append-only 회수 저장을 배선한다. |
+| E4-2 Supabase Auth | E4-1, E3-5 | JWT issuer/audience/JWKS 회전, 초대 가입, MFA와 세션 회수를 증명한다. browser에는 publishable key만 둔다. E4-1과 같은 논리 구조의 PostgreSQL paired migration을 만들고 parity ID를 연결한다. |
 | E4-3 Office 로컬 계정 | E4-1 | Argon2id, 잠금, 세션 만료, 관리자 MFA를 구현한다. Single은 이 로그인 경로를 쓰지 않는다. |
 | E4-4a SecretStore 포트와 env | E1-5, E1-6 | runtime read port와 `adapters/secrets-env`를 만들고 core와 platform secret 경계를 guard로 고정한다. |
 | E4-4b Windows DPAPI | E4-4a, SG9 | `CurrentUser` scope DPAPI를 구현하고 `LocalMachine` 금지, 다른 계정 복호화 실패를 실제 Windows에서 검증한다. 키가 DB, log, error, UI에 0건이다. |
