@@ -291,15 +291,23 @@ def main() -> int:
         groups.setdefault(key, []).append(assertion)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--allow-file-access-from-files"])
         page = browser.new_page(viewport=VIEWPORT)
         results = []
         for (width, height), group in groups.items():
             page.set_viewport_size({"width": width, "height": height})
             page.goto(harness.as_uri())
-            page.evaluate("() => document.fonts.ready")
-            if not page.evaluate("""() => document.fonts.check('14px "Pretendard Variable"')"""):
-                print("정렬 하니스가 제품 글꼴 Pretendard Variable을 불러오지 못했다.")
+            font_loaded = page.evaluate(
+                """async () => {
+                  const spec = '14px "Pretendard Variable"';
+                  const sample = '뒤로 당사자 동의';
+                  await document.fonts.load(spec, sample);
+                  await document.fonts.ready;
+                  return document.fonts.check(spec, sample);
+                }"""
+            )
+            if not font_loaded:
+                print("정렬 하니스가 한국어 표본에 Pretendard Variable을 불러오지 못했다.")
                 browser.close()
                 return 1
             batch = page.evaluate(CHECK_JS, group)
