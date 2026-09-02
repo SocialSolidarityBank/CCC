@@ -17,6 +17,7 @@ import type { ParticipantGoalTreeCase, ParticipantProgram, TodaySchedule } from 
 import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
 import { ScheduleBody, ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
 import { AppSidebar } from '../components/wire/app-sidebar';
+import { BackLink } from '../components/wire/back-link';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -27,7 +28,7 @@ vi.mock('../lib/display-labels', () => ({ getDisplayLabels: vi.fn() }));
 vi.mock('../actions', () => ({ updateParticipantConsentAction: vi.fn() }));
 vi.mock('next/navigation', () => ({
   usePathname: () => '/programs/financial_support_v1/schedule',
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
 }));
 
 // 정렬 실측 하니스 (2026-08-30 Q — align-check 스킬 계약을 레포 게이트로).
@@ -193,6 +194,10 @@ describe('정렬 하니스 생성기', () => {
         <AppSidebar activePath="/programs/financial_support_v1/schedule" />
       </div>,
     );
+    Object.defineProperty(window.history, 'length', { value: 3, configurable: true });
+    const backView = render(<BackLink />);
+    const backLink = backView.container.innerHTML;
+    cleanup();
     const goalTree = renderToStaticMarkup(
       <GoalTreeCard beneficiaryId="swallow-003" cases={goalTreeCases} programLabels={PROGRAM_LABELS} />,
     );
@@ -254,6 +259,7 @@ describe('정렬 하니스 생성기', () => {
     expect(hubConsent, '당사자 정보 동의 묶음 상자가 없다').toContain('participant-consent-block wire-repeat-card');
     expect(hubConsentOpen, '당사자 정보 동의 전문 펼침 변형이 없다').toContain('<details open class="consent-detail');
     expect(sidebar, '사이드바 내비게이션 행이 없다').toContain('navigation-link');
+    expect(backLink, '뒤로 버튼의 왼쪽 공용 꺽쇠가 없다').toContain('wire-chevron');
     expect(goalTree, '당사자 정보 목표 트리가 없다').toContain('goal-tree-case');
     expect(goalTreeOpen, '당사자 정보 세부 목표 펼침 변형이 없다').toContain('<details open class="goal-tree-goal-details');
     expect(goalTree, '당사자 정보 세부 목표 연결 회차 배지가 없다').toContain('연결 회차 0건');
@@ -283,6 +289,7 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-hub-consent">${hubConsent}</div>
 <div id="align-hub-consent-open">${hubConsentOpen}</div>
 <div id="align-sidebar">${sidebar}</div>
+<div id="align-back">${backLink}</div>
 <div id="align-goal-tree">${goalTree}</div>
 <div id="align-goal-tree-open">${goalTreeOpen}</div>
 <div id="align-schedule-goals">${scheduleGoals}</div>

@@ -17,6 +17,20 @@
     "tolerance": 0.5
   },
   {
+    "name": "뒤로 버튼 왼쪽 꺽쇠 잉크가 공용 슬롯 정중앙",
+    "selectors": ["#align-back .page-back>.wire-chevron[data-dir=\"left\"]"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.6,
+    "expectedSize": 12
+  },
+  {
+    "name": "뒤로 버튼 왼쪽 꺽쇠가 버튼 행 세로 중앙",
+    "selectors": ["#align-back .page-back", ".wire-chevron[data-dir=\"left\"]"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
     "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
     "selectors": [
       "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)>h3",

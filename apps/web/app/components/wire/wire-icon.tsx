@@ -13,7 +13,6 @@ export type IconName =
   | 'warning'
   | 'dot'
   | 'dot-empty'
-  | 'arrow-left'
   | 'arrow-right'
   | 'arrow-up'
   | 'arrow-down'
@@ -44,8 +43,6 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
       return <svg {...common}><circle cx="8" cy="8" r="4" fill="currentColor" stroke="none" /></svg>;
     case 'dot-empty':
       return <svg {...common}><circle cx="8" cy="8" r="4" /></svg>;
-    case 'arrow-left':
-      return <svg {...common}><path d="M13.5 8H2.5M7 3.5 2.5 8 7 12.5" /></svg>;
     case 'arrow-right':
       return <svg {...common}><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" /></svg>;
     case 'arrow-up':
