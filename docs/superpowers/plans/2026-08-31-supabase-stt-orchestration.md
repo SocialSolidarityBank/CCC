@@ -8,6 +8,8 @@
 
 **Tech Stack:** Git worktrees, Cloudflare Workers, Supabase, Python STT pipeline, TypeScript, Vitest, unittest
 
+> **Superseded by ADR-0041 in part:** 이 2026-08-31 총괄 계획의 D76~D79 결정 초안, Hyperdrive 관리형 Workers 전제, 30일 원음 정책, STT 네 엔진·Whisper 기본값과 동의 4영역은 현재 정본이 아니다. ADR-0041 D76~D83, ADR-0040 §9와 ADR-0042/D84가 각각 대체·보존 범위를 정한다. 워크트리 분리와 조사 출처 목록은 역사 기록으로 보존한다.
+
 ## Global Constraints
 
 - 루트 checkout `feat/consent-sidebar-polish`는 디자인 작업 전용이며 어떤 파일도 수정, stash, checkout, reset하지 않는다.
@@ -121,6 +123,8 @@ git commit -m "docs(plan): Supabase와 STT 전환 계획 통합"
 ---
 
 ### Task 2: Wave 0, 결정 정본
+
+> **역사 표식 (ADR-0041):** 아래 Wave 0의 D76~D79 기록·vendor matrix 통합 순서는 당시 계획이다. 현재 결정은 ADR-0041과 ADR-0040 §9를 사용하며, ADR-0042/D84의 read-only preflight는 별도로 보존한다.
 
 **Worktree:** `.worktrees/supabase-stt-decisions`
 
