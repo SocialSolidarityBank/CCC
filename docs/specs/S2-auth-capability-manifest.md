@@ -15,7 +15,7 @@
 ## 2. 인터페이스와 규칙
 
 ### 2.1 canonical Actor와 Identity 포트
-소유: canonical port와 공통 DTO는 E1-7/E4-1, Supabase·Office·Single Identity와 paired migration은 E4-2/E4-3/E7/E8, DPAPI는 E4-4b/E4-5다.
+소유: canonical port와 공통 DTO는 E1-7/E4-1, Supabase·Office·Single Identity와 paired migration은 E4-1/E4-2/E4-3/E7/E8, DPAPI는 E4-4b/E4-5다.
 `Actor`와 `Identity`는 `packages/contracts/src/runtime.ts`의 canonical target contract다. 아래는 E1-7이 발행할 lossless Actor shape의 계약 발췌이며 S2가 별도 역할 union을 만들지 않는다.
 
 ```ts
@@ -58,9 +58,9 @@ adapter 내부 context의 인증 원천 literal은 `supabase-jwt | cloudflare-ac
 
 | 모드 | Bearer 발급·검증 | canonical Actor 매핑 |
 |---|---|---|
-| Community Cloud | Supabase Auth access JWT. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT `aal` → `authn.assurance`(`aal1`/`aal2`), source roles를 lossless `roles[]`에 담는다. |
+| Community Cloud | Supabase Auth access JWT. 모든 human role은 `aal=aal2`인 세션만 업무 Actor로 허용한다. trusted issuer, `aud=authenticated`, asymmetric JWKS, `exp`와 선택적 `nbf`를 검증한다. `sub`는 E4-1/E4-2 paired migration이 관리하는 nullable `users.auth_subject`와 대조한다. | `users.id → userId`, 기관 행 → `orgId`, JWT `aal=aal2` → `authn.assurance='aal2'`, source roles를 lossless `roles[]`에 담는다. `aal1`은 모든 human role에서 403 `mfa_required`다. |
 | Local Single | Electron 앱 잠금 후 local-service가 발급하는 opaque bearer. token hash만 보관하고 DPAPI handshake를 거친 요청만 발급한다. | 설치된 유일 human account의 `stableUserId → userId`, `authn.assurance='app-lock'`, source role bundle `institution-admin`, `technical-admin`, `worker`를 분리해 `roles[]`에 담는다. `multi_user=false`다. |
-| Local Office | Argon2id 로컬 계정 로그인 후, privileged role이면 MFA를 완료한 뒤 local-service가 opaque bearer를 발급한다. | 로컬 `users.id → userId`, `orgId`는 설치 기관, `mfaVerifiedAt` → `authn.assurance='mfa'`, source roles를 `roles[]`에 담는다. |
+| Local Office | Argon2id 로컬 계정 로그인 후, privileged role이면 MFA를 완료한 뒤 local-service가 opaque bearer를 발급한다. | 로컬 `users.id → userId`, `orgId`는 설치 기관, 세션의 `sessionId` → `authn.sessionId`, `mfaVerifiedAt` → `authn.assurance='mfa'`, source roles를 `roles[]`에 담는다. |
 | 세 모드의 Agent | SG5 service principal이 pairing 후 발급하는 opaque bearer. 서버에는 hash와 installation binding만 두며 사람용 bearer와 섞지 않는다. | `kind='agent'`, `userId=agent:<installationId>`, `orgId`와 active 상태는 `agent_installations` 등록 행에서 읽고 `roles=['service']`로 투영한다. |
 | 기존 Access adapter | E2-7 cutover 전 E4-1이 현행 `Cf-Access-Jwt-Assertion`을 검증한다. 이 환경 adapter는 canonical final Bearer path 밖의 임시 business auth이며 E2-7 뒤 제거한다. | Access email/common_name을 기존 users directory에 대조해 lossless `Actor`로 투영하며, 기존 접근 판정과 미등록·inactive 403 동작을 바꾸지 않는다. |
 `agent_installations`의 행과 service principal의 발급·회전은 E5-1a/E6-4가 소유한다. `source:read`는 Cloud와 Local의 payload 전달 방식이 달라도 같은 S5 작업 scope로 판정한다.
@@ -86,12 +86,12 @@ Cloud와 Local의 audio/source response payload는 각 `AudioStore`와 job contr
 interface AgentInstallation {
   installationId: string;
   orgId: string;
-  actorUserId: string;       // service principal users.id 또는 동등한 등록 ID
+  actorUserId: string;       // service principal에 연결된 정확한 users.id
   pairedAt: string;
   revokedAt: string | null;
 }
 ```
-Agent installation은 반드시 같은 `orgId`의 linked users row를 가지며 그 row가 `active=1`, `role=service`, `users.id=actorUserId`여야 한다. 등록 행, linked users row, bearer의 `installationId`와 `orgId`가 하나라도 다르면 403이다.
+Agent installation은 반드시 같은 `orgId`의 정확한 linked users row를 가지며 그 row가 `active=1`, `role=service`, `users.id=actorUserId`여야 한다. 등록 행, linked users row, bearer의 `installationId`와 `orgId`가 하나라도 다르면 403이다.
 
 E6-4가 이 행과 SG5 service principal을 만들고, opaque bearer hash에는 `installationId`, `orgId`, `expiresAt`, `revokedAt`을 결합한다. Agent bearer는 JWT audience나 사람용 signing key를 사용하지 않는다.
 
@@ -111,7 +111,7 @@ interface JwtVerificationConfig {
 }
 ```
 
-JWT의 `iss`, `aud`, `alg`, `kid`, `sub`, `session_id`, `exp`, `role`, `is_anonymous`, `aal`을 확인한다. `nbf`는 claim이 있을 때만 ±60초 오차로 확인하고 없는 token을 거부하지 않는다. `role`은 `authenticated`, `is_anonymous`는 `false`, `session_id`는 non-empty여야 한다. privileged route는 `aal=aal2`를 요구한다.
+JWT의 `iss`, `aud`, `alg`, `kid`, `sub`, `session_id`, `exp`, `role`, `is_anonymous`, `aal`을 확인한다. `nbf`는 claim이 있을 때만 ±60초 오차로 확인하고 없는 token을 거부하지 않는다. `role`은 `authenticated`, `is_anonymous`는 `false`, `session_id`는 non-empty여야 한다. 모든 Community Cloud human role(`institution-admin`, `technical-admin`, `supervisor`, `worker`)은 `aal=aal2`가 아니면 403 `mfa_required`다.
 
 JWKS key metadata의 `alg`와 JWT header가 일치하는 ES256 또는 RS256만 허용한다. HS256 프로젝트, symmetric-only key set, key metadata 불일치, algorithm downgrade는 D84 preflight/install에서 거부하며 운영 verifier도 401로 거부한다. JWKS는 최대 1시간 캐시한다. unknown `kid`는 60초 negative cache에 넣고 cooldown 안에는 upstream fetch 없이 401로 거부한다. cooldown이 지나면 같은 trusted `jwksUri`를 한 번 재조회하고 새 키와 아직 만료되지 않은 이전 키를 검증한다. 알 수 없는 issuer, audience, kid, 만료 키 서명은 401이다.
 
@@ -176,14 +176,15 @@ interface SignedInstallManifest {
   sequence: number;
   publishedAt: string;
   expiresAt: string;
+  approvedSttEngineIds: readonly string[]; // signed exact registry members; initial value []
   signingKeyId: string;
   ed25519Signature: string;       // RFC 8785 JCS 나머지 필드 서명
 }
 ```
 
-서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
+서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻는다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
 
-client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. bootstrap의 `mode`는 manifest의 `mode`와 exact equality여야 하며, Cloud/Office의 `apiBase`는 manifest와 exact equality여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
+client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. `bootstrap.mode === signedManifest.mode === capabilities.mode`이어야 하며, Cloud/Office의 `bootstrap.apiBase === signedManifest.apiBase === effectiveApiBase`여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
 
 ### 2.8 CapabilityManifest 정본과 18개 조합
 
@@ -192,7 +193,8 @@ client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public 
 ```ts
 export type DeploymentMode = 'community-cloud' | 'local-single' | 'local-office';
 export type SttMode = 'off' | 'local' | 'azure';
-export type SttEngine = 'local-whisper-medium' | 'azure-speech-koreacentral' | null;
+export type ApprovedSttEngineId = string & { readonly __brand: 'ApprovedSttEngineId' };
+export type SttEngine = ApprovedSttEngineId | null;
 export type AgentStatus = 'connected' | 'delayed' | 'authentication_error' | 'quota_exceeded' | 'inactive';
 export type CapabilityDisabledReason = 'unverified' | 'missing_key' | 'unsupported' | null;
 
@@ -209,37 +211,36 @@ export interface CapabilityManifest {
 }
 ```
 
-`sttOptions`는 정확히 3개, `llmOptions`는 정확히 2개이며 순서는 각각 `off, local, azure`와 `off, openai`다. 다음 불변식을 적용한다.
-provider option의 disabled reason은 deterministic하다. pre-gate local은 `unverified`, key 없는 Azure/OpenAI는 `missing_key`, mode 자체가 배포 profile에서 제공되지 않으면 `unsupported`, 선택된 option은 항상 `enabled=true`와 `disabledReason=null`이다.
-`sttMode='off'`이면 `sttEngine=null`; `sttMode='local'`이면 `sttEngine='local-whisper-medium'`, `sttMode='azure'`이면 `sttEngine='azure-speech-koreacentral'`이다. pre-Q 상태는 local option `enabled=false, disabledReason='unverified'`이고 선택값은 off/null이며, Q 승인 뒤에만 해당 concrete registry ID를 선택한다.
-선택된 mode의 option은 `enabled=true, disabledReason=null`이어야 한다. key 없는 Azure/OpenAI는 각각 `missing_key`, mode에서 제공하지 않는 provider는 `unsupported`다. `sttEngine`은 이 closed enum 외의 URL, credential, arbitrary registry string(`://`, `?`, `@`, `Bearer`, `key` 포함)을 decoder가 거부한다.
+provider option의 disabled reason은 deterministic하다. STT local과 azure는 각각 STT-G/Q 및 Azure 외부 처리 gate 전에는 `unverified`, gate 후 필요한 key가 없으면 `missing_key`, mode에서 제공하지 않으면 `unsupported`다. 선택된 option은 항상 `enabled=true`와 `disabledReason=null`이다.
+현재 signed approved engine registry는 비어 있다. 따라서 pre-Q capability는 모든 mode에서 `sttMode='off'`, `sttEngine=null`이고 local과 azure option은 `enabled=false, disabledReason='unverified'`다. Q가 각 STT gate를 승인하고 signed registry에 exact ID를 넣은 뒤에만 해당 값을 `ApprovedSttEngineId`로 검증해 선택한다. 승인 registry 밖의 값은 null이 아니면 모두 거부한다.
+선택된 mode의 option은 `enabled=true, disabledReason=null`이어야 한다. key 없는 Azure/OpenAI는 각각 `missing_key`, mode에서 제공하지 않는 provider는 `unsupported`다. `ApprovedSttEngineId`는 signed registry의 exact string membership으로만 만들어지며 URL, credential, arbitrary string(`://`, `?`, `@`, `Bearer`, `key` 포함)은 decoder가 거부한다.
 - `llmMode='off'`는 항상 enabled다. `llmMode='openai'`는 key, Agent, 동의 gate가 모두 유효할 때만 enabled다.
 - `features.ai_draft === (llmMode === 'openai')`다. AI가 켜진 선택 row의 `agentStatus`는 `connected`, `delayed`, `authentication_error`, `quota_exceeded` 중 하나이며 `inactive`일 수 없다. 두 축이 모두 off인 row의 AgentStatus는 `inactive`다.
 - `features.recording`은 세 mode에서 true, `multi_user`는 Cloud/Office true와 Single false, `offline`은 Single/Office true와 Cloud false, `cloud_audio_temp`는 Cloud true와 Local false다. `public_signup`은 배포 환경 스위치가 `1`인 경우에만 true이며 그 외에는 false다.
 - capability에는 key 이름·값·hash, token, endpoint credential, `orgId`, `userId`, email, provider raw error가 없다.
 
-18개 조합은 다음과 같이 모두 정의한다. local rows는 STT gate 승인 후의 계약 fixture이며, 실제 설치 직후에는 같은 row의 local option이 `unverified`이고 선택값은 off다.
+18개 조합은 requested tuple과 현재 pre-Q manifest 결과를 함께 고정한다. 현재 signed registry가 비어 있으므로 18개 모두의 actual `sttMode`와 `sttEngine`은 off/null이고, requested local/azure 축은 `unverified` option으로 남는다. 승인된 registry가 채워진 뒤에도 tuple의 mode와 LLM 축, feature/status 규칙은 그대로 유지한다.
 
-| # | mode | sttMode | sttEngine | llmMode | fixture AgentStatus |
-|---:|---|---|---|---|---|
-| 1 | community-cloud | off | null | off | inactive |
-| 2 | community-cloud | off | null | openai | connected |
-| 3 | community-cloud | local | local-whisper-medium | off | connected |
-| 4 | community-cloud | local | local-whisper-medium | openai | connected |
-| 5 | community-cloud | azure | azure-speech-koreacentral | off | connected |
-| 6 | community-cloud | azure | azure-speech-koreacentral | openai | connected |
-| 7 | local-single | off | null | off | inactive |
-| 8 | local-single | off | null | openai | connected |
-| 9 | local-single | local | local-whisper-medium | off | connected |
-| 10 | local-single | local | local-whisper-medium | openai | connected |
-| 11 | local-single | azure | azure-speech-koreacentral | off | connected |
-| 12 | local-single | azure | azure-speech-koreacentral | openai | connected |
-| 13 | local-office | off | null | off | inactive |
-| 14 | local-office | off | null | openai | connected |
-| 15 | local-office | local | local-whisper-medium | off | connected |
-| 16 | local-office | local | local-whisper-medium | openai | connected |
-| 17 | local-office | azure | azure-speech-koreacentral | off | connected |
-| 18 | local-office | azure | azure-speech-koreacentral | openai | connected |
+| # | mode | requested sttMode | requested llmMode | pre-Q actual sttMode | pre-Q sttEngine | fixture AgentStatus |
+|---:|---|---|---|---|---|---|
+| 1 | community-cloud | off | off | off | null | inactive |
+| 2 | community-cloud | off | openai | off | null | connected |
+| 3 | community-cloud | local | off | off | null | connected |
+| 4 | community-cloud | local | openai | off | null | connected |
+| 5 | community-cloud | azure | off | off | null | connected |
+| 6 | community-cloud | azure | openai | off | null | connected |
+| 7 | local-single | off | off | off | null | inactive |
+| 8 | local-single | off | openai | off | null | connected |
+| 9 | local-single | local | off | off | null | connected |
+| 10 | local-single | local | openai | off | null | connected |
+| 11 | local-single | azure | off | off | null | connected |
+| 12 | local-single | azure | openai | off | null | connected |
+| 13 | local-office | off | off | off | null | inactive |
+| 14 | local-office | off | openai | off | null | connected |
+| 15 | local-office | local | off | off | null | connected |
+| 16 | local-office | local | openai | off | null | connected |
+| 17 | local-office | azure | off | off | null | connected |
+| 18 | local-office | azure | openai | off | null | connected |
 
 ### 2.9 CORS, CSP, Electron과 브라우저 저장
 소유: exact CORS와 Edge response는 E6-2, custom protocol은 E7-2, Office TLS origin은 E8-2, browser transport와 service worker는 E2-2/E2-3다.
@@ -290,8 +291,8 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 
 1. invitation URL은 반드시 `/join#t=<token>` fragment를 사용한다. fragment는 static host, API log, Referer에 전송되지 않는다. 정적 HTML 응답과 Electron/local-service 문서에 `Referrer-Policy: no-referrer`와 `<meta name="referrer" content="no-referrer">`를 적용하고 exchange/complete fetch에도 `referrerPolicy: 'no-referrer'`를 지정한다.
 2. client는 fragment token을 읽어 `POST /public/join/exchange` body `{ token }`으로 한 번만 보낸다. 응답은 `{ joinKind, expiresAt, formSchemaVersion, nonce }`뿐이며 nonce는 invite ID에 묶인 CSPRNG 128 bit 이상, TTL 15분 이하, single-use다. URL은 즉시 `history.replaceState(null, '', '/join')`으로 scrub한다.
-3. `POST /public/join/complete` body `{ nonce, ...form }`은 최소 가입·동의 데이터만 저장한다. participant의 self-check 정보는 이 complete 응답에 한 번만 포함하며 별도 token 재사용 endpoint를 만들지 않는다. worker complete는 Cloud에서 Edge Function의 Supabase service-role admin invite로 Auth user를 만들고 `users.auth_subject`를 저장한 뒤 worker가 정상 로그인하도록 한다. service-role key는 browser에 없다.
-4. legacy `/invites/*` path token과 token 재사용 self-check는 E2-5c cutover 때 삭제한다. join token/nonce는 `GET /capabilities`, 케이스·상담·PII·Agent endpoint의 Bearer가 아니며 이 endpoint들은 401 또는 403이다. public join은 verified effective `apiBase`만 사용하고 capability를 조회하지 않는다.
+3. `POST /public/join/complete` body `{ nonce, ...form }`은 최소 가입·동의 데이터만 저장한다. participant의 self-check 정보는 이 complete 응답에 한 번만 포함하며 별도 token 재사용 endpoint를 만들지 않는다. worker complete는 Cloud와 Local Office에서만 허용하며 Cloud에서는 Edge Function의 Supabase service-role admin invite로 Auth user를 만들고 `users.auth_subject`를 저장한 뒤 worker가 정상 로그인하도록 한다. Local Single의 worker invite는 `multi_user=false`이므로 403 `worker_join_unsupported`다. service-role key는 browser에 없다.
+4. legacy `/invites/*` path token과 token 재사용 self-check는 E2-5c cutover 때 삭제한다. join token/nonce는 `GET /capabilities`, 케이스·상담·PII·Agent endpoint의 Bearer가 아니며 이 endpoint들은 401 또는 403이다. public join은 signed manifest 검증, bootstrap의 mode/apiBase equality, effective `apiBase` 확정 뒤에만 시작하며 capability를 조회하지 않는다.
 5. join page에는 third-party resource·analytics·external link가 없다. token 원문은 static/API 로그, errors, cache, Referer, history에 남지 않는다. 가입 완료 뒤 self-check에는 내 정보·참여 사업·담당 실무자·일정·동의 상태만 있고 상담 기록·요약·GAS·flag·기관 전체 목록은 없다.
 소유: join route·fragment cutover는 E2-5c, Cloud Auth user linkage와 service-role 경계는 E4-2, Local join transport는 E7/E8이다. S3는 E2-5c cutover 뒤 이 endpoint/DTO 표를 참조한다.
 
@@ -301,7 +302,7 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 |---|---|---|---|
 | client origin | signed exact HTTPS origin | registered `ccc://app` | 기관 CA HTTPS origin |
 | API origin | signed Supabase/Edge HTTPS | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |
-| human auth | Supabase JWT + privileged `aal2` MFA | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
+| human auth | Supabase JWT + all human roles require `aal2` | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
 | Actor source | `auth_subject → users.id` | stableUserId | local users.id |
 | Agent source | SG5 service principal + agent_installations | paired local Agent + agent_installations | paired server Agent + agent_installations |
 | revocation | Supabase session + `auth_revocations` | in-memory/token hash + install revoke | session rows + account revoke |
@@ -310,11 +311,13 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 | cloud_audio_temp | true | false | false |
 | public_signup | env switch `PUBLIC_SIGNUP_ENABLED=1` | env switch | env switch |
 
-세 모드는 canonical Actor, API DTO, capability key를 공유한다. 차이는 Identity·SecretStore·origin·저장소 adapter뿐이다.
+Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant join만 허용한다. Office와 Cloud만 worker invitation capability를 제공한다.
 
+세 모드는 canonical Actor, API DTO, capability key를 공유한다. 차이는 Identity·SecretStore·origin·저장소 adapter뿐이다.
+- [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
 - [ ] canonical `Identity.resolve(request)`, `revokeAll(userId, reason)`, `revokeSession(sessionId, reason)`를 사용하고, 세 mode의 Bearer, lossless role projection, 401/403/503 판정이 완결되어 있다.
 
-- [ ] Cloud privileged `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
+- [ ] Community Cloud 모든 human role의 `aal2`, Office `mfaVerifiedAt`, Single DPAPI unlock handshake와 stableUserId, Agent six scopes와 registration source가 완결되어 있다.
 - [ ] Supabase `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 JWKS rotation, negative cache/cooldown, revocation과 TTL이 완결되어 있다.
 - [ ] signed manifest의 JCS, expiry, sequence, installationId, key revocation, Single dynamic endpoint discovery와 public two-key bootstrap이 완결되어 있다.
 - [ ] exact CapabilityManifest schema, deterministic feature/status invariants, 18개 combination fixture가 있고 secret field가 없다.
