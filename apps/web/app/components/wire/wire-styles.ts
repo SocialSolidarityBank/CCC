@@ -686,13 +686,13 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    힌트 달린 이웃 칸이 행을 키우면, stretch 기본값이 남는 높이를 이 칸의 라벨·박스 행에
    나눠 줘 입력칸이 54.8px 로 부풀었다(기본정보 수정 이메일 칸 실측 +14.8). 행을 위로
    붙이면 모든 박스가 40 으로 고정된다. */
-.wire-form-field{display:grid;gap:var(--space-2);align-content:start}
+.wire-form-field{display:grid;gap:var(--space-2);align-content:start;min-width:0}
 .wire-form-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 /* 필수 별표는 --risk 지만 리스크 독점(D9)의 예외가 아니다 — 오류·필수 표시는 §9 가 허용한 자리다. */
 .wire-form-required{font-size:var(--text-sm);font-weight:600;color:var(--risk)}
 /* 라벨 옆 '(선택)' 같은 보조 문구. 라벨과 같은 줄이므로 굵기만 낮춘다. */
 .wire-form-note{margin-left:var(--space-1);font-size:var(--text-sm);color:var(--sub);font-weight:400}
-.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
+.wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-width:0;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
 .wire-input-box>input,.wire-input-box>select{line-height:normal}
@@ -722,7 +722,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    정보 카드(12)의 간격으로는 항목 경계가 안 읽힌다. */
 .wire-form-card>.wire-card-body{gap:var(--space-5)}
 /* 폼 2열. 화면마다 grid-template-columns 를 다시 쓰지 않는다(.card-grid 와 같은 취지). */
-.wire-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}
+.wire-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5);min-width:0}
 /* 2열 폼에서 도움말이 좁은 칸에 눌려 줄바꿈하면, 힌트를 필드 아래가 아니라 그리드 전폭
    한 줄로 내린다(2026-08-29 Q). 필드 다음 grid 자식으로 두고 두 열을 가로질러 한 줄에
    읽히게 한다 — aria-describedby 는 힌트 id 로 그대로 이어진다. */
@@ -741,7 +741,8 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    객체로 그리고 있었다. guard:tokens 는 layout.tsx·wire-styles.ts 두 파일만 훑으므로 인라인
    값은 검사 밖이었고, 실제로 제목이 계단에 없는 20px 로(다른 화면 h2 는 18) 서 있었다.
    같은 블록이 두 파일에 복사돼 있어 한쪽만 고치면 두 화면이 갈라진다 — 함께 옮긴다. */
-.wizard-stack{display:grid;gap:var(--space-5);align-content:start}
+.wizard-stack{display:grid;gap:var(--space-5);align-content:start;min-width:0}
+.wizard-stack>*{min-width:0}
 /* 간격은 격자의 gap 하나가 준다(§4-6 규칙 3) — 전역 p 의 위 마진 8 이 남으면 캡션 **위**만
    28 이 되어 아래(20)와 어긋난다. 구 인라인 captionStyle 이 margin:0 을 갖고 있어 안 보이던
    결함이고, 클래스로 옮기며 드러났다. .panel-meta 자체는 건드리지 않는다 — 카드 제목 슬롯
@@ -753,7 +754,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    래퍼의 마지막 사용처가 사라졌다.) */
 .wizard-stack>p,.wizard-field>p{margin:0}
 /* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
-.wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+.wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);min-width:0}
 /* 무응답·해당 없음 줄(인테이크 서술 문항): 버튼 사이는 8 로 촘촘하되, 위 입력칸과는
    margin 8 을 더해 16 으로 띄운다(2026-08-30 Q "입력칸과의 여백 더 늘릴 것" — 구 2026-08-09
    '입력칸과 같은 8 한 묶음'을 대체. .wizard-field gap 8 + 8 = 16). */
@@ -1284,7 +1285,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
    내려보냈고, 그러면 버튼만 18px 로 눌린 채 홀로 서고 접혀야 할 두 입력칸은 그대로 남았다
    (폭 390 실측). 접히는 것은 안쪽 날짜·시각이어야 하므로 바깥은 줄을 고정하고, 자리가 모자라면
    .wire-datetime-fields 가 min-width:0 으로 줄어들다가 자기 안에서 두 줄이 된다. */
-.wire-datetime-control{position:relative;display:flex;flex-wrap:nowrap;align-items:stretch;gap:var(--space-2);width:100%}
+.wire-datetime-control{position:relative;display:flex;flex-wrap:nowrap;align-items:stretch;gap:var(--space-2);width:100%;min-width:0}
 .wire-input-box>.wire-datetime-control{align-self:stretch}
 /* 두 칸이 다 들어갈 자리가 없으면 **저절로 두 줄로 접힌다**(CCC-93). 접기 전에는 min-width
    104 + 112 가 이 묶음의 최소 폭을 259 로 잡고 있었고, 그 값이 상자(+26) 카드(+50)를 거쳐
