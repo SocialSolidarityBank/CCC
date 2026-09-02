@@ -176,7 +176,7 @@ interface SignedInstallManifest {
   sequence: number;
   publishedAt: string;
   expiresAt: string;
-  approvedSttEngineIds: readonly string[]; // signed exact registry members; initial value []
+  approvedSttEngineIds: readonly Array<{ id: ApprovedSttEngineId; mode: 'local' | 'azure' }>; // signed, sorted, unique; initial value []
   supabaseProjectRef: string | null;     // Community Cloud만, apiBase와 동일 project ref
   supabaseAuthOrigin: string | null;     // Community Cloud만 exact HTTPS origin
   supabasePublishableKey: string | null; // public key, signed manifest에서만 읽음
@@ -185,7 +185,7 @@ interface SignedInstallManifest {
 }
 ```
 
-서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻는다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 signed `apiBase`의 project ref와 같아야 한다. `supabasePublishableKey`는 `^sb_publishable_[A-Za-z0-9_-]+$` 형식 또는 JWT 세 부분을 가진 legacy key만 허용하며 legacy payload의 decoded `role`이 정확히 `anon`이어야 한다. `sb_secret_*`, `service_role` JWT, 빈 값, malformed/unknown key는 manifest에 쓰기 전에 거부한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
+서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 `{ id, mode }`는 ID 오름차순으로 정렬되고 중복이 없어야 한다. 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻으며 mode도 함께 검증한다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 signed `apiBase`의 project ref와 같아야 한다. `supabasePublishableKey`는 `^sb_publishable_[A-Za-z0-9_-]+$` 형식 또는 JWT 세 부분을 가진 legacy key만 허용하며 legacy payload의 decoded `role`이 정확히 `anon`이어야 한다. `sb_secret_*`, `service_role` JWT, 빈 값, malformed/unknown key는 manifest에 쓰기 전에 거부한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
 
 client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. `bootstrap.mode === signedManifest.mode === capabilities.mode`이어야 하며, Cloud/Office의 `bootstrap.apiBase === signedManifest.apiBase === effectiveApiBase`여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
 
@@ -215,9 +215,10 @@ export interface CapabilityManifest {
 }
 ```
 
-provider option의 disabled reason은 deterministic하다. STT local과 azure는 각각 STT-G/Q 및 Azure 외부 처리 gate 전에는 `unverified`, gate 후 필요한 key가 없으면 `missing_key`, mode에서 제공하지 않으면 `unsupported`다. 선택된 option은 항상 `enabled=true`와 `disabledReason=null`이다.
-현재 signed approved engine registry는 비어 있다. 따라서 pre-Q capability는 모든 mode에서 `sttMode='off'`, `sttEngine=null`이고 local과 azure option은 `enabled=false, disabledReason='unverified'`다. Q가 각 STT gate를 승인하고 signed registry에 exact ID를 넣은 뒤에만 해당 값을 `ApprovedSttEngineId`로 검증해 선택한다. 승인 registry 밖의 값은 null이 아니면 모두 거부한다.
-선택된 mode의 option은 `enabled=true, disabledReason=null`이어야 한다. key 없는 Azure/OpenAI는 각각 `missing_key`, mode에서 제공하지 않는 provider는 `unsupported`다. `ApprovedSttEngineId`는 signed registry의 exact string membership으로만 만들어지며 URL, credential, arbitrary string(`://`, `?`, `@`, `Bearer`, `key` 포함)은 decoder가 거부한다.
+`sttOptions`는 정확히 3개이고 배열 순서는 정확히 `[off, local, azure]`, `llmOptions`는 정확히 2개이고 배열 순서는 정확히 `[off, openai]`다. 다음 불변식을 적용한다.
+provider option의 disabled reason은 deterministic하다. STT local과 azure는 각각 STT-G/Q 및 Azure 외부 처리 gate 전에는 `unverified`, gate 후 signed registry entry가 없으면 `unsupported`, entry는 있지만 필요한 key가 없으면 `missing_key`다. 선택된 option은 항상 `enabled=true`와 `disabledReason=null`이다.
+현재 signed approved engine registry는 비어 있다. 따라서 production pre-Q capability는 모든 mode에서 `sttMode='off'`, `sttEngine=null`이고 local과 azure option은 `enabled=false, disabledReason='unverified'`다. Q가 각 STT gate를 승인하고 signed registry에 `{id, mode}` entry를 넣은 뒤에만 해당 exact ID를 선택한다.
+선택된 mode의 option은 `enabled=true, disabledReason=null`이어야 한다. 선택된 `sttMode`와 `sttEngine`은 signed registry의 같은 entry와 exact match여야 하며 local ID를 azure mode에서, azure ID를 local mode에서 재사용할 수 없다. URL, credential, arbitrary string(`://`, `?`, `@`, `Bearer`, `key` 포함)은 decoder가 거부한다.
 - `llmMode='off'`는 항상 enabled다. `llmMode='openai'`는 key, Agent, 동의 gate가 모두 유효할 때만 enabled다.
 - `features.ai_draft === (llmMode === 'openai')`다. AI가 켜진 선택 row의 `agentStatus`는 `connected`, `delayed`, `authentication_error`, `quota_exceeded` 중 하나이며 `inactive`일 수 없다. 두 축이 모두 off인 row의 AgentStatus는 `inactive`다.
 - `features.recording`은 세 mode에서 true, `multi_user`는 Cloud/Office true와 Single false, `offline`은 Single/Office true와 Cloud false, `cloud_audio_temp`는 Cloud true와 Local false다. `public_signup`은 배포 환경 스위치가 `1`인 경우에만 true이며 그 외에는 false다.
@@ -331,7 +332,7 @@ Local Single에서는 `joinKind='worker'`를 만들지 않으며, participant jo
 - `pnpm test:contracts --auth`: `cloud-human-active`, `cloud-aal1-all-human`, `cloud-revoked-session`, `office-admin-no-mfa`, `single-stable-id`, `single-dpapi-handshake`, `agent-service`, `cloud-scheduler-secret`, `agent-linked-user-mismatch` fixture를 검사한다. malformed/invalid token은 401, valid unprovisioned/inactive/revoked 또는 linked user mismatch는 403, store unavailable은 503이어야 한다.
 - `pnpm test:contracts --jwt`: `session_id`, optional `nbf`, `role`, `is_anonymous`, ES256/RS256 key metadata, HS256 rejection, old/new key rotation, unknown-kid negative cache/cooldown을 검사한다. unknown-kid마다 upstream fetch가 발생하거나 HS256이 통과하면 실패다.
 
-- `pnpm test:contracts --capabilities`: synthetic signed-registry context를 포함한 18개 조합을 decode하고 schemaVersion, exact key set, option cardinality/order, branded engine membership, status/feature invariants, secret·PII field 부재를 검사한다. 조합 하나라도 표현되지 않거나 추가 key가 나오면 실패다.
+- `pnpm test:contracts --capabilities`: synthetic signed-registry context를 포함한 18개 조합을 decode하고 schemaVersion, exact key set, `sttOptions` 3개 `[off, local, azure]`, `llmOptions` 2개 `[off, openai]`, branded engine membership, status/feature invariants, secret·PII field 부재를 검사한다. `stt-azure-id-as-local-reject` 또는 `stt-local-id-as-azure-reject`가 통과하거나 조합 하나라도 표현되지 않으면 실패다.
 - `pnpm test:security --bootstrap`: valid/tampered/expired/sequence-replay/wrong-install/key-revoked manifest, `single-dynamic-port`, Supabase Auth origin/project-ref/key equality와 `publishable-sb-valid`, `publishable-legacy-anon`, `publishable-secret-reject`, `publishable-service-role-reject`, `publishable-malformed` fixture를 검사한다. signature mismatch, non-loopback endpoint, unsigned bootstrap apiBase 사용, local mode의 non-null Supabase field, 잘못된 publishable key가 발생하면 실패다.
 - `pnpm test:security --browser-boundary`: CORS preflight와 absent Origin service call, CSP, Electron `ccc://app` Origin, API navigation denial, service-worker cache, memory-only Cloud reload, storage boundary를 검사한다. `*`, credential cookie, `Origin: null`, API document navigation, token/PII persistence가 관측되면 실패다.
 - `pnpm test:golden --join`: fragment → exchange → replaceState → complete와 worker/participant flow를 검사한다. token이 static/API log·Referer·cache에 남거나 join token으로 capabilities·상담 데이터를 읽으면 실패다.
