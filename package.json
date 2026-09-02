@@ -34,13 +34,15 @@
     "guard:deploy-gates": "node scripts/deploy-gates.test.mjs",
     "deploy:production:check": "node scripts/deploy-production.mjs --preflight-only",
     "hooks:install": "node scripts/install-git-hooks.mjs",
-    "seed:reschedule": "node scripts/seed/reschedule-upcoming.mjs"
+    "seed:reschedule": "node scripts/seed/reschedule-upcoming.mjs",
+    "supabase:bootstrap": "node scripts/supabase/bootstrap.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.20",
     "@cloudflare/workers-types": "^5.20260706.1",
     "@types/node": "^24.0.0",
     "miniflare": "^4.20260702.1",
+    "postgres": "^3.4.9",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0",
     "wrangler": "^4.107.0"
