@@ -1,0 +1,9 @@
+{
+  "name": "@ccc/contracts",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./database": "./src/database.ts"
+  }
+}
