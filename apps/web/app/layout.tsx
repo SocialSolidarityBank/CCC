@@ -310,9 +310,10 @@ button,input,select,textarea{font:inherit}
    그레이 아웃라인이다(2026-08-06 Q 위계 재편 — 구 그라데이션 테두리 대체: 이동·보기 조작은
    그레이, 컬러는 중요 행동만). 테두리는 카드 아웃라인과 같은 --line 이다(2026-08-07 Q
    "뒤로 아웃라인을 카드 div 아웃라인과 맞출 것" — neutral 버튼과 같은 개정).
-   화살표와 글자 사이는 6 — 8은 떨어져 보인다(같은 날 Q).
-   --button-fill 은 .wire-button 과 같은 지역 변수 패턴(호버가 채움만 바꾼다). */
-.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+   꺽쇠와 글자 사이는 6이다. 왼쪽 패딩 12, 오른쪽 16은 실제 잉크 여백을 각각 16.9px,
+   17px로 맞춘 값이다(2026-09-02 Q align-check, 구 좌우 16 대체).
+   --button-fill은 .wire-button과 같은 지역 변수 패턴이다. */
+.page-back{--button-fill:var(--panel);display:inline-flex;align-items:center;line-height:normal;gap:var(--space-1-5);min-height:var(--pill-height);padding:0 var(--space-4) 0 var(--space-3);border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 /* 공용 꺽쇠의 기본 --sub 대신 버튼 라벨과 같은 currentColor를 쓴다. 구 Icon 색 계약 유지. */
 .page-back .wire-chevron{--chevron-color:currentColor}
 @media (hover:hover){.page-back:hover{--button-fill:color-mix(in srgb,var(--ink) 6%,var(--panel))}}

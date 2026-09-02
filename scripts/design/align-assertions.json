@@ -31,6 +31,16 @@
     "tolerance": 0.5
   },
   {
+    "name": "뒤로 버튼의 왼쪽 꺽쇠와 오른쪽 라벨 잉크 여백이 같다",
+    "selectors": [
+      "#align-back .page-back",
+      "#align-back .page-back>.wire-chevron[data-dir=\"left\"]>path",
+      "#align-back .page-back>span"
+    ],
+    "axis": "inset-x-ink",
+    "tolerance": 1
+  },
+  {
     "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
     "selectors": [
       "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)>h3",
