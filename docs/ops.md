@@ -148,7 +148,7 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - **배포 후 확인**: 브라우저로 https://ccc-preview.account-855.workers.dev/preview 를 열어 눈으로 본다. 서브 CSS에 토큰이 실렸는지는 `curl`로도 볼 수 있지만 그것만으로는 레이아웃 깨짐을 못 잡는다.
 - CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다. 통과 못 한 상태로 배포하지 않는다.
 
-## 기관 소유 Supabase 사전 점검 (D76, CCC-140)
+## 기관 소유 Supabase 사전 점검 (D84, ADR-0042, CCC-140)
 
 `plan`은 프로젝트를 바꾸지 않고 리전, 읽기 권한, 기존 데이터, 설치 버전, RLS, Auth, Storage 상태와 적용 예정 자원을 확인한다. `apply`, `verify`, `status`는 아직 열지 않았다.
 
