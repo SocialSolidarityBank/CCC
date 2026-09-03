@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import tarfile
 import sys
 import unittest
 import wave
@@ -10,6 +11,7 @@ from tempfile import TemporaryDirectory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fixture_tools import canonical_json_bytes, sha256_bytes, verify_fixture  # noqa: E402
+from fetch_fixture import extract_archive, fetch_fixture  # noqa: E402
 
 
 class VerifyFixtureTest(unittest.TestCase):
@@ -168,6 +170,119 @@ class VerifyFixtureTest(unittest.TestCase):
             ),
         )
         self.assert_invalid("WAV duration")
+
+
+class FetchFixtureTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.manifest_path = self.root / "manifest.json"
+        self.archive_path = self.root / "s13-fixture-v1.tar.gz"
+        self.destination = self.root / "audio"
+        self.files = {
+            "case-001-session-01.wav": b"first audio",
+            "case-002-session-01.wav": b"second audio",
+        }
+        self._write_archive([(name, data, None) for name, data in self.files.items()])
+        self.manifest = {
+            "fixtureId": "s13-v1",
+            "audioReleaseTag": "s13-fixture-v1",
+            "audioArchive": {
+                "name": self.archive_path.name,
+                "sha256": hashlib.sha256(self.archive_path.read_bytes()).hexdigest(),
+            },
+            "sessions": [
+                {
+                    "sessionId": Path(name).stem,
+                    "audioPath": name,
+                    "audioSha256": hashlib.sha256(data).hexdigest(),
+                }
+                for name, data in self.files.items()
+            ],
+        }
+        self._write_manifest()
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def _write_manifest(self) -> None:
+        self.manifest_path.write_bytes(canonical_json_bytes(self.manifest))
+
+    def _write_archive(self, members: list[tuple[str, bytes, str | None]]) -> None:
+        with tarfile.open(self.archive_path, "w:gz") as archive:
+            for name, data, link_name in members:
+                info = tarfile.TarInfo(name)
+                info.mtime = 0
+                if link_name is not None:
+                    info.type = tarfile.SYMTYPE
+                    info.linkname = link_name
+                    archive.addfile(info)
+                else:
+                    info.size = len(data)
+                    archive.addfile(info, __import__("io").BytesIO(data))
+
+    def _refresh_archive_hash(self) -> None:
+        self.manifest["audioArchive"]["sha256"] = hashlib.sha256(self.archive_path.read_bytes()).hexdigest()
+        self._write_manifest()
+
+    def test_valid_archive_extracts_declared_audio(self) -> None:
+        extract_archive(self.archive_path, self.manifest_path, self.destination)
+        self.assertEqual(
+            {path.name: path.read_bytes() for path in self.destination.iterdir()},
+            self.files,
+        )
+
+    def test_rejects_archive_hash_mismatch(self) -> None:
+        self.manifest["audioArchive"]["sha256"] = "f" * 64
+        self._write_manifest()
+        with self.assertRaisesRegex(ValueError, "archive SHA-256"):
+            extract_archive(self.archive_path, self.manifest_path, self.destination)
+
+    def test_rejects_unsafe_archive_members(self) -> None:
+        unsafe = [
+            ("../escape.wav", b"x", None),
+            ("/absolute.wav", b"x", None),
+            ("case-001-session-01.wav", b"", "target.wav"),
+        ]
+        for member in unsafe:
+            with self.subTest(member=member[0]):
+                self._write_archive([(name, data, None) for name, data in self.files.items()] + [member])
+                self._refresh_archive_hash()
+                with self.assertRaisesRegex(ValueError, "unsafe|unexpected|regular files"):
+                    extract_archive(self.archive_path, self.manifest_path, self.destination)
+                self.assertFalse(self.destination.exists())
+
+    def test_rejects_missing_or_unexpected_members(self) -> None:
+        cases = [
+            [("case-001-session-01.wav", self.files["case-001-session-01.wav"], None)],
+            [(name, data, None) for name, data in self.files.items()] + [("extra.wav", b"x", None)],
+        ]
+        for members in cases:
+            with self.subTest(names=[member[0] for member in members]):
+                self._write_archive(members)
+                self._refresh_archive_hash()
+                with self.assertRaisesRegex(ValueError, "members"):
+                    extract_archive(self.archive_path, self.manifest_path, self.destination)
+                self.assertFalse(self.destination.exists())
+
+    def test_failure_preserves_existing_destination(self) -> None:
+        self.destination.mkdir()
+        sentinel = self.destination / "keep.txt"
+        sentinel.write_text("keep")
+        self.manifest["audioArchive"]["sha256"] = "f" * 64
+        self._write_manifest()
+        with self.assertRaisesRegex(ValueError, "archive SHA-256"):
+            extract_archive(self.archive_path, self.manifest_path, self.destination)
+        self.assertEqual(sentinel.read_text(), "keep")
+
+    def test_rejects_release_tag_mismatch_before_local_extract(self) -> None:
+        with self.assertRaisesRegex(ValueError, "release tag"):
+            fetch_fixture(
+                self.manifest_path,
+                "wrong-tag",
+                self.destination,
+                archive_path=self.archive_path,
+            )
 
 
 if __name__ == "__main__":
