@@ -85,6 +85,115 @@ describe('IntakeWizard', () => {
     expect(scoped.queryByRole('button', { name: /5\./ })).toBeNull();
   });
 
+  it('단계 레일은 짧은 화면 라벨과 고정 열을 써 네 제목의 시작선을 맞춘다', () => {
+    const { container } = renderWizard();
+    const steps = [...container.querySelectorAll<HTMLButtonElement>('.intake-step')];
+    expect(steps).toHaveLength(4);
+    expect(steps.map((item) => item.querySelector('.intake-step-label')?.textContent)).toEqual([
+      '상담 신청',
+      '생활상황',
+      '도움과 자원',
+      '상담 정리',
+    ]);
+    expect(steps.every((item) => item.querySelector('.intake-step-index') !== null)).toBe(true);
+    expect(steps.every((item) => item.querySelector('.intake-step-marker') === null)).toBe(true);
+    expect(steps.every((item) => item.querySelector('.wire-badge') === null)).toBe(true);
+    expect(steps.every((item) => item.children.length === 3)).toBe(true);
+    expect(container.querySelector('[data-testid="intake-step-rail"] h2')?.textContent).toBe('인테이크 4단계');
+    expect(container.querySelector('[data-testid="intake-step-rail"] h2')?.classList.contains('wire-card-title')).toBe(true);
+    expect(steps[2]?.getAttribute('aria-label')).toBe('3. 필요한 도움과 활용 가능한 자원, 0/8 완료');
+  });
+
+  it('여러 개 고르기의 무응답과 해당 없음은 일반 선택과 함께 남지 않는다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /2\. 현재 생활상황/ }));
+    const ordinary = scoped.getByLabelText('현재 어려움 관련 영역 경제') as HTMLInputElement;
+    const unknown = scoped.getByLabelText('현재 어려움 관련 영역 무응답') as HTMLInputElement;
+
+    fireEvent.click(ordinary);
+    fireEvent.click(unknown);
+    expect(ordinary.checked).toBe(false);
+    expect(unknown.checked).toBe(true);
+
+    fireEvent.click(ordinary);
+    expect(ordinary.checked).toBe(true);
+    expect(unknown.checked).toBe(false);
+  });
+  it('당사자 연락 정보와 상담일은 공용 HERO에 두고 입력 원칙은 별도 안내로 분리한다', () => {
+    const { container, getByTestId, queryByTestId } = renderWizard();
+    const hero = container.querySelector('.participant-hero-card');
+    expect(hero).not.toBeNull();
+    expect(hero?.textContent).toContain('홍서희');
+    expect([...hero!.querySelectorAll('.wire-field-label')].map((node) => node.textContent))
+      .toEqual(['전화번호', '이메일', '상담일']);
+    expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
+    const guidance = getByTestId('intake-required-guidance');
+    expect(guidance.className).toContain('wire-card');
+    expect(guidance.textContent).toContain('모든 항목이 필수입니다');
+    expect(queryByTestId('intake-context')).toBeNull();
+  });
+
+  it('남은 필수 항목 안내는 단계 레일 아래에 둔다', () => {
+    const { getByTestId } = renderWizard();
+    const rail = getByTestId('intake-step-rail');
+    const warning = getByTestId('intake-missing');
+
+    expect(rail.contains(warning)).toBe(true);
+    expect(rail.lastElementChild).toBe(warning);
+  });
+
+  it('대출 부채 표는 다른 소절 카드와 같은 바깥 폭에 선다', () => {
+    const { container, getByTestId } = renderWizard();
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /2\. 현재 생활상황/ }));
+
+    const table = getByTestId('intake-debt-table');
+    expect(table.className).toContain('wire-card');
+    expect(table.closest('.consent-detail')).toBeNull();
+  });
+
+  it('필수는 실제 입력 항목에만 라벤더 배지로 표시하고 선택 표시는 두지 않는다', () => {
+    const { container, getByTestId } = renderWizard();
+    const markers = [...container.querySelectorAll('.wire-form-label .wire-required-marker')];
+    expect(markers.length).toBeGreaterThan(0);
+    expect(markers.every((marker) => marker.getAttribute('data-tone') === 'lavender')).toBe(true);
+    expect(container.querySelector('.wire-requirement-badge')).toBeNull();
+
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /2\. 현재 생활상황/ }));
+    expect(scoped.getByRole('group', { name: /현재 어려움 관련 영역 필수/ })).toBeTruthy();
+    const debtTable = getByTestId('intake-debt-table');
+    expect(debtTable.querySelector('.wire-card-title .wire-required-marker')).toBeNull();
+    expect(debtTable.querySelectorAll('.wire-form-label .wire-required-marker')).toHaveLength(1);
+    fireEvent.click(within(debtTable).getByRole('button', { name: '줄 추가' }));
+    expect(debtTable.querySelectorAll('.wire-form-label .wire-required-marker')).toHaveLength(1);
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+    const overallGoal = getByTestId('intake-overall-goal');
+    expect(overallGoal.querySelector('.wire-required-marker')).toBeNull();
+    expect(within(overallGoal).queryByText('선택')).toBeNull();
+  });
+
+  it('빈 반복 표도 안내 행에 추가와 삭제 버튼을 한 쌍으로 둔다', () => {
+    const { container, getByTestId } = renderWizard();
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+
+    const table = getByTestId('intake-additional-table');
+    expect(table.querySelector('.wire-repeat-guide')).not.toBeNull();
+    expect(within(table).getByRole('button', { name: '줄 추가' })).toBeTruthy();
+    expect((within(table).getByRole('button', { name: '이 줄 삭제' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('하단 이전 버튼은 상단 뒤로 버튼과 같은 page-back 계약을 쓴다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /^2\./ }));
+    const previous = scoped.getByRole('button', { name: '이전' });
+    expect(previous.className).toContain('page-back');
+    expect(previous.querySelector('.wire-chevron[data-dir="left"]')).not.toBeNull();
+  });
+
   it('1단계 소절 번호는 정본 순서대로 하나씩만 뜬다', () => {
     const { container } = renderWizard();
     const subHeadings = [...container.querySelectorAll('h3')]
@@ -100,6 +209,28 @@ describe('IntakeWizard', () => {
       '1-4. 상담 신청 사유',
     ]);
     expect(new Set(subHeadings).size).toBe(subHeadings.length);
+  });
+
+  it('4단계 소절은 질문지 번호 순서대로 배치한다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /4\. 상담 정리와 후속관리/ }));
+
+    const headings = [...container.querySelectorAll('h3')]
+      .map((el) => el.textContent ?? '')
+      .filter((text) => /^(4-\d\.|전체 목표|담당 실무자 종합의견)/.test(text));
+
+    expect(headings).toEqual([
+      '4-1. 상담 참여 여건',
+      '4-2. 추가 확인사항',
+      '4-3. 담당 실무자 판단 및 다음 단계',
+      '전체 목표',
+      '담당 실무자 종합의견',
+    ]);
+    const tocLabels = [...container.querySelectorAll('[data-testid="intake-toc"] a')]
+      .map((el) => el.textContent ?? '');
+    expect(tocLabels).toEqual(headings);
+
   });
 
   // 2026-08-09 3차: 우측 바로가기 목차는 현재 단계의 소절만 담고, 앵커는 전부 본문 대상과
@@ -123,6 +254,15 @@ describe('IntakeWizard', () => {
     fireEvent.click(scoped.getByRole('button', { name: /^2\./ }));
     expect(hrefs().some((href) => href.includes('부채'))).toBe(true);
     expect(hrefs().some((href) => href.includes('기본정보'))).toBe(false);
+  });
+
+  it('현재 단계 제목은 조회 버튼 유무와 무관한 공용 툴바 줄에 선다', () => {
+    const { container } = renderWizard();
+    const scoped = within(container);
+    fireEvent.click(scoped.getByRole('button', { name: /^2\./ }));
+
+    const heading = scoped.getByRole('heading', { level: 2, name: '2. 현재 생활상황' });
+    expect(heading.parentElement?.classList.contains('intake-step-toolbar')).toBe(true);
   });
 
   it('자동 채움 항목(상담일·실무자·회차)은 1-3 소절 안에 있다', () => {
@@ -184,6 +324,10 @@ describe('IntakeWizard', () => {
     expect((scoped.getByLabelText('상담일 날짜') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect((scoped.getByLabelText('상담일 시각') as HTMLInputElement).value).toMatch(/^\d{2}:\d{2}$/);
     expect(scoped.getByTestId('intake-missing').textContent).not.toContain('1. 상담일');
+    const firstStepCount = container.querySelector('.intake-step-count');
+    expect(firstStepCount?.textContent).toBe('1/11');
+    fireEvent.change(scoped.getByLabelText('상담일 날짜'), { target: { value: '' } });
+    expect(firstStepCount?.textContent).toBe('0/11');
   });
 
   it('전 항목이 비면 완료를 눌러도 저장되지 않고 빈 칸·단계가 red 로 표시된다', () => {
@@ -335,8 +479,14 @@ describe('IntakeWizard', () => {
     const scoped = within(container);
     fillAllQuestions(scoped);
     expect(scoped.queryByTestId('intake-schedule-completion')).toBeNull();
+    expect([...container.querySelectorAll('.intake-step-count')].every((node) => /^\d+\/\d+$/.test(node.textContent ?? ''))).toBe(true);
 
-    fireEvent.click(scoped.getByRole('button', { name: '저장' }));
+    const hero = container.querySelector('.participant-hero-card');
+    expect(hero).not.toBeNull();
+    expect([...hero!.querySelectorAll('.wire-field-label')].map((node) => node.textContent))
+      .toEqual(['전화번호', '이메일', '상담일']);
+    expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
+    fireEvent.click(within(hero as HTMLElement).getByRole('button', { name: '수정 완료' }));
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
     expect((lastInput as CreateIntakeRecordActionInput | null)?.scheduleId).toBeUndefined();
   });
@@ -425,7 +575,7 @@ describe('IntakeWizard', () => {
     // 부채·연계 기관 표는 첫 줄이 처음부터 있다(정본: 없으면 첫 행에 '해당 없음').
     fireEvent.click(scoped.getByRole('button', { name: /2\. 현재 생활상황/ }));
     fireEvent.change(scoped.getByLabelText('기관·채권자 1'), { target: { value: 'OO은행' } });
-    fireEvent.change(scoped.getByLabelText('잔액 1'), { target: { value: '1,200만원' } });
+    fireEvent.change(scoped.getByLabelText('잔액 1'), { target: { value: '1,200만 원' } });
 
     fireEvent.click(scoped.getByRole('button', { name: /3\. 필요한 도움과 활용 가능한 자원/ }));
     fireEvent.change(scoped.getByLabelText('기관명 1'), { target: { value: 'OO구 주민센터' } });
@@ -440,7 +590,7 @@ describe('IntakeWizard', () => {
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
 
     const input = getLastInput();
-    expect(input?.debts).toEqual([{ creditor: 'OO은행', balance: '1,200만원' }]);
+    expect(input?.debts).toEqual([{ creditor: 'OO은행', balance: '1,200만 원' }]);
     expect(input?.linkedOrgs).toEqual([{ orgName: 'OO구 주민센터' }]);
     expect(input?.additionalItems).toEqual([{ item: '전체 채무 잔액', dueNote: '다음 상담 전' }]);
     expect(input?.managerOpinion).toBe('우선순위 높음');

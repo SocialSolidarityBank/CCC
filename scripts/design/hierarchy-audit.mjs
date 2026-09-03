@@ -115,24 +115,64 @@ const badgeForeground = (tone) => (
 const BADGE_ALLOW = BADGE_TONES.flatMap((tone) => [
   {
     selector: `.wire-badge[data-tone="${tone}"]`,
-    combo: `var(--text-sm)/400/${badgeForeground(tone)}`,
-    why: '색상 배지의 테마 고정 전경색',
+    combo: `var(--text-badge)/400/${badgeForeground(tone)}`,
+    why: '13px 색상 배지의 테마 고정 전경색',
   },
   {
     selector: `.wire-badge[data-tone="${tone}"][data-size="sm"]`,
     combo: `var(--text-badge-compact)/400/${badgeForeground(tone)}`,
-    why: '컴팩트 색상 배지의 테마 고정 전경색',
+    why: '12px 컴팩트 색상 배지의 테마 고정 전경색',
   },
 ]);
 const ALLOW = [
   {
-    // 2026-08-23 Q: 당사자 카드 헤더의 곁다리 배지만 12px 컴팩트 토큰을 쓴다.
+    selector: '.wire-badge',
+    combo: 'var(--text-badge)/400/var(--ink)',
+    why: '배지 면을 본문보다 작게 읽히게 하는 13px 기본 배지',
+  },
+  {
+    // 12px은 짧은 요구 상태와 곁다리 배지에만 쓴다.
     // 다른 필드가 이 토큰을 빌리면 14px 본문 계단을 우회하므로 자리로 한정한다.
     selector: '.wire-badge[data-size="sm"]',
     combo: 'var(--text-badge-compact)/400/var(--ink)',
-    why: '당사자 카드 헤더 전용 컴팩트 배지',
+    why: '짧은 요구 상태와 곁다리 전용 컴팩트 배지',
   },
   ...BADGE_ALLOW,
+  {
+    selector: '.wire-badge.wire-required-marker',
+    combo: 'var(--text-badge)/400/var(--lavender-deep)',
+    why: '필수 표식 라벤더 deep 아웃라인의 정적 기본형. 실제 호출은 모두 size="sm"이다',
+  },
+  {
+    selector: '.record-rail-goal-body',
+    combo: 'var(--text-sm)/600/var(--ink)',
+    why: '상담 기록 레일에서 세부 목표보다 먼저 읽히는 세션 목표 본문',
+  },
+  {
+    selector: '.record-open-action-body',
+    combo: 'var(--text-sm)/600/var(--ink)',
+    why: '상담 기록 레일에서 출처 날짜보다 먼저 읽히는 미해결 액션 본문',
+  },
+  {
+    selector: '.record-rail-subgoal',
+    combo: 'var(--text-detail)/400/var(--sub)',
+    why: '상담 기록 레일의 세부 목표 줄 전용 13px 회색',
+  },
+  {
+    selector: '.record-rail-subgoal-label',
+    combo: 'var(--text-detail)/600/var(--sub)',
+    why: '상담 기록 레일의 세부 목표 라벨 전용 13px 회색',
+  },
+  {
+    selector: '.record-open-action-meta',
+    combo: 'var(--text-sm)/400/var(--amber-deep)',
+    why: '미해결 액션의 지난 상담 날짜 전용 amber 글자',
+  },
+  {
+    selector: '.record-open-action-meta',
+    combo: `var(--text-sm)/400/${MIXED_SUB}`,
+    why: '미해결 액션 본문보다 물러나는 지난 상담 날짜',
+  },
   {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
     selector: '.participant-card-cell',

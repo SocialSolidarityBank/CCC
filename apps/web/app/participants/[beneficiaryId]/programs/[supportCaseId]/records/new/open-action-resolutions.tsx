@@ -84,7 +84,7 @@ export function OpenActionResolutions({
         </div>
       </fieldset>
       {/* '처리 메모' → '메모'(2026-08-09 Q). 이 카드가 이미 처리 칸이라 '처리'가 겹쳤다. */}
-      <WireFormField label="메모" note="(선택)" htmlFor={`resolutionNote_${action.id}`}>
+      <WireFormField label="메모" htmlFor={`resolutionNote_${action.id}`}>
         <input id={`resolutionNote_${action.id}`} name={`resolutionNote_${action.id}`} type="text" maxLength={200} />
       </WireFormField>
     </WireCard>

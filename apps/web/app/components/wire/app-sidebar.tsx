@@ -37,8 +37,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: NavIconName;
-  /** 아직 화면이 없는 메뉴. 누르기 전에 알린다 — 눌러 보고 실망하지 않게 (CCC-23). */
-  soon?: boolean;
 }
 
 /**
@@ -190,7 +188,6 @@ export function AppSidebar({
                     >
                       <NavIcon name={item.icon} />
                       <span>{item.label}</span>
-                      {item.soon ? <span className="navigation-soon">준비 중</span> : null}
                       {/* CCC-26: 새 가입 미확인 숫자 — 사람·소속 축의 민트 배지(WireBadge 계약).
                           확인 행위로 사라지는 값이라 재방문 시 자리가 안 흔들린다. */}
                       {item.icon === 'participants' && newSignupCount > 0 && (

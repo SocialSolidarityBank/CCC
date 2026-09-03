@@ -11,8 +11,7 @@ export interface SearchSelectOption {
 
 export interface SearchInputProps {
   /**
-   * 상단 라벨(14/700 --sub). 문자열이 기본이지만 조각도 받는다 — 필수 별표(`wire-form-required`)
-   * 처럼 라벨 안에서 색이 달라지는 부분이 있으면 문자열로는 표현할 수 없다(Y8).
+   * 상단 라벨(14/600 --sub). 문자열이 기본이지만 필수·선택 배지 같은 조각도 받을 수 있다.
    */
   label: ReactNode;
   /** text = 입력 박스(기본), select = 우측 체브론이 붙는 셀렉트. */

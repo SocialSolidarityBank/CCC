@@ -20,16 +20,20 @@ import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { ReactElement } from 'react';
+import type { ComponentProps, ReactElement } from 'react';
 
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
 import { wireStyles } from '../components/wire/wire-styles';
 import KitPage from './page';
 import { PageLoading } from '../components/wire/page-loading';
+import { WireButton } from '../components/wire/wire-button';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RecordOnepage, type RecordOnepageProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage';
+import { GoalSection } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section';
 import { DraftReviewView, type DraftReviewViewProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/[sessionId]/review/fixture-draft-view';
 import { IntakeWizard } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-wizard';
+import { IntakeReadView } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view';
+import { ACTIVE_QUESTIONS, STEP_TITLES } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-questions';
 import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/schedule-wizard';
 import { SessionPlanEditor } from '../schedules/[scheduleId]/plan/session-plan-editor';
 import { RegisterForm } from '../participants/new/register-form';
@@ -103,14 +107,58 @@ const briefingProps: BriefingCardsProps = {
 
 const recordProps: RecordOnepageProps = {
   schedules: [],
-  openActionItems: [{ id: 'a1', description: '서류 제출', owner: 'beneficiary', dueDate: '2026-07-20' }] as RecordOnepageProps['openActionItems'],
+  openActionItems: [
+    { id: 'a1', description: '채무조정 신청에 필요한 소득 확인 서류를 준비한다', owner: 'beneficiary', dueDate: '2026-07-20', sourceHeldAt: '2026-07-15T05:00:00.000Z' },
+    { id: 'a2', description: '주민센터 긴급복지 상담 가능 시간을 확인한다', owner: 'counselor', dueDate: '2026-07-22', sourceHeldAt: '2026-07-08T05:00:00.000Z' },
+    { id: 'a3', description: '다음 상담 전까지 한 달 지출 내역을 항목별로 정리한다', owner: 'beneficiary', dueDate: null, sourceHeldAt: '2026-07-01T05:00:00.000Z' },
+  ] as RecordOnepageProps['openActionItems'],
   latestLifeAreaSnapshot: [],
-  sessionGoals: [{ body: '임대차 계약 확인', caseGoalTitle: '월세 체납 해소' }],
+  sessionGoals: [
+    { body: '임대차 계약 갱신 조건과 필요한 서류를 확인한다', caseGoalTitle: '안정적인 거주를 위해 월세 체납을 해소하고 계약 갱신 절차를 마친다' },
+    { body: '채무조정 신청 일정을 함께 점검한다', caseGoalTitle: '매달 감당할 수 있는 상환액을 정하고 채무조정 신청을 완료한다' },
+  ],
   customQuestions: ['이번 달 지출은 정리됐는지'],
-  lastRecordSummary: null,
+  goalSection: (
+    <GoalSection
+      beneficiaryId="swallow-003"
+      supportCaseId={CASE_ID}
+      goals={[{ id: 'g1', title: '채무조정 서류 준비', status: 'active', closedReason: null }]}
+    />
+  ),
   briefingPath: `/participants/swallow-003/programs/${CASE_ID}/briefing`,
-  actions: <><button type="button">돌아가기</button><button type="submit">저장</button></>,
+  actions: <><WireButton variant="secondary">돌아가기</WireButton><WireButton variant="primary" type="submit">저장</WireButton></>,
 };
+const intakeReadProps = {
+  beneficiaryId: 'swallow-003',
+  participant: { name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' },
+  consent: { privacy: true, recordingAi: false },
+  saved: {
+    sessionId: SESSION_ID,
+    heldAt: '2026-07-15T05:00:00.000Z',
+    channel: 'in_person' as const,
+    answers: ACTIVE_QUESTIONS.map((question) => ({
+      key: question.key,
+      response: 'answered' as const,
+      text: question.kind === 'text' ? `${question.label} 답변` : question.options![0]!,
+    })),
+    debts: [{ creditor: 'OO은행', kind: '신용대출', balance: '1,200만 원', monthlyPayment: '30만 원', arrearsStatus: '3개월 연체' }],
+    linkedOrgs: [{ orgName: 'OO구 주민센터', serviceName: '긴급복지 생계지원', supportDetail: '', usagePeriod: '', progressStatus: '' }],
+    additionalItems: [{ item: '전체 채무 잔액', reason: '채무조정 범위 확인', method: '신용정보조회서', dueNote: '다음 상담 전' }],
+    managerOpinion: '채무조정 상담을 우선 연계한다.',
+  },
+  overallGoal: '3개월 안에 채무조정 신청을 마친다',
+  editHref: `/participants/swallow-003/programs/${CASE_ID}/records/intake?edit=1`,
+  recordsHref: `/participants/swallow-003/programs/${CASE_ID}/records`,
+  participantHref: '/participants/swallow-003',
+} satisfies ComponentProps<typeof IntakeReadView>;
+
+async function renderIntakeReadStep(step: number): Promise<string> {
+  const view = render(<IntakeReadView {...intakeReadProps} />);
+  fireEvent.click(view.getByRole('button', { name: new RegExp(`${step}\\. ${STEP_TITLES[step - 1]}`) }));
+  const html = view.container.innerHTML;
+  cleanup();
+  return html;
+}
 
 // 검토 화면 픽스처(CCC-104). 측정 표면을 최대로: 실초안(fixture 아님, 처리·재생성 UI가 다
 // 서는 조건), 대조 3종은 applied(재료 2종 인용 섞기) + 비적용 축(no_session_goal) 섞임.
@@ -212,7 +260,7 @@ const SCREENS: Screen[] = [
   // 로딩은 줄이 둘뿐이라 위계로 걸릴 것이 없지만, 한 줄이 카드를 통째로 채우는 유일한 화면이라
   // 세로 중앙 정렬이 여기서만 눈에 띈다(2026-08-10 Q 지적). 재는 자리에 두어야 다시 어긋날 때 걸린다.
   { id: 'loading', label: '로딩 화면', node: <PageLoading title="15초 페이지" />, minLines: 2 },
-  { id: 'record-new', label: '상담 기록 작성', node: <RecordOnepage {...recordProps} /> },
+  { id: 'record-new', label: '상담 기록 작성', node: <main className="page-content"><RecordOnepage {...recordProps} /></main> },
   {
     id: 'intake',
     label: '인테이크 기록',
@@ -233,6 +281,51 @@ const SCREENS: Screen[] = [
       schedule={null}
       submit={noop as never}
     />,
+  },
+  {
+    id: 'intake-edit',
+    label: '인테이크 수정',
+    walk: async () => {
+      const view = render(<IntakeWizard
+        mode="edit"
+        beneficiaryId="swallow-003"
+        supportCaseId={CASE_ID}
+        submissionId="b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2"
+        participant={{ name: '홍서희', phone: '010-1234-5678', email: null }}
+        extendedPii={{ birthDate: '1984-03-11', region: '서울시 은평구', emergencyContact: null, gender: '여성' }}
+        consent={{ privacy: true, recordingAi: true }}
+        sessionSequence={2}
+        recorderLabel="이지은"
+        briefingHref={`/participants/swallow-003/programs/${CASE_ID}/records/intake`}
+        participantHref="/participants/swallow-003"
+        basicInfoHref="/participants/swallow-003/edit"
+        overallGoal="주거를 안정적으로 유지한다"
+        overallGoalErrorHref={`/participants/swallow-003/programs/${CASE_ID}/briefing`}
+        initial={{
+          heldAt: '2026-07-15T05:00:00.000Z',
+          answers: [],
+          debts: [],
+          linkedOrgs: [],
+          additionalItems: [],
+          managerOpinion: '기존 의견',
+        }}
+        submit={noop as never}
+      />);
+      fireEvent.click(view.getByRole('button', { name: /^2\./ }));
+      const html = view.container.innerHTML;
+      cleanup();
+      return html;
+    },
+  },
+  {
+    id: 'intake-read-step2',
+    label: '인테이크 조회 2단계',
+    walk: () => renderIntakeReadStep(2),
+  },
+  {
+    id: 'intake-read-step4',
+    label: '인테이크 조회 4단계',
+    walk: () => renderIntakeReadStep(4),
   },
   {
     id: 'schedule-new',

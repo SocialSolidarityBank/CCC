@@ -53,19 +53,15 @@ function renderList(records: SupportCaseRecord[], errorIds: string[] = []) {
 }
 
 describe('RecordList', () => {
-  it('펼친 회차의 유형 배지는 색 면과 글자를 접근 가능한 deep 색으로 반전한다', () => {
-    // 2026-08-28 채움 전면 적용으로 :not(.briefing-card) 제외가 사라지고 카드 아코디언과
-    // 셀렉터를 나눠 갖는다 — 규칙 머리만 고정하고 짝 셀렉터는 [^{]* 로 넘긴다.
+  it('펼친 회차의 배지는 패널 면과 계열 아웃라인, 어두운 글자로 반전한다', () => {
     expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="mint"\],[^{]*\{[^}]*background:var\(--on-badge\);color:var\(--mint-deep\)/,
+      /details\.surface-card\[open\]>\.record-summary \.wire-badge,[^{]*\{[^}]*--wire-outline-color:var\(--ink\);background:var\(--panel\);color:var\(--ink\)/,
     );
     expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="lavender"\],[^{]*\{[^}]*background:var\(--on-badge\);color:var\(--lavender-deep\)/,
+      /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="mint"\],[^{]*\{[^}]*--wire-outline-color:var\(--badge-mint\)/,
     );
-    // '수기' 같은 톤 없는 배지도 톤 배지처럼 흰 --on-badge 면으로 반전한다(2026-08-28 Q
-    // 버그 수정 — 구 --line-on-action·--on-action 은 라이트에서 투명하게 남아 안 반전돼 보였다).
     expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge:not\(\[data-tone\]\),[^{]*\{[^}]*--wire-outline-color:var\(--ink\);background:var\(--on-badge\);color:var\(--ink\)/,
+      /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="lavender"\],[^{]*\{[^}]*--wire-outline-color:var\(--badge-lavender\)/,
     );
   });
 

@@ -132,6 +132,25 @@ for (const [size, weight, color] of [
   );
 }
 
+const badgeTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8')
+  .match(/^\s*--text-badge:\s*([^;]+)/m)?.[1]
+  ?.trim();
+check(
+  '기본 배지 토큰은 13px 이다',
+  badgeTokenValue === '13px',
+  `현재값: ${badgeTokenValue ?? '없음'}`,
+);
+const DEFAULT_BADGE = '.wire-badge{font-size:var(--text-badge);font-weight:400;color:var(--ink)}';
+check(
+  '13px 기본 배지는 WireBadge 자리에서만 허용된다',
+  run(DEFAULT_BADGE).violations.length === 0,
+);
+check(
+  '13px 배지 토큰을 다른 필드에 쓰면 잡힌다',
+  run('.wire-field-label{font-size:var(--text-badge);font-weight:400;color:var(--sub)}').violations.length === 1,
+);
+
+
 const compactTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8')
   .match(/^\s*--text-badge-compact:\s*([^;]+)/m)?.[1]
   ?.trim();
@@ -190,6 +209,10 @@ const wireStylesSource = readFileSync(
   join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
   'utf8',
 );
+check(
+  'WireCard의 복합 제목 안 h2도 카드 제목 16px 계약을 상속한다',
+  /\.wire-card-title>\.wire-card-head>h2\{[^}]*font-size:inherit[^}]*font-weight:inherit[^}]*line-height:inherit/.test(wireStylesSource),
+);
 const layoutSource = readFileSync(join(repoRoot, 'apps/web/app/layout.tsx'), 'utf8');
 
 for (const [name, snippet] of [
@@ -206,6 +229,30 @@ for (const [name, snippet] of [
     wireStylesSource.includes(snippet) || layoutSource.includes(snippet),
   );
 }
+check(
+  '선택지와 체크박스 라벨은 14px 입력 조작 계약을 쓴다',
+  /\.wire-choice\{[^}]*font-size:var\(--text-sm\);font-weight:600/.test(wireStylesSource),
+);
+check(
+  '읽기 전용 데이터 값은 14px 본문 계약을 쓴다',
+  /\.wire-data-row>dd\{[^}]*font-size:var\(--text-sm\)/.test(wireStylesSource),
+);
+check(
+  '데이터 행 구분선은 첫 행 위와 마지막 행 아래가 아니라 행 사이에만 선다',
+  /\.wire-data-rows\{[^}]*border-top:0/.test(wireStylesSource)
+    && /\.wire-data-row\+\.wire-data-row\{border-top:1px solid var\(--line\)\}/.test(wireStylesSource)
+    && !/\.wire-data-row\{[^}]*border-bottom:/.test(wireStylesSource),
+);
+check(
+  '날짜 단독 입력은 바깥 입력 상자 안에서 별도 면과 테두리를 만들지 않는다',
+  /\.wire-input-box>\.wire-date-control>input\{[^}]*border:0[^}]*background:transparent[^}]*font-size:var\(--text-sm\)/.test(wireStylesSource)
+    && /\.wire-input-box>\.wire-date-control>\.wire-date-toggle\{[^}]*border-color:transparent[^}]*background:transparent/.test(wireStylesSource),
+);
+check(
+  '상담 기록 레일은 자체 스크롤을 유지하면서 스크롤바 면을 숨긴다',
+  /\.record-side\{[^}]*scrollbar-width:none/.test(layoutSource)
+    && /\.record-side::-webkit-scrollbar\{display:none\}/.test(layoutSource),
+);
 for (const [tone, outline, surface] of [
   ['blue', 'var(--badge-blue)', 'var(--badge-blue)'],
   ['mint', 'var(--badge-mint)', 'var(--badge-mint)'],

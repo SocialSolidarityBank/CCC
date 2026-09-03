@@ -1,11 +1,13 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
+import { wireStyles } from './wire-styles';
 import { WireChoice, WireFormField } from './wire-form-field';
 
 // 폼 입력칸·선택지 행 계약(DESIGN.md §5). 여기 걸린 어서션은 전부 실제 결함에서 나왔다 —
 // 라벨이 도움말을 삼키는 접근성 문제, 라디오가 입력칸 규칙을 상속해 세로로 쪼개지던 렌더 결함.
 
 afterEach(cleanup);
+
 
 describe('WireFormField', () => {
   it('htmlFor 를 주면 라벨만 <label> 이고 도움말은 컨트롤 이름에 섞이지 않는다', () => {
@@ -35,20 +37,35 @@ describe('WireFormField', () => {
     expect(label?.querySelector('input')).not.toBeNull();
   });
 
-  it('필수는 라벨 옆 별표로, 오류는 테두리와 메시지를 함께 낸다', () => {
+  it('필수는 라벨 옆 12/400 컴팩트 아웃라인 배지로, 오류는 테두리와 메시지를 함께 낸다', () => {
     const { container } = render(
       <WireFormField label="연락처" required htmlFor="phone" error="숫자만 입력하세요.">
         <input id="phone" />
       </WireFormField>,
     );
 
-    expect(container.querySelector('.wire-form-required')?.textContent).toBe('*');
+    const required = container.querySelector('.wire-form-label .wire-required-marker');
+    expect(required?.textContent).toBe('필수');
+    expect(required?.classList.contains('wire-badge')).toBe(true);
+    expect(required?.getAttribute('data-tone')).toBe('lavender');
+    expect(required?.getAttribute('data-size')).toBe('sm');
+    expect(required?.getAttribute('style')).toBeNull();
+    expect(wireStyles).toContain(
+      '.wire-badge.wire-required-marker{--wire-outline-color:var(--lavender-deep);background:transparent;color:var(--lavender-deep)}',
+    );
     expect(container.querySelector('.wire-input-box')?.getAttribute('data-invalid')).toBe('true');
-    // 색만으로 알리지 않는다 — 메시지가 반드시 함께 나온다.
     const message = container.querySelector('.wire-field-error');
     expect(message?.getAttribute('role')).toBe('alert');
     expect(message?.textContent).toBe('숫자만 입력하세요.');
   });
+
+  it('인테이크 여러 선택지는 아웃라인 알약을 쓴다', () => {
+    expect(wireStyles).toContain(
+      '.wizard-choice-row .wire-choice{align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}',
+    );
+    expect(wireStyles).toContain('.wizard-choice-row .wire-choice>input{margin:0}');
+  });
+
 
   it('invalid 는 메시지 없이 테두리만 오류 상태로 둔다', () => {
     const { container } = render(

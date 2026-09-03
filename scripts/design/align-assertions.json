@@ -489,5 +489,218 @@
     "tolerance": 0.5,
     "maxRatio": 0.25,
     "expectedSize": 32
+  },
+  {
+    "name": "14px 선택지 라벨과 체크박스는 첫 줄 세로 중앙",
+    "selectors": ["#align-choice .wire-choice", ".wire-checkbox", ".wire-choice-text"],
+    "axis": "center-y-each",
+    "tolerance": 1
+  },
+  {
+    "name": "날짜 단독 입력의 달력 버튼은 바깥 입력 상자 세로 중앙",
+    "selectors": ["#align-date .wire-input-box", ".wire-date-toggle"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "날짜 단독 입력의 달력 버튼은 40px 폭과 38px 안쪽 높이",
+    "selectors": ["#align-date .wire-date-toggle"],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 40,
+    "expectedHeight": 38
+  },
+  {
+    "name": "세부 목표 제목과 활성 배지는 세로 중앙",
+    "selectors": [
+      "#align-goal-section .wire-card-head>h2",
+      "#align-goal-section .wire-card-head>.wire-badge"
+    ],
+    "axis": "y",
+    "tolerance": 1
+  },
+  {
+    "name": "인테이크 조회 아코디언 꺽쇠는 32px 원",
+    "selectors": ["#align-intake-read .wire-card-summary .wire-chevron-button"],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 32,
+    "expectedHeight": 32
+  },
+  {
+    "name": "인테이크 조회 아코디언 꺽쇠 path는 원 정중앙",
+    "selectors": ["#align-intake-read .wire-card-summary .wire-chevron-button"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.25,
+    "expectedSize": 32
+  },
+  {
+    "name": "인테이크 조회 데이터 행의 위아래 실제 여백은 같다",
+    "selectors": [
+      "#align-intake-read [data-testid=\"intake-read-current-step\"]>.wire-card-details:first-child .wire-data-rows",
+      "#align-intake-read [data-testid=\"intake-read-current-step\"]>.wire-card-details:first-child .wire-data-row:first-child>dt",
+      "#align-intake-read [data-testid=\"intake-read-current-step\"]>.wire-card-details:first-child .wire-data-row:last-child>dt"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "expectedInset": 8
+  },
+  {
+    "name": "인테이크 조회 반복 행 번호는 내용만큼만 차지한다",
+    "selectors": [
+      "#align-intake-read .intake-read-table-entry:first-child>.wire-badge",
+      ".align-intake-row-index-width>.wire-badge"
+    ],
+    "axis": "width",
+    "tolerance": 0.5
+  },
+  {
+    "name": "폼 선택창 꺽쇠는 입력 상자 세로 중앙",
+    "selectors": ["#align-select .wire-input-box[data-control=\"select\"]", ".wire-chevron"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "폼 선택창 꺽쇠 path는 슬롯 정중앙",
+    "selectors": ["#align-select .wire-input-box .wire-chevron"],
+    "axis": "chevron-xy",
+    "tolerance": 0.5,
+    "maxRatio": 0.6,
+    "expectedSize": 12
+  },
+  {
+    "name": "모든 배지와 상태 태그는 높이 20",
+    "selectors": [".wire-badge", ".wire-status-tag", ".consent-detail[data-inline=\"true\"]>.consent-detail-summary"],
+    "axis": "height",
+    "tolerance": 0.1,
+    "expectedHeight": 20
+  },
+  {
+    "name": "당사자 HERO는 데스크톱에서 같은 높이 177",
+    "selectors": [
+      "#align-hero-meta .participant-hero-card",
+      "#align-hero-details .participant-hero-card",
+      "#align-hero-details-no-actions .participant-hero-card"
+    ],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 177
+  },
+  {
+    "name": "당사자 HERO H2는 18px 제목 높이 22.5",
+    "selectors": [
+      "#align-hero-meta .participant-hero-title",
+      "#align-hero-details .participant-hero-title",
+      "#align-hero-details-no-actions .participant-hero-title"
+    ],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 22.5
+  },
+  {
+    "name": "섹션 H2는 프리뷰 기준 높이 24.3",
+    "selectors": ["#align-h2-section h2"],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 24.3
+  },
+  {
+    "name": "카드 H2는 프리뷰 기준 높이 21.6",
+    "selectors": ["#align-h2-card h2"],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 21.6
+  },
+  {
+    "name": "필수 아웃라인 표식은 라벨 행 세로 중앙",
+    "selectors": ["#align-select .wire-form-label", ".wire-required-marker"],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "인테이크 작성과 조회 단계 버튼은 240×40",
+    "selectors": [
+      "#align-intake-read .intake-step",
+      "#align-intake-edit-rail .intake-step"
+    ],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 240,
+    "expectedHeight": 40
+  },
+  {
+    "name": "인테이크 조회 단계 제목은 같은 가로 중심",
+    "selectors": ["#align-intake-read .intake-step-label"],
+    "axis": "x",
+    "tolerance": 0.5
+  },
+  {
+    "name": "인테이크 수정 단계 제목은 같은 가로 중심",
+    "selectors": ["#align-intake-edit-rail .intake-step-label"],
+    "axis": "x",
+    "tolerance": 0.5
+  },
+  {
+    "name": "인테이크 단계 번호와 제목은 겹치지 않음",
+    "selectors": [
+      "#align-intake-read .intake-step, #align-intake-edit-rail .intake-step",
+      ".intake-step-index",
+      ".intake-step-label"
+    ],
+    "axis": "no-overlap-x-each",
+    "tolerance": 0
+  },
+  {
+    "name": "인테이크 단계 제목과 건수는 겹치지 않음",
+    "selectors": [
+      "#align-intake-read .intake-step, #align-intake-edit-rail .intake-step",
+      ".intake-step-label",
+      ".intake-step-count"
+    ],
+    "axis": "no-overlap-x-each",
+    "tolerance": 0
+  },
+  {
+    "name": "인테이크 단계 제목은 버튼 세로 중앙",
+    "selectors": [
+      "#align-intake-read .intake-step, #align-intake-edit-rail .intake-step",
+      ".intake-step-label"
+    ],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "390px 인테이크 단계 제목과 건수는 겹치지 않음",
+    "selectors": [
+      "#align-intake-read .intake-step, #align-intake-edit-rail .intake-step",
+      ".intake-step-label",
+      ".intake-step-count"
+    ],
+    "axis": "no-overlap-x-each",
+    "tolerance": 0,
+    "viewport": { "width": 390, "height": 900 }
+  },
+  {
+    "name": "인테이크 조회 왼쪽 단계 레일은 240px",
+    "selectors": ["#align-intake-read .intake-step-nav", ".align-left-rail-width"],
+    "axis": "width",
+    "tolerance": 0.5
+  },
+  {
+    "name": "인테이크 조회 오른쪽 목차 레일은 200px",
+    "selectors": ["#align-intake-read .intake-read-toc", ".align-right-rail-width"],
+    "axis": "width",
+    "tolerance": 0.5
+  },
+  {
+    "name": "인테이크 조회와 수정 단계 제목 줄은 32px",
+    "selectors": [
+      "#align-intake-read .intake-step-toolbar",
+      "#align-intake-edit-toolbar .intake-step-toolbar"
+    ],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 32
   }
 ]

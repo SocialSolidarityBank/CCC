@@ -138,8 +138,8 @@ export const STEP2_GROUPS: readonly IntakeQuestionGroup[] = [
         kind: 'select',
         options: ['근로소득', '사업소득', '공적급여', '연금', '가족·지인 지원', '소득 없음', '복수 소득', NO_RESPONSE_OPTION],
       },
-      { key: 'economy_monthly_income', label: '월평균 소득', kind: 'text', hint: '예: 약 180만원, 변동 있음' },
-      { key: 'economy_monthly_expense', label: '월 지출', kind: 'text', hint: '예: 월세 50만원, 식비 40만원, 의료비 15만원, 부채상환 30만원' },
+      { key: 'economy_monthly_income', label: '월평균 소득', kind: 'text', hint: '예: 약 180만 원, 변동 있음' },
+      { key: 'economy_monthly_expense', label: '월 지출', kind: 'text', hint: '예: 월세 50만 원, 식비 40만 원, 의료비 15만 원, 부채상환 30만 원' },
       {
         key: 'economy_arrears',
         label: '연체·미납 여부',
@@ -356,6 +356,9 @@ export const STEP_GROUPS: readonly (readonly IntakeQuestionGroup[])[] = [
   STEP1_GROUPS, STEP2_GROUPS, STEP3_GROUPS, STEP4_GROUPS,
 ];
 
+/** 질문 밖 필수 항목 수: 상담일, 부채 표 첫 행, 연계 기관 표 첫 행, 종합의견. */
+export const INTAKE_STEP_REQUIRED_EXTRA_COUNTS = [1, 1, 1, 1] as const;
+
 // ── 반복 행 표 3종의 열 정의 ────────────────────────────────────────────────
 // 작성 위저드와 조회 화면(CCC-58)이 같은 열 이름을 그려야 하므로 여기가 단일 원천이다.
 // placeholder 는 작성 화면만 쓴다 — 조회는 label 만 읽는다.
@@ -366,8 +369,8 @@ export interface IntakeTableColumn { key: string; label: string; placeholder?: s
 export const DEBT_COLUMNS: readonly IntakeTableColumn[] = [
   { key: 'creditor', label: '기관·채권자', placeholder: '예: OO은행 / 해당 없음' },
   { key: 'kind', label: '구분', placeholder: '예: 신용대출' },
-  { key: 'balance', label: '잔액', placeholder: '예: 1,200만원' },
-  { key: 'monthlyPayment', label: '월 상환액', placeholder: '예: 30만원' },
+  { key: 'balance', label: '잔액', placeholder: '예: 1,200만 원' },
+  { key: 'monthlyPayment', label: '월 상환액', placeholder: '예: 30만 원' },
   { key: 'arrearsStatus', label: '연체 여부·상태', placeholder: '예: 3개월 연체' },
 ];
 
@@ -394,6 +397,9 @@ export const STEP_TITLES = [
   '필요한 도움과 활용 가능한 자원',
   '상담 정리와 후속관리',
 ] as const;
+
+/** 240px 단계 레일 전용 짧은 라벨. 본문 제목과 접근성 이름은 STEP_TITLES를 유지한다. */
+export const STEP_NAV_TITLES = ['상담 신청', '생활상황', '도움과 자원', '상담 정리'] as const;
 
 /** 화면에 실제로 뜨는 질문 키 전체(필수 카운트·수집·임시본 정규화의 단일 원천). */
 export const ACTIVE_QUESTIONS: readonly IntakeQuestion[] = STEP_GROUPS

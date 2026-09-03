@@ -6,6 +6,7 @@ import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireEmpty } from '../../../../../../components/wire/wire-state';
 import { WireFormField } from '../../../../../../components/wire/wire-form-field';
+import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
 import { DisclosureChevron } from '../../../../../../components/wire/chevron';
 import type { GoalCloseReason, SupportCaseRecordGoal } from '../../../../../../lib/api';
 import type { GoalActionResult, GoalUpcomingLinksResult } from '../../../../../../actions';
@@ -190,11 +191,12 @@ export function GoalSection({
       testId="record-goal-section"
       title={(
         <>
-          <h2 id="record-goals-title">
-            세부 목표 <small>(선택)</small>{' '}
-            {/* 활성 개수는 상태 낱말이라 배지다(§2-2 규칙 4, 민트 = 상태 축). 상한이 곧 보인다. */}
-            <WireBadge tone="mint" aria-live="polite">활성 {activeGoals.length}/{MAX_ACTIVE_GOALS}</WireBadge>
-          </h2>
+          <div className="wire-card-head">
+            <h2 id="record-goals-title">세부 목표</h2>
+            <WireBadge tone="mint" aria-live="polite">
+              활성 {activeGoals.length}/{MAX_ACTIVE_GOALS}
+            </WireBadge>
+          </div>
           <p className="panel-meta">
             케이스에 붙어 여러 회기 지속되는 실행 목표입니다. 본 상담 1회차에 당사자와 합의해 적고,
             이후 회기에는 여기서 수정하거나 닫습니다. 아래 저장 버튼과 별개로 즉시 저장됩니다.
@@ -207,7 +209,7 @@ export function GoalSection({
       {activeGoals.length === 0
         ? <WireEmpty testId="record-goal-empty">등록된 세부 목표가 없습니다. 측정할 수 있는 문장으로 적으세요.</WireEmpty>
         : activeGoals.map((goal) => (
-          <div key={goal.id} className="wizard-field" data-testid="record-goal-row">
+          <div key={goal.id} className="wizard-field wire-repeat-card" data-testid="record-goal-row">
             {editingId === goal.id ? (
               <>
                 <WireFormField label="목표 문구 수정" htmlFor={`record-goal-edit-${goal.id}`}>
@@ -227,7 +229,7 @@ export function GoalSection({
               </>
             ) : closingId === goal.id ? (
               <>
-                <p className="wire-field-value">{goal.title}</p>
+                <p className="wire-field-value" data-size="sm">{goal.title}</p>
                 {/* 미래 회기 연결 알림(D62 §5): 알림일 뿐 닫기를 막지 않는다. 기존 연결은
                     그날 계획의 기록이라 그대로 남는다. */}
                 {upcomingCount !== null && upcomingCount > 0 ? (
@@ -261,7 +263,7 @@ export function GoalSection({
               // 제목과 조작 버튼을 한 행에 둔다(2026-08-29 Q) — 제목 왼쪽, 수정·닫기 오른쪽.
               // 두 버튼은 8 간격으로 붙여 한 세트로 읽힌다(.record-goal-actions).
               <div className="record-goal-view">
-                <p className="wire-field-value">{goal.title}</p>
+                <p className="wire-field-value" data-size="sm">{goal.title}</p>
                 {editable ? (
                   <div className="wizard-actions record-goal-actions">
                     <WireButton
@@ -285,22 +287,18 @@ export function GoalSection({
             활성 세부 목표가 {MAX_ACTIVE_GOALS}개입니다. 새로 만들려면 먼저 기존 목표를 닫으세요.
           </p>
         ) : (
-          <>
-            <WireFormField label="새 세부 목표" htmlFor="record-goal-new">
-              <input
-                id="record-goal-new"
-                type="text"
-                maxLength={200}
-                value={newTitle}
-                placeholder="측정할 수 있는 문장으로 적습니다"
-                onChange={(event) => setNewTitle(event.target.value)}
-                onKeyDown={enterRuns(() => void submitCreate())}
-              />
-            </WireFormField>
-            <div className="wizard-actions">
-              <WireButton variant="secondary" disabled={busy} onClick={() => void submitCreate()}>목표 추가</WireButton>
-            </div>
-          </>
+          <WireFormField label="새 세부 목표" htmlFor="record-goal-new">
+            <input
+              id="record-goal-new"
+              type="text"
+              maxLength={200}
+              value={newTitle}
+              placeholder="측정할 수 있는 문장으로 적습니다"
+              onChange={(event) => setNewTitle(event.target.value)}
+              onKeyDown={enterRuns(() => void submitCreate())}
+            />
+            <WireRepeatActions itemLabel="목표" onAdd={() => void submitCreate()} addDisabled={busy} />
+          </WireFormField>
         )
       ) : null}
 

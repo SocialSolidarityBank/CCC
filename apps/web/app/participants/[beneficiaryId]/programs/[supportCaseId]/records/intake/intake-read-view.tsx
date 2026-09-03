@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react';
+'use client';
+
+import { useState, type ReactNode } from 'react';
 import type {
   IntakeAnswerInput,
-  IntakeExtendedPii,
   IntakeSavedRecord,
 } from '../../../../../../lib/api';
-import { GridContainer } from '../../../../../../components/wire/grid-container';
-import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../../components/wire/wire-card';
+import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
+import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import {
   ADDITIONAL_COLUMNS,
@@ -17,6 +17,7 @@ import {
   LINKED_ORG_COLUMNS,
   NOT_APPLICABLE_OPTION,
   NO_RESPONSE_OPTION,
+  INTAKE_STEP_REQUIRED_EXTRA_COUNTS,
   STEP_GROUPS,
   STEP_TITLES,
   intakeSectionAnchor,
@@ -24,12 +25,13 @@ import {
   type IntakeTableColumn,
 } from './intake-questions';
 import { WireDataRow, WireDataRows } from '../../../../../../components/wire/wire-data-rows';
+import { IntakeStepRail } from './intake-step-rail';
 
 /**
- * 인테이크 조회 화면(CCC-58). 저장된 질문지 4부·표 3종·종합의견을 **한 페이지로 읽는다** —
- * 다시 보려고 4단계 편집 폼을 넘기게 하지 않는다. 기록이 있으면 이 화면이 기본이고,
- * 고치기는 우상단 '수정' 버튼이 기존 위저드 수정 모드(?edit=1)를 연다(2026-08-08 Q 결정
- * "조회 기본 + 수정 버튼").
+ * 인테이크 조회 화면(CCC-58). 저장된 질문지 4부를 작성 화면과 같은 단계 위치에서 읽는다.
+ * 한 번에 한 단계만 보이고, 단계 안 소절은 아코디언과 현재 단계 목차로 빠르게 찾는다.
+ * 기록이 있으면 이 화면이 기본이고 고치기는 우상단 '수정' 버튼이 기존 위저드 수정 모드
+ * (?edit=1)를 연다.
  *
  * 질문 목록·표 열은 작성 위저드와 같은 intake-questions.ts 를 읽는다 — 항목이 늘거나
  * 문구가 바뀌면 그 파일만 고치면 두 화면이 함께 따라온다. 열람 감사는 페이지가 부르는
@@ -38,7 +40,6 @@ import { WireDataRow, WireDataRows } from '../../../../../../components/wire/wir
 export interface IntakeReadViewProps {
   beneficiaryId: string;
   participant: { name: string | null; phone: string | null; email: string | null };
-  extendedPii: IntakeExtendedPii;
   consent: { privacy: boolean; recordingAi: boolean };
   saved: IntakeSavedRecord;
   /** 전체 목표 현재값(D62 · CCC-68). 주 입력 자리가 인테이크라 조회 화면도 함께 읽는다. */
@@ -47,9 +48,8 @@ export interface IntakeReadViewProps {
   editHref: string;
   /** 전체 상담 기록 목록 — 이 화면의 출구(D35 좌측 세컨더리). */
   recordsHref: string;
-  /** 동의 기록·기본정보의 수정처 안내 링크. */
+  /** 동의 기록 수정처인 당사자 정보 화면. */
   participantHref: string;
-  basicInfoHref: string;
 }
 
 // 작성 위저드와 같은 타이포 계약이다 — 그래서 위저드가 공용 클래스로 옮겨 간 2026-08-09 에
@@ -77,183 +77,346 @@ function answerText(answers: ReadonlyMap<string, IntakeAnswerInput>, key: string
   return text.length === 0 ? '기록 없음' : text;
 }
 
+function statusValue(value: string): ReactNode {
+  if (value === '기록 없음' || value === '미입력') {
+    return <WireBadge tone="lavender">{value}</WireBadge>;
+  }
+  if (
+    value === NO_RESPONSE_OPTION
+    || value === NOT_APPLICABLE_OPTION
+    || value === '답변 거부'
+  ) {
+    return <WireBadge>{value}</WireBadge>;
+  }
+  return <span className="intake-read-value">{value}</span>;
+}
+
 function GroupCard(props: {
   group: IntakeQuestionGroup;
   answers: ReadonlyMap<string, IntakeAnswerInput>;
-  /** 소절 맨 위에 끼우는 자동값 행(작성 위저드의 extras 와 같은 자리 — 1-3 상담일). 없으면 null. */
-  lead: ReactNode;
+  leadRows?: ReactNode;
+  extraRows?: ReactNode;
+  extraMissingCount?: number;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  testId?: string;
 }) {
+  const missingCount = (props.extraMissingCount ?? 0) + props.group.questions.filter(
+    (question) => answerText(props.answers, question.key) === '기록 없음',
+  ).length;
   return (
-    // h3 id 는 우측 목차의 앵커 대상이다(2026-08-09 3차 — 작성 위저드와 같은 헬퍼).
-    <WireCard title={<h3 id={intakeSectionAnchor(props.group.title)}>{props.group.title}</h3>}>
-      {/* CCC-81 표 부품: 질문지 문답을 정의 목록 2열(라벨 | 값)로 — 세로 적층 눌린 쌓임의 대안. */}
+    <WireCardDetails
+      id={intakeSectionAnchor(props.group.title)}
+      title={<span role="heading" aria-level={3}>{props.group.title}</span>}
+      badge={missingCount > 0
+        ? <WireBadge tone="lavender">미기록 {missingCount}</WireBadge>
+        : <WireBadge>기록됨</WireBadge>}
+      open={props.open}
+      onToggle={(event) => props.onToggle(event.currentTarget.open)}
+      testId={props.testId}
+    >
       <WireDataRows data-testid="intake-read-rows">
-        {props.lead}
+        {props.leadRows}
         {props.group.questions.map((question) => (
-          <WireDataRow key={question.key} label={question.label} value={<span className="intake-read-value">{answerText(props.answers, question.key)}</span>} />
+          <WireDataRow
+            key={question.key}
+            label={question.label}
+            value={statusValue(answerText(props.answers, question.key))}
+          />
         ))}
+        {props.extraRows}
       </WireDataRows>
-    </WireCard>
+    </WireCardDetails>
   );
 }
 
-/** 반복 행 표의 조회 표현: 행마다 열 라벨·값 목록. 빈 선택 칸은 '미입력'(첫 칸만 필수인 계약). */
 function TableCard(props: {
   title: string;
   columns: readonly IntakeTableColumn[];
   rows: ReadonlyArray<Record<string, string>>;
   testId: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
 }) {
   return (
-    <WireCard title={<h3 id={intakeSectionAnchor(props.title)}>{props.title}</h3>} testId={props.testId}>
+    <WireCardDetails
+      id={intakeSectionAnchor(props.title)}
+      title={<span role="heading" aria-level={3}>{props.title}</span>}
+      badge={props.rows.length === 0
+        ? <WireBadge tone="lavender">기록 없음</WireBadge>
+        : <WireBadge>{props.rows.length}건</WireBadge>}
+      open={props.open}
+      onToggle={(event) => props.onToggle(event.currentTarget.open)}
+      testId={props.testId}
+    >
       {props.rows.length === 0 ? (
         <p className="panel-meta">기록 없음</p>
-      ) : (
-        props.rows.map((row, index) => (
-          <div key={index} className="wizard-field" data-testid={`${props.testId}-row`}>
-            {props.rows.length > 1 && <span className="wire-form-label">{index + 1}번</span>}
+      ) : props.rows.map((row, index) => (
+        <div key={index} className="intake-read-table-entry" data-testid={`${props.testId}-row`}>
+          {props.rows.length > 1 ? <WireBadge>{index + 1}번</WireBadge> : null}
+          <WireDataRows>
             {props.columns.map((column) => {
               const cell = (row[column.key] ?? '').trim();
-              return <ReadRow key={column.key} label={column.label} value={cell.length === 0 ? '미입력' : cell} />;
+              return (
+                <WireDataRow
+                  key={column.key}
+                  label={column.label}
+                  value={statusValue(cell.length === 0 ? '미입력' : cell)}
+                />
+              );
             })}
-          </div>
-        ))
-      )}
-    </WireCard>
+          </WireDataRows>
+        </div>
+      ))}
+    </WireCardDetails>
   );
 }
 
 export function IntakeReadView(props: IntakeReadViewProps) {
+  const [step, setStep] = useState(1);
+  const [closedSections, setClosedSections] = useState<Set<string>>(() => new Set());
   const answers: ReadonlyMap<string, IntakeAnswerInput> = new Map(
     props.saved.answers.map((answer) => [answer.key, answer] as const),
   );
+  const heldAtLabel = formatKoreanDateTime(props.saved.heldAt);
+  const overallGoalText = (props.overallGoal ?? '').trim();
   const consentRows: ReadonlyArray<readonly [string, boolean]> = [
     ['개인정보 수집·이용 동의', props.consent.privacy],
     ['AI를 활용한 녹취기록 동의', props.consent.recordingAi],
   ];
-  const consentMissing = consentRows.some(([, recorded]) => !recorded);
-  const heldAtLabel = formatKoreanDateTime(props.saved.heldAt);
-  const overallGoalText = (props.overallGoal ?? '').trim();
+  const consentMissing = consentRows.filter(([, recorded]) => !recorded).length;
 
-  // 위저드가 소절 안에 끼워 넣는 자동값(1-3)과 같은 자리 규칙 — 번호는 소절 하나에 하나다.
-  const groupLeads: Readonly<Record<string, ReactNode>> = {
-    '1-3. 상담 운영정보': <WireDataRows><ReadRow label="상담일" value={heldAtLabel} /></WireDataRows>,
+  function isOpen(id: string): boolean {
+    return !closedSections.has(id);
+  }
+
+  function setOpen(id: string, open: boolean): void {
+    setClosedSections((current) => {
+      const next = new Set(current);
+      if (open) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const groupId = (group: IntakeQuestionGroup): string => intakeSectionAnchor(group.title);
+  const tableId = (title: string): string => intakeSectionAnchor(title);
+  const currentIds: string[] = [];
+  const currentToc: Array<{ id: string; label: string }> = [];
+  const currentCards: ReactNode[] = [];
+
+  const addGroup = (
+    group: IntakeQuestionGroup,
+    options: { leadRows?: ReactNode; extraRows?: ReactNode; extraMissingCount?: number; testId?: string } = {},
+  ): void => {
+    const id = groupId(group);
+    currentIds.push(id);
+    currentToc.push({ id, label: group.title });
+    currentCards.push(
+      <GroupCard
+        key={id}
+        group={group}
+        answers={answers}
+        open={isOpen(id)}
+        onToggle={(open) => setOpen(id, open)}
+        {...options}
+      />,
+    );
   };
 
-  const sections: ReadonlyArray<{ title: string; extra: ReactNode }> = [
-    {
-      title: STEP_TITLES[0],
-      extra: null,
-    },
-    {
-      title: STEP_TITLES[1],
-      extra: <TableCard title="대출·부채 현황 표" columns={DEBT_COLUMNS} rows={props.saved.debts} testId="intake-read-debts" />,
-    },
-    {
-      title: STEP_TITLES[2],
-      extra: <TableCard title="3-3. 현재 연계된 기관·서비스" columns={LINKED_ORG_COLUMNS} rows={props.saved.linkedOrgs} testId="intake-read-linked-orgs" />,
-    },
-    {
-      title: STEP_TITLES[3],
-      extra: (
-        <>
-          {/* 전체 목표(D62 · CCC-68): 작성 위저드와 같은 자리(4단계)에서 읽는다. 수정은
-              우상단 '수정'(위저드 수정 모드) 또는 15초 페이지 카드(보조 자리)가 갖는다. */}
-          <WireCard title={<h3 id={intakeSectionAnchor('전체 목표')}>전체 목표</h3>} testId="intake-read-overall-goal">
-            <WireDataRows><ReadRow label="전체 목표" value={overallGoalText.length === 0 ? '설정 전' : overallGoalText} /></WireDataRows>
-          </WireCard>
-          <TableCard title="4-2. 추가 확인사항" columns={ADDITIONAL_COLUMNS} rows={props.saved.additionalItems} testId="intake-read-additional" />
-          <WireCard title={<h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3>} testId="intake-read-opinion">
-            <p className="wire-field-value intake-read-value">
-              {(props.saved.managerOpinion ?? '').trim().length === 0 ? '기록 없음' : props.saved.managerOpinion}
-            </p>
-          </WireCard>
-        </>
-      ),
-    },
-  ];
+  const addTable = (
+    title: string,
+    columns: readonly IntakeTableColumn[],
+    rows: ReadonlyArray<Record<string, string>>,
+    testId: string,
+  ): void => {
+    const id = tableId(title);
+    currentIds.push(id);
+    currentToc.push({ id, label: title });
+    currentCards.push(
+      <TableCard
+        key={id}
+        title={title}
+        columns={columns}
+        rows={rows}
+        testId={testId}
+        open={isOpen(id)}
+        onToggle={(open) => setOpen(id, open)}
+      />,
+    );
+  };
+
+  if (step === 1) {
+    const consentId = intakeSectionAnchor('동의 기록');
+    currentIds.push(consentId);
+    currentToc.push({ id: consentId, label: '동의 기록' });
+    currentCards.push(
+      <WireCardDetails
+        key={consentId}
+        id={consentId}
+        title={<span role="heading" aria-level={3}>동의 기록</span>}
+        badge={consentMissing > 0
+          ? <WireBadge tone="lavender">미기록 {consentMissing}</WireBadge>
+          : <WireBadge>기록됨</WireBadge>}
+        open={isOpen(consentId)}
+        onToggle={(event) => setOpen(consentId, event.currentTarget.open)}
+        testId="intake-read-consent"
+      >
+        <WireDataRows>
+          {consentRows.map(([label, recorded]) => (
+            <WireDataRow
+              key={label}
+              label={label}
+              value={recorded
+                ? <WireBadge tone="mint">기록됨</WireBadge>
+                : <WireBadge tone="lavender">미기록</WireBadge>}
+            />
+          ))}
+        </WireDataRows>
+        {consentMissing > 0 ? (
+          <p className="panel-meta">
+            동의는 당사자 정보 페이지에서 기록하고 수정합니다.{' '}
+            <a href={props.participantHref}>당사자 정보로 이동</a>
+          </p>
+        ) : null}
+      </WireCardDetails>,
+    );
+    STEP_GROUPS[0]!.forEach((group) => {
+      addGroup(group, group.title === '1-3. 상담 운영정보'
+        ? { leadRows: <ReadRow label="상담일" value={heldAtLabel} /> }
+        : {});
+    });
+  } else if (step === 2) {
+    STEP_GROUPS[1]!.forEach((group) => addGroup(group));
+    addTable('대출·부채 현황 표', DEBT_COLUMNS, props.saved.debts, 'intake-read-debts');
+  } else if (step === 3) {
+    STEP_GROUPS[2]!.forEach((group) => addGroup(group));
+    addTable(
+      '3-3. 현재 연계된 기관·서비스',
+      LINKED_ORG_COLUMNS,
+      props.saved.linkedOrgs,
+      'intake-read-linked-orgs',
+    );
+  } else {
+    const participation = STEP_GROUPS[3]!.find((group) => group.title.startsWith('4-1.'));
+    const judgment = STEP_GROUPS[3]!.find((group) => group.title.startsWith('4-3.'));
+    if (participation !== undefined) addGroup(participation);
+    addTable(
+      '4-2. 추가 확인사항',
+      ADDITIONAL_COLUMNS,
+      props.saved.additionalItems,
+      'intake-read-additional',
+    );
+    if (judgment !== undefined) {
+      addGroup(judgment, {
+        extraMissingCount: (props.saved.managerOpinion ?? '').trim().length === 0 ? 1 : 0,
+        testId: 'intake-read-judgment',
+        extraRows: (
+          <>
+            <WireDataRow
+              label="전체 목표"
+              value={statusValue(overallGoalText.length === 0 ? '기록 없음' : overallGoalText)}
+            />
+            <WireDataRow
+              label="담당 실무자 종합의견"
+              value={statusValue(
+                (props.saved.managerOpinion ?? '').trim().length === 0
+                  ? '기록 없음'
+                  : props.saved.managerOpinion!,
+              )}
+            />
+          </>
+        ),
+      });
+    }
+  }
+
+  const changeStep = (next: number): void => {
+    setStep(next);
+  };
+  const openAll = (): void => {
+    setClosedSections((current) => {
+      const next = new Set(current);
+      currentIds.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+  const closeAll = (): void => {
+    setClosedSections((current) => {
+      const next = new Set(current);
+      currentIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
 
   return (
-    <GridContainer as="main" className="page-content">
-      {/* 화면 이름은 작성·수정과 같은 '인테이크'다(2026-08-08 Q 페이지 타이틀 규칙). */}
+    <main className="page-content">
       <div className="page-header"><PageTitle>인테이크</PageTitle></div>
-      {/* ParticipantHeroCard (D38): 케이스 1개를 읽는 화면. 출구는 왼쪽 세컨더리(전체 상담
-          기록), 주 행동은 수정 — 조회 기본 구조에서 고치기의 유일한 입구다. */}
       <ParticipantHeroCard
         name={props.participant.name}
         beneficiaryId={props.beneficiaryId}
-        meta={<MetaRow items={[`상담일 ${heldAtLabel}`]} />}
-        actions={
+        stageTag="인테이크 완료"
+        details={[
+          ...(props.participant.phone === null
+            ? []
+            : [{ label: '전화번호', value: props.participant.phone, tone: 'mint' as const }]),
+          ...(props.participant.email === null
+            ? []
+            : [{ label: '이메일', value: props.participant.email, tone: 'mint' as const }]),
+          { label: '상담일', value: heldAtLabel, tone: 'blue' as const },
+        ]}
+        actions={(
           <>
             <WireButton variant="secondary" href={props.recordsHref}>전체 상담 기록</WireButton>
             <WireButton variant="primary" href={props.editHref}>수정</WireButton>
           </>
-        }
+        )}
       />
-      {/* 광폭(컨테이너 ≥1150)에서 [본문 1fr | 목차 200] 2열이 된다(2026-08-09 3차 —
-          4부 45문항이 한 페이지라 목차의 효과가 가장 큰 화면). 좁으면 한 열, 목차 숨김. */}
-      <div className="intake-read-grid">
-      <div className="wizard-stack" data-testid="intake-read-view">
-        {sections.map((section, index) => (
-          <section key={section.title} className="wizard-stack" aria-label={`${index + 1}. ${section.title}`}>
-            <h2 id={`intake-read-part-${index + 1}`}>{index + 1}. {section.title}</h2>
-            {index === 0 && (
-              <>
-                <WireCard title={<h3 id={intakeSectionAnchor('1-1. 당사자 기본정보')}>1-1. 당사자 기본정보</h3>} testId="intake-read-basic-info">
-                  <p className="panel-meta">
-                    당사자 등록에 저장된 값입니다. <a href={props.basicInfoHref}>당사자 등록 정보에서 수정</a>
-                  </p>
-                  <ReadRow label="이름" value={props.participant.name ?? '미입력'} />
-                  <ReadRow label="생년월일" value={props.extendedPii.birthDate ?? '미입력'} />
-                  <ReadRow label="휴대전화번호" value={props.participant.phone ?? '미입력'} />
-                  <ReadRow label="이메일" value={props.participant.email ?? '미입력'} />
-                  <ReadRow label="주소 또는 거주지역" value={props.extendedPii.region ?? '미입력'} />
-                  <ReadRow label="성별" value={props.extendedPii.gender ?? '미입력'} />
-                </WireCard>
-                <WireCard title={<h3 id={intakeSectionAnchor('동의 기록')}>동의 기록</h3>} testId="intake-read-consent">
-                  {consentRows.map(([label, recorded]) => (
-                    <ReadRow key={label} label={label} value={recorded ? '기록됨' : '미기록'} />
-                  ))}
-                  {consentMissing && (
-                    <p className="panel-meta">
-                      동의는 당사자 정보 페이지에서 기록·수정합니다. <a href={props.participantHref}>당사자 정보로 이동</a>
-                    </p>
-                  )}
-                </WireCard>
-              </>
-            )}
-            {STEP_GROUPS[index]!.map((group) => (
-              <GroupCard key={group.title} group={group} answers={answers} lead={groupLeads[group.title] ?? null} />
-            ))}
-            {section.extra}
-          </section>
-        ))}
-      </div>
 
-      {/* 우측 바로가기 목차 — 부(部) + 소절 두 층, 화면 렌더 순서 그대로(공용 .wire-toc-rail
-          이 광폭 표시·붙박이를 갖는다). 소절 id 는 각 카드 h3 가 같은 헬퍼로 단다. */}
-      <WireCard as="nav" labelledBy="intake-read-toc-title" testId="intake-read-toc" className="wire-toc-rail"
-        title={<span id="intake-read-toc-title">바로가기</span>}>
-        <ol className="wire-toc-list">
-          {STEP_TITLES.map((title, index) => (
-            <li key={title}>
-              <a className="wire-toc-part" href={`#intake-read-part-${index + 1}`}>{index + 1}. {title}</a>
-              <ol>
-                {[
-                  ...(index === 0 ? ['1-1. 당사자 기본정보', '동의 기록'] : []),
-                  ...STEP_GROUPS[index]!.map((group) => group.title),
-                  ...(index === 1 ? ['대출·부채 현황 표'] : []),
-                  ...(index === 2 ? ['3-3. 현재 연계된 기관·서비스'] : []),
-                  ...(index === 3 ? ['전체 목표', '4-2. 추가 확인사항', '담당 실무자 종합의견'] : []),
-                ].map((label) => (
-                  <li key={label}><a href={`#${intakeSectionAnchor(label)}`}>{label}</a></li>
-                ))}
-              </ol>
-            </li>
-          ))}
-        </ol>
-      </WireCard>
+      <div className="wire-container rail-grid intake-read-grid" data-grid="true">
+        <IntakeStepRail
+          currentStep={step}
+          items={STEP_TITLES.map((_, index) => {
+            const count = STEP_GROUPS[index]!.reduce<number>(
+              (sum, group) => sum + group.questions.length,
+              INTAKE_STEP_REQUIRED_EXTRA_COUNTS[index]!,
+            );
+            return {
+              countLabel: `${count}/${count}`,
+              ariaCount: `${count}/${count} 완료`,
+              state: step === index + 1 ? 'current' : 'waiting',
+            };
+          })}
+          onSelect={changeStep}
+        />
+
+        <section className="wizard-stack">
+          <div className="intake-step-toolbar">
+            <h2>{step}. {STEP_TITLES[step - 1]}</h2>
+            <div className="wizard-actions">
+              <WireButton variant="neutral" onClick={openAll}>전체 열기</WireButton>
+              <WireButton variant="neutral" onClick={closeAll}>전체 닫기</WireButton>
+            </div>
+          </div>
+          <div className="wizard-stack" data-testid="intake-read-current-step">
+            {currentCards}
+          </div>
+        </section>
+
+        <WireCard
+          as="nav"
+          labelledBy="intake-read-toc-title"
+          testId="intake-read-toc"
+          className="wire-toc-rail intake-read-toc"
+        >
+          <h2 className="wire-card-title" id="intake-read-toc-title">바로가기</h2>
+          <ol className="wire-toc-list">
+            {currentToc.map(({ id, label }) => (
+              <li key={id}><a href={`#${id}`}>{label}</a></li>
+            ))}
+          </ol>
+        </WireCard>
       </div>
-    </GridContainer>
+    </main>
   );
 }

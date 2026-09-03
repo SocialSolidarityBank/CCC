@@ -65,7 +65,7 @@ export function LifeAreaFields({
           {statusOptions.map(([value, statusLabel]) => <option key={value} value={value}>{statusLabel}</option>)}
         </select>
       </WireFormField>
-      <WireFormField label="한 줄 메모" note="(선택)" htmlFor={`lifeAreaNote_${areaKey}`}>
+      <WireFormField label="한 줄 메모" htmlFor={`lifeAreaNote_${areaKey}`}>
         <input id={`lifeAreaNote_${areaKey}`} name={`lifeAreaNote_${areaKey}`} type="text" maxLength={200} />
       </WireFormField>
     </WireCard>;

@@ -18,6 +18,16 @@ import { ScheduleWizard, type ScheduleWizardCandidate } from '../schedules/new/s
 import { ScheduleBody, ScheduleNav } from '../programs/[programType]/schedule/schedule-view';
 import { AppSidebar } from '../components/wire/app-sidebar';
 import { BackLink } from '../components/wire/back-link';
+import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
+import { DatePickerControl } from '../components/wire/date-picker-control';
+import { GoalSection } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section';
+import { WireBadge } from '../components/wire/wire-badge';
+import { ParticipantHeroCard } from '../components/wire/participant-hero-card';
+import { WireButton } from '../components/wire/wire-button';
+import { WireCard } from '../components/wire/wire-card';
+import { IntakeReadView } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view';
+import { IntakeStepRail } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-step-rail';
+import { ACTIVE_QUESTIONS, STEP_TITLES } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-questions';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -177,6 +187,48 @@ describe('정렬 하니스 생성기', () => {
   it('정렬 대상 실제 부품의 정적 HTML을 만든다', async () => {
     const empty = renderToStaticMarkup(<BriefingCards {...baseProps} />);
     const content = renderToStaticMarkup(<BriefingCards {...contentProps} />);
+    const heroMeta = renderToStaticMarkup(
+      <ParticipantHeroCard
+        name="홍서희"
+        beneficiaryId="swallow-003"
+        stageTag="진행 중"
+        meta={<span>최근 상담 2026년 9월 2일</span>}
+        actions={<WireButton variant="neutral">상담 기록</WireButton>}
+      />,
+    );
+    const heroDetails = renderToStaticMarkup(
+      <ParticipantHeroCard
+        name="홍서희"
+        beneficiaryId="swallow-003"
+        stageTag="인테이크 완료"
+        details={[
+          { label: '당사자 ID', value: 'swallow-003' },
+          { label: '연락처', value: '010-1234-5678' },
+          { label: '이메일', value: 'sample@example.test' },
+        ]}
+        actions={<WireButton variant="neutral">수정</WireButton>}
+      />,
+    );
+    const heroDetailsWithoutActions = renderToStaticMarkup(
+      <ParticipantHeroCard
+        name="홍서희"
+        beneficiaryId="swallow-003"
+        stageTag="인테이크 작성"
+        details={[
+          { label: '현재 단계', value: '1 / 4' },
+          { label: '기록 구분', value: '1회차' },
+          { label: '실무자', value: '이지은' },
+        ]}
+      />,
+    );
+    const sectionHeading = renderToStaticMarkup(
+      <h2 className="record-section-title">회차별 기록</h2>,
+    );
+    const cardHeading = renderToStaticMarkup(
+      <WireCard title={<h2 className="wire-title-with-badge">오늘 상담 내용 <WireBadge size="sm">필수</WireBadge></h2>}>
+        <p>상담 내용</p>
+      </WireCard>,
+    );
     const register = renderToStaticMarkup(
       <RegisterForm
         currentUser={{ name: '홍길동', email: 'worker@example.test' }}
@@ -220,6 +272,76 @@ describe('정렬 하니스 생성기', () => {
     const actionResolutions = renderToStaticMarkup(
       <OpenActionResolutions actions={[actionFixture]} />,
     );
+    const choice = renderToStaticMarkup(<div className="wizard-choice-row"><WireChoice type="checkbox" label="경제·생계 어려움" /></div>);
+    const dateControl = renderToStaticMarkup(
+      <WireFormField label="기한">
+        <DatePickerControl
+          fieldLabel="기한"
+          value="2026-09-10"
+          onChange={() => {}}
+        />
+      </WireFormField>,
+    );
+    const selectControl = renderToStaticMarkup(
+      <WireFormField label="상담 방법" control="select" required>
+        <select defaultValue="in_person"><option value="in_person">대면</option></select>
+      </WireFormField>,
+    );
+    const intakeEditRail = renderToStaticMarkup(
+      <IntakeStepRail
+        currentStep={2}
+        items={[
+          { countLabel: '10/10', ariaCount: '10/10 완료', state: 'done' },
+          { countLabel: '6/20', ariaCount: '6/20 완료', state: 'current' },
+          { countLabel: '0/8', ariaCount: '0/8 완료', state: 'waiting' },
+          { countLabel: '0/7', ariaCount: '0/7 완료', state: 'waiting' },
+        ]}
+        onSelect={() => {}}
+        headerAccessory={<WireBadge>자동 저장됨</WireBadge>}
+      />,
+    );
+    const goalSection = renderToStaticMarkup(
+      <GoalSection
+        beneficiaryId="swallow-003"
+        supportCaseId={CASE_ID}
+        goals={[{ id: 'g1', title: '채무조정 서류 준비', status: 'active', closedReason: null }]}
+      />,
+    );
+    const intakeRowOrdinal = renderToStaticMarkup(<WireBadge>1번</WireBadge>);
+    const intakeEditToolbar = renderToStaticMarkup(
+      <div className="intake-step-toolbar"><h2>2. 현재 생활상황</h2></div>,
+    );
+    const intakeReadView = render(
+      <IntakeReadView
+        beneficiaryId="swallow-003"
+        participant={{ name: '홍서희', phone: '010-1234-5678', email: 'sample@example.test' }}
+        consent={{ privacy: true, recordingAi: false }}
+        saved={{
+          sessionId: 'intake-session',
+          heldAt: '2026-07-15T05:00:00.000Z',
+          channel: 'in_person',
+          answers: ACTIVE_QUESTIONS.map((question) => ({
+            key: question.key,
+            response: 'answered' as const,
+            text: question.kind === 'text' ? `${question.label} 답변` : question.options![0]!,
+          })),
+          debts: [
+            { creditor: 'OO은행', kind: '신용대출', balance: '1,200만 원', monthlyPayment: '30만 원', arrearsStatus: '3개월 연체' },
+            { creditor: 'OO카드', kind: '카드론', balance: '300만 원', monthlyPayment: '10만 원', arrearsStatus: '정상' },
+          ],
+          linkedOrgs: [],
+          additionalItems: [],
+          managerOpinion: '채무조정 상담을 우선 연계한다.',
+        }}
+        overallGoal="3개월 안에 채무조정 신청을 마친다"
+        editHref={`/participants/swallow-003/programs/${CASE_ID}/records/intake?edit=1`}
+        recordsHref={`/participants/swallow-003/programs/${CASE_ID}/records`}
+        participantHref="/participants/swallow-003"
+      />,
+    );
+    fireEvent.click(intakeReadView.getByRole('button', { name: new RegExp(`2\\. ${STEP_TITLES[1]}`) }));
+    const intakeRead = intakeReadView.container.innerHTML;
+    cleanup();
     const scheduleView = render(
       <ScheduleWizard
         candidates={scheduleCandidates}
@@ -273,6 +395,19 @@ describe('정렬 하니스 생성기', () => {
     expect(content, '브리핑: 기한 시간축 배지가 없다').toContain('data-tone="blue"');
     expect(closeActions, '종결: 기한 시간축 배지가 없다').toContain('data-tone="blue"');
     expect(actionResolutions, '기록 작성: 기한 시간축 배지가 없다').toContain('data-tone="blue"');
+    expect(choice, '선택지 정렬 fixture가 없다').toContain('wire-choice');
+    expect(dateControl, '날짜 단독 입력 fixture가 없다').toContain('wire-date-control');
+    expect(goalSection, '세부 목표 제목 배지 fixture가 없다').toContain('wire-card-head');
+    expect(intakeRead, '인테이크 조회 아코디언 fixture가 없다').toContain('intake-read-current-step');
+    expect(intakeRead, '인테이크 조회 반복 행 번호 배지가 없다').toContain('1번');
+    expect(intakeEditRail, '인테이크 수정 단계 레일 fixture가 없다').toContain('data-testid="intake-step-rail"');
+    expect(intakeEditToolbar, '인테이크 수정 단계 제목 툴바 fixture가 없다').toContain('intake-step-toolbar');
+    expect(selectControl, '선택창 꺽쇠 fixture가 없다').toContain('wire-chevron');
+    expect(heroMeta, '메타 HERO fixture가 없다').toContain('participant-hero-card');
+    expect(heroDetails, '정보 격자 HERO fixture가 없다').toContain('participant-hero-details');
+    expect(heroDetailsWithoutActions, '행동 없는 HERO fixture가 없다').toContain('인테이크 작성');
+    expect(sectionHeading, '섹션 H2 fixture가 없다').toContain('record-section-title');
+    expect(cardHeading, '카드 H2 fixture가 없다').toContain('wire-title-with-badge');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
     const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
@@ -285,7 +420,7 @@ describe('정렬 하니스 생성기', () => {
 <link rel="stylesheet" href="${pretendardCssUrl}">
 <style>${tokens}</style>
 <style>${runtimeCss}</style>
-<style>body{background:var(--canvas)}</style>
+<style>body{background:var(--canvas)}.align-left-rail-width{width:240px}.align-right-rail-width{width:200px}</style>
 </head><body>
 <div id="align-empty">${empty}</div>
 <div id="align-content">${content}</div>
@@ -302,6 +437,21 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-schedule-body">${scheduleBody}</div>
 <div id="align-close-actions">${closeActions}</div>
 <div id="align-action-resolutions">${actionResolutions}</div>
+<div id="align-choice">${choice}</div>
+<div id="align-select">${selectControl}</div>
+<div id="align-intake-edit-rail" class="align-left-rail-width">${intakeEditRail}</div>
+<div id="align-intake-edit-toolbar">${intakeEditToolbar}</div>
+<div id="align-date">${dateControl}</div>
+<div id="align-goal-section">${goalSection}</div>
+<div id="align-intake-read">${intakeRead}</div>
+<div id="align-hero-meta">${heroMeta}</div>
+<div id="align-hero-details">${heroDetails}</div>
+<div id="align-hero-details-no-actions">${heroDetailsWithoutActions}</div>
+<div id="align-h2-section">${sectionHeading}</div>
+<div id="align-h2-card">${cardHeading}</div>
+<div class="align-intake-row-index-width">${intakeRowOrdinal}</div>
+<div class="align-left-rail-width"></div>
+<div class="align-right-rail-width"></div>
 </body></html>`;
 
     mkdirSync(OUT_DIR, { recursive: true });

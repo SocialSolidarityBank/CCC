@@ -70,6 +70,18 @@ describe('WireBadge palette', () => {
     expect(badge?.children).toHaveLength(1);
   });
 
+  it('배지와 상태 태그의 높이는 모두 20px 계약을 쓴다', () => {
+    expect(stylesSource).toContain(
+      '.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--space-5);padding:0 var(--space-2);',
+    );
+    expect(stylesSource).toContain(
+      '.wire-badge[data-size="sm"]{height:var(--space-5);padding:0 var(--space-2);font-size:var(--text-badge-compact)}',
+    );
+    expect(stylesSource).toContain(
+      '.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--space-5);padding:0 var(--space-2);',
+    );
+  });
+
   it('라이트는 Pen deep, 다크는 base 배지 토큰을 쓴다', () => {
     const light = readBlock(':root {');
     const dark = readBlock(':root[data-theme="dark"]');
@@ -86,6 +98,20 @@ describe('WireBadge palette', () => {
         `.wire-badge[data-tone="${entry.tone}"]{--wire-outline-color:var(--badge-${entry.tone});background:var(--badge-${entry.tone});color:var(${foregroundToken(entry)})}`,
       );
     }
+  });
+
+  it('그라데이션 제목 줄의 모든 배지는 패널 면과 계열 아웃라인, 어두운 글자를 쓴다', () => {
+    expect(stylesSource).toContain(
+      '.wire-card-summary .wire-badge{height:var(--space-5);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}',
+    );
+    for (const { tone } of BADGE_PALETTE) {
+      expect(stylesSource).toContain(
+        `.wire-card-summary .wire-badge[data-tone="${tone}"]{--wire-outline-color:var(--badge-${tone})}`,
+      );
+    }
+    expect(stylesSource).toContain(
+      '.wire-card-summary .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk)}',
+    );
   });
 
   it('라이트마젠타 전경은 두 테마와 고대비에서 같은 다크 중립색이다', () => {

@@ -93,7 +93,7 @@ export function WireCardDetails({ children, title, badge, open, id, onToggle, te
 }
 
 export type WireFieldLayout = 'row' | 'stack';
-export type WireFieldTone = 'mint' | 'sub';
+export type WireFieldTone = 'mint' | 'blue' | 'sub';
 export type WireFieldSize = 'md' | 'sm';
 
 export interface WireFieldProps {

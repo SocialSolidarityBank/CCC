@@ -96,14 +96,12 @@ export default async function NewIntakePage({
         <IntakeReadView
           beneficiaryId={beneficiaryId}
           participant={context.data.participant}
-          extendedPii={context.data.extendedPii}
           consent={context.data.consent}
           saved={saved}
           overallGoal={context.data.overallGoal}
           editHref={`${intakeHref}?edit=1`}
           recordsHref={recordsHref}
           participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
-          basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
         />
       );
     }

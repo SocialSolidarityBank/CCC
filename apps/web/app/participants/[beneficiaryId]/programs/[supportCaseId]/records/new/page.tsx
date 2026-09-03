@@ -502,7 +502,6 @@ export default async function NewRecordPage({
         latestLifeAreaSnapshot={latestLifeAreaSnapshot}
         sessionGoals={sessionGoals}
         customQuestions={customQuestions}
-        lastRecordSummary={lastRecordSummary}
         briefingPath={`${programPath}/briefing`}
         actions={<>
           {/* '상담 기록으로 돌아가기' → '상담 기록'(2026-08-09 Q). 가는 곳의 이름이 곧 라벨이고,
