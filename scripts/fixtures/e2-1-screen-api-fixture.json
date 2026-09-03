@@ -586,6 +586,11 @@
           "method": "GET",
           "path": "/schedules/:id/plan",
           "dto": "ScheduleSessionPlan"
+        },
+        {
+          "method": "GET",
+          "path": "/goals/:id/upcoming-links",
+          "dto": "GoalUpcomingLinks"
         }
       ],
       "actions": [
@@ -646,21 +651,6 @@
               "method": "POST",
               "path": "/goals/:id/close",
               "dto": "Goal"
-            }
-          ]
-        },
-        {
-          "name": "createActionItemAction",
-          "calls": [
-            {
-              "method": "GET",
-              "path": "/participants/:id/support-cases",
-              "dto": "ParticipantProgram[]"
-            },
-            {
-              "method": "POST",
-              "path": "/cases/:id/action-items",
-              "dto": "OpenActionItemWire"
             }
           ]
         }
@@ -919,6 +909,24 @@
       "id": "legacy-pilot-consent-action",
       "kind": "server-action",
       "subject": "recordPilotTextAiConsentAction",
+      "status": "declared-current-gap"
+    },
+    {
+      "id": "legacy-edit-ai-draft-action",
+      "kind": "server-action",
+      "subject": "editAiDraftAction",
+      "status": "declared-current-gap"
+    },
+    {
+      "id": "legacy-subsequent-program-action",
+      "kind": "server-action",
+      "subject": "createSubsequentParticipantProgramAction",
+      "status": "declared-current-gap"
+    },
+    {
+      "id": "legacy-counseling-schedule-action",
+      "kind": "server-action",
+      "subject": "createCounselingScheduleAction",
       "status": "declared-current-gap"
     }
   ],
@@ -1590,6 +1598,369 @@
         "fixture"
       ],
       "dto": "NewSignupCount"
+    },
+    {
+      "method": "GET",
+      "path": "/goals/:id/upcoming-links",
+      "wireKeys": [
+        "upcomingCount"
+      ],
+      "projectionKeys": [
+        "upcomingCount"
+      ],
+      "dto": "GoalUpcomingLinks"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/search",
+      "wireKeys": [
+        "results"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantSearchResultWire[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/consent/follow-ups",
+      "wireKeys": [
+        "results"
+      ],
+      "projectionKeys": [],
+      "dto": "PrivacyConsentFollowUp[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "PATCH",
+      "path": "/schedules/:id/reschedule",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "CounselingScheduleWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/schedules/:id/cancel",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "CounselingScheduleWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/schedules/:id/no-show",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "CounselingScheduleWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/support-cases/:id/force-transfer",
+      "wireKeys": [
+        "transferred"
+      ],
+      "projectionKeys": [],
+      "dto": "Transferred",
+      "status": "unmapped-by-current-page",
+      "actor": "admin"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:id/ai/source",
+      "wireKeys": [
+        "sourceSnapshotId",
+        "sha256",
+        "maskingPipelineVersion",
+        "evidenceIds"
+      ],
+      "projectionKeys": [],
+      "dto": "MaskedSourceAck",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "PUT",
+      "path": "/sessions/:id/audio",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "SessionWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:id/approve",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "SessionWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/pipeline/health",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "PipelineHealth",
+      "status": "unmapped-by-current-page",
+      "actor": "admin"
+    },
+    {
+      "method": "GET",
+      "path": "/pipeline/jobs",
+      "wireKeys": [
+        "jobs"
+      ],
+      "projectionKeys": [],
+      "dto": "PipelineJob[]",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "GET",
+      "path": "/pipeline/text-jobs",
+      "wireKeys": [
+        "jobs"
+      ],
+      "projectionKeys": [],
+      "dto": "TextWorkItem[]",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "GET",
+      "path": "/pipeline/text-jobs/:item/source",
+      "wireKeys": [
+        "sessionId",
+        "text"
+      ],
+      "projectionKeys": [],
+      "dto": "TextWorkSource",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "POST",
+      "path": "/pipeline/text-jobs/:item/complete",
+      "wireKeys": [],
+      "projectionKeys": [],
+      "dto": "void",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "GET",
+      "path": "/pipeline/jobs/:sessionId/audio",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "AudioBytes",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "POST",
+      "path": "/pipeline/jobs/:sessionId/result",
+      "wireKeys": [],
+      "projectionKeys": [],
+      "dto": "void",
+      "status": "unmapped-by-current-page",
+      "actor": "service"
+    },
+    {
+      "method": "GET",
+      "path": "/pii-retention/reviews",
+      "wireKeys": [
+        "reviews"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantPiiRetentionReview[]",
+      "status": "unmapped-by-current-page",
+      "actor": "admin"
+    },
+    {
+      "method": "POST",
+      "path": "/pii-retention/reviews/:id",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantPiiRetentionReview",
+      "status": "unmapped-by-current-page",
+      "actor": "admin"
+    },
+    {
+      "method": "POST",
+      "path": "/users/:id/deactivate",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "DirectoryUser",
+      "status": "unmapped-by-current-page",
+      "actor": "admin"
+    },
+    {
+      "method": "GET",
+      "path": "/cases",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "CaseRecord[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/cases",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "CaseRecord",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/cases/:id",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "CaseRecord",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/cases/:id/briefing",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "Briefing",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/cases/:id/pilot-text-ai-consent",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "PilotTextAiConsent",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/cases/:id/sessions",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "SessionWire[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/cases/:id/sessions",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "SessionWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/programs",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantProgramWire[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/participants/:id/programs",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantProgramCreation",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/participants/:id/briefing?focusSupportCaseId=:case",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantBriefingWire",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/beneficiaries",
+      "wireKeys": [
+        "results"
+      ],
+      "projectionKeys": [],
+      "dto": "AssignedParticipantWire[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/beneficiaries",
+      "wireKeys": [
+        "fixture"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantProgramCreation",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
+    },
+    {
+      "method": "GET",
+      "path": "/beneficiaries/search",
+      "wireKeys": [
+        "results"
+      ],
+      "projectionKeys": [],
+      "dto": "ParticipantSearchResultWire[]",
+      "status": "unmapped-by-current-page",
+      "actor": "human"
     }
   ]
 }

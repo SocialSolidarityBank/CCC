@@ -18,8 +18,7 @@
 - `/` may declare `GET /me` only as its destination-selection prerequisite; other redirect rows have no rendered-screen API/DTO.
 - Production public join is token-only; preview join is token plus `ccc_preview` preview Actor; public preview unlock starts with code/no Actor and produces the preview cookie; service Actor never satisfies a human PII row.
 - Orphan endpoint/action rows and current contract observations remain named as `unmapped-by-current-page`/declared gaps; they are not counted as implemented screen coverage.
-- The probe is deterministic and offline: no fetch, browser, Next runtime, database, or package installation.
-- This ticket does not edit `package.json` or implement the verifier; the current commit intentionally remains RED.
+- The probe is deterministic and offline: no fetch, browser, Next runtime, database, or package installation; it does not edit the root `package.json`.
 
 ---
 
@@ -73,7 +72,7 @@ git add scripts/verify-screen-api-map.mjs scripts/verify-screen-api-map.test.mjs
 git commit -m "feat: add deterministic screen API probe"
 ```
 
-The current E2-1 red commit contains only the plan, focused tests, and fixture data. It must not include the verifier implementation or a root `package.json` edit.
+The red-stage commit contains only the plan, focused tests, and fixture data. The follow-up GREEN commit adds only `scripts/verify-screen-api-map.mjs`; it must not add a root `package.json` edit.
 
 ## Test Coverage Map
 

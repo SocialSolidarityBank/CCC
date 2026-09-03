@@ -72,12 +72,13 @@ async function materializeFixture(map, { omitPage, publicAccessLeak = false } = 
     `export async function getOrganizationProfile() { return requestJson('/organization/profile'); }`,
     `export async function getNewSignupCount() { return requestJson('/participants/new-signup-count'); }`,
     `export async function getMyIdentity() { return requestJson('/me'); }`,
-    `export async function requestPreviewUnlock() { return requestJson('/preview/unlock'); }`,
+    `export async function requestPreviewUnlock() { return requestJson('/preview/unlock', 'POST'); }`,
     ...[...apiCalls.entries()].map(([key, name]) => {
       const [, path] = key.split(' ');
       const endpoint = map.endpoints.find((candidate) => callKey(candidate) === key);
       const projectionKeys = endpoint?.projectionKeys ?? [];
-      return `/* endpoint ${key}; projectionKeys=${JSON.stringify(projectionKeys)} */\nexport async function ${name}() { return requestJson('${path}'); }`;
+      const projection = projectionKeys.map((projectionKey) => `${projectionKey}: response.${projectionKey}`).join(', ');
+      return `export async function ${name}() { const response = await requestJson('${path}', '${endpoint?.method ?? 'GET'}'); return { ${projection} }; }`;
     }),
   ].join('\n')}\n`);
 
@@ -93,8 +94,8 @@ async function materializeFixture(map, { omitPage, publicAccessLeak = false } = 
   files.set('apps/web/app/logout-action.ts', `export async function logoutAction() {}\n`);
   files.set('apps/web/app/preview/unlock/route.ts', `export async function POST() { return requestPreviewUnlock(); }\n`);
   files.set('apps/api/src/request-handler.ts', `${map.endpoints.map((endpoint) => {
-    const keys = endpoint.wireKeys.map((key) => `'${key}'`).join(', ');
-    return `router.register('${endpoint.method}', '${endpoint.path}', async () => ({ ${keys} }));`;
+    const entries = endpoint.wireKeys.map((key) => `${key}: null`).join(', ');
+    return `if (request.method === '${endpoint.method}' && request.url.pathname === '${endpoint.path}') return { ${entries} };`;
   }).join('\n')}\n`);
 
   for (const [relativePath, source] of files) {
@@ -123,6 +124,17 @@ function codes(result) {
 }
 
 const expectedSummary = { routes: 30, operating: 22, public: 5, redirect: 2, kit: 1 };
+
+test('machine-readable fixture stays synchronized with the checked route inventory', async () => {
+  const map = await fixtureMap();
+  const inventory = JSON.parse(await readFile(new URL('./design/route-inventory.json', import.meta.url), 'utf8'));
+  assert.deepEqual(map.routes.map((route) => ({ page: route.page, routePattern: route.routePattern })), inventory.routes.map((route) => ({ page: route.page, routePattern: route.routePattern })));
+  assert.deepEqual(
+    map.routes.reduce((counts, route) => ({ ...counts, [route.kind]: (counts[route.kind] ?? 0) + 1 }), {}),
+    { screen: 22, public: 5, redirect: 2, kit: 1 },
+  );
+  assert.ok(map.endpoints.some((endpoint) => endpoint.method === 'GET' && endpoint.path === '/goals/:id/upcoming-links'));
+});
 
 test('valid fixture finds all 30 routes and expands inherited root/admin surfaces once', async () => {
   const map = await fixtureMap();
@@ -163,12 +175,18 @@ test('missing page entries, duplicated inherited shell edges, and omitted calls 
 test('endpoint method/path, exact wire keys, and client projection are checked independently', async () => {
   const map = await fixtureMap();
   const root = await materializeFixture(map);
-  const broken = structuredClone(map);
-  const me = broken.endpoints.find((endpoint) => endpoint.method === 'GET' && endpoint.path === '/me');
-  me.wireKeys = ['id', 'orgId', 'email'];
-  me.projectionKeys = ['id', 'lastProgramType', 'unexpected'];
-  broken.routes.find((row) => row.routePattern === '/').pageApis[0].path = '/wrong-me';
-  const result = await verifyScreenApiMap({ rootDir: root, map: broken });
+  const handlerPath = join(root, 'apps/api/src/request-handler.ts');
+  const apiPath = join(root, 'apps/web/app/lib/api.ts');
+  const handler = await readFile(handlerPath, 'utf8');
+  const api = await readFile(apiPath, 'utf8');
+  await writeFile(handlerPath, handler
+    .replace("router.register('GET', '/me'", "router.register('GET', '/wrong-me'")
+    .replace("id: null, orgId: null", "id: null, extra: null, orgId: null"));
+  await writeFile(apiPath, api.replace(
+    'return { lastProgramType: response.lastProgramType }',
+    'return { lastProgramType: response.lastProgramType, unexpected: response.unexpected }',
+  ));
+  const result = await verifyScreenApiMap({ rootDir: root, map });
   const errorCodes = codes(result);
 
   assert.equal(result.ok, false);
@@ -202,10 +220,42 @@ test('orphan endpoints, PII authorization matrix, and declared current gaps rema
   const root = await materializeFixture(map);
   const result = await verifyScreenApiMap({ rootDir: root, map });
 
-  assert.deepEqual(result.orphans.map((row) => `${row.method} ${row.path}`), [
+  assert.deepEqual(result.orphans.map((row) => `${row.method} ${row.path}`).sort(), [
     'GET /health',
+    'GET /participants/search',
+    'GET /consent/follow-ups',
+    'PATCH /schedules/:id/reschedule',
+    'POST /schedules/:id/cancel',
+    'POST /schedules/:id/no-show',
+    'POST /support-cases/:id/force-transfer',
+    'POST /sessions/:id/ai/source',
+    'PUT /sessions/:id/audio',
+    'POST /sessions/:id/approve',
+    'GET /pipeline/health',
+    'GET /pipeline/jobs',
+    'GET /pipeline/text-jobs',
+    'GET /pipeline/text-jobs/:item/source',
+    'POST /pipeline/text-jobs/:item/complete',
+    'GET /pipeline/jobs/:sessionId/audio',
+    'POST /pipeline/jobs/:sessionId/result',
+    'GET /pii-retention/reviews',
+    'POST /pii-retention/reviews/:id',
+    'POST /users/:id/deactivate',
+    'GET /cases',
+    'POST /cases',
+    'GET /cases/:id',
+    'GET /cases/:id/briefing',
+    'GET /cases/:id/pilot-text-ai-consent',
     'POST /cases/:id/pilot-text-ai-consent',
-  ]);
+    'GET /cases/:id/sessions',
+    'POST /cases/:id/sessions',
+    'GET /participants/:id/programs',
+    'POST /participants/:id/programs',
+    'GET /participants/:id/briefing?focusSupportCaseId=:case',
+    'GET /beneficiaries',
+    'POST /beneficiaries',
+    'GET /beneficiaries/search',
+  ].sort());
   assert.deepEqual(result.piiMatrix, map.pii);
   assert.deepEqual(result.gaps, map.gaps);
   assert.equal(result.implementedGaps?.length ?? 0, 0);
@@ -219,8 +269,16 @@ test('real-repository smoke uses the same checked map without network or runtime
     sourceRoot: 'apps/web/app',
     apiSourceRoot: 'apps/api/src',
   });
-
-  assert.equal(typeof result.ok, 'boolean');
+  assert.equal(result.ok, true, (result.errors ?? []).map((error) => error.message).join('\n'));
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(
+    result.endpointObservations.map((row) => `${row.method} ${row.path}`).sort(),
+    map.endpoints.map((row) => `${row.method} ${row.path}`).sort(),
+  );
+  assert.deepEqual(
+    result.orphans.map((row) => `${row.method} ${row.path}`).sort(),
+    map.endpoints.filter((row) => row.status === 'unmapped-by-current-page').map((row) => `${row.method} ${row.path}`).sort(),
+  );
   assert.equal(result.observed.routeCount, 30);
   assert.ok(result.observed.endpointCount > 0);
   assert.equal(result.observed.networkRequests, 0);
