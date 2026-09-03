@@ -81,9 +81,13 @@ export function WireCardDetails({ children, title, badge, open, id, onToggle, te
   return (
     <details className={classes} open={open} id={id} onToggle={onToggle} data-testid={testId}>
       <summary className="wire-card-summary">
-        <span className="wire-card-title">{title}</span>
-        <span className="wire-card-summary-right">
+        {/* 배지는 제목 글자 바로 뒤다(2026-09-04 Q 전역 기준, 구 오른쪽 꺽쇠 앞 자리 대체).
+            오른쪽 묶음에는 꺽쇠만 남는다. */}
+        <span className="wire-card-title">
+          {title}
           {badge}
+        </span>
+        <span className="wire-card-summary-right">
           <DisclosureChevron />
         </span>
       </summary>

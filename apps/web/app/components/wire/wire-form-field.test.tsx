@@ -59,11 +59,14 @@ describe('WireFormField', () => {
     expect(message?.textContent).toBe('숫자만 입력하세요.');
   });
 
-  it('인테이크 여러 선택지는 아웃라인 알약을 쓴다', () => {
+  it('체크박스 보기는 전역으로 아웃라인 알약을 쓴다', () => {
+    // 2026-09-04 Q: 인테이크 여러 선택지 한 자리 규칙을 체크박스 보기 전체로 올렸다.
     expect(wireStyles).toContain(
-      '.wizard-choice-row .wire-choice{align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}',
+      '.wire-choice:has(>.wire-checkbox){align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}',
     );
-    expect(wireStyles).toContain('.wizard-choice-row .wire-choice>input{margin:0}');
+    expect(wireStyles).toContain('.wire-choice:has(>.wire-checkbox)>input{margin:0}');
+    // 라디오는 이 규칙 밖이다. 알약을 라디오까지 열면 원형 컨트롤 어휘가 사라진다.
+    expect(wireStyles).not.toContain('.wire-choice:has(>.wire-radio){align-items:center;padding:0 var(--space-2-5)');
   });
 
 

@@ -1,11 +1,13 @@
 [
   {
-    "name": "사이드바 선택과 호버 상자는 248×40",
-    "selectors": ["#align-sidebar .navigation-link"],
+    "name": "사이드바 선택과 호버 상자는 248×32",
+    "selectors": [
+      "#align-sidebar .navigation-link"
+    ],
     "axis": "size",
     "tolerance": 0.5,
     "expectedWidth": 248,
-    "expectedHeight": 40
+    "expectedHeight": 32
   },
   {
     "name": "사이드바 선택과 호버 상자는 가로 정중앙",
@@ -18,7 +20,9 @@
   },
   {
     "name": "뒤로 버튼 왼쪽 꺽쇠 잉크가 공용 슬롯 정중앙",
-    "selectors": ["#align-back .page-back>.wire-chevron[data-dir=\"left\"]"],
+    "selectors": [
+      "#align-back .page-back>.wire-chevron[data-dir=\"left\"]"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -26,7 +30,10 @@
   },
   {
     "name": "뒤로 버튼 왼쪽 꺽쇠가 버튼 행 세로 중앙",
-    "selectors": ["#align-back .page-back", ".wire-chevron[data-dir=\"left\"]"],
+    "selectors": [
+      "#align-back .page-back",
+      ".wire-chevron[data-dir=\"left\"]"
+    ],
     "axis": "center-y-each",
     "tolerance": 0.5
   },
@@ -65,7 +72,9 @@
   },
   {
     "name": "세부 목표 불릿 점은 첫 줄 세로 중앙",
-    "selectors": ["#align-content .briefing-subgoal-rows.wire-bullets>li"],
+    "selectors": [
+      "#align-content .briefing-subgoal-rows.wire-bullets>li"
+    ],
     "axis": "bullet-y",
     "tolerance": 1
   },
@@ -128,7 +137,9 @@
   },
   {
     "name": "등록 동의 전문 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-register .consent-detail:not([open])>.consent-detail-summary>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-register .consent-detail:not([open])>.consent-detail-summary>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -136,7 +147,9 @@
   },
   {
     "name": "등록 동의 전문 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-register-open .consent-detail[open]>.consent-detail-summary>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-register-open .consent-detail[open]>.consent-detail-summary>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -144,13 +157,18 @@
   },
   {
     "name": "근거 인용 꺽쇠가 요약 행 세로 중앙",
-    "selectors": ["#align-content .wire-source-quotes>summary", ".wire-disclosure-chevron[data-variant=\"plain\"]"],
+    "selectors": [
+      "#align-content .wire-source-quotes>summary",
+      ".wire-disclosure-chevron[data-variant=\"plain\"]"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "근거 인용 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-content .wire-source-quotes:not([open])>summary>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-content .wire-source-quotes:not([open])>summary>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -158,7 +176,9 @@
   },
   {
     "name": "당사자 정보 전문 보기 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-hub-consent .consent-detail[data-inline=\"true\"]:not([open])>.consent-detail-summary>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-hub-consent .consent-detail[data-inline=\"true\"]:not([open])>.consent-detail-summary>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -200,10 +220,16 @@
   },
   {
     "name": "390px 회차 링크 꺽쇠가 자기 행 세로 중앙",
-    "selectors": ["#align-content .briefing-session-row", ".wire-chevron"],
+    "selectors": [
+      "#align-content .briefing-session-row",
+      ".wire-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 1,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 회차 핵심 문구가 이동 꺽쇠와 겹치지 않음",
@@ -214,36 +240,56 @@
     ],
     "axis": "no-overlap-x-each",
     "tolerance": 0,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 회차 링크에 가로 넘침 없음",
-    "selectors": ["#align-content .briefing-session-row"],
+    "selectors": [
+      "#align-content .briefing-session-row"
+    ],
     "axis": "overflow-x",
     "tolerance": 0,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "긴급 등록 체크박스가 행 세로 중앙",
-    "selectors": ["#align-register .consent-emergency .consent-checkbox", ".wire-checkbox"],
+    "selectors": [
+      "#align-register .consent-emergency .consent-checkbox",
+      ".wire-checkbox"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "긴급 등록 문구가 행 세로 중앙",
-    "selectors": ["#align-register .consent-emergency .consent-checkbox", "span"],
+    "selectors": [
+      "#align-register .consent-emergency .consent-checkbox",
+      "span"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "자세히 읽어보기 화살표가 행 세로 중앙",
-    "selectors": ["#align-register .consent-detail-summary", ".wire-disclosure-chevron"],
+    "selectors": [
+      "#align-register .consent-detail-summary",
+      ".wire-disclosure-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "당사자 정보 동의 라벨이 전문 보기와 세로 중앙",
-    "selectors": ["#align-hub-consent .consent-item", ".consent-checkbox"],
+    "selectors": [
+      "#align-hub-consent .consent-item",
+      ".consent-checkbox"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
@@ -261,41 +307,69 @@
   },
   {
     "name": "당사자 정보 전문 보기 화살표가 행 세로 중앙",
-    "selectors": ["#align-hub-consent .consent-detail-summary", ".wire-disclosure-chevron"],
+    "selectors": [
+      "#align-hub-consent .consent-detail-summary",
+      ".wire-disclosure-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "390px 동의 체크박스가 모든 라벨 행 세로 중앙",
-    "selectors": [".consent-checkbox", ".wire-checkbox"],
+    "selectors": [
+      ".consent-checkbox",
+      ".wire-checkbox"
+    ],
     "axis": "center-y-each",
     "tolerance": 1,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 동의 문구가 모든 라벨 행 세로 중앙",
-    "selectors": [".consent-checkbox", "span"],
+    "selectors": [
+      ".consent-checkbox",
+      "span"
+    ],
     "axis": "center-y-each",
     "tolerance": 1,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 동의 전문 보기 화살표가 모든 행 세로 중앙",
-    "selectors": [".consent-detail-summary", ".wire-disclosure-chevron"],
+    "selectors": [
+      ".consent-detail-summary",
+      ".wire-disclosure-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 1,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 목표 트리에 가로 넘침 없음",
-    "selectors": ["#align-goal-tree .goal-tree-case"],
+    "selectors": [
+      "#align-goal-tree .goal-tree-case"
+    ],
     "axis": "overflow-x",
     "tolerance": 0,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -303,7 +377,9 @@
   },
   {
     "name": "당사자 정보 세부 목표 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -311,27 +387,40 @@
   },
   {
     "name": "당사자 정보 세부 목표 꺽쇠가 제목 행 세로 중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-head", ".wire-disclosure-chevron[data-variant=\"plain\"]"],
+    "selectors": [
+      "#align-goal-tree .goal-tree-goal-head",
+      ".wire-disclosure-chevron[data-variant=\"plain\"]"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "390px 당사자 정보 세부 목표 닫힘 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-goal-tree .goal-tree-goal-details:not([open])>.goal-tree-goal-head>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
     "expectedSize": 12,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 당사자 정보 세부 목표 펼침 꺽쇠 잉크가 무형 슬롯 정중앙",
-    "selectors": ["#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-disclosure-chevron"],
+    "selectors": [
+      "#align-goal-tree-open .goal-tree-goal-details[open]>.goal-tree-goal-head>.wire-disclosure-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
     "expectedSize": 12,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "당사자 정보 동의 묶음 접힘 위아래 여백이 같다",
@@ -365,7 +454,10 @@
     "axis": "inset-y",
     "tolerance": 1,
     "expectedInset": 17,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "390px 당사자 정보 동의 묶음 펼침 위아래 여백이 같다",
@@ -377,7 +469,10 @@
     "axis": "inset-y",
     "tolerance": 1,
     "expectedInset": 17,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "일정 등록 목표 연결 선택창과 목표 입력칸 폭이 같다",
@@ -396,11 +491,16 @@
     ],
     "axis": "width",
     "tolerance": 1,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "일정 보기 선택창은 96×32",
-    "selectors": ["#align-schedule-nav .schedule-view-select"],
+    "selectors": [
+      "#align-schedule-nav .schedule-view-select"
+    ],
     "axis": "size",
     "tolerance": 0.5,
     "expectedWidth": 96,
@@ -408,13 +508,18 @@
   },
   {
     "name": "일정 보기 선택창 꺽쇠가 상자 세로 중앙",
-    "selectors": ["#align-schedule-nav .schedule-view-select", ".wire-chevron"],
+    "selectors": [
+      "#align-schedule-nav .schedule-view-select",
+      ".wire-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 0.5
   },
   {
     "name": "일정 보기 선택창 꺽쇠 path가 슬롯 정중앙",
-    "selectors": ["#align-schedule-nav .schedule-view-select .wire-chevron"],
+    "selectors": [
+      "#align-schedule-nav .schedule-view-select .wire-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -422,13 +527,18 @@
   },
   {
     "name": "일정 이전과 다음 꺽쇠가 원형 버튼 세로 중앙",
-    "selectors": ["#align-schedule-nav .schedule-nav-step", ".wire-chevron"],
+    "selectors": [
+      "#align-schedule-nav .schedule-nav-step",
+      ".wire-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 0.5
   },
   {
     "name": "일정 이전과 다음 꺽쇠 path가 슬롯 정중앙",
-    "selectors": ["#align-schedule-nav .schedule-nav-step .wire-chevron"],
+    "selectors": [
+      "#align-schedule-nav .schedule-nav-step .wire-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -436,7 +546,9 @@
   },
   {
     "name": "당사자 정보 세부 목표 불릿 점은 제목 행 세로 중앙",
-    "selectors": ["#align-goal-tree .goal-tree-goals.wire-bullets>li"],
+    "selectors": [
+      "#align-goal-tree .goal-tree-goals.wire-bullets>li"
+    ],
     "axis": "bullet-y",
     "tolerance": 1
   },
@@ -452,31 +564,45 @@
   },
   {
     "name": "시간축 배지 라벨은 모든 배지 면 세로 중앙",
-    "selectors": [".wire-badge[data-tone=\"blue\"]", ".wire-badge-label"],
+    "selectors": [
+      ".wire-badge[data-tone=\"blue\"]",
+      ".wire-badge-label"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "브리핑 기한 배지는 액션 행 세로 중앙",
-    "selectors": ["#align-content .briefing-action-row", ".wire-badge[data-tone=\"blue\"]"],
+    "selectors": [
+      "#align-content .briefing-action-row",
+      ".wire-badge[data-tone=\"blue\"]"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "종결 기한 배지는 액션 행 세로 중앙",
-    "selectors": ["#align-close-actions .briefing-action-row", ".wire-badge[data-tone=\"blue\"]"],
+    "selectors": [
+      "#align-close-actions .briefing-action-row",
+      ".wire-badge[data-tone=\"blue\"]"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "기록 작성 기한 배지는 담당 배지 행 세로 중앙",
-    "selectors": ["#align-action-resolutions .open-action-meta", ".wire-badge[data-tone=\"blue\"]"],
+    "selectors": [
+      "#align-action-resolutions .open-action-meta",
+      ".wire-badge[data-tone=\"blue\"]"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "아코디언 버튼형 꺽쇠는 32px 원 하나",
-    "selectors": ["#align-schedule-body .wire-chevron-button"],
+    "selectors": [
+      "#align-schedule-body .wire-chevron-button"
+    ],
     "axis": "size",
     "tolerance": 0.5,
     "expectedWidth": 32,
@@ -484,7 +610,9 @@
   },
   {
     "name": "아코디언 버튼형 꺽쇠 path가 원 정중앙",
-    "selectors": ["#align-schedule-body .wire-chevron-button"],
+    "selectors": [
+      "#align-schedule-body .wire-chevron-button"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.25,
@@ -492,19 +620,28 @@
   },
   {
     "name": "14px 선택지 라벨과 체크박스는 첫 줄 세로 중앙",
-    "selectors": ["#align-choice .wire-choice", ".wire-checkbox", ".wire-choice-text"],
+    "selectors": [
+      "#align-choice .wire-choice",
+      ".wire-checkbox",
+      ".wire-choice-text"
+    ],
     "axis": "center-y-each",
     "tolerance": 1
   },
   {
     "name": "날짜 단독 입력의 달력 버튼은 바깥 입력 상자 세로 중앙",
-    "selectors": ["#align-date .wire-input-box", ".wire-date-toggle"],
+    "selectors": [
+      "#align-date .wire-input-box",
+      ".wire-date-toggle"
+    ],
     "axis": "center-y-each",
     "tolerance": 0.5
   },
   {
     "name": "날짜 단독 입력의 달력 버튼은 40px 폭과 38px 안쪽 높이",
-    "selectors": ["#align-date .wire-date-toggle"],
+    "selectors": [
+      "#align-date .wire-date-toggle"
+    ],
     "axis": "size",
     "tolerance": 0.5,
     "expectedWidth": 40,
@@ -521,7 +658,9 @@
   },
   {
     "name": "인테이크 조회 아코디언 꺽쇠는 32px 원",
-    "selectors": ["#align-intake-read .wire-card-summary .wire-chevron-button"],
+    "selectors": [
+      "#align-intake-read .wire-card-summary .wire-chevron-button"
+    ],
     "axis": "size",
     "tolerance": 0.5,
     "expectedWidth": 32,
@@ -529,7 +668,9 @@
   },
   {
     "name": "인테이크 조회 아코디언 꺽쇠 path는 원 정중앙",
-    "selectors": ["#align-intake-read .wire-card-summary .wire-chevron-button"],
+    "selectors": [
+      "#align-intake-read .wire-card-summary .wire-chevron-button"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.25,
@@ -557,13 +698,18 @@
   },
   {
     "name": "폼 선택창 꺽쇠는 입력 상자 세로 중앙",
-    "selectors": ["#align-select .wire-input-box[data-control=\"select\"]", ".wire-chevron"],
+    "selectors": [
+      "#align-select .wire-input-box[data-control=\"select\"]",
+      ".wire-chevron"
+    ],
     "axis": "center-y-each",
     "tolerance": 0.5
   },
   {
     "name": "폼 선택창 꺽쇠 path는 슬롯 정중앙",
-    "selectors": ["#align-select .wire-input-box .wire-chevron"],
+    "selectors": [
+      "#align-select .wire-input-box .wire-chevron"
+    ],
     "axis": "chevron-xy",
     "tolerance": 0.5,
     "maxRatio": 0.6,
@@ -571,7 +717,11 @@
   },
   {
     "name": "모든 배지와 상태 태그는 높이 20",
-    "selectors": [".wire-badge", ".wire-status-tag", ".consent-detail[data-inline=\"true\"]>.consent-detail-summary"],
+    "selectors": [
+      ".wire-badge",
+      ".wire-status-tag",
+      ".consent-detail[data-inline=\"true\"]>.consent-detail-summary"
+    ],
     "axis": "height",
     "tolerance": 0.1,
     "expectedHeight": 20
@@ -600,21 +750,28 @@
   },
   {
     "name": "섹션 H2는 프리뷰 기준 높이 24.3",
-    "selectors": ["#align-h2-section h2"],
+    "selectors": [
+      "#align-h2-section h2"
+    ],
     "axis": "height",
     "tolerance": 0.5,
     "expectedHeight": 24.3
   },
   {
     "name": "카드 H2는 프리뷰 기준 높이 21.6",
-    "selectors": ["#align-h2-card h2"],
+    "selectors": [
+      "#align-h2-card h2"
+    ],
     "axis": "height",
     "tolerance": 0.5,
     "expectedHeight": 21.6
   },
   {
     "name": "필수 아웃라인 표식은 라벨 행 세로 중앙",
-    "selectors": ["#align-select .wire-form-label", ".wire-required-marker"],
+    "selectors": [
+      "#align-select .wire-form-label",
+      ".wire-required-marker"
+    ],
     "axis": "center-y-each",
     "tolerance": 0.5
   },
@@ -631,13 +788,17 @@
   },
   {
     "name": "인테이크 조회 단계 제목은 같은 가로 중심",
-    "selectors": ["#align-intake-read .intake-step-label"],
+    "selectors": [
+      "#align-intake-read .intake-step-label"
+    ],
     "axis": "x",
     "tolerance": 0.5
   },
   {
     "name": "인테이크 수정 단계 제목은 같은 가로 중심",
-    "selectors": ["#align-intake-edit-rail .intake-step-label"],
+    "selectors": [
+      "#align-intake-edit-rail .intake-step-label"
+    ],
     "axis": "x",
     "tolerance": 0.5
   },
@@ -679,17 +840,26 @@
     ],
     "axis": "no-overlap-x-each",
     "tolerance": 0,
-    "viewport": { "width": 390, "height": 900 }
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   },
   {
     "name": "인테이크 조회 왼쪽 단계 레일은 240px",
-    "selectors": ["#align-intake-read .intake-step-nav", ".align-left-rail-width"],
+    "selectors": [
+      "#align-intake-read .intake-step-nav",
+      ".align-left-rail-width"
+    ],
     "axis": "width",
     "tolerance": 0.5
   },
   {
     "name": "인테이크 조회 오른쪽 목차 레일은 200px",
-    "selectors": ["#align-intake-read .intake-read-toc", ".align-right-rail-width"],
+    "selectors": [
+      "#align-intake-read .intake-read-toc",
+      ".align-right-rail-width"
+    ],
     "axis": "width",
     "tolerance": 0.5
   },
@@ -702,5 +872,67 @@
     "axis": "height",
     "tolerance": 0.5,
     "expectedHeight": 32
+  },
+  {
+    "name": "사이드바 메뉴 글자는 상자 세로 중앙",
+    "selectors": [
+      "#align-sidebar .navigation-link",
+      "span:not(.wire-badge)"
+    ],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "사이드바 메뉴 아이콘은 상자 세로 중앙",
+    "selectors": [
+      "#align-sidebar .navigation-link",
+      "svg"
+    ],
+    "axis": "center-y-each",
+    "tolerance": 0.5
+  },
+  {
+    "name": "필수 배지가 이웃 입력칸의 윗선을 흔들지 않는다",
+    "selectors": [
+      "#align-required-pair .wire-input-box"
+    ],
+    "axis": "y",
+    "tolerance": 0.5
+  },
+  {
+    "name": "필수 배지 유무와 무관하게 라벨 행은 20",
+    "selectors": [
+      "#align-required-pair .wire-form-label"
+    ],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 20
+  },
+  {
+    "name": "세부 목표 추가 버튼은 입력 상자 세로 중앙",
+    "selectors": [
+      "#align-goal-section .wire-field-with-action .wire-input-box",
+      "#align-goal-section .wire-field-with-action .wire-repeat-actions>.wire-button"
+    ],
+    "axis": "y",
+    "tolerance": 0.5
+  },
+  {
+    "name": "브리핑 회차 행 호버 면은 행 높이보다 큰 36",
+    "selectors": [
+      "#align-content .briefing-session-row"
+    ],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 36
+  },
+  {
+    "name": "체크박스 보기 알약은 높이 40",
+    "selectors": [
+      "#align-choice .wire-choice"
+    ],
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 40
   }
 ]

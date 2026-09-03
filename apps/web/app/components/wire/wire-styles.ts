@@ -573,6 +573,10 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    좌우 2px가 잘리지 않게 한다. */
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
+/* 접힘 카드의 상태 배지도 제목 글자 바로 뒤다(2026-09-04 Q 전역 기준). 오른쪽 묶음에는
+   꺽쇠만 남는다. 제목 묶음은 배지 높이 20 을 예약해 배지 유무가 줄 높이를 바꾸지 않는다. */
+.wire-card-summary>.wire-card-title{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--space-5)}
+.wire-card-summary>.wire-card-title>.wire-badge{flex:none;white-space:nowrap}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
 /* 꺽쇠는 두 종류뿐이다. 버튼형은 일정 기간 이동을 정본으로 삼은 32px 원이고,
    일반형은 글자 옆 12px 슬롯이다. 둘은 공용 Chevron SVG 잉크만 공유한다. */
@@ -590,8 +594,13 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 펼친 제목 밑 구분선도 회색 풀블리드다(2026-08-06 Q — .wire-card-divider 와 같은 선). */
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
-   이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q — 구 flex-start 대체). */
-.wire-card-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4)}
+   이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q, 구 flex-start 대체).
+   **배지는 제목 글자 바로 뒤에 붙는다**(2026-09-04 Q 전역 기준, 구 space-between 양끝
+   배치 대체): '활성 1/3'·'준비 중'처럼 제목을 한정하는 상태 낱말이 카드 반대편 끝에 서면
+   무엇을 세는 값인지 눈으로 이어지지 않았다. 행동 묶음(버튼)만 오른쪽 끝으로 민다.
+   높이는 배지 유무와 무관하게 20 을 예약한다(배지가 여백을 바꾸지 않는다). */
+.wire-card-head{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-2);min-height:var(--space-5)}
+.wire-card-head>:nth-child(n+2):not(.wire-badge){margin-left:auto}
 .wire-card-head .wire-badge{flex:none;white-space:nowrap}
 /* 카드 안 하위 구획(WireCardSection). h3 에 규칙이 없어 브라우저 기본 크기(18.7px)가 그대로
    나오던 자리다. 카드 제목과 크기가 겹쳐 위계가 없었다. 구획 제목은 라벨이므로 14/600 이다.
@@ -666,7 +675,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-bullets-single{margin:0;color:var(--ink);font-size:var(--text-sm)}
 /* SearchInput (§5 입력칸): 높이 40 · radius 6 · --line-control 1px · 라벨은 항상 위. */
 /* align-content:start — 폼 입력칸(.wire-form-field)과 같은 stretch 부풀림 방지 계약. */
-.wire-search{display:grid;gap:var(--space-2);align-content:start}
+.wire-search{display:grid;gap:var(--space-3);align-content:start}
 .wire-search-label{font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-search-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 /* 행간 normal — 단일행 컨트롤의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q, 버튼과 동일). */
@@ -685,11 +694,18 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    힌트 달린 이웃 칸이 행을 키우면, stretch 기본값이 남는 높이를 이 칸의 라벨·박스 행에
    나눠 줘 입력칸이 54.8px 로 부풀었다(기본정보 수정 이메일 칸 실측 +14.8). 행을 위로
    붙이면 모든 박스가 40 으로 고정된다. */
-.wire-form-field{display:grid;gap:var(--space-2);align-content:start;min-width:0}
-.wire-form-label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--sub)}
+/* 라벨 ↔ 입력칸 ↔ 도움말 간격은 12 다(2026-09-04 Q "너무 좁아서 뭉개진다", 구 8).
+   8 은 라벨 행 안 조각 간격(글자↔배지)과 같은 값이라 세로 층과 가로 조각이 한 덩어리로
+   읽혔다. 세로만 한 단 올리고 라벨 행 안 gap 8 은 그대로 둔다. */
+.wire-form-field{display:grid;gap:var(--space-3);align-content:start;min-width:0}
+/* 라벨 행은 배지 높이(20)를 **항상** 예약한다(2026-09-04 Q 전역 기준). 필수 배지가 붙은
+   칸만 라벨이 20 이고 안 붙은 칸은 16 이라, 2열 그리드에서 두 입력칸의 윗선이 4px 갈렸다
+   (상담 일시 ↔ 상담 방식 실측). 배지·버튼이 여백을 바꾸지 않는 것이 계약이다. */
+.wire-form-label{display:flex;align-items:center;gap:var(--space-2);min-height:var(--space-5);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--sub)}
 /* 라벨 옆 보조 표시와 필수 아웃라인 표식은 라벨 행의 8px gap을 공유한다. */
 .wire-form-note{display:inline-flex;align-items:center;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub)}
-.wire-title-with-badge{display:inline-flex;align-items:center;gap:var(--space-2)}
+/* 제목 글자 뒤에 배지가 붙는 묶음도 같은 20 예약을 쓴다. */
+.wire-title-with-badge{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--space-5)}
 .wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-width:0;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
@@ -709,12 +725,12 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    datetime-fields 가 이미 쓰는 패턴이다. */
 .wire-input-box>input:focus-visible,.wire-input-box>select:focus-visible,.wire-input-box>textarea:focus-visible{outline:none}
 .wire-input-box[data-invalid="true"]{border:1.5px solid var(--risk)}
-/* 도움말은 14(--text-sm)다(2026-08-10 Q. 구 12 --text-xs 대체. 2026-08-07 '도움말 12 전역
-   통일'은 이 변경으로 완전히 걷혔고 본문 하한 14 가 예외 없이 돌아왔다). 당사자 등록 화면에서
-   같은 폼에 선 .schedule-form-hint 14 와 크기가 갈려 있던 것이 계기다. 아래 a 규칙의 deep 색
-   글자는 §6 규칙 3 이 '14 이상·굵기 600' 을 요구하는데 12 에서 이를 어기고 있었고, 14 로
-   올라가면서 그 예외도 함께 닫힌다. */
-.wire-form-hint{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
+/* 입력칸 도움말은 13(--text-detail) 회색이다(2026-09-04 Q "같은 안내 문구는 13px로 수정하고
+   gray 컬러로 통일", 구 14). 도움말은 값이 아니라 칸 옆에서 읽는 곁다리라, 라벨(14/600)과
+   입력값(14/400)과 같은 계단에 서면 세 층이 한 덩어리로 읽혔다. 하한 14 의 예외 자리가
+   레일·배지에 이어 셋째로 늘어난다(DESIGN-RULES §5). 아래 a 규칙은 §9 의 'deep 색은
+   14 이상·600' 을 지켜야 하므로 자기 크기 14 를 그대로 선언한다. */
+.wire-form-hint{font-size:var(--text-detail);font-weight:400;color:var(--sub)}
 .wire-form-hint a{font-size:var(--text-sm);color:var(--blue-deep);font-weight:600;text-decoration:underline}
 /* 폼을 담은 카드는 본문 간격을 한 단 넓힌다 — 입력칸은 라벨·도움말을 달고 있어
    정보 카드(12)의 간격으로는 항목 경계가 안 읽힌다. */
@@ -754,9 +770,10 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 버튼 줄. 왼쪽부터 차는 이동 조작(이전·다음)이라 .wire-form-actions(오른쪽 정렬)와 다르다. */
 .wizard-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);min-width:0}
 /* 무응답·해당 없음 줄(인테이크 서술 문항): 버튼 사이는 8 로 촘촘하되, 위 입력칸과는
-   margin 8 을 더해 16 으로 띄운다(2026-08-30 Q "입력칸과의 여백 더 늘릴 것" — 구 2026-08-09
-   '입력칸과 같은 8 한 묶음'을 대체. .wizard-field gap 8 + 8 = 16). */
-.wizard-answer-actions{gap:var(--space-2);margin-top:var(--space-2)}
+   16 으로 띄운다(2026-08-30 Q "입력칸과의 여백 더 늘릴 것", 구 2026-08-09 '입력칸과 같은
+   8 한 묶음'을 대체). 2026-09-04 로 .wizard-field gap 이 12 가 됐으므로 보태는 값은 4 다
+   (12 + 4 = 16, 실제 간격은 그대로). */
+.wizard-answer-actions{gap:var(--space-2);margin-top:var(--space-1)}
 /* 세부 목표 한 줄(2026-08-29 Q "버튼을 텍스트 오른쪽 같은 행에") — 제목이 왼쪽에서 폭을
    채우고 수정·닫기 조작이 오른쪽 끝에 선다. 두 버튼은 위 answer 줄과 같은 8 로 붙여
    한 세트로 읽힌다. 수정·닫기 폼(editing·closing)은 세로 스택이라 이 규칙 밖이다. */
@@ -772,6 +789,13 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-repeat-guide{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3)}
 .wire-repeat-guide>.panel-meta{margin:0}
 .wire-repeat-actions>.wire-button{width:var(--pill-height);padding:0}
+/* 입력칸 오른쪽에 붙는 조작 버튼(2026-09-04 Q "'+' 버튼은 Input Box 밖에 둘 것. Input box
+   가로 크기를 줄이고, 박스 오른쪽에 버튼 생성"). 상자 안에 넣으면 적는 자리와 누르는 자리가
+   한 상자로 읽힌다. 상자는 남는 폭을 갖고, 버튼은 라벨 행(20)과 라벨↔상자 간격(12)을 지나
+   입력 상자(40) 한가운데에 앉는다. 값은 전부 토큰에서 계산한다. */
+.wire-field-with-action{display:flex;align-items:flex-start;gap:var(--space-2);min-width:0}
+.wire-field-with-action>.wire-form-field{flex:1 1 auto;min-width:0}
+.wire-field-with-action>.wire-repeat-actions{flex:none;margin-top:calc(var(--space-5) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
    자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
    되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다.
@@ -789,7 +813,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    align-content:start 도 같은 계약이다(.wire-form-field 의 stretch 부풀림 방지와 같은 이유) —
    2열 그리드에서 키 큰 이웃(목표 문장 textarea)이 행을 키우면 stretch 기본값이 남는 높이를
    행 사이에 나눠 줘, "조작 대상 바로 아래"여야 할 +/- 세트가 칸 바닥으로 떨어진다(CCC-75 실측). */
-.wizard-field{display:grid;gap:var(--space-2);align-content:start}
+.wizard-field{display:grid;gap:var(--space-3);align-content:start}
 /* 세션 목표 수정의 카드 스택이다. 목표 한 묶음은 전폭 접이식 카드라 .wizard-row의 읽기
    폭을 쓰지 않는다. 2열 본문이 폭을 나누고 간격은 spacing v2 페이지 스택 32를 쓴다.
    카드 안 body 20은 .wire-form-card가 갖는다. */
@@ -811,9 +835,13 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 }
 /* WireChoice (§5 선택지 행): 컨트롤과 14px 라벨이 같은 줄, 누를 면적은 40px이다. */
 .wire-choice{display:flex;align-items:flex-start;gap:var(--space-3);min-height:var(--control-height);padding:var(--space-2) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
-/* 인테이크 여러 선택지는 보기 하나가 곧 누르는 단위라 공용 버튼과 같은 알약 외곽선을 쓴다. */
-.wizard-choice-row .wire-choice{align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}
-.wizard-choice-row .wire-choice>input{margin:0}
+/* 체크박스 보기는 **전역으로 알약**이다(2026-09-04 Q "인테이크 현재 어려움 관련 영역의
+   체크박스처럼 알약 버전으로 전역 통일"). 보기 하나가 곧 누르는 단위라 공용 버튼과 같은
+   알약 외곽선을 쓴다. 라디오는 이 규칙 밖이다(원형 컨트롤이 자기 어휘를 갖는다). */
+.wire-choice:has(>.wire-checkbox){align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}
+.wire-choice:has(>.wire-checkbox)>input{margin:0}
+/* 설명 줄이 딸린 보기는 두 줄이라 세로 여백을 되살린다. */
+.wire-choice:has(>.wire-checkbox):has(.wire-choice-desc){align-items:flex-start;padding:var(--space-2) var(--space-2-5)}
 /* optical: 18px 컨트롤을 14px 라벨 첫 줄 중앙에 맞춘다. */
 .wire-choice>input{margin:2px 0 0}
 .wire-choice-text{display:grid;gap:var(--space-1);min-width:0;overflow-wrap:anywhere}
@@ -821,7 +849,10 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-choice:has(>input:disabled){color:var(--sub);cursor:not-allowed}
 /* 폼 안 묶음(fieldset). D59 '카드 안 카드 금지' — 상자 대신 위 구분선 하나 + 여백으로 가른다. */
 .wire-fieldset{display:grid;gap:var(--space-3);min-width:0;margin:0;padding:var(--space-3) 0 0;border:0;border-top:1px solid var(--line)}
-.wire-fieldset>legend{padding:0 var(--space-1-5);font-size:var(--text-sm);font-weight:600;color:var(--sub)}
+/* 묶음 제목은 카드 제목과 같은 16/600 이고 계열 색을 입는다(2026-09-04 Q "컬러 + 볼드
+   처리하고 왼쪽 정렬 맞추고 16px로 수정"). 왼쪽 패딩을 걷어 아래 입력칸 라벨과 같은
+   시작선에 세운다. 오른쪽 6 은 가로선을 끊는 여백이라 남긴다. */
+.wire-fieldset>legend{padding:0 var(--space-1-5) 0 0;font-size:var(--text-md);font-weight:600;line-height:var(--leading-snug);color:var(--mint-deep)}
 .wire-fieldset>legend small{font-weight:400}
 .wire-fieldset-list{display:grid;gap:var(--space-4)}
 /* 6영역 머리 줄(2026-08-08 Q): 가로선을 끄고 이름(600)과 직전 상태 배지를 한 줄 세로
@@ -838,6 +869,11 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. */
 .wire-choice-group{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
 .wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}
+/* 알약이 된 체크박스 묶음은 인테이크 여러 선택지(.wizard-choice-row)와 같은 12 리듬을 쓴다
+   (2026-09-04 Q 전역 통일). 알약끼리 세로로 붙으면 테두리가 맞닿으므로 줄 간격이 필요하다.
+   라디오만 있는 묶음은 알약이 아니라 구 24 열 간격 그대로다. */
+.wire-choice-group:has(>.wire-choice>.wire-checkbox){gap:var(--space-3)}
+.wire-choice-group[data-layout="stack"]:has(>.wire-choice>.wire-checkbox){align-items:flex-start;gap:var(--space-2)}
 /* 라디오(§5): 체크박스와 같은 계약이고 모양만 원형이다. 선택 표시는 가운데 --ink 점.
    체크박스와 같은 이유로 ::after 가 아니라 background 로 그린다(input 은 replaced element). */
 .wire-radio{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}

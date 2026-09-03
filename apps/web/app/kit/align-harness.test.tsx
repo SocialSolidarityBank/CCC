@@ -287,6 +287,18 @@ describe('정렬 하니스 생성기', () => {
         <select defaultValue="in_person"><option value="in_person">대면</option></select>
       </WireFormField>,
     );
+    // 배지가 여백을 바꾸지 않는다(2026-09-04 Q 전역 기준). 필수 배지가 붙은 칸과 안 붙은
+    // 칸을 2열로 나란히 세워 두 입력 상자의 윗선이 같은지 실측한다.
+    const requiredPair = renderToStaticMarkup(
+      <div className="wire-form-grid record-datetime-grid">
+        <WireFormField label="상담 일시" required htmlFor="align-pair-held-at">
+          <input id="align-pair-held-at" />
+        </WireFormField>
+        <WireFormField label="상담 방식" control="select" htmlFor="align-pair-channel">
+          <select id="align-pair-channel" defaultValue="in_person"><option value="in_person">대면</option></select>
+        </WireFormField>
+      </div>,
+    );
     const intakeEditRail = renderToStaticMarkup(
       <IntakeStepRail
         currentStep={2}
@@ -300,11 +312,16 @@ describe('정렬 하니스 생성기', () => {
         headerAccessory={<WireBadge>자동 저장됨</WireBadge>}
       />,
     );
+    // 액션 3종을 넘겨야 조작 UI(입력칸 + 추가 버튼)가 렌더된다 — 실측 대상이 그 줄이다.
+    const noopGoalAction = (async () => ({ status: 'saved' as const })) as never;
     const goalSection = renderToStaticMarkup(
       <GoalSection
         beneficiaryId="swallow-003"
         supportCaseId={CASE_ID}
         goals={[{ id: 'g1', title: '채무조정 서류 준비', status: 'active', closedReason: null }]}
+        createAction={noopGoalAction}
+        renameAction={noopGoalAction}
+        closeAction={noopGoalAction}
       />,
     );
     const intakeRowOrdinal = renderToStaticMarkup(<WireBadge>1번</WireBadge>);
@@ -398,6 +415,8 @@ describe('정렬 하니스 생성기', () => {
     expect(choice, '선택지 정렬 fixture가 없다').toContain('wire-choice');
     expect(dateControl, '날짜 단독 입력 fixture가 없다').toContain('wire-date-control');
     expect(goalSection, '세부 목표 제목 배지 fixture가 없다').toContain('wire-card-head');
+    expect(goalSection, '세부 목표 추가 버튼이 입력 상자 밖 fixture가 없다').toContain('wire-field-with-action');
+    expect(requiredPair, '필수 배지 유무 2열 fixture가 없다').toContain('wire-required-marker');
     expect(intakeRead, '인테이크 조회 아코디언 fixture가 없다').toContain('intake-read-current-step');
     expect(intakeRead, '인테이크 조회 반복 행 번호 배지가 없다').toContain('1번');
     expect(intakeEditRail, '인테이크 수정 단계 레일 fixture가 없다').toContain('data-testid="intake-step-rail"');
@@ -439,6 +458,7 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-action-resolutions">${actionResolutions}</div>
 <div id="align-choice">${choice}</div>
 <div id="align-select">${selectControl}</div>
+<div id="align-required-pair">${requiredPair}</div>
 <div id="align-intake-edit-rail" class="align-left-rail-width">${intakeEditRail}</div>
 <div id="align-intake-edit-toolbar">${intakeEditToolbar}</div>
 <div id="align-date">${dateControl}</div>

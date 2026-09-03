@@ -78,6 +78,9 @@ const ROLES = [
   { size: 'var(--text-sm)', weight: '400', colors: ['var(--sub)'], role: '메타·설명' },
   // 배지·칩. 2026-08-06 Q 로 400 이고, 색은 계열 deep 이 원칙이되 무채색 배지가 있다
   { size: 'var(--text-sm)', weight: '400', colors: [...SERIES_DEEP, 'var(--risk)', 'var(--ink)'], role: '배지·칩' },
+  // 입력칸 도움말 — 2026-09-04 Q. 13/400 회색. 크기 토큰 자체는 SCOPED_TEXT_TOKENS 가
+  // .wire-form-hint 로 묶어 두므로 이 행이 13px 을 다른 자리로 퍼뜨리지 않는다.
+  { size: 'var(--text-detail)', weight: '400', colors: ['var(--sub)'], role: '입력칸 도움말' },
   ];
 
 /**
@@ -197,6 +200,14 @@ const ALLOW = [
     selector: '.register-program-fixed-value',
     combo: 'var(--text-sm)/600/var(--ink)',
     why: '민트 알약 안의 값 — 짝인 라벨이 계열 deep 이라 값은 --ink 다',
+  },
+  {
+    // 2026-09-04 Q "'액션 아이템' 텍스트는 컬러 + 볼드 처리하고 왼쪽 정렬 맞추고 16px로".
+    // 카드 제목과 같은 16/600 이되 카드가 아니라 폼 안 묶음 제목이라 계열 색으로 갈린다.
+    // 조합으로 열면 카드 제목이 전부 색을 입을 수 있어 자리로 연다.
+    selector: '.wire-fieldset>legend',
+    combo: 'var(--text-md)/600/var(--mint-deep)',
+    why: '폼 안 묶음(fieldset) 제목 — 카드 제목과 크기를 맞추고 계열 색으로 갈린다',
   },
 ];
 

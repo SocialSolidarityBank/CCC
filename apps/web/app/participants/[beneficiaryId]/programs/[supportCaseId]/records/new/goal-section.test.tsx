@@ -80,12 +80,15 @@ describe('GoalSection (D62 · CCC-68)', () => {
     expect(screen.getByLabelText('새 세부 목표')).toBeTruthy();
   });
 
-  it('새 목표 추가는 입력 상자 오른쪽의 아이콘 버튼으로 제공한다', () => {
+  it('새 목표 추가는 입력 상자 밖 오른쪽의 아이콘 버튼으로 제공한다', () => {
+    // 2026-09-04 Q "'+' 버튼은 Input Box 밖에 둘 것".
     renderSection([]);
     const input = screen.getByLabelText('새 세부 목표');
     const inputBox = input.closest('.wire-input-box');
     const add = screen.getByRole('button', { name: '목표 추가' });
-    expect(inputBox?.contains(add)).toBe(true);
+    expect(inputBox?.contains(add)).toBe(false);
+    expect(add.closest('.wire-field-with-action')).not.toBeNull();
+    expect(inputBox?.closest('.wire-field-with-action')).toBe(add.closest('.wire-field-with-action'));
     expect(add.textContent).toBe('');
     expect(add.querySelector('svg')).not.toBeNull();
   });

@@ -53,8 +53,11 @@ button,input,select,textarea{font:inherit}
    280px 사이드바 안 선택·호버 상자를 248px로 줄여 좌우 16px 여백을 만들면서, 자식의
    좌우 패딩을 8px로 줄여 아이콘·글자 시작선 24px은 그대로 유지한다. 자식에 음수 마진을
    두면 overflow-y:auto가 가로축까지 auto로 승격되어 상자가 잘리므로 컨테이너가 되민다. */
-.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start;margin-inline:calc(var(--space-2) * -1)}
-.navigation-link{display:flex;align-items:center;gap:var(--space-2)}
+.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-4);align-content:start;margin-inline:calc(var(--space-2) * -1)}
+/* 세로 중앙은 기하가 만든다(2026-09-04 Q "선택창과 텍스트 가운데 정렬이 안됨"). 구
+   translateY(1px) 손보정은 라벨 상자를 상자 중심보다 1px 아래로 내려 두었다. 상속 행간
+   1.55 를 normal 로 끊어 글자 상자와 아이콘이 같은 중심을 쓴다(guard:align 계약 A). */
+.navigation-link{display:flex;align-items:center;line-height:normal;gap:var(--space-2)}
 /* CCC-26: 새 가입 숫자 배지는 메뉴 라벨 뒤가 아니라 trailing chip 자리(준비 중과 같은 우측 끝)에 둔다. */
 .navigation-link>.wire-badge{margin-left:auto}
 /* 드로어 머리 줄(768 미만 전용): 계정 행동 묶음(좌) + 닫기 X(우) — 2026-08-06 Q,
@@ -66,11 +69,6 @@ button,input,select,textarea{font:inherit}
    입히고, 여기서는 노출만 다룬다 — 데스크톱엔 없다(머리 줄 자체도 숨지만, 계약을 이중으로
    적어 한쪽 규칙이 움직여도 새지 않게 한다). */
 .sidebar .drawer-dismiss{display:none}
-/* optical: 한글 잉크가 상자 중심보다 ~1px 위에 앉는다(16px·행간 1.55 실측 −1.08px, 2026-08-04
-   canvas TextMetrics). 아이콘은 기하 중앙이라 글자만 1px 내려 잉크 중심을 맞춘다(보정 후 −0.07px).
-   버튼의 --nudge-hangul(행간 1 전용, 0 확정)과 다른 행간 조합이라 별도 보정이다.
-   기관명(18px)은 원래 −0.34px 라 보정하지 않는다 — 1px 을 얹으면 +0.66 으로 더 어긋난다. */
-.navigation-link>span:not(.wire-badge){transform:translateY(1px)}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
 /* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
    포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개여도 선택창이다(2026-08-03 Q). */
@@ -132,8 +130,9 @@ button,input,select,textarea{font:inherit}
 .navigation-list{display:grid;gap:var(--space-0-5);padding:0;margin:0;list-style:none}
 /* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
    전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
-/* 선택·호버 상자는 입력 컨트롤과 같은 40px 높이다(2026-09-02 Q, 구 32). */
-.navigation-link{min-height:var(--control-height);padding:0 var(--space-2);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
+/* 선택·호버 상자는 버튼과 같은 32px 높이다(2026-09-04 Q "선택창도 더 줄여줘", 구 40).
+   묶음 사이 16 과 함께 다섯 항목이 헤더 아래에서 한눈에 들어온다. */
+.navigation-link{min-height:var(--pill-height);padding:0 var(--space-2);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -175,7 +174,7 @@ button,input,select,textarea{font:inherit}
    구분을 확실하게"): 면을 --gradient-deep 으로 깔고 글자 모양으로 잘라낸다(내비 호버가 쓰는
    것과 같은 기법). deep 쌍을 쓰는 이유는 base 쌍이 캔버스 위에서 더 흐리기 때문이다.
    측정값과 접근성 예외 기록은 DESIGN.md §9 에 있다. */
-.navigation-group{display:grid;gap:var(--space-2)}
+.navigation-group{display:grid;gap:var(--space-1)}
 .navigation-section-title{margin:0;padding:0 var(--space-2);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);background:var(--gradient-deep);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
@@ -594,7 +593,10 @@ const briefingStyles = `
    핵심 한 줄이 좌측정렬 고정 간격(12)으로 선다. 본문이 한 줄을 넘으면 줄바꿈 대신
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
    전문은 근거 회차(상담 기록)에서 읽는다. */
-.briefing-session-rows{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
+/* 호버 면이 행 높이(20)보다 커야 짚기 쉽다(2026-09-04 Q "호버 선택범위가 너무 좁다").
+   행마다 위아래 8 을 넣어 36 짜리 표적을 만들고, 목록 gap 은 0 으로 두어 실제 글자 사이는
+   §7 의 16(8+8) 그대로 남긴다. 좌우 12 는 음수 마진으로 되밀어 시작선을 지킨다. */
+.briefing-session-rows{display:grid;gap:0;margin:0;padding:0;list-style:none}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
    없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게. 회차 목록(.record-summary)
@@ -606,7 +608,7 @@ const briefingStyles = `
    (.participant-next-schedule-link)를 따라 --muted 로 넣었고, 2026-08-30 검수 후 이 자리와
    전례를 함께 고쳤다 — 남은 --muted 호버 4곳은 버튼·컨트롤이라 이 규칙 대상이 아니다),
    눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다. */
-.briefing-session-row{display:grid;grid-template-columns:136px 84px 52px minmax(0,1fr) auto;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.briefing-session-row{display:grid;grid-template-columns:136px 84px 52px minmax(0,1fr) auto;align-items:center;gap:var(--space-4);min-width:0;padding:var(--space-2) var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
 @media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
 .briefing-session-kind{flex:none;width:84px;display:inline-flex}
 .briefing-session-kind>.wire-badge{width:100%}

@@ -287,18 +287,22 @@ export function GoalSection({
             활성 세부 목표가 {MAX_ACTIVE_GOALS}개입니다. 새로 만들려면 먼저 기존 목표를 닫으세요.
           </p>
         ) : (
-          <WireFormField label="새 세부 목표" htmlFor="record-goal-new">
-            <input
-              id="record-goal-new"
-              type="text"
-              maxLength={200}
-              value={newTitle}
-              placeholder="측정할 수 있는 문장으로 적습니다"
-              onChange={(event) => setNewTitle(event.target.value)}
-              onKeyDown={enterRuns(() => void submitCreate())}
-            />
+          // 추가 버튼은 입력 상자 **밖** 오른쪽이다(2026-09-04 Q). 상자 안에 두면
+          // 적는 자리와 누르는 자리가 한 상자로 읽힌다.
+          <div className="wire-field-with-action">
+            <WireFormField label="새 세부 목표" htmlFor="record-goal-new">
+              <input
+                id="record-goal-new"
+                type="text"
+                maxLength={200}
+                value={newTitle}
+                placeholder="측정할 수 있는 문장으로 적습니다"
+                onChange={(event) => setNewTitle(event.target.value)}
+                onKeyDown={enterRuns(() => void submitCreate())}
+              />
+            </WireFormField>
             <WireRepeatActions itemLabel="목표" onAdd={() => void submitCreate()} addDisabled={busy} />
-          </WireFormField>
+          </div>
         )
       ) : null}
 
