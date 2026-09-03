@@ -8,6 +8,7 @@ import unittest
 import wave
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -21,6 +22,7 @@ from fetch_fixture import MAX_WAV_BYTES, _copy_bounded, extract_archive, fetch_f
 from generate_fixture import (  # noqa: E402
     build_session_plans,
     contains_pii_like,
+    generate,
     mix_pcm,
     parse_espeak_details,
     parse_espeak_version,
@@ -433,6 +435,21 @@ class GenerateFixturePlanTest(unittest.TestCase):
             with self.subTest(changed=changed):
                 with self.assertRaisesRegex(ValueError, "new fixture version"):
                     validate_espeak_toolchain(*changed)
+
+    def test_generate_rejects_unpinned_executable_before_running_it(self) -> None:
+        with TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            executable = root / "espeak-ng"
+            executable.write_bytes(b"untrusted executable")
+            with patch("generate_fixture._espeak_details") as details:
+                with self.assertRaisesRegex(ValueError, "new fixture version"):
+                    generate(
+                        root / "fixtures",
+                        root / "audio",
+                        root / "fixture.tar.gz",
+                        executable,
+                    )
+                details.assert_not_called()
 
 
 class FetchFixtureTest(unittest.TestCase):

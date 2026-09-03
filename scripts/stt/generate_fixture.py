@@ -352,8 +352,10 @@ def generate(
         raise ValueError(f"eSpeak NG executable does not exist: {espeak_path}")
     if archive_path.exists():
         raise ValueError(f"generation archive already exists: {archive_path}")
-    version, voice_data_path = _espeak_details(espeak_path)
     executable_hash = sha256_file(espeak_path)
+    if executable_hash != EXPECTED_GENERATOR["executableSha256"]:
+        raise ValueError("eSpeak NG toolchain differs from s13-v1; create a new fixture version")
+    version, voice_data_path = _espeak_details(espeak_path)
     voice_data_hash = hash_voice_data(voice_data_path)
     validate_espeak_toolchain(version, executable_hash, voice_data_hash)
     for target in (fixture_dir, audio_dir):
@@ -425,6 +427,7 @@ def generate(
                 "redistributionAllowed": True,
                 "attribution": "Synthetic CCC S13 fixture generated with eSpeak NG.",
             })
+    validate_espeak_toolchain(version, sha256_file(espeak_path), hash_voice_data(voice_data_path))
 
     license_manifest = {
         "schemaVersion": 1,
