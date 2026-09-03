@@ -19,6 +19,14 @@
       "approvalRequired": true
     },
     {
+      "name": "pyannote/segmentation-3.0",
+      "version": "3.0",
+      "revision": "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+      "license": "MIT",
+      "source": "https://huggingface.co/pyannote/segmentation-3.0",
+      "approvalRequired": true
+    },
+    {
       "name": "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition",
       "version": "latest-approved",
       "revision": "c9d0e4a8eaa1613129c50d7a42ab569c94c46b85",
