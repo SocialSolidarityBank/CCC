@@ -169,7 +169,7 @@ Expected: PASS with 150 sessions, every duration in 60–180 seconds, 150 two-sp
 
 Add `test:stt-fixtures` to `package.json` using standard-library unittest and run the same command in the existing Python `pipeline-test` job. CI validates scripts and tracked metadata without downloading the large release asset; the tracked verification receipt proves the full release fetch.
 
-- [ ] **Step 7: Run repository verification**
+- [x] **Step 7: Run repository verification**
 
 Run:
 
