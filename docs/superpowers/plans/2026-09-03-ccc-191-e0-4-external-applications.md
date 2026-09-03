@@ -109,6 +109,6 @@ Record SG14's target date and E11-1a's target date from Linear. Do not close eit
 
 Run `pnpm guard:doc-numbers && pnpm guard:secrets`. Confirm every E0-4 row has status, owner, evidence, response window or next check, and an exact next action.
 
-- [ ] **Step 4: Commit and publish**
+- [x] **Step 4: Commit and publish**
 
 On branch `e0-4-external-applications`, commit the plan, handoff, redacted evidence, `supply-chain/model-license-manifest.json`, and `scripts/release/verify.mjs`. Open a PR to `main` for CCC-191, obtain an independent review, and merge only after CI passes. Then add a plain-language completion comment and set Linear CCC-191 to Done.
