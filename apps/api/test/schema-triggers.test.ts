@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
+import { createD1Database } from '@ccc/db-d1';
 import {
   createBeneficiaryWithInitialSupportCase,
   createSupportCase,
@@ -1723,7 +1724,7 @@ describe('schema triggers', () => {
       }
 
       const upgradeEnv = {
-        DB: db,
+        DB: createD1Database(db),
         PII_ENC_KEY: Buffer.alloc(32).toString('base64'),
       };
       await db.prepare(

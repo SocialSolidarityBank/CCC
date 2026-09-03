@@ -40,6 +40,8 @@
     "release:verify": "node scripts/release/verify.mjs"
   },
   "devDependencies": {
+    "@ccc/contracts": "workspace:*",
+    "@ccc/db-d1": "workspace:*",
     "@cloudflare/vitest-pool-workers": "^0.16.20",
     "@cloudflare/workers-types": "^5.20260706.1",
     "@types/node": "^24.0.0",

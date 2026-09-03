@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Database, DatabaseError } from '@ccc/contracts/database';
 import { createD1Database } from '@ccc/db-d1';
 import type { Env } from '../../../db/gateway';
@@ -6,16 +6,11 @@ import { setupD1 } from './support/d1';
 
 const t = setupD1({ provisionDirectory: false });
 
-type FixtureRow = {
-  id: number;
-  value: string | null;
-  payload: Uint8Array;
-  marker: string;
-};
 
 async function openFixture(): Promise<Database> {
   await t.reset();
-  await t.db.prepare(`
+  const db = createD1Database(t.db);
+  await db.prepare(`
     CREATE TABLE database_port_fixture (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       value TEXT,
@@ -23,7 +18,24 @@ async function openFixture(): Promise<Database> {
       marker TEXT NOT NULL UNIQUE
     )
   `).run();
-  return createD1Database(t.db);
+  await db.prepare('CREATE TABLE database_port_primary (id INTEGER PRIMARY KEY, value TEXT)').run();
+  await db.prepare('CREATE TABLE database_port_trigger (id INTEGER PRIMARY KEY, value TEXT)').run();
+  await db.prepare(`
+    CREATE TRIGGER database_port_unknown_trigger
+    BEFORE INSERT ON database_port_trigger
+    BEGIN
+      SELECT RAISE(ABORT, 'unknown_trigger_code');
+    END
+  `).run();
+  await db.prepare('CREATE TABLE database_port_allowed_trigger (id INTEGER PRIMARY KEY)').run();
+  await db.prepare(`
+    CREATE TRIGGER database_port_allowed_trigger_check
+    BEFORE INSERT ON database_port_allowed_trigger
+    BEGIN
+      SELECT RAISE(ABORT, 'invite_token_already_used');
+    END
+  `).run();
+  return db;
 }
 
 function asDatabaseError(error: unknown): DatabaseError {
@@ -33,9 +45,22 @@ function asDatabaseError(error: unknown): DatabaseError {
   return error as DatabaseError;
 }
 
+async function expectDatabaseError(operation: Promise<unknown>): Promise<DatabaseError> {
+  try {
+    await operation;
+  } catch (error) {
+    return asDatabaseError(error);
+  }
+  throw new Error('expected database operation to fail');
+}
+
 // This assignment is intentionally a compile-time consumer of the port. It must
 // compile once Env.DB is changed from D1Database to Database in db/gateway.ts.
 const gatewayEnvWithPort: Pick<Env, 'DB'> = { DB: {} as Database };
+
+beforeAll(async () => {
+  await t.reset();
+}, 30_000);
 
 describe('Database port', () => {
   it('keeps prepare/bind immutable across independently bound statements', async () => {
@@ -111,10 +136,9 @@ describe('Database port', () => {
       'SELECT value FROM database_port_fixture WHERE marker = ?',
     ).bind('nullable').first<string>('value')).resolves.toBe('present');
 
-    const missingColumn = await db.prepare(
+    const missingColumn = await expectDatabaseError(db.prepare(
       'SELECT value FROM database_port_fixture WHERE marker = ?',
-    ).bind('nullable').first('does_not_exist').catch((error: unknown) => asDatabaseError(error));
-    expect(missingColumn.kind).toBe('syntax');
+    ).bind('nullable').first('does_not_exist'));
   });
 
   it('returns D1-compatible all/run results and changes metadata', async () => {
@@ -169,24 +193,57 @@ describe('Database port', () => {
   it('maps D1 rejection boundaries without leaking vendor errors', async () => {
     const db = await openFixture();
 
-    const syntax = await db.prepare('SELECT * FROM table_that_does_not_exist').all()
-      .catch((error: unknown) => asDatabaseError(error));
+    const syntax = await expectDatabaseError(db.prepare('SELECT * FROM table_that_does_not_exist').all());
     expect(syntax.kind).toBe('syntax');
     expect(syntax.message).not.toContain('table_that_does_not_exist');
+    const syntaxWithTriggerCode = await expectDatabaseError(
+      db.prepare('SELECT stale_draft_version FROM table_that_does_not_exist').all(),
+    );
+    expect(syntaxWithTriggerCode.kind).toBe('syntax');
+    expect(syntaxWithTriggerCode.applicationCode).toBeUndefined();
 
-    const arity = await db.prepare('SELECT ? AS value').first()
-      .catch((error: unknown) => asDatabaseError(error));
-    expect(arity.kind).toBe('bind_arity');
+    const arityZero = await expectDatabaseError(db.prepare('SELECT ? AS value').first());
+    expect(arityZero.kind).toBe('bind_arity');
+    const arityTwo = await expectDatabaseError(db.prepare('SELECT ? AS value').bind('one', 'two').first());
+    expect(arityTwo.kind).toBe('bind_arity');
+    const functionArity = await expectDatabaseError(db.prepare("SELECT substr('x', 1, 2, 3)").first());
+    expect(functionArity.kind).toBe('syntax');
 
     await db.prepare(
       'INSERT INTO database_port_fixture (value, marker) VALUES (?, ?)',
     ).bind('unique', 'stable-marker').run();
-    const unique = await db.prepare(
+    const unique = await expectDatabaseError(db.prepare(
       'INSERT INTO database_port_fixture (value, marker) VALUES (?, ?)',
-    ).bind('duplicate', 'stable-marker').run()
-      .catch((error: unknown) => asDatabaseError(error));
+    ).bind('duplicate', 'stable-marker').run());
     expect(unique.kind).toBe('constraint');
     expect(unique.constraintSubtype).toBe('unique');
+  });
+
+  it('maps real primary-key and unknown-trigger constraints without leaking codes', async () => {
+    const db = await openFixture();
+    await db.prepare('INSERT INTO database_port_primary (id, value) VALUES (?, ?)')
+      .bind(1, 'first').run();
+    const primary = await expectDatabaseError(
+      db.prepare('INSERT INTO database_port_primary (id, value) VALUES (?, ?)')
+        .bind(1, 'duplicate').run(),
+    );
+    expect(primary).toMatchObject({ kind: 'constraint', constraintSubtype: 'primary_key' });
+    const allowed = await expectDatabaseError(
+      db.prepare('INSERT INTO database_port_allowed_trigger (id) VALUES (?)')
+        .bind(1).run(),
+    );
+    expect(allowed).toMatchObject({
+      kind: 'constraint',
+      constraintSubtype: 'trigger',
+      applicationCode: 'invite_token_already_used',
+    });
+
+    const trigger = await expectDatabaseError(
+      db.prepare('INSERT INTO database_port_trigger (id, value) VALUES (?, ?)')
+        .bind(1, 'blocked').run(),
+    );
+    expect(trigger).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+    expect(trigger.applicationCode).toBeUndefined();
   });
 
   it('does not translate SQL at the D1 adapter boundary', () => {

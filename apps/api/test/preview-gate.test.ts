@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Database } from '@ccc/contracts/database';
 import worker from '../src/index';
 import { resolvePreviewE2eActorEmail } from '../src/preview-gate';
 import type { ApiEnv } from '../src/identity';
@@ -11,7 +12,7 @@ const TEST_ADMIN_CODE = 'test-preview-admin-code-5678';
 const TEST_E2E_CODE = 'test-preview-e2e-code-9012';
 
 const baseEnv: ApiEnv = {
-  DB: undefined as unknown as D1Database,
+  DB: undefined as unknown as Database,
   PII_ENC_KEY: 'local-test-key-not-for-production',
   AUDIO_BUCKET: undefined as unknown as R2Bucket,
 };
