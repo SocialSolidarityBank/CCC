@@ -1,6 +1,6 @@
 # CCC-191 외부 신청과 자격 확인 기록
 
-확인 시각은 2026-09-03 22:29 KST입니다. 이 문서는 신청 상태와 다음 행동만 기록합니다. 계정 식별자, 인증 정보, 결제 정보, 신분증, 계약서 원문은 저장하지 않았습니다.
+확인 시각은 2026-09-04 01:48 KST입니다. 이 문서는 신청 상태와 다음 행동만 기록합니다. 계정 식별자, 인증 정보, 결제 정보, 신분증, 계약서 원문은 저장하지 않았습니다.
 
 ## 상태 요약
 
@@ -10,7 +10,7 @@
 | Microsoft Artifact Signing Public Trust | 보류. 현재 스폰서십 구독은 지원 대상이 아니며 별도 PAYG 구독도 만들지 않습니다. | Seongqkim | 유료 서비스 시작 또는 정식 Windows 설치판 배포를 결정할 때 다시 검토합니다. | [Artifact Signing FAQ](https://learn.microsoft.com/en-us/azure/artifact-signing/faq#can-i-use-artifact-signing-with-a-free-trial-or-sponsored-azure-subscription) |
 | Microsoft 비영리 자격과 Azure grant | 비영리 자격과 USD 2,000 grant가 활성 상태입니다. 구독은 MCA 기반 Microsoft Azure Plan이며 Azure 비영리 스폰서십 크레딧이 연결돼 있습니다. | Seongqkim | grant 범위 안에서 개발용 Azure 리소스가 필요할 때 사용합니다. | `microsoft-nonprofit-approval-redacted.png`, `azure-grant-approved-redacted.png`, [Azure Plan](https://azure.microsoft.com/ko-kr/pricing/offers/ms-azr-0017g/) |
 | pyannote gated model 2종 | 두 저장소 모두 접근이 승인됐습니다. | Seongqkim | 승인 완료. E5-2에서 고정 revision 다운로드를 검증합니다. | `pyannote-speaker-diarization-3.1-access.png`, `pyannote-segmentation-3.0-access.png` |
-| OpenAI DPA | 2026-09-03 08:16 KST에 문서가 전달됐지만 09:03 KST에 서명이 거부되어 요청이 종료됐습니다. 유효한 DPA는 없습니다. | Seongqkim | 2026-09-04 09:00 KST에 기관 API 조직과 권한 있는 서명자의 지정 상태를 확인합니다. | `openai-dpa-request-confirmation.png`, `openai-dpa-delivery-redacted.png`, `openai-dpa-decline-mail-redacted.png` |
+| OpenAI DPA | 보류. API 조직 표시 이름과 Owner 권한은 확인했지만 유효한 DPA는 없습니다. | Seongqkim | 실제 당사자 자료를 OpenAI API로 보내기 전에 대표자 직접 서명 또는 서면 위임 방식으로 다시 요청합니다. | `openai-dpa-request-confirmation.png`, `openai-dpa-delivery-redacted.png`, `openai-dpa-decline-mail-redacted.png` |
 | 법무 조정 | CCC-191, SG14, E11-1a의 Linear 담당자는 Seongqkim입니다. 외부 법률 검토자와 권한 있는 서명자는 아직 정해지지 않았습니다. | Seongqkim | E11-1a 담당자표 2026-09-04, SG14 계약 2026-09-05 | Linear `CCC-191`, `CCC-189`, `CCC-157` |
 
 ## Microsoft와 코드서명
@@ -51,16 +51,30 @@ Artifact Signing 생성 화면에서는 현재 구독을 선택할 수 있지만
 
 ## OpenAI DPA
 
-OpenAI가 검토 문서를 2026-09-03 08:16:44 KST에 지정된 메일함으로 전달했습니다. 양식 제출 완료 화면은 그 직후인 08:17:48 KST에 저장했습니다. 해당 문서는 09:03:47 KST에 서명이 거부돼 발송인에게 통지됐고, 요청은 종료됐습니다.
+2026-09-03의 첫 요청은 서명이 거부돼 종료됐으며 다시 사용할 수 없습니다. 2026-09-04에 API 조직의 화면 표시 이름을 `Social Solidarity Bank`로 저장하고 현재 운영 담당자의 `Owner` 권한을 확인했습니다. 이 이름은 화면용 표시값이며 기관의 법적 실재나 계약 권한 검증을 대신하지 않습니다.
 
-현재 OpenAI API 화면에서는 개인 조직과 기본 프로젝트만 확인됐으며 기관 API 조직은 확인되지 않았습니다. ChatGPT Business workspace가 있다는 사실만으로 API 조직의 법적 계약 권한을 추정하지 않습니다. 새 DPA는 다음 두 조건을 먼저 충족한 뒤 요청합니다.
+현재는 가상 데이터만 사용하므로 새 DPA 요청을 보류합니다. 실제 당사자 자료를 OpenAI API로 보내기 전에 기관 대표자가 직접 서명하거나, 아래 절차로 위임 근거를 남기고 기관 규정과 법률 검토에서 서명 권한이 유효하다고 확인된 사람이 새 요청에 서명합니다.
 
-1. 기관 명의 OpenAI API 조직과 계약 대상 범위를 확인합니다.
-2. 기관을 대표해 계약할 권한이 있는 서명자를 지정합니다.
+DPA를 체결해도 실제 자료 사용이 자동으로 승인되지는 않습니다. 당사자 동의, 국외 이전 고지, 2단 마스킹, ZDR 또는 MAM 승인 여부, SG14와 E11-1a의 법무 게이트를 모두 별도로 충족해야 합니다. OpenAI는 [API data controls 문서](https://developers.openai.com/api/docs/guides/your-data)에서 ZDR과 MAM을 사전 승인이 필요한 별도 통제로 설명합니다.
 
-DPA 요청은 ZDR 또는 MAM 승인과 별개입니다. OpenAI는 [API data controls 문서](https://developers.openai.com/api/docs/guides/your-data)에서 ZDR과 MAM을 사전 승인이 필요한 별도 통제로 설명합니다. 이번 기록은 ZDR이나 MAM이 승인됐다는 근거로 사용하지 않습니다.
+### 대표자가 서명 권한을 위임하는 방법
 
-다음 확인 시각은 2026-09-04 09:00 KST입니다. 그때 기관 API 조직과 권한 있는 서명자가 모두 정해진 경우에만 새 요청을 만듭니다.
+대표자가 직접 서명하는 방법을 우선합니다. 다른 담당자가 대신 서명하려면 DPA 요청 전에 다음 내용을 담은 위임 근거를 기관 내부에 남깁니다.
+
+1. 위임 기관의 법인명
+2. 위임하는 대표자의 이름과 직책
+3. 위임받는 사람의 이름과 직책
+4. 위임 범위: `OpenAI Data Processing Addendum 체결 및 서명`
+5. 위임 유효기간 또는 해당 DPA 1건에만 적용한다는 제한
+6. 승인 날짜와 대표자의 확인
+
+위임 근거는 기관 전자결재, 대표자가 서명한 위임 문서, 발신자를 확인할 수 있는 기관 이메일 중 하나로 보존합니다. 구두 승인만으로는 대신 서명하지 않습니다.
+
+이 목록은 내부 운영을 위한 최소 기록이며, 작성만으로 법적 서명 권한이 생기지는 않습니다. 위임의 유효성은 기관 규정과 SG14, E11-1a의 법률 검토에서 별도로 확인합니다.
+
+OpenAI DPA 양식의 서명자 이름과 이메일에는 실제로 서명할 위임받은 사람의 정보를 함께 입력합니다. 대표자 이름과 다른 사람의 이메일을 섞지 않습니다.
+
+위임 근거와 체결된 DPA 원문은 접근을 제한한 기관 내부 저장소에 보관합니다. 공개 저장소에는 체결 상태, 날짜와 문서 해시만 기록하고 이메일, 서명, 계약 원문은 올리지 않습니다.
 
 ## 법무 후속 경계
 
