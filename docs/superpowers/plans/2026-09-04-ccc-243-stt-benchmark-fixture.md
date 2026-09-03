@@ -141,7 +141,7 @@ Use the verified local package manager, record `espeak-ng --version` and executa
 
 Generate into two clean temporary roots and compare every reference, manifest, license, WAV, and archive hash. Any mismatch is a failure; do not normalize it away.
 
-- [ ] **Step 3: Publish the release asset**
+- [x] **Step 3: Publish the release asset**
 
 Create the `s13-fixture-v1` GitHub Release from the verified archive. Do not overwrite an existing asset with different bytes. Record the final archive name and SHA-256 in manifest.
 
@@ -181,6 +181,6 @@ pnpm guard:secrets
 
 Expected: all commands pass.
 
-- [ ] **Step 8: Commit and publish**
+- [x] **Step 8: Commit and publish**
 
 Commit only the scripts, tests, tracked manifests/references, verification receipt, and CI wiring. Open a PR for CCC-243, obtain independent review, merge after CI passes, then add a plain-language Linear completion comment and set CCC-243 to Done.
