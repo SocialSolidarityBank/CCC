@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "name": "openai/whisper",
+      "version": "medium",
+      "revision": "86098128c0b4f24f0e2aa2994de830614b474227",
+      "license": "MIT",
+      "source": "https://github.com/openai/whisper",
+      "checkpointUrl": "https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt",
+      "checkpointSha256": "345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1"
+    },
+    {
+      "name": "pyannote/speaker-diarization-3.1",
+      "version": "3.1",
+      "revision": "84fd25912480287da0247647c3d2b4853cb3ee5d",
+      "license": "MIT",
+      "source": "https://huggingface.co/pyannote/speaker-diarization-3.1",
+      "approvalRequired": true
+    },
+    {
+      "name": "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition",
+      "version": "latest-approved",
+      "revision": "c9d0e4a8eaa1613129c50d7a42ab569c94c46b85",
+      "license": "Apache-2.0",
+      "source": "https://huggingface.co/jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition"
+    },
+    {
+      "name": "LimYeri/HowRU-KoELECTRA-Emotion-Classifier",
+      "version": "latest-approved",
+      "revision": "072596063415c754b5661ab2bdda7afa10eca726",
+      "license": "MIT",
+      "source": "https://huggingface.co/LimYeri/HowRU-KoELECTRA-Emotion-Classifier"
+    },
+    {
+      "name": "FrameByFrame/korean-pii-e5-base",
+      "version": "latest-approved",
+      "revision": "a308c54b4407819624a5661e31e162a269f39818",
+      "license": "MIT",
+      "source": "https://huggingface.co/FrameByFrame/korean-pii-e5-base"
+    }
+  ]
+}

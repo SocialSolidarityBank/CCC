@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {"name":"@img/sharp-libvips-darwin-x64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linux-arm","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linux-arm64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linux-ppc64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linux-riscv64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linux-s390x","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linux-x64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linuxmusl-arm64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@img/sharp-libvips-linuxmusl-x64","version":"1.2.4","license":"LGPL-3.0-or-later","source":"https://sharp.pixelplumbing.com"},
+    {"name":"@emnapi/runtime","version":"1.11.2","license":"MIT","source":"https://github.com/toyobayashi/emnapi#readme"},
+    {"name":"@emnapi/core","version":"1.11.1","license":"MIT","source":"https://github.com/toyobayashi/emnapi#readme"},
+    {"name":"@emnapi/wasi-threads","version":"1.2.2","license":"MIT","source":"https://github.com/toyobayashi/emnapi#readme"},
+    {"name":"@emnapi/runtime","version":"1.11.1","license":"MIT","source":"https://github.com/toyobayashi/emnapi#readme"},
+    {"name":"@napi-rs/wasm-runtime","version":"1.1.6","license":"MIT","source":"https://napi.rs/"},
+    {"name":"@tybys/wasm-util","version":"0.10.3","license":"MIT","source":"https://github.com/toyobayashi/wasm-util#readme"}
+  ]
+}

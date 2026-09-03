@@ -11,6 +11,7 @@ Qwen3-ASR-1.7B 이고, 확정은 실측 게이트 G1~G3 통과 후다(그 세션
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from .chunking import (
     plan_chunks,
 )
 from .repetition import DEFAULT_REPEAT_THRESHOLD, RepetitionRun, collapse_runs, find_repetition_runs
+from .model_registry import ModelRegistryError, role_spec
 from .speaker_mapping import Segment
 
 logger = logging.getLogger("ccc_pipeline")
@@ -50,17 +52,42 @@ class TranscriptionResult:
 
 
 def build_engine(name: str, model_name: str) -> Engine:
-    """설정값으로 엔진을 만든다. 모르는 이름은 조용히 폴백하지 않고 즉시 실패한다."""
+    """설정값으로 엔진을 만든다. 모델도 manifest에 고정된 항목만 허용한다."""
     if name == ENGINE_WHISPER:
+        try:
+            role_spec("whisper", model_name)
+        except ModelRegistryError as error:
+            raise ValueError("Whisper model is not declared in model manifest") from error
         return _build_whisper(model_name)
     raise ValueError(f"unknown STT engine: {name!r} (known: {', '.join(KNOWN_ENGINES)})")
 
 
+def _verified_checkpoint(path: Path, expected_sha256: str) -> None:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != expected_sha256.lower():
+        raise RuntimeError("Whisper checkpoint SHA-256 does not match the release manifest")
+
+
 def _build_whisper(model_name: str) -> Engine:
+    spec = role_spec("whisper", model_name)
+
     def run(audio_path: str) -> list[Segment]:
         import whisper  # noqa: PLC0415 — ML 지연 임포트
 
-        model = whisper.load_model(model_name)
+        models = getattr(whisper, "_MODELS", {})
+        model_url = models.get(spec.version)
+        if model_url != spec.checkpoint_url or spec.checkpoint_sha256 is None:
+            raise RuntimeError("Whisper checkpoint URL is not the manifest-approved medium checkpoint")
+        downloader = getattr(whisper, "_download", None)
+        if not callable(downloader):
+            raise RuntimeError("Whisper downloader is unavailable; checkpoint cannot be verified")
+        cache_root = Path.home() / ".cache" / "whisper"
+        checkpoint = Path(downloader(spec.checkpoint_url, cache_root, in_memory=False))
+        _verified_checkpoint(checkpoint, spec.checkpoint_sha256)
+        model = whisper.load_model(spec.version, download_root=str(cache_root))
         result = model.transcribe(audio_path, language="ko")  # 한국어 고정(상담 언어)
         return [
             Segment(start=float(s["start"]), end=float(s["end"]), text=str(s["text"]))
