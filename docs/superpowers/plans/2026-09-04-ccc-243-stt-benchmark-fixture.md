@@ -33,11 +33,11 @@
 - Produces: `verify_fixture(manifest_path: Path, audio_dir: Path) -> dict` and CLI `--manifest`, `--audio-dir`, `--out`.
 - Consumes: canonical manifest, references, licenses, and fetched PCM WAV files.
 
-- [ ] **Step 1: Write failing validation tests**
+- [x] **Step 1: Write failing validation tests**
 
 Use temporary literal fixtures to prove the verifier rejects a missing session, wrong SHA-256, duration outside 60–180 seconds, speaker count other than two, absent silence/overlap, invalid or overlapping declared ranges, missing license entries, and a WAV whose actual duration differs from the manifest. Add one valid two-session miniature fixture that must produce a PASS receipt without transcript or audio content.
 
-- [ ] **Step 2: Run the tests and confirm RED**
+- [x] **Step 2: Run the tests and confirm RED**
 
 Run:
 
@@ -47,15 +47,15 @@ python3 -m unittest discover -s scripts/stt/tests -p "test_*.py" -v
 
 Expected: import failure because `scripts/stt/fixture_tools.py` does not exist.
 
-- [ ] **Step 3: Implement the minimum validator**
+- [x] **Step 3: Implement the minimum validator**
 
 Use only `hashlib`, `json`, `pathlib`, and `wave`. Canonical JSON uses UTF-8, sorted keys, compact separators, and one trailing LF. Hash the transcript UTF-8 bytes, the canonical `speakerTurns` array, each WAV file, `licenses.json`, and the raw manifest bytes. Validate exact session IDs, unique case/session pairs, reference structure, sorted nonnegative ranges within duration, and two distinct speaker labels.
 
-- [ ] **Step 4: Emit privacy-safe verification evidence**
+- [x] **Step 4: Emit privacy-safe verification evidence**
 
 The receipt contains fixture ID, manifest SHA-256, session count, min/max duration, total duration, count of two-speaker sessions, count with silence, count with overlap, license manifest SHA-256, checked file count, and `status: "PASS"`. It never copies transcript text, speaker turns, or audio bytes.
 
-- [ ] **Step 5: Run tests and confirm GREEN**
+- [x] **Step 5: Run tests and confirm GREEN**
 
 Run the same unittest command. Expected: all tests pass.
 
@@ -69,19 +69,19 @@ Run the same unittest command. Expected: all tests pass.
 - Produces: CLI `--manifest`, `--release-tag`, optional `--archive` for an already-downloaded test/archive, and `--audio-dir`.
 - Consumes: manifest archive name/SHA-256 plus GitHub release metadata for `SocialSolidarityBank/CCC`.
 
-- [ ] **Step 1: Write failing fetch tests**
+- [x] **Step 1: Write failing fetch tests**
 
 Create deterministic tiny tar archives in temporary directories. Prove the fetcher rejects archive hash mismatch, absolute paths, `..` traversal, symlinks, missing WAV members, unexpected members, and a release-tag mismatch. Prove a valid archive extracts atomically and leaves no partial destination on failure.
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Expected: import failure because `fetch_fixture.py` does not exist.
 
-- [ ] **Step 3: Implement the minimum fetcher**
+- [x] **Step 3: Implement the minimum fetcher**
 
 Use `urllib.request`, `tarfile`, `tempfile`, and atomic directory rename. Resolve the GitHub Release by the exact tag, download the exact archive filename, verify archive SHA-256 before extraction, allow only manifest-declared regular WAV paths, verify every extracted WAV hash, and replace the destination only after all checks pass.
 
-- [ ] **Step 4: Run tests and confirm GREEN**
+- [x] **Step 4: Run tests and confirm GREEN**
 
 Run the focused unittest suite. Expected: all tests pass.
 
@@ -98,27 +98,27 @@ Run the focused unittest suite. Expected: all tests pass.
 - Produces: `generate(output_root: Path, espeak_path: Path) -> GenerationReceipt`, 150 WAV files, reference JSON, manifests, and deterministic `s13-fixture-v1.tar.gz`.
 - Consumes: checked-in synthetic script templates and pinned eSpeak NG executable.
 
-- [ ] **Step 1: Write failing generation-plan tests**
+- [x] **Step 1: Write failing generation-plan tests**
 
 Assert literal case/session IDs, 150 unique sessions, two speaker labels, Korean nonempty turns, one deliberate overlap, one deliberate silence, no phone/email/account patterns, and stable output from two calls to the pure timeline planner.
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Expected: import failure because `generate_fixture.py` does not exist.
 
-- [ ] **Step 3: Implement pure script and timeline planning**
+- [x] **Step 3: Implement pure script and timeline planning**
 
 Define 30 synthetic support-case themes and five session-stage templates in code. Use fixed speaker labels `SPEAKER_00` and `SPEAKER_01`, fixed voice variants, fixed rate/pitch, and deterministic start-time rules. Keep content non-identifying and test-only. No random module or clock data enters reference content.
 
-- [ ] **Step 4: Implement audio rendering and mixing**
+- [x] **Step 4: Implement audio rendering and mixing**
 
 Call eSpeak NG once per turn with explicit Korean voice, speed, pitch, amplitude, and WAV output. Read signed 16-bit mono PCM with `wave`, mix turns by integer sample index with clamping, insert planned silence, include at least one overlap, and pad to 60 seconds when needed. Reject sessions over 180 seconds instead of truncating speech.
 
-- [ ] **Step 5: Implement canonical outputs**
+- [x] **Step 5: Implement canonical outputs**
 
 Write reference JSON and licenses first, derive their hashes, write manifest entries, then build a sorted tar.gz with fixed member mode, uid/gid, owner names, and timestamp so the archive hash is stable across runs. Record generator versions and licenses without embedding local paths.
 
-- [ ] **Step 6: Run tests and confirm GREEN**
+- [x] **Step 6: Run tests and confirm GREEN**
 
 Run the focused unittest suite. Expected: all tests pass without invoking eSpeak NG except the explicit integration smoke.
 
@@ -133,19 +133,19 @@ Run the focused unittest suite. Expected: all tests pass without invoking eSpeak
 - Produces: GitHub Release tag `s13-fixture-v1` with one immutable tar.gz asset and a tracked PASS receipt.
 - Consumes: Task 1–3 scripts and exact eSpeak NG version.
 
-- [ ] **Step 1: Install and record eSpeak NG**
+- [x] **Step 1: Install and record eSpeak NG**
 
 Use the verified local package manager, record `espeak-ng --version` and executable SHA-256 in `licenses.json`, and run a two-voice Korean integration smoke. Do not add eSpeak NG to the product runtime or production dependencies.
 
-- [ ] **Step 2: Generate the full fixture twice**
+- [x] **Step 2: Generate the full fixture twice**
 
 Generate into two clean temporary roots and compare every reference, manifest, license, WAV, and archive hash. Any mismatch is a failure; do not normalize it away.
 
-- [ ] **Step 3: Publish the release asset**
+- [x] **Step 3: Publish the release asset**
 
 Create the `s13-fixture-v1` GitHub Release from the verified archive. Do not overwrite an existing asset with different bytes. Record the final archive name and SHA-256 in manifest.
 
-- [ ] **Step 4: Fetch into a clean directory**
+- [x] **Step 4: Fetch into a clean directory**
 
 Run:
 
@@ -155,7 +155,7 @@ python3 scripts/stt/fetch_fixture.py --manifest scripts/stt/fixtures/manifest.js
 
 Expected: 150 WAV files downloaded and hash-verified under the ignored audio directory.
 
-- [ ] **Step 5: Verify the full fixture**
+- [x] **Step 5: Verify the full fixture**
 
 Run:
 
@@ -165,11 +165,11 @@ python3 scripts/stt/verify_fixture.py --manifest scripts/stt/fixtures/manifest.j
 
 Expected: PASS with 150 sessions, every duration in 60–180 seconds, 150 two-speaker truths, 150 silence declarations, 150 overlap declarations, and zero hash/license errors.
 
-- [ ] **Step 6: Wire the focused CI check**
+- [x] **Step 6: Wire the focused CI check**
 
 Add `test:stt-fixtures` to `package.json` using standard-library unittest and run the same command in the existing Python `pipeline-test` job. CI validates scripts and tracked metadata without downloading the large release asset; the tracked verification receipt proves the full release fetch.
 
-- [ ] **Step 7: Run repository verification**
+- [x] **Step 7: Run repository verification**
 
 Run:
 

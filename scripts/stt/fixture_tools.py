@@ -272,6 +272,8 @@ def verify_fixture(
         raise ValueError("license entries must match manifest sessions exactly")
     return {
         "fixtureId": "s13-v1",
+        "audioReleaseTag": manifest["audioReleaseTag"],
+        "audioArchiveName": archive["name"],
         "manifestSha256": sha256_file(manifest_path),
         "archiveSha256": archive["sha256"],
         "sessionCount": len(sessions),

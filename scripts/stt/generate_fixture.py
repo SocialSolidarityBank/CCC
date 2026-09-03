@@ -264,6 +264,17 @@ def _render_turn(espeak_path: Path, turn: dict[str, object], cache_dir: Path) ->
     return _read_pcm_wav(output)
 
 
+def parse_espeak_version(output: str) -> str:
+    prefix = "eSpeak NG text-to-speech:"
+    first_line = output.splitlines()[0].strip() if output.splitlines() else ""
+    if not first_line.startswith(prefix):
+        raise ValueError("unexpected eSpeak NG version output")
+    version = first_line.removeprefix(prefix).strip().split()[0]
+    if not version or not all(part.isdigit() for part in version.split(".")):
+        raise ValueError("invalid eSpeak NG version")
+    return version
+
+
 def _espeak_version(espeak_path: Path) -> str:
     result = subprocess.run(
         [str(espeak_path), "--version"],
@@ -271,10 +282,7 @@ def _espeak_version(espeak_path: Path) -> str:
         capture_output=True,
         text=True,
     )
-    first_line = result.stdout.splitlines()[0].strip()
-    if not first_line:
-        raise ValueError("eSpeak NG version output is empty")
-    return first_line
+    return parse_espeak_version(result.stdout)
 
 
 def generate(

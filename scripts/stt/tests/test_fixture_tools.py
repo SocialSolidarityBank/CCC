@@ -12,7 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fixture_tools import canonical_json_bytes, sha256_bytes, verify_fixture  # noqa: E402
 from fetch_fixture import extract_archive, fetch_fixture  # noqa: E402
-from generate_fixture import build_session_plans, mix_pcm, plan_timeline, write_deterministic_archive  # noqa: E402
+from generate_fixture import (  # noqa: E402
+    build_session_plans,
+    mix_pcm,
+    parse_espeak_version,
+    plan_timeline,
+    write_deterministic_archive,
+)
 
 
 class VerifyFixtureTest(unittest.TestCase):
@@ -131,6 +137,8 @@ class VerifyFixtureTest(unittest.TestCase):
         self.assertEqual(receipt["status"], "PASS")
         self.assertEqual(receipt["sessionCount"], 2)
         self.assertEqual(receipt["archiveSha256"], "0" * 64)
+        self.assertEqual(receipt["audioReleaseTag"], "s13-fixture-v1")
+        self.assertEqual(receipt["audioArchiveName"], "s13-fixture-v1.tar.gz")
         self.assertEqual(receipt["twoSpeakerSessionCount"], 2)
         self.assertEqual(receipt["silenceSessionCount"], 2)
         self.assertEqual(receipt["overlapSessionCount"], 2)
@@ -307,6 +315,14 @@ class GenerateFixturePlanTest(unittest.TestCase):
             (audio / "a.wav").touch()
             write_deterministic_archive(audio, second, ["a.wav", "b.wav"])
             self.assertEqual(first.read_bytes(), second.read_bytes())
+
+    def test_espeak_version_parser_drops_local_data_path(self) -> None:
+        self.assertEqual(
+            parse_espeak_version(
+                "eSpeak NG text-to-speech: 1.52.0  Data at: /opt/homebrew/share/espeak-ng-data",
+            ),
+            "1.52.0",
+        )
 
 
 class FetchFixtureTest(unittest.TestCase):
