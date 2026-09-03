@@ -122,8 +122,8 @@ def plan_timeline(
         overlap_samples = round(float(turn["overlapPreviousSeconds"]) * sample_rate)
         start = max(0, cursor - overlap_samples)
         end = start + sample_count
-        if overlap_samples:
-            overlap_end = min(cursor, end)
+        if overlap_samples and intervals:
+            overlap_end = min(intervals[-1][1], end)
             if overlap_end > start:
                 overlaps.append({
                     "start": round(start / sample_rate, 6),

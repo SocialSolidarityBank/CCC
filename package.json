@@ -13,6 +13,7 @@
     "typecheck": "pnpm --filter @ccc/api run typecheck && pnpm --filter @ccc/web run typecheck",
     "test": "pnpm run test:design-routes && pnpm --filter @ccc/api run test && pnpm --filter @ccc/web run test && pnpm run design:routes",
     "test:design-routes": "node --test scripts/design/route-inventory.test.mjs && python3 -m unittest scripts/design/ia_shots_test.py",
+    "test:stt-fixtures": "python3 -m unittest discover -s scripts/stt/tests -p \"test_*.py\" -v",
     "design:routes": "python3 scripts/design/shots.py --check-inventory",
     "design:sweep": "python3 scripts/design/ia-shots.py --verify-report artifacts/ia-shots/ac3-six-matrix/report.json",
     "design:sweep:capture": "python3 scripts/design/ia-shots.py ac3-six-matrix",

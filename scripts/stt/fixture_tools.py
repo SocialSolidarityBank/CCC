@@ -67,6 +67,61 @@ def _validate_ranges(value: object, field: str, duration: float) -> list[dict[st
     return ranges
 
 
+def _merge_ranges(ranges: list[tuple[float, float]]) -> list[dict[str, float]]:
+    merged: list[list[float]] = []
+    for start, end in sorted(ranges):
+        if not merged or start > merged[-1][1]:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
+    return [{"start": round(start, 6), "end": round(end, 6)} for start, end in merged]
+
+
+def _validate_speaker_truth(turns: list[object], duration: float) -> tuple[list[dict[str, float]], list[dict[str, float]]]:
+    intervals: list[tuple[float, float, str]] = []
+    previous_start = -1.0
+    for index, turn in enumerate(turns):
+        if not isinstance(turn, dict) or set(turn) != {"speaker", "start", "end", "text"}:
+            raise ValueError(f"speakerTurns[{index}] must contain speaker/start/end/text only")
+        speaker = turn["speaker"]
+        start = turn["start"]
+        end = turn["end"]
+        text = turn["text"]
+        if speaker not in {"SPEAKER_00", "SPEAKER_01"} or not isinstance(text, str) or not text.strip():
+            raise ValueError(f"speakerTurns[{index}] has invalid speaker or text")
+        if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+            raise ValueError(f"speakerTurns[{index}] boundaries must be numeric")
+        start = float(start)
+        end = float(end)
+        if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start or end > duration:
+            raise ValueError(f"speakerTurns[{index}] is outside session duration")
+        if start < previous_start:
+            raise ValueError("speakerTurns must be sorted by start")
+        intervals.append((start, end, speaker))
+        previous_start = start
+
+    speech_union = _merge_ranges([(start, end) for start, end, _ in intervals])
+    silences: list[tuple[float, float]] = []
+    previous_end = 0.0
+    for speech in speech_union:
+        if speech["start"] > previous_end:
+            silences.append((previous_end, speech["start"]))
+        previous_end = max(previous_end, speech["end"])
+    if duration > previous_end:
+        silences.append((previous_end, duration))
+
+    overlaps: list[tuple[float, float]] = []
+    for index, (start, end, speaker) in enumerate(intervals):
+        for other_start, other_end, other_speaker in intervals[:index]:
+            if speaker == other_speaker:
+                continue
+            overlap_start = max(start, other_start)
+            overlap_end = min(end, other_end)
+            if overlap_end > overlap_start:
+                overlaps.append((overlap_start, overlap_end))
+    return _merge_ranges(silences), _merge_ranges(overlaps)
+
+
 def _wav_duration(path: Path) -> float:
     try:
         with wave.open(str(path), "rb") as source:
@@ -85,6 +140,7 @@ def verify_fixture(
     audio_dir: Path,
     *,
     expected_session_count: int = 150,
+    expected_session_ids: set[str] | None = None,
 ) -> dict[str, object]:
     manifest_path = manifest_path.resolve()
     fixture_dir = manifest_path.parent
@@ -106,6 +162,21 @@ def verify_fixture(
     sessions = manifest.get("sessions")
     if not isinstance(sessions, list) or len(sessions) != expected_session_count:
         raise ValueError(f"manifest must contain exactly {expected_session_count} sessions")
+    if expected_session_ids is None:
+        if expected_session_count != 150:
+            raise ValueError("expected_session_ids is required for miniature fixture verification")
+        expected_session_ids = {
+            f"case-{case_number:03d}-session-{session_number:02d}"
+            for case_number in range(1, 31)
+            for session_number in range(1, 6)
+        }
+    actual_session_ids = {
+        session.get("sessionId")
+        for session in sessions
+        if isinstance(session, dict)
+    }
+    if actual_session_ids != expected_session_ids:
+        raise ValueError("case/session matrix must contain 30 cases with 5 sessions each")
 
     licenses_path = fixture_dir / "licenses.json"
     expected_license_hash = _require_sha256(manifest.get("licenseManifestSha256"), "licenseManifestSha256")
@@ -182,6 +253,11 @@ def verify_fixture(
         speakers = {turn.get("speaker") for turn in turns if isinstance(turn, dict)}
         if speakers != {"SPEAKER_00", "SPEAKER_01"}:
             raise ValueError(f"speaker truth must contain two fixed labels: {session_id}")
+        expected_silence, expected_overlap = _validate_speaker_truth(turns, duration)
+        if silence_ranges != expected_silence:
+            raise ValueError(f"silenceRanges do not match speaker truth: {session_id}")
+        if overlap_ranges != expected_overlap:
+            raise ValueError(f"overlapRanges do not match speaker truth: {session_id}")
         if reference.get("silenceRanges") != silence_ranges or reference.get("overlapRanges") != overlap_ranges:
             raise ValueError(f"reference ranges mismatch: {session_id}")
         if sha256_bytes(transcript.encode("utf-8")) != _require_sha256(session.get("transcriptSha256"), "transcriptSha256"):
@@ -197,6 +273,7 @@ def verify_fixture(
     return {
         "fixtureId": "s13-v1",
         "manifestSha256": sha256_file(manifest_path),
+        "archiveSha256": archive["sha256"],
         "sessionCount": len(sessions),
         "minDurationSeconds": min(durations),
         "maxDurationSeconds": max(durations),

@@ -27,6 +27,7 @@ class VerifyFixtureTest(unittest.TestCase):
         self.licenses_path = self.fixture_dir / "licenses.json"
         self.manifest_path = self.fixture_dir / "manifest.json"
         self.manifest = self._build_valid_fixture()
+        self.expected_session_ids = {"case-001-session-01", "case-002-session-01"}
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -113,12 +114,23 @@ class VerifyFixtureTest(unittest.TestCase):
 
     def assert_invalid(self, expected: str) -> None:
         with self.assertRaisesRegex(ValueError, expected):
-            verify_fixture(self.manifest_path, self.audio_dir, expected_session_count=2)
+            verify_fixture(
+                self.manifest_path,
+                self.audio_dir,
+                expected_session_count=2,
+                expected_session_ids=self.expected_session_ids,
+            )
 
     def test_valid_fixture_emits_privacy_safe_pass_receipt(self) -> None:
-        receipt = verify_fixture(self.manifest_path, self.audio_dir, expected_session_count=2)
+        receipt = verify_fixture(
+            self.manifest_path,
+            self.audio_dir,
+            expected_session_count=2,
+            expected_session_ids=self.expected_session_ids,
+        )
         self.assertEqual(receipt["status"], "PASS")
         self.assertEqual(receipt["sessionCount"], 2)
+        self.assertEqual(receipt["archiveSha256"], "0" * 64)
         self.assertEqual(receipt["twoSpeakerSessionCount"], 2)
         self.assertEqual(receipt["silenceSessionCount"], 2)
         self.assertEqual(receipt["overlapSessionCount"], 2)
@@ -148,6 +160,43 @@ class VerifyFixtureTest(unittest.TestCase):
                 self._write_json(self.manifest_path, self.manifest)
                 self._rewrite_manifest(lambda value, field=field: value["sessions"][0].update({field: []}))
                 self.assert_invalid(field)
+
+    def test_rejects_wrong_case_session_matrix(self) -> None:
+        def replace_last_session(value: dict) -> None:
+            value["sessions"][-1]["caseId"] = "case-029"
+            value["sessions"][-1]["sessionId"] = "case-029-session-06"
+
+        self._rewrite_manifest(replace_last_session)
+        self.assert_invalid("case/session matrix")
+
+    def test_rejects_ranges_that_disagree_with_speaker_truth(self) -> None:
+        session = self.manifest["sessions"][0]
+        reference_path = self.fixture_dir / session["referencePath"]
+        reference = json.loads(reference_path.read_text())
+        wrong_overlap = [{"start": 10.0, "end": 11.0}]
+        reference["overlapRanges"] = wrong_overlap
+        self._write_json(reference_path, reference)
+
+        def replace_overlap(value: dict) -> None:
+            value["sessions"][0]["overlapRanges"] = wrong_overlap
+
+        self._rewrite_manifest(replace_overlap)
+        self.assert_invalid("overlapRanges.*speaker truth")
+
+    def test_rejects_speaker_turn_outside_duration(self) -> None:
+        session = self.manifest["sessions"][0]
+        reference_path = self.fixture_dir / session["referencePath"]
+        reference = json.loads(reference_path.read_text())
+        reference["speakerTurns"][1]["end"] = 61.0
+        self._write_json(reference_path, reference)
+
+        def replace_speaker_hash(value: dict) -> None:
+            value["sessions"][0]["speakerTruthSha256"] = sha256_bytes(
+                canonical_json_bytes(reference["speakerTurns"]),
+            )
+
+        self._rewrite_manifest(replace_speaker_hash)
+        self.assert_invalid("speakerTurns.*duration")
 
     def test_rejects_invalid_range(self) -> None:
         self._rewrite_manifest(
@@ -227,6 +276,10 @@ class GenerateFixturePlanTest(unittest.TestCase):
             [20] * len(plan["turns"]),
             sample_rate=10,
             minimum_seconds=60,
+        )
+        self.assertAlmostEqual(
+            timeline["overlapRanges"][0]["end"] - timeline["overlapRanges"][0]["start"],
+            0.2,
         )
         self.assertEqual(timeline["totalSamples"], 600)
         self.assertEqual(timeline["durationSeconds"], 60.0)
