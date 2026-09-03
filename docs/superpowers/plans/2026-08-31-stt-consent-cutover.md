@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3, Whisper, Qwen3-ASR, CLOVA Speech API, RTZR Batch STT API, pyannote.audio, Cloudflare Workers, D1과 PostgreSQL, TypeScript, Vitest, unittest
 
+> **Superseded by ADR-0041 in part:** 이 2026-08-31 계획에서 사용한 D76~D79 초안 번호와 의미는 비정본이며 ADR-0041의 D76~D83 번호와 의미로 대체한다. 네 엔진 운영 목록, Whisper 기본값, CLOVA·RTZR 원음 외부 처리 전제와 동의 4영역도 ADR-0041 D77 및 ADR-0040 §9의 정본으로 대체한다. D53의 무음 경계 청크, 반복 검사와 엔진 추상화, 외부 provider의 자동 폴백 금지 등 안전장치는 보존한다. 이 계획은 조사와 역사 기록으로 남긴다.
+
 ## Global Constraints
 
 - D78의 엔진 목록은 `whisper`, `clova`, `rtzr`, `qwen3-asr` 네 개다.
@@ -112,6 +114,8 @@ export interface ConsentScopeEvent {
 ---
 
 ### Task 1: D78, D79 정본과 벤더 연구 보존
+
+> **부분 대체 표식 (ADR-0041):** 이 Task의 네 엔진과 동의 4영역을 정본으로 기록하는 단계는 현재 정책에 적용하지 않는다. 벤더 연구와 D53 안전장치의 역사적 근거는 보존한다.
 
 **Files:**
 - Modify: `CLAUDE.md`

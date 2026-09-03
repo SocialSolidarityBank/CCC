@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { PreparedStatement } from '@ccc/contracts/database';
 import {
   ConflictError,
   ForbiddenError,
@@ -182,10 +183,10 @@ describe('createIntakeRecord', () => {
     const initial = await seedCase();
     await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
     let intercepted = false;
-    const raceDb = new Proxy(t.db, {
+    const raceDb = new Proxy(t.env.DB, {
       get(target, property, receiver) {
         if (property === 'batch') {
-          return async (statements: D1PreparedStatement[]) => {
+          return async (statements: PreparedStatement[]) => {
             if (!intercepted) {
               intercepted = true;
               await target.prepare(
@@ -202,7 +203,7 @@ describe('createIntakeRecord', () => {
         const value: unknown = Reflect.get(target, property, receiver);
         return typeof value === 'function' ? value.bind(target) : value;
       },
-    }) as D1Database;
+    });
 
     await expect(updateIntakeRecord(
       { ...t.env, DB: raceDb },
@@ -224,10 +225,10 @@ describe('createIntakeRecord', () => {
     const initial = await seedCase();
     await createIntakeRecord(t.env, canonicalActors.counselor, initial.supportCaseId, intakeInput());
     let intercepted = false;
-    const raceDb = new Proxy(t.db, {
+    const raceDb = new Proxy(t.env.DB, {
       get(target, property, receiver) {
         if (property === 'batch') {
-          return async (statements: D1PreparedStatement[]) => {
+          return async (statements: PreparedStatement[]) => {
             if (!intercepted) {
               intercepted = true;
               await target.prepare(
@@ -258,7 +259,7 @@ describe('createIntakeRecord', () => {
         const value = Reflect.get(target, property, receiver) as unknown;
         return typeof value === 'function' ? value.bind(target) : value;
       },
-    }) as D1Database;
+    });
 
     await expect(updateIntakeRecord(
       { ...t.env, DB: raceDb },

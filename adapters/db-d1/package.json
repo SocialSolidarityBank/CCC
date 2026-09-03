@@ -1,0 +1,12 @@
+{
+  "name": "@ccc/db-d1",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*"
+  }
+}

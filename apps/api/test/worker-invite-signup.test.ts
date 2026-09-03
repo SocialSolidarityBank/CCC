@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Database, PreparedStatement } from '@ccc/contracts/database';
 import worker from './support/local-worker';
 import {
   completeOrganizationOnboarding,
@@ -180,29 +181,26 @@ describe('POST /invites/worker (공개 가입 완료)', () => {
   it('검증 뒤 발급자가 비활성화해 토큰이 폐기되면 가입 배치가 계정을 만들지 않는다', async () => {
     const token = await issueWorkerToken();
     let intercepted = false;
-    const raceDb = new Proxy(t.db, {
-      get(target, property, receiver) {
-        if (property === 'batch') {
-          return async (statements: D1PreparedStatement[]) => {
-            if (!intercepted) {
-              intercepted = true;
-              await target.prepare(
-                'UPDATE invite_tokens SET revoked_at = datetime(\'now\') WHERE token = ?',
-              ).bind(token).run();
-            }
-            return target.batch(statements);
-          };
+    const baseDb = t.env.DB;
+    const raceDb: Database = {
+      prepare: baseDb.prepare.bind(baseDb),
+      async batch<T = unknown>(statements: PreparedStatement[]) {
+        if (!intercepted) {
+          intercepted = true;
+          await t.db.prepare(
+            'UPDATE invite_tokens SET revoked_at = datetime(\'now\') WHERE token = ?',
+          ).bind(token).run();
         }
-        const value: unknown = Reflect.get(target, property, receiver);
-        return typeof value === 'function' ? value.bind(target) : value;
+        return baseDb.batch<T>(statements);
       },
-    }) as D1Database;
+    };
 
     const response = await worker.fetch(
       signupRequest({ token, name: '폐기 뒤 가입', email: 'revoked.worker@example.invalid' }),
       { ...openEnv(), DB: raceDb },
     );
     expect(response.status).toBe(404);
+    expect(intercepted).toBe(true);
     const users = await listUsers(t.env, admin);
     expect(users.some((user) => user.email === 'revoked.worker@example.invalid')).toBe(false);
     await expect(t.db.prepare(

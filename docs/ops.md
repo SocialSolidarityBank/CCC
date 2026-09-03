@@ -148,6 +148,39 @@ pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
 - **배포 후 확인**: 브라우저로 https://ccc-preview.account-855.workers.dev/preview 를 열어 눈으로 본다. 서브 CSS에 토큰이 실렸는지는 `curl`로도 볼 수 있지만 그것만으로는 레이아웃 깨짐을 못 잡는다.
 - CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다. 통과 못 한 상태로 배포하지 않는다.
 
+## 기관 소유 Supabase 사전 점검 (D84, ADR-0042, CCC-140)
+
+`plan`은 프로젝트를 바꾸지 않고 리전, 읽기 권한, 기존 데이터, 설치 버전, RLS, Auth, Storage 상태와 적용 예정 자원을 확인한다. `apply`, `verify`, `status`는 아직 열지 않았다.
+
+호스팅 프로젝트:
+
+```bash
+# 토큰 값은 승인된 시크릿 관리자에서 환경변수로 주입한다.
+pnpm supabase:bootstrap -- plan --target hosted --project-ref <프로젝트-식별자>
+```
+
+필수 시크릿 이름은 `SUPABASE_ACCESS_TOKEN`이다. 값은 명령행, 파일, 출력에 넣지 않는다. 프로젝트 식별자는 `--project-ref` 대신 `CCC_SUPABASE_PROJECT_REF` 비시크릿 환경변수로 줄 수 있다.
+
+로컬 Supabase:
+
+```bash
+supabase start
+pnpm supabase:bootstrap -- plan --target local --workdir <Supabase-프로젝트-디렉터리>
+```
+
+호스팅 경로는 Supabase Management API의 프로젝트 조회, Auth 설정 조회, `database/query/read-only`만 호출한다. 로컬 경로는 PostgreSQL `BEGIN READ ONLY` 트랜잭션을 쓴다. 두 경로 모두 실행 전후의 스키마, 정책, 버킷, Auth, 기관 데이터 지문이 같아야 통과한다. 임시 결과 파일은 만들지 않는다.
+
+| 코드 | 뜻 | 다음 행동 |
+| --- | --- | --- |
+| `CREDENTIAL_MISSING` | 토큰이 주입되지 않음 | 시크릿 관리자 주입 경로를 확인한다 |
+| `CREDENTIAL_INVALID` | 토큰이 무효 또는 만료됨 | 토큰을 교체한 뒤 다시 실행한다 |
+| `CREDENTIAL_INSUFFICIENT` | 프로젝트, Auth, DB 읽기 권한이 부족함 | 읽기 권한 범위를 보완한다 |
+| `REGION_UNVERIFIED` | 운영 리전 증거를 읽지 못함 | 프로젝트 조회 권한으로 서울 리전을 확인한다 |
+| `REGION_MISMATCH` | 서울 외 리전임 | 서울 리전의 새 프로젝트를 사용한다 |
+| `EXISTING_PROJECT` | CCC 설치 이력 없이 기존 표나 데이터가 있음 | 빈 프로젝트를 사용하거나 별도 채택 검토를 연다 |
+| `VERSION_GAP`, `VERSION_AHEAD` | 현재 레포가 직접 처리하지 못하는 버전임 | 맞는 레포 또는 중간 업그레이드 경로를 사용한다 |
+| `STATE_CHANGED_DURING_PLAN` | 점검 중 다른 변경이 일어남 | 변경 작업이 끝난 뒤 다시 실행한다 |
+
 ## 운영 배포 (`.github/workflows/deploy-production.yml`, 2026-07-31 신설)
 
 > **2026-08-01: 운영 D1 마이그레이션 15개(0012~0028) 적용 완료.** 스키마 게이트는 이제 통과한다 — 어제까지 운영 배포를 물리적으로 막던 잠금이 풀렸고, 남은 것은 확인 문구와 승인 둘이다. 적용 전후 행 수·되돌릴 Time Travel 북마크·확인한 스키마 목록은 `artifacts/prod-migration-2026-08-01/`. `yellow` **운영 DB 가 배포된 코드(2026-07-15)보다 앞선 상태**이고, 이 간극은 운영 배포로 닫는 것이 정상 순서다. 스키마를 맞춘 것이 실서비스 개시 조건(보존·파기 파이프라인, D46)을 충족했다는 뜻은 아니다.

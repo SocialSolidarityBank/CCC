@@ -22,6 +22,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from .condition_terms import ALL_TERMS
+from .model_registry import ModelRegistryError, model_spec
 
 # 치환 토큰 — 검토 화면에서 마스킹 사실이 보이도록 각괄호 한글 라벨을 쓴다.
 PHONE_TOKEN = "[전화번호]"
@@ -252,14 +253,19 @@ def _span_fn(recognizer, label_prefixes: tuple[str, ...]):  # noqa: ANN001, ANN2
 
 
 def _build_span_ner(model_id: str, label_prefixes: tuple[str, ...]):  # noqa: ANN202 — 반환은 NerFn
-    """transformers NER 파이프라인을 스팬 함수로 감싼다 (지연 임포트 — ML 설치 환경 전용).
-
-    라벨 체계는 모델마다 다르므로 **모델과 라벨 접두를 한 쌍으로 설정**하고(config.py),
-    여기서 모델이 선언한 라벨과 대조한다. 어긋나면 뜨지 않는다.
-    """
+    """transformers NER 파이프라인을 manifest revision으로 고정한다."""
     from transformers import pipeline  # noqa: PLC0415
 
-    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    try:
+        spec = model_spec(model_id)
+    except ModelRegistryError as error:
+        raise MaskingConfigError("NER model is not declared in model manifest") from error
+    recognizer = pipeline(
+        "token-classification",
+        model=spec.name,
+        revision=spec.revision,
+        aggregation_strategy="simple",
+    )
     _assert_labels_exist(recognizer, model_id, label_prefixes)
     return _span_fn(recognizer, label_prefixes)
 
@@ -283,9 +289,18 @@ def build_person_and_address_ner(  # noqa: ANN201 — 반환은 (NerFn, NerFn | 
     `address_prefixes` 가 비면 주소 계층 없이 인명만 돌린다 — 주소를 안 잡는 모델로
     갈아탈 때의 경로다. 비어 있지 **않은데** 모델이 그 라벨을 선언하지 않으면 뜨지 않는다.
     """
-    from transformers import pipeline  # noqa: PLC0415
 
-    recognizer = pipeline("token-classification", model=model_id, aggregation_strategy="simple")
+    from transformers import pipeline  # noqa: PLC0415
+    try:
+        spec = model_spec(model_id)
+    except ModelRegistryError as error:
+        raise MaskingConfigError("NER model is not declared in model manifest") from error
+    recognizer = pipeline(
+        "token-classification",
+        model=spec.name,
+        revision=spec.revision,
+        aggregation_strategy="simple",
+    )
     _assert_labels_exist(recognizer, model_id, person_prefixes)
     person = _span_fn(recognizer, person_prefixes)
     if not address_prefixes:

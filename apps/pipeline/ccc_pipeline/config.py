@@ -8,6 +8,8 @@ from pathlib import Path
 
 from . import chunking, masking, repetition, transcribe  # 기본값 정본은 각 모듈에 둔다(중복 금지)
 from .backup import BACKUP_ADAPTERS, BackupPolicy, assert_backup_destination_available, validate_backup_policy
+from .model_registry import ModelRegistryError, model_spec, role_spec, validate_optional_model
+
 
 PRODUCTION_API_BASE_URL = "https://ccc-api.account-855.workers.dev"
 PREVIEW_API_BASE_URL = "https://ccc-api-preview.account-855.workers.dev"
@@ -157,6 +159,16 @@ def load_config() -> Config:
         assert_backup_destination_available(backup_policy, BACKUP_ADAPTERS)
     except Exception as error:
         raise ConfigError("original recording backup policy is invalid") from error
+    whisper_model = os.environ.get("CCC_WHISPER_MODEL", "").strip() or "medium"
+    ner_model_id = os.environ.get("CCC_NER_MODEL_ID", "").strip() or "FrameByFrame/korean-pii-e5-base"
+    condition_ner_model_id = os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None
+    try:
+        role_spec("whisper", whisper_model)
+        validate_optional_model(ner_model_id, "person-ner")
+        if condition_ner_model_id is not None:
+            model_spec(condition_ner_model_id)
+    except ModelRegistryError as error:
+        raise ConfigError("runtime model selection is not declared in model manifest") from error
 
     return Config(
         api_base_url=api_base_url,
@@ -165,15 +177,15 @@ def load_config() -> Config:
         preview_access_code=preview_access_code,
         poll_interval_seconds=interval,
         work_dir=work_dir,
-        whisper_model=os.environ.get("CCC_WHISPER_MODEL", "").strip() or "medium",
+        whisper_model=whisper_model,
         stt_engine=os.environ.get("CCC_STT_ENGINE", "").strip() or transcribe.ENGINE_WHISPER,
         stt_max_chunk_seconds=_positive_float("CCC_STT_MAX_CHUNK_SECONDS", chunking.DEFAULT_MAX_CHUNK_SECONDS),
         stt_min_chunk_seconds=_positive_float("CCC_STT_MIN_CHUNK_SECONDS", chunking.DEFAULT_MIN_CHUNK_SECONDS),
         stt_repeat_threshold=_positive_int("CCC_STT_REPEAT_THRESHOLD", repetition.DEFAULT_REPEAT_THRESHOLD, minimum=2),
-        ner_model_id=os.environ.get("CCC_NER_MODEL_ID", "").strip() or None,
+        ner_model_id=ner_model_id,
         ner_labels=_labels("CCC_NER_LABELS", masking.DEFAULT_PERSON_LABELS),
         address_labels=_labels("CCC_NER_ADDRESS_LABELS", masking.DEFAULT_ADDRESS_LABELS, allow_empty=True),
-        condition_ner_model_id=os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None,
+        condition_ner_model_id=condition_ner_model_id,
         condition_ner_labels=_labels("CCC_CONDITION_NER_LABELS", masking.DEFAULT_CONDITION_LABELS),
         hf_token=os.environ.get("HF_TOKEN", "").strip() or None,
         runtime_environment=runtime_environment,

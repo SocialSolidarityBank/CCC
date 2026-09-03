@@ -5,6 +5,7 @@ import { afterEach } from 'vitest';
 import { Miniflare } from 'miniflare';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import type { Actor } from '../../../../db/gateway';
+import { createD1Database } from '@ccc/db-d1';
 import type { ApiEnv } from '../../src/identity';
 
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
@@ -153,7 +154,7 @@ export async function createD1TestContext(
     db,
     bucket,
     env: {
-      DB: db,
+      DB: createD1Database(db),
       PII_ENC_KEY: TEST_PII_KEY,
       AUDIO_BUCKET: bucket,
     },

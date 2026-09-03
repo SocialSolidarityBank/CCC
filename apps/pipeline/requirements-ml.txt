@@ -9,7 +9,7 @@
 #   jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition Apache-2.0
 #   LimYeri/HowRU-KoELECTRA-Emotion-Classifier                MIT
 
-openai-whisper
-pyannote.audio
-transformers
-librosa
+openai-whisper==20250625
+pyannote.audio==3.4.0
+transformers==4.53.3
+librosa==0.11.0
