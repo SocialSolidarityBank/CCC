@@ -48,7 +48,7 @@
 | SG5 | `docs/specs/S5-agent-job-contract-v2.md` | claim, heartbeat, result, route, provider no-fallback, queue 공정성, v1 payload fallback 제거와 claim 뒤 동의 철회 처리 |
 | SG6 | `docs/specs/S6-privacy-packet.md` | 준식별자 일반화, pipeline version, 동의 재검증, fail-closed 상태 7종 |
 | SG7 | `docs/specs/S7-consent-six-domains.md` | 회수한 ADR-0040 §9의 6개 literal, 사건 스키마, 문안 버전과 해시 |
-| SG8 | `docs/specs/S8-audio-lifecycle-store.md` | `AudioStore`, 다음 영업일 첫 Agent 처리 기회 보장, 처리 후 즉시 삭제, 첫 처리 가능 시점부터 24시간 상한, 관리자 장애 상태, 어댑터별 부재 증명 |
+| SG8 | `docs/specs/S8-audio-lifecycle-store.md` | `AudioStore`, 동의·건강한 Agent 업로드 입장 조건, 다음 영업일 첫 Agent 처리 기회, 처리 후 즉시 삭제, 업로드부터 7일 절대 상한, `min(첫 기회+24시간, 상한)`, 관리자 사고와 어댑터별 부재 증명 |
 | SG9 | `docs/specs/S9-secrets-recovery-kit.md` | 키 위치, DPAPI scope, `PII_ENC_KEY`와 버전, 안정 사용자 ID, Recovery Kit 재래핑과 새 PC 복원 |
 | SG10 | `docs/specs/S10-cccx-format.md` | manifest, JSONL, 첨부, SHA-256, Argon2id와 AES-GCM, 금고 재암호화, staging journal과 재시작 복구 |
 | SG11 | `docs/specs/S11-supabase-edge-template.md` | 서울 리전, Auth, RLS 기본 거부, private Storage, Edge 제한 |
@@ -300,7 +300,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 | E5-3 Azure Speech | E5-1b, E5-2, E4-6, E5-5 | Azure key와 유효 동의를 읽고 서울 endpoint로 직접 보낸다. logging off, provider pin, 무전환을 검증한다. 전송 직전 org, job, claim token hash, attempt, 원음 SHA-256, 동의 revision, provider가 일치하는 egress authorization을 원자적으로 `in_flight`로 바꾼다. |
 | E5-4 준식별자 일반화 | SG6 | SG6 규칙만 적용하고 마스킹, pipeline version, 원문 근거 hash를 보존해 골든셋을 통과한다. Agent는 claim-bound 일회용 mask dictionary를 받아 메모리에서만 쓰고 만료, 감사, 재사용 거부를 검증한다. |
 | E5-5 코어 재검증 | E5-1a, E5-4, E1-5, E3-8 | 정규식, 금고 값, hash, pipeline version, result 시점 동의를 검사한다. 일곱 code와 화면 문구가 1:1이고 실패 packet은 AIProvider 호출 0회다. consent 검사에는 6영역 schema와 literal만 필요하며 client cutover를 기다리지 않는다. Privacy snapshot의 NER attestation, material hash, evidence hash 저장 필드와 SQLite/PostgreSQL paired migration 및 parity도 이 티켓이 소유한다. |
-| E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | E0-5a가 고른 시계와 우선순위로 `migrations/sqlite/0046_audio_objects.sql`, `migrations/postgres/0004_audio_objects.sql`과 parity를 추가하고 처리 완료, 만료, 기동 경합, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
+| E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | D85의 경로별 동의 입장 조건과 시계로 `migrations/sqlite/0046_audio_objects.sql`, `migrations/postgres/0004_audio_objects.sql`과 parity를 추가한다. 로컬 STT는 녹음 동의, Azure STT는 녹음과 외부 STT 동의를 요구한다. `retention_hard_cap_at=uploaded_at+7일`, 첫 처리 기회의 `processing_deadline_at=min(기회+24시간, 상한)`, 처리·동의 철회·불가 확정·상한 삭제, 관리자 사고, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
 | E5-7 Windows Agent 설치기 | E5-1b, E5-2, E5-4 | embedded Python, ffmpeg, SecretStore, checksum model downloader를 설치한다. 새 Windows PC에서 install, health, Local 합성 처리, uninstall을 통과한다. |
 | E5-8a STT benchmark fixture | SG13 | 합성 대화 음성, 정답 전사, 두 화자 truth와 silence/overlap range, SHA-256, license manifest를 `scripts/stt/fixtures/manifest.json`, `scripts/stt/fixtures/reference/`, `scripts/stt/fixtures/licenses.json`에 고정하고 GitHub Release `s13-fixture-v1` 음성을 `artifacts/pilot/fixtures/s13-v1/audio/`에 fetch한다. `scripts/stt/verify_fixture.py`가 `artifacts/pilot/fixtures/s13-v1-verification.json`에 manifest hash와 count, duration, speaker, range, license 검사를 남긴다. WAV는 저장소에 커밋하지 않는다. |
 | E5-8 `STT-G1~STT-G3` 엔진 판정 | E5-2, E5-8a | `scripts/stt/benchmark.py`가 같은 fixture를 측정해 per-session과 pooled CER, repetition rate, RTF, DER, safety를 `artifacts/pilot/results/{runId}/`에 원문 없이 보고한다. RTF는 Windows CPU target에서 판정하고 Q 승인 전 제품 설정은 바꾸지 않는다. |
