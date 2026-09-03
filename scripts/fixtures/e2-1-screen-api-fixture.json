@@ -554,16 +554,6 @@
               "dto": "CreatedIntakeRecord"
             }
           ]
-        },
-        {
-          "name": "updateOverallGoalAction",
-          "calls": [
-            {
-              "method": "PUT",
-              "path": "/support-cases/:id/overall-goal",
-              "dto": "OverallGoalUpdate"
-            }
-          ]
         }
       ]
     },
@@ -651,6 +641,16 @@
               "method": "POST",
               "path": "/goals/:id/close",
               "dto": "Goal"
+            }
+          ]
+        },
+        {
+          "name": "countGoalUpcomingLinksAction",
+          "calls": [
+            {
+              "method": "GET",
+              "path": "/goals/:id/upcoming-links",
+              "dto": "GoalUpcomingLinks"
             }
           ]
         }
@@ -966,67 +966,43 @@
     {
       "method": "GET",
       "path": "/users",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "DirectoryUser[]"
     },
     {
       "method": "GET",
       "path": "/ai/provider/status",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AiProviderStatus"
     },
     {
       "method": "POST",
       "path": "/ai/provider/activate-runtime",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AiProviderStatus"
     },
     {
       "method": "GET",
       "path": "/schedules/candidates",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ScheduleCandidate[]"
     },
     {
       "method": "GET",
       "path": "/support-cases/:id/assignees",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SupportCaseAssignee[]"
     },
     {
       "method": "POST",
       "path": "/support-cases/:id/assignees",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SupportCaseAssigneeWire"
     },
     {
@@ -1053,89 +1029,57 @@
     {
       "method": "POST",
       "path": "/invites/counselor",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "WorkerInvite"
     },
     {
       "method": "GET",
       "path": "/users/:id/assignments",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "CounselorAssignments"
     },
     {
       "method": "GET",
       "path": "/invites/participant/:token",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "PublicInviteInfo"
     },
     {
       "method": "GET",
       "path": "/invites/participant/:token/me",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantSelfCheck"
     },
     {
       "method": "POST",
       "path": "/signup/participant",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "PublicSignupResult"
     },
     {
       "method": "GET",
       "path": "/invites/worker/:token",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "PublicWorkerInviteInfo"
     },
     {
       "method": "POST",
       "path": "/invites/worker",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "WorkerSignupResult"
     },
     {
       "method": "POST",
       "path": "/organization/onboarding",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "OrganizationProfile"
     },
     {
@@ -1152,298 +1096,190 @@
     {
       "method": "POST",
       "path": "/invites/participant",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantInvite"
     },
     {
       "method": "POST",
       "path": "/participants",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantProgramCreation"
     },
     {
       "method": "GET",
       "path": "/participants/:id/hub",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantHubDetail"
     },
     {
       "method": "GET",
       "path": "/participants/:id/goal-tree",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantGoalTreeCase[]"
     },
     {
       "method": "PUT",
       "path": "/support-cases/:id/consent",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantConsent"
     },
     {
       "method": "GET",
       "path": "/participants/:id/basic-info",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantBasicInfo"
     },
     {
       "method": "PUT",
       "path": "/participants/:id/basic-info",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "void"
     },
     {
       "method": "GET",
       "path": "/participants/:id/programs/:case/briefing",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantBriefing"
     },
     {
       "method": "PUT",
       "path": "/support-cases/:id/overall-goal",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "OverallGoalUpdate"
     },
     {
       "method": "PUT",
       "path": "/support-cases/:id/discrepancies/:discrepancyId/resolution",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SessionDiscrepancy"
     },
     {
       "method": "GET",
       "path": "/support-cases/:id/closure",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SupportCaseClosureInfo"
     },
     {
       "method": "POST",
       "path": "/support-cases/:id/close",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SupportCase"
     },
     {
       "method": "GET",
       "path": "/support-cases/:id/records?official=true",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SupportCaseRecords"
     },
     {
       "method": "GET",
       "path": "/participants/:id/support-cases",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ParticipantProgram[]"
     },
     {
       "method": "GET",
       "path": "/sessions/:id/ai",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AiDraft"
     },
     {
       "method": "GET",
       "path": "/sessions/:id",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ManualSession"
     },
     {
       "method": "POST",
       "path": "/sessions/:id/ai/drafts/:version/review",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AiDraftMutationWire"
     },
     {
       "method": "POST",
       "path": "/sessions/:id/ai/generate",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AiDraftMutationWire"
     },
     {
       "method": "POST",
       "path": "/cases/:id/action-items",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "OpenActionItemWire"
     },
     {
       "method": "GET",
       "path": "/support-cases/:id/records/intake",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "IntakeRecordContext"
     },
     {
       "method": "POST",
       "path": "/support-cases/:id/records/intake",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "CreateIntakeRecordResult"
     },
     {
       "method": "PUT",
       "path": "/support-cases/:id/records/intake",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "CreatedIntakeRecord"
     },
     {
       "method": "GET",
       "path": "/schedules/:id/plan",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "ScheduleSessionPlan"
     },
     {
       "method": "POST",
       "path": "/support-cases/:id/records",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "CreateCounselingRecordResult"
     },
     {
       "method": "POST",
       "path": "/cases/:id/goals",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "Goal"
     },
     {
       "method": "PUT",
       "path": "/goals/:id/title",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "Goal"
     },
     {
       "method": "POST",
       "path": "/goals/:id/close",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "Goal"
     },
     {
@@ -1463,100 +1299,64 @@
     {
       "method": "GET",
       "path": "/schedules/today",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "TodaySchedules"
     },
     {
       "method": "GET",
       "path": "/schedules/upcoming",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "TodaySchedules"
     },
     {
       "method": "GET",
       "path": "/schedules/month",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "TodaySchedules"
     },
     {
       "method": "PUT",
       "path": "/me/last-program",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "LastProgramUpdate"
     },
     {
       "method": "GET",
       "path": "/cases/:id/goals",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "Goal[]"
     },
     {
       "method": "POST",
       "path": "/schedules",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "CounselingSchedule"
     },
     {
       "method": "PUT",
       "path": "/schedules/:id/plan",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "SchedulePlanUpdate"
     },
     {
       "method": "GET",
       "path": "/assignment-requests",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AssignmentRequest[]"
     },
     {
       "method": "POST",
       "path": "/support-cases/:id/assignees/:assignmentId/accept",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "AssignmentAccepted"
     },
     {
@@ -1591,12 +1391,8 @@
     {
       "method": "GET",
       "path": "/participants/new-signup-count",
-      "wireKeys": [
-        "fixture"
-      ],
-      "projectionKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
+      "projectionKeys": [],
       "dto": "NewSignupCount"
     },
     {
@@ -1635,9 +1431,7 @@
     {
       "method": "PATCH",
       "path": "/schedules/:id/reschedule",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "CounselingScheduleWire",
       "status": "unmapped-by-current-page",
@@ -1646,9 +1440,7 @@
     {
       "method": "POST",
       "path": "/schedules/:id/cancel",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "CounselingScheduleWire",
       "status": "unmapped-by-current-page",
@@ -1657,9 +1449,7 @@
     {
       "method": "POST",
       "path": "/schedules/:id/no-show",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "CounselingScheduleWire",
       "status": "unmapped-by-current-page",
@@ -1693,9 +1483,7 @@
     {
       "method": "PUT",
       "path": "/sessions/:id/audio",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "SessionWire",
       "status": "unmapped-by-current-page",
@@ -1704,9 +1492,7 @@
     {
       "method": "POST",
       "path": "/sessions/:id/approve",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "SessionWire",
       "status": "unmapped-by-current-page",
@@ -1715,9 +1501,7 @@
     {
       "method": "GET",
       "path": "/pipeline/health",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "PipelineHealth",
       "status": "unmapped-by-current-page",
@@ -1769,9 +1553,7 @@
     {
       "method": "GET",
       "path": "/pipeline/jobs/:sessionId/audio",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "AudioBytes",
       "status": "unmapped-by-current-page",
@@ -1800,9 +1582,7 @@
     {
       "method": "POST",
       "path": "/pii-retention/reviews/:id",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "ParticipantPiiRetentionReview",
       "status": "unmapped-by-current-page",
@@ -1811,9 +1591,7 @@
     {
       "method": "POST",
       "path": "/users/:id/deactivate",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "DirectoryUser",
       "status": "unmapped-by-current-page",
@@ -1822,9 +1600,7 @@
     {
       "method": "GET",
       "path": "/cases",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "CaseRecord[]",
       "status": "unmapped-by-current-page",
@@ -1833,9 +1609,7 @@
     {
       "method": "POST",
       "path": "/cases",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "CaseRecord",
       "status": "unmapped-by-current-page",
@@ -1844,9 +1618,7 @@
     {
       "method": "GET",
       "path": "/cases/:id",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "CaseRecord",
       "status": "unmapped-by-current-page",
@@ -1855,9 +1627,7 @@
     {
       "method": "GET",
       "path": "/cases/:id/briefing",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "Briefing",
       "status": "unmapped-by-current-page",
@@ -1866,9 +1636,7 @@
     {
       "method": "GET",
       "path": "/cases/:id/pilot-text-ai-consent",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "PilotTextAiConsent",
       "status": "unmapped-by-current-page",
@@ -1877,9 +1645,7 @@
     {
       "method": "GET",
       "path": "/cases/:id/sessions",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "SessionWire[]",
       "status": "unmapped-by-current-page",
@@ -1888,9 +1654,7 @@
     {
       "method": "POST",
       "path": "/cases/:id/sessions",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "SessionWire",
       "status": "unmapped-by-current-page",
@@ -1899,9 +1663,7 @@
     {
       "method": "GET",
       "path": "/participants/:id/programs",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "ParticipantProgramWire[]",
       "status": "unmapped-by-current-page",
@@ -1910,9 +1672,7 @@
     {
       "method": "POST",
       "path": "/participants/:id/programs",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "ParticipantProgramCreation",
       "status": "unmapped-by-current-page",
@@ -1921,9 +1681,7 @@
     {
       "method": "GET",
       "path": "/participants/:id/briefing?focusSupportCaseId=:case",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "ParticipantBriefingWire",
       "status": "unmapped-by-current-page",
@@ -1943,9 +1701,7 @@
     {
       "method": "POST",
       "path": "/beneficiaries",
-      "wireKeys": [
-        "fixture"
-      ],
+      "wireKeys": [],
       "projectionKeys": [],
       "dto": "ParticipantProgramCreation",
       "status": "unmapped-by-current-page",
@@ -1961,6 +1717,54 @@
       "dto": "ParticipantSearchResultWire[]",
       "status": "unmapped-by-current-page",
       "actor": "human"
+    },
+    {
+      "method": "POST",
+      "path": "/participants/:id/support-cases",
+      "wireKeys": [
+        "beneficiaryId",
+        "supportCaseId",
+        "assignmentRole",
+        "replayed"
+      ],
+      "projectionKeys": [
+        "beneficiaryId",
+        "supportCaseId",
+        "assignmentRole",
+        "replayed"
+      ],
+      "dto": "ParticipantProgramCreation",
+      "status": "unmapped-by-current-page"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:id/ai/drafts/:version/edit",
+      "wireKeys": [
+        "version",
+        "origin",
+        "creationMode",
+        "summaryText",
+        "claims",
+        "oneLiner",
+        "reviewDecision",
+        "questions",
+        "evidence",
+        "contrast"
+      ],
+      "projectionKeys": [
+        "version",
+        "origin",
+        "creationMode",
+        "summaryText",
+        "claims",
+        "oneLiner",
+        "reviewDecision",
+        "questions",
+        "evidence",
+        "contrast"
+      ],
+      "dto": "AiDraftMutationWire",
+      "status": "unmapped-by-current-page"
     }
   ]
 }

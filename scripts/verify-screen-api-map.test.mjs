@@ -180,7 +180,7 @@ test('endpoint method/path, exact wire keys, and client projection are checked i
   const handler = await readFile(handlerPath, 'utf8');
   const api = await readFile(apiPath, 'utf8');
   await writeFile(handlerPath, handler
-    .replace("router.register('GET', '/me'", "router.register('GET', '/wrong-me'")
+    .replace("request.url.pathname === '/me'", "request.url.pathname === '/wrong-me'")
     .replace("id: null, orgId: null", "id: null, extra: null, orgId: null"));
   await writeFile(apiPath, api.replace(
     'return { lastProgramType: response.lastProgramType }',
@@ -253,8 +253,10 @@ test('orphan endpoints, PII authorization matrix, and declared current gaps rema
     'POST /participants/:id/programs',
     'GET /participants/:id/briefing?focusSupportCaseId=:case',
     'GET /beneficiaries',
-    'POST /beneficiaries',
     'GET /beneficiaries/search',
+    'POST /beneficiaries',
+    'POST /participants/:id/support-cases',
+    'POST /sessions/:id/ai/drafts/:version/edit',
   ].sort());
   assert.deepEqual(result.piiMatrix, map.pii);
   assert.deepEqual(result.gaps, map.gaps);
