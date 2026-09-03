@@ -133,7 +133,7 @@ jobs:
           python3 -m unittest discover -s scripts/stt/tests -p "test_*.py" -v 2>&1 | tee "$RUNNER_TEMP/stt-fixture.log"
           count=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/stt-fixture.log" | grep -oE '[0-9]+' || true)
           echo "discovered S13 tests: ${count:-0}"
-          test "${count:-0}" -ge 25
+          test "${count:-0}" -ge 37
 
   # gitleaks 전체 히스토리와 release:verify의 tracked-source scan은 같은 checksum 검증 바이너리를 쓴다.
   # gitleaks-action은 조직 레포에 유료 라이선스가 필요해 바이너리를 직접 받아 돌린다(MIT, 무료).

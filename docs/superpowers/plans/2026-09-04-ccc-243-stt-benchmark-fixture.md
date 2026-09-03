@@ -49,7 +49,7 @@ Expected: import failure because `scripts/stt/fixture_tools.py` does not exist.
 
 - [x] **Step 3: Implement the minimum validator**
 
-Use only `hashlib`, `json`, `pathlib`, and `wave`. Canonical JSON uses UTF-8, sorted keys, compact separators, and one trailing LF. Hash the transcript UTF-8 bytes, the canonical `speakerTurns` array, each WAV file, `licenses.json`, and the raw manifest bytes. Validate exact session IDs, unique case/session pairs, reference structure, sorted nonnegative ranges within duration, and two distinct speaker labels.
+Use only the Python standard library. Canonical JSON uses UTF-8, sorted keys, compact separators, and one trailing LF. Hash the transcript UTF-8 bytes, the canonical `speakerTurns` array, each WAV file, `licenses.json`, and the raw manifest bytes. Validate exact session IDs, unique case/session pairs, reference structure, sorted nonnegative ranges within duration, and two distinct speaker labels.
 
 - [x] **Step 4: Emit privacy-safe verification evidence**
 
@@ -141,7 +141,7 @@ Use the verified local package manager, record `espeak-ng --version` and executa
 
 Generate into two clean temporary roots and compare every reference, manifest, license, WAV, and archive hash. Any mismatch is a failure; do not normalize it away.
 
-- [x] **Step 3: Publish the release asset**
+- [ ] **Step 3: Publish the release asset**
 
 Create the `s13-fixture-v1` GitHub Release from the verified archive. Do not overwrite an existing asset with different bytes. Record the final archive name and SHA-256 in manifest.
 
@@ -169,7 +169,7 @@ Expected: PASS with 150 sessions, every duration in 60–180 seconds, 150 two-sp
 
 Add `test:stt-fixtures` to `package.json` using standard-library unittest and run the same command in the existing Python `pipeline-test` job. CI validates scripts and tracked metadata without downloading the large release asset; the tracked verification receipt proves the full release fetch.
 
-- [x] **Step 7: Run repository verification**
+- [ ] **Step 7: Run repository verification**
 
 Run:
 

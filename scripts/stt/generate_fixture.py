@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import gzip
 import hashlib
 import io
+import re
 import shutil
 import subprocess
 import sys
@@ -13,7 +15,23 @@ import wave
 from array import array
 from pathlib import Path
 
-from fixture_tools import canonical_json_bytes, sha256_bytes, sha256_file
+from fixture_tools import (
+    EXPECTED_GENERATOR,
+    canonical_json_bytes,
+    sha256_bytes,
+    sha256_file,
+)
+
+PII_PATTERNS = (
+    re.compile(r"(?<!\d)01[016789][-. ]?\d{3,4}[-. ]?\d{4}(?!\d)"),
+    re.compile(r"(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![A-Z0-9.-])", re.IGNORECASE),
+    re.compile(r"(?<!\d)\d{6}[- ]?[1-4]\d{6}(?!\d)"),
+    re.compile(r"(?<!\d)\d{2,6}[- ]\d{2,6}[- ]\d{1,6}(?!\d)"),
+)
+
+
+def contains_pii_like(text: str) -> bool:
+    return any(pattern.search(text) for pattern in PII_PATTERNS)
 
 CASE_THEMES = (
     ("주거비 부담", "안정적인 거주 계획", "월세 부담이 커짐", "지출 항목을 다시 정리"),
@@ -264,25 +282,60 @@ def _render_turn(espeak_path: Path, turn: dict[str, object], cache_dir: Path) ->
     return _read_pcm_wav(output)
 
 
-def parse_espeak_version(output: str) -> str:
+def parse_espeak_details(output: str) -> tuple[str, Path]:
     prefix = "eSpeak NG text-to-speech:"
+    marker = "Data at:"
     first_line = output.splitlines()[0].strip() if output.splitlines() else ""
-    if not first_line.startswith(prefix):
+    if not first_line.startswith(prefix) or marker not in first_line:
         raise ValueError("unexpected eSpeak NG version output")
-    version = first_line.removeprefix(prefix).strip().split()[0]
+    version_text, data_path_text = first_line.removeprefix(prefix).split(marker, 1)
+    version = version_text.strip().split()[0]
     if not version or not all(part.isdigit() for part in version.split(".")):
         raise ValueError("invalid eSpeak NG version")
-    return version
+    data_path = Path(data_path_text.strip())
+    if not data_path_text.strip():
+        raise ValueError("eSpeak NG voice data path is empty")
+    return version, data_path
 
 
-def _espeak_version(espeak_path: Path) -> str:
+def parse_espeak_version(output: str) -> str:
+    return parse_espeak_details(output)[0]
+
+
+def hash_voice_data(data_path: Path) -> str:
+    if not data_path.is_dir():
+        raise ValueError(f"eSpeak NG voice data directory does not exist: {data_path}")
+    digest = hashlib.sha256()
+    files = sorted(path for path in data_path.rglob("*") if path.is_file())
+    if not files:
+        raise ValueError("eSpeak NG voice data directory is empty")
+    for path in files:
+        relative = path.relative_to(data_path).as_posix().encode("utf-8")
+        data = path.read_bytes()
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return digest.hexdigest()
+
+
+def validate_espeak_toolchain(version: str, executable_hash: str, voice_data_hash: str) -> None:
+    if (
+        version != EXPECTED_GENERATOR["version"]
+        or executable_hash != EXPECTED_GENERATOR["executableSha256"]
+        or voice_data_hash != EXPECTED_GENERATOR["voiceDataSha256"]
+    ):
+        raise ValueError("eSpeak NG toolchain differs from s13-v1; create a new fixture version")
+
+
+def _espeak_details(espeak_path: Path) -> tuple[str, Path]:
     result = subprocess.run(
         [str(espeak_path), "--version"],
         check=True,
         capture_output=True,
         text=True,
     )
-    return parse_espeak_version(result.stdout)
+    return parse_espeak_details(result.stdout)
 
 
 def generate(
@@ -297,19 +350,25 @@ def generate(
     espeak_path = espeak_path.resolve()
     if not espeak_path.is_file():
         raise ValueError(f"eSpeak NG executable does not exist: {espeak_path}")
+    if archive_path.exists():
+        raise ValueError(f"generation archive already exists: {archive_path}")
+    version, voice_data_path = _espeak_details(espeak_path)
+    executable_hash = sha256_file(espeak_path)
+    voice_data_hash = hash_voice_data(voice_data_path)
+    validate_espeak_toolchain(version, executable_hash, voice_data_hash)
     for target in (fixture_dir, audio_dir):
         if target.exists() and any(target.iterdir()):
             raise ValueError(f"generation target must be empty: {target}")
         target.mkdir(parents=True, exist_ok=True)
     reference_dir = fixture_dir / "reference"
     reference_dir.mkdir()
-
-    version = _espeak_version(espeak_path)
     sessions: list[dict[str, object]] = []
     licenses: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="s13-espeak-cache-") as cache_name:
         cache_dir = Path(cache_name)
         for plan in build_session_plans():
+            if any(contains_pii_like(str(turn["text"])) for turn in plan["turns"]):
+                raise ValueError(f"PII-like pattern in synthetic script: {plan['sessionId']}")
             rendered = [_render_turn(espeak_path, turn, cache_dir) for turn in plan["turns"]]
             sample_rates = {sample_rate for sample_rate, _ in rendered}
             if len(sample_rates) != 1:
@@ -348,6 +407,7 @@ def generate(
                 "audioPath": audio_name,
                 "referencePath": f"reference/{plan['sessionId']}.json",
                 "audioSha256": sha256_file(audio_path),
+                "audioSizeBytes": audio_path.stat().st_size,
                 "transcriptSha256": sha256_bytes(transcript.encode("utf-8")),
                 "speakerTruthSha256": sha256_bytes(canonical_json_bytes(timeline["speakerTurns"])),
                 "durationSeconds": timeline["durationSeconds"],
@@ -370,15 +430,10 @@ def generate(
         "schemaVersion": 1,
         "fixtureId": "s13-v1",
         "generator": {
-            "name": "eSpeak NG",
+            **EXPECTED_GENERATOR,
             "version": version,
-            "executableSha256": sha256_file(espeak_path),
-            "source": "https://github.com/espeak-ng/espeak-ng",
-            "license": "GPL-3.0-or-later",
-            "voice": "ko with built-in m3/f3 variants",
-            "voiceConfig": VOICE_CONFIG,
-            "deterministicRandom": True,
-            "voiceCloning": False,
+            "executableSha256": executable_hash,
+            "voiceDataSha256": voice_data_hash,
         },
         "assets": licenses,
     }
@@ -397,6 +452,7 @@ def generate(
         "audioArchive": {
             "name": "s13-fixture-v1.tar.gz",
             "sha256": sha256_file(archive_path),
+            "sizeBytes": archive_path.stat().st_size,
         },
         "licenseManifestSha256": license_hash,
         "sessions": sessions,
