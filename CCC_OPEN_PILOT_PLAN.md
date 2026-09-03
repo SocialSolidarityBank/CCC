@@ -294,12 +294,12 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 
 | 티켓 | 의존 | 변경과 완료 조건 |
 |---|---|---|
-| E5-1a Agent 작업 계약 v2 | SG5 | claim, lease, heartbeat, result, engine, route, 공정한 audio/text queue 선택, provider no-fallback, v1 payload fallback 제거를 문서와 schema에 고정한다. 세 모드의 사람과 service credential 범위를 계약 테스트한다. |
+| E5-1a Agent 작업 계약 v2 | SG5 | claim, lease, heartbeat, result, engine, route, 공정한 audio/text queue 선택, provider no-fallback, v1 payload fallback 제거를 문서와 schema에 고정한다. 세 모드의 사람과 service credential 범위를 계약 테스트한다. Audio job은 `rawAudioSha256`과 claim-bound egress authorization ID를 가지며, Azure 전송 직전 `authorized → in_flight` CAS와 일회용 mask dictionary 응답 계약을 포함한다. |
 | E5-1b Agent Windows SecretStore | E5-1a, E4-4b | Python DPAPI `CurrentUser`와 개발용 env backend를 구현하고 실제 Windows 계정 경계를 검증한다. |
 | E5-2 Local STT 후보 경로 | E5-1a | chunking, repetition, timestamp 보정을 유지하고 faster-whisper int8 CPU adapter를 명시적 후보 설정에만 추가한다. |
-| E5-3 Azure Speech | E5-1b, E5-2, E4-6 | Azure key와 유효 동의를 읽고 서울 endpoint로 직접 보낸다. logging off, provider pin, 무전환을 검증한다. |
-| E5-4 준식별자 일반화 | SG6 | SG6 규칙만 적용하고 마스킹, pipeline version, 원문 근거 hash를 보존해 골든셋을 통과한다. |
-| E5-5 코어 재검증 | E5-1a, E5-4, E1-5, E3-8 | 정규식, 금고 값, hash, pipeline version, result 시점 동의를 검사한다. 일곱 code와 화면 문구가 1:1이고 실패 packet은 AIProvider 호출 0회다. consent 검사에는 6영역 schema와 literal만 필요하며 client cutover를 기다리지 않는다. |
+| E5-3 Azure Speech | E5-1b, E5-2, E4-6, E5-5 | Azure key와 유효 동의를 읽고 서울 endpoint로 직접 보낸다. logging off, provider pin, 무전환을 검증한다. 전송 직전 org, job, claim token hash, attempt, 원음 SHA-256, 동의 revision, provider가 일치하는 egress authorization을 원자적으로 `in_flight`로 바꾼다. |
+| E5-4 준식별자 일반화 | SG6 | SG6 규칙만 적용하고 마스킹, pipeline version, 원문 근거 hash를 보존해 골든셋을 통과한다. Agent는 claim-bound 일회용 mask dictionary를 받아 메모리에서만 쓰고 만료, 감사, 재사용 거부를 검증한다. |
+| E5-5 코어 재검증 | E5-1a, E5-4, E1-5, E3-8 | 정규식, 금고 값, hash, pipeline version, result 시점 동의를 검사한다. 일곱 code와 화면 문구가 1:1이고 실패 packet은 AIProvider 호출 0회다. consent 검사에는 6영역 schema와 literal만 필요하며 client cutover를 기다리지 않는다. Privacy snapshot의 NER attestation, material hash, evidence hash 저장 필드와 SQLite/PostgreSQL paired migration 및 parity도 이 티켓이 소유한다. |
 | E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | E0-5a가 고른 시계와 우선순위로 `migrations/sqlite/0046_audio_objects.sql`, `migrations/postgres/0003_audio_objects.sql`과 parity를 추가하고 처리 완료, 만료, 기동 경합, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
 | E5-7 Windows Agent 설치기 | E5-1b, E5-2, E5-4 | embedded Python, ffmpeg, SecretStore, checksum model downloader를 설치한다. 새 Windows PC에서 install, health, Local 합성 처리, uninstall을 통과한다. |
 | E5-8a STT benchmark fixture | SG13 | 합성 대화 음성, 정답 전사, 두 화자 truth와 silence/overlap range, SHA-256, license manifest를 `scripts/stt/fixtures/manifest.json`, `scripts/stt/fixtures/reference/`, `scripts/stt/fixtures/licenses.json`에 고정하고 GitHub Release `s13-fixture-v1` 음성을 `artifacts/pilot/fixtures/s13-v1/audio/`에 fetch한다. `scripts/stt/verify_fixture.py`가 `artifacts/pilot/fixtures/s13-v1-verification.json`에 manifest hash와 count, duration, speaker, range, license 검사를 남긴다. WAV는 저장소에 커밋하지 않는다. |
