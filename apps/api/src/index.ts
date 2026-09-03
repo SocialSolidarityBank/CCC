@@ -4,6 +4,7 @@ import {
   runPipelineWatchdog,
   type PipelineHealth,
 } from '../../../db/gateway';
+import { adaptD1Environment } from '@ccc/db-d1';
 import { type ApiEnv } from './identity';
 import { localDevActorResolver } from './local-actor';
 import { notifyAdmins } from './notify';
@@ -19,6 +20,14 @@ export {
 } from './ai-provider';
 
 import { PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
+
+function adaptWorkerEnvironment(env: ApiEnv): ApiEnv {
+  const { DB: database } = env;
+  if (database === undefined) return env;
+  return adaptD1Environment(env);
+}
+
+ 
 
 /**
  * 폴링 워치독 1회 실행 (D8). 전 기관 건강도를 계산하고 stale인 기관마다 관리자 알림
@@ -68,31 +77,33 @@ export async function runRetentionLifecycle(
 
 export default {
   async fetch(request: Request, env: ApiEnv): Promise<Response> {
+    const runtimeEnv = adaptWorkerEnvironment(env);
     // 미리보기 코드 게이트(CCC-6, 이중 잠금)에서만 리졸버가 반환된다. 활성이면
     // /preview/unlock(코드 제출)을 여기서 처리하고, 그 외 요청은 쿠키 토큰 검증
     // 리졸버로 handleRequest 에 넘긴다. 비활성이면 아래로 흘러 운영 경로 불변.
-    const previewResolver = previewActorResolver(env);
+    const previewResolver = previewActorResolver(runtimeEnv);
     if (previewResolver !== undefined) {
       const url = new URL(request.url);
       if (request.method === 'POST' && url.pathname === '/preview/unlock') {
-        return handlePreviewUnlock(request, env);
+        return handlePreviewUnlock(request, runtimeEnv);
       }
-      return handleRequest(request, env, previewResolver);
+      return handleRequest(request, runtimeEnv, previewResolver);
     }
     // 로컬 프리뷰(dev 이중 잠금)에서만 리졸버가 반환된다. undefined 면 기본
     // Access JWT 검증(actorFromRequest)으로 그대로 흘러간다 — 운영 경로 불변.
-    return handleRequest(request, env, localDevActorResolver(env) ?? undefined);
+    return handleRequest(request, runtimeEnv, localDevActorResolver(runtimeEnv) ?? undefined);
   },
   // Cron trigger: only exact configured expressions may enqueue D8 or D10 work.
   async scheduled(controller: ScheduledController, env: ApiEnv, ctx: ExecutionContext): Promise<void> {
+    const runtimeEnv = adaptWorkerEnvironment(env);
     if (controller.cron === PURGE_CRON) {
-      ctx.waitUntil(runRetentionLifecycle(env));
+      ctx.waitUntil(runRetentionLifecycle(runtimeEnv));
       return;
     }
     if (controller.cron === WATCHDOG_CRON) {
-      ctx.waitUntil(runWatchdog(env));
+      ctx.waitUntil(runWatchdog(runtimeEnv));
       return;
     }
     throw new Error('unexpected_scheduled_trigger');
-  }
+  },
 } satisfies ExportedHandler<ApiEnv>;

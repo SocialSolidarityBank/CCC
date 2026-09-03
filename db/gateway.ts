@@ -17,6 +17,8 @@
  *        브리핑·통계·보고서용 조회 결과에서 제외하거나 '승인 대기'로만 표시.
  */
 
+import type { Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
+
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from './animal-slugs';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import {
@@ -28,7 +30,7 @@ import {
 
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
 export interface Env {
-  DB: D1Database;
+  DB: Database;
   /**
    * PII 암호화 키 (D3): AES-GCM 256bit, base64.
    * Cloudflare Workers 시크릿으로만 주입한다. 코드·로그·에러 메시지 출력 금지 (R3).
@@ -315,9 +317,20 @@ function resolvePipelineQueueStaleHours(env: Env): number {
  * cases.id 순번 발급의 read-then-insert 경합을 재시도로 흡수할 때 쓴다.
  */
 function isUniqueConstraintError(error: unknown): boolean {
-  const code = error !== null && typeof error === 'object' && 'code' in error
-    ? (error as { code?: unknown }).code
-    : undefined;
+  if (
+    error !== null
+    && typeof error === 'object'
+    && 'kind' in error
+    && error.kind === 'constraint'
+    && 'constraintSubtype' in error
+    && (error.constraintSubtype === 'unique' || error.constraintSubtype === 'primary_key')
+  ) {
+    return true;
+  }
+  let code: unknown;
+  if (error !== null && typeof error === 'object' && 'code' in error) {
+    code = error.code;
+  }
   if (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
     return true;
   }
@@ -325,7 +338,23 @@ function isUniqueConstraintError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /\b(?:UNIQUE constraint failed|PRIMARY KEY constraint failed)\b/i.test(message);
 }
+function hasApplicationCode(error: unknown, code: string): boolean {
+  return (
+    error !== null
+    && typeof error === 'object'
+    && 'applicationCode' in error
+    && error.applicationCode === code
+  );
+}
 function isStaleDraftVersionError(error: unknown): boolean {
+  if (
+    error !== null
+    && typeof error === 'object'
+    && 'applicationCode' in error
+    && error.applicationCode === 'stale_draft_version'
+  ) {
+    return true;
+  }
   const message = error instanceof Error ? error.message : String(error);
   return /stale_draft_version/i.test(message);
 }
@@ -1091,8 +1120,10 @@ function assertAdmin(actor: Actor): void {
 }
 
 type HumanRoleAssignment = 'institution_admin' | 'practitioner';
-
 function isMissingRoleAssignmentsTable(error: unknown): boolean {
+  if (error !== null && typeof error === 'object' && 'kind' in error && error.kind === 'syntax') {
+    return true;
+  }
   return error instanceof Error
     && error.message.includes('no such table: user_role_assignments');
 }
@@ -2158,8 +2189,8 @@ function aiDraftMaterialStatements(
   env: Env,
   scope: AiDraftMaterialWriteScope,
   input: AiDraftMaterialsInput,
-): D1PreparedStatement[] {
-  const statements: D1PreparedStatement[] = [];
+): PreparedStatement[] {
+  const statements: PreparedStatement[] = [];
   for (const material of input.materials) {
     statements.push(env.DB.prepare(
       'INSERT INTO ai_draft_source_materials (id, draft_version_id, org_id, support_case_id, session_id, kind, snapshot_id, snapshot_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -2241,8 +2272,8 @@ function aiFlagStatements(
   env: Env,
   scope: Omit<AiDraftMaterialWriteScope, 'draftId'>,
   flags: readonly PendingAiFlag[],
-): D1PreparedStatement[] {
-  const statements: D1PreparedStatement[] = [
+): PreparedStatement[] {
+  const statements: PreparedStatement[] = [
     env.DB.prepare(
       `DELETE FROM flags
        WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'`,
@@ -2276,7 +2307,7 @@ function aiFlagAuditStatements(
     supportCaseId: string;
   },
   plan: PendingAiFlagPlan,
-): D1PreparedStatement[] {
+): PreparedStatement[] {
   return [
     ...plan.replaceIds.map((flagId) => canonicalAuditStatement(env, actor, {
       action: 'delete',
@@ -3213,7 +3244,7 @@ export async function activateAiProviderConfiguration(
   const activatedAt = now();
   const activationId = newId();
   try {
-    const statements: D1PreparedStatement[] = [];
+    const statements: PreparedStatement[] = [];
     if (prior?.id !== undefined) {
       statements.push(env.DB.prepare(
         'UPDATE ai_provider_activations SET deactivated_at = ? WHERE id = ? AND org_id = ? AND deactivated_at IS NULL',
@@ -3572,7 +3603,7 @@ async function commitMaskedResult(
   additionalStatements: (
     snapshot: MaskedSourceSnapshot,
     supportCaseId: string,
-  ) => D1PreparedStatement[] = () => [],
+  ) => PreparedStatement[] = () => [],
 ): Promise<MaskedSourceSnapshot> {
   const sessionId = grant.session.id;
   const context = await resolveLegacyCaseContext(env, actor.orgId, grant.session.caseId);
@@ -4082,7 +4113,7 @@ export async function createGeneratedAiDraft(
   );
 
   try {
-    const statements: D1PreparedStatement[] = [];
+    const statements: PreparedStatement[] = [];
     if (existingWorkItem === null) {
       statements.push(env.DB.prepare(
         'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -4370,7 +4401,7 @@ export async function createFixtureGeneratedAiDraftForService(
     sessionId,
     maskedInput.flagSuggestions,
   );
-  const statements: D1PreparedStatement[] = [];
+  const statements: PreparedStatement[] = [];
   if (existingWorkItem === null) {
     statements.push(env.DB.prepare(
       'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -4661,7 +4692,7 @@ async function editGeneratedAiDraft(
   }));
 
   try {
-    const statements: D1PreparedStatement[] = [
+    const statements: PreparedStatement[] = [
       env.DB.prepare(
         'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
@@ -4882,7 +4913,7 @@ export async function reviewGeneratedAiDraft(
 
   const reviewedAt = now();
   try {
-    const statements: D1PreparedStatement[] = [
+    const statements: PreparedStatement[] = [
       env.DB.prepare(
         'INSERT INTO ai_review_events (id, work_item_id, draft_version_id, decision, replacement_draft_id, actor_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ).bind(newId(), workItem.id, current.id, decision, null, actor.userId, reviewedAt),
@@ -5624,7 +5655,7 @@ export async function replaceSessionDiscrepancies(
   const fresh = items.filter((item) => !existingKeys.has(discrepancyPairKey(item)));
 
   const detectedAt = now();
-  const statements: D1PreparedStatement[] = [
+  const statements: PreparedStatement[] = [
     env.DB.prepare(
       `DELETE FROM session_discrepancies
        WHERE org_id = ? AND trigger_session_id = ? AND resolution_status IS NULL`,
@@ -5846,7 +5877,7 @@ export async function listCases(
   const hasInstitutionAdminAccess = await hasActiveHumanRoleAssignment(env, actor, 'institution_admin');
   if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
   const status = filter?.status;
-  let result: D1Result<DbRow>;
+  let result: DatabaseResult<DbRow>;
 
   if (hasInstitutionAdminAccess) {
     result = status === undefined
@@ -7810,7 +7841,7 @@ export async function recordGasScores(
   const caseByGoal = await goalCaseMap(env, actor.orgId, scores.map((item) => item.goalId));
   const seenGoalIds = new Set<string>();
   const saved: GasScore[] = [];
-  const statements: D1PreparedStatement[] = [];
+  const statements: PreparedStatement[] = [];
   for (const item of scores) {
     if (seenGoalIds.has(item.goalId)) {
       throw new ValidationError('a goal can be scored only once per request');
@@ -9203,7 +9234,7 @@ function canonicalAuditStatement(
     detail: Record<string, unknown>;
     caseId?: string | null;
   },
-): D1PreparedStatement {
+): PreparedStatement {
   return env.DB.prepare(
     `INSERT INTO audit_log (
        org_id, actor_id, actor_role, action, target_table, target_id, case_id,
@@ -9233,7 +9264,7 @@ function conditionalCanonicalAuditStatement(
     supportCaseId: string | null;
     detail: Record<string, unknown>;
   },
-): D1PreparedStatement {
+): PreparedStatement {
   return env.DB.prepare(
 
     `INSERT INTO audit_log (
@@ -9729,7 +9760,7 @@ export async function createBeneficiaryWithInitialSupportCase(
       ? null
       : await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
     try {
-      const statements: D1PreparedStatement[] = [
+      const statements: PreparedStatement[] = [
         env.DB.prepare(
           `INSERT INTO beneficiaries (
              id, org_id, initialization_state, created_at, updated_at
@@ -12919,7 +12950,7 @@ export async function createCounselingSchedule(
   const id = newId();
   const createdAt = now();
   // regular INSERT 은 그대로 둔다 — session_kind·channel 은 DEFAULT('regular'·'in_person')로 채워진다.
-  const statements: D1PreparedStatement[] = [
+  const statements: PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO counseling_schedules (
          id, org_id, beneficiary_id, support_case_id, scheduled_at, status, version,
@@ -13011,7 +13042,7 @@ async function createIntakeCounselingSchedule(
 
   const id = newId();
   const createdAt = now();
-  const statements: D1PreparedStatement[] = [
+  const statements: PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO counseling_schedules (
          id, org_id, beneficiary_id, support_case_id, scheduled_at, status, session_kind, channel, version,
@@ -13035,7 +13066,7 @@ async function createIntakeCounselingSchedule(
   caseGoals.forEach((title, index) => {
     statements.push(env.DB.prepare(
       'INSERT INTO goals (id, org_id, support_case_id, title, scale_criteria, status, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?)',
-    ).bind(goalIds[index], actor.orgId, input.supportCaseId, title, 'active', createdAt));
+    ).bind(goalIds[index]!, actor.orgId, input.supportCaseId, title, 'active', createdAt));
   });
   customQuestions.forEach((body, index) => {
     statements.push(env.DB.prepare(
@@ -13299,7 +13330,7 @@ export async function updateScheduleSessionGoals(
     WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND scheduled_at > ?
   )`;
   const guardBindings = [scheduleId, actor.orgId, input.expectedVersion, nowInstant];
-  const statements: D1PreparedStatement[] = [
+  const statements: PreparedStatement[] = [
     env.DB.prepare(
       `DELETE FROM schedule_session_goals WHERE org_id = ? AND schedule_id = ? AND ${guardClause}`,
     ).bind(actor.orgId, scheduleId, ...guardBindings),
@@ -13911,11 +13942,11 @@ export async function createCounselingRecord(
       actor.orgId,
       supportCase.beneficiaryId,
       supportCaseId,
-      input.expectedScheduleVersion,
+      input.expectedScheduleVersion ?? null,
       ...activeSupportCaseBindings,
     );
 
-  const statements: D1PreparedStatement[] = [sessionStatement];
+  const statements: PreparedStatement[] = [sessionStatement];
 
   for (const score of input.gasScores) {
     statements.push(env.DB.prepare(
@@ -14050,7 +14081,7 @@ export async function createCounselingRecord(
       actor.orgId,
       supportCase.beneficiaryId,
       supportCaseId,
-      input.expectedScheduleVersion,
+      input.expectedScheduleVersion ?? null,
       ...sessionExistsBindings,
     ));
   }
@@ -14898,12 +14929,12 @@ export async function createIntakeRecord(
       actor.orgId,
       supportCase.beneficiaryId,
       supportCaseId,
-      input.expectedScheduleVersion,
+      input.expectedScheduleVersion ?? null,
       ...activeSupportCaseBindings,
       ...noExistingIntakeBindings,
     );
 
-  const statements: D1PreparedStatement[] = [sessionStatement];
+  const statements: PreparedStatement[] = [sessionStatement];
 
   // 인테이크 완료 시각(CCC-56): 등록은 더 이상 intake_at 을 채우지 않으므로, 인테이크
   // 기록 저장이 곧 유일한 채움 지점이다. 값은 이 세션의 상담일(held_at)이다 — 위저드
@@ -15109,7 +15140,7 @@ export async function createIntakeRecord(
       actor.orgId,
       supportCase.beneficiaryId,
       supportCaseId,
-      input.expectedScheduleVersion,
+      input.expectedScheduleVersion ?? null,
       ...sessionExistsBindings,
     ));
   }
@@ -16251,7 +16282,7 @@ export async function acceptSupportCaseAssignment(
   const beneficiary = await env.DB.prepare(
     'SELECT beneficiary_id AS beneficiaryId FROM support_cases WHERE id = ? AND org_id = ?',
   ).bind(stringValue(row.support_case_id), actor.orgId).first<{ beneficiaryId: string }>();
-  const batch: D1PreparedStatement[] = [];
+  const batch: PreparedStatement[] = [];
   // 주담당 수락은 그 케이스의 다른 활성 주담당 권한을 끝낸다(수락 시점 이전 담당 종료).
   if (stringValue(row.role) === 'primary') {
     const others = await env.DB.prepare(
@@ -16335,7 +16366,7 @@ export async function forceTransferSupportCase(
   }
   const transferredAt = now();
   const newAssignmentId = newId();
-  const batch: D1PreparedStatement[] = [];
+  const batch: PreparedStatement[] = [];
   if (current !== null) {
     batch.push(
       env.DB.prepare(
@@ -17080,7 +17111,7 @@ export async function completeParticipantSignup(
     const consentPrivacyAt = input.consent.privacy ? createdAt : null;
     const privacyEvidence = await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
     try {
-      const statements: D1PreparedStatement[] = [
+      const statements: PreparedStatement[] = [
         env.DB.prepare(
           `INSERT INTO beneficiaries (
              id, org_id, initialization_state, created_at, updated_at
@@ -17225,7 +17256,10 @@ export async function completeParticipantSignup(
     }
   }
   // 동시 이중 제출: 진 쪽 배치는 가드가 되감았고, 그 오류를 409 로 번역한다.
-  if (finalError instanceof Error && finalError.message.includes('invite_token_already_used')) {
+  if (
+    hasApplicationCode(finalError, 'invite_token_already_used')
+    || (finalError instanceof Error && finalError.message.includes('invite_token_already_used'))
+  ) {
     throw new ConflictError('invite token already used');
   }
   throw finalError instanceof Error ? finalError : new ConflictError('participant signup conflicted');
@@ -17364,6 +17398,9 @@ export async function completeCounselorSignup(
       throw new ForbiddenError('invite token is not available');
     }
   } catch (error) {
+    if (hasApplicationCode(error, 'invite_token_already_used')) {
+      throw new ConflictError('invite token already used');
+    }
     if (error instanceof Error && error.message.includes('invite_token_already_used')) {
       throw new ConflictError('invite token already used');
     }

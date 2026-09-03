@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { PreparedStatement } from '@ccc/contracts/database';
 import worker from './support/local-worker';
 import {
   ConflictError,
@@ -172,10 +173,10 @@ describe('audio upload and relay', () => {
     await t.reset();
     const { session } = await makeInPersonSession(true);
     let intercepted = false;
-    const raceDb = new Proxy(t.db, {
+    const raceDb = new Proxy(t.env.DB, {
       get(target, property, receiver) {
         if (property === 'batch') {
-          return async (statements: D1PreparedStatement[]) => {
+          return async (statements: PreparedStatement[]) => {
             if (!intercepted) {
               intercepted = true;
               await target.prepare(
@@ -186,10 +187,10 @@ describe('audio upload and relay', () => {
             return target.batch(statements);
           };
         }
-        const value = Reflect.get(target, property, receiver) as unknown;
+        const value = Reflect.get(target, property, receiver);
         return typeof value === 'function' ? value.bind(target) : value;
       },
-    }) as D1Database;
+    });
 
     await expect(registerRecording(
       { ...t.env, DB: raceDb },

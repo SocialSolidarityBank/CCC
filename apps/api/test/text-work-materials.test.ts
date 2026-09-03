@@ -9,6 +9,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
+import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
 import {
   activateAiProviderConfiguration,
@@ -465,7 +466,7 @@ describe('마이그레이션 0034: 텍스트 일감 큐 사유 확장 (CCC-103)'
         await db.batch(migration.queries.map((query) => db.prepare(query)));
       }
 
-      const upgradeEnv = { DB: db, PII_ENC_KEY: 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=' };
+      const upgradeEnv = { DB: createD1Database(db), PII_ENC_KEY: 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=' };
       const createdAt = '2026-07-14 09:00:00';
       await db.prepare(
         `INSERT INTO organization_settings (

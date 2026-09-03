@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { Bindable } from '@ccc/contracts/database';
 import worker from './support/local-worker';
 import {
   activateAiProviderConfiguration,
@@ -158,6 +159,13 @@ const counselorHeaders = {
   'X-CCC-Role': counselor.role,
 };
 
+
+function isBindable(value: unknown): value is Bindable {
+  return value === null
+    || typeof value === 'string'
+    || typeof value === 'number'
+    || value instanceof Uint8Array;
+}
 function hideCommittedResultFromPreflight(db: ApiEnv['DB']): ApiEnv['DB'] {
   return new Proxy(db, {
     get(target, property, receiver) {
@@ -177,6 +185,7 @@ function hideCommittedResultFromPreflight(db: ApiEnv['DB']): ApiEnv['DB'] {
               return typeof value === 'function' ? value.bind(statementTarget) : value;
             }
             return (...values: unknown[]) => {
+              if (!values.every(isBindable)) throw new Error('unexpected non-bindable test value');
               const bound = statementTarget.bind(...values);
               return new Proxy(bound, {
                 get(boundTarget, boundProperty, boundReceiver) {

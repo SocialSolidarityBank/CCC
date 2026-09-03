@@ -10,6 +10,7 @@
  * PII_KEY_VERSION 은 '2'(운영 키 세대) 로 고정한다.
  */
 import type { D1Database } from '@cloudflare/workers-types';
+import { createD1Database } from '@ccc/db-d1';
 import { createD1TestContext } from '../../apps/api/test/support/d1';
 import type { Env } from '../../db/gateway';
 import { preloadStatements } from './preload-data';
@@ -72,7 +73,7 @@ export function buildSeedEnv(db: D1Database, capture: D1Capture): Env {
   const key = requireEnv('PII_ENC_KEY');
   assertPiiKeyMaterial(key);
   return {
-    DB: capture.wrap(db) as unknown as Env['DB'],
+    DB: createD1Database(capture.wrap(db)),
     PII_ENC_KEY: key,
     PII_KEY_VERSION: SEED_PII_KEY_VERSION,
   };
