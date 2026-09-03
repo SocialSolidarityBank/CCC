@@ -364,7 +364,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 |---|---|---|
 | E10-1 CI 모드 matrix | E1-6, E2-7, E4-6, E5-9, E6-5b, E7-5, E8-4 | Linux/Deno contracts, Windows x64 packages, 세 DB parity와 세 모드 합성 구현을 연결한다. Done은 matrix가 모든 결과를 진실하게 보고하는 상태이고, mode별 PASS 전에는 해당 칸을 초록으로 표시하지 않는다. |
 | E10-2 공급망과 시크릿 검사 | 없음 | SBOM, NOTICE, 라이선스 allowlist, gitleaks와 fixture/manifest scan을 만든다. 미표기 모델과 실제 key, PII fixture가 0건이다. |
-| E10-3 코드서명 | E0-4, E5-7, E7-4, E8-3, E8-9, SG12 | 실제 OV/EV 또는 Artifact Signing으로 Single, Office server/client, Agent 설치기를 서명한다. checksum만 있는 artifact는 개발판이다. |
+| E10-3 코드서명 | E0-4, E5-7, E7-4, E8-3, E8-9, SG12 | 2026-09-03 Q 결정으로 유료 서비스 시작 또는 정식 Windows 설치판 배포 결정 전까지 착수를 보류한다. 재개하면 실제 OV/EV 또는 Artifact Signing으로 Single, Office server/client, Agent 설치기를 모두 서명한다. checksum만 있는 artifact는 개발판이다. |
 | E10-4 매뉴얼과 Policy Kit | E4-6, E6-5b, E7-4, E8-3, E8-9, SG12 | 설치, 온보딩, 운영, 복원, 이전 문서와 Policy Kit를 실제 명령과 맞춘다. |
 | E10-5 rollback 훈련 | E6-5b, E7-6a, E8-5 | 개발 서명으로 세 모드를 한 버전 올렸다가 health 실패로 되돌리고 데이터와 금고 열람을 검증한다. 실제 Authenticode 재실행은 E7-6b가 소유한다. |
 | E10-6 제출 패키지와 시연 | E0-2, E10-2, E11-5 | 제출 시점의 서명 artifact 또는 명시된 unsigned 개발판, SBOM, 매뉴얼, 보고서, 합성 시연을 조립한다. 관련 티켓 상태를 PASS/FAIL/미측정으로 그대로 옮기고 미완 티켓은 열린 채 유지한다. Done은 제출 완료이지 정식 RC 승인이 아니다. |
@@ -581,5 +581,5 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 - Notion ADR-0040은 내부 통합으로 회수 가능하다. E0-3은 정확한 원문과 6개 literal을 repo에 보존하고 이후 실행이 Notion 접근에 의존하지 않게 한다.
 - Community Cloud 원음은 Supabase private Storage에만 둔다. 다음 영업일의 첫 Agent 처리 기회까지 보관하고 처리 뒤 즉시 삭제한다. 첫 처리 가능 시점부터 24시간 안에도 처리하지 못하면 삭제하고 관리자 장애 상태와 수기 기록 경로를 남긴다. 7일/30일 보관은 이번 Cloud 기본형에 없다.
 - `better-sqlite3-multiple-ciphers` 또는 `@primno/dpapi`의 Windows prebuilt, license, tamper audit가 실패하면 Local 릴리스를 `미통과`로 남긴다. 평문 SQLite, 파일 키 hardcode, 검증 없는 대체 package로 폴백하지 않는다.
-- 코드서명, Azure 자격, pyannote 승인, OpenAI DPA, 법무 검토가 늦어지면 해당 artifact와 기능을 `미통과`로 표시한다. unsigned artifact는 개발판이고 실데이터는 E9-3, E11-1b와 Q 승인이 모두 닫힌 모드에만 허용한다.
+- 코드서명은 2026-09-03 Q 결정에 따라 유료 서비스 시작 또는 정식 Windows 설치판 배포 전까지 보류한다. 현재 설치 파일은 unsigned 개발판으로 명시하고 정식 릴리스로 부르지 않는다. Azure 자격, pyannote 승인, OpenAI DPA, 법무 검토가 늦어지면 해당 artifact와 기능을 `미통과`로 표시하며, 실데이터는 E9-3, E11-1b와 Q 승인이 모두 닫힌 모드에만 허용한다.
 - 9월 18일은 제출일이다. 미완 티켓은 같은 ID와 완료 조건으로 계속 실행한다. E12는 후속 기능만 소유하고 미완 작업을 숨기는 승계 티켓은 만들지 않는다.
