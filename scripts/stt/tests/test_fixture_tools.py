@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fixture_tools import canonical_json_bytes, sha256_bytes, verify_fixture  # noqa: E402
 from fetch_fixture import extract_archive, fetch_fixture  # noqa: E402
+from generate_fixture import build_session_plans, mix_pcm, plan_timeline, write_deterministic_archive  # noqa: E402
 
 
 class VerifyFixtureTest(unittest.TestCase):
@@ -89,13 +90,16 @@ class VerifyFixtureTest(unittest.TestCase):
                 "attribution": "Synthetic CCC S13 fixture generated with eSpeak NG.",
             })
         self._write_json(self.licenses_path, licenses)
+        license_hash = hashlib.sha256(self.licenses_path.read_bytes()).hexdigest()
+        for session in sessions:
+            session["licenseManifestSha256"] = license_hash
         manifest = {
             "schemaVersion": 1,
             "fixtureId": "s13-v1",
             "sourceType": "synthetic",
             "audioReleaseTag": "s13-fixture-v1",
             "audioArchive": {"name": "s13-fixture-v1.tar.gz", "sha256": "0" * 64},
-            "licenseManifestSha256": hashlib.sha256(self.licenses_path.read_bytes()).hexdigest(),
+            "licenseManifestSha256": license_hash,
             "sessions": sessions,
             "trainCaseIds": [],
         }
@@ -155,12 +159,21 @@ class VerifyFixtureTest(unittest.TestCase):
         licenses = json.loads(self.licenses_path.read_text())
         licenses["assets"].pop()
         self._write_json(self.licenses_path, licenses)
-        self._rewrite_manifest(
-            lambda value: value.update(
-                licenseManifestSha256=hashlib.sha256(self.licenses_path.read_bytes()).hexdigest(),
-            ),
-        )
+        license_hash = hashlib.sha256(self.licenses_path.read_bytes()).hexdigest()
+
+        def update_hashes(value: dict) -> None:
+            value["licenseManifestSha256"] = license_hash
+            for session in value["sessions"]:
+                session["licenseManifestSha256"] = license_hash
+
+        self._rewrite_manifest(update_hashes)
         self.assert_invalid("license entry")
+
+    def test_rejects_session_license_hash_mismatch(self) -> None:
+        self._rewrite_manifest(
+            lambda value: value["sessions"][0].update(licenseManifestSha256="f" * 64),
+        )
+        self.assert_invalid("session licenseManifestSha256")
 
     def test_rejects_actual_wav_duration_mismatch(self) -> None:
         self._write_wav(self.audio_dir / "case-001-session-01.wav", seconds=61)
@@ -170,6 +183,77 @@ class VerifyFixtureTest(unittest.TestCase):
             ),
         )
         self.assert_invalid("WAV duration")
+
+
+class GenerateFixturePlanTest(unittest.TestCase):
+    def test_builds_exact_deterministic_case_session_matrix(self) -> None:
+        first = build_session_plans()
+        second = build_session_plans()
+        self.assertEqual(first, second)
+        self.assertEqual(len(first), 150)
+        self.assertEqual({plan["caseId"] for plan in first}, {f"case-{number:03d}" for number in range(1, 31)})
+        self.assertEqual(
+            {plan["sessionId"] for plan in first},
+            {
+                f"case-{case_number:03d}-session-{session_number:02d}"
+                for case_number in range(1, 31)
+                for session_number in range(1, 6)
+            },
+        )
+
+    def test_every_session_has_two_korean_speakers_silence_and_overlap(self) -> None:
+        pii_patterns = (
+            __import__("re").compile(r"01[016789][-. ]?\\d{3,4}[-. ]?\\d{4}"),
+            __import__("re").compile(r"[\\w.+-]+@[\\w.-]+"),
+            __import__("re").compile(r"\\d{6}[- ]?[1-4]\\d{6}"),
+        )
+        for plan in build_session_plans():
+            with self.subTest(session=plan["sessionId"]):
+                turns = plan["turns"]
+                self.assertEqual({turn["speaker"] for turn in turns}, {"SPEAKER_00", "SPEAKER_01"})
+                self.assertGreaterEqual(len(turns), 16)
+                self.assertTrue(any(turn["gapAfterSeconds"] >= 1.0 for turn in turns))
+                self.assertTrue(any(turn["overlapPreviousSeconds"] > 0 for turn in turns))
+                for turn in turns:
+                    self.assertRegex(turn["text"], r"[가-힣]")
+                    self.assertTrue(turn["text"].strip())
+                    for pattern in pii_patterns:
+                        self.assertIsNone(pattern.search(turn["text"]))
+
+    def test_timeline_is_sample_based_with_declared_silence_and_overlap(self) -> None:
+        plan = build_session_plans()[0]
+        timeline = plan_timeline(
+            plan["turns"],
+            [20] * len(plan["turns"]),
+            sample_rate=10,
+            minimum_seconds=60,
+        )
+        self.assertEqual(timeline["totalSamples"], 600)
+        self.assertEqual(timeline["durationSeconds"], 60.0)
+        self.assertGreaterEqual(len(timeline["silenceRanges"]), 1)
+        self.assertGreaterEqual(len(timeline["overlapRanges"]), 1)
+        self.assertEqual(
+            {turn["speaker"] for turn in timeline["speakerTurns"]},
+            {"SPEAKER_00", "SPEAKER_01"},
+        )
+
+    def test_pcm_mixer_adds_and_clamps_samples(self) -> None:
+        mixed = mix_pcm([[30_000, -30_000], [10_000, -10_000]], [0, 0], total_samples=2)
+        self.assertEqual(list(mixed), [32_767, -32_768])
+
+    def test_archive_bytes_ignore_source_mtime_and_iteration_order(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            audio = root / "audio"
+            audio.mkdir()
+            (audio / "b.wav").write_bytes(b"second")
+            (audio / "a.wav").write_bytes(b"first")
+            first = root / "first.tar.gz"
+            second = root / "second.tar.gz"
+            write_deterministic_archive(audio, first, ["b.wav", "a.wav"])
+            (audio / "a.wav").touch()
+            write_deterministic_archive(audio, second, ["a.wav", "b.wav"])
+            self.assertEqual(first.read_bytes(), second.read_bytes())
 
 
 class FetchFixtureTest(unittest.TestCase):

@@ -148,6 +148,8 @@ def verify_fixture(
         seen_pairs.add(pair)
         if session.get("speakerCount") != 2:
             raise ValueError(f"speakerCount must be 2: {session_id}")
+        if session.get("licenseManifestSha256") != expected_license_hash:
+            raise ValueError(f"session licenseManifestSha256 mismatch: {session_id}")
         duration = session.get("durationSeconds")
         if not isinstance(duration, (int, float)) or not 60 <= float(duration) <= 180:
             raise ValueError(f"durationSeconds must be within 60 and 180: {session_id}")
