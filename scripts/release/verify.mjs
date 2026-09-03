@@ -616,6 +616,7 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
   const requiredRuntimeModels = new Set([
     'openai/whisper@medium',
     'pyannote/speaker-diarization-3.1@3.1',
+    'pyannote/segmentation-3.0@3.0',
     'jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition@latest-approved',
     'LimYeri/HowRU-KoELECTRA-Emotion-Classifier@latest-approved',
     'FrameByFrame/korean-pii-e5-base@latest-approved',
