@@ -173,16 +173,20 @@ import {
 import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
-import {
-  MAX_AUDIO_BYTES,
-  deleteAudioObject,
-  getAudioObject,
-  newAudioKey,
-  normalizeAudioContentType,
-  putAudioObject,
-} from './audio-store';
+import { AUDIO_CONTENT_TYPES, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
+function normalizeAudioContentType(header: string | null): AudioContentType | null {
+  if (header === null) return null;
+  const base = header.split(';')[0]?.trim().toLowerCase() ?? '';
+  return Object.prototype.hasOwnProperty.call(AUDIO_CONTENT_TYPES, base)
+    ? base as AudioContentType
+    : null;
+}
+
+function newAudioKey(sessionId: string): string {
+  return `audio/${sessionId}/${crypto.randomUUID()}`;
+}
 
 const jsonHeaders = {
   'content-type': 'application/json; charset=utf-8',
@@ -1940,11 +1944,8 @@ async function generateAiDraft(
 
 /**
  * 상담 녹음 업로드(실무자·관리자). gateway preflight가 접근 권한·동의·세션 상태를
- * 확인한 뒤 콘텐츠를 읽어 R2에 저장한다. 등록 시점에는 registerRecording이 같은
- * 상태를 원자적으로 다시 확인한다. 등록이 실패하면 방금 올린 R2 객체를 지워
- * 고아 오디오를 남기지 않는다.
- * ⚠ arrayBuffer 버퍼링이라 실사용 200 MB 본문은 Worker 메모리 한계가 있다 —
- * 2단계-a 로컬 수용 기준에선 충분하고, 대용량 스트리밍은 후속 과제로 남긴다.
+ * 확인한 뒤 AudioStore 포트로 콘텐츠를 스트리밍한다. 등록 시점에는 registerRecording이
+ * 같은 상태를 원자적으로 다시 확인한다. 등록이 실패하면 방금 올린 객체를 정리한다.
  */
 async function handleAudioUpload(
   request: Request,
@@ -1957,25 +1958,25 @@ async function handleAudioUpload(
   if (contentType === null) {
     throw new ValidationError('audio content type is not allowed');
   }
-  const declaredLength = request.headers.get('content-length');
-  if (declaredLength !== null && Number(declaredLength) > MAX_AUDIO_BYTES) {
-    throw new ValidationError('audio exceeds the maximum size');
+  const declaredLengthHeader = request.headers.get('content-length');
+  const contentLength = declaredLengthHeader === null ? Number.NaN : Number(declaredLengthHeader);
+  if (!Number.isInteger(contentLength) || contentLength < 1) {
+    throw new ValidationError('audio content length is required');
   }
-  const body = await request.arrayBuffer();
-  if (body.byteLength === 0) {
+  if (request.body === null) {
     throw new ValidationError('audio body must not be empty');
   }
-  if (body.byteLength > MAX_AUDIO_BYTES) {
-    throw new ValidationError('audio exceeds the maximum size');
-  }
-
   const key = newAudioKey(sessionId);
-  await putAudioObject(env, key, body, contentType);
+  await env.audioStore.put(key, request.body, {
+    contentLength,
+    contentType,
+    expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+  } satisfies AudioObjectMetadata);
   try {
     return json(sessionResponse(await registerRecording(env, actor, sessionId, key)));
   } catch (error) {
     // 등록 실패(권한·동의·승인세션 등) 시 방금 올린 객체를 정리한 뒤 다시 던진다.
-    await deleteAudioObject(env, key);
+    await env.audioStore.delete(key);
     throw error;
   }
 }
@@ -2862,13 +2863,13 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 4 && parts[3] === 'audio') {
         // 서비스 역할·org·오디오 등록 확인 + download_audio 감사(D14)는 gateway가 담당한다.
         const { audioR2Key } = await getPipelineAudioKey(env, actor, sessionId);
-        const object = await getAudioObject(env, audioR2Key);
+        const object = await env.audioStore.get(audioR2Key);
         if (object === null) {
           return json({ error: 'audio_object_missing', jobId: sessionId }, 404);
         }
-        // R2 키는 응답에 싣지 않는다. 저장된 content-type으로 바이트만 중계한다.
+        // R2 키는 응답에 싣지 않는다. 저장소 포트의 canonical content-type으로 바이트만 중계한다.
         const headers = new Headers();
-        headers.set('content-type', object.httpMetadata?.contentType ?? 'application/octet-stream');
+        headers.set('content-type', object.contentType);
         headers.set('cache-control', 'no-store');
         return new Response(object.body, { status: 200, headers });
       }

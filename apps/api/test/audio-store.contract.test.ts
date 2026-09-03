@@ -29,6 +29,21 @@ type AbsenceProfile = {
 };
 
 type ProviderErrorMode = 'get' | 'put' | 'delete' | null;
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve(value: T | PromiseLike<T>): void;
+  reject(reason?: unknown): void;
+};
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 /**
  * This double follows the R2 binding boundary instead of mocking the adapter.
@@ -41,7 +56,7 @@ class FaithfulR2Bucket {
   readonly putValues: R2PutValue[] = [];
   readonly calls = { delete: 0, get: 0, head: 0, list: 0, put: 0 };
   readonly cancelledReasons: unknown[] = [];
-  absence: AbsenceProfile = { list: true, metadata: true, directRead: true };
+  absence: AbsenceProfile = { list: true, metadata: false, directRead: false };
   providerError: ProviderErrorMode = null;
   acceptDeleteButRetain = false;
 
@@ -50,7 +65,7 @@ class FaithfulR2Bucket {
     customMetadata?: Record<string, string>;
   }): Promise<void> {
     if (this.providerError === 'put') throw new Error('provider-secret https://r2.invalid/private-key');
-    this.calls.put += 1;
+    this.putValues.push(value);
     const bytes = await consumeBytes(value);
     this.objects.set(key, {
       bytes,
@@ -64,19 +79,21 @@ class FaithfulR2Bucket {
     this.calls.get += 1;
     if (this.providerError === 'get') throw new Error('provider-secret https://r2.invalid/private-key');
     const object = this.objects.get(key);
-    if (object === undefined || !this.absence.directRead) return null;
-    let offset = 0;
+    if (object === undefined || this.absence.directRead) return null;
+    let firstPull = true;
+    const pendingPull = deferred<void>();
     const body = new ReadableStream<Uint8Array>({
       pull: (controller) => {
-        if (offset >= object.bytes.byteLength) return;
-        const end = Math.min(offset + 2, object.bytes.byteLength);
-        controller.enqueue(object.bytes.slice(offset, end));
-        offset = end;
-        // Keep one chunk available for a consumer cancellation assertion.
-        if (offset >= object.bytes.byteLength) controller.close();
+        if (firstPull) {
+          firstPull = false;
+          controller.enqueue(object.bytes.slice());
+          return;
+        }
+        return pendingPull.promise;
       },
       cancel: (reason) => {
         this.cancelledReasons.push(reason);
+        pendingPull.resolve();
       },
     });
     return {
@@ -92,7 +109,7 @@ class FaithfulR2Bucket {
     this.calls.head += 1;
     if (this.providerError === 'get') throw new Error('provider-secret https://r2.invalid/private-key');
     const object = this.objects.get(key);
-    if (object === undefined || !this.absence.metadata) return null;
+    if (object === undefined || this.absence.metadata) return null;
     return {
       etag: object.etag,
       size: object.bytes.byteLength,
@@ -186,7 +203,8 @@ function makeStore(bucket = new FaithfulR2Bucket()): { bucket: FaithfulR2Bucket;
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const owned = bytes.slice();
+  const digest = await crypto.subtle.digest('SHA-256', owned.buffer as ArrayBuffer);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -281,6 +299,7 @@ describe('R2 AudioStore contract', () => {
     const { bucket, store } = makeStore();
     let pulls = 0;
     let releaseSecondChunk!: () => void;
+    const secondPullReady = deferred<void>();
     const body = new ReadableStream<Uint8Array>({
       pull(controller) {
         pulls += 1;
@@ -289,13 +308,14 @@ describe('R2 AudioStore contract', () => {
           return;
         }
         if (pulls === 2) {
-          const deferred = Promise.withResolvers<void>();
+          const deferredPull = deferred<void>();
           releaseSecondChunk = () => {
             controller.enqueue(BODY.slice(2));
             controller.close();
-            deferred.resolve();
+            deferredPull.resolve();
           };
-          return deferred.promise;
+          secondPullReady.resolve();
+          return deferredPull.promise;
         }
         throw new Error('source pulled past its backpressure gate');
       },
@@ -304,7 +324,7 @@ describe('R2 AudioStore contract', () => {
     let settled = false;
     const pending = store.put(KEY, body, metadata());
     void pending.finally(() => { settled = true; });
-    await Promise.resolve();
+    await secondPullReady.promise;
     expect(settled).toBe(false);
     expect(bucket.putValues[0]).toBeInstanceOf(ReadableStream);
     releaseSecondChunk();
@@ -356,7 +376,7 @@ describe('R2 AudioStore contract', () => {
       verifiedAt: expect.any(String),
     } satisfies Partial<AudioDeletionEvidence>);
     expect(JSON.stringify(evidence)).not.toContain(KEY);
-    expect(bucket.calls).toMatchObject({ delete: 1, get: 1, head: 1, list: 1 });
+    expect(bucket.calls).toMatchObject({ delete: 1, get: 1, head: 2, list: 1 });
 
     await expect(store.delete(KEY)).resolves.toMatchObject({
       deleteSucceeded: true,

@@ -6,8 +6,8 @@ import { Miniflare } from 'miniflare';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import type { Actor } from '../../../../db/gateway';
 import { createD1Database } from '@ccc/db-d1';
+import { createR2AudioStore } from '@ccc/audio-r2';
 import type { ApiEnv } from '../../src/identity';
-
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
 export interface D1TestContext {
@@ -156,7 +156,7 @@ export async function createD1TestContext(
     env: {
       DB: createD1Database(db),
       PII_ENC_KEY: TEST_PII_KEY,
-      AUDIO_BUCKET: bucket,
+      audioStore: createR2AudioStore(bucket),
     },
     dispose: async () => {
       await miniflare.dispose();
