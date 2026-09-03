@@ -1150,16 +1150,16 @@ const recordFormStyles = `
    형제 행의 선은 레일 카드 본문 너비를 전부 쓴다. */
 .record-rail-goal,.record-open-action-item{display:grid;grid-template-columns:var(--space-5) minmax(0,1fr);column-gap:var(--space-2);row-gap:var(--space-1);width:100%;min-width:0}
 .record-rail-goal+.record-rail-goal,.record-open-action-item+.record-open-action-item{padding-top:var(--space-3);border-top:1px solid var(--line)}
-.record-rail-number{grid-column:1;grid-row:1;align-self:start;justify-self:center;width:var(--space-5);color:var(--sub);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-body);text-align:center;font-variant-numeric:tabular-nums}
+.record-rail-number{grid-column:1;grid-row:1;align-self:start;justify-self:center;width:var(--space-5);color:var(--sub);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-tight);text-align:center;font-variant-numeric:tabular-nums}
 .record-rail-goal-body,.record-open-action-body{grid-column:2;grid-row:1}
 .record-rail-goal-body{margin:0;color:var(--ink);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-body);overflow-wrap:anywhere}
-.record-rail-subgoal{grid-column:2;margin:0;color:var(--sub);font-size:var(--text-detail);font-weight:400;line-height:var(--leading-body);overflow-wrap:anywhere}
-.record-rail-subgoal-label{color:var(--sub);font-size:var(--text-detail);font-weight:600;line-height:var(--leading-body)}
-.record-rail-subgoal-text{color:var(--sub);font-size:var(--text-detail);font-weight:400;line-height:var(--leading-body)}
+.record-rail-subgoal{grid-column:2;margin:0;color:var(--lime-deep);font-size:var(--text-detail);font-weight:400;line-height:var(--leading-body);overflow-wrap:anywhere}
+.record-rail-subgoal-label{color:var(--lime-deep);font-size:var(--text-detail);font-weight:600;line-height:var(--leading-body)}
+.record-rail-subgoal-text{color:var(--lime-deep);font-size:var(--text-detail);font-weight:400;line-height:var(--leading-body)}
 .record-open-action-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-3);min-width:0}
 .record-open-action-body,.record-open-action-meta{min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-body);overflow-wrap:anywhere}
 .record-open-action-body{color:var(--ink);font-weight:600}
-.record-open-action-meta{grid-column:2;color:var(--amber-deep)}
+.record-open-action-meta{grid-column:2;color:var(--lime-deep);font-size:var(--text-detail)}
 /* 구 .record-sticky-value·.record-sticky-meta 는 2026-08-09 삭제 — '미연결' 글자 표시는
    빈 상태 부품으로, 지난 상담 메타 줄은 미해결 액션 카드로 바뀌었다(Q 지시. 강조 콜아웃을
    거쳐 CCC-76 으로 레일 형제 아코디언 카드가 됐다 — 카드 안 카드 금지 해소, D59). */

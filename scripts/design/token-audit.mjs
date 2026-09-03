@@ -26,7 +26,7 @@ const TARGETS = [
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
 const SCOPED_TEXT_TOKENS = new Map([
-  ['--text-detail', ['.record-rail-subgoal']],
+  ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta']],
   ['--text-badge', ['.wire-badge']],
   ['--text-badge-compact', ['.wire-badge[data-size="sm"]']],
 ]);

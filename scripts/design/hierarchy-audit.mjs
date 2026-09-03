@@ -155,23 +155,28 @@ const ALLOW = [
   },
   {
     selector: '.record-rail-subgoal',
-    combo: 'var(--text-detail)/400/var(--sub)',
-    why: '상담 기록 레일의 세부 목표 줄 전용 13px 회색',
+    combo: 'var(--text-detail)/400/var(--lime-deep)',
+    why: '상담 기록 레일의 세부 목표 줄 전용 13px lime',
   },
   {
     selector: '.record-rail-subgoal-label',
-    combo: 'var(--text-detail)/600/var(--sub)',
-    why: '상담 기록 레일의 세부 목표 라벨 전용 13px 회색',
+    combo: 'var(--text-detail)/600/var(--lime-deep)',
+    why: '상담 기록 레일의 세부 목표 라벨 전용 13px lime',
+  },
+  {
+    selector: '.record-rail-subgoal-text',
+    combo: 'var(--text-detail)/400/var(--lime-deep)',
+    why: '상담 기록 레일의 세부 목표 본문 전용 13px lime',
   },
   {
     selector: '.record-open-action-meta',
-    combo: 'var(--text-sm)/400/var(--amber-deep)',
-    why: '미해결 액션의 지난 상담 날짜 전용 amber 글자',
+    combo: 'var(--text-detail)/400/var(--lime-deep)',
+    why: '미해결 액션의 지난 상담 날짜 전용 13px lime',
   },
   {
-    selector: '.record-open-action-meta',
-    combo: `var(--text-sm)/400/${MIXED_SUB}`,
-    why: '미해결 액션 본문보다 물러나는 지난 상담 날짜',
+    selector: '.record-rail-number',
+    combo: 'var(--text-lg)/600/var(--sub)',
+    why: '레일 순서가 보이도록 키운 Enclosed Alphanumerics 원문자',
   },
   {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
