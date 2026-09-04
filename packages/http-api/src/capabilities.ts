@@ -53,7 +53,15 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ ma
     requestedSttMode: STT_MODES.includes(requestedStt as SttMode) ? requestedStt as SttMode : 'off',
     requestedLlmMode: LLM_MODES.includes(requestedLlm as LlmMode) ? requestedLlm as LlmMode : 'off',
     registry: installManifest.approvedSttEngineIds,
-    azureKeyPresent: (env.AZURE_SPEECH_KEY?.trim().length ?? 0) > 0,
+    // Q 승인 사실은 signed registry 로만 서버에 닿는다. gate 만 지나고 entry 가 없는 상태를 따로 실어
+    // 나르는 signed 필드는 아직 없어 entry 존재를 gate 통과로 읽는다. 그 필드가 생기면 여기만 바꾼다.
+    sttGatePassed: {
+      local: installManifest.approvedSttEngineIds.some((entry) => entry.mode === 'local'),
+      azure: installManifest.approvedSttEngineIds.some((entry) => entry.mode === 'azure'),
+    },
+    // Azure 자격은 Python Agent 의 SecretStore 에만 있다(계획 129행, S9). Agent 가 존재 여부를
+    // 보고하는 경로(E5-3/E9-2)가 붙기 전까지 서버는 없음으로 본다.
+    azureKeyPresent: false,
     llmKeyPresent,
     llmGateOpen: env.TEXT_AI_PILOT_ENABLED === '1' && (env.EXTERNAL_AI_CALLS_ENABLED === '1' || env.AI_PROVIDER_ADAPTER !== undefined),
     agentStatus,

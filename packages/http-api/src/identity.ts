@@ -72,8 +72,6 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
   CCC_STT_MODE?: string;
   /** 관리자가 고른 LLM 축(`off | openai`). 없거나 다른 값이면 `off`. */
   CCC_LLM_MODE?: string;
-  /** Azure Speech 자격(Workers 시크릿). capabilities 는 존재 여부만 본다. 값은 E5-3 이 쓴다. */
-  AZURE_SPEECH_KEY?: string;
 }
 
 export class ActorAuthenticationError extends Error {}

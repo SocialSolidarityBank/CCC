@@ -52,6 +52,7 @@ function inputFor(row: Row): CapabilityInput {
     requestedSttMode,
     requestedLlmMode,
     registry: REGISTRIES[registry],
+    sttGatePassed: { local: registry === 'local', azure: registry === 'azure' },
     azureKeyPresent: true,
     llmKeyPresent: true,
     llmGateOpen: true,
@@ -108,6 +109,10 @@ describe('CapabilityManifest 18 combinations (S2 §2.8)', () => {
     const base = inputFor(ROWS[4]!); // cloud, azure registry, requested azure
     expect(buildCapabilityManifest({ ...base, azureKeyPresent: false }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'missing_key' });
     expect(buildCapabilityManifest({ ...base, agentStatus: 'inactive' }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unsupported' });
+    // gate 는 지났는데 signed registry 에 entry 가 없는 상태(S2 §2.8 두 번째 단).
+    expect(buildCapabilityManifest({ ...base, registry: [] }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unsupported' });
+    // entry 는 있는데 gate 표시가 없으면 entry 를 믿지 않는다.
+    expect(buildCapabilityManifest({ ...base, sttGatePassed: { local: false, azure: false } }).sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unverified' });
     const llm = inputFor(ROWS[1]!); // cloud, requested openai
     expect(buildCapabilityManifest({ ...llm, llmKeyPresent: false }).llmOptions[1]).toEqual({ mode: 'openai', enabled: false, disabledReason: 'missing_key' });
     expect(buildCapabilityManifest({ ...llm, llmGateOpen: false }).llmOptions[1]).toEqual({ mode: 'openai', enabled: false, disabledReason: 'unsupported' });
@@ -176,8 +181,10 @@ describe('GET /capabilities', () => {
     const decoded = decodeCapabilityManifest(body, SYNTHETIC_LOCAL_REGISTRY);
     expect(decoded.mode).toBe('local-office');
     // 빈 DB 는 Agent 폴링 흔적이 없어 inactive → local 은 unsupported 로 내려가고 off 가 선택된다.
+    // azure 는 registry 에 entry 가 없으니 unverified 다.
     expect(decoded.sttMode).toBe('off');
     expect(decoded.sttOptions[1]).toEqual({ mode: 'local', enabled: false, disabledReason: 'unsupported' });
+    expect(decoded.sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unverified' });
     expect(decoded.agentStatus).toBe('inactive');
     const text = JSON.stringify(body);
     for (const needle of ['org_demo', 'counselor@example.invalid', TEST_INSTALLATION_ID, 'sb_publishable', 'supabase']) {

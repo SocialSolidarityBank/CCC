@@ -55,7 +55,9 @@ export interface CapabilityInput {
   requestedSttMode: SttMode;
   requestedLlmMode: LlmMode;
   registry: readonly ApprovedSttEngineEntry[];
-  /** Azure STT 자격이 SecretStore 에 있는가(값은 절대 넘기지 않는다). local 은 키가 없다. */
+  /** STT-G1~G3/Q 승인(local)과 Azure 외부 처리 gate(azure)가 지났는가. 지나기 전에는 `unverified` 다. */
+  sttGatePassed: Record<'local' | 'azure', boolean>;
+  /** Agent 가 보고한 Azure 자격 존재 여부. 값은 Python SecretStore 에만 있고 TypeScript 는 존재 여부만 안다. */
   azureKeyPresent: boolean;
   llmKeyPresent: boolean;
   /** 텍스트 AI 파일럿·외부 호출 스위치 등 동의 gate 가 모두 열려 있는가. */
@@ -67,10 +69,12 @@ export interface CapabilityInput {
 function sttOption(input: CapabilityInput, mode: SttMode): CapabilityOption<SttMode> & { engine: ApprovedSttEngineId | null } {
   if (mode === 'off') return { mode, enabled: true, disabledReason: null, engine: null };
   const entry = input.registry.find((candidate) => candidate.mode === mode);
+  // S2 §2.8: gate 전 unverified → gate 후 entry 없음 unsupported → entry 있고 key 없음 missing_key.
+  // AI 를 켜려면 Agent 가 붙어 있어야 하므로 Agent 없음도 unsupported 다.
   let reason: CapabilityDisabledReason = null;
-  if (entry === undefined) reason = 'unverified';
+  if (!input.sttGatePassed[mode]) reason = 'unverified';
+  else if (entry === undefined || input.agentStatus === 'inactive') reason = 'unsupported';
   else if (mode === 'azure' && !input.azureKeyPresent) reason = 'missing_key';
-  else if (input.agentStatus === 'inactive') reason = 'unsupported';
   return {
     mode,
     enabled: reason === null,

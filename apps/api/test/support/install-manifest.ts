@@ -21,6 +21,11 @@ export async function createTestSigner(keyId = TEST_KEY_ID): Promise<TestSigner>
 
 type Unsigned = Omit<SignedInstallManifest, 'ed25519Signature'>;
 
+const DAY_MS = 86_400_000;
+/** 실제 벽시계 기준 어제 발행, 1년 뒤 만료. 고정 날짜를 두면 그날 route 테스트가 죽는다. */
+export const FIXTURE_PUBLISHED_AT = new Date(Date.now() - DAY_MS).toISOString();
+export const FIXTURE_EXPIRES_AT = new Date(Date.now() + 365 * DAY_MS).toISOString();
+
 export function unsignedManifest(mode: DeploymentMode, overrides: Partial<Unsigned> = {}): Unsigned {
   const base: Unsigned = mode === 'community-cloud'
     ? {
@@ -28,7 +33,7 @@ export function unsignedManifest(mode: DeploymentMode, overrides: Partial<Unsign
       clientOrigin: 'https://ccc.example.org', allowedOrigins: ['https://ccc.example.org'],
       host: 'ccc.example.org', scheme: 'https', endpointDiscovery: 'static',
       installationId: TEST_INSTALLATION_ID, sequence: 3,
-      publishedAt: '2026-09-01T00:00:00.000Z', expiresAt: '2027-09-01T00:00:00.000Z',
+      publishedAt: FIXTURE_PUBLISHED_AT, expiresAt: FIXTURE_EXPIRES_AT,
       approvedSttEngineIds: [], supabaseProjectRef: 'abcdefghijklmnopqrst',
       supabaseAuthOrigin: 'https://abcdefghijklmnopqrst.supabase.co',
       supabasePublishableKey: 'sb_publishable_test_not_a_real_key', signingKeyId: TEST_KEY_ID,
@@ -39,7 +44,7 @@ export function unsignedManifest(mode: DeploymentMode, overrides: Partial<Unsign
         clientOrigin: 'https://ccc.office.internal', allowedOrigins: ['https://ccc.office.internal'],
         host: 'ccc.office.internal', scheme: 'https', endpointDiscovery: 'static',
         installationId: TEST_INSTALLATION_ID, sequence: 3,
-        publishedAt: '2026-09-01T00:00:00.000Z', expiresAt: '2027-09-01T00:00:00.000Z',
+        publishedAt: FIXTURE_PUBLISHED_AT, expiresAt: FIXTURE_EXPIRES_AT,
         approvedSttEngineIds: [], supabaseProjectRef: null, supabaseAuthOrigin: null, supabasePublishableKey: null,
         signingKeyId: TEST_KEY_ID,
       }
@@ -48,7 +53,7 @@ export function unsignedManifest(mode: DeploymentMode, overrides: Partial<Unsign
         clientOrigin: 'ccc://app', allowedOrigins: ['ccc://app'],
         host: '127.0.0.1', scheme: 'ccc', endpointDiscovery: 'dpapi-record',
         installationId: TEST_INSTALLATION_ID, sequence: 3,
-        publishedAt: '2026-09-01T00:00:00.000Z', expiresAt: '2027-09-01T00:00:00.000Z',
+        publishedAt: FIXTURE_PUBLISHED_AT, expiresAt: FIXTURE_EXPIRES_AT,
         approvedSttEngineIds: [], supabaseProjectRef: null, supabaseAuthOrigin: null, supabasePublishableKey: null,
         signingKeyId: TEST_KEY_ID,
       };

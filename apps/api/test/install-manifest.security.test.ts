@@ -7,10 +7,10 @@ import {
   resolveEffectiveApiBase,
   verifySignedInstallManifest,
 } from '@ccc/contracts/install-manifest';
-import { createTestSigner, signedManifest, TEST_INSTALLATION_ID, unsignedManifest } from './support/install-manifest';
+import { createTestSigner, FIXTURE_EXPIRES_AT, signedManifest, TEST_INSTALLATION_ID, unsignedManifest } from './support/install-manifest';
 
 // S2 §2.7 · §5 `pnpm test:security --bootstrap`. 실제 기관 키·값은 없다.
-const NOW = new Date('2026-09-04T00:00:00.000Z');
+const NOW = new Date();
 const signerPromise = createTestSigner();
 
 async function verifyWith(value: unknown, overrides: Partial<Parameters<typeof verifySignedInstallManifest>[1]> = {}) {
@@ -46,7 +46,7 @@ describe('signed install manifest', () => {
     await expectCode(verifyWith({ ...manifest, apiBase: 'https://evil.example/api' }), 'signature_mismatch');
     await expectCode(verifyWith({ ...manifest, approvedSttEngineIds: [{ id: 'local-whisper-medium', mode: 'local' }] }), 'signature_mismatch');
     await expectCode(verifyWith({ ...manifest, ed25519Signature: manifest.ed25519Signature.slice(0, -4) + 'AAAA' }), 'signature_mismatch');
-    await expectCode(verifyWith(manifest, { now: new Date('2027-09-02T00:00:00.000Z') }), 'expired');
+    await expectCode(verifyWith(manifest, { now: new Date(Date.parse(FIXTURE_EXPIRES_AT) + 1000) }), 'expired');
     await expectCode(verifyWith(manifest, { minSequence: 4 }), 'sequence_replay');
     await expectCode(verifyWith(manifest, { expectedInstallationId: 'other-install' }), 'wrong_install');
     await expectCode(verifyWith(manifest, { revokedKeyIds: [signer.keyId] }), 'key_revoked');
