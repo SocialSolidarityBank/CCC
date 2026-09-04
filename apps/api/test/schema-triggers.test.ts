@@ -16,7 +16,7 @@ const counselor = testActors.counselor;
 const t = setupD1();
 const SHA256 = 'a'.repeat(64);
 const MASKED_SOURCE_TEXT = 'MASKED_SOURCE_QUOTE';
-const CREATED_AT = '2026-07-14 09:00:00';
+const CREATED_AT = '2026-07-14T09:00:00.000Z';
 const admin = testActors.admin;
 
 async function seedCanonicalDirectory(): Promise<void> {
@@ -761,14 +761,14 @@ describe('schema triggers', () => {
   it('allows exactly one provider activation retirement before appending a linked replacement', async () => {
     await t.reset();
     const provenance = await createApprovedGeneratedProvenance();
-    const retiredAt = '2026-07-14 09:01:00';
+    const retiredAt = '2026-07-14T09:01:00.000Z';
     const retiredBefore = await rowById('ai_provider_activations', provenance.providerActivationId);
 
     for (const mutation of [
       { column: 'config_id', value: 'tampered-config' },
       { column: 'previous_activation_id', value: 'tampered-activation' },
       { column: 'activated_by', value: 'tampered-actor' },
-      { column: 'activated_at', value: '2026-07-14 09:00:30' },
+      { column: 'activated_at', value: '2026-07-14T09:00:30.000Z' },
     ] as const) {
       await expect(t.db.prepare(
         `UPDATE ai_provider_activations SET deactivated_at = ?, ${mutation.column} = ? WHERE id = ?`,
@@ -784,13 +784,13 @@ describe('schema triggers', () => {
     expect(retired).toEqual({ ...retiredBefore, deactivated_at: retiredAt });
 
     await expect(t.db.prepare('UPDATE ai_provider_activations SET deactivated_at = ? WHERE id = ?')
-      .bind('2026-07-14 09:02:00', provenance.providerActivationId)
+      .bind('2026-07-14T09:02:00.000Z', provenance.providerActivationId)
       .run()).rejects.toThrow('phase1: provider activation is immutable except retirement');
     expect(await rowById('ai_provider_activations', provenance.providerActivationId)).toEqual(retired);
 
     const replacementConfigId = 'phase1-codex-replacement-config';
     const replacementActivationId = 'phase1-codex-replacement-activation';
-    const replacementActivatedAt = '2026-07-14 09:03:00';
+    const replacementActivatedAt = '2026-07-14T09:03:00.000Z';
     await t.db.prepare(
       `INSERT INTO ai_provider_configs (
         id, org_id, adapter_id, adapter_version, config_hash, approval_refs_json, created_by, created_at
@@ -831,7 +831,7 @@ describe('schema triggers', () => {
     for (const mutation of [
       { column: 'config_id', value: replacementConfigId },
       { column: 'previous_activation_id', value: replacementActivationId },
-      { column: 'activated_at', value: '2026-07-14 09:04:00' },
+      { column: 'activated_at', value: '2026-07-14T09:04:00.000Z' },
     ] as const) {
       await expect(t.db.prepare(`UPDATE ai_provider_activations SET ${mutation.column} = ? WHERE id = ?`)
         .bind(mutation.value, provenance.providerActivationId)

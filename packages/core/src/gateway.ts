@@ -17,7 +17,7 @@
  *        브리핑·통계·보고서용 조회 결과에서 제외하거나 '승인 대기'로만 표시.
  */
 
-import type { Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
+import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -262,21 +262,15 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-/**
- * audit_log.created_at은 SQLite DEFAULT (datetime('now')) 형식이다:
- * 'YYYY-MM-DD HH:MM:SS' (공백 구분, UTC, 소수·타임존 접미사 없음).
- * JS의 Date는 공백 구분 문자열을 로컬 시간으로 해석하므로, 'T'로 바꾸고 'Z'를
- * 붙여 UTC로 강제 파싱한다. (Date.now()와 비교하려면 반드시 UTC여야 한다.)
- * 유효하지 않으면 NaN을 반환한다.
- */
-function parseSqliteUtc(value: string): number {
-  return Date.parse(value.replace(' ', 'T') + 'Z');
+function insertIfAbsent(database: Database, sql: string, bindings: Bindable[]): PreparedStatement {
+  return database.prepare(sql).bind(...bindings);
 }
 
+function upsertByKey(database: Database, sql: string, bindings: Bindable[]): PreparedStatement {
+  return database.prepare(sql).bind(...bindings);
+}
 /**
- * UTC 타임스탬프 파싱(두 형식 겸용). audit_log.created_at은 SQLite datetime 형식
- * ('YYYY-MM-DD HH:MM:SS', 타임존 접미사 없음)이고, 게이트웨이 now()가 쓰는 열
- * (sessions.updated_at · ai_text_work_queue.enqueued_at 등)은 ISO('…Z')다.
+ * UTC 타임스탬프 파싱. 0046 이전의 공백 구분 레거시 값과 현재 ISO 값을 모두 읽는다.
  * 접미사가 없으면 UTC로 강제하고, 있으면 그대로 파싱한다. 유효하지 않으면 NaN.
  */
 function parseUtcTimestamp(value: string): number {
@@ -1287,7 +1281,7 @@ async function writeAudit(
   },
 ): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))',
+    'INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
   )
     .bind(
       actor.orgId,
@@ -1298,6 +1292,7 @@ async function writeAudit(
       entry.targetId ?? null,
       entry.caseId ?? null,
       entry.detail === undefined ? null : stringifyJson(entry.detail),
+      now(),
     )
     .run();
 }
@@ -1658,11 +1653,11 @@ async function assertServiceTextAiSessionGrant(
      JOIN support_cases AS support_case
        ON support_case.id = evidence.support_case_id AND support_case.org_id = evidence.org_id
      WHERE evidence.org_id = ? AND evidence.support_case_id = ?
-       AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       AND evidence.effective_at <= ?
        AND support_case.consent_text_ai_at IS NOT NULL
      ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
      LIMIT 1`,
-  ).bind(actor.orgId, context.supportCaseId).first<{ id: string }>();
+  ).bind(actor.orgId, context.supportCaseId, now()).first<{ id: string }>();
   if (evidence === null) {
     await writePhase1Denial(env, actor, {
       targetTable: 'pilot_text_ai_consent_evidence',
@@ -3065,7 +3060,7 @@ export async function getActiveAiProviderRuntimeMetadataForService(
          FROM pilot_text_ai_consent_evidence AS latest
          WHERE latest.org_id = session.org_id
            AND latest.support_case_id = session.support_case_id
-           AND latest.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           AND latest.effective_at <= ?
          ORDER BY latest.effective_at DESC, latest.created_at DESC, latest.id DESC
          LIMIT 1
        )
@@ -3078,7 +3073,7 @@ export async function getActiveAiProviderRuntimeMetadataForService(
      WHERE session.id = ? AND session.org_id = ?
      ORDER BY activation.activated_at DESC, activation.id DESC
      LIMIT 1`,
-  ).bind(sessionId, actor.orgId).first<DbRow>();
+  ).bind(now(), sessionId, actor.orgId).first<DbRow>();
   if (row === null) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_provider_configs',
@@ -3410,10 +3405,10 @@ export async function getLatestPilotTextAiConsentStatus(
      FROM pilot_text_ai_consent_evidence AS evidence
      JOIN support_cases AS support_case ON support_case.id = evidence.support_case_id
      WHERE evidence.org_id = ? AND evidence.support_case_id = ?
-       AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       AND evidence.effective_at <= ?
      ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
      LIMIT 1`,
-  ).bind(actor.orgId, context.supportCaseId).first<DbRow>();
+  ).bind(actor.orgId, context.supportCaseId, now()).first<DbRow>();
   const status: PilotTextAiConsentStatus = row === null
     ? {
       caseId,
@@ -3471,13 +3466,13 @@ export async function assertPilotTextAiConsent(
      FROM pilot_text_ai_consent_evidence AS evidence
      JOIN support_cases AS support_case ON support_case.id = evidence.support_case_id
      WHERE evidence.org_id = ? AND evidence.support_case_id = ?
-       AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       AND evidence.effective_at <= ?
        -- CCC-110: 근거 행은 append-only 이력이라 철회해도 삭제·수정하지 않는다. 현재
        -- 사용 허용은 support_cases.consent_text_ai_at 이 결정한다(철회 시 NULL).
        AND support_case.consent_text_ai_at IS NOT NULL
      ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
      LIMIT 1`,
-  ).bind(actor.orgId, context.supportCaseId).first<DbRow>();
+  ).bind(actor.orgId, context.supportCaseId, now()).first<DbRow>();
   if (row === null) {
     await writePhase1Denial(env, actor, {
       targetTable: 'pilot_text_ai_consent_evidence',
@@ -5293,7 +5288,7 @@ async function loadApprovedAiBriefings(
        approved_at
      FROM approved_ai_briefing_v1
      WHERE org_id = ? AND support_case_id = ?${sessionClause}
-     ORDER BY approved_at DESC, draft_version DESC`,
+     ORDER BY approved_at DESC NULLS LAST, draft_version DESC`,
   ).bind(orgId, context.supportCaseId, ...uniqueSessionIds).all<DbRow>();
   return result.results.map(mapApprovedAiBriefing);
 }
@@ -5455,7 +5450,7 @@ export async function collectDiscrepancyDetectionSources(
     env.DB.prepare(
       `SELECT session_id, summary_text FROM approved_ai_briefing_v1
        WHERE org_id = ? AND support_case_id = ?
-       ORDER BY approved_at DESC, draft_version DESC`,
+       ORDER BY approved_at DESC NULLS LAST, draft_version DESC`,
     ).bind(actor.orgId, scope.supportCaseId).all<DbRow>(),
   ]);
 
@@ -6931,8 +6926,8 @@ export interface TextWorkItem {
 }
 
 /**
- * 공식화 훅 — 실패해도 기록 저장을 막지 않는다(D8). 같은 회차의 대기 행이 이미
- * 있으면 부분 유니크 인덱스가 조용히 흡수한다(INSERT OR IGNORE).
+ * 공식화 훅. 실패해도 기록 저장을 막지 않는다(D8). 같은 회차의 열린 행은 명시한
+ * partial unique target의 `ON CONFLICT DO NOTHING`이 흡수한다.
  */
 export async function enqueueTextWorkItem(
   env: Env,
@@ -6942,10 +6937,13 @@ export async function enqueueTextWorkItem(
 ): Promise<void> {
   assertOpaqueIdentifier(sessionId, 'session id');
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-  ).bind(newId(), actor.orgId, scope.supportCaseId, sessionId, reason, now()).run();
+  await insertIfAbsent(
+    env.DB,
+    `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?)
+     ON CONFLICT (org_id, session_id) WHERE status IN ('pending', 'processing') DO NOTHING`,
+    [newId(), actor.orgId, scope.supportCaseId, sessionId, reason, now()],
+  ).run();
 }
 
 /**
@@ -6960,8 +6958,8 @@ export async function enqueueTextWorkItem(
  *
  * `supportCaseId` 는 정본 id 와 Phase-1 레거시 case id 를 모두 받는다
  * (resolveLegacyCaseContext 가 둘 다 매칭한다). 목표 API 세 곳이 레거시 id 를 들고 온다.
- * 대기 행이 이미 있는 회차는 부분 유니크 인덱스가 흡수한다(INSERT OR IGNORE). 먼저
- * 쌓인 사유가 남고 행은 늘지 않는다. 실패해도 목표 저장 응답을 막지 않는다(D8, 호출부 계약).
+ * 대기 행이 이미 있는 회차는 명시한 partial unique target이 흡수한다. 먼저 쌓인 사유가
+ * 남고 행은 늘지 않는다. 실패해도 목표 저장 응답을 막지 않는다(D8, 호출부 계약).
  * 권한: 담당 실무자 배정(assertCaseWriteAccess). 감사: create 1건.
  */
 export async function enqueueTextWorkForGoalChange(
@@ -6985,10 +6983,13 @@ export async function enqueueTextWorkForGoalChange(
   ).bind(actor.orgId, context.supportCaseId).all<DbRow>();
 
   const enqueuedAt = now();
-  const statements = candidates.results.map((row) => env.DB.prepare(
-    `INSERT OR IGNORE INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
-     VALUES (?, ?, ?, ?, 'goal_revised', 'pending', ?)`,
-  ).bind(newId(), actor.orgId, context.supportCaseId, stringValue(row.id), enqueuedAt));
+  const statements = candidates.results.map((row) => insertIfAbsent(
+    env.DB,
+    `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+     VALUES (?, ?, ?, ?, 'goal_revised', 'pending', ?)
+     ON CONFLICT (org_id, session_id) WHERE status IN ('pending', 'processing') DO NOTHING`,
+    [newId(), actor.orgId, context.supportCaseId, stringValue(row.id), enqueuedAt],
+  ));
   if (statements.length > 0) {
     await env.DB.batch(statements);
   }
@@ -7029,25 +7030,25 @@ export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWor
   const result = await env.DB.prepare(
     `UPDATE ai_text_work_queue SET
        status = 'processing',
-       lease_owner = ?1,
-       lease_expires_at = ?2,
+       lease_owner = ?,
+       lease_expires_at = ?,
        attempt_count = attempt_count + 1
      WHERE id IN (
        SELECT queue.id
        FROM ai_text_work_queue AS queue
        JOIN sessions AS session ON session.id = queue.session_id AND session.org_id = queue.org_id
-       WHERE queue.org_id = ?3
+       WHERE queue.org_id = ?
          AND (
            queue.status = 'pending'
            -- 만료된 임대는 재분배 대상 (CCC-120). ISO-8601 UTC 라 문자열 비교가 곧 시간 비교다.
-           OR (queue.status = 'processing' AND queue.lease_expires_at <= ?4)
+           OR (queue.status = 'processing' AND queue.lease_expires_at <= ?)
          )
          -- ② 텍스트 AI 동의 근거가 효력 중이어야 스냅샷을 저장할 수 있다.
          AND EXISTS (
            SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
            WHERE evidence.org_id = queue.org_id
              AND evidence.support_case_id = queue.support_case_id
-             AND evidence.effective_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             AND evidence.effective_at <= ?
          )
          -- CCC-110: 근거 행은 append-only 이력이라 철회해도 남는다. **현재** 동의는
          -- support_cases.consent_text_ai_at 이 결정한다. 철회(NULL)된 케이스의 일감은
@@ -7073,7 +7074,7 @@ export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWor
        LIMIT 50
      )
      RETURNING id, session_id, reason, enqueued_at, lease_expires_at, attempt_count`,
-  ).bind(actor.userId, leaseExpiresAt, actor.orgId, polledAt).all<DbRow>();
+  ).bind(actor.userId, leaseExpiresAt, actor.orgId, polledAt, polledAt).all<DbRow>();
   const items = result.results.map((row) => ({
     id: stringValue(row.id),
     sessionId: stringValue(row.session_id),
@@ -7164,7 +7165,7 @@ export async function getTextWorkItemSource(
     env.DB.prepare(
       `SELECT summary_text FROM approved_ai_briefing_v1
        WHERE org_id = ? AND session_id = ?
-       ORDER BY approved_at DESC, draft_version DESC
+       ORDER BY approved_at DESC NULLS LAST, draft_version DESC
        LIMIT 1`,
     ).bind(actor.orgId, sessionId).first<DbRow>(),
     env.DB.prepare('SELECT overall_goal FROM support_cases WHERE id = ? AND org_id = ?')
@@ -7427,7 +7428,7 @@ async function computePipelineHealth(
       staleReasons.push('never_polled');
     }
   } else {
-    const lastPolledMs = parseSqliteUtc(pollRow.created_at);
+    const lastPolledMs = parseUtcTimestamp(pollRow.created_at);
     if (Number.isNaN(lastPolledMs) || nowMs - lastPolledMs > thresholdHours * 60 * 60 * 1000) {
       staleReasons.push('poll_overdue');
     }
@@ -7788,7 +7789,7 @@ export async function getBriefing(env: Env, actor: Actor, caseId: string): Promi
        FROM action_items AS action_item
        JOIN support_cases AS support_case ON support_case.id = action_item.support_case_id
        WHERE action_item.org_id = ? AND action_item.support_case_id = ? AND action_item.resolved_at IS NULL
-       ORDER BY action_item.due_date, action_item.created_at`,
+       ORDER BY action_item.due_date NULLS LAST, action_item.created_at`,
     ).bind(actor.orgId, context.supportCaseId).all<DbRow>(),
     // 브리핑에는 실무자가 만든 플래그 또는 실무자가 확정(confirmed)한 AI 플래그만 싣는다.
     // 검토 전 AI 제안(pending)은 사실 확정 전이므로 제외한다 — 검토 화면(listFlags)에만 나온다.
@@ -7877,9 +7878,11 @@ export async function recordGasScores(
       throw new ValidationError('GAS score goal must belong to the session case');
     }
     const evidenceQuote = item.evidenceQuote ?? null;
-    statements.push(env.DB.prepare(
+    statements.push(upsertByKey(
+      env.DB,
       'INSERT INTO session_goal_scores (id, org_id, session_id, goal_id, score, evidence_quote, scored_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id, goal_id) DO UPDATE SET score = excluded.score, evidence_quote = excluded.evidence_quote, scored_by = excluded.scored_by',
-    ).bind(newId(), actor.orgId, sessionId, item.goalId, item.score, evidenceQuote, actor.userId, now()));
+      [newId(), actor.orgId, sessionId, item.goalId, item.score, evidenceQuote, actor.userId, now()],
+    ));
     saved.push({
       sessionId,
       goalId: item.goalId,
@@ -7983,7 +7986,7 @@ export async function listOpenActionItems(
      FROM action_items AS action_item
      JOIN support_cases AS support_case ON support_case.id = action_item.support_case_id
      WHERE action_item.org_id = ? AND action_item.support_case_id = ? AND action_item.resolved_at IS NULL
-     ORDER BY action_item.due_date, action_item.created_at`,
+     ORDER BY action_item.due_date NULLS LAST, action_item.created_at`,
   ).bind(actor.orgId, context.supportCaseId).all<DbRow>();
   await writeAudit(env, actor, { action: 'read', targetTable: 'action_items', caseId });
   return result.results.map(mapActionItem);
@@ -8513,7 +8516,7 @@ export async function revokeIdentitySession(env: Env, sessionId: string, reason:
 /** 사용자 디렉터리 목록. 권한: admin 전용, 자기 기관만. 감사: read(users). */
 export async function listUsers(env: Env, actor: Actor): Promise<User[]> {
   assertAdmin(actor);
-  const result = await env.DB.prepare('SELECT * FROM users WHERE org_id = ? ORDER BY email')
+  const result = await env.DB.prepare('SELECT * FROM users WHERE org_id = ? ORDER BY email NULLS LAST, id')
     .bind(actor.orgId)
     .all<DbRow>();
   await writeAudit(env, actor, { action: 'read', targetTable: 'users', detail: { list: true } });
@@ -9282,7 +9285,7 @@ async function writeCanonicalAudit(
     `INSERT INTO audit_log (
        org_id, actor_id, actor_role, action, target_table, target_id, case_id,
        beneficiary_id, support_case_id, detail, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, datetime('now'))`,
+     ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
   ).bind(
     actor.orgId,
     actor.userId,
@@ -9292,7 +9295,8 @@ async function writeCanonicalAudit(
     entry.targetId ?? null,
     entry.beneficiaryId ?? null,
     entry.supportCaseId ?? null,
-entry.detail === undefined ? null : stringifyJson(entry.detail),
+    entry.detail === undefined ? null : stringifyJson(entry.detail),
+    now(),
   ).run();
 }
 
@@ -9313,7 +9317,7 @@ function canonicalAuditStatement(
     `INSERT INTO audit_log (
        org_id, actor_id, actor_role, action, target_table, target_id, case_id,
        beneficiary_id, support_case_id, detail, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     actor.orgId,
     actor.userId,
@@ -9325,8 +9329,14 @@ function canonicalAuditStatement(
     entry.beneficiaryId,
     entry.supportCaseId,
     stringifyJson(entry.detail),
+    now(),
   );
 }
+interface AuditPostState {
+  sql: string;
+  bindings: Bindable[];
+}
+
 function conditionalCanonicalAuditStatement(
   env: Env,
   actor: Actor,
@@ -9338,15 +9348,16 @@ function conditionalCanonicalAuditStatement(
     supportCaseId: string | null;
     detail: Record<string, unknown>;
   },
+  postState: AuditPostState,
+  createdAt: string,
 ): PreparedStatement {
   return env.DB.prepare(
-
     `INSERT INTO audit_log (
        org_id, actor_id, actor_role, action, target_table, target_id, case_id,
        beneficiary_id, support_case_id, detail, created_at
      )
-     SELECT ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, datetime('now')
-     WHERE changes() = 1`,
+     SELECT ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?
+     WHERE EXISTS (${postState.sql})`,
   ).bind(
     actor.orgId,
     actor.userId,
@@ -9357,6 +9368,8 @@ function conditionalCanonicalAuditStatement(
     entry.beneficiaryId,
     entry.supportCaseId,
     stringifyJson(entry.detail),
+    createdAt,
+    ...postState.bindings,
   );
 }
 
@@ -9371,35 +9384,38 @@ function conditionalCanonicalAuditStatement(
  * - 남는 동시성 충돌은 호출부의 UNIQUE 재시도 루프(F7)가 흡수한다.
  */
 async function allocateBeneficiaryId(env: Env, orgId: string): Promise<string> {
-  const rotation = await env.DB.prepare(
-    "SELECT COUNT(*) AS issued FROM beneficiaries WHERE org_id = ? AND id GLOB '*-*'",
-  ).bind(orgId).first<{ issued: number }>();
-  const issued = rotation?.issued ?? 0;
+  const orgRows = await env.DB.prepare(
+    "SELECT id FROM beneficiaries WHERE org_id = ? AND id LIKE '%-%'",
+  ).bind(orgId).all<{ id: string }>();
+  const issued = orgRows.results.reduce(
+    (count, row) => count + (row.id.includes('-') && isBeneficiaryId(row.id) ? 1 : 0),
+    0,
+  );
   const animal = ANIMAL_SLUGS[issued % ANIMAL_SLUGS.length];
   if (animal === undefined) {
     throw new ValidationError('participant id allocation failed');
   }
 
-  const sequences = await env.DB.prepare(
-    `SELECT
-       MAX(CASE WHEN org_id = ?1 THEN sequence END) AS org_max,
-       MAX(sequence) AS global_max
-     FROM (
-       SELECT org_id, CAST(substr(id, ?2) AS INTEGER) AS sequence
-       FROM beneficiaries
-       WHERE id GLOB ?3
-     )`,
-  ).bind(orgId, animal.length + 2, `${animal}-[0-9]*`)
-    .first<{ org_max: number | null; global_max: number | null }>();
-  const orgMax = sequences?.org_max ?? 0;
-  const globalMax = sequences?.global_max ?? 0;
+  const rows = await env.DB.prepare(
+    'SELECT id, org_id FROM beneficiaries WHERE id LIKE ?',
+  ).bind(`${animal}-%`).all<{ id: string; org_id: string }>();
+  let orgMax = 0;
+  let globalMax = 0;
+  const taken = new Set<string>();
+  for (const row of rows.results) {
+    if (!row.id.startsWith(`${animal}-`) || !isBeneficiaryId(row.id)) continue;
+    const sequence = Number(row.id.slice(animal.length + 1));
+    if (!Number.isSafeInteger(sequence) || sequence < 1) {
+      throw new ValidationError('participant id allocation failed');
+    }
+    taken.add(row.id);
+    globalMax = Math.max(globalMax, sequence);
+    if (row.org_id === orgId) orgMax = Math.max(orgMax, sequence);
+  }
 
   let next = orgMax + 1;
-  if (next <= globalMax) {
-    const taken = await env.DB.prepare('SELECT id FROM beneficiaries WHERE id = ?')
-      .bind(`${animal}-${String(next).padStart(3, '0')}`)
-      .first<{ id: string }>();
-    if (taken !== null) next = globalMax + 1;
+  if (taken.has(`${animal}-${String(next).padStart(3, '0')}`)) {
+    next = globalMax + 1;
   }
   if (!Number.isSafeInteger(next) || next < 1) {
     throw new ValidationError('participant id allocation failed');
@@ -10201,8 +10217,7 @@ export async function listPrivacyConsentFollowUps(
        FROM support_cases
        WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
          AND support_cases.status = 'active'
-       ORDER BY support_cases.consent_privacy_due_at IS NULL,
-                support_cases.consent_privacy_due_at, support_cases.id`
+       ORDER BY support_cases.consent_privacy_due_at NULLS LAST, support_cases.id`
     : `SELECT support_cases.id, support_cases.beneficiary_id, support_cases.program_type,
               support_cases.status, support_cases.emergency_registration_at,
               support_cases.consent_privacy_due_at
@@ -10214,8 +10229,7 @@ export async function listPrivacyConsentFollowUps(
          AND support_case_assignees.status = 'active'
        WHERE support_cases.org_id = ? AND support_cases.consent_privacy_at IS NULL
          AND support_cases.status = 'active'
-       ORDER BY support_cases.consent_privacy_due_at IS NULL,
-                support_cases.consent_privacy_due_at, support_cases.id`;
+       ORDER BY support_cases.consent_privacy_due_at NULLS LAST, support_cases.id`;
   const bindings = hasInstitutionAdminAccess ? [actor.orgId] : [actor.userId, actor.orgId];
   const result = await env.DB.prepare(sql).bind(...bindings).all<DbRow>();
   await writeCanonicalAudit(env, actor, {
@@ -10511,7 +10525,10 @@ export async function createSupportCase(
         beneficiaryId,
         supportCaseId,
         detail: { programType: FINANCIAL_SUPPORT_V1, schemaVersion: 1 },
-      }),
+      }, {
+        sql: 'SELECT 1 FROM support_cases WHERE id = ? AND org_id = ?',
+        bindings: [supportCaseId, actor.orgId],
+      }, createdAt),
       env.DB.prepare(
         `INSERT INTO support_case_assignees (
            id, org_id, support_case_id, user_id, role, assigned_at
@@ -10538,7 +10555,10 @@ export async function createSupportCase(
         beneficiaryId,
         supportCaseId,
         detail: { role: 'primary', initial: true },
-      }),
+      }, {
+        sql: 'SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ?',
+        bindings: [assignmentId, actor.orgId],
+      }, createdAt),
       // ① 동의(또는 긴급 등록)의 이력 행 (D44 · G1). 케이스 생성이 경계에서 거부되면
       // WHERE EXISTS 가 이 행도 함께 없앤다 — 고아 동의 기록을 남기지 않는다.
       // ② 는 이 요청에서 받은 값이다(D49) — 두 번째 사업은 앞 사업의 동의를 물려받지 않고,
@@ -10589,7 +10609,10 @@ export async function createSupportCase(
             : { privacyNoticeVersion: privacyEvidence.noticeVersion }),
           ...(emergency === null ? {} : { emergencyRegistration: true, consentPrivacyDueAt: emergency.dueAt }),
         },
-      }),
+      }, {
+        sql: 'SELECT 1 FROM participant_consent_records WHERE id = ? AND org_id = ?',
+        bindings: [consentRecordId, actor.orgId],
+      }, createdAt),
     ]);
     const creation = results[0] as unknown as { meta?: { changes?: number } };
     if ((creation.meta?.changes ?? 0) < 1) {
@@ -10978,7 +11001,7 @@ export async function getParticipantGoalTree(
               (SELECT briefing.one_liner
                FROM approved_ai_briefing_v1 AS briefing
                WHERE briefing.org_id = session.org_id AND briefing.session_id = session.id
-               ORDER BY briefing.approved_at DESC, briefing.draft_version DESC
+               ORDER BY briefing.approved_at DESC NULLS LAST, briefing.draft_version DESC
                LIMIT 1) AS one_liner
        FROM schedule_session_goals AS session_goal
        JOIN counseling_schedules AS schedule
@@ -11244,7 +11267,7 @@ async function newSignupBeneficiaryIds(
            AND audit.org_id = cases.org_id
            AND audit.actor_id = ?
            AND audit.action = 'read'
-           AND julianday(audit.created_at) > julianday(cases.created_at)
+           AND audit.created_at > cases.created_at
        )
        AND EXISTS (
          SELECT 1 FROM beneficiaries AS beneficiary
@@ -11537,24 +11560,29 @@ export async function updateParticipantPii(
     encryptedParticipantPatch(env, input.gender, current.enc_gender, 'gender'),
   ]);
   const updatedAt = now();
+  const operationMarker = newId();
   const result = await env.DB.batch([
     env.DB.prepare(
       `UPDATE participant_pii_vault
        SET enc_name = ?, enc_phone = ?, enc_account = ?, enc_email = ?,
-           enc_birth_date = ?, enc_region = ?, enc_gender = ?, version = version + 1, updated_at = ?
+           enc_birth_date = ?, enc_region = ?, enc_gender = ?, version = version + 1,
+           updated_at = ?, operation_marker = ?
        WHERE beneficiary_id = ? AND org_id = ? AND version = ? AND purged_at IS NULL`,
     ).bind(
       encName, encPhone, encAccount, encEmail, encBirthDate, encRegion, encGender,
-      updatedAt, beneficiaryId, actor.orgId, input.expectedVersion,
+      updatedAt, operationMarker, beneficiaryId, actor.orgId, input.expectedVersion,
     ),
-conditionalCanonicalAuditStatement(env, actor, {
-  action: 'update',
-  targetTable: 'participant_pii_vault',
-  targetId: beneficiaryId,
-  beneficiaryId,
-  supportCaseId: input.supportCaseContextId,
-  detail: { fields },
-}),
+    conditionalCanonicalAuditStatement(env, actor, {
+      action: 'update',
+      targetTable: 'participant_pii_vault',
+      targetId: beneficiaryId,
+      beneficiaryId,
+      supportCaseId: input.supportCaseContextId,
+      detail: { fields },
+    }, {
+      sql: 'SELECT 1 FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [beneficiaryId, actor.orgId, operationMarker],
+    }, updatedAt),
   ]);
   const update = result[0] as unknown as { meta?: { changes?: number } };
   if ((update.meta?.changes ?? 0) < 1) {
@@ -11681,6 +11709,7 @@ export async function reRegisterParticipantPii(
     encryptPii(env, input.account),
   ]);
   const updatedAt = now();
+  const operationMarker = newId();
   const result = await env.DB.batch([
     env.DB.prepare(
       `UPDATE participant_pii_vault
@@ -11688,7 +11717,7 @@ export async function reRegisterParticipantPii(
            purged_at = NULL, purged_by = NULL, purged_by_role = NULL,
            retention_changed_by = ?, retention_context_support_case_id = ?,
            retention_change_kind = 're_register_pii', retention_changed_at = ?,
-           version = version + 1, updated_at = ?
+           version = version + 1, updated_at = ?, operation_marker = ?
        WHERE beneficiary_id = ? AND org_id = ? AND version = ? AND purged_at IS NOT NULL`,
     ).bind(
       encName,
@@ -11698,6 +11727,7 @@ export async function reRegisterParticipantPii(
       input.supportCaseContextId,
       updatedAt,
       updatedAt,
+      operationMarker,
       beneficiaryId,
       actor.orgId,
       input.expectedVersion,
@@ -11709,7 +11739,10 @@ export async function reRegisterParticipantPii(
       beneficiaryId,
       supportCaseId: input.supportCaseContextId,
       detail: { fields: ['name', 'phone', 'account'], reasonProvided: true },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [beneficiaryId, actor.orgId, operationMarker],
+    }, updatedAt),
   ]);
   const update = result[0] as unknown as { meta?: { changes?: number } };
   if ((update.meta?.changes ?? 0) < 1) {
@@ -11836,10 +11869,11 @@ export async function updateSupportCaseExtra(
 ): Promise<void> {
   const supportCase = await assertSupportCaseWriteAccess(env, actor, supportCaseId);
   const updatedAt = now();
+  const operationMarker = newId();
   const results = await env.DB.batch([
     env.DB.prepare(
-      'UPDATE support_cases SET extra = ?, updated_at = ? WHERE id = ? AND org_id = ?',
-    ).bind(stringifyJson(extra), updatedAt, supportCaseId, actor.orgId),
+      'UPDATE support_cases SET extra = ?, updated_at = ?, operation_marker = ? WHERE id = ? AND org_id = ?',
+    ).bind(stringifyJson(extra), updatedAt, operationMarker, supportCaseId, actor.orgId),
     conditionalCanonicalAuditStatement(env, actor, {
       action: 'update',
       targetTable: 'support_cases',
@@ -11847,7 +11881,10 @@ export async function updateSupportCaseExtra(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       detail: { field: 'extra' },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM support_cases WHERE id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [supportCaseId, actor.orgId, operationMarker],
+    }, updatedAt),
   ]);
   const update = results[0] as unknown as { meta?: { changes?: number } };
   if ((update.meta?.changes ?? 0) < 1) {
@@ -11876,16 +11913,19 @@ export async function closeSupportCase(
     env.DB.prepare(
       `UPDATE support_cases
        SET status = 'closed', closed_at = ?, closed_reason = ?, closed_by_actor_id = ?,
-           updated_at = ?
+           updated_at = ?, operation_marker = ?
        WHERE id = ? AND org_id = ? AND status = 'active'`,
-    ).bind(closedAt, reason, actor.userId, closedAt, supportCaseId, actor.orgId),
+    ).bind(closedAt, reason, actor.userId, closedAt, operationId, supportCaseId, actor.orgId),
     env.DB.prepare(
       `INSERT INTO audit_log (
          org_id, actor_id, actor_role, action, target_table, target_id, case_id,
          beneficiary_id, support_case_id, detail, created_at
        )
-       SELECT ?, ?, ?, 'close', 'support_cases', ?, NULL, ?, ?, ?, datetime('now')
-       WHERE changes() = 1`,
+       SELECT ?, ?, ?, 'close', 'support_cases', ?, NULL, ?, ?, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM support_cases
+         WHERE id = ? AND org_id = ? AND operation_marker = ?
+       )`,
     ).bind(
       actor.orgId,
       actor.userId,
@@ -11894,6 +11934,10 @@ export async function closeSupportCase(
       supportCase.beneficiaryId,
       supportCaseId,
       auditDetail,
+      closedAt,
+      supportCaseId,
+      actor.orgId,
+      operationId,
     ),
   ]);
   const persisted = await env.DB.prepare(
@@ -12066,8 +12110,8 @@ function mapParticipantPiiRetentionReview(row: DbRow): ParticipantPiiRetentionRe
 async function archiveParticipantPii(
   env: Env,
   candidate: ParticipantPiiArchiveCandidate,
+  archivedAt: string,
 ): Promise<boolean> {
-  const archivedAt = now();
   const retentionCapDueAt = retentionCapAt(candidate.context_closed_at);
   const keyVersion = integerValue(candidate.key_version);
   if (keyVersion === null || keyVersion < 1) {
@@ -12157,7 +12201,7 @@ export async function processParticipantPiiRetention(
                AND fallback_case.org_id = vault.org_id
                AND fallback_case.status = 'closed'
                AND fallback_case.closed_at IS NOT NULL
-             ORDER BY julianday(fallback_case.closed_at) DESC, fallback_case.id DESC
+             ORDER BY fallback_case.closed_at DESC NULLS LAST, fallback_case.id DESC
              LIMIT 1
            )
          )
@@ -12165,15 +12209,6 @@ export async function processParticipantPiiRetention(
         AND context_case.beneficiary_id = vault.beneficiary_id
        WHERE vault.purged_at IS NULL
          AND vault.purge_due IS NOT NULL
-         AND min(
-           julianday(vault.purge_due),
-           julianday(
-             CASE strftime('%m-%d', context_case.closed_at)
-               WHEN '02-29' THEN datetime(context_case.closed_at, '+5 years', '-1 day')
-               ELSE datetime(context_case.closed_at, '+5 years')
-             END
-           )
-         ) <= julianday(?)
          AND NOT EXISTS (
            SELECT 1 FROM participant_pii_archives AS archive
            WHERE archive.beneficiary_id = vault.beneficiary_id AND archive.org_id = vault.org_id
@@ -12183,23 +12218,26 @@ export async function processParticipantPiiRetention(
            WHERE active_case.beneficiary_id = vault.beneficiary_id
              AND active_case.org_id = vault.org_id
              AND active_case.status = 'active'
-         )
-       ORDER BY min(
-         julianday(vault.purge_due),
-         julianday(
-           CASE strftime('%m-%d', context_case.closed_at)
-             WHEN '02-29' THEN datetime(context_case.closed_at, '+5 years', '-1 day')
-             ELSE datetime(context_case.closed_at, '+5 years')
-           END
-         )
-       ), vault.beneficiary_id
-       LIMIT ?`,
-    ).bind(processedAt, limit).all<ParticipantPiiArchiveCandidate>();
-    if (candidates.results.length === 0) break;
+         )`,
+    ).all<ParticipantPiiArchiveCandidate>();
+    const due = candidates.results
+      .map((candidate) => {
+        const purgeDue = stringValue(candidate.purge_due);
+        const retentionCap = retentionCapAt(candidate.context_closed_at);
+        return { candidate, dueAt: purgeDue < retentionCap ? purgeDue : retentionCap };
+      })
+      .filter((entry) => entry.dueAt <= processedAt)
+      .sort((left, right) => (
+        left.dueAt < right.dueAt ? -1
+          : left.dueAt > right.dueAt ? 1
+            : stringValue(left.candidate.beneficiary_id).localeCompare(stringValue(right.candidate.beneficiary_id))
+      ))
+      .slice(0, limit);
+    if (due.length === 0) break;
 
-    attempted += candidates.results.length;
-    for (const candidate of candidates.results) {
-      if (!await archiveParticipantPii(env, candidate)) {
+    attempted += due.length;
+    for (const { candidate } of due) {
+      if (!await archiveParticipantPii(env, candidate, processedAt)) {
         throw new ConflictError('participant PII archive transition failed');
       }
       archived += 1;
@@ -12213,7 +12251,7 @@ export async function processParticipantPiiRetention(
          reviewed_by = NULL, reviewed_at = NULL,
          state_changed_by = 'system:retention', state_changed_by_role = 'service',
          state_changed_at = ?, updated_at = ?
-     WHERE review_status = 'retained' AND julianday(review_due_at) <= julianday(?)`,
+     WHERE review_status = 'retained' AND review_due_at <= ?`,
   ).bind(processedAt, processedAt, processedAt, processedAt).run();
 
   return { attempted, archived, requeued: requeued.meta?.changes ?? 0 };
@@ -13208,14 +13246,15 @@ async function transitionCounselingSchedule(
   }
   const scheduledAt = transition === 'rescheduled' ? input.scheduledAt as string : existing.scheduledAt;
   const updatedAt = now();
+  const operationMarker = newId();
   const nextStatus = transition === 'rescheduled' ? 'scheduled' : transition;
   const results = await env.DB.batch([
     env.DB.prepare(
       `UPDATE counseling_schedules
        SET scheduled_at = ?, status = ?, version = version + 1, updated_by_actor_id = ?,
-           updated_at = ?
+           updated_at = ?, operation_marker = ?
        WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ?`,
-    ).bind(scheduledAt, nextStatus, actor.userId, updatedAt, scheduleId, actor.orgId, input.expectedVersion),
+    ).bind(scheduledAt, nextStatus, actor.userId, updatedAt, operationMarker, scheduleId, actor.orgId, input.expectedVersion),
     conditionalCanonicalAuditStatement(env, actor, {
       action: transition === 'rescheduled' ? 'reschedule' : transition,
       targetTable: 'counseling_schedules',
@@ -13223,7 +13262,10 @@ async function transitionCounselingSchedule(
       beneficiaryId: existing.beneficiaryId,
       supportCaseId: existing.supportCaseId,
       detail: { status: nextStatus },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [scheduleId, actor.orgId, operationMarker],
+    }, updatedAt),
   ]);
   const update = results[0] as unknown as { meta?: { changes?: number } };
   if ((update.meta?.changes ?? 0) < 1) {
@@ -13397,17 +13439,25 @@ export async function updateScheduleSessionGoals(
     sessionGoals.map((goal) => goal.caseGoalId),
   );
 
-  // 잠금 조건을 쓰기 문장 자체에도 단다 — 조회와 배치 사이의 경합(취소·미루기·다른
-  // 수정)이 끼면 아래 전부가 0행으로 끝나고, 마지막 version UPDATE 검사가 잡아낸다.
-  const guardClause = `EXISTS (
+  // 먼저 낙관적 잠금 UPDATE에 고유 marker를 쓴다. 뒤의 삭제, 삽입, 감사는 그 marker가
+  // 있는 post-state만 따른다. 조회와 배치 사이에 경합이 끼면 첫 UPDATE가 0행이고 나머지도
+  // 모두 0행이므로 부분 수정이 남지 않는다.
+  const operationMarker = newId();
+  const postStateClause = `EXISTS (
     SELECT 1 FROM counseling_schedules
-    WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND scheduled_at > ?
+    WHERE id = ? AND org_id = ? AND operation_marker = ?
   )`;
-  const guardBindings = [scheduleId, actor.orgId, input.expectedVersion, nowInstant];
+  const postStateBindings = [scheduleId, actor.orgId, operationMarker];
   const statements: PreparedStatement[] = [
     env.DB.prepare(
-      `DELETE FROM schedule_session_goals WHERE org_id = ? AND schedule_id = ? AND ${guardClause}`,
-    ).bind(actor.orgId, scheduleId, ...guardBindings),
+      `UPDATE counseling_schedules
+       SET version = version + 1, updated_by_actor_id = ?, updated_at = ?, operation_marker = ?
+       WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND scheduled_at > ?`,
+    ).bind(actor.userId, nowInstant, operationMarker, scheduleId, actor.orgId, input.expectedVersion, nowInstant),
+    env.DB.prepare(
+      `DELETE FROM schedule_session_goals
+       WHERE org_id = ? AND schedule_id = ? AND ${postStateClause}`,
+    ).bind(actor.orgId, scheduleId, ...postStateBindings),
   ];
   sessionGoals.forEach((goal, index) => {
     statements.push(env.DB.prepare(
@@ -13415,7 +13465,7 @@ export async function updateScheduleSessionGoals(
          id, org_id, schedule_id, support_case_id, case_goal_id, body, ordinal, created_by, created_at
        )
        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE ${guardClause}`,
+       WHERE ${postStateClause}`,
     ).bind(
       newId(),
       actor.orgId,
@@ -13426,14 +13476,9 @@ export async function updateScheduleSessionGoals(
       index,
       actor.userId,
       nowInstant,
-      ...guardBindings,
+      ...postStateBindings,
     ));
   });
-  statements.push(env.DB.prepare(
-    `UPDATE counseling_schedules
-     SET version = version + 1, updated_by_actor_id = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ? AND scheduled_at > ?`,
-  ).bind(actor.userId, nowInstant, scheduleId, actor.orgId, input.expectedVersion, nowInstant));
   statements.push(conditionalCanonicalAuditStatement(env, actor, {
     action: 'update',
     targetTable: 'schedule_session_goals',
@@ -13441,9 +13486,12 @@ export async function updateScheduleSessionGoals(
     beneficiaryId: schedule.beneficiaryId,
     supportCaseId: schedule.supportCaseId,
     detail: { count: sessionGoals.length },
-  }));
+  }, {
+    sql: 'SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND operation_marker = ?',
+    bindings: postStateBindings,
+  }, nowInstant));
   const results = await env.DB.batch(statements);
-  const update = results[statements.length - 2] as unknown as { meta?: { changes?: number } };
+  const update = results[0] as unknown as { meta?: { changes?: number } };
   if ((update.meta?.changes ?? 0) < 1) {
     throw new ConflictError('counseling schedule is unavailable');
   }
@@ -14101,10 +14149,11 @@ export async function createCounselingRecord(
   for (const resolution of actionItemResolutions) {
     const resolvedAt = resolution.status === 'done' ? createdAt : null;
     const resolvedBy = resolution.status === 'done' ? actor.userId : null;
+    const operationMarker = newId();
     statements.push(env.DB.prepare(
       `UPDATE action_items
        SET resolution_status = ?, resolution_note = ?, resolution_at = ?, resolution_session_id = ?,
-           resolved_at = ?, resolved_by = ?
+           resolved_at = ?, resolved_by = ?, operation_marker = ?
        WHERE id = ? AND org_id = ? AND support_case_id = ? AND resolved_at IS NULL
          AND ${sessionExistsClause}`,
     ).bind(
@@ -14114,6 +14163,7 @@ export async function createCounselingRecord(
       id,
       resolvedAt,
       resolvedBy,
+      operationMarker,
       resolution.actionItemId,
       actor.orgId,
       supportCaseId,
@@ -14124,8 +14174,11 @@ export async function createCounselingRecord(
          org_id, actor_id, actor_role, action, target_table, target_id, case_id,
          beneficiary_id, support_case_id, detail, created_at
        )
-       SELECT ?, ?, ?, 'update', 'action_items', ?, NULL, ?, ?, ?, datetime('now')
-       WHERE ${sessionExistsClause}`,
+       SELECT ?, ?, ?, 'update', 'action_items', ?, NULL, ?, ?, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM action_items
+         WHERE id = ? AND org_id = ? AND operation_marker = ?
+       )`,
     ).bind(
       actor.orgId,
       actor.userId,
@@ -14134,7 +14187,10 @@ export async function createCounselingRecord(
       supportCase.beneficiaryId,
       supportCaseId,
       stringifyJson({ resolutionStatus: resolution.status }),
-      ...sessionExistsBindings,
+      createdAt,
+      resolution.actionItemId,
+      actor.orgId,
+      operationMarker,
     ));
   }
   if (schedule !== null) {
@@ -15042,7 +15098,6 @@ export async function createIntakeRecord(
       createdAt,
       ...sessionExistsBindings,
     ));
-    // 바로 앞 goals INSERT 가 세션 미존재로 0행이면 changes()=0 → 감사도 생략(정합).
     statements.push(conditionalCanonicalAuditStatement(env, actor, {
       action: 'create',
       targetTable: 'goals',
@@ -15050,7 +15105,10 @@ export async function createIntakeRecord(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       detail: { kind: 'intake' },
-    }));
+    }, {
+      sql: 'SELECT 1 FROM goals WHERE id = ? AND org_id = ?',
+      bindings: [goalId, actor.orgId],
+    }, createdAt));
   }
 
   for (const action of input.actionItems ?? []) {
@@ -15105,13 +15163,14 @@ export async function createIntakeRecord(
       encryptPii(env, patch.emergencyContact ?? null),
       encryptPii(env, patch.gender ?? null),
     ]);
+    const operationMarker = newId();
     statements.push(env.DB.prepare(
       `UPDATE participant_pii_vault
        SET enc_birth_date = COALESCE(?, enc_birth_date),
            enc_region = COALESCE(?, enc_region),
            enc_emergency_contact = COALESCE(?, enc_emergency_contact),
            enc_gender = COALESCE(?, enc_gender),
-           version = version + 1, updated_at = ?
+           version = version + 1, updated_at = ?, operation_marker = ?
        WHERE beneficiary_id = ? AND org_id = ? AND purged_at IS NULL
          AND ${sessionExistsClause}`,
     ).bind(
@@ -15120,6 +15179,7 @@ export async function createIntakeRecord(
       encEmergencyContact,
       encGender,
       createdAt,
+      operationMarker,
       supportCase.beneficiaryId,
       actor.orgId,
       ...sessionExistsBindings,
@@ -15134,7 +15194,10 @@ export async function createIntakeRecord(
         fields: INTAKE_EXTENDED_PII_FIELDS.filter((field) => patch[field] !== undefined),
         kind: 'intake',
       },
-    }));
+    }, {
+      sql: 'SELECT 1 FROM participant_pii_vault WHERE beneficiary_id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [supportCase.beneficiaryId, actor.orgId, operationMarker],
+    }, createdAt));
   }
 
   // 동의 기록(append-only): 화면 체크 privacy → consent_privacy_at, recordingAi → 2컬럼 동시.
@@ -15193,7 +15256,10 @@ export async function createIntakeRecord(
       kind: 'intake',
       privacyNoticeVersion: privacyEvidence.noticeVersion,
     },
-  }));
+  }, {
+    sql: 'SELECT 1 FROM participant_consent_records WHERE id = ? AND org_id = ?',
+    bindings: [consentRecordId, actor.orgId],
+  }, createdAt));
   }
 
   if (schedule !== null) {
@@ -15350,12 +15416,13 @@ export async function updateIntakeRecord(
     nextMeeting: existing.nextMeeting ?? null,
   });
   const updatedAt = now();
-  // 권한을 변경 배치의 WHERE 에서 반복한다 — 사전 검사만으로는 이후 상태 변화를 승인하지
-  // 못한다(레포 공통 패턴). 감사는 changes()=1 일 때만 같이 남는다.
+  const operationMarker = newId();
+  // 권한을 변경 배치의 WHERE 에서 반복한다. 사전 검사만으로는 이후 상태 변화를 승인하지
+  // 못한다. 감사는 이 요청의 operation marker가 post-state에 남았을 때만 함께 기록한다.
   const results = await env.DB.batch([
     env.DB.prepare(
       `UPDATE sessions
-       SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?
+       SET held_at = ?, channel = ?, intake_details = ?, updated_at = ?, operation_marker = ?
        WHERE id = ? AND org_id = ? AND support_case_id = ? AND kind = 'intake'
          AND EXISTS (
            SELECT 1 FROM support_cases AS support_case
@@ -15382,6 +15449,7 @@ export async function updateIntakeRecord(
       input.channel,
       intakeDetails,
       updatedAt,
+      operationMarker,
       intakeRow.id,
       actor.orgId,
       supportCaseId,
@@ -15394,7 +15462,10 @@ export async function updateIntakeRecord(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       detail: { kind: 'intake' },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM sessions WHERE id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [intakeRow.id, actor.orgId, operationMarker],
+    }, updatedAt),
     // 인테이크 완료 시각 동기(CCC-56): 상담일(held_at)이 바뀌면 intake_at 도 따라간다.
     // 앞 UPDATE 가 권한·상태 가드에 막혀 0행이면 여기도 0행이어야 하므로, 이 호출이 방금
     // 쓴 값(held_at = ?, updated_at = ?)이 실제로 앉았는지를 조건으로 삼는다.
@@ -15478,7 +15549,7 @@ export async function listCounselingRecords(
     env.DB.prepare(
       `SELECT * FROM action_items
        WHERE org_id = ? AND support_case_id = ? AND session_id IN (${placeholders})
-       ORDER BY session_id, due_date, created_at, id`,
+       ORDER BY session_id, due_date NULLS LAST, created_at, id`,
     ).bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
     env.DB.prepare(
       `SELECT * FROM flags
@@ -15504,7 +15575,7 @@ export async function listCounselingRecords(
          SELECT discrepancy.*,
                 ROW_NUMBER() OVER (
                   PARTITION BY (discrepancy.resolution_status IS NULL)
-                  ORDER BY discrepancy.resolved_at DESC, discrepancy.id
+                  ORDER BY discrepancy.resolved_at DESC NULLS LAST, discrepancy.id
                 ) AS resolved_rank
          FROM session_discrepancies AS discrepancy
          WHERE discrepancy.org_id = ? AND discrepancy.support_case_id = ?
@@ -15901,38 +15972,28 @@ export async function getParticipantBriefing(
       `SELECT support_case_id, session_id, draft_version_id, summary_text, one_liner, questions_json, approved_at
        FROM approved_ai_briefing_v1
        WHERE org_id = ? AND support_case_id IN (${placeholders})
-       ORDER BY approved_at DESC, draft_version DESC`,
+       ORDER BY approved_at DESC NULLS LAST, draft_version DESC`,
     ).bind(...scopedValues).all<DbRow>(),
     env.DB.prepare(
-          `SELECT work.support_case_id,
-                  SUM(CASE
-                    WHEN EXISTS (
-                      SELECT 1 FROM ai_draft_versions AS draft
-                      WHERE draft.work_item_id = work.id
-                        AND draft.origin = 'fixture_generated'
-                        AND draft.creation_mode = 'fixture_generated'
-                    ) THEN 0 ELSE 1
-                  END) AS count,
-                  GROUP_CONCAT(DISTINCT CASE
-                    WHEN EXISTS (
-                      SELECT 1 FROM ai_draft_versions AS draft
-                      WHERE draft.work_item_id = work.id
-                        AND draft.origin = 'fixture_generated'
-                        AND draft.creation_mode = 'fixture_generated'
-                    ) THEN work.session_id
-                  END) AS fixture_session_ids
-           FROM ai_work_items AS work
-           WHERE work.org_id = ? AND work.support_case_id IN (${placeholders})
-             AND NOT EXISTS (
-               SELECT 1 FROM ai_review_events AS review
-               WHERE review.work_item_id = work.id
-             )
-           GROUP BY work.support_case_id`,
-        ).bind(...scopedValues).all<{ support_case_id: string; count: number; fixture_session_ids: string | null }>(),
+      `SELECT work.support_case_id, work.session_id,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM ai_draft_versions AS draft
+                WHERE draft.work_item_id = work.id
+                  AND draft.origin = 'fixture_generated'
+                  AND draft.creation_mode = 'fixture_generated'
+              ) THEN 1 ELSE 0 END AS fixture_generated
+       FROM ai_work_items AS work
+       WHERE work.org_id = ? AND work.support_case_id IN (${placeholders})
+         AND NOT EXISTS (
+           SELECT 1 FROM ai_review_events AS review
+           WHERE review.work_item_id = work.id
+         )
+       ORDER BY work.support_case_id, work.id`,
+    ).bind(...scopedValues).all<{ support_case_id: string; session_id: string; fixture_generated: number }>(),
     env.DB.prepare(
       `SELECT * FROM action_items
        WHERE org_id = ? AND support_case_id IN (${placeholders}) AND resolved_at IS NULL
-       ORDER BY due_date, created_at, id`,
+       ORDER BY due_date NULLS LAST, created_at, id`,
     ).bind(...scopedValues).all<DbRow>(),
     env.DB.prepare(
       `SELECT * FROM flags
@@ -15952,7 +16013,7 @@ export async function getParticipantBriefing(
                 right_session.held_at AS right_held_at,
                 ROW_NUMBER() OVER (
                   PARTITION BY discrepancy.support_case_id, (discrepancy.resolution_status IS NULL)
-                  ORDER BY discrepancy.resolved_at DESC, discrepancy.id
+                  ORDER BY discrepancy.resolved_at DESC NULLS LAST, discrepancy.id
                 ) AS resolved_rank
          FROM session_discrepancies AS discrepancy
          JOIN sessions AS left_session
@@ -16021,15 +16082,18 @@ export async function getParticipantBriefing(
     const sessionId = stringValue(row.session_id);
     if (!approvedBySession.has(sessionId)) approvedBySession.set(sessionId, row);
   }
-  const pendingBySupportCase = new Map<string, { count: number; sessionIds: string[] }>(
-    pending.results.map((row): [string, { count: number; sessionIds: string[] }] => [
-      stringValue(row.support_case_id),
-      {
-        count: Number(row.count) || 0,
-        sessionIds: nullableString(row.fixture_session_ids)?.split(',') ?? [],
-      },
-    ]),
-  );
+  const pendingBySupportCase = new Map<string, { count: number; sessionIds: string[] }>();
+  for (const row of pending.results) {
+    const supportCaseId = stringValue(row.support_case_id);
+    const entry = pendingBySupportCase.get(supportCaseId) ?? { count: 0, sessionIds: [] };
+    if (Number(row.fixture_generated) === 1) {
+      const sessionId = stringValue(row.session_id);
+      if (!entry.sessionIds.includes(sessionId)) entry.sessionIds.push(sessionId);
+    } else {
+      entry.count += 1;
+    }
+    pendingBySupportCase.set(supportCaseId, entry);
+  }
   const latestSessionBySupportCase = new Map<string, DbRow>();
   for (const row of sessions.results) {
 
@@ -16353,41 +16417,56 @@ export async function acceptSupportCaseAssignment(
     throw new ForbiddenError('support case assignment is unavailable');
   }
   const acceptedAt = now();
+  const operationMarker = newId();
   const beneficiary = await env.DB.prepare(
     'SELECT beneficiary_id AS beneficiaryId FROM support_cases WHERE id = ? AND org_id = ?',
   ).bind(stringValue(row.support_case_id), actor.orgId).first<{ beneficiaryId: string }>();
-  const batch: PreparedStatement[] = [];
-  // 주담당 수락은 그 케이스의 다른 활성 주담당 권한을 끝낸다(수락 시점 이전 담당 종료).
+  const supportCaseId = stringValue(row.support_case_id);
+  const batch: PreparedStatement[] = [
+    env.DB.prepare(
+      `UPDATE support_case_assignees
+       SET operation_marker = ?
+       WHERE id = ? AND org_id = ? AND status = 'requested'`,
+    ).bind(operationMarker, assignmentId, actor.orgId),
+  ];
+  // 먼저 requested 행을 고유 marker로 점유한다. 주담당이면 기존 주담당을 끝낸 뒤 점유한
+  // 행만 active로 바꾸므로 부분 유니크 제약과 경합 방지를 함께 지킨다.
   if (stringValue(row.role) === 'primary') {
     const others = await env.DB.prepare(
       `SELECT id FROM support_case_assignees
        WHERE org_id = ? AND support_case_id = ? AND id <> ?
          AND unassigned_at IS NULL AND status = 'active' AND role = 'primary'`,
-    ).bind(actor.orgId, stringValue(row.support_case_id), assignmentId).all<{ id: string }>();
+    ).bind(actor.orgId, supportCaseId, assignmentId).all<{ id: string }>();
     for (const other of others.results) {
       batch.push(
         env.DB.prepare(
           `UPDATE support_case_assignees
            SET unassigned_at = ?, status = 'ended'
-           WHERE id = ? AND org_id = ? AND status = 'active'`,
-        ).bind(acceptedAt, other.id, actor.orgId),
+           WHERE id = ? AND org_id = ? AND status = 'active'
+             AND EXISTS (
+               SELECT 1 FROM support_case_assignees AS accepted
+               WHERE accepted.id = ? AND accepted.org_id = ? AND accepted.operation_marker = ?
+             )`,
+        ).bind(acceptedAt, other.id, actor.orgId, assignmentId, actor.orgId, operationMarker),
       );
     }
   }
-  batch.push(
-    env.DB.prepare(
-      `UPDATE support_case_assignees SET status = 'active', accepted_at = ?
-       WHERE id = ? AND org_id = ? AND status = 'requested'`,
-    ).bind(acceptedAt, assignmentId, actor.orgId),
-    conditionalCanonicalAuditStatement(env, actor, {
-      action: 'update',
-      targetTable: 'support_case_assignees',
-      targetId: assignmentId,
-      beneficiaryId: beneficiary?.beneficiaryId ?? '',
-      supportCaseId: stringValue(row.support_case_id),
-      detail: { accepted: true },
-    }),
-  );
+  batch.push(env.DB.prepare(
+    `UPDATE support_case_assignees
+     SET status = 'active', accepted_at = ?
+     WHERE id = ? AND org_id = ? AND status = 'requested' AND operation_marker = ?`,
+  ).bind(acceptedAt, assignmentId, actor.orgId, operationMarker));
+  batch.push(conditionalCanonicalAuditStatement(env, actor, {
+    action: 'update',
+    targetTable: 'support_case_assignees',
+    targetId: assignmentId,
+    beneficiaryId: beneficiary?.beneficiaryId ?? '',
+    supportCaseId,
+    detail: { accepted: true },
+  }, {
+    sql: "SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ? AND operation_marker = ? AND status = 'active'",
+    bindings: [assignmentId, actor.orgId, operationMarker],
+  }, acceptedAt));
   await env.DB.batch(batch);
 }
 
@@ -16476,7 +16555,10 @@ export async function forceTransferSupportCase(
         previousAssignmentId: current === null ? null : stringValue(current.id),
         previousUserId: current === null ? null : stringValue(current.user_id),
       },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ?',
+      bindings: [newAssignmentId, actor.orgId],
+    }, transferredAt),
   );
   await env.DB.batch(batch);
 }
@@ -16514,19 +16596,24 @@ export async function transferSupportCase(
     throw new ConflictError('support case assignment already exists');
   }
   const transferredAt = now();
+  const operationMarker = newId();
   const newAssignmentId = newId();
   const targetRole = toAssigneeRole(current.role);
   const results = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE support_case_assignees SET unassigned_at = ?, status = 'ended'
+      `UPDATE support_case_assignees
+       SET unassigned_at = ?, status = 'ended', operation_marker = ?
        WHERE id = ? AND org_id = ? AND unassigned_at IS NULL`,
-    ).bind(transferredAt, stringValue(current.id), actor.orgId),
+    ).bind(transferredAt, operationMarker, stringValue(current.id), actor.orgId),
     env.DB.prepare(
       `INSERT INTO support_case_assignees (
          id, org_id, support_case_id, user_id, role, assigned_at
        )
        SELECT ?, ?, ?, ?, ?, ?
-       WHERE changes() = 1`,
+       WHERE EXISTS (
+         SELECT 1 FROM support_case_assignees
+         WHERE id = ? AND org_id = ? AND operation_marker = ? AND status = 'ended'
+       )`,
     ).bind(
       newAssignmentId,
       actor.orgId,
@@ -16534,6 +16621,9 @@ export async function transferSupportCase(
       toUserId,
       targetRole,
       transferredAt,
+      stringValue(current.id),
+      actor.orgId,
+      operationMarker,
     ),
     conditionalCanonicalAuditStatement(env, actor, {
       action: 'transfer',
@@ -16542,7 +16632,10 @@ export async function transferSupportCase(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       detail: { role: targetRole },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ?',
+      bindings: [newAssignmentId, actor.orgId],
+    }, transferredAt),
   ]);
   const persisted = await env.DB.prepare(
     `SELECT source.id
@@ -16613,11 +16706,13 @@ export async function unassignSupportCase(
     throw new ValidationError('last active support case assignee cannot be removed');
   }
   const unassignedAt = now();
+  const operationMarker = newId();
   await env.DB.batch([
     env.DB.prepare(
-      `UPDATE support_case_assignees SET unassigned_at = ?, status = 'ended'
+      `UPDATE support_case_assignees
+       SET unassigned_at = ?, status = 'ended', operation_marker = ?
        WHERE id = ? AND org_id = ? AND unassigned_at IS NULL`,
-    ).bind(unassignedAt, assigned.id, actor.orgId),
+    ).bind(unassignedAt, operationMarker, assigned.id, actor.orgId),
     conditionalCanonicalAuditStatement(env, actor, {
       action: 'update',
       targetTable: 'support_case_assignees',
@@ -16625,7 +16720,10 @@ export async function unassignSupportCase(
       beneficiaryId: supportCase.beneficiaryId,
       supportCaseId,
       detail: { unassigned: true },
-    }),
+    }, {
+      sql: 'SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ? AND operation_marker = ?',
+      bindings: [assigned.id, actor.orgId, operationMarker],
+    }, unassignedAt),
   ]);
 }
 
@@ -16927,12 +17025,12 @@ export async function consumeInviteToken(
   usedBy: { beneficiaryId?: string; userId?: string },
 ): Promise<InviteToken> {
   const invite = await getInviteForSignup(env, token, kind);
-
+  const usedAt = now();
   const result = await env.DB.prepare(
     `UPDATE invite_tokens
-     SET status = 'used', used_at = datetime('now'), used_by_beneficiary_id = ?, used_by_user_id = ?
+     SET status = 'used', used_at = ?, used_by_beneficiary_id = ?, used_by_user_id = ?
      WHERE token = ? AND status = 'issued' AND revoked_at IS NULL`,
-  ).bind(usedBy.beneficiaryId ?? null, usedBy.userId ?? null, token).run();
+  ).bind(usedAt, usedBy.beneficiaryId ?? null, usedBy.userId ?? null, token).run();
 
   if (result.meta.changes !== 1) {
     throw new ForbiddenError('invite token is not available');
@@ -17005,6 +17103,7 @@ export async function getParticipantSelfCheck(
   const contacts = await loadParticipantContacts(env, invite.orgId, [beneficiaryId]);
   await auditParticipantPiiRead(env, await sponsorActorFor(env, invite), contacts, { targetId: beneficiaryId });
 
+  const checkedAt = now();
   const [caseRows, upcomingRows, pastRows, assigneeRows] = await Promise.all([
     env.DB.prepare(
       `SELECT id, program_type, consent_privacy_at, consent_recording_at
@@ -17016,18 +17115,18 @@ export async function getParticipantSelfCheck(
       `SELECT id, scheduled_at, status
        FROM counseling_schedules
        WHERE org_id = ? AND beneficiary_id = ?
-         AND julianday(scheduled_at) >= julianday('now')
+         AND scheduled_at >= ?
        ORDER BY scheduled_at, id
        LIMIT 10`,
-    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    ).bind(invite.orgId, beneficiaryId, checkedAt).all<DbRow>(),
     env.DB.prepare(
       `SELECT id, scheduled_at, status
        FROM counseling_schedules
        WHERE org_id = ? AND beneficiary_id = ?
-         AND julianday(scheduled_at) < julianday('now')
+         AND scheduled_at < ?
        ORDER BY scheduled_at DESC, id DESC
        LIMIT 10`,
-    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
+    ).bind(invite.orgId, beneficiaryId, checkedAt).all<DbRow>(),
     env.DB.prepare(
       `SELECT assignment.support_case_id, users.name AS user_name, users.email AS user_email
        FROM support_case_assignees AS assignment
@@ -17306,7 +17405,7 @@ export async function completeParticipantSignup(
         env.DB.prepare(
           `INSERT INTO audit_log (
              org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, datetime('now'))`,
+           ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         ).bind(
           invite.orgId,
           INVITE_SIGNUP_ACTOR_ID,
@@ -17315,6 +17414,7 @@ export async function completeParticipantSignup(
           'invite_tokens',
           input.token,
           stringifyJson({ kind: 'participant', beneficiaryId, via: 'signup' }),
+          createdAt,
         ),
       );
 
@@ -17386,9 +17486,9 @@ export interface CounselorSignupResult {
  *
  * 감사 행위자 분리(당사자 자기 가입과 같은 규약): users 생성 감사는 발급자(관리자)를
  * 후원 행위자로 복원해 남기고, invite_consume 감사는 시스템 행위자
- * (INVITE_SIGNUP_ACTOR_ID)로 남긴다. 배치의 첫 문장이 issued + 미폐기 토큰을 소비하고,
- * 뒤 INSERT 들은 직전 changes()=1일 때만 이어진다. 경합에서 토큰 소비가 0행이면 계정과
- * 감사도 0행이라 고아 계정이 남지 않는다.
+ * (INVITE_SIGNUP_ACTOR_ID)로 남긴다. 배치의 첫 문장이 supplied consumption ID로 토큰을
+ * 소비하고, 뒤 INSERT들은 그 정확한 post-state를 `EXISTS`로 확인한다. 경합에서 토큰
+ * 소비가 0행이면 계정과 감사도 0행이라 고아 계정이 남지 않는다.
  *
  * 이메일은 전역 UNIQUE(신원 키)다. 이미 등재된 이메일이면 ConflictError — 재가입이
  * 아니라 관리자 화면(POST /users)의 재활성화 경로를 쓰라는 뜻이다.
@@ -17429,42 +17529,60 @@ export async function completeCounselorSignup(
 
   const userId = newId();
   const createdAt = now();
+  const consumptionId = newId();
   try {
     const results = await env.DB.batch([
       env.DB.prepare(
         `UPDATE invite_tokens
-         SET status = 'used', used_at = ?, used_by_beneficiary_id = NULL, used_by_user_id = ?
+         SET status = 'used', used_at = ?, used_by_beneficiary_id = NULL,
+             used_by_user_id = ?, consumption_id = ?
          WHERE token = ? AND status = 'issued' AND revoked_at IS NULL`,
-      ).bind(createdAt, userId, input.token),
+      ).bind(createdAt, userId, consumptionId, input.token),
       env.DB.prepare(
         `INSERT INTO users (id, org_id, email, role, active, name)
-         SELECT ?, ?, ?, ?, 1, ? WHERE changes() = 1`,
-      ).bind(userId, invite.orgId, email, 'counselor', name),
+         SELECT ?, ?, ?, ?, 1, ?
+         WHERE EXISTS (
+           SELECT 1 FROM invite_tokens
+           WHERE token = ? AND status = 'used' AND used_by_user_id = ? AND consumption_id = ?
+         )`,
+      ).bind(userId, invite.orgId, email, 'counselor', name, input.token, userId, consumptionId),
       env.DB.prepare(
         `INSERT INTO audit_log (
            org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
          )
          SELECT ?, ?, 'admin', 'create', 'users', ?, NULL, ?, ?
-         WHERE changes() = 1`,
+         WHERE EXISTS (
+           SELECT 1 FROM invite_tokens
+           WHERE token = ? AND status = 'used' AND used_by_user_id = ? AND consumption_id = ?
+         )`,
       ).bind(
         invite.orgId,
         sponsorRow.id,
         userId,
         stringifyJson({ role: 'counselor', via: 'invite_signup' }),
         createdAt,
+        input.token,
+        userId,
+        consumptionId,
       ),
       env.DB.prepare(
         `INSERT INTO audit_log (
            org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
          )
          SELECT ?, ?, 'service', 'invite_consume', 'invite_tokens', ?, NULL, ?, ?
-         WHERE changes() = 1`,
+         WHERE EXISTS (
+           SELECT 1 FROM invite_tokens
+           WHERE token = ? AND status = 'used' AND used_by_user_id = ? AND consumption_id = ?
+         )`,
       ).bind(
         invite.orgId,
         INVITE_SIGNUP_ACTOR_ID,
         input.token,
         stringifyJson({ kind: 'counselor', userId, via: 'signup' }),
         createdAt,
+        input.token,
+        userId,
+        consumptionId,
       ),
     ]);
     const tokenChanges = results[0]?.meta.changes ?? 0;

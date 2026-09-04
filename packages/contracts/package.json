@@ -11,6 +11,7 @@
     "./jcs": "./src/jcs.ts",
     "./capabilities": "./src/capabilities.ts",
     "./install-manifest": "./src/install-manifest.ts",
-    "./guards": "./src/guards.ts"
+    "./guards": "./src/guards.ts",
+    "./sql": "./src/sql.ts"
   }
 }

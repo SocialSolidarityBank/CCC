@@ -97,7 +97,7 @@ step 전후에 같은 provider API를 다시 읽어 desired digest와 ownership 
 
 `migrations/postgres/0001_baseline.sql`은 `db/schema.sql`과 S1의 논리 schema를 PostgreSQL 현재 기준선으로 만든다. 과거 SQLite migration을 순서대로 번역하거나 재생하지 않는다. 기준선에는 S1이 정한 table, column, FK, unique 제약, 필수 `org_id`, org_id index, append-only 제약과 audit/consent/AI evidence table을 포함한다.
 
-`migrations/postgres/0002_supabase_platform.sql`은 이 문서의 플랫폼 공통 객체만 만든다.
+`migrations/postgres/0004_supabase_platform.sql`은 이 문서의 플랫폼 공통 객체만 만든다.
 
 - `private.ccc_install_receipt`와 append-only `private.ccc_release_history`
 - `ccc_schema_owner`(NOLOGIN)와 `ccc_api`(LOGIN, `NOBYPASSRLS`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`)
@@ -106,7 +106,7 @@ step 전후에 같은 provider API를 다시 읽어 desired digest와 ownership 
 - RLS enable과 org 경계 정책
 - 비공개 `ccc-audio` bucket의 선언 상태와 cron 등록에 필요한 platform 설정
 
-`migrations/postgres/0003_consent_six_domains.sql`은 S7/E3-8이 소유하며 `ccc_api` 정책을 사용한다. 그 뒤의 `migrations/postgres/0004_audio_objects.sql`은 S8/E5-6의 소유다. S11은 migration ID와 적용 순서만 참조하며 동의 fold, 원음 시계, claim, signed URL 만료와 삭제 증거를 재정의하지 않는다. 이후 forward migration은 하나의 논리 ID에 SQLite와 PostgreSQL 두 파일을 만들고 S1의 parity 규칙을 따른다.
+`migrations/postgres/0005_consent_six_domains.sql`은 S7/E3-8이 소유하며 `ccc_api` 정책을 사용한다. 그 뒤의 `migrations/postgres/0006_audio_objects.sql`은 S8/E5-6의 소유다. S11은 migration ID와 적용 순서만 참조하며 동의 fold, 원음 시계, claim, signed URL 만료와 삭제 증거를 재정의하지 않는다. 이후 forward migration은 하나의 논리 ID에 SQLite와 PostgreSQL 두 파일을 만들고 S1의 parity 규칙을 따른다.
 
 ### 2.5 API-only role과 RLS
 
@@ -330,7 +330,7 @@ rollback 중 다음 조건을 지킨다.
 - [ ] Edge가 globally distributed임을 명시하고 hard Seoul residency로 오인하지 않는다. browser/API와 `pg_net`은 `x-region: ap-northeast-2`(불가 시 `forceFunctionRegion`)를 보내며, `x-sb-edge-region`과 `SB_REGION`을 log/receipt에 기록하고 mismatch는 `EDGE_REGION_MISMATCH` 실패·alert 후 자동 reroute하지 않는다. residual international-transfer risk는 S14/E9-3이 소유한다.
 - [ ] S2 signed install manifest의 `institutionId`·`projectRef`·`expectedOwnerOrgId` binding과 관찰 owner organization ID가 정확히 일치할 때만 적용하며, missing/wrong evidence는 0 write로 거부한다.
 - [ ] `ap-northeast-2`의 기관 소유 프로젝트만 적용되며, 허용된 공급자 기본 객체 외의 기존 table, row, object, grant, cron이 있으면 0 write로 거부한다. 단, 동일 `installationId` journal과 ownership tag가 있는 미완성 자원만 resume/reconcile한다.
-- [ ] PostgreSQL `0001_baseline.sql`, `0002_supabase_platform.sql`, `0003_consent_six_domains.sql`, `0004_audio_objects.sql`과 이후 forward migration, migration ID/checksum ledger, durable install journal, S1 parity 규칙이 문서에 고정되어 있다. S7과 S8의 업무 계약은 참조만 한다.
+- [ ] PostgreSQL `0001_baseline.sql`, `0002_sql_portability.sql`, `0003_timestamp_normalization.sql`, `0004_supabase_platform.sql`, `0005_consent_six_domains.sql`, `0006_audio_objects.sql`과 이후 forward migration, migration ID/checksum ledger, durable install journal, S1 parity 규칙이 문서에 고정되어 있다. S7과 S8의 업무 계약은 참조만 한다.
 - [ ] `anon`과 `authenticated`의 업무 table/storage direct read가 거부되고, `ccc_api`의 다른 org context에서 cross-org 결과가 0건이며, API role이 `BYPASSRLS`나 table owner가 아니다.
 - [ ] Supabase Auth 설정, Auth 사용자 mapping, 관리자 MFA 경계가 S2/E4-2를 참조하고, 설치가 실사용자 계정을 자동 생성하지 않는다.
 - [ ] `ccc-audio`가 private이며 audio byte가 Edge를 통과하지 않는다. Edge가 audio/multipart/binary body, base64/blob/byte-array field, unknown JSON key, 1 MiB 초과 body를 각각 거부한다.
