@@ -171,6 +171,7 @@ import {
   validateDiscrepancyDetectionRequest,
 } from '@ccc/ai-runtime';
 import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
+import { buildCapabilities, CapabilitiesUnavailableError } from './capabilities';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
 import { AUDIO_CONTENT_TYPES, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
@@ -2005,6 +2006,8 @@ function errorResponse(error: unknown): Response {
   if (error instanceof AiProviderUnavailableError) return json({ error: 'ai_provider_unavailable' }, 503);
   if (error instanceof ValidationError) return json({ error: 'invalid_request' }, 400);
   if (error instanceof NotApprovedError) return json({ error: 'approval_required' }, 409);
+  // 설치 manifest 부재·검증 실패는 fail closed. 원인은 응답에 싣지 않는다(S2 §2.7).
+  if (error instanceof CapabilitiesUnavailableError) return json({ error: 'service_unavailable' }, 503);
   return json({ error: 'internal_error' }, 500);
 }
 
@@ -2142,6 +2145,13 @@ export async function handleRequest(
         scheduleResponse(await createCounselingSchedule(env, actor, parseScheduleCreation(await requestBody(request)))),
         201,
       );
+    }
+    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'capabilities') {
+      // 배포 capability(S2 §2.8, E1-7). 사람 역할만, Agent 는 403. 응답은 캐시하지 않고
+      // 설치 ID 헤더를 실어 client 가 signed manifest 와 byte-equal 비교한다.
+      requestQuery(url, []);
+      const { manifest, installationId } = await buildCapabilities(env, actor);
+      return json(manifest, 200, { 'cache-control': 'no-store', 'x-ccc-installation-id': installationId });
     }
     if (request.method === 'GET' && parts.length === 1 && parts[0] === 'me') {
       // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 기관 자기 행만.

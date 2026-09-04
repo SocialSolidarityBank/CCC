@@ -60,6 +60,18 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
    * 않는다 — 없음이 곧 닫힘이다(EXTERNAL_AI_CALLS_ENABLED 와 같은 규약).
    */
   PUBLIC_SIGNUP_ENABLED?: string;
+  /**
+   * signed install manifest JSON 원문(S2 §2.7, E1-7). `GET /capabilities` 의 mode, installationId,
+   * approved STT registry 는 이 값을 `CCC_INSTALL_SIGNING_KEYS` 로 검증한 결과에서만 읽는다.
+   * 둘 중 하나라도 없거나 검증에 실패하면 503 으로 닫힌다. 설치기(E6/E7/E8)가 채운다.
+   */
+  CCC_INSTALL_MANIFEST?: string;
+  /** `{ "<keyId>": "<base64 raw Ed25519 public key>" }`. 공개키뿐이라 시크릿이 아니다. */
+  CCC_INSTALL_SIGNING_KEYS?: string;
+  /** 관리자가 고른 STT 축(`off | local | azure`). 없거나 다른 값이면 `off`. 실제 선택은 registry·키·Agent 가 정한다. */
+  CCC_STT_MODE?: string;
+  /** 관리자가 고른 LLM 축(`off | openai`). 없거나 다른 값이면 `off`. */
+  CCC_LLM_MODE?: string;
 }
 
 export class ActorAuthenticationError extends Error {}

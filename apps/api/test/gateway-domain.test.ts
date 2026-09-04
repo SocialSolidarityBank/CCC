@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import {
   ConflictError,
   SpeakerConfirmationRequiredError,
@@ -11,7 +12,6 @@ import {
   approveSession,
   assignSupportCase,
   cancelCounselingSchedule,
-  canonicalizeJcs,
   closeCase,
   closeGoal,
   closeSupportCase,
