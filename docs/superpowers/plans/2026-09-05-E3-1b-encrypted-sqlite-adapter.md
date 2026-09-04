@@ -10,9 +10,9 @@
 
 **Spec:** `CCC_OPEN_PILOT_PLAN.md:272,583`; `docs/specs/S1-database-sql-subset.md` §2.1, §3.2, §5; ADR-0041 D79; Linear CCC-220.
 
-**Verified dependency facts:** npm integrity is `sha512-UYabM82r1J84TLWc/SszoHs6XopWpl/2HCg3Nui1JUaFXg/VLswzkPowYiRhK/4CftI8dgtikwyZQecMldrGxQ==`, license is MIT (allowed by `supply-chain/license-allowlist.json`), and npm publishes SLSA provenance bound to upstream tag `v13.0.3` / commit `227825029b1bbf80917d5a26a37ac9c00bf5e0d3`. The upstream v13.0.3 release states bundled Node-API prebuilds for Windows x64 and Electron 35+, so Electron 44 is eligible but remains unverified until this PR's Windows job passes.
+**Verified dependency facts:** npm integrity is `sha512-UYabM82r1J84TLWc/SszoHs6XopWpl/2HCg3Nui1JUaFXg/VLswzkPowYiRhK/4CftI8dgtikwyZQecMldrGxQ==`, license is MIT (allowed by `supply-chain/license-allowlist.json`), and npm publishes SLSA provenance bound to upstream tag `v13.0.3` / commit `227825029b1bbf80917d5a26a37ac9c00bf5e0d3`. Upstream bundles a Windows x64 Node-API prebuild; PR #273 run `33910770634` proved it under Electron 44.1.1.
 
-**Execution status:** Shared fixtures, adapter, local evidence, review fixes, and the Windows workflow are implemented in this worktree. Windows/Electron runtime evidence and PR delivery remain unchecked until the PR workflow runs.
+**Execution status:** Shared fixtures, adapter, local evidence, independent review, PR delivery, normal CI, and Windows/Electron runtime evidence are complete. Linear remains In Review until merge.
 
 **Database contract:** `Database.prepare(sql)` returns a `PreparedStatement`; `bind(...values)` returns a new statement; `first(column?)`, `all()`, and `run()` return Promises. Bindings are `string | number | null | Uint8Array`. Results are `{results:T[],success:boolean,meta:{changes?,last_row_id?}}`. Structured errors are `{kind:'constraint'|'syntax'|'bind_arity'|'unsupported',constraintSubtype?,applicationCode?}`. Shared tests cover immutable binding, owned BLOB copies, no-row/NULL/missing-column semantics, run metadata, ordered atomic batch rollback, syntax/bind/unique/primary-key/trigger classification, and allowed application trigger codes.
 
@@ -93,10 +93,10 @@ export function openEncryptedSqlite(options: EncryptedSqliteOptions): EncryptedS
 - [x] Build the adapter to ESM `dist/`; configure `windows-2022` / Node 24 to run the contract directly, then launch `npm exec --yes --package=electron@44.1.1 -- electron ...`.
 - [x] Generate random keys in memory; create an encrypted DB, apply all migrations, write a sentinel, inspect live WAL/SHM, close and inspect DB bytes, require wrong-key `kind='unsupported'`, reopen/read, zero keys, and remove temp data.
 - [x] Configure boolean/version/platform-only evidence and `app.exit(1)` on any failure.
-- [x] Configure `actions/upload-artifact@v5` with `if-no-files-found:error`. Actual Windows evidence remains pending until the PR workflow runs.
+- [x] Run `33910770634` `electron44-windows-x64` passed in 1m30s and uploaded evidence: win32/x64, Electron 44.1.1, N-API 10, encrypted header absent, DB/WAL/SHM sentinel absent, wrong key rejected, correct-key reopen/read, migration 0045 present, cleanup true.
 
 ### Task 5: Verification and delivery
 
 - [x] Run D1 9/9, SQLite 11/11, API 58 files/720 tests, adapter build, script tests 18, typecheck, DB/core-import/doc-number guards, `actionlint`, `release:verify` (569 SBOM dependencies), staged `guard:secrets`, and `git diff --cached --check`.
 - [x] Independent security review found Windows portability and evidence gaps; applied portable file URLs, direct Windows Vitest invocation, live WAL/SHM scans, redacted close, exact wrong-key classification, hard failure exit, filename/arity guards, one-prepare batch writes, action version alignment, and stronger contract assertions. Focused re-review found no remaining blocker.
-- [x] Commit, push `e3-1b-encrypted-sqlite`, open a review-ready PR linked to Linear CCC-220, and wait for `sqlite-windows` plus normal CI. Keep Linear In Review until both pass and the PR merges.
+- [x] Commit and push `e3-1b-encrypted-sqlite`; open PR #273 linked to Linear CCC-220. Normal CI and `sqlite-windows` both passed.
