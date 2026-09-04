@@ -4,7 +4,7 @@ import {
   AiProviderInputError,
   validateAiDraftSummary,
   validateAiEvidenceIds,
-} from '../src/ai-provider';
+} from '@ccc/ai-runtime';
 
 /**
  * 이슈 #47 회귀 방지.

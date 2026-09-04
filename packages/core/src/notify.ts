@@ -1,4 +1,3 @@
-import { type ApiEnv } from './identity';
 
 /**
  * 관리자 알림 시임(seam) — D8.
@@ -14,9 +13,17 @@ import { type ApiEnv } from './identity';
  * 다른 채널(이메일 등)을 붙일 때도 이 함수 한 곳만 고친다 — 워치독(scheduled 핸들러)은
  * 여기만 호출하므로 알림 채널 결합이 이 시임에 격리된다.
  */
+export interface NotifyEnv {
+  /**
+   * 관리자 알림 웹훅 URL (시크릿, D8). Slack/Discord incoming webhook 등 `{"text": ...}` JSON
+   * POST를 받는 주소. 미설정이면 console.error 폴백만 동작한다.
+   */
+  NOTIFY_WEBHOOK_URL?: string;
+}
+
 export const WATCHDOG_ALERT_PREFIX = '[WATCHDOG ALERT]';
 
-export async function notifyAdmins(env: ApiEnv, message: string): Promise<void> {
+export async function notifyAdmins(env: NotifyEnv, message: string): Promise<void> {
   const line = `${WATCHDOG_ALERT_PREFIX} ${message}`;
   console.error(line);
 

@@ -5,12 +5,15 @@ const root = resolve(process.cwd());
 // 숨김 디렉터리(.claude 워크트리, .omc 등 도구 상태)는 프로젝트 소스가 아니므로 전부 제외한다.
 const ignoredDirectories = new Set(['coverage', 'dist', 'node_modules']);
 const isIgnoredDirectory = (name) => name.startsWith('.') || ignoredDirectories.has(name);
-const sourceRoots = ['apps', 'db', 'scripts'].map((path) => resolve(root, path));
+const sourceRoots = ['adapters', 'apps', 'db', 'packages', 'scripts'].map((path) => resolve(root, path));
 const sourceExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
-// 시드 툴(scripts/seed)은 게이트웨이 공개 함수를 경유해 쓴다. raw D1 접근은 하니스 계층
-// (Miniflare 부트·프리로드·캡처 프록시·재생 diff)에만 국한되므로 그 세 파일만 예외로 둔다.
+// 업무 SQL 은 packages/core 의 gateway facade 에만 둔다(R1·D78). raw driver 호출은
+// adapters/db-* 와 계약 테스트 하니스에만 허용한다. 시드 툴(scripts/seed)은 게이트웨이
+// 공개 함수를 경유해 쓰고, raw 접근은 하니스 계층(Miniflare 부트·프리로드·캡처 프록시·재생
+// diff) 세 파일만 예외다. apps/* 와 packages/http-api 는 예외 없이 차단된다.
 const allowedFiles = new Set([
-  'db/gateway.ts',
+  'packages/core/src/gateway.ts',
+  'adapters/db-d1/src/index.ts',
   'scripts/guard-db-gateway.mjs',
   'scripts/seed/harness.ts',
   'scripts/seed/capture.ts',
@@ -64,7 +67,7 @@ function findingsFor(content, path) {
   for (const check of checks) {
     for (const match of content.matchAll(check.pattern)) {
       const line = content.slice(0, match.index).split('\n').length;
-      findings.push(`${path}:${line}: direct ${check.label} access is only allowed in db/gateway.ts`);
+      findings.push(`${path}:${line}: direct ${check.label} access is only allowed in packages/core/src/gateway.ts`);
     }
   }
 

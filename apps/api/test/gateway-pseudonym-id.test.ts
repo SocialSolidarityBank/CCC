@@ -6,14 +6,14 @@ import {
   createCase,
   getCase,
   listSupportCasesForBeneficiary,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import {
   ANIMAL_SLUGS,
   ANIMAL_SLUG_BENEFICIARY_ID_PATTERN,
   ANIMAL_SLUG_KOREAN_NAMES,
   LEGACY_BENEFICIARY_ID_PATTERN,
   isBeneficiaryId,
-} from '../../../db/animal-slugs';
+} from '@ccc/contracts/animal-slugs';
 import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin } = testActors;

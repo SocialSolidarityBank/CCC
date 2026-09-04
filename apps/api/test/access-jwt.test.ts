@@ -5,8 +5,8 @@ import {
   __setAccessJwksFetcherForTests,
   verifyAccessJwt,
   type Jwks,
-} from '../src/access-jwt';
-import { deactivateUser, upsertUser } from '../../../db/gateway';
+} from '@ccc/http-api/access-jwt';
+import { deactivateUser, upsertUser } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const TEAM = 'ggbss.cloudflareaccess.com';

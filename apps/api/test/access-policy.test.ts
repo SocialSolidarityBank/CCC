@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideSupportCaseContentAccess } from '../../../db/access-policy';
+import { decideSupportCaseContentAccess } from '@ccc/core/access-policy';
 
 describe('support case content access policy', () => {
   it('allows an institution administrator to read an unassigned case', () => {

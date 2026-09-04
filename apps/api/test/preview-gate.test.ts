@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Database } from '@ccc/contracts/database';
 import type { AudioStore } from '@ccc/contracts/runtime';
 import worker from '../src/index';
-import { handlePreviewUnlock, previewActorResolver, resolvePreviewE2eActorEmail } from '../src/preview-gate';
-import type { ApiEnv } from '../src/identity';
+import { handlePreviewUnlock, previewActorResolver, resolvePreviewE2eActorEmail } from '@ccc/http-api/preview-gate';
+import type { ApiEnv } from '@ccc/http-api/identity';
 const TEST_CODE = 'test-preview-code-1234';
 // 관리자 시점 픽스처(2026-07-30). 실무자 코드와 **다른 값**이어야 두 경로가 갈린다.
 const TEST_ADMIN_CODE = 'test-preview-admin-code-5678';

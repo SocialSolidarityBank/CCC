@@ -6,7 +6,7 @@ import {
   AiProviderProhibitedOutputError,
   validateAiProviderOutput,
   validateAiProviderRequest,
-} from '../src/ai-provider';
+} from '@ccc/ai-runtime';
 
 const TRANSCRIPT = '당사자는 이자를 석 달째 못 냈고 가족이 지원금을 가져간다고 말했다.';
 const TEXT_CONTEXT = [

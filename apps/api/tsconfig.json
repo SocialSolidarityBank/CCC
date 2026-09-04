@@ -2,7 +2,16 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["@cloudflare/workers-types", "vitest/globals", "node"]
+    "types": [
+      "@cloudflare/workers-types",
+      "vitest/globals",
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "../../packages/*/src/**/*.ts",
+    "../../adapters/*/src/**/*.ts"
+  ]
 }

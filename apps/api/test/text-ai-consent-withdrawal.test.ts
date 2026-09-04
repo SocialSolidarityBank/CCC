@@ -16,7 +16,7 @@ import {
   recordMaskedSourceSnapshot,
   updateParticipantConsent,
   PilotTextAiConsentRequiredError,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 픽스처가 케이스·회차·동의를 매번 새로 만든다 — text-work-materials.test.ts 와 같은 이유로 여유를 준다.

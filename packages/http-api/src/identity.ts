@@ -1,9 +1,10 @@
-import { ForbiddenError, findUserByEmail, type Actor, type Env as GatewayEnv } from '../../../db/gateway';
-import type { AiProviderRuntimeEnv } from './ai-provider';
+import { ForbiddenError, findUserByEmail, type Actor, type Env as GatewayEnv } from '@ccc/core/gateway';
+import type { AiProviderRuntimeEnv } from '@ccc/ai-runtime';
 import { verifyAccessJwt } from './access-jwt';
 import type { AudioStore } from '@ccc/contracts/runtime';
+import type { NotifyEnv } from '@ccc/core/notify';
 
-export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
+export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
   /** Runtime-neutral original-audio storage port; provider bindings stay in composition roots. */
   audioStore: AudioStore;
   /**
@@ -16,11 +17,6 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
    * Access 애플리케이션 생성 후 대시보드에서 확인해 설정한다(D16).
    */
   ACCESS_AUD?: string;
-  /**
-   * 관리자 알림 웹훅 URL (Workers 시크릿, D8). Slack/Discord incoming webhook 등
-   * `{"text": ...}` JSON POST를 받는 주소. 미설정이면 console.error 폴백만 동작한다.
-   */
-  NOTIFY_WEBHOOK_URL?: string;
   /**
    * 로컬 프리뷰 스위치(dev 전용, local-actor.ts). 'true' 이면서 위 Access env 가 전부
    * 비어 있을 때만 이메일 기반 로컬 리졸버가 활성화된다. [env.production.vars]에는

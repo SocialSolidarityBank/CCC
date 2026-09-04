@@ -10,7 +10,7 @@ import {
   getParticipantGoalTree,
   setSupportCaseOverallGoal,
   updateGoalTitle,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 당사자 허브 목표 트리 (D62 §8 · CCC-69) — 전체 > 세부 > 세션 위계, 닫힌 목표 보존,

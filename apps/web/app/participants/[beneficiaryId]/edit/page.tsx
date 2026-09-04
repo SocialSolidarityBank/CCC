@@ -2,7 +2,7 @@ import { WireBadge } from '../../../components/wire/wire-badge';
 import { WireError } from '../../../components/wire/wire-state';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '../../../lib/api';
-import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
+import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { GridContainer } from '../../../components/wire/grid-container';
 import { PageLoading } from '../../../components/wire/page-loading';
 import { ParticipantName } from '../../../components/wire/participant-name';

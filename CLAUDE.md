@@ -24,7 +24,7 @@
 | Local 저장 | 암호화 SQLite + 암호화 파일 | Single은 `127.0.0.1` 전용, Office는 내부망 HTTPS(D76·D79) |
 | 업무 클라이언트 | Vite + React PWA (`apps/client`) | 정적 클라이언트 + Bearer 토큰 API. Cloudflare는 정적 파일과 공개 페이지만 제공(D80) |
 | AI 처리 | **처리 Agent**(기관 PC) | 2차 마스킹과 STT를 담당한다. AI를 켜면 모드와 무관하게 기관 PC 1대가 필요하다(D77·D81) |
-| AI 사업자 | **OpenAI API** (`apps/api/src/ai-provider.ts`) | AI Packet만 전송하고 `store:false`를 사용한다. BYOK는 호출 위치에만 둔다(D77·D81·D82) |
+| AI 사업자 | **OpenAI API** (`packages/ai-runtime/src/ai-provider.ts`) | AI Packet만 전송하고 `store:false`를 사용한다. BYOK는 호출 위치에만 둔다(D77·D81·D82) |
 | STT | `off` · `local` · `azure` | 설치 직후 세 모드 모두 `off`. STT-G1~G3과 Q 승인이 끝나기 전에는 `sttEngine`이 `null`이다(D77) |
 | 원음 저장 | `AudioStore` | Cloud는 기관 소유 Supabase private Storage, Local은 암호화 파일. 다음 영업일 첫 Agent 처리 기회까지 보관하고 처리 뒤 즉시 삭제(D81) |
 | 공통 포트 | `Database`, `AudioStore`, `Identity`, `SecretStore`, `Scheduler`, `STTProvider`, `AIProvider` | 일곱 포트. 백업·복원·가져오기·내보내기·업데이트·진단은 Application Service(D78) |
@@ -47,7 +47,7 @@ flags            리스크 플래그. 고정 유형 + 전사 발언 인용 + 실
 audit_log        열람·변경·PII 복호화·내보내기 전부 기록. append-only (D14)
 ```
 
-`yellow` 구 이름 `pii_vault`·`cases`·`case_assignees` 는 **컷오버 전 표**이고 `db/gateway.ts` 에 아직 일부 남아 있다(각 6·21·14회 vs 현행 29·183·71회). **새 코드는 위 이름을 쓴다.** 컷오버 흔적: `migrations/` 의 `participant_support_case_cutover_*`.
+`yellow` 구 이름 `pii_vault`·`cases`·`case_assignees` 는 **컷오버 전 표**이고 `packages/core/src/gateway.ts` 에 아직 일부 남아 있다(각 6·21·14회 vs 현행 29·183·71회). **새 코드는 위 이름을 쓴다.** 컷오버 흔적: `migrations/` 의 `participant_support_case_cutover_*`.
 
 ### 스키마 3층 구조
 
@@ -118,7 +118,7 @@ OpenAI에는 장비가 만든 AI Packet만 보낸다. 스냅샷이 없거나 아
 처리 SLA는 업로드 후 다음 영업일의 첫 Agent 처리 기회까지다. Agent가 6시간 이상 폴링하지 않으면 관리자 알림을 보낸다(녹음·텍스트 두 일감 큐 합산). 처리 실패 뒤 다른 사업자로 자동 전환하지 않는다(D8).
 
 모델 정보:
-- LLM: **OpenAI**(`apps/api/src/ai-provider.ts`, 프로바이더 슬러그 `codex`). 모델·프롬프트·스키마 버전은 활성 프로바이더 설정 hash로 고정하며, 어긋나면 재활성화 전까지 fail-closed다(D57·ADR-0027).
+- LLM: **OpenAI**(`packages/ai-runtime/src/ai-provider.ts`, 프로바이더 슬러그 `codex`). 모델·프롬프트·스키마 버전은 활성 프로바이더 설정 hash로 고정하며, 어긋나면 재활성화 전까지 fail-closed다(D57·ADR-0027).
 - STT: 엔진은 STT-G1~STT-G3과 Q 승인 전까지 미확정이다. 후보는 E5-8에서 측정하고, 측정 결과가 승인되기 전까지 Local 선택지는 비활성이다. 무음 경계 청크 분할과 반복 검사는 엔진과 무관하게 필수다(D53·D77).
 - 인명·주소 마스킹: `FrameByFrame/korean-pii-e5-base`를 사용하며 미설정이면 Agent가 뜨지 않는다(R3).
 - 화자 분리: pyannote.audio. 라이선스 미표기 저장소는 사용하지 않는다.

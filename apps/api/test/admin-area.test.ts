@@ -7,7 +7,7 @@ import {
   listCounselorAssignments,
   listSupportCaseAssignees,
   updateParticipantPii,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 관리자 영역(재개편 T8, #38): 실무자별 활성 배정 당사자 조회(실명·감사)와 공동 담당 추가(D7).

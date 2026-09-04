@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Database, DatabaseError } from '@ccc/contracts/database';
 import { createD1Database } from '@ccc/db-d1';
-import type { Env } from '../../../db/gateway';
+import type { Env } from '@ccc/core/gateway';
 import { setupD1 } from './support/d1';
 
 const t = setupD1({ provisionDirectory: false });

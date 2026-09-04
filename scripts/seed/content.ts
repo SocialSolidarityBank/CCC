@@ -13,7 +13,7 @@
  *   절대값으로 박으면 시드가 시간이 지나면서 낡는다(SEED_ANCHOR_DATE 주석 참고).
  * - 목표별 GAS 점수는 시나리오 엔진이 trajectory 로 결정론적으로 만든다(여기서는 추이 유형만 지정).
  */
-import type { FlagType, GoalCloseReason } from '../../db/gateway';
+import type { FlagType, GoalCloseReason } from '@ccc/core/gateway';
 import { COUNSELOR_IDS } from './preload-data';
 
 export type Trajectory = 'improving' | 'plateau' | 'decline' | 'mixed';

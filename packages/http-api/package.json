@@ -1,0 +1,17 @@
+{
+  "name": "@ccc/http-api",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/request-handler.ts",
+    "./identity": "./src/identity.ts",
+    "./access-jwt": "./src/access-jwt.ts",
+    "./preview-gate": "./src/preview-gate.ts"
+  },
+  "dependencies": {
+    "@ccc/ai-runtime": "workspace:*",
+    "@ccc/contracts": "workspace:*",
+    "@ccc/core": "workspace:*"
+  }
+}

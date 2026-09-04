@@ -12,7 +12,7 @@ import {
   listSupportCaseAssignees,
   reactivateUser,
   requestSupportCaseAssignment,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 배정 상태 머신 (CCC-123 · D74 · 정책 §2.3): 요청(requested)은 아무 게이트도 열지 않고,

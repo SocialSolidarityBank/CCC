@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { createBeneficiaryWithInitialSupportCase, updateParticipantPii } from '../../../db/gateway';
-import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES } from '../../../db/animal-slugs';
+import { createBeneficiaryWithInitialSupportCase, updateParticipantPii } from '@ccc/core/gateway';
+import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES } from '@ccc/contracts/animal-slugs';
 import { setupD1, testActors } from './support/d1';
 
 // 당사자 검색(티켓 #16 · D21) HTTP 계약: 부분 일치, PII 무포함, 접근 범위.

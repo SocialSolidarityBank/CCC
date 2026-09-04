@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createCase, createManualSession } from '../../../db/gateway';
+import { createCase, createManualSession } from '@ccc/core/gateway';
 import worker from './support/local-worker';
 import { setupD1, testActors } from './support/d1';
 

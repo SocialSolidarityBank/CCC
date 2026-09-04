@@ -15,7 +15,7 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCounselingSchedule,
   getUpcomingSchedules,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { buildRescheduleSql } from '../../../scripts/seed/reschedule-upcoming.mjs';
 import { setupD1, testActors } from './support/d1';
 

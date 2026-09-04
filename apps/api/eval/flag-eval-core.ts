@@ -13,7 +13,7 @@
  *   유형별 precision/recall 은 실패 사례 id 와 함께 보고되고, 실패가 하나라도 있으면
  *   평가 전체가 실패(0 아닌 종료 코드)다.
  */
-import type { AiFlagType } from '../src/ai-provider';
+import type { AiFlagType } from '@ccc/ai-runtime';
 import type { FlagEvalCase, FlagEvalCategory } from './flag-eval-cases';
 
 /** 평가가 다루는 플래그 유형 — ai-provider 의 AI_FLAG_TYPES 와 같아야 한다(테스트가 대조). */

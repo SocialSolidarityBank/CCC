@@ -14,9 +14,9 @@
  * 신원은 헤더가 아니라 LOCAL_DEV_ACTOR_EMAIL(.dev.vars) → users 디렉터리 조회로 정한다.
  * 디렉터리에 없거나 비활성이면 403 — 권한 모델은 로컬에서도 그대로 작동한다.
  */
-import { findUserByEmail, ForbiddenError, type Actor } from '../../../db/gateway';
-import { ActorAuthenticationError, type ApiEnv } from './identity';
-import type { ActorResolver } from './request-handler';
+import { findUserByEmail, ForbiddenError, type Actor } from '@ccc/core/gateway';
+import { ActorAuthenticationError, type ApiEnv } from '@ccc/http-api/identity';
+import type { ActorResolver } from '@ccc/http-api';
 
 export function localDevActorResolver(env: ApiEnv): ActorResolver | undefined {
   if (env.LOCAL_ACTOR_HEADER_MODE !== 'true') return undefined;

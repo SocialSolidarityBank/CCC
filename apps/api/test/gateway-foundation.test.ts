@@ -18,8 +18,8 @@ import {
   revealPii,
   transferCase,
   unassignCase,
-} from '../../../db/gateway';
-import { ANIMAL_SLUG_BENEFICIARY_ID_PATTERN } from '../../../db/animal-slugs';
+} from '@ccc/core/gateway';
+import { ANIMAL_SLUG_BENEFICIARY_ID_PATTERN } from '@ccc/contracts/animal-slugs';
 import { setupD1, testActors } from './support/d1';
 
 const {

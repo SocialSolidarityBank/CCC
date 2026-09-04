@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { createBeneficiaryWithInitialSupportCase } from '../../../db/gateway';
+import { createBeneficiaryWithInitialSupportCase } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // org_demo 는 setupD1 가 Asia/Seoul(UTC+9)로 프로비저닝한다. 앵커 07-16 기준

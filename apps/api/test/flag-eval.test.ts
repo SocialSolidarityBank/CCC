@@ -5,7 +5,7 @@ import {
   validateAiProviderOutput,
   validateAiProviderRequest,
   type AiProviderRequest,
-} from '../src/ai-provider';
+} from '@ccc/ai-runtime';
 import {
   FLAG_EVAL_CASES,
   buildFlagEvalRequest,

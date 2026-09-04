@@ -144,8 +144,8 @@ import {
   type ParticipantSearchResult,
   type Role,
   type Session,
-} from '../../../db/gateway';
-import { isBeneficiaryId } from '../../../db/animal-slugs';
+} from '@ccc/core/gateway';
+import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import {
   AI_CONTRAST_AXES,
   AI_DRAFT_PROMPT_VERSION,
@@ -169,7 +169,7 @@ import {
   validateAiProviderRequest,
   validateDiscrepancyDetectionOutput,
   validateDiscrepancyDetectionRequest,
-} from './ai-provider';
+} from '@ccc/ai-runtime';
 import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';

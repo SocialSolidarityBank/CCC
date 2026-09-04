@@ -6,12 +6,12 @@ import {
   updateParticipantConsent,
   ForbiddenError,
   type ParticipantConsentInput,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
   CONSENT_PRIVACY_NOTICE_VERSION,
   CONSENT_TEXT_AI_NOTICE_VERSION,
-} from '../../../db/consent-notice';
+} from '@ccc/contracts/consent-notice';
 import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const { counselor, admin, unassignedCounselor } = testActors;

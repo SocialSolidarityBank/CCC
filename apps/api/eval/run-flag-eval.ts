@@ -27,7 +27,7 @@ import {
   validateAiProviderRequest,
   type AiProviderRuntimeEnv,
   type AiProviderTestAdapter,
-} from '../src/ai-provider.ts';
+} from '@ccc/ai-runtime';
 import { FLAG_EVAL_CASES, buildFlagEvalRequest } from './flag-eval-cases.ts';
 import {
   buildFlagEvalReport,

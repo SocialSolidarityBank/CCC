@@ -9,7 +9,7 @@ import {
   type ParticipantProgram,
   type ParticipantProgramType,
 } from '../../lib/api';
-import { isBeneficiaryId } from '../../../../../db/animal-slugs';
+import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageLoading } from '../../components/wire/page-loading';
 import { PageTitle } from '../../components/wire/page-title';

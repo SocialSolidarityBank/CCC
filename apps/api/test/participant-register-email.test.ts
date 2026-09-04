@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { revealPii } from '../../../db/gateway';
+import { revealPii } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 재개편 T7(#37): POST /participants 가 선택 이메일을 받아 pii_vault enc_email 로 저장하는지,

@@ -16,7 +16,7 @@ import {
   registerRecording,
   releaseRecordingResultDownstream,
   type Actor,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import {
   AI_PROVIDER_REGISTRY_VERSION,
   CODEX_PROVIDER_ADAPTER_VERSION,
@@ -26,9 +26,9 @@ import {
   type AiProviderOutput,
   type AiProviderRequest,
   type AiProviderTestAdapter,
-} from '../src/ai-provider';
+} from '@ccc/ai-runtime';
 import { setupD1, testActors } from './support/d1';
-import type { ApiEnv } from '../src/identity';
+import type { ApiEnv } from '@ccc/http-api/identity';
 
 const t = setupD1();
 const counselor: Actor = testActors.counselor;
