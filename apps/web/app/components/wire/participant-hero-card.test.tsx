@@ -57,7 +57,6 @@ describe('ParticipantHeroCard', () => {
     );
 
     expect(container.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
-    expect(container.querySelector('h2 .participant-hero-id')).toBeNull();
     expect(container.querySelectorAll('.participant-hero-details .wire-field-row')).toHaveLength(4);
     expect(
       [...container.querySelectorAll('.participant-hero-details .wire-field-label')].map((node) => node.textContent),

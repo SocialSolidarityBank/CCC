@@ -217,7 +217,6 @@ const layoutSource = readFileSync(join(repoRoot, 'apps/web/app/layout.tsx'), 'ut
 
 for (const [name, snippet] of [
   ['HERO 연락처', '.participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}'],
-  ['HERO 가명 ID', '.participant-hero-id{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}'],
   ['당사자 허브 사업명', '.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}'],
   ['당사자 허브 최신 일정', '.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
   ['당사자 허브 세부 목표', '.goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],

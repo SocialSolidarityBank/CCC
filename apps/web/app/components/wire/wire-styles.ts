@@ -289,8 +289,6 @@ details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
 .participant-hero-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-5) var(--space-6);min-width:0}
 /* 기존 한 줄 메타의 연락처는 이름을 보조하는 14/400 --sub 값이다. */
 .participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
-/* 기본정보 수정은 공통 HERO가 아닌 페이지 제목 줄 예외라 ID를 이름 옆에 유지한다. */
-.participant-hero-id{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
 /* 767 이하도 이름 크기는 데스크톱과 같다(row 16, hero·hub 18. 2026-08-27 두 단 분리로
    구 '모바일 18 강제'가 무의미해짐). 정보와 메타는 설명 단으로 정리한다. */
 @media(max-width:767px){
