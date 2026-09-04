@@ -113,28 +113,17 @@ details.surface-card[open]>.record-summary>.record-ordinal,
 details.surface-card[open]>.record-summary>.record-held-at,
 details.surface-card[open]>.record-summary>.record-one-liner,
 details.surface-card[open]>.record-summary .record-flag{color:var(--on-action)}
-/* 펼친 제목 줄의 배지는 운영 프리뷰의 반전 규칙을 따른다(2026-09-03 Q).
-   그라데이션 위에서 패널 면과 어두운 잉크 글자를 쓰고, 외곽선만 자기 계열을 유지한다. */
+/* 펼친 제목 줄의 배지는 그라데이션과 계열 외곽선이 겹치지 않게 외곽선을 없앤다.
+   외곽선이 차지하던 사방 1px은 패널 면으로 바꾸고 높이는 위아래 1px씩 늘린다.
+   접힌 배지는 아래 공용 계열 규칙을 그대로 쓴다(2026-09-05 Q). */
 details.surface-card[open]>.record-summary .wire-badge,
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge{height:var(--badge-height);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="mint"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="mint"]{--wire-outline-color:var(--badge-mint)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="lavender"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="lavender"]{--wire-outline-color:var(--badge-lavender)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="blue"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="blue"]{--wire-outline-color:var(--badge-blue)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="coral"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="coral"]{--wire-outline-color:var(--badge-coral)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="amber"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="amber"]{--wire-outline-color:var(--badge-amber)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="lime"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="lime"]{--wire-outline-color:var(--badge-lime)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="cyan"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="cyan"]{--wire-outline-color:var(--badge-cyan)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="light-magenta"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="light-magenta"]{--wire-outline-color:var(--badge-light-magenta)}
-details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge{
+  height:calc(var(--badge-height) + var(--wire-outline-width) + var(--wire-outline-width));
+  padding:0 calc(var(--space-2) + var(--wire-outline-width));
+  border:0;
+  background:var(--panel);
+  color:var(--ink);
+}
 /* 접힘 카드 제목 줄 안 조각들. 제목과 메타 구분선은 채운 면 전용 색을 받는다.
    꺽쇠 버튼은 열림 상태와 무관하게 공용 그라데이션 아웃라인을 유지한다. */
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
@@ -402,7 +391,7 @@ details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
 .goal-tree-goal-details>summary{cursor:pointer;list-style:none}
 .goal-tree-goal-details>summary::-webkit-details-marker{display:none}
 .goal-tree-goal-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex-wrap:nowrap}
-/* 14px 세부 목표 줄은 12px 무형 슬롯의 공용 SVG 꺽쇠를 쓴다. 연결 회차 배지 높이 20과
+/* 14px 세부 목표 줄은 12px 무형 슬롯의 공용 SVG 꺽쇠를 쓴다. 연결 회차 배지 높이 22와
    불릿 점, 형제 목표의 첫 줄 축을 맞춘다. */
 .goal-tree-goal-body{display:grid;gap:var(--space-2);padding-top:var(--space-2)}
 .goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}
@@ -575,8 +564,8 @@ button.wire-row{font:inherit;font-size:var(--text-md);font-weight:600}
    좌우 2px가 잘리지 않게 한다. */
 details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
-/* 접힘 카드의 상태 배지도 제목 글자 바로 뒤다(2026-09-04 Q 전역 기준). 오른쪽 묶음에는
-   꺽쇠만 남는다. 제목 묶음은 배지 높이 20 을 예약해 배지 유무가 줄 높이를 바꾸지 않는다. */
+/* 접힘 카드의 상태 배지도 제목 글자 바로 뒤다. 오른쪽 묶음에는 꺽쇠만 남는다.
+   제목 묶음은 배지 높이 22를 예약해 배지 유무가 줄 높이를 바꾸지 않는다. */
 .wire-card-summary>.wire-card-title{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--badge-height)}
 .wire-card-summary>.wire-card-title>.wire-badge{flex:none;white-space:nowrap}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
@@ -597,10 +586,9 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-card-details[open]>.wire-card-summary{margin:0 calc(var(--card-pad, var(--space-6)) * -1) var(--card-pad, var(--space-6));padding:0 var(--card-pad, var(--space-6)) var(--card-pad, var(--space-6));border-bottom:1px solid var(--line)}
 /* 제목과 상태 배지·행동이 함께 오는 카드 헤더. 배지는 줄바꿈하지 않는다(사업명 카드와 같은
    이유). 세로는 제목과 같은 y 가운데 정렬이다(2026-08-07 Q, 구 flex-start 대체).
-   **배지는 제목 글자 바로 뒤에 붙는다**(2026-09-04 Q 전역 기준, 구 space-between 양끝
-   배치 대체): '활성 1/3'·'준비 중'처럼 제목을 한정하는 상태 낱말이 카드 반대편 끝에 서면
-   무엇을 세는 값인지 눈으로 이어지지 않았다. 행동 묶음(버튼)만 오른쪽 끝으로 민다.
-   높이는 배지 유무와 무관하게 20 을 예약한다(배지가 여백을 바꾸지 않는다). */
+   **배지는 제목 글자 바로 뒤에 붙는다**(2026-09-04 Q 전역 기준). 제목을 한정하는
+   상태 낱말이 카드 반대편 끝에 서지 않도록 하고 행동 묶음만 오른쪽 끝으로 민다.
+   높이는 배지 유무와 무관하게 22를 예약한다. */
 .wire-card-head{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-2);min-height:var(--badge-height)}
 .wire-card-head>:nth-child(n+2):not(.wire-badge){margin-left:auto}
 .wire-card-head .wire-badge{flex:none;white-space:nowrap}
@@ -700,13 +688,12 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    8 은 라벨 행 안 조각 간격(글자↔배지)과 같은 값이라 세로 층과 가로 조각이 한 덩어리로
    읽혔다. 세로만 한 단 올리고 라벨 행 안 gap 8 은 그대로 둔다. */
 .wire-form-field{display:grid;gap:var(--space-3);align-content:start;min-width:0}
-/* 라벨 행은 배지 높이(20)를 **항상** 예약한다(2026-09-04 Q 전역 기준). 필수 배지가 붙은
-   칸만 라벨이 20 이고 안 붙은 칸은 16 이라, 2열 그리드에서 두 입력칸의 윗선이 4px 갈렸다
-   (상담 일시 ↔ 상담 방식 실측). 배지·버튼이 여백을 바꾸지 않는 것이 계약이다. */
+/* 라벨 행은 배지 높이 22를 항상 예약한다. 필수 배지 유무와 무관하게
+   2열 그리드의 입력칸 윗선을 맞추고 배지와 버튼이 여백을 바꾸지 않게 한다. */
 .wire-form-label{display:flex;align-items:center;gap:var(--space-2);min-height:var(--badge-height);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--sub)}
 /* 라벨 옆 보조 표시와 필수 아웃라인 표식은 라벨 행의 8px gap을 공유한다. */
 .wire-form-note{display:inline-flex;align-items:center;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub)}
-/* 제목 글자 뒤에 배지가 붙는 묶음도 같은 20 예약을 쓴다. */
+/* 제목 글자 뒤에 배지가 붙는 묶음도 같은 22 예약을 쓴다. */
 .wire-title-with-badge{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--badge-height)}
 .wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-width:0;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
@@ -837,12 +824,10 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
   .wire-form-grid{grid-template-columns:minmax(0,1fr)}
 }
 /* WireChoice (§5 선택지 행): 컨트롤과 14px 라벨이 같은 줄, 누를 면적은 40px이다.
-   **알약은 쓰지 않는다**(2026-09-04 Q 2차 "체크박스 알약 정책 포기하고 전부 체크박스+텍스트로
-   정리하자", 같은 날 1차의 전역 알약과 그 이전 인테이크 한 자리 알약을 함께 폐기). 체크박스와
-   라디오가 한 어휘로 돌아간다.
-   컨트롤과 글자 사이는 4다(2026-09-04 Q 2차 "전역 일괄"). 보기 하나가 한 덩어리로 읽히려면
-   묶음 안 간격(4)이 보기 사이 간격(24)보다 뚜렷하게 좁아야 한다. */
-.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1);min-height:var(--control-height);padding:var(--space-2) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
+   알약은 쓰지 않는다. 체크박스와 라디오가 한 어휘로 선다.
+   컨트롤과 글자 사이는 6이다(2026-09-05 Q, 구 4). 보기 하나가 한 덩어리로 읽히도록
+   보기 사이 간격 24보다 뚜렷하게 좁게 유지한다. */
+.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1-5);min-height:var(--control-height);padding:var(--space-2) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
 /* optical: 18px 컨트롤을 14px 라벨 첫 줄 중앙에 맞춘다. */
 .wire-choice>input{margin:2px 0 0}
 .wire-choice-text{display:grid;gap:var(--space-1);min-width:0;overflow-wrap:anywhere}
@@ -867,9 +852,8 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .life-area-name{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .life-area-prior{margin:0;display:flex;align-items:center;gap:var(--space-2)}
 .life-area-prior-label{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
-/* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. 인테이크 여러 선택지
-   줄(.wizard-choice-row)도 같은 리듬을 쓴다(2026-09-04 Q 2차 알약 폐기로 두 벌이 하나가 됐다).
-   열 간격 24는 컨트롤과 글자 사이 4보다 여섯 배라 어느 글자가 어느 상자의 것인지 갈린다. */
+/* 공용 보기 묶음과 위저드 선택 줄은 같은 리듬을 쓴다.
+   열 간격 24는 컨트롤과 글자 사이 6보다 네 배 넓어 어느 글자가 어느 상자의 것인지 갈린다. */
 .wire-choice-group,.wizard-choice-row{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
 .wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}
 /* 라디오(§5): 체크박스와 같은 계약이고 모양만 원형이다. 선택 표시는 가운데 --ink 점.
@@ -1028,11 +1012,9 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 한 줄 넘침 처리 공용 계약(2026-08-06 Q "전역과 싱크"): 줄바꿈 대신 오른쪽 끝 48px 에서
    마스크로 자연스럽게 사라진다. 브리핑 회차 행·상담 기록 핵심 한 줄이 같은 규칙을 쓴다. */
 .wire-fade-clip{white-space:nowrap;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 48px),transparent)}
-/* 배지·칩(§5): 높이 20 · 패딩 0 8 · 13/400. 본문 14와 같은 크기이던 배지를 한 단계
-   작게 내려 면과 외곽선이 본문보다 큰 덩어리로 읽히지 않게 한다(2026-09-03 Q 실화면
-   12/13 비교: 12는 긴 한글 배지 가독성이 낮아 기본 13, sm만 12 유지). 기본형은 색 없이
-   --sub 테두리로만 선다. 색상 배지는 기존 계열 deep 면과 같은 외곽선을 쓰고,
-   전경은 테마에 따라 --on-badge로 반전한다. */
+/* 배지와 칩(§5): 높이 22, 패딩 0 8, 글자 12/400이다. 배지형 상태 표시도 같은
+   전역 글자 크기를 쓴다(2026-09-05 Q). 기본형은 색 없이 중립 외곽선으로 서고,
+   색상 배지는 기존 계열 면과 같은 외곽선을 쓴다. */
 /* 이 클래스가 화면 전체의 유일한 배지 계약이다. 같은 레시피를 제각각 복사하던 8개
    클래스를 전부 이 클래스 + data-tone으로 대체했다. 배지 모양은 WireBadge 컴포넌트와
    이 규칙 한 곳에서만 바꾼다. */
@@ -1044,9 +1026,6 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    전용 surface 토큰이 라이트 deep 면과 다크 base 면을 갈아 끼우며 전경은 --on-badge가 맡는다.
    light-magenta 만 예외로 승인 hex #D96BC8 하나를 두 테마에서 같이 쓰고, 그 면 위 글자는
    전용 --on-badge-light-magenta(다크 캔버스 중립색 재사용)로 두 테마 모두 AA 를 넘긴다. */
-/* sm은 기본과 같은 높이 20, 좌우 패딩 8이고 글자만 12다. 제목 옆 요구 상태처럼 더 짧은
-   곁다리 배지에 쓴다. 기본 13과 높이, 패딩을 맞춰 형제 배지의 외곽선 리듬은 유지한다. */
-.wire-badge[data-size="sm"]{height:var(--badge-height);padding:0 var(--space-2);font-size:var(--text-badge-compact)}
 .wire-badge[data-tone="mint"]{--wire-outline-color:var(--badge-mint);background:var(--badge-mint);color:var(--on-badge)}
 .wire-badge[data-tone="lavender"]{--wire-outline-color:var(--badge-lavender);background:var(--badge-lavender);color:var(--on-badge)}
 .wire-badge[data-tone="blue"]{--wire-outline-color:var(--badge-blue);background:var(--badge-blue);color:var(--on-badge)}
@@ -1060,9 +1039,9 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-badge.wire-required-marker{--wire-outline-color:var(--lavender-deep);background:transparent;color:var(--lavender-deep)}
 /* 리스크 배지: 확인된 리스크·오류 상태 전용(D9 리스크 색 독점의 허용 자리, 구 .status.risk). */
 .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk);background:var(--risk);color:var(--on-badge)}
-/* 상태 태그: 기본은 neutral이고 AI 산출·승인 대기 낱말만 lavender다.
-   화면 전체에서 이 클래스 하나만 쓴다(2026-08-07 통합). */
-.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+/* 상태 태그: 기본은 neutral이고 AI 산출과 승인 대기 낱말만 lavender다.
+   높이와 패딩과 글자는 전역 배지 계약을 함께 쓴다. */
+.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-badge);font-weight:400;color:var(--ink)}
 /* 상태 태그 색 계열(D61 ② 개정, CCC-106): AI 산출·승인 대기 낱말(D58 ④)만
    라벤더로 연다. 다섯 계열을 미리 다 칠하지 않는다(쓰는 것만 연다). 글자는 배지와 같은
    레시피로 --ink 그대로 두고 테두리·배경만 계열을 바꾼다. 변수 자체가 테마 토큰이라

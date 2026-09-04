@@ -70,16 +70,16 @@ describe('WireBadge palette', () => {
     expect(badge?.children).toHaveLength(1);
   });
 
-  it('배지와 상태 태그의 높이는 모두 22px 계약을 쓴다', () => {
+  it('배지와 상태 태그는 높이 22px과 글자 12px 계약을 함께 쓴다', () => {
+    expect(readToken(readBlock(':root {'), '--text-badge')).toBe('12px');
+    expect(readToken(readBlock(':root {'), '--text-badge-compact')).toBeUndefined();
     expect(stylesSource).toContain(
       '.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);',
     );
     expect(stylesSource).toContain(
-      '.wire-badge[data-size="sm"]{height:var(--badge-height);padding:0 var(--space-2);font-size:var(--text-badge-compact)}',
-    );
-    expect(stylesSource).toContain(
       '.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);',
     );
+    expect(stylesSource).toContain('font-size:var(--text-badge);font-weight:400;color:var(--ink)');
   });
 
   it('라이트는 Pen deep, 다크는 base 배지 토큰을 쓴다', () => {
@@ -100,18 +100,17 @@ describe('WireBadge palette', () => {
     }
   });
 
-  it('그라데이션 제목 줄의 모든 배지는 패널 면과 계열 아웃라인, 어두운 글자를 쓴다', () => {
-    expect(stylesSource).toContain(
-      '.wire-card-summary .wire-badge{height:var(--badge-height);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}',
-    );
-    for (const { tone } of BADGE_PALETTE) {
-      expect(stylesSource).toContain(
-        `.wire-card-summary .wire-badge[data-tone="${tone}"]{--wire-outline-color:var(--badge-${tone})}`,
-      );
-    }
-    expect(stylesSource).toContain(
-      '.wire-card-summary .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk)}',
-    );
+  it('그라데이션 제목 줄의 배지는 외곽선 없이 패널 면을 1px씩 넓힌다', () => {
+    const selector = '.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge{';
+    const start = stylesSource.indexOf(selector);
+    const rule = stylesSource.slice(start, stylesSource.indexOf('}', start) + 1);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(rule).toContain('height:calc(var(--badge-height) + var(--wire-outline-width) + var(--wire-outline-width));');
+    expect(rule).toContain('padding:0 calc(var(--space-2) + var(--wire-outline-width));');
+    expect(rule).toContain('border:0;');
+    expect(rule).toContain('background:var(--panel);');
+    expect(rule).toContain('color:var(--ink);');
   });
 
   it('라이트마젠타 전경은 두 테마와 고대비에서 같은 다크 중립색이다', () => {

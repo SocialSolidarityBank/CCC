@@ -53,17 +53,6 @@ function renderList(records: SupportCaseRecord[], errorIds: string[] = []) {
 }
 
 describe('RecordList', () => {
-  it('펼친 회차의 배지는 패널 면과 계열 아웃라인, 어두운 글자로 반전한다', () => {
-    expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge,[^{]*\{[^}]*--wire-outline-color:var\(--ink\);background:var\(--panel\);color:var\(--ink\)/,
-    );
-    expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="mint"\],[^{]*\{[^}]*--wire-outline-color:var\(--badge-mint\)/,
-    );
-    expect(wireStylesSource).toMatch(
-      /details\.surface-card\[open\]>\.record-summary \.wire-badge\[data-tone="lavender"\],[^{]*\{[^}]*--wire-outline-color:var\(--badge-lavender\)/,
-    );
-  });
 
   it('좁은 회차 카드는 핵심 한 줄을 두 번째 행에 최대 두 줄로 둔다', () => {
     expect(layoutSource).toMatch(

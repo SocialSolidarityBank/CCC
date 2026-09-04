@@ -26,7 +26,7 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   inset-x-ink: selectors=[컨테이너, 왼쪽 SVG path, 오른쪽 글자]. 실제 잉크의 좌우 여백을 비교한다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
   width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
-  height: selectors=[높이를 맞출 요소들]. 렌더된 세로 높이가 expectedHeight와 같은가.
+  height: selectors=[높이를 맞출 요소들]. expectedHeight와, 선택하면 expectedBorderWidth·expectedPaddingInline도 잰다.
   size: selectors=[상자]. 렌더된 가로·세로가 expectedWidth·expectedHeight와 같은가.
 
 단언에 viewport={width,height}를 주면 그 폭에서 다시 배치한 뒤 잰다. 화면을 줄였을 때만
@@ -234,11 +234,27 @@ CHECK_JS = r"""
       if (a.expectedHeight === undefined) {
         return { name: a.name, pass: false, detail: 'expectedHeight 없음' };
       }
-      const worst = Math.max(...els.map((el) => Math.abs(el.getBoundingClientRect().height - a.expectedHeight)));
+      const worstHeight = Math.max(...els.map((el) => Math.abs(el.getBoundingClientRect().height - a.expectedHeight)));
+      const worstBorder = a.expectedBorderWidth === undefined ? 0 : Math.max(...els.map((el) => {
+        const style = getComputedStyle(el);
+        return Math.max(
+          Math.abs(parseFloat(style.borderTopWidth) - a.expectedBorderWidth),
+          Math.abs(parseFloat(style.borderRightWidth) - a.expectedBorderWidth),
+          Math.abs(parseFloat(style.borderBottomWidth) - a.expectedBorderWidth),
+          Math.abs(parseFloat(style.borderLeftWidth) - a.expectedBorderWidth),
+        );
+      }));
+      const worstPadding = a.expectedPaddingInline === undefined ? 0 : Math.max(...els.map((el) => {
+        const style = getComputedStyle(el);
+        return Math.max(
+          Math.abs(parseFloat(style.paddingLeft) - a.expectedPaddingInline),
+          Math.abs(parseFloat(style.paddingRight) - a.expectedPaddingInline),
+        );
+      }));
       return {
         name: a.name,
-        pass: worst <= tol,
-        detail: `최대 높이 오차 ${worst.toFixed(2)}px, ${els.length}개 (허용 ${tol})`,
+        pass: worstHeight <= tol && worstBorder <= tol && worstPadding <= tol,
+        detail: `높이 오차 ${worstHeight.toFixed(2)}px / 사방 외곽선 오차 ${worstBorder.toFixed(2)}px / 좌우 패딩 오차 ${worstPadding.toFixed(2)}px, ${els.length}개 (허용 ${tol})`,
       };
     }
 

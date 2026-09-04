@@ -37,9 +37,6 @@ describe('ParticipantCard', () => {
       && row.getAttribute('data-truncate') === 'true'
       && row.getAttribute('data-size') === 'sm'
     ))).toBe(true);
-    expect([...container.querySelectorAll('.wire-badge')].every((badge) => (
-      badge.getAttribute('data-size') === 'sm'
-    ))).toBe(true);
     expect(container.querySelector('.participant-card .wire-card-divider')).toBeNull();
     expect(container.querySelector('a')?.getAttribute('aria-label'))
       .toBe('김민서, 8월 27일 (목) 14:00 기본상담');
@@ -95,7 +92,6 @@ describe('ParticipantCard', () => {
       && row.getAttribute('data-size') === 'sm'
     ))).toBe(true);
     expect(container.querySelectorAll('.wire-badge')).toHaveLength(1);
-    expect(container.querySelector('.wire-badge')?.getAttribute('data-size')).toBe('sm');
     expect(container.querySelector('.participant-card-emphasis')?.textContent).toBe('2개');
     expect(container.querySelector('a')?.getAttribute('aria-label'))
       .toBe('김민서, 참여 사업 2개, 진행 중');
@@ -115,7 +111,6 @@ describe('ParticipantCard', () => {
 
     const badges = [...container.querySelectorAll('.participant-card-header .wire-badge')];
     expect(badges.map((badge) => badge.textContent)).toEqual(['새 가입', '진행 중']);
-    expect(badges.every((badge) => badge.getAttribute('data-size') === 'sm')).toBe(true);
   });
 
   it('없는 연락처는 라벨도 표시하지 않는다', () => {

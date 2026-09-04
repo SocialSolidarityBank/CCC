@@ -127,7 +127,7 @@ describe('IntakeReadView (CCC-58)', () => {
     const { container } = renderView();
     const edit = screen.getByRole('link', { name: '수정' });
     expect(edit.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/records/intake?edit=1');
-    const records = screen.getByRole('link', { name: '상담 기록 확인하기' });
+    const records = screen.getByRole('link', { name: '상담 기록 확인' });
     expect(records.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/records');
     expect(screen.getByText('010-1234-5678')).toBeTruthy();
     expect(screen.getByText('sample@example.test')).toBeTruthy();

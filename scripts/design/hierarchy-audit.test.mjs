@@ -136,27 +136,30 @@ const badgeTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8'
   .match(/^\s*--text-badge:\s*([^;]+)/m)?.[1]
   ?.trim();
 check(
-  '기본 배지 토큰은 13px 이다',
-  badgeTokenValue === '13px',
+  '전역 배지 토큰은 12px 이다',
+  badgeTokenValue === '12px',
   `현재값: ${badgeTokenValue ?? '없음'}`,
 );
 const DEFAULT_BADGE = '.wire-badge{font-size:var(--text-badge);font-weight:400;color:var(--ink)}';
 check(
-  '13px 기본 배지는 WireBadge 자리에서만 허용된다',
+  '12px 전역 배지는 WireBadge 자리에서 허용된다',
   run(DEFAULT_BADGE).violations.length === 0,
 );
 check(
-  '13px 배지 토큰을 다른 필드에 쓰면 잡힌다',
+  '12px 배지 토큰을 다른 필드에 쓰면 잡힌다',
   run('.wire-field-label{font-size:var(--text-badge);font-weight:400;color:var(--sub)}').violations.length === 1,
 );
-
-
+check(
+  '상태 태그와 전문 보기 배지형 버튼도 전역 배지 토큰을 쓴다',
+  run('.wire-status-tag{font-size:var(--text-badge);font-weight:400;color:var(--ink)}').violations.length === 0
+    && run('.consent-detail[data-inline="true"]>.consent-detail-summary{font-size:var(--text-badge);font-weight:400;color:var(--ink)}').violations.length === 0,
+);
 const compactTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8')
   .match(/^\s*--text-badge-compact:\s*([^;]+)/m)?.[1]
   ?.trim();
 check(
-  '컴팩트 배지 토큰은 12px 이다',
-  compactTokenValue === '12px',
+  '구 컴팩트 배지 토큰은 폐지 상태다',
+  compactTokenValue === undefined,
   `현재값: ${compactTokenValue ?? '없음'}`,
 );
 
@@ -169,16 +172,6 @@ check(
   `현재값: ${participantIdTokenValue ?? '없음'}`,
 );
 
-const COMPACT_BADGE = '.wire-badge[data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:var(--ink)}';
-check(
-  '12px 컴팩트 배지는 지정된 sm 배지 자리에서만 허용된다',
-  run(COMPACT_BADGE).violations.length === 0,
-);
-check(
-  '12px 컴팩트 배지를 다른 필드에 쓰면 잡힌다',
-  run('.wire-field-label{font-size:var(--text-badge-compact);font-weight:400;color:var(--sub)}').violations.length === 1,
-);
-
 // 라이트마젠타만 전용 전경 토큰을 쓴다(2026-08-24 Q 결정).
 const badgeForegroundVar = (tone) => (
   tone === 'light-magenta' ? 'var(--on-badge-light-magenta)' : 'var(--on-badge)'
@@ -186,8 +179,8 @@ const badgeForegroundVar = (tone) => (
 
 for (const tone of ['blue', 'mint', 'lavender', 'coral', 'amber', 'lime', 'cyan', 'light-magenta', 'risk']) {
   check(
-    `${tone} 채움 배지는 테마 고정 전경색을 쓴다`,
-    run(`.wire-badge[data-tone="${tone}"][data-size="sm"]{font-size:var(--text-badge-compact);font-weight:400;color:${badgeForegroundVar(tone)}}`).violations.length === 0,
+    `${tone} 채움 배지는 전역 12px과 테마 고정 전경색을 쓴다`,
+    run(`.wire-badge[data-tone="${tone}"]{font-size:var(--text-badge);font-weight:400;color:${badgeForegroundVar(tone)}}`).violations.length === 0,
   );
 }
 
@@ -220,7 +213,7 @@ for (const [name, snippet] of [
   ['당사자 허브 사업명', '.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}'],
   ['당사자 허브 최신 일정', '.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
   ['당사자 허브 세부 목표', '.goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
-  ['동의 체크 라벨', '.consent-checkbox{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}'],
+  ['동의 체크 라벨', '.consent-checkbox{display:flex;align-items:center;gap:var(--space-1-5);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}'],
   ['동의 전문 제목', '.consent-detail-section h3{margin:0;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}'],
 ]) {
   check(

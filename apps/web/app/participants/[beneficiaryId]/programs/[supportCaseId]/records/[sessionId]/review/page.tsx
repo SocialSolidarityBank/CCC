@@ -104,7 +104,7 @@ function ErrorState({
       title="AI 초안 검토"
       action={(
         <WireButton variant="secondary" href={recordsHref(beneficiaryId, supportCaseId)}>
-          상담 기록 확인하기
+          상담 기록 확인
         </WireButton>
       )}
     >

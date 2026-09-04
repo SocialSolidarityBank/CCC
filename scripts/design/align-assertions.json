@@ -717,14 +717,28 @@
     "expectedSize": 12
   },
   {
-    "name": "모든 배지와 상태 태그는 높이 22",
+    "name": "접힌 배지와 상태 태그는 높이 22, 외곽선 1, 좌우 패딩 8",
     "selectors": [
-      ".wire-badge",
+      ".wire-badge:not(details[open] .wire-badge)",
       ".wire-status-tag"
     ],
     "axis": "height",
     "tolerance": 0.1,
-    "expectedHeight": 22
+    "expectedHeight": 22,
+    "expectedBorderWidth": 1,
+    "expectedPaddingInline": 8
+  },
+  {
+    "name": "펼친 그라데이션 제목 줄 배지는 높이 24, 외곽선 0, 좌우 패딩 9",
+    "selectors": [
+      "details.surface-card[open]>.record-summary .wire-badge",
+      ".wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge"
+    ],
+    "axis": "height",
+    "tolerance": 0.1,
+    "expectedHeight": 24,
+    "expectedBorderWidth": 0,
+    "expectedPaddingInline": 9
   },
   {
     "name": "정보 격자 HERO는 데스크톱에서 같은 높이 177",
