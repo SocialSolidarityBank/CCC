@@ -13,7 +13,8 @@
     "@ccc/http-api": "workspace:*"
   },
   "devDependencies": {
-    "@ccc/contracts": "workspace:*"
+    "@ccc/contracts": "workspace:*",
+    "@ccc/db-sqlite": "workspace:*"
   },
   "scripts": {
     "dev": "wrangler dev --config wrangler.toml",

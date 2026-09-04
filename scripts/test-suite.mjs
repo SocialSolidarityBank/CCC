@@ -1,7 +1,7 @@
 /**
  * 계약·보안 스위트 입구 (S2 §5, E1-7).
  *
- *   pnpm test:contracts --capabilities | --database | --audio-store | --auth
+ *   pnpm test:contracts --capabilities | --database | --db=d1 | --db=sqlite | --audio-store | --auth
  *   pnpm test:security  --bootstrap
  *
  * 플래그가 없으면 그 kind 의 스위트를 전부 돌린다. 모르는 플래그는 usage(1) 로 끝난다.
@@ -16,6 +16,8 @@ export const SUITES = {
   contracts: {
     capabilities: 'apps/api/test/capabilities.contract.test.ts',
     database: 'apps/api/test/database-contract.test.ts',
+    'db=d1': 'apps/api/test/database-contract.test.ts',
+    'db=sqlite': 'apps/api/test/sqlite-database.contract.test.ts',
     'audio-store': 'apps/api/test/audio-store.contract.test.ts',
     auth: ['apps/api/test/access-jwt.test.ts', 'apps/api/test/identity-access.contract.test.ts'],
   },
@@ -34,8 +36,8 @@ export function plan(argv, suites = SUITES) {
   const names = flags.map((flag) => flag.replace(/^--/, ''));
   const unknown = names.find((name) => table[name] === undefined);
   if (unknown !== undefined) return { status: 'usage', code: 1, message: `unknown suite '--${unknown}'. expected: ${Object.keys(table).map((name) => `--${name}`).join(' | ')}` };
-  const files = (names.length === 0 ? Object.keys(table) : names)
-    .flatMap((name) => Array.isArray(table[name]) ? table[name] : [table[name]]);
+  const files = [...new Set((names.length === 0 ? Object.keys(table) : names)
+    .flatMap((name) => Array.isArray(table[name]) ? table[name] : [table[name]]))];
   return { status: 'run', code: 0, argv: [...VITEST, ...files] };
 }
 

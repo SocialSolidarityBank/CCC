@@ -3,6 +3,7 @@ packages:
   - packages/*
   - adapters/*
 allowBuilds:
+  better-sqlite3-multiple-ciphers: false
   esbuild: true
   sharp: true
   workerd: true
