@@ -139,6 +139,30 @@ async function templateDir(provisionDirectory: boolean): Promise<string> {
   return building;
 }
 
+/**
+ * miniflare 의 Node 쪽 바인딩 프록시는 스트림 인자를 길이 없는 청크 전송으로 보내고,
+ * workerd R2 는 길이를 모르는 본문을 거부한다. FixedLengthStream 은 Workers 전역이라
+ * Node 하네스에는 없다. 그래서 하네스에서만 검사가 끝난 스트림을 모아 넘긴다.
+ * 운영(workerd)에서는 어댑터가 FixedLengthStream 으로 선언 길이를 유지한다.
+ */
+function bufferStreamPuts(bucket: R2Bucket): R2Bucket {
+  return {
+    put: async (
+      key: string,
+      value: Parameters<R2Bucket['put']>[1],
+      options?: Parameters<R2Bucket['put']>[2],
+    ) => bucket.put(
+      key,
+      value instanceof ReadableStream ? await new Response(value).arrayBuffer() : value,
+      options,
+    ),
+    get: (key: string) => bucket.get(key),
+    head: (key: string) => bucket.head(key),
+    delete: (keys: string) => bucket.delete(keys),
+    list: (options?: R2ListOptions) => bucket.list(options),
+  } as unknown as R2Bucket;
+}
+
 export async function createD1TestContext(
   options: { provisionDirectory?: boolean } = {},
 ): Promise<D1TestContext> {
@@ -156,7 +180,7 @@ export async function createD1TestContext(
     env: {
       DB: createD1Database(db),
       PII_ENC_KEY: TEST_PII_KEY,
-      audioStore: createR2AudioStore(bucket),
+      audioStore: createR2AudioStore(bufferStreamPuts(bucket)),
     },
     dispose: async () => {
       await miniflare.dispose();

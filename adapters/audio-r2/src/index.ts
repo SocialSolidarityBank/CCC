@@ -173,6 +173,22 @@ function checkedBody(
   });
 }
 
+/**
+ * R2 는 길이를 아는 본문만 받는다(요청·응답 본문 또는 FixedLengthStream 의 읽기 쪽).
+ * checkedBody 가 만든 스트림은 길이 정보가 없으므로 workerd 에서는 FixedLengthStream 을
+ * 통과시켜 선언 길이를 되살린다. 이 전역이 없는 실행기(Node 하네스)에서는 스트림을 그대로
+ * 넘겨 소비자 backpressure 를 유지한다.
+ */
+function knownLengthBody(
+  stream: ReadableStream<Uint8Array>,
+  contentLength: number,
+): ReadableStream<Uint8Array> {
+  if (typeof FixedLengthStream === 'undefined') return stream;
+  const fixed = new FixedLengthStream(contentLength);
+  void stream.pipeTo(fixed.writable).catch(() => undefined);
+  return fixed.readable as ReadableStream<Uint8Array>;
+}
+
 function providerError(): AudioStoreError {
   return new AudioStoreError();
 }
@@ -219,7 +235,7 @@ export function createR2AudioStore(bucket: R2Bucket): AudioStore {
     async put(key, body, metadata) {
       if (!validKey(key) || !validMetadata(metadata)) throw new AudioStoreError();
       const hash = new Sha256();
-      const stream = checkedBody(body, metadata.contentLength, hash);
+      const stream = knownLengthBody(checkedBody(body, metadata.contentLength, hash), metadata.contentLength);
       try {
         await bucket.put(key, stream, {
           httpMetadata: { contentType: metadata.contentType },
