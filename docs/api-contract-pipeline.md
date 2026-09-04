@@ -6,9 +6,9 @@
 
 ## 범위와 인증
 
-- 운영 환경에서는 Workers가 Cloudflare Access가 서명한 JWT(`Cf-Access-Jwt-Assertion` 헤더)를 검증한 뒤 행위자를 판별한다. 검증 내용: RS256 서명(팀 도메인 JWKS `https://<team>/cdn-cgi/access/certs`, 모듈 캐시 ~1h·미지의 kid면 재조회) + `iss = https://<ACCESS_TEAM_DOMAIN>` + `aud`에 `ACCESS_AUD` 포함 + `exp`/`nbf`(±60s). 구현: `apps/api/src/access-jwt.ts`(검증) + `apps/api/src/identity.ts`(행위자 판별).
-- 검증된 신원은 반드시 **users 디렉터리**에 있어야 한다. 사람 로그인은 JWT의 `email`, 서비스 토큰(처리 장비)은 `common_name`으로 조회한다. 디렉터리에 없거나 비활성(`active=0`)이면 Access를 통과했더라도 `403`(앱 프로비저닝 안 됨). 행위자의 `{userId, orgId, role}`은 이 디렉터리 행에서 나온다(자세한 건 아래 "사용자 디렉터리 관리").
-- fail closed: `ACCESS_TEAM_DOMAIN`·`ACCESS_AUD` 환경 변수가 설정되기 전(계정 개설 전, D16)에는 운영 API가 전부 `401`로 잠긴다. 이 두 값은 Access 애플리케이션 생성 후 `wrangler.toml [env.production.vars]`에 채운다. 서명·`iss`·`aud`·`exp` 검증 실패와 헤더 누락도 `401`이다.
+- 운영 환경에서는 `adapters/identity-access`가 Cloudflare Access JWT(`Cf-Access-Jwt-Assertion` 헤더)를 검증해 canonical `Actor`를 만든다. 검증 내용은 RS256 서명(팀 도메인 JWKS `https://<team>/cdn-cgi/access/certs`, 모듈 캐시 약 1시간, 미지의 kid면 재조회), `iss = https://<ACCESS_TEAM_DOMAIN>`, `aud`에 `ACCESS_AUD` 포함, `exp`/`nbf`(±60초)다. `apps/api/src/index.ts`가 adapter를 조립하고 현행 gateway 앞에서 기존 단일 role로 투영한다.
+- 검증된 principal은 반드시 **users 디렉터리**에 있어야 한다. 사람 로그인은 JWT의 `email`, 임시 Access 서비스 principal은 `common_name`으로 조회한다. 디렉터리에 없거나 비활성 또는 actor 회수 상태면 Access를 통과했어도 `403`이다. canonical `Actor`는 `{kind,userId,orgId,roles,scopes,authn}`만 가지며 email, common_name, token을 복사하지 않는다.
+- fail closed: `ACCESS_TEAM_DOMAIN`·`ACCESS_AUD`가 없거나 서명·`iss`·`aud`·`exp` 검증이 실패하거나 헤더가 없으면 `401`이다. 검증에 필요한 JWKS, 사용자 디렉터리, 회수 원장을 읽지 못하면 자격 오류로 위장하지 않고 `503 service_unavailable`로 닫힌다.
 - 로컬 개발에서는 `LOCAL_ACTOR_HEADER_MODE=true`로만 동작한다. 이때는 `X-CCC-User-Id`, `X-CCC-Org-Id`, `X-CCC-Role: service` 헤더를 명시한다(users 디렉터리 조회 없이 헤더를 그대로 신뢰한다).
 - `admin`, `counselor` 역할은 작업 조회와 산출물 저장을 호출할 수 없다. 인증 정보가 없으면 `401`, 서비스 역할이 아니면 `403`을 응답한다.
 - 요청과 응답에는 가명 ID만 포함한다. 실명, 연락처, 계좌, `audio_r2_key`는 응답하지 않는다.
@@ -214,7 +214,7 @@
 
 ### `GET /users`
 
-자기 조직의 사용자 목록을 이메일 순으로 돌려준다. 각 항목: `{ id, orgId, email, role, active }`.
+자기 조직의 사용자 목록을 이메일 순으로 돌려준다. 각 항목은 `{ id, orgId, email, role, active }`이고 Local 계정의 `email`은 `null`일 수 있다.
 
 ### `POST /users`
 
@@ -225,16 +225,16 @@
 ```
 
 - `role`은 `admin` · `counselor` · `service` 중 하나. 서비스 토큰(처리 장비)은 `service`로, `email`에 토큰의 client id / common_name을 넣는다.
-- 이메일이 처음이면 새로 만든다(`userId`를 주면 그 값을, 없으면 UUID를 id로 쓴다). 이미 있으면 역할을 갱신하고 `active=1`로 재활성화한다(이때 `userId` 인자는 무시 — 이메일이 신원을 특정한다).
+- 이메일이 처음이면 새로 만든다(`userId`를 주면 그 값을, 없으면 UUID를 id로 쓴다). 이미 있으면 역할을 갱신하고 `active=1`로 재활성화한다(이때 `userId` 인자는 무시). 비활성화 전에 발급된 Access credential은 회수 원장 때문에 계속 403이며, 사용자는 Cloudflare Access에서 로그아웃한 뒤 다시 로그인해 새 credential을 받아야 한다.
 - 마지막 활성 관리자를 관리자가 아닌 역할로 강등하려 하면 `400`. 다른 조직 소속 이메일은 `403`.
 - 성공 시 `201`로 갱신된 사용자 행을 돌려준다. 형식 오류는 `400`.
 
 ### `POST /users/:id/deactivate`
 
-사용자를 비활성화한다(행 삭제 없이 `active=0`). 이후 그 신원은 Access를 통과해도 앱 접근이 거부된다.
+사용자를 비활성화한다(행 삭제 없이 `active=0`). 같은 원자 batch에서 `admin-disable` actor 회수를 append하므로 기존 Access credential은 앱 접근이 거부된다.
 
 - 자기 자신은 비활성화 불가(`400`), 마지막 활성 관리자도 비활성화 불가(`400`).
-- 성공 시 `200`으로 비활성화된 사용자 행을 돌려준다.
+- 성공 시 `200`으로 비활성화된 사용자 행을 돌려준다. 재활성화 뒤에는 Cloudflare Access 로그아웃과 재로그인이 필요하다.
 
 ## 운영 전 확인 항목
 

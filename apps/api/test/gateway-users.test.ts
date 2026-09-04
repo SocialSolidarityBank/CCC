@@ -68,6 +68,13 @@ describe('user directory (users)', () => {
     const deactivated = await deactivateUser(t.env, admin, created.id);
     expect(deactivated.active).toBe(false);
     expect((await findUserByEmail(t.env, 'c2@example.invalid'))?.active).toBe(false);
+    await expect(t.db.prepare(
+      'SELECT kind, subject, reason FROM auth_revocations WHERE kind = ? AND subject = ?',
+    ).bind('actor', created.id).first()).resolves.toEqual({
+      kind: 'actor',
+      subject: created.id,
+      reason: 'admin-disable',
+    });
 
     const reactivated = await upsertUser(t.env, admin, { email: 'c2@example.invalid', role: 'counselor' });
     expect(reactivated.active).toBe(true);

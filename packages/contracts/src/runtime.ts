@@ -112,6 +112,12 @@ export type RevocationReason =
   | 'pairing-revoked'
   | 'security-event';
 
+/** Credential is absent or invalid; HTTP adapters map it to a generic 401. */
+export class ActorAuthenticationError extends Error {}
+
+/** Identity directory or revocation state is unreadable; business data must fail closed with 503. */
+export class IdentityStoreUnavailableError extends Error {}
+
 /**
  * 세 모드가 공유하는 lossless Actor. email, raw SID, token 원문, PII 를 담지 않는다.
  * `orgId=null` 은 system actor 만 허용한다. 구현 어댑터는 E4-1/E4-2/E4-3/E7/E8 소유.
@@ -134,6 +140,15 @@ export interface Identity {
   revokeAll(userId: string, reason: RevocationReason): Promise<void>;
   revokeSession(sessionId: string, reason: RevocationReason): Promise<void>;
 }
+
+export const AGENT_SCOPES = [
+  'jobs:claim',
+  'jobs:heartbeat',
+  'jobs:result',
+  'jobs:release',
+  'audio:read',
+  'source:read',
+] as const;
 
 // ── CapabilityManifest (S2 §2.8) ────────────────────────────────────────────
 

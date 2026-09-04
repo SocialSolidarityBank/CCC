@@ -82,7 +82,7 @@ Cloud / Single / Office 차이표. 차이가 없으면 "없음"이라고 쓴다.
 
 - 상태: 초안 (2026-09-02)
 - 근거: ADR-0041 D79, 2026-08-31 계획 `docs/superpowers/plans/2026-08-31-supabase-platform-cutover.md` Task 2, 3
-- 입력: `db/gateway.ts`, `db/schema.sql`, `migrations/sqlite/0001~0044`, `migrations/postgres/0001_baseline.sql`, `apps/api/test/*`
+- 입력: `db/gateway.ts`, `db/schema.sql`, `migrations/sqlite/0001~0045`, `migrations/postgres/0001_baseline.sql`, `apps/api/test/*`
 - 산출: S1 계약 문서의 대응 정본은 `docs/specs/S1-database-sql-subset.md`다. 구현 산출물은 관련 E 티켓이 소유하며 이 스펙의 산출에 포함하지 않는다.
 - 관련 티켓: E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4. 구현 산출물은 이 관련 E 티켓이 소유한다.
 
@@ -128,7 +128,7 @@ export type Bindable = string | number | null | Uint8Array; // boolean은 0/1 �
 | | Cloud | Single | Office |
 |---|---|---|---|
 | 어댑터 | `db-postgres`(postgres.js) | `db-sqlite`(better-sqlite3-multiple-ciphers) | `db-sqlite`, WAL |
-| 마이그레이션 | `migrations/postgres/0001_baseline.sql` + 이후 논리 ID | `migrations/sqlite/0001~0044` 현행 | Single과 같음 |
+| 마이그레이션 | `migrations/postgres/0001_baseline.sql` + 이후 논리 ID | `migrations/sqlite/0001~0045` 현행 | Single과 같음 |
 | 동시성 | PostgreSQL 기본 | 단일 사용자 | 서비스가 쓰기 직렬화 |
 
 ## 4. 완료 조건

@@ -41,8 +41,8 @@
 
 - `docs/specs/S7-consent-six-domains.md`: 여섯 domain, 문안, ConsentEvent, fold, gates, migration, fixtures의 확정 계약.
 - `docs/superpowers/plans/2026-09-03-SG7-consent-six-domains.md`: 이 구현 계획.
-- `migrations/sqlite/0045_consent_six_domains.sql`: E3-8 소유 SQLite consent events와 legacy observations paired schema, append-only guards, fixed `unconfirmed`.
-- `migrations/sqlite/0046_audio_objects.sql`: SG8 소유 audio objects migration이며 SG7은 수정하지 않는다.
+- `migrations/sqlite/0046_consent_six_domains.sql`: E3-8 소유 SQLite consent events와 legacy observations paired schema, append-only guards, fixed `unconfirmed`.
+- `migrations/sqlite/0047_audio_objects.sql`: SG8 소유 audio objects migration이며 SG7은 수정하지 않는다.
 - `migrations/postgres/0003_consent_six_domains.sql`: E3-8 소유 PostgreSQL paired schema, RLS, append-only policy. `0001_baseline`, `0002_supabase_platform`, `0004_audio_objects` 순서를 보존한다.
 - `packages/contracts/src/consent.ts`: E4-6 소유 domain, event, state, DTO 타입과 literal.
 - `packages/core/src/consent/consent-events.ts`: E4-6 소유 append, correction, idempotency, fold, gate 규칙.
@@ -51,7 +51,7 @@
 
 ### Modify
 
-- `migrations/parity.yaml`: SQLite `0045`와 PostgreSQL `0003`의 consent 대응, SQLite `0046`와 PostgreSQL `0004`의 audio 대응.
+- `migrations/parity.yaml`: SQLite `0046`와 PostgreSQL `0003`의 consent 대응, SQLite `0047`와 PostgreSQL `0004`의 audio 대응.
 - `packages/contracts/src/index.ts`: consent DTO export.
 - `packages/core/src/index.ts`: consent service export.
 - `apps/api/src/request-handler.ts`: legacy consent input rejection, six-domain event parsing, route cutover.
@@ -217,9 +217,9 @@ export interface ConsentService {
 **Owner:** E3-8
 
 **Files:**
-- Create: `migrations/sqlite/0045_consent_six_domains.sql`
+- Create: `migrations/sqlite/0046_consent_six_domains.sql`
 - Create: `migrations/postgres/0003_consent_six_domains.sql`
-- Do not modify: SQLite `0046_audio_objects.sql`, PostgreSQL `0004_audio_objects.sql` (SG8)
+- Do not modify: SQLite `0047_audio_objects.sql`, PostgreSQL `0004_audio_objects.sql` (SG8)
 - Modify: `migrations/parity.yaml`
 - Create or modify: schema snapshot fixture owned by E3-8
 
@@ -321,7 +321,7 @@ SG8 adapter behavior is consumed from resolved commit `9125dc8`; this plan only 
 - [ ] Parent runs every command in §Parent verification and records results in implementation tickets, not by changing this spec to `구현 검증 완료` early.
 - [ ] Parent confirms all adversarial fixtures pass their expected fail-closed verdicts and no old consent auto-upgrades.
 - [ ] Parent commits implementation separately from this documentation commit.
-- [ ] Parent updates S11 migration order to PostgreSQL `0001_baseline` → `0002_supabase_platform` → `0003_consent_six_domains` → `0004_audio_objects`, master E3-8 parity to SQLite `0045/0046` and PostgreSQL `0003`, and SG8 dependency to resolved `9125dc8`; these parent files are not edited by SG7.
+- [ ] Parent updates S11 migration order to PostgreSQL `0001_baseline` → `0002_supabase_platform` → `0003_consent_six_domains` → `0004_audio_objects`, master E3-8 parity to SQLite `0046/0047` and PostgreSQL `0003`, and SG8 dependency to resolved `9125dc8`; these parent files are not edited by SG7.
 
 ## Adversarial Fixture Matrix
 

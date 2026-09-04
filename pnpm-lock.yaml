@@ -63,6 +63,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
+  adapters/identity-access:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@ccc/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   apps/api:
     dependencies:
       '@ccc/ai-runtime':
@@ -80,6 +89,9 @@ importers:
       '@ccc/http-api':
         specifier: workspace:*
         version: link:../../packages/http-api
+      '@ccc/identity-access':
+        specifier: workspace:*
+        version: link:../../adapters/identity-access
     devDependencies:
       '@ccc/contracts':
         specifier: workspace:*

@@ -1,7 +1,7 @@
 /**
  * access-jwt.ts — Cloudflare Access JWT(RS256) 검증 (WebCrypto 전용).
  *
- * identity.ts의 운영 인증 경로가 이 모듈만 호출하도록 얇게 분리했다. 하는 일:
+ * `createAccessIdentity`의 Access 인증 경로가 이 모듈만 호출한다. 하는 일:
  *   1. `Cf-Access-Jwt-Assertion` 헤더의 JWT를 파싱하고 alg=RS256을 강제한다.
  *   2. 팀 도메인 JWKS(`https://<team>/cdn-cgi/access/certs`)로 서명을 검증한다.
  *      JWKS는 모듈 스코프에 TTL(~1h)로 캐시하고, 캐시에 없는 kid(키 회전)면 재조회한다.
@@ -58,6 +58,8 @@ export interface VerifyAccessJwtOptions {
 
 /** JWT 검증 실패(서명·claim·형식). 호출부가 401로 매핑한다. */
 export class AccessJwtError extends Error {}
+/** Trusted JWKS could not be read; callers map this operational failure to 503, not invalid-token 401. */
+export class AccessJwksUnavailableError extends AccessJwtError {}
 
 const JWKS_TTL_MS = 60 * 60 * 1000; // 1시간
 
@@ -104,10 +106,13 @@ function decodeJson<T>(segment: string): T {
 }
 
 async function defaultFetchJwks(url: string): Promise<Jwks> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new AccessJwtError(`JWKS fetch failed with status ${response.status}`);
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch {
+    throw new AccessJwksUnavailableError('JWKS fetch failed');
   }
+  if (!response.ok) throw new AccessJwksUnavailableError('JWKS fetch failed');
   return (await response.json()) as Jwks;
 }
 
@@ -150,7 +155,20 @@ async function resolveKey(
     return cached.keys.get(kid) as CryptoKey;
   }
 
-  const next: CachedJwks = { importedAt: Date.now(), keys: await importJwks(await fetchJwks(certsUrl)) };
+  let jwks: Jwks;
+  try {
+    jwks = await fetchJwks(certsUrl);
+  } catch (error) {
+    if (error instanceof AccessJwksUnavailableError) throw error;
+    throw new AccessJwksUnavailableError('JWKS fetch failed');
+  }
+  let keys: Map<string, CryptoKey>;
+  try {
+    keys = await importJwks(jwks);
+  } catch {
+    throw new AccessJwksUnavailableError('JWKS response is unreadable');
+  }
+  const next: CachedJwks = { importedAt: Date.now(), keys };
   jwksCache.set(teamDomain, next);
 
   const key = next.keys.get(kid);

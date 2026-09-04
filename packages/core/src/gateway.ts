@@ -21,7 +21,7 @@ import type { Database, DatabaseResult, PreparedStatement } from '@ccc/contracts
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
-import type { AgentStatus } from '@ccc/contracts/runtime';
+import { AGENT_SCOPES, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason } from '@ccc/contracts/runtime';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
@@ -8354,7 +8354,7 @@ export async function exportCase(
 export interface User {
   id: string;
   orgId: string;
-  email: string; // 사람=로그인 이메일 / 서비스 토큰=client id·common_name
+  email: string | null; // Access 사람/서비스 principal. Local 계정은 null 가능(E4-1).
   role: Role;
   active: boolean;
   name: string | null; // 직원 표시 이름(D31). PII 금고 대상 아님 — 화면 표기용, 미입력이면 null
@@ -8364,7 +8364,7 @@ function mapUser(row: DbRow): User {
   return {
     id: stringValue(row.id),
     orgId: stringValue(row.org_id),
-    email: stringValue(row.email),
+    email: nullableString(row.email),
     role: toRole(row.role),
     active: row.active === 1 || row.active === true,
     name: nullableString(row.name),
@@ -8398,23 +8398,116 @@ async function assertNotLastActiveAdmin(env: Env, orgId: string, excludeUserId: 
 }
 
 /**
- * 이메일(사람) 또는 서비스 토큰 common_name으로 사용자 디렉터리 행을 조회한다.
+ * 이메일로 사용자 디렉터리 행을 조회한다. Preview/local-dev 환경 adapter의 기존 경로가
+ * 사용하며 production Access Identity는 `resolveDirectoryActorByPrincipal`을 쓴다.
  *
- * ⚠ 이 함수는 gateway의 공통 계약(actor·org·권한·감사)에서 의도적으로 벗어난 유일한
- * 예외다 — identity 해석(인증 확립) 단계에서 호출되므로 아직 Actor가 없다. 안전성 근거:
- *   1. 입력 email/common_name은 Cloudflare Access가 서명·검증한 JWT의 claim이다
- *      (호출부 identity.ts가 RS256 서명·iss·aud·exp를 먼저 검증한 뒤에만 부른다).
- *      즉 위조 불가능한 신원에 대한 디렉터리 행 1건만 되돌린다.
- *   2. 반환값은 PII가 아니라 {id, org_id, role}뿐이고, email은 이미 호출부가 아는 값이다.
- *   3. 이후 이 행으로 만들어진 Actor의 모든 gateway 호출은 정상적으로 org·권한·감사를 거친다.
- *   4. 이메일은 전역 UNIQUE라 결과가 0 또는 1건이며 교차 기관 노출이 없다.
- * 따라서 여기서 별도 감사를 남기지 않는다(인증 전 단계, 행위자 없음).
+ * 이 조회는 인증 확립 전이라 Actor가 없다. 호출자는 환경 이중 잠금 뒤 설정된 이메일만
+ * 전달하고, 전역 partial-unique email index 때문에 결과는 0 또는 1건이다. 별도 감사는
+ * 남기지 않으며 이후 gateway 호출이 정상 org·권한·감사를 수행한다.
  */
 export async function findUserByEmail(env: Env, email: string): Promise<User | null> {
   const row = await env.DB.prepare('SELECT * FROM users WHERE email = ?')
     .bind(email)
     .first<DbRow>();
   return row === null ? null : mapUser(row);
+}
+
+const DIRECTORY_ROLE_MAP = {
+  institution_admin: 'institution-admin',
+  institution_technical_admin: 'technical-admin',
+  practitioner: 'worker',
+} as const satisfies Record<string, ActorRole>;
+
+/**
+ * principal은 조회에만 쓰고 반환하지 않는다. Actor revocation 뒤 발급된 credential만 다시
+ * 허용하며, 발급 시각이 없거나 회수 시각 이전이면 미등록과 같은 null이다.
+ */
+export async function resolveDirectoryActorByPrincipal(
+  env: Env,
+  principal: string,
+  authn: IdentityActor['authn'],
+  credentialIssuedAt: string | null,
+): Promise<IdentityActor | null> {
+  const normalized = principal.trim();
+  if (normalized.length === 0) return null;
+  const user = await env.DB.prepare(
+    `SELECT id, org_id, role,
+       (SELECT MAX(revoked_at) FROM auth_revocations
+        WHERE kind = 'actor' AND subject = users.id) AS actor_revoked_at
+     FROM users
+     WHERE email = ? AND active = 1
+     LIMIT 1`,
+  ).bind(normalized).first<DbRow>();
+  if (user === null) return null;
+  const actorRevokedAt = nullableString(user.actor_revoked_at);
+  if (actorRevokedAt !== null) {
+    const revokedAtMs = Date.parse(actorRevokedAt);
+    const issuedAtMs = credentialIssuedAt === null ? Number.NaN : Date.parse(credentialIssuedAt);
+    // A malformed persisted timestamp is an unreadable revocation state, never permission to pass.
+    if (Number.isNaN(revokedAtMs) || Number.isNaN(issuedAtMs) || issuedAtMs <= revokedAtMs) return null;
+  }
+
+  const userId = stringValue(user.id);
+  const orgId = stringValue(user.org_id);
+  const legacyRole = toRole(user.role);
+  if (legacyRole === 'service') {
+    return {
+      kind: 'agent',
+      userId,
+      orgId,
+      roles: ['service'],
+      scopes: [...AGENT_SCOPES],
+      authn,
+    };
+  }
+
+  const assignments = await env.DB.prepare(
+    `SELECT role
+     FROM user_role_assignments
+     WHERE user_id = ? AND org_id = ? AND revoked_at IS NULL
+     ORDER BY CASE role
+       WHEN 'institution_admin' THEN 1
+       WHEN 'institution_technical_admin' THEN 2
+       WHEN 'practitioner' THEN 4
+       ELSE 99
+     END`,
+  ).bind(userId, orgId).all<{ role: string }>();
+  const roles: ActorRole[] = assignments.results.flatMap((row) => {
+    const role = DIRECTORY_ROLE_MAP[row.role as keyof typeof DIRECTORY_ROLE_MAP];
+    return role === undefined ? [] : [role];
+  });
+  const supervisor = await env.DB.prepare(
+    `SELECT 1 AS active
+     FROM team_supervisor_grants
+     WHERE supervisor_user_id = ? AND org_id = ? AND revoked_at IS NULL
+     LIMIT 1`,
+  ).bind(userId, orgId).first<{ active: number }>();
+  if (supervisor !== null) {
+    const workerIndex = roles.indexOf('worker');
+    roles.splice(workerIndex < 0 ? roles.length : workerIndex, 0, 'supervisor');
+  }
+  return { kind: 'human', userId, orgId, roles, scopes: [], authn };
+}
+
+async function appendAuthRevocation(
+  env: Env,
+  kind: 'actor' | 'session',
+  subject: string,
+  reason: RevocationReason,
+): Promise<void> {
+  assertOpaqueIdentifier(subject, `${kind} revocation subject`);
+  await env.DB.prepare(
+    `INSERT INTO auth_revocations (id, kind, subject, revoked_at, reason)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).bind(newId(), kind, subject, now(), reason).run();
+}
+
+export async function revokeActorSessions(env: Env, userId: string, reason: RevocationReason): Promise<void> {
+  await appendAuthRevocation(env, 'actor', userId, reason);
+}
+
+export async function revokeIdentitySession(env: Env, sessionId: string, reason: RevocationReason): Promise<void> {
+  await appendAuthRevocation(env, 'session', sessionId, reason);
 }
 
 /** 사용자 디렉터리 목록. 권한: admin 전용, 자기 기관만. 감사: read(users). */
@@ -8498,7 +8591,8 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string, opt
     throw new ValidationError('deactivation reason must not be blank');
   }
   // 퇴사·휴직 체크리스트 (CCC-123 · 정책 §2.3): ① 담당 배정 전부 종료 ② 사용자 비활성
-  // ③ 발급한 미사용 초대 토큰 폐기. 재활성화해도 배정은 복원되지 않는다(ended 그대로).
+  // ③ 발급한 미사용 초대 토큰 폐기 ④ 기존 인증 material 전부 회수. 재활성화해도 배정은
+  // 복원하지 않고, 회수 시각 뒤 발급된 새 credential만 Identity가 받는다.
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE support_case_assignees
@@ -8510,6 +8604,10 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string, opt
       `UPDATE invite_tokens SET revoked_at = ?
        WHERE org_id = ? AND issued_by = ? AND status = 'issued' AND revoked_at IS NULL`,
     ).bind(endedAt, actor.orgId, userId),
+    env.DB.prepare(
+      `INSERT INTO auth_revocations (id, kind, subject, revoked_at, reason)
+       VALUES (?, 'actor', ?, ?, 'admin-disable')`,
+    ).bind(newId(), userId, endedAt),
     env.DB.prepare('UPDATE users SET active = 0 WHERE id = ? AND org_id = ?')
       .bind(userId, actor.orgId),
   ]);

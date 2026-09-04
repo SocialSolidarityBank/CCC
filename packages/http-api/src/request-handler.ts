@@ -170,11 +170,11 @@ import {
   validateDiscrepancyDetectionOutput,
   validateDiscrepancyDetectionRequest,
 } from '@ccc/ai-runtime';
-import { ActorAuthenticationError, actorFromRequest, type ApiEnv } from './identity';
+import { type ApiEnv } from './identity';
 import { buildCapabilities, CapabilitiesUnavailableError } from './capabilities';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
-import { AUDIO_CONTENT_TYPES, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
+import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
 function normalizeAudioContentType(header: string | null): AudioContentType | null {
@@ -1984,6 +1984,7 @@ async function handleAudioUpload(
 
 function errorResponse(error: unknown): Response {
   if (error instanceof ActorAuthenticationError) return json({ error: 'actor_authentication_required' }, 401);
+  if (error instanceof IdentityStoreUnavailableError) return json({ error: 'service_unavailable' }, 503);
   if (error instanceof ForbiddenError) return json({ error: 'forbidden' }, 403);
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
   if (error instanceof PilotTextAiConsentRequiredError) return json({ error: error.code }, error.statusCode);
@@ -2016,7 +2017,7 @@ export type ActorResolver = (request: Request, env: ApiEnv) => Promise<Actor>;
 export async function handleRequest(
   request: Request,
   env: ApiEnv,
-  resolveActor: ActorResolver = actorFromRequest,
+  resolveActor: ActorResolver,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', service: 'ccc-api' });
