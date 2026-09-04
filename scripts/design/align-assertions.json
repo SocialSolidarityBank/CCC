@@ -928,7 +928,7 @@
     "expectedHeight": 36
   },
   {
-    "name": "체크박스 보기 알약은 높이 40",
+    "name": "체크박스 보기 행은 높이 40",
     "selectors": [
       "#align-choice .wire-choice"
     ],

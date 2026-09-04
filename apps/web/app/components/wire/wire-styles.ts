@@ -818,30 +818,29 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    폭을 쓰지 않는다. 2열 본문이 폭을 나누고 간격은 spacing v2 페이지 스택 32를 쓴다.
    카드 안 body 20은 .wire-form-card가 갖는다. */
 .session-plan-stack{display:grid;gap:var(--section-gap)}
-/* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 여기는 흐름만 정한다. */
-.wizard-choice-row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+/* 여러 개 고르기 보기 줄 — WireChoice 가 각 보기의 옷을 갖고, 흐름은 아래 공용
+   .wire-choice-group 규칙과 한 줄로 합쳤다(2026-09-04 Q 2차). */
 /* 안 채운 필수 보기 줄(2026-08-09 Q). 여러 개 고르기에는 입력 상자가 없어 WireFormField 의
    invalid 를 빌릴 수 없으므로 **줄 자체가 경고 상자**가 된다. 레시피는 입력칸 오류와 같다
    (--risk 1.5px · radius 6, §5). 안쪽 보기는 그대로 두고 상자만 생긴다 — 체크 켬은
    --gradient-action 이라 리스크 면과 겹쳐도 어느 쪽이 켬인지 흐려지지 않는다. */
-/* optical: 안쪽 여백 8/10 은 상자가 없던 자리에 상자를 얹으면서 보기가 테두리에 붙지 않게
-   주는 값이다 — 이 줄만 갖는 상태라 간격 3단에 넣을 값이 아니다. */
-.wizard-choice-row[data-invalid="true"]{padding:8px 10px;border:1.5px solid var(--risk);border-radius:var(--radius-control)}
+/* optical: 좌우 10 만 준다(2026-09-04 Q 2차 검수 실측, 구 8/10). 세로는 보기 행 자신이
+   40px 누름 면적을 만들며 위아래 8 을 이미 갖고 있어, 상자가 8 을 더하면 테두리에서 첫
+   체크박스까지 19/21 로 벌어져 좌우 11 과 어긋났다. 세로를 0 으로 두면 11/13 이 된다. */
+.wizard-choice-row[data-invalid="true"]{padding:0 10px;border:1.5px solid var(--risk);border-radius:var(--radius-control)}
 /* 인테이크 조회의 값만 저장된 줄바꿈을 그대로 보인다 — 서술형 답변이 여러 줄로 들어온다.
    크기·색은 위 .wire-field-value(정보 필드) 그대로다. */
 .intake-read-value{white-space:pre-wrap}
 @media(max-width:767px){
   .wire-form-grid{grid-template-columns:minmax(0,1fr)}
 }
-/* WireChoice (§5 선택지 행): 컨트롤과 14px 라벨이 같은 줄, 누를 면적은 40px이다. */
-.wire-choice{display:flex;align-items:flex-start;gap:var(--space-3);min-height:var(--control-height);padding:var(--space-2) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
-/* 체크박스 보기는 **전역으로 알약**이다(2026-09-04 Q "인테이크 현재 어려움 관련 영역의
-   체크박스처럼 알약 버전으로 전역 통일"). 보기 하나가 곧 누르는 단위라 공용 버튼과 같은
-   알약 외곽선을 쓴다. 라디오는 이 규칙 밖이다(원형 컨트롤이 자기 어휘를 갖는다). */
-.wire-choice:has(>.wire-checkbox){align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}
-.wire-choice:has(>.wire-checkbox)>input{margin:0}
-/* 설명 줄이 딸린 보기는 두 줄이라 세로 여백을 되살린다. */
-.wire-choice:has(>.wire-checkbox):has(.wire-choice-desc){align-items:flex-start;padding:var(--space-2) var(--space-2-5)}
+/* WireChoice (§5 선택지 행): 컨트롤과 14px 라벨이 같은 줄, 누를 면적은 40px이다.
+   **알약은 쓰지 않는다**(2026-09-04 Q 2차 "체크박스 알약 정책 포기하고 전부 체크박스+텍스트로
+   정리하자", 같은 날 1차의 전역 알약과 그 이전 인테이크 한 자리 알약을 함께 폐기). 체크박스와
+   라디오가 한 어휘로 돌아간다.
+   컨트롤과 글자 사이는 4다(2026-09-04 Q 2차 "전역 일괄"). 보기 하나가 한 덩어리로 읽히려면
+   묶음 안 간격(4)이 보기 사이 간격(24)보다 뚜렷하게 좁아야 한다. */
+.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1);min-height:var(--control-height);padding:var(--space-2) 0;font-size:var(--text-sm);font-weight:600;color:var(--ink);cursor:pointer}
 /* optical: 18px 컨트롤을 14px 라벨 첫 줄 중앙에 맞춘다. */
 .wire-choice>input{margin:2px 0 0}
 .wire-choice-text{display:grid;gap:var(--space-1);min-width:0;overflow-wrap:anywhere}
@@ -866,14 +865,11 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .life-area-name{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .life-area-prior{margin:0;display:flex;align-items:center;gap:var(--space-2)}
 .life-area-prior-label{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
-/* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. */
-.wire-choice-group{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
+/* 선택지 묶음: 짧은 선택지는 한 줄에 여러 개, 길면 자연스럽게 접힌다. 인테이크 여러 선택지
+   줄(.wizard-choice-row)도 같은 리듬을 쓴다(2026-09-04 Q 2차 알약 폐기로 두 벌이 하나가 됐다).
+   열 간격 24는 컨트롤과 글자 사이 4보다 여섯 배라 어느 글자가 어느 상자의 것인지 갈린다. */
+.wire-choice-group,.wizard-choice-row{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
 .wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}
-/* 알약이 된 체크박스 묶음은 인테이크 여러 선택지(.wizard-choice-row)와 같은 12 리듬을 쓴다
-   (2026-09-04 Q 전역 통일). 알약끼리 세로로 붙으면 테두리가 맞닿으므로 줄 간격이 필요하다.
-   라디오만 있는 묶음은 알약이 아니라 구 24 열 간격 그대로다. */
-.wire-choice-group:has(>.wire-choice>.wire-checkbox){gap:var(--space-3)}
-.wire-choice-group[data-layout="stack"]:has(>.wire-choice>.wire-checkbox){align-items:flex-start;gap:var(--space-2)}
 /* 라디오(§5): 체크박스와 같은 계약이고 모양만 원형이다. 선택 표시는 가운데 --ink 점.
    체크박스와 같은 이유로 ::after 가 아니라 background 로 그린다(input 은 replaced element). */
 .wire-radio{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}

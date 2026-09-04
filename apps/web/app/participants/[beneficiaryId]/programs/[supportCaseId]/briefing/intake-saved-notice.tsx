@@ -46,7 +46,7 @@ export function IntakeSavedNotice({
           다음 상담 등록
         </WireButton>
       }>
-      다음 상담을 등록해 두면 상담 일정과 기록 작성으로 바로 이어갈 수 있습니다.
+      다음 상담을 등록해 두면 상담 일정과 상담 기록하기로 바로 이어갈 수 있습니다.
     </WireCallout>
   );
 }

@@ -369,9 +369,10 @@ p.empty[data-reserve="true"]{min-height:92px}
    칸을 가로질러 늘어나고 라벨이 아래 줄로 밀려난다 — 선택지가 세로로 한 글자씩 쪼개져
    읽히던 원인이다(2026-07-26 Q 보고 "너무 좁아서 쓸 수 없는 칸"). */
 .field input[type="radio"],.field input[type="checkbox"]{width:auto;min-height:0;padding:0;border:0;border-radius:0;background:none;accent-color:var(--blue-deep)}
-/* 선택지 한 줄: 동그라미와 글자를 같은 줄에 세우고 누를 면적을 컨트롤 높이만큼 준다. */
+/* 선택지 한 줄: 동그라미와 글자를 같은 줄에 세우고 누를 면적을 컨트롤 높이만큼 준다.
+   컨트롤과 글자 사이 4는 공용 선택지 행과 같은 값이다(2026-09-04 Q 2차, 구 8). */
 .field:has(>span>input[type="radio"])>span,.field:has(>span>input[type="checkbox"])>span{
-  display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);
+  display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-height);
   color:var(--ink);font-size:var(--text-md);
 }
 textarea{min-height:216px;resize:vertical}
@@ -961,7 +962,8 @@ const scheduleStyles = `
    들여쓰는 것)을 끄는 표준 장치다 — float 가 none 이 아니면 legend 는 일반 자식으로
    내려와 그리드 첫 행에 왼쪽 정렬로 선다(구 6px 들여쓰기 패딩도 함께 걷는다). */
 .consent-fieldset legend{float:left;padding:0;font-weight:600;font-size:var(--text-md);color:var(--ink)}
-.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}
+/* 컨트롤과 글자 사이는 선택지 행과 같은 4다(2026-09-04 Q 2차 "전역 일괄", 구 12). */
+.consent-checkbox{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}
 /* 케이스 종결 화면(CCC-107): 폼·요약의 세로 스택. 행 문법은 briefing-action-rows 재사용. */
 .close-case-stack{display:grid;gap:var(--space-4)}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
@@ -1199,7 +1201,8 @@ const recordFormStyles = `
    WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
      갖고, 필수 카운트는 체크리스트 제목 옆 neutral 배지가 됐다(§2-2 규칙 4). */
 .record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
-.record-rail-list li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-1-5)}
+/* 채움 표시와 글자 사이도 선택지 행과 같은 4다(2026-09-04 Q 2차 "전역 일괄", 구 6). */
+.record-rail-list li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-1)}
 .record-rail-list li>.wire-checkbox{cursor:default}
 .record-rail-list li[data-done="true"]{color:var(--ink)}
 .record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

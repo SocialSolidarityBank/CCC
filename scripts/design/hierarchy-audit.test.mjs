@@ -221,7 +221,7 @@ for (const [name, snippet] of [
   ['당사자 허브 사업명', '.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}'],
   ['당사자 허브 최신 일정', '.participant-next-schedule-date,.participant-next-schedule-program{font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
   ['당사자 허브 세부 목표', '.goal-tree-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--ink)}'],
-  ['동의 체크 라벨', '.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}'],
+  ['동의 체크 라벨', '.consent-checkbox{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}'],
   ['동의 전문 제목', '.consent-detail-section h3{margin:0;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}'],
 ]) {
   check(

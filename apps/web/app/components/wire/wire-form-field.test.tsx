@@ -59,14 +59,13 @@ describe('WireFormField', () => {
     expect(message?.textContent).toBe('숫자만 입력하세요.');
   });
 
-  it('체크박스 보기는 전역으로 아웃라인 알약을 쓴다', () => {
-    // 2026-09-04 Q: 인테이크 여러 선택지 한 자리 규칙을 체크박스 보기 전체로 올렸다.
-    expect(wireStyles).toContain(
-      '.wire-choice:has(>.wire-checkbox){align-items:center;padding:0 var(--space-2-5);border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--panel)}',
-    );
-    expect(wireStyles).toContain('.wire-choice:has(>.wire-checkbox)>input{margin:0}');
-    // 라디오는 이 규칙 밖이다. 알약을 라디오까지 열면 원형 컨트롤 어휘가 사라진다.
-    expect(wireStyles).not.toContain('.wire-choice:has(>.wire-radio){align-items:center;padding:0 var(--space-2-5)');
+  it('선택지 행은 알약을 쓰지 않고 컨트롤과 글자를 4로 붙인다', () => {
+    // 2026-09-04 Q 2차: 알약 정책 폐기. 체크박스와 라디오가 한 어휘로 돌아간다.
+    expect(wireStyles).toContain('.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1);');
+    expect(wireStyles).not.toContain('.wire-choice:has(>.wire-checkbox)');
+    expect(wireStyles).not.toContain('.wizard-choice-row .wire-choice{');
+    // 보기 사이 열 간격 24는 컨트롤과 글자 사이 4보다 뚜렷하게 넓어야 짝이 안 헷갈린다.
+    expect(wireStyles).toContain('.wire-choice-group,.wizard-choice-row{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}');
   });
 
 

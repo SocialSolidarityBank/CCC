@@ -78,7 +78,7 @@ export default async function NewIntakePage({
     return (
       <PageError
         title="인테이크"
-        action={<WireButton variant="secondary" href={recordsHref}>전체 상담 기록으로 돌아가기</WireButton>}
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인하기</WireButton>}
       >
         {messages[context.error]}
       </PageError>

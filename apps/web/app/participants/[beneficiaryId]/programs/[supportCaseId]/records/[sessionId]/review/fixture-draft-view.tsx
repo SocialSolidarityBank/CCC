@@ -208,7 +208,7 @@ export function DraftReviewView({
           stageTag={stageTag}
           stageTagTone={stageTagTone}
           meta={<MetaRow items={metaItems} />}
-          actions={<WireButton href={recordsHref} variant="secondary">전체 상담 기록</WireButton>}
+          actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인하기</WireButton>}
         />
 
         {isFixture && (

@@ -193,7 +193,7 @@ describe('정렬 하니스 생성기', () => {
         beneficiaryId="swallow-003"
         stageTag="진행 중"
         meta={<span>최근 상담 2026년 9월 2일</span>}
-        actions={<WireButton variant="neutral">상담 기록</WireButton>}
+        actions={<WireButton variant="neutral">상담 기록하기</WireButton>}
       />,
     );
     const heroDetails = renderToStaticMarkup(

@@ -49,7 +49,7 @@ const schedulePresentations: Record<CounselingScheduleStatus, { className: strin
   scheduled: {
     className: 'wire-badge',
     label: '예정',
-    message: '기록 작성 시에만 명시적으로 완료 처리할 수 있습니다.',
+    message: '상담 기록하기에서만 명시적으로 완료 처리할 수 있습니다.',
   },
   completed: {
     className: 'wire-badge',
@@ -195,7 +195,7 @@ export default async function RecordHistoryPage({
 
   return <GridContainer as="main" className="page-content">
     {/* 페이지 타이틀(2026-08-08 Q). 이 화면의 이름은 '전체 상담 기록'이다 — 용어 통일. */}
-    <div className="page-header"><PageTitle>전체 상담 기록</PageTitle></div>
+    <div className="page-header"><PageTitle>상담 기록 확인하기</PageTitle></div>
     <RecordHashOpener />
     {/* ParticipantHeroCard (D38): 케이스 1개를 보는 화면이라 상태 태그가 필수다(슬롯 ②).
         브레드크럼은 이 카드가 대체한다 — 출구는 왼쪽 세컨더리 하나다(D35).
@@ -215,7 +215,7 @@ export default async function RecordHistoryPage({
               (2026-08-08 Q — 구 '인테이크 작성' 라벨 대체). */}
           {result.data !== null && !hasIntake
             ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크</WireButton>
-            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록 작성</WireButton>}
+            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록하기</WireButton>}
         </>,
       })}
     />

@@ -277,7 +277,7 @@ function DiscrepancyItem({
               variant="neutral"
               href={`${recordsHref}#record-${side.sessionId}`}
             >
-              기록 보기
+              회차 확인하기
             </WireButton>
           </div>
         ))}
@@ -414,8 +414,8 @@ export function BriefingCards({
               여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다.
               HERO 행동 줄은 전부 40 이다(2026-08-26 Q "상담 기록만 크다" — 구 보조 32 폐지). */}
           <WireButton href={participantHref} variant="secondary">당사자 정보</WireButton>
-          <WireButton className="briefing-more" href={recordsHref} variant="secondary">전체 상담 기록</WireButton>
-          <WireButton href={recordNewHref} variant="primary">상담 기록</WireButton>
+          <WireButton className="briefing-more" href={recordsHref} variant="secondary">상담 기록 확인하기</WireButton>
+          <WireButton href={recordNewHref} variant="primary">상담 기록하기</WireButton>
         </>}
       />
 

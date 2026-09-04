@@ -367,7 +367,7 @@ export function IntakeReadView(props: IntakeReadViewProps) {
         ]}
         actions={(
           <>
-            <WireButton variant="secondary" href={props.recordsHref}>전체 상담 기록</WireButton>
+            <WireButton variant="secondary" href={props.recordsHref}>상담 기록 확인하기</WireButton>
             <WireButton variant="primary" href={props.editHref}>수정</WireButton>
           </>
         )}

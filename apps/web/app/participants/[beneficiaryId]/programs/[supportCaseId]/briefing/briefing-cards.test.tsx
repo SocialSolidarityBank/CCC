@@ -328,7 +328,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const links = [...card.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toContain(`${recordsHref}#record-s-1`);
     expect(links).toContain(`${recordsHref}#record-s-2`);
-    const recordButtons = within(card).getAllByRole('link', { name: '기록 보기' });
+    const recordButtons = within(card).getAllByRole('link', { name: '회차 확인하기' });
     expect(recordButtons).toHaveLength(4);
     expect(recordButtons.every((link) => link.classList.contains('wire-button'))).toBe(true);
     // 각 인용 옆에 상담일이 붙는다.
@@ -417,17 +417,17 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
 });
 
 describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D38·D9)', () => {
-  it('HERO 우상단은 행동 3개(당사자 정보 → 전체 상담 기록 → 상담 기록)다 (2026-08-06 Q — 구 맨 아래 링크 대체)', () => {
+  it('HERO 우상단은 행동 3개(당사자 정보 → 상담 기록 확인하기 → 상담 기록하기)다 (2026-08-06 Q — 구 맨 아래 링크 대체)', () => {
     const { container, queryByText } = render(<BriefingCards {...baseProps()} />);
     const actions = hero(container).querySelector('.page-actions');
     expect([...(actions?.querySelectorAll('a') ?? [])].map((a) => a.textContent))
-      .toEqual(['당사자 정보', '전체 상담 기록', '상담 기록']);
+      .toEqual(['당사자 정보', '상담 기록 확인하기', '상담 기록하기']);
     // 이 화면만 D38 상한을 3개로 넓혔다(2026-08-06 Q). 프라이머리는 여전히 오른쪽 끝 1개다.
     expect(actions?.children).toHaveLength(3);
 
     const more = container.querySelector('.briefing-more');
     expect(more?.getAttribute('href')).toBe(baseProps().recordsHref);
-    expect(more?.textContent).toContain('전체 상담 기록');
+    expect(more?.textContent).toContain('상담 기록 확인하기');
     // 구 맨 아래 링크가 되살아나면 이 테스트가 잡는다.
     expect(queryByText('자세한 상담 기록 보기')).toBeNull();
     expect(queryByText('← 목록으로')).toBeNull();
