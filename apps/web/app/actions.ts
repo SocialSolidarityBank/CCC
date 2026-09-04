@@ -66,7 +66,7 @@ import {
   lifeAreaStatuses,
   activateAiProviderRuntime,
 } from './lib/api';
-import { isBeneficiaryId } from '../../../db/animal-slugs';
+import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 
 /**
  * CCC-44 기관 관리자 전용: 배포된 AI 사업자 런타임을 등록·활성화한다. 성공 시

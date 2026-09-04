@@ -8,7 +8,7 @@ import {
   listUsers,
   rememberLastProgramType,
   upsertUser,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const { admin, otherOrgAdmin, counselor } = testActors;

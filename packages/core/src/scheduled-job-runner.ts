@@ -3,17 +3,19 @@ import {
   processParticipantPiiRetention,
   runPipelineWatchdog,
   type PipelineHealth,
-} from '../../../db/gateway';
+  type Env,
+} from './gateway';
 import type { JobReport, ScheduledJobKind, ScheduledJobRunner } from '@ccc/contracts/runtime';
-import type { ApiEnv } from './identity';
-import { notifyAdmins } from './notify';
+import { notifyAdmins, type NotifyEnv } from './notify';
+
+export type ScheduledJobEnv = Env & NotifyEnv;
 
 /**
  * 폴링 워치독 1회 실행 (D8). 전 기관 건강도를 계산하고 stale인 기관마다 관리자 알림
  * 시임(notifyAdmins)을 호출한다. 계산·감사는 gateway(runPipelineWatchdog)가, 알림 발송
  * 판단은 여기가 담당한다. 테스트가 직접 부를 수 있도록 export한다.
  */
-export async function runWatchdog(env: ApiEnv): Promise<PipelineHealth[]> {
+export async function runWatchdog(env: ScheduledJobEnv): Promise<PipelineHealth[]> {
   const healths = await runPipelineWatchdog(env);
   for (const health of healths) {
     if (health.stale) {
@@ -37,7 +39,7 @@ export async function runWatchdog(env: ApiEnv): Promise<PipelineHealth[]> {
  * 실무자 개인에게 보내는 채널은 아직 없으므로(사이드바 배지 인프라 미구현) 현 단계는
  * 관리자 알림 + `GET /consent/follow-ups` 보완 대상 리포트가 그 자리를 맡는다.
  */
-export async function remindEmergencyConsentDeadlines(env: ApiEnv): Promise<void> {
+export async function remindEmergencyConsentDeadlines(env: ScheduledJobEnv): Promise<void> {
   for (const summary of await listEmergencyConsentDeadlines(env)) {
     await notifyAdmins(
       env,
@@ -47,7 +49,7 @@ export async function remindEmergencyConsentDeadlines(env: ApiEnv): Promise<void
   }
 }
 
-async function jobCounters(env: ApiEnv, kind: ScheduledJobKind, nowIso: string): Promise<Record<string, number>> {
+async function jobCounters(env: ScheduledJobEnv, kind: ScheduledJobKind, nowIso: string): Promise<Record<string, number>> {
   switch (kind) {
     case 'pipeline_watchdog': {
       const healths = await runWatchdog(env);
@@ -66,7 +68,7 @@ async function jobCounters(env: ApiEnv, kind: ScheduledJobKind, nowIso: string):
  * tick 도 이 runner 만 부른다. 워치독은 gateway 가 자기 시계를 쓰므로 `nowIso` 를 받지 않는다.
  * 보존 생애주기(D32·D46)는 예약 시각을 `at` 으로 받아 아카이브·재검토만 하고 파기하지 않는다.
  */
-export function createScheduledJobRunner(env: ApiEnv): ScheduledJobRunner {
+export function createScheduledJobRunner(env: ScheduledJobEnv): ScheduledJobRunner {
   return {
     async run(kind, nowIso): Promise<JobReport> {
       const counters = await jobCounters(env, kind, nowIso);

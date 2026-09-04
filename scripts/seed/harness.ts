@@ -12,7 +12,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { createD1Database } from '@ccc/db-d1';
 import { createD1TestContext } from '../../apps/api/test/support/d1';
-import type { Env } from '../../db/gateway';
+import type { Env } from '@ccc/core/gateway';
 import { preloadStatements } from './preload-data';
 import { D1Capture } from './capture';
 

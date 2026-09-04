@@ -68,7 +68,7 @@ import {
   unassignSupportCase,
   unassignCase,
   updateCaseExtra,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 /**

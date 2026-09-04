@@ -10,7 +10,7 @@ import {
   createGoal,
   rescheduleCounselingSchedule,
   updateScheduleSessionGoals,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 세션 목표(D28)·맞춤형 질문 저장·조회, 잘못된 케이스 목표 연결 거부, 비담당 접근 차단,

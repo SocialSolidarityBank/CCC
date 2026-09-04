@@ -5,8 +5,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
+    "@ccc/ai-runtime": "workspace:*",
     "@ccc/audio-r2": "workspace:*",
-    "@ccc/db-d1": "workspace:*"
+    "@ccc/core": "workspace:*",
+    "@ccc/db-d1": "workspace:*",
+    "@ccc/http-api": "workspace:*"
   },
   "devDependencies": {
     "@ccc/contracts": "workspace:*"

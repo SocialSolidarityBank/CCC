@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { notifyAdmins, WATCHDOG_ALERT_PREFIX } from '../src/notify';
-import { type ApiEnv } from '../src/identity';
+import { notifyAdmins, WATCHDOG_ALERT_PREFIX } from '@ccc/core/notify';
+import { type ApiEnv } from '@ccc/http-api/identity';
 
 // notify는 D1을 쓰지 않으므로 env는 웹훅 변수만 있는 빈 껍데기로 충분하다.
 function envWith(webhookUrl?: string): ApiEnv {

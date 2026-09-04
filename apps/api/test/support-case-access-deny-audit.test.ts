@@ -11,7 +11,7 @@ import {
   listAssignedParticipants,
   updateScheduleSessionGoals,
   updateParticipantPii,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const { counselor, unassignedCounselor, admin } = testActors;

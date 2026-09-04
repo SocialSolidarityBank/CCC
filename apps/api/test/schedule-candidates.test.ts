@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { createBeneficiaryWithInitialSupportCase } from '../../../db/gateway';
+import { createBeneficiaryWithInitialSupportCase } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const t = setupD1();

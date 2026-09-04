@@ -7,7 +7,7 @@ import {
   createManualSession,
   registerRecording,
   type Actor,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const counselor: Actor = testActors.counselor;

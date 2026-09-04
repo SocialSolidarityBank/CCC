@@ -12,7 +12,7 @@ import {
   listEmergencyConsentDeadlines,
   listPrivacyConsentFollowUps,
   updateParticipantConsent,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 // G1 (docs/consent/consent-implementation-gates-v1.md §2 · 2026-07-29 Q 결정1):

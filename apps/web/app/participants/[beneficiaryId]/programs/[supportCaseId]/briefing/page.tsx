@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
-import { isBeneficiaryId } from '../../../../../../../../db/animal-slugs';
+import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PageError } from '../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../components/wire/page-loading';

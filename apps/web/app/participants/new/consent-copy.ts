@@ -5,4 +5,4 @@ export {
   CONSENT_PRIVACY_SECTIONS,
   CONSENT_RECORDING_AI_SECTIONS,
   type ConsentDetailSection,
-} from '../../../../../db/consent-notice';
+} from '@ccc/contracts/consent-notice';

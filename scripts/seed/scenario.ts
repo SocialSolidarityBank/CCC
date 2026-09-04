@@ -35,7 +35,7 @@ import {
   type CounselingRecordActionItemInput,
   type CounselingRecordFlagInput,
   type CreateScheduleSessionGoalInput,
-} from '../../db/gateway';
+} from '@ccc/core/gateway';
 import type { D1Capture } from './capture';
 import { ADMIN_ACTOR_ID, ORG_ID } from './preload-data';
 import {

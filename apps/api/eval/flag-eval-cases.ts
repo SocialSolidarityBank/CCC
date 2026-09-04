@@ -21,7 +21,7 @@ import type {
   AiFlagType,
   AiProviderMaterial,
   AiProviderRequest,
-} from '../src/ai-provider';
+} from '@ccc/ai-runtime';
 
 /**
  * 평가가 다루는 플래그 유형 — ai-provider 의 AI_FLAG_TYPES 와 같아야 한다(테스트가 대조).

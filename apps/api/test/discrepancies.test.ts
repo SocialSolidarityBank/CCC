@@ -19,7 +19,7 @@ import {
   resolveSessionDiscrepancy,
   updateParticipantPii,
   ValidationError,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import {
   AiProviderProhibitedOutputError,
   AiProviderUnavailableError,
@@ -32,7 +32,7 @@ import {
   type AiProviderRequest,
   type AiProviderTestAdapter,
   type DiscrepancyDetectionRequest,
-} from '../src/ai-provider';
+} from '@ccc/ai-runtime';
 import worker from './support/local-worker';
 import { setupD1, testActors } from './support/d1';
 

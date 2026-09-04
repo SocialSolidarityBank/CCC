@@ -6,7 +6,7 @@ import {
   CONSENT_PRIVACY_NOTICE_TEXT,
   CONSENT_PRIVACY_SECTIONS as canonicalPrivacySections,
   CONSENT_RECORDING_AI_SECTIONS as canonicalRecordingAiSections,
-} from '../../../../../db/consent-notice';
+} from '@ccc/contracts/consent-notice';
 import {
   CONSENT_DETAIL_SECTIONS,
   CONSENT_PRIVACY_SECTIONS,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import apiWorker from '../src/index';
-import { createScheduledJobRunner, runWatchdog } from '../src/scheduled-job-runner';
+import { createScheduledJobRunner, runWatchdog } from '@ccc/core/scheduled-job-runner';
 import { WATCHDOG_CRON } from '../src/cron-schedule';
 import worker from './support/local-worker';
 import {
@@ -11,7 +11,7 @@ import {
   listPipelineJobs,
   registerRecording,
   type Actor,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const counselor: Actor = testActors.counselor;

@@ -9,10 +9,10 @@ import {
   processParticipantPiiRetention,
   updateParticipantPii,
   type Actor,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import apiWorker from '../src/index';
 import { PURGE_CRON } from '../src/cron-schedule';
-import { createScheduledJobRunner } from '../src/scheduled-job-runner';
+import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import worker from './support/local-worker';
 import { setupD1, testActors } from './support/d1';
 const t = setupD1();

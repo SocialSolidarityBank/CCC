@@ -13,6 +13,7 @@
     "deploy:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@ccc/contracts": "workspace:*",
     "lucide-react": "^1.24.0",
     "next": "^16.2.10",
     "pretendard": "^1.3.9",

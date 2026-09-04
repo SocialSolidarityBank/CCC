@@ -13,7 +13,7 @@ import {
   setSupportCaseOverallGoal,
   updateParticipantPii,
   createParticipantInvite,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import {
   AI_PROVIDER_REGISTRY_VERSION,
   CODEX_PROVIDER_ADAPTER_VERSION,
@@ -27,8 +27,8 @@ import {
   type AiProviderOutput,
   type AiProviderRequest,
   type AiProviderTestAdapter,
-} from '../src/ai-provider';
-import type { ApiEnv } from '../src/identity';
+} from '@ccc/ai-runtime';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import { setupD1 } from './support/d1';
 
 const counselorHeaders = {

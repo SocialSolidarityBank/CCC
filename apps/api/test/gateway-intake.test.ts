@@ -17,7 +17,7 @@ import {
   listGoals,
   processParticipantPiiRetention,
   purgeParticipantPii,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1 } from './support/d1';
 
 const t = setupD1();

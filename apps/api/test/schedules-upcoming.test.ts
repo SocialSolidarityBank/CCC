@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule } from '../../../db/gateway';
+import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // org_demo 는 setupD1 가 Asia/Seoul(UTC+9, DST 없음)로 프로비저닝한다. 앵커 날짜 2026-07-16.

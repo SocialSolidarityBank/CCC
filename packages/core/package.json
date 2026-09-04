@@ -1,0 +1,15 @@
+{
+  "name": "@ccc/core",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./gateway": "./src/gateway.ts",
+    "./access-policy": "./src/access-policy.ts",
+    "./notify": "./src/notify.ts",
+    "./scheduled-job-runner": "./src/scheduled-job-runner.ts"
+  },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*"
+  }
+}

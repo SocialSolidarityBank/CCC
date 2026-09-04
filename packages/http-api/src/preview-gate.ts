@@ -19,7 +19,7 @@
  *
  * PREVIEW_ACCESS_CODE 값은 로그·에러·응답에 절대 싣지 않는다(이름만 커밋).
  */
-import { findUserByEmail, ForbiddenError, type Actor } from '../../../db/gateway';
+import { findUserByEmail, ForbiddenError, type Actor } from '@ccc/core/gateway';
 import { ActorAuthenticationError, type ApiEnv } from './identity';
 import type { ActorResolver } from './request-handler';
 

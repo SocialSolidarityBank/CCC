@@ -34,7 +34,7 @@ import {
   setSupportCaseOverallGoal,
   updateParticipantConsent,
   updateParticipantPii,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 /**

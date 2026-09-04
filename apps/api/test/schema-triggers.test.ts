@@ -9,7 +9,7 @@ import {
   purgeParticipantPii,
   reRegisterParticipantPii,
   updateParticipantPii,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
 
 const counselor = testActors.counselor;

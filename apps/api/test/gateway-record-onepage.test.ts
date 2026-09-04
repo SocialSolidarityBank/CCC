@@ -6,7 +6,7 @@ import {
   createCounselingRecord,
   createIntakeRecord,
   listCounselingRecords,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1 } from './support/d1';
 
 // CCC-10 정기 기록지 원페이지: 서술형 항목(record_details · 0016)이 createCounselingRecord

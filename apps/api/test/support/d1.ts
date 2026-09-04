@@ -4,10 +4,10 @@ import { join } from 'node:path';
 import { afterEach } from 'vitest';
 import { Miniflare } from 'miniflare';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
-import type { Actor } from '../../../../db/gateway';
+import type { Actor } from '@ccc/core/gateway';
 import { createD1Database } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
-import type { ApiEnv } from '../../src/identity';
+import type { ApiEnv } from '@ccc/http-api/identity';
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
 export interface D1TestContext {

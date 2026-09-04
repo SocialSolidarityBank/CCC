@@ -6,7 +6,7 @@ import {
   countNewSignups,
   listAssignedParticipants,
   listNewSignupBeneficiaryIds,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // CCC-26 새 가입 배지 — 게이트웨이 파생 값의 단위 테스트.

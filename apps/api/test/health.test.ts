@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Database } from '@ccc/contracts/database';
 import type { AudioStore } from '@ccc/contracts/runtime';
 import worker from '../src/index';
-import type { ApiEnv } from '../src/identity';
-import type { AiProviderAdapter } from '../src/ai-provider';
+import type { ApiEnv } from '@ccc/http-api/identity';
+import type { AiProviderAdapter } from '@ccc/ai-runtime';
 
 const healthEnv: ApiEnv = {
   DB: undefined as unknown as Database,

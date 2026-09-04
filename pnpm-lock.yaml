@@ -11,6 +11,9 @@ importers:
       '@ccc/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@ccc/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@ccc/db-d1':
         specifier: workspace:*
         version: link:adapters/db-d1
@@ -62,12 +65,21 @@ importers:
 
   apps/api:
     dependencies:
+      '@ccc/ai-runtime':
+        specifier: workspace:*
+        version: link:../../packages/ai-runtime
       '@ccc/audio-r2':
         specifier: workspace:*
         version: link:../../adapters/audio-r2
+      '@ccc/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@ccc/db-d1':
         specifier: workspace:*
         version: link:../../adapters/db-d1
+      '@ccc/http-api':
+        specifier: workspace:*
+        version: link:../../packages/http-api
     devDependencies:
       '@ccc/contracts':
         specifier: workspace:*
@@ -75,6 +87,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -116,7 +131,27 @@ importers:
         specifier: ^26.1.0
         version: 26.1.0
 
+  packages/ai-runtime: {}
+
   packages/contracts: {}
+
+  packages/core:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/http-api:
+    dependencies:
+      '@ccc/ai-runtime':
+        specifier: workspace:*
+        version: link:../ai-runtime
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@ccc/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

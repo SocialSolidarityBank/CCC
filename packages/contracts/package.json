@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     "./database": "./src/database.ts",
-    "./runtime": "./src/runtime.ts"
+    "./runtime": "./src/runtime.ts",
+    "./animal-slugs": "./src/animal-slugs.ts",
+    "./consent-notice": "./src/consent-notice.ts"
   }
 }

@@ -6,8 +6,8 @@ import {
   createCounselorInvite,
   createParticipantInvite,
   listUsers,
-} from '../../../db/gateway';
-import type { ApiEnv } from '../src/identity';
+} from '@ccc/core/gateway';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import { setupD1, testActors } from './support/d1';
 
 // 실무자 초대 가입 (CCC-108 · CCC-33). 공개 라우트 둘(GET /invites/worker/:token ·

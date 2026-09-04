@@ -19,14 +19,14 @@
 
 import type { Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
 
-import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from './animal-slugs';
+import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
   CONSENT_PRIVACY_NOTICE_VERSION,
   CONSENT_TEXT_AI_NOTICE_TEXT,
   CONSENT_TEXT_AI_NOTICE_VERSION,
-} from './consent-notice';
+} from '@ccc/contracts/consent-notice';
 
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
 export interface Env {

@@ -7,7 +7,7 @@ import {
   registerAiProviderConfiguration,
   registerRecording,
   SESSION_GOAL_MATERIAL_LABEL,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import {
   AI_DRAFT_PROMPT_VERSION,
   AI_DRAFT_SCHEMA_VERSION,
@@ -26,9 +26,9 @@ import {
   type AiProviderOutput,
   type AiProviderRequest,
   type AiProviderTestAdapter,
-} from '../src/ai-provider';
-import { contrastAxisStates } from '../src/request-handler';
-import type { ApiEnv } from '../src/identity';
+} from '@ccc/ai-runtime';
+import { contrastAxisStates } from '@ccc/http-api';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import { setupD1 } from './support/d1';
 
 const t = setupD1();

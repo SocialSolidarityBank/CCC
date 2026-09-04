@@ -1,6 +1,6 @@
-import type { Actor, Role } from '../../../../db/gateway';
-import { handleRequest, type ActorResolver } from '../../src/request-handler';
-import { ActorAuthenticationError, type ApiEnv } from '../../src/identity';
+import type { Actor, Role } from '@ccc/core/gateway';
+import { handleRequest, type ActorResolver } from '@ccc/http-api';
+import { ActorAuthenticationError, type ApiEnv } from '@ccc/http-api/identity';
 
 function requiredHeader(request: Request, name: string): string {
   const value = request.headers.get(name)?.trim();

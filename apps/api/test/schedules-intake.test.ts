@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
-import { createBeneficiaryWithInitialSupportCase, createGoal, listGoals } from '../../../db/gateway';
+import { createBeneficiaryWithInitialSupportCase, createGoal, listGoals } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 // 인테이크 분기(티켓 #36): 상담 유형(intake)·방법(in_person) 저장, 세션 목표 거부,

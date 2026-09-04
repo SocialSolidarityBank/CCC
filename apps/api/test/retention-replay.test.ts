@@ -7,7 +7,7 @@ import {
   reRegisterParticipantPii,
   reviewParticipantPiiRetention,
   updateParticipantPii,
-} from '../../../db/gateway';
+} from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
 
 const t = setupD1();

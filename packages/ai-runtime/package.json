@@ -1,0 +1,9 @@
+{
+  "name": "@ccc/ai-runtime",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/ai-provider.ts"
+  }
+}
