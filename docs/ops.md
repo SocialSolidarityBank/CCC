@@ -127,26 +127,28 @@ next 가 조용히 다음 포트(8788·3001)로 올라간다. 그때 웹의 `CCC
   `div[hidden][id^="S:"]` 와 경계 주석 `$~` 도 같은 신호다.
 - 해제: `javascript_exec` 로 `$RV($RB)` 를 한 번 호출하면 즉시 교체된다. 그 뒤에 DOM 을 읽는다.
 
-### 미리보기 수동 배포 (Actions 가 멈췄을 때)
+### 미리보기 수동 배포 (`pnpm deploy:preview`)
 
-`Deploy Preview` 워크플로가 못 도는 상황(결제 한도·장애)에서 **로컬에서 같은 명령으로 배포**할 수 있다. 2026-07-26 실제로 이 경로로 배포했다.
+**프리뷰는 main 을 비춘다.** `Deploy Preview` 워크플로가 main 푸시마다 돌아 프리뷰를 main 으로 다시 배포한다. 그래서 **브랜치를 손으로 올려 둔 프리뷰는 다음 main 머지에 덮인다.** 2026-09-04 에 실제로 났다: 디자인 브랜치를 17:58 에 수동 배포하고 검수를 맡겼는데 19:02~19:12 사이 다른 PR 셋(#262~#264)이 머지되며 프리뷰가 세 번 main 으로 돌아갔고, 검수자는 "반영이 안 되고 옛 버전으로 회귀했다"로 읽었다.
+
+그래서 규칙은 하나다. **브랜치 검수는 PR 머지가 곧 배포다.** 수동 배포는 두 경우뿐이다 — ① 워크플로가 못 도는 장애(2026-07-26 실제 사용) ② 머지 전에 잠깐 보여 줘야 하는 브랜치. ②는 덮일 것을 알고 올리는 것이고, 검수자에게 **빌드 도장**을 함께 알린다.
 
 ```bash
-# 사전: git 작업본이 origin/main 과 같은 내용인지 확인한다(배포는 작업본을 올린다)
-git fetch origin && git diff --stat HEAD origin/main   # 출력이 비어야 한다
-
-# 검증 게이트를 로컬에서 직접 통과시킨다 — CI 가 없으므로 이게 유일한 근거다
-pnpm build && pnpm test
-
-pnpm --filter @ccc/api exec wrangler deploy --env preview
-pnpm --filter @ccc/web exec opennextjs-cloudflare build
-pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview
+pnpm deploy:preview                    # HEAD == origin/main 일 때만 배포한다
+pnpm deploy:preview -- --branch        # 브랜치 임시 프리뷰. 다음 main 푸시에 덮인다
+pnpm deploy:preview -- --preflight-only
 ```
 
+`scripts/deploy-preview.mjs` 가 하는 것(문서가 아니라 스크립트가 막는다, token-audit 과 같은 이유):
+
+- HEAD 가 origin/main 과 다르면 **막는다.** `--branch` 를 붙여야 넘어가고, 그때도 origin/main 보다 뒤처진 브랜치는 막는다(뒤처진 채 올리면 main 의 다른 작업이 프리뷰에서 사라진다).
+- 커밋 안 된 변경이 있으면 막는다(배포는 작업본을 올린다).
+- **빌드 도장** `NEXT_PUBLIC_CCC_BUILD_STAMP` 를 `<ref> @ <sha7> · <UTC>` 형식으로 찍는다. 워크플로도 같은 형식으로 `main @ …` 을 찍는다. `/preview` 잠금 화면 맨 아래에 **로그인 없이** 보인다 — "지금 프리뷰가 뭘 서빙하나"는 이제 그 한 줄로 답한다.
+- 프리뷰 D1 마이그레이션 → api → web 순서로 배포하고, 끝나면 `/preview` 를 받아 도장이 실렸는지 확인한다.
+
 - **Infisical 주입이 필요 없다.** 이 맥의 `wrangler`가 이미 OAuth 로그인돼 있어(`account@bss.or.kr`, write 권한) 워크플로가 쓰는 `CLOUDFLARE_API_TOKEN`·`CLOUDFLARE_ACCOUNT_ID` 없이 그대로 배포된다. 확인은 `pnpm --filter @ccc/api exec wrangler whoami`.
-- **이 수동 경로에서는 마이그레이션이 자동으로 안 간다.** `Deploy Preview` 워크플로는 2026-08-09 부터 배포 전에 프리뷰 D1 마이그레이션을 자동 적용하지만(프리뷰 한정 예외, 가상 시드 전용이라 저위험. 운영은 여전히 수동), 수동 배포는 그 단계를 건너뛴다. 스키마 변경이 있으면 **배포 전에** `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote`를 먼저 돌린다(코드가 스키마보다 앞서면 런타임에서 터진다).
-- **배포 후 확인**: 브라우저로 https://ccc-preview.account-855.workers.dev/preview 를 열어 눈으로 본다. 서브 CSS에 토큰이 실렸는지는 `curl`로도 볼 수 있지만 그것만으로는 레이아웃 깨짐을 못 잡는다.
-- CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다. 통과 못 한 상태로 배포하지 않는다.
+- CI 검증 단계를 건너뛰는 경로이므로 **로컬 게이트 출력이 유일한 근거**다(`pnpm build && pnpm test`). 통과 못 한 상태로 배포하지 않는다.
+- 검수 중 프리뷰가 갑자기 옛 화면이면 먼저 `/preview` 의 도장을 본다. `main @ …` 이면 사이에 main 머지가 끼어든 것이다. 다시 올리거나, 그냥 PR 을 머지한다.
 
 ## 기관 소유 Supabase 사전 점검 (D84, ADR-0042, CCC-140)
 
