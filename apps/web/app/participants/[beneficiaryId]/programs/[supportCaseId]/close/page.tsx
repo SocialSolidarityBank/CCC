@@ -9,9 +9,12 @@ import {
 import { closeSupportCaseAction } from '../../../../../actions';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
+import { MetaRow } from '../../../../../components/wire/meta-row';
 import { PageError } from '../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../components/wire/page-loading';
 import { PageTitle } from '../../../../../components/wire/page-title';
+import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
+import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { ActiveGoalsCard, CaseCloseForm, ClosedCaseSummary, OpenActionItemsCard } from './close-cards';
@@ -27,6 +30,15 @@ import { ActiveGoalsCard, CaseCloseForm, ClosedCaseSummary, OpenActionItemsCard 
 // 트리거가 정하고(D10) 파기 실행은 CCC-113 소관이라 이 화면은 아무것도 파기하지 않는다.
 
 const supportCaseIdPattern = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/;
+
+/** 종결된 케이스의 HERO 이름용. 못 받으면 null 로 두어 가명 ID 폴백(D31)으로 화면을 세운다. */
+async function briefingOrNull(beneficiaryId: string, supportCaseId: string) {
+  try {
+    return await getParticipantBriefing(beneficiaryId, supportCaseId);
+  } catch {
+    return null;
+  }
+}
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -112,11 +124,39 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
     }
 
     const noticeText = notice === undefined ? undefined : NOTICES[notice];
+    const { programLabels } = await getDisplayLabels();
+
+    // 종결 전 확인 재료: 브리핑의 미해결 액션 아이템(포커스 케이스 구획) + 목표 트리의
+    // 활성 세부 목표 전량(브리핑 activeGoals 는 3줄로 끊겨 확인 목록으로는 모자라다).
+    // 브리핑은 HERO 의 실명도 실어 준다(D24 기본 표시). 종결된 케이스는 확인 재료가 없어
+    // 이름만 필요하므로 같은 응답을 쓰되, 어떤 이유로든 못 받으면 가명 ID 폴백(D31)으로
+    // 화면을 세운다 — 종결 요약은 이름 없이도 성립한다.
+    const [briefing, goalTree] = closure.status === 'closed'
+      ? [await briefingOrNull(beneficiaryId, supportCaseId), null]
+      : await Promise.all([
+        getParticipantBriefing(beneficiaryId, supportCaseId),
+        getParticipantGoalTree(beneficiaryId),
+      ]);
+    const focused = briefing?.sections.find((section) => section.sourceSupportCase.id === supportCaseId);
+    const programLabel = focused === undefined ? undefined : programLabels[focused.sourceSupportCase.programType];
+
+    // ParticipantHeroCard (D38, 2026-09-04 Q "케이스 종결 화면에 HERO 처리"). 되돌리기 어려운
+    // 화면이라 누구의 어떤 케이스인지 머리에 서야 한다. 상태 태그는 케이스 상태, 메타는
+    // 사업명이다. 행동은 없다 — 이 화면의 행동은 아래 폼(종결)과 맨 아래 출구뿐이다.
+    const hero = (
+      <ParticipantHeroCard
+        name={briefing?.participant.name ?? null}
+        beneficiaryId={beneficiaryId}
+        stageTag={closure.status === 'closed' ? '종결' : '진행 중'}
+        {...(programLabel === undefined ? {} : { meta: <MetaRow items={[programLabel]} /> })}
+      />
+    );
 
     if (closure.status === 'closed') {
       return (
         <GridContainer as="main" className="page-content">
           <div className="page-header"><PageTitle>케이스 종결</PageTitle></div>
+          {hero}
           {noticeText !== undefined && (
           <WireBadge role="status" aria-live="polite">{noticeText}</WireBadge>
           )}
@@ -128,15 +168,8 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
       );
     }
 
-    // 종결 전 확인 재료: 브리핑의 미해결 액션 아이템(포커스 케이스 구획) + 목표 트리의
-    // 활성 세부 목표 전량(브리핑 activeGoals 는 3줄로 끊겨 확인 목록으로는 모자라다).
-    const [briefing, goalTree] = await Promise.all([
-      getParticipantBriefing(beneficiaryId, supportCaseId),
-      getParticipantGoalTree(beneficiaryId),
-    ]);
-    const focused = briefing.sections.find((section) => section.sourceSupportCase.id === supportCaseId);
     const openActionItems = focused?.openActionItems ?? [];
-    const activeGoals = (goalTree.find((entry) => entry.sourceSupportCase.id === supportCaseId)?.goals ?? [])
+    const activeGoals = (goalTree?.find((entry) => entry.sourceSupportCase.id === supportCaseId)?.goals ?? [])
       .filter((goal) => goal.status === 'active')
       .map((goal) => ({ id: goal.id, title: goal.title }));
 
@@ -145,6 +178,7 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
     return (
       <GridContainer as="main" className="page-content">
         <div className="page-header"><PageTitle>케이스 종결</PageTitle></div>
+        {hero}
         <OpenActionItemsCard items={openActionItems} />
         <ActiveGoalsCard goals={activeGoals} />
         <CaseCloseForm

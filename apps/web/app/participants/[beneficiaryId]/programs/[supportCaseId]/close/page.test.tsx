@@ -18,6 +18,11 @@ vi.mock('../../../../../lib/api', () => ({
   getParticipantGoalTree: (beneficiaryId: string) => getParticipantGoalTree(beneficiaryId),
 }));
 
+// HERO 메타의 사업명 라벨. 실제 모듈은 server-only 라 jsdom 에서 못 읽는다(consent-editor 패턴).
+vi.mock('../../../../../lib/display-labels', () => ({
+  getDisplayLabels: async () => ({ programLabels: { financial_support_v1: '마이크로크레딧 씬파일러 금융지원·멘토링' } }),
+}));
+
 vi.mock('../../../../../actions', () => ({
   closeSupportCaseAction: (formData: FormData) => closeSupportCaseAction(formData),
 }));
@@ -54,6 +59,7 @@ function activeBriefing() {
   return {
     beneficiaryId: BENEFICIARY_ID,
     focusSupportCaseId: SUPPORT_CASE_ID,
+    participant: { name: '김미영', phone: '010-1234-5678' },
     sections: [{
       sourceSupportCase: { id: SUPPORT_CASE_ID, programType: 'financial_support_v1', status: 'active' },
       openActionItems: [
@@ -92,6 +98,14 @@ describe('케이스 종결 확인 화면 (CCC-107)', () => {
     const { container } = render(await CloseContent(contentProps()));
 
     expect(getSupportCaseClosureInfo).toHaveBeenCalledWith(SUPPORT_CASE_ID);
+    // 공통 HERO(D38, 2026-09-04 Q): 되돌리기 어려운 화면이라 누구의 어떤 케이스인지 머리에 선다.
+    // 이름은 브리핑 응답의 것을 그대로 쓴다(추가 금고 조회·감사 없음). h1 은 PageTitle 하나다.
+    const hero = container.querySelector('.participant-hero-card');
+    expect(hero).not.toBeNull();
+    expect(hero?.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
+    expect(hero?.querySelector('.wire-status-tag')?.textContent).toBe('진행 중');
+    expect(hero?.textContent).toContain('마이크로크레딧 씬파일러 금융지원·멘토링');
+    expect(container.querySelectorAll('h1')).toHaveLength(1);
     // 종결 전 확인 재료: 미해결 액션 아이템과 활성 세부 목표만 선다(닫힌 목표는 안 선다).
     expect(container.textContent).toContain('서류 제출 지원');
     expect(container.textContent).toContain('기관 연계 확인');
@@ -117,10 +131,17 @@ describe('케이스 종결 확인 화면 (CCC-107)', () => {
       purgeDue: '2027-02-15T02:00:00.000Z',
     }));
 
+    getParticipantBriefing.mockResolvedValue({ ...activeBriefing(), sections: [] });
+
     const { container } = render(await CloseContent(contentProps()));
 
-    // 종결 상태에서는 종결 재료 조회를 하지 않는다 — 표시만 한다.
-    expect(getParticipantBriefing).not.toHaveBeenCalled();
+    // 종결 상태에서는 종결 재료(목표 트리)를 조회하지 않는다 — 표시만 한다. 브리핑은
+    // HERO 이름 하나 때문에 읽는다(2026-09-04 Q, 15초 페이지와 같은 읽기). 못 받아도 화면은 선다.
+    expect(getParticipantGoalTree).not.toHaveBeenCalled();
+    expect(getParticipantBriefing).toHaveBeenCalledTimes(1);
+    const hero = container.querySelector('.participant-hero-card');
+    expect(hero?.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
+    expect(hero?.querySelector('.wire-status-tag')?.textContent).toBe('종결');
     expect(container.querySelector('[data-testid="closed-case-summary"]')).not.toBeNull();
     expect(container.textContent).toContain('지원 목표 달성');
     expect(container.textContent).toContain('2026'); // 종결일
