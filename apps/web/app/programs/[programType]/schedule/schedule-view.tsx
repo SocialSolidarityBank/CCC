@@ -104,14 +104,19 @@ function GroupedDay({ day, timeZone, open }: {
     <WireCardDetails
       className={day.temporal === 'past' ? 'schedule-past-day' : 'schedule-day-accordion'}
       open={open}
+      // 건수는 배지가 아니라 날짜를 한정하는 값이라 제목 첫 줄에 함께 선다(2026-09-04 Q 후속
+      // 검수). badge 슬롯에 두면 767 이하에서 제목이 세로로 쌓일 때 건수만 둘째 줄
+      // 옆으로 떨어져 무엇을 세는 값인지 끊긴다.
       title={(
         <span className="schedule-day-summary-title">
-          <span className="schedule-day-heading">{dayHeading(day.key)}</span>
-          {day.temporal === 'today' && <TimeAxisBadge>오늘</TimeAxisBadge>}
+          <span className="schedule-day-head">
+            <span className="schedule-day-heading">{dayHeading(day.key)}</span>
+            {day.temporal === 'today' && <TimeAxisBadge>오늘</TimeAxisBadge>}
+            <span className="schedule-day-count">{day.schedules.length}건</span>
+          </span>
           <span className="schedule-day-names">{names}</span>
         </span>
       )}
-      badge={<span className="schedule-day-count">{day.schedules.length}건</span>}
     >
       <DayCards day={day} timeZone={timeZone} />
     </WireCardDetails>

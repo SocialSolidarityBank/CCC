@@ -556,7 +556,8 @@
     "name": "주간 일정 오늘 배지는 날짜 제목 행 세로 중앙",
     "selectors": [
       "#align-schedule-body .schedule-day-heading",
-      "#align-schedule-body .schedule-day-summary-title>.wire-badge[data-tone=\"blue\"]",
+      "#align-schedule-body .schedule-day-head>.wire-badge[data-tone=\"blue\"]",
+      "#align-schedule-body .schedule-day-count",
       "#align-schedule-body .schedule-day-names"
     ],
     "axis": "y",
@@ -934,5 +935,19 @@
     "axis": "height",
     "tolerance": 0.5,
     "expectedHeight": 40
+  },
+  {
+    "name": "390px 일정 날짜와 오늘 배지와 건수는 같은 첫 줄",
+    "selectors": [
+      "#align-schedule-body .schedule-day-heading",
+      "#align-schedule-body .schedule-day-head>.wire-badge[data-tone=\"blue\"]",
+      "#align-schedule-body .schedule-day-count"
+    ],
+    "axis": "y",
+    "tolerance": 1,
+    "viewport": {
+      "width": 390,
+      "height": 900
+    }
   }
 ]

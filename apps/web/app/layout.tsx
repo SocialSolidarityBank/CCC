@@ -829,6 +829,9 @@ const scheduleStyles = `
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
 .schedule-day-summary-title{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
+/* 날짜와 오늘 배지와 건수는 한 줄에 묶인다(2026-09-04 후속 검수). 767 이하에서 제목이
+   세로로 쌓여도 이 셋은 함께 첫 줄에 남고 이름 목록만 다음 줄로 내려간다. */
+.schedule-day-head{display:flex;align-items:center;gap:var(--space-3);min-width:0}
 .schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 /* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
    컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */
