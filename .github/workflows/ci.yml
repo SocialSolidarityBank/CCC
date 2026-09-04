@@ -32,6 +32,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm guard:db
+      # 공통 패키지 경계(E1-6). packages/* 의 플랫폼 import, apps -> adapters -> packages
+      # 역방향, 순환, core 의 PlatformSecretName 참조를 막는다. :scripts 가 가드 자신을 본다.
+      - run: pnpm test:scripts
+      - run: pnpm guard:core-imports
       - run: pnpm guard:doc-numbers
       - run: pnpm guard:consent-copy
       - run: pnpm guard:tokens

@@ -2,6 +2,7 @@
 set -eu
 
 pnpm guard:db
+pnpm guard:core-imports
 pnpm guard:doc-numbers
 pnpm guard:secrets
 # 디자인 계약 게이트(2026-08-06 Q "정렬 강제 게이트") — 둘 다 1초 미만의 정적 검사다.
