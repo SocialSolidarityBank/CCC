@@ -26,6 +26,7 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   inset-x-ink: selectors=[컨테이너, 왼쪽 SVG path, 오른쪽 글자]. 실제 잉크의 좌우 여백을 비교한다.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
   width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
+  height: selectors=[높이를 맞출 요소들]. 렌더된 세로 높이가 expectedHeight와 같은가.
   size: selectors=[상자]. 렌더된 가로·세로가 expectedWidth·expectedHeight와 같은가.
 
 단언에 viewport={width,height}를 주면 그 폭에서 다시 배치한 뒤 잰다. 화면을 줄였을 때만
@@ -225,6 +226,19 @@ CHECK_JS = r"""
         name: a.name,
         pass: worstWidth <= tol && worstHeight <= tol,
         detail: `가로 오차 ${worstWidth.toFixed(2)}px / 세로 오차 ${worstHeight.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+    if (a.axis === 'height') {
+      const els = a.selectors.flatMap((sel) => [...document.querySelectorAll(sel)]);
+      if (els.length === 0) return { name: a.name, pass: false, detail: '요소 없음' };
+      if (a.expectedHeight === undefined) {
+        return { name: a.name, pass: false, detail: 'expectedHeight 없음' };
+      }
+      const worst = Math.max(...els.map((el) => Math.abs(el.getBoundingClientRect().height - a.expectedHeight)));
+      return {
+        name: a.name,
+        pass: worst <= tol,
+        detail: `최대 높이 오차 ${worst.toFixed(2)}px, ${els.length}개 (허용 ${tol})`,
       };
     }
 

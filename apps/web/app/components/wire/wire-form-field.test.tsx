@@ -1,11 +1,13 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
+import { wireStyles } from './wire-styles';
 import { WireChoice, WireFormField } from './wire-form-field';
 
 // 폼 입력칸·선택지 행 계약(DESIGN.md §5). 여기 걸린 어서션은 전부 실제 결함에서 나왔다 —
 // 라벨이 도움말을 삼키는 접근성 문제, 라디오가 입력칸 규칙을 상속해 세로로 쪼개지던 렌더 결함.
 
 afterEach(cleanup);
+
 
 describe('WireFormField', () => {
   it('htmlFor 를 주면 라벨만 <label> 이고 도움말은 컨트롤 이름에 섞이지 않는다', () => {
@@ -35,20 +37,37 @@ describe('WireFormField', () => {
     expect(label?.querySelector('input')).not.toBeNull();
   });
 
-  it('필수는 라벨 옆 별표로, 오류는 테두리와 메시지를 함께 낸다', () => {
+  it('필수는 라벨 옆 12/400 컴팩트 아웃라인 배지로, 오류는 테두리와 메시지를 함께 낸다', () => {
     const { container } = render(
       <WireFormField label="연락처" required htmlFor="phone" error="숫자만 입력하세요.">
         <input id="phone" />
       </WireFormField>,
     );
 
-    expect(container.querySelector('.wire-form-required')?.textContent).toBe('*');
+    const required = container.querySelector('.wire-form-label .wire-required-marker');
+    expect(required?.textContent).toBe('필수');
+    expect(required?.classList.contains('wire-badge')).toBe(true);
+    expect(required?.getAttribute('data-tone')).toBe('lavender');
+    expect(required?.getAttribute('data-size')).toBe('sm');
+    expect(required?.getAttribute('style')).toBeNull();
+    expect(wireStyles).toContain(
+      '.wire-badge.wire-required-marker{--wire-outline-color:var(--lavender-deep);background:transparent;color:var(--lavender-deep)}',
+    );
     expect(container.querySelector('.wire-input-box')?.getAttribute('data-invalid')).toBe('true');
-    // 색만으로 알리지 않는다 — 메시지가 반드시 함께 나온다.
     const message = container.querySelector('.wire-field-error');
     expect(message?.getAttribute('role')).toBe('alert');
     expect(message?.textContent).toBe('숫자만 입력하세요.');
   });
+
+  it('선택지 행은 알약을 쓰지 않고 컨트롤과 글자를 4로 붙인다', () => {
+    // 2026-09-04 Q 2차: 알약 정책 폐기. 체크박스와 라디오가 한 어휘로 돌아간다.
+    expect(wireStyles).toContain('.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1);');
+    expect(wireStyles).not.toContain('.wire-choice:has(>.wire-checkbox)');
+    expect(wireStyles).not.toContain('.wizard-choice-row .wire-choice{');
+    // 보기 사이 열 간격 24는 컨트롤과 글자 사이 4보다 뚜렷하게 넓어야 짝이 안 헷갈린다.
+    expect(wireStyles).toContain('.wire-choice-group,.wizard-choice-row{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}');
+  });
+
 
   it('invalid 는 메시지 없이 테두리만 오류 상태로 둔다', () => {
     const { container } = render(

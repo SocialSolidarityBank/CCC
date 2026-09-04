@@ -261,7 +261,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
           <div className="participant-next-schedule-actions">
             <WireButton href="/schedules/new">상담 등록</WireButton>
             {recordsTarget !== undefined && (
-              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>전체 상담 기록</WireButton>
+              <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>상담 기록 확인하기</WireButton>
             )}
           </div>
         </div>

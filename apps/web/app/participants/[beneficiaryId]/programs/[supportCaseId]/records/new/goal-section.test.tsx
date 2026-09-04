@@ -60,6 +60,16 @@ describe('GoalSection (D62 · CCC-68)', () => {
     const section = screen.getByTestId('record-goal-section');
     expect(within(section).getByText('3개월 생활비 계획 지키기')).toBeTruthy();
     expect(section.textContent).toContain('활성 2/3');
+    const heading = section.querySelector('.wire-card-title > .wire-card-head');
+    expect(heading).not.toBeNull();
+    expect(heading?.querySelector('h2')?.textContent).toBe('세부 목표');
+    expect(heading?.querySelector('h2 .wire-badge')).toBeNull();
+    expect(heading?.querySelector('h2')?.classList.contains('wire-title-with-badge')).toBe(false);
+    expect(heading?.querySelector(':scope > .wire-badge')?.textContent).toBe('활성 2/3');
+    const activeTitle = within(section).getByText('3개월 생활비 계획 지키기');
+    expect(activeTitle.className).toContain('wire-field-value');
+    expect(activeTitle.getAttribute('data-size')).toBe('sm');
+    expect(activeTitle.closest('[data-testid="record-goal-row"]')?.classList.contains('wire-repeat-card')).toBe(true);
     // 경계 도움말(ADR-0032 §4): 수정 vs 재설정.
     expect(section.textContent).toContain('방향이 같고 표현만 다듬을 때는 수정하세요');
   });
@@ -68,6 +78,19 @@ describe('GoalSection (D62 · CCC-68)', () => {
     renderSection([]);
     expect(screen.getByTestId('record-goal-empty')).toBeTruthy();
     expect(screen.getByLabelText('새 세부 목표')).toBeTruthy();
+  });
+
+  it('새 목표 추가는 입력 상자 밖 오른쪽의 아이콘 버튼으로 제공한다', () => {
+    // 2026-09-04 Q "'+' 버튼은 Input Box 밖에 둘 것".
+    renderSection([]);
+    const input = screen.getByLabelText('새 세부 목표');
+    const inputBox = input.closest('.wire-input-box');
+    const add = screen.getByRole('button', { name: '목표 추가' });
+    expect(inputBox?.contains(add)).toBe(false);
+    expect(add.closest('.wire-field-with-action')).not.toBeNull();
+    expect(inputBox?.closest('.wire-field-with-action')).toBe(add.closest('.wire-field-with-action'));
+    expect(add.textContent).toBe('');
+    expect(add.querySelector('svg')).not.toBeNull();
   });
 
   it('새 목표를 추가하면 액션이 불리고 목록·개수가 갱신된다', async () => {
@@ -147,6 +170,21 @@ describe('GoalSection (D62 · CCC-68)', () => {
     fireEvent.click(screen.getByRole('button', { name: '목표 추가' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('저장하지 못했습니다'));
     expect(screen.getByTestId('record-goal-section').textContent).toContain('활성 1/3');
+  });
+
+  it('목표 저장 중에는 추가 버튼을 비활성으로 둔다', async () => {
+    let resolveCreate: (result: GoalActionResult) => void = () => {};
+    const create = () => new Promise<GoalActionResult>((resolve) => {
+      resolveCreate = resolve;
+    });
+    renderSection([], { create });
+    fireEvent.change(screen.getByLabelText('새 세부 목표'), { target: { value: '채무 서류 준비' } });
+    const add = screen.getByRole('button', { name: '목표 추가' }) as HTMLButtonElement;
+
+    fireEvent.click(add);
+    await waitFor(() => expect(add.disabled).toBe(true));
+    resolveCreate({ status: 'validation_error' });
+    await waitFor(() => expect(add.disabled).toBe(false));
   });
 
   it('입력칸의 Enter 는 바깥 기록지 폼을 제출하지 않고 목표 추가를 부른다', async () => {

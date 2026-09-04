@@ -107,7 +107,7 @@ describe('DraftReviewView', () => {
     expect(within(screen.getByTestId('ai-draft-section-evidence')).getByText('근거 인용 값')).toBeTruthy();
     const evidenceList = within(screen.getByTestId('ai-draft-section-evidence')).getByRole('list');
     expect(within(evidenceList).getAllByRole('listitem')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: '전체 상담 기록' }).getAttribute('href'))
+    expect(screen.getByRole('link', { name: '상담 기록 확인하기' }).getAttribute('href'))
       .toBe('/participants/swallow-003/programs/case-1/records');
     // fixture 는 승인 불가(R2·서버 게이트) — 처리·재생성 폼이 없다.
     expect(screen.queryByRole('button')).toBeNull();

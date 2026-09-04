@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
-import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
+import { WireItem } from '../../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../../components/wire/wire-state';
 import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
@@ -18,7 +18,6 @@ import { useDomDraft } from '../../../../../../lib/use-dom-draft';
 import type {
   CounselingSchedule,
   LifeAreaSnapshotEntry,
-  RecordLastSummary,
   RecordSessionGoal,
   SupportCaseRecordGoal,
 } from '../../../../../../lib/api';
@@ -45,6 +44,11 @@ const channelOptions = [
   ['video', '화상'],
 ] as const;
 
+/** Unicode Enclosed Alphanumerics ①부터 ⑳까지 사용하고, 그 뒤는 면 없는 숫자로 이어 간다. */
+function enclosedNumber(index: number): string {
+  return index < 20 ? String.fromCodePoint(0x2460 + index) : String(index + 1);
+}
+
 // 표기는 공용 계약이다(2026-08-07 Q 통일 — "2026년 8월 7일 오후 1:00").
 function dateTimeLabel(value: string): string {
   return formatKoreanDateTime(value);
@@ -63,17 +67,20 @@ function scheduleChoiceValue(schedule: CounselingSchedule): string {
   return JSON.stringify({ id: schedule.id, version: schedule.version });
 }
 
+interface RecordOpenActionItem extends OpenActionResolutionItem {
+  sourceHeldAt: string;
+}
+
 export interface RecordOnepageProps {
   // goals(세부 목표)는 데이터로 받지 않는다 — D62(CCC-68)로 이 화면에 세부 목표 구획이
   // 생겼지만, 구획은 서버 액션이 묶인 채 아래 goalSection 슬롯으로 통째로 들어온다
   // (page.tsx 가 서버 컴포넌트라 액션 바인딩을 갖는다). 구 GAS 입력·종료+신설(D47 §6 제거)은
   // 되살리지 않는다.
   schedules: CounselingSchedule[];
-  openActionItems: OpenActionResolutionItem[];
+  openActionItems: RecordOpenActionItem[];
   latestLifeAreaSnapshot: LifeAreaSnapshotEntry[];
   sessionGoals: RecordSessionGoal[];
   customQuestions: string[];
-  lastRecordSummary: RecordLastSummary | null;
   briefingPath: string;
   /**
    * 좌측 레일 바닥에 붙는 버튼(2026-08-08 Q — 구 상단 고정 헤더 우측). 나가기·저장이 여기 산다.
@@ -110,7 +117,6 @@ export function RecordOnepage({
   latestLifeAreaSnapshot,
   sessionGoals,
   customQuestions,
-  lastRecordSummary,
   briefingPath,
   actions,
   goalSection,
@@ -181,16 +187,24 @@ export function RecordOnepage({
           연결은 일정 등록 몫이고, 세부 목표의 입력·수정·닫기는 본문의 세부 목표 구획이 갖는다.
           배지(CCC-76): 있음 = 민트 N건(진행·상태 축), 없음 = 라벤더 미설정(주의·대기 축) —
           레드는 D9 리스크 독점 위반이라 기각(Q 확정). */}
-      <WireCard testId="record-session-goal-card" title={<span className="record-rail-title">이번 상담 목표
-        {sessionGoals.length === 0
-          ? <WireBadge tone="lavender">미설정</WireBadge>
-          : <WireBadge tone="mint">{sessionGoals.length}건</WireBadge>}
-      </span>}>
+      <WireCard testId="record-session-goal-card" title={(
+        <div className="wire-card-head">
+          <span>이번 상담 목표</span>
+          {sessionGoals.length === 0
+            ? <WireBadge tone="lavender">미설정</WireBadge>
+            : <WireBadge tone="mint">{sessionGoals.length}건</WireBadge>}
+        </div>
+      )}>
         {sessionGoals.length === 0
           ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
-          : <ul className="record-rail-goals">{sessionGoals.map((goal, index) => <li key={index}>
-            <MetaRow items={[goal.body, goal.caseGoalTitle === null ? null : `세부 목표: ${goal.caseGoalTitle}`]} />
-          </li>)}</ul>}
+          : <ol className="record-rail-goals">{sessionGoals.map((goal, index) => <li className="record-rail-goal" key={index}>
+            <span className="record-rail-number" aria-hidden="true">{enclosedNumber(index)}</span>
+            <p className="record-rail-goal-body">{goal.body}</p>
+            {goal.caseGoalTitle === null ? null : <p className="record-rail-subgoal">
+              <span className="record-rail-subgoal-label">세부 목표:</span>{' '}
+              <span className="record-rail-subgoal-text">{goal.caseGoalTitle}</span>
+            </p>}
+          </li>)}</ol>}
       </WireCard>
       {/* ② 미해결 액션 아코디언(CCC-76) — 구 WireCallout 은 레일 카드 **안**에 있어 카드 안
           카드 금지(D59)를 어겼다. 형제 카드로 꺼내며 접힘 카드가 됐다 — 건수는 제목이 항상
@@ -198,28 +212,35 @@ export function RecordOnepage({
           한 줄은 시각이 먼저라 값보다 맥락이 앞섰다). '자세히 보기'는 15초 페이지의 미해결
           액션 구획으로 바로 가는 앵커다. HERO 의 전체 여닫기는 .record-main 범위라 이 칸을
           건드리지 않는다. */}
-      {lastRecordSummary === null
+      {openActionItems.length === 0
         ? null
         : <WireCardDetails title={`미해결 액션 ${openActionItems.length}건`} testId="record-open-actions">
-          <p>{lastRecordSummary.text}</p>
-          <p className="panel-meta">지난 상담 {dateTimeLabel(lastRecordSummary.heldAt)}</p>
+          <ol className="record-open-action-list">
+            {openActionItems.map((item, index) => <li className="record-open-action-item" key={item.id}>
+              <span className="record-rail-number" aria-hidden="true">{enclosedNumber(index)}</span>
+              <p className="record-open-action-body">{item.description}</p>
+              <p className="record-open-action-meta">지난 상담 {dateTimeLabel(item.sourceHeldAt)}</p>
+            </li>)}
+          </ol>
           <WireButton className="record-open-actions-link" variant="neutral" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
         </WireCardDetails>}
-      {/* ③ 체크리스트 카드(2026-08-09 Q "필수는 체크리스트로 분리") — 필수 채움 + 저장.
-          필수 카운트는 제목 옆 neutral 배지다(§2-2 규칙 4 — 구 '필수 N/3' 글줄은
-          카드 제목과 같은 16/600 이라 위계가 없었다). */}
-      <WireCard testId="record-checklist-card" title={<span className="record-rail-title">체크리스트
-        <WireBadge testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
-      </span>}>
+      {/* ③ 체크리스트 카드. 필수 카운트는 제목 옆 라벤더 컴팩트 배지다.
+          개별 필수 표식은 카드 제목이 아니라 실제 입력 항목에만 붙는다. */}
+      <WireCard testId="record-checklist-card" title={(
+        <div className="wire-card-head">
+          <span>체크리스트</span>
+          <WireBadge size="sm" tone="lavender" className="wire-required-marker" testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
+        </div>
+      )}>
+        {/* 상태를 행동에서 떼어 카드 본문 첫 줄에 둔다. */}
+        <DraftStatus savedAt={draft.savedAt} available={draft.available} />
         <ul className="record-rail-list">
           {requiredItems.map((item) => <li key={item.label} data-done={item.done}>
-            <span aria-hidden="true">{item.done ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />}</span> {item.label}
+            <span className="wire-checkbox" data-checked={item.done} aria-hidden="true" />
+            <span>{item.label}</span>
             <span className="record-rail-state">{item.done ? ' 채움' : ' 남음'}</span>
           </li>)}
         </ul>
-        {/* 별도 임시 저장 버튼이 없다 — 자동 저장이 곧 임시 저장이므로 상태를 상시 보여준다. */}
-        <DraftStatus savedAt={draft.savedAt} available={draft.available} />
-        {/* 저장·나가기는 레일 바닥 고정이다(2026-08-08 Q — 구 상단 고정 헤더 우측 대체). */}
         <div className="record-rail-actions">{actions}</div>
         {/* 페이지 전체 안내는 사람 말로 저장 버튼 줄 아래 선다(CCC-76 이동 — 구 자리는 저장
             상태와 버튼 사이라 안내문이 행동을 가로막았다. ID 는 숨은 폼 값으로만 다니고,
@@ -268,9 +289,9 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="session-goal-note-title"
-        title={<><h2 id="session-goal-note-title">이번 상담에서 확인할 것 <small>(선택)</small></h2><p className="panel-meta">일정에 연결된 목표가 없을 때 이번 상담에서 다룰 내용을 적어 둡니다. 연결된 목표는 좌측 레일에서 확인합니다.</p></>}
+        title={<><h2 id="session-goal-note-title">이번 상담에서 확인할 것</h2><p className="panel-meta">일정에 연결된 목표가 없을 때 이번 상담에서 다룰 내용을 적어 둡니다. 연결된 목표는 좌측 레일에서 확인합니다.</p></>}
       >
-        <WireFormField label="이번 상담에서 확인할 것" note="(선택)" htmlFor="session-goal-note">
+        <WireFormField label="이번 상담에서 확인할 것" htmlFor="session-goal-note">
           <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} />
         </WireFormField>
       </WireCard>
@@ -280,7 +301,7 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="record-form-title"
-        title={<><h2 id="record-form-title">오늘 상담 내용 <small>(필수)</small></h2><p className="panel-meta">수기 메모는 서버 저장 확인 후 즉시 공식 기록입니다. AI가 항목을 선택하거나 기록을 확정하지 않습니다.</p></>}
+        title={<><h2 id="record-form-title">오늘 상담 내용</h2><p className="panel-meta">수기 메모는 서버 저장 확인 후 즉시 공식 기록입니다. AI가 항목을 선택하거나 기록을 확정하지 않습니다.</p></>}
       >
         {/* 수기 메모(상담 내용 전문)는 임시본(localStorage)에서 뺀다(P0-9 · CCC-111) —
             브라우저에 남는 사본은 서버의 권한·감사·파기 통제를 우회한 상담 내용이 된다.
@@ -380,18 +401,24 @@ export function RecordOnepage({
       {/* 6. 회차 템플릿(D29) — 이번 범위는 자리 구조까지 */}
       {/* 접힘 칸 4개는 전부 WireCardDetails 다(2026-08-09 Q, D60 ② — 구 손 카드
           details.surface-card.record-accordion). 카드 모양·패딩·제목 줄·꺽쇠를 부품이 갖는다. */}
-      <WireCardDetails id="record-template" className="wire-form-card" title="회차 템플릿 항목" badge={<small>(준비 중)</small>}>
-        <p>회차별 상담 템플릿(D29)이 들어올 자리입니다. 항목 풀이 확정되면 세션 목표·맥락에 맞춰 재구성된 선택 항목이 여기에 표시되고, 실무자가 상담 전에 고칠 수 있습니다.</p>
-        <p className="panel-meta">지금은 코어 항목(위의 액션·플래그)만으로 기록합니다. 템플릿이 없어도 기록과 저장은 그대로 됩니다.</p>
+      <WireCardDetails id="record-template" className="wire-form-card" title="회차 템플릿 항목" badge={<WireBadge tone="lavender">준비 중</WireBadge>}>
+        <WireItem
+          title="준비 상태"
+          description="회차별 상담 템플릿은 아직 제공하지 않습니다. 지금은 코어 항목만으로 기록하며 저장 흐름은 그대로 동작합니다."
+          tone="lavender"
+        />
       </WireCardDetails>
 
       {/* 7. 새 액션 · 다음 만남 */}
-      <WireCardDetails id="record-new-actions" className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />} badge={<small>(선택)</small>}>
-        <p>필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</p>
+      <WireCardDetails id="record-new-actions" className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />}>
+        <WireItem
+          title="작성 안내"
+          description="필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다."
+        />
         <div className="wire-fieldset-list">{[0, 1, 2].map((index) => <ActionItemFields index={index} key={index} />)}</div>
         {/* '완료할 일정'은 여기 있었다. CCC-57 로 '오늘 상담 내용' 카드로 올렸다. */}
         <p className="panel-meta">다음 만남은 상담 일정 화면에서 등록합니다.</p>
-        <WireFormField label="지난 상담 이후 달라진 일" note="(선택)" htmlFor="change-since-last">
+        <WireFormField label="지난 상담 이후 달라진 일" htmlFor="change-since-last">
           <input id="change-since-last" name="changeSinceLast" type="text" maxLength={200} />
         </WireFormField>
       </WireCardDetails>
@@ -406,11 +433,15 @@ export function RecordOnepage({
         open={safetyOpen}
         onToggle={(event) => setSafetyOpen(event.currentTarget.open)}
         title="위기·안전 확인"
-        badge={hasCrisis ? <WireBadge tone="risk">확인 필요</WireBadge> : <small>(선택)</small>}
+        badge={hasCrisis ? <WireBadge tone="risk">확인 필요</WireBadge> : undefined}
       >
         {hasCrisis ? <WireBadge tone="risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</WireBadge> : null}
-        <p>당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</p>
-        <WireFormField label="위기·안전 확인 내용" note="(선택)" control="textarea" htmlFor="safety-note">
+        <WireItem
+          title="작성 원칙"
+          description="당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다."
+          tone="lavender"
+        />
+        <WireFormField label="위기·안전 확인 내용" control="textarea" htmlFor="safety-note">
           {/* 안전 관련 메모도 임시본 제외다(P0-9 — 위 수기 메모 주석 참조). */}
           <textarea id="safety-note" name="safetyNote" rows={4} data-draft="skip" />
         </WireFormField>
@@ -419,9 +450,12 @@ export function RecordOnepage({
       {/* 9. 플래그 수기 추가. 구 '목표 종료 + 신설' fieldset 은 D47 §6 이 제거했고 되살리지
           않는다 — D62 가 세부 목표를 부활시켰지만 닫기는 순수하게 사유의 기록이라(ADR-0032 §5)
           위 세부 목표 구획이 갖고, 승계(종료+신설) 흐름은 만들지 않는다. */}
-      <WireCardDetails id="record-flags" className="wire-form-card" title="리스크 플래그" badge={<small>(조건부)</small>}>
-        <p>사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</p>
-        <fieldset className="wire-fieldset"><legend>표시할 플래그 <small>(선택)</small></legend>
+      <WireCardDetails id="record-flags" className="wire-form-card" title="리스크 플래그" badge={<WireBadge>조건부</WireBadge>}>
+        <WireItem
+          title="표시 원칙"
+          description="사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다."
+        />
+        <fieldset className="wire-fieldset"><legend>표시할 플래그</legend>
           <div className="wire-choice-group">
             {flagTypes.map(([value, label]) => <WireChoice key={value} label={label} type="checkbox" name="flagType" value={value} />)}
           </div>
@@ -433,7 +467,7 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="opinion-title"
-        title={<><h2 id="opinion-title">담당 실무자 의견 <small>(선택)</small></h2><p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p></>}
+        title={<><h2 id="opinion-title">담당 실무자 의견</h2><p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p></>}
       >
         <WireFormField label="담당 실무자 의견" control="textarea" htmlFor="counselor-opinion">
           {/* 실무자 의견도 임시본 제외다(P0-9 — 수기 메모 주석 참조). */}

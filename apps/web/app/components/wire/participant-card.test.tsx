@@ -24,7 +24,7 @@ describe('ParticipantCard', () => {
     const fields = container.querySelector('.participant-card-fields');
     expect(header?.textContent).toContain('김민서');
     expect(header?.querySelector('.participant-card-id')?.textContent).toBe('swallow-003');
-    expect(header?.textContent).toContain('기본 상담');
+    expect(header?.textContent).toContain('기본상담');
     expect(header?.querySelector('.wire-badge')?.getAttribute('data-tone')).toBe('mint');
     expect(fields?.textContent).toContain('상담 일시8월 27일 (목) 14:00');
     expect(fields?.textContent).toContain('연락처010-0000-1234');
@@ -42,7 +42,7 @@ describe('ParticipantCard', () => {
     ))).toBe(true);
     expect(container.querySelector('.participant-card .wire-card-divider')).toBeNull();
     expect(container.querySelector('a')?.getAttribute('aria-label'))
-      .toBe('김민서, 8월 27일 (목) 14:00 기본 상담');
+      .toBe('김민서, 8월 27일 (목) 14:00 기본상담');
   });
 
   it('인테이크 일정 카드는 lavender 유형 배지를 표시한다', () => {
@@ -87,7 +87,7 @@ describe('ParticipantCard', () => {
     expect(fields?.textContent).toContain('연락처010-0000-1234');
     expect(fields?.textContent).not.toContain('가명 ID');
     expect(fields?.textContent).not.toContain('상담 일시');
-    expect(fields?.textContent).not.toContain('기본 상담');
+    expect(fields?.textContent).not.toContain('기본상담');
     expect(fields?.querySelector('[data-layout="stack"]')).toBeNull();
     expect([...fields?.querySelectorAll('.wire-field-row') ?? []].every((row) => (
       row.getAttribute('data-compact') === 'true'

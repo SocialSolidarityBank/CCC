@@ -78,7 +78,7 @@ export default async function NewIntakePage({
     return (
       <PageError
         title="인테이크"
-        action={<WireButton variant="secondary" href={recordsHref}>전체 상담 기록으로 돌아가기</WireButton>}
+        action={<WireButton variant="secondary" href={recordsHref}>상담 기록 확인하기</WireButton>}
       >
         {messages[context.error]}
       </PageError>
@@ -96,14 +96,12 @@ export default async function NewIntakePage({
         <IntakeReadView
           beneficiaryId={beneficiaryId}
           participant={context.data.participant}
-          extendedPii={context.data.extendedPii}
           consent={context.data.consent}
           saved={saved}
           overallGoal={context.data.overallGoal}
           editHref={`${intakeHref}?edit=1`}
           recordsHref={recordsHref}
           participantHref={`/participants/${encodeURIComponent(beneficiaryId)}`}
-          basicInfoHref={`/participants/${encodeURIComponent(beneficiaryId)}/edit`}
         />
       );
     }

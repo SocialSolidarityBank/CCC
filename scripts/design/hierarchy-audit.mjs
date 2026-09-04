@@ -78,6 +78,9 @@ const ROLES = [
   { size: 'var(--text-sm)', weight: '400', colors: ['var(--sub)'], role: '메타·설명' },
   // 배지·칩. 2026-08-06 Q 로 400 이고, 색은 계열 deep 이 원칙이되 무채색 배지가 있다
   { size: 'var(--text-sm)', weight: '400', colors: [...SERIES_DEEP, 'var(--risk)', 'var(--ink)'], role: '배지·칩' },
+  // 입력칸 도움말 — 2026-09-04 Q. 13/400 회색. 크기 토큰 자체는 SCOPED_TEXT_TOKENS 가
+  // .wire-form-hint 로 묶어 두므로 이 행이 13px 을 다른 자리로 퍼뜨리지 않는다.
+  { size: 'var(--text-detail)', weight: '400', colors: ['var(--sub)'], role: '입력칸 도움말' },
   ];
 
 /**
@@ -115,24 +118,69 @@ const badgeForeground = (tone) => (
 const BADGE_ALLOW = BADGE_TONES.flatMap((tone) => [
   {
     selector: `.wire-badge[data-tone="${tone}"]`,
-    combo: `var(--text-sm)/400/${badgeForeground(tone)}`,
-    why: '색상 배지의 테마 고정 전경색',
+    combo: `var(--text-badge)/400/${badgeForeground(tone)}`,
+    why: '13px 색상 배지의 테마 고정 전경색',
   },
   {
     selector: `.wire-badge[data-tone="${tone}"][data-size="sm"]`,
     combo: `var(--text-badge-compact)/400/${badgeForeground(tone)}`,
-    why: '컴팩트 색상 배지의 테마 고정 전경색',
+    why: '12px 컴팩트 색상 배지의 테마 고정 전경색',
   },
 ]);
 const ALLOW = [
   {
-    // 2026-08-23 Q: 당사자 카드 헤더의 곁다리 배지만 12px 컴팩트 토큰을 쓴다.
+    selector: '.wire-badge',
+    combo: 'var(--text-badge)/400/var(--ink)',
+    why: '배지 면을 본문보다 작게 읽히게 하는 13px 기본 배지',
+  },
+  {
+    // 12px은 짧은 요구 상태와 곁다리 배지에만 쓴다.
     // 다른 필드가 이 토큰을 빌리면 14px 본문 계단을 우회하므로 자리로 한정한다.
     selector: '.wire-badge[data-size="sm"]',
     combo: 'var(--text-badge-compact)/400/var(--ink)',
-    why: '당사자 카드 헤더 전용 컴팩트 배지',
+    why: '짧은 요구 상태와 곁다리 전용 컴팩트 배지',
   },
   ...BADGE_ALLOW,
+  {
+    selector: '.wire-badge.wire-required-marker',
+    combo: 'var(--text-badge)/400/var(--lavender-deep)',
+    why: '필수 표식 라벤더 deep 아웃라인의 정적 기본형. 실제 호출은 모두 size="sm"이다',
+  },
+  {
+    selector: '.record-rail-goal-body',
+    combo: 'var(--text-sm)/600/var(--ink)',
+    why: '상담 기록 레일에서 세부 목표보다 먼저 읽히는 세션 목표 본문',
+  },
+  {
+    selector: '.record-open-action-body',
+    combo: 'var(--text-sm)/600/var(--ink)',
+    why: '상담 기록 레일에서 출처 날짜보다 먼저 읽히는 미해결 액션 본문',
+  },
+  {
+    selector: '.record-rail-subgoal',
+    combo: 'var(--text-detail)/400/var(--lime-deep)',
+    why: '상담 기록 레일의 세부 목표 줄 전용 13px lime',
+  },
+  {
+    selector: '.record-rail-subgoal-label',
+    combo: 'var(--text-detail)/600/var(--lime-deep)',
+    why: '상담 기록 레일의 세부 목표 라벨 전용 13px lime',
+  },
+  {
+    selector: '.record-rail-subgoal-text',
+    combo: 'var(--text-detail)/400/var(--lime-deep)',
+    why: '상담 기록 레일의 세부 목표 본문 전용 13px lime',
+  },
+  {
+    selector: '.record-open-action-meta',
+    combo: 'var(--text-detail)/400/var(--lime-deep)',
+    why: '미해결 액션의 지난 상담 날짜 전용 13px lime',
+  },
+  {
+    selector: '.record-rail-number',
+    combo: 'var(--text-lg)/600/var(--sub)',
+    why: '레일 순서가 보이도록 키운 Enclosed Alphanumerics 원문자',
+  },
   {
     // D59/2026-08-06 Q: 가명 ID 는 당사자 카드 정보 칸에서만 이름 옆에 선다.
     selector: '.participant-card-cell',
@@ -152,6 +200,14 @@ const ALLOW = [
     selector: '.register-program-fixed-value',
     combo: 'var(--text-sm)/600/var(--ink)',
     why: '민트 알약 안의 값 — 짝인 라벨이 계열 deep 이라 값은 --ink 다',
+  },
+  {
+    // 2026-09-04 Q "'액션 아이템' 텍스트는 컬러 + 볼드 처리하고 왼쪽 정렬 맞추고 16px로".
+    // 카드 제목과 같은 16/600 이되 카드가 아니라 폼 안 묶음 제목이라 계열 색으로 갈린다.
+    // 조합으로 열면 카드 제목이 전부 색을 입을 수 있어 자리로 연다.
+    selector: '.wire-fieldset>legend',
+    combo: 'var(--text-md)/600/var(--mint-deep)',
+    why: '폼 안 묶음(fieldset) 제목 — 카드 제목과 크기를 맞추고 계열 색으로 갈린다',
   },
 ];
 

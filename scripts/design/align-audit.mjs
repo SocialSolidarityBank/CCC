@@ -34,9 +34,6 @@ const TARGETS = [
 
 // 검사에서 면제하는 선택자. 넣는 것은 결정이다 — 사유 없이 넣지 않는다.
 const EXEMPT_SELECTORS = new Set([
-  // 행간 1.55 + translateY(1px) 의 실측 보정 체계(2026-08-04 canvas TextMetrics, layout.tsx
-  // 주석)가 이미 잉크 중심을 맞춘다. 기하 계약으로 바꾸려면 그 보정을 함께 재실측해야 한다.
-  '.navigation-link',
   // 조각 묶음 껍데기다 — 조각(.month-nav-seg)이 stretch 로 전 높이를 채워 세로 구분선을
   // 만들고, 세로 중앙은 각 조각의 기하 정렬이 만든다.
   '.month-nav-group',
@@ -79,7 +76,7 @@ const opticalLines = (src) => {
 
 const lineOf = (src, index) => src.slice(0, index).split('\n').length;
 
-const HEIGHT_TOKENS = /(?:min-)?height:\s*var\(--(?:badge-height|pill-height|control-height)\)/;
+const HEIGHT_TOKENS = /(?:min-)?height:\s*var\(--(?:space-5|badge-height|pill-height|control-height)\)/;
 const PILL_RADIUS = /border-radius:\s*var\(--radius-(?:pill|control)\)/;
 const CENTERED = /(?:align-items|place-items):\s*center/;
 const LINE_NORMAL = /line-height:\s*normal/;

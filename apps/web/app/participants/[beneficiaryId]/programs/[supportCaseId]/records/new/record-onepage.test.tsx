@@ -13,7 +13,6 @@ function props(overrides: Partial<RecordOnepageProps> = {}): RecordOnepageProps 
     latestLifeAreaSnapshot: [],
     sessionGoals: [],
     customQuestions: [],
-    lastRecordSummary: null,
     briefingPath: '/participants/swallow-003/programs/case-1/briefing',
     actions: <><button type="button">상담 기록으로 돌아가기</button><button type="submit">저장</button></>,
     ...overrides,
@@ -35,12 +34,17 @@ describe('RecordOnepage', () => {
     expect(rail.className).toContain('record-side');
     expect(rail.textContent).toContain('이번 상담 목표');
     expect(rail.textContent).toContain('임대차 계약 확인');
-    // D62 위계(전체 > 세부 > 세션): 세션 목표가 연결된 부모는 **세부 목표**다 — 구 라벨
-    // '전체 목표:'는 goals 표의 문구를 전체 목표라고 잘못 부르고 있었다(CCC-68 정정).
-    expect(rail.textContent).toContain('세부 목표: 월세 체납 해소');
+    const goalCard = getByTestId('record-session-goal-card');
+    const goalBody = goalCard.querySelector('.record-rail-goal-body');
+    expect(goalBody?.tagName).toBe('P');
+    expect(goalBody?.textContent).toBe('임대차 계약 확인');
+    expect(goalCard.querySelector('.record-rail-number')?.textContent).toBe('①');
+    expect(goalCard.querySelector('.record-rail-subgoal .wire-badge')).toBeNull();
+    expect(goalCard.querySelector('.record-rail-subgoal-label')?.textContent).toBe('세부 목표:');
+    expect(goalCard.querySelector('.record-rail-subgoal-text')?.textContent).toBe('월세 체납 해소');
+    expect(goalCard.querySelector('.record-rail-goals .wire-meta-row')).toBeNull();
     expect(rail.textContent).not.toContain('세부 목표 작성');
-    // CCC-76: 목표가 있으면 카드 제목 옆 민트 배지가 건수를 보인다(진행·상태 축).
-    const badge = getByTestId('record-session-goal-card').querySelector('.record-rail-title .wire-badge');
+    const badge = goalCard.querySelector('.wire-card-head .wire-badge');
     expect(badge?.textContent).toBe('1건');
     expect(badge?.getAttribute('data-tone')).toBe('mint');
   });
@@ -81,7 +85,7 @@ describe('RecordOnepage', () => {
     const rail = getByTestId('record-side-rail');
     expect(rail.textContent).toContain('일정에 연결된 목표가 없습니다');
     expect(rail.textContent).not.toContain('미연결');
-    const badge = getByTestId('record-session-goal-card').querySelector('.record-rail-title .wire-badge');
+    const badge = getByTestId('record-session-goal-card').querySelector('.wire-card-head .wire-badge');
     expect(badge?.textContent).toBe('미설정');
     expect(badge?.getAttribute('data-tone')).toBe('lavender');
   });
@@ -91,34 +95,37 @@ describe('RecordOnepage', () => {
   // 아니라 우측 셋째 열이다(같은 날 Q 2차 — 아래 목차 테스트).
   // 아코디언 본문은 액션 내용이 위, 지난 상담 시각이 아래고, '자세히 보기'는 15초 페이지
   // 미해결 액션 구획 앵커로 간다.
-  it('지난 상담이 있으면 레일이 목표·미해결 액션·체크리스트 카드 3장이 된다', () => {
+  it('미해결 액션 3건의 본문과 각 출처 상담을 줄마다 보여준다', () => {
     const { getByTestId } = render(<RecordOnepage {...props({
-      lastRecordSummary: { heldAt: '2026-08-01T05:00:00.000Z', text: '서류 준비를 확인했다' },
-      openActionItems: [{ id: 'action-1', description: '서류 제출', owner: 'beneficiary', dueDate: null }],
+      openActionItems: [
+        { id: 'action-1', description: '채무조정 신청 서류를 준비한다', owner: 'beneficiary', dueDate: null, sourceHeldAt: '2026-08-01T05:00:00.000Z' },
+        { id: 'action-2', description: '주민센터 긴급복지 상담 일정을 확인한다', owner: 'counselor', dueDate: null, sourceHeldAt: '2026-07-25T05:00:00.000Z' },
+        { id: 'action-3', description: '다음 상담 전까지 월 지출 내역을 정리한다', owner: 'beneficiary', dueDate: null, sourceHeldAt: '2026-07-18T05:00:00.000Z' },
+      ],
     })} />);
 
     const rail = getByTestId('record-side-rail');
     expect(rail.querySelectorAll(':scope > .surface-card').length).toBe(3);
-
     const accordion = getByTestId('record-open-actions') as HTMLDetailsElement;
     expect(accordion.tagName).toBe('DETAILS');
-    expect(accordion.querySelector('.wire-card-title')?.textContent).toBe('미해결 액션 1건');
+    expect(accordion.querySelectorAll('.record-open-action-item')).toHaveLength(3);
+    expect([...accordion.querySelectorAll('.record-rail-number')].map((marker) => marker.textContent)).toEqual(['①', '②', '③']);
+    expect(accordion.querySelector('.record-rail-number')?.classList.contains('wire-badge')).toBe(false);
+    expect(accordion.querySelector('.record-rail-number')?.closest('button')).toBeNull();
+    const actionBody = accordion.querySelector('.record-open-action-body');
+    expect(actionBody?.tagName).toBe('P');
+    expect(actionBody?.textContent).toBe('채무조정 신청 서류를 준비한다');
+    expect(accordion.querySelector('.record-open-action-meta')?.textContent).toContain('지난 상담 2026년 8월 1일');
+    expect(accordion.textContent).toContain('지난 상담 2026년 7월 25일');
 
-    // 이번 상담 목표 카드가 미해결 액션 위에 선다(2026-08-09 Q).
     const goalCard = getByTestId('record-session-goal-card');
     expect(goalCard.compareDocumentPosition(accordion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    const paragraphs = Array.from(accordion.querySelectorAll('.wire-card-body p'));
-    expect(paragraphs[0]?.textContent).toBe('서류 준비를 확인했다');
-    // 시각 표기는 ICU 버전에 따라 공백 문자가 달라 날짜까지만 본다(Asia/Seoul 고정).
-    expect(paragraphs[1]?.textContent).toContain('지난 상담 2026년 8월 1일');
-
     const link = accordion.querySelector('a.wire-button') as HTMLAnchorElement;
     expect(link.textContent).toContain('자세히 보기');
     expect(link.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/briefing#open-actions');
   });
 
-  it('지난 상담이 없으면 레일은 목표·체크리스트 카드 2장이다', () => {
+  it('미해결 액션이 없으면 레일은 목표·체크리스트 카드 2장이다', () => {
     const { getByTestId, queryByTestId } = render(<RecordOnepage {...props()} />);
 
     expect(getByTestId('record-side-rail').querySelectorAll(':scope > .surface-card').length).toBe(2);
@@ -163,22 +170,42 @@ describe('RecordOnepage', () => {
     expect(submit.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  // CCC-76: 자동 저장 대기는 라벤더 배지다(주의·대기 축). 안내문(panel-meta)은 저장 버튼 줄
-  // 아래에 선다.
-  it('저장 구획은 대기 배지를 보이고 안내문이 저장 버튼 아래에 선다', () => {
+  it('자동 저장 상태는 체크리스트 앞에 서고 저장 버튼 묶음과 떨어져 있다', () => {
     const { getByTestId } = render(<RecordOnepage {...props()} />);
-
+    const checklist = getByTestId('record-checklist-card');
     const status = getByTestId('draft-status');
+    const list = checklist.querySelector('.record-rail-list') as HTMLElement;
+    const actions = checklist.querySelector('.record-rail-actions') as HTMLElement;
     const badge = status.querySelector('.wire-badge');
     expect(badge?.textContent).toBe('자동 저장 대기');
     expect(badge?.getAttribute('data-tone')).toBe('lavender');
+    expect(status.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(list.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const checklistMarks = [...list.querySelectorAll('.wire-checkbox')];
+    expect(checklistMarks).toHaveLength(3);
+    expect(checklistMarks.map((mark) => mark.getAttribute('data-checked'))).toEqual(['false', 'true', 'true']);
+    expect(list.querySelector('.wire-icon')).toBeNull();
+  });
 
-    const rail = getByTestId('record-side-rail');
-    const submit = rail.querySelector('button[type="submit"]') as HTMLElement;
-    const note = Array.from(rail.querySelectorAll('p.panel-meta'))
-      .find((p) => p.textContent?.includes('수기 메모 하나만')) as HTMLElement;
-    expect(note).not.toBeUndefined();
-    expect(submit.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  it('위기와 안전 작성 원칙은 일반 본문이 아니라 의미가 분리된 WireItem으로 보인다', () => {
+    const { getByTestId } = render(<RecordOnepage {...props()} />);
+    const safety = getByTestId('safety-accordion');
+    const guidance = safety.querySelector('.wire-item');
+    expect(guidance?.textContent).toContain('작성 원칙');
+    expect(guidance?.textContent).toContain('판단이나 진단은 적지 않습니다');
+  });
+  it('필수는 실제 항목에만 라벤더 아웃라인 배지로 표시하고 카드 제목에는 중복하지 않는다', () => {
+    const { container } = render(<RecordOnepage {...props()} />);
+    expect(container.querySelector('small')).toBeNull();
+    expect(container.querySelector('.wire-requirement-badge')).toBeNull();
+    expect([...container.querySelectorAll('.wire-badge')].some((badge) => badge.textContent === '선택')).toBe(false);
+
+    const fieldMarkers = [...container.querySelectorAll('.wire-form-label .wire-required-marker')];
+    expect(fieldMarkers).toHaveLength(2);
+    expect(fieldMarkers.every((marker) => marker.textContent === '필수')).toBe(true);
+    expect(fieldMarkers.every((marker) => marker.getAttribute('data-tone') === 'lavender')).toBe(true);
+    expect(container.querySelector('h2 .wire-required-marker')).toBeNull();
+    expect(container.querySelector('legend .wire-required-marker')).toBeNull();
   });
 
   it('우측 레일에 필수 채움 카운트를 표시하고 수기 메모를 채우면 올라간다', () => {
@@ -186,7 +213,9 @@ describe('RecordOnepage', () => {
 
     // 미해결 액션 0건·6영역 기본값은 충족, 수기 메모만 남은 상태.
     expect(getByTestId('record-required-count').textContent).toBe('필수 2/3');
-    expect(getByTestId('record-required-count').getAttribute('data-tone')).toBeNull();
+    expect(getByTestId('record-required-count').getAttribute('data-tone')).toBe('lavender');
+    expect(getByTestId('record-required-count').getAttribute('data-size')).toBe('sm');
+    expect(getByTestId('record-required-count').classList.contains('wire-required-marker')).toBe(true);
 
     const memo = container.querySelector('textarea[name="memo"]');
     expect(memo).not.toBeNull();
@@ -196,7 +225,7 @@ describe('RecordOnepage', () => {
 
   it('미해결 액션은 처리 상태를 고르기 전까지 필수 채움에서 빠진다', () => {
     const { container, getByTestId } = render(<RecordOnepage {...props({
-      openActionItems: [{ id: 'action-1', description: '서류 제출', owner: 'beneficiary', dueDate: null }],
+      openActionItems: [{ id: 'action-1', description: '서류 제출', owner: 'beneficiary', dueDate: null, sourceHeldAt: '2026-08-01T05:00:00.000Z' }],
     })} />);
 
     expect(getByTestId('record-required-count').textContent).toBe('필수 1/3');
@@ -283,7 +312,7 @@ describe('RecordOnepage', () => {
   // 기록 칸이 아니라 지난 상담 참조라 일괄 조작 대상이 아니다.
   it('전체 열기는 레일의 미해결 액션 아코디언을 건드리지 않는다', () => {
     const { getByText, getByTestId } = render(<><RecordAccordionToggle /><RecordOnepage {...props({
-      lastRecordSummary: { heldAt: '2026-08-01T05:00:00.000Z', text: '서류 준비를 확인했다' },
+      openActionItems: [{ id: 'action-1', description: '서류 준비', owner: 'beneficiary', dueDate: null, sourceHeldAt: '2026-08-01T05:00:00.000Z' }],
     })} /></>);
 
     fireEvent.click(getByText('전체 열기'));

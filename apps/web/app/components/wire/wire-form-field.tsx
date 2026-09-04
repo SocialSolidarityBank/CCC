@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Chevron } from './chevron';
+import { WireBadge } from './wire-badge';
 
 /** 입력칸 안에 들어가는 컨트롤 종류. select 는 꺽쇠를 직접 그리고, textarea 는 박스가 세로로 늘어난다. */
 export type WireControl = 'input' | 'select' | 'textarea';
@@ -33,9 +34,9 @@ export interface WireFormFieldProps {
   label: ReactNode;
   /** 실제 컨트롤(input·select·textarea). 이름·검증·값은 호출부가 그대로 갖는다. */
   children: ReactNode;
-  /** 필수 표시. 라벨 옆에 --risk 별표가 붙는다. */
+  /** 필수 표시. 라벨 옆에 배경 없는 공용 아웃라인 표식을 붙인다. */
   required?: boolean;
-  /** 라벨 옆 보조 문구 — '(선택)' 처럼 필수 여부를 말로 덧붙일 때. */
+  /** 라벨 옆 보조 문구 또는 조각. */
   note?: ReactNode;
   /** 입력칸 아래 도움말. */
   hint?: ReactNode;
@@ -54,11 +55,16 @@ export interface WireFormFieldProps {
   htmlFor?: string;
   className?: string;
 }
+/** 선택 표시는 생략하고 필수만 공용 라벤더 컴팩트 아웃라인 배지로 표시한다. */
+export function WireRequiredMarker() {
+  return <WireBadge size="sm" tone="lavender" className="wire-required-marker">필수</WireBadge>;
+}
+
 
 /**
  * 폼 입력칸(DESIGN.md §5 '입력칸' 계약): 높이 40 · radius 6 · `--line-control` 1px ·
- * 라벨 항상 위 14/700. 검색칸(SearchInput)과 같은 계약이지만 폼이 필요로 하는
- * 필수 별표·도움말·오류 메시지 자리를 갖는다.
+ * 라벨 항상 위 14/600. 검색칸(SearchInput)과 같은 계약이지만 폼이 필요로 하는
+ * 필수 아웃라인 표식, 도움말, 오류 메시지 자리를 갖는다.
  *
  * 컨트롤을 children 으로 받는 이유: 화면마다 textarea rows, datetime-local, JSON 값을 담은
  * option 등 요구가 제각각이라 props 로 감싸면 부품이 화면 수만큼 늘어난다. 부품은 라벨·박스·
@@ -87,11 +93,7 @@ export function WireFormField({
   const labelContent = (
     <>
       {label}
-      {required ? (
-        <span className="wire-form-required" aria-hidden="true">
-          *
-        </span>
-      ) : null}
+      {required ? <WireRequiredMarker /> : null}
       {note === undefined ? null : <span className="wire-form-note">{note}</span>}
     </>
   );
@@ -148,8 +150,8 @@ export interface WireChoiceProps {
 }
 
 /**
- * 선택지 행(DESIGN.md §5 '선택지 행'): 동그라미/네모와 라벨이 같은 줄이고 누를 면적은
- * 컨트롤 높이(40)만큼 준다.
+ * 선택지 행(DESIGN.md §5): 동그라미 또는 네모와 14px 라벨이 같은 줄이고 누를 면적은
+ * 컨트롤 높이 40px만큼 준다.
  *
  * 이 부품이 존재하는 이유는 실제 결함 때문이다(2026-07-26): 라디오·체크박스를 텍스트 입력칸
  * 규칙(`.field input` 의 `width:100%`)에 얹으면 동그라미가 칸을 가로질러 늘어나고 라벨이 아래

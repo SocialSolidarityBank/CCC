@@ -4,16 +4,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../../../../../../components/wire/wire-icon';
 import { useRouter } from 'next/navigation';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
-import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../components/wire/page-title';
 import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
+import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { DateTimePickerControl, isCompleteDateTime } from '../../../../../../components/wire/date-picker-control';
-import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
-import { DisclosureChevron } from '../../../../../../components/wire/chevron';
+import { WireChoice, WireFormField, WireRequiredMarker } from '../../../../../../components/wire/wire-form-field';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import { clearDraft, draftKey, readDraft, sweepExpiredDrafts, writeDraft } from '../../../../../../lib/form-draft';
 import type {
@@ -32,6 +31,7 @@ import {
   NOT_APPLICABLE_OPTION,
   NO_RESPONSE_CODE,
   NO_RESPONSE_OPTION,
+  INTAKE_STEP_REQUIRED_EXTRA_COUNTS,
   STEP_GROUPS,
   STEP_TITLES,
   channelForMethod,
@@ -39,6 +39,7 @@ import {
   type IntakeQuestion,
   type IntakeTableColumn,
 } from './intake-questions';
+import { IntakeStepRail } from './intake-step-rail';
 
 /**
  * 인테이크 위저드 — 정본 질문지(D41)의 4부와 1:1인 4단계(D42, 구 6단계 대체).
@@ -57,6 +58,7 @@ import {
  * 저장은 마지막 "완료"에서 게이트웨이 1회 호출이고 부분 저장은 없다. 전 항목 필수이며
  * '무응답'을 고르는 것이 곧 답이다(정본 작성 원칙) — 그 강제는 이 화면의 필수 카운트가 한다.
  */
+
 
 export interface IntakeWizardProps {
   beneficiaryId: string;
@@ -293,19 +295,6 @@ function localDateTimeValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** 접힘 묶음. 동의 안내문과 같은 아코디언 패턴을 재사용한다 — 새 스타일 없음.
- *  id 는 우측 목차의 앵커 대상(2026-08-09 3차). */
-function Collapse(props: { title: string; open: boolean; onToggle: (open: boolean) => void; children: ReactNode; id?: string }) {
-  return (
-    <details className="consent-detail" id={props.id} open={props.open} onToggle={(event) => props.onToggle(event.currentTarget.open)}>
-      <summary className="consent-detail-summary">
-        <span>{props.title}</span>
-        <DisclosureChevron variant="plain" />
-      </summary>
-      <div className="consent-detail-body">{props.children}</div>
-    </details>
-  );
-}
 
 /** 읽기 전용 한 줄(기본정보·동의). 입력 컨트롤을 두지 않는 것이 이 부품의 계약이다.
  *  라벨은 민트다(2026-08-07 Q 9차 "태그에 컬러" — 사람·기록 축, .record-block>h3 과
@@ -343,7 +332,7 @@ function QuestionField(props: {
     // §5 계약(네이티브 화살표 끄고 꺽쇠를 우측 12 에 직접 그림)을 벗어나 브라우저 기본
     // V 가 제멋대로 앉았다. 등록 폼과 같은 WireFormField(control select)로 고친다).
     return (
-      <WireFormField label={question.label} control="select" invalid={invalid}>
+      <WireFormField label={question.label} control="select" required invalid={invalid}>
         <select
           aria-label={question.label}
           data-answer-key={question.key}
@@ -362,7 +351,11 @@ function QuestionField(props: {
     const toggle = (option: string) => {
       const next = selected.includes(option)
         ? selected.filter((entry) => entry !== option)
-        : [...selected, option];
+        : option === NO_RESPONSE_OPTION || option === NOT_APPLICABLE_OPTION
+          ? [option]
+          : [...selected.filter(
+            (entry) => entry !== NO_RESPONSE_OPTION && entry !== NOT_APPLICABLE_OPTION,
+          ), option];
       onChange(draftFromOption(next.join(', ')));
     };
     // 보기는 공용 선택지 행(WireChoice)이다 — 손으로 그린 14px 라벨 + 기본 체크박스는 §5
@@ -371,10 +364,12 @@ function QuestionField(props: {
     // 어느 질문의 것인지 가려지지 않는다(WireChoice 의 ariaLabel).
     return (
       <div className="wizard-field" data-answer-key={question.key}>
-        <span className="wire-form-label">{question.label}</span>
-        {/* 여러 개 고르기는 입력 상자가 없어 WireFormField 의 invalid 를 빌릴 수 없다 —
-            보기 줄 자체가 경고 상자가 된다(입력칸과 같은 레시피: --risk 1.5px · radius 6). */}
-        <div className="wizard-choice-row" data-invalid={invalid ? 'true' : undefined} role="group" aria-label={question.label}>
+        <span className="wire-form-label" id={`intake-${question.key}-label`}>
+          {question.label} <WireRequiredMarker />
+        </span>
+        {/* 여러 개 고르기는 입력 상자가 없어 WireFormField 의 invalid 를 빌릴 수 없다.
+            보기 줄 자체가 경고 상자가 되고, 보이는 질문과 필수 표식이 그룹의 접근성 이름이다. */}
+        <div className="wizard-choice-row" data-invalid={invalid ? 'true' : undefined} role="group" aria-labelledby={`intake-${question.key}-label`}>
           {(question.options ?? []).map((option) => (
             <WireChoice
               key={option}
@@ -393,7 +388,7 @@ function QuestionField(props: {
   const answered = value.response === 'answered';
   return (
     <div className="wizard-field">
-      <WireFormField label={question.label} control="textarea" invalid={invalid}>
+      <WireFormField label={question.label} control="textarea" required invalid={invalid}>
         <textarea
           aria-label={question.label}
           data-answer-key={question.key}
@@ -430,46 +425,50 @@ function RowTable(props: {
   rows: TableRow[];
   onChange: (rows: TableRow[]) => void;
   testId: string;
+  required?: boolean;
   /** 첫 열이 한 줄도 안 채워진 필수 표임을 첫 행 첫 칸에서 알린다(2026-08-09 Q). */
   invalid?: boolean;
 }) {
-  const { columns, rows, onChange, invalid = false } = props;
+  const { columns, rows, onChange, required = false, invalid = false } = props;
   return (
-    <WireCard className="wire-form-card" title={<h3 id={intakeSectionAnchor(props.title)}>{props.title}</h3>} testId={props.testId}>
-      <p className="panel-meta">{props.hint}</p>
+    <WireCard
+      className="wire-form-card"
+      title={<h3 id={intakeSectionAnchor(props.title)}>{props.title}</h3>}
+      testId={props.testId}
+    >
+      <div className="wire-repeat-guide">
+        <p className="panel-meta">{props.hint}</p>
+        <WireRepeatActions
+          itemLabel="줄"
+          onAdd={() => onChange([...rows, emptyRow(columns)])}
+          onRemove={rows.length === 0 ? undefined : () => onChange(rows.slice(0, -1))}
+          showRemove
+        />
+      </div>
       {rows.map((row, index) => (
         <div key={index} className="wizard-field">
-          {columns.map((column, columnIndex) => (
-            <WireFormField
-              key={column.key}
-              label={`${column.label} ${index + 1}`}
-              invalid={invalid && index === 0 && columnIndex === 0}
-            >
-              <input
-                aria-label={`${column.label} ${index + 1}`}
-                value={row[column.key] ?? ''}
-                placeholder={column.placeholder}
-                onChange={(event) => onChange(rows.map((entry, entryIndex) => (
-                  entryIndex === index ? { ...entry, [column.key]: event.target.value } : entry
-                )))}
-              />
-            </WireFormField>
-          ))}
-          {/* 추가·삭제는 공용 세트다(2026-08-09 Q). 추가는 **마지막 줄에만** 붙고, 삭제는
-              줄이 둘 이상일 때만 붙는다 — 정본이 "없으면 첫 행에 '해당 없음'" 이라
-              적을 줄이 하나는 남아야 한다. */}
-          <WireRepeatActions
-            itemLabel="줄"
-            onAdd={index === rows.length - 1 ? () => onChange([...rows, emptyRow(columns)]) : undefined}
-            onRemove={rows.length > 1 ? () => onChange(rows.filter((_, entryIndex) => entryIndex !== index)) : undefined}
-          />
+          {columns.map((column, columnIndex) => {
+            const fieldRequired = required && index === 0 && columnIndex === 0;
+            return (
+              <WireFormField
+                key={column.key}
+                label={`${column.label} ${index + 1}`}
+                required={fieldRequired}
+                invalid={invalid && index === 0 && columnIndex === 0}
+              >
+                <input
+                  aria-label={`${column.label} ${index + 1}`}
+                  value={row[column.key] ?? ''}
+                  placeholder={column.placeholder}
+                  onChange={(event) => onChange(rows.map((entry, entryIndex) => (
+                    entryIndex === index ? { ...entry, [column.key]: event.target.value } : entry
+                  )))}
+                />
+              </WireFormField>
+            );
+          })}
         </div>
       ))}
-      {/* 줄이 하나도 없는 표(4-3 추가 확인사항)는 추가 버튼이 붙을 줄 자체가 없다 — 그
-          경우에만 세트를 카드 바닥에 따로 세운다. */}
-      {rows.length === 0 && (
-        <WireRepeatActions itemLabel="줄" onAdd={() => onChange([...rows, emptyRow(columns)])} />
-      )}
     </WireCard>
   );
 }
@@ -503,7 +502,6 @@ export function IntakeWizard(props: IntakeWizardProps) {
   // 먼저 적었을 수 있고, 빈 칸으로 시작하면 저장이 그 값을 지운다.
   const [overallGoal, setOverallGoal] = useState(() => props.overallGoal ?? '');
   const baselineOverallGoal = (props.overallGoal ?? '').trim();
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   /**
    * 완료를 눌러 봤는가(2026-08-09 Q "컴포넌트에 직접 경고 박스"). 빈 필수 칸의 빨간 테두리와
@@ -604,45 +602,41 @@ export function IntakeWizard(props: IntakeWizardProps) {
     setAnswers((prev) => ({ ...prev, [key]: next }));
   }
 
-  function toggleSection(key: string, open: boolean) {
-    setOpenSections((prev) => ({ ...prev, [key]: open }));
-  }
 
-  // 단계별 필수 채움 카운트(필수 개수 / 채워진 개수). 전 항목 필수 + 무응답 원칙을 여기서 센다.
-  // 질문 말고도 필수인 것 3개를 함께 센다: 2-1 부채 표·3-3 연계 기관 표의 첫 열(정본의
-  // "없으면 첫 행에 '해당 없음'")과 4-3 담당 실무자 종합의견.
-  // 일괄 검토 A7 (2026-08-08): 단계 이름만으로는 45문항에서 빈 곳을 못 찾는다 — 남은 항목의
-  // **이름까지** 모아 완료 안내에 그대로 보여준다.
+  // 단계별 필수 채움 카운트(채움 / 전체). 질문 밖 필수 항목도 같은 분모에 센다.
+  // 질문 밖 네 항목은 상담일, 부채 표 첫 행, 연계 기관 표 첫 행, 담당 실무자 종합의견이다.
+  // 일괄 검토 A7 (2026-08-08): 단계 이름만으로는 45문항에서 빈 곳을 못 찾는다. 남은 항목의
+  // 이름까지 모아 완료 안내에 그대로 보여준다.
+  const heldAtMissing = !isCompleteDateTime(heldAt);
   const progress = useMemo(() => STEP_GROUPS.map((groups, index) => {
     const questions = groups.flatMap((group) => group.questions);
-    let required = questions.length;
+    const required = questions.length + INTAKE_STEP_REQUIRED_EXTRA_COUNTS[index]!;
     let filled = questions.filter((q) => isFilled(answers[q.key])).length;
     const missing = questions.filter((q) => !isFilled(answers[q.key])).map((q) => q.label);
+    if (index === 0) {
+      if (heldAtMissing) missing.push('상담일');
+      else filled += 1;
+    }
     if (index === 1) {
-      required += 1;
       if (firstColumnFilled(debts, DEBT_COLUMNS)) filled += 1;
       else missing.push("대출·부채 표 첫 행(없으면 '해당 없음')");
     }
     if (index === 2) {
-      required += 1;
       if (firstColumnFilled(linkedOrgs, LINKED_ORG_COLUMNS)) filled += 1;
       else missing.push("연계 기관 표 첫 행(없으면 '해당 없음')");
     }
     if (index === 3) {
-      required += 1;
       if (managerOpinion.trim().length > 0) filled += 1;
       else missing.push('담당 실무자 종합의견');
     }
     return { required, filled, missing };
-  }), [answers, debts, linkedOrgs, managerOpinion]);
+  }), [answers, debts, heldAtMissing, linkedOrgs, managerOpinion]);
 
   const missingDetails = progress
     .map((entry, index) => ({ index, ...entry }))
     .filter((entry) => entry.filled < entry.required);
   const missingSteps = missingDetails.map((entry) => `${entry.index + 1}. ${STEP_TITLES[entry.index]}`);
-  // D48: 날짜·시각 두 칸이라 '비어 있지 않다'로는 반쪽 값(`2026-08-12T`)을 걸러내지 못한다.
-  const heldAtMissing = !isCompleteDateTime(heldAt);
-  const canComplete = missingSteps.length === 0 && !heldAtMissing;
+  const canComplete = missingSteps.length === 0;
 
   function collectedAnswers() {
     return ACTIVE_QUESTIONS
@@ -726,8 +720,6 @@ export function IntakeWizard(props: IntakeWizardProps) {
     router.push(props.briefingHref);
   }
 
-  const participantParts = [props.participant.name ?? props.beneficiaryId, props.participant.phone, props.participant.email]
-    .filter((part): part is string => typeof part === 'string' && part.length > 0);
 
   // 정본(PRD/intake-questionnaire-v1.md)에서 한 소절인데 일부 항목이 자동 채움인 경우가 있다.
   // 그 자동 항목을 별도 상자로 빼면 같은 번호가 화면에 두 번 뜨므로(구 결함), 소절 제목을
@@ -769,9 +761,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
       : step === 3
         ? [...STEP_GROUPS[2]!.map((group) => group.title), '3-3. 현재 연계된 기관·서비스']
         : [
-          ...STEP_GROUPS[3]!.map((group) => group.title),
-          '전체 목표',
+          STEP_GROUPS[3]![0]!.title,
           '4-2. 추가 확인사항',
+          STEP_GROUPS[3]![1]!.title,
+          '전체 목표',
           '담당 실무자 종합의견',
           ...(linkedSchedule === null ? [] : ['연결된 상담 일정']),
         ];
@@ -780,8 +773,33 @@ export function IntakeWizard(props: IntakeWizardProps) {
     <main className="page-content">
       {/* 페이지 타이틀(2026-08-08 Q — 화면 이름은 '인테이크'다. 작성·수정 모두 같은 이름). */}
       <div className="page-header"><PageTitle>인테이크</PageTitle></div>
+          <ParticipantHeroCard
+            name={props.participant.name}
+            beneficiaryId={props.beneficiaryId}
+            stageTag={editing ? '인테이크 수정' : '인테이크 작성'}
+            details={[
+              { label: '전화번호', value: props.participant.phone ?? '미입력', tone: 'mint' },
+              { label: '이메일', value: props.participant.email ?? '미입력', tone: 'mint' },
+              {
+                label: '상담일',
+                value: isCompleteDateTime(heldAt) ? formatKoreanDateTime(heldAt) : '미입력',
+                tone: 'blue',
+              },
+            ]}
+            actions={editing ? (
+              <WireButton variant="primary" disabled={busy} onClick={complete}>수정 완료</WireButton>
+            ) : undefined}
+          />
+          <WireCallout
+            tone="lavender"
+            title="입력 원칙"
+            testId="intake-required-guidance"
+          >
+            모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은
+            &lsquo;무응답&rsquo;을 고르세요.
+          </WireCallout>
       {/* intake-grid: 폭 계단은 공용 .rail-grid 다(2026-08-09) — 컨테이너 ≥1150 은
-          [단계 레일 260 | 본문 1fr | 목차 200] 3열, ≥880 은 목차 없는 2열, 그 아래는
+          [단계 레일 240 | 본문 1fr | 목차 200] 3열, ≥880 은 목차 없는 2열, 그 아래는
           한 열이라 단계 레일이 본문 위로 올라간다. */}
       <div className="wire-container rail-grid intake-grid" data-grid="true">
         {/* alignContent 가 없으면 grid 행들이 본문 길이만큼 늘어난 컬럼 높이를 균등 분배해
@@ -789,63 +807,37 @@ export function IntakeWizard(props: IntakeWizardProps) {
             .intake-step-nav: 스크롤해도 화면에 남는다(2026-08-07 Q 9차, 768 이상). */}
         {/* 레일은 고정 폭 트랙이다(2026-08-09 — 구 12칸 span 3 을 대체: 폭을 따라 계속
             줄어들었다). 폭 계단은 공용 .rail-grid 가 갖고, 이 화면의 레일 폭은
-            --rail-width 260 이다. 단계 목록이 곧 목차라 좁아도 잃는 것이 없다. */}
-        <nav className="intake-step-nav" aria-label="단계 진행">
-          <div className="intake-step-nav-head">
-            <h2>진행 단계</h2>
-            {/* 자동 저장 상태는 진행 단계 제목 옆이다(2026-08-30 Q "자동 저장 대기 배지를
-                진행 단계 텍스트 옆으로" — 구 본문 맥락 카드 아래). 수정 모드는 임시본이
-                없으므로 그리지 않는다. */}
-            {editing ? null : <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />}
-          </div>
-          {STEP_TITLES.map((title, index) => {
-            const stepNumber = index + 1;
-            const entry = progress[index]!;
+            --rail-width 240 이다. 단계 목록이 곧 목차라 좁아도 잃는 것이 없다. */}
+        <IntakeStepRail
+          currentStep={step}
+          items={progress.map((entry, index) => {
+            const number = index + 1;
             const done = entry.filled >= entry.required;
-            // 1단계는 상담일(heldAt)도 필수라 진행 카운트만으로는 못 판정한다.
-            const stepMissing = !done || (index === 0 && heldAtMissing);
-            // 완료를 눌러 본 뒤에는 남은 단계를 red 로 알린다(2026-08-09 Q "좌측 사이드바에도
-            // 레드 컬러"). 'current' 보다 우선한다 — 지금 보고 있는 단계에 빈 칸이 남았다는
-            // 사실이 "여기 있다"보다 급한 정보다.
+            const stepMissing = !done;
             const state = submitAttempted && stepMissing
               ? 'missing'
-              : step === stepNumber ? 'current' : done ? 'done' : 'waiting';
-            // 아이콘은 SVG 공용 부품이다(CCC-49) — 문자 글리프는 §7 락 5 위반.
-            const mark = state === 'missing'
-              ? <Icon name="warning" size={14} />
-              : done ? <Icon name="check" size={14} /> : step === stepNumber ? <Icon name="dot" size={14} /> : <Icon name="dot-empty" size={14} />;
-            // 옷은 .intake-step 이 갖는다(2026-08-09 인라인 정리) — 현재 단계 색은 data-step-state 가 가른다.
-            return (
-              <button
-                key={title}
-                type="button"
-                className="intake-step"
-                onClick={() => { setStep(stepNumber); setError(null); }}
-                aria-current={step === stepNumber ? 'step' : undefined}
-                data-step-state={state}
-              >
-                <span>{mark} {stepNumber}. {title}</span>
-                <span className="intake-step-count">{entry.filled}/{entry.required}</span>
-              </button>
-            );
+              : step === number ? 'current' : done ? 'done' : 'waiting';
+            return {
+              countLabel: `${entry.filled}/${entry.required}`,
+              ariaCount: `${entry.filled}/${entry.required} 완료`,
+              state,
+            };
           })}
-        </nav>
+          onSelect={(nextStep) => { setStep(nextStep); setError(null); }}
+          headerAccessory={editing ? null : <DraftStatus savedAt={draftSavedAt} available={draftAvailable} />}
+          footer={!canComplete ? (
+            <WireCallout
+              tone="lavender"
+              role="status"
+              testId="intake-missing"
+              title="완료하려면 필수 항목을 채우세요"
+            >
+              남은 칸은 빨간 테두리로, 남은 단계는 왼쪽 진행 단계에 표시됩니다.
+            </WireCallout>
+          ) : null}
+        />
 
         <section className="wizard-stack">
-          {/* 맥락 카드(2026-08-07 Q 9차·10차 개정): 누구의 인테이크인지(구 맨 아래 당사자
-              줄을 위로 올림) + 단계·회차·실무자 + 작성 원칙 안내를 한 카드에 모은다.
-              static 이다 — 스크롤하면 함께 사라진다(10차 Q, 구 9차 sticky 대체). */}
-          <WireCard testId="intake-context">
-            <p data-testid="intake-participant">
-              <MetaRow items={participantParts} />
-            </p>
-            <p className="panel-meta">
-              {/* 수정 모드의 '회차 N회'는 다음 회차 자동값이라 거짓 정보다 — 자리 자체를 수정 표시로 바꾼다.
-                  회차는 분류 낱말이라 neutral 배지로 올린다(2026-08-09 Q "뱃지로 0회차" — §2-2 규칙 4). */}
-            <MetaRow items={[`${step} / 4 단계`, editing ? '저장된 인테이크 수정' : <WireBadge>{props.sessionSequence}회차</WireBadge>, `실무자 ${props.recorderLabel}`]} />
-            </p>
-            <p className="panel-meta">모든 항목이 필수입니다. 확인되지 않았거나 답하지 않은 항목은 &lsquo;무응답&rsquo;을 고르세요.</p>
-          </WireCard>
           {/* 자동 저장 상태 줄은 진행 단계 레일 머리로 옮겼다(2026-08-30 Q). 복원 안내만 남는다. */}
           {editing || restorable === null
             ? null
@@ -854,7 +846,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
           {step === 1 ? (
             <div className="wizard-stack">
-              <h2>1. 상담 신청 및 기본정보</h2>
+              <div className="intake-step-toolbar"><h2>1. 상담 신청 및 기본정보</h2></div>
 
               <WireCard title={<h3 id={intakeSectionAnchor('1-1. 당사자 기본정보')}>1-1. 당사자 기본정보</h3>} testId="intake-basic-info">
                 <p className="panel-meta">
@@ -863,7 +855,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 </p>
                 <ReadOnlyRow label="이름" value={props.participant.name ?? '미입력'} emphasis />
                 <ReadOnlyRow label="생년월일" value={props.extendedPii.birthDate ?? '미입력'} />
-                <ReadOnlyRow label="휴대전화번호" value={props.participant.phone ?? '미입력'} />
+                <ReadOnlyRow label="전화번호" value={props.participant.phone ?? '미입력'} />
                 <ReadOnlyRow label="이메일" value={props.participant.email ?? '미입력'} />
                 <ReadOnlyRow label="주소 또는 거주지역" value={props.extendedPii.region ?? '미입력'} />
                 <ReadOnlyRow label="성별" value={props.extendedPii.gender ?? '미입력'} />
@@ -889,7 +881,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                         팀원마다 달랐다(R6). 달력 + 직접 입력 병행으로 바꾼다(KRDS).
                         WireFormField 로 감싼다(2026-08-05) — 맨몸으로 두면 입력 상자의
                         테두리·포커스 링이 없어 입력칸으로 보이지 않았다. */}
-                    <WireFormField label="상담일" htmlFor="intake-held-at" invalid={submitAttempted && heldAtMissing}>
+                    <WireFormField label="상담일" required htmlFor="intake-held-at" invalid={submitAttempted && heldAtMissing}>
                       <DateTimePickerControl id="intake-held-at" fieldLabel="상담일" value={heldAt} onChange={setHeldAt} />
                     </WireFormField>
                     {/* 실무자·회차는 자동으로 채워지는 값이라 한 줄에 나란히 둔다(2026-08-09 Q):
@@ -911,30 +903,24 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
           {step === 2 ? (
             <div className="wizard-stack">
-              <h2>2. 현재 생활상황</h2>
+              <div className="intake-step-toolbar"><h2>2. 현재 생활상황</h2></div>
               {renderGroups(STEP_GROUPS[1]!)}
-              <Collapse
+              <RowTable
                 title="대출·부채 현황 표"
-                id={intakeSectionAnchor('대출·부채 현황 표')}
-                open={openSections.debts ?? true}
-                onToggle={(open) => toggleSection('debts', open)}
-              >
-                <RowTable
-                  title="채무별 상세"
-                  hint="채무별로 기관·채권자, 구분, 잔액, 월 상환액, 연체 여부와 상태를 기록합니다. 채무가 없으면 첫 행에 '해당 없음'을 기입합니다. 첫 칸은 필수라 비워 두면 완료할 수 없습니다."
-                  columns={DEBT_COLUMNS}
-                  rows={debts}
-                  onChange={setDebts}
-                  testId="intake-debt-table"
-                  invalid={submitAttempted && !firstColumnFilled(debts, DEBT_COLUMNS)}
-                />
-              </Collapse>
+                hint="채무별로 기관·채권자, 구분, 잔액, 월 상환액, 연체 여부와 상태를 기록합니다. 채무가 없으면 첫 행에 '해당 없음'을 기입합니다. 첫 칸은 필수라 비워 두면 완료할 수 없습니다."
+                columns={DEBT_COLUMNS}
+                rows={debts}
+                onChange={setDebts}
+                testId="intake-debt-table"
+                required
+                invalid={submitAttempted && !firstColumnFilled(debts, DEBT_COLUMNS)}
+              />
             </div>
           ) : null}
 
           {step === 3 ? (
             <div className="wizard-stack">
-              <h2>3. 필요한 도움과 활용 가능한 자원</h2>
+              <div className="intake-step-toolbar"><h2>3. 필요한 도움과 활용 가능한 자원</h2></div>
               {renderGroups(STEP_GROUPS[2]!)}
               <RowTable
                 title="3-3. 현재 연계된 기관·서비스"
@@ -943,6 +929,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                 rows={linkedOrgs}
                 onChange={setLinkedOrgs}
                 testId="intake-linked-org-table"
+                required
                 invalid={submitAttempted && !firstColumnFilled(linkedOrgs, LINKED_ORG_COLUMNS)}
               />
             </div>
@@ -950,8 +937,17 @@ export function IntakeWizard(props: IntakeWizardProps) {
 
           {step === 4 ? (
             <div className="wizard-stack">
-              <h2>4. 상담 정리와 후속관리</h2>
-              {renderGroups(STEP_GROUPS[3]!)}
+              <div className="intake-step-toolbar"><h2>4. 상담 정리와 후속관리</h2></div>
+              {renderGroups([STEP_GROUPS[3]![0]!])}
+              <RowTable
+                title="4-2. 추가 확인사항"
+                hint="다음 상담 전에 확인할 것을 적습니다."
+                columns={ADDITIONAL_COLUMNS}
+                rows={additionalItems}
+                onChange={setAdditionalItems}
+                testId="intake-additional-table"
+              />
+              {renderGroups([STEP_GROUPS[3]![1]!])}
               {/* 전체 목표(D62 · ADR-0032 §2 · CCC-68): 인테이크가 주 입력 자리이고 15초
                   페이지 카드는 보조다. 질문지(D41 정본) 항목이 아니라 화면 기능이라 좌측
                   진행 카운트에 세지 않고('전 항목 필수'의 예외), 무응답 선택지도 없다 —
@@ -967,7 +963,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   <ReadOnlyRow label="2순위 지원욕구 (3-1)" value={referenceValue(answers.need_secondary)} />
                   <ReadOnlyRow label="주요 지원방향 (4-3)" value={referenceValue(answers.summary_direction)} />
                 </div>
-                <WireFormField label="전체 목표" note="(선택)" htmlFor="intake-overall-goal-input">
+                <WireFormField label="전체 목표" htmlFor="intake-overall-goal-input">
                   <input
                     id="intake-overall-goal-input"
                     type="text"
@@ -978,17 +974,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   />
                 </WireFormField>
               </WireCard>
-              <RowTable
-                title="4-2. 추가 확인사항"
-                hint="다음 상담 전에 확인할 것을 적습니다."
-                columns={ADDITIONAL_COLUMNS}
-                rows={additionalItems}
-                onChange={setAdditionalItems}
-                testId="intake-additional-table"
-              />
               <WireCard className="wire-form-card" title={<h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3>}>
                 <p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p>
-                <WireFormField label="담당 실무자 종합의견" control="textarea" invalid={submitAttempted && managerOpinion.trim().length === 0}>
+                <WireFormField label="담당 실무자 종합의견" control="textarea" required invalid={submitAttempted && managerOpinion.trim().length === 0}>
                   <textarea
                     aria-label="담당 실무자 종합의견"
                     rows={3}
@@ -1016,29 +1004,9 @@ export function IntakeWizard(props: IntakeWizardProps) {
             </div>
           ) : null}
 
-          {/* 남은 필수 항목은 콜아웃(안내줄 카드)이다(2026-08-07 Q 11차 "경고 카드 규칙
-              사용" — 구 9차 알약 배지 대체: 알약은 읽기 전용 배지 전유물이고 문장이 길다).
-              라벤더 = 주의·대기 축(D34). 리스크 레드는 확인된 플래그·오류 전용이라 안 쓴다(D9).
-              내용은 A7(2026-08-08)의 "항목 이름까지" 목록이다.
-
-              2026-08-09: 줄 단위 span 을 **진짜 목록**(콜아웃 items 슬롯)으로 바꿨다. 구 방식은
-              콜아웃 본문이 p 하나라 ul 을 못 넣어 span[display:block] 으로 흉내 낸 것인데,
-              줄 사이가 행간뿐이라 네 단계가 다 비면 한 덩어리로 뭉쳤고 줄바꿈된 둘째 줄이
-              번호 아래로 들어가 단계 경계가 사라졌다. 목록은 단계 이름을 굵게 세워
-              "어느 단계에 무엇이 남았나"가 한눈에 갈린다. */}
-          {!canComplete ? (
-            <WireCallout
-              tone="lavender"
-              role="status"
-              testId="intake-missing"
-              title="완료하려면 필수 항목을 채우세요"
-            >
-              남은 칸은 빨간 테두리로, 남은 단계는 왼쪽 진행 단계에 표시됩니다.
-            </WireCallout>
-          ) : null}
 
           <div className="wizard-actions">
-            {step > 1 ? <WireButton chevron="left" onClick={() => { setStep(step - 1); setError(null); }}>이전</WireButton> : null}
+            {step > 1 ? <WireButton variant="secondary" className="page-back" chevron="left" onClick={() => { setStep(step - 1); setError(null); }}>이전</WireButton> : null}
             {step < STEP_TITLES.length
               ? <WireButton chevron onClick={() => { setStep(step + 1); setError(null); }}>다음: {STEP_TITLES[step]}</WireButton>
               : null}

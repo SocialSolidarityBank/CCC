@@ -26,6 +26,9 @@ const TARGETS = [
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
 const SCOPED_TEXT_TOKENS = new Map([
+  // 입력칸 도움말은 2026-09-04 Q 로 13 이 됐다(DESIGN-RULES §5 하한 예외 셋째 자리).
+  ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint']],
+  ['--text-badge', ['.wire-badge']],
   ['--text-badge-compact', ['.wire-badge[data-size="sm"]']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
@@ -138,15 +141,13 @@ for (const file of TARGETS) {
       }
     }
 
-    // 8) 알약(pill) 반경 허용목록 (2026-08-07 버튼 직사각화). 버튼·조작 요소는 radius 6 이고
-    //    pill 은 읽기 전용 배지·상태 태그·원형 아이콘 버튼·라디오·불릿 점과
-    //    2026-08-25 Q가 승인한 전역 글자 버튼만 갖는다. 새 알약 레시피가
-    //    화면 CSS 에 스며드는 것을 막는다.
+    // 8) 알약(pill) 반경 허용목록. pill 은 읽기 전용 배지·상태 태그·
+    //    원형 아이콘 버튼·라디오·불릿 점과 승인된 전역 글자 버튼만 갖는다.
+    //    새 알약 레시피가 화면 CSS 에 스며드는 것을 막는다.
     if (line.includes('var(--radius-pill)')) {
       // consent-detail-summary: 전문 보기 배지형 버튼(2026-08-07 Q 9차, 배지 레시피를 빌린 조작).
       // wire-chevron-button: 일정 이동과 아코디언 상태 표시의 공용 32px 원(2026-09-02 Q).
-      // wire-step: 위저드 단계 상태 칩(2026-08-29 Q, 읽기 전용 상태라 알약).
-      const PILL_ALLOWED = ['wire-badge', 'navigation-soon', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag', 'consent-detail-summary', 'wire-button', 'page-back', 'wire-chevron-button', 'wire-step'];
+      const PILL_ALLOWED = ['wire-badge', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag', 'consent-detail-summary', 'wire-button', 'wire-choice', 'page-back', 'wire-chevron-button', 'wire-step'];
       if (!PILL_ALLOWED.some((name) => line.includes(name))) {
         add(file, n, 'pill-outside-badge', `--radius-pill 은 배지·원형 아이콘·라디오·불릿·글자 버튼만 쓴다. 입력칸과 내비 항목은 var(--radius-control)`);
       }
@@ -249,6 +250,7 @@ const MARKUP_HOOKS = new Set([
   'session-plan-card',      // 세션 목표 카드 식별 훅(WireCard 가 옷을 가짐)
   'wire-signup-done',       // 가입 완료 구획 훅(wire-invite-stack 이 옷을 가짐)
   'wire-step-label',        // 스텝 라벨 조각 — 옷은 칩(.wire-step)이 갖고, 위저드 테스트 앵커
+  'wire-required-marker',   // 필수 표식 식별·정렬 훅. 옷은 WireBadge size="sm"이 가짐
   'consent-detail-paragraph', // 동의 문단 나열 판정 훅 — 같은 클래스 형제 = 나열(위계 실측 계약)
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
   'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본

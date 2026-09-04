@@ -412,7 +412,7 @@ export default function KitPage() {
           <div className="wire-kit-stack">
             <WireCallout tone="info" title="인테이크 기록을 저장했습니다"
               actions={<WireButton variant="secondary">다음 상담 등록</WireButton>}>
-              다음 상담을 등록해 두면 상담 일정과 기록 작성으로 바로 이어갈 수 있습니다.
+              다음 상담을 등록해 두면 상담 일정과 상담 기록하기로 바로 이어갈 수 있습니다.
             </WireCallout>
             <WireCallout tone="mint" title="담당 실무자가 바뀌었습니다">
               이관 기록은 참여 사업 카드에서 확인할 수 있습니다.

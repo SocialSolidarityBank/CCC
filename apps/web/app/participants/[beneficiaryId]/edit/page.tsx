@@ -5,7 +5,8 @@ import { ApiError, getParticipantBasicInfo, type ParticipantBasicInfo } from '..
 import { isBeneficiaryId } from '../../../../../../db/animal-slugs';
 import { GridContainer } from '../../../components/wire/grid-container';
 import { PageLoading } from '../../../components/wire/page-loading';
-import { ParticipantName } from '../../../components/wire/participant-name';
+import { ParticipantHeroCard } from '../../../components/wire/participant-hero-card';
+import { PageTitle } from '../../../components/wire/page-title';
 import { WireButton } from '../../../components/wire/wire-button';
 import { updateParticipantBasicInfoAction } from '../../../actions';
 import { ErrorState, type ErrorKind } from '../error-state';
@@ -77,25 +78,23 @@ function EditScreen({
   return (
     <main className="page-content">
       <GridContainer>
-        {/* 이름·저장 줄은 **카드 밖 페이지 제목 줄**이다(2026-08-07 Q 5차 — 구 '카드 한 장에
-            합침'을 같은 날 재개정. 전체 일정의 제목+행동 줄과 같은 문법). 폼은 아래에서
-            기본 정보·추가 정보 **카드 2장**으로 갈린다. D38(공통 HERO 부품)의 화면 단위
-            예외인 것은 그대로다(DESIGN.md §5 기록). '저장'은 폼 밖이라 form 속성으로 잇는다. */}
-        {/* 이름 옆 가명 ID(2026-08-07 Q 6차 — 허브 HERO 와 같은 옅은 그레이 대조값).
-            이름·ID·저장이 한 줄 세로 중앙에 선다: 제목 묶음은 .participant-hero-title(flex
-            center), 줄 전체는 .page-header(align-items:center)가 맞춘다.
-            이름 폴백이 이미 ID 인 경우(무응답·파기)는 같은 값을 두 번 적지 않는다. */}
-        <div className="page-header">
-          <h1 className="participant-hero-title">
-            <ParticipantName name={basicInfo.name} beneficiaryId={basicInfo.beneficiaryId} size="hero" />
-            {basicInfo.name !== null && basicInfo.name.length > 0 && (
-              <span className="participant-hero-id">{basicInfo.beneficiaryId}</span>
-            )}
-          </h1>
-          <div className="page-actions">
-            <WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>
-          </div>
-        </div>
+        {/* 공통 HERO 부품이다(2026-09-04 Q "HERO 다른 페이지에서도 같은 디자인으로" — 구
+            2026-08-07 Q 5차의 화면 단위 예외 폐기). `/participants/:id/**` 는 전부 같은 머리를
+            단다는 D38 계약으로 돌아온다. 함께 닫히는 것 둘:
+             * 이 화면만 `PageTitle` 이 없어 당사자 이름이 h1 이었다 — 2026-09-03 Q 의
+               "PageTitle 이 화면의 유일한 h1, 당사자 이름은 그 아래 h2" 를 어기고 있었다.
+             * 가로선 없는 맨 제목 줄이라 여백 계약(구획 위아래 24)이 이 화면만 달랐다.
+            가명 ID 는 허브와 같은 정보 격자 첫 항목이다(D59 2026-09-02 개정). 연락처·이메일은
+            아래 폼이 이미 고칠 수 있는 값으로 보여 주므로 격자에 겹쳐 싣지 않는다.
+            '저장'은 폼 밖이라 form 속성으로 잇는다. */}
+        <div className="page-header"><PageTitle>기본정보 수정</PageTitle></div>
+        <ParticipantHeroCard
+          name={basicInfo.name}
+          beneficiaryId={basicInfo.beneficiaryId}
+          nameSize="hub"
+          details={[{ label: '당사자 ID', value: basicInfo.beneficiaryId }]}
+          actions={<WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>}
+        />
         {noticeText === undefined ? null : <WireBadge role="status">{noticeText}</WireBadge>}
         {errorText === undefined ? null : <WireError>{errorText}</WireError>}
         <BasicInfoForm basicInfo={basicInfo} action={updateParticipantBasicInfoAction} />

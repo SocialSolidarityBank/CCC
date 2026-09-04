@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { MetaRow } from './meta-row';
 import { ParticipantName, type ParticipantNameSize } from './participant-name';
-import { WireField } from './wire-card';
+import { WireField, type WireFieldTone } from './wire-card';
 
 // ParticipantHeroCard — 당사자 중심 화면의 공통 머리 (D38 · DESIGN.md §5).
 //
 // URL이 특정 당사자를 가리키는 화면(/participants/:id/**)은 전부 이 부품을 단다.
+// PageTitle이 화면의 h1을 맡고, 이 카드의 당사자 이름은 그 아래 h2로 선다(2026-09-03 Q).
 // 고정 1층 + 슬롯 3층:
 //  ① 이름: 항상 있다.
 //  ② 상태 태그: 케이스 1개를 보는 화면(브리핑·기록)에서만 필수다.
@@ -27,6 +28,8 @@ export interface ParticipantHeroDetail {
   /** 짧은 읽기 전용 정보 라벨. 같은 HERO 안에서 중복하지 않는다. */
   label: string;
   value: ReactNode;
+  /** 정보 라벨의 의미색. 연락 정보는 mint, 시간 정보는 blue를 쓴다. */
+  tone?: WireFieldTone;
 }
 
 export interface ParticipantHeroCardProps {
@@ -86,7 +89,7 @@ export function ParticipantHeroCard({
   return (
     <header className={classes}>
       <div className="participant-hero-top">
-        <h1 className="participant-hero-title">
+        <h2 className="participant-hero-title">
           <ParticipantName name={name} beneficiaryId={beneficiaryId} size={nameSize} />
           {stageTag !== undefined && (
             <span
@@ -96,7 +99,7 @@ export function ParticipantHeroCard({
               {stageTag}
             </span>
           )}
-        </h1>
+        </h2>
         {actions !== undefined && <div className="page-actions">{actions}</div>}
       </div>
       {hasInfo && (
@@ -105,7 +108,8 @@ export function ParticipantHeroCard({
           {details.length > 0 && (
             <div className="participant-hero-details">
               {details.map((detail) => (
-                <WireField key={detail.label} label={detail.label} layout="stack" size="sm">
+                <WireField key={detail.label} label={detail.label} layout="stack" size="sm"
+                  {...(detail.tone === undefined ? {} : { tone: detail.tone })}>
                   {detail.value}
                 </WireField>
               ))}

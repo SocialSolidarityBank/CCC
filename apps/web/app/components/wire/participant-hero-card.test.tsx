@@ -19,11 +19,12 @@ const participantPageSource = readFileSync(
 // 이 부품이 당사자 중심 화면 전부의 머리이므로, 계약이 깨지면 화면 전체가 어긋난다.
 
 describe('ParticipantHeroCard', () => {
-  it('이름은 항상 있다 — 실명 하나, 가명 ID 는 화면에 없다 (D59)', () => {
+  it('PageTitle 아래 당사자 이름은 하나의 h2이고 가명 ID는 화면에 없다', () => {
     const { container } = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />,
     );
-    expect(container.querySelector('h1 .participant-name')?.textContent).toBe('김미영');
+    expect(container.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
+    expect(container.querySelector('h1')).toBeNull();
     expect(container.textContent).not.toContain('swallow-003');
   });
 
@@ -31,13 +32,13 @@ describe('ParticipantHeroCard', () => {
     const { container } = render(
       <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" contact="010-1234-5678" />,
     );
-    expect(container.querySelector('h1 .participant-hero-contact')).toBeNull();
+    expect(container.querySelector('h2 .participant-hero-contact')).toBeNull();
     expect(
       container.querySelector('.participant-hero-meta .participant-hero-contact')?.textContent,
     ).toBe('010-1234-5678');
     expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
-    expect(container.querySelector('h1 .participant-name-group')?.getAttribute('data-size')).toBe('hero');
-    expect(container.querySelector('h1 .participant-name')?.getAttribute('style')).toBeNull();
+    expect(container.querySelector('h2 .participant-name-group')?.getAttribute('data-size')).toBe('hero');
+    expect(container.querySelector('h2 .participant-name')?.getAttribute('style')).toBeNull();
   });
 
   it('당사자 정보 허브: 이름 아래 정보 격자에 ID, 연락처, 이메일과 추가 값을 둔다', () => {
@@ -50,22 +51,22 @@ describe('ParticipantHeroCard', () => {
           { label: '당사자 ID', value: 'swallow-003' },
           { label: '연락처', value: '010-1234-5678' },
           { label: '이메일', value: 'miyoung@example.org' },
-          { label: '담당 실무자', value: '김하늘' },
+          { label: '상담일', value: '2026년 9월 3일', tone: 'blue' },
         ]}
       />,
     );
 
-    expect(container.querySelector('h1 .participant-name')?.textContent).toBe('김미영');
-    expect(container.querySelector('h1 .participant-hero-id')).toBeNull();
+    expect(container.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
     expect(container.querySelectorAll('.participant-hero-details .wire-field-row')).toHaveLength(4);
     expect(
       [...container.querySelectorAll('.participant-hero-details .wire-field-label')].map((node) => node.textContent),
-    ).toEqual(['당사자 ID', '연락처', '이메일', '담당 실무자']);
+    ).toEqual(['당사자 ID', '연락처', '이메일', '상담일']);
     expect(
       [...container.querySelectorAll('.participant-hero-details .wire-field-value')].map((node) => node.textContent),
-    ).toEqual(['swallow-003', '010-1234-5678', 'miyoung@example.org', '김하늘']);
+    ).toEqual(['swallow-003', '010-1234-5678', 'miyoung@example.org', '2026년 9월 3일']);
     expect(container.querySelector('.participant-hero-divider')).not.toBeNull();
-    expect(container.querySelector('h1 .participant-name-group')?.getAttribute('data-size')).toBe('hub');
+    expect(container.querySelector('h2 .participant-name-group')?.getAttribute('data-size')).toBe('hub');
+    expect(container.querySelector('.participant-hero-details .wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
   });
 
   it('참여 사업 행은 전체 사업명을 보존하고 배지와 종결 버튼을 같은 머리에 둔다', () => {

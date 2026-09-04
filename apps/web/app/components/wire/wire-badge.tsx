@@ -24,7 +24,7 @@ export type WireBadgeSize = 'md' | 'sm';
 export interface WireBadgeProps {
   children: ReactNode;
   tone?: WireBadgeTone;
-  /** 크기. 기본 md(높이 24·글자 14). sm(높이 20·패딩 10·글자 12)은 당사자 카드 헤더 전용이다. */
+  /** 크기. 기본 md(높이 20·패딩 8·글자 13). sm은 같은 상자에 글자만 12다. */
   size?: WireBadgeSize;
   /** 상태 알림으로 읽혀야 하는 배지(role="status"·"alert")에만 준다. */
   role?: 'status' | 'alert';
@@ -36,8 +36,7 @@ export interface WireBadgeProps {
 
 /** 화면 전체의 유일한 배지 부품(2026-08-07 Q 리팩터링).
  *  모양(.wire-badge)은 wire-styles.ts 한 곳이 소유한다. 배지를 새로 그리지 말고
- *  이 부품에 tone 만 골라 쓴다. 눌러서 상태를 바꾸는 태그는 배지가 아니라
- *  컨트롤(.wire-status-tag, radius 6)이다. */
+ *  이 부품에 tone 과 size 만 골라 쓴다. 필수 표식도 컴팩트 변형을 재사용한다. */
 export function WireBadge({ children, tone = 'neutral', size = 'md', role, 'aria-live': ariaLive, testId, className }: WireBadgeProps) {
   return (
     <span

@@ -53,8 +53,11 @@ button,input,select,textarea{font:inherit}
    280px 사이드바 안 선택·호버 상자를 248px로 줄여 좌우 16px 여백을 만들면서, 자식의
    좌우 패딩을 8px로 줄여 아이콘·글자 시작선 24px은 그대로 유지한다. 자식에 음수 마진을
    두면 overflow-y:auto가 가로축까지 auto로 승격되어 상자가 잘리므로 컨테이너가 되민다. */
-.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-6);align-content:start;margin-inline:calc(var(--space-2) * -1)}
-.navigation-link{display:flex;align-items:center;gap:var(--space-2)}
+.sidebar>.navigation-groups{overflow-y:auto;min-height:0;display:grid;gap:var(--space-4);align-content:start;margin-inline:calc(var(--space-2) * -1)}
+/* 세로 중앙은 기하가 만든다(2026-09-04 Q "선택창과 텍스트 가운데 정렬이 안됨"). 구
+   translateY(1px) 손보정은 라벨 상자를 상자 중심보다 1px 아래로 내려 두었다. 상속 행간
+   1.55 를 normal 로 끊어 글자 상자와 아이콘이 같은 중심을 쓴다(guard:align 계약 A). */
+.navigation-link{display:flex;align-items:center;line-height:normal;gap:var(--space-2)}
 /* CCC-26: 새 가입 숫자 배지는 메뉴 라벨 뒤가 아니라 trailing chip 자리(준비 중과 같은 우측 끝)에 둔다. */
 .navigation-link>.wire-badge{margin-left:auto}
 /* 드로어 머리 줄(768 미만 전용): 계정 행동 묶음(좌) + 닫기 X(우) — 2026-08-06 Q,
@@ -66,11 +69,6 @@ button,input,select,textarea{font:inherit}
    입히고, 여기서는 노출만 다룬다 — 데스크톱엔 없다(머리 줄 자체도 숨지만, 계약을 이중으로
    적어 한쪽 규칙이 움직여도 새지 않게 한다). */
 .sidebar .drawer-dismiss{display:none}
-/* optical: 한글 잉크가 상자 중심보다 ~1px 위에 앉는다(16px·행간 1.55 실측 −1.08px, 2026-08-04
-   canvas TextMetrics). 아이콘은 기하 중앙이라 글자만 1px 내려 잉크 중심을 맞춘다(보정 후 −0.07px).
-   버튼의 --nudge-hangul(행간 1 전용, 0 확정)과 다른 행간 조합이라 별도 보정이다.
-   기관명(18px)은 원래 −0.34px 라 보정하지 않는다 — 1px 을 얹으면 +0.66 으로 더 어긋난다. */
-.navigation-link>span:not(.navigation-soon){transform:translateY(1px)}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
 /* 사업 전환기(D35·ADR-0014 §2): 기관명 아래·메뉴 위. 아래 메뉴의 범위를 정하므로
    포함 관계가 눈으로 읽히게 위에 둔다. 사업이 1개여도 선택창이다(2026-08-03 Q). */
@@ -127,14 +125,14 @@ button,input,select,textarea{font:inherit}
    기존 사이드바 본문 시작선 24px에 그대로 선다.
    **되밀기는 목록이 아니라 스크롤 컨테이너(.navigation-groups)가 갖는다**(2026-08-30 Q 4차
    수리 유지): 자식이 되밀면 스크롤 컨테이너에서 가로 넘침이 되어 상자가 잘린다. */
-/* 항목 사이 여백은 8 이다(2026-08-30 Q "각 ROW 여백을 늘려서 조율" — 구 4 는 층 구분 없이
-   빽빽했다. 같은 날 Q 3차로 메뉴가 한 계층이 된 뒤에도 이 값 그대로다 — 층은 묶음 제목이
-   말하고 묶음 사이 24 가 가른다). */
-.navigation-list{display:grid;gap:var(--space-2);padding:0;margin:0;list-style:none}
+/* 같은 메뉴 묶음 안 항목은 2px 하프스텝으로 잇고, 묶음 사이는 24px로 가른다.
+   버튼 내부 패딩은 그대로라 클릭 면적과 글자 시작선은 바뀌지 않는다. */
+.navigation-list{display:grid;gap:var(--space-0-5);padding:0;margin:0;list-style:none}
 /* 테두리는 전 상태 투명으로 깔아 둔다 — 활성만 테두리를 얹으면 상자가 자라 글자가 상태
    전환마다 튄다. 굵기 1.5px 은 2026-08-06 Q("아웃라인 굵기를 조금만 올려봐" — 구 1px). */
-/* 선택·호버 상자는 입력 컨트롤과 같은 40px 높이다(2026-09-02 Q, 구 32). */
-.navigation-link{min-height:var(--control-height);padding:0 var(--space-2);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
+/* 선택·호버 상자는 버튼과 같은 32px 높이다(2026-09-04 Q "선택창도 더 줄여줘", 구 40).
+   묶음 사이 16 과 함께 다섯 항목이 헤더 아래에서 한눈에 들어온다. */
+.navigation-link{min-height:var(--pill-height);padding:0 var(--space-2);border:1.5px solid transparent;border-radius:var(--radius-control);color:var(--sub);font-size:var(--text-md);font-weight:500;transition:background-color .12s ease,color .12s ease}
 /* 마우스가 실제로 있는 기기에서만 호버를 켠다 — 터치 기기는 탭한 항목에 :hover 가 남아
    "눌린 채로 굳은" 것처럼 보인다(2026-07-26 Q 보고). */
 @media (hover:hover){
@@ -143,13 +141,13 @@ button,input,select,textarea{font:inherit}
      아이콘은 currentColor 라 --panel(흰색)로 남긴다 — 파스텔 그라데이션을 획에 얹으면
      16px 라인 아이콘은 획이 끊겨 보인다. */
   .navigation-link:not([data-current="true"]):hover{background:var(--ink);color:var(--panel)}
-  .navigation-link:not([data-current="true"]):hover>span:not(.navigation-soon){background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .navigation-link:not([data-current="true"]):hover>span:not(.wire-badge){background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
   /* 다크는 **색 반전**이다(2026-08-05 Q · ADR-0030 호버 테마 규칙): 라이트가 "어두운 면 +
      그라데이션 글자"라면 다크는 "그라데이션 면 + 어두운 글자". 글자·아이콘은 --on-action
      (두 테마 공통의 어두운 잉크)이다 — 다크의 --ink 는 밝은 색이라 그라데이션 위에서 안 읽힌다.
      (구 규칙은 --canvas 면 + --ink 글자 — 그라데이션이 사라져 라이트와 어휘가 갈렸다.) */
   [data-theme="dark"] .navigation-link:not([data-current="true"]):hover{background:var(--gradient-brand);color:var(--on-action)}
-  [data-theme="dark"] .navigation-link:not([data-current="true"]):hover>span:not(.navigation-soon){background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--on-action)}
+  [data-theme="dark"] .navigation-link:not([data-current="true"]):hover>span:not(.wire-badge){background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--on-action)}
   /* 활성 항목 위에서는 활성 표시가 이겨야 한다 — 호버가 덮으면 "지금 어디인지"가 사라진다. */
   .navigation-link[data-current="true"]:hover{background:linear-gradient(var(--blue-tint),var(--blue-tint)) padding-box,var(--gradient-brand) border-box;color:var(--ink)}
 }
@@ -162,9 +160,6 @@ button,input,select,textarea{font:inherit}
    그라데이션 테두리는 D58 '선택·활성' 어휘다). */
 .navigation-link[data-current="true"]{background:linear-gradient(var(--blue-tint),var(--blue-tint)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-weight:600}
 .navigation-link[data-current="true"] svg{color:var(--blue-deep)}
-/* '준비 중' 배지 — 화면이 아직 없는 메뉴를 누르기 전에 알린다(CCC-23). 중립 회색 알약(§5 상태 배지).
-   파스텔 신호 축(블루·민트·라벤더)에 속하지 않는 상태라 새 색을 쓰지 않는다. */
-.navigation-soon{margin-left:auto;display:inline-flex;align-items:center;line-height:normal;min-height:var(--badge-height);padding:0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);font-size:var(--text-md);font-weight:500;color:var(--sub);white-space:nowrap}
 /* 메뉴 묶음(2026-08-30 Q 3차 "섹션 아래 … 로 나누고 … 서브 메뉴 없이 메뉴는 1개의 계층으로
    통일" — 구 부모 링크 + 하위 목록(세로선·들여쓰기) 대체. D35 축 개정 기록은 DESIGN.md §4-5):
    '일정' 아래 상담 일정 보기·상담 일정 등록, '당사자' 아래 당사자 목록·당사자 등록·당사자 초대.
@@ -179,7 +174,7 @@ button,input,select,textarea{font:inherit}
    구분을 확실하게"): 면을 --gradient-deep 으로 깔고 글자 모양으로 잘라낸다(내비 호버가 쓰는
    것과 같은 기법). deep 쌍을 쓰는 이유는 base 쌍이 캔버스 위에서 더 흐리기 때문이다.
    측정값과 접근성 예외 기록은 DESIGN.md §9 에 있다. */
-.navigation-group{display:grid;gap:var(--space-2)}
+.navigation-group{display:grid;gap:var(--space-1)}
 .navigation-section-title{margin:0;padding:0 var(--space-2);border:1.5px solid transparent;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);background:var(--gradient-deep);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* (구 .sidebar-footer 는 2026-08-06 제거 — 계정 행동 묶음이 드로어 상단 줄로 올라갔다.
    .sidebar-actions 가 그 묶음이다.) */
@@ -374,9 +369,10 @@ p.empty[data-reserve="true"]{min-height:92px}
    칸을 가로질러 늘어나고 라벨이 아래 줄로 밀려난다 — 선택지가 세로로 한 글자씩 쪼개져
    읽히던 원인이다(2026-07-26 Q 보고 "너무 좁아서 쓸 수 없는 칸"). */
 .field input[type="radio"],.field input[type="checkbox"]{width:auto;min-height:0;padding:0;border:0;border-radius:0;background:none;accent-color:var(--blue-deep)}
-/* 선택지 한 줄: 동그라미와 글자를 같은 줄에 세우고 누를 면적을 컨트롤 높이만큼 준다. */
+/* 선택지 한 줄: 동그라미와 글자를 같은 줄에 세우고 누를 면적을 컨트롤 높이만큼 준다.
+   컨트롤과 글자 사이 4는 공용 선택지 행과 같은 값이다(2026-09-04 Q 2차, 구 8). */
 .field:has(>span>input[type="radio"])>span,.field:has(>span>input[type="checkbox"])>span{
-  display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);
+  display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-height);
   color:var(--ink);font-size:var(--text-md);
 }
 textarea{min-height:216px;resize:vertical}
@@ -530,9 +526,8 @@ const briefingStyles = `
    섹션 사이 32는 페이지 그리드의 gap이 주며 화면이 margin으로 별도 여백을 만들지 않는다. */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
-/* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화 — 구 .briefing-hero
-   손 마크업·전용 CSS 삭제. 상태 태그도 부품의 participant-hero-stage 계약을 따른다 —
-   트랙 C(PR #61)의 .is-stage 폐지와 같은 결론이라 리베이스에서 컴포넌트 쪽으로 합쳤다). */
+/* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화, 구 .briefing-hero
+   손 마크업과 전용 CSS 삭제). 상태 태그도 부품의 .wire-status-tag 계약을 따른다. */
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 전체 목표(D45 · CCC-41) — 카드다(2026-08-05 카드화 · ADR-0030, 구 D59 플랫 대체).
    카드 모양은 WireCard 가 갖고, 수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가
@@ -599,11 +594,16 @@ const briefingStyles = `
    핵심 한 줄이 좌측정렬 고정 간격(12)으로 선다. 본문이 한 줄을 넘으면 줄바꿈 대신
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
    전문은 근거 회차(상담 기록)에서 읽는다. */
-.briefing-session-rows{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
+/* 호버 면이 행 높이(20)보다 커야 짚기 쉽다(2026-09-04 Q "호버 선택범위가 너무 좁다").
+   행마다 위아래 8 을 넣어 38 짜리 표적을 만들고, 목록 gap 은 0 으로 두어 실제 글자 사이는
+   §7 의 16(8+8) 그대로 남긴다. 좌우 12 는 음수 마진으로 되밀어 시작선을 지킨다. */
+.briefing-session-rows{display:grid;gap:0;margin:0;padding:0;list-style:none}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
-   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게. 회차 목록(.record-summary)
-   의 고정 칸과 같은 계약이고, 날짜 폭 136 도 .record-held-at 과 같은 값이다. */
+   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게.
+   **칸 폭은 내용 실측값으로 좁혔다**(2026-09-04 Q, 구 136/84/52 + 간격 16). 날짜는 가장 긴
+   2026년 12월 28일 이 110.05 라 112, 유형 배지는 기본상담·인테이크 둘 다 62.3 이라 64,
+   수기 배지는 40.2 라 44 다. 간격도 8 로 좁혀 본문 글줄이 76px 길어진다. */
 /* 행 전체가 원문 회차 앵커로 가는 링크다(2026-08-30 Q "원본 연결" · D73 ① — a 요소가
    행 배치를 그대로 갖는다). 꺽쇠는 이동 어휘의 오른쪽 꺽쇠(§8 · .wire-chevron)로 행 끝.
    호버는 리스트 행 계약인 tint 쌍 --gradient-hover 다(§5 리스트 행 · 2026-08-03 Q — 구
@@ -611,17 +611,18 @@ const briefingStyles = `
    (.participant-next-schedule-link)를 따라 --muted 로 넣었고, 2026-08-30 검수 후 이 자리와
    전례를 함께 고쳤다 — 남은 --muted 호버 4곳은 버튼·컨트롤이라 이 규칙 대상이 아니다),
    눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다. */
-.briefing-session-row{display:grid;grid-template-columns:136px 84px 52px minmax(0,1fr) auto;align-items:center;gap:var(--space-4);min-width:0;color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.briefing-session-row{display:grid;grid-template-columns:112px 64px 44px minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0;padding:var(--space-2) var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
 @media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
-.briefing-session-kind{flex:none;width:84px;display:inline-flex}
-.briefing-session-kind>.wire-badge{width:100%}
-.briefing-session-memo{flex:none;width:52px;display:inline-flex}
-.briefing-session-memo>.wire-badge{width:100%}
+/* 배지는 자기 글자 폭만 차지한다(2026-09-04 Q, 구 width:100% 로 칸 폭 채우기). 칸 폭으로
+   늘리면 좌우 패딩이 8 계약을 벗어나 18.3·19.8·14.9 로 제각각이 됐다. 시작 x 고정은
+   칸이 이미 하므로 늘릴 필요가 없다. */
+.briefing-session-kind{flex:none;width:64px;display:inline-flex}
+.briefing-session-memo{flex:none;width:44px;display:inline-flex}
 /* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q.
    1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다 — 당사자 카드 셀과 같은 계약). */
 /* 날짜는 14/400 --sub 메타, 핵심 문구는 14/400 --ink 값이다. 좁은 화면에서 두 줄로
-   쌓여도 색으로 역할이 갈리고, 날짜 폭 136은 상담 기록의 날짜 칸과 같다. */
-.briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
+   쌓여도 색으로 역할이 갈린다. */
+.briefing-session-date{flex:none;width:112px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
@@ -749,8 +750,8 @@ const briefingStyles = `
   .record-summary{flex-wrap:wrap}
   /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(136+84+48)이 좁은 화면 폭을 다 먹는다(9차). */
-  .briefing-session-row{grid-template-columns:136px minmax(0,1fr) auto;grid-template-rows:auto auto}
+  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차). */
+  .briefing-session-row{grid-template-columns:112px minmax(0,1fr) auto;grid-template-rows:auto auto}
   .briefing-session-kind{grid-column:2;grid-row:1}
   .briefing-session-row>.wire-chevron{grid-column:3;grid-row:1/3}
   .briefing-session-memo{grid-column:1;grid-row:2}
@@ -832,6 +833,9 @@ const scheduleStyles = `
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
 .schedule-day-summary-title{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
+/* 날짜와 오늘 배지와 건수는 한 줄에 묶인다(2026-09-04 후속 검수). 767 이하에서 제목이
+   세로로 쌓여도 이 셋은 함께 첫 줄에 남고 이름 목록만 다음 줄로 내려간다. */
+.schedule-day-head{display:flex;align-items:center;gap:var(--space-3);min-width:0}
 .schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 /* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
    컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */
@@ -961,7 +965,8 @@ const scheduleStyles = `
    들여쓰는 것)을 끄는 표준 장치다 — float 가 none 이 아니면 legend 는 일반 자식으로
    내려와 그리드 첫 행에 왼쪽 정렬로 선다(구 6px 들여쓰기 패딩도 함께 걷는다). */
 .consent-fieldset legend{float:left;padding:0;font-weight:600;font-size:var(--text-md);color:var(--ink)}
-.consent-checkbox{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}
+/* 컨트롤과 글자 사이는 선택지 행과 같은 4다(2026-09-04 Q 2차 "전역 일괄", 구 12). */
+.consent-checkbox{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer}
 /* 케이스 종결 화면(CCC-107): 폼·요약의 세로 스택. 행 문법은 briefing-action-rows 재사용. */
 .close-case-stack{display:grid;gap:var(--space-4)}
 /* 체크박스 모양은 .wire-checkbox 하나가 소유한다(§5). 여기서 다시 스타일하면 선택자가 더 구체적이라
@@ -1034,9 +1039,9 @@ const registerStyles = `
 .consent-detail-summary{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-3);padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--ink);cursor:pointer;list-style:none}
 .consent-detail-summary::-webkit-details-marker{display:none}
 /* 카드가 아닌 동의 요약 줄은 무형 DisclosureChevron을 써 원형 상태 컨테이너를 겹치지 않는다. */
-/* 인라인 변형의 요약 줄은 높이 24, --sub 외곽선, 알약, 14/400 --ink인 배지형 버튼이다.
+/* 인라인 변형의 요약 줄은 높이 20, --sub 외곽선, 알약, 14/400 --ink인 배지형 버튼이다.
    전문 보기 B 균형형(2026-09-02 Q)은 좌 10, 간격 6, 12px 슬롯, 우 8로 실제 잉크 여백을 맞춘다. */
-.consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-1-5);min-height:var(--badge-height);padding:0 var(--space-2) 0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
+.consent-detail[data-inline="true"]>.consent-detail-summary{display:inline-flex;width:max-content;align-items:center;justify-content:flex-start;gap:var(--space-1-5);height:var(--space-5);padding:0 var(--space-2) 0 var(--space-2-5);border:1px solid var(--sub);border-radius:var(--radius-pill);/* consent-detail-summary: 배지형 버튼(pill 허용목록 등재) */font-weight:400;color:var(--ink);line-height:normal}
 @media (hover:hover){.consent-detail[data-inline="true"]>.consent-detail-summary:hover{background:var(--muted)}}
 /* 열림 방향은 공용 details[open] DisclosureChevron 규칙이 아래를 위로 회전한다. */
 /* 전문 본문은 카드 안 묶음 상자다(2026-08-07 Q "카드 안에 넣어서 통일감" — 구 전폭 플랫
@@ -1079,28 +1084,24 @@ const registerStyles = `
     overflow-y:auto;
   }
 }
-/* 인테이크 작성의 레일 폭(2026-08-09 Q 3차 "인테이크 페이지에도 TOC"). 트랙 배치와 폭 계단은
-   공용 .rail-grid 가 갖고, 화면은 자기 레일 폭만 정한다. */
-.intake-grid{--rail-width:260px}
-/* 인테이크 조회의 광폭 2열 — 본문 스택 + 우측 목차. 좁으면 한 열이고 목차는 숨는다. */
-.intake-read-grid{display:grid;gap:var(--section-gap);align-items:start}
-@container (min-width: 1150px){
-  .intake-read-grid{grid-template-columns:minmax(0,1fr) 200px}
-}
-/* 단계 버튼: 입력칸과 같은 사각 어휘(radius 6 · --line-control 1px)다. 현재 단계는 시간·진행
-   축이라 블루 계열(§1-5 배정표) — 채움은 tint, 글자는 deep. */
-/* optical: 10/12 는 높이 40 짜리 컨트롤이 아니라 목록 줄이라 컨트롤 패딩(0 12)을 쓸 수 없다.
-   두 줄로 접히는 긴 단계 이름까지 담으면서 32 알약보다 촘촘한 값이다. */
-.intake-step{display:flex;justify-content:space-between;gap:var(--space-2);padding:10px 12px;border:1px solid var(--line-control);border-radius:var(--radius-control);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:left;cursor:pointer}
+/* 인테이크 작성과 조회는 같은 240px 단계 레일, 유동 본문, 200px 목차를 쓴다.
+   공용 rail-grid가 880px과 1150px 컨테이너 계단을 소유한다. */
+.intake-grid,.intake-read-grid{--rail-width:240px}
+.intake-step-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0;min-height:var(--pill-height)}
+.intake-step-toolbar>h2{margin:0}
+.intake-read-table-entry{display:grid;gap:var(--space-3)}
+.intake-read-table-entry>.wire-badge{justify-self:start}
+.intake-read-table-entry+.intake-read-table-entry{padding-top:var(--space-4);border-top:1px solid var(--line)}
+.intake-read-toc>.wire-card-body{gap:var(--space-3)}
+/* 작성과 조회가 같은 3열 단계 버튼을 쓴다. 번호와 건수는 고정하고 제목만 줄어든다. */
+.intake-step{display:grid;grid-template-columns:2ch minmax(0,1fr) 4ch;align-items:center;column-gap:var(--space-2);min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-control);background:transparent;color:var(--ink);font-size:var(--text-sm);font-weight:600;line-height:normal;text-align:left;cursor:pointer}
+.intake-step-index{font-variant-numeric:tabular-nums}
+.intake-step-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.intake-step-count{justify-self:end;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub)}
 .intake-step[data-step-state="current"]{background:var(--blue-tint);color:var(--blue-deep)}
-/* 완료를 눌러 봤는데 필수가 남은 단계(2026-08-09 Q "좌측 사이드바에도 레드 컬러").
-   입력 오류와 같은 어휘다 — 테두리 1.5px --risk + 리스크 틴트 면(§5 입력칸 오류·D9 허용 자리). */
-/* optical: 9.5/11.5 는 눈대중이 아니라 **10/12 에서 테두리 0.5px 을 뺀 값**이다. 이 상태만
-   테두리가 1.5px 이라 그대로 두면 이 단계만 글자가 0.5px 안으로 밀린다. 위기·안전 카드의
-   23.5 와 같은 보정이고, 같은 이유로 레티나(DPR 2) 기준이다 — DPR 1 에서는 브라우저가
-   테두리를 1px 로 반올림하므로 0.5px 남는다(정수로 깎으면 레티나에서 1px 어긋난다). */
-.intake-step[data-step-state="missing"]{border:1.5px solid var(--risk);background:var(--risk-tint-solid);color:var(--risk);padding:9.5px 11.5px}
-.intake-step-count{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
+/* 완료를 눌러 봤는데 필수가 남은 단계는 입력 오류와 같은 리스크 테두리와 틴트를 쓴다. */
+/* optical: 11.5는 기본 좌우 패딩 12에서 굵어진 테두리 0.5px을 뺀 값이다. */
+.intake-step[data-step-state="missing"]{border:1.5px solid var(--risk);background:var(--risk-tint-solid);color:var(--risk);padding:0 11.5px}
 .intake-step[data-step-state="current"] .intake-step-count{color:var(--blue-deep)}
 .intake-step[data-step-state="missing"] .intake-step-count{color:var(--risk)}
 /* 관리자 온보딩 2단계 (CCC-32). 새 시각 언어 없음 — .surface-card + 킷 부품 조합이고,
@@ -1125,9 +1126,10 @@ const recordFormStyles = `
    대신 잡는다(구 .record-layout 1fr+우측 200px 레일 대체). 좌측 레일(.record-side)은 인테이크
    진행 단계 레일과 같은 sticky 계약이고, 768 미만 한 열에서는 본문 위에 선다. */
 .record-main{display:grid;gap:var(--space-6);min-width:0}
-/* 레일은 형제 카드 2장 스택이다(CCC-76 — 미해결 액션 아코디언 + 진척도 카드). 간격은
-   본문 스택과 같은 24(D60 ③ 페이지 스택) — 좌우 열의 카드 리듬이 같아야 한 화면으로 읽힌다. */
-.record-side{display:grid;gap:var(--space-6)}
+/* 레일은 형제 카드 스택이다. 간격은 본문 스택과 같은 24다. 자체 스크롤은 유지하되
+   스크롤바 면은 숨겨 아코디언을 펼칠 때 레일 내용 폭이 밀리지 않게 한다. */
+.record-side{display:grid;gap:var(--space-6);scrollbar-width:none}
+.record-side::-webkit-scrollbar{display:none}
 /* 붙박이·자체 스크롤은 **두 열일 때만**이다(2026-08-09 — 기준을 .rail-grid 폭 계단과 같은
    컨테이너 880 으로 옮겼다. 구 뷰포트 768 기준은 한 열에서도 살아 있어, 상단으로 내려온
    레일이 본문 위에 붙박이고 자기 높이 안에서 또 스크롤했다). */
@@ -1151,11 +1153,23 @@ const recordFormStyles = `
    앞으로 나온다(2026-08-09 하니스 실측: 카드 49 · 아코디언 45 · 위기 44). */
 /* 구 상단 고정 헤더(.record-sticky)는 2026-08-08 좌측 레일 이전으로 삭제 — 목표·버튼이
    전부 레일로 갔다. */
-/* 레일 카드 3장(2026-08-09 Q — 구 진척도 카드 한 장에서 분리): 이번 상담 목표 · 미해결
-   액션 아코디언 · 체크리스트. 제목은 전부 카드 제목 계약(16/600)이라 같은 크기다.
-   제목 오른쪽 배지는 flex 로 글줄 베이스라인이 아니라 세로 중앙에 맞춘다(CCC-76). */
-.record-rail-title{display:flex;align-items:center;gap:var(--space-2)}
-.record-rail-goals{margin:0;padding-left:var(--list-indent);display:grid;gap:var(--space-1);font-size:var(--text-md);font-weight:600;color:var(--ink)}
+/* 레일 카드 3장(2026-08-09 Q): 이번 상담 목표, 미해결 액션 아코디언, 체크리스트.
+   제목은 전부 카드 제목 계약(16/600)이고 제목 오른쪽 배지는 세로 중앙에 맞춘다. */
+.record-rail-goals{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-3)}
+/* 목표와 액션은 의미 순서를 보존하는 ol이며, 보이는 순번만 중립 원형으로 직접 그린다.
+   형제 행의 선은 레일 카드 본문 너비를 전부 쓴다. */
+.record-rail-goal,.record-open-action-item{display:grid;grid-template-columns:var(--space-5) minmax(0,1fr);column-gap:var(--space-2);row-gap:var(--space-1);width:100%;min-width:0}
+.record-rail-goal+.record-rail-goal,.record-open-action-item+.record-open-action-item{padding-top:var(--space-3);border-top:1px solid var(--line)}
+.record-rail-number{grid-column:1;grid-row:1;align-self:start;justify-self:center;width:var(--space-5);color:var(--sub);font-size:var(--text-lg);font-weight:600;line-height:var(--leading-tight);text-align:center;font-variant-numeric:tabular-nums}
+.record-rail-goal-body,.record-open-action-body{grid-column:2;grid-row:1}
+.record-rail-goal-body{margin:0;color:var(--ink);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-body);overflow-wrap:anywhere}
+.record-rail-subgoal{grid-column:2;margin:0;color:var(--lime-deep);font-size:var(--text-detail);font-weight:400;line-height:var(--leading-body);overflow-wrap:anywhere}
+.record-rail-subgoal-label{color:var(--lime-deep);font-size:var(--text-detail);font-weight:600;line-height:var(--leading-body)}
+.record-rail-subgoal-text{color:var(--lime-deep);font-size:var(--text-detail);font-weight:400;line-height:var(--leading-body)}
+.record-open-action-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-3);min-width:0}
+.record-open-action-body,.record-open-action-meta{min-width:0;margin:0;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-body);overflow-wrap:anywhere}
+.record-open-action-body{color:var(--ink);font-weight:600}
+.record-open-action-meta{grid-column:2;color:var(--lime-deep);font-size:var(--text-detail)}
 /* 구 .record-sticky-value·.record-sticky-meta 는 2026-08-09 삭제 — '미연결' 글자 표시는
    빈 상태 부품으로, 지난 상담 메타 줄은 미해결 액션 카드로 바뀌었다(Q 지시. 강조 콜아웃을
    거쳐 CCC-76 으로 레일 형제 아코디언 카드가 됐다 — 카드 안 카드 금지 해소, D59). */
@@ -1189,8 +1203,11 @@ const recordFormStyles = `
 /* 구 .record-rail 손 카드·.record-rail-count 글줄은 2026-08-09 삭제 — 진척도 카드가
    WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
      갖고, 필수 카운트는 체크리스트 제목 옆 neutral 배지가 됐다(§2-2 규칙 4). */
-.record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);color:var(--sub)}
-.record-rail-list li[data-done="true"]{color:var(--ink);font-weight:600}
+.record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+/* 채움 표시와 글자 사이도 선택지 행과 같은 4다(2026-09-04 Q 2차 "전역 일괄", 구 6). */
+.record-rail-list li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-1)}
+.record-rail-list li>.wire-checkbox{cursor:default}
+.record-rail-list li[data-done="true"]{color:var(--ink)}
 .record-rail-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 /* 구 컨테이너 질의(643px 레일 해제)는 2026-08-08 격자 이전으로 삭제 — 한 열 접힘은
    .wire-container[data-grid] 의 767 규칙이 대신한다(인테이크와 같은 동작). */

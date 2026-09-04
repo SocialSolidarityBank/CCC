@@ -488,6 +488,10 @@ export interface OpenActionItem {
   dueDate: string | null;
 }
 
+export interface RecordFormOpenActionItem extends OpenActionItem {
+  sourceHeldAt: string;
+}
+
 // 생활 6영역 스냅샷(CCC-8).
 export type LifeAreaKey = (typeof lifeAreaKeys)[number];
 export type LifeAreaStatus = (typeof lifeAreaStatuses)[number];
@@ -592,7 +596,7 @@ export interface RecordLastSummary {
 export interface NewRecordContext {
   goals: SupportCaseRecordGoal[];
   schedules: CounselingSchedule[];
-  openActionItems: OpenActionItem[];
+  openActionItems: RecordFormOpenActionItem[];
   // 직전 회차의 6영역 스냅샷(CCC-8) — 폼의 "직전 상태" 표시원. 스냅샷 이력이 없으면 빈 배열.
   latestLifeAreaSnapshot: LifeAreaSnapshotEntry[];
   // 다가오는 일정의 세션 목표·맞춤형 질문(CCC-10). 일정이 없거나 조회 실패 시 빈 배열로 낮춰 동작한다.
@@ -1643,7 +1647,7 @@ export async function getNewRecordContext(
   supportCaseId: string,
 ): Promise<NewRecordContext> {
   const history = await listSupportCaseRecords(beneficiaryId, supportCaseId);
-  const openActionItems: OpenActionItem[] = [];
+  const openActionItems: RecordFormOpenActionItem[] = [];
   for (const record of history.records) {
     for (const action of record.actionItems) {
       if (!action.resolved) {
@@ -1652,6 +1656,7 @@ export async function getNewRecordContext(
           description: action.description,
           owner: action.owner,
           dueDate: action.dueDate,
+          sourceHeldAt: record.heldAt,
         });
       }
     }

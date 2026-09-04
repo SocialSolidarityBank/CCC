@@ -13,8 +13,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => pathname.current }));
 
 function sidebarLinks(container: HTMLElement): Array<{ label: string; href: string; current: boolean }> {
   return Array.from(container.querySelectorAll('.sidebar .navigation-link')).map((el) => ({
-    // '준비 중' 배지(.navigation-soon)는 라벨이 아니므로 제외한다(CCC-23).
-    label: el.querySelector('span:not(.navigation-soon)')?.textContent ?? '',
+    label: el.querySelector('span:not(.wire-badge)')?.textContent ?? '',
     href: el.getAttribute('href') ?? '',
     current: el.getAttribute('data-current') === 'true',
   }));
@@ -228,7 +227,7 @@ describe('AppSidebar — 768 미만 드로어 (DESIGN.md §4-4)', () => {
   it('아이콘이 aria-hidden 이므로 링크 텍스트는 DOM 에 남는다', () => {
     const { container } = render(<AppSidebar activePath="/participants" />);
     const labels = Array.from(container.querySelectorAll('.sidebar .navigation-link'))
-      .map((el) => el.querySelector('span:not(.navigation-soon)')?.textContent?.trim());
+      .map((el) => el.querySelector('span:not(.wire-badge)')?.textContent?.trim());
     expect(labels).toEqual(['상담 일정 보기', '상담 일정 등록', '당사자 목록', '당사자 등록', '당사자 초대']);
   });
 });
