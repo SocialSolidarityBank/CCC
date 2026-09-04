@@ -1,6 +1,6 @@
 # 운영 스케줄·환경 변수
 
-이 문서는 Workers `scheduled` 핸들러가 도는 두 주기 작업인 폴링 워치독(D8)과 PII 보존 생애주기(D32·D46)의 동작과 관련 환경 변수를 정리한다. 로컬(miniflare)에서는 cron이 자동 실행되지 않으므로, 테스트는 `runWatchdog(env)`와 `runRetentionLifecycle(env)`를 직접 호출한다.
+이 문서는 Workers `scheduled` 핸들러가 도는 두 주기 작업인 폴링 워치독(D8)과 PII 보존 생애주기(D32·D46)의 동작과 관련 환경 변수를 정리한다. 두 작업의 몸체는 `apps/api/src/scheduled-job-runner.ts` 의 `createScheduledJobRunner(env).run(kind, nowIso)` 하나가 갖고, Workers cron 은 표현식을 `pipeline_watchdog` 또는 `pii_retention` 으로 바꿔 이 runner 를 부른다(E1-4). 로컬(miniflare)에서는 cron이 자동 실행되지 않으므로, 테스트는 같은 runner 를 직접 호출한다.
 
 ## 스케줄 (wrangler.toml `[triggers].crons`)
 

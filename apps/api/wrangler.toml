@@ -13,8 +13,8 @@ PUBLIC_SIGNUP_ENABLED = "1"
 # 예약 작업(D8·D32·D46). src/index.ts scheduled 핸들러가 controller.cron으로 분기한다:
 #   - "0 3 * * *"  (매일 03:00 UTC): 도래 PII 아카이브·보존 재검토(자동 파기 없음)
 #   - 그 외(30분마다): 폴링 워치독 — stale 조직 관리자 알림(D8)
-# 로컬(miniflare)에서는 트리거가 자동 실행되지 않는다. 테스트는 runWatchdog/runRetentionLifecycle를
-# 직접 호출한다. 실제 스케줄은 Cloudflare 계정 개설 후 배포로 활성화된다(D16).
+# 로컬(miniflare)에서는 트리거가 자동 실행되지 않는다. 테스트는 createScheduledJobRunner(env).run(kind, nowIso)
+# 을 직접 호출한다. 실제 스케줄은 Cloudflare 계정 개설 후 배포로 활성화된다(D16).
 [triggers]
 crons = ["*/30 * * * *", "0 3 * * *"]
 

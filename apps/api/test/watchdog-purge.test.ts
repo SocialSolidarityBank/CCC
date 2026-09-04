@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import apiWorker, { runWatchdog } from '../src/index';
+import apiWorker from '../src/index';
+import { createScheduledJobRunner, runWatchdog } from '../src/scheduled-job-runner';
 import { WATCHDOG_CRON } from '../src/cron-schedule';
 import worker from './support/local-worker';
 import {
@@ -263,5 +264,34 @@ describe('pipeline watchdog (D8)', () => {
       { waitUntil: unknownWaitUntil } as unknown as ExecutionContext,
     )).rejects.toThrow('unexpected_scheduled_trigger');
     expect(unknownWaitUntil).not.toHaveBeenCalled();
+  });
+});
+
+describe('scheduled job runner (E1-4)', () => {
+  it('the Node fixture and the Workers cron call the same runner and leave one audit row each', async () => {
+    await t.reset();
+    await makePendingJob();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await createScheduledJobRunner(t.env).run('pipeline_watchdog', '2026-09-04T00:00:00.000Z');
+
+    const pending: Promise<unknown>[] = [];
+    await apiWorker.scheduled(
+      { cron: WATCHDOG_CRON, scheduledTime: Date.parse('2026-09-04T00:30:00.000Z') } as ScheduledController,
+      t.env,
+      { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } as unknown as ExecutionContext,
+    );
+    await Promise.all(pending);
+
+    const audit = await t.db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'watchdog_check' AND actor_id = 'system:watchdog'",
+    ).first<{ count: number }>();
+    expect(audit?.count).toBe(2);
+  });
+
+  it('fails closed for a kind that has no job body yet', async () => {
+    await t.reset();
+    await expect(createScheduledJobRunner(t.env).run('audio_expiry', '2026-09-04T00:00:00.000Z'))
+      .rejects.toThrow('unsupported_scheduled_job');
   });
 });

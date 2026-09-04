@@ -12,6 +12,7 @@ import {
 } from '../../../db/gateway';
 import apiWorker from '../src/index';
 import { PURGE_CRON } from '../src/cron-schedule';
+import { createScheduledJobRunner } from '../src/scheduled-job-runner';
 import worker from './support/local-worker';
 import { setupD1, testActors } from './support/d1';
 const t = setupD1();
@@ -75,6 +76,23 @@ describe('participant PII retention lifecycle (CCC-121)', () => {
     await makeDueParticipant();
     expect(await listAssignedParticipants(t.env, admin)).toHaveLength(1);
     await runRetentionCron();
+    expect(await listAssignedParticipants(t.env, admin)).toEqual([]);
+  });
+  it('honors the scheduled instant end to end: runner nowIso and Workers scheduledTime both reach the retention clock (E1-4)', async () => {
+    await t.reset();
+    await makeDueParticipant(); // closed 2025-01-01, due one year later
+
+    const early = await createScheduledJobRunner(t.env).run('pii_retention', '2025-06-01T03:00:00.000Z');
+    expect(early).toMatchObject({ kind: 'pii_retention', nowIso: '2025-06-01T03:00:00.000Z', counters: { archived: 0 } });
+    expect(await listAssignedParticipants(t.env, admin)).toHaveLength(1);
+
+    const pending: Promise<unknown>[] = [];
+    await apiWorker.scheduled(
+      { cron: PURGE_CRON, scheduledTime: Date.parse('2026-09-04T03:00:00.000Z') } as ScheduledController,
+      t.env,
+      { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } as unknown as ExecutionContext,
+    );
+    await Promise.all(pending);
     expect(await listAssignedParticipants(t.env, admin)).toEqual([]);
   });
   it('archives due PII and queues review without purging', async () => {

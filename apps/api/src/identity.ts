@@ -1,13 +1,11 @@
 import { ForbiddenError, findUserByEmail, type Actor, type Env as GatewayEnv } from '../../../db/gateway';
 import type { AiProviderRuntimeEnv } from './ai-provider';
 import { verifyAccessJwt } from './access-jwt';
+import type { AudioStore } from '@ccc/contracts/runtime';
 
 export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv {
-  /**
-   * 상담 녹음 원본 임시 보관 버킷 (R2, wrangler.toml의 AUDIO_BUCKET 바인딩).
-   * gateway는 D1 전용이므로(R1) R2 접근은 audio-store.ts에서만 이 바인딩을 쓴다.
-   */
-  AUDIO_BUCKET: R2Bucket;
+  /** Runtime-neutral original-audio storage port; provider bindings stay in composition roots. */
+  audioStore: AudioStore;
   /**
    * Cloudflare Access 팀 도메인 (예: "ggbss.cloudflareaccess.com"). iss 검증과
    * JWKS 출처를 결정한다. Access 애플리케이션 생성 후 설정한다(D16).
