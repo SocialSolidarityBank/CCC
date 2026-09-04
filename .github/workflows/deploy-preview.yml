@@ -7,6 +7,11 @@ name: Deploy Preview
 # 시드 주입은 이 잡에 넣지 않는다 — 별도 수동 스크립트(scripts/seed, docs/ops.md 참고).
 # 프리뷰 D1(ccc-preview, 가상 시드 전용) 마이그레이션은 배포 전에 자동 적용한다(2026-08-09 Q 승인).
 # 운영은 여전히 수동이다. deploy-production.yml 의 schema-gate 가 그 정책을 강제한다.
+#
+# 프리뷰는 main 을 비춘다(2026-09-04). 이 잡은 main 푸시마다 돌아 **수동 배포를 덮어쓴다** —
+# 브랜치를 손으로 올려 두고 검수하다 다른 PR 이 머지되면 옛 화면으로 돌아간다(실제 발생).
+# 그래서 빌드 도장(NEXT_PUBLIC_CCC_BUILD_STAMP)을 박아 /preview 잠금 화면에서 지금 서빙 중인
+# 커밋을 로그인 없이 읽게 한다. 수동 경로는 scripts/deploy-preview.mjs 가 같은 도장을 찍는다.
 
 on:
   push:
@@ -52,6 +57,9 @@ jobs:
       - run: pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote
       # API 미리보기 워커 배포 (ccc-api-preview)
       - run: pnpm --filter @ccc/api exec wrangler deploy --env preview
-      # WEB 미리보기 워커 배포 (ccc-preview) — OpenNext 빌드 후 preview env 로 배포
+      # WEB 미리보기 워커 배포 (ccc-preview) — OpenNext 빌드 후 preview env 로 배포.
+      # 도장 형식은 scripts/deploy-preview.mjs 와 같다: <ref> @ <sha7> · <UTC 시각>.
+      - run: |
+          echo "NEXT_PUBLIC_CCC_BUILD_STAMP=main @ ${GITHUB_SHA::7} · $(date -u +%Y-%m-%dT%H:%MZ)" >> "$GITHUB_ENV"
       - run: pnpm --filter @ccc/web exec opennextjs-cloudflare build
       - run: pnpm --filter @ccc/web exec opennextjs-cloudflare deploy --env preview

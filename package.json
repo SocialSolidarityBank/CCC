@@ -32,6 +32,7 @@
     "guard:secrets:history": "node scripts/guard-secrets.mjs --history",
     "guard:secrets:allowlist": "node scripts/guard-secrets-allowlist.test.mjs",
     "deploy:production": "node scripts/deploy-production.mjs",
+    "deploy:preview": "node scripts/deploy-preview.mjs",
     "guard:deploy-verdict": "node scripts/deploy-verdict.test.mjs",
     "guard:deploy-gates": "node scripts/deploy-gates.test.mjs",
     "deploy:production:check": "node scripts/deploy-production.mjs --preflight-only",

@@ -6,6 +6,11 @@ const errorMessages: Record<string, string> = {
   authentication_required: '코드가 올바르지 않습니다. 다시 확인하세요.',
   service_unavailable: '지금 확인할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
+/* 빌드 도장(2026-09-04). 프리뷰가 어느 커밋을 서빙하는지 로그인 없이도 한눈에 읽는다.
+   main 자동 배포가 수동 배포를 덮어써 "반영이 안 됐다"로 읽힌 사고가 계기다.
+   NEXT_PUBLIC_ 접두사라 빌드 시점에 박힌다 — Workers 런타임 env 가 아니라 빌드한 쪽의
+   git 상태가 그대로 남는다. 워크플로와 scripts/deploy-preview.mjs 가 같은 형식으로 채운다. */
+const BUILD_STAMP = process.env.NEXT_PUBLIC_CCC_BUILD_STAMP;
 
 interface PreviewGateFormProps {
   mode: 'counselor' | 'admin';
@@ -54,6 +59,9 @@ export function PreviewGateForm({ mode, errorCode }: PreviewGateFormProps) {
         <p className="note-inline">
           이 미리보기는 가상 시드 데이터만 담고 있으며 실제 당사자 정보와 연결되어 있지 않습니다.
         </p>
+        {BUILD_STAMP === undefined || BUILD_STAMP.length === 0 ? null : (
+          <p className="note-inline" data-testid="preview-build-stamp">빌드 {BUILD_STAMP}</p>
+        )}
       </form>
     </main>
   );
