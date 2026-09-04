@@ -2,7 +2,7 @@
 
 - 상태: 확정 (2026-09-03)
 - 근거: ADR-0041 D76~D82, ADR-0042, ADR-0039 D75, ADR-0038, `CCC_OPEN_PILOT_PLAN.md` E2-1
-- 입력: `scripts/design/route-inventory.json`, `apps/web/app/**/page.tsx`, `apps/web/app/actions.ts`, `apps/web/app/{logout-action,theme-action}.ts`, `apps/web/app/lib/api.ts`, `apps/web/app/preview/unlock/route.ts`, `apps/api/src/request-handler.ts`, `apps/api/src/index.ts`, `apps/api/src/preview-gate.ts`, `apps/api/src/identity.ts`, `db/gateway.ts`, `docs/adr/0042-supabase-read-only-preflight.md`
+- 입력: `scripts/design/route-inventory.json`, `apps/web/app/**/page.tsx`, `apps/web/app/actions.ts`, `apps/web/app/{logout-action,theme-action}.ts`, `apps/web/app/lib/api.ts`, `apps/web/app/preview/unlock/route.ts`, `apps/api/src/index.ts`, `adapters/identity-access/src/{index,access-jwt}.ts`, `packages/http-api/src/{request-handler,preview-gate,identity}.ts`, `packages/core/src/gateway.ts`, `docs/adr/0042-supabase-read-only-preflight.md`
 - 산출: 현재 Next route, 화면 분류, 인증 표면, `Actor`, 화면별 API·DTO·서버 액션과 E2 소유권의 단일 대응표. 구현은 E2 티켓이 소유한다.
 - 관련 티켓: E2-1, E2-2, E2-3, E2-4a, E2-4b, E2-4c, E2-5a, E2-5b, E2-5c, E2-7
 
@@ -16,7 +16,7 @@
 
 | 표면 | 헤더·자격 | `Actor` 요구 | 적용 |
 |---|---|---|---|
-| `access` | 웹은 `CF_Authorization` 쿠키 또는 `cf-access-jwt-assertion`을 API로 전달한다. 로컬 개발 헤더는 운영 번들에 없다. | `actorFromRequest`가 Access JWT의 email/common_name을 기관 사용자로 해석한다. 사람은 `admin` 또는 `counselor`; `service`는 화면에 금지한다. | `permission.state=allowed`인 모든 행, 단 `/`·`schedule/all` redirect도 포함 |
+| `access` | 웹은 `CF_Authorization` 쿠키 또는 `cf-access-jwt-assertion`을 API로 전달한다. 로컬 개발 헤더는 운영 번들에 없다. | E4-1 `adapters/identity-access`가 Access JWT의 email/common_name을 canonical `Actor`로 해석하고 app composition boundary가 현행 gateway role로 투영한다. `service`는 화면에 금지한다. | `permission.state=allowed`인 모든 행, 단 `/`·`schedule/all` redirect도 포함 |
 | `public-join` | 정상 운영에서는 Access 헤더·업무 쿠키·Bearer 없음. participant/worker 초대 token이 business auth 자격이다. Preview mode에서는 먼저 `ccc_preview` cookie가 있어야 `/join/*`에 도달하고, API도 그 cookie를 받아 preview `Actor`를 해석한다. 현재 `apps/web/app/lib/api.ts` 공개 client는 이 cookie를 API로 포워딩하지 않는 gap이다. E2-5c가 이 gap의 owner이며, 기대 상태는 `ccc_preview`만 포워딩하는 것이다. business Bearer는 어느 mode에서도 보내지 않는다. `PUBLIC_SIGNUP_ENABLED=1`이 아니면 API와 middleware 모두 404다. | 정상 운영의 token API는 `Actor` 없음; Preview mode는 별도 `ccc_preview` 자격과 preview `Actor`가 필요하다. | `/join/participant/:token`, `/join/worker/:token` |
 | `public-preview` | 최초 GET은 자격 없음. 코드 POST는 web adapter가 API JSON 응답을 받아 `ccc_preview` HttpOnly cookie를 발급한다. | `/preview/unlock`은 `Actor` 없음; 이후 미리보기 업무 API는 preview resolver가 선택한 사람 `Actor`를 쓴다. | `/preview`, `/preview/admin` |
 | `public-welcome` | 자격 없음 | `Actor` 없음 | `/welcome` |

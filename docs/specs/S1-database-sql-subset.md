@@ -2,7 +2,7 @@
 
 - 상태: 확정 (2026-09-03)
 - 근거: ADR-0041 D76, D78, D79
-- 입력: `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `CCC_OPEN_PILOT_PLAN.md`의 SG1 및 E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4 계약, `db/gateway.ts`, `db/schema.sql`, 현재 번호가 0001부터 0044까지인 `migrations/sqlite/*.sql`, `apps/api/test/*`
+- 입력: `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `CCC_OPEN_PILOT_PLAN.md`의 SG1 및 E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4 계약, `db/gateway.ts`, `db/schema.sql`, 현재 번호가 0001부터 0045까지인 `migrations/sqlite/*.sql`, `apps/api/test/*`
 - 산출: 이 파일이 S1의 유일한 정본이다. Database 계약 구현, 어댑터, 마이그레이션, 계약 fixture 실행물은 관련 E 티켓이 소유한다.
 - 관련 티켓: E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4
 
@@ -84,7 +84,7 @@ export interface DatabaseError extends Error {
 
 ### 2.4 SQLite 전용 표현과 parity 처리
 
-현재 `db/gateway.ts`, `db/schema.sql`, 번호가 0001부터 0044까지인 `migrations/sqlite/*.sql`을 조사할 때 확인되는 SQLite 전용 표현은 공통 runtime 문법과 섞지 않는다. 예전 22개 목록에 의존하지 않고 아래 추가 네 형식까지 명시적으로 계수한다.
+현재 `db/gateway.ts`, `db/schema.sql`, 번호가 0001부터 0045까지인 `migrations/sqlite/*.sql`을 조사할 때 확인되는 SQLite 전용 표현은 공통 runtime 문법과 섞지 않는다. 예전 22개 목록에 의존하지 않고 아래 추가 네 형식까지 명시적으로 계수한다.
 
 | 확인된 형식 | 현재 의미 | 공통 계약에서의 처리 |
 |---|---|---|
@@ -108,7 +108,7 @@ export interface DatabaseError extends Error {
 |---|---|---|---|
 | 저장 어댑터 | `db-postgres`와 기관 소유 Supabase PostgreSQL | 암호화 `db-sqlite` | 암호화 `db-sqlite`, WAL |
 | 접속 경계 | 인터넷 HTTPS, API 전용 role | `127.0.0.1` 전용 | 내부망 HTTPS, 서버가 쓰기를 직렬화 |
-| 마이그레이션 | `migrations/postgres/0001_baseline.sql`부터 logical ID별 후속 migration | `migrations/sqlite/0001~0044` 및 logical ID별 후속 migration | Single과 같은 SQLite migration |
+| 마이그레이션 | `migrations/postgres/0001_baseline.sql`부터 logical ID별 후속 migration | `migrations/sqlite/0001~0045` 및 logical ID별 후속 migration | Single과 같은 SQLite migration |
 | 동시성 | PostgreSQL transaction과 row lock | 단일 사용자 | 서비스가 write queue를 직렬화하고 read는 동시 허용 |
 | 차이가 없는 계약 | 화면, gateway 권한 검사, SQL 부분집합, `DatabaseResult`, fixture 기대값은 세 모드에서 같다. |  |  |
 
@@ -120,8 +120,8 @@ Community Cloud는 D1을 운영 저장소로 취급하지 않는다. D1은 현�
 
 | profile | 대상 | 준비 상태와 필수 증거 |
 |---|---|---|
-| `d1` | 기존 D1 test harness | 현재 0044 누적 schema와 gateway 호출을 사용하고, 기존 API 테스트의 결과·오류를 보존한다. |
-| `sqlite` | `db-sqlite` 암호화 adapter | `migrations/sqlite/0001~0044`를 적용한 임시 DB에서 실행한다. 암호화 create/reopen은 E3-1b가 증명한다. |
+| `d1` | 기존 D1 test harness | 현재 0045 누적 schema와 gateway 호출을 사용하고, 기존 API 테스트의 결과·오류를 보존한다. |
+| `sqlite` | `db-sqlite` 암호화 adapter | `migrations/sqlite/0001~0045`를 적용한 임시 DB에서 실행한다. 암호화 create/reopen은 E3-1b가 증명한다. |
 | `postgres` | `db-postgres` adapter | `0001_baseline.sql`과 후속 logical migration을 적용한 폐기 가능한 PostgreSQL에서 실행한다. 운영 URL이나 host DB를 사용하지 않는다. |
 
 세 profile은 같은 paired migration으로 `audit_log.created_at`을 한 번 정규화한다. 기존 `YYYY-MM-DD HH:MM:SS` 행은 UTC ISO text의 `.000Z`로 바꾸고, 이미 ISO인 새 행은 그대로 둔다. 정규화는 한 번만 실행되며 legacy와 new 행의 시각 순서와 `id` tie-break를 보존해야 한다.
@@ -151,7 +151,7 @@ F09의 dialect probe는 SQLite 문법을 공통 gateway에 허용하는 시험�
 3. `success`와 `meta.changes`는 같아야 한다. `last_row_id`는 adapter-optional이며 parity에서 비교하지 않는다.
 4. 성공·빈 결과·제약 위반·문법 오류·bind arity 오류를 `DatabaseError`의 같은 분류로 비교한다. 제약 오류는 `unique`, `primary_key`, `foreign_key`, `check`, `trigger` subtype까지 비교하고, `applicationCode`는 앱 정의 trigger code만 비교한다. 공급자별 메시지와 오류 stack은 비교하지 않으며, PII·연결 문자열·공급자 원문 오류를 fixture 출력에 넣지 않는다.
 5. `batch` 중간 실패는 모든 profile에서 전체 rollback이어야 한다. 한 profile만 부분 commit하거나 결과 배열을 돌려주면 실패다. mutation과 audit가 분리된 두 번째 batch로 성공하는 구현도 실패다.
-6. SQLite logical migration ID와 PostgreSQL migration ID는 `migrations/parity.yaml`에서 1:1로 적는다. PostgreSQL `0001_baseline.sql`은 SQLite 0044 누적 상태를 한 번 재현하고, 이후에는 같은 logical ID에 SQLite와 PostgreSQL migration 두 벌을 함께 추가한다. 과거 SQLite 파일을 기계적으로 번역하지 않는다.
+6. SQLite logical migration ID와 PostgreSQL migration ID는 `migrations/parity.yaml`에서 1:1로 적는다. PostgreSQL `0001_baseline.sql`은 SQLite 0045 누적 상태를 한 번 재현하고, 이후에는 같은 logical ID에 SQLite와 PostgreSQL migration 두 벌을 함께 추가한다. 과거 SQLite 파일을 기계적으로 번역하지 않는다.
 7. `migrations/parity.yaml`은 각 logical ID의 SQLite와 PostgreSQL live catalog introspection에서 생성한다. tables, columns와 types, indexes와 partial-index predicates, triggers, views, constraints, operation markers, timestamp normalization 같은 semantic annotation을 정규화한 canonical hash를 기록하며, 열 목록만 self-authored로 hash한 manifest는 parity를 충족하지 못한다.
 8. E3-2는 E3-4가 `0001_baseline.sql`을 검증하기 전에 모든 공통 migration에 대응하는 PostgreSQL paired migration을 만든다. E3-4는 그 paired migration과 baseline, manifest hash를 함께 검증한다.
 
@@ -175,7 +175,7 @@ F09의 dialect probe는 SQLite 문법을 공통 gateway에 허용하는 시험�
 - `pnpm test:db-parity`
 - `pnpm guard:sql-dialect`
 - `pnpm guard:migration-parity`
-세 `test:contracts` 명령은 F01~F10의 행, 타입, 순서, `DatabaseResult`, 오류 분류와 F10 전체 rollback을 모두 검사한다. 하나라도 기대값과 다르거나 제약 실패 뒤 행이 남으면 실패다. `test:db-parity`는 세 profile의 정규화 결과가 다르면 실패다. `guard:sql-dialect`는 공통 runtime의 `changes()`, 금지 함수, `instr`, `?N`, `INSERT OR`, adapter별 `GROUP_CONCAT` 변형이 하나라도 남거나 SQLite 전용 migration에 대응 표시가 없으면 실패다. `SUM`과 `ROW_NUMBER`는 정해진 portable grammar와 safe-number/window 결과를 벗어나면 실패다. `guard:migration-parity`는 baseline이 0044 누적 상태와 다르거나 후속 logical ID의 양쪽 migration·`parity.yaml` 항목이 빠지거나, live inventory의 어느 column이라도 data rewrite·default/trigger ISO 출력·same-day chronological ordering proof가 없거나, operation marker와 audit timestamp 정규화가 한쪽에만 있으면 실패다. 기존 테스트를 삭제·skip하거나 assertion을 완화해 통과시키면 실패다.
+세 `test:contracts` 명령은 F01~F10의 행, 타입, 순서, `DatabaseResult`, 오류 분류와 F10 전체 rollback을 모두 검사한다. 하나라도 기대값과 다르거나 제약 실패 뒤 행이 남으면 실패다. `test:db-parity`는 세 profile의 정규화 결과가 다르면 실패다. `guard:sql-dialect`는 공통 runtime의 `changes()`, 금지 함수, `instr`, `?N`, `INSERT OR`, adapter별 `GROUP_CONCAT` 변형이 하나라도 남거나 SQLite 전용 migration에 대응 표시가 없으면 실패다. `SUM`과 `ROW_NUMBER`는 정해진 portable grammar와 safe-number/window 결과를 벗어나면 실패다. `guard:migration-parity`는 baseline이 0045 누적 상태와 다르거나 후속 logical ID의 양쪽 migration·`parity.yaml` 항목이 빠지거나, live inventory의 어느 column이라도 data rewrite·default/trigger ISO 출력·same-day chronological ordering proof가 없거나, operation marker와 audit timestamp 정규화가 한쪽에만 있으면 실패다. 기존 테스트를 삭제·skip하거나 assertion을 완화해 통과시키면 실패다.
 
 ## 6. 이번에 안 하는 것
 

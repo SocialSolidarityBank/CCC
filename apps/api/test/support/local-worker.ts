@@ -1,6 +1,7 @@
 import type { Actor, Role } from '@ccc/core/gateway';
 import { handleRequest, type ActorResolver } from '@ccc/http-api';
-import { ActorAuthenticationError, type ApiEnv } from '@ccc/http-api/identity';
+import { ActorAuthenticationError } from '@ccc/contracts/runtime';
+import type { ApiEnv } from '@ccc/http-api/identity';
 
 function requiredHeader(request: Request, name: string): string {
   const value = request.headers.get(name)?.trim();

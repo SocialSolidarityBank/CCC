@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ActorAuthenticationError, type ApiEnv } from '@ccc/http-api/identity';
+import { ActorAuthenticationError } from '@ccc/contracts/runtime';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from '../src/local-actor';
 
 // 이중 잠금 게이트만 검증한다(순수 로직, DB 불요). 디렉터리 조회 경로는

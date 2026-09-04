@@ -2,12 +2,15 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import worker from '../src/index';
 import {
   AccessJwtError,
+  createAccessIdentity,
   __setAccessJwksFetcherForTests,
   verifyAccessJwt,
   type Jwks,
-} from '@ccc/http-api/access-jwt';
-import { deactivateUser, upsertUser } from '@ccc/core/gateway';
+} from '@ccc/identity-access';
+import { deactivateUser, ForbiddenError, upsertUser } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { IdentityStoreUnavailableError } from '@ccc/contracts/runtime';
+import { gatewayActorFromIdentity } from '@ccc/http-api/identity';
 
 const TEAM = 'ggbss.cloudflareaccess.com';
 const AUD = 'test-aud-tag';
@@ -252,6 +255,30 @@ describe('Access JWT identity (production path)', () => {
     expect(response.status).toBe(401);
   });
 
+  it('fails closed with 503 when the identity store cannot be read', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    const token = await sign(mainKeys.privateKey, KID, humanPayload('unreadable.identity@example.invalid'));
+    const unavailableDb = {
+      prepare() { throw new Error('store unavailable'); },
+      batch() { throw new Error('store unavailable'); },
+    };
+    const response = await worker.fetch(jwtRequest('/cases', token), { ...accessEnv(), DB: unavailableDb });
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'service_unavailable' });
+  });
+  it('fails closed with 503 when Access JWKS cannot be read', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => {
+      throw new Error('JWKS unavailable');
+    });
+    const token = await sign(mainKeys.privateKey, KID, humanPayload('jwks.unavailable@example.invalid'));
+    const response = await worker.fetch(jwtRequest('/cases', token), accessEnv());
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'service_unavailable' });
+  });
+
+
   it('does not enable local header authentication from a runtime binding', async () => {
     await t.reset();
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' };
@@ -260,5 +287,150 @@ describe('Access JWT identity (production path)', () => {
     }), env);
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: 'actor_authentication_required' });
+  });
+});
+
+describe('Access Identity canonical Actor (E4-1)', () => {
+  it('maps human roles losslessly without copying the Access principal', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    await upsertUser(t.env, testActors.admin, { email: 'worker.identity@example.invalid', role: 'counselor' });
+    await upsertUser(t.env, testActors.admin, { email: 'admin.identity@example.invalid', role: 'admin' });
+    const identity = createAccessIdentity(accessEnv());
+
+    const worker = await identity.resolve(jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('worker.identity@example.invalid')),
+    ));
+    expect(worker).toEqual({
+      kind: 'human',
+      userId: expect.any(String),
+      orgId: 'org_demo',
+      roles: ['worker'],
+      scopes: [],
+      authn: { source: 'cloudflare-access', assurance: 'none', sessionId: null },
+    });
+    expect(JSON.stringify(worker)).not.toContain('worker.identity@example.invalid');
+
+    await t.db.prepare(
+      'INSERT INTO teams (id, org_id, name, created_by) VALUES (?, ?, ?, ?)',
+    ).bind('identity-team', testActors.admin.orgId, 'Identity', testActors.admin.userId).run();
+    await t.db.prepare(
+      `INSERT INTO team_supervisor_grants (id, org_id, team_id, supervisor_user_id, granted_by)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).bind('identity-supervisor', testActors.admin.orgId, 'identity-team', worker.userId, testActors.admin.userId).run();
+    const supervisor = await identity.resolve(jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('worker.identity@example.invalid')),
+    ));
+    expect(supervisor.roles).toEqual(['supervisor', 'worker']);
+
+    const admin = await identity.resolve(jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('admin.identity@example.invalid')),
+    ));
+    expect(admin.roles).toEqual(['institution-admin', 'technical-admin']);
+    expect(admin.kind).toBe('human');
+  });
+
+  it('maps the transitional Access service principal to the six Agent scopes', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    await upsertUser(t.env, testActors.admin, { email: 'agent-access-principal', role: 'service' });
+    const identity = createAccessIdentity(accessEnv());
+    const actor = await identity.resolve(jwtRequest(
+      '/pipeline/jobs',
+      await sign(mainKeys.privateKey, KID, { iss: ISS, aud: AUD, exp: futureExp(), common_name: 'agent-access-principal' }),
+    ));
+    expect(actor).toEqual({
+      kind: 'agent',
+      userId: expect.any(String),
+      orgId: 'org_demo',
+      roles: ['service'],
+      scopes: ['jobs:claim', 'jobs:heartbeat', 'jobs:result', 'jobs:release', 'audio:read', 'source:read'],
+      authn: { source: 'cloudflare-access', assurance: 'none', sessionId: null },
+    });
+    expect(JSON.stringify(actor)).not.toContain('agent-access-principal');
+  });
+
+  it('writes append-only revocations through Identity and rejects a revoked actor', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    const user = await upsertUser(t.env, testActors.admin, { email: 'revoked.identity@example.invalid', role: 'counselor' });
+    const identity = createAccessIdentity(accessEnv());
+    const request = jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('revoked.identity@example.invalid')),
+    );
+    await expect(identity.resolve(request)).resolves.toMatchObject({ userId: user.id });
+    await identity.revokeSession('session-revoked-1', 'security-event');
+    await identity.revokeAll(user.id, 'admin-disable');
+    const issuedBeforeRevocation = jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('revoked.identity@example.invalid', {
+        iat: Math.floor(Date.now() / 1000) - 60,
+      })),
+    );
+    await expect(identity.resolve(issuedBeforeRevocation)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(identity.resolve(request)).rejects.toBeInstanceOf(ForbiddenError);
+    const refreshed = jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('revoked.identity@example.invalid', {
+        iat: Math.floor(Date.now() / 1000) + 1,
+      })),
+    );
+    await expect(identity.resolve(refreshed)).resolves.toMatchObject({ userId: user.id });
+    const implausiblyFuture = jwtRequest(
+      '/cases',
+      await sign(mainKeys.privateKey, KID, humanPayload('revoked.identity@example.invalid', {
+        iat: Math.floor(Date.now() / 1000) + 3600,
+      })),
+    );
+    await expect(identity.resolve(implausiblyFuture)).rejects.toBeInstanceOf(ForbiddenError);
+    const rows = await t.db.prepare(
+      'SELECT kind, subject, reason FROM auth_revocations ORDER BY kind, subject',
+    ).all<{ kind: string; subject: string; reason: string }>();
+    expect(rows.results).toEqual([
+      { kind: 'actor', subject: user.id, reason: 'admin-disable' },
+      { kind: 'session', subject: 'session-revoked-1', reason: 'security-event' },
+    ]);
+    await t.db.prepare(
+      `INSERT INTO auth_revocations (id, kind, subject, revoked_at, reason)
+       VALUES ('malformed-revocation-time', 'actor', ?, 'not-a-time', 'security-event')`,
+    ).bind(user.id).run();
+    await expect(identity.resolve(refreshed)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('separates an unreadable identity store from invalid credentials', async () => {
+    await t.reset();
+    __setAccessJwksFetcherForTests(async () => jwks);
+    const token = await sign(mainKeys.privateKey, KID, humanPayload('worker.identity@example.invalid'));
+    const broken = {
+      ...accessEnv(),
+      DB: { prepare() { throw new Error('store unavailable'); }, batch() { throw new Error('store unavailable'); } },
+    };
+    await expect(createAccessIdentity(broken).resolve(jwtRequest('/cases', token)))
+      .rejects.toBeInstanceOf(IdentityStoreUnavailableError);
+  });
+});
+
+describe('canonical-to-gateway migration boundary', () => {
+  const actor = {
+    kind: 'human' as const,
+    userId: 'technical-admin-only',
+    orgId: 'org_demo',
+    scopes: [],
+    authn: { source: 'cloudflare-access' as const, assurance: 'none' as const, sessionId: null },
+  };
+
+  it('does not grant business access to a technical-admin-only identity', () => {
+    expect(() => gatewayActorFromIdentity({ ...actor, roles: ['technical-admin'] })).toThrow(ForbiddenError);
+  });
+
+  it('preserves the current gateway role for institution admin, worker, supervisor and service', () => {
+    expect(gatewayActorFromIdentity({ ...actor, roles: ['institution-admin'] }).role).toBe('admin');
+    expect(gatewayActorFromIdentity({ ...actor, roles: ['worker'] }).role).toBe('counselor');
+    expect(gatewayActorFromIdentity({ ...actor, roles: ['supervisor'] }).role).toBe('counselor');
+    expect(gatewayActorFromIdentity({ ...actor, kind: 'agent', roles: ['service'] }).role).toBe('service');
   });
 });

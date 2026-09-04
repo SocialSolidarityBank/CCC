@@ -272,11 +272,11 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 | E3-1b 암호화 SQLite 어댑터 | E1-2, E3-1a | `adapters/db-sqlite`가 같은 migration과 Database fixture, Electron 44 Windows x64 encrypted create/reopen을 통과한다. 평문은 합성 fixture에만 허용한다. |
 | E3-2 공통 SQL 부분집합 | E1-5, SG1 | SQLite 전용 표현을 재계수하고 current time bind, conflict helper, placeholder lexical scanner로 바꾼다. `guard:sql-dialect`가 금지 표현 0건을 보고한다. |
 | E3-3 PostgreSQL 어댑터 | E3-2 | `postgres` adapter가 `batch()`를 원자 실행하고 중간 실패 fixture에서 전체 rollback을 증명한다. |
-| E3-4 PostgreSQL baseline과 parity | E3-1a, E3-3 | 0044 누적 상태를 PostgreSQL baseline으로 재현하고 이후 양쪽 migration과 parity ID를 강제한다. |
+| E3-4 PostgreSQL baseline과 parity | E3-1a, E3-3 | 0045 누적 상태를 PostgreSQL baseline으로 재현하고 이후 양쪽 migration과 parity ID를 강제한다. |
 | E3-5 RLS 기본 거부 | E3-4 | 모든 업무 table의 anon 기본 거부와 API 전용 role을 검증하고 gateway 권한 검사를 유지한다. |
 | E3-6 D1에서 PostgreSQL로 이전 | E3-4 | 합성 dry-run의 table별 건수, 결정론적 row hash, 첨부 hash와 rollback bookmark를 기록한다. |
 | E3-7 `.cccx` 1차 이전 | E3-1b, E3-3, E3-4, SG10 | envelope, deterministic ZIP, 금고 재암호화, staging journal과 crash recovery를 구현하고 Single에서 Office와 Cloud import의 row/file hash를 검증한다. |
-| E3-8 동의 6영역 migration | E3-4, SG7 | `migrations/postgres/0002_supabase_platform.sql` 뒤에 consent와 legacy observation을 `migrations/sqlite/0045_consent_six_domains.sql`, `migrations/postgres/0003_consent_six_domains.sql`로 병합한다. 6개 literal과 append-only event, parity, RLS, `ccc_api` role, schema snapshot을 갱신하고 기존 2종을 자동 승격하지 않는다. |
+| E3-8 동의 6영역 migration | E3-4, SG7 | `migrations/postgres/0002_supabase_platform.sql` 뒤에 consent와 legacy observation을 `migrations/sqlite/0046_consent_six_domains.sql`, `migrations/postgres/0003_consent_six_domains.sql`로 병합한다. 6개 literal과 append-only event, parity, RLS, `ccc_api` role, schema snapshot을 갱신하고 기존 2종을 자동 승격하지 않는다. |
 
 #### E4 신원, 시크릿, 동의, 7개
 
@@ -300,7 +300,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 | E5-3 Azure Speech | E5-1b, E5-2, E4-6, E5-5 | Azure key와 유효 동의를 읽고 서울 endpoint로 직접 보낸다. logging off, provider pin, 무전환을 검증한다. 전송 직전 org, job, claim token hash, attempt, 원음 SHA-256, 동의 revision, provider가 일치하는 egress authorization을 원자적으로 `in_flight`로 바꾼다. |
 | E5-4 준식별자 일반화 | SG6 | SG6 규칙만 적용하고 마스킹, pipeline version, 원문 근거 hash를 보존해 골든셋을 통과한다. Agent는 claim-bound 일회용 mask dictionary를 받아 메모리에서만 쓰고 만료, 감사, 재사용 거부를 검증한다. |
 | E5-5 코어 재검증 | E5-1a, E5-4, E1-5, E3-8 | 정규식, 금고 값, hash, pipeline version, result 시점 동의를 검사한다. 일곱 code와 화면 문구가 1:1이고 실패 packet은 AIProvider 호출 0회다. consent 검사에는 6영역 schema와 literal만 필요하며 client cutover를 기다리지 않는다. Privacy snapshot의 NER attestation, material hash, evidence hash 저장 필드와 SQLite/PostgreSQL paired migration 및 parity도 이 티켓이 소유한다. |
-| E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | D85의 경로별 동의 입장 조건과 시계로 `migrations/sqlite/0046_audio_objects.sql`, `migrations/postgres/0004_audio_objects.sql`과 parity를 추가한다. 로컬 STT는 녹음 동의, Azure STT는 녹음과 외부 STT 동의를 요구한다. `retention_hard_cap_at=uploaded_at+7일`, 첫 처리 기회의 `processing_deadline_at=min(기회+24시간, 상한)`, 처리·동의 철회·불가 확정·상한 삭제, 관리자 사고, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
+| E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | D85의 경로별 동의 입장 조건과 시계로 `migrations/sqlite/0047_audio_objects.sql`, `migrations/postgres/0004_audio_objects.sql`과 parity를 추가한다. 로컬 STT는 녹음 동의, Azure STT는 녹음과 외부 STT 동의를 요구한다. `retention_hard_cap_at=uploaded_at+7일`, 첫 처리 기회의 `processing_deadline_at=min(기회+24시간, 상한)`, 처리·동의 철회·불가 확정·상한 삭제, 관리자 사고, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
 | E5-7 Windows Agent 설치기 | E5-1b, E5-2, E5-4 | embedded Python, ffmpeg, SecretStore, checksum model downloader를 설치한다. 새 Windows PC에서 install, health, Local 합성 처리, uninstall을 통과한다. |
 | E5-8a STT benchmark fixture | SG13 | 합성 대화 음성, 정답 전사, 두 화자 truth와 silence/overlap range, SHA-256, license manifest를 `scripts/stt/fixtures/manifest.json`, `scripts/stt/fixtures/reference/`, `scripts/stt/fixtures/licenses.json`에 고정하고 GitHub Release `s13-fixture-v1` 음성을 `artifacts/pilot/fixtures/s13-v1/audio/`에 fetch한다. `scripts/stt/verify_fixture.py`가 `artifacts/pilot/fixtures/s13-v1-verification.json`에 manifest hash와 count, duration, speaker, range, license 검사를 남긴다. WAV는 저장소에 커밋하지 않는다. |
 | E5-8 `STT-G1~STT-G3` 엔진 판정 | E5-2, E5-8a | `scripts/stt/benchmark.py`가 같은 fixture를 측정해 per-session과 pooled CER, repetition rate, RTF, DER, safety를 `artifacts/pilot/results/{runId}/`에 원문 없이 보고한다. RTF는 Windows CPU target에서 판정하고 Q 승인 전 제품 설정은 바꾸지 않는다. |

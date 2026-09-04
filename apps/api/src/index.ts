@@ -1,11 +1,12 @@
 import { adaptD1Environment } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
 import type { ScheduledJobKind } from '@ccc/contracts/runtime';
-import { type ApiEnv } from '@ccc/http-api/identity';
+import { gatewayActorFromIdentity, type ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from './local-actor';
 import { handlePreviewUnlock, previewActorResolver } from '@ccc/http-api/preview-gate';
 import { handleRequest } from '@ccc/http-api';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
+import { createAccessIdentity } from '@ccc/identity-access';
 
 import { PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
@@ -43,9 +44,14 @@ export default {
       }
       return handleRequest(request, runtimeEnv, previewResolver);
     }
-    // 로컬 프리뷰(dev 이중 잠금)에서만 리졸버가 반환된다. undefined 면 기본
-    // Access JWT 검증(actorFromRequest)으로 그대로 흘러간다 — 운영 경로 불변.
-    return handleRequest(request, runtimeEnv, localDevActorResolver(runtimeEnv) ?? undefined);
+    // 로컬 프리뷰(dev 이중 잠금)만 기존 환경 resolver를 쓴다. 그 외 production path는
+    // Access Identity가 canonical Actor를 만들고, gateway 앞의 E4-1 경계에서 기존 role로 투영한다.
+    const localResolver = localDevActorResolver(runtimeEnv);
+    if (localResolver !== undefined) return handleRequest(request, runtimeEnv, localResolver);
+    const identity = createAccessIdentity(runtimeEnv);
+    return handleRequest(request, runtimeEnv, async (nextRequest) => (
+      gatewayActorFromIdentity(await identity.resolve(nextRequest))
+    ));
   },
   // Cron trigger: only exact configured expressions may enqueue D8 or D10 work.
   async scheduled(controller: ScheduledController, env: ApiEnv, ctx: ExecutionContext): Promise<void> {

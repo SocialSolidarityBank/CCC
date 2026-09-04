@@ -157,7 +157,7 @@ describe('preview code gate (CCC-6)', () => {
   });
 
   it('fail-closed: unlock does not open when PREVIEW_MODE is unset (production)', async () => {
-    // 운영: PREVIEW_MODE 없음 + Access 미설정 → actorFromRequest 로 흘러 401. 코드가 맞아도 열리지 않는다.
+    // 운영: PREVIEW_MODE 없음 + Access 미설정 → 기본 Access Identity로 흘러 401. 코드가 맞아도 열리지 않는다.
     const response = await worker.fetch(unlockRequest(TEST_CODE), baseEnv);
     expect(response.status).toBe(401);
     expect(response.headers.get('set-cookie')).toBeNull();

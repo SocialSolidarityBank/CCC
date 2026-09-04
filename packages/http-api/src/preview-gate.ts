@@ -20,7 +20,8 @@
  * PREVIEW_ACCESS_CODE 값은 로그·에러·응답에 절대 싣지 않는다(이름만 커밋).
  */
 import { findUserByEmail, ForbiddenError, type Actor } from '@ccc/core/gateway';
-import { ActorAuthenticationError, type ApiEnv } from './identity';
+import { ActorAuthenticationError } from '@ccc/contracts/runtime';
+import type { ApiEnv } from './identity';
 import type { ActorResolver } from './request-handler';
 
 /** 미리보기 세션 토큰 쿠키 이름. 웹 도메인·API 양쪽에서 이 이름으로만 오간다. */
