@@ -193,7 +193,7 @@ describe('정렬 하니스 생성기', () => {
         beneficiaryId="swallow-003"
         stageTag="진행 중"
         meta={<span>최근 상담 2026년 9월 2일</span>}
-        actions={<WireButton variant="neutral">상담 기록하기</WireButton>}
+        actions={<WireButton variant="neutral">상담 기록</WireButton>}
       />,
     );
     const heroDetails = renderToStaticMarkup(
@@ -225,7 +225,7 @@ describe('정렬 하니스 생성기', () => {
       <h2 className="record-section-title">회차별 기록</h2>,
     );
     const cardHeading = renderToStaticMarkup(
-      <WireCard title={<h2 className="wire-title-with-badge">오늘 상담 내용 <WireBadge size="sm">필수</WireBadge></h2>}>
+      <WireCard title={<h2 className="wire-title-with-badge">오늘 상담 내용 <WireBadge>필수</WireBadge></h2>}>
         <p>상담 내용</p>
       </WireCard>,
     );

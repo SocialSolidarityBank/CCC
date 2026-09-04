@@ -215,7 +215,7 @@ export default async function RecordHistoryPage({
               (2026-08-08 Q — 구 '인테이크 작성' 라벨 대체). */}
           {result.data !== null && !hasIntake
             ? <WireButton variant="primary" href={`${basePath}/records/intake`}>인테이크</WireButton>
-            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록하기</WireButton>}
+            : <WireButton variant="primary" href={`${basePath}/records/new`}>상담 기록</WireButton>}
         </>,
       })}
     />

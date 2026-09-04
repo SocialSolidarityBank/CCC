@@ -224,12 +224,12 @@ export function RecordOnepage({
           </ol>
           <WireButton className="record-open-actions-link" variant="neutral" href={`${briefingPath}#open-actions`}>자세히 보기</WireButton>
         </WireCardDetails>}
-      {/* ③ 체크리스트 카드. 필수 카운트는 제목 옆 라벤더 컴팩트 배지다.
+      {/* ③ 체크리스트 카드. 필수 카운트는 제목 옆 라벤더 배지다.
           개별 필수 표식은 카드 제목이 아니라 실제 입력 항목에만 붙는다. */}
       <WireCard testId="record-checklist-card" title={(
         <div className="wire-card-head">
           <span>체크리스트</span>
-          <WireBadge size="sm" tone="lavender" className="wire-required-marker" testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
+          <WireBadge tone="lavender" className="wire-required-marker" testId="record-required-count">필수 {filledCount}/{requiredItems.length}</WireBadge>
         </div>
       )}>
         {/* 상태를 행동에서 떼어 카드 본문 첫 줄에 둔다. */}

@@ -99,13 +99,13 @@ export function ParticipantCard({
           </span>
           {schedule !== undefined ? (
             <span className="participant-card-badges">
-              <ConsultationTypeBadge kind={schedule.kind} size="sm" />
-              {schedule.statusLabel !== undefined && <WireBadge size="sm">{schedule.statusLabel}</WireBadge>}
+              <ConsultationTypeBadge kind={schedule.kind} />
+              {schedule.statusLabel !== undefined && <WireBadge>{schedule.statusLabel}</WireBadge>}
             </span>
           ) : statusBadge !== undefined ? (
             <span className="participant-card-badges">
-              {newSignup === true && <WireBadge size="sm" tone="mint">새 가입</WireBadge>}
-              <WireBadge size="sm" {...(statusBadge.tone === undefined ? {} : { tone: statusBadge.tone })}>
+              {newSignup === true && <WireBadge tone="mint">새 가입</WireBadge>}
+              <WireBadge {...(statusBadge.tone === undefined ? {} : { tone: statusBadge.tone })}>
                 {statusBadge.label}
               </WireBadge>
             </span>

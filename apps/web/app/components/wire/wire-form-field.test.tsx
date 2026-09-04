@@ -37,7 +37,7 @@ describe('WireFormField', () => {
     expect(label?.querySelector('input')).not.toBeNull();
   });
 
-  it('필수는 라벨 옆 12/400 컴팩트 아웃라인 배지로, 오류는 테두리와 메시지를 함께 낸다', () => {
+  it('필수는 라벨 옆 12/400 전역 아웃라인 배지로, 오류는 테두리와 메시지를 함께 낸다', () => {
     const { container } = render(
       <WireFormField label="연락처" required htmlFor="phone" error="숫자만 입력하세요.">
         <input id="phone" />
@@ -48,7 +48,6 @@ describe('WireFormField', () => {
     expect(required?.textContent).toBe('필수');
     expect(required?.classList.contains('wire-badge')).toBe(true);
     expect(required?.getAttribute('data-tone')).toBe('lavender');
-    expect(required?.getAttribute('data-size')).toBe('sm');
     expect(required?.getAttribute('style')).toBeNull();
     expect(wireStyles).toContain(
       '.wire-badge.wire-required-marker{--wire-outline-color:var(--lavender-deep);background:transparent;color:var(--lavender-deep)}',
@@ -59,12 +58,11 @@ describe('WireFormField', () => {
     expect(message?.textContent).toBe('숫자만 입력하세요.');
   });
 
-  it('선택지 행은 알약을 쓰지 않고 컨트롤과 글자를 4로 붙인다', () => {
-    // 2026-09-04 Q 2차: 알약 정책 폐기. 체크박스와 라디오가 한 어휘로 돌아간다.
-    expect(wireStyles).toContain('.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1);');
+  it('선택지 행은 알약을 쓰지 않고 컨트롤과 글자를 6으로 띄운다', () => {
+    expect(wireStyles).toContain('.wire-choice{display:flex;align-items:flex-start;gap:var(--space-1-5);');
     expect(wireStyles).not.toContain('.wire-choice:has(>.wire-checkbox)');
     expect(wireStyles).not.toContain('.wizard-choice-row .wire-choice{');
-    // 보기 사이 열 간격 24는 컨트롤과 글자 사이 4보다 뚜렷하게 넓어야 짝이 안 헷갈린다.
+    // 보기 사이 열 간격 24는 컨트롤과 글자 사이 6보다 뚜렷하게 넓어야 짝이 안 헷갈린다.
     expect(wireStyles).toContain('.wire-choice-group,.wizard-choice-row{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}');
   });
 

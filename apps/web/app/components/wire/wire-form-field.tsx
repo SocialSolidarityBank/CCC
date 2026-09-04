@@ -55,9 +55,9 @@ export interface WireFormFieldProps {
   htmlFor?: string;
   className?: string;
 }
-/** 선택 표시는 생략하고 필수만 공용 라벤더 컴팩트 아웃라인 배지로 표시한다. */
+/** 선택 표시는 생략하고 필수만 공용 라벤더 아웃라인 배지로 표시한다. */
 export function WireRequiredMarker() {
-  return <WireBadge size="sm" tone="lavender" className="wire-required-marker">필수</WireBadge>;
+  return <WireBadge tone="lavender" className="wire-required-marker">필수</WireBadge>;
 }
 
 

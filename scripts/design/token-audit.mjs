@@ -28,8 +28,7 @@ const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text
 const SCOPED_TEXT_TOKENS = new Map([
   // 입력칸 도움말은 2026-09-04 Q 로 13 이 됐다(DESIGN-RULES §5 하한 예외 셋째 자리).
   ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint']],
-  ['--text-badge', ['.wire-badge']],
-  ['--text-badge-compact', ['.wire-badge[data-size="sm"]']],
+  ['--text-badge', ['.wire-badge', '.wire-status-tag', '.consent-detail[data-inline="true"]>.consent-detail-summary']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.
@@ -250,7 +249,7 @@ const MARKUP_HOOKS = new Set([
   'session-plan-card',      // 세션 목표 카드 식별 훅(WireCard 가 옷을 가짐)
   'wire-signup-done',       // 가입 완료 구획 훅(wire-invite-stack 이 옷을 가짐)
   'wire-step-label',        // 스텝 라벨 조각 — 옷은 칩(.wire-step)이 갖고, 위저드 테스트 앵커
-  'wire-required-marker',   // 필수 표식 식별·정렬 훅. 옷은 WireBadge size="sm"이 가짐
+  'wire-required-marker',   // 필수 표식 식별·정렬 훅. 옷은 전역 12px WireBadge가 가짐
   'consent-detail-paragraph', // 동의 문단 나열 판정 훅 — 같은 클래스 형제 = 나열(위계 실측 계약)
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
   'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본

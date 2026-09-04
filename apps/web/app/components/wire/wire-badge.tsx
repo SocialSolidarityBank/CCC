@@ -19,13 +19,9 @@ export type WireBadgeTone =
   | 'light-magenta'
   | 'risk';
 
-export type WireBadgeSize = 'md' | 'sm';
-
 export interface WireBadgeProps {
   children: ReactNode;
   tone?: WireBadgeTone;
-  /** 크기. 기본 md(높이 20·패딩 8·글자 13). sm은 같은 상자에 글자만 12다. */
-  size?: WireBadgeSize;
   /** 상태 알림으로 읽혀야 하는 배지(role="status"·"alert")에만 준다. */
   role?: 'status' | 'alert';
   'aria-live'?: 'polite' | 'assertive';
@@ -35,13 +31,11 @@ export interface WireBadgeProps {
 }
 
 /** 화면 전체의 유일한 배지 부품(2026-08-07 Q 리팩터링).
- *  모양(.wire-badge)은 wire-styles.ts 한 곳이 소유한다. 배지를 새로 그리지 말고
- *  이 부품에 tone 과 size 만 골라 쓴다. 필수 표식도 컴팩트 변형을 재사용한다. */
-export function WireBadge({ children, tone = 'neutral', size = 'md', role, 'aria-live': ariaLive, testId, className }: WireBadgeProps) {
+ *  이 부품에서 tone만 골라 쓴다. 모든 배지는 같은 12px 크기를 쓴다. */
+export function WireBadge({ children, tone = 'neutral', role, 'aria-live': ariaLive, testId, className }: WireBadgeProps) {
   return (
     <span
       className={['wire-badge', className].filter(Boolean).join(' ')}
-      data-size={size === 'md' ? undefined : size}
       data-tone={tone === 'neutral' ? undefined : tone}
       role={role}
       aria-live={ariaLive}

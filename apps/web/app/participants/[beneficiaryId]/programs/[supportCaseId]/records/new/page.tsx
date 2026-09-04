@@ -482,15 +482,15 @@ export default async function NewRecordPage({
     {context.data === null || beneficiaryId === null || supportCaseId === null ? null : mustCheckOutcome ? <WireCard as="section" labelledBy="outcome-check-title" title={<h2 id="outcome-check-title">제출 결과 확인이 필요합니다.</h2>}>
       <p>서버에 제출 결과 조회 기능이 없어 이 화면에서 같은 내용을 다시 구성하거나 재제출하지 않습니다.</p>
       <p>제출 ID {recoverySubmissionId ?? '확인 불가'}를 유지한 채 해당 참여 사업의 상담 기록에서 등록 여부를 확인하세요.</p>
-      <div className="wire-form-actions"><WireButton variant="primary" href={historyPath}>상담 기록 확인하기</WireButton></div>
+      <div className="wire-form-actions"><WireButton variant="primary" href={historyPath}>상담 기록 확인</WireButton></div>
     {/* CCC-57: 이 자리는 conflict 코드 하나가 오는 곳인데 원인이 둘이다. 제출 ID 충돌과
         완료할 일정의 버전 불일치. 서버가 둘을 가르지 않으므로 문구가 둘 다 덮는다. 어느
         쪽이든 다시 여는 것이 답이고, 쓰던 내용은 임시본으로 남아 다시 열 때 복원된다. */}
     </WireCard> : mustStartFresh ? <WireCard as="section" labelledBy="conflict-record-title" title={<h2 id="conflict-record-title">이 기록을 등록하지 않았습니다.</h2>}>
       <p>같은 제출 ID에 다른 저장 요청이 있었거나, 완료할 일정이 그 사이 변경되었습니다. 기존 상담 기록과 일정을 확인한 뒤 새 상담 기록을 시작하세요. 쓰던 내용은 임시본으로 남아 있어 새로 열면 복원할 수 있습니다.</p>
       <div className="wire-form-actions">
-        <WireButton variant="secondary" href={historyPath}>상담 기록 확인하기</WireButton>
-        <WireButton variant="primary" href={newRecordPath}>상담 기록하기</WireButton>
+        <WireButton variant="secondary" href={historyPath}>상담 기록 확인</WireButton>
+        <WireButton variant="primary" href={newRecordPath}>상담 기록</WireButton>
       </div>
     </WireCard> : <form action={submitRecord} autoComplete="off" className="record-form" aria-labelledby="record-form-title">
       <input type="hidden" name="beneficiaryId" value={activeBeneficiaryId} />
@@ -506,7 +506,7 @@ export default async function NewRecordPage({
         actions={<>
           {/* '상담 기록으로 돌아가기' → '상담 기록'(2026-08-09 Q). 가는 곳의 이름이 곧 라벨이고,
               '돌아가기'는 이 버튼이 하는 일을 두 번 말한다. */}
-          <WireButton variant="secondary" href={historyPath}>상담 기록 확인하기</WireButton>
+          <WireButton variant="secondary" href={historyPath}>상담 기록 확인</WireButton>
           <WireButton variant="primary" type="submit">저장</WireButton>
         </>}
         // 세부 목표 구획(D62 · CCC-68). 서버 컴포넌트인 이 페이지가 액션을 묶어 슬롯으로
