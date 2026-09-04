@@ -7,7 +7,8 @@
     ".": "./src/request-handler.ts",
     "./identity": "./src/identity.ts",
     "./access-jwt": "./src/access-jwt.ts",
-    "./preview-gate": "./src/preview-gate.ts"
+    "./preview-gate": "./src/preview-gate.ts",
+    "./capabilities": "./src/capabilities.ts"
   },
   "dependencies": {
     "@ccc/ai-runtime": "workspace:*",

@@ -7,6 +7,10 @@
     "./database": "./src/database.ts",
     "./runtime": "./src/runtime.ts",
     "./animal-slugs": "./src/animal-slugs.ts",
-    "./consent-notice": "./src/consent-notice.ts"
+    "./consent-notice": "./src/consent-notice.ts",
+    "./jcs": "./src/jcs.ts",
+    "./capabilities": "./src/capabilities.ts",
+    "./install-manifest": "./src/install-manifest.ts",
+    "./guards": "./src/guards.ts"
   }
 }

@@ -20,6 +20,8 @@
 import type { Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
+import type { AgentStatus } from '@ccc/contracts/runtime';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
@@ -7459,6 +7461,22 @@ async function computePipelineHealth(
 }
 
 /**
+ * `GET /capabilities` 의 Agent 상태(S2 §2.8, E1-7). 사람 역할 누구나 자기 기관 값만 읽고,
+ * 분류 한 단어만 나가므로 감사 행을 남기지 않는다(`/organization/profile` 과 같은 근거).
+ * `authentication_error`·`quota_exceeded` 는 E9-2 연결 검사가 만든다.
+ */
+export async function getAgentStatusForCapabilities(env: Env, actor: Actor): Promise<AgentStatus> {
+  if (actor.role === 'service') throw new ForbiddenError('agent cannot read capabilities');
+  const health = await computePipelineHealth(
+    env,
+    actor.orgId,
+    resolvePipelineStaleHours(env),
+    resolvePipelineQueueStaleHours(env),
+  );
+  return health.status === 'ok' ? 'connected' : health.status === 'stale' ? 'delayed' : 'inactive';
+}
+
+/**
  * 폴링 건강도 조회(관리자 화면용, D8). 권한: admin 전용, 자기 기관만.
  * 감사: read(pipeline_health).
  */
@@ -8864,48 +8882,6 @@ function assertBoundedArray(value: unknown, field: string, maximum: number): ass
   if (!Array.isArray(value) || value.length > maximum) {
     throw new ValidationError(`${field} is invalid`);
   }
-}
-
-/**
- * JCS is intentionally small here because canonical command payloads contain
- * only finite JSON primitives, arrays, and plain objects. It rejects values
- * that JSON.stringify would silently coerce, including malformed surrogates.
- */
-export function canonicalizeJcs(value: unknown): string {
-  if (value === null) return 'null';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new ValidationError('canonical JSON number is invalid');
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) throw new ValidationError('canonical JSON number is invalid');
-    return serialized;
-  }
-  if (typeof value === 'string') {
-    for (let index = 0; index < value.length; index += 1) {
-      const codeUnit = value.charCodeAt(index);
-      if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-        const next = value.charCodeAt(index + 1);
-        if (next < 0xdc00 || next > 0xdfff) {
-          throw new ValidationError('canonical JSON string is invalid');
-        }
-        index += 1;
-      } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-        throw new ValidationError('canonical JSON string is invalid');
-      }
-    }
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) throw new ValidationError('canonical JSON string is invalid');
-    return serialized;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalizeJcs(item)).join(',')}]`;
-  }
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const keys = Object.keys(record).sort();
-    return `{${keys.map((key) => `${canonicalizeJcs(key)}:${canonicalizeJcs(record[key])}`).join(',')}}`;
-  }
-  throw new ValidationError('canonical JSON value is invalid');
 }
 
 async function canonicalSha256(value: unknown): Promise<string> {
