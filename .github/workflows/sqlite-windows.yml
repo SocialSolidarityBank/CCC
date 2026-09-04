@@ -1,0 +1,46 @@
+name: sqlite-windows
+
+on:
+  pull_request:
+    paths:
+      - 'adapters/db-sqlite/**'
+      - 'apps/api/test/database-contract.test.ts'
+      - 'apps/api/test/sqlite-database.contract.test.ts'
+      - 'apps/api/test/support/database-contract.ts'
+      - 'migrations/sqlite/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'scripts/test-suite.mjs'
+      - '.github/workflows/sqlite-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  electron44-windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts apps/api/test/sqlite-database.contract.test.ts
+      - run: pnpm --filter @ccc/db-sqlite build
+      - name: Electron 44 encrypted create and reopen
+        shell: pwsh
+        run: |
+          $env:SQLITE_EVIDENCE_PATH = "$env:RUNNER_TEMP\sqlite-windows-evidence.json"
+          npm exec --yes --package=electron@44.1.1 -- electron adapters/db-sqlite/test/electron-smoke.mjs
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sqlite-windows-evidence
+          path: ${{ runner.temp }}/sqlite-windows-evidence.json
+          if-no-files-found: error
+          retention-days: 14

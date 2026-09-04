@@ -1,6 +1,7 @@
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach } from 'vitest';
 import { Miniflare } from 'miniflare';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
@@ -11,10 +12,10 @@ import type { ApiEnv } from '@ccc/http-api/identity';
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
 /** 모든 API 계약 테스트가 읽는 SQLite migration SSOT(E3-1a). */
-export const SQLITE_MIGRATIONS_PATH = new URL(
-  ['..', '..', '..', '..', 'migrations', 'sqlite'].join('/'),
+export const SQLITE_MIGRATIONS_PATH = fileURLToPath(new URL(
+  '../../../../migrations/sqlite/',
   import.meta.url,
-).pathname;
+));
 
 export interface D1TestContext {
   env: ApiEnv;

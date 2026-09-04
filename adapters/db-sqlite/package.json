@@ -1,0 +1,16 @@
+{
+  "name": "@ccc/db-sqlite",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*",
+    "better-sqlite3-multiple-ciphers": "13.0.3"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json"
+  }
+}

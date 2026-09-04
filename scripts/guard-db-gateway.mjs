@@ -14,6 +14,7 @@ const sourceExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts',
 const allowedFiles = new Set([
   'packages/core/src/gateway.ts',
   'adapters/db-d1/src/index.ts',
+  'adapters/db-sqlite/src/index.ts',
   'scripts/guard-db-gateway.mjs',
   'scripts/seed/harness.ts',
   'scripts/seed/capture.ts',
@@ -30,7 +31,7 @@ function isFixtureOrMigration(path) {
   return path.startsWith('migrations/')
     || /\.(test|spec)\.[cm]?[jt]sx?$/.test(path)      // *.test.ts / *.spec.ts 등
     || path.split('/').includes('__tests__')          // __tests__ 디렉터리
-    || /^apps\/[^/]+\/tests?\//.test(path);           // apps/<pkg>/test|tests/…
+    || /^(?:apps|adapters)\/[^/]+\/tests?\//.test(path); // <layer>/<pkg>/test|tests/…
 }
 
 async function sourceFiles(directory) {
@@ -84,9 +85,9 @@ for (const sourceRoot of sourceRoots) {
 }
 
 if (violations.length > 0) {
-  console.error('D1 gateway guard failed:');
+  console.error('DB gateway guard failed:');
   for (const violation of violations) console.error(`  ${violation}`);
   process.exitCode = 1;
 } else {
-  console.log('D1 gateway guard passed.');
+  console.log('DB gateway guard passed.');
 }
