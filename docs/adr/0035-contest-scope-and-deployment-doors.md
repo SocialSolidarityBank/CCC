@@ -12,7 +12,7 @@
 `CLAUDE.md:148` 이 "파기 위험은 현재 없다" 고 적어 뒀지만, 실제로는 종단 경로 전체가 살아
 있었다.
 
-- `migrations/0006_participant_support_case_cutover.sql:1773` 의 트리거
+- `migrations/sqlite/0006_participant_support_case_cutover.sql:1773` 의 트리거
   `support_cases_schedule_pii_purge_due` 가 마지막 활성 케이스가 종결되는 순간
   `purge_due` 를 채운다.
 - `apps/api/src/index.ts:84` 의 `ctx.waitUntil(runPurge(env))` 가 매일 03:00 UTC 이 경로를
@@ -62,11 +62,11 @@
 
 제외가 아니라 연기다. **D43(GAS 보류)과 같은 방식**으로 스키마, 데이터, `emotion.py`, 테스트를
 전부 남기고 계산만 멈춘다(`worker.py` 의 `EMOTION_DEFERRED`). 파이프라인은
-`emotionScores: {}` 를 보내며 이는 `migrations/0032:10` CHECK 와 `assertNumericJson` 을
+`emotionScores: {}` 를 보내며 이는 `migrations/sqlite/0032:10` CHECK 와 `assertNumericJson` 을
 통과한다. 마이그레이션 0건, API 변경 0건. **R4 와 D11 은 폐기하지 않는다.** 다시 켤 때 그대로
 적용된다. 동의 문안은 보류 사실을 표시한다. 재개 조건: 정식 서비스 단계. 상세 ADR-0035.
 
-빈 객체를 보내도 안전하다는 것은 의견이 아니라 실측이다. `migrations/0032_recording_result_commits.sql:10`
+빈 객체를 보내도 안전하다는 것은 의견이 아니라 실측이다. `migrations/sqlite/0032_recording_result_commits.sql:10`
 의 CHECK 는 `json_valid` 와 `json_type = 'object'` 만 요구하므로 `{}` 가 그대로 통과한다.
 `db/gateway.ts` 의 `assertNumericJson` 은 빈 객체에서 순회할 항목이 없어 예외를 던지지
 않는다. `apps/api/src/request-handler.ts:1387` 의 `requireOnlyKeys` 와 `:1394` 의

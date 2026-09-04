@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 비영리 사례관리 프로그램 — Cloudflare D1(SQLite) 스키마 스냅샷 v0.8
 --
--- 이 파일 = migrations/0001_init.sql부터 0008_participant_consent_records.sql까지를
+-- 이 파일 = migrations/sqlite/0001_init.sql부터 0008_participant_consent_records.sql까지를
 --   순서대로 적용한 누적 결과다.
---   * 마이그레이션(migrations/*.sql)이 런타임·테스트의 진실 원천이다(test 하네스가
+--   * 마이그레이션(migrations/sqlite/*.sql)이 런타임·테스트의 진실 원천이다(test 하네스가
 --     migrations 디렉터리를 적용한다). 이 schema.sql은 그 누적 결과의 읽기용 스냅샷이며,
 --     새 마이그레이션을 순서대로 적용한 구조와 동등해야 한다.
 --   * 이미 적용된 마이그레이션(0001·0002)은 편집 금지이며, 새 스키마 변경은 새
@@ -1456,7 +1456,7 @@ ALTER TABLE users ADD COLUMN name TEXT;
 
 -- 0017: 마지막에 선택한 사업(D35 · ADR-0014 '개정' 2번). `/` 직행 목적지다.
 -- 본인 계정의 화면 설정이라 이 컬럼의 쓰기는 audit_log 에 남기지 않는다 — 근거는
--- migrations/0017_user_last_program_type.sql 주석. NULL 이거나 사라진 사업이면 첫 사업 폴백.
+-- migrations/sqlite/0017_user_last_program_type.sql 주석. NULL 이거나 사라진 사업이면 첫 사업 폴백.
 ALTER TABLE users ADD COLUMN last_program_type TEXT;
 
 -- A beneficiary is the permanent participant identity. 가명 ID는 두 형식을 허용한다
@@ -4785,7 +4785,7 @@ ALTER TABLE support_cases ADD COLUMN consent_privacy_at TEXT;
 -- 당사자 가입 링크(사업+발급 실무자 묶음)와 실무자 초대 링크의 공용 기반.
 -- 토큰이 곧 자격(로그인 없음): 32바이트 난수 hex, 발급·소비는 gateway 만(R1)
 -- + 전건 감사(D14). status 는 issued → used 단방향, 만료 정책은 D26 법률 검토
--- 후 실제 인증 설계와 함께. 상세 주석: migrations/0021_invite_tokens.sql.
+-- 후 실제 인증 설계와 함께. 상세 주석: migrations/sqlite/0021_invite_tokens.sql.
 -- ----------------------------------------------------------------------------
 CREATE TABLE invite_tokens (
   token                   TEXT PRIMARY KEY,
@@ -4808,7 +4808,7 @@ CREATE INDEX idx_invite_tokens_org ON invite_tokens (org_id, kind, status);
 -- 위 participant_consent_records_insert_guard 의 'self' 예외가 이 마이그레이션 몫이고,
 -- 아래 트리거가 토큰 이중 소비를 DB 차원에서 막는다. JS 에서 UPDATE 의 changes 를 보는
 -- 방식은 배치 커밋 뒤에야 읽히므로 동시 이중 제출에서 고아 당사자를 남긴다.
--- 상세 주석: migrations/0022_participant_self_signup.sql.
+-- 상세 주석: migrations/sqlite/0022_participant_self_signup.sql.
 -- ----------------------------------------------------------------------------
 CREATE TRIGGER invite_tokens_no_double_consume
 BEFORE UPDATE ON invite_tokens
@@ -4829,7 +4829,7 @@ ALTER TABLE support_cases ADD COLUMN overall_goal TEXT;
 -- AI 승인)에 검출해 저장하고 브리핑 영역 ③은 저장된 결과만 읽는다. AI 는 판단하지
 -- 않으므로(R5) 양쪽 원문 인용 + 회차 참조만 담는다. resolution_* 3컬럼은 처리 3종
 -- (CCC-42)의 예약 자리 — NULL = 미처리. 인용·회차는 트리거로 불변, 처리된 행은 삭제
--- 불가(접힌 이력 보존). 상세 근거는 migrations/0027_session_discrepancies.sql.
+-- 불가(접힌 이력 보존). 상세 근거는 migrations/sqlite/0027_session_discrepancies.sql.
 -- ----------------------------------------------------------------------------
 CREATE TABLE session_discrepancies (
   id                 TEXT PRIMARY KEY,
@@ -4888,7 +4888,7 @@ END;
 -- 등록은 ① 동의 없이는 막히고, 급박한 위기 개입만 사유·보완 기한과 함께 통과한다.
 -- 세 컬럼은 등록 시점의 사실이라 불변이며, 보완은 consent_privacy_at 이 채워지는 것으로
 -- 확인한다. 기한 계산(기본 14일)은 게이트웨이 설정값이다.
--- 상세 근거: migrations/0028_support_case_emergency_registration.sql.
+-- 상세 근거: migrations/sqlite/0028_support_case_emergency_registration.sql.
 -- ----------------------------------------------------------------------------
 ALTER TABLE support_cases ADD COLUMN emergency_registration_at TEXT;
 ALTER TABLE support_cases ADD COLUMN emergency_registration_reason TEXT;

@@ -2184,7 +2184,7 @@ export async function handleRequest(
     }
     if (request.method === 'PUT' && parts.length === 2 && parts[0] === 'me' && parts[1] === 'last-program') {
       // 마지막에 선택한 사업을 본인 계정에 기억시킨다. 본인 행만 쓰고 감사는 남기지 않는다
-      // (근거: db/gateway.ts rememberLastProgramType · migrations/0017 주석).
+      // (근거: db/gateway.ts rememberLastProgramType · migrations/sqlite/0017 주석).
       requestQuery(url, []);
       const programType = (await requestBody(request)).programType;
       if (typeof programType !== 'string') throw new ValidationError('program type is required');

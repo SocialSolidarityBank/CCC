@@ -4,7 +4,7 @@
 
 ## 1. 보존·파기 절차 `green` 해소 (2026-08-22, CCC-121)
 
-D32·D46이 요구한 6단계를 `migrations/0041_pii_retention_lifecycle.sql`과 `db/gateway.ts`에 구현했다. 보존기한 도래만으로 값을 지우던 종전 경로는 더 이상 HTTP나 cron에 배선되지 않는다.
+D32·D46이 요구한 6단계를 `migrations/sqlite/0041_pii_retention_lifecycle.sql`과 `db/gateway.ts`에 구현했다. 보존기한 도래만으로 값을 지우던 종전 경로는 더 이상 HTTP나 cron에 배선되지 않는다.
 
 ### 1.1 현재 동작
 
@@ -33,7 +33,7 @@ D32·D46이 요구한 6단계를 `migrations/0041_pii_retention_lifecycle.sql`�
 
 로컬 운영에서 긴급 접근 발급·만료·통지 절차를 관리하지 않는다. `assertSupportCaseAccess`는 활성 기관 관리자에게 기관 전체 상담 내용 읽기를 허용하고, 상담 내용 쓰기 관문은 활성 실무자 역할과 담당 배정을 모두 요구한다. 기관 기술 관리자는 이 권한을 얻지 않는다.
 
-복수 역할 원장과 팀, 팀 소속, 감독 권한 스키마는 `migrations/0040_roles_team_scope.sql`에 있다. 기존 `admin`은 기관 관리자와 기관 기술 관리자로, 기존 `counselor`는 실무자로 백필한다.
+복수 역할 원장과 팀, 팀 소속, 감독 권한 스키마는 `migrations/sqlite/0040_roles_team_scope.sql`에 있다. 기존 `admin`은 기관 관리자와 기관 기술 관리자로, 기존 `counselor`는 실무자로 백필한다.
 
 ### 2.2 검증 증거
 

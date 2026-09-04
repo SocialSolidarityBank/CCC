@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Miniflare } from 'miniflare';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, SQLITE_MIGRATIONS_PATH, testActors } from './support/d1';
 
 const { counselor } = testActors;
 const t = setupD1();
@@ -21,8 +21,7 @@ async function createPreSlugExpandD1() {
     script: 'export default { fetch() { return new Response("ok"); } };',
   });
   const db = await miniflare.getD1Database('DB');
-  const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
-  const migrations = await readD1Migrations(migrationsUrl.pathname);
+  const migrations = await readD1Migrations(SQLITE_MIGRATIONS_PATH);
   const slugExpandMigration = migrations[6];
   if (slugExpandMigration === undefined) {
     throw new Error('expected the animal slug expand migration at position 0007');

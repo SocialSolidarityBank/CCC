@@ -2,7 +2,7 @@
 
 - 상태: 확정 (2026-09-03)
 - 근거: ADR-0041 D76, D78, D79
-- 입력: `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `CCC_OPEN_PILOT_PLAN.md`의 SG1 및 E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4 계약, `db/gateway.ts`, `db/schema.sql`, 현재 번호가 0001부터 0044까지인 `migrations/*.sql`, `apps/api/test/*`
+- 입력: `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `CCC_OPEN_PILOT_PLAN.md`의 SG1 및 E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4 계약, `db/gateway.ts`, `db/schema.sql`, 현재 번호가 0001부터 0044까지인 `migrations/sqlite/*.sql`, `apps/api/test/*`
 - 산출: 이 파일이 S1의 유일한 정본이다. Database 계약 구현, 어댑터, 마이그레이션, 계약 fixture 실행물은 관련 E 티켓이 소유한다.
 - 관련 티켓: E1-2, E3-1a, E3-1b, E3-2, E3-3, E3-4
 
@@ -84,7 +84,7 @@ export interface DatabaseError extends Error {
 
 ### 2.4 SQLite 전용 표현과 parity 처리
 
-현재 `db/gateway.ts`, `db/schema.sql`, 번호가 0001부터 0044까지인 `migrations/*.sql`을 조사할 때 확인되는 SQLite 전용 표현은 공통 runtime 문법과 섞지 않는다. 예전 22개 목록에 의존하지 않고 아래 추가 네 형식까지 명시적으로 계수한다.
+현재 `db/gateway.ts`, `db/schema.sql`, 번호가 0001부터 0044까지인 `migrations/sqlite/*.sql`을 조사할 때 확인되는 SQLite 전용 표현은 공통 runtime 문법과 섞지 않는다. 예전 22개 목록에 의존하지 않고 아래 추가 네 형식까지 명시적으로 계수한다.
 
 | 확인된 형식 | 현재 의미 | 공통 계약에서의 처리 |
 |---|---|---|

@@ -8553,7 +8553,7 @@ export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
  * **감사를 남기지 않는다.** D14가 기록하라고 정한 것은 당사자·케이스 기록의 열람·변경·
  * PII 복호화·내보내기다. 본인 UI 설정을 화면 이동마다 남기면 감사 로그가 내비게이션
  * 흔적으로 덮여 "누가 누구의 PII를 봤나"를 찾기 어려워진다 — 감사의 목적을 해친다.
- * 근거는 migrations/0017 주석에도 적어 두었다.
+ * 근거는 migrations/sqlite/0017 주석에도 적어 두었다.
  *
  * 값이 이미 같으면 UPDATE 를 실행하지 않는다 — 화면 진입마다 쓰기가 도는 것을 막는다.
  */
@@ -9519,7 +9519,7 @@ export interface OrganizationProfile {
  *
  * **감사를 남기지 않는다** — 기관 표시 이름은 당사자·케이스 기록이 아니라 화면 설정이다.
  * 모든 페이지 렌더마다 감사 행이 쌓이면 실제 신호(누가 누구의 PII를 봤나)가 묻힌다
- * (getLastProgramType 과 같은 근거 — migrations/0017 주석).
+ * (getLastProgramType 과 같은 근거 — migrations/sqlite/0017 주석).
  */
 export async function getOrganizationProfile(env: Env, actor: Actor): Promise<OrganizationProfile> {
   assertHuman(actor);

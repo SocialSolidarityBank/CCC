@@ -10,6 +10,12 @@ import { createR2AudioStore } from '@ccc/audio-r2';
 import type { ApiEnv } from '@ccc/http-api/identity';
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
+/** 모든 API 계약 테스트가 읽는 SQLite migration SSOT(E3-1a). */
+export const SQLITE_MIGRATIONS_PATH = new URL(
+  ['..', '..', '..', '..', 'migrations', 'sqlite'].join('/'),
+  import.meta.url,
+).pathname;
+
 export interface D1TestContext {
   env: ApiEnv;
   db: D1Database;
@@ -110,8 +116,7 @@ async function templateDir(provisionDirectory: boolean): Promise<string> {
     const miniflare = createMiniflare(dir);
     try {
       const db = await miniflare.getD1Database('DB');
-      const migrationsUrl = new URL(['..', '..', '..', '..', 'migrations'].join('/'), import.meta.url);
-      const migrations = await readD1Migrations(migrationsUrl.pathname);
+      const migrations = await readD1Migrations(SQLITE_MIGRATIONS_PATH);
       for (const migration of migrations) {
         await db.batch(migration.queries.map((query) => db.prepare(query)));
       }

@@ -10,7 +10,7 @@ import {
   reRegisterParticipantPii,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, SQLITE_MIGRATIONS_PATH, testActors } from './support/d1';
 
 const counselor = testActors.counselor;
 const t = setupD1();
@@ -89,8 +89,7 @@ async function createPreCutoverD1() {
     script: 'export default { fetch() { return new Response("ok"); } };',
   });
   const db = await miniflare.getD1Database('DB');
-  const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
-  const migrations = await readD1Migrations(migrationsUrl.pathname);
+  const migrations = await readD1Migrations(SQLITE_MIGRATIONS_PATH);
   const expandMigration = migrations[4];
   const cutoverMigration = migrations[5];
   if (expandMigration === undefined || cutoverMigration === undefined) {
@@ -897,8 +896,7 @@ describe('schema triggers', () => {
     });
     try {
       const db = await miniflare.getD1Database('DB');
-      const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
-      const migrations = await readD1Migrations(migrationsUrl.pathname);
+      const migrations = await readD1Migrations(SQLITE_MIGRATIONS_PATH);
       const firstMigration = migrations[0];
       const expandMigration = migrations[4];
       const cutoverMigration = migrations[5];
@@ -1708,8 +1706,7 @@ describe('schema triggers', () => {
     });
     try {
       const db = await miniflare.getD1Database('DB');
-      const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
-      const migrations = await readD1Migrations(migrationsUrl.pathname);
+      const migrations = await readD1Migrations(SQLITE_MIGRATIONS_PATH);
       // 0033 을 내용으로 찾는다. 뒤에 다른 마이그레이션이 붙어도(0034 …) 이 테스트가
       // 엉뚱한 파일을 검사하거나 헛돌지 않는다.
       const fixtureIndex = migrations.findIndex(

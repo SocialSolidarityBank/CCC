@@ -11,6 +11,7 @@ import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
+import { SQLITE_MIGRATIONS_PATH } from './support/d1';
 import {
   activateAiProviderConfiguration,
   approveGeneratedAiDraft,
@@ -452,8 +453,7 @@ describe('마이그레이션 0034: 텍스트 일감 큐 사유 확장 (CCC-103)'
     });
     try {
       const db = await miniflare.getD1Database('DB');
-      const migrationsUrl = new URL(['..', '..', '..', 'migrations'].join('/'), import.meta.url);
-      const migrations = await readD1Migrations(migrationsUrl.pathname);
+      const migrations = await readD1Migrations(SQLITE_MIGRATIONS_PATH);
       // 0034 를 내용으로 찾는다. 뒤에 다른 마이그레이션이 붙어도 헛돌지 않는다.
       const upgradeIndex = migrations.findIndex(
         (migration) => migration.queries.some((query) => query.includes('goal_revised')),
