@@ -12,7 +12,7 @@
 
 **Understood as:** Complete E3-2 in one reviewable PR. Do not stop at a guard-only result; runtime SQL, atomic audit markers, both logical migration pairs, migration-number shifts, and focused behavior evidence are all part of the cutover approved on 2026-09-05.
 
-**Execution status:** Tasks 1-4 are implemented in the current working tree and were verified by the commands recorded below. Task 5 remains: rerun the final matrix after review fixes, commit, push, open the PR, and move Linear to In Review.
+**Execution status:** Tasks 1-5 are complete on `e3-2-common-sql-subset`. The verified implementation is in PR #275; Linear CCC-218 remains In Review until merge.
 
 ## Global Constraints
 
@@ -153,4 +153,4 @@ function conditionalCanonicalAuditStatement(
 - [x] Run `pnpm --filter @ccc/api run test` (61 files, 734 tests), `pnpm test:scripts` (26 tests), API typecheck, encrypted SQLite build, `guard:sql-dialect`, `guard:db`, `guard:core-imports`, `guard:doc-numbers`, and `guard:secrets`.
 - [x] Run `pnpm release:verify` (569 SBOM dependencies) and the complete API/web production build; run `git diff --check`.
 - [x] Independent review found and closed retention deadline, transfer race, timestamp guard, SQL coverage, per-column F06, and F10 gaps. Final focused review reported no remaining blocker; E3-3/E3-4 retain PostgreSQL runtime and parity proof.
-- [ ] Commit explicit paths, push `e3-2-common-sql-subset`, open a review-ready PR linked to Linear CCC-218, and keep Linear In Review until merge.
+- [x] Commit explicit paths, push `e3-2-common-sql-subset`, open review-ready PR #275 linked to Linear CCC-218, and keep Linear In Review until merge.
