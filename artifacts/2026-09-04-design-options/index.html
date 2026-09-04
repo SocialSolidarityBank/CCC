@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>2026-09-04 디자인 결정 3건 비교</title>
+<style>
+  body{margin:0;padding:32px;background:#FAFAF9;color:#3D3445;font-family:Pretendard,-apple-system,"Apple SD Gothic Neo",sans-serif;line-height:1.55}
+  main{max-width:1100px;margin:0 auto;display:grid;gap:48px}
+  h1{margin:0 0 8px;font-size:24px;font-weight:600}
+  h2{margin:0 0 4px;font-size:18px;font-weight:600}
+  p{margin:0 0 12px;font-size:14px;color:#534E57}
+  img{display:block;width:100%;border:1px solid #D7D3CE;border-radius:12px;background:#fff}
+  table{border-collapse:collapse;font-size:14px;margin:0 0 16px}
+  th,td{border:1px solid #D7D3CE;padding:6px 10px;text-align:left}
+  th{background:#F5F5F4;font-weight:600}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>2026-09-04 디자인 결정 3건 비교</h1>
+    <p>전부 로컬 dev 서버(15초 페이지, 1440px 라이트)를 실제로 렌더해 잡은 화면이다. 수치는 브라우저 실측값이다.</p>
+  </header>
+
+  <section>
+    <h2>1. 배지 높이 20px vs 22px</h2>
+    <table>
+      <tr><th></th><th>A. 20px (지금)</th><th>B. 22px</th></tr>
+      <tr><td>보이는 알약</td><td>20</td><td>22</td></tr>
+      <tr><td>안쪽 흰 면</td><td>18</td><td>20</td></tr>
+      <tr><td>회차 목록 카드 높이</td><td>550</td><td>566</td></tr>
+      <tr><td>딸린 작업</td><td>없음</td><td>DESIGN-RULES §5 문구, design:align 게이트, 라벨 행과 카드 머리의 20 예약도 함께 22로</td></tr>
+    </table>
+    <img src="1-badge-20-vs-22.png" alt="배지 20px과 22px 비교">
+  </section>
+
+  <section>
+    <h2>2. 회차 행 유형 배지의 좌우 여백</h2>
+    <table>
+      <tr><th>자리</th><th>배지 폭</th><th>실제 좌우 여백</th></tr>
+      <tr><td>15초 페이지 기본 상담</td><td>84 고정</td><td>18.3</td></tr>
+      <tr><td>15초 페이지 인테이크</td><td>84 고정</td><td>19.8</td></tr>
+      <tr><td>15초 페이지 수기</td><td>52 고정</td><td>14.9</td></tr>
+      <tr><td>그 밖의 모든 배지 (표본 32개)</td><td>내용 폭</td><td>9</td></tr>
+    </table>
+    <p>원인은 <code>.briefing-session-kind&gt;.wire-badge{width:100%}</code>와 <code>.briefing-session-memo&gt;.wire-badge{width:100%}</code> 두 줄이다. 본문 텍스트 칸 시작 x는 두 안 모두 369로 같다.</p>
+    <img src="2-kind-badge-stretch-vs-hug.png" alt="회차 배지 늘림과 글자 폭 비교">
+  </section>
+
+  <section>
+    <h2>3. HERO 가로선 위아래 여백</h2>
+    <table>
+      <tr><th></th><th>A. 지금</th><th>B. 여유 나눠 갖기</th><th>C. 높이 고정 해제</th></tr>
+      <tr><td>카드 높이</td><td>177</td><td>177</td><td>152.7</td></tr>
+      <tr><td>구획 위 / 아래</td><td>24 / 36.2</td><td>자기 영역 정중앙</td><td>24 / 24</td></tr>
+      <tr><td>2026-09-02 높이 통일 결정</td><td>유지</td><td>유지</td><td>되돌림</td></tr>
+    </table>
+    <p>HERO는 <code>.participant-hero-card</code>, <code>.participant-hero-top</code>, <code>.participant-hero-divider</code>, <code>.participant-hero-meta</code> 전용 선택자를 이미 갖고 있고 <code>min-height</code>를 가진 카드도 HERO 하나뿐이라, 여기를 고쳐도 다른 카드는 움직이지 않는다.</p>
+    <img src="3-hero-divider-a-b-c.png" alt="HERO 가로선 여백 세 가지 안">
+  </section>
+</main>
+</body>
+</html>

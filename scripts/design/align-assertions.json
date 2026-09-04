@@ -717,20 +717,18 @@
     "expectedSize": 12
   },
   {
-    "name": "모든 배지와 상태 태그는 높이 20",
+    "name": "모든 배지와 상태 태그는 높이 22",
     "selectors": [
       ".wire-badge",
-      ".wire-status-tag",
-      ".consent-detail[data-inline=\"true\"]>.consent-detail-summary"
+      ".wire-status-tag"
     ],
     "axis": "height",
     "tolerance": 0.1,
-    "expectedHeight": 20
+    "expectedHeight": 22
   },
   {
-    "name": "당사자 HERO는 데스크톱에서 같은 높이 177",
+    "name": "정보 격자 HERO는 데스크톱에서 같은 높이 177",
     "selectors": [
-      "#align-hero-meta .participant-hero-card",
       "#align-hero-details .participant-hero-card",
       "#align-hero-details-no-actions .participant-hero-card"
     ],
@@ -901,13 +899,13 @@
     "tolerance": 0.5
   },
   {
-    "name": "필수 배지 유무와 무관하게 라벨 행은 20",
+    "name": "필수 배지 유무와 무관하게 라벨 행은 22",
     "selectors": [
       "#align-required-pair .wire-form-label"
     ],
     "axis": "height",
     "tolerance": 0.5,
-    "expectedHeight": 20
+    "expectedHeight": 22
   },
   {
     "name": "세부 목표 추가 버튼은 입력 상자 세로 중앙",
@@ -919,13 +917,13 @@
     "tolerance": 0.5
   },
   {
-    "name": "브리핑 회차 행 호버 면은 행 높이보다 큰 36",
+    "name": "브리핑 회차 행 호버 면은 행 높이보다 큰 38",
     "selectors": [
       "#align-content .briefing-session-row"
     ],
     "axis": "height",
     "tolerance": 0.5,
-    "expectedHeight": 36
+    "expectedHeight": 38
   },
   {
     "name": "체크박스 보기 행은 높이 40",
@@ -949,5 +947,25 @@
       "width": 390,
       "height": 900
     }
+  },
+  {
+    "name": "메타 한 줄 HERO는 구획 위아래가 각각 24",
+    "selectors": [
+      "#align-hero-meta .participant-hero-card",
+      "#align-hero-meta .participant-hero-top",
+      "#align-hero-meta .participant-hero-meta"
+    ],
+    "axis": "inset-y",
+    "tolerance": 1,
+    "expectedInset": 25
+  },
+  {
+    "name": "당사자 정보 전문 보기 알약은 높이 20",
+    "selectors": [
+      "#align-hub-consent .consent-detail[data-inline=\"true\"]>.consent-detail-summary"
+    ],
+    "axis": "height",
+    "tolerance": 0.1,
+    "expectedHeight": 20
   }
 ]

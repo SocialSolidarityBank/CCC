@@ -595,13 +595,15 @@ const briefingStyles = `
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
    전문은 근거 회차(상담 기록)에서 읽는다. */
 /* 호버 면이 행 높이(20)보다 커야 짚기 쉽다(2026-09-04 Q "호버 선택범위가 너무 좁다").
-   행마다 위아래 8 을 넣어 36 짜리 표적을 만들고, 목록 gap 은 0 으로 두어 실제 글자 사이는
+   행마다 위아래 8 을 넣어 38 짜리 표적을 만들고, 목록 gap 은 0 으로 두어 실제 글자 사이는
    §7 의 16(8+8) 그대로 남긴다. 좌우 12 는 음수 마진으로 되밀어 시작선을 지킨다. */
 .briefing-session-rows{display:grid;gap:0;margin:0;padding:0;list-style:none}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
-   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게. 회차 목록(.record-summary)
-   의 고정 칸과 같은 계약이고, 날짜 폭 136 도 .record-held-at 과 같은 값이다. */
+   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게.
+   **칸 폭은 내용 실측값으로 좁혔다**(2026-09-04 Q, 구 136/84/52 + 간격 16). 날짜는 가장 긴
+   2026년 12월 28일 이 110.05 라 112, 유형 배지는 기본상담·인테이크 둘 다 62.3 이라 64,
+   수기 배지는 40.2 라 44 다. 간격도 8 로 좁혀 본문 글줄이 76px 길어진다. */
 /* 행 전체가 원문 회차 앵커로 가는 링크다(2026-08-30 Q "원본 연결" · D73 ① — a 요소가
    행 배치를 그대로 갖는다). 꺽쇠는 이동 어휘의 오른쪽 꺽쇠(§8 · .wire-chevron)로 행 끝.
    호버는 리스트 행 계약인 tint 쌍 --gradient-hover 다(§5 리스트 행 · 2026-08-03 Q — 구
@@ -609,17 +611,18 @@ const briefingStyles = `
    (.participant-next-schedule-link)를 따라 --muted 로 넣었고, 2026-08-30 검수 후 이 자리와
    전례를 함께 고쳤다 — 남은 --muted 호버 4곳은 버튼·컨트롤이라 이 규칙 대상이 아니다),
    눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다. */
-.briefing-session-row{display:grid;grid-template-columns:136px 84px 52px minmax(0,1fr) auto;align-items:center;gap:var(--space-4);min-width:0;padding:var(--space-2) var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.briefing-session-row{display:grid;grid-template-columns:112px 64px 44px minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0;padding:var(--space-2) var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
 @media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
-.briefing-session-kind{flex:none;width:84px;display:inline-flex}
-.briefing-session-kind>.wire-badge{width:100%}
-.briefing-session-memo{flex:none;width:52px;display:inline-flex}
-.briefing-session-memo>.wire-badge{width:100%}
+/* 배지는 자기 글자 폭만 차지한다(2026-09-04 Q, 구 width:100% 로 칸 폭 채우기). 칸 폭으로
+   늘리면 좌우 패딩이 8 계약을 벗어나 18.3·19.8·14.9 로 제각각이 됐다. 시작 x 고정은
+   칸이 이미 하므로 늘릴 필요가 없다. */
+.briefing-session-kind{flex:none;width:64px;display:inline-flex}
+.briefing-session-memo{flex:none;width:44px;display:inline-flex}
 /* 행간 normal — 뱃지와 나란한 단일행 값의 세로 중앙은 기하 정렬이 만든다(2026-08-06 Q.
    1.55 행간의 글꼴 상자는 뱃지 글자보다 0.9px 위에 실측됐다 — 당사자 카드 셀과 같은 계약). */
 /* 날짜는 14/400 --sub 메타, 핵심 문구는 14/400 --ink 값이다. 좁은 화면에서 두 줄로
-   쌓여도 색으로 역할이 갈리고, 날짜 폭 136은 상담 기록의 날짜 칸과 같다. */
-.briefing-session-date{flex:none;width:136px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
+   쌓여도 색으로 역할이 갈린다. */
+.briefing-session-date{flex:none;width:112px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
 .briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
@@ -747,8 +750,8 @@ const briefingStyles = `
   .record-summary{flex-wrap:wrap}
   /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(136+84+48)이 좁은 화면 폭을 다 먹는다(9차). */
-  .briefing-session-row{grid-template-columns:136px minmax(0,1fr) auto;grid-template-rows:auto auto}
+  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차). */
+  .briefing-session-row{grid-template-columns:112px minmax(0,1fr) auto;grid-template-rows:auto auto}
   .briefing-session-kind{grid-column:2;grid-row:1}
   .briefing-session-row>.wire-chevron{grid-column:3;grid-row:1/3}
   .briefing-session-memo{grid-column:1;grid-row:2}

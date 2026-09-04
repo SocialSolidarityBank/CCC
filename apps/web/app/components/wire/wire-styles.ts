@@ -116,7 +116,7 @@ details.surface-card[open]>.record-summary .record-flag{color:var(--on-action)}
 /* 펼친 제목 줄의 배지는 운영 프리뷰의 반전 규칙을 따른다(2026-09-03 Q).
    그라데이션 위에서 패널 면과 어두운 잉크 글자를 쓰고, 외곽선만 자기 계열을 유지한다. */
 details.surface-card[open]>.record-summary .wire-badge,
-.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge{height:var(--space-5);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge{height:var(--badge-height);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}
 details.surface-card[open]>.record-summary .wire-badge[data-tone="mint"],
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-badge[data-tone="mint"]{--wire-outline-color:var(--badge-mint)}
 details.surface-card[open]>.record-summary .wire-badge[data-tone="lavender"],
@@ -270,8 +270,12 @@ details.surface-card[open]>.record-summary .wire-badge[data-tone="risk"],
    좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다. 767 이하는 내용 크기의 버튼을
    가로로 모아 자연스럽게 줄바꿈하고 카드 폭에 맞춰 늘리지 않는다. */
 /* gap 24 = 세로 패딩과 같은 값 — 1행(이름)·2행(정보)이 아웃라인과 구분선 사이
-   정중앙에 선다(2026-08-07 Q 9차, 구 16 은 위 24/아래 16 비대칭). */
-.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6);min-height:var(--participant-hero-min-height)}
+   정중앙에 선다(2026-08-07 Q 9차, 구 16 은 위 24/아래 16 비대칭).
+   **최소 높이는 정보 격자 변형에만 건다**(2026-09-04 Q, 구 전 변형 177). 메타 한 줄 변형은
+   자연 높이가 152.7 이라 177 을 강제하면 남는 24.31 이 두 gap 으로 흘러 위 계약이 깨진다
+   (구획 위 24 · 아래 36.2 실측). 격자 변형은 자연 높이가 177 이라 값이 그대로 산다. */
+.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
+.participant-hero-card:has(.participant-hero-details){min-height:var(--participant-hero-min-height)}
 .participant-hero-top{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4) var(--space-5);flex-wrap:wrap;min-width:0}
 .participant-hero-divider{height:0;margin:0 calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
@@ -575,7 +579,7 @@ details.surface-card>.wire-card-summary:focus-visible{outline-offset:-2px}
 .wire-card-summary::-webkit-details-marker{display:none}
 /* 접힘 카드의 상태 배지도 제목 글자 바로 뒤다(2026-09-04 Q 전역 기준). 오른쪽 묶음에는
    꺽쇠만 남는다. 제목 묶음은 배지 높이 20 을 예약해 배지 유무가 줄 높이를 바꾸지 않는다. */
-.wire-card-summary>.wire-card-title{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--space-5)}
+.wire-card-summary>.wire-card-title{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--badge-height)}
 .wire-card-summary>.wire-card-title>.wire-badge{flex:none;white-space:nowrap}
 .wire-card-summary-right{display:flex;align-items:center;gap:var(--space-4)}
 /* 꺽쇠는 두 종류뿐이다. 버튼형은 일정 기간 이동을 정본으로 삼은 32px 원이고,
@@ -599,7 +603,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    배치 대체): '활성 1/3'·'준비 중'처럼 제목을 한정하는 상태 낱말이 카드 반대편 끝에 서면
    무엇을 세는 값인지 눈으로 이어지지 않았다. 행동 묶음(버튼)만 오른쪽 끝으로 민다.
    높이는 배지 유무와 무관하게 20 을 예약한다(배지가 여백을 바꾸지 않는다). */
-.wire-card-head{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-2);min-height:var(--space-5)}
+.wire-card-head{display:flex;justify-content:flex-start;align-items:center;gap:var(--space-2);min-height:var(--badge-height)}
 .wire-card-head>:nth-child(n+2):not(.wire-badge){margin-left:auto}
 .wire-card-head .wire-badge{flex:none;white-space:nowrap}
 /* 카드 안 하위 구획(WireCardSection). h3 에 규칙이 없어 브라우저 기본 크기(18.7px)가 그대로
@@ -701,11 +705,11 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 라벨 행은 배지 높이(20)를 **항상** 예약한다(2026-09-04 Q 전역 기준). 필수 배지가 붙은
    칸만 라벨이 20 이고 안 붙은 칸은 16 이라, 2열 그리드에서 두 입력칸의 윗선이 4px 갈렸다
    (상담 일시 ↔ 상담 방식 실측). 배지·버튼이 여백을 바꾸지 않는 것이 계약이다. */
-.wire-form-label{display:flex;align-items:center;gap:var(--space-2);min-height:var(--space-5);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--sub)}
+.wire-form-label{display:flex;align-items:center;gap:var(--space-2);min-height:var(--badge-height);font-size:var(--text-sm);font-weight:600;line-height:normal;color:var(--sub)}
 /* 라벨 옆 보조 표시와 필수 아웃라인 표식은 라벨 행의 8px gap을 공유한다. */
 .wire-form-note{display:inline-flex;align-items:center;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub)}
 /* 제목 글자 뒤에 배지가 붙는 묶음도 같은 20 예약을 쓴다. */
-.wire-title-with-badge{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--space-5)}
+.wire-title-with-badge{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--badge-height)}
 .wire-input-box{display:flex;align-items:center;line-height:normal;gap:var(--space-2);width:100%;min-width:0;min-height:var(--control-height);padding:0 var(--control-pad);background:var(--panel);border:1px solid var(--line-control);border-radius:var(--radius-control)}
 .wire-input-box>input,.wire-input-box>select,.wire-input-box>textarea{width:100%;min-width:0;border:0;background:transparent;color:var(--ink);outline:0;font:inherit;font-size:var(--text-sm);font-weight:400;-webkit-appearance:none;appearance:none}
 /* 단일행 컨트롤만 행간 normal(2026-08-06 Q) — textarea 는 다중행 본문이라 --leading-relaxed 를 유지한다. */
@@ -795,7 +799,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    입력 상자(40) 한가운데에 앉는다. 값은 전부 토큰에서 계산한다. */
 .wire-field-with-action{display:flex;align-items:flex-start;gap:var(--space-2);min-width:0}
 .wire-field-with-action>.wire-form-field{flex:1 1 auto;min-width:0}
-.wire-field-with-action>.wire-repeat-actions{flex:none;margin-top:calc(var(--space-5) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
+.wire-field-with-action>.wire-repeat-actions{flex:none;margin-top:calc(var(--badge-height) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
    자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
    되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다.
@@ -1034,7 +1038,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 이 클래스가 화면 전체의 유일한 배지 계약이다. 같은 레시피를 제각각 복사하던 8개
    클래스를 전부 이 클래스 + data-tone으로 대체했다. 배지 모양은 WireBadge 컴포넌트와
    이 규칙 한 곳에서만 바꾼다. */
-.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--space-5);padding:0 var(--space-2);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-badge);font-weight:400;color:var(--ink);white-space:nowrap}
+.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:var(--wire-outline-width) solid var(--wire-outline-color);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-badge);font-weight:400;color:var(--ink);white-space:nowrap}
 .wire-badge-label{display:inline-flex;align-items:center;justify-content:center;line-height:normal}
 /* 계열 배지: 민트=진행·상태·담당, 라벤더=AI·승인 대기, 블루=시간 축(TimeAxisBadge 전용).
    코랄·시안·라이트마젠타·앰버·라임은 여러 형제 배지의 구분 variation이다(기본 배정 순서는
@@ -1044,7 +1048,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    전용 --on-badge-light-magenta(다크 캔버스 중립색 재사용)로 두 테마 모두 AA 를 넘긴다. */
 /* sm은 기본과 같은 높이 20, 좌우 패딩 8이고 글자만 12다. 제목 옆 요구 상태처럼 더 짧은
    곁다리 배지에 쓴다. 기본 13과 높이, 패딩을 맞춰 형제 배지의 외곽선 리듬은 유지한다. */
-.wire-badge[data-size="sm"]{height:var(--space-5);padding:0 var(--space-2);font-size:var(--text-badge-compact)}
+.wire-badge[data-size="sm"]{height:var(--badge-height);padding:0 var(--space-2);font-size:var(--text-badge-compact)}
 .wire-badge[data-tone="mint"]{--wire-outline-color:var(--badge-mint);background:var(--badge-mint);color:var(--on-badge)}
 .wire-badge[data-tone="lavender"]{--wire-outline-color:var(--badge-lavender);background:var(--badge-lavender);color:var(--on-badge)}
 .wire-badge[data-tone="blue"]{--wire-outline-color:var(--badge-blue);background:var(--badge-blue);color:var(--on-badge)}
@@ -1060,7 +1064,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk);background:var(--risk);color:var(--on-badge)}
 /* 상태 태그: 기본은 neutral이고 AI 산출·승인 대기 낱말만 lavender다.
    화면 전체에서 이 클래스 하나만 쓴다(2026-08-07 통합). */
-.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--space-5);padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
+.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-sm);font-weight:400;color:var(--ink)}
 /* 상태 태그 색 계열(D61 ② 개정, CCC-106): AI 산출·승인 대기 낱말(D58 ④)만
    라벤더로 연다. 다섯 계열을 미리 다 칠하지 않는다(쓰는 것만 연다). 글자는 배지와 같은
    레시피로 --ink 그대로 두고 테두리·배경만 계열을 바꾼다. 변수 자체가 테마 토큰이라

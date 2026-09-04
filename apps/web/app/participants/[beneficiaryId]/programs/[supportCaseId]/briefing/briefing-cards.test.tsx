@@ -185,7 +185,7 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const rows = [...card.querySelectorAll('li')].map((row) => row.textContent ?? '');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain('2026년 7월 15일');
-    expect(rows[0]).toContain('기본 상담');
+    expect(rows[0]).toContain('기본상담');
     expect(rows[0]).toContain('구직 활동 근황');
     expect(rows[0]).toContain('수기');
     expect(rows[1]).toContain('2026년 7월 1일');
@@ -237,12 +237,12 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({ pendingReviewSessionIds: ['s-2'] })} />);
     const card = cardByTitle(container, '상담 내용 회차별 정리');
     const link = within(card).getByRole('link', {
-      name: '2026년 7월 15일 기본 상담 AI 초안 검토',
+      name: '2026년 7월 15일 기본상담 AI 초안 검토',
     });
     expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}/s-2/review`);
     const pendingSection = within(card).getByTestId('pending-fixture-reviews');
     expect(pendingSection.textContent).toContain('2026년 7월 15일');
-    expect(pendingSection.textContent).toContain('기본 상담');
+    expect(pendingSection.textContent).toContain('기본상담');
     expect(card.textContent).not.toContain('fixture summary sentinel');
 
     cleanup();
@@ -442,8 +442,8 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
     // 상태 태그는 §5 컨트롤 부품(2026-08-05 — 트랙 C 의 .is-stage 폐지와 같은 결론).
     // 2026-08-09 Q: 상태 태그는 화면 이름이 아니라 **최신 회차의 유형·회차**다.
-    // 픽스처는 최신이 기본 상담이고 회차가 둘이다.
-    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('기본 상담 2회');
+    // 픽스처는 최신이 기본상담이고 회차가 둘이다.
+    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('기본상담 2회');
     const meta = card.querySelector('.participant-hero-meta')?.textContent ?? '';
     expect(meta).toContain('마이크로크레딧');
     expect(meta).toContain('대면');
@@ -720,13 +720,13 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
 
   it('좁은 화면에서도 꺽쇠는 별도 끝 칸에 남고 핵심 문구는 그 앞에서 두 줄로 끝난다', () => {
     expect(layoutSource).toMatch(
-      /\.briefing-session-row\{display:grid;grid-template-columns:136px 84px 52px minmax\(0,1fr\) auto;/,
+      /\.briefing-session-row\{display:grid;grid-template-columns:112px 64px 44px minmax\(0,1fr\) auto;/,
     );
     expect(layoutSource).toMatch(
       /\.briefing-session-row>\.wire-chevron\{[^}]*grid-column:-1;[^}]*justify-self:end/,
     );
     expect(layoutSource).toMatch(
-      /@media \(max-width:767px\)\{[\s\S]*?\.briefing-session-row\{grid-template-columns:136px minmax\(0,1fr\) auto;[^}]*\}/,
+      /@media \(max-width:767px\)\{[\s\S]*?\.briefing-session-row\{grid-template-columns:112px minmax\(0,1fr\) auto;[^}]*\}/,
     );
     expect(layoutSource).toMatch(
       /\.briefing-session-text\.wire-fade-clip\{[^}]*grid-column:2\/3;[^}]*overflow:hidden;[^}]*-webkit-line-clamp:2;/,

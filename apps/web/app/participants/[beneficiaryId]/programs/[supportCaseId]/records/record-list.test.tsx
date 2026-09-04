@@ -108,8 +108,8 @@ describe('RecordList', () => {
       return [badge?.textContent, badge?.getAttribute('data-tone')];
     });
     expect(kinds).toEqual([
-      ['기본 상담', 'mint'],
-      ['기본 상담', 'mint'],
+      ['기본상담', 'mint'],
+      ['기본상담', 'mint'],
       ['인테이크', 'lavender'],
     ]);
   });

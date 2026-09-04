@@ -76,7 +76,7 @@ const opticalLines = (src) => {
 
 const lineOf = (src, index) => src.slice(0, index).split('\n').length;
 
-const HEIGHT_TOKENS = /(?:min-)?height:\s*var\(--(?:space-5|pill-height|control-height)\)/;
+const HEIGHT_TOKENS = /(?:min-)?height:\s*var\(--(?:space-5|badge-height|pill-height|control-height)\)/;
 const PILL_RADIUS = /border-radius:\s*var\(--radius-(?:pill|control)\)/;
 const CENTERED = /(?:align-items|place-items):\s*center/;
 const LINE_NORMAL = /line-height:\s*normal/;

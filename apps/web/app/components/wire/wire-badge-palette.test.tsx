@@ -70,15 +70,15 @@ describe('WireBadge palette', () => {
     expect(badge?.children).toHaveLength(1);
   });
 
-  it('배지와 상태 태그의 높이는 모두 20px 계약을 쓴다', () => {
+  it('배지와 상태 태그의 높이는 모두 22px 계약을 쓴다', () => {
     expect(stylesSource).toContain(
-      '.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--space-5);padding:0 var(--space-2);',
+      '.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);',
     );
     expect(stylesSource).toContain(
-      '.wire-badge[data-size="sm"]{height:var(--space-5);padding:0 var(--space-2);font-size:var(--text-badge-compact)}',
+      '.wire-badge[data-size="sm"]{height:var(--badge-height);padding:0 var(--space-2);font-size:var(--text-badge-compact)}',
     );
     expect(stylesSource).toContain(
-      '.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--space-5);padding:0 var(--space-2);',
+      '.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);',
     );
   });
 
@@ -102,7 +102,7 @@ describe('WireBadge palette', () => {
 
   it('그라데이션 제목 줄의 모든 배지는 패널 면과 계열 아웃라인, 어두운 글자를 쓴다', () => {
     expect(stylesSource).toContain(
-      '.wire-card-summary .wire-badge{height:var(--space-5);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}',
+      '.wire-card-summary .wire-badge{height:var(--badge-height);--wire-outline-color:var(--ink);background:var(--panel);color:var(--ink)}',
     );
     for (const { tone } of BADGE_PALETTE) {
       expect(stylesSource).toContain(
