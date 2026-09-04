@@ -22,7 +22,7 @@ crons = ["*/30 * * * *", "0 3 * * *"]
 binding = "DB"
 database_name = "ccc-local"
 database_id = "00000000-0000-0000-0000-000000000000"
-migrations_dir = "../../migrations"
+migrations_dir = "../../migrations/sqlite"
 
 # 상담 녹음 원본 임시 보관 (R2). 키에는 PII를 넣지 않는다 (audio/<sessionId>/<uuid>).
 # 음성 원본 30일 뒤 자동 삭제(스펙 2·5장)는 버킷 lifecycle 규칙 'audio-30d-expiry'로
@@ -63,7 +63,7 @@ crons = ["*/30 * * * *", "0 3 * * *"]
 binding = "DB"
 database_name = "ccc"
 database_id = "554dd4ef-c45b-4649-bc88-a7f103f3fc5c"
-migrations_dir = "../../migrations"
+migrations_dir = "../../migrations/sqlite"
 
 [[env.production.r2_buckets]]
 binding = "AUDIO_BUCKET"
@@ -125,7 +125,7 @@ crons = []
 binding = "DB"
 database_name = "ccc-preview"
 database_id = "0dc35280-1051-4916-9598-0e92f6e01844"
-migrations_dir = "../../migrations"
+migrations_dir = "../../migrations/sqlite"
 
 # 클로즈 베타 녹음 검증용 전용 버킷. 운영 ccc-audio 와 분리하고, 계정 설정에서
 # lifecycle 규칙 audio-30d-expiry(30일 뒤 자동 삭제)를 별도로 적용한다.

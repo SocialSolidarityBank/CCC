@@ -52,7 +52,7 @@
 - `apps/api/src/request-handler.ts`: 가입 링크 발급, 초대 회수, 오디오 저장소 포트 사용.
 - `apps/api/src/audio-store.ts`: `R2Bucket` 직접 의존을 `AudioStore` 구현으로 캡슐화.
 - `apps/api/wrangler.toml`: Hyperdrive, Supabase URL과 버킷 이름의 비시크릿 설정 이름 추가.
-- `migrations/0046_supabase_auth_identity.sql`: `users.auth_user_id`, 초대 만료와 Supabase 연결 상태 추가.
+- `migrations/sqlite/0046_supabase_auth_identity.sql`: `users.auth_user_id`, 초대 만료와 Supabase 연결 상태 추가.
 - `apps/web/app/join/worker/[token]/*`: Supabase 초대 세션과 비밀번호 설정 흐름.
 - `apps/web/app/join/participant/[token]/*`: Supabase 초대 세션과 기존 당사자 초대 토큰 연결.
 - `apps/web/app/participants/invite/*`: 이메일 발송 없이 복사 가능한 Supabase action link 발급.
@@ -328,7 +328,7 @@ git commit -m "feat(db): PostgreSQL 기준선과 RLS 추가"
 - Create: `apps/api/test/supabase-identity.test.ts`
 - Modify: `apps/api/src/identity.ts`
 - Modify: `db/gateway.ts`
-- Create: `migrations/0046_supabase_auth_identity.sql`
+- Create: `migrations/sqlite/0046_supabase_auth_identity.sql`
 - Modify: `apps/api/src/request-handler.ts`
 - Modify: `apps/api/test/worker-invite-signup.test.ts`
 - Modify: `apps/web/app/join/worker/[token]/*`
@@ -395,7 +395,7 @@ git commit -m "feat(auth): Supabase 초대 가입과 관리자 MFA 추가"
 - Modify: `apps/api/src/identity.ts`
 - Modify: `apps/api/src/request-handler.ts`
 - Modify: `apps/api/test/audio.test.ts`
-- Create: `migrations/0047_audio_object_lifecycle.sql`
+- Create: `migrations/sqlite/0047_audio_object_lifecycle.sql`
 - Modify: `apps/api/wrangler.toml`
 
 **Interfaces:**

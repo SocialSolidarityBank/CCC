@@ -137,7 +137,7 @@ describe('last program type (users.last_program_type)', () => {
 
   it('감사를 남기지 않는다 — 본인 UI 설정이라 감사 로그를 내비게이션 흔적으로 덮지 않는다', async () => {
     // D14 가 기록하라고 정한 것은 당사자·케이스 기록의 열람·변경·복호화·내보내기다.
-    // 근거는 migrations/0017 주석과 게이트웨이 함수 주석에 적혀 있다.
+    // 근거는 migrations/sqlite/0017 주석과 게이트웨이 함수 주석에 적혀 있다.
     await p.reset();
     const before = await p.env.DB.prepare('SELECT COUNT(*) AS count FROM audit_log').first<{ count: number }>();
     await rememberLastProgramType(p.env, counselor, 'financial_support_v1');

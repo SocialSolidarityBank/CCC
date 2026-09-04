@@ -33,7 +33,7 @@
 - Create: `docs/specs/S1-database-sql-subset.md`
 
 **Interfaces:**
-- Consumes: `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `docs/adr/0041-one-core-three-deployment-modes.md`, `db/gateway.ts`, `db/schema.sql`, 현재 `migrations/*.sql`, `CCC_OPEN_PILOT_PLAN.md`의 SG1와 E1-2/E3-1a/b/E3-2/E3-3/E3-4 행.
+- Consumes: `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `docs/adr/0041-one-core-three-deployment-modes.md`, `db/gateway.ts`, `db/schema.sql`, 현재 `migrations/sqlite/*.sql`, `CCC_OPEN_PILOT_PLAN.md`의 SG1와 E1-2/E3-1a/b/E3-2/E3-3/E3-4 행.
 - Produces: `Database`, `PreparedStatement`, `DatabaseResult`, `Bindable`의 verbatim 서명, `DatabaseError` 매핑과 Uint8Array copy ownership, `first(column)` NULL/missing-column semantics, 공통 runtime SQL 허용·금지표, lexical placeholder 규칙, current-time bind, partial-unique conflict helper 의도, mutation/audit marker, 세 모드 표, D1/SQLite/PostgreSQL 계약 profile, F01~F10 fixture 입력·기대값·실패와 rollback 판정, migration parity와 검증 명령.
 
 - [x] ADR-0041 D79의 네 TypeScript 타입 서명을 코드 블록으로 그대로 고정하고 `batch()`만 원자 transaction이라는 규칙을 적었다.

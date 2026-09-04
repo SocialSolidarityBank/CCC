@@ -44,7 +44,7 @@
 - `scripts/stt/benchmark.py`: G1부터 G3까지 동일 입력셋 실행기.
 - `scripts/stt/report.py`: CER, 반복률, DER, RTF, 비용을 내용 없이 집계.
 - `apps/api/test/participant-consent-four-domains.test.ts`: 현재값, 이력, 철회, 실행 게이트.
-- `migrations/0045_consent_four_domains.sql`: 4영역 현재값과 append-only 사건 표.
+- `migrations/sqlite/0045_consent_four_domains.sql`: 4영역 현재값과 append-only 사건 표.
 - `docs/consent/consent-four-domains-draft-v1.md`: 변호사 검토용 초안.
 
 ### 수정 파일
@@ -341,7 +341,7 @@ git commit -m "feat(stt): RTZR Batch 어댑터 추가"
 ### Task 6: 동의 4영역 저장과 실행 게이트
 
 **Files:**
-- Create: `migrations/0045_consent_four_domains.sql`
+- Create: `migrations/sqlite/0045_consent_four_domains.sql`
 - Modify: `db/consent-notice.ts`
 - Modify: `db/gateway.ts`
 - Create: `apps/api/test/participant-consent-four-domains.test.ts`

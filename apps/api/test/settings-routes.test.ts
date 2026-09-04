@@ -61,7 +61,7 @@ describe('settings routes (/me, /users)', () => {
     });
     // R1: 자기 신원 열람도 감사에 남는다(read, users, self).
     // 마지막 선택 사업 조회는 여기에 행을 더하지 않는다 — 본인 UI 설정이라 감사 대상이
-    // 아니다(근거: db/gateway.ts rememberLastProgramType · migrations/0017 주석).
+    // 아니다(근거: db/gateway.ts rememberLastProgramType · migrations/sqlite/0017 주석).
     expect(await auditRows('counselor.routes@example.invalid')).toEqual([
       expect.objectContaining({ action: 'read', targetTable: 'users', detail: JSON.stringify({ self: true }) }),
     ]);

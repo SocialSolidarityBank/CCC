@@ -7,7 +7,7 @@
  * vs `0025-b.md`) 자동 병합이 "새 파일 둘"로 보고 조용히 통과시키고, 표의 행도 서로 다른
  * 줄이면 충돌이 나지 않는다.
  *
- * 실제로 두 번 일어났다: migrations/0009 두 건(적용 완료라 이름을 되돌릴 수 없어 예외로
+ * 실제로 두 번 일어났다: migrations/sqlite/0009 두 건(적용 완료라 이름을 되돌릴 수 없어 예외로
  * 둔다)과 2026-08-01 의 ADR-0025 · D55(머지 전에 사람이 눈으로 잡아 0027 · D57 로 옮겼다).
  * 사람 눈에 기대는 대신 여기서 결정론으로 막는다.
  */
@@ -21,7 +21,7 @@ const root = resolve(process.cwd());
  * identity 로 쓰고 두 파일 모두 운영에 적용됐다(docs/ops.md '마이그레이션 파일 번호').
  * 새 중복을 눈감아 주는 자리가 아니라, 과거 한 건을 못 박아 두는 자리다.
  */
-const KNOWN_DUPLICATES = new Set(['migrations/0009']);
+const KNOWN_DUPLICATES = new Set(['migrations/sqlite/0009']);
 
 /** `0025-openai-provider.md` → `0025`. 번호로 시작하지 않는 파일은 검사 대상이 아니다. */
 function leadingNumber(fileName) {
@@ -30,12 +30,9 @@ function leadingNumber(fileName) {
 }
 
 async function numberedFiles(directory, extension) {
-  let entries;
-  try {
-    entries = await readdir(resolve(root, directory), { withFileTypes: true });
-  } catch {
-    return [];
-  }
+  // 검사할 SSOT 디렉터리가 없는데 "중복 0건"으로 통과하면 guard 가 경로 이동을 놓친다.
+  // readdir 실패를 삼키지 않아 missing/unreadable 을 그대로 실패시킨다(E3-1a).
+  const entries = await readdir(resolve(root, directory), { withFileTypes: true });
   return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
     .map((entry) => ({ number: leadingNumber(entry.name), label: `${directory}/${entry.name}` }))
@@ -76,7 +73,7 @@ function duplicates(entries, scope) {
 
 const violations = [
   ...duplicates(await numberedFiles('docs/adr', '.md'), 'docs/adr'),
-  ...duplicates(await numberedFiles('migrations', '.sql'), 'migrations'),
+  ...duplicates(await numberedFiles('migrations/sqlite', '.sql'), 'migrations/sqlite'),
   ...duplicates(await decisionNumbers(), 'CLAUDE.md 9장 D'),
 ];
 

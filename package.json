@@ -41,7 +41,7 @@
     "supabase:bootstrap": "node scripts/supabase/bootstrap.mjs",
     "release:verify": "node scripts/release/verify.mjs",
     "guard:core-imports": "node scripts/guard-core-imports.mjs",
-    "test:scripts": "node --test scripts/guard-core-imports.test.mjs scripts/test-mode.test.mjs scripts/test-suite.test.mjs",
+    "test:scripts": "node --test scripts/guard-core-imports.test.mjs scripts/guard-doc-numbers.test.mjs scripts/test-mode.test.mjs scripts/test-suite.test.mjs",
     "test:runtime": "node scripts/test-mode.mjs runtime",
     "test:golden": "node scripts/test-mode.mjs golden",
     "test:contracts": "node scripts/test-suite.mjs contracts",

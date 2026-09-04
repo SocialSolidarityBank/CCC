@@ -2,7 +2,7 @@
 
 - 상태: 확정 (2026-09-03)
 - 근거: ADR-0040 §9, ADR-0041 D82, ADR-0041 D79
-- 입력: `docs/adr/0040-community-cloud-policy.md` §9, `docs/adr/0041-one-core-three-deployment-modes.md` §D81-82, `migrations/0008_participant_consent_records.sql`, `migrations/0014_session_intake_record.sql`, `migrations/0020_support_case_consent_privacy.sql`, `migrations/0043_privacy_consent_notice_evidence.sql`, `db/gateway.ts`, `apps/web/app/lib/api.ts`, `docs/specs/SPEC-TEMPLATE-and-S1-example.md`
+- 입력: `docs/adr/0040-community-cloud-policy.md` §9, `docs/adr/0041-one-core-three-deployment-modes.md` §D81-82, `migrations/sqlite/0008_participant_consent_records.sql`, `migrations/sqlite/0014_session_intake_record.sql`, `migrations/sqlite/0020_support_case_consent_privacy.sql`, `migrations/sqlite/0043_privacy_consent_notice_evidence.sql`, `db/gateway.ts`, `apps/web/app/lib/api.ts`, `docs/specs/SPEC-TEMPLATE-and-S1-example.md`
 - 산출: 여섯 영역의 식별자·문안·사건·게이트·이전·DTO/API 계약. 구현 산출물은 E3-8과 E4-6이 소유한다.
 - 관련 티켓: GitHub #223, Linear CCC-166, E3-8, E4-6, SG5, SG6, SG8
 
