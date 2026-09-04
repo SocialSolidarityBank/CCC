@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Database } from '@ccc/contracts/database';
+import type { AudioStore } from '@ccc/contracts/runtime';
 import worker from '../src/index';
 import type { ApiEnv } from '../src/identity';
 import type { AiProviderAdapter } from '../src/ai-provider';
@@ -7,7 +8,7 @@ import type { AiProviderAdapter } from '../src/ai-provider';
 const healthEnv: ApiEnv = {
   DB: undefined as unknown as Database,
   PII_ENC_KEY: 'local-test-key-not-for-production',
-  AUDIO_BUCKET: undefined as unknown as R2Bucket,
+  audioStore: undefined as unknown as AudioStore,
 };
 
 describe('health route', () => {

@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Database } from '@ccc/contracts/database';
+import type { AudioStore } from '@ccc/contracts/runtime';
 import worker from '../src/index';
-import { resolvePreviewE2eActorEmail } from '../src/preview-gate';
+import { handlePreviewUnlock, previewActorResolver, resolvePreviewE2eActorEmail } from '../src/preview-gate';
 import type { ApiEnv } from '../src/identity';
-
-// 테스트 전용 고정 코드(실제 지정 코드 아님 — 픽스처 리터럴). 실제 코드는 시크릿으로만 주입한다.
 const TEST_CODE = 'test-preview-code-1234';
 // 관리자 시점 픽스처(2026-07-30). 실무자 코드와 **다른 값**이어야 두 경로가 갈린다.
 const TEST_ADMIN_CODE = 'test-preview-admin-code-5678';
@@ -14,7 +13,7 @@ const TEST_E2E_CODE = 'test-preview-e2e-code-9012';
 const baseEnv: ApiEnv = {
   DB: undefined as unknown as Database,
   PII_ENC_KEY: 'local-test-key-not-for-production',
-  AUDIO_BUCKET: undefined as unknown as R2Bucket,
+  audioStore: undefined as unknown as AudioStore,
 };
 
 // 코드 게이트가 열린 미리보기 env(이중 잠금 충족: PREVIEW_MODE + Access 미설정).

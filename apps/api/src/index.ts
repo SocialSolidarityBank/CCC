@@ -5,6 +5,7 @@ import {
   type PipelineHealth,
 } from '../../../db/gateway';
 import { adaptD1Environment } from '@ccc/db-d1';
+import { createR2AudioStore } from '@ccc/audio-r2';
 import { type ApiEnv } from './identity';
 import { localDevActorResolver } from './local-actor';
 import { notifyAdmins } from './notify';
@@ -22,9 +23,17 @@ export {
 import { PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
 function adaptWorkerEnvironment(env: ApiEnv): ApiEnv {
-  const { DB: database } = env;
-  if (database === undefined) return env;
-  return adaptD1Environment(env);
+  const environment = env.audioStore === undefined
+    ? {
+        ...env,
+        audioStore: createR2AudioStore(
+          (env as ApiEnv & { AUDIO_BUCKET: R2Bucket }).AUDIO_BUCKET,
+        ),
+      }
+    : env;
+  const { DB: database } = environment;
+  if (database === undefined) return environment;
+  return adaptD1Environment(environment);
 }
 
  

@@ -89,9 +89,13 @@ async function putAudio(
   headers: HeadersInit = counselorHeaders,
   body: BodyInit = AUDIO_BYTES,
 ) {
+  const requestHeaders = new Headers(headers);
+  if (!requestHeaders.has('content-length') && body instanceof Uint8Array) {
+    requestHeaders.set('content-length', String(body.byteLength));
+  }
   return worker.fetch(new Request('http://localhost/sessions/' + sessionId + '/audio', {
     method: 'PUT',
-    headers,
+    headers: requestHeaders,
     body,
   }), env);
 }
