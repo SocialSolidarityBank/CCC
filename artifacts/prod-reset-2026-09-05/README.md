@@ -69,7 +69,7 @@ pnpm exec wrangler d1 time-travel restore ccc --env production --bookmark=00000b
 
 별도 암호화 백업도 실행한 맥의 `$HOME/.local/share/ccc/backups/`에 보관했다. 디렉터리는 0700, 파일은 0600이다. 파일명은 `prod-beta-reset-2026-09-05.aesgcm.json`이며 AES-256-GCM, 실행 당시 Infisical prod `PII_ENC_KEY`를 사용했다. 디스크에서 다시 읽은 암호문을 복호화해 내보낸 원본과 일치함을 확인했다. 원본 평문 SQL 파일은 즉시 삭제했으며, 백업은 Git에 포함하지 않았다. 키를 교체할 때는 이 백업의 복구에 필요한 당시 키도 안전하게 보존해야 한다.
 
-D1 export는 레거시 뷰를 빠뜨리면서 그 뷰의 트리거를 포함했다. 원본 export만 그대로 재실행하는 복구는 실패한다. 같은 백업 디렉터리에 정확한 전체 스키마를 `prod-beta-reset-2026-09-05.schema.sql`로 보관했다. 복구 리허설은 그 스키마의 표/인덱스/뷰를 만든 다음 export의 데이터 INSERT를 적재하고 트리거를 복원하는 순서로 수행했다. 이 공개 문서는 실행 요약이며, Time Travel 만료 뒤의 복구를 자동 실행하는 도구는 제공하지 않는다. 그런 복구는 Q 재승인 후 당시 키로 백업을 복호화하고, 같은 순서를 격리된 DB에서 재검증한 다음 진행한다.
+D1 export에는 뷰 4개가 모두 있지만, `case_assignees_legacy_delete_unsupported` 트리거가 3,161행에 먼저 나오고 대상 뷰 `case_assignees`는 4,549행에 나온다. 그래서 원본 export를 순서대로 복원하면 `no such table: main.case_assignees`로 실패한다. 같은 백업 디렉터리에 의존 순서로 정리한 전체 스키마를 `prod-beta-reset-2026-09-05.schema.sql`로 보관했다. 복구 리허설은 그 스키마의 표/인덱스/뷰를 만든 다음 export의 데이터 INSERT를 적재하고 트리거를 복원하는 순서로 수행했다. 이 공개 문서는 실행 요약이며, Time Travel 만료 뒤의 복구를 자동 실행하는 도구는 제공하지 않는다. 그런 복구는 Q 재승인 후 당시 키로 백업을 복호화하고, 같은 순서를 격리된 DB에서 재검증한 다음 진행한다.
 
 | 검증 대상 | SHA-256 |
 | --- | --- |
