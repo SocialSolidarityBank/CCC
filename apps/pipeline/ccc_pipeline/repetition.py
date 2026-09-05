@@ -88,8 +88,8 @@ def collapse_runs(segments: list[Segment], runs: list[RepetitionRun]) -> list[Se
     실무자에게 필요한 정보다. 접힌 줄은 원래 구간 전체의 시각을 덮고 `warning=True`
     로 표시된다 — 감정 집계·역할 라벨에서 빠진다. 경고 문장 자체는 더 이상 전사
     텍스트에 끼워 넣지 않는다: 시간 구간·사유는 `warning_spans` 가 만드는 구조화
-    필드로 API 에 실리고, 승인 화면이 그 필드를 표시한다. 구 서버(구조화 필드를
-    모르는 스키마)로 보낼 때만 `inject_legacy_warnings` 가 옛 경고 문장을 복원한다.
+    필드로 API 에 실리고, 승인 화면이 그 필드를 표시한다(v2 는 옛 경고 문장 폴백을
+    두지 않는다 — S5 §2.7).
     """
     if not runs:
         return segments
@@ -126,43 +126,3 @@ def warning_spans(runs: list[RepetitionRun]) -> list[dict[str, float | str]]:
         for run in runs
     ]
 
-
-def legacy_warning_text(run: RepetitionRun) -> str:
-    """구 서버 폴백용 경고 문장 — CCC-124 이전에 전사 텍스트에 끼워 넣던 형식 그대로."""
-    return (
-        f"⚠ 전사 실패 구간 — 같은 문장이 {run.count}회 반복됐습니다"
-        f"({_clock(run.start)}~{_clock(run.end)}). 이 구간은 믿을 수 없으니"
-        f" 녹음을 직접 확인하거나 수기 메모로 메워 주세요. 반복된 문장: {run.text}"
-    )
-
-
-def inject_legacy_warnings(segments: list[Segment], runs: list[RepetitionRun]) -> list[Segment]:
-    """접힌 경고 줄에 옛 경고 문장을 복원한다 — 구조화 필드를 모르는 구 서버 전용.
-
-    `collapse_runs` 는 run 하나당 `warning=True` 세그먼트 하나를 같은 순서로 남기므로
-    순서대로 짝을 맞춘다. 경고 문장에는 반복된 문장이 들어가지만, 이 결과는 다른
-    전사와 똑같이 2차 마스킹을 거친 뒤에만 전송된다(R3).
-    """
-    replaced: list[Segment] = []
-    pending = iter(runs)
-    for segment in segments:
-        if not segment.warning:
-            replaced.append(segment)
-            continue
-        run = next(pending, None)
-        if run is None:
-            replaced.append(segment)
-            continue
-        replaced.append(Segment(
-            start=segment.start,
-            end=segment.end,
-            text=legacy_warning_text(run),
-            speaker=segment.speaker,
-            warning=True,
-        ))
-    return replaced
-
-
-def _clock(seconds: float) -> str:
-    total = int(seconds)
-    return f"{total // 60:02d}:{total % 60:02d}"

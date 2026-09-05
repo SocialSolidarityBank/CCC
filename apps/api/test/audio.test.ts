@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PreparedStatement } from '@ccc/contracts/database';
+import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './support/local-worker';
 import {
   ConflictError,
@@ -9,6 +10,7 @@ import {
   type Actor,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { agentManifestEnv, claimOverHttp } from './support/agent-jobs';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -111,23 +113,54 @@ async function recordingState(sessionId: string): Promise<{ audio_r2_key: string
   return session;
 }
 
+/** v2 는 작업 ID 로 감사를 남긴다 — 회차의 오디오 작업을 거쳐 센다(S5). */
 async function downloadAuditCount(sessionId: string): Promise<number> {
   const audit = await t.db.prepare(
-    "SELECT COUNT(*) AS count FROM audit_log WHERE action = 'download_audio' AND target_id = ?",
+    `SELECT COUNT(*) AS count FROM audit_log
+     WHERE action = 'download_audio'
+       AND target_id IN (SELECT id FROM agent_jobs WHERE session_id = ? AND kind = 'audio')`,
   ).bind(sessionId).first<{ count: number }>();
   if (audit === null) throw new Error('expected download audit count');
   return audit.count;
 }
 
+/**
+ * 원음 전달은 claim 에 묶인다 (S5). 서비스 자격으로 claim 한 뒤 그 토큰으로 GET 하고,
+ * 자격 거부 표는 같은 endpoint 를 다른 actor 로 두드린다.
+ */
+async function relayAudio(
+  env: ApiEnv,
+  sessionId: string,
+  headers: Record<string, string> | null = serviceHeaders,
+): Promise<{ response: Response; jobId: string }> {
+  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const { jobs } = await claimOverHttp(agentEnv, t.db, {
+    'content-type': 'application/json',
+    'X-CCC-User-Id': service.userId,
+    'X-CCC-Org-Id': service.orgId,
+    'X-CCC-Role': 'service',
+  });
+  const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
+  if (job === undefined) throw new Error('expected a claimable audio job');
+  const request = headers === null
+    ? new Request(`http://localhost/pipeline/jobs/${job.jobId}/audio`)
+    : new Request(`http://localhost/pipeline/jobs/${job.jobId}/audio`, {
+      headers: { ...headers, 'X-CCC-Claim-Token': job.claimToken, 'X-CCC-Claim-Attempt': String(job.attempt) },
+    });
+  const response = await worker.fetch(request, agentEnv);
+  return { response, jobId: job.jobId };
+}
+
 async function expectDeniedAudioRequest(
   response: Response,
   sessionId: string,
-  expected: { status: number; body: { error: string } },
+  expected: { status: number; body: { error: string; jobId?: string; retryable?: boolean } },
   expectedObjectCount: number,
   expectedRecording: { audio_r2_key: string | null; ai_status: string },
 ): Promise<void> {
   expect(response.status).toBe(expected.status);
-  await expect(response.json()).resolves.toEqual(expected.body);
+  // v2 오류 본문은 code 외에 jobId·retryable 을 함께 싣는다(S5 §2.6).
+  await expect(response.json()).resolves.toMatchObject(expected.body);
   expect(await bucketCount()).toBe(expectedObjectCount);
   expect(await recordingState(sessionId)).toEqual(expectedRecording);
   expect(await downloadAuditCount(sessionId)).toBe(0);
@@ -161,9 +194,7 @@ describe('audio upload and relay', () => {
       ai_status: 'uploaded',
     });
 
-    const download = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${session.id}/audio`, {
-      headers: serviceHeaders,
-    }), env);
+    const { response: download } = await relayAudio(env, session.id);
     expect(download.status).toBe(200);
     expect(download.headers.get('content-type')).toBe('audio/mpeg');
     // 원본 보존 — 바이트 단위로 같아야 보관함이 손을 대지 않은 증거다(CCC-94).
@@ -325,7 +356,7 @@ describe('audio upload and relay', () => {
     const { session } = await makeInPersonSession(true);
     expect((await putAudio(session.id, env)).status).toBe(200);
 
-    const relay = await worker.fetch(new Request('http://localhost/pipeline/jobs/' + session.id + '/audio', { headers: serviceHeaders }), env);
+    const { response: relay } = await relayAudio(env, session.id);
     expect(relay.status).toBe(200);
     expect(relay.headers.get('content-type')).toBe('audio/mpeg');
     expect(relay.headers.get('cache-control')).toBe('no-store');
@@ -342,7 +373,7 @@ describe('audio upload and relay', () => {
     expect((await putAudio(session.id, env)).status).toBe(200);
     const before = await recordingState(session.id);
 
-    const relay = await worker.fetch(new Request('http://localhost/pipeline/jobs/' + session.id + '/audio'), env);
+    const { response: relay } = await relayAudio(env, session.id, null);
     await expectDeniedAudioRequest(
       relay,
       session.id,
@@ -359,7 +390,7 @@ describe('audio upload and relay', () => {
     expect((await putAudio(session.id, env)).status).toBe(200);
 
     const before = await recordingState(session.id);
-    const relay = await worker.fetch(new Request('http://localhost/pipeline/jobs/' + session.id + '/audio', { headers: counselorHeaders }), env);
+    const { response: relay } = await relayAudio(env, session.id, counselorHeaders);
     await expectDeniedAudioRequest(relay, session.id, { status: 403, body: { error: 'forbidden' } }, 1, before);
   });
   it('rejects a same-org admin from the service-only audio relay without a download audit or recording mutation', async () => {
@@ -369,9 +400,7 @@ describe('audio upload and relay', () => {
     expect((await putAudio(session.id, env)).status).toBe(200);
     const before = await recordingState(session.id);
 
-    const relay = await worker.fetch(new Request('http://localhost/pipeline/jobs/' + session.id + '/audio', {
-      headers: adminHeaders,
-    }), env);
+    const { response: relay } = await relayAudio(env, session.id, adminHeaders);
     await expectDeniedAudioRequest(relay, session.id, { status: 403, body: { error: 'forbidden' } }, 1, before);
   });
   it('rejects a cross-org service relay without a download audit or recording mutation', async () => {
@@ -381,10 +410,15 @@ describe('audio upload and relay', () => {
     expect((await putAudio(session.id, env)).status).toBe(200);
     const before = await recordingState(session.id);
 
-    const relay = await worker.fetch(new Request('http://localhost/pipeline/jobs/' + session.id + '/audio', {
-      headers: otherOrgServiceHeaders,
-    }), env);
-    await expectDeniedAudioRequest(relay, session.id, { status: 403, body: { error: 'forbidden' } }, 1, before);
+    // 다른 기관의 service 에게 이 작업은 존재하지 않는다(org 경계, S5 §2.6).
+    const { response: relay, jobId } = await relayAudio(env, session.id, otherOrgServiceHeaders);
+    await expectDeniedAudioRequest(
+      relay,
+      session.id,
+      { status: 404, body: { error: 'job_not_found', jobId, retryable: false } },
+      1,
+      before,
+    );
   });
 
   it('returns 404 when the registered audio object is missing from R2', async () => {
@@ -394,8 +428,8 @@ describe('audio upload and relay', () => {
     // /recording은 D1 키만 등록하고 R2에는 아무것도 올리지 않는다.
     await registerRecording(t.env, counselor, session.id, 'audio/missing/object-key');
 
-    const relay = await worker.fetch(new Request('http://localhost/pipeline/jobs/' + session.id + '/audio', { headers: serviceHeaders }), env);
+    const { response: relay, jobId } = await relayAudio(env, session.id);
     expect(relay.status).toBe(404);
-    await expect(relay.json()).resolves.toEqual({ error: 'audio_object_missing', jobId: session.id });
+    await expect(relay.json()).resolves.toEqual({ error: 'audio_object_missing', jobId });
   });
 });

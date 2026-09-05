@@ -8,7 +8,7 @@ import {
   createManualSession,
   enqueueTextWorkItem,
   ForbiddenError,
-  listTextWorkItems,
+  claimAgentJobs,
   recordMaskedSourceSnapshot,
   getParticipantBriefing,
   listCounselingRecords,
@@ -35,6 +35,13 @@ import {
 } from '@ccc/ai-runtime';
 import worker from './support/local-worker';
 import { setupD1, testActors } from './support/d1';
+import {
+  agentManifestEnv,
+  claimRequest,
+  runAgentTextJobs,
+  seedNerQualification,
+  TEXT_ONLY_RUNTIME,
+} from './support/agent-jobs';
 
 // 이 파일의 픽스처는 케이스·회차·동의·스냅샷을 매번 새로 만든다 — 전체 스위트를 병렬로
 // 돌리면 기본 5초 안에 끝나지 않아 내용과 무관하게 시간 초과로 떨어진다(브랜치 이전부터
@@ -83,43 +90,12 @@ async function seedMaskedSnapshot(sessionId: string, text: string): Promise<void
 }
 
 /**
- * 처리 장비 흉내 (ADR-0027) — 대기 중인 텍스트 일감을 전부 가져와 2차 마스킹
- * 스냅샷을 만들고 완료 처리한다. 스냅샷 POST 라우트가 불일치 재검출을 돌린다.
- * `mask` 로 NER 마스킹을 대신한다(기본값은 원문 그대로 = 마스킹할 것이 없는 경우).
+ * 처리 장비 흉내 (S5) — claim 한 텍스트 작업을 전부 마스킹해 결과로 제출한다. 결과
+ * 라우트가 불일치 재검출을 돌린다. `mask` 로 NER 마스킹을 대신한다(기본값은 원문 그대로).
  */
 async function runDeviceTextJobs(mask: (text: string) => string = (text) => text): Promise<number> {
-  const listed = await worker.fetch(new Request('https://api.test/pipeline/text-jobs', {
-    headers: serviceHeaders(),
-  }), t.env);
-  const { jobs } = await listed.json() as { jobs: Array<{ id: string; sessionId: string }> };
-  for (const job of jobs) {
-    const sourceResponse = await worker.fetch(
-      new Request(`https://api.test/pipeline/text-jobs/${job.id}/source`, { headers: serviceHeaders() }),
-      t.env,
-    );
-    if (sourceResponse.status !== 200) throw new Error(`text job source failed: ${sourceResponse.status}`);
-    const { text } = await sourceResponse.json() as { text: string };
-    const maskedText = mask(text);
-    const snapshotResponse = await worker.fetch(new Request(`https://api.test/sessions/${job.sessionId}/ai/source`, {
-      method: 'POST',
-      headers: serviceHeaders(),
-      body: JSON.stringify({
-        maskedText,
-        sha256: await sha256Hex(maskedText),
-        maskingPipelineVersion: 'ner-mask-v1',
-        // 텍스트 일감에는 발췌할 근거가 따로 없다 — 마스킹된 본문 전체가 한 조각이다.
-        evidence: [wholeTextEvidence(job.sessionId, maskedText, await sha256Hex(maskedText))],
-      }),
-    }), t.env);
-    if (snapshotResponse.status !== 201) {
-      throw new Error(`snapshot post failed: ${snapshotResponse.status} ${await snapshotResponse.text()}`);
-    }
-    await worker.fetch(new Request(`https://api.test/pipeline/text-jobs/${job.id}/complete`, {
-      method: 'POST',
-      headers: serviceHeaders(),
-    }), t.env);
-  }
-  return jobs.length;
+  const env = await agentManifestEnv(t.env);
+  return runAgentTextJobs(env, t.db, { mask, headers: serviceHeaders() });
 }
 
 // 테스트마다 독립 D1 — setupD1 계약상 reset() 이 컨텍스트를 만든다.
@@ -303,22 +279,25 @@ describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명
 
   // 큐는 삭제가 없다(0029) — 처리할 수 없는 행을 내보내면 장비가 매 폴링마다 같은 행에
   // 걸려 실패하고 큐가 영원히 쌓인다. 조건이 갖춰질 때까지 안 보이는 것이 계약이다.
-  it('② 동의 근거가 없으면 텍스트 일감이 장비에 보이지 않는다', async () => {
+  it('② 동의 근거와 파일럿 스위치가 갖춰질 때까지 텍스트 작업이 장비에 보이지 않는다', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모']);
     t.env.TEXT_AI_PILOT_ENABLED = '1';
     await enqueueTextWorkItem(t.env, counselor, fixture.sessionIds[0] ?? '', 'manual_record');
+    const qualification = await seedNerQualification(t.db);
 
-    const before = await listTextWorkItems(t.env, service);
-    expect(before).toHaveLength(0);
+    const before = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    expect(before.jobs).toHaveLength(0);
 
-    // ② 를 기록하는 순간 같은 행이 저절로 보인다 — 큐를 다시 쌓을 필요가 없다.
+    // 파일럿이 꺼져 있으면 결과 저장이 전부 거부되므로 역시 내보내지 않는다.
     await enableTextAiConsent(fixture.caseId);
-    const after = await listTextWorkItems(t.env, service);
-    expect(after.map((item) => item.sessionId)).toEqual([fixture.sessionIds[0]]);
-
-    // 파일럿이 꺼져 있으면 스냅샷 저장이 전부 거부되므로 역시 내보내지 않는다.
     delete t.env.TEXT_AI_PILOT_ENABLED;
-    expect(await listTextWorkItems(t.env, service)).toHaveLength(0);
+    const paused = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    expect(paused.jobs).toHaveLength(0);
+
+    // 두 조건이 갖춰지는 순간 같은 행이 저절로 보인다 — 큐를 다시 쌓을 필요가 없다.
+    t.env.TEXT_AI_PILOT_ENABLED = '1';
+    const after = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    expect(after.jobs.map((job) => job.sessionId)).toEqual([fixture.sessionIds[0]]);
   });
 
   it('비담당 실무자는 수집할 수 없다 (D7)', async () => {

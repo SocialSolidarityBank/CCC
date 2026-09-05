@@ -28,10 +28,31 @@ import {
   type AiProviderTestAdapter,
 } from '@ccc/ai-runtime';
 import { setupD1, testActors } from './support/d1';
+import {
+  agentManifestEnv,
+  AGENT_SERVICE_HEADERS,
+  claimOverHttp,
+  seedNerQualification,
+  type NerQualification,
+} from './support/agent-jobs';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import type { ApiEnv } from '@ccc/http-api/identity';
 
 const t = setupD1();
 const counselor: Actor = testActors.counselor;
+
+/**
+ * 결과 payload hash 는 NER attestation 값까지 덮으므로 한 테스트 안에서는 같은 자격을 쓴다 —
+ * 매번 새 영수증을 심으면 재전송 payload 가 달라져 멱등 경로가 성립하지 않는다.
+ */
+let qualificationCache: { db: D1Database; value: NerQualification } | null = null;
+
+async function sessionQualification(): Promise<NerQualification> {
+  if (qualificationCache?.db === t.db) return qualificationCache.value;
+  const value = await seedNerQualification(t.db);
+  qualificationCache = { db: t.db, value };
+  return value;
+}
 const service: Actor = testActors.service;
 const MASKED_FIXTURE = '[상담자] 합성 녹음의 마스킹 완료 문장입니다.';
 const TEST_PROVIDER_CONFIG = {
@@ -83,22 +104,33 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/** v2 `AudioResult` (S5 §2.1). S6 metadata 와 hash 3종을 계약대로 채운다. */
 async function recordingResultBody(maskedText = MASKED_FIXTURE) {
   const sha256 = await sha256Hex(maskedText);
+  const evidence = [{
+    id: crypto.randomUUID(),
+    sourceRef: 'recording-transcript',
+    sourceSha256: sha256,
+    evidenceQuote: maskedText,
+    sourceStart: 0,
+    sourceEnd: [...maskedText].length,
+  }];
   return {
+    kind: 'audio',
     maskedText,
     sha256,
     maskingPipelineVersion: 'fixture-mask-v1',
-    evidence: [{
-      id: crypto.randomUUID(),
-      sourceRef: 'recording-transcript',
-      sourceSha256: sha256,
-      evidenceQuote: maskedText,
-      sourceStart: 0,
-      sourceEnd: [...maskedText].length,
-    }],
+    maskingPipelineHash: 'd'.repeat(64),
+    nerAvailable: true,
+    nerAttestationId: 'attestation-placeholder',
+    nerAttestationResultHash: 'c'.repeat(64),
+    releaseQualificationReceiptId: 'receipt-placeholder',
+    evidenceHash: await sha256Hex(canonicalizeJcs(evidence)),
+    evidence,
     // D64 보류 중 장비는 빈 감정만 보낸다 (worker.py EMOTION_DEFERRED)
     emotionScores: {},
+    transcriptReliable: true,
+    transcriptWarnings: [],
   };
 }
 
@@ -135,7 +167,11 @@ async function configureProvider(env: ApiEnv, provider: FixtureAiProvider, caseI
   await activateAiProviderConfiguration(env, testActors.admin, providerConfig.id);
 }
 
-function postResult(
+/**
+ * 결과는 claim 한 오디오 작업으로만 들어온다 (S5). 호출자가 준 `result` 를 그대로 싣고
+ * payload hash 만 계약대로 계산한다 — 잘못된 본문도 서버 검증까지 그대로 도달한다.
+ */
+async function postResult(
   env: ApiEnv,
   sessionId: string,
   body: Record<string, unknown>,
@@ -146,11 +182,48 @@ function postResult(
     'X-CCC-Role': service.role,
   },
 ): Promise<Response> {
-  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${sessionId}/result`, {
+  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  // 이 헬퍼는 한 테스트에서 여러 번 불린다. 앞선 호출의 임대를 되돌려 매 호출이 스스로
+  // claim 하게 한다(테스트 셋업 직접 DB 허용 — 서버 경로는 그대로 v2 계약을 지난다).
+  await t.db.prepare(
+    `UPDATE agent_jobs SET state = 'pending', lease_owner = NULL, claim_token_hash = NULL,
+       claimed_at = NULL, lease_expires_at = NULL, attempt = 0
+     WHERE session_id = ? AND kind = 'audio' AND state = 'leased'`,
+  ).bind(sessionId).run();
+  const terminal = await t.db.prepare(
+    "SELECT id FROM agent_jobs WHERE session_id = ? AND kind = 'audio' AND state = 'succeeded'",
+  ).bind(sessionId).first<{ id: string }>();
+  const { jobs, qualification } = await claimOverHttp(agentEnv, t.db, {
+    ...AGENT_SERVICE_HEADERS,
+  }, await sessionQualification());
+  // 이미 수락된 작업은 claim 없이 같은 payload hash 로만 다시 온다(멱등 경로, S5 §2.2).
+  const job = terminal === null
+    ? jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId)
+    : { jobId: terminal.id, claimToken: '0'.repeat(64), attempt: 1 };
+  if (job === undefined) throw new Error('expected a claimable audio job');
+  const result = {
+    ...body,
+    ...(Object.hasOwn(body, 'nerAttestationId') ? { nerAttestationId: qualification.attestation.id } : {}),
+    ...(Object.hasOwn(body, 'nerAttestationResultHash')
+      ? { nerAttestationResultHash: qualification.attestation.resultHash }
+      : {}),
+    ...(Object.hasOwn(body, 'releaseQualificationReceiptId')
+      ? { releaseQualificationReceiptId: qualification.receiptId }
+      : {}),
+  };
+  const attempt = job.attempt;
+  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
-  }), env);
+    body: JSON.stringify({
+      schemaVersion: 2,
+      claimToken: job.claimToken,
+      attempt,
+      resultId: crypto.randomUUID(),
+      payloadSha256: await sha256Hex(canonicalizeJcs({ schemaVersion: 2, attempt, result })),
+      result,
+    }),
+  }), agentEnv);
 }
 
 const counselorHeaders = {
@@ -236,22 +309,47 @@ async function relayToWorker(
   response.end(Buffer.from(await workerResponse.arrayBuffer()));
 }
 
-function runDeviceClient(baseUrl: string, sessionId: string): Promise<{ code: number | null; stderr: string }> {
+function runDeviceClient(
+  baseUrl: string,
+  sessionId: string,
+  qualification: { receiptId: string; attestation: Record<string, unknown> },
+): Promise<{ code: number | null; stderr: string }> {
+  // 실제 Python 클라이언트로 v2 계약을 왕복한다: claim → result → 같은 payload 재전송(멱등).
   const script = [
+    'import json, sys',
     'from ccc_pipeline.api_client import ApiClient',
-    'from ccc_pipeline.results import build_recording_result',
-    'import sys',
+    'from ccc_pipeline.results import build_result, build_result_request',
     'client = ApiClient(sys.argv[1], "fixture-client", "fixture-secret", runtime_environment="production")',
-    `result = build_recording_result(${JSON.stringify(MASKED_FIXTURE)}, {}, "fixture-mask-v1")`,
-    'client.post_recording_result(sys.argv[2], result)',
-    'client.post_recording_result(sys.argv[2], result)',
+    'attestation = json.loads(sys.argv[3])',
+    'receipt_id = sys.argv[4]',
+    'jobs = client.claim_jobs({"nerAttestation": attestation, "releaseQualificationReceiptId": receipt_id})',
+    'job = next(j for j in jobs if j["kind"] == "audio" and j["sessionId"] == sys.argv[2])',
+    'result = build_result(',
+    '    "audio",',
+    `    ${JSON.stringify(MASKED_FIXTURE)},`,
+    '    masking_pipeline_version="fixture-mask-v1",',
+    '    masking_pipeline_hash="d" * 64,',
+    '    ner_attestation=attestation,',
+    '    release_qualification_receipt_id=receipt_id,',
+    '    source_ref="audio:fixture",',
+    '    emotion_scores={},',
+    '    transcript_reliable=True,',
+    '    transcript_warnings=[],',
+    ')',
+    'request = build_result_request(job["claimToken"], job["attempt"], result)',
+    'client.post_result(job["jobId"], request)',
+    'client.post_result(job["jobId"], request)',
   ].join('\n');
   return new Promise((resolveProcess, reject) => {
-    const child = spawn('python3', ['-c', script, baseUrl, sessionId], {
-      cwd: resolve('apps/pipeline'),
-      env: { ...process.env, PYTHONPATH: '.' },
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
+    const child = spawn(
+      'python3',
+      ['-c', script, baseUrl, sessionId, JSON.stringify(qualification.attestation), qualification.receiptId],
+      {
+        cwd: resolve('apps/pipeline'),
+        env: { ...process.env, PYTHONPATH: '.' },
+        stdio: ['ignore', 'ignore', 'pipe'],
+      },
+    );
     let stderr = '';
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => { stderr += chunk; });
@@ -263,13 +361,13 @@ function runDeviceClient(baseUrl: string, sessionId: string): Promise<{ code: nu
 describe('recording result end-to-end contract (CCC-95)', () => {
   it('commits a Preview fixture result through the real Worker route exactly once and keeps it unofficial', async () => {
     await t.reset();
-    const env = {
+    const env = await agentManifestEnv({
       ...t.env,
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-    };
+    }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000001');
     await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
       noticeVersion: 'recording-result-e2e-v1',
@@ -288,7 +386,12 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     try {
       const address = server.address();
       if (address === null || typeof address === 'string') throw new Error('test server address is unavailable');
-      const processResult = await runDeviceClient(`http://127.0.0.1:${address.port}`, session.id);
+      const qualification = await seedNerQualification(t.db);
+      const processResult = await runDeviceClient(
+        `http://127.0.0.1:${address.port}`,
+        session.id,
+        qualification as unknown as { receiptId: string; attestation: Record<string, unknown> },
+      );
       expect(processResult, processResult.stderr).toEqual({ code: 0, stderr: '' });
     } finally {
       await new Promise<void>((resolveClose, reject) => server.close((error) => error ? reject(error) : resolveClose()));
@@ -446,13 +549,13 @@ describe('recording result end-to-end contract (CCC-95)', () => {
 
   it('rejects recording re-registration after an immutable result commit', async () => {
     await t.reset();
-    const env = {
+    const env = await agentManifestEnv({
       ...t.env,
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-    };
+    }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000005');
     await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
       noticeVersion: 'recording-result-e2e-v1',
@@ -492,13 +595,13 @@ describe('recording result end-to-end contract (CCC-95)', () => {
 
   it('keeps a fixture review link when the latest session has no memo text', async () => {
     await t.reset();
-    const env = {
+    const env = await agentManifestEnv({
       ...t.env,
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-    };
+    }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000007');
     await t.db.prepare("UPDATE sessions SET memo = '' WHERE id = ?").bind(session.id).run();
     await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
@@ -533,13 +636,13 @@ describe('recording result end-to-end contract (CCC-95)', () => {
 
   it('reclaims an expired downstream claim after an interrupted Worker request', async () => {
     await t.reset();
-    const env = {
+    const env = await agentManifestEnv({
       ...t.env,
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
-    };
+    }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000006');
     await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
       noticeVersion: 'recording-result-e2e-v1',
@@ -604,9 +707,10 @@ describe('recording result end-to-end contract (CCC-95)', () => {
           'X-CCC-Org-Id': 'org_other',
           'X-CCC-Role': 'service',
         },
-        status: 403,
+        // 다른 기관의 service 는 이 작업을 찾을 수 없다(org 경계, S5 §2.6).
+        status: 404,
       },
-      { name: 'wrong hash', body: { ...valid, sha256: '0'.repeat(64) }, status: 400 },
+      { name: 'wrong hash', body: { ...valid, sha256: '0'.repeat(64) }, status: 422 },
       {
         name: 'non numeric emotion',
         body: { ...valid, emotionScores: { combined: '불안함' } },
@@ -625,7 +729,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     ];
     for (const scenario of cases) {
       const response = await postResult(t.env, session.id, scenario.body, scenario.headers);
-      expect(response.status, scenario.name).toBe(scenario.status);
+      expect(response.status, `${scenario.name}: ${await response.clone().text()}`).toBe(scenario.status);
       const responseText = await response.text();
       expect(responseText).not.toContain('010-1234-5678');
       expect(responseText).not.toContain('test@example.org');
@@ -834,28 +938,18 @@ describe('recording result transcript quality (CCC-124)', () => {
     expect(JSON.parse(stored)).toEqual({ transcriptReliable: true, warnings: [] });
   });
 
-  it('keeps legacy results without quality fields as unknown (NULL)', async () => {
-    await t.reset();
-    const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000126');
-    expect((await postResult(env, session.id, await recordingResultBody())).status).toBe(204);
-    expect(await storedQuality(session.id)).toBeNull();
-
-    const draft = await worker.fetch(new Request(
-      `http://localhost/sessions/${session.id}/ai`,
-      { headers: counselorHeaders },
-    ), env);
-    expect(draft.status).toBe(200);
-    expect((await draft.json<{ transcriptQuality: unknown }>()).transcriptQuality).toBeNull();
-  });
-
   it('rejects malformed quality fields without committing', async () => {
     await t.reset();
     const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000127');
     const valid = await recordingResultBody();
+    const withoutReliable = { ...valid };
+    delete (withoutReliable as Record<string, unknown>).transcriptReliable;
+    const withoutWarnings = { ...valid };
+    delete (withoutWarnings as Record<string, unknown>).transcriptWarnings;
     const malformed: Array<Record<string, unknown>> = [
-      // 두 필드는 함께만 온다.
-      { ...valid, transcriptWarnings: [] },
-      { ...valid, transcriptReliable: false },
+      // v2 는 두 필드를 생략할 수 없다(S5 §2.7).
+      withoutReliable,
+      withoutWarnings,
       { ...valid, transcriptReliable: 'false', transcriptWarnings: [] },
       // 구간이 뒤집히면 거부.
       {

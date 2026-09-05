@@ -11,13 +11,15 @@ import {
   createBeneficiaryWithInitialSupportCase,
   createCounselingRecord,
   createGeneratedAiDraft,
+  claimAgentJobs,
   enqueueTextWorkItem,
-  listTextWorkItems,
+  releaseAgentJob,
   recordMaskedSourceSnapshot,
   updateParticipantConsent,
   PilotTextAiConsentRequiredError,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 
 // 픽스처가 케이스·회차·동의를 매번 새로 만든다 — text-work-materials.test.ts 와 같은 이유로 여유를 준다.
 vi.setConfig({ testTimeout: 30_000 });
@@ -67,15 +69,19 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     });
     const sessionId = record.record.id;
     await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
-    const before = await listTextWorkItems(t.env, service);
-    expect(before.some((item) => item.sessionId === sessionId)).toBe(true);
+    const qualification = await seedNerQualification(t.db);
+    const before = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    const claimed = before.jobs.find((job) => job.sessionId === sessionId);
+    expect(claimed).toBeDefined();
 
-    // 리스 의미론(CCC-120): 폴링이 곧 임대라 위 호출이 행을 processing 으로 바꿨다.
-    // 임대를 과거로 돌려 다시 후보가 되게 한다 — 이후 목록에서 안 보이는 이유가
-    // 임대가 아니라 **동의 철회**임을 고정하기 위해서다.
-    await t.db.prepare(
-      "UPDATE ai_text_work_queue SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE session_id = ?",
-    ).bind(sessionId).run();
+    // claim 이 곧 임대다(S5). 임대를 되돌려 놓아야 이후 claim 이 0건인 이유가
+    // 임대가 아니라 **동의 철회**임을 고정할 수 있다.
+    await releaseAgentJob(t.env, service, claimed?.jobId ?? '', {
+      claimToken: claimed?.claimToken ?? '',
+      attempt: 1,
+      outcome: 'transient',
+      reason: 'engine_unavailable',
+    });
 
     // 3) 철회 — ② 체크 해제가 support_cases.consent_text_ai_at 을 NULL 로 되돌린다.
     //    근거 행은 append-only 라 삭제·수정되지 않는다(이력 보존).
@@ -84,14 +90,18 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     });
     expect(await evidenceRowCount(creation.supportCaseId)).toBe(1);
 
-    // 4) 일감 목록에서 사라진다 — 큐 행은 남아 있어도(삭제 없음) 내보내지 않는다.
-    const after = await listTextWorkItems(t.env, service);
-    expect(after.some((item) => item.sessionId === sessionId)).toBe(false);
+    // 4) 열린 작업이 취소되고 claim 후보에서 사라진다 (S5 F4). 원본 큐 행은 남는다.
+    const after = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    expect(after.jobs.some((job) => job.sessionId === sessionId)).toBe(false);
+    const jobRow = await t.db.prepare(
+      'SELECT state FROM agent_jobs WHERE session_id = ?',
+    ).bind(sessionId).first<{ state: string }>();
+    expect(jobRow?.state).toBe('cancelled');
     const queueRow = await t.db.prepare(
       'SELECT status FROM ai_text_work_queue WHERE session_id = ?',
     ).bind(sessionId).first<{ status: string }>();
-    // 임대(폴링)로 processing 이 된 행이 그대로 남는다 — 삭제가 아니라 필터다.
-    expect(queueRow?.status).toBe('processing');
+    // 큐 행은 append-only 이력이라 삭제되지 않는다 — 상태는 Agent 작업이 갖는다.
+    expect(queueRow?.status).toBe('pending');
 
     // 5) 스냅샷 저장 거부 — 과거 근거 행이 있어도 현재 동의가 없으면 grant 가 닫힌다.
     const maskedText = 'MASKED_AFTER_WITHDRAWAL';
@@ -139,11 +149,16 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
       evidence: [],
     })).rejects.toBeInstanceOf(PilotTextAiConsentRequiredError);
 
-    // 7) 재동의하면 같은 큐 행이 다시 보인다 — 목록 조건이 삭제가 아니라 필터임을 고정.
+    // 7) 재동의만으로 취소된 작업이 되살아나지는 않는다 — 취소는 terminal 이다(S5 §2.2).
+    //    다시 처리하려면 기록 공식화가 새 작업을 만들어야 한다.
     await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
       privacy: true, recordingAi: true,
     });
-    const restored = await listTextWorkItems(t.env, service);
-    expect(restored.some((item) => item.sessionId === sessionId)).toBe(true);
+    const afterReconsent = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    expect(afterReconsent.jobs.some((job) => job.sessionId === sessionId)).toBe(false);
+
+    await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+    const restored = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+    expect(restored.jobs.some((job) => job.sessionId === sessionId)).toBe(true);
   });
 });

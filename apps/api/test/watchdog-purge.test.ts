@@ -8,11 +8,12 @@ import {
   createManualSession,
   enqueueTextWorkItem,
   getPipelineHealth,
-  listPipelineJobs,
+  claimAgentJobs,
   registerRecording,
   type Actor,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -32,6 +33,12 @@ const adminHeaders = {
 };
 
 const t = setupD1();
+
+/** Agent 폴링 = claim (S5). 호출 자체가 D8 의 데이터 원천인 poll_pipeline 감사를 남긴다. */
+async function pollAgentQueue(): Promise<void> {
+  const qualification = await seedNerQualification(t.db);
+  await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+}
 
 function localEnv() {
   return t.env;
@@ -79,9 +86,9 @@ async function makePendingTextWork(enqueuedAtMs: number): Promise<string> {
     gasScores: [],
   });
   await enqueueTextWorkItem(t.env, counselor, session.id, 'manual_record');
-  // pending 행의 enqueued_at 조정은 트리거가 막지 않는다(done 행만 불변) — 테스트 셋업 직접 DB 허용.
+  // D8 의 대기 나이 기준은 agent_jobs.enqueued_at 이다(S5) — 테스트 셋업 직접 DB 허용.
   await t.db.prepare(
-    "UPDATE ai_text_work_queue SET enqueued_at = ? WHERE session_id = ? AND status = 'pending'",
+    "UPDATE agent_jobs SET enqueued_at = ? WHERE session_id = ? AND kind = 'text'",
   ).bind(isoUtc(enqueuedAtMs), session.id).run();
   return session.id;
 }
@@ -107,8 +114,8 @@ describe('pipeline watchdog (D8)', () => {
   it('reports ok when a fresh poll exists within the threshold', async () => {
     await t.reset();
     await makePendingJob();
-    // listPipelineJobs가 실제 datetime('now') 형식으로 poll_pipeline을 남긴다.
-    await listPipelineJobs(t.env, service);
+    // claimAgentJobs 가 실제 시각 형식으로 poll_pipeline 감사를 남긴다.
+    await pollAgentQueue();
 
     const health = await getPipelineHealth(t.env, admin);
     expect(health.stale).toBe(false);
@@ -139,11 +146,11 @@ describe('pipeline watchdog (D8)', () => {
   it('is stale (queue_backlog) when polling is fresh but the oldest audio job outwaits the queue threshold', async () => {
     await t.reset();
     await makePendingJob();
-    // 오디오 큐의 나이 기준은 sessions.updated_at — 7시간 전으로 묵힌다(임계 6h 초과).
+    // 오디오 큐의 나이 기준은 agent_jobs.enqueued_at — 7시간 전으로 묵힌다(임계 6h 초과).
     await t.db.prepare(
-      "UPDATE sessions SET updated_at = ? WHERE ai_status = 'uploaded'",
+      "UPDATE agent_jobs SET enqueued_at = ? WHERE kind = 'audio'",
     ).bind(isoUtc(Date.now() - 7 * 60 * 60 * 1000)).run();
-    await listPipelineJobs(t.env, service); // 폴링은 최신
+    await pollAgentQueue(); // 폴링은 최신
 
     const health = await getPipelineHealth(t.env, admin);
     expect(health.status).toBe('stale');
@@ -159,7 +166,7 @@ describe('pipeline watchdog (D8)', () => {
   it('is stale (queue_backlog) when polling is fresh but a text work item outwaits the queue threshold', async () => {
     await t.reset();
     await makePendingTextWork(Date.now() - 7 * 60 * 60 * 1000); // 임계 6h 초과
-    await listPipelineJobs(t.env, service); // 폴링은 최신
+    await pollAgentQueue(); // 폴링은 최신
 
     const health = await getPipelineHealth(t.env, admin);
     expect(health.status).toBe('stale');
@@ -175,7 +182,7 @@ describe('pipeline watchdog (D8)', () => {
     await t.reset();
     await makePendingJob();
     await makePendingTextWork(Date.now() - 60 * 1000); // 1분 전 — 임계 안
-    await listPipelineJobs(t.env, service);
+    await pollAgentQueue();
 
     const health = await getPipelineHealth(t.env, admin);
     expect(health.status).toBe('ok');
@@ -191,7 +198,7 @@ describe('pipeline watchdog (D8)', () => {
   it('honors PIPELINE_QUEUE_STALE_HOURS separately from the poll threshold', async () => {
     await t.reset();
     await makePendingTextWork(Date.now() - 7 * 60 * 60 * 1000); // 폴링 임계(6h)는 넘지만
-    await listPipelineJobs(t.env, service);
+    await pollAgentQueue();
 
     const env = { ...t.env, PIPELINE_QUEUE_STALE_HOURS: '24' }; // 큐 임계(24h)는 안 넘는다
     const health = await getPipelineHealth(env, admin);
@@ -209,7 +216,12 @@ describe('pipeline watchdog (D8)', () => {
     await t.db.prepare(
       "UPDATE ai_text_work_queue SET status = 'done', completed_at = ? WHERE session_id = ? AND status = 'pending'",
     ).bind(completedAt, sessionId).run();
-    await listPipelineJobs(t.env, service);
+    // 결과가 수락되면 Agent 작업도 terminal 이다 — 미완료 집계에서 빠진다(S5).
+    await t.db.prepare(
+      `UPDATE agent_jobs SET state = 'succeeded', result_id = 'result-fixture',
+         result_payload_sha256 = ?, result_accepted_at = ? WHERE session_id = ? AND kind = 'text'`,
+    ).bind('a'.repeat(64), completedAt, sessionId).run();
+    await pollAgentQueue();
 
     const health = await getPipelineHealth(t.env, admin);
     expect(health.status).toBe('ok');

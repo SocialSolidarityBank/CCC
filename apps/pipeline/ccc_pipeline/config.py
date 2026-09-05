@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,10 @@ class Config:
     condition_ner_labels: tuple[str, ...]
     hf_token: str | None
     runtime_environment: str
+    # S5 claim 이 요구하는 S6 attestation 과 E5-4 release 영수증. 값의 정본은 서버가 갖고
+    # Agent 는 그대로 실어 보낸다. 없으면 claim 자체가 성립하지 않아 워커가 뜨지 않는다(R3).
+    ner_attestation: dict[str, str]
+    ner_release_receipt_id: str
     backup_policy: BackupPolicy
 
 
@@ -114,6 +119,38 @@ def _backup_policy() -> BackupPolicy:
         retention_days=retention_days,
         consent_notice_version=_optional("CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION"),
     )
+
+
+_NER_ATTESTATION_FIELDS = (
+    "id",
+    "modelId",
+    "modelRevision",
+    "labelSetHash",
+    "corpusHash",
+    "resultHash",
+    "validatedAt",
+    "expiresAt",
+)
+
+
+def _ner_attestation() -> dict[str, str]:
+    """`CCC_NER_ATTESTATION` 은 S5 `NerAttestation` 그대로의 JSON 이다.
+
+    필드를 환경 변수 8개로 쪼개지 않는다 — 서버가 정본을 갖고 Agent 는 통째로 옮기므로
+    한 값이 낫다. 모양이 어긋나면 claim 이 `local_ner_unavailable` 로 닫히기 전에 여기서 뜬다.
+    """
+    raw = _required("CCC_NER_ATTESTATION")
+    try:
+        parsed = json.loads(raw)
+    except ValueError as error:
+        raise ConfigError("environment variable CCC_NER_ATTESTATION is not valid JSON") from error
+    if not isinstance(parsed, dict) or any(
+        not isinstance(parsed.get(field), str) or parsed.get(field) == "" for field in _NER_ATTESTATION_FIELDS
+    ):
+        raise ConfigError("environment variable CCC_NER_ATTESTATION is incomplete")
+    if parsed.get("status") != "passed":
+        raise ConfigError("environment variable CCC_NER_ATTESTATION must carry a passed status")
+    return {**{field: parsed[field] for field in _NER_ATTESTATION_FIELDS}, "status": "passed"}
 
 
 def load_config() -> Config:
@@ -188,6 +225,8 @@ def load_config() -> Config:
         condition_ner_model_id=condition_ner_model_id,
         condition_ner_labels=_labels("CCC_CONDITION_NER_LABELS", masking.DEFAULT_CONDITION_LABELS),
         hf_token=os.environ.get("HF_TOKEN", "").strip() or None,
+        ner_attestation=_ner_attestation(),
+        ner_release_receipt_id=_required("CCC_NER_RELEASE_RECEIPT_ID"),
         runtime_environment=runtime_environment,
         backup_policy=backup_policy,
     )

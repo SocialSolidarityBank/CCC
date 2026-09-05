@@ -176,16 +176,19 @@ Preview mode의 `/join/*` 공개 page/API는 현재 production token-only 경계
 | `POST /schedules/:id/cancel` | `CounselingScheduleWire` | no current page |
 | `POST /schedules/:id/no-show` | `CounselingScheduleWire` | no current page |
 | `POST /support-cases/:id/force-transfer` | `{transferred:true}` | no current page |
-| `POST /sessions/:id/ai/source` | `{sourceSnapshotId,sha256,maskingPipelineVersion,evidenceIds}` | `MaskedSourceAck`, `service` Actor only |
 | `PUT /sessions/:id/audio` | `SessionWire` | no current page |
 | `POST /sessions/:id/approve` | `SessionWire` | legacy approval |
 | `GET /pipeline/health` | `PipelineHealth` | admin, no current page |
-| `GET /pipeline/jobs` | `{jobs:PipelineJob[]}` | service, no current page |
-| `GET /pipeline/text-jobs` | `{jobs:TextWorkItem[]}` | service, no current page |
-| `GET /pipeline/text-jobs/:item/source` | `TextWorkSource` `{sessionId,text}` | service, no current page |
-| `POST /pipeline/text-jobs/:item/complete` | 204 empty | service, no current page |
-| `GET /pipeline/jobs/:sessionId/audio` | audio bytes; missing `{error:'audio_object_missing',jobId}` | service, no current page |
-| `POST /pipeline/jobs/:sessionId/result` | 204 empty | service, no current page |
+| `POST /pipeline/jobs/claim` | `ClaimResponse` (S5) | service, no current page |
+| `POST /pipeline/jobs/:jobId/heartbeat` | `HeartbeatResponse` (S5) | service, no current page |
+| `POST /pipeline/jobs/:jobId/release` | 204 empty | service, no current page |
+| `POST /pipeline/jobs/:jobId/mask-dictionary` | `MaskDictionaryResponse` (S5) | service, no current page |
+| `GET /pipeline/jobs/:jobId/source` | `SourceResponse` `{sessionId,text}` | service, no current page |
+| `GET /pipeline/jobs/:jobId/audio` | audio bytes; missing `{error:'audio_object_missing',jobId}` | service, no current page |
+| `POST /pipeline/jobs/:jobId/audio/verify` | `AudioVerifyResponse` (S5) | service, no current page |
+| `POST /pipeline/jobs/:jobId/egress/authorize` | `AzureEgressAuthorization` (S5) | service, no current page |
+| `POST /pipeline/jobs/:jobId/egress/in-flight` | `EgressInFlightResponse` (S5) | service, no current page |
+| `POST /pipeline/jobs/:jobId/result` | 204 empty | service, no current page |
 | `GET /pii-retention/reviews` | `{reviews:ParticipantPiiRetentionReview[]}` | admin, no current page |
 | `POST /pii-retention/reviews/:id` | `ParticipantPiiRetentionReview` | admin, no current page |
 | `POST /users/:id/deactivate` | `DirectoryUser` | admin, no current page |

@@ -4,6 +4,7 @@ import {
   activateAiProviderConfiguration,
   createCase,
   createManualSession,
+  recordMaskedSourceSnapshot,
   registerAiProviderConfiguration,
   registerRecording,
   SESSION_GOAL_MATERIAL_LABEL,
@@ -30,6 +31,7 @@ import {
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { setupD1 } from './support/d1';
+import { agentManifestEnv, agentResultRequest, claimOverHttp } from './support/agent-jobs';
 
 const t = setupD1();
 
@@ -316,6 +318,7 @@ describe('호출 ① 재료 다중화와 대조 3종 v4 (D69 · ADR-0036 · CCC-
 
 const counselor = { userId: 'counselor@example.invalid', orgId: 'org_demo', role: 'counselor' as const };
 const admin = { userId: 'admin@example.invalid', orgId: 'org_demo', role: 'admin' as const };
+const service = { userId: 'service@example.invalid', orgId: 'org_demo', role: 'service' as const };
 const serviceHeaders = {
   'content-type': 'application/json',
   'X-CCC-User-Id': 'service@example.invalid',
@@ -459,25 +462,29 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   return { adapter, caseRecord, env, session };
 }
 
+/** 텍스트 재료 스냅샷. v2 는 별도 snapshot 라우트가 없어 게이트웨이 경계로 직접 만든다. */
 async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEXT_CONTEXT_TEXT) {
-  const response = await worker.fetch(new Request(`http://localhost/sessions/${sessionId}/ai/source`, {
-    method: 'POST',
-    headers: serviceHeaders,
-    body: JSON.stringify(await snapshotBody(maskedText, 'memo:text-1')),
-  }), env);
-  expect(response.status).toBe(201);
-  return response.json() as Promise<{ sourceSnapshotId: string; sha256: string }>;
+  const snapshot = await recordMaskedSourceSnapshot(env, service, sessionId, await snapshotBody(maskedText, 'memo:text-1'));
+  return { sourceSnapshotId: snapshot.id, sha256: snapshot.sha256 };
 }
 
-async function postRecordingResult(env: ApiEnv, sessionId: string) {
-  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${sessionId}/result`, {
+/** 녹음 결과는 claim 한 오디오 작업의 결과로만 들어온다 (S5). */
+async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Response> {
+  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const { jobs, qualification } = await claimOverHttp(agentEnv, t.db);
+  const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
+  if (job === undefined) throw new Error('expected a claimable audio job');
+  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers: serviceHeaders,
-    body: JSON.stringify({
-      ...await snapshotBody(TRANSCRIPT_TEXT, 'recording-transcript'),
-      emotionScores: {},
-    }),
-  }), env);
+    body: JSON.stringify(await agentResultRequest({
+      kind: 'audio',
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      maskedText: TRANSCRIPT_TEXT,
+      qualification,
+    })),
+  }), agentEnv);
 }
 
 async function generateFromSnapshot(env: ApiEnv, sessionId: string, sourceSnapshotId: string) {

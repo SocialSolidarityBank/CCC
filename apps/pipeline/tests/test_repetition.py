@@ -6,8 +6,6 @@ from ccc_pipeline.repetition import (
     REASON_REPETITION,
     collapse_runs,
     find_repetition_runs,
-    inject_legacy_warnings,
-    legacy_warning_text,
     normalize,
     warning_spans,
 )
@@ -98,36 +96,6 @@ class WarningSpansTest(unittest.TestCase):
         for span in spans:
             self.assertEqual(set(span), {"startSeconds", "endSeconds", "reason"})
 
-
-class LegacyWarningTest(unittest.TestCase):
-    def test_legacy_text_matches_the_pre_ccc124_format(self) -> None:
-        original = segments(["앞 발화"] + ["반복 문장"] * 5)
-        run = find_repetition_runs(original, 4)[0]
-        text = legacy_warning_text(run)
-        self.assertIn("⚠ 전사 실패 구간", text)
-        self.assertIn("5회 반복", text)
-        self.assertIn("반복 문장", text)
-        self.assertIn("00:05~00:30", text)
-
-    def test_inject_restores_warning_prose_on_collapsed_lines(self) -> None:
-        original = segments(["앞 발화"] + ["반복 문장"] * 5 + ["뒤 발화"])
-        runs = find_repetition_runs(original, 4)
-        collapsed = collapse_runs(original, runs)
-        legacy = inject_legacy_warnings(collapsed, runs)
-
-        self.assertEqual(len(legacy), 3)
-        self.assertEqual(legacy[0].text, "앞 발화")
-        self.assertEqual(legacy[2].text, "뒤 발화")
-        self.assertTrue(legacy[1].warning)
-        self.assertIn("⚠ 전사 실패 구간", legacy[1].text)
-        self.assertIn("반복 문장", legacy[1].text)
-        # 접힌 줄의 시각은 유지된다.
-        self.assertAlmostEqual(legacy[1].start, 5.0)
-        self.assertAlmostEqual(legacy[1].end, 30.0)
-
-    def test_inject_without_runs_returns_equivalent_segments(self) -> None:
-        original = segments(["가", "나"])
-        self.assertEqual(inject_legacy_warnings(original, []), original)
 
 
 if __name__ == "__main__":

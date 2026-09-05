@@ -1,7 +1,11 @@
-"""폴링 워커 — 파이프라인 전 구간을 잇는 오케스트레이션 (CLAUDE.md §5 순서).
+"""claim 기반 워커 — Agent 작업 계약 v2 (S5)의 Agent 쪽 절반이다.
+
+한 번의 claim 이 오디오·텍스트 작업을 순서대로 내려주고, 각 claim 은 성공 `result`
+또는 실패 `release` 를 정확히 한 번만 수행한다. provider 는 attempt 당 최대 1회 부르고
+실패 시 다른 provider 로 갈아타지 않는다(D8 · D77).
 
 D13: 중간 파일(오디오·전사)은 작업별 디렉터리에 두고 성공/실패와 무관하게 즉시 삭제.
-R3: 로그에는 세션 ID·건수·소요 시간·예외 유형만 남긴다. 전사 내용·PII·시크릿 금지.
+R3: 로그에는 작업 ID·건수·소요 시간·예외 유형만 남긴다. 전사 내용·PII·시크릿 금지.
 """
 
 from __future__ import annotations
@@ -11,20 +15,24 @@ import logging
 import shutil
 import time
 import uuid
-from pathlib import Path
+from typing import Any
 
 from . import masking, repetition
 from .api_client import ApiClient, ApiError
 from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
 from .emotion import aggregate_scores
-from .results import build_recording_result
+from .results import build_result, build_result_request, canonical_sha256
 from .speaker_mapping import BENEFICIARY, assign_speakers, estimate_roles, format_transcript
 from .transcribe import build_engine, transcribe_audio
 
 logger = logging.getLogger("ccc_pipeline")
 
 EMOTION_DEFERRED = True  # D64: 감정 분석 보류. 켜려면 False. 스키마·모델·테스트는 그대로 둔다.
+
+# 재시도할 값어치가 있는 서버 응답만 transient 로 본다. 나머지 4xx 는 서버가 이미
+# 작업 상태를 정했으므로(409·422) Agent 가 release 로 덧쓰지 않는다.
+_TRANSIENT_STATUSES = (408, 429)
 
 
 def _build_person_and_address_ner(config: Config):  # noqa: ANN202
@@ -49,22 +57,103 @@ def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
     return masking.build_condition_ner(config.condition_ner_model_id, config.condition_ner_labels)
 
 
-def process_job(
+def masking_pipeline_version(config: Config) -> str:
+    """스냅샷에 남길 마스킹 버전. **실제로 동작한 계층**을 담는다.
+
+    고정 문자열이면 "질병명이 사전으로만 걸러졌는지 NER 까지 거쳤는지" 를 나중에 되짚을 수
+    없다 — 마스킹 문제가 발견됐을 때 어느 스냅샷이 영향권인지 가려내는 근거가 이 값이다.
+    구분자는 `-` 다: 서버의 버전 식별자 규칙이 `+` 를 받지 않는다.
+    """
+    parts = ["ner-mask-v1"]
+    parts.append("addr" if config.address_labels else "noaddr")
+    parts.append("cond-ner" if config.condition_ner_model_id is not None else "cond-dict")
+    return "-".join(parts)
+
+
+def masking_pipeline_hash(config: Config) -> str:
+    """실제로 동작한 마스킹 구성의 manifest 해시. 버전 문자열보다 정밀한 지문이다.
+
+    S6 가 canonical manifest 모양을 확정하면 그 정의로 바꾼다 — 지금은 Agent 가 쓰는
+    모델·라벨 구성이 곧 manifest 다.
+    """
+    return canonical_sha256({
+        "version": masking_pipeline_version(config),
+        "personModelId": config.ner_model_id,
+        "personLabels": sorted(config.ner_labels),
+        "addressLabels": sorted(config.address_labels),
+        "conditionModelId": config.condition_ner_model_id,
+        "conditionLabels": sorted(config.condition_ner_labels),
+    })
+
+
+def claim_request(config: Config, limit: int | None = None) -> dict[str, Any]:
+    """claim 본문. NER attestation 과 release 영수증이 없으면 claim 자체가 성립하지 않는다."""
+    return {
+        **({} if limit is None else {"limit": limit}),
+        "nerAttestation": config.ner_attestation,
+        "releaseQualificationReceiptId": config.ner_release_receipt_id,
+    }
+
+
+def _mask_with_dictionary(
     client: ApiClient,
     config: Config,
-    job_id: str,
+    job: dict[str, Any],
+    text: str,
+) -> tuple[str, masking.MaskReport]:
+    """일회성 사전으로 등록 PII 를 먼저 치환하고, 그 위에 NER·사전·정규식 계층을 얹는다.
+
+    사전 값은 메모리에서만 쓰고 로그·파일에 남기지 않는다(R3 · S5 §2.1).
+    """
+    dictionary = client.get_mask_dictionary(job["jobId"], job["claimToken"], job["attempt"])
+    replaced = text
+    for entry in dictionary.get("entries", []):
+        source_value = entry.get("sourceValue")
+        replacement = entry.get("replacement")
+        if isinstance(source_value, str) and source_value != "" and isinstance(replacement, str):
+            replaced = replaced.replace(source_value, replacement)
+    person_ner, address_ner = _build_person_and_address_ner(config)
+    return masking.mask_text_with_report(
+        replaced,
+        person_ner,
+        _build_condition_ner_or_none(config),
+        address_ner,
+    )
+
+
+def process_audio_job(
+    client: ApiClient,
+    config: Config,
+    job: dict[str, Any],
     backup_adapters=BACKUP_ADAPTERS,  # noqa: ANN001 - 테스트와 향후 adapter 등록을 위한 경계
 ) -> None:
-    """작업 1건: 다운로드 → 전사 → 화자 분리 → 역할 추정 → 감정 → 마스킹 → 전송."""
+    """오디오 작업 1건: 내려받기 → 해시 검증 → 전사 → 화자 → 감정 → 마스킹 → 결과."""
     # ML 모듈은 여기서만 임포트한다 — 미설치 환경에서도 워커 모듈 자체는 로드 가능하게.
     from .diarize import diarize  # noqa: PLC0415
     from .emotion import build_speech_scorer, build_text_scorer  # noqa: PLC0415
 
+    job_id = job["jobId"]
+    claim_token = job["claimToken"]
+    attempt = job["attempt"]
+    audio = job.get("audio") or {}
     work_dir = config.work_dir / f"{job_id}-{uuid.uuid4().hex[:8]}"
     started = time.monotonic()
     try:
-        audio_path = client.download_audio(job_id, work_dir / "audio.bin")
+        audio_path = client.download_audio(job_id, claim_token, attempt, work_dir / "audio.bin")
         logger.info("job %s: audio downloaded", job_id)
+
+        # 스트림을 끝까지 읽은 해시를 코어가 확인한다. 어긋나면 서버가 작업을 닫고
+        # 외부 호출은 0건이다(S5 §2.1 audio verify).
+        digest = hashlib.sha256()
+        with open(audio_path, "rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        client.verify_audio(job_id, {
+            "claimToken": claim_token,
+            "attempt": attempt,
+            "generationId": audio.get("generationId"),
+            "agentComputedSha256": digest.hexdigest(),
+        })
 
         # 선택형 원본 백업은 전사·마스킹의 성공 경로를 막지 않는다. 현재 adapter 등록은
         # 비어 있어 기본 OFF만 동작하며, ON 설정은 목적지가 실제로 붙기 전 fail closed한다.
@@ -78,8 +167,7 @@ def process_job(
         logger.info("job %s: original backup status=%s", job_id, backup_status)
 
         # 조각 분할 + 반복 검사를 거친다 (D53). 반복이 남으면 그 구간은 접히고, 시간
-        # 구간·사유가 구조화 필드로 API 에 실려 승인 화면에서 실무자가 본다 (CCC-124)
-        # — 조용히 통과시키지 않는다.
+        # 구간·사유가 구조화 필드로 API 에 실려 승인 화면에서 실무자가 본다 (CCC-124).
         transcription = transcribe_audio(
             str(audio_path),
             work_dir,
@@ -95,6 +183,8 @@ def process_job(
         segments = assign_speakers(segments, turns)
         roles = estimate_roles(segments)
         logger.info("job %s: transcribed segments=%d speakers=%d", job_id, len(segments), len(roles))
+        # ponytail: 단계 사이에만 heartbeat 한다. 한 단계가 임대보다 길어지면 별도 스레드가 필요하다.
+        client.heartbeat(job_id, claim_token, attempt)
 
         # 감정은 수혜자 발화만 (D11). 점수는 숫자만 (R4).
         # 접힌 반복 구간(warning)은 믿을 수 없는 전사라 감정 집계에서 뺀다 (D53 · R4).
@@ -113,52 +203,60 @@ def process_job(
             emotion_scores = aggregate_scores(speech_scores, text_scores)
 
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
-        person_ner, address_ner = _build_person_and_address_ner(config)
-        condition_ner = _build_condition_ner_or_none(config)
-        transcript, mask_report = masking.mask_text_with_report(
+        transcript, mask_report = _mask_with_dictionary(
+            client,
+            config,
+            job,
             format_transcript(segments, roles),
-            person_ner,
-            condition_ner,
-            address_ner,
         )
         # 마스킹 집계는 **건수만** 남긴다 — 치환된 원문은 로그에도 쓰지 않는다(R3, G3 검증용).
         logger.info("job %s: masked total=%d detail=%s", job_id, mask_report.total, mask_report.as_mapping())
 
-        # 전사 품질은 텍스트 안 경고 문장이 아니라 구조화 필드로 싣는다 (CCC-124).
-        # 구조화 필드에는 시간 구간·사유 코드만 담는다 — 반복된 문장은 넣지 않는다(R3).
-        result = build_recording_result(
+        result = build_result(
+            "audio",
             transcript,
-            emotion_scores,
-            masking_pipeline_version(config),
+            masking_pipeline_version=masking_pipeline_version(config),
+            masking_pipeline_hash=masking_pipeline_hash(config),
+            ner_attestation=config.ner_attestation,
+            release_qualification_receipt_id=config.ner_release_receipt_id,
+            source_ref=f"audio:{job_id}",
+            emotion_scores=emotion_scores,
             transcript_reliable=transcription.reliable,
+            # 구조화 필드에는 시간 구간·사유 코드만 담는다 — 반복된 문장은 넣지 않는다(R3).
             transcript_warnings=repetition.warning_spans(transcription.warnings),
         )
-        try:
-            client.post_recording_result(job_id, result)
-        except ApiError as error:
-            # 구조화 필드를 모르는 구 서버는 미지의 키를 400 으로 거부한다(requireOnlyKeys).
-            # 그때만 옛 형식 — 경고 문장을 전사에 끼워 넣은 레거시 페이로드 — 로 한 번
-            # 재시도한다. 진짜 검증 실패(PII 잔존 등)라면 재시도도 같은 400 으로 떨어진다.
-            if error.status != 400:
-                raise
-            logger.warning(
-                "job %s: structured transcript fields rejected (400) — retrying with legacy payload", job_id,
-            )
-            legacy_segments = repetition.inject_legacy_warnings(segments, transcription.warnings)
-            legacy_transcript, _ = masking.mask_text_with_report(
-                format_transcript(legacy_segments, roles),
-                person_ner,
-                condition_ner,
-                address_ner,
-            )
-            client.post_recording_result(
-                job_id,
-                build_recording_result(legacy_transcript, emotion_scores, masking_pipeline_version(config)),
-            )
+        client.post_result(job_id, build_result_request(claim_token, attempt, result))
         logger.info("job %s: result posted (%.1fs)", job_id, time.monotonic() - started)
     finally:
         # D13: 성공·실패와 무관하게 오디오·중간 파일을 즉시 삭제한다.
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def process_text_job(client: ApiClient, config: Config, job: dict[str, Any]) -> None:
+    """텍스트 작업 1건: 원문 받기 → 2차 마스킹 → 결과 제출.
+
+    받는 텍스트는 서버가 1차 치환(등록 PII → 가명 ID)을 끝낸 공식 기록이다. 여기서
+    NER·사전·정규식 계층을 얹어야만 그 텍스트가 사업자에게 나갈 수 있다(R3 · D2).
+    오디오가 없으므로 전사·감정은 건너뛰고 중간 파일도 만들지 않는다.
+    """
+    job_id = job["jobId"]
+    claim_token = job["claimToken"]
+    attempt = job["attempt"]
+    source = client.get_source(job_id, claim_token, attempt)
+    masked, report = _mask_with_dictionary(client, config, job, source)
+    # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
+    logger.info("text job %s: masked total=%d detail=%s", job_id, report.total, report.as_mapping())
+
+    result = build_result(
+        "text",
+        masked,
+        masking_pipeline_version=masking_pipeline_version(config),
+        masking_pipeline_hash=masking_pipeline_hash(config),
+        ner_attestation=config.ner_attestation,
+        release_qualification_receipt_id=config.ner_release_receipt_id,
+        source_ref=f"text:{job_id}",
+    )
+    client.post_result(job_id, build_result_request(claim_token, attempt, result))
 
 
 def assert_device_ready(config: Config) -> None:
@@ -178,97 +276,58 @@ def assert_device_ready(config: Config) -> None:
         raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
 
 
-def masking_pipeline_version(config: Config) -> str:
-    """스냅샷에 남길 마스킹 버전. **실제로 동작한 계층**을 담는다.
-
-    고정 문자열이면 "질병명이 사전으로만 걸러졌는지 NER 까지 거쳤는지" 를 나중에 되짚을 수
-    없다 — 마스킹 문제가 발견됐을 때 어느 스냅샷이 영향권인지 가려내는 근거가 이 값이다.
-    """
-    parts = ["ner-mask-v1"]
-    parts.append("+addr" if config.address_labels else "-addr")
-    parts.append("+cond-ner" if config.condition_ner_model_id is not None else "+cond-dict")
-    return "".join(parts)
-
-
-def process_text_job(client: ApiClient, config: Config, item_id: str, session_id: str) -> None:
-    """텍스트 일감 1건 (D51 · ADR-0027): 원문 받기 → 2차 마스킹 → 스냅샷 전송 → 완료.
-
-    받는 텍스트는 서버가 1차 치환(등록 PII → 가명 ID)을 끝낸 공식 기록이다. 여기서
-    NER·사전·정규식 계층을 얹어야만 그 텍스트가 사업자에게 나갈 수 있다(R3 · D2).
-    오디오가 없으므로 전사·감정은 건너뛴다. 중간 파일도 만들지 않는다.
-    """
-    source = client.get_text_job_source(item_id)
-    person_ner, address_ner = _build_person_and_address_ner(config)
-    masked, report = masking.mask_text_with_report(
-        source,
-        person_ner,
-        _build_condition_ner_or_none(config),
-        address_ner,
-    )
-    # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
-    logger.info("text job %s: masked total=%d detail=%s", item_id, report.total, report.as_mapping())
-
-    digest = hashlib.sha256(masked.encode("utf-8")).hexdigest()
-    client.post_masked_source(session_id, {
-        "maskedText": masked,
-        "sha256": digest,
-        "maskingPipelineVersion": masking_pipeline_version(config),
-        # 텍스트 일감에는 따로 발췌할 근거가 없다 — 마스킹된 본문 전체가 한 조각이다.
-        "evidence": [{
-            "id": str(uuid.uuid4()),
-            "sourceRef": session_id,
-            "sourceSha256": digest,
-            "evidenceQuote": masked,
-            "sourceStart": 0,
-            # 서버는 유니코드 코드 포인트 기준으로 구간을 검증한다.
-            "sourceEnd": len(masked),
-        }],
-    })
-    client.complete_text_job(item_id)
+def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception) -> None:
+    """실패한 claim 을 정확히 한 번 닫는다. 성공 결과를 보낸 claim 은 여기 오지 않는다."""
+    job_id = job["jobId"]
+    claim_token = job["claimToken"]
+    attempt = job["attempt"]
+    try:
+        if isinstance(error, masking.MaskingConfigError):
+            # NER 계층 부재는 attempt 를 소모하지 않는 차단 신호다(S5 F7).
+            client.release(job_id, claim_token, attempt, "blocked", "local_ner_unavailable")
+            return
+        if isinstance(error, ApiError):
+            if error.status in _TRANSIENT_STATUSES or error.status >= 500:
+                client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
+            # 409·422 는 서버가 이미 상태를 정한 응답이라 release 로 덧쓰지 않는다.
+            return
+        # 전사·화자 분리 등 엔진 실패는 같은 route·engine 으로 최대 3회까지 재시도한다.
+        client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
+    except ApiError as release_error:
+        logger.error("job %s: release failed status=%d", job_id, release_error.status)
 
 
 def run_once(client: ApiClient, config: Config) -> int:
-    """폴링 1회: 오디오 큐와 텍스트 큐를 순차 처리. 처리한 건수 합계를 돌려준다."""
-    jobs = client.list_jobs()
-    text_jobs = client.list_text_jobs()
-    if not jobs and not text_jobs:
+    """claim 1회: 받은 순서대로 처리한다. 성공한 건수를 돌려준다."""
+    jobs = client.claim_jobs(claim_request(config))
+    if not jobs:
         logger.info("no jobs")
         return 0
 
     processed = 0
     for job in jobs:
-        job_id = str(job.get("id", ""))
-        if job_id == "" or job.get("audioAvailable") is not True:
+        job_id = str(job.get("jobId", ""))
+        kind = job.get("kind")
+        if job_id == "" or job.get("claimToken") is None or kind not in ("audio", "text"):
+            logger.error("claim response contained an unusable job")
             continue
         try:
-            process_job(client, config, job_id)
+            if kind == "audio":
+                process_audio_job(client, config, job)
+            else:
+                process_text_job(client, config, job)
             processed += 1
-        except ApiError as error:
-            # 한 작업의 실패가 나머지 처리를 막지 않는다. 상태 코드만 기록(R3).
-            logger.error("job %s: api error status=%d", job_id, error.status)
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:  # noqa: BLE001 — 한 작업의 실패가 나머지 처리를 막지 않는다
             logger.error("job %s: %s", job_id, type(error).__name__)
-
-    for item in text_jobs:
-        item_id = str(item.get("id", ""))
-        session_id = str(item.get("sessionId", ""))
-        if item_id == "" or session_id == "":
-            continue
-        try:
-            process_text_job(client, config, item_id, session_id)
-            processed += 1
-        except ApiError as error:
-            logger.error("text job %s: api error status=%d", item_id, error.status)
-        except Exception as error:  # noqa: BLE001
-            logger.error("text job %s: %s", item_id, type(error).__name__)
+            _release_failed_job(client, job, error)
     return processed
 
 
 def run_forever(client: ApiClient, config: Config) -> None:
-    logger.info("polling every %ds against %s", config.poll_interval_seconds, config.api_base_url)
+    logger.info("claiming every %ds against %s", config.poll_interval_seconds, config.api_base_url)
     while True:
         try:
             run_once(client, config)
-        except Exception as error:  # noqa: BLE001 — 폴링 자체 실패(네트워크 등)도 루프를 죽이지 않는다
-            logger.error("poll failed: %s", type(error).__name__)
+        except Exception as error:  # noqa: BLE001 — claim 자체 실패(네트워크 등)도 루프를 죽이지 않는다
+            logger.error("claim failed: %s", type(error).__name__)
         time.sleep(config.poll_interval_seconds)

@@ -1,10 +1,11 @@
 # S5: 처리 Agent 작업 계약 v2
 
-- 상태: 확정 (2026-09-03)
+- 상태: 구현 검증 완료 (확정 2026-09-03 · E5-1a 검증 2026-09-05)
 - 근거: ADR-0041 D76~D82, ADR-0042 D84, ADR-0036, D8, D13, D57
 - 입력: `CCC_OPEN_PILOT_PLAN.md` SG5·E5-1a, `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `docs/adr/0041-one-core-three-deployment-modes.md`, `docs/api-contract-pipeline.md`, `apps/pipeline/ccc_pipeline/worker.py`, `migrations/sqlite/0036_text_work_lease.sql`
 - 산출: Agent가 Database·AudioStore를 직접 열지 않고 공통 API로 작업을 claim, 처리, 결과 제출하는 v2 계약. 구현 산출물은 E5-1a가 소유한다.
 - 관련 티켓: E5-1a, E5-1b, E5-2, E5-3, E5-5, E5-6, E6-3, E6-4
+- 구현 검증: `migrations/sqlite/0048_agent_jobs.sql`, `packages/contracts/src/agent-jobs.ts`, `packages/core/src/gateway.ts`(claim·heartbeat·release·source·mask dictionary·audio verify·egress·result), `packages/http-api/src/request-handler.ts` v2 라우트, `apps/pipeline`(claim 기반 워커). 실행 증거는 `apps/api/test/agent-job-contract.test.ts`, `apps/api/test/agent-job-contract.modes.test.ts`, `apps/pipeline/tests/`가 남긴다. Azure egress 실호출, Supabase signed GET 발급, DPAPI SecretStore는 여전히 E5-1b·E5-3·E6-3의 몫이다.
 
 ## 1. 목적
 

@@ -77,7 +77,13 @@ class ApiClient:
             return self._unlock_preview()
         return self._preview_token
 
-    def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> urllib.request.Request:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        claim: tuple[str, int] | None = None,
+    ) -> urllib.request.Request:
         data = None
         headers = {
             "User-Agent": USER_AGENT,
@@ -89,6 +95,10 @@ class ApiClient:
                 raise ApiError(401, "production credential unavailable")
             headers["CF-Access-Client-Id"] = self._client_id
             headers["CF-Access-Client-Secret"] = self._client_secret
+        # GET 은 본문이 없어 claim 자격을 헤더로 싣는다. URL 에는 토큰을 넣지 않는다(S5 §2.5).
+        if claim is not None:
+            headers["X-CCC-Claim-Token"] = claim[0]
+            headers["X-CCC-Claim-Attempt"] = str(claim[1])
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -109,59 +119,65 @@ class ApiClient:
                 pass
             raise ApiError(error.code, detail) from None
 
-    def list_jobs(self) -> list[dict[str, Any]]:
-        """GET /pipeline/jobs — 호출 자체가 D8 폴링 신호(audit poll_pipeline)가 된다."""
-        with self._open(self._request("GET", "/pipeline/jobs")) as response:
+    # ------------------------------------------------------------------
+    # Agent 작업 계약 v2 (S5). 모든 후속 요청은 claim token 과 attempt 를 함께 보낸다.
+    # ------------------------------------------------------------------
+
+    def claim_jobs(self, claim_request: dict[str, Any]) -> list[dict[str, Any]]:
+        """POST /pipeline/jobs/claim — 호출 자체가 D8 폴링 신호(audit poll_pipeline)다."""
+        with self._open(self._request("POST", "/pipeline/jobs/claim", claim_request)) as response:
             payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict) or payload.get("schemaVersion") != 2:
+            raise ApiError(200, "unexpected claim schema version")
         jobs = payload.get("jobs")
         if not isinstance(jobs, list):
-            raise ApiError(200, "malformed jobs response")
+            raise ApiError(200, "malformed claim response")
         return jobs
 
-    def download_audio(self, job_id: str, dest: Path) -> Path:
-        """GET /pipeline/jobs/:id/audio — 원본 바이트를 작업 디렉터리에 저장한다."""
-        with self._open(self._request("GET", f"/pipeline/jobs/{job_id}/audio")) as response:
+    def heartbeat(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
+        body = {"claimToken": claim_token, "attempt": attempt}
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/heartbeat", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def release(self, job_id: str, claim_token: str, attempt: int, outcome: str, reason: str) -> None:
+        """종료 신호. 결과를 보낸 claim 에는 보내지 않는다 (terminal 은 정확히 하나)."""
+        body = {"claimToken": claim_token, "attempt": attempt, "outcome": outcome, "reason": reason}
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/release", body)) as response:
+            if response.status != 204:
+                raise ApiError(response.status, "unexpected release response")
+
+    def get_source(self, job_id: str, claim_token: str, attempt: int) -> str:
+        """GET /pipeline/jobs/:id/source — 1차 치환까지 끝난 공식 텍스트(text claim 전용)."""
+        request = self._request("GET", f"/pipeline/jobs/{job_id}/source", claim=(claim_token, attempt))
+        with self._open(request) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        text = payload.get("text")
+        if not isinstance(text, str) or text == "":
+            raise ApiError(200, "malformed job source response")
+        return text
+
+    def download_audio(self, job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+        """GET /pipeline/jobs/:id/audio — claim 에 묶인 원음을 작업 디렉터리에 저장한다."""
+        request = self._request("GET", f"/pipeline/jobs/{job_id}/audio", claim=(claim_token, attempt))
+        with self._open(request) as response:
             dest.parent.mkdir(parents=True, exist_ok=True)
             with open(dest, "wb") as file:
                 shutil.copyfileobj(response, file)
         return dest
 
-    def post_recording_result(self, job_id: str, result: dict[str, Any]) -> None:
-        """POST /pipeline/jobs/:id/result — 마스킹된 녹음 결과를 멱등 제출한다."""
-        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/result", result)) as response:
+    def verify_audio(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST /pipeline/jobs/:id/audio/verify — 스트림 재해시 결과를 코어가 확인한다."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/audio/verify", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def get_mask_dictionary(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
+        """POST /pipeline/jobs/:id/mask-dictionary — 일회성 치환 사전. 메모리에서만 쓴다(R3)."""
+        body = {"claimToken": claim_token, "attempt": attempt}
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/mask-dictionary", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def post_result(self, job_id: str, result_request: dict[str, Any]) -> None:
+        """POST /pipeline/jobs/:id/result — 성공 시 204. 400 은 재구성 신호가 아니다(S5 §2.7)."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/result", result_request)) as response:
             if response.status != 204:
-                raise ApiError(response.status, "unexpected recording result response")
-
-    # ------------------------------------------------------------------
-    # 텍스트 일감 (D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹.
-    # ------------------------------------------------------------------
-
-    def list_text_jobs(self) -> list[dict[str, Any]]:
-        """GET /pipeline/text-jobs — 오디오 큐와 함께 D8 무폴링 감시에 합산된다."""
-        with self._open(self._request("GET", "/pipeline/text-jobs")) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        jobs = payload.get("jobs")
-        if not isinstance(jobs, list):
-            raise ApiError(200, "malformed text jobs response")
-        return jobs
-
-    def get_text_job_source(self, item_id: str) -> str:
-        """GET /pipeline/text-jobs/:id/source — 1차 치환까지 끝난 공식 텍스트."""
-        with self._open(self._request("GET", f"/pipeline/text-jobs/{item_id}/source")) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        text = payload.get("text")
-        if not isinstance(text, str) or text == "":
-            raise ApiError(200, "malformed text job source response")
-        return text
-
-    def post_masked_source(self, session_id: str, snapshot: dict[str, Any]) -> None:
-        """POST /sessions/:id/ai/source — 2차 마스킹 스냅샷. 성공 시 201."""
-        with self._open(self._request("POST", f"/sessions/{session_id}/ai/source", snapshot)) as response:
-            if response.status != 201:
-                raise ApiError(response.status, "unexpected masked source response")
-
-    def complete_text_job(self, item_id: str) -> None:
-        """POST /pipeline/text-jobs/:id/complete — 성공 시 204."""
-        with self._open(self._request("POST", f"/pipeline/text-jobs/{item_id}/complete", {})) as response:
-            if response.status != 204:
-                raise ApiError(response.status, "unexpected text job completion response")
+                raise ApiError(response.status, "unexpected result response")

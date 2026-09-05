@@ -1,6 +1,6 @@
 // CCC-73 — AI 재료 배선 (D62 §7 · ADR-0032)
 // CCC-103: 목표와 메모를 AI 재료로 (D69 · ADR-0036)
-// 텍스트 일감 원문(getTextWorkItemSource)이 케이스 컨텍스트(전체 목표 으뜸, 활성 세부
+// 텍스트 작업 원문(getAgentJobSource)이 케이스 컨텍스트(전체 목표 으뜸, 활성 세부
 // 목표, 인테이크 지원욕구·지원방향, 완료 일정의 회기 목표)를 깔고 회차 텍스트를 잇는지,
 // 이력의 이전 문구·무응답 선택값·닫힌 목표가 재료에서 빠지는지 고정한다. 목표 확정·수정이
 // 큐에 다시 올리는 범위(enqueueTextWorkForGoalChange)와 마이그레이션 0034 도 여기서 잡는다.
@@ -26,9 +26,9 @@ import {
   enqueueTextWorkForGoalChange,
   enqueueTextWorkItem,
   getActiveAiProviderRuntimeMetadataForService,
-  getTextWorkItemSource,
+  claimAgentJobs,
+  getAgentJobSource,
   listSupportCasesForBeneficiary,
-  listTextWorkItems,
   recordMaskedSourceSnapshot,
   recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
@@ -37,6 +37,7 @@ import {
   updateParticipantPii,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -198,17 +199,18 @@ async function queueRows(): Promise<Array<{ session_id: string; reason: string; 
   return result.results;
 }
 
-/** 장비 폴링과 같은 경로로 일감을 찾아 원문을 꺼낸다. */
+/** 장비 claim 과 같은 경로로 작업을 잡아 원문을 꺼낸다 (S5). */
 async function sourceForSession(sessionId: string): Promise<string> {
   await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
-  const items = await listTextWorkItems(t.env, service);
-  const item = items.find((entry) => entry.sessionId === sessionId);
-  if (item === undefined) throw new Error('expected a pending text work item');
-  const { text } = await getTextWorkItemSource(t.env, service, item.id);
+  const qualification = await seedNerQualification(t.db);
+  const claimed = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
+  const job = claimed.jobs.find((candidate) => candidate.sessionId === sessionId);
+  if (job === undefined) throw new Error('expected a claimable text job');
+  const { text } = await getAgentJobSource(t.env, service, job.jobId, job.claimToken, job.attempt);
   return text;
 }
 
-describe('getTextWorkItemSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
+describe('getAgentJobSource — AI 재료 배선 (CCC-73 · D62 §7)', () => {
   it('전체 목표를 으뜸으로, 인테이크 선택값을 기본으로 깔고 회차 텍스트를 잇는다', async () => {
     const { supportCaseId } = await fixtureCase();
     await setSupportCaseOverallGoal(t.env, counselor, supportCaseId, '전세 보증금을 마련한다');
@@ -282,7 +284,7 @@ describe('getTextWorkItemSource — AI 재료 배선 (CCC-73 · D62 §7)', () =>
   });
 });
 
-describe('getTextWorkItemSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', () => {
+describe('getAgentJobSource: 목표 3층 재료 (CCC-103 · D69 · ADR-0036)', () => {
   it('활성 세부 목표와 완료 일정의 회기 목표를 순서대로 깐다', async () => {
     const { caseId, supportCaseId } = await fixtureCase();
     await setSupportCaseOverallGoal(t.env, counselor, supportCaseId, '전세 보증금을 마련한다');
@@ -345,16 +347,12 @@ describe('텍스트 일감 큐: 녹음 회차와 목표 수정 (CCC-103 · D69)'
   it('녹음 회차의 메모도 큐에 오르고 장비 목록에 보인다', async () => {
     const { supportCaseId } = await fixtureCase();
     const sessionId = await saveRecord(supportCaseId, '녹음과 함께 수기 메모도 남겼다');
-    // 이 회차에는 오디오가 있다. 오디오 큐(listPipelineJobs)와 텍스트 큐는 서로를 배제하지
-    // 않는다(ADR-0036 결정 2: "녹음 회차의 메모도 포함한다").
+    // 이 회차에는 오디오가 있다. 오디오 작업과 텍스트 작업은 서로를 배제하지 않는다
+    // (ADR-0036 결정 2: "녹음 회차의 메모도 포함한다").
     await t.db.prepare('UPDATE sessions SET audio_r2_key = ?, ai_status = ? WHERE id = ?')
       .bind(`audio/${sessionId}/fixture`, 'uploaded', sessionId).run();
 
-    await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
-    const items = await listTextWorkItems(t.env, service);
-    expect(items.map((item) => item.sessionId)).toContain(sessionId);
-    const { text } = await getTextWorkItemSource(t.env, service, items[0]!.id);
-    expect(text).toBe('녹음과 함께 수기 메모도 남겼다');
+    expect(await sourceForSession(sessionId)).toBe('녹음과 함께 수기 메모도 남겼다');
   });
 
   it('목표 수정은 미승인 공식 텍스트 회차만 goal_revised 로 올린다', async () => {

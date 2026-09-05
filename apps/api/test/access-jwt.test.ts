@@ -9,6 +9,7 @@ import {
 } from '@ccc/identity-access';
 import { deactivateUser, ForbiddenError, upsertUser } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { agentManifestEnv, claimRequest, seedNerQualification } from './support/agent-jobs';
 import { IdentityStoreUnavailableError } from '@ccc/contracts/runtime';
 import { gatewayActorFromIdentity } from '@ccc/http-api/identity';
 
@@ -206,9 +207,16 @@ describe('Access JWT identity (production path)', () => {
     await upsertUser(t.env, testActors.admin, { email: 'mac-mini-token', role: 'service' });
 
     const token = await sign(mainKeys.privateKey, KID, { iss: ISS, aud: AUD, exp: futureExp(), common_name: 'mac-mini-token' });
-    const response = await worker.fetch(jwtRequest('/pipeline/jobs', token), accessEnv());
+    // v2 는 service 전용 claim 으로만 작업을 내보낸다 (S5).
+    const qualification = await seedNerQualification(t.db);
+    const env = await agentManifestEnv(accessEnv());
+    const response = await worker.fetch(new Request('http://localhost/pipeline/jobs/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Cf-Access-Jwt-Assertion': token },
+      body: JSON.stringify(claimRequest(qualification)),
+    }), env);
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ jobs: [] });
+    await expect(response.json()).resolves.toEqual({ schemaVersion: 2, jobs: [] });
   });
 
   it('rejects a wrong audience with 401', async () => {
