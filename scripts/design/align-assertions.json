@@ -52,11 +52,21 @@
   {
     "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
     "selectors": [
-      "#align-content .wire-card-section-head:has(>.briefing-ai-goal-hint)>h3",
+      "#align-content .wire-card-section-head:has(.briefing-ai-goal-hint)>h3",
       "#align-content .briefing-ai-goal-hint"
     ],
     "axis": "y",
     "tolerance": 1
+  },
+  {
+    "name": "AI 제안 전체 닫기 버튼은 반복 카드 오른쪽 내용선에 선다",
+    "selectors": [
+      "#align-content #briefing-remember .briefing-memo-item:last-child",
+      "#align-content #briefing-remember .briefing-ai-goal-hint>.wire-button"
+    ],
+    "axis": "inset-right",
+    "tolerance": 0.5,
+    "expectedInset": 25
   },
   {
     "name": "AI 제안 구획의 라벨 행 아래 간격은 형제 구획과 같다",

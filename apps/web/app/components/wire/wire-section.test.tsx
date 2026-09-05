@@ -26,6 +26,16 @@ describe('WireCardSection — 카드 안 구획', () => {
     expect(container.querySelector('.wire-card-section')?.getAttribute('data-tone')).toBe('lavender');
   });
 
+  it('구획 전체 행동은 공용 action 슬롯에서 제목 뒤 카드 끝으로 분리한다', () => {
+    const { container } = render(
+      <WireCardSection title="AI 제안" action={<button type="button">닫기</button>}>내용</WireCardSection>,
+    );
+    const head = container.querySelector('.wire-card-section-head');
+    const action = container.querySelector('.wire-card-section-action');
+    expect(head?.lastElementChild).toBe(action);
+    expect(action?.textContent).toBe('닫기');
+  });
+
   it('구획 둘은 **형제로** 나온다 — 자동 구분선(.wire-card-section+.wire-card-section)이 사는 조건이다', () => {
     // 이 단언이 지키는 것: 누가 구획마다 <div> 로 한 겹 감싸면 CSS 의 인접 형제 선택자가
     // 조용히 죽어 §2-2 규칙 2ⓐ(3줄 이상이면 가로선)가 화면에서만 사라진다. 마크업이 평평한지를
@@ -58,15 +68,14 @@ describe('WireItem — 한 항목(제목·설명·상태·행동)', () => {
     expect(container.querySelector('.wire-item-action')).toBeNull();
   });
 
-  it('행동은 제목과 **다른 자리**에 선다 — 링크가 제목과 같은 옷을 입던 자리를 잠근다', () => {
-    // 고치기 전 15초 페이지의 AI 제안: 제목 16/600 --ink · 링크도 16/600 --ink 라
-    // 무엇을 먼저 읽어야 할지가 없었다. 두 조각이 같은 클래스로 합쳐지면 그 상태로 돌아간다.
-    const { container } = render(<WireItem title="제안" action={<a href="/records">근거 회차 보기</a>} />);
-    const title = container.querySelector('.wire-item-title');
+  it('개별 항목 행동은 항목 텍스트 뒤에 선다', () => {
+    const { container } = render(
+      <WireItem title="제안" description="확인할 내용" action={<a href="/records">근거 회차 보기</a>} />,
+    );
+    const description = container.querySelector('.wire-item-desc');
     const action = container.querySelector('.wire-item-action');
     expect(action?.querySelector('a')?.getAttribute('href')).toBe('/records');
-    expect(action).not.toBe(title);
-    expect(title?.querySelector('a')).toBeNull();
+    expect(description?.nextElementSibling).toBe(action);
   });
 
   it('톤을 주면 면이 붙고, 안 주면 면 없이 줄만 선다', () => {

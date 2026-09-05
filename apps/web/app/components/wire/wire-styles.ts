@@ -606,7 +606,8 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-card-section+.wire-card-section{margin-inline:calc(var(--card-pad,var(--space-6)) * -1);padding-top:var(--space-4);padding-inline:var(--card-pad,var(--space-6));border-top:1px solid var(--line)}
 .wire-card-section>h3,.wire-card-section-head>h3{margin:0;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .wire-card-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
-.wire-card-section-head>.wire-button{flex:none}
+.wire-card-section-action{display:flex;align-items:center;justify-content:flex-end;flex:1 1 auto;min-width:0;margin-left:auto}
+.wire-card-section-action>.wire-button{flex:none}
 /* 라벨 계열 색(D34 고정 의미) — 기본은 무채색이고, 축이 분명한 구획만 계열을 입는다. */
 .wire-card-section[data-tone="mint"]>h3,.wire-card-section[data-tone="mint"]>.wire-card-section-head>h3{color:var(--mint-deep)}
 .wire-card-section[data-tone="lavender"]>h3,.wire-card-section[data-tone="lavender"]>.wire-card-section-head>h3{color:var(--lavender-deep)}

@@ -20,7 +20,7 @@ import { runScenario } from './scenario';
 import { inlineSql, firstKeyword, type SqlParam } from './sql-literal';
 import { validateSeed, type EmittedStatement } from './validate';
 import type { WriteEntry } from './capture';
-import { PARTICIPANTS, SEED_ANCHOR_DATE, VIRTUAL_COUNSELORS } from './content';
+import { PARTICIPANTS, PREVIEW_ONLY_PARTICIPANTS, SEED_ANCHOR_DATE, VIRTUAL_COUNSELORS } from './content';
 import { OPERATIONAL_AUDIT_BASELINE, ORG_ID, preloadStatements } from './preload-data';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
@@ -280,6 +280,36 @@ function buildCaptureReport(
   return lines.join('\n');
 }
 
+describe('preview seed content', () => {
+  it('keeps completed preview cases rich and includes one future intake case', () => {
+    const pending = PREVIEW_ONLY_PARTICIPANTS.filter((participant) => (
+      Object.prototype.hasOwnProperty.call(participant, 'pendingIntake')
+    ));
+    const completed = PREVIEW_ONLY_PARTICIPANTS.filter((participant) => (
+      !Object.prototype.hasOwnProperty.call(participant, 'pendingIntake')
+    ));
+
+    expect(pending).toHaveLength(1);
+    expect(Reflect.get(pending[0]!, 'pendingIntake')).toBe(true);
+    expect(pending[0]?.regulars).toHaveLength(0);
+    expect(Date.parse(pending[0]!.intakeAt)).toBeGreaterThan(Date.parse(`${SEED_ANCHOR_DATE}T00:00:00.000Z`));
+    expect(completed.every((participant) => participant.regulars.length >= 3)).toBe(true);
+
+    const flagTypes = new Set(PREVIEW_ONLY_PARTICIPANTS.flatMap((participant) => [
+      ...participant.regulars.flatMap((regular) => regular.flags?.map((flag) => flag.flagType) ?? []),
+      ...(participant.standaloneFlag === undefined ? [] : [participant.standaloneFlag.flagType]),
+    ]));
+    expect([...flagTypes].sort()).toEqual([
+      'contact_loss_risk',
+      'crisis_utterance',
+      'debt_deterioration',
+      'housing_livelihood_shock',
+      'repeated_noncompliance',
+      'violence_exploitation',
+    ]);
+  });
+});
+
 describe('operational seed generation', () => {
   it('captures the gateway scenario, serializes seed.sql, and replays it into a fresh DB', async () => {
     const piiKey = requireEnv('PII_ENC_KEY');
@@ -317,6 +347,16 @@ describe('operational seed generation', () => {
       // 산출물 기록.
       const { manifest, tableInsertCounts } = buildManifest(emitted, summarySessions);
       const perParticipant = manifest.perParticipant as ParticipantManifest[];
+      const pendingIndex = PARTICIPANTS.findIndex((participant) => (
+        Object.prototype.hasOwnProperty.call(participant, 'pendingIntake')
+      ));
+      if (pendingIndex >= 0) {
+        const pendingId = `p${String(pendingIndex + 1).padStart(2, '0')}`;
+        const pendingManifest = perParticipant.find((participant) => participant.participantId === pendingId);
+        expect(pendingManifest?.submissionIds).toEqual([]);
+        expect(pendingManifest?.rows.sessions ?? []).toEqual([]);
+        expect(pendingManifest?.rows.counseling_schedules).toHaveLength(1);
+      }
       await mkdir(OUT_DIR, { recursive: true });
       await Promise.all([
         writeFile(join(OUT_DIR, 'seed.sql'), seedSql, 'utf8'),

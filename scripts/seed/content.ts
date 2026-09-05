@@ -78,6 +78,8 @@ export interface SeedParticipant {
   email: string;
   assigneeUserId: string;
   intakeAt: string;
+  /** 미래 인테이크 일정만 만들고 완료 기록과 후속 회차는 만들지 않는다. */
+  pendingIntake?: true;
   // D49: 동의 2종 — ② AI를 활용한 녹취기록(구 녹음 + 텍스트 AI 를 합침).
   consent: { recordingAi: boolean };
   trajectory: Trajectory;
@@ -177,6 +179,22 @@ const SAVINGS_SCALE: SeedScaleCriteria = {
   '2': '목표를 초과 달성해 비상금 여력이 커졌다',
 };
 
+const STOCK_SCALE: SeedScaleCriteria = {
+  '-2': '과잉 매입이 늘고 장기 재고를 확인하지 않는다',
+  '-1': '재고를 확인하지만 매입량 조정이 이어지지 않는다',
+  '0': '주 1회 재고를 확인하고 매입량을 기록한다',
+  '1': '장기 재고를 줄이고 사입 주기를 안정적으로 지킨다',
+  '2': '재고 회전이 안정되고 과잉 매입 비용이 뚜렷하게 줄었다',
+};
+
+const SHIFT_SCALE: SeedScaleCriteria = {
+  '-2': '야간 근무가 늘어 주간 일정과 수업을 지속하지 못한다',
+  '-1': '야간 근무가 주 3회 이상 반복된다',
+  '0': '야간 근무를 주 2회 안으로 대체로 유지한다',
+  '1': '야간 근무를 주 1회 이하로 줄이고 생활 리듬을 지킨다',
+  '2': '야간 근무 없이도 필요한 수입과 생활 리듬을 유지한다',
+};
+
 /**
  * 운영 정본 참여자 4명. 배정·동의·추이·회차·이벤트 분포는 파일 하단 주석의 집계 목표를 충족한다.
  *
@@ -224,7 +242,7 @@ export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     futureSchedules: [{ scheduledAt: at(2, 5), customQuestions: ['판매 채널을 한 곳으로 좁혀볼지 이야기해봅시다'] }],
   },
-  // ── 3 (ai00, improving, 목표3, 정기4, 목표교체 afterSession2, 미래일정) ─────────
+  // ── 3 (ai00, improving, 목표3, 정기4, 목표교체 afterSession3, 미래일정) ─────────
   {
     name: '박도윤', phone: phone(3), email: email(3), assigneeUserId: COUNSELOR_IDS.ai00,
     intakeAt: at(-117), consent: { recordingAi: true }, trajectory: 'improving',
@@ -246,7 +264,7 @@ export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
     goalReplacement: {
       // 매출 기록 습관이 정착되어 재고 회전 관리로 목표를 전환하는 시나리오다(사유: 재설정).
       afterSession: 3, closeGoalKey: 'sales', reason: 'reset',
-      newGoal: { key: 'stock', title: '주간 재고 회전율을 점검해 과잉 매입을 줄인다', scaleCriteria: SAVINGS_SCALE },
+      newGoal: { key: 'stock', title: '주간 재고 회전율을 점검해 과잉 매입을 줄인다', scaleCriteria: STOCK_SCALE },
     },
     futureSchedules: [{ scheduledAt: at(15, 3), goalLinks: ['repay', 'save'] }],
   },
@@ -275,8 +293,8 @@ export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
 ];
 
 /**
- * 프리뷰 전용 참여자 10명(2026-08-30 Q "텍스트가 풍부하고 여러 가지 사례를 고루 볼 수 있는
- * 데이터를 다량으로, 프리뷰사이트에서만").
+ * 프리뷰 전용 참여자 11명(2026-09-05 Q "텍스트와 기능 상태를 풍부하게 보고, 예정 일정에는
+ * 인테이크부터 시작할 사람도 포함").
  *
  * **운영 시드에는 들어가지 않는다**: SEED_PROFILE=preview 일 때만 합쳐진다(파일 끝 PARTICIPANTS).
  * 프리뷰 D1 은 가상 데이터 전용이고 통째로 다시 세우는 것이 정상 절차라(RUNBOOK §5) 여기서
@@ -289,7 +307,7 @@ export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
  * - 녹취 미동의 1명(5): 수기 폴백(D5)만으로 브리핑이 서는 모양. 운영 시드에는 없던 축이다.
  * - 목표 닫기 사유 3종(D62 §5): 달성(11)·중단(12)·재설정(운영 3에 이미 있다).
  * - 추이 4종: 개선·정체·악화·혼재.
- * - 회차 수 2~6: 회차별 정리 목록이 짧을 때와 길 때, 접힘·펼침 리듬.
+ * - 완료 사례는 정기 상담 3~6회: 회차별 정리와 접힘·펼침 리듬을 충분히 볼 수 있다.
  * - 메모 길이: 두 줄짜리와 여섯 줄짜리를 섞었다. 카드 폭에서 줄바꿈·말줄임이 어떻게
  *   걸리는지 보려면 긴 문장이 실제로 있어야 한다.
  */
@@ -305,6 +323,11 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
       {
         heldAt: at(-54), memo: '기록은 유지되지만 지출이 줄지는 않았다. 배달 수입이 들쭉날쭉해 예산을 세워도 무너진다고 한다. 수입이 적은 주를 기준으로 최소 예산을 먼저 잡아보기로 했다.', goalLinks: ['ledger'],
         customQuestions: ['수입이 가장 적었던 주에는 무엇을 먼저 포기하게 되나요?'],
+      },
+      {
+        heldAt: at(-33), memo: '최소 예산을 실제 지출표에 대입해 보니 월세와 교통비를 먼저 떼어 두는 방식이 가장 단순했다. 편의점 지출은 주간 한도를 정하고, 배달 수입이 적은 주에는 추가 구매를 미루기로 했다.', goalLinks: ['ledger'],
+        actionItems: [{ description: '다음 세 주 동안 주간 지출 한도를 표시한다', owner: 'beneficiary', dueDate: day(-12) }],
+        customQuestions: ['지출 한도를 지키기 어려웠던 날에는 어떤 일이 있었나요?'],
       },
     ],
     futureSchedules: [{ scheduledAt: at(1, 2), customQuestions: ['최소 예산안을 함께 손봅시다'] }],
@@ -344,6 +367,10 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
         flags: [{ flagType: 'contact_loss_risk', quote: '전화를 못 받으면 그냥 잊어버려요. 다시 연락 안 하실 줄 알았어요.' }],
       },
       { heldAt: at(-15), memo: '문자로 바꾼 뒤 응답이 붙었다. 일정 변경도 하루 전에 알려 왔다.', goalLinks: ['contact'] },
+      {
+        heldAt: at(-6), memo: '문자 연락은 세 회차 연속 이어졌다. 근무지가 바뀌는 날에는 전날 저녁에 먼저 일정 변경을 알렸고, 놓친 연락은 다음 날 오전에 다시 확인하는 규칙을 정했다.', goalLinks: ['contact'],
+        customQuestions: ['먼저 일정 변경을 알리는 데 방해가 된 상황은 없었나요?'],
+      },
     ],
     resolvedActions: [
       { description: '문자 우선 연락으로 바꾸고 응답 방식을 케이스에 기록한다', owner: 'counselor', dueDate: day(-40) },
@@ -407,6 +434,10 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
         actionItems: [{ description: '지급 내역과 근무 시간을 달별로 정리해 온다', owner: 'beneficiary', dueDate: day(2) }],
       },
       { heldAt: at(-17), memo: '본인 명의 계좌를 새로 만들었다. 급여 입금 경로 변경은 아직 이야기하지 못했다.', goalLinks: ['safety'] },
+      {
+        heldAt: at(-6), memo: '급여 일부가 본인 계좌로 들어오기 시작했다. 현금으로 받은 금액과 계좌 입금액을 나란히 적어 차이를 확인했고, 근무 시간 기록도 세 주째 이어지고 있다.', goalLinks: ['safety'],
+        actionItems: [{ description: '현금 지급분과 계좌 입금분을 같은 표에 기록한다', owner: 'beneficiary', dueDate: day(3) }],
+      },
     ],
     futureSchedules: [{ scheduledAt: at(11, 4), goalLinks: ['safety'] }],
   },
@@ -431,7 +462,7 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     goalReplacement: {
       afterSession: 4, closeGoalKey: 'repay', reason: 'achieved',
-      newGoal: { key: 'stock', title: '사입 주기를 2주로 줄여 재고를 관리한다', scaleCriteria: REPAYMENT_SCALE },
+      newGoal: { key: 'stock', title: '사입 주기를 2주로 줄여 재고를 관리한다', scaleCriteria: STOCK_SCALE },
     },
     futureSchedules: [{ scheduledAt: at(13, 1), goalLinks: ['ledger'] }],
   },
@@ -453,14 +484,14 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     goalReplacement: {
       afterSession: 2, closeGoalKey: 'class', reason: 'stopped',
-      newGoal: { key: 'shift', title: '야간 근무를 주 2회 이하로 조정한다', scaleCriteria: SAVINGS_SCALE },
+      newGoal: { key: 'shift', title: '야간 근무를 주 2회 이하로 조정한다', scaleCriteria: SHIFT_SCALE },
     },
     futureSchedules: [{ scheduledAt: at(16, 5), goalLinks: ['budget'] }],
   },
-  // ── 13 (회차 6 · 부채 악화 단독 플래그 · improving) ────────────────────────────
+  // ── 13 (회차 6 · 부채 악화 단독 플래그 · mixed) ───────────────────────────────
   {
     name: '유선호', phone: phone(13), email: email(13), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: at(-165), consent: { recordingAi: true }, trajectory: 'improving',
+    intakeAt: at(-165), consent: { recordingAi: true }, trajectory: 'mixed',
     goals: [
       { key: 'repay', title: '대출 두 건을 한 건으로 정리한다' },
       { key: 'ledger', title: '월말에 수입과 지출을 맞춰 본다' },
@@ -474,14 +505,14 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
       { heldAt: at(-81), memo: '적립을 시작했다. 금액은 작지만 끊기지 않는 것을 우선했다.', goalLinks: ['save'] },
       { heldAt: at(-60), memo: '성수기 수입으로 적립을 두 배로 늘렸다. 정산 습관은 유지된다.', goalLinks: ['save'] },
       {
-        heldAt: at(-39), memo: '비수기에 접어들며 매출이 줄었지만 대출을 늘리지 않고 적립분으로 버텼다. 처음 있는 일이라고 한다.', goalLinks: ['ledger', 'save'],
-        customQuestions: ['올해 비수기는 지난해와 무엇이 달랐나요?'],
+        heldAt: at(-39), memo: '비수기에 접어들며 매출이 줄어 카드 대출을 30만원 다시 늘렸다. 월말 정산에서 악화를 확인했고, 적립 계획을 낮춰 다음 달 추가 대출을 막기로 했다.', goalLinks: ['ledger', 'save'],
+        customQuestions: ['추가 대출 없이 다음 달 매입비를 줄일 수 있는 항목은 무엇인가요?'],
       },
     ],
-    standaloneFlag: { flagType: 'debt_deterioration', quote: '작년 이맘때는 카드로 돌려서 버텼는데 올해는 안 그랬어요.' },
+    standaloneFlag: { flagType: 'debt_deterioration', quote: '비수기 매입비가 모자라 카드 대출을 다시 30만원 늘렸어요.' },
     futureSchedules: [{ scheduledAt: at(18, 0), goalLinks: ['repay', 'save'] }],
   },
-  // ── 14 (장문 인테이크 · plateau · 정기 2) ──────────────────────────────────────
+  // ── 14 (장문 인테이크 · plateau · 정기 3) ──────────────────────────────────────
   {
     name: '임채원', phone: phone(14), email: email(14), assigneeUserId: COUNSELOR_IDS.ai00,
     intakeAt: at(-77), consent: { recordingAi: true }, trajectory: 'plateau',
@@ -493,8 +524,20 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
         heldAt: at(-35), memo: '월 1회 발주가 두 번 들어왔다. 금액은 작지만 처음으로 예측 가능한 수입이 생겼다.', goalLinks: ['income'],
         customQuestions: ['고정 발주를 한 곳 더 늘릴 여지가 있을까요?'],
       },
+      {
+        heldAt: at(-14), memo: '정기 발주 거래처가 두 곳으로 늘었다. 금액은 크지 않지만 다음 달 수입을 미리 계산할 수 있게 되었고, 급한 달에 카드로 메우는 횟수가 한 번 줄었다.', goalLinks: ['income'],
+        customQuestions: ['두 거래처의 발주 주기를 겹치지 않게 조정할 수 있을까요?'],
+      },
     ],
     futureSchedules: [{ scheduledAt: at(20, 7), goalLinks: ['income'] }],
+  },
+  // ── 15 (미래 인테이크 일정만 있음 · 완료 기록 없음) ───────────────────────────
+  {
+    name: '윤하늘', phone: phone(15), email: email(15), assigneeUserId: COUNSELOR_IDS.ai00,
+    intakeAt: at(1, 4), pendingIntake: true, consent: { recordingAi: false }, trajectory: 'plateau',
+    goals: [],
+    intakeMemo: '',
+    regulars: [],
   },
 ];
 
@@ -525,13 +568,12 @@ export const PARTICIPANTS: readonly SeedParticipant[] = SEED_PROFILE === 'previe
  *   반복되지 않게 한다(2026-07-31 Q 지적: 프리뷰에서 한 명이 일정 9건으로 아홉 번 나왔다).
  * - 세션: 인테이크 4 + 정기 11 = 15. 세션당 sessions_manual_submission_audit 트리거 감사 15건.
  *
- * 프리뷰 프로파일(SEED_PROFILE=preview, 14명 = 4 + 10):
+ * 프리뷰 프로파일(SEED_PROFILE=preview, 15명 = 4 + 11):
  * - 리스크 플래그 6종 전부 등장(위기 발언 6 · 연락 두절 7 · 주거·생계·건강 급변 8 ·
  *   약속 불이행 반복 9 · 폭력·착취 피해 10 · 부채 악화 4와 13).
- * - 녹취 미동의 1명(5): 브리핑이 수기 메모만으로 서는 폴백(D5)을 화면에서 볼 수 있다.
+ * - 녹취 미동의 사례와 수기 메모 폴백을 화면에서 볼 수 있다.
  * - 목표 닫기 사유 3종: 달성(11) · 중단(12) · 재설정(3).
- * - 추이 4종 전부: 개선(1·3·11·13) · 정체(2·5·9·14) · 악화(4·6·8) · 혼재(7·10·12).
- * - 회차 수 2~6: 가장 긴 케이스는 13(정기 6 + 인테이크 1).
- * - 예정 일정도 사람당 1건이고 기준일 +0 ~ +20 일에 흩어 둔다(일간·주간·월간 뷰가 모두
- *   비지 않게).
+ * - 추이 4종 전부: 개선(1·3·11) · 정체(2·5·9·14) · 악화(4·6·8) · 혼재(7·10·12·13).
+ * - 완료 사례는 프리뷰 전용 기준 정기 상담 3~6회이고, 15는 미래 인테이크 일정만 있다.
+ * - 예정 일정은 기준일 +0 ~ +20 일에 흩어져 일간·주간·월간 뷰를 채운다.
  */
