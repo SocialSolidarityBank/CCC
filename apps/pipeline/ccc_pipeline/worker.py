@@ -135,6 +135,8 @@ def process_audio_job(
     backup_adapters=BACKUP_ADAPTERS,  # noqa: ANN001 - 테스트와 향후 adapter 등록을 위한 경계
 ) -> None:
     """오디오 작업 1건: 내려받기 → 해시 검증 → 전사 → 화자 → 감정 → 마스킹 → 결과."""
+    # off와 알 수 없는 엔진은 원음 다운로드나 ML 초기화보다 먼저 차단한다.
+    engine = build_engine(config.stt_engine, config.whisper_model)
     # ML 모듈은 여기서만 임포트한다 — 미설치 환경에서도 워커 모듈 자체는 로드 가능하게.
     from .diarize import diarize  # noqa: PLC0415
     from .emotion import build_speech_scorer, build_text_scorer  # noqa: PLC0415
@@ -182,7 +184,7 @@ def process_audio_job(
         transcription = transcribe_audio(
             str(audio_path),
             work_dir,
-            build_engine(config.stt_engine, config.whisper_model),
+            engine,
             max_chunk_seconds=config.stt_max_chunk_seconds,
             min_chunk_seconds=config.stt_min_chunk_seconds,
             repeat_threshold=config.stt_repeat_threshold,

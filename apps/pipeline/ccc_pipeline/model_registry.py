@@ -93,11 +93,12 @@ def model_spec(name: str, version: str | None = None) -> ModelSpec:
 def role_spec(role: str, selected: str | None = None) -> ModelSpec:
     """Resolve a runtime role to its one manifest-bound model.
 
-    The Whisper role uses its manifest version (``medium``) as the user-facing
+    Both Whisper roles use the manifest version (``medium``) as the user-facing
     model selector. Other roles use the Hugging Face repository name directly.
     """
     roles = {
         "whisper": ("openai/whisper", "medium"),
+        "faster-whisper": ("Systran/faster-whisper-medium", "medium"),
         "diarization": ("pyannote/speaker-diarization-3.1", "3.1"),
         "speech-emotion": (
             "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition", "latest-approved",
@@ -106,7 +107,7 @@ def role_spec(role: str, selected: str | None = None) -> ModelSpec:
         "person-ner": ("FrameByFrame/korean-pii-e5-base", "latest-approved"),
     }
     expected_name, expected_version = roles[role]
-    allowed_selection = (expected_version,) if role == "whisper" else (expected_name,)
+    allowed_selection = (expected_version,) if role in ("whisper", "faster-whisper") else (expected_name,)
     if selected is not None and selected not in allowed_selection:
         raise ModelRegistryError(f"{role} model selection is not manifest-bound: {selected}")
     return model_spec(expected_name, expected_version)

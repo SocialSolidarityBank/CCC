@@ -615,6 +615,7 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
   const violations = [];
   const requiredRuntimeModels = new Set([
     'openai/whisper@medium',
+    'Systran/faster-whisper-medium@medium',
     'pyannote/speaker-diarization-3.1@3.1',
     'pyannote/segmentation-3.0@3.0',
     'jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition@latest-approved',
@@ -648,6 +649,10 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
         || typeof model.checkpointSha256 !== 'string'
         || !/^[a-f0-9]{64}$/i.test(model.checkpointSha256))) {
       violations.push(`${name}@${version}: checkpoint URL/SHA-256가 고정되지 않음`);
+    }
+    if (name === 'Systran/faster-whisper-medium'
+      && (typeof model.checkpointSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(model.checkpointSha256))) {
+      violations.push(`${name}@${version}: candidate checkpoint SHA-256가 고정되지 않음`);
     }
   }
   if (violations.length > 0) throw new Error(`model license allowlist 위반:\n  ${violations.join('\n  ')}`);

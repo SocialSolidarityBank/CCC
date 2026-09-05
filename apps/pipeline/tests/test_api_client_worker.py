@@ -330,7 +330,7 @@ class TextJobTest(unittest.TestCase):
                 "ccc_pipeline.worker._build_person_and_address_ner",
                 return_value=(fake_person_ner, None),
             ):
-                process_text_job(client, make_config(Path(tmp)), text_job())
+                process_text_job(client, replace(make_config(Path(tmp)), stt_engine="off"), text_job())
 
         job_id, request = client.post_result.call_args.args
         self.assertEqual(job_id, "job-text-1")
@@ -517,6 +517,40 @@ class EnvironmentIsolationTest(unittest.TestCase):
             "CCC_NER_ATTESTATION": json.dumps(ATTESTATION),
             "CCC_NER_RELEASE_RECEIPT_ID": RECEIPT_ID,
         }
+
+    def test_default_off_rejects_audio_before_download_or_model_loading(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-code",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            config = load_config()
+        client = mock.Mock()
+        client.claim_jobs.return_value = [audio_job()]
+        with mock.patch("ccc_pipeline.worker.MaskingLayers") as layers:
+            self.assertEqual(run_once(client, config), 0)
+            client.download_audio.assert_not_called()
+            layers.assert_not_called()
+
+    def test_candidate_requires_explicit_selection_and_nonproduction_environment(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-code",
+            "CCC_STT_ENGINE": "faster-whisper-int8-cpu",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            self.assertEqual(load_config().stt_engine, "faster-whisper-int8-cpu")
+        del env["CCC_PREVIEW_E2E_ACCESS_CODE"]
+        env.update(
+            CCC_RUNTIME_ENVIRONMENT="production",
+            CCC_PIPELINE_CLIENT_ID="fixture-id",
+            CCC_PIPELINE_CLIENT_SECRET="fixture-secret",
+        )
+        with mock.patch.dict("os.environ", env, clear=True):
+            with self.assertRaises(ConfigError):
+                load_config()
 
     def test_runtime_environment_is_explicit(self):
         with mock.patch.dict("os.environ", self.base_env(), clear=True):

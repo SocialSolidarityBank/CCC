@@ -18,6 +18,7 @@ const safeSbom = {
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const pythonPins = [
   ['openai-whisper', '20250625'],
+  ['faster-whisper', '1.2.1'],
   ['pyannote.audio', '3.4.0'],
   ['transformers', '4.53.3'],
   ['librosa', '0.11.0'],

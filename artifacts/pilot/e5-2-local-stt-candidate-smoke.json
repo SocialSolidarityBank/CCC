@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "scope": "synthetic Korean adapter smoke, not STT gate approval",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.12.13",
+  "packages": {
+    "faster-whisper": "1.2.1",
+    "ctranslate2": "4.8.2",
+    "huggingface-hub": "0.36.2",
+    "tokenizers": "0.21.4",
+    "av": "18.1.0"
+  },
+  "engine": "faster-whisper-int8-cpu",
+  "model": "Systran/faster-whisper-medium",
+  "revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+  "checkpointSha256": "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae",
+  "audioSha256": "ad580f5f25a4247f584e10403c8f6516ace2e2ddfb53a3f2aea7cdc79708cc15",
+  "audioSource": "macOS say Yuna, rate 150, synthetic Korean script repeated three times",
+  "maxChunkSeconds": 20,
+  "minChunkSeconds": 5,
+  "timestampToleranceSeconds": 1,
+  "audioDurationSeconds": 30.151875,
+  "engineCalls": 2,
+  "segments": 8,
+  "forcedCuts": 1,
+  "repetitionWarnings": 0,
+  "timestampBoundsPassed": true,
+  "laterChunkTimestampsObserved": true,
+  "elapsedSeconds": 55.113,
+  "windowsCpuVerdict": "not measured",
+  "productConfigurationVerified": false,
+  "elapsedIncludesModelDownload": true
+}
