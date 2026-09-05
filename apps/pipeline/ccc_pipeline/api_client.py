@@ -25,8 +25,6 @@ class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(f"API error {status}: {detail}")
         self.status = status
-        # 서버 error 코드. 같은 422 라도 작업이 아직 임대 중인지 이미 닫혔는지를 이 코드가 가른다.
-        self.code = detail
 
 
 class ApiClient:

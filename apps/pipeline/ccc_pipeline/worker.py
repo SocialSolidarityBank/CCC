@@ -305,29 +305,6 @@ def assert_device_ready(config: Config) -> None:
         raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
 
 
-# 서버가 응답과 함께 작업을 이미 닫은 코드들. release 로 다시 닫으면 stale_claim 만 낸다.
-_CLOSED_BY_SERVER_CODES = frozenset({
-    "job_not_found",
-    "stale_claim",
-    "lease_expired",
-    "result_conflict",
-    "retry_exhausted",
-    "audio_hash_mismatch",
-    "audio_deleted",
-    "consent_not_effective",
-    "forbidden",
-    "actor_authentication_required",
-})
-# 결과가 거부됐고 작업은 아직 임대 중일 때 쓰는 permanent 사유(S5 ReleaseReason).
-_PERMANENT_RELEASE_REASONS = frozenset({
-    "result_schema_invalid",
-    "masking_failed",
-    "audio_object_missing",
-    "route_mismatch",
-    "permanent_failure",
-})
-
-
 def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception) -> None:
     """실패한 claim 을 정확히 한 번 닫는다. 성공 결과를 보낸 claim 은 여기 오지 않는다."""
     job_id = job["jobId"]
@@ -341,17 +318,8 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
         if isinstance(error, ApiError):
             if error.status in _TRANSIENT_STATUSES or error.status >= 500:
                 client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
-                return
-            if error.code in _CLOSED_BY_SERVER_CODES:
-                # 서버가 이미 상태를 정한 응답이라 release 로 덧쓰지 않는다.
-                return
-            # 결과 검증 거부는 작업을 열어 둔 채 돌아온다. 닫지 않으면 임대 만료 복구가
-            # attempt 를 태워 결국 retry_exhausted 가 된다(S5 §2.2).
-            if error.code == "local_ner_unavailable":
-                client.release(job_id, claim_token, attempt, "blocked", "local_ner_unavailable")
-            else:
-                reason = error.code if error.code in _PERMANENT_RELEASE_REASONS else "permanent_failure"
-                client.release(job_id, claim_token, attempt, "permanent", reason)
+            # 4xx 는 서버가 코드를 저장하고 작업을 닫은 응답이다(S5 §2.6). release 로 덧쓰면
+            # Agent 가 사유를 추측하게 되고, blocked 오용은 같은 attempt 로 STT 를 되풀이한다.
             return
         # 전사·화자 분리 등 엔진 실패는 같은 route·engine 으로 최대 3회까지 재시도한다.
         client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")

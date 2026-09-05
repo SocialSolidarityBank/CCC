@@ -7681,6 +7681,20 @@ async function loadClaimedAgentJob(
   return job;
 }
 
+/**
+ * CAS 가 0건이면 사유를 다시 읽어 던진다. 검증과 UPDATE 사이의 자연 만료는 `lease_expired`,
+ * 회수·재할당은 `stale_claim` 이다(S5 §2.6). 두 원인을 stale 로 합치면 그 경계가 사라진다.
+ */
+async function throwAgentJobCasFailure(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: { claimToken: string; attempt: number },
+): Promise<never> {
+  await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  throw new AgentJobContractError('stale_claim', jobId);
+}
+
 export async function heartbeatAgentJob(
   env: Env,
   actor: Actor,
@@ -7696,7 +7710,7 @@ export async function heartbeatAgentJob(
      WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
        AND lease_expires_at > ?`,
   ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
-  if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
   return { jobId, state: 'leased', attempt: job.attempt, leaseExpiresAt };
 }
 
@@ -7734,7 +7748,7 @@ export async function releaseAgentJob(
   ).bind(
     state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
   ).run();
-  if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
   await writeAudit(env, actor, {
     action: 'update',
     targetTable: 'agent_jobs',
@@ -8051,6 +8065,73 @@ export interface AgentJobResultAcceptance {
 }
 
 /**
+ * 결과 검증이 malformed 로 판정하는 S6 code. 이 거부는 작업을 열어 둔 채 돌아가지 않고
+ * 그 자리에서 `failed` 로 닫히며 code 를 `terminal_failure_code` 로 남긴다(S5 §2.6, S6 §4).
+ * 열어 두면 Agent 가 사유를 추측해 release 하고 임대 만료 복구가 attempt 를 태운다.
+ * `result_schema_invalid` 는 S6 판정이 아닌 요청 형식 거부라 제외하고,
+ * `consent_not_effective` 는 실패가 아니라 `cancelled` 라 철회 경로가 소유한다.
+ */
+const MALFORMED_RESULT_JOB_ERRORS: ReadonlySet<JobErrorCode> = new Set([
+  'masking_snapshot_missing',
+  'registered_pii_detected',
+  'unmasked_identifier_detected',
+  'evidence_hash_mismatch',
+  'masking_pipeline_version_mismatch',
+  'route_mismatch',
+]);
+
+/**
+ * 결과 검증 거부를 그 자리에서 닫는다.
+ *
+ * malformed S6 판정은 `failed` + 같은 code 다. `local_ner_unavailable` 만 재처리 가능한
+ * 기반 장애라(S6 §4) 다시 돌릴 수 있게 남기는데, 텍스트는 provider 0회라 attempt 를
+ * 소모하지 않는 `blocked` 이고, 오디오는 그 attempt 의 STT 를 이미 쓴 뒤라 재큐잉으로
+ * attempt 를 소모한다 - 같은 attempt 로 두 번 STT 를 돌리지 않기 위한 구분이다(S5 §2.2).
+ */
+async function closeJobOnResultRejection(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  verify: () => Promise<void> | void,
+): Promise<void> {
+  try {
+    await verify();
+  } catch (error) {
+    if (!(error instanceof AgentJobContractError)) throw error;
+    let state: AgentJobState | null = null;
+    let terminalFailureCode: string | null = null;
+    if (MALFORMED_RESULT_JOB_ERRORS.has(error.code)) {
+      state = 'failed';
+      terminalFailureCode = error.code;
+    } else if (error.code === 'local_ner_unavailable') {
+      if (job.kind === 'text') {
+        state = 'blocked';
+      } else if (job.attempt >= AGENT_JOB_MAX_ATTEMPTS) {
+        state = 'failed';
+        terminalFailureCode = 'retry_exhausted';
+      } else {
+        state = 'pending';
+      }
+    }
+    if (state === null) throw error;
+    const nowIso = now();
+    await env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = ?, terminal_failure_code = ?, lease_owner = NULL, claim_token_hash = NULL,
+           claimed_at = NULL, lease_expires_at = NULL, updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
+    ).bind(state, terminalFailureCode, nowIso, job.id, actor.orgId, job.claimTokenHash, job.attempt).run();
+    await writeAudit(env, actor, {
+      action: 'update',
+      targetTable: 'agent_jobs',
+      targetId: job.id,
+      detail: { state, reason: error.code, attempt: job.attempt },
+    });
+    throw error;
+  }
+}
+
+/**
  * 결과 수락. 마스킹 스냅샷 저장, job terminal 전환, 텍스트 원본 큐 완료, Azure egress
  * 완료를 한 batch 로 처리한다. 같은 payload hash 재전송은 resultId 가 달라도 멱등이고,
  * 다른 hash 는 result_conflict 다. succeeded 여도 승인 전에는 공식 기록이 아니다(R2).
@@ -8097,7 +8178,9 @@ export async function acceptAgentJobResult(
   if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
     throw new AgentJobContractError('result_schema_invalid', jobId);
   }
-  await assertAgentJobResultIntegrity(env, job, request);
+  await closeJobOnResultRejection(env, actor, job, async () => {
+    await assertAgentJobResultIntegrity(env, job, request);
+  });
   await agentJobConsentRevision(env, actor.orgId, job);
   const result = request.result;
   const acceptedAt = now();

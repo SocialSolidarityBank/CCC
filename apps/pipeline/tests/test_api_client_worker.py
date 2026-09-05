@@ -243,7 +243,7 @@ class RunOnceTest(unittest.TestCase):
         client = dictionary_client()
         client.claim_jobs.return_value = [text_job()]
         client.get_source.return_value = "MASKED source"
-        client.post_result.side_effect = ApiError(422, "stale_claim")
+        client.post_result.side_effect = ApiError(422, "result_schema_invalid")
         with TemporaryDirectory() as tmp:
             with mock.patch(
                 "ccc_pipeline.worker._build_person_and_address_ner",
@@ -252,29 +252,6 @@ class RunOnceTest(unittest.TestCase):
                 self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
         # 서버가 이미 상태를 정한 코드는 release 로 덧쓰지 않는다(terminal 은 하나).
         client.release.assert_not_called()
-
-    def test_live_lease_rejection_is_closed_by_the_agent(self):
-        """422 라도 작업이 임대 중이면 Agent 가 닫는다 — 안 닫으면 attempt 가 타 없어진다."""
-        client = dictionary_client()
-        client.claim_jobs.return_value = [text_job()]
-        client.get_source.return_value = "무응답"
-        for code, expected in (
-            ("local_ner_unavailable", ("blocked", "local_ner_unavailable")),
-            ("result_schema_invalid", ("permanent", "result_schema_invalid")),
-            ("evidence_hash_mismatch", ("permanent", "permanent_failure")),
-            ("stale_claim", None),
-        ):
-            client.release.reset_mock()
-            client.post_result.side_effect = ApiError(422, code)
-            with TemporaryDirectory() as tmp, mock.patch(
-                "ccc_pipeline.worker._build_person_and_address_ner",
-                return_value=(lambda text: [], None),
-            ):
-                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
-            if expected is None:
-                client.release.assert_not_called()
-            else:
-                client.release.assert_called_once_with("job-text-1", "t" * 64, 1, *expected)
 
     def test_masking_layers_load_before_transcription(self):
         """NER 이 없으면 전사·provider 호출 전에 닫힌다 — blocked 경로는 provider 0회다(S5 F7)."""
@@ -317,8 +294,7 @@ class RunOnceTest(unittest.TestCase):
             ):
                 run_once(client, make_config(Path(tmp)))
         self.assertEqual(client.post_result.call_count, 1)
-        # 코드를 알 수 없는 거부도 작업은 임대 중이므로 permanent 로 닫는다.
-        client.release.assert_called_once_with("job-text-1", "t" * 64, 1, "permanent", "permanent_failure")
+        client.release.assert_not_called()
 
 
 class TextJobTest(unittest.TestCase):

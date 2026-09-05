@@ -315,6 +315,8 @@ source는 text claim에만 허용되는 claim-bound `GET /pipeline/jobs/:jobId/s
 | `pending|leased|blocked` | consent withdrawal CAS | requiredConsent 중 하나라도 현재값 없음 | `cancelled` | `consent_not_effective`, claim credentials invalidated |
 | `leased` audio | verify | live claim·generation에 묶인 stream을 읽고 Agent hash를 저장 | `leased` with `rawAudioSha256` | hash mismatch면 `failed`, `terminalFailureCode='audio_hash_mismatch'`, SG8 `hash_mismatch`/`upload_abandoned` 삭제 조정, Azure/OpenAI 호출 0건 |
 | `leased` | result | token·attempt 일치, 임대 유효, 동의·S6 attestation·미만료 `NerReleaseQualificationReceipt` 재검증·payload 검증 통과 | `succeeded` | `stale_claim`, `consent_not_effective`, fail-closed code, `result_schema_invalid`, `result_conflict` |
+| `leased` | result 거부 | malformed S6 판정(`masking_snapshot_missing`·`registered_pii_detected`·`unmasked_identifier_detected`·`evidence_hash_mismatch`·`masking_pipeline_version_mismatch`·`route_mismatch`) | `failed`, `terminalFailureCode=code` | 같은 code 를 반환하고 열어 두지 않음 |
+| `leased` | result 거부 | `local_ner_unavailable`(S6 §4 재처리 가능) | 텍스트는 `blocked`·`attempt` 불변, 오디오는 `pending`(attempt 3이면 `failed`·`retry_exhausted`) | 오디오는 그 attempt 의 STT 를 이미 썼으므로 재처리는 새 attempt 로만 한다 |
 | `blocked` | health 회복 claim | 현재 S6 attestation과 미만료 `NerReleaseQualificationReceipt`가 `status='passed'`, `expiresAt > now` | `leased`, `attempt` 불변 | 여전히 부적합하면 `local_ner_unavailable` |
 | `leased` | heartbeat | token·attempt 일치, `now < leaseExpiresAt` | `leased` | 만료면 `lease_expired` |
 | `leased` | release transient | token·attempt 일치, live lease, `reason=engine_unavailable` | `pending` 또는 `failed` | attempt 3이면 `retry_exhausted` |

@@ -445,6 +445,42 @@ describe('S5 Agent 작업 계약 v2', () => {
     const snapshots = await t.db.prepare('SELECT COUNT(*) AS count FROM ai_masked_source_snapshots WHERE session_id = ?')
       .bind(sessionId).first<{ count: number }>();
     expect(snapshots?.count).toBe(0);
+    // 거부는 작업을 열어 두지 않는다 - 코어가 그 자리에서 닫는다(S5 §2.6). 열어 두면 Agent 가
+    // 사유를 추측해 release 하고, 임대 만료 복구가 attempt 를 태워 retry_exhausted 로 끝난다.
+    // NER 부재만 재처리 가능이고 텍스트는 provider 0회라 attempt 를 소모하지 않는다(S6 §4).
+    expect(await jobRow(sessionId)).toMatchObject({
+      state: 'blocked',
+      terminal_failure_code: null,
+      attempt: 1,
+    });
+    // 자격이 회복되면 같은 attempt 로 다시 임대된다.
+    const revived = await seedNerQualification(t.db);
+    const { jobs: resumed } = await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(revived));
+    expect(resumed.map((job) => job.attempt)).toEqual([1]);
+  });
+
+  it('근거 해시가 어긋난 결과는 그 코드로 닫힌다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+
+    const request = await agentResultRequest({
+      kind: 'text',
+      claimToken: claimed.claimToken,
+      attempt: 1,
+      maskedText: 'MASKED evidence mismatch text',
+      qualification,
+    });
+    await expect(acceptAgentJobResult(t.env, service, claimed.jobId, {
+      ...request,
+      result: { ...request.result, evidenceHash: 'f'.repeat(64) },
+    })).rejects.toMatchObject({ code: 'evidence_hash_mismatch' });
+    expect(await jobRow(sessionId)).toMatchObject({
+      state: 'failed',
+      terminal_failure_code: 'evidence_hash_mismatch',
+    });
   });
 
   it('mask dictionary는 같은 claim에서만 재생되고 새 claim은 새 dictionary를 받는다', async () => {
