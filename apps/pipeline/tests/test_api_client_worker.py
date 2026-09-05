@@ -243,6 +243,21 @@ class RunOnceTest(unittest.TestCase):
         client = dictionary_client()
         client.claim_jobs.return_value = [text_job()]
         client.get_source.return_value = "MASKED source"
+        client.post_result.side_effect = ApiError(422, "evidence_hash_mismatch")
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], None),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+        # 서버가 이미 닫은 코드는 release 로 덧쓰지 않는다(terminal 은 하나).
+        client.release.assert_not_called()
+
+    def test_schema_rejection_is_closed_by_the_agent(self):
+        """형식 거부는 서버가 상태를 안 바꾸므로 Agent 가 같은 이름의 permanent 로 닫는다."""
+        client = dictionary_client()
+        client.claim_jobs.return_value = [text_job()]
+        client.get_source.return_value = "MASKED source"
         client.post_result.side_effect = ApiError(422, "result_schema_invalid")
         with TemporaryDirectory() as tmp:
             with mock.patch(
@@ -250,8 +265,9 @@ class RunOnceTest(unittest.TestCase):
                 return_value=(lambda text: [], None),
             ):
                 self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
-        # 서버가 이미 상태를 정한 코드는 release 로 덧쓰지 않는다(terminal 은 하나).
-        client.release.assert_not_called()
+        client.release.assert_called_once_with(
+            "job-text-1", "t" * 64, 1, "permanent", "result_schema_invalid",
+        )
 
     def test_masking_layers_load_before_transcription(self):
         """NER 이 없으면 전사·provider 호출 전에 닫힌다 — blocked 경로는 provider 0회다(S5 F7)."""

@@ -443,6 +443,10 @@ describe('audio upload and relay', () => {
 
     const { response: relay, jobId } = await relayAudio(env, session.id);
     expect(relay.status).toBe(404);
-    await expect(relay.json()).resolves.toEqual({ error: 'audio_object_missing', jobId });
+    await expect(relay.json()).resolves.toEqual({ error: 'audio_object_missing', jobId, retryable: false });
+    // 객체가 없는 작업은 열어 두지 않는다 - 그 코드로 닫힌다(S5 §2.6).
+    const closed = await t.db.prepare('SELECT state, terminal_failure_code FROM agent_jobs WHERE id = ?')
+      .bind(jobId).first<{ state: string; terminal_failure_code: string | null }>();
+    expect(closed).toMatchObject({ state: 'failed', terminal_failure_code: 'audio_object_missing' });
   });
 });

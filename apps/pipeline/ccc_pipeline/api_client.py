@@ -25,6 +25,8 @@ class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(f"API error {status}: {detail}")
         self.status = status
+        # 서버 error 코드. 서버가 닫지 않는 형식 거부만 Agent 가 스스로 닫는다.
+        self.code = detail
 
 
 class ApiClient:

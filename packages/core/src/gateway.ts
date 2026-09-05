@@ -7770,6 +7770,29 @@ export async function getAgentJobSource(
   return buildAgentJobSourceText(env, actor, job.sessionId);
 }
 
+/**
+ * 원음 객체가 없으면 그 코드로 즉시 영구 실패다(S5 §2.6). 열어 두면 Agent 가 닫을 수 없어
+ * 임대 만료 복구가 attempt 를 태우고 사유가 `retry_exhausted` 로 바뀐다.
+ * 저장소에서 바이트를 못 읽은 호출부도 이 함수로 같은 전이를 만든다.
+ */
+export async function closeAgentJobAudioObjectMissing(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+): Promise<void> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  try {
+    await closeJobOnResultRejection(env, actor, job, claimToken, () => {
+      throw new AgentJobContractError('audio_object_missing', jobId);
+    });
+  } catch (error) {
+    // 같은 code 는 호출부가 응답으로 돌려준다. 여기서는 전이만 확정한다.
+    if (!(error instanceof AgentJobContractError) || error.code !== 'audio_object_missing') throw error;
+  }
+}
+
 /** claim 에 묶인 오디오 전달. 키는 응답에 싣지 않고 호출부가 바이트만 중계한다. */
 export async function getAgentJobAudioDelivery(
   env: Env,
@@ -7783,7 +7806,10 @@ export async function getAgentJobAudioDelivery(
     throw new AgentJobContractError('audio_object_missing', jobId);
   }
   const session = await getSessionForOrg(env, actor.orgId, job.sessionId);
-  if (session.audioR2Key === null) throw new AgentJobContractError('audio_object_missing', jobId);
+  if (session.audioR2Key === null) {
+    await closeAgentJobAudioObjectMissing(env, actor, jobId, claimToken, attempt);
+    throw new AgentJobContractError('audio_object_missing', jobId);
+  }
   await writeAudit(env, actor, {
     action: 'download_audio',
     targetTable: 'agent_jobs',
@@ -8072,6 +8098,7 @@ export interface AgentJobResultAcceptance {
  * `consent_not_effective` 는 실패가 아니라 `cancelled` 라 철회 경로가 소유한다.
  */
 const MALFORMED_RESULT_JOB_ERRORS: ReadonlySet<JobErrorCode> = new Set([
+  'audio_object_missing',
   'masking_snapshot_missing',
   'registered_pii_detected',
   'unmasked_identifier_detected',
@@ -8092,6 +8119,7 @@ async function closeJobOnResultRejection(
   env: Env,
   actor: Actor,
   job: AgentJobRow,
+  claimToken: string,
   verify: () => Promise<void> | void,
 ): Promise<void> {
   try {
@@ -8115,12 +8143,23 @@ async function closeJobOnResultRejection(
     }
     if (state === null) throw error;
     const nowIso = now();
-    await env.DB.prepare(
+    // 검증 도중 임대가 넘어가거나 만료됐으면 이 전이를 확정하지 않는다. 그 경우 사유는
+    // 검증 오류가 아니라 현재 상태(`lease_expired`·`stale_claim`·terminal)다.
+    const updated = await env.DB.prepare(
       `UPDATE agent_jobs
        SET state = ?, terminal_failure_code = ?, lease_owner = NULL, claim_token_hash = NULL,
            claimed_at = NULL, lease_expires_at = NULL, updated_at = ?
-       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
-    ).bind(state, terminalFailureCode, nowIso, job.id, actor.orgId, job.claimTokenHash, job.attempt).run();
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+         AND lease_expires_at > ?`,
+    ).bind(
+      state, terminalFailureCode, nowIso, job.id, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
+    ).run();
+    if ((updated.meta?.changes ?? 0) === 0) {
+      await throwAgentJobCasFailure(env, actor, job.id, {
+        claimToken: claimToken,
+        attempt: job.attempt,
+      });
+    }
     await writeAudit(env, actor, {
       action: 'update',
       targetTable: 'agent_jobs',
@@ -8178,7 +8217,7 @@ export async function acceptAgentJobResult(
   if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
     throw new AgentJobContractError('result_schema_invalid', jobId);
   }
-  await closeJobOnResultRejection(env, actor, job, async () => {
+  await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
     await assertAgentJobResultIntegrity(env, job, request);
   });
   await agentJobConsentRevision(env, actor.orgId, job);

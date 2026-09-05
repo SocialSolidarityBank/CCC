@@ -318,8 +318,12 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
         if isinstance(error, ApiError):
             if error.status in _TRANSIENT_STATUSES or error.status >= 500:
                 client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
-            # 4xx 는 서버가 코드를 저장하고 작업을 닫은 응답이다(S5 §2.6). release 로 덧쓰면
-            # Agent 가 사유를 추측하게 되고, blocked 오용은 같은 attempt 로 STT 를 되풀이한다.
+            elif error.code == "result_schema_invalid":
+                # S6 판정이 아닌 형식 거부는 서버가 상태를 바꾸지 않는다. 그 하나만 Agent 가
+                # 같은 이름의 permanent 사유로 닫는다 - 안 닫으면 임대 만료 복구가 attempt 를
+                # 태우고 사유가 retry_exhausted 로 바뀐다.
+                client.release(job_id, claim_token, attempt, "permanent", "result_schema_invalid")
+            # 그 밖의 4xx 는 서버가 코드를 저장하고 작업을 닫은 응답이라 덧쓰지 않는다(S5 §2.6).
             return
         # 전사·화자 분리 등 엔진 실패는 같은 route·engine 으로 최대 3회까지 재시도한다.
         client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")

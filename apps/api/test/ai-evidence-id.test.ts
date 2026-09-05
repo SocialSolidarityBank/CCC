@@ -47,6 +47,21 @@ describe('AI 근거 ID 검증 (이슈 #47)', () => {
     expect(rejected).toEqual([]);
   });
 
+  it('접두사 붙은 UUID 2만 개도 하나도 거부하지 않는다', () => {
+    // 이 시스템이 실제로 발급하는 모양이다 — `result-<UUID>`, `receipt-<UUID>`, `evidence-<UUID>`.
+    // 접두사가 붙으면 "정규 UUID 형태" 면제에서 빠져 같은 4.3% 결함이 그대로 남아 있었다.
+    const rejected: string[] = [];
+    for (let i = 0; i < 20_000; i += 1) {
+      const id = `result-${crypto.randomUUID()}`;
+      try {
+        validateAiEvidenceIds([id]);
+      } catch {
+        rejected.push(id);
+      }
+    }
+    expect(rejected).toEqual([]);
+  });
+
   it('대문자 UUID 도 받아들인다 (형태만 정규면 된다)', () => {
     const upper = '006EC309-6253-498C-8BFE-4DD22DDFE344';
     expect(validateAiEvidenceIds([upper])).toEqual([upper]);
@@ -61,7 +76,8 @@ describe('AI 근거 ID 검증 (이슈 #47)', () => {
     ['이메일형', 'hong@example.com'],
     ['UUID 를 닮았지만 길이가 다른 값', '006ec309-6253-498c-8bfe-4dd22ddfe3'],
     ['UUID 를 닮았지만 16진이 아닌 값', '006ec309-6253-498c-8bfe-4dd22ddfz344'],
-    ['UUID 앞뒤에 다른 값이 붙은 것', 'x006ec309-6253-498c-8bfe-4dd22ddfe344'],
+    ['접두사에 실제 번호가 섞인 값', 'id:110-234-567890'],
+    ['접두사에 전화번호가 섞인 값', 'ref.010-1234-5678'],
   ])('%s 은 계속 거부한다', (_label, value) => {
     expect(() => validateAiEvidenceIds([value])).toThrow(AiProviderInputError);
   });

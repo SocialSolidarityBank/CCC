@@ -73,6 +73,7 @@ import {
   getParticipantBasicInfo,
   getParticipantBriefing,
   getParticipantGoalTree,
+  closeAgentJobAudioObjectMissing,
   getAgentJobAudioDelivery,
   getPipelineHealth,
   getMyIdentity,
@@ -3043,7 +3044,11 @@ export async function handleRequest(
           // Community Cloud 의 signed GET 발급은 E6-3 이 붙인다. 그전에는 열지 않는다.
           if (runtime.audioDelivery === 'protected-get') return json({ error: 'service_unavailable' }, 503);
           const object = await env.audioStore.get(delivery.audioR2Key);
-          if (object === null) return json({ error: 'audio_object_missing', jobId }, 404);
+          if (object === null) {
+            // 객체가 사라진 작업은 열어 두지 않는다 - 코어가 그 코드로 닫는다(S5 §2.6).
+            await closeAgentJobAudioObjectMissing(env, actor, jobId, credentials.claimToken, credentials.attempt);
+            return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
+          }
           // 저장소 키는 응답에 싣지 않는다. canonical content-type 으로 바이트만 중계한다.
           const headers = new Headers();
           headers.set('content-type', object.contentType);

@@ -837,7 +837,11 @@ describe('API routes', () => {
       },
     }), agentEnv);
     expect(audioResponse.status).toBe(404);
-    await expect(audioResponse.json()).resolves.toEqual({ error: 'audio_object_missing', jobId: audioJob.jobId });
+    await expect(audioResponse.json()).resolves.toEqual({
+      error: 'audio_object_missing',
+      jobId: audioJob.jobId,
+      retryable: false,
+    });
 
   });
 

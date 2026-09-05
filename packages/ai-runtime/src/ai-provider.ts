@@ -349,7 +349,8 @@ function hasProhibitedOutput(value: string): boolean {
 }
 
 /**
- * 이 시스템이 발급하는 식별자는 crypto.randomUUID() 의 정규 UUID 다(db/gateway.ts newId()).
+ * 이 시스템이 발급하는 식별자는 정규 UUID 이거나 `result-<UUID>` 처럼 UUID 에 뜻을 담은
+ * 접두사를 붙인 값이다(db/gateway.ts newId(), apps/pipeline results.py).
  * UUID 는 하이픈으로 끊긴 16진 그룹이라 계좌·전화번호를 겨냥한 piiPatterns[3]
  * (`\d{2,6}-\d{2,6}-\d{2,8}`)에 우연히 걸린다 — 실측 20만 개 중 8,651개(4.3%).
  * 예: `006ec309-6253-498c-8bfe-4dd22ddfe344` 의 `309-6253-498` 구간.
@@ -358,20 +359,23 @@ function hasProhibitedOutput(value: string): boolean {
  * 약 4.3% 확률로 400 invalid_request 로 실패했다(이슈 #47 — flake 로 보였던 것의 실체).
  *
  * 정규 UUID(8-4-4-4-12 16진, 36자)는 주민번호(13자리)·전화(10~11자리)·계좌(10~16자리)
- * 어느 것도 취할 수 없는 형태다. 따라서 **식별자 검증에 한해** PII 패턴을 면제한다.
- * 자유 텍스트 검사(assertSafeText)는 그대로 두므로 R3 2단 방어는 약화되지 않는다.
+ * 어느 것도 취할 수 없는 형태다. 따라서 **식별자 검증에 한해** UUID 구간을 지운 뒤 PII 패턴을
+ * 적용한다. 접두사만 남으므로 `result-<UUID>` 같은 값도 자기 검증기에 걸리지 않고, 접두사에
+ * 실제 번호가 섞이면 여전히 거부된다. 자유 텍스트 검사(assertSafeText)는 그대로여서
+ * R3 2단 방어는 약화되지 않는다.
  */
-const canonicalUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const canonicalUuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/giu;
 
-function isCanonicalUuid(value: string): boolean {
-  return canonicalUuidPattern.test(value);
+/** 식별자에서 정규 UUID 구간만 지운다. 남는 부분에만 PII 패턴을 적용한다. */
+function withoutCanonicalUuids(value: string): string {
+  return value.replaceAll(canonicalUuidPattern, '');
 }
 
 function isOpaqueId(value: string): boolean {
-  return opaqueIdPattern.test(value) && (isCanonicalUuid(value) || !hasPiiLikeValue(value));
+  return opaqueIdPattern.test(value) && !hasPiiLikeValue(withoutCanonicalUuids(value));
 }
 function isOpaqueReference(value: string): boolean {
-  return opaqueReferencePattern.test(value) && (isCanonicalUuid(value) || !hasPiiLikeValue(value));
+  return opaqueReferencePattern.test(value) && !hasPiiLikeValue(withoutCanonicalUuids(value));
 }
 
 function assertSafeText(value: unknown, maxLength: number): asserts value is string {
