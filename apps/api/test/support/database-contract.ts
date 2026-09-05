@@ -228,6 +228,19 @@ export function defineDatabaseContract(name: string, openDatabase: () => Promise
     expect(trigger).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
     expect(trigger.applicationCode).toBeUndefined();
   });
+  it('rejects SQL outside the common lexical subset before execution', async () => {
+    const db = await openFixture();
+    for (const sql of [
+      'SELECT ?1',
+      'SELECT `value?`',
+      "SELECT 'unterminated",
+      'SELECT "unterminated',
+      'SELECT 1 /* unterminated',
+    ]) {
+      expect(() => db.prepare(sql)).toThrowError(expect.objectContaining({ kind: 'syntax' }));
+    }
+  });
+
 
   });
 }

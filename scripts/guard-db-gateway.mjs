@@ -8,14 +8,15 @@ const isIgnoredDirectory = (name) => name.startsWith('.') || ignoredDirectories.
 const sourceRoots = ['adapters', 'apps', 'db', 'packages', 'scripts'].map((path) => resolve(root, path));
 const sourceExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
 // 업무 SQL 은 packages/core 의 gateway facade 에만 둔다(R1·D78). raw driver 호출은
-// adapters/db-* 와 계약 테스트 하니스에만 허용한다. 시드 툴(scripts/seed)은 게이트웨이
-// 공개 함수를 경유해 쓰고, raw 접근은 하니스 계층(Miniflare 부트·프리로드·캡처 프록시·재생
-// diff) 세 파일만 예외다. apps/* 와 packages/http-api 는 예외 없이 차단된다.
+// adapters/db-*, migration/schema 검사, 계약 테스트 하니스에만 허용한다. 시드 툴은
+// 게이트웨이 공개 함수를 경유해 쓰고, raw 접근은 하니스 계층(Miniflare 부트·프리로드·
+// 캡처 프록시·재생 diff) 세 파일만 예외다. apps/* 와 packages/http-api 는 차단된다.
 const allowedFiles = new Set([
   'packages/core/src/gateway.ts',
   'adapters/db-d1/src/index.ts',
   'adapters/db-sqlite/src/index.ts',
   'scripts/guard-db-gateway.mjs',
+  'scripts/guard-sql-dialect.mjs',
   'scripts/seed/harness.ts',
   'scripts/seed/capture.ts',
   'scripts/seed/validate.ts',

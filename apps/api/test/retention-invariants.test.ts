@@ -73,8 +73,28 @@ describe('participant PII retention invariants (CCC-121)', () => {
     const vault = await t.db.prepare(
       'SELECT purge_due FROM participant_pii_vault WHERE beneficiary_id = ?',
     ).bind(participant.beneficiaryId).first<{ purge_due: string }>();
-    expect(vault?.purge_due).toBe('2029-02-28 00:00:00');
+    expect(vault?.purge_due).toBe('2029-02-28T00:00:00.000Z');
   });
+  it('does not archive before a same-day canonical retention deadline', async () => {
+    await t.reset();
+    await t.db.prepare(
+      'UPDATE organization_settings SET pii_purge_grace_days = 1 WHERE org_id = ?',
+    ).bind(admin.orgId).run();
+    const participant = await makeClosedParticipant('2026-09-04T18:00:00.000Z');
+    await expect(t.db.prepare(
+      'SELECT purge_due FROM participant_pii_vault WHERE beneficiary_id = ?',
+    ).bind(participant.beneficiaryId).first('purge_due')).resolves.toBe('2026-09-05T18:00:00.000Z');
+
+    await expect(processParticipantPiiRetention(
+      t.env,
+      { at: '2026-09-05T09:00:00.000Z' },
+    )).resolves.toEqual({ attempted: 0, archived: 0, requeued: 0 });
+    await expect(processParticipantPiiRetention(
+      t.env,
+      { at: '2026-09-05T19:00:00.000Z' },
+    )).resolves.toEqual({ attempted: 1, archived: 1, requeued: 0 });
+  });
+
   it('drains every due row even when one batch is smaller than the backlog', async () => {
     await t.reset();
     for (let index = 0; index < 3; index += 1) {

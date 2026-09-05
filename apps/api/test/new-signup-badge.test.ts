@@ -54,12 +54,13 @@ describe('new signup badge derivation (CCC-26)', () => {
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
       programType: 'financial_support_v1',
     });
-    // 허브 페이지가 남기는 것과 같은 모양의 읽기 감사(D14) — 행위자·케이스가 같고
-    // 케이스 생성 이후로 찍힌다. created_at 을 밀리초 단위로 밀어 순서를 보장한다.
+    // 허브 페이지가 남기는 것과 같은 모양의 읽기 감사(D14). 앱 경계가 만든 ISO 시각을
+    // 직접 bind해 행위자와 케이스가 같은 생성 이후 기록을 만든다.
+    const readAt = new Date(Date.now() + 60_000).toISOString();
     await t.db.prepare(
       `INSERT INTO audit_log (org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at)
-       VALUES (?, ?, 'counselor', 'read', 'support_cases', ?, ?, NULL, datetime('now', '+1 minute'))`,
-    ).bind(counselor.orgId, counselor.userId, created.supportCaseId, created.supportCaseId).run();
+       VALUES (?, ?, 'counselor', 'read', 'support_cases', ?, ?, NULL, ?)`,
+    ).bind(counselor.orgId, counselor.userId, created.supportCaseId, created.supportCaseId, readAt).run();
 
     const newSignups = await listNewSignupBeneficiaryIds(t.env, counselor);
     expect(newSignups.has(created.beneficiaryId)).toBe(false);

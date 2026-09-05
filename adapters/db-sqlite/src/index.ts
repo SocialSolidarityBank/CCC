@@ -6,6 +6,7 @@ import type {
   DatabaseResult,
   PreparedStatement,
 } from '@ccc/contracts/database';
+import { scanSqlPlaceholders } from '@ccc/contracts/sql';
 
 const APPLICATION_TRIGGER_CODES = [
   'stale_draft_version',
@@ -203,6 +204,11 @@ class SqliteDatabaseAdapter implements EncryptedSqliteDatabase {
 
   prepare(sql: string): PreparedStatement {
     if (this.closed || typeof sql !== 'string') throw new SqliteDatabaseError('syntax');
+    try {
+      scanSqlPlaceholders(sql);
+    } catch {
+      throw new SqliteDatabaseError('syntax');
+    }
     return new SqlitePreparedStatement(this, sql);
   }
 

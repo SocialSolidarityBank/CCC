@@ -85,6 +85,14 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
     expect(fetched.id).toBe(first.id);
   });
 
+  it('ignores noncanonical stored ids when choosing the round-robin animal', async () => {
+    await t.reset();
+    await seedBeneficiary('dragon-001', counselor.orgId);
+
+    const created = await createCase(t.env, counselor, {});
+    expect(created.id).toBe(`${animalAt(0)}-001`);
+  });
+
   it('continues the per-animal sequence with zero padding when the rotation returns', async () => {
     await t.reset();
     // 슬러그 발급 수를 정확히 풀 크기로 맞춰 라운드로빈이 첫 동물로 돌아오게 한다.

@@ -13,8 +13,8 @@ test('a named suite runs exactly its file; no flag runs every file of the kind',
   assert.deepEqual(one.argv.slice(-1), [SUITES.security.bootstrap]);
   const all = plan(['contracts']);
   assert.deepEqual(
-    all.argv.slice(-6),
-    ['apps/api/test/capabilities.contract.test.ts', 'apps/api/test/database-contract.test.ts', 'apps/api/test/sqlite-database.contract.test.ts', 'apps/api/test/audio-store.contract.test.ts', 'apps/api/test/access-jwt.test.ts', 'apps/api/test/identity-access.contract.test.ts'],
+    all.argv.slice(-9),
+    ['apps/api/test/capabilities.contract.test.ts', 'apps/api/test/database-contract.test.ts', 'apps/api/test/sqlite-database.contract.test.ts', 'apps/api/test/sql-placeholder-scanner.test.ts', 'apps/api/test/sql-operation-marker.test.ts', 'apps/api/test/sql-portability-migration.test.ts', 'apps/api/test/audio-store.contract.test.ts', 'apps/api/test/access-jwt.test.ts', 'apps/api/test/identity-access.contract.test.ts'],
   );
 });
 
@@ -26,7 +26,12 @@ test('one suite may run multiple contract files', () => {
   assert.deepEqual(decision.argv.slice(-2), ['access.test.ts', 'identity.test.ts']);
 });
 
-test('database profile flags select the D1 or encrypted SQLite contract', () => {
+test('database profile flags select D1, encrypted SQLite, or all SQL portability contracts', () => {
   assert.deepEqual(plan(['contracts', '--db=d1']).argv.slice(-1), ['apps/api/test/database-contract.test.ts']);
   assert.deepEqual(plan(['contracts', '--db=sqlite']).argv.slice(-1), ['apps/api/test/sqlite-database.contract.test.ts']);
+  assert.deepEqual(plan(['contracts', '--sql']).argv.slice(-3), [
+    'apps/api/test/sql-placeholder-scanner.test.ts',
+    'apps/api/test/sql-operation-marker.test.ts',
+    'apps/api/test/sql-portability-migration.test.ts',
+  ]);
 });

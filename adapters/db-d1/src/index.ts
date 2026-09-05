@@ -5,6 +5,7 @@ import type {
   DatabaseResult,
   PreparedStatement,
 } from '@ccc/contracts/database';
+import { scanSqlPlaceholders } from '@ccc/contracts/sql';
 
 const APPLICATION_TRIGGER_CODES = [
   'stale_draft_version',
@@ -241,8 +242,12 @@ function unwrap(statement: PreparedStatement): D1Statement {
 export function createD1Database(d1: D1Database): Database {
   return {
     prepare(sql: string): PreparedStatement {
-      try { return new D1PreparedStatementAdapter(d1.prepare(sql), d1); }
-      catch (error) { throw normalizeErrorSync(error, 'syntax'); }
+      try {
+        scanSqlPlaceholders(sql);
+        return new D1PreparedStatementAdapter(d1.prepare(sql), d1);
+      } catch (error) {
+        throw normalizeErrorSync(error, 'syntax');
+      }
     },
     async batch<T = unknown>(statements: PreparedStatement[]): Promise<DatabaseResult<T>[]> {
       try {
