@@ -559,18 +559,13 @@ const briefingStyles = `
    색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
 .briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
 .briefing-parent-goal.is-closed{color:var(--sub)}
-/* 전체 목표 미설정 안내 (D62 §7) — 'AI 제안' 라벨 행 오른쪽의 안내 조각이다(2026-08-30 Q
-   "같은 행의 오른쪽에 안내 문구로" — 구 본문 위 전폭 행 대체: 안내가 본문처럼 읽혔다).
-   글자는 설명·메타 단(14/400 --sub, §2-2 단 ④), 닫기 버튼(32)이 행 높이를 정한다. */
-.briefing-ai-goal-hint{display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);color:var(--sub)}
-.briefing-ai-goal-hint>.wire-button{flex:none}
-/* 라벨 행 아래 가로선은 없다(2026-08-30 Q 4차 결정 D "선을 없앤다", 구 안내 행에서 승계한
-   --line 가로선 폐지). 상자 자체가 이미 구획을 가르고, 버튼을 거느린 형제 구획(세션 목표)이
-   선 없이도 읽히는 것이 실측으로 확인됐다. 선이 안내가 있을 때만 서던 탓에 같은 구획이
-   상태에 따라 모양이 바뀌던 문제도 함께 사라진다. 라벨 행과 내용 사이 간격은 구획 기본
-   row-gap 8 이라 형제 셋이 같은 리듬이다.
-   좁은 폭에서 라벨과 안내가 한 줄에 안 들어가면 줄바꿈만 남긴다. */
-.wire-card-section-head:has(>.briefing-ai-goal-hint){justify-content:flex-start;column-gap:var(--space-4);flex-wrap:wrap}
+/* 전체 목표 미설정 안내는 AI 제안 구획 전체에 해당한다. 안내는 라벨 뒤 남는 폭을 쓰고,
+   닫기 버튼은 공용 구획 action 슬롯의 오른쪽 끝에 선다(2026-09-05 Q). 좁은 폭에서는
+   안내와 버튼이 자연스럽게 줄바꿈한다. */
+.briefing-ai-goal-hint{display:flex;align-items:center;flex:1 1 auto;min-width:0;gap:var(--space-3);flex-wrap:wrap;font-size:var(--text-sm);color:var(--sub)}
+.briefing-ai-goal-hint>.wire-button{flex:none;margin-left:auto}
+/* 라벨 행 아래 가로선은 없다. 상자 자체가 구획을 가르고, 라벨 행과 내용 사이는
+   구획 기본 row-gap 8을 써 형제 구획과 같은 리듬을 유지한다. */
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ①의 실무자 입력과 AI 제안은 공용 WireCardSection 이 맡는다. 라벨과 세로 리듬은

@@ -736,9 +736,12 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
     );
   });
 
-  it('AI 안내와 닫기 버튼은 AI 제안 라벨 바로 옆에 간격을 두고 선다', () => {
+  it('AI 안내의 닫기 버튼은 구획 전체 행동으로 카드 오른쪽 끝에 선다', () => {
     expect(layoutSource).toMatch(
-      /\.wire-card-section-head:has\(>\.briefing-ai-goal-hint\)\{[^}]*justify-content:flex-start;[^}]*column-gap:var\(--space-4\)/,
+      /\.briefing-ai-goal-hint\{[^}]*flex:1/,
+    );
+    expect(layoutSource).toMatch(
+      /\.briefing-ai-goal-hint>\.wire-button\{[^}]*margin-left:auto/,
     );
   });
 });

@@ -160,6 +160,10 @@ async function runParticipant(
     caseGoals: participant.goals.map((goal) => goal.title),
   });
 
+  // 프리뷰의 미래 인테이크 사례는 일정만 남긴다. 완료 기록과 후속 회차를 만들면
+  // 다가오는 일정에서 기본 상담으로 보이거나 이미 인테이크를 마친 사람으로 바뀐다.
+  if (participant.pendingIntake === true) return 0;
+
   // 3) 목표 id 부트스트랩(title 매핑 — 동률 created_at 순서에 의존하지 않는다).
   mark();
   const goalRows = await listGoals(env, primaryActor, supportCaseId);

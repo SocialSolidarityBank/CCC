@@ -15,7 +15,7 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   y  : center-y 일치(가로 한 줄 정렬)
   xy : selectors=[자식, 컨테이너] — 자식이 컨테이너의 정중앙(버튼 안 텍스트 등)
 
-확장 10종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
+확장 13종, 이 레포의 결함이 중심 공유로 표현되지 않아 더했다:
   center-y-each: selectors=[행, 행 안 자식]. 반복 행마다 자식이 자기 행의 세로 중앙인가.
   no-overlap-x-each: selectors=[행, 왼쪽 자식, 오른쪽 자식]. 반복 행의 두 자식이 겹치는가.
   bullet-y: selectors=[li 셀렉터]. 각 li 의 ::before 점 중심이 자기 첫 줄 중심과 같은가.
@@ -24,6 +24,7 @@ python playwright(hierarchy-measure.py)로 서 있다 — 브라우저 스택을
   inset-y: selectors=[컨테이너, 첫 자식, 마지막 자식]. 위아래 여백과 선택 expectedInset을 잰다.
   text-gap-pair: selectors=[A 위, A 아래, B 위, B 아래]. 각 요소의 실제 글자 첫줄·끝줄 사이 간격을 잰다.
   inset-x-ink: selectors=[컨테이너, 왼쪽 SVG path, 오른쪽 글자]. 실제 잉크의 좌우 여백을 비교한다.
+  inset-right: selectors=[컨테이너, 자식]. 자식 오른쪽과 컨테이너 오른쪽 사이가 expectedInset인가.
   overflow-x: selectors=[컨테이너]. scrollWidth가 clientWidth를 넘는가.
   width: selectors=[폭을 맞출 요소들]. 렌더된 가로 폭의 최대 차이가 tolerance 안인가.
   height: selectors=[높이를 맞출 요소들]. expectedHeight와, 선택하면 expectedBorderWidth·expectedPaddingInline도 잰다.
@@ -168,6 +169,20 @@ CHECK_JS = r"""
         name: a.name,
         pass: delta <= tol && expectedDelta <= tol,
         detail: `왼쪽 잉크 여백 ${left.toFixed(2)}px / 오른쪽 글자 여백 ${right.toFixed(2)}px / 차이 ${delta.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
+      };
+    }
+
+    if (a.axis === 'inset-right') {
+      const [boxSel, childSel] = a.selectors;
+      const box = document.querySelector(boxSel);
+      const child = document.querySelector(childSel);
+      if (!box || !child) return { name: a.name, pass: false, detail: '요소 없음' };
+      const inset = box.getBoundingClientRect().right - child.getBoundingClientRect().right;
+      const expectedDelta = Math.abs(inset - (a.expectedInset ?? 0));
+      return {
+        name: a.name,
+        pass: expectedDelta <= tol,
+        detail: `오른쪽 여백 ${inset.toFixed(2)}px / 기준 오차 ${expectedDelta.toFixed(2)}px (허용 ${tol})`,
       };
     }
 

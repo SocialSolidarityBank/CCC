@@ -26,8 +26,7 @@ export interface WireCardSectionProps {
   title: ReactNode;
   children: ReactNode;
   tone?: WireSectionTone;
-  /** 제목 줄 오른쪽 슬롯 — 행동 하나(독립 버튼) 또는 안내 조각(2026-08-30 Q, 브리핑 AI 제안의
-      목표 미설정 안내). 제목과 같은 줄에서 렌더한다. */
+  /** 구획 전체에 해당하는 행동. 제목 줄의 남는 폭을 지나 카드 오른쪽 끝에 선다. */
   action?: ReactNode;
   /** 라벨 요소의 id. 구획에 이름을 지어 줄 때 labelledBy 와 짝으로 쓴다. */
   titleId?: string;
@@ -65,7 +64,7 @@ export function WireCardSection({
         : (
             <div className="wire-card-section-head">
               {titleElement}
-              {action}
+              <span className="wire-card-section-action">{action}</span>
             </div>
           )}
       {children}
@@ -86,24 +85,18 @@ export interface WireItemProps {
    * 본문 글자로 두지 않고 여기에 `WireBadge` 로 넣는다(§2-2 규칙 4 · §2-3 강조 의무).
    */
   status?: ReactNode;
-  /** 항목에 딸린 링크·버튼 하나. 제목보다 작고(14) 계열 색이라 제목과 같은 소리를 내지 않는다. */
+  /** 개별 항목에 딸린 행동. 항목 텍스트 뒤에 이어지고 카드 끝으로 밀지 않는다. */
   action?: ReactNode;
   tone?: WireItemTone;
   testId?: string;
 }
 
 /**
- * 한 항목 — 제목·설명·상태·행동을 위계 4단 안에서만 조립한다.
+ * 한 항목. 카드 안 읽기 4단 안에서 제목, 설명, 상태, 행동을 조립한다.
  *
- * 손으로 쌓으면 계약 밖 조합이 생긴다. 15초 페이지의 AI 제안이 그랬다: 제목 16/600 `--ink` ·
- * 이유 **16/400 `--sub`** · 링크 **16/600 `--ink`**. 이유는 4단 표(③ 16/400 `--ink` ·
- * ④ 14/400 `--sub`)에 없는 조합이고, 링크는 제목과 완전히 같은 옷이라 먼저 읽을 것이 없다.
- *
- * `yellow` **다만 그 상태는 실수가 아니라 Q 결정이었다.** 2026-08-06 Q 가 "아코디언 안 읽는
- * 글은 전부 16"·"폰트 크기 정렬"로 이유와 링크를 16 으로 올렸고, 그 뒤 2026-08-09 에 §2-2
- * 위계 4단이 신설되면서 둘이 부딪혔다. 이 부품은 **나중 계약(4단)을 따랐다** — 이유 14/400
- * `--sub`, 링크 14/600 계열 색. 어느 쪽을 살릴지는 Q 확인 대기이고, 16 으로 되돌리기로 하면
- * 고칠 자리는 `.wire-item-desc`·`.wire-item-action` 두 줄뿐이다(화면은 손대지 않는다).
+ * 15초 페이지의 옛 손 조립은 이유를 16/400 sub로, 링크를 제목과 같은 16/600 ink로
+ * 그려 위계가 사라졌다. 이 부품은 현재 계약대로 이유를 14/400 sub로 낮추고 행동을
+ * 14/600 계열색으로 분리한다. 개별 행동은 항목 텍스트 뒤에 둔다.
  */
 export function WireItem({ title, description, status, action, tone = 'plain', testId }: WireItemProps) {
   return (
