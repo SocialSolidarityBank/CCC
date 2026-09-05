@@ -123,8 +123,8 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
       const stream = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
         headers: {
           ...serviceHeaders,
-          'X-CCC-Claim-Token': audioJob.claimToken,
-          'X-CCC-Claim-Attempt': '1',
+          'X-CCC-Job-Claim': audioJob.claimToken,
+          'X-CCC-Job-Attempt': '1',
         },
       }), env);
       expect(stream.status).toBe(200);
@@ -132,11 +132,49 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
       expect(new Uint8Array(await stream.arrayBuffer())).toHaveLength(64);
       // claim 자격이 없는 요청은 바이트를 못 받는다.
       const unclaimed = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
-        headers: { ...serviceHeaders, 'X-CCC-Claim-Token': 'f'.repeat(64), 'X-CCC-Claim-Attempt': '1' },
+        headers: { ...serviceHeaders, 'X-CCC-Job-Claim': 'f'.repeat(64), 'X-CCC-Job-Attempt': '1' },
       }), env);
       expect(unclaimed.status).toBe(409);
       await expect(unclaimed.json()).resolves.toMatchObject({ error: 'stale_claim', retryable: false });
     }
+  });
+
+  it('원음 해시는 서버가 저장된 바이트에서 계산한 값과 대조해야 trusted 가 된다', async () => {
+    await t.reset();
+    const env = await envForMode('local-single');
+    await seedJobs(env);
+    const { response } = await claim(env);
+    const claimed = await response.json() as {
+      jobs: Array<{ jobId: string; kind: string; claimToken: string; attempt: number; audio: { generationId: string } | null }>;
+    };
+    const audioJob = claimed.jobs.find((job) => job.kind === 'audio');
+    if (audioJob === undefined || audioJob.audio === null) throw new Error('expected an audio job');
+    const verify = (agentComputedSha256: string) => worker.fetch(new Request(
+      `http://localhost/pipeline/jobs/${audioJob.jobId}/audio/verify`,
+      {
+        method: 'POST',
+        headers: serviceHeaders,
+        body: JSON.stringify({
+          claimToken: audioJob.claimToken,
+          attempt: audioJob.attempt,
+          generationId: audioJob.audio?.generationId,
+          agentComputedSha256,
+        }),
+      },
+    ), env);
+
+    // Agent 가 아무 hex64 를 보내도 서버 해시와 다르면 trusted hash 가 생기지 않는다.
+    const mismatch = await verify('a'.repeat(64));
+    expect(mismatch.status).toBe(422);
+    await expect(mismatch.json()).resolves.toMatchObject({ error: 'audio_hash_mismatch' });
+    const failed = await t.db.prepare(
+      'SELECT state, terminal_failure_code, raw_audio_sha256 FROM agent_jobs WHERE id = ?',
+    ).bind(audioJob.jobId).first<Record<string, unknown>>();
+    expect(failed).toMatchObject({
+      state: 'failed',
+      terminal_failure_code: 'audio_hash_mismatch',
+      raw_audio_sha256: null,
+    });
   });
 
   it('Community Cloud 는 signed GET 발급기가 붙기 전까지 원음 전달을 열지 않는다', async () => {
@@ -152,7 +190,7 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
     expect(audioJob.route).toBe('community-cloud-agent');
     expect(audioJob.audio?.delivery).toBe('protected-get');
     const protectedGet = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
-      headers: { ...serviceHeaders, 'X-CCC-Claim-Token': audioJob.claimToken, 'X-CCC-Claim-Attempt': '1' },
+      headers: { ...serviceHeaders, 'X-CCC-Job-Claim': audioJob.claimToken, 'X-CCC-Job-Attempt': '1' },
     }), env);
     expect(protectedGet.status).toBe(503);
     await expect(protectedGet.json()).resolves.toEqual({ error: 'service_unavailable' });

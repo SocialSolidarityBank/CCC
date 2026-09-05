@@ -197,7 +197,7 @@ export async function runAgentTextJobs(
   let processed = 0;
   for (const job of jobs.filter((candidate) => candidate.kind === 'text')) {
     const sourceResponse = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/source`, {
-      headers: { ...headers, 'X-CCC-Claim-Token': job.claimToken, 'X-CCC-Claim-Attempt': String(job.attempt) },
+      headers: { ...headers, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
     }), env);
     if (sourceResponse.status !== 200) throw new Error(`job source failed: ${sourceResponse.status}`);
     const { text } = await sourceResponse.json() as { text: string };

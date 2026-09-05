@@ -29,7 +29,7 @@
 
 ## 엔드포인트 (Agent 작업 계약 v2)
 
-전부 `service` 자격이 필요하고, claim 뒤의 모든 호출은 그 claim 의 `claimToken` 과 `attempt` 를 함께 보낸다. 본문이 없는 GET 은 `X-CCC-Claim-Token`·`X-CCC-Claim-Attempt` 헤더로 자격을 싣는다 — URL 에는 토큰을 넣지 않는다. 오류 본문은 `{error, jobId, retryable}` 고정 형태이며 원문·PII·시크릿을 담지 않는다(S5 §2.6).
+전부 `service` 자격이 필요하고, claim 뒤의 모든 호출은 그 claim 의 `claimToken` 과 `attempt` 를 함께 보낸다. 본문이 없는 GET 은 `X-CCC-Job-Claim`·`X-CCC-Job-Attempt` 헤더로 자격을 싣는다 — URL 에는 토큰을 넣지 않는다. 오류 본문은 `{error, jobId, retryable}` 고정 형태이며 원문·PII·시크릿을 담지 않는다(S5 §2.6).
 
 | method | path | 하는 일 |
 |---|---|---|

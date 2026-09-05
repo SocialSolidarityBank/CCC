@@ -196,6 +196,13 @@ BEGIN
   SELECT RAISE(ABORT, 'agent job result acceptances are append-only');
 END;
 
+-- v1 임대 상태는 v2 가 소유한다. 열려 있던 `processing` 원본 행은 `pending` 으로 되돌리고
+-- 임대 필드를 비운다. 그러지 않으면 작업이 terminal 이 된 뒤 재공식화가 열린 원본 행을
+-- 찾지 못해 같은 회차를 다시 큐에 올릴 수 없다(완료 행은 그대로 둔다).
+UPDATE ai_text_work_queue
+SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL
+WHERE status = 'processing';
+
 -- A v2 claim restarts unfinished v1 text leases at attempt zero. Completed history stays only in the
 -- append-only v1 source table and is not reprocessed.
 INSERT INTO agent_jobs (

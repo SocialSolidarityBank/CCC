@@ -95,9 +95,17 @@ def claim_request(config: Config, limit: int | None = None) -> dict[str, Any]:
     }
 
 
+class MaskingLayers:
+    """마스킹 계층 묶음. 모델은 작업당 한 번만 올린다(장비 메모리는 STT 와 나눠 쓴다)."""
+
+    def __init__(self, config: Config):
+        self.person_ner, self.address_ner = _build_person_and_address_ner(config)
+        self.condition_ner = _build_condition_ner_or_none(config)
+
+
 def _mask_with_dictionary(
     client: ApiClient,
-    config: Config,
+    layers: MaskingLayers,
     job: dict[str, Any],
     text: str,
 ) -> tuple[str, masking.MaskReport]:
@@ -112,12 +120,11 @@ def _mask_with_dictionary(
         replacement = entry.get("replacement")
         if isinstance(source_value, str) and source_value != "" and isinstance(replacement, str):
             replaced = replaced.replace(source_value, replacement)
-    person_ner, address_ner = _build_person_and_address_ner(config)
     return masking.mask_text_with_report(
         replaced,
-        person_ner,
-        _build_condition_ner_or_none(config),
-        address_ner,
+        layers.person_ner,
+        layers.condition_ner,
+        layers.address_ner,
     )
 
 
@@ -138,6 +145,10 @@ def process_audio_job(
     audio = job.get("audio") or {}
     work_dir = config.work_dir / f"{job_id}-{uuid.uuid4().hex[:8]}"
     started = time.monotonic()
+    # 마스킹 계층을 전사 앞에서 먼저 올린다. NER 이 없으면 blocked 로 닫히는데, 그 판정이
+    # 전사·provider 호출 뒤에 나면 차단 경로가 "provider 호출 0회" 를 깨고 같은 attempt 의
+    # STT 를 되풀이한다(S5 F7).
+    layers = MaskingLayers(config)
     try:
         audio_path = client.download_audio(job_id, claim_token, attempt, work_dir / "audio.bin")
         logger.info("job %s: audio downloaded", job_id)
@@ -205,7 +216,7 @@ def process_audio_job(
         # 2차 PII 마스킹(D2) — 이 지점 이후의 텍스트만 장비를 떠날 수 있다.
         transcript, mask_report = _mask_with_dictionary(
             client,
-            config,
+            layers,
             job,
             format_transcript(segments, roles),
         )
@@ -225,7 +236,7 @@ def process_audio_job(
             # 구조화 필드에는 시간 구간·사유 코드만 담는다 — 반복된 문장은 넣지 않는다(R3).
             transcript_warnings=repetition.warning_spans(transcription.warnings),
         )
-        client.post_result(job_id, build_result_request(claim_token, attempt, result))
+        _submit_result(client, job_id, build_result_request(claim_token, attempt, result))
         logger.info("job %s: result posted (%.1fs)", job_id, time.monotonic() - started)
     finally:
         # D13: 성공·실패와 무관하게 오디오·중간 파일을 즉시 삭제한다.
@@ -242,8 +253,9 @@ def process_text_job(client: ApiClient, config: Config, job: dict[str, Any]) -> 
     job_id = job["jobId"]
     claim_token = job["claimToken"]
     attempt = job["attempt"]
+    layers = MaskingLayers(config)
     source = client.get_source(job_id, claim_token, attempt)
-    masked, report = _mask_with_dictionary(client, config, job, source)
+    masked, report = _mask_with_dictionary(client, layers, job, source)
     # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
     logger.info("text job %s: masked total=%d detail=%s", job_id, report.total, report.as_mapping())
 
@@ -256,7 +268,24 @@ def process_text_job(client: ApiClient, config: Config, job: dict[str, Any]) -> 
         release_qualification_receipt_id=config.ner_release_receipt_id,
         source_ref=f"text:{job_id}",
     )
-    client.post_result(job_id, build_result_request(claim_token, attempt, result))
+    _submit_result(client, job_id, build_result_request(claim_token, attempt, result))
+
+
+def _submit_result(client: ApiClient, job_id: str, result_request: dict[str, Any]) -> None:
+    """결과 제출은 같은 payload 로 한 번 더 시도한다.
+
+    서버가 결과를 수락한 뒤 후속 초안 단계에서 5xx 가 나면 작업은 이미 terminal 이라
+    release 로는 아무것도 되돌릴 수 없다. 같은 payload hash 재전송은 서버에서 멱등이고
+    (S5 §2.2) 그 재전송이 후속 단계를 이어가므로, 재시도가 유일한 복구 경로다.
+    """
+    try:
+        client.post_result(job_id, result_request)
+        return
+    except ApiError as error:
+        if error.status not in _TRANSIENT_STATUSES and error.status < 500:
+            raise
+        logger.warning("job %s: result submission retrying after status=%d", job_id, error.status)
+    client.post_result(job_id, result_request)
 
 
 def assert_device_ready(config: Config) -> None:
@@ -276,6 +305,29 @@ def assert_device_ready(config: Config) -> None:
         raise masking.MaskingConfigError("CCC_NER_MODEL_ID is not set — person-name masking is unavailable")
 
 
+# 서버가 응답과 함께 작업을 이미 닫은 코드들. release 로 다시 닫으면 stale_claim 만 낸다.
+_CLOSED_BY_SERVER_CODES = frozenset({
+    "job_not_found",
+    "stale_claim",
+    "lease_expired",
+    "result_conflict",
+    "retry_exhausted",
+    "audio_hash_mismatch",
+    "audio_deleted",
+    "consent_not_effective",
+    "forbidden",
+    "actor_authentication_required",
+})
+# 결과가 거부됐고 작업은 아직 임대 중일 때 쓰는 permanent 사유(S5 ReleaseReason).
+_PERMANENT_RELEASE_REASONS = frozenset({
+    "result_schema_invalid",
+    "masking_failed",
+    "audio_object_missing",
+    "route_mismatch",
+    "permanent_failure",
+})
+
+
 def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception) -> None:
     """실패한 claim 을 정확히 한 번 닫는다. 성공 결과를 보낸 claim 은 여기 오지 않는다."""
     job_id = job["jobId"]
@@ -289,7 +341,17 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
         if isinstance(error, ApiError):
             if error.status in _TRANSIENT_STATUSES or error.status >= 500:
                 client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
-            # 409·422 는 서버가 이미 상태를 정한 응답이라 release 로 덧쓰지 않는다.
+                return
+            if error.code in _CLOSED_BY_SERVER_CODES:
+                # 서버가 이미 상태를 정한 응답이라 release 로 덧쓰지 않는다.
+                return
+            # 결과 검증 거부는 작업을 열어 둔 채 돌아온다. 닫지 않으면 임대 만료 복구가
+            # attempt 를 태워 결국 retry_exhausted 가 된다(S5 §2.2).
+            if error.code == "local_ner_unavailable":
+                client.release(job_id, claim_token, attempt, "blocked", "local_ner_unavailable")
+            else:
+                reason = error.code if error.code in _PERMANENT_RELEASE_REASONS else "permanent_failure"
+                client.release(job_id, claim_token, attempt, "permanent", reason)
             return
         # 전사·화자 분리 등 엔진 실패는 같은 route·engine 으로 최대 3회까지 재시도한다.
         client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")

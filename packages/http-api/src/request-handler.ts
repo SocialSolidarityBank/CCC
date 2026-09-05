@@ -1549,8 +1549,8 @@ function parseClaimCredentials(body: JsonObject): { claimToken: string; attempt:
 
 /** claim 자격은 GET 에서도 필요하다. URL 에 토큰을 싣지 않고 헤더로만 받는다. */
 function claimCredentialsFromHeaders(request: Request): { claimToken: string; attempt: number } {
-  const claimToken = request.headers.get('x-ccc-claim-token');
-  const attempt = Number(request.headers.get('x-ccc-claim-attempt'));
+  const claimToken = request.headers.get('x-ccc-job-claim');
+  const attempt = Number(request.headers.get('x-ccc-job-attempt'));
   if (claimToken === null || claimToken.length === 0 || !Number.isInteger(attempt)) {
     throw new ValidationError('claim credentials are required');
   }
@@ -3090,12 +3090,25 @@ export async function handleRequest(
       }
       if (jobId !== undefined && parts.length === 5 && request.method === 'POST') {
         if (parts[3] === 'audio' && parts[4] === 'verify') {
-          return json(await verifyAgentJobAudio(
+          const verifyRequest = parseAudioVerifyRequest(await requestBody(request));
+          const delivery = await getAgentJobAudioDelivery(
             env,
             actor,
             jobId,
-            parseAudioVerifyRequest(await requestBody(request)),
-          ));
+            verifyRequest.claimToken,
+            verifyRequest.attempt,
+          );
+          const object = await env.audioStore.get(delivery.audioR2Key);
+          if (object === null) return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
+          // 서버가 저장된 바이트에서 직접 해시를 계산해 Agent 제출값의 독립 근거로 쓴다.
+          // ponytail: 전체를 메모리에 담는다. 200MB 상한 근처 파일은 청크 해시가 필요하고
+          // 그 자리는 E5-6(원음 생명주기)과 E6-2(업로드 해시)가 소유한다.
+          const storedBytes = await new Response(object.body).arrayBuffer();
+          const storedSha256 = Array.from(
+            new Uint8Array(await crypto.subtle.digest('SHA-256', storedBytes)),
+            (byte) => byte.toString(16).padStart(2, '0'),
+          ).join('');
+          return json(await verifyAgentJobAudio(env, actor, jobId, verifyRequest, storedSha256));
         }
         if (parts[3] === 'egress' && parts[4] === 'authorize') {
           return json(await authorizeAgentJobEgress(

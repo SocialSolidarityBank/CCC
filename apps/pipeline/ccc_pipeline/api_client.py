@@ -25,6 +25,8 @@ class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(f"API error {status}: {detail}")
         self.status = status
+        # 서버 error 코드. 같은 422 라도 작업이 아직 임대 중인지 이미 닫혔는지를 이 코드가 가른다.
+        self.code = detail
 
 
 class ApiClient:
@@ -97,8 +99,8 @@ class ApiClient:
             headers["CF-Access-Client-Secret"] = self._client_secret
         # GET 은 본문이 없어 claim 자격을 헤더로 싣는다. URL 에는 토큰을 넣지 않는다(S5 §2.5).
         if claim is not None:
-            headers["X-CCC-Claim-Token"] = claim[0]
-            headers["X-CCC-Claim-Attempt"] = str(claim[1])
+            headers["X-CCC-Job-Claim"] = claim[0]
+            headers["X-CCC-Job-Attempt"] = str(claim[1])
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"

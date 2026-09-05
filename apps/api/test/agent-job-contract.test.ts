@@ -168,14 +168,19 @@ describe('S5 Agent 작업 계약 v2', () => {
     const audioSession = await fixtureAudioJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
 
-    const first = await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification));
-    const second = await claimAgentJobs(t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification));
+    // 두 Agent 가 동시에 claim 한다 — 순차 호출이면 "중복 임대 없음" 을 증명하지 못한다.
+    const [first, second] = await Promise.all([
+      claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)),
+      claimAgentJobs(t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification)),
+    ]);
 
     expect(first.schemaVersion).toBe(2);
-    expect(first.jobs).toHaveLength(2);
-    expect(second.jobs).toEqual([]);
-    expect(first.jobs.map((job) => job.kind).sort()).toEqual(['audio', 'text']);
-    for (const job of first.jobs) {
+    // 작업 2건이 두 응답에 걸쳐 정확히 한 번씩만 나간다.
+    const claimedJobs = [...first.jobs, ...second.jobs];
+    expect(claimedJobs).toHaveLength(2);
+    expect(new Set(claimedJobs.map((job) => job.jobId)).size).toBe(2);
+    expect(claimedJobs.map((job) => job.kind).sort()).toEqual(['audio', 'text']);
+    for (const job of claimedJobs) {
       expect(job.attempt).toBe(1);
       expect(job.maxAttempts).toBe(3);
       expect(job.state).toBe('leased');
@@ -184,8 +189,8 @@ describe('S5 Agent 작업 계약 v2', () => {
       expect(job.maskDictionaryEndpoint).toBe(`/pipeline/jobs/${job.jobId}/mask-dictionary`);
     }
     // 오디오만 원음 묶음을 갖고, 텍스트는 null 이다.
-    const audioJob = first.jobs.find((job) => job.kind === 'audio');
-    const textJob = first.jobs.find((job) => job.kind === 'text');
+    const audioJob = claimedJobs.find((job) => job.kind === 'audio');
+    const textJob = claimedJobs.find((job) => job.kind === 'text');
     expect(audioJob?.audio?.delivery).toBe('api-stream');
     expect(audioJob?.audio?.retentionHardCapAt).toMatch(/Z$/);
     expect(audioJob?.sttEngine).toBe('local');
@@ -193,12 +198,19 @@ describe('S5 Agent 작업 계약 v2', () => {
     expect(textJob?.sttEngine).toBeNull();
     // 원문은 임대 주인만 받는다.
     if (textJob === undefined) throw new Error('expected a text job');
-    await expect(getAgentJobSource(t.env, service, textJob.jobId, textJob.claimToken, 1))
+    const textOwner = first.jobs.includes(textJob) ? service : secondAgent;
+    const textIntruder = textOwner === service ? secondAgent : service;
+    await expect(getAgentJobSource(t.env, textOwner, textJob.jobId, textJob.claimToken, 1))
       .resolves.toMatchObject({ sessionId: textSession });
-    await expect(getAgentJobSource(t.env, secondAgent, textJob.jobId, textJob.claimToken, 1))
+    await expect(getAgentJobSource(t.env, textIntruder, textJob.jobId, textJob.claimToken, 1))
       .rejects.toMatchObject({ code: 'stale_claim' });
-    expect(await jobRow(audioSession)).toMatchObject({ state: 'leased', lease_owner: service.userId });
+    expect(await jobRow(audioSession)).toMatchObject({ state: 'leased' });
   });
+
+  async function leaseExpiry(jobId: string): Promise<string> {
+    const row = await t.db.prepare('SELECT lease_expires_at FROM agent_jobs WHERE id = ?').bind(jobId).first();
+    return String((row as { lease_expires_at: string }).lease_expires_at);
+  }
 
   it('F3 heartbeat는 임대를 연장하고, 만료된 임대는 재분배 뒤 옛 토큰을 거부한다', async () => {
     const { supportCaseId } = await fixtureSupportCase();
@@ -207,12 +219,21 @@ describe('S5 Agent 작업 계약 v2', () => {
     const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
     if (claimed === undefined) throw new Error('expected a claimed job');
 
+    // 임대를 곧 만료로 당긴 뒤 heartbeat 가 실제로 연장하는지 본다. "미래인가" 만 보면
+    // 아무것도 갱신하지 않는 구현도 통과한다.
+    const nearExpiry = new Date(Date.now() + 60_000).toISOString();
+    await t.db.prepare('UPDATE agent_jobs SET lease_expires_at = ? WHERE id = ?')
+      .bind(nearExpiry, claimed.jobId).run();
     const beat = await heartbeatAgentJob(t.env, service, claimed.jobId, {
       claimToken: claimed.claimToken,
       attempt: 1,
     });
     expect(beat.state).toBe('leased');
-    expect(beat.leaseExpiresAt > new Date().toISOString()).toBe(true);
+    expect(beat.leaseExpiresAt > nearExpiry).toBe(true);
+    // 연장은 claimedAt+2시간 총 상한을 넘지 않는다(S5 §2.2).
+    const totalCap = new Date(new Date(claimed.claimedAt).getTime() + 2 * 60 * 60_000).toISOString();
+    expect(beat.leaseExpiresAt <= totalCap).toBe(true);
+    expect(await leaseExpiry(claimed.jobId)).toBe(beat.leaseExpiresAt);
 
     // 자연 만료: 현재 토큰은 정확히 lease_expired 다.
     await t.db.prepare("UPDATE agent_jobs SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?")
@@ -401,6 +422,29 @@ describe('S5 Agent 작업 계약 v2', () => {
     const [resumed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
     expect(resumed?.attempt).toBe(1);
     expect(await jobRow(sessionId)).toMatchObject({ state: 'leased', attempt: 1 });
+  });
+
+  it('claim 뒤 attestation이 만료되면 결과를 받지 않는다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+
+    // 처리 중 attestation 이 만료된 상황 — claim 시점 통과만으로는 결과를 받을 수 없다.
+    await t.db.prepare("UPDATE agent_jobs SET ner_attestation_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?")
+      .bind(claimed.jobId).run();
+
+    await expect(acceptAgentJobResult(t.env, service, claimed.jobId, await agentResultRequest({
+      kind: 'text',
+      claimToken: claimed.claimToken,
+      attempt: 1,
+      maskedText: 'MASKED expired attestation text',
+      qualification,
+    }))).rejects.toMatchObject({ code: 'local_ner_unavailable' });
+    const snapshots = await t.db.prepare('SELECT COUNT(*) AS count FROM ai_masked_source_snapshots WHERE session_id = ?')
+      .bind(sessionId).first<{ count: number }>();
+    expect(snapshots?.count).toBe(0);
   });
 
   it('mask dictionary는 같은 claim에서만 재생되고 새 claim은 새 dictionary를 받는다', async () => {

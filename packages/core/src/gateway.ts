@@ -7272,6 +7272,7 @@ interface AgentJobRow {
   releaseQualificationReceiptId: string | null;
   nerAttestationId: string | null;
   nerAttestationResultHash: string | null;
+  nerAttestationExpiresAt: string | null;
   audioGenerationId: string | null;
   clientAssertedSha256: string | null;
   agentComputedSha256: string | null;
@@ -7304,6 +7305,7 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     releaseQualificationReceiptId: nullableString(row.release_qualification_receipt_id),
     nerAttestationId: nullableString(row.ner_attestation_id),
     nerAttestationResultHash: nullableString(row.ner_attestation_result_hash),
+    nerAttestationExpiresAt: nullableString(row.ner_attestation_expires_at),
     audioGenerationId: nullableString(row.audio_generation_id),
     clientAssertedSha256: nullableString(row.client_asserted_sha256),
     agentComputedSha256: nullableString(row.agent_computed_sha256),
@@ -7457,20 +7459,20 @@ async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promis
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE agent_jobs
-       SET state = CASE WHEN attempt >= ? THEN 'failed' ELSE 'pending' END,
-           terminal_failure_code = CASE WHEN attempt >= ? THEN 'retry_exhausted' ELSE NULL END,
-           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
-           updated_at = ?
-       WHERE org_id = ? AND state = 'leased' AND lease_expires_at <= ?`,
-    ).bind(AGENT_JOB_MAX_ATTEMPTS, AGENT_JOB_MAX_ATTEMPTS, nowIso, orgId, nowIso),
-    env.DB.prepare(
-      `UPDATE agent_jobs
        SET state = 'expired', terminal_failure_code = 'audio_deleted',
            lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
            updated_at = ?
        WHERE org_id = ? AND kind = 'audio' AND state IN ('pending', 'leased', 'blocked')
          AND (retention_hard_cap_at <= ? OR processing_deadline_at <= ?)`,
     ).bind(nowIso, orgId, nowIso, nowIso),
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = CASE WHEN attempt >= ? THEN 'failed' ELSE 'pending' END,
+           terminal_failure_code = CASE WHEN attempt >= ? THEN 'retry_exhausted' ELSE NULL END,
+           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
+           updated_at = ?
+       WHERE org_id = ? AND state = 'leased' AND lease_expires_at <= ?`,
+    ).bind(AGENT_JOB_MAX_ATTEMPTS, AGENT_JOB_MAX_ATTEMPTS, nowIso, orgId, nowIso),
   ]);
 }
 
@@ -7580,7 +7582,7 @@ export async function claimAgentJobs(
            mask_dictionary_id = NULL, mask_dictionary_issued_at = NULL,
            mask_dictionary_expires_at = NULL, mask_dictionary_consumed_at = NULL,
            updated_at = ?
-       WHERE id = ? AND org_id = ? AND state IN ('pending', 'blocked')`,
+       WHERE id = ? AND org_id = ? AND state = ? AND attempt = ?`,
     ).bind(
       actor.userId,
       await sha256Hex(lease.claimToken),
@@ -7600,6 +7602,8 @@ export async function claimAgentJobs(
       nowIso,
       lease.job.id,
       actor.orgId,
+      lease.job.state,
+      lease.job.attempt,
     ))));
     leases.forEach((lease, index) => {
       const changes = (results[index] as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0;
@@ -7686,10 +7690,12 @@ export async function heartbeatAgentJob(
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   const nowIso = now();
   const leaseExpiresAt = agentLeaseExpiry(nowIso, job.claimedAt ?? nowIso, job);
+  // 조회와 갱신 사이에 임대가 만료됐으면 연장하지 않는다 — 자연 만료는 되살릴 수 없다.
   const updated = await env.DB.prepare(
     `UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
-  ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt).run();
+     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+       AND lease_expires_at > ?`,
+  ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
   if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
   return { jobId, state: 'leased', attempt: job.attempt, leaseExpiresAt };
 }
@@ -7723,8 +7729,11 @@ export async function releaseAgentJob(
     `UPDATE agent_jobs
      SET state = ?, terminal_failure_code = ?, lease_owner = NULL, claim_token_hash = NULL,
          claimed_at = NULL, lease_expires_at = NULL, updated_at = ?
-     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
-  ).bind(state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt).run();
+     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+       AND lease_expires_at > ?`,
+  ).bind(
+    state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
+  ).run();
   if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
   await writeAudit(env, actor, {
     action: 'update',
@@ -7839,6 +7848,8 @@ export async function verifyAgentJobAudio(
   actor: Actor,
   jobId: string,
   request: AudioVerifyRequest,
+  /** 서버가 저장된 원음 바이트에서 직접 계산한 해시. Agent 제출값과 대조할 독립 근거다. */
+  storedSha256: string,
 ): Promise<AudioVerifyResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   if (job.kind !== 'audio' || job.audioGenerationId === null) {
@@ -7847,11 +7858,15 @@ export async function verifyAgentJobAudio(
   if (job.audioGenerationId !== request.generationId) {
     throw new AgentJobContractError('stale_claim', jobId);
   }
-  if (!SHA256_HEX.test(request.agentComputedSha256)) {
+  if (!SHA256_HEX.test(request.agentComputedSha256) || !SHA256_HEX.test(storedSha256)) {
     throw new AgentJobContractError('audio_hash_mismatch', jobId);
   }
   const nowIso = now();
-  if (job.clientAssertedSha256 !== null && job.clientAssertedSha256 !== request.agentComputedSha256) {
+  // 독립 근거 두 축과 어긋나면 trusted hash 를 만들지 않고 즉시 닫는다. Agent 가 제출한
+  // 값만으로는 trusted 가 될 수 없다 — 업로드 시 client 주장 해시도 신뢰하지 않는다(S5 §2.1).
+  const mismatched = storedSha256 !== request.agentComputedSha256
+    || (job.clientAssertedSha256 !== null && job.clientAssertedSha256 !== request.agentComputedSha256);
+  if (mismatched) {
     await env.DB.prepare(
       `UPDATE agent_jobs
        SET state = 'failed', terminal_failure_code = 'audio_hash_mismatch', agent_computed_sha256 = ?,
@@ -7875,7 +7890,7 @@ export async function verifyAgentJobAudio(
        AND audio_generation_id = ?`,
   ).bind(
     request.agentComputedSha256,
-    request.agentComputedSha256,
+    storedSha256,
     nowIso,
     jobId,
     actor.orgId,
@@ -7887,7 +7902,7 @@ export async function verifyAgentJobAudio(
   return {
     jobId,
     generationId: request.generationId,
-    rawAudioSha256: request.agentComputedSha256,
+    rawAudioSha256: storedSha256,
     verifiedAt: nowIso,
   };
 }
@@ -7996,7 +8011,14 @@ async function assertAgentJobResultIntegrity(
     `SELECT expires_at FROM ner_release_qualification_receipts
      WHERE id = ? AND org_id = ? AND status = 'passed'`,
   ).bind(result.releaseQualificationReceiptId, job.orgId).first<DbRow>();
-  if (receipt === null || stringValue(receipt.expires_at) <= now()) {
+  const nowIso = now();
+  // claim 때 통과한 attestation 이 처리 중에 만료됐으면 결과도 받지 않는다(S5 §2.2 재검증).
+  if (
+    receipt === null
+    || stringValue(receipt.expires_at) <= nowIso
+    || job.nerAttestationExpiresAt === null
+    || job.nerAttestationExpiresAt <= nowIso
+  ) {
     throw new AgentJobContractError('local_ner_unavailable', job.id);
   }
   if (!SHA256_HEX.test(result.sha256) || await sha256Hex(result.maskedText) !== result.sha256) {

@@ -33,6 +33,13 @@ class CanonicalJsonTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             canonical_json({"at": object()})
 
+    def test_rejects_numbers_whose_python_and_js_spelling_differ(self):
+        # Python 은 `1e-06`, JS 는 `0.000001` 이라 같은 값이 다른 해시를 만든다.
+        # 조용한 불일치 대신 거부한다 — 상담 시간 구간은 이 범위에 들지 않는다.
+        with self.assertRaises(ValueError):
+            canonical_json({"startSeconds": 1e-6})
+        self.assertEqual(canonical_json({"startSeconds": 305.5}), '{"startSeconds":305.5}')
+
 
 class BuildResultTest(unittest.TestCase):
     def test_text_result_carries_s6_metadata_and_whole_body_evidence(self):

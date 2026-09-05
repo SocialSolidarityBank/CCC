@@ -125,8 +125,8 @@ class ApiClientTest(unittest.TestCase):
     def test_claim_bound_get_sends_credentials_in_headers_not_the_url(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         request = client._request("GET", "/pipeline/jobs/job-1/source", claim=("t" * 64, 2))
-        self.assertEqual(request.get_header("X-ccc-claim-token"), "t" * 64)
-        self.assertEqual(request.get_header("X-ccc-claim-attempt"), "2")
+        self.assertEqual(request.get_header("X-ccc-job-claim"), "t" * 64)
+        self.assertEqual(request.get_header("X-ccc-job-attempt"), "2")
         self.assertNotIn("t" * 64, request.full_url)
 
     def test_preview_unlocks_with_preview_code_and_never_sends_access_headers(self):
@@ -182,7 +182,7 @@ class ApiClientTest(unittest.TestCase):
             ) as open_url:
                 client.download_audio("job-1", "t" * 64, 1, dest)
             self.assertEqual(dest.read_bytes(), b"RIFFdata")
-            self.assertEqual(open_url.call_args.args[0].get_header("X-ccc-claim-attempt"), "1")
+            self.assertEqual(open_url.call_args.args[0].get_header("X-ccc-job-attempt"), "1")
 
 
 class ClaimRequestTest(unittest.TestCase):
@@ -243,14 +243,66 @@ class RunOnceTest(unittest.TestCase):
         client = dictionary_client()
         client.claim_jobs.return_value = [text_job()]
         client.get_source.return_value = "MASKED source"
-        client.post_result.side_effect = ApiError(422, "result_schema_invalid")
+        client.post_result.side_effect = ApiError(422, "stale_claim")
         with TemporaryDirectory() as tmp:
             with mock.patch(
                 "ccc_pipeline.worker._build_person_and_address_ner",
                 return_value=(lambda text: [], None),
             ):
                 self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
-        # 422 는 서버가 이미 상태를 정한 응답이라 release 로 덧쓰지 않는다(terminal 은 하나).
+        # 서버가 이미 상태를 정한 코드는 release 로 덧쓰지 않는다(terminal 은 하나).
+        client.release.assert_not_called()
+
+    def test_live_lease_rejection_is_closed_by_the_agent(self):
+        """422 라도 작업이 임대 중이면 Agent 가 닫는다 — 안 닫으면 attempt 가 타 없어진다."""
+        client = dictionary_client()
+        client.claim_jobs.return_value = [text_job()]
+        client.get_source.return_value = "무응답"
+        for code, expected in (
+            ("local_ner_unavailable", ("blocked", "local_ner_unavailable")),
+            ("result_schema_invalid", ("permanent", "result_schema_invalid")),
+            ("evidence_hash_mismatch", ("permanent", "permanent_failure")),
+            ("stale_claim", None),
+        ):
+            client.release.reset_mock()
+            client.post_result.side_effect = ApiError(422, code)
+            with TemporaryDirectory() as tmp, mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], None),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+            if expected is None:
+                client.release.assert_not_called()
+            else:
+                client.release.assert_called_once_with("job-text-1", "t" * 64, 1, *expected)
+
+    def test_masking_layers_load_before_transcription(self):
+        """NER 이 없으면 전사·provider 호출 전에 닫힌다 — blocked 경로는 provider 0회다(S5 F7)."""
+        client = dictionary_client()
+        client.claim_jobs.return_value = [audio_job()]
+        with TemporaryDirectory() as tmp:
+            config = replace(make_config(Path(tmp)), ner_model_id=None)
+            with mock.patch("ccc_pipeline.worker.transcribe_audio") as transcribe:
+                self.assertEqual(run_once(client, config), 0)
+                transcribe.assert_not_called()
+        client.download_audio.assert_not_called()
+        client.release.assert_called_once_with("job-audio-1", "u" * 64, 1, "blocked", "local_ner_unavailable")
+
+    def test_result_submission_retries_the_same_payload_after_a_server_error(self):
+        client = dictionary_client()
+        client.claim_jobs.return_value = [text_job()]
+        client.get_source.return_value = "MASKED source"
+        client.post_result.side_effect = [ApiError(502, "bad gateway"), None]
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], None),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 1)
+        # 같은 payload 재전송은 서버에서 멱등이고, 결과 수락 뒤 후속 단계를 이어간다.
+        self.assertEqual(client.post_result.call_count, 2)
+        first, second = client.post_result.call_args_list
+        self.assertEqual(first.args[1]["payloadSha256"], second.args[1]["payloadSha256"])
         client.release.assert_not_called()
 
     def test_generic_400_does_not_retry_with_a_legacy_payload(self):
@@ -265,7 +317,8 @@ class RunOnceTest(unittest.TestCase):
             ):
                 run_once(client, make_config(Path(tmp)))
         self.assertEqual(client.post_result.call_count, 1)
-        client.release.assert_not_called()
+        # 코드를 알 수 없는 거부도 작업은 임대 중이므로 permanent 로 닫는다.
+        client.release.assert_called_once_with("job-text-1", "t" * 64, 1, "permanent", "permanent_failure")
 
 
 class TextJobTest(unittest.TestCase):
@@ -427,7 +480,13 @@ class AudioJobTest(unittest.TestCase):
         client.download_audio.side_effect = fake_download
         with TemporaryDirectory() as tmp:
             config = make_config(Path(tmp))
-            with mock.patch("ccc_pipeline.worker.transcribe_audio", side_effect=RuntimeError("gpu oom")):
+            with (
+                mock.patch(
+                    "ccc_pipeline.worker._build_person_and_address_ner",
+                    return_value=(lambda text: [], None),
+                ),
+                mock.patch("ccc_pipeline.worker.transcribe_audio", side_effect=RuntimeError("gpu oom")),
+            ):
                 with self.assertRaises(RuntimeError):
                     process_audio_job(client, config, audio_job())
         self.assertTrue(created_dirs, "download should have run")

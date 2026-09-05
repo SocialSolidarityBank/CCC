@@ -832,8 +832,8 @@ describe('API routes', () => {
     const audioResponse = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
       headers: {
         ...serviceHeaders,
-        'X-CCC-Claim-Token': audioJob.claimToken,
-        'X-CCC-Claim-Attempt': String(audioJob.attempt),
+        'X-CCC-Job-Claim': audioJob.claimToken,
+        'X-CCC-Job-Attempt': String(audioJob.attempt),
       },
     }), agentEnv);
     expect(audioResponse.status).toBe(404);
@@ -1689,6 +1689,7 @@ describe('API routes', () => {
       name: string;
       expectedStatus: number;
       expectedError: string;
+      expectedBody?: Record<string, unknown>;
       request: () => Promise<Response>;
     }> = [
       {
@@ -1701,18 +1702,24 @@ describe('API routes', () => {
         name: 'source admin',
         expectedStatus: 403,
         expectedError: 'forbidden',
+        // v2 오류 본문. 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다(S5 §2.6).
+        expectedBody: { error: 'forbidden', jobId: null, retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), adminHeaders),
       },
       {
         name: 'source assigned counselor',
         expectedStatus: 403,
         expectedError: 'forbidden',
+        // v2 오류 본문. 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다(S5 §2.6).
+        expectedBody: { error: 'forbidden', jobId: null, retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), counselorHeaders),
       },
       {
         name: 'source unassigned counselor',
         expectedStatus: 403,
         expectedError: 'forbidden',
+        // v2 오류 본문. 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다(S5 §2.6).
+        expectedBody: { error: 'forbidden', jobId: null, retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), unassignedCounselorHeaders),
       },
       {
@@ -1720,6 +1727,8 @@ describe('API routes', () => {
         // 다른 기관의 service 에게 이 작업은 존재하지 않는다(org 경계, S5 §2.6).
         expectedStatus: 404,
         expectedError: 'job_not_found',
+        // v2 오류 본문은 code 외에 jobId·retryable 만 싣는다(S5 §2.6).
+        expectedBody: { error: 'job_not_found', jobId: expect.any(String), retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), otherOrgServiceHeaders),
       },
       {
@@ -1837,7 +1846,7 @@ describe('API routes', () => {
         response.status,
         `${denial.name} (body=${mismatchBody} draftVersion=${draft.version} evidenceId=${evidenceId})`,
       ).toBe(denial.expectedStatus);
-      await expect(response.json()).resolves.toMatchObject({ error: denial.expectedError });
+      await expect(response.json()).resolves.toEqual(denial.expectedBody ?? { error: denial.expectedError });
       expect(adapter.calls).toBe(callsBefore);
       expect(await phase1MutableRowCounts()).toEqual(baselineRows);
       expect(await sessionAiState(session.id)).toEqual(baselineSessionState);

@@ -145,7 +145,7 @@ async function relayAudio(
   const request = headers === null
     ? new Request(`http://localhost/pipeline/jobs/${job.jobId}/audio`)
     : new Request(`http://localhost/pipeline/jobs/${job.jobId}/audio`, {
-      headers: { ...headers, 'X-CCC-Claim-Token': job.claimToken, 'X-CCC-Claim-Attempt': String(job.attempt) },
+      headers: { ...headers, 'X-CCC-Job-Claim': job.claimToken, 'X-CCC-Job-Attempt': String(job.attempt) },
     });
   const response = await worker.fetch(request, agentEnv);
   return { response, jobId: job.jobId };
@@ -154,13 +154,13 @@ async function relayAudio(
 async function expectDeniedAudioRequest(
   response: Response,
   sessionId: string,
-  expected: { status: number; body: { error: string; jobId?: string; retryable?: boolean } },
+  expected: { status: number; body: { error: string; jobId?: string | null; retryable?: boolean } },
   expectedObjectCount: number,
   expectedRecording: { audio_r2_key: string | null; ai_status: string },
 ): Promise<void> {
   expect(response.status).toBe(expected.status);
-  // v2 오류 본문은 code 외에 jobId·retryable 을 함께 싣는다(S5 §2.6).
-  await expect(response.json()).resolves.toMatchObject(expected.body);
+  // 본문 전체를 못박는다 - 예상 밖 필드가 섞이면 실패해야 한다(S5 §2.6).
+  await expect(response.json()).resolves.toEqual(expected.body);
   expect(await bucketCount()).toBe(expectedObjectCount);
   expect(await recordingState(sessionId)).toEqual(expectedRecording);
   expect(await downloadAuditCount(sessionId)).toBe(0);
@@ -391,7 +391,14 @@ describe('audio upload and relay', () => {
 
     const before = await recordingState(session.id);
     const { response: relay } = await relayAudio(env, session.id, counselorHeaders);
-    await expectDeniedAudioRequest(relay, session.id, { status: 403, body: { error: 'forbidden' } }, 1, before);
+    await expectDeniedAudioRequest(
+      relay,
+      session.id,
+      // 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다.
+      { status: 403, body: { error: 'forbidden', jobId: null, retryable: false } },
+      1,
+      before,
+    );
   });
   it('rejects a same-org admin from the service-only audio relay without a download audit or recording mutation', async () => {
     await t.reset();
@@ -401,7 +408,13 @@ describe('audio upload and relay', () => {
     const before = await recordingState(session.id);
 
     const { response: relay } = await relayAudio(env, session.id, adminHeaders);
-    await expectDeniedAudioRequest(relay, session.id, { status: 403, body: { error: 'forbidden' } }, 1, before);
+    await expectDeniedAudioRequest(
+      relay,
+      session.id,
+      { status: 403, body: { error: 'forbidden', jobId: null, retryable: false } },
+      1,
+      before,
+    );
   });
   it('rejects a cross-org service relay without a download audit or recording mutation', async () => {
     await t.reset();

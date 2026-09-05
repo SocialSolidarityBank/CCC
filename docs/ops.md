@@ -341,7 +341,7 @@ wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sq
 
 1. `POST /preview/unlock` 에 E2E 코드 → 쿠키 획득
 2. 실무자 시점(`X-CCC-Preview-Actor: ai00@ggbss.or.kr`)으로 동의 재저장 + 상담 기록 저장
-3. 장비 시점(헤더 없음 = 기본값 service)으로 `POST /pipeline/jobs/claim` → `GET /pipeline/jobs/:jobId/source` → 마스킹 → `POST /pipeline/jobs/:jobId/result`(S5 v2. claim 뒤 모든 호출은 `claimToken`·`attempt` 를 함께 보내고, GET 은 `X-CCC-Claim-Token`·`X-CCC-Claim-Attempt` 헤더를 쓴다)
+3. 장비 시점(헤더 없음 = 기본값 service)으로 `POST /pipeline/jobs/claim` → `GET /pipeline/jobs/:jobId/source` → 마스킹 → `POST /pipeline/jobs/:jobId/result`(S5 v2. claim 뒤 모든 호출은 `claimToken`·`attempt` 를 함께 보내고, GET 은 `X-CCC-Job-Claim`·`X-CCC-Job-Attempt` 헤더를 쓴다)
 
 `yellow` **함정 3개** (전부 실제로 밟았다):
 

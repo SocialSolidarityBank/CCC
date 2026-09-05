@@ -16,8 +16,17 @@ SCHEMA_VERSION = 2
 
 
 def _canonical_number(value: float) -> float | int:
-    """JSON.stringify 와 같은 표기로 맞춘다 — 1.0 은 `1` 이어야 해시가 일치한다."""
-    return int(value) if float(value).is_integer() else value
+    """JSON.stringify 와 같은 표기로 맞춘다 — 1.0 은 `1` 이어야 해시가 일치한다.
+
+    Python 과 JS 는 지수 표기 경계가 달라(`1e-06` vs `0.000001`) 그 범위에서는 같은 값이
+    다른 문자열이 된다. ECMAScript 숫자 표기를 재구현하는 대신 그 범위를 거부한다 —
+    조용한 hash 불일치보다 시끄러운 실패가 낫다. 상담 시간 구간은 이 범위에 들지 않는다.
+    """
+    if float(value).is_integer():
+        return int(value)
+    if "e" in repr(float(value)):
+        raise ValueError("canonical JSON number is outside the interoperable range")
+    return value
 
 
 def _canonical(value: Any) -> Any:
