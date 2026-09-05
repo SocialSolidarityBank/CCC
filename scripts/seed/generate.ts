@@ -21,9 +21,14 @@ import { inlineSql, firstKeyword, type SqlParam } from './sql-literal';
 import { validateSeed, type EmittedStatement } from './validate';
 import type { WriteEntry } from './capture';
 import { PARTICIPANTS, PREVIEW_ONLY_PARTICIPANTS, SEED_ANCHOR_DATE, VIRTUAL_COUNSELORS } from './content';
-import { OPERATIONAL_AUDIT_BASELINE, ORG_ID, preloadStatements } from './preload-data';
+import { ORG_ID, PREVIEW_BENEFICIARY_STUBS, PREVIEW_USERS, preloadStatements } from './preload-data';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
+
+const SEED_TARGET = process.env.SEED_TARGET;
+if (SEED_TARGET !== 'local' && SEED_TARGET !== 'preview') {
+  throw new Error('[seed] SEED_TARGET=local 또는 SEED_TARGET=preview 가 필요합니다.');
+}
 
 /**
  * 향후 7일 예정 일정 판정 하한(브리핑에 바로 뜨는 기준).
@@ -69,18 +74,23 @@ function emitStatements(writes: readonly WriteEntry[]): EmittedRich[] {
 }
 
 /**
- * 프리로드(기관 설정 · 활성 users · beneficiaries 스텁)를 인라인 SQL 로 직렬화한다.
+ * 빈 disposable DB 전용 프리로드 SQL.
  *
- * seed.sql 은 게이트웨이가 방출한 쓰기만 담아서 계정을 담지 않는다 — 이미 계정이 있는 운영
- * D1 에 얹는 것이 원래 용도이기 때문이다. 반면 **빈 DB 를 처음부터 세울 때는**(마이그레이션
- * 직후의 미리보기 D1) 이 파일을 seed.sql 보다 먼저 적용해야 한다. 안 그러면 로그인 신원
- * (PREVIEW_ACTOR_EMAIL 이 가리키는 상담사)이 없어 화면이 아예 열리지 않는다.
+ * 첫 assertion 은 users/settings/beneficiaries 중 하나라도 있으면 CHECK 위반으로 전체 파일을
+ * 중단한다. 운영은 reset 뒤에도 계정과 기관 설정을 보존하므로 뒤 fixture 쓰기 전에 막힌다.
  */
 function assemblePreloadSql(): string {
   const header = [
-    '-- CCC 프리로드 (기관 설정 · 활성 users · beneficiaries 스텁)',
-    '-- 빈 DB 전용: 마이그레이션 적용 직후, seed.sql 보다 **먼저** 적용한다.',
-    '-- 이미 계정이 있는 DB(운영)에는 적용하지 않는다 — UNIQUE 충돌로 실패한다.',
+    '-- CCC 미리보기 프리로드 (기관 설정 · 활성 users · beneficiaries 스텁)',
+    '-- 로컬 disposable preview와 ccc-preview의 빈 DB 전용.',
+    'CREATE TABLE ccc_preview_seed_target_assertions (id TEXT PRIMARY KEY, ok INTEGER NOT NULL CHECK (ok = 1));',
+    `INSERT INTO ccc_preview_seed_target_assertions (id, ok)
+SELECT 'empty_preview_database', CASE WHEN
+  (SELECT COUNT(*) FROM users) = 0
+  AND (SELECT COUNT(*) FROM organization_settings) = 0
+  AND (SELECT COUNT(*) FROM beneficiaries) = 0
+THEN 1 ELSE 0 END;`,
+    'DROP TABLE ccc_preview_seed_target_assertions;',
     '',
   ].join('\n');
   const body = preloadStatements()
@@ -90,15 +100,31 @@ function assemblePreloadSql(): string {
 }
 
 function assembleSeedSql(emitted: readonly EmittedRich[]): string {
+  const previewExampleUsers = PREVIEW_USERS.filter((user) => user.email.endsWith('@example.test')).length;
   const header = [
-    '-- CCC 운영 시드 데이터 (Miniflare 캡처 → SQL 재생)',
-    '-- 전원 가상 인물·가상 데이터. 실존 인물·기관과 무관하다.',
+    '-- CCC 미리보기 가상 시드 (Miniflare 캡처 → SQL 재생)',
+    '-- 로컬 disposable preview와 ccc-preview 전용. 운영 적용 금지.',
+    `-- 생성 대상: ${SEED_TARGET}`,
     `-- 생성 문장 수: ${emitted.length}`,
     `-- 조직: ${ORG_ID} · 참여자 ${PARTICIPANTS.length}명 + 가상 상담사 ${VIRTUAL_COUNSELORS.length}명`,
     `-- 기준일: ${SEED_ANCHOR_DATE} (모든 날짜가 이 날에서 상대 계산됐다 — 재현: SEED_ANCHOR_DATE=${SEED_ANCHOR_DATE})`,
-    '-- 적용: apps/api 에서 wrangler d1 execute ccc --env production --remote --file ../../scripts/seed/out/seed.sql (원자적, -y 금지)',
-    '-- 롤백: audit_log·participant_consent_records 는 append-only, support_cases/beneficiaries 는 동의 FK 로 삭제 불가.',
-    '--       진짜 롤백은 Time Travel(적용 전 북마크)로만 한다.',
+    'CREATE TABLE ccc_preview_seed_target_assertions (id TEXT PRIMARY KEY, ok INTEGER NOT NULL CHECK (ok = 1));',
+    `INSERT INTO ccc_preview_seed_target_assertions (id, ok)
+SELECT 'preview_preload_only', CASE WHEN
+  (SELECT COUNT(*) FROM organization_settings) = 1
+  AND (SELECT COUNT(*) FROM organization_settings WHERE org_id = '${ORG_ID}') = 1
+  AND (SELECT COUNT(*) FROM users) = ${PREVIEW_USERS.length}
+  AND (SELECT COUNT(*) FROM users WHERE org_id = '${ORG_ID}' AND active = 1) = ${PREVIEW_USERS.length}
+  AND (SELECT COUNT(*) FROM users WHERE email LIKE '%@example.test') = ${previewExampleUsers}
+  AND (SELECT COUNT(*) FROM beneficiaries) = ${PREVIEW_BENEFICIARY_STUBS.length}
+  AND (SELECT COUNT(*) FROM beneficiaries
+       WHERE org_id = '${ORG_ID}' AND initialization_state = 'pending'
+         AND id IN (${PREVIEW_BENEFICIARY_STUBS.map((id) => `'${id}'`).join(', ')})) = ${PREVIEW_BENEFICIARY_STUBS.length}
+  AND (SELECT COUNT(*) FROM support_cases) = 0
+  AND (SELECT COUNT(*) FROM participant_consent_records) = 0
+  AND (SELECT COUNT(*) FROM audit_log) = 0
+THEN 1 ELSE 0 END;`,
+    'DROP TABLE ccc_preview_seed_target_assertions;',
     '',
   ].join('\n');
   const body = emitted
@@ -147,7 +173,9 @@ function buildManifest(emitted: readonly EmittedRich[], sessionCount: number): {
 
   const generatedAuditInserts = tableInsertCounts.audit_log ?? 0;
   const manifest: Record<string, unknown> = {
-    note: '전원 가상 데이터. 테이블 카운트는 시드가 추가하는 delta(운영 기준선 별도).',
+    note: '로컬 disposable preview와 ccc-preview 전용 가상 데이터.',
+    profile: 'preview',
+    target: SEED_TARGET,
     generatedAt: new Date().toISOString(),
     // 이 시드의 날짜가 어느 '오늘'을 기준으로 만들어졌는지. 같은 값을 SEED_ANCHOR_DATE 로
     // 넣으면 산출물의 날짜가 그대로 재현된다.
@@ -159,10 +187,10 @@ function buildManifest(emitted: readonly EmittedRich[], sessionCount: number): {
     sessions: sessionCount,
     tableInsertCounts,
     audit: {
-      operationalBaseline: OPERATIONAL_AUDIT_BASELINE,
+      beforeSeed: 0,
       generatedInserts: generatedAuditInserts,
       triggerRowsPerSession: sessionCount,
-      expectedAfterSeed: OPERATIONAL_AUDIT_BASELINE + generatedAuditInserts + sessionCount,
+      expectedAfterSeed: generatedAuditInserts + sessionCount,
       note: 'sessions_manual_submission_audit 트리거가 세션당 1행을 재생성한다(방출 로그에 없음).',
     },
     perParticipant: [...perParticipant.values()],
@@ -172,12 +200,12 @@ function buildManifest(emitted: readonly EmittedRich[], sessionCount: number): {
 
 function buildVerifySql(emitted: readonly EmittedRich[], sessionCount: number): string {
   const generatedAuditInserts = emitted.filter((entry) => entry.keyword === 'INSERT' && entry.table === 'audit_log').length;
-  const expectedAudit = OPERATIONAL_AUDIT_BASELINE + generatedAuditInserts + sessionCount;
+  const expectedAudit = generatedAuditInserts + sessionCount;
   const confirmedFlags = emitted.filter((entry) => entry.keyword === 'INSERT' && entry.table === 'flags').length;
   return [
-    '-- 운영 적용 후 대조 쿼리. 값은 "시드가 더한 delta" 기준(운영 기준선은 별도로 더해 판단).',
-    `-- 기대 delta: 참여자 +${PARTICIPANTS.length}, 세션 +${sessionCount}, 동의 +${PARTICIPANTS.length}, vault +${PARTICIPANTS.length}, confirmed 플래그 +${confirmedFlags}`,
-    `-- audit_log 기대 총합(기준선 ${OPERATIONAL_AUDIT_BASELINE} 포함): ${expectedAudit}`,
+    '-- 미리보기 시드 적용 후 대조 쿼리.',
+    `-- 기대: 참여자 ${PARTICIPANTS.length}, 세션 ${sessionCount}, 동의 ${PARTICIPANTS.length}, vault ${PARTICIPANTS.length}, confirmed 플래그 ${confirmedFlags}`,
+    `-- audit_log 기대 총합: ${expectedAudit}`,
     '',
     `SELECT 'beneficiaries_slug_complete' AS check_name, COUNT(*) AS value`,
     `  FROM beneficiaries WHERE org_id = '${ORG_ID}' AND id GLOB '*-*' AND initialization_state = 'complete';`,
@@ -215,7 +243,7 @@ function buildDeleteBestEffort(manifest: ParticipantManifest[]): string {
     '--   * audit_log, participant_consent_records → append-only 트리거가 DELETE 를 막는다.',
     '--   * support_cases, beneficiaries → participant_consent_records 의 FK 로 삭제 불가.',
     '--   * participant_pii_vault → beneficiaries FK 체인상 남는다.',
-    '-- 따라서 진짜 롤백은 적용 전에 저장한 Time Travel 북마크로만 한다(RUNBOOK 3단계).',
+    '-- 따라서 진짜 롤백은 적용 전에 저장한 ccc-preview Time Travel 북마크로만 한다.',
     '',
   ];
   if (caseList.length === 0) {
@@ -261,10 +289,10 @@ function buildCaptureReport(
       .map(([table, count]) => `  ${table}: ${count}`),
     '',
     '## audit_log 기대치',
-    `  운영 기준선: ${OPERATIONAL_AUDIT_BASELINE}`,
+    '  적용 전: 0',
     `  방출 audit INSERT: ${generatedAuditInserts}`,
     `  트리거 재생성(세션당 1): ${sessionCount}`,
-    `  적용 후 기대 총합: ${OPERATIONAL_AUDIT_BASELINE + generatedAuditInserts + sessionCount}`,
+    `  적용 후 기대 총합: ${generatedAuditInserts + sessionCount}`,
     '',
     '## 검증 결과',
     ...validationChecks.map((check) => `  [ok] ${check}`),
@@ -310,7 +338,7 @@ describe('preview seed content', () => {
   });
 });
 
-describe('operational seed generation', () => {
+describe('preview seed generation', () => {
   it('captures the gateway scenario, serializes seed.sql, and replays it into a fresh DB', async () => {
     const piiKey = requireEnv('PII_ENC_KEY');
     assertPiiKeyMaterial(piiKey);

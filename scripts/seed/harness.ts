@@ -3,11 +3,11 @@
  *
  * [guard allowlist 대상] apps/api/test/support/d1.ts 의 createD1TestContext 를 재사용해
  * Miniflare 를 띄우고 migrations/ 를 적용한다(readD1Migrations 가 트리거 BEGIN…END 를 안전
- * 분할). provisionDirectory:false 로 테스트 디렉터리는 만들지 않고, 운영 미러('bss') 를 직접
- * 프리로드한다. 프리로드는 캡처하지 않는다(캡처 프록시로 감싸기 전의 raw D1 에 건다).
+ * 분할). provisionDirectory:false 로 테스트 디렉터리는 만들지 않고, 미리보기 fixture('bss')를
+ * 직접 프리로드한다. 프리로드는 캡처하지 않는다(캡처 프록시로 감싸기 전 raw D1 에 건다).
  *
- * 반환 env 는 테스트 키 대신 직접 구성한다: PII_ENC_KEY 는 process.env 에서 받고(값 로그 금지),
- * PII_KEY_VERSION 은 '2'(운영 키 세대) 로 고정한다.
+ * 반환 env 는 직접 구성한다: PII_ENC_KEY 는 process.env 에서 받고(값 로그 금지),
+ * PII_KEY_VERSION 은 미리보기 fixture 키 세대 '2'로 고정한다.
  */
 import type { D1Database } from '@cloudflare/workers-types';
 import { createD1Database } from '@ccc/db-d1';
@@ -16,7 +16,7 @@ import type { Env } from '@ccc/core/gateway';
 import { preloadStatements } from './preload-data';
 import { D1Capture } from './capture';
 
-/** 운영 PII 키 세대(D3). vault.key_version 이 이 값으로 기록된다. */
+/** 미리보기 fixture PII 키 세대(D3). vault.key_version 이 이 값으로 기록된다. */
 export const SEED_PII_KEY_VERSION = '2';
 
 /** 필수 환경 변수를 값 노출 없이 요구한다. 미설정이면 명시 실패한다. */
@@ -25,8 +25,8 @@ export function requireEnv(name: string): string {
   if (value === undefined || value.length === 0) {
     throw new Error(
       `[seed] 환경 변수 ${name} 가 설정되지 않았습니다. 실행 예:\n`
-        + `  PII_ENC_KEY=<base64 32B> pnpm exec vitest run --config scripts/seed/vitest.config.ts\n`
-        + `(운영 실행은 RUNBOOK 2단계의 infisical run 경로를 쓰세요.)`,
+        + `  PII_ENC_KEY=<base64 32B> pnpm seed:generate:local\n`
+        + `(원격 미리보기는 RUNBOOK의 seed:generate:preview 경로를 쓰세요.)`,
     );
   }
   return value;
@@ -56,7 +56,7 @@ export interface PreloadedContext {
 }
 
 /**
- * Miniflare 컨텍스트를 만들고 마이그레이션 적용 후 운영 미러를 raw 프리로드한다.
+ * Miniflare 컨텍스트를 만들고 마이그레이션 적용 후 미리보기 fixture 를 raw 프리로드한다.
  * 반환 db 는 캡처하지 않은 실 D1 이다(캡처가 필요하면 buildSeedEnv 로 감싼다).
  */
 export async function bootPreloadedContext(): Promise<PreloadedContext> {

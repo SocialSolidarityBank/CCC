@@ -75,45 +75,43 @@ ADR 파일·마이그레이션 파일·9장 결정 번호는 **손으로 붙이�
 전부 비어 있을 때만 활성(운영은 두 잠금이 모두 걸려 열리지 않는다). 웹 쪽은
 `CCC_LOCAL_PREVIEW='true'` + dev 실행일 때만 Access 쿠키 없이 API를 호출한다.
 
-**실행 위치가 단계마다 다르다.** 아래 주석의 `#` 뒤 경로를 그대로 지킬 것 — 특히 시드 생성은
-**레포 루트**에서만 돌아간다(2026-07-26 확인, 아래 함정 참조).
+시드 산출물은 로컬 disposable preview와 원격 `ccc-preview` 전용이다. 생성·적용은 레포 루트의
+고정 명령만 사용한다. 운영 DB를 받는 시드 명령은 없다.
 
 ```bash
-# 1-a) 마이그레이션 (apps/api 에서)
-pnpm exec wrangler d1 migrations apply ccc-local --local
+# 1-a) 새 로컬 D1 마이그레이션 (레포 루트)
+pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-local --local
 
-# 1-b) .dev.vars 먼저 만든다 (apps/api, gitignore) — 시드 생성이 같은 키를 읽는다
-#      PII_ENC_KEY=<base64 32B 테스트 키> / PII_KEY_VERSION=2 / LOCAL_DEV_ACTOR_EMAIL=account@bss.or.kr
-#      키는 값이 stdout 에 닿지 않게 파일로 바로 만든다:
-#      { printf 'PII_ENC_KEY='; node -e "process.stdout.write(require('crypto').randomBytes(32).toString('base64'))"; } >> .dev.vars
+# 1-b) apps/api/.dev.vars 준비 (gitignore)
+#      LOCAL_ACTOR_HEADER_MODE=true / PII_ENC_KEY=<base64 32B 테스트 키> / PII_KEY_VERSION=2
+#      LOCAL_DEV_ACTOR_EMAIL=account@bss.or.kr. ACCESS_TEAM_DOMAIN·ACCESS_AUD는 넣지 않는다.
+#      값이 stdout 에 닿지 않게 직접 기록한다:
+printf '%s\n' 'LOCAL_ACTOR_HEADER_MODE=true' 'PII_KEY_VERSION=2' 'LOCAL_DEV_ACTOR_EMAIL=account@bss.or.kr' >> apps/api/.dev.vars
+{ printf 'PII_ENC_KEY='; node -e "process.stdout.write(require('crypto').randomBytes(32).toString('base64'))"; printf '\n'; } >> apps/api/.dev.vars
 
-# 1-c) 시드 생성 (★ 레포 루트에서 — apps/api 에서 돌리면 실패한다)
+# 1-c) 미리보기 시드 생성
 set -a; . ./apps/api/.dev.vars; set +a
-pnpm exec vitest run --config scripts/seed/vitest.config.ts
+pnpm seed:generate:local
 
-# 1-d) 프리로드 + 시드 적재 (apps/api 에서)
-pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/preload.sql
-pnpm exec wrangler d1 execute ccc-local --local --file ../../scripts/seed/out/seed.sql
+# 1-d) 고정된 ccc-local 대상에 프리로드 → 시드 → 대조 적용
+pnpm seed:apply:local
 
 # 2) API: apps/api 에서  pnpm exec wrangler dev            (http://127.0.0.1:8787)
 # 3) 웹:  apps/web 에서  CCC_API_ORIGIN=http://127.0.0.1:8787 CCC_LOCAL_PREVIEW=true pnpm dev   (http://localhost:3000)
 ```
 
 `LOCAL_DEV_ACTOR_EMAIL`을 상담사 계정(예: ai00@ggbss.or.kr)으로 바꾸면 상담사 시점으로 볼 수 있다.
-시드 재생성은 `scripts/seed/out/seed.sql`을 덮어쓰므로, 운영 적용본 아카이브는 `out/prod-<날짜>/`에 백업해 둔다.
 
-#### 절차 함정 4건 (①~③ 2026-07-26, ④ 2026-08-08 실측)
+#### 시드 경계와 절차 함정
 
-**① 시드 생성은 레포 루트에서 돌려야 한다.** `scripts/seed/vitest.config.ts` 의 `include` 가
-`scripts/seed/generate.ts` 로 **루트 상대 경로**라, `apps/api` 에서 `--config ../../...` 로 돌리면
-vitest 가 루트를 `apps/api` 로 잡아 `No test files found, exiting with code 1` 로 끝난다.
-빈 `out/` 만 남으므로 다음 단계가 파일 없음으로 실패한다.
+**① 생성은 대상별 `pnpm seed:generate:local` 또는 `pnpm seed:generate:preview`만 쓴다.** 두 명령은
+`SEED_PROFILE=preview`와 `SEED_TARGET`을 고정한다. 환경변수 없이 생성기를 직접 실행하면 fail
+closed한다. `scripts/seed/out/`은 대상을 바꿀 때마다 덮어쓰며 production 적용본을 만들지 않는다.
 
-**② 프리로드 파일 이름은 `preload.sql` 이다**(2026-07-31 정정). 시드 생성이 `out/preload.sql` 로
-만들어 준다 — 이 문서가 한동안 `local-preload.sql` 이라고 적어 두어, 절차대로 따라 하면
-`Unable to read SQL text file` 로 **조용히 건너뛰어지고** 화면이 빈 채로 뜬다(실제로 밟았다).
-내용은 `organization_settings` 1행 + `users` + `beneficiaries` 스텁이며, 건너뛰면 다음 단계
-`seed.sql` 이 `participant_schema_violation` 트리거로 실패한다.
+**② 적용은 빈 disposable DB에서 `pnpm seed:apply:local`만 쓴다.** 래퍼는 `ccc-local --local`을
+고정하고 임의 DB 인자를 받지 않는다. 생성된 `preload.sql`도 기존 사용자·기관 설정·당사자가
+하나라도 있으면 첫 assertion에서 실패한다. 기존 로컬 D1은 폐기·재생성한 뒤 적용한다. 원격
+`ccc-preview` 절차와 원시 관리자 우회 한계는 `scripts/seed/RUNBOOK.md`에 있다.
 
 **③ 세션이 2개 이상이면 포트를 갈라야 한다.** 다른 세션이 이미 8787·3000 을 쓰고 있으면 wrangler·
 next 가 조용히 다음 포트(8788·3001)로 올라간다. 그때 웹의 `CCC_API_ORIGIN` 이 **남의 API** 를
@@ -294,17 +292,17 @@ gh workflow run deploy-production.yml --ref <이전태그> -f confirm=deploy-pro
 
 '다가오는 일정'은 **오늘 + 향후 7일(8일 창, 기관 시간대)** 만 본다. 일정 날짜는 DB 에 절대값으로 들어 있으므로, 아무것도 하지 않으면 시간이 흐르면서 화면이 **실무자·관리자 양쪽 모두** 빈다. 자리가 두 군데라 고치는 곳도 두 군데다.
 
-**① 이미 넣은 DB(미리보기·운영)** — 재배치 SQL 을 만들어 적용한다.
+**① 이미 넣은 `ccc-preview`** — 재배치 SQL을 만든 뒤 고정된 미리보기 D1에 적용한다.
 
 ```bash
-pnpm seed:reschedule --org=bss > /tmp/reschedule.sql
+pnpm seed:reschedule:preview > /tmp/reschedule.sql
+pnpm --filter @ccc/api exec wrangler d1 execute ccc-preview --env preview --remote \
+  --file /tmp/reschedule.sql
 ```
 
-기준일 없이 돌리면 **기관 시간대 기준 오늘**부터 21일에 걸쳐 편다(`--from=YYYY-MM-DD`·`--days=N` 으로 조정). 만들어진 SQL 을 눈으로 확인한 뒤 적용한다:
-
-```bash
-wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sql
-```
+기준일 없이 돌리면 **기관 시간대 기준 오늘**부터 21일에 걸쳐 편다. 다른 기준일·기간을
+점검할 때는 `node scripts/seed/reschedule-upcoming.mjs --org=bss --from=YYYY-MM-DD --days=N`으로
+SQL만 만들고, 적용 대상은 여전히 `ccc-preview`로 고정한다.
 
 마지막 문장은 대조용 `SELECT`(건수·첫 일정·마지막 일정)다 — 출력 형식은 wrangler 가 정하므로, 표가 안 보이면 같은 SELECT 를 `--command` 로 한 번 더 돌려 확인한다. 스크립트가 지키는 것 셋 — 전부 실패로 배운 것이고 `apps/api/test/seed-reschedule-sql.test.ts` 가 실제 마이그레이션 위에서 고정한다:
 
@@ -402,8 +400,8 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --command \
 
 1. **D1 생성**: `wrangler d1 create ccc-preview` → 출력 `database_id`를 `apps/api/wrangler.toml`의 `[[env.preview.d1_databases]]` 자리표시(`00000000-...`)에 채운다.
 2. **마이그레이션**: `pnpm --filter @ccc/api exec wrangler d1 migrations apply ccc-preview --env preview --remote`.
-3. **시드 주입(수동)**: 기존 시드 산출물(`scripts/seed/out/seed.sql`, RUNBOOK 참고)을 미리보기 D1에 적용한다 — `wrangler d1 execute ccc-preview --env preview --remote --file scripts/seed/out/seed.sql`. 배포 잡에는 넣지 않는다(가상 데이터 전용, 되돌리기 어려움).
-4. **시크릿 등록(값 stdout 금지)**: `wrangler secret put PREVIEW_ACCESS_CODE --env preview`, `wrangler secret put PREVIEW_ADMIN_ACCESS_CODE --env preview`(관리자 시점 — 안 넣으면 그 경로가 없다), `wrangler secret put PII_ENC_KEY --env preview` (apps/api에서). 값을 파일로 만들어 뒀다면 `wrangler secret put <이름> --env preview < 파일` 로 stdin 주입할 수 있다(값이 stdout 에 닿지 않는다).
+3. **시드 주입(수동)**: `ccc-preview` Worker의 `PII_ENC_KEY`와 같은 키로 RUNBOOK의 `pnpm seed:generate:preview`를 실행하고, 레포 루트에서 `pnpm seed:apply:preview`를 실행한다. 래퍼가 manifest 대상 대조 후 프리로드·시드·검증을 `ccc-preview --env preview --remote`에만 적용한다. 배포 잡에는 넣지 않는다.
+4. **시크릿 등록(값 stdout 금지)**: `wrangler secret put PREVIEW_ACCESS_CODE --env preview`, `wrangler secret put PREVIEW_ADMIN_ACCESS_CODE --env preview`(관리자 시점, 안 넣으면 그 경로가 없다), `wrangler secret put PII_ENC_KEY --env preview` (apps/api에서). 마지막 값은 시드 생성에 쓴 `PREVIEW_PII_ENC_KEY`와 같아야 한다. 값을 파일로 만들어 뒀다면 `wrangler secret put <이름> --env preview < 파일`로 stdin 주입한다.
 5. **웹 preview URL 확정**: 첫 배포 후 확정되는 `ccc-api-preview` URL로 `apps/web/wrangler.jsonc [env.preview].vars.CCC_API_ORIGIN` 자리표시를 교체한다.
 6. **GitHub secret 등록**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 7. **첫 배포**: `pnpm --filter @ccc/api exec wrangler deploy --env preview` → `pnpm --filter @ccc/web exec opennextjs-cloudflare build && opennextjs-cloudflare deploy --env preview`.
