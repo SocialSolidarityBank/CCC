@@ -117,8 +117,8 @@ export const VIRTUAL_COUNSELORS: readonly {
  * 날짜를 쓰면 자정~09:00 사이에 시드를 만들 때 기준일이 KST 로는 이미 어제가 되고 '오늘'
  * 일정이 창 밖으로 떨어진다.
  *
- * `yellow` **이미 넣은 DB 는 이 값으로 고쳐지지 않는다** — 그쪽은
- * `scripts/seed/reschedule-upcoming.mjs`(`pnpm seed:reschedule`)가 담당한다.
+ * `yellow` **이미 넣은 미리보기 DB 는 이 값으로 고쳐지지 않는다** — 그쪽은
+ * `scripts/seed/reschedule-upcoming.mjs`(`pnpm seed:reschedule:preview`)가 담당한다.
  */
 export const SEED_ANCHOR_DATE: string = resolveAnchorDate();
 
@@ -196,13 +196,10 @@ const SHIFT_SCALE: SeedScaleCriteria = {
 };
 
 /**
- * 운영 정본 참여자 4명. 배정·동의·추이·회차·이벤트 분포는 파일 하단 주석의 집계 목표를 충족한다.
- *
- * **이 배열은 늘리지 않는다.** 화면을 보려고 데이터를 늘리는 것은 프리뷰의 일이고, 운영 D1 에
- * 들어가는 가상 데이터는 적을수록 좋다(실서비스 개시 전 정리 대상이라서다). 사례를 더 보고
- * 싶으면 아래 PREVIEW_ONLY_PARTICIPANTS 에 넣고 SEED_PROFILE=preview 로 만든다.
+ * 미리보기 기본 참여자 4명. 배정·동의·추이·회차·이벤트 분포는 파일 하단 주석의
+ * 집계 목표를 충족한다.
  */
-export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
+export const PREVIEW_BASE_PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 1 (ai00, improving, 목표2, 정기3, 미래일정) ──────────────────────────────
   {
     name: '김서준', phone: phone(1), email: email(1), assigneeUserId: COUNSELOR_IDS.ai00,
@@ -293,19 +290,17 @@ export const OPERATIONAL_PARTICIPANTS: readonly SeedParticipant[] = [
 ];
 
 /**
- * 프리뷰 전용 참여자 11명(2026-09-05 Q "텍스트와 기능 상태를 풍부하게 보고, 예정 일정에는
+ * 미리보기 참여자 11명(2026-09-05 Q "텍스트와 기능 상태를 풍부하게 보고, 예정 일정에는
  * 인테이크부터 시작할 사람도 포함").
  *
- * **운영 시드에는 들어가지 않는다**: SEED_PROFILE=preview 일 때만 합쳐진다(파일 끝 PARTICIPANTS).
- * 프리뷰 D1 은 가상 데이터 전용이고 통째로 다시 세우는 것이 정상 절차라(RUNBOOK §5) 여기서
- * 사례를 늘려도 운영에 번지지 않는다.
+ * 로컬 disposable preview 와 원격 `ccc-preview` 에만 쓴다.
  *
  * 고르게 덮는 축:
  * - 리스크 플래그 6종 전부(D72): 위기 발언·연락 두절·주거·생계·건강 급변·부채 악화·
  *   약속 불이행 반복·폭력·착취 피해. 브리핑 리스크 배너와 회차 카드 '이 회차에서 나온 것'이
  *   여섯 유형 모두에서 어떻게 읽히는지 한 화면씩 볼 수 있다.
- * - 녹취 미동의 1명(5): 수기 폴백(D5)만으로 브리핑이 서는 모양. 운영 시드에는 없던 축이다.
- * - 목표 닫기 사유 3종(D62 §5): 달성(11)·중단(12)·재설정(운영 3에 이미 있다).
+ * - 녹취 미동의 1명(5): 수기 폴백(D5)만으로 브리핑이 서는 모양.
+ * - 목표 닫기 사유 3종(D62 §5): 달성(11)·중단(12)·재설정(기본 3에 이미 있다).
  * - 추이 4종: 개선·정체·악화·혼재.
  * - 완료 사례는 정기 상담 3~6회: 회차별 정리와 접힘·펼침 리듬을 충분히 볼 수 있다.
  * - 메모 길이: 두 줄짜리와 여섯 줄짜리를 섞었다. 카드 폭에서 줄바꿈·말줄임이 어떻게
@@ -541,39 +536,24 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
   },
 ];
 
-/**
- * 시드 프로파일. 기본은 운영 정본(4명)이고 `SEED_PROFILE=preview` 일 때만 프리뷰 사례가 붙는다.
- *
- * 환경변수 하나로 가르는 이유: 산출물(seed.sql)이 어느 DB 로 갈지는 만드는 사람이 알고 있고,
- * 프리뷰용 데이터가 운영 산출물에 섞이는 사고는 그 한 줄로 막힌다. 검증 기대치
- * (verify.sql·manifest)는 전부 이 배열 길이에서 파생하므로 프로파일을 바꿔도 따라온다.
- */
-export const SEED_PROFILE: 'operational' | 'preview' =
-  process.env.SEED_PROFILE === 'preview' ? 'preview' : 'operational';
+if (process.env.SEED_PROFILE !== 'preview') {
+  throw new Error(
+    '[seed] SEED_PROFILE=preview 가 필요합니다. 가상 시드는 로컬 disposable preview와 ccc-preview 전용입니다.',
+  );
+}
 
-export const PARTICIPANTS: readonly SeedParticipant[] = SEED_PROFILE === 'preview'
-  ? [...OPERATIONAL_PARTICIPANTS, ...PREVIEW_ONLY_PARTICIPANTS]
-  : OPERATIONAL_PARTICIPANTS;
+export const PARTICIPANTS: readonly SeedParticipant[] = [
+  ...PREVIEW_BASE_PARTICIPANTS,
+  ...PREVIEW_ONLY_PARTICIPANTS,
+];
 
 /*
- * 집계 목표(검증 기준). 운영 프로파일(기본, 4명):
- * - 참여자 4명. 주담당은 전원 ai00 이다. 미리보기 고정 데모 실무자(PREVIEW_ACTOR_EMAIL)가 ai00 이고,
- *   실무자는 자신이 담당인 케이스만 열 수 있어(D7) 다른 상담사에게 배정하면 화면이 빈다.
- * - 동의(D49): 4명 전원 ② AI 녹취기록 동의. 미동의(수기 폴백, D5) 케이스는 없다.
- * - GAS 추이: 개선 2(1·3) / 정체 1(2) / 악화 1(4).
- * - 목표 교체(D62 §5): 1케이스(3). closeGoal(reset)+createGoal 로 scale_criteria JSON 저장.
- * - 미해결 인라인 액션: 2건(1·4). 해결된 액션: 2건(2×2).
- * - confirmed 플래그 1건: 인라인 1(4 debt). 브리핑 리스크 배너(D9)의 유일한 시연 케이스.
- * - 예정 일정 4건: 사람당 정확히 1건. 일정 화면에서 같은 사람이 여러 줄로
- *   반복되지 않게 한다(2026-07-31 Q 지적: 프리뷰에서 한 명이 일정 9건으로 아홉 번 나왔다).
- * - 세션: 인테이크 4 + 정기 11 = 15. 세션당 sessions_manual_submission_audit 트리거 감사 15건.
- *
- * 프리뷰 프로파일(SEED_PROFILE=preview, 15명 = 4 + 11):
+ * 집계 목표(검증 기준, 15명 = 기본 4 + 확장 11):
  * - 리스크 플래그 6종 전부 등장(위기 발언 6 · 연락 두절 7 · 주거·생계·건강 급변 8 ·
  *   약속 불이행 반복 9 · 폭력·착취 피해 10 · 부채 악화 4와 13).
  * - 녹취 미동의 사례와 수기 메모 폴백을 화면에서 볼 수 있다.
  * - 목표 닫기 사유 3종: 달성(11) · 중단(12) · 재설정(3).
  * - 추이 4종 전부: 개선(1·3·11) · 정체(2·5·9·14) · 악화(4·6·8) · 혼재(7·10·12·13).
- * - 완료 사례는 프리뷰 전용 기준 정기 상담 3~6회이고, 15는 미래 인테이크 일정만 있다.
+ * - 완료 사례는 확장 참여자 기준 정기 상담 3~6회이고, 15는 미래 인테이크 일정만 있다.
  * - 예정 일정은 기준일 +0 ~ +20 일에 흩어져 일간·주간·월간 뷰를 채운다.
  */
