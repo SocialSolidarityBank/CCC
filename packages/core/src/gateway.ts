@@ -7279,7 +7279,6 @@ interface AgentJobRow {
   retentionHardCapAt: string | null;
   processingDeadlineAt: string | null;
   sttEngine: string | null;
-  route: string | null;
   requiredConsent: string;
   maskDictionaryId: string | null;
   maskDictionaryExpiresAt: string | null;
@@ -7312,7 +7311,6 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     retentionHardCapAt: nullableString(row.retention_hard_cap_at),
     processingDeadlineAt: nullableString(row.processing_deadline_at),
     sttEngine: nullableString(row.stt_engine),
-    route: nullableString(row.route),
     requiredConsent: stringValue(row.required_consent),
     maskDictionaryId: nullableString(row.mask_dictionary_id),
     maskDictionaryExpiresAt: nullableString(row.mask_dictionary_expires_at),
@@ -7509,7 +7507,9 @@ export async function claimAgentJobs(
        JOIN support_cases AS support_case
          ON support_case.id = job.support_case_id AND support_case.org_id = job.org_id
        WHERE job.org_id = ? AND job.kind = 'audio' AND job.state IN ('pending', 'blocked')
-         AND job.attempt < ?
+         -- blocked 는 attempt 를 소모하지 않는다. 3회를 다 쓴 뒤 차단된 작업도 NER 이
+         -- 회복되면 같은 attempt 로 다시 임대돼야 한다(S5 §2.2).
+         AND (job.state = 'blocked' OR job.attempt < ?)
          AND job.audio_generation_id IS NOT NULL
          AND (job.retention_hard_cap_at IS NULL OR job.retention_hard_cap_at > ?)
          AND (job.processing_deadline_at IS NULL OR job.processing_deadline_at > ?)
@@ -7528,7 +7528,7 @@ export async function claimAgentJobs(
          ON support_case.id = job.support_case_id AND support_case.org_id = job.org_id
        JOIN sessions AS session ON session.id = job.session_id AND session.org_id = job.org_id
        WHERE job.org_id = ? AND job.kind = 'text' AND job.state IN ('pending', 'blocked')
-         AND job.attempt < ?
+         AND (job.state = 'blocked' OR job.attempt < ?)
          AND support_case.consent_text_ai_at IS NOT NULL
          AND EXISTS (
            SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
@@ -8080,6 +8080,13 @@ export async function acceptAgentJobResult(
   const result = request.result;
   const acceptedAt = now();
   const transition = (snapshot: MaskedSourceSnapshot): PreparedStatement[] => [
+    // 이 INSERT 의 트리거가 "지금 그 claim 이 살아 있는가" 를 batch 안에서 다시 묻는다.
+    // 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 batch 전체가 abort 되고
+    // 마스킹 스냅샷도 남지 않는다(S5 §2.2 · R3).
+    env.DB.prepare(
+      `INSERT INTO agent_job_result_acceptances (job_id, attempt, claim_token_hash, payload_sha256, accepted_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).bind(jobId, job.attempt, job.claimTokenHash, request.payloadSha256, acceptedAt),
     env.DB.prepare(
       `UPDATE agent_jobs
        SET state = 'succeeded', result_id = ?, result_payload_sha256 = ?, result_accepted_at = ?,
@@ -8107,33 +8114,39 @@ export async function acceptAgentJobResult(
   ];
 
   let recording: RecordingResultCommit | null = null;
-  if (result.kind === 'audio') {
-    recording = await commitRecordingResult(env, actor, job.sessionId, {
-      maskedText: result.maskedText,
-      sha256: result.sha256,
-      maskingPipelineVersion: result.maskingPipelineVersion,
-      evidence: result.evidence,
-      emotionScores: result.emotionScores,
-      transcriptReliable: result.transcriptReliable,
-      transcriptWarnings: result.transcriptWarnings,
-    }, transition);
-    // 결과가 이미 커밋돼 있으면(멱등 재전송) 새 스냅샷을 쓰지 않으므로 전이 문장이
-    // 실행되지 않는다. 이미 있는 스냅샷으로 작업만 닫는다 — terminal 은 여전히 하나다.
-    if (recording.replayed) await env.DB.batch(transition(recording.snapshot));
-  } else {
-    await recordMaskedSourceSnapshot(env, actor, job.sessionId, {
-      maskedText: result.maskedText,
-      sha256: result.sha256,
-      maskingPipelineVersion: result.maskingPipelineVersion,
-      evidence: result.evidence,
-    }, transition);
-  }
-  // batch 는 원자적이지만 검증과 batch 사이에 claim 이 넘어갔을 수 있다. 그때 스냅샷은
-  // 승인 전 초안 재료로 남고(R2) 이 요청은 stale 로 끝난다.
-  const confirmed = await env.DB.prepare('SELECT state FROM agent_jobs WHERE id = ? AND org_id = ?')
-    .bind(jobId, actor.orgId).first<DbRow>();
-  if (confirmed === null || stringValue(confirmed.state) !== 'succeeded') {
-    throw new AgentJobContractError('stale_claim', jobId);
+  try {
+    if (result.kind === 'audio') {
+      recording = await commitRecordingResult(env, actor, job.sessionId, {
+        maskedText: result.maskedText,
+        sha256: result.sha256,
+        maskingPipelineVersion: result.maskingPipelineVersion,
+        evidence: result.evidence,
+        emotionScores: result.emotionScores,
+        transcriptReliable: result.transcriptReliable,
+        transcriptWarnings: result.transcriptWarnings,
+      }, transition);
+      // 결과가 이미 커밋돼 있으면(멱등 재전송) 새 스냅샷을 쓰지 않으므로 전이 문장이
+      // 실행되지 않는다. 이미 있는 스냅샷으로 작업만 닫는다 — terminal 은 여전히 하나다.
+      if (recording.replayed) await env.DB.batch(transition(recording.snapshot));
+    } else {
+      await recordMaskedSourceSnapshot(env, actor, job.sessionId, {
+        maskedText: result.maskedText,
+        sha256: result.sha256,
+        maskingPipelineVersion: result.maskingPipelineVersion,
+        evidence: result.evidence,
+      }, transition);
+    }
+  } catch (error) {
+    // 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 live claim 트리거가 batch 를
+    // abort 한다. 그 경우만 stale 로 바꿔 알리고, 그 밖의 실패는 그대로 올린다.
+    const current = await env.DB.prepare('SELECT state, claim_token_hash, attempt FROM agent_jobs WHERE id = ? AND org_id = ?')
+      .bind(jobId, actor.orgId).first<DbRow>();
+    const stillOurs = current !== null
+      && stringValue(current.state) === 'leased'
+      && nullableString(current.claim_token_hash) === job.claimTokenHash
+      && Number(current.attempt) === job.attempt;
+    if (!stillOurs) throw new AgentJobContractError('stale_claim', jobId);
+    throw error;
   }
   await writeAudit(env, actor, {
     action: 'update',

@@ -329,6 +329,54 @@ describe('S5 Agent 작업 계약 v2', () => {
       .resolves.toMatchObject({ jobs: [] });
   });
 
+  it('살아 있는 claim 없이는 결과 수락 행이 batch 안에서도 들어가지 않는다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const row = await jobRow(sessionId);
+
+    const acceptance = (attempt: number, claimTokenHash: string) => t.db.prepare(
+      `INSERT INTO agent_job_result_acceptances (job_id, attempt, claim_token_hash, payload_sha256, accepted_at)
+       VALUES (?, ?, ?, ?, '2026-09-05T00:00:00.000Z')`,
+    ).bind(String(row.id), attempt, claimTokenHash, 'a'.repeat(64)).run();
+
+    // 다른 claim 토큰·다른 attempt 는 거부된다 — 검증과 batch 사이의 임대 인수 경로다.
+    await expect(acceptance(1, 'b'.repeat(64))).rejects.toThrow();
+    await expect(acceptance(2, String(row.claim_token_hash))).rejects.toThrow();
+
+    // 임대가 회수되면(동의 철회·만료 복구) 같은 토큰으로도 들어가지 못한다.
+    await t.db.prepare("UPDATE agent_jobs SET state = 'cancelled', claim_token_hash = NULL, lease_owner = NULL, claimed_at = NULL, lease_expires_at = NULL WHERE id = ?")
+      .bind(String(row.id)).run();
+    await expect(acceptance(1, String(row.claim_token_hash))).rejects.toThrow();
+  });
+
+  it('attempt를 다 쓴 뒤 차단된 작업도 NER 회복 뒤 같은 attempt로 다시 임대된다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+
+    // transient 두 번으로 attempt 를 3까지 올리고 마지막 claim 을 blocked 로 닫는다.
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+      if (claimed === undefined) throw new Error(`expected a claim on attempt ${attempt}`);
+      await releaseAgentJob(t.env, service, claimed.jobId, {
+        claimToken: claimed.claimToken,
+        attempt,
+        ...(attempt === 3
+          ? { outcome: 'blocked' as const, reason: 'local_ner_unavailable' as const }
+          : { outcome: 'transient' as const, reason: 'engine_unavailable' as const }),
+      });
+    }
+    expect(await jobRow(sessionId)).toMatchObject({ state: 'blocked', attempt: 3 });
+
+    // blocked 는 attempt 를 소모하지 않으므로 상한에 걸려 굶으면 안 된다.
+    const resumed = await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification));
+    expect(resumed.jobs.map((job) => job.attempt)).toEqual([3]);
+    expect(await jobRow(sessionId)).toMatchObject({ state: 'leased', attempt: 3 });
+  });
+
   it('F7 NER 자격이 없으면 claim도 결과도 없고 blocked는 attempt를 소모하지 않는다', async () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureTextJob(supportCaseId);

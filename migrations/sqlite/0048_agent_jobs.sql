@@ -160,6 +160,42 @@ CREATE TABLE agent_job_egress_records (
 CREATE INDEX idx_agent_job_egress_job
   ON agent_job_egress_records (org_id, job_id, attempt, status);
 
+-- 결과 수락은 이 표에 한 행을 남긴다. BEFORE INSERT 트리거가 "그 순간 그 claim 이 살아
+-- 있는가" 를 검사하므로, 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 batch 전체가
+-- abort 된다 — 마스킹 스냅샷도 남지 않는다(R3 · S5 §2.2 원자 경계).
+CREATE TABLE agent_job_result_acceptances (
+  job_id           TEXT PRIMARY KEY REFERENCES agent_jobs (id),
+  attempt          INTEGER NOT NULL CHECK (attempt BETWEEN 1 AND 3),
+  claim_token_hash TEXT NOT NULL CHECK (length(claim_token_hash) = 64),
+  payload_sha256   TEXT NOT NULL CHECK (length(payload_sha256) = 64),
+  accepted_at      TEXT NOT NULL
+);
+
+CREATE TRIGGER agent_job_result_acceptances_live_claim_guard
+BEFORE INSERT ON agent_job_result_acceptances
+BEGIN
+  SELECT RAISE(ABORT, 'agent job result requires the live claim')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM agent_jobs AS job
+    WHERE job.id = NEW.job_id
+      AND job.state = 'leased'
+      AND job.claim_token_hash = NEW.claim_token_hash
+      AND job.attempt = NEW.attempt
+  );
+END;
+
+CREATE TRIGGER agent_job_result_acceptances_immutable
+BEFORE UPDATE ON agent_job_result_acceptances
+BEGIN
+  SELECT RAISE(ABORT, 'agent job result acceptances are immutable');
+END;
+
+CREATE TRIGGER agent_job_result_acceptances_no_delete
+BEFORE DELETE ON agent_job_result_acceptances
+BEGIN
+  SELECT RAISE(ABORT, 'agent job result acceptances are append-only');
+END;
+
 -- A v2 claim restarts unfinished v1 text leases at attempt zero. Completed history stays only in the
 -- append-only v1 source table and is not reprocessed.
 INSERT INTO agent_jobs (
