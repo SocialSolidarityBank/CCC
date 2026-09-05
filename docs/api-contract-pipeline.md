@@ -2,7 +2,7 @@
 
 이 문서는 처리 장비가 사례관리 API와 통신할 때 지켜야 하는 1단계-b 계약이다. 처리 장비는 D1과 R2에 직접 연결하지 않고, 항상 Workers API만 호출한다. (용어: 이 문서가 "Mac Mini"라 부르던 기계가 **처리 장비**다 — 2026-07-31 D51, CONTEXT.md 참조.)
 
-> `green` **반영됨 (2026-07-31 · D57·ADR-0027).** `GET /pipeline/jobs`는 여전히 `audio_r2_key IS NOT NULL`로 걸러 **녹음 일감만** 돌려준다. 오디오 없는 회차는 아래 '텍스트 일감' 큐가 맡는다 — 장비가 2차 마스킹만 하고, 사업자 호출은 Workers 가 스냅샷을 재료로 한다.
+> `green` **v2 로 전환됨 (2026-09-05 · E5-1a · S5).** 오디오와 텍스트는 `agent_jobs` 한 상태기계를 쓰고, 장비는 `POST /pipeline/jobs/claim` 으로만 일을 받는다. 계약 정본은 `docs/specs/S5-agent-job-contract-v2.md` 이고 이 문서는 운영 관점 요약이다. v1 의 `GET /pipeline/jobs`, `/pipeline/text-jobs/**`, service 용 `POST /sessions/:id/ai/source` 는 없앴다.
 
 ## 범위와 인증
 
@@ -25,130 +25,30 @@
 | `review_ready` | 전사, 대조 3종, 감정 지표, AI 산출물이 저장돼 상담사 검토를 기다린다. |
 | `approved` | 상담사가 승인해 AI 산출물이 공식 기록이 됐다. |
 
-`POST /pipeline/jobs/:id/result`는 마스킹 스냅샷과 숫자형 처리 메타데이터, 후속 AI 초안을 모두 저장한 뒤 `uploaded` 또는 `processing` 작업을 `review_ready`로 바꾼다. 같은 결과 재전송은 중복 저장이나 후속 AI 호출 없이 `204`를 돌려준다. AI 산출물은 실무자 승인 전까지 브리핑과 통계에 쓰이지 않는다.
+`POST /pipeline/jobs/:jobId/result`는 마스킹 스냅샷과 숫자형 처리 메타데이터, 후속 AI 초안을 모두 저장한 뒤 `uploaded` 또는 `processing` 작업을 `review_ready`로 바꾸고 작업을 `succeeded`로 닫는다. 같은 payload hash 재전송은 `resultId`가 달라도 중복 저장 없이 `204`이고, 다른 hash는 `409 result_conflict`다. AI 산출물은 실무자 승인 전까지 브리핑과 통계에 쓰이지 않는다.
 
-## 엔드포인트
+## 엔드포인트 (Agent 작업 계약 v2)
 
-### `GET /pipeline/jobs`
+전부 `service` 자격이 필요하고, claim 뒤의 모든 호출은 그 claim 의 `claimToken` 과 `attempt` 를 함께 보낸다. 본문이 없는 GET 은 `X-CCC-Job-Claim`·`X-CCC-Job-Attempt` 헤더로 자격을 싣는다 — URL 에는 토큰을 넣지 않는다. 오류 본문은 `{error, jobId, retryable}` 고정 형태이며 원문·PII·시크릿을 담지 않는다(S5 §2.6).
 
-`uploaded` 또는 `processing` 상태이며 오디오 등록이 있는 작업을 오래된 순서로 돌려준다. 호출할 때마다 감사 로그에 `poll_pipeline`이 기록된다. 이 감사 로그의 가장 최근 시각이 D8의 "처리 장비가 마지막으로 폴링한 시각" 데이터 원천이다. 아래 `GET /pipeline/health`와 스케줄 워치독이 이 기록을 기준으로 무폴링을 판정한다(기본 6시간, `PIPELINE_STALE_HOURS`로 조정).
+| method | path | 하는 일 |
+|---|---|---|
+| `POST` | `/pipeline/jobs/claim` | 오디오·텍스트 큐를 엄격히 교대로 섞어 임대한다. `limit` 은 2~50(생략 시 10). 호출 자체가 D8 폴링 신호(`poll_pipeline` 감사)다 |
+| `POST` | `/pipeline/jobs/:jobId/heartbeat` | 임대를 연장한다. 상한은 `min(now+15분, claimedAt+2시간, 처리 기한, 7일 절대 상한)` |
+| `POST` | `/pipeline/jobs/:jobId/release` | 종료 신호. `transient`(재큐잉, 3회까지) · `blocked`(NER 회복 대기, attempt 불변) · `permanent`(실패 코드 고정) |
+| `POST` | `/pipeline/jobs/:jobId/mask-dictionary` | 등록 PII 치환용 일회성 사전. 같은 claim·attempt 재전송은 만료 전까지 같은 응답, 그 밖에는 `dictionary_already_consumed` |
+| `GET` | `/pipeline/jobs/:jobId/source` | 텍스트 작업의 공식 원문(1차 치환 완료). `Cache-Control: no-store` |
+| `GET` | `/pipeline/jobs/:jobId/audio` | 원음 전달. Local 두 모드는 no-store 바이트 스트림, Community Cloud 는 signed GET 발급기(E6-3)가 붙기 전까지 `503` |
+| `POST` | `/pipeline/jobs/:jobId/audio/verify` | 스트림 재해시 결과를 저장한다. 업로드 시 주장 해시와 어긋나면 작업을 `audio_hash_mismatch` 로 닫고 외부 호출은 0건이다 |
+| `POST` | `/pipeline/jobs/:jobId/egress/authorize` | Azure 전송 허가. 외부 STT 동의 영역이 붙기 전(SG7·E4-6)까지 `consent_not_effective` 로 닫힌다 |
+| `POST` | `/pipeline/jobs/:jobId/egress/in-flight` | 전송 직전 at-most-once marker. 같은 tuple 의 `authorized` 행만 `in_flight` 로 바꾼다 |
+| `POST` | `/pipeline/jobs/:jobId/result` | 결과 제출. 성공은 본문 없는 `204` |
 
-응답 예시:
+claim 요청은 S6 attestation 과 E5-4 release 영수증을 함께 싣는다. 둘 중 하나가 없거나 만료·불일치면 상태를 바꾸지 않고 `local_ner_unavailable` 로 닫는다. STT 축이 `off` 이거나 승인 registry 에 없으면 `sttEngine` 이 `null` 이고 오디오 작업은 claim 되지 않는다(D77).
 
-```json
-{
-  "jobs": [
-    {
-      "id": "demo-session-001",
-      "caseId": "swallow-003",
-      "status": "uploaded",
-      "audioAvailable": true
-    }
-  ]
-}
-```
+결과 본문(`AudioResult`·`TextResult`)은 S6 metadata(`maskingPipelineVersion`·`maskingPipelineHash`·`nerAvailable`·attestation ID·결과 hash·release 영수증 ID)와 hash 3종(`sha256`, `evidenceHash`, `payloadSha256`)을 모두 운반한다. 오디오 결과는 `transcriptReliable`·`transcriptWarnings` 를 생략할 수 없다. `reason` 에는 고정 코드만 넣는다 — 자유 문장이나 전사 발췌는 2차 마스킹을 거치지 않으므로 거부한다(R3). 전화번호·이메일·주민번호·계좌형 값이 원형으로 남아 있으면 거부한다. 요약과 대조는 Workers 가 저장된 마스킹 스냅샷만 재료로 만든다.
 
-### `GET /pipeline/jobs/:id/audio`
-
-서비스 역할이 등록된 녹음 원본을 내려받는 중계 경로다(2단계-a 구현). 처리 장비에 R2 자격 증명이나 버킷 직접 접근 권한을 주지 않고, Workers가 R2에서 읽어 바이트만 흘려준다.
-
-- gateway가 서비스 역할·조직 일치·오디오 등록 여부를 확인한 뒤, 조회 직전 audit_log에 `download_audio`를 기록한다(D14: 오디오 열람은 전건 감사).
-- 성공하면 `200`으로 저장된 `Content-Type`(업로드 때 지정한 오디오 MIME)과 `Cache-Control: no-store` 헤더로 원본 바이트를 스트리밍한다. 응답에 `audio_r2_key`는 절대 싣지 않는다.
-- 등록은 됐지만 R2 객체가 없으면 `404`.
-
-```json
-{
-  "error": "audio_object_missing",
-  "jobId": "demo-session-001"
-}
-```
-
-- 서비스 역할이 아니면 `403`, 인증 정보가 없으면 `401`.
-
-음성 원본 30일 자동 삭제(스펙 2·5장)는 이 중계와 무관하게 `AUDIO_BUCKET`의 R2 lifecycle 규칙(계정 수준)으로 적용한다 — Cloudflare 계정 개설 후 설정한다.
-
-### `POST /pipeline/jobs/:id/result`
-
-처리 장비가 로컬에서 전사와 2차 NER 마스킹을 끝낸 뒤 호출한다. 등록된 PII 값의 1차 치환은 gateway 안에서 한 번 더 수행한다. 본문은 아래 필드를 모두 포함해야 한다.
-
-```json
-{
-  "maskedText": "NER 마스킹을 마친 전사",
-  "sha256": "마스킹된 본문의 SHA-256 해시",
-  "maskingPipelineVersion": "ner-mask-v1",
-  "evidence": [
-    {
-      "id": "불투명 근거 ID",
-      "sourceRef": "recording-transcript",
-      "sourceSha256": "마스킹된 본문의 SHA-256 해시",
-      "evidenceQuote": "NER 마스킹을 마친 전사",
-      "sourceStart": 0,
-      "sourceEnd": 16
-    }
-  ],
-  "emotionScores": {
-    "speech": 0.42,
-    "text": 0.71
-  },
-  "transcriptReliable": false,
-  "transcriptWarnings": [
-    { "startSeconds": 305.5, "endSeconds": 512.0, "reason": "repetition" }
-  ]
-}
-```
-
-- `emotionScores`에는 유한한 숫자와 숫자 배열 또는 객체만 넣는다. 감정 상태를 설명하는 문장은 넣지 않는다.
-- **전사 품질 구조화 필드 (CCC-124, 선택):** `transcriptReliable`(불리언)과 `transcriptWarnings`(배열)는 **함께만** 보낸다. 경고 항목은 `{startSeconds, endSeconds, reason}` 세 키만 갖는다 — `0 <= startSeconds < endSeconds`(유한 숫자), `reason`은 소문자로 시작하는 짧은 코드(소문자·숫자·`_`·`-`, 최대 64자, 예: `repetition`)다. 자유 문장이나 전사 발췌를 `reason`에 넣으면 `400`이다 — 이 필드는 2차 마스킹을 거치지 않으므로 전사 내용을 실으면 안 된다(R3). 두 필드를 생략한 결과는 레거시로 취급해 품질 미상(NULL)으로 저장한다. 신뢰 가능하면 `transcriptReliable: true` + 빈 배열을 보낸다. 저장된 값은 검토 화면용 `GET /sessions/:id/ai` 응답의 `transcriptQuality`로 노출된다.
-  - 하위 호환: 이 필드를 모르는 구버전 서버는 미지의 키로 `400`을 돌려준다. 처리 장비는 그 경우 경고 문장을 전사 텍스트에 도로 주입한 레거시 형식으로 1회 재전송한다(장비 쪽 폴백, `apps/pipeline/ccc_pipeline/worker.py`).
-- `evidence`는 최소 1건이고 `maskedText`의 정확한 구간과 같은 해시를 가리켜야 한다.
-- 전화번호, 이메일, 주민번호, 계좌형 값이 명백한 원형으로 남아 있으면 `400`으로 거부한다.
-- 요약과 대조는 Workers가 저장된 마스킹 스냅샷만 재료로 만들어 별도 초안에 저장한다. 처리 장비는 `aiSummary`, `aiSchema`, `flagProposals`, `gasEvidence`를 제출하지 않는다.
-- 같은 해시와 감정값을 다시 보내면 멱등 재생으로 처리한다. 이미 받은 결과와 다른 값은 `409`로 거부한다.
-- 성공하면 본문 없이 `204`를 응답한다. 형식이나 규칙이 맞지 않으면 `400`, 서비스 역할이 아니면 `403`을 응답한다.
-
-## 텍스트 일감 (D51 · D57 · ADR-0027 · D69 · ADR-0036 · CCC-120)
-
-사업자로 나갈 텍스트의 **2차 마스킹**을 장비에 맡기는 큐다(`ai_text_work_queue`, 마이그레이션 0029, 사유 확장 0034, 임대·완료 스냅샷 연결 0036). 기록이 공식화될 때마다(수기 저장 · AI 정리 승인) 한 행이 쌓이고, 목표가 확정·수정되면 그 참여 사업의 미승인 회차들이 다시 쌓인다(D69. 목표 문구도 마스킹을 거쳐야 나간다). 오디오가 있는 회차의 수기 메모도 대상이다. 장비는 오디오 큐와 같은 폴링에서 함께 가져간다. 셋 다 서비스 역할 전용이며, 아니면 `403`이다.
-
-### `GET /pipeline/text-jobs`
-
-처리할 수 있는 일감을 오래된 순으로 최대 50건 **임대와 함께** 돌려준다. 호출 자체가 D8 폴링 신호(`poll_pipeline` 감사)가 된다 — 무폴링 감시는 두 큐 합산이다.
-
-```json
-{ "jobs": [{ "id": "…", "sessionId": "…", "reason": "manual_record", "enqueuedAt": "…", "leaseExpiresAt": "…", "attemptCount": 1 }] }
-```
-
-`reason`은 `manual_record`(수기 저장, D5), `ai_draft_approved`(AI 정리 승인, R2), `goal_revised`(목표 확정·수정, D69) 셋 중 하나다. 장비 처리 방식은 셋이 같고, 사유는 왜 이 행이 생겼는지의 기록일 뿐이다.
-
-**폴링 = 임대다(0036 · CCC-120).** 목록에 나온 행은 그 순간 `pending → processing` 으로 바뀌고 호출한 장비(서비스 토큰 식별자)에게 임대된다. 같은 행이 두 장비에 동시에 나가지 않는다 — 다른 장비가 곧바로 폴링해도 임대 중인 행은 보이지 않는다. 임대가 `leaseExpiresAt`(현재 15분)을 넘기도록 완료되지 않으면 그 행은 다시 폴링에 노출되어 다른 장비로 넘어가고, 임대가 부여될 때마다 `attemptCount` 가 1씩 오른다(1 = 첫 시도). 자기 임대가 만료 전이라면 재폴링에 같은 행이 다시 나오지 않으므로, 받은 목록은 만료 전에 처리한다.
-
-`leaseExpiresAt` · `attemptCount` 는 응답 필드 **추가**라 구 장비 클라이언트는 몰라도 동작한다(모르는 필드는 무시하면 된다).
-
-**지금 처리할 수 있는 행만 나온다.** 아래 셋 중 하나라도 어긋나면 그 행은 목록에서 빠진다 — 큐는 삭제가 없어(0029), 실패할 행을 내보내면 매 폴링마다 같은 행에 걸려 영원히 쌓이기 때문이다. 조건이 갖춰지면 같은 행이 저절로 보인다.
-
-1. `TEXT_AI_PILOT_ENABLED` 가 켜져 있다.
-2. 그 참여 사업에 효력 중인 텍스트 AI 동의 근거(`pilot_text_ai_consent_evidence`)가 있다 — ② 동의를 기록하면 자동으로 생긴다(ADR-0027).
-3. 마스킹할 공식 텍스트가 있다(수기 메모 또는 승인된 AI 정리). 인테이크 회차는 `memo` 가 NULL 이라 승인된 정리가 생기기 전까지 여기서 걸린다.
-
-### `GET /pipeline/text-jobs/:id/source`
-
-장비가 마스킹할 원문을 돌려준다 — **1차 치환(등록 PII → 가명 ID)까지 끝낸** 공식 텍스트다(수기 메모 + 승인된 AI 정리). 1차 치환은 멱등이라 스냅샷 저장 시 다시 걸어도 해시가 어긋나지 않는다. PII 복호화 1건이 감사에 남는다(D14).
-
-회차 텍스트 앞에는 케이스 컨텍스트가 라벨 줄로 깔린다(D62 §7 · D69). 순서는 `[전체 목표]`, `[세부 목표]`(활성만), `[지원욕구 1순위]`, `[지원욕구 2순위]`, `[지원방향]`, `[회기 목표]`(이 회차가 완료로 닫은 일정의 것만)이고, 그 뒤에 회차 본문이 오며, 맨 끝에 워크인 회차의 폴백 자유 글 `[이번 상담에서 확인할 것]`이 붙는다. 값이 없는 구획은 라벨째 빠진다. 목표 문구도 여기 실려 장비 마스킹을 거친 뒤에만 사업자로 나간다(R3 · D57).
-
-```json
-{ "sessionId": "…", "text": "…" }
-```
-
-공식 텍스트가 하나도 없으면 `400`이다. 자기가 임대한 일감(또는 아직 임대되지 않은 대기 행)이 아니면 `403`이다 — 임대가 만료돼 다른 장비로 넘어간 뒤 옛 임대 주인이 부르는 경우도 여기 해당한다.
-
-### `POST /pipeline/text-jobs/:id/complete`
-
-스냅샷을 만든 뒤 호출한다. 성공하면 본문 없이 `204`. 완료 행은 불변이라 다시 완료할 수 없다(`403`). 원문 조회와 같은 임대 규칙이 적용된다 — 임대가 다른 장비로 넘어갔으면 `403`.
-
-장비는 이 사이에 기존 `POST /sessions/:id/ai/source`로 2차 마스킹 스냅샷을 올린다. **그 호출이 내용 불일치 검출을 돌린다** — 스냅샷이 없는 회차는 검출 재료가 되지 않기 때문이다(R3 · ADR-0027). 근거(`evidence`)는 최소 1건이 필요하므로, 발췌할 것이 따로 없는 텍스트 일감은 마스킹된 본문 전체를 한 조각으로 보낸다.
-
-**완료는 스냅샷과 연결된다(0036 · CCC-120).** 서버가 그 일감의 회차로 역추적해 가장 최근 마스킹 스냅샷을 `completed_snapshot_id` 로 연결한다 — 계약 순서상 완료 직전에 올린 스냅샷이 곧 이 일감의 산출물이다. 클라이언트는 스냅샷 ID 를 보낼 필요가 없어 구 장비 클라이언트도 요청 변경 없이 동작한다. 그 회차에 스냅샷이 하나도 없으면 완료를 거부한다(`400`) — 스냅샷을 올린 뒤에 부르라는 뜻이다.
+v2 는 `schemaVersion: 2` 하나만 받는다. `400` 을 payload 변환 신호로 해석하지 않으며, 경고 문장을 전사에 끼워 넣는 레거시 재전송은 없다(S5 §2.7).
 
 ### `GET /pipeline/health`
 

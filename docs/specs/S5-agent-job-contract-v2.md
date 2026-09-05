@@ -1,10 +1,11 @@
 # S5: 처리 Agent 작업 계약 v2
 
-- 상태: 확정 (2026-09-03)
+- 상태: 구현 검증 완료 (확정 2026-09-03 · E5-1a 검증 2026-09-05)
 - 근거: ADR-0041 D76~D82, ADR-0042 D84, ADR-0036, D8, D13, D57
 - 입력: `CCC_OPEN_PILOT_PLAN.md` SG5·E5-1a, `docs/specs/SPEC-TEMPLATE-and-S1-example.md`, `docs/adr/0041-one-core-three-deployment-modes.md`, `docs/api-contract-pipeline.md`, `apps/pipeline/ccc_pipeline/worker.py`, `migrations/sqlite/0036_text_work_lease.sql`
 - 산출: Agent가 Database·AudioStore를 직접 열지 않고 공통 API로 작업을 claim, 처리, 결과 제출하는 v2 계약. 구현 산출물은 E5-1a가 소유한다.
 - 관련 티켓: E5-1a, E5-1b, E5-2, E5-3, E5-5, E5-6, E6-3, E6-4
+- 구현 검증: `migrations/sqlite/0048_agent_jobs.sql`, `packages/contracts/src/agent-jobs.ts`, `packages/core/src/gateway.ts`(claim·heartbeat·release·source·mask dictionary·audio verify·egress·result), `packages/http-api/src/request-handler.ts` v2 라우트, `apps/pipeline`(claim 기반 워커). 실행 증거는 `apps/api/test/agent-job-contract.test.ts`, `apps/api/test/agent-job-contract.modes.test.ts`, `apps/pipeline/tests/`가 남긴다. Azure egress 실호출, Supabase signed GET 발급, DPAPI SecretStore는 여전히 E5-1b·E5-3·E6-3의 몫이다.
 
 ## 1. 목적
 
@@ -314,6 +315,8 @@ source는 text claim에만 허용되는 claim-bound `GET /pipeline/jobs/:jobId/s
 | `pending|leased|blocked` | consent withdrawal CAS | requiredConsent 중 하나라도 현재값 없음 | `cancelled` | `consent_not_effective`, claim credentials invalidated |
 | `leased` audio | verify | live claim·generation에 묶인 stream을 읽고 Agent hash를 저장 | `leased` with `rawAudioSha256` | hash mismatch면 `failed`, `terminalFailureCode='audio_hash_mismatch'`, SG8 `hash_mismatch`/`upload_abandoned` 삭제 조정, Azure/OpenAI 호출 0건 |
 | `leased` | result | token·attempt 일치, 임대 유효, 동의·S6 attestation·미만료 `NerReleaseQualificationReceipt` 재검증·payload 검증 통과 | `succeeded` | `stale_claim`, `consent_not_effective`, fail-closed code, `result_schema_invalid`, `result_conflict` |
+| `leased` | result 거부 | malformed S6 판정(`masking_snapshot_missing`·`registered_pii_detected`·`unmasked_identifier_detected`·`evidence_hash_mismatch`·`masking_pipeline_version_mismatch`·`route_mismatch`) | `failed`, `terminalFailureCode=code` | 같은 code 를 반환하고 열어 두지 않음 |
+| `leased` | result 거부 | `local_ner_unavailable`(S6 §4 재처리 가능) | 텍스트는 `blocked`·`attempt` 불변, 오디오는 `pending`(attempt 3이면 `failed`·`retry_exhausted`) | 오디오는 그 attempt 의 STT 를 이미 썼으므로 재처리는 새 attempt 로만 한다 |
 | `blocked` | health 회복 claim | 현재 S6 attestation과 미만료 `NerReleaseQualificationReceipt`가 `status='passed'`, `expiresAt > now` | `leased`, `attempt` 불변 | 여전히 부적합하면 `local_ner_unavailable` |
 | `leased` | heartbeat | token·attempt 일치, `now < leaseExpiresAt` | `leased` | 만료면 `lease_expired` |
 | `leased` | release transient | token·attempt 일치, live lease, `reason=engine_unavailable` | `pending` 또는 `failed` | attempt 3이면 `retry_exhausted` |

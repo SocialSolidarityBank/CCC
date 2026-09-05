@@ -1,46 +1,120 @@
-"""처리 장비가 Workers에 제출할 마스킹 완료 결과 계약."""
+"""Agent 가 제출하는 v2 결과 payload (S5 §2.1).
+
+hash 3종을 계약대로 계산한다: 본문 `sha256`, 근거 배열의 `evidenceHash`, 그리고
+`payloadSha256 = SHA-256(JCS({schemaVersion, attempt, result}))`. 서버가 같은 방식으로
+다시 계산해 대조하므로 canonical JSON 규칙(RFC 8785 부분집합)을 여기서 지킨다.
+"""
 
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from typing import Any
 
+SCHEMA_VERSION = 2
 
-def build_recording_result(
-    masked_transcript: str,
-    emotion_scores: dict[str, float],
+
+def _canonical_number(value: float) -> float | int:
+    """JSON.stringify 와 같은 표기로 맞춘다 — 1.0 은 `1` 이어야 해시가 일치한다.
+
+    Python 과 JS 는 지수 표기 경계가 달라(`1e-06` vs `0.000001`) 그 범위에서는 같은 값이
+    다른 문자열이 된다. ECMAScript 숫자 표기를 재구현하는 대신 그 범위를 거부한다 —
+    조용한 hash 불일치보다 시끄러운 실패가 낫다. 상담 시간 구간은 이 범위에 들지 않는다.
+    """
+    if float(value).is_integer():
+        return int(value)
+    if "e" in repr(float(value)):
+        raise ValueError("canonical JSON number is outside the interoperable range")
+    return value
+
+
+def _canonical(value: Any) -> Any:
+    if isinstance(value, bool) or value is None or isinstance(value, str):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return _canonical_number(value)
+    if isinstance(value, list):
+        return [_canonical(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonical(value[key]) for key in sorted(value)}
+    raise TypeError("canonical JSON value is invalid")
+
+
+def canonical_json(value: Any) -> str:
+    return json.dumps(_canonical(value), separators=(",", ":"), ensure_ascii=False, sort_keys=True)
+
+
+def sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def canonical_sha256(value: Any) -> str:
+    return sha256_hex(canonical_json(value))
+
+
+def build_result(
+    kind: str,
+    masked_text: str,
+    *,
     masking_pipeline_version: str,
+    masking_pipeline_hash: str,
+    ner_attestation: dict[str, str],
+    release_qualification_receipt_id: str,
+    source_ref: str,
+    emotion_scores: dict[str, float] | None = None,
     transcript_reliable: bool | None = None,
     transcript_warnings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """자리표시 AI 산출물 없이 마스킹된 원천과 숫자형 감정값만 조립한다.
-
-    CCC-124: 전사 품질은 텍스트에 경고 문장을 끼워 넣는 대신 구조화 필드로 싣는다.
-    `transcript_reliable=None` 이면 구조화 필드를 아예 넣지 않는다 — 구조화 필드를
-    모르는 구 서버(`requireOnlyKeys` 가 미지의 키를 400 으로 거부한다)에 보내는
-    레거시 페이로드가 이 모양이다.
-    """
-    if masked_transcript.strip() == "":
-        raise ValueError("masked transcript must not be empty")
-    if transcript_reliable is None and transcript_warnings:
-        raise ValueError("transcript warnings require an explicit reliability flag")
-    digest = hashlib.sha256(masked_transcript.encode("utf-8")).hexdigest()
+    """마스킹된 본문 하나를 결과 1건으로 조립한다. 근거는 본문 전체 한 조각이다."""
+    if masked_text.strip() == "":
+        raise ValueError("masked text must not be empty")
+    if kind not in ("audio", "text"):
+        raise ValueError("result kind is invalid")
+    digest = sha256_hex(masked_text)
+    evidence = [{
+        "id": str(uuid.uuid4()),
+        "sourceRef": source_ref,
+        "sourceSha256": digest,
+        "evidenceQuote": masked_text,
+        "sourceStart": 0,
+        "sourceEnd": len(masked_text),
+    }]
     result: dict[str, Any] = {
-        "maskedText": masked_transcript,
+        "kind": kind,
+        "maskedText": masked_text,
         "sha256": digest,
         "maskingPipelineVersion": masking_pipeline_version,
-        "evidence": [{
-            "id": str(uuid.uuid4()),
-            "sourceRef": "recording-transcript",
-            "sourceSha256": digest,
-            "evidenceQuote": masked_transcript,
-            "sourceStart": 0,
-            "sourceEnd": len(masked_transcript),
-        }],
-        "emotionScores": emotion_scores,
+        "maskingPipelineHash": masking_pipeline_hash,
+        "nerAvailable": True,
+        "nerAttestationId": ner_attestation["id"],
+        "nerAttestationResultHash": ner_attestation["resultHash"],
+        "releaseQualificationReceiptId": release_qualification_receipt_id,
+        "evidenceHash": canonical_sha256(evidence),
+        "evidence": evidence,
     }
-    if transcript_reliable is not None:
+    if kind == "audio":
+        if transcript_reliable is None:
+            raise ValueError("audio results require a transcript reliability flag")
+        result["emotionScores"] = emotion_scores or {}
         result["transcriptReliable"] = transcript_reliable
         result["transcriptWarnings"] = list(transcript_warnings or [])
     return result
+
+
+def build_result_request(claim_token: str, attempt: int, result: dict[str, Any]) -> dict[str, Any]:
+    """결과를 claim 자격과 payload hash 로 감싼다. 같은 hash 재전송은 서버에서 멱등이다."""
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "claimToken": claim_token,
+        "attempt": attempt,
+        "resultId": str(uuid.uuid4()),
+        "payloadSha256": canonical_sha256({
+            "schemaVersion": SCHEMA_VERSION,
+            "attempt": attempt,
+            "result": result,
+        }),
+        "result": result,
+    }

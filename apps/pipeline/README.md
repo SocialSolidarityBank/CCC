@@ -1,8 +1,13 @@
 # ccc-pipeline — 처리 장비(회사 노트북) 파이프라인 클라이언트
 
-상담 녹음을 Workers API에서 받아 전사·화자 분리·감정 분석(D64 보류)·2차 PII 마스킹을 수행하고
-결과를 다시 API로 보내는 폴링 클라이언트다. CLAUDE.md §5 파이프라인 스펙과
-`docs/api-contract-pipeline.md` 계약을 그대로 따른다.
+상담 녹음과 수기 텍스트를 공통 API 에서 claim 해 전사·화자 분리·감정 분석(D64 보류)·2차 PII
+마스킹을 수행하고 결과를 다시 API로 보내는 클라이언트다. 계약 정본은
+`docs/specs/S5-agent-job-contract-v2.md`(운영 요약은 `docs/api-contract-pipeline.md`)이고
+CLAUDE.md §5 파이프라인 스펙을 따른다.
+
+- **작업은 claim 으로만 받는다(S5)** — `POST /pipeline/jobs/claim` 한 번이 오디오·텍스트를 섞어
+  임대하고, 이후 모든 호출은 그 `claimToken`·`attempt` 를 함께 보낸다. 한 claim 은 성공 `result`
+  또는 실패 `release` 를 정확히 한 번만 수행한다. `400` 을 payload 변환 신호로 읽지 않는다
 
 - 처리 장비는 R2·D1에 직접 접근하지 않는다 — Workers API만 호출한다 (D13)
 - 인증은 실행 모드별로 분리한다: Preview는 `CCC_PREVIEW_E2E_ACCESS_CODE`, 운영은
@@ -34,8 +39,8 @@ ccc_pipeline/
   emotion.py         감정 점수 집계 (음성 0.3 + 텍스트 0.7 가중, R4, 순수 로직)
   masking.py         2차 PII 마스킹 — 정규식(전화·주민번호·이메일·계좌) + 질병명 사전(G3) + 선택적 NER (D2)
   condition_terms.py 질병명·진단명 사전 — 무엇을 일부러 뺐는지도 여기 적혀 있다 (G3)
-  results.py         POST /pipeline/jobs/:id/result 마스킹 결과 본문 조립
-  worker.py          폴링 루프 (작업 디렉터리 생성→처리→무조건 삭제)
+  results.py         v2 결과 payload 조립 — canonical JSON 과 hash 3종 (S5 §2.1)
+  worker.py          claim 루프 (claim→처리→result 또는 release, 작업 디렉터리는 무조건 삭제)
 tests/               표준 라이브러리 unittest — ML 설치 없이 실행 가능
 systemd/             WSL2 자동 시작 유닛
 ```
@@ -74,6 +79,8 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_CONDITION_NER_MODEL_ID` | | (없음) | 질병명 NER(G3). 미설정이면 사전 계층만 동작하고 **진행한다** — 인명과 달리 사전이 주 계층이다 |
 | `CCC_CONDITION_NER_LABELS` | | `DS,DISEASE,SYMPTOM,CV_DISEASE,TRM` | 위 모델의 질병 라벨 접두. 대조 규칙은 인명과 같다 |
 | `HF_TOKEN` | pyannote 사용 시 | — | Hugging Face 토큰(게이트 모델) |
+| `CCC_NER_ATTESTATION` | **필수** | 없음 | S5 claim 이 요구하는 S6 NER attestation JSON(`id`·`modelId`·`modelRevision`·`labelSetHash`·`corpusHash`·`resultHash`·`validatedAt`·`expiresAt`·`status:"passed"`). 모양이 어긋나면 기동하지 않는다 |
+| `CCC_NER_RELEASE_RECEIPT_ID` | **필수** | 없음 | E5-4 가 발급한 release qualification 영수증 ID. 서버가 만료·해시 일치를 확인하고, 어긋나면 claim 이 `local_ner_unavailable` 로 닫힌다 |
 | `CCC_RUNTIME_ENVIRONMENT` | **필수** | 없음 | 실행 환경. `preview` 또는 `production`을 반드시 명시하며, 인증·API URL·백업 목적지가 모두 같은 환경이어야 한다 |
 | `CCC_ORIGINAL_BACKUP_ENABLED` | | `off` | 원본 녹음 선택형 백업. 승인된 정책과 adapter가 생기기 전에는 켜지 않는다 |
 | `CCC_ORIGINAL_BACKUP_ENVIRONMENT` | 백업 ON | 없음 | 백업 정책 환경. 실행 환경과 정확히 같아야 한다 |

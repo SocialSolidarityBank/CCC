@@ -12,6 +12,7 @@
     "./capabilities": "./src/capabilities.ts",
     "./install-manifest": "./src/install-manifest.ts",
     "./guards": "./src/guards.ts",
+    "./agent-jobs": "./src/agent-jobs.ts",
     "./sql": "./src/sql.ts"
   }
 }

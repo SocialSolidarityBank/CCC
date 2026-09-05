@@ -29,9 +29,11 @@ function parseSigningKeys(raw: string | undefined): Record<string, string> {
   return parsed as Record<string, string>;
 }
 
-export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ manifest: CapabilityManifest; installationId: string }> {
-  // Agent 는 403 (S2 §2.8). 사람 역할 판정보다 먼저라 manifest 유무를 Agent 에게 알리지 않는다.
-  const agentStatus = await getAgentStatusForCapabilities(env, actor);
+/**
+ * 서버가 믿는 설치 사실 하나. 검증에 실패하면 이 값을 쓰는 모든 경로가 함께 닫힌다.
+ * `GET /capabilities` 와 Agent claim 의 route·engine 판정이 같은 정본을 읽는다.
+ */
+export async function verifiedInstallManifest(env: ApiEnv) {
   if (env.CCC_INSTALL_MANIFEST === undefined) throw new CapabilitiesUnavailableError('install manifest missing');
   let raw: unknown;
   try {
@@ -39,12 +41,20 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ ma
   } catch {
     throw new CapabilitiesUnavailableError('install manifest malformed');
   }
-  let installManifest;
   try {
-    installManifest = await verifySignedInstallManifest(raw, { publicKeys: parseSigningKeys(env.CCC_INSTALL_SIGNING_KEYS), now: new Date() });
+    return await verifySignedInstallManifest(raw, {
+      publicKeys: parseSigningKeys(env.CCC_INSTALL_SIGNING_KEYS),
+      now: new Date(),
+    });
   } catch (error) {
     throw new CapabilitiesUnavailableError(error instanceof Error ? error.message : 'install manifest invalid');
   }
+}
+
+export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ manifest: CapabilityManifest; installationId: string }> {
+  // Agent 는 403 (S2 §2.8). 사람 역할 판정보다 먼저라 manifest 유무를 Agent 에게 알리지 않는다.
+  const agentStatus = await getAgentStatusForCapabilities(env, actor);
+  const installManifest = await verifiedInstallManifest(env);
   const requestedStt = env.CCC_STT_MODE ?? 'off';
   const requestedLlm = env.CCC_LLM_MODE ?? 'off';
   const llmKeyPresent = (env.CODEX_API_KEY?.trim().length ?? 0) > 0 || env.AI_PROVIDER_ADAPTER !== undefined;

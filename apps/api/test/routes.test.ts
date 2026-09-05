@@ -13,6 +13,7 @@ import {
   setSupportCaseOverallGoal,
   updateParticipantPii,
   createParticipantInvite,
+  enqueueTextWorkItem,
 } from '@ccc/core/gateway';
 import {
   AI_PROVIDER_REGISTRY_VERSION,
@@ -29,7 +30,9 @@ import {
   type AiProviderTestAdapter,
 } from '@ccc/ai-runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
+import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { setupD1 } from './support/d1';
+import { agentManifestEnv, claimOverHttp } from './support/agent-jobs';
 
 const counselorHeaders = {
   'content-type': 'application/json',
@@ -43,6 +46,13 @@ const unassignedCounselorHeaders = {
   'X-CCC-User-Id': 'unassigned.routes@example.invalid',
   'X-CCC-Org-Id': 'org_demo',
   'X-CCC-Role': 'counselor',
+};
+
+/** 텍스트 작업을 올리는 담당 실무자 — recordSource 가 회차를 큐에 넣을 때 쓴다. */
+const routeCounselor = {
+  userId: 'counselor.routes@example.invalid',
+  orgId: 'org_demo',
+  role: 'counselor' as const,
 };
 
 const serviceHeaders = {
@@ -217,7 +227,19 @@ async function sourceBody(maskedText = MASKED_TEXT, evidenceId = 'source-evidenc
   };
 }
 
-type SourceRequestBody = Awaited<ReturnType<typeof sourceBody>>;
+interface SourceRequestBody {
+  maskedText: string;
+  sha256: string;
+  maskingPipelineVersion: string;
+  evidence: Array<{
+    id: string;
+    sourceRef: string;
+    sourceSha256: string;
+    evidenceQuote: string;
+    sourceStart: number;
+    sourceEnd: number;
+  }>;
+}
 
 
 interface FixtureOptions {
@@ -289,19 +311,81 @@ async function recordPilotConsent(env: ApiEnv, caseId: string): Promise<Response
   return response;
 }
 
+/**
+ * 마스킹 스냅샷은 v2 에서 텍스트 작업 결과로만 들어온다 (S5). 회차에 열린 텍스트 작업을
+ * 만들고 claim 한 뒤 결과를 제출한다 — 본문 검증은 실제 라우트가 그대로 수행한다.
+ */
 async function recordSource(
   env: ApiEnv,
   sessionId: string,
   body?: Record<string, unknown>,
   headers: HeadersInit = serviceHeaders,
 ): Promise<Response> {
-  return worker.fetch(new Request(`http://localhost/sessions/${sessionId}/ai/source`, {
+  const source = body ?? await sourceBody();
+  const agentEnv = await agentManifestEnv(env);
+  const scope = await t.db.prepare('SELECT org_id FROM sessions WHERE id = ?')
+    .bind(sessionId).first<{ org_id: string }>();
+  if (scope === null) throw new Error('expected a session row');
+  await enqueueTextWorkItem(
+    agentEnv,
+    { ...routeCounselor, orgId: scope.org_id },
+    sessionId,
+    'manual_record',
+  );
+  // claim 주체는 결과를 보낼 주체와 같아야 한다(임대 주인 검사). 사람 actor 로 부르는
+  // 거부 표에서는 기본 service 자격으로 claim 하고 요청만 그 actor 로 보낸다.
+  const requestHeaders = new Headers(headers);
+  const claimHeaders = requestHeaders.get('X-CCC-Role') === 'service'
+    ? {
+      'content-type': 'application/json',
+      'X-CCC-User-Id': requestHeaders.get('X-CCC-User-Id') ?? '',
+      'X-CCC-Org-Id': requestHeaders.get('X-CCC-Org-Id') ?? '',
+      'X-CCC-Role': 'service',
+    }
+    : serviceHeaders;
+  const { jobs, qualification } = await claimOverHttp(agentEnv, t.db, claimHeaders);
+  const claimed = jobs.find((candidate) => candidate.kind === 'text' && candidate.sessionId === sessionId);
+  // 이미 결과가 수락된 회차에는 claim 할 작업이 없다. 자격 거부 표는 그 상태에서도
+  // 같은 endpoint 를 두드려야 하므로 마지막 작업 ID 로 요청만 보낸다.
+  const fallback = claimed === undefined
+    ? await t.db.prepare(
+      `SELECT id FROM agent_jobs WHERE session_id = ? AND kind = 'text'
+       ORDER BY enqueued_at DESC, id DESC LIMIT 1`,
+    ).bind(sessionId).first<{ id: string }>()
+    : null;
+  const job = claimed ?? (fallback === null
+    ? undefined
+    : { jobId: fallback.id, claimToken: '0'.repeat(64), attempt: 1 });
+  if (job === undefined) throw new Error('expected a claimable text job');
+  const evidence = Array.isArray((source as { evidence?: unknown }).evidence)
+    ? (source as { evidence: unknown[] }).evidence
+    : [];
+  const result = {
+    kind: 'text',
+    ...source,
+    maskingPipelineHash: 'd'.repeat(64),
+    nerAvailable: true,
+    nerAttestationId: qualification.attestation.id,
+    nerAttestationResultHash: qualification.attestation.resultHash,
+    releaseQualificationReceiptId: qualification.receiptId,
+    evidenceHash: await sha256Hex(canonicalizeJcs(evidence)),
+  };
+  const attempt = job.attempt;
+  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body ?? await sourceBody()),
-  }), env);
+    body: JSON.stringify({
+      schemaVersion: 2,
+      claimToken: job.claimToken,
+      attempt,
+      resultId: crypto.randomUUID(),
+      payloadSha256: await sha256Hex(canonicalizeJcs({ schemaVersion: 2, attempt, result })),
+      result,
+    }),
+  }), agentEnv);
 }
 
+/** 결과가 만든 스냅샷을 되읽어 초안 생성 재료 참조를 만든다. */
 async function recordSourceSnapshot(
   env: ApiEnv,
   sessionId: string,
@@ -309,9 +393,23 @@ async function recordSourceSnapshot(
   headers: HeadersInit = serviceHeaders,
 ): Promise<SourceReceipt> {
   const response = await recordSource(env, sessionId, body ?? await sourceBody(), headers);
-  expect(response.status).toBe(201);
-  return response.json() as Promise<SourceReceipt>;
+  expect(response.status, await response.clone().text()).toBe(204);
+  const snapshot = await t.db.prepare(
+    `SELECT id, sha256, masking_pipeline_version FROM ai_masked_source_snapshots
+     WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+  ).bind(sessionId).first<{ id: string; sha256: string; masking_pipeline_version: string }>();
+  if (snapshot === null) throw new Error('expected a masked source snapshot');
+  const items = await t.db.prepare(
+    'SELECT id FROM ai_masked_source_evidence_items WHERE snapshot_id = ? ORDER BY source_start, id',
+  ).bind(snapshot.id).all<{ id: string }>();
+  return {
+    sourceSnapshotId: snapshot.id,
+    sha256: snapshot.sha256,
+    maskingPipelineVersion: snapshot.masking_pipeline_version,
+    evidenceIds: items.results.map((item) => item.id),
+  };
 }
+
 
 async function generateDraft(
   env: ApiEnv,
@@ -724,13 +822,26 @@ describe('API routes', () => {
     const sessions = await sessionsResponse.json() as Array<Record<string, unknown>>;
     expect(sessions[0]).not.toHaveProperty('audioR2Key');
 
-    const jobsResponse = await worker.fetch(new Request('http://localhost/pipeline/jobs', { headers: serviceHeaders }), env);
-    expect(jobsResponse.status).toBe(200);
-    await expect(jobsResponse.json()).resolves.toEqual({ jobs: [expect.objectContaining({ id: session.id })] });
+    // 오디오 작업은 claim 으로만 보이고, 전달도 그 claim 에 묶인다 (S5).
+    const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+    const { jobs } = await claimOverHttp(agentEnv, t.db, serviceHeaders);
+    const audioJob = jobs.find((job) => job.kind === 'audio' && job.sessionId === session.id);
+    if (audioJob === undefined) throw new Error('expected a claimable audio job');
+    expect(audioJob.audio?.delivery).toBe('api-stream');
 
-    const audioResponse = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${session.id}/audio`, { headers: serviceHeaders }), env);
+    const audioResponse = await worker.fetch(new Request(`http://localhost/pipeline/jobs/${audioJob.jobId}/audio`, {
+      headers: {
+        ...serviceHeaders,
+        'X-CCC-Job-Claim': audioJob.claimToken,
+        'X-CCC-Job-Attempt': String(audioJob.attempt),
+      },
+    }), agentEnv);
     expect(audioResponse.status).toBe(404);
-    await expect(audioResponse.json()).resolves.toEqual({ error: 'audio_object_missing', jobId: session.id });
+    await expect(audioResponse.json()).resolves.toEqual({
+      error: 'audio_object_missing',
+      jobId: audioJob.jobId,
+      retryable: false,
+    });
 
   });
 
@@ -738,18 +849,13 @@ describe('API routes', () => {
     const { adapter, caseRecord, env, session } = await setupPhase1AiFixture();
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
 
-    const sourceResponse = await recordSource(env, session.id);
-    expect(sourceResponse.status).toBe(201);
-    const receipt = await sourceResponse.json() as SourceReceipt;
+    const receipt = await recordSourceSnapshot(env, session.id);
     expect(receipt).toEqual({
       sourceSnapshotId: expect.any(String),
       sha256: await sha256Hex(MASKED_TEXT),
       maskingPipelineVersion: 'local-ner-v1',
       evidenceIds: ['source-evidence-1'],
     });
-    const sourceResponseText = JSON.stringify(receipt);
-    expect(sourceResponseText).not.toContain(MASKED_TEXT);
-    expect(sourceResponseText).not.toContain('memo:source-1');
 
     const generatedResponse = await generateDraft(env, session.id, receipt.sourceSnapshotId);
     expect(generatedResponse.status).toBe(201);
@@ -1035,16 +1141,23 @@ describe('API routes', () => {
   });
 
   it('rejects malformed source integrity before provider work and row insertion', async () => {
+    // v2 는 계약 hash 불일치를 고정 code(422)로, 본문 모양 오류를 400 으로 가른다(S5 §2.6).
     const malformedSources: Array<{
       name: string;
+      status: number;
+      error: string;
       makeBody: (source: SourceRequestBody) => Record<string, unknown>;
     }> = [
       {
         name: 'snapshot hash mismatch',
+        status: 422,
+        error: 'result_schema_invalid',
         makeBody: (source) => ({ ...source, sha256: '0'.repeat(64) }),
       },
       {
         name: 'evidence hash mismatch',
+        status: 422,
+        error: 'evidence_hash_mismatch',
         makeBody: (source) => ({
           ...source,
           evidence: [{ ...source.evidence[0]!, sourceSha256: 'f'.repeat(64) }],
@@ -1052,6 +1165,8 @@ describe('API routes', () => {
       },
       {
         name: 'evidence quote mismatch',
+        status: 400,
+        error: 'invalid_request',
         makeBody: (source) => ({
           ...source,
           evidence: [{ ...source.evidence[0]!, evidenceQuote: 'different masked quote' }],
@@ -1059,6 +1174,8 @@ describe('API routes', () => {
       },
       {
         name: 'negative evidence span',
+        status: 400,
+        error: 'invalid_request',
         makeBody: (source) => ({
           ...source,
           evidence: [{ ...source.evidence[0]!, sourceStart: -1 }],
@@ -1066,6 +1183,8 @@ describe('API routes', () => {
       },
       {
         name: 'out-of-bounds evidence span',
+        status: 400,
+        error: 'invalid_request',
         makeBody: (source) => ({
           ...source,
           evidence: [{
@@ -1077,14 +1196,20 @@ describe('API routes', () => {
       },
       {
         name: 'missing masking pipeline version',
+        status: 400,
+        error: 'invalid_request',
         makeBody: ({ maskingPipelineVersion: _maskingPipelineVersion, ...source }) => source,
       },
       {
         name: 'unsupported masking pipeline field',
+        status: 400,
+        error: 'invalid_request',
         makeBody: (source) => ({ ...source, maskingPipeline: 'local-ner-v1' }),
       },
       {
         name: 'unsupported masking pipeline version',
+        status: 400,
+        error: 'invalid_request',
         makeBody: (source) => ({ ...source, maskingPipelineVersion: 'local/ner-v1' }),
       },
     ];
@@ -1095,8 +1220,8 @@ describe('API routes', () => {
 
       const response = await recordSource(env, session.id, malformed.makeBody(await sourceBody()));
 
-      expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
+      expect(response.status, malformed.name).toBe(malformed.status);
+      await expect(response.json()).resolves.toMatchObject({ error: malformed.error });
       expect(adapter.calls).toBe(0);
       expect(await phase1MutableRowCounts()).toEqual({
         sourceSnapshots: 0,
@@ -1568,6 +1693,7 @@ describe('API routes', () => {
       name: string;
       expectedStatus: number;
       expectedError: string;
+      expectedBody?: Record<string, unknown>;
       request: () => Promise<Response>;
     }> = [
       {
@@ -1580,24 +1706,33 @@ describe('API routes', () => {
         name: 'source admin',
         expectedStatus: 403,
         expectedError: 'forbidden',
+        // v2 오류 본문. 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다(S5 §2.6).
+        expectedBody: { error: 'forbidden', jobId: null, retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), adminHeaders),
       },
       {
         name: 'source assigned counselor',
         expectedStatus: 403,
         expectedError: 'forbidden',
+        // v2 오류 본문. 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다(S5 §2.6).
+        expectedBody: { error: 'forbidden', jobId: null, retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), counselorHeaders),
       },
       {
         name: 'source unassigned counselor',
         expectedStatus: 403,
         expectedError: 'forbidden',
+        // v2 오류 본문. 역할 거부는 작업을 찾기 전에 나므로 jobId 는 비어 있다(S5 §2.6).
+        expectedBody: { error: 'forbidden', jobId: null, retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), unassignedCounselorHeaders),
       },
       {
         name: 'source cross-org service',
-        expectedStatus: 403,
-        expectedError: 'forbidden',
+        // 다른 기관의 service 에게 이 작업은 존재하지 않는다(org 경계, S5 §2.6).
+        expectedStatus: 404,
+        expectedError: 'job_not_found',
+        // v2 오류 본문은 code 외에 jobId·retryable 만 싣는다(S5 §2.6).
+        expectedBody: { error: 'job_not_found', jobId: expect.any(String), retryable: false },
         request: async () => recordSource(env, session.id, await sourceBody(), otherOrgServiceHeaders),
       },
       {
@@ -1715,7 +1850,7 @@ describe('API routes', () => {
         response.status,
         `${denial.name} (body=${mismatchBody} draftVersion=${draft.version} evidenceId=${evidenceId})`,
       ).toBe(denial.expectedStatus);
-      await expect(response.json()).resolves.toEqual({ error: denial.expectedError });
+      await expect(response.json()).resolves.toEqual(denial.expectedBody ?? { error: denial.expectedError });
       expect(adapter.calls).toBe(callsBefore);
       expect(await phase1MutableRowCounts()).toEqual(baselineRows);
       expect(await sessionAiState(session.id)).toEqual(baselineSessionState);

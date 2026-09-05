@@ -73,7 +73,8 @@ import {
   getParticipantBasicInfo,
   getParticipantBriefing,
   getParticipantGoalTree,
-  getPipelineAudioKey,
+  closeAgentJobAudioObjectMissing,
+  getAgentJobAudioDelivery,
   getPipelineHealth,
   getMyIdentity,
   getLastProgramType,
@@ -91,10 +92,17 @@ import {
   listCounselorAssignments,
   listMySupportCaseAssignmentRequests,
   listGoals,
-  listPipelineJobs,
-  listTextWorkItems,
-  getTextWorkItemSource,
-  completeTextWorkItem,
+  claimAgentJobs,
+  heartbeatAgentJob,
+  releaseAgentJob,
+  getAgentJobSource,
+  issueAgentJobMaskDictionary,
+  verifyAgentJobAudio,
+  authorizeAgentJobEgress,
+  markAgentJobEgressInFlight,
+  acceptAgentJobResult,
+  AgentJobContractError,
+  type AgentRuntime,
   claimRecordingResultDownstream,
   commitRecordingResult,
   enqueueTextWorkForGoalChange,
@@ -115,7 +123,6 @@ import {
   markCounselingScheduleNoShow,
   PiiPurgeDisabledError,
   recordAiCallOutcome,
-  recordMaskedSourceSnapshot,
   recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   registerRecording,
@@ -171,7 +178,18 @@ import {
   validateDiscrepancyDetectionRequest,
 } from '@ccc/ai-runtime';
 import { type ApiEnv } from './identity';
-import { buildCapabilities, CapabilitiesUnavailableError } from './capabilities';
+import { buildCapabilities, CapabilitiesUnavailableError, verifiedInstallManifest } from './capabilities';
+import {
+  jobErrorHttpStatus,
+  routeForMode,
+  type AudioVerifyRequest,
+  type ClaimRequest,
+  type EgressAuthorizationRequest,
+  type EgressInFlightRequest,
+  type PermanentReleaseReason,
+  type ReleaseRequest,
+  type ResultRequest,
+} from '@ccc/contracts/agent-jobs';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
 import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
@@ -1453,27 +1471,9 @@ function parseMaskedSourceSnapshot(body: JsonObject) {
   };
 }
 
-function parseRecordingResult(body: JsonObject) {
-  requireOnlyKeys(body, [
-    'maskedText', 'sha256', 'maskingPipelineVersion', 'evidence', 'emotionScores',
-    // 전사 품질 구조화 필드 (CCC-124). 없으면 레거시 파이프라인 결과다.
-    'transcriptReliable', 'transcriptWarnings',
-  ]);
-  const snapshot = parseMaskedSourceSnapshot({
-    maskedText: body.maskedText,
-    sha256: body.sha256,
-    maskingPipelineVersion: body.maskingPipelineVersion,
-    evidence: body.evidence,
-  });
-  const emotionScores = asObject(body.emotionScores);
-  if (!Object.hasOwn(body, 'transcriptReliable') && !Object.hasOwn(body, 'transcriptWarnings')) {
-    return { ...snapshot, emotionScores };
-  }
-  // 두 필드는 함께만 온다. 깊은 검증(시간 순서·사유 코드 형식)은 게이트웨이가 한다(R1).
-  if (typeof body.transcriptReliable !== 'boolean') {
-    throw new ValidationError('transcriptReliable must be a boolean');
-  }
-  const transcriptWarnings = objectArray(body.transcriptWarnings, 'transcriptWarnings').map((item) => {
+/** 전사 품질 구조화 필드 (CCC-124). 시간 구간과 고정 사유 코드만 받는다(R3). */
+function parseTranscriptWarnings(body: JsonObject) {
+  return objectArray(body.transcriptWarnings, 'transcriptWarnings').map((item) => {
     requireOnlyKeys(item, ['startSeconds', 'endSeconds', 'reason']);
     const startSeconds = item.startSeconds;
     const endSeconds = item.endSeconds;
@@ -1482,7 +1482,177 @@ function parseRecordingResult(body: JsonObject) {
     }
     return { startSeconds, endSeconds, reason: requiredString(item, 'reason') };
   });
-  return { ...snapshot, emotionScores, transcriptReliable: body.transcriptReliable, transcriptWarnings };
+}
+
+/** S5 MaskedSource. S6 metadata 와 근거 hash 는 선택이 아니라 필수다. */
+function parseAgentMaskedSource(body: JsonObject) {
+  const base = parseMaskedSourceSnapshot({
+    maskedText: body.maskedText,
+    sha256: body.sha256,
+    maskingPipelineVersion: body.maskingPipelineVersion,
+    evidence: body.evidence,
+  });
+  if (body.nerAvailable !== true) throw new ValidationError('nerAvailable must be true');
+  return {
+    ...base,
+    maskingPipelineHash: requiredString(body, 'maskingPipelineHash'),
+    nerAvailable: true as const,
+    nerAttestationId: requiredString(body, 'nerAttestationId'),
+    nerAttestationResultHash: requiredString(body, 'nerAttestationResultHash'),
+    releaseQualificationReceiptId: requiredString(body, 'releaseQualificationReceiptId'),
+    evidenceHash: requiredString(body, 'evidenceHash'),
+  };
+}
+
+const AGENT_MASKED_SOURCE_KEYS = [
+  'kind', 'maskedText', 'sha256', 'maskingPipelineVersion', 'maskingPipelineHash', 'nerAvailable',
+  'nerAttestationId', 'nerAttestationResultHash', 'releaseQualificationReceiptId', 'evidenceHash',
+  'evidence',
+];
+
+function parseAgentResultRequest(body: JsonObject): ResultRequest {
+  requireOnlyKeys(body, ['schemaVersion', 'claimToken', 'attempt', 'resultId', 'payloadSha256', 'result']);
+  // v2 는 schemaVersion 2 하나만 받는다. v1 payload fallback 은 없다(S5 §2.7).
+  if (body.schemaVersion !== 2) throw new ValidationError('schema version is invalid');
+  const raw = asObject(body.result);
+  const kind = requiredString(raw, 'kind');
+  if (kind !== 'audio' && kind !== 'text') throw new ValidationError('result kind is invalid');
+  requireOnlyKeys(
+    raw,
+    kind === 'audio'
+      ? [...AGENT_MASKED_SOURCE_KEYS, 'emotionScores', 'transcriptReliable', 'transcriptWarnings']
+      : AGENT_MASKED_SOURCE_KEYS,
+  );
+  const masked = parseAgentMaskedSource(raw);
+  const result = kind === 'audio'
+    ? {
+      ...masked,
+      kind: 'audio' as const,
+      emotionScores: asObject(raw.emotionScores),
+      transcriptReliable: requiredBoolean(raw, 'transcriptReliable'),
+      transcriptWarnings: parseTranscriptWarnings(raw),
+    }
+    : { ...masked, kind: 'text' as const };
+  return {
+    schemaVersion: 2,
+    claimToken: requiredString(body, 'claimToken'),
+    attempt: requiredInteger(body, 'attempt'),
+    resultId: requiredString(body, 'resultId'),
+    payloadSha256: requiredString(body, 'payloadSha256'),
+    result,
+  };
+}
+
+function parseClaimCredentials(body: JsonObject): { claimToken: string; attempt: number } {
+  requireOnlyKeys(body, ['claimToken', 'attempt']);
+  return { claimToken: requiredString(body, 'claimToken'), attempt: requiredInteger(body, 'attempt') };
+}
+
+/** claim 자격은 GET 에서도 필요하다. URL 에 토큰을 싣지 않고 헤더로만 받는다. */
+function claimCredentialsFromHeaders(request: Request): { claimToken: string; attempt: number } {
+  const claimToken = request.headers.get('x-ccc-job-claim');
+  const attempt = Number(request.headers.get('x-ccc-job-attempt'));
+  if (claimToken === null || claimToken.length === 0 || !Number.isInteger(attempt)) {
+    throw new ValidationError('claim credentials are required');
+  }
+  return { claimToken, attempt };
+}
+
+function parseClaimRequest(body: JsonObject): ClaimRequest {
+  const hasLimit = Object.hasOwn(body, 'limit');
+  requireOnlyKeys(body, hasLimit
+    ? ['limit', 'nerAttestation', 'releaseQualificationReceiptId']
+    : ['nerAttestation', 'releaseQualificationReceiptId']);
+  const attestation = asObject(body.nerAttestation);
+  requireOnlyKeys(attestation, [
+    'id', 'modelId', 'modelRevision', 'labelSetHash', 'corpusHash', 'resultHash',
+    'validatedAt', 'expiresAt', 'status',
+  ]);
+  if (attestation.status !== 'passed') throw new ValidationError('ner attestation status is invalid');
+  return {
+    ...(hasLimit ? { limit: requiredInteger(body, 'limit') } : {}),
+    nerAttestation: {
+      id: requiredString(attestation, 'id'),
+      modelId: requiredString(attestation, 'modelId'),
+      modelRevision: requiredString(attestation, 'modelRevision'),
+      labelSetHash: requiredString(attestation, 'labelSetHash'),
+      corpusHash: requiredString(attestation, 'corpusHash'),
+      resultHash: requiredString(attestation, 'resultHash'),
+      validatedAt: requiredCanonicalUtc(attestation, 'validatedAt'),
+      expiresAt: requiredCanonicalUtc(attestation, 'expiresAt'),
+      status: 'passed',
+    },
+    releaseQualificationReceiptId: requiredString(body, 'releaseQualificationReceiptId'),
+  };
+}
+
+function parseReleaseRequest(body: JsonObject): ReleaseRequest {
+  requireOnlyKeys(body, ['claimToken', 'attempt', 'outcome', 'reason']);
+  const credentials = parseClaimCredentials({ claimToken: body.claimToken, attempt: body.attempt });
+  const outcome = requiredString(body, 'outcome');
+  const reason = requiredString(body, 'reason');
+  if (outcome === 'transient' && reason === 'engine_unavailable') {
+    return { ...credentials, outcome: 'transient', reason: 'engine_unavailable' };
+  }
+  if (outcome === 'blocked' && reason === 'local_ner_unavailable') {
+    return { ...credentials, outcome: 'blocked', reason: 'local_ner_unavailable' };
+  }
+  if (outcome === 'permanent' && (PERMANENT_RELEASE_REASONS as readonly string[]).includes(reason)) {
+    return { ...credentials, outcome: 'permanent', reason: reason as PermanentReleaseReason };
+  }
+  throw new ValidationError('release outcome is invalid');
+}
+
+const PERMANENT_RELEASE_REASONS = [
+  'result_schema_invalid',
+  'masking_failed',
+  'consent_not_effective',
+  'audio_object_missing',
+  'audio_hash_mismatch',
+  'route_mismatch',
+  'permanent_failure',
+] as const;
+
+function parseAudioVerifyRequest(body: JsonObject): AudioVerifyRequest {
+  requireOnlyKeys(body, ['claimToken', 'attempt', 'generationId', 'agentComputedSha256']);
+  return {
+    ...parseClaimCredentials({ claimToken: body.claimToken, attempt: body.attempt }),
+    generationId: requiredString(body, 'generationId'),
+    agentComputedSha256: requiredString(body, 'agentComputedSha256'),
+  };
+}
+
+function parseEgressAuthorizationRequest(body: JsonObject): EgressAuthorizationRequest {
+  requireOnlyKeys(body, ['claimToken', 'attempt', 'rawAudioSha256', 'provider']);
+  if (body.provider !== 'azure') throw new ValidationError('provider is invalid');
+  return {
+    ...parseClaimCredentials({ claimToken: body.claimToken, attempt: body.attempt }),
+    rawAudioSha256: requiredString(body, 'rawAudioSha256'),
+    provider: 'azure',
+  };
+}
+
+function parseEgressInFlightRequest(body: JsonObject): EgressInFlightRequest {
+  requireOnlyKeys(body, ['egressAuthorizationId', 'claimToken', 'attempt']);
+  return {
+    ...parseClaimCredentials({ claimToken: body.claimToken, attempt: body.attempt }),
+    egressAuthorizationId: requiredString(body, 'egressAuthorizationId'),
+  };
+}
+
+/**
+ * claim 시점의 route·engine·오디오 전달 방식. 서명된 install manifest 가 유일한 근거다.
+ * 승인 registry 에 없는 STT 는 engine `null` 이고, 그러면 오디오 작업은 claim 되지 않는다(D77).
+ */
+async function resolveAgentRuntime(env: ApiEnv): Promise<AgentRuntime> {
+  const manifest = await verifiedInstallManifest(env);
+  const requested = env.CCC_STT_MODE === 'local' || env.CCC_STT_MODE === 'azure' ? env.CCC_STT_MODE : 'off';
+  const approved = manifest.approvedSttEngineIds.some((entry) => entry.mode === requested);
+  return {
+    route: routeForMode(manifest.mode),
+    sttEngine: requested === 'off' || !approved ? null : requested,
+    audioDelivery: manifest.mode === 'community-cloud' ? 'protected-get' : 'api-stream',
+  };
 }
 
 function parseAiDraftGeneration(body: JsonObject): { sourceSnapshotId: string } {
@@ -1984,6 +2154,13 @@ async function handleAudioUpload(
 
 function errorResponse(error: unknown): Response {
   if (error instanceof ActorAuthenticationError) return json({ error: 'actor_authentication_required' }, 401);
+  // S5 §2.6 고정 형태. 원문·PII·시크릿을 싣지 않는다.
+  if (error instanceof AgentJobContractError) {
+    return json(
+      { error: error.code, jobId: error.jobId, retryable: error.retryable },
+      jobErrorHttpStatus(error.code),
+    );
+  }
   if (error instanceof IdentityStoreUnavailableError) return json({ error: 'service_unavailable' }, 503);
   if (error instanceof ForbiddenError) return json({ error: 'forbidden' }, 403);
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
@@ -2703,18 +2880,6 @@ export async function handleRequest(
           transcriptQuality,
         });
       }
-      if (request.method === 'POST' && parts.length === 4 && parts[2] === 'ai' && parts[3] === 'source') {
-        const snapshot = await recordMaskedSourceSnapshot(env, actor, sessionId, parseMaskedSourceSnapshot(await requestBody(request)));
-        // 이제서야 이 회차가 2차 마스킹을 마친 재료를 갖는다 — 공식화 시점에 스킵됐던
-        // 불일치 검출을 여기서 돌린다(ADR-0027). 실패는 스킵이다(D8).
-        await runDiscrepancyDetection(env, actor, sessionId);
-        return json({
-          sourceSnapshotId: snapshot.id,
-          sha256: snapshot.sha256,
-          maskingPipelineVersion: snapshot.maskingPipelineVersion,
-          evidenceIds: snapshot.evidence.map((evidence) => evidence.id),
-        }, 201);
-      }
       if (request.method === 'POST' && parts.length === 4 && parts[2] === 'ai' && parts[3] === 'generate') {
         return json(aiDraftResponse(await generateAiDraft(env, actor, sessionId, await requestBody(request))), 201);
       }
@@ -2836,22 +3001,135 @@ export async function handleRequest(
       // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 기관만.
       return json(await getPipelineHealth(env, actor));
     }
-    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'jobs') {
-      return json({ jobs: await listPipelineJobs(env, actor) });
-    }
-    // 텍스트 일감 큐(D51 · ADR-0027) — 오디오 없는 회차의 2차 마스킹을 장비에 맡긴다.
-    if (parts[0] === 'pipeline' && parts[1] === 'text-jobs') {
-      if (request.method === 'GET' && parts.length === 2) {
-        return json({ jobs: await listTextWorkItems(env, actor) });
+    // Agent 작업 계약 v2 (S5). 모든 endpoint 가 service 자격과 live claim 을 요구한다.
+    if (parts[0] === 'pipeline' && parts[1] === 'jobs') {
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'claim') {
+        const runtime = await resolveAgentRuntime(env);
+        const claimed = await claimAgentJobs(env, actor, runtime, parseClaimRequest(await requestBody(request)));
+        return json(claimed, 200, { 'cache-control': 'no-store' });
       }
-      if (parts[2] !== undefined) {
-        const itemId = parts[2];
-        if (request.method === 'GET' && parts.length === 4 && parts[3] === 'source') {
-          return json(await getTextWorkItemSource(env, actor, itemId));
+      const jobId = parts[2];
+      if (jobId !== undefined && parts.length === 4) {
+        if (request.method === 'POST' && parts[3] === 'heartbeat') {
+          return json(await heartbeatAgentJob(env, actor, jobId, parseClaimCredentials(await requestBody(request))));
         }
-        if (request.method === 'POST' && parts.length === 4 && parts[3] === 'complete') {
-          await completeTextWorkItem(env, actor, itemId);
+        if (request.method === 'POST' && parts[3] === 'release') {
+          await releaseAgentJob(env, actor, jobId, parseReleaseRequest(await requestBody(request)));
           return new Response(null, { status: 204 });
+        }
+        if (request.method === 'GET' && parts[3] === 'source') {
+          const credentials = claimCredentialsFromHeaders(request);
+          const source = await getAgentJobSource(env, actor, jobId, credentials.claimToken, credentials.attempt);
+          return json(source, 200, { 'cache-control': 'no-store' });
+        }
+        if (request.method === 'POST' && parts[3] === 'mask-dictionary') {
+          const dictionary = await issueAgentJobMaskDictionary(
+            env,
+            actor,
+            jobId,
+            parseClaimCredentials(await requestBody(request)),
+          );
+          return json(dictionary, 200, { 'cache-control': 'no-store' });
+        }
+        if (request.method === 'GET' && parts[3] === 'audio') {
+          const credentials = claimCredentialsFromHeaders(request);
+          const runtime = await resolveAgentRuntime(env);
+          const delivery = await getAgentJobAudioDelivery(
+            env,
+            actor,
+            jobId,
+            credentials.claimToken,
+            credentials.attempt,
+          );
+          // Community Cloud 의 signed GET 발급은 E6-3 이 붙인다. 그전에는 열지 않는다.
+          if (runtime.audioDelivery === 'protected-get') return json({ error: 'service_unavailable' }, 503);
+          const object = await env.audioStore.get(delivery.audioR2Key);
+          if (object === null) {
+            // 객체가 사라진 작업은 열어 두지 않는다 - 코어가 그 코드로 닫는다(S5 §2.6).
+            await closeAgentJobAudioObjectMissing(env, actor, jobId, credentials.claimToken, credentials.attempt);
+            return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
+          }
+          // 저장소 키는 응답에 싣지 않는다. canonical content-type 으로 바이트만 중계한다.
+          const headers = new Headers();
+          headers.set('content-type', object.contentType);
+          headers.set('cache-control', 'no-store');
+          return new Response(object.body, { status: 200, headers });
+        }
+        if (request.method === 'POST' && parts[3] === 'result') {
+          const accepted = await acceptAgentJobResult(
+            env,
+            actor,
+            jobId,
+            parseAgentResultRequest(await requestBody(request)),
+          );
+          const committed = accepted.recording;
+          if (committed !== null) {
+            // 통합 동의의 텍스트 AI 증적과 활성 스위치도 최종 관문이다. 후속 초안은
+            // 마스킹 스냅샷만 재료로 만들며, 실패하면 review_ready 로 올리지 않아 재시도된다.
+            let finalizedNow = false;
+            if (!committed.finalized) {
+              if (!committed.downstreamReady) {
+                const claimToken = await claimRecordingResultDownstream(env, actor, accepted.sessionId);
+                if (claimToken === null) {
+                  throw new ConflictError('recording result downstream work is already in progress');
+                }
+                try {
+                  await generateAiDraft(env, actor, accepted.sessionId, {
+                    sourceSnapshotId: committed.snapshot.id,
+                  });
+                } catch (error) {
+                  await releaseRecordingResultDownstream(env, actor, accepted.sessionId, claimToken);
+                  throw error;
+                }
+              }
+              finalizedNow = await finalizeRecordingResult(env, actor, accepted.sessionId);
+            }
+            if (finalizedNow) await runDiscrepancyDetection(env, actor, accepted.sessionId);
+          } else if (accepted.kind === 'text' && !accepted.replayed) {
+            // 이제서야 이 회차가 2차 마스킹을 마친 재료를 갖는다 — 공식화 시점에 스킵됐던
+            // 불일치 검출을 여기서 돌린다(ADR-0027). 실패는 스킵이다(D8).
+            await runDiscrepancyDetection(env, actor, accepted.sessionId);
+          }
+          return new Response(null, { status: 204 });
+        }
+      }
+      if (jobId !== undefined && parts.length === 5 && request.method === 'POST') {
+        if (parts[3] === 'audio' && parts[4] === 'verify') {
+          const verifyRequest = parseAudioVerifyRequest(await requestBody(request));
+          const delivery = await getAgentJobAudioDelivery(
+            env,
+            actor,
+            jobId,
+            verifyRequest.claimToken,
+            verifyRequest.attempt,
+          );
+          const object = await env.audioStore.get(delivery.audioR2Key);
+          if (object === null) return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
+          // 서버가 저장된 바이트에서 직접 해시를 계산해 Agent 제출값의 독립 근거로 쓴다.
+          // ponytail: 전체를 메모리에 담는다. 200MB 상한 근처 파일은 청크 해시가 필요하고
+          // 그 자리는 E5-6(원음 생명주기)과 E6-2(업로드 해시)가 소유한다.
+          const storedBytes = await new Response(object.body).arrayBuffer();
+          const storedSha256 = Array.from(
+            new Uint8Array(await crypto.subtle.digest('SHA-256', storedBytes)),
+            (byte) => byte.toString(16).padStart(2, '0'),
+          ).join('');
+          return json(await verifyAgentJobAudio(env, actor, jobId, verifyRequest, storedSha256));
+        }
+        if (parts[3] === 'egress' && parts[4] === 'authorize') {
+          return json(await authorizeAgentJobEgress(
+            env,
+            actor,
+            jobId,
+            parseEgressAuthorizationRequest(await requestBody(request)),
+          ), 200, { 'cache-control': 'no-store' });
+        }
+        if (parts[3] === 'egress' && parts[4] === 'in-flight') {
+          return json(await markAgentJobEgressInFlight(
+            env,
+            actor,
+            jobId,
+            parseEgressInFlightRequest(await requestBody(request)),
+          ));
         }
       }
     }
@@ -2867,50 +3145,6 @@ export async function handleRequest(
           parts[2],
           parseParticipantPiiRetentionReview(await requestBody(request)),
         ));
-      }
-    }
-    if (parts[0] === 'pipeline' && parts[1] === 'jobs' && parts[2] !== undefined) {
-      const sessionId = parts[2];
-      if (request.method === 'GET' && parts.length === 4 && parts[3] === 'audio') {
-        // 서비스 역할·org·오디오 등록 확인 + download_audio 감사(D14)는 gateway가 담당한다.
-        const { audioR2Key } = await getPipelineAudioKey(env, actor, sessionId);
-        const object = await env.audioStore.get(audioR2Key);
-        if (object === null) {
-          return json({ error: 'audio_object_missing', jobId: sessionId }, 404);
-        }
-        // R2 키는 응답에 싣지 않는다. 저장소 포트의 canonical content-type으로 바이트만 중계한다.
-        const headers = new Headers();
-        headers.set('content-type', object.contentType);
-        headers.set('cache-control', 'no-store');
-        return new Response(object.body, { status: 200, headers });
-      }
-      if (request.method === 'POST' && parts.length === 4 && parts[3] === 'result') {
-        const committed = await commitRecordingResult(
-          env,
-          actor,
-          sessionId,
-          parseRecordingResult(await requestBody(request)),
-        );
-        // 통합 동의의 텍스트 AI 증적과 활성 스위치도 최종 관문이다. 후속 초안은
-        // 마스킹 스냅샷만 재료로 만들며, 실패하면 review_ready로 올리지 않아 재시도된다.
-        let finalizedNow = false;
-        if (!committed.finalized) {
-          if (!committed.downstreamReady) {
-            const claimToken = await claimRecordingResultDownstream(env, actor, sessionId);
-            if (claimToken === null) {
-              throw new ConflictError('recording result downstream work is already in progress');
-            }
-            try {
-              await generateAiDraft(env, actor, sessionId, { sourceSnapshotId: committed.snapshot.id });
-            } catch (error) {
-              await releaseRecordingResultDownstream(env, actor, sessionId, claimToken);
-              throw error;
-            }
-          }
-          finalizedNow = await finalizeRecordingResult(env, actor, sessionId);
-        }
-        if (finalizedNow) await runDiscrepancyDetection(env, actor, sessionId);
-        return new Response(null, { status: 204 });
       }
     }
 

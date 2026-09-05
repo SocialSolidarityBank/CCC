@@ -4,6 +4,7 @@ import {
   activateAiProviderConfiguration,
   createCase,
   createManualSession,
+  recordMaskedSourceSnapshot,
   registerAiProviderConfiguration,
   registerRecording,
   SESSION_GOAL_MATERIAL_LABEL,
@@ -30,6 +31,7 @@ import {
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { setupD1 } from './support/d1';
+import { agentManifestEnv, agentResultRequest, claimOverHttp } from './support/agent-jobs';
 
 const t = setupD1();
 
@@ -316,6 +318,7 @@ describe('호출 ① 재료 다중화와 대조 3종 v4 (D69 · ADR-0036 · CCC-
 
 const counselor = { userId: 'counselor@example.invalid', orgId: 'org_demo', role: 'counselor' as const };
 const admin = { userId: 'admin@example.invalid', orgId: 'org_demo', role: 'admin' as const };
+const service = { userId: 'service@example.invalid', orgId: 'org_demo', role: 'service' as const };
 const serviceHeaders = {
   'content-type': 'application/json',
   'X-CCC-User-Id': 'service@example.invalid',
@@ -459,25 +462,35 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   return { adapter, caseRecord, env, session };
 }
 
+/** 텍스트 재료 스냅샷. v2 는 별도 snapshot 라우트가 없어 게이트웨이 경계로 직접 만든다. */
 async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEXT_CONTEXT_TEXT) {
-  const response = await worker.fetch(new Request(`http://localhost/sessions/${sessionId}/ai/source`, {
-    method: 'POST',
-    headers: serviceHeaders,
-    body: JSON.stringify(await snapshotBody(maskedText, 'memo:text-1')),
-  }), env);
-  expect(response.status).toBe(201);
-  return response.json() as Promise<{ sourceSnapshotId: string; sha256: string }>;
+  const snapshot = await recordMaskedSourceSnapshot(env, service, sessionId, await snapshotBody(maskedText, 'memo:text-1'));
+  return { sourceSnapshotId: snapshot.id, sha256: snapshot.sha256 };
 }
 
-async function postRecordingResult(env: ApiEnv, sessionId: string) {
-  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${sessionId}/result`, {
+/** 녹음 결과는 claim 한 오디오 작업의 결과로만 들어온다 (S5). */
+async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Response> {
+  const agentEnv = await agentManifestEnv(env, { stt: 'local' });
+  const { jobs, qualification } = await claimOverHttp(agentEnv, t.db);
+  const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
+  if (job === undefined) throw new Error('expected a claimable audio job');
+  return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers: serviceHeaders,
-    body: JSON.stringify({
-      ...await snapshotBody(TRANSCRIPT_TEXT, 'recording-transcript'),
-      emotionScores: {},
-    }),
-  }), env);
+    body: JSON.stringify(await agentResultRequest({
+      kind: 'audio',
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      maskedText: TRANSCRIPT_TEXT,
+      qualification,
+    })),
+  }), agentEnv);
+}
+
+/** 결과 커밋은 본문 없는 204 다. 어긋나면 어느 검증기가 거부했는지 본문으로 드러낸다. */
+async function expectCommittedRecordingResult(env: ApiEnv, sessionId: string): Promise<void> {
+  const response = await postRecordingResult(env, sessionId);
+  expect(response.status, await response.clone().text()).toBe(204);
 }
 
 async function generateFromSnapshot(env: ApiEnv, sessionId: string, sourceSnapshotId: string) {
@@ -510,8 +523,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
     const { adapter, env, session } = await setupRouteFixture();
     const text = await postTextSnapshot(env, session.id);
     // 녹음 결과 커밋은 본문 없는 204 다. 이 안에서 호출 ① 이 함께 돈다.
-    const result = await postRecordingResult(env, session.id);
-    expect(result.status).toBe(204);
+    await expectCommittedRecordingResult(env, session.id);
 
     const request = adapter.invocations[0];
     expect(request?.materials.map((item) => item.kind)).toEqual(['transcript', 'text_context']);
@@ -616,7 +628,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
   it('회기 목표 구획이 없으면 미논의 축만 재료 없음이 된다', async () => {
     const { env, session } = await setupRouteFixture();
     await postTextSnapshot(env, session.id, TEXT_WITHOUT_SESSION_GOAL);
-    expect((await postRecordingResult(env, session.id)).status).toBe(204);
+    await expectCommittedRecordingResult(env, session.id);
 
     const draft = await readDraft(env, session.id);
     const statusByAxis = new Map(draft.contrast.map((axis) => [axis.axis, axis.status] as const));
@@ -631,7 +643,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
   it('재료가 둘인 초안을 편집해도 근거가 통과하고 대조·증빙이 새 버전으로 넘어간다', async () => {
     const { env, session } = await setupRouteFixture();
     await postTextSnapshot(env, session.id);
-    expect((await postRecordingResult(env, session.id)).status).toBe(204);
+    await expectCommittedRecordingResult(env, session.id);
     const first = await readDraft(env, session.id);
     expect(first.version).toBe(1);
 
@@ -676,7 +688,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
   it('대조는 읽기 전용이며 화자 확인 뒤 통째 승인된다 (R2 · D71)', async () => {
     const { env, session } = await setupRouteFixture();
     await postTextSnapshot(env, session.id);
-    expect((await postRecordingResult(env, session.id)).status).toBe(204);
+    await expectCommittedRecordingResult(env, session.id);
     const draft = await readDraft(env, session.id);
 
     const reviewRequest = (body: Record<string, unknown>) => worker.fetch(new Request(
@@ -748,7 +760,7 @@ describe('generateAiDraft 재료 조립 (CCC-102)', () => {
   it('근거 링크 가드의 나머지 두 절은 0035 뒤에도 그대로 막는다', async () => {
     const { env, session } = await setupRouteFixture();
     await postTextSnapshot(env, session.id);
-    expect((await postRecordingResult(env, session.id)).status).toBe(204);
+    await expectCommittedRecordingResult(env, session.id);
 
     const draft = await t.db.prepare('SELECT id FROM ai_draft_versions LIMIT 1')
       .first<{ id: string }>();

@@ -22,6 +22,35 @@ import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { AGENT_SCOPES, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason } from '@ccc/contracts/runtime';
+import {
+  AGENT_JOB_ERROR_CODES,
+  AGENT_JOB_MAX_ATTEMPTS,
+  normalizeClaimLimit,
+  type AgentJobState,
+  type AudioVerifyRequest,
+  type AudioVerifyResponse,
+  type AzureEgressAuthorization,
+  type EgressAuthorizationRequest,
+  type EgressInFlightRequest,
+  type EgressInFlightResponse,
+  type AgentJob,
+  type ClaimRequest,
+  type ClaimResponse,
+  type ConsentScope,
+  type HeartbeatRequest,
+  type HeartbeatResponse,
+  type JobErrorCode,
+  type JobKind,
+  type MaskDictionaryEntry,
+  type MaskDictionaryRequest,
+  type MaskDictionaryResponse,
+  type NerAttestation,
+  type ProcessingRoute,
+  type ReleaseRequest,
+  type ResultRequest,
+  type SourceResponse,
+  type SttEngine as AgentSttEngine,
+} from '@ccc/contracts/agent-jobs';
 import { decideSupportCaseContentAccess, type SupportCaseContentAccessDecision } from './access-policy';
 import {
   CONSENT_PRIVACY_NOTICE_TEXT,
@@ -89,6 +118,17 @@ export class ForbiddenError extends Error {}
 export class NotApprovedError extends Error {}
 /** 요청 값이 시스템 규칙을 만족하지 않을 때 반환한다. */
 export class ValidationError extends Error {}
+export class AgentJobContractError extends Error {
+  readonly retryable: boolean;
+
+  constructor(
+    readonly code: JobErrorCode,
+    readonly jobId: string | null = null,
+  ) {
+    super(code);
+    this.retryable = code === 'engine_unavailable';
+  }
+}
 /** Phase 1 파일럿 증적이 없어서 텍스트 AI를 시작·검토할 수 없다. */
 export class PilotTextAiConsentRequiredError extends Error {
   readonly code = 'pilot_text_ai_consent_required';
@@ -2519,14 +2559,6 @@ export interface Briefing {
   questions: string[];
 }
 
-/** Mac Mini가 Workers API로만 조회하는 처리 대기 작업 (D13). */
-export interface PipelineJob {
-  id: string;
-  caseId: string;
-  status: AiStatus;
-  audioAvailable: boolean;
-}
-
 /** D8 stale 판정 사유. 알림 문구·감사 detail에 그대로 실린다. */
 export type PipelineStaleReason = 'never_polled' | 'poll_overdue' | 'queue_backlog';
 
@@ -3748,9 +3780,10 @@ export async function recordMaskedSourceSnapshot(
   actor: Actor,
   sessionId: string,
   input: RecordMaskedSourceSnapshotInput,
+  extraStatements: (snapshot: MaskedSourceSnapshot) => PreparedStatement[] = () => [],
 ): Promise<MaskedSourceSnapshot> {
   const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId);
-  return commitMaskedResult(env, actor, grant, input);
+  return commitMaskedResult(env, actor, grant, input, (saved) => extraStatements(saved));
 }
 
 /**
@@ -6504,6 +6537,34 @@ export async function registerRecording(
                  )
              )`,
         ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
+    // 재등록은 이전 실행의 열린 Agent 작업을 닫고 새 generation 으로 다시 시작한다.
+    env.DB.prepare(
+          `UPDATE agent_jobs
+           SET state = 'cancelled', lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL,
+               lease_expires_at = NULL, updated_at = ?
+           WHERE org_id = ? AND session_id = ? AND kind = 'audio'
+             AND state IN ('pending', 'leased', 'blocked')`,
+        ).bind(updatedAt, actor.orgId, sessionId),
+    // 업로드가 실제로 반영된 회차에만 작업을 만든다(같은 batch 의 첫 UPDATE 결과를 조건으로 읽는다).
+    env.DB.prepare(
+          `INSERT INTO agent_jobs (
+             id, org_id, support_case_id, session_id, kind, state, enqueued_at, required_consent,
+             attempt, audio_generation_id, retention_hard_cap_at, updated_at
+           )
+           SELECT ?, session.org_id, session.support_case_id, session.id, 'audio', 'pending', ?,
+                  '["recording_ai"]', 0, ?, ?, ?
+           FROM sessions AS session
+           WHERE session.id = ? AND session.org_id = ? AND session.audio_r2_key = ?`,
+        ).bind(
+          newId(),
+          updatedAt,
+          newId(),
+          new Date(parseUtcTimestamp(updatedAt) + AUDIO_RETENTION_HARD_CAP_MS).toISOString(),
+          updatedAt,
+          sessionId,
+          actor.orgId,
+          audioR2Key,
+        ),
   ]);
   const updated = results[0] as unknown as { meta?: { changes?: number } };
   if ((updated.meta?.changes ?? 0) < 1) {
@@ -6644,6 +6705,7 @@ export async function commitRecordingResult(
   actor: Actor,
   sessionId: string,
   input: RecordingResultInput,
+  extraStatements: (snapshot: MaskedSourceSnapshot) => PreparedStatement[] = () => [],
 ): Promise<RecordingResultCommit> {
   const session = await assertServiceSessionAccess(env, actor, sessionId, 'recording_result_commits');
   const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
@@ -6741,6 +6803,7 @@ export async function commitRecordingResult(
         actor.userId,
         createdAt,
       ),
+      ...extraStatements(saved),
     ]);
   } catch (error) {
     // 동시에 같은 결과가 도착하면 세션 PK가 승자 한 건만 남긴다. 패자는 저장된
@@ -6909,23 +6972,6 @@ export async function finalizeRecordingResult(
 export type TextWorkReason = 'manual_record' | 'ai_draft_approved' | 'goal_revised';
 
 /**
- * 임대 길이 (CCC-120). 장비 폴링 주기(수 분)보다 넉넉해야 정상 처리 중에 다른
- * 장비로 넘어가지 않고, 무한하지 않아야 죽은 장비의 일감이 되살아난다.
- */
-const TEXT_WORK_LEASE_MS = 15 * 60_000;
-
-export interface TextWorkItem {
-  id: string;
-  sessionId: string;
-  reason: TextWorkReason;
-  enqueuedAt: string;
-  /** 이 폴링이 부여한 임대의 만료 시각 (CCC-120). ISO-8601 UTC. */
-  leaseExpiresAt: string;
-  /** 임대가 부여된 누적 횟수. 1 이면 첫 시도, 2 이상이면 만료 재분배를 거쳍다. */
-  attemptCount: number;
-}
-
-/**
  * 공식화 훅. 실패해도 기록 저장을 막지 않는다(D8). 같은 회차의 열린 행은 명시한
  * partial unique target의 `ON CONFLICT DO NOTHING`이 흡수한다.
  */
@@ -6937,13 +6983,56 @@ export async function enqueueTextWorkItem(
 ): Promise<void> {
   assertOpaqueIdentifier(sessionId, 'session id');
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
-  await insertIfAbsent(
-    env.DB,
-    `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?)
-     ON CONFLICT (org_id, session_id) WHERE status IN ('pending', 'processing') DO NOTHING`,
-    [newId(), actor.orgId, scope.supportCaseId, sessionId, reason, now()],
-  ).run();
+  await env.DB.batch(textWorkEnqueueStatements(
+    env,
+    actor.orgId,
+    scope.supportCaseId,
+    sessionId,
+    reason,
+    now(),
+  ));
+}
+
+/**
+ * 원본 큐 행과 그 행을 소유하는 Agent 작업을 한 batch 로 만든다.
+ *
+ * 큐 행은 회차당 열린 1건이라 재공식화는 기존 행에 흡수된다. 작업은 그 행에서 파생되며,
+ * 이미 열린 작업이 있으면 늘지 않고, 취소·실패·만료로 닫힌 뒤 재공식화되면 새로 생긴다.
+ */
+function textWorkEnqueueStatements(
+  env: Env,
+  orgId: string,
+  supportCaseId: string,
+  sessionId: string,
+  reason: TextWorkReason,
+  enqueuedAt: string,
+): PreparedStatement[] {
+  return [
+    insertIfAbsent(
+      env.DB,
+      `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?)
+       ON CONFLICT (org_id, session_id) WHERE status IN ('pending', 'processing') DO NOTHING`,
+      [newId(), orgId, supportCaseId, sessionId, reason, enqueuedAt],
+    ),
+    insertIfAbsent(
+      env.DB,
+      `INSERT INTO agent_jobs (
+         id, org_id, support_case_id, session_id, source_text_work_item_id, kind, state,
+         enqueued_at, required_consent, attempt, updated_at
+       )
+       SELECT ?, queue.org_id, queue.support_case_id, queue.session_id, queue.id, 'text', 'pending',
+              ?, '["text_ai"]', 0, ?
+       FROM ai_text_work_queue AS queue
+       WHERE queue.org_id = ? AND queue.session_id = ? AND queue.status = 'pending'
+         AND NOT EXISTS (
+           SELECT 1 FROM agent_jobs AS job
+           WHERE job.org_id = queue.org_id AND job.session_id = queue.session_id
+             AND job.kind = 'text' AND job.state IN ('pending', 'leased', 'blocked')
+         )`,
+      [newId(), enqueuedAt, enqueuedAt, orgId, sessionId],
+    ),
+  ];
 }
 
 /**
@@ -6983,12 +7072,13 @@ export async function enqueueTextWorkForGoalChange(
   ).bind(actor.orgId, context.supportCaseId).all<DbRow>();
 
   const enqueuedAt = now();
-  const statements = candidates.results.map((row) => insertIfAbsent(
-    env.DB,
-    `INSERT INTO ai_text_work_queue (id, org_id, support_case_id, session_id, reason, status, enqueued_at)
-     VALUES (?, ?, ?, ?, 'goal_revised', 'pending', ?)
-     ON CONFLICT (org_id, session_id) WHERE status IN ('pending', 'processing') DO NOTHING`,
-    [newId(), actor.orgId, context.supportCaseId, stringValue(row.id), enqueuedAt],
+  const statements = candidates.results.flatMap((row) => textWorkEnqueueStatements(
+    env,
+    actor.orgId,
+    context.supportCaseId,
+    stringValue(row.id),
+    'goal_revised',
+    enqueuedAt,
   ));
   if (statements.length > 0) {
     await env.DB.batch(statements);
@@ -6998,101 +7088,10 @@ export async function enqueueTextWorkForGoalChange(
     action: 'create',
     targetTable: 'ai_text_work_queue',
     caseId: context.caseRecord.id,
-    detail: { reason: 'goal_revised', sessionCount: statements.length },
+    detail: { reason: 'goal_revised', sessionCount: candidates.results.length },
   });
 }
 
-/**
- * 장비 폴링 — **지금 실제로 처리할 수 있는** 일감만 임대와 함께 내보낸다. 오디오
- * 큐와 함께 D8 무폴링 감시에 합산된다.
- *
- * 폴링 = 임대 (CCC-120). 후보 선별(SELECT)과 임대 부여(UPDATE)가 한 문장이라 두
- * 장비가 동시에 폴링해도 같은 일감이 두 번 나가지 않는다(D1 은 쓰기를 직렬화한다).
- * 내보낸 행은 pending → processing 으로 바뀌고 임대 주인(서비스 토큰 식별자)·만료
- * 시각을 얻는다. 임대가 만료된 processing 행은 후보에 다시 들어와 다른 장비로
- * 넘어가며, 임대가 부여될 때마다 attempt_count 가 오른다.
- *
- * 처리 불가 조건을 목록 단계에서 걸러내는 이유: 스냅샷 저장(`recordMaskedSourceSnapshot`)
- * 은 파일럿 활성 + 텍스트 AI 동의 근거를 요구하고, 원문 조회는 공식 텍스트를 요구한다.
- * 이 조건이 안 맞는 행을 내보내면 장비가 매 폴링마다 같은 행을 집어 실패하고, 큐는
- * 삭제가 없어(0029 트리거) 영원히 쌓인다. 안 보이게 두면 조건이 갖춰지는 순간
- * — ② 동의가 기록되는 순간 — 저절로 보인다.
- */
-export async function listTextWorkItems(env: Env, actor: Actor): Promise<TextWorkItem[]> {
-  if (actor.role !== 'service') {
-    throw new ForbiddenError('service role is required for text work items');
-  }
-  // 파일럿이 꺼져 있으면 스냅샷 저장이 전부 거부된다 — 아예 내보내지 않는다.
-  if (!isPilotTextAiEnabled(env)) return [];
-
-  const polledAt = now();
-  const leaseExpiresAt = new Date(Date.now() + TEXT_WORK_LEASE_MS).toISOString();
-  const result = await env.DB.prepare(
-    `UPDATE ai_text_work_queue SET
-       status = 'processing',
-       lease_owner = ?,
-       lease_expires_at = ?,
-       attempt_count = attempt_count + 1
-     WHERE id IN (
-       SELECT queue.id
-       FROM ai_text_work_queue AS queue
-       JOIN sessions AS session ON session.id = queue.session_id AND session.org_id = queue.org_id
-       WHERE queue.org_id = ?
-         AND (
-           queue.status = 'pending'
-           -- 만료된 임대는 재분배 대상 (CCC-120). ISO-8601 UTC 라 문자열 비교가 곧 시간 비교다.
-           OR (queue.status = 'processing' AND queue.lease_expires_at <= ?)
-         )
-         -- ② 텍스트 AI 동의 근거가 효력 중이어야 스냅샷을 저장할 수 있다.
-         AND EXISTS (
-           SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
-           WHERE evidence.org_id = queue.org_id
-             AND evidence.support_case_id = queue.support_case_id
-             AND evidence.effective_at <= ?
-         )
-         -- CCC-110: 근거 행은 append-only 이력이라 철회해도 남는다. **현재** 동의는
-         -- support_cases.consent_text_ai_at 이 결정한다. 철회(NULL)된 케이스의 일감은
-         -- 스냅샷 저장이 어차피 거부되므로 임대를 부여하지 않는다.
-         AND EXISTS (
-           SELECT 1 FROM support_cases AS support_case
-           WHERE support_case.id = queue.support_case_id
-             AND support_case.org_id = queue.org_id
-             AND support_case.consent_text_ai_at IS NOT NULL
-         )
-         -- 마스킹할 공식 텍스트가 있어야 한다(수기 메모 또는 승인된 AI 정리). 인테이크
-         -- 회차는 memo 가 NULL 이라(본문은 intake_details) 승인된 정리가 생기기 전까지
-         -- 여기서 걸린다 — 원문 조회가 400 을 던질 행을 애초에 내보내지 않는다.
-         AND (
-           TRIM(COALESCE(session.memo, '')) <> ''
-           OR EXISTS (
-             SELECT 1 FROM approved_ai_briefing_v1 AS approved
-             WHERE approved.org_id = queue.org_id AND approved.session_id = queue.session_id
-               AND TRIM(COALESCE(approved.summary_text, '')) <> ''
-           )
-         )
-       ORDER BY queue.enqueued_at
-       LIMIT 50
-     )
-     RETURNING id, session_id, reason, enqueued_at, lease_expires_at, attempt_count`,
-  ).bind(actor.userId, leaseExpiresAt, actor.orgId, polledAt, polledAt).all<DbRow>();
-  const items = result.results.map((row) => ({
-    id: stringValue(row.id),
-    sessionId: stringValue(row.session_id),
-    reason: stringValue(row.reason) as TextWorkReason,
-    enqueuedAt: stringValue(row.enqueued_at),
-    leaseExpiresAt: stringValue(row.lease_expires_at),
-    attemptCount: Number(row.attempt_count),
-  }));
-
-  // RETURNING 의 행 순서는 보장이 없다 — 폴링 계약(오래된 것부터)을 여기서 지킨다.
-  items.sort((a, b) => (a.enqueuedAt < b.enqueuedAt ? -1 : a.enqueuedAt > b.enqueuedAt ? 1 : a.id < b.id ? -1 : 1));
-  await writeAudit(env, actor, {
-    action: 'poll_pipeline',
-    targetTable: 'ai_text_work_queue',
-    detail: { jobCount: items.length },
-  });
-  return items;
-}
 
 /**
  * 인테이크 답변에서 선택값 하나를 꺼낸다(AI 재료용, D62 §7). 'answered' 가 아니면
@@ -7134,29 +7133,11 @@ function intakeAnswerText(rawDetails: unknown, key: IntakeAnswerKey): string | n
  * 지켜진다. 남는 틈은 시작 시각이 지났는데 회차가 끝내 공식화되지 않은 일정인데, 그 회차는
  * 공식 텍스트가 없어 호출 ① 의 재료가 애초에 없다(ADR-0036 결정 2).
  */
-export async function getTextWorkItemSource(
+async function buildAgentJobSourceText(
   env: Env,
   actor: Actor,
-  itemId: string,
-): Promise<{ sessionId: string; text: string }> {
-  if (actor.role !== 'service') {
-    throw new ForbiddenError('service role is required for text work items');
-  }
-  assertOpaqueIdentifier(itemId, 'text work item id');
-  const item = await env.DB.prepare(
-    `SELECT session_id, support_case_id FROM ai_text_work_queue
-     WHERE id = ? AND org_id = ?
-       AND (
-         status = 'pending'
-         -- 임대 중이면 임대 주인만 원문을 받는다 (CCC-120). 만료돼 다른 장비가
-         -- 재임대하면 lease_owner 가 바뀌어 옛 주인은 여기서 걸린다.
-         OR (status = 'processing' AND lease_owner = ?)
-       )`,
-  ).bind(itemId, actor.orgId, actor.userId).first<DbRow>();
-  if (item === null) {
-    throw new ForbiddenError('text work item is not available in this organization');
-  }
-  const sessionId = stringValue(item.session_id);
+  sessionId: string,
+): Promise<SourceResponse> {
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
 
   const [sessionRow, approvedRow, caseRow, intakeRow, detailGoalRows, sessionGoalRows] = await Promise.all([
@@ -7250,107 +7231,1074 @@ export async function getTextWorkItemSource(
   return { sessionId, text: maskRegisteredPii(parts.join('\n'), scope.caseId, pii) };
 }
 
+// ============================================================================
+// Agent 작업 계약 v2 (S5 · E5-1a) — 오디오와 텍스트가 한 상태기계를 쓴다
+// ============================================================================
+
+/** 임대 1회 길이. 총 임대 상한(claimedAt + 2시간)과 SG8 시계가 위에서 자른다. */
+const AGENT_JOB_LEASE_MS = 15 * 60_000;
+const AGENT_JOB_TOTAL_LEASE_MS = 2 * 60 * 60_000;
+const MASK_DICTIONARY_TTL_MS = 5 * 60_000;
+const EGRESS_AUTHORIZATION_TTL_MS = 10 * 60_000;
+/** SG8 절대 상한: 업로드 + 7일 (D85). */
+const AUDIO_RETENTION_HARD_CAP_MS = 7 * 24 * 60 * 60_000;
+
 /**
- * 스냅샷 저장 후 장비가 부른다. 완료 행은 불변이다(0029 트리거).
- *
- * 완료는 같은 회차의 마스킹 스냅샷과 반드시 연결된다(CCC-120, completed_snapshot_id).
- * 클라이언트가 스냅샷 ID 를 보내지 않아도 서버가 회차로 역추적해 가장 최근 스냅샷을
- * 연결한다 — 계약 순서상 장비는 완료 직전에 `POST /sessions/:id/ai/source` 로 스냅샷을
- * 만들었으므로 그 스냅샷이 곧 이 일감의 산출물이고, 구 장비 클라이언트도 그대로 동작한다.
- * 스냅샷이 하나도 없으면 완료를 거부한다: 스냅샷 없는 완료는 "마스킹 산출물이 있다"는
- * 거짓 기록이 되기 때문이다.
+ * claim 시점의 런타임 사실. 서버가 signed install manifest 에서 읽어 주입한다 —
+ * 저장하지 않으면 claim 마다 다시 계산해야 하므로 leased 행에 함께 못 박는다.
  */
-export async function completeTextWorkItem(env: Env, actor: Actor, itemId: string): Promise<void> {
-  if (actor.role !== 'service') {
-    throw new ForbiddenError('service role is required for text work items');
+export interface AgentRuntime {
+  route: ProcessingRoute;
+  sttEngine: AgentSttEngine;
+  audioDelivery: 'protected-get' | 'api-stream';
+}
+
+interface AgentJobRow {
+  id: string;
+  orgId: string;
+  kind: JobKind;
+  state: AgentJobState;
+  sessionId: string;
+  supportCaseId: string;
+  sourceTextWorkItemId: string | null;
+  attempt: number;
+  enqueuedAt: string;
+  leaseOwner: string | null;
+  claimTokenHash: string | null;
+  claimedAt: string | null;
+  leaseExpiresAt: string | null;
+  terminalFailureCode: string | null;
+  resultPayloadSha256: string | null;
+  releaseQualificationReceiptId: string | null;
+  nerAttestationId: string | null;
+  nerAttestationResultHash: string | null;
+  nerAttestationExpiresAt: string | null;
+  audioGenerationId: string | null;
+  clientAssertedSha256: string | null;
+  agentComputedSha256: string | null;
+  rawAudioSha256: string | null;
+  retentionHardCapAt: string | null;
+  processingDeadlineAt: string | null;
+  sttEngine: string | null;
+  requiredConsent: string;
+  maskDictionaryId: string | null;
+  maskDictionaryExpiresAt: string | null;
+}
+
+function mapAgentJobRow(row: DbRow): AgentJobRow {
+  return {
+    id: stringValue(row.id),
+    orgId: stringValue(row.org_id),
+    kind: stringValue(row.kind) as JobKind,
+    state: stringValue(row.state) as AgentJobState,
+    sessionId: stringValue(row.session_id),
+    supportCaseId: stringValue(row.support_case_id),
+    sourceTextWorkItemId: nullableString(row.source_text_work_item_id),
+    attempt: Number(row.attempt),
+    enqueuedAt: stringValue(row.enqueued_at),
+    leaseOwner: nullableString(row.lease_owner),
+    claimTokenHash: nullableString(row.claim_token_hash),
+    claimedAt: nullableString(row.claimed_at),
+    leaseExpiresAt: nullableString(row.lease_expires_at),
+    terminalFailureCode: nullableString(row.terminal_failure_code),
+    resultPayloadSha256: nullableString(row.result_payload_sha256),
+    releaseQualificationReceiptId: nullableString(row.release_qualification_receipt_id),
+    nerAttestationId: nullableString(row.ner_attestation_id),
+    nerAttestationResultHash: nullableString(row.ner_attestation_result_hash),
+    nerAttestationExpiresAt: nullableString(row.ner_attestation_expires_at),
+    audioGenerationId: nullableString(row.audio_generation_id),
+    clientAssertedSha256: nullableString(row.client_asserted_sha256),
+    agentComputedSha256: nullableString(row.agent_computed_sha256),
+    rawAudioSha256: nullableString(row.raw_audio_sha256),
+    retentionHardCapAt: nullableString(row.retention_hard_cap_at),
+    processingDeadlineAt: nullableString(row.processing_deadline_at),
+    sttEngine: nullableString(row.stt_engine),
+    requiredConsent: stringValue(row.required_consent),
+    maskDictionaryId: nullableString(row.mask_dictionary_id),
+    maskDictionaryExpiresAt: nullableString(row.mask_dictionary_expires_at),
+  };
+}
+
+function assertAgentActor(actor: Actor): void {
+  if (actor.role !== 'service') throw new AgentJobContractError('forbidden');
+}
+
+function newClaimToken(): string {
+  return Array.from(
+    crypto.getRandomValues(new Uint8Array(32)),
+    (byte) => byte.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
+/**
+ * 임대 만료 시각. 임대 1회 길이, claimedAt + 2시간 총 상한, SG8 처리 기한과 절대
+ * 상한 중 가장 이른 값이다. 전부 같은 ISO 형식이라 문자열 비교가 시간 비교다.
+ */
+function agentLeaseExpiry(
+  nowIso: string,
+  claimedAt: string,
+  job: { processingDeadlineAt: string | null; retentionHardCapAt: string | null },
+): string {
+  const limits = [
+    new Date(parseUtcTimestamp(nowIso) + AGENT_JOB_LEASE_MS).toISOString(),
+    new Date(parseUtcTimestamp(claimedAt) + AGENT_JOB_TOTAL_LEASE_MS).toISOString(),
+    job.processingDeadlineAt,
+    job.retentionHardCapAt,
+  ].filter((value): value is string => value !== null);
+  return limits.reduce((earliest, value) => (value < earliest ? value : earliest));
+}
+
+/** terminal 행에 도착한 요청이 받는 고정 오류. 저장된 실패 코드를 그대로 돌려준다. */
+function terminalAgentJobError(job: AgentJobRow): JobErrorCode {
+  if (job.state === 'cancelled') return 'consent_not_effective';
+  if (job.state === 'expired') return 'audio_deleted';
+  if (job.state === 'failed') {
+    const stored = job.terminalFailureCode;
+    // release 사유 중 JobError literal 이 아닌 값(masking_failed·permanent_failure)은
+    // 더 시도하지 않는다는 뜻만 남는다.
+    return stored !== null && (AGENT_JOB_ERROR_CODES as readonly string[]).includes(stored)
+      ? stored as JobErrorCode
+      : 'retry_exhausted';
   }
-  assertOpaqueIdentifier(itemId, 'text work item id');
-  const item = await env.DB.prepare(
-    `SELECT session_id FROM ai_text_work_queue
-     WHERE id = ? AND org_id = ?
-       AND (status = 'pending' OR (status = 'processing' AND lease_owner = ?))`,
-  ).bind(itemId, actor.orgId, actor.userId).first<DbRow>();
-  if (item === null) {
-    throw new ForbiddenError('text work item is not available in this organization');
+  // pending·blocked·succeeded: 이 claim 은 더 이상 최신이 아니다.
+  return 'stale_claim';
+}
+
+/**
+ * 두 큐를 엄격히 교대로 섞는다 (S5 §2.4). 첫 큐는 head 가 더 오래된 쪽이고, 한 큐가
+ * 비면 남은 큐를 순서대로 채운다. 이 규칙이 어느 큐도 굶지 않게 만든다.
+ */
+export function interleaveAgentJobQueues<T extends { enqueuedAt: string; id: string }>(
+  audio: readonly T[],
+  text: readonly T[],
+  limit: number,
+): T[] {
+  const audioHead = audio[0];
+  const textHead = text[0];
+  const audioFirst = audioHead !== undefined && (
+    textHead === undefined
+    || audioHead.enqueuedAt < textHead.enqueuedAt
+    || (audioHead.enqueuedAt === textHead.enqueuedAt && audioHead.id <= textHead.id)
+  );
+  const queues: [T[], T[]] = audioFirst
+    ? [[...audio], [...text]]
+    : [[...text], [...audio]];
+  const picked: T[] = [];
+  let turn: 0 | 1 = 0;
+  while (picked.length < limit) {
+    const next = queues[turn].shift() ?? queues[turn === 0 ? 1 : 0].shift();
+    if (next === undefined) break;
+    picked.push(next);
+    turn = turn === 0 ? 1 : 0;
   }
-  // 같은 회차의 가장 최근 스냅샷 = 이 일감의 산출물 (회차 역추적, CCC-120).
-  const snapshot = await env.DB.prepare(
-    `SELECT id FROM ai_masked_source_snapshots
-     WHERE org_id = ? AND session_id = ?
-     ORDER BY created_at DESC, id DESC
-     LIMIT 1`,
-  ).bind(actor.orgId, stringValue(item.session_id)).first<DbRow>();
-  if (snapshot === null) {
-    throw new ValidationError('text work item has no masked snapshot to link');
+  return picked;
+}
+
+/**
+ * requiredConsent 재확인. 현재 동의값에서 revision 을 도출해 egress 영수증과 결과
+ * 수락이 같은 값을 쓴다. 외부 STT 동의 영역은 SG7·E4-6 이 만들기 전까지 없으므로
+ * Azure engine 은 여기서 fail closed 다 (D85 경로별 동의).
+ */
+async function agentJobConsentRevision(env: Env, orgId: string, job: AgentJobRow): Promise<string> {
+  const row = await env.DB.prepare(
+    'SELECT consent_recording_at, consent_text_ai_at FROM support_cases WHERE id = ? AND org_id = ?',
+  ).bind(job.supportCaseId, orgId).first<{
+    consent_recording_at: string | null;
+    consent_text_ai_at: string | null;
+  }>();
+  if (row === null) throw new AgentJobContractError('consent_not_effective', job.id);
+  const required = parseJson<string[]>(job.requiredConsent) ?? [];
+  for (const scope of required) {
+    const granted = scope === 'recording_ai'
+      ? row.consent_recording_at
+      : scope === 'text_ai' ? row.consent_text_ai_at : null;
+    if (granted === null) throw new AgentJobContractError('consent_not_effective', job.id);
   }
-  const completedSnapshotId = stringValue(snapshot.id);
-  // 조회와 전이 사이에 임대가 넘어갔을 수 있어 UPDATE 가 같은 조건을 다시 확인한다.
-  const result = await env.DB.prepare(
-    `UPDATE ai_text_work_queue
-     SET status = 'done', completed_at = ?, completed_snapshot_id = ?
-     WHERE id = ? AND org_id = ?
-       AND (status = 'pending' OR (status = 'processing' AND lease_owner = ?))`,
-  ).bind(now(), completedSnapshotId, itemId, actor.orgId, actor.userId).run();
-  if ((result.meta?.changes ?? 0) === 0) {
-    throw new ForbiddenError('text work item is not available in this organization');
+  if (job.sttEngine === 'azure') throw new AgentJobContractError('consent_not_effective', job.id);
+  return sha256Hex(`${row.consent_recording_at ?? ''}\u0000${row.consent_text_ai_at ?? ''}`);
+}
+
+/**
+ * S6 attestation 과 저장된 immutable release qualification 영수증을 함께 확인한다.
+ * 하나라도 없거나 만료·불일치면 결과 없이 fail closed 다 (R3 · S5 F7).
+ */
+async function assertNerReleaseQualification(
+  env: Env,
+  orgId: string,
+  attestation: NerAttestation,
+  receiptId: string,
+  jobId: string | null = null,
+): Promise<void> {
+  const nowIso = now();
+  if (attestation.status !== 'passed' || attestation.expiresAt <= nowIso) {
+    throw new AgentJobContractError('local_ner_unavailable', jobId);
+  }
+  const receipt = await env.DB.prepare(
+    `SELECT model_id, model_revision, label_set_hash, corpus_hash, result_hash, expires_at
+     FROM ner_release_qualification_receipts
+     WHERE id = ? AND org_id = ? AND status = 'passed'`,
+  ).bind(receiptId, orgId).first<DbRow>();
+  if (
+    receipt === null
+    || stringValue(receipt.expires_at) <= nowIso
+    || stringValue(receipt.model_id) !== attestation.modelId
+    || stringValue(receipt.model_revision) !== attestation.modelRevision
+    || stringValue(receipt.label_set_hash) !== attestation.labelSetHash
+    || stringValue(receipt.corpus_hash) !== attestation.corpusHash
+    || stringValue(receipt.result_hash) !== attestation.resultHash
+  ) {
+    throw new AgentJobContractError('local_ner_unavailable', jobId);
+  }
+}
+
+/**
+ * 만료 임대 복구와 SG8 선점. claim 앞에서 한 번 돌려 후보를 정리한다. 만료된 임대는
+ * attempt 3 이면 retry_exhausted 로 닫히고, 아니면 pending 으로 되돌아간다.
+ */
+async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = 'expired', terminal_failure_code = 'audio_deleted',
+           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
+           updated_at = ?
+       WHERE org_id = ? AND kind = 'audio' AND state IN ('pending', 'leased', 'blocked')
+         AND (retention_hard_cap_at <= ? OR processing_deadline_at <= ?)`,
+    ).bind(nowIso, orgId, nowIso, nowIso),
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = CASE WHEN attempt >= ? THEN 'failed' ELSE 'pending' END,
+           terminal_failure_code = CASE WHEN attempt >= ? THEN 'retry_exhausted' ELSE NULL END,
+           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
+           updated_at = ?
+       WHERE org_id = ? AND state = 'leased' AND lease_expires_at <= ?`,
+    ).bind(AGENT_JOB_MAX_ATTEMPTS, AGENT_JOB_MAX_ATTEMPTS, nowIso, orgId, nowIso),
+  ]);
+}
+
+/**
+ * Agent 폴링 = claim (S5 §2.1). 후보 선별과 임대 부여가 원자적 CAS 라 두 Agent 가
+ * 동시에 claim 해도 같은 작업이 두 번 나가지 않는다. blocked 행은 NER 이 회복되면
+ * attempt 를 올리지 않고 다시 임대한다.
+ *
+ * Azure engine 은 후보에서 제외한다 — 외부 STT 동의 영역이 아직 없어(SG7 · E4-6)
+ * 전송 근거를 만들 수 없다. 늦는 것이 새는 것보다 낫다(R3).
+ */
+export async function claimAgentJobs(
+  env: Env,
+  actor: Actor,
+  runtime: AgentRuntime,
+  request: ClaimRequest,
+): Promise<ClaimResponse> {
+  assertAgentActor(actor);
+  const limit = normalizeClaimLimit(request.limit);
+  assertOpaqueIdentifier(request.releaseQualificationReceiptId, 'release qualification receipt id');
+  await assertNerReleaseQualification(
+    env,
+    actor.orgId,
+    request.nerAttestation,
+    request.releaseQualificationReceiptId,
+  );
+
+  const nowIso = now();
+  await recoverAgentJobs(env, actor.orgId, nowIso);
+
+  const audioCandidates = runtime.sttEngine === 'local'
+    ? (await env.DB.prepare(
+      `SELECT job.* FROM agent_jobs AS job
+       JOIN support_cases AS support_case
+         ON support_case.id = job.support_case_id AND support_case.org_id = job.org_id
+       WHERE job.org_id = ? AND job.kind = 'audio' AND job.state IN ('pending', 'blocked')
+         -- blocked 는 attempt 를 소모하지 않는다. 3회를 다 쓴 뒤 차단된 작업도 NER 이
+         -- 회복되면 같은 attempt 로 다시 임대돼야 한다(S5 §2.2).
+         AND (job.state = 'blocked' OR job.attempt < ?)
+         AND job.audio_generation_id IS NOT NULL
+         AND (job.retention_hard_cap_at IS NULL OR job.retention_hard_cap_at > ?)
+         AND (job.processing_deadline_at IS NULL OR job.processing_deadline_at > ?)
+         AND support_case.consent_recording_at IS NOT NULL
+       ORDER BY job.enqueued_at, job.id
+       LIMIT ?`,
+    ).bind(actor.orgId, AGENT_JOB_MAX_ATTEMPTS, nowIso, nowIso, limit).all<DbRow>()).results
+    : [];
+
+  // 텍스트 일감은 파일럿 스위치·② 동의·공식 텍스트가 갖춰진 회차만 처리할 수 있다.
+  // 갖춰지지 않은 행을 내보내면 Agent 가 매번 같은 행을 집어 실패한다.
+  const textCandidates = isPilotTextAiEnabled(env)
+    ? (await env.DB.prepare(
+      `SELECT job.* FROM agent_jobs AS job
+       JOIN support_cases AS support_case
+         ON support_case.id = job.support_case_id AND support_case.org_id = job.org_id
+       JOIN sessions AS session ON session.id = job.session_id AND session.org_id = job.org_id
+       WHERE job.org_id = ? AND job.kind = 'text' AND job.state IN ('pending', 'blocked')
+         AND (job.state = 'blocked' OR job.attempt < ?)
+         AND support_case.consent_text_ai_at IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
+           WHERE evidence.org_id = job.org_id
+             AND evidence.support_case_id = job.support_case_id
+             AND evidence.effective_at <= ?
+         )
+         AND (
+           TRIM(COALESCE(session.memo, '')) <> ''
+           OR EXISTS (
+             SELECT 1 FROM approved_ai_briefing_v1 AS approved
+             WHERE approved.org_id = job.org_id AND approved.session_id = job.session_id
+               AND TRIM(COALESCE(approved.summary_text, '')) <> ''
+           )
+         )
+       ORDER BY job.enqueued_at, job.id
+       LIMIT ?`,
+    ).bind(actor.orgId, AGENT_JOB_MAX_ATTEMPTS, nowIso, limit).all<DbRow>()).results
+    : [];
+
+  const selected = interleaveAgentJobQueues(
+    audioCandidates.map(mapAgentJobRow),
+    textCandidates.map(mapAgentJobRow),
+    limit,
+  );
+
+  const attestation = request.nerAttestation;
+  const leases = selected.map((job) => {
+    const claimToken = newClaimToken();
+    const attempt = job.state === 'blocked' ? job.attempt : job.attempt + 1;
+    return {
+      job,
+      claimToken,
+      attempt,
+      leaseExpiresAt: agentLeaseExpiry(nowIso, nowIso, job),
+    };
+  });
+  const claimed: AgentJob[] = [];
+  if (leases.length > 0) {
+    const results = await env.DB.batch(await Promise.all(leases.map(async (lease) => env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = 'leased',
+           attempt = CASE WHEN state = 'blocked' THEN attempt ELSE attempt + 1 END,
+           lease_owner = ?, claim_token_hash = ?, claimed_at = ?, lease_expires_at = ?,
+           ner_attestation_id = ?, ner_model_id = ?, ner_model_revision = ?, ner_label_set_hash = ?,
+           ner_corpus_hash = ?, ner_attestation_result_hash = ?, ner_attestation_validated_at = ?,
+           ner_attestation_expires_at = ?, release_qualification_receipt_id = ?,
+           route = ?, stt_engine = ?, terminal_failure_code = NULL,
+           mask_dictionary_id = NULL, mask_dictionary_issued_at = NULL,
+           mask_dictionary_expires_at = NULL, mask_dictionary_consumed_at = NULL,
+           updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = ? AND attempt = ?`,
+    ).bind(
+      actor.userId,
+      await sha256Hex(lease.claimToken),
+      nowIso,
+      lease.leaseExpiresAt,
+      attestation.id,
+      attestation.modelId,
+      attestation.modelRevision,
+      attestation.labelSetHash,
+      attestation.corpusHash,
+      attestation.resultHash,
+      attestation.validatedAt,
+      attestation.expiresAt,
+      request.releaseQualificationReceiptId,
+      runtime.route,
+      lease.job.kind === 'audio' ? runtime.sttEngine : null,
+      nowIso,
+      lease.job.id,
+      actor.orgId,
+      lease.job.state,
+      lease.job.attempt,
+    ))));
+    leases.forEach((lease, index) => {
+      const changes = (results[index] as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0;
+      if (changes < 1) return;
+      claimed.push({
+        jobId: lease.job.id,
+        sessionId: lease.job.sessionId,
+        caseId: lease.job.supportCaseId,
+        kind: lease.job.kind,
+        state: 'leased',
+        attempt: lease.attempt,
+        maxAttempts: AGENT_JOB_MAX_ATTEMPTS,
+        claimToken: lease.claimToken,
+        claimedAt: nowIso,
+        leaseExpiresAt: lease.leaseExpiresAt,
+        enqueuedAt: lease.job.enqueuedAt,
+        route: runtime.route,
+        sttEngine: lease.job.kind === 'audio' ? runtime.sttEngine : null,
+        requiredConsent: (parseJson<string[]>(lease.job.requiredConsent) ?? []) as ConsentScope[],
+        releaseQualificationReceiptId: request.releaseQualificationReceiptId,
+        terminalFailureCode: null,
+        maskDictionaryEndpoint: `/pipeline/jobs/${lease.job.id}/mask-dictionary`,
+        audio: lease.job.kind === 'audio' && lease.job.audioGenerationId !== null
+          ? {
+            generationId: lease.job.audioGenerationId,
+            clientAssertedSha256: lease.job.clientAssertedSha256,
+            agentComputedSha256: lease.job.agentComputedSha256,
+            rawAudioSha256: lease.job.rawAudioSha256,
+            retentionHardCapAt: lease.job.retentionHardCapAt ?? lease.leaseExpiresAt,
+            processingDeadlineAt: lease.job.processingDeadlineAt,
+            egressAuthorizationId: null,
+            delivery: runtime.audioDelivery,
+            endpoint: `/pipeline/jobs/${lease.job.id}/audio`,
+            expiresAt: null,
+          }
+          : null,
+      });
+    });
+  }
+
+  await writeAudit(env, actor, {
+    action: 'poll_pipeline',
+    targetTable: 'agent_jobs',
+    detail: { jobCount: claimed.length, route: runtime.route },
+  });
+  return { schemaVersion: 2, jobs: claimed };
+}
+
+/** 요청 토큰·attempt 가 현재 임대와 정확히 같을 때만 통과한다 (S5 §2.2). */
+async function loadClaimedAgentJob(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+): Promise<AgentJobRow> {
+  assertAgentActor(actor);
+  assertOpaqueIdentifier(jobId, 'job id');
+  const row = await env.DB.prepare('SELECT * FROM agent_jobs WHERE id = ? AND org_id = ?')
+    .bind(jobId, actor.orgId).first<DbRow>();
+  if (row === null) throw new AgentJobContractError('job_not_found', jobId);
+  const job = mapAgentJobRow(row);
+  if (job.state !== 'leased') throw new AgentJobContractError(terminalAgentJobError(job), jobId);
+  if (
+    job.claimTokenHash !== await sha256Hex(claimToken)
+    || job.attempt !== attempt
+    || job.leaseOwner !== actor.userId
+  ) {
+    throw new AgentJobContractError('stale_claim', jobId);
+  }
+  // 자연 만료라 아직 복구되지 않은 현재 토큰만 lease_expired 다.
+  if (job.leaseExpiresAt !== null && job.leaseExpiresAt <= now()) {
+    throw new AgentJobContractError('lease_expired', jobId);
+  }
+  return job;
+}
+
+/**
+ * CAS 가 0건이면 사유를 다시 읽어 던진다. 검증과 UPDATE 사이의 자연 만료는 `lease_expired`,
+ * 회수·재할당은 `stale_claim` 이다(S5 §2.6). 두 원인을 stale 로 합치면 그 경계가 사라진다.
+ */
+async function throwAgentJobCasFailure(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: { claimToken: string; attempt: number },
+): Promise<never> {
+  await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  throw new AgentJobContractError('stale_claim', jobId);
+}
+
+export async function heartbeatAgentJob(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: HeartbeatRequest,
+): Promise<HeartbeatResponse> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  const nowIso = now();
+  const leaseExpiresAt = agentLeaseExpiry(nowIso, job.claimedAt ?? nowIso, job);
+  // 조회와 갱신 사이에 임대가 만료됐으면 연장하지 않는다 — 자연 만료는 되살릴 수 없다.
+  const updated = await env.DB.prepare(
+    `UPDATE agent_jobs SET lease_expires_at = ?, updated_at = ?
+     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+       AND lease_expires_at > ?`,
+  ).bind(leaseExpiresAt, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso).run();
+  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  return { jobId, state: 'leased', attempt: job.attempt, leaseExpiresAt };
+}
+
+/**
+ * 종료 신호. transient 는 재큐잉(attempt 3 이면 retry_exhausted), blocked 는 NER
+ * 회복 대기이며 attempt 를 소모하지 않고, permanent 는 실패 코드를 못 박는다.
+ */
+export async function releaseAgentJob(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: ReleaseRequest,
+): Promise<void> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  const nowIso = now();
+  let state: AgentJobState = 'pending';
+  let terminalFailureCode: string | null = null;
+  if (request.outcome === 'transient') {
+    if (job.attempt >= AGENT_JOB_MAX_ATTEMPTS) {
+      state = 'failed';
+      terminalFailureCode = 'retry_exhausted';
+    }
+  } else if (request.outcome === 'blocked') {
+    state = 'blocked';
+  } else {
+    state = 'failed';
+    terminalFailureCode = request.reason;
+  }
+  const updated = await env.DB.prepare(
+    `UPDATE agent_jobs
+     SET state = ?, terminal_failure_code = ?, lease_owner = NULL, claim_token_hash = NULL,
+         claimed_at = NULL, lease_expires_at = NULL, updated_at = ?
+     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+       AND lease_expires_at > ?`,
+  ).bind(
+    state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
+  ).run();
+  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'agent_jobs',
+    targetId: jobId,
+    detail: { state, outcome: request.outcome, reason: request.reason, attempt: job.attempt },
+  });
+}
+
+/** claim 에 묶인 텍스트 원문. 1차 치환까지 끝난 공식 텍스트만 나간다. */
+export async function getAgentJobSource(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+): Promise<SourceResponse> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  if (job.kind !== 'text') throw new AgentJobContractError('forbidden', jobId);
+  return buildAgentJobSourceText(env, actor, job.sessionId);
+}
+
+/**
+ * 원음 객체가 없으면 그 코드로 즉시 영구 실패다(S5 §2.6). 열어 두면 Agent 가 닫을 수 없어
+ * 임대 만료 복구가 attempt 를 태우고 사유가 `retry_exhausted` 로 바뀐다.
+ * 저장소에서 바이트를 못 읽은 호출부도 이 함수로 같은 전이를 만든다.
+ */
+export async function closeAgentJobAudioObjectMissing(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+): Promise<void> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  try {
+    await closeJobOnResultRejection(env, actor, job, claimToken, () => {
+      throw new AgentJobContractError('audio_object_missing', jobId);
+    });
+  } catch (error) {
+    // 같은 code 는 호출부가 응답으로 돌려준다. 여기서는 전이만 확정한다.
+    if (!(error instanceof AgentJobContractError) || error.code !== 'audio_object_missing') throw error;
+  }
+}
+
+/** claim 에 묶인 오디오 전달. 키는 응답에 싣지 않고 호출부가 바이트만 중계한다. */
+export async function getAgentJobAudioDelivery(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+): Promise<{ audioR2Key: string; caseId: string; generationId: string }> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  if (job.kind !== 'audio' || job.audioGenerationId === null) {
+    throw new AgentJobContractError('audio_object_missing', jobId);
+  }
+  const session = await getSessionForOrg(env, actor.orgId, job.sessionId);
+  if (session.audioR2Key === null) {
+    await closeAgentJobAudioObjectMissing(env, actor, jobId, claimToken, attempt);
+    throw new AgentJobContractError('audio_object_missing', jobId);
+  }
+  await writeAudit(env, actor, {
+    action: 'download_audio',
+    targetTable: 'agent_jobs',
+    targetId: jobId,
+    caseId: session.caseId,
+  });
+  return { audioR2Key: session.audioR2Key, caseId: session.caseId, generationId: job.audioGenerationId };
+}
+
+/**
+ * 일회성 mask dictionary. 같은 claim·attempt 의 재전송은 만료 전까지 같은 응답을
+ * 재생하고, 만료 뒤나 다른 claim 은 거부한다. 원문 PII 는 저장하지 않는다.
+ */
+export async function issueAgentJobMaskDictionary(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: MaskDictionaryRequest,
+): Promise<MaskDictionaryResponse> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  const nowIso = now();
+  const replayed = job.maskDictionaryId !== null
+    && job.maskDictionaryExpiresAt !== null
+    && job.maskDictionaryExpiresAt > nowIso;
+  if (job.maskDictionaryId !== null && !replayed) {
+    throw new AgentJobContractError('dictionary_already_consumed', jobId);
+  }
+  const dictionaryId = replayed && job.maskDictionaryId !== null ? job.maskDictionaryId : newId();
+  const expiresAt = replayed && job.maskDictionaryExpiresAt !== null
+    ? job.maskDictionaryExpiresAt
+    : new Date(parseUtcTimestamp(nowIso) + MASK_DICTIONARY_TTL_MS).toISOString();
+  const scope = await resolveSessionScope(env, actor.orgId, job.sessionId);
+  const pii = await readPiiValues(env, actor.orgId, scope.caseId);
+  const entries: MaskDictionaryEntry[] = [];
+  for (const [field, sourceValue] of [
+    ['name', pii.name],
+    ['phone', pii.phone],
+    ['account', pii.account],
+    ['email', pii.email],
+  ] as Array<[string, string | null]>) {
+    if (sourceValue !== null && sourceValue.length > 0) {
+      entries.push({ field, sourceValue, replacement: scope.caseId });
+    }
+  }
+  if (!replayed) {
+    const updated = await env.DB.prepare(
+      `UPDATE agent_jobs
+       SET mask_dictionary_id = ?, mask_dictionary_issued_at = ?, mask_dictionary_expires_at = ?,
+           mask_dictionary_consumed_at = ?, updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+         AND mask_dictionary_id IS NULL`,
+    ).bind(
+      dictionaryId, nowIso, expiresAt, nowIso, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt,
+    ).run();
+    if ((updated.meta?.changes ?? 0) === 0) {
+      throw new AgentJobContractError('dictionary_already_consumed', jobId);
+    }
+  }
+  // 감사에는 건수만 남긴다 — sourceValue 는 로그·감사 어디에도 쓰지 않는다(R3).
+  await writeAudit(env, actor, {
+    action: 'mask_dictionary_read',
+    targetTable: 'agent_jobs',
+    targetId: jobId,
+    caseId: scope.caseId,
+    detail: { dictionaryId, entryCount: entries.length, replayed },
+  });
+  return { dictionaryId, jobId, expiresAt, oneTime: true, entries };
+}
+
+/**
+ * 스트림을 끝까지 읽은 Agent 해시를 저장한다. 업로드 시 client 주장 해시와 어긋나면
+ * trusted hash 를 만들지 않고 즉시 실패로 닫는다 — 외부 호출은 0건이다.
+ */
+export async function verifyAgentJobAudio(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: AudioVerifyRequest,
+  /** 서버가 저장된 원음 바이트에서 직접 계산한 해시. Agent 제출값과 대조할 독립 근거다. */
+  storedSha256: string,
+): Promise<AudioVerifyResponse> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  if (job.kind !== 'audio' || job.audioGenerationId === null) {
+    throw new AgentJobContractError('audio_object_missing', jobId);
+  }
+  if (job.audioGenerationId !== request.generationId) {
+    throw new AgentJobContractError('stale_claim', jobId);
+  }
+  if (!SHA256_HEX.test(request.agentComputedSha256) || !SHA256_HEX.test(storedSha256)) {
+    throw new AgentJobContractError('audio_hash_mismatch', jobId);
+  }
+  const nowIso = now();
+  // 독립 근거 두 축과 어긋나면 trusted hash 를 만들지 않고 즉시 닫는다. Agent 가 제출한
+  // 값만으로는 trusted 가 될 수 없다 — 업로드 시 client 주장 해시도 신뢰하지 않는다(S5 §2.1).
+  const mismatched = storedSha256 !== request.agentComputedSha256
+    || (job.clientAssertedSha256 !== null && job.clientAssertedSha256 !== request.agentComputedSha256);
+  if (mismatched) {
+    await env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = 'failed', terminal_failure_code = 'audio_hash_mismatch', agent_computed_sha256 = ?,
+           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
+           updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
+    ).bind(
+      request.agentComputedSha256, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt,
+    ).run();
+    await writeAudit(env, actor, {
+      action: 'deny',
+      targetTable: 'agent_jobs',
+      targetId: jobId,
+      detail: { reason: 'audio_hash_mismatch', attempt: job.attempt },
+    });
+    throw new AgentJobContractError('audio_hash_mismatch', jobId);
+  }
+  const updated = await env.DB.prepare(
+    `UPDATE agent_jobs SET agent_computed_sha256 = ?, raw_audio_sha256 = ?, updated_at = ?
+     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+       AND audio_generation_id = ?`,
+  ).bind(
+    request.agentComputedSha256,
+    storedSha256,
+    nowIso,
+    jobId,
+    actor.orgId,
+    job.claimTokenHash,
+    job.attempt,
+    request.generationId,
+  ).run();
+  if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  return {
+    jobId,
+    generationId: request.generationId,
+    rawAudioSha256: storedSha256,
+    verifiedAt: nowIso,
+  };
+}
+
+/** Azure 전송 허가. org·job·claim·attempt·trusted hash·동의 revision 을 못 박는다. */
+export async function authorizeAgentJobEgress(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: EgressAuthorizationRequest,
+): Promise<AzureEgressAuthorization> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  if (job.kind !== 'audio' || job.sttEngine !== 'azure' || request.provider !== 'azure') {
+    throw new AgentJobContractError('route_mismatch', jobId);
+  }
+  if (job.rawAudioSha256 === null || job.rawAudioSha256 !== request.rawAudioSha256) {
+    throw new AgentJobContractError('audio_hash_mismatch', jobId);
+  }
+  // 외부 STT 동의 영역이 붙기 전까지 이 호출은 여기서 닫힌다(SG7 · E4-6).
+  const consentRevision = await agentJobConsentRevision(env, actor.orgId, job);
+  const authorizedAt = now();
+  const expiresAt = new Date(parseUtcTimestamp(authorizedAt) + EGRESS_AUTHORIZATION_TTL_MS).toISOString();
+  const egressAuthorizationId = newId();
+  await env.DB.prepare(
+    `INSERT INTO agent_job_egress_records (
+       id, org_id, job_id, attempt, claim_token_hash, raw_audio_sha256, consent_revision,
+       provider, status, authorized_at, expires_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, 'azure', 'authorized', ?, ?)`,
+  ).bind(
+    egressAuthorizationId,
+    actor.orgId,
+    jobId,
+    job.attempt,
+    job.claimTokenHash,
+    job.rawAudioSha256,
+    consentRevision,
+    authorizedAt,
+    expiresAt,
+  ).run();
+  return {
+    egressAuthorizationId,
+    tuple: {
+      orgId: actor.orgId,
+      jobId,
+      claimTokenHash: job.claimTokenHash ?? '',
+      attempt: job.attempt,
+      rawAudioSha256: job.rawAudioSha256,
+      consentRevision,
+      provider: 'azure',
+    },
+    status: 'authorized',
+    expiresAt,
+  };
+}
+
+/** 전송 직전 at-most-once marker. 같은 tuple 의 authorized 행만 in_flight 로 바뀐다. */
+export async function markAgentJobEgressInFlight(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: EgressInFlightRequest,
+): Promise<EgressInFlightResponse> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  const startedAt = now();
+  const updated = await env.DB.prepare(
+    `UPDATE agent_job_egress_records SET status = 'in_flight', started_at = ?
+     WHERE id = ? AND org_id = ? AND job_id = ? AND attempt = ? AND claim_token_hash = ?
+       AND status = 'authorized' AND expires_at > ?`,
+  ).bind(
+    startedAt,
+    request.egressAuthorizationId,
+    actor.orgId,
+    jobId,
+    job.attempt,
+    job.claimTokenHash,
+    startedAt,
+  ).run();
+  if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  return {
+    egressAuthorizationId: request.egressAuthorizationId,
+    provider: 'azure',
+    state: 'in_flight',
+    startedAt,
+  };
+}
+
+/** 결과 payload 무결성. 실패는 고정 code 로만 알린다 — 원문은 로그에 남기지 않는다. */
+async function assertAgentJobResultIntegrity(
+  env: Env,
+  job: AgentJobRow,
+  request: ResultRequest,
+): Promise<void> {
+  const result = request.result;
+  if (result.nerAvailable !== true) throw new AgentJobContractError('local_ner_unavailable', job.id);
+  if (!SHA256_HEX.test(result.maskingPipelineHash)) {
+    throw new AgentJobContractError('masking_pipeline_version_mismatch', job.id);
+  }
+  if (
+    result.nerAttestationId !== job.nerAttestationId
+    || result.nerAttestationResultHash !== job.nerAttestationResultHash
+    || result.releaseQualificationReceiptId !== job.releaseQualificationReceiptId
+  ) {
+    throw new AgentJobContractError('local_ner_unavailable', job.id);
+  }
+  const receipt = await env.DB.prepare(
+    `SELECT expires_at FROM ner_release_qualification_receipts
+     WHERE id = ? AND org_id = ? AND status = 'passed'`,
+  ).bind(result.releaseQualificationReceiptId, job.orgId).first<DbRow>();
+  const nowIso = now();
+  // claim 때 통과한 attestation 이 처리 중에 만료됐으면 결과도 받지 않는다(S5 §2.2 재검증).
+  if (
+    receipt === null
+    || stringValue(receipt.expires_at) <= nowIso
+    || job.nerAttestationExpiresAt === null
+    || job.nerAttestationExpiresAt <= nowIso
+  ) {
+    throw new AgentJobContractError('local_ner_unavailable', job.id);
+  }
+  if (!SHA256_HEX.test(result.sha256) || await sha256Hex(result.maskedText) !== result.sha256) {
+    throw new AgentJobContractError('result_schema_invalid', job.id);
+  }
+  if (
+    !SHA256_HEX.test(result.evidenceHash)
+    || await sha256Hex(canonicalizeJcs(result.evidence)) !== result.evidenceHash
+    || result.evidence.some((item) => item.sourceSha256 !== result.sha256)
+  ) {
+    throw new AgentJobContractError('evidence_hash_mismatch', job.id);
+  }
+  const payloadSha256 = await sha256Hex(canonicalizeJcs({
+    schemaVersion: request.schemaVersion,
+    attempt: request.attempt,
+    result,
+  }));
+  if (payloadSha256 !== request.payloadSha256) {
+    throw new AgentJobContractError('result_schema_invalid', job.id);
+  }
+}
+
+export interface AgentJobResultAcceptance {
+  jobId: string;
+  kind: JobKind;
+  sessionId: string;
+  replayed: boolean;
+  /** 오디오 결과만 후속 초안·공식화 단계를 갖는다. 멱등 재전송이면 null. */
+  recording: RecordingResultCommit | null;
+}
+
+/**
+ * 결과 검증이 malformed 로 판정하는 S6 code. 이 거부는 작업을 열어 둔 채 돌아가지 않고
+ * 그 자리에서 `failed` 로 닫히며 code 를 `terminal_failure_code` 로 남긴다(S5 §2.6, S6 §4).
+ * 열어 두면 Agent 가 사유를 추측해 release 하고 임대 만료 복구가 attempt 를 태운다.
+ * `result_schema_invalid` 는 S6 판정이 아닌 요청 형식 거부라 제외하고,
+ * `consent_not_effective` 는 실패가 아니라 `cancelled` 라 철회 경로가 소유한다.
+ */
+const MALFORMED_RESULT_JOB_ERRORS: ReadonlySet<JobErrorCode> = new Set([
+  'audio_object_missing',
+  'masking_snapshot_missing',
+  'registered_pii_detected',
+  'unmasked_identifier_detected',
+  'evidence_hash_mismatch',
+  'masking_pipeline_version_mismatch',
+  'route_mismatch',
+]);
+
+/**
+ * 결과 검증 거부를 그 자리에서 닫는다.
+ *
+ * malformed S6 판정은 `failed` + 같은 code 다. `local_ner_unavailable` 만 재처리 가능한
+ * 기반 장애라(S6 §4) 다시 돌릴 수 있게 남기는데, 텍스트는 provider 0회라 attempt 를
+ * 소모하지 않는 `blocked` 이고, 오디오는 그 attempt 의 STT 를 이미 쓴 뒤라 재큐잉으로
+ * attempt 를 소모한다 - 같은 attempt 로 두 번 STT 를 돌리지 않기 위한 구분이다(S5 §2.2).
+ */
+async function closeJobOnResultRejection(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+  claimToken: string,
+  verify: () => Promise<void> | void,
+): Promise<void> {
+  try {
+    await verify();
+  } catch (error) {
+    if (!(error instanceof AgentJobContractError)) throw error;
+    let state: AgentJobState | null = null;
+    let terminalFailureCode: string | null = null;
+    if (MALFORMED_RESULT_JOB_ERRORS.has(error.code)) {
+      state = 'failed';
+      terminalFailureCode = error.code;
+    } else if (error.code === 'local_ner_unavailable') {
+      if (job.kind === 'text') {
+        state = 'blocked';
+      } else if (job.attempt >= AGENT_JOB_MAX_ATTEMPTS) {
+        state = 'failed';
+        terminalFailureCode = 'retry_exhausted';
+      } else {
+        state = 'pending';
+      }
+    }
+    if (state === null) throw error;
+    const nowIso = now();
+    // 검증 도중 임대가 넘어가거나 만료됐으면 이 전이를 확정하지 않는다. 그 경우 사유는
+    // 검증 오류가 아니라 현재 상태(`lease_expired`·`stale_claim`·terminal)다.
+    const updated = await env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = ?, terminal_failure_code = ?, lease_owner = NULL, claim_token_hash = NULL,
+           claimed_at = NULL, lease_expires_at = NULL, updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+         AND lease_expires_at > ?`,
+    ).bind(
+      state, terminalFailureCode, nowIso, job.id, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
+    ).run();
+    if ((updated.meta?.changes ?? 0) === 0) {
+      await throwAgentJobCasFailure(env, actor, job.id, {
+        claimToken: claimToken,
+        attempt: job.attempt,
+      });
+    }
+    await writeAudit(env, actor, {
+      action: 'update',
+      targetTable: 'agent_jobs',
+      targetId: job.id,
+      detail: { state, reason: error.code, attempt: job.attempt },
+    });
+    throw error;
+  }
+}
+
+/**
+ * 결과 수락. 마스킹 스냅샷 저장, job terminal 전환, 텍스트 원본 큐 완료, Azure egress
+ * 완료를 한 batch 로 처리한다. 같은 payload hash 재전송은 resultId 가 달라도 멱등이고,
+ * 다른 hash 는 result_conflict 다. succeeded 여도 승인 전에는 공식 기록이 아니다(R2).
+ */
+export async function acceptAgentJobResult(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  request: ResultRequest,
+): Promise<AgentJobResultAcceptance> {
+  assertAgentActor(actor);
+  assertOpaqueIdentifier(jobId, 'job id');
+  const storedRow = await env.DB.prepare('SELECT * FROM agent_jobs WHERE id = ? AND org_id = ?')
+    .bind(jobId, actor.orgId).first<DbRow>();
+  if (storedRow === null) throw new AgentJobContractError('job_not_found', jobId);
+  const stored = mapAgentJobRow(storedRow);
+  if (stored.state === 'succeeded') {
+    if (stored.resultPayloadSha256 !== request.payloadSha256) {
+      throw new AgentJobContractError('result_conflict', jobId);
+    }
+    // 같은 payload 재전송은 새 결과를 만들지 않는다. 다만 결과 수락 뒤 후속 초안 단계가
+    // 실패했을 수 있어, 오디오는 멱등 재생 결과를 돌려 호출부가 그 단계를 이어가게 한다.
+    const replayedRecording = request.result.kind === 'audio'
+      ? await commitRecordingResult(env, actor, stored.sessionId, {
+        maskedText: request.result.maskedText,
+        sha256: request.result.sha256,
+        maskingPipelineVersion: request.result.maskingPipelineVersion,
+        evidence: request.result.evidence,
+        emotionScores: request.result.emotionScores,
+        transcriptReliable: request.result.transcriptReliable,
+        transcriptWarnings: request.result.transcriptWarnings,
+      })
+      : null;
+    return {
+      jobId,
+      kind: stored.kind,
+      sessionId: stored.sessionId,
+      replayed: true,
+      recording: replayedRecording,
+    };
+  }
+
+  const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
+    throw new AgentJobContractError('result_schema_invalid', jobId);
+  }
+  await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
+    await assertAgentJobResultIntegrity(env, job, request);
+  });
+  await agentJobConsentRevision(env, actor.orgId, job);
+  const result = request.result;
+  const acceptedAt = now();
+  const transition = (snapshot: MaskedSourceSnapshot): PreparedStatement[] => [
+    // 이 INSERT 의 트리거가 "지금 그 claim 이 살아 있는가" 를 batch 안에서 다시 묻는다.
+    // 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 batch 전체가 abort 되고
+    // 마스킹 스냅샷도 남지 않는다(S5 §2.2 · R3).
+    env.DB.prepare(
+      `INSERT INTO agent_job_result_acceptances (job_id, attempt, claim_token_hash, payload_sha256, accepted_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).bind(jobId, job.attempt, job.claimTokenHash, request.payloadSha256, acceptedAt),
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = 'succeeded', result_id = ?, result_payload_sha256 = ?, result_accepted_at = ?,
+           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
+           updated_at = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
+    ).bind(
+      request.resultId,
+      request.payloadSha256,
+      acceptedAt,
+      acceptedAt,
+      jobId,
+      actor.orgId,
+      job.claimTokenHash,
+      job.attempt,
+    ),
+    ...(job.sourceTextWorkItemId === null ? [] : [env.DB.prepare(
+      `UPDATE ai_text_work_queue SET status = 'done', completed_at = ?, completed_snapshot_id = ?
+       WHERE id = ? AND org_id = ? AND status IN ('pending', 'processing')`,
+    ).bind(acceptedAt, snapshot.id, job.sourceTextWorkItemId, actor.orgId)]),
+    env.DB.prepare(
+      `UPDATE agent_job_egress_records SET status = 'completed', completed_at = ?
+       WHERE org_id = ? AND job_id = ? AND attempt = ? AND status = 'in_flight'`,
+    ).bind(acceptedAt, actor.orgId, jobId, job.attempt),
+  ];
+
+  let recording: RecordingResultCommit | null = null;
+  try {
+    if (result.kind === 'audio') {
+      recording = await commitRecordingResult(env, actor, job.sessionId, {
+        maskedText: result.maskedText,
+        sha256: result.sha256,
+        maskingPipelineVersion: result.maskingPipelineVersion,
+        evidence: result.evidence,
+        emotionScores: result.emotionScores,
+        transcriptReliable: result.transcriptReliable,
+        transcriptWarnings: result.transcriptWarnings,
+      }, transition);
+      // 결과가 이미 커밋돼 있으면(멱등 재전송) 새 스냅샷을 쓰지 않으므로 전이 문장이
+      // 실행되지 않는다. 이미 있는 스냅샷으로 작업만 닫는다 — terminal 은 여전히 하나다.
+      if (recording.replayed) await env.DB.batch(transition(recording.snapshot));
+    } else {
+      await recordMaskedSourceSnapshot(env, actor, job.sessionId, {
+        maskedText: result.maskedText,
+        sha256: result.sha256,
+        maskingPipelineVersion: result.maskingPipelineVersion,
+        evidence: result.evidence,
+      }, transition);
+    }
+  } catch (error) {
+    // 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 live claim 트리거가 batch 를
+    // abort 한다. 그 경우만 stale 로 바꿔 알리고, 그 밖의 실패는 그대로 올린다.
+    const current = await env.DB.prepare('SELECT state, claim_token_hash, attempt FROM agent_jobs WHERE id = ? AND org_id = ?')
+      .bind(jobId, actor.orgId).first<DbRow>();
+    const stillOurs = current !== null
+      && stringValue(current.state) === 'leased'
+      && nullableString(current.claim_token_hash) === job.claimTokenHash
+      && Number(current.attempt) === job.attempt;
+    if (!stillOurs) throw new AgentJobContractError('stale_claim', jobId);
+    throw error;
   }
   await writeAudit(env, actor, {
     action: 'update',
-    targetTable: 'ai_text_work_queue',
-    targetId: itemId,
-    detail: { status: 'done', completedSnapshotId },
+    targetTable: 'agent_jobs',
+    targetId: jobId,
+    detail: { state: 'succeeded', kind: job.kind, attempt: job.attempt },
   });
-}
-
-export async function listPipelineJobs(env: Env, actor: Actor): Promise<PipelineJob[]> {
-  if (actor.role !== 'service') {
-    throw new ForbiddenError('service role is required for pipeline jobs');
-  }
-
-  const result = await env.DB.prepare(
-    `SELECT session.id, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id, session.ai_status, session.audio_r2_key
-     FROM sessions AS session
-     JOIN support_cases AS support_case ON support_case.id = session.support_case_id
-     WHERE session.org_id = ? AND session.audio_r2_key IS NOT NULL
-       AND session.ai_status IN ('uploaded', 'processing')
-     ORDER BY session.updated_at`,
-  ).bind(actor.orgId).all<DbRow>();
-  const jobs = result.results.map((row) => ({
-    id: stringValue(row.id),
-    caseId: stringValue(row.case_id),
-    status: toAiStatus(row.ai_status),
-    audioAvailable: nullableString(row.audio_r2_key) !== null,
-  }));
-  await writeAudit(env, actor, {
-    action: 'poll_pipeline',
-    targetTable: 'sessions',
-    detail: { jobCount: jobs.length },
-  });
-  return jobs;
-}
-
-/**
- * 오디오 중계용 R2 키 조회 (Mac Mini 서비스 역할 전용, D13).
- * org 일치·서비스 역할·오디오 등록 여부를 확인하고, 반환 전 audit_log에
- * 'download_audio'를 기록한다(D14: 오디오 열람은 전건 감사). audio_r2_key는
- * 응답 본문으로 절대 나가지 않고, request-handler가 R2에서 바이트를 중계할
- * 내부 용도로만 이 값을 쓴다.
- */
-export async function getPipelineAudioKey(
-  env: Env,
-  actor: Actor,
-  sessionId: string,
-): Promise<{ audioR2Key: string; caseId: string }> {
-  if (actor.role !== 'service') {
-    throw new ForbiddenError('service role is required for pipeline jobs');
-  }
-
-  const session = await getSessionForOrg(env, actor.orgId, sessionId);
-  if (session.audioR2Key === null) {
-    throw new ValidationError('pipeline job has no registered audio');
-  }
-  await writeAudit(env, actor, { action: 'download_audio', targetTable: 'sessions', targetId: sessionId, caseId: session.caseId });
-  return { audioR2Key: session.audioR2Key, caseId: session.caseId };
+  return { jobId, kind: job.kind, sessionId: job.sessionId, replayed: false, recording };
 }
 
 // ============================================================================
@@ -7360,9 +8308,9 @@ export async function getPipelineAudioKey(
 /**
  * 한 기관의 폴링 건강도를 계산한다(감사 미기록 — 호출부가 감사 정책을 정한다).
  * 데이터 원천 4종(전부 집계 SELECT — 읽기 전용):
- *   ① audit_log의 최신 poll_pipeline 시각(listPipelineJobs·listTextWorkItems가 남긴다)
- *   ② 오디오 대기 세션 수 + 텍스트 일감 큐 미완료(pending·processing) 건수(두 큐 합산)
- *   ③ 가장 오래된 대기 작업의 대기 시간(오디오는 updated_at, 텍스트는 enqueued_at)
+ *   ① audit_log의 최신 poll_pipeline 시각(claimAgentJobs가 남긴다)
+ *   ② `agent_jobs`의 미완료(pending·leased·blocked) 오디오·텍스트 건수(두 큐 합산)
+ *   ③ 가장 오래된 미완료 작업의 대기 시간(enqueued_at 기준)
  *   ④ 가장 최근 완료 시각(recording_result_commits.finalized_at · ai_text_work_queue.completed_at)
  * 판정: 무폴링(thresholdHours 초과)뿐 아니라, 폴링이 최신이어도 가장 오래된 대기
  * 작업이 queueThresholdHours를 넘게 묵으면 stale(queue_backlog)다 — 장비가 폴링만
@@ -7380,13 +8328,13 @@ async function computePipelineHealth(
       "SELECT created_at FROM audit_log WHERE org_id = ? AND action = 'poll_pipeline' ORDER BY id DESC LIMIT 1",
     ).bind(orgId).first<{ created_at: string }>(),
     env.DB.prepare(
-      "SELECT COUNT(*) AS count, MIN(updated_at) AS oldest FROM sessions WHERE org_id = ? AND audio_r2_key IS NOT NULL AND ai_status IN ('uploaded', 'processing')",
+      `SELECT COUNT(*) AS count, MIN(enqueued_at) AS oldest FROM agent_jobs
+       WHERE org_id = ? AND kind = 'audio' AND state IN ('pending', 'leased', 'blocked')`,
     ).bind(orgId).first<{ count: number; oldest: string | null }>(),
     env.DB.prepare(
-      // 임대(0036·CCC-120) 도입 후 미완료는 pending + processing 이다. 임대가 만료된
-      // 행도 status 는 processing 인 채로 남으므로, 'pending' 만 세면 죽은 장비가
-      // 안고 있는 일감이 적체 감시에서 사라진다 — 미완료 전체를 센다.
-      "SELECT COUNT(*) AS count, MIN(enqueued_at) AS oldest FROM ai_text_work_queue WHERE org_id = ? AND status IN ('pending', 'processing')",
+      // 임대 중(leased)과 NER 차단(blocked)도 아직 끝나지 않은 일감이다. 미완료 전체를 센다.
+      `SELECT COUNT(*) AS count, MIN(enqueued_at) AS oldest FROM agent_jobs
+       WHERE org_id = ? AND kind = 'text' AND state IN ('pending', 'leased', 'blocked')`,
     ).bind(orgId).first<{ count: number; oldest: string | null }>(),
     env.DB.prepare(
       'SELECT MAX(finalized_at) AS at FROM recording_result_commits WHERE org_id = ? AND finalized_at IS NOT NULL',
@@ -10099,6 +11047,15 @@ export async function updateParticipantConsent(
        SET consent_privacy_at = ?, consent_recording_at = ?, consent_text_ai_at = ?, updated_at = ?
        WHERE id = ? AND org_id = ?`,
     ).bind(privacyAt, recordingAt, textAiAt, recordedAt, supportCaseId, actor.orgId),
+    // 철회는 그 축의 열린 Agent 작업을 같은 원자 경계에서 닫는다 (S5 F4). 결과 저장과
+    // 외부 호출이 철회 뒤에 성립할 수 없게 claim 자격도 함께 비운다.
+    env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state = 'cancelled', lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL,
+           lease_expires_at = NULL, updated_at = ?
+       WHERE org_id = ? AND support_case_id = ? AND state IN ('pending', 'leased', 'blocked')
+         AND ((kind = 'audio' AND ? IS NULL) OR (kind = 'text' AND ? IS NULL))`,
+    ).bind(recordedAt, actor.orgId, supportCaseId, recordingAt, textAiAt),
     env.DB.prepare(
       `INSERT INTO participant_consent_records (
          id, org_id, beneficiary_id, support_case_id, consent_recording_at,
