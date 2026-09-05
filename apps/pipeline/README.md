@@ -21,7 +21,7 @@ CLAUDE.md §5 파이프라인 스펙을 따른다.
   실측에서 whisper large-v3가 34분 대화의 48%를 같은 문장 254번 반복으로 잃고 없던 문장을 지어냈다
 - **반복 구간은 지우지 않고 접어서 경고를 남긴다** — 그 시간대에 엔진이 무너졌다는 사실 자체가
   실무자에게 필요한 정보다. 경고 줄은 `Segment.warning=True`라 감정 집계·역할 추정에서 빠진다 (R4·D11)
-- **엔진은 아직 확정이 아니다** — 후보 1순위는 Qwen3-ASR-1.7B이고, 확정은 실측 게이트 G1~G3 통과 후다
+- **엔진은 아직 확정되지 않았다.** STT는 기본 `off`이고 faster-whisper int8 CPU는 명시적으로 선택하는 후보다. STT-G1~STT-G3과 Q 승인 전에는 제품의 `sttEngine=null`과 비활성 선택지를 유지한다(D77).
 - **ffmpeg 이 없으면 아예 뜨지 않는다**(2026-07-31) — 구 동작은 통짜 폴백이었으나, 그건 ADR-0024 가
   금지한 방식이라 매 회차 조용히 품질을 깎았다. 설치 오류는 기동 때 잡는다(아래 '기동 전 설치 점검')
 
@@ -45,7 +45,7 @@ tests/               표준 라이브러리 unittest — ML 설치 없이 실행
 systemd/             WSL2 자동 시작 유닛
 ```
 
-## 노트북 세팅 (Part B — docs/handoffs/2026-07-11-stage-2b-*.md 참조)
+## 기존 Whisper GPU 장비 세팅
 
 1. WSL2 Ubuntu + CUDA 확인: `nvidia-smi`, PyTorch CUDA 빌드 설치 후
    `python3 -c "import torch; print(torch.cuda.is_available())"` → `True`
@@ -68,8 +68,8 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_API_BASE_URL` | | 모드별 고정값 | `preview`면 `https://ccc-api-preview.account-855.workers.dev`, `production`이면 `https://ccc-api.account-855.workers.dev`. 반대 환경 URL은 시작 실패 |
 | `CCC_POLL_INTERVAL_SECONDS` | | `600` | 폴링 주기(초). D8 SLA(다음 영업일) 안이면 조정 자유 |
 | `CCC_WORK_DIR` | | `~/.cache/ccc-pipeline` | 임시 작업 디렉터리(작업마다 하위 생성 후 삭제) |
-| `CCC_WHISPER_MODEL` | | `medium` | Whisper 모델 크기. VRAM 12GB에서 large-v3는 여유 확인 후 |
-| `CCC_STT_ENGINE` | | `whisper` | STT 엔진(D53). 모르는 이름은 **폴백하지 않고 즉시 실패**한다 — 오타로 다른 엔진이 조용히 돌면 어떤 엔진으로 전사했는지 알 수 없다 |
+| `CCC_WHISPER_MODEL` | | `medium` | manifest에 고정된 모델 선택값. 기존 Whisper와 faster-whisper 후보 모두 `medium`만 허용한다 |
+| `CCC_STT_ENGINE` | | `off` | `off`, `whisper`, `faster-whisper-int8-cpu`. 후보는 Preview에서만 명시적으로 선택한다. 모르는 이름은 기동 실패이며, off 상태의 오디오 작업은 원음 다운로드와 ML 초기화 전에 차단한다. 텍스트 작업은 계속 처리한다 |
 | `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
@@ -88,6 +88,26 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_ORIGINAL_BACKUP_DESTINATION_REF` | 백업 ON | 없음 | 코드에 등록된 승인 목적지의 불투명 참조. 자격증명이나 실제 경로를 넣지 않는다 |
 | `CCC_ORIGINAL_BACKUP_RETENTION_DAYS` | 백업 ON | 없음 | 해당 사본의 승인된 보관 일수 |
 | `CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION` | 백업 ON | 없음 | 장기 원본 보관과 호환되는 동의 문안 버전 |
+
+### Local STT 후보 실행
+
+`faster-whisper-int8-cpu`는 `device="cpu"`, `compute_type="int8"`로 고정한다. CUDA 자동 선택이나 다른 엔진으로의 전환은 없다. `transcribe_audio`의 무음 분할, 반복 구간 재시도와 경고, 원본 기준 시각 보정을 그대로 거친다. 모델은 엔진 인스턴스당 한 번만 올리고 각 청크에서 재사용한다.
+
+후보 모델의 이름, revision과 가중치 SHA-256은 [`model-license-manifest.json`](../../supply-chain/model-license-manifest.json)이 정본이다. 고정 revision의 snapshot을 받고 `model.bin`의 SHA-256을 확인한 뒤 로컬 파일만으로 모델을 연다. 설치된 SDK만으로 STT가 활성화되지는 않는다.
+
+```bash
+# 격리된 Python 환경에서 설치한다. ffmpeg도 필요하다.
+python -m pip install -r apps/pipeline/requirements-ml.txt
+# 기존 Preview 자격과 유효한 NER attestation/release 영수증을 주입한 경우에만 실행한다.
+CCC_RUNTIME_ENVIRONMENT=preview CCC_STT_ENGINE=faster-whisper-int8-cpu \
+  PYTHONPATH=apps/pipeline python -m ccc_pipeline --once
+```
+
+NER 검증 영수증 없이 워커를 실행하려고 가짜 attestation을 만들지 않는다. 후보 어댑터만 검증할 때는 `build_engine("faster-whisper-int8-cpu", "medium")`를 기존 `transcribe_audio`에 전달하고 합성 음성을 사용한다. 제품 승인 registry나 기관 설정은 변경하지 않는다.
+
+실행 증거: [`e5-2-local-stt-candidate-smoke.json`](../../artifacts/pilot/e5-2-local-stt-candidate-smoke.json). macOS CPU에서 합성 한국어 음성의 청크 처리와 시각 보정을 확인한 자료다. Windows CPU 성능, 실제 상담 정확도, STT-G1~STT-G3과 Q 승인을 대신하지 않는다.
+
+E0-4에서 넘긴 모델 5종의 인증 다운로드와 파일 무결성 검증은 [`e5-2-model-downloads.json`](../../artifacts/pilot/e5-2-model-downloads.json)에 기록했다. 이는 다운로드와 checksum 증거이며 NER 정확도나 화자 분리 추론의 통과 판정은 아니다.
 
 ### 선택형 원본 백업 정책
 

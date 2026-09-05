@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "models": [
     {
+      "name": "Systran/faster-whisper-medium",
+      "version": "medium",
+      "revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+      "license": "MIT",
+      "source": "https://huggingface.co/Systran/faster-whisper-medium",
+      "checkpointSha256": "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae"
+    },
+    {
       "name": "openai/whisper",
       "version": "medium",
       "revision": "86098128c0b4f24f0e2aa2994de830614b474227",

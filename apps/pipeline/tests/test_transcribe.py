@@ -5,6 +5,10 @@
 """
 
 import unittest
+import hashlib
+import sys
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -44,6 +48,61 @@ class BuildEngineTest(unittest.TestCase):
     def test_whisper_is_known(self) -> None:
         self.assertIn("whisper", KNOWN_ENGINES)
         self.assertTrue(callable(build_engine("whisper", "medium")))
+
+
+class CandidateEngineTest(unittest.TestCase):
+    def test_candidate_consumes_lazy_segments_and_reuses_loaded_model(self):
+        with TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "model.bin"
+            checkpoint.write_bytes(b"candidate-weights")
+            spec = SimpleNamespace(
+                name="fixture/model", revision="a" * 40,
+                checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+            )
+            consumed = []
+            def segments():
+                consumed.append(True)
+                yield SimpleNamespace(start=0.5, end=1.5, text="합성 음성")
+            model = mock.Mock()
+            model.transcribe.side_effect = lambda *a, **kw: (segments(), None)
+            constructor = mock.Mock(return_value=model)
+            with (
+                mock.patch.dict(sys.modules, {
+                    "faster_whisper": SimpleNamespace(WhisperModel=constructor),
+                    "huggingface_hub": SimpleNamespace(snapshot_download=mock.Mock(return_value=directory)),
+                }),
+                mock.patch.object(transcribe_module, "role_spec", return_value=spec),
+            ):
+                engine = build_engine("faster-whisper-int8-cpu", "medium")
+                for _ in range(2):
+                    result = engine("synthetic.wav")
+                    self.assertEqual(result, [Segment(0.5, 1.5, "합성 음성")])
+                self.assertEqual(len(consumed), 2)
+                constructor.assert_called_once_with(
+                    directory, device="cpu", compute_type="int8", local_files_only=True,
+                )
+                # A failed candidate must propagate, not invoke the legacy engine.
+                model.transcribe.side_effect = RuntimeError("candidate unavailable")
+                with mock.patch.object(transcribe_module, "_build_whisper") as legacy:
+                    with self.assertRaises(RuntimeError):
+                        engine("synthetic.wav")
+                    legacy.assert_not_called()
+
+    def test_corrupt_candidate_checkpoint_never_reaches_inference(self):
+        with TemporaryDirectory() as directory:
+            (Path(directory) / "model.bin").write_bytes(b"tampered")
+            spec = SimpleNamespace(name="fixture/model", revision="a" * 40, checkpoint_sha256="0" * 64)
+            constructor = mock.Mock()
+            with (
+                mock.patch.dict(sys.modules, {
+                    "faster_whisper": SimpleNamespace(WhisperModel=constructor),
+                    "huggingface_hub": SimpleNamespace(snapshot_download=mock.Mock(return_value=directory)),
+                }),
+                mock.patch.object(transcribe_module, "role_spec", return_value=spec),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "SHA-256"):
+                    build_engine("faster-whisper-int8-cpu", "medium")("synthetic.wav")
+                constructor.assert_not_called()
 
 
 class TranscribeAudioTest(unittest.TestCase):

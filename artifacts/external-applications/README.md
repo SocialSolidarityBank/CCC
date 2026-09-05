@@ -9,7 +9,7 @@
 | OV/EV 코드서명 인증서 | 보류. 현재 개발과 오픈소스 공개 단계에서는 구매하거나 신청하지 않습니다. | Seongqkim | 유료 서비스 시작 또는 정식 Windows 설치판 배포를 결정할 때 다시 검토합니다. | [DigiCert 신청 요건](https://docs.digicert.com/en/certcentral/order-and-manage-certificates/request-certificates/request-a-code-signing-or-ev-code-signing-certificate/request-code-signing-certificate.html) |
 | Microsoft Artifact Signing Public Trust | 보류. 현재 스폰서십 구독은 지원 대상이 아니며 별도 PAYG 구독도 만들지 않습니다. | Seongqkim | 유료 서비스 시작 또는 정식 Windows 설치판 배포를 결정할 때 다시 검토합니다. | [Artifact Signing FAQ](https://learn.microsoft.com/en-us/azure/artifact-signing/faq#can-i-use-artifact-signing-with-a-free-trial-or-sponsored-azure-subscription) |
 | Microsoft 비영리 자격과 Azure grant | 비영리 자격과 USD 2,000 grant가 활성 상태입니다. 구독은 MCA 기반 Microsoft Azure Plan이며 Azure 비영리 스폰서십 크레딧이 연결돼 있습니다. | Seongqkim | grant 범위 안에서 개발용 Azure 리소스가 필요할 때 사용합니다. | `microsoft-nonprofit-approval-redacted.png`, `azure-grant-approved-redacted.png`, [Azure Plan](https://azure.microsoft.com/ko-kr/pricing/offers/ms-azr-0017g/) |
-| pyannote gated model 2종 | 두 저장소 모두 접근이 승인됐습니다. | Seongqkim | 승인 완료. E5-2에서 고정 revision 다운로드를 검증합니다. | `pyannote-speaker-diarization-3.1-access.png`, `pyannote-segmentation-3.0-access.png` |
+| pyannote gated model 2종 | 두 저장소 모두 접근이 승인됐고 E5-2에서 고정 revision의 인증 다운로드와 파일 무결성을 확인했습니다. | Seongqkim | 다운로드 검증 완료. 추론 품질은 별도 게이트에서 측정합니다. | `pyannote-speaker-diarization-3.1-access.png`, `pyannote-segmentation-3.0-access.png`, [다운로드 증거](../pilot/e5-2-model-downloads.json) |
 | OpenAI DPA | 보류. API 조직 표시 이름과 Owner 권한은 확인했지만 유효한 DPA는 없습니다. | Seongqkim | 실제 당사자 자료를 OpenAI API로 보내기 전에 대표자 직접 서명 또는 서면 위임 방식으로 다시 요청합니다. | `openai-dpa-request-confirmation.png`, `openai-dpa-delivery-redacted.png`, `openai-dpa-decline-mail-redacted.png` |
 | 법무 조정 | CCC-191, SG14, E11-1a의 Linear 담당자는 Seongqkim입니다. 외부 법률 검토자와 권한 있는 서명자는 아직 정해지지 않았습니다. | Seongqkim | E11-1a 담당자표 2026-09-04, SG14 계약 2026-09-05 | Linear `CCC-191`, `CCC-189`, `CCC-157` |
 
@@ -47,7 +47,7 @@ Artifact Signing 생성 화면에서는 현재 구독을 선택할 수 있지만
 | `LimYeri/HowRU-KoELECTRA-Emotion-Classifier` | `072596063415c754b5661ab2bdda7afa10eca726` | MIT | 공개 | [Hugging Face API](https://huggingface.co/api/models/LimYeri/HowRU-KoELECTRA-Emotion-Classifier?expand%5B%5D=sha&expand%5B%5D=cardData) |
 | `FrameByFrame/korean-pii-e5-base` | `a308c54b4407819624a5661e31e162a269f39818` | MIT | 공개 | [Hugging Face API](https://huggingface.co/api/models/FrameByFrame/korean-pii-e5-base?expand%5B%5D=sha&expand%5B%5D=cardData) |
 
-표에 있는 5개 모델의 정본은 `supply-chain/model-license-manifest.json`입니다. 이 표는 2026-09-03의 접근 상태와 원문 대조 결과를 함께 남긴 증거입니다. 실제 authenticated download와 checksum 검증은 E5-2가 담당합니다.
+표에 있는 5개 모델의 정본은 `supply-chain/model-license-manifest.json`입니다. 이 표는 2026-09-03의 접근 상태와 원문 대조 결과를 남긴 증거입니다. 2026-09-05 E5-2에서 고정 revision의 파일 22개를 인증 다운로드하고 가중치는 Hub LFS SHA-256, 일반 파일은 고정 Git blob hash와 대조했습니다. 파일별 SHA-256은 [다운로드 증거](../pilot/e5-2-model-downloads.json)에 있습니다. 추론과 품질 검증은 포함하지 않습니다.
 
 ## OpenAI DPA
 

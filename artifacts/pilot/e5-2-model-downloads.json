@@ -1,0 +1,183 @@
+{
+  "checkedAt": "2026-09-05T07:01:33.747241+00:00",
+  "scope": "Pinned downloads inherited from E0-4; not inference or quality approval",
+  "models": [
+    {
+      "model": "pyannote/speaker-diarization-3.1",
+      "revision": "84fd25912480287da0247647c3d2b4853cb3ee5d",
+      "license": "MIT",
+      "authenticated": true,
+      "files": [
+        {
+          "name": "config.yaml",
+          "bytes": 469,
+          "sha256": "04ad9cd59a93c3a7c754200ecc9e1c4ba87bf1657ef8a4debf7555e711daeeda",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "requirements.txt",
+          "bytes": 21,
+          "sha256": "bb450fa73fc3f0156f9affea74e66900e42c23c81b9d9da70d30312e28fdf149",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "model": "pyannote/segmentation-3.0",
+      "revision": "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+      "license": "MIT",
+      "authenticated": true,
+      "files": [
+        {
+          "name": "config.yaml",
+          "bytes": 399,
+          "sha256": "fa65a47a751602f04cc570135007d76859b69e8f9f1bfdf5878a5145980d4263",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "pytorch_model.bin",
+          "bytes": 5905440,
+          "sha256": "da85c29829d4002daedd676e012936488234d9255e65e86dfab9bec6b1729298",
+          "verifiedAgainst": "hub-lfs-sha256"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "model": "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition",
+      "revision": "c9d0e4a8eaa1613129c50d7a42ab569c94c46b85",
+      "license": "Apache-2.0",
+      "authenticated": true,
+      "files": [
+        {
+          "name": "config.json",
+          "bytes": 2752,
+          "sha256": "b133fbb9dbbc7effa53bb6f0042a6d0e8f77c50da9ec99070e84f2163b201179",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "preprocessor_config.json",
+          "bytes": 214,
+          "sha256": "60ca5a31e13f69ee2fbf147504c8676db5f6398fd7a6b12294341dff838edfcf",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "pytorch_model.bin",
+          "bytes": 1266118253,
+          "sha256": "d3c2976ee065524db17e3b13410de16df71a32536fe3e5cd5b0919bee3fdf96d",
+          "verifiedAgainst": "hub-lfs-sha256"
+        },
+        {
+          "name": "special_tokens_map.json",
+          "bytes": 96,
+          "sha256": "f17f705b191ddb9aef0b42e40869d325d79b2a1e229e0d51d72698b5d3e4fc90",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 236,
+          "sha256": "cc522a25fcf6023c9e53280c8858cbfc0f7b9e0b8a6d65e0e417d6356d4e5cc1",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "training_args.bin",
+          "bytes": 3375,
+          "sha256": "2119869d62a5ae4aae3973c29e63a5686e4b33e97e78f68eb2b124d5a347cf06",
+          "verifiedAgainst": "hub-lfs-sha256"
+        },
+        {
+          "name": "vocab.json",
+          "bytes": 14209,
+          "sha256": "fd98fd0b73b8490df1ad0989228addf017f0889b5bffa4ec14a1bc88218e01d9",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "model": "LimYeri/HowRU-KoELECTRA-Emotion-Classifier",
+      "revision": "072596063415c754b5661ab2bdda7afa10eca726",
+      "license": "MIT",
+      "authenticated": true,
+      "files": [
+        {
+          "name": "config.json",
+          "bytes": 1267,
+          "sha256": "1dda9176a5fe4a14cc20599e544ad33c19be824f6c7d8797c11f46b0f3f46953",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "model.safetensors",
+          "bytes": 451734128,
+          "sha256": "615627405bdf0125152c5112ace08cb839a3dfff0f3c870685be1785ce149de9",
+          "verifiedAgainst": "hub-lfs-sha256"
+        },
+        {
+          "name": "special_tokens_map.json",
+          "bytes": 695,
+          "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 814948,
+          "sha256": "6234fb96e9031ec5e6a83b27ba1ade973e823d5e34a62a49c8d00a20f49e09eb",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 1376,
+          "sha256": "d3528e70a07ae1ac50275439972cd6bd3374134c58cfc82f1873db830dce0e1b",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "vocab.txt",
+          "bytes": 263327,
+          "sha256": "6e886927dfcecd22029b1ba80c10a1374740259c1067fc3a28d964b7ae2d55a7",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "model": "FrameByFrame/korean-pii-e5-base",
+      "revision": "a308c54b4407819624a5661e31e162a269f39818",
+      "license": "MIT",
+      "authenticated": true,
+      "files": [
+        {
+          "name": "config.json",
+          "bytes": 2739,
+          "sha256": "06b000685c6d52f89bbc1e7328564f088045a96bba1f51f3bd27bb12f5950d9b",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "model.safetensors",
+          "bytes": 554987146,
+          "sha256": "923ff800e1743c25abbbe9eda86a66ec23b5983754c1af66c09dbe3633e4d56b",
+          "verifiedAgainst": "hub-lfs-sha256"
+        },
+        {
+          "name": "special_tokens_map.json",
+          "bytes": 964,
+          "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 17082832,
+          "sha256": "d0091a328b3441d754e481db5a390d7f3b8dabc6016869fd13ba350d23ddc4cd",
+          "verifiedAgainst": "hub-lfs-sha256"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 1289,
+          "sha256": "0eed0b0f1a74f1f82c20b5d34d500efc1c3382aa5698678d149edb5487362407",
+          "verifiedAgainst": "pinned-git-blob-sha1"
+        }
+      ],
+      "status": "passed"
+    }
+  ]
+}

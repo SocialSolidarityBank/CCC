@@ -196,11 +196,20 @@ def load_config() -> Config:
         assert_backup_destination_available(backup_policy, BACKUP_ADAPTERS)
     except Exception as error:
         raise ConfigError("original recording backup policy is invalid") from error
+    stt_engine = os.environ.get("CCC_STT_ENGINE", "").strip() or transcribe.ENGINE_OFF
+    if stt_engine not in transcribe.KNOWN_ENGINES:
+        raise ConfigError("environment variable CCC_STT_ENGINE is invalid")
+    if stt_engine == transcribe.ENGINE_FASTER_WHISPER and runtime_environment != "preview":
+        raise ConfigError("faster-whisper candidate is restricted to Preview until engine approval")
     whisper_model = os.environ.get("CCC_WHISPER_MODEL", "").strip() or "medium"
     ner_model_id = os.environ.get("CCC_NER_MODEL_ID", "").strip() or "FrameByFrame/korean-pii-e5-base"
     condition_ner_model_id = os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None
     try:
-        role_spec("whisper", whisper_model)
+        if stt_engine != transcribe.ENGINE_OFF:
+            role_spec(
+                "faster-whisper" if stt_engine == transcribe.ENGINE_FASTER_WHISPER else "whisper",
+                whisper_model,
+            )
         validate_optional_model(ner_model_id, "person-ner")
         if condition_ner_model_id is not None:
             model_spec(condition_ner_model_id)
@@ -215,7 +224,7 @@ def load_config() -> Config:
         poll_interval_seconds=interval,
         work_dir=work_dir,
         whisper_model=whisper_model,
-        stt_engine=os.environ.get("CCC_STT_ENGINE", "").strip() or transcribe.ENGINE_WHISPER,
+        stt_engine=stt_engine,
         stt_max_chunk_seconds=_positive_float("CCC_STT_MAX_CHUNK_SECONDS", chunking.DEFAULT_MAX_CHUNK_SECONDS),
         stt_min_chunk_seconds=_positive_float("CCC_STT_MIN_CHUNK_SECONDS", chunking.DEFAULT_MIN_CHUNK_SECONDS),
         stt_repeat_threshold=_positive_int("CCC_STT_REPEAT_THRESHOLD", repetition.DEFAULT_REPEAT_THRESHOLD, minimum=2),

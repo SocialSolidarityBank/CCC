@@ -1,12 +1,8 @@
-"""전사 오케스트레이션 — 조각 분할 · 반복 검사 · 엔진 교체 (D53 · ADR-0024).
+"""전사 오케스트레이션: 무음 분할, 반복 검사, 원본 시각 보정.
 
-엔진은 **갈아끼울 수 있게** 둔다. 지금 기본값은 Whisper 지만 조사 1순위는
-Qwen3-ASR-1.7B 이고, 확정은 실측 게이트 G1~G3 통과 후다(그 세션은 처리 장비
-앞에서 해야 한다). 그래서 여기서는 엔진을 고르지 않고 **고를 수 있는 자리**만
-만든다 — `CCC_STT_ENGINE` 설정값으로 바꾼다.
-
-엔진 구현체는 지연 임포트한다(ML 미설치 환경에서도 이 모듈은 로드된다).
-오케스트레이션 자체는 순수 로직이라 가짜 엔진으로 테스트한다.
+STT는 기본 off다. faster-whisper int8 CPU는 명시적으로 선택하는 후보이며
+STT-G1~STT-G3과 Q 승인 전에는 제품 엔진으로 활성화하지 않는다(D77).
+ML 구현은 지연 임포트하고 모든 엔진은 같은 오케스트레이션을 사용한다.
 """
 
 from __future__ import annotations
@@ -31,8 +27,10 @@ from .speaker_mapping import Segment
 
 logger = logging.getLogger("ccc_pipeline")
 
+ENGINE_OFF = "off"
 ENGINE_WHISPER = "whisper"
-KNOWN_ENGINES = (ENGINE_WHISPER,)
+ENGINE_FASTER_WHISPER = "faster-whisper-int8-cpu"
+KNOWN_ENGINES = (ENGINE_OFF, ENGINE_WHISPER, ENGINE_FASTER_WHISPER)
 
 # 엔진: 오디오 파일 경로 → 전사 구간 목록(그 파일 기준 상대 시각).
 Engine = Callable[[str], list[Segment]]
@@ -53,6 +51,10 @@ class TranscriptionResult:
 
 def build_engine(name: str, model_name: str) -> Engine:
     """설정값으로 엔진을 만든다. 모델도 manifest에 고정된 항목만 허용한다."""
+    if name == ENGINE_OFF:
+        raise ValueError("STT is disabled")
+    if name == ENGINE_FASTER_WHISPER:
+        return _build_faster_whisper(model_name)
     if name == ENGINE_WHISPER:
         try:
             role_spec("whisper", model_name)
@@ -60,6 +62,33 @@ def build_engine(name: str, model_name: str) -> Engine:
             raise ValueError("Whisper model is not declared in model manifest") from error
         return _build_whisper(model_name)
     raise ValueError(f"unknown STT engine: {name!r} (known: {', '.join(KNOWN_ENGINES)})")
+
+
+def _build_faster_whisper(model_name: str) -> Engine:
+    spec = role_spec("faster-whisper", model_name)
+    model = None
+
+    def run(audio_path: str) -> list[Segment]:
+        nonlocal model
+        if model is None:
+            from faster_whisper import WhisperModel
+            from huggingface_hub import snapshot_download
+
+            if spec.checkpoint_sha256 is None:
+                raise ModelRegistryError("candidate checkpoint SHA-256 is missing")
+            snapshot = snapshot_download(
+                spec.name, revision=spec.revision,
+                allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"],
+            )
+            _verified_checkpoint(Path(snapshot) / "model.bin", spec.checkpoint_sha256)
+            model = WhisperModel(snapshot, device="cpu", compute_type="int8", local_files_only=True)
+        segments, _ = model.transcribe(audio_path, language="ko", vad_filter=False)
+        return [
+            Segment(start=float(segment.start), end=float(segment.end), text=segment.text)
+            for segment in segments
+        ]
+
+    return run
 
 
 def _verified_checkpoint(path: Path, expected_sha256: str) -> None:
