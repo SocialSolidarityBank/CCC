@@ -28,6 +28,7 @@ import { WireCard } from '../components/wire/wire-card';
 import { IntakeReadView } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view';
 import { IntakeStepRail } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-step-rail';
 import { ACTIVE_QUESTIONS, STEP_TITLES } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-questions';
+import { NavIcon } from '../components/wire/shell-icons';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -324,6 +325,21 @@ describe('정렬 하니스 생성기', () => {
         closeAction={noopGoalAction}
       />,
     );
+    // 요청 링크 발급의 공유 버튼(2026-09-06 D86 ④ 후속). 실제 부품은 마운트 뒤 navigator.share
+    // 감지로 켜져 정적 렌더에 안 나오므로, 같은 마크업(.wire-field-with-action + .header-icon-button)
+    // 을 그대로 적는다. 라벨이 16 인 .participant-invite-stack 스코프 안에서 잰다.
+    const inviteShare = renderToStaticMarkup(
+      <div className="wire-invite-stack participant-invite-stack">
+        <div className="wire-field-with-action">
+          <WireFormField label="웹 링크 주소" htmlFor="align-invite-url" control="input">
+            <input id="align-invite-url" type="text" readOnly value="https://example.test/join/participant/token" />
+          </WireFormField>
+          <button type="button" className="header-icon-button" aria-label="공유" title="공유">
+            <NavIcon name="share" />
+          </button>
+        </div>
+      </div>,
+    );
     const intakeRowOrdinal = renderToStaticMarkup(<WireBadge>1번</WireBadge>);
     const intakeEditToolbar = renderToStaticMarkup(
       <div className="intake-step-toolbar"><h2>2. 현재 생활상황</h2></div>,
@@ -416,6 +432,7 @@ describe('정렬 하니스 생성기', () => {
     expect(dateControl, '날짜 단독 입력 fixture가 없다').toContain('wire-date-control');
     expect(goalSection, '세부 목표 제목 배지 fixture가 없다').toContain('wire-card-head');
     expect(goalSection, '세부 목표 추가 버튼이 입력 상자 밖 fixture가 없다').toContain('wire-field-with-action');
+    expect(inviteShare, '요청 링크 공유 버튼 fixture가 없다').toContain('header-icon-button');
     expect(requiredPair, '필수 배지 유무 2열 fixture가 없다').toContain('wire-required-marker');
     expect(intakeRead, '인테이크 조회 아코디언 fixture가 없다').toContain('intake-read-current-step');
     expect(intakeRead, '인테이크 조회 반복 행 번호 배지가 없다').toContain('1번');
@@ -463,6 +480,7 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-intake-edit-toolbar">${intakeEditToolbar}</div>
 <div id="align-date">${dateControl}</div>
 <div id="align-goal-section">${goalSection}</div>
+<div id="align-invite-share">${inviteShare}</div>
 <div id="align-intake-read">${intakeRead}</div>
 <div id="align-hero-meta">${heroMeta}</div>
 <div id="align-hero-details">${heroDetails}</div>

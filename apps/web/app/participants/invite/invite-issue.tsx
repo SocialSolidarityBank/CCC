@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { createParticipantInviteAction } from '../../actions';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
 import { WireFormField } from '../../components/wire/wire-form-field';
+import { NavIcon } from '../../components/wire/shell-icons';
 import { PROGRAM_LABELS } from '../../lib/labels';
 
 // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 실제 이메일 발송이 없는 화면 흐름
@@ -52,6 +53,29 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     >
       {copied ? '복사됨' : label}
     </WireButton>
+  );
+}
+
+/** OS 공유 시트(카카오톡·문자·메일은 실무자가 시트에서 고른다 — CCC 는 채널을 모른다, D86 ④).
+ *  시트가 없는 브라우저에서는 렌더하지 않는다. 서버 렌더에는 navigator 가 없으므로
+ *  마운트 뒤에 켠다(hydration 불일치 방지). 문안은 이메일 문안과 같고 당사자 이름이 없다. */
+function ShareButton({ text, url }: { text: string; url: string }) {
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => setCanShare(typeof navigator.share === 'function'), []);
+  if (!canShare) return null;
+  return (
+    <button
+      type="button"
+      className="header-icon-button"
+      aria-label="공유"
+      title="공유"
+      onClick={() => {
+        // 취소(AbortError)는 정상 경로다 — 알릴 것이 없다.
+        navigator.share({ text, url }).catch(() => undefined);
+      }}
+    >
+      <NavIcon name="share" />
+    </button>
   );
 }
 
@@ -102,21 +126,24 @@ export function InviteIssue() {
         {/* 상태 알림은 이 한 줄만 읽히게 둔다 — 카드 전체를 라이브 영역으로 만들면
             스크린 리더가 아래 이메일 문안 9줄까지 통째로 읽는다. */}
         <p className="wire-invite-caption" role="status">
-          링크를 만들었습니다. 아래 세 가지 중 편한 방법으로 전달하세요.
+          링크를 만들었습니다. 아래에서 편한 방법으로 전달하세요.
         </p>
 
         <div className="wire-invite-section">
           {/* 1행 입력칸이다(2026-08-28 Q "넓은 창일 이유가 없다") — 긴 토큰은 가로로 흐르고
               전체는 복사 버튼이 담는다. 구 3줄 textarea 는 링크를 다 보여 주려던 것이었다. */}
-          <WireFormField label="웹 링크 주소" htmlFor="invite-url" control="input">
-            <input
-              id="invite-url"
-              type="text"
-              readOnly
-              value={state.url}
-              onFocus={(event) => event.currentTarget.select()}
-            />
-          </WireFormField>
+          <div className="wire-field-with-action">
+            <WireFormField label="웹 링크 주소" htmlFor="invite-url" control="input">
+              <input
+                id="invite-url"
+                type="text"
+                readOnly
+                value={state.url}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </WireFormField>
+            <ShareButton text={email} url={state.url} />
+          </div>
           <CopyButton text={state.url} label="링크 복사" />
         </div>
 
@@ -140,7 +167,7 @@ export function InviteIssue() {
           >
             <textarea id="invite-email-draft" readOnly rows={9} value={email} />
           </WireFormField>
-          <CopyButton text={email} label="문안 복사" />
+          <CopyButton text={email} label="이메일 문안 복사" />
         </div>
 
         <WireButton variant="ghost" onClick={() => setState({ phase: 'idle' })}>

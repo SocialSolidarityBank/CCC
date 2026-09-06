@@ -941,6 +941,26 @@
     "tolerance": 0.5
   },
   {
+    "name": "요청 링크 공유 버튼은 입력 상자 세로 중앙",
+    "selectors": [
+      "#align-invite-share .wire-field-with-action .wire-input-box",
+      "#align-invite-share .wire-field-with-action>.header-icon-button"
+    ],
+    "axis": "y",
+    "tolerance": 0.5
+  },
+  {
+    "name": "요청 링크 공유 버튼은 32 원 (390 에서도)",
+    "selectors": [
+      "#align-invite-share .wire-field-with-action>.header-icon-button"
+    ],
+    "axis": "size",
+    "tolerance": 0.5,
+    "expectedWidth": 32,
+    "expectedHeight": 32,
+    "viewport": { "width": 390, "height": 844 }
+  },
+  {
     "name": "브리핑 회차 행 호버 면은 행 높이보다 큰 38",
     "selectors": [
       "#align-content .briefing-session-row"

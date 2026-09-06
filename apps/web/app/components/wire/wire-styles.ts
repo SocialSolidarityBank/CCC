@@ -785,7 +785,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    입력 상자(40) 한가운데에 앉는다. 값은 전부 토큰에서 계산한다. */
 .wire-field-with-action{display:flex;align-items:flex-start;gap:var(--space-2);min-width:0}
 .wire-field-with-action>.wire-form-field{flex:1 1 auto;min-width:0}
-.wire-field-with-action>.wire-repeat-actions{flex:none;margin-top:calc(var(--badge-height) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
+.wire-field-with-action>.wire-repeat-actions,.wire-field-with-action>.header-icon-button{flex:none;margin-top:calc(var(--badge-height) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
    자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
    되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다.
