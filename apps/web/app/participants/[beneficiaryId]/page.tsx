@@ -16,8 +16,10 @@ import { PageTitle } from '../../components/wire/page-title';
 import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../components/wire/participant-hero-card';
 import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
 import { Chevron, DisclosureChevron } from '../../components/wire/chevron';
+import { NavIcon } from '../../components/wire/shell-icons';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
+import { Icon } from '../../components/wire/wire-icon';
 import { WireCard } from '../../components/wire/wire-card';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { formatKoreanDateTime } from '../../lib/format-korean-date';
@@ -259,7 +261,7 @@ function NextScheduleCard({ beneficiaryId, programs, programLabels, recordsTarge
         <div className="wire-card-head">
           <span>최신 일정</span>
           <div className="participant-next-schedule-actions">
-            <WireButton href="/schedules/new">상담 등록</WireButton>
+            <WireButton href="/schedules/new" icon={<NavIcon name="calendar" />}>상담 등록</WireButton>
             {recordsTarget !== undefined && (
               <WireButton href={recordsHref(beneficiaryId, recordsTarget.id)}>상담 기록 확인</WireButton>
             )}
@@ -419,7 +421,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
                   consentPrograms.length === 1 ? (
                     <div className="wire-card-head">
                       <span>동의서</span>
-                      <WireButton type="submit" form={consentFormId(consentPrograms[0]!.id)}>저장</WireButton>
+                      <WireButton type="submit" form={consentFormId(consentPrograms[0]!.id)} icon={<Icon name="check" />}>저장</WireButton>
                     </div>
                   ) : (
                     '동의서'
@@ -431,7 +433,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
                     {consentPrograms.length > 1 && (
                       <div className="participant-program-head">
                         <h3 className="participant-consent-program">{programName(programLabels, program.programType)}</h3>
-                        <WireButton type="submit" form={consentFormId(program.id)}>저장</WireButton>
+                        <WireButton type="submit" form={consentFormId(program.id)} icon={<Icon name="check" />}>저장</WireButton>
                       </div>
                     )}
                     <ConsentEditor beneficiaryId={detail.beneficiaryId} program={program} />

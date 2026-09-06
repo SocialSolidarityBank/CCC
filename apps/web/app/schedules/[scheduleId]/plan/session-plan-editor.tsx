@@ -16,6 +16,7 @@ import { DraftRestorePrompt, DraftRetentionNote, DraftStatus } from '../../../co
 import { PageTitle } from '../../../components/wire/page-title';
 import { WireBadge } from '../../../components/wire/wire-badge';
 import { WireButton } from '../../../components/wire/wire-button';
+import { Icon } from '../../../components/wire/wire-icon';
 import { WireCallout } from '../../../components/wire/wire-callout';
 import { WireCardDetails } from '../../../components/wire/wire-card';
 import { WireFormField } from '../../../components/wire/wire-form-field';
@@ -194,7 +195,7 @@ export function SessionPlanEditor({
         <PageTitle>세션 목표 수정</PageTitle>
         <div className="page-actions">
           <DraftStatus savedAt={draft.savedAt} available={draft.available} />
-          <WireButton type="submit" variant="primary" form="session-plan-form" disabled={busy}>저장</WireButton>
+          <WireButton type="submit" variant="primary" form="session-plan-form" disabled={busy} icon={<Icon name="check" />}>저장</WireButton>
         </div>
       </div>
       {saved && <WireBadge role="status" aria-live="polite">세션 목표를 저장했습니다.</WireBadge>}

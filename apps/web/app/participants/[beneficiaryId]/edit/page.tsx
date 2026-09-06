@@ -8,6 +8,7 @@ import { PageLoading } from '../../../components/wire/page-loading';
 import { ParticipantHeroCard } from '../../../components/wire/participant-hero-card';
 import { PageTitle } from '../../../components/wire/page-title';
 import { WireButton } from '../../../components/wire/wire-button';
+import { Icon } from '../../../components/wire/wire-icon';
 import { updateParticipantBasicInfoAction } from '../../../actions';
 import { ErrorState, type ErrorKind } from '../error-state';
 import { BasicInfoForm } from './basic-info-form';
@@ -93,7 +94,7 @@ function EditScreen({
           beneficiaryId={basicInfo.beneficiaryId}
           nameSize="hub"
           details={[{ label: '당사자 ID', value: basicInfo.beneficiaryId }]}
-          actions={<WireButton type="submit" variant="primary" form="basic-info-form">저장</WireButton>}
+          actions={<WireButton type="submit" variant="primary" form="basic-info-form" icon={<Icon name="check" />}>저장</WireButton>}
         />
         {noticeText === undefined ? null : <WireBadge role="status">{noticeText}</WireBadge>}
         {errorText === undefined ? null : <WireError>{errorText}</WireError>}

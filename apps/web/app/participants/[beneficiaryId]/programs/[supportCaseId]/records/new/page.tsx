@@ -13,6 +13,7 @@ import { PageTitle } from '../../../../../../components/wire/page-title';
 import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
 import { RecordAccordionToggle } from './record-accordion-toggle';
 import { WireButton } from '../../../../../../components/wire/wire-button';
+import { Icon } from '../../../../../../components/wire/wire-icon';
 import { WireCard } from '../../../../../../components/wire/wire-card';
 import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { ApiError, getNewRecordContext, getParticipantDetail, lifeAreaKeys, lifeAreaStatuses, type ApiErrorCode, type NewRecordContext, type ParticipantDetail } from '../../../../../../lib/api';
@@ -507,7 +508,7 @@ export default async function NewRecordPage({
           {/* '상담 기록으로 돌아가기' → '상담 기록'(2026-08-09 Q). 가는 곳의 이름이 곧 라벨이고,
               '돌아가기'는 이 버튼이 하는 일을 두 번 말한다. */}
           <WireButton variant="secondary" href={historyPath}>상담 기록 확인</WireButton>
-          <WireButton variant="primary" type="submit">저장</WireButton>
+          <WireButton variant="primary" type="submit" icon={<Icon name="check" />}>저장</WireButton>
         </>}
         // 세부 목표 구획(D62 · CCC-68). 서버 컴포넌트인 이 페이지가 액션을 묶어 슬롯으로
         // 내려보낸다 — 기록지 폼과 별개의 즉시 저장이다(구획 주석 참조).

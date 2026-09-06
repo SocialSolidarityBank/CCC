@@ -8,7 +8,8 @@ import Link from 'next/link';
 // 당사자 카드. 일정 화면과 당사자 목록이 같은 골격을 쓰고 화면 맥락에 맞는 필드만 바꾼다.
 //
 // 공통 헤더: 이름은 왼쪽, 현재 화면에서 가장 중요한 분류·상태 배지는 오른쪽.
-// 정보 행: sub 톤 14/400 라벨과 14/400 값을 같은 줄에 두고, 행은 세로로 쌓는다.
+// 정보 행: sub 톤 14/400 라벨과 14/400 값을 같은 줄에 두고, 행은 세로로 쌓는다(767 이하 목록
+// 변형만 예외로 두 쌍이 한 줄에 선다. 2026-09-06 Q 모바일 정리, CSS 는 data-variant 로 가른다).
 // 가명 ID 는 두 화면 모두 이름 옆 12/400 그레이 조각이다(D59 ② — 2026-08-26 Q "일정과
 // 당사자의 ID 표현이 다르다" 통일. 구 당사자 목록의 'ID' 라벨 행은 폐지).
 // 일정 화면: 상담 일시·연락처를 아래에 둔다. 당사자 목록: 참여 사업·연락처를 같은 값 열에 맞춘다.
@@ -81,6 +82,7 @@ export function ParticipantCard({
     <Link aria-label={linkLabel} className="participant-card-link" href={href}>
       <article
         className="surface-card participant-card"
+        data-variant={schedule !== undefined ? 'schedule' : 'list'}
         data-selected={selected === true ? 'true' : undefined}
         data-muted={muted === true ? 'true' : undefined}
       >

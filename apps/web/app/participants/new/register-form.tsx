@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { SearchInput } from '../../components/wire/search-input';
 import { WireBadge } from '../../components/wire/wire-badge';
 import { WireButton } from '../../components/wire/wire-button';
+import { Icon } from '../../components/wire/wire-icon';
 import { WireCard } from '../../components/wire/wire-card';
 import { DisclosureChevron } from '../../components/wire/chevron';
 import { PROGRAM_LABELS } from '../../lib/labels';
@@ -272,7 +273,7 @@ export function RegisterForm({
         {/* Y7: 실무자가 남을 등록하는 화면이라 '가입하기'가 아니다. 당사자 본인이 쓰는 자기 가입
             폼(join/participant)은 '가입하기'가 맞으므로 그쪽은 건드리지 않는다.
             Y6: 풀폭 버튼은 이 화면만의 예외였다 — 다른 화면처럼 콤팩트 알약으로 되돌린다. */}
-        <WireButton type="submit" size="large" className="register-submit">
+        <WireButton type="submit" size="large" className="register-submit" icon={<Icon name="check" />}>
           등록하기
         </WireButton>
       </form>

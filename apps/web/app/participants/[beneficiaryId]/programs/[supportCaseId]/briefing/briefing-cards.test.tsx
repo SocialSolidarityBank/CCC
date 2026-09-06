@@ -718,24 +718,6 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
     }
   });
 
-  it('좁은 화면에서도 꺽쇠는 별도 끝 칸에 남고 핵심 문구는 그 앞에서 두 줄로 끝난다', () => {
-    expect(layoutSource).toMatch(
-      /\.briefing-session-row\{display:grid;grid-template-columns:112px 64px 44px minmax\(0,1fr\) auto;/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-session-row>\.wire-chevron\{[^}]*grid-column:-1;[^}]*justify-self:end/,
-    );
-    expect(layoutSource).toMatch(
-      /@media \(max-width:767px\)\{[\s\S]*?\.briefing-session-row\{grid-template-columns:112px minmax\(0,1fr\) auto;[^}]*\}/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-session-text\.wire-fade-clip\{[^}]*grid-column:2\/3;[^}]*overflow:hidden;[^}]*-webkit-line-clamp:2;/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-session-row:not\(:has\(\.briefing-session-memo>\.wire-badge\)\) \.briefing-session-text\.wire-fade-clip\{grid-column:1\/3\}/,
-    );
-  });
-
   it('AI 안내의 닫기 버튼은 구획 전체 행동으로 카드 오른쪽 끝에 선다', () => {
     expect(layoutSource).toMatch(
       /\.briefing-ai-goal-hint\{[^}]*flex:1/,

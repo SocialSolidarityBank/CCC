@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { NavIcon } from '../components/wire/shell-icons';
 import { WireButton } from '../components/wire/wire-button';
 import { WireToolbarField } from '../components/wire/wire-form-field';
 import { WireError } from '../components/wire/wire-state';
@@ -52,8 +53,8 @@ export function ParticipantFilter({
         <div className="participant-toolbar-actions">
           {/* 업무 바(work-toolbar)는 전부 32 다(전 버튼 32 단일, 2026-08-28 Q — 구 '§5 예외'
               표현 폐지). 검색칸도 32 로 서 있다. */}
-          <WireButton href="/participants/invite">당사자 초대</WireButton>
-          <WireButton href="/participants/new" variant="primary">당사자 등록</WireButton>
+          <WireButton href="/participants/invite" icon={<NavIcon name="invite" />}>당사자 초대</WireButton>
+          <WireButton href="/participants/new" variant="primary" icon={<NavIcon name="participant-add" />}>당사자 등록</WireButton>
         </div>
       </div>
       {error !== null ? (

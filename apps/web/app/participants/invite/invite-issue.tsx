@@ -101,7 +101,7 @@ export function InviteIssue() {
             링크에는 사업({PROGRAM_LABELS.financial_support_v1})과 발급한 실무자가 함께 담깁니다.
             당사자가 가입을 마치면 내 당사자 목록에 나타납니다.
           </p>
-          <WireButton variant="primary" disabled={state.phase === 'working'} onClick={issue}>
+          <WireButton variant="primary" disabled={state.phase === 'working'} onClick={issue} icon={<NavIcon name="invite" />}>
             {state.phase === 'working' ? '만드는 중' : '가입 링크 만들기'}
           </WireButton>
           {state.phase === 'error' ? (

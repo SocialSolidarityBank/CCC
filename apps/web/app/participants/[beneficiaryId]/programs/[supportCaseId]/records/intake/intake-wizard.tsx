@@ -787,7 +787,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               },
             ]}
             actions={editing ? (
-              <WireButton variant="primary" disabled={busy} onClick={complete}>수정 완료</WireButton>
+              <WireButton variant="primary" disabled={busy} onClick={complete} icon={<Icon name="check" />}>수정 완료</WireButton>
             ) : undefined}
           />
           <WireCallout

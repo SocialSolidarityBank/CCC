@@ -46,7 +46,8 @@ export const wireStyles = `
 /* 자동 저장 상태 한 줄, 카드 밖 플랫 텍스트. 보조 정보라 400 이다(2026-08-07 짝 통일). */
 .notice-status{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 /* ── 당사자 카드 ── 일정과 당사자 목록은 이름·ID·우상단 배지·정보 행의 공통 골격을 쓴다.
-   내부 선 없이 14/600 라벨과 16/400 값을 같은 줄에 놓고 정보 행은 세로로 쌓는다. */
+   내부 선 없이 14/600 라벨과 16/400 값을 같은 줄에 놓고 정보 행은 세로로 쌓는다
+   (767 이하 목록 변형만 예외, 아래 @media 블록). */
 .participant-card-link{display:block;color:inherit;text-decoration:none}
 /* 헤더와 정보행 사이도 정보행 간격과 같은 10 이다(2026-08-23 Q "이름-라벨 간격을 필드
    행간과 시각적으로 맞출 것"). 이름 18(행상자 27)의 하프리딩이 라벨 14(행상자 21)보다
@@ -74,6 +75,13 @@ export const wireStyles = `
 .participant-card-id{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
 /* 배지는 두 화면 모두 같은 우상단 자리다. 지난 일정만 유형 옆에 상태 배지가 하나 더 붙는다. */
 .participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}
+@media(max-width:767px){
+  /* 목록 변형만: 참여 사업·연락처 두 쌍이 한 줄에 선다(라벨은 글자 폭). 일정 변형은
+     상담 일시 값(약 175px)이 길어 두 쌍이 한 줄에 못 서므로 세로 2행 그대로다
+     (2026-09-06 Q 모바일 정리). */
+  .participant-card[data-variant="list"] .participant-card-fields{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
+  .participant-card[data-variant="list"] .participant-card-fields>.wire-field-row{grid-template-columns:auto minmax(0,1fr)}
+}
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */
 /* details 로 만든 카드는 **펼친 것이 곧 활성**이다(D47 상담 기록 회차 카드). 상태가 브라우저
@@ -283,8 +291,13 @@ details.surface-card[open]>.record-summary .wire-badge,
 @media(max-width:767px){
   .participant-hero-card{min-height:0}
   .participant-hero-title{gap:var(--space-2)}
-  .participant-hero-details{grid-template-columns:minmax(0,1fr)}
-  .participant-hero-meta .wire-meta-row{flex-direction:column;align-items:flex-start;gap:var(--space-1)}
+  .participant-hero-details{grid-template-columns:minmax(0,1fr);gap:var(--space-2-5)}
+  /* 767 이하는 3열 격자 대신 당사자 카드 정보 행과 같은 80px 라벨 격자다(라벨 왼쪽, 값 오른쪽).
+     2×N 격자를 안 쓰는 이유: 이메일 값이 147px 열에 안 들어간다(2026-09-06 Q 모바일 정리). */
+  .participant-hero-details>.wire-field-row[data-layout="stack"]{grid-template-columns:80px minmax(0,1fr);gap:var(--space-2-5);align-items:center}
+  /* 메타 한 줄은 세로 3줄 고정이 아니라 줄바꿈 가로 묶음이다(가로 16, 세로 4). 구분선은
+     아래 줄이 끄므로 줄 첫머리에 선이 남지 않는다(2026-09-06 Q 모바일 정리). */
+  .participant-hero-meta .wire-meta-row{flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
   .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
 }
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
@@ -608,6 +621,14 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-card-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .wire-card-section-action{display:flex;align-items:center;justify-content:flex-end;flex:1 1 auto;min-width:0;margin-left:auto}
 .wire-card-section-action>.wire-button{flex:none}
+@media(max-width:767px){
+  /* 라벨은 줄바꿈하지 않는다('AI 제안'이 두 줄로 깨지던 결함, 2026-09-06 Q 모바일 정리).
+     안내 문구가 든 action 슬롯만 라벨 아래 전폭으로 내려간다. 버튼 하나짜리 action(세션 목표
+     수정)은 그대로 오른쪽이다. */
+  .wire-card-section-head{flex-wrap:wrap}
+  .wire-card-section-head>h3{white-space:nowrap}
+  .wire-card-section-action:has(.briefing-ai-goal-hint){flex-basis:100%}
+}
 /* 라벨 계열 색(D34 고정 의미) — 기본은 무채색이고, 축이 분명한 구획만 계열을 입는다. */
 .wire-card-section[data-tone="mint"]>h3,.wire-card-section[data-tone="mint"]>.wire-card-section-head>h3{color:var(--mint-deep)}
 .wire-card-section[data-tone="lavender"]>h3,.wire-card-section[data-tone="lavender"]>.wire-card-section-head>h3{color:var(--lavender-deep)}
@@ -847,9 +868,15 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    기본 legend 는 fieldset 테두리 위에 걸터앉아 글줄이 어긋난다. */
 /* 생활 6영역은 **영역 하나가 카드 하나**다(2026-08-09 Q). 구 fieldset 머리 줄(legend 를
    float 로 되돌리던 보정 포함)은 지웠다 — 영역 이름이 카드 제목 자리로 올라가면서 필요가
-   없어졌다. 제목 줄은 2행이다: 이름이 위, '직전 상태 + 배지'가 아래(액션 카드와 같은 문법).
+   없어졌다. 제목 줄은 2행이다(767 이하는 1행, 아래 @media): 이름이 위, '직전 상태 + 배지'가
+   아래(액션 카드와 같은 문법).
    이름·배지를 한 줄에 두면 이름과 값이 같은 위계로 읽힌다(D37 HERO 좌측 묶음과 같은 이유). */
 .life-area-card>.wire-card-title{display:grid;gap:var(--space-2)}
+@media(max-width:767px){
+  /* 좁은 폭에서는 이름과 '직전 상태 + 배지'가 한 줄이다(§1 "배지는 제목 글자 바로 뒤",
+     2026-09-04 전역 기준. 2026-09-06 Q 모바일 정리). 데스크톱 2행은 그대로다. */
+  .life-area-card>.wire-card-title{grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:var(--space-2)}
+}
 .life-area-name{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .life-area-prior{margin:0;display:flex;align-items:center;gap:var(--space-2)}
 .life-area-prior-label{font-size:var(--text-sm);font-weight:400;color:var(--sub)}
