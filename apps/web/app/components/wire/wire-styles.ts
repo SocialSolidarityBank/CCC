@@ -81,6 +81,9 @@ export const wireStyles = `
      (2026-09-06 Q 모바일 정리). */
   .participant-card[data-variant="list"] .participant-card-fields{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
   .participant-card[data-variant="list"] .participant-card-fields>.wire-field-row{grid-template-columns:auto minmax(0,1fr)}
+  /* 값 열이 사라졌으니 이름 열 80px 예약도 뜻을 잃는다(ID 시작선을 맞출 대상이 없다).
+     이름·ID 는 글자 폭 + 10 으로 붙인다(2026-09-07 Q 결정 2). 일정 변형은 값 열이 남아 그대로다. */
+  .participant-card[data-variant="list"] .participant-card-identity{grid-template-columns:auto minmax(0,1fr)}
 }
 /* 선택·활성 표면: 여기서만 브랜드 그라데이션 테두리를 쓴다. border-image 는 radius 를 죽이므로
    배경 2겹(padding-box + border-box)으로 만든다(DESIGN.md 3-3). */

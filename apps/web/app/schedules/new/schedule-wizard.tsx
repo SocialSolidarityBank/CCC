@@ -11,6 +11,7 @@ import { ListRow } from '../../components/wire/list-row';
 import { DateTimePickerControl, isCompleteDateTime } from '../../components/wire/date-picker-control';
 import { WireFormField } from '../../components/wire/wire-form-field';
 import { WireButton } from '../../components/wire/wire-button';
+import { Icon } from '../../components/wire/wire-icon';
 import { WireBullets, WireCard } from '../../components/wire/wire-card';
 import { WireEmpty } from '../../components/wire/wire-state';
 import { WireRepeatActions } from '../../components/wire/wire-repeat-actions';
@@ -529,7 +530,7 @@ export function ScheduleWizard({ candidates, loadContext, submit, preselectValue
             )}
             <div className="wizard-actions">
               <WireButton chevron="left" onClick={() => { setError(null); setStep(1); }}>이전</WireButton>
-              <WireButton size="large" disabled={busy} onClick={complete}>완료</WireButton>
+              <WireButton size="large" disabled={busy} onClick={complete} icon={<Icon name="check" />}>완료</WireButton>
             </div>
           </div>
         ) : null}
