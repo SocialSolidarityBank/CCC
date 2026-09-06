@@ -102,6 +102,24 @@ pnpm seed:apply:local
 
 `LOCAL_DEV_ACTOR_EMAIL`을 상담사 계정(예: ai00@ggbss.or.kr)으로 바꾸면 상담사 시점으로 볼 수 있다.
 
+#### 원격(테일넷)에서 로컬 프리뷰 열기 (2026-09-07)
+
+다른 기기에서 SSH 로 붙어 작업하면 `localhost` 가 안 보인다. 그때는 웹 서버만 테일넷에 연다(API 는
+웹 서버가 서버 측에서 부르므로 브라우저에 노출할 필요가 없다). 인터넷 공개가 아니라 WireGuard 로
+묶인 테일넷 안이고 데이터는 가상 시드뿐이라 D80·R3 와 충돌하지 않는다. Quick Tunnel 같은 공개
+터널은 쓰지 않는다(ADR-0044).
+
+```bash
+# 웹: 모든 인터페이스에 바인드 + Next 16 dev 서버의 cross-origin 자산 차단(allowedDevOrigins) 해제
+CCC_API_ORIGIN=http://127.0.0.1:8787 CCC_LOCAL_PREVIEW=true \
+CCC_DEV_ORIGINS=<테일넷 IP>,<MagicDNS 이름> pnpm exec next dev -H 0.0.0.0
+# 브라우저: http://<테일넷 IP>:3000  또는  http://<MagicDNS 이름>:3000
+```
+
+`CCC_DEV_ORIGINS` 가 비어 있으면 `allowedDevOrigins` 를 넣지 않아 localhost 전용 기본값 그대로다
+(`apps/web/next.config.ts`). 호스트 값은 레포에 적지 않는다. 포트가 다른 프로세스에 잡혀 있으면
+`--port`·`-p` 로 옮기고 `CCC_API_ORIGIN` 도 맞춘다.
+
 #### 시드 경계와 절차 함정
 
 **① 생성은 대상별 `pnpm seed:generate:local` 또는 `pnpm seed:generate:preview`만 쓴다.** 두 명령은

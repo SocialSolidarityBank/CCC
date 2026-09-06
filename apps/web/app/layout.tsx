@@ -595,7 +595,8 @@ const briefingStyles = `
 .briefing-session-rows{display:grid;gap:0;margin:0;padding:0;list-style:none}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
-   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게.
+   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게(767 이하는 첫 행 유형 옆으로
+   올라가고 핵심 한 줄이 둘째 행 전폭을 쓴다, 아래 @media).
    **칸 폭은 내용 실측값으로 좁혔다**(2026-09-04 Q, 구 136/84/52 + 간격 16). 날짜는 가장 긴
    2026년 12월 28일 이 110.05 라 112, 유형 배지는 기본상담·인테이크 둘 다 62.3 이라 64,
    수기 배지는 40.2 라 44 다. 간격도 8 로 좁혀 본문 글줄이 76px 길어진다. */
@@ -745,14 +746,15 @@ const briefingStyles = `
   .record-summary{flex-wrap:wrap}
   /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차). */
-  .briefing-session-row{grid-template-columns:112px minmax(0,1fr) auto;grid-template-rows:auto auto}
+  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차).
+     첫 행 = 날짜·유형·수기, 둘째 행 = 핵심 한 줄 전폭(꺽쇠 열 앞까지). 수기 칸은 둘째 행에
+     홀로 남지 않는다(2026-09-06 Q 모바일 정리). */
+  .briefing-session-row{grid-template-columns:112px 64px minmax(0,1fr) auto;grid-template-rows:auto auto}
   .briefing-session-kind{grid-column:2;grid-row:1}
-  .briefing-session-row>.wire-chevron{grid-column:3;grid-row:1/3}
-  .briefing-session-memo{grid-column:1;grid-row:2}
+  .briefing-session-memo{grid-column:3;grid-row:1;width:auto}
   .briefing-session-memo:empty{display:none}
-  .briefing-session-text.wire-fade-clip{display:-webkit-box;grid-column:2/3;grid-row:2;white-space:normal;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  .briefing-session-row:not(:has(.briefing-session-memo>.wire-badge)) .briefing-session-text.wire-fade-clip{grid-column:1/3}
+  .briefing-session-row>.wire-chevron{grid-column:4;grid-row:1/3}
+  .briefing-session-text.wire-fade-clip{display:-webkit-box;grid-column:1/4;grid-row:2;white-space:normal;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
   /* 활성 세부 목표 줄(D62 §8 · CCC-69)도 좁은 화면에서는 줄바꿈으로 전환한다(말줄임 규칙). */
   .briefing-subgoal-row.wire-fade-clip{white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
 }

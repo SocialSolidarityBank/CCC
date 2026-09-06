@@ -787,7 +787,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               },
             ]}
             actions={editing ? (
-              <WireButton variant="primary" disabled={busy} onClick={complete}>수정 완료</WireButton>
+              <WireButton variant="primary" disabled={busy} onClick={complete} icon={<Icon name="check" />}>수정 완료</WireButton>
             ) : undefined}
           />
           <WireCallout
@@ -1012,7 +1012,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
               : null}
             {/* 비활성이 아니다(2026-08-09 Q) — 눌러 봐야 빈 칸이 스스로를 알린다. 못 눌리는
                 버튼은 왜 못 누르는지도 말해 주지 않는다. 검증은 complete() 첫 줄이 한다. */}
-            <WireButton size="large" disabled={busy} onClick={complete}>{editing ? '저장' : '완료'}</WireButton>
+            <WireButton size="large" disabled={busy} onClick={complete} icon={<Icon name="check" />}>{editing ? '저장' : '완료'}</WireButton>
           </div>
         </section>
 
