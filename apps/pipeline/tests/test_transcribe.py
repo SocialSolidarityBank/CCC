@@ -175,5 +175,14 @@ class TranscribeAudioTest(unittest.TestCase):
         self.assertFalse(result.reliable)
 
 
+    def test_observer_receives_repetition_before_collapse(self) -> None:
+        repeated = [Segment(i * 2.0, i * 2.0 + 2.0, "같은 문장") for i in range(6)]
+        observed = []
+        result = self.run_with(FakeEngine({}, default=repeated), [], 0.0, on_chunk=observed.extend)
+
+        self.assertEqual([segment.text for segment in observed], ["같은 문장"] * 6)
+        self.assertLess(len(result.segments), len(observed))
+        self.assertFalse(result.reliable)
+
 if __name__ == "__main__":
     unittest.main()

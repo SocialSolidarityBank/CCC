@@ -109,6 +109,33 @@ NER 검증 영수증 없이 워커를 실행하려고 가짜 attestation을 만�
 
 E0-4에서 넘긴 모델 5종의 인증 다운로드와 파일 무결성 검증은 [`e5-2-model-downloads.json`](../../artifacts/pilot/e5-2-model-downloads.json)에 기록했다. 이는 다운로드와 checksum 증거이며 NER 정확도나 화자 분리 추론의 통과 판정은 아니다.
 
+### S13 후보 비교
+
+비교 도구는 [`scripts/stt/benchmark.py`](../../scripts/stt/benchmark.py)다. [S13 측정 규칙](../../docs/specs/S13-pilot-metrics.md)의 150건 전체와 기존 검증 영수증을 확인한 뒤, 공유 화자 분리와 두 후보의 전사를 실행한다. 정답은 채점 과정에서만 읽고 모델 워커에는 전달하지 않는다. 반복률은 재시도 선택 후, 반복 축약 전 결과로 계산한다.
+
+본 측정 전에는 Windows에서 `ffmpeg`와 `ffprobe`가 실행되어야 한다. [S13 준비 절차](../../docs/specs/S13-pilot-metrics.md)에 따라 오디오를 `artifacts/pilot/fixtures/s13-v1/audio/`에 받고, 기존 `artifacts/pilot/fixtures/s13-v1-verification.json`과 일치하는지 확인한다. 모델 다운로드와 HF 접근 승인은 측정 전에 끝낸다.
+
+파이프라인 환경과 Qwen 환경을 분리한다. Qwen은 [`requirements-qwen.txt`](../../scripts/stt/requirements-qwen.txt)를 쓰며 제품 의존성이나 엔진 registry에 추가하지 않는다. 모델 revision, 가중치 hash와 라이선스는 [`benchmark-models.json`](../../scripts/stt/benchmark-models.json)에 고정되어 있다. Pyannote는 허가된 HF 접근으로 먼저 내려받고, 캐시가 준비되면 `HF_HUB_OFFLINE=1`로 실행할 수 있다.
+
+다음은 Python 3.12가 준비된 Windows CPU의 실행 예다. 저장소 루트에서 별도 가상환경 두 개를 만들며, 아래 파이프라인 버전은 Mac 탐색 실행에서 확인한 조합이다. Windows 설치와 추론 검증은 별도로 필요하다.
+
+```powershell
+python -m venv "$env:TEMP/ccc-e5-8-pipeline"
+& "$env:TEMP/ccc-e5-8-pipeline/Scripts/python.exe" -m pip install faster-whisper==1.2.1 pyannote.audio==3.4.0 torch==2.8.0 torchaudio==2.8.0 huggingface-hub==0.36.2
+python -m venv "$env:TEMP/ccc-e5-8-qwen"
+& "$env:TEMP/ccc-e5-8-qwen/Scripts/python.exe" -m pip install -r scripts/stt/requirements-qwen.txt
+
+python scripts/stt/benchmark.py --manifest scripts/stt/fixtures/manifest.json --out artifacts/pilot/results/e5-8-windows-cpu-001 --pipeline-python "$env:TEMP/ccc-e5-8-pipeline/Scripts/python.exe" --qwen-python "$env:TEMP/ccc-e5-8-qwen/Scripts/python.exe" --qwen-device cpu --diarization-device cpu --threads 4
+```
+
+새 결과 디렉터리만 허용한다. 결과는 회차별 숫자와 합산 지표, hash, 모델과 장비 정보이며 전사문은 저장하지 않는다. `recordedSessionCount`는 실패를 포함해 기록된 회차 수이고 `measuredSessionCount`는 채점된 회차 수다. 합산 사건의 `sessionIndex`는 `measuredSessionIds`의 위치를 가리킨다.
+
+누락, 잘못된 회차, 추가 응답이나 비정상 종료는 전체 `FAIL`이다. 완전한 150건에서 지표 하나라도 기준을 넘으면 `FAIL`, 실패가 없고 미측정 지표가 남으면 `UNMEASURED`, 전부 통과하면 `PASS`다. 종료 코드 0은 전체 `PASS`에만 사용한다.
+
+RTF 자격은 실행 프로세스가 읽은 OS와 워커의 CPU device로 정한다. macOS의 숫자는 보존하되 Windows CPU 판정은 `UNMEASURED`다. 타이머는 `LoadedWorker.infer` 호출 직전부터 반환 직후까지이며 청크 처리, 재시도와 강제 정렬을 포함하고 초기화, 임시 폴더 생성·삭제와 프로세스 간 전송은 제외한다. 화자 분리는 한 번 실행해 두 후보가 공유하므로 DER로 후보 간 우열을 매기지 않는다.
+
+탐색용 단건 실행과 오프라인 엔진 비교는 Community Cloud, Local Single, Local Office의 종단 검증이나 Q의 STT 승인으로 간주하지 않는다. 안전 지표도 고정된 문자 정렬에서 계산한 사건 수이며 사실 오류나 임상적 위험의 판정이 아니다.
+
 ### 선택형 원본 백업 정책
 
 원본 백업은 기본 OFF다. OFF이면 외부 저장소를 찾거나 호출하지 않는다. ON으로 바꾸려면

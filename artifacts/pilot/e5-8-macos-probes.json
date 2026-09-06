@@ -1,0 +1,97 @@
+{
+  "recordedAt": "2026-09-05T08:58:33.629452+00:00",
+  "scope": "Exploratory one-session inference only; not S13 gate evidence or a comparative performance result",
+  "fixture": {
+    "manifest": "scripts/stt/fixtures/manifest.json",
+    "sessionId": "case-001-session-01",
+    "durationSeconds": 146.815646,
+    "verifiedSessionCount": 150
+  },
+  "hardware": {
+    "architecture": "arm64",
+    "cpu": "Apple M4 Pro",
+    "gpu": [
+      "Apple M4 Pro"
+    ],
+    "logicalCpuCount": 14,
+    "ramBytes": 25769803776,
+    "release": "25.6.0",
+    "system": "Darwin"
+  },
+  "device": "cpu",
+  "threads": 4,
+  "method": "Load pinned model, warm up on separate silence, time LoadedWorker.infer on the first fixture in a temporary directory",
+  "observations": [
+    {
+      "engine": "faster-whisper",
+      "status": "INFERENCE_RETURNED",
+      "wallSeconds": 221.269165124977,
+      "outputCount": 790,
+      "outputUnit": "characters"
+    },
+    {
+      "engine": "diarization",
+      "status": "INFERENCE_RETURNED",
+      "wallSeconds": 166.1139562499011,
+      "outputCount": 18,
+      "outputUnit": "turns"
+    },
+    {
+      "engine": "qwen3-asr",
+      "status": "INFERENCE_RETURNED",
+      "wallSeconds": 1839.621164540993,
+      "outputCount": 5698,
+      "outputUnit": "characters"
+    }
+  ],
+  "environmentsCapturedAfterProbes": {
+    "pipeline": {
+      "python": "3.12.13",
+      "packages": {
+        "faster-whisper": "1.2.1",
+        "ctranslate2": "4.8.2",
+        "pyannote.audio": "3.4.0",
+        "torch": "2.8.0",
+        "torchaudio": "2.8.0",
+        "huggingface-hub": "0.36.2"
+      }
+    },
+    "qwen": {
+      "python": "3.12.13",
+      "packages": {
+        "qwen-asr": "0.0.6",
+        "torch": "2.9.1",
+        "transformers": "4.57.6",
+        "huggingface-hub": "0.36.0"
+      }
+    }
+  },
+  "modelManifest": "scripts/stt/benchmark-models.json",
+  "limitations": [
+    "Implementation changed during exploration; exact implementation snapshots were not captured for these probes.",
+    "Probes were not controlled head-to-head runs; do not infer a speed ranking from their wall times.",
+    "No CER, repetition, DER, safety or Windows CPU RTF verdict was produced.",
+    "The fixture is synthetic speech, not independent real counseling audio.",
+    "An exploratory Qwen MPS run was interrupted without an inference result."
+  ],
+  "cliFailureSmoke": {
+    "scenario": "missing-worker-interpreters",
+    "status": "FAIL",
+    "exitCode": 1,
+    "unmeasuredRecords": {
+      "faster-whisper": 150,
+      "qwen3-asr": 150
+    },
+    "measuredRecordsPerEngine": 0
+  },
+  "fullGate": {
+    "status": "UNMEASURED",
+    "target": "Windows CPU",
+    "reason": "Both observed Windows peers were offline",
+    "decision": "Q selected full measurement on Windows and skipping the Mac full run"
+  },
+  "productActivation": {
+    "changed": false,
+    "approvalGranted": false
+  }
+}

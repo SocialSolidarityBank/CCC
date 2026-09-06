@@ -133,12 +133,15 @@ def transcribe_audio(
     max_chunk_seconds: float = DEFAULT_MAX_CHUNK_SECONDS,
     min_chunk_seconds: float = DEFAULT_MIN_CHUNK_SECONDS,
     repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
+    *,
+    on_chunk: Callable[[list[Segment]], None] | None = None,
 ) -> TranscriptionResult:
     """오디오 파일 → 전사 구간 목록.
 
     순서: 무음 탐지 → 조각 분할 → 조각별 전사 → 반복 검사 → (반복이면) 반으로
     잘라 1회 재시도 → 그래도 반복이면 접어서 경고. 조각이 하나뿐이면(짧은 녹음
     이거나 ffmpeg 부재) 원본을 그대로 넣는다.
+    on_chunk는 재시도 선택 후 축약 전 구간을 전달하며, 관찰자는 구간을 변경하지 않는다.
     """
     silences, duration = detect_silences(audio_path)
     chunks = plan_chunks(silences, duration, max_chunk_seconds, min_chunk_seconds)
@@ -156,6 +159,8 @@ def transcribe_audio(
             min_chunk_seconds=min_chunk_seconds,
             whole_file=whole_file,
         )
+        if on_chunk is not None:
+            on_chunk(chunk_segments)
         runs = find_repetition_runs(chunk_segments, repeat_threshold)
         if runs:
             warnings.extend(runs)
