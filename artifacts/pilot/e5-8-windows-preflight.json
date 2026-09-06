@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-06T00:37:59.934777+00:00",
+  "executionScope": "native-windows-preflight-and-smoke",
+  "gitCommit": "3eb64d8d86e255163c9dd794d218661af2149d95",
+  "hardware": {
+    "operatingSystem": "Microsoft Windows 11 Pro",
+    "version": "10.0.26200",
+    "architecture": "64-bit",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+    "physicalCores": 8,
+    "logicalProcessors": 16,
+    "memoryBytes": 25715249152
+  },
+  "runtime": {
+    "python": "3.12.13",
+    "pipelineTorch": "2.8.0+cpu",
+    "qwenTorch": "2.9.1+cpu",
+    "ffmpeg": "9.0.1",
+    "ffprobe": "9.0.1",
+    "ffmpegArchiveSha256": "fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9",
+    "ffmpegSource": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.1-essentials_build.zip",
+    "threads": 4,
+    "device": "cpu",
+    "modelAccess": "offline-verified-snapshots"
+  },
+  "checks": {
+    "sttTests": {
+      "status": "PASS",
+      "count": 78
+    },
+    "pipelineTests": {
+      "status": "PASS",
+      "count": 137
+    },
+    "fixtureIntegrity": {
+      "status": "PASS",
+      "sessionCount": 150,
+      "matchesCanonicalReceipt": true
+    },
+    "modelIntegrity": {
+      "status": "PASS",
+      "snapshotCount": 6,
+      "weightBytes": 8094523761,
+      "modelManifestSha256": "593f5f90846752baa31dc4230579c533f50c61eecc70e82c693fc8b1afd714c4"
+    },
+    "pipelineImports": "PASS",
+    "qwenImports": "PASS"
+  },
+  "smoke": {
+    "fixtureSessionId": "case-001-session-01",
+    "diarization": {
+      "status": "PASS",
+      "engineWallSeconds": 98.6091621999949,
+      "backend": "pyannote.audio",
+      "device": "cpu"
+    },
+    "faster-whisper": {
+      "status": "UNMEASURED",
+      "reason": "target_offline_during_smoke"
+    },
+    "qwen3-asr": {
+      "status": "UNMEASURED",
+      "reason": "not_started_before_target_offline"
+    }
+  },
+  "fullBenchmark": {
+    "status": "UNMEASURED",
+    "started": false,
+    "requiredSessionCount": 150,
+    "deploymentModesExercised": []
+  },
+  "executionInterruption": {
+    "code": "target_offline",
+    "sshReachable": false,
+    "tailscalePingReachable": false,
+    "localSmokeSupervisorStopped": true,
+    "remoteWorkerState": "UNCONFIRMED"
+  },
+  "policy": {
+    "automaticEngineSelection": false,
+    "productActivation": false,
+    "productionDataUsed": false,
+    "credentialsTransferred": false
+  }
+}

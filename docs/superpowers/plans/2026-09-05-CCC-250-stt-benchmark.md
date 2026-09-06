@@ -18,7 +18,7 @@
 - Result artifacts allow fixture IDs, numeric outcomes, hashes, fixed status/error codes and validated model/runtime metadata. No raw transcript/audio, credentials or upstream error bodies.
 - No product engine registration, configuration activation, UI, deployment or merge.
 - Qwen candidate: `Qwen/Qwen3-ASR-1.7B`, matching the existing candidate research. No automatic model substitution.
-- Runtime assessment: Q selected Windows for the full run and skipping the Mac full run. Native Windows 11 Pro build 26200 and AMD Ryzen 7 3700X (8 cores, 16 logical processors, approximately 24 GiB RAM) are now verified through authenticated SSH over Tailscale. Python 3.10, uv and Git are present; Python 3.12, FFmpeg and model caches still require isolated setup.
+- Runtime assessment: Q selected Windows for the full run and skipping the Mac full run. Native Windows 11 Pro build 26200 and AMD Ryzen 7 3700X (8 cores, 16 logical processors, approximately 24 GiB RAM) are verified. Python 3.12.13, separate CPU environments, FFmpeg 9.0.1, all 150 fixture sessions and six pinned model snapshots are prepared under a private ASCII-only path. The target went offline during the ASR smoke; resume requires connectivity and checking for any surviving worker before restarting.
 - Q approved a checkpoint commit and push to the public task branch for Windows execution. The MacBook remains the source-code owner; Windows receives an immutable Git checkpoint for measurement only. No merge, deployment or product activation is authorized.
 
 ## Ownership and interfaces
@@ -44,7 +44,7 @@
 - [x] Implement the CLI with strict fixture integrity, complete session accounting, runtime-derived RTF eligibility, redacted failures and immutable output.
 - [x] Run focused boundary/regression checks and existing fixture/pipeline checks: 78 STT tests, 137 pipeline tests, and all 150 fixture sessions passed verification.
 - [x] Execute exploratory inference for both ASR candidates and shared diarization. [Sanitized observations](../../../artifacts/pilot/e5-8-macos-probes.json) are not gate evidence or a controlled speed comparison.
-- [ ] Run all 150 sessions on Windows CPU after isolated dependency/model setup and a native smoke check. No full gate has been measured.
+- [ ] Run all 150 sessions on Windows CPU after connectivity returns and both ASR smoke checks finish. No full gate has been measured.
 - [x] Review independent scoring and runtime evidence, record unmeasured Windows and mode-specific requirements, and keep CCC-250 open until required runtime evidence exists.
 
 ## Verification evidence
@@ -55,3 +55,7 @@
 - Actual subprocess smoke preserved Korean JSON through CP1252 and CP949 worker output into the UTF-8 parent. It verifies encoding interoperability, not Windows runtime performance.
 - Independent review found nested deleted-turn event ranges and Windows pipe encoding defects. Both failed targeted regression checks before the fixes and passed afterward.
 - Cold-read fixes clarify prerequisites, status propagation, timer boundaries and shared DER. Metric definitions and model pins remain references to their canonical files, not copies. The full Windows comparison remains unmeasured, and exploratory Mac observations are not reproducible gate evidence.
+- Native Windows checks passed at `3eb64d8`: 78 STT tests and 137 pipeline tests. The fixture verification matched the canonical 150-session receipt, and all six pinned model snapshots passed native checksum checks.
+- Windows execution exposed locale-dependent UTF-8 fixture reads, environment-isolation tests without a work directory, and Nagisa/DyNet's failure to load its model from a Korean user path. Test fixtures now set explicit encoding/work directories; the isolated runtime uses a private ASCII-only path without changing model versions or reference data.
+- Native diarization inference completed on the first fixture session. Faster-whisper was still in its smoke stage when SSH and Tailscale connectivity were lost; Qwen inference and the full comparison did not start. The local supervisor was stopped, but remote worker state cannot be confirmed while the target is offline.
+- [Sanitized Windows preflight evidence](../../../artifacts/pilot/e5-8-windows-preflight.json) records only hardware/runtime metadata, integrity checks, test counts and the completed smoke measurement. It is not a full STT gate or three-mode validation.
