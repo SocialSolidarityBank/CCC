@@ -43,10 +43,9 @@ def record(page, name: str, note: str = "") -> dict[str, object]:
     ]
     body_text = page.inner_text("body")
     # 공개 가입 표면에는 직원 앱으로 돌아가는 링크를 일부러 두지 않는다. 대신 가입 전에는
-    # 활성 제출 버튼이 출구이고, 가입 완료·자기 확인은 그 자체가 의도된 종점이다.
+    # 활성 제출 버튼이 출구이고, 가입 완료는 그 자체가 의도된 종점이다.
     terminal_markers = {
         "05-join-submitted": "가입이 완료되었습니다",
-        "06-self-check": "당사자 자기 확인",
     }
     terminal_marker = terminal_markers.get(name)
     terminal = terminal_marker is not None and terminal_marker in body_text
@@ -109,10 +108,7 @@ with sync_playwright() as p:
                 record(page, "05-join-submitted", "가입 제출 후")
             except Exception as e:  # noqa: BLE001
                 errors.append(f"join submit failed: {e}")
-        # 가입 직후 같은 링크 = 자기 확인(CCC-27)
-        if token:
-            page.goto(f"{base}/join/participant/{token}", wait_until="networkidle")
-            record(page, "06-self-check", "같은 링크 재방문 = 자기 확인")
+        # 가입 뒤 같은 링크는 404 다(D86 ④, 자기 확인 재사용 폐기). 재방문 단계는 두지 않는다.
 
     # 5) 배지 확인 — 참여자 목록 복귀
     page.goto(f"{base}/participants", wait_until="networkidle")

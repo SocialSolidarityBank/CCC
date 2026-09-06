@@ -9593,6 +9593,36 @@ export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
 }
 
 /**
+ * 로그인한 본인의 D74 역할 묶음(ADR-0038). 어드민 탭을 역할 합으로 필터하는 화면이 쓴다
+ * (ADR-0044 결정 7). 어휘는 `@ccc/contracts` ActorRole 이고 순서는 resolveDirectoryActorByPrincipal
+ * 과 같다. 감사 없음: 권한 검사 결과일 뿐 기록 열람이 아니다. 0040 이전 스키마(표 없음)에서는
+ * users.role 로 폴백해 hasActiveHumanRoleAssignment 와 같은 답을 낸다.
+ */
+export async function listMyRoles(env: Env, actor: Actor): Promise<ActorRole[]> {
+  assertHuman(actor);
+  try {
+    const assignments = await env.DB.prepare(
+      `SELECT role
+       FROM user_role_assignments
+       WHERE user_id = ? AND org_id = ? AND revoked_at IS NULL
+       ORDER BY CASE role
+         WHEN 'institution_admin' THEN 1
+         WHEN 'institution_technical_admin' THEN 2
+         WHEN 'practitioner' THEN 4
+         ELSE 99
+       END`,
+    ).bind(actor.userId, actor.orgId).all<{ role: string }>();
+    return assignments.results.flatMap((row) => {
+      const role = DIRECTORY_ROLE_MAP[row.role as keyof typeof DIRECTORY_ROLE_MAP];
+      return role === undefined ? [] : [role];
+    });
+  } catch (error) {
+    if (!isMissingRoleAssignmentsTable(error)) throw error;
+    return actor.role === 'admin' ? ['institution-admin'] : actor.role === 'counselor' ? ['worker'] : [];
+  }
+}
+
+/**
  * 마지막에 선택한 사업을 본인 계정에 기억시킨다 (D35 · ADR-0014 '개정' 2번).
  * `/` 가 이 값으로 직행하므로, 집 컴퓨터와 사무실에서 같은 사업으로 들어간다.
  *

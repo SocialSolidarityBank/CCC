@@ -237,6 +237,8 @@ export interface GenerateAiDraftInput {
 
 /** 사용자 디렉터리 역할(users 테이블). 화면 라벨은 페이지에서 CONTEXT.md 용어로 매핑한다. */
 export type DirectoryRole = 'admin' | 'counselor' | 'service';
+/** D74 역할 합(ADR-0038, `@ccc/contracts` ActorRole 어휘). GET /me 가 돌려주고 어드민 탭 필터가 읽는다. */
+export type MyRole = 'institution-admin' | 'technical-admin' | 'supervisor' | 'worker';
 
 /** 로그인한 본인의 신원 — 설정 화면 '내 계정'(GET /me). */
 export interface MyIdentity {
@@ -247,6 +249,8 @@ export interface MyIdentity {
   active: boolean;
   // D31: 직원 표시 이름. 미입력이면 null 이며 화면은 이메일로 폴백한다.
   name: string | null;
+  /** 겸임 가능. 순서는 서버가 고정한다(기관 관리자 → 기술 관리자 → 실무 책임자 → 실무자). */
+  roles: MyRole[];
 }
 
 /** 기관 사용자 디렉터리 항목 — 설정 화면 '기관 실무자 목록'(GET /users, 기관 관리자 전용). */
@@ -915,6 +919,7 @@ const discrepancyKinds = ['cross_session', 'within_session'] as const;
 const discrepancyResolutionStatuses = ['situation_changed', 'record_error', 'confirmed'] as const;
 const scheduleStatuses = ['scheduled', 'completed', 'cancelled', 'no_show'] as const;
 const directoryRoles = ['admin', 'counselor', 'service'] as const;
+const myRoles = ['institution-admin', 'technical-admin', 'supervisor', 'worker'] as const;
 // 생활 6영역(CCC-8). 키·라벨 근거: docs/intake/CCC-intake-required-vs-optional-questions.md §D.
 export const lifeAreaKeys = ['economy', 'housing', 'employment', 'health', 'mental_health', 'family'] as const;
 export const lifeAreaStatuses = ['okay', 'strained', 'crisis', 'not_applicable', 'declined'] as const;
@@ -2104,9 +2109,14 @@ function decodeDirectoryUser(value: unknown): DirectoryUser {
   };
 }
 
-/** 로그인한 본인의 신원(이메일·역할). 설정 화면 '내 계정' 섹션이 쓴다. */
+/** 로그인한 본인의 신원(이메일·역할·D74 역할 합). 설정 화면 '내 계정'과 어드민 레이아웃이 쓴다. */
 export async function getMyIdentity(): Promise<MyIdentity> {
-  return decodeDirectoryUser(await requestJson<unknown>('/me'));
+  const payload = await requestJson<unknown>('/me');
+  const record = responseObject(payload);
+  return {
+    ...decodeDirectoryUser(payload),
+    roles: responseArray(record, 'roles').map((role) => responseEnum(role, myRoles)),
+  };
 }
 
 /** 관리자 온보딩이 저장한 기관·첫 사업 표시 이름 (CCC-32). null 이면 labels.ts 폴백. */
@@ -2386,67 +2396,6 @@ export async function getPublicInviteInfo(token: string): Promise<PublicInviteIn
   if (!response.ok) throw new ApiError(errorCode(response.status, payload));
   const record = responseObject(payload);
   return { programType: responseString(record, 'programType') };
-}
-
-/**
- * CCC-27 당사자 자기 확인 — 가입 링크(소비된 토큰)로 여는 본인 정보. 토큰이 자격이고
- * 인증 헤더를 보내지 않는다(공개 경로, 가입과 같은 표면). 무효·미소비 토큰은 404.
- * 응답은 정확히 다섯 갈래뿐 — 상담 기록 내용은 없다(테스트가 키로 고정).
- */
-export interface ParticipantSelfCheck {
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  programs: Array<{
-    programType: string;
-    counselorName: string | null;
-    consent: { privacy: boolean; recordingAi: boolean };
-  }>;
-  upcomingSchedules: Array<{ id: string; scheduledAt: string; status: CounselingScheduleStatus }>;
-  pastSchedules: Array<{ id: string; scheduledAt: string; status: CounselingScheduleStatus }>;
-}
-
-export async function getParticipantSelfCheck(token: string): Promise<ParticipantSelfCheck> {
-  let response: Response;
-  try {
-    response = await fetchApi(endpoint(`/invites/participant/${encodeURIComponent(token)}/me`), {
-      headers: new Headers({ accept: 'application/json' }),
-      cache: 'no-store',
-    });
-  } catch {
-    throw new ApiError('service_unavailable');
-  }
-  let payload: unknown = null;
-  try { payload = await response.json(); } catch { if (response.ok) contractViolation(); }
-  if (!response.ok) throw new ApiError(errorCode(response.status, payload));
-  const record = responseObject(payload);
-  return {
-    name: responseNullableString(record, 'name'),
-    phone: responseNullableString(record, 'phone'),
-    email: responseNullableString(record, 'email'),
-    programs: responseArray(record, 'programs').map((item) => {
-      const program = responseObject(item);
-      return {
-        programType: responseString(program, 'programType'),
-        counselorName: responseNullableString(program, 'counselorName'),
-        consent: {
-          privacy: responseBoolean(responseObject(responseProperty(program, 'consent')), 'privacy'),
-          recordingAi: responseBoolean(responseObject(responseProperty(program, 'consent')), 'recordingAi'),
-        },
-      };
-    }),
-    upcomingSchedules: responseArray(record, 'upcomingSchedules').map(decodeSelfCheckSchedule),
-    pastSchedules: responseArray(record, 'pastSchedules').map(decodeSelfCheckSchedule),
-  };
-}
-
-function decodeSelfCheckSchedule(value: unknown): ParticipantSelfCheck['upcomingSchedules'][number] {
-  const item = responseObject(value);
-  return {
-    id: responseString(item, 'id'),
-    scheduledAt: responseString(item, 'scheduledAt'),
-    status: responseEnum(responseProperty(item, 'status'), scheduleStatuses),
-  };
 }
 
 /** CCC-44 AI 사업자 상태 — 활성 설정 + 배포 런타임 대조(불일치 사유 화면 표시용). */
