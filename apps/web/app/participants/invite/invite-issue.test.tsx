@@ -34,9 +34,14 @@ describe('요청 링크 공유 버튼 (D86 ④, OS 공유 시트)', () => {
     const share = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'share', { value: share, configurable: true, writable: true });
     const view = await issue();
-    const button = view.container.querySelector('.wire-field-with-action>.header-icon-button');
-    expect(button?.getAttribute('aria-label')).toBe('공유');
-    fireEvent.click(button!);
+    // 버튼은 마운트 뒤 useEffect 감지로 켜지므로 링크 칸보다 한 틱 늦다(CI 에서 실제로 늦었다).
+    const button = await waitFor(() => {
+      const found = view.container.querySelector('.wire-field-with-action>.header-icon-button');
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(button.getAttribute('aria-label')).toBe('공유');
+    fireEvent.click(button);
     const url = `${window.location.origin}/join/participant/tok-1`;
     expect(share).toHaveBeenCalledWith({ text: expect.stringContaining(url), url });
     // 문안에는 당사자 이름이 없다 — 링크는 발급 시점에 당사자를 모른다.
