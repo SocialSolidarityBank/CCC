@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { AdminSection, AssignmentRequestList } from './page';
-import { adminMenu } from '../admin/admin-format';
+import { adminMenu, adminMenuFor } from '../admin/admin-format';
 
 afterEach(cleanup);
 
@@ -24,7 +24,7 @@ vi.mock('../lib/display-labels', () => ({
 
 // 설정 페이지 전체는 async 서버 컴포넌트라 jsdom 에서 렌더할 수 없다.
 // AdminSection 은 동기·무데이터 부품이라 직접 렌더해 단언한다(admin-sidebar.test.tsx 패턴).
-// 역할 게이트(`me.role === 'admin' ? <AdminSection /> : null`)는 페이지의 자명한 조건문이다.
+// 역할 게이트(`adminMenuFor(me.roles).length > 0 ? <AdminSection roles /> : null`)는 페이지의 자명한 조건문이다.
 
 describe('설정 화면 — 배정 요청 수락 (CCC-123)', () => {
   it('당사자·사업·역할과 수락 행동을 한 카드에서 보여준다', () => {
@@ -51,19 +51,26 @@ describe('설정 화면 — 배정 요청 수락 (CCC-123)', () => {
 });
 
 describe('설정 화면 — 관리자 구역 (CCC-21)', () => {
-  it('관리자 구역에 관리자 화면 4개와 온보딩 링크가 순서대로 보인다', () => {
-    const { container } = render(<AdminSection />);
+  it('기관 관리자 겸 기술 관리자에게 관리자 화면 5개와 온보딩 링크가 순서대로 보인다', () => {
+    const { container } = render(<AdminSection roles={['institution-admin', 'technical-admin']} />);
 
-    expect(container.querySelector('#settings-admin-heading')?.textContent).toBe('기관 관리자 설정');
+    expect(container.querySelector('#settings-admin-heading')?.textContent).toBe('관리자 설정');
 
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/admin/ai-provider', '/onboarding']);
   });
 
+  it('역할 합으로 거른다. 기술 관리자만이면 기관·배정 링크와 온보딩 입구가 없다', () => {
+    const { container } = render(<AdminSection roles={['technical-admin']} />);
+    const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/admin/users', '/admin/invite', '/admin/ai-provider']);
+    expect(adminMenuFor(['technical-admin']).map((item) => item.label)).toEqual(['사용자·역할', '실무자 초대', 'AI·STT·연결']);
+  });
+
   // CCC-61: /onboarding 은 셸에도 다른 화면에도 진입 링크가 없는 고아였다. 이 줄이 유일한
   // 입구이므로 사라지면 다시 주소를 직접 쳐야만 갈 수 있는 화면이 된다.
   it('온보딩으로 들어가는 유일한 입구를 갖는다', () => {
-    const { container } = render(<AdminSection />);
+    const { container } = render(<AdminSection roles={['institution-admin']} />);
     const entry = Array.from(container.querySelectorAll('a')).find((a) => a.getAttribute('href') === '/onboarding');
     expect(entry).not.toBeUndefined();
     expect(entry?.textContent).toBe('기관·사업 이름');

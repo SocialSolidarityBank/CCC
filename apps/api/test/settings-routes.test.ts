@@ -58,6 +58,8 @@ describe('settings routes (/me, /users)', () => {
       // D35·ADR-0014 '개정' 2번: `/` 직행 목적지. 아직 고른 적이 없으면 null 이고
       // 화면이 첫 사업으로 폴백한다.
       lastProgramType: null,
+      // D74 역할 합(ADR-0038). 어드민 탭 필터(ADR-0044 결정 7)가 읽는다. 실무자는 worker 하나.
+      roles: ['worker'],
     });
     // R1: 자기 신원 열람도 감사에 남는다(read, users, self).
     // 마지막 선택 사업 조회는 여기에 행을 더하지 않는다 — 본인 UI 설정이라 감사 대상이
@@ -100,6 +102,8 @@ describe('settings routes (/me, /users)', () => {
       email: 'admin.routes@example.invalid',
       role: 'admin',
       active: true,
+      // provisionDirectory 의 admin 은 기관 관리자와 기술 관리자를 겸한다(시드와 같음, D74 겸임).
+      roles: ['institution-admin', 'technical-admin'],
     }));
   });
 

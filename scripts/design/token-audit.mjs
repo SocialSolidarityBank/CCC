@@ -254,8 +254,6 @@ const MARKUP_HOOKS = new Set([
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
   'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본
   'schedule-day-heading',   // 날짜 제목 조각 — 옷은 .schedule-day-summary-title 상속, 테스트 앵커
-  'self-check-block',       // 당사자 자기확인 화면 구획 훅(D26 최소 구현 — 아직 자기 옷 없음)
-  'self-check-row',         // 당사자 자기확인 행 훅(위와 같음)
 ]);
 
 const usedClasses = new Map(); // name -> { file, line } 첫 등장

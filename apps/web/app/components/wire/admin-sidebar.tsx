@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { adminMenu } from '../../admin/admin-format';
+import { adminMenu, type AdminMenuItem } from '../../admin/admin-format';
 
 export interface AdminSidebarProps {
+  /** 그릴 탭. 레이아웃이 adminMenuFor(내 역할)로 걸러 넘긴다. 생략하면 전체(킷·하니스 전시용). */
+  items?: readonly AdminMenuItem[];
   /** 활성 경로. 생략하면 현재 경로로 자동 판단. */
   activePath?: string;
   className?: string;
@@ -21,7 +23,7 @@ export interface AdminSidebarProps {
  * 시각 계약은 새로 만들지 않았다. DESIGN.md §5 '탭'(활성 = --ink 글자 + 하단 2px solid
  * var(--ink), 비활성 --sub, 색이 아니라 대비로 구분)을 구현한 기존 `.wire-tabs` 를 쓴다.
  */
-export function AdminSidebar({ activePath, className }: AdminSidebarProps) {
+export function AdminSidebar({ items = adminMenu, activePath, className }: AdminSidebarProps) {
   const pathname = usePathname();
   const current = activePath ?? pathname;
   const classes = ['wire-tabs', 'wire-admin-tabs', className].filter(Boolean).join(' ');
@@ -32,7 +34,7 @@ export function AdminSidebar({ activePath, className }: AdminSidebarProps) {
   return (
     <div className="wire-admin-tabs-scroll">
       <nav aria-label="관리자 메뉴" className={classes}>
-        {adminMenu.map((item) => {
+        {items.map((item) => {
           // '/admin' 은 모든 관리자 경로의 접두어라 하위 경로까지 먹으면 두 탭이 동시에
           // 활성이 된다. 기관(=/admin)만 정확 일치로 보고 나머지는 하위 경로까지 본다.
           const active = item.href === '/admin'

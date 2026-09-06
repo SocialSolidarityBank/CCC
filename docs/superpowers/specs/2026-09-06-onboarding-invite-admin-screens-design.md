@@ -21,10 +21,10 @@
 | --- | --- | --- |
 | `SearchInput` type은 text/email/date/select | `type?: 'text' \| 'date' \| 'email'`, `variant?: 'text' \| 'select'`. password 없음 | §2-1 그대로 |
 | `WireFormField` choice(checkbox) | 선택지 부품은 `WireChoice({ type: 'radio' \| 'checkbox' })` (`wire-form-field.tsx`) | 표의 부품 칸을 `WireChoice type="checkbox"`로 고침 |
-| `AdminSidebar` 탭 정적 5개 | `adminMenu`(`apps/web/app/admin/admin-format.ts`) 5개: 기관, 배정, 사용자, 실무자 초대, AI 사업자. 부품은 `activePath`만 받고 목록은 모듈 상수 | §2-3 그대로. 탭 이름 개정 목록을 화면 5에 적음 |
+| `AdminSidebar` 탭 정적 5개 | `adminMenu`(`apps/web/app/admin/admin-format.ts`) 5개: 기관, 배정, 사용자, 실무자 초대, AI 사업자. 부품은 `activePath`만 받고 목록은 모듈 상수 | **구현됨(2026-09-06)**: `GET /me`가 D74 `roles`를 내보내고(`listMyRoles`, 감사 없음), `adminMenuFor(roles)`가 탭과 설정 진입구를 같이 거른다. 탭 0개면 `/admin` 404. 탭 이름 개정 반영 |
 | 사용자·역할 탭은 목록만 있음 | `/admin/users`(목록) + `/admin/users/[id]`(읽기 전용 상세, 담당 당사자·배정하기 버튼). 역할 편집·비활성화·MFA 초기화 없음 | 화면 5 상태 칸 수정 |
-| `/admin/invite` 익명 링크 카드 | `WorkerInviteIssue`(이메일 없이 링크만 발급) + `registerCounselorAction` 등록 폼 | 익명 발급 카드 삭제 대상 확정 |
-| `/join/participant/[token]` 자기 확인 분기 | `SelfCheckView` + `getParticipantSelfCheck`가 소비된 토큰에서 열림 | 제거 대상 확정 |
+| `/admin/invite` 익명 링크 카드 | `WorkerInviteIssue`(이메일 없이 링크만 발급) + `registerCounselorAction` 등록 폼 | 익명 발급 카드 삭제 대상 확정. **삭제는 이메일 묶음 초대 API(`createCounselorInvite`에 이메일·이름·역할, ADR-0038 후속 티켓)와 같은 PR에서** 한다. 대체 없이 먼저 지우면 초대 링크 자체가 사라진다 |
+| `/join/participant/[token]` 자기 확인 분기 | `SelfCheckView` + `getParticipantSelfCheck`가 소비된 토큰에서 열림 | **화면·클라이언트 제거됨(2026-09-06)**. 소비 토큰은 404. "사용이 끝났습니다 + 담당 실무자 이름"은 공개 조회가 소비·무효를 일부러 같은 404로 뭉치는 계약(토큰 유효성 누설 금지)을 바꾸는 일이라 API 엔드포인트 제거와 함께 당사자 초대 티켓 몫 |
 | `/onboarding`은 위저드 | `onboarding-wizard.tsx`가 있으나 `WireSteps`를 쓰지 않음 | 화면 2에서 `WireSteps`로 교체 |
 | 보존·파기 검토 API | `GET /pii-retention/reviews` (`packages/http-api/src/request-handler.ts:3136`) 있음, 화면 없음 | 그대로 |
 | 로그인은 `apps/client` | `apps/client`는 `public/ccc-bootstrap.json.example` 하나뿐. wire 부품은 `apps/web`에만 있다 | 화면 1은 `apps/client` 첫 화면이다. 부품을 어떻게 나눠 쓸지는 E0/E1 클라이언트 티켓이 정하고 이 문서는 배치만 갖는다 |

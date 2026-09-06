@@ -77,6 +77,7 @@ import {
   getAgentJobAudioDelivery,
   getPipelineHealth,
   getMyIdentity,
+  listMyRoles,
   getLastProgramType,
   getOrganizationProfile,
   completeOrganizationOnboarding,
@@ -2338,9 +2339,11 @@ export async function handleRequest(
       // lastProgramType: `/` 직행 목적지 (D35 · ADR-0014 '개정' 2번). 미선택이면 null 이고
       // 화면이 첫 사업으로 폴백한다.
       const lastProgramType = await getLastProgramType(env, actor);
+      // roles: D74 역할 합(ADR-0038). 어드민 탭 필터(ADR-0044 결정 7)가 읽는다. legacy `role` 은 유지.
+      const roles = await listMyRoles(env, actor);
       return json({
         id: me.id, orgId: me.orgId, email: me.email, role: me.role, active: me.active, name: me.name,
-        lastProgramType,
+        lastProgramType, roles,
       });
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
