@@ -785,7 +785,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    입력 상자(40) 한가운데에 앉는다. 값은 전부 토큰에서 계산한다. */
 .wire-field-with-action{display:flex;align-items:flex-start;gap:var(--space-2);min-width:0}
 .wire-field-with-action>.wire-form-field{flex:1 1 auto;min-width:0}
-.wire-field-with-action>.wire-repeat-actions,.wire-field-with-action>.header-icon-button{flex:none;margin-top:calc(var(--badge-height) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
+.wire-field-with-action>.wire-repeat-actions{flex:none;margin-top:calc(var(--badge-height) + var(--space-3) + (var(--control-height) - var(--pill-height)) / 2)}
 /* 입력 묶음은 **폼 자신이 520 으로 좁힌다**(§4-1 "읽기 폭이 필요한 폼은 페이지가 아니라 폼
    자신이 좁힌다"). 장폭 1120 안에서 글줄 1040 짜리 textarea 는 한 줄이 너무 길어 눈이
    되돌아올 자리를 잃는다. 후보 목록처럼 폭을 다 써야 하는 것은 이 래퍼 밖에 둔다.
@@ -965,7 +965,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* 한글 광학 보정(tokens.css --nudge-hangul). 배지 면은 움직이지 않고 라벨만 옮겨
    위아래 여백을 보존한다. 버튼 텍스트와 12px 슬롯도 같은 값으로 맞춘다. */
 .wire-button-text,.wire-badge-label,.wire-input-box>input,.wire-input-box>select,.wire-search-box input,.wire-search-box select{transform:translateY(var(--nudge-hangul))}
-.wire-button .wire-chevron,.wire-search-box .wire-chevron,.wire-input-box .wire-chevron{position:relative;top:var(--nudge-hangul)}
+.wire-button .wire-chevron,.wire-button>svg,.wire-search-box .wire-chevron,.wire-input-box .wire-chevron{position:relative;top:var(--nudge-hangul)}
 /* 선택창 꺽쇠는 클릭을 통과시킨다. 일반 폼 선택창은 우측 여백을 살리려고 10px에 두고,
    검색 셸은 기존 12px 자리를 유지한다. */
 .wire-input-box,.wire-search-box{position:relative}

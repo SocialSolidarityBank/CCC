@@ -941,23 +941,32 @@
     "tolerance": 0.5
   },
   {
-    "name": "요청 링크 공유 버튼은 입력 상자 세로 중앙",
+    "name": "요청 링크 복사·공유 버튼은 같은 32 높이",
     "selectors": [
-      "#align-invite-share .wire-field-with-action .wire-input-box",
-      "#align-invite-share .wire-field-with-action>.header-icon-button"
+      "#align-invite-share .wizard-actions>.wire-button"
     ],
-    "axis": "y",
-    "tolerance": 0.5
+    "axis": "height",
+    "tolerance": 0.5,
+    "expectedHeight": 32
   },
   {
-    "name": "요청 링크 공유 버튼은 32 원 (390 에서도)",
+    "name": "공유하기 아이콘과 글자는 세로 중앙 공유",
     "selectors": [
-      "#align-invite-share .wire-field-with-action>.header-icon-button"
+      "#align-invite-share .wizard-actions>.wire-button>svg",
+      "#align-invite-share .wizard-actions>.wire-button>svg+.wire-button-text"
     ],
-    "axis": "size",
-    "tolerance": 0.5,
-    "expectedWidth": 32,
-    "expectedHeight": 32,
+    "axis": "y",
+    "tolerance": 1
+  },
+  {
+    "name": "390 에서 복사·공유 버튼이 같은 줄에 겹치지 않음",
+    "selectors": [
+      "#align-invite-share .wizard-actions",
+      ":scope>.wire-button:first-child",
+      ":scope>.wire-button:last-child"
+    ],
+    "axis": "no-overlap-x-each",
+    "tolerance": 0,
     "viewport": { "width": 390, "height": 844 }
   },
   {

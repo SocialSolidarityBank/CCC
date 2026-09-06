@@ -25,6 +25,8 @@ export interface WireButtonProps {
   align?: 'left' | 'center';
   /** 체브론 표시. true·'right' = 우측(다음·이동), 'left' = 좌측(이전 달). */
   chevron?: boolean | 'left' | 'right';
+  /** 글자 앞 16px 아이콘(NavIcon). 아이콘만 있는 버튼은 WireRepeatActions 어휘라 여기서는 글자와 함께만 쓴다. */
+  icon?: ReactNode;
   disabled?: boolean;
   /** 링크로 렌더(비활성 아니면). */
   href?: string;
@@ -57,6 +59,7 @@ export function WireButton({
   variant,
   align = 'center',
   chevron = false,
+  icon,
   disabled = false,
   href,
   onClick,
@@ -73,6 +76,7 @@ export function WireButton({
   const inner = (
     <>
       {chevron === 'left' && <Chevron dir="left" />}
+      {icon}
       <span className="wire-button-text">{children}</span>
       {(chevron === true || chevron === 'right') && <Chevron dir="right" />}
     </>

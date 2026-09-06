@@ -58,24 +58,23 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 /** OS 공유 시트(카카오톡·문자·메일은 실무자가 시트에서 고른다 — CCC 는 채널을 모른다, D86 ④).
  *  시트가 없는 브라우저에서는 렌더하지 않는다. 서버 렌더에는 navigator 가 없으므로
- *  마운트 뒤에 켠다(hydration 불일치 방지). 문안은 이메일 문안과 같고 당사자 이름이 없다. */
+ *  마운트 뒤에 켠다(hydration 불일치 방지). 문안은 이메일 문안과 같고 당사자 이름이 없다.
+ *  2026-09-06 Q 2차: 입력칸 옆 아이콘 원은 눈에 안 띄어 '링크 복사' 옆 아이콘+글자 알약으로. */
 function ShareButton({ text, url }: { text: string; url: string }) {
   const [canShare, setCanShare] = useState(false);
   useEffect(() => setCanShare(typeof navigator.share === 'function'), []);
   if (!canShare) return null;
   return (
-    <button
-      type="button"
-      className="header-icon-button"
-      aria-label="공유"
-      title="공유"
+    <WireButton
+      variant="secondary"
+      icon={<NavIcon name="share" />}
       onClick={() => {
         // 취소(AbortError)는 정상 경로다 — 알릴 것이 없다.
         navigator.share({ text, url }).catch(() => undefined);
       }}
     >
-      <NavIcon name="share" />
-    </button>
+      공유하기
+    </WireButton>
   );
 }
 
@@ -132,19 +131,20 @@ export function InviteIssue() {
         <div className="wire-invite-section">
           {/* 1행 입력칸이다(2026-08-28 Q "넓은 창일 이유가 없다") — 긴 토큰은 가로로 흐르고
               전체는 복사 버튼이 담는다. 구 3줄 textarea 는 링크를 다 보여 주려던 것이었다. */}
-          <div className="wire-field-with-action">
-            <WireFormField label="웹 링크 주소" htmlFor="invite-url" control="input">
-              <input
-                id="invite-url"
-                type="text"
-                readOnly
-                value={state.url}
-                onFocus={(event) => event.currentTarget.select()}
-              />
-            </WireFormField>
+          <WireFormField label="웹 링크 주소" htmlFor="invite-url" control="input">
+            <input
+              id="invite-url"
+              type="text"
+              readOnly
+              value={state.url}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          </WireFormField>
+          {/* 왼쪽부터 차는 버튼 줄(.wizard-actions 어휘). 복사와 공유는 같은 링크에 대한 두 조작이라 한 줄. */}
+          <div className="wizard-actions">
+            <CopyButton text={state.url} label="링크 복사" />
             <ShareButton text={email} url={state.url} />
           </div>
-          <CopyButton text={state.url} label="링크 복사" />
         </div>
 
         {/* QR 은 높이 40 입력칸 계약에 맞지 않아 WireFormField 를 쓰지 않고 라벨·힌트 구조만 빌린다. */}
