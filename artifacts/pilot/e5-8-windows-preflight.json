@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-09-06T00:37:59.934777+00:00",
-  "executionScope": "native-windows-preflight-and-smoke",
+  "recordedAt": "2026-09-06T02:07:26.652+00:00",
+  "executionScope": "native-windows-preflight-smoke-and-benchmark-launch",
   "gitCommit": "3eb64d8d86e255163c9dd794d218661af2149d95",
   "hardware": {
     "operatingSystem": "Microsoft Windows 11 Pro",
@@ -48,7 +48,9 @@
     "qwenImports": "PASS"
   },
   "smoke": {
+    "acceptanceScope": "runtime-inference-only",
     "fixtureSessionId": "case-001-session-01",
+    "fixtureDurationSeconds": 146.815646,
     "diarization": {
       "status": "PASS",
       "engineWallSeconds": 98.6091621999949,
@@ -56,26 +58,43 @@
       "device": "cpu"
     },
     "faster-whisper": {
-      "status": "UNMEASURED",
-      "reason": "target_offline_during_smoke"
+      "status": "PASS",
+      "engineWallSeconds": 175.84700729999986,
+      "backend": "faster-whisper",
+      "device": "cpu"
     },
     "qwen3-asr": {
-      "status": "UNMEASURED",
-      "reason": "not_started_before_target_offline"
+      "status": "PASS",
+      "engineWallSeconds": 3154.0252911000002,
+      "backend": "qwen-asr-transformers",
+      "device": "cpu"
     }
   },
   "fullBenchmark": {
     "status": "UNMEASURED",
-    "started": false,
+    "statusReason": "full_run_incomplete",
+    "started": true,
+    "executionState": "RUNNING",
+    "runId": "e5-8-windows-cpu-001",
+    "startedAt": "2026-09-06T02:05:09.777697+00:00",
+    "supervision": "windows-scheduled-task",
+    "taskName": "CCC-E5-8-Benchmark",
+    "launcherSha256": "df799113359c034840f542d7ed564e8f29c005b586567e53d5fb2a63431f9b19",
+    "idleSleepInhibited": true,
+    "progressAtObservation": {
+      "stage": "diarization",
+      "measuredSessionCount": 1,
+      "lastSessionId": "case-001-session-01"
+    },
     "requiredSessionCount": 150,
     "deploymentModesExercised": []
   },
   "executionInterruption": {
     "code": "target_offline",
-    "sshReachable": false,
-    "tailscalePingReachable": false,
-    "localSmokeSupervisorStopped": true,
-    "remoteWorkerState": "UNCONFIRMED"
+    "resolved": true,
+    "resolvedBeforeFullBenchmarkLaunch": true,
+    "nativeSshReachable": true,
+    "survivingWorkersBeforeRestart": 0
   },
   "policy": {
     "automaticEngineSelection": false,
