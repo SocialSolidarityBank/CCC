@@ -15,7 +15,8 @@ export type ShellIconName =
   | 'theme-light'
   | 'close'
   | 'sidebar'
-  | 'updown';
+  | 'updown'
+  | 'share';
 
 export function NavIcon({ name }: { name: ShellIconName }) {
   const common = {
@@ -67,5 +68,9 @@ export function NavIcon({ name }: { name: ShellIconName }) {
     // 상하 꺽쇠는 '고르는 값'을 말한다 — Infisical·OpenAI 플랫폼의 전환기 어휘).
     case 'updown':
       return <svg {...common}><path d="M5 6.2 8 3.2l3 3M5 9.8l3 3 3-3" /></svg>;
+    // 공유 (2026-09-06 D86 ④ 후속 — 요청 링크를 OS 공유 시트로 건네는 버튼. 채널을 뜻하는
+    // 브랜드 글리프가 아니라 "밖으로 내보내는 상자"라 CCC 가 채널을 모른다는 계약과 맞다).
+    case 'share':
+      return <svg {...common}><path d="M8 10V2.5M5 5.5 8 2.5l3 3" /><path d="M3 8.5v4A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-4" /></svg>;
   }
 }
