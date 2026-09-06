@@ -325,18 +325,15 @@ describe('정렬 하니스 생성기', () => {
         closeAction={noopGoalAction}
       />,
     );
-    // 요청 링크 발급의 공유 버튼(2026-09-06 D86 ④ 후속). 실제 부품은 마운트 뒤 navigator.share
-    // 감지로 켜져 정적 렌더에 안 나오므로, 같은 마크업(.wire-field-with-action + .header-icon-button)
-    // 을 그대로 적는다. 라벨이 16 인 .participant-invite-stack 스코프 안에서 잰다.
+    // 요청 링크 발급의 복사·공유 버튼 줄(2026-09-06 D86 ④ 후속, Q 2차: 아이콘+글자 알약).
+    // 공유 버튼은 마운트 뒤 navigator.share 감지로 켜져 정적 렌더에 안 나오므로 같은
+    // 마크업을 손으로 적는다. 아이콘이 들어간 버튼과 글자만 있는 버튼이 같은 32 에 서고
+    // 아이콘이 글자와 세로 중앙을 공유하는지를 잰다.
     const inviteShare = renderToStaticMarkup(
       <div className="wire-invite-stack participant-invite-stack">
-        <div className="wire-field-with-action">
-          <WireFormField label="웹 링크 주소" htmlFor="align-invite-url" control="input">
-            <input id="align-invite-url" type="text" readOnly value="https://example.test/join/participant/token" />
-          </WireFormField>
-          <button type="button" className="header-icon-button" aria-label="공유" title="공유">
-            <NavIcon name="share" />
-          </button>
+        <div className="wizard-actions">
+          <WireButton variant="secondary">링크 복사</WireButton>
+          <WireButton variant="secondary" icon={<NavIcon name="share" />}>공유하기</WireButton>
         </div>
       </div>,
     );
@@ -432,7 +429,7 @@ describe('정렬 하니스 생성기', () => {
     expect(dateControl, '날짜 단독 입력 fixture가 없다').toContain('wire-date-control');
     expect(goalSection, '세부 목표 제목 배지 fixture가 없다').toContain('wire-card-head');
     expect(goalSection, '세부 목표 추가 버튼이 입력 상자 밖 fixture가 없다').toContain('wire-field-with-action');
-    expect(inviteShare, '요청 링크 공유 버튼 fixture가 없다').toContain('header-icon-button');
+    expect(inviteShare, '요청 링크 공유 버튼 fixture가 없다').toContain('공유하기');
     expect(requiredPair, '필수 배지 유무 2열 fixture가 없다').toContain('wire-required-marker');
     expect(intakeRead, '인테이크 조회 아코디언 fixture가 없다').toContain('intake-read-current-step');
     expect(intakeRead, '인테이크 조회 반복 행 번호 배지가 없다').toContain('1번');
