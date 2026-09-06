@@ -512,6 +512,7 @@ class AudioJobTest(unittest.TestCase):
 class EnvironmentIsolationTest(unittest.TestCase):
     def base_env(self) -> dict[str, str]:
         return {
+            "CCC_WORK_DIR": self.enterContext(TemporaryDirectory()),
             "CCC_NER_MODEL_ID": "FrameByFrame/korean-pii-e5-base",
             "CCC_ORIGINAL_BACKUP_ENABLED": "off",
             "CCC_NER_ATTESTATION": json.dumps(ATTESTATION),

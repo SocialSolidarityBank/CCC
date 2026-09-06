@@ -117,15 +117,20 @@ E0-4에서 넘긴 모델 5종의 인증 다운로드와 파일 무결성 검증�
 
 파이프라인 환경과 Qwen 환경을 분리한다. Qwen은 [`requirements-qwen.txt`](../../scripts/stt/requirements-qwen.txt)를 쓰며 제품 의존성이나 엔진 registry에 추가하지 않는다. 모델 revision, 가중치 hash와 라이선스는 [`benchmark-models.json`](../../scripts/stt/benchmark-models.json)에 고정되어 있다. Pyannote는 허가된 HF 접근으로 먼저 내려받고, 캐시가 준비되면 `HF_HUB_OFFLINE=1`로 실행할 수 있다.
 
-다음은 Python 3.12가 준비된 Windows CPU의 실행 예다. 저장소 루트에서 별도 가상환경 두 개를 만들며, 아래 파이프라인 버전은 Mac 탐색 실행에서 확인한 조합이다. Windows 설치와 추론 검증은 별도로 필요하다.
+다음은 Python 3.12가 준비된 Windows CPU의 실행 예다. 저장소, 가상환경, 모델 캐시와 임시 파일은 한글이 없는 작업 경로에 둔다. Windows 실측에서 Qwen의 Nagisa/DyNet이 한글 경로의 모델을 열지 못했고 영문 경로에서는 성공했으므로 사용자 홈이나 기본 TEMP 경로를 그대로 쓰지 않는다. 작업 루트는 현재 Windows 계정, SYSTEM과 관리자만 접근하도록 준비하고, 그 아래 `repo`에 받은 저장소 루트에서 실행한다. 아래 파이프라인 버전은 Mac 탐색 실행에서 확인한 조합이며 Windows 설치와 추론 검증은 별도로 필요하다.
 
 ```powershell
-python -m venv "$env:TEMP/ccc-e5-8-pipeline"
-& "$env:TEMP/ccc-e5-8-pipeline/Scripts/python.exe" -m pip install faster-whisper==1.2.1 pyannote.audio==3.4.0 torch==2.8.0 torchaudio==2.8.0 huggingface-hub==0.36.2
-python -m venv "$env:TEMP/ccc-e5-8-qwen"
-& "$env:TEMP/ccc-e5-8-qwen/Scripts/python.exe" -m pip install -r scripts/stt/requirements-qwen.txt
+$benchmarkRoot = 'C:\ProgramData\CCC\benchmarks\e5-8'
+$env:HF_HUB_CACHE = "$benchmarkRoot/hf-hub"
+$env:TEMP = "$benchmarkRoot/tmp"
+$env:TMP = $env:TEMP
+New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null
+python -m venv "$benchmarkRoot/pipeline"
+& "$benchmarkRoot/pipeline/Scripts/python.exe" -m pip install faster-whisper==1.2.1 pyannote.audio==3.4.0 torch==2.8.0 torchaudio==2.8.0 huggingface-hub==0.36.2
+python -m venv "$benchmarkRoot/qwen"
+& "$benchmarkRoot/qwen/Scripts/python.exe" -m pip install -r scripts/stt/requirements-qwen.txt
 
-python scripts/stt/benchmark.py --manifest scripts/stt/fixtures/manifest.json --out artifacts/pilot/results/e5-8-windows-cpu-001 --pipeline-python "$env:TEMP/ccc-e5-8-pipeline/Scripts/python.exe" --qwen-python "$env:TEMP/ccc-e5-8-qwen/Scripts/python.exe" --qwen-device cpu --diarization-device cpu --threads 4
+& "$benchmarkRoot/pipeline/Scripts/python.exe" scripts/stt/benchmark.py --manifest scripts/stt/fixtures/manifest.json --out artifacts/pilot/results/e5-8-windows-cpu-001 --pipeline-python "$benchmarkRoot/pipeline/Scripts/python.exe" --qwen-python "$benchmarkRoot/qwen/Scripts/python.exe" --qwen-device cpu --diarization-device cpu --threads 4
 ```
 
 새 결과 디렉터리만 허용한다. 결과는 회차별 숫자와 합산 지표, hash, 모델과 장비 정보이며 전사문은 저장하지 않는다. `recordedSessionCount`는 실패를 포함해 기록된 회차 수이고 `measuredSessionCount`는 채점된 회차 수다. 합산 사건의 `sessionIndex`는 `measuredSessionIds`의 위치를 가리킨다.
