@@ -1,10 +1,10 @@
 {
-  "name": "@ccc/ai-runtime",
-  "version": "0.5.1",
+  "name": "@ccc/secrets-env",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/ai-provider.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@ccc/contracts": "workspace:*"

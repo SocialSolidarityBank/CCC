@@ -8,6 +8,7 @@
     "@ccc/ai-runtime": "workspace:*",
     "@ccc/audio-r2": "workspace:*",
     "@ccc/identity-access": "workspace:*",
+    "@ccc/secrets-env": "workspace:*",
     "@ccc/core": "workspace:*",
     "@ccc/db-d1": "workspace:*",
     "@ccc/http-api": "workspace:*"

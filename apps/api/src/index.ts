@@ -1,6 +1,7 @@
 import { adaptD1Environment } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
-import type { ScheduledJobKind } from '@ccc/contracts/runtime';
+import { createEnvironmentSecretStore, SECRET_NAMES } from '@ccc/secrets-env';
+import type { SecretName, ScheduledJobKind } from '@ccc/contracts/runtime';
 import { gatewayActorFromIdentity, type ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from './local-actor';
 import { handlePreviewUnlock, previewActorResolver } from '@ccc/http-api/preview-gate';
@@ -10,7 +11,18 @@ import { createAccessIdentity } from '@ccc/identity-access';
 
 import { PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
-function adaptWorkerEnvironment(env: ApiEnv): ApiEnv {
+/** Raw provider bindings exist only at the Workers composition boundary. */
+type WorkerEnv = Omit<ApiEnv, 'secretStore'> & Partial<Record<SecretName, string>> & Pick<Partial<ApiEnv>, 'secretStore'>;
+
+function adaptWorkerEnvironment(bindings: WorkerEnv): ApiEnv {
+  // Strip descriptors without evaluating key getters; only SecretStore.get may read them.
+  const descriptors = Object.getOwnPropertyDescriptors(bindings);
+  for (const name of Object.keys(SECRET_NAMES)) delete descriptors[name];
+  const runtime = Object.defineProperties({}, descriptors) as Omit<WorkerEnv, SecretName>;
+  const env: ApiEnv = {
+    ...runtime,
+    secretStore: runtime.secretStore ?? createEnvironmentSecretStore(bindings),
+  };
   const environment = env.audioStore === undefined
     ? {
         ...env,
@@ -31,7 +43,7 @@ const CRON_JOBS: Record<string, ScheduledJobKind> = {
 };
 
 export default {
-  async fetch(request: Request, env: ApiEnv): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const runtimeEnv = adaptWorkerEnvironment(env);
     // 미리보기 코드 게이트(CCC-6, 이중 잠금)에서만 리졸버가 반환된다. 활성이면
     // /preview/unlock(코드 제출)을 여기서 처리하고, 그 외 요청은 쿠키 토큰 검증
@@ -54,10 +66,10 @@ export default {
     ));
   },
   // Cron trigger: only exact configured expressions may enqueue D8 or D10 work.
-  async scheduled(controller: ScheduledController, env: ApiEnv, ctx: ExecutionContext): Promise<void> {
+  async scheduled(controller: ScheduledController, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {
     const kind = CRON_JOBS[controller.cron];
     if (kind === undefined) throw new Error('unexpected_scheduled_trigger');
     const nowIso = new Date(controller.scheduledTime ?? Date.now()).toISOString();
     ctx.waitUntil(createScheduledJobRunner(adaptWorkerEnvironment(env)).run(kind, nowIso));
   },
-} satisfies ExportedHandler<ApiEnv>;
+} satisfies ExportedHandler<WorkerEnv>;

@@ -19,6 +19,7 @@
  *
  * node 가 이 파일을 직접 실행하므로, 상대 import 는 확장자(.ts)까지 쓴다.
  */
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import {
   AiProviderUnavailableError,
   generatePreviewFixtureAiDraft,
@@ -26,6 +27,7 @@ import {
   validateAiProviderOutput,
   validateAiProviderRequest,
   type AiProviderRuntimeEnv,
+  type AiProviderAdapter,
   type AiProviderTestAdapter,
 } from '@ccc/ai-runtime';
 import { FLAG_EVAL_CASES, buildFlagEvalRequest } from './flag-eval-cases.ts';
@@ -82,16 +84,17 @@ async function main(): Promise<void> {
     return;
   }
   const usePreviewFixture = command.preview;
+  const { AI_PROVIDER_CONFIG, EXTERNAL_AI_CALLS_ENABLED } = process.env;
   const env: AiProviderRuntimeEnv = {
-    AI_PROVIDER_CONFIG: process.env.AI_PROVIDER_CONFIG,
-    CODEX_API_KEY: process.env.CODEX_API_KEY,
-    EXTERNAL_AI_CALLS_ENABLED: process.env.EXTERNAL_AI_CALLS_ENABLED,
+    ...(AI_PROVIDER_CONFIG === undefined ? {} : { AI_PROVIDER_CONFIG }),
+    secretStore: createEnvironmentSecretStore(process.env),
+    ...(EXTERNAL_AI_CALLS_ENABLED === undefined ? {} : { EXTERNAL_AI_CALLS_ENABLED }),
     ...(usePreviewFixture ? { AI_PROVIDER_ADAPTER: previewAdapter() } : {}),
   };
 
-  let adapter: ReturnType<typeof resolveAiProviderAdapter>['adapter'];
+  let adapter: AiProviderAdapter;
   try {
-    adapter = resolveAiProviderAdapter(env).adapter;
+    adapter = (await resolveAiProviderAdapter(env)).adapter;
   } catch (error) {
     console.error(`리스크 플래그 평가를 시작할 수 없습니다: ${describeError(error)}`);
     if (!usePreviewFixture) {
