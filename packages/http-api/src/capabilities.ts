@@ -57,7 +57,7 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ ma
   const installManifest = await verifiedInstallManifest(env);
   const requestedStt = env.CCC_STT_MODE ?? 'off';
   const requestedLlm = env.CCC_LLM_MODE ?? 'off';
-  const llmKeyPresent = (env.CODEX_API_KEY?.trim().length ?? 0) > 0 || env.AI_PROVIDER_ADAPTER !== undefined;
+  const llmKeyPresent = env.AI_PROVIDER_ADAPTER !== undefined || ((await env.secretStore.get('CODEX_API_KEY'))?.trim().length ?? 0) > 0;
   const manifest = buildCapabilityManifest({
     mode: installManifest.mode,
     requestedSttMode: STT_MODES.includes(requestedStt as SttMode) ? requestedStt as SttMode : 'off',

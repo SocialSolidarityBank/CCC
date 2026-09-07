@@ -11,6 +11,7 @@
  */
 import type { D1Database } from '@cloudflare/workers-types';
 import { createD1Database } from '@ccc/db-d1';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { createD1TestContext } from '../../apps/api/test/support/d1';
 import type { Env } from '@ccc/core/gateway';
 import { preloadStatements } from './preload-data';
@@ -74,7 +75,7 @@ export function buildSeedEnv(db: D1Database, capture: D1Capture): Env {
   assertPiiKeyMaterial(key);
   return {
     DB: createD1Database(capture.wrap(db)),
-    PII_ENC_KEY: key,
+    secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: key }),
     PII_KEY_VERSION: SEED_PII_KEY_VERSION,
   };
 }

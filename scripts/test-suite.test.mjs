@@ -13,8 +13,8 @@ test('a named suite runs exactly its file; no flag runs every file of the kind',
   assert.deepEqual(one.argv.slice(-1), [SUITES.security.bootstrap]);
   const all = plan(['contracts']);
   assert.deepEqual(
-    all.argv.slice(-9),
-    ['apps/api/test/capabilities.contract.test.ts', 'apps/api/test/database-contract.test.ts', 'apps/api/test/sqlite-database.contract.test.ts', 'apps/api/test/sql-placeholder-scanner.test.ts', 'apps/api/test/sql-operation-marker.test.ts', 'apps/api/test/sql-portability-migration.test.ts', 'apps/api/test/audio-store.contract.test.ts', 'apps/api/test/access-jwt.test.ts', 'apps/api/test/identity-access.contract.test.ts'],
+    all.argv.slice(-11),
+    ['apps/api/test/capabilities.contract.test.ts', 'apps/api/test/database-contract.test.ts', 'apps/api/test/sqlite-database.contract.test.ts', 'apps/api/test/sql-placeholder-scanner.test.ts', 'apps/api/test/sql-operation-marker.test.ts', 'apps/api/test/sql-portability-migration.test.ts', 'apps/api/test/audio-store.contract.test.ts', 'apps/api/test/access-jwt.test.ts', 'apps/api/test/identity-access.contract.test.ts', 'apps/api/test/secrets-env.contract.test.ts', 'apps/api/test/secrets-env.integration.test.ts'],
   );
 });
 

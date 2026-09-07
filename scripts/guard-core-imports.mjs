@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 const PLATFORM_SPECIFIERS = /^(@cloudflare\/|@supabase\/|electron(\/|$)|node:|cloudflare:|bun:|miniflare(\/|$)|wrangler(\/|$))/;
 const PLATFORM_SECRET_NAMES = ['DB_MASTER_KEY', 'FILE_ENC_KEY', 'OFFICE_CA_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SCHEDULER_SECRET'];
+const FORBIDDEN_CORE_SECRET_REFERENCES = /\b(?:PlatformSecretName|SecretName|SecretStore|AZURE_SPEECH_KEY|AGENT_REFRESH_TOKEN|HF_TOKEN)\b/;
 const LAYER_RANK = { packages: 0, adapters: 1, apps: 2 };
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs']);
 const IMPORT_PATTERN = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g;
@@ -92,6 +93,9 @@ export async function auditWorkspace(root) {
       if (pkg.layer === 'packages' && pkg.name === '@ccc/core') {
         for (const name of PLATFORM_SECRET_NAMES) {
           if (content.includes(name)) violations.push(`${path}: packages/core must not reference PlatformSecretName ${name}`);
+        }
+        if (FORBIDDEN_CORE_SECRET_REFERENCES.test(content)) {
+          violations.push(`${path}: core secret boundary requires CoreSecretName / CoreSecretStore; broad and Python capabilities are forbidden`);
         }
       }
 
