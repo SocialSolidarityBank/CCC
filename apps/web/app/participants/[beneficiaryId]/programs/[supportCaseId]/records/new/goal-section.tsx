@@ -197,17 +197,17 @@ export function GoalSection({
               활성 {activeGoals.length}/{MAX_ACTIVE_GOALS}
             </WireBadge>
           </div>
-          <p className="panel-meta">
+          <p className="panel-meta record-writing-help" >
             케이스에 붙어 여러 회기 지속되는 실행 목표입니다. 본 상담 1회차에 당사자와 합의해 적고,
             이후 회기에는 여기서 수정하거나 닫습니다. 아래 저장 버튼과 별개로 즉시 저장됩니다.
           </p>
         </>
       )}
     >
-      {notice !== null ? <p role="alert" className="wire-field-error">{notice}</p> : null}
+      {notice !== null ? <p role="alert" className="wire-field-error record-writing-help">{notice}</p> : null}
 
       {activeGoals.length === 0
-        ? <WireEmpty testId="record-goal-empty">등록된 세부 목표가 없습니다. 측정할 수 있는 문장으로 적으세요.</WireEmpty>
+        ? <WireEmpty className="record-writing-help" testId="record-goal-empty">등록된 세부 목표가 없습니다. 측정할 수 있는 문장으로 적으세요.</WireEmpty>
         : activeGoals.map((goal) => (
           <div key={goal.id} className="wizard-field wire-repeat-card" data-testid="record-goal-row">
             {editingId === goal.id ? (
@@ -233,7 +233,7 @@ export function GoalSection({
                 {/* 미래 회기 연결 알림(D62 §5): 알림일 뿐 닫기를 막지 않는다. 기존 연결은
                     그날 계획의 기록이라 그대로 남는다. */}
                 {upcomingCount !== null && upcomingCount > 0 ? (
-                  <p className="panel-meta" role="status" data-testid="record-goal-upcoming">
+                  <p className="panel-meta record-writing-help" role="status" data-testid="record-goal-upcoming">
                     아직 오지 않은 회기 {upcomingCount}건이 이 목표에 연결되어 있습니다.
                     닫아도 그 연결은 그날 계획의 기록으로 그대로 남습니다.
                   </p>
@@ -242,7 +242,7 @@ export function GoalSection({
                   label="닫는 사유"
                   control="select"
                   htmlFor={`record-goal-close-${goal.id}`}
-                  hint="닫은 목표는 다시 열 수 없습니다. 같은 목표가 다시 필요하면 같은 문구로 새로 만드세요."
+                  hint={<span className="record-writing-help">닫은 목표는 다시 열 수 없습니다. 같은 목표가 다시 필요하면 같은 문구로 새로 만드세요.</span>}
                 >
                   <select
                     id={`record-goal-close-${goal.id}`}
@@ -283,7 +283,7 @@ export function GoalSection({
       {editable ? (
         capReached ? (
           // 상한 도달(done 기준: 활성 상한 3개의 화면 반영) — 입력칸 대신 다음 행동을 알린다.
-          <p className="panel-meta" data-testid="record-goal-cap">
+          <p className="panel-meta record-writing-help" data-testid="record-goal-cap">
             활성 세부 목표가 {MAX_ACTIVE_GOALS}개입니다. 새로 만들려면 먼저 기존 목표를 닫으세요.
           </p>
         ) : (
@@ -307,7 +307,7 @@ export function GoalSection({
       ) : null}
 
       {/* 수정과 재설정의 경계(D62 §4 — 운영 지침과 같은 문장). */}
-      <p className="panel-meta">
+      <p className="panel-meta record-writing-help" >
         방향이 같고 표현만 다듬을 때는 수정하세요. 목표 자체가 바뀌면 &lsquo;재설정&rsquo;으로 닫고
         새로 만듭니다. 이전 문구는 이력으로 남습니다.
       </p>
@@ -320,7 +320,7 @@ export function GoalSection({
           {closedGoals.map((goal) => {
             const label = reasonLabel(goal.closedReason);
             return (
-              <p key={goal.id} className="panel-meta">
+              <p key={goal.id} className="wire-field-value" data-size="sm">
                 {label !== null ? <WireBadge>{label}</WireBadge> : null} {goal.title}
               </p>
             );

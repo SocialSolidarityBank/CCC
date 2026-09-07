@@ -196,21 +196,19 @@ export default async function RecordHistoryPage({
     ...(latestHeldAt === null
       ? []
       : [{ label: '최근 상담', value: formatDateOnly(latestHeldAt), tone: 'blue' as const }]),
+    ...(result.data === null ? [] : [{
+      label: '진행 상태', value: result.data.caseStatus === 'active' ? '진행 중' : '종결',
+    }]),
   ];
 
   return <GridContainer as="main" className="page-content">
     {/* 페이지 타이틀(2026-08-08 Q). 이 화면의 이름은 '전체 상담 기록'이다 — 용어 통일. */}
     <div className="page-header"><PageTitle>상담 기록 확인하기</PageTitle></div>
     <RecordHashOpener />
-    {/* ParticipantHeroCard (D38): 케이스 1개를 보는 화면이라 상태 태그가 필수다(슬롯 ②).
-        브레드크럼은 이 카드가 대체한다 — 출구는 왼쪽 세컨더리 하나다(D35).
-        exactOptionalPropertyTypes 라 없는 슬롯은 undefined 대신 키를 뺀다. */}
+    {/* 케이스 정보는 공통 HERO에서 표시하고, 확인되지 않은 슬롯은 생략한다. */}
     <ParticipantHeroCard
       name={participant.data?.name ?? null}
       beneficiaryId={beneficiaryId ?? '확인 불가'}
-      {...(result.data === null
-        ? {}
-        : { stageTags: [{ label: result.data.caseStatus === 'active' ? '진행 중' : '종결' }] })}
       details={heroDetails}
       {...(beneficiaryId === null || supportCaseId === null ? {} : {
         actions: <>

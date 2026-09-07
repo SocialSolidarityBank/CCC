@@ -526,8 +526,7 @@ const briefingStyles = `
    섹션 사이 32는 페이지 그리드의 gap이 주며 화면이 margin으로 별도 여백을 만들지 않는다. */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
-/* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화, 구 .briefing-hero
-   손 마크업과 전용 CSS 삭제). 상태 태그도 부품의 .wire-status-tag 계약을 따른다. */
+/* HERO는 공통 부품 ParticipantHeroCard가 이름, 행동과 라벨/값 정보를 그린다. */
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 전체 목표(D45 · CCC-41) — 카드다(2026-08-05 카드화 · ADR-0030, 구 D59 플랫 대체).
    카드 모양은 WireCard 가 갖고, 수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가
@@ -1140,6 +1139,13 @@ const recordFormStyles = `
    (wire-styles — 3차에서 인테이크 두 화면과 공용화)가 갖고, 트랙 배치와 폭 계단은 공용
    .rail-grid 가 갖는다. 화면은 자기 레일 폭만 정한다. */
 .record-grid{--rail-width:300px}
+/* 상담 기록 작성의 안내만 12px이다. 목표 원문과 입력값은 기존 위계를 유지한다. */
+.record-writing-help{font-size:var(--text-badge);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.record-questions-card .panel-meta,.record-questions-card .empty,.record-questions-card .empty>span{width:100%;max-width:none;text-align:left;text-wrap:wrap}
+.record-goal-note-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-3);min-width:0}
+.record-goal-note-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0}
+.record-goal-note-row .wire-input-box{min-width:0}
+.record-grid textarea[name="sessionGoalNote"][hidden]{display:none}
 /* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
    올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
@@ -1200,7 +1206,7 @@ const recordFormStyles = `
 /* 구 .record-rail 손 카드·.record-rail-count 글줄은 2026-08-09 삭제 — 진척도 카드가
    WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
      갖고, 필수 카운트는 체크리스트 제목 옆 neutral 배지가 됐다(§2-2 규칙 4). */
-.record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.record-rail-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--space-3);row-gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 채움 표시와 글자 사이도 선택지 행과 같은 6이다(2026-09-05 Q, 구 4). */
 .record-rail-list li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-1-5)}
 .record-rail-list li>.wire-checkbox{cursor:default}

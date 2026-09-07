@@ -167,8 +167,7 @@ const reviewProps: DraftReviewViewProps = {
   supportCaseId: CASE_ID,
   sessionId: SESSION_ID,
   participantName: '홍서희',
-  stageTag: '검토 대기',
-  stageTagTone: 'lavender',
+  reviewStatus: '검토 대기',
   details: [
     { label: '상담일', value: '2026년 7월 15일', tone: 'blue' },
     { label: '상담 방식', value: '대면' },

@@ -192,11 +192,9 @@ describe('정렬 하니스 생성기', () => {
       <ParticipantHeroCard
         name="홍서희"
         beneficiaryId="swallow-003"
-        stageTags={[
-          { label: '인테이크 완료' },
-          { label: '승인 대기', tone: 'lavender' },
-        ]}
         details={[
+          { label: '인테이크', value: '완료' },
+          { label: 'AI 검토 상태', value: '검토 대기' },
           { label: '당사자 ID', value: 'swallow-003' },
           { label: '연락처', value: '010-1234-5678' },
           { label: '이메일', value: 'sample@example.test' },
@@ -208,8 +206,8 @@ describe('정렬 하니스 생성기', () => {
       <ParticipantHeroCard
         name="홍서희"
         beneficiaryId="swallow-003"
-        stageTags={[{ label: '인테이크 작성' }]}
         details={[
+          { label: '인테이크', value: '작성 중' },
           { label: '현재 단계', value: '1 / 4' },
           { label: '기록 구분', value: '1회차' },
           { label: '실무자', value: '이지은' },
@@ -431,7 +429,6 @@ describe('정렬 하니스 생성기', () => {
     expect(intakeEditToolbar, '인테이크 수정 단계 제목 툴바 fixture가 없다').toContain('intake-step-toolbar');
     expect(selectControl, '선택창 꺽쇠 fixture가 없다').toContain('wire-chevron');
     expect(heroDetails, '정보 격자 HERO fixture가 없다').toContain('participant-hero-details');
-    expect(heroDetailsWithoutActions, '행동 없는 HERO fixture가 없다').toContain('인테이크 작성');
     expect(sectionHeading, '섹션 H2 fixture가 없다').toContain('record-section-title');
     expect(cardHeading, '카드 H2 fixture가 없다').toContain('wire-title-with-badge');
 

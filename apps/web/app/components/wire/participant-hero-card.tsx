@@ -3,8 +3,8 @@ import { ParticipantName, type ParticipantNameSize } from './participant-name';
 import { WireField, type WireFieldTone } from './wire-card';
 
 // 당사자 중심 화면의 공통 머리(D38, DESIGN.md §5).
-// 가로선 위에는 이름과 행동만 둔다. 내부 폭 760px 초과는 정보 3열과 오른쪽 세로 배지 열이다.
-// 760px 이하는 80px 라벨 행과 맨 아래 가로 배지다. 빈 하단은 구분선과 함께 생략한다.
+// 가로선 위에는 이름과 행동만 둔다. 내부 폭 760px 초과는 정보 3열이다.
+// 760px 이하는 80px 라벨 행이다. 빈 하단은 구분선과 함께 생략한다.
 // 화면별 정보 범위는 유지하며 계좌, 주소 등 추가 개인정보를 노출하지 않는다.
 
 export interface ParticipantHeroDetail {
@@ -15,19 +15,11 @@ export interface ParticipantHeroDetail {
   tone?: WireFieldTone;
 }
 
-export interface ParticipantHeroStageTag {
-  label: string;
-  /** AI 승인 상태에만 lavender를 사용한다. */
-  tone?: 'neutral' | 'lavender';
-}
-
 export interface ParticipantHeroCardProps {
   /** 복호화된 실명. 미기입이면 가명 ID가 대신 제목이 된다(D31 폴백). */
   name: string | null;
   /** 가명 ID(동물 슬러그, D20). */
   beneficiaryId: string;
-  /** 정보 다음에 읽는 상태 태그. 넓은 카드는 오른쪽 열, 좁은 카드는 맨 아래 행이다. */
-  stageTags?: readonly ParticipantHeroStageTag[];
   /** 화면에서 이미 제공하던 정보. 빈 값은 호출부가 제외한다. */
   details?: readonly ParticipantHeroDetail[];
   /** 화면별 이름 의미 슬롯. hero·hub는 모든 폭에서 18/600 계약을 쓴다. */
@@ -40,7 +32,6 @@ export interface ParticipantHeroCardProps {
 export function ParticipantHeroCard({
   name,
   beneficiaryId,
-  stageTags = [],
   details = [],
   nameSize = 'hero',
   actions,
@@ -49,7 +40,7 @@ export function ParticipantHeroCard({
   const classes = ['page-header', 'surface-card', 'participant-hero-card', className]
     .filter(Boolean)
     .join(' ');
-  const hasInfo = stageTags.length > 0 || details.length > 0;
+  const hasInfo = details.length > 0;
   return (
     <header className={classes}>
       <div className="participant-hero-top">
@@ -62,7 +53,6 @@ export function ParticipantHeroCard({
         <>
           <hr className="participant-hero-divider" />
           <div className="participant-hero-info">
-            {details.length > 0 && (
               <div className="participant-hero-details">
                 {details.map((detail) => (
                   <WireField key={detail.label} label={detail.label} layout="stack" size="sm"
@@ -71,16 +61,6 @@ export function ParticipantHeroCard({
                   </WireField>
                 ))}
               </div>
-            )}
-            {stageTags.length > 0 && (
-              <div className="participant-hero-status">
-                {stageTags.map((tag) => (
-                  <span key={tag.label} className="wire-status-tag" data-tone={tag.tone ?? 'neutral'}>
-                    {tag.label}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         </>
       )}

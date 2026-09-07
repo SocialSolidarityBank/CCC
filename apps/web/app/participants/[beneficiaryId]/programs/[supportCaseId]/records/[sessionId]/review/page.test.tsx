@@ -108,8 +108,6 @@ describe('AI 초안 검토 페이지', () => {
     expect(screen.getByTestId('preview-fixture-badge').dataset.tone).toBe('lavender');
     expect(document.body.textContent).toContain('대면');
     expect(document.body.textContent).not.toContain('in_person');
-    // CCC-106: HERO 상태 태그는 이 화면에서 늘 AI 산출물 계열(라벤더)이다(D58 ④, D61 ② 개정).
-    expect(container.querySelector<HTMLElement>('.wire-status-tag')?.dataset.tone).toBe('lavender');
   });
 
   it('does not fetch or expose a draft when the session belongs to another case', async () => {
@@ -154,9 +152,8 @@ describe('AI 초안 검토 페이지', () => {
     expect(form).toBeTruthy();
   });
 
-  // 검수 지적 5: HERO 상태 태그가 처리 사실을 말한다 — 승인·반려된 초안을 '검토 대기'로
-  // 잘못 부르지 않는다.
-  it('shows an approved stage tag when the draft has already been approved', async () => {
+  // 승인과 반려된 초안을 검토 대기로 잘못 표시하지 않는다.
+  it('shows an approved status when the draft has already been approved', async () => {
     getAiDraft.mockResolvedValue({
       version: 2,
       origin: 'generated',
@@ -172,11 +169,10 @@ describe('AI 초안 검토 페이지', () => {
       regenerateSourceSnapshotId: null,
     });
     const { container } = await renderContent();
-    expect(container.querySelector('.wire-status-tag')?.textContent).toBe('승인됨');
-    expect(container.querySelector<HTMLElement>('.wire-status-tag')?.dataset.tone).toBe('lavender');
+    expect(container.querySelector('.participant-hero-details')?.textContent).toContain('AI 검토 상태승인됨');
   });
 
-  it('shows a rejected stage tag when the draft has already been rejected', async () => {
+  it('shows a rejected status when the draft has already been rejected', async () => {
     getAiDraft.mockResolvedValue({
       version: 2,
       origin: 'generated',
@@ -192,8 +188,7 @@ describe('AI 초안 검토 페이지', () => {
       regenerateSourceSnapshotId: null,
     });
     const { container } = await renderContent();
-    expect(container.querySelector('.wire-status-tag')?.textContent).toBe('반려됨');
-    expect(container.querySelector<HTMLElement>('.wire-status-tag')?.dataset.tone).toBe('lavender');
+    expect(container.querySelector('.participant-hero-details')?.textContent).toContain('AI 검토 상태반려됨');
   });
 
   it('rejects a legacy_import draft — approval and regeneration assume materials this origin never has', async () => {

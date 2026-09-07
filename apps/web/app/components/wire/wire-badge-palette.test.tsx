@@ -70,17 +70,6 @@ describe('WireBadge palette', () => {
     expect(badge?.children).toHaveLength(1);
   });
 
-  it('배지와 상태 태그는 높이 22px과 글자 12px 계약을 함께 쓴다', () => {
-    expect(readToken(readBlock(':root {'), '--text-badge')).toBe('12px');
-    expect(readToken(readBlock(':root {'), '--text-badge-compact')).toBeUndefined();
-    expect(stylesSource).toContain(
-      '.wire-badge{--wire-outline-color:var(--line);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);',
-    );
-    expect(stylesSource).toContain(
-      '.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);',
-    );
-    expect(stylesSource).toContain('font-size:var(--text-badge);font-weight:400;color:var(--ink)');
-  });
 
   it('라이트는 Pen deep, 다크는 base 배지 토큰을 쓴다', () => {
     const light = readBlock(':root {');

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { DraftRestorePrompt, DraftStatus } from '../../../../../../components/draft/draft-notice';
 import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { WireBadge } from '../../../../../../components/wire/wire-badge';
@@ -13,6 +13,7 @@ import { WireChoice, WireFormField } from '../../../../../../components/wire/wir
 import { DateTimePickerControl } from '../../../../../../components/wire/date-picker-control';
 import { dateTextHint } from '../../../../../../components/wire/date-text-input';
 import { WireButton } from '../../../../../../components/wire/wire-button';
+import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
 import { draftKey } from '../../../../../../lib/form-draft';
 import { useDomDraft } from '../../../../../../lib/use-dom-draft';
 import type {
@@ -47,6 +48,62 @@ const channelOptions = [
 /** Unicode Enclosed Alphanumerics ①부터 ⑳까지 사용하고, 그 뒤는 면 없는 숫자로 이어 간다. */
 function enclosedNumber(index: number): string {
   return index < 20 ? String.fromCodePoint(0x2460 + index) : String(index + 1);
+}
+
+const SESSION_GOAL_NOTE_LIMIT = 200;
+
+/** 한 텍스트 필드가 제출과 임시본의 정본이다. 복원 이벤트로 모든 입력 행을 다시 만든다. */
+function SessionGoalNoteFields() {
+  const [rows, setRows] = useState(['']);
+  const serialized = rows.join('\n');
+  const storedField = useRef<HTMLTextAreaElement>(null);
+  const firstInput = useRef<HTMLInputElement>(null);
+  const tooLong = serialized.length > SESSION_GOAL_NOTE_LIMIT;
+
+  useEffect(() => {
+    firstInput.current?.setCustomValidity(tooLong ? '줄바꿈을 포함해 전체 200자 이내로 적어 주세요.' : '');
+    // 행 추가와 삭제도 useDomDraft의 입력 이벤트 경로로 저장한다.
+    storedField.current?.dispatchEvent(new Event('input', { bubbles: true }));
+  }, [serialized, tooLong]);
+
+  return <>
+    <textarea
+      hidden
+      ref={storedField}
+      name="sessionGoalNote"
+      value={serialized}
+      onChange={(event) => setRows(event.currentTarget.value.split('\n'))}
+    />
+    <ul className="record-goal-note-list">
+      {rows.map((row, index) => <li className="record-goal-note-row" key={index}>
+        <span className="wire-input-box" data-control="input">
+        <input
+          ref={index === 0 ? firstInput : undefined}
+          id={`session-goal-note-${index}`}
+          type="text"
+          aria-label={`이번 상담에서 확인할 것 ${index + 1}`}
+          aria-describedby="session-goal-note-hint"
+          value={row}
+          maxLength={Math.max(0, SESSION_GOAL_NOTE_LIMIT - (serialized.length - row.length))}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setRows((previous) => previous.map((item, rowIndex) => rowIndex === index ? value : item));
+          }}
+        />
+        </span>
+        <WireRepeatActions
+          itemLabel={`확인할 내용 ${index + 1}`}
+          showRemove
+          {...(rows.length > 1 ? { onRemove: () => setRows((previous) => previous.filter((_, rowIndex) => rowIndex !== index)) } : {})}
+          onAdd={() => setRows((previous) => [...previous.slice(0, index + 1), '', ...previous.slice(index + 1)])}
+          addDisabled={serialized.length >= SESSION_GOAL_NOTE_LIMIT}
+        />
+      </li>)}
+    </ul>
+    <p className="wire-form-hint record-writing-help" id="session-goal-note-hint">
+      줄바꿈을 포함해 전체 {SESSION_GOAL_NOTE_LIMIT}자까지 적을 수 있습니다. 현재 {serialized.length}자입니다.
+    </p>
+  </>;
 }
 
 // 표기는 공용 계약이다(2026-08-07 Q 통일 — "2026년 8월 7일 오후 1:00").
@@ -196,7 +253,7 @@ export function RecordOnepage({
         </div>
       )}>
         {sessionGoals.length === 0
-          ? <WireEmpty>일정에 연결된 목표가 없습니다.</WireEmpty>
+          ? <WireEmpty className="record-writing-help" >일정에 연결된 목표가 없습니다.</WireEmpty>
           : <ol className="record-rail-goals">{sessionGoals.map((goal, index) => <li className="record-rail-goal" key={index}>
             <span className="record-rail-number" aria-hidden="true">{enclosedNumber(index)}</span>
             <p className="record-rail-goal-body">{goal.body}</p>
@@ -233,7 +290,7 @@ export function RecordOnepage({
         </div>
       )}>
         {/* 상태를 행동에서 떼어 카드 본문 첫 줄에 둔다. */}
-        <DraftStatus savedAt={draft.savedAt} available={draft.available} />
+        <DraftStatus savedAt={draft.savedAt} available={draft.available} helpClassName="record-writing-help" />
         <ul className="record-rail-list">
           {requiredItems.map((item) => <li key={item.label} data-done={item.done}>
             <span className="wire-checkbox" data-checked={item.done} aria-hidden="true" />
@@ -241,13 +298,10 @@ export function RecordOnepage({
             <span className="record-rail-state">{item.done ? ' 채움' : ' 남음'}</span>
           </li>)}
         </ul>
-        <div className="record-rail-actions">{actions}</div>
-        {/* 페이지 전체 안내는 사람 말로 저장 버튼 줄 아래 선다(CCC-76 이동 — 구 자리는 저장
-            상태와 버튼 사이라 안내문이 행동을 가로막았다. ID 는 숨은 폼 값으로만 다니고,
-            재시도 보호라는 뜻만 남긴다 — 2026-08-08 Q, 구 "제출 ID d16b…" 원문 표기 대체.
-            "저장 전 내용은 서버에 없고"는 뺐다 — 바로 아래 미저장 안내가 같은 말을 한다). */}
-        <p className="panel-meta">수기 메모 하나만 채워도 저장됩니다.
+        {/* 저장 안내를 읽은 다음 기록 확인과 저장 행동을 고른다. */}
+        <p className="panel-meta record-writing-help" >수기 메모 하나만 채워도 저장됩니다.
           저장 버튼을 여러 번 눌러도 같은 기록이 두 번 만들어지지 않습니다.</p>
+        <div className="record-rail-actions">{actions}</div>
       </WireCard>
       {/* ④ 미저장 안내 — 레일 최하단, 저장 버튼 아래(2026-08-09 Q — 구 자리는 HERO 아래
           본문 상단). 페이지가 제출 상태를 보고 넘겨주는 슬롯이라 여기서는 자리만 정한다. */}
@@ -257,6 +311,7 @@ export function RecordOnepage({
       {draft.restorable === null
         ? null
         : <DraftRestorePrompt
+          helpClassName="record-writing-help"
           savedAt={draft.restorable.savedAt}
           uncertain={draft.restorable.uncertain}
           onResume={draft.resume}
@@ -266,12 +321,12 @@ export function RecordOnepage({
       {/* 1. 오늘 확인할 질문 — 체크리스트(기록 대상 아님, 진행 표시용) */}
       <WireCard
         as="section"
-        className="wire-form-card"
+        className="wire-form-card record-questions-card"
         labelledBy="questions-title"
-        title={<><h2 id="questions-title">오늘 확인할 질문</h2><p className="panel-meta">일정에 등록한 맞춤형 질문입니다. 체크는 진행 표시용이며 저장하지 않습니다. AI가 만든 질문은 15초 페이지에서 확인하세요.</p></>}
+        title={<><h2 id="questions-title">오늘 확인할 질문</h2><p className="panel-meta record-writing-help" >일정에 등록한 맞춤형 질문입니다. 체크는 진행 표시용이며 저장하지 않습니다. AI가 만든 질문은 15초 페이지에서 확인하세요.</p></>}
       >
         {customQuestions.length === 0
-          ? <p className="empty"><span>등록된 맞춤형 질문이 없습니다. <Link href={briefingPath}>15초 페이지</Link>에서 질문을 확인하세요.</span></p>
+          ? <p className="empty record-writing-help" ><span>등록된 맞춤형 질문이 없습니다. <Link href={briefingPath}>15초 페이지</Link>에서 질문을 확인하세요.</span></p>
           : <fieldset className="wire-fieldset"><legend>질문 체크리스트</legend>
             <div className="wire-choice-group" data-layout="stack">
               {customQuestions.map((question, index) => <WireChoice key={index} label={question} type="checkbox" />)}
@@ -283,17 +338,14 @@ export function RecordOnepage({
           세션 목표의 이원 구조). CCC-76 으로 레일에서 본문 폼 맨 위(오늘 상담 내용 위)로
           옮겼다 — 읽기(레일)와 쓰기(본문)를 가른다. 라벨은 목표 낱말을 쓰지 않는다 —
           '세부 목표 작성'이라 부르면 본문 세부 목표 구획과 층이 섞인다(ADR-0032 §6
-          "폴백 칸 라벨은 현행 문구 유지"). 카드 제목과 필드 라벨이 같은 문구인 것은
-          담당 실무자 의견 카드와 같은 짜임이다. */}
+          "폴백 칸 라벨은 현행 문구 유지"). 제목은 한 번만 보이고 입력 행은 접근성 이름으로 구별한다. */}
       <WireCard
         as="section"
         className="wire-form-card"
         labelledBy="session-goal-note-title"
-        title={<><h2 id="session-goal-note-title">이번 상담에서 확인할 것</h2><p className="panel-meta">일정에 연결된 목표가 없을 때 이번 상담에서 다룰 내용을 적어 둡니다. 연결된 목표는 좌측 레일에서 확인합니다.</p></>}
+        title={<><h2 id="session-goal-note-title">이번 상담에서 확인할 것</h2><p className="panel-meta record-writing-help" >일정에 연결된 목표가 없을 때 이번 상담에서 다룰 내용을 적어 둡니다. 연결된 목표는 좌측 레일에서 확인합니다.</p></>}
       >
-        <WireFormField label="이번 상담에서 확인할 것" htmlFor="session-goal-note">
-          <input id="session-goal-note" name="sessionGoalNote" type="text" maxLength={200} />
-        </WireFormField>
+        <SessionGoalNoteFields />
       </WireCard>
 
       {/* 2. 오늘 상담 내용 — 이 기록지의 유일한 실질 필수(P1) */}
@@ -301,7 +353,7 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="record-form-title"
-        title={<><h2 id="record-form-title">오늘 상담 내용</h2><p className="panel-meta">수기 메모는 서버 저장 확인 후 즉시 공식 기록입니다. AI가 항목을 선택하거나 기록을 확정하지 않습니다.</p></>}
+        title={<><h2 id="record-form-title">오늘 상담 내용</h2><p className="panel-meta record-writing-help" >수기 메모는 서버 저장 확인 후 즉시 공식 기록입니다. AI가 항목을 선택하거나 기록을 확정하지 않습니다.</p></>}
       >
         {/* 수기 메모(상담 내용 전문)는 임시본(localStorage)에서 뺀다(P0-9 · CCC-111) —
             브라우저에 남는 사본은 서버의 권한·감사·파기 통제를 우회한 상담 내용이 된다.
@@ -313,7 +365,7 @@ export function RecordOnepage({
           required
           control="textarea"
           htmlFor="record-memo"
-          hint={<>사실과 상담 내용을 직접 작성합니다. 이 칸의 내용은 브라우저에 임시 보관하지 않습니다. 저장 전에 화면을 닫으면 사라집니다.</>}
+          hint={<span className="record-writing-help">사실과 상담 내용을 직접 작성합니다. 이 칸의 내용은 브라우저에 임시 보관하지 않습니다. 저장 전에 화면을 닫으면 사라집니다.</span>}
         >
           <textarea
             id="record-memo"
@@ -345,7 +397,7 @@ export function RecordOnepage({
           </WireFormField>
           {/* 날짜 형식 도움말은 좁은 2열 칸에서 줄바꿈하므로 그리드 전폭 한 줄로 내린다
               (2026-08-29 Q item 8). describedBy=record-held-at-hint 는 이 span 을 가리킨다. */}
-          <span className="wire-form-hint wire-form-grid-hint" id="record-held-at-hint">{dateTextHint('2026-08-05')}</span>
+          <span className="wire-form-hint wire-form-grid-hint record-writing-help" id="record-held-at-hint">{dateTextHint('2026-08-05')}</span>
         </div>
         {/* 완료할 일정(CCC-57, 2026-08-08 Q 승인). 접힌 '새 액션 · 다음 만남' 구획에서 여기로
             올렸다. 기본이 켬이 된 이상 안 보이는 곳에서 일정이 완료되면 안 된다. "이 기록이
@@ -354,7 +406,7 @@ export function RecordOnepage({
           label="완료할 일정"
           control="select"
           htmlFor="schedule-completion"
-          hint="선택한 일정의 현재 버전을 함께 제출합니다. 그 사이 일정이 바뀌었으면 기록을 저장하지 않고 알려 줍니다."
+          hint={<span className="record-writing-help">선택한 일정의 현재 버전을 함께 제출합니다. 그 사이 일정이 바뀌었으면 기록을 저장하지 않고 알려 줍니다.</span>}
         >
           <select
             id="schedule-completion"
@@ -378,7 +430,7 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="open-actions-title"
-        title={<><h2 id="open-actions-title">미해결 액션 처리</h2><p className="panel-meta">지난 회차의 미해결 액션을 이번 상담에서 처리합니다. 처리 상태를 선택하지 않으면 다음 회차로 그대로 넘어갑니다. &apos;완료&apos;만 미해결 목록에서 내려갑니다.</p></>}
+        title={<><h2 id="open-actions-title">미해결 액션 처리</h2><p className="panel-meta record-writing-help" >지난 회차의 미해결 액션을 이번 상담에서 처리합니다. 처리 상태를 선택하지 않으면 다음 회차로 그대로 넘어갑니다. &apos;완료&apos;만 미해결 목록에서 내려갑니다.</p></>}
       >
         <OpenActionResolutions actions={openActionItems} onResolutionChange={handleResolution} />
       </WireCard>
@@ -388,7 +440,7 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="life-areas-title"
-        title={<><h2 id="life-areas-title">생활 6영역 변화 확인</h2><p className="panel-meta">영역별 기본값은 &apos;변화 없음&apos;이며, 그대로 두면 직전 회차 상태를 이어 기록합니다. 달라진 영역만 상태를 선택하세요. 이 상태는 실무자가 직접 기입하며 감정 점수가 아닙니다.</p></>}
+        title={<><h2 id="life-areas-title">생활 6영역 변화 확인</h2><p className="panel-meta record-writing-help" >영역별 기본값은 &apos;변화 없음&apos;이며, 그대로 두면 직전 회차 상태를 이어 기록합니다. 달라진 영역만 상태를 선택하세요. 이 상태는 실무자가 직접 기입하며 감정 점수가 아닙니다.</p></>}
       >
         <LifeAreaFields latest={latestLifeAreaSnapshot} onStatusChange={handleLifeAreaStatus} />
       </WireCard>
@@ -404,7 +456,7 @@ export function RecordOnepage({
       <WireCardDetails id="record-template" className="wire-form-card" title="회차 템플릿 항목" badge={<WireBadge tone="lavender">준비 중</WireBadge>}>
         <WireItem
           title="준비 상태"
-          description="회차별 상담 템플릿은 아직 제공하지 않습니다. 지금은 코어 항목만으로 기록하며 저장 흐름은 그대로 동작합니다."
+          description={<span className="record-writing-help">회차별 상담 템플릿은 아직 제공하지 않습니다. 지금은 코어 항목만으로 기록하며 저장 흐름은 그대로 동작합니다.</span>}
           tone="lavender"
         />
       </WireCardDetails>
@@ -413,11 +465,11 @@ export function RecordOnepage({
       <WireCardDetails id="record-new-actions" className="wire-form-card" title={<MetaRow items={['새 액션', '다음 만남']} />}>
         <WireItem
           title="작성 안내"
-          description="필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다."
+          description={<span className="record-writing-help">필요한 항목만 작성하세요. 새 기록의 액션 아이템은 미완료 상태로 등록됩니다.</span>}
         />
         <div className="wire-fieldset-list">{[0, 1, 2].map((index) => <ActionItemFields index={index} key={index} />)}</div>
         {/* '완료할 일정'은 여기 있었다. CCC-57 로 '오늘 상담 내용' 카드로 올렸다. */}
-        <p className="panel-meta">다음 만남은 상담 일정 화면에서 등록합니다.</p>
+        <p className="panel-meta record-writing-help" >다음 만남은 상담 일정 화면에서 등록합니다.</p>
         <WireFormField label="지난 상담 이후 달라진 일" htmlFor="change-since-last">
           <input id="change-since-last" name="changeSinceLast" type="text" maxLength={200} />
         </WireFormField>
@@ -432,18 +484,18 @@ export function RecordOnepage({
         testId="safety-accordion"
         open={safetyOpen}
         onToggle={(event) => setSafetyOpen(event.currentTarget.open)}
-        title="위기·안전 확인"
+        title={<span id="safety-title">위기·안전 확인</span>}
         badge={hasCrisis ? <WireBadge tone="risk">확인 필요</WireBadge> : undefined}
       >
         {hasCrisis ? <WireBadge tone="risk" role="status">6영역에서 &apos;위기&apos;를 선택했습니다. 안전 확인 내용을 적어 두세요.</WireBadge> : null}
         <WireItem
           title="작성 원칙"
-          description="당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다."
+          description={<span className="record-writing-help">당사자의 안전과 관련해 확인한 사실을 그대로 적습니다. 판단이나 진단은 적지 않습니다.</span>}
           tone="lavender"
         />
-        <WireFormField label="위기·안전 확인 내용" control="textarea" htmlFor="safety-note">
+        <WireFormField label="위기·안전 확인 내용" hideLabel control="textarea" htmlFor="safety-note">
           {/* 안전 관련 메모도 임시본 제외다(P0-9 — 위 수기 메모 주석 참조). */}
-          <textarea id="safety-note" name="safetyNote" rows={4} data-draft="skip" />
+          <textarea id="safety-note" aria-labelledby="safety-title" name="safetyNote" rows={4} data-draft="skip" />
         </WireFormField>
       </WireCardDetails>
 
@@ -453,7 +505,7 @@ export function RecordOnepage({
       <WireCardDetails id="record-flags" className="wire-form-card" title="리스크 플래그" badge={<WireBadge>조건부</WireBadge>}>
         <WireItem
           title="표시 원칙"
-          description="사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다."
+          description={<span className="record-writing-help">사전 정의된 유형만 실무자가 직접 표시합니다. 진단이나 AI가 선택한 자유 항목은 기록하지 않습니다.</span>}
         />
         <fieldset className="wire-fieldset"><legend>표시할 플래그</legend>
           <div className="wire-choice-group">
@@ -467,11 +519,11 @@ export function RecordOnepage({
         as="section"
         className="wire-form-card"
         labelledBy="opinion-title"
-        title={<><h2 id="opinion-title">담당 실무자 의견</h2><p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p></>}
+        title={<><h2 id="opinion-title">담당 실무자 의견</h2><p className="panel-meta record-writing-help" >실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p></>}
       >
-        <WireFormField label="담당 실무자 의견" control="textarea" htmlFor="counselor-opinion">
+        <WireFormField label="담당 실무자 의견" hideLabel control="textarea" htmlFor="counselor-opinion">
           {/* 실무자 의견도 임시본 제외다(P0-9 — 수기 메모 주석 참조). */}
-          <textarea id="counselor-opinion" name="counselorOpinion" rows={4} data-draft="skip" />
+          <textarea id="counselor-opinion" aria-labelledby="opinion-title" name="counselorOpinion" rows={4} data-draft="skip" />
         </WireFormField>
       </WireCard>
     </div>

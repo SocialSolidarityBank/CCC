@@ -10,6 +10,7 @@ import { SearchInput } from '../components/wire/search-input';
 import { WireBullets, WireCard, WireCardDetails, WireField } from '../components/wire/wire-card';
 import { WireCardSection, WireItem } from '../components/wire/wire-section';
 import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
+import { WireRadioGroup } from '../components/wire/wire-radio-group';
 import { ConsultationTypeBadge } from '../components/wire/consultation-type-badge';
 import { TimeAxisBadge } from '../components/wire/time-axis-badge';
 import { WireBadge } from '../components/wire/wire-badge';
@@ -241,12 +242,12 @@ export default function KitPage() {
             </WireFormField>
             <fieldset className="wire-fieldset">
               <legend>처리 상태 <small>(선택지 행)</small></legend>
-              <div className="wire-choice-group">
+              <WireRadioGroup>
                 <WireChoice label="미처리" type="radio" name="kit-resolution" defaultChecked />
                 <WireChoice label="완료" type="radio" name="kit-resolution" />
                 <WireChoice label="진행 중" type="radio" name="kit-resolution" />
                 <WireChoice label="보류" type="radio" name="kit-resolution" disabled />
-              </div>
+              </WireRadioGroup>
               <div className="wire-choice-group" data-layout="stack">
                 <WireChoice label="녹음 동의" type="checkbox" desc="음성 분석에 사용합니다." />
                 <WireChoice label="위기 발언" type="checkbox" tone="risk" />
@@ -308,7 +309,6 @@ export default function KitPage() {
             <WireBadge tone="lime">라임</WireBadge>
             <WireBadge tone="amber">앰버</WireBadge>
             <WireBadge tone="risk">확인 필요</WireBadge>
-            <button type="button" className="wire-status-tag">15초 페이지</button>
           </div>
         </section>
 

@@ -51,7 +51,7 @@ export function LifeAreaFields({
     >
       <WireFormField
         label="이번 회차 상태"
-        note="(기본: 변화 없음)"
+        note={<span className="record-writing-help">(기본: 변화 없음)</span>}
         control="select"
         htmlFor={`lifeAreaStatus_${areaKey}`}
       >

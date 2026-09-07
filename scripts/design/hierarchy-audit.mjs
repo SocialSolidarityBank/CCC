@@ -122,6 +122,11 @@ const BADGE_ALLOW = BADGE_TONES.map((tone) => ({
 }));
 const ALLOW = [
   {
+    selector: '.record-writing-help',
+    combo: 'var(--text-badge)/400/var(--sub)',
+    why: '2026-09-07 Q 승인: 상담 기록 작성 화면의 설명과 빈 상태 도움말 전용 12px',
+  },
+  {
     selector: '.wire-badge',
     combo: 'var(--text-badge)/400/var(--ink)',
     why: '배지 면을 본문보다 작게 읽히게 하는 12px 전역 배지',
@@ -131,11 +136,6 @@ const ALLOW = [
     selector: '.wire-badge.wire-required-marker',
     combo: 'var(--text-badge)/400/var(--lavender-deep)',
     why: '필수 표식 라벤더 deep 아웃라인 배지',
-  },
-  {
-    selector: '.wire-status-tag',
-    combo: 'var(--text-badge)/400/var(--ink)',
-    why: 'HERO 상태 태그는 전역 배지 글자 크기를 공유한다',
   },
   {
     selector: '.consent-detail[data-inline="true"]>.consent-detail-summary',
