@@ -266,42 +266,34 @@ details.surface-card[open]>.record-summary .wire-badge,
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
-/* 기본 골격은 2행이다. 1행 = 이름·태그(좌) + 버튼(우), 구분선 아래 2행 = 연락처·메타.
-   좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다. 767 이하는 내용 크기의 버튼을
-   가로로 모아 자연스럽게 줄바꿈하고 카드 폭에 맞춰 늘리지 않는다. */
-/* gap 24 = 세로 패딩과 같은 값 — 1행(이름)·2행(정보)이 아웃라인과 구분선 사이
-   정중앙에 선다(2026-08-07 Q 9차, 구 16 은 위 24/아래 16 비대칭).
-   **최소 높이는 정보 격자 변형에만 건다**(2026-09-04 Q, 구 전 변형 177). 메타 한 줄 변형은
-   자연 높이가 152.7 이라 177 을 강제하면 남는 24.31 이 두 gap 으로 흘러 위 계약이 깨진다
-   (구획 위 24 · 아래 36.2 실측). 격자 변형은 자연 높이가 177 이라 값이 그대로 산다. */
-.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
+/* 가로선 위에는 이름과 버튼만 둔다. 아래는 카드 내부 폭에 따라 정보와 배지를 배치한다.
+   좁아지면 버튼 묶음은 이름 아래에서 자연스럽게 줄바꿈하며 폭을 늘리지 않는다.
+   바깥 gap 24는 세로 패딩과 같고, 정보 격자 최소 높이 177을 넘으면 내용만큼 자란다. */
+.participant-hero-card{container-type:inline-size;flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
 .participant-hero-card:has(.participant-hero-details){min-height:var(--participant-hero-min-height)}
 .participant-hero-top{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4) var(--space-5);flex-wrap:wrap;min-width:0}
 .participant-hero-divider{height:0;margin:0 calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
-/* HERO 의 '상담 준비' 태그도 .wire-status-tag 하나를 쓴다(2026-08-07 통합 — 구
-   .participant-hero-stage 는 같은 선언의 복사본이라 삭제. 알약·400 재개정은 2026-08-06 Q,
-   레시피는 아래 .wire-status-tag 가 소유한다). 줄바꿈 금지만 HERO 한정으로 남긴다. */
-.participant-hero-title .wire-status-tag{white-space:nowrap}
-.participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-/* 당사자 정보 허브의 라벨형 정보 격자. 세 칸을 기본으로 쓰고 항목이 늘면 다음 줄로 흐른다.
-   라벨과 값은 WireField(stack, sm)가 14/600 민트 + 14/400 잉크 계약으로 만든다. */
+/* 읽기 순서는 정보 다음 상태다. 넓은 카드에서는 상태를 오른쪽 별도 열에 세로로 둔다. */
+.participant-hero-info{display:grid;gap:var(--space-4);min-width:0}
+.participant-hero-status{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--space-2);min-width:0}
+.participant-hero-status .wire-status-tag{max-width:100%}
+/* 모든 HERO 정보는 당사자 정보 허브와 같은 격자다.
+   WireField(stack, sm)가 라벨 14/600과 값 14/400을 담당한다. */
 .participant-hero-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-5) var(--space-6);min-width:0}
-/* 기존 한 줄 메타의 연락처는 이름을 보조하는 14/400 --sub 값이다. */
-.participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
-/* 767 이하도 이름 크기는 데스크톱과 같다(row 16, hero·hub 18. 2026-08-27 두 단 분리로
-   구 '모바일 18 강제'가 무의미해짐). 정보와 메타는 설명 단으로 정리한다. */
+/* 뷰포트가 아니라 카드의 실제 내부 폭으로 패드의 좁은 본문도 함께 전환한다. */
 @media(max-width:767px){
-  .participant-hero-card{min-height:0}
+  .participant-hero-card:has(.participant-hero-details){min-height:0}
   .participant-hero-title{gap:var(--space-2)}
+}
+@container (width > 760px){
+  .participant-hero-info:has(>.participant-hero-details):has(>.participant-hero-status){grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--space-6);align-items:start}
+  .participant-hero-status{flex-direction:column;flex-wrap:nowrap}
+}
+@container (max-width:760px){
   .participant-hero-details{grid-template-columns:minmax(0,1fr);gap:var(--space-2-5)}
-  /* 767 이하는 3열 격자 대신 당사자 카드 정보 행과 같은 80px 라벨 격자다(라벨 왼쪽, 값 오른쪽).
-     2×N 격자를 안 쓰는 이유: 이메일 값이 147px 열에 안 들어간다(2026-09-06 Q 모바일 정리). */
-  .participant-hero-details>.wire-field-row[data-layout="stack"]{grid-template-columns:80px minmax(0,1fr);gap:var(--space-2-5);align-items:center}
-  /* 메타 한 줄은 세로 3줄 고정이 아니라 줄바꿈 가로 묶음이다(가로 16, 세로 4). 구분선은
-     아래 줄이 끄므로 줄 첫머리에 선이 남지 않는다(2026-09-06 Q 모바일 정리). */
-  .participant-hero-meta .wire-meta-row{flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
-  .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
+  /* 라벨은 여러 줄인 값의 첫 행에 맞추고 배지는 정보 아래 가로 행으로 유지한다. */
+  .participant-hero-details>.wire-field-row[data-layout="stack"]{grid-template-columns:80px minmax(0,1fr);gap:var(--space-2-5);align-items:start}
 }
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:var(--text-sm)}

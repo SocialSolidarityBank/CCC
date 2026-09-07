@@ -9,11 +9,10 @@ import {
 import { closeSupportCaseAction } from '../../../../../actions';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
-import { MetaRow } from '../../../../../components/wire/meta-row';
 import { PageError } from '../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../components/wire/page-loading';
 import { PageTitle } from '../../../../../components/wire/page-title';
-import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
+import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { WireButton } from '../../../../../components/wire/wire-button';
@@ -139,16 +138,19 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
       ]);
     const focused = briefing?.sections.find((section) => section.sourceSupportCase.id === supportCaseId);
     const programLabel = focused === undefined ? undefined : programLabels[focused.sourceSupportCase.programType];
+    const heroDetails: ParticipantHeroDetail[] = programLabel === undefined
+      ? []
+      : [{ label: '사업', value: programLabel }];
 
     // ParticipantHeroCard (D38, 2026-09-04 Q "케이스 종결 화면에 HERO 처리"). 되돌리기 어려운
-    // 화면이라 누구의 어떤 케이스인지 머리에 서야 한다. 상태 태그는 케이스 상태, 메타는
+    // 화면이라 누구의 어떤 케이스인지 머리에 서야 한다. 상태 태그는 케이스 상태, 정보는
     // 사업명이다. 행동은 없다 — 이 화면의 행동은 아래 폼(종결)과 맨 아래 출구뿐이다.
     const hero = (
       <ParticipantHeroCard
         name={briefing?.participant.name ?? null}
         beneficiaryId={beneficiaryId}
-        stageTag={closure.status === 'closed' ? '종결' : '진행 중'}
-        {...(programLabel === undefined ? {} : { meta: <MetaRow items={[programLabel]} /> })}
+        stageTags={[{ label: closure.status === 'closed' ? '종결' : '진행 중' }]}
+        details={heroDetails}
       />
     );
 

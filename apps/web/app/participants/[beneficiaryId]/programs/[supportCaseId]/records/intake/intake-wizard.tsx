@@ -776,7 +776,7 @@ export function IntakeWizard(props: IntakeWizardProps) {
           <ParticipantHeroCard
             name={props.participant.name}
             beneficiaryId={props.beneficiaryId}
-            stageTag={editing ? '인테이크 수정' : '인테이크 작성'}
+            stageTags={[{ label: editing ? '인테이크 수정' : '인테이크 작성' }]}
             details={[
               { label: '전화번호', value: props.participant.phone ?? '미입력', tone: 'mint' },
               { label: '이메일', value: props.participant.email ?? '미입력', tone: 'mint' },

@@ -169,7 +169,10 @@ const reviewProps: DraftReviewViewProps = {
   participantName: '홍서희',
   stageTag: '검토 대기',
   stageTagTone: 'lavender',
-  metaItems: ['2026년 7월 15일', '대면'],
+  details: [
+    { label: '상담일', value: '2026년 7월 15일', tone: 'blue' },
+    { label: '상담 방식', value: '대면' },
+  ],
   recordsHref: `/participants/swallow-003/programs/${CASE_ID}/records`,
   draft: {
     origin: 'generated',
