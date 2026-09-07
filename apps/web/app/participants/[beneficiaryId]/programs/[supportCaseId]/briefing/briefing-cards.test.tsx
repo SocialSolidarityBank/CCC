@@ -431,19 +431,16 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(queryByText('전체 사업 보기')).toBeNull();
   });
 
-  it('HERO 는 카드이고 이름·상태 태그·상세 정보를 담는다 (§4-5)', () => {
+  it('HERO는 이름과 최근 상담의 유형 및 회차를 정보로 보여 준다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = hero(container);
     // 화면의 모든 글자는 카드 안에 있다 — HERO 도 카드다.
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
-    // 상태 태그는 최신 회차의 유형·회차다.
-    expect([...card.querySelectorAll('.participant-hero-status .wire-status-tag')]
-      .map((tag) => tag.textContent))
-      .toEqual(['기본상담 2회']);
+    expect(card.querySelector('.participant-hero-details')?.textContent).toContain('최근 상담기본상담 2회차');
     expect([...card.querySelectorAll('.participant-hero-details .wire-field-label')]
       .map((label) => label.textContent))
-      .toEqual(['사업', '상담일', '상담 방식']);
+      .toEqual(['사업', '상담일', '상담 방식', '최근 상담']);
     expect(card.querySelector('.participant-hero-details')?.textContent)
       .toContain('마이크로크레딧 씬파일러 금융지원·멘토링');
     expect(card.querySelector('.participant-hero-details')?.textContent).toContain('대면');

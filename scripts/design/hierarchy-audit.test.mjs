@@ -150,9 +150,8 @@ check(
   run('.wire-field-label{font-size:var(--text-badge);font-weight:400;color:var(--sub)}').violations.length === 1,
 );
 check(
-  '상태 태그와 전문 보기 배지형 버튼도 전역 배지 토큰을 쓴다',
-  run('.wire-status-tag{font-size:var(--text-badge);font-weight:400;color:var(--ink)}').violations.length === 0
-    && run('.consent-detail[data-inline="true"]>.consent-detail-summary{font-size:var(--text-badge);font-weight:400;color:var(--ink)}').violations.length === 0,
+  '전문 보기 배지형 버튼도 전역 배지 토큰을 쓴다',
+  run('.consent-detail[data-inline="true"]>.consent-detail-summary{font-size:var(--text-badge);font-weight:400;color:var(--ink)}').violations.length === 0,
 );
 const compactTokenValue = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8')
   .match(/^\s*--text-badge-compact:\s*([^;]+)/m)?.[1]

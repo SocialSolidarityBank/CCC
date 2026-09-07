@@ -64,7 +64,8 @@ function fillAllQuestions(scoped: ReturnType<typeof within>): void {
       } else if (question.kind === 'multi') {
         fireEvent.click(scoped.getByLabelText(`${question.label} 무응답`));
       } else {
-        fireEvent.change(scoped.getByLabelText(question.label), { target: { value: `${question.key} 내용` } });
+        const name = question.key === 'previous_support_detail' ? /이전 지원 경험/ : question.label;
+        fireEvent.change(scoped.getByRole('textbox', { name }), { target: { value: `${question.key} 내용` } });
       }
     }
     // 질문 밖의 필수 3개: 2-1 부채 표·3-3 연계 기관 표의 첫 열(정본: 없으면 '해당 없음')과 종합의견.

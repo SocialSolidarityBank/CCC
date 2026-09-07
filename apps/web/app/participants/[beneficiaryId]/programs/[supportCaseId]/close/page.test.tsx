@@ -103,7 +103,7 @@ describe('케이스 종결 확인 화면 (CCC-107)', () => {
     const hero = container.querySelector('.participant-hero-card');
     expect(hero).not.toBeNull();
     expect(hero?.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
-    expect(hero?.querySelector('.wire-status-tag')?.textContent).toBe('진행 중');
+    expect(hero?.querySelector('.participant-hero-details')?.textContent).toContain('진행 상태진행 중');
     expect(hero?.textContent).toContain('마이크로크레딧 씬파일러 금융지원·멘토링');
     expect(container.querySelectorAll('h1')).toHaveLength(1);
     // 종결 전 확인 재료: 미해결 액션 아이템과 활성 세부 목표만 선다(닫힌 목표는 안 선다).
@@ -141,7 +141,7 @@ describe('케이스 종결 확인 화면 (CCC-107)', () => {
     expect(getParticipantBriefing).toHaveBeenCalledTimes(1);
     const hero = container.querySelector('.participant-hero-card');
     expect(hero?.querySelector('h2 .participant-name')?.textContent).toBe('김미영');
-    expect(hero?.querySelector('.wire-status-tag')?.textContent).toBe('종결');
+    expect(hero?.querySelector('.participant-hero-details')?.textContent).toContain('진행 상태종결');
     expect(container.querySelector('[data-testid="closed-case-summary"]')).not.toBeNull();
     expect(container.textContent).toContain('지원 목표 달성');
     expect(container.textContent).toContain('2026'); // 종결일

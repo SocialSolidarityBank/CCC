@@ -125,6 +125,7 @@ export const STEP2_GROUPS: readonly IntakeQuestionGroup[] = [
         key: 'difficulty_areas',
         label: '현재 어려움 관련 영역',
         kind: 'multi',
+        hint: '현재 겪는 어려움에 해당하는 영역을 모두 고르세요.',
         options: ['경제', '일·고용', '주거', '건강', '심리·정서', '가족·관계', '돌봄', '법률·행정', '기타', NO_RESPONSE_OPTION],
       },
     ],

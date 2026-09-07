@@ -30,8 +30,10 @@ export function WireToolbarField({ label, children, className }: WireToolbarFiel
 }
 
 export interface WireFormFieldProps {
-  /** 라벨. 항상 입력칸 위에 둔다 — 자리표시자가 라벨을 대신하지 않는다(DESIGN.md §5 '입력칸'). */
+  /** 입력칸 라벨. 카드 제목과 같을 때만 hideLabel로 중복을 생략한다. */
   label: ReactNode;
+  /** 카드 제목이 라벨을 대신할 때 사용한다. 컨트롤의 aria-labelledby와 필수 표시는 호출부가 제공한다. */
+  hideLabel?: boolean;
   /** 실제 컨트롤(input·select·textarea). 이름·검증·값은 호출부가 그대로 갖는다. */
   children: ReactNode;
   /** 필수 표시. 라벨 옆에 배경 없는 공용 아웃라인 표식을 붙인다. */
@@ -63,7 +65,7 @@ export function WireRequiredMarker() {
 
 /**
  * 폼 입력칸(DESIGN.md §5 '입력칸' 계약): 높이 40 · radius 6 · `--line-control` 1px ·
- * 라벨 항상 위 14/600. 검색칸(SearchInput)과 같은 계약이지만 폼이 필요로 하는
+ * 라벨은 위 14/600이며, 같은 카드 제목이 대신하는 경우에만 생략한다.
  * 필수 아웃라인 표식, 도움말, 오류 메시지 자리를 갖는다.
  *
  * 컨트롤을 children 으로 받는 이유: 화면마다 textarea rows, datetime-local, JSON 값을 담은
@@ -72,6 +74,7 @@ export function WireRequiredMarker() {
  */
 export function WireFormField({
   label,
+  hideLabel = false,
   children,
   required = false,
   note,
@@ -87,10 +90,10 @@ export function WireFormField({
   const showInvalid = invalid || hasError;
   // htmlFor 가 있으면 라벨만 <label> 로 내고 나머지는 형제로 둔다. 전체를 <label> 로 감싸면
   // 도움말·오류 문장이 컨트롤의 **이름**에 합쳐져 스크린 리더가 라벨 대신 문단을 읽는다.
-  // htmlFor 가 없을 때만 <label> 이 컨트롤을 감싸 암묵적으로 연결한다.
-  const Wrapper = htmlFor === undefined ? 'label' : 'div';
+  // 보이는 라벨을 쓰고 htmlFor가 없을 때만 컨트롤을 감싸 암묵적으로 연결한다.
+  const Wrapper = htmlFor === undefined && !hideLabel ? 'label' : 'div';
 
-  const labelContent = (
+  const labelContent = hideLabel ? null : (
     <>
       {label}
       {required ? <WireRequiredMarker /> : null}
@@ -100,7 +103,7 @@ export function WireFormField({
 
   return (
     <Wrapper className={classes}>
-      {htmlFor === undefined ? (
+      {hideLabel ? null : htmlFor === undefined ? (
         <span className="wire-form-label">{labelContent}</span>
       ) : (
         <label className="wire-form-label" htmlFor={htmlFor}>

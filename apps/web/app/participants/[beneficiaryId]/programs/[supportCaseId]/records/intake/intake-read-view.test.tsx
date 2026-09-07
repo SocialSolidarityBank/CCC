@@ -131,10 +131,9 @@ describe('IntakeReadView (CCC-58)', () => {
     expect(records.getAttribute('href')).toBe('/participants/swallow-003/programs/case-1/records');
     expect(screen.getByText('010-1234-5678')).toBeTruthy();
     expect(screen.getByText('sample@example.test')).toBeTruthy();
-    expect(container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('neutral');
     const hero = container.querySelector('.participant-hero-card');
     expect([...hero!.querySelectorAll('.wire-field-label')].map((node) => node.textContent))
-      .toEqual(['전화번호', '이메일', '상담일']);
+      .toEqual(['인테이크', '전화번호', '이메일', '상담일']);
     expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
     expect(screen.queryByTestId('intake-read-basic-info')).toBeNull();
 

@@ -352,7 +352,7 @@ async function submitRecord(formData: FormData): Promise<void> {
  *  아래 본문 상단이라 매 방문 첫 화면을 안내가 차지했다. 주의·대기 축 라벤더(D34). */
 function UnsavedNotice() {
   return <WireCallout tone="lavender" role="status" testId="record-unsaved-notice" title="아직 서버에 저장되지 않았습니다">
-    저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.
+    <span className="record-writing-help">저장을 누르기 전까지 이 화면의 내용은 서버에 남지 않습니다.</span>
   </WireCallout>;
 }
 
@@ -394,12 +394,12 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
   // 오류가 배지에 서면 전폭 알약 막대가 된다). idle 미저장 안내는 위 UnsavedNotice 로
   // 분리해 레일이 갖는다(2026-08-09 Q "좌측 사이드바 최하단으로").
   if (state === 'idle') return null;
-  return <WireError>{content[state]}</WireError>;
+  return <WireError className="record-writing-help">{content[state]}</WireError>;
 }
 
 function Message({ code }: { code: LoadError | null }) {
   if (code === null || messages[code] === undefined) return null;
-  return <WireError>{messages[code]}</WireError>;
+  return <WireError className="record-writing-help">{messages[code]}</WireError>;
 }
 
 export default async function NewRecordPage({
@@ -442,20 +442,19 @@ export default async function NewRecordPage({
   const sessionGoals = context.data?.sessionGoals ?? [];
   const customQuestions = context.data?.customQuestions ?? [];
   const lastRecordSummary = context.data?.lastRecordSummary ?? null;
-  // HERO 상태 태그는 **화면 이름이 아니라 이 기록이 무엇인가**를 보인다(2026-08-09 Q).
-  // 이 화면은 정기 상담 전용이다(인테이크는 자기 라우트가 있다) — 그래서 유형은 고정이고
-  // 회차만 서버가 센 값을 따라간다. 조회 실패로 회차를 모르면 유형만 남긴다.
+  // 정기 상담 전용 화면이다. 조회 실패로 회차를 모르면 유형만 남긴다.
   const nextSessionSequence = context.data?.nextSessionSequence ?? null;
-  const stageTag = nextSessionSequence === null ? '기본 상담' : `기본 상담 ${nextSessionSequence}회`;
   const newRecordPath = beneficiaryId === null || supportCaseId === null ? '/' : `${historyPath}/new`;
   const mustCheckOutcome = state === 'unknown_outcome' || state === 'service_unavailable';
   const mustStartFresh = state === 'conflict';
-  // HERO 상세 정보 — 쓰기 화면에 필요한 맥락은 '지난 상담이 언제였나'와
-  // '넘겨받은 액션이 몇 건인가' 둘이다. 없으면 그 조각만 빠진다.
+  // 이번 상담과 지난 상담, 미해결 액션을 기존 응답 안에서 표시한다.
   const heroDetails: ParticipantHeroDetail[] = [
-    lastRecordSummary === null
-      ? { label: '상담', value: '첫 상담 기록' }
-      : { label: '지난 상담', value: dateOnlyLabel(lastRecordSummary.heldAt), tone: 'blue' },
+    { label: '이번 상담', value: nextSessionSequence === null ? '기본 상담' : `기본 상담 ${nextSessionSequence}회차` },
+    ...(context.data === null ? [] : [
+      lastRecordSummary === null
+        ? { label: '상담', value: '첫 상담 기록' }
+        : { label: '지난 상담', value: dateOnlyLabel(lastRecordSummary.heldAt), tone: 'blue' as const },
+    ]),
     ...(openActionItems.length === 0
       ? []
       : [{ label: '미해결 액션', value: `${openActionItems.length}건` }]),
@@ -469,13 +468,11 @@ export default async function NewRecordPage({
         함께 없앤 것(둘 다 이미 확정된 결정인데 이 화면만 남아 있었다):
          * 브레드크럼 — D35 가 비관례로 기각. 나가는 길은 고정 헤더의 버튼이 갖는다
          * "당사자 ID swallow-003" 표기 — D31(가명 ID 는 기계 식별자). 이름은 HERO 가 갖는다
-        제목은 '상담 기록 작성'에서 **'상담 기록'**으로 줄여 상태 태그로 옮겼다(2026-07-31 Q).
         전체 여닫기 버튼도 이 카드 안이다(2026-08-09 Q) — 구 자리는 본문 맨 위의 조작 줄이라
         스크롤을 내리면 화면 밖으로 나갔고, 정작 접힘 칸을 볼 때는 없었다. */}
     <ParticipantHeroCard
       name={participant.data?.name ?? null}
       beneficiaryId={beneficiaryId ?? '확인 불가'}
-      stageTags={[{ label: stageTag }]}
       details={heroDetails}
       actions={<RecordAccordionToggle />}
     />
@@ -483,14 +480,14 @@ export default async function NewRecordPage({
     <RecoveryStatus state={state} />
 
     {context.data === null || beneficiaryId === null || supportCaseId === null ? null : mustCheckOutcome ? <WireCard as="section" labelledBy="outcome-check-title" title={<h2 id="outcome-check-title">제출 결과 확인이 필요합니다.</h2>}>
-      <p>서버에 제출 결과 조회 기능이 없어 이 화면에서 같은 내용을 다시 구성하거나 재제출하지 않습니다.</p>
-      <p>제출 ID {recoverySubmissionId ?? '확인 불가'}를 유지한 채 해당 참여 사업의 상담 기록에서 등록 여부를 확인하세요.</p>
+      <p className="record-writing-help">서버에 제출 결과 조회 기능이 없어 이 화면에서 같은 내용을 다시 구성하거나 재제출하지 않습니다.</p>
+      <p className="record-writing-help">제출 ID {recoverySubmissionId ?? '확인 불가'}를 유지한 채 해당 참여 사업의 상담 기록에서 등록 여부를 확인하세요.</p>
       <div className="wire-form-actions"><WireButton variant="primary" href={historyPath}>상담 기록 확인</WireButton></div>
     {/* CCC-57: 이 자리는 conflict 코드 하나가 오는 곳인데 원인이 둘이다. 제출 ID 충돌과
         완료할 일정의 버전 불일치. 서버가 둘을 가르지 않으므로 문구가 둘 다 덮는다. 어느
         쪽이든 다시 여는 것이 답이고, 쓰던 내용은 임시본으로 남아 다시 열 때 복원된다. */}
     </WireCard> : mustStartFresh ? <WireCard as="section" labelledBy="conflict-record-title" title={<h2 id="conflict-record-title">이 기록을 등록하지 않았습니다.</h2>}>
-      <p>같은 제출 ID에 다른 저장 요청이 있었거나, 완료할 일정이 그 사이 변경되었습니다. 기존 상담 기록과 일정을 확인한 뒤 새 상담 기록을 시작하세요. 쓰던 내용은 임시본으로 남아 있어 새로 열면 복원할 수 있습니다.</p>
+      <p className="record-writing-help">같은 제출 ID에 다른 저장 요청이 있었거나, 완료할 일정이 그 사이 변경되었습니다. 기존 상담 기록과 일정을 확인한 뒤 새 상담 기록을 시작하세요. 쓰던 내용은 임시본으로 남아 있어 새로 열면 복원할 수 있습니다.</p>
       <div className="wire-form-actions">
         <WireButton variant="secondary" href={historyPath}>상담 기록 확인</WireButton>
         <WireButton variant="primary" href={newRecordPath}>상담 기록</WireButton>
