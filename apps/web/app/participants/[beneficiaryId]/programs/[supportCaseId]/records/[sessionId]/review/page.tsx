@@ -183,7 +183,10 @@ export async function ReviewContent({
         participantName={participant.name}
         stageTag={stageTagFor(draft.reviewDecision)}
         stageTagTone="lavender"
-        metaItems={[formatKoreanDate(session.heldAt), sessionChannelLabels[session.channel]]}
+        details={[
+          { label: '상담일', value: formatKoreanDate(session.heldAt), tone: 'blue' },
+          { label: '상담 방식', value: sessionChannelLabels[session.channel] },
+        ]}
         recordsHref={recordsHref(beneficiaryId, supportCaseId)}
         draft={{
           origin: draft.origin,

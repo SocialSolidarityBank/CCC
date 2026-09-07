@@ -6,7 +6,7 @@ import { WireBullets, WireCard, WireCardDetails } from '../../../../../component
 import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
 import { WireQuote, WireSourceQuotes } from '../../../../../components/wire/wire-callout';
-import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
+import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
 import { Chevron, DisclosureChevron } from '../../../../../components/wire/chevron';
@@ -63,7 +63,7 @@ export interface BriefingCardsProps {
   recordsHref: string;
   /** HERO 우상단 프라이머리 `상담 시작`의 목적지 — 이 앱에서 상담을 시작한다는 것은 기록을 연다는 뜻이다. */
   recordNewHref: string;
-  /** HERO 메타 줄의 사업명. 워크스페이스가 정하므로 화면이 이름을 만들지 않는다. */
+  /** HERO 상세 정보의 사업명. 워크스페이스가 정하므로 화면이 이름을 만들지 않는다. */
   programLabel: string;
   participant: { name: string | null; phone: string | null };
   /** D45 영역 ② 회차별 정리 — 최신순. 승인된 AI 핵심 한 줄, 없으면 수기 발췌 + '수기' 배지(D5). */
@@ -372,6 +372,15 @@ export function BriefingCards({
   const latestSessionTag = latestSession === undefined
     ? '15초 페이지'
     : `${consultationTypeLabel(latestSession.kind)} ${sessionRows.length}회`;
+  const heroDetails: ParticipantHeroDetail[] = [
+    { label: '사업', value: programLabel },
+    {
+      label: '상담일',
+      value: upcomingSchedule === null ? '예정된 상담 없음' : formatKoreanDateTime(upcomingSchedule.scheduledAt),
+      tone: 'blue',
+    },
+    { label: '상담 방식', value: '대면' },
+  ];
 
   // 처리된 항목은 접힌 이력으로 내려간다(ADR-0018) — 목록에서 사라지지도, 지워지지도 않는다.
   const unresolvedDiscrepancies = discrepancies.filter((item) => item.resolution === null);
@@ -402,12 +411,8 @@ export function BriefingCards({
       <ParticipantHeroCard
         name={participant.name}
         beneficiaryId={beneficiaryId}
-        stageTag={latestSessionTag}
-        meta={<MetaRow items={[
-          programLabel,
-          upcomingSchedule === null ? '예정된 상담 없음' : formatKoreanDateTime(upcomingSchedule.scheduledAt),
-          '대면',
-        ]} />}
+        stageTags={[{ label: latestSessionTag }]}
+        details={heroDetails}
         actions={<>
           {/* '전체 상담 기록'은 2026-08-06 Q 로 페이지 맨 아래(구 '자세한 상담 기록 보기')에서
               여기로 올라왔다 — D38 의 행동 2개 상한은 이 화면에 한해 3개로 넓힌다.

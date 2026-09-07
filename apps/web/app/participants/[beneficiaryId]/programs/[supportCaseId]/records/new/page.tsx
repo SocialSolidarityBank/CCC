@@ -8,9 +8,8 @@ import {
   updateGoalTitleAction,
 } from '../../../../../../actions';
 import { GoalSection } from './goal-section';
-import { MetaRow } from '../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../components/wire/page-title';
-import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
+import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../../components/wire/participant-hero-card';
 import { RecordAccordionToggle } from './record-accordion-toggle';
 import { WireButton } from '../../../../../../components/wire/wire-button';
 import { Icon } from '../../../../../../components/wire/wire-icon';
@@ -60,7 +59,7 @@ function safeId(value: string): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
 }
 
-/** HERO 메타용 날짜. 시각까지는 필요 없다 — 한 줄이 길어질수록 안 읽힌다.
+/** HERO 상세 정보용 날짜. 시각까지는 필요 없다 — 한 줄이 길어질수록 안 읽힌다.
  *  표기는 공용 계약(2026-08-07 Q 통일)이다. */
 function dateOnlyLabel(value: string): string {
   return formatKoreanDate(value);
@@ -451,13 +450,16 @@ export default async function NewRecordPage({
   const newRecordPath = beneficiaryId === null || supportCaseId === null ? '/' : `${historyPath}/new`;
   const mustCheckOutcome = state === 'unknown_outcome' || state === 'service_unavailable';
   const mustStartFresh = state === 'conflict';
-  // HERO 메타 한 줄(D38 슬롯 ③) — 쓰기 화면에 필요한 맥락은 '지난 상담이 언제였나'와
+  // HERO 상세 정보 — 쓰기 화면에 필요한 맥락은 '지난 상담이 언제였나'와
   // '넘겨받은 액션이 몇 건인가' 둘이다. 없으면 그 조각만 빠진다.
-  // 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다(§10, 2026-08-07).
-  const heroMetaItems = [
-    lastRecordSummary === null ? '첫 상담 기록' : `지난 상담 ${dateOnlyLabel(lastRecordSummary.heldAt)}`,
-    openActionItems.length === 0 ? null : `미해결 액션 ${openActionItems.length}건`,
-  ].filter((item): item is string => item !== null);
+  const heroDetails: ParticipantHeroDetail[] = [
+    lastRecordSummary === null
+      ? { label: '상담', value: '첫 상담 기록' }
+      : { label: '지난 상담', value: dateOnlyLabel(lastRecordSummary.heldAt), tone: 'blue' },
+    ...(openActionItems.length === 0
+      ? []
+      : [{ label: '미해결 액션', value: `${openActionItems.length}건` }]),
+  ];
 
   return <main className="page-content">
     {/* 페이지 타이틀(2026-08-08 Q — 구 '상담 시작' 어휘 대체, 화면 이름은 '상담 기록'). */}
@@ -467,14 +469,14 @@ export default async function NewRecordPage({
         함께 없앤 것(둘 다 이미 확정된 결정인데 이 화면만 남아 있었다):
          * 브레드크럼 — D35 가 비관례로 기각. 나가는 길은 고정 헤더의 버튼이 갖는다
          * "당사자 ID swallow-003" 표기 — D31(가명 ID 는 기계 식별자). 이름은 HERO 가 갖는다
-        제목은 '상담 기록 작성'에서 **'상담 기록'**으로 줄여 상태 태그 자리로 옮겼다(2026-07-31 Q).
+        제목은 '상담 기록 작성'에서 **'상담 기록'**으로 줄여 상태 태그로 옮겼다(2026-07-31 Q).
         전체 여닫기 버튼도 이 카드 안이다(2026-08-09 Q) — 구 자리는 본문 맨 위의 조작 줄이라
         스크롤을 내리면 화면 밖으로 나갔고, 정작 접힘 칸을 볼 때는 없었다. */}
     <ParticipantHeroCard
       name={participant.data?.name ?? null}
       beneficiaryId={beneficiaryId ?? '확인 불가'}
-      stageTag={stageTag}
-      {...(heroMetaItems.length === 0 ? {} : { meta: <MetaRow items={heroMetaItems} /> })}
+      stageTags={[{ label: stageTag }]}
+      details={heroDetails}
       actions={<RecordAccordionToggle />}
     />
     <Message code={error} />
