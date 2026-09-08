@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development with the repository's Herdr split-pane orchestration. Main owns integration and validation. Workers do not start additional agents.
 
-**Goal:** 승인 없는 케이스별 자동 기억을 기존 기록에서 만들고 갱신하며, 상담 준비·회차 AI 정리·읽기 중심 상세·기관 설정까지 연결한다.
+**Goal:** 승인 없는 케이스별 자동 기억을 기존 공식 기록에서 만들고 갱신하며 저장한다. 기억 항목과 현재 맥락 요약은 내부 지원 맥락으로 파이프라인에 제공하고, 개인정보·접근 보호와 기관 설정을 연결한다. 이번 단계에는 새 기억 출력 UI를 만들지 않는다.
 
-**Architecture:** `gateway.ts`가 권한·SQL·원본 변경과 영속 작업의 원자성을 소유한다. SQL 없는 코어 규칙과 공통 DTO, AI 런타임의 구조화 출력, HTTP 실행기의 cron 연결, 기존 Python 마스킹 Agent와 Next 화면을 결합한다. 외부 기억 서버와 MCP 연결은 만들지 않는다.
+**Architecture:** `gateway.ts`가 권한·SQL·원본 변경과 영속 작업의 원자성을 소유한다. SQL 없는 코어 규칙과 공통 DTO, AI 런타임의 구조화 출력, HTTP 실행기의 cron 연결, 기존 Python 마스킹 Agent와 Workers를 결합한다. 외부 기억 서버와 MCP 연결은 만들지 않는다. 출력 통합은 별도 디자인 결정으로 남긴다.
 
-**Tech Stack:** TypeScript, 기존 Database 포트와 SQLite/대응 PostgreSQL SQL, Python Agent, OpenAI Responses `store:false`, Next/React Wire 부품.
+**Tech Stack:** TypeScript, 기존 Database 포트와 SQLite/대응 PostgreSQL SQL, Python Agent, OpenAI Responses `store:false`.
 
-**Spec:** `docs/superpowers/specs/2026-09-08-counseling-memory-design.md` 및 `docs/adr/0046-background-counseling-memory.md`. 2026-09-08 사용자 전체 승인.
+**Spec:** `docs/superpowers/specs/2026-09-08-counseling-memory-design.md` 및 `docs/adr/0046-background-counseling-memory.md`. 2026-09-08 사용자 전체 승인. 같은 날 Q 후속 결정으로 전용 요약 UI, 독립 기억 상세 화면·링크, 기존 화면 출력 통합 범위는 superseded 되었다.
 
 ## Global Constraints
 
 - 같은 기관이어도 기억은 `supportCaseId` 하나에 한정한다. 실무자 개인 선호와 형제 사업 기억은 제외한다.
-- 기억과 요약은 자동 보조 표현이다. 미승인 AI 초안은 재료가 아니며 원본 상담 승인 절차는 그대로다.
+- 기억과 현재 맥락 요약은 자동 보조 표현이지만 이번 단계에는 화면 출력으로 통합하지 않는다. 미승인 AI 초안은 재료가 아니며 원본 상담 승인 절차는 그대로다.
 - 사실과 여러 회차 관찰을 구분한다. 원본 근거 없는 출력, 성격·심리 진단, 지원 판단은 거부한다.
 - 현재 회차 출력 근거와 과거 기억 근거는 별도 집합이다.
 - 모든 외부 입력은 Agent 마스킹과 코어 재검증을 거친다. 증명 없는 legacy 자료는 재마스킹하며 안전 조건을 생략하지 않는다.
@@ -23,7 +23,7 @@
 - 원문, 기억 내용, PII, 검색어와 공급자 오류 원문을 로그·브라우저 영속 저장소·URL에 넣지 않는다.
 - 새 탭 없이 현재 Herdr 탭 안에서 Split을 사용한다. root checkout과 다른 작업 브랜치는 수정하지 않는다.
 - 병행 worker는 formatter/linter/build/test/guard/commit을 실행하지 않는다. Main이 통합 후 한 번 실행한다. 기본 회귀 실패 확인도 Main이 담당한다.
-- 새 회귀 테스트는 정정 경합, 권한, 출처 혼동과 철회처럼 실제 실패를 방어하는 것만 추가한다. 화면은 실제 브라우저로 검증한다.
+- 새 회귀 테스트는 정정 경합, 권한, 출처 혼동과 철회처럼 실제 실패를 방어하는 것만 추가한다. 화면 검수는 이번 단계에 하지 않으며 Main이 통합 후 필요한 범위를 결정한다.
 
 ## 공통 인터페이스
 
@@ -131,8 +131,8 @@ export interface MemoryHistoricalContext {
 - `MemoryGenerationOutput.updates`는 patch다. 응답에 없는 기존 항목을 삭제하지 않는다.
 - 새 항목의 `key`는 응답 안에서 유일하다. 기존 항목의 `itemId`는 요청한 항목에 있어야 한다. summary의 `itemKeys`는 업데이트 key 또는 요청의 기존 item ID만 참조한다. 코어가 영속 ID로 변환한다.
 - 관찰은 서로 다른 원본 회차 두 개 이상의 근거를 요구한다. `correction`과 `derived_summary`는 독립 회차로 세지 않는다.
-- 타입의 `reason`은 코어가 정한 안전한 code다. 화면은 알려진 code의 문구만 표시한다.
-- `CaseMemoryView.history`는 과거 상태와 정정 전 버전을 포함한다. 필요하면 별도 페이지 계약으로 확장하되 누락을 숨기지 않는다.
+- 타입의 `reason`은 코어가 정한 안전한 code다. 소비자는 알려진 code만 해석한다.
+- `CaseMemoryView.history`는 과거 상태와 정정 전 버전을 포함하는 백엔드 데이터 계약이다. 독립 화면이나 링크로 노출할지는 별도 결정이며, 이력 누락을 숨기지 않는다.
 - 한 번의 요청은 최대 32개 재료, 재료별 24,000 code point, 재료 합계 96,000 UTF-16 code unit이다. 기존 항목 64개, 업데이트 32개, 항목별 출처 32개와 연결 16개를 넘기지 않는다. 배치 밖 원본은 영속 cursor에 남기며 초과분을 잘라 버리지 않는다.
 - 기존 항목을 다시 외부 입력으로 쓸 때는 항목 ID를 `sourceId`, 항목 revision 문자열을 `sourceRevision`으로 가진 `correction` 또는 `derived_summary` snapshot이 필요하다. 제목·본문과 함께 보내는 출처 인용도 검증된 원본 snapshot 또는 이 파생 snapshot에 있어야 한다.
 - 제목 80자, 본문 2,000자, 인용 500자, 요약 문장 240자가 연산 계약의 상한이다. summary는 최대 3문장이며 과거 기억이 현재 회차 발언으로 인용되는 것을 허용하지 않는다.
@@ -186,13 +186,14 @@ loadCounselingMemoryContext(env: Env, actor: Actor, sessionId: string): Promise<
 - [ ] memory prompt/schema를 config identity에 포함하고 활성 설정 재확인이 필요하게 한다. 관련 기존 테스트는 새 계약을 실제로 소비하도록 고친다.
 - [ ] worker는 실행/검증/커밋하지 않는다.
 
-## Task 3: 읽기 중심 화면과 기관 설정
+## Task 3: 읽기 중심 화면과 기관 설정 (2026-09-08 Q 후속 범위 철회)
 
-**Owner:** Herdr 오른쪽 아래 screen-builder.
+**Status:** 이 Task의 화면 구현 범위는 superseded 되었다. 아래 작업은 과거 제안으로서 완료된 것으로 간주하지 않으며, 이번 단계에서 시작하거나 재구축하지 않는다.
 
-**Files:** 설계안의 `apps/web/.../memory/`, briefing 두 파일, settings, `app/lib/api.ts`, 해당 화면의 server action, 공용 `wire-action-menu.tsx`와 필요한 공용 스타일. core/HTTP/provider/contracts는 수정하지 않는다.
-
-**Consumes:** 공통 DTO와 다음 HTTP 계약.
+- `15초 페이지`의 '오늘 만나기 전 꼭 기억할 것'과 '상담 내용 회차별 정리', '상담 기록 확인하기'에 기억 요약이나 보조 문장을 삽입하지 않는다. 독립 기억 상세 화면과 링크, 기억 정정 UI도 만들지 않는다.
+- 화면 전용 `apps/web` 컴포넌트·스타일·server action·adapter wrapper를 추가하지 않는다. 이미 이 범위만을 위해 존재하는 웹 연결부의 제거는 Main이 코드 소유권에 따라 처리한다.
+- 기관 단위 켜기·끄기와 처리 상태, 케이스 기억 조회·정정의 백엔드 HTTP 계약은 폐기하지 않는다. 기존 기관 설정 화면의 자동 기억 켜기·끄기와 처리 상태 표시는 유지한다. 코어 저장·정정·접근 권한·설정 endpoint와 공통 DTO는 Task 1 및 Task 4 범위에서 유지한다. 별도의 새 설정 화면은 추가하지 않는다.
+UI 소비자와 무관하게 다음 HTTP 계약은 유지한다.
 
 ```text
 GET  /support-cases/:supportCaseId/memory -> CaseMemoryView
@@ -201,14 +202,8 @@ GET  /settings/counseling-memory -> MemorySettingsView
 PUT  /settings/counseling-memory + MemorySettingsInput -> MemorySettingsView
 ```
 
-기존 인증과 에러 envelope를 그대로 사용한다. 수정은 낙관 버전, 입력 오류 400, 비담당 403, 버전 경합 409다. settings API는 기관 관리자만 사용한다.
-
-- [ ] 설계안 배치표를 그대로 조립한다. 요약은 사실 입력칸이 아니고, 항목별 수정·승인 버튼은 없다.
-- [ ] 같은 케이스 전용 상세와 다회차 근거, 현재/과거 상태를 만든다. 현재 source quote는 원본 회차를 펼치는 기존 링크 계약을 사용한다.
-- [ ] 공용 행동 메뉴에서만 정정 폼을 열고, 실패/409 때 입력을 보존한다. 권한 없는 사용자는 정정 entry를 받지 않는다.
-- [ ] 기관 선택값과 실행 상태를 분리하고 Off·처리 대기·실패·자료 없음·동의 중단을 각각 표시한다.
-- [ ] 기존 화면·API 패턴을 재사용하고 새로운 client 셸을 만들지 않는다. UI 표현은 DTO/callback/URL을 받아 서버 import와 분리한다.
-- [ ] 실제 검수용 full synthetic fixture 구성 지점을 Main에게 전달한다. worker는 테스트/브라우저/포매터/린터/커밋하지 않는다.
+기존 인증·본문 검증·에러 envelope를 적용한다. 정정은 기대 revision, 입력 오류 400, 비담당 403, 버전 경합 409를 유지하며 settings API는 기관 관리자만 사용한다.
+향후 `15초 페이지`의 '오늘 만나기 전 꼭 기억할 것'과 '상담 내용 회차별 정리', '상담 기록 확인하기'에 상담 기억의 보조 문장을 더할지는 별도 디자인 결정으로 남긴다. 출력 위치, 문구, 근거 표현과 UI는 이 계획에서 정하지 않는다.
 
 ## Task 4: HTTP, scheduled 실행기와 종단 검증
 
@@ -221,18 +216,19 @@ PUT  /settings/counseling-memory + MemorySettingsInput -> MemorySettingsView
 - [ ] 기존 cron에 실제 memory drain을 연결하고 `not_before`와 DB lease를 존중한다. 처리 장비가 준비되지 않은 상태를 성공으로 바꾸지 않는다.
 - [ ] 회차 초안 생성에는 `loadCounselingMemoryContext`로 검증한 과거 맥락만 전달하고 사용한 revision을 원본 draft 증적에 보존한다. 이 저장 접점은 core owner와 확정하고 Main은 core를 동시에 수정하지 않는다.
 - [ ] 기존 Agent·동의·현재 자료 회귀, 새 기억 경합·권한·출처 검증을 실행한다. 형식/타입/가드는 worker 작업이 끝난 뒤 한 번 실행한다.
-- [ ] 실제 로컬 앱과 Agent 경로를 synthetic 자료로 실행해 backfill, 갱신, 읽기, 정정, 설정 상태를 확인한다. 유료 외부 호출이나 live secrets를 몰래 활성화하지 않는다. 실제 provider 호출 증거가 없으면 명시한다.
-- [ ] 같은 Herdr 탭 Split에 screen-builder와 별도 rule-reviewer를 두고 390/768/1280 실물 검수 및 필요한 수정 후 다시 확인한다.
+- [ ] 실제 로컬 앱과 Agent 경로를 synthetic 자료로 실행해 backfill, 갱신, 내부 요약 저장, 정정 API, 설정 상태를 확인한다. 유료 외부 호출이나 live secrets를 몰래 활성화하지 않는다. 실제 provider 호출 증거가 없으면 명시한다. 화면 출력과 독립 상세 화면은 확인 대상으로 삼지 않는다.
+- [Superseded] 화면 실물 검수와 rule-reviewer 확인은 2026-09-08 Q 후속 결정으로 이번 단계에서 수행하지 않는다. 향후 출력 통합이 별도 승인되면 새 디자인 작업으로 계획한다.
 - [ ] 한 번의 독립 최종 코드 리뷰를 수행하고 load-bearing 지적을 해결한다. 변경 파일만 커밋하며 merge/push는 별도 사용자 지시 없이 하지 않는다.
 
 ## 사전 인터페이스 점검
 
 | 경계 | 생산자와 소비자 | 판정 |
 | --- | --- | --- |
-| 공통 DTO | Main 생성, Tasks 1~3 소비 | 같은 계약 파일 하나를 import |
+| 공통 DTO | Main 생성, Tasks 1~2 및 Main의 HTTP 경계가 소비 | 같은 계약 파일 하나를 import |
 | gateway | Task 1 생산, Main 소비 | 함수 이름·인자·반환 타입 위에 고정 |
 | provider | Task 2 생산, Main 소비 | updateMemory와 validator 이름 고정, 선택 미지원은 명시 오류 |
-| HTTP | Main 생산, Task 3 소비 | 네 경로와 payload 고정 |
+| HTTP 기억 조회·정정 | Main 생산, 현재 화면 소비자 없음 | 조회·정정 경로와 payload를 백엔드 계약으로 유지 |
+| HTTP 기관 설정 | Main 생산, 기존 기관 설정 화면 소비 | 조회·저장 경로와 payload 및 화면 연결 유지 |
 | 현재 draft 과거 증적 | Task 1 저장, Main 호출 | core 파일 변경은 Task 1 한 명만 소유 |
 | 배포·S6 미구현 기반 | Main 통합, Task 1 안전 계약 | 없는 증명을 성공값으로 만들지 않음, 최종 세 모드 완료와 분리 |
 | 검증 | 모든 worker 코드, Main 실행 | 중간 빌드·테스트 경합 없음 |

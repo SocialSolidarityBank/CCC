@@ -1,8 +1,37 @@
 'use client';
 
-import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
 import { Chevron } from './chevron';
+
+// 링크 렌더러 경계(2026-09-08). 이 부품은 프레임워크를 모른다. 기본은 평범한 <a> 이고,
+// 클라이언트 사이드 이동이 필요한 앱만 자기 렌더러를 끼운다(apps/web 은 next/link).
+// 서버 컴포넌트에서 함수를 prop 으로 넘기면 RSC 가 막으므로 렌더러를 넣는 쪽도 클라이언트
+// 모듈이어야 한다. 이 파일이 'use client' 라 Provider 도 클라이언트 경계 안에 선다.
+
+/** 링크로 렌더할 때 넘어가는 속성. DOM 은 기존 <a> 그대로다. */
+export interface WireLinkProps {
+  href: string;
+  className: string;
+  children: ReactNode;
+  'aria-label'?: string;
+  'data-variant': string;
+  'data-justify': string;
+}
+
+export type WireLinkRenderer = (props: WireLinkProps) => ReactElement;
+
+const WireLinkContext = createContext<WireLinkRenderer | null>(null);
+
+/** 앱이 자기 링크 부품을 끼우는 자리. 넣지 않으면 기본 <a> 다. */
+export function WireLinkProvider({
+  renderer,
+  children,
+}: {
+  renderer: WireLinkRenderer;
+  children: ReactNode;
+}) {
+  return <WireLinkContext.Provider value={renderer}>{children}</WireLinkContext.Provider>;
+}
 
 /** 버튼 종류 5종(DESIGN.md §5). 색·테두리 규칙은 종류가 정한다. 높이는 전 버튼 32 단일이다
  *  (2026-08-28 Q — 구 md 40 / sm 32 2단 폐지: 툴바·목록 버튼과 HERO·폼 버튼이 한 높이로 선다).
@@ -70,6 +99,7 @@ export function WireButton({
   ariaLabel,
   className,
 }: WireButtonProps) {
+  const renderLink = useContext(WireLinkContext);
   const resolvedVariant: WireButtonVariant = variant ?? (size === 'large' ? 'primary' : 'secondary');
   const justify = chevron !== false && chevron !== undefined ? 'between' : align;
   const classes = ['wire-button', className].filter(Boolean).join(' ');
@@ -83,11 +113,15 @@ export function WireButton({
   );
 
   if (href !== undefined && !disabled) {
-    return (
-      <Link className={classes} href={href} aria-label={ariaLabel} data-variant={resolvedVariant} data-justify={justify}>
-        {inner}
-      </Link>
-    );
+    const linkProps: WireLinkProps = {
+      className: classes,
+      href,
+      'data-variant': resolvedVariant,
+      'data-justify': justify,
+      children: inner,
+      ...(ariaLabel === undefined ? {} : { 'aria-label': ariaLabel }),
+    };
+    return renderLink === null ? <a {...linkProps} /> : renderLink(linkProps);
   }
 
   return (

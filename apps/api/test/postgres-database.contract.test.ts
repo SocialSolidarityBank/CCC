@@ -73,6 +73,26 @@ async function expectRolledBack(db: Database, marker: string): Promise<void> {
 defineDatabaseContract('PostgreSQL', openDatabase, { dialect: 'postgres' });
 
 describe('PostgreSQL transaction and decoding contracts', () => {
+  it('preserves nullable legacy primary keys and distinguishes their marked constraint from ordinary uniqueness', async () => {
+    const db = await openDatabase();
+    await db.prepare(`CREATE TABLE legacy_primary_fixture (
+      id TEXT CONSTRAINT legacy_nullable_key UNIQUE,
+      natural_key TEXT CONSTRAINT legacy_primary_fixture_pkey UNIQUE
+    )`).run();
+    await db.prepare(`COMMENT ON CONSTRAINT legacy_nullable_key ON legacy_primary_fixture IS 'ccc:sqlite-primary-key'`).run();
+    for (const [id, naturalKey] of [[null, 'first-null'], [null, 'second-null'], ['existing', 'natural']] as const) {
+      await db.prepare('INSERT INTO legacy_primary_fixture (id, natural_key) VALUES (?, ?)').bind(id, naturalKey).run();
+    }
+    expect(await db.prepare('SELECT COUNT(*) AS count FROM legacy_primary_fixture WHERE id IS NULL').first('count')).toBe(2);
+    expect(await rejection(() => db.prepare('INSERT INTO legacy_primary_fixture (id, natural_key) VALUES (?, ?)')
+      .bind('existing', 'another').run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'primary_key' });
+    expect(await rejection(() => db.prepare('INSERT INTO legacy_primary_fixture (id, natural_key) VALUES (?, ?)')
+      .bind('another', 'natural').run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'unique' });
+    await db.prepare(`COMMENT ON CONSTRAINT legacy_nullable_key ON legacy_primary_fixture IS 'ccc:sqlite-primary-key-unrecognized'`).run();
+    expect(await rejection(() => db.prepare('INSERT INTO legacy_primary_fixture (id, natural_key) VALUES (?, ?)')
+      .bind('existing', 'another').run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'unique' });
+  });
+
   it('preserves quoted placeholders and rejects arity without sending a mutation', async () => {
     const db = await openDatabase();
     await db.prepare('CREATE TABLE scanner_fixture ("question?column" TEXT, "question?""column" TEXT)').run();

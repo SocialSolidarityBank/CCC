@@ -19,6 +19,7 @@
     "design:sweep:capture": "python3 scripts/design/ia-shots.py ac3-six-matrix",
     "guard:db": "node scripts/guard-db-gateway.mjs",
     "guard:sql-dialect": "node scripts/guard-sql-dialect.mjs",
+    "guard:migration-parity": "node scripts/test-suite.mjs migration-parity",
     "guard:doc-numbers": "node scripts/guard-doc-numbers.mjs",
     "guard:consent-copy": "pnpm --filter @ccc/web exec vitest run app/participants/new/consent-copy.test.ts",
     "guard:tokens": "node scripts/design/token-audit.mjs",
@@ -50,6 +51,7 @@
     "test:runtime": "node scripts/test-mode.mjs runtime",
     "test:golden": "node scripts/test-mode.mjs golden",
     "test:contracts": "node scripts/test-suite.mjs contracts",
+    "test:db-parity": "node scripts/test-suite.mjs db-parity",
     "test:security": "node scripts/test-suite.mjs security"
   },
   "devDependencies": {

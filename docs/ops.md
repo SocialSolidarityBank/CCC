@@ -96,6 +96,23 @@ ADR 파일·마이그레이션 파일·9장 결정 번호는 **손으로 붙이�
 
 `migrations/sqlite/0009_participant_pii_email.sql`과 `migrations/sqlite/0009_schedule_session_plan.sql`은 번호가 중복되지만, wrangler는 마이그레이션 파일명 전체를 identity로 쓰고 두 파일 모두 이미 적용 완료라 rename하지 않는다. 가드에도 그 한 건만 예외로 박아 뒀다(`KNOWN_DUPLICATES`) — 새 중복을 눈감아 주는 자리가 아니다.
 
+### PostgreSQL 기준 스키마와 동등성 검사 (CCC-216)
+
+`migrations/postgres/0001_baseline.sql`은 SQLite 0045까지의 누적 스키마다. 이후 SQL 이식성, 시간 정규화, Agent 일감, 상담 맥락 마이그레이션은 별도 단계로 적용한다. 정확한 대응 순서와 파일 해시는 `migrations/parity.yaml`이 갖는다.
+
+- `pnpm guard:migration-parity`: 실제 암호화 SQLite와 PostgreSQL에 다섯 단계를 재생한다. 스키마 지문, 기본값, 보존 기한의 NULL 처리, 레거시 시간 열 98개의 변환과 정렬을 검증한다.
+- `pnpm test:db-parity`: D1, 암호화 SQLite, PostgreSQL에 같은 업무 입력을 넣고 저장, 재조회, 조건부 감사, 오류 분류와 실패 시 롤백 결과를 비교한다.
+- Node 24와 Docker가 필요하다. 기존 테스트 하네스의 일회용 PostgreSQL만 사용하며, Docker가 없으면 실패한다. CI에서는 두 검사가 전체 API 테스트에 포함되어 한 번씩 실행된다.
+
+일반 검사는 지문 파일을 수정하지 않는다. `guard:migration-parity`에 `CCC_UPDATE_MIGRATION_PARITY`가 설정되어 있으면 실행을 거부한다. 양쪽 SQL 변경을 검토한 뒤 지문을 새로 만들 때만 레포 루트에서 다음을 실행한다. 생성 모드도 의미 검증을 통과해야 파일을 쓴다.
+
+```sh
+CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/migration-parity.test.ts --maxWorkers 1
+pnpm guard:migration-parity
+```
+
+이 검사는 운영 PostgreSQL 설치, 기존 데이터 이전, RLS 검증이나 배포 완료를 뜻하지 않는다. 설치와 운영 전환은 해당 실행 티켓에서 별도로 진행한다.
+
 ## 로컬 프리뷰 (dev 이중 잠금)
 
 브라우저에서 로컬 실행을 눌러 보는 경로. 신원은 API의 `local-actor.ts` 리졸버가 공급한다
