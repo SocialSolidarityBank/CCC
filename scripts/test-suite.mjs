@@ -2,7 +2,7 @@
  * 계약·보안 스위트 입구 (S2 §5, E1-7).
  *
  *   pnpm test:contracts --capabilities | --database | --db=d1 | --db=sqlite | --db=postgres | --sql | --audio-store | --auth | --secrets-env
- *   pnpm test:security  --bootstrap
+ *   pnpm test:security  --bootstrap | --rls
  *   pnpm test:db-parity
  *   pnpm guard:migration-parity
  *
@@ -20,7 +20,7 @@ export const SUITES = {
     database: 'apps/api/test/database-contract.test.ts',
     'db=d1': 'apps/api/test/database-contract.test.ts',
     'db=sqlite': 'apps/api/test/sqlite-database.contract.test.ts',
-    'db=postgres': 'apps/api/test/postgres-database.contract.test.ts',
+    'db=postgres': ['apps/api/test/postgres-database.contract.test.ts', 'apps/api/test/postgres-context.contract.test.ts'],
     sql: [
       'apps/api/test/sql-placeholder-scanner.test.ts',
       'apps/api/test/sql-operation-marker.test.ts',
@@ -32,6 +32,7 @@ export const SUITES = {
   },
   security: {
     bootstrap: 'apps/api/test/install-manifest.security.test.ts',
+    rls: ['apps/api/test/postgres-rls.security.test.ts', 'apps/api/test/postgres-context.contract.test.ts'],
   },
   'db-parity': {
     all: 'apps/api/test/database-parity.test.ts',

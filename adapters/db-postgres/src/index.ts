@@ -26,7 +26,13 @@ export interface PostgresDatabaseOptions {
   ssl?: 'verify-full' | false;
 }
 
+export interface PostgresActorContext {
+  readonly orgId: string;
+  readonly actorId: string;
+}
+
 export interface PostgresDatabase extends Database {
+  forActor(context: PostgresActorContext): Database;
   close(): Promise<void>;
 }
 
@@ -153,12 +159,28 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
   } catch (error) {
     throw normalizeError(error);
   }
-  const statements = new WeakMap<PreparedStatement, StatementData>();
   let closed = false;
   let closing: Promise<void> | undefined;
 
   function assertOpen(): void {
     if (closed) throw new PostgresDatabaseError('unsupported');
+  }
+
+  function copyContext(context: PostgresActorContext): PostgresActorContext {
+    try {
+      if (context === null || typeof context !== 'object') {
+        throw new PostgresDatabaseError('unsupported');
+      }
+      const { orgId, actorId } = context;
+      if (typeof orgId !== 'string' || orgId.trim().length === 0
+        || typeof actorId !== 'string' || actorId.trim().length === 0) {
+        throw new PostgresDatabaseError('unsupported');
+      }
+      return Object.freeze({ orgId, actorId });
+    } catch (error) {
+      if (error instanceof PostgresDatabaseError) throw error;
+      throw new PostgresDatabaseError('unsupported');
+    }
   }
 
   function assertArity(data: StatementData): void {
@@ -200,6 +222,22 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
     return result<T>(native, discardRows);
   }
 
+  async function first<T = unknown>(
+    client: postgres.ISql,
+    data: StatementData,
+    column?: string,
+  ): Promise<T | null> {
+    assertArity(data);
+    const native = await client.unsafe<Row[]>(data.scanned.postgresSql, data.bindings, QUERY_OPTIONS);
+    const row = native[0];
+    if (row === undefined) return null;
+    if (column === undefined) return normalizeRow(row, native.columns) as T;
+    if (!Object.hasOwn(row, column)) throw new PostgresDatabaseError('syntax');
+    const descriptor = native.columns.find((candidate) => candidate.name === column);
+    if (descriptor === undefined) throw new PostgresDatabaseError('syntax');
+    return normalizeValue(row[column], descriptor.type) as T | null;
+  }
+
   async function executeStandalone<T>(data: StatementData, discardRows = false): Promise<DatabaseResult<T>> {
     assertOpen();
     try {
@@ -209,67 +247,111 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
     }
   }
 
-  function statement(data: StatementData): PreparedStatement {
+  async function executeScoped<T>(
+    context: PostgresActorContext,
+    operation: (transaction: postgres.TransactionSql) => Promise<T>,
+  ): Promise<T> {
+    assertOpen();
+    try {
+      const outcome = await pool.begin(async (transaction) => {
+        await transaction.unsafe(
+          `SELECT set_config('app.org_id', $1, true),
+            set_config('app.actor_id', $2, true)`,
+          [context.orgId, context.actorId],
+          QUERY_OPTIONS,
+        );
+        return { value: await operation(transaction) };
+      });
+      return outcome.value;
+    } catch (error) {
+      throw await failure(error);
+    }
+  }
+
+  type StatementOwner = WeakMap<PreparedStatement, StatementData>;
+
+  function statement(
+    data: StatementData,
+    owner: StatementOwner,
+    context?: PostgresActorContext,
+  ): PreparedStatement {
     const prepared: PreparedStatement = {
       bind(...values: Bindable[]): PreparedStatement {
-        return statement({ scanned: data.scanned, bindings: values.map(copyBinding) });
+        return statement({ scanned: data.scanned, bindings: values.map(copyBinding) }, owner, context);
       },
       async first<T = unknown>(column?: string): Promise<T | null> {
         assertOpen();
-        assertArity(data);
+        if (context === undefined) {
+          try {
+            return await first<T>(pool, data, column);
+          } catch (error) {
+            throw await failure(error);
+          }
+        }
+        return executeScoped(context, (transaction) => first<T>(transaction, data, column));
+      },
+      async all<T = unknown>(): Promise<DatabaseResult<T>> {
+        if (context === undefined) return executeStandalone<T>(data);
+        return executeScoped(context, (transaction) => execute<T>(transaction, data));
+      },
+      async run(): Promise<DatabaseResult<unknown>> {
+        if (context === undefined) return executeStandalone(data, true);
+        return executeScoped(context, (transaction) => execute(transaction, data, true));
+      },
+    };
+    owner.set(prepared, data);
+    return prepared;
+  }
+
+  function databaseView(context?: PostgresActorContext): Database {
+    const owner: StatementOwner = new WeakMap();
+    return {
+      prepare(sql: string): PreparedStatement {
+        assertOpen();
+        if (typeof sql !== 'string') throw new PostgresDatabaseError('syntax');
+        let scanned: ScannedSql;
         try {
-          const native = await pool.unsafe<Row[]>(data.scanned.postgresSql, data.bindings, QUERY_OPTIONS);
-          const row = native[0];
-          if (row === undefined) return null;
-          if (column === undefined) return normalizeRow(row, native.columns) as T;
-          if (!Object.hasOwn(row, column)) throw new PostgresDatabaseError('syntax');
-          const descriptor = native.columns.find((candidate) => candidate.name === column)!;
-          return normalizeValue(row[column], descriptor.type) as T | null;
+          scanned = scanSqlPlaceholders(sql);
+        } catch {
+          throw new PostgresDatabaseError('syntax');
+        }
+        return statement({ scanned, bindings: [] }, owner, context);
+      },
+      async batch<T = unknown>(input: PreparedStatement[]): Promise<DatabaseResult<T>[]> {
+        assertOpen();
+        const batch = input.map((prepared) => {
+          const data = owner.get(prepared);
+          if (data === undefined) throw new PostgresDatabaseError('unsupported');
+          assertArity(data);
+          return data;
+        });
+        if (batch.length === 0) return [];
+        if (context !== undefined) {
+          return executeScoped(context, async (transaction) => {
+            const results: DatabaseResult<T>[] = [];
+            for (const data of batch) results.push(await execute<T>(transaction, data));
+            return results;
+          });
+        }
+        try {
+          return await pool.begin(async (transaction) => {
+            const results: DatabaseResult<T>[] = [];
+            for (const data of batch) results.push(await execute<T>(transaction, data));
+            return results;
+          });
         } catch (error) {
           throw await failure(error);
         }
       },
-      all<T = unknown>(): Promise<DatabaseResult<T>> {
-        return executeStandalone<T>(data);
-      },
-      run(): Promise<DatabaseResult<unknown>> {
-        return executeStandalone(data, true);
-      },
     };
-    statements.set(prepared, data);
-    return prepared;
   }
 
+  const rootView = databaseView();
   return {
-    prepare(sql: string): PreparedStatement {
+    ...rootView,
+    forActor(context: PostgresActorContext): Database {
       assertOpen();
-      if (typeof sql !== 'string') throw new PostgresDatabaseError('syntax');
-      let scanned: ScannedSql;
-      try {
-        scanned = scanSqlPlaceholders(sql);
-      } catch {
-        throw new PostgresDatabaseError('syntax');
-      }
-      return statement({ scanned, bindings: [] });
-    },
-    async batch<T = unknown>(input: PreparedStatement[]): Promise<DatabaseResult<T>[]> {
-      assertOpen();
-      const batch = input.map((prepared) => {
-        const data = statements.get(prepared);
-        if (data === undefined) throw new PostgresDatabaseError('unsupported');
-        assertArity(data);
-        return data;
-      });
-      if (batch.length === 0) return [];
-      try {
-        return await pool.begin(async (transaction) => {
-          const results: DatabaseResult<T>[] = [];
-          for (const data of batch) results.push(await execute<T>(transaction, data));
-          return results;
-        });
-      } catch (error) {
-        throw await failure(error);
-      }
+      return databaseView(copyContext(context));
     },
     close(): Promise<void> {
       if (closing !== undefined) return closing;

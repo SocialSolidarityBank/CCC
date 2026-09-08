@@ -33,7 +33,7 @@ async function businessFixture(fixture: ParityDatabase) {
 
   // F10: a marker and its audit share one atomic batch. A mismatched marker emits zero audits.
   const guardedMutation = async (marker: string, expectedMarker: string) => db.batch([
-    db.prepare(`INSERT INTO counseling_memory_guards(id,ok) VALUES (?,1)`).bind(marker),
+    db.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES (?,?,1)`).bind(marker, actor.orgId),
     db.prepare(`INSERT INTO audit_log(org_id,actor_id,actor_role,action,target_table,target_id,created_at)
       SELECT ?,?,'admin','parity_marker','counseling_memory_guards',?,?
       WHERE EXISTS(SELECT 1 FROM counseling_memory_guards WHERE id=? AND ok=1)`)
@@ -66,7 +66,7 @@ async function businessFixture(fixture: ParityDatabase) {
     const marker = `rollback-${index}`;
     const before = await observableState(db);
     const error = await rejection(db.batch([
-      db.prepare('INSERT INTO counseling_memory_guards(id,ok) VALUES (?,1)').bind(marker),
+      db.prepare('INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES (?,?,1)').bind(marker, actor.orgId),
       failure.statement,
       db.prepare(`INSERT INTO audit_log(org_id,actor_id,actor_role,action,target_table,target_id,created_at) VALUES (?,?,'admin','must_rollback','fixture',?,?)`).bind(actor.orgId, actor.userId, marker, now),
     ]));
@@ -80,7 +80,7 @@ async function businessFixture(fixture: ParityDatabase) {
 }
 async function observableState(db: Database) {
   const settings = (await db.prepare('SELECT org_id,enabled,version FROM counseling_memory_settings ORDER BY org_id').all()).results;
-  const guards = (await db.prepare('SELECT id,ok FROM counseling_memory_guards ORDER BY id').all()).results;
+  const guards = (await db.prepare('SELECT id,org_id,ok FROM counseling_memory_guards ORDER BY id').all()).results;
   // Auto-increment/sequence gaps after rollback are not a portable business value.
   const audit = (await db.prepare('SELECT org_id,actor_id,actor_role,action,target_table,target_id,detail,created_at FROM audit_log ORDER BY created_at,id').all()).results;
   return { settings, guards, audit };

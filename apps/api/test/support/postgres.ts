@@ -20,7 +20,9 @@ async function docker(args: string[], env?: NodeJS.ProcessEnv, timeout = 120_000
 }
 
 export interface PostgresHarness {
-  openDatabase(): Promise<PostgresDatabase>;
+  openDatabase(maxConnections?: number): Promise<PostgresDatabase>;
+  /** Connect as the migration-created restricted role using disposable credentials. */
+  openApiDatabase(database: PostgresDatabase, maxConnections?: number): Promise<PostgresDatabase>;
   /** Contract-only trusted DDL. Never accepts an external connection or runtime bindings. */
   applyMigration(database: PostgresDatabase, sql: string): Promise<void>;
   closeDatabases(): Promise<void>;
@@ -32,6 +34,8 @@ export async function startPostgresHarness(): Promise<PostgresHarness> {
   const name = `ccc-pg-contract-${randomUUID()}`;
   const password = randomBytes(32).toString('hex');
   let containerId: string | undefined;
+  const apiPassword = randomBytes(32).toString('hex');
+  let apiCredentials: Promise<void> | undefined;
   let admin: PostgresDatabase | undefined;
   const databases = new Set<PostgresDatabase>();
   const databaseNames = new Map<PostgresDatabase, string>();
@@ -90,17 +94,34 @@ export async function startPostgresHarness(): Promise<PostgresHarness> {
     const origin = `postgres://ccc_contract:${password}@127.0.0.1:${match[1]}`;
     admin = createPostgresDatabase({ connectionString: `${origin}/ccc_contract`, ssl: false, maxConnections: 1 });
 
-    async function openDatabase(): Promise<PostgresDatabase> {
+    async function openDatabase(maxConnections = 4): Promise<PostgresDatabase> {
       if (disposed || !admin) throw new Error('Disposable PostgreSQL harness is closed.');
       const databaseName = `contract_${randomBytes(12).toString('hex')}`;
       // Generated identifiers only; fixture provisioning, not runtime SQL translation.
       await admin.prepare(`CREATE DATABASE ${databaseName}`).run();
       const database = createPostgresDatabase({
-        connectionString: `${origin}/${databaseName}`, ssl: false, maxConnections: 4,
+        connectionString: `${origin}/${databaseName}`, ssl: false, maxConnections,
       });
       databases.add(database);
       databaseNames.set(database, databaseName);
       return database;
+    }
+
+    async function openApiDatabase(database: PostgresDatabase, maxConnections = 1): Promise<PostgresDatabase> {
+      const databaseName = databaseNames.get(database);
+      if (disposed || !databaseName) throw new Error('Restricted role requires an open database owned by this harness.');
+      // Roles are cluster-wide. Initialize once so opening another fixture does not
+      // invalidate credentials held by an existing pool's not-yet-opened connections.
+      apiCredentials ??= applyMigration(database, `ALTER ROLE ccc_api PASSWORD '${apiPassword}';`);
+      await apiCredentials;
+      const restricted = createPostgresDatabase({
+        connectionString: `postgres://ccc_api:${apiPassword}@127.0.0.1:${match![1]}/${databaseName}`,
+        ssl: false,
+        maxConnections,
+      });
+      databases.add(restricted);
+      databaseNames.set(restricted, databaseName);
+      return restricted;
     }
 
     async function applyMigration(database: PostgresDatabase, sql: string): Promise<void> {
@@ -144,7 +165,7 @@ export async function startPostgresHarness(): Promise<PostgresHarness> {
       });
     }
 
-    return { openDatabase, applyMigration, closeDatabases, dispose };
+    return { openDatabase, openApiDatabase, applyMigration, closeDatabases, dispose };
   } catch {
     await dispose();
     throw new Error('Disposable PostgreSQL startup failed; ensure Docker and the pinned image are available.');
