@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, fireEvent, within, cleanup } from '@testing-library/react';
 import { BriefingCards, type BriefingCardsProps } from './briefing-cards';
@@ -115,27 +117,27 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
   });
 
 
-  it('AI 제안은 제목·이유·근거 회차 링크 3층이고 링크는 해당 회차 기록 앵커로 간다 (CCC-39)', () => {
+  it('AI 제안은 행 전체가 근거 회차 링크이고 제목·이유·꺽쇠로 선다 (CCC-39, 2026-09-08 Q 5차)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
-    const item = container.querySelector('.wire-item');
-    if (item === null) throw new Error('suggestion item not found');
-    expect(item.querySelector('.wire-item-title')?.textContent).toBe('최근 구직 활동은 어땠는지');
-    expect(item.querySelector('.wire-item-desc')?.textContent).toBe('지난 회차에서 면접 결과를 기다리고 있었다');
-    const link = item.querySelector('.wire-item-action a');
-    expect(link?.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
-    expect(link?.textContent).toContain('근거 회차 보기');
-    expect(link?.textContent).toContain('2026년 7월 15일');
+    const row = container.querySelector('a.briefing-suggestion-row');
+    if (row === null) throw new Error('suggestion row not found');
+    expect(row.querySelector('.briefing-suggestion-title')?.textContent).toBe('최근 구직 활동은 어땠는지');
+    expect(row.querySelector('.briefing-suggestion-reason')?.textContent).toBe('지난 회차에서 면접 결과를 기다리고 있었다');
+    expect(row.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
+    // 버튼 글자는 없앴다. 이동은 오른쪽 꺽쇠 하나가 말하고 접근성 이름이 목적지를 남긴다.
+    expect(row.textContent).not.toContain('근거 회차 보기');
+    expect(row.getAttribute('aria-label')).toContain('근거 회차 보기');
+    expect(row.getAttribute('aria-label')).toContain('2026년 7월 15일');
+    expect(row.lastElementChild?.classList.contains('wire-chevron')).toBe(true);
   });
 
-  it('AI 제안 근거 인용을 그 자리에서 접어 두고 출처 회차로 연결한다 (D73)', () => {
+  it('AI 제안은 근거 인용을 싣지 않고 회차 링크로만 연결한다 (D73, 2026-09-08 Q 7차)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
-    const item = container.querySelector('.wire-item');
-    const disclosure = item?.parentElement?.querySelector('details[data-source-quotes]');
-    expect(disclosure).not.toBeNull();
-    expect(disclosure?.hasAttribute('open')).toBe(false);
-    expect(disclosure?.textContent).toContain('면접 결과는 다음 주에 나와요.');
-    expect(disclosure?.querySelector('a')?.getAttribute('href'))
-      .toBe(`${baseProps().recordsHref}#record-s-2`);
+    const row = container.querySelector('a.briefing-suggestion-row');
+    // 인용은 제목·이유와 내용이 겹쳐 뺐다. 원문은 클릭해서 그 회차 기록에서 읽는다.
+    expect(row?.parentElement?.querySelector('details[data-source-quotes]')).toBeNull();
+    expect(row?.querySelector('.briefing-suggestion-quote')).toBeNull();
+    expect(row?.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
   });
 
   it('AI 제안은 최대 3개만 렌더되고, 구(v1) 저장분(reason=null)은 이유 줄을 생략한다', () => {
@@ -149,13 +151,13 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     const { container } = render(<BriefingCards {...baseProps({
       aiSuggestions: [suggestion(1), suggestion(2), suggestion(3), suggestion(4)],
     })} />);
-    const items = container.querySelectorAll('.wire-item');
-    expect(items).toHaveLength(3);
-    // reason=null(첫 항목)은 이유 줄 없이 제목·링크만 남는다.
-    expect(items[0]?.querySelector('.wire-item-desc')).toBeNull();
-    expect(items[1]?.querySelector('.wire-item-desc')?.textContent).toBe('이유 2');
-    // heldAt 이 없으면 링크 라벨에 날짜 괄호가 붙지 않는다.
-    expect(items[0]?.querySelector('a')?.textContent).toBe('근거 회차 보기');
+    const rows = container.querySelectorAll('a.briefing-suggestion-row');
+    expect(rows).toHaveLength(3);
+    // reason=null(첫 항목)은 이유 줄 없이 제목만 남는다.
+    expect(rows[0]?.querySelector('.briefing-suggestion-reason')).toBeNull();
+    expect(rows[1]?.querySelector('.briefing-suggestion-reason')?.textContent).toBe('이유 2');
+    // heldAt 이 없으면 접근성 이름에 날짜 괄호가 붙지 않는다.
+    expect(rows[0]?.getAttribute('aria-label')).toBe('제안 1 근거 회차 보기');
   });
 
   it('공식 기록이 없어 제안이 비면 빈 상태 안내를 표시한다 (CCC-39 AC)', () => {
@@ -250,23 +252,18 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(card.textContent).toContain('상담 유형 확인 필요');
   });
 
-  it('미해결 액션은 action_items.session_id 출처 회차 링크를 표시한다 (D73)', () => {
+  it('미해결 액션은 행 전체가 출처 회차 링크이고 오른쪽 끝에 꺽쇠만 둔다 (D73, 2026-09-08 Q 2차)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = cardByTitle(container, '미해결 액션');
-    const link = within(card).getByRole('link', { name: '출처 회차 보기' });
-    expect(link.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
-    expect(link.classList.contains('wire-button')).toBe(true);
-    expect(link.getAttribute('data-variant')).toBe('neutral');
+    const row = card.querySelector('a.briefing-action-row');
+    expect(row?.getAttribute('href')).toBe(`${baseProps().recordsHref}#record-s-2`);
+    expect(row?.getAttribute('aria-label')).toContain('출처 회차 보기');
+    // 배지 옆에 서던 버튼은 없앴다. 이동은 오른쪽 꺽쇠 하나가 말한다.
+    expect(card.querySelector('.wire-button')).toBeNull();
+    expect(row?.lastElementChild?.classList.contains('wire-chevron')).toBe(true);
+    expect(row?.querySelector('.briefing-action-badges .wire-badge[data-tone="mint"]')).not.toBeNull();
   });
 
-  it('AI 제안과 접힌 근거의 회차 출처도 모두 버튼 표면을 쓴다', () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const suggestion = within(cardByTitle(container, '오늘 만나기 전 꼭 기억할 것'))
-      .getByRole('link', { name: /근거 회차 보기/ });
-    expect(suggestion.classList.contains('wire-button')).toBe(true);
-    const source = container.querySelector('.wire-source-quotes-link');
-    expect(source?.classList.contains('wire-button')).toBe(true);
-  });
 
   it('영역 ③은 불일치가 없으면 빈 상태를 표시한다 (CCC-43)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
@@ -586,12 +583,13 @@ describe('활성 세부 목표 (D62 §8 · CCC-69)', () => {
 });
 
 describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () => {
-  it('부모가 활성이면 이름만 병기하고 흐림 표시가 없다', () => {
+  it('부모가 활성이면 라벨과 문구를 색으로 갈라 병기하고 흐림 표시가 없다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const parent = container.querySelector('.briefing-parent-goal');
-    expect(parent?.textContent).toContain('세부 목표: 주거 안정');
+    expect(parent?.querySelector('.briefing-parent-goal-label')?.textContent).toBe('세부 목표');
+    expect(parent?.querySelector('.briefing-parent-goal-text')?.textContent).toBe('주거 안정');
     expect(parent?.classList.contains('is-closed')).toBe(false);
-    // 구 라벨은 사라졌다 — D62 위계 용어는 '세부 목표'다.
+    // 구 라벨은 사라졌다. D62 위계 용어는 '세부 목표'다.
     expect(container.textContent).not.toContain('케이스 목표');
   });
 
@@ -605,64 +603,31 @@ describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () 
       },
     })} />);
     const parent = container.querySelector('.briefing-parent-goal');
-    expect(parent?.textContent).toContain('세부 목표(종료): 주거 안정');
+    expect(parent?.querySelector('.briefing-parent-goal-label')?.textContent).toBe('세부 목표(종료)');
+    expect(parent?.querySelector('.briefing-parent-goal-text')?.textContent).toBe('주거 안정');
     expect(parent?.classList.contains('is-closed')).toBe(true);
   });
 
-  it('세션 목표 수정은 구획 제목 오른쪽 버튼으로 선다', () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const section = [...container.querySelectorAll('.wire-card-section')].find(
-      (candidate) => candidate.querySelector('h3')?.textContent === '세션 목표',
-    );
-    const head = section?.querySelector('.wire-card-section-head');
-    expect(head?.querySelector('h3')?.textContent).toBe('세션 목표');
-    expect(head?.querySelector('.wire-button')?.textContent).toBe('세션 목표 수정');
-    expect(section?.querySelector(':scope > .wire-button')).toBeNull();
-  });
 });
 
 
 describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
-  const HINT_KEY = 'ccc:briefing-goal-hint-closed:v1:11111111-1111-4111-8111-111111111111';
-  afterEach(() => window.localStorage.clear());
 
   it('전체 목표가 없으면 AI 제안 구획에 안내 한 줄이 뜬다 — 제안은 차단되지 않는다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const hint = container.querySelector('[data-testid="briefing-ai-goal-hint"]');
     expect(hint?.textContent).toContain('전체 목표를 설정하면 AI 제안이 더 정확해집니다');
     // 제안 자체는 그대로 나온다(재료이지 게이트가 아니다).
-    expect(container.querySelector('.wire-item')).not.toBeNull();
+    expect(container.querySelector('.briefing-suggestion-row')).not.toBeNull();
   });
 
-  it("안내는 'AI 제안' 라벨 행(head)의 오른쪽 조각이다 (2026-08-30 Q — 구 본문 위 전폭 행 대체)", () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const hint = container.querySelector('[data-testid="briefing-ai-goal-hint"]');
-    const head = hint?.closest('.wire-card-section-head');
-    expect(head).not.toBeNull();
-    expect(head?.querySelector('h3')?.textContent).toBe('AI 제안');
-  });
+
 
   it('전체 목표가 있으면 안내가 없다', () => {
     const { container } = render(<BriefingCards {...baseProps({ overallGoal: '주거 안정' })} />);
     expect(container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
   });
 
-  it('닫으면 사라지고 케이스 단위로 저장돼 다시 뜨지 않는다', () => {
-    const first = render(<BriefingCards {...baseProps()} />);
-    const hint = first.container.querySelector('[data-testid="briefing-ai-goal-hint"]');
-    expect(hint).not.toBeNull();
-    fireEvent.click(within(hint as HTMLElement).getByText('닫기'));
-    expect(first.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
-    expect(window.localStorage.getItem(HINT_KEY)).not.toBeNull();
-    cleanup();
-    // 같은 케이스를 다시 열어도 닫힘이 유지된다.
-    const again = render(<BriefingCards {...baseProps()} />);
-    expect(again.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
-    cleanup();
-    // 다른 케이스는 케이스 단위 저장이라 다시 뜬다.
-    const other = render(<BriefingCards {...baseProps({ supportCaseId: '22222222-2222-4222-8222-222222222222' })} />);
-    expect(other.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).not.toBeNull();
-  });
 });
 
 describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => {
