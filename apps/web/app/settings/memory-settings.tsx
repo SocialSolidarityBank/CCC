@@ -32,7 +32,7 @@ export function MemorySettingsSection({ settings: initial, onSave, onRefresh }: 
       finally { setPending(false); }
     }}>
       <WireChoice type="checkbox" label="자동 생성과 갱신 사용" checked={enabled} disabled={pending} onChange={setEnabled} />
-      <p className="wire-form-hint">켜면 기존 공식 기록도 자동으로 정리하며 처리 시간과 AI 비용이 발생할 수 있습니다. 끄면 새 생성과 갱신만 멈추고 기존 기억은 마지막 갱신 시점을 표시해 읽을 수 있습니다.</p>
+      <p className="wire-form-hint">켜면 기존 공식 기록도 자동으로 정리하며 처리 시간과 AI 비용이 발생할 수 있습니다. 끄면 새 생성과 갱신만 멈추고 이미 생성한 기억은 보존됩니다.</p>
       <div className="memory-reference-actions"><WireButton variant="primary" type="submit" icon={<Icon name="check" />} disabled={pending}>{pending ? '저장 중' : '설정 저장'}</WireButton></div>
       {error && <WireError>{error}</WireError>}
       {error && <WireButton variant="neutral" disabled={pending} onClick={async () => {

@@ -1,7 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import type { CaseMemoryView, MemoryCorrectionInput, MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
+import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
 
 export type ApiErrorCode =
   | 'authentication_required'
@@ -1335,18 +1335,6 @@ function jsonRequest<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', body: un
     method,
     body: JSON.stringify(body),
   });
-}
-
-export async function getCounselingMemory(supportCaseId: string): Promise<CaseMemoryView> {
-  const view = await requestJson<CaseMemoryView>(`/support-cases/${encodeURIComponent(supportCaseId)}/memory`);
-  if (view.supportCaseId !== supportCaseId) throw new ApiError('service_unavailable');
-  return view;
-}
-
-export async function correctCounselingMemory(supportCaseId: string, input: MemoryCorrectionInput): Promise<CaseMemoryView> {
-  const view = await jsonRequest<CaseMemoryView>(`/support-cases/${encodeURIComponent(supportCaseId)}/memory/corrections`, 'POST', input);
-  if (view.supportCaseId !== supportCaseId) throw new ApiError('service_unavailable');
-  return view;
 }
 
 export async function getCounselingMemorySettings(): Promise<MemorySettingsView> {
