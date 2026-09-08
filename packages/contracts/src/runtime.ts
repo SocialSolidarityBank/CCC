@@ -70,7 +70,7 @@ export interface AudioStore {
  * 예약 작업 포트. 실행기(Workers cron, Supabase pg_cron tick, Local 프로세스 타이머)는
  * 종류와 예약 시각만 넘기고, 작업 몸체는 runner 하나가 갖는다.
  */
-export type ScheduledJobKind = 'pipeline_watchdog' | 'pii_retention' | 'audio_expiry';
+export type ScheduledJobKind = 'pipeline_watchdog' | 'pii_retention' | 'audio_expiry' | 'counseling_memory';
 
 export interface JobReport {
   kind: ScheduledJobKind;

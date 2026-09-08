@@ -155,7 +155,11 @@ importers:
         specifier: ^26.1.0
         version: 26.1.0
 
-  packages/ai-runtime: {}
+  packages/ai-runtime:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/contracts: {}
 

@@ -183,3 +183,26 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/result", result_request)) as response:
             if response.status != 204:
                 raise ApiError(response.status, "unexpected result response")
+
+
+class MemoryApiClient(ApiClient):
+    """Same text masking protocol, isolated from ordinary session snapshot jobs."""
+
+    def __init__(self, client: ApiClient):
+        self._client = client
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        claim: tuple[str, int] | None = None,
+    ) -> urllib.request.Request:
+        if not path.startswith("/pipeline/jobs/"):
+            raise ValueError("invalid memory job path")
+        return self._client._request(
+            method, "/pipeline/memory/" + path[len("/pipeline/jobs/"):], body, claim
+        )
+
+    def _open(self, request: urllib.request.Request):  # noqa: ANN202
+        return self._client._open(request)

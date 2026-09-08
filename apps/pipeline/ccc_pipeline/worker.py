@@ -18,7 +18,7 @@ import uuid
 from typing import Any
 
 from . import masking, repetition
-from .api_client import ApiClient, ApiError
+from .api_client import ApiClient, ApiError, MemoryApiClient
 from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
 from .emotion import aggregate_scores
@@ -359,6 +359,22 @@ def run_once(client: ApiClient, config: Config) -> int:
     return processed
 
 
+def run_memory_once(client: ApiClient, config: Config) -> int:
+    scoped = MemoryApiClient(client)
+    jobs = scoped.claim_jobs(claim_request(config))
+    processed = 0
+    for job in jobs:
+        if job.get("purpose") != "counseling_memory" or job.get("kind") != "text":
+            raise ApiError(200, "malformed memory job")
+        try:
+            process_text_job(scoped, config, job)
+            processed += 1
+        except Exception as error:  # noqa: BLE001
+            logger.error("memory job %s: %s", job.get("jobId"), type(error).__name__)
+            _release_failed_job(scoped, job, error)
+    return processed
+
+
 def run_forever(client: ApiClient, config: Config) -> None:
     logger.info("claiming every %ds against %s", config.poll_interval_seconds, config.api_base_url)
     while True:
@@ -366,4 +382,8 @@ def run_forever(client: ApiClient, config: Config) -> None:
             run_once(client, config)
         except Exception as error:  # noqa: BLE001 — claim 자체 실패(네트워크 등)도 루프를 죽이지 않는다
             logger.error("claim failed: %s", type(error).__name__)
+        try:
+            run_memory_once(client, config)
+        except Exception as error:  # noqa: BLE001
+            logger.error("memory claim failed: %s", type(error).__name__)
         time.sleep(config.poll_interval_seconds)

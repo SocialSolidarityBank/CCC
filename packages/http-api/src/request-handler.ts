@@ -3,6 +3,16 @@ import {
   type ActionItemResolutionStatus,
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
+  correctCounselingMemory,
+  getCounselingMemory,
+  getCounselingMemorySettings,
+  loadCounselingMemoryContext,
+  setCounselingMemorySettings,
+  acceptCounselingMemorySource,
+  claimCounselingMemorySources,
+  getCounselingMemorySource,
+  issueCounselingMemoryDictionary,
+  releaseCounselingMemorySource,
   ConflictError,
   SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
@@ -2013,10 +2023,14 @@ async function generateAiDraft(
     const materialRefs = draftMaterialRefs(materialSet.materials);
 
     if (previewModeEnabled(env)) {
+      const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
+      const generationRequest = historicalContext === null
+        ? providerRequest
+        : validateAiProviderRequest({ ...providerRequest, historicalContext });
       const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
-        ? generatePreviewFixtureAiDraft(providerRequest)
-        : await resolveAiProviderAdapter(env).adapter.generate(providerRequest);
-      const output = validateAiProviderOutput(rawOutput, providerRequest);
+        ? generatePreviewFixtureAiDraft(generationRequest)
+        : await resolveAiProviderAdapter(env).adapter.generate(generationRequest);
+      const output = validateAiProviderOutput(rawOutput, generationRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
         creationMode: 'fixture_generated',
@@ -2039,6 +2053,13 @@ async function generateAiDraft(
         questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
         evidence: providerEvidenceLinks(output),
         materials: materialRefs,
+        ...(historicalContext === null ? {} : {
+          memoryContext: {
+            supportCaseId: historicalContext.supportCaseId,
+            revision: historicalContext.revision,
+            materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
+          },
+        }),
         contrast: draftContrastAxes(output, providerRequest.contrastAxes),
       });
       outcome = 'stored';
@@ -2051,7 +2072,7 @@ async function generateAiDraft(
     model = config.model;
     const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
 
-    // Provider and current consent are selected together as the final pre-outbound D1 read.
+    // Check the active provider, then reload verified historical context at the outbound boundary.
     const activeProvider = await getActiveAiProviderRuntimeMetadataForService(env, actor, sessionId);
     if (
       activeProvider.adapterId !== adapter.providerId
@@ -2061,7 +2082,11 @@ async function generateAiDraft(
       throw new AiProviderUnavailableError();
     }
 
-    const output = validateAiProviderOutput(await adapter.generate(providerRequest), providerRequest);
+    const historicalContext = await loadCounselingMemoryContext(env, actor, sessionId);
+    const generationRequest = historicalContext === null
+      ? providerRequest
+      : validateAiProviderRequest({ ...providerRequest, historicalContext });
+    const output = validateAiProviderOutput(await adapter.generate(generationRequest), generationRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
       claims: output.claims.map((claim) => ({
@@ -2085,6 +2110,13 @@ async function generateAiDraft(
       questions: output.questions.map((question) => ({ title: question.title, reason: question.reason })),
       evidence: providerEvidenceLinks(output),
       materials: materialRefs,
+      ...(historicalContext === null ? {} : {
+        memoryContext: {
+          supportCaseId: historicalContext.supportCaseId,
+          revision: historicalContext.revision,
+          materialSnapshotIds: historicalContext.materials.map((material) => material.snapshotId),
+        },
+      }),
       contrast: draftContrastAxes(output, providerRequest.contrastAxes),
     });
     outcome = 'stored';
@@ -2346,6 +2378,20 @@ export async function handleRequest(
         lastProgramType, roles,
       });
     }
+    if (parts.length === 2 && parts[0] === 'settings' && parts[1] === 'counseling-memory') {
+      requestQuery(url, []);
+      if (request.method === 'GET') {
+        return json(await getCounselingMemorySettings(env, actor), 200, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'PUT') {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['enabled', 'expectedVersion']);
+        return json(await setCounselingMemorySettings(env, actor, {
+          enabled: requiredBoolean(body, 'enabled'),
+          expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
+        }), 200, { 'cache-control': 'no-store' });
+      }
+    }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
       // 기관·첫 사업 표시 이름 (CCC-32). 모든 화면의 셸(사이드바)이 읽으므로 역할 무관,
       // 값이 없으면 null — 화면이 labels.ts 하드코딩 라벨로 폴백한다. 감사 없음 근거는 게이트웨이 주석.
@@ -2594,6 +2640,20 @@ export async function handleRequest(
     }
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'memory') {
+        requestQuery(url, []);
+        return json(await getCounselingMemory(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'POST' && parts.length === 4 && parts[2] === 'memory' && parts[3] === 'corrections') {
+        requestQuery(url, []);
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['itemId', 'expectedRevision', 'body']);
+        return json(await correctCounselingMemory(env, actor, supportCaseId, {
+          itemId: requiredUuid(body, 'itemId'),
+          expectedRevision: requiredExpectedVersion(body, 'expectedRevision'),
+          body: requiredString(body, 'body'),
+        }), 200, { 'cache-control': 'no-store' });
+      }
       // 케이스 종결(CCC-107) — 지원 기록을 닫고 보관 기간을 세기 시작한다. 담당 실무자 또는
       // admin(게이트웨이의 assertSupportCaseAccess 강제, R1). 사유는 필수. purge_due 는
       // 이 요청이 아니라 DB 트리거가 설정하고(D10), 파기 실행은 CCC-113 소관이다.
@@ -3003,6 +3063,33 @@ export async function handleRequest(
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
       // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 기관만.
       return json(await getPipelineHealth(env, actor));
+    }
+    if (parts[0] === 'pipeline' && parts[1] === 'memory') {
+      requestQuery(url, []);
+      if (actor.role !== 'service') throw new ForbiddenError();
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'claim') {
+        await verifiedInstallManifest(env);
+        const jobs = await claimCounselingMemorySources(env, actor, parseClaimRequest(await requestBody(request)));
+        return json({ schemaVersion: 2, jobs }, 200, { 'cache-control': 'no-store' });
+      }
+      if (parts[2] !== undefined && parts.length === 4) {
+        const jobId = requireRouteUuid(parts[2], 'memory job id');
+        if (request.method === 'GET' && parts[3] === 'source') {
+          const { claimToken, attempt } = claimCredentialsFromHeaders(request);
+          return json(await getCounselingMemorySource(env, actor, jobId, claimToken, attempt), 200, { 'cache-control': 'no-store' });
+        }
+        if (request.method === 'POST' && parts[3] === 'mask-dictionary') {
+          return json(await issueCounselingMemoryDictionary(env, actor, jobId, parseClaimCredentials(await requestBody(request))), 200, { 'cache-control': 'no-store' });
+        }
+        if (request.method === 'POST' && parts[3] === 'result') {
+          await acceptCounselingMemorySource(env, actor, jobId, parseAgentResultRequest(await requestBody(request)));
+          return new Response(null, { status: 204 });
+        }
+        if (request.method === 'POST' && parts[3] === 'release') {
+          await releaseCounselingMemorySource(env, actor, jobId, parseReleaseRequest(await requestBody(request)));
+          return new Response(null, { status: 204 });
+        }
+      }
     }
     // Agent 작업 계약 v2 (S5). 모든 endpoint 가 service 자격과 live claim 을 요구한다.
     if (parts[0] === 'pipeline' && parts[1] === 'jobs') {

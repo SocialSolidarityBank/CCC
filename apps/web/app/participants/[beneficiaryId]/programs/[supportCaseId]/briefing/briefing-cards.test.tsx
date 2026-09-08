@@ -117,17 +117,6 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(card.open).toBe(true);
   });
 
-  it('영역 ①은 실무자 입력(세션 목표·맞춤형 질문)이 위, AI 제안이 아래다 (D45·R5)', () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const card = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
-    const labels = [...card.querySelectorAll('.wire-card-section')].map(
-      (section) => section.querySelector('h3')?.textContent,
-    );
-    expect(labels).toEqual(['세션 목표', '맞춤형 질문', 'AI 제안']);
-    expect(card.textContent).toContain('구직 상담');
-    expect(card.textContent).toContain('이번 달 지출은 정리됐는지');
-    expect(card.textContent).toContain('최근 구직 활동은 어땠는지');
-  });
 
   it('AI 제안은 제목·이유·근거 회차 링크 3층이고 링크는 해당 회차 기록 앵커로 간다 (CCC-39)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);

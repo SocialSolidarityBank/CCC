@@ -5,5 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/ai-provider.ts"
+  },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*"
   }
 }

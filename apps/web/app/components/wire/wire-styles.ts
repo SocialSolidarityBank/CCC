@@ -9,6 +9,14 @@
 // 안에 들어가므로, 나중에 background 를 통째로 덮으면 테두리가 사라진다. 그래서 채움색을
 // --surface-fill 변수로 빼두고 hover·selected 는 그 변수만 바꾼다.
 export const wireStyles = `
+.wire-action-menu{position:relative;flex-shrink:0}
+.wire-action-menu-panel{position:absolute;right:0;top:calc(100% + var(--space-2));z-index:var(--z-dropdown);display:flex;flex-direction:column;gap:var(--space-2);width:max-content;max-width:calc(100vw - var(--space-8));padding:var(--space-3);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow-soft)}
+.memory-page-stack{display:flex;flex-direction:column;gap:var(--section-gap)}
+.memory-card-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap}
+.memory-form{display:flex;flex-direction:column;gap:var(--space-3)}
+.memory-item{display:flex;flex-direction:column;gap:var(--space-3);overflow-wrap:anywhere}
+.memory-item+.memory-item{border-top:1px solid var(--line);margin-top:var(--space-4);padding-top:var(--space-4)}
+.memory-reference-actions{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 /* ── 카드 계약 ── **아웃라인 카드**다(2026-08-05 Q 개정 · ADR-0030 — 구 --shadow-soft 폐지).
    경계는 그림자가 아니라 **선 2종**이 만든다(Infisical·Cloudflare·Vercel·Supabase 레퍼런스):
      기본(비선택) = 회색 --line 1px / 선택·활성 = --gradient-brand 1px.

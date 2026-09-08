@@ -5,10 +5,11 @@ import { gatewayActorFromIdentity, type ApiEnv } from '@ccc/http-api/identity';
 import { localDevActorResolver } from './local-actor';
 import { handlePreviewUnlock, previewActorResolver } from '@ccc/http-api/preview-gate';
 import { handleRequest } from '@ccc/http-api';
+import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import { createAccessIdentity } from '@ccc/identity-access';
 
-import { PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
+import { MEMORY_CRON, PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
 function adaptWorkerEnvironment(env: ApiEnv): ApiEnv {
   const environment = env.audioStore === undefined
@@ -28,6 +29,7 @@ function adaptWorkerEnvironment(env: ApiEnv): ApiEnv {
 const CRON_JOBS: Record<string, ScheduledJobKind> = {
   [WATCHDOG_CRON]: 'pipeline_watchdog',
   [PURGE_CRON]: 'pii_retention',
+  [MEMORY_CRON]: 'counseling_memory',
 };
 
 export default {
@@ -58,6 +60,7 @@ export default {
     const kind = CRON_JOBS[controller.cron];
     if (kind === undefined) throw new Error('unexpected_scheduled_trigger');
     const nowIso = new Date(controller.scheduledTime ?? Date.now()).toISOString();
-    ctx.waitUntil(createScheduledJobRunner(adaptWorkerEnvironment(env)).run(kind, nowIso));
+    const runtimeEnv = adaptWorkerEnvironment(env);
+    ctx.waitUntil(createScheduledJobRunner(runtimeEnv, () => runCounselingMemory(runtimeEnv)).run(kind, nowIso));
   },
 } satisfies ExportedHandler<ApiEnv>;
