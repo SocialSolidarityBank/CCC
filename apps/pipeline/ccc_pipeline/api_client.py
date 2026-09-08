@@ -190,6 +190,16 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/audio/verify", body)) as response:
             return json.loads(response.read().decode("utf-8"))
 
+    def authorize_egress(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST /pipeline/jobs/:id/egress/authorize — verified Azure upload authorization."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/egress/authorize", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def start_egress(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST /pipeline/jobs/:id/egress/in-flight — provider-call linearization CAS."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/egress/in-flight", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
     def get_mask_dictionary(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
         """POST /pipeline/jobs/:id/mask-dictionary — 일회성 치환 사전. 메모리에서만 쓴다(R3)."""
         body = {"claimToken": claim_token, "attempt": attempt}

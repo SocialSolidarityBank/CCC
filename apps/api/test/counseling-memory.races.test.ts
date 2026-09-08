@@ -180,6 +180,9 @@ describe('durable memory races', () => {
         const source = await getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt);
         await acceptCounselingMemorySource(t.env, service, job.jobId, await agentResultRequest({ kind: 'text', claimToken: job.claimToken, attempt: job.attempt, maskedText: maskedFixtureText(source.text), qualification: f.qualification }));
       }
+      const processed = await t.db.prepare("SELECT count(*) AS total FROM counseling_memory_materials WHERE support_case_id=? AND kind='action' AND processed=1 AND valid=1")
+        .bind(f.id).first<{ total: number }>();
+      if (processed?.total === ids.length) break;
     }
     const consumed = await t.db.prepare("SELECT source_id FROM counseling_memory_materials WHERE support_case_id=? AND kind='action' AND processed=1 AND valid=1").bind(f.id).all<{source_id:string}>();
     expect(consumed.results.map(row => row.source_id).sort()).toEqual(ids.sort());

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "engines": {
+    "faster-whisper": {
+      "backend": "faster-whisper",
+      "packages": ["faster-whisper", "ctranslate2", "huggingface-hub"],
+      "models": [
+        {
+          "name": "Systran/faster-whisper-medium",
+          "revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+          "license": "MIT",
+          "source": "https://huggingface.co/Systran/faster-whisper-medium",
+          "files": [
+            {
+              "name": "model.bin",
+              "sha256": "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae"
+            }
+          ]
+        }
+      ]
+    },
+    "qwen3-asr": {
+      "backend": "qwen-asr-transformers",
+      "packages": ["qwen-asr", "transformers", "accelerate", "torch", "huggingface-hub"],
+      "models": [
+        {
+          "name": "Qwen/Qwen3-ASR-1.7B",
+          "revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+          "license": "Apache-2.0",
+          "source": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B",
+          "files": [
+            {
+              "name": "model-00001-of-00002.safetensors",
+              "sha256": "a4cd1f1a04d90b757dc7f7dd26254e69a013b19e80efe590a83c6a3bde8608d6"
+            },
+            {
+              "name": "model-00002-of-00002.safetensors",
+              "sha256": "6e0b9d9e09e2e0238e7ef3cc8a484ab387e91b90f1900bedf88bc92d7929ccfc"
+            }
+          ]
+        },
+        {
+          "name": "Qwen/Qwen3-ForcedAligner-0.6B",
+          "revision": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7",
+          "license": "Apache-2.0",
+          "source": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B",
+          "files": [
+            {
+              "name": "model.safetensors",
+              "sha256": "47831d0e82f96b20e9034dba01a075ee06436654719f6a68289e49f1b65ce0e7"
+            }
+          ]
+        }
+      ]
+    },
+    "diarization": {
+      "backend": "pyannote.audio",
+      "packages": ["pyannote.audio", "torch", "huggingface-hub"],
+      "models": [
+        {
+          "name": "pyannote/speaker-diarization-3.1",
+          "revision": "84fd25912480287da0247647c3d2b4853cb3ee5d",
+          "license": "MIT",
+          "source": "https://huggingface.co/pyannote/speaker-diarization-3.1",
+          "files": [
+            {
+              "name": "config.yaml",
+              "sha256": "04ad9cd59a93c3a7c754200ecc9e1c4ba87bf1657ef8a4debf7555e711daeeda"
+            }
+          ]
+        },
+        {
+          "name": "pyannote/segmentation-3.0",
+          "revision": "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+          "license": "MIT",
+          "source": "https://huggingface.co/pyannote/segmentation-3.0",
+          "files": [
+            {
+              "name": "pytorch_model.bin",
+              "sha256": "da85c29829d4002daedd676e012936488234d9255e65e86dfab9bec6b1729298"
+            }
+          ]
+        },
+        {
+          "name": "pyannote/wespeaker-voxceleb-resnet34-LM",
+          "revision": "837717ddb9ff5507820346191109dc79c958d614",
+          "license": "CC-BY-4.0",
+          "source": "https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM",
+          "files": [
+            {
+              "name": "pytorch_model.bin",
+              "sha256": "366edf44f4c80889a3eb7a9d7bdf02c4aede3127f7dd15e274dcdb826b143c56"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

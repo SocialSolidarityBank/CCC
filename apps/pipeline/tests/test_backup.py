@@ -113,6 +113,7 @@ class BackupPolicyTest(unittest.TestCase):
 
     def test_incomplete_on_environment_is_rejected_at_startup(self):
         env = {
+            "CCC_WORK_DIR": self.enterContext(TemporaryDirectory()),
             "CCC_RUNTIME_ENVIRONMENT": "preview",
             "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
             "CCC_ORIGINAL_BACKUP_ENABLED": "on",

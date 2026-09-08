@@ -28,7 +28,10 @@ class Config:
     preview_access_code: str | None = field(repr=False)
     poll_interval_seconds: int
     work_dir: Path
-    whisper_model: str
+    stt_model: str
+    stt_python: Path | None
+    stt_device: str
+    azure_speech_key: str | None = field(repr=False)
     # STT 엔진은 갈아끼울 수 있게 둔다 — 확정은 실측 게이트 G1~G3 후다(D53).
     stt_engine: str
     stt_max_chunk_seconds: float
@@ -199,17 +202,31 @@ def load_config() -> Config:
     stt_engine = os.environ.get("CCC_STT_ENGINE", "").strip() or transcribe.ENGINE_OFF
     if stt_engine not in transcribe.KNOWN_ENGINES:
         raise ConfigError("environment variable CCC_STT_ENGINE is invalid")
-    if stt_engine == transcribe.ENGINE_FASTER_WHISPER and runtime_environment != "preview":
-        raise ConfigError("faster-whisper candidate is restricted to Preview until engine approval")
-    whisper_model = os.environ.get("CCC_WHISPER_MODEL", "").strip() or "medium"
+    if stt_engine in (transcribe.ENGINE_FASTER_WHISPER, transcribe.ENGINE_QWEN) and runtime_environment != "preview":
+        raise ConfigError("unapproved local STT candidates are restricted to Preview")
+    stt_model = os.environ.get("CCC_STT_MODEL", "").strip() or (
+        "Qwen/Qwen3-ASR-1.7B" if stt_engine == transcribe.ENGINE_QWEN else "medium"
+    )
+    stt_python_raw = os.environ.get("CCC_STT_PYTHON", "").strip()
+    stt_python = Path(stt_python_raw) if stt_python_raw else None
+    stt_device = os.environ.get("CCC_STT_DEVICE", "").strip().lower() or "cpu"
+    if stt_device not in ("cpu", "cuda", "mps"):
+        raise ConfigError("environment variable CCC_STT_DEVICE is invalid")
+    if stt_engine == transcribe.ENGINE_QWEN and stt_python is None:
+        raise ConfigError("environment variable CCC_STT_PYTHON is required for qwen3-asr")
+    azure_speech_key = _optional("AZURE_SPEECH_KEY")
+    if stt_engine == transcribe.ENGINE_AZURE and azure_speech_key is None:
+        raise ConfigError("environment variable AZURE_SPEECH_KEY is required for Azure STT")
     ner_model_id = os.environ.get("CCC_NER_MODEL_ID", "").strip() or "FrameByFrame/korean-pii-e5-base"
     condition_ner_model_id = os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None
     try:
-        if stt_engine != transcribe.ENGINE_OFF:
+        if stt_engine in (transcribe.ENGINE_WHISPER, transcribe.ENGINE_FASTER_WHISPER):
             role_spec(
                 "faster-whisper" if stt_engine == transcribe.ENGINE_FASTER_WHISPER else "whisper",
-                whisper_model,
+                stt_model,
             )
+        elif stt_engine == transcribe.ENGINE_QWEN:
+            role_spec("qwen-asr", stt_model)
         validate_optional_model(ner_model_id, "person-ner")
         if condition_ner_model_id is not None:
             model_spec(condition_ner_model_id)
@@ -223,7 +240,10 @@ def load_config() -> Config:
         preview_access_code=preview_access_code,
         poll_interval_seconds=interval,
         work_dir=work_dir,
-        whisper_model=whisper_model,
+        stt_model=stt_model,
+        stt_python=stt_python,
+        stt_device=stt_device,
+        azure_speech_key=azure_speech_key,
         stt_engine=stt_engine,
         stt_max_chunk_seconds=_positive_float("CCC_STT_MAX_CHUNK_SECONDS", chunking.DEFAULT_MAX_CHUNK_SECONDS),
         stt_min_chunk_seconds=_positive_float("CCC_STT_MIN_CHUNK_SECONDS", chunking.DEFAULT_MIN_CHUNK_SECONDS),
