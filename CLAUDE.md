@@ -327,6 +327,16 @@ GitHub Issues(`SocialSolidarityBank/CCC`)를 `gh` CLI로 사용한다. 상세: `
 
 **작업 순서는 `design-lane` 스킬이 갖는다** (2026-08-11, ADR-0034). 계획, 구현, 검수 요청, 최종 수정 4단계와 단계별 체크리스트가 `.claude/skills/design-lane/SKILL.md` 에 있고, 검수는 읽기 전용 에이전트 `design-reviewer`(`.claude/agents/`)가 격리해서 맡는다. 이 레포의 화면 작업에서는 전역 `web-edit` 스킬보다 이 스킬이 우선한다. 규칙 사본은 두 파일 어디에도 두지 않는다. 규칙은 위 `DESIGN-RULES.md` 하나다.
 
+#### STT 클라이언트 독립 레인 예외 (2026-09-08 Q 승인)
+
+공유 워크트리의 브랜치 전환과 미커밋 파일 정리가 충돌한 뒤, Q가 `.worktrees/stt-client`를 별도 작업 공간으로 승인했다. 기존 STT pane을 옮기며 새 OMP 세션 수를 늘리지 않는다. 이 예외는 STT 내부 시험 화면의 복구·구현·검수·출고 연결에만 적용한다.
+
+- STT 레인은 `apps/client/**`, 브라우저 중립 공개 진입점 `apps/web/app/components/wire/client-surface.ts`, `apps/web/package.json`의 해당 공개 exports를 소유한다.
+- `package.json`의 client 검사·빌드 연결, `pnpm-lock.yaml`의 client 의존성, `scripts/design/`의 STT 클라이언트 검사 연결과 전용 fixture, `artifacts/design/stt-client/**`도 필요한 범위에서 수정할 수 있다. 기존 검사 알고리즘·기준·baseline·assertion을 완화하거나 unrelated 변경을 섞지 않는다.
+- 기존 웹 화면·공유 CSS·디자인 토큰·`DESIGN.md`·`DESIGN-RULES.md`·기존 웹 하니스의 소유권은 `design-adjustments`에 남는다. STT 레인은 이 파일들을 읽고 재사용할 수 있지만 임의로 바꾸지 않는다. 추가 공유 변경은 별도 인계를 먼저 받는다.
+- 각 레인은 자기 워크트리에서만 파일·Git 작업을 한다. 상대 레인의 checkout·reset·clean·stash·미커밋 파일 정리는 금지한다. 보관할 소스는 파일명이나 폴더 이름으로 생성물로 추정하지 않고, 실제 파일 목록과 hash로 복사 후 원본 보존을 확인한다.
+- 이 예외는 새 디자인 체계나 product 동의·NER·signed registry 우회를 허용하지 않는다. 동일 디자인 규칙과 기능별 실화면 검수·게이트를 적용하며, `ccc-preview` 수동 배포의 기존 소유권도 바꾸지 않는다.
+
 ### 문서 배치 규칙 (2026-07-25 Q 확정)
 
 - HTML 시안·용어집 등 **아티팩트는 루트 `artifacts/`** (구 docs/artifacts 폐지)
