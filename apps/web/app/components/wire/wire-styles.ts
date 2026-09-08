@@ -10,7 +10,7 @@
 // --surface-fill 변수로 빼두고 hover·selected 는 그 변수만 바꾼다.
 export const wireStyles = `
 .wire-action-menu{position:relative;flex-shrink:0}
-.wire-action-menu-panel{position:absolute;right:0;top:calc(100% + var(--space-2));z-index:var(--z-dropdown);display:flex;flex-direction:column;gap:var(--space-2);width:max-content;max-width:calc(100vw - var(--space-8));padding:var(--space-3);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow-soft)}
+.wire-action-menu-panel{position:absolute;right:0;top:calc(100% + var(--space-2));z-index:var(--z-dropdown);display:flex;flex-direction:column;gap:var(--space-2);width:max-content;max-width:calc(100vw - var(--space-8));padding:var(--space-2) var(--space-3);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow-soft)}
 .memory-page-stack{display:flex;flex-direction:column;gap:var(--section-gap)}
 .memory-card-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap}
 .memory-form{display:flex;flex-direction:column;gap:var(--space-3)}
