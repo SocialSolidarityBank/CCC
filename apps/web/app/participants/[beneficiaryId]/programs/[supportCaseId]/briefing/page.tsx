@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
+import { ApiError, getParticipantBriefing, getCounselingMemory } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { GridContainer } from '../../../../../components/wire/grid-container';
@@ -103,6 +103,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
     if (briefing.beneficiaryId !== beneficiaryId || briefing.focusSupportCaseId !== supportCaseId || focused.sourceSupportCase.id !== supportCaseId) {
       throw new Error('Briefing response did not match the requested scope.');
     }
+    const memory = await getCounselingMemory(supportCaseId).catch(() => null);
 
     // 서버는 fetch·스코프 검증만 하고, 표현·폴백·전체 열기/닫기는 BriefingCards(클라이언트)가
     // 순수 데이터로 처리한다. 감사·접근은 getParticipantBriefing(게이트웨이)에서 이미 끝났다.
@@ -116,6 +117,7 @@ async function BriefingContent({ beneficiaryId, supportCaseId, notice }: { benef
         <BriefingCards
           beneficiaryId={beneficiaryId}
           supportCaseId={supportCaseId}
+          memory={memory}
           overallGoal={briefing.overallGoal}
           activeGoals={briefing.activeGoals}
           canEditOverallGoal={briefing.canEditOverallGoal}

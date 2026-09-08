@@ -19,6 +19,16 @@ import { WireButton } from '../components/wire/wire-button';
 import { WireCard } from '../components/wire/wire-card';
 import { adminMenuFor, userLabel } from '../admin/admin-format';
 import { getDisplayLabels } from '../lib/display-labels';
+import { getCounselingMemorySettings } from '../lib/api';
+import { setCounselingMemorySettingsAction, refreshCounselingMemorySettingsAction } from '../actions';
+import { MemorySettingsSection } from './memory-settings';
+
+async function InstitutionMemorySettings() {
+  const settings = await getCounselingMemorySettings().catch(() => null);
+  return settings === null
+    ? <WireCard title="자동 상담 기억"><WireError>기관 기억 설정을 불러오지 못했습니다.</WireError></WireCard>
+    : <MemorySettingsSection settings={settings} onSave={setCounselingMemorySettingsAction} onRefresh={refreshCounselingMemorySettingsAction} />;
+}
 
 // 역할 화면 라벨 — CONTEXT.md 용어집 준수(기관 관리자·담당 실무자). service는 처리 장비(Mac Mini) 계정.
 const roleLabel: Record<DirectoryRole, string> = {
@@ -217,6 +227,7 @@ export default async function SettingsPage() {
       <PageTitle>설정</PageTitle>
       <AccountSection name={me.name} email={me.email} role={me.role} />
       <AssignmentRequestSection />
+      {me.roles.includes('institution-admin') ? <InstitutionMemorySettings /> : null}
       {/* 기관 실무자 목록은 기관 관리자에게만, 관리자 설정 구역은 어드민 탭이 하나라도 있는 역할에게. */}
       {me.roles.includes('institution-admin') ? <DirectorySection /> : null}
       {adminMenuFor(me.roles).length > 0 ? <AdminSection roles={me.roles} /> : null}
