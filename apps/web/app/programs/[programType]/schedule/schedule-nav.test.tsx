@@ -222,9 +222,12 @@ describe('CCC-133 지난 일정 대비 정제(2026-08-25 Q)', () => {
     expect(baseRule('.briefing-toolbar')).not.toContain('padding-inline');
   });
 
-  it('주간 날짜와 오늘 배지는 세로 중앙이고 모바일 세로 묶음은 왼쪽 정렬한다', () => {
+  it('날짜와 오늘 배지와 이름은 두 폭 모두 한 줄이다', () => {
     expect(rule('.schedule-day-summary-title')).toContain('align-items:center');
-    expect(rule('.schedule-day-summary-title', MOBILE_AT)).toContain('align-items:flex-start');
+    // 이름만 줄어들고 날짜 묶음은 줄바꿈하지 않는다(2026-09-08 Q, 구 767 이하 세로 쌓임 폐지).
+    expect(rule('.schedule-day-head')).toContain('flex:0 0 auto');
+    expect(rule('.schedule-day-names')).toContain('flex:1 1 auto');
+    expect(SCHEDULE_CSS.slice(MOBILE_AT)).not.toContain('.schedule-day-summary-title');
   });
 
   it('아코디언 버튼형과 일반형은 공용 SVG 꺽쇠만 공유한다', () => {
@@ -329,41 +332,32 @@ describe('CCC-133 내비 회귀, 컨트롤 높이 계약', () => {
     expect(rule('.schedule-nav .schedule-view-select')).toContain('min-height:var(--pill-height)');
   });
 
-  it('세 칸 격자가 기간 묶음을 가운데 칸에 둔다', () => {
+  it('업무 바는 기간 네비 1행과 조작 묶음 2행 두 줄이다', () => {
     const { container } = renderNav('day', '2026-02-15');
     const children = Array.from(container.querySelector('.schedule-nav')?.children ?? [])
       .map((el) => el.className);
-    expect(children).toHaveLength(3);
-    expect(children[0]).toContain('schedule-nav-controls');
-    expect(children[1]).toContain('schedule-nav-period');
-    expect(children[2]).toContain('schedule-nav-actions');
-    expect(rule('.schedule-nav'))
-      .toContain('grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)');
+    expect(children).toEqual(['schedule-nav-period', 'schedule-nav-controls']);
+    const nav = rule('.schedule-nav');
+    expect(nav).toContain('grid-template-columns:minmax(0,1fr)');
+    expect(nav).toContain('justify-items:center');
+    expect(nav).not.toContain('minmax(0,1fr) auto minmax(0,1fr)');
   });
 
-  it('좁은 본문에서는 같은 바 안에서 조작·기간·행동을 세 줄로 쌓는다', () => {
-    expect(MOBILE_AT).toBeGreaterThan(0);
-    expect(layoutSource).toMatch(
-      /@container \(max-width:760px\)\{[\s\S]*?\.schedule-nav\{grid-template-columns:minmax\(0,1fr\)/,
+  it('두 줄은 가운데 정렬이고 줄바꿈하지 않는다', () => {
+    // 폭에 따라 갈리던 컨테이너 질의는 없앴다(2026-09-08 Q). 한 배치가 두 폭을 다 쓴다.
+    expect(layoutSource).not.toMatch(
+      /@container \(max-width:760px\)\{[\s\S]*?\.schedule-nav\{/,
     );
-    expect(layoutSource).toMatch(
-      /@container \(max-width:760px\)\{[\s\S]*?\.schedule-nav-controls\{justify-content:center;flex-wrap:wrap/,
-    );
-    expect(layoutSource).toMatch(
-      /@container \(max-width:760px\)\{[\s\S]*?\.schedule-nav-actions\{width:auto;justify-content:center;flex-wrap:wrap/,
-    );
+    const controls = rule('.schedule-nav-controls');
+    expect(controls).toContain('justify-content:center');
+    expect(controls).not.toContain('flex-wrap');
+    expect(rule('.schedule-nav')).not.toContain('flex-wrap');
     // 날짜는 어떤 폭에서도 자르지 않는다.
     expect(rule('.schedule-period-label', MOBILE_AT)).not.toContain('text-overflow');
   });
 });
 
 describe('CCC-133 통합 업무 바', () => {
-  it('768px 데스크톱 경계는 실제 본문 폭 기준으로 세 줄 전환한다', () => {
-    expect(layoutSource).toMatch(
-      /@container \(max-width:760px\)\{[\s\S]*?\.schedule-nav\{grid-template-columns:minmax\(0,1fr\)/,
-    );
-  });
-
   it('글자 버튼과 일정 아이콘 버튼이 각각 알약과 원형 계약을 쓴다', () => {
     expect(baseRule('.wire-button'))
       .toContain('border-radius:var(--radius-pill)');
@@ -394,11 +388,12 @@ describe('CCC-133 통합 업무 바', () => {
     expect(wireSource).not.toContain('.participant-hub-page .surface-card{border-color:');
   });
 
-  it('오늘과 보기 선택창이 같은 왼쪽 묶음에 바로 붙는다', () => {
+  it('오늘과 보기 선택창과 상담 등록이 2행 한 묶음에 선다', () => {
     const { container } = renderNav('week', '2026-02-09');
     const controls = container.querySelector('.schedule-nav-controls');
-    expect(controls?.children).toHaveLength(2);
-    expect(controls?.querySelector('a')?.textContent).toContain('오늘');
+    expect(controls?.children).toHaveLength(3);
+    const links = Array.from(controls?.querySelectorAll('a') ?? []);
+    expect(links.map((link) => link.textContent)).toEqual(['오늘', '상담 등록']);
     expect(controls?.querySelector('.wire-toolbar-label')?.textContent).toBe('기간 단위');
     expect(controls?.querySelector('select')).not.toBeNull();
     const compact = rule('.schedule-nav .schedule-view-select');
@@ -408,17 +403,17 @@ describe('CCC-133 통합 업무 바', () => {
     expect(compact).toContain('padding-right:var(--space-2-5)');
   });
 
-  it('당사자 등록과 상담 등록이 업무 바 오른쪽 안에 선다', () => {
+  it('당사자 등록은 사이드바가 갖고 업무 바에는 상담 등록만 선다', () => {
     const { container } = renderNav('week', '2026-02-09');
-    const actions = container.querySelector('.schedule-nav-actions');
-    const links = Array.from(actions?.querySelectorAll('a') ?? []);
-    expect(links.map((link) => link.textContent)).toEqual(['당사자 등록', '상담 등록']);
-    expect(links.map((link) => link.getAttribute('href')))
-      .toEqual(['/participants/new', '/schedules/new']);
-    // 버튼은 전 32 단일 높이다(2026-08-28 Q — 구 md/sm 2단·data-height 축 폐지).
-    expect(links.every((link) => link.getAttribute('data-height') === null)).toBe(true);
+    const links = Array.from(container.querySelectorAll('a'));
+    expect(links.map((link) => link.getAttribute('href'))).not.toContain('/participants/new');
+    const register = links.find((link) => link.textContent === '상담 등록');
+    expect(register?.getAttribute('href')).toBe('/schedules/new');
+    // 버튼은 전 32 단일 높이다(2026-08-28 Q, 구 md/sm 2단·data-height 축 폐지).
+    expect(register?.getAttribute('data-height')).toBeNull();
     expect(baseRule('.wire-button')).toContain('min-height:var(--pill-height)');
     expect(wireSource).not.toContain('data-height');
-    expect(layoutSource).not.toContain('.schedule-nav-actions>.wire-button{flex:1 1 0');
+    expect(container.querySelector('.schedule-nav-actions')).toBeNull();
+    expect(layoutSource).not.toContain('.schedule-nav-actions');
   });
 });
