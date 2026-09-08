@@ -1,0 +1,98 @@
+{
+  "scope": "Mockups only; no operational UI or API changes",
+  "branch": "prototype/counseling-memory-ui",
+  "checkedAt": "2026-09-08T05:16:15.883Z",
+  "screens": [
+    {
+      "url": "?variant=A&view=briefing&state=ready",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "15초 페이지"
+    },
+    {
+      "url": "?variant=A&view=memory&state=ready",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "기억 상세"
+    },
+    {
+      "url": "?variant=B&view=briefing&state=ready",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "15초 페이지"
+    },
+    {
+      "url": "?variant=B&view=memory&state=ready",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "기억 상세"
+    },
+    {
+      "url": "?variant=C&view=briefing&state=ready",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "15초 페이지"
+    },
+    {
+      "url": "?variant=C&view=memory&state=ready",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "기억 상세"
+    },
+    {
+      "url": "?variant=A&view=briefing&state=ready",
+      "width": 390,
+      "documentWidth": 390,
+      "title": "15초 페이지"
+    },
+    {
+      "url": "?variant=A&view=memory&state=ready",
+      "width": 390,
+      "documentWidth": 390,
+      "title": "기억 상세"
+    },
+    {
+      "url": "?variant=B&view=briefing&state=ready",
+      "width": 390,
+      "documentWidth": 390,
+      "title": "15초 페이지"
+    },
+    {
+      "url": "?variant=B&view=memory&state=ready",
+      "width": 390,
+      "documentWidth": 390,
+      "title": "기억 상세"
+    },
+    {
+      "url": "?variant=C&view=briefing&state=ready",
+      "width": 390,
+      "documentWidth": 390,
+      "title": "15초 페이지"
+    },
+    {
+      "url": "?variant=C&view=memory&state=ready",
+      "width": 390,
+      "documentWidth": 390,
+      "title": "기억 상세"
+    }
+  ],
+  "checks": {
+    "designTokens": "passed",
+    "alignment": "passed",
+    "hierarchy": "passed; 0 new, 2 existing baseline findings",
+    "typecheck": "passed",
+    "targetSpecificCorrection": true,
+    "restoredTargetDraft": true,
+    "observationCorrectable": true,
+    "updatingPreservesInput": true,
+    "inputArrowKeyDoesNotSwitchVariant": true,
+    "emptyHasNoUpdateTimestamp": true,
+    "unavailableHidesFactsQuotesSourceAndCorrection": true,
+    "sourceDisclosure": true,
+    "institutionOnlySettings": true,
+    "settingsWriteRequests": 0,
+    "variantWrapAndKeyboardNavigation": true,
+    "compactExpansion": true
+  },
+  "captureNote": "Only prototype comparison controls and Next devtools hidden in static captures; live page retains them."
+}

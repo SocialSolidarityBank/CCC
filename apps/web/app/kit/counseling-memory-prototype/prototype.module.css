@@ -1,0 +1,108 @@
+/* 비교 시안 전용 배치. 공용 부품의 타이포와 표면 계약은 덮어쓰지 않는다. */
+.prototype {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+  min-width: 0;
+  padding-bottom: calc(var(--pill-height) * 5 + env(safe-area-inset-bottom));
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.items {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.items > * + * {
+  border-top: var(--wire-outline-width) solid var(--line);
+  padding-top: var(--space-5);
+}
+
+.evidenceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.evidenceRow > * {
+  min-width: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.inlineBody {
+  padding-top: var(--space-3);
+}
+
+.source {
+  scroll-margin-block: var(--section-gap);
+}
+
+.source:focus-visible {
+  outline: var(--wire-outline-width) solid var(--ink);
+  outline-offset: var(--space-1);
+}
+
+.switcher {
+  position: fixed;
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  left: calc(50% + var(--sidebar-width) / 2);
+  transform: translateX(-50%);
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: max-content;
+  max-width: calc(100vw - var(--sidebar-width) - var(--space-8));
+  padding: var(--space-3) var(--space-4);
+  border: var(--wire-outline-width) solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.switcherLabel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--space-1);
+  text-align: center;
+}
+
+.variantTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-normal);
+  color: var(--sub);
+}
+
+@media (max-width: 767px) {
+  .evidenceRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .switcher {
+    left: 50%;
+    max-width: calc(100vw - var(--space-8));
+    gap: var(--space-2);
+  }
+}
