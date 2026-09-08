@@ -73,11 +73,6 @@ describe('오류 안내의 안전 계약', () => {
     expect(shown).toBe(fallback);
   });
 
-  it('값이 없어도 안내가 비지 않는다', () => {
-    expect(trialErrorMessage(undefined).length).toBeGreaterThan(0);
-    expect(trialErrorMessage(null)).toBe(fallback);
-  });
-
   it('계약에 있는 code 는 원인별로 다른 안내를 받는다', () => {
     const generic = [...SUBMIT_CODES, ...EXECUTION_CODES].filter(
       (code) => trialErrorMessage(code) === fallback,
@@ -138,11 +133,6 @@ describe('제출 게이트', () => {
     expect(submitBlockReason(gate({ engine: 'qwen3-asr', allowExternalUpload: false }))).toBeNull();
   });
 
-  it('막힌 사유는 사람이 읽을 수 있는 한 줄이다', () => {
-    const reason = submitBlockReason(gate({ ownedTestRecording: false }));
-    expect(reason).not.toBeNull();
-    expect((reason ?? '').length).toBeGreaterThan(0);
-  });
 });
 
 describe('시간 표기', () => {

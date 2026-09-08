@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEventHandler } from 'react';
 import {
   GridContainer,
   PageTitle,
@@ -25,6 +25,7 @@ import {
   STATUS_LABEL,
   submitBlockReason,
   trialErrorMessage,
+  type PickedFile,
 } from './messages';
 
 const POLL_INTERVAL_MS = 2000;
@@ -44,7 +45,6 @@ export function SttTrialPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [trial, setTrial] = useState<TrialResponse | null>(null);
   const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -132,6 +132,69 @@ export function SttTrialPage() {
     }
   };
 
+  return (
+    <SttTrialView
+      status={status}
+      statusError={statusError}
+      actionError={actionError}
+      file={file === null ? null : { name: file.name, size: file.size, type: file.type }}
+      engine={engine}
+      ownedTestRecording={ownedTestRecording}
+      allowExternalUpload={allowExternalUpload}
+      blockReason={blockReason}
+      trial={trial}
+      transcript={transcript}
+      onFileChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
+      onEngineChange={setEngine}
+      onOwnedTestRecordingChange={setOwnedTestRecording}
+      onAllowExternalUploadChange={setAllowExternalUpload}
+      onSubmit={submit}
+      onRemoveTrial={removeTrial}
+    />
+  );
+}
+
+/** 표시값과 조작 콜백만 받는다. 통신과 시험 상태 관리는 Page가 맡는다. */
+export interface SttTrialViewProps {
+  status: StatusResponse | null;
+  statusError: string | null;
+  actionError: string | null;
+  file: PickedFile | null;
+  engine: EngineId;
+  ownedTestRecording: boolean;
+  allowExternalUpload: boolean;
+  blockReason: string | null;
+  trial: TrialResponse | null;
+  transcript: TranscriptResponse | null;
+  onFileChange: ChangeEventHandler<HTMLInputElement>;
+  onEngineChange: (engine: EngineId) => void;
+  onOwnedTestRecordingChange: (checked: boolean) => void;
+  onAllowExternalUploadChange: (checked: boolean) => void;
+  onSubmit: () => void;
+  onRemoveTrial: () => void;
+}
+
+export function SttTrialView({
+  status,
+  statusError,
+  actionError,
+  file,
+  engine,
+  ownedTestRecording,
+  allowExternalUpload,
+  blockReason,
+  trial,
+  transcript,
+  onFileChange,
+  onEngineChange,
+  onOwnedTestRecordingChange,
+  onAllowExternalUploadChange,
+  onSubmit,
+  onRemoveTrial,
+}: SttTrialViewProps) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const localEngine = status?.engines['qwen3-asr'] ?? null;
+  const azureEngine = status?.engines.azure ?? null;
   const localDesc =
     localEngine === null
       ? '준비 상태를 불러오지 못했습니다.'
@@ -185,7 +248,7 @@ export function SttTrialPage() {
             hidden
             type="file"
             accept={acceptAttribute}
-            onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
+            onChange={onFileChange}
           />
           <WireButton variant="secondary" onClick={() => fileInput.current?.click()}>
             파일 고르기
@@ -210,7 +273,7 @@ export function SttTrialPage() {
             desc={localDesc}
             checked={engine === 'qwen3-asr'}
             disabled={localEngine?.configured !== true}
-            onChange={() => setEngine('qwen3-asr')}
+            onChange={() => onEngineChange('qwen3-asr')}
           />
           <WireChoice
             type="radio"
@@ -220,7 +283,7 @@ export function SttTrialPage() {
             desc={azureDesc}
             checked={engine === 'azure'}
             disabled={azureEngine?.configured !== true}
-            onChange={() => setEngine('azure')}
+            onChange={() => onEngineChange('azure')}
           />
         </WireCardSection>
 
@@ -231,7 +294,7 @@ export function SttTrialPage() {
             label="본인의 비민감 시험 녹음입니다"
             desc="실제 당사자 자료와 다른 사람 목소리는 올리지 않습니다."
             checked={ownedTestRecording}
-            onChange={setOwnedTestRecording}
+            onChange={onOwnedTestRecordingChange}
           />
           {engine === 'azure' && (
             <WireChoice
@@ -240,7 +303,7 @@ export function SttTrialPage() {
               label="Azure 로 원본 파일을 보냅니다"
               desc={externalUploadDesc}
               checked={allowExternalUpload}
-              onChange={setAllowExternalUpload}
+              onChange={onAllowExternalUploadChange}
             />
           )}
         </WireCardSection>
@@ -249,13 +312,11 @@ export function SttTrialPage() {
           <WireButton
             variant="primary"
             disabled={blockReason !== null}
-            onClick={() => {
-              void submit();
-            }}
+            onClick={onSubmit}
           >
             시험 실행
           </WireButton>
-          {blockReason !== null && <WireEmpty live>{blockReason}</WireEmpty>}
+          {blockReason !== null && <p role="status" className="panel-meta">{blockReason}</p>}
           {statusError !== null && <WireError>{statusError}</WireError>}
           {actionError !== null && <WireError>{actionError}</WireError>}
         </WireCardSection>
@@ -280,9 +341,7 @@ export function SttTrialPage() {
             <WireButton
               variant="neutral"
               disabled={trial.status === 'queued' || trial.status === 'running'}
-              onClick={() => {
-                void removeTrial();
-              }}
+              onClick={onRemoveTrial}
             >
               시험 기록 지우기
             </WireButton>
@@ -306,7 +365,7 @@ export function SttTrialPage() {
                       label={`${formatTimecode(segment.start)} - ${formatTimecode(segment.end)}`}
                       value={
                         <>
-                          {segment.speaker !== undefined && <WireBadge>{segment.speaker}</WireBadge>}
+                          {segment.speaker !== undefined && <span className="panel-meta">{segment.speaker}</span>}
                           {segment.speaker !== undefined && ' '}
                           {segment.text}
                         </>
