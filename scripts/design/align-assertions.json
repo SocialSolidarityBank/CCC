@@ -727,10 +727,9 @@
     "expectedSize": 12
   },
   {
-    "name": "접힌 배지와 상태 태그는 높이 22, 외곽선 1, 좌우 패딩 8",
+    "name": "접힌 배지는 높이 22, 외곽선 1, 좌우 패딩 8",
     "selectors": [
-      ".wire-badge:not(details[open] .wire-badge)",
-      ".wire-status-tag"
+      ".wire-badge:not(details[open] .wire-badge)"
     ],
     "axis": "height",
     "tolerance": 0.1,

@@ -64,7 +64,6 @@ PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조�
 env 어댑터는 주입 객체의 자체 속성만 읽고, 누락값과 공백뿐인 값은 `null`로 돌려준다. 값이 있으면 원문을 보존한다. 잘못된 이름이나 타입은 `secret_invalid`, 읽기 실패는 `secret_access_denied`이며 공급자 원문 오류를 전달하지 않는다. PII 키 누락은 작업을 중단하고, 알림 URL 누락은 기존 console 폴백을 쓴다. capability 응답에는 키 값이 아니라 존재 여부에 따른 기능 상태만 담는다.
 
 OpenAI 어댑터의 키는 런타임 비공개 필드에 두므로 객체 JSON 출력에 포함되지 않는다. 처리 Agent는 인증 요청의 리다이렉트를 거부하고 서버 오류를 계약에 있는 코드만으로 정규화한다. 설정 객체의 일반 출력에는 자격증명을 제외하며 `--once` 폴링 실패도 고정 문구와 종료 코드 1만 반환한다. `vars`나 `dataclasses.asdict`로 설정 전체를 내보내는 것은 안전한 진단 기능이 아니므로 사용하지 않는다. 이 보호는 프로세스 메모리 덤프나 외부 도구의 로그까지 안전하게 만드는 것은 아니다.
-
 이 어댑터는 합성 개발 실행과 provider secret injection용이다. 정식 Local/Agent 설치의 DPAPI, 키 쓰기, recovery는 구현하지 않으며 각각의 후속 티켓이 소유한다. 기존 preview 접근 코드는 E4-4a의 정본 이름 목록 밖이므로 이번 변경에 포함하지 않는다.
 
 포트와 PII/Workers 통합 검증은 `pnpm test:contracts --secrets-env`로 실행한다. 실제 키 대신 합성값만 사용한다.

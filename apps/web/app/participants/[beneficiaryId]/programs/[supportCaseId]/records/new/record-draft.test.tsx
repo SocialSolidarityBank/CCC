@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { RecordOnepage, type RecordOnepageProps } from './record-onepage';
 import { draftKey, readDraft, writeDraft, type FieldValues } from '../../../../../../lib/form-draft';
 import { RecordDraftCleanup } from '../record-draft-cleanup';
@@ -38,7 +38,7 @@ describe('정기 기록지 임시본', () => {
     expect(getByTestId('draft-status').textContent).toBe('자동 저장 대기');
 
     // 자동 저장 대상은 비민감 칸이다 — 수기 메모는 P0-9 로 임시본에서 빠졌다(아래 전용 테스트).
-    fireEvent.change(container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement, {
+    fireEvent.change(within(container).getByRole('textbox', { name: '이번 상담에서 확인할 것 1' }), {
       target: { value: '주거 급여 서류 확인' },
     });
 
@@ -63,7 +63,7 @@ describe('정기 기록지 임시본', () => {
     fireEvent.change(container.querySelector('textarea[name="counselorOpinion"]') as HTMLTextAreaElement, {
       target: { value: '실무자 의견' },
     });
-    fireEvent.change(container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement, {
+    fireEvent.change(within(container).getByRole('textbox', { name: '이번 상담에서 확인할 것 1' }), {
       target: { value: '비민감 확인 사항' },
     });
 
@@ -84,7 +84,7 @@ describe('정기 기록지 임시본', () => {
 
   it('작성하던 임시본이 있으면 이어쓰기 배너를 띄우고 내용을 되돌린다', () => {
     writeDraft<FieldValues>(KEY, {
-      'sessionGoalNote#0': '끊기기 전 확인 사항',
+      'sessionGoalNote#0': '끊기기 전 확인 사항\n두 번째 확인 사항',
       'changeSinceLast#0': '이사 준비',
       // 어떤 경로로든 임시본에 민감 키가 섞여 있어도 복원하지 않는다(P0-9 — 수집·복원 양쪽 제외).
       'memo#0': '남아 있으면 안 되는 전문',
@@ -93,10 +93,11 @@ describe('정기 기록지 임시본', () => {
     const { container, getByTestId, getByRole } = render(<RecordOnepage {...props()} />);
     expect(getByTestId('draft-restore-prompt')).not.toBeNull();
     // 고르기 전에는 아무것도 덮어쓰지 않는다.
-    expect((container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement).value).toBe('');
+    expect(within(container).getByRole<HTMLInputElement>('textbox', { name: '이번 상담에서 확인할 것 1' }).value).toBe('');
 
     fireEvent.click(getByRole('button', { name: '이어쓰기' }));
-    expect((container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement).value).toBe('끊기기 전 확인 사항');
+    expect(within(container).getByRole<HTMLInputElement>('textbox', { name: '이번 상담에서 확인할 것 1' }).value).toBe('끊기기 전 확인 사항');
+    expect(within(container).getByRole<HTMLInputElement>('textbox', { name: '이번 상담에서 확인할 것 2' }).value).toBe('두 번째 확인 사항');
     expect((container.querySelector('input[name="changeSinceLast"]') as HTMLInputElement).value).toBe('이사 준비');
     expect((container.querySelector('textarea[name="memo"]') as HTMLTextAreaElement).value).toBe('');
   });
@@ -109,7 +110,7 @@ describe('정기 기록지 임시본', () => {
 
     expect(queryByTestId('draft-restore-prompt')).toBeNull();
     expect(readDraft(KEY)).toBeNull();
-    expect((container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement).value).toBe('');
+    expect(within(container).getByRole<HTMLInputElement>('textbox', { name: '이번 상담에서 확인할 것 1' }).value).toBe('');
   });
 
   it('저장 여부를 확인하지 못한 임시본은 지우지 않고 물어본다', () => {
@@ -136,7 +137,7 @@ describe('정기 기록지 임시본', () => {
     const { container, getByTestId } = render(<RecordOnepage {...props()} />);
     expect(getByTestId('draft-restore-prompt')).not.toBeNull();
 
-    fireEvent.change(container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement, {
+    fireEvent.change(within(container).getByRole('textbox', { name: '이번 상담에서 확인할 것 1' }), {
       target: { value: '고르지 않고 새로 쓴 내용' },
     });
     await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -152,7 +153,7 @@ describe('정기 기록지 임시본', () => {
         <RecordOnepage {...props()} />
       </form>,
     );
-    fireEvent.change(container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement, {
+    fireEvent.change(within(container).getByRole('textbox', { name: '이번 상담에서 확인할 것 1' }), {
       target: { value: '제출할 내용' },
     });
     await waitFor(() => {
@@ -182,7 +183,7 @@ describe('정기 기록지 임시본', () => {
 
     expect(getByTestId('draft-restore-prompt')).not.toBeNull();
     fireEvent.click(getByRole('button', { name: '이어쓰기' }));
-    expect((container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement).value).toBe('저장 못 한 내용');
+    expect(within(container).getByRole<HTMLInputElement>('textbox', { name: '이번 상담에서 확인할 것 1' }).value).toBe('저장 못 한 내용');
   });
 
   it('되돌리면 값에서 파생되는 화면 상태도 함께 따라온다', () => {

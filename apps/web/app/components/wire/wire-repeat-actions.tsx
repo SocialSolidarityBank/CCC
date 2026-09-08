@@ -33,14 +33,14 @@ export function WireRepeatActions({ itemLabel, onAdd, onRemove, addDisabled = fa
   if (onAdd === undefined && onRemove === undefined && !showRemove) return null;
   return (
     <span className="wire-repeat-actions">
-      {(onRemove !== undefined || showRemove) && (
-        <WireButton variant="neutral" disabled={onRemove === undefined} {...(onRemove === undefined ? {} : { onClick: onRemove })} ariaLabel={`이 ${itemLabel} 삭제`}>
-          <Icon name="minus" size={14} />
-        </WireButton>
-      )}
       {onAdd !== undefined && (
         <WireButton variant="neutral" disabled={addDisabled} onClick={onAdd} ariaLabel={`${itemLabel} 추가`}>
           <Icon name="plus" size={14} />
+        </WireButton>
+      )}
+      {(onRemove !== undefined || showRemove) && (
+        <WireButton variant="neutral" disabled={onRemove === undefined} {...(onRemove === undefined ? {} : { onClick: onRemove })} ariaLabel={`이 ${itemLabel} 삭제`}>
+          <Icon name="minus" size={14} />
         </WireButton>
       )}
     </span>

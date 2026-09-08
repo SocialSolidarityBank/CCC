@@ -141,6 +141,7 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
     const heroDetails: ParticipantHeroDetail[] = programLabel === undefined
       ? []
       : [{ label: '사업', value: programLabel }];
+    heroDetails.push({ label: '진행 상태', value: closure.status === 'closed' ? '종결' : '진행 중' });
 
     // ParticipantHeroCard (D38, 2026-09-04 Q "케이스 종결 화면에 HERO 처리"). 되돌리기 어려운
     // 화면이라 누구의 어떤 케이스인지 머리에 서야 한다. 상태 태그는 케이스 상태, 정보는
@@ -149,7 +150,6 @@ export async function CloseContent({ beneficiaryId, supportCaseId, notice, error
       <ParticipantHeroCard
         name={briefing?.participant.name ?? null}
         beneficiaryId={beneficiaryId}
-        stageTags={[{ label: closure.status === 'closed' ? '종결' : '진행 중' }]}
         details={heroDetails}
       />
     );

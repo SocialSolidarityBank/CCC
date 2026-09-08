@@ -97,9 +97,7 @@ export interface DraftReviewViewProps {
   supportCaseId: string;
   sessionId: string;
   participantName: string | null;
-  stageTag: string;
-  /** 검토 대기·승인됨·반려됨 3종 전부 AI 산출물 상태다(D58 ④) — 라벤더로 연다(CCC-106). */
-  stageTagTone?: 'neutral' | 'lavender' | undefined;
+  reviewStatus: string;
   details: readonly ParticipantHeroDetail[];
   recordsHref: string;
   draft: DraftReviewViewModel;
@@ -160,8 +158,7 @@ export function DraftReviewView({
   supportCaseId,
   sessionId,
   participantName,
-  stageTag,
-  stageTagTone,
+  reviewStatus,
   details,
   recordsHref,
   draft,
@@ -203,8 +200,7 @@ export function DraftReviewView({
         <ParticipantHeroCard
           name={participantName}
           beneficiaryId={beneficiaryId}
-          stageTags={[stageTagTone === undefined ? { label: stageTag } : { label: stageTag, tone: stageTagTone }]}
-          details={details}
+          details={[...details, { label: 'AI 검토 상태', value: reviewStatus, tone: 'lavender' }]}
           actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인</WireButton>}
         />
 

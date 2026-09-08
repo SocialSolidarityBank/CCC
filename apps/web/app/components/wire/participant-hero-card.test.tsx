@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 
 // ParticipantHeroCard 계약 (D38 · DESIGN.md §5).
-// 구분선 위에는 이름과 행동만, 아래에는 정보 격자와 선택적 상태 배지 행이 선다.
+// 구분선 위에는 이름과 행동만, 아래에는 라벨과 값의 정보 격자가 선다.
 // 이 부품이 당사자 중심 화면 전부의 머리이므로, 계약이 깨지면 화면 전체가 어긋난다.
 
 describe('ParticipantHeroCard', () => {
@@ -66,77 +66,4 @@ describe('ParticipantHeroCard', () => {
     expect(container.querySelector('.participant-hero-details .wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
   });
 
-  it('상태 태그를 넘기면 모두 보이고 넘기지 않으면 구분선도 없다', () => {
-    const withTags = render(
-      <ParticipantHeroCard
-        name="김미영"
-        beneficiaryId="swallow-003"
-        stageTags={[{ label: '15초 페이지' }, { label: '상담 예정', tone: 'lavender' }]}
-      />,
-    );
-    expect([...withTags.container.querySelectorAll('.participant-hero-status .wire-status-tag')]
-      .map((tag) => tag.textContent))
-      .toEqual(['15초 페이지', '상담 예정']);
-    expect(withTags.container.querySelector('.participant-hero-divider')).not.toBeNull();
-
-    const withoutTags = render(
-      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />,
-    );
-    expect(withoutTags.container.querySelector('.participant-hero-status')).toBeNull();
-    expect(withoutTags.container.querySelector('.participant-hero-divider')).toBeNull();
-  });
-
-  it('상태 태그 색 계열 — 기본은 neutral이고 AI 상태만 lavender다', () => {
-    const defaultTone = render(
-      <ParticipantHeroCard
-        name="김미영"
-        beneficiaryId="swallow-003"
-        stageTags={[{ label: '15초 페이지' }]}
-      />,
-    );
-    expect(defaultTone.container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('neutral');
-
-    const lavenderTone = render(
-      <ParticipantHeroCard
-        name="김미영"
-        beneficiaryId="swallow-003"
-        stageTags={[{ label: '검토 대기', tone: 'lavender' }]}
-      />,
-    );
-    expect(lavenderTone.container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('lavender');
-  });
-
-  it('구분선 위에는 이름과 행동만, 아래에는 상세 정보 다음 상태가 선다', () => {
-    const bare = render(<ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />);
-    expect(bare.container.querySelector('.participant-hero-info')).toBeNull();
-    expect(bare.container.querySelector('.participant-hero-divider')).toBeNull();
-    expect(bare.container.querySelector('.page-actions')).toBeNull();
-
-    const full = render(
-      <ParticipantHeroCard
-        name="김미영"
-        beneficiaryId="swallow-003"
-        stageTags={[{ label: '진행 중' }]}
-        details={[{ label: '사업', value: '희망키움통장' }]}
-        actions={<a href="/x">상담 시작</a>}
-      />,
-    );
-    const top = full.container.querySelector('.participant-hero-top');
-    expect(top?.querySelector('.participant-name')).not.toBeNull();
-    expect(top?.querySelector('.page-actions a')?.textContent).toBe('상담 시작');
-    expect(top?.querySelector('.wire-status-tag')).toBeNull();
-    expect(full.container.querySelector('.participant-hero-status')?.textContent).toBe('진행 중');
-    expect(full.container.querySelector('.participant-hero-details')?.textContent).toContain('희망키움통장');
-    expect(
-      full.getByText('희망키움통장').compareDocumentPosition(full.getByText('진행 중'))
-        & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it('HERO 도 카드다 — surface-card 계약 클래스를 단다 (D37 §4-5)', () => {
-    const { container } = render(
-      <ParticipantHeroCard name="김미영" beneficiaryId="swallow-003" />,
-    );
-    expect(container.querySelector('header.surface-card')).not.toBeNull();
-  });
 });

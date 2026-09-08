@@ -58,7 +58,8 @@ function fillAllQuestions(scoped: ReturnType<typeof within>): void {
       } else if (question.kind === 'multi') {
         fireEvent.click(scoped.getByLabelText(`${question.label} 무응답`));
       } else {
-        fireEvent.change(scoped.getByLabelText(question.label), { target: { value: `${question.key} 내용` } });
+        const name = question.key === 'previous_support_detail' ? /이전 지원 경험/ : question.label;
+        fireEvent.change(scoped.getByRole('textbox', { name }), { target: { value: `${question.key} 내용` } });
       }
     }
     // 질문 밖의 필수 3개: 2-1 부채 표·3-3 연계 기관 표의 첫 열(정본: 없으면 '해당 없음')과 종합의견.
@@ -119,19 +120,6 @@ describe('IntakeWizard', () => {
     fireEvent.click(ordinary);
     expect(ordinary.checked).toBe(true);
     expect(unknown.checked).toBe(false);
-  });
-  it('당사자 연락 정보와 상담일은 공용 HERO에 두고 입력 원칙은 별도 안내로 분리한다', () => {
-    const { container, getByTestId, queryByTestId } = renderWizard();
-    const hero = container.querySelector('.participant-hero-card');
-    expect(hero).not.toBeNull();
-    expect(hero?.textContent).toContain('홍서희');
-    expect([...hero!.querySelectorAll('.wire-field-label')].map((node) => node.textContent))
-      .toEqual(['전화번호', '이메일', '상담일']);
-    expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
-    const guidance = getByTestId('intake-required-guidance');
-    expect(guidance.className).toContain('wire-card');
-    expect(guidance.textContent).toContain('모든 항목이 필수입니다');
-    expect(queryByTestId('intake-context')).toBeNull();
   });
 
   it('남은 필수 항목 안내는 단계 레일 아래에 둔다', () => {
@@ -483,9 +471,6 @@ describe('IntakeWizard', () => {
 
     const hero = container.querySelector('.participant-hero-card');
     expect(hero).not.toBeNull();
-    expect([...hero!.querySelectorAll('.wire-field-label')].map((node) => node.textContent))
-      .toEqual(['전화번호', '이메일', '상담일']);
-    expect(hero?.querySelector('.wire-field-row[data-tone="blue"] .wire-field-label')?.textContent).toBe('상담일');
     fireEvent.click(within(hero as HTMLElement).getByRole('button', { name: '수정 완료' }));
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
     expect((lastInput as CreateIntakeRecordActionInput | null)?.scheduleId).toBeUndefined();

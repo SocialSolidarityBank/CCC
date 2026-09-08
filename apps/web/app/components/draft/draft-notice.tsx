@@ -27,26 +27,29 @@ export function DraftRestorePrompt({
   uncertain = false,
   onResume,
   onDiscard,
+  helpClassName,
 }: {
   savedAt: number;
   uncertain?: boolean;
   onResume: () => void;
   onDiscard: () => void;
+  helpClassName?: string;
 }) {
   return (
     <WireCallout tone="info" role="status" testId="draft-restore-prompt" labelledBy="draft-restore-title" titleId="draft-restore-title"
+      compactActions
       title={uncertain ? '저장 여부를 확인하지 못한 기록이 있습니다' : '작성하던 기록이 있습니다'}
       actions={
-        /* 이어쓰기가 우선 행동이라 세컨더리(그라데이션 아웃라인), 새로 시작은 고스트다.
+        /* 이어쓰기는 세컨더리, 새로 시작은 중립 아웃라인으로 행동 경계를 표시한다.
            프라이머리는 화면 주 행동(HERO·폼 제출) 몫이라 안내줄에서는 쓰지 않는다(§4-5). */
         <>
           <WireButton variant="secondary" onClick={onResume}>이어쓰기</WireButton>
-          <WireButton variant="ghost" onClick={onDiscard}>새로 시작</WireButton>
+          <WireButton variant="neutral" onClick={onDiscard}>새로 시작</WireButton>
         </>
       }>
-      {uncertain
+      <span className={helpClassName}>{uncertain
         ? `${clockLabel(savedAt)}에 저장을 시도한 내용이 이 브라우저에 남아 있습니다. 기록이 이미 저장됐다면 새로 시작하고, 저장되지 않았다면 이어서 쓰세요.`
-        : `이 브라우저에 ${clockLabel(savedAt)}까지 입력한 내용이 남아 있습니다. 이어서 쓰거나 새로 시작할 수 있습니다.`}
+        : `이 브라우저에 ${clockLabel(savedAt)}까지 입력한 내용이 남아 있습니다. 이어서 쓰거나 새로 시작할 수 있습니다.`}</span>
     </WireCallout>
   );
 }
@@ -55,7 +58,7 @@ export function DraftRestorePrompt({
  * 자동 저장 상태는 상시 표시한다 — 별도 임시 저장 버튼이 없으므로, 이 표시가 없으면
  * 실무자는 저장되고 있는지 알 방법이 없다.
  */
-export function DraftStatus({ savedAt, available }: { savedAt: number | null; available: boolean }) {
+export function DraftStatus({ savedAt, available, helpClassName }: { savedAt: number | null; available: boolean; helpClassName?: string }) {
   // 대기만 라벤더 배지다(CCC-76 — 주의·대기 축, D34): 아직 아무것도 저장되지 않은 상태가
   // 회색 글줄에 묻히면 저장된 것처럼 읽힌다. 저장됨·불가는 상태 서술이라 글줄 그대로 둔다.
   const body = !available
@@ -63,7 +66,7 @@ export function DraftStatus({ savedAt, available }: { savedAt: number | null; av
     : savedAt === null
       ? <WireBadge tone="lavender">자동 저장 대기</WireBadge>
       : `자동 저장됨 ${clockLabel(savedAt)}`;
-  return <p className="notice-status" role="status" aria-live="polite" data-testid="draft-status">{body}</p>;
+  return <p className={['notice-status', helpClassName].filter(Boolean).join(' ')} role="status" aria-live="polite" data-testid="draft-status">{body}</p>;
 }
 
 /** 임시본을 어디에 얼마나 두는지 입력칸 옆에서 밝힌다. 화면 문구와 보관 규율을 한 곳에서 맞춘다. */

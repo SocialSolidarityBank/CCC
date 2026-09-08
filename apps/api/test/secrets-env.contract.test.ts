@@ -71,7 +71,6 @@ describe('secret-consuming services', () => {
     expect(JSON.stringify(resolved)).not.toContain(credential);
     expect(Object.values(resolved.adapter)).not.toContain(credential);
   });
-
   it('does not call a provider when its key is missing', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected network'));
     try {
