@@ -30,7 +30,9 @@ logger = logging.getLogger("ccc_pipeline")
 ENGINE_OFF = "off"
 ENGINE_WHISPER = "whisper"
 ENGINE_FASTER_WHISPER = "faster-whisper-int8-cpu"
-KNOWN_ENGINES = (ENGINE_OFF, ENGINE_WHISPER, ENGINE_FASTER_WHISPER)
+ENGINE_QWEN = "qwen3-asr"
+ENGINE_AZURE = "azure"
+KNOWN_ENGINES = (ENGINE_OFF, ENGINE_WHISPER, ENGINE_FASTER_WHISPER, ENGINE_QWEN, ENGINE_AZURE)
 
 # 엔진: 오디오 파일 경로 → 전사 구간 목록(그 파일 기준 상대 시각).
 Engine = Callable[[str], list[Segment]]
@@ -49,10 +51,18 @@ class TranscriptionResult:
         return not self.warnings
 
 
-def build_engine(name: str, model_name: str) -> Engine:
-    """설정값으로 엔진을 만든다. 모델도 manifest에 고정된 항목만 허용한다."""
+def build_engine(
+    name: str,
+    model_name: str,
+    *,
+    python_executable: str | Path | None = None,
+    device: str = "cpu",
+) -> Engine:
+    """Build a local callable; cloud providers use their full-file adapters."""
     if name == ENGINE_OFF:
         raise ValueError("STT is disabled")
+    if name == ENGINE_AZURE:
+        raise ValueError("Azure STT uses transcribe_azure; it is not a local Engine")
     if name == ENGINE_FASTER_WHISPER:
         return _build_faster_whisper(model_name)
     if name == ENGINE_WHISPER:
@@ -61,6 +71,16 @@ def build_engine(name: str, model_name: str) -> Engine:
         except ModelRegistryError as error:
             raise ValueError("Whisper model is not declared in model manifest") from error
         return _build_whisper(model_name)
+    if name == ENGINE_QWEN:
+        try:
+            role_spec("qwen-asr", model_name)
+        except ModelRegistryError as error:
+            raise ValueError("Qwen model is not declared in model manifest") from error
+        if python_executable is None:
+            raise ValueError("Qwen requires a dedicated Python executable")
+        from .qwen_runtime import QwenEngine
+
+        return QwenEngine(python_executable, device)
     raise ValueError(f"unknown STT engine: {name!r} (known: {', '.join(KNOWN_ENGINES)})")
 
 
@@ -133,12 +153,15 @@ def transcribe_audio(
     max_chunk_seconds: float = DEFAULT_MAX_CHUNK_SECONDS,
     min_chunk_seconds: float = DEFAULT_MIN_CHUNK_SECONDS,
     repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
+    *,
+    on_chunk: Callable[[list[Segment]], None] | None = None,
 ) -> TranscriptionResult:
     """오디오 파일 → 전사 구간 목록.
 
     순서: 무음 탐지 → 조각 분할 → 조각별 전사 → 반복 검사 → (반복이면) 반으로
     잘라 1회 재시도 → 그래도 반복이면 접어서 경고. 조각이 하나뿐이면(짧은 녹음
     이거나 ffmpeg 부재) 원본을 그대로 넣는다.
+    on_chunk는 재시도 선택 후 축약 전 구간을 전달하며, 관찰자는 구간을 변경하지 않는다.
     """
     silences, duration = detect_silences(audio_path)
     chunks = plan_chunks(silences, duration, max_chunk_seconds, min_chunk_seconds)
@@ -156,6 +179,8 @@ def transcribe_audio(
             min_chunk_seconds=min_chunk_seconds,
             whole_file=whole_file,
         )
+        if on_chunk is not None:
+            on_chunk(chunk_segments)
         runs = find_repetition_runs(chunk_segments, repeat_threshold)
         if runs:
             warnings.extend(runs)

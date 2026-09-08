@@ -616,6 +616,8 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
   const requiredRuntimeModels = new Set([
     'openai/whisper@medium',
     'Systran/faster-whisper-medium@medium',
+    'Qwen/Qwen3-ASR-1.7B@1.7B',
+    'Qwen/Qwen3-ForcedAligner-0.6B@0.6B',
     'pyannote/speaker-diarization-3.1@3.1',
     'pyannote/segmentation-3.0@3.0',
     'jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition@latest-approved',
@@ -626,6 +628,13 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
   for (const required of requiredRuntimeModels) {
     if (!manifestModels.has(required)) violations.push(`runtime model manifest에 필수 모델이 없다: ${required}`);
   }
+  const qwenFilesByModel = {
+    'Qwen/Qwen3-ASR-1.7B': [
+      'model-00001-of-00002.safetensors',
+      'model-00002-of-00002.safetensors',
+    ],
+    'Qwen/Qwen3-ForcedAligner-0.6B': ['model.safetensors'],
+  };
   for (const model of manifest.models) {
     const name = String(model?.name ?? '<이름 없음>');
     const version = String(model?.version ?? '<버전 없음>');
@@ -653,6 +662,17 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
     if (name === 'Systran/faster-whisper-medium'
       && (typeof model.checkpointSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(model.checkpointSha256))) {
       violations.push(`${name}@${version}: candidate checkpoint SHA-256가 고정되지 않음`);
+    }
+    const requiredQwenFiles = qwenFilesByModel[name];
+    if (requiredQwenFiles) {
+      const files = model.files;
+      if (!Array.isArray(files)
+        || files.length !== requiredQwenFiles.length
+        || new Set(files.map((file) => file?.name)).size !== requiredQwenFiles.length
+        || files.some((file) => !requiredQwenFiles.includes(file?.name)
+          || typeof file.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(file.sha256))) {
+        violations.push(`${name}@${version}: Qwen checkpoint files/SHA-256가 고정되지 않음`);
+      }
     }
   }
   if (violations.length > 0) throw new Error(`model license allowlist 위반:\n  ${violations.join('\n  ')}`);

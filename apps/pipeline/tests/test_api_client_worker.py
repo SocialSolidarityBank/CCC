@@ -1,6 +1,7 @@
 """Agent 작업 계약 v2 (S5 · E5-1a) — client 자격, claim 순서 처리, 종료 신호 1회,
 2차 마스킹, fail-closed 경로를 고정한다."""
 
+import hashlib
 import io
 import json
 import unittest
@@ -11,6 +12,7 @@ from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
 from ccc_pipeline.api_client import ApiClient, ApiError, USER_AGENT
+from ccc_pipeline.azure_stt import AzureSttError
 from ccc_pipeline.backup import BackupPolicy
 from ccc_pipeline.config import Config, ConfigError, load_config
 from ccc_pipeline.masking import MaskingConfigError
@@ -45,7 +47,10 @@ def make_config(work_dir: Path) -> Config:
         preview_access_code=None,
         poll_interval_seconds=1,
         work_dir=work_dir,
-        whisper_model="medium",
+        stt_model="medium",
+        stt_python=None,
+        stt_device="cpu",
+        azure_speech_key=None,
         stt_engine="whisper",
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
@@ -83,7 +88,17 @@ def audio_job(job_id: str = "job-audio-1", attempt: int = 1) -> dict:
         "state": "leased",
         "attempt": attempt,
         "claimToken": "u" * 64,
+        "sttEngine": "local",
         "audio": {"generationId": "generation-1", "delivery": "api-stream"},
+    }
+
+
+def verified_audio_response(content: bytes = b"synthetic-audio") -> dict:
+    return {
+        "jobId": "job-audio-1",
+        "generationId": "generation-1",
+        "rawAudioSha256": hashlib.sha256(content).hexdigest(),
+        "verifiedAt": "2026-09-08T00:00:00.000Z",
     }
 
 
@@ -183,6 +198,39 @@ class ApiClientTest(unittest.TestCase):
                 client.download_audio("job-1", "t" * 64, 1, dest)
             self.assertEqual(dest.read_bytes(), b"RIFFdata")
             self.assertEqual(open_url.call_args.args[0].get_header("X-ccc-job-attempt"), "1")
+
+    def test_egress_methods_wrap_the_existing_s5_endpoints(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        authorize_payload = {
+            "egressAuthorizationId": "egress-1",
+            "tuple": {"provider": "azure"},
+            "status": "authorized",
+            "expiresAt": "2099-01-01T00:00:00.000Z",
+        }
+        started_payload = {
+            "egressAuthorizationId": "egress-1",
+            "provider": "azure",
+            "state": "in_flight",
+            "startedAt": "2026-09-08T00:00:00.000Z",
+        }
+        with mock.patch.object(
+            api_client_module.urllib.request.OpenerDirector,
+            "open",
+            side_effect=[
+                FakeResponse(json.dumps(authorize_payload).encode()),
+                FakeResponse(json.dumps(started_payload).encode()),
+            ],
+        ) as open_url:
+            self.assertEqual(client.authorize_egress("job-1", {"provider": "azure"}), authorize_payload)
+            self.assertEqual(client.start_egress("job-1", {"egressAuthorizationId": "egress-1"}), started_payload)
+
+        self.assertEqual(
+            [call.args[0].full_url for call in open_url.call_args_list],
+            [
+                "https://api.example/pipeline/jobs/job-1/egress/authorize",
+                "https://api.example/pipeline/jobs/job-1/egress/in-flight",
+            ],
+        )
 
 
 class ClaimRequestTest(unittest.TestCase):
@@ -312,6 +360,57 @@ class RunOnceTest(unittest.TestCase):
         self.assertEqual(client.post_result.call_count, 1)
         client.release.assert_not_called()
 
+    def test_azure_transport_and_provider_failures_use_safe_release_semantics(self):
+        for error, outcome in (
+            (AzureSttError("provider_transport_error", transient=True), "transient"),
+            (AzureSttError("provider_http_error", transient=True, status=429), "transient"),
+            (AzureSttError("provider_http_error", status=400), "permanent"),
+        ):
+            with self.subTest(status=error.status), TemporaryDirectory() as tmp:
+                client = mock.Mock()
+                client.claim_jobs.return_value = [{**audio_job(), "sttEngine": "azure"}]
+                config = replace(
+                    make_config(Path(tmp)),
+                    stt_engine="azure",
+                    azure_speech_key="fixture-key",
+                )
+                with mock.patch("ccc_pipeline.worker.process_audio_job", side_effect=error):
+                    self.assertEqual(run_once(client, config), 0)
+                client.release.assert_called_once_with(
+                    "job-audio-1",
+                    "u" * 64,
+                    1,
+                    outcome,
+                    "engine_unavailable" if outcome == "transient" else "permanent_failure",
+                )
+
+
+class ResultReplayTest(unittest.TestCase):
+    def test_committed_result_can_replay_after_heartbeat_becomes_stale(self):
+        from ccc_pipeline.worker import _submit_result
+
+        class CommittedThenTransientClient:
+            accepted_payload = None
+            replay_completed = False
+
+            def post_result(self, job_id, payload):
+                if self.accepted_payload is None:
+                    self.accepted_payload = payload
+                    raise ApiError(502, "engine_unavailable")
+                if payload != self.accepted_payload:
+                    raise ApiError(409, "result_conflict")
+                self.replay_completed = True
+
+        client = CommittedThenTransientClient()
+
+        def check_ownership():
+            if client.accepted_payload is not None:
+                raise ApiError(409, "stale_claim")
+
+        _submit_result(client, "result-job", {"payloadSha256": "same-payload"},
+                       before_first_attempt=check_ownership)
+        self.assertTrue(client.replay_completed)
+
 
 class TextJobTest(unittest.TestCase):
     def test_masks_source_and_posts_a_v2_result_with_contract_hashes(self):
@@ -421,6 +520,7 @@ class AudioJobTest(unittest.TestCase):
             return dest
 
         client.download_audio.side_effect = fake_download
+        client.verify_audio.return_value = verified_audio_response()
         with (
             mock.patch("ccc_pipeline.worker.build_engine", return_value=mock.Mock()),
             mock.patch(
@@ -470,13 +570,16 @@ class AudioJobTest(unittest.TestCase):
             return dest
 
         client.download_audio.side_effect = fake_download
+        client.verify_audio.return_value = verified_audio_response(b"audio")
         with TemporaryDirectory() as tmp:
+            engine = mock.Mock()
             config = make_config(Path(tmp))
             with (
                 mock.patch(
                     "ccc_pipeline.worker._build_person_and_address_ner",
                     return_value=(lambda text: [], None),
                 ),
+                mock.patch("ccc_pipeline.worker.build_engine", return_value=engine),
                 mock.patch("ccc_pipeline.worker.transcribe_audio", side_effect=RuntimeError("gpu oom")),
             ):
                 with self.assertRaises(RuntimeError):
@@ -484,6 +587,7 @@ class AudioJobTest(unittest.TestCase):
         self.assertTrue(created_dirs, "download should have run")
         for directory in created_dirs:
             self.assertFalse(directory.exists(), "work dir must be deleted (D13)")
+        engine.close.assert_called_once()
 
     def test_backup_adapter_failure_does_not_block_result_submission(self):
         class FailingBackupAdapter:
@@ -508,10 +612,178 @@ class AudioJobTest(unittest.TestCase):
 
         client.post_result.assert_called_once()
 
+    def test_route_mismatch_is_rejected_before_side_effects(self):
+        client = mock.Mock()
+        mismatched = {**audio_job(), "sttEngine": "azure"}
+        client.claim_jobs.return_value = [mismatched]
+        with TemporaryDirectory() as tmp:
+            with mock.patch("ccc_pipeline.worker.MaskingLayers") as layers:
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+        layers.assert_not_called()
+        client.download_audio.assert_not_called()
+        client.release.assert_called_once_with(
+            "job-audio-1", "u" * 64, 1, "permanent", "route_mismatch",
+        )
+
+    def test_azure_marks_once_before_cas_preserves_speakers_and_skips_repeat_upload(self):
+        from ccc_pipeline.speaker_mapping import Segment
+        from ccc_pipeline.transcribe import TranscriptionResult
+        from ccc_pipeline.worker import process_audio_job
+
+        client = dictionary_client()
+
+        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"synthetic-audio")
+            return dest
+
+        client.download_audio.side_effect = fake_download
+        client.verify_audio.return_value = verified_audio_response()
+        authorization_id = "egress-fixture-1"
+        client.authorize_egress.return_value = {
+            "egressAuthorizationId": authorization_id,
+            "tuple": {
+                "orgId": "org-1",
+                "jobId": "job-audio-1",
+                "claimTokenHash": hashlib.sha256(("u" * 64).encode()).hexdigest(),
+                "attempt": 1,
+                "rawAudioSha256": sha256_hex("synthetic-audio"),
+                "consentRevision": "consent-r1",
+                "provider": "azure",
+            },
+            "status": "authorized",
+            "expiresAt": "2099-01-01T00:00:00.000Z",
+        }
+        started_response = {
+            "egressAuthorizationId": authorization_id,
+            "provider": "azure",
+            "state": "in_flight",
+            "startedAt": "2026-09-08T00:00:00.000Z",
+        }
+        azure_job = {**audio_job(), "sttEngine": "azure"}
+
+        with TemporaryDirectory() as tmp:
+            config = replace(
+                make_config(Path(tmp)),
+                stt_engine="azure",
+                azure_speech_key="fixture-key",
+            )
+
+            def assert_marker_then_start(job_id, body):
+                marker_dir = Path(tmp) / ".azure-egress-attempts"
+                self.assertEqual(marker_dir.stat().st_mode & 0o777, 0o700)
+                marker = next(marker_dir.iterdir())
+                self.assertEqual(marker.stat().st_mode & 0o777, 0o600)
+                return started_response
+
+            client.start_egress.side_effect = assert_marker_then_start
+
+            def fake_azure(path, *, api_key, before_send, expected_sha256):
+                self.assertEqual(api_key, "fixture-key")
+                self.assertEqual(expected_sha256, sha256_hex("synthetic-audio"))
+                client.start_egress.assert_not_called()
+                before_send()
+                return TranscriptionResult([
+                    Segment(0.0, 1.0, "첫 문장", "SPEAKER_01"),
+                    Segment(1.0, 2.0, "둘째 문장", "SPEAKER_00"),
+                ])
+
+            with (
+                mock.patch(
+                    "ccc_pipeline.worker._build_person_and_address_ner",
+                    return_value=(lambda text: [], None),
+                ),
+                mock.patch("ccc_pipeline.worker.transcribe_azure", side_effect=fake_azure) as azure,
+                mock.patch("ccc_pipeline.diarize.diarize") as diarize,
+            ):
+                process_audio_job(client, config, azure_job)
+                marker_dir = Path(tmp) / ".azure-egress-attempts"
+                self.assertTrue(marker_dir.is_dir())
+                self.assertEqual(len(list(marker_dir.iterdir())), 1)
+                with self.assertRaises(AzureSttError):
+                    process_audio_job(client, config, azure_job)
+
+        self.assertEqual(azure.call_count, 1)
+        client.authorize_egress.assert_called_once()
+        client.start_egress.assert_called_once()
+        diarize.assert_not_called()
+
+    def test_azure_expired_authorization_cannot_mark_or_send(self):
+        from ccc_pipeline.worker import process_audio_job
+
+        client = dictionary_client()
+
+        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"synthetic-audio")
+            return dest
+
+        client.download_audio.side_effect = fake_download
+        client.verify_audio.return_value = verified_audio_response()
+        client.authorize_egress.return_value = {
+            "egressAuthorizationId": "expired-egress",
+            "tuple": {
+                "orgId": "org-1",
+                "jobId": "job-audio-1",
+                "claimTokenHash": hashlib.sha256(("u" * 64).encode()).hexdigest(),
+                "attempt": 1,
+                "rawAudioSha256": sha256_hex("synthetic-audio"),
+                "consentRevision": "consent-r1",
+                "provider": "azure",
+            },
+            "status": "authorized",
+            "expiresAt": "2020-01-01T00:00:00.000Z",
+        }
+
+        def enter_adapter(path, *, api_key, before_send, expected_sha256):
+            before_send()
+            self.fail("expired authorization returned from before_send")
+
+        with TemporaryDirectory() as tmp:
+            config = replace(
+                make_config(Path(tmp)),
+                stt_engine="azure",
+                azure_speech_key="fixture-key",
+            )
+            with (
+                mock.patch(
+                    "ccc_pipeline.worker._build_person_and_address_ner",
+                    return_value=(lambda text: [], None),
+                ),
+                mock.patch("ccc_pipeline.worker.transcribe_azure", side_effect=enter_adapter),
+            ):
+                with self.assertRaises(AzureSttError):
+                    process_audio_job(client, config, {**audio_job(), "sttEngine": "azure"})
+            self.assertFalse((Path(tmp) / ".azure-egress-attempts").exists())
+        client.start_egress.assert_not_called()
+
+
+class AzureMarkerPersistenceTest(unittest.TestCase):
+    def test_windows_file_commit_preserves_at_most_once_marker(self):
+        from ccc_pipeline import worker
+
+        real_open = worker.os.open
+
+        def windows_open(path, flags, *args, **kwargs):
+            if worker.os.path.isdir(path):
+                raise PermissionError("Windows CRT directory descriptors are unavailable")
+            return real_open(path, flags, *args, **kwargs)
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with (
+                mock.patch.object(worker.os, "name", "nt"),
+                mock.patch.object(worker.os, "open", side_effect=windows_open),
+            ):
+                worker._persist_azure_attempt_marker(root, "windows-job", 1)
+                with self.assertRaises(AzureSttError):
+                    worker._persist_azure_attempt_marker(root, "windows-job", 1)
+
 
 class EnvironmentIsolationTest(unittest.TestCase):
     def base_env(self) -> dict[str, str]:
         return {
+            "CCC_WORK_DIR": self.enterContext(TemporaryDirectory()),
             "CCC_NER_MODEL_ID": "FrameByFrame/korean-pii-e5-base",
             "CCC_ORIGINAL_BACKUP_ENABLED": "off",
             "CCC_NER_ATTESTATION": json.dumps(ATTESTATION),
@@ -617,6 +889,55 @@ class EnvironmentIsolationTest(unittest.TestCase):
                 with mock.patch.dict("os.environ", {**base, **extra}, clear=True):
                     with self.assertRaises(ConfigError):
                         load_config()
+
+    def test_stt_config_uses_clean_generic_names_and_hides_azure_key(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+            "CCC_STT_MODEL": "fixture-model",
+            "CCC_STT_DEVICE": "mps",
+            "AZURE_SPEECH_KEY": "azure-secret-fixture",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            config = load_config()
+        self.assertEqual(config.stt_model, "fixture-model")
+        self.assertNotIn("azure-secret-fixture", repr(config))
+
+    def test_qwen_requires_an_explicit_python_runtime(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+            "CCC_STT_ENGINE": "qwen3-asr",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            with self.assertRaisesRegex(ConfigError, "CCC_STT_PYTHON"):
+                load_config()
+        env["CCC_STT_PYTHON"] = "/opt/ccc-qwen/bin/python"
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("ccc_pipeline.config.role_spec"),
+        ):
+            config = load_config()
+        self.assertEqual(config.stt_model, "Qwen/Qwen3-ASR-1.7B")
+        self.assertEqual(config.stt_python, Path("/opt/ccc-qwen/bin/python"))
+
+    def test_azure_requires_key_and_exposes_no_local_runtime_backdoor(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+            "CCC_STT_ENGINE": "azure",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            with self.assertRaisesRegex(ConfigError, "AZURE_SPEECH_KEY"):
+                load_config()
+        env["AZURE_SPEECH_KEY"] = "fixture-key"
+        with mock.patch.dict("os.environ", env, clear=True):
+            config = load_config()
+        self.assertEqual(config.stt_engine, "azure")
+        self.assertIsNone(config.stt_python)
 
 
 class DeviceReadinessTest(unittest.TestCase):

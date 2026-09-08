@@ -17,13 +17,11 @@ CLAUDE.md §5 파이프라인 스펙을 따른다.
 - 감정은 숫자 점수만 산출한다. 문장형 감정 서술은 만들지 않는다 (R4)
 - AI 대조·요약은 사업자(OpenAI) 호출로 Workers 에서 한다(D57·ADR-0027). 장비는 마스킹된
   원천과 숫자형 감정값만 보내며 요약이나 보류된 `aiSchema`를 만들지 않는다
-- **전사는 통짜로 넣지 않는다** — 무음 경계에서 조각으로 나누고 반복 붕괴를 검사한다 (D53·ADR-0024).
-  실측에서 whisper large-v3가 34분 대화의 48%를 같은 문장 254번 반복으로 잃고 없던 문장을 지어냈다
-- **반복 구간은 지우지 않고 접어서 경고를 남긴다** — 그 시간대에 엔진이 무너졌다는 사실 자체가
-  실무자에게 필요한 정보다. 경고 줄은 `Segment.warning=True`라 감정 집계·역할 추정에서 빠진다 (R4·D11)
-- **엔진은 아직 확정되지 않았다.** STT는 기본 `off`이고 faster-whisper int8 CPU는 기존 v1의 명시적 후보다. 새 판정은 [S13 STT qualification v2](../../docs/specs/S13-stt-qualification-v2.md)를 따르며 Q 승인 전에는 제품의 `sttEngine=null`과 비활성 선택지를 유지한다(D77).
-- **ffmpeg 이 없으면 아예 뜨지 않는다**(2026-07-31) — 구 동작은 통짜 폴백이었으나, 그건 ADR-0024 가
-  금지한 방식이라 매 회차 조용히 품질을 깎았다. 설치 오류는 기동 때 잡는다(아래 '기동 전 설치 점검')
+- **Local은 무음 경계 청크를 쓴다. Azure client는 원본 파일 send를 authorized attempt당 최대 한 번 시작한다.** Azure 청크 업로드와 자동 client 재시도는 없다. 이는 provider 내부 처리의 exactly-once 보장이 아니다(D53·D77).
+- **반복·출력 검사는 두 경로에 모두 적용한다.** 반복 구간은 지우지 않고 접어서 경고를 남긴다. 경고 줄은 `Segment.warning=True`라 감정 집계·역할 추정에서 빠진다(R4·D11).
+- 현재 Local 구현은 격리된 Python runtime의 `Qwen/Qwen3-ASR-1.7B`와 `Qwen/Qwen3-ForcedAligner-0.6B` 원본 checkpoint를 쓴다. 로컬 공개 가중치 경로이며 취소된 Alibaba Cloud Token Plan을 호출하지 않는다. 최고·보편적 최신 모델이라는 뜻은 아니다.
+- Azure는 `koreacentral`·`ko-KR`·`api-version=2025-10-15` endpoint를 쓴다. `diarization.enabled=true`, `maxSpeakers=2`로 받은 익명의 파일별 provider 화자 ID를 보존한다. Local과 Azure는 자동 전환하지 않는다.
+- 제품 기본값은 `off`다. 어댑터 구현과 운영자 본인의 비민감 시험은 제품의 `sttEngine`, signed registry, 동의나 NER를 활성화하지 않는다. 품질·장비·기관 적합성과 Q 승인은 후속 단계다.
 
 ## 구조
 
@@ -31,10 +29,12 @@ CLAUDE.md §5 파이프라인 스펙을 따른다.
 ccc_pipeline/
   config.py          환경 변수 → 설정 (시크릿은 Infisical 주입, 코드에 없음)
   api_client.py      Workers API 클라이언트 (표준 라이브러리 urllib, UA 명시)
-  transcribe.py      전사 오케스트레이션 — 조각 순회·시각 되돌리기·반복 재시도 + 엔진 등록소 (D53)
-  chunking.py        무음 경계 조각 분할 (ffmpeg silencedetect, 경계 계산은 순수 로직)
-  repetition.py      반복 붕괴 검사 — 접어서 경고, 지우지 않는다 (순수 로직, R5)
-  diarize.py         pyannote 화자 분리 (지연 임포트)
+  transcribe.py      Local 전사 오케스트레이션: 조각 순회·시각 보정·제한된 조각 재시도 + 엔진 등록소 (D53)
+  azure_stt.py       Azure 원본 파일 provider: 최대 1회 client send·익명의 파일별 화자 ID·반복 검사
+  stt_trial.py       운영자 소유 비민감 입력용 STT 전용 CLI
+  chunking.py        Local 무음 경계 조각 분할 (ffmpeg silencedetect, 경계 계산은 순수 로직)
+  repetition.py      Local·Azure 반복 붕괴 검사: 접어서 경고, 지우지 않는다 (순수 로직, R5)
+  diarize.py         Local pyannote 화자 분리. Azure provider 화자 ID는 덮어쓰지 않는다
   speaker_mapping.py 전사 구간↔화자 정렬 + 수혜자/상담사 자동 추정 (D11, 순수 로직)
   emotion.py         감정 점수 집계 (음성 0.3 + 텍스트 0.7 가중, R4, 순수 로직)
   masking.py         2차 PII 마스킹 — 정규식(전화·주민번호·이메일·계좌) + 질병명 사전(G3) + 선택적 NER (D2)
@@ -45,7 +45,7 @@ tests/               표준 라이브러리 unittest — ML 설치 없이 실행
 systemd/             WSL2 자동 시작 유닛
 ```
 
-## 기존 Whisper GPU 장비 세팅
+## 기존 Whisper GPU 장비 세팅: v1 역사 재현 전용
 
 1. WSL2 Ubuntu + CUDA 확인: `nvidia-smi`, PyTorch CUDA 빌드 설치 후
    `python3 -c "import torch; print(torch.cuda.is_available())"` → `True`
@@ -72,8 +72,11 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_API_BASE_URL` | | 모드별 고정값 | `preview`면 `https://ccc-api-preview.account-855.workers.dev`, `production`이면 `https://ccc-api.account-855.workers.dev`. 반대 환경 URL은 시작 실패 |
 | `CCC_POLL_INTERVAL_SECONDS` | | `600` | 폴링 주기(초). D8 SLA(다음 영업일) 안이면 조정 자유 |
 | `CCC_WORK_DIR` | | `~/.cache/ccc-pipeline` | 임시 작업 디렉터리(작업마다 하위 생성 후 삭제) |
-| `CCC_WHISPER_MODEL` | | `medium` | manifest에 고정된 모델 선택값. 기존 Whisper와 faster-whisper 후보 모두 `medium`만 허용한다 |
-| `CCC_STT_ENGINE` | | `off` | `off`, `whisper`, `faster-whisper-int8-cpu`. 후보는 Preview에서만 명시적으로 선택한다. 모르는 이름은 기동 실패이며, off 상태의 오디오 작업은 원음 다운로드와 ML 초기화 전에 차단한다. 텍스트 작업은 계속 처리한다 |
+| `CCC_STT_MODEL` | | 엔진별 기본값 | Qwen은 `Qwen/Qwen3-ASR-1.7B`, 기존 Whisper 계열은 `medium`이다. `qwen-aligner` 역할은 `Qwen/Qwen3-ForcedAligner-0.6B`로 registry에 고정하며 Azure에는 로컬 모델 선택을 적용하지 않는다 |
+| `CCC_STT_PYTHON` | Qwen worker | 없음 | `apps/pipeline/requirements-qwen.txt`로 준비한 격리 Python 실행 파일의 절대 경로 |
+| `CCC_STT_DEVICE` | | `cpu` | Qwen 장치. `cpu`, `cuda`, `mps` 중 하나를 명시하며 다른 장치로 자동 전환하지 않는다 |
+| `AZURE_SPEECH_KEY` | Azure worker | 없음 | Azure Speech 키. 승인된 환경 주입으로만 제공하고 CLI 인자·로그·산출물에 넣지 않는다 |
+| `CCC_STT_ENGINE` | | `off` | `off`, `whisper`, `faster-whisper-int8-cpu`, `qwen3-asr`, `azure`. Azure는 Local `build_engine`이 아닌 별도 원본 파일 provider 경로다. 모르는 이름은 기동 실패이며, off 상태의 오디오 작업은 원음 다운로드와 ML 초기화 전에 차단한다 |
 | `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
@@ -93,9 +96,51 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_ORIGINAL_BACKUP_RETENTION_DAYS` | 백업 ON | 없음 | 해당 사본의 승인된 보관 일수 |
 | `CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION` | 백업 ON | 없음 | 장기 원본 보관과 호환되는 동의 문안 버전 |
 
+### 내부 STT 기능 시험
+
+`ccc_pipeline.stt_trial`은 사업 DB, API, NER 우회, LLM 또는 공식 기록을 건드리지 않는 STT 전용 명령이다. 입력은 운영자가 직접 소유한 비민감 자기 목소리 녹음 또는 합성 기능 자료만 허용한다. `--owned-test-recording`은 이 사실을 확인할 뿐, 실제 당사자나 제3자 음성의 이용 권한, production 동의·NER·signed registry를 면제하지 않는다.
+
+Qwen은 별도 환경의 Python을 명시한다. `--model`을 생략하면 역할에 고정된 `Qwen/Qwen3-ASR-1.7B`를 사용하며, 지정하더라도 manifest에 선언된 선택값만 허용한다.
+
+Python 3.12가 설치된 macOS/Linux에서 격리 환경과 모델 캐시를 준비하는 예는 아래와 같다. 다운로드는 이 명령을 명시적으로 실행할 때만 일어나며, 이후 내부 시험 프로세스는 로컬 캐시만 읽는다. revision과 가중치 검사는 manifest 정본을 그대로 사용한다.
+
+```bash
+python3.12 -m venv "$HOME/.local/share/ccc-stt/qwen-venv"
+"$HOME/.local/share/ccc-stt/qwen-venv/bin/python" -m pip install -r apps/pipeline/requirements-qwen.txt
+PYTHONPATH=apps/pipeline "$HOME/.local/share/ccc-stt/qwen-venv/bin/python" -c \
+  "from ccc_pipeline.qwen_runtime import prepare_qwen_models, qwen_manifest_models; prepare_qwen_models(qwen_manifest_models(), local_files_only=False)"
+```
+
+Windows는 가상환경의 `Scripts/python.exe`를 `--stt-python`에 지정한다. 아래 실행 예의 Python 경로는 실제 준비한 가상환경으로 바꾼다.
+
+```bash
+PYTHONPATH=apps/pipeline python3 -m ccc_pipeline.stt_trial \
+  --audio /absolute/input.wav \
+  --engine qwen3-asr \
+  --stt-python /path/to/qwen-venv/bin/python \
+  --device cpu \
+  --owned-test-recording
+```
+
+새 출력 위치를 직접 정할 때만 마지막에 `--output-dir /outside/repo/new-run-dir`를 붙인다. 기본값은 `~/.local/state/ccc-stt-trials/e5-8-internal-<UTC>`다. Git 저장소 안이나 이미 존재하는 디렉터리는 거부한다.
+
+Azure는 `AZURE_SPEECH_KEY`를 승인된 환경 주입으로만 받고, 외부 업로드를 별도로 확인한다.
+
+```bash
+PYTHONPATH=apps/pipeline python3 -m ccc_pipeline.stt_trial \
+  --audio /absolute/input.wav \
+  --engine azure \
+  --owned-test-recording \
+  --allow-azure-upload
+```
+
+출력 디렉터리와 `transcript.json`, `trial.json`은 POSIX에서 각각 0700, 0600으로 생성한다. Windows에서는 사용자 전용 폴더의 접근 제어를 별도로 확인해야 하며 POSIX mode 값만으로 NTFS 권한 검증을 대신하지 않는다. 기존 파일을 덮어쓰지 않으며 stdout에는 안전한 run 메타데이터만 쓰고 전사문·원문 오류·키를 쓰지 않는다. Azure client는 원본 파일 send를 최대 한 번 시작하고 자동 재시도하지 않으며, 익명의 파일별 provider 화자 ID를 보존한다.
+
+이 2026-09-08 구현 작업에서는 실제 Qwen 모델 적재, 실제 Azure 호출, 사람 품질, 장비 처리량 또는 제품 활성화를 검증하지 않았다.
+
 ### S13 후보 비교: v1 CPU 경로 재현
 
-아래 faster-whisper `medium`·int8 CPU 설정과 실행 명령은 기존 합성 S13 v1 후보 경로와 smoke를 재현할 때만 사용한다. 사람 모의상담을 쓰는 새 품질·사양 판정의 정본은 [S13 STT qualification v2](../../docs/specs/S13-stt-qualification-v2.md)다. 전용 v2 executor CLI는 아직 없으므로 아래 제품 실행 명령을 v2 판정 명령이나 완료 증거로 쓰지 않는다.
+아래 faster-whisper `medium`·int8 CPU 설정과 실행 명령은 기존 합성 S13 v1과 과거 FAIL을 재현하는 역사·회귀 경로다. 현재 어댑터 구현이나 운영자 본인의 비민감 시험의 선행조건이 아니다. 사람 모의상담 품질·사양 판정은 구현 뒤 [S13 STT qualification v2](../../docs/specs/S13-stt-qualification-v2.md)의 후속 단계에서 수행한다.
 
 `faster-whisper-int8-cpu`는 `device="cpu"`, `compute_type="int8"`로 고정한다. CUDA 자동 선택이나 다른 엔진으로의 전환은 없다. `transcribe_audio`의 무음 분할, 반복 구간 재시도와 경고, 원본 기준 시각 보정을 그대로 거친다. 모델은 엔진 인스턴스당 한 번만 올리고 각 청크에서 재사용한다.
 
@@ -114,6 +159,38 @@ NER 검증 영수증 없이 워커를 실행하려고 가짜 attestation을 만�
 실행 증거: [`e5-2-local-stt-candidate-smoke.json`](../../artifacts/pilot/e5-2-local-stt-candidate-smoke.json). macOS CPU에서 합성 한국어 음성의 청크 처리와 시각 보정을 확인한 자료다. Windows CPU 성능, 실제 상담 정확도, STT-G1~STT-G3과 Q 승인을 대신하지 않는다.
 
 E0-4에서 넘긴 모델 5종의 인증 다운로드와 파일 무결성 검증은 [`e5-2-model-downloads.json`](../../artifacts/pilot/e5-2-model-downloads.json)에 기록했다. 이는 다운로드와 checksum 증거이며 NER 정확도나 화자 분리 추론의 통과 판정은 아니다.
+
+### S13 v1 역사·회귀 비교
+
+비교 도구는 [`scripts/stt/benchmark.py`](../../scripts/stt/benchmark.py)다. [S13 v1 측정 규칙](../../docs/specs/S13-pilot-metrics.md)의 150건과 과거 검증 영수증을 재현할 때만 사용한다. 정답은 채점 과정에서만 읽고 모델 워커에는 전달하지 않는다. 반복률은 재시도 선택 후, 반복 축약 전 결과로 계산한다.
+
+본 측정 전에는 Windows에서 `ffmpeg`와 `ffprobe`가 실행되어야 한다. [S13 v1 준비 절차](../../docs/specs/S13-pilot-metrics.md)에 따라 오디오를 `artifacts/pilot/fixtures/s13-v1/audio/`에 받고, 기존 `artifacts/pilot/fixtures/s13-v1-verification.json`과 일치하는지 확인한다. 이 절차와 기존 합성 5건 청취·독립 STT는 현재 구현 입장 조건이 아니다.
+
+파이프라인 환경과 Qwen 환경을 분리한다. Qwen은 [`requirements-qwen.txt`](requirements-qwen.txt)를 쓰고 모델 revision, 가중치 hash와 라이선스는 [`model-license-manifest.json`](../../supply-chain/model-license-manifest.json)에 고정한다. 준비된 local snapshot만 열며 제품 NER 환경의 패키지를 바꾸지 않는다.
+
+다음은 Python 3.12가 준비된 Windows CPU의 실행 예다. 저장소, 가상환경, 모델 캐시와 임시 파일은 한글이 없는 작업 경로에 둔다. Windows 실측에서 Qwen의 Nagisa/DyNet이 한글 경로의 모델을 열지 못했고 영문 경로에서는 성공했으므로 사용자 홈이나 기본 TEMP 경로를 그대로 쓰지 않는다. 작업 루트는 현재 Windows 계정, SYSTEM과 관리자만 접근하도록 준비하고, 그 아래 `repo`에 받은 저장소 루트에서 실행한다. 아래 파이프라인 버전은 Mac 탐색 실행에서 확인한 조합이며 Windows 설치와 추론 검증은 별도로 필요하다.
+
+```powershell
+$benchmarkRoot = 'C:\ProgramData\CCC\benchmarks\e5-8'
+$env:HF_HUB_CACHE = "$benchmarkRoot/hf-hub"
+$env:TEMP = "$benchmarkRoot/tmp"
+$env:TMP = $env:TEMP
+New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null
+python -m venv "$benchmarkRoot/pipeline"
+& "$benchmarkRoot/pipeline/Scripts/python.exe" -m pip install faster-whisper==1.2.1 pyannote.audio==3.4.0 torch==2.8.0 torchaudio==2.8.0 huggingface-hub==0.36.2
+python -m venv "$benchmarkRoot/qwen"
+& "$benchmarkRoot/qwen/Scripts/python.exe" -m pip install -r apps/pipeline/requirements-qwen.txt
+
+& "$benchmarkRoot/pipeline/Scripts/python.exe" scripts/stt/benchmark.py --manifest scripts/stt/fixtures/manifest.json --out artifacts/pilot/results/e5-8-windows-cpu-001 --pipeline-python "$benchmarkRoot/pipeline/Scripts/python.exe" --qwen-python "$benchmarkRoot/qwen/Scripts/python.exe" --qwen-device cpu --diarization-device cpu --threads 4
+```
+
+새 결과 디렉터리만 허용한다. 결과는 회차별 숫자와 합산 지표, hash, 모델과 장비 정보이며 전사문은 저장하지 않는다. `recordedSessionCount`는 실패를 포함해 기록된 회차 수이고 `measuredSessionCount`는 채점된 회차 수다. 합산 사건의 `sessionIndex`는 `measuredSessionIds`의 위치를 가리킨다.
+
+누락, 잘못된 회차, 추가 응답이나 비정상 종료는 전체 `FAIL`이다. 완전한 150건에서 지표 하나라도 기준을 넘으면 `FAIL`, 실패가 없고 미측정 지표가 남으면 `UNMEASURED`, 전부 통과하면 `PASS`다. 종료 코드 0은 전체 `PASS`에만 사용한다.
+
+RTF 자격은 실행 프로세스가 읽은 OS와 워커의 CPU device로 정한다. macOS의 숫자는 보존하되 Windows CPU 판정은 `UNMEASURED`다. 타이머는 `LoadedWorker.infer` 호출 직전부터 반환 직후까지이며 청크 처리, 재시도와 강제 정렬을 포함하고 초기화, 임시 폴더 생성·삭제와 프로세스 간 전송은 제외한다. 화자 분리는 한 번 실행해 두 후보가 공유하므로 DER로 후보 간 우열을 매기지 않는다.
+
+탐색용 단건 실행과 오프라인 엔진 비교는 Community Cloud, Local Single, Local Office의 종단 검증이나 Q의 STT 승인으로 간주하지 않는다. 안전 지표도 고정된 문자 정렬에서 계산한 사건 수이며 사실 오류나 임상적 위험의 판정이 아니다.
 
 ### 선택형 원본 백업 정책
 

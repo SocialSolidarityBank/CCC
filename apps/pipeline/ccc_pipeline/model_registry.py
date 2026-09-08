@@ -16,6 +16,12 @@ class ModelRegistryError(ValueError):
     """Raised when a runtime model is not exactly present in the manifest."""
 
 
+
+@dataclass(frozen=True)
+class ModelFile:
+    name: str
+    sha256: str
+
 @dataclass(frozen=True)
 class ModelSpec:
     name: str
@@ -25,6 +31,8 @@ class ModelSpec:
     source: str
     checkpoint_url: str | None = None
     checkpoint_sha256: str | None = None
+    files: tuple[ModelFile, ...] = ()
+
 
 
 _MANIFEST_PATH = Path(__file__).resolve().parents[3] / "supply-chain" / "model-license-manifest.json"
@@ -62,6 +70,25 @@ def _read_manifest() -> tuple[ModelSpec, ...]:
             or any(char not in "0123456789abcdefABCDEF" for char in checkpoint_sha256)
         ):
             raise ModelRegistryError(f"checkpoint SHA-256 is invalid: {model['name']}")
+        raw_files = model.get("files", [])
+        if not isinstance(raw_files, list):
+            raise ModelRegistryError(f"model files are invalid: {model['name']}")
+        files: list[ModelFile] = []
+        for file in raw_files:
+            if not isinstance(file, dict) or not isinstance(file.get("name"), str):
+                raise ModelRegistryError(f"model file is invalid: {model['name']}")
+            file_path = Path(file["name"])
+            sha256 = file.get("sha256")
+            if (
+                not file["name"]
+                or file_path.is_absolute()
+                or ".." in file_path.parts
+                or not isinstance(sha256, str)
+                or len(sha256) != 64
+                or any(char not in "0123456789abcdefABCDEF" for char in sha256)
+            ):
+                raise ModelRegistryError(f"model file is invalid: {model['name']}")
+            files.append(ModelFile(file["name"], sha256.lower()))
         specs.append(ModelSpec(
             name=model["name"],
             version=model["version"],
@@ -70,6 +97,7 @@ def _read_manifest() -> tuple[ModelSpec, ...]:
             source=model["source"],
             checkpoint_url=checkpoint_url,
             checkpoint_sha256=checkpoint_sha256,
+            files=tuple(files),
         ))
     if not specs:
         raise ModelRegistryError("model license manifest is empty")
@@ -99,6 +127,8 @@ def role_spec(role: str, selected: str | None = None) -> ModelSpec:
     roles = {
         "whisper": ("openai/whisper", "medium"),
         "faster-whisper": ("Systran/faster-whisper-medium", "medium"),
+        "qwen-asr": ("Qwen/Qwen3-ASR-1.7B", "1.7B"),
+        "qwen-aligner": ("Qwen/Qwen3-ForcedAligner-0.6B", "0.6B"),
         "diarization": ("pyannote/speaker-diarization-3.1", "3.1"),
         "speech-emotion": (
             "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition", "latest-approved",

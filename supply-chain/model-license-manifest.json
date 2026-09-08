@@ -10,6 +10,36 @@
       "checkpointSha256": "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae"
     },
     {
+      "name": "Qwen/Qwen3-ASR-1.7B",
+      "version": "1.7B",
+      "revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+      "license": "Apache-2.0",
+      "source": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B",
+      "files": [
+        {
+          "name": "model-00001-of-00002.safetensors",
+          "sha256": "a4cd1f1a04d90b757dc7f7dd26254e69a013b19e80efe590a83c6a3bde8608d6"
+        },
+        {
+          "name": "model-00002-of-00002.safetensors",
+          "sha256": "6e0b9d9e09e2e0238e7ef3cc8a484ab387e91b90f1900bedf88bc92d7929ccfc"
+        }
+      ]
+    },
+    {
+      "name": "Qwen/Qwen3-ForcedAligner-0.6B",
+      "version": "0.6B",
+      "revision": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7",
+      "license": "Apache-2.0",
+      "source": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "sha256": "47831d0e82f96b20e9034dba01a075ee06436654719f6a68289e49f1b65ce0e7"
+        }
+      ]
+    },
+    {
       "name": "openai/whisper",
       "version": "medium",
       "revision": "86098128c0b4f24f0e2aa2994de830614b474227",
