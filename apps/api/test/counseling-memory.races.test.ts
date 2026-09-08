@@ -161,13 +161,16 @@ describe('durable memory races', () => {
     await expect(commitCounselingMemoryWork(t.env, second.work, second.output)).rejects.toThrow();
     expect((await getCounselingMemory(t.env, counselor, f.id)).items[0]!.body).toBe('서류는 이미 준비됨');
   });
+  // Thirty-six attested sources cross collection and egress batches; CI needs headroom beyond 30s.
   it('drains histories larger than one request without consuming omitted sources', async () => {
     const f = await fixture();
-    const ids = [f.action.id];
-    for (let index = 0; index < 35; index++) {
-      const action = await createActionItem(t.env, counselor, f.action.caseId, { description: `서류 준비 ${index}`, owner: 'beneficiary' });
-      ids.push(action.id);
-    }
+    const addedIds = Array.from({ length: 35 }, () => crypto.randomUUID());
+    const ids = [f.action.id, ...addedIds];
+    const createdAt = new Date().toISOString();
+    // Seed existing history atomically; action creation is covered by its own gateway tests.
+    await t.db.batch(addedIds.map((id, index) =>
+      t.db.prepare("INSERT INTO action_items(id,org_id,support_case_id,description,owner,created_at) VALUES(?,?,?,?,'beneficiary',?)")
+        .bind(id, counselor.orgId, f.id, `서류 준비 ${index}`, createdAt)));
     for (let pass = 0; pass < 32; pass++) {
       await t.db.prepare("UPDATE counseling_memory_cases SET not_before = '2000-01-01T00:00:00.000Z'").run();
       const works = await prepareCounselingMemoryWork(t.env);
@@ -186,7 +189,7 @@ describe('durable memory races', () => {
     }
     const consumed = await t.db.prepare("SELECT source_id FROM counseling_memory_materials WHERE support_case_id=? AND kind='action' AND processed=1 AND valid=1").bind(f.id).all<{source_id:string}>();
     expect(consumed.results.map(row => row.source_id).sort()).toEqual(ids.sort());
-  });
+  }, 60000);
   it('lets ready work pass two earlier cases still waiting for masking', async () => {
     const f = await fixture();
     await maskJobs(f);
