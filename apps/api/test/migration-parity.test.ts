@@ -334,6 +334,46 @@ async function proveDrift(fixture: ParityDatabase, original: Catalog): Promise<v
   await fixture.db.prepare(trigger.definition).run();
   assertFingerprint(await collectCatalog(fixture), expected);
   if (fixture.profile === 'postgres') {
+    async function securityDrift(mutation: string, restore: string): Promise<void> {
+      await fixture.db.prepare(mutation).run();
+      try {
+        const changed = await collectCatalog(fixture);
+        expect(() => assertFingerprint(changed, expected)).toThrow();
+      } finally {
+        await fixture.db.prepare(restore).run();
+      }
+      assertFingerprint(await collectCatalog(fixture), expected);
+    }
+    await securityDrift('ALTER TABLE users DISABLE ROW LEVEL SECURITY', 'ALTER TABLE users ENABLE ROW LEVEL SECURITY');
+    await securityDrift('GRANT SELECT ON users TO PUBLIC', 'REVOKE SELECT ON users FROM PUBLIC');
+    await securityDrift('ALTER ROLE ccc_api BYPASSRLS', 'ALTER ROLE ccc_api NOBYPASSRLS');
+    await securityDrift('ALTER TABLE users OWNER TO ccc_contract', 'ALTER TABLE users OWNER TO ccc_schema_owner');
+    const policy = await fixture.db.prepare(`SELECT policyname,qual,with_check FROM pg_policies
+      WHERE schemaname='public' AND tablename='organization_settings' ORDER BY policyname LIMIT 1`)
+      .first<{ policyname: string; qual: string; with_check: string }>();
+    if (!policy?.qual || !policy.with_check) throw new Error('Required tenant policy mutation target missing.');
+    await securityDrift(`ALTER POLICY ${identifier(policy.policyname)} ON organization_settings USING (true) WITH CHECK (true)`,
+      `ALTER POLICY ${identifier(policy.policyname)} ON organization_settings USING (${policy.qual}) WITH CHECK (${policy.with_check})`);
+    const view = original.views[0];
+    if (!view) throw new Error('Required invoker view mutation target missing.');
+    await securityDrift(`ALTER VIEW ${identifier(view.name)} SET (security_invoker=false)`,
+      `ALTER VIEW ${identifier(view.name)} SET (security_invoker=true)`);
+    const hadPrivateSchema = await fixture.db.prepare("SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='private') AS present").first('present');
+    if (!hadPrivateSchema) await fixture.db.prepare('CREATE SCHEMA private').run();
+    try {
+      await fixture.db.prepare('CREATE TABLE private.ccc_drift_probe(id integer)').run();
+      try {
+        const privateExpected = fingerprint(await collectCatalog(fixture));
+        await fixture.db.prepare('GRANT SELECT ON private.ccc_drift_probe TO PUBLIC').run();
+        const changed = await collectCatalog(fixture);
+        expect(() => assertFingerprint(changed, privateExpected)).toThrow();
+      } finally {
+        await fixture.db.prepare('DROP TABLE private.ccc_drift_probe').run();
+      }
+    } finally {
+      if (!hadPrivateSchema) await fixture.db.prepare('DROP SCHEMA private').run();
+    }
+    assertFingerprint(await collectCatalog(fixture), expected);
     const marked = await fixture.db.prepare(`SELECT k.conname AS name FROM pg_constraint k
       JOIN pg_class t ON t.oid=k.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
       WHERE n.nspname='public' AND t.relname='users' AND obj_description(k.oid,'pg_constraint')='ccc:sqlite-primary-key'`).first<string>('name');

@@ -10,7 +10,8 @@
     "triggers": "Every trigger and PostgreSQL function body remains in the physical fingerprint. The seven exact *_normalize_timestamp_after_insert triggers are SQLite-specific default normalization; PostgreSQL timestamp helpers provide the corresponding output, checked by every timestamp witness. PostgreSQL ccc_audit_rowid and ccc_goal_revision_rowid implement SQLite integer primary-key allocation and must remain present. All other trigger names must match.",
     "triggerOrder": "Same-event trigger order is not a cross-engine contract: PostgreSQL sorts names; SQLite does not guarantee an order. Overlapping invalid writes may choose different guard codes. Archive approval produces both approval and purge audit facts, but surrogate audit IDs do not define their semantic order.",
     "indexes": "Constraint-owned indexes are represented by primary/unique constraints; explicit indexes retain names, keys, uniqueness, predicates and complete definitions.",
-    "timestampSnapshots": "Each inventoried timestamp is read before and after real migrations in separate legal legacy-0ms and modern-500ms databases, then the recovered values are TEXT-ordered by that same engine. The cutover manifest remains a singleton in each snapshot; its default is exercised by replacing that single legal row. No fixture disables constraints or triggers."
+    "timestampSnapshots": "Each inventoried timestamp is read before and after real migrations in separate legal legacy-0ms and modern-500ms databases, then the recovered values are TEXT-ordered by that same engine. The cutover manifest remains a singleton in each snapshot; its default is exercised by replacing that single legal row. No fixture disables constraints or triggers.",
+    "security": "PostgreSQL RLS enable/force flags, policy roles and expressions, relation/function/schema/column grants, ownership, view options, role attributes/memberships and default grants are fingerprinted without passwords or object OIDs. SQLite has no server-role equivalent; the guard organization column remains logical schema in both engines."
   },
   "checkpoints": [
     {
@@ -203,7 +204,7 @@
             "sha256": "c136ab8d1066ee42ae7e25cec77a754486094c03341d6b811a5afcc10689623a"
           }
         ],
-        "catalogSha256": "01c25023643151b6d318677a733a1c691124a02571320cbc17f39ad86d56d925"
+        "catalogSha256": "4e82d5a5b3f7eed8ad06324bb9f7399efb1328401418c18fb7c6d4edbdede6ca"
       },
       "semantics": {
         "markers": [],
@@ -974,7 +975,7 @@
             "sha256": "7c62461256e13c4ed2ab403f162235092589f9c47388d4972a251b7ab033973b"
           }
         ],
-        "catalogSha256": "e1294ebbeeb8bf70cf4699fdbe62da910f773c9772893ccf2d6d292d2c8897b0"
+        "catalogSha256": "98219750d596cd3e53e3f8e6fee9785b41283e2013642fed9ead22ef451447d9"
       },
       "semantics": {
         "markers": [
@@ -1755,7 +1756,7 @@
             "sha256": "817682e90cb03bc341dd1ce6738a29d0c0c1dd9645f5e2044c869e4d32bbd57f"
           }
         ],
-        "catalogSha256": "1a046e34f6b85c5667dce0fcd6d96dc3eb92716602d418a59671dbc9a4a0e516"
+        "catalogSha256": "340b9015a6c978fda1c1f1c41c1b7e168023f579f05813e6979a6557a8e95d5e"
       },
       "semantics": {
         "markers": [
@@ -4697,7 +4698,7 @@
             "sha256": "cc9196c126731b4cf199fe2a36fe5b7e84c432e6971aa8033ed6f2d1f9fa6e78"
           }
         ],
-        "catalogSha256": "4499240c250c5cc1c7b9cf3702aacb0ee207ebf3aa22eec90773526ff3e5d8fe"
+        "catalogSha256": "07867e2dc1cfc9a82a906b01dbadf60c88a6d2a372f1e0c615d9712b7fb16f67"
       },
       "semantics": {
         "markers": [
@@ -7759,7 +7760,3111 @@
             "sha256": "6d85fb48c8f42faa757a35091e63b2fb99ab6bd693a735492beb008f3a274deb"
           }
         ],
-        "catalogSha256": "3b122bd7aae720e620b22605269a9eb703baa52e612eeffb6ef493a03881eb19"
+        "catalogSha256": "2e7056cb3735a22b4be6134f17063fb94cfbda3d92bca8257f872b1ac891670d"
+      },
+      "semantics": {
+        "markers": [
+          "action_items.operation_marker",
+          "counseling_schedules.operation_marker",
+          "invite_tokens.consumption_id",
+          "participant_pii_vault.operation_marker",
+          "sessions.operation_marker",
+          "support_case_assignees.operation_marker",
+          "support_cases.operation_marker"
+        ],
+        "timestamps": [
+          {
+            "table": "action_items",
+            "column": "resolved_at",
+            "default": null,
+            "triggers": [
+              "cm_action_items_update"
+            ]
+          },
+          {
+            "table": "action_items",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "action_items",
+            "column": "resolution_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_installations",
+            "column": "paired_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_installations",
+            "column": "revoked_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_job_egress_records",
+            "column": "authorized_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_job_egress_records",
+            "column": "expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_job_egress_records",
+            "column": "started_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_job_egress_records",
+            "column": "completed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_job_result_acceptances",
+            "column": "accepted_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "enqueued_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "claimed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "lease_expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "ner_attestation_validated_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "ner_attestation_expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "result_accepted_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "retention_hard_cap_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "processing_deadline_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "mask_dictionary_issued_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "mask_dictionary_expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "mask_dictionary_consumed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "agent_jobs",
+            "column": "updated_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_draft_contrast_axes",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_draft_source_materials",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_draft_versions",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "ai_evidence_links",
+            "column": "created_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "ai_gas_evidence",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_masked_source_evidence_items",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_masked_source_snapshots",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "ai_provider_activations",
+            "column": "activated_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "ai_provider_activations",
+            "column": "deactivated_at",
+            "default": null,
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "ai_provider_configs",
+            "column": "created_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "ai_review_events",
+            "column": "created_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "ai_text_work_queue",
+            "column": "enqueued_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_text_work_queue",
+            "column": "completed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_text_work_queue",
+            "column": "lease_expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ai_work_items",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "audit_log",
+            "column": "created_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": [
+              "participant_pii_archives_insert_audit",
+              "participant_pii_archives_review_audit",
+              "participant_pii_vault_cancel_audit",
+              "participant_pii_vault_purge_audit",
+              "participant_pii_vault_schedule_audit",
+              "sessions_manual_submission_audit",
+              "support_cases_cancel_pii_purge_due"
+            ]
+          },
+          {
+            "table": "auth_revocations",
+            "column": "revoked_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "beneficiaries",
+            "column": "created_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "beneficiaries",
+            "column": "updated_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "counseling_memory_agents",
+            "column": "seen_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_memory_cases",
+            "column": "updated_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_memory_corrections",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_memory_derived",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_memory_materials",
+            "column": "occurred_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_memory_materials",
+            "column": "attestation_expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_schedules",
+            "column": "scheduled_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_schedules",
+            "column": "completed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_schedules",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "counseling_schedules",
+            "column": "updated_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "flags",
+            "column": "reviewed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "flags",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "goal_revisions",
+            "column": "edited_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "goals",
+            "column": "closed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "goals",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "invite_tokens",
+            "column": "issued_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "invite_tokens",
+            "column": "used_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "invite_tokens",
+            "column": "revoked_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ner_release_qualification_receipts",
+            "column": "validated_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ner_release_qualification_receipts",
+            "column": "expires_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "ner_release_qualification_receipts",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "organization_settings",
+            "column": "created_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "organization_settings",
+            "column": "updated_at",
+            "default": "datetime('now')",
+            "triggers": [
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_consent_records",
+            "column": "consent_recording_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_consent_records",
+            "column": "consent_text_ai_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_consent_records",
+            "column": "recorded_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "participant_consent_records",
+            "column": "created_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "participant_consent_records",
+            "column": "consent_privacy_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "archived_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_archives_insert_guard"
+            ]
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "retention_cap_due_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_vault_retention_guard"
+            ]
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "review_due_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_archives_insert_guard"
+            ]
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "reviewed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "approved_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "purged_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_archives_insert_guard",
+              "participant_pii_vault_retention_guard",
+              "support_cases_cancel_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "state_changed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_archives_insert_audit",
+              "participant_pii_archives_review_audit",
+              "support_cases_cancel_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_archives",
+            "column": "updated_at",
+            "default": null,
+            "triggers": [
+              "support_cases_cancel_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_retention_decisions",
+            "column": "decided_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "participant_pii_vault",
+            "column": "purge_due",
+            "default": null,
+            "triggers": [
+              "audit_log_participant_provenance_guard",
+              "participant_pii_archives_insert_guard",
+              "participant_pii_vault_retention_guard",
+              "support_cases_cancel_pii_purge_due",
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_vault",
+            "column": "purged_at",
+            "default": null,
+            "triggers": [
+              "audit_log_participant_provenance_guard",
+              "participant_pii_archives_insert_guard",
+              "participant_pii_vault_retention_guard",
+              "support_cases_cancel_pii_purge_due",
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_vault",
+            "column": "retention_changed_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_vault_retention_guard",
+              "support_cases_cancel_pii_purge_due",
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_vault",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_vault_cancel_audit",
+              "participant_pii_vault_purge_audit",
+              "participant_pii_vault_schedule_audit",
+              "support_cases_cancel_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_pii_vault",
+            "column": "updated_at",
+            "default": null,
+            "triggers": [
+              "support_cases_cancel_pii_purge_due",
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "participant_support_case_cutover_manifest",
+            "column": "completed_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "pilot_text_ai_consent_evidence",
+            "column": "effective_at",
+            "default": null,
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "pilot_text_ai_consent_evidence",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "ai_draft_versions_insert_guard"
+            ]
+          },
+          {
+            "table": "recording_result_commits",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "recording_result_commits",
+            "column": "downstream_claimed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "recording_result_commits",
+            "column": "finalized_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "schedule_custom_questions",
+            "column": "created_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "schedule_session_goals",
+            "column": "created_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "session_discrepancies",
+            "column": "detected_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "session_discrepancies",
+            "column": "resolved_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "session_discrepancies",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "session_goal_scores",
+            "column": "created_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "session_life_area_snapshots",
+            "column": "created_at",
+            "default": "datetime('now')",
+            "triggers": []
+          },
+          {
+            "table": "sessions",
+            "column": "held_at",
+            "default": null,
+            "triggers": [
+              "cm_sessions_update"
+            ]
+          },
+          {
+            "table": "sessions",
+            "column": "speaker_mapping_confirmed_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "sessions",
+            "column": "approved_at",
+            "default": null,
+            "triggers": [
+              "cm_sessions_update"
+            ]
+          },
+          {
+            "table": "sessions",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "sessions_manual_submission_audit"
+            ]
+          },
+          {
+            "table": "sessions",
+            "column": "updated_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_case_assignees",
+            "column": "assigned_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_case_assignees",
+            "column": "unassigned_at",
+            "default": null,
+            "triggers": [
+              "audit_log_participant_provenance_guard"
+            ]
+          },
+          {
+            "table": "support_case_assignees",
+            "column": "accepted_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_case_assignees",
+            "column": "notified_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_cases",
+            "column": "intake_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_cases",
+            "column": "consent_recording_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_cases",
+            "column": "consent_text_ai_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_cases",
+            "column": "closed_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_archives_insert_guard",
+              "participant_pii_vault_retention_guard",
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "support_cases",
+            "column": "created_at",
+            "default": null,
+            "triggers": [
+              "sessions_manual_submission_audit",
+              "support_cases_cancel_pii_purge_due"
+            ]
+          },
+          {
+            "table": "support_cases",
+            "column": "updated_at",
+            "default": null,
+            "triggers": [
+              "support_cases_cancel_pii_purge_due",
+              "support_cases_schedule_pii_purge_due"
+            ]
+          },
+          {
+            "table": "support_cases",
+            "column": "consent_privacy_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_cases",
+            "column": "emergency_registration_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "support_cases",
+            "column": "consent_privacy_due_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "team_memberships",
+            "column": "joined_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "team_memberships",
+            "column": "ended_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "team_supervisor_grants",
+            "column": "granted_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "team_supervisor_grants",
+            "column": "revoked_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "teams",
+            "column": "created_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": []
+          },
+          {
+            "table": "teams",
+            "column": "archived_at",
+            "default": null,
+            "triggers": []
+          },
+          {
+            "table": "user_role_assignments",
+            "column": "granted_at",
+            "default": "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            "triggers": [
+              "users_seed_independent_roles_after_insert",
+              "users_sync_independent_roles_after_role_update"
+            ]
+          },
+          {
+            "table": "user_role_assignments",
+            "column": "revoked_at",
+            "default": null,
+            "triggers": [
+              "participant_pii_vault_retention_guard",
+              "users_sync_independent_roles_after_role_update"
+            ]
+          },
+          {
+            "table": "users",
+            "column": "created_at",
+            "default": "datetime('now')",
+            "triggers": [
+              "participant_pii_vault_cancel_audit",
+              "participant_pii_vault_schedule_audit",
+              "sessions_manual_submission_audit",
+              "support_cases_cancel_pii_purge_due",
+              "users_seed_independent_roles_after_insert"
+            ]
+          }
+        ],
+        "timestampProofs": {
+          "sqlite": [
+            {
+              "table": "action_items",
+              "column": "resolved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "action_items",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "action_items",
+              "column": "resolution_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "agent_installations",
+              "column": "paired_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "agent_installations",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_draft_contrast_axes",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_draft_source_materials",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_draft_versions",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_evidence_links",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_gas_evidence",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_masked_source_evidence_items",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_masked_source_snapshots",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_provider_activations",
+              "column": "activated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_provider_activations",
+              "column": "deactivated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_provider_configs",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_review_events",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_text_work_queue",
+              "column": "enqueued_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_text_work_queue",
+              "column": "completed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_text_work_queue",
+              "column": "lease_expires_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_work_items",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "audit_log",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "auth_revocations",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "beneficiaries",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "beneficiaries",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "scheduled_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "completed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "flags",
+              "column": "reviewed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "flags",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "goal_revisions",
+              "column": "edited_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "goals",
+              "column": "closed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "goals",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "invite_tokens",
+              "column": "issued_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "invite_tokens",
+              "column": "used_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "invite_tokens",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "organization_settings",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "organization_settings",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "consent_recording_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "consent_text_ai_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "recorded_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "consent_privacy_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "archived_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "retention_cap_due_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "review_due_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "reviewed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "approved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "purged_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "trigger",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "state_changed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_retention_decisions",
+              "column": "decided_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "purge_due",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "purged_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "trigger",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "retention_changed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_support_case_cutover_manifest",
+              "column": "completed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "pilot_text_ai_consent_evidence",
+              "column": "effective_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "pilot_text_ai_consent_evidence",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "recording_result_commits",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "recording_result_commits",
+              "column": "downstream_claimed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "recording_result_commits",
+              "column": "finalized_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "schedule_custom_questions",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "schedule_session_goals",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_discrepancies",
+              "column": "detected_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_discrepancies",
+              "column": "resolved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_discrepancies",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_goal_scores",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_life_area_snapshots",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "held_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "speaker_mapping_confirmed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "approved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "assigned_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "unassigned_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "accepted_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "notified_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "intake_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_recording_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_text_ai_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "closed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_privacy_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "emergency_registration_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_privacy_due_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_memberships",
+              "column": "joined_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_memberships",
+              "column": "ended_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_supervisor_grants",
+              "column": "granted_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_supervisor_grants",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "teams",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "teams",
+              "column": "archived_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "user_role_assignments",
+              "column": "granted_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "trigger",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "user_role_assignments",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "users",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            }
+          ],
+          "postgres": [
+            {
+              "table": "action_items",
+              "column": "resolved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "action_items",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "action_items",
+              "column": "resolution_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "agent_installations",
+              "column": "paired_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "agent_installations",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_draft_contrast_axes",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_draft_source_materials",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_draft_versions",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_evidence_links",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_gas_evidence",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_masked_source_evidence_items",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_masked_source_snapshots",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_provider_activations",
+              "column": "activated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_provider_activations",
+              "column": "deactivated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_provider_configs",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_review_events",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_text_work_queue",
+              "column": "enqueued_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_text_work_queue",
+              "column": "completed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_text_work_queue",
+              "column": "lease_expires_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "ai_work_items",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "audit_log",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "auth_revocations",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "beneficiaries",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "beneficiaries",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "scheduled_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "completed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "counseling_schedules",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "flags",
+              "column": "reviewed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "flags",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "goal_revisions",
+              "column": "edited_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "goals",
+              "column": "closed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "goals",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "invite_tokens",
+              "column": "issued_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "invite_tokens",
+              "column": "used_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "invite_tokens",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "organization_settings",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "organization_settings",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "consent_recording_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "consent_text_ai_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "recorded_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_consent_records",
+              "column": "consent_privacy_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "archived_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "retention_cap_due_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "review_due_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "reviewed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "approved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "purged_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "trigger",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "state_changed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_archives",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_retention_decisions",
+              "column": "decided_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "purge_due",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "purged_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "trigger",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "retention_changed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_pii_vault",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "participant_support_case_cutover_manifest",
+              "column": "completed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "pilot_text_ai_consent_evidence",
+              "column": "effective_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "pilot_text_ai_consent_evidence",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "recording_result_commits",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "recording_result_commits",
+              "column": "downstream_claimed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "recording_result_commits",
+              "column": "finalized_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "schedule_custom_questions",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "schedule_session_goals",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_discrepancies",
+              "column": "detected_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_discrepancies",
+              "column": "resolved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_discrepancies",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_goal_scores",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "session_life_area_snapshots",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "held_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "speaker_mapping_confirmed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "approved_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "sessions",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "assigned_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "unassigned_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "accepted_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_case_assignees",
+              "column": "notified_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "intake_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_recording_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_text_ai_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "closed_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "updated_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_privacy_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "emergency_registration_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "support_cases",
+              "column": "consent_privacy_due_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_memberships",
+              "column": "joined_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_memberships",
+              "column": "ended_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_supervisor_grants",
+              "column": "granted_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "team_supervisor_grants",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "teams",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "teams",
+              "column": "archived_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "user_role_assignments",
+              "column": "granted_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "trigger",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "user_role_assignments",
+              "column": "revoked_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "bound",
+              "strategy": "independent-legal-snapshots"
+            },
+            {
+              "table": "users",
+              "column": "created_at",
+              "rewritten": "2026-01-01T09:00:00.000Z",
+              "orderedIds": [
+                "legacy-0ms",
+                "new-500ms"
+              ],
+              "output": "default",
+              "strategy": "independent-legal-snapshots"
+            }
+          ]
+        },
+        "dialect": {
+          "retention_cap": "2029-02-28T00:00:00.000Z",
+          "purge_due": "2024-03-01T00:00:00.000Z",
+          "null_deadline": null,
+          "month_day": "02-29",
+          "null_month_day": null,
+          "minimum": 2,
+          "maximum": 3,
+          "null_minimum": null,
+          "null_grace": null,
+          "valid_hex": 1,
+          "invalid_hex": 0,
+          "both_null": 1,
+          "same": 1,
+          "different": 0,
+          "not_both_null": 0,
+          "not_same": 0,
+          "not_different": 1,
+          "subquery_null": 1,
+          "ordered_values": "a,b,c",
+          "scalarBounds": [
+            {
+              "minimum": 2,
+              "maximum": 3
+            },
+            {
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "minimum": null,
+              "maximum": null
+            }
+          ],
+          "transitions": [
+            {
+              "step": 1,
+              "same": 1,
+              "different": 0
+            },
+            {
+              "step": 2,
+              "same": 1,
+              "different": 0
+            },
+            {
+              "step": 3,
+              "same": 0,
+              "different": 1
+            },
+            {
+              "step": 4,
+              "same": 0,
+              "different": 1
+            },
+            {
+              "step": 5,
+              "same": 0,
+              "different": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rls-default-deny",
+      "sqlite": {
+        "sources": [
+          {
+            "name": "0050_rls_scope.sql",
+            "sha256": "4c3784272db53f8955f6520efdccc08789fb7cbc7a13e72a216389363264be03"
+          }
+        ],
+        "catalogSha256": "257a84cfd9a5df66efcfe3c1078602dbbdf3d29a5926eddc67bbdb38d147e0ea"
+      },
+      "postgres": {
+        "sources": [
+          {
+            "name": "0006_rls_default_deny.sql",
+            "sha256": "aaf56bf7e17a48f5b15267a7fa1541bd95665215698a0ab29ccb2285c01ef3d1"
+          }
+        ],
+        "catalogSha256": "90bca7b69ebf7be92cf30ac40c49008ea74230e80f44daa7f5d7752c0c9052fc"
       },
       "semantics": {
         "markers": [

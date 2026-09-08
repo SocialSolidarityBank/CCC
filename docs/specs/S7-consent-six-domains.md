@@ -226,9 +226,9 @@ withdraw 또는 현재 상태 재검증은 모든 외부 작업의 큐 삽입 �
 
 ### 5.2 SQLite/PostgreSQL paired schema
 
-논리 migration 순서는 PostgreSQL baseline `0001_baseline.sql`, SQL portability `0002_sql_portability.sql`, timestamp normalization `0003_timestamp_normalization.sql`, Supabase platform `0004_supabase_platform.sql`(여기서 `ccc_api` role 생성), SG7 consent `0005_consent_six_domains.sql`, SG8 audio objects `0006_audio_objects.sql`이다. SQLite는 SQL portability `0046_sql_portability.sql`, timestamp normalization `0047_timestamp_normalization.sql`, E5-1a Agent jobs `0048_agent_jobs.sql`, SG7 consent와 legacy observations를 함께 담는 `0049_consent_six_domains.sql`, SG8 audio objects `0050_audio_objects.sql`을 사용한다. PostgreSQL의 SG7 `0005`도 consent_events와 legacy observations를 함께 만든다. `migrations/parity.yaml`은 logical pair를 1:1로 기록하고 파일명 존재, live catalog hash, table·column·constraint·index·trigger·policy semantic annotation을 검증한다. E3-4가 baseline과 manifest hash를 소유하고 E3-2가 두 portability pair를 소유한다.
+현재 적용 파일은 S11 §2.4와 `migrations/parity.yaml`을 따른다. PostgreSQL `0004_agent_jobs.sql`, `0005_counseling_memory.sql`, `0006_rls_default_deny.sql`까지 적용한 뒤 SG7 consent와 legacy observations를 한 paired migration으로 추가한다. `ccc_api`는 CCC-221의 `0006`에서 생성한다. SQLite도 `0048_agent_jobs.sql`, `0049_counseling_memory.sql`, `0050_rls_scope.sql` 뒤에 SG7을 추가하고, SG8 audio objects는 SG7을 따른다. 아래 SQL은 그 후속 단계의 계약이며 물리 파일 번호는 구현 때 배정한다. 과거 예약 번호를 기존 파일 위에 재사용하지 않는다. `migrations/parity.yaml`은 logical pair, 파일 해시와 live catalog의 table, column, constraint, index, trigger, policy를 검증한다.
 
-SQLite `migrations/sqlite/0049_consent_six_domains.sql`:
+SQLite 후속 consent migration:
 
 ```sql
 CREATE TABLE consent_events (
@@ -286,7 +286,7 @@ CREATE INDEX legacy_consent_observations_scope
   ON legacy_consent_observations (org_id, source_table, source_row_id);
 ```
 
-PostgreSQL `migrations/postgres/0005_consent_six_domains.sql`:
+PostgreSQL 후속 consent migration:
 
 ```sql
 CREATE TABLE consent_events (
@@ -364,7 +364,7 @@ PostgreSQL의 API transaction은 SG11 규칙대로 `SET LOCAL app.org_id = <acto
 두 adapter 모두 UPDATE와 DELETE를 거부하는 trigger 또는 동등한 port guard, scope 불일치 거부, correction target 무결성 검사, idempotency 충돌 검사를 제공한다. append 시도, 거부 이유 code, correction target, withdrawal race, provider mismatch는 audit log에 남기되 원문·음성·식별자를 남기지 않는다. audit log도 org scope와 append-only 정책을 따른다.
 감사 사건의 logical record는 `auditEventId`, `orgId`, `actorId`, `action`, `consentEventId`(nullable), `outcomeCode`, `recordedAt`이며, `action`은 `consent_append`, `consent_reject`, `consent_correction`, `consent_withdraw_race`, `consent_gate_block` 중 하나다. 이 record도 SQLite와 PostgreSQL에서 동일한 열·scope index·append-only 제약을 사용하고, 원문·음성·식별자·secret을 저장하지 않는다. rejected append도 actor와 고정 오류 code를 남기며 hash와 사건 id 외 문안 본문은 남기지 않는다.
 공개 초대 token은 pre-signup에서 기관·사업·발급자(issuer) scope만 서명해 가진다. token에는 beneficiaryId, supportCaseId, provider, 사건 이력이 들어가지 않는다. token consume transaction이 새 participant와 support case를 생성하면서 token의 org/program/issuer scope와 초기 여섯 consent event를 원자적으로 결합한다. one-time token consume 뒤에는 당사자 self가 사건을 계속 수정할 수 없으며, 이후 철회는 staff 경로 또는 미래에 발급하는 별도 scope-limited request link로만 허용한다.
-부모 트랙에 필요한 후속 문서 편집은 이 스펙에서 수행하지 않는다. S11은 PostgreSQL migration order와 `ccc_api` 생성 위치를 `0001_baseline` → `0002_sql_portability` → `0003_timestamp_normalization` → `0004_supabase_platform` → `0005_consent_six_domains` → `0006_audio_objects`로 맞추고, master plan은 E3-8 parity 경로를 SQLite `0049/0050` 및 PostgreSQL `0005`로 갱신해야 한다. SG8은 resolved commit `9125dc8`과 PostgreSQL `0006_audio_objects` 의존성을 연결해야 한다. 이 항목들은 부모가 별도 구현 커밋에서 수행한다.
+부모 트랙은 구현 시 확정한 paired migration 번호를 S11과 master plan에 함께 반영한다. SG8은 resolved commit `9125dc8`과 이 SG7 consent 단계의 의존성을 연결한다. 이 참조 정리는 동의 업무 계약이나 각 트랙의 소유 범위를 바꾸지 않는다.
 ## 6. DTO, API, 관리자 문안, 공개 초대 범위
 
 - `GET /support-cases/:supportCaseId/consent`는 여섯 domain을 모두 반환하며 각 항목의 `state`는 `unconfirmed | granted | not_granted`, `provider`, `providerLegalRecipient`, `providerCountry`, `purpose`, `retentionDuration`, `effectiveAt`, `eventId`, per-domain `revision`, `eventSequence`를 포함한다. gate용 aggregate `consentRevision`은 이 응답의 current state에 포함하지 않고 `ConsentGateReceipt`에서만 만든다. 사건 전체 이력은 이 응답에 섞지 않는다.

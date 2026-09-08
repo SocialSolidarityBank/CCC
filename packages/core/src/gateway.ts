@@ -10363,16 +10363,11 @@ function conditionalCanonicalAuditStatement(
 }
 
 /**
- * 신규 가명 ID 발급 — 동물 슬러그 + 동물별 순차번호 (D20 · ADR-0004 · 티켓 #11).
- *
- * - 동물 선택: 기관 내 슬러그 발급 수 기반 라운드로빈. 결정론적이라 검증 가능하고
- *   동물 풀을 균등하게 소진하며, 동시 생성 충돌 시 재시도가 다음 동물로 전진한다.
- * - 순번: 동물별·기관별 최대값 + 1 (3자리 제로패딩). id는 전역 PRIMARY KEY라
- *   다른 기관이 이미 선점한 번호는 전역 최대값 + 1로 건너뛴다 — 기관 내 단조
- *   증가는 유지되고 결번만 생긴다(현 단일 기관 배치에서는 발생하지 않음).
- * - 남는 동시성 충돌은 호출부의 UNIQUE 재시도 루프(F7)가 흡수한다.
+ * 신규 가명 ID 발급: 동물 선택은 기관 내 발급 수 기반 라운드로빈을 유지한다.
+ * 기관 내 다음 순번을 먼저 사용하고, 실제 전역 키 충돌이 확인된 경우에만
+ * 개인정보가 없는 공용 번호표로 건너뛴다. 다른 기관의 당사자는 읽지 않는다.
  */
-async function allocateBeneficiaryId(env: Env, orgId: string): Promise<string> {
+async function allocateBeneficiaryId(env: Env, orgId: string, attemptedIds: readonly string[]): Promise<string> {
   const orgRows = await env.DB.prepare(
     "SELECT id FROM beneficiaries WHERE org_id = ? AND id LIKE '%-%'",
   ).bind(orgId).all<{ id: string }>();
@@ -10384,29 +10379,26 @@ async function allocateBeneficiaryId(env: Env, orgId: string): Promise<string> {
   if (animal === undefined) {
     throw new ValidationError('participant id allocation failed');
   }
-
-  const rows = await env.DB.prepare(
-    'SELECT id, org_id FROM beneficiaries WHERE id LIKE ?',
-  ).bind(`${animal}-%`).all<{ id: string; org_id: string }>();
   let orgMax = 0;
-  let globalMax = 0;
-  const taken = new Set<string>();
-  for (const row of rows.results) {
+  for (const row of orgRows.results) {
     if (!row.id.startsWith(`${animal}-`) || !isBeneficiaryId(row.id)) continue;
     const sequence = Number(row.id.slice(animal.length + 1));
     if (!Number.isSafeInteger(sequence) || sequence < 1) {
       throw new ValidationError('participant id allocation failed');
     }
-    taken.add(row.id);
-    globalMax = Math.max(globalMax, sequence);
-    if (row.org_id === orgId) orgMax = Math.max(orgMax, sequence);
+    orgMax = Math.max(orgMax, sequence);
   }
+  const localNext = orgMax + 1;
+  if (!Number.isSafeInteger(localNext)) throw new ValidationError('participant id allocation failed');
+  const candidate = `${animal}-${String(localNext).padStart(3, '0')}`;
+  if (!attemptedIds.includes(candidate)) return candidate;
 
-  let next = orgMax + 1;
-  if (taken.has(`${animal}-${String(next).padStart(3, '0')}`)) {
-    next = globalMax + 1;
-  }
-  if (!Number.isSafeInteger(next) || next < 1) {
+  const next = await env.DB.prepare(
+    `INSERT INTO beneficiary_id_counters(animal,last_value) VALUES(?,1)
+     ON CONFLICT(animal) DO UPDATE SET last_value=beneficiary_id_counters.last_value+1
+     RETURNING last_value`,
+  ).bind(animal).first<number>('last_value');
+  if (next === null || !Number.isSafeInteger(next) || next < 1) {
     throw new ValidationError('participant id allocation failed');
   }
   return `${animal}-${String(next).padStart(3, '0')}`;
@@ -10813,8 +10805,10 @@ export async function createBeneficiaryWithInitialSupportCase(
     : assertPrivacyConsentGate(consent.privacy === true, consent.emergency, now());
 
   let finalError: unknown;
+  const attemptedIds: string[] = [];
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const beneficiaryId = await allocateBeneficiaryId(env, actor.orgId);
+    const beneficiaryId = await allocateBeneficiaryId(env, actor.orgId, attemptedIds);
+    attemptedIds.push(beneficiaryId);
     const supportCaseId = newId();
     const legacyCaseId = legacyCompatibility === undefined ? null : beneficiaryId;
     const assignmentId = newId();
@@ -18270,8 +18264,10 @@ export async function completeParticipantSignup(
   const encEmail = input.email === undefined || input.email === null ? null : await encryptPii(env, input.email);
 
   let finalError: unknown;
+  const attemptedIds: string[] = [];
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const beneficiaryId = await allocateBeneficiaryId(env, invite.orgId);
+    const beneficiaryId = await allocateBeneficiaryId(env, invite.orgId, attemptedIds);
+    attemptedIds.push(beneficiaryId);
     const supportCaseId = newId();
     const assignmentId = newId();
     const consentRecordId = newId();
@@ -18687,7 +18683,7 @@ export async function setCounselingMemorySettings(env: Env, actor: Actor, input:
   const token=newId();
   await memoryBatch(env,[
     env.DB.prepare('INSERT INTO counseling_memory_settings(org_id) VALUES(?) ON CONFLICT(org_id) DO NOTHING').bind(actor.orgId),
-    env.DB.prepare('INSERT INTO counseling_memory_guards(id,ok) SELECT ?,CASE WHEN version=? THEN 1 ELSE 0 END FROM counseling_memory_settings WHERE org_id=?').bind(token,input.expectedVersion,actor.orgId),
+    env.DB.prepare('INSERT INTO counseling_memory_guards(id,org_id,ok) SELECT ?,org_id,CASE WHEN version=? THEN 1 ELSE 0 END FROM counseling_memory_settings WHERE org_id=?').bind(token,input.expectedVersion,actor.orgId),
     env.DB.prepare('UPDATE counseling_memory_settings SET enabled=?,version=version+1 WHERE org_id=? AND version=?').bind(input.enabled?1:0,actor.orgId,input.expectedVersion),
     env.DB.prepare("UPDATE counseling_memory_cases SET generation=generation+1,lease_token=NULL,egress=NULL,request_json=NULL,status=CASE WHEN ?=1 THEN 'backfill' ELSE 'off' END,cursor=CASE WHEN ?=1 THEN '' ELSE cursor END,backfill_done=CASE WHEN ?=1 THEN 0 ELSE backfill_done END WHERE org_id=?").bind(input.enabled?1:0,input.enabled?1:0,input.enabled?1:0,actor.orgId),
     env.DB.prepare("INSERT INTO audit_log(org_id,actor_id,actor_role,action,target_table,target_id,detail,created_at) VALUES(?,?,?,'update','counseling_memory_settings',?,?,?)").bind(actor.orgId,actor.userId,actor.role,actor.orgId,JSON.stringify({enabled:input.enabled,version:input.expectedVersion+1}),now()),
@@ -18991,10 +18987,10 @@ export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string
   const c=await memoryCase(env,actor.orgId,row.support_case_id);
   const marker=newId(),at=now();
   await memoryBatch(env,[
-    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,ok) VALUES(?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_materials m JOIN counseling_memory_cases c ON c.org_id=m.org_id AND c.support_case_id=m.support_case_id WHERE m.id=? AND m.valid=1 AND m.status='leased' AND m.lease_token=? AND m.attempt=? AND c.generation=?
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_materials m JOIN counseling_memory_cases c ON c.org_id=m.org_id AND c.support_case_id=m.support_case_id WHERE m.id=? AND m.valid=1 AND m.status='leased' AND m.lease_token=? AND m.attempt=? AND c.generation=?
       AND m.lease_until>? AND m.attestation_expires_at>?
       AND EXISTS(SELECT 1 FROM ner_release_qualification_receipts r WHERE r.id=m.receipt_id AND r.org_id=m.org_id AND r.status='passed' AND r.expires_at>?)
-      AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,id,row.lease_token,row.attempt,c.generation,at,at,at,at),
+      AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,id,row.lease_token,row.attempt,c.generation,at,at,at,at),
     env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=? WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,id,row.lease_token,row.attempt),
     memoryAuditStatement(env,actor,row.support_case_id,'create',{materialId:id,sourceRevision:row.source_revision}),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
@@ -19007,13 +19003,13 @@ export async function releaseCounselingMemorySource(env:Env,actor:Actor,id:strin
 
 function memoryWorkGuard(env:Env,work:MemoryWork,id:string,egress:string|null):PreparedStatement {
   const at=now();
-  return env.DB.prepare(`INSERT INTO counseling_memory_guards(id,ok) VALUES(?,CASE WHEN EXISTS(
+  return env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(
     SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=? AND c.support_case_id=?
     AND c.work_id=? AND c.lease_token=? AND c.generation=? AND c.correction_revision=?
     AND c.work_settings=COALESCE((SELECT version FROM counseling_memory_settings WHERE org_id=c.org_id),1)
     AND c.work_settings=? AND c.lease_until>? AND c.egress IS NOT DISTINCT FROM ? AND ${memoryEligibleSql}
     AND (c.config_hash IS NULL OR EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=c.org_id AND a.deactivated_at IS NULL AND p.config_hash=c.config_hash))
-  ) THEN 1 ELSE 0 END)`).bind(id,work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision,work.settingsVersion,at,egress,at);
+  ) THEN 1 ELSE 0 END)`).bind(id,work.orgId,work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision,work.settingsVersion,at,egress,at);
 }
 async function assertMemoryWork(env:Env,work:MemoryWork,egress:string|null):Promise<MemoryCaseRow> {
   const c=await memoryCase(env,work.orgId,work.supportCaseId);
@@ -19146,7 +19142,7 @@ export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,config
   const marker=newId();
   await memoryBatch(env,[memoryWorkGuard(env,work,marker,null),
     ...request.materials.flatMap(material=>memoryMaterialGuard(env,`${marker}:${material.id}`,work.orgId,work.supportCaseId,material)),
-    env.DB.prepare('INSERT INTO counseling_memory_guards(id,ok) VALUES(?,CASE WHEN EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=? AND a.deactivated_at IS NULL AND p.config_hash=?) THEN 1 ELSE 0 END)').bind(`${marker}:config`,work.orgId,configHash),
+    env.DB.prepare('INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=? AND a.deactivated_at IS NULL AND p.config_hash=?) THEN 1 ELSE 0 END)').bind(`${marker}:config`,work.orgId,work.orgId,configHash),
     env.DB.prepare("UPDATE counseling_memory_cases SET egress='started',request_json=?,config_hash=? WHERE org_id=? AND support_case_id=? AND lease_token=?").bind(JSON.stringify(request),configHash,work.orgId,work.supportCaseId,work.leaseToken),
     memoryAuditStatement(env,{userId:work.serviceActorId,orgId:work.orgId,role:'service'},work.supportCaseId,'read',{generation:work.generation,egressId:work.id}),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=? OR id=?').bind(marker,`${marker}:config`)]);
@@ -19216,7 +19212,7 @@ export async function correctCounselingMemory(env:Env,actor:Actor,supportCaseId:
   const c=await memoryCase(env,actor.orgId,supportCaseId),at=now(),marker=newId(),correctionId=item.id;
   const corrected:MemoryItem={...item,body:input.body,revision:item.revision+1,correctedAt:at,updatedAt:at};
   await memoryBatch(env,[
-    env.DB.prepare('INSERT INTO counseling_memory_guards(id,ok) VALUES(?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_items i JOIN counseling_memory_cases c ON c.support_case_id=i.support_case_id AND c.org_id=i.org_id WHERE i.id=? AND i.org_id=? AND i.valid=1 AND i.revision=? AND c.generation=?) THEN 1 ELSE 0 END)').bind(marker,item.id,actor.orgId,input.expectedRevision,c.generation),
+    env.DB.prepare('INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_items i JOIN counseling_memory_cases c ON c.support_case_id=i.support_case_id AND c.org_id=i.org_id WHERE i.id=? AND i.org_id=? AND i.valid=1 AND i.revision=? AND c.generation=?) THEN 1 ELSE 0 END)').bind(marker,actor.orgId,item.id,actor.orgId,input.expectedRevision,c.generation),
     env.DB.prepare('INSERT INTO counseling_memory_history(id,org_id,support_case_id,revision,item_json) VALUES(?,?,?,?,?) ON CONFLICT(id,revision) DO NOTHING').bind(item.id,actor.orgId,supportCaseId,item.revision,JSON.stringify(item)),
     env.DB.prepare('UPDATE counseling_memory_items SET item_json=?,revision=? WHERE id=? AND org_id=?').bind(JSON.stringify(corrected),corrected.revision,item.id,actor.orgId),
     env.DB.prepare('INSERT INTO counseling_memory_corrections(id,org_id,support_case_id,body,revision,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body,revision=excluded.revision,created_at=excluded.created_at').bind(correctionId,actor.orgId,supportCaseId,memoryDerivedText(corrected),corrected.revision,at),
@@ -19308,7 +19304,7 @@ async function memoryDraftContextStatements(env:Env,actor:Actor,sessionId:string
   if(!context||input.supportCaseId!==context.supportCaseId||input.revision!==context.revision||!Array.isArray(input.materialSnapshotIds)||!input.materialSnapshotIds.length||new Set(input.materialSnapshotIds).size!==input.materialSnapshotIds.length||input.materialSnapshotIds.some(id=>!context.materials.some(m=>m.snapshotId===id))) throw new ConflictError('memory_superseded');
   const marker=newId(),c=await memoryCase(env,actor.orgId,input.supportCaseId);
   return [
-    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,ok) VALUES(?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=? AND c.support_case_id=? AND c.revision=? AND c.generation=? AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,input.supportCaseId,input.revision,c.generation,now()),
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=? AND c.support_case_id=? AND c.revision=? AND c.generation=? AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,actor.orgId,input.supportCaseId,input.revision,c.generation,now()),
     ...context.materials.filter(material=>input.materialSnapshotIds.includes(material.snapshotId)).flatMap(material=>memoryMaterialGuard(env,`${marker}:${material.id}`,actor.orgId,input.supportCaseId,material)),
     env.DB.prepare('INSERT INTO counseling_memory_draft_context(draft_id,org_id,support_case_id,revision,snapshot_ids) VALUES(?,?,?,?,?)').bind(draftId,actor.orgId,input.supportCaseId,input.revision,JSON.stringify(input.materialSnapshotIds)),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=? OR id LIKE ?').bind(marker,`${marker}:%`),
@@ -19347,12 +19343,12 @@ async function memoryNerQualification(env:Env,orgId:string,attestation:NerAttest
 function memoryMaterialGuard(env:Env,id:string,orgId:string,supportCaseId:string,material:MemoryMaterial):PreparedStatement[] {
   const at=now();
   return [
-    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,ok) VALUES(?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_materials m
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_materials m
       JOIN counseling_memory_sources s ON s.org_id=m.org_id AND s.support_case_id=m.support_case_id AND s.kind=m.kind AND s.source_id=m.source_id AND s.revision=m.source_revision
       JOIN ner_release_qualification_receipts r ON r.id=m.receipt_id AND r.org_id=m.org_id
       WHERE m.id=? AND m.org_id=? AND m.support_case_id=? AND m.snapshot_id=? AND m.sha256=? AND m.valid=1 AND m.status='ready' AND s.deleted=0
       AND r.status='passed' AND r.expires_at>? AND m.attestation_expires_at>?
-    ) THEN 1 ELSE 0 END)`).bind(id,material.id,orgId,supportCaseId,material.snapshotId,material.sha256,at,at),
+    ) THEN 1 ELSE 0 END)`).bind(id,orgId,material.id,orgId,supportCaseId,material.snapshotId,material.sha256,at,at),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(id),
   ];
 }

@@ -97,16 +97,17 @@ step 전후에 같은 provider API를 다시 읽어 desired digest와 ownership 
 
 `migrations/postgres/0001_baseline.sql`은 `db/schema.sql`과 S1의 논리 schema를 PostgreSQL 현재 기준선으로 만든다. 과거 SQLite migration을 순서대로 번역하거나 재생하지 않는다. 기준선에는 S1이 정한 table, column, FK, unique 제약, 필수 `org_id`, org_id index, append-only 제약과 audit/consent/AI evidence table을 포함한다.
 
-`migrations/postgres/0004_supabase_platform.sql`은 이 문서의 플랫폼 공통 객체만 만든다.
+현재 적용 순서는 `0001_baseline.sql`, `0002_sql_portability.sql`, `0003_timestamp_normalization.sql`, `0004_agent_jobs.sql`, `0005_counseling_memory.sql`, `0006_rls_default_deny.sql`이다. 실제 파일과 SQLite 대응 단계는 `migrations/parity.yaml`이 정본이다.
+
+CCC-221의 `0006_rls_default_deny.sql`이 `ccc_schema_owner`와 `ccc_api`, browser grant 회수, RLS와 보안 기본 권한을 만든다. 대응 SQLite `0050_rls_scope.sql`은 상담 맥락의 임시 검사 행에 기관 식별자를 추가하고 두 DB에 개인정보 없는 가명 번호표를 만든다. 과거 baseline은 덮어쓰지 않는다.
+
+후속 Supabase platform 마이그레이션은 남은 플랫폼 공통 객체만 만든다. 파일 번호는 구현 시점의 다음 번호를 사용한다.
 
 - `private.ccc_install_receipt`와 append-only `private.ccc_release_history`
-- `ccc_schema_owner`(NOLOGIN)와 `ccc_api`(LOGIN, `NOBYPASSRLS`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`)
-- `public` 업무 table에 대한 browser role의 grant 회수와 API-only role의 최소 grant
 - Auth 사용자와 CCC `users.auth_user_id` 연결에 필요한 제약
-- RLS enable과 org 경계 정책
 - 비공개 `ccc-audio` bucket의 선언 상태와 cron 등록에 필요한 platform 설정
 
-`migrations/postgres/0005_consent_six_domains.sql`은 S7/E3-8이 소유하며 `ccc_api` 정책을 사용한다. 그 뒤의 `migrations/postgres/0006_audio_objects.sql`은 S8/E5-6의 소유다. S11은 migration ID와 적용 순서만 참조하며 동의 fold, 원음 시계, claim, signed URL 만료와 삭제 증거를 재정의하지 않는다. 이후 forward migration은 하나의 논리 ID에 SQLite와 PostgreSQL 두 파일을 만들고 S1의 parity 규칙을 따른다.
+S7/E3-8의 consent와 legacy observations는 후속 paired migration 하나로 만들며 이미 생성된 `ccc_api` 정책을 사용한다. S8/E5-6의 audio objects는 그 동의 단계를 따른다. 과거 설계의 예약 번호 `0004/0005/0006`과 SQLite `0049/0050`은 이미 다른 적용 파일이 차지하므로 재사용하지 않는다. S11은 이 선행 관계만 정하고 동의 fold, 원음 시계, claim, signed URL 만료와 삭제 증거는 각 소유 스펙이 정한다. 이후 forward migration도 S1의 parity 규칙을 따른다.
 
 ### 2.5 API-only role과 RLS
 
@@ -130,6 +131,17 @@ RLS 규칙:
 | `ccc_api`, 같은 org context | RLS 통과 후 gateway 권한 검사 | 허용된 동작만 수행 |
 
 RLS는 업무 table마다 `ENABLE ROW LEVEL SECURITY`를 명시한다. default deny를 깨는 `USING (true)`, `WITH CHECK (true)`, browser role grant, security-definer 우회 함수는 금지한다. `storage.objects`도 public bucket으로 바꾸지 않으며 browser가 업무 object를 list/read할 Storage 정책을 만들지 않는다.
+
+CCC-221의 구현 경계:
+
+- `ccc_schema_owner`는 NOLOGIN, `ccc_api`는 LOGIN이며 둘 다 superuser, BYPASSRLS, role 생성과 DB 생성 권한이 없다. 기존 role 속성이나 직간접 membership이 이 경계를 깨면 마이그레이션을 거부한다. 설치자는 업무 객체와 public schema의 소유권, CREATEROLE이 필요하다. schema의 USAGE/CREATE grant만 받은 연결은 부족하다. 설치자는 소유권 이전을 위한 owner membership만 받는다.
+- 업무 표는 ENABLE과 FORCE RLS를 모두 사용한다. `org_id`가 없는 업무 자식 표는 보호된 부모 표를 통해 범위를 확인하고, compatibility view는 `security_invoker=true`로 조회한다. 설치 전용 표에는 API grant를 주지 않는다.
+- `PostgresDatabase.forActor({ orgId, actorId })`는 불변 Database view다. 각 `first`, `all`, `run`, `batch`가 같은 트랜잭션 안에서 두 context를 설정한다. 성공과 실패 뒤 context는 풀에 남지 않는다. 입력 신뢰성과 담당 권한을 이 어댑터가 대신 판단하지 않는다.
+- `auth_revocations`의 actor 사건은 같은 기관의 `users`를 통해 읽기와 삽입을 제한한다. 기관을 역조회할 수 없는 opaque session 사건은 기관과 actor context가 있을 때 삽입만 가능하며 API 조회, 수정, 삭제는 막는다. 향후 session 사건을 읽으려면 먼저 소유 범위를 정의해야 한다.
+- `beneficiary_id_counters`는 동물 이름과 마지막 번호만 가진 공용 할당 정보다. 기관 내 다음 번호를 우선하고 실제 키 충돌 때만 기존 재시도 안에서 이 번호표를 사용한다. 다른 기관의 당사자 행을 읽지 않는다. 번호표도 browser와 context 없는 API에는 열지 않는다.
+- PUBLIC과 browser뿐 아니라 catalog에 남은 provider나 과거 role의 표, 열, 시퀀스, 함수 grant도 회수한다. 설치자와 owner가 이후 만드는 객체의 전역 기본 권한과 schema-local 추가 grant도 닫는다. API에는 필요한 trigger, CHECK와 기본값 함수만 열며 SECURITY DEFINER는 사용하지 않는다. 감사와 목표 문구 이력은 trigger 외에 UPDATE/DELETE grant도 막는다.
+
+이 구현의 검증 대상은 일회용 PostgreSQL이다. 호스팅 Supabase의 Auth, Storage, cron, 설치 apply나 실제 Edge 배포가 완료됐다는 뜻은 아니다.
 
 ### 2.6 Supabase Auth
 
@@ -330,7 +342,7 @@ rollback 중 다음 조건을 지킨다.
 - [ ] Edge가 globally distributed임을 명시하고 hard Seoul residency로 오인하지 않는다. browser/API와 `pg_net`은 `x-region: ap-northeast-2`(불가 시 `forceFunctionRegion`)를 보내며, `x-sb-edge-region`과 `SB_REGION`을 log/receipt에 기록하고 mismatch는 `EDGE_REGION_MISMATCH` 실패·alert 후 자동 reroute하지 않는다. residual international-transfer risk는 S14/E9-3이 소유한다.
 - [ ] S2 signed install manifest의 `institutionId`·`projectRef`·`expectedOwnerOrgId` binding과 관찰 owner organization ID가 정확히 일치할 때만 적용하며, missing/wrong evidence는 0 write로 거부한다.
 - [ ] `ap-northeast-2`의 기관 소유 프로젝트만 적용되며, 허용된 공급자 기본 객체 외의 기존 table, row, object, grant, cron이 있으면 0 write로 거부한다. 단, 동일 `installationId` journal과 ownership tag가 있는 미완성 자원만 resume/reconcile한다.
-- [ ] PostgreSQL `0001_baseline.sql`, `0002_sql_portability.sql`, `0003_timestamp_normalization.sql`, `0004_supabase_platform.sql`, `0005_consent_six_domains.sql`, `0006_audio_objects.sql`과 이후 forward migration, migration ID/checksum ledger, durable install journal, S1 parity 규칙이 문서에 고정되어 있다. S7과 S8의 업무 계약은 참조만 한다.
+- [ ] §2.4의 실제 PostgreSQL `0001`~`0006`과 후속 paired migration, migration ID/checksum ledger, durable install journal, S1 parity 규칙을 설치가 따른다. S7과 S8의 업무 계약은 참조만 한다.
 - [ ] `anon`과 `authenticated`의 업무 table/storage direct read가 거부되고, `ccc_api`의 다른 org context에서 cross-org 결과가 0건이며, API role이 `BYPASSRLS`나 table owner가 아니다.
 - [ ] Supabase Auth 설정, Auth 사용자 mapping, 관리자 MFA 경계가 S2/E4-2를 참조하고, 설치가 실사용자 계정을 자동 생성하지 않는다.
 - [ ] `ccc-audio`가 private이며 audio byte가 Edge를 통과하지 않는다. Edge가 audio/multipart/binary body, base64/blob/byte-array field, unknown JSON key, 1 MiB 초과 body를 각각 거부한다.
@@ -374,6 +386,8 @@ pnpm supabase:bootstrap -- apply --project-ref "$CCC_SUPABASE_PROJECT_REF" --ins
 pnpm supabase:bootstrap -- doctor --project-ref "$CCC_SUPABASE_PROJECT_REF"
 pnpm --filter @ccc/api exec vitest run test/supabase-install.test.ts test/supabase-rls.test.ts test/edge-wrapper.test.ts
 pnpm test:contracts --db=postgres
+pnpm test:security --rls
+pnpm guard:migration-parity
 pnpm guard:secrets
 ```
 

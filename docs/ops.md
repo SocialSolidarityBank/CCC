@@ -144,9 +144,9 @@ ADR 파일·마이그레이션 파일·9장 결정 번호는 **손으로 붙이�
 
 ### PostgreSQL 기준 스키마와 동등성 검사 (CCC-216)
 
-`migrations/postgres/0001_baseline.sql`은 SQLite 0045까지의 누적 스키마다. 이후 SQL 이식성, 시간 정규화, Agent 일감, 상담 맥락 마이그레이션은 별도 단계로 적용한다. 정확한 대응 순서와 파일 해시는 `migrations/parity.yaml`이 갖는다.
+`migrations/postgres/0001_baseline.sql`은 SQLite 0045까지의 누적 스키마다. 이후 SQL 이식성, 시간 정규화, Agent 일감, 상담 맥락, RLS 마이그레이션을 별도 단계로 적용한다. 정확한 대응 순서와 파일 해시는 `migrations/parity.yaml`이 갖는다.
 
-- `pnpm guard:migration-parity`: 실제 암호화 SQLite와 PostgreSQL에 다섯 단계를 재생한다. 스키마 지문, 기본값, 보존 기한의 NULL 처리, 레거시 시간 열 98개의 변환과 정렬을 검증한다.
+- `pnpm guard:migration-parity`: 실제 암호화 SQLite와 PostgreSQL에 여섯 단계를 재생한다. 스키마 지문, 기본값, 보존 기한의 NULL 처리, 레거시 시간 열의 변환과 정렬을 검증한다. PostgreSQL의 RLS 정책, FORCE 여부, 소유자, role 속성, membership, 객체 grant와 기본 권한도 지문에 포함하며 보안 설정을 한 가지씩 바꾼 경우 실패하는지 확인한다.
 - `pnpm test:db-parity`: D1, 암호화 SQLite, PostgreSQL에 같은 업무 입력을 넣고 저장, 재조회, 조건부 감사, 오류 분류와 실패 시 롤백 결과를 비교한다.
 - Node 24와 Docker가 필요하다. 기존 테스트 하네스의 일회용 PostgreSQL만 사용하며, Docker가 없으면 실패한다. CI에서는 두 검사가 전체 API 테스트에 포함되어 한 번씩 실행된다.
 
@@ -157,7 +157,27 @@ CCC_UPDATE_MIGRATION_PARITY=1 pnpm exec vitest run --config apps/api/vitest.conf
 pnpm guard:migration-parity
 ```
 
-이 검사는 운영 PostgreSQL 설치, 기존 데이터 이전, RLS 검증이나 배포 완료를 뜻하지 않는다. 설치와 운영 전환은 해당 실행 티켓에서 별도로 진행한다.
+이 검사는 운영 PostgreSQL 설치, 기존 데이터 이전이나 배포 완료를 뜻하지 않는다. 설치와 운영 전환은 해당 실행 티켓에서 별도로 진행한다.
+
+### PostgreSQL API 전용 권한 (CCC-221)
+
+`0006_rls_default_deny.sql` 적용 후 browser의 `anon`, `authenticated`는 업무 표를 직접 읽거나 쓸 수 없다. 서버 연결은 `ccc_api`를 사용하며 업무 객체의 소유자인 `ccc_schema_owner`는 로그인할 수 없다. `ccc_api`는 owner나 superuser가 아니며 RLS 우회와 role 생성 권한도 없다.
+
+서버는 신뢰할 수 있는 신원 처리 경계에서 기관과 actor를 결정한 다음 `PostgresDatabase.forActor({ orgId, actorId })`가 반환한 Database를 gateway에 전달한다. 요청 body의 값을 그대로 쓰면 안 된다. context 없는 API 조회는 비어 있고 삽입은 거부된다. scoped view는 context를 각 작업의 트랜잭션 안에서만 설정하므로 한 연결을 재사용해도 이전 기관의 값이 남지 않는다. 담당자, 관리자와 읽기 전용 감독 권한은 여전히 gateway가 검사한다.
+
+설치 연결과 업무 연결은 다르다. 설치자는 업무 객체와 public schema의 소유권, CREATEROLE이 필요하다. USAGE/CREATE grant만 받은 연결은 PUBLIC 권한을 제대로 회수할 수 없어 설치를 거부한다. 마이그레이션은 소유권 이전용 membership을 설치자에게만 주고, 제3자에게 이어지는 membership은 거부한다. 기존 provider나 과거 role의 표, 열, 함수, 기본 grant도 이름 목록에 의존하지 않고 회수한다. 이 자격이나 DB 연결 문자열을 browser에 전달하지 않는다. 새 객체는 owner, 최소 API grant와 RLS 정책을 명시하고 지문을 갱신한다.
+
+`audit_log`와 `goal_revisions`의 자동 번호는 전역 시퀀스를 사용한다. 명시적인 ID를 넣는 가져오기는 PostgreSQL 표준 동작상 시퀀스를 자동으로 진행시키지 않는다. 가져오기 소유자는 관리 경로에서 전체 ID와 시퀀스를 맞춘 뒤 다음 자동 발급을 검증해야 한다. 일반 API에는 시퀀스 값을 바꾸는 `setval` 권한을 주지 않는다. 가명 번호표는 별도의 INSERT trigger가 명시적 가져오기 번호까지 반영한다.
+
+검증 명령:
+
+```sh
+pnpm test:security --rls
+pnpm test:contracts --db=postgres
+pnpm guard:migration-parity
+```
+
+일회용 PostgreSQL에서 실제 `ccc_api` LOGIN, 같은 기관의 정상 업무, 다른 기관 접근 거부, browser 직접 접근 거부, 부모를 통한 자식 표 범위, 보존 기한 계산, 새 함수 기본 권한과 non-superuser 설치를 확인한다. 실제 Supabase 프로젝트의 Auth/Storage 설정이나 Edge 배포는 이 검증에 포함되지 않는다.
 
 ## 로컬 프리뷰 (dev 이중 잠금)
 

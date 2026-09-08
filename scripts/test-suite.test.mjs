@@ -26,7 +26,10 @@ test('one suite may run multiple contract files', () => {
 test('database profile flags select D1, encrypted SQLite, PostgreSQL, or SQL portability contracts', () => {
   assert.deepEqual(plan(['contracts', '--db=d1']).argv.slice(-1), ['apps/api/test/database-contract.test.ts']);
   assert.deepEqual(plan(['contracts', '--db=sqlite']).argv.slice(-1), ['apps/api/test/sqlite-database.contract.test.ts']);
-  assert.deepEqual(plan(['contracts', '--db=postgres']).argv.slice(-1), ['apps/api/test/postgres-database.contract.test.ts']);
+  assert.deepEqual(plan(['contracts', '--db=postgres']).argv.slice(-2), [
+    'apps/api/test/postgres-database.contract.test.ts',
+    'apps/api/test/postgres-context.contract.test.ts',
+  ]);
   assert.deepEqual(plan(['contracts', '--sql']).argv.slice(-3), [
     'apps/api/test/sql-placeholder-scanner.test.ts',
     'apps/api/test/sql-operation-marker.test.ts',
