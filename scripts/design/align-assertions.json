@@ -73,7 +73,7 @@
     "name": "AI 제안 안내 글은 구획 라벨과 같은 폭을 쓴다",
     "selectors": [
       "#align-content #briefing-remember .briefing-ai-goal-hint>span",
-      "#align-content #briefing-remember .wire-card-section[data-tone=\"lavender\"]>h3"
+      "#align-content #briefing-remember .wire-card-section:has(>.briefing-suggestions)>h3"
     ],
     "axis": "width",
     "tolerance": 1
@@ -81,7 +81,7 @@
   {
     "name": "AI 제안 목록은 라벨 아래와 마지막 아래 여백이 24로 같다",
     "selectors": [
-      "#align-content #briefing-remember .wire-card-section[data-tone=\"lavender\"]>h3",
+      "#align-content #briefing-remember .wire-card-section:has(>.briefing-suggestions)>h3",
       "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-title",
       "#align-content #briefing-remember .briefing-suggestion-list>li:last-child .briefing-suggestion-reason",
       "#align-content #briefing-remember .briefing-ai-goal-hint"

@@ -154,7 +154,7 @@ class VerifyFixtureTest(unittest.TestCase):
         self._write_json(self.manifest_path, value)
 
     def _rewrite_licenses(self, mutate) -> None:  # noqa: ANN001
-        licenses = json.loads(self.licenses_path.read_text())
+        licenses = json.loads(self.licenses_path.read_text(encoding="utf-8"))
         mutate(licenses)
         self._write_json(self.licenses_path, licenses)
         license_hash = hashlib.sha256(self.licenses_path.read_bytes()).hexdigest()
@@ -228,7 +228,7 @@ class VerifyFixtureTest(unittest.TestCase):
     def test_rejects_ranges_that_disagree_with_speaker_truth(self) -> None:
         session = self.manifest["sessions"][0]
         reference_path = self.fixture_dir / session["referencePath"]
-        reference = json.loads(reference_path.read_text())
+        reference = json.loads(reference_path.read_text(encoding="utf-8"))
         wrong_overlap = [{"start": 10.0, "end": 11.0}]
         reference["overlapRanges"] = wrong_overlap
         self._write_json(reference_path, reference)
@@ -242,7 +242,7 @@ class VerifyFixtureTest(unittest.TestCase):
     def test_rejects_speaker_turn_outside_duration(self) -> None:
         session = self.manifest["sessions"][0]
         reference_path = self.fixture_dir / session["referencePath"]
-        reference = json.loads(reference_path.read_text())
+        reference = json.loads(reference_path.read_text(encoding="utf-8"))
         reference["speakerTurns"][1]["end"] = 61.0
         self._write_json(reference_path, reference)
 
@@ -257,7 +257,7 @@ class VerifyFixtureTest(unittest.TestCase):
     def test_rejects_transcript_that_differs_from_ordered_turn_text(self) -> None:
         session = self.manifest["sessions"][0]
         reference_path = self.fixture_dir / session["referencePath"]
-        reference = json.loads(reference_path.read_text())
+        reference = json.loads(reference_path.read_text(encoding="utf-8"))
         reference["transcript"] = "서로 관련 없는 정답 문장"
         self._write_json(reference_path, reference)
 
@@ -276,7 +276,7 @@ class VerifyFixtureTest(unittest.TestCase):
         self.assert_invalid("silenceRanges")
 
     def test_rejects_missing_license_entry(self) -> None:
-        licenses = json.loads(self.licenses_path.read_text())
+        licenses = json.loads(self.licenses_path.read_text(encoding="utf-8"))
         licenses["assets"].pop()
         self._write_json(self.licenses_path, licenses)
         license_hash = hashlib.sha256(self.licenses_path.read_bytes()).hexdigest()

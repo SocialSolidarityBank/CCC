@@ -67,6 +67,48 @@ import {
   activateAiProviderRuntime,
 } from './lib/api';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
+import { getCounselingMemory, getCounselingMemorySettings, correctCounselingMemory, setCounselingMemorySettings } from './lib/api';
+import type { MemoryCorrectionInput, MemorySettingsInput } from '@ccc/contracts/counseling-memory';
+
+export async function correctCounselingMemoryAction(beneficiaryId: string, supportCaseId: string, input: MemoryCorrectionInput) {
+  try {
+    await getParticipantProgram(beneficiaryId, supportCaseId);
+    const data = await correctCounselingMemory(supportCaseId, input);
+    const path = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
+    revalidatePath(`${path}/memory`);
+    revalidatePath(`${path}/briefing`);
+    return { ok: true as const, data };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof ApiError ? error.code : 'service_unavailable' };
+  }
+}
+
+export async function setCounselingMemorySettingsAction(input: MemorySettingsInput) {
+  try {
+    const data = await setCounselingMemorySettings(input);
+    revalidatePath('/settings');
+    return { ok: true as const, data };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof ApiError ? error.code : 'service_unavailable' };
+  }
+}
+
+export async function refreshCounselingMemoryAction(beneficiaryId: string, supportCaseId: string) {
+  try {
+    await getParticipantProgram(beneficiaryId, supportCaseId);
+    return { ok: true as const, data: await getCounselingMemory(supportCaseId) };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof ApiError ? error.code : 'service_unavailable' };
+  }
+}
+
+export async function refreshCounselingMemorySettingsAction() {
+  try {
+    return { ok: true as const, data: await getCounselingMemorySettings() };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof ApiError ? error.code : 'service_unavailable' };
+  }
+}
 
 /**
  * CCC-44 기관 관리자 전용: 배포된 AI 사업자 런타임을 등록·활성화한다. 성공 시

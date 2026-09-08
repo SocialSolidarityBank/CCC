@@ -1,6 +1,6 @@
 # CCC Open Pilot v0.3 실행 계획
 
-> **For agentic workers:** 이 문서의 스펙 게이트와 티켓 의존성을 위에서부터 따른다. 구현 티켓마다 별도 worktree와 `docs/superpowers/plans/YYYY-MM-DD-{티켓ID}-{slug}.md`를 만들고, 해당 티켓의 검증이 끝나기 전에는 차단된 후속 티켓을 시작하지 않는다. 날짜 관문은 진행 점검일이며 완료 조건을 낮추는 마감이 아니다.
+> **For agentic workers:** 아래 2026-09-08 실행 우선순위 개정을 먼저 따른다. 구현 티켓마다 별도 worktree와 `docs/superpowers/plans/YYYY-MM-DD-{티켓ID}-{slug}.md`를 사용한다. 실제로 소비하는 계약의 선행은 유지하되 성능 측정과 비필수 법무 산출물은 합성 연결 구현을 차단하지 않는다. 미측정을 완료로 보고하지 않는다.
 
 **Goal:** 현재 Cloudflare 중심 CCC를 공통 코어 하나와 Community Cloud, Local Single, Local Office 세 배포 모드로 clean cutover하고, 합성 데이터 골든 플로우, 복원, 개인정보 관문을 모두 검증한다.
 
@@ -9,6 +9,31 @@
 **Tech Stack:** TypeScript 5.9, React 19.2.7, Vite 8.2.2, React Router 8.3.1, vite-plugin-pwa 1.3.0, Playwright 1.62.1, `@noble/hashes` 2.4.0, PostgreSQL via `postgres` 3.4.9, encrypted SQLite candidate `better-sqlite3-multiple-ciphers` 13.0.3, Supabase CLI 2.116.0, Supabase JS 2.112.4, Electron 44.1.1, electron-builder 26.15.3, Python 3.12 Processing Agent. 네이티브 Windows 패키지와 모델 라이선스는 검증 전까지 후보이며 실패하면 해당 모드를 `미통과`로 둔다.
 
 **Primary spec after approval:** `docs/adr/0041-one-core-three-deployment-modes.md`, `PRD/CCC-open-pilot-v0.2.md`, `docs/specs/S1-*.md` through `S15-*.md`. E0 완료 전에는 저장소 밖 `inbox` 원본과 회수한 Notion ADR-0040을 정본 후보로만 사용한다.
+
+## 2026-09-08 실행 우선순위 개정
+
+Q는 벤치마크, 최소사양 확정과 비필수 법무 검토보다 결정된 STT, OpenAI API와 DB 설정 구현을 먼저 하도록 요청했다. 첫 완료 지점은 Community Cloud에서 합성 상담 한 건이 등록부터 AI 승인과 DB 재조회까지 이어지는 것이다. 이 절은 아래 종전 웨이브와 날짜 관문의 실행 순서보다 우선하며 최종 세 모드 범위는 유지한다.
+
+1. **저장소와 로그인:** CCC-222(E3-3) PostgreSQL adapter → CCC-216(E3-4) baseline/parity → 기관 간 접근 차단, Supabase Auth, 기관 소유 서울 Supabase 연결. 실제 gateway 저장/재조회와 batch 중간 실패 전체 rollback을 확인한다.
+2. **STT와 OpenAI:** DB와 독립적인 설정/어댑터 작업부터 진행한다. Cloud 첫 연결은 Azure 전사 → 승인된 마스킹 → OpenAI 초안이다. 키 없음, timeout, 동의 철회, 원음 삭제와 수기 경로를 확인한다. 최신 main의 Local Qwen과 Azure 구현 계약을 보존하고 새 엔진을 선정하지 않는다.
+3. **관리자 설정과 업무 화면:** CCC-201 화면/API probe와 E2 작업을 진행하고 기존 관리자 화면에서 설정 저장, 재진입, 연결 검사, 명시적 켜기/끄기를 확인한다. 전체 Setup Assistant, 공개 site, Windows 설치기 완료를 독립 설정 로직 착수 조건으로 두지 않는다. 최종 Cloud 업무 흐름은 E2-7의 정적 client와 Bearer API에서 확인한다.
+4. **상담 한 건 종단 실행:** 가상 당사자 등록 → 경로별 동의 → 녹음 → 전사 → 개인정보 가림 → AI 초안 → 실무자 승인 → 15초 페이지 → DB 재조회. E3-8/E4-6의 동의와 D87 사업 도입 확인(#297)을 실제 데이터/전송 경계에 반영한다. 승인 전 초안의 공식 기록 노출과 로그의 원문/키는 없어야 한다.
+
+Local Single과 Office는 첫 Cloud 연결을 막지 않는 후속 작업이다. 개발용 env backend와 사용 가능한 Agent 환경에서 합성 연결을 먼저 확인하되 Windows DPAPI 완료나 제품 STT 활성화 승인으로 보고하지 않는다. 본문에 있는 최신 signed registry, Q 채택과 provider 무전환 계약은 유지한다. 세 모드의 STT 설치 기본값은 `off`다.
+
+### 지금 미루는 것과 다시 확인할 때
+
+- 전체 STT fixture, 엔진 맞대결과 Windows CPU 150건 CER/DER/RTF 측정은 뒤로 미룬다. Local 엔진 선정, 실제 품질 문제 또는 품질 수치 공개 전에 재개한다. CCC-250의 구현과 미측정 결과를 구분한다.
+- CPU/RAM/GPU 최소사양 숫자는 이번 설정 구현에서 제외한다. 설치 실패, 메모리 부족, 처리 지연이 생기거나 특정 사양 지원을 보장하기 전에 확인한다.
+- 대규모 부하, 실무자 시간/효과 측정과 정답표는 후순위다. 기능 안정화, 실제 병목, 사용 규모 확대나 성과 수치 공개 전에 필요한 측정을 한다.
+- 별도 법률 자문과 모든 모드의 포괄 리스크 보고서는 이번 구현에서 제외한다. 실제 데이터 도입의 필요한 처리 근거, 구체적인 계약 쟁점 또는 이용 범위 변경 시 해당 항목만 확인한다. CCC-157/189와 CCC-188은 합성 연결 구현의 선행으로 두지 않는다.
+- 전체 설치판, 코드서명, 전 방향 `.cccx`와 세 모드 종합 drill은 첫 연결 뒤 해당 배포/이전 기능을 제공하기 전에 수행한다.
+
+동의, 권한, TLS/private Storage, 키 보호, 마스킹 fail-closed, DB 원자성, 기록 충돌 방지, 기존 자료 변경 전 백업/복원, 승인 전 초안 배제와 원음 삭제는 미루지 않는다. 알려진 안전 실패는 성능 문제로 재분류하지 않는다. 느림/품질 문제는 실제 증상으로 고치되 유출/기록 손상 위험이면 해당 전송/쓰기를 먼저 차단한다.
+
+이 개정은 운영 데이터 사용, API 과금 실행, 배포 승인이 아니다. 실제 데이터 전환의 적용 경로별 필수 조건과 Q 확인은 별도다. 미룬 티켓은 열린 채 유지하고 Linear 한도로 신규 분할 티켓을 요구하지 않는다. 문서 수정만으로 외부 티켓 상태와 blocks 관계가 바뀌었다고 보고하지 않는다.
+
+쉬운 설명: [CCC 먼저 만들 것과 나중에 확인할 것](https://app.notion.com/p/foxion/2026-09-08-CCC-3d5883f156f58051bd36d29e638d61af).
 
 ## Context
 
@@ -129,10 +154,10 @@ export interface AIProvider {
 - `packages/core`는 `CoreSecretName`만 읽는다. `PlatformSecretName`은 `apps/local-service`, `apps/cloud-api` 조립 루트와 platform adapter만 읽으며 `guard:core-imports`가 core의 PlatformSecretName 참조를 실패시킨다. Agent의 `AZURE_SPEECH_KEY`, `AGENT_REFRESH_TOKEN`, `HF_TOKEN`은 Python SecretStore에만 둔다.
 
 - `packages/core/src/scheduled-job-runner.ts`는 `run(kind: ScheduledJobKind, nowIso: string): Promise<JobReport>`를 export한다. Workers cron, Supabase pg_cron에서 호출하는 Edge HTTP, Node timer가 같은 runner를 부르고, audio 삭제 도래 판단은 `audio_objects.purge_due`를 gateway로 조회한다.
-- 일곱 번째 포트 `STTProvider`는 Agent의 `apps/pipeline/ccc_pipeline/stt/provider.py`에 둔다. `transcribe(self, audio_path: Path, config: PipelineConfig) -> list[Segment]` Python Protocol을 faster-whisper와 Azure adapter가 구현한다. TypeScript contracts에는 `TranscriptResult` DTO와 `sttEngine`, `route` literal만 두며 Azure key와 Agent refresh token은 TypeScript `SecretStore`에 넣지 않는다.
+- Agent의 Local STT는 `build_engine(name, model_name, *, python_executable=None, device='cpu')`가 반환하는 callable을 기존 청크 오케스트레이션에 연결한다. Azure는 별도 full-file 함수 `transcribe_azure(audio_path, *, api_key, before_send, expected_sha256=None)`로 `api-version=2025-10-15` endpoint를 호출한다. Azure client는 attempt당 원본 파일 send를 최대 한 번 시작하고 자동 재시도하지 않는다. request definition은 `diarization.enabled=true`, `maxSpeakers=2`이며 익명의 파일별 `speaker` ID를 보존한다. Azure를 Local `build_engine`이나 청크 업로드에 넣지 않는다. TypeScript contracts에는 `TranscriptResult` DTO와 `sttEngine`, `route` literal만 두며 Azure key와 Agent refresh token은 TypeScript `SecretStore`에 넣지 않는다.
 
 - SG2는 배포/install 단계가 쓰는 `apps/client/public/ccc-bootstrap.json`을 정확히 `{ "apiBase": string, "mode": DeploymentMode }` 두 키로 고정하고, 저장소에는 값 없는 `.example`만 둔다. Community Cloud의 `projectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`는 bootstrap에 복사하지 않고 서명된 install manifest에만 둔다. Auth origin은 HTTPS origin만 허용하고 `apiBase`와 같은 Supabase project ref여야 한다. Local 두 모드는 세 값을 모두 `null`로 강제한다. publishable key는 `sb_publishable_` 또는 role이 정확히 `anon`인 legacy JWT만 허용하며 `sb_secret_`, `service_role`, 빈 값과 미지 형식은 manifest 생성 전에 거부한다. publishable key는 공개 설정이지만 capability에는 넣지 않는다. 설치기는 서명된 manifest를 먼저 검증한 뒤 그 manifest의 `installationId`, `mode`, 허용 origin과 `apiBase`를 bootstrap, renderer의 유효 origin, `GET /capabilities` 응답과 전부 정확히 대조한다. 어느 하나라도 다르면 첫 renderer load와 Bearer 전송 전에 실패한다. PWA의 Supabase Auth 초기화와 CSP `connect-src`는 bootstrap이 아니라 검증된 signed manifest의 Auth 값만 사용한다. Single의 OS 할당 포트는 discovery 뒤 그 정확한 origin을 CSP에 주입하고 나서만 renderer를 연다. Electron은 `file://`와 `Origin: null`을 쓰지 않고 custom protocol 또는 local-service same-origin으로 정적 client를 제공한다. mode별 로그인을 끝낸 뒤 Bearer로 `GET /capabilities`를 호출한다. public join route도 검증된 signed manifest와 일치하는 bootstrap 주소만 쓰며 token은 URL Referrer로 나가지 않는다. 현행 Access header와 Preview `ccc_preview` cookie는 E2-7까지의 명시적 전환 예외이고, production의 최종 업무 인증은 Bearer만 허용한다.
-- `ApprovedSttEngineId`는 signed engine registry 검증을 통과한 값만 생성하는 branded type이다. 현재 Q 승인 registry는 비어 있으므로 각 provider가 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)의 해당 관문을 통과하고 Q가 채택하기 전에는 그 선택지가 disabled이고 `sttEngine`은 `null`이다. Local 품질·하위 실제 장비 관문과 Azure 독립 자격 관문은 서로를 대신하지 않는다. 후보와 구현 포트는 제품 기본값이 아니며 다른 provider로 자동 전환하지 않는다.
+- `ApprovedSttEngineId`는 signed engine registry 검증을 통과한 값만 생성하는 branded type이다. 현재 Q 승인 registry는 비어 있다. 합성 입력과 운영자 본인의 비민감 자기 목소리로 어댑터를 구현·시험하는 것은 허용하지만 제품 선택지를 활성화하지 않는다. 사람 품질·장비와 Azure 기관 적합성의 후속 관문, Q 채택 전에는 `sttEngine`이 `null`이다. Local과 Azure는 서로 자동 전환하지 않는다.
 
 ```ts
 export type DeploymentMode = 'community-cloud' | 'local-single' | 'local-office';
@@ -173,7 +198,7 @@ export interface CapabilityManifest {
 - SG10의 `.cccx` v1은 magic bytes `43 43 43 58 01` 뒤에 canonical JSON header와 ciphertext를 둔다. header는 `formatVersion: 1`, Argon2id salt 16 bytes와 `memoryKiB: 65536`, `iterations: 3`, `parallelism: 1`, AES-256-GCM nonce 12 bytes, plaintext payload SHA-256를 담는다. Argon2id 출력 32 bytes를 key로 쓰고 canonical header bytes를 AAD로 묶는다. 암호화 전 payload는 deterministic ZIP이며 `manifest.json`, `data/<table>.jsonl`, `attachments/<sha256>`만 허용한다. importer는 header, GCM tag, payload hash, manifest와 각 file hash, schema compatibility를 검증하고 금고 행을 대상 설치 키로 재암호화한다. 첨부는 staging directory에 풀고 import journal을 쓴 뒤 DB transaction과 최종 rename을 연결한다. 어느 단계에서 재시작해도 원본 유지 또는 완전 적용 한 상태로 복구한다.
 - SG12의 update manifest v1은 `{ version, sequence, channel, artifactUrl, artifactSha256, artifactBytes, minSchemaVersion, maxSchemaVersion, publishedAt, expiresAt, signingKeyId, ed25519Signature }`다. updater는 embedded Ed25519 public key로 manifest를, Authenticode로 Windows artifact를 각각 검증한다. version과 sequence는 단조 증가해야 하고, 만료 manifest와 알 수 없거나 폐기된 signing key, 다운그레이드는 거부한다. 적용 전에 backup을 만들고 health 실패 시 rollback한다.
 
-- `sttMode`의 설치 기본값은 세 모드 모두 `off`다. 관리자가 provider를 명시적으로 고르고 health check를 통과해야 `local` 또는 `azure`가 된다. Local은 E5-8의 품질·하위 실제 장비 결과, Azure는 E5-3의 구현·동일 입력 비교·기관 적합성 결과를 각각 Q가 승인해 ADR과 설정을 바꾸기 전에는 운영 선택지로 열거나 어떤 provider도 기본으로 자동 선택하지 않는다.
+- `sttMode`의 설치 기본값은 세 모드 모두 `off`다. 먼저 Local Qwen과 Azure의 기능·오류·개인정보 계약을 구현한다. 운영자 본인의 비민감 시험은 제3자 음성 이용, production 동의·NER·signed registry를 면제하지 않는다. 사람 품질·실제 장비와 Azure 기관 적합성은 후속 단계이며, Q 승인 전에는 제품 선택지를 열거나 어떤 provider도 기본으로 자동 선택하지 않는다.
 - 앱 서비스인 backup/restore, `.cccx` import/export, update/rollback, doctor/report는 7개 저수준 포트에 넣지 않는다. 이 서비스들은 `packages/core/src/services/`에 인터페이스를 두고 런타임 어댑터를 주입한다. Community Cloud backup/restore는 E6-7, Office 서버 설치기는 E8-9, 최종 RC 조립과 제출은 E10-6이 소유한다.
 - E2와 E9의 모든 화면 티켓은 `design-lane`을 따른다. 각 route의 값 한 줄마다 DESIGN-RULES §1 위계 단과 재사용할 `WireCardSection`, `WireItem`, 기존 wire component를 매핑한 표를 티켓 계획에 넣고 구현한다. 각 티켓은 `pnpm guard:tokens && pnpm guard:align && pnpm guard:hierarchy`, `pnpm design:hierarchy`, `pnpm design:align`을 통과한 뒤 격리된 read-only `design-reviewer` 검수와 지적 반영을 끝내야 완료된다. 별도 `packages/ui`, 화면별 새 디자인 체계, 승인되지 않은 baseline 추가는 만들지 않는다.
 
@@ -194,7 +219,7 @@ export interface CapabilityManifest {
 | 9월 7일 | E1 D1 회귀, SQLite native 후보 상태, client 공용 계약, Local Single 조립의 실제 진행 상태 | 평문 fallback 없이 Local을 `미통과`로 표시하고 PostgreSQL, client, Agent 독립 트랙을 계속한다. |
 | 9월 10일 | PostgreSQL parity 진행 상태, Supabase read-only preflight, SG14 법무 상태, E2-8 목표 모델 정리 | Cloud 실데이터 전환만 막고 합성 설치와 다른 모드를 계속한다. |
 | 9월 13일 | 세 모드별 합성 골든 플로우의 PASS/FAIL/미측정 표와 Windows Agent CPU 후보 경로 | 미통과 모드와 기능을 그대로 남기고 통과 표면만 후속 측정한다. 완료 조건과 assertion은 낮추지 않는다. |
-| 9월 15일 | `STT-G1~STT-G3`, 감지 정확도, 실무자 시간 측정, Local 현장 시험의 실제 증거 | 수치와 실패 원인을 그대로 보고하고 미측정 항목의 owner와 다음 날짜를 기록한다. |
+| 9월 15일 | Local Qwen과 Azure의 기능·오류·개인정보 계약, 감지 정확도, 실무자 시간과 Local 현장 시험의 실제 증거 | STT 사람 품질·장비·기관 적합성은 후속 측정으로 표시하고 구현을 막지 않는다. 수치와 실패 원인은 그대로 보고한다. |
 | 9월 17일 | 서명된 RC 후보, SBOM, secret scan, 세 모드 backup/restore, rollback | unsigned 또는 복원 실패 artifact는 개발판으로만 남기고 정식 RC로 세지 않는다. |
 | 9월 18일 | E10-6 제출 패키지와 합성 시연, 전체 PASS/FAIL/미측정 목록 | 제출 뒤에도 미완 원 티켓을 열린 상태로 계속한다. 범위를 줄인 승계 티켓으로 바꾸지 않는다. |
 
@@ -296,14 +321,14 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 |---|---|---|
 | E5-1a Agent 작업 계약 v2 | SG5 | claim, lease, heartbeat, result, engine, route, 공정한 audio/text queue 선택, provider no-fallback, v1 payload fallback 제거를 문서와 schema에 고정한다. 세 모드의 사람과 service credential 범위를 계약 테스트한다. Audio job은 `rawAudioSha256`과 claim-bound egress authorization ID를 가지며, Azure 전송 직전 `authorized → in_flight` CAS와 일회용 mask dictionary 응답 계약을 포함한다. |
 | E5-1b Agent Windows SecretStore | E5-1a, E4-4b | Python DPAPI `CurrentUser`와 개발용 env backend를 구현하고 실제 Windows 계정 경계를 검증한다. |
-| E5-2 Local STT 후보 경로 | E5-1a | chunking, repetition, timestamp 보정을 유지하고 faster-whisper int8 CPU adapter를 명시적 후보 설정에만 추가한다. |
-| E5-3 Azure Speech | E5-1b, E5-2, E4-6, E5-4, E5-5 | [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)에 따라 Azure Speech `koreacentral`·`ko-KR` fast transcription adapter와 고정 API 계약을 구현한다. 허락된 같은 사람 모의상담 평가 6건의 입력 bytes·정답 hash를 Local과 맞추고 품질 지표와 업로드 시작부터 응답 완료까지의 시간을 측정한다. 기관 소유 구독, 승인 비용 한도, 키 관리·회수와 장애 대응 담당, 외부 처리 동의·개인정보 적합성을 확인하며 하나라도 미확인이면 호출하지 않는다. Azure key와 유효 동의를 읽고 서울 endpoint로 직접 보내며 logging off, provider pin, 무전환을 검증한다. 전송 직전 org, job, claim token hash, attempt, 원음 SHA-256, 동의 revision, provider가 일치하는 egress authorization을 원자적으로 `in_flight`로 바꾼다. 문서 승인, Local 실패 또는 키 존재만으로 구현·자격·채택을 완료 처리하지 않는다. |
+| E5-2 Local STT 구현 경로 | E5-1a | 격리된 Python runtime에 현재 역할 고정 `Qwen/Qwen3-ASR-1.7B`와 `Qwen/Qwen3-ForcedAligner-0.6B` 원본 checkpoint를 연결한다. 한 child를 파일의 모든 Local 청크에서 재사용하고 명시적으로 닫으며, D53 청크·시각 보정·반복 검사와 안전한 오류를 유지한다. 로컬 공개 가중치 경로이며 취소된 Alibaba Cloud Token Plan을 호출하지 않는다. 최고·보편적 최신 모델 또는 제품 승인이라는 주장은 하지 않는다. |
+| E5-3 Azure Speech 구현 | E5-1a, E5-1b, E5-2, E4-6, E5-4, E5-5 | 어댑터 구현과 결정론적 transport/parser 시험은 선행 작업의 완료를 기다리지 않고 계약 기준으로 진행할 수 있다. 업무 job 실행과 제품 완료에는 왼쪽 의존성과 S5/S6 관문을 모두 충족해야 한다. Azure Speech 고정 `koreacentral`·`ko-KR`·`api-version=2025-10-15`에 원본 파일의 client HTTP send를 authorized attempt당 최대 한 번 시작하고 자동 재시도하지 않는다. 이는 provider 내부 exactly-once 보장이 아니다. multipart definition은 `diarization.enabled=true`, `maxSpeakers=2`이며 익명의 파일별 `speaker` ID를 보존한다. 청크별 업로드, `audioUrl`, redirect, pyannote 라벨 덮어쓰기와 자동 전환은 없다. 전송 직전 org, job, claim token hash, attempt, 원음 SHA-256, 동의 revision, provider가 일치하는 egress authorization을 durable marker 뒤 `in_flight`로 바꾸고 기존 S5 receipt·result/release 경계를 유지한다. 실제 Azure 품질·기관 적합성과 제품 채택은 후속 단계다. |
 | E5-4 준식별자 일반화 | SG6 | SG6 규칙만 적용하고 마스킹, pipeline version, 원문 근거 hash를 보존해 골든셋을 통과한다. Agent는 claim-bound 일회용 mask dictionary를 받아 메모리에서만 쓰고 만료, 감사, 재사용 거부를 검증한다. |
 | E5-5 코어 재검증 | E5-1a, E5-4, E1-5, E3-8 | 정규식, 금고 값, hash, pipeline version, result 시점 동의를 검사한다. 일곱 code와 화면 문구가 1:1이고 실패 packet은 AIProvider 호출 0회다. consent 검사에는 6영역 schema와 literal만 필요하며 client cutover를 기다리지 않는다. Privacy snapshot의 NER attestation, material hash, evidence hash 저장 필드와 SQLite/PostgreSQL paired migration 및 parity도 이 티켓이 소유한다. |
 | E5-6 원음 생명주기와 삭제 | E0-5a, E1-3, E3-8, SG8 | D85의 경로별 동의 입장 조건과 시계로 `migrations/sqlite/0050_audio_objects.sql`, `migrations/postgres/0006_audio_objects.sql`과 parity를 추가한다. 로컬 STT는 녹음 동의, Azure STT는 녹음과 외부 STT 동의를 요구한다. `retention_hard_cap_at=uploaded_at+7일`, 첫 처리 기회의 `processing_deadline_at=min(기회+24시간, 상한)`, 처리·동의 철회·불가 확정·상한 삭제, 관리자 사고, 삭제 증거 쓰기 실패를 멱등 조정한다. provider URL 세부 구현은 E6-3이 소유한다. |
-| E5-7 Windows Agent 설치기 | E5-1b, E5-2, E5-4 | embedded Python, ffmpeg, SecretStore, checksum model downloader를 설치한다. 새 Windows PC에서 install, health, Local 합성 처리, uninstall을 통과한다. |
-| E5-8a STT benchmark fixture | SG13 | 기존 합성 대화 v1의 정답 전사, 두 화자 truth, silence/overlap range, SHA-256, license manifest와 `s13-fixture-v1` 산출물 및 완료 상태는 유지한다. 인계된 합성 픽스처 5건의 사람 청취와 독립 STT 교차 검증은 새 모델 대량 측정의 선행조건이며, 현재 사람 청취 0/5와 `BLOCKED_ACCESS`를 완료나 PASS로 바꾸지 않는다. v2 후속 책임은 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)에 따라 실제 당사자 자료가 아닌 자발적 성인 2명의 가상 상담을 개발 점검용 1개 약 5분, 평가용 6개 약 60분으로 녹음하고 실제 길이, Local 처리 허락, 별도 Azure 전송 허락과 보관·삭제 기한을 기록하는 것이다. 모델 출력을 보지 않은 독립 전사와 다른 사람의 화자 구간·무음·겹침·핵심 사실 검수를 동결한다. 오디오·전사·허락 자료는 제한된 측정 공간에만 두고 repo에는 ID, SHA-256, 실제 길이, 동의 검토 상태와 수치만 남긴다. v2 미완을 기존 v1 완료의 취소나 새 품질 PASS로 해석하지 않는다. |
-| E5-8 `STT-G1~STT-G3` 엔진 판정 | E5-2, E5-8a | E5-8a의 기존 합성 픽스처 5건 사람 청취와 독립 STT 교차 검증이 끝나기 전에는 이 v2 비교를 시작하지 않는다. 선행조건이 닫히면 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)에 따라 상한 후보인 단일 GPU VRAM 24GB급·RAM 64GB급에서 `Qwen/Qwen3-ASR-1.7B`, `CohereLabs/cohere-transcribe-03-2026`, Whisper `large-v3`만 한 번에 한 모델·파일·batch로 비교한다. Cohere는 로컬 공개 가중치 후보일 뿐 외부 API provider로 추가하지 않는다. 개발 점검용 녹음에서 설정을 동결하고 평가 6건을 후보당 1회 실행해 기존 CER·반복률·RTF·DER·safety 계산과 누락·화자 truth·오류 숨김 관문을 적용한다. 모든 품질·안전성 관문을 통과한 모델 하나만 정해 상한과 이용 가능한 하위 실제 장비 최대 2개 구성에서 순차 3회 측정하고, 실제 통과 구성만으로 검증된 최소·권장 구성과 8·12·24시간 처리창의 일일 녹음 처리량을 보고한다. 24GB·64GB와 하위 목표 16GB·32GB, 12GB·16GB는 구매 요구가 아니다. 통과 모델이나 실제 장비가 없으면 해당 단계는 미선정·미측정이고, Azure 자동 권장이나 제품 설정 변경 없이 Q 승인을 기다린다. |
+| E5-7 Windows Agent 설치기 | E5-1b, E5-2, E5-4 | embedded Python, ffmpeg, 격리된 Qwen runtime, SecretStore와 checksum model downloader를 설치한다. 새 Windows PC에서 install, health, Local 합성 처리와 uninstall을 통과한다. 제품 승인 registry는 별도 후속 게이트다. |
+| E5-8a STT 역사·회귀 증거 | SG13 | 기존 합성 대화 v1의 정답 전사, 두 화자 truth, silence/overlap range, SHA-256, license manifest, `s13-fixture-v1` 산출물과 과거 PASS/FAIL/미측정 상태를 그대로 보존한다. 인계된 합성 픽스처 5건의 사람 청취 0/5와 `BLOCKED_ACCESS`도 고치지 않는다. 이 자료는 어댑터 구현이나 운영자 본인의 비민감 Local 시험의 선행조건이 아니며 새 사람 품질 결과와 합산하지 않는다. |
+| E5-8 `STT-G1~STT-G3` 후속 품질·장비 판정 | E5-2, E5-3 | 구현 뒤 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)에 따라 자발적 성인 2명의 가상 상담, 이용·Azure 전송 허락과 독립 정답을 고정해 세 로컬 후보의 품질을 비교한다. 기존 CER·반복률·RTF·DER·safety threshold와 과거 FAIL은 유지한다. 통과 모델이 있을 때만 상한과 하위 실제 장비에서 최소·권장 사양과 처리량을 측정한다. Azure 동일 입력 품질·시간과 기관 비용·키·운영·동의 적합성도 별도로 검토한다. 결과와 Q 승인 전에는 signed registry와 제품 설정을 바꾸지 않는다. |
 | E5-9 장문 AI Packet | E5-4, E5-5, E2-7, SG15 | 시간 청크, 분할 호출, 부분 실패 재시도, 병합과 근거 보존을 구현한다. `detectDiscrepancies` 미지원은 조용히 건너뛰지 않고 명시적 상태로 표시한다. |
 
 #### E6 Community Cloud, 11개
@@ -353,7 +378,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 
 | 티켓 | 의존 | 변경과 완료 조건 |
 |---|---|---|
-| E9-1 모드와 AI 축 선택 | E2-5a, E2-5b, E2-5c, E1-7 | 18개 조합을 manifest로 검사하고 미선택 provider의 키를 요구하지 않는다. Q 승인 전 Local STT는 `검증 중` 비활성이다. |
+| E9-1 모드와 AI 축 선택 | E2-5a, E2-5b, E2-5c, E1-7 | 18개 조합을 manifest로 검사하고 미선택 provider의 키를 요구하지 않는다. Q 승인 전 Local과 Azure STT 제품 선택지는 `검증 중` 비활성이고 `sttEngine=null`이다. 내부 기능 시험과 product capability를 혼동하지 않는다. |
 | E9-2 연결 검사와 상태 5종 | E5-1a, E5-3, E5-5, E9-1 | 세 모드의 실제 service와 합성 요청으로 다섯 상태를 구분한다. 원문과 시크릿은 진단과 log에 없다. |
 | E9-3 실데이터 Green Gate | SG14, E1-5, E4-6 | E11-1b의 모드별 LG 상태를 읽고 한 항목이라도 미통과면 실데이터 생성, import, upload를 API에서 거부한다. 화면 숨김만으로 구현하지 않는다. |
 | E9-4 설치 가이드 | E5-7, E6-5b, E7-4, E8-3, E8-9, SG12 | 비개발자 1명이 새 환경에서 install, doctor, 합성 골든 플로우, backup, restore를 문서만 보고 수행한다. |
@@ -379,7 +404,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 | E11-2 감지 정확도 | E2-4c, E11-2a | precision, recall, 95% bootstrap interval과 모든 오답 example ID를 산출한다. |
 | E11-3 합성 실무자 사용 시험 | E6-5b, E7-5, E8-4, E9-1 | 실무자 3명이 세 모드 합성 flow를 수행하고 작성 시간, 준비 시간, AI 수정량을 비교한다. 실데이터 시험은 E12-5가 소유한다. |
 | E11-4 Local 현장 시험 | E5-7, E7-5, E8-5, E8-6, E8-9 | Single 새 PC와 Office server 1대/client 2대에서 install, Agent, offline, AI Off, conflict, backup과 server replacement를 검증한다. |
-| E11-5 시험과 임팩트 보고서 | E5-5, E5-8a, E6-7, E7-3, E8-5, E10-2, E11-2a, E11-2 | 제출 시점에 E5-5 privacy/masking, E6-7/E7-3/E8-5 backup, E10-2 security/supply-chain, STT, 감지 정확도와 시간 변화의 원 증거를 각각 연결한다. 미완 결과는 미측정, 실패 결과는 FAIL로 남기며 관련 실행 티켓을 닫지 않는다. |
+| E11-5 시험과 임팩트 보고서 | E5-5, E5-8a, E6-7, E7-3, E8-5, E10-2, E11-2a, E11-2 | 제출 시점에 privacy/masking, backup, security/supply-chain, STT 역사·회귀 증거, 감지 정확도와 시간 변화의 원 증거를 각각 연결한다. 후속 STT 사람 품질·장비·Azure 기관 적합성은 실행 전이면 미측정으로 남기고 어댑터 구현과 혼동하지 않는다. 과거 실패 결과는 FAIL로 유지한다. |
 
 #### E12 9월 18일 이후 후속, 9개
 
@@ -559,7 +584,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 - E0 완료: `pnpm guard:doc-numbers && pnpm guard:secrets`. PR #210 재배정 뒤 ADR과 D76~D83 중복 0건, 회수한 ADR-0040 §9와 SG7 literal diff 0건, ADR과 PRD의 모드, STT, Azure 원음, Cloud 보관 문구 diff 0건.
 - E1 완료: `pnpm --filter @ccc/api test`, `pnpm test:contracts --db=d1`, `deno test packages/core/test`, `pnpm guard:core-imports`, `pnpm guard:db`. 기존 테스트 삭제, skip, 완화 0건.
 - E3/E4 완료: `pnpm test:contracts --db=sqlite`, `pnpm test:contracts --db=postgres`, `pnpm test:db-parity`, `pnpm guard:sql-dialect`, `pnpm guard:migration-parity`, `pnpm guard:rls`. 같은 fixture의 row, result, error와 failed batch rollback이 세 DB에서 같고 PostgreSQL 업무 table의 기본 거부 누락이 0건이다.
-- E5 완료: pipeline unittest와 E5-4·E5-5 개인정보 관문을 통과하고 Windows DPAPI와 임시 파일 삭제 실패 복구를 실제 Windows에서 검증한다. 기존 합성 v1 fixture와 결과는 그대로 보존한다. 사람 모의상담 v2는 E5-8a의 녹음·허락·독립 정답이 동결되고 E5-8의 유한한 Local 품질 비교, 선정 모델의 하위 실제 장비 측정과 처리량 산출, E5-3의 Azure 구현·동일 입력 비교·기관 적합성 검토가 각각 증거로 남아야 완료다. 미완·미측정·FAIL을 구분하고 Q 승인 전 제품 설정과 티켓 상태를 완료로 바꾸지 않는다.
+- E5 구현 완료: pipeline unittest와 E5-4·E5-5 개인정보 관문, Local Qwen 격리 runtime 계약, Azure 원본 파일 최대 1회 client send·익명의 파일별 provider 화자 ID·자동 재시도 없음, S5 egress ordering을 검증한다. Windows DPAPI와 임시 파일 삭제 실패 복구의 실제 장비 확인은 기존 E5-1b·E5-7 완료 기준을 유지한다. 기존 합성 v1 fixture와 과거 PASS/FAIL/미측정 결과는 그대로 보존한다. 사람 모의상담 품질, 선정 모델의 하위 실제 장비·처리량, Azure 동일 입력·기관 적합성은 후속 측정이며 어댑터 구현을 막지 않는다. 이 후속 결과와 Q 승인 전 제품 설정, signed registry와 선택지는 바꾸지 않는다.
 - E2 완료: client typecheck, test, build와 Playwright 골든 플로우를 실행한다. 1280px, 767px, 390px light/dark에서 hierarchy와 align guard가 통과하고 배포된 site의 상담 route와 network payload가 0건이다.
 - E6~E10 완료: `pnpm test:runtime --mode=community-cloud`, `--mode=local-single`, `--mode=local-office`, 각 `test:golden`, `pnpm release:verify`를 실행한다. Cloud 삭제와 backup은 호스팅 합성 프로젝트, Local 설치와 DPAPI는 실제 Windows에서 검증한다.
 - 최종 회귀: `pnpm typecheck && pnpm test && pnpm build && pnpm guard:db && pnpm guard:doc-numbers && pnpm guard:tokens && pnpm guard:secrets && pnpm guard:deploy-gates && pnpm guard:core-imports && pnpm guard:sql-dialect && pnpm guard:migration-parity && pnpm guard:rls`.
@@ -569,7 +594,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 1. Community Cloud: 깨끗한 synthetic 기관에서 install, 관리자 MFA, 실무자 초대, 당사자 등록과 6영역 동의, 일정, 기록, Agent packet, AI 승인, 15초 페이지, backup/restore를 수행한다. 다른 기관 JWT, anon key, Cloudflare 상담 경로와 Edge log의 원문/PII가 0건이어야 한다.
 2. Local Single: 새 Windows x64 PC에서 signed NSIS, `doctor`, AI Off 수기 골든 플로우, Local STT 후보, backup, 삭제, 다른 SID 새 PC restore, `.cccx`, signed update rollback을 수행한다. 외부 NIC listen, browser storage의 PII와 log의 key가 0건이어야 한다.
 3. Local Office: server installer와 client installer를 깨끗한 장비에 적용하고 TLS login, 역할 4종, 409, Agent, 중앙 backup과 server 교체를 수행한다. HTTP cleartext와 public port가 0건이고 기존 client가 CA 재설치 없이 금고 열람과 기록 저장까지 복구해야 한다.
-4. Privacy: 스냅샷 누락, NER 부재, 금고 값 잔존, 식별자 잔존, hash mismatch, pipeline version mismatch, result 전 동의 철회를 각각 넣는다. 모두 지정 code와 OpenAI/Azure 호출 0회를 만들어야 한다. 24,001자 재료는 청크와 부분 실패, 누락 구간을 표시한다.
+4. Privacy: Azure 업로드 전 NER health·release receipt, 외부 처리 동의·provider·attempt·원음 hash·egress authorization 검사가 실패하면 Azure와 OpenAI 호출은 0건이어야 한다. Azure 응답 뒤 NER 상태가 바뀌거나 스냅샷 누락, 금고 값·식별자 잔존, evidence hash·pipeline version 불일치와 result 전 동의 철회가 발생하면 결과 접수와 OpenAI 호출을 막는다. 이미 시작한 Azure send를 0건이라고 보고하지 않는다. 각 실패는 지정 code를 남긴다. 24,001자 텍스트 AI 재료는 S15 청크와 부분 실패, 누락 구간을 표시한다.
 5. 원음: 세 AudioStore에 synthetic audio를 넣고 처리 완료, 24시간 만료, 기동 직후 claim 경합, 삭제 증거 쓰기 실패를 실행한다. 네 boolean과 adapter별 직접 읽기 부재, timestamp와 hash, 장기 signed URL 0건을 확인한다.
 6. `.cccx`: 각 모드의 같은 fixture를 export하고 지원 방향으로 import한다. 잘못된 비밀번호, 변조 파일, DB commit 전후 crash를 주입해 원본 유지 또는 완전 적용만 남고 금고가 대상 설치 키로 열려야 한다.
 7. 파일럿: E5-8a와 E11-2a가 고정한 정답표로 precision과 recall, 내부 실무자 3명의 작성과 준비 시간, AI 수정량을 산출한다. synthetic와 real-data 결과를 분리하고 Green Gate 미통과 모드의 real data는 0건이어야 한다.
@@ -577,7 +602,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 ## Assumptions & contingencies
 
 - 2026-09-02 Q는 세 모드 정식 구현, Local STT 기본 `off`, Cloud 원음 임시 보관, 목표 모델 검수 선행, 다음 영업일 첫 Agent 처리 기회 보장과 이후 24시간 상한을 승인했다. E0-1은 이 기록을 ADR-0041과 PRD에 반영한다.
-- 기존 `faster-whisper int8 CPU`와 benchmark-only Qwen3-ASR 증거는 합성 v1 결과로 보존한다. 새 사람 모의상담 v2의 Local 후보와 유한한 판정 절차는 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)가 정본이며, 실제 결과를 Q가 승인하기 전에는 `sttEngine`은 null이고 Local 선택지는 비활성이다. Azure도 E5-3의 별도 조건을 통과하기 전에는 비활성이다.
+- 현재 Local 구현은 격리된 runtime의 `Qwen/Qwen3-ASR-1.7B`와 `Qwen/Qwen3-ForcedAligner-0.6B` 원본 checkpoint를 사용한다. 기존 faster-whisper와 benchmark Qwen 결과, 합성 5건의 미완료 청취·독립 STT 상태는 역사·회귀 증거로 보존하며 구현 선행조건으로 쓰지 않는다. 사람 모의상담 품질·실제 장비와 Azure 기관 적합성은 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)의 후속 단계다. 실제 결과와 Q 승인 전 `sttEngine`은 null이고 두 제품 선택지는 비활성이다.
 - Notion ADR-0040은 내부 통합으로 회수 가능하다. E0-3은 정확한 원문과 6개 literal을 repo에 보존하고 이후 실행이 Notion 접근에 의존하지 않게 한다.
 - Community Cloud 원음은 Supabase private Storage에만 둔다. 다음 영업일의 첫 Agent 처리 기회까지 보관하고 처리 뒤 즉시 삭제한다. 첫 처리 가능 시점부터 24시간 안에도 처리하지 못하면 삭제하고 관리자 장애 상태와 수기 기록 경로를 남긴다. 7일/30일 보관은 이번 Cloud 기본형에 없다.
 - `better-sqlite3-multiple-ciphers` 또는 `@primno/dpapi`의 Windows prebuilt, license, tamper audit가 실패하면 Local 릴리스를 `미통과`로 남긴다. 평문 SQLite, 파일 키 hardcode, 검증 없는 대체 package로 폴백하지 않는다.

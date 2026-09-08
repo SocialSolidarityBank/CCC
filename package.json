@@ -56,6 +56,7 @@
     "@ccc/contracts": "workspace:*",
     "@ccc/core": "workspace:*",
     "@ccc/db-d1": "workspace:*",
+    "@ccc/db-postgres": "workspace:*",
     "@ccc/secrets-env": "workspace:*",
     "@cloudflare/vitest-pool-workers": "^0.16.20",
     "@cloudflare/workers-types": "^5.20260706.1",

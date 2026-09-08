@@ -66,8 +66,6 @@ export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
   CCC_INSTALL_SIGNING_KEYS?: string;
   /** 관리자가 고른 STT 축(`off | local | azure`). 없거나 다른 값이면 `off`. 실제 선택은 registry·키·Agent 가 정한다. */
   CCC_STT_MODE?: string;
-  /** 관리자가 고른 LLM 축(`off | openai`). 없거나 다른 값이면 `off`. */
-  CCC_LLM_MODE?: string;
 }
 
 

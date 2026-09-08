@@ -190,6 +190,16 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/audio/verify", body)) as response:
             return json.loads(response.read().decode("utf-8"))
 
+    def authorize_egress(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST /pipeline/jobs/:id/egress/authorize — verified Azure upload authorization."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/egress/authorize", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def start_egress(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST /pipeline/jobs/:id/egress/in-flight — provider-call linearization CAS."""
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/egress/in-flight", body)) as response:
+            return json.loads(response.read().decode("utf-8"))
+
     def get_mask_dictionary(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
         """POST /pipeline/jobs/:id/mask-dictionary — 일회성 치환 사전. 메모리에서만 쓴다(R3)."""
         body = {"claimToken": claim_token, "attempt": attempt}
@@ -201,3 +211,26 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/result", result_request)) as response:
             if response.status != 204:
                 raise ApiError(response.status, "unexpected result response")
+
+
+class MemoryApiClient(ApiClient):
+    """Same text masking protocol, isolated from ordinary session snapshot jobs."""
+
+    def __init__(self, client: ApiClient):
+        self._client = client
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        claim: tuple[str, int] | None = None,
+    ) -> urllib.request.Request:
+        if not path.startswith("/pipeline/jobs/"):
+            raise ValueError("invalid memory job path")
+        return self._client._request(
+            method, "/pipeline/memory/" + path[len("/pipeline/jobs/"):], body, claim
+        )
+
+    def _open(self, request: urllib.request.Request):  # noqa: ANN202
+        return self._client._open(request)

@@ -49,7 +49,12 @@ export async function remindEmergencyConsentDeadlines(env: ScheduledJobEnv): Pro
   }
 }
 
-async function jobCounters(env: ScheduledJobEnv, kind: ScheduledJobKind, nowIso: string): Promise<Record<string, number>> {
+async function jobCounters(
+  env: ScheduledJobEnv,
+  kind: ScheduledJobKind,
+  nowIso: string,
+  memoryJob?: () => Promise<Record<string, number>>,
+): Promise<Record<string, number>> {
   switch (kind) {
     case 'pipeline_watchdog': {
       const healths = await runWatchdog(env);
@@ -57,6 +62,9 @@ async function jobCounters(env: ScheduledJobEnv, kind: ScheduledJobKind, nowIso:
     }
     case 'pii_retention':
       return processParticipantPiiRetention(env, { at: nowIso });
+    case 'counseling_memory':
+      if (memoryJob === undefined) throw new Error('unsupported_scheduled_job');
+      return memoryJob();
     default:
       // audio_expiry 는 E5-6 이 audio_objects.purge_due 와 몸체를 만들기 전까지 fail-closed 다.
       throw new Error('unsupported_scheduled_job');
@@ -68,10 +76,13 @@ async function jobCounters(env: ScheduledJobEnv, kind: ScheduledJobKind, nowIso:
  * tick 도 이 runner 만 부른다. 워치독은 gateway 가 자기 시계를 쓰므로 `nowIso` 를 받지 않는다.
  * 보존 생애주기(D32·D46)는 예약 시각을 `at` 으로 받아 아카이브·재검토만 하고 파기하지 않는다.
  */
-export function createScheduledJobRunner(env: ScheduledJobEnv): ScheduledJobRunner {
+export function createScheduledJobRunner(
+  env: ScheduledJobEnv,
+  memoryJob?: () => Promise<Record<string, number>>,
+): ScheduledJobRunner {
   return {
     async run(kind, nowIso): Promise<JobReport> {
-      const counters = await jobCounters(env, kind, nowIso);
+      const counters = await jobCounters(env, kind, nowIso, memoryJob);
       return { kind, nowIso, completedAt: new Date().toISOString(), counters };
     },
   };

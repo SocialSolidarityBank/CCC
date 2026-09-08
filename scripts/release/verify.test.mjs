@@ -581,6 +581,21 @@ test('fails when a model has no declared license', () => {
   }
 });
 
+test('rejects a Qwen checkpoint without weight integrity evidence', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ccc-release-test-'));
+  try {
+    const modelManifest = JSON.parse(readFileSync(
+      join(repoRoot, 'supply-chain/model-license-manifest.json'), 'utf8'));
+    const qwen = modelManifest.models.find((model) => model.name === 'Qwen/Qwen3-ASR-1.7B');
+    delete qwen.files[0].sha256;
+    const result = runVerifier(directory, { modelManifest });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Qwen checkpoint files\/SHA-256/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('fails on a PII-shaped value in an approved fixture path', () => {
   const fixtureDirectory = mkdtempSync(join(fixtureRoot, 'release-test-'));
   const directory = mkdtempSync(join(tmpdir(), 'ccc-release-test-'));

@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@ccc/contracts": "workspace:*",
+    "@ccc/db-postgres": "workspace:*",
     "@ccc/db-sqlite": "workspace:*"
   },
   "scripts": {

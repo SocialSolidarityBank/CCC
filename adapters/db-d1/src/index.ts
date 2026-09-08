@@ -11,6 +11,7 @@ const APPLICATION_TRIGGER_CODES = [
   'stale_draft_version',
   'invite_token_already_used',
   'participant_schema_violation',
+  'counseling_memory_fence',
 ] as const;
 
 type ConstraintSubtype = NonNullable<DatabaseError['constraintSubtype']>;
@@ -179,7 +180,7 @@ async function normalizeError(
       ?? (lower.includes('check constraint') || lower.includes('not null') ? 'check' : undefined)
       ?? (lower.includes('unique') ? 'unique' : undefined)
       ?? 'trigger';
-    const applicationCode = subtype === 'trigger' ? findApplicationCode(text) : undefined;
+    const applicationCode = subtype === 'trigger' || subtype === 'check' ? findApplicationCode(text) : undefined;
     return new NormalizedDatabaseError('constraint', subtype, applicationCode);
   }
   if (lower.includes('syntax') || lower.includes('no such table') || lower.includes('no such column')

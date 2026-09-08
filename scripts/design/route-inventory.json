@@ -171,6 +171,14 @@
       "unification": true
     },
     {
+      "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/memory/page.tsx",
+      "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/memory",
+      "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/memory",
+      "seedFixture": "preview-seed/assigned-case",
+      "permission": { "state": "allowed", "actor": "assigned-practitioner" },
+      "unification": true
+    },
+    {
       "page": "apps/web/app/participants/[beneficiaryId]/programs/[supportCaseId]/records/page.tsx",
       "routePattern": "/participants/:beneficiaryId/programs/:supportCaseId/records",
       "representativeUrl": "/participants/{{beneficiaryId}}/programs/{{supportCaseId}}/records",

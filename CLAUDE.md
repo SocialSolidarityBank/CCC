@@ -25,7 +25,7 @@
 | 업무 클라이언트 | Vite + React PWA (`apps/client`) | 정적 클라이언트 + Bearer 토큰 API. Cloudflare는 정적 파일과 공개 페이지만 제공(D80) |
 | AI 처리 | **처리 Agent**(기관 PC) | 2차 마스킹과 STT를 담당한다. AI를 켜면 모드와 무관하게 기관 PC 1대가 필요하다(D77·D81) |
 | AI 사업자 | **OpenAI API** (`packages/ai-runtime/src/ai-provider.ts`) | AI Packet만 전송하고 `store:false`를 사용한다. BYOK는 호출 위치에만 둔다(D77·D81·D82) |
-| STT | `off` · `local` · `azure` | 설치 직후 세 모드 모두 `off`. 선택할 경로가 [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)의 해당 관문을 통과하고 Q가 승인하기 전에는 `sttEngine`이 `null`이다. Local과 Azure의 관문은 서로 독립이다(D77) |
+| STT | `off` · `local` · `azure` | 설치 직후 세 모드 모두 `off`. 구현 단계의 합성·운영자 본인 비민감 시험은 허용하지만 제품 활성화가 아니다. Local은 격리된 Qwen 원본 checkpoint, Azure는 원본 파일의 client send를 attempt당 최대 1회만 시작하는 경로다. [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)의 후속 품질·채택 관문과 Q 승인 전에는 `sttEngine`이 `null`이다(D77) |
 | 원음 저장 | `AudioStore` | Cloud는 기관 소유 Supabase private Storage, Local은 암호화 파일. 다음 영업일 첫 Agent 처리 기회까지 보관하고 처리 뒤 즉시 삭제(D81) |
 | 공통 포트 | `Database`, `AudioStore`, `Identity`, `SecretStore`, `Scheduler`, `STTProvider`, `AIProvider` | 일곱 포트. 백업·복원·가져오기·내보내기·업데이트·진단은 Application Service(D78) |
 | 설치·릴리스 | Electron + NSIS, Office 서버·클라이언트 설치기, `install`·`doctor`·`update`·`rollback`·`report` | `.cccx`, 서명 manifest, 백업 후 rollback(D83) |
@@ -90,7 +90,7 @@ AI 사업자 호출부, 로그, 에러 메시지에 실명, 연락처, 계좌가
 ```
 원음 업로드 → AudioStore 임시 저장
   → 다음 영업일의 첫 Agent 처리 기회에 Agent claim
-  → 전사(무음 경계 청크 분할 + 반복 검사 필수, D53) + pyannote 화자 분리
+  → 전사(Local: 무음 경계 청크 분할, Azure: authorized attempt당 원본 파일 client send 최대 1회·익명의 파일별 provider 화자 ID, 공통: 반복·출력 검사, D53·D77)
   → 화자 매핑 자동 추정 → 검토 화면에서 실무자가 1회 확인
   → 감정 분석(보류 규칙 유지, D64)
   → PII 2단 마스킹(등록값 치환 + 로컬 NER + 준식별자 일반화)
@@ -100,7 +100,7 @@ AI 사업자 호출부, 로그, 에러 메시지에 실명, 연락처, 계좌가
   → 첫 처리 가능 시점부터 24시간 안에도 처리하지 못하면 원음 삭제 + 관리자 장애 상태 기록
 ```
 
-`sttMode`의 설치 기본값은 세 모드 모두 `off`다. 관리자가 provider를 명시적으로 고르고 health check를 통과해야 `local` 또는 `azure`가 된다. [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)는 GPU 1대 VRAM 24GB급·RAM 64GB급을 필수 구매나 확정 최소 사양이 아닌 검증 상한 후보로 둔다. Local은 품질·안전성을 먼저 통과한 모델 하나만 하위 실제 장비에서 측정해 최소·권장 사양과 처리량을 도출한다. Azure는 같은 음성의 품질·시간, 기관 운영·비용·키·동의 적합성과 Q 채택을 따로 확인하며 Local 실패나 사양 미달로 자동 권장·전환하지 않는다. 조건 미충족이면 `off`와 수기 기록을 제공하고, 승인 전에는 `sttEngine`이 `null`이다(D77).
+`sttMode`의 설치 기본값은 세 모드 모두 `off`다. 구현 단계에서는 합성 입력이나 운영자가 소유한 비민감 자기 목소리 녹음으로 Local Qwen과 Azure 어댑터의 기능·오류·개인정보 계약을 먼저 확인한다. 자기 목소리 선언은 제3자 음성, 실제 당사자 자료, production 동의·NER·signed registry를 면제하지 않는다. [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)의 사람 품질 비교, 하위 실제 장비 사양·처리량과 Azure 기관 적합성은 후속 단계다. 조건 미충족이면 `off`와 수기 기록을 제공하고, Q 승인 전에는 `sttEngine`이 `null`이다(D77).
 
 OpenAI에는 장비가 만든 AI Packet만 보낸다. 스냅샷이 없거나 아래 fail-closed 상태가 발생하면 외부 AI 호출을 하지 않고 수기 경로를 제공한다. 로그에는 code, session ID hash, timestamp만 남긴다.
 
@@ -120,7 +120,7 @@ OpenAI에는 장비가 만든 AI Packet만 보낸다. 스냅샷이 없거나 아
 
 모델 정보:
 - LLM: **OpenAI**(`packages/ai-runtime/src/ai-provider.ts`, 프로바이더 슬러그 `codex`). 모델·프롬프트·스키마 버전은 활성 프로바이더 설정 hash로 고정하며, 어긋나면 재활성화 전까지 fail-closed다(D57·ADR-0027).
-- STT: [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)의 이번 Local 후보는 Qwen3-ASR-1.7B, cohere-transcribe-03-2026, Whisper large-v3 세 개로 고정한다. 사람 모의상담 품질·안전성을 통과한 모델 하나만 하위 실제 장비에서 측정하며, 결과와 지원 사양을 Q가 승인하기 전까지 Local 선택지는 비활성이다. Azure는 같은 입력 비교와 기관 적합성을 별도로 통과해야 한다. 무음 경계 청크 분할과 반복 검사는 엔진과 무관하게 필수다(D53·D77).
+- STT: 현재 Local 구현은 격리된 Python runtime에서 로컬 공개 가중치 `Qwen/Qwen3-ASR-1.7B`와 `Qwen/Qwen3-ForcedAligner-0.6B` 원본 checkpoint를 사용한다. 취소된 Alibaba Cloud Token Plan을 호출하지 않으며 최고·보편적 최신 모델이라고 주장하지 않는다. D53 무음 청크는 Local에만 적용한다. Azure는 `koreacentral`·`ko-KR`·`api-version=2025-10-15`에 authorized attempt당 원본 파일의 client send를 최대 한 번 시작하고 자동 재시도하지 않는다. `diarization.enabled=true`, `maxSpeakers=2`로 받은 익명의 파일별 provider 화자 ID를 보존한다. provider 내부 exactly-once를 보장하지 않으며 청크 업로드·자동 전환이 없다. 두 경로 모두 반복·출력 검사를 거친다. 사람 품질·장비·기관 적합성은 후속 단계이고, Q 승인 전 Local과 Azure 제품 선택지는 비활성이다(D53·D77).
 - 인명·주소 마스킹: `FrameByFrame/korean-pii-e5-base`를 사용하며 미설정이면 Agent가 뜨지 않는다(R3).
 - 화자 분리: pyannote.audio. 라이선스 미표기 저장소는 사용하지 않는다.
 
@@ -155,10 +155,10 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 
 ## 8. 미결 사항 (작업 전 확인)
 
-- `yellow` **STT 실측 게이트 STT-G1~STT-G3 미실행**(D53·D77): 기존 합성 픽스처 5건은 사람 청취 0/5이고 독립 STT는 `BLOCKED_ACCESS`라 신규 모델 대량 측정의 선행조건이 닫히지 않았다. 여기에는 v2의 고정 세 모델 평가 6건도 포함된다. [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)에 따라 사람 모의상담·독립 정답·허락을 동결하고, 상한 후보에서 고정 세 모델의 품질·안전성을 먼저 비교한 뒤 통과 모델 하나만 하위 실제 장비에서 측정한다. Azure 구현·동일 음성 비교·기관 운영과 동의 적합성은 독립 관문이다. Q가 결과를 승인하기 전까지 설치 기본값은 `off`이고 `sttEngine`은 `null`이며 수기 기록을 제공한다.
+- `yellow` **STT 구현 우선, 품질·장비 게이트 후속**(2026-09-08, D53·D77): Local Qwen과 Azure의 기능·오류·개인정보 계약을 먼저 구현한다. 기존 합성 픽스처 5건의 사람 청취 0/5와 `independentSTT=BLOCKED_ACCESS`는 역사·회귀 증거로 보존하되 구현이나 운영자 본인의 비민감 Local 시험을 막지 않는다. 사람 모의상담·독립 정답·허락, 고정 threshold 품질 비교, 하위 실제 장비 측정과 Azure 기관 적합성은 후속 단계다. 완료 전 설치 기본값은 `off`, `sttEngine=null`, 수기 기록 경로를 유지한다.
 - `yellow` **사업 도입 확인 잠금 미구현(2026-09-07, D87·ADR-0045)**: 사업별 저장 위치·처리 경로 선택과 관리자 확인 체크는 결정됐으나 `programs` 표, `storage_mode`·`processing_mode`·`admission_confirmed*`, `나중에 정하기`·미확인 상태의 API 거부(실데이터 생성·import·원음 업로드·AI 활성화)는 코드에 0건이다. 화면 문구로 차단을 대신하지 않는다. 검수 후속 6건은 같은 날 Q가 확정했다(ADR-0045 "Q 확정 기록"). 네이버 공공형 저장 어댑터는 별도 ADR 뒤이며 그 전까지 라디오 비활성이다. `기관 안` 처리의 최소 권장 사양 숫자는 STT-G1~G3(E5-8) 결과로 정한다.
-- 감정 모델 실측: 실제 상담 음성 샘플로 정확도 검증 (특히 2인 대면·당사자 발화 분리 조건)
-- 녹음 캡처 표준화: 조사가 CONFIRMED로 판정한 **가장 큰 레버는 모델이 아니라 마이크 거리·SNR**(근접 4.2% vs 원거리 14.3% WER). 조용한 상담실 + 테이블 중앙 근접 마이크 배치를 운영 지침으로 정해야 한다 — 코드가 아니라 Q 액션
+- 감정 모델의 실제 상담 음성 정확도 검증은 후속 품질 단계다.
+- 녹음 캡처 표준화도 후속 품질 단계다. 근접 4.2%와 원거리 14.3% WER의 기존 관측은 역사 증거로 보존하며, 조용한 상담실과 테이블 중앙 근접 마이크의 운영 지침은 그 단계에서 Q가 확정한다.
 - 기관 소유 Supabase 프로젝트의 서울 리전·Auth·RLS·Storage·기존 데이터와 설치 버전은 D84 read-only `plan`으로 확인한다(ADR-0042). Cloudflare Access 무료 한도와 계정 개설은 Community Cloud 업무 인증 전제가 아니다.
 - Local 모드의 Windows 암호화 SQLite·DPAPI·TLS·코드서명은 관련 E 티켓에서 실제 장비 증거로 닫는다. 평문 DB나 unsigned 정식 릴리스로 대체하지 않는다(D79·D83).
 - ~~항목 풀 확정~~ `green` **해소(2026-07-31 D52)**: 인테이크는 D41(`PRD/intake-questionnaire-v1.md` 정본), 정기 상담은 **고정 폼**으로 확정하고 D29의 AI 조립을 보류했다 — 항목 풀은 상담 기록 작성 화면의 칸 목록이며 Q가 새로 제공할 것이 없다(ADR-0023). 상담 유형 세분화만 아래 미결로 남는다
@@ -232,7 +232,7 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 | D50 | 셸 내비게이션 5건 | 기관명=홈, 사업 전환기 드롭다운, 로그아웃 신설, 뒤로가기 노출. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0014 |
 | D51 | AI 처리 위치 | LLM 호출은 처리 장비에서만. 텍스트 일감 표 신설, 동의 배선. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0022 |
 | D52 | 상담 기록지 고정 | 정기 상담도 고정 폼. **D29·ADR-0006 보류**. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0023 |
-| D53 | STT 안전장치 선행 | 무음 경계 분할+반복 검사+엔진 추상화 먼저. 엔진 확정은 STT-G1~STT-G3 이후이며 설치 기본값과 후보 선택은 D77이 정한다. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0024 |
+| D53 | STT 안전장치 선행 | Local 무음 경계 분할, Local·Azure 공통 반복·출력 검사와 엔진 경계를 먼저 구현한다. Azure client는 authorized attempt당 원본 파일 send를 최대 1회 시작하고 자동 재시도하지 않으며, 익명의 파일별 provider 화자 ID를 보존한다. 사람 품질·장비 판정과 제품 활성화는 D77 후속 단계다. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0024 |
 | D55 | 디자인 토큰 계단 | **색 외 축의 빈자리를 채운다(2026-07-31)**: 글자 크기 토큰이 하나도 없어 `font-size` 가 전부 원시 px 이었고 14px 한 값이 다섯 역할에 쓰였다(89곳). 크기 5단·행간 6종·광학 하프스텝 4종을 신설하고 리터럴 200여 곳을 치환(**시각 변화 0**). 버튼의 일반↔강조 구분을 테두리에서 **면·깊이**로 옮기고 호버·누름 신설, 체크박스·라디오·고른 행의 켬을 **프라이머리와 같은 그라데이션 면 채움**으로(Q 결정), 카드 안 좌우 패딩을 24 로 통일. 대체된 결정의 잔여 CSS 68개(클래스의 19%)와 D35 가 기각한 브레드크럼 1곳 제거. **색값은 한 개도 바꾸지 않았다** — pen 이 SSOT 다. `pnpm guard:tokens` 를 CI 에 연결해 계약을 결정론으로 강제한다. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0025 |
 | D56 | 다크 모드 | **`<html data-theme="dark">` 로 토큰만 갈아끼운다(2026-07-31, `data-contrast` 와 같은 모양 — 마크업 변경 0)**. pen 에 다크 값이 없어(그 Dark 선언은 §8 이 폐기한 Pencil 템플릿) 값은 **`[도출]`·잠정**이고 Q 가 덮어쓸 수 있다. 오래 가는 것은 값이 아니라 **뒤집히는 계약 셋**이다 — ① tint 층이 뒤집혀 deep 이 자기 tint 보다 밝아진다(색상 H 는 불변) ② 깊이가 그림자에서 **면의 밝기 단계**로 바뀐다 ③ 채운 면은 두 테마에서 같다(체크 획이 data URI 안 hex 라 `var()` 가 닿지 않는다) → `--on-action`·`--line-on-action` 신설. **토글은 사이드바 발치**에 있다(로그아웃과 같은 서버 액션 폼 — 쿠키를 서버가 써야 첫 페인트부터 테마가 맞는다). `prefers-color-scheme` 만 **일부러 안 붙였다**: 자동 감지는 Q 가 안 본 팔레트를 검수자에게 내보낸다. `green` **§9 접근성 예외 7건이 다크에서는 전부 해소된다**(deep/tint 1.76~2.11 → 8.53~9.20 · 리스크 2.72 → 7.46) — §9 는 라이트 전용 표가 된다. 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0026 |
 | D48 | 날짜 입력 두 갈래 | 아는 값=글자 입력칸, 먼 날짜=달력+직접 입력 병행(react-day-picker). 원문: [decisions-detail](docs/decisions-detail.md) · 상세 ADR-0020 |
@@ -257,7 +257,7 @@ GAS 아코디언은 코드에서 제거한다(D43 이행 — 스키마·데이�
 | D74 | 복수 역할·팀 감독·요청형 당사자 접근 | 단일 `admin/counselor/service` 역할 구조를 독립 권한 묶음으로 바꾼다(2026-08-22 그릴링). 기관 관리자, 기관 기술 관리자, 실무 책임자, 실무자는 겸임 가능하고 실제 접근은 역할과 담당·감독 관계의 합으로 계산한다. 실무 책임자는 기관 관리자가 수동 지정한 팀의 PII와 상담 내용을 읽기 전용으로 전면 열람하고 전건 감사하며, 확인은 승인 상태 없이 열람 로그와 별도 감독 코멘트로 끝낸다. **2026-08-22 Q 후속 개정**: 로컬 운영 단순화를 위해 기관 관리자는 기관 전체 상담 내용을 상시 읽기 전용으로 열람한다. 상담 내용 쓰기는 활성 실무자 역할과 담당 배정을 모두 가진 케이스만 허용하며, 구 긴급 접근 절차는 보류한다. 플랫폼 운영자는 관리형 서비스에만 존재하고 지원 접근에서도 마스킹 자료만 본다. 당사자는 상시 포털 대신 목적·만료·1회 사용 요청 링크를 쓰며, 완전 로컬 원격 요청은 종단간 암호화 임시 전달함으로 처리한다. 지금은 복수 역할 저장, 팀 감독 경계, 기관 관리자 전체 읽기와 비담당 쓰기 차단만 구현하고 화면과 실제 요청 흐름은 필요할 때 추가한다. 상세 ADR-0038 |
 | D75 | 일정 화면 통합 | '다가오는 일정'과 '전체 일정' 두 화면·두 메뉴를 **`일정` 하나**로 합친다(2026-08-23 결정, **2026-08-24 주차·상태 후속 개정**. D21 화면 내용·D54 별도 화면 전제 대체, D35 축·CCC-66·CCC-57·이동 규칙은 불변). 현재 ISO 주간(월요일-일요일, 연도별 52주 또는 53주) 범위와 별도 월 선택을 상시 나란히 두며 `?range=` 로 상태를 보존한다. 목록은 ISO 주차→날짜→카드 순이고 현재 주차·오늘을 최상단, 미래를 다음, 지난 주차를 마지막에 둔다. 오늘 카드는 전부 그라데이션 아웃라인, 지난 날짜는 이름·건수만 남는 아코디언, 지난 날짜와 완료 카드는 흐림, 미래는 펼침이다. 카드 그리드는 768px 이상 고정 2열(홀수 빈칸), 모바일 1열이다. `/schedule/all` 은 `?range=month` 리다이렉트만 남고 새 SQL·새 색은 없다. 상세 ADR-0039. **범위 전환과 본문 묶음은 2026-08-24 CCC-133 이 대체한다**(아래 행) |
 | D76 | 배포 모드 | Community Cloud, Local Single, Local Office 세 모드를 모두 정식 구현한다. 같은 화면·API·규칙을 쓰며, Cloud는 기관 소유 Supabase 서울 프로젝트, Single은 `127.0.0.1` 전용 암호화 SQLite, Office는 내부망 HTTPS 암호화 SQLite를 사용한다. 9월 18일은 제출일이지 종료일이 아니다. 상세 ADR-0041 |
-| D77 | 저장·AI 모드 | 저장 모드와 AI 모드는 독립이다. STT는 `off`·`local`·`azure`, LLM은 `off`·`openai`이며 설치 직후 STT는 세 모드 모두 `off`다. **2026-09-08 후속:** [S13 STT qualification v2](docs/specs/S13-stt-qualification-v2.md)에 따라 24GB급 VRAM·64GB급 RAM은 검증 상한 후보일 뿐 필수 구매·확정 최소 사양이 아니다. Local은 사람 모의상담 품질·안전성을 먼저 통과한 모델만 하위 실제 장비에서 측정해 지원 사양과 처리량을 정한다. Azure는 같은 음성 비교와 기관 운영·비용·키·동의 적합성, Q 채택을 별도로 요구하며 사양 미달로 자동 권장·전환하지 않는다. 조건 미충족 또는 미선택이면 `off`와 수기 기록을 제공한다. 승인 전 `sttEngine=null`, signed registry exact match, health check와 무자동전환은 유지한다. AI를 켜면 Agent PC 1대가 필요하다. 상세 ADR-0041 |
+| D77 | 저장·AI 모드 | STT는 `off`·`local`·`azure`, LLM은 `off`·`openai`이며 설치 직후 STT는 세 모드 모두 `off`다. **2026-09-08 후속:** Local은 격리된 runtime의 Qwen3-ASR-1.7B와 ForcedAligner 원본 checkpoint, Azure는 `api-version=2025-10-15` 서울 endpoint에 원본 파일 client send 최대 1회와 익명의 파일별 provider 화자 ID 경로를 먼저 구현한다. 기존 합성 5건은 역사·회귀 증거다. 운영자 본인의 비민감 시험은 production 동의·NER·signed registry를 면제하지 않는다. 사람 품질·실제 장비·Azure 기관 적합성은 후속 단계이며, 승인 전 `sttEngine=null`, health check와 무자동전환을 유지한다. 상세 ADR-0041 |
 | D78 | 공통 코어·포트 | 코어는 `packages/core`, `packages/http-api`, `packages/ai-runtime`, `packages/contracts`로 옮기며 런타임 포트는 `Database`, `AudioStore`, `Identity`, `SecretStore`, `Scheduler`, `STTProvider`, `AIProvider` 일곱 개다. 백업·복원·가져오기·내보내기·업데이트·진단은 Application Service다. 상세 ADR-0041 |
 | D79 | Database 이식 | Database 포트는 좁게 유지하고 SQL 자동 번역기는 만들지 않는다. PostgreSQL은 `migrations/postgres/0001_baseline.sql`부터 시작하며 SQLite·PostgreSQL parity를 계약 테스트로 확인한다. 평문 SQLite는 최종 제품에서 금지한다. 상세 ADR-0041 |
 | D80 | 업무 클라이언트 | 업무 클라이언트는 `apps/client` Vite + React PWA인 정적 클라이언트와 Bearer 토큰 API다. Cloudflare는 정적 파일과 공개 페이지만 제공하고 상담 데이터는 지나가지 않는다. 상세 ADR-0041 |
