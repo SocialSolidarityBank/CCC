@@ -1,4 +1,4 @@
-import type { MemoryGenerationRequest, MemoryGenerationOutput, MemoryItem, MemorySummaryLine, MemorySource } from '@ccc/contracts/counseling-memory';
+import type { MemoryGenerationRequest, MemoryGenerationOutput, MemoryItem, MemorySummaryLine, MemorySource, MemoryMaterial } from '@ccc/contracts/counseling-memory';
 
 export const MEMORY_BATCH_SIZE = 8;
 export const MEMORY_CHUNK_SIZE = 24000;
@@ -13,6 +13,94 @@ export function memoryChunks(text: string): MemoryChunk[] {
   return chunks;
 }
 export interface MemoryReconciliation { items: MemoryItem[]; changed: MemoryItem[]; summary: MemorySummaryLine[] }
+export interface MemorySelectionCandidate { item: MemoryItem; material: MemoryMaterial }
+export interface MemorySelectionContext {
+  currentSessionId: string;
+  goalIds: ReadonlySet<string>;
+  unresolvedActionIds: ReadonlySet<string>;
+  currentMaskedTexts: readonly string[];
+}
+const MEMORY_CONTEXT_MATERIAL_LIMIT = 8;
+const MEMORY_CONTEXT_TEXT_LIMIT = 96000;
+const MEMORY_RELEVANCE_CONTEXT_LIMIT = 12000;
+const MEMORY_RELEVANCE_TERM_LIMIT = 64;
+
+function relevanceTerms(texts: readonly string[]): string[] {
+  const terms = new Set<string>();
+  let remaining = MEMORY_RELEVANCE_CONTEXT_LIMIT;
+  for (const text of texts) {
+    if (remaining <= 0) break;
+    const chars: string[] = [];
+    for (const char of text) {
+      if (chars.length >= remaining) break;
+      chars.push(char);
+    }
+    const bounded = chars.join('').normalize('NFKC').toLowerCase();
+    remaining -= chars.length;
+    for (const token of bounded.match(/[\p{L}\p{N}]{2,}/gu) ?? []) {
+      if (terms.size >= MEMORY_RELEVANCE_TERM_LIMIT) return [...terms];
+      terms.add(token);
+    }
+  }
+  return [...terms];
+}
+function memoryTextScore(text: string, terms: readonly string[]): number {
+  const normalized = text.normalize('NFKC').toLowerCase();
+  let score = 0;
+  for (const term of terms) if (normalized.includes(term)) score += Math.min(term.length, 8);
+  return score;
+}
+
+/**
+ * Historical context precedence is intentional: current-session goal links,
+ * unresolved action links, bounded masked-text relevance, then recency. Only
+ * current items survive, and a source touching the current session is never
+ * eligible. A final ID tie-break keeps retries identical.
+ */
+export function selectHistoricalMemoryMaterials(
+  candidates: readonly MemorySelectionCandidate[],
+  context: MemorySelectionContext,
+): MemoryMaterial[] {
+  const terms = relevanceTerms(context.currentMaskedTexts);
+  const ranked = candidates
+    .filter(candidate =>
+      candidate.item.state === 'current'
+      && candidate.material.sessionId !== context.currentSessionId
+      && !candidate.item.sources.some(source => source.sessionId === context.currentSessionId))
+    .map((candidate, index) => {
+      const goalLinked = candidate.item.references.some(reference =>
+        reference.kind === 'goal' && context.goalIds.has(reference.id));
+      const actionLinked = candidate.item.references.some(reference =>
+        reference.kind === 'action' && context.unresolvedActionIds.has(reference.id));
+      const textScore = memoryTextScore(candidate.material.maskedText, terms);
+      return {
+        candidate,
+        index,
+        precedence: goalLinked ? 3 : actionLinked ? 2 : textScore > 0 ? 1 : 0,
+        textScore,
+      };
+    })
+    .sort((left, right) =>
+      right.precedence - left.precedence
+      || right.textScore - left.textScore
+      || right.candidate.material.occurredAt.localeCompare(left.candidate.material.occurredAt)
+      || left.candidate.item.id.localeCompare(right.candidate.item.id)
+      || left.candidate.material.id.localeCompare(right.candidate.material.id)
+      || left.index - right.index);
+  const selected: MemoryMaterial[] = [];
+  const itemIds = new Set<string>();
+  let textLength = 0;
+  for (const entry of ranked) {
+    if (itemIds.has(entry.candidate.item.id)) continue;
+    const material = entry.candidate.material;
+    if (textLength + material.maskedText.length > MEMORY_CONTEXT_TEXT_LIMIT) continue;
+    itemIds.add(entry.candidate.item.id);
+    selected.push(material);
+    textLength += material.maskedText.length;
+    if (selected.length >= MEMORY_CONTEXT_MATERIAL_LIMIT) break;
+  }
+  return selected;
+}
 const prohibited = /(?:심리\s*진단|성격\s*(?:장애|유형)|지원\s*(?:중단|지속)\s*(?:결정|권고)|GAS\s*[=:])/iu;
 export function assertMemoryText(text: unknown, limit = 4000): asserts text is string {
   if (typeof text !== 'string' || !text.trim() || Array.from(text).length > limit || prohibited.test(text)) throw new Error('memory_output_invalid');

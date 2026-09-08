@@ -26,6 +26,52 @@
 
 원본 변경은 예약 세대를 올리고 연속 변경을 묶는다. 대기 케이스가 뒤의 준비된 케이스를 막지 않도록 방문 시 다음 확인 시각을 옮긴다. 마스킹의 세 번째 임대까지 만료되면 차단 상태로 끝낸다. 기관이 끄거나 동의를 철회한 뒤 도착한 결과, 오래된 원본이나 정정을 덮어쓰는 결과는 반영하지 않는다. 이력 전체를 한 요청에 넣지 않고 처리 위치와 미처리 원본을 남긴다.
 
+### 가상 데이터로 기억 처리 경로 시험하기
+
+`pnpm --filter @ccc/api memory:trial`은 지정한 케이스의 준비 상태를 확인하고, 같은 예약 실행기를 한 단계씩 실행한다. 실제 당사자 데이터에는 쓰지 않는다. 기존 미리보기 또는 로컬 개발 경계에서만 열리며, 기관 관리자 인증이 필요하다. 운영 Access 설정이 있거나 개발 경계가 없으면 API는 404로 닫힌다.
+
+```bash
+# CASE_ID는 해당 시험 환경에 만든 가상 케이스의 UUID다.
+pnpm --filter @ccc/api memory:trial check "$CASE_ID"
+pnpm --filter @ccc/api memory:trial step "$CASE_ID" --allow-external-ai
+```
+
+- `CCC_MEMORY_API_ORIGIN`: API 원점 주소. 기본값은 `http://127.0.0.1:8787`이다. HTTPS 또는 loopback HTTP만 허용한다.
+- 로컬 개발에서는 서버의 `LOCAL_DEV_ACTOR_EMAIL`을 가상 기관 관리자 계정으로 지정한다.
+- 미리보기에서는 관리자 코드를 `CCC_MEMORY_PREVIEW_CODE`로 주입한다. 장비 신원으로 인증되는 E2E 코드는 이 CLI에서 사용하지 않는다. Bearer 인증 환경의 `CCC_MEMORY_API_TOKEN`과 함께 쓰지 않는다. 자격증명은 headless 시크릿 절차로 주입하고 명령 인자나 파일에 적지 않는다.
+- `check`는 업무 상태를 바꾸지 않고 열람 감사만 남긴다. `step`은 외부 호출 동의 인자를 요구하며, 해당 기관과 해당 케이스만 처리한다. 다른 케이스의 대기 순서를 앞당기거나 동의와 설치 설정을 켜지 않는다.
+- HTTP 경로는 `GET /support-cases/:id/memory/trial`과 같은 주소의 `POST`다. POST 본문은 `{"confirmExternalAi":true}`만 받는다. 전제조건이 빠지면 409와 진단 상태를 돌려준다.
+
+출력은 상태 코드와 건수뿐이다. 기억 본문, 인용문, 키, 공급자 오류 원문은 출력하지 않는다. `ready: true`는 기본 전제조건을 확인했다는 뜻이며 기억 생성 완료나 외부 송신 승인을 뜻하지 않는다. 실제 송신 직전에는 기존 동의, 활성 설정 해시, 가림 처리 증빙과 임대를 다시 검증한다.
+
+| 진단 코드 | 확인할 것 |
+|---|---|
+| `memory_disabled`, `memory_setting_off` | 설치 LLM 모드와 기관 기억 설정 |
+| `consent_not_effective` | 파일럿 스위치, 현재 동의 근거, 케이스와 보존 상태 |
+| `agent_unavailable`, `local_ner_unavailable` | 최근 기억 큐 폴링과 유효한 NER 자격 증빙 |
+| `masking_pipeline_version_mismatch` | 승인된 마스킹 manifest 매핑 |
+| `ai_provider_not_configured`, `ai_provider_config_mismatch` | 활성 공급자 등록과 현재 버전 해시 |
+| `ai_provider_unavailable`, `memory_provider_unsupported` | SecretStore, 외부 호출 스위치, 기억 갱신 어댑터 |
+
+시험 순서는 가상 상담 기록 저장, 적격 Agent 실행, `check`, `step`, Agent의 원본 가림 처리, 다음 `step`, Agent의 파생 기억 가림 처리다. 방문 간 최소 대기와 임대는 그대로 유지하므로 즉시 반복 실행해도 강제로 진행되지 않는다. CLI 종료 코드는 준비됨 또는 완료 `0`, 차단 또는 실패 `1`, 잘못된 인자 `2`, 처리 대기 `3`이다. `generation`과 `appliedGeneration`, 남은 원본과 마스킹 건수를 함께 본다.
+
+`providerMode`와 `draftMode`를 구분한다. 미리보기의 상담 초안은 기본적으로 가상 응답이므로 `draftMode: fixture`를 실제 모델 연결 성공으로 세지 않는다. 기존 `GET /ai/provider/status`로 공급자 상태를 확인하고, 기관 관리자는 승인 참조를 담은 `POST /ai/provider/activate-runtime`으로 배포된 설정을 등록하고 활성화한다. 시험 도구가 이 승인을 대신하거나 NER 승인 영수증을 만들지는 않는다. DB를 직접 고치지 않는다.
+
+### 고정 사례로 기억 출력 평가하기
+
+```bash
+# 외부 호출 없이 채점기와 사례의 정합성만 확인한다.
+pnpm --filter @ccc/api eval:memory --fixtures
+# 고정 가상 사례 8건만 OpenAI에 보낸다. 유료 호출을 별도로 승인한 뒤 실행한다.
+pnpm --filter @ccc/api eval:memory --live --allow-external-ai
+```
+
+실제 모델 평가는 기존 `AI_PROVIDER_CONFIG`, SecretStore의 `CODEX_API_KEY`, `EXTERNAL_AI_CALLS_ENABLED=1`을 요구한다. 사용자 파일이나 운영 기록을 받지 않는다. 가상 사례의 증빙 표시는 평가 전용이며 운영 Agent 자격을 대신하지 않는다.
+
+사례는 최초 사실, 변경과 과거 이력, 이행된 약속, 상충하는 근거, 서로 다른 회차의 관찰, 실무자 정정 보호, 일부만 갱신한 경우의 보존, 목표 연결을 다룬다. 근거, 상태 전이, 참조와 보존을 기계적으로 검사하고 사례 ID와 실패 코드만 출력한다. `--fixtures`의 통과는 미리 정한 정답으로 채점기를 확인한 결과다. 실제 모델 성능이나 상담에 도움이 되는 정도를 검증한 결과가 아니며, `semanticQuality`는 항상 `unmeasured`로 남긴다.
+
+상담 초안에 넣을 과거 기억은 현재 회차에 연결된 목표, 미해결 액션, 가림 처리된 현재 회차 문구와의 관련성, 최신 근거 순으로 고른다. 과거 상태와 상충 상태, 현재 회차 자체에서 파생된 항목은 제외한다. 최대 8개, 합계 96,000 UTF-16 단위이며 안전한 기억이 없으면 현재 회차 재료만 사용한다.
+
 ## 폴링 워치독 (D8)
 
 - 데이터 원천: `audit_log`의 최신 `poll_pipeline` 시각(처리 장비가 `GET /pipeline/jobs`를 부를 때마다 남는다).

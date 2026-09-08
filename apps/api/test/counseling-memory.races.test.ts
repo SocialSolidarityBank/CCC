@@ -12,7 +12,7 @@ const t = setupD1();
 const { counselor, admin, service } = testActors;
 beforeEach(async () => { await t.reset(); });
 interface MemoryFixture { id: string; action: ActionItem; qualification: NerQualification; jobs: MemoryMaskJob[] }
-async function fixture(claim = true, expiresAt?: string): Promise<MemoryFixture> {
+async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat(64)): Promise<MemoryFixture> {
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   t.env.CCC_LLM_MODE = 'openai';
   t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
@@ -21,7 +21,7 @@ async function fixture(claim = true, expiresAt?: string): Promise<MemoryFixture>
   const id = programs[0]!.supportCase.id;
   await updateParticipantConsent(t.env, counselor, id, { privacy: true, recordingAi: true });
   await recordPilotTextAiConsentEvidence(t.env, counselor, c.id, { noticeVersion: 'pilot-text-ai-v1', noticeSha256: 'a'.repeat(64), evidenceRef: `r2://pilot-evidence/${c.id}`, evidenceSha256: 'f'.repeat(64), effectiveAt: '2026-01-01T00:00:00.000Z' });
-  const config = await registerAiProviderConfiguration(t.env, admin, { adapterId: 'codex', adapterVersion: 'v1', configHash: 'b'.repeat(64), approvalRefs: ['synthetic-approval'] });
+  const config = await registerAiProviderConfiguration(t.env, admin, { adapterId: 'codex', adapterVersion: 'v1', configHash, approvalRefs: ['synthetic-approval'] });
   await activateAiProviderConfiguration(t.env, admin, config.id);
   const action = await createActionItem(t.env, counselor, c.id, { description: '다음 상담 전에 서류 준비', owner: 'beneficiary' });
   const qualification = await seedNerQualification(t.db, expiresAt === undefined ? {} : { expiresAt });
@@ -123,6 +123,43 @@ describe('durable memory races', () => {
     const corrected = await getCounselingMemory(env, counselor, f.id);
     expect(refreshed, corrected.reason ?? 'corrected memory generation').toMatchObject({ updated: 1, failed: 0 });
     expect(corrected.items.map(item => item.body)).toEqual(['서류 준비를 마쳤습니다.']);
+  });
+  it('advances only the requested trial case even when another case has an earlier turn', async () => {
+    const first = await fixture();
+    const other = await fixture(true, undefined, 'c'.repeat(64));
+    await maskJobs(first);
+    await maskJobs(other);
+    const adapter: AiProviderTestAdapter = {
+      providerId: CODEX_PROVIDER_ID, adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, testOnly: true,
+      config: { registryVersion: AI_PROVIDER_REGISTRY_VERSION, providerId: CODEX_PROVIDER_ID,
+        adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION, configVersion: 'memory-scoped-trial', model: 'synthetic-only' },
+      async generate() { throw new Error('Unexpected draft invocation'); },
+      async updateMemory(request) {
+        const material = request.materials.find(item => item.sourceKind === 'action')!;
+        return { updates: [{ key: 'document', itemId: null, kind: 'fact', title: '서류',
+          body: '서류 준비 예정', state: 'current',
+          citations: [{ materialId: material.id, quote: '서류 준비' }],
+          references: [{ kind: 'action', id: material.sourceId }] }],
+        summary: [{ text: '서류 준비 예정', itemKeys: ['document'] }] };
+      },
+    };
+    t.env.AI_PROVIDER_ADAPTER = adapter;
+    const config = await registerAiProviderConfiguration(t.env, admin, {
+      adapterId: adapter.providerId, adapterVersion: adapter.adapterVersion,
+      configHash: await canonicalAiProviderConfigHash(adapter.config), approvalRefs: ['synthetic-trial-approval'],
+    });
+    await activateAiProviderConfiguration(t.env, admin, config.id);
+    await t.db.prepare(`UPDATE counseling_memory_cases SET not_before=CASE WHEN support_case_id=?
+      THEN '2000-01-01T00:00:00.000Z' ELSE '2001-01-01T00:00:00.000Z' END`).bind(other.id).run();
+    const response = await worker.fetch(new Request(`http://localhost/support-cases/${first.id}/memory/trial`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'X-CCC-User-Id': admin.userId,
+        'X-CCC-Org-Id': admin.orgId, 'X-CCC-Role': admin.role },
+      body: JSON.stringify({ confirmExternalAi: true }),
+    }), { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ providerMode: 'fixture', counters: { updated: 1, failed: 0 } });
+    expect((await getCounselingMemory(t.env, counselor, first.id)).items.map(item => item.body)).toEqual(['서류 준비 예정']);
+    expect((await getCounselingMemory(t.env, counselor, other.id)).items).toEqual([]);
   });
   it('stops in-flight memory when the installed LLM mode is off', async () => {
     const f = await fixture();

@@ -1126,12 +1126,12 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 /* D73 근거 인용 접힘. 산출물 바로 아래에서만 열고, 링크는 회차 카드 앵커가 종점이다. */
 .wire-source-quotes{margin-top:var(--space-2)}
 .wire-source-quotes>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--sub)}
-/* 근거 인용 본문(2026-08-30 Q 2차 — 구 세로 스택 대체): 인용은 왼쪽 폭을 쓰고 '출처 회차
-   보기' 버튼은 같은 행 오른쪽 끝이다(가로 폭 활용, 세로로 안 늘어뜨린다). 좁으면 버튼이
-   아랫줄로 접힌다. 인용 사이·버튼과의 간격은 균등 12 다(2026-08-30 1차 유지). */
-.wire-source-quotes-body{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);margin-top:var(--space-3)}
-.wire-source-quotes-list{flex:1 1 auto;min-width:min(100%,240px);display:grid;gap:var(--space-3)}
-.wire-source-quotes-link{flex:none;margin-left:auto}
+/* 근거 인용 본문. 인용이 전체 폭을 쓰고 '출처 회차 보기'는 그 아래 왼쪽 시작선에 선다
+   (2026-09-08 Q 2차, 구 같은 행 오른쪽 끝). 세로로 쌓인 행동 버튼은 화면 어디서나 왼쪽이다.
+   인용 사이와 버튼과의 간격은 균등 12 다(2026-08-30 유지). */
+.wire-source-quotes-body{display:grid;justify-items:start;gap:var(--space-3);margin-top:var(--space-3)}
+.wire-source-quotes-list{width:100%;min-width:0;display:grid;gap:var(--space-3)}
+.wire-source-quotes-link{justify-self:start}
 /* 모달(§5): 폭 520 · radius 12 · 스크림 --scrim · --shadow-modal.
    하단 버튼 줄은 오른쪽 정렬, 세컨더리가 왼쪽·프라이머리가 오른쪽 끝. */
 .wire-scrim{position:fixed;inset:0;z-index:var(--z-modal);display:grid;place-items:center;padding:var(--space-6);background:var(--scrim)}

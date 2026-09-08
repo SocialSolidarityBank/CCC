@@ -63,7 +63,7 @@ import {
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
 import type { CaseMemoryView, MemoryCorrectionInput, MemorySettingsInput, MemorySettingsView, MemoryWork, MemoryGenerationRequest, MemoryGenerationOutput, MemoryHistoricalContext, MemoryMaterial, MemoryItem, MemorySourceKind } from '@ccc/contracts/counseling-memory';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
-import { memoryChunks, reconcileMemory, assertMemoryText, MEMORY_BATCH_SIZE } from './counseling-memory';
+import { memoryChunks, reconcileMemory, assertMemoryText, MEMORY_BATCH_SIZE, selectHistoricalMemoryMaterials, type MemorySelectionCandidate } from './counseling-memory';
 
 export interface Env {
   DB: Database;
@@ -18692,6 +18692,61 @@ export async function setCounselingMemorySettings(env: Env, actor: Actor, input:
   return getCounselingMemorySettings(env,actor);
 }
 
+/** Trial diagnostics expose counts, never memory text or stored credentials. */
+export async function getCounselingMemoryTrialState(env: Env, actor: Actor, supportCaseId: string) {
+  await assertInstitutionAdmin(env, actor);
+  await assertSupportCaseAccess(env, actor, supportCaseId);
+  const c = await memoryCase(env, actor.orgId, supportCaseId);
+  const blockers: string[] = [];
+  let hasMaskingPipeline = false;
+  try {
+    const pipelines: unknown = JSON.parse(env.MEMORY_MASKING_PIPELINES ?? '{}');
+    hasMaskingPipeline = pipelines !== null && typeof pipelines === 'object' && !Array.isArray(pipelines)
+      && Object.values(pipelines).some(hash => typeof hash === 'string' && SHA256_HEX.test(hash));
+  } catch {
+    // Invalid configuration is a readiness blocker, never an invented approval.
+  }
+  if (!hasMaskingPipeline) blockers.push('masking_pipeline_version_mismatch');
+  const setting = await env.DB.prepare('SELECT enabled FROM counseling_memory_settings WHERE org_id=?')
+    .bind(actor.orgId).first<{ enabled: number }>();
+  if (setting?.enabled === 0) blockers.push('memory_setting_off');
+  try {
+    await memoryConsent(env, actor.orgId, supportCaseId);
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error;
+    blockers.push(env.CCC_LLM_MODE !== 'openai' ? 'memory_disabled' : 'consent_not_effective');
+  }
+  const agent = await env.DB.prepare(`SELECT attestation_json,receipt_id FROM counseling_memory_agents
+    WHERE org_id=? AND seen_at>? ORDER BY seen_at DESC LIMIT 1`)
+    .bind(actor.orgId, new Date(Date.now() - 6 * 3600000).toISOString())
+    .first<{ attestation_json: string; receipt_id: string }>();
+  if (!agent) {
+    blockers.push('agent_unavailable');
+  } else {
+    try {
+      await memoryNerQualification(env, actor.orgId, JSON.parse(agent.attestation_json) as NerAttestation, agent.receipt_id);
+    } catch (error) {
+      if (!(error instanceof ValidationError) && !(error instanceof SyntaxError)
+        && !(error instanceof AgentJobContractError && error.code === 'local_ner_unavailable')) throw error;
+      blockers.push('local_ner_unavailable');
+    }
+  }
+  const counts = await env.DB.prepare(`SELECT
+    (SELECT COUNT(*) FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND dirty=1) AS dirty_sources,
+    (SELECT COUNT(*) FROM counseling_memory_materials WHERE org_id=? AND support_case_id=? AND valid=1 AND status<>'ready') AS pending_masks,
+    (SELECT COUNT(*) FROM counseling_memory_items WHERE org_id=? AND support_case_id=? AND valid=1) AS item_count`)
+    .bind(actor.orgId, supportCaseId, actor.orgId, supportCaseId, actor.orgId, supportCaseId)
+    .first<{ dirty_sources: number; pending_masks: number; item_count: number }>();
+  await writeAudit(env, actor, { action: 'read', targetTable: 'counseling_memory_cases',
+    targetId: supportCaseId, caseId: supportCaseId, detail: { purpose: 'memory_trial_readiness' } });
+  return {
+    supportCaseId, status: c.status, generation: c.generation, appliedGeneration: c.applied_generation,
+    revision: c.revision, updatedAt: c.updated_at, nextCheckAt: c.not_before,
+    backfillDone: c.backfill_done === 1, dirtySources: counts?.dirty_sources ?? 0,
+    pendingMasks: counts?.pending_masks ?? 0, itemCount: counts?.item_count ?? 0, blockers,
+  };
+}
+
 async function memorySourceBody(env: Env, source: MemorySourceRow): Promise<MemorySourceBody|null> {
   if (source.deleted) return null;
   const args=[source.source_id,source.org_id,source.support_case_id];
@@ -18748,16 +18803,31 @@ async function prepareMemorySources(env: Env,c:MemoryCaseRow):Promise<void> {
   }
 }
 
-export async function prepareCounselingMemoryWork(env: Env, limit = MEMORY_BATCH_SIZE): Promise<MemoryWork[]> {
+export function prepareCounselingMemoryWork(env: Env, limit = MEMORY_BATCH_SIZE): Promise<MemoryWork[]> {
+  return prepareMemoryWork(env, limit);
+}
+
+/** A human-triggered trial must not drain another case or institution. */
+export async function prepareCounselingMemoryTrialWork(env: Env, actor: Actor, supportCaseId: string): Promise<MemoryWork[]> {
+  await assertInstitutionAdmin(env, actor);
+  await assertSupportCaseAccess(env, actor, supportCaseId);
+  await writeAudit(env, actor, { action: 'update', targetTable: 'counseling_memory_cases',
+    targetId: supportCaseId, caseId: supportCaseId, detail: { purpose: 'memory_trial_step' } });
+  return prepareMemoryWork(env, 1, { orgId: actor.orgId, supportCaseId });
+}
+
+async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: string; supportCaseId: string }): Promise<MemoryWork[]> {
   if (env.TEXT_AI_PILOT_ENABLED !== '1' || env.CCC_LLM_MODE !== 'openai') return [];
   const size = Math.max(1, Math.min(16, Number.isSafeInteger(limit) ? limit : MEMORY_BATCH_SIZE));
   const at = now();
   const revisitAt = new Date(Date.now() + 60000).toISOString();
   const rows = await env.DB.prepare(`SELECT c.* FROM counseling_memory_cases c WHERE ${memoryEligibleSql}
+    AND (CAST(? AS TEXT) IS NULL OR (c.org_id=? AND c.support_case_id=?))
     AND (c.generation>c.applied_generation OR c.backfill_done=0 OR EXISTS(
       SELECT 1 FROM counseling_memory_sources s WHERE s.org_id=c.org_id AND s.support_case_id=c.support_case_id AND s.dirty=1))
     AND c.not_before<=? AND (c.lease_until IS NULL OR c.lease_until<=?)
-    ORDER BY c.not_before,c.support_case_id LIMIT ?`).bind(at, at, at, Math.min(64, size * 4)).all<MemoryCaseRow>();
+    ORDER BY c.not_before,c.support_case_id LIMIT ?`)
+    .bind(at, scope?.orgId ?? null, scope?.orgId ?? null, scope?.supportCaseId ?? null, at, at, Math.min(64, size * 4)).all<MemoryCaseRow>();
   const works: MemoryWork[] = [];
   for (const before of rows.results) {
     if (works.length >= size) break;
@@ -18953,13 +19023,17 @@ async function assertMemoryWork(env:Env,work:MemoryWork,egress:string|null):Prom
 function toMemoryMaterial(row:MemoryMaterialRow):MemoryMaterial {
   return {id:row.id,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sessionId:row.session_id,occurredAt:row.occurred_at,snapshotId:row.snapshot_id!,sha256:row.sha256!,maskedText:row.masked_text!};
 }
-async function verifiedMemoryMaterials(env:Env,orgId:string,supportCaseId:string,limit=32,derivedOnly=false):Promise<MemoryMaterialRow[]> {
-  const rows=await env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_sources s
+async function verifiedMemoryMaterials(env:Env,orgId:string,supportCaseId:string,limit:number|null=32,derivedOnly=false):Promise<MemoryMaterialRow[]> {
+  const limitClause=limit===null?'':' LIMIT ?';
+  const statement=env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_sources s
     ON s.org_id=m.org_id AND s.support_case_id=m.support_case_id AND s.kind=m.kind AND s.source_id=m.source_id AND s.revision=m.source_revision
     WHERE m.org_id=? AND m.support_case_id=? AND m.valid=1 AND m.status='ready' AND s.deleted=0
     AND ((?=1 AND m.kind='derived_summary') OR (?=0 AND m.kind<>'derived_summary' AND m.processed=0))
-    ORDER BY m.occurred_at,m.id LIMIT ?`).bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0,limit).all<MemoryMaterialRow>();
-  const verified: MemoryMaterialRow[] = [];
+    ORDER BY m.occurred_at,m.id${limitClause}`);
+  const rows=limit===null
+    ?await statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0).all<MemoryMaterialRow>()
+    :await statement.bind(orgId,supportCaseId,derivedOnly?1:0,derivedOnly?1:0,limit).all<MemoryMaterialRow>();
+  const verified:MemoryMaterialRow[]=[];
   for (const row of rows.results) {
     if (await memoryMaterialReady(env, row)) verified.push(row);
   }
@@ -19166,17 +19240,58 @@ export async function loadCounselingMemoryContext(
   }
   const c = await memoryCase(env, actor.orgId, scope.supportCaseId);
   const items = await memoryItems(env, actor.orgId, scope.supportCaseId);
-  // Known proof failures omit only historical context; storage failures still propagate.
-  const rows = await verifiedMemoryMaterials(env, actor.orgId, scope.supportCaseId, 32, true);
-  const materials: MemoryMaterial[] = [];
-  let length = 0;
-  for (const row of rows) {
-    const item = items.find(candidate => candidate.id === row.source_id && candidate.revision === row.source_revision);
-    if (!item || item.state !== 'current' || item.sources.some(source => source.sessionId === sessionId)) continue;
-    if (materials.length >= 8 || length + row.masked_text!.length > 96000) break;
-    materials.push(toMemoryMaterial(row));
-    length += row.masked_text!.length;
+  const [goalRows, actionRows, currentRows, historicalRows] = await Promise.all([
+    env.DB.prepare(`SELECT DISTINCT goal_id FROM (
+      SELECT session_goal.case_goal_id AS goal_id
+      FROM schedule_session_goals AS session_goal
+      JOIN counseling_schedules AS schedule
+        ON schedule.id=session_goal.schedule_id AND schedule.org_id=session_goal.org_id
+      WHERE session_goal.org_id=? AND session_goal.support_case_id=?
+        AND schedule.status='completed' AND schedule.completed_session_id=?
+        AND session_goal.case_goal_id IS NOT NULL
+      UNION ALL
+      SELECT score.goal_id
+      FROM session_goal_scores AS score
+      JOIN sessions AS scored_session
+        ON scored_session.id=score.session_id AND scored_session.org_id=score.org_id
+      JOIN goals AS goal
+        ON goal.id=score.goal_id AND goal.org_id=score.org_id
+        AND goal.support_case_id=scored_session.support_case_id
+      WHERE score.org_id=? AND scored_session.support_case_id=?
+        AND scored_session.id=? AND score.goal_id IS NOT NULL
+    ) AS session_goal_links ORDER BY goal_id`).bind(actor.orgId, scope.supportCaseId, sessionId, actor.orgId, scope.supportCaseId, sessionId).all<{goal_id:string}>(),
+    // An unresolved action is a current follow-up regardless of which session created it.
+    env.DB.prepare(`SELECT id FROM action_items
+      WHERE org_id=? AND support_case_id=? AND resolved_at IS NULL
+      ORDER BY due_date NULLS LAST,created_at,id`).bind(actor.orgId, scope.supportCaseId).all<{id:string}>(),
+    // Relevance terms come only from an already masked, proof-bearing current-session snapshot.
+    env.DB.prepare(`SELECT m.* FROM counseling_memory_materials AS m
+      JOIN counseling_memory_sources AS source
+        ON source.org_id=m.org_id AND source.support_case_id=m.support_case_id
+        AND source.kind=m.kind AND source.source_id=m.source_id AND source.revision=m.source_revision
+      WHERE m.org_id=? AND m.support_case_id=? AND m.kind='session' AND m.source_id=?
+        AND m.valid=1 AND m.status='ready' AND source.deleted=0
+      ORDER BY m.start_offset,m.id`).bind(actor.orgId, scope.supportCaseId, sessionId).all<MemoryMaterialRow>(),
+    // Derived snapshots are one per current item, so exhaustive ranking is bounded by the item contract.
+    verifiedMemoryMaterials(env, actor.orgId, scope.supportCaseId, null, true),
+  ]);
+  const currentMaskedTexts: string[] = [];
+  for (const row of currentRows.results) {
+    if (await memoryMaterialReady(env, row) && row.masked_text !== null) currentMaskedTexts.push(row.masked_text);
   }
+  const itemsByRevision = new Map(items.map(item => [`${item.id}:${item.revision}`, item]));
+  const candidates: MemorySelectionCandidate[] = [];
+  for (const row of historicalRows) {
+    if (row.masked_text === null) continue;
+    const item = itemsByRevision.get(`${row.source_id}:${row.source_revision}`);
+    if (item !== undefined) candidates.push({item, material: toMemoryMaterial(row)});
+  }
+  const materials = selectHistoricalMemoryMaterials(candidates, {
+    currentSessionId: sessionId,
+    goalIds: new Set(goalRows.results.map(row => row.goal_id)),
+    unresolvedActionIds: new Set(actionRows.results.map(row => row.id)),
+    currentMaskedTexts,
+  });
   if (!materials.length) return null;
   await writeAudit(env, actor, {
     action: 'read', targetTable: 'counseling_memory_cases', targetId: c.support_case_id,
