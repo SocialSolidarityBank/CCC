@@ -798,18 +798,19 @@ const settingsStyles = `
 const scheduleStyles = `
 /* 일정은 날짜 → 카드 두 층이다(CCC-133). 세 뷰 모두 일정이 있는 날짜만
    시간순으로 그리고, 기간 이름은 본문이 아니라 내비가 갖는다. */
-.schedule-day-list{display:grid;gap:var(--section-gap)}
+/* 트랙을 minmax(0,1fr) 로 묶어야 날짜 줄이 카드 폭 안에서 줄어든다. auto 트랙이면 제목이
+   max-content 로 자라 이름이 길 때 화면 밖으로 넘친다(2026-09-08 실측). */
+.schedule-day-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--section-gap)}
 /* 구 오늘·미래 플랫 구획(.schedule-section + 18 제목 축소 규칙)은 2026-08-28 Q 로 폐지 —
    세 상태 모두 날짜 묶음 카드(WireCardDetails) 하나를 쓴다. */
-/* 날짜 묶음 제목 옆 건수 — 16/400 --ink(③ 본문, 2026-08-29 Q "16px로". 구 14/400 --sub ④ —
-   16px 에는 --sub 조합이 §1 표에 없어 본문 단으로 올린다). 제목 flex 의 gap 이 간격을 만든다. */
-.schedule-day-count{font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
-/* 일정 업무 바. 양쪽 1fr 이 가운데 기간 묶음을 페이지 정중앙에 고정한다. 왼쪽은
-   [오늘]+보기 선택창, 오른쪽은 등록 행동 둘이고 전부 32 높이다. */
-.schedule-nav{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--space-3)}
-.schedule-nav-controls,.schedule-nav-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
-.schedule-nav-actions{justify-content:flex-end}
-.schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3)}
+/* 날짜 묶음 제목 옆 건수와 이름은 14/400 --ink 다(2026-09-08 Q — 구 16/400). 날짜 제목 16/600 과
+   크기로 갈라 제목이 먼저 읽히게 한다. 건수와 이름 사이는 공용 메타 세로선 어휘를 그대로 쓴다. */
+.schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
+/* 일정 업무 바는 두 줄이다(2026-09-08 Q). 1행은 기간 네비, 2행은 [오늘]+보기 선택창+상담 등록이고
+   둘 다 가운데 정렬이며 줄바꿈하지 않는다. 당사자 등록은 사이드바가 장소로 갖는다. */
+.schedule-nav{display:grid;grid-template-columns:minmax(0,1fr);justify-items:center;gap:var(--space-3)}
+.schedule-nav-controls{display:flex;align-items:center;justify-content:center;gap:var(--space-2);min-width:0}
+.schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3);min-width:0}
 /* 이전·다음은 공용 꺽쇠 버튼 면과 공용 12px SVG를 함께 쓴다. */
 .schedule-nav-step{justify-self:center}
 /* [오늘] 바로 옆 보기 선택창. B 균형형(2026-09-02 Q): 96×32, 좌 12, 우 10이다. */
@@ -829,19 +830,10 @@ const scheduleStyles = `
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
 .schedule-day-summary-title{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
-/* 날짜와 오늘 배지와 건수는 한 줄에 묶인다(2026-09-04 후속 검수). 767 이하에서 제목이
-   세로로 쌓여도 이 셋은 함께 첫 줄에 남고 이름 목록만 다음 줄로 내려간다. */
-.schedule-day-head{display:flex;align-items:center;gap:var(--space-3);min-width:0}
-.schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
-/* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
-   컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */
-@container (max-width:760px){
-  .schedule-nav{grid-template-columns:minmax(0,1fr);justify-items:center}
-  .schedule-nav-controls{justify-content:center;flex-wrap:wrap}
-  .schedule-nav-period{grid-template-columns:var(--pill-height) auto var(--pill-height);min-width:0}
-  .schedule-nav-actions{width:auto;justify-content:center;flex-wrap:wrap}
-  .schedule-nav-actions>.wire-button{flex:none}
-}
+/* 날짜와 오늘 배지와 건수와 이름은 두 폭 모두 한 줄이다(2026-09-08 Q — 구 767 이하 세로 쌓임 폐지).
+   좁아지면 줄을 늘리지 않고 이름 목록만 말줄임으로 줄어든다. */
+.schedule-day-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex:0 0 auto}
+.schedule-day-names{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:1px solid var(--line-control);padding-left:var(--space-3);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 @media(max-width:767px){
   /* 날짜 범위는 잘리면 무의미하므로 말줄임표를 쓰지 않는다. 좁은 폭에서는 잘라 버리는
      대신 두 줄로 풀어 전문을 보여 주고, 그 폭에서만 높이 고정을 풀어 둔다. 날짜를 숨기는
@@ -853,7 +845,6 @@ const scheduleStyles = `
   .briefing-goal-display,.briefing-goal-text{min-width:0;width:100%}
   .briefing-goal-form{grid-column:1/-1;min-width:0;width:100%}
   .card-grid.schedule-card-grid{grid-template-columns:minmax(0,1fr)}
-  .schedule-day-summary-title{align-items:flex-start;flex-direction:column;gap:var(--space-1)}
 }
 /* ticket-20: 상담 등록 */
 /* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
