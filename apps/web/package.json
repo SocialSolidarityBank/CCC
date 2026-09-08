@@ -3,6 +3,10 @@
   "version": "0.6.1",
   "private": true,
   "license": "Apache-2.0",
+  "exports": {
+    "./wire": "./app/components/wire/client-surface.ts",
+    "./wire-styles": "./app/components/wire/wire-styles.ts"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
