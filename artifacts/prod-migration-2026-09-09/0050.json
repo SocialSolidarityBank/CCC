@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-09",
+  "target": "production D1 ccc",
+  "mergedCommit": "3a6b5093d42a2e7be05c0fb3b387941bc03eba2d",
+  "migration": "migrations/sqlite/0050_rls_scope.sql",
+  "sha256": "4c3784272db53f8955f6520efdccc08789fb7cbc7a13e72a216389363264be03",
+  "recoveryBookmark": "00000bc8-00000000-000050e0-31e68fa7751488af6f081ba09238e5d1",
+  "applyExitCode": 0,
+  "pendingMigrations": 0,
+  "before": {
+    "support_cases": 0,
+    "sessions": 0,
+    "participant_pii_vault": 0,
+    "audit_log": 0,
+    "users": 2,
+    "flags": 0,
+    "counseling_schedules": 0,
+    "applied": 48
+  },
+  "after": {
+    "support_cases": 0,
+    "sessions": 0,
+    "participant_pii_vault": 0,
+    "audit_log": 0,
+    "users": 2,
+    "flags": 0,
+    "counseling_schedules": 0,
+    "applied": 49
+  },
+  "schema": [
+    [
+      {
+        "name": "beneficiary_id_counters",
+        "type": "table"
+      },
+      {
+        "name": "beneficiaries_sync_id_counter",
+        "type": "trigger"
+      }
+    ],
+    [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "ok",
+        "type": "INTEGER",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "org_id",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": "''",
+        "pk": 0
+      }
+    ]
+  ],
+  "boundary": "No production participant data, AI/STT activation, hosted PostgreSQL installation, or secret changes."
+}
