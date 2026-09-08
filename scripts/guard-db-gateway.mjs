@@ -15,6 +15,7 @@ const allowedFiles = new Set([
   'packages/core/src/gateway.ts',
   'adapters/db-d1/src/index.ts',
   'adapters/db-sqlite/src/index.ts',
+  'adapters/db-postgres/src/index.ts',
   'scripts/guard-db-gateway.mjs',
   'scripts/guard-sql-dialect.mjs',
   'scripts/seed/harness.ts',

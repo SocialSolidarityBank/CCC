@@ -1,6 +1,6 @@
 # CCC Open Pilot v0.3 실행 계획
 
-> **For agentic workers:** 이 문서의 스펙 게이트와 티켓 의존성을 위에서부터 따른다. 구현 티켓마다 별도 worktree와 `docs/superpowers/plans/YYYY-MM-DD-{티켓ID}-{slug}.md`를 만들고, 해당 티켓의 검증이 끝나기 전에는 차단된 후속 티켓을 시작하지 않는다. 날짜 관문은 진행 점검일이며 완료 조건을 낮추는 마감이 아니다.
+> **For agentic workers:** 아래 2026-09-08 실행 우선순위 개정을 먼저 따른다. 구현 티켓마다 별도 worktree와 `docs/superpowers/plans/YYYY-MM-DD-{티켓ID}-{slug}.md`를 사용한다. 실제로 소비하는 계약의 선행은 유지하되 성능 측정과 비필수 법무 산출물은 합성 연결 구현을 차단하지 않는다. 미측정을 완료로 보고하지 않는다.
 
 **Goal:** 현재 Cloudflare 중심 CCC를 공통 코어 하나와 Community Cloud, Local Single, Local Office 세 배포 모드로 clean cutover하고, 합성 데이터 골든 플로우, 복원, 개인정보 관문을 모두 검증한다.
 
@@ -9,6 +9,31 @@
 **Tech Stack:** TypeScript 5.9, React 19.2.7, Vite 8.2.2, React Router 8.3.1, vite-plugin-pwa 1.3.0, Playwright 1.62.1, `@noble/hashes` 2.4.0, PostgreSQL via `postgres` 3.4.9, encrypted SQLite candidate `better-sqlite3-multiple-ciphers` 13.0.3, Supabase CLI 2.116.0, Supabase JS 2.112.4, Electron 44.1.1, electron-builder 26.15.3, Python 3.12 Processing Agent. 네이티브 Windows 패키지와 모델 라이선스는 검증 전까지 후보이며 실패하면 해당 모드를 `미통과`로 둔다.
 
 **Primary spec after approval:** `docs/adr/0041-one-core-three-deployment-modes.md`, `PRD/CCC-open-pilot-v0.2.md`, `docs/specs/S1-*.md` through `S15-*.md`. E0 완료 전에는 저장소 밖 `inbox` 원본과 회수한 Notion ADR-0040을 정본 후보로만 사용한다.
+
+## 2026-09-08 실행 우선순위 개정
+
+Q는 벤치마크, 최소사양 확정과 비필수 법무 검토보다 결정된 STT, OpenAI API와 DB 설정 구현을 먼저 하도록 요청했다. 첫 완료 지점은 Community Cloud에서 합성 상담 한 건이 등록부터 AI 승인과 DB 재조회까지 이어지는 것이다. 이 절은 아래 종전 웨이브와 날짜 관문의 실행 순서보다 우선하며 최종 세 모드 범위는 유지한다.
+
+1. **저장소와 로그인:** CCC-222(E3-3) PostgreSQL adapter → CCC-216(E3-4) baseline/parity → 기관 간 접근 차단, Supabase Auth, 기관 소유 서울 Supabase 연결. 실제 gateway 저장/재조회와 batch 중간 실패 전체 rollback을 확인한다.
+2. **STT와 OpenAI:** DB와 독립적인 설정/어댑터 작업부터 진행한다. Cloud 첫 연결은 Azure 전사 → 승인된 마스킹 → OpenAI 초안이다. 키 없음, timeout, 동의 철회, 원음 삭제와 수기 경로를 확인한다. 최신 main의 Local Qwen과 Azure 구현 계약을 보존하고 새 엔진을 선정하지 않는다.
+3. **관리자 설정과 업무 화면:** CCC-201 화면/API probe와 E2 작업을 진행하고 기존 관리자 화면에서 설정 저장, 재진입, 연결 검사, 명시적 켜기/끄기를 확인한다. 전체 Setup Assistant, 공개 site, Windows 설치기 완료를 독립 설정 로직 착수 조건으로 두지 않는다. 최종 Cloud 업무 흐름은 E2-7의 정적 client와 Bearer API에서 확인한다.
+4. **상담 한 건 종단 실행:** 가상 당사자 등록 → 경로별 동의 → 녹음 → 전사 → 개인정보 가림 → AI 초안 → 실무자 승인 → 15초 페이지 → DB 재조회. E3-8/E4-6의 동의와 D87 사업 도입 확인(#297)을 실제 데이터/전송 경계에 반영한다. 승인 전 초안의 공식 기록 노출과 로그의 원문/키는 없어야 한다.
+
+Local Single과 Office는 첫 Cloud 연결을 막지 않는 후속 작업이다. 개발용 env backend와 사용 가능한 Agent 환경에서 합성 연결을 먼저 확인하되 Windows DPAPI 완료나 제품 STT 활성화 승인으로 보고하지 않는다. 본문에 있는 최신 signed registry, Q 채택과 provider 무전환 계약은 유지한다. 세 모드의 STT 설치 기본값은 `off`다.
+
+### 지금 미루는 것과 다시 확인할 때
+
+- 전체 STT fixture, 엔진 맞대결과 Windows CPU 150건 CER/DER/RTF 측정은 뒤로 미룬다. Local 엔진 선정, 실제 품질 문제 또는 품질 수치 공개 전에 재개한다. CCC-250의 구현과 미측정 결과를 구분한다.
+- CPU/RAM/GPU 최소사양 숫자는 이번 설정 구현에서 제외한다. 설치 실패, 메모리 부족, 처리 지연이 생기거나 특정 사양 지원을 보장하기 전에 확인한다.
+- 대규모 부하, 실무자 시간/효과 측정과 정답표는 후순위다. 기능 안정화, 실제 병목, 사용 규모 확대나 성과 수치 공개 전에 필요한 측정을 한다.
+- 별도 법률 자문과 모든 모드의 포괄 리스크 보고서는 이번 구현에서 제외한다. 실제 데이터 도입의 필요한 처리 근거, 구체적인 계약 쟁점 또는 이용 범위 변경 시 해당 항목만 확인한다. CCC-157/189와 CCC-188은 합성 연결 구현의 선행으로 두지 않는다.
+- 전체 설치판, 코드서명, 전 방향 `.cccx`와 세 모드 종합 drill은 첫 연결 뒤 해당 배포/이전 기능을 제공하기 전에 수행한다.
+
+동의, 권한, TLS/private Storage, 키 보호, 마스킹 fail-closed, DB 원자성, 기록 충돌 방지, 기존 자료 변경 전 백업/복원, 승인 전 초안 배제와 원음 삭제는 미루지 않는다. 알려진 안전 실패는 성능 문제로 재분류하지 않는다. 느림/품질 문제는 실제 증상으로 고치되 유출/기록 손상 위험이면 해당 전송/쓰기를 먼저 차단한다.
+
+이 개정은 운영 데이터 사용, API 과금 실행, 배포 승인이 아니다. 실제 데이터 전환의 적용 경로별 필수 조건과 Q 확인은 별도다. 미룬 티켓은 열린 채 유지하고 Linear 한도로 신규 분할 티켓을 요구하지 않는다. 문서 수정만으로 외부 티켓 상태와 blocks 관계가 바뀌었다고 보고하지 않는다.
+
+쉬운 설명: [CCC 먼저 만들 것과 나중에 확인할 것](https://app.notion.com/p/foxion/2026-09-08-CCC-3d5883f156f58051bd36d29e638d61af).
 
 ## Context
 
