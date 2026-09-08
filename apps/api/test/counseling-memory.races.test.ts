@@ -161,7 +161,8 @@ describe('durable memory races', () => {
     await expect(commitCounselingMemoryWork(t.env, second.work, second.output)).rejects.toThrow();
     expect((await getCounselingMemory(t.env, counselor, f.id)).items[0]!.body).toBe('서류는 이미 준비됨');
   });
-  // Thirty-six attested sources cross collection and egress batches; CI needs headroom beyond 30s.
+  // Thirty-six attested sources cross real gateway and drain batches; shared CI runners exceed 60s.
+  // This checks complete consumption, not throughput. Preserve every source and the bounded pass count.
   it('drains histories larger than one request without consuming omitted sources', async () => {
     const f = await fixture();
     const addedIds = Array.from({ length: 35 }, () => crypto.randomUUID());
@@ -189,7 +190,7 @@ describe('durable memory races', () => {
     }
     const consumed = await t.db.prepare("SELECT source_id FROM counseling_memory_materials WHERE support_case_id=? AND kind='action' AND processed=1 AND valid=1").bind(f.id).all<{source_id:string}>();
     expect(consumed.results.map(row => row.source_id).sort()).toEqual(ids.sort());
-  }, 60000);
+  }, 180000);
   it('lets ready work pass two earlier cases still waiting for masking', async () => {
     const f = await fixture();
     await maskJobs(f);
