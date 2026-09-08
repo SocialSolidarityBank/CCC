@@ -1,5 +1,39 @@
 [
   {
+    "name": "넓은 15초 페이지 HERO 정보 네 항목은 한 행이다",
+    "selectors": ["#align-content .participant-hero-details>.wire-field-row"],
+    "axis": "y",
+    "tolerance": 1,
+    "viewport": { "width": 1440, "height": 1000 }
+  },
+  {
+    "name": "데스크톱 리스크 출처 버튼은 인용 텍스트와 세로 중앙을 공유한다",
+    "selectors": ["#align-content-open .risk-banner .wire-source-quotes-list", "#align-content-open .risk-banner .wire-source-quotes-link"],
+    "axis": "y",
+    "tolerance": 1
+  },
+  {
+    "name": "데스크톱 세션 목표 수정 버튼은 목표 텍스트와 세로 중앙을 공유한다",
+    "selectors": ["#align-content .wire-card-section:has(>.briefing-section-footer) .wire-meta-row>span:first-child", "#align-content .briefing-section-footer"],
+    "axis": "y",
+    "tolerance": 1
+  },
+  {
+    "name": "390px 리스크와 세션 목표 행동은 텍스트 아래 12px에 선다",
+    "selectors": ["#align-content-open .risk-banner .wire-source-quotes-list", "#align-content-open .risk-banner .wire-source-quotes-link", "#align-content .wire-card-section:has(>.briefing-section-footer)>:nth-child(2)", "#align-content .briefing-section-footer"],
+    "axis": "gap-pair",
+    "tolerance": 1,
+    "expectedGap": 12,
+    "viewport": { "width": 390, "height": 1000 }
+  },
+  {
+    "name": "390px 세션 목표와 행동 칸은 구획의 전체 내용 폭을 쓴다",
+    "selectors": ["#align-content .wire-card-section:has(>.briefing-section-footer)", "#align-content .wire-card-section:has(>.briefing-section-footer)>:nth-child(2)", "#align-content .briefing-section-footer"],
+    "axis": "width",
+    "tolerance": 1,
+    "viewport": { "width": 390, "height": 1000 }
+  },
+  {
     "name": "사이드바 선택과 호버 상자는 248×32",
     "selectors": [
       "#align-sidebar .navigation-link"
@@ -50,35 +84,44 @@
     "expectedRight": 17
   },
   {
-    "name": "AI 제안 라벨과 안내 문구는 같은 행 세로 중앙",
+    "name": "AI 제안 꺽쇠는 행 세로 중앙",
     "selectors": [
-      "#align-content .wire-card-section-head:has(.briefing-ai-goal-hint)>h3",
-      "#align-content .briefing-ai-goal-hint"
+      "#align-content .briefing-suggestion-row",
+      ".wire-chevron"
     ],
-    "axis": "y",
+    "axis": "center-y-each",
     "tolerance": 1
   },
   {
-    "name": "AI 제안 전체 닫기 버튼은 반복 카드 오른쪽 내용선에 선다",
+    "name": "390px 회차 행 날짜와 유형 배지는 겹치지 않는다",
     "selectors": [
-      "#align-content #briefing-remember .briefing-memo-item:last-child",
-      "#align-content #briefing-remember .briefing-ai-goal-hint>.wire-button"
+      "#align-content .briefing-session-row",
+      ".briefing-session-date",
+      ".briefing-session-kind"
     ],
-    "axis": "inset-right",
-    "tolerance": 0.5,
-    "expectedInset": 25
+    "axis": "no-overlap-x-each",
+    "tolerance": 0,
+    "viewport": { "width": 390, "height": 900 }
   },
   {
-    "name": "AI 제안 구획의 라벨 행 아래 간격은 형제 구획과 같다",
+    "name": "AI 제안 안내 글은 구획 라벨과 같은 폭을 쓴다",
     "selectors": [
-      "#align-content #briefing-remember .wire-card-section:has(>.briefing-suggestions)>.wire-card-section-head",
-      "#align-content #briefing-remember .wire-card-section>.briefing-suggestions",
-      "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>h3",
-      "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>.empty"
+      "#align-content #briefing-remember .briefing-ai-goal-hint>span",
+      "#align-content #briefing-remember .wire-card-section:has(>.briefing-suggestions)>h3"
     ],
-    "axis": "gap-pair",
+    "axis": "width",
+    "tolerance": 1
+  },
+  {
+    "name": "AI 제안 첫 행의 위아래 내용 여백은 12로 같다",
+    "selectors": [
+      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-row",
+      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-main",
+      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-main"
+    ],
+    "axis": "inset-y",
     "tolerance": 1,
-    "expectedGap": 8
+    "expectedGap": 12
   },
   {
     "name": "세부 목표 불릿 점은 첫 줄 세로 중앙",
@@ -583,10 +626,10 @@
     "tolerance": 1
   },
   {
-    "name": "브리핑 기한 배지는 액션 행 세로 중앙",
+    "name": "브리핑 담당과 기한 배지는 배지 줄에서 세로 중앙",
     "selectors": [
-      "#align-content .briefing-action-row",
-      ".wire-badge[data-tone=\"blue\"]"
+      "#align-content .briefing-action-badges",
+      ".wire-badge"
     ],
     "axis": "center-y-each",
     "tolerance": 1
@@ -958,13 +1001,13 @@
     "viewport": { "width": 390, "height": 844 }
   },
   {
-    "name": "브리핑 회차 행 호버 면은 행 높이보다 큰 38",
+    "name": "브리핑 회차 행 띠는 카드 패딩과 같은 위아래 24를 더한 70.4",
     "selectors": [
       "#align-content .briefing-session-row"
     ],
     "axis": "height",
     "tolerance": 0.5,
-    "expectedHeight": 38
+    "expectedHeight": 70.4
   },
   {
     "name": "체크박스 보기 행은 높이 40",
