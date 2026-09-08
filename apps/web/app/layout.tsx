@@ -11,6 +11,7 @@ import 'react-day-picker/style.css';
 import { AppHeader } from './components/wire/app-header';
 import { AppSidebar } from './components/wire/app-sidebar';
 import { BackLink } from './components/wire/back-link';
+import { NextLinkProvider } from './components/wire/next-link-provider';
 import { getDisplayLabels } from './lib/display-labels';
 import { getNewSignupCount } from './lib/api';
 import { THEME_COOKIE_NAME, parseTheme } from './lib/theme-cookie';
@@ -1234,7 +1235,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   if (isPublic) {
     // 공개 화면에도 테마는 적용한다 — 셸이 없을 뿐 같은 앱 화면이다(토글은 사이드바에 있으므로
     // 여기서 바꿀 수는 없고, 앞서 켜 둔 값이 그대로 따라온다).
-    return <html lang="ko" data-theme={themeAttr}><head><style>{shellStyles}</style></head><body>{children}</body></html>;
+    return (
+      <html lang="ko" data-theme={themeAttr}>
+        <head><style>{shellStyles}</style></head>
+        <body><NextLinkProvider>{children}</NextLinkProvider></body>
+      </html>
+    );
   }
 
   // 기관·사업 표시 이름은 온보딩 저장값 우선(CCC-32) — 실패·미설정이면 헬퍼가 하드코딩 라벨로 폴백한다.
@@ -1248,19 +1254,23 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="ko" data-theme={themeAttr}>
       <head><style>{shellStyles}</style></head>
       <body>
-        <div className="wire-shell app-shell">
-          {/* 상단 헤더(2026-08-05 Q · Infisical 레퍼런스) — 셸 그리드 1행, **화면 전체 폭**
-              (사이드바 위까지). 기관 마크가 사이드바 메뉴와 같은 좌측선(24)에 선다.
-              768 미만에서는 렌더만 되고 CSS 가 숨긴다(손잡이 바 + 드로어가 담당). */}
-          <AppHeader orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
-          <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} newSignupCount={newSignupCount} />
-          <div className="content-column">
-            {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
-                랜드마크 이동에서 통째로 건너뛴다. */}
-            <nav className="page-backbar" aria-label="페이지 이동"><BackLink /></nav>
-            {children}
+        {/* 링크 어댑터는 셸 전체를 감싼다(2026-09-08). DOM 을 하나도 더 만들지 않고 컨텍스트만
+            얹으므로 그리드 구조와 디자인 게이트 계약은 그대로다. */}
+        <NextLinkProvider>
+          <div className="wire-shell app-shell">
+            {/* 상단 헤더(2026-08-05 Q · Infisical 레퍼런스) — 셸 그리드 1행, **화면 전체 폭**
+                (사이드바 위까지). 기관 마크가 사이드바 메뉴와 같은 좌측선(24)에 선다.
+                768 미만에서는 렌더만 되고 CSS 가 숨긴다(손잡이 바 + 드로어가 담당). */}
+            <AppHeader orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} />
+            <AppSidebar orgLabel={labels.orgLabel} programLabels={labels.programLabels} theme={theme} newSignupCount={newSignupCount} />
+            <div className="content-column">
+              {/* nav 로 감싼다 — 화면에 보이는 유일한 출구인데 바깥에 두면 스크린 리더의
+                  랜드마크 이동에서 통째로 건너뛴다. */}
+              <nav className="page-backbar" aria-label="페이지 이동"><BackLink /></nav>
+              {children}
+            </div>
           </div>
-        </div>
+        </NextLinkProvider>
       </body>
     </html>
   );

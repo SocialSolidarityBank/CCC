@@ -12,7 +12,7 @@
 // 실행: node scripts/design/token-audit.mjs   (pnpm guard:tokens)
 // 종료 코드: 위반 0 이면 0, 있으면 1.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 
@@ -179,14 +179,21 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'motion-rise',
 ]);
 
+// 마크업 스캔 대상: 공용 wire 클래스를 쓰는 화면 전부다. apps/client 는 공개 엔트리로 같은
+// 부품과 같은 스타일시트를 소비하므로(2026-09-08 STT 내부 화면) 여기 함께 넣는다. 넣지 않으면
+// 클라이언트만 쓰는 클래스가 dead-class 로 잘못 잡히고, 클라이언트가 만든 미정의 클래스는
+// 아무도 못 잡는다.
 const markupFiles = [];
-(function walk(dir) {
+const walkMarkup = (dir) => {
+  if (!existsSync(dir)) return;
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
-    if (statSync(p).isDirectory()) walk(p);
+    if (statSync(p).isDirectory()) walkMarkup(p);
     else if (/\.tsx?$/.test(p)) markupFiles.push(p);
   }
-})(join(repoRoot, 'apps/web/app'));
+};
+walkMarkup(join(repoRoot, 'apps/web/app'));
+walkMarkup(join(repoRoot, 'apps/client/src'));
 
 const declaredClasses = new Map();
 for (const file of TARGETS) {
