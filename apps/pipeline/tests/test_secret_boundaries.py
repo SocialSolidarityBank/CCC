@@ -96,8 +96,7 @@ class SecretBoundariesTest(unittest.TestCase):
         output = io.StringIO()
         with (mock.patch("sys.argv", ["ccc_pipeline", "--once"]),
               mock.patch.object(entrypoint, "load_config", return_value=make_config(Path("/tmp/synthetic-unused"))),
-              mock.patch.object(entrypoint, "assert_device_ready"),
-              mock.patch.object(entrypoint, "run_once", side_effect=RuntimeError("synthetic-sensitive-failure")),
+              mock.patch.object(entrypoint, "run_checked_once", side_effect=RuntimeError("synthetic-sensitive-failure")),
               contextlib.redirect_stderr(output)):
             result = entrypoint.main()
         self.assertNotEqual(result, 0)

@@ -3,6 +3,7 @@
  * index.ts(엔트리 모듈)에서 문자열을 export하면 workerd가 엔트리포인트로
  * 해석해 기동을 거부하므로 별도 모듈에 둔다.
  */
+export const AUDIO_EXPIRY_CRON = '*/5 * * * *';
 export const WATCHDOG_CRON = '*/30 * * * *';
 export const PURGE_CRON = '0 3 * * *';
 export const MEMORY_CRON = '*/2 * * * *';

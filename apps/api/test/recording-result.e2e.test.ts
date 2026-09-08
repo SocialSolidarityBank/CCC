@@ -5,12 +5,16 @@ import { describe, expect, it } from 'vitest';
 import type { Bindable } from '@ccc/contracts/database';
 import worker from './support/local-worker';
 import {
+  admitRecordingUpload,
   activateAiProviderConfiguration,
+  appendSupportCaseConsentEvent,
   claimRecordingResultDownstream,
   commitRecordingResult,
   createCase,
   createManualSession,
   listSupportCasesForBeneficiary,
+  getSupportCaseConsent,
+  issueSupportCaseConsentDisclosures,
   recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   registerRecording,
@@ -32,7 +36,9 @@ import {
   agentManifestEnv,
   AGENT_SERVICE_HEADERS,
   claimOverHttp,
+  LOCAL_SINGLE_RUNTIME,
   seedNerQualification,
+  registerFixtureRecording,
   type NerQualification,
 } from './support/agent-jobs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -146,8 +152,8 @@ async function createUploadedRecording(submissionId = crypto.randomUUID()) {
     memo: '합성 테스트용 수기 기록',
     gasScores: [],
   });
-  await registerRecording(t.env, counselor, session.id, `audio/${session.id}/fixture`);
-  return { caseRecord, session };
+  const recording = await registerFixtureRecording(t.env, counselor, service, session.id);
+  return { caseRecord, session, recordingKey: recording.key };
 }
 
 async function configureProvider(env: ApiEnv, provider: FixtureAiProvider, caseId: string): Promise<void> {
@@ -197,10 +203,46 @@ async function postResult(
     ...AGENT_SERVICE_HEADERS,
   }, await sessionQualification());
   // 이미 수락된 작업은 claim 없이 같은 payload hash 로만 다시 온다(멱등 경로, S5 §2.2).
+  const claimedJob = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
   const job = terminal === null
-    ? jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId)
+    ? claimedJob
     : { jobId: terminal.id, claimToken: '0'.repeat(64), attempt: 1 };
   if (job === undefined) throw new Error('expected a claimable audio job');
+  if (terminal === null) {
+    if (claimedJob === undefined || claimedJob.audio === null) {
+      throw new Error('expected claimed audio metadata');
+    }
+    const audioResponse = await worker.fetch(new Request(
+      `http://localhost/pipeline/jobs/${job.jobId}/audio`,
+      {
+        headers: {
+          ...AGENT_SERVICE_HEADERS,
+          'X-CCC-Job-Claim': job.claimToken,
+          'X-CCC-Job-Attempt': String(job.attempt),
+        },
+      },
+    ), agentEnv);
+    if (audioResponse.status !== 200) throw new Error('expected claim-bound audio stream');
+    const audioBytes = await audioResponse.arrayBuffer();
+    const audioSha256 = Array.from(
+      new Uint8Array(await crypto.subtle.digest('SHA-256', audioBytes)),
+      (byte) => byte.toString(16).padStart(2, '0'),
+    ).join('');
+    const verified = await worker.fetch(new Request(
+      `http://localhost/pipeline/jobs/${job.jobId}/audio/verify`,
+      {
+        method: 'POST',
+        headers: AGENT_SERVICE_HEADERS,
+        body: JSON.stringify({
+          claimToken: job.claimToken,
+          attempt: job.attempt,
+          generationId: claimedJob.audio.generationId,
+          agentComputedSha256: audioSha256,
+        }),
+      },
+    ), agentEnv);
+    if (verified.status !== 200) throw new Error('expected Agent audio verification');
+  }
   const result = {
     ...body,
     ...(Object.hasOwn(body, 'nerAttestationId') ? { nerAttestationId: qualification.attestation.id } : {}),
@@ -314,9 +356,10 @@ function runDeviceClient(
   sessionId: string,
   qualification: { receiptId: string; attestation: Record<string, unknown> },
 ): Promise<{ code: number | null; stderr: string }> {
-  // 실제 Python 클라이언트로 v2 계약을 왕복한다: claim → result → 같은 payload 재전송(멱등).
+  // 실제 Python 클라이언트로 v2 계약을 왕복한다: claim → 원음 stream/hash 검증 → result → 멱등 재전송.
   const script = [
-    'import json, sys',
+    'import hashlib, json, sys, tempfile, uuid',
+    'from pathlib import Path',
     'from ccc_pipeline.api_client import ApiClient',
     'from ccc_pipeline.results import build_result, build_result_request',
     'client = ApiClient(sys.argv[1], "fixture-client", "fixture-secret", runtime_environment="production")',
@@ -324,6 +367,13 @@ function runDeviceClient(
     'receipt_id = sys.argv[4]',
     'jobs = client.claim_jobs({"nerAttestation": attestation, "releaseQualificationReceiptId": receipt_id})',
     'job = next(j for j in jobs if j["kind"] == "audio" and j["sessionId"] == sys.argv[2])',
+    'audio_path = Path(tempfile.gettempdir()) / ("ccc-recording-e2e-" + uuid.uuid4().hex)',
+    'try:',
+    '    client.download_audio(job["jobId"], job["claimToken"], job["attempt"], audio_path, delivery=job["audio"]["delivery"])',
+    '    audio_sha256 = hashlib.sha256(audio_path.read_bytes()).hexdigest()',
+    '    client.verify_audio(job["jobId"], {"claimToken":job["claimToken"],"attempt":job["attempt"],"generationId":job["audio"]["generationId"],"agentComputedSha256":audio_sha256})',
+    'finally:',
+    '    audio_path.unlink(missing_ok=True)',
     'result = build_result(',
     '    "audio",',
     `    ${JSON.stringify(MASKED_FIXTURE)},`,
@@ -432,7 +482,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     }>();
     expect(counts).toEqual({
       snapshots: 1,
-      downstream_work: 1,
+      downstream_work: 0,
       provider_configs: 0,
       provider_activations: 0,
       commits: 1,
@@ -452,34 +502,13 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       origin: string;
       creation_mode: string;
     }>();
-    expect(currentDraft).toEqual({
-      id: expect.any(String),
-      version: 1,
-      origin: 'fixture_generated',
-      creation_mode: 'fixture_generated',
-    });
+    expect(currentDraft).toBeNull();
 
     const draftResponse = await worker.fetch(
       new Request(`http://localhost/sessions/${session.id}/ai`, { headers: counselorHeaders }),
       env,
     );
-    expect(draftResponse.status).toBe(200);
-    expect(await draftResponse.json()).toMatchObject({
-      version: 1,
-      origin: 'fixture_generated',
-      creationMode: 'fixture_generated',
-    });
-
-    const approval = await worker.fetch(new Request(
-      `http://localhost/sessions/${session.id}/ai/drafts/${currentDraft?.version ?? 0}/review`,
-      {
-        method: 'POST',
-        headers: { ...counselorHeaders, 'content-type': 'application/json' },
-        body: JSON.stringify({ expectedVersion: currentDraft?.version, decision: 'approved' }),
-      },
-    ), env);
-    expect(approval.status).toBe(409);
-    expect(await approval.json()).toEqual({ error: 'fixture_draft_approval_forbidden' });
+    expect(draftResponse.status).toBe(404);
 
     const approvalBoundary = await t.db.prepare(
       `SELECT
@@ -487,22 +516,20 @@ describe('recording result end-to-end contract (CCC-95)', () => {
          session.ai_summary,
          session.approved_at,
          session.approved_by,
-         (SELECT COUNT(*) FROM ai_review_events WHERE draft_version_id = ?) AS review_events,
-         (SELECT COUNT(*) FROM approved_ai_briefing_v1 WHERE session_id = ?) AS approved_rows,
-         (SELECT COUNT(*) FROM audit_log
-          WHERE target_table = 'ai_review_events'
-            AND target_id = ?
-            AND detail LIKE '%fixture_draft_approval_forbidden%') AS denials
+         (SELECT COUNT(*) FROM ai_review_events AS review
+          JOIN ai_draft_versions AS draft ON draft.id=review.draft_version_id
+          JOIN ai_work_items AS work ON work.id=draft.work_item_id
+          WHERE work.session_id=session.id) AS review_events,
+         (SELECT COUNT(*) FROM approved_ai_briefing_v1 WHERE session_id = session.id) AS approved_rows
        FROM sessions AS session
        WHERE session.id = ?`,
-    ).bind(currentDraft?.id, session.id, currentDraft?.id, session.id).first<{
+    ).bind(session.id).first<{
       ai_status: string;
       ai_summary: string | null;
       approved_at: string | null;
       approved_by: string | null;
       review_events: number;
       approved_rows: number;
-      denials: number;
     }>();
     expect(approvalBoundary).toEqual({
       ai_status: 'review_ready',
@@ -511,7 +538,6 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       approved_by: null,
       review_events: 0,
       approved_rows: 0,
-      denials: 1,
     });
 
     const official = await worker.fetch(new Request(`http://localhost/cases/${caseRecord.id}/sessions`, {
@@ -544,11 +570,12 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       (section) => section.sourceSupportCase.id === supportCaseId,
     );
     expect(briefingSection?.lastSessionSummary?.pendingApprovalCount).toBe(0);
-    expect(briefingSection?.pendingReviewSessionIds).toEqual([session.id]);
+    expect(briefingSection?.pendingReviewSessionIds).toEqual([]);
   });
 
   it('rejects recording re-registration after an immutable result commit', async () => {
     await t.reset();
+    const { caseRecord, session, recordingKey } = await createUploadedRecording('95000000-0000-4000-8000-000000000005');
     const env = await agentManifestEnv({
       ...t.env,
       PREVIEW_MODE: 'true',
@@ -556,7 +583,6 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     }, { stt: 'local' });
-    const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000005');
     await recordPilotTextAiConsentEvidence(env, counselor, caseRecord.id, {
       noticeVersion: 'recording-result-e2e-v1',
       noticeSha256: 'a'.repeat(64),
@@ -564,6 +590,15 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       evidenceSha256: 'b'.repeat(64),
       effectiveAt: '2020-01-01T00:00:00.000Z',
     });
+    const admission = await admitRecordingUpload(env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
+    const replacementMetadata = {
+      contentLength: 1,
+      contentType: 'audio/wav' as const,
+      clientAssertedSha256: null,
+      storageSha256: null,
+      generationId: crypto.randomUUID(),
+      uploadExpiresAt: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+    };
     const resultResponse = await postResult(env, session.id, await recordingResultBody());
     expect(resultResponse.status, await resultResponse.text()).toBe(204);
 
@@ -571,13 +606,19 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       env,
       counselor,
       session.id,
-      `audio/${session.id}/replacement`,
+      `audio/${session.id}/${crypto.randomUUID()}`,
+      admission,
+      replacementMetadata,
+      null,
     )).rejects.toThrow('recording result is already committed');
     await expect(registerRecording(
       { ...env, DB: hideCommittedResultFromPreflight(env.DB) },
       counselor,
       session.id,
-      `audio/${session.id}/raced-replacement`,
+      `audio/${session.id}/${crypto.randomUUID()}`,
+      admission,
+      replacementMetadata,
+      null,
     )).rejects.toThrow('recording upload is no longer allowed');
 
     const state = await t.db.prepare(
@@ -588,7 +629,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     ).bind(session.id).first<{ ai_status: string; audio_r2_key: string; commits: number }>();
     expect(state).toEqual({
       ai_status: 'review_ready',
-      audio_r2_key: `audio/${session.id}/fixture`,
+      audio_r2_key: recordingKey,
       commits: 1,
     });
   });
@@ -600,6 +641,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000007');
@@ -634,6 +676,61 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     expect(section?.pendingReviewSessionIds).toEqual([session.id]);
   });
 
+  it('finalizes STT-only recording results when the installation has OpenAI but the case does not consent', async () => {
+    await t.reset();
+    const provider = new FixtureAiProvider();
+    const env = await agentManifestEnv({
+      ...t.env,
+      TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
+      EXTERNAL_AI_CALLS_ENABLED: '1',
+      AI_PROVIDER_ADAPTER: provider,
+    }, { stt: 'local' });
+    const { caseRecord, session } = await createUploadedRecording(
+      '95000000-0000-4000-8000-000000000008',
+    );
+    await configureProvider(env, provider, caseRecord.id);
+    const { programs } = await listSupportCasesForBeneficiary(env, counselor, caseRecord.id);
+    const supportCaseId = programs[0]?.supportCase.id;
+    if (supportCaseId === undefined) throw new Error('support case is missing');
+    const current = (await getSupportCaseConsent(env, counselor, supportCaseId))
+      .find((item) => item.domain === 'external_llm_cross_border_processing');
+    const disclosure = (await issueSupportCaseConsentDisclosures(env, counselor, supportCaseId))
+      .find((item) => item.domain === 'external_llm_cross_border_processing');
+    if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+      throw new Error('expected current external LLM consent');
+    }
+    await appendSupportCaseConsentEvent(env, counselor, supportCaseId, {
+      domain: 'external_llm_cross_border_processing',
+      decision: 'withdraw',
+      provider: current.provider,
+      providerLegalRecipient: current.providerLegalRecipient,
+      providerCountry: current.providerCountry,
+      purpose: current.purpose,
+      retentionDuration: current.retentionDuration,
+      copyVersion: disclosure.copyVersion,
+      copyHash: disclosure.copyHash,
+      disclosureSnapshotId: disclosure.snapshotId,
+      effectiveAt: new Date().toISOString(),
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: current.revision,
+    });
+
+    const response = await postResult(env, session.id, await recordingResultBody());
+    expect(response.status, await response.clone().text()).toBe(204);
+    expect(provider.calls).toBe(0);
+    await expect(t.db.prepare(
+      `SELECT ai_status,transcript,
+         (SELECT COUNT(*) FROM ai_work_items WHERE session_id=sessions.id) AS work_items
+       FROM sessions WHERE id=?`,
+    ).bind(session.id).first()).resolves.toMatchObject({
+      ai_status: 'review_ready',
+      transcript: MASKED_FIXTURE,
+      work_items: 0,
+    });
+  });
+
   it('reclaims an expired downstream claim after an interrupted Worker request', async () => {
     await t.reset();
     const env = await agentManifestEnv({
@@ -641,6 +738,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     }, { stt: 'local' });
     const { caseRecord, session } = await createUploadedRecording('95000000-0000-4000-8000-000000000006');
@@ -694,7 +792,6 @@ describe('recording result end-to-end contract (CCC-95)', () => {
 
   it('rejects unauthorized, cross-organization, malformed, unsafe, and non-numeric results without mutation', async () => {
     await t.reset();
-    const { session } = await createUploadedRecording();
     const valid = await recordingResultBody();
     const cases: Array<{ name: string; body: Record<string, unknown>; headers?: HeadersInit; status: number }> = [
       { name: 'counselor', body: valid, headers: { ...counselorHeaders, 'content-type': 'application/json' }, status: 403 },
@@ -728,6 +825,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       },
     ];
     for (const scenario of cases) {
+      const { session } = await createUploadedRecording();
       const response = await postResult(t.env, session.id, scenario.body, scenario.headers);
       expect(response.status, `${scenario.name}: ${await response.clone().text()}`).toBe(scenario.status);
       const responseText = await response.text();
@@ -735,13 +833,13 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       expect(responseText).not.toContain('test@example.org');
       expect(responseText).not.toContain('123-456-789012');
       expect(responseText).not.toContain('불안함');
+      const counts = await t.db.prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM ai_masked_source_snapshots WHERE session_id = ?) AS snapshots,
+           (SELECT COUNT(*) FROM recording_result_commits WHERE session_id = ?) AS commits`,
+      ).bind(session.id, session.id).first<{ snapshots: number; commits: number }>();
+      expect(counts).toEqual({ snapshots: 0, commits: 0 });
     }
-    const counts = await t.db.prepare(
-      `SELECT
-         (SELECT COUNT(*) FROM ai_masked_source_snapshots WHERE session_id = ?) AS snapshots,
-         (SELECT COUNT(*) FROM recording_result_commits WHERE session_id = ?) AS commits`,
-    ).bind(session.id, session.id).first<{ snapshots: number; commits: number }>();
-    expect(counts).toEqual({ snapshots: 0, commits: 0 });
   });
 
   it('rejects non-empty emotion scores while emotion analysis is deferred (D64)', async () => {
@@ -767,6 +865,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     const unavailableEnv = {
       ...t.env,
       TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     };
     const unavailable = await createUploadedRecording();
@@ -790,6 +889,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
     const providerEnv = {
       ...t.env,
       TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
       AI_PROVIDER_ADAPTER: provider,
     };
@@ -820,6 +920,7 @@ describe('recording result end-to-end contract (CCC-95)', () => {
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
       AI_PROVIDER_ADAPTER: provider,
     };
     const { caseRecord, session } = await createUploadedRecording();
@@ -865,6 +966,7 @@ describe('recording result transcript quality (CCC-124)', () => {
       PREVIEW_MODE: 'true',
       PREVIEW_ACCESS_CODE: 'fixture-preview-code',
       TEXT_AI_PILOT_ENABLED: '1',
+      CCC_LLM_MODE: 'openai',
       EXTERNAL_AI_CALLS_ENABLED: '0',
     };
   }
@@ -940,7 +1042,6 @@ describe('recording result transcript quality (CCC-124)', () => {
 
   it('rejects malformed quality fields without committing', async () => {
     await t.reset();
-    const { env, session } = await consentedRecording('95000000-0000-4000-8000-000000000127');
     const valid = await recordingResultBody();
     const withoutReliable = { ...valid };
     delete (withoutReliable as Record<string, unknown>).transcriptReliable;
@@ -971,12 +1072,14 @@ describe('recording result transcript quality (CCC-124)', () => {
       },
     ];
     for (const body of malformed) {
+      const env = previewEnv();
+      const { session } = await createUploadedRecording();
       const response = await postResult(env, session.id, body);
       expect(response.status, JSON.stringify(body)).toBe(400);
+      const commits = await t.db.prepare(
+        'SELECT COUNT(*) AS count FROM recording_result_commits WHERE session_id = ?',
+      ).bind(session.id).first<{ count: number }>();
+      expect(commits?.count).toBe(0);
     }
-    const commits = await t.db.prepare(
-      'SELECT COUNT(*) AS count FROM recording_result_commits WHERE session_id = ?',
-    ).bind(session.id).first<{ count: number }>();
-    expect(commits?.count).toBe(0);
   });
 });

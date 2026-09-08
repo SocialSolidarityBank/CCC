@@ -11,7 +11,7 @@ import type { ApiEnv } from '@ccc/http-api/identity';
 
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 const KEY = 'audio/session_01/550e8400-e29b-41d4-a716-446655440000';
-const EXPIRES_AT = '2026-09-05T12:00:00.000Z';
+const EXPIRES_AT = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
 const CONTENT_TYPE: AudioContentType = 'audio/webm';
 const BODY = new Uint8Array([0x00, 0x11, 0x22, 0x33, 0xff]);
 
@@ -63,16 +63,18 @@ class FaithfulR2Bucket {
   async put(key: string, value: R2PutValue, options?: {
     httpMetadata?: { contentType?: string };
     customMetadata?: Record<string, string>;
-  }): Promise<void> {
+  }): Promise<R2Object> {
     if (this.providerError === 'put') throw new Error('provider-secret https://r2.invalid/private-key');
     this.putValues.push(value);
     const bytes = await consumeBytes(value);
-    this.objects.set(key, {
+    const stored = {
       bytes,
       customMetadata: { ...(options?.customMetadata ?? {}) },
       contentType: options?.httpMetadata?.contentType,
       etag: `etag-${this.objects.size + 1}`,
-    });
+    };
+    this.objects.set(key, stored);
+    return { key, etag: stored.etag } as R2Object;
   }
 
   async get(key: string): Promise<R2ObjectBody | null> {
@@ -328,7 +330,30 @@ describe('R2 AudioStore contract', () => {
     expect(settled).toBe(false);
     expect(bucket.putValues[0]).toBeInstanceOf(ReadableStream);
     releaseSecondChunk();
-    await expect(pending).resolves.toEqual({ sha256: await sha256Hex(BODY) });
+    await expect(pending).resolves.toEqual({ sha256: await sha256Hex(BODY), generationId: 'etag-1' });
+  });
+
+  it('aborts a stalled source at the declared upload deadline before storage can commit', async () => {
+    const { bucket, store } = makeStore();
+    const stalled = deferred<void>();
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        return stalled.promise;
+      },
+      cancel() {
+        cancelled = true;
+        stalled.resolve();
+      },
+    });
+    await expect(store.put(KEY, body, {
+      contentLength: BODY.byteLength,
+      contentType: CONTENT_TYPE,
+      expiresAt: new Date(Date.now() + 25).toISOString(),
+    })).rejects.toBeDefined();
+    expect(cancelled).toBe(true);
+    expect(bucket.objects.size).toBe(0);
+    expect(bucket.calls.delete).toBe(1);
   });
 
   it('returns provider metadata and preserves consumer cancellation on get', async () => {
@@ -342,6 +367,7 @@ describe('R2 AudioStore contract', () => {
     expect(download.contentType).toBe(CONTENT_TYPE);
     expect(download.expiresAt).toBe(EXPIRES_AT);
     expect(download.sha256).toBeNull();
+    expect(download.generationId).toBe('etag-1');
     const reader = download.body.getReader();
     await expect(reader.read()).resolves.toMatchObject({ done: false });
     await reader.cancel('consumer-aborted');

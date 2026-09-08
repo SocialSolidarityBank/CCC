@@ -8,8 +8,7 @@ import sys
 
 from .api_client import ApiClient
 from .config import ConfigError, load_config
-from .masking import MaskingConfigError
-from .worker import assert_device_ready, run_forever, run_once
+from .worker import run_checked_once, run_forever
 
 
 def main() -> int:
@@ -25,12 +24,6 @@ def main() -> int:
         print(f"config error: {error}", file=sys.stderr)
         return 2
 
-    # 설치 점검은 폴링을 시작하기 전에 한다 — 설정이 틀린 채로 도는 것이 가장 나쁘다.
-    try:
-        assert_device_ready(config)
-    except MaskingConfigError as error:
-        print(f"device not ready: {error}", file=sys.stderr)
-        return 2
 
     client = ApiClient(
         config.api_base_url,
@@ -38,10 +31,11 @@ def main() -> int:
         config.client_secret,
         runtime_environment=config.runtime_environment,
         preview_access_code=config.preview_access_code,
+        audio_download_origin=config.audio_download_origin,
     )
     if args.once:
         try:
-            run_once(client, config)
+            run_checked_once(client, config)
         except Exception:  # Poll failures must not dump provider errors or credentials.
             print("pipeline poll failed", file=sys.stderr)
             return 1

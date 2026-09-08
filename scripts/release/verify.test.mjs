@@ -22,6 +22,7 @@ const pythonPins = [
   ['pyannote.audio', '3.4.0'],
   ['transformers', '4.53.3'],
   ['librosa', '0.11.0'],
+  ['huggingface-hub', '0.36.2'],
 ];
 
 function writeFormalArtifact(artifactDir, { tamperLibrary = false, tamperSource = false, tamperPython = false } = {}) {
@@ -588,6 +589,21 @@ test('rejects a Qwen checkpoint without weight integrity evidence', () => {
       join(repoRoot, 'supply-chain/model-license-manifest.json'), 'utf8'));
     const qwen = modelManifest.models.find((model) => model.name === 'Qwen/Qwen3-ASR-1.7B');
     delete qwen.files[0].sha256;
+    const result = runVerifier(directory, { modelManifest });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Qwen checkpoint files\/SHA-256/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects a Qwen checkpoint without its authenticated shard index', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ccc-release-test-'));
+  try {
+    const modelManifest = JSON.parse(readFileSync(
+      join(repoRoot, 'supply-chain/model-license-manifest.json'), 'utf8'));
+    const qwen = modelManifest.models.find((model) => model.name === 'Qwen/Qwen3-ASR-1.7B');
+    qwen.files = qwen.files.filter((file) => file.name !== 'model.safetensors.index.json');
     const result = runVerifier(directory, { modelManifest });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /Qwen checkpoint files\/SHA-256/);

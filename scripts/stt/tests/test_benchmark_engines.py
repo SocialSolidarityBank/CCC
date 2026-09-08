@@ -103,11 +103,23 @@ class ModelLoadingTest(unittest.TestCase):
     def test_bad_model_hash_fails_before_sdk_loader(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             snapshot = Path(root)
-            asr_weight = snapshot / "model-00001-of-00002.safetensors"
+            asr_snapshot = snapshot / "asr"
+            aligner_snapshot = snapshot / "aligner"
+            asr_snapshot.mkdir()
+            aligner_snapshot.mkdir()
+            asr_weight = asr_snapshot / "model-00001-of-00002.safetensors"
             asr_weight.write_bytes(b"verified")
-            asr_weight_2 = snapshot / "model-00002-of-00002.safetensors"
+            asr_weight_2 = asr_snapshot / "model-00002-of-00002.safetensors"
             asr_weight_2.write_bytes(b"verified second shard")
-            (snapshot / "model.safetensors").write_bytes(b"wrong")
+            (aligner_snapshot / "model.safetensors").write_bytes(b"wrong")
+            asr_index = asr_snapshot / "model.safetensors.index.json"
+            asr_index.write_text(json.dumps({
+                "metadata": {},
+                "weight_map": {
+                    "encoder.weight": asr_weight.name,
+                    "decoder.weight": asr_weight_2.name,
+                },
+            }), encoding="utf-8")
             spec = {
                 "backend": "qwen-asr-transformers",
                 "packages": ["qwen-asr"],
@@ -124,6 +136,10 @@ class ModelLoadingTest(unittest.TestCase):
                                 "name": asr_weight_2.name,
                                 "sha256": engines._sha256(asr_weight_2),
                             },
+                            {
+                                "name": asr_index.name,
+                                "sha256": engines._sha256(asr_index),
+                            },
                         ],
                     },
                     {
@@ -133,7 +149,10 @@ class ModelLoadingTest(unittest.TestCase):
                     },
                 ],
             }
-            with patch.object(engines, "_snapshot_download", return_value=str(snapshot)), patch.object(
+            def snapshot_for(repo_id: str, **_kwargs) -> str:
+                return str(aligner_snapshot if "ForcedAligner" in repo_id else asr_snapshot)
+
+            with patch.object(engines, "_snapshot_download", side_effect=snapshot_for), patch.object(
                 engines, "load_qwen"
             ) as sdk_loader:
                 with self.assertRaisesRegex(engines.StartupError, "model_hash_mismatch"):

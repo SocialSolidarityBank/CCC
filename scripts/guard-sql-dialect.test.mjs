@@ -105,6 +105,23 @@ test('inspects constant SQL fragments and rejects unknown template fragments', a
   assert.deepEqual(result.violations.map((entry) => entry.rule), ['changes', 'unresolved-sql']);
 });
 
+test('recognizes audited consent fragments without hiding surrounding SQL', async () => {
+  const result = await audit(`
+    function consentSqlGuard(_receipt, _alias) {
+      return { sql: 'EXISTS (SELECT 1 FROM consent_events WHERE id=?)', bindings: [] };
+    }
+    function audioTerminalObligationsSql(_alias) {
+      return 'EXISTS (SELECT 1 FROM audio_lifecycle_outbox WHERE audio_object_id=?)';
+    }
+    const direct = consentSqlGuard(receipt, 'audio_objects');
+    db.prepare(\`SELECT id FROM audio_objects WHERE \${direct.sql} AND changes()=1\`);
+    const conditional = enabled ? consentSqlGuard(receipt, 'audio') : { sql: '1=1', bindings: [] };
+    db.prepare(\`SELECT id FROM audio_objects WHERE \${conditional.sql}\`);
+    db.prepare(\`UPDATE audio_objects SET state=? WHERE \${audioTerminalObligationsSql('audio')} AND id=$1\`);
+  `);
+  assert.deepEqual(result.violations.map((entry) => entry.rule), ['changes', 'non-bare-placeholder']);
+});
+
 
 test('requires the E3-2 logical migration pair', async () => {
   const missing = await audit("db.prepare('SELECT ?');", '', 'sqlite-only');

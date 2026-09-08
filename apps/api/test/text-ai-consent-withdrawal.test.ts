@@ -1,25 +1,28 @@
-// CCC-110 (P0-7) — AI 동의 철회가 실제 AI 사용을 막는다.
+// CCC-110 (P0-7) — canonical AI consent withdrawal stops actual AI use.
 //
-// 텍스트 AI 사용 허용 검사 3곳(서비스·재생성 grant, 호출 전 grant, 텍스트 일감 목록)이
-// 과거 동의 근거 행(pilot_text_ai_consent_evidence)만 보지 않고 **현재** 동의 컬럼
-// (support_cases.consent_text_ai_at)을 함께 보는지 종단으로 고정한다:
-// 동의 저장 → 일감 적재 확인 → 철회 → 일감 목록에서 사라짐 + 스냅샷 저장 거부 +
-// AI 초안 생성 경로 거부. 근거 행은 append-only 이력이라 철회 후에도 남아야 한다
-// (이력 보존과 사용 허용의 분리).
+// A real append-only withdrawal must close all three text AI authorization points:
+// agent claim, masked snapshot storage and draft creation. Re-granting consent later
+// must preserve the event history and must not revive the cancelled job.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
+  appendSupportCaseConsentEvent,
   createBeneficiaryWithInitialSupportCase,
   createCounselingRecord,
   createGeneratedAiDraft,
   claimAgentJobs,
+  getSupportCaseConsent,
+  issueSupportCaseConsentDisclosures,
   enqueueTextWorkItem,
   releaseAgentJob,
   recordMaskedSourceSnapshot,
-  updateParticipantConsent,
-  PilotTextAiConsentRequiredError,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
-import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
+import {
+  claimRequest,
+  seedCanonicalSttConsent,
+  seedNerQualification,
+  TEXT_ONLY_RUNTIME,
+} from './support/agent-jobs';
 
 // 픽스처가 케이스·회차·동의를 매번 새로 만든다 — text-work-materials.test.ts 와 같은 이유로 여유를 준다.
 vi.setConfig({ testTimeout: 30_000 });
@@ -36,26 +39,28 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function evidenceRowCount(supportCaseId: string): Promise<number> {
-  const row = await t.db.prepare(
-    'SELECT COUNT(*) AS n FROM pilot_text_ai_consent_evidence WHERE support_case_id = ?',
-  ).bind(supportCaseId).first<{ n: number }>();
-  return row?.n ?? 0;
+async function consentHistory(supportCaseId: string): Promise<string[]> {
+  const rows = await t.db.prepare(
+    `SELECT decision FROM consent_events
+     WHERE support_case_id = ? AND domain = 'external_llm_cross_border_processing'
+     ORDER BY event_sequence`,
+  ).bind(supportCaseId).all<{ decision: string }>();
+  return rows.results.map((row) => row.decision);
 }
 
 describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
   it('철회하면 일감 목록·스냅샷 저장·초안 생성이 전부 거부되고 근거 이력은 남는다', async () => {
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.TEXT_AI_PILOT_ENABLED = '1';
 
-    // 1) 동의 저장 — 등록 시점의 ② 체크가 consent_text_ai_at 과 근거 행을 함께 만든다.
+    // 1) Canonical consent is established for the canonical support case by its active counselor.
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
       { programType: 'financial_support_v1', intakeAt: '2026-07-16T09:00:00.000Z' },
-      undefined,
-      { privacy: true, recordingAi: true },
     );
-    expect(await evidenceRowCount(creation.supportCaseId)).toBe(1);
+    await seedCanonicalSttConsent(t.env, counselor, creation.supportCaseId);
+    expect(await consentHistory(creation.supportCaseId)).toEqual(['grant']);
 
     // 2) 회차 저장 → 텍스트 일감 적재 → 장비 폴링에 보인다.
     const record = await createCounselingRecord(t.env, counselor, creation.supportCaseId, {
@@ -83,12 +88,31 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
       reason: 'engine_unavailable',
     });
 
-    // 3) 철회 — ② 체크 해제가 support_cases.consent_text_ai_at 을 NULL 로 되돌린다.
-    //    근거 행은 append-only 라 삭제·수정되지 않는다(이력 보존).
-    await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
-      privacy: true, recordingAi: false,
+    // 3) Append a canonical withdrawal against the current disclosure and revision.
+    const current = (await getSupportCaseConsent(t.env, counselor, creation.supportCaseId))
+      .find((item) => item.domain === 'external_llm_cross_border_processing');
+    const disclosure = (await issueSupportCaseConsentDisclosures(t.env, counselor, creation.supportCaseId))
+      .find((item) => item.domain === 'external_llm_cross_border_processing');
+    if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+      throw new Error('expected current canonical LLM consent');
+    }
+    await appendSupportCaseConsentEvent(t.env, counselor, creation.supportCaseId, {
+      domain: current.domain,
+      decision: 'withdraw',
+      provider: current.provider,
+      providerLegalRecipient: current.providerLegalRecipient,
+      providerCountry: current.providerCountry,
+      purpose: current.purpose,
+      retentionDuration: current.retentionDuration,
+      copyVersion: disclosure.copyVersion,
+      copyHash: disclosure.copyHash,
+      disclosureSnapshotId: disclosure.snapshotId,
+      effectiveAt: new Date().toISOString(),
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: current.revision,
     });
-    expect(await evidenceRowCount(creation.supportCaseId)).toBe(1);
+    expect(await consentHistory(creation.supportCaseId)).toEqual(['grant', 'withdraw']);
 
     // 4) 열린 작업이 취소되고 claim 후보에서 사라진다 (S5 F4). 원본 큐 행은 남는다.
     const after = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
@@ -103,7 +127,7 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     // 큐 행은 append-only 이력이라 삭제되지 않는다 — 상태는 Agent 작업이 갖는다.
     expect(queueRow?.status).toBe('pending');
 
-    // 5) 스냅샷 저장 거부 — 과거 근거 행이 있어도 현재 동의가 없으면 grant 가 닫힌다.
+    // 5) 스냅샷 저장 거부 — grant 이력은 남아도 현재 canonical 동의가 없으면 닫힌다.
     const maskedText = 'MASKED_AFTER_WITHDRAWAL';
     await expect(recordMaskedSourceSnapshot(t.env, service, sessionId, {
       maskedText,
@@ -117,7 +141,7 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
         sourceStart: 0,
         sourceEnd: maskedText.length,
       }],
-    })).rejects.toBeInstanceOf(PilotTextAiConsentRequiredError);
+    })).rejects.toMatchObject({ code: 'consent_not_effective' });
 
     // 6) AI 초안 생성 경로 거부 — grant 검사가 입력 검증보다 먼저 닫힌다.
     await expect(createGeneratedAiDraft(t.env, service, sessionId, {
@@ -143,17 +167,17 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
       ],
       providerConfigId: 'config-should-not-matter',
       consentEvidenceId: 'evidence-should-not-matter',
+      consentRevision: 'a'.repeat(64),
+      consentReceipt: { required: [], consentRevision: 'a'.repeat(64) },
       modelId: 'gpt-5-codex',
       promptVersion: 'prompt-v1',
       schemaVersion: 'schema-v1',
       evidence: [],
-    })).rejects.toBeInstanceOf(PilotTextAiConsentRequiredError);
+    })).rejects.toMatchObject({ code: 'consent_not_effective' });
 
-    // 7) 재동의만으로 취소된 작업이 되살아나지는 않는다 — 취소는 terminal 이다(S5 §2.2).
-    //    다시 처리하려면 기록 공식화가 새 작업을 만들어야 한다.
-    await updateParticipantConsent(t.env, counselor, creation.supportCaseId, {
-      privacy: true, recordingAi: true,
-    });
+    // 7) Re-consent does not revive a cancelled terminal job; a new enqueue is required.
+    await seedCanonicalSttConsent(t.env, counselor, creation.supportCaseId);
+    expect(await consentHistory(creation.supportCaseId)).toEqual(['grant', 'withdraw', 'grant']);
     const afterReconsent = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
     expect(afterReconsent.jobs.some((job) => job.sessionId === sessionId)).toBe(false);
 

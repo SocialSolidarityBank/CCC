@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ForbiddenError,
-  PilotTextAiConsentRequiredError,
+  ConsentContractError,
   ValidationError,
   assertPilotTextAiConsent,
   assignCase,
@@ -21,6 +21,7 @@ import {
 } from '@ccc/core/gateway';
 import { ANIMAL_SLUG_BENEFICIARY_ID_PATTERN } from '@ccc/contracts/animal-slugs';
 import { setupD1, testActors } from './support/d1';
+import { seedCanonicalSttConsent } from './support/agent-jobs';
 
 const {
   counselor,
@@ -354,7 +355,7 @@ describe('gateway foundation', () => {
     };
 
     await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
-      .rejects.toBeInstanceOf(PilotTextAiConsentRequiredError);
+      .rejects.toBeInstanceOf(ConsentContractError);
 
     const evidence = await recordPilotTextAiConsentEvidence(t.env, counselor, created.id, input);
     expect(evidence).toMatchObject({
@@ -364,15 +365,16 @@ describe('gateway foundation', () => {
       capturedBy: counselor.userId,
       createdAt: expect.any(String),
     });
-    // CCC-110: 근거 행만으로는 여전히 거부다 — 사용 허용은 support_cases.consent_text_ai_at
-    // 이 결정한다. 현재 동의를 세운 뒤에야 최신 근거가 돌아온다.
+    // Historical pilot evidence is retained but never authorizes current processing.
     await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
-      .rejects.toBeInstanceOf(PilotTextAiConsentRequiredError);
-    await t.db.prepare(
-      'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
-    ).bind('2026-01-01T00:00:00.000Z', created.id, created.id).run();
-    await expect(assertPilotTextAiConsent(t.env, counselor, created.id))
-      .resolves.toEqual(evidence);
+      .rejects.toBeInstanceOf(ConsentContractError);
+    const scope = await t.db.prepare('SELECT id FROM support_cases WHERE legacy_case_id=? OR id=?')
+      .bind(created.id, created.id).first<{ id: string }>();
+    if (scope === null) throw new Error('expected canonical support case');
+    await seedCanonicalSttConsent(t.env, counselor, scope.id);
+    const canonicalGrant = await assertPilotTextAiConsent(t.env, counselor, created.id);
+    expect(canonicalGrant.id).toEqual(expect.any(String));
+    expect(canonicalGrant.id).not.toBe(evidence.id);
 
     const malformedEvidenceRef = 'malformed pilot evidence';
     const malformedError = await recordPilotTextAiConsentEvidence(t.env, counselor, created.id, {
@@ -465,21 +467,6 @@ describe('gateway foundation', () => {
       detail: '{"purpose":"text_ai_pilot"}',
     }]);
     expect(deniedRows).toEqual([
-      {
-        actor_id: counselor.userId,
-        actor_role: counselor.role,
-        action: 'deny',
-        target_table: 'pilot_text_ai_consent_evidence',
-        detail: '{"reason":"pilot_text_ai_consent_required"}',
-      },
-      // CCC-110: 근거 행 기록 뒤, 현재 동의(consent_text_ai_at)를 세우기 전의 거부.
-      {
-        actor_id: counselor.userId,
-        actor_role: counselor.role,
-        action: 'deny',
-        target_table: 'pilot_text_ai_consent_evidence',
-        detail: '{"reason":"pilot_text_ai_consent_required"}',
-      },
       {
         actor_id: counselor.userId,
         actor_role: counselor.role,

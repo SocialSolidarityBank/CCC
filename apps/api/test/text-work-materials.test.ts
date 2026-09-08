@@ -34,11 +34,15 @@ import {
   recordPilotTextAiConsentEvidence,
   registerAiProviderConfiguration,
   setSupportCaseOverallGoal,
-  updateParticipantConsent,
   updateParticipantPii,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
-import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
+import {
+  claimRequest,
+  seedCanonicalSttConsent,
+  seedNerQualification,
+  TEXT_ONLY_RUNTIME,
+} from './support/agent-jobs';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -72,14 +76,11 @@ async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }>
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, caseRecord.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
+  t.env.CCC_LLM_MODE = 'openai';
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  // CCC-110: 사용 허용은 근거 행이 아니라 support_cases.consent_text_ai_at 이 결정한다.
-  // 실제 동의 경로(② 체크)로 현재 동의 컬럼을 세운다 — 근거 행만 있는 픽스처는
-  // 철회된 케이스와 구분되지 않아 가드에 걸린다.
-  await updateParticipantConsent(t.env, counselor, supportCaseId, {
-    privacy: true,
-    recordingAi: true,
-  });
+  await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
+  // Provider execution still carries the immutable Phase-1 evidence reference,
+  // but authorization above comes only from the canonical consent events.
   await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
     noticeVersion: 'pilot-text-ai-v1',
     noticeSha256: 'a'.repeat(64),
@@ -180,6 +181,8 @@ async function approveBriefingFor(caseId: string, sessionId: string): Promise<vo
     ...singleTextMaterialInput(snapshot.id, snapshot.sha256),
     providerConfigId: selection.providerConfigId,
     consentEvidenceId: selection.consentEvidenceId,
+    consentRevision: selection.consentRevision,
+    consentReceipt: selection.consentReceipt,
     modelId: 'gpt-5-codex',
     promptVersion: 'prompt-v1',
     schemaVersion: 'schema-v1',
@@ -378,7 +381,7 @@ describe('텍스트 일감 큐: 녹음 회차와 목표 수정 (CCC-103 · D69)'
     await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
 
     await createGoal(t.env, counselor, caseId, { title: '월세 연체 해소' });
-    await enqueueTextWorkForGoalChange(t.env, counselor, caseId);
+    await enqueueTextWorkForGoalChange(t.env, counselor, supportCaseId);
 
     // 행은 늘지 않고 먼저 쌓인 사유가 남는다. 장비는 최신 텍스트를 한 번만 마스킹한다.
     expect(await queueRows()).toEqual([

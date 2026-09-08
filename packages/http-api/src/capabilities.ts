@@ -6,7 +6,7 @@
  * 키는 존재 여부만 보고 값·이름·hash 는 응답과 로그에 싣지 않는다.
  */
 import type { Actor } from '@ccc/core/gateway';
-import { getAgentStatusForCapabilities } from '@ccc/core/gateway';
+import { getAgentStatusForCapabilities, hasFreshSttReadiness } from '@ccc/core/gateway';
 import { buildCapabilityManifest } from '@ccc/contracts/capabilities';
 import { verifySignedInstallManifest } from '@ccc/contracts/install-manifest';
 import { type CapabilityManifest, type LlmMode, LLM_MODES, STT_MODES, type SttMode } from '@ccc/contracts/runtime';
@@ -55,6 +55,8 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ ma
   // Agent 는 403 (S2 §2.8). 사람 역할 판정보다 먼저라 manifest 유무를 Agent 에게 알리지 않는다.
   const agentStatus = await getAgentStatusForCapabilities(env, actor);
   const installManifest = await verifiedInstallManifest(env);
+  const localReady = await hasFreshSttReadiness(env, actor.orgId, 'local', 'qwen3-asr');
+  const azureReady = await hasFreshSttReadiness(env, actor.orgId, 'azure', 'azure-speech-koreacentral');
   const requestedStt = env.CCC_STT_MODE ?? 'off';
   const requestedLlm = env.CCC_LLM_MODE ?? 'off';
   const llmKeyPresent = env.AI_PROVIDER_ADAPTER !== undefined || ((await env.secretStore.get('CODEX_API_KEY'))?.trim().length ?? 0) > 0;
@@ -63,15 +65,16 @@ export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ ma
     requestedSttMode: STT_MODES.includes(requestedStt as SttMode) ? requestedStt as SttMode : 'off',
     requestedLlmMode: LLM_MODES.includes(requestedLlm as LlmMode) ? requestedLlm as LlmMode : 'off',
     registry: installManifest.approvedSttEngineIds,
-    // Q 승인 사실은 signed registry 로만 서버에 닿는다. gate 만 지나고 entry 가 없는 상태를 따로 실어
-    // 나르는 signed 필드는 아직 없어 entry 존재를 gate 통과로 읽는다. 그 필드가 생기면 여기만 바꾼다.
     sttGatePassed: {
-      local: installManifest.approvedSttEngineIds.some((entry) => entry.mode === 'local'),
-      azure: installManifest.approvedSttEngineIds.some((entry) => entry.mode === 'azure'),
+      local: localReady && installManifest.approvedSttEngineIds.some(
+        (entry) => entry.id === 'qwen3-asr' && entry.mode === 'local',
+      ),
+      azure: installManifest.approvedSttEngineIds.some(
+        (entry) => entry.id === 'azure-speech-koreacentral' && entry.mode === 'azure',
+      ),
     },
-    // Azure 자격은 Python Agent 의 SecretStore 에만 있다(계획 129행, S9). Agent 가 존재 여부를
-    // 보고하는 경로(E5-3/E9-2)가 붙기 전까지 서버는 없음으로 본다.
-    azureKeyPresent: false,
+    // Agent readiness is accepted only after its live Azure preflight, never from env key presence.
+    azureKeyPresent: azureReady,
     llmKeyPresent,
     llmGateOpen: env.TEXT_AI_PILOT_ENABLED === '1' && (env.EXTERNAL_AI_CALLS_ENABLED === '1' || env.AI_PROVIDER_ADAPTER !== undefined),
     agentStatus,

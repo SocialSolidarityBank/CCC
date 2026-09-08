@@ -1,4 +1,6 @@
 import type { DeploymentMode } from './runtime';
+import type { ConsentDomain } from './consent';
+import type { SttEngineId } from './stt-readiness';
 
 export type { DeploymentMode } from './runtime';
 
@@ -16,8 +18,7 @@ export type AgentJobState = typeof AGENT_JOB_STATES[number];
 export type JobKind = 'audio' | 'text';
 export type ProcessingRoute = 'community-cloud-agent' | 'local-single-agent' | 'local-office-agent';
 export type SttEngine = 'local' | 'azure' | null;
-/** S7이 실제 literal과 의미를 소유한다. */
-export type ConsentScope = string & { readonly __s7ConsentDomain: unique symbol };
+export type ConsentScope = ConsentDomain;
 
 export const CLAIM_LIMIT_DEFAULT = 10;
 export const CLAIM_LIMIT_MIN = 2;
@@ -154,6 +155,7 @@ export interface AgentJob {
   enqueuedAt: string;
   route: ProcessingRoute;
   sttEngine: SttEngine;
+  sttEngineId: SttEngineId | null;
   requiredConsent: ConsentScope[];
   releaseQualificationReceiptId: string;
   terminalFailureCode: string | null;
@@ -337,6 +339,8 @@ export interface MemoryMaskJob {
   sessionId: string | null;
   kind: 'text';
   purpose: 'counseling_memory';
+  sttEngine: null;
+  sttEngineId: null;
   sourceKind: 'session' | 'goal' | 'action' | 'correction' | 'derived_summary';
   sourceId: string;
   sourceRevision: string;

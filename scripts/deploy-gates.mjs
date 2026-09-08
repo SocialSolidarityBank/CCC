@@ -27,7 +27,7 @@
 export const REQUIRED_PRODUCTION_SECRETS = ['PII_ENC_KEY'];
 
 /** apps/api/src/cron-schedule.ts · apps/api/wrangler.toml [triggers].crons 와 일치해야 한다. */
-export const REQUIRED_PRODUCTION_CRONS = ['*/30 * * * *', '0 3 * * *'];
+export const REQUIRED_PRODUCTION_CRONS = ['*/5 * * * *', '*/30 * * * *', '0 3 * * *'];
 
 /**
  * `wrangler secret list --env production` 출력에서 **이름만** 뽑아 필수 목록과 대조한다.

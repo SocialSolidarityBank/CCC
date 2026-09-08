@@ -39,6 +39,7 @@ import {
   agentManifestEnv,
   claimRequest,
   runAgentTextJobs,
+  seedCanonicalSttConsent,
   seedNerQualification,
   TEXT_ONLY_RUNTIME,
 } from './support/agent-jobs';
@@ -133,7 +134,7 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   // 회차라 공식화 훅이 돌지 않으므로 스냅샷을 직접 심는다(장비가 한 일과 같은 결과).
   // 저장·처리만 보는 테스트에는 필요 없어서 기본값은 끔 — 매 픽스처가 느려진다.
   if (withSnapshots) {
-    await enableTextAiConsent(caseRecord.id);
+    await enableTextAiConsent(supportCaseId);
     for (const [index, sessionId] of sessionIds.entries()) {
       await seedMaskedSnapshot(sessionId, memos[index] ?? '');
     }
@@ -288,16 +289,22 @@ describe('collectDiscrepancyDetectionSources — 공식 텍스트 수집·가명
     const before = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
     expect(before.jobs).toHaveLength(0);
 
-    // 파일럿이 꺼져 있으면 결과 저장이 전부 거부되므로 역시 내보내지 않는다.
-    await enableTextAiConsent(fixture.caseId);
+    // 정본 동의가 없었던 첫 적재는 fail-closed 로 행을 만들지 않는다. 동의를 부여한 뒤
+    // 같은 공식화 사유를 다시 적재하고, 파일럿이 꺼진 동안에는 여전히 내보내지 않는다.
+    await enableTextAiConsent(fixture.supportCaseId);
+    await enqueueTextWorkItem(t.env, counselor, fixture.sessionIds[0] ?? '', 'manual_record');
     delete t.env.TEXT_AI_PILOT_ENABLED;
     const paused = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
     expect(paused.jobs).toHaveLength(0);
 
-    // 두 조건이 갖춰지는 순간 같은 행이 저절로 보인다 — 큐를 다시 쌓을 필요가 없다.
+    // 마지막 운영 스위치가 열리면 이미 적재된 같은 행이 보인다.
     t.env.TEXT_AI_PILOT_ENABLED = '1';
     const after = await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
-    expect(after.jobs.map((job) => job.sessionId)).toEqual([fixture.sessionIds[0]]);
+    expect(after.jobs).toMatchObject([{
+      sessionId: fixture.sessionIds[0],
+      sttEngine: null,
+      sttEngineId: null,
+    }]);
   });
 
   it('비담당 실무자는 수집할 수 없다 (D7)', async () => {
@@ -777,25 +784,22 @@ async function postManualRecord(supportCaseId: string, memo: string, sequence: n
   }), t.env);
 }
 
-async function enableTextAiConsent(caseId: string): Promise<void> {
+async function enableTextAiConsent(supportCaseId: string): Promise<void> {
+  await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
   t.env.TEXT_AI_PILOT_ENABLED = '1';
-  await recordPilotTextAiConsentEvidence(t.env, counselor, caseId, {
+  await recordPilotTextAiConsentEvidence(t.env, counselor, supportCaseId, {
     noticeVersion: 'pilot-text-ai-v1',
     noticeSha256: SHA256,
-    evidenceRef: `r2://pilot-evidence/${caseId}`,
+    evidenceRef: `r2://pilot-evidence/${supportCaseId}`,
     evidenceSha256: 'f'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
-  // CCC-110: 사용 허용은 support_cases.consent_text_ai_at 이 결정한다 — 근거 행과 별개로 세운다.
-  await t.db.prepare(
-    'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
-  ).bind('2026-01-01T00:00:00.000Z', caseId, caseId).run();
 }
 
 describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기준)', () => {
   it('수기 메모 저장 → 장비 마스킹 → 검출 결과가 브리핑에 나타난다', async () => {
     const fixture = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
-    await enableTextAiConsent(fixture.caseId);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
       const priorRef = request.sources[0]?.sourceRef ?? '';
       const priorText = request.sources[0]?.text ?? '';
@@ -827,6 +831,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
 
   it('프로바이더 실패는 스킵일 뿐 기록 저장은 성공한다 (D8)', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
       throw new Error('provider down');
     });
@@ -854,6 +859,7 @@ describe('라우트 훅 — 수기 저장 시 검출·저장 (CCC-43 수용 기�
 
   it('판단이 섞인 프로바이더 출력은 저장되지 않는다 (R5 fail-closed)', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
       discrepancies: [{
         kind: 'within_session',
@@ -941,6 +947,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
   it('① 사업자 미설정은 provider_unavailable/config_missing 으로 남는다', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     // 주입 어댑터를 치우면 실제 해석 경로가 돈다 — 설정도 키도 없는 운영 초기 상태다.
     delete t.env.AI_PROVIDER_ADAPTER;
     delete t.env.AI_PROVIDER_CONFIG;
@@ -986,6 +993,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
     // 별개이고, 이것이 완료 기준 1 이 실제로 서는 자리다.
     for (const status of [401, 404]) {
       const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+      t.env.CCC_LLM_MODE = 'openai';
       t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
         throw new AiProviderUnavailableError('http_status', status);
       });
@@ -1003,6 +1011,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
   it('④ 인용 검증 실패는 output_rejected 로 남는다 — 정상 빈 결과와 다르다', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => ({
       discrepancies: [{
         kind: 'within_session',
@@ -1023,6 +1032,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
   it('⑤ 정상 빈 결과는 empty 로, 저장된 결과는 stored 와 건수로 남는다', async () => {
     const empty = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => ({ discrepancies: [] }));
     const emptySession = await postAndSession(empty.supportCaseId, '둘째 상담 메모', 2);
     await runDeviceTextJobs();
@@ -1036,6 +1046,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
     expect(emptyCalls.at(-1)?.promptVersion).toBe(DISCREPANCY_PROMPT_VERSION);
 
     const stored = await createCaseWithSessions(['첫 상담에서 채무는 은행 대출뿐이라고 말함'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
       const prior = request.sources[0];
       const triggerText = request.sources.find((source) => source.sourceRef === request.triggerRef)?.text ?? '';
@@ -1059,6 +1070,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
   it('스냅샷 대기는 저장 시점에 skipped_no_snapshot 으로 남는다 — "안 불렀다"가 보인다', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => ({ discrepancies: [] }));
 
     const sessionId = await postAndSession(fixture.supportCaseId, '둘째 상담 메모', 2);
@@ -1076,6 +1088,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
   it('기록 어느 줄에도 상담 내용이 들어가지 않는다 (R3)', async () => {
     const secret = '지인에게 빌린 돈을 갚지 못하고 있다';
     const fixture = await createCaseWithSessions([secret], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async (request) => {
       const prior = request.sources[0];
       const triggerText = request.sources.find((source) => source.sourceRef === request.triggerRef)?.text ?? '';
@@ -1107,6 +1120,7 @@ describe('AI 호출 관측 — 시도·실패 사유·저장 건수 (CCC-47)', (
 
   it('실패 경로에서도 줄이 남고 기록 저장 응답은 그대로 201 이다 (D8)', async () => {
     const fixture = await createCaseWithSessions(['첫 상담 메모'], true);
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.AI_PROVIDER_ADAPTER = fakeDetectionAdapter(async () => {
       // 우리 오류 계층 밖의 예외 — 분류되지 않아도 사건 자체는 남아야 한다.
       throw new Error('provider down');

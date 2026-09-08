@@ -71,13 +71,14 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_PIPELINE_CLIENT_SECRET` | 운영 필수 | — | 운영 Access 서비스 토큰 Client Secret (Preview 모드에는 넣지 않는다) |
 | `CCC_PREVIEW_E2E_ACCESS_CODE` | Preview 필수 | — | Preview 처리 장비 전용 코드 (운영 모드에는 넣지 않는다) |
 | `CCC_API_BASE_URL` | | 모드별 고정값 | `preview`면 `https://ccc-api-preview.account-855.workers.dev`, `production`이면 `https://ccc-api.account-855.workers.dev`. 반대 환경 URL은 시작 실패 |
+| `CCC_AUDIO_DOWNLOAD_ORIGIN` | protected-get 사용 시 | 없음 | 기관 private Storage의 정확한 HTTPS origin. Local의 `api-stream`에는 필요하지 않다. signed URL의 origin과 만료를 확인하고, Storage 요청에는 CCC 인증 헤더를 보내지 않는다 |
 | `CCC_POLL_INTERVAL_SECONDS` | | `600` | 폴링 주기(초). D8 SLA(다음 영업일) 안이면 조정 자유 |
 | `CCC_WORK_DIR` | | `~/.cache/ccc-pipeline` | 임시 작업 디렉터리(작업마다 하위 생성 후 삭제) |
-| `CCC_STT_MODEL` | | 엔진별 기본값 | Qwen은 `Qwen/Qwen3-ASR-1.7B`, 기존 Whisper 계열은 `medium`이다. `qwen-aligner` 역할은 `Qwen/Qwen3-ForcedAligner-0.6B`로 registry에 고정하며 Azure에는 로컬 모델 선택을 적용하지 않는다 |
+| `CCC_STT_MODEL` | | `Qwen/Qwen3-ASR-1.7B` | 업무 Local 경로는 이 모델로 고정한다. `qwen-aligner` 역할은 `Qwen/Qwen3-ForcedAligner-0.6B`이며 Azure에는 로컬 모델 선택을 적용하지 않는다 |
 | `CCC_STT_PYTHON` | Qwen worker | 없음 | `apps/pipeline/requirements-qwen.txt`로 준비한 격리 Python 실행 파일의 절대 경로 |
 | `CCC_STT_DEVICE` | | `cpu` | Qwen 장치. `cpu`, `cuda`, `mps` 중 하나를 명시하며 다른 장치로 자동 전환하지 않는다 |
 | `AZURE_SPEECH_KEY` | Azure worker | 없음 | Azure Speech 키. 승인된 환경 주입으로만 제공하고 CLI 인자·로그·산출물에 넣지 않는다 |
-| `CCC_STT_ENGINE` | | `off` | `off`, `whisper`, `faster-whisper-int8-cpu`, `qwen3-asr`, `azure`. Azure는 Local `build_engine`이 아닌 별도 원본 파일 provider 경로다. 모르는 이름은 기동 실패이며, off 상태의 오디오 작업은 원음 다운로드와 ML 초기화 전에 차단한다 |
+| `CCC_STT_ENGINE` | | `off` | 업무 워커는 `off`, `qwen3-asr`, `azure`만 받는다. Qwen은 Preview에서만 허용하며, 모르는 이름과 과거 Whisper 선택값은 설정 오류로 거부한다. 과거 엔진 구현은 독립 비교 도구에만 남아 있다 |
 | `CCC_STT_MAX_CHUNK_SECONDS` | | `180` | 조각 최대 길이. 실측에서 3분 조각이 반복 붕괴를 없앴다 |
 | `CCC_STT_MIN_CHUNK_SECONDS` | | `30` | 조각 최소 길이. 너무 잘게 나누면 조각마다 문맥이 사라져 정확도가 떨어진다 |
 | `CCC_STT_REPEAT_THRESHOLD` | | `4` | 같은 문장이 몇 번 연속되면 붕괴로 볼지. 상담에서 두세 번 반복은 흔하므로 그 위 |
@@ -96,6 +97,14 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_ORIGINAL_BACKUP_DESTINATION_REF` | 백업 ON | 없음 | 코드에 등록된 승인 목적지의 불투명 참조. 자격증명이나 실제 경로를 넣지 않는다 |
 | `CCC_ORIGINAL_BACKUP_RETENTION_DAYS` | 백업 ON | 없음 | 해당 사본의 승인된 보관 일수 |
 | `CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION` | 백업 ON | 없음 | 장기 원본 보관과 호환되는 동의 문안 버전 |
+
+### 업무 Agent 준비 확인
+
+`python3 -m ccc_pipeline`과 `--once`는 실제 사전 점검을 마친 뒤에만 `POST /pipeline/readiness`로 준비 상태를 보고한다. Local은 NER와 고정 Qwen 두 모델, pyannote를 적재하고, Azure는 NER 적재 뒤 Korea Central 인증 endpoint를 확인한다. Azure 인증 성공은 실제 전사 요청이나 품질 검증의 성공을 뜻하지 않는다. 시작 시 모델은 내려받지 않으므로 필요한 고정 snapshot을 미리 준비해야 한다.
+
+준비 상태는 5분마다 갱신하고, 처리 중에는 capacity를 0으로 보고한다. 전사 실패로 닫힌 런타임은 재사용하지 않고 정리한 뒤 사전 점검부터 다시 시작한다. 준비 상태 보고는 작업 lease를 연장하거나 제품의 signed registry를 승인하지 않는다. `off`는 항상 `unavailable`, capacity 0이다.
+
+모든 claim은 경로인 `sttEngine`과 정확한 구현 ID인 `sttEngineId`를 함께 받는다. Local은 `local`과 `qwen3-asr`, Azure는 `azure`와 `azure-speech-koreacentral`, 텍스트는 둘 다 `null`이어야 한다. 누락이나 불일치는 원음 다운로드 전에 거부한다. 서버와 워커는 함께 전환하며, 이전 lease가 남아 있는 상태에서 필드 누락을 허용하는 호환 경로를 만들지 않는다.
 
 ### 내부 STT 기능 시험
 
@@ -137,7 +146,7 @@ PYTHONPATH=apps/pipeline python3 -m ccc_pipeline.stt_trial \
 
 출력 디렉터리와 `transcript.json`, `trial.json`은 POSIX에서 각각 0700, 0600으로 생성한다. Windows에서는 사용자 전용 폴더의 접근 제어를 별도로 확인해야 하며 POSIX mode 값만으로 NTFS 권한 검증을 대신하지 않는다. 기존 파일을 덮어쓰지 않으며 stdout에는 안전한 run 메타데이터만 쓰고 전사문·원문 오류·키를 쓰지 않는다. Azure client는 원본 파일 send를 최대 한 번 시작하고 자동 재시도하지 않으며, 익명의 파일별 provider 화자 ID를 보존한다.
 
-이 2026-09-08 구현 작업에서는 실제 Qwen 모델 적재, 실제 Azure 호출, 사람 품질, 장비 처리량 또는 제품 활성화를 검증하지 않았다.
+2026-09-09에는 고정 Qwen 두 모델로 비민감 합성 음성 5초를 실제 처리했고, Korea Central S0에 같은 합성 음성을 보내 실제 응답을 받았다. 이 Mac에서는 NER, Qwen과 ForcedAligner, pyannote를 함께 적재하는 업무 Agent 사전 점검도 통과했다. 이 증거는 연결과 초기화 확인이며 사람 품질, 처리량, 운영 NER 영수증, signed registry 승인 또는 제품 활성화를 대신하지 않는다.
 
 ### 내부 STT 시험 로컬 서버
 
@@ -213,13 +222,7 @@ CLI 와 다른 점:
 
 후보 모델의 이름, revision과 가중치 SHA-256은 [`model-license-manifest.json`](../../supply-chain/model-license-manifest.json)이 정본이다. 고정 revision의 snapshot을 받고 `model.bin`의 SHA-256을 확인한 뒤 로컬 파일만으로 모델을 연다. 설치된 SDK만으로 STT가 활성화되지는 않는다.
 
-```bash
-# 격리된 Python 환경에서 설치한다. ffmpeg도 필요하다.
-python -m pip install -r apps/pipeline/requirements-ml.txt
-# 기존 Preview 자격과 유효한 NER attestation/release 영수증을 주입한 경우에만 실행한다.
-CCC_RUNTIME_ENVIRONMENT=preview CCC_STT_ENGINE=faster-whisper-int8-cpu \
-  PYTHONPATH=apps/pipeline python -m ccc_pipeline --once
-```
+과거 Whisper 경로는 업무 워커 설정으로 실행하지 않는다. 아래 독립 benchmark 도구와 `build_engine` 호출을 사용하며, 현재 업무 워커의 준비 상태나 제품 승인으로 해석하지 않는다.
 
 NER 검증 영수증 없이 워커를 실행하려고 가짜 attestation을 만들지 않는다. 후보 어댑터만 검증할 때는 `build_engine("faster-whisper-int8-cpu", "medium")`를 기존 `transcribe_audio`에 전달하고 합성 음성을 사용한다. 제품 승인 registry나 기관 설정은 변경하지 않는다.
 

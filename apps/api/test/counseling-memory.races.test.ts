@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setupD1, testActors } from './support/d1';
-import { seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
+import { seedCanonicalSttConsent, seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
 import { agentManifestEnv, AGENT_SERVICE_HEADERS } from './support/agent-jobs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, type AiProviderTestAdapter } from '@ccc/ai-runtime';
-import { createCase, createManualSession, loadCounselingMemoryContext, listSupportCasesForBeneficiary, updateParticipantConsent, createActionItem, resolveActionItem, prepareCounselingMemoryWork, claimCounselingMemorySources, getCounselingMemorySource, acceptCounselingMemorySource, beginCounselingMemoryEgress, commitCounselingMemoryWork, correctCounselingMemory, getCounselingMemory, registerAiProviderConfiguration, activateAiProviderConfiguration, recordPilotTextAiConsentEvidence, type ActionItem } from '@ccc/core/gateway';
+import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
 const { counselor, admin, service } = testActors;
@@ -19,8 +19,7 @@ async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat
   const c = await createCase(t.env, counselor, {});
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, c.id);
   const id = programs[0]!.supportCase.id;
-  await updateParticipantConsent(t.env, counselor, id, { privacy: true, recordingAi: true });
-  await recordPilotTextAiConsentEvidence(t.env, counselor, c.id, { noticeVersion: 'pilot-text-ai-v1', noticeSha256: 'a'.repeat(64), evidenceRef: `r2://pilot-evidence/${c.id}`, evidenceSha256: 'f'.repeat(64), effectiveAt: '2026-01-01T00:00:00.000Z' });
+  await seedCanonicalSttConsent(t.env, counselor, id);
   const config = await registerAiProviderConfiguration(t.env, admin, { adapterId: 'codex', adapterVersion: 'v1', configHash, approvalRefs: ['synthetic-approval'] });
   await activateAiProviderConfiguration(t.env, admin, config.id);
   const action = await createActionItem(t.env, counselor, c.id, { description: '다음 상담 전에 서류 준비', owner: 'beneficiary' });
@@ -29,6 +28,32 @@ async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat
   await prepareCounselingMemoryWork(t.env);
   const jobs = claim ? await claimCounselingMemorySources(t.env, service, claimRequest(qualification)) : [];
   return { id, action, qualification, jobs };
+}
+
+async function withdrawExternalLlm(supportCaseId: string): Promise<void> {
+  const current = (await getSupportCaseConsent(t.env, counselor, supportCaseId))
+    .find((item) => item.domain === 'external_llm_cross_border_processing');
+  const disclosure = (await issueSupportCaseConsentDisclosures(t.env, counselor, supportCaseId))
+    .find((item) => item.domain === 'external_llm_cross_border_processing');
+  if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+    throw new Error('expected current canonical LLM consent');
+  }
+  await appendSupportCaseConsentEvent(t.env, counselor, supportCaseId, {
+    domain: current.domain,
+    decision: 'withdraw',
+    provider: current.provider,
+    providerLegalRecipient: current.providerLegalRecipient,
+    providerCountry: current.providerCountry,
+    purpose: current.purpose,
+    retentionDuration: current.retentionDuration,
+    copyVersion: disclosure.copyVersion,
+    copyHash: disclosure.copyHash,
+    disclosureSnapshotId: disclosure.snapshotId,
+    effectiveAt: new Date().toISOString(),
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: current.revision,
+  });
 }
 // The synthetic Agent must mask numeric identifiers, including ISO dates in source metadata.
 function maskedFixtureText(text: string): string {
@@ -180,10 +205,59 @@ describe('durable memory races', () => {
   });
   it('rejects an in-flight result after consent withdrawal without exposing the old memory', async () => {
     const f = await fixture(); const prepared = await materialize(f);
-    await updateParticipantConsent(t.env, counselor, f.id, { privacy: true, recordingAi: false });
+    await withdrawExternalLlm(f.id);
     await expect(commitCounselingMemoryWork(t.env, prepared.work, prepared.output)).rejects.toThrow();
     const view = await getCounselingMemory(t.env, counselor, f.id);
     expect(view.items).toEqual([]); expect(view.summary).toEqual([]);
+  });
+  it('never revives pre-withdrawal memory after canonical LLM consent is granted again', async () => {
+    const f = await fixture();
+    const prepared = await materialize(f);
+    await commitCounselingMemoryWork(t.env, prepared.work, prepared.output);
+    expect((await getCounselingMemory(t.env, counselor, f.id)).items).toHaveLength(1);
+    const before = await t.db.prepare(
+      'SELECT generation FROM counseling_memory_cases WHERE org_id=? AND support_case_id=?',
+    ).bind(counselor.orgId, f.id).first<{ generation: number }>();
+    if (before === null) throw new Error('expected memory case');
+
+    await withdrawExternalLlm(f.id);
+    await seedCanonicalSttConsent(t.env, counselor, f.id);
+
+    const view = await getCounselingMemory(t.env, counselor, f.id);
+    expect(view.items).toEqual([]);
+    expect(view.summary).toEqual([]);
+    const state = await t.db.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM counseling_memory_materials
+          WHERE org_id=? AND support_case_id=? AND valid=1) AS valid_materials,
+         (SELECT COUNT(*) FROM counseling_memory_items
+          WHERE org_id=? AND support_case_id=? AND valid=1) AS valid_items,
+         (SELECT COUNT(*) FROM counseling_memory_sources
+          WHERE org_id=? AND support_case_id=? AND dirty=1) AS dirty_sources,
+         generation,status
+       FROM counseling_memory_cases WHERE org_id=? AND support_case_id=?`,
+    ).bind(
+      counselor.orgId, f.id,
+      counselor.orgId, f.id,
+      counselor.orgId, f.id,
+      counselor.orgId, f.id,
+    ).first<{
+      valid_materials: number;
+      valid_items: number;
+      dirty_sources: number;
+      generation: number;
+      status: string;
+    }>();
+    expect(state).toMatchObject({
+      valid_materials: 0,
+      valid_items: 0,
+      status: 'updating',
+    });
+    expect(state?.dirty_sources).toBeGreaterThan(0);
+    const after = await t.db.prepare(
+      'SELECT generation FROM counseling_memory_cases WHERE org_id=? AND support_case_id=?',
+    ).bind(counselor.orgId, f.id).first<{ generation: number }>();
+    expect(after?.generation).toBeGreaterThan(before.generation);
   });
   it('rejects an in-flight result after a human correction', async () => {
     const f = await fixture(); const first = await materialize(f);
@@ -237,8 +311,7 @@ describe('durable memory races', () => {
       const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, participant.id);
       const id = programs[0]!.supportCase.id;
       waitingIds.push(id);
-      await updateParticipantConsent(t.env, counselor, id, { privacy: true, recordingAi: true });
-      await recordPilotTextAiConsentEvidence(t.env, counselor, participant.id, { noticeVersion: 'pilot-text-ai-v1', noticeSha256: 'a'.repeat(64), evidenceRef: `r2://pilot-evidence/${participant.id}`, evidenceSha256: 'f'.repeat(64), effectiveAt: '2026-01-01T00:00:00.000Z' });
+      await seedCanonicalSttConsent(t.env, counselor, id);
       await createActionItem(t.env, counselor, participant.id, { description: '다음 상담 준비', owner: 'beneficiary' });
       await t.db.prepare("UPDATE counseling_memory_cases SET not_before='1990-01-01T00:00:00.000Z' WHERE support_case_id=?").bind(id).run();
     }

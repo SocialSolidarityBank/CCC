@@ -18,18 +18,28 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 from . import masking, repetition
-from .api_client import ApiClient, ApiError, MemoryApiClient
-from .azure_stt import AzureSttError, transcribe_azure
+from .api_client import ApiClient, ApiError, AudioDownloadError, MemoryApiClient
+from .azure_stt import AzureSttError, preflight_azure, transcribe_azure
 from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
+from .diarize import build_diarizer
 from .emotion import aggregate_scores
 from .results import build_result, build_result_request, canonical_sha256
 from .speaker_mapping import BENEFICIARY, assign_speakers, estimate_roles, format_transcript
-from .transcribe import ENGINE_AZURE, ENGINE_OFF, build_engine, transcribe_audio
+from .transcribe import (
+    AZURE_ENGINE_ID,
+    ENGINE_AZURE,
+    ENGINE_OFF,
+    ENGINE_QWEN,
+    QWEN_MODEL_ID,
+    build_engine,
+    transcribe_audio,
+)
 
 logger = logging.getLogger("ccc_pipeline")
 
@@ -40,10 +50,114 @@ EMOTION_DEFERRED = True  # D64: 감정 분석 보류. 켜려면 False. 스키마
 _TRANSIENT_STATUSES = (408, 429)
 
 _HEARTBEAT_INTERVAL_SECONDS = 5 * 60
+_READINESS_INTERVAL_SECONDS = 5 * 60
 
 
 class _RouteMismatchError(Exception):
     pass
+
+def _engine_binding(config: Config) -> tuple[str, str | None]:
+    if config.stt_engine == ENGINE_OFF:
+        return "off", None
+    if config.stt_engine == ENGINE_QWEN and config.stt_model == QWEN_MODEL_ID:
+        return "local", ENGINE_QWEN
+    if config.stt_engine == ENGINE_AZURE:
+        return "azure", AZURE_ENGINE_ID
+    raise _RouteMismatchError
+
+
+def _validate_job_engine(config: Config, job: dict[str, Any]) -> None:
+    if "sttEngine" not in job or "sttEngineId" not in job:
+        raise _RouteMismatchError
+    kind = job.get("kind")
+    if kind == "text":
+        if job.get("sttEngine") is not None or job.get("sttEngineId") is not None:
+            raise _RouteMismatchError
+        return
+    if kind != "audio":
+        raise _RouteMismatchError
+    route, engine_id = _engine_binding(config)
+    if route == "off" or job.get("sttEngine") != route or job.get("sttEngineId") != engine_id:
+        raise _RouteMismatchError
+
+
+class _ReadinessReporter:
+    """Refresh liveness independently without touching job leases."""
+
+    def __init__(self, client: ApiClient, config: Config, runtime: WorkerRuntime):
+        self._client = client
+        self._runtime = runtime
+        self._mode, self._engine_id = _engine_binding(config)
+        self._state = "unavailable"
+        self._capacity = 0
+        self._requested_capacity = 0
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._ready_state = "unavailable" if self._mode == "off" else "ready"
+        self._idle_capacity = 0 if self._mode == "off" else 1
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="readiness", daemon=True)
+
+    def _report(self) -> None:
+        with self._lock:
+            state, capacity = self._state, self._capacity
+        self._client.report_readiness(self._mode, self._engine_id, state, capacity)
+
+    def start_ready(self) -> None:
+        with self._lock:
+            self._requested_capacity = self._idle_capacity
+            self._state, self._capacity = self._ready_state, self._idle_capacity
+        self._report()
+        self._thread.start()
+
+    def set_capacity(self, capacity: int) -> None:
+        with self._lock:
+            self._requested_capacity = min(capacity, self._idle_capacity)
+            self._capacity = self._requested_capacity if self._state == "ready" else 0
+        self._wake.set()
+
+    def mark_unavailable(self) -> None:
+        with self._lock:
+            self._state, self._capacity = "unavailable", 0
+        self._wake.set()
+
+    def _refresh_runtime(self) -> None:
+        if self._mode == "off":
+            return
+        try:
+            self._runtime.check_ready()
+        except Exception as error:  # noqa: BLE001
+            with self._lock:
+                self._state, self._capacity = "unavailable", 0
+            logger.error("runtime readiness check failed: %s", type(error).__name__)
+            return
+
+    def _run(self) -> None:
+        next_healthcheck = time.monotonic() + _READINESS_INTERVAL_SECONDS
+        while not self._stop.is_set():
+            self._wake.wait(max(0.0, next_healthcheck - time.monotonic()))
+            self._wake.clear()
+            if self._stop.is_set():
+                return
+            try:
+                if time.monotonic() >= next_healthcheck:
+                    self._refresh_runtime()
+                    next_healthcheck = time.monotonic() + _READINESS_INTERVAL_SECONDS
+                self._report()
+            except Exception as error:  # noqa: BLE001
+                logger.error("readiness report failed: %s", type(error).__name__)
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._wake.set()
+        if self._thread.is_alive():
+            self._thread.join()
+        with self._lock:
+            self._state, self._capacity = "unavailable", 0
+        try:
+            self._report()
+        except Exception as error:  # noqa: BLE001
+            logger.error("final readiness report failed: %s", type(error).__name__)
 
 
 class _LeaseHeartbeat:
@@ -262,6 +376,73 @@ class MaskingLayers:
         self.condition_ner = _build_condition_ner_or_none(config)
 
 
+@dataclass
+class WorkerRuntime:
+    layers: MaskingLayers
+    engine: Callable[[str], list[Any]] | None = None
+    diarizer: Callable[[str], list[Any]] | None = None
+    healthcheck: Callable[[], None] | None = None
+    failed: bool = False
+
+    def check_ready(self) -> None:
+        if self.failed:
+            raise RuntimeError("runtime requires preflight")
+        try:
+            if self.healthcheck is not None:
+                self.healthcheck()
+        except Exception:
+            self.failed = True
+            raise
+
+    def close(self) -> None:
+        close = getattr(self.engine, "close", None)
+        if callable(close):
+            close()
+
+
+def preflight_worker(config: Config) -> WorkerRuntime:
+    """Initialize every required runtime before reporting this worker ready."""
+    # Readiness verifies installed immutable snapshots; it never downloads models at startup.
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    assert_device_ready(config)
+    layers = MaskingLayers(config)
+    if config.stt_engine == ENGINE_OFF:
+        return WorkerRuntime(layers)
+    if config.stt_engine == ENGINE_AZURE:
+        if config.azure_speech_key is None:
+            raise AzureSttError("credential_unavailable")
+        azure_key = config.azure_speech_key
+        preflight_azure(azure_key)
+        return WorkerRuntime(layers, healthcheck=lambda: preflight_azure(azure_key))
+    if config.stt_engine != ENGINE_QWEN or config.stt_model != QWEN_MODEL_ID:
+        raise _RouteMismatchError
+    engine = build_engine(
+        ENGINE_QWEN,
+        QWEN_MODEL_ID,
+        python_executable=config.stt_python,
+        device=config.stt_device,
+    )
+    try:
+        start = getattr(engine, "start", None)
+        if not callable(start):
+            raise RuntimeError("local engine has no startup preflight")
+        start()
+        diarizer = build_diarizer(config.hf_token)
+
+        def qwen_healthcheck() -> None:
+            is_ready = getattr(engine, "is_ready", None)
+            if not callable(is_ready) or not is_ready():
+                raise RuntimeError("local engine unavailable")
+
+        return WorkerRuntime(layers, engine, diarizer, qwen_healthcheck)
+    except Exception:
+        close = getattr(engine, "close", None)
+        if callable(close):
+            close()
+        raise
+
+
 def _mask_with_dictionary(
     client: ApiClient,
     layers: MaskingLayers,
@@ -292,38 +473,52 @@ def process_audio_job(
     config: Config,
     job: dict[str, Any],
     backup_adapters=BACKUP_ADAPTERS,  # noqa: ANN001 - 테스트와 향후 adapter 등록을 위한 경계
+    *,
+    runtime: WorkerRuntime | None = None,
 ) -> None:
-    """오디오 작업 1건: route/NER → 원음 검증 → 한 provider → 마스킹 → 결과."""
+    """오디오 작업 1건: exact engine/NER → 원음 검증 → 한 provider → 마스킹 → 결과."""
+    _validate_job_engine(config, job)
     job_id = job["jobId"]
     claim_token = job["claimToken"]
     attempt = job["attempt"]
-    configured_route = "azure" if config.stt_engine == ENGINE_AZURE else "local"
-    if config.stt_engine == ENGINE_OFF:
-        raise ValueError("STT is disabled")
-    if job.get("sttEngine") != configured_route:
-        raise _RouteMismatchError
+    configured_route, _ = _engine_binding(config)
     if configured_route == "azure" and config.azure_speech_key is None:
         raise AzureSttError("credential_unavailable")
     if configured_route == "azure":
         _assert_azure_attempt_not_started(config.work_dir, job_id, attempt)
 
-    audio = job.get("audio") or {}
+    audio = job.get("audio")
+    if (
+        not isinstance(audio, dict)
+        or not isinstance(audio.get("generationId"), str)
+        or audio["generationId"] == ""
+        or audio.get("delivery") not in ("api-stream", "protected-get")
+    ):
+        raise _RouteMismatchError
     work_dir = config.work_dir / f"{job_id}-{uuid.uuid4().hex[:8]}"
     started = time.monotonic()
-    engine = None
+    engine = runtime.engine if runtime is not None else None
+    owns_engine = False
     try:
         with _LeaseHeartbeat(client, job_id, claim_token, attempt) as lease:
-            # NER health precedes download/model/provider work: a blocked claim makes zero provider calls.
-            layers = MaskingLayers(config)
-            if configured_route == "local":
+            # The business entrypoint preloads these before claiming; direct calls retain fail-closed behavior.
+            layers = runtime.layers if runtime is not None else MaskingLayers(config)
+            if configured_route == "local" and engine is None:
                 engine = build_engine(
-                    config.stt_engine,
-                    config.stt_model,
+                    ENGINE_QWEN,
+                    QWEN_MODEL_ID,
                     python_executable=config.stt_python,
                     device=config.stt_device,
                 )
+                owns_engine = True
 
-            audio_path = client.download_audio(job_id, claim_token, attempt, work_dir / "audio.bin")
+            audio_path = client.download_audio(
+                job_id,
+                claim_token,
+                attempt,
+                work_dir / "audio.bin",
+                delivery=audio["delivery"],
+            )
             logger.info("job %s: audio downloaded", job_id)
 
             digest = hashlib.sha256()
@@ -389,9 +584,16 @@ def process_audio_job(
                 )
                 segments = transcription.segments
             else:
-                # ML imports stay local-only; Azure's provider speaker labels must not be overwritten.
-                from .diarize import diarize  # noqa: PLC0415
+                if engine is None:
+                    raise _RouteMismatchError
+                if runtime is None:
+                    from .diarize import diarize  # noqa: PLC0415
 
+                    diarizer = lambda path: diarize(path, config.hf_token)
+                else:
+                    diarizer = runtime.diarizer
+                    if diarizer is None:
+                        raise _RouteMismatchError
                 transcription = transcribe_audio(
                     str(audio_path),
                     work_dir,
@@ -402,12 +604,8 @@ def process_audio_job(
                 )
                 segments = assign_speakers(
                     transcription.segments,
-                    diarize(str(audio_path), config.hf_token),
+                    diarizer(str(audio_path)),
                 )
-                close = getattr(engine, "close", None)
-                if callable(close):
-                    close()
-                engine = None
             lease.assert_owned()
             if not transcription.reliable:
                 logger.warning(
@@ -468,25 +666,33 @@ def process_audio_job(
             logger.info("job %s: result posted (%.1fs)", job_id, time.monotonic() - started)
     finally:
         try:
-            close = getattr(engine, "close", None)
-            if callable(close):
-                close()
+            if owns_engine:
+                close = getattr(engine, "close", None)
+                if callable(close):
+                    close()
         finally:
             # Only the per-job directory is removed; durable egress markers live under work_dir.
             shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def process_text_job(client: ApiClient, config: Config, job: dict[str, Any]) -> None:
-    """텍스트 작업 1건: 원문 받기 → 2차 마스킹 → 결과 제출.
+def process_text_job(
+    client: ApiClient,
+    config: Config,
+    job: dict[str, Any],
+    *,
+    runtime: WorkerRuntime | None = None,
+) -> None:
+    """텍스트 작업 1건: exact null engine binding → 2차 마스킹 → 결과 제출.
 
     받는 텍스트는 서버가 1차 치환(등록 PII → 가명 ID)을 끝낸 공식 기록이다. 여기서
     NER·사전·정규식 계층을 얹어야만 그 텍스트가 사업자에게 나갈 수 있다(R3 · D2).
     오디오가 없으므로 전사·감정은 건너뛰고 중간 파일도 만들지 않는다.
     """
+    _validate_job_engine(config, job)
     job_id = job["jobId"]
     claim_token = job["claimToken"]
     attempt = job["attempt"]
-    layers = MaskingLayers(config)
+    layers = runtime.layers if runtime is not None else MaskingLayers(config)
     source = client.get_source(job_id, claim_token, attempt)
     masked, report = _mask_with_dictionary(client, layers, job, source)
     # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
@@ -534,7 +740,7 @@ def assert_device_ready(config: Config) -> None:
         금지한 이유가 반복 붕괴 실측(254회 반복·48% 손실)이다.
       * 인명 NER 미설정 → 2차 방어의 인명 계층이 빈 채로 돈다(R3).
     """
-    if shutil.which("ffmpeg") is None:
+    if config.stt_engine != ENGINE_OFF and shutil.which("ffmpeg") is None:
         raise masking.MaskingConfigError(
             "ffmpeg is not installed — silence-boundary chunking would fall back to whole-file "
             "transcription, which ADR-0024 forbids",
@@ -555,6 +761,15 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
             return
         if isinstance(error, _RouteMismatchError):
             client.release(job_id, claim_token, attempt, "permanent", "route_mismatch")
+            return
+        if isinstance(error, AudioDownloadError):
+            client.release(
+                job_id,
+                claim_token,
+                attempt,
+                "transient" if error.transient else "permanent",
+                "engine_unavailable" if error.transient else error.reason,
+            )
             return
         if isinstance(error, AzureSttError):
             if error.transient:
@@ -578,57 +793,148 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
         logger.error("job %s: release failed status=%d", job_id, release_error.status)
 
 
-def run_once(client: ApiClient, config: Config) -> int:
-    """claim 1회: 받은 순서대로 처리한다. 성공한 건수를 돌려준다."""
+def run_once(
+    client: ApiClient,
+    config: Config,
+    *,
+    runtime: WorkerRuntime | None = None,
+    readiness: _ReadinessReporter | None = None,
+) -> int:
+    """Claim once; actual entrypoints pass a successfully preflighted runtime."""
     jobs = client.claim_jobs(claim_request(config))
     if not jobs:
         logger.info("no jobs")
         return 0
+    if readiness is not None:
+        readiness.set_capacity(0)
+    try:
+        processed = 0
+        for job in jobs:
+            if not isinstance(job, dict):
+                logger.error("claim response contained an unusable job")
+                continue
+            job_id = str(job.get("jobId", ""))
+            kind = job.get("kind")
+            if (
+                job_id == ""
+                or job.get("claimToken") is None
+                or kind not in ("audio", "text")
+                or "sttEngineId" not in job
+            ):
+                logger.error("claim response contained an unusable job")
+                continue
+            try:
+                if runtime is not None and runtime.failed:
+                    raise RuntimeError("runtime requires preflight")
+                if kind == "audio":
+                    process_audio_job(client, config, job, runtime=runtime)
+                else:
+                    process_text_job(client, config, job, runtime=runtime)
+                processed += 1
+            except Exception as error:  # noqa: BLE001
+                if kind == "audio" and not isinstance(error, (ApiError, _RouteMismatchError)):
+                    if runtime is not None:
+                        runtime.failed = True
+                    if readiness is not None:
+                        readiness.mark_unavailable()
+                logger.error("job %s: %s", job_id, type(error).__name__)
+                _release_failed_job(client, job, error)
+        return processed
+    finally:
+        if readiness is not None:
+            readiness.set_capacity(1)
 
-    processed = 0
-    for job in jobs:
-        job_id = str(job.get("jobId", ""))
-        kind = job.get("kind")
-        if job_id == "" or job.get("claimToken") is None or kind not in ("audio", "text"):
-            logger.error("claim response contained an unusable job")
-            continue
-        try:
-            if kind == "audio":
-                process_audio_job(client, config, job)
-            else:
-                process_text_job(client, config, job)
-            processed += 1
-        except Exception as error:  # noqa: BLE001 — 한 작업의 실패가 나머지 처리를 막지 않는다
-            logger.error("job %s: %s", job_id, type(error).__name__)
-            _release_failed_job(client, job, error)
-    return processed
 
-
-def run_memory_once(client: ApiClient, config: Config) -> int:
+def run_memory_once(
+    client: ApiClient,
+    config: Config,
+    *,
+    runtime: WorkerRuntime | None = None,
+    readiness: _ReadinessReporter | None = None,
+) -> int:
     scoped = MemoryApiClient(client)
     jobs = scoped.claim_jobs(claim_request(config))
-    processed = 0
-    for job in jobs:
-        if job.get("purpose") != "counseling_memory" or job.get("kind") != "text":
-            raise ApiError(200, "malformed memory job")
-        try:
-            process_text_job(scoped, config, job)
-            processed += 1
-        except Exception as error:  # noqa: BLE001
-            logger.error("memory job %s: %s", job.get("jobId"), type(error).__name__)
-            _release_failed_job(scoped, job, error)
-    return processed
+    if readiness is not None and jobs:
+        readiness.set_capacity(0)
+    try:
+        processed = 0
+        for job in jobs:
+            if (
+                not isinstance(job, dict)
+                or job.get("purpose") != "counseling_memory"
+                or job.get("kind") != "text"
+                or "sttEngineId" not in job
+            ):
+                raise ApiError(200, "malformed memory job")
+            try:
+                process_text_job(scoped, config, job, runtime=runtime)
+                processed += 1
+            except Exception as error:  # noqa: BLE001
+                logger.error("memory job %s: %s", job.get("jobId"), type(error).__name__)
+                _release_failed_job(scoped, job, error)
+        return processed
+    finally:
+        if readiness is not None and jobs:
+            readiness.set_capacity(1)
+
+
+def _report_unavailable(client: ApiClient, config: Config) -> None:
+    mode, engine_id = _engine_binding(config)
+    try:
+        client.report_readiness(mode, engine_id, "unavailable", 0)
+    except Exception as error:  # noqa: BLE001
+        logger.error("unavailable readiness report failed: %s", type(error).__name__)
+
+
+def run_checked_once(client: ApiClient, config: Config) -> int:
+    """One business poll with real preflight and bounded readiness lifetime."""
+    runtime = None
+    reporter = None
+    try:
+        runtime = preflight_worker(config)
+        reporter = _ReadinessReporter(client, config, runtime)
+        reporter.start_ready()
+        return run_once(client, config, runtime=runtime, readiness=reporter)
+    except Exception:
+        if reporter is None:
+            _report_unavailable(client, config)
+        raise
+    finally:
+        if reporter is not None:
+            reporter.stop()
+        if runtime is not None:
+            runtime.close()
 
 
 def run_forever(client: ApiClient, config: Config) -> None:
     logger.info("claiming every %ds against %s", config.poll_interval_seconds, config.api_base_url)
     while True:
+        runtime = None
         try:
-            run_once(client, config)
-        except Exception as error:  # noqa: BLE001 — claim 자체 실패(네트워크 등)도 루프를 죽이지 않는다
-            logger.error("claim failed: %s", type(error).__name__)
-        try:
-            run_memory_once(client, config)
+            runtime = preflight_worker(config)
+            reporter = _ReadinessReporter(client, config, runtime)
+            reporter.start_ready()
         except Exception as error:  # noqa: BLE001
-            logger.error("memory claim failed: %s", type(error).__name__)
+            _report_unavailable(client, config)
+            logger.error("runtime preflight failed: %s", type(error).__name__)
+            if runtime is not None:
+                runtime.close()
+            time.sleep(config.poll_interval_seconds)
+            continue
+        try:
+            while not runtime.failed:
+                try:
+                    run_once(client, config, runtime=runtime, readiness=reporter)
+                except Exception as error:  # noqa: BLE001
+                    logger.error("claim failed: %s", type(error).__name__)
+                if runtime.failed:
+                    break
+                try:
+                    run_memory_once(client, config, runtime=runtime, readiness=reporter)
+                except Exception as error:  # noqa: BLE001
+                    logger.error("memory claim failed: %s", type(error).__name__)
+                time.sleep(config.poll_interval_seconds)
+        finally:
+            reporter.stop()
+            runtime.close()
         time.sleep(config.poll_interval_seconds)

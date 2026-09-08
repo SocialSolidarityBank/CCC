@@ -24,6 +24,7 @@ export interface AudioObjectMetadata {
 export type AudioDownload = AudioObjectMetadata & {
   body: ReadableStream<Uint8Array>;
   sha256: string | null;
+  generationId: string;
 };
 
 export type AudioDeleteVerificationMethod =
@@ -53,7 +54,7 @@ export interface AudioStore {
     key: string,
     body: ReadableStream<Uint8Array>,
     metadata: AudioObjectMetadata,
-  ): Promise<{ sha256: string }>;
+  ): Promise<{ sha256: string; generationId: string }>;
   get(key: string): Promise<AudioDownload | null>;
   delete(key: string): Promise<AudioDeletionEvidence>;
   createUploadTarget(

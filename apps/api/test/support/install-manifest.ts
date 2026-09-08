@@ -3,7 +3,7 @@ import type { ApprovedSttEngineEntry, DeploymentMode, SignedInstallManifest } fr
 
 export const TEST_KEY_ID = 'test-key-2026-09';
 export const TEST_INSTALLATION_ID = '6f3a8d0c-2b1e-4f7a-9c5d-0e1f2a3b4c5d';
-export const SYNTHETIC_LOCAL_REGISTRY: ApprovedSttEngineEntry[] = [{ id: 'local-whisper-medium', mode: 'local' }];
+export const SYNTHETIC_LOCAL_REGISTRY: ApprovedSttEngineEntry[] = [{ id: 'qwen3-asr', mode: 'local' }];
 export const SYNTHETIC_AZURE_REGISTRY: ApprovedSttEngineEntry[] = [{ id: 'azure-speech-koreacentral', mode: 'azure' }];
 
 export interface TestSigner {

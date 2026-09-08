@@ -1,14 +1,17 @@
 import {
   listEmergencyConsentDeadlines,
+  listPendingAudioLifecycleIncidents,
+  markAudioLifecycleIncidentDelivered,
   processParticipantPiiRetention,
+  runAudioExpiry,
   runPipelineWatchdog,
-  type PipelineHealth,
   type Env,
+  type PipelineHealth,
 } from './gateway';
-import type { JobReport, ScheduledJobKind, ScheduledJobRunner } from '@ccc/contracts/runtime';
+import type { AudioStore, JobReport, ScheduledJobKind, ScheduledJobRunner } from '@ccc/contracts/runtime';
 import { notifyAdmins, type NotifyEnv } from './notify';
 
-export type ScheduledJobEnv = Env & NotifyEnv;
+export type ScheduledJobEnv = Env & NotifyEnv & { audioStore: AudioStore };
 
 /**
  * 폴링 워치독 1회 실행 (D8). 전 기관 건강도를 계산하고 stale인 기관마다 관리자 알림
@@ -49,6 +52,20 @@ export async function remindEmergencyConsentDeadlines(env: ScheduledJobEnv): Pro
   }
 }
 
+export async function deliverAudioLifecycleIncidents(env: ScheduledJobEnv): Promise<number> {
+  let delivered = 0;
+  for (const incident of await listPendingAudioLifecycleIncidents(env)) {
+    await notifyAdmins(
+      env,
+      `audio lifecycle incident ${incident.id} for org ${incident.orgId}: ${incident.reason} at ${incident.createdAt}`,
+    );
+    if (await markAudioLifecycleIncidentDelivered(env, incident.id, new Date().toISOString())) {
+      delivered += 1;
+    }
+  }
+  return delivered;
+}
+
 async function jobCounters(
   env: ScheduledJobEnv,
   kind: ScheduledJobKind,
@@ -65,8 +82,11 @@ async function jobCounters(
     case 'counseling_memory':
       if (memoryJob === undefined) throw new Error('unsupported_scheduled_job');
       return memoryJob();
+    case 'audio_expiry': {
+      const counters = await runAudioExpiry(env, env.audioStore, nowIso);
+      return { ...counters, incidentsDelivered: await deliverAudioLifecycleIncidents(env) };
+    }
     default:
-      // audio_expiry 는 E5-6 이 audio_objects.purge_due 와 몸체를 만들기 전까지 fail-closed 다.
       throw new Error('unsupported_scheduled_job');
   }
 }
