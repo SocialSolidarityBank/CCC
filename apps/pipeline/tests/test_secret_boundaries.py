@@ -75,10 +75,21 @@ class SecretBoundariesTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, "unknown")
 
     def test_config_diagnostics_hide_all_credentials(self):
-        config = replace(make_config(Path("/tmp/synthetic-unused")), client_id="synthetic-client-id",
-                         client_secret="synthetic-access-secret", preview_access_code="synthetic-preview-code",
-                         hf_token="synthetic-model-token")
-        for credential in (config.client_id, config.client_secret, config.preview_access_code, config.hf_token):
+        config = replace(
+            make_config(Path("/tmp/synthetic-unused")),
+            client_id="synthetic-client-id",
+            client_secret="synthetic-access-secret",
+            preview_access_code="synthetic-preview-code",
+            hf_token="synthetic-model-token",
+            azure_speech_key="synthetic-azure-speech-key",
+        )
+        for credential in (
+            config.client_id,
+            config.client_secret,
+            config.preview_access_code,
+            config.hf_token,
+            config.azure_speech_key,
+        ):
             self.assertNotIn(credential, repr(config))
 
     def test_once_failure_has_safe_stderr_and_nonzero_exit(self):

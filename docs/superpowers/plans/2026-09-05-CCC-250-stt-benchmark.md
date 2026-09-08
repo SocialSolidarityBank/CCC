@@ -1,5 +1,7 @@
 # E5-8 STT Benchmark Implementation Plan
 
+> Historical plan retained for the original S13 v1 benchmark evidence. Since 2026-09-08, new STT work follows the [implementation-first S13 contract](../../specs/S13-stt-qualification-v2.md). Qwen is no longer benchmark-only; its shared runtime dependencies now live in [apps/pipeline/requirements-qwen.txt](../../../apps/pipeline/requirements-qwen.txt). Paths below describe the original implementation and must not override the current runtime instructions.
+
 **Goal:** Execute faster-whisper and benchmark-only Qwen3-ASR against the immutable S13 fixture and report per-session and pooled CER, repetition, RTF, DER and safety without transcripts.
 
 **Architecture:** Reuse the fixture verifier and pipeline audio orchestration. Keep metrics pure and independent of model inference. Benchmark-only model runners receive audio paths, never reference text; the parent reads reference data only for scoring. Separate Python environments avoid changing product dependencies for Qwen.

@@ -35,23 +35,25 @@ D63의 배포 문 대응은 관리형 웹에서 Community Cloud, CCC 박스와 �
 
 ### D77. 저장 모드와 AI 모드는 독립이고 STT 설치 기본값은 `off`다
 
-- STT 축은 `off`, `local`, `azure`다. 설치 직후에는 세 모드 모두 `off`이며, 관리자가 provider를 명시적으로 고르고 health check를 통과한 뒤에만 `local` 또는 `azure`를 선택할 수 있다.
-- `local` 엔진은 STT-G1~STT-G3 실측과 Q의 결과 승인이 끝나기 전까지 확정하지 않는다. `faster-whisper`는 E5-8의 측정 후보일 뿐이며 설치 시 자동 선택하거나 기본값으로 유지하지 않는다. Q 승인 전에는 `sttEngine`이 `null`이고 Local 선택지는 비활성이다.
-- `azure`는 기관 키와 서울 endpoint를 사용하는 명시적 선택이다. 원음의 외부 이전 조건과 동의가 충족되지 않으면 선택할 수 없다.
-- LLM 축은 `off`, `openai`다. OpenAI BYOK는 기관 키와 `store:false`를 사용한다.
-- Managed AI, CLOVA, RTZR, 로컬 LLM은 이번 범위 밖이며 포트만 남긴다.
+- STT 축은 `off`, `local`, `azure`다. 설치 직후에는 세 모드 모두 `off`다.
+- 구현 단계에서는 운영자 본인의 비민감 테스트 녹음 또는 합성 입력으로 `local`과 `azure` 어댑터의 기능, 오류, 개인정보 계약을 확인할 수 있다. 이는 제품 설정, signed registry 또는 실데이터 사용을 활성화하지 않는다.
+- 현재 `local` 구현 경로는 격리된 Python 환경에서 로컬 공개 가중치인 `Qwen/Qwen3-ASR-1.7B`와 `Qwen/Qwen3-ForcedAligner-0.6B`의 원본 checkpoint를 함께 사용한다. 취소된 Alibaba Cloud Token Plan을 호출하지 않으며, 이 선택을 세계 최고나 보편적인 최신 모델이라고 주장하지 않는다.
+- `azure` 구현 경로는 `api-version=2025-10-15`의 서울 endpoint를 사용한다. request definition에서 `diarization.enabled=true`, `maxSpeakers=2`를 지정하고 익명의 파일별 provider 화자 ID를 보존한다. 어댑터는 허가된 attempt마다 원본 파일의 HTTP send를 최대 한 번 시작하며 청크 업로드나 자동 client 재시도를 하지 않는다. 이는 Azure 내부 처리의 exactly-once 보장이 아니다. D53의 무음 경계 분할은 Local에만 적용하고, 반복과 출력 검사는 두 경로에 모두 적용한다.
+- 운영 활성화에는 관리자의 명시적 선택, health check, 경로별 동의, exact signed registry와 Q 승인이 그대로 필요하다. 승인 전에는 `sttEngine`이 `null`이고 Local과 Azure 선택지는 비활성이다.
+- LLM 축은 `off`, `openai`다. OpenAI BYOK는 기관 키와 `store:false`를 사용하며 STT 구현 순서가 이 요약 경로를 바꾸지 않는다.
+- Managed AI, CLOVA, RTZR, 로컬 LLM과 Alibaba Cloud STT는 이번 범위 밖이다.
 - 어떤 실패에도 다른 사업자로 자동 전환하지 않는다. 실패 시 수기 기록 경로를 제공한다(D8).
 - AI를 켜면 모드와 무관하게 처리 Agent가 실행되는 기관 PC 1대가 필요하다. 2차 마스킹 NER은 그 PC에서만 실행하고 Edge Function의 CPU 2초, 메모리 256MB, 번들 20MB 제한 안에는 올리지 않는다.
 
-#### STT 품질과 지원 사양의 후속 개정 (2026-09-08)
+#### STT 구현, 품질과 지원 사양의 후속 개정 (2026-09-08)
 
-이번 개정은 음성 전사 STT만 대상으로 하며 요약 LLM과 저장 모드 선택은 바꾸지 않는다. 검증 절차의 정본은 [S13 STT 검증 v2](../specs/S13-stt-qualification-v2.md)다.
+이번 개정은 음성 전사 STT만 대상으로 하며 요약 LLM과 저장 모드 선택은 바꾸지 않는다. 단계별 정본은 [S13 STT 검증 v2](../specs/S13-stt-qualification-v2.md)다.
 
-- 단일 NVIDIA GPU VRAM 24GB급과 시스템 RAM 64GB급은 **검증 상한 후보**다. 기관의 필수 구매 사양이나 확정 최소사양이 아니다. 서버급 장비, 다중 GPU와 기관 소유 클라우드 GPU는 이번 비교에서 제외한다.
-- 사람이 녹음한 한국어 모의상담으로 품질과 안전성을 먼저 판정한다. 통과 모델 하나만 더 낮은 실제 장비에서 측정하며, 지원 사양은 모델 revision, 실행 환경, 실제 장비와 측정 녹음량에 묶어서 제시한다.
-- 사양 미달이나 미확인만으로 Azure를 추천하거나 선택하지 않는다. Azure는 같은 음성의 품질과 처리시간, 기관 운영 부담, 키 관리와 외부 전송 동의를 검토한 뒤 Q가 채택 여부를 판단하는 후보다.
+- 먼저 Local과 Azure의 실제 어댑터, 오류 처리, 출력 비공개, S5 attempt·receipt·동의 경계를 구현한다. 기존 합성 5건의 사람 청취 미완료와 `independentSTT=BLOCKED_ACCESS` 상태는 역사·회귀 증거로만 보존하며 구현이나 운영자 본인의 비민감 로컬 기능 시험을 막지 않는다.
+- 운영자 본인의 목소리를 쓴 내부 시험은 제3자 음성이나 실제 당사자 자료를 쓸 권한을 만들지 않는다. 제품 동의, NER, signed registry와 실데이터 게이트도 면제하지 않는다.
+- 사람 모의상담 품질 비교, 단일 NVIDIA GPU VRAM 24GB급·시스템 RAM 64GB급 상한 후보와 하위 실제 장비 측정, 최소·권장 사양과 처리량 도출은 구현 뒤 품질 단계로 미룬다. 이 장비는 필수 구매 사양이나 확정 최소사양이 아니다.
+- Azure의 같은 음성 품질·처리시간, 기관 운영 부담, 키 관리와 외부 전송 동의 검토도 후속 품질·채택 단계다. 사양 미달이나 미확인만으로 Azure를 추천하거나 선택하지 않는다.
 - 기관이 채택 조건을 충족하지 못하거나 명시적으로 선택하지 않으면 STT `off`와 수기 기록을 제공한다. 수기 기록은 즉시 공식 기록이며, 별도로 허가받은 텍스트 AI까지 자동으로 끄지 않는다.
-- Local과 Azure 모두 기존 signed registry, health check, 개인정보 보호와 경로별 동의를 만족해야 한다. 설치 기본 `sttMode=off`, 승인 전 `sttEngine=null`, 사업자 자동 전환 금지는 유지한다.
 
 ### D78. 공통 코어와 런타임 포트 일곱 개
 
@@ -147,7 +149,7 @@ Local Single은 Electron + NSIS 설치기, Local Office는 서버 설치기와 �
 
 ## 열린 항목
 
-1. [S13 STT 검증 v2](../specs/S13-stt-qualification-v2.md)에 따라 기존 합성 5건을 먼저 검수하고, 사람 모의상담으로 상한 후보의 품질과 안전성을 비교한다. 통과 모델만 하위 실제 장비에서 사양과 처리량을 측정한다. Azure는 동일 음성 비교와 기관 적합성을 별도로 검토하며 Q 승인 전까지 설치 기본값은 `off`다.
+1. [S13 STT 검증 v2](../specs/S13-stt-qualification-v2.md)에 따라 Local Qwen과 Azure의 기능·오류·개인정보 계약을 먼저 구현한다. 기존 합성 5건은 역사·회귀 증거로 보존한다. 사람 모의상담 품질 비교, 하위 실제 장비 사양·처리량 측정과 Azure 기관 적합성은 후속 품질·채택 단계이며, 완료 전까지 설치 기본값은 `off`다.
 2. E2-8에서 목표 모델 검수 4건을 수행하고 Q 확인을 기록한다.
 3. 실데이터 게이트의 담당자, 마감, 증빙 위치와 각 모드의 실제 기능·법무 증거를 닫는다. Supabase 설치 전 상태 확인은 ADR-0042의 D84 read-only `plan`이 담당한다.
 

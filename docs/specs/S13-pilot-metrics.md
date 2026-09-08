@@ -1,7 +1,7 @@
 # S13: 파일럿 측정
 
 - 상태: **확정** (2026-09-02)
-- STT v2 범위: 2026-09-08 이후 새 사람 모의상담 기반 STT 자격 검증에는 [S13 STT 자격 검증 v2](./S13-stt-qualification-v2.md)가 이 문서의 STT fixture·후보 비교·장비 성능·provider 채택 절차만 부분 대체한다. 이 문서의 v1 합성 150건, 계산식·threshold, 과거 FAIL과 Windows CPU 기록, E11 감지 정확도·사용성·임팩트 규칙은 유지하며 소급 재판정하지 않는다.
+- STT v2 범위: 2026-09-08 이후 [S13 STT 자격 검증 v2](./S13-stt-qualification-v2.md)는 어댑터 구현을 사람 품질·하드웨어 실험보다 먼저 진행한다. 이 문서의 v1 합성 150건, 계산식·threshold, 과거 FAIL과 Windows CPU 기록은 역사·회귀 증거로 유지하고 소급 재판정하지 않는다. 사람 모의상담 기반 품질·장비 성능·provider 채택 절차는 구현 뒤 후속 단계다. E11 감지 정확도·사용성·임팩트 규칙은 그대로 유지한다.
 - 근거: `ADR-0035` D63~D68, `CCC_OPEN_PILOT_PLAN.md` §4·§5, GitHub Issue [#230](https://github.com/SocialSolidarityBank/CCC/issues/230). `ADR-0041` 발행 뒤 파일럿 모드 정책의 상위 정본으로 연결하되, 이 스펙의 확정과 구현 증거는 그 발행이나 런타임 결과를 기다리지 않는다.
 - 입력: `CCC_OPEN_PILOT_PLAN.md`, `docs/adr/0035-contest-scope-and-deployment-doors.md`, `apps/pipeline/README.md`, `apps/pipeline/ccc_pipeline/repetition.py`, `apps/pipeline/tests/test_repetition.py`, GitHub Issue #230
 - 산출: tracked fixture metadata `scripts/stt/fixtures/manifest.json`, `scripts/stt/fixtures/reference/{sessionId}.json`, `scripts/stt/fixtures/licenses.json`, fetched audio와 검증 증거 `artifacts/pilot/fixtures/s13-v1-verification.json`, `artifacts/pilot/answer-key/s13/detection-answer-key.json`, 티켓별 측정 결과와 `artifacts/pilot/reports/E11-5-pilot-impact-report.md`

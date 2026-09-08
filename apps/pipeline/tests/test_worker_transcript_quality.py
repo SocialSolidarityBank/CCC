@@ -13,7 +13,7 @@ from ccc_pipeline.repetition import REASON_REPETITION, RepetitionRun
 from ccc_pipeline.speaker_mapping import Segment, Turn
 from ccc_pipeline.transcribe import TranscriptionResult
 from ccc_pipeline.worker import process_audio_job
-from test_api_client_worker import audio_job, dictionary_client, make_config
+from test_api_client_worker import audio_job, dictionary_client, make_config, verified_audio_response
 
 
 def unreliable_transcription() -> TranscriptionResult:
@@ -34,6 +34,7 @@ def run_audio_job(client, transcription: TranscriptionResult, config) -> None:
         return dest
 
     client.download_audio.side_effect = fake_download
+    client.verify_audio.return_value = verified_audio_response()
     with (
         mock.patch("ccc_pipeline.worker.build_engine", return_value=mock.Mock()),
         mock.patch("ccc_pipeline.worker.transcribe_audio", return_value=transcription),

@@ -49,6 +49,20 @@ class BuildEngineTest(unittest.TestCase):
         self.assertIn("whisper", KNOWN_ENGINES)
         self.assertTrue(callable(build_engine("whisper", "medium")))
 
+    def test_qwen_is_a_lazy_local_engine_and_azure_is_not(self) -> None:
+        self.assertIn("qwen3-asr", KNOWN_ENGINES)
+        self.assertIn("azure", KNOWN_ENGINES)
+        engine = build_engine(
+            "qwen3-asr",
+            "Qwen/Qwen3-ASR-1.7B",
+            python_executable=sys.executable,
+            device="cpu",
+        )
+        self.assertTrue(callable(engine))
+        getattr(engine, "close")()
+        with self.assertRaisesRegex(ValueError, "transcribe_azure"):
+            build_engine("azure", "unused")
+
 
 class CandidateEngineTest(unittest.TestCase):
     def test_candidate_consumes_lazy_segments_and_reuses_loaded_model(self):

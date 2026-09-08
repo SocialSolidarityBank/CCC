@@ -30,7 +30,9 @@ logger = logging.getLogger("ccc_pipeline")
 ENGINE_OFF = "off"
 ENGINE_WHISPER = "whisper"
 ENGINE_FASTER_WHISPER = "faster-whisper-int8-cpu"
-KNOWN_ENGINES = (ENGINE_OFF, ENGINE_WHISPER, ENGINE_FASTER_WHISPER)
+ENGINE_QWEN = "qwen3-asr"
+ENGINE_AZURE = "azure"
+KNOWN_ENGINES = (ENGINE_OFF, ENGINE_WHISPER, ENGINE_FASTER_WHISPER, ENGINE_QWEN, ENGINE_AZURE)
 
 # 엔진: 오디오 파일 경로 → 전사 구간 목록(그 파일 기준 상대 시각).
 Engine = Callable[[str], list[Segment]]
@@ -49,10 +51,18 @@ class TranscriptionResult:
         return not self.warnings
 
 
-def build_engine(name: str, model_name: str) -> Engine:
-    """설정값으로 엔진을 만든다. 모델도 manifest에 고정된 항목만 허용한다."""
+def build_engine(
+    name: str,
+    model_name: str,
+    *,
+    python_executable: str | Path | None = None,
+    device: str = "cpu",
+) -> Engine:
+    """Build a local callable; cloud providers use their full-file adapters."""
     if name == ENGINE_OFF:
         raise ValueError("STT is disabled")
+    if name == ENGINE_AZURE:
+        raise ValueError("Azure STT uses transcribe_azure; it is not a local Engine")
     if name == ENGINE_FASTER_WHISPER:
         return _build_faster_whisper(model_name)
     if name == ENGINE_WHISPER:
@@ -61,6 +71,16 @@ def build_engine(name: str, model_name: str) -> Engine:
         except ModelRegistryError as error:
             raise ValueError("Whisper model is not declared in model manifest") from error
         return _build_whisper(model_name)
+    if name == ENGINE_QWEN:
+        try:
+            role_spec("qwen-asr", model_name)
+        except ModelRegistryError as error:
+            raise ValueError("Qwen model is not declared in model manifest") from error
+        if python_executable is None:
+            raise ValueError("Qwen requires a dedicated Python executable")
+        from .qwen_runtime import QwenEngine
+
+        return QwenEngine(python_executable, device)
     raise ValueError(f"unknown STT engine: {name!r} (known: {', '.join(KNOWN_ENGINES)})")
 
 

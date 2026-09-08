@@ -142,7 +142,7 @@ def _write_report(out: Path, report: dict) -> None:
 
 def _source_hashes() -> dict:
     paths = [*Path(__file__).parent.glob("*.py"), Path(__file__).with_name("benchmark-models.json"), ROOT / "supply-chain/model-license-manifest.json"]
-    paths += [ROOT / "apps/pipeline/ccc_pipeline" / name for name in ("transcribe.py", "chunking.py", "repetition.py", "model_registry.py")]
+    paths += [ROOT / "apps/pipeline/ccc_pipeline" / name for name in ("transcribe.py", "chunking.py", "repetition.py", "model_registry.py", "qwen_runtime.py")]
     return {str(path.relative_to(ROOT)): sha256_file(path) for path in sorted(paths) if path.is_file()}
 
 

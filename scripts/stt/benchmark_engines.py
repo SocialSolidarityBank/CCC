@@ -26,14 +26,19 @@ if str(PIPELINE_ROOT) not in sys.path:
 
 from ccc_pipeline.speaker_mapping import Segment  # noqa: E402
 from ccc_pipeline.transcribe import transcribe_audio  # noqa: E402
+from ccc_pipeline.qwen_runtime import (  # noqa: E402
+    QwenRuntimeError,
+    load_qwen,
+    prepare_qwen_models,
+    qwen_segments,
+    validate_qwen_device,
+)
 
 ENGINE_NAMES = ("faster-whisper", "qwen3-asr", "diarization")
 SESSION_ID = re.compile(r"^case-(\d{3})-session-(\d{2})$")
 MODEL_MANIFEST = Path(__file__).with_name("benchmark-models.json")
 MODEL_FILE_PATTERNS = {
     "Systran/faster-whisper-medium": ["config.json", "tokenizer.json", "vocabulary.txt"],
-    "Qwen/Qwen3-ASR-1.7B": ["*.json", "merges.txt", "vocab.json"],
-    "Qwen/Qwen3-ForcedAligner-0.6B": ["*.json", "merges.txt", "vocab.json"],
 }
 
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
@@ -151,6 +156,12 @@ def _import_torch() -> Any:
 def validate_device(engine: str, device: str, torch: Any | None = None) -> None:
     if engine == "faster-whisper" and device != "cpu":
         raise StartupError("device_unsupported")
+    if engine == "qwen3-asr":
+        try:
+            validate_qwen_device(device, torch)
+        except QwenRuntimeError as error:
+            raise StartupError(error.code) from None
+        return
     if device == "cpu":
         return
     torch = torch or _import_torch()
@@ -206,74 +217,8 @@ def _load_faster_whisper(snapshot: Path, threads: int) -> Callable[[str], list[S
     return infer
 
 
-def qwen_segments(results: object) -> list[Segment]:
-    if not isinstance(results, list) or len(results) != 1:
-        raise RequestError("sdk_output_invalid")
-    result = results[0]
-    text = getattr(result, "text", None)
-    timestamps = getattr(result, "time_stamps", None)
-    if text == "" and timestamps is None:
-        return []
-    if not isinstance(text, str) or timestamps is None:
-        raise RequestError("sdk_output_invalid")
-    aligned: list[tuple[int, int, float, float]] = []
-    cursor = 0
-    exact_text_mapping = True
-    try:
-        for item in timestamps:
-            item_text = item.text
-            start = float(item.start_time)
-            end = float(item.end_time)
-            if not isinstance(item_text, str) or not item_text or start < 0.0 or end < start:
-                raise ValueError
-            position = text.find(item_text, cursor)
-            if position < 0:
-                exact_text_mapping = False
-            else:
-                cursor = position + len(item_text)
-            aligned.append((position, cursor, start, end))
-    except (AttributeError, TypeError, ValueError) as error:
-        raise RequestError("sdk_output_invalid") from error
-    if not aligned:
-        if text:
-            raise RequestError("sdk_output_invalid")
-        return []
-    if not exact_text_mapping:
-        return [Segment(aligned[0][2], aligned[-1][3], text)]
-    return [
-        Segment(start, end, text[0 if index == 0 else position : aligned[index + 1][0] if index + 1 < len(aligned) else len(text)])
-        for index, (position, _, start, end) in enumerate(aligned)
-    ]
 
 
-def _load_qwen(snapshots: dict[str, Path], device: str, threads: int) -> Callable[[str], list[Segment]]:
-    torch = _import_torch()
-    torch.set_num_threads(threads)
-    from qwen_asr import Qwen3ASRModel
-
-    dtype = torch.float32 if device in ("cpu", "mps") else torch.bfloat16
-    device_map = "cuda:0" if device == "cuda" else device
-    model = Qwen3ASRModel.from_pretrained(
-        str(snapshots["Qwen/Qwen3-ASR-1.7B"]),
-        dtype=dtype,
-        device_map=device_map,
-        forced_aligner=str(snapshots["Qwen/Qwen3-ForcedAligner-0.6B"]),
-        forced_aligner_kwargs={"dtype": dtype, "device_map": device_map},
-        max_inference_batch_size=1,
-        max_new_tokens=4096,
-        local_files_only=True,
-    )
-
-    def infer(audio_path: str) -> list[Segment]:
-        results = model.transcribe(
-            audio=audio_path,
-            context="",
-            language="Korean",
-            return_time_stamps=True,
-        )
-        return qwen_segments(results)
-
-    return infer
 
 
 def _local_diarization_config(snapshots: dict[str, Path], output: Path) -> Path:
@@ -330,19 +275,31 @@ def load_engine(engine: str, device: str, threads: int, spec: dict[str, Any]) ->
         raise
     except Exception as error:
         raise StartupError("package_missing") from error
-    snapshots = prepare_models(spec["models"])
+    try:
+        snapshots = (
+            prepare_qwen_models(
+                spec["models"], snapshot_download=_snapshot_download, local_files_only=False,
+            )
+            if engine == "qwen3-asr"
+            else prepare_models(spec["models"])
+        )
+    except QwenRuntimeError as error:
+        code = "model_download_failed" if error.code == "model_snapshot_missing" else error.code
+        raise StartupError(code) from None
     try:
         metadata = _metadata(engine, spec, device, threads)
         if engine == "faster-whisper":
             model_engine = _load_faster_whisper(snapshots["Systran/faster-whisper-medium"], threads)
         elif engine == "qwen3-asr":
-            model_engine = _load_qwen(snapshots, device, threads)
+            model_engine = load_qwen(snapshots, device, threads)
         elif engine == "diarization":
             return LoadedWorker(engine, "turns", _load_diarization(snapshots, device, threads), metadata)
         else:
             raise StartupError("engine_invalid")
     except StartupError:
         raise
+    except QwenRuntimeError as error:
+        raise StartupError(error.code) from None
     except Exception as error:
         raise StartupError("model_load_failed") from error
 

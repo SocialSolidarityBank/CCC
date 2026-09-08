@@ -44,7 +44,7 @@ Community Cloud의 첫 설치 동작은 `plan`을 통한 read-only 사전 점검
 1. 관리자가 기관과 모드를 준비하고 역할·동의 영역을 설정한다.
 2. 실무자가 당사자와 케이스를 등록하고 상담 일정을 만든다.
 3. 실무자는 상담을 녹음하거나 수기 메모를 작성한다. 녹음하지 않아도 전체 기록 흐름을 사용할 수 있다.
-4. 녹음이 있고 STT가 선택·허용된 경우 Agent가 전사와 화자 분리를 수행한다. 감정 분석은 녹음 여부와 관계없이 보류한다. 수기 메모만 있는 회차는 전사 없이 텍스트 처리 경로로 간다.
+4. 녹음이 있고 STT가 선택·허용된 경우 Agent가 전사와 화자 분리를 수행한다. Local은 무음 경계로 나눈 Qwen 결과를 정렬한다. Azure client는 authorized attempt마다 원본 파일 send를 최대 한 번 시작하고 `diarization.enabled=true`, `maxSpeakers=2`로 받은 익명의 파일별 provider 화자 ID를 보존한다. 두 경로 모두 반복·출력 검사를 한다. 감정 분석은 녹음 여부와 관계없이 보류한다. 수기 메모만 있는 회차는 전사 없이 텍스트 처리 경로로 간다.
 5. Agent와 코어가 개인정보 마스킹, 준식별자 일반화, 근거 hash와 동의를 검증한다.
 6. 검증을 통과한 AI Packet만 OpenAI로 보내고, 생성된 초안은 이용 가능한 수기 메모와 전사를 실무자가 대조한다.
 7. 실무자가 AI 초안을 승인하면 그 초안이 공식 기록과 15초 페이지의 재료가 된다. 승인 전 초안은 브리핑·통계·보고서에 쓰지 않는다.
@@ -59,15 +59,18 @@ Community Cloud의 첫 설치 동작은 `plan`을 통한 read-only 사전 점검
 - LLM 선택지는 `off` 또는 `openai`다.
 - STT 선택지는 `off`, `local`, `azure`다.
 - 설치 직후 세 모드의 STT 기본값은 모두 `off`다.
-- `local`과 `azure`는 모두 기관 관리자가 provider를 명시적으로 선택하고 health check를 통과해야 한다. STT 검증 정본은 [S13 STT qualification v2](../docs/specs/S13-stt-qualification-v2.md)다. GPU 1대 VRAM 24GB급과 RAM 64GB급은 검증 상한 후보이지 필수 구매 사양이나 확정 최소 사양이 아니다. Local은 고정 후보의 품질·안전성을 먼저 비교하고 통과 모델 하나만 하위 실제 장비에서 측정한다. 지원 최소·권장 사양과 일일 처리량은 model revision, 실행 환경, 실제 장비와 측정 녹음량을 묶은 결과가 나오기 전에는 미확정이다.
-- 실패한 사업자에서 다른 사업자로 자동 전환하지 않는다. 사양 미달이나 미확인만으로 Azure를 권장하거나 선택하지 않는다. 채택 조건을 충족하지 못하거나 관리자가 명시적으로 선택하지 않으면 STT는 `off`이고 수기 기록 경로를 제공한다. 수기 기록은 즉시 공식 기록이며, 별도 허가된 텍스트 AI까지 자동으로 끄지는 않는다.
+- 구현 단계에서는 합성 입력과 운영자가 소유한 비민감 자기 목소리 녹음으로 Local Qwen과 Azure 어댑터의 기능·오류·개인정보 계약을 먼저 확인한다. 이는 제품 설정, signed registry 또는 실데이터 사용을 활성화하지 않는다. 자기 목소리 선언도 제3자 음성이나 실제 당사자 자료의 이용 권한, production 동의·NER를 면제하지 않는다.
+- 현재 Local 구현은 격리된 Python runtime의 로컬 공개 가중치 `Qwen/Qwen3-ASR-1.7B`와 `Qwen/Qwen3-ForcedAligner-0.6B` 원본 checkpoint를 쓴다. 취소된 Alibaba Cloud Token Plan을 호출하지 않으며 최고·보편적 최신 모델이라고 주장하지 않는다.
+- 사람 모의상담 품질·안전성, 하위 실제 장비 사양·처리량과 Azure 기관 적합성은 구현 뒤 후속 단계다. 실패한 사업자에서 다른 사업자로 자동 전환하지 않는다. 채택 조건을 충족하지 못하거나 관리자가 명시적으로 선택하지 않으면 STT는 `off`이고 수기 기록 경로를 제공한다. 수기 기록은 즉시 공식 기록이며, 별도 허가된 텍스트 AI까지 자동으로 끄지는 않는다.
 - LLM 또는 STT를 포함해 AI 처리를 켜면 모드와 관계없이 기관 PC에서 동작하는 처리 Agent 한 대가 필수다. Agent는 2차 마스킹과 필요한 STT 처리를 담당한다.
 
 ### 4.3 AI와 외부 서비스의 데이터 경계
 
 OpenAI에는 처리 Agent와 코어가 만든 **AI Packet만** 보낸다. AI Packet은 2단 마스킹을 거친 `MaskedSourceSnapshot`, 준식별자 일반화 결과, 근거 hash와 필요한 버전 정보로 구성한다. 실명, 연락처, 계좌, 등록되지 않은 식별 정보가 남아 있거나 마스킹·근거·동의 검증이 실패하면 OpenAI 호출은 0건이어야 한다. OpenAI 호출은 `store:false`를 사용한다.
 
-Azure Speech는 OpenAI와 다른 독립 후보 경로다. 로컬 장비의 사양 미달이나 Azure 키 존재만으로 Azure를 권장·선택·호출하지 않는다. 같은 사람 모의상담 파일의 품질·시간 비교, 기관 소유 구독과 비용 한도, 키 관리와 장애 대응 책임, 개인정보·외부 처리 동의 적합성의 증빙이 모두 있고 Q가 채택한 뒤에만 운영 선택지로 제공한다. 그 뒤에도 기관 관리자가 Azure STT를 **명시적으로 선택하고 provider health check를 통과시킨 뒤, 해당 외부 음성 처리에 대한 유효한 동의가 있을 때만** 처리 Agent가 원음 오디오를 Azure Speech의 서울 endpoint로 보낸다. 이 조건 중 하나라도 없으면 원음은 Azure로 이전하지 않는다. Azure가 선택된 경우에는 원음이 Azure endpoint로 이전될 수 있으므로, “원문은 어떤 경우에도 기관 밖으로 나가지 않는다”라고 표현하지 않는다. OpenAI에는 Azure로 보낸 원음이나 마스킹 전 원문을 보내지 않고 AI Packet만 보낸다.
+Azure Speech는 OpenAI와 다른 독립 경로다. `koreacentral`·`ko-KR`·`api-version=2025-10-15` endpoint에 authorized attempt마다 원본 파일의 client HTTP send를 최대 한 번 시작한다. 자동 client 재시도는 없으며 이는 Azure 내부 처리의 exactly-once 보장이 아니다. request definition에서 `diarization.enabled=true`, `maxSpeakers=2`를 지정해 익명의 파일별 provider 화자 ID를 받는다. 청크별 업로드, `audioUrl`, redirect와 다른 region·provider 전환은 없다. 반복·출력 검사는 Local과 Azure 모두 적용한다.
+
+제품 경로에서는 기관 관리자의 명시적 선택, provider health check, 유효한 외부 음성 처리 동의와 S5 egress authorization·attempt·receipt 경계를 모두 통과해야 원음을 보낸다. 내부 자기 목소리 시험의 업로드 허락은 실제 참가자, 제3자 오디오나 production job 동의를 대신하지 않는다. Azure가 선택되면 마스킹 전 원음이 Azure로 이전될 수 있으므로 “원문은 어떤 경우에도 기관 밖으로 나가지 않는다”라고 표현하지 않는다. OpenAI에는 원음이나 마스킹 전 원문이 아니라 검증된 AI Packet만 보내고 `store:false`를 유지한다.
 
 Azure 키는 Agent의 `SecretStore`에만 둔다. Community Cloud의 OpenAI 키는 Edge Function secret에 두고, Local의 호출 자격증명은 해당 Local `SecretStore` 경계에 둔다. 키를 브라우저, 데이터베이스, 로그, 화면 또는 다른 서비스에 복제하지 않는다.
 
@@ -128,15 +131,15 @@ Agent와 코어는 AI Packet을 이중 검증한다. 다음 일곱 상태에서�
 
 ## 6. AI 선택표
 
-STT 선택 조건과 측정 절차는 [S13 STT qualification v2](../docs/specs/S13-stt-qualification-v2.md)를 따른다. 이 문서의 승인만으로 provider 구현, 품질 통과, 지원 사양 확정 또는 STT 활성화가 완료되지는 않는다.
+STT는 어댑터 구현, 후속 품질·장비 검증, 제품 활성화를 분리한다. 단계별 정본은 [S13 STT qualification v2](../docs/specs/S13-stt-qualification-v2.md)다. 기존 합성 5건은 역사·회귀 증거이며 구현 선행조건이 아니다.
 
-| 축 | 선택지 | 설치 직후 | 실행·데이터 경계 | 선택 조건 |
-|---|---|---|---|---|
-| STT | `off` | 기본값 | STT와 원음 외부 전송 없음. 수기 기록 경로 제공 | 항상 선택 가능 |
-| STT | `local` | 비활성 | 기관 관리자가 선택하고 health check를 통과한 뒤 Agent가 처리 | 사람 모의상담 품질·안전성 통과, 선정 모델의 하위 실제 장비 측정과 지원 사양·처리량 근거, Q 승인, 기관 관리자 선택, provider health check |
-| STT | `azure` | 비활성 | Agent가 기관 관리자의 명시적 선택과 provider health check, 유효 동의 뒤 원음을 Azure Speech 서울 endpoint로 전송 | Azure adapter, 같은 사람 모의상담의 품질·시간 비교, 기관 구독·비용·키·운영 책임과 동의 적합성, Q 채택, 기관 관리자 선택 |
-| LLM | `off` | 기관이 선택 | 수기 기록과 승인만 사용 | 항상 선택 가능 |
-| LLM | `openai` | 기관이 선택 | 검증된 AI Packet만 전송, `store:false` | 기관 키, 마스킹·hash·버전·동의 검증, 처리 Agent PC |
+| 축 | 선택지 | 구현 경로 | 제품 활성화 조건 |
+|---|---|---|---|
+| STT | `off` | STT와 원음 외부 전송 없음. 수기 기록 경로 제공 | 항상 선택 가능하며 설치 기본값 |
+| STT | `local` | 격리된 Qwen3-ASR·ForcedAligner, Local 무음 청크·시각 보정·반복 검사 | 사람 모의상담 품질·안전성, 선정 모델의 실제 장비·처리량 근거, Q 승인, exact signed registry, 관리자 선택, health check |
+| STT | `azure` | `api-version=2025-10-15` 서울 endpoint에 authorized attempt당 원본 파일 client send 최대 1회, 익명의 파일별 provider 화자 ID, 반복·출력 검사 | 같은 사람 모의상담 품질·시간, 기관 구독·비용·키·운영 책임·외부 처리 동의, Q 채택, exact signed registry, 관리자 선택, health check |
+| LLM | `off` | 수기 기록과 승인만 사용 | 항상 선택 가능 |
+| LLM | `openai` | 검증된 AI Packet만 전송, `store:false` | 기관 키, 마스킹·hash·버전·동의 검증, 처리 Agent PC |
 
 Managed AI, CLOVA, RTZR, 로컬 LLM, Tauri, 기관 자체 클라우드는 이번 제품 범위의 선택지가 아니다. 해당 포트나 경계가 남아 있어도 운영 선택지로 열지 않는다.
 
@@ -198,9 +201,9 @@ Community Cloud는 기관 소유 Supabase 서울 프로젝트에서 다음 전�
 ### 8.4 세 모드 공통 완료
 
 - 세 모드 모두 같은 화면·API·권한·감사·fail-closed·AI 재료 규칙을 사용한다.
-- 설치 직후 `sttMode=off`이며, 선택한 provider가 [S13 STT qualification v2](../docs/specs/S13-stt-qualification-v2.md)의 해당 관문을 통과하고 Q가 승인하기 전 `sttEngine=null`이다. Local과 Azure의 관문은 서로를 대신하지 않는다.
-- STT 검증 완료에는 사용 허락과 독립 정답이 동결된 사람 모의상담, 상한 후보 장비의 Local 품질·안전성 비교, 선정 모델의 하위 실제 장비 반복 측정과 최소·권장 사양·처리량 근거가 필요하다. 측정하지 않은 장비의 지원 여부나 사양 수치를 확정하지 않는다.
-- Azure 완료는 Local 하향 측정과 별개다. 같은 모의상담의 품질·시간 비교, adapter 구현, 기관의 구독·비용·키 관리·장애 대응·동의 적합성, Q 채택과 관리자 명시 선택을 모두 확인한다. 문서 승인이나 Azure 키만으로 완료 또는 활성화 처리하지 않는다.
+- 설치 직후 `sttMode=off`이며 제품 품질·채택 관문과 Q 승인 전 `sttEngine=null`이다. 어댑터 구현과 운영자 본인의 비민감 기능 시험은 가능하지만 signed registry나 제품 선택지를 활성화하지 않는다.
+- Local의 사람 품질·안전성, 실제 장비·처리량 검증은 후속 단계다. 측정하지 않은 장비의 지원 여부나 사양 수치를 확정하지 않는다.
+- Azure 제품 활성화도 후속 단계다. 같은 모의상담 품질·시간, 기관의 구독·비용·키 관리·장애 대응·동의 적합성, Q 채택과 관리자 명시 선택을 모두 확인한다. 문서 승인, 어댑터 구현이나 Azure 키만으로 완료 처리하지 않는다.
 - AI를 켜면 기관 PC의 Agent가 없을 때 진행하지 않고 수기 기록 경로를 제공한다.
 - 일곱 fail-closed code 각각에서 외부 AI 호출이 0건이다.
 - 승인 전 AI 초안은 공식 기록으로 노출되지 않고, 수기 메모는 즉시 공식 기록이다.
@@ -209,7 +212,7 @@ Community Cloud는 기관 소유 Supabase 서울 프로젝트에서 다음 전�
 
 ## 9. 비기능 요구사항
 
-- **프라이버시:** OpenAI에는 AI Packet만 보낸다. Azure는 명시적 선택과 유효한 외부 음성 처리 동의가 있을 때만 원음을 서울 endpoint로 받는다. 모든 외부 AI 전송은 호출 위치의 키·동의·마스킹 경계를 따른다.
+- **프라이버시:** OpenAI에는 AI Packet만 `store:false`로 보낸다. Azure client는 S5 authorization·attempt·receipt, 명시적 선택과 유효한 외부 음성 처리 동의를 통과한 원본 파일 send를 attempt당 최대 한 번 시작하고 자동 재시도하지 않는다. 내부 자기 목소리 시험은 실제 참가자·제3자 오디오의 이용 권한이나 production 동의를 만들지 않는다.
 - **보안:** 키는 호출하는 곳에만 두며 코드, 문서, 로그, 브라우저 저장소와 테스트 fixture에 두지 않는다. 릴리스마다 시크릿 스캔 결과를 남긴다.
 - **복구:** 세 모드에서 새 장비 또는 서버 교체 복원을 완료하고 Recovery Kit와 `.cccx`를 확인한다.
 - **투명성:** AI 제안의 근거 회차와 원문 구간을 제공하고 승인·열람·변경을 감사 로그에 기록한다.
@@ -222,4 +225,4 @@ Community Cloud는 기관 소유 Supabase 서울 프로젝트에서 다음 전�
 
 실데이터는 해당 모드의 기능 게이트와 법무 게이트를 모두 통과하고 Q가 명시적으로 승인한 뒤에만 사용한다. 게이트가 닫히지 않은 기능이나 모드는 `미통과`로 표시하며, 2026-09-18 이후에도 미완 항목의 원래 티켓과 완료 기준을 유지한다. E12는 새 후속 범위에만 발행한다.
 
-STT 후보의 실제 품질, 지원 사양, 처리량과 운영 선택은 [S13 STT qualification v2](../docs/specs/S13-stt-qualification-v2.md)의 증거를 바탕으로 Q가 승인한다. 사람 녹음·독립 정답·허락, 하위 실제 장비, Azure adapter와 기관 적합성 중 남은 항목은 각각 미완 또는 미측정으로 구분하며 문서 승인으로 완료 처리하지 않는다. 목표 모델 검수 4건은 E2-8이 소유한다. 코드서명, Azure 자격, pyannote와 모델 라이선스, OpenAI DPA, 개인정보·동의 법무 게이트가 닫히지 않은 기능이나 모드는 `미통과`로 표시하고 실데이터를 넣지 않는다.
+STT 어댑터의 기능·오류·개인정보 계약을 먼저 구현한다. 후보의 실제 품질, 지원 사양, 처리량과 운영 선택은 후속 [S13 STT qualification v2](../docs/specs/S13-stt-qualification-v2.md) 증거를 바탕으로 Q가 승인한다. 기존 합성 5건은 역사·회귀 증거로 보존하고 과거 FAIL을 바꾸지 않는다. 목표 모델 검수 4건은 E2-8이 소유한다. 코드서명, Azure 자격, pyannote와 모델 라이선스, OpenAI DPA, 개인정보·동의 법무 게이트가 닫히지 않은 기능이나 모드는 `미통과`로 표시하고 실데이터를 넣지 않는다.
