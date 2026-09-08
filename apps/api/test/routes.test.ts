@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
 import {
   activateAiProviderConfiguration,
@@ -2166,26 +2167,26 @@ describe('API routes', () => {
     });
 
     try {
-      expect(() => resolveAiProviderAdapter({
+      await expect(resolveAiProviderAdapter({
         AI_PROVIDER_CONFIG: JSON.stringify({ ...TEST_PROVIDER_CONFIG, unsupported: true }),
-        CODEX_API_KEY: 'test-codex-key',
+        secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: 'test-codex-key' }),
         EXTERNAL_AI_CALLS_ENABLED: '1',
-      })).toThrow('ai_provider_unavailable');
+      })).rejects.toThrow('ai_provider_unavailable');
       for (const incompatibleConfig of [
         { registryVersion: 'phase1.v2' },
         { providerId: 'other-provider' },
         { adapterVersion: 'v2' },
       ]) {
-        expect(() => resolveAiProviderAdapter({
+        await expect(resolveAiProviderAdapter({
           AI_PROVIDER_CONFIG: JSON.stringify({ ...TEST_PROVIDER_CONFIG, ...incompatibleConfig }),
-          CODEX_API_KEY: 'test-codex-key',
+          secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: 'test-codex-key' }),
           EXTERNAL_AI_CALLS_ENABLED: '1',
-        })).toThrow('ai_provider_unavailable');
+        })).rejects.toThrow('ai_provider_unavailable');
       }
 
-      const { adapter, config } = resolveAiProviderAdapter({
+      const { adapter, config } = await resolveAiProviderAdapter({
         AI_PROVIDER_CONFIG: JSON.stringify(TEST_PROVIDER_CONFIG),
-        CODEX_API_KEY: 'test-codex-key',
+        secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: 'test-codex-key' }),
         EXTERNAL_AI_CALLS_ENABLED: '1',
       });
       expect(adapter).toBeInstanceOf(CodexProviderAdapter);
@@ -2212,20 +2213,20 @@ describe('API routes', () => {
     }
   });
 
-  it('keeps paid external AI calls off unless explicitly enabled', () => {
+  it('keeps paid external AI calls off unless explicitly enabled', async () => {
     for (const env of [
       {
         AI_PROVIDER_CONFIG: JSON.stringify(TEST_PROVIDER_CONFIG),
-        CODEX_API_KEY: 'test-codex-key',
+        secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: 'test-codex-key' }),
       },
       {
         AI_PROVIDER_CONFIG: JSON.stringify(TEST_PROVIDER_CONFIG),
-        CODEX_API_KEY: 'test-codex-key',
+        secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: 'test-codex-key' }),
         EXTERNAL_AI_CALLS_ENABLED: '0',
       },
     ]) {
       try {
-        resolveAiProviderAdapter(env);
+        await resolveAiProviderAdapter(env);
         throw new Error('expected paid external AI calls to remain disabled');
       } catch (error) {
         expect(error).toMatchObject({ reason: 'external_calls_disabled' });

@@ -19,6 +19,22 @@ from . import __version__
 
 USER_AGENT = f"ccc-pipeline/{__version__}"
 _TIMEOUT_SECONDS = 120
+# Wire codes from packages/contracts/src/agent-jobs.ts, never provider error text.
+_API_ERROR_CODES = frozenset({
+    "authentication_required", "forbidden", "job_not_found", "lease_expired",
+    "stale_claim", "consent_not_effective", "audio_object_missing",
+    "audio_hash_mismatch", "audio_deleted", "route_mismatch", "engine_unavailable",
+    "masking_snapshot_missing", "local_ner_unavailable", "registered_pii_detected",
+    "unmasked_identifier_detected", "evidence_hash_mismatch",
+    "masking_pipeline_version_mismatch", "dictionary_already_consumed",
+    "result_schema_invalid", "result_conflict", "retry_exhausted",
+})
+
+
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Credentials and claim bodies are valid only at the configured endpoint.
+        return None
 
 
 class ApiError(Exception):
@@ -53,6 +69,7 @@ class ApiClient:
         self._preview_access_code = preview_access_code
         self._preview_token: str | None = None
         self._preview_token_expires_at = 0.0
+        self._opener = urllib.request.build_opener(_RejectRedirects())
 
     def _unlock_preview(self) -> str:
         if self._preview_access_code is None:
@@ -108,17 +125,18 @@ class ApiClient:
 
     def _open(self, request: urllib.request.Request):  # noqa: ANN202 — http.client.HTTPResponse
         try:
-            return urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS)
+            return self._opener.open(request, timeout=_TIMEOUT_SECONDS)
         except urllib.error.HTTPError as error:
-            # 본문에서 서버 오류 코드(JSON error 필드)만 추린다 — 전사·PII가 섞일 수 있는
-            # 원문 전체를 예외 메시지로 올리지 않는다 (R3).
+            # Accept only protocol codes; an upstream error may echo credentials.
             detail = "unknown"
             try:
                 payload = json.loads(error.read().decode("utf-8"))
-                if isinstance(payload, dict) and isinstance(payload.get("error"), str):
+                if isinstance(payload, dict) and isinstance(payload.get("error"), str) and payload["error"] in _API_ERROR_CODES:
                     detail = payload["error"]
             except Exception:  # noqa: BLE001 — 본문이 JSON이 아니면 상태 코드만 보고한다
                 pass
+            finally:
+                error.close()
             raise ApiError(error.code, detail) from None
 
     # ------------------------------------------------------------------

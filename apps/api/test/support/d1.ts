@@ -8,6 +8,7 @@ import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import type { Actor } from '@ccc/core/gateway';
 import { createD1Database } from '@ccc/db-d1';
 import { createR2AudioStore } from '@ccc/audio-r2';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import type { ApiEnv } from '@ccc/http-api/identity';
 const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
@@ -185,7 +186,7 @@ export async function createD1TestContext(
     bucket,
     env: {
       DB: createD1Database(db),
-      PII_ENC_KEY: TEST_PII_KEY,
+      secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: TEST_PII_KEY }),
       audioStore: createR2AudioStore(bufferStreamPuts(bucket)),
     },
     dispose: async () => {

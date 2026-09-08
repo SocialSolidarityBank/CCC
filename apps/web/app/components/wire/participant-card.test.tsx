@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { ParticipantCard } from './participant-card';
@@ -132,5 +134,17 @@ describe('ParticipantCard', () => {
     expect(container.querySelector('.wire-badge')?.textContent).toBe('종결');
     expect(container.querySelector('a')?.getAttribute('aria-label'))
       .toBe('otter-001, 참여 사업 0개, 종결');
+  });
+
+  // 767 이하에서 일정 카드의 유형·상태 배지는 정보 전체 아래로 내려간다(2026-09-08 Q).
+  // 렌더 위치는 브라우저 실측(align-assertions)이 보고, 여기서는 계약이 CSS 에 살아 있는지 잠근다.
+  it('일정 카드 배지는 767 이하에서 정보 아래 줄로 내려간다', () => {
+    const source = readFileSync(resolve(process.cwd(), 'app/components/wire/wire-styles.ts'), 'utf8');
+    const mobile = source.slice(source.indexOf('@media(max-width:767px)'));
+    expect(mobile).toContain('.participant-card[data-variant="schedule"] .participant-card-header{display:contents}');
+    expect(mobile).toContain('.participant-card[data-variant="schedule"] .participant-card-badges{order:1');
+    expect(mobile).toContain('justify-content:flex-start');
+    // 데스크톱은 우상단 자리를 그대로 쓴다.
+    expect(source).toContain('.participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}');
   });
 });

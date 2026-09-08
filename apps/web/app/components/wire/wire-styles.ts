@@ -51,6 +51,7 @@ export const wireStyles = `
    순서로 지기 때문이다(.wire-row.schedule-candidate-row 와 같은 처리). */
 .wire-bullets.notice-list,.wire-bullets-single.notice-list{font-size:var(--text-sm);color:var(--sub)}
 .notice-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+.notice-actions[data-compact="true"]{gap:var(--space-2)}
 /* 자동 저장 상태 한 줄, 카드 밖 플랫 텍스트. 보조 정보라 400 이다(2026-08-07 짝 통일). */
 .notice-status{margin:0;font-size:var(--text-sm);font-weight:400;color:var(--sub)}
 /* ── 당사자 카드 ── 일정과 당사자 목록은 이름·ID·우상단 배지·정보 행의 공통 골격을 쓴다.
@@ -84,6 +85,11 @@ export const wireStyles = `
 /* 배지는 두 화면 모두 같은 우상단 자리다. 지난 일정만 유형 옆에 상태 배지가 하나 더 붙는다. */
 .participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}
 @media(max-width:767px){
+  /* 일정 카드의 유형·상태 배지는 767 이하에서 정보 전체 아래로 내려간다(2026-09-08 Q,
+     HERO 의 배지 하단 배치 규칙을 목록 카드에 적용). header 를 display:contents 로 풀어
+     이름 묶음과 배지가 카드 격자에 직접 앉고, order 로 배지만 마지막 줄로 보낸다. */
+  .participant-card[data-variant="schedule"] .participant-card-header{display:contents}
+  .participant-card[data-variant="schedule"] .participant-card-badges{order:1;margin-left:0;justify-content:flex-start}
   /* 목록 변형만: 참여 사업·연락처 두 쌍이 한 줄에 선다(라벨은 글자 폭). 일정 변형은
      상담 일시 값(약 175px)이 길어 두 쌍이 한 줄에 못 서므로 세로 2행 그대로다
      (2026-09-06 Q 모바일 정리). */
@@ -148,9 +154,11 @@ details.surface-card[open]>.record-summary .wire-badge,
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 새로 편입된 일정 날짜 아코디언(2026-08-28)의 이름 목록·건수도 채운 면 글자다
-   (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다). */
+   (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다).
+   건수와 이름을 가르는 세로선도 채운 면 전용 선색으로 넘어간다(2026-09-08 Q). */
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-names,
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-count{color:var(--on-action)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-names{border-left-color:var(--line-on-action)}
 /* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
    밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
    따라온다(2026-08-09 — 구 손 계산 16/20 대체). 회차 카드(.record-summary)는 카드에 패딩이
@@ -274,42 +282,27 @@ details.surface-card[open]>.record-summary .wire-badge,
 /* ParticipantHeroCard (D38 · DESIGN.md §5): 당사자 중심 화면의 공통 머리.
    .page-header(flex) + .surface-card(카드 계약) 위에 안쪽 구조만 정한다.
    브리핑도 이 부품을 쓴다(2026-08-05 컴포넌트화 — 구 .briefing-hero 손 마크업 삭제). */
-/* 기본 골격은 2행이다. 1행 = 이름·태그(좌) + 버튼(우), 구분선 아래 2행 = 연락처·메타.
-   좁아지면 버튼 묶음이 통째로 이름 아래 줄로 내려간다. 767 이하는 내용 크기의 버튼을
-   가로로 모아 자연스럽게 줄바꿈하고 카드 폭에 맞춰 늘리지 않는다. */
-/* gap 24 = 세로 패딩과 같은 값 — 1행(이름)·2행(정보)이 아웃라인과 구분선 사이
-   정중앙에 선다(2026-08-07 Q 9차, 구 16 은 위 24/아래 16 비대칭).
-   **최소 높이는 정보 격자 변형에만 건다**(2026-09-04 Q, 구 전 변형 177). 메타 한 줄 변형은
-   자연 높이가 152.7 이라 177 을 강제하면 남는 24.31 이 두 gap 으로 흘러 위 계약이 깨진다
-   (구획 위 24 · 아래 36.2 실측). 격자 변형은 자연 높이가 177 이라 값이 그대로 산다. */
-.participant-hero-card{flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
+/* 가로선 위에는 이름과 버튼만, 아래는 라벨과 값의 정보 격자를 둔다.
+   좁아지면 버튼 묶음은 이름 아래에서 자연스럽게 줄바꿈하며 폭을 늘리지 않는다.
+   바깥 gap 24는 세로 패딩과 같고, 정보 격자 최소 높이 177을 넘으면 내용만큼 자란다. */
+.participant-hero-card{container-type:inline-size;flex-direction:column;align-items:stretch;padding:var(--space-6);gap:var(--space-6)}
 .participant-hero-card:has(.participant-hero-details){min-height:var(--participant-hero-min-height)}
 .participant-hero-top{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4) var(--space-5);flex-wrap:wrap;min-width:0}
 .participant-hero-divider{height:0;margin:0 calc(var(--space-6) * -1);border:0;border-top:1px solid var(--line)}
 .participant-hero-title{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-width:0;margin:0;font-size:var(--text-lg);font-weight:600;line-height:var(--leading-tight);color:var(--ink)}
-/* HERO 의 '상담 준비' 태그도 .wire-status-tag 하나를 쓴다(2026-08-07 통합 — 구
-   .participant-hero-stage 는 같은 선언의 복사본이라 삭제. 알약·400 재개정은 2026-08-06 Q,
-   레시피는 아래 .wire-status-tag 가 소유한다). 줄바꿈 금지만 HERO 한정으로 남긴다. */
-.participant-hero-title .wire-status-tag{white-space:nowrap}
-.participant-hero-meta{margin:0;color:var(--sub);font-size:var(--text-sm)}
-/* 당사자 정보 허브의 라벨형 정보 격자. 세 칸을 기본으로 쓰고 항목이 늘면 다음 줄로 흐른다.
-   라벨과 값은 WireField(stack, sm)가 14/600 민트 + 14/400 잉크 계약으로 만든다. */
+.participant-hero-info{display:grid;gap:var(--space-4);min-width:0}
+/* 모든 HERO 정보는 당사자 정보 허브와 같은 격자다.
+   WireField(stack, sm)가 라벨 14/600과 값 14/400을 담당한다. */
 .participant-hero-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-5) var(--space-6);min-width:0}
-/* 기존 한 줄 메타의 연락처는 이름을 보조하는 14/400 --sub 값이다. */
-.participant-hero-contact{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);white-space:nowrap}
-/* 767 이하도 이름 크기는 데스크톱과 같다(row 16, hero·hub 18. 2026-08-27 두 단 분리로
-   구 '모바일 18 강제'가 무의미해짐). 정보와 메타는 설명 단으로 정리한다. */
+/* 뷰포트가 아니라 카드의 실제 내부 폭으로 패드의 좁은 본문도 함께 전환한다. */
 @media(max-width:767px){
-  .participant-hero-card{min-height:0}
+  .participant-hero-card:has(.participant-hero-details){min-height:0}
   .participant-hero-title{gap:var(--space-2)}
+}
+@container (max-width:760px){
   .participant-hero-details{grid-template-columns:minmax(0,1fr);gap:var(--space-2-5)}
-  /* 767 이하는 3열 격자 대신 당사자 카드 정보 행과 같은 80px 라벨 격자다(라벨 왼쪽, 값 오른쪽).
-     2×N 격자를 안 쓰는 이유: 이메일 값이 147px 열에 안 들어간다(2026-09-06 Q 모바일 정리). */
-  .participant-hero-details>.wire-field-row[data-layout="stack"]{grid-template-columns:80px minmax(0,1fr);gap:var(--space-2-5);align-items:center}
-  /* 메타 한 줄은 세로 3줄 고정이 아니라 줄바꿈 가로 묶음이다(가로 16, 세로 4). 구분선은
-     아래 줄이 끄므로 줄 첫머리에 선이 남지 않는다(2026-09-06 Q 모바일 정리). */
-  .participant-hero-meta .wire-meta-row{flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
-  .participant-hero-meta .wire-meta-row>span+span{border-left:0;padding-left:0}
+  /* 라벨은 여러 줄인 값의 첫 행에 맞춘다. */
+  .participant-hero-details>.wire-field-row[data-layout="stack"]{grid-template-columns:80px minmax(0,1fr);gap:var(--space-2-5);align-items:start}
 }
 /* 목록 아래 안내 한 줄. 본문 흐름의 보조 정보라 14/400 --sub 다. */
 .note-inline{color:var(--sub);font-size:var(--text-sm)}
@@ -678,6 +671,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    이미 만들어 라벨 굵기가 물러선다. 기본(민트 deep) 라벨은 600 그대로다(§9 deep 은 600에서만). */
 .wire-field-row[data-tone="sub"]>.wire-field-label{color:var(--sub);font-weight:400}
 .wire-field-row[data-tone="blue"]>.wire-field-label{color:var(--blue-deep);font-weight:600}
+.wire-field-row[data-tone="lavender"]>.wire-field-label{color:var(--lavender-deep);font-weight:600}
 .wire-field-value{min-width:0;color:var(--ink);font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);overflow-wrap:anywhere}
 .wire-field-row[data-truncate="true"]>.wire-field-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* size sm: 값을 라벨과 같은 14 로 내린다 — 제목(18)과의 대비를 키우는 카드 전용 단(2026-08-22 Q). */
@@ -895,6 +889,12 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    열 간격 24는 컨트롤과 글자 사이 6보다 네 배 넓어 어느 글자가 어느 상자의 것인지 갈린다. */
 .wire-choice-group,.wizard-choice-row{display:flex;flex-wrap:wrap;gap:0 var(--space-6)}
 .wire-choice-group[data-layout="stack"]{flex-direction:column;gap:0}
+@media(max-width:767px){
+  .wire-choice-group[data-radio-layout]>.wire-choice{min-width:0;max-width:100%}
+  .wire-choice-group[data-radio-balanced]{justify-content:flex-start}
+  .wire-choice-group[data-radio-balanced]>[data-radio-break]{flex:0 0 100%;height:0}
+  .wire-choice-group[data-radio-measuring]>.wire-choice{flex:0 0 auto;width:max-content;max-width:none}
+}
 /* 라디오(§5): 체크박스와 같은 계약이고 모양만 원형이다. 선택 표시는 가운데 --ink 점.
    체크박스와 같은 이유로 ::after 가 아니라 background 로 그린다(input 은 replaced element). */
 .wire-radio{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
@@ -1078,14 +1078,6 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-badge.wire-required-marker{--wire-outline-color:var(--lavender-deep);background:transparent;color:var(--lavender-deep)}
 /* 리스크 배지: 확인된 리스크·오류 상태 전용(D9 리스크 색 독점의 허용 자리, 구 .status.risk). */
 .wire-badge[data-tone="risk"]{--wire-outline-color:var(--risk);background:var(--risk);color:var(--on-badge)}
-/* 상태 태그: 기본은 neutral이고 AI 산출과 승인 대기 낱말만 lavender다.
-   높이와 패딩과 글자는 전역 배지 계약을 함께 쓴다. */
-.wire-status-tag{display:inline-flex;align-items:center;justify-content:center;line-height:normal;height:var(--badge-height);padding:0 var(--space-2);border:1px solid var(--sub);border-radius:var(--radius-pill);background:transparent;font-size:var(--text-badge);font-weight:400;color:var(--ink)}
-/* 상태 태그 색 계열(D61 ② 개정, CCC-106): AI 산출·승인 대기 낱말(D58 ④)만
-   라벤더로 연다. 다섯 계열을 미리 다 칠하지 않는다(쓰는 것만 연다). 글자는 배지와 같은
-   레시피로 --ink 그대로 두고 테두리·배경만 계열을 바꾼다. 변수 자체가 테마 토큰이라
-   다크(D56)에서 별도 선언 없이 함께 뒤집힌다. */
-.wire-status-tag[data-tone="lavender"]{border-color:var(--lavender-deep);background:var(--lavender-tint)}
 /* 체크박스(§5): 18px · radius 4 · --gradient-deep 1px 테두리. 리스크 변형은 테두리만 --risk. */
 .wire-checkbox{flex:none;width:18px;height:18px;appearance:none;-webkit-appearance:none;margin:0;padding:0;border:1px solid transparent;border-radius:var(--radius-xs);background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--gradient-deep) border-box;cursor:pointer}
 /* 리스크 변형: 테두리만 --risk 로 바꾼다(2026-07-26 Q 결정). 나머지는 기본과 같다.

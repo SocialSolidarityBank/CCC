@@ -37,6 +37,22 @@ describe('WireFormField', () => {
     expect(label?.querySelector('input')).not.toBeNull();
   });
 
+  it('카드 제목이 입력 이름을 맡으면 중복 라벨 없이 설명과 입력을 유지한다', () => {
+    const title = '담당 실무자 의견';
+    const { getByRole, getAllByText, getByText } = render(
+      <>
+        <h2 id="opinion-title">{title}</h2>
+        <WireFormField label={title} hideLabel hint="실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.">
+          <textarea aria-labelledby="opinion-title" />
+        </WireFormField>
+      </>,
+    );
+
+    expect(getByRole('textbox', { name: title })).toBeTruthy();
+    expect(getAllByText(title)).toHaveLength(1);
+    expect(getByText('실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.')).toBeTruthy();
+  });
+
   it('필수는 라벨 옆 12/400 전역 아웃라인 배지로, 오류는 테두리와 메시지를 함께 낸다', () => {
     const { container } = render(
       <WireFormField label="연락처" required htmlFor="phone" error="숫자만 입력하세요.">

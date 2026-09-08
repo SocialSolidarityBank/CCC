@@ -34,7 +34,7 @@ export function ActionItemFields({ index }: { index: number }) {
         value={description}
       />
     </WireFormField>
-    {showError ? <p className="wire-field-error" id={errorId} role="alert">기한을 지정하려면 액션 아이템 내용을 입력하세요.</p> : null}
+    {showError ? <p className="wire-field-error record-writing-help" id={errorId} role="alert">기한을 지정하려면 액션 아이템 내용을 입력하세요.</p> : null}
     <div className="wire-form-grid">
       <WireFormField label="담당" control="select" htmlFor={`action-owner-${index}`}>
         <select id={`action-owner-${index}`} name={`actionOwner${index}`} defaultValue="counselor">
@@ -54,7 +54,7 @@ export function ActionItemFields({ index }: { index: number }) {
         />
       </WireFormField>
       {/* 날짜 도움말은 좁은 2열 칸에서 줄바꿈하므로 그리드 전폭 한 줄로 내린다(2026-08-29 Q). */}
-      <span className="wire-form-hint wire-form-grid-hint" id={`action-due-date-${index}-hint`}>{dateTextHint('2026-08-05')}</span>
+      <span className="wire-form-hint wire-form-grid-hint record-writing-help" id={`action-due-date-${index}-hint`}>{dateTextHint('2026-08-05')}</span>
     </div>
   </fieldset>;
 }

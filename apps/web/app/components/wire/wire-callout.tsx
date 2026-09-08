@@ -25,6 +25,8 @@ export interface WireCalloutProps {
   items?: ReactNode[];
   /** 행동 버튼 줄. 안내줄의 버튼은 세컨더리 이하만 쓴다(프라이머리는 화면 주 행동 몫, §4-5). */
   actions?: ReactNode;
+  /** 이어쓰기와 새로 시작처럼 한 선택을 이루는 행동 쌍은 8px 간격이다. */
+  compactActions?: boolean;
   tone?: WireCardTone;
   /** 상태 알림이면 "status", 즉시 주의가 필요하면 "alert". */
   role?: 'status' | 'alert';
@@ -34,7 +36,7 @@ export interface WireCalloutProps {
   labelledBy?: string;
 }
 
-export function WireCallout({ title, children, items, actions, tone = 'info', role, testId, titleId, labelledBy }: WireCalloutProps) {
+export function WireCallout({ title, children, items, actions, compactActions = false, tone = 'info', role, testId, titleId, labelledBy }: WireCalloutProps) {
   // exactOptionalPropertyTypes: 없는 슬롯은 undefined 대신 키를 뺀다(레포 공통 패턴).
   return (
     <WireCard
@@ -47,7 +49,7 @@ export function WireCallout({ title, children, items, actions, tone = 'info', ro
       <p className="notice-title" id={titleId}>{title}</p>
       {children !== undefined && <p className="notice-desc">{children}</p>}
       {items !== undefined && items.length > 0 && <WireBullets items={items} className="notice-list" />}
-      {actions !== undefined && <div className="notice-actions">{actions}</div>}
+      {actions !== undefined && <div className="notice-actions" data-compact={compactActions ? 'true' : undefined}>{actions}</div>}
     </WireCard>
   );
 }

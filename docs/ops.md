@@ -32,7 +32,7 @@
 - 데이터 원천(추가): 대기 건수는 두 큐 합산이다 — 오디오 큐(`sessions`: `uploaded`·`processing` + 오디오 등록)와 텍스트 일감 큐(`ai_text_work_queue`: `pending`·`processing` — 임대(0036)가 만료된 채 멈춘 행도 미완료로 센다). 가장 오래된 대기 작업의 대기 시간(오디오는 `updated_at`, 텍스트는 `enqueued_at`)과 가장 최근 완료 시각(`recording_result_commits.finalized_at` · `ai_text_work_queue.completed_at`)도 함께 본다. 전부 집계 SELECT(읽기 전용)다.
 - 판정: 마지막 폴링이 임계값(`PIPELINE_STALE_HOURS`, 기본 6시간)을 넘으면 `stale`(`poll_overdue`). 대기 작업(두 큐 합산)이 있는데 폴링 이력 자체가 없어도 `stale`(`never_polled`). **폴링이 최신이어도** 가장 오래된 대기 작업이 큐 적체 임계값(`PIPELINE_QUEUE_STALE_HOURS`, 미설정이면 `PIPELINE_STALE_HOURS`와 동일)을 넘게 묵으면 `stale`(`queue_backlog`) — 장비가 폴링만 하고 일을 끝내지 못하는 장애를 잡는다. 폴링 이력·대기 작업이 모두 없으면 `inactive`(알림 안 함). 사유 목록은 응답·알림·감사의 `staleReasons`에 실린다.
 - 조회 경로: `GET /pipeline/health`(관리자 전용). 계약은 `docs/api-contract-pipeline.md` 참고.
-- 알림: `console.error("[WATCHDOG ALERT] …")`는 항상 남고(`wrangler tail`로 확인), `NOTIFY_WEBHOOK_URL` 시크릿이 설정되면 그 주소로 `{"text": ...}` JSON을 POST한다(Slack/Discord incoming webhook 호환). 발송 실패는 로그만 남기고 삼킨다 — 채널 장애가 cron을 죽이지 않는다. 채널 추가는 `apps/api/src/notify.ts`의 `notifyAdmins` 한 곳에만 붙인다.
+- 알림: `console.error("[WATCHDOG ALERT] …")`는 항상 남고(`wrangler tail`로 확인), `NOTIFY_WEBHOOK_URL`이 설정되면 그 주소로 `{"text": ...}` JSON을 POST한다(Slack/Discord incoming webhook 호환). HTTPS 주소만 허용하며 리다이렉트는 따라가지 않는다. 키 조회나 발송이 실패해도 값 없는 로그만 남기고 cron은 계속된다. 채널 추가는 `packages/core/src/notify.ts`의 `notifyAdmins` 한 곳에만 붙인다.
 - 감사: 조직별 점검마다 `watchdog_check`(`actor_id=system:watchdog`, `actor_role=service`).
 
 시간 비교 주의: `audit_log.created_at`은 SQLite `datetime('now')` 형식(`'YYYY-MM-DD HH:MM:SS'`, UTC, 타임존 접미사 없음)이다. JS `Date`는 공백 구분 문자열을 로컬 시간으로 해석하므로, gateway는 `'T'`+`'Z'`를 붙여 UTC로 강제 파싱한 뒤 `Date.now()`와 비교한다.
@@ -69,6 +69,19 @@
 세 값(`AI_PROVIDER_CONFIG`·`CODEX_API_KEY`·`EXTERNAL_AI_CALLS_ENABLED=1`)이 **함께** 있어야 사업자 호출이 열린다. `EXTERNAL_AI_CALLS_ENABLED=1`은 유료 실호출을 별도로 승인받은 배포에만 둔다. 키 등록은 값이 stdout 에 닿지 않는 경로로만 한다: `wrangler secret put CODEX_API_KEY --env production < 파일`.
 
 PII 파기 유예기간은 `organization_settings.pii_purge_grace_days`에 조직별로 저장한다. 값이 없거나 유효하지 않으면 종결·파기 예약을 fail closed하며, 코드에서 기본 기간을 추정하지 않는다. 내부 규정 확정 후 각 조직 설정을 명시적으로 등록한다(8장 미결).
+
+### 런타임 키 읽기 경계 (CCC-225)
+
+키 이름과 배포 주입 방식은 위 표를 유지한다. Workers의 `apps/api/src/index.ts`는 원시 키 필드를 런타임 환경에서 빼고 `adapters/secrets-env`의 읽기 전용 `secretStore`를 주입한다. 금고, AI 호출, 알림, capability 판정은 `get`을 기다린 뒤 결과를 사용한다. `resolveAiProviderAdapter`도 비동기 함수다.
+
+`packages/contracts/src/runtime.ts`의 `SecretStore.get`은 이름을 받아 `Promise<string | null>`을 반환한다. 코어에는 `CoreSecretStore` 타입으로 세 이름만 허용한다. 플랫폼 키와 전체 키 타입 참조는 `pnpm guard:core-imports`가 거부한다. Python Agent 키는 이 포트에 포함하지 않는다.
+
+env 어댑터는 주입 객체의 자체 속성만 읽고, 누락값과 공백뿐인 값은 `null`로 돌려준다. 값이 있으면 원문을 보존한다. 잘못된 이름이나 타입은 `secret_invalid`, 읽기 실패는 `secret_access_denied`이며 공급자 원문 오류를 전달하지 않는다. PII 키 누락은 작업을 중단하고, 알림 URL 누락은 기존 console 폴백을 쓴다. capability 응답에는 키 값이 아니라 존재 여부에 따른 기능 상태만 담는다.
+
+OpenAI 어댑터의 키는 런타임 비공개 필드에 두므로 객체 JSON 출력에 포함되지 않는다. 처리 Agent는 인증 요청의 리다이렉트를 거부하고 서버 오류를 계약에 있는 코드만으로 정규화한다. 설정 객체의 일반 출력에는 자격증명을 제외하며 `--once` 폴링 실패도 고정 문구와 종료 코드 1만 반환한다. `vars`나 `dataclasses.asdict`로 설정 전체를 내보내는 것은 안전한 진단 기능이 아니므로 사용하지 않는다. 이 보호는 프로세스 메모리 덤프나 외부 도구의 로그까지 안전하게 만드는 것은 아니다.
+이 어댑터는 합성 개발 실행과 provider secret injection용이다. 정식 Local/Agent 설치의 DPAPI, 키 쓰기, recovery는 구현하지 않으며 각각의 후속 티켓이 소유한다. 기존 preview 접근 코드는 E4-4a의 정본 이름 목록 밖이므로 이번 변경에 포함하지 않는다.
+
+포트와 PII/Workers 통합 검증은 `pnpm test:contracts --secrets-env`로 실행한다. 실제 키 대신 합성값만 사용한다.
 
 ## 문서·마이그레이션 일련번호 (`pnpm guard:doc-numbers`, 2026-08-01 신설)
 

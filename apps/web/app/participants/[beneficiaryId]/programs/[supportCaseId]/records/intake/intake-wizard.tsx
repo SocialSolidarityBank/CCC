@@ -318,6 +318,8 @@ function QuestionField(props: {
   question: IntakeQuestion;
   value: AnswerDraft;
   onChange: (next: AnswerDraft) => void;
+  /** 한 문항의 라벨과 카드 제목이 같을 때 제목을 접근성 이름으로 재사용한다. */
+  labelledBy?: string;
   /**
    * 아직 안 채운 필수 칸을 **칸에서** 알린다(2026-08-09 Q "컴포넌트에 직접 경고 박스").
    * 켜지는 시점은 완료를 눌러 본 뒤다 — 처음부터 켜면 45문항이 전부 빨갛게 서서
@@ -325,16 +327,17 @@ function QuestionField(props: {
    */
   invalid?: boolean;
 }) {
-  const { question, value, onChange, invalid = false } = props;
+  const { question, value, onChange, invalid = false, labelledBy } = props;
 
   if (question.kind === 'select') {
     // 공용 입력칸 부품을 쓴다(2026-08-07 Q 11차 "선택창 V 여백 안맞음" — 맨몸 select 는
     // §5 계약(네이티브 화살표 끄고 꺽쇠를 우측 12 에 직접 그림)을 벗어나 브라우저 기본
     // V 가 제멋대로 앉았다. 등록 폼과 같은 WireFormField(control select)로 고친다).
     return (
-      <WireFormField label={question.label} control="select" required invalid={invalid}>
+      <WireFormField label={question.label} hideLabel={labelledBy !== undefined} control="select" required invalid={invalid}>
         <select
-          aria-label={question.label}
+          aria-label={labelledBy === undefined ? question.label : undefined}
+          aria-labelledby={labelledBy}
           data-answer-key={question.key}
           value={optionFromDraft(value)}
           onChange={(event) => onChange(draftFromOption(event.target.value))}
@@ -364,12 +367,12 @@ function QuestionField(props: {
     // 어느 질문의 것인지 가려지지 않는다(WireChoice 의 ariaLabel).
     return (
       <div className="wizard-field" data-answer-key={question.key}>
-        <span className="wire-form-label" id={`intake-${question.key}-label`}>
+        {labelledBy === undefined ? <span className="wire-form-label" id={`intake-${question.key}-label`}>
           {question.label} <WireRequiredMarker />
-        </span>
+        </span> : null}
         {/* 여러 개 고르기는 입력 상자가 없어 WireFormField 의 invalid 를 빌릴 수 없다.
             보기 줄 자체가 경고 상자가 되고, 보이는 질문과 필수 표식이 그룹의 접근성 이름이다. */}
-        <div className="wizard-choice-row" data-invalid={invalid ? 'true' : undefined} role="group" aria-labelledby={`intake-${question.key}-label`}>
+        <div className="wizard-choice-row" data-invalid={invalid ? 'true' : undefined} role="group" aria-labelledby={labelledBy ?? `intake-${question.key}-label`}>
           {(question.options ?? []).map((option) => (
             <WireChoice
               key={option}
@@ -388,11 +391,12 @@ function QuestionField(props: {
   const answered = value.response === 'answered';
   return (
     <div className="wizard-field">
-      <WireFormField label={question.label} control="textarea" required invalid={invalid}>
+      <WireFormField label={question.label} hideLabel={labelledBy !== undefined} control="textarea" required invalid={invalid}>
         <textarea
-          aria-label={question.label}
+          aria-label={labelledBy === undefined ? question.label : undefined}
+          aria-labelledby={labelledBy}
           data-answer-key={question.key}
-          placeholder={question.hint}
+          placeholder={labelledBy === undefined ? question.hint : undefined}
           rows={3}
           value={answered ? value.text : ''}
           disabled={!answered}
@@ -728,21 +732,38 @@ export function IntakeWizard(props: IntakeWizardProps) {
     groups: readonly { title: string; questions: readonly IntakeQuestion[] }[],
     extras: Readonly<Record<string, ReactNode>> = {},
   ) {
-    return groups.map((group) => (
-      // h3 id 는 우측 목차의 앵커 대상이다(2026-08-09 3차 — 조회 화면과 같은 헬퍼).
-      <WireCard key={group.title} className="wire-form-card" title={<h3 id={intakeSectionAnchor(group.title)}>{group.title}</h3>}>
+    return groups.map((group) => {
+      const singleQuestion = group.questions.length === 1 ? group.questions[0] : undefined;
+      const headingText = group.title.replace(/^\d+-\d+\.\s*/, '');
+      const repeatsHeading = singleQuestion !== undefined && (
+        singleQuestion.label === headingText
+        || singleQuestion.label.replace(/\s*(상세내용|내용|작성)$/, '') === headingText
+      );
+      const sharedLabel = repeatsHeading ? `intake-${singleQuestion.key}-label` : undefined;
+      return (
+      <WireCard key={group.title} className="wire-form-card" title={sharedLabel === undefined
+        ? <h3 id={intakeSectionAnchor(group.title)}>{group.title}</h3>
+        : <div className="wire-card-head" id={sharedLabel}>
+          <h3 id={intakeSectionAnchor(group.title)}>{group.title}</h3>
+          <WireRequiredMarker />
+        </div>}>
+        {sharedLabel !== undefined && singleQuestion?.hint !== undefined
+          ? <p className="panel-meta">{singleQuestion.hint}</p>
+          : null}
         {extras[group.title] ?? null}
         {group.questions.map((question) => (
           <QuestionField
             key={question.key}
             question={question}
+            {...(sharedLabel === undefined ? {} : { labelledBy: sharedLabel })}
             value={answers[question.key] ?? { response: 'answered', text: '' }}
             onChange={(next) => setAnswer(question.key, next)}
             invalid={submitAttempted && !isFilled(answers[question.key])}
           />
         ))}
       </WireCard>
-    ));
+      );
+    });
   }
 
   const consentRows: ReadonlyArray<readonly [string, boolean]> = [
@@ -776,8 +797,8 @@ export function IntakeWizard(props: IntakeWizardProps) {
           <ParticipantHeroCard
             name={props.participant.name}
             beneficiaryId={props.beneficiaryId}
-            stageTag={editing ? '인테이크 수정' : '인테이크 작성'}
             details={[
+              { label: '인테이크', value: editing ? '수정 중' : '작성 중' },
               { label: '전화번호', value: props.participant.phone ?? '미입력', tone: 'mint' },
               { label: '이메일', value: props.participant.email ?? '미입력', tone: 'mint' },
               {
@@ -963,9 +984,10 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   <ReadOnlyRow label="2순위 지원욕구 (3-1)" value={referenceValue(answers.need_secondary)} />
                   <ReadOnlyRow label="주요 지원방향 (4-3)" value={referenceValue(answers.summary_direction)} />
                 </div>
-                <WireFormField label="전체 목표" htmlFor="intake-overall-goal-input">
+                <WireFormField label="전체 목표" hideLabel htmlFor="intake-overall-goal-input">
                   <input
                     id="intake-overall-goal-input"
+                    aria-labelledby={intakeSectionAnchor('전체 목표')}
                     type="text"
                     maxLength={200}
                     value={overallGoal}
@@ -974,11 +996,12 @@ export function IntakeWizard(props: IntakeWizardProps) {
                   />
                 </WireFormField>
               </WireCard>
-              <WireCard className="wire-form-card" title={<h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3>}>
+              <WireCard className="wire-form-card" title={<div className="wire-card-head"><h3 id={intakeSectionAnchor('담당 실무자 종합의견')}>담당 실무자 종합의견</h3><WireRequiredMarker /></div>}>
                 <p className="panel-meta">실무자의 종합 판단을 당사자 발언과 구분해 남깁니다.</p>
-                <WireFormField label="담당 실무자 종합의견" control="textarea" required invalid={submitAttempted && managerOpinion.trim().length === 0}>
+                <WireFormField label="담당 실무자 종합의견" hideLabel control="textarea" invalid={submitAttempted && managerOpinion.trim().length === 0}>
                   <textarea
-                    aria-label="담당 실무자 종합의견"
+                    aria-labelledby={intakeSectionAnchor('담당 실무자 종합의견')}
+                    aria-required="true"
                     rows={3}
                     value={managerOpinion}
                     onChange={(event) => setManagerOpinion(event.target.value)}

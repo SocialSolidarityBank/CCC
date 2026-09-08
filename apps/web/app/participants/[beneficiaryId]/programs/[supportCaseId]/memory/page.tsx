@@ -17,7 +17,7 @@ export default async function MemoryPage({ params }: { params: Promise<{ benefic
     ]);
     return <main className="page-content memory-page-stack">
       <PageTitle>상담 기억</PageTitle>
-      <ParticipantHeroCard name={participant.name} beneficiaryId={beneficiaryId} stageTag={program.status === 'closed' ? '종결' : '진행 중'} meta={labels.programLabels[program.programType]} actions={<><WireButton variant="neutral" href={`${path}/briefing`}>15초 페이지</WireButton><WireButton variant="neutral" href={`${path}/records`}>상담 기록 확인하기</WireButton></>} />
+      <ParticipantHeroCard name={participant.name} beneficiaryId={beneficiaryId} details={[{ label: '사업', value: labels.programLabels[program.programType] }, { label: '진행 상태', value: program.status === 'closed' ? '종결' : '진행 중' }]} actions={<><WireButton variant="neutral" href={`${path}/briefing`}>15초 페이지</WireButton><WireButton variant="neutral" href={`${path}/records`}>상담 기록 확인하기</WireButton></>} />
       {memory === null ? <WireError>상담 기억을 불러오지 못했습니다. 상담 기록은 계속 확인할 수 있습니다.</WireError> : <CaseMemoryView key={supportCaseId} memory={memory} supportCaseId={supportCaseId} programLabel={labels.programLabels[program.programType]} recordsHref={`${path}/records`} goalsHref={`/participants/${encodeURIComponent(beneficiaryId)}`} actionsHref={`${path}/records`} onCorrect={correctCounselingMemoryAction.bind(null, beneficiaryId, supportCaseId)} onRefresh={refreshCounselingMemoryAction.bind(null, beneficiaryId, supportCaseId)} />}
     </main>;
   } catch {

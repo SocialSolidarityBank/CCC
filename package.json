@@ -1,6 +1,6 @@
 {
   "name": "ccc",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.5.3",
@@ -56,6 +56,7 @@
     "@ccc/contracts": "workspace:*",
     "@ccc/core": "workspace:*",
     "@ccc/db-d1": "workspace:*",
+    "@ccc/secrets-env": "workspace:*",
     "@cloudflare/vitest-pool-workers": "^0.16.20",
     "@cloudflare/workers-types": "^5.20260706.1",
     "@types/node": "^24.0.0",

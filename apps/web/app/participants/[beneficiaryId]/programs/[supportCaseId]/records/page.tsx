@@ -3,8 +3,7 @@ import { WireError } from '../../../../../components/wire/wire-state';
 import Link from 'next/link';
 import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PageTitle } from '../../../../../components/wire/page-title';
-import { MetaRow } from '../../../../../components/wire/meta-row';
-import { ParticipantHeroCard } from '../../../../../components/wire/participant-hero-card';
+import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
 import { WireButton } from '../../../../../components/wire/wire-button';
 import { WireCard } from '../../../../../components/wire/wire-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
@@ -186,27 +185,31 @@ export default async function RecordHistoryPage({
   // 최신 상담일이 목록 맨 위다(서버가 held_at DESC 로 준다).
   const latestHeldAt = records[0]?.heldAt ?? null;
 
-  // 구분자 가운뎃점 대신 조각을 독립 노드로 두고 간격으로 띄운다(§10, 2026-08-07).
-  const heroMetaItems = [
-    result.data === null ? null : programLabels[result.data.programType],
-    records.length === 0 ? '기록 없음' : `${records.length}회차까지 기록됨`,
-    latestHeldAt === null ? null : `최근 상담 ${formatDateOnly(latestHeldAt)}`,
-  ].filter((item): item is string => item !== null);
+  const heroDetails: ParticipantHeroDetail[] = [
+    ...(result.data === null
+      ? []
+      : [{ label: '사업', value: programLabels[result.data.programType] }]),
+    {
+      label: '기록 현황',
+      value: records.length === 0 ? '기록 없음' : `${records.length}회차까지 기록됨`,
+    },
+    ...(latestHeldAt === null
+      ? []
+      : [{ label: '최근 상담', value: formatDateOnly(latestHeldAt), tone: 'blue' as const }]),
+    ...(result.data === null ? [] : [{
+      label: '진행 상태', value: result.data.caseStatus === 'active' ? '진행 중' : '종결',
+    }]),
+  ];
 
   return <GridContainer as="main" className="page-content">
     {/* 페이지 타이틀(2026-08-08 Q). 이 화면의 이름은 '전체 상담 기록'이다 — 용어 통일. */}
     <div className="page-header"><PageTitle>상담 기록 확인하기</PageTitle></div>
     <RecordHashOpener />
-    {/* ParticipantHeroCard (D38): 케이스 1개를 보는 화면이라 상태 태그가 필수다(슬롯 ②).
-        브레드크럼은 이 카드가 대체한다 — 출구는 왼쪽 세컨더리 하나다(D35).
-        exactOptionalPropertyTypes 라 없는 슬롯은 undefined 대신 키를 뺀다. */}
+    {/* 케이스 정보는 공통 HERO에서 표시하고, 확인되지 않은 슬롯은 생략한다. */}
     <ParticipantHeroCard
       name={participant.data?.name ?? null}
       beneficiaryId={beneficiaryId ?? '확인 불가'}
-      {...(result.data === null
-        ? {}
-        : { stageTag: result.data.caseStatus === 'active' ? '진행 중' : '종결' })}
-      {...(heroMetaItems.length === 0 ? {} : { meta: <MetaRow items={heroMetaItems} /> })}
+      details={heroDetails}
       {...(beneficiaryId === null || supportCaseId === null ? {} : {
         actions: <>
           <WireButton variant="secondary" href={participantPath}>당사자 정보</WireButton>

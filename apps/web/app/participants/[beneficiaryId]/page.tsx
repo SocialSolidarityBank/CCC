@@ -362,7 +362,7 @@ async function ParticipantHub({ detail, goalTree, goalTreeFailed, notice }: {
         )}
         {/* ParticipantHeroCard (D38, 2026-09-02 Q A안): 허브는 케이스가 교차하는 화면이라
             단일 상태 태그를 생략한다. 이름 아래 정보 격자는 ID·연락처·이메일을 세 칸에 두고,
-            값이 없으면 그 항목을 접는다. 항목이 늘면 다음 줄, 모바일에서는 한 열로 흐른다. */}
+            값이 없으면 그 항목을 접는다. 항목이 늘면 다음 줄, 모바일에서는 80px 라벨 행으로 흐른다. */}
         <ParticipantHeroCard
           name={detail.name}
           beneficiaryId={detail.beneficiaryId}

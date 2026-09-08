@@ -7,6 +7,7 @@
 // 이 원문은 장비 마스킹을 거친 스냅샷이 되어야만 사업자로 나간다(D57 게이트). 사업자 호출부
 // 쪽 보증은 routes.test.ts 의 CCC-73 테스트가 잡는다.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
@@ -464,7 +465,7 @@ describe('마이그레이션 0034: 텍스트 일감 큐 사유 확장 (CCC-103)'
         await db.batch(migration.queries.map((query) => db.prepare(query)));
       }
 
-      const upgradeEnv = { DB: createD1Database(db), PII_ENC_KEY: 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=' };
+      const upgradeEnv = { DB: createD1Database(db), secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=' }) };
       const createdAt = '2026-07-14 09:00:00';
       await db.prepare(
         `INSERT INTO organization_settings (

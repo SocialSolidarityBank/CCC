@@ -66,6 +66,19 @@ export interface AudioStore {
   ): Promise<{ url: string; expiresAt: string } | null>;
 }
 
+/** E4-4a runtime read port. Python Agent secrets are deliberately excluded. */
+export type CoreSecretName = 'CODEX_API_KEY' | 'PII_ENC_KEY' | 'NOTIFY_WEBHOOK_URL';
+export type PlatformSecretName = 'DB_MASTER_KEY' | 'FILE_ENC_KEY' | 'OFFICE_CA_KEY' | 'SUPABASE_SERVICE_ROLE_KEY' | 'SCHEDULER_SECRET';
+export type SecretName = CoreSecretName | PlatformSecretName;
+export interface SecretStore {
+  get(name: SecretName): Promise<string | null>;
+}
+
+/** The same read port, narrowed to the capability granted to core consumers. */
+export interface CoreSecretStore {
+  get(name: CoreSecretName): Promise<string | null>;
+}
+
 /**
  * 예약 작업 포트. 실행기(Workers cron, Supabase pg_cron tick, Local 프로세스 타이머)는
  * 종류와 예약 시각만 넘기고, 작업 몸체는 runner 하나가 갖는다.

@@ -1,7 +1,7 @@
 /**
  * 계약·보안 스위트 입구 (S2 §5, E1-7).
  *
- *   pnpm test:contracts --capabilities | --database | --db=d1 | --db=sqlite | --sql | --audio-store | --auth
+ *   pnpm test:contracts --capabilities | --database | --db=d1 | --db=sqlite | --sql | --audio-store | --auth | --secrets-env
  *   pnpm test:security  --bootstrap
  *
  * 플래그가 없으면 그 kind 의 스위트를 전부 돌린다. 모르는 플래그는 usage(1) 로 끝난다.
@@ -25,6 +25,7 @@ export const SUITES = {
     ],
     'audio-store': 'apps/api/test/audio-store.contract.test.ts',
     auth: ['apps/api/test/access-jwt.test.ts', 'apps/api/test/identity-access.contract.test.ts'],
+    'secrets-env': ['apps/api/test/secrets-env.contract.test.ts', 'apps/api/test/secrets-env.integration.test.ts'],
   },
   security: {
     bootstrap: 'apps/api/test/install-manifest.security.test.ts',

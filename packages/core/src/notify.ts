@@ -1,3 +1,4 @@
+import type { CoreSecretStore } from '@ccc/contracts/runtime';
 
 /**
  * 관리자 알림 시임(seam) — D8.
@@ -14,11 +15,8 @@
  * 여기만 호출하므로 알림 채널 결합이 이 시임에 격리된다.
  */
 export interface NotifyEnv {
-  /**
-   * 관리자 알림 웹훅 URL (시크릿, D8). Slack/Discord incoming webhook 등 `{"text": ...}` JSON
-   * POST를 받는 주소. 미설정이면 console.error 폴백만 동작한다.
-   */
-  NOTIFY_WEBHOOK_URL?: string;
+  /** Missing webhook means console-only alerts. Key access belongs to the runtime. */
+  secretStore: CoreSecretStore;
 }
 
 export const WATCHDOG_ALERT_PREFIX = '[WATCHDOG ALERT]';
@@ -27,14 +25,16 @@ export async function notifyAdmins(env: NotifyEnv, message: string): Promise<voi
   const line = `${WATCHDOG_ALERT_PREFIX} ${message}`;
   console.error(line);
 
-  const webhookUrl = env.NOTIFY_WEBHOOK_URL?.trim();
-  if (webhookUrl === undefined || webhookUrl === '') {
-    return;
-  }
-
   try {
+    const webhookUrl = (await env.secretStore.get('NOTIFY_WEBHOOK_URL'))?.trim();
+    if (webhookUrl === undefined || webhookUrl === '') return;
+    if (new URL(webhookUrl).protocol !== 'https:') {
+      console.error(`${WATCHDOG_ALERT_PREFIX} webhook delivery failed: insecure transport`);
+      return;
+    }
     const response = await fetch(webhookUrl, {
       method: 'POST',
+      redirect: 'error',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: line }),
     });

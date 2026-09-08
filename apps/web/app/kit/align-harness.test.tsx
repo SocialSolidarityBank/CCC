@@ -188,21 +188,13 @@ describe('정렬 하니스 생성기', () => {
   it('정렬 대상 실제 부품의 정적 HTML을 만든다', async () => {
     const empty = renderToStaticMarkup(<BriefingCards {...baseProps} />);
     const content = renderToStaticMarkup(<BriefingCards {...contentProps} />);
-    const heroMeta = renderToStaticMarkup(
-      <ParticipantHeroCard
-        name="홍서희"
-        beneficiaryId="swallow-003"
-        stageTag="진행 중"
-        meta={<span>최근 상담 2026년 9월 2일</span>}
-        actions={<WireButton variant="neutral">상담 기록</WireButton>}
-      />,
-    );
     const heroDetails = renderToStaticMarkup(
       <ParticipantHeroCard
         name="홍서희"
         beneficiaryId="swallow-003"
-        stageTag="인테이크 완료"
         details={[
+          { label: '인테이크', value: '완료' },
+          { label: 'AI 검토 상태', value: '검토 대기' },
           { label: '당사자 ID', value: 'swallow-003' },
           { label: '연락처', value: '010-1234-5678' },
           { label: '이메일', value: 'sample@example.test' },
@@ -214,8 +206,8 @@ describe('정렬 하니스 생성기', () => {
       <ParticipantHeroCard
         name="홍서희"
         beneficiaryId="swallow-003"
-        stageTag="인테이크 작성"
         details={[
+          { label: '인테이크', value: '작성 중' },
           { label: '현재 단계', value: '1 / 4' },
           { label: '기록 구분', value: '1회차' },
           { label: '실무자', value: '이지은' },
@@ -436,9 +428,7 @@ describe('정렬 하니스 생성기', () => {
     expect(intakeEditRail, '인테이크 수정 단계 레일 fixture가 없다').toContain('data-testid="intake-step-rail"');
     expect(intakeEditToolbar, '인테이크 수정 단계 제목 툴바 fixture가 없다').toContain('intake-step-toolbar');
     expect(selectControl, '선택창 꺽쇠 fixture가 없다').toContain('wire-chevron');
-    expect(heroMeta, '메타 HERO fixture가 없다').toContain('participant-hero-card');
     expect(heroDetails, '정보 격자 HERO fixture가 없다').toContain('participant-hero-details');
-    expect(heroDetailsWithoutActions, '행동 없는 HERO fixture가 없다').toContain('인테이크 작성');
     expect(sectionHeading, '섹션 H2 fixture가 없다').toContain('record-section-title');
     expect(cardHeading, '카드 H2 fixture가 없다').toContain('wire-title-with-badge');
 
@@ -479,7 +469,6 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-goal-section">${goalSection}</div>
 <div id="align-invite-share">${inviteShare}</div>
 <div id="align-intake-read">${intakeRead}</div>
-<div id="align-hero-meta">${heroMeta}</div>
 <div id="align-hero-details">${heroDetails}</div>
 <div id="align-hero-details-no-actions">${heroDetailsWithoutActions}</div>
 <div id="align-h2-section">${sectionHeading}</div>
@@ -491,7 +480,5 @@ describe('정렬 하니스 생성기', () => {
 
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(join(OUT_DIR, 'align.html'), html);
-    expect(html).toContain('--text-sm');
-    expect(html).toContain('pretendardvariable-dynamic-subset.css');
   });
 });

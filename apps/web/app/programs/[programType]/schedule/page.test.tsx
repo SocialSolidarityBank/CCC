@@ -358,8 +358,8 @@ describe('다중 뷰 일정 화면 (CCC-133), 내비', () => {
     expect(container.querySelector('.schedule-period-label')?.textContent).toBe('2026년 2월 15일(일)');
   });
 
-  // 양쪽 1fr 이 가운데 칸을 페이지 정중앙에 묶는다. 왼·오른 폭과 무관하게 기간 네비가 서야 한다.
-  it('내비는 양쪽 1fr 사이에 기간 묶음을 둔 세 칸 격자다', async () => {
+  // 1행 기간 네비, 2행 조작 묶음이다(2026-09-08 Q). 웹과 모바일이 같은 배치를 쓴다.
+  it('내비는 기간 묶음 1행과 조작 묶음 2행 두 줄이다', async () => {
     getUpcomingSchedules.mockResolvedValue(board(mondayKey, [schedule()]));
 
     const { container } = await renderPage();
@@ -367,12 +367,9 @@ describe('다중 뷰 일정 화면 (CCC-133), 내비', () => {
     const nav = container.querySelector('.schedule-nav');
     const children = Array.from(nav?.children ?? []).map((el) => el.className);
     expect(children).toEqual([
-      'schedule-nav-controls',
       'schedule-nav-period',
-      'schedule-nav-actions',
+      'schedule-nav-controls',
     ]);
-    // 데스크톱에서 가운데 기간 묶음 양쪽을 같은 1fr 이 감싼다.
-    expect(nav?.children[1]?.className).toBe('schedule-nav-period');
   });
 
   // 구분선 두 줄은 없앴다. 내비 한 줄을 테두리 있는 면 하나로 묶는다.
@@ -388,13 +385,15 @@ describe('다중 뷰 일정 화면 (CCC-133), 내비', () => {
     expect(nav?.querySelector('.surface-card')).toBeNull();
   });
 
-  it('페이지 헤더 행동은 사라지고 등록 버튼 둘이 내비 안에 선다', async () => {
+  it('페이지 헤더 행동은 사라지고 상담 등록만 내비 안에 선다', async () => {
     getUpcomingSchedules.mockResolvedValue(board(mondayKey, [schedule()]));
 
     const { container } = await renderPage();
 
     expect(container.querySelector('.page-header .page-actions')).toBeNull();
-    expect(container.querySelectorAll('.schedule-nav-actions a')).toHaveLength(2);
+    const hrefs = Array.from(container.querySelectorAll('.schedule-nav-controls a'))
+      .map((link) => link.getAttribute('href'));
+    expect(hrefs).toEqual([`${basePath}?view=week`, '/schedules/new']);
   });
 });
 

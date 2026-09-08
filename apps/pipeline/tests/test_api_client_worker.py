@@ -137,7 +137,7 @@ class ApiClientTest(unittest.TestCase):
         )
         unlock = FakeResponse(json.dumps({"token": "preview-token", "maxAgeSeconds": 604800}).encode())
         claimed = FakeResponse(json.dumps({"schemaVersion": 2, "jobs": []}).encode())
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=[unlock, claimed]) as open_url:
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", side_effect=[unlock, claimed]) as open_url:
             self.assertEqual(client.claim_jobs({"limit": 10}), [])
 
         unlock_request = open_url.call_args_list[0].args[0]
@@ -150,14 +150,14 @@ class ApiClientTest(unittest.TestCase):
     def test_claim_requires_schema_version_two(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         payload = json.dumps({"schemaVersion": 1, "jobs": [{"jobId": "job-1"}]}).encode()
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", return_value=FakeResponse(payload)):
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", return_value=FakeResponse(payload)):
             with self.assertRaises(ApiError):
                 client.claim_jobs({})
 
     def test_claim_parses_jobs(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         payload = json.dumps({"schemaVersion": 2, "jobs": [text_job()]}).encode()
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", return_value=FakeResponse(payload)):
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", return_value=FakeResponse(payload)):
             jobs = client.claim_jobs({})
         self.assertEqual(jobs[0]["jobId"], "job-text-1")
 
@@ -166,7 +166,7 @@ class ApiClientTest(unittest.TestCase):
         error = api_client_module.urllib.error.HTTPError(
             "https://api.example/x", 403, "Forbidden", None, io.BytesIO(b'{"error":"forbidden","secret":"x"}')
         )
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error):
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", side_effect=error):
             with self.assertRaises(ApiError) as caught:
                 client.claim_jobs({})
         self.assertEqual(caught.exception.status, 403)
@@ -178,7 +178,7 @@ class ApiClientTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             dest = Path(tmp) / "nested" / "audio.bin"
             with mock.patch.object(
-                api_client_module.urllib.request, "urlopen", return_value=FakeResponse(b"RIFFdata"),
+                api_client_module.urllib.request.OpenerDirector, "open", return_value=FakeResponse(b"RIFFdata"),
             ) as open_url:
                 client.download_audio("job-1", "t" * 64, 1, dest)
             self.assertEqual(dest.read_bytes(), b"RIFFdata")

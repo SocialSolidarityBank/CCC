@@ -44,7 +44,7 @@ export async function runCounselingMemory(env: ApiEnv): Promise<Record<string, n
   const counters = { claimed: jobs.length, updated: 0, failed: 0, superseded: 0 };
   for (const job of jobs) {
     try {
-      const { adapter, config } = resolveAiProviderAdapter(env);
+      const { adapter, config } = await resolveAiProviderAdapter(env);
       if (adapter.updateMemory === undefined) throw new Error('memory_provider_unsupported');
       const configHash = await canonicalAiProviderConfigHash(config);
       // Re-read consent, source revisions, masking qualification and the lease at egress.

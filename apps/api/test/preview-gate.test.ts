@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import type { Database } from '@ccc/contracts/database';
 import type { AudioStore } from '@ccc/contracts/runtime';
 import worker from '../src/index';
@@ -12,7 +13,7 @@ const TEST_E2E_CODE = 'test-preview-e2e-code-9012';
 
 const baseEnv: ApiEnv = {
   DB: undefined as unknown as Database,
-  PII_ENC_KEY: 'local-test-key-not-for-production',
+  secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: 'local-test-key-not-for-production' }),
   audioStore: undefined as unknown as AudioStore,
 };
 

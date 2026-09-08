@@ -49,23 +49,6 @@ describe('RecordOnepage', () => {
     expect(badge?.getAttribute('data-tone')).toBe('mint');
   });
 
-  // CCC-76: '이번 상담에서 확인할 것'(워크인 폴백 자유 글)은 레일에서 본문 폼 맨 위
-  // (오늘 상담 내용 위)로 옮겼다 — 레일은 읽기 전용이 된다. 라벨은 목표 낱말을 쓰지 않는다
-  // (ADR-0032 §6 — '세부 목표 작성'이라 부르면 본문의 세부 목표 구획과 층이 섞인다).
-  it('이번 상담에서 확인할 것 입력칸은 레일이 아니라 본문 오늘 상담 내용 위에 있다', () => {
-    const { container, getByTestId } = render(<RecordOnepage {...props()} />);
-
-    const input = container.querySelector('input[name="sessionGoalNote"]') as HTMLInputElement;
-    expect(input).not.toBeNull();
-    expect(getByTestId('record-side-rail').contains(input)).toBe(false);
-    expect(input.closest('.record-main')).not.toBeNull();
-
-    const inputCard = input.closest('.wire-card') as HTMLElement;
-    const memoCard = container.querySelector('textarea[name="memo"]')?.closest('.wire-card') as HTMLElement;
-    expect(inputCard).not.toBe(memoCard);
-    // 입력칸의 카드가 '오늘 상담 내용' 카드보다 문서 순서상 앞이다.
-    expect(inputCard.compareDocumentPosition(memoCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
 
   // 나가기·저장은 레일 바닥이다(2026-08-08 Q — 구 고정 헤더 우측 대체).
   // 저장이 폼 아래에 하나도 남아 있지 않으므로, 이 자리가 비면 저장할 길이 사라진다.

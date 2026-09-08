@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
@@ -1722,7 +1723,7 @@ describe('schema triggers', () => {
 
       const upgradeEnv = {
         DB: createD1Database(db),
-        PII_ENC_KEY: Buffer.alloc(32).toString('base64'),
+        secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: Buffer.alloc(32).toString('base64') }),
       };
       await db.prepare(
         `INSERT INTO organization_settings (

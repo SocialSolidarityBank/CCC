@@ -104,3 +104,18 @@ test('packages/core referencing a PlatformSecretName is a violation', async () =
   assert.equal(violations.length, 1);
   assert.match(violations[0], /PlatformSecretName SUPABASE_SERVICE_ROLE_KEY/);
 });
+
+test('core cannot import broad secret capabilities or Python secret names', async () => {
+  for (const name of ['PlatformSecretName', 'SecretName', 'SecretStore', 'AZURE_SPEECH_KEY', 'AGENT_REFRESH_TOKEN', 'HF_TOKEN']) {
+    const violations = await violationsFor({
+      'packages/core/src/helper.ts': `import type { ${name} as Alias } from '@ccc/contracts/runtime';\nexport type X = Alias;\n`,
+    });
+    assert.ok(violations.some((value) => /secret boundary/.test(value)), name);
+  }
+});
+
+test('core may use the narrow read capability', async () => {
+  assert.deepEqual(await violationsFor({
+    'packages/core/src/helper.ts': "import type { CoreSecretStore, CoreSecretName } from '@ccc/contracts/runtime';\n",
+  }), []);
+});

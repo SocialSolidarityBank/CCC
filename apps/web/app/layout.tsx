@@ -526,8 +526,7 @@ const briefingStyles = `
    섹션 사이 32는 페이지 그리드의 gap이 주며 화면이 margin으로 별도 여백을 만들지 않는다. */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
-/* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화, 구 .briefing-hero
-   손 마크업과 전용 CSS 삭제). 상태 태그도 부품의 .wire-status-tag 계약을 따른다. */
+/* HERO는 공통 부품 ParticipantHeroCard가 이름, 행동과 라벨/값 정보를 그린다. */
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 전체 목표(D45 · CCC-41) — 카드다(2026-08-05 카드화 · ADR-0030, 구 D59 플랫 대체).
    카드 모양은 WireCard 가 갖고, 수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가
@@ -799,18 +798,19 @@ const settingsStyles = `
 const scheduleStyles = `
 /* 일정은 날짜 → 카드 두 층이다(CCC-133). 세 뷰 모두 일정이 있는 날짜만
    시간순으로 그리고, 기간 이름은 본문이 아니라 내비가 갖는다. */
-.schedule-day-list{display:grid;gap:var(--section-gap)}
+/* 트랙을 minmax(0,1fr) 로 묶어야 날짜 줄이 카드 폭 안에서 줄어든다. auto 트랙이면 제목이
+   max-content 로 자라 이름이 길 때 화면 밖으로 넘친다(2026-09-08 실측). */
+.schedule-day-list{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--section-gap)}
 /* 구 오늘·미래 플랫 구획(.schedule-section + 18 제목 축소 규칙)은 2026-08-28 Q 로 폐지 —
    세 상태 모두 날짜 묶음 카드(WireCardDetails) 하나를 쓴다. */
-/* 날짜 묶음 제목 옆 건수 — 16/400 --ink(③ 본문, 2026-08-29 Q "16px로". 구 14/400 --sub ④ —
-   16px 에는 --sub 조합이 §1 표에 없어 본문 단으로 올린다). 제목 flex 의 gap 이 간격을 만든다. */
-.schedule-day-count{font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
-/* 일정 업무 바. 양쪽 1fr 이 가운데 기간 묶음을 페이지 정중앙에 고정한다. 왼쪽은
-   [오늘]+보기 선택창, 오른쪽은 등록 행동 둘이고 전부 32 높이다. */
-.schedule-nav{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--space-3)}
-.schedule-nav-controls,.schedule-nav-actions{display:flex;align-items:center;gap:var(--space-2);min-width:0}
-.schedule-nav-actions{justify-content:flex-end}
-.schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3)}
+/* 날짜 묶음 제목 옆 건수와 이름은 14/400 --ink 다(2026-09-08 Q — 구 16/400). 날짜 제목 16/600 과
+   크기로 갈라 제목이 먼저 읽히게 한다. 건수와 이름 사이는 공용 메타 세로선 어휘를 그대로 쓴다. */
+.schedule-day-count{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
+/* 일정 업무 바는 두 줄이다(2026-09-08 Q). 1행은 기간 네비, 2행은 [오늘]+보기 선택창+상담 등록이고
+   둘 다 가운데 정렬이며 줄바꿈하지 않는다. 당사자 등록은 사이드바가 장소로 갖는다. */
+.schedule-nav{display:grid;grid-template-columns:minmax(0,1fr);justify-items:center;gap:var(--space-3)}
+.schedule-nav-controls{display:flex;align-items:center;justify-content:center;gap:var(--space-2);min-width:0}
+.schedule-nav-period{display:grid;grid-template-columns:var(--pill-height) auto var(--pill-height);align-items:center;gap:var(--space-3);min-width:0}
 /* 이전·다음은 공용 꺽쇠 버튼 면과 공용 12px SVG를 함께 쓴다. */
 .schedule-nav-step{justify-self:center}
 /* [오늘] 바로 옆 보기 선택창. B 균형형(2026-09-02 Q): 96×32, 좌 12, 우 10이다. */
@@ -830,19 +830,10 @@ const scheduleStyles = `
    일간·주간·월간의 서로 다른 길이에서도 원형 버튼과 보이는 글자 사이가 12px로 같다. */
 .schedule-period-label{display:inline-flex;align-items:center;justify-content:center;width:max-content;min-width:0;height:var(--pill-height);padding:0;font-size:var(--text-sm);font-weight:500;line-height:var(--leading-normal);letter-spacing:0;color:var(--ink);white-space:nowrap}
 .schedule-day-summary-title{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-3);min-width:0;text-align:left}
-/* 날짜와 오늘 배지와 건수는 한 줄에 묶인다(2026-09-04 후속 검수). 767 이하에서 제목이
-   세로로 쌓여도 이 셋은 함께 첫 줄에 남고 이름 목록만 다음 줄로 내려간다. */
-.schedule-day-head{display:flex;align-items:center;gap:var(--space-3);min-width:0}
-.schedule-day-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-md);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
-/* 셸 사이드바가 남는 768px 경계에서는 viewport 가 아니라 실제 본문 폭이 좁다. 페이지
-   컨테이너를 기준으로 세 줄 툴바로 전환해 가운데 기간과 양쪽 행동이 겹치지 않게 한다. */
-@container (max-width:760px){
-  .schedule-nav{grid-template-columns:minmax(0,1fr);justify-items:center}
-  .schedule-nav-controls{justify-content:center;flex-wrap:wrap}
-  .schedule-nav-period{grid-template-columns:var(--pill-height) auto var(--pill-height);min-width:0}
-  .schedule-nav-actions{width:auto;justify-content:center;flex-wrap:wrap}
-  .schedule-nav-actions>.wire-button{flex:none}
-}
+/* 날짜와 오늘 배지와 건수와 이름은 두 폭 모두 한 줄이다(2026-09-08 Q — 구 767 이하 세로 쌓임 폐지).
+   좁아지면 줄을 늘리지 않고 이름 목록만 말줄임으로 줄어든다. */
+.schedule-day-head{display:flex;align-items:center;gap:var(--space-3);min-width:0;flex:0 0 auto}
+.schedule-day-names{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:1px solid var(--line-control);padding-left:var(--space-3);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}
 @media(max-width:767px){
   /* 날짜 범위는 잘리면 무의미하므로 말줄임표를 쓰지 않는다. 좁은 폭에서는 잘라 버리는
      대신 두 줄로 풀어 전문을 보여 주고, 그 폭에서만 높이 고정을 풀어 둔다. 날짜를 숨기는
@@ -854,7 +845,6 @@ const scheduleStyles = `
   .briefing-goal-display,.briefing-goal-text{min-width:0;width:100%}
   .briefing-goal-form{grid-column:1/-1;min-width:0;width:100%}
   .card-grid.schedule-card-grid{grid-template-columns:minmax(0,1fr)}
-  .schedule-day-summary-title{align-items:flex-start;flex-direction:column;gap:var(--space-1)}
 }
 /* ticket-20: 상담 등록 */
 /* 당사자 선택 행(2026-08-07 Q "텍스트 weight 수정") — 행 기본 400, 이름만 600.
@@ -1140,6 +1130,13 @@ const recordFormStyles = `
    (wire-styles — 3차에서 인테이크 두 화면과 공용화)가 갖고, 트랙 배치와 폭 계단은 공용
    .rail-grid 가 갖는다. 화면은 자기 레일 폭만 정한다. */
 .record-grid{--rail-width:300px}
+/* 상담 기록 작성의 안내만 12px이다. 목표 원문과 입력값은 기존 위계를 유지한다. */
+.record-writing-help{font-size:var(--text-badge);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.record-questions-card .panel-meta,.record-questions-card .empty,.record-questions-card .empty>span{width:100%;max-width:none;text-align:left;text-wrap:wrap}
+.record-goal-note-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-3);min-width:0}
+.record-goal-note-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0}
+.record-goal-note-row .wire-input-box{min-width:0}
+.record-grid textarea[name="sessionGoalNote"][hidden]{display:none}
 /* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
    올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
@@ -1200,7 +1197,7 @@ const recordFormStyles = `
 /* 구 .record-rail 손 카드·.record-rail-count 글줄은 2026-08-09 삭제 — 진척도 카드가
    WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
      갖고, 필수 카운트는 체크리스트 제목 옆 neutral 배지가 됐다(§2-2 규칙 4). */
-.record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.record-rail-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--space-3);row-gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 채움 표시와 글자 사이도 선택지 행과 같은 6이다(2026-09-05 Q, 구 4). */
 .record-rail-list li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-1-5)}
 .record-rail-list li>.wire-checkbox{cursor:default}

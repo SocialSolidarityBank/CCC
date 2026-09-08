@@ -184,12 +184,8 @@ export function ScheduleNav({
 }) {
   return (
     <nav className="schedule-nav work-toolbar" aria-label="일정 도구">
-      {/* 양쪽 1fr 이 가운데 칸을 페이지 정중앙에 고정한다. 왼·오른 폭이 달라도 기간
-          네비는 안 밀린다. */}
-      <div className="schedule-nav-controls">
-        <WireButton href={scheduleTodayHref(basePath, view)} variant="neutral">오늘</WireButton>
-        <ScheduleViewSelect basePath={basePath} view={view} anchor={anchor} />
-      </div>
+      {/* 1행은 기간 네비, 2행은 조작 묶음이다(2026-09-08 Q). 두 줄 모두 가운데 정렬이고
+          줄바꿈은 없다. 당사자 등록은 사이드바가 장소로 갖고 있어 이 바에서 뺐다. */}
       <div className="schedule-nav-period">
         <Link
           className="wire-chevron-button schedule-nav-step"
@@ -207,9 +203,10 @@ export function ScheduleNav({
           <Chevron dir="right" />
         </Link>
       </div>
-      <div className="schedule-nav-actions">
+      <div className="schedule-nav-controls">
         {/* 업무 바는 전부 32 다(전 버튼 32 단일, 2026-08-28 Q). */}
-        <WireButton href="/participants/new" icon={<NavIcon name="participant-add" />}>당사자 등록</WireButton>
+        <WireButton href={scheduleTodayHref(basePath, view)} variant="neutral">오늘</WireButton>
+        <ScheduleViewSelect basePath={basePath} view={view} anchor={anchor} />
         <WireButton href="/schedules/new" variant="primary" icon={<NavIcon name="calendar" />}>상담 등록</WireButton>
       </div>
     </nav>

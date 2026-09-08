@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type {
   AiContrastAxis,
   AiContrastAxisStatus,
@@ -11,9 +10,8 @@ import type {
   TranscriptQuality,
 } from '../../../../../../../lib/api';
 import { GridContainer } from '../../../../../../../components/wire/grid-container';
-import { MetaRow } from '../../../../../../../components/wire/meta-row';
 import { PageTitle } from '../../../../../../../components/wire/page-title';
-import { ParticipantHeroCard } from '../../../../../../../components/wire/participant-hero-card';
+import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../../../components/wire/participant-hero-card';
 import { WireCallout, WireSourceQuotes } from '../../../../../../../components/wire/wire-callout';
 import { WireCard } from '../../../../../../../components/wire/wire-card';
 import { WireBadge, type WireBadgeTone } from '../../../../../../../components/wire/wire-badge';
@@ -99,10 +97,8 @@ export interface DraftReviewViewProps {
   supportCaseId: string;
   sessionId: string;
   participantName: string | null;
-  stageTag: string;
-  /** 검토 대기·승인됨·반려됨 3종 전부 AI 산출물 상태다(D58 ④) — 라벤더로 연다(CCC-106). */
-  stageTagTone?: 'neutral' | 'lavender' | undefined;
-  metaItems: ReactNode[];
+  reviewStatus: string;
+  details: readonly ParticipantHeroDetail[];
   recordsHref: string;
   draft: DraftReviewViewModel;
   /** 처리(승인·반려) 실패 안내(리다이렉트 뒤 notice 파라미터). */
@@ -162,9 +158,8 @@ export function DraftReviewView({
   supportCaseId,
   sessionId,
   participantName,
-  stageTag,
-  stageTagTone,
-  metaItems,
+  reviewStatus,
+  details,
   recordsHref,
   draft,
   errorMessage,
@@ -205,9 +200,7 @@ export function DraftReviewView({
         <ParticipantHeroCard
           name={participantName}
           beneficiaryId={beneficiaryId}
-          stageTag={stageTag}
-          stageTagTone={stageTagTone}
-          meta={<MetaRow items={metaItems} />}
+          details={[...details, { label: 'AI 검토 상태', value: reviewStatus, tone: 'lavender' }]}
           actions={<WireButton href={recordsHref} variant="secondary">상담 기록 확인</WireButton>}
         />
 

@@ -1788,7 +1788,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
       if (env.AI_PROVIDER_ADAPTER === undefined) {
         rawOutput = detectPreviewFixtureDiscrepancies(providerRequest);
       } else {
-        const { adapter, config } = resolveAiProviderAdapter(env);
+        const { adapter, config } = (await resolveAiProviderAdapter(env));
         model = config.model;
         if (adapter.detectDiscrepancies === undefined) {
           outcome = 'skipped_unsupported';
@@ -1797,7 +1797,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
-      const { adapter, config } = resolveAiProviderAdapter(env);
+      const { adapter, config } = (await resolveAiProviderAdapter(env));
       model = config.model;
       if (adapter.detectDiscrepancies === undefined) {
         outcome = 'skipped_unsupported';
@@ -2029,7 +2029,7 @@ async function generateAiDraft(
         : validateAiProviderRequest({ ...providerRequest, historicalContext });
       const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
         ? generatePreviewFixtureAiDraft(generationRequest)
-        : await resolveAiProviderAdapter(env).adapter.generate(generationRequest);
+        : await (await resolveAiProviderAdapter(env)).adapter.generate(generationRequest);
       const output = validateAiProviderOutput(rawOutput, generationRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
@@ -2068,7 +2068,7 @@ async function generateAiDraft(
 
     // 주입형 testOnly adapter는 기존 테스트 seam이다. Preview 전용 내장 fixture 선택과
     // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
-    const { adapter, config } = resolveAiProviderAdapter(env);
+    const { adapter, config } = (await resolveAiProviderAdapter(env));
     model = config.model;
     const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
 
@@ -2994,7 +2994,7 @@ export async function handleRequest(
         matches: boolean | null;
       };
       try {
-        const { config } = resolveAiProviderAdapter(env);
+        const { config } = (await resolveAiProviderAdapter(env));
         const configHash = await canonicalAiProviderConfigHash(config);
         runtime = {
           configured: true,
@@ -3034,7 +3034,7 @@ export async function handleRequest(
       const approvalRef = requiredString(body, 'approvalRef');
       // 환경 변수의 정확한 레지스트리 tuple과 API 키를 먼저 검증한다. 호출자가 임의
       // hash/model을 넣을 수 없고, 현재 배포 설정과 DB activation이 항상 함께 움직인다.
-      const { config } = resolveAiProviderAdapter(env);
+      const { config } = (await resolveAiProviderAdapter(env));
       const configHash = await canonicalAiProviderConfigHash(config);
       const current = await getActiveAiProviderStatus(env, actor);
       if (
