@@ -79,16 +79,15 @@
     "tolerance": 1
   },
   {
-    "name": "AI 제안 목록은 라벨 아래와 마지막 아래 여백이 24로 같다",
+    "name": "AI 제안 첫 행의 위아래 내용 여백은 12로 같다",
     "selectors": [
-      "#align-content #briefing-remember .wire-card-section:has(>.briefing-suggestions)>h3",
-      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-title",
-      "#align-content #briefing-remember .briefing-suggestion-list>li:last-child .briefing-suggestion-reason",
-      "#align-content #briefing-remember .briefing-ai-goal-hint"
+      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-row",
+      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-main",
+      "#align-content #briefing-remember .briefing-suggestion-list>li:first-child .briefing-suggestion-main"
     ],
-    "axis": "gap-pair",
+    "axis": "inset-y",
     "tolerance": 1,
-    "expectedGap": 24
+    "expectedGap": 12
   },
   {
     "name": "세부 목표 불릿 점은 첫 줄 세로 중앙",

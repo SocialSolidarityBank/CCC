@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { WireBullets, WireCard, WireCardDetails } from '../../../../../components/wire/wire-card';
 import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
 import { WireEmpty } from '../../../../../components/wire/wire-state';
@@ -16,8 +16,6 @@ import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';
-import type { CaseMemoryView } from '@ccc/contracts/counseling-memory';
-import { MemorySummarySection } from '../memory/memory-view';
 
 // D45(ADR-0018) 브리핑 3영역 재구성. 서버 page.tsx 는 브리핑을 fetch 만 하고(감사·접근은
 // 게이트웨이가 이미 수행 — R1·D14), 이 클라이언트 컴포넌트가 순수 데이터를 받아 표현·폴백·
@@ -51,7 +49,6 @@ export interface BriefingCardsProps {
   beneficiaryId: string;
   /** 전체 목표 저장 폼의 hidden 값 — 게이트웨이 권한 판정에 그대로 넘어간다. */
   supportCaseId: string;
-  memory?: CaseMemoryView | null;
   /** D45 전체 목표 — 케이스당 1개·수정 가능·점수 없음(D33). null = 설정 전. */
   overallGoal: string | null;
   /** D62 §8 (CCC-69): 활성 세부 목표 — 전체 목표 카드 아래 기본 펼침 최대 3줄(서버가 끊는다). */
@@ -207,45 +204,6 @@ function OverallGoalCard({
   );
 }
 
-/**
- * 전체 목표 미설정 안내 (D62 §7 · CCC-69). AI 제안을 차단하지 않고 안내만 한다 —
- * "설정을 해야만 정확한 AI 조언"의 '해야만'은 차단이 아니라 이 안내로 확정됐다(2026-08-09 Q).
- * 자리는 'AI 제안' 라벨 행의 구획 전체 action 슬롯이다. 안내가 남는 폭을 쓰고 닫기 버튼은
- * 카드 오른쪽 끝에 선다(2026-09-05 Q).
- * 서버에 저장하지 않는 이유: 케이스 데이터가 아니라 화면 안내이고, 실무자마다 따로 닫는 것이
- * 자연스럽다. 저장 실패(시크릿 모드 등)의 대가는 다음 방문에 다시 뜨는 것뿐이다.
- */
-const GOAL_HINT_STORE_PREFIX = 'ccc:briefing-goal-hint-closed:v1:';
-
-function AiGoalHint({ supportCaseId }: { supportCaseId: string }) {
-  // 첫 렌더부터 보인다(2026-08-30 — 구 "마운트 뒤 표시" 반전). 정적 렌더(하니스·align
-  // 게이트)가 이 행을 재야 하고, 안 닫은 다수에게 마운트 후 내용이 밀리던 것도 없앤다.
-  // 닫았던 사람만 마운트 직후 사라진다 — localStorage 는 마운트 뒤에만 읽을 수 있어
-  // 서버·클라이언트 첫 렌더를 같게 두는 방식은 그대로다(하이드레이션 정합).
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => {
-    try {
-      if (window.localStorage.getItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`) !== null) setDismissed(true);
-    } catch {
-      // 저장소를 못 읽으면 안내를 그대로 둔다 — 안내라 막을 일이 아니다.
-    }
-  }, [supportCaseId]);
-  if (dismissed) return null;
-  const dismiss = () => {
-    setDismissed(true);
-    try {
-      window.localStorage.setItem(`${GOAL_HINT_STORE_PREFIX}${supportCaseId}`, new Date().toISOString());
-    } catch {
-      // 닫힘을 남기지 못하면 다음 방문에 다시 뜬다 — 안내라 막을 일이 아니다.
-    }
-  };
-  return (
-    <span className="briefing-ai-goal-hint" role="note" data-testid="briefing-ai-goal-hint">
-      <span>전체 목표를 설정하면 AI 제안이 더 정확해집니다.</span>
-      <WireButton variant="neutral" onClick={dismiss}>닫기</WireButton>
-    </span>
-  );
-}
 
 /**
  * 불일치 한 건 (D45 영역 ③ · CCC-42). 양쪽 원문 인용 + 회차 링크를 나란히 놓고, 그 아래
@@ -329,7 +287,6 @@ function Card({ id, title, badge, children }: { id?: string; title: string; badg
 export function BriefingCards({
   beneficiaryId,
   supportCaseId,
-  memory = null,
   overallGoal,
   activeGoals,
   canEditOverallGoal,
@@ -495,12 +452,12 @@ export function BriefingCards({
             </WireCardSection>
           </div>
           <div className="briefing-memo-item wire-repeat-card">
-            <MemorySummarySection memory={memory?.supportCaseId === supportCaseId ? memory : null} memoryHref={`/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/memory`} />
-          </div>
-          <div className="briefing-memo-item wire-repeat-card">
-            {/* 전체 목표 미설정 안내는 구획 맨 아래 각주다(2026-09-08 Q, 구 라벨 행 오른쪽
-                action 슬롯). 제안을 차단하지 않고, 닫으면 케이스 단위로 남는다. */}
             <WireCardSection title="AI 제안" tone="lavender">
+              {overallGoal === null && (
+                <span className="briefing-ai-goal-hint" role="note" data-testid="briefing-ai-goal-hint">
+                  <span>전체 목표를 설정하면 AI 제안이 더 정확해집니다.</span>
+                </span>
+              )}
               {aiSuggestions.length === 0
                 ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
                 : (
@@ -527,7 +484,6 @@ export function BriefingCards({
                     ))}
                   </ul>
                 )}
-              {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
             </WireCardSection>
           </div>
         </Card>

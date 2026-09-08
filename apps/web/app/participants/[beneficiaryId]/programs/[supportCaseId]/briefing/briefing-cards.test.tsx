@@ -264,15 +264,6 @@ describe('BriefingCards — 3영역 골격 (D45 · ADR-0018)', () => {
     expect(row?.querySelector('.briefing-action-badges .wire-badge[data-tone="mint"]')).not.toBeNull();
   });
 
-  it('AI 제안 항목은 낱개 상자 대신 구획 안 가로선으로 갈린다 (2026-09-08 Q 7차)', () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const remember = cardByTitle(container, '오늘 만나기 전 꼭 기억할 것');
-    expect(remember.querySelector('.briefing-suggestion-row .wire-button')).toBeNull();
-    expect(remember.querySelector('details[data-source-quotes]')).toBeNull();
-    expect(remember.querySelector('ul.briefing-suggestion-list')).not.toBeNull();
-    const source = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
-    expect(source).toContain('.briefing-suggestion-list>li+li{border-top:1px solid var(--line)}');
-  });
 
   it('영역 ③은 불일치가 없으면 빈 상태를 표시한다 (CCC-43)', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
@@ -632,8 +623,6 @@ describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () 
 
 
 describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
-  const HINT_KEY = 'ccc:briefing-goal-hint-closed:v1:11111111-1111-4111-8111-111111111111';
-  afterEach(() => window.localStorage.clear());
 
   it('전체 목표가 없으면 AI 제안 구획에 안내 한 줄이 뜬다 — 제안은 차단되지 않는다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
@@ -643,45 +632,13 @@ describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
     expect(container.querySelector('.briefing-suggestion-row')).not.toBeNull();
   });
 
-  it('안내는 AI 제안 구획 맨 아래 각주다 (2026-09-08 Q, 구 라벨 행 오른쪽 조각 대체)', () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const hint = container.querySelector('[data-testid="briefing-ai-goal-hint"]');
-    expect(hint?.closest('.wire-card-section-head')).toBeNull();
-    const section = hint?.closest('.wire-card-section');
-    expect(section?.querySelector('h3')?.textContent).toBe('AI 제안');
-    expect(section?.lastElementChild).toBe(hint);
-    expect(hint?.querySelector('.wire-button')?.textContent).toBe('닫기');
-  });
 
-  it('세로로 쌓인 행동 버튼은 왼쪽 시작선을 쓴다 (2026-09-08 Q 2차)', () => {
-    const source = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
-    expect(source).toContain('.briefing-section-footer{display:flex;align-items:center;justify-content:flex-start');
-    const wire = readFileSync(resolve(process.cwd(), 'app/components/wire/wire-styles.ts'), 'utf8');
-    expect(wire).toContain('.wire-source-quotes-link{justify-self:start}');
-    expect(source).toContain('.briefing-ai-goal-hint{display:grid;justify-items:start');
-  });
 
   it('전체 목표가 있으면 안내가 없다', () => {
     const { container } = render(<BriefingCards {...baseProps({ overallGoal: '주거 안정' })} />);
     expect(container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
   });
 
-  it('닫으면 사라지고 케이스 단위로 저장돼 다시 뜨지 않는다', () => {
-    const first = render(<BriefingCards {...baseProps()} />);
-    const hint = first.container.querySelector('[data-testid="briefing-ai-goal-hint"]');
-    expect(hint).not.toBeNull();
-    fireEvent.click(within(hint as HTMLElement).getByText('닫기'));
-    expect(first.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
-    expect(window.localStorage.getItem(HINT_KEY)).not.toBeNull();
-    cleanup();
-    // 같은 케이스를 다시 열어도 닫힘이 유지된다.
-    const again = render(<BriefingCards {...baseProps()} />);
-    expect(again.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).toBeNull();
-    cleanup();
-    // 다른 케이스는 케이스 단위 저장이라 다시 뜬다.
-    const other = render(<BriefingCards {...baseProps({ supportCaseId: '22222222-2222-4222-8222-222222222222' })} />);
-    expect(other.container.querySelector('[data-testid="briefing-ai-goal-hint"]')).not.toBeNull();
-  });
 });
 
 describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => {

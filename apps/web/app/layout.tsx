@@ -563,27 +563,24 @@ const briefingStyles = `
 .briefing-parent-goal-label{flex:none;white-space:nowrap;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
 .briefing-parent-goal-text{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
 .briefing-parent-goal.is-closed>.briefing-parent-goal-label{color:var(--sub)}
-/* 구획 안 행동은 맨 아래 왼쪽이다(2026-09-08 Q 2차, 구 오른쪽 끝). 세로로 쌓이는 버튼은
-   내용과 같은 시작선을 쓴다. 위 문장과의 간격은 구획 기본 8 의 1.5배인 12 다(2026-09-08 Q 3차).
-   테두리가 가까이 있어 8 에서는 뭉개져 읽힌다. 구획 grid gap 8 위에 4 를 더해 12 를 만든다. */
-.briefing-section-footer{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-2);flex-wrap:wrap;min-width:0;margin-top:var(--space-1)}
-/* 전체 목표 미설정 안내도 같은 자리의 각주다. 안내 글이 구획 전체 폭을 쓰고 닫기 버튼이
-   그 아래 왼쪽에 선다. 안내와 버튼 사이도 같은 12 다. */
-.briefing-ai-goal-hint{display:grid;justify-items:start;gap:var(--space-3);min-width:0;margin-top:var(--space-1)}
+/* 15초 페이지 행동은 데스크톱 오른쪽, 모바일 세로 배치다. 위 내용과 간격 12는 유지한다. */
+.briefing-section-footer{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-2);flex-wrap:wrap;min-width:0;margin-top:var(--space-1)}
+/* 전체 목표 미설정 안내는 AI 제안 제목 바로 아래 전체 폭으로 표시한다. */
+.briefing-ai-goal-hint{display:grid;min-width:0}
 /* 빈 상태(.empty 14/400 --sub)와 나란히 서므로 안내는 본문 단 14/400 --ink 로 갈린다.
    크기로 가르는 길은 14 하한(§5)에 막혀 있어 색을 쓴다(2026-09-08 Q). */
 .briefing-ai-goal-hint>span{min-width:0;width:100%;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);color:var(--ink)}
-.briefing-ai-goal-hint>.wire-button{flex:none}
 /* AI 제안 한 건은 회차 행과 같은 어휘다(2026-09-08 Q 5~7차). 상자를 겹치지 않는다: 테두리 있는
    낱개 상자 대신 구획 안에서 전폭 가로선으로만 형제를 가른다(Q 7차 "div 가로선 섹션").
    중첩 상자가 모바일에서 글줄을 139px까지 좁히던 것을 없앤다. 계열색은 제목 글자에만 둔다.
    근거 인용은 행 안에 두지 않는다. 클릭하면 그 회차 기록으로 간다(Q 7차, 내용 중복 제거). */
 .briefing-suggestion-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--card-pad, var(--space-6));color:inherit;text-decoration:none}
+@media (hover:hover){.briefing-suggestion-row:hover{background:var(--gradient-hover)}}
+.briefing-suggestion-row:focus-visible{background:var(--gradient-hover);outline:2px solid var(--lavender-deep);outline-offset:-2px}
 .briefing-suggestion-main{display:grid;gap:var(--space-1);min-width:0;width:100%}
 .briefing-suggestion-title{font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--lavender-deep)}
 .briefing-suggestion-reason{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);color:var(--sub)}
-/* 라벨 행 아래 가로선은 없다. 상자 자체가 구획을 가르고, 라벨 행과 내용 사이는
-   구획 기본 row-gap 8을 써 형제 구획과 같은 리듬을 유지한다. */
+/* AI 제안 목록은 첫 행 위와 마지막 행 아래까지 가로선으로 닫는다. */
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
    HERO 행동 줄(당사자 정보 옆)로 올라갔다. */
 /* 영역 ①의 실무자 입력과 AI 제안은 공용 WireCardSection 이 맡는다. 라벨과 세로 리듬은
@@ -598,7 +595,7 @@ const briefingStyles = `
    카드 안쪽 패딩을 되밀어 가로선이 카드 폭을 가로지른다. 위 마진 4 는 구획 기본 8 과 행 패딩
    12 에 더해져, 라벨 아래 첫 글자와 형제 사이와 마지막 글자 아래 여백을 모두 24 로 맞춘다.
    검토할 AI 초안 목록은 WireItem 을 쓰므로 위 기본 규칙(gap 16)에 남는다. */
-.briefing-suggestion-list{gap:0;margin:var(--space-1) calc(var(--card-pad, var(--space-6)) * -1) 0}
+.briefing-suggestion-list{gap:0;margin:var(--space-1) calc(var(--card-pad, var(--space-6)) * -1) 0;border-block:1px solid var(--line)}
 .briefing-suggestion-list>li+li{border-top:1px solid var(--line)}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
@@ -606,6 +603,16 @@ const briefingStyles = `
 .briefing-history{margin-top:var(--space-4);border-top:1px solid var(--line);padding-top:var(--space-4)}
 .briefing-history>summary{cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--sub)}
 .briefing-history>.wire-card-section{margin-top:var(--space-4)}
+.briefing-page .briefing-goal-buttons,.briefing-page .briefing-resolution-form{justify-content:flex-end}
+.briefing-page .briefing-goal-buttons{margin-left:auto}
+.briefing-page .wire-source-quotes-link,.briefing-page .briefing-discrepancy-side>.wire-button{justify-self:end}
+.page-content:has(>.briefing-page) .notice-actions{justify-content:flex-end}
+@media (max-width:767px){
+  .briefing-page .briefing-goal-buttons,.briefing-page .briefing-resolution-form,.briefing-page .briefing-section-footer,.briefing-page .briefing-goal-form,.page-content:has(>.briefing-page) .notice-actions{flex-direction:column;align-items:flex-start}
+  .briefing-page .briefing-goal-input{flex:none;width:100%}
+  .briefing-page .briefing-goal-buttons{margin-left:0}
+  .briefing-page .wire-source-quotes-link,.briefing-page .briefing-discrepancy-side>.wire-button{justify-self:start}
+}
 /* 브리핑 배지도 공용 배지(.wire-badge)를 쓴다(2026-08-07 통합, 구 .briefing-badge 삭제).
    승인 대기는 data-tone="lavender"(색 규율 5). */
 /* 빈 상태·처리됨 안내도 본문이다 — 16 기본(2026-08-06 Q). */
