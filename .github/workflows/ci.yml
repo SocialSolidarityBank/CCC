@@ -26,11 +26,13 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Includes migration-parity and database-parity once via the API test suite.
       - run: pnpm test
+      - run: pnpm guard:sql-dialect
       - run: pnpm guard:db
       # 공통 패키지 경계(E1-6). packages/* 의 플랫폼 import, apps -> adapters -> packages
       # 역방향, 순환, core 의 PlatformSecretName 참조를 막는다. :scripts 가 가드 자신을 본다.

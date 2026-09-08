@@ -71,6 +71,8 @@ function copyBinding(value: Bindable): Bindable {
 
 function normalizeValue(value: unknown, oid: number): unknown {
   if (value === null) return null;
+  // EXISTS/comparison expressions are numeric predicates in SQLite and D1.
+  if (oid === 16 && typeof value === 'boolean') return value ? 1 : 0;
   if (value instanceof Uint8Array) return new Uint8Array(value);
   // int8 and numeric (including SUM(bigint)) arrive as text, not rounded numbers.
   if ((oid === 20 || oid === 1700) && typeof value === 'string') {
@@ -167,16 +169,20 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
 
   async function failure(error: unknown): Promise<PostgresDatabaseError> {
     if (!(error instanceof postgres.PostgresError) || error.code !== '23505') return normalizeError(error);
-    // PostgreSQL uses 23505 for both kinds. Look up the actual index, never its suffix.
+    // PostgreSQL uses 23505 for both kinds. SQLite's nullable primary keys use
+    // explicitly annotated UNIQUE constraints; names alone never establish a kind.
     // batch calls this only after begin() has rolled back and released its connection.
     if (!closed && error.schema_name && error.table_name && error.constraint_name) {
       try {
         const rows = await pool.unsafe<{ primary: boolean }[]>(
-          `SELECT i.indisprimary AS primary
+          `SELECT i.indisprimary OR
+             COALESCE(pg_catalog.obj_description(c.oid, 'pg_constraint'), '') = 'ccc:sqlite-primary-key' AS primary
            FROM pg_catalog.pg_index i
            JOIN pg_catalog.pg_class ix ON ix.oid = i.indexrelid
            JOIN pg_catalog.pg_class t ON t.oid = i.indrelid
            JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
+           LEFT JOIN pg_catalog.pg_constraint c
+             ON c.conindid = i.indexrelid AND c.conrelid = t.oid AND c.contype = 'u'
            WHERE n.nspname = $1 AND t.relname = $2 AND ix.relname = $3`,
           [error.schema_name, error.table_name, error.constraint_name], QUERY_OPTIONS,
         );

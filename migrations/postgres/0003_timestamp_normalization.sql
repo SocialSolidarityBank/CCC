@@ -315,6 +315,24 @@ UPDATE users
 SET   created_at = CASE WHEN created_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$' THEN substr(created_at, 1, 10) || 'T' || substr(created_at, 12, 8) || '.000Z' ELSE created_at END
 WHERE created_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$';
 
+-- Complete the baseline helper cutover before re-enabling user triggers. Replacing the
+-- helpers preserves each caller's BEFORE/AFTER event and all authorization predicates.
+CREATE OR REPLACE FUNCTION ccc_legacy_now() RETURNS text LANGUAGE sql VOLATILE AS $$
+  SELECT to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+$$;
+-- SQLite 0047 changes retention datetime() to strftime(%f), retaining milliseconds.
+CREATE OR REPLACE FUNCTION ccc_retention_cap(closed_at text) RETURNS timestamp LANGUAGE sql STABLE STRICT AS $$
+  SELECT ccc_timestamp(closed_at)+interval '5 years'
+$$;
+CREATE OR REPLACE FUNCTION ccc_retention_due(closed_at text,grace_days bigint) RETURNS text LANGUAGE sql STABLE STRICT AS $$
+  SELECT to_char(
+    ccc_nullable_least(
+      ccc_timestamp(closed_at)+grace_days*interval '1 day',ccc_retention_cap(closed_at)
+    ),
+    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+  )
+$$;
+
 ALTER TABLE action_items ENABLE TRIGGER USER;
 
 ALTER TABLE agent_installations ENABLE TRIGGER USER;

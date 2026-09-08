@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -21,6 +21,8 @@ async function docker(args: string[], env?: NodeJS.ProcessEnv, timeout = 120_000
 
 export interface PostgresHarness {
   openDatabase(): Promise<PostgresDatabase>;
+  /** Contract-only trusted DDL. Never accepts an external connection or runtime bindings. */
+  applyMigration(database: PostgresDatabase, sql: string): Promise<void>;
   closeDatabases(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -32,11 +34,13 @@ export async function startPostgresHarness(): Promise<PostgresHarness> {
   let containerId: string | undefined;
   let admin: PostgresDatabase | undefined;
   const databases = new Set<PostgresDatabase>();
+  const databaseNames = new Map<PostgresDatabase, string>();
   let disposed = false;
 
   async function closeDatabases(): Promise<void> {
     const results = await Promise.allSettled([...databases].map((db) => db.close()));
     databases.clear();
+    databaseNames.clear();
     if (results.some((result) => result.status === 'rejected')) {
       throw new Error('Disposable PostgreSQL pool cleanup failed.');
     }
@@ -95,10 +99,52 @@ export async function startPostgresHarness(): Promise<PostgresHarness> {
         connectionString: `${origin}/${databaseName}`, ssl: false, maxConnections: 4,
       });
       databases.add(database);
+      databaseNames.set(database, databaseName);
       return database;
     }
 
-    return { openDatabase, closeDatabases, dispose };
+    async function applyMigration(database: PostgresDatabase, sql: string): Promise<void> {
+      const databaseName = databaseNames.get(database);
+      if (disposed || !containerId || !databaseName || !sql.trim()) {
+        throw new Error('Trusted migration requires an open database owned by this harness.');
+      }
+      // psql's parser handles function bodies and complete migration scripts. Do not
+      // split on semicolons or widen the runtime adapter's single-statement protocol.
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn('docker', [
+          'exec', '-i', containerId!, 'psql', '-X', '--no-password',
+          '--set=ON_ERROR_STOP=1', '--set=VERBOSITY=sqlstate', '--single-transaction', '--quiet',
+          '-U', 'ccc_contract', '-d', databaseName, '-f', '-',
+        ], { stdio: ['pipe', 'ignore', 'pipe'] });
+        let diagnostics = '';
+        child.stderr.on('data', (chunk: Buffer) => {
+          diagnostics = (diagnostics + chunk.toString('utf8')).slice(-2_048);
+        });
+        const timer = setTimeout(() => {
+          child.kill('SIGKILL');
+          reject(new Error('Disposable PostgreSQL trusted migration timed out.'));
+        }, 120_000);
+        child.once('error', () => {
+          clearTimeout(timer);
+          reject(new Error('Disposable PostgreSQL trusted migration could not start.'));
+        });
+        child.once('close', (code) => {
+          clearTimeout(timer);
+          if (code === 0) resolve();
+          else {
+            const position = /<stdin>:(\d+):\s+ERROR:\s+([0-9A-Z]{5})\b/.exec(diagnostics);
+            const location = position ? ` at line ${position[1]} (SQLSTATE ${position[2]})` : '';
+            reject(new Error(`Disposable PostgreSQL trusted migration failed${location}.`));
+          }
+        });
+        child.stdin.on('error', () => {
+          // EPIPE is reported by close; neither SQL nor provider stderr is reflected.
+        });
+        child.stdin.end(sql);
+      });
+    }
+
+    return { openDatabase, applyMigration, closeDatabases, dispose };
   } catch {
     await dispose();
     throw new Error('Disposable PostgreSQL startup failed; ensure Docker and the pinned image are available.');
