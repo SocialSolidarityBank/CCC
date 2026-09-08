@@ -71,8 +71,8 @@
   {
     "name": "AI 제안 구획의 라벨 행 아래 간격은 형제 구획과 같다",
     "selectors": [
-      "#align-content #briefing-remember .wire-card-section[data-tone=\"lavender\"]>.wire-card-section-head",
-      "#align-content #briefing-remember .wire-card-section[data-tone=\"lavender\"]>.briefing-suggestions",
+      "#align-content #briefing-remember .wire-card-section:has(>.briefing-suggestions)>.wire-card-section-head",
+      "#align-content #briefing-remember .wire-card-section>.briefing-suggestions",
       "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>h3",
       "#align-content #briefing-remember .wire-card-section[data-tone=\"mint\"]>.empty"
     ],
