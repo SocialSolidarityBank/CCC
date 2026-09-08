@@ -1,6 +1,6 @@
 # 운영 스케줄·환경 변수
 
-이 문서는 Workers `scheduled` 핸들러가 도는 두 주기 작업인 폴링 워치독(D8)과 PII 보존 생애주기(D32·D46)의 동작과 관련 환경 변수를 정리한다. 두 작업의 몸체는 `packages/core/src/scheduled-job-runner.ts` 의 `createScheduledJobRunner(env).run(kind, nowIso)` 하나가 갖고, Workers cron 은 표현식을 `pipeline_watchdog` 또는 `pii_retention` 으로 바꿔 이 runner 를 부른다(E1-4). 로컬(miniflare)에서는 cron이 자동 실행되지 않으므로, 테스트는 같은 runner 를 직접 호출한다.
+이 문서는 폴링 워치독(D8), PII 보존 생애주기(D32·D46), 자동 상담 기억의 예약 실행과 환경 변수를 정리한다. `packages/core/src/scheduled-job-runner.ts`의 `createScheduledJobRunner`가 공통 실행 입구다. 상담 기억은 조립부가 `packages/http-api/src/counseling-memory-runner.ts`의 `runCounselingMemory`를 주입하며, 실행기 없이 성공으로 처리하지 않는다. 로컬 miniflare에서는 cron이 자동 실행되지 않으므로 같은 실행 경로를 직접 호출해 검증한다.
 
 ## 스케줄 (wrangler.toml `[triggers].crons`)
 
@@ -10,8 +10,21 @@
 | --- | --- | --- |
 | `*/30 * * * *` | 폴링 워치독 (D8) | 전 조직 폴링 건강도 계산 → `stale`인 조직마다 관리자 알림 |
 | `0 3 * * *` (매일 03:00 UTC) | PII 보존 생애주기 (D32·D46) | `purge_due` 경과분 아카이브, 보존기한 재도래분 검토 큐 복귀 |
+| `*/2 * * * *` | 자동 상담 기억 | 적격 케이스의 원본 준비, 마스킹 완료 확인, 기억 갱신과 원자적 반영 |
 
 보존 생애주기를 하루 1회로 둔 이유는 실시간 처리가 필요 없고 케이스별 감사 행을 남기기 때문이다. 이 cron은 암호문을 별도 아카이브로 옮기거나 재검토 상태로 되돌리는 가역 전이만 수행하며, PII를 자동 파기하지 않는다. 워치독은 읽기 중심이라 30분 간격으로 돈다.
+
+## 자동 상담 기억
+
+기관 설정의 `자동 상담 기억`에서 새 생성과 갱신을 끄거나 처리 상태를 확인한다. 기본 선택은 켜짐이지만, 이 선택이 AI 설치 모드나 외부 호출 허용, 동의를 대신 켜지는 않는다. 꺼도 현재 권한과 보존 조건을 통과한 기존 기억은 마지막 갱신 시점과 함께 읽을 수 있다.
+
+실행 조건은 `CCC_LLM_MODE=openai`, `TEXT_AI_PILOT_ENABLED=1`, 현재 유효한 동의 근거, 활성 공급자 설정, 적격 NER 증빙과 최근 폴링한 처리 Agent다. 실제 유료 호출은 기존 `EXTERNAL_AI_CALLS_ENABLED` 잠금도 통과해야 한다. 기억 prompt/schema가 설정 해시에 포함되므로 배포 후 공급자 설정 재확인이 필요할 수 있다.
+
+`MEMORY_MASKING_PIPELINES`에는 승인된 마스킹 버전과 해당 manifest SHA-256의 JSON 매핑을 배포한다. 값은 검증된 Agent 릴리스에서 가져오며 임의 hash나 테스트 증빙으로 채우지 않는다. 누락 또는 불일치 시 `masking_pipeline_version_mismatch`로 차단한다.
+
+기억 마스킹은 `/pipeline/memory`의 claim, source, mask-dictionary, result, release 경로를 사용한다. 일반 회차 `/pipeline/jobs`와 섞지 않으며 회차가 없는 목표와 액션에 가짜 회차 ID를 만들지 않는다. 완료된 마스킹 증빙이 만료되면 같은 원본 revision을 다시 마스킹하고, 증빙 갱신 자체를 새로운 상담 사실로 세지 않는다. 안전한 과거 맥락이 없으면 현재 회차 초안에는 과거 기억을 붙이지 않는다.
+
+원본 변경은 예약 세대를 올리고 연속 변경을 묶는다. 대기 케이스가 뒤의 준비된 케이스를 막지 않도록 방문 시 다음 확인 시각을 옮긴다. 마스킹의 세 번째 임대까지 만료되면 차단 상태로 끝낸다. 기관이 끄거나 동의를 철회한 뒤 도착한 결과, 오래된 원본이나 정정을 덮어쓰는 결과는 반영하지 않는다. 이력 전체를 한 요청에 넣지 않고 처리 위치와 미처리 원본을 남긴다.
 
 ## 폴링 워치독 (D8)
 
@@ -48,6 +61,8 @@
 | `CODEX_API_KEY` | Workers 시크릿 | (없음) | OpenAI API 키(D57). 이름이 `codex`인 것은 프로바이더 슬러그를 따르기 때문이며, 슬러그는 설정 해시에 묶여 있어 바꾸지 않는다. 값 커밋·로그·stdout 출력 금지(CLAUDE.md §10). |
 | `EXTERNAL_AI_CALLS_ENABLED` | Workers 환경 변수 | `0` | 유료 외부 AI HTTPS 호출의 최종 스위치. 정확히 `1`일 때만 호출한다. 설정·키가 있어도 이 값이 없거나 `0`이면 fail closed한다. 합성 스모크와 Preview 점검은 별도 실호출 승인 없이는 켜지 않는다. |
 | `TEXT_AI_PILOT_ENABLED` | Workers 환경 변수 | (없음) | 텍스트 AI 파일럿 스위치. 꺼져 있으면 AI 초안·불일치 검출이 **사용**되지 않는다. 동의 근거 기록은 이 스위치와 무관하게 남는다(ADR-0027). |
+| `CCC_LLM_MODE` | API 런타임 환경 변수 | (없음 = 기억 생성 중단) | 설치 LLM 축. 정확히 `openai`일 때만 자동 상담 기억의 새 처리를 허용한다. |
+| `MEMORY_MASKING_PIPELINES` | API 런타임 환경 변수(JSON 문자열) | (없음 = 차단) | 승인된 마스킹 버전을 canonical manifest SHA-256에 연결한다. 적격 Agent 릴리스의 실제 값만 사용한다. |
 | `PII_PURGE_ENABLED` | Workers 환경 변수 | (없음 = 닫힘) | 최종 관리자 승인 파기 스위치. 정확히 `1`일 때만 `decision=purge`가 실행된다. 미설정·`0`이어도 cron의 아카이브·재검토는 계속되며, 최종 파기 요청만 409 `purge_disabled`로 거절된다. |
 | `PUBLIC_SIGNUP_ENABLED` | Workers 환경 변수 (`apps/api`·`apps/web` 양쪽) | (없음) | 공개 가입 표면(CCC-112)의 스위치. 정확히 `1`일 때만 공개 초대 조회·가입 API 와 초대 발급, 웹 `/join`·`/join/*` 화면이 열린다. 없거나 `0`이면 404 로 fail closed. 미리보기 env 에만 `1`(코드 게이트 뒤 팀 검수용), 운영에는 두지 않는다. |
 

@@ -17,6 +17,9 @@ importers:
       '@ccc/db-d1':
         specifier: workspace:*
         version: link:adapters/db-d1
+      '@ccc/db-postgres':
+        specifier: workspace:*
+        version: link:adapters/db-postgres
       '@ccc/secrets-env':
         specifier: workspace:*
         version: link:adapters/secrets-env
@@ -65,6 +68,15 @@ importers:
       '@ccc/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+
+  adapters/db-postgres:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
 
   adapters/db-sqlite:
     dependencies:
@@ -117,6 +129,9 @@ importers:
       '@ccc/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@ccc/db-postgres':
+        specifier: workspace:*
+        version: link:../../adapters/db-postgres
       '@ccc/db-sqlite':
         specifier: workspace:*
         version: link:../../adapters/db-sqlite

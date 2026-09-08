@@ -16,6 +16,8 @@ import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';
+import type { CaseMemoryView } from '@ccc/contracts/counseling-memory';
+import { MemorySummarySection } from '../memory/memory-view';
 
 // D45(ADR-0018) 브리핑 3영역 재구성. 서버 page.tsx 는 브리핑을 fetch 만 하고(감사·접근은
 // 게이트웨이가 이미 수행 — R1·D14), 이 클라이언트 컴포넌트가 순수 데이터를 받아 표현·폴백·
@@ -49,6 +51,7 @@ export interface BriefingCardsProps {
   beneficiaryId: string;
   /** 전체 목표 저장 폼의 hidden 값 — 게이트웨이 권한 판정에 그대로 넘어간다. */
   supportCaseId: string;
+  memory?: CaseMemoryView | null;
   /** D45 전체 목표 — 케이스당 1개·수정 가능·점수 없음(D33). null = 설정 전. */
   overallGoal: string | null;
   /** D62 §8 (CCC-69): 활성 세부 목표 — 전체 목표 카드 아래 기본 펼침 최대 3줄(서버가 끊는다). */
@@ -326,6 +329,7 @@ function Card({ id, title, badge, children }: { id?: string; title: string; badg
 export function BriefingCards({
   beneficiaryId,
   supportCaseId,
+  memory = null,
   overallGoal,
   activeGoals,
   canEditOverallGoal,
@@ -485,6 +489,9 @@ export function BriefingCards({
                 ? <WireEmpty>실무자가 적은 맞춤형 질문이 없습니다.</WireEmpty>
                 : <WireBullets items={customQuestions} />}
             </WireCardSection>
+          </div>
+          <div className="briefing-memo-item wire-repeat-card">
+            <MemorySummarySection memory={memory?.supportCaseId === supportCaseId ? memory : null} memoryHref={`/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}/memory`} />
           </div>
           <div className="briefing-memo-item wire-repeat-card">
             {/* 전체 목표 미설정 안내는 AI 제안 구획 전체 action 슬롯이다.

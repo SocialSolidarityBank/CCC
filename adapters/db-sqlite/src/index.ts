@@ -12,6 +12,7 @@ const APPLICATION_TRIGGER_CODES = [
   'stale_draft_version',
   'invite_token_already_used',
   'participant_schema_violation',
+  'counseling_memory_fence',
 ] as const;
 const MIGRATION_NAME = /^\d{4}_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$/;
 
@@ -75,7 +76,7 @@ function normalizeError(error: unknown, fallback: DatabaseError['kind'] = 'unsup
             : undefined;
   if (subtype !== undefined || code.startsWith('SQLITE_CONSTRAINT')) {
     const resolved = subtype ?? 'trigger';
-    const applicationCode = resolved === 'trigger'
+    const applicationCode = resolved === 'trigger' || resolved === 'check'
       ? APPLICATION_TRIGGER_CODES.find((candidate) => text.match(/\b[a-z][a-z0-9_]*\b/g)?.includes(candidate))
       : undefined;
     return new SqliteDatabaseError('constraint', resolved, applicationCode);

@@ -61,7 +61,7 @@ function GoalNode({ goal, recordsHref }: { goal: ParticipantGoalTreeGoal; record
   const closed = goal.status === 'closed';
   const reasonLabel = goal.closedReason === null ? null : goalCloseReasonLabels[goal.closedReason] ?? null;
   return (
-    <li className={closed ? 'goal-tree-goal is-closed' : 'goal-tree-goal'}>
+    <li id={`goal-${goal.id}`} className={closed ? 'goal-tree-goal is-closed' : 'goal-tree-goal'}>
       <details className="goal-tree-goal-details">
         <summary className="goal-tree-goal-head">
           <span className="goal-tree-goal-title" title={goal.title}>{goal.title}</span>

@@ -19,12 +19,13 @@ export function RecordHashOpener() {
   useEffect(() => {
     function openFromHash() {
       const { hash } = window.location;
-      if (!hash.startsWith('#record-')) return;
-      const target = document.getElementById(hash.slice(1));
-      if (!(target instanceof HTMLDetailsElement)) return;
-      // 이미 열려 있으면 건드리지 않는다 — open 을 다시 쓰면 애니메이션이 튄다.
-      if (!target.open) target.open = true;
-      // 펴기 전에 브라우저가 이미 스크롤을 마쳤으므로 위치를 다시 맞춘다.
+      if (!hash.startsWith('#record-') && !hash.startsWith('#action-')) return;
+      let anchor: string;
+      try { anchor = decodeURIComponent(hash.slice(1)); } catch { return; }
+      const target = document.getElementById(anchor);
+      if (target === null) return;
+      const record = target instanceof HTMLDetailsElement ? target : target.closest('details');
+      if (record instanceof HTMLDetailsElement && !record.open) record.open = true;
       target.scrollIntoView({ block: 'start' });
     }
 

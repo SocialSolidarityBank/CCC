@@ -187,7 +187,7 @@ export function RecordCard({
         <h3 id={`actions-${record.id}`}>액션 아이템</h3>
         {record.actionItems.length === 0
           ? <p className="record-item-meta">기록된 액션 아이템이 없습니다.</p>
-          : <ul>{record.actionItems.map((item) => <li key={item.id}>
+          : <ul>{record.actionItems.map((item) => <li id={`action-${item.id}`} key={item.id}>
               {item.description}
               <WireBadge tone="mint">{actionOwnerLabel(item.owner)}</WireBadge>
               {item.dueDate !== null && <span className="record-item-meta">기한 {item.dueDate}</span>}

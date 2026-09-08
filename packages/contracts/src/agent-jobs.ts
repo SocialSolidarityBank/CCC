@@ -329,3 +329,20 @@ export function routeForMode(mode: DeploymentMode): ProcessingRoute {
   if (mode === 'local-single') return 'local-single-agent';
   return 'local-office-agent';
 }
+
+/** Revision-bound text work; non-session sources never invent a session ID. */
+export interface MemoryMaskJob {
+  jobId: string;
+  caseId: string;
+  sessionId: string | null;
+  kind: 'text';
+  purpose: 'counseling_memory';
+  sourceKind: 'session' | 'goal' | 'action' | 'correction' | 'derived_summary';
+  sourceId: string;
+  sourceRevision: string;
+  sourceStart: number;
+  sourceEnd: number;
+  claimToken: string;
+  attempt: number;
+  leaseExpiresAt: string;
+}
