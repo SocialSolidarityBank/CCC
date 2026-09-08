@@ -45,7 +45,6 @@ async function main() {
       const session = record(await unlocked.json());
       if (typeof session.token !== 'string' || !/^[A-Za-z0-9._-]+$/.test(session.token)) throw new Error('invalid_response');
       headers.cookie = `ccc_preview=${session.token}`;
-      headers['X-CCC-Preview-Actor'] = 'admin';
     }
     const response = await fetch(new URL(`/support-cases/${caseId}/memory/trial`, origin), {
       method: command === 'step' ? 'POST' : 'GET', headers, redirect: 'error', signal: AbortSignal.timeout(120_000),

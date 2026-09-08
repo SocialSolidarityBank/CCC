@@ -38,7 +38,7 @@ pnpm --filter @ccc/api memory:trial step "$CASE_ID" --allow-external-ai
 
 - `CCC_MEMORY_API_ORIGIN`: API 원점 주소. 기본값은 `http://127.0.0.1:8787`이다. HTTPS 또는 loopback HTTP만 허용한다.
 - 로컬 개발에서는 서버의 `LOCAL_DEV_ACTOR_EMAIL`을 가상 기관 관리자 계정으로 지정한다.
-- 미리보기에서는 관리자 또는 E2E 코드를 `CCC_MEMORY_PREVIEW_CODE`로 주입한다. Bearer 인증 환경의 `CCC_MEMORY_API_TOKEN`과 함께 쓰지 않는다. 자격증명은 headless 시크릿 절차로 주입하고 명령 인자나 파일에 적지 않는다.
+- 미리보기에서는 관리자 코드를 `CCC_MEMORY_PREVIEW_CODE`로 주입한다. 장비 신원으로 인증되는 E2E 코드는 이 CLI에서 사용하지 않는다. Bearer 인증 환경의 `CCC_MEMORY_API_TOKEN`과 함께 쓰지 않는다. 자격증명은 headless 시크릿 절차로 주입하고 명령 인자나 파일에 적지 않는다.
 - `check`는 업무 상태를 바꾸지 않고 열람 감사만 남긴다. `step`은 외부 호출 동의 인자를 요구하며, 해당 기관과 해당 케이스만 처리한다. 다른 케이스의 대기 순서를 앞당기거나 동의와 설치 설정을 켜지 않는다.
 - HTTP 경로는 `GET /support-cases/:id/memory/trial`과 같은 주소의 `POST`다. POST 본문은 `{"confirmExternalAi":true}`만 받는다. 전제조건이 빠지면 409와 진단 상태를 돌려준다.
 
@@ -55,7 +55,7 @@ pnpm --filter @ccc/api memory:trial step "$CASE_ID" --allow-external-ai
 
 시험 순서는 가상 상담 기록 저장, 적격 Agent 실행, `check`, `step`, Agent의 원본 가림 처리, 다음 `step`, Agent의 파생 기억 가림 처리다. 방문 간 최소 대기와 임대는 그대로 유지하므로 즉시 반복 실행해도 강제로 진행되지 않는다. CLI 종료 코드는 준비됨 또는 완료 `0`, 차단 또는 실패 `1`, 잘못된 인자 `2`, 처리 대기 `3`이다. `generation`과 `appliedGeneration`, 남은 원본과 마스킹 건수를 함께 본다.
 
-`providerMode`와 `draftMode`를 구분한다. 미리보기의 상담 초안은 기본적으로 가상 응답이므로 `draftMode: fixture`를 실제 모델 연결 성공으로 세지 않는다. 이 도구는 공급자 활성화 API나 NER 승인 영수증을 만들어 주지 않는다. 등록 경로가 없는 설치에서는 [공급자 설정의 현재 제한](ai-provider-setup-q-actions.md#0-지금-어디까지-와-있나)을 먼저 해소해야 하며 DB를 직접 고치지 않는다.
+`providerMode`와 `draftMode`를 구분한다. 미리보기의 상담 초안은 기본적으로 가상 응답이므로 `draftMode: fixture`를 실제 모델 연결 성공으로 세지 않는다. 기존 `GET /ai/provider/status`로 공급자 상태를 확인하고, 기관 관리자는 승인 참조를 담은 `POST /ai/provider/activate-runtime`으로 배포된 설정을 등록하고 활성화한다. 시험 도구가 이 승인을 대신하거나 NER 승인 영수증을 만들지는 않는다. DB를 직접 고치지 않는다.
 
 ### 고정 사례로 기억 출력 평가하기
 
