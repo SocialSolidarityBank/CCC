@@ -60,7 +60,9 @@ export function RiskBanner({ flags, recordsHref }: { flags: RiskBannerFlag[]; re
           <li key={flag.id}>
             <div className="risk-banner-item-head">
               <MetaRow items={[
-                flagLabels[flag.flagType],
+                /* 강조는 리스크 유형 하나뿐이다(2026-09-08 Q). 항목 줄 전체를 600 으로 두면
+                   무엇이 경고인지 사라져, 유형만 600 + --risk 이고 나머지는 400 이다. */
+                <span key="type" className="risk-banner-flag">{flagLabels[flag.flagType]}</span>,
                 <span key="source" className="panel-meta">{flag.source === 'ai' ? '승인된 AI 제안' : '실무자 기록'}</span>,
               ]} />
             </div>

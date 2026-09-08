@@ -446,20 +446,7 @@ export function BriefingCards({
             근거 회차 링크 3층이고 재료는 승인본만이다(R2 — 게이트웨이가 강제). */}
         <Card id="briefing-remember" title="오늘 만나기 전 꼭 기억할 것">
           <div className="briefing-memo-item wire-repeat-card">
-            <WireCardSection
-              title="세션 목표"
-              tone="mint"
-              action={upcomingSchedule === null
-                ? undefined
-                : (
-                    <WireButton
-                      variant="neutral"
-                      href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
-                    >
-                      세션 목표 수정
-                    </WireButton>
-                  )}
-            >
+            <WireCardSection title="세션 목표" tone="mint">
               {sessionGoals.length === 0
                 ? <WireEmpty>연결된 다가오는 일정의 세션 목표가 없습니다.</WireEmpty>
                 : (
@@ -471,12 +458,29 @@ export function BriefingCards({
                           key="parent"
                           className={goal.caseGoalStatus === 'closed' ? 'briefing-parent-goal is-closed' : 'briefing-parent-goal'}
                         >
-                          {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}: {goal.caseGoalTitle}
+                          {/* 라벨과 문구를 색·굵기로 가른다(2026-09-08 Q). 나란히 서는 두 글자
+                              덩어리는 정보 종류가 다르면 옷도 달라야 한다. 라벨은 목표 축의
+                              민트 deep 14/600, 문구는 물러선 14/400 --sub 다. */}
+                          <span className="briefing-parent-goal-label">
+                            {goal.caseGoalStatus === 'closed' ? '세부 목표(종료)' : '세부 목표'}
+                          </span>
+                          <span className="briefing-parent-goal-text">{goal.caseGoalTitle}</span>
                         </span>,
                       ]} />
                     ))}
                   />
                 )}
+              {/* 행동은 구획 맨 아래다(2026-09-08 Q, 구 라벨 행 오른쪽 action 슬롯). */}
+              {upcomingSchedule !== null && (
+                <div className="briefing-section-footer">
+                  <WireButton
+                    variant="neutral"
+                    href={`/schedules/${encodeURIComponent(upcomingSchedule.id)}/plan`}
+                  >
+                    세션 목표 수정
+                  </WireButton>
+                </div>
+              )}
             </WireCardSection>
           </div>
           <div className="briefing-memo-item wire-repeat-card">
@@ -487,42 +491,36 @@ export function BriefingCards({
             </WireCardSection>
           </div>
           <div className="briefing-memo-item wire-repeat-card">
-            {/* 전체 목표 미설정 안내는 AI 제안 구획 전체 action 슬롯이다.
-                제안을 차단하지 않고, 닫으면 케이스 단위로 남는다. */}
-            <WireCardSection
-              title="AI 제안"
-              tone="lavender"
-              action={overallGoal === null ? <AiGoalHint supportCaseId={supportCaseId} /> : undefined}
-            >
+            {/* 전체 목표 미설정 안내는 구획 맨 아래 각주다(2026-09-08 Q, 구 라벨 행 오른쪽
+                action 슬롯). 제안을 차단하지 않고, 닫으면 케이스 단위로 남는다. */}
+            <WireCardSection title="AI 제안" tone="lavender">
               {aiSuggestions.length === 0
                 ? <WireEmpty>승인된 상담 기록이 쌓이면 확인할 것을 제안합니다.</WireEmpty>
                 : (
-                  <ul className="briefing-suggestions">
-                    {/* D45: slice(0,3) mirrors server cap (CCC-39); 재료는 승인본만 (R2) */}
+                  <ul className="briefing-suggestions briefing-suggestion-list">
+                    {/* D45: slice(0,3) mirrors server cap (CCC-39); 재료는 승인본만 (R2).
+                        행 어휘는 회차 행과 같다(2026-09-08 Q 5차, 구 '근거 회차 보기' 버튼).
+                        제안 한 건 전체가 근거 회차 링크이고 오른쪽 끝에 이동 꺽쇠만 둔다. */}
                     {aiSuggestions.slice(0, 3).map((suggestion) => (
                       <li key={`${suggestion.sessionId}-${suggestion.title}`}>
-                        {/* 2026-08-10: WireItem으로 교체 (이유 16/400 --sub, 링크 제목과 동일 16/600 --ink → 위계 사라짐 방지) */}
-                        <WireItem
-                          tone="lavender"
-                          title={suggestion.title}
-                          {...(suggestion.reason !== null ? { description: suggestion.reason } : {})}
-                          action={
-                            <WireButton
-                              variant="neutral"
-                              href={`${recordsHref}#record-${suggestion.sessionId}`}
-                            >
-                              근거 회차 보기{suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}
-                            </WireButton>
-                          }
-                        />
-                        <WireSourceQuotes
-                          quotes={suggestion.sourceQuotes}
-                          sourceHref={`${recordsHref}#record-${suggestion.sessionId}`}
-                        />
+                        <Link
+                          className="briefing-suggestion-row"
+                          href={`${recordsHref}#record-${suggestion.sessionId}`}
+                          aria-label={`${suggestion.title} 근거 회차 보기${suggestion.heldAt === null ? '' : ` (${formatKoreanDate(suggestion.heldAt)})`}`}
+                        >
+                          <span className="briefing-suggestion-main">
+                            <span className="briefing-suggestion-title">{suggestion.title}</span>
+                            {suggestion.reason !== null && (
+                              <span className="briefing-suggestion-reason">{suggestion.reason}</span>
+                            )}
+                          </span>
+                          <Chevron dir="right" />
+                        </Link>
                       </li>
                     ))}
                   </ul>
                 )}
+              {overallGoal === null && <AiGoalHint supportCaseId={supportCaseId} />}
             </WireCardSection>
           </div>
         </Card>
@@ -660,31 +658,44 @@ export function BriefingCards({
               구 briefing-actions 개명, 다른 참조 0건 확인). 기본 펼침 카드라 앵커 진입
               시 내용이 바로 보인다. */}
           <Card id="open-actions" title="미해결 액션">
-            {/* 액션 행(2026-08-06 Q): 내용은 왼쪽, 오른쪽 끝은 뱃지 둘 — 담당(민트 =
-                사람·담당 축)과 기한(블루 = 일정 축, D58 ④). '담당 실무자/당사자/기관'은
-                이 액션을 해 오기로 한 주체다(action_items.owner). */}
+            {/* 액션 한 건은 회차 행과 같은 어휘다(2026-09-08 Q 2차, 구 배지 아래 '출처 회차 보기'
+                버튼). 배지와 버튼이 연달아 서면 크기가 안 맞은 한 쌍처럼 읽혀, 행 전체를 출처
+                회차 링크로 만들고 오른쪽 끝에 이동 꺽쇠만 둔다. 형제 사이는 전폭 가로선이다.
+                내용이 첫 층, 담당(민트 = 사람·담당 축)과 기한(블루 = 시간 축) 배지가 둘째 층이며,
+                '담당 실무자/당사자/기관'은 이 액션을 해 오기로 한 주체다(action_items.owner). */}
             {openActionItems.length === 0
               ? <WireEmpty>미해결 항목이 없습니다.</WireEmpty>
               : (
                 <ul className="briefing-action-rows">
-                  {openActionItems.map((item) => (
-                    <li key={item.id} className="briefing-action-row">
-                      <span className="briefing-action-desc">{item.description}</span>
-                      <WireBadge tone="mint">담당 {actionOwnerLabels[item.owner]}</WireBadge>
-                      {item.dueDate !== null && (
-                    <TimeAxisBadge>기한 {item.dueDate}</TimeAxisBadge>
-                      )}
-                      {item.sessionId !== null && (
-                        <WireButton
-                          className="briefing-action-source"
-                          variant="neutral"
-                          href={`${recordsHref}#record-${item.sessionId}`}
-                        >
-                          출처 회차 보기
-                        </WireButton>
-                      )}
-                    </li>
-                  ))}
+                  {openActionItems.map((item) => {
+                    const body = (
+                      <span className="briefing-action-main">
+                        <span className="briefing-action-desc">{item.description}</span>
+                        <span className="briefing-action-badges">
+                          <WireBadge tone="mint">담당 {actionOwnerLabels[item.owner]}</WireBadge>
+                          {item.dueDate !== null && (
+                            <TimeAxisBadge>기한 {formatKoreanDate(item.dueDate)}</TimeAxisBadge>
+                          )}
+                        </span>
+                      </span>
+                    );
+                    return (
+                      <li key={item.id}>
+                        {item.sessionId === null
+                          ? <span className="briefing-action-row">{body}</span>
+                          : (
+                            <Link
+                              className="briefing-action-row"
+                              href={`${recordsHref}#record-${item.sessionId}`}
+                              aria-label={`${item.description} 출처 회차 보기`}
+                            >
+                              {body}
+                              <Chevron dir="right" />
+                            </Link>
+                          )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
           </Card>

@@ -182,6 +182,16 @@ const contentProps: BriefingCardsProps = {
       sourceQuotes: ['상한을 얼마로 둘지 아직 못 정했어요.'],
     },
   ],
+  // 근거 인용 접힘(WireSourceQuotes)의 남은 사용처는 리스크 배너다(2026-09-08 Q 6차로
+  // AI 제안은 인용을 바로 편다). 꺽쇠 정렬 단언이 잴 대상을 여기서 만든다.
+  flags: [{
+    id: 'flag-1',
+    flagType: 'crisis_utterance',
+    source: 'counselor',
+    reviewStatus: 'confirmed',
+    sessionId: 's-2',
+    quote: '다 정리하고 사라지고 싶다는 생각이 들어요.',
+  }],
 };
 
 describe('정렬 하니스 생성기', () => {

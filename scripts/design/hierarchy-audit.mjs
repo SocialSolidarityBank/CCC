@@ -205,6 +205,14 @@ const ALLOW = [
     combo: 'var(--text-md)/600/var(--mint-deep)',
     why: '폼 안 묶음(fieldset) 제목 — 카드 제목과 크기를 맞추고 계열 색으로 갈린다',
   },
+  {
+    // 2026-09-08 Q "AI 제안 본문은 AI 제안과 같은 컬러로 써서 주목도를 올리자".
+    // 6차 개정에서 제목이 14/600 라벤더 deep 이 되어 §1 ② 라벨 단 안으로 들어왔다.
+    // 자리를 남겨 두는 이유는 이 조합이 라벨이 아니라 항목 제목이라는 근거를 붙여 두기 위함이다.
+    selector: '.briefing-suggestion-title',
+    combo: 'var(--text-sm)/600/var(--lavender-deep)',
+    why: 'AI 제안 항목 제목 — 구획 라벨과 같은 계열 색과 라벨 단 크기를 쓴다',
+  },
 ];
 
 // 킷 페이지 반례(`.wire-kit-flat>p.is-reason`)는 **여기 넣지 않는다.** 한 번 넣었다가 되돌렸다.

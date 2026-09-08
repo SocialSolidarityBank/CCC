@@ -483,11 +483,13 @@ const briefingStyles = `
 .risk-banner-head{display:flex;align-items:center;gap:var(--space-2)}
 .risk-banner-icon{flex:none;width:18px;height:18px;color:var(--risk)}
 .risk-banner-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--risk)}
-/* 항목은 흰 배경 행(radius 6 · --line 1px)에 체크박스 + 16/700 --ink.
-   그림자는 아웃라인으로 대체됐다(2026-08-05 Q · ADR-0030 — 본문 카드는 선이 경계를 만든다). */
+/* 항목 줄은 흰 배경 행(radius 6 · --line 1px)이고 기본 굵기는 400 이다(2026-09-08 Q, 구 전 줄 600).
+   강조는 리스크 유형 하나뿐이라 그 조각만 600 + --risk 를 받는다(§9 리스크/면 대비 6.04).
+   그림자는 아웃라인으로 대체됐다(2026-08-05 Q · ADR-0030, 본문 카드는 선이 경계를 만든다). */
 .risk-banner-list{margin:var(--space-3) 0 0;padding:0;display:grid;gap:var(--space-2);list-style:none}
-.risk-banner-list li{display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:600}
+.risk-banner-list li{display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--ink);font-size:var(--text-md);font-weight:400}
 .risk-banner-item-head{display:flex;align-items:center;gap:var(--space-2)}
+.risk-banner-flag{font-size:var(--text-md);font-weight:600;line-height:var(--leading-normal);color:var(--risk)}
 .risk-banner-list .panel-meta{margin-left:auto;color:var(--sub);font-weight:400;font-size:var(--text-sm)}
 /* 표준 카드 그리드(D37 §4-2)는 열 수를 쓰지 않는다. 최소 폭 420이 열을 만들며,
    spacing v2 최대 장폭에서는 3열까지 열리고 컨테이너가 좁아지면 2열과 1열로 접힌다. */
@@ -554,15 +556,32 @@ const briefingStyles = `
    .wire-bullets 는 2개 이상일 때만 얹는다 — 목표 트리와 같은 규칙, 마크업이 가른다). */
 .briefing-subgoal-rows{display:grid;gap:var(--space-2);margin:0;padding:0;list-style:none}
 .briefing-subgoal-row{font-size:var(--text-sm);line-height:normal;color:var(--ink)}
-/* 세션 목표에 병기하는 부모 세부 목표 이름 (D62 §5) — 부모가 닫혔으면 흐리게(--sub).
-   색에만 기대지 않게 문구도 '(종료)'를 함께 쓴다(마크업). */
-.briefing-parent-goal{font-size:var(--text-sm);color:var(--sub);font-weight:600}
-.briefing-parent-goal.is-closed{color:var(--sub)}
-/* 전체 목표 미설정 안내는 AI 제안 구획 전체에 해당한다. 안내는 라벨 뒤 남는 폭을 쓰고,
-   닫기 버튼은 공용 구획 action 슬롯의 오른쪽 끝에 선다(2026-09-05 Q). 좁은 폭에서는
-   안내와 버튼이 자연스럽게 줄바꿈한다. */
-.briefing-ai-goal-hint{display:flex;align-items:center;flex:1 1 auto;min-width:0;gap:var(--space-3);flex-wrap:wrap;font-size:var(--text-sm);color:var(--sub)}
-.briefing-ai-goal-hint>.wire-button{flex:none;margin-left:auto}
+/* 세션 목표에 병기하는 부모 세부 목표 (D62 §5). 나란히 서는 두 글자 덩어리는 정보 종류가
+   다르면 옷도 다르다(2026-09-08 Q): 라벨은 목표 축 민트 deep 14/600, 문구는 물러선
+   14/400 --sub 다. 라벨은 좁은 폭에서도 두 줄로 쪼개지지 않는다(2026-09-08 Q 7차). */
+.briefing-parent-goal{display:inline-flex;align-items:baseline;gap:var(--space-1-5);min-width:0}
+.briefing-parent-goal-label{flex:none;white-space:nowrap;color:var(--mint-deep);font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal)}
+.briefing-parent-goal-text{color:var(--sub);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal)}
+.briefing-parent-goal.is-closed>.briefing-parent-goal-label{color:var(--sub)}
+/* 구획 안 행동은 맨 아래 왼쪽이다(2026-09-08 Q 2차, 구 오른쪽 끝). 세로로 쌓이는 버튼은
+   내용과 같은 시작선을 쓴다. 위 문장과의 간격은 구획 기본 8 의 1.5배인 12 다(2026-09-08 Q 3차).
+   테두리가 가까이 있어 8 에서는 뭉개져 읽힌다. 구획 grid gap 8 위에 4 를 더해 12 를 만든다. */
+.briefing-section-footer{display:flex;align-items:center;justify-content:flex-start;gap:var(--space-2);flex-wrap:wrap;min-width:0;margin-top:var(--space-1)}
+/* 전체 목표 미설정 안내도 같은 자리의 각주다. 안내 글이 구획 전체 폭을 쓰고 닫기 버튼이
+   그 아래 왼쪽에 선다. 안내와 버튼 사이도 같은 12 다. */
+.briefing-ai-goal-hint{display:grid;justify-items:start;gap:var(--space-3);min-width:0;margin-top:var(--space-1)}
+/* 빈 상태(.empty 14/400 --sub)와 나란히 서므로 안내는 본문 단 14/400 --ink 로 갈린다.
+   크기로 가르는 길은 14 하한(§5)에 막혀 있어 색을 쓴다(2026-09-08 Q). */
+.briefing-ai-goal-hint>span{min-width:0;width:100%;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);color:var(--ink)}
+.briefing-ai-goal-hint>.wire-button{flex:none}
+/* AI 제안 한 건은 회차 행과 같은 어휘다(2026-09-08 Q 5~7차). 상자를 겹치지 않는다: 테두리 있는
+   낱개 상자 대신 구획 안에서 전폭 가로선으로만 형제를 가른다(Q 7차 "div 가로선 섹션").
+   중첩 상자가 모바일에서 글줄을 139px까지 좁히던 것을 없앤다. 계열색은 제목 글자에만 둔다.
+   근거 인용은 행 안에 두지 않는다. 클릭하면 그 회차 기록으로 간다(Q 7차, 내용 중복 제거). */
+.briefing-suggestion-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--card-pad, var(--space-6));color:inherit;text-decoration:none}
+.briefing-suggestion-main{display:grid;gap:var(--space-1);min-width:0;width:100%}
+.briefing-suggestion-title{font-size:var(--text-sm);font-weight:600;line-height:var(--leading-normal);color:var(--lavender-deep)}
+.briefing-suggestion-reason{font-size:var(--text-sm);font-weight:400;line-height:var(--leading-relaxed);color:var(--sub)}
 /* 라벨 행 아래 가로선은 없다. 상자 자체가 구획을 가르고, 라벨 행과 내용 사이는
    구획 기본 row-gap 8을 써 형제 구획과 같은 리듬을 유지한다. */
 /* 브리핑 이어보기(.briefing-more)는 2026-08-06 Q 로 폐지 — '전체 상담 기록' 버튼이
@@ -575,6 +594,12 @@ const briefingStyles = `
 .briefing-card>.wire-card-body{gap:var(--space-4)}
 .briefing-memo-item{display:grid;min-width:0}
 .briefing-suggestions{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
+/* AI 제안 목록만 구획 안 전폭 띠다(2026-09-08 Q 7차, 구 gap 16 낱개 상자). 좌우 음수 마진으로
+   카드 안쪽 패딩을 되밀어 가로선이 카드 폭을 가로지른다. 위 마진 4 는 구획 기본 8 과 행 패딩
+   12 에 더해져, 라벨 아래 첫 글자와 형제 사이와 마지막 글자 아래 여백을 모두 24 로 맞춘다.
+   검토할 AI 초안 목록은 WireItem 을 쓰므로 위 기본 규칙(gap 16)에 남는다. */
+.briefing-suggestion-list{gap:0;margin:var(--space-1) calc(var(--card-pad, var(--space-6)) * -1) 0}
+.briefing-suggestion-list>li+li{border-top:1px solid var(--line)}
 /* 영역 ③ 불일치 처리(D45 · CCC-42) — 처리 3종 버튼 줄과 접힌 이력. 처리는 표시일 뿐이라
    시각적 무게를 더하지 않는다(세컨더리 버튼·무채색 요약). */
 .briefing-resolution-form{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
@@ -588,10 +613,13 @@ const briefingStyles = `
    핵심 한 줄이 좌측정렬 고정 간격(12)으로 선다. 본문이 한 줄을 넘으면 줄바꿈 대신
    오른쪽 끝 48px 에서 마스크로 자연스럽게 사라진다 — 훑는 화면이라 행 높이가 고르게 남는다.
    전문은 근거 회차(상담 기록)에서 읽는다. */
-/* 호버 면이 행 높이(20)보다 커야 짚기 쉽다(2026-09-04 Q "호버 선택범위가 너무 좁다").
-   행마다 위아래 8 을 넣어 38 짜리 표적을 만들고, 목록 gap 은 0 으로 두어 실제 글자 사이는
-   §7 의 16(8+8) 그대로 남긴다. 좌우 12 는 음수 마진으로 되밀어 시작선을 지킨다. */
-.briefing-session-rows{display:grid;gap:0;margin:0;padding:0;list-style:none}
+/* 회차 한 건은 날짜·유형·수기·본문이 한 묶음인 정보 섹션이라 형제 사이를 가로선으로 가른다
+   (2026-09-08 Q, 2차 개정). 선은 카드 본문 폭 전체를 가로지르고, 행 안쪽 위아래 여백은 카드
+   패딩과 같은 24 다. 목록 음수 마진 -24 가 맞물려 카드 위 첫 글자, 선 위, 선 아래, 카드 아래
+   마지막 글자의 여백이 모두 24 로 같다. 호버 면은 그 전폭 띠를 그대로 쓴다. */
+.briefing-session-rows{display:grid;gap:0;margin:calc(var(--card-pad, var(--space-6)) * -1) 0;padding:0;list-style:none}
+.briefing-session-rows>li{margin-inline:calc(var(--card-pad, var(--space-6)) * -1)}
+.briefing-session-rows>li+li{border-top:1px solid var(--line)}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
    없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게(767 이하는 첫 행 유형 옆으로
@@ -606,7 +634,7 @@ const briefingStyles = `
    (.participant-next-schedule-link)를 따라 --muted 로 넣었고, 2026-08-30 검수 후 이 자리와
    전례를 함께 고쳤다 — 남은 --muted 호버 4곳은 버튼·컨트롤이라 이 규칙 대상이 아니다),
    눌림은 공용 배선(wire-styles.ts §6 목록)이 갖는다. */
-.briefing-session-row{display:grid;grid-template-columns:112px 64px 44px minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0;padding:var(--space-2) var(--space-3);margin-inline:calc(var(--space-3) * -1);color:inherit;text-decoration:none;border-radius:var(--radius-control)}
+.briefing-session-row{display:grid;grid-template-columns:112px 64px 44px minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0;padding:var(--card-pad, var(--space-6));color:inherit;text-decoration:none}
 @media (hover:hover){.briefing-session-row:hover{background:var(--gradient-hover)}}
 /* 배지는 자기 글자 폭만 차지한다(2026-09-04 Q, 구 width:100% 로 칸 폭 채우기). 칸 폭으로
    늘리면 좌우 패딩이 8 계약을 벗어나 18.3·19.8·14.9 로 제각각이 됐다. 시작 x 고정은
@@ -620,18 +648,26 @@ const briefingStyles = `
 .briefing-session-date{flex:none;width:112px;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:normal;color:var(--sub);font-variant-numeric:tabular-nums}
 .briefing-session-row .wire-badge{flex:none}
 /* 넘침 처리는 공용 .wire-fade-clip(마크업에서 함께 단다)이 갖는다 — 상담 기록과 같은 규칙. */
-.briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink)}
+.briefing-session-text{flex:1 1 auto;min-width:0;font-size:var(--text-sm);line-height:var(--leading-relaxed);color:var(--ink)}
 .briefing-session-row>.wire-chevron{grid-column:-1;grid-row:1/-1;align-self:center;justify-self:end}
-/* 미해결 액션 행(2026-08-06 Q · 2026-08-28 Q 개정): 내용과 담당(민트)·기한(블루) 뱃지가
-   **왼쪽에 한 묶음으로 붙고**, 출처 회차 버튼만 오른쪽 끝으로 떨어진다. 구 "내용이 남는
-   폭을 갖고 뱃지를 끝으로 민다"는 뱃지가 버튼 옆에 붙어 크기가 안 맞은 한 쌍처럼 읽혔다
-   (Q "버튼과 뱃지가 나란히 있어서 교정이 안 된 것처럼"). 내용은 자라지 않고(flex:0 1 auto)
-   뱃지가 그 뒤에 서며, 버튼은 margin-left:auto 로 밀려 뱃지와 갈린다. */
+/* 미해결 액션 행의 기본 문법은 한 줄이다(종결 화면이 같은 클래스를 쓴다). 줄글로 읽는 내용은
+   행간 1.6(--leading-relaxed)이다(2026-09-08 Q). */
 .briefing-action-rows{display:grid;gap:var(--space-4);margin:0;padding:0;list-style:none}
 .briefing-action-row{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;min-width:0}
-.briefing-action-desc{flex:0 1 auto;min-width:0;font-size:var(--text-sm);line-height:normal;color:var(--ink);overflow-wrap:anywhere}
+.briefing-action-desc{min-width:0;font-size:var(--text-sm);line-height:var(--leading-relaxed);color:var(--ink);overflow-wrap:break-word}
 .briefing-action-row .wire-badge{flex:none;white-space:nowrap}
-.briefing-action-source{flex:none;margin-left:auto}
+/* 15초 페이지의 액션 한 건은 회차 행과 같은 전폭 띠다(2026-09-08 Q 2차). 행 전체가 출처 회차
+   링크이고 오른쪽 끝에 이동 꺽쇠가 선다. 본문은 꺽쇠 열 앞까지 전체 폭을 쓴다(Q 5차).
+   목록 간격과 음수 마진은 회차 목록과 같은 값이라 호버 띠 밖에 남는 여백이 없다(Q 6차,
+   구 목록 gap 16). 형제 사이 가로선은 카드 본문 폭을 가로지르고, 행 안쪽 위아래 24 와 목록
+   음수 마진 -24 가 맞물려 카드 안 세로 여백이 모두 24 로 같다. */
+.briefing-page .briefing-action-rows{gap:0;margin:calc(var(--card-pad, var(--space-6)) * -1) 0}
+.briefing-page .briefing-action-rows>li{margin-inline:calc(var(--card-pad, var(--space-6)) * -1)}
+.briefing-page .briefing-action-rows>li+li{border-top:1px solid var(--line)}
+.briefing-page .briefing-action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);padding:var(--card-pad, var(--space-6));color:inherit;text-decoration:none}
+@media (hover:hover){.briefing-page a.briefing-action-row:hover{background:var(--gradient-hover)}}
+.briefing-action-main{display:grid;justify-items:start;gap:var(--space-2);min-width:0;width:100%}
+.briefing-action-badges{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;min-width:0}
 /* ── 상담 기록 화면 (D47 · ADR-0019) ──────────────────────────────────────────
    회차는 details 로 접는다 — 최신 1개만 열린 채 서버에서 오고, 브리핑 앵커로 들어오면
    그 회차가 추가로 열린다. 카드 계약(.surface-card)과 '펼친 것이 곧 활성'(surface-card[open])은
@@ -742,14 +778,14 @@ const briefingStyles = `
 @media (max-width:767px){
   /* 좁으면 한 줄이 무너지므로 핵심 한 줄을 아래로 내린다(리스트 행 계약과 같은 접힘).
      내려간 줄은 전문을 접어 보여주므로 페이드 마스크도 함께 끈다. */
-  .record-summary{flex-wrap:wrap}
-  /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
-  .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차).
-     첫 행 = 날짜·유형·수기, 둘째 행 = 핵심 한 줄 전폭(꺽쇠 열 앞까지). 수기 칸은 둘째 행에
-     홀로 남지 않는다(2026-09-06 Q 모바일 정리). */
-  .briefing-session-row{grid-template-columns:112px 64px minmax(0,1fr) auto;grid-template-rows:auto auto}
-  .briefing-session-kind{grid-column:2;grid-row:1}
+  /* 브리핑 회차 행도 같은 접힘. 첫 행 = 날짜·유형·수기, 둘째 행 = 핵심 한 줄 전폭(꺽쇠 열
+     앞까지)이고 수기 칸은 둘째 행에 홀로 남지 않는다(2026-09-06 Q 모바일 정리).
+     모바일만 칸을 내용 폭으로 풀고, 간격은 미해결 액션의 담당·기한 배지 사이와 같은 8 이다
+     (2026-09-08 Q 7차, 구 고정 칸 112·64 + 간격 8 은 죽은 자리를 만들었고 Q 6차의 4 는 좁았다).
+     데스크톱의 고정 칸 정렬은 그대로다. */
+  .briefing-session-row{grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:var(--space-2)}
+  .briefing-session-date{width:auto}
+  .briefing-session-kind{grid-column:2;grid-row:1;width:auto}
   .briefing-session-memo{grid-column:3;grid-row:1;width:auto}
   .briefing-session-memo:empty{display:none}
   .briefing-session-row>.wire-chevron{grid-column:4;grid-row:1/3}
