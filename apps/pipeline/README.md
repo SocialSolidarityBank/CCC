@@ -32,6 +32,7 @@ ccc_pipeline/
   transcribe.py      Local 전사 오케스트레이션: 조각 순회·시각 보정·제한된 조각 재시도 + 엔진 등록소 (D53)
   azure_stt.py       Azure 원본 파일 provider: 최대 1회 client send·익명의 파일별 화자 ID·반복 검사
   stt_trial.py       운영자 소유 비민감 입력용 STT 전용 CLI
+  trial_server.py    위 CLI 를 브라우저에서 부르는 로컬 전용 HTTP 서버 (127.0.0.1, 제품 API 아님)
   chunking.py        Local 무음 경계 조각 분할 (ffmpeg silencedetect, 경계 계산은 순수 로직)
   repetition.py      Local·Azure 반복 붕괴 검사: 접어서 경고, 지우지 않는다 (순수 로직, R5)
   diarize.py         Local pyannote 화자 분리. Azure provider 화자 ID는 덮어쓰지 않는다
@@ -137,6 +138,72 @@ PYTHONPATH=apps/pipeline python3 -m ccc_pipeline.stt_trial \
 출력 디렉터리와 `transcript.json`, `trial.json`은 POSIX에서 각각 0700, 0600으로 생성한다. Windows에서는 사용자 전용 폴더의 접근 제어를 별도로 확인해야 하며 POSIX mode 값만으로 NTFS 권한 검증을 대신하지 않는다. 기존 파일을 덮어쓰지 않으며 stdout에는 안전한 run 메타데이터만 쓰고 전사문·원문 오류·키를 쓰지 않는다. Azure client는 원본 파일 send를 최대 한 번 시작하고 자동 재시도하지 않으며, 익명의 파일별 provider 화자 ID를 보존한다.
 
 이 2026-09-08 구현 작업에서는 실제 Qwen 모델 적재, 실제 Azure 호출, 사람 품질, 장비 처리량 또는 제품 활성화를 검증하지 않았다.
+
+### 내부 STT 시험 로컬 서버
+
+`ccc_pipeline.trial_server` 는 위 CLI 와 같은 처리를 브라우저가 부를 수 있게 감싼 로컬 전용 HTTP 서버다. 사업 DB, 세션, 동의, NER 영수증, 승인 registry 를 건드리지 않고 제품 STT 를 활성화하지 않는다. 입력은 CLI 와 같이 운영자 본인이 소유한 비민감 시험녹음만 허용한다. 엔진은 `qwen3-asr` 과 `azure` 두 가지다.
+
+```bash
+CCC_STT_PYTHON=/path/to/qwen-venv/bin/python \
+CCC_STT_TRIAL_CLIENT_DIR=/path/to/apps/client/dist \
+PYTHONPATH=apps/pipeline python3 -m ccc_pipeline.trial_server
+```
+
+`127.0.0.1` 에만 바인딩한다. 명령 인자는 받지 않고 설정은 환경 변수로만 준다.
+
+| 이름 | 기본값 | 용도 |
+| --- | --- | --- |
+| `CCC_STT_TRIAL_PORT` | `8790` | 서버 포트 |
+| `CCC_STT_TRIAL_DIR` | `~/.local/state/ccc-stt-trials` | 결과와 실행 잠금 위치. Git 워크트리 안이면 뜨지 않는다 |
+| `CCC_STT_TRIAL_CLIENT_DIR` | 없음 | 빌드된 `apps/client` 정적 파일 루트. 없으면 API 만 제공한다 |
+| `CCC_WORK_DIR` | `~/.cache/ccc-pipeline` | 업로드 임시 사본 위치 |
+| `CCC_STT_PYTHON`·`CCC_STT_DEVICE`·`AZURE_SPEECH_KEY` | 위 표와 같다 | 엔진 설정. 브라우저가 아니라 서버 환경이 정한다 |
+
+| 요청 | 내용 |
+| --- | --- |
+| `GET /internal/stt/status` | 설정 존재 여부, 정확한 모델 ID 와 revision, Qwen aligner, Azure region 과 api-version, 업로드 한도와 허용 형식, 진행 중 시험 |
+| `POST /internal/stt/trials` | 오디오 bytes 제출. 헤더는 `X-CCC-Trial-Engine`, `X-CCC-Owned-Test-Recording: 1`, Azure 만 `X-CCC-Allow-External-Upload: 1`. 202 와 `trialId` 를 준다 |
+| `GET /internal/stt/trials/{32자리}` | `queued`, `running`, `completed`, `failed` 와 종결 정보. 모든 상태에 `externalUploadAttempted` 를 포함한다 |
+| `GET /internal/stt/trials/{32자리}/transcript` | 완료 결과만. `segments`(화자는 있을 때만), `repetitionWarnings`, `forcedCuts`, `qualityEvaluation: deferred` |
+| `DELETE /internal/stt/trials/{32자리}` | 종결 결과 삭제. 실행 중이면 409 |
+
+`configured` 는 설정이 있다는 뜻이며 준비 완료, 품질 통과, 제품 승인이 아니다.
+
+`externalUploadAttempted` 는 `true`·`false`·`null` 세 값이다. Local 은 외부로 나가지 않으므로 `false`, Azure 는 그 회차의 기록(`trial.json`)에 남은 boolean 만 쓴다. 아직 기록이 없거나 읽을 수 없으면(진행 중, 전송 시도 전 실패, 결과 저장 실패) `null` 이며 이것은 "모른다"는 뜻이다. **모르는 상태를 `false` 로 표시하면 안 된다.** 실제로 원음이 나갔는지 모르는 상황을 나가지 않았다고 알리는 셈이다. 화면도 `null` 을 "확인 불가"로 보여야 한다.
+
+경계:
+
+- `Host` 는 `127.0.0.1:<port>` 또는 `localhost:<port>` 만 받고, `Origin` 이 있으면 **그 요청이 통과한 `Host` 와 같아야** 한다. `127.0.0.1` 과 `localhost` 는 서로 다른 origin 이라 짝을 섞으면 `origin_not_allowed` 다. CORS 헤더를 내보내지 않으므로 교차 출처 호출은 브라우저가 막는다.
+- 모든 응답에 `Cache-Control: no-store, private`, `nosniff`, CSP 를 붙인다. CSP 는 `script-src 'self'` 를 유지하되 `style-src` 에 `'unsafe-inline'` 을 허용한다. 빌드된 클라이언트가 공유 Wire CSS 를 인라인 `<style>` 로 싣기 때문이며(`apps/web` RootLayout 과 같은 방식) 이걸 막으면 화면 여백과 배경이 실제로 사라진다. `frame-ancestors` 와 `object-src` 는 `'none'` 이다.
+- 정적 파일은 지정한 디렉터리 안의 파일만 목록 없이 제공한다. 상위 경로와 밖으로 나가는 심볼릭 링크는 404 다.
+- 브라우저는 파일 경로, 모델 선택, python 실행 파일, provider URL, 키, 실행 명령을 지정할 수 없다. 본문은 오디오 bytes 뿐이고 나머지는 서버 환경이 정한다.
+- 인증 토큰은 없다. 같은 계정의 다른 로컬 프로세스는 이 API 를 부를 수 있다는 천장을 전제로 쓴다.
+
+업로드 프레이밍은 선언 길이만 읽는다. `Content-Length` 는 필수이고 1 이상 209,715,200(200MB) 이하의 정수여야 하며, `Transfer-Encoding` 이 있으면 `chunked_body_not_supported` 로 거부한다. 선언보다 본문이 짧으면 `audio_body_incomplete`, 읽기가 timeout 이면 `upload_timeout`, 선언이 한도를 넘으면 본문을 읽지 않고 413 `audio_too_large` 로 연결을 끊는다. keep-alive 연결에서 선언 길이를 넘겨 읽으면 응답을 기다리는 브라우저와 교착되므로 이 규칙을 바꾸지 않는다.
+
+생명주기와 단일 실행 경계:
+
+- 고부하 작업은 한 번에 하나다. 실행 중 제출은 409 `trial_already_running` 이다.
+- 서버는 시작할 때 결과 디렉터리에 `.server.lock` 을 만든다. 이미 있으면 뜨지 않고 종료 코드 3 이다. 강제 종료 뒤에는 남은 STT 자식 프로세스가 없음을 확인하고 그 파일을 지운다. 재기동이 겹쳐 고부하 작업 둘이 도는 것을 막는 경계가 이것이다.
+- SIGINT 과 SIGTERM 은 새 요청을 받지 않고 진행 중 작업을 최대 30초 기다린 뒤 잠금을 지운다. 그 시간을 넘겨 작업이 남아 있으면 **잠금을 지우지 않고 종료 코드 4** 를 낸다. 데몬 스레드는 인터프리터와 함께 죽지만 격리된 STT 자식 프로세스는 살아남을 수 있어서, 이때 잠금을 풀면 새 서버가 그 옆에서 두 번째 고부하 작업을 시작한다. 남은 자식이 없음을 확인한 뒤 잠금 파일을 지운다.
+- 시작할 때 `api-*` 디렉터리 중 서버 결과 파일(`server-trial.json`)이 없는 것은 `failed` 와 `interrupted` 로 표시하고 남은 조각 디렉터리를 지운다. 자동 재실행은 하지 않는다.
+- 시작할 때 업로드 임시 디렉터리의 `upload-*` 사본도 지운다. 강제 종료로 남은 원음 사본이 디스크에 계속 있는 것을 막는다. 이 디렉터리는 `CCC_WORK_DIR/stt-trial-uploads/<결과 루트 지문>` 이라 결과 루트가 다른 서버는 서로의 업로드를 건드리지 않는다. 잠금은 결과 루트 단위이므로 두 이름 공간을 맞춰 둔다.
+- 종료를 시작하면 먼저 새 예약을 막는다(`503 server_shutting_down`). listener 를 닫아도 이미 열린 연결의 처리 스레드는 살아 있어서, 예약을 먼저 막지 않으면 유휴 판정 뒤에 새 고부하 작업이 시작될 수 있다.
+- 종결 결과를 디스크에 쓸 수 없으면(공간 부족, 권한 등) 그 시험은 `failed` + `result_storage_failed` 로 관측된다. 예외를 스레드 밖으로 흘려 traceback 과 경로를 찍지 않고, 상태를 메모리에 들고 조회에 답하며 슬롯과 임시 원음 정리는 그대로 수행한다. 저장이 안 된 판정이라 재시작하면 sidecar 가 없어 `interrupted` 로 정리된다.
+- POSIX 에서는 `SO_REUSEADDR` 을 켜서 정상 종료 직후 같은 포트로 바로 다시 뜬다. 이 옵션은 TIME_WAIT 만 건너뛰며 살아 있는 listener 가 있으면 여전히 bind 가 실패한다. Windows 에서는 같은 옵션이 이미 묶인 포트를 가로챌 수 있어 끄고, 대신 위 잠금 파일이 단일 실행을 보장한다.
+
+CLI 와 다른 점:
+
+| 축 | CLI | 서버 |
+| --- | --- | --- |
+| 실행 식별 | 시각으로 만든 디렉터리 이름 | `api-` + 32자리 난수 |
+| 상태 | 상태 개념이 없다 | `queued`·`running` 은 메모리, 종결은 `server-trial.json` |
+| 업로드 원음 | 사용자 원본을 읽기만 한다 | 업로드 사본을 성공·실패·초과·종료 어느 경로에서나 지운다 |
+| 결과 삭제 | 사람이 지운다 | 자동 기한 삭제 없음. 종결 결과만 `DELETE` 로 지운다 |
+
+제출 거부 코드는 `engine_invalid`, `content_type_not_allowed`, `content_length_required`, `audio_body_empty`, `audio_too_large`, `audio_body_incomplete`, `upload_timeout`, `chunked_body_not_supported`, `owned_test_recording_declaration_required`, `external_upload_not_authorized`, `external_upload_flag_requires_azure`, `qwen_python_required`, `qwen_python_invalid`, `azure_speech_key_missing`, `invalid_device`, `trial_already_running`, `trial_not_completed`, `trial_running`, `server_shutting_down`, `host_not_allowed`, `origin_not_allowed`, `not_found`, `method_not_allowed`, `bad_request`, `trial_result_invalid`, `internal_error` 다. 표준 라이브러리가 만드는 오류(모르는 메서드, 깨진 요청 줄)도 HTML 대신 같은 형태의 `method_not_allowed`·`bad_request` 로 답한다. 종결 실패의 `errorCode` 는 `engine_not_ready`, `engine_timeout`, `engine_result_invalid`, `provider_rejected`, `provider_unavailable`, `audio_rejected`, `engine_execution_failed`, `result_storage_failed`, `interrupted`, `stt_execution_failed` 와 CLI 의 고정 코드다. Azure 어댑터는 timeout 과 소켓 오류를 한 코드로 묶으므로 그 경우를 timeout 이라고 적지 않는다.
+
+이 서버의 계약은 처리기를 mock 한 네트워크 테스트로 확인했다. 실제 모델 적재, 실제 Azure 호출, 브라우저 녹음 왕복은 확인하지 않았다.
 
 ### S13 후보 비교: v1 CPU 경로 재현
 
