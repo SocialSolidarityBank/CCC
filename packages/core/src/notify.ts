@@ -28,8 +28,13 @@ export async function notifyAdmins(env: NotifyEnv, message: string): Promise<voi
   try {
     const webhookUrl = (await env.secretStore.get('NOTIFY_WEBHOOK_URL'))?.trim();
     if (webhookUrl === undefined || webhookUrl === '') return;
+    if (new URL(webhookUrl).protocol !== 'https:') {
+      console.error(`${WATCHDOG_ALERT_PREFIX} webhook delivery failed: insecure transport`);
+      return;
+    }
     const response = await fetch(webhookUrl, {
       method: 'POST',
+      redirect: 'error',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: line }),
     });

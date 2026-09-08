@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import chunking, masking, repetition, transcribe  # 기본값 정본은 각 모듈에 둔다(중복 금지)
@@ -23,9 +23,9 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Config:
     api_base_url: str
-    client_id: str | None
-    client_secret: str | None
-    preview_access_code: str | None
+    client_id: str | None = field(repr=False)
+    client_secret: str | None = field(repr=False)
+    preview_access_code: str | None = field(repr=False)
     poll_interval_seconds: int
     work_dir: Path
     whisper_model: str
@@ -45,7 +45,7 @@ class Config:
     # 질병명 NER 은 인명 NER 과 다른 모델이라 설정을 따로 둔다. 없어도 사전 계층은 항상 동작한다(G3).
     condition_ner_model_id: str | None
     condition_ner_labels: tuple[str, ...]
-    hf_token: str | None
+    hf_token: str | None = field(repr=False)
     runtime_environment: str
     # S5 claim 이 요구하는 S6 attestation 과 E5-4 release 영수증. 값의 정본은 서버가 갖고
     # Agent 는 그대로 실어 보낸다. 없으면 claim 자체가 성립하지 않아 워커가 뜨지 않는다(R3).
