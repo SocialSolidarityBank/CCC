@@ -166,6 +166,12 @@ const baseProps: BriefingCardsProps = {
 // 제안 2건 — 항목 사이 리듬(.briefing-suggestions gap)을 재려면 형제가 둘 필요하다.
 const contentProps: BriefingCardsProps = {
   ...baseProps,
+  upcomingSchedule: {
+    id: 'schedule-align',
+    scheduledAt: '2026-09-09T05:00:00Z',
+    sessionGoals: [{ body: '생활비 계획을 정리한다', caseGoalId: 'g1', caseGoalTitle: '월세 체납 해소', caseGoalStatus: 'active' }],
+    customQuestions: [],
+  },
   aiSuggestions: [
     {
       title: '최근 구직 활동은 어땠는지',
@@ -398,6 +404,7 @@ describe('정렬 하니스 생성기', () => {
     const registerOpen = register.replace('<details class="consent-detail', '<details open class="consent-detail');
     const hubConsentOpen = hubConsent.replace('<details class="consent-detail', '<details open class="consent-detail');
     const goalTreeOpen = goalTree.replace('<details class="goal-tree-goal-details', '<details open class="goal-tree-goal-details');
+    const contentOpen = content.replace('<details class="wire-source-quotes"', '<details open class="wire-source-quotes"');
 
     // 단언 대상이 실제로 렌더에 서야 실측이 성립한다. 빈 껍데기면 실측이 "요소 없음"으로
     // 늦게 죽는 대신 여기서 원인(어느 fixture 가 비었나)을 말하며 막는다.
@@ -457,6 +464,7 @@ describe('정렬 하니스 생성기', () => {
 </head><body>
 <div id="align-empty">${empty}</div>
 <div id="align-content">${content}</div>
+<div id="align-content-open">${contentOpen}</div>
 <div id="align-register">${register}</div>
 <div id="align-register-open">${registerOpen}</div>
 <div id="align-hub-consent">${hubConsent}</div>

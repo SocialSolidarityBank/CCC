@@ -566,6 +566,21 @@ const briefingStyles = `
 .briefing-parent-goal.is-closed>.briefing-parent-goal-label{color:var(--sub)}
 /* 15초 페이지 행동은 데스크톱 오른쪽, 모바일 세로 배치다. 위 내용과 간격 12는 유지한다. */
 .briefing-section-footer{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-2);flex-wrap:wrap;min-width:0;margin-top:var(--space-1)}
+.briefing-page .risk-banner-list>li,.briefing-memo-item{container-type:inline-size}
+/* 15초 페이지에만 적용한다. HERO 이름과 행동 배치는 공용 계약을 그대로 따른다. */
+@container (min-width:960px){
+  .briefing-page .participant-hero-details{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+/* 화면 폭과 실제 내용 폭을 모두 확보했을 때만 텍스트와 행동을 한 행으로 묶는다. */
+@media (min-width:768px){
+  @container (min-width:600px){
+    .briefing-page .risk-banner .wire-source-quotes-body{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+    .briefing-page .wire-card-section:has(>.briefing-section-footer){grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-3);align-items:center}
+    .briefing-page .wire-card-section:has(>.briefing-section-footer)>h3{grid-column:1/-1}
+    .briefing-page .wire-card-section:has(>.briefing-section-footer)>:not(h3):not(.briefing-section-footer){grid-column:1;grid-row:2;min-width:0}
+    .briefing-page .briefing-section-footer{grid-column:2;grid-row:2;align-self:center;margin-top:0}
+  }
+}
 /* 전체 목표 미설정 안내는 AI 제안 제목 바로 아래 전체 폭으로 표시한다. */
 .briefing-ai-goal-hint{display:grid;min-width:0}
 /* 빈 상태(.empty 14/400 --sub)와 나란히 서므로 안내는 본문 단 14/400 --ink 로 갈린다.

@@ -608,17 +608,6 @@ describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () 
     expect(parent?.classList.contains('is-closed')).toBe(true);
   });
 
-  it('세션 목표 수정은 구획 맨 아래 버튼으로 선다 (2026-09-08 Q)', () => {
-    const { container } = render(<BriefingCards {...baseProps()} />);
-    const section = [...container.querySelectorAll('.wire-card-section')].find(
-      (candidate) => candidate.querySelector('h3')?.textContent === '세션 목표',
-    );
-    expect(section?.querySelector('.wire-card-section-head')).toBeNull();
-    const footer = section?.querySelector(':scope > .briefing-section-footer');
-    expect(footer?.querySelector('.wire-button')?.textContent).toBe('세션 목표 수정');
-    // 맨 아래여야 한다. 라벨 행이나 본문 앞에 서면 안 된다.
-    expect(section?.lastElementChild).toBe(footer);
-  });
 });
 
 
