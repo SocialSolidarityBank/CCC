@@ -976,11 +976,12 @@
     "expectedHeight": 40
   },
   {
-    "name": "390px 일정 날짜와 오늘 배지와 건수는 같은 첫 줄",
+    "name": "390px 일정 날짜와 오늘 배지와 건수와 이름은 같은 한 줄",
     "selectors": [
       "#align-schedule-body .schedule-day-heading",
       "#align-schedule-body .schedule-day-head>.wire-badge[data-tone=\"blue\"]",
-      "#align-schedule-body .schedule-day-count"
+      "#align-schedule-body .schedule-day-count",
+      "#align-schedule-body .schedule-day-names"
     ],
     "axis": "y",
     "tolerance": 1,

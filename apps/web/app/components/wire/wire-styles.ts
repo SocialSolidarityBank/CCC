@@ -77,6 +77,11 @@ export const wireStyles = `
 /* 배지는 두 화면 모두 같은 우상단 자리다. 지난 일정만 유형 옆에 상태 배지가 하나 더 붙는다. */
 .participant-card-badges{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;margin-left:auto}
 @media(max-width:767px){
+  /* 일정 카드의 유형·상태 배지는 767 이하에서 정보 전체 아래로 내려간다(2026-09-08 Q,
+     HERO 의 배지 하단 배치 규칙을 목록 카드에 적용). header 를 display:contents 로 풀어
+     이름 묶음과 배지가 카드 격자에 직접 앉고, order 로 배지만 마지막 줄로 보낸다. */
+  .participant-card[data-variant="schedule"] .participant-card-header{display:contents}
+  .participant-card[data-variant="schedule"] .participant-card-badges{order:1;margin-left:0;justify-content:flex-start}
   /* 목록 변형만: 참여 사업·연락처 두 쌍이 한 줄에 선다(라벨은 글자 폭). 일정 변형은
      상담 일시 값(약 175px)이 길어 두 쌍이 한 줄에 못 서므로 세로 2행 그대로다
      (2026-09-06 Q 모바일 정리). */
@@ -141,9 +146,11 @@ details.surface-card[open]>.record-summary .wire-badge,
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary>.wire-card-title{color:var(--on-action)}
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .wire-meta-row>span+span{border-left-color:var(--line-on-action)}
 /* 새로 편입된 일정 날짜 아코디언(2026-08-28)의 이름 목록·건수도 채운 면 글자다
-   (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다). */
+   (--sub 를 스스로 선언한 두 조각. 제목 span 은 .wire-card-title 을 상속해 이미 맞다).
+   건수와 이름을 가르는 세로선도 채운 면 전용 선색으로 넘어간다(2026-09-08 Q). */
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-names,
 .wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-count{color:var(--on-action)}
+.wire-card-details[open]:not(.is-crisis)>.wire-card-summary .schedule-day-names{border-left-color:var(--line-on-action)}
 /* 카드는 패딩을 갖고 있어 제목 줄이 안쪽에 떠 있다 — 같은 값의 음수 마진으로 면을 아웃라인까지
    밀고 패딩으로 글자 자리를 되돌린다. 값은 --card-pad 에서 되읽으므로 카드가 패딩을 바꿔도
    따라온다(2026-08-09 — 구 손 계산 16/20 대체). 회차 카드(.record-summary)는 카드에 패딩이
