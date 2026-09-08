@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./gateway": "./src/gateway.ts",
+    "./counseling-memory": "./src/counseling-memory.ts",
     "./access-policy": "./src/access-policy.ts",
     "./notify": "./src/notify.ts",
     "./scheduled-job-runner": "./src/scheduled-job-runner.ts"

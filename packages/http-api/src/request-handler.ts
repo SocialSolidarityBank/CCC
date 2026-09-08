@@ -203,6 +203,8 @@ import {
 } from '@ccc/contracts/agent-jobs';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
+import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
+import { runCounselingMemoryTrial } from './counseling-memory-runner';
 import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
@@ -2640,6 +2642,23 @@ export async function handleRequest(
     }
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
+      if (parts.length === 4 && parts[2] === 'memory' && parts[3] === 'trial') {
+        if (!memoryTrialEnabled(env)) return json({ error: 'not_found' }, 404);
+        requestQuery(url, []);
+        if (request.method === 'GET') {
+          return json(await memoryTrialReadiness(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
+        }
+        if (request.method === 'POST') {
+          const body = await requestBody(request);
+          requireOnlyKeys(body, ['confirmExternalAi']);
+          if (body.confirmExternalAi !== true) throw new ValidationError('external_call_confirmation_required');
+          const state = await memoryTrialReadiness(env, actor, supportCaseId);
+          if (!state.ready) return json(state, 409, { 'cache-control': 'no-store' });
+          const counters = await runCounselingMemoryTrial(env, actor, supportCaseId);
+          return json({ ...await memoryTrialReadiness(env, actor, supportCaseId), counters },
+            200, { 'cache-control': 'no-store' });
+        }
+      }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'memory') {
         requestQuery(url, []);
         return json(await getCounselingMemory(env, actor, supportCaseId), 200, { 'cache-control': 'no-store' });
