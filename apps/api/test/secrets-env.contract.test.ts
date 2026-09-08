@@ -58,6 +58,19 @@ describe('environment SecretStore', () => {
 });
 
 describe('secret-consuming services', () => {
+  it('keeps the provider credential out of serialized diagnostic objects', async () => {
+    const credential = 'synthetic-diagnostic-canary';
+    const resolved = await resolveAiProviderAdapter({
+      AI_PROVIDER_CONFIG: JSON.stringify({
+        registryVersion: 'phase1.v1', providerId: 'codex', adapterVersion: 'v1',
+        configVersion: 'v1', model: 'synthetic-model',
+      }),
+      secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: credential }),
+      EXTERNAL_AI_CALLS_ENABLED: '1',
+    });
+    expect(JSON.stringify(resolved)).not.toContain(credential);
+    expect(Object.values(resolved.adapter)).not.toContain(credential);
+  });
   it('does not call a provider when its key is missing', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected network'));
     try {

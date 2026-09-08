@@ -40,7 +40,11 @@ def main() -> int:
         preview_access_code=config.preview_access_code,
     )
     if args.once:
-        run_once(client, config)
+        try:
+            run_once(client, config)
+        except Exception:  # Poll failures must not dump provider errors or credentials.
+            print("pipeline poll failed", file=sys.stderr)
+            return 1
         return 0
     run_forever(client, config)
     return 0

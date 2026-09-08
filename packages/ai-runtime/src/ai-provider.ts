@@ -1302,12 +1302,15 @@ const CODEX_DISCREPANCY_INSTRUCTIONS = [
 export class CodexProviderAdapter implements AiProviderAdapter {
   readonly providerId = CODEX_PROVIDER_ID;
   readonly adapterVersion = CODEX_PROVIDER_ADAPTER_VERSION;
+  readonly #apiKey: string;
 
   constructor(
     private readonly config: AiProviderConfig,
-    private readonly apiKey: string,
+    apiKey: string,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+  ) {
+    this.#apiKey = apiKey;
+  }
 
   async generate(request: AiProviderRequest): Promise<AiProviderOutput> {
     return await this.callStructured(
@@ -1342,7 +1345,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
         response = await Reflect.apply(this.fetcher, globalThis, [CODEX_RESPONSES_URL, {
           method: 'POST',
           headers: {
-            authorization: `Bearer ${this.apiKey}`,
+            authorization: `Bearer ${this.#apiKey}`,
             'content-type': 'application/json',
           },
           body: JSON.stringify({

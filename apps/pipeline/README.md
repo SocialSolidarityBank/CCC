@@ -58,6 +58,10 @@ systemd/             WSL2 자동 시작 유닛
    `python3 -m ccc_pipeline --once`로 실행한다. 대기 작업이 없으면 "no jobs"로 끝난다
 6. 자동 시작: `systemd/ccc-pipeline.service` 설치 (파일 안 주석 참조)
 
+인증 요청은 리다이렉트를 따라가지 않는다. 주소가 바뀌면 자격증명을 다른 곳으로 전달하는 대신 실패하므로 배포 주소를 직접 설정해야 한다. 서버의 오류 본문은 정해진 작업 오류 코드만 받아들이고 나머지는 `unknown`으로 처리한다. `--once`의 폴링 실패는 원본 예외 대신 `pipeline poll failed`를 출력하고 종료 코드 1을 반환한다.
+
+설정의 일반 문자열 출력에는 Access 자격증명, Preview 코드, Hugging Face 토큰을 넣지 않는다. `vars(config)`나 `dataclasses.asdict(config)`에는 여전히 원래 값이 있으므로 로그, 진단 보고서, 파일로 내보내지 않는다.
+
 ## 환경 변수
 
 | 이름 | 필수 | 기본값 | 용도 |
