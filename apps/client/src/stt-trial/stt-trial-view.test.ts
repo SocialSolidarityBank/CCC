@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { createElement } from 'react';
+import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import { SttTrialView, type SttTrialViewProps } from './stt-trial-page';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
+import { SttTrialPage, SttTrialView, type SttTrialViewProps } from './stt-trial-page';
 import { externalUploadLabel } from './messages';
 
 const props: SttTrialViewProps = {
@@ -16,6 +17,7 @@ const props: SttTrialViewProps = {
   blockReason: null,
   trial: null,
   transcript: null,
+  transcriptError: null,
   onFileChange: () => {},
   onEngineChange: () => {},
   onOwnedTestRecordingChange: () => {},
@@ -66,5 +68,61 @@ describe('STT 표시 안전 계약', () => {
     expect(externalUploadLabel(null)).not.toBe(externalUploadLabel(false));
     expect(stateSection(running).querySelector('button')!.disabled).toBe(true);
     expect(stateSection(render({ trial: { ...trial, status: 'completed' } })).querySelector('button')!.disabled).toBe(false);
+  });
+
+  it('전사 조회 실패를 결과 카드에 표시하고 사용자 재조회로 복구한다', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    let transcriptRequests = 0;
+    const trialId = 'b'.repeat(32);
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/status')) return Response.json({
+        engines: { 'qwen3-asr': { configured: true }, azure: { configured: false } },
+        upload: { maxBytes: 2048, contentTypes: ['audio/wav'] }, busy: false,
+      });
+      if (url.endsWith('/transcript')) {
+        transcriptRequests++;
+        if (transcriptRequests === 1) return Response.json({ error: 'network_unavailable' }, { status: 503 });
+        return Response.json({
+          segments: [{ start: 0, end: 1, text: 'recovered-synthetic-speech' }],
+          repetitionWarnings: [], forcedCuts: 0, qualityEvaluation: 'deferred',
+        });
+      }
+      if (url.endsWith('/trials') && init?.method === 'POST') {
+        return Response.json({ trialId, status: 'queued' });
+      }
+      return Response.json({ trialId, status: 'completed', engine: 'qwen3-asr', externalUploadAttempted: false });
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const mounted = createRoot(container);
+    try {
+      await act(async () => { mounted.render(createElement(SttTrialPage)); });
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+      Object.defineProperty(input, 'files', { value: [new File(['synthetic'], 'test.wav', { type: 'audio/wav' })] });
+      await act(async () => {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        container.querySelector<HTMLInputElement>('#stt-owned')!.click();
+      });
+      await act(async () => {
+        container.querySelector('#stt-submit-heading')!.closest('section')!.querySelectorAll('button')[1]!.click();
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+      const result = container.querySelector('#stt-result-heading')!.closest('section')!;
+      expect(result.querySelector('[role="alert"]')).not.toBeNull();
+      expect(result.querySelector('[role="status"]')).toBeNull();
+      expect(container.querySelector('#stt-submit-heading')!.closest('section')!.querySelector('[role="alert"]')).toBeNull();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+      expect(transcriptRequests).toBe(1);
+      await act(async () => { result.querySelector('button')!.click(); });
+      expect(result.querySelector('[role="alert"]')).toBeNull();
+      expect(result.textContent).toContain('recovered-synthetic-speech');
+      expect(transcriptRequests).toBe(2);
+    } finally {
+      await act(async () => { mounted.unmount(); });
+      container.remove();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });

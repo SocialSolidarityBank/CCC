@@ -45,6 +45,16 @@ export function SttTrialPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [trial, setTrial] = useState<TrialResponse | null>(null);
   const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+
+  const loadTranscript = useCallback(async (id: string) => {
+    try {
+      setTranscript(await fetchTranscript(id));
+      setTranscriptError(null);
+    } catch (cause) {
+      setTranscriptError(trialErrorMessage(errorCodeOf(cause)));
+    }
+  }, []);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -71,7 +81,7 @@ export function SttTrialPage() {
           const next = await fetchTrial(trialId);
           setTrial(next);
           if (next.status === 'completed') {
-            setTranscript(await fetchTranscript(trialId));
+            await loadTranscript(trialId);
             void refreshStatus();
           }
           if (next.status === 'failed') void refreshStatus();
@@ -81,7 +91,7 @@ export function SttTrialPage() {
       })();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [trialId, settled, refreshStatus]);
+  }, [trialId, settled, refreshStatus, loadTranscript]);
 
   const localEngine = status?.engines['qwen3-asr'] ?? null;
   const azureEngine = status?.engines.azure ?? null;
@@ -103,6 +113,7 @@ export function SttTrialPage() {
     setSubmitting(true);
     setActionError(null);
     setTranscript(null);
+    setTranscriptError(null);
     try {
       const created = await submitTrial(file, engine, allowExternalUpload);
       setTrial({
@@ -126,6 +137,7 @@ export function SttTrialPage() {
       await deleteTrial(trial.trialId);
       setTrial(null);
       setTranscript(null);
+      setTranscriptError(null);
       void refreshStatus();
     } catch (cause) {
       setActionError(trialErrorMessage(errorCodeOf(cause)));
@@ -144,6 +156,12 @@ export function SttTrialPage() {
       blockReason={blockReason}
       trial={trial}
       transcript={transcript}
+      transcriptError={transcriptError === null ? null : {
+        message: transcriptError,
+        onRetry: () => {
+          if (trial?.status === 'completed') void loadTranscript(trial.trialId);
+        },
+      }}
       onFileChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
       onEngineChange={setEngine}
       onOwnedTestRecordingChange={setOwnedTestRecording}
@@ -166,6 +184,7 @@ export interface SttTrialViewProps {
   blockReason: string | null;
   trial: TrialResponse | null;
   transcript: TranscriptResponse | null;
+  transcriptError: { message: string; onRetry: () => void } | null;
   onFileChange: ChangeEventHandler<HTMLInputElement>;
   onEngineChange: (engine: EngineId) => void;
   onOwnedTestRecordingChange: (checked: boolean) => void;
@@ -185,6 +204,7 @@ export function SttTrialView({
   blockReason,
   trial,
   transcript,
+  transcriptError,
   onFileChange,
   onEngineChange,
   onOwnedTestRecordingChange,
@@ -328,7 +348,10 @@ export function SttTrialView({
         ) : (
           <>
             <WireDataRows>
-              <WireDataRow label="상태" value={STATUS_LABEL[trial.status]} />
+              <WireDataRow
+                label="상태"
+                value={<WireBadge tone={trial.status === 'completed' ? 'mint' : 'neutral'}>{STATUS_LABEL[trial.status]}</WireBadge>}
+              />
               <WireDataRow label="엔진" value={ENGINE_LABEL[trial.engine]} />
               <WireDataRow label="엔진 구성" value={engineDetail} />
               <WireDataRow label="외부 전송" value={externalUploadLabel(trial.externalUploadAttempted)} />
@@ -350,7 +373,12 @@ export function SttTrialView({
       </WireCard>
 
       <WireCard as="section" labelledBy="stt-result-heading" title={<h2 id="stt-result-heading">전사 결과</h2>}>
-        {transcript === null ? (
+        {transcriptError !== null ? (
+          <>
+            <WireError>{transcriptError.message}</WireError>
+            <WireButton variant="neutral" onClick={transcriptError.onRetry}>전사 결과 다시 불러오기</WireButton>
+          </>
+        ) : transcript === null ? (
           <WireEmpty>아직 결과가 없습니다.</WireEmpty>
         ) : (
           <>
