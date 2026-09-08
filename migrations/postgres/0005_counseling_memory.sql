@@ -1,21 +1,29 @@
 -- Auxiliary case memory; source invalidation is atomic with source changes.
-CREATE TABLE counseling_memory_settings(org_id TEXT PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN(0,1)),version INTEGER NOT NULL DEFAULT 1);
-CREATE TABLE counseling_memory_cases(support_case_id TEXT PRIMARY KEY REFERENCES support_cases(id),org_id TEXT NOT NULL,generation INTEGER NOT NULL DEFAULT 1,applied_generation INTEGER NOT NULL DEFAULT 0,correction_revision INTEGER NOT NULL DEFAULT 0,revision INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'backfill',reason TEXT,updated_at TEXT,cursor TEXT NOT NULL DEFAULT '',backfill_done INTEGER NOT NULL DEFAULT 0,not_before TEXT NOT NULL DEFAULT '',lease_token TEXT,lease_until TEXT,work_id TEXT,work_generation INTEGER,work_correction INTEGER,work_settings INTEGER,consent_revision TEXT,egress TEXT,request_json TEXT,config_hash TEXT,summary_json TEXT NOT NULL DEFAULT '[]',UNIQUE(org_id,support_case_id));
-CREATE TABLE counseling_memory_sources(org_id TEXT NOT NULL,support_case_id TEXT NOT NULL REFERENCES counseling_memory_cases(support_case_id),kind TEXT NOT NULL,source_id TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,dirty INTEGER NOT NULL DEFAULT 1,deleted INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(org_id,support_case_id,kind,source_id));
-CREATE TABLE counseling_memory_materials(id TEXT PRIMARY KEY,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL REFERENCES counseling_memory_cases(support_case_id),kind TEXT NOT NULL,source_id TEXT NOT NULL,source_revision INTEGER NOT NULL,session_id TEXT,occurred_at TEXT NOT NULL,start_offset INTEGER NOT NULL,end_offset INTEGER NOT NULL,source_hash TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',attempt INTEGER NOT NULL DEFAULT 0,lease_token TEXT,lease_until TEXT,actor_id TEXT,attestation_json TEXT,receipt_id TEXT,snapshot_id TEXT,masked_text TEXT,sha256 TEXT,proof_json TEXT,payload_hash TEXT,processed INTEGER NOT NULL DEFAULT 0,valid INTEGER NOT NULL DEFAULT 1,UNIQUE(org_id,support_case_id,kind,source_id,source_revision,start_offset));
-CREATE TABLE counseling_memory_items(id TEXT PRIMARY KEY,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,revision INTEGER NOT NULL,item_json TEXT NOT NULL,valid INTEGER NOT NULL DEFAULT 1);
-CREATE TABLE counseling_memory_history(id TEXT NOT NULL,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,revision INTEGER NOT NULL,item_json TEXT NOT NULL,PRIMARY KEY(id,revision));
+CREATE TABLE counseling_memory_settings(org_id TEXT CONSTRAINT counseling_memory_settings_nullable_pk UNIQUE,enabled BIGINT NOT NULL DEFAULT 1 CHECK(enabled IN(0,1)),version BIGINT NOT NULL DEFAULT 1);
+CREATE TABLE counseling_memory_cases(support_case_id TEXT CONSTRAINT counseling_memory_cases_nullable_pk UNIQUE REFERENCES support_cases(id),org_id TEXT NOT NULL,generation BIGINT NOT NULL DEFAULT 1,applied_generation BIGINT NOT NULL DEFAULT 0,correction_revision BIGINT NOT NULL DEFAULT 0,revision BIGINT NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'backfill',reason TEXT,updated_at TEXT,cursor TEXT NOT NULL DEFAULT '',backfill_done BIGINT NOT NULL DEFAULT 0,not_before TEXT NOT NULL DEFAULT '',lease_token TEXT,lease_until TEXT,work_id TEXT,work_generation BIGINT,work_correction BIGINT,work_settings BIGINT,consent_revision TEXT,egress TEXT,request_json TEXT,config_hash TEXT,summary_json TEXT NOT NULL DEFAULT '[]',UNIQUE(org_id,support_case_id));
+CREATE TABLE counseling_memory_sources(org_id TEXT NOT NULL,support_case_id TEXT NOT NULL REFERENCES counseling_memory_cases(support_case_id),kind TEXT NOT NULL,source_id TEXT NOT NULL,revision BIGINT NOT NULL DEFAULT 1,dirty BIGINT NOT NULL DEFAULT 1,deleted BIGINT NOT NULL DEFAULT 0,PRIMARY KEY(org_id,support_case_id,kind,source_id));
+CREATE TABLE counseling_memory_materials(id TEXT CONSTRAINT counseling_memory_materials_nullable_pk UNIQUE,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL REFERENCES counseling_memory_cases(support_case_id),kind TEXT NOT NULL,source_id TEXT NOT NULL,source_revision BIGINT NOT NULL,session_id TEXT,occurred_at TEXT NOT NULL,start_offset BIGINT NOT NULL,end_offset BIGINT NOT NULL,source_hash TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',attempt BIGINT NOT NULL DEFAULT 0,lease_token TEXT,lease_until TEXT,actor_id TEXT,attestation_json TEXT,receipt_id TEXT,snapshot_id TEXT,masked_text TEXT,sha256 TEXT,proof_json TEXT,payload_hash TEXT,processed BIGINT NOT NULL DEFAULT 0,valid BIGINT NOT NULL DEFAULT 1,UNIQUE(org_id,support_case_id,kind,source_id,source_revision,start_offset));
+CREATE TABLE counseling_memory_items(id TEXT CONSTRAINT counseling_memory_items_nullable_pk UNIQUE,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,revision BIGINT NOT NULL,item_json TEXT NOT NULL,valid BIGINT NOT NULL DEFAULT 1);
+CREATE TABLE counseling_memory_history(id TEXT NOT NULL,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,revision BIGINT NOT NULL,item_json TEXT NOT NULL,PRIMARY KEY(id,revision));
 CREATE TABLE counseling_memory_links(item_id TEXT NOT NULL,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,kind TEXT NOT NULL,source_id TEXT NOT NULL,PRIMARY KEY(item_id,kind,source_id));
-CREATE TABLE counseling_memory_corrections(id TEXT PRIMARY KEY,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,body TEXT NOT NULL,revision INTEGER NOT NULL,created_at TEXT NOT NULL);
-CREATE TABLE counseling_memory_derived(id TEXT PRIMARY KEY,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,body TEXT NOT NULL,revision INTEGER NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE counseling_memory_corrections(id TEXT CONSTRAINT counseling_memory_corrections_nullable_pk UNIQUE,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,body TEXT NOT NULL,revision BIGINT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE counseling_memory_derived(id TEXT CONSTRAINT counseling_memory_derived_nullable_pk UNIQUE,org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,body TEXT NOT NULL,revision BIGINT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE counseling_memory_agents(org_id TEXT NOT NULL,actor_id TEXT NOT NULL,attestation_json TEXT NOT NULL,receipt_id TEXT NOT NULL,seen_at TEXT NOT NULL,PRIMARY KEY(org_id,actor_id));
-CREATE TABLE counseling_memory_draft_context(draft_id TEXT PRIMARY KEY REFERENCES ai_draft_versions(id),org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,revision INTEGER NOT NULL,snapshot_ids TEXT NOT NULL);
+CREATE TABLE counseling_memory_draft_context(draft_id TEXT CONSTRAINT counseling_memory_draft_context_nullable_pk UNIQUE REFERENCES ai_draft_versions(id),org_id TEXT NOT NULL,support_case_id TEXT NOT NULL,revision BIGINT NOT NULL,snapshot_ids TEXT NOT NULL);
 CREATE INDEX counseling_memory_pending ON counseling_memory_cases(status,not_before);
 CREATE INDEX counseling_memory_mask_pending ON counseling_memory_materials(org_id,status,valid);
 CREATE INDEX counseling_memory_source_dirty ON counseling_memory_sources(org_id,support_case_id,dirty);
 INSERT INTO counseling_memory_cases(support_case_id,org_id) SELECT id,org_id FROM support_cases;
-CREATE TABLE counseling_memory_guards(id TEXT PRIMARY KEY,ok INTEGER NOT NULL CONSTRAINT counseling_memory_fence CHECK(ok=1));
-ALTER TABLE counseling_memory_sources ADD COLUMN chunk_cursor INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE counseling_memory_guards(id TEXT CONSTRAINT counseling_memory_guards_nullable_pk UNIQUE,ok BIGINT NOT NULL CONSTRAINT counseling_memory_fence CHECK(ok=1));
+COMMENT ON CONSTRAINT counseling_memory_settings_nullable_pk ON counseling_memory_settings IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_cases_nullable_pk ON counseling_memory_cases IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_materials_nullable_pk ON counseling_memory_materials IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_items_nullable_pk ON counseling_memory_items IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_corrections_nullable_pk ON counseling_memory_corrections IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_derived_nullable_pk ON counseling_memory_derived IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_draft_context_nullable_pk ON counseling_memory_draft_context IS 'ccc:sqlite-primary-key';
+COMMENT ON CONSTRAINT counseling_memory_guards_nullable_pk ON counseling_memory_guards IS 'ccc:sqlite-primary-key';
+ALTER TABLE counseling_memory_sources ADD COLUMN chunk_cursor BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE counseling_memory_materials ADD COLUMN attestation_expires_at TEXT;
 CREATE FUNCTION cm_source_cursor_reset_fn() RETURNS trigger LANGUAGE plpgsql AS $memory$
 BEGIN
@@ -32,7 +40,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'session',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -46,7 +54,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'session',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -60,7 +68,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(OLD.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(OLD.org_id,OLD.support_case_id,'session',OLD.id,1) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=1;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='session' AND source_id=OLD.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='session' AND source_id=OLD.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
 
 END IF;
 RETURN NULL;
@@ -74,7 +82,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'goal',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='goal' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='goal' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -88,7 +96,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'goal',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='goal' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='goal' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -102,7 +110,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(OLD.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(OLD.org_id,OLD.support_case_id,'goal',OLD.id,1) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=1;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='goal' AND source_id=OLD.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='goal' AND source_id=OLD.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
 
 END IF;
 RETURN NULL;
@@ -116,7 +124,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'action',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='action' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='action' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -130,7 +138,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'action',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='action' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='action' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -144,7 +152,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(OLD.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(OLD.org_id,OLD.support_case_id,'action',OLD.id,1) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=1;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='action' AND source_id=OLD.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='action' AND source_id=OLD.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
 
 END IF;
 RETURN NULL;
@@ -158,7 +166,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.id,NEW.or
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.id,'goal',NEW.id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.id AND kind='goal' AND source_id=NEW.id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.id AND kind='goal' AND source_id=NEW.id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -253,7 +261,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES((SELECT suppo
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id),'session',NEW.session_id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND kind='session' AND source_id=NEW.session_id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND kind='session' AND source_id=NEW.session_id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -267,7 +275,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'session',(SELECT completed_session_id FROM counseling_schedules WHERE id=NEW.schedule_id AND org_id=NEW.org_id),0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=(SELECT completed_session_id FROM counseling_schedules WHERE id=NEW.schedule_id AND org_id=NEW.org_id);
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=(SELECT completed_session_id FROM counseling_schedules WHERE id=NEW.schedule_id AND org_id=NEW.org_id));
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -281,7 +289,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES((SELECT suppo
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id),'session',NEW.session_id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND kind='session' AND source_id=NEW.session_id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND kind='session' AND source_id=NEW.session_id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=(SELECT support_case_id FROM sessions WHERE id=NEW.session_id AND org_id=NEW.org_id) AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -295,7 +303,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'session',(SELECT completed_session_id FROM counseling_schedules WHERE id=NEW.schedule_id AND org_id=NEW.org_id),0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=(SELECT completed_session_id FROM counseling_schedules WHERE id=NEW.schedule_id AND org_id=NEW.org_id);
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=(SELECT completed_session_id FROM counseling_schedules WHERE id=NEW.schedule_id AND org_id=NEW.org_id));
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;
@@ -309,7 +317,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES((SELECT suppo
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(OLD.org_id,(SELECT support_case_id FROM sessions WHERE id=OLD.session_id AND org_id=OLD.org_id),'session',OLD.session_id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=OLD.org_id AND support_case_id=(SELECT support_case_id FROM sessions WHERE id=OLD.session_id AND org_id=OLD.org_id) AND kind='session' AND source_id=OLD.session_id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=OLD.org_id AND support_case_id=(SELECT support_case_id FROM sessions WHERE id=OLD.session_id AND org_id=OLD.org_id) AND kind='session' AND source_id=OLD.session_id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=(SELECT support_case_id FROM sessions WHERE id=OLD.session_id AND org_id=OLD.org_id) AND org_id=OLD.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=(SELECT support_case_id FROM sessions WHERE id=OLD.session_id AND org_id=OLD.org_id) AND org_id=OLD.org_id;
 
 END IF;
 RETURN NULL;
@@ -323,7 +331,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(OLD.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(OLD.org_id,OLD.support_case_id,'session',(SELECT completed_session_id FROM counseling_schedules WHERE id=OLD.schedule_id AND org_id=OLD.org_id),0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='session' AND source_id=(SELECT completed_session_id FROM counseling_schedules WHERE id=OLD.schedule_id AND org_id=OLD.org_id);
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=OLD.org_id AND support_case_id=OLD.support_case_id AND kind='session' AND source_id=(SELECT completed_session_id FROM counseling_schedules WHERE id=OLD.schedule_id AND org_id=OLD.org_id));
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=OLD.support_case_id AND org_id=OLD.org_id;
 
 END IF;
 RETURN NULL;
@@ -337,7 +345,7 @@ INSERT INTO counseling_memory_cases(support_case_id,org_id) VALUES(NEW.support_c
 INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id,deleted) VALUES(NEW.org_id,NEW.support_case_id,'session',NEW.completed_session_id,0) ON CONFLICT(org_id,support_case_id,kind,source_id) DO UPDATE SET revision=counseling_memory_sources.revision+1,dirty=1,deleted=0;
 UPDATE counseling_memory_materials SET valid=0,lease_token=NULL WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=NEW.completed_session_id;
 UPDATE counseling_memory_items SET valid=0 WHERE (item_json::jsonb ->> 'correctedAt') IS NULL AND id IN(SELECT item_id FROM counseling_memory_links WHERE org_id=NEW.org_id AND support_case_id=NEW.support_case_id AND kind='session' AND source_id=NEW.completed_session_id);
-UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((clock_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
+UPDATE counseling_memory_cases SET generation=generation+1,status='updating',request_json=NULL,egress=NULL,lease_token=NULL,not_before=to_char((statement_timestamp()+interval '5 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') WHERE support_case_id=NEW.support_case_id AND org_id=NEW.org_id;
 
 END IF;
 RETURN NULL;

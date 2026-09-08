@@ -68,6 +68,22 @@ export function defineDatabaseContract(
   }
 
   describe(`${name} Database port`, () => {
+  it('returns numeric predicates while preserving SQL NULL', async () => {
+    const db = await openFixture();
+    const predicates = db.prepare(`SELECT
+      EXISTS (SELECT 1) AS present,
+      EXISTS (SELECT 1 WHERE 1 = 0) AS absent,
+      2 > 1 AS comparison,
+      CAST(? AS INTEGER) = 1 AS nullable_comparison`).bind(null);
+    expect(await predicates.first()).toEqual({
+      present: 1, absent: 0, comparison: 1, nullable_comparison: null,
+    });
+    expect(await predicates.first('present')).toBe(1);
+    expect((await predicates.all()).results).toEqual([
+      { present: 1, absent: 0, comparison: 1, nullable_comparison: null },
+    ]);
+  });
+
   it('keeps prepare/bind immutable across independently bound statements', async () => {
     const db = await openFixture();
     const prepared = db.prepare('SELECT ? AS value');

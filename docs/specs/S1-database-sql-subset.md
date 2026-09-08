@@ -39,6 +39,8 @@ export type Bindable = string | number | null | Uint8Array; // boolean은 0/1 �
 
 데이터와 오류의 공통 매핑은 다음과 같다. SQL `TEXT`는 `text`, `INTEGER`는 `bigint`로 읽되 안전한 JavaScript `number` 범위 안에서만 decode하고, 범위를 벗어난 값은 구조화된 오류로 거부한다. `REAL`은 `double precision`, `BLOB`은 `bytea`로 저장하며 읽을 때 호출자가 소유하는 새 `Uint8Array` 복사본으로 반환한다. timestamp 열은 별도 date object로 바꾸지 않고 ISO text로 유지하며 `COUNT`, `SUM`, `MAX`, `MIN`, `ROW_NUMBER` 같은 aggregate·window 숫자는 안전한 JavaScript `number`로 반환한다.
 
+`EXISTS`와 비교식처럼 SQL이 반환하는 조건값도 SQLite와 D1의 숫자 계약을 따른다. PostgreSQL boolean 결과는 `0` 또는 `1`로 decode하고 SQL NULL은 그대로 `null`을 반환한다. 업무 권한 판정에서 저장소별로 `true`와 `1`을 따로 처리하지 않는다.
+
 ```ts
 export interface DatabaseError extends Error {
   kind: 'constraint' | 'syntax' | 'bind_arity' | 'unsupported';
@@ -48,6 +50,8 @@ export interface DatabaseError extends Error {
 ```
 
 제약 오류의 `constraintSubtype`는 `kind='constraint'`일 때만 채운다. adapter는 vendor error text를 내부에서 이 구조로 매핑하며 원문을 gateway와 로그에 내보내지 않는다. `applicationCode`는 source-verified 앱 trigger code인 `stale_draft_version`, `invite_token_already_used`, `participant_schema_violation`만 보존하고, 그 밖의 vendor·미등록 code는 버린다. SQLite의 `CONSTRAINT_TRIGGER`와 PostgreSQL의 `P0001`은 이 allowlist에 해당하는 앱 code로만 매핑한다.
+
+기존 SQLite의 nullable `TEXT PRIMARY KEY`는 PostgreSQL에서 nullable `UNIQUE`로 보존하고, 해당 제약에만 `ccc:sqlite-primary-key`라는 정확한 주석을 붙인다. adapter는 이 주석이 있는 중복 오류만 논리적 `primary_key`로 분류한다. 일반 UNIQUE나 이름이 비슷한 제약은 승격하지 않으며, 주석도 스키마 지문에 포함한다.
 
 ### 2.2 공통 runtime SQL 부분집합
 

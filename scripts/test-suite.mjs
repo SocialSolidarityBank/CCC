@@ -3,6 +3,8 @@
  *
  *   pnpm test:contracts --capabilities | --database | --db=d1 | --db=sqlite | --db=postgres | --sql | --audio-store | --auth | --secrets-env
  *   pnpm test:security  --bootstrap
+ *   pnpm test:db-parity
+ *   pnpm guard:migration-parity
  *
  * 플래그가 없으면 그 kind 의 스위트를 전부 돌린다. 모르는 플래그는 usage(1) 로 끝난다.
  * 한 항목은 관련 Vitest 파일 하나 또는 여러 개다. 새 스위트(--jwt, --browser-boundary)는
@@ -31,6 +33,12 @@ export const SUITES = {
   security: {
     bootstrap: 'apps/api/test/install-manifest.security.test.ts',
   },
+  'db-parity': {
+    all: 'apps/api/test/database-parity.test.ts',
+  },
+  'migration-parity': {
+    all: 'apps/api/test/migration-parity.test.ts',
+  },
 };
 
 const VITEST = ['pnpm', '--workspace-root', 'exec', 'vitest', 'run', '--config', 'apps/api/vitest.config.ts'];
@@ -49,7 +57,9 @@ export function plan(argv, suites = SUITES) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const decision = plan(process.argv.slice(2));
+  const decision = process.argv[2] === 'migration-parity' && process.env.CCC_UPDATE_MIGRATION_PARITY !== undefined
+    ? { status: 'usage', code: 1, message: 'migration guard is read-only; unset CCC_UPDATE_MIGRATION_PARITY' }
+    : plan(process.argv.slice(2));
   if (decision.status !== 'run') {
     console.error(decision.message);
     process.exitCode = decision.code;

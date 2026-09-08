@@ -1952,3 +1952,16 @@ BEGIN
 END;
 
 PRAGMA legacy_alter_table = OFF;
+
+-- Rebuilt parents can leave SQLite's deferred violation counter stale even when
+-- the published graph is valid. Verify every live FK before clearing that counter;
+-- foreign_keys stays enabled and any actual violation rolls back this migration.
+CREATE TABLE sql_portability_probe (
+  id TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL CHECK (ok = 1)
+);
+INSERT INTO sql_portability_probe (id, ok)
+SELECT 'final_fk_after_publication', 0
+WHERE EXISTS (SELECT 1 FROM pragma_foreign_key_check);
+DROP TABLE sql_portability_probe;
+PRAGMA defer_foreign_keys = OFF;

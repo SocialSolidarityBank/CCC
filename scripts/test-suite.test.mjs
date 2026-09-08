@@ -33,3 +33,15 @@ test('database profile flags select D1, encrypted SQLite, PostgreSQL, or SQL por
     'apps/api/test/sql-portability-migration.test.ts',
   ]);
 });
+
+test('migration guard refuses catalog update mode before launching any engine', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const result = spawnSync(process.execPath, ['scripts/test-suite.mjs', 'migration-parity'], {
+    cwd: new URL('../', import.meta.url),
+    env: { ...process.env, CCC_UPDATE_MIGRATION_PARITY: '1', PATH: '' },
+    encoding: 'utf8',
+    timeout: 5_000,
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /migration guard is read-only/);
+});
