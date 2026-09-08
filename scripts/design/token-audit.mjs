@@ -28,7 +28,7 @@ const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text
 const SCOPED_TEXT_TOKENS = new Map([
   // 입력칸 도움말은 2026-09-04 Q 로 13 이 됐다(DESIGN-RULES §5 하한 예외 셋째 자리).
   ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint']],
-  ['--text-badge', ['.wire-badge', '.wire-status-tag', '.consent-detail[data-inline="true"]>.consent-detail-summary']],
+  ['--text-badge', ['.wire-badge', '.consent-detail[data-inline="true"]>.consent-detail-summary', '.record-writing-help']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.
@@ -146,7 +146,7 @@ for (const file of TARGETS) {
     if (line.includes('var(--radius-pill)')) {
       // consent-detail-summary: 전문 보기 배지형 버튼(2026-08-07 Q 9차, 배지 레시피를 빌린 조작).
       // wire-chevron-button: 일정 이동과 아코디언 상태 표시의 공용 32px 원(2026-09-02 Q).
-      const PILL_ALLOWED = ['wire-badge', 'header-icon-button', 'wire-radio', 'wire-bullets', 'wire-status-tag', 'consent-detail-summary', 'wire-button', 'wire-choice', 'page-back', 'wire-chevron-button', 'wire-step'];
+      const PILL_ALLOWED = ['wire-badge', 'header-icon-button', 'wire-radio', 'wire-bullets', 'consent-detail-summary', 'wire-button', 'wire-choice', 'page-back', 'wire-chevron-button', 'wire-step'];
       if (!PILL_ALLOWED.some((name) => line.includes(name))) {
         add(file, n, 'pill-outside-badge', `--radius-pill 은 배지·원형 아이콘·라디오·불릿·글자 버튼만 쓴다. 입력칸과 내비 항목은 var(--radius-control)`);
       }
@@ -254,8 +254,6 @@ const MARKUP_HOOKS = new Set([
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
   'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본
   'schedule-day-heading',   // 날짜 제목 조각 — 옷은 .schedule-day-summary-title 상속, 테스트 앵커
-  'self-check-block',       // 당사자 자기확인 화면 구획 훅(D26 최소 구현 — 아직 자기 옷 없음)
-  'self-check-row',         // 당사자 자기확인 행 훅(위와 같음)
 ]);
 
 const usedClasses = new Map(); // name -> { file, line } 첫 등장

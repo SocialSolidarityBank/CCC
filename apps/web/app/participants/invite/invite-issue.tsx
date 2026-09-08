@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { createParticipantInviteAction } from '../../actions';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
 import { WireFormField } from '../../components/wire/wire-form-field';
+import { NavIcon } from '../../components/wire/shell-icons';
 import { PROGRAM_LABELS } from '../../lib/labels';
 
 // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 실제 이메일 발송이 없는 화면 흐름
@@ -55,6 +56,28 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+/** OS 공유 시트(카카오톡·문자·메일은 실무자가 시트에서 고른다 — CCC 는 채널을 모른다, D86 ④).
+ *  시트가 없는 브라우저에서는 렌더하지 않는다. 서버 렌더에는 navigator 가 없으므로
+ *  마운트 뒤에 켠다(hydration 불일치 방지). 문안은 이메일 문안과 같고 당사자 이름이 없다.
+ *  2026-09-06 Q 2차: 입력칸 옆 아이콘 원은 눈에 안 띄어 '링크 복사' 옆 아이콘+글자 알약으로. */
+function ShareButton({ text, url }: { text: string; url: string }) {
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => setCanShare(typeof navigator.share === 'function'), []);
+  if (!canShare) return null;
+  return (
+    <WireButton
+      variant="secondary"
+      icon={<NavIcon name="share" />}
+      onClick={() => {
+        // 취소(AbortError)는 정상 경로다 — 알릴 것이 없다.
+        navigator.share({ text, url }).catch(() => undefined);
+      }}
+    >
+      공유하기
+    </WireButton>
+  );
+}
+
 export function InviteIssue() {
   const [state, setState] = useState<IssueState>({ phase: 'idle' });
 
@@ -78,7 +101,7 @@ export function InviteIssue() {
             링크에는 사업({PROGRAM_LABELS.financial_support_v1})과 발급한 실무자가 함께 담깁니다.
             당사자가 가입을 마치면 내 당사자 목록에 나타납니다.
           </p>
-          <WireButton variant="primary" disabled={state.phase === 'working'} onClick={issue}>
+          <WireButton variant="primary" disabled={state.phase === 'working'} onClick={issue} icon={<NavIcon name="invite" />}>
             {state.phase === 'working' ? '만드는 중' : '가입 링크 만들기'}
           </WireButton>
           {state.phase === 'error' ? (
@@ -102,7 +125,7 @@ export function InviteIssue() {
         {/* 상태 알림은 이 한 줄만 읽히게 둔다 — 카드 전체를 라이브 영역으로 만들면
             스크린 리더가 아래 이메일 문안 9줄까지 통째로 읽는다. */}
         <p className="wire-invite-caption" role="status">
-          링크를 만들었습니다. 아래 세 가지 중 편한 방법으로 전달하세요.
+          링크를 만들었습니다. 아래에서 편한 방법으로 전달하세요.
         </p>
 
         <div className="wire-invite-section">
@@ -117,7 +140,11 @@ export function InviteIssue() {
               onFocus={(event) => event.currentTarget.select()}
             />
           </WireFormField>
-          <CopyButton text={state.url} label="링크 복사" />
+          {/* 왼쪽부터 차는 버튼 줄(.wizard-actions 어휘). 복사와 공유는 같은 링크에 대한 두 조작이라 한 줄. */}
+          <div className="wizard-actions">
+            <CopyButton text={state.url} label="링크 복사" />
+            <ShareButton text={email} url={state.url} />
+          </div>
         </div>
 
         {/* QR 은 높이 40 입력칸 계약에 맞지 않아 WireFormField 를 쓰지 않고 라벨·힌트 구조만 빌린다. */}
@@ -140,7 +167,7 @@ export function InviteIssue() {
           >
             <textarea id="invite-email-draft" readOnly rows={9} value={email} />
           </WireFormField>
-          <CopyButton text={email} label="문안 복사" />
+          <CopyButton text={email} label="이메일 문안 복사" />
         </div>
 
         <WireButton variant="ghost" onClick={() => setState({ phase: 'idle' })}>

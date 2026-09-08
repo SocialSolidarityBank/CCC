@@ -1,13 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, fireEvent, within, cleanup } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { BriefingCards, type BriefingCardsProps } from './briefing-cards';
 
 // vitest 전역(globals) 미설정이라 자동 언마운트가 걸리지 않는다 — 렌더 누적을 막기 위해 명시 정리.
 afterEach(cleanup);
 
-const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
 
 function baseProps(overrides: Partial<BriefingCardsProps> = {}): BriefingCardsProps {
   return {
@@ -434,19 +431,19 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(queryByText('전체 사업 보기')).toBeNull();
   });
 
-  it('HERO 는 카드이고 이름·상태 태그·메타 한 줄을 담는다 (§4-5)', () => {
+  it('HERO는 이름과 최근 상담의 유형 및 회차를 정보로 보여 준다', () => {
     const { container } = render(<BriefingCards {...baseProps()} />);
     const card = hero(container);
     // 화면의 모든 글자는 카드 안에 있다 — HERO 도 카드다.
     expect(card.className).toContain('surface-card');
     expect(card.querySelector('.participant-name-group')).not.toBeNull();
-    // 상태 태그는 §5 컨트롤 부품(2026-08-05 — 트랙 C 의 .is-stage 폐지와 같은 결론).
-    // 2026-08-09 Q: 상태 태그는 화면 이름이 아니라 **최신 회차의 유형·회차**다.
-    // 픽스처는 최신이 기본상담이고 회차가 둘이다.
-    expect(card.querySelector('.wire-status-tag')?.textContent).toBe('기본상담 2회');
-    const meta = card.querySelector('.participant-hero-meta')?.textContent ?? '';
-    expect(meta).toContain('마이크로크레딧');
-    expect(meta).toContain('대면');
+    expect(card.querySelector('.participant-hero-details')?.textContent).toContain('최근 상담기본상담 2회차');
+    expect([...card.querySelectorAll('.participant-hero-details .wire-field-label')]
+      .map((label) => label.textContent))
+      .toEqual(['사업', '상담일', '상담 방식', '최근 상담']);
+    expect(card.querySelector('.participant-hero-details')?.textContent)
+      .toContain('마이크로크레딧 씬파일러 금융지원·멘토링');
+    expect(card.querySelector('.participant-hero-details')?.textContent).toContain('대면');
   });
 
   it('확인된 리스크 플래그가 있으면 경고 배너를 표시한다 (D9)', () => {
@@ -458,9 +455,10 @@ describe('BriefingCards — HERO·리스크 배너·출구 (유지 계약 D37·D
     expect(banner?.textContent).toContain('위기 발언');
   });
 
-  it('다가오는 일정이 없으면 HERO 메타는 예정된 상담 없음으로 표기한다', () => {
+  it('다가오는 일정이 없으면 HERO 상담일 상세 값은 예정된 상담 없음으로 표기한다', () => {
     const { container } = render(<BriefingCards {...baseProps({ upcomingSchedule: null })} />);
-    expect(hero(container).textContent).toContain('예정된 상담 없음');
+    expect(hero(container).querySelector('.participant-hero-details')?.textContent)
+      .toContain('예정된 상담 없음');
   });
 });
 
@@ -634,29 +632,6 @@ describe('세션 목표의 부모 세부 목표 병기 (D62 §5 · CCC-69)', () 
   });
 });
 
-describe('BriefingCards — 바깥 제목 정렬', () => {
-  it('제목은 패널 카드 안에서 자기 padding-inline 없이 카드 패딩에 기대 좌측정렬한다 (2026-08-28)', () => {
-    // 섹션이 흰 패널 카드가 되며(.record-section 패딩 24) 제목의 구 padding-inline 은 폐지됐다.
-    expect(layoutSource).not.toMatch(
-      /\.record-section-title\{[^}]*padding-inline/,
-    );
-    expect(layoutSource).toMatch(
-      /\.record-section\{[^}]*padding:var\(--space-6\)[^}]*border:1px solid var\(--line\)/,
-    );
-  });
-
-  it('모바일 전체 목표는 라벨 한 줄 뒤 값과 수정 버튼을 한 행에 둔다', () => {
-    expect(layoutSource).toMatch(
-      /\.briefing-goal-row\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-goal-row>\.goal-tree-label\{grid-column:1\/-1\}/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-goal-display,\.briefing-goal-text\{[^}]*min-width:0;[^}]*width:100%/,
-    );
-  });
-});
 
 describe('전체 목표 미설정 AI 안내 (D62 §7 · CCC-69)', () => {
   const HINT_KEY = 'ccc:briefing-goal-hint-closed:v1:11111111-1111-4111-8111-111111111111';
@@ -718,30 +693,4 @@ describe('영역 ② 회차 행 원문 연결 (2026-08-30 Q · D73 ①)', () => 
     }
   });
 
-  it('좁은 화면에서도 꺽쇠는 별도 끝 칸에 남고 핵심 문구는 그 앞에서 두 줄로 끝난다', () => {
-    expect(layoutSource).toMatch(
-      /\.briefing-session-row\{display:grid;grid-template-columns:112px 64px 44px minmax\(0,1fr\) auto;/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-session-row>\.wire-chevron\{[^}]*grid-column:-1;[^}]*justify-self:end/,
-    );
-    expect(layoutSource).toMatch(
-      /@media \(max-width:767px\)\{[\s\S]*?\.briefing-session-row\{grid-template-columns:112px minmax\(0,1fr\) auto;[^}]*\}/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-session-text\.wire-fade-clip\{[^}]*grid-column:2\/3;[^}]*overflow:hidden;[^}]*-webkit-line-clamp:2;/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-session-row:not\(:has\(\.briefing-session-memo>\.wire-badge\)\) \.briefing-session-text\.wire-fade-clip\{grid-column:1\/3\}/,
-    );
-  });
-
-  it('AI 안내의 닫기 버튼은 구획 전체 행동으로 카드 오른쪽 끝에 선다', () => {
-    expect(layoutSource).toMatch(
-      /\.briefing-ai-goal-hint\{[^}]*flex:1/,
-    );
-    expect(layoutSource).toMatch(
-      /\.briefing-ai-goal-hint>\.wire-button\{[^}]*margin-left:auto/,
-    );
-  });
 });

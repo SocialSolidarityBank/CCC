@@ -19,8 +19,11 @@ function props(overrides: Partial<DraftReviewViewProps> = {}): DraftReviewViewPr
     supportCaseId: 'case-1',
     sessionId: 'session-1',
     participantName: '김테스트',
-    stageTag: '검토 대기',
-    metaItems: ['기본 상담', '2026년 8월 15일'],
+    reviewStatus: '검토 대기',
+    details: [
+      { label: '상담일', value: '2026년 8월 15일', tone: 'blue' },
+      { label: '상담 방식', value: '대면' },
+    ],
     recordsHref: '/participants/swallow-003/programs/case-1/records',
     draft: {
       origin: 'fixture_generated',
@@ -115,11 +118,6 @@ describe('DraftReviewView', () => {
     expect(container.querySelector('.wire-bullets-single')).toBeNull();
   });
 
-  // CCC-106: HERO 상태 태그는 stageTagTone 을 ParticipantHeroCard 로 그대로 넘긴다.
-  it('passes stageTagTone through to the HERO status tag', () => {
-    const { container } = render(<DraftReviewView {...props({ stageTagTone: 'lavender' })} />);
-    expect(container.querySelector('.wire-status-tag')?.getAttribute('data-tone')).toBe('lavender');
-  });
 
   it('keeps every draft section visible when optional values are empty', () => {
     render(<DraftReviewView {...props({

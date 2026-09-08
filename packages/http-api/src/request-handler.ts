@@ -77,6 +77,7 @@ import {
   getAgentJobAudioDelivery,
   getPipelineHealth,
   getMyIdentity,
+  listMyRoles,
   getLastProgramType,
   getOrganizationProfile,
   completeOrganizationOnboarding,
@@ -1777,7 +1778,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
       if (env.AI_PROVIDER_ADAPTER === undefined) {
         rawOutput = detectPreviewFixtureDiscrepancies(providerRequest);
       } else {
-        const { adapter, config } = resolveAiProviderAdapter(env);
+        const { adapter, config } = (await resolveAiProviderAdapter(env));
         model = config.model;
         if (adapter.detectDiscrepancies === undefined) {
           outcome = 'skipped_unsupported';
@@ -1786,7 +1787,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
-      const { adapter, config } = resolveAiProviderAdapter(env);
+      const { adapter, config } = (await resolveAiProviderAdapter(env));
       model = config.model;
       if (adapter.detectDiscrepancies === undefined) {
         outcome = 'skipped_unsupported';
@@ -2014,7 +2015,7 @@ async function generateAiDraft(
     if (previewModeEnabled(env)) {
       const rawOutput = env.AI_PROVIDER_ADAPTER === undefined
         ? generatePreviewFixtureAiDraft(providerRequest)
-        : await resolveAiProviderAdapter(env).adapter.generate(providerRequest);
+        : await (await resolveAiProviderAdapter(env)).adapter.generate(providerRequest);
       const output = validateAiProviderOutput(rawOutput, providerRequest);
       const draft = await createFixtureGeneratedAiDraftForService(env, actor, sessionId, {
         origin: 'fixture_generated',
@@ -2046,7 +2047,7 @@ async function generateAiDraft(
 
     // 주입형 testOnly adapter는 기존 테스트 seam이다. Preview 전용 내장 fixture 선택과
     // 구분하며, 실제 provider와 같은 활성 설정·동의·스냅샷 검증을 그대로 거친다.
-    const { adapter, config } = resolveAiProviderAdapter(env);
+    const { adapter, config } = (await resolveAiProviderAdapter(env));
     model = config.model;
     const runtimeConfigHash = await canonicalAiProviderConfigHash(config);
 
@@ -2338,9 +2339,11 @@ export async function handleRequest(
       // lastProgramType: `/` 직행 목적지 (D35 · ADR-0014 '개정' 2번). 미선택이면 null 이고
       // 화면이 첫 사업으로 폴백한다.
       const lastProgramType = await getLastProgramType(env, actor);
+      // roles: D74 역할 합(ADR-0038). 어드민 탭 필터(ADR-0044 결정 7)가 읽는다. legacy `role` 은 유지.
+      const roles = await listMyRoles(env, actor);
       return json({
         id: me.id, orgId: me.orgId, email: me.email, role: me.role, active: me.active, name: me.name,
-        lastProgramType,
+        lastProgramType, roles,
       });
     }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
@@ -2931,7 +2934,7 @@ export async function handleRequest(
         matches: boolean | null;
       };
       try {
-        const { config } = resolveAiProviderAdapter(env);
+        const { config } = (await resolveAiProviderAdapter(env));
         const configHash = await canonicalAiProviderConfigHash(config);
         runtime = {
           configured: true,
@@ -2971,7 +2974,7 @@ export async function handleRequest(
       const approvalRef = requiredString(body, 'approvalRef');
       // 환경 변수의 정확한 레지스트리 tuple과 API 키를 먼저 검증한다. 호출자가 임의
       // hash/model을 넣을 수 없고, 현재 배포 설정과 DB activation이 항상 함께 움직인다.
-      const { config } = resolveAiProviderAdapter(env);
+      const { config } = (await resolveAiProviderAdapter(env));
       const configHash = await canonicalAiProviderConfigHash(config);
       const current = await getActiveAiProviderStatus(env, actor);
       if (

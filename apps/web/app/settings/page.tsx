@@ -8,6 +8,7 @@ import {
   type DirectoryRole,
   type DirectoryUser,
   type MyIdentity,
+  type MyRole,
   type ParticipantProgramType,
 } from '../lib/api';
 import { acceptSupportCaseAssignmentAction } from '../actions';
@@ -16,7 +17,7 @@ import { WireError } from '../components/wire/wire-state';
 import { WireBadge } from '../components/wire/wire-badge';
 import { WireButton } from '../components/wire/wire-button';
 import { WireCard } from '../components/wire/wire-card';
-import { adminMenu, userLabel } from '../admin/admin-format';
+import { adminMenuFor, userLabel } from '../admin/admin-format';
 import { getDisplayLabels } from '../lib/display-labels';
 
 // 역할 화면 라벨 — CONTEXT.md 용어집 준수(기관 관리자·담당 실무자). service는 처리 장비(Mac Mini) 계정.
@@ -167,15 +168,15 @@ async function DirectorySection() {
   );
 }
 
-// 기관 관리자 설정 구역 — 설정 화면 안에서 관리자 화면 4개로 들어가는 진입구(CCC-21, 스펙 #76).
-// 링크 목록은 adminMenu 를 그대로 쓴다. 구 '/admin/settings' 걸러내기는 CCC-55 로 사라졌다.
-// 그 주소가 이 화면을 관리자 레이아웃 안에 다시 그리는 중복이었고, 지금은 라우트도 메뉴 항목도
-// 없어서 자기 자신을 가리키는 링크가 애초에 생기지 않는다.
-export function AdminSection() {
+// 관리자 설정 구역. 설정 화면 안에서 관리자 화면으로 들어가는 진입구(CCC-21, 스펙 #76).
+// 링크 목록은 adminMenuFor(내 역할)를 그대로 쓴다(ADR-0044 결정 7, 탭줄과 같은 정의).
+// 구 '/admin/settings' 걸러내기는 CCC-55 로 사라졌다. 그 주소가 이 화면을 관리자
+// 레이아웃 안에 다시 그리는 중복이었고, 지금은 라우트도 메뉴 항목도 없다.
+export function AdminSection({ roles }: { roles: readonly MyRole[] }) {
   return (
-    <WireCard as="section" className="settings-section" labelledBy="settings-admin-heading" title={<h2 id="settings-admin-heading">기관 관리자 설정</h2>}>
+    <WireCard as="section" className="settings-section" labelledBy="settings-admin-heading" title={<h2 id="settings-admin-heading">관리자 설정</h2>}>
       <ul className="settings-user-list">
-        {adminMenu.map((item) => (
+        {adminMenuFor(roles).map((item) => (
           <li key={item.href} className="settings-user-row">
             <WireButton variant="neutral" href={item.href}>{item.label}</WireButton>
           </li>
@@ -183,10 +184,13 @@ export function AdminSection() {
         {/* 온보딩 진입 링크(CCC-61, 2026-08-08 Q 결정). 이 화면이 유일한 입구다. 그전에는
             주소를 직접 쳐야만 갈 수 있는 고아 화면이었다. adminMenu 에 넣지 않는 이유는
             그 목록이 관리자 탭줄도 함께 그리는데 /onboarding 은 관리자 영역 밖이기 때문이다.
-            라벨은 '온보딩' 대신 그 화면이 실제로 하는 일로 적는다. */}
-        <li className="settings-user-row">
-          <WireButton variant="neutral" href="/onboarding">기관·사업 이름</WireButton>
-        </li>
+            라벨은 '온보딩' 대신 그 화면이 실제로 하는 일로 적는다. 목적지가 기관 관리자만
+            받으므로(onboarding/page.tsx) 기술 관리자만 가진 사람에게는 보이지 않는다. */}
+        {roles.includes('institution-admin') ? (
+          <li className="settings-user-row">
+            <WireButton variant="neutral" href="/onboarding">기관·사업 이름</WireButton>
+          </li>
+        ) : null}
       </ul>
     </WireCard>
   );
@@ -213,9 +217,9 @@ export default async function SettingsPage() {
       <PageTitle>설정</PageTitle>
       <AccountSection name={me.name} email={me.email} role={me.role} />
       <AssignmentRequestSection />
-      {/* 기관 실무자 목록은 기관 관리자 역할에게만 노출한다(비관리자는 내 계정만). */}
-      {me.role === 'admin' ? <DirectorySection /> : null}
-      {me.role === 'admin' ? <AdminSection /> : null}
+      {/* 기관 실무자 목록은 기관 관리자에게만, 관리자 설정 구역은 어드민 탭이 하나라도 있는 역할에게. */}
+      {me.roles.includes('institution-admin') ? <DirectorySection /> : null}
+      {adminMenuFor(me.roles).length > 0 ? <AdminSection roles={me.roles} /> : null}
     </main>
   );
 }

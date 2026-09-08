@@ -355,8 +355,8 @@ export function IntakeReadView(props: IntakeReadViewProps) {
       <ParticipantHeroCard
         name={props.participant.name}
         beneficiaryId={props.beneficiaryId}
-        stageTag="인테이크 완료"
         details={[
+          { label: '인테이크', value: '완료' },
           ...(props.participant.phone === null
             ? []
             : [{ label: '전화번호', value: props.participant.phone, tone: 'mint' as const }]),

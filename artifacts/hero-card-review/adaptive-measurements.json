@@ -1,0 +1,1266 @@
+{
+  "screens": [
+    {
+      "key": "briefing",
+      "label": "15초 페이지",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 9월 11일 오전 10:00",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담 방식",
+          "value": "대면",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "briefing",
+      "label": "15초 페이지",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 9월 11일 오전 10:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담 방식",
+          "value": "대면",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 252,
+        "top": 235,
+        "right": 992,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "briefing",
+      "label": "15초 페이지",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 9월 11일 오전 10:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담 방식",
+          "value": "대면",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 252,
+        "top": 235,
+        "right": 736,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "briefing",
+      "label": "15초 페이지",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 42
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 9월 11일 오전 10:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담 방식",
+          "value": "대면",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 311.5,
+        "top": 206,
+        "right": 374,
+        "bottom": 517.5,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "write",
+      "label": "상담 기록하기",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "지난 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "write",
+      "label": "상담 기록하기",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "지난 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 190,
+        "top": 235,
+        "right": 992,
+        "bottom": 425,
+        "left": 312
+      }
+    },
+    {
+      "key": "write",
+      "label": "상담 기록하기",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "지난 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 190,
+        "top": 235,
+        "right": 736,
+        "bottom": 425,
+        "left": 312
+      }
+    },
+    {
+      "key": "write",
+      "label": "상담 기록하기",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "지난 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 190,
+        "top": 206,
+        "right": 374,
+        "bottom": 396,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "records",
+      "label": "상담 기록 확인하기",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "기록 현황",
+          "value": "4회차까지 기록됨",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "최근 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "records",
+      "label": "상담 기록 확인하기",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "기록 현황",
+          "value": "4회차까지 기록됨",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "최근 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 252,
+        "top": 235,
+        "right": 992,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "records",
+      "label": "상담 기록 확인하기",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "기록 현황",
+          "value": "4회차까지 기록됨",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "최근 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 252,
+        "top": 235,
+        "right": 736,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "records",
+      "label": "상담 기록 확인하기",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 42
+        },
+        {
+          "label": "기록 현황",
+          "value": "4회차까지 기록됨",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "최근 상담",
+          "value": "2026년 8월 31일",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 273,
+        "top": 206,
+        "right": 374,
+        "bottom": 479,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "participant",
+      "label": "당사자 정보",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "연락처",
+          "value": "010-0000-0007",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "participant",
+      "label": "당사자 정보",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "연락처",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 214,
+        "top": 235,
+        "right": 992,
+        "bottom": 449,
+        "left": 312
+      }
+    },
+    {
+      "key": "participant",
+      "label": "당사자 정보",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "연락처",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 214,
+        "top": 235,
+        "right": 736,
+        "bottom": 449,
+        "left": 312
+      }
+    },
+    {
+      "key": "participant",
+      "label": "당사자 정보",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "연락처",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 214,
+        "top": 206,
+        "right": 374,
+        "bottom": 420,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "intake",
+      "label": "인테이크",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "intake",
+      "label": "인테이크",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 252,
+        "top": 235,
+        "right": 992,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "intake",
+      "label": "인테이크",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 252,
+        "top": 235,
+        "right": 736,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "intake",
+      "label": "인테이크",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 252,
+        "top": 206,
+        "right": 374,
+        "bottom": 458,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "intake-edit",
+      "label": "인테이크 수정",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "intake-edit",
+      "label": "인테이크 수정",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 252,
+        "top": 235,
+        "right": 992,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "intake-edit",
+      "label": "인테이크 수정",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 252,
+        "top": 235,
+        "right": 736,
+        "bottom": 487,
+        "left": 312
+      }
+    },
+    {
+      "key": "intake-edit",
+      "label": "인테이크 수정",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "전화번호",
+          "value": "010-0000-0007",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "이메일",
+          "value": "seed07@example.com",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        },
+        {
+          "label": "상담일",
+          "value": "2026년 7월 4일 오후 7:00",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 252,
+        "top": 206,
+        "right": 374,
+        "bottom": 458,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "edit",
+      "label": "기본정보 수정",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "edit",
+      "label": "기본정보 수정",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 177,
+        "top": 235,
+        "right": 992,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "edit",
+      "label": "기본정보 수정",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 177,
+        "top": 235,
+        "right": 736,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "edit",
+      "label": "기본정보 수정",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "당사자 ID",
+          "value": "deer-001",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 152,
+        "top": 206,
+        "right": 374,
+        "bottom": 358,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    },
+    {
+      "key": "close",
+      "label": "케이스 종결",
+      "width": 1280,
+      "inside": 886,
+      "compact": false,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 25,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 936,
+        "height": 177,
+        "top": 235,
+        "right": 1248,
+        "bottom": 412,
+        "left": 312
+      }
+    },
+    {
+      "key": "close",
+      "label": "케이스 종결",
+      "width": 1024,
+      "inside": 630,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 680,
+        "height": 180.5,
+        "top": 235,
+        "right": 992,
+        "bottom": 415.5,
+        "left": 312
+      }
+    },
+    {
+      "key": "close",
+      "label": "케이스 종결",
+      "width": 768,
+      "inside": 374,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 21
+        }
+      ],
+      "bounds": {
+        "x": 312,
+        "y": 235,
+        "width": 424,
+        "height": 180.5,
+        "top": 235,
+        "right": 736,
+        "bottom": 415.5,
+        "left": 312
+      }
+    },
+    {
+      "key": "close",
+      "label": "케이스 종결",
+      "width": 390,
+      "inside": 308,
+      "compact": true,
+      "overflow": 0,
+      "pageOverflow": 0,
+      "placement": true,
+      "fields": [
+        {
+          "label": "사업",
+          "value": "마이크로크레딧 씬파일러 금융지원·멘토링",
+          "topDelta": 0,
+          "labelHeight": 21,
+          "valueHeight": 42
+        }
+      ],
+      "bounds": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 201.5,
+        "top": 206,
+        "right": 374,
+        "bottom": 407.5,
+        "left": 16
+      },
+      "mobileUnchanged": true
+    }
+  ],
+  "boundaries": [
+    {
+      "inside": 759,
+      "columns": 1,
+      "direction": "row",
+      "topAligned": false,
+      "bottom": true,
+      "overflow": 0
+    },
+    {
+      "inside": 760,
+      "columns": 1,
+      "direction": "row",
+      "topAligned": false,
+      "bottom": true,
+      "overflow": 0
+    },
+    {
+      "inside": 761,
+      "columns": 3,
+      "direction": "column",
+      "topAligned": true,
+      "bottom": false,
+      "overflow": 0
+    }
+  ],
+  "multipleBadges": [
+    {
+      "width": 1280,
+      "direction": "column",
+      "noOverlap": true,
+      "overflow": 0
+    },
+    {
+      "width": 768,
+      "direction": "row",
+      "noOverlap": true,
+      "overflow": 0
+    },
+    {
+      "width": 390,
+      "direction": "row",
+      "noOverlap": true,
+      "overflow": 0
+    }
+  ]
+}

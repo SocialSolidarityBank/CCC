@@ -6,6 +6,7 @@ import { TimeAxisBadge } from '../../../components/wire/time-axis-badge';
 import { WireButton } from '../../../components/wire/wire-button';
 import { WireCardDetails } from '../../../components/wire/wire-card';
 import { Chevron } from '../../../components/wire/chevron';
+import { NavIcon } from '../../../components/wire/shell-icons';
 import {
   dayHeading,
   dayPeriodLabel,
@@ -208,8 +209,8 @@ export function ScheduleNav({
       </div>
       <div className="schedule-nav-actions">
         {/* 업무 바는 전부 32 다(전 버튼 32 단일, 2026-08-28 Q). */}
-        <WireButton href="/participants/new">당사자 등록</WireButton>
-        <WireButton href="/schedules/new" variant="primary">상담 등록</WireButton>
+        <WireButton href="/participants/new" icon={<NavIcon name="participant-add" />}>당사자 등록</WireButton>
+        <WireButton href="/schedules/new" variant="primary" icon={<NavIcon name="calendar" />}>상담 등록</WireButton>
       </div>
     </nav>
   );

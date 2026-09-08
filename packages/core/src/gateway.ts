@@ -18,6 +18,7 @@
  */
 
 import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
+import type { CoreSecretStore } from '@ccc/contracts/runtime';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -62,11 +63,8 @@ import {
 // ── 환경 타입 ───────────────────────────────────────────────────────────────
 export interface Env {
   DB: Database;
-  /**
-   * PII 암호화 키 (D3): AES-GCM 256bit, base64.
-   * Cloudflare Workers 시크릿으로만 주입한다. 코드·로그·에러 메시지 출력 금지 (R3).
-   */
-  PII_ENC_KEY: string;
+  /** Runtime-owned read port; raw key bindings never enter the core environment. */
+  secretStore: CoreSecretStore;
   /**
    * PII 암호화 키 세대. 키 순환 시 암호문과 함께 어느 키로 암호화했는지 식별한다.
    * 미설정은 기존 기본 키 세대(1)를 뜻한다.
@@ -1365,13 +1363,15 @@ function toArrayBuffer(value: Uint8Array): ArrayBuffer {
 }
 
 async function piiKey(env: Env): Promise<CryptoKey> {
-  const rawKey = base64ToBytes(env.PII_ENC_KEY);
-
-  if (rawKey.byteLength !== 32) {
-    throw new ValidationError('PII encryption key must be a 32-byte base64 value');
+  const encodedKey = await env.secretStore.get('PII_ENC_KEY');
+  if (encodedKey === null) throw new Error('secret_missing');
+  try {
+    const rawKey = base64ToBytes(encodedKey);
+    if (rawKey.byteLength !== 32) throw new Error('secret_invalid');
+    return await crypto.subtle.importKey('raw', toArrayBuffer(rawKey), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  } catch {
+    throw new Error('secret_invalid');
   }
-
-  return crypto.subtle.importKey('raw', toArrayBuffer(rawKey), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
 async function encryptPii(env: Env, value: string | null): Promise<string | null> {
@@ -9593,6 +9593,36 @@ export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
 }
 
 /**
+ * 로그인한 본인의 D74 역할 묶음(ADR-0038). 어드민 탭을 역할 합으로 필터하는 화면이 쓴다
+ * (ADR-0044 결정 7). 어휘는 `@ccc/contracts` ActorRole 이고 순서는 resolveDirectoryActorByPrincipal
+ * 과 같다. 감사 없음: 권한 검사 결과일 뿐 기록 열람이 아니다. 0040 이전 스키마(표 없음)에서는
+ * users.role 로 폴백해 hasActiveHumanRoleAssignment 와 같은 답을 낸다.
+ */
+export async function listMyRoles(env: Env, actor: Actor): Promise<ActorRole[]> {
+  assertHuman(actor);
+  try {
+    const assignments = await env.DB.prepare(
+      `SELECT role
+       FROM user_role_assignments
+       WHERE user_id = ? AND org_id = ? AND revoked_at IS NULL
+       ORDER BY CASE role
+         WHEN 'institution_admin' THEN 1
+         WHEN 'institution_technical_admin' THEN 2
+         WHEN 'practitioner' THEN 4
+         ELSE 99
+       END`,
+    ).bind(actor.userId, actor.orgId).all<{ role: string }>();
+    return assignments.results.flatMap((row) => {
+      const role = DIRECTORY_ROLE_MAP[row.role as keyof typeof DIRECTORY_ROLE_MAP];
+      return role === undefined ? [] : [role];
+    });
+  } catch (error) {
+    if (!isMissingRoleAssignmentsTable(error)) throw error;
+    return actor.role === 'admin' ? ['institution-admin'] : actor.role === 'counselor' ? ['worker'] : [];
+  }
+}
+
+/**
  * 마지막에 선택한 사업을 본인 계정에 기억시킨다 (D35 · ADR-0014 '개정' 2번).
  * `/` 가 이 값으로 직행하므로, 집 컴퓨터와 사무실에서 같은 사업으로 들어간다.
  *
@@ -9650,7 +9680,7 @@ export async function getLastProgramType(env: Env, actor: Actor): Promise<string
  *   detail에 PII 값 기록 금지 (R3) — 필드명 수준까지만.
  *
  * encryptPii / decryptPii:
- *   AES-GCM (키: env.PII_ENC_KEY, D3). 이 파일 밖으로 평문 반출 금지 (R3).
+ *   AES-GCM (키: secretStore.get('PII_ENC_KEY'), D3). 이 파일 밖으로 평문 반출 금지 (R3).
  */
 
 // ============================================================================

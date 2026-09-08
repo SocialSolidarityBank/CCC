@@ -8,9 +8,9 @@
  * Time Travel 뿐). 그래서 낡을 때마다 다시 돌리는 도구가 따로 필요하다.
  *
  * 쓰는 법(값이 stdout 에 닿는 시크릿은 없다):
- *   node scripts/seed/reschedule-upcoming.mjs --org=bss > /tmp/reschedule.sql
- *   # apps/api 에서 검토 후 적용
- *   wrangler d1 execute ccc-preview --env preview --remote --file /tmp/reschedule.sql
+ *   pnpm seed:reschedule:preview > /tmp/reschedule.sql
+ *   pnpm --filter @ccc/api exec wrangler d1 execute ccc-preview --env preview --remote \
+ *     --file /tmp/reschedule.sql
  *
  * 지키는 규칙 3개(전부 실패로 배운 것):
  *  1. `status='scheduled'` 만 옮긴다. `completed` 를 미래로 옮기면 이미 있는 상담 기록
@@ -128,7 +128,7 @@ export function buildRescheduleSql({ orgId, from, updatedAt, spreadDays = DEFAUL
     `-- 예정 일정 재배치 (생성 시각 ${updatedAt})`,
     `-- 기관 ${orgId} · 기준일 ${from} · 분산 ${spreadDays}일 · status='scheduled' 만 이동`,
     `-- 생성: node scripts/seed/reschedule-upcoming.mjs --org=${orgId} --from=${from} --days=${spreadDays}`,
-    `-- 적용: wrangler d1 execute <DB> --env <env> --remote --file <이 파일>`,
+    `-- 적용: ccc-preview --env preview --remote 전용`,
     `-- completed 일정은 건드리지 않는다(상담 기록 held_at 과 어긋난다).`,
     '',
   ].join('\n');

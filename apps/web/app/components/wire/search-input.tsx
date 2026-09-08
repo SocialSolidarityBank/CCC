@@ -28,7 +28,7 @@ export interface SearchInputProps {
    * 값을 주지 않아 드러나지 않는다. 값을 부모가 쥐어야 하면 `DateTextInput` 을 직접 쓰면
    * 된다 — 그쪽에는 D48 에서 제어형 경로(`value`)가 생겼다.
    */
-  type?: 'text' | 'date' | 'email';
+  type?: 'text' | 'date' | 'email' | 'password';
   /** 입력칸 아래 도움말. 'date' 는 주지 않아도 KRDS 문구가 기본으로 붙는다. */
   hint?: ReactNode;
   /** 해당 칸에서 고쳐야 할 오류. 도움말과 분리해 스크린 리더에 즉시 알린다. */

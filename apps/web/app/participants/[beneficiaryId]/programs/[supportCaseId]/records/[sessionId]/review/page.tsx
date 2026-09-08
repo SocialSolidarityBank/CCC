@@ -54,16 +54,15 @@ const regenerateErrorMessages: Partial<Record<ApiErrorCode, string>> = {
 };
 const regenerateErrorFallback = '다시 만들지 못했습니다. 잠시 후 다시 시도하세요.';
 
-// 처리 사실을 HERO 상태 태그에 반영한다(검수 지적 5) — 승인·반려가 끝난 초안은 '검토 대기'라는
-// 거짓을 말하지 않는다. superseded 는 "현재" 초안(getCurrentAiDraftForSession)에는 오지 않는
-// 상태라 실질적으로 도달하지 않지만, 타입을 다 채워 둔다.
-const stageTagByReviewDecision: Record<'approved' | 'rejected' | 'superseded', string> = {
+// 승인과 반려가 끝난 초안은 처리 상태를 그대로 표시한다.
+// superseded는 현재 초안에는 오지 않지만 전체 결정 타입을 처리한다.
+const statusByReviewDecision: Record<'approved' | 'rejected' | 'superseded', string> = {
   approved: '승인됨',
   rejected: '반려됨',
   superseded: '검토 대기',
 };
-function stageTagFor(reviewDecision: AiDraftReviewDecision): string {
-  return reviewDecision === null ? '검토 대기' : stageTagByReviewDecision[reviewDecision];
+function reviewStatusFor(reviewDecision: AiDraftReviewDecision): string {
+  return reviewDecision === null ? '검토 대기' : statusByReviewDecision[reviewDecision];
 }
 
 const sessionChannelLabels: Record<SupportCaseRecord['channel'], string> = {
@@ -181,9 +180,11 @@ export async function ReviewContent({
         supportCaseId={supportCaseId}
         sessionId={sessionId}
         participantName={participant.name}
-        stageTag={stageTagFor(draft.reviewDecision)}
-        stageTagTone="lavender"
-        metaItems={[formatKoreanDate(session.heldAt), sessionChannelLabels[session.channel]]}
+        reviewStatus={reviewStatusFor(draft.reviewDecision)}
+        details={[
+          { label: '상담일', value: formatKoreanDate(session.heldAt), tone: 'blue' },
+          { label: '상담 방식', value: sessionChannelLabels[session.channel] },
+        ]}
         recordsHref={recordsHref(beneficiaryId, supportCaseId)}
         draft={{
           origin: draft.origin,

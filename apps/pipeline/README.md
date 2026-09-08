@@ -21,7 +21,7 @@ CLAUDE.md §5 파이프라인 스펙을 따른다.
   실측에서 whisper large-v3가 34분 대화의 48%를 같은 문장 254번 반복으로 잃고 없던 문장을 지어냈다
 - **반복 구간은 지우지 않고 접어서 경고를 남긴다** — 그 시간대에 엔진이 무너졌다는 사실 자체가
   실무자에게 필요한 정보다. 경고 줄은 `Segment.warning=True`라 감정 집계·역할 추정에서 빠진다 (R4·D11)
-- **엔진은 아직 확정되지 않았다.** STT는 기본 `off`이고 faster-whisper int8 CPU는 명시적으로 선택하는 후보다. STT-G1~STT-G3과 Q 승인 전에는 제품의 `sttEngine=null`과 비활성 선택지를 유지한다(D77).
+- **엔진은 아직 확정되지 않았다.** STT는 기본 `off`이고 faster-whisper int8 CPU는 기존 v1의 명시적 후보다. 새 판정은 [S13 STT qualification v2](../../docs/specs/S13-stt-qualification-v2.md)를 따르며 Q 승인 전에는 제품의 `sttEngine=null`과 비활성 선택지를 유지한다(D77).
 - **ffmpeg 이 없으면 아예 뜨지 않는다**(2026-07-31) — 구 동작은 통짜 폴백이었으나, 그건 ADR-0024 가
   금지한 방식이라 매 회차 조용히 품질을 깎았다. 설치 오류는 기동 때 잡는다(아래 '기동 전 설치 점검')
 
@@ -58,6 +58,10 @@ systemd/             WSL2 자동 시작 유닛
    `python3 -m ccc_pipeline --once`로 실행한다. 대기 작업이 없으면 "no jobs"로 끝난다
 6. 자동 시작: `systemd/ccc-pipeline.service` 설치 (파일 안 주석 참조)
 
+인증 요청은 리다이렉트를 따라가지 않는다. 주소가 바뀌면 자격증명을 다른 곳으로 전달하는 대신 실패하므로 배포 주소를 직접 설정해야 한다. 서버의 오류 본문은 정해진 작업 오류 코드만 받아들이고 나머지는 `unknown`으로 처리한다. `--once`의 폴링 실패는 원본 예외 대신 `pipeline poll failed`를 출력하고 종료 코드 1을 반환한다.
+
+설정의 일반 문자열 출력에는 Access 자격증명, Preview 코드, Hugging Face 토큰을 넣지 않는다. `vars(config)`나 `dataclasses.asdict(config)`에는 여전히 원래 값이 있으므로 로그, 진단 보고서, 파일로 내보내지 않는다.
+
 ## 환경 변수
 
 | 이름 | 필수 | 기본값 | 용도 |
@@ -89,7 +93,9 @@ systemd/             WSL2 자동 시작 유닛
 | `CCC_ORIGINAL_BACKUP_RETENTION_DAYS` | 백업 ON | 없음 | 해당 사본의 승인된 보관 일수 |
 | `CCC_ORIGINAL_BACKUP_CONSENT_NOTICE_VERSION` | 백업 ON | 없음 | 장기 원본 보관과 호환되는 동의 문안 버전 |
 
-### Local STT 후보 실행
+### S13 후보 비교: v1 CPU 경로 재현
+
+아래 faster-whisper `medium`·int8 CPU 설정과 실행 명령은 기존 합성 S13 v1 후보 경로와 smoke를 재현할 때만 사용한다. 사람 모의상담을 쓰는 새 품질·사양 판정의 정본은 [S13 STT qualification v2](../../docs/specs/S13-stt-qualification-v2.md)다. 전용 v2 executor CLI는 아직 없으므로 아래 제품 실행 명령을 v2 판정 명령이나 완료 증거로 쓰지 않는다.
 
 `faster-whisper-int8-cpu`는 `device="cpu"`, `compute_type="int8"`로 고정한다. CUDA 자동 선택이나 다른 엔진으로의 전환은 없다. `transcribe_audio`의 무음 분할, 반복 구간 재시도와 경고, 원본 기준 시각 보정을 그대로 거친다. 모델은 엔진 인스턴스당 한 번만 올리고 각 청크에서 재사용한다.
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import {
   buildCapabilityManifest,
   CapabilityManifestError,
@@ -190,6 +191,28 @@ describe('GET /capabilities', () => {
     for (const needle of ['org_demo', 'counselor@example.invalid', TEST_INSTALLATION_ID, 'sb_publishable', 'supabase']) {
       expect(text).not.toContain(needle);
     }
+  });
+
+  it('reports key presence from the read port without returning its value', async () => {
+    const env = await envWithManifest('community-cloud');
+    const absent = await worker.fetch(new Request('http://localhost/capabilities', { headers: counselor }), {
+      ...env, secretStore: createEnvironmentSecretStore({}),
+    });
+    expect(absent.status).toBe(200);
+    const absentBody = decodeCapabilityManifest(await absent.json(), SYNTHETIC_LOCAL_REGISTRY);
+    expect(absentBody.llmOptions[1]?.disabledReason).toBe('missing_key');
+
+    const present = await worker.fetch(new Request('http://localhost/capabilities', { headers: counselor }), {
+      ...env, secretStore: createEnvironmentSecretStore({ CODEX_API_KEY: 'synthetic-capability-key' }),
+    });
+    expect(present.status).toBe(200);
+    const text = await present.text();
+    const presentBody = decodeCapabilityManifest(JSON.parse(text), SYNTHETIC_LOCAL_REGISTRY);
+    // A key alone cannot activate AI; the existing operational gates remain closed.
+    expect(presentBody.llmOptions[1]?.disabledReason).toBe('unsupported');
+    expect(presentBody.llmMode).toBe('off');
+    expect(text).not.toContain('synthetic-capability-key');
+    expect(text).not.toContain('CODEX_API_KEY');
   });
 
   it('refuses the Agent with 403', async () => {

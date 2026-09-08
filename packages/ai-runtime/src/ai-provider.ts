@@ -1,3 +1,5 @@
+import type { CoreSecretStore } from '@ccc/contracts/runtime';
+
 // 호출 ①과 호출 ②의 외부 AI 계약, 검증, 어댑터를 한곳에서 관리한다.
 export const AI_PROVIDER_REGISTRY_VERSION = 'phase1.v1';
 export const CODEX_PROVIDER_ID = 'codex';
@@ -279,7 +281,7 @@ export interface AiProviderTestAdapter extends AiProviderAdapter {
 
 export interface AiProviderRuntimeEnv {
   AI_PROVIDER_CONFIG?: string;
-  CODEX_API_KEY?: string;
+  secretStore: CoreSecretStore;
   /**
    * 유료 외부 사업자 호출의 최종 운영 스위치. 정확히 "1"일 때만 실제 HTTPS 호출을
    * 허용한다. 설정·키가 배포돼 있어도 합성 스모크나 Preview 점검이 암묵적으로 비용을
@@ -1300,12 +1302,15 @@ const CODEX_DISCREPANCY_INSTRUCTIONS = [
 export class CodexProviderAdapter implements AiProviderAdapter {
   readonly providerId = CODEX_PROVIDER_ID;
   readonly adapterVersion = CODEX_PROVIDER_ADAPTER_VERSION;
+  readonly #apiKey: string;
 
   constructor(
     private readonly config: AiProviderConfig,
-    private readonly apiKey: string,
+    apiKey: string,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+  ) {
+    this.#apiKey = apiKey;
+  }
 
   async generate(request: AiProviderRequest): Promise<AiProviderOutput> {
     return await this.callStructured(
@@ -1340,7 +1345,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
         response = await Reflect.apply(this.fetcher, globalThis, [CODEX_RESPONSES_URL, {
           method: 'POST',
           headers: {
-            authorization: `Bearer ${this.apiKey}`,
+            authorization: `Bearer ${this.#apiKey}`,
             'content-type': 'application/json',
           },
           body: JSON.stringify({
@@ -1384,7 +1389,7 @@ export class CodexProviderAdapter implements AiProviderAdapter {
   }
 }
 
-export function resolveAiProviderAdapter(env: AiProviderRuntimeEnv): { adapter: AiProviderAdapter; config: AiProviderConfig } {
+export async function resolveAiProviderAdapter(env: AiProviderRuntimeEnv): Promise<{ adapter: AiProviderAdapter; config: AiProviderConfig }> {
   const injectedAdapter = env.AI_PROVIDER_ADAPTER;
   if (injectedAdapter !== undefined) {
     if (!isRecord(injectedAdapter)) {
@@ -1409,7 +1414,7 @@ export function resolveAiProviderAdapter(env: AiProviderRuntimeEnv): { adapter: 
   }
 
   const config = resolveAiProviderConfig(env);
-  const apiKey = env.CODEX_API_KEY?.trim();
+  const apiKey = (await env.secretStore.get('CODEX_API_KEY'))?.trim();
   if (apiKey === undefined || apiKey.length === 0) throw new AiProviderUnavailableError('api_key_missing');
   if (env.EXTERNAL_AI_CALLS_ENABLED !== '1') {
     throw new AiProviderUnavailableError('external_calls_disabled');

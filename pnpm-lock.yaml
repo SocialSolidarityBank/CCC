@@ -17,6 +17,9 @@ importers:
       '@ccc/db-d1':
         specifier: workspace:*
         version: link:adapters/db-d1
+      '@ccc/secrets-env':
+        specifier: workspace:*
+        version: link:adapters/secrets-env
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.16.20
         version: 0.16.20(@cloudflare/workers-types@5.20260708.1)(@vitest/runner@4.1.10)(@vitest/snapshot@4.1.10)(vitest@4.1.10(@types/node@24.13.3)(jsdom@26.1.0)(vite@8.1.3(@types/node@24.13.3)(esbuild@0.28.1)(terser@5.16.9)(yaml@2.9.0)))
@@ -81,6 +84,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  adapters/secrets-env:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
   apps/api:
     dependencies:
       '@ccc/ai-runtime':
@@ -101,6 +110,9 @@ importers:
       '@ccc/identity-access':
         specifier: workspace:*
         version: link:../../adapters/identity-access
+      '@ccc/secrets-env':
+        specifier: workspace:*
+        version: link:../../adapters/secrets-env
     devDependencies:
       '@ccc/contracts':
         specifier: workspace:*
@@ -155,7 +167,11 @@ importers:
         specifier: ^26.1.0
         version: 26.1.0
 
-  packages/ai-runtime: {}
+  packages/ai-runtime:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/contracts: {}
 

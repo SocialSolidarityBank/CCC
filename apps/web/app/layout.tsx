@@ -526,8 +526,7 @@ const briefingStyles = `
    섹션 사이 32는 페이지 그리드의 gap이 주며 화면이 margin으로 별도 여백을 만들지 않는다. */
 .briefing-page{display:grid;gap:var(--section-gap)}
 .briefing-accordions{display:grid;gap:var(--section-gap)}
-/* HERO 는 공통 부품 ParticipantHeroCard 가 그린다(2026-08-05 컴포넌트화, 구 .briefing-hero
-   손 마크업과 전용 CSS 삭제). 상태 태그도 부품의 .wire-status-tag 계약을 따른다. */
+/* HERO는 공통 부품 ParticipantHeroCard가 이름, 행동과 라벨/값 정보를 그린다. */
 /* (구 두 번째 .briefing-toolbar 규칙은 위 정의와 겹쳐 삭제 — 2026-08-03) */
 /* 전체 목표(D45 · CCC-41) — 카드다(2026-08-05 카드화 · ADR-0030, 구 D59 플랫 대체).
    카드 모양은 WireCard 가 갖고, 수정 가능성은 안쪽 표시 상자(.briefing-goal-display)가
@@ -595,7 +594,8 @@ const briefingStyles = `
 .briefing-session-rows{display:grid;gap:0;margin:0;padding:0;list-style:none}
 /* 고정 칸 정렬(2026-08-07 Q 9차 "각 항목의 좌측 시작 위치를 고정"): 날짜·유형·수기가
    각자 고정 폭 칸을 가져 어느 행에서나 다음 칸이 같은 x 에서 시작한다. 수기 칸은 배지가
-   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게.
+   없어도 자리를 지킨다 — 쌓였을 때 본문 시작점이 흔들리지 않게(767 이하는 첫 행 유형 옆으로
+   올라가고 핵심 한 줄이 둘째 행 전폭을 쓴다, 아래 @media).
    **칸 폭은 내용 실측값으로 좁혔다**(2026-09-04 Q, 구 136/84/52 + 간격 16). 날짜는 가장 긴
    2026년 12월 28일 이 110.05 라 112, 유형 배지는 기본상담·인테이크 둘 다 62.3 이라 64,
    수기 배지는 40.2 라 44 다. 간격도 8 로 좁혀 본문 글줄이 76px 길어진다. */
@@ -745,14 +745,15 @@ const briefingStyles = `
   .record-summary{flex-wrap:wrap}
   /* 두 클래스 선택자 — 공용 .wire-fade-clip(한 클래스)보다 구체적이어야 마스크가 꺼진다. */
   .record-one-liner.wire-fade-clip{display:-webkit-box;flex:1 0 100%;order:5;max-width:100%;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차). */
-  .briefing-session-row{grid-template-columns:112px minmax(0,1fr) auto;grid-template-rows:auto auto}
+  /* 브리핑 회차 행도 같은 접힘 — 고정 칸(112+64+44)이 좁은 화면 폭을 다 먹는다(9차).
+     첫 행 = 날짜·유형·수기, 둘째 행 = 핵심 한 줄 전폭(꺽쇠 열 앞까지). 수기 칸은 둘째 행에
+     홀로 남지 않는다(2026-09-06 Q 모바일 정리). */
+  .briefing-session-row{grid-template-columns:112px 64px minmax(0,1fr) auto;grid-template-rows:auto auto}
   .briefing-session-kind{grid-column:2;grid-row:1}
-  .briefing-session-row>.wire-chevron{grid-column:3;grid-row:1/3}
-  .briefing-session-memo{grid-column:1;grid-row:2}
+  .briefing-session-memo{grid-column:3;grid-row:1;width:auto}
   .briefing-session-memo:empty{display:none}
-  .briefing-session-text.wire-fade-clip{display:-webkit-box;grid-column:2/3;grid-row:2;white-space:normal;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
-  .briefing-session-row:not(:has(.briefing-session-memo>.wire-badge)) .briefing-session-text.wire-fade-clip{grid-column:1/3}
+  .briefing-session-row>.wire-chevron{grid-column:4;grid-row:1/3}
+  .briefing-session-text.wire-fade-clip{display:-webkit-box;grid-column:1/4;grid-row:2;white-space:normal;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;-webkit-mask-image:none;mask-image:none}
   /* 활성 세부 목표 줄(D62 §8 · CCC-69)도 좁은 화면에서는 줄바꿈으로 전환한다(말줄임 규칙). */
   .briefing-subgoal-row.wire-fade-clip{white-space:normal;overflow:visible;-webkit-mask-image:none;mask-image:none}
 }
@@ -1138,6 +1139,13 @@ const recordFormStyles = `
    (wire-styles — 3차에서 인테이크 두 화면과 공용화)가 갖고, 트랙 배치와 폭 계단은 공용
    .rail-grid 가 갖는다. 화면은 자기 레일 폭만 정한다. */
 .record-grid{--rail-width:300px}
+/* 상담 기록 작성의 안내만 12px이다. 목표 원문과 입력값은 기존 위계를 유지한다. */
+.record-writing-help{font-size:var(--text-badge);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.record-questions-card .panel-meta,.record-questions-card .empty,.record-questions-card .empty>span{width:100%;max-width:none;text-align:left;text-wrap:wrap}
+.record-goal-note-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-3);min-width:0}
+.record-goal-note-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-2);min-width:0}
+.record-goal-note-row .wire-input-box{min-width:0}
+.record-grid textarea[name="sessionGoalNote"][hidden]{display:none}
 /* 구 여닫기 줄(.record-toolbar)은 2026-08-09 삭제 — 전체 여닫기가 HERO 안 작은 버튼으로
    올라가면서(Q 지시) 이 줄에 담을 것이 없어졌다. */
 /* 이 패널들은 카드 계약을 마크업의 .surface-card 로 받는다(2026-08-05 컴포넌트화 —
@@ -1198,7 +1206,7 @@ const recordFormStyles = `
 /* 구 .record-rail 손 카드·.record-rail-count 글줄은 2026-08-09 삭제 — 진척도 카드가
    WireCard 2장(이번 상담 목표·체크리스트)으로 갈라지며 카드 계약(패딩·구분선)은 부품이
      갖고, 필수 카운트는 체크리스트 제목 옆 neutral 배지가 됐다(§2-2 규칙 4). */
-.record-rail-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
+.record-rail-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--space-3);row-gap:var(--space-1-5);font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--sub)}
 /* 채움 표시와 글자 사이도 선택지 행과 같은 6이다(2026-09-05 Q, 구 4). */
 .record-rail-list li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--space-1-5)}
 .record-rail-list li>.wire-checkbox{cursor:default}

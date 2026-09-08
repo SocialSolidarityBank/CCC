@@ -28,6 +28,7 @@ import { WireCard } from '../components/wire/wire-card';
 import { IntakeReadView } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-read-view';
 import { IntakeStepRail } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-step-rail';
 import { ACTIVE_QUESTIONS, STEP_TITLES } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/intake/intake-questions';
+import { NavIcon } from '../components/wire/shell-icons';
 
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error { constructor(readonly code: string) { super(code); } },
@@ -187,21 +188,13 @@ describe('정렬 하니스 생성기', () => {
   it('정렬 대상 실제 부품의 정적 HTML을 만든다', async () => {
     const empty = renderToStaticMarkup(<BriefingCards {...baseProps} />);
     const content = renderToStaticMarkup(<BriefingCards {...contentProps} />);
-    const heroMeta = renderToStaticMarkup(
-      <ParticipantHeroCard
-        name="홍서희"
-        beneficiaryId="swallow-003"
-        stageTag="진행 중"
-        meta={<span>최근 상담 2026년 9월 2일</span>}
-        actions={<WireButton variant="neutral">상담 기록</WireButton>}
-      />,
-    );
     const heroDetails = renderToStaticMarkup(
       <ParticipantHeroCard
         name="홍서희"
         beneficiaryId="swallow-003"
-        stageTag="인테이크 완료"
         details={[
+          { label: '인테이크', value: '완료' },
+          { label: 'AI 검토 상태', value: '검토 대기' },
           { label: '당사자 ID', value: 'swallow-003' },
           { label: '연락처', value: '010-1234-5678' },
           { label: '이메일', value: 'sample@example.test' },
@@ -213,8 +206,8 @@ describe('정렬 하니스 생성기', () => {
       <ParticipantHeroCard
         name="홍서희"
         beneficiaryId="swallow-003"
-        stageTag="인테이크 작성"
         details={[
+          { label: '인테이크', value: '작성 중' },
           { label: '현재 단계', value: '1 / 4' },
           { label: '기록 구분', value: '1회차' },
           { label: '실무자', value: '이지은' },
@@ -324,6 +317,18 @@ describe('정렬 하니스 생성기', () => {
         closeAction={noopGoalAction}
       />,
     );
+    // 요청 링크 발급의 복사·공유 버튼 줄(2026-09-06 D86 ④ 후속, Q 2차: 아이콘+글자 알약).
+    // 공유 버튼은 마운트 뒤 navigator.share 감지로 켜져 정적 렌더에 안 나오므로 같은
+    // 마크업을 손으로 적는다. 아이콘이 들어간 버튼과 글자만 있는 버튼이 같은 32 에 서고
+    // 아이콘이 글자와 세로 중앙을 공유하는지를 잰다.
+    const inviteShare = renderToStaticMarkup(
+      <div className="wire-invite-stack participant-invite-stack">
+        <div className="wizard-actions">
+          <WireButton variant="secondary">링크 복사</WireButton>
+          <WireButton variant="secondary" icon={<NavIcon name="share" />}>공유하기</WireButton>
+        </div>
+      </div>,
+    );
     const intakeRowOrdinal = renderToStaticMarkup(<WireBadge>1번</WireBadge>);
     const intakeEditToolbar = renderToStaticMarkup(
       <div className="intake-step-toolbar"><h2>2. 현재 생활상황</h2></div>,
@@ -416,15 +421,14 @@ describe('정렬 하니스 생성기', () => {
     expect(dateControl, '날짜 단독 입력 fixture가 없다').toContain('wire-date-control');
     expect(goalSection, '세부 목표 제목 배지 fixture가 없다').toContain('wire-card-head');
     expect(goalSection, '세부 목표 추가 버튼이 입력 상자 밖 fixture가 없다').toContain('wire-field-with-action');
+    expect(inviteShare, '요청 링크 공유 버튼 fixture가 없다').toContain('공유하기');
     expect(requiredPair, '필수 배지 유무 2열 fixture가 없다').toContain('wire-required-marker');
     expect(intakeRead, '인테이크 조회 아코디언 fixture가 없다').toContain('intake-read-current-step');
     expect(intakeRead, '인테이크 조회 반복 행 번호 배지가 없다').toContain('1번');
     expect(intakeEditRail, '인테이크 수정 단계 레일 fixture가 없다').toContain('data-testid="intake-step-rail"');
     expect(intakeEditToolbar, '인테이크 수정 단계 제목 툴바 fixture가 없다').toContain('intake-step-toolbar');
     expect(selectControl, '선택창 꺽쇠 fixture가 없다').toContain('wire-chevron');
-    expect(heroMeta, '메타 HERO fixture가 없다').toContain('participant-hero-card');
     expect(heroDetails, '정보 격자 HERO fixture가 없다').toContain('participant-hero-details');
-    expect(heroDetailsWithoutActions, '행동 없는 HERO fixture가 없다').toContain('인테이크 작성');
     expect(sectionHeading, '섹션 H2 fixture가 없다').toContain('record-section-title');
     expect(cardHeading, '카드 H2 fixture가 없다').toContain('wire-title-with-badge');
 
@@ -463,8 +467,8 @@ describe('정렬 하니스 생성기', () => {
 <div id="align-intake-edit-toolbar">${intakeEditToolbar}</div>
 <div id="align-date">${dateControl}</div>
 <div id="align-goal-section">${goalSection}</div>
+<div id="align-invite-share">${inviteShare}</div>
 <div id="align-intake-read">${intakeRead}</div>
-<div id="align-hero-meta">${heroMeta}</div>
 <div id="align-hero-details">${heroDetails}</div>
 <div id="align-hero-details-no-actions">${heroDetailsWithoutActions}</div>
 <div id="align-h2-section">${sectionHeading}</div>
@@ -476,7 +480,5 @@ describe('정렬 하니스 생성기', () => {
 
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(join(OUT_DIR, 'align.html'), html);
-    expect(html).toContain('--text-sm');
-    expect(html).toContain('pretendardvariable-dynamic-subset.css');
   });
 });

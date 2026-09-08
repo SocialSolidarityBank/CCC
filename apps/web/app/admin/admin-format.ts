@@ -1,4 +1,4 @@
-import type { AdminAssignmentParticipant } from '../lib/api';
+import type { AdminAssignmentParticipant, MyRole } from '../lib/api';
 
 // 사업 표시 라벨은 CCC-32 부터 정적 상수가 아니다 — 각 페이지가 getDisplayLabels()
 // (온보딩 저장값 우선, labels.ts 폴백)로 요청 시점에 읽는다.
@@ -22,14 +22,23 @@ export const assignmentStatusLabel: Record<AdminAssignmentParticipant['status'],
 export interface AdminMenuItem {
   label: string;
   href: string;
+  /** 이 탭을 여는 역할. 하나라도 가지면 보인다(ADR-0044 결정 7, 역할 합). */
+  roles: readonly MyRole[];
 }
+// 전체 목록. 화면에 그릴 때는 adminMenuFor(roles) 로 걸러 쓴다. 실무 책임자·실무자에게는 탭이 없다.
+// 탭 이름은 2026-09-06 배치표(화면 5)대로 사용자·역할, AI·STT·연결이다.
 export const adminMenu: AdminMenuItem[] = [
-  { label: '기관', href: '/admin' },
-  { label: '배정', href: '/admin/assign' },
-  { label: '사용자', href: '/admin/users' },
-  { label: '실무자 초대', href: '/admin/invite' },
-  { label: 'AI 사업자', href: '/admin/ai-provider' },
+  { label: '기관', href: '/admin', roles: ['institution-admin'] },
+  { label: '배정', href: '/admin/assign', roles: ['institution-admin'] },
+  { label: '사용자·역할', href: '/admin/users', roles: ['institution-admin', 'technical-admin'] },
+  { label: '실무자 초대', href: '/admin/invite', roles: ['institution-admin', 'technical-admin'] },
+  { label: 'AI·STT·연결', href: '/admin/ai-provider', roles: ['technical-admin'] },
 ];
+
+/** 내 역할의 합만큼만 남긴 탭. 비어 있으면 어드민 영역 자체가 없다(/admin 404). */
+export function adminMenuFor(roles: readonly MyRole[]): AdminMenuItem[] {
+  return adminMenu.filter((item) => item.roles.some((role) => roles.includes(role)));
+}
 
 /**
  * 직원(실무자·관리자) 표시 라벨(D31): 이름이 있으면 이름, 없으면 이메일로 폴백한다.

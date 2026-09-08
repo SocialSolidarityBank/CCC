@@ -1,23 +1,11 @@
 /**
- * 운영 미러 상수 — 로컬 캡처/검증 DB 부트스트랩용(순수 데이터, D1 접근 없음).
+ * 로컬·원격 미리보기 시드가 필요한 최소 디렉터리 데이터.
  *
- * 여기 값은 운영(prod) D1 의 현재 상태를 그대로 반영해야 한다. 게이트웨이 가드가
- * 읽는 최소 집합만 담는다:
- *   - organization_settings 1행('bss')             → assertOrganizationSettings
- *   - users 8행(활성)                                → assertActiveHumanUser / 세션 제출 트리거
- *   - beneficiaries 스텁 2행(A001·swallow-001)       → beneficiaries_insert_pending_guard 충족 +
- *                                                      allocateBeneficiaryId 라운드로빈 기준점
- * 운영 audit 162행·기존 케이스 그래프는 어떤 가드도 읽지 않으므로 프리로드하지 않는다(검증됨).
- *
- * 드리프트 가드(오케스트레이터 절차): RUNBOOK 1단계에서 운영 users/beneficiaries/audit COUNT 를
- * 다시 조회해 이 상수와 일치하는지 확인한다. 다르면 이 파일을 갱신한 뒤 재생성한다 —
- * 원격 쿼리는 오케스트레이터가 수행하며, 이 툴 자체는 원격 D1 에 절대 접근하지 않는다.
+ * 운영 상태를 미러하지 않는다. 생성된 preload.sql 은 빈 disposable DB 에만 적용하며,
+ * seed.sql 은 이 fixture 의 사용자 수, 기관과 pending 스텁 조건을 검사한 뒤 시작한다.
  */
 
 export const ORG_ID = 'bss';
-
-/** 운영 audit_log 기준선(행 수). manifest 기대치 산정에 쓴다. */
-export const OPERATIONAL_AUDIT_BASELINE = 162;
 
 /**
  * 프리로드 행의 created_at/updated_at 은 고정 상수로 쓴다(now() 금지).
@@ -26,14 +14,14 @@ export const OPERATIONAL_AUDIT_BASELINE = 162;
  */
 export const PRELOAD_AT = '2026-01-01 00:00:00';
 
-export interface OperationalUser {
+export interface PreviewUser {
   id: string;
   email: string;
   role: 'admin' | 'counselor' | 'service';
 }
 
-/** 운영 활성 users 8명. active=1, org_id='bss', time_zone NULL 로 프리로드한다. 실직원 이메일은 공개 레포 가명화(counselor-NN@example.test) — 운영 실값은 시드 실행 시 로컬에서만 주입(RUNBOOK 2단계). */
-export const OPERATIONAL_USERS: readonly OperationalUser[] = [
+/** 로컬·원격 미리보기 전용 활성 사용자. */
+export const PREVIEW_USERS: readonly PreviewUser[] = [
   { id: '8fd733ce-e1f2-4483-9cc7-37390b86b2f2', email: 'account@bss.or.kr', role: 'admin' },
   { id: '08debf30-ba77-4b7c-8854-1d2d738781e1', email: 'ai00@ggbss.or.kr', role: 'counselor' },
   { id: '5a34b456-7bf9-499e-9165-c6ffb4a1da24', email: 'counselor-01@example.test', role: 'counselor' },
@@ -41,17 +29,14 @@ export const OPERATIONAL_USERS: readonly OperationalUser[] = [
   { id: '522c6100-4dc5-4fdd-bd59-4e7774f68d11', email: 'counselor-03@example.test', role: 'counselor' },
   { id: '48aab0c0-4490-4569-9b4e-fad487226d6b', email: 'counselor-04@example.test', role: 'counselor' },
   { id: '0424278c-b712-43dc-b30e-d2fc11b55dc6', email: 'counselor-05@example.test', role: 'counselor' },
-  // service 행의 email 은 Access 서비스 토큰의 Client ID(자격증명의 공개 절반)다. 위 5명과
-  // 같은 이유로 가명화한다 — 이것만으로 인증되지는 않지만 Access 팀 도메인과 합치면 어느
-  // non-identity 정책을 노려야 하는지를 알려준다. 프리로드는 로컬 미러 DB 를 채울 뿐이고
-  // 드리프트 가드는 COUNT 만 비교하므로(이메일 값을 보지 않는다) 실값이 필요 없다.
+  // 서비스 행은 미리보기 권한 흐름을 재현하는 가상 신원이다.
   { id: 'b025ca3c-8fbd-47d6-bd2b-9d70f8d25213', email: 'service-token-client-id.access', role: 'service' },
 ] as const;
 
-/** 등록(create) actor: 운영 관리자 계정. admin 경로는 initialAssigneeUserId 필수. */
+/** 미리보기 등록(create) actor. admin 경로는 initialAssigneeUserId 필수. */
 export const ADMIN_ACTOR_ID = '8fd733ce-e1f2-4483-9cc7-37390b86b2f2';
 
-/** 주담당으로 지정할 운영 상담사 ID. content.ts 가 참조한다. 키는 가명(counselor01~05) — 실직원 이메일 로컬파트가 키로 쓰이면 매핑이 복원되므로 금지. */
+/** 미리보기 주담당 사용자 ID. */
 export const COUNSELOR_IDS = {
   ai00: '08debf30-ba77-4b7c-8854-1d2d738781e1',
   counselor01: '5a34b456-7bf9-499e-9165-c6ffb4a1da24',
@@ -61,8 +46,8 @@ export const COUNSELOR_IDS = {
   counselor05: '0424278c-b712-43dc-b30e-d2fc11b55dc6',
 } as const;
 
-/** 기존 운영 beneficiaries 스텁(로컬은 'pending' 으로 — insert-pending 가드 충족용). */
-export const OPERATIONAL_BENEFICIARY_STUBS = ['A001', 'swallow-001'] as const;
+/** 슬러그 할당 기준점을 만드는 미리보기 전용 pending 스텁. */
+export const PREVIEW_BENEFICIARY_STUBS = ['A001', 'swallow-001'] as const;
 
 export interface RawStatement {
   sql: string;
@@ -83,7 +68,7 @@ export function preloadStatements(): RawStatement[] {
     params: [ORG_ID, PRELOAD_AT, PRELOAD_AT],
   });
 
-  for (const user of OPERATIONAL_USERS) {
+  for (const user of PREVIEW_USERS) {
     statements.push({
       sql: `INSERT INTO users (id, org_id, email, role, active, time_zone, created_at)
              VALUES (?, ?, ?, ?, 1, NULL, ?)`,
@@ -91,7 +76,7 @@ export function preloadStatements(): RawStatement[] {
     });
   }
 
-  for (const stubId of OPERATIONAL_BENEFICIARY_STUBS) {
+  for (const stubId of PREVIEW_BENEFICIARY_STUBS) {
     statements.push({
       sql: `INSERT INTO beneficiaries (id, org_id, initialization_state, created_at, updated_at)
              VALUES (?, ?, 'pending', ?, ?)`,

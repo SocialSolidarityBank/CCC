@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { AdminSidebar } from './admin-sidebar';
+import { adminMenuFor } from '../../admin/admin-format';
 
 // usePathname 은 App Router 컨텍스트를 요구하므로 테스트에서는 목으로 대체한다.
 // activePath 를 명시하면 현재 경로와 무관하게 활성 항목을 파생한다.
@@ -32,11 +33,21 @@ describe('AdminSidebar', () => {
 
   // CCC-55: '설정' 탭은 뺐다. 설정은 관리자 영역 밖의 화면이고, 셸 헤더·사이드바의 톱니바퀴
   // 버튼이 관리자 화면에서도 늘 보인다. 탭으로 두면 누르는 순간 이 탭줄 자체가 사라졌다.
-  it('기관·배정·사용자·실무자 초대 4개 메뉴를 순서대로 렌더한다', () => {
+  it('items 를 생략하면 전체 5개 메뉴를 순서대로 렌더한다(킷·하니스 전시)', () => {
     const { container } = render(<AdminSidebar activePath="/admin" />);
     const hrefs = Array.from(container.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href'));
     expect(hrefs).toEqual(['/admin', '/admin/assign', '/admin/users', '/admin/invite', '/admin/ai-provider']);
     // 관리자 레이아웃 밖으로 나가는 링크는 이 탭줄에 두지 않는다.
     expect(hrefs).not.toContain('/settings');
+  });
+
+  // ADR-0044 결정 7: 탭은 내 역할의 합만큼만. 기술 관리자만 가진 사람은 기관·배정을 못 본다.
+  it('역할 합으로 거른 탭만 그린다', () => {
+    const { container } = render(<AdminSidebar items={adminMenuFor(['technical-admin'])} activePath="/admin/users" />);
+    const labels = Array.from(container.querySelectorAll('a')).map((anchor) => anchor.textContent);
+    expect(labels).toEqual(['사용자·역할', '실무자 초대', 'AI·STT·연결']);
+    expect(adminMenuFor(['worker']).length).toBe(0);
+    expect(adminMenuFor(['institution-admin', 'technical-admin']).map((item) => item.label))
+      .toEqual(['기관', '배정', '사용자·역할', '실무자 초대', 'AI·STT·연결']);
   });
 });

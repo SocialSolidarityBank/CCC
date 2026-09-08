@@ -1,10 +1,12 @@
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { notifyAdmins, WATCHDOG_ALERT_PREFIX } from '@ccc/core/notify';
-import { type ApiEnv } from '@ccc/http-api/identity';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 
 // notify는 D1을 쓰지 않으므로 env는 웹훅 변수만 있는 빈 껍데기로 충분하다.
-function envWith(webhookUrl?: string): ApiEnv {
-  return { NOTIFY_WEBHOOK_URL: webhookUrl } as ApiEnv;
+function envWith(webhookUrl?: string) {
+  return { secretStore: createEnvironmentSecretStore({ NOTIFY_WEBHOOK_URL: webhookUrl }) };
 }
 
 afterEach(() => {
@@ -13,6 +15,43 @@ afterEach(() => {
 });
 
 describe('notifyAdmins (D8 알림 시임)', () => {
+  it('does not transmit a webhook credential over plaintext HTTP', async () => {
+    const output = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const send = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', send);
+    await notifyAdmins(envWith('http://hooks.example/synthetic-webhook-secret'), 'stale');
+    expect(send).not.toHaveBeenCalled();
+    expect(JSON.stringify(output.mock.calls)).not.toContain('synthetic-webhook-secret');
+  });
+
+  it('does not forward an alert to a redirected destination', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const destinations: string[] = [];
+    const server = createServer((request, response) => {
+      if (request.url === '/redirect') {
+        response.writeHead(307, { location: '/unexpected' }).end();
+      } else {
+        destinations.push(request.url ?? '');
+        response.writeHead(200).end();
+      }
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('missing loopback port');
+    const nativeFetch = globalThis.fetch;
+    // Keep the production HTTPS gate; bridge only the test transport to local HTTP.
+    vi.stubGlobal('fetch', (_url: unknown, init: RequestInit) =>
+      nativeFetch(`http://127.0.0.1:${address.port}/redirect`, init));
+    try {
+      await notifyAdmins(envWith('https://hooks.example/synthetic-webhook-secret'), 'stale');
+      expect(destinations).toEqual([]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('웹훅 미설정이면 console.error만 남기고 fetch를 부르지 않는다', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const fetchMock = vi.fn();
