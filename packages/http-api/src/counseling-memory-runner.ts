@@ -13,8 +13,11 @@ import {
   ConflictError,
   failCounselingMemoryWork,
   prepareCounselingMemoryWork,
+  prepareCounselingMemoryTrialWork,
+  type Actor,
 } from '@ccc/core/gateway';
 import type { ApiEnv } from './identity';
+import type { MemoryWork } from '@ccc/contracts/counseling-memory';
 
 const MEMORY_FAILURE_CODES: Readonly<Record<string, true>> = {
   masking_snapshot_missing: true,
@@ -40,7 +43,14 @@ function failureCode(error: unknown): string {
 
 /** A bounded scheduled drain. Source collection and leases are owned by the gateway. */
 export async function runCounselingMemory(env: ApiEnv): Promise<Record<string, number>> {
-  const jobs = await prepareCounselingMemoryWork(env, 2);
+  return processMemoryJobs(env, await prepareCounselingMemoryWork(env, 2));
+}
+
+export async function runCounselingMemoryTrial(env: ApiEnv, actor: Actor, supportCaseId: string): Promise<Record<string, number>> {
+  return processMemoryJobs(env, await prepareCounselingMemoryTrialWork(env, actor, supportCaseId));
+}
+
+async function processMemoryJobs(env: ApiEnv, jobs: MemoryWork[]): Promise<Record<string, number>> {
   const counters = { claimed: jobs.length, updated: 0, failed: 0, superseded: 0 };
   for (const job of jobs) {
     try {
