@@ -1,12 +1,47 @@
 # Beta backend integration implementation plan
 
-**State:** Reachable serialized validation passed. Final focused/boundary run: 22 files, 264 tests passed. Four repaired full API files: 148 tests passed. Owned typechecks/build and static boundary guards pass. The single complete API run originally had 10 assertion failures and five PostgreSQL setup failures; all assertion failures were repaired and rerun. PostgreSQL semantic proof and HTTP/restricted-database smoke remain blocked by the existing Colima Docker socket returning EOF. No checkpoint commit has been made.
+**Current state:** Main accepted pre-D89 PostgreSQL validation after reading the actual MacBook output: five PostgreSQL contract files passed 59/59 and real loopback HTTP plus restricted PostgreSQL smoke passed all five checks. The generated parity-only commit was verified and fast-forwarded locally. FRONTEND's local integration is now authorized. This is not a second complete API pass, D89 implementation, hosted Auth proof or deployment readiness.
 
 **Goal:** Integrate backend-owned settings, authentication and program admission from `feat/settings-backend@71778f3` onto `4352d32`. This is the first backend wave, not beta completion.
 
 **Architecture:** Three-way reconciliation against common base `feca8606`. Current main remains authoritative for six-domain consent, immutable audio objects, readiness, canonical AI drafts and egress. Program admission adds a separate authorization fence. No commit cherry-pick.
 
 **Spec:** Q/Main's 2026-09-09 first-wave instructions, ADR-0044 and ADR-0045, current main consent/audio contracts.
+
+## Current accepted evidence and cleanup
+
+This section supersedes the earlier pending/blocker/no-consumption status statements below. Those sections retain chronological commands, intermediate failures and WIP restrictions as historical evidence, not current instructions to rerun a removed smoke file.
+
+- Validated source: `e717ad9aa29940ddc10914bc77bd21485308a44a`, unchanged during the accepted MacBook run except generated parity.
+- Parity-only proof commit: `84401611d5996f7179fec2a1766759042b8dc641`, transferred by Main over private Git-over-SSH to local ref `validation/macbook-backend-proof`. GitHub origin was untouched.
+- BACKEND verified its branch/head, the local proof ref, ancestry and sole changed path `migrations/parity.yaml`, then used `git merge --ff-only validation/macbook-backend-proof`. No force or reset.
+- Verified manifest SHA-256: `66884cd3343f8f8623bbf9ad4dc0b74eea9b8e7a8512b0b039c2eba1d7af075d`.
+- Main-read MacBook evidence: `migration-parity.test.ts`, `database-parity.test.ts`, `postgres-database.contract.test.ts`, `postgres-context.contract.test.ts` and `postgres-rls.security.test.ts` passed **59/59 across five files** using the existing pinned PostgreSQL harness.
+- Main-read smoke output:
+
+```json
+{"unconfirmedDenial":true,"admittedCreation":true,"staleConfirmation":true,"crossOrgIdentityDenial":true,"crossOrgRlsDenial":true,"hostedAuth":false}
+```
+
+The smoke exercised a real loopback HTTP server and restricted PostgreSQL connection. Identity signature verification used synthetic signing keys and simulated issuer/JWKS responses, not hosted Supabase Auth. The accepted runtime remains pre-D89; no hosted/deployment readiness is claimed. Community Cloud binary audio ingress remains deliberately closed with null audio storage.
+
+Counts are separate, overlapping observations, **not additive**:
+
+| Stage | Result |
+| --- | --- |
+| Mini initial focused run | 11 files: 158 pass, 5 fail |
+| Mini targeted correction replay | 5 pass, 51 excluded by name filter |
+| Mini only complete API run | 83 files: 74 pass, 9 fail; 992 tests: 923 pass, 10 fail, 59 skipped due PostgreSQL setup failures |
+| Mini corrected non-PostgreSQL full-file replay | 4 files, 148 pass |
+| Mini final focused/boundary/security run | 22 files, 264 pass |
+| MacBook initial PostgreSQL contract run | 5 files: 54 pass, 5 fail; HTTP smoke correctly stopped |
+| MacBook accepted PostgreSQL replay | 5 files, 59 pass; subsequent smoke passed the five checks above |
+
+There was **no second complete API suite run**. The targeted and full-file replays do not retroactively turn the earlier complete run into a clean full-suite result.
+
+Following Main's cleanup authorization, only `apps/api/test/backend-runtime.smoke.ts` is removed; its executed source remains recoverable from `e717ad9` and `8440161`. The cleanup commit contains that deletion and this handoff only. Product code, migration SQL, generated parity, root dependencies and unrelated sources/artifacts remain unchanged. Root package/lock retain their reported frozen hashes; no D89 work, public push, main merge, deployment or subagent work is authorized.
+
+Post-cleanup mini verification passed in 4.77 seconds: `pnpm --filter @ccc/api run typecheck`, `node scripts/guard-core-imports.mjs`, `node scripts/guard-db-gateway.mjs` and `node scripts/guard-sql-dialect.mjs` (30 SQLite migration files inventoried). No Docker/PostgreSQL command or test suite ran during cleanup.
 
 ## Boundaries
 
