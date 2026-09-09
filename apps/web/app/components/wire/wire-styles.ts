@@ -290,6 +290,11 @@ details.surface-card[open]>.record-summary .wire-badge,
    WireField(stack, sm)가 라벨 14/600과 값 14/400을 담당한다. */
 .participant-hero-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-5) var(--space-6);min-width:0}
 /* 뷰포트가 아니라 카드의 실제 내부 폭으로 패드의 좁은 본문도 함께 전환한다. */
+/* 960px 이상에서 4열이 된다(D88 ①, 2026-09-10). 760px 이하는 아래 컨테이너 질의가 80px 라벨 행으로 전환한다.
+   세 분기: ≥960 → 4열, 760~960 → 3열(기본), ≤760 → 80px 라벨 행. */
+@container (min-width:960px){
+  .participant-hero-details{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 @media(max-width:767px){
   .participant-hero-card:has(.participant-hero-details){min-height:0}
   .participant-hero-title{gap:var(--space-2)}
@@ -928,7 +933,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
    1px**(알약화 이후 그레이 아웃라인 버튼이 중립 배지와 똑같이 읽혀 그레이를 폐지),
    아웃라인이 없는 버튼은 **면 채움**으로 선다(프라이머리 = --gradient-action,
    고스트 = --muted). 위험만 의미색 --risk 아웃라인이다. 두께는 --wire-outline-width. */
-.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-3-5);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-pill);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
+.wire-button{--button-fill:var(--panel);--wire-outline-width:1px;display:inline-flex;align-items:center;justify-content:center;line-height:normal;gap:var(--space-2);min-height:var(--pill-height);padding:0 var(--space-3-5);border:var(--wire-outline-width) solid transparent;border-radius:var(--radius-control);background:linear-gradient(var(--button-fill),var(--button-fill)) padding-box,var(--gradient-brand) border-box;color:var(--ink);font-size:var(--text-sm);font-weight:600;text-align:center;white-space:nowrap;cursor:pointer;background-size:200% auto;background-position:50% 0}
 /* 프라이머리: --gradient-action 배경 + --line-on-action 테두리. 그림자는 없다(2026-08-06,
    ADR-0030 후속 검토 종결). 본문 흐름의 그림자는 D60 이 폐지했고, 버튼도 본문 흐름이다.
    일반과 강조의 구분은 면이 이미 만든다: 채운 그라데이션 면 vs 흰 면 + 아웃라인. */
@@ -1438,5 +1443,30 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
 .wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
+/* 월간 격자 (D88 ①, 2026-09-10).
+   7열 격자. 셀 최소 높이 148px(모바일 88px).
+   요일 행: --gradient-brand 연속 면, 두 테마 고정 --on-action 글자.
+   날짜·일정 이름: --text-badge 12px(D88 ⑥ 예외 — .month-date · .calendar-event-title).
+   넘침: +N건 → 일간 보기. 바깥 달 셀은 [data-out-of-month] 속성 */
+.month-calendar{display:grid;gap:0;min-width:0}
+.month-weekday-header{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--gradient-brand)}
+.month-weekday-cell{padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:500;line-height:normal;text-align:center;color:var(--on-action)}
+.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-left:1px solid var(--line);border-top:1px solid var(--line)}
+.month-cell{min-height:148px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:var(--space-1-5);display:flex;flex-direction:column;gap:var(--space-0-5);overflow:hidden;min-width:0}
+.month-cell[data-out-of-month="true"]{background:var(--muted);opacity:.6}
+.month-cell[data-temporal="past"]{background:var(--muted)}
+/* 오늘 셀: --gradient-brand 테두리(선택 카드와 같은 패턴). */
+.month-cell[data-temporal="today"]{--surface-fill:var(--panel);border-color:transparent;background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box}
+/* D88 ⑥: 셀 날짜 숫자는 12px 예외. 셀 밖으로 퍼지지 않는다. */
+.month-date{font-size:var(--text-badge);font-weight:400;line-height:normal;color:var(--ink)}
+.month-cell[data-temporal="today"] .month-date{font-weight:600}
+/* 이벤트 행: 말줄임. 색·배지는 BACKEND display_color 연동 이후(D88 ② 선행 조건). */
+.calendar-event{display:block;overflow:hidden;min-width:0}
+.calendar-event-title{display:block;font-size:var(--text-badge);font-weight:400;line-height:normal;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* +N건 → 일간 뷰 링크. 남은 공간 아래에 붙는다. */
+.month-overflow-link{display:block;font-size:var(--text-detail);font-weight:400;line-height:normal;color:var(--blue-deep);margin-top:auto;white-space:nowrap;text-decoration:none}
+@media(max-width:767px){
+  .month-cell{min-height:88px;padding:var(--space-1)}
+}
  `;
  

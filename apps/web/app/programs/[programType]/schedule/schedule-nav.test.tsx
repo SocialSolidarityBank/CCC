@@ -358,9 +358,9 @@ describe('CCC-133 내비 회귀, 컨트롤 높이 계약', () => {
 });
 
 describe('CCC-133 통합 업무 바', () => {
-  it('글자 버튼과 일정 아이콘 버튼이 각각 알약과 원형 계약을 쓴다', () => {
+  it('글자 버튼은 직사각 radius-control(D61), 아이콘 버튼과 배지는 알약 radius-pill 계약을 쓴다', () => {
     expect(baseRule('.wire-button'))
-      .toContain('border-radius:var(--radius-pill)');
+      .toContain('border-radius:var(--radius-control)');
     expect(baseRule('.header-icon-button'))
       .toContain('border-radius:var(--radius-pill)');
     expect(rule('.schedule-nav-step')).not.toContain('border-radius:0');

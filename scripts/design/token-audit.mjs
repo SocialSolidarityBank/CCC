@@ -27,8 +27,10 @@ const TARGETS = [
 const TEXT_STEPS = ['--text-2xl', '--text-xl', '--text-lg', '--text-md', '--text-sm'];
 const SCOPED_TEXT_TOKENS = new Map([
   // 입력칸 도움말은 2026-09-04 Q 로 13 이 됐다(DESIGN-RULES §5 하한 예외 셋째 자리).
-  ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint']],
-  ['--text-badge', ['.wire-badge', '.consent-detail[data-inline="true"]>.consent-detail-summary', '.record-writing-help']],
+  // D88 ①: 월간 격자의 +N건 오버플로 링크는 셀 안 12px 콘텐츠에 인접해 13px를 쓴다(2026-09-10).
+  ['--text-detail', ['.record-rail-subgoal', '.record-open-action-meta', '.wire-form-hint', '.month-overflow-link']],
+  // D88 ⑥: 월간 격자 셀의 날짜 숫자와 일정 이름 12px 예외(2026-09-10).
+  ['--text-badge', ['.wire-badge', '.consent-detail[data-inline="true"]>.consent-detail-summary', '.record-writing-help', '.month-date', '.calendar-event-title']],
 ]);
 // 2026-08-03 Q: 700 이 작은 화면에서 뭉개져 한 단계 내림(400·600).
 // 2026-08-04 Q: 사이드바 기본 굵기로 500 신설 — 강조(활성·선택·기관명)만 600, 본문 400 유지.

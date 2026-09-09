@@ -19,6 +19,8 @@ export {
   type WireChoiceProps,
   WireFormField,
   type WireFormFieldProps,
+  WireToolbarField,
+  type WireToolbarFieldProps,
 } from './wire-form-field';
 export {
   WireButton,
@@ -27,6 +29,7 @@ export {
   WireLinkProvider,
   type WireLinkProps,
   type WireLinkRenderer,
+  useWireLink,
 } from './wire-button';
 export { WireBadge, type WireBadgeProps, type WireBadgeTone } from './wire-badge';
 export { WireCallout, type WireCalloutProps } from './wire-callout';
@@ -34,3 +37,17 @@ export { WireEmpty, type WireEmptyProps, WireError, type WireErrorProps } from '
 export { WireDataRow, WireDataRows } from './wire-data-rows';
 export { Icon, type IconName } from './wire-icon';
 export { WireRadioGroup } from './wire-radio-group';
+export {
+  WireMonthCalendar,
+  type WireMonthCalendarCell,
+  type WireMonthCalendarWeek,
+  type WireMonthCalendarProps,
+  type WireMonthCalendarEvent,
+  buildMonthWeeks,
+} from './wire-month-calendar';
+export {
+  ParticipantHeroCard,
+  type ParticipantHeroCardProps,
+  type ParticipantHeroDetail,
+} from './participant-hero-card';
+export { ParticipantName, type ParticipantNameProps, type ParticipantNameSize, participantDisplayName } from './participant-name';
