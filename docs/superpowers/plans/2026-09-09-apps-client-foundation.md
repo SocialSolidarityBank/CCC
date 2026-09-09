@@ -917,3 +917,53 @@ AI 초안은 승인 뒤에만 목록의 핵심 한 줄로 오른다. `llmMode`�
 ### 상태
 
 P3, P5, P7 은 이 선행 조건 셋이 오기 전까지 완료로 표시하지 않는다.
+
+## 21. P6, P8, P9 실계약 점검 (2026-09-10)
+
+세 단계 모두 "실제 계약에만 붙인다"는 지시대로 코드를 읽고 판정했다. 없는 API 를 가정한 화면은
+만들지 않았다.
+
+### P6 전체 상담 리포트: 차단 (서버 계약 0건)
+
+`packages/http-api/src/request-handler.ts` 에 리포트 엔드포인트가 없다(`report` 검색 결과는 STT
+readiness 뿐). 다섯 구획과 회차별 요약, 최초 인테이크 목표 근거를 실을 응답이 없으므로 화면을
+짓지 않았다. 최초 목표를 현재 목표나 가장 오래된 문자열로 추측하지 않는다.
+
+**필요한 것(BACKEND·도메인):** case 하나에 대한 리포트 응답. 구획별 근거(회차 id, 원문 위치),
+최초 인테이크 목표의 출처, 공식 기록만 싣는다는 표시, 준비되지 않은 구획과 빈 구획의 구분.
+
+### P8 공개 요청 링크와 초대: 차단 (지금 계약이 D86·S7 과 어긋난다)
+
+현재 서버에 있는 것과 D86·S2 가 요구하는 것이 다르다.
+
+| 지금 있는 계약 | D86·S2·S7 요구 | 판정 |
+|---|---|---|
+| `GET /invites/participant/:token`, `GET /invites/participant/:token/me` | `/join#t=<token>` 조각 → exchange → 주소에서 제거 → nonce 로 complete. 자기 확인 페이지 폐기 | 경로에 토큰이 남아 Referer 유출 경계를 못 지킨다. 이식 금지 |
+| `POST /signup/participant` 가 `consent: {privacy, recordingAi}` 를 **요구** | 여섯 영역 사건 | S7 §5.1.1 위반이라 붙일 수 없다 |
+| `POST /invites/counselor` 익명 발급 | 이메일 1개 1회용, 역할 대기 | D86 ③ 이 익명 발급을 폐기했다 |
+| 위 표면 전부가 `PUBLIC_SIGNUP_ENABLED === '1'` 뒤 | 실무자 초대만 여는 경계 | 내부 실무자 온보딩 목적으로 이 스위치를 켜지 않는다(Q 결정) |
+
+그래서 이 단계에서 만들 수 있는 화면이 없다. 링크 발급 버튼만 먼저 만들면 곧바로 옛 동의 2종
+가입으로 이어진다.
+
+**필요한 것(API·공개 링크 소유자):** S2 exchange·nonce complete 경로, 이메일에 묶인 1회용 실무자
+초대, 여섯 영역 동의를 받는 가입 완료 계약, 그리고 이 표면만 여는 스위치 경계.
+
+### P9 공개 site 분리와 web 정리: 소유자 PR 선행
+
+`apps/web` 과 배포 설정은 이 레인 소유가 아니다. 읽기만 해서 대응표를 남긴다.
+
+| `apps/web` route | `apps/client` 대응 | 처리 |
+|---|---|---|
+| `/`, `/participants*`, `/schedules*`, `/programs/:type/schedule*`, `/settings`, `/onboarding` | 같은 자리 구현됨(일정은 `/schedule` 한 자리로 합침) | E2-7 소스 컷오버 대상 |
+| `/admin`, `/admin/users*`, `/admin/assign`, `/admin/invite` | `/settings?module=` 탭으로 이전 중(사용자·팀·초대 탭 남음) | P7 잔여 + 컷오버 |
+| `/admin/ai-provider` | 읽기 전용 STT 상태 카드(이 레인 소유) | 이전 대상 |
+| `/join/participant/:token`, `/join/worker/:token` | 없음(위 P8 차단) | 계약 확정 전 이식 금지 |
+| `/participants/:id/programs/:caseId/close` | 없음. 종결은 상담 기록 화면 안에 있다 | 링크 정리 필요 |
+| `/preview`, `/preview/admin` | 없음 | 미리보기 코드 게이트 접점. 은퇴·교체는 릴리스 소유자 |
+| `/kit` | 없음 | 디자인 검수 접점. design 레인 소유 |
+| `/welcome` | `/welcome` 도입 안내 | 문안은 공개 site 소유자와 맞춘다 |
+
+`shared-styles.mjs` 가 아직 `apps/web/app/layout.tsx` 를 읽고, STT 시험 화면이
+`@ccc/web/wire` 공개 진입점을 쓴다. 공유 자산이 독립 위치로 옮겨지기 전에는 web 삭제가 불가능하다.
+그 이전은 디자인·export 소유자 PR 이 먼저다.
