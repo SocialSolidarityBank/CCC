@@ -13,7 +13,7 @@
 export { GridContainer, type GridContainerProps } from './grid-container';
 export { PageTitle, type PageTitleProps } from './page-title';
 export { WireCard, type WireCardProps, type WireCardTone } from './wire-card';
-export { WireCardSection, type WireCardSectionProps, type WireSectionTone } from './wire-section';
+export { WireCardSection, type WireCardSectionProps, type WireSectionTone, WireItem, type WireItemProps } from './wire-section';
 export {
   WireChoice,
   type WireChoiceProps,
@@ -32,3 +32,5 @@ export { WireBadge, type WireBadgeProps, type WireBadgeTone } from './wire-badge
 export { WireCallout, type WireCalloutProps } from './wire-callout';
 export { WireEmpty, type WireEmptyProps, WireError, type WireErrorProps } from './wire-state';
 export { WireDataRow, WireDataRows } from './wire-data-rows';
+export { Icon, type IconName } from './wire-icon';
+export { WireRadioGroup } from './wire-radio-group';
