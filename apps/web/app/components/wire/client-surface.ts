@@ -43,6 +43,7 @@ export {
   type WireMonthCalendarWeek,
   type WireMonthCalendarProps,
   type WireMonthCalendarEvent,
+  type WireMonthCalendarEventColor,
   buildMonthWeeks,
 } from './wire-month-calendar';
 export {
