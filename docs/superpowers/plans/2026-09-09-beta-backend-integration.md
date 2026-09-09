@@ -611,3 +611,23 @@ ADR-0047 §2 is implemented in the gateway and HTTP boundary without frontend or
 - Main owns PostgreSQL application and parity regeneration on the MacBook. `migrations/parity.yaml` is intentionally unchanged (SHA-256 `66884cd3343f8f8623bbf9ad4dc0b74eea9b8e7a8512b0b039c2eba1d7af075d`); do not treat this source checkpoint as regenerated parity evidence.
 
 S9 remains a separate workstream. Its preceding checkpoint includes native hardening source, a receipt-verified loader, a source rebuild command and the byte-owned in-memory adapter, but not persistent key-record activation or a Recovery Kit writer. Main reports the Windows prerequisite ready: official VS2022 BuildTools 17.14.40 with C++ workload, Windows 11 Pro 64-bit and Node 24.19.0. Compiler/runtime qualification will use a new isolated ASCII directory and leave the STT benchmark directory/task untouched.
+
+## S9 isolated Windows source handoff
+
+The approved implementation remains commit `b743a17383d1cd60e1bc8e1e107a5c26e930f470`; D88 is checkpointed separately as `d60cc89`. No native/source changes or additional dependency decisions were needed to produce this bundle.
+
+- Artifact: `artifacts/s9-dpapi-source-b743a17.tar.gz`, 48,829 bytes, SHA-256 `5cde4e88c9ffda6eed0ca12dc1b195f32c1ebbc90a9e903952276e8f7434d60f`. This is an untracked handoff artifact, not a release binary.
+- The archive contains 34 files: the pinned adapter and contracts sources, native patch/provenance, a three-importer lock retaining the exact 87-package dependency closure, per-file hash manifest, and bundle-only Windows proof scripts. It contains no `.node`, `node_modules`, build output, credentials or key records.
+- Fresh extraction on darwin arm64 Node 24.18.0 passed frozen offline installation without lifecycle scripts, all 8 synthetic adapter/loader tests, and the public loader's unbuilt refusal check. Archive file hashes were verified before installation. These are not Windows compiler/runtime results.
+
+Main should extract into a new isolated ASCII directory, with Node 24.19.0 and pnpm 11.5.3 available, then run `powershell.exe -NoProfile -File .\run-windows-proof.ps1`. The script stops at the first failing command and does not change accounts, ACLs, execution policy or the STT directory/task:
+
+1. `pnpm install --frozen-lockfile --ignore-scripts`
+2. `node adapters/secrets-dpapi/scripts/windows-smoke.mjs --expect-unbuilt`
+3. `pnpm --filter @ccc/secrets-dpapi build:native`
+4. `pnpm --filter @ccc/secrets-dpapi test`
+5. `node adapters/secrets-dpapi/scripts/windows-smoke.mjs`
+
+Step 2 must reject the unbuilt adapter even though the upstream package has been installed. Step 3 copies only hash-verified patched source and explicitly compiles it; the loader accepts only the resulting receipt-bound binary with the hardening marker. Its receipt binds source provenance, actual Node version, OS, architecture and binary hash. Step 5 exercises the public adapter with three synthetic 32-byte values, independent caller-owned reads, metadata substitution refusal and closed-store refusal. It writes no key records and emits no material.
+
+Implemented: patched CurrentUser-only native operations with fixed errors and wiped native output; byte-owned protect/read primitive; pinned-source rebuild recipe; verified rebuilt-only loader. Not implemented: persisted record encoding/storage, generation writer/active pointer, authorization/audit composition, Recovery Kit writer/restore, or legacy string-runtime composition. The approved integration boundary still requires Main's persistence review before an irreversible writer; an independently replaced per-key file would violate S9 §2.8's single-generation activation contract. Native compilation/runtime, wrong-account/reset, allocation-failure, NTFS/ACL and cross-SID recovery proofs remain Main-owned and unverified here.
