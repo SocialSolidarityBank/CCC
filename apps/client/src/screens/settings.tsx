@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
-  WireEmpty, WireError, WireFormField, WireItem,
+  WireChoice, WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/web/wire';
-import { type AuditLogItem, type RetentionReview, type RetentionReasonKind } from '../business/api';
+import {
+  ROLE_LABELS, type AuditLogItem, type DirectoryAccountsPage, type HumanRole, type RetentionPolicy,
+  type RetentionReview, type RetentionReasonKind,
+} from '../business/api';
 import { type BusinessError, safeError } from '../business/errors';
 import { AccountModule, InstitutionModule, MemoryModule } from '../business/settings-modules';
 import { destinationAt } from '../business/navigation';
@@ -168,6 +171,161 @@ function RetentionModule({ session }: { session: Session }) {
   </WireCard>;
 }
 
+/** 사용자와 역할. 역할 묶음 교체와 비활성만 다룬다(D74). 초대 발급은 서버 계약이 바뀌기 전까지 없다. */
+function AccountsModule({ session }: { session: Session }) {
+  const [page, setPage] = useState<DirectoryAccountsPage | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, HumanRole[]>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+
+  const load = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.api.getAccounts().then((value) => {
+      if (own !== generation.current) return;
+      setPage(value);
+      setDrafts(Object.fromEntries(value.accounts.map((account) => [account.id, account.roles])));
+    }).catch((cause: unknown) => {
+      if (own !== generation.current) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    });
+  }, [session.api, session.auth]);
+
+  useEffect(() => {
+    load();
+    return () => { generation.current += 1; };
+  }, [load]);
+
+  const run = async (work: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      load();
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <WireCard title="사용자와 역할">
+    <WireCallout tone="info" title="역할은 겹칠 수 있습니다">
+      한 사람이 기관 관리자와 실무자를 함께 가질 수 있습니다. 실제 접근은 역할과 담당 관계의 합으로 서버가 정합니다.
+    </WireCallout>
+    {error && <WireError>{error.message}</WireError>}
+    {page === null && error === null && <WireEmpty live reserve>사용자 목록을 불러오고 있습니다.</WireEmpty>}
+    {page !== null && page.accounts.length === 0 && <WireEmpty>등록된 사용자가 없습니다.</WireEmpty>}
+    {(page?.accounts ?? []).map((account) => {
+      const draft = drafts[account.id] ?? account.roles;
+      const changed = [...draft].sort().join(',') !== [...account.roles].sort().join(',');
+      return <WireCardSection key={account.id} title={account.name ?? account.email ?? account.id}
+        action={<WireBadge tone={account.active ? 'mint' : 'neutral'}>{account.active ? '활성' : '비활성'}</WireBadge>}>
+        <WireDataRows>
+          <WireDataRow label="이메일" value={account.email ?? '등록되지 않음'} />
+          <WireDataRow label="담당 사업 수" value={`${account.assignmentCount}건`} />
+          <WireDataRow label="감독 팀" value={account.supervisedTeamIds.length === 0 ? '없음' : account.supervisedTeamIds.join(', ')} />
+        </WireDataRows>
+        {page?.permissions.canManageRoles === true && account.active && <>
+          {(Object.keys(ROLE_LABELS) as HumanRole[]).map((role) => (
+            <WireChoice key={role} type="checkbox" label={ROLE_LABELS[role]} checked={draft.includes(role)}
+              disabled={busy}
+              onChange={(checked) => setDrafts({
+                ...drafts,
+                [account.id]: checked ? [...draft, role] : draft.filter((entry) => entry !== role),
+              })} />
+          ))}
+          <div className="business-actions">
+            <WireButton variant="primary" disabled={busy || !changed || draft.length === 0}
+              onClick={() => { void run(() => session.api.saveAccountRoles(account.id, { roles: draft, expectedRoles: account.roles })); }}>
+              역할 저장
+            </WireButton>
+            <WireButton variant="neutral" disabled={busy}
+              onClick={() => { void run(() => session.api.deactivateAccount(account.id, '기관 관리자 요청')); }}>
+              계정 비활성
+            </WireButton>
+          </div>
+        </>}
+      </WireCardSection>;
+    })}
+  </WireCard>;
+}
+
+/** 개인정보 보유기간. 종결 뒤 며칠 지나 아카이브 검토로 넘길지 정한다(D32·D46). */
+function RetentionPolicyModule({ session }: { session: Session }) {
+  const [policy, setPolicy] = useState<RetentionPolicy | null>(null);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+
+  const load = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.api.getRetentionPolicy().then((value) => {
+      if (own !== generation.current) return;
+      setPolicy(value);
+      setDraft(String(value.piiPurgeGraceDays));
+    }).catch((cause: unknown) => {
+      if (own !== generation.current) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    });
+  }, [session.api, session.auth]);
+
+  useEffect(() => {
+    load();
+    return () => { generation.current += 1; };
+  }, [load]);
+
+  const save = async () => {
+    const days = Number(draft);
+    if (busy || policy === null || !Number.isSafeInteger(days) || days < 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setPolicy(await session.api.saveRetentionPolicy({ piiPurgeGraceDays: days, expectedVersion: policy.version }));
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <WireCard title="개인정보 보유기간">
+    <WireCallout tone="info" title="이 값은 파기 시점이 아닙니다">
+      종결 뒤 이 기간이 지나면 금고 자료가 검토 큐로 넘어갑니다. 최종 파기는 관리자 확인을 다시 받습니다.
+    </WireCallout>
+    {error && <WireError>{error.message}</WireError>}
+    {policy === null && error === null && <WireEmpty live reserve>보유기간을 불러오고 있습니다.</WireEmpty>}
+    {policy !== null && <>
+      <WireFormField label="종결 뒤 보관 일수" htmlFor="retention-grace" hint="0 이상 정수">
+        <input id="retention-grace" inputMode="numeric" value={draft} disabled={busy}
+          onChange={(event) => setDraft(event.target.value)} />
+      </WireFormField>
+      <WireDataRows>
+        <WireDataRow label="최근 확인한 값" value={`${policy.piiPurgeGraceDays}일`} />
+      </WireDataRows>
+      <div className="business-actions">
+        <WireButton variant="primary" disabled={busy || draft === String(policy.piiPurgeGraceDays)}
+          onClick={() => { void save(); }}>보유기간 저장</WireButton>
+        <WireButton variant="neutral" disabled={busy} onClick={load}>최신 값 확인</WireButton>
+      </div>
+    </>}
+  </WireCard>;
+}
+
 export function SettingsScreen() {
   const session = useOutletContext<Session>();
   const location = useLocation();
@@ -195,6 +353,8 @@ export function SettingsScreen() {
   if (destination?.id === 'institution-profile') return <InstitutionModule api={session.api} onFailure={onFailure} />;
   if (destination?.id === 'memory') return <MemoryModule api={session.api} onFailure={onFailure} />;
   if (destination?.id === 'audit') return <AuditModule session={session} />;
+  if (destination?.id === 'accounts') return <AccountsModule session={session} />;
+  if (destination?.id === 'retention-policy') return <RetentionPolicyModule session={session} />;
   if (destination?.id === 'retention') return <RetentionModule session={session} />;
   return <AccountModule me={session.me} api={session.api} onFailure={onFailure} />;
 }

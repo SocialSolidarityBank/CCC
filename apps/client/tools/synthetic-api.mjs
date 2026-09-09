@@ -31,6 +31,13 @@ export function createSyntheticState() {
     scheduleVersion: 2,
     consentEvents: new Map(),
     lastRegistration: null,
+    retentionPolicy: { orgId: 'org-1', piiPurgeGraceDays: 365, version: 1 },
+    accounts: [
+      { id: 'a1c3f5e7-1234-4a5b-8c9d-0e1f2a3b4c5d', email: 'worker@example.invalid', name: '실무자 하나',
+        active: true, roles: ['worker'], supervisedTeamIds: [], assignmentCount: 2 },
+      { id: 'b2d4f6a8-2345-4b6c-9d0e-1f2a3b4c5d6e', email: 'tech@example.invalid', name: '기술 관리자',
+        active: true, roles: ['technical-admin'], supervisedTeamIds: [], assignmentCount: 0 },
+    ],
     retention: [{
       beneficiaryId: 'swallow-003', status: 'pending', archivedAt: '2026-09-01T00:00:00.000Z',
       reviewDueAt: '2026-09-20T00:00:00.000Z', retentionCapDueAt: '2027-09-01T00:00:00.000Z',
@@ -495,14 +502,44 @@ export function handleApi(request, state, options) {
       return json(target, 200, cors);
     });
   }
+  if (path === '/settings/retention-policy') {
+    if (request.method === 'GET') return json(state.retentionPolicy, 200, cors);
+    if (request.method === 'PUT') {
+      return request.json().then((body) => {
+        if (body.expectedVersion !== state.retentionPolicy.version) return json({ error: 'conflict' }, 409, cors);
+        state.retentionPolicy = {
+          ...state.retentionPolicy,
+          piiPurgeGraceDays: body.piiPurgeGraceDays,
+          version: state.retentionPolicy.version + 1,
+        };
+        return json(state.retentionPolicy, 200, cors);
+      });
+    }
+  }
+  if (/^\/settings\/accounts\/[^/]+\/roles$/.test(path) && request.method === 'PATCH') {
+    return request.json().then((body) => {
+      const id = decodeURIComponent(path.split('/')[3]);
+      const account = state.accounts.find((entry) => entry.id === id);
+      if (account === undefined) return json({ error: 'not_found' }, 404, cors);
+      if (account.roles.join(',') !== [...body.expectedRoles].sort().join(',')) {
+        return json({ error: 'conflict' }, 409, cors);
+      }
+      account.roles = [...body.roles].sort();
+      return json(account, 200, cors);
+    });
+  }
+  if (/^\/settings\/accounts\/[^/]+\/deactivate$/.test(path) && request.method === 'POST') {
+    return request.json().then(() => {
+      const id = decodeURIComponent(path.split('/')[3]);
+      const account = state.accounts.find((entry) => entry.id === id);
+      if (account === undefined) return json({ error: 'not_found' }, 404, cors);
+      account.active = false;
+      return json(account, 200, cors);
+    });
+  }
   if (path === '/settings/accounts' && request.method === 'GET') {
     return json({
-      accounts: [
-        { id: 'a1c3f5e7-1234-4a5b-8c9d-0e1f2a3b4c5d', email: 'worker@example.invalid', name: '실무자 하나',
-          active: true, roles: ['worker'], supervisedTeamIds: [], assignmentCount: 2 },
-        { id: 'b2d4f6a8-2345-4b6c-9d0e-1f2a3b4c5d6e', email: 'tech@example.invalid', name: '기술 관리자',
-          active: true, roles: ['technical-admin'], supervisedTeamIds: [], assignmentCount: 0 },
-      ],
+      accounts: state.accounts,
       permissions: { canManageRoles: true, canManageAccounts: true }, nextCursor: null,
     }, 200, cors);
   }

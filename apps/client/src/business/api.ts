@@ -243,6 +243,61 @@ export function decodeAuditLogPage(value: unknown): AuditLogPage {
   return { items: row.items.map(decodeAuditItem), nextCursor: row.nextCursor };
 }
 
+/** 사용자 디렉터리 한 줄. 권한 판정은 서버가 하고 화면은 서버가 준 값만 보여 준다. */
+export interface DirectoryAccount {
+  id: string;
+  email: string | null;
+  name: string | null;
+  active: boolean;
+  roles: HumanRole[];
+  supervisedTeamIds: string[];
+  assignmentCount: number;
+}
+export interface DirectoryAccountsPage {
+  accounts: DirectoryAccount[];
+  permissions: { canManageRoles: boolean; canManageAccounts: boolean };
+  nextCursor: string | null;
+}
+export interface RetentionPolicy { orgId: string; piiPurgeGraceDays: number; version: number }
+
+export function decodeDirectoryAccount(value: unknown): DirectoryAccount {
+  const row = record(value);
+  if (!isOpaqueIdentifier(row.id) || !isNullableString(row.email) || !isNullableString(row.name)
+    || typeof row.active !== 'boolean' || !Array.isArray(row.roles) || !row.roles.every(isHumanRole)
+    || !Array.isArray(row.supervisedTeamIds) || !row.supervisedTeamIds.every((id) => typeof id === 'string')
+    || typeof row.assignmentCount !== 'number' || !Number.isSafeInteger(row.assignmentCount)) {
+    throw new BusinessError('invalid_response');
+  }
+  return {
+    id: row.id, email: row.email, name: row.name, active: row.active, roles: row.roles,
+    supervisedTeamIds: row.supervisedTeamIds as string[], assignmentCount: row.assignmentCount,
+  };
+}
+
+export function decodeDirectoryAccounts(value: unknown): DirectoryAccountsPage {
+  const row = record(value);
+  const permissions = record(row.permissions);
+  if (!Array.isArray(row.accounts) || typeof permissions.canManageRoles !== 'boolean'
+    || typeof permissions.canManageAccounts !== 'boolean' || !isNullableString(row.nextCursor)) {
+    throw new BusinessError('invalid_response');
+  }
+  return {
+    accounts: row.accounts.map(decodeDirectoryAccount),
+    permissions: { canManageRoles: permissions.canManageRoles, canManageAccounts: permissions.canManageAccounts },
+    nextCursor: row.nextCursor,
+  };
+}
+
+export function decodeRetentionPolicy(value: unknown): RetentionPolicy {
+  const row = record(value);
+  if (typeof row.orgId !== 'string' || typeof row.piiPurgeGraceDays !== 'number'
+    || !Number.isSafeInteger(row.piiPurgeGraceDays) || typeof row.version !== 'number'
+    || !Number.isSafeInteger(row.version)) {
+    throw new BusinessError('invalid_response');
+  }
+  return { orgId: row.orgId, piiPurgeGraceDays: row.piiPurgeGraceDays, version: row.version };
+}
+
 /** 역할 판단은 /me의 canonical roles만 사용한다. legacy role과 URL 미리보기 값은 읽지 않는다. */
 export class SettingsApi {
   private identity: MyIdentity | null = null;
@@ -347,5 +402,53 @@ export class SettingsApi {
     return decodeRetentionReviewResponse(await this.transport.request(
       `/pii-retention/reviews/${encodeURIComponent(beneficiaryId)}`, 'POST', body,
     ));
+  }
+
+  /** 사용자 디렉터리. 목록은 서버가 자른다(`cursor`). */
+  async getAccounts(cursor?: string): Promise<DirectoryAccountsPage> {
+    this.requireAdmin();
+    if (cursor !== undefined && !/^[A-Za-z0-9_-]{1,300}$/u.test(cursor)) throw new BusinessError('invalid_request', 400);
+    const path = cursor === undefined ? '/settings/accounts' : `/settings/accounts?cursor=${encodeURIComponent(cursor)}`;
+    return decodeDirectoryAccounts(await this.transport.request(path));
+  }
+
+  /** 역할 묶음 교체. 서버가 `expectedRoles` 로 동시 변경을 막는다. */
+  async saveAccountRoles(
+    userId: string, input: { roles: HumanRole[]; expectedRoles: HumanRole[] },
+  ): Promise<DirectoryAccount> {
+    this.requireAdmin();
+    if (!isOpaqueIdentifier(userId) || input.roles.length === 0 || input.roles.length > 3) {
+      throw new BusinessError('invalid_request', 400);
+    }
+    return decodeDirectoryAccount(await this.transport.request(
+      `/settings/accounts/${encodeURIComponent(userId)}/roles`, 'PATCH',
+      { roles: [...input.roles].sort(), expectedRoles: [...input.expectedRoles].sort() },
+    ));
+  }
+
+  async deactivateAccount(userId: string, reason: string): Promise<DirectoryAccount> {
+    this.requireAdmin();
+    if (!isOpaqueIdentifier(userId) || reason.trim() === '' || reason.trim().length > 500) {
+      throw new BusinessError('invalid_request', 400);
+    }
+    return decodeDirectoryAccount(await this.transport.request(
+      `/settings/accounts/${encodeURIComponent(userId)}/deactivate`, 'POST', { reason: reason.trim() },
+    ));
+  }
+
+  async getRetentionPolicy(): Promise<RetentionPolicy> {
+    this.requireAdmin();
+    return decodeRetentionPolicy(await this.transport.request('/settings/retention-policy'));
+  }
+
+  async saveRetentionPolicy(input: { piiPurgeGraceDays: number; expectedVersion: number }): Promise<RetentionPolicy> {
+    this.requireAdmin();
+    if (!Number.isSafeInteger(input.piiPurgeGraceDays) || input.piiPurgeGraceDays < 0
+      || !Number.isSafeInteger(input.expectedVersion)) {
+      throw new BusinessError('invalid_request', 400);
+    }
+    return decodeRetentionPolicy(await this.transport.request('/settings/retention-policy', 'PUT', {
+      expectedVersion: input.expectedVersion, piiPurgeGraceDays: input.piiPurgeGraceDays,
+    }));
   }
 }

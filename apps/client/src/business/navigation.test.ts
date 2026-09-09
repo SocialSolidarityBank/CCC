@@ -59,10 +59,12 @@ describe('business navigation permission boundary', () => {
     expect(visibleDestinations(['institution-admin']).map((entry) => entry.id))
       .toEqual([
         'account', 'schedule', 'schedule-register', 'participants', 'participant-register', 'onboarding',
-        'system', 'institution-profile', 'memory', 'audit', 'retention',
+        'system', 'institution-profile', 'accounts', 'memory', 'audit', 'retention-policy', 'retention',
       ]);
     expect(visibleDestinations(['technical-admin']).map((entry) => entry.id)).toEqual(['account', 'system']);
     expect(destinationAt('/settings', '?module=retention')?.id).toBe('retention');
+    expect(destinationAt('/settings', '?module=accounts')?.id).toBe('accounts');
+    expect(destinationAt('/settings', '?module=retention-policy')?.id).toBe('retention-policy');
     expect(destinationAt('/settings', '?module=unknown')).toBeNull();
     expect(visibleDestinations(['supervisor']).map((entry) => entry.id))
       .toEqual(['account', 'schedule', 'participants']);

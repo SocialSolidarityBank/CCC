@@ -2,7 +2,8 @@ import type { HumanRole } from './api';
 
 export interface ShellDestination {
   id: 'account' | 'schedule' | 'schedule-register' | 'participants' | 'participant-register'
-    | 'onboarding' | 'system' | 'institution-profile' | 'memory' | 'audit' | 'retention';
+    | 'onboarding' | 'system' | 'institution-profile' | 'accounts' | 'memory' | 'audit'
+    | 'retention' | 'retention-policy';
   title: string;
   href: string;
   roles: readonly HumanRole[];
@@ -17,8 +18,10 @@ const destinations: readonly ShellDestination[] = [
   { id: 'onboarding', title: '기관 준비', href: '/onboarding', roles: ['institution-admin'] },
   { id: 'system', title: '연결 상태', href: '/settings?module=system', roles: ['institution-admin', 'technical-admin'] },
   { id: 'institution-profile', title: '기관 정보', href: '/settings?module=institution-profile', roles: ['institution-admin'] },
+  { id: 'accounts', title: '사용자와 역할', href: '/settings?module=accounts', roles: ['institution-admin'] },
   { id: 'memory', title: '기관 상담 기억', href: '/settings?module=memory', roles: ['institution-admin'] },
   { id: 'audit', title: '감사 기록', href: '/settings?module=audit', roles: ['institution-admin'] },
+  { id: 'retention-policy', title: '개인정보 보유기간', href: '/settings?module=retention-policy', roles: ['institution-admin'] },
   { id: 'retention', title: '개인정보 보존 검토', href: '/settings?module=retention', roles: ['institution-admin'] },
 ];
 
@@ -32,7 +35,9 @@ const RECORDS = /^\/participants\/[A-Za-z0-9_-]{1,200}\/programs\/[A-Za-z0-9-]{1
 const SCHEDULE_PLAN = /^\/schedules\/[A-Za-z0-9-]{1,200}\/plan$/;
 
 /** `/settings` 아래 탭으로 열 수 있는 모듈. 목록에 없는 값은 주소로도 열리지 않는다. */
-const SETTINGS_MODULES: readonly string[] = ['account', 'system', 'institution-profile', 'memory', 'audit', 'retention'];
+const SETTINGS_MODULES: readonly string[] = [
+  'account', 'system', 'institution-profile', 'accounts', 'memory', 'audit', 'retention', 'retention-policy',
+];
 
 export function canOpenDestination(destination: ShellDestination, roles: readonly HumanRole[]): boolean {
   return destination.roles.some((role) => roles.includes(role));

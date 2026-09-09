@@ -967,3 +967,13 @@ readiness 뿐). 다섯 구획과 회차별 요약, 최초 인테이크 목표 �
 `shared-styles.mjs` 가 아직 `apps/web/app/layout.tsx` 를 읽고, STT 시험 화면이
 `@ccc/web/wire` 공개 진입점을 쓴다. 공유 자산이 독립 위치로 옮겨지기 전에는 web 삭제가 불가능하다.
 그 이전은 디자인·export 소유자 PR 이 먼저다.
+
+## 22. P7 잔여: 사용자·역할, 보유기간 (실계약)
+
+- `사용자와 역할` 탭: `GET /settings/accounts`, `PATCH /settings/accounts/:id/roles`(`roles`·`expectedRoles`),
+  `POST /settings/accounts/:id/deactivate`. 역할은 겹칠 수 있고 서버가 `expectedRoles` 로 동시 변경을 막는다.
+  초대 발급은 D86 계약이 서버에 없어 만들지 않았다(§21 P8).
+- `개인정보 보유기간` 탭: `GET/PUT /settings/retention-policy`(`expectedVersion`·`piiPurgeGraceDays`).
+- 실측(합성 관리자): 실무자 하나에게 실무 책임자 역할 추가 저장, 보유기간 365 → 400 저장 반영.
+- 남은 P7: 팀 감독 지정, 담당 배정 요청 승인·이관(허브의 요청 발신은 있음), 동의 문안 관리 탭, 사업 도입 확인
+  잠금(BACKEND, 미구현). 실무자 초대는 P8 계약 뒤다.
