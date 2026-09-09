@@ -247,7 +247,7 @@ class QuasiIdentifierGeneralizationTest(unittest.TestCase):
         source = "목소리가 작고 활동을 정리한 친구와 상담했다. 활동에 참여했고 목소리로 답했다."
         self.assertEqual(masking.mask_text(source), source)
 
-    def test_keeps_counter_phrases_and_non_address_unit_compounds(self):
+    def test_does_not_classify_counter_phrases_and_unit_compounds_as_addresses(self):
         for source in (
             "친구 2명과 만났다",
             "우리 3명이 갔다",
