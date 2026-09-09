@@ -1608,6 +1608,8 @@ describe('canonical participant gateway', () => {
       beneficiaryId: initial.beneficiaryId,
       supportCaseId: initial.supportCaseId,
       scheduledAt: '2026-07-16T00:00:00.000Z',
+      allDay: true,
+      displayColor: 'coral',
     });
     const rescheduled = await rescheduleCounselingSchedule(t.env, canonicalActors.counselor, schedule.id, {
       expectedVersion: schedule.version,
@@ -1684,6 +1686,8 @@ describe('canonical participant gateway', () => {
       completedSchedule: {
         id: schedule.id,
         scheduledAt: rescheduled.scheduledAt,
+        allDay: true,
+        displayColor: 'coral',
         status: 'completed',
         version: rescheduled.version + 1,
       },

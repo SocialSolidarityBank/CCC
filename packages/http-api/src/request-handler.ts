@@ -205,6 +205,7 @@ import {
   type ParticipantPiiRetentionReviewInput,
   type AiDraftReviewInput,
   type CounselingRecordDetails,
+  type CounselingScheduleDisplayColor,
   type AssignedParticipant,
   type ParticipantSearchResult,
   type Role,
@@ -1048,9 +1049,20 @@ function parseScheduleCaseGoals(body: JsonObject): string[] | undefined {
   });
 }
 
+function parseScheduleDisplay(body: JsonObject): { allDay?: boolean; displayColor?: CounselingScheduleDisplayColor | null } {
+  const displayColor = body.displayColor;
+  if (displayColor !== undefined && displayColor !== null && displayColor !== 'mint'
+    && displayColor !== 'lavender' && displayColor !== 'coral' && displayColor !== 'cyan'
+    && displayColor !== 'light-magenta') throw new ValidationError('displayColor is invalid');
+  return {
+    ...(Object.hasOwn(body, 'allDay') ? { allDay: requiredBoolean(body, 'allDay') } : {}),
+    ...(displayColor === undefined ? {} : { displayColor }),
+  };
+}
+
 function parseScheduleCreation(body: JsonObject) {
   requireOnlyKeys(body, [
-    'beneficiaryId', 'supportCaseId', 'scheduledAt',
+    'beneficiaryId', 'supportCaseId', 'scheduledAt', 'allDay', 'displayColor',
     'sessionKind', 'channel', 'sessionGoals', 'caseGoals', 'customQuestions',
   ]);
   const sessionKind = parseScheduleKind(body);
@@ -1062,6 +1074,7 @@ function parseScheduleCreation(body: JsonObject) {
     beneficiaryId: requireBeneficiaryId(requiredString(body, 'beneficiaryId')),
     supportCaseId: requiredUuid(body, 'supportCaseId'),
     scheduledAt: requiredCanonicalUtc(body, 'scheduledAt'),
+    ...parseScheduleDisplay(body),
     ...(sessionKind === undefined ? {} : { sessionKind }),
     ...(channel === undefined ? {} : { channel }),
     ...(sessionGoals === undefined ? {} : { sessionGoals }),
@@ -1071,10 +1084,11 @@ function parseScheduleCreation(body: JsonObject) {
 }
 
 function parseScheduleReschedule(body: JsonObject) {
-  requireOnlyKeys(body, ['expectedVersion', 'scheduledAt']);
+  requireOnlyKeys(body, ['expectedVersion', 'scheduledAt', 'allDay', 'displayColor']);
   return {
     expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
     scheduledAt: requiredCanonicalUtc(body, 'scheduledAt'),
+    ...parseScheduleDisplay(body),
   };
 }
 
@@ -1324,6 +1338,8 @@ function scheduleResponse(schedule: Awaited<ReturnType<typeof rescheduleCounseli
     beneficiaryId: schedule.beneficiaryId,
     supportCaseId: schedule.supportCaseId,
     scheduledAt: schedule.scheduledAt,
+    allDay: schedule.allDay,
+    displayColor: schedule.displayColor,
     status: schedule.status,
     version: schedule.version,
   };
@@ -1335,6 +1351,8 @@ function scheduleSessionPlanResponse(plan: Awaited<ReturnType<typeof getSchedule
     beneficiaryId: plan.beneficiaryId,
     supportCaseId: plan.supportCaseId,
     scheduledAt: plan.scheduledAt,
+    allDay: plan.allDay,
+    displayColor: plan.displayColor,
     status: plan.status,
     version: plan.version,
     sessionKind: plan.sessionKind,
@@ -1453,6 +1471,8 @@ function normalizeParticipantBriefing(briefing: Awaited<ReturnType<typeof getPar
       : {
         id: briefing.focusUpcomingSchedule.id,
         scheduledAt: briefing.focusUpcomingSchedule.scheduledAt,
+        allDay: briefing.focusUpcomingSchedule.allDay,
+        displayColor: briefing.focusUpcomingSchedule.displayColor,
         sessionKind: briefing.focusUpcomingSchedule.sessionKind,
         channel: briefing.focusUpcomingSchedule.channel,
         sessionGoals: briefing.focusUpcomingSchedule.sessionGoals.map((goal) => ({
@@ -1577,6 +1597,8 @@ function nextCounselingScheduleResponse(
     beneficiaryId: schedule.beneficiaryId,
     supportCaseId: schedule.supportCaseId,
     scheduledAt: schedule.scheduledAt,
+    allDay: schedule.allDay,
+    displayColor: schedule.displayColor,
     status: schedule.status,
     version: schedule.version,
     completedSessionId: schedule.completedSessionId,

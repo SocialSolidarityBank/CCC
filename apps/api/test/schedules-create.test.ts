@@ -67,6 +67,8 @@ describe('POST /schedules', () => {
       beneficiaryId: seeded.beneficiaryId,
       supportCaseId: seeded.supportCaseId,
       scheduledAt: '2026-07-16T01:00:00.000Z',
+      allDay: false,
+      displayColor: null,
       status: 'scheduled',
       version: 1,
     });

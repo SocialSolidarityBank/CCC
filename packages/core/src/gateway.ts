@@ -12475,8 +12475,13 @@ export type CounselingScheduleStatus = 'scheduled' | 'completed' | 'cancelled' |
 // 상담 유형(기본 상담/인테이크)과 상담 방법(v1 대면 전용, D4). 티켓 #36.
 export type CounselingScheduleKind = 'regular' | 'intake';
 export type CounselingScheduleChannel = 'in_person';
+export type CounselingScheduleDisplayColor = 'mint' | 'lavender' | 'coral' | 'cyan' | 'light-magenta';
+interface ScheduleDisplay {
+  allDay: boolean;
+  displayColor: CounselingScheduleDisplayColor | null;
+}
 
-export interface CounselingSchedule {
+export interface CounselingSchedule extends ScheduleDisplay {
   id: string;
   beneficiaryId: string;
   supportCaseId: string;
@@ -12585,6 +12590,21 @@ function canonicalScheduleChannel(_value: unknown): CounselingScheduleChannel {
   return 'in_person';
 }
 
+function normalizeScheduleDisplay(allDay: unknown = false, displayColor: unknown = null): ScheduleDisplay {
+  if (typeof allDay !== 'boolean') throw new ValidationError('schedule allDay is invalid');
+  if (displayColor !== null && displayColor !== 'mint' && displayColor !== 'lavender'
+    && displayColor !== 'coral' && displayColor !== 'cyan' && displayColor !== 'light-magenta') {
+    throw new ValidationError('schedule displayColor is invalid');
+  }
+  return { allDay, displayColor };
+}
+
+function scheduleDisplayFromRow(row: DbRow): ScheduleDisplay {
+  const allDay = integerValue(row.all_day);
+  if (allDay !== 0 && allDay !== 1) throw new ValidationError('schedule allDay is invalid');
+  return normalizeScheduleDisplay(allDay === 1, row.display_color);
+}
+
 function mapCounselingSchedule(row: DbRow): CounselingSchedule {
   const version = integerValue(row.version);
   if (version === null || version < 1) {
@@ -12595,6 +12615,7 @@ function mapCounselingSchedule(row: DbRow): CounselingSchedule {
     beneficiaryId: stringValue(row.beneficiary_id),
     supportCaseId: stringValue(row.support_case_id),
     scheduledAt: stringValue(row.scheduled_at),
+    ...scheduleDisplayFromRow(row),
     status: canonicalScheduleStatus(row.status),
     sessionKind: canonicalScheduleKind(row.session_kind),
     channel: canonicalScheduleChannel(row.channel),
@@ -15040,7 +15061,7 @@ export interface ParticipantProgramEntry {
    * **상담 내용 읽기 권한이 있는 사업에만 싣는다.** 브리핑의
    * focusUpcomingSchedule 과 같은 판정(status='scheduled' 최조기 1건)이다.
    */
-  upcomingSchedule: { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind } | null;
+  upcomingSchedule: (ScheduleDisplay & { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }) | null;
 }
 
 export interface ParticipantProgramList {
@@ -15213,7 +15234,7 @@ export interface GoalRevisionEntry {
 }
 
 /** 목표 트리의 세션 목표 한 줄 — 연결된 회기의 시각·상태를 함께 싣는다. */
-export interface ParticipantGoalTreeSessionGoal {
+export interface ParticipantGoalTreeSessionGoal extends ScheduleDisplay {
   id: string;
   body: string;
   scheduledAt: string;
@@ -15297,7 +15318,7 @@ export async function getParticipantGoalTree(
     ).bind(...scopedValues).all<DbRow>(),
     env.DB.prepare(
       `SELECT session_goal.id, session_goal.body, session_goal.case_goal_id,
-              schedule.scheduled_at, schedule.status AS schedule_status
+              schedule.scheduled_at, schedule.status AS schedule_status, schedule.all_day, schedule.display_color
        FROM schedule_session_goals AS session_goal
        JOIN counseling_schedules AS schedule
          ON schedule.id = session_goal.schedule_id AND schedule.org_id = session_goal.org_id
@@ -15350,6 +15371,7 @@ export async function getParticipantGoalTree(
       id: stringValue(row.id),
       body: stringValue(row.body),
       scheduledAt: stringValue(row.scheduled_at),
+      ...scheduleDisplayFromRow(row),
       scheduleStatus: canonicalScheduleStatus(row.schedule_status),
     });
     sessionGoalsByGoal.set(goalId, list);
@@ -15406,12 +15428,12 @@ async function loadUpcomingScheduleBySupportCase(
   env: Env,
   orgId: string,
   supportCaseIds: string[],
-): Promise<Map<string, { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }>> {
-  const upcoming = new Map<string, { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }>();
+): Promise<Map<string, ScheduleDisplay & { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }>> {
+  const upcoming = new Map<string, ScheduleDisplay & { id: string; scheduledAt: string; sessionKind: CounselingScheduleKind }>();
   if (supportCaseIds.length === 0) return upcoming;
   const placeholders = supportCaseIds.map(() => '?').join(', ');
   const result = await env.DB.prepare(
-    `SELECT id, support_case_id, scheduled_at, session_kind FROM counseling_schedules
+    `SELECT id, support_case_id, scheduled_at, session_kind, all_day, display_color FROM counseling_schedules
      WHERE org_id = ? AND support_case_id IN (${placeholders}) AND status = 'scheduled'
      ORDER BY scheduled_at, id`,
   ).bind(orgId, ...supportCaseIds).all<DbRow>();
@@ -15421,6 +15443,7 @@ async function loadUpcomingScheduleBySupportCase(
     upcoming.set(caseId, {
       id: stringValue(row.id),
       scheduledAt: stringValue(row.scheduled_at),
+      ...scheduleDisplayFromRow(row),
       sessionKind: canonicalScheduleKind(row.session_kind),
     });
   }
@@ -16775,7 +16798,7 @@ export interface CreateScheduleSessionGoalInput {
   caseGoalId?: string | null;
 }
 
-export interface CreateCounselingScheduleInput {
+export interface CreateCounselingScheduleInput extends Partial<ScheduleDisplay> {
   beneficiaryId: string;
   supportCaseId: string;
   scheduledAt: string;
@@ -16810,7 +16833,7 @@ export interface ScheduleCustomQuestion {
 /** 한 상담 일정에 등록된 세션 목표·맞춤형 질문. 브리핑·일정 상세가 함께 쓴다.
  *  일정 메타(시각·상태·version)를 함께 싣는다. 세션 목표 수정 화면(D62 §6 · CCC-70)이
  *  잠금 판정(시작 시각 경과·취소)과 낙관 잠금 제출에 쓴다. */
-export interface ScheduleSessionPlan {
+export interface ScheduleSessionPlan extends ScheduleDisplay {
   scheduleId: string;
   beneficiaryId: string;
   supportCaseId: string;
@@ -16823,7 +16846,7 @@ export interface ScheduleSessionPlan {
   customQuestions: ScheduleCustomQuestion[];
 }
 
-export interface RescheduleCounselingScheduleInput {
+export interface RescheduleCounselingScheduleInput extends Partial<ScheduleDisplay> {
   expectedVersion: number;
   scheduledAt: string;
 }
@@ -16839,7 +16862,7 @@ export interface AuthoritativeDayInterval {
   endUtc: string;
 }
 
-export interface TodayScheduleCard {
+export interface TodayScheduleCard extends ScheduleDisplay {
   id: string;
   supportCaseId: string;
   beneficiaryId: string;
@@ -17055,7 +17078,7 @@ export async function getTodaySchedules(
   if (!hasInstitutionAdminAccess) await assertPractitioner(env, actor);
   const result = hasInstitutionAdminAccess
     ? await env.DB.prepare(
-      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
+      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.all_day, schedule.display_color, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
        FROM counseling_schedules AS schedule
        JOIN support_cases AS support_case ON support_case.id = schedule.support_case_id
          AND support_case.org_id = schedule.org_id
@@ -17069,7 +17092,7 @@ export async function getTodaySchedules(
        ORDER BY schedule.scheduled_at, schedule.id`,
     ).bind(actor.orgId, interval.startUtc, interval.endUtc).all<DbRow>()
     : await env.DB.prepare(
-      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
+      `SELECT schedule.id, schedule.support_case_id, schedule.beneficiary_id, schedule.scheduled_at, schedule.all_day, schedule.display_color, schedule.status, schedule.session_kind, schedule.channel, schedule.completed_session_id, support_case.program_type
        FROM counseling_schedules AS schedule
        JOIN support_cases AS support_case ON support_case.id = schedule.support_case_id
          AND support_case.org_id = schedule.org_id
@@ -17117,6 +17140,7 @@ export async function getTodaySchedules(
         supportCaseId: stringValue(row.support_case_id),
         beneficiaryId,
         scheduledAt: stringValue(row.scheduled_at),
+        ...scheduleDisplayFromRow(row),
         programType,
         status: canonicalScheduleStatus(row.status),
         sessionKind: canonicalScheduleKind(row.session_kind),
@@ -17384,10 +17408,11 @@ export async function createCounselingSchedule(
   const scheduledAt = canonicalUtcInstant(input.scheduledAt, 'schedule time');
   const sessionKind = normalizeScheduleKind(input.sessionKind);
   const channel = normalizeScheduleChannel(input.channel);
+  const display = normalizeScheduleDisplay(input.allDay, input.displayColor);
   await assertActiveSupportCaseContext(env, actor, input.beneficiaryId, input.supportCaseId);
 
   if (sessionKind === 'intake') {
-    return createIntakeCounselingSchedule(env, actor, input, scheduledAt, channel);
+    return createIntakeCounselingSchedule(env, actor, input, scheduledAt, channel, display);
   }
 
   // 기본 상담(regular): 인테이크 전용 케이스 목표는 받지 않는다.
@@ -17410,15 +17435,17 @@ export async function createCounselingSchedule(
   const statements: PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO counseling_schedules (
-         id, org_id, beneficiary_id, support_case_id, scheduled_at, status, version,
+         id, org_id, beneficiary_id, support_case_id, scheduled_at, all_day, display_color, status, version,
          created_by_actor_id, updated_by_actor_id, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, 'scheduled', 1, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', 1, ?, ?, ?, ?)`,
     ).bind(
       id,
       actor.orgId,
       input.beneficiaryId,
       input.supportCaseId,
       scheduledAt,
+      display.allDay ? 1 : 0,
+      display.displayColor,
       actor.userId,
       actor.userId,
       createdAt,
@@ -17445,7 +17472,7 @@ export async function createCounselingSchedule(
     targetId: id,
     beneficiaryId: input.beneficiaryId,
     supportCaseId: input.supportCaseId,
-    detail: { status: 'scheduled' },
+    detail: { status: 'scheduled', ...display },
   }));
   await env.DB.batch(statements);
   return {
@@ -17453,6 +17480,7 @@ export async function createCounselingSchedule(
     beneficiaryId: input.beneficiaryId,
     supportCaseId: input.supportCaseId,
     scheduledAt,
+    ...display,
     status: 'scheduled',
     sessionKind: 'regular',
     channel,
@@ -17478,6 +17506,7 @@ async function createIntakeCounselingSchedule(
   input: CreateCounselingScheduleInput,
   scheduledAt: string,
   channel: CounselingScheduleChannel,
+  display: ScheduleDisplay,
 ): Promise<CounselingSchedule> {
   if (Array.isArray(input.sessionGoals) && input.sessionGoals.length > 0) {
     throw new ValidationError('intake schedule cannot carry session goals');
@@ -17502,15 +17531,17 @@ async function createIntakeCounselingSchedule(
   const statements: PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO counseling_schedules (
-         id, org_id, beneficiary_id, support_case_id, scheduled_at, status, session_kind, channel, version,
+         id, org_id, beneficiary_id, support_case_id, scheduled_at, all_day, display_color, status, session_kind, channel, version,
          created_by_actor_id, updated_by_actor_id, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, 'scheduled', 'intake', ?, 1, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', 'intake', ?, 1, ?, ?, ?, ?)`,
     ).bind(
       id,
       actor.orgId,
       input.beneficiaryId,
       input.supportCaseId,
       scheduledAt,
+      display.allDay ? 1 : 0,
+      display.displayColor,
       channel,
       actor.userId,
       actor.userId,
@@ -17538,7 +17569,7 @@ async function createIntakeCounselingSchedule(
     targetId: id,
     beneficiaryId: input.beneficiaryId,
     supportCaseId: input.supportCaseId,
-    detail: { status: 'scheduled' },
+    detail: { status: 'scheduled', ...display },
   }));
   goalIds.forEach((goalId) => {
     statements.push(canonicalAuditStatement(env, actor, {
@@ -17556,6 +17587,7 @@ async function createIntakeCounselingSchedule(
     beneficiaryId: input.beneficiaryId,
     supportCaseId: input.supportCaseId,
     scheduledAt,
+    ...display,
     status: 'scheduled',
     sessionKind: 'intake',
     channel,
@@ -17574,7 +17606,7 @@ async function transitionCounselingSchedule(
   env: Env,
   actor: Actor,
   scheduleId: string,
-  input: ScheduleTransitionInput & { scheduledAt?: string },
+  input: ScheduleTransitionInput & Partial<ScheduleDisplay> & { scheduledAt?: string },
   transition: 'rescheduled' | 'cancelled' | 'no_show',
 ): Promise<CounselingSchedule> {
   assertOpaqueIdentifier(scheduleId, 'schedule id');
@@ -17590,23 +17622,29 @@ async function transitionCounselingSchedule(
     throw new ConflictError('counseling schedule is unavailable');
   }
   const scheduledAt = transition === 'rescheduled' ? input.scheduledAt as string : existing.scheduledAt;
+  const display = transition === 'rescheduled'
+    ? normalizeScheduleDisplay(
+      input.allDay === undefined ? existing.allDay : input.allDay,
+      input.displayColor === undefined ? existing.displayColor : input.displayColor,
+    )
+    : { allDay: existing.allDay, displayColor: existing.displayColor };
   const updatedAt = now();
   const operationMarker = newId();
   const nextStatus = transition === 'rescheduled' ? 'scheduled' : transition;
   const results = await env.DB.batch([
     env.DB.prepare(
       `UPDATE counseling_schedules
-       SET scheduled_at = ?, status = ?, version = version + 1, updated_by_actor_id = ?,
+       SET scheduled_at = ?, all_day = ?, display_color = ?, status = ?, version = version + 1, updated_by_actor_id = ?,
            updated_at = ?, operation_marker = ?
        WHERE id = ? AND org_id = ? AND status = 'scheduled' AND version = ?`,
-    ).bind(scheduledAt, nextStatus, actor.userId, updatedAt, operationMarker, scheduleId, actor.orgId, input.expectedVersion),
+    ).bind(scheduledAt, display.allDay ? 1 : 0, display.displayColor, nextStatus, actor.userId, updatedAt, operationMarker, scheduleId, actor.orgId, input.expectedVersion),
     conditionalCanonicalAuditStatement(env, actor, {
       action: transition === 'rescheduled' ? 'reschedule' : transition,
       targetTable: 'counseling_schedules',
       targetId: scheduleId,
       beneficiaryId: existing.beneficiaryId,
       supportCaseId: existing.supportCaseId,
-      detail: { status: nextStatus },
+      detail: { status: nextStatus, ...display },
     }, {
       sql: 'SELECT 1 FROM counseling_schedules WHERE id = ? AND org_id = ? AND operation_marker = ?',
       bindings: [scheduleId, actor.orgId, operationMarker],
@@ -17619,6 +17657,7 @@ async function transitionCounselingSchedule(
   return {
     ...existing,
     scheduledAt,
+    ...display,
     status: nextStatus,
     version: input.expectedVersion + 1,
     updatedByActorId: actor.userId,
@@ -17727,6 +17766,8 @@ export async function getScheduleSessionPlan(
     beneficiaryId: schedule.beneficiaryId,
     supportCaseId: schedule.supportCaseId,
     scheduledAt: schedule.scheduledAt,
+    allDay: schedule.allDay,
+    displayColor: schedule.displayColor,
     status: schedule.status,
     version: schedule.version,
     sessionKind: schedule.sessionKind,
@@ -17870,7 +17911,7 @@ export interface CounselingRecordGasScore {
   score: -2 | -1 | 0 | 1 | 2;
 }
 
-export interface CounselingRecordCompletedSchedule {
+export interface CounselingRecordCompletedSchedule extends ScheduleDisplay {
   id: string;
   scheduledAt: string;
   status: CounselingScheduleStatus;
@@ -19903,7 +19944,7 @@ export async function listCounselingRecords(
        ORDER BY session_id, created_at, id`,
     ).bind(actor.orgId, supportCaseId, ...sessionIds).all<DbRow>(),
     env.DB.prepare(
-      `SELECT id, completed_session_id, scheduled_at, status, version
+      `SELECT id, completed_session_id, scheduled_at, all_day, display_color, status, version
        FROM counseling_schedules
        WHERE org_id = ? AND beneficiary_id = ? AND support_case_id = ?
          AND status = 'completed' AND completed_session_id IN (${placeholders})`,
@@ -20020,6 +20061,7 @@ export async function listCounselingRecords(
 
       id: stringValue(row.id),
       scheduledAt: stringValue(row.scheduled_at),
+      ...scheduleDisplayFromRow(row),
       status: canonicalScheduleStatus(row.status),
       version,
     });
@@ -20117,7 +20159,7 @@ const MAX_BRIEFING_AI_SUGGESTIONS = 3;
  * 포커스 참여사업의 다가오는 상담 일정과 그 세션 목표·맞춤형 질문 (D28). 티켓 #34가
  * 상담 준비 화면에 병기한다 — 브리핑은 데이터만 제공한다.
  */
-export interface BriefingUpcomingSchedule {
+export interface BriefingUpcomingSchedule extends ScheduleDisplay {
   id: string;
   scheduledAt: string;
   sessionKind: CounselingScheduleKind;
@@ -20558,7 +20600,7 @@ export async function getParticipantBriefing(
   let focusUpcomingSchedule: BriefingUpcomingSchedule | null = null;
   if (focus.status === 'active') {
     const upcomingRow = await env.DB.prepare(
-      `SELECT id, scheduled_at, session_kind, channel FROM counseling_schedules
+      `SELECT id, scheduled_at, all_day, display_color, session_kind, channel FROM counseling_schedules
        WHERE org_id = ? AND support_case_id = ? AND status = 'scheduled'
        ORDER BY scheduled_at, id
        LIMIT 1`,
@@ -20569,6 +20611,7 @@ export async function getParticipantBriefing(
       focusUpcomingSchedule = {
         id: scheduleId,
         scheduledAt: stringValue(upcomingRow.scheduled_at),
+        ...scheduleDisplayFromRow(upcomingRow),
         sessionKind: canonicalScheduleKind(upcomingRow.session_kind),
         channel: canonicalScheduleChannel(upcomingRow.channel),
         sessionGoals: entries.sessionGoals,
@@ -21531,7 +21574,7 @@ export interface ParticipantSelfCheckProgram {
   consent: { privacy: boolean; recordingAi: boolean };
 }
 
-export interface ParticipantSelfCheckSchedule {
+export interface ParticipantSelfCheckSchedule extends ScheduleDisplay {
   id: string;
   scheduledAt: string;
   status: CounselingScheduleStatus;
@@ -21579,7 +21622,7 @@ export async function getParticipantSelfCheck(
        ORDER BY created_at, id`,
     ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
     env.DB.prepare(
-      `SELECT id, scheduled_at, status
+      `SELECT id, scheduled_at, all_day, display_color, status
        FROM counseling_schedules
        WHERE org_id = ? AND beneficiary_id = ?
          AND scheduled_at >= ?
@@ -21587,7 +21630,7 @@ export async function getParticipantSelfCheck(
        LIMIT 10`,
     ).bind(invite.orgId, beneficiaryId, checkedAt).all<DbRow>(),
     env.DB.prepare(
-      `SELECT id, scheduled_at, status
+      `SELECT id, scheduled_at, all_day, display_color, status
        FROM counseling_schedules
        WHERE org_id = ? AND beneficiary_id = ?
          AND scheduled_at < ?
@@ -21631,11 +21674,13 @@ export async function getParticipantSelfCheck(
     upcomingSchedules: upcomingRows.results.map((row) => ({
       id: stringValue(row.id),
       scheduledAt: stringValue(row.scheduled_at),
+      ...scheduleDisplayFromRow(row),
       status: canonicalScheduleStatus(row.status),
     })),
     pastSchedules: pastRows.results.map((row) => ({
       id: stringValue(row.id),
       scheduledAt: stringValue(row.scheduled_at),
+      ...scheduleDisplayFromRow(row),
       status: canonicalScheduleStatus(row.status),
     })),
   };
