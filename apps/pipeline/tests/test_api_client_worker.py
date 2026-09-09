@@ -205,7 +205,7 @@ class ApiClientTest(unittest.TestCase):
         error = api_client_module.urllib.error.HTTPError(
             "https://api.example/x", 403, "Forbidden", None, stream,
         )
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error):
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", side_effect=error):
             with self.assertRaises(ApiError) as caught:
                 client.claim_jobs({})
         self.assertTrue(stream.closed)
@@ -218,7 +218,7 @@ class ApiClientTest(unittest.TestCase):
             "https://api.example/x", 403, "Forbidden", None,
             io.BytesIO(b'{"error":"RAW_SYNTHETIC_CANARY"}'),
         )
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error):
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", side_effect=error):
             with self.assertRaises(ApiError) as caught:
                 client.claim_jobs({})
         self.assertNotIn("RAW_SYNTHETIC_CANARY", str(caught.exception))
@@ -236,7 +236,7 @@ class ApiClientTest(unittest.TestCase):
                     "https://api.example/x", 409, "Conflict", None, stream,
                 )
                 with (
-                    mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error),
+                    mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", side_effect=error),
                     mock.patch.object(secure_memory, "_lock_region", return_value=False),
                 ):
                     with self.assertRaises(ApiError) as caught:
@@ -248,7 +248,7 @@ class ApiClientTest(unittest.TestCase):
     def test_malformed_source_value_is_not_retained_in_the_api_error_frame(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         response = FakeResponse(b'{"text":{"raw":"RAW_SYNTHETIC_CANARY"}}')
-        with mock.patch.object(api_client_module.urllib.request, "urlopen", return_value=response):
+        with mock.patch.object(api_client_module.urllib.request.OpenerDirector, "open", return_value=response):
             try:
                 client.get_source("job-1", "t" * 64, 1)
             except ApiError as error:
@@ -881,6 +881,7 @@ class AudioJobTest(unittest.TestCase):
             raise ApiError(409, "dictionary_already_consumed")
 
         client.download_audio.side_effect = fake_download
+        client.verify_audio.return_value = verified_audio_response()
         client.get_mask_dictionary.side_effect = fail_dictionary
         with TemporaryDirectory() as tmp:
             with (

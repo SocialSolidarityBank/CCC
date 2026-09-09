@@ -1368,11 +1368,11 @@ function bytesToBase64(value: Uint8Array): string {
 async function piiKey(env: Env): Promise<CryptoKey> {
   const encodedKey = await env.secretStore.get('PII_ENC_KEY');
   if (encodedKey === null) throw new Error('secret_missing');
-  let rawKey: Uint8Array | undefined;
+  let rawKey: Uint8Array<ArrayBuffer> | undefined;
   try {
     rawKey = base64ToBytes(encodedKey);
     if (rawKey.byteLength !== 32) throw new Error('secret_invalid');
-    return await crypto.subtle.importKey('raw', toArrayBuffer(rawKey), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    return await crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } catch {
     throw new Error('secret_invalid');
   } finally {
@@ -8031,7 +8031,11 @@ function maskDictionaryAuthenticatorBytes(claims: MaskDictionaryAuthenticatorCla
 }
 
 async function maskDictionaryAuthenticatorKey(env: Env): Promise<CryptoKey> {
-  const rawKey = base64ToBytes(env.PII_ENC_KEY);
+  const encodedKey = await env.secretStore.get('PII_ENC_KEY');
+  if (encodedKey === null) {
+    throw new ValidationError('PII encryption key is unavailable');
+  }
+  const rawKey = base64ToBytes(encodedKey);
   const salt = new TextEncoder().encode(MASK_DICTIONARY_HKDF_SALT);
   const info = new TextEncoder().encode(MASK_DICTIONARY_HKDF_INFO);
   try {

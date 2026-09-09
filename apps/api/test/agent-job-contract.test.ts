@@ -10,6 +10,7 @@ import {
   jobErrorHttpStatus,
   normalizeClaimLimit,
 } from '@ccc/contracts/agent-jobs';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import {
   acceptAgentJobResult,
   AgentJobContractError,
@@ -799,7 +800,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_expires_at = ? WHERE id = ?')
       .bind(issued.expiresAt, claimed.jobId).run();
     await expect(issueAgentJobMaskDictionary(
-      { ...t.env, PII_ENC_KEY: Buffer.alloc(32, 7).toString('base64') },
+      { ...t.env, secretStore: createEnvironmentSecretStore({ PII_ENC_KEY: Buffer.alloc(32, 7).toString('base64') }) },
       service,
       claimed.jobId,
       credentials,
