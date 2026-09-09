@@ -14,8 +14,10 @@ import {
   acceptAgentJobResult,
   AgentJobContractError,
   claimAgentJobs,
+  createBeneficiaryWithInitialSupportCase,
   createCase,
   createCounselingRecord,
+  createIntakeRecord,
   enqueueTextWorkItem,
   getAgentJobSource,
   heartbeatAgentJob,
@@ -26,6 +28,7 @@ import {
   registerRecording,
   releaseAgentJob,
   updateParticipantConsent,
+  updateParticipantPii,
   type Actor,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
@@ -59,15 +62,37 @@ async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: st
   return { caseId: beneficiary.id, supportCaseId };
 }
 
+async function fixtureCanonicalSupportCase(): Promise<{
+  beneficiaryId: string;
+  caseId: string;
+  supportCaseId: string;
+}> {
+  const { beneficiaryId, supportCaseId } = await createBeneficiaryWithInitialSupportCase(
+    t.env,
+    counselor,
+    { programType: 'financial_support_v1' },
+  );
+  t.env.TEXT_AI_PILOT_ENABLED = '1';
+  await updateParticipantConsent(t.env, counselor, supportCaseId, { privacy: true, recordingAi: true });
+  await recordPilotTextAiConsentEvidence(t.env, counselor, supportCaseId, {
+    noticeVersion: 'pilot-text-ai-v1',
+    noticeSha256: 'a'.repeat(64),
+    evidenceRef: `r2://pilot-evidence/${beneficiaryId}`,
+    evidenceSha256: 'f'.repeat(64),
+    effectiveAt: '2026-01-01T00:00:00.000Z',
+  });
+  return { beneficiaryId, caseId: supportCaseId, supportCaseId };
+}
+
 let sequence = 0;
 
-async function fixtureSession(supportCaseId: string): Promise<string> {
+async function fixtureSession(supportCaseId: string, memo?: string): Promise<string> {
   sequence += 1;
   const created = await createCounselingRecord(t.env, counselor, supportCaseId, {
     submissionId: crypto.randomUUID(),
     heldAt: `2026-07-0${sequence % 9 + 1}T10:00:00.000Z`,
     channel: 'in_person',
-    memo: `Agent job fixture memo ${sequence}.`,
+    memo: memo ?? `Agent job fixture memo ${sequence}.`,
     gasScores: [],
     actionItems: [],
     flags: [],
@@ -76,8 +101,8 @@ async function fixtureSession(supportCaseId: string): Promise<string> {
 }
 
 /** 마스킹까지 끝난 텍스트 일감 1건. */
-async function fixtureTextJob(supportCaseId: string): Promise<string> {
-  const sessionId = await fixtureSession(supportCaseId);
+async function fixtureTextJob(supportCaseId: string, memo?: string): Promise<string> {
+  const sessionId = await fixtureSession(supportCaseId, memo);
   await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
   return sessionId;
 }
@@ -87,6 +112,30 @@ async function fixtureAudioJob(supportCaseId: string): Promise<string> {
   const sessionId = await fixtureSession(supportCaseId);
   await registerRecording(t.env, counselor, sessionId, `audio/${sessionId}/${crypto.randomUUID()}`);
   return sessionId;
+}
+async function registerDictionaryPii(
+  beneficiaryId: string,
+  caseId: string,
+  supportCaseId: string,
+  region: string,
+): Promise<void> {
+  await updateParticipantPii(t.env, counselor, beneficiaryId, {
+    supportCaseContextId: supportCaseId,
+    expectedVersion: 1,
+    name: '1985',
+    phone: '010-5555-0101',
+    email: 'synthetic@example.invalid',
+    account: 'SYNTHETIC-ACCOUNT-0101',
+    birthDate: '1985-03-27',
+    region,
+    gender: '여성',
+  });
+  await createIntakeRecord(t.env, counselor, supportCaseId, {
+    submissionId: crypto.randomUUID(),
+    heldAt: '2026-07-01T09:00:00.000Z',
+    channel: 'in_person',
+    extendedPii: { emergencyContact: '010-5555-3434' },
+  });
 }
 
 async function jobRow(sessionId: string): Promise<Record<string, unknown>> {
@@ -504,6 +553,347 @@ describe('S5 Agent 작업 계약 v2', () => {
       .bind(claimed.jobId).run();
     await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
       .rejects.toBeInstanceOf(AgentJobContractError);
+    await releaseAgentJob(t.env, service, claimed.jobId, {
+      ...credentials,
+      outcome: 'transient',
+      reason: 'engine_unavailable',
+    });
+    const [reclaimed] = (
+      await claimAgentJobs(t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))
+    ).jobs;
+    if (reclaimed === undefined) throw new Error('expected the job to be reclaimed');
+    expect(reclaimed.attempt).toBe(2);
+    const reissued = await issueAgentJobMaskDictionary(t.env, secondAgent, reclaimed.jobId, {
+      claimToken: reclaimed.claimToken,
+      attempt: reclaimed.attempt,
+    });
+    expect(reissued.dictionaryId).not.toBe(issued.dictionaryId);
+  });
+
+  it('mask dictionary 재전송은 발급 뒤 달라진 확장 등록값을 같은 ID로 보내지 않는다', async () => {
+    const { caseId, supportCaseId } = await fixtureSupportCase();
+    await createIntakeRecord(t.env, counselor, supportCaseId, {
+      submissionId: crypto.randomUUID(),
+      heldAt: '2026-07-01T09:00:00.000Z',
+      channel: 'in_person',
+      extendedPii: { birthDate: '1985-03-27' },
+    });
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const credentials = { claimToken: claimed.claimToken, attempt: 1 };
+    await issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials);
+    await updateParticipantPii(t.env, counselor, caseId, {
+      supportCaseContextId: supportCaseId,
+      expectedVersion: 2,
+      birthDate: '1986-04-28',
+    });
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+      .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+  });
+
+  it('mask dictionary와 text source는 전체 등록값을 같은 순서·치환으로 재생한다', async () => {
+    const { beneficiaryId, caseId, supportCaseId } = await fixtureCanonicalSupportCase();
+    await registerDictionaryPii(beneficiaryId, caseId, supportCaseId, '서울특별시 은평구');
+    const sourceText = [
+      '이름=1985',
+      '전화=010-5555-0101',
+      '이메일=synthetic@example.invalid',
+      '계좌=SYNTHETIC-ACCOUNT-0101',
+      '생일=1985-03-27',
+      '지역=서울특별시 은평구',
+      '성별=여성',
+      '긴급=010-5555-3434',
+      `당사자키=${beneficiaryId}`,
+      `기관키=${service.orgId}`,
+    ].join('|');
+    await fixtureTextJob(supportCaseId, sourceText);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const credentials = { claimToken: claimed.claimToken, attempt: 1 };
+
+    const issued = await issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials);
+    expect(issued.entries).toEqual([
+      { field: 'name', sourceValue: '1985', replacement: caseId },
+      { field: 'phone', sourceValue: '010-5555-0101', replacement: caseId },
+      { field: 'email', sourceValue: 'synthetic@example.invalid', replacement: caseId },
+      { field: 'account', sourceValue: 'SYNTHETIC-ACCOUNT-0101', replacement: caseId },
+      { field: 'birthDate', sourceValue: '1985-03-27', replacement: '[생년월]' },
+      { field: 'region', sourceValue: '서울특별시 은평구', replacement: '서울시' },
+      { field: 'gender', sourceValue: '여성', replacement: '[성별]' },
+      { field: 'emergencyContact', sourceValue: '010-5555-3434', replacement: caseId },
+      { field: 'beneficiaryId', sourceValue: beneficiaryId, replacement: caseId },
+      { field: 'organizationId', sourceValue: service.orgId, replacement: caseId },
+    ]);
+    await expect(getAgentJobSource(t.env, service, claimed.jobId, claimed.claimToken, claimed.attempt))
+      .resolves.toEqual({
+        sessionId: expect.any(String),
+        text: [
+          `이름=${caseId}`,
+          `전화=${caseId}`,
+          `이메일=${caseId}`,
+          `계좌=${caseId}`,
+          '생일=[생년월]',
+          '지역=서울시',
+          '성별=[성별]',
+          `긴급=${caseId}`,
+          `당사자키=${caseId}`,
+          `기관키=${caseId}`,
+        ].join('|'),
+      });
+
+    vi.resetModules();
+    // 프로세스 재시작 경계를 실제 모듈 재평가로 만들기 위해 정적 import를 의도적으로 우회한다.
+    const restartedGateway = await import('@ccc/core/gateway');
+    const replayed = await restartedGateway.issueAgentJobMaskDictionary(
+      { ...t.env },
+      service,
+      claimed.jobId,
+      credentials,
+    );
+    expect(replayed).toEqual(issued);
+  });
+
+  it.each([
+    '서울특별시 은평구 샛길 123 101동',
+    '서울시 은평구 새봄아파트가동',
+    'constructor',
+  ])('enc_region 상세 주소와 비행정 입력은 전체 가명 처리한다: %s', async (address) => {
+    const { caseId, supportCaseId } = await fixtureSupportCase();
+    await updateParticipantPii(t.env, counselor, caseId, {
+      supportCaseContextId: supportCaseId,
+      expectedVersion: 1,
+      region: address,
+    });
+    await fixtureTextJob(supportCaseId, `주소=${address}`);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const credentials = { claimToken: claimed.claimToken, attempt: claimed.attempt };
+
+    const issued = await issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials);
+    expect(issued.entries.filter((entry) => entry.field === 'region' || entry.field === 'address'))
+      .toEqual([{ field: 'address', sourceValue: address, replacement: caseId }]);
+    await expect(getAgentJobSource(t.env, service, claimed.jobId, claimed.claimToken, claimed.attempt))
+      .resolves.toMatchObject({ text: `주소=${caseId}` });
+  });
+
+  it('대체 광역값에 포함되는 등록 지역은 원문 allowlist 대신 [지역]으로 치환한다', async () => {
+    const { caseId, supportCaseId } = await fixtureSupportCase();
+    await updateParticipantPii(t.env, counselor, caseId, {
+      supportCaseContextId: supportCaseId,
+      expectedVersion: 1,
+      region: '서울',
+    });
+    await fixtureTextJob(supportCaseId, '거주=서울');
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+
+    const issued = await issueAgentJobMaskDictionary(t.env, service, claimed.jobId, {
+      claimToken: claimed.claimToken,
+      attempt: claimed.attempt,
+    });
+    expect(issued.entries).toContainEqual({
+      field: 'region',
+      sourceValue: '서울',
+      replacement: '[지역]',
+    });
+    expect(issued.entries.some((entry) => entry.field === 'beneficiaryId')).toBe(false);
+    await expect(getAgentJobSource(t.env, service, claimed.jobId, claimed.claimToken, claimed.attempt))
+      .resolves.toMatchObject({ text: '거주=[지역]' });
+  });
+
+  it('같은 등록 원문에 대체값이 충돌하면 원문 없이 fail closed 한다', async () => {
+    const { caseId, supportCaseId } = await fixtureSupportCase();
+    await updateParticipantPii(t.env, counselor, caseId, {
+      supportCaseContextId: supportCaseId,
+      expectedVersion: 1,
+      name: '1985-03-27',
+      birthDate: '1985-03-27',
+    });
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, {
+      claimToken: claimed.claimToken,
+      attempt: claimed.attempt,
+    })).rejects.toMatchObject({
+      code: 'dictionary_already_consumed',
+      message: expect.not.stringContaining('1985-03-27'),
+    });
+  });
+
+  it('한 entry의 대체값이 다른 등록 원문을 포함하면 dictionary를 발행하지 않는다', async () => {
+    const { caseId, supportCaseId } = await fixtureSupportCase();
+    await updateParticipantPii(t.env, counselor, caseId, {
+      supportCaseContextId: supportCaseId,
+      expectedVersion: 1,
+      name: '서울',
+      region: '서울특별시 은평구',
+    });
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, {
+      claimToken: claimed.claimToken,
+      attempt: claimed.attempt,
+    })).rejects.toMatchObject({
+      code: 'dictionary_already_consumed',
+      message: expect.not.stringContaining('서울'),
+    });
+  });
+
+  it('mask dictionary는 인증된 ID·만료·키만 재생하고 legacy ID와 만료값은 거부한다', async () => {
+    const { caseId, supportCaseId } = await fixtureSupportCase();
+    await updateParticipantPii(t.env, counselor, caseId, {
+      supportCaseContextId: supportCaseId,
+      expectedVersion: 1,
+      name: 'AUTH_BOUNDARY_NAME_SYNTHETIC',
+    });
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const credentials = { claimToken: claimed.claimToken, attempt: 1 };
+    const issued = await issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials);
+    await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_id = NULL WHERE id = ?')
+      .bind(claimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+      .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+    await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_id = ? WHERE id = ?')
+      .bind(issued.dictionaryId, claimed.jobId).run();
+
+    await fixtureTextJob(supportCaseId);
+    const [otherClaimed] = (
+      await claimAgentJobs(t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))
+    ).jobs;
+    if (otherClaimed === undefined) throw new Error('expected another claimed job');
+    await t.db.prepare(
+      'UPDATE agent_jobs SET mask_dictionary_id = ?, mask_dictionary_expires_at = ? WHERE id = ?',
+    ).bind(issued.dictionaryId, issued.expiresAt, otherClaimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(
+      t.env,
+      secondAgent,
+      otherClaimed.jobId,
+      { claimToken: otherClaimed.claimToken, attempt: 1 },
+    )).rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+
+    await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_id = ? WHERE id = ?')
+      .bind(`md1.${'0'.repeat(64)}`, claimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+      .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+
+    const changedExpiry = new Date(Date.parse(issued.expiresAt) + 1_000).toISOString();
+    await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_id = ?, mask_dictionary_expires_at = ? WHERE id = ?')
+      .bind(issued.dictionaryId, changedExpiry, claimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+      .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+
+    await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_expires_at = ? WHERE id = ?')
+      .bind(issued.expiresAt, claimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(
+      { ...t.env, PII_ENC_KEY: Buffer.alloc(32, 7).toString('base64') },
+      service,
+      claimed.jobId,
+      credentials,
+    )).rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+
+    await t.db.prepare('UPDATE agent_jobs SET mask_dictionary_id = ? WHERE id = ?')
+      .bind(crypto.randomUUID(), claimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+      .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+
+    await t.db.prepare("UPDATE agent_jobs SET mask_dictionary_id = ?, mask_dictionary_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?")
+      .bind(issued.dictionaryId, claimed.jobId).run();
+    await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+      .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+  });
+
+  it('mask dictionary 동시 최초 발급은 CAS 승자의 같은 응답 하나를 돌려준다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const credentials = { claimToken: claimed.claimToken, attempt: 1 };
+
+    const [first, second] = await Promise.all([
+      issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials),
+      issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials),
+    ]);
+    expect(second).toEqual(first);
+
+    const row = await t.db.prepare(
+      'SELECT mask_dictionary_id, mask_dictionary_expires_at FROM agent_jobs WHERE id = ?',
+    ).bind(claimed.jobId).first<{ mask_dictionary_id: string; mask_dictionary_expires_at: string }>();
+    expect(row).toEqual({
+      mask_dictionary_id: first.dictionaryId,
+      mask_dictionary_expires_at: first.expiresAt,
+    });
+  });
+
+  it('mask dictionary는 서명 중 만료되면 만료된 응답을 발급하지 않는다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const startedAt = Date.now();
+    await t.db.prepare('UPDATE agent_jobs SET lease_expires_at = ? WHERE id = ?')
+      .bind(new Date(startedAt + 3_600_000).toISOString(), claimed.jobId).run();
+    const sign = crypto.subtle.sign.bind(crypto.subtle);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(startedAt);
+    vi.spyOn(crypto.subtle, 'sign').mockImplementation(async (...args) => {
+      const signature = await sign(...args);
+      vi.setSystemTime(startedAt + 300_001);
+      return signature;
+    });
+    try {
+      await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, {
+        claimToken: claimed.claimToken,
+        attempt: claimed.attempt,
+      })).rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+    } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
+  });
+
+  it('mask dictionary는 감사 기록 중 만료돼도 원문 표를 반환하지 않는다', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    await fixtureTextJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification))).jobs;
+    if (claimed === undefined) throw new Error('expected a claimed job');
+    const credentials = { claimToken: claimed.claimToken, attempt: claimed.attempt };
+    const issued = await issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials);
+    const expiry = Date.parse(issued.expiresAt);
+    await t.db.prepare('UPDATE agent_jobs SET lease_expires_at = ? WHERE id = ?')
+      .bind(new Date(expiry + 3_600_000).toISOString(), claimed.jobId).run();
+    const prepare = t.env.DB.prepare.bind(t.env.DB);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(expiry - 1);
+    // 실제 감사 INSERT를 시작한 뒤 만료 경계를 넘긴다.
+    vi.spyOn(t.env.DB, 'prepare').mockImplementation((sql) => {
+      const statement = prepare(sql);
+      if (sql.startsWith('INSERT INTO audit_log')) vi.setSystemTime(expiry + 1);
+      return statement;
+    });
+    try {
+      await expect(issueAgentJobMaskDictionary(t.env, service, claimed.jobId, credentials))
+        .rejects.toMatchObject({ code: 'dictionary_already_consumed' });
+    } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
   });
 
   it('사람 역할은 claim endpoint를 쓸 수 없다', async () => {

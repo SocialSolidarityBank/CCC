@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .secure_memory import SecureMemoryError, load_sensitive_json
 
 USER_AGENT = f"ccc-pipeline/{__version__}"
 _TIMEOUT_SECONDS = 120
@@ -43,6 +44,17 @@ class ApiError(Exception):
         self.status = status
         # 서버 error 코드. 서버가 닫지 않는 형식 거부만 Agent 가 스스로 닫는다.
         self.code = detail
+
+
+def _read_json_response(response, invalid_code: str):  # noqa: ANN001, ANN202
+    invalid = False
+    try:
+        return load_sensitive_json(response)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        invalid = True
+    if invalid:
+        # JSONDecodeError가 보관하는 원문 doc의 traceback과 연결하지 않는다.
+        raise ApiError(200, invalid_code)
 
 
 class ApiClient:
@@ -81,7 +93,7 @@ class ApiClient:
             method="POST",
         )
         with self._open(request) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            payload = json.load(response)
         token = payload.get("token") if isinstance(payload, dict) else None
         max_age = payload.get("maxAgeSeconds") if isinstance(payload, dict) else None
         if not isinstance(token, str) or token == "":
@@ -123,21 +135,38 @@ class ApiClient:
             headers["Content-Type"] = "application/json"
         return urllib.request.Request(self._base_url + path, data=data, headers=headers, method=method)
 
-    def _open(self, request: urllib.request.Request):  # noqa: ANN202 — http.client.HTTPResponse
+    def _open(self, request: urllib.request.Request, *, masking_input: bool = False):  # noqa: ANN202
+        mapped_error: ApiError | None = None
         try:
             return self._opener.open(request, timeout=_TIMEOUT_SECONDS)
         except urllib.error.HTTPError as error:
             # Accept only protocol codes; an upstream error may echo credentials.
             detail = "unknown"
+            payload: Any = None
             try:
-                payload = json.loads(error.read().decode("utf-8"))
-                if isinstance(payload, dict) and isinstance(payload.get("error"), str) and payload["error"] in _API_ERROR_CODES:
-                    detail = payload["error"]
-            except Exception:  # noqa: BLE001 — 본문이 JSON이 아니면 상태 코드만 보고한다
+                payload = load_sensitive_json(error)
+                candidate = payload.get("error") if isinstance(payload, dict) else None
+                if isinstance(candidate, str) and candidate in _API_ERROR_CODES:
+                    detail = candidate
+                candidate = None
+            except SecureMemoryError:
+                if masking_input:
+                    detail = "masking_input_invalid"
+            except Exception:  # noqa: BLE001 — 오류 본문을 해석하지 못하면 상태 코드만 보존한다
                 pass
             finally:
-                error.close()
-            raise ApiError(error.code, detail) from None
+                if isinstance(payload, (dict, list)):
+                    payload.clear()
+                payload = None
+                try:
+                    error.close()
+                except Exception:  # noqa: BLE001 — 닫기 실패도 원래 HTTP 응답을 밖으로 내보내지 않는다
+                    pass
+            mapped_error = ApiError(error.code, detail)
+        # except 바깥에서 올려 HTTPError traceback/stream을 __context__로 붙이지 않는다.
+        if mapped_error is not None:
+            raise mapped_error
+        raise AssertionError("unreachable")
 
     # ------------------------------------------------------------------
     # Agent 작업 계약 v2 (S5). 모든 후속 요청은 claim token 과 attempt 를 함께 보낸다.
@@ -146,7 +175,7 @@ class ApiClient:
     def claim_jobs(self, claim_request: dict[str, Any]) -> list[dict[str, Any]]:
         """POST /pipeline/jobs/claim — 호출 자체가 D8 폴링 신호(audit poll_pipeline)다."""
         with self._open(self._request("POST", "/pipeline/jobs/claim", claim_request)) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            payload = json.load(response)
         if not isinstance(payload, dict) or payload.get("schemaVersion") != 2:
             raise ApiError(200, "unexpected claim schema version")
         jobs = payload.get("jobs")
@@ -157,7 +186,7 @@ class ApiClient:
     def heartbeat(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
         body = {"claimToken": claim_token, "attempt": attempt}
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/heartbeat", body)) as response:
-            return json.loads(response.read().decode("utf-8"))
+            return json.load(response)
 
     def release(self, job_id: str, claim_token: str, attempt: int, outcome: str, reason: str) -> None:
         """종료 신호. 결과를 보낸 claim 에는 보내지 않는다 (terminal 은 정확히 하나)."""
@@ -169,11 +198,15 @@ class ApiClient:
     def get_source(self, job_id: str, claim_token: str, attempt: int) -> str:
         """GET /pipeline/jobs/:id/source — 1차 치환까지 끝난 공식 텍스트(text claim 전용)."""
         request = self._request("GET", f"/pipeline/jobs/{job_id}/source", claim=(claim_token, attempt))
-        with self._open(request) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        text = payload.get("text")
+        with self._open(request, masking_input=True) as response:
+            payload = _read_json_response(response, "masking_input_invalid")
+        text = payload.get("text") if isinstance(payload, dict) else None
+        if isinstance(payload, dict):
+            payload.clear()
+        payload = None
         if not isinstance(text, str) or text == "":
-            raise ApiError(200, "malformed job source response")
+            text = None
+            raise ApiError(200, "masking_input_invalid")
         return text
 
     def download_audio(self, job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
@@ -186,9 +219,9 @@ class ApiClient:
         return dest
 
     def verify_audio(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        """POST /pipeline/jobs/:id/audio/verify — 스트림 재해시 결과를 코어가 확인한다."""
+        """POST /pipeline/jobs/:id/audio/verify - 스트림 재해시 결과를 코어가 확인한다."""
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/audio/verify", body)) as response:
-            return json.loads(response.read().decode("utf-8"))
+            return json.load(response)
 
     def authorize_egress(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
         """POST /pipeline/jobs/:id/egress/authorize — verified Azure upload authorization."""
@@ -203,8 +236,8 @@ class ApiClient:
     def get_mask_dictionary(self, job_id: str, claim_token: str, attempt: int) -> dict[str, Any]:
         """POST /pipeline/jobs/:id/mask-dictionary — 일회성 치환 사전. 메모리에서만 쓴다(R3)."""
         body = {"claimToken": claim_token, "attempt": attempt}
-        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/mask-dictionary", body)) as response:
-            return json.loads(response.read().decode("utf-8"))
+        with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/mask-dictionary", body), masking_input=True) as response:
+            return _read_json_response(response, "masking_input_invalid")
 
     def post_result(self, job_id: str, result_request: dict[str, Any]) -> None:
         """POST /pipeline/jobs/:id/result — 성공 시 204. 400 은 재구성 신호가 아니다(S5 §2.7)."""

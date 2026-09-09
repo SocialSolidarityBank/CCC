@@ -11,6 +11,7 @@ R3: 로그에는 작업 ID·건수·소요 시간·예외 유형만 남긴다. �
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import shutil
@@ -18,7 +19,6 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
 from typing import Any
 
 from . import masking, repetition
@@ -27,8 +27,10 @@ from .azure_stt import AzureSttError, transcribe_azure
 from .backup import BACKUP_ADAPTERS, backup_original_if_enabled
 from .config import Config
 from .emotion import aggregate_scores
+from .model_registry import model_spec
 from .results import build_result, build_result_request, canonical_sha256
 from .speaker_mapping import BENEFICIARY, assign_speakers, estimate_roles, format_transcript
+from .secure_memory import SecureMemoryError
 from .transcribe import ENGINE_AZURE, ENGINE_OFF, build_engine, transcribe_audio
 
 logger = logging.getLogger("ccc_pipeline")
@@ -38,6 +40,62 @@ EMOTION_DEFERRED = True  # D64: 감정 분석 보류. 켜려면 False. 스키마
 # 재시도할 값어치가 있는 서버 응답만 transient 로 본다. 나머지 4xx 는 서버가 이미
 # 작업 상태를 정했으므로(409·422) Agent 가 release 로 덧쓰지 않는다.
 _TRANSIENT_STATUSES = (408, 429)
+_MASK_DICTIONARY_TTL = timedelta(minutes=5)
+
+
+class MaskDictionaryError(Exception):
+    """사용 경계에서 거부한 사전. 원문 값을 예외에 담지 않는다."""
+
+
+def _validate_mask_dictionary(
+    dictionary: Any,
+    job_id: str,
+    *,
+    current_time: datetime | None = None,
+) -> list[dict[str, str]]:
+    now = current_time or datetime.now(timezone.utc)
+    if not isinstance(dictionary, dict):
+        raise MaskDictionaryError("mask dictionary is malformed")
+    dictionary_id = dictionary.get("dictionaryId")
+    expires_at = dictionary.get("expiresAt")
+    if (
+        not isinstance(dictionary_id, str)
+        or dictionary_id.strip() == ""
+        or dictionary.get("jobId") != job_id
+        or dictionary.get("oneTime") is not True
+        or not isinstance(expires_at, str)
+        or not expires_at.endswith("Z")
+    ):
+        raise MaskDictionaryError("mask dictionary is malformed")
+    try:
+        expiry = datetime.fromisoformat(expires_at[:-1] + "+00:00")
+    except ValueError:
+        expiry = None
+    if (
+        expiry is None
+        or expiry.tzinfo is None
+        or expiry.utcoffset() != timedelta(0)
+        or expiry <= now
+        or expiry > now + _MASK_DICTIONARY_TTL
+    ):
+        raise MaskDictionaryError("mask dictionary is expired or out of scope")
+    entries = dictionary.get("entries")
+    if not isinstance(entries, list):
+        raise MaskDictionaryError("mask dictionary is malformed")
+    invalid_entry = any(
+        not isinstance(entry, dict)
+        or not isinstance(entry.get("field"), str)
+        or entry["field"] == ""
+        or not isinstance(entry.get("sourceValue"), str)
+        or entry["sourceValue"] == ""
+        or not isinstance(entry.get("replacement"), str)
+        or entry["replacement"] == ""
+        for entry in entries
+    )
+    if invalid_entry:
+        entries.clear()
+        raise MaskDictionaryError("mask dictionary entry is malformed")
+    return entries
 
 _HEARTBEAT_INTERVAL_SECONDS = 5 * 60
 
@@ -217,31 +275,54 @@ def _build_condition_ner_or_none(config: Config):  # noqa: ANN202
 
 
 def masking_pipeline_version(config: Config) -> str:
-    """스냅샷에 남길 마스킹 버전. **실제로 동작한 계층**을 담는다.
-
-    고정 문자열이면 "질병명이 사전으로만 걸러졌는지 NER 까지 거쳤는지" 를 나중에 되짚을 수
-    없다 — 마스킹 문제가 발견됐을 때 어느 스냅샷이 영향권인지 가려내는 근거가 이 값이다.
-    구분자는 `-` 다: 서버의 버전 식별자 규칙이 `+` 를 받지 않는다.
-    """
-    parts = ["ner-mask-v1"]
-    parts.append("addr" if config.address_labels else "noaddr")
-    parts.append("cond-ner" if config.condition_ner_model_id is not None else "cond-dict")
-    return "-".join(parts)
+    """실제 구성과 설치 증명이 S6와 일치할 때만 해당 버전을 사용한다."""
+    expected = {
+        "modelId": "FrameByFrame/korean-pii-e5-base",
+        "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+        "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+        "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+        "resultHash": "fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72",
+        "status": "passed",
+    }
+    if (
+        config.ner_model_id != expected["modelId"]
+        or config.ner_labels != ("PRIVATE_PERSON",)
+        or config.address_labels != ("PRIVATE_ADDRESS",)
+        or config.condition_ner_model_id is not None
+        or any(config.ner_attestation.get(key) != value for key, value in expected.items())
+        or model_spec(expected["modelId"]).revision != expected["modelRevision"]
+    ):
+        raise masking.MaskingConfigError("masking configuration does not match S6")
+    return "ner-mask-v5"
 
 
 def masking_pipeline_hash(config: Config) -> str:
-    """실제로 동작한 마스킹 구성의 manifest 해시. 버전 문자열보다 정밀한 지문이다.
-
-    S6 가 canonical manifest 모양을 확정하면 그 정의로 바꾼다 — 지금은 Agent 가 쓰는
-    모델·라벨 구성이 곧 manifest 다.
-    """
+    """일반화 규칙과 실제 설치 검사에 묶인 S6 manifest를 해시한다."""
     return canonical_sha256({
-        "version": masking_pipeline_version(config),
-        "personModelId": config.ner_model_id,
-        "personLabels": sorted(config.ner_labels),
-        "addressLabels": sorted(config.address_labels),
-        "conditionModelId": config.condition_ner_model_id,
-        "conditionLabels": sorted(config.condition_ner_labels),
+        "schemaVersion": 1,
+        "maskingPipelineVersion": masking_pipeline_version(config),
+        "directIdentifierRulesVersion": "direct-v2",
+        "quasiIdentifierRulesVersion": "quasi-v1",
+        "regexRulesVersion": "regex-v3",
+        "nerDecoderVersion": masking.NER_DECODER_VERSION,
+        "nerRuntime": {
+            "torch": masking.NER_TORCH_VERSION,
+            "transformers": masking.NER_TRANSFORMERS_VERSION,
+        },
+        "nerWindowing": {
+            "maxInputCodepoints": masking.NER_MAX_INPUT_CHARS,
+            "windowTokens": masking.NER_WINDOW_TOKENS,
+            "overlapTokens": masking.NER_WINDOW_OVERLAP_TOKENS,
+            "maxWindows": masking.NER_MAX_WINDOWS,
+            "selection": "max-context-earlier-tie-v1",
+            "batchSize": 1,
+        },
+        "nerModelId": config.ner_model_id,
+        "nerModelRevision": config.ner_attestation["modelRevision"],
+        "labelSetHash": config.ner_attestation["labelSetHash"],
+        "nerHealthCorpusHash": config.ner_attestation["corpusHash"],
+        "nerHealthResultHash": config.ner_attestation["resultHash"],
+        "conditionDictionaryVersion": "condition-dict-v1",
     })
 
 
@@ -258,6 +339,7 @@ class MaskingLayers:
     """마스킹 계층 묶음. 모델은 작업당 한 번만 올린다(장비 메모리는 STT 와 나눠 쓴다)."""
 
     def __init__(self, config: Config):
+        masking_pipeline_version(config)
         self.person_ner, self.address_ner = _build_person_and_address_ner(config)
         self.condition_ner = _build_condition_ner_or_none(config)
 
@@ -267,24 +349,71 @@ def _mask_with_dictionary(
     layers: MaskingLayers,
     job: dict[str, Any],
     text: str,
-) -> tuple[str, masking.MaskReport]:
-    """일회성 사전으로 등록 PII 를 먼저 치환하고, 그 위에 NER·사전·정규식 계층을 얹는다.
-
-    사전 값은 메모리에서만 쓰고 로그·파일에 남기지 않는다(R3 · S5 §2.1).
-    """
-    dictionary = client.get_mask_dictionary(job["jobId"], job["claimToken"], job["attempt"])
-    replaced = text
-    for entry in dictionary.get("entries", []):
-        source_value = entry.get("sourceValue")
-        replacement = entry.get("replacement")
-        if isinstance(source_value, str) and source_value != "" and isinstance(replacement, str):
-            replaced = replaced.replace(source_value, replacement)
-    return masking.mask_text_with_report(
-        replaced,
-        layers.person_ner,
-        layers.condition_ner,
-        layers.address_ner,
-    )
+) -> tuple[str, masking.MaskingReport]:
+    """claim 범위 사전의 등록 PII를 먼저 치환하고 나머지 마스킹 계층을 적용한다."""
+    dictionary: Any = None
+    entries: list[dict[str, str]] | None = None
+    entry: dict[str, str] | None = None
+    replaced: str | None = None
+    source_value: str | None = None
+    replacement: str | None = None
+    replacements: dict[str, str] = {}
+    spans: list[tuple[int, int, str, int]] = []
+    merged: list[tuple[int, int, str, int]] = []
+    pieces: list[str] = []
+    try:
+        dictionary = client.get_mask_dictionary(job["jobId"], job["claimToken"], job["attempt"])
+        entries = _validate_mask_dictionary(dictionary, job["jobId"])
+        for entry in entries:
+            source_value, replacement = entry["sourceValue"], entry["replacement"]
+            if source_value.strip() == "" or (
+                source_value in replacements and replacements[source_value] != replacement
+            ):
+                raise MaskDictionaryError("mask dictionary replacements conflict")
+            replacements[source_value] = replacement
+        if any(source in value for source in replacements for value in replacements.values()):
+            raise MaskDictionaryError("mask dictionary replacement contains a registered value")
+        # 원문을 담은 정규식을 compile하면 re의 전역 cache에 PII가 남는다.
+        # 최대 11종의 등록값은 원문 구간만 찾고 겹친 구간을 한 번에 덮는다.
+        for source_value, replacement in replacements.items():
+            start = text.find(source_value)
+            while start >= 0:
+                spans.append((start, start + len(source_value), replacement, len(source_value)))
+                start = text.find(source_value, start + 1)
+        for start, end, replacement, length in sorted(spans, key=lambda span: (span[0], -span[3])):
+            if merged and start < merged[-1][1]:
+                previous_start, previous_end, previous_replacement, previous_length = merged[-1]
+                if length <= previous_length:
+                    replacement, length = previous_replacement, previous_length
+                merged[-1] = (previous_start, max(previous_end, end), replacement, length)
+            else:
+                merged.append((start, end, replacement, length))
+        cursor = 0
+        for start, end, replacement, _length in merged:
+            pieces.extend((text[cursor:start], replacement))
+            cursor = end
+        pieces.append(text[cursor:])
+        replaced = "".join(pieces)
+        if any(source in replaced for source in replacements):
+            raise MaskDictionaryError("registered value remains after dictionary replacement")
+        return masking.mask_text_with_report(
+            replaced,
+            layers.person_ner,
+            layers.condition_ner,
+            layers.address_ner,
+        )
+    finally:
+        # 응답 객체와 entry 컨테이너는 이 함수가 단독 소유한다. immutable str와
+        # NER 런타임 내부 복사본의 물리적 덮어쓰기는 Python에서 보장할 수 없다.
+        if entries is not None:
+            entries.clear()
+        if isinstance(dictionary, (dict, list)):
+            dictionary.clear()
+        replacements.clear()
+        spans.clear()
+        merged.clear()
+        pieces.clear()
+        dictionary = entries = entry = replaced = source_value = replacement = text = None
 
 
 def process_audio_job(
@@ -311,6 +440,14 @@ def process_audio_job(
     work_dir = config.work_dir / f"{job_id}-{uuid.uuid4().hex[:8]}"
     started = time.monotonic()
     engine = None
+    layers = None
+    transcription = None
+    segments = None
+    roles = None
+    beneficiary_segments = None
+    text_scores = None
+    speech_scores = None
+    chunk = None
     try:
         with _LeaseHeartbeat(client, job_id, claim_token, attempt) as lease:
             # NER health precedes download/model/provider work: a blocked claim makes zero provider calls.
@@ -472,6 +609,19 @@ def process_audio_job(
             if callable(close):
                 close()
         finally:
+            # Frozen Segment objects cannot be overwritten. Drop mutable container and
+            # traceback-local references before deleting the per-job work directory.
+            for collection in (beneficiary_segments, text_scores, speech_scores, segments):
+                if isinstance(collection, list):
+                    collection.clear()
+            if isinstance(roles, dict):
+                roles.clear()
+            if transcription is not None:
+                transcription.segments.clear()
+                transcription.warnings.clear()
+            transcription = segments = roles = beneficiary_segments = None
+            text_scores = speech_scores = chunk = None
+            layers = None
             # Only the per-job directory is removed; durable egress markers live under work_dir.
             shutil.rmtree(work_dir, ignore_errors=True)
 
@@ -487,21 +637,29 @@ def process_text_job(client: ApiClient, config: Config, job: dict[str, Any]) -> 
     claim_token = job["claimToken"]
     attempt = job["attempt"]
     layers = MaskingLayers(config)
-    source = client.get_source(job_id, claim_token, attempt)
-    masked, report = _mask_with_dictionary(client, layers, job, source)
-    # 건수만 남긴다 — 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
-    logger.info("text job %s: masked total=%d detail=%s", job_id, report.total, report.as_mapping())
+    source = None
+    masked = None
+    result = None
+    try:
+        source = client.get_source(job_id, claim_token, attempt)
+        masked, report = _mask_with_dictionary(client, layers, job, source)
+        # 건수만 남긴다. 치환된 원문은 로그에 쓰지 않는다(R3, G3 검증용).
+        logger.info("text job %s: masked total=%d detail=%s", job_id, report.total, report.as_mapping())
 
-    result = build_result(
-        "text",
-        masked,
-        masking_pipeline_version=masking_pipeline_version(config),
-        masking_pipeline_hash=masking_pipeline_hash(config),
-        ner_attestation=config.ner_attestation,
-        release_qualification_receipt_id=config.ner_release_receipt_id,
-        source_ref=f"text:{job_id}",
-    )
-    _submit_result(client, job_id, build_result_request(claim_token, attempt, result))
+        result = build_result(
+            "text",
+            masked,
+            masking_pipeline_version=masking_pipeline_version(config),
+            masking_pipeline_hash=masking_pipeline_hash(config),
+            ner_attestation=config.ner_attestation,
+            release_qualification_receipt_id=config.ner_release_receipt_id,
+            source_ref=f"text:{job_id}",
+        )
+        _submit_result(client, job_id, build_result_request(claim_token, attempt, result))
+    finally:
+        # immutable str는 덮어쓸 수 없지만, 예외 traceback의 이 프레임이 원문을
+        # 장기 보관하지 않도록 소유 참조를 성공과 실패 양쪽에서 끊는다.
+        source = masked = result = layers = None
 
 
 def _submit_result(
@@ -544,13 +702,12 @@ def assert_device_ready(config: Config) -> None:
 
 
 def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception) -> None:
-    """실패한 claim 을 정확히 한 번 닫는다. 성공 결과를 보낸 claim 은 여기 오지 않는다."""
+    """실패한 claim을 정확히 한 번 닫는다. 성공 결과를 보낸 claim에는 호출하지 않는다."""
     job_id = job["jobId"]
     claim_token = job["claimToken"]
     attempt = job["attempt"]
     try:
         if isinstance(error, masking.MaskingConfigError):
-            # NER 계층 부재는 attempt 를 소모하지 않는 차단 신호다(S5 F7).
             client.release(job_id, claim_token, attempt, "blocked", "local_ner_unavailable")
             return
         if isinstance(error, _RouteMismatchError):
@@ -562,20 +719,24 @@ def _release_failed_job(client: ApiClient, job: dict[str, Any], error: Exception
             else:
                 client.release(job_id, claim_token, attempt, "permanent", "permanent_failure")
             return
+        if isinstance(error, (MaskDictionaryError, SecureMemoryError)):
+            client.release(job_id, claim_token, attempt, "permanent", "masking_failed")
+            return
         if isinstance(error, ApiError):
-            if error.status in _TRANSIENT_STATUSES or error.status >= 500:
+            if error.code in ("dictionary_already_consumed", "masking_input_invalid"):
+                # 서버가 닫지 않은 dictionary 실패를 STT 재시도로 바꾸지 않는다.
+                client.release(job_id, claim_token, attempt, "permanent", "masking_failed")
+            elif error.status in _TRANSIENT_STATUSES or error.status >= 500:
                 client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
             elif error.code == "result_schema_invalid":
-                # S6 판정이 아닌 형식 거부는 서버가 상태를 바꾸지 않는다. 그 하나만 Agent 가
-                # 같은 이름의 permanent 사유로 닫는다 - 안 닫으면 임대 만료 복구가 attempt 를
-                # 태우고 사유가 retry_exhausted 로 바뀐다.
                 client.release(job_id, claim_token, attempt, "permanent", "result_schema_invalid")
-            # 그 밖의 4xx 는 서버가 코드를 저장하고 작업을 닫은 응답이라 덧쓰지 않는다(S5 §2.6).
+            # 나머지 4xx는 서버가 이미 닫은 결과 거부이므로 덧쓰지 않는다.
             return
-        # 전사·화자 분리 등 엔진 실패는 같은 route·engine 으로 최대 3회까지 재시도한다.
         client.release(job_id, claim_token, attempt, "transient", "engine_unavailable")
     except ApiError as release_error:
         logger.error("job %s: release failed status=%d", job_id, release_error.status)
+    except Exception as release_error:  # noqa: BLE001 - 다음 claim과 원문 traceback을 격리한다
+        logger.error("job %s: release failed type=%s", job_id, type(release_error).__name__)
 
 
 def run_once(client: ApiClient, config: Config) -> int:
@@ -592,15 +753,25 @@ def run_once(client: ApiClient, config: Config) -> int:
         if job_id == "" or job.get("claimToken") is None or kind not in ("audio", "text"):
             logger.error("claim response contained an unusable job")
             continue
+        failure: Exception | None = None
         try:
             if kind == "audio":
                 process_audio_job(client, config, job)
             else:
                 process_text_job(client, config, job)
             processed += 1
-        except Exception as error:  # noqa: BLE001 — 한 작업의 실패가 나머지 처리를 막지 않는다
-            logger.error("job %s: %s", job_id, type(error).__name__)
-            _release_failed_job(client, job, error)
+        except Exception as error:  # noqa: BLE001 - 한 작업 실패가 다음 작업을 막지 않는다
+            failure = error
+        if failure is not None:
+            # except 바깥에서 release해 새 오류가 원문 traceback을 context로 붙잡지 않게 한다.
+            try:
+                logger.error("job %s: %s", job_id, type(failure).__name__)
+                _release_failed_job(client, job, failure)
+            finally:
+                failure.__traceback__ = None
+                failure.__context__ = None
+                failure.__cause__ = None
+                failure = None
     return processed
 
 

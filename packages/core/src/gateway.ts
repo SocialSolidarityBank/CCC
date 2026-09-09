@@ -1343,7 +1343,7 @@ async function writeAudit(
     .run();
 }
 
-function base64ToBytes(value: string): Uint8Array {
+function base64ToBytes(value: string): Uint8Array<ArrayBuffer> {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
 
@@ -1364,21 +1364,19 @@ function bytesToBase64(value: Uint8Array): string {
   return btoa(binary);
 }
 
-function toArrayBuffer(value: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(value.byteLength);
-  copy.set(value);
-  return copy.buffer;
-}
 
 async function piiKey(env: Env): Promise<CryptoKey> {
   const encodedKey = await env.secretStore.get('PII_ENC_KEY');
   if (encodedKey === null) throw new Error('secret_missing');
+  let rawKey: Uint8Array | undefined;
   try {
-    const rawKey = base64ToBytes(encodedKey);
+    rawKey = base64ToBytes(encodedKey);
     if (rawKey.byteLength !== 32) throw new Error('secret_invalid');
     return await crypto.subtle.importKey('raw', toArrayBuffer(rawKey), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } catch {
     throw new Error('secret_invalid');
+  } finally {
+    rawKey?.fill(0);
   }
 }
 
@@ -1389,17 +1387,22 @@ async function encryptPii(env: Env, value: string | null): Promise<string | null
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(value);
-  const encrypted = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: toArrayBuffer(iv) },
-      await piiKey(env),
-      toArrayBuffer(encoded),
-    ),
-  );
-  const packed = new Uint8Array(iv.byteLength + encrypted.byteLength);
-  packed.set(iv);
-  packed.set(encrypted, iv.byteLength);
-  return bytesToBase64(packed);
+  let encrypted: Uint8Array | null = null;
+  let packed: Uint8Array | null = null;
+  try {
+    encrypted = new Uint8Array(
+      await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await piiKey(env), encoded),
+    );
+    packed = new Uint8Array(iv.byteLength + encrypted.byteLength);
+    packed.set(iv);
+    packed.set(encrypted, iv.byteLength);
+    return bytesToBase64(packed);
+  } finally {
+    packed?.fill(0);
+    encrypted?.fill(0);
+    encoded.fill(0);
+    iv.fill(0);
+  }
 }
 
 
@@ -1409,19 +1412,21 @@ async function decryptPii(env: Env, value: string | null): Promise<string | null
   }
 
   const packed = base64ToBytes(value);
-  const iv = packed.slice(0, 12);
-  const ciphertext = packed.slice(12);
-
-  if (iv.byteLength !== 12 || ciphertext.byteLength === 0) {
-    throw new ValidationError('stored PII ciphertext is invalid');
+  let decrypted: Uint8Array | null = null;
+  try {
+    const iv = packed.subarray(0, 12);
+    const ciphertext = packed.subarray(12);
+    if (iv.byteLength !== 12 || ciphertext.byteLength === 0) {
+      throw new ValidationError('stored PII ciphertext is invalid');
+    }
+    decrypted = new Uint8Array(
+      await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await piiKey(env), ciphertext),
+    );
+    return new TextDecoder().decode(decrypted);
+  } finally {
+    decrypted?.fill(0);
+    packed.fill(0);
   }
-
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
-    await piiKey(env),
-    toArrayBuffer(ciphertext),
-  );
-  return new TextDecoder().decode(decrypted);
 }
 
 async function readPiiValues(
@@ -7231,7 +7236,23 @@ async function buildAgentJobSourceText(
     parts.push(`[이번 상담에서 확인할 것] ${goalNoteLines.join('\n')}`);
   }
 
-  const pii = await readPiiValues(env, actor.orgId, scope.caseId);
+  let entries: MaskDictionaryEntry[];
+  try {
+    const [pii, extendedPii] = await Promise.all([
+      readPiiValues(env, actor.orgId, scope.caseId),
+      readIntakeExtendedPii(env, actor.orgId, scope.beneficiaryId),
+    ]);
+    entries = buildAgentJobMaskDictionaryEntries(pii, extendedPii, {
+      beneficiaryId: scope.beneficiaryId,
+      caseId: scope.caseId,
+      organizationId: actor.orgId,
+    });
+  } catch (error) {
+    if (error instanceof ValidationError || error instanceof DOMException) {
+      throw new ValidationError('registered PII cannot be masked safely');
+    }
+    throw error;
+  }
   await writeAudit(env, actor, {
     action: 'decrypt_pii',
     targetTable: 'pii_vault',
@@ -7239,7 +7260,7 @@ async function buildAgentJobSourceText(
     caseId: scope.caseId,
     detail: { purpose: 'text_work_item_masking' },
   });
-  return { sessionId, text: maskRegisteredPii(parts.join('\n'), scope.caseId, pii) };
+  return { sessionId, text: maskAgentJobSourceText(parts.join('\n'), entries) };
 }
 
 // ============================================================================
@@ -7250,6 +7271,9 @@ async function buildAgentJobSourceText(
 const AGENT_JOB_LEASE_MS = 15 * 60_000;
 const AGENT_JOB_TOTAL_LEASE_MS = 2 * 60 * 60_000;
 const MASK_DICTIONARY_TTL_MS = 5 * 60_000;
+const MASK_DICTIONARY_ID = /^md1\.([0-9a-f]{64})$/;
+const MASK_DICTIONARY_HKDF_SALT = 'ccc.mask-dictionary.hkdf.v1';
+const MASK_DICTIONARY_HKDF_INFO = 'ccc.mask-dictionary.authenticator.v1';
 const EGRESS_AUTHORIZATION_TTL_MS = 10 * 60_000;
 /** SG8 절대 상한: 업로드 + 7일 (D85). */
 const AUDIO_RETENTION_HARD_CAP_MS = 7 * 24 * 60 * 60_000;
@@ -7830,6 +7854,262 @@ export async function getAgentJobAudioDelivery(
   return { audioR2Key: session.audioR2Key, caseId: session.caseId, generationId: job.audioGenerationId };
 }
 
+const KOREAN_METROPOLITAN_REGION_BY_NAME: Readonly<Partial<Record<string, string>>> = {
+  서울: '서울시',
+  서울시: '서울시',
+  서울특별시: '서울시',
+  부산: '부산광역시',
+  부산광역시: '부산광역시',
+  대구: '대구광역시',
+  대구광역시: '대구광역시',
+  인천: '인천광역시',
+  인천광역시: '인천광역시',
+  광주: '광주광역시',
+  광주광역시: '광주광역시',
+  대전: '대전광역시',
+  대전광역시: '대전광역시',
+  울산: '울산광역시',
+  울산광역시: '울산광역시',
+  세종: '세종특별자치시',
+  세종특별자치시: '세종특별자치시',
+  경기: '경기도',
+  경기도: '경기도',
+  강원: '강원특별자치도',
+  강원도: '강원도',
+  강원특별자치도: '강원특별자치도',
+  충북: '충청북도',
+  충청북도: '충청북도',
+  충남: '충청남도',
+  충청남도: '충청남도',
+  전북: '전북특별자치도',
+  전라북도: '전라북도',
+  전북특별자치도: '전북특별자치도',
+  전남: '전라남도',
+  전라남도: '전라남도',
+  경북: '경상북도',
+  경상북도: '경상북도',
+  경남: '경상남도',
+  경상남도: '경상남도',
+  제주: '제주특별자치도',
+  제주도: '제주도',
+  제주특별자치도: '제주특별자치도',
+};
+const KOREAN_ADMINISTRATIVE_REGION = /^[가-힣]+(?:특별자치도|특별자치시|특별시|광역시|도|시|군|구|읍|면|동|리|가)$/u;
+const KOREAN_BUILDING_COMPONENT = /(?:아파트|빌라|오피스텔|빌딩|타워|센터|주택|연립|건물)/u;
+
+function registeredRegionDictionaryEntry(sourceValue: string, pseudonym: string): MaskDictionaryEntry {
+  const normalized = sourceValue.trim().replace(/\s+/gu, ' ');
+  const components = normalized.split(' ');
+  const firstComponent = components[0] ?? '';
+  const metropolitanRegion = Object.hasOwn(KOREAN_METROPOLITAN_REGION_BY_NAME, firstComponent)
+    ? KOREAN_METROPOLITAN_REGION_BY_NAME[firstComponent]
+    : undefined;
+  if (
+    normalized.length === 0
+    || KOREAN_BUILDING_COMPONENT.test(normalized)
+    || !components.every((component, index) => (
+      KOREAN_ADMINISTRATIVE_REGION.test(component)
+      || (index === 0 && metropolitanRegion !== undefined)
+    ))
+  ) {
+    return { field: 'address', sourceValue, replacement: pseudonym };
+  }
+
+  return {
+    field: 'region',
+    sourceValue,
+    replacement: metropolitanRegion === undefined || metropolitanRegion.includes(normalized)
+      ? '[지역]'
+      : metropolitanRegion,
+  };
+}
+
+function buildAgentJobMaskDictionaryEntries(
+  pii: { name: string | null; phone: string | null; account: string | null; email: string | null },
+  extendedPii: {
+    birthDate: string | null;
+    region: string | null;
+    emergencyContact: string | null;
+    gender: string | null;
+  },
+  scope: { beneficiaryId: string; caseId: string; organizationId: string },
+): MaskDictionaryEntry[] {
+  const entries: MaskDictionaryEntry[] = [];
+  const replacements = new Map<string, string>();
+  const add = (field: string, sourceValue: string | null, replacement: string): void => {
+    if (sourceValue === null) return;
+    if (sourceValue.trim().length === 0) throw new ValidationError('mask dictionary entry is invalid');
+    // 레거시 case에서는 beneficiary ID 자체가 이미 가명 ID다. 다른 PII의 no-op은 허용하지 않는다.
+    if (field === 'beneficiaryId' && sourceValue === replacement) return;
+    const existing = replacements.get(sourceValue);
+    if (existing !== undefined) {
+      if (existing !== replacement) throw new ValidationError('mask dictionary entries conflict');
+      return;
+    }
+    replacements.set(sourceValue, replacement);
+    entries.push({ field, sourceValue, replacement });
+  };
+
+  add('name', pii.name, scope.caseId);
+  add('phone', pii.phone, scope.caseId);
+  add('email', pii.email, scope.caseId);
+  add('account', pii.account, scope.caseId);
+  add('birthDate', extendedPii.birthDate, '[생년월]');
+  if (extendedPii.region !== null) {
+    const region = registeredRegionDictionaryEntry(extendedPii.region, scope.caseId);
+    add(region.field, region.sourceValue, region.replacement);
+  }
+  add('gender', extendedPii.gender, '[성별]');
+  add('emergencyContact', extendedPii.emergencyContact, scope.caseId);
+  add('beneficiaryId', scope.beneficiaryId, scope.caseId);
+  add('organizationId', scope.organizationId, scope.caseId);
+  for (const entry of entries) {
+    for (const sourceValue of replacements.keys()) {
+      if (entry.replacement.includes(sourceValue)) {
+        throw new ValidationError('mask dictionary entries conflict');
+      }
+    }
+  }
+  return entries;
+}
+
+/** 원문에서 겹치는 구간은 묶고 가장 긴 source의 replacement로 한 번만 치환한다. */
+function maskAgentJobSourceText(text: string, entries: MaskDictionaryEntry[]): string {
+  const matches: Array<{ start: number; end: number; entry: MaskDictionaryEntry }> = [];
+  for (const entry of entries) {
+    let start = text.indexOf(entry.sourceValue);
+    while (start !== -1) {
+      matches.push({ start, end: start + entry.sourceValue.length, entry });
+      start = text.indexOf(entry.sourceValue, start + 1);
+    }
+  }
+  matches.sort((left, right) => (
+    left.start - right.start
+    || right.entry.sourceValue.length - left.entry.sourceValue.length
+  ));
+
+  let cursor = 0;
+  let masked = '';
+  for (let index = 0; index < matches.length;) {
+    const first = matches[index];
+    if (first === undefined || first.end <= cursor) {
+      index += 1;
+      continue;
+    }
+    let clusterEnd = first.end;
+    let replacement = first.entry;
+    index += 1;
+    while (index < matches.length) {
+      const candidate = matches[index];
+      if (candidate === undefined || candidate.start >= clusterEnd) break;
+      clusterEnd = Math.max(clusterEnd, candidate.end);
+      if (candidate.entry.sourceValue.length > replacement.sourceValue.length) {
+        replacement = candidate.entry;
+      }
+      index += 1;
+    }
+    masked += text.slice(cursor, first.start) + replacement.replacement;
+    cursor = clusterEnd;
+  }
+  return masked + text.slice(cursor);
+}
+
+interface MaskDictionaryAuthenticatorClaims {
+  version: 1;
+  serviceId: string;
+  orgId: string;
+  jobId: string;
+  claimTokenHash: string;
+  attempt: number;
+  expiresAt: string;
+  entries: MaskDictionaryEntry[];
+}
+
+/** RFC 8785 ordering makes every authenticated field and entry byte-for-byte deterministic. */
+function maskDictionaryAuthenticatorBytes(claims: MaskDictionaryAuthenticatorClaims): Uint8Array<ArrayBuffer> {
+  return new TextEncoder().encode(canonicalizeJcs(claims));
+}
+
+async function maskDictionaryAuthenticatorKey(env: Env): Promise<CryptoKey> {
+  const rawKey = base64ToBytes(env.PII_ENC_KEY);
+  const salt = new TextEncoder().encode(MASK_DICTIONARY_HKDF_SALT);
+  const info = new TextEncoder().encode(MASK_DICTIONARY_HKDF_INFO);
+  try {
+    if (rawKey.byteLength !== 32) {
+      throw new ValidationError('PII encryption key must be a 32-byte base64 value');
+    }
+    const sourceKey = await crypto.subtle.importKey('raw', rawKey, 'HKDF', false, ['deriveKey']);
+    return await crypto.subtle.deriveKey(
+      { name: 'HKDF', hash: 'SHA-256', salt, info },
+      sourceKey,
+      { name: 'HMAC', hash: 'SHA-256', length: 256 },
+      false,
+      ['sign', 'verify'],
+    );
+  } finally {
+    info.fill(0);
+    salt.fill(0);
+    rawKey.fill(0);
+  }
+}
+
+async function signMaskDictionaryId(
+  env: Env,
+  claims: MaskDictionaryAuthenticatorClaims,
+): Promise<string> {
+  const preimage = maskDictionaryAuthenticatorBytes(claims);
+  let signature: Uint8Array | null = null;
+  try {
+    signature = new Uint8Array(
+      await crypto.subtle.sign('HMAC', await maskDictionaryAuthenticatorKey(env), preimage),
+    );
+    return `md1.${Array.from(signature, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  } finally {
+    signature?.fill(0);
+    preimage.fill(0);
+  }
+}
+
+async function verifyMaskDictionaryId(
+  env: Env,
+  dictionaryId: string,
+  claims: MaskDictionaryAuthenticatorClaims,
+): Promise<boolean> {
+  const match = MASK_DICTIONARY_ID.exec(dictionaryId);
+  if (match === null) return false;
+  const signature = new Uint8Array(32);
+  const signatureHex = match[1] ?? '';
+  for (let index = 0; index < signature.byteLength; index += 1) {
+    signature[index] = Number.parseInt(signatureHex.slice(index * 2, index * 2 + 2), 16);
+  }
+  const preimage = maskDictionaryAuthenticatorBytes(claims);
+  try {
+    return await crypto.subtle.verify(
+      'HMAC',
+      await maskDictionaryAuthenticatorKey(env),
+      signature,
+      preimage,
+    );
+  } finally {
+    preimage.fill(0);
+    signature.fill(0);
+  }
+}
+
+async function assertMaskDictionaryId(
+  env: Env,
+  dictionaryId: string,
+  claims: MaskDictionaryAuthenticatorClaims,
+  jobId: string,
+): Promise<void> {
+  try {
+    if (await verifyMaskDictionaryId(env, dictionaryId, claims)) return;
+  } catch (error) {
+    if (!(error instanceof ValidationError) && !(error instanceof DOMException)) throw error;
+  }
+  throw new AgentJobContractError('dictionary_already_consumed', jobId);
+}
+
 /**
  * 일회성 mask dictionary. 같은 claim·attempt 의 재전송은 만료 전까지 같은 응답을
  * 재생하고, 만료 뒤나 다른 claim 은 거부한다. 원문 PII 는 저장하지 않는다.
@@ -7842,51 +8122,108 @@ export async function issueAgentJobMaskDictionary(
 ): Promise<MaskDictionaryResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   const nowIso = now();
-  const replayed = job.maskDictionaryId !== null
-    && job.maskDictionaryExpiresAt !== null
-    && job.maskDictionaryExpiresAt > nowIso;
-  if (job.maskDictionaryId !== null && !replayed) {
+  const replayed = job.maskDictionaryId !== null && job.maskDictionaryExpiresAt !== null;
+  if (
+    (job.maskDictionaryId === null) !== (job.maskDictionaryExpiresAt === null)
+    || (job.maskDictionaryExpiresAt !== null && job.maskDictionaryExpiresAt <= nowIso)
+  ) {
     throw new AgentJobContractError('dictionary_already_consumed', jobId);
   }
-  const dictionaryId = replayed && job.maskDictionaryId !== null ? job.maskDictionaryId : newId();
-  const expiresAt = replayed && job.maskDictionaryExpiresAt !== null
-    ? job.maskDictionaryExpiresAt
-    : new Date(parseUtcTimestamp(nowIso) + MASK_DICTIONARY_TTL_MS).toISOString();
+  if (job.claimTokenHash === null) throw new AgentJobContractError('stale_claim', jobId);
+
   const scope = await resolveSessionScope(env, actor.orgId, job.sessionId);
-  const pii = await readPiiValues(env, actor.orgId, scope.caseId);
-  const entries: MaskDictionaryEntry[] = [];
-  for (const [field, sourceValue] of [
-    ['name', pii.name],
-    ['phone', pii.phone],
-    ['account', pii.account],
-    ['email', pii.email],
-  ] as Array<[string, string | null]>) {
-    if (sourceValue !== null && sourceValue.length > 0) {
-      entries.push({ field, sourceValue, replacement: scope.caseId });
+  let entries: MaskDictionaryEntry[];
+  try {
+    const [pii, extendedPii] = await Promise.all([
+      readPiiValues(env, actor.orgId, scope.caseId),
+      readIntakeExtendedPii(env, actor.orgId, scope.beneficiaryId),
+    ]);
+    entries = buildAgentJobMaskDictionaryEntries(pii, extendedPii, {
+      beneficiaryId: scope.beneficiaryId,
+      caseId: scope.caseId,
+      organizationId: actor.orgId,
+    });
+  } catch (error) {
+    if (error instanceof ValidationError || error instanceof DOMException) {
+      throw new AgentJobContractError('dictionary_already_consumed', jobId);
     }
+    throw error;
   }
-  if (!replayed) {
+
+  const authenticated = {
+    version: 1,
+    serviceId: actor.userId,
+    orgId: actor.orgId,
+    jobId,
+    claimTokenHash: job.claimTokenHash,
+    attempt: job.attempt,
+    entries,
+  } as const;
+
+  let dictionaryId: string;
+  let expiresAt: string;
+  let deliveredAsReplay = replayed;
+  if (replayed) {
+    dictionaryId = job.maskDictionaryId as string;
+    expiresAt = job.maskDictionaryExpiresAt as string;
+    await assertMaskDictionaryId(env, dictionaryId, { ...authenticated, expiresAt }, jobId);
+  } else {
+    expiresAt = new Date(parseUtcTimestamp(nowIso) + MASK_DICTIONARY_TTL_MS).toISOString();
+    dictionaryId = await signMaskDictionaryId(env, { ...authenticated, expiresAt });
+    const persistedAt = now();
+    if (expiresAt <= persistedAt) throw new AgentJobContractError('dictionary_already_consumed', jobId);
     const updated = await env.DB.prepare(
       `UPDATE agent_jobs
        SET mask_dictionary_id = ?, mask_dictionary_issued_at = ?, mask_dictionary_expires_at = ?,
            mask_dictionary_consumed_at = ?, updated_at = ?
-       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND lease_owner = ?
+         AND claim_token_hash = ? AND attempt = ? AND lease_expires_at > ?
          AND mask_dictionary_id IS NULL`,
     ).bind(
-      dictionaryId, nowIso, expiresAt, nowIso, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt,
+      dictionaryId,
+      persistedAt,
+      expiresAt,
+      persistedAt,
+      persistedAt,
+      jobId,
+      actor.orgId,
+      actor.userId,
+      job.claimTokenHash,
+      job.attempt,
+      persistedAt,
     ).run();
     if ((updated.meta?.changes ?? 0) === 0) {
-      throw new AgentJobContractError('dictionary_already_consumed', jobId);
+      const winner = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+      const winnerId = winner.maskDictionaryId;
+      const winnerExpiry = winner.maskDictionaryExpiresAt;
+      if (winnerId === null || winnerExpiry === null || winnerExpiry <= now()) {
+        throw new AgentJobContractError('dictionary_already_consumed', jobId);
+      }
+      await assertMaskDictionaryId(env, winnerId, { ...authenticated, expiresAt: winnerExpiry }, jobId);
+      dictionaryId = winnerId;
+      expiresAt = winnerExpiry;
+      deliveredAsReplay = true;
     }
   }
+
+
   // 감사에는 건수만 남긴다 — sourceValue 는 로그·감사 어디에도 쓰지 않는다(R3).
   await writeAudit(env, actor, {
     action: 'mask_dictionary_read',
     targetTable: 'agent_jobs',
     targetId: jobId,
     caseId: scope.caseId,
-    detail: { dictionaryId, entryCount: entries.length, replayed },
+    detail: { dictionaryId, entryCount: entries.length, replayed: deliveredAsReplay },
   });
+  // 복호화와 서명 도중 임대가 바뀌거나 만료됐으면 원문 표를 반환하지 않는다.
+  const currentJob = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  if (
+    currentJob.maskDictionaryId !== dictionaryId
+    || currentJob.maskDictionaryExpiresAt !== expiresAt
+    || expiresAt <= now()
+  ) {
+    throw new AgentJobContractError('dictionary_already_consumed', jobId);
+  }
   return { dictionaryId, jobId, expiresAt, oneTime: true, entries };
 }
 

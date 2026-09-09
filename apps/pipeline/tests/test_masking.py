@@ -1,6 +1,59 @@
+import hashlib
 import unittest
 
 from ccc_pipeline import masking
+
+
+class NerDecodingTest(unittest.TestCase):
+    def test_bioes_spans_include_the_end_token_and_singleton(self):
+        text = "😀가나다 라마"
+        tokens = [
+            {"entity": "O", "start": 0, "end": 1},
+            {"entity": "B-private_person", "start": 1, "end": 2},
+            {"entity": "I-private_person", "start": 2, "end": 3},
+            {"entity": "E-private_person", "start": 3, "end": 4},
+            {"entity": "O", "start": 4, "end": 5},
+            {"entity": "S-private_person", "start": 5, "end": 7},
+        ]
+        person = masking._span_fn(lambda _text: tokens, ("PRIVATE_PERSON",))
+        self.assertEqual(person(text), [(1, 4), (5, 7)])
+        self.assertEqual(masking.mask_text(text, person), "😀[인명] [인명]")
+
+    def test_terminal_outside_and_type_changes_do_not_join_mentions(self):
+        tags = [
+            "B-private_person", "E-private_person", "I-private_person",
+            "O", "I-private_person", "E-private_address",
+            "S-private_person", "I-private_person", "B-private_person",
+        ]
+        tokens = [
+            {"entity": tag, "start": i, "end": i + 1}
+            for i, tag in enumerate(tags)
+        ]
+        source = "가나다라마바사아자"
+        person = masking._span_fn(lambda _text: tokens, ("PRIVATE_PERSON",))
+        address = masking._span_fn(lambda _text: tokens, ("PRIVATE_ADDRESS",))
+        self.assertEqual(person(source), [(0, 2), (2, 3), (4, 5), (6, 7), (7, 8), (8, 9)])
+        self.assertEqual(address(source), [(5, 6)])
+
+    def test_bilou_boundaries_and_zero_width_tokens_preserve_real_spans(self):
+        tokens = [
+            {"entity": "B-PRIVATE_PERSON", "start": 0, "end": 0},
+            {"entity": "L-PRIVATE_PERSON", "start": 0, "end": 2},
+            {"entity": "U-PRIVATE_PERSON", "start": 2, "end": 3},
+        ]
+        person = masking._span_fn(lambda _text: tokens, ("PRIVATE_PERSON",))
+        self.assertEqual(person("가나다"), [(0, 2), (2, 3)])
+
+    def test_invalid_token_coordinates_fail_without_exposing_input(self):
+        for start, end in ((-1, 1), (0, 4), (2, 1), (False, 1), (0.5, 1)):
+            with self.subTest(start=start, end=end):
+                person = masking._span_fn(
+                    lambda _text: [{"entity": "S-private_person", "start": start, "end": end}],
+                    ("PRIVATE_PERSON",),
+                )
+                with self.assertRaises(masking.MaskingConfigError) as caught:
+                    person("가나다")
+                self.assertNotIn("가나다", str(caught.exception))
 
 
 class MaskPatternsTest(unittest.TestCase):
@@ -127,6 +180,193 @@ class MaskingReportTest(unittest.TestCase):
         _masked, report = masking.mask_text_with_report("오늘은 특별한 일이 없었다")
         self.assertEqual(report.total, 0)
         self.assertEqual(report.as_mapping(), {})
+
+
+class QuasiIdentifierGeneralizationTest(unittest.TestCase):
+    def test_g3_exact_output_code_points_and_published_hash(self):
+        source = "2026-09-03에 37세인 당사자가 서울시 은평구에서 지난달 이사했다."
+        expected = "2026-09에 35-39세인 당사자가 서울시에서 지난달 이사했다."
+
+        masked = masking.mask_text(source)
+
+        self.assertEqual(masked, expected)
+        self.assertEqual(len(masked), 37)
+        self.assertEqual(
+            hashlib.sha256(masked.encode()).hexdigest(),
+            "5b47d52082471b6328890e2d07d8d205a3d55894ca163c32380d07a442fde237",
+        )
+        self.assertNotIn(masking.ACCOUNT_TOKEN, masked)
+
+    def test_generalizes_valid_iso_and_korean_dates(self):
+        masked = masking.mask_text("2024-02-29과 2026년 9월 3일 기록")
+        self.assertEqual(masked, "2024-02과 2026-09 기록")
+
+    def test_masks_invalid_and_ambiguous_date_candidates(self):
+        masked = masking.mask_text("2026-02-30, 2026년 13월 1일, 2026/09/03, 9월 3일")
+        self.assertEqual(
+            masked,
+            f"{masking.QUASI_IDENTIFIER_TOKEN}, {masking.QUASI_IDENTIFIER_TOKEN}, "
+            f"{masking.QUASI_IDENTIFIER_TOKEN}, {masking.QUASI_IDENTIFIER_TOKEN}",
+        )
+
+    def test_keeps_relative_dates_and_already_generalized_months(self):
+        text = "지난달과 어제, 2026-09와 9월 기록"
+        self.assertEqual(masking.mask_text(text), text)
+
+    def test_generalizes_only_explicit_ages_and_is_idempotent(self):
+        source = "만 4세, 37세, 42살, 1990년생, 21세기, 1세대, 이미 35-39세"
+        expected = "0-4세, 35-39세, 40-44세, 1990년생, 21세기, 1세대, 이미 35-39세"
+
+        masked = masking.mask_text(source)
+
+        self.assertEqual(masked, expected)
+        self.assertEqual(masking.mask_text(masked), expected)
+
+    def test_keeps_broad_region_and_generalizes_subregion_with_particle(self):
+        source = "서울특별시는 넓고 서울시 은평구에서 상담했고 경기도 수원시 팔달구로 갔다."
+        expected = "서울특별시는 넓고 서울시에서 상담했고 경기도로 갔다."
+        self.assertEqual(masking.mask_text(source), expected)
+
+    def test_masks_uncertain_local_region_and_preserves_particle(self):
+        cases = {
+            "은평구에서 상담했다": f"{masking.REGION_TOKEN}에서 상담했다",
+            "수원시 팔달구로 갔다": f"{masking.REGION_TOKEN}로 갔다",
+            "은평구에 갔다": f"{masking.REGION_TOKEN}에 갔다",
+            "수원시 팔달구 매산동에서 상담했다": f"{masking.REGION_TOKEN}에서 상담했다",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), expected)
+
+    def test_applies_region_replacements_in_reverse_source_order(self):
+        source = "구리시, 서울시 은평구"
+        expected = f"{masking.REGION_TOKEN}, 서울시"
+        self.assertEqual(masking.mask_text(source), expected)
+
+    def test_keeps_non_location_words_with_administrative_suffixes(self):
+        source = "목소리가 작고 활동을 정리한 친구와 상담했다. 활동에 참여했고 목소리로 답했다."
+        self.assertEqual(masking.mask_text(source), source)
+
+    def test_masks_full_detailed_address_instead_of_generalizing_metro_prefix(self):
+        source = "서울특별시 은평구 늘봄로 123에서 만났다"
+        self.assertEqual(masking.mask_text(source), f"{masking.ADDRESS_TOKEN}에서 만났다")
+
+    def test_masks_road_lot_building_dong_and_ho_as_whole_candidates(self):
+        cases = {
+            "늘봄로 123-4에 보냈다": f"{masking.ADDRESS_TOKEN}에 보냈다",
+            "역삼동 123-4에서 만났다": f"{masking.ADDRESS_TOKEN}에서 만났다",
+            "서울특별시 은평구 123-4에서 만났다": f"{masking.ADDRESS_TOKEN}에서 만났다",
+            "행복아파트 3동 1204호로 갔다": f"{masking.ADDRESS_TOKEN}로 갔다",
+            "101동 1203호에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
+            "푸른마을 101동 1203호에서 만났다": f"{masking.ADDRESS_TOKEN}에서 만났다",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), expected)
+
+    def test_masks_parenthetical_legal_dong_reference_with_numeric_address(self):
+        cases = {
+            "늘봄로 123 (신사동)에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
+            "늘봄로 123 (신사동, 행복아파트)로 보냈다": f"{masking.ADDRESS_TOKEN}로 보냈다",
+            "늘봄로 123 (상동)에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), expected)
+
+    def test_masks_quoted_road_only_with_explicit_location_context(self):
+        cases = {
+            '거주지에는 "늘봄로 근처"라고 적었다': f'거주지에는 "{masking.ADDRESS_TOKEN} 근처"라고 적었다',
+            '방문지는 "늘봄길 주변"이라고 말했다': f'방문지는 "{masking.ADDRESS_TOKEN} 주변"이라고 말했다',
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), expected)
+
+    def test_keeps_quoted_road_without_location_context(self):
+        for source in (
+            '책 제목은 "늘봄로 근처"라고 적었다',
+            '노선 설명은 "늘봄길 주변"이라고 말했다',
+            '책 제목 비유에서 거주지에는 "늘봄로 근처"라고 적었다',
+            '"늘봄로 근처"라고만 적었다',
+            '방향 설명은 "동쪽으로 방향"이라고 적었다',
+            '거주지에는 "바로 근처"라고 적었다',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), source)
+
+
+    def test_partial_address_ner_cannot_leave_full_address_fragment(self):
+        masked, report = masking.mask_text_with_report(
+            "늘봄로 123",
+            address_ner=lambda _text: [(0, 3)],
+        )
+        self.assertEqual(masked, masking.ADDRESS_TOKEN)
+        self.assertEqual(report.as_mapping(), {masking.ADDRESS_TOKEN: 1})
+
+    def test_repeated_metro_prefix_scan_is_bounded(self):
+        source = ("서울시 " * 32) + "상담했다."
+        self.assertEqual(masking.mask_text(source), source)
+
+    def test_masks_postcode_without_consuming_trailing_particle(self):
+        self.assertEqual(
+            masking.mask_text("우편번호 03123으로 보냈다"),
+            f"우편번호 {masking.POSTCODE_TOKEN}으로 보냈다",
+        )
+
+    def test_postcode_rule_does_not_fragment_an_account(self):
+        self.assertEqual(
+            masking.mask_text("계좌 12345-12345-12345"),
+            f"계좌 {masking.ACCOUNT_TOKEN}",
+        )
+
+    def test_partial_ner_cannot_fragment_structured_identifiers(self):
+        for identifier in (
+            "12345", "010-1234-5678", "900101-1234567",
+            "110-123-456789", "contact@example.org",
+        ):
+            with self.subTest(identifier=identifier):
+                source = f"😀 연락 정보 {identifier} 확인"
+                start = source.index(identifier)
+                masked, report = masking.mask_text_with_report(
+                    source, address_ner=lambda _text: [(start, start + 2)],
+                )
+                self.assertEqual(masked, f"😀 연락 정보 {masking.ADDRESS_TOKEN} 확인")
+                self.assertEqual(report.total, 1)
+
+    def test_postcode_inside_email_cannot_destroy_email_detection(self):
+        masked = masking.mask_text("메일 user12345@example.org 확인")
+        self.assertEqual(masked, f"메일 {masking.EMAIL_TOKEN} 확인")
+
+    def test_account_detection_preserves_date_generalization(self):
+        self.assertEqual(
+            masking.mask_text("약속 2026-09-03, 계좌 110-123-456789"),
+            f"약속 2026-09, 계좌 {masking.ACCOUNT_TOKEN}",
+        )
+
+    def test_partial_ner_cannot_expose_a_date_fragment(self):
+        for date in ("2026-09-03", "2026-9-3"):
+            with self.subTest(date=date):
+                source = f"일정 {date}"
+                start = source.index("2026")
+                masked, _ = masking.mask_text_with_report(
+                    source, address_ner=lambda _text: [(start, start + 2)],
+                )
+                self.assertEqual(masked, f"일정 {masking.ADDRESS_TOKEN}")
+
+    def test_unicode_code_points_before_deterministic_and_partial_ner_addresses(self):
+        text = "😀 서울시 은평구 늘봄로 123"
+        deterministic = masking.mask_text(text)
+        self.assertEqual(deterministic, f"😀 {masking.ADDRESS_TOKEN}")
+
+        ner_source = "😀 늘봄로 123"
+        masked, _ = masking.mask_text_with_report(ner_source, address_ner=lambda _: [(2, 5)])
+        self.assertEqual(masked, f"😀 {masking.ADDRESS_TOKEN}")
+
+    def test_quasi_generalization_is_idempotent(self):
+        source = "2026-09-03에 37세로 서울시 은평구 늘봄로 123에 살며 우편번호는 03123이다."
+        masked = masking.mask_text(source)
+        self.assertEqual(masking.mask_text(masked), masked)
 
 
 # G3 완료 기준: "병명 포함 테스트 문장 셋에서 치환율 측정".
@@ -269,9 +509,9 @@ class AddressLayerTest(unittest.TestCase):
         masked, _ = masking.mask_text_with_report(text, person, None, address)
         self.assertEqual(masked, "[인명] 주소는 [주소] 이다")
 
-    def test_address_layer_can_be_turned_off(self):
-        masked, report = masking.mask_text_with_report("행복아파트 3동", None, None, None)
-        self.assertEqual(masked, "행복아파트 3동")
+    def test_optional_address_ner_can_be_turned_off(self):
+        masked, report = masking.mask_text_with_report("테스트주소A", None, None, None)
+        self.assertEqual(masked, "테스트주소A")
         self.assertEqual(report.total, 0)
 
 

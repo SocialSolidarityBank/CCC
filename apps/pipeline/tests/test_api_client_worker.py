@@ -5,12 +5,14 @@ import hashlib
 import io
 import json
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from dataclasses import replace
 from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
+from ccc_pipeline import secure_memory
 from ccc_pipeline.api_client import ApiClient, ApiError, USER_AGENT
 from ccc_pipeline.azure_stt import AzureSttError
 from ccc_pipeline.backup import BackupPolicy
@@ -18,6 +20,8 @@ from ccc_pipeline.config import Config, ConfigError, load_config
 from ccc_pipeline.masking import MaskingConfigError
 from ccc_pipeline.results import canonical_sha256, sha256_hex
 from ccc_pipeline.worker import (
+    MaskDictionaryError,
+    _validate_mask_dictionary,
     claim_request,
     masking_pipeline_hash,
     masking_pipeline_version,
@@ -28,10 +32,10 @@ from ccc_pipeline.worker import (
 ATTESTATION = {
     "id": "attestation-fixture",
     "modelId": "FrameByFrame/korean-pii-e5-base",
-    "modelRevision": "fixture-rev-1",
-    "labelSetHash": "a" * 64,
-    "corpusHash": "b" * 64,
-    "resultHash": "c" * 64,
+    "modelRevision": "a308c54b4407819624a5661e31e162a269f39818",
+    "labelSetHash": "b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc",
+    "corpusHash": "35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59",
+    "resultHash": "fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72",
     "validatedAt": "2026-09-01T00:00:00.000Z",
     "expiresAt": "2099-01-01T00:00:00.000Z",
     "status": "passed",
@@ -55,9 +59,9 @@ def make_config(work_dir: Path) -> Config:
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
         stt_repeat_threshold=4,
-        ner_model_id="fixture/person-ner",
-        ner_labels=("PS", "PER", "NAME"),
-        address_labels=("LC", "ADDRESS", "PRIVATE_ADDRESS"),
+        ner_model_id="FrameByFrame/korean-pii-e5-base",
+        ner_labels=("PRIVATE_PERSON",),
+        address_labels=("PRIVATE_ADDRESS",),
         condition_ner_model_id=None,
         condition_ner_labels=("DS",),
         hf_token=None,
@@ -102,15 +106,22 @@ def verified_audio_response(content: bytes = b"synthetic-audio") -> dict:
     }
 
 
+def mask_dictionary(job_id: str, entries: list[dict] | None = None) -> dict:
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=4)
+    return {
+        "dictionaryId": "dictionary-1",
+        "jobId": job_id,
+        "expiresAt": expires_at.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        "oneTime": True,
+        "entries": [dict(entry) for entry in entries or []],
+    }
+
+
 def dictionary_client(entries: list[dict] | None = None) -> mock.Mock:
     client = mock.Mock()
-    client.get_mask_dictionary.return_value = {
-        "dictionaryId": "dictionary-1",
-        "jobId": "job-text-1",
-        "expiresAt": "2099-01-01T00:00:00.000Z",
-        "oneTime": True,
-        "entries": entries or [],
-    }
+    client.get_mask_dictionary.side_effect = (
+        lambda job_id, _claim_token, _attempt: mask_dictionary(job_id, entries)
+    )
     return client
 
 
@@ -188,6 +199,69 @@ class ApiClientTest(unittest.TestCase):
         # 서버 error 코드만 담기고 나머지 본문은 예외 메시지에 실리지 않는다 (R3)
         self.assertNotIn("secret", str(caught.exception))
 
+    def test_http_error_does_not_retain_the_original_response(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        stream = io.BytesIO(b'{"error":"forbidden","sensitive":"RAW_SYNTHETIC_CANARY"}')
+        error = api_client_module.urllib.error.HTTPError(
+            "https://api.example/x", 403, "Forbidden", None, stream,
+        )
+        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error):
+            with self.assertRaises(ApiError) as caught:
+                client.claim_jobs({})
+        self.assertTrue(stream.closed)
+        self.assertIsNone(caught.exception.__context__)
+        self.assertEqual(caught.exception.code, "forbidden")
+
+    def test_http_error_does_not_expose_unrecognized_error_text(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        error = api_client_module.urllib.error.HTTPError(
+            "https://api.example/x", 403, "Forbidden", None,
+            io.BytesIO(b'{"error":"RAW_SYNTHETIC_CANARY"}'),
+        )
+        with mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error):
+            with self.assertRaises(ApiError) as caught:
+                client.claim_jobs({})
+        self.assertNotIn("RAW_SYNTHETIC_CANARY", str(caught.exception))
+        self.assertEqual(caught.exception.code, "unknown")
+
+    def test_error_body_lock_failure_preserves_masking_phase_without_reclosing_result(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        for operation, expected in (
+            (lambda: client.get_mask_dictionary("job-1", "claim-1", 1), "masking_input_invalid"),
+            (lambda: client.post_result("job-1", {}), "unknown"),
+        ):
+            with self.subTest(expected=expected):
+                stream = io.BytesIO(b'{"error":"dictionary_already_consumed"}')
+                error = api_client_module.urllib.error.HTTPError(
+                    "https://api.example/x", 409, "Conflict", None, stream,
+                )
+                with (
+                    mock.patch.object(api_client_module.urllib.request, "urlopen", side_effect=error),
+                    mock.patch.object(secure_memory, "_lock_region", return_value=False),
+                ):
+                    with self.assertRaises(ApiError) as caught:
+                        operation()
+                self.assertEqual(caught.exception.code, expected)
+                self.assertIsNone(caught.exception.__context__)
+                self.assertTrue(stream.closed)
+
+    def test_malformed_source_value_is_not_retained_in_the_api_error_frame(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        response = FakeResponse(b'{"text":{"raw":"RAW_SYNTHETIC_CANARY"}}')
+        with mock.patch.object(api_client_module.urllib.request, "urlopen", return_value=response):
+            try:
+                client.get_source("job-1", "t" * 64, 1)
+            except ApiError as error:
+                traceback = error.__traceback__
+                while traceback is not None and traceback.tb_frame.f_code.co_name != "get_source":
+                    traceback = traceback.tb_next
+                self.assertIsNotNone(traceback)
+                self.assertNotIn("RAW_SYNTHETIC_CANARY", repr(traceback.tb_frame.f_locals))
+            else:
+                self.fail("malformed source response was accepted")
+        self.assertTrue(response.closed)
+
+
     def test_download_audio_writes_bytes_with_claim_credentials(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         with TemporaryDirectory() as tmp:
@@ -233,6 +307,39 @@ class ApiClientTest(unittest.TestCase):
         )
 
 
+class MaskDictionaryValidationTest(unittest.TestCase):
+    def setUp(self):
+        self.now = datetime(2026, 9, 6, 12, 0, tzinfo=timezone.utc)
+        self.dictionary = {
+            "dictionaryId": "opaque-id",
+            "jobId": "job-text-1",
+            "expiresAt": "2026-09-06T12:04:00.000Z",
+            "oneTime": True,
+            "entries": [{"field": "name", "sourceValue": "합성민", "replacement": "swallow-003"}],
+        }
+
+    def test_accepts_a_live_claim_bound_dictionary(self):
+        entries = _validate_mask_dictionary(
+            self.dictionary, "job-text-1", current_time=self.now,
+        )
+        self.assertEqual(entries[0]["replacement"], "swallow-003")
+
+    def test_rejects_wrong_job_expiry_and_non_one_time_dictionary(self):
+        invalid_dictionaries = [
+            {**self.dictionary, "jobId": "another-job"},
+            {**self.dictionary, "expiresAt": "2026-09-06T12:00:00.000Z"},
+            {**self.dictionary, "expiresAt": "2026-09-06T12:05:00.001Z"},
+            {**self.dictionary, "expiresAt": "2026-09-06Z"},
+            {**self.dictionary, "oneTime": False},
+        ]
+        for dictionary in invalid_dictionaries:
+            with self.subTest(dictionary=dictionary):
+                with self.assertRaises(MaskDictionaryError):
+                    _validate_mask_dictionary(
+                        dictionary, "job-text-1", current_time=self.now,
+                    )
+
+
 class ClaimRequestTest(unittest.TestCase):
     def test_claim_request_carries_attestation_and_receipt(self):
         with TemporaryDirectory() as tmp:
@@ -241,18 +348,42 @@ class ClaimRequestTest(unittest.TestCase):
         self.assertEqual(request["nerAttestation"], ATTESTATION)
         self.assertEqual(request["releaseQualificationReceiptId"], RECEIPT_ID)
 
-    def test_masking_version_and_hash_record_which_layers_ran(self):
+    def test_changed_model_labels_or_health_cannot_claim_the_s6_manifest(self):
         with TemporaryDirectory() as tmp:
             base = make_config(Path(tmp))
-            # 어느 계층이 실제로 돌았는지가 스냅샷 기록에서 구분돼야 한다.
-            self.assertEqual(masking_pipeline_version(base), "ner-mask-v1-addr-cond-dict")
-            with_cond = replace(base, condition_ner_model_id="fixture/cond-ner")
-            self.assertEqual(masking_pipeline_version(with_cond), "ner-mask-v1-addr-cond-ner")
-            no_addr = replace(base, address_labels=())
-            self.assertEqual(masking_pipeline_version(no_addr), "ner-mask-v1-noaddr-cond-dict")
-            # 서버는 lower-case hex64 만 받는다. 구성이 바뀌면 지문도 바뀐다.
-            self.assertRegex(masking_pipeline_hash(base), r"^[0-9a-f]{64}$")
-            self.assertNotEqual(masking_pipeline_hash(base), masking_pipeline_hash(with_cond))
+            for changed in (
+                replace(base, ner_model_id="fixture/person-ner"),
+                replace(base, address_labels=()),
+                replace(base, ner_labels=("PRIVATE",)),
+                replace(base, condition_ner_model_id="fixture/cond-ner"),
+                replace(base, ner_attestation={**ATTESTATION, "corpusHash": "0" * 64}),
+                replace(base, ner_attestation={**ATTESTATION, "resultHash": "0" * 64}),
+            ):
+                with self.assertRaises(MaskingConfigError):
+                    masking_pipeline_hash(changed)
+
+    def test_windowing_does_not_reuse_previous_pipeline_identity(self):
+        with TemporaryDirectory() as tmp:
+            base = make_config(Path(tmp))
+            expected = {
+                "conditionDictionaryVersion": "condition-dict-v1",
+                "directIdentifierRulesVersion": "direct-v2",
+                "labelSetHash": ATTESTATION["labelSetHash"],
+                "maskingPipelineVersion": "ner-mask-v3",
+                "nerHealthCorpusHash": ATTESTATION["corpusHash"],
+                "nerHealthResultHash": ATTESTATION["resultHash"],
+                "nerModelId": ATTESTATION["modelId"],
+                "nerModelRevision": ATTESTATION["modelRevision"],
+                "quasiIdentifierRulesVersion": "quasi-v1",
+                "regexRulesVersion": "regex-v2",
+                "schemaVersion": 1,
+            }
+            self.assertNotEqual(masking_pipeline_hash(base), canonical_sha256(expected))
+            # 원문 정형 식별자 수집 전 v4 구성으로 받은 식별자를 재사용하지 않는다.
+            self.assertNotEqual(
+                masking_pipeline_hash(base),
+                "2aab3fe4d8949dd47f739955a362711c375ec8c9282df08127858352fccc0c23",
+            )
 
 
 class RunOnceTest(unittest.TestCase):
@@ -277,6 +408,19 @@ class RunOnceTest(unittest.TestCase):
         # 엔진 실패는 같은 route·engine 으로 재시도할 transient release 다.
         client.release.assert_called_once_with("job-audio-1", "u" * 64, 1, "transient", "engine_unavailable")
 
+    def test_release_transport_failure_does_not_abandon_later_claims(self):
+        client = mock.Mock()
+        client.claim_jobs.return_value = [audio_job(), text_job()]
+        client.release.side_effect = OSError("synthetic transport failure")
+        with TemporaryDirectory() as tmp:
+            with (
+                mock.patch("ccc_pipeline.worker.process_audio_job", side_effect=RuntimeError("gpu oom")),
+                mock.patch("ccc_pipeline.worker.process_text_job") as text,
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 1)
+        text.assert_called_once()
+
+
     def test_missing_person_ner_releases_blocked_without_spending_an_attempt(self):
         client = dictionary_client()
         client.claim_jobs.return_value = [text_job()]
@@ -286,6 +430,53 @@ class RunOnceTest(unittest.TestCase):
             self.assertEqual(run_once(client, config), 0)
         client.post_result.assert_not_called()
         client.release.assert_called_once_with("job-text-1", "t" * 64, 1, "blocked", "local_ner_unavailable")
+
+    def test_dictionary_already_consumed_is_closed_as_masking_failure_once(self):
+        client = dictionary_client()
+        client.claim_jobs.return_value = [text_job()]
+        client.get_source.return_value = "MASKED source"
+        client.get_mask_dictionary.side_effect = ApiError(409, "dictionary_already_consumed")
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], None),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+        client.post_result.assert_not_called()
+        client.release.assert_called_once_with(
+            "job-text-1", "t" * 64, 1, "permanent", "masking_failed",
+        )
+
+    def test_malformed_dictionary_posts_no_result_and_is_closed_as_masking_failure(self):
+        client = dictionary_client()
+        client.claim_jobs.return_value = [text_job()]
+        client.get_source.return_value = "MASKED source"
+        client.get_mask_dictionary.side_effect = lambda *_args: {
+            **mask_dictionary("wrong-job"),
+            "oneTime": False,
+        }
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], None),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+        client.post_result.assert_not_called()
+        client.release.assert_called_once_with(
+            "job-text-1", "t" * 64, 1, "permanent", "masking_failed",
+        )
+
+    def test_run_once_clears_the_handled_failure_traceback(self):
+        client = mock.Mock()
+        client.claim_jobs.return_value = [text_job()]
+        failure = RuntimeError("synthetic worker failure")
+        with TemporaryDirectory() as tmp:
+            with mock.patch("ccc_pipeline.worker.process_text_job", side_effect=failure):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+        self.assertIsNone(failure.__traceback__)
+        self.assertIsNone(failure.__context__)
+        self.assertIsNone(failure.__cause__)
+
 
     def test_server_rejection_is_not_overwritten_by_a_release(self):
         client = dictionary_client()
@@ -413,6 +604,67 @@ class ResultReplayTest(unittest.TestCase):
 
 
 class TextJobTest(unittest.TestCase):
+    def test_dictionary_overlaps_are_atomic_and_reapplication_is_stable(self):
+        entries = [
+            {"field": "region", "sourceValue": "서울특별시 은평구", "replacement": "서울시"},
+            {"field": "address", "sourceValue": "서울특별시 은평구 통일로 1", "replacement": "swallow-003"},
+            {"field": "name", "sourceValue": "박하늘", "replacement": "swallow-003"},
+        ]
+        source = "박하늘은 서울특별시 은평구 통일로 1에 왔다."
+        with TemporaryDirectory() as tmp, mock.patch(
+            "ccc_pipeline.worker._build_person_and_address_ner",
+            return_value=(lambda text: [], lambda text: []),
+        ):
+            config = replace(make_config(Path(tmp)), stt_engine="off")
+            for _ in range(2):
+                client = dictionary_client(entries)
+                client.get_source.return_value = source
+                process_text_job(client, config, text_job())
+                source = client.post_result.call_args.args[1]["result"]["maskedText"]
+                self.assertEqual(source, "swallow-003은 swallow-003에 왔다.")
+
+    def test_conflicting_or_cascading_dictionary_is_closed_without_a_result(self):
+        for entries in (
+            [
+                {"field": "name", "sourceValue": "합성원문", "replacement": "swallow-003"},
+                {"field": "address", "sourceValue": "합성원문", "replacement": "[주소]"},
+            ],
+            [
+                {"field": "name", "sourceValue": "합성원문", "replacement": "다른원문"},
+                {"field": "address", "sourceValue": "다른원문", "replacement": "swallow-003"},
+            ],
+        ):
+            client = dictionary_client(entries)
+            client.claim_jobs.return_value = [text_job()]
+            client.get_source.return_value = "합성원문"
+            with TemporaryDirectory() as tmp, mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], lambda text: []),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+            client.post_result.assert_not_called()
+            self.assertEqual(client.release.call_args.args[-2:], ("permanent", "masking_failed"))
+
+    def test_generalized_source_drives_unicode_evidence_and_payload(self):
+        client = dictionary_client()
+        client.get_source.return_value = "😀 2026-09-03에 37세인 당사자가 서울시 은평구에서 지난달 이사했다."
+        with TemporaryDirectory() as tmp, mock.patch(
+            "ccc_pipeline.worker._build_person_and_address_ner",
+            return_value=(lambda text: [], lambda text: []),
+        ):
+            process_text_job(client, make_config(Path(tmp)), text_job())
+        request = client.post_result.call_args.args[1]
+        result = request["result"]
+        expected = "😀 2026-09에 35-39세인 당사자가 서울시에서 지난달 이사했다."
+        self.assertEqual(result["maskedText"], expected)
+        self.assertEqual(result["evidence"][0]["evidenceQuote"], expected)
+        self.assertEqual(result["evidence"][0]["sourceEnd"], 39)
+        self.assertEqual(result["sha256"], sha256_hex(expected))
+        self.assertEqual(result["evidenceHash"], canonical_sha256(result["evidence"]))
+        self.assertEqual(request["payloadSha256"], canonical_sha256({
+            "schemaVersion": 2, "attempt": 1, "result": result,
+        }))
+
     def test_masks_source_and_posts_a_v2_result_with_contract_hashes(self):
         client = dictionary_client([
             {"field": "phone", "sourceValue": "010-1234-5678", "replacement": "swallow-003"},
@@ -496,6 +748,23 @@ class TextJobTest(unittest.TestCase):
         self.assertIn("[회기 목표]", masked)
         self.assertNotIn("김영희", masked)
         self.assertEqual(masked.count("[인명]"), 2)
+
+    def test_invalid_dictionary_releases_the_owned_response_object_on_exception(self):
+        client = dictionary_client()
+        response = mask_dictionary("wrong-job")
+        client.get_source.return_value = "RAW_SYNTHETIC_SOURCE"
+        client.get_mask_dictionary.side_effect = None
+        client.get_mask_dictionary.return_value = response
+        with TemporaryDirectory() as tmp:
+            with mock.patch(
+                "ccc_pipeline.worker._build_person_and_address_ner",
+                return_value=(lambda text: [], None),
+            ):
+                with self.assertRaises(MaskDictionaryError):
+                    process_text_job(client, make_config(Path(tmp)), text_job())
+        self.assertEqual(response, {})
+        client.post_result.assert_not_called()
+
 
     def test_text_job_refuses_to_run_without_person_ner(self):
         client = dictionary_client()
@@ -588,6 +857,50 @@ class AudioJobTest(unittest.TestCase):
         for directory in created_dirs:
             self.assertFalse(directory.exists(), "work dir must be deleted (D13)")
         engine.close.assert_called_once()
+
+    def test_dictionary_failure_after_stt_releases_segment_containers_and_posts_no_result(self):
+        from ccc_pipeline.speaker_mapping import Segment, Turn
+        from ccc_pipeline.transcribe import TranscriptionResult
+
+        client = dictionary_client()
+        client.claim_jobs.return_value = [audio_job()]
+        events: list[str] = []
+        transcription = TranscriptionResult([Segment(0.0, 1.0, "RAW_SYNTHETIC_TRANSCRIPT")])
+
+        def fake_download(_job_id: str, _claim_token: str, _attempt: int, dest: Path) -> Path:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"synthetic-audio")
+            return dest
+
+        def fake_transcribe(*_args, **_kwargs):
+            events.append("stt")
+            return transcription
+
+        def fail_dictionary(*_args):
+            events.append("dictionary")
+            raise ApiError(409, "dictionary_already_consumed")
+
+        client.download_audio.side_effect = fake_download
+        client.get_mask_dictionary.side_effect = fail_dictionary
+        with TemporaryDirectory() as tmp:
+            with (
+                mock.patch("ccc_pipeline.worker.build_engine", return_value=mock.Mock()),
+                mock.patch("ccc_pipeline.worker.transcribe_audio", side_effect=fake_transcribe),
+                mock.patch("ccc_pipeline.diarize.diarize", return_value=[Turn(0.0, 1.0, "SPEAKER_00")]),
+                mock.patch(
+                    "ccc_pipeline.worker._build_person_and_address_ner",
+                    return_value=(lambda text: [], None),
+                ),
+            ):
+                self.assertEqual(run_once(client, make_config(Path(tmp))), 0)
+
+        self.assertEqual(events, ["stt", "dictionary"])
+        self.assertEqual(transcription.segments, [])
+        self.assertEqual(transcription.warnings, [])
+        client.post_result.assert_not_called()
+        client.release.assert_called_once_with(
+            "job-audio-1", "u" * 64, 1, "permanent", "masking_failed",
+        )
 
     def test_backup_adapter_failure_does_not_block_result_submission(self):
         class FailingBackupAdapter:
