@@ -1,8 +1,8 @@
 """전사 오케스트레이션: 무음 분할, 반복 검사, 원본 시각 보정.
 
-STT는 기본 off다. faster-whisper int8 CPU는 명시적으로 선택하는 후보이며
-STT-G1~STT-G3과 Q 승인 전에는 제품 엔진으로 활성화하지 않는다(D77).
-ML 구현은 지연 임포트하고 모든 엔진은 같은 오케스트레이션을 사용한다.
+Business-worker STT is fixed to Qwen or Azure and defaults off. Legacy candidate
+builders remain only for the existing trial harness; worker config cannot select them.
+ML imports stay lazy and local transcription uses the same chunk orchestration.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from .chunking import (
 )
 from .repetition import DEFAULT_REPEAT_THRESHOLD, RepetitionRun, collapse_runs, find_repetition_runs
 from .model_registry import ModelRegistryError, role_spec
+from .qwen_runtime import QWEN_ASR_NAME as QWEN_MODEL_ID
 from .speaker_mapping import Segment
 
 logger = logging.getLogger("ccc_pipeline")
@@ -32,6 +33,8 @@ ENGINE_WHISPER = "whisper"
 ENGINE_FASTER_WHISPER = "faster-whisper-int8-cpu"
 ENGINE_QWEN = "qwen3-asr"
 ENGINE_AZURE = "azure"
+AZURE_ENGINE_ID = "azure-speech-koreacentral"
+BUSINESS_ENGINES = (ENGINE_OFF, ENGINE_QWEN, ENGINE_AZURE)
 KNOWN_ENGINES = (ENGINE_OFF, ENGINE_WHISPER, ENGINE_FASTER_WHISPER, ENGINE_QWEN, ENGINE_AZURE)
 
 # 엔진: 오디오 파일 경로 → 전사 구간 목록(그 파일 기준 상대 시각).
@@ -72,6 +75,8 @@ def build_engine(
             raise ValueError("Whisper model is not declared in model manifest") from error
         return _build_whisper(model_name)
     if name == ENGINE_QWEN:
+        if model_name != QWEN_MODEL_ID:
+            raise ValueError("Qwen worker model must use the fixed release model")
         try:
             role_spec("qwen-asr", model_name)
         except ModelRegistryError as error:

@@ -132,28 +132,49 @@ function validKey(key: string): boolean {
 }
 
 function validMetadata(metadata: AudioObjectMetadata): boolean {
+  const expiresAt = Date.parse(metadata.expiresAt);
   return Number.isInteger(metadata.contentLength)
     && metadata.contentLength >= 1
     && metadata.contentLength <= MAX_AUDIO_BYTES
     && Object.prototype.hasOwnProperty.call(AUDIO_CONTENT_TYPES, metadata.contentType)
     && metadata.expiresAt.length > 0
     && metadata.expiresAt.endsWith('Z')
-    && Number.isFinite(Date.parse(metadata.expiresAt));
+    && Number.isFinite(expiresAt)
+    && expiresAt > Date.now();
 }
 
+type TimerHandle = number | NodeJS.Timeout;
 function checkedBody(
   source: ReadableStream<Uint8Array>,
   expectedLength: number,
   hash: Sha256,
+  expiresAt: string,
 ): ReadableStream<Uint8Array> {
   const reader = source.getReader();
+  const deadline = Date.parse(expiresAt);
   let length = 0;
+  let expired = false;
+  let timer: TimerHandle | undefined;
   return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const expire = () => {
+        expired = true;
+        void reader.cancel(new AudioStoreError()).finally(() => {
+          controller.error(new AudioStoreError());
+        });
+      };
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) expire();
+      else timer = setTimeout(expire, remaining);
+    },
     async pull(controller) {
       try {
         const next = await reader.read();
+        if (expired) return;
         if (next.done) {
           if (length !== expectedLength) throw new AudioStoreError();
+          clearTimeout(timer);
+          timer = undefined;
           controller.close();
           return;
         }
@@ -163,11 +184,16 @@ function checkedBody(
         hash.update(next.value);
         controller.enqueue(next.value);
       } catch (error) {
+        clearTimeout(timer);
+        timer = undefined;
+        if (expired) return;
         await reader.cancel().catch(() => undefined);
         controller.error(error instanceof AudioStoreError ? error : new AudioStoreError());
       }
     },
     cancel(reason) {
+      clearTimeout(timer);
+      timer = undefined;
       return reader.cancel(reason);
     },
   });
@@ -235,9 +261,13 @@ export function createR2AudioStore(bucket: R2Bucket): AudioStore {
     async put(key, body, metadata) {
       if (!validKey(key) || !validMetadata(metadata)) throw new AudioStoreError();
       const hash = new Sha256();
-      const stream = knownLengthBody(checkedBody(body, metadata.contentLength, hash), metadata.contentLength);
+      const stream = knownLengthBody(
+        checkedBody(body, metadata.contentLength, hash, metadata.expiresAt),
+        metadata.contentLength,
+      );
+      let stored: R2Object;
       try {
-        await bucket.put(key, stream, {
+        stored = await bucket.put(key, stream, {
           httpMetadata: { contentType: metadata.contentType },
           customMetadata: {
             [CONTENT_LENGTH]: String(metadata.contentLength),
@@ -248,7 +278,11 @@ export function createR2AudioStore(bucket: R2Bucket): AudioStore {
         await bucket.delete(key).catch(() => undefined);
         throw providerError();
       }
-      return { sha256: hash.digestHex() };
+      if (Date.now() > Date.parse(metadata.expiresAt) + 60_000) {
+        await bucket.delete(key).catch(() => undefined);
+        throw new AudioStoreError();
+      }
+      return { sha256: hash.digestHex(), generationId: stored.etag };
     },
 
     async get(key) {
@@ -266,6 +300,7 @@ export function createR2AudioStore(bucket: R2Bucket): AudioStore {
       return {
         ...metadata,
         body: object.body as ReadableStream<Uint8Array>,
+        generationId: object.etag,
         sha256: sha256 !== null && /^[0-9a-f]{64}$/.test(sha256) ? sha256 : null,
       } satisfies AudioDownload;
     },

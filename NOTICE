@@ -14,6 +14,13 @@ identifiers and their license sources are recorded in
 `supply-chain/model-license-manifest.json`; every future model must be added
 there before release.
 
+The optional speaker-diarization runtime resolves
+`pyannote/wespeaker-voxceleb-resnet34-LM` at immutable revision
+`837717ddb9ff5507820346191109dc79c958d614`. The model is published by
+pyannote under CC BY 4.0 and is attributed at its source:
+https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM
+License: https://creativecommons.org/licenses/by/4.0/
+
 The optional `@img/sharp-libvips-*` packages are conditionally permitted under
 LGPL-3.0-or-later only with the obligations in
 `supply-chain/conditional-license-obligations.json`, including a separate

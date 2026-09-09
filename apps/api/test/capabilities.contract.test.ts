@@ -23,8 +23,8 @@ const MODES: DeploymentMode[] = ['community-cloud', 'local-single', 'local-offic
 const ROWS: Row[] = MODES.flatMap((mode, modeIndex): Row[] => [
   [modeIndex * 6 + 1, mode, 'registry-empty', 'off', 'off', 'off', null, 'off', 'inactive'],
   [modeIndex * 6 + 2, mode, 'registry-empty', 'off', 'openai', 'off', null, 'openai', 'connected'],
-  [modeIndex * 6 + 3, mode, 'local', 'local', 'off', 'local', 'local-whisper-medium', 'off', 'connected'],
-  [modeIndex * 6 + 4, mode, 'local', 'local', 'openai', 'local', 'local-whisper-medium', 'openai', 'connected'],
+  [modeIndex * 6 + 3, mode, 'local', 'local', 'off', 'local', 'qwen3-asr', 'off', 'connected'],
+  [modeIndex * 6 + 4, mode, 'local', 'local', 'openai', 'local', 'qwen3-asr', 'openai', 'connected'],
   [modeIndex * 6 + 5, mode, 'azure', 'azure', 'off', 'azure', 'azure-speech-koreacentral', 'off', 'connected'],
   [modeIndex * 6 + 6, mode, 'azure', 'azure', 'openai', 'azure', 'azure-speech-koreacentral', 'openai', 'connected'],
 ]);
@@ -131,7 +131,7 @@ describe('decodeCapabilityManifest rejections', () => {
     const asLocal = { ...valid(), sttEngine: 'azure-speech-koreacentral' };
     expect(() => decodeCapabilityManifest(asLocal, [...SYNTHETIC_LOCAL_REGISTRY, ...SYNTHETIC_AZURE_REGISTRY])).toThrow(CapabilityManifestError);
     const azureRow = JSON.parse(JSON.stringify(buildCapabilityManifest(inputFor(ROWS[4]!)))) as Record<string, unknown>;
-    const asAzure = { ...azureRow, sttEngine: 'local-whisper-medium' };
+    const asAzure = { ...azureRow, sttEngine: 'qwen3-asr' };
     expect(() => decodeCapabilityManifest(asAzure, [...SYNTHETIC_LOCAL_REGISTRY, ...SYNTHETIC_AZURE_REGISTRY])).toThrow(CapabilityManifestError);
   });
 
@@ -181,10 +181,10 @@ describe('GET /capabilities', () => {
     const body = await response.json();
     const decoded = decodeCapabilityManifest(body, SYNTHETIC_LOCAL_REGISTRY);
     expect(decoded.mode).toBe('local-office');
-    // 빈 DB 는 Agent 폴링 흔적이 없어 inactive → local 은 unsupported 로 내려가고 off 가 선택된다.
+    // signed registry 에 local entry 가 있어도 readiness 검증 전에는 unverified 로 내려가고 off 가 선택된다.
     // azure 는 registry 에 entry 가 없으니 unverified 다.
     expect(decoded.sttMode).toBe('off');
-    expect(decoded.sttOptions[1]).toEqual({ mode: 'local', enabled: false, disabledReason: 'unsupported' });
+    expect(decoded.sttOptions[1]).toEqual({ mode: 'local', enabled: false, disabledReason: 'unverified' });
     expect(decoded.sttOptions[2]).toEqual({ mode: 'azure', enabled: false, disabledReason: 'unverified' });
     expect(decoded.agentStatus).toBe('inactive');
     const text = JSON.stringify(body);

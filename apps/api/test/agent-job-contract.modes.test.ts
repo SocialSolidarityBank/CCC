@@ -10,16 +10,23 @@ import {
   enqueueTextWorkItem,
   listSupportCasesForBeneficiary,
   recordPilotTextAiConsentEvidence,
+  recordSttReadiness,
   updateParticipantConsent,
+  type AgentRuntime,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
-import { claimRequest, seedNerQualification } from './support/agent-jobs';
+import {
+  claimRequest,
+  registerFixtureRecording,
+  seedCanonicalSttConsent,
+  seedNerQualification,
+} from './support/agent-jobs';
 import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './support/install-manifest';
 
 vi.setConfig({ testTimeout: 60_000 });
 
 const t = setupD1();
-const { counselor } = testActors;
+const { counselor, service } = testActors;
 
 const serviceHeaders = {
   'content-type': 'application/json',
@@ -46,12 +53,24 @@ async function envForMode(mode: DeploymentMode): Promise<ApiEnv> {
   };
 }
 
-/** 텍스트 일감 1건과 오디오 1건을 만든다. 오디오 바이트는 업로드 경로로 넣는다. */
-async function seedJobs(env: ApiEnv) {
+/** 텍스트 일감 1건과 모드별 전달 계약을 가진 합성 오디오 일감 1건을 만든다. */
+async function seedJobs(
+  env: ApiEnv,
+  mode: DeploymentMode = 'local-single',
+  expectedUploadStatus = 200,
+) {
   const beneficiary = await createCase(env, counselor, {});
   const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
+  await seedCanonicalSttConsent(env, counselor, supportCaseId);
+  await recordSttReadiness(env, service, {
+    schemaVersion: 1,
+    sttMode: 'local',
+    sttEngineId: 'qwen3-asr',
+    state: 'ready',
+    capacity: 1,
+  });
   await updateParticipantConsent(env, counselor, supportCaseId, { privacy: true, recordingAi: true });
   await recordPilotTextAiConsentEvidence(env, counselor, beneficiary.id, {
     noticeVersion: 'pilot-text-ai-v1',
@@ -81,13 +100,30 @@ async function seedJobs(env: ApiEnv) {
     actionItems: [],
     flags: [],
   });
-  const body = new Uint8Array(64).fill(7);
-  const upload = await worker.fetch(new Request(`http://localhost/sessions/${audioRecord.record.id}/audio`, {
-    method: 'PUT',
-    headers: { ...counselorHeaders, 'content-type': 'audio/mpeg', 'content-length': String(body.byteLength) },
-    body,
-  }), env);
-  expect(upload.status).toBe(200);
+  if (mode === 'community-cloud') {
+    const runtime: AgentRuntime = {
+      route: 'community-cloud-agent',
+      sttEngine: 'local',
+      sttEngineId: 'qwen3-asr',
+      audioDelivery: 'protected-get',
+    };
+    await registerFixtureRecording(env, counselor, service, audioRecord.record.id, runtime);
+    await env.DB.prepare(
+      "UPDATE audio_objects SET audio_delivery='protected-get' WHERE session_id=?",
+    ).bind(audioRecord.record.id).run();
+  } else {
+    const body = new Uint8Array(64).fill(7);
+    const upload = await worker.fetch(new Request(`http://localhost/sessions/${audioRecord.record.id}/audio`, {
+      method: 'PUT',
+      headers: { ...counselorHeaders, 'content-type': 'audio/mpeg', 'content-length': String(body.byteLength) },
+      body,
+    }), env);
+    expect(upload.status, await upload.clone().text()).toBe(expectedUploadStatus);
+    if (upload.status === 200) {
+      await env.DB.prepare('UPDATE audio_objects SET eligible_after=? WHERE session_id=?')
+        .bind(new Date(Date.now() - 1000).toISOString(), audioRecord.record.id).run();
+    }
+  }
   return { supportCaseId, textSessionId: textRecord.record.id, audioSessionId: audioRecord.record.id };
 }
 
@@ -115,6 +151,7 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
         jobs: Array<{ jobId: string; kind: string; route: string; claimToken: string; audio: { delivery: string } | null }>;
       };
       expect(claimed.schemaVersion).toBe(2);
+      expect(claimed.jobs.map((job) => job.kind).sort()).toEqual(['audio', 'text']);
       expect(claimed.jobs.map((job) => job.route)).toEqual([`${mode}-agent`, `${mode}-agent`]);
       const audioJob = claimed.jobs.find((job) => job.kind === 'audio');
       if (audioJob === undefined) throw new Error('expected an audio job');
@@ -147,6 +184,7 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
     const claimed = await response.json() as {
       jobs: Array<{ jobId: string; kind: string; claimToken: string; attempt: number; audio: { generationId: string } | null }>;
     };
+    expect(claimed.jobs.map((job) => job.kind).sort()).toEqual(['audio', 'text']);
     const audioJob = claimed.jobs.find((job) => job.kind === 'audio');
     if (audioJob === undefined || audioJob.audio === null) throw new Error('expected an audio job');
     const verify = (agentComputedSha256: string) => worker.fetch(new Request(
@@ -180,7 +218,7 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
   it('Community Cloud 는 signed GET 발급기가 붙기 전까지 원음 전달을 열지 않는다', async () => {
     await t.reset();
     const env = await envForMode('community-cloud');
-    await seedJobs(env);
+    await seedJobs(env, 'community-cloud');
     const { response } = await claim(env);
     const claimed = await response.json() as {
       jobs: Array<{ jobId: string; kind: string; route: string; claimToken: string; audio: { delivery: string } | null }>;
@@ -194,6 +232,77 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
     }), env);
     expect(protectedGet.status).toBe(503);
     await expect(protectedGet.json()).resolves.toEqual({ error: 'service_unavailable' });
+  });
+
+  it('upload-target admission and completion failures stay inside the structured HTTP error boundary', async () => {
+    await t.reset();
+    const env = await envForMode('community-cloud');
+    const beneficiary = await createCase(env, counselor, {});
+    const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
+    const supportCaseId = programs[0]?.supportCase.id;
+    if (supportCaseId === undefined) throw new Error('expected support case');
+    await seedCanonicalSttConsent(env, counselor, supportCaseId);
+    await recordSttReadiness(env, service, {
+      schemaVersion: 1,
+      sttMode: 'local',
+      sttEngineId: 'qwen3-asr',
+      state: 'ready',
+      capacity: 1,
+    });
+    const makeSession = async () => (await createCounselingRecord(env, counselor, supportCaseId, {
+      submissionId: crypto.randomUUID(),
+      heldAt: '2026-07-10T10:00:00.000Z',
+      channel: 'in_person',
+      memo: 'Synthetic target boundary fixture.',
+      gasScores: [],
+      actionItems: [],
+      flags: [],
+    })).record.id;
+    const requestTarget = (sessionId: string, targetEnv: ApiEnv) => worker.fetch(new Request(
+      `http://localhost/sessions/${sessionId}/audio-upload-target`,
+      {
+        method: 'POST',
+        headers: counselorHeaders,
+        body: JSON.stringify({
+          contentLength: 64,
+          contentType: 'audio/wav',
+          clientAssertedSha256: null,
+        }),
+      },
+    ), targetEnv);
+
+    const unavailableSession = await makeSession();
+    const unavailableEnv: ApiEnv = {
+      ...env,
+      audioStore: {
+        ...env.audioStore,
+        createUploadTarget: async () => null,
+      },
+    };
+    const unavailable = await requestTarget(unavailableSession, unavailableEnv);
+    expect(unavailable.status).toBe(503);
+    await expect(unavailable.json()).resolves.toEqual({ error: 'service_unavailable' });
+
+    const incompleteSession = await makeSession();
+    const incompleteEnv: ApiEnv = {
+      ...env,
+      audioStore: {
+        ...env.audioStore,
+        createUploadTarget: async (_key, metadata) => ({
+          url: 'https://storage.example.invalid/upload',
+          expiresAt: metadata.expiresAt,
+        }),
+      },
+    };
+    const target = await requestTarget(incompleteSession, incompleteEnv);
+    expect(target.status).toBe(201);
+    const targetBody = await target.json() as { audioObjectId: string };
+    const completion = await worker.fetch(new Request(
+      `http://localhost/sessions/${incompleteSession}/audio-upload-target/${targetBody.audioObjectId}/complete`,
+      { method: 'POST', headers: counselorHeaders },
+    ), incompleteEnv);
+    expect(completion.status).toBe(409);
+    await expect(completion.json()).resolves.toEqual({ error: 'conflict' });
   });
 
   it('사람은 job endpoint 를, Agent 는 업무 API 를 쓸 수 없다', async () => {
@@ -275,7 +384,7 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
       CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
       CCC_STT_MODE: 'local',
     };
-    await seedJobs(env);
+    await seedJobs(env, 'local-single', 422);
     const { response } = await claim(env);
     const claimed = await response.json() as { jobs: Array<{ kind: string; sttEngine: string | null }> };
     expect(claimed.jobs.map((job) => job.kind)).toEqual(['text']);

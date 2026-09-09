@@ -13,6 +13,8 @@
     "./install-manifest": "./src/install-manifest.ts",
     "./guards": "./src/guards.ts",
     "./agent-jobs": "./src/agent-jobs.ts",
+    "./consent": "./src/consent.ts",
+    "./stt-readiness": "./src/stt-readiness.ts",
     "./counseling-memory": "./src/counseling-memory.ts",
     "./sql": "./src/sql.ts"
   }

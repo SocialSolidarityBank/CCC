@@ -5,15 +5,15 @@ import hashlib
 import io
 import json
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from dataclasses import replace
 from unittest import mock
 
 from ccc_pipeline import api_client as api_client_module
 from ccc_pipeline import secure_memory
-from ccc_pipeline.api_client import ApiClient, ApiError, USER_AGENT
+from ccc_pipeline.api_client import ApiClient, ApiError, AudioDownloadError, USER_AGENT
 from ccc_pipeline.azure_stt import AzureSttError
 from ccc_pipeline.backup import BackupPolicy
 from ccc_pipeline.config import Config, ConfigError, load_config
@@ -46,16 +46,16 @@ RECEIPT_ID = "receipt-fixture"
 def make_config(work_dir: Path) -> Config:
     return Config(
         api_base_url="https://api.example",
-        client_id="cid",
-        client_secret="csec",
-        preview_access_code=None,
+        client_id=None,
+        client_secret=None,
+        preview_access_code="fixture-preview-code",
         poll_interval_seconds=1,
         work_dir=work_dir,
-        stt_model="medium",
-        stt_python=None,
+        stt_model="Qwen/Qwen3-ASR-1.7B",
+        stt_python=Path("/fixture/qwen/python"),
         stt_device="cpu",
         azure_speech_key=None,
-        stt_engine="whisper",
+        stt_engine="qwen3-asr",
         stt_max_chunk_seconds=180.0,
         stt_min_chunk_seconds=30.0,
         stt_repeat_threshold=4,
@@ -67,7 +67,8 @@ def make_config(work_dir: Path) -> Config:
         hf_token=None,
         ner_attestation=dict(ATTESTATION),
         ner_release_receipt_id=RECEIPT_ID,
-        runtime_environment="production",
+        runtime_environment="preview",
+        audio_download_origin="https://storage.example",
         backup_policy=BackupPolicy(),
     )
 
@@ -80,6 +81,8 @@ def text_job(job_id: str = "job-text-1", attempt: int = 1) -> dict:
         "state": "leased",
         "attempt": attempt,
         "claimToken": "t" * 64,
+        "sttEngine": None,
+        "sttEngineId": None,
         "audio": None,
     }
 
@@ -93,6 +96,7 @@ def audio_job(job_id: str = "job-audio-1", attempt: int = 1) -> dict:
         "attempt": attempt,
         "claimToken": "u" * 64,
         "sttEngine": "local",
+        "sttEngineId": "qwen3-asr",
         "audio": {"generationId": "generation-1", "delivery": "api-stream"},
     }
 
@@ -187,6 +191,19 @@ class ApiClientTest(unittest.TestCase):
             jobs = client.claim_jobs({})
         self.assertEqual(jobs[0]["jobId"], "job-text-1")
 
+    def test_claim_rejects_job_without_exact_engine_id_field(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        job = text_job()
+        del job["sttEngineId"]
+        payload = json.dumps({"schemaVersion": 2, "jobs": [job]}).encode()
+        with mock.patch.object(
+            api_client_module.urllib.request.OpenerDirector,
+            "open",
+            return_value=FakeResponse(payload),
+        ):
+            with self.assertRaises(ApiError):
+                client.claim_jobs({})
+
     def test_http_error_maps_to_api_error_without_body_leak(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
         error = api_client_module.urllib.error.HTTPError(
@@ -269,9 +286,134 @@ class ApiClientTest(unittest.TestCase):
             with mock.patch.object(
                 api_client_module.urllib.request.OpenerDirector, "open", return_value=FakeResponse(b"RIFFdata"),
             ) as open_url:
-                client.download_audio("job-1", "t" * 64, 1, dest)
+                client.download_audio("job-1", "t" * 64, 1, dest, delivery="api-stream")
             self.assertEqual(dest.read_bytes(), b"RIFFdata")
             self.assertEqual(open_url.call_args.args[0].get_header("X-ccc-job-attempt"), "1")
+
+    def test_protected_get_uses_only_the_signed_bearer_url_and_bounds_expiry(self):
+        client = ApiClient(
+            "https://api.example",
+            "cid",
+            "csec",
+            runtime_environment="production",
+            audio_download_origin="https://storage.example",
+        )
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        target = {
+            "delivery": "signed-get",
+            "url": "https://storage.example/private/audio?signature=fixture",
+            "expiresAt": expires_at,
+        }
+        with TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "audio.bin"
+            with (
+                mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(target).encode())),
+                mock.patch.object(client._storage_opener, "open", return_value=FakeResponse(b"RIFFdata")) as storage,
+            ):
+                client.download_audio("job-1", "t" * 64, 1, dest, delivery="protected-get")
+            request = storage.call_args.args[0]
+            self.assertEqual(request.full_url, target["url"])
+            self.assertIsNone(request.get_header("Authorization"))
+            self.assertIsNone(request.get_header("Cf-access-client-id"))
+            self.assertIsNone(request.get_header("X-ccc-job-claim"))
+            self.assertEqual(dest.read_bytes(), b"RIFFdata")
+
+    def test_protected_get_rejects_wrong_origin_before_storage_fetch(self):
+        client = ApiClient(
+            "https://api.example",
+            "cid",
+            "csec",
+            runtime_environment="production",
+            audio_download_origin="https://storage.example",
+        )
+        target = {
+            "delivery": "signed-get",
+            "url": "https://attacker.example/private/audio?signature=fixture",
+            "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        }
+        with (
+            TemporaryDirectory() as tmp,
+            mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(target).encode())),
+            mock.patch.object(client._storage_opener, "open") as storage,
+        ):
+            with self.assertRaises(AudioDownloadError):
+                client.download_audio(
+                    "job-1", "t" * 64, 1, Path(tmp) / "audio.bin", delivery="protected-get",
+                )
+        storage.assert_not_called()
+
+    def test_protected_get_rejects_missing_trusted_origin_before_storage_fetch(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        target = {
+            "delivery": "signed-get",
+            "url": "https://storage.example/private/audio?signature=fixture",
+            "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        }
+        with (
+            TemporaryDirectory() as tmp,
+            mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(target).encode())),
+            mock.patch.object(client._storage_opener, "open") as storage,
+        ):
+            with self.assertRaises(AudioDownloadError):
+                client.download_audio(
+                    "job-1", "t" * 64, 1, Path(tmp) / "audio.bin", delivery="protected-get",
+                )
+        storage.assert_not_called()
+
+    def test_audio_download_removes_oversized_partial_file(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        with TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "audio.bin"
+            with (
+                mock.patch.object(client, "_open", return_value=FakeResponse(b"12345")),
+                mock.patch.object(api_client_module, "_MAX_AUDIO_BYTES", 4),
+            ):
+                with self.assertRaises(AudioDownloadError):
+                    client.download_audio("job-1", "t" * 64, 1, dest, delivery="api-stream")
+            self.assertFalse(dest.exists())
+
+    def test_protected_download_never_deletes_a_preexisting_destination(self):
+        client = ApiClient(
+            "https://api.example", "cid", "csec",
+            runtime_environment="production",
+            audio_download_origin="https://storage.example",
+        )
+        target = {
+            "delivery": "signed-get",
+            "url": "https://storage.example/private/audio?signature=fixture",
+            "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        }
+        with TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "audio.bin"
+            dest.write_bytes(b"preexisting")
+            with (
+                mock.patch.object(client, "_open", return_value=FakeResponse(json.dumps(target).encode())),
+                mock.patch.object(client._storage_opener, "open", return_value=FakeResponse(b"replacement")),
+            ):
+                with self.assertRaises(AudioDownloadError):
+                    client.download_audio("job-1", "t" * 64, 1, dest, delivery="protected-get")
+            self.assertEqual(dest.read_bytes(), b"preexisting")
+
+    def test_readiness_posts_exact_frozen_contract(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        with mock.patch.object(
+            client, "_open", return_value=FakeResponse(b'{"accepted":true}'),
+        ) as opened:
+            client.report_readiness("local", "qwen3-asr", "ready", 1)
+        request = opened.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.example/pipeline/readiness")
+        self.assertEqual(json.loads(request.data), {
+            "schemaVersion": 1,
+            "sttMode": "local",
+            "sttEngineId": "qwen3-asr",
+            "state": "ready",
+            "capacity": 1,
+        })
+
+    def test_off_readiness_is_always_unavailable_with_zero_capacity(self):
+        client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
+        with self.assertRaises(ValueError):
+            client.report_readiness("off", None, "ready", 1)
 
     def test_egress_methods_wrap_the_existing_s5_endpoints(self):
         client = ApiClient("https://api.example", "cid", "csec", runtime_environment="production")
@@ -387,6 +529,57 @@ class ClaimRequestTest(unittest.TestCase):
 
 
 class RunOnceTest(unittest.TestCase):
+    def test_successful_health_response_cannot_reactivate_a_failed_runtime(self):
+        from ccc_pipeline import worker
+
+        client = mock.Mock()
+        runtime = worker.WorkerRuntime(mock.Mock())
+        reporter = worker._ReadinessReporter(client, make_config(Path("/tmp/unused")), runtime)
+
+        def concurrent_failure():
+            runtime.failed = True
+            reporter.mark_unavailable()
+
+        runtime.healthcheck = concurrent_failure
+        reporter.start_ready()
+        try:
+            reporter._refresh_runtime()
+            reporter._report()
+            self.assertEqual(client.report_readiness.call_args.args[-2:], ("unavailable", 0))
+        finally:
+            reporter.stop()
+
+    def test_worker_recovers_before_processing_again_after_runtime_failure(self):
+        from ccc_pipeline import worker
+
+        recovered = []
+        polls = 0
+
+        def preflight(_config):
+            runtime = worker.WorkerRuntime(mock.Mock())
+            runtime.failed = False
+            return runtime
+
+        def poll(_client, _config, *, runtime, readiness):
+            nonlocal polls
+            polls += 1
+            if polls == 1:
+                runtime.failed = True
+                raise RuntimeError("synthetic engine failure")
+            recovered.append(not runtime.failed)
+            raise KeyboardInterrupt
+
+        with (
+            mock.patch.object(worker, "preflight_worker", side_effect=preflight),
+            mock.patch.object(worker, "_ReadinessReporter"),
+            mock.patch.object(worker, "run_once", side_effect=poll),
+            mock.patch.object(worker, "run_memory_once"),
+            mock.patch.object(worker.time, "sleep"),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                worker.run_forever(mock.Mock(), make_config(Path("/tmp/unused")))
+        self.assertEqual(recovered, [True])
+
     def test_no_jobs_returns_zero(self):
         client = mock.Mock()
         client.claim_jobs.return_value = []
@@ -420,6 +613,23 @@ class RunOnceTest(unittest.TestCase):
                 self.assertEqual(run_once(client, make_config(Path(tmp))), 1)
         text.assert_called_once()
 
+    def test_checked_once_reports_ready_only_after_preflight_and_unavailable_on_exit(self):
+        from ccc_pipeline.worker import run_checked_once
+
+        client = mock.Mock()
+        client.claim_jobs.return_value = []
+        runtime = mock.Mock()
+        with TemporaryDirectory() as tmp, mock.patch(
+            "ccc_pipeline.worker.preflight_worker",
+            return_value=runtime,
+        ) as preflight:
+            self.assertEqual(run_checked_once(client, make_config(Path(tmp))), 0)
+        preflight.assert_called_once()
+        self.assertEqual(client.report_readiness.call_args_list, [
+            mock.call("local", "qwen3-asr", "ready", 1),
+            mock.call("local", "qwen3-asr", "unavailable", 0),
+        ])
+        runtime.close.assert_called_once()
 
     def test_missing_person_ner_releases_blocked_without_spending_an_attempt(self):
         client = dictionary_client()
@@ -492,6 +702,21 @@ class RunOnceTest(unittest.TestCase):
         # 서버가 이미 닫은 코드는 release 로 덧쓰지 않는다(terminal 은 하나).
         client.release.assert_not_called()
 
+    def test_failed_preflight_reports_unavailable_and_never_claims(self):
+        from ccc_pipeline.worker import run_checked_once
+
+        client = mock.Mock()
+        with TemporaryDirectory() as tmp, mock.patch(
+            "ccc_pipeline.worker.preflight_worker",
+            side_effect=RuntimeError("fixture unavailable"),
+        ):
+            with self.assertRaises(RuntimeError):
+                run_checked_once(client, make_config(Path(tmp)))
+        client.report_readiness.assert_called_once_with(
+            "local", "qwen3-asr", "unavailable", 0,
+        )
+        client.claim_jobs.assert_not_called()
+
     def test_schema_rejection_is_closed_by_the_agent(self):
         """형식 거부는 서버가 상태를 안 바꾸므로 Agent 가 같은 이름의 permanent 로 닫는다."""
         client = dictionary_client()
@@ -559,7 +784,11 @@ class RunOnceTest(unittest.TestCase):
         ):
             with self.subTest(status=error.status), TemporaryDirectory() as tmp:
                 client = mock.Mock()
-                client.claim_jobs.return_value = [{**audio_job(), "sttEngine": "azure"}]
+                client.claim_jobs.return_value = [{
+                    **audio_job(),
+                    "sttEngine": "azure",
+                    "sttEngineId": "azure-speech-koreacentral",
+                }]
                 config = replace(
                     make_config(Path(tmp)),
                     stt_engine="azure",
@@ -776,6 +1005,19 @@ class TextJobTest(unittest.TestCase):
         # 결과도 완료도 일어나지 않는다 — 작업은 blocked 로 닫히고 NER 회복 뒤 다시 임대된다.
         client.post_result.assert_not_called()
 
+    def test_text_job_requires_present_null_route_and_engine_id_before_source_fetch(self):
+        from ccc_pipeline.worker import _RouteMismatchError
+
+        missing_id = text_job()
+        del missing_id["sttEngineId"]
+        for job in ({**text_job(), "sttEngineId": "qwen3-asr"}, missing_id):
+            with self.subTest(keys=tuple(job)), TemporaryDirectory() as tmp:
+                client = dictionary_client()
+                with self.assertRaises(_RouteMismatchError):
+                    process_text_job(client, make_config(Path(tmp)), job)
+                client.get_source.assert_not_called()
+                client.post_result.assert_not_called()
+
 
 class AudioJobTest(unittest.TestCase):
     def _run_audio_job(self, client: mock.Mock, config: Config, backup_adapters=None) -> None:
@@ -783,7 +1025,8 @@ class AudioJobTest(unittest.TestCase):
         from ccc_pipeline.transcribe import TranscriptionResult
         from ccc_pipeline.worker import process_audio_job
 
-        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
+            self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(b"synthetic-audio")
             return dest
@@ -832,7 +1075,8 @@ class AudioJobTest(unittest.TestCase):
         client = dictionary_client()
         created_dirs: list[Path] = []
 
-        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
+            self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(b"audio")
             created_dirs.append(dest.parent)
@@ -867,7 +1111,15 @@ class AudioJobTest(unittest.TestCase):
         events: list[str] = []
         transcription = TranscriptionResult([Segment(0.0, 1.0, "RAW_SYNTHETIC_TRANSCRIPT")])
 
-        def fake_download(_job_id: str, _claim_token: str, _attempt: int, dest: Path) -> Path:
+        def fake_download(
+            _job_id: str,
+            _claim_token: str,
+            _attempt: int,
+            dest: Path,
+            *,
+            delivery: str,
+        ) -> Path:
+            self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(b"synthetic-audio")
             return dest
@@ -926,9 +1178,9 @@ class AudioJobTest(unittest.TestCase):
 
         client.post_result.assert_called_once()
 
-    def test_route_mismatch_is_rejected_before_side_effects(self):
+    def test_exact_engine_id_mismatch_is_rejected_before_side_effects(self):
         client = mock.Mock()
-        mismatched = {**audio_job(), "sttEngine": "azure"}
+        mismatched = {**audio_job(), "sttEngineId": "azure-speech-koreacentral"}
         client.claim_jobs.return_value = [mismatched]
         with TemporaryDirectory() as tmp:
             with mock.patch("ccc_pipeline.worker.MaskingLayers") as layers:
@@ -946,7 +1198,8 @@ class AudioJobTest(unittest.TestCase):
 
         client = dictionary_client()
 
-        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
+            self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(b"synthetic-audio")
             return dest
@@ -974,7 +1227,11 @@ class AudioJobTest(unittest.TestCase):
             "state": "in_flight",
             "startedAt": "2026-09-08T00:00:00.000Z",
         }
-        azure_job = {**audio_job(), "sttEngine": "azure"}
+        azure_job = {
+            **audio_job(),
+            "sttEngine": "azure",
+            "sttEngineId": "azure-speech-koreacentral",
+        }
 
         with TemporaryDirectory() as tmp:
             config = replace(
@@ -1027,7 +1284,8 @@ class AudioJobTest(unittest.TestCase):
 
         client = dictionary_client()
 
-        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+        def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
+            self.assertEqual(delivery, "api-stream")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(b"synthetic-audio")
             return dest
@@ -1067,7 +1325,11 @@ class AudioJobTest(unittest.TestCase):
                 mock.patch("ccc_pipeline.worker.transcribe_azure", side_effect=enter_adapter),
             ):
                 with self.assertRaises(AzureSttError):
-                    process_audio_job(client, config, {**audio_job(), "sttEngine": "azure"})
+                    process_audio_job(client, config, {
+                        **audio_job(),
+                        "sttEngine": "azure",
+                        "sttEngineId": "azure-speech-koreacentral",
+                    })
             self.assertFalse((Path(tmp) / ".azure-egress-attempts").exists())
         client.start_egress.assert_not_called()
 
@@ -1102,6 +1364,7 @@ class EnvironmentIsolationTest(unittest.TestCase):
             "CCC_ORIGINAL_BACKUP_ENABLED": "off",
             "CCC_NER_ATTESTATION": json.dumps(ATTESTATION),
             "CCC_NER_RELEASE_RECEIPT_ID": RECEIPT_ID,
+            "CCC_AUDIO_DOWNLOAD_ORIGIN": "https://storage.example",
         }
 
     def test_default_off_rejects_audio_before_download_or_model_loading(self):
@@ -1119,21 +1382,13 @@ class EnvironmentIsolationTest(unittest.TestCase):
             client.download_audio.assert_not_called()
             layers.assert_not_called()
 
-    def test_candidate_requires_explicit_selection_and_nonproduction_environment(self):
+    def test_worker_config_rejects_legacy_stt_engines(self):
         env = {
             **self.base_env(),
             "CCC_RUNTIME_ENVIRONMENT": "preview",
             "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-code",
             "CCC_STT_ENGINE": "faster-whisper-int8-cpu",
         }
-        with mock.patch.dict("os.environ", env, clear=True):
-            self.assertEqual(load_config().stt_engine, "faster-whisper-int8-cpu")
-        del env["CCC_PREVIEW_E2E_ACCESS_CODE"]
-        env.update(
-            CCC_RUNTIME_ENVIRONMENT="production",
-            CCC_PIPELINE_CLIENT_ID="fixture-id",
-            CCC_PIPELINE_CLIENT_SECRET="fixture-secret",
-        )
         with mock.patch.dict("os.environ", env, clear=True):
             with self.assertRaises(ConfigError):
                 load_config()
@@ -1204,19 +1459,44 @@ class EnvironmentIsolationTest(unittest.TestCase):
                     with self.assertRaises(ConfigError):
                         load_config()
 
-    def test_stt_config_uses_clean_generic_names_and_hides_azure_key(self):
+    def test_installed_credentials_do_not_activate_stt_when_mode_is_off(self):
         env = {
             **self.base_env(),
             "CCC_RUNTIME_ENVIRONMENT": "preview",
             "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
-            "CCC_STT_MODEL": "fixture-model",
+            "CCC_STT_MODEL": "Qwen/Qwen3-ASR-1.7B",
+            "CCC_STT_PYTHON": "/opt/ccc-qwen/bin/python",
+            "AZURE_SPEECH_KEY": "azure-secret-fixture",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            config = load_config()
+        self.assertEqual(config.stt_engine, "off")
+
+    def test_stt_config_hides_azure_key(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+            "CCC_STT_ENGINE": "azure",
             "CCC_STT_DEVICE": "mps",
             "AZURE_SPEECH_KEY": "azure-secret-fixture",
         }
         with mock.patch.dict("os.environ", env, clear=True):
             config = load_config()
-        self.assertEqual(config.stt_model, "fixture-model")
+        self.assertEqual(config.stt_engine, "azure")
         self.assertNotIn("azure-secret-fixture", repr(config))
+
+
+    def test_audio_download_origin_must_be_an_exact_https_origin(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+            "CCC_AUDIO_DOWNLOAD_ORIGIN": "https://storage.example/private",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            with self.assertRaises(ConfigError):
+                load_config()
 
     def test_qwen_requires_an_explicit_python_runtime(self):
         env = {
@@ -1236,6 +1516,19 @@ class EnvironmentIsolationTest(unittest.TestCase):
             config = load_config()
         self.assertEqual(config.stt_model, "Qwen/Qwen3-ASR-1.7B")
         self.assertEqual(config.stt_python, Path("/opt/ccc-qwen/bin/python"))
+
+    def test_qwen_model_id_is_fixed(self):
+        env = {
+            **self.base_env(),
+            "CCC_RUNTIME_ENVIRONMENT": "preview",
+            "CCC_PREVIEW_E2E_ACCESS_CODE": "fixture-preview-code",
+            "CCC_STT_ENGINE": "qwen3-asr",
+            "CCC_STT_MODEL": "another/model",
+            "CCC_STT_PYTHON": "/opt/ccc-qwen/bin/python",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            with self.assertRaises(ConfigError):
+                load_config()
 
     def test_azure_requires_key_and_exposes_no_local_runtime_backdoor(self):
         env = {
@@ -1273,6 +1566,21 @@ class DeviceReadinessTest(unittest.TestCase):
             with mock.patch("ccc_pipeline.worker.shutil.which", return_value="/usr/bin/ffmpeg"):
                 with self.assertRaises(MaskingConfigError):
                     assert_device_ready(config)
+
+    def test_azure_preflight_runs_only_after_required_ner_loads(self):
+        from ccc_pipeline.worker import preflight_worker
+
+        calls = []
+        config = replace(make_config(Path("/tmp")), stt_engine="azure", azure_speech_key="fixture-key")
+        with (
+            mock.patch("ccc_pipeline.worker.assert_device_ready"),
+            mock.patch("ccc_pipeline.worker.MaskingLayers", side_effect=lambda _config: calls.append("ner") or mock.Mock()),
+            mock.patch("ccc_pipeline.worker.preflight_azure", side_effect=lambda _key: calls.append("azure")),
+            mock.patch("ccc_pipeline.worker.build_engine") as build_engine,
+        ):
+            preflight_worker(config)
+        self.assertEqual(calls, ["ner", "azure"])
+        build_engine.assert_not_called()
 
 
 if __name__ == "__main__":

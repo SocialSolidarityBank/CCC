@@ -81,19 +81,25 @@ check('API 0(연결 실패)이면 실패', apiSmokeVerdict(0).ok === false);
 
 // ---------------------------------------------------------------- cronVerdict
 
-const 크론둘다 = 'Trigger: schedule */30 * * * *\nTrigger: schedule 0 3 * * *';
-check('크론 둘 다 보이면 통과', cronVerdict(크론둘다).ok === true);
+const 크론전부 = [
+  'Trigger: schedule */5 * * * *',
+  'Trigger: schedule */30 * * * *',
+  'Trigger: schedule 0 3 * * *',
+].join('\n');
+check('필수 크론이 모두 보이면 통과', cronVerdict(크론전부).ok === true);
 {
-  const v = cronVerdict('Trigger: schedule */30 * * * *');
-  check('파기 크론이 빠지면 실패', v.ok === false && v.missing.includes('0 3 * * *'));
+  const v = cronVerdict('Trigger: schedule */30 * * * *\nTrigger: schedule 0 3 * * *');
+  check('원음 재조정 크론이 빠지면 실패', v.ok === false && v.missing.includes('*/5 * * * *'));
 }
 {
   const v = cronVerdict('');
-  check('빈 출력이면 실패(둘 다 누락)', v.ok === false && v.missing.length === 2);
+  check('빈 출력이면 실패(필수 크론 모두 누락)', v.ok === false && v.missing.length === 3);
 }
 check(
-  '필수 크론이 워치독·파기 둘이다 (cron-schedule.ts 와 일치)',
-  REQUIRED_PRODUCTION_CRONS.includes('*/30 * * * *') && REQUIRED_PRODUCTION_CRONS.includes('0 3 * * *'),
+  '필수 크론이 원음 재조정, 워치독, 파기다 (cron-schedule.ts 와 일치)',
+  REQUIRED_PRODUCTION_CRONS.includes('*/5 * * * *')
+    && REQUIRED_PRODUCTION_CRONS.includes('*/30 * * * *')
+    && REQUIRED_PRODUCTION_CRONS.includes('0 3 * * *'),
 );
 
 // ---------------------------------------------------------------- rollbackGuidance

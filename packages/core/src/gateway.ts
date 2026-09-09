@@ -18,10 +18,27 @@
  */
 
 import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
-import type { CoreSecretStore } from '@ccc/contracts/runtime';
+import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/contracts/runtime';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
+import {
+  CONSENT_COPY,
+  CONSENT_COPY_VERSION,
+  CONSENT_DOMAINS,
+  consentCopyPreimage,
+  consentRevision,
+  sha256Hex as consentSha256Hex,
+  type AppendConsentEventInput,
+  type ConsentDisclosureSnapshot,
+  type ConsentDomain,
+  type ConsentEvent,
+  type ConsentGateReceipt,
+  type ConsentGateReceiptEntry,
+  type CurrentConsentState,
+  type ProviderId,
+} from '@ccc/contracts/consent';
+import type { SttEngineId, SttReadinessRecord, SttReadinessReport } from '@ccc/contracts/stt-readiness';
 import { AGENT_SCOPES, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason } from '@ccc/contracts/runtime';
 import {
   AGENT_JOB_ERROR_CODES,
@@ -99,6 +116,8 @@ export interface Env {
    * 검토가 끝난 한 건의 비가역 파기를 허용한다. 아카이브·재검토 cron은 이 값과 무관하다.
    */
   PII_PURGE_ENABLED?: string;
+  /** Versioned `kr-business-days-v1` calendar JSON. Missing or stale calendars fail recording admission closed. */
+  CCC_KR_BUSINESS_CALENDAR?: string;
 }
 
 // ── 호출자(Actor) ───────────────────────────────────────────────────────────
@@ -133,6 +152,21 @@ export class AgentJobContractError extends Error {
   ) {
     super(code);
     this.retryable = code === 'engine_unavailable';
+  }
+}
+export type ConsentErrorCode =
+  | 'backdated_consent_event'
+  | 'consent_disclosure_mismatch'
+  | 'consent_not_effective'
+  | 'future_effective_at'
+  | 'idempotency_conflict'
+  | 'provider_registry_unavailable'
+  | 'provider_scope_mismatch'
+  | 'revision_conflict';
+export class ConsentContractError extends Error {
+  readonly statusCode = 409;
+  constructor(readonly code: ConsentErrorCode) {
+    super(code);
   }
 }
 /** Phase 1 파일럿 증적이 없어서 텍스트 AI를 시작·검토할 수 없다. */
@@ -803,6 +837,7 @@ function mapAiDraftVersion(
     sourceSnapshotId: nullableString(row.source_snapshot_id),
     sourceSnapshotHash: nullableString(row.source_snapshot_hash),
     consentEvidenceId: nullableString(row.consent_evidence_id),
+    consentRevision: nullableString(row.consent_revision),
     providerConfigId: nullableString(row.provider_config_id),
     modelId: nullableString(row.model_id),
     promptVersion: nullableString(row.prompt_version),
@@ -1683,7 +1718,7 @@ async function assertServiceTextAiSessionGrant(
   actor: Actor,
   sessionId: string,
   options: { allowCounselor?: boolean } = {},
-): Promise<{ session: Session; consentEvidenceId: string }> {
+): Promise<{ session: Session; consentEvidenceId: string; consentReceipt: ConsentGateReceipt }> {
   const session = options.allowCounselor === true && actor.role !== 'service'
     ? await assertPhase1SessionWriteAccess(env, actor, sessionId)
     : await assertServiceSessionAccess(env, actor, sessionId, 'pilot_text_ai_consent_evidence');
@@ -1697,37 +1732,33 @@ async function assertServiceTextAiSessionGrant(
     throw new TextAiPilotDisabledError();
   }
 
-  // CCC-110: 근거 행(pilot_text_ai_consent_evidence)은 append-only **이력**이라 철회해도 남는다.
-  // 현재 사용 허용은 support_cases.consent_text_ai_at 이 결정한다 — 철회가 이 컴럼을 NULL 로
-  // 되돌리므로, 이력 보존과 사용 허용을 분리해 둘 다 함께 본다.
-  const evidence = await env.DB.prepare(
-    `SELECT evidence.id
-     FROM pilot_text_ai_consent_evidence AS evidence
-     JOIN support_cases AS support_case
-       ON support_case.id = evidence.support_case_id AND support_case.org_id = evidence.org_id
-     WHERE evidence.org_id = ? AND evidence.support_case_id = ?
-       AND evidence.effective_at <= ?
-       AND support_case.consent_text_ai_at IS NOT NULL
-     ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
-     LIMIT 1`,
-  ).bind(actor.orgId, context.supportCaseId, now()).first<{ id: string }>();
-  if (evidence === null) {
+  let receipt: ConsentGateReceipt;
+  try {
+    receipt = await assertConsentGate(env, actor.orgId, context.supportCaseId, [
+      'external_llm_cross_border_processing',
+      'personal_data_collection_use',
+      'sensitive_information_processing',
+    ]);
+  } catch (error) {
     await writePhase1Denial(env, actor, {
-      targetTable: 'pilot_text_ai_consent_evidence',
+      targetTable: 'consent_events',
       caseId: session.caseId,
-      reason: 'pilot_text_ai_consent_required',
+      reason: 'consent_not_effective',
     });
-    throw new PilotTextAiConsentRequiredError();
+    throw error;
   }
-
+  const consentEvent = receipt.required.find(
+    (entry) => entry.domain === 'external_llm_cross_border_processing',
+  );
+  if (consentEvent === undefined) throw new ConsentContractError('consent_not_effective');
   await writeAudit(env, actor, {
     action: 'read',
-    targetTable: 'pilot_text_ai_consent_evidence',
-    targetId: evidence.id,
+    targetTable: 'consent_events',
+    targetId: consentEvent.eventId,
     caseId: session.caseId,
     detail: { purpose: 'service_text_ai_grant_check' },
   });
-  return { session, consentEvidenceId: evidence.id };
+  return { session, consentEvidenceId: consentEvent.eventId, consentReceipt: receipt };
 }
 
 async function getAiWorkItemForOrg(env: Env, orgId: string, workItemId: string): Promise<AiWorkItem> {
@@ -1920,6 +1951,7 @@ async function getCurrentAiDraftVersion(env: Env, orgId: string, workItemId: str
        draft.source_snapshot_id,
        draft.source_snapshot_hash,
        draft.consent_evidence_id,
+       draft.consent_revision,
        draft.provider_config_id,
        draft.model_id,
        draft.prompt_version,
@@ -2017,6 +2049,11 @@ function assertGeneratedAiDraftInput(
     const generated = input as GeneratedAiDraftInput;
     assertOpaqueIdentifier(generated.providerConfigId, 'provider config id');
     assertOpaqueIdentifier(generated.consentEvidenceId, 'consent evidence id');
+    assertSha256(generated.consentRevision, 'consent revision');
+    if (
+      generated.consentReceipt.consentRevision !== generated.consentRevision
+      || generated.consentReceipt.required.length !== 3
+    ) throw new ValidationError('consent receipt is invalid');
   }
 
   if (requireKind) {
@@ -2636,6 +2673,7 @@ export interface ServiceTextAiSessionGrant {
   sessionId: string;
   caseId: string;
   consentEvidenceId: string;
+  consentRevision: string;
 }
 
 /** Immutable, fully masked source evidence scoped to one source snapshot. */
@@ -2821,6 +2859,7 @@ export interface AiDraftVersion {
   sourceSnapshotId: string | null;
   sourceSnapshotHash: string | null;
   consentEvidenceId: string | null;
+  consentRevision: string | null;
   providerConfigId: string | null;
   modelId: string | null;
   promptVersion: string | null;
@@ -2906,6 +2945,8 @@ export interface GeneratedAiDraftInput extends AiDraftContentInput, AiDraftMater
   kind?: string;
   providerConfigId: string;
   consentEvidenceId: string;
+  consentRevision: string;
+  consentReceipt: ConsentGateReceipt;
 }
 
 /** Built-in Preview output. Provider identity is deliberately impossible to supply. */
@@ -2957,6 +2998,8 @@ export interface ActiveAiProviderRuntimeMetadata {
 export interface AiProviderExecutionSelection extends ActiveAiProviderRuntimeMetadata {
   providerConfigId: string;
   consentEvidenceId: string;
+  consentRevision: string;
+  consentReceipt: ConsentGateReceipt;
 }
 /**
  * Safe, content-free pilot-consent metadata for UI/API status checks. The
@@ -3097,19 +3140,8 @@ export async function getActiveAiProviderRuntimeMetadataForService(
        config.id AS config_id,
        config.adapter_id,
        config.adapter_version,
-       config.config_hash,
-       evidence.id AS consent_evidence_id
+       config.config_hash
      FROM sessions AS session
-     INNER JOIN pilot_text_ai_consent_evidence AS evidence
-       ON evidence.id = (
-         SELECT latest.id
-         FROM pilot_text_ai_consent_evidence AS latest
-         WHERE latest.org_id = session.org_id
-           AND latest.support_case_id = session.support_case_id
-           AND latest.effective_at <= ?
-         ORDER BY latest.effective_at DESC, latest.created_at DESC, latest.id DESC
-         LIMIT 1
-       )
      INNER JOIN ai_provider_activations AS activation
        ON activation.org_id = session.org_id
       AND activation.deactivated_at IS NULL
@@ -3119,7 +3151,7 @@ export async function getActiveAiProviderRuntimeMetadataForService(
      WHERE session.id = ? AND session.org_id = ?
      ORDER BY activation.activated_at DESC, activation.id DESC
      LIMIT 1`,
-  ).bind(now(), sessionId, actor.orgId).first<DbRow>();
+  ).bind(sessionId, actor.orgId).first<DbRow>();
   if (row === null) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_provider_configs',
@@ -3131,7 +3163,9 @@ export async function getActiveAiProviderRuntimeMetadataForService(
 
   const metadata: AiProviderExecutionSelection = {
     providerConfigId: stringValue(row.config_id),
-    consentEvidenceId: stringValue(row.consent_evidence_id),
+    consentEvidenceId: grant.consentEvidenceId,
+    consentRevision: grant.consentReceipt.consentRevision,
+    consentReceipt: grant.consentReceipt,
     adapterId: stringValue(row.adapter_id),
     adapterVersion: stringValue(row.adapter_version),
     configHash: stringValue(row.config_hash),
@@ -3494,49 +3528,44 @@ export async function assertPilotTextAiConsent(
   env: Env,
   actor: Actor,
   caseId: string,
-): Promise<PilotTextAiConsentEvidence> {
-  await assertPhase1CaseAccess(env, actor, caseId, 'pilot_text_ai_consent_evidence');
+): Promise<{ id: string; receipt: ConsentGateReceipt }> {
+  await assertPhase1CaseAccess(env, actor, caseId, 'consent_events');
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
-
   if (!isPilotTextAiEnabled(env)) {
     await writePhase1Denial(env, actor, {
-      targetTable: 'pilot_text_ai_consent_evidence',
+      targetTable: 'consent_events',
       caseId,
       reason: 'text_ai_pilot_disabled',
     });
     throw new TextAiPilotDisabledError();
   }
-
-  const row = await env.DB.prepare(
-    `SELECT evidence.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
-     FROM pilot_text_ai_consent_evidence AS evidence
-     JOIN support_cases AS support_case ON support_case.id = evidence.support_case_id
-     WHERE evidence.org_id = ? AND evidence.support_case_id = ?
-       AND evidence.effective_at <= ?
-       -- CCC-110: 근거 행은 append-only 이력이라 철회해도 삭제·수정하지 않는다. 현재
-       -- 사용 허용은 support_cases.consent_text_ai_at 이 결정한다(철회 시 NULL).
-       AND support_case.consent_text_ai_at IS NOT NULL
-     ORDER BY evidence.effective_at DESC, evidence.created_at DESC, evidence.id DESC
-     LIMIT 1`,
-  ).bind(actor.orgId, context.supportCaseId, now()).first<DbRow>();
-  if (row === null) {
+  let receipt: ConsentGateReceipt;
+  try {
+    receipt = await assertConsentGate(env, actor.orgId, context.supportCaseId, [
+      'external_llm_cross_border_processing',
+      'personal_data_collection_use',
+      'sensitive_information_processing',
+    ]);
+  } catch (error) {
     await writePhase1Denial(env, actor, {
-      targetTable: 'pilot_text_ai_consent_evidence',
+      targetTable: 'consent_events',
       caseId,
-      reason: 'pilot_text_ai_consent_required',
+      reason: 'consent_not_effective',
     });
-    throw new PilotTextAiConsentRequiredError();
+    throw error;
   }
-
-  const evidence = mapPilotTextAiConsentEvidence(row);
+  const consentEvent = receipt.required.find(
+    (entry) => entry.domain === 'external_llm_cross_border_processing',
+  );
+  if (consentEvent === undefined) throw new ConsentContractError('consent_not_effective');
   await writeAudit(env, actor, {
     action: 'read',
-    targetTable: 'pilot_text_ai_consent_evidence',
-    targetId: evidence.id,
+    targetTable: 'consent_events',
+    targetId: consentEvent.eventId,
     caseId,
-    detail: { purpose: 'text_ai_pilot_grant_check' },
+    detail: { purpose: 'text_ai_grant_check' },
   });
-  return evidence;
+  return { id: consentEvent.eventId, receipt };
 }
 /**
  * Reasserts the Phase-1 text-AI grant for a service-bound session immediately
@@ -3552,6 +3581,7 @@ export async function assertPilotTextAiConsentForService(
     sessionId: grant.session.id,
     caseId: grant.session.caseId,
     consentEvidenceId: grant.consentEvidenceId,
+    consentRevision: grant.consentReceipt.consentRevision,
   };
 }
 
@@ -4077,6 +4107,8 @@ export async function createGeneratedAiDraft(
   if (
     providerRuntime.providerConfigId !== normalizedInput.providerConfigId
     || providerRuntime.consentEvidenceId !== normalizedInput.consentEvidenceId
+    || providerRuntime.consentRevision !== normalizedInput.consentRevision
+    || canonicalizeJcs(providerRuntime.consentReceipt) !== canonicalizeJcs(normalizedInput.consentReceipt)
   ) {
     await writePhase1Denial(env, actor, {
       targetTable: 'ai_draft_versions',
@@ -4088,6 +4120,8 @@ export async function createGeneratedAiDraft(
   }
   const consentEvidenceId = normalizedInput.consentEvidenceId;
   const providerConfigId = normalizedInput.providerConfigId;
+  const consentRevision = normalizedInput.consentRevision;
+  const consentReceiptJson = canonicalizeJcs(normalizedInput.consentReceipt);
   const maskedInput = await maskGeneratedAiDraftInput(env, actor, session.caseId, normalizedInput);
   let attestedEvidence: AttestedAiEvidenceInput[];
   try {
@@ -4157,14 +4191,18 @@ export async function createGeneratedAiDraft(
   );
 
   try {
-    const statements: PreparedStatement[] = [];
+    const statements: PreparedStatement[] = [
+      env.DB.prepare(
+        'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+      ).bind(context.supportCaseId, actor.orgId),
+    ];
     if (existingWorkItem === null) {
       statements.push(env.DB.prepare(
         'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       ).bind(workItem.id, actor.orgId, context.supportCaseId, workItem.sessionId, workItem.kind, workItem.createdAt));
     }
     statements.push(env.DB.prepare(
-      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, consent_revision, consent_receipt_json, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
       draftId,
       workItem.id,
@@ -4177,6 +4215,8 @@ export async function createGeneratedAiDraft(
       sourceSnapshot.id,
       sourceSnapshot.sha256,
       consentEvidenceId,
+      consentRevision,
+      consentReceiptJson,
       providerConfigId,
       maskedInput.modelId,
       maskedInput.promptVersion,
@@ -4274,6 +4314,7 @@ export async function createGeneratedAiDraft(
     sourceSnapshotId: sourceSnapshot.id,
     sourceSnapshotHash: sourceSnapshot.sha256,
     consentEvidenceId,
+    consentRevision,
     providerConfigId,
     modelId: maskedInput.modelId,
     promptVersion: maskedInput.promptVersion,
@@ -4342,6 +4383,8 @@ export async function createFixtureGeneratedAiDraftForService(
       modelId: 'fixture',
       providerConfigId: 'fixture',
       consentEvidenceId: serviceGrant.consentEvidenceId,
+      consentRevision: serviceGrant.consentReceipt.consentRevision,
+      consentReceipt: serviceGrant.consentReceipt,
     } as GeneratedAiDraftInput, true);
     assertAiDraftMaterialsInput(normalizedInput, normalizedInput.sourceSnapshotId ?? '');
   } catch (error) {
@@ -4446,7 +4489,11 @@ export async function createFixtureGeneratedAiDraftForService(
     sessionId,
     maskedInput.flagSuggestions,
   );
-  const statements: PreparedStatement[] = [];
+  const statements: PreparedStatement[] = [
+    env.DB.prepare(
+      'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+    ).bind(context.supportCaseId, actor.orgId),
+  ];
   if (existingWorkItem === null) {
     statements.push(env.DB.prepare(
       'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -4454,7 +4501,7 @@ export async function createFixtureGeneratedAiDraftForService(
   }
   statements.push(
     env.DB.prepare(
-      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, consent_revision, consent_receipt_json, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).bind(
       draftId,
       workItem.id,
@@ -4467,6 +4514,8 @@ export async function createFixtureGeneratedAiDraftForService(
       sourceSnapshot.id,
       sourceSnapshot.sha256,
       serviceGrant.consentEvidenceId,
+      serviceGrant.consentReceipt.consentRevision,
+      canonicalizeJcs(serviceGrant.consentReceipt),
       null,
       null,
       maskedInput.promptVersion,
@@ -4563,6 +4612,7 @@ export async function createFixtureGeneratedAiDraftForService(
     sourceSnapshotId: sourceSnapshot.id,
     sourceSnapshotHash: sourceSnapshot.sha256,
     consentEvidenceId: serviceGrant.consentEvidenceId,
+    consentRevision: serviceGrant.consentReceipt.consentRevision,
     providerConfigId: null,
     modelId: null,
     promptVersion: maskedInput.promptVersion,
@@ -4740,7 +4790,10 @@ async function editGeneratedAiDraft(
   try {
     const statements: PreparedStatement[] = [
       env.DB.prepare(
-        'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+      ).bind(editContext.supportCaseId, actor.orgId),
+      env.DB.prepare(
+        'INSERT INTO ai_draft_versions (id, work_item_id, version, parent_version_id, summary_text, claims_json, one_liner, questions_json, source_snapshot_id, source_snapshot_hash, consent_evidence_id, consent_revision, consent_receipt_json, provider_config_id, model_id, prompt_version, schema_version, origin, creation_mode, grounding_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         draftId,
         workItem.id,
@@ -4753,6 +4806,8 @@ async function editGeneratedAiDraft(
         current.sourceSnapshotId,
         current.sourceSnapshotHash,
         consentEvidence.id,
+        consentEvidence.receipt.consentRevision,
+        canonicalizeJcs(consentEvidence.receipt),
         current.providerConfigId,
         current.modelId,
         current.promptVersion,
@@ -4834,6 +4889,7 @@ async function editGeneratedAiDraft(
     sourceSnapshotId: current.sourceSnapshotId,
     sourceSnapshotHash: current.sourceSnapshotHash,
     consentEvidenceId: consentEvidence.id,
+    consentRevision: consentEvidence.receipt.consentRevision,
     providerConfigId: current.providerConfigId,
     modelId: current.modelId,
     promptVersion: current.promptVersion,
@@ -4901,10 +4957,14 @@ export async function reviewGeneratedAiDraft(
     throw error;
   }
 
-  await assertPilotTextAiConsent(env, actor, workItem.caseId);
+  const reviewConsent = await assertPilotTextAiConsent(env, actor, workItem.caseId);
   let current: AiDraftVersion;
   try {
     current = await getCurrentAiDraftVersion(env, actor.orgId, workItem.id);
+    if (
+      current.consentEvidenceId !== reviewConsent.id
+      || current.consentRevision !== reviewConsent.receipt.consentRevision
+    ) throw new StaleDraftVersionError();
     assertCurrentGeneratedPendingDraft(current, expectedVersion);
   } catch (error) {
     await writePhase1Denial(env, actor, {
@@ -4958,8 +5018,12 @@ export async function reviewGeneratedAiDraft(
   }
 
   const reviewedAt = now();
+  const reviewContext = await resolveLegacyCaseContext(env, actor.orgId, workItem.caseId);
   try {
     const statements: PreparedStatement[] = [
+      env.DB.prepare(
+        'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+      ).bind(reviewContext.supportCaseId, actor.orgId),
       env.DB.prepare(
         'INSERT INTO ai_review_events (id, work_item_id, draft_version_id, decision, replacement_draft_id, actor_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ).bind(newId(), workItem.id, current.id, decision, null, actor.userId, reviewedAt),
@@ -6383,12 +6447,8 @@ async function assertRecordingUploadAllowedForSession(
   actor: Actor,
   session: Session,
 ): Promise<void> {
-  const caseRecord = await getCaseForOrg(env, actor.orgId, session.caseId);
   if (session.approvedAt !== null) {
     throw new ValidationError('an approved session cannot be re-registered');
-  }
-  if (caseRecord.consentRecordingAt === null) {
-    throw new ValidationError('recording consent is required');
   }
   if (session.channel !== 'in_person') {
     throw new ValidationError('recording pipeline is limited to in-person sessions');
@@ -6420,183 +6480,510 @@ async function assertRecordingResultNotCommitted(
   throw new ConflictError('recording result is already committed');
 }
 
-export async function assertRecordingUploadAllowed(env: Env,
-actor: Actor,
-sessionId: string,): Promise<void> {
+
+function consentSqlGuard(receipt: ConsentGateReceipt, sessionAlias: 'sessions' | 'audio' | 'audio_objects'): {
+  sql: string;
+  bindings: Bindable[];
+} {
+  const bindings: Bindable[] = [];
+  const clauses = receipt.required.map((entry, index) => {
+    bindings.push(entry.eventId, entry.revision, entry.eventSequence, entry.domain);
+    const eventAlias = `consent_gate_${index}`;
+    return `EXISTS (
+      SELECT 1 FROM consent_events AS ${eventAlias}
+      WHERE ${eventAlias}.id=? AND ${eventAlias}.revision=? AND ${eventAlias}.event_sequence=?
+        AND ${eventAlias}.domain=? AND ${eventAlias}.decision='grant'
+        AND ${eventAlias}.org_id=${sessionAlias}.org_id
+        AND ${eventAlias}.support_case_id=${sessionAlias}.support_case_id
+        AND ${eventAlias}.event_sequence=(
+          SELECT MAX(latest.event_sequence) FROM consent_events AS latest
+          WHERE latest.org_id=${eventAlias}.org_id
+            AND latest.beneficiary_id=${eventAlias}.beneficiary_id
+            AND latest.support_case_id=${eventAlias}.support_case_id
+            AND latest.domain=${eventAlias}.domain AND latest.decision<>'correct'
+        )
+    )`;
+  });
+  return { sql: clauses.join(' AND '), bindings };
+}
+const AUDIO_OBJECT_KEY = /^audio\/[A-Za-z0-9_-]+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export interface RecordingAudioMetadata {
+  contentLength: number;
+  contentType: 'audio/mp4' | 'audio/mpeg' | 'audio/wav' | 'audio/x-wav' | 'audio/webm' | 'audio/x-m4a';
+  clientAssertedSha256: string | null;
+  storageSha256: string | null;
+  generationId: string;
+  uploadExpiresAt: string;
+}
+
+export interface RecordingUploadIntent {
+  audioObjectId: string;
+  key: string;
+  uploadExpiresAt: string;
+}
+
+export async function beginRecordingUploadIntent(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  admission: RecordingUploadAdmission,
+  audioDelivery: 'api-stream' | 'protected-get',
+  metadata: Omit<RecordingAudioMetadata, 'generationId'>,
+): Promise<RecordingUploadIntent> {
   const session = await assertSessionWriteAccess(env, actor, sessionId);
   await assertRecordingUploadAllowedForSession(env, actor, session);
   await assertRecordingResultNotCommitted(env, actor, session);
+  const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
+  const current = await assertConsentGate(env, actor.orgId, canonicalScope.supportCaseId, admission.requiredConsent);
+  if (
+    current.consentRevision !== admission.consentReceipt.consentRevision
+    || canonicalizeJcs(current.required) !== canonicalizeJcs(admission.consentReceipt.required)
+  ) throw new AgentJobContractError('consent_not_effective');
+  const audioObjectId = newId();
+  const key = `audio/${sessionId}/${crypto.randomUUID()}`;
+  const createdAt = now();
+  const consentGuard = consentSqlGuard(admission.consentReceipt, 'sessions');
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+    ).bind(canonicalScope.supportCaseId, actor.orgId),
+    env.DB.prepare(
+    `INSERT INTO audio_objects(
+       id,org_id,session_id,support_case_id,key,key_hash,state,generation_id,stt_route,stt_engine_id,
+       audio_delivery,content_length,content_type,client_asserted_sha256,storage_sha256,object_sha256,
+       consent_gate_receipt_revision,consent_gate_receipt_json,eligible_after,uploaded_at,
+       upload_expires_at,retention_hard_cap_at,created_at,updated_at
+     ) SELECT ?,sessions.org_id,sessions.id,sessions.support_case_id,?,?,'pending_upload',?,?,?,
+         ?,?,?,?,NULL,NULL,?,?,?,NULL,?,?,?,?
+       FROM sessions
+       WHERE sessions.id=? AND sessions.org_id=? AND sessions.approved_at IS NULL
+         AND sessions.channel='in_person' AND ${consentGuard.sql}
+         AND EXISTS(
+           SELECT 1 FROM support_case_assignees AS assignment
+           JOIN user_role_assignments AS practitioner_role
+             ON practitioner_role.org_id=assignment.org_id
+            AND practitioner_role.user_id=assignment.user_id
+            AND practitioner_role.role='practitioner' AND practitioner_role.revoked_at IS NULL
+           WHERE assignment.org_id=sessions.org_id
+             AND assignment.support_case_id=sessions.support_case_id
+             AND assignment.user_id=? AND assignment.unassigned_at IS NULL
+             AND assignment.status='active'
+         )
+         AND EXISTS(
+           SELECT 1 FROM stt_agent_readiness AS readiness
+           WHERE readiness.org_id=sessions.org_id AND readiness.stt_mode=?
+             AND readiness.stt_engine_id=? AND readiness.state='ready'
+             AND readiness.capacity=1 AND readiness.expires_at>?
+         )`,
+  ).bind(
+    audioObjectId, key, await sha256Hex(key), `pending:${audioObjectId}`,
+    admission.sttEngine, admission.sttEngineId,
+    audioDelivery, metadata.contentLength, metadata.contentType, metadata.clientAssertedSha256,
+    admission.consentReceipt.consentRevision, canonicalizeJcs(admission.consentReceipt),
+    admission.eligibleAfter, metadata.uploadExpiresAt, admission.retentionHardCapAt, createdAt, createdAt,
+    sessionId, actor.orgId, ...consentGuard.bindings, actor.userId,
+    admission.sttEngine, admission.sttEngineId, createdAt,
+    ),
+  ]);
+  const inserted = results[1] as { meta?: { changes?: number } } | undefined;
+  if ((inserted?.meta?.changes ?? 0) === 0) {
+    await assertConsentGate(env, actor.orgId, canonicalScope.supportCaseId, admission.requiredConsent);
+    throw new ConflictError('recording upload intent is no longer allowed');
+  }
+  return { audioObjectId, key, uploadExpiresAt: metadata.uploadExpiresAt };
 }
 
-/**
- * 녹음 업로드 등록: audio_r2_key 기록 + ai_status='uploaded'.
- * 케이스에 녹음 동의(consent_recording_at)가 없으면 거부 (D15).
- * 이미 승인된 세션은 재등록할 수 없다(승인된 공식 기록 보호, R2).
- * 미승인 세션을 재등록하면 이전 실행의 AI 산출물(전사·요약·대조·감정·화자 확인·
- * ai_gas_evidence·검토 전 AI 플래그)을 함께 비워 새 실행과 섞이지 않게 한다.
- * 권한: 담당 실무자 배정. 감사: update.
- */
+
+export async function getPendingRecordingUpload(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+): Promise<{ key: string; contentLength: number; contentType: RecordingAudioMetadata['contentType']; clientAssertedSha256: string | null; uploadExpiresAt: string }> {
+  await assertSessionWriteAccess(env, actor, sessionId);
+  const row = await env.DB.prepare(
+    `SELECT key,content_length,content_type,client_asserted_sha256,upload_expires_at
+     FROM audio_objects WHERE id=? AND org_id=? AND session_id=? AND state='pending_upload'`,
+  ).bind(audioObjectId, actor.orgId, sessionId).first<DbRow>();
+  if (row === null) throw new ConflictError('recording upload intent is unavailable');
+  return {
+    key: stringValue(row.key),
+    contentLength: Number(row.content_length),
+    contentType: stringValue(row.content_type) as RecordingAudioMetadata['contentType'],
+    clientAssertedSha256: nullableString(row.client_asserted_sha256),
+    uploadExpiresAt: stringValue(row.upload_expires_at),
+  };
+}
+
+async function authorizeRecordingUploadIntent(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+  admission: RecordingUploadAdmission,
+  audioDelivery: 'api-stream' | 'protected-get',
+): Promise<void> {
+  const at = now();
+  const consentGuard = consentSqlGuard(admission.consentReceipt, 'audio_objects');
+  const authorized = await env.DB.prepare(
+    `UPDATE audio_objects SET updated_at=?
+     WHERE id=? AND org_id=? AND session_id=? AND state='pending_upload'
+       AND audio_delivery=? AND upload_expires_at>?
+       AND stt_route=? AND stt_engine_id=? AND ${consentGuard.sql}
+       AND EXISTS(
+         SELECT 1 FROM sessions AS session
+         JOIN support_case_assignees AS assignment
+           ON assignment.org_id=session.org_id
+          AND assignment.support_case_id=session.support_case_id
+          AND assignment.status='active' AND assignment.unassigned_at IS NULL
+         JOIN user_role_assignments AS practitioner_role
+           ON practitioner_role.org_id=assignment.org_id
+          AND practitioner_role.user_id=assignment.user_id
+          AND practitioner_role.role='practitioner' AND practitioner_role.revoked_at IS NULL
+         WHERE session.id=audio_objects.session_id AND session.org_id=audio_objects.org_id
+           AND session.approved_at IS NULL AND session.channel='in_person'
+           AND assignment.user_id=?
+       )
+       AND EXISTS(
+         SELECT 1 FROM stt_agent_readiness AS readiness
+         WHERE readiness.org_id=audio_objects.org_id AND readiness.stt_mode=audio_objects.stt_route
+           AND readiness.stt_engine_id=audio_objects.stt_engine_id AND readiness.state='ready'
+           AND readiness.capacity=1 AND readiness.expires_at>?
+       )`,
+  ).bind(
+    at, audioObjectId, actor.orgId, sessionId, audioDelivery, at,
+    admission.sttEngine, admission.sttEngineId, ...consentGuard.bindings,
+    actor.userId, at,
+  ).run();
+  if ((authorized.meta?.changes ?? 0) === 0) {
+    throw new ConflictError('recording upload intent is no longer allowed');
+  }
+}
+
+export function authorizeRecordingUploadTarget(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+  admission: RecordingUploadAdmission,
+): Promise<void> {
+  return authorizeRecordingUploadIntent(
+    env, actor, sessionId, audioObjectId, admission, 'protected-get',
+  );
+}
+
+export function authorizeRecordingUploadStream(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+  admission: RecordingUploadAdmission,
+): Promise<void> {
+  return authorizeRecordingUploadIntent(
+    env, actor, sessionId, audioObjectId, admission, 'api-stream',
+  );
+}
+
+export async function completeRecordingUploadStorageWrite(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+  generationId: string,
+  storageSha256: string,
+): Promise<void> {
+  await assertSessionWriteAccess(env, actor, sessionId);
+  assertOpaqueIdentifier(generationId, 'audio generation id');
+  assertSha256(storageSha256, 'audio storage hash');
+  const at = now();
+  const deletionAttemptId = newId();
+  const completed = await env.DB.prepare(
+    `UPDATE audio_objects SET
+       state=CASE WHEN state='pending_upload' THEN state ELSE 'deletion_pending' END,
+       generation_id=?,storage_sha256=?,
+       deletion_reason=CASE
+         WHEN state='pending_upload' THEN deletion_reason
+         ELSE COALESCE(deletion_reason,'rejected_upload')
+       END,
+       deletion_attempt_id=CASE
+         WHEN state='pending_upload' THEN deletion_attempt_id
+         ELSE ?
+       END,
+       next_attempt_at=CASE WHEN state='pending_upload' THEN next_attempt_at ELSE ? END,
+       deleted_at=CASE WHEN state='pending_upload' THEN deleted_at ELSE NULL END,
+       updated_at=?
+     WHERE id=? AND org_id=? AND session_id=? AND audio_delivery='api-stream'
+       AND state IN (
+         'pending_upload','deletion_pending','processed_deleted','unprocessed_expired',
+         'upload_abandoned','retention_capped'
+       )`,
+  ).bind(
+    generationId, storageSha256, deletionAttemptId, at, at,
+    audioObjectId, actor.orgId, sessionId,
+  ).run();
+  if ((completed.meta?.changes ?? 0) === 0) {
+    throw new ConflictError('recording upload write is no longer allowed');
+  }
+}
+export async function failRecordingUploadStorageWrite(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+): Promise<void> {
+  await assertSessionWriteAccess(env, actor, sessionId);
+  const at = now();
+  const deletionAttemptId = newId();
+  const failedGenerationId = `failed:${audioObjectId}`;
+  const failed = await env.DB.prepare(
+    `UPDATE audio_objects SET
+       state=CASE WHEN state='pending_upload' THEN state ELSE 'deletion_pending' END,
+       generation_id=?,storage_sha256=NULL,
+       deletion_reason=CASE
+         WHEN state='pending_upload' THEN deletion_reason
+         ELSE COALESCE(deletion_reason,'rejected_upload')
+       END,
+       deletion_attempt_id=CASE
+         WHEN state='pending_upload' THEN deletion_attempt_id
+         ELSE ?
+       END,
+       next_attempt_at=CASE WHEN state='pending_upload' THEN next_attempt_at ELSE ? END,
+       deleted_at=CASE WHEN state='pending_upload' THEN deleted_at ELSE NULL END,
+       updated_at=?
+     WHERE id=? AND org_id=? AND session_id=? AND audio_delivery='api-stream'
+       AND generation_id LIKE 'pending:%'
+       AND state IN (
+         'pending_upload','deletion_pending','processed_deleted','unprocessed_expired',
+         'upload_abandoned','retention_capped'
+       )`,
+  ).bind(
+    failedGenerationId, deletionAttemptId, at, at,
+    audioObjectId, actor.orgId, sessionId,
+  ).run();
+  if ((failed.meta?.changes ?? 0) === 0) {
+    throw new ConflictError('recording upload failure is no longer writable');
+  }
+}
+export async function abandonRecordingUpload(
+  env: Env,
+  actor: Actor,
+  audioObjectId: string,
+  reason: 'rejected_upload' | 'upload_abandoned' | 'consent_withdrawal',
+): Promise<void> {
+  const at = now();
+  const deletionAttemptId = newId();
+  const obligationKinds = reason === 'consent_withdrawal'
+    ? (['incident', 'manual_note'] as const)
+    : (['manual_note'] as const);
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason=?,
+         deletion_attempt_id=?,next_attempt_at=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='pending_upload'`,
+    ).bind(reason, deletionAttemptId, at, at, audioObjectId, actor.orgId),
+    ...obligationKinds.map((kind) => env.DB.prepare(
+      `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+       SELECT id || ':' || ? || ':' || ?,org_id,id,?,?,?
+       FROM audio_objects WHERE id=? AND org_id=? AND state='deletion_pending'
+         AND deletion_reason=? AND deletion_attempt_id=?
+       ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+    ).bind(
+      kind, reason, kind, reason, at, audioObjectId, actor.orgId, reason, deletionAttemptId,
+    )),
+  ]);
+  if ((results[0]?.meta?.changes ?? 0) < 1) return;
+}
+
+/** Records an admitted, fully uploaded object and its exact engine/consent-bound job atomically. */
 export async function registerRecording(
   env: Env,
   actor: Actor,
   sessionId: string,
   audioR2Key: string,
+  admission: RecordingUploadAdmission,
+  metadata: RecordingAudioMetadata,
+  existingAudioObjectId: string | null,
 ): Promise<Session> {
   const session = await assertSessionWriteAccess(env, actor, sessionId);
   await assertRecordingUploadAllowedForSession(env, actor, session);
   await assertRecordingResultNotCommitted(env, actor, session);
-  if (audioR2Key.trim().length === 0) {
-    throw new ValidationError('audio R2 key is required');
-  }
+  const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
+  if (!AUDIO_OBJECT_KEY.test(audioR2Key)) throw new ValidationError('audio key is invalid');
+  if (
+    !Number.isInteger(metadata.contentLength) || metadata.contentLength < 1
+    || metadata.contentLength > 209_715_200
+  ) throw new ValidationError('audio content length is invalid');
+  assertOpaqueIdentifier(metadata.generationId, 'audio generation id');
+  if (
+    (admission.sttEngine === 'local' && admission.sttEngineId !== 'qwen3-asr')
+    || (admission.sttEngine === 'azure' && admission.sttEngineId !== 'azure-speech-koreacentral')
+  ) throw new AgentJobContractError('route_mismatch');
+  const currentReceipt = await assertConsentGate(
+    env, actor.orgId, canonicalScope.supportCaseId, admission.requiredConsent,
+  ).catch(() => { throw new AgentJobContractError('consent_not_effective'); });
+  if (
+    currentReceipt.consentRevision !== admission.consentReceipt.consentRevision
+    || canonicalizeJcs(currentReceipt.required) !== canonicalizeJcs(admission.consentReceipt.required)
+  ) throw new AgentJobContractError('consent_not_effective');
 
   const updatedAt = now();
-  // Repeat authorization and eligibility in the mutation batch so a preflight
-  // check cannot authorize a later state change.
-  const results = await env.DB.batch([
-    env.DB.prepare(
-          `UPDATE sessions
-           SET audio_r2_key = ?, ai_status = ?, transcript = NULL, ai_summary = NULL, ai_schema = NULL,
-               ai_contrast = NULL, emotion_scores = NULL, speaker_mapping_confirmed_at = NULL, updated_at = ?
-           WHERE id = ? AND org_id = ? AND approved_at IS NULL AND channel = 'in_person'
-             AND NOT EXISTS (
-               SELECT 1 FROM recording_result_commits AS result_commit
-               WHERE result_commit.session_id = sessions.id
-                 AND result_commit.org_id = sessions.org_id
-             )
-             AND EXISTS (
-               SELECT 1 FROM support_cases AS support_case
-               WHERE support_case.id = sessions.support_case_id
-                 AND support_case.org_id = sessions.org_id
-                 AND support_case.consent_recording_at IS NOT NULL
-             )
-             AND EXISTS (
-               SELECT 1
-               FROM support_case_assignees AS assignment
-               JOIN user_role_assignments AS practitioner_role
-                 ON practitioner_role.org_id = assignment.org_id
-                AND practitioner_role.user_id = assignment.user_id
-                AND practitioner_role.role = 'practitioner'
-                AND practitioner_role.revoked_at IS NULL
-               WHERE assignment.org_id = sessions.org_id
-                 AND assignment.support_case_id = sessions.support_case_id
-                 AND assignment.user_id = ?
-                 AND assignment.unassigned_at IS NULL
-                 AND assignment.status = 'active'
-             )`,
-        ).bind(audioR2Key, 'uploaded', updatedAt, sessionId, actor.orgId, actor.userId),
-    env.DB.prepare(
-          `DELETE FROM ai_gas_evidence
-           WHERE org_id = ? AND session_id = ?
-             AND EXISTS (
-               SELECT 1 FROM sessions AS session
-               WHERE session.id = ? AND session.org_id = ? AND session.approved_at IS NULL
-                 AND session.channel = 'in_person'
-                 AND NOT EXISTS (
-                   SELECT 1 FROM recording_result_commits AS result_commit
-                   WHERE result_commit.session_id = session.id
-                     AND result_commit.org_id = session.org_id
-                 )
-                 AND EXISTS (
-                   SELECT 1 FROM support_cases AS support_case
-                   WHERE support_case.id = session.support_case_id
-                     AND support_case.org_id = session.org_id
-                     AND support_case.consent_recording_at IS NOT NULL
-                 )
-                 AND EXISTS (
-                   SELECT 1
-                   FROM support_case_assignees AS assignment
-                   JOIN user_role_assignments AS practitioner_role
-                     ON practitioner_role.org_id = assignment.org_id
-                    AND practitioner_role.user_id = assignment.user_id
-                    AND practitioner_role.role = 'practitioner'
-                    AND practitioner_role.revoked_at IS NULL
-                   WHERE assignment.org_id = session.org_id
-                     AND assignment.support_case_id = session.support_case_id
-                     AND assignment.user_id = ?
-                     AND assignment.unassigned_at IS NULL
-                     AND assignment.status = 'active'
-                 )
-             )`,
-        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
-    // 검토 전(pending) AI 플래그만 제거 — 실무자가 이미 확정/기각한 판단은 보존 (D9).
-    env.DB.prepare(
-          `DELETE FROM flags
-           WHERE org_id = ? AND session_id = ? AND source = 'ai' AND review_status = 'pending'
-             AND EXISTS (
-               SELECT 1 FROM sessions AS session
-               WHERE session.id = ? AND session.org_id = ? AND session.approved_at IS NULL
-                 AND session.channel = 'in_person'
-                 AND NOT EXISTS (
-                   SELECT 1 FROM recording_result_commits AS result_commit
-                   WHERE result_commit.session_id = session.id
-                     AND result_commit.org_id = session.org_id
-                 )
-                 AND EXISTS (
-                   SELECT 1 FROM support_cases AS support_case
-                   WHERE support_case.id = session.support_case_id
-                     AND support_case.org_id = session.org_id
-                     AND support_case.consent_recording_at IS NOT NULL
-                 )
-                 AND EXISTS (
-                   SELECT 1
-                   FROM support_case_assignees AS assignment
-                   JOIN user_role_assignments AS practitioner_role
-                     ON practitioner_role.org_id = assignment.org_id
-                    AND practitioner_role.user_id = assignment.user_id
-                    AND practitioner_role.role = 'practitioner'
-                    AND practitioner_role.revoked_at IS NULL
-                   WHERE assignment.org_id = session.org_id
-                     AND assignment.support_case_id = session.support_case_id
-                     AND assignment.user_id = ?
-                     AND assignment.unassigned_at IS NULL
-                     AND assignment.status = 'active'
-                 )
-             )`,
-        ).bind(actor.orgId, sessionId, sessionId, actor.orgId, actor.userId),
-    // 재등록은 이전 실행의 열린 Agent 작업을 닫고 새 generation 으로 다시 시작한다.
-    env.DB.prepare(
-          `UPDATE agent_jobs
-           SET state = 'cancelled', lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL,
-               lease_expires_at = NULL, updated_at = ?
-           WHERE org_id = ? AND session_id = ? AND kind = 'audio'
-             AND state IN ('pending', 'leased', 'blocked')`,
-        ).bind(updatedAt, actor.orgId, sessionId),
-    // 업로드가 실제로 반영된 회차에만 작업을 만든다(같은 batch 의 첫 UPDATE 결과를 조건으로 읽는다).
-    env.DB.prepare(
-          `INSERT INTO agent_jobs (
-             id, org_id, support_case_id, session_id, kind, state, enqueued_at, required_consent,
-             attempt, audio_generation_id, retention_hard_cap_at, updated_at
+  const retentionHardCapAt = new Date(
+    parseUtcTimestamp(updatedAt) + AUDIO_RETENTION_HARD_CAP_MS,
+  ).toISOString();
+  const eligibleAfter = nextBusinessDayGate(env, updatedAt);
+  const consentGuard = consentSqlGuard(admission.consentReceipt, 'sessions');
+  const audioObjectId = existingAudioObjectId ?? newId();
+  const generationId = metadata.generationId;
+  const jobId = newId();
+  const keyHash = await sha256Hex(audioR2Key);
+  const requiredConsent = stringifyJson(admission.requiredConsent);
+  const receiptJson = canonicalizeJcs(admission.consentReceipt);
+  const audioMutation = existingAudioObjectId === null
+    ? env.DB.prepare(
+      `INSERT INTO audio_objects(
+         id,org_id,session_id,support_case_id,key,key_hash,state,generation_id,stt_route,stt_engine_id,
+         audio_delivery,content_length,content_type,client_asserted_sha256,storage_sha256,object_sha256,
+         consent_gate_receipt_revision,consent_gate_receipt_json,eligible_after,uploaded_at,
+         upload_expires_at,upload_completion_id,retention_hard_cap_at,created_at,updated_at
+       ) SELECT ?,org_id,id,support_case_id,?,?,'available',?,?,?,'api-stream',?,?,?,?,NULL,?,?,?,?,?,?,?,?,?
+         FROM sessions
+         WHERE id=? AND org_id=? AND approved_at IS NULL AND channel='in_person'
+           AND NOT EXISTS(
+             SELECT 1 FROM recording_result_commits
+             WHERE session_id=sessions.id AND org_id=sessions.org_id
            )
-           SELECT ?, session.org_id, session.support_case_id, session.id, 'audio', 'pending', ?,
-                  '["recording_ai"]', 0, ?, ?, ?
-           FROM sessions AS session
-           WHERE session.id = ? AND session.org_id = ? AND session.audio_r2_key = ?`,
-        ).bind(
-          newId(),
-          updatedAt,
-          newId(),
-          new Date(parseUtcTimestamp(updatedAt) + AUDIO_RETENTION_HARD_CAP_MS).toISOString(),
-          updatedAt,
-          sessionId,
-          actor.orgId,
-          audioR2Key,
-        ),
+           AND ${consentGuard.sql}
+           AND EXISTS(
+             SELECT 1 FROM support_case_assignees AS assignment
+             JOIN user_role_assignments AS practitioner_role
+               ON practitioner_role.org_id=assignment.org_id
+              AND practitioner_role.user_id=assignment.user_id
+              AND practitioner_role.role='practitioner' AND practitioner_role.revoked_at IS NULL
+             WHERE assignment.org_id=sessions.org_id
+               AND assignment.support_case_id=sessions.support_case_id
+               AND assignment.user_id=? AND assignment.unassigned_at IS NULL
+               AND assignment.status='active'
+           )`,
+    ).bind(
+      audioObjectId, audioR2Key, keyHash, generationId, admission.sttEngine, admission.sttEngineId,
+      metadata.contentLength, metadata.contentType, metadata.clientAssertedSha256, metadata.storageSha256,
+      admission.consentReceipt.consentRevision, receiptJson, eligibleAfter, updatedAt,
+      metadata.uploadExpiresAt, jobId, retentionHardCapAt, updatedAt, updatedAt,
+      sessionId, actor.orgId, ...consentGuard.bindings, actor.userId,
+    )
+    : env.DB.prepare(
+      `UPDATE audio_objects SET state='available',generation_id=?,storage_sha256=?,uploaded_at=?,
+         eligible_after=?,upload_completion_id=?,retention_hard_cap_at=?,updated_at=?
+       WHERE id=? AND org_id=? AND session_id=? AND key=? AND state='pending_upload'
+         AND content_length=? AND content_type=? AND consent_gate_receipt_revision=?
+         AND EXISTS(
+           SELECT 1 FROM sessions
+           WHERE id=audio_objects.session_id AND org_id=audio_objects.org_id
+             AND approved_at IS NULL AND channel='in_person'
+             AND NOT EXISTS(
+               SELECT 1 FROM recording_result_commits
+               WHERE session_id=sessions.id AND org_id=sessions.org_id
+             )
+             AND ${consentGuard.sql}
+             AND EXISTS(
+               SELECT 1 FROM support_case_assignees AS assignment
+               JOIN user_role_assignments AS practitioner_role
+                 ON practitioner_role.org_id=assignment.org_id
+                AND practitioner_role.user_id=assignment.user_id
+                AND practitioner_role.role='practitioner' AND practitioner_role.revoked_at IS NULL
+               WHERE assignment.org_id=sessions.org_id
+                 AND assignment.support_case_id=sessions.support_case_id
+                 AND assignment.user_id=? AND assignment.unassigned_at IS NULL
+                 AND assignment.status='active'
+             )
+         )`,
+    ).bind(
+      generationId, metadata.storageSha256, updatedAt, eligibleAfter, jobId, retentionHardCapAt, updatedAt,
+      audioObjectId, actor.orgId, sessionId, audioR2Key, metadata.contentLength,
+      metadata.contentType, admission.consentReceipt.consentRevision,
+      ...consentGuard.bindings, actor.userId,
+    );
+  const results = await env.DB.batch([
+    audioMutation,
+    env.DB.prepare(
+      `UPDATE sessions
+       SET audio_r2_key=?,ai_status='uploaded',transcript=NULL,ai_summary=NULL,ai_schema=NULL,
+           ai_contrast=NULL,emotion_scores=NULL,speaker_mapping_confirmed_at=NULL,updated_at=?
+       WHERE id=? AND org_id=? AND approved_at IS NULL AND channel='in_person'
+         AND NOT EXISTS(
+           SELECT 1 FROM recording_result_commits
+           WHERE session_id=sessions.id AND org_id=sessions.org_id
+         ) AND ${consentGuard.sql}
+         AND EXISTS(
+           SELECT 1 FROM support_case_assignees AS assignment
+           JOIN user_role_assignments AS practitioner_role
+             ON practitioner_role.org_id=assignment.org_id
+            AND practitioner_role.user_id=assignment.user_id
+            AND practitioner_role.role='practitioner' AND practitioner_role.revoked_at IS NULL
+           WHERE assignment.org_id=sessions.org_id
+             AND assignment.support_case_id=sessions.support_case_id
+             AND assignment.user_id=? AND assignment.unassigned_at IS NULL
+             AND assignment.status='active'
+         )
+         AND EXISTS(
+           SELECT 1 FROM audio_objects AS audio
+           WHERE audio.id=? AND audio.org_id=sessions.org_id
+             AND audio.state='available' AND audio.upload_completion_id=?
+         )`,
+    ).bind(
+      audioR2Key, updatedAt, sessionId, actor.orgId, ...consentGuard.bindings, actor.userId,
+      audioObjectId, jobId,
+    ),
+    env.DB.prepare(
+      `DELETE FROM ai_gas_evidence WHERE org_id=? AND session_id=?
+       AND EXISTS(
+         SELECT 1 FROM audio_objects
+         WHERE id=? AND org_id=? AND state='available' AND upload_completion_id=?
+       )`,
+    ).bind(actor.orgId, sessionId, audioObjectId, actor.orgId, jobId),
+    env.DB.prepare(
+      `DELETE FROM flags WHERE org_id=? AND session_id=? AND source='ai' AND review_status='pending'
+       AND EXISTS(
+         SELECT 1 FROM audio_objects
+         WHERE id=? AND org_id=? AND state='available' AND upload_completion_id=?
+       )`,
+    ).bind(actor.orgId, sessionId, audioObjectId, actor.orgId, jobId),
+    env.DB.prepare(
+      `UPDATE agent_jobs SET state='cancelled',terminal_failure_code='consent_not_effective',
+         lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND session_id=? AND kind='audio' AND state IN ('pending','leased','blocked')
+         AND EXISTS(
+           SELECT 1 FROM audio_objects
+           WHERE id=? AND org_id=? AND state='available' AND upload_completion_id=?
+         )`,
+    ).bind(updatedAt, actor.orgId, sessionId, audioObjectId, actor.orgId, jobId),
+    env.DB.prepare(
+      `INSERT INTO agent_jobs(
+         id,org_id,support_case_id,session_id,kind,state,enqueued_at,required_consent,attempt,
+         audio_generation_id,audio_object_id,client_asserted_sha256,retention_hard_cap_at,consent_revision,
+         consent_receipt_json,stt_engine,stt_engine_id,updated_at
+       ) SELECT ?,org_id,support_case_id,session_id,'audio','pending',?,?,0,generation_id,id,
+                client_asserted_sha256,retention_hard_cap_at,consent_gate_receipt_revision,
+                consent_gate_receipt_json,stt_route,stt_engine_id,?
+         FROM audio_objects
+         WHERE id=? AND org_id=? AND state='available' AND upload_completion_id=?`,
+    ).bind(jobId, updatedAt, requiredConsent, updatedAt, audioObjectId, actor.orgId, jobId),
   ]);
-  const updated = results[0] as unknown as { meta?: { changes?: number } };
-  if ((updated.meta?.changes ?? 0) < 1) {
+  if (
+    (results[0]?.meta?.changes ?? 0) < 1
+    || (results[1]?.meta?.changes ?? 0) < 1
+    || (results[5]?.meta?.changes ?? 0) < 1
+  ) {
     throw new ConflictError('recording upload is no longer allowed');
   }
-  await writeAudit(env, actor, { action: 'update', targetTable: 'sessions', targetId: sessionId, caseId: session.caseId });
+  await writeAudit(env, actor, {
+    action: 'update', targetTable: 'sessions', targetId: sessionId, caseId: session.caseId,
+    detail: { audioObjectId, sttEngineId: admission.sttEngineId },
+  });
   return {
-    ...session,
-    audioR2Key,
-    aiStatus: 'uploaded',
-    transcript: null,
-    aiSummary: null,
-    aiSchema: null,
-    aiContrast: null,
-    emotionScores: null,
-    speakerMappingConfirmedAt: null,
+    ...session, audioR2Key, aiStatus: 'uploaded', transcript: null, aiSummary: null,
+    aiSchema: null, aiContrast: null, emotionScores: null, speakerMappingConfirmedAt: null,
   };
 }
 
@@ -6724,17 +7111,18 @@ export async function commitRecordingResult(
   extraStatements: (snapshot: MaskedSourceSnapshot) => PreparedStatement[] = () => [],
 ): Promise<RecordingResultCommit> {
   const session = await assertServiceSessionAccess(env, actor, sessionId, 'recording_result_commits');
-  const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
-  const supportCase = await env.DB.prepare(
-    'SELECT consent_recording_at, consent_text_ai_at FROM support_cases WHERE id = ? AND org_id = ?',
-  ).bind(context.supportCaseId, actor.orgId).first<{
-    consent_recording_at: string | null;
-    consent_text_ai_at: string | null;
-  }>();
+  const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
+  try {
+    await assertConsentGate(env, actor.orgId, canonicalScope.supportCaseId, ['counseling_recording']);
+  } catch {
+    await writePhase1Denial(env, actor, {
+      targetTable: 'recording_result_commits', targetId: sessionId,
+      caseId: session.caseId, reason: 'recording_result_not_allowed',
+    });
+    throw new ForbiddenError('recording result is not allowed');
+  }
   if (
-    supportCase === null
-    || supportCase.consent_recording_at === null
-    || session.audioR2Key === null
+    session.audioR2Key === null
     || (session.aiStatus !== 'uploaded' && session.aiStatus !== 'processing' && session.aiStatus !== 'review_ready')
   ) {
     await writePhase1Denial(env, actor, {
@@ -6999,6 +7387,16 @@ export async function enqueueTextWorkItem(
 ): Promise<void> {
   assertOpaqueIdentifier(sessionId, 'session id');
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  let receipt: ConsentGateReceipt;
+  try {
+    receipt = await assertConsentGate(env, actor.orgId, scope.supportCaseId, [
+      'external_llm_cross_border_processing',
+      'personal_data_collection_use',
+      'sensitive_information_processing',
+    ]);
+  } catch {
+    return;
+  }
   await env.DB.batch(textWorkEnqueueStatements(
     env,
     actor.orgId,
@@ -7006,6 +7404,7 @@ export async function enqueueTextWorkItem(
     sessionId,
     reason,
     now(),
+    receipt,
   ));
 }
 
@@ -7022,6 +7421,7 @@ function textWorkEnqueueStatements(
   sessionId: string,
   reason: TextWorkReason,
   enqueuedAt: string,
+  receipt: ConsentGateReceipt,
 ): PreparedStatement[] {
   return [
     insertIfAbsent(
@@ -7035,10 +7435,10 @@ function textWorkEnqueueStatements(
       env.DB,
       `INSERT INTO agent_jobs (
          id, org_id, support_case_id, session_id, source_text_work_item_id, kind, state,
-         enqueued_at, required_consent, attempt, updated_at
+         enqueued_at, required_consent, consent_revision, consent_receipt_json, attempt, updated_at
        )
        SELECT ?, queue.org_id, queue.support_case_id, queue.session_id, queue.id, 'text', 'pending',
-              ?, '["text_ai"]', 0, ?
+              ?, ?, ?, ?, 0, ?
        FROM ai_text_work_queue AS queue
        WHERE queue.org_id = ? AND queue.session_id = ? AND queue.status = 'pending'
          AND NOT EXISTS (
@@ -7046,7 +7446,11 @@ function textWorkEnqueueStatements(
            WHERE job.org_id = queue.org_id AND job.session_id = queue.session_id
              AND job.kind = 'text' AND job.state IN ('pending', 'leased', 'blocked')
          )`,
-      [newId(), enqueuedAt, enqueuedAt, orgId, sessionId],
+      [
+        newId(), enqueuedAt,
+        '["external_llm_cross_border_processing","personal_data_collection_use","sensitive_information_processing"]',
+        receipt.consentRevision, canonicalizeJcs(receipt), enqueuedAt, orgId, sessionId,
+      ],
     ),
   ];
 }
@@ -7088,6 +7492,16 @@ export async function enqueueTextWorkForGoalChange(
   ).bind(actor.orgId, context.supportCaseId).all<DbRow>();
 
   const enqueuedAt = now();
+  let receipt: ConsentGateReceipt;
+  try {
+    receipt = await assertConsentGate(env, actor.orgId, context.supportCaseId, [
+      'external_llm_cross_border_processing',
+      'personal_data_collection_use',
+      'sensitive_information_processing',
+    ]);
+  } catch {
+    return;
+  }
   const statements = candidates.results.flatMap((row) => textWorkEnqueueStatements(
     env,
     actor.orgId,
@@ -7095,6 +7509,7 @@ export async function enqueueTextWorkForGoalChange(
     stringValue(row.id),
     'goal_revised',
     enqueuedAt,
+    receipt,
   ));
   if (statements.length > 0) {
     await env.DB.batch(statements);
@@ -7264,6 +7679,671 @@ async function buildAgentJobSourceText(
 }
 
 // ============================================================================
+// ============================================================================
+// S7 canonical consent. Legacy consent columns remain historical only.
+// ============================================================================
+
+interface ConsentEventRow extends DbRow {
+  id: string; org_id: string; beneficiary_id: string; support_case_id: string;
+  domain: string; decision: string; provider: string | null; provider_legal_recipient: string | null;
+  provider_country: string | null; purpose: string | null; retention_duration: string | null;
+  copy_version: string; copy_hash: string; disclosure_snapshot_id: string; effective_at: string;
+  recorded_by: string; recorded_at: string; idempotency_key: string; revision: number;
+  event_sequence: number; correction_of_event_id: string | null;
+}
+
+function mapConsentEvent(row: ConsentEventRow): ConsentEvent {
+  return {
+    id: row.id, orgId: row.org_id, beneficiaryId: row.beneficiary_id, supportCaseId: row.support_case_id,
+    domain: row.domain as ConsentDomain, decision: row.decision as ConsentEvent['decision'],
+    provider: row.provider as ProviderId | null, providerLegalRecipient: row.provider_legal_recipient,
+    providerCountry: row.provider_country, purpose: row.purpose as ConsentEvent['purpose'],
+    retentionDuration: row.retention_duration as ConsentEvent['retentionDuration'],
+    copyVersion: row.copy_version, copyHash: row.copy_hash, disclosureSnapshotId: row.disclosure_snapshot_id,
+    effectiveAt: row.effective_at, recordedBy: row.recorded_by, recordedAt: row.recorded_at,
+    idempotencyKey: row.idempotency_key, revision: Number(row.revision),
+    eventSequence: Number(row.event_sequence), correctionOfEventId: row.correction_of_event_id,
+  };
+}
+
+async function assertConsentActor(env: Env, actor: Actor, supportCaseId: string): Promise<SupportCase> {
+  if (actor.role === 'service') throw new ForbiddenError('service cannot manage consent');
+  if (actor.role === 'admin') return assertSupportCaseAccess(env, actor, supportCaseId);
+  return assertSupportCaseWriteAccess(env, actor, supportCaseId);
+}
+
+async function currentConsentEventMap(
+  env: Env,
+  orgId: string,
+  supportCaseId: string,
+  at: string,
+): Promise<Map<ConsentDomain, ConsentEvent>> {
+  const rows = await env.DB.prepare(
+    `SELECT event.* FROM consent_events AS event
+     WHERE event.org_id = ? AND event.support_case_id = ? AND event.decision <> 'correct'
+       AND event.event_sequence = (
+         SELECT MAX(candidate.event_sequence) FROM consent_events AS candidate
+         WHERE candidate.org_id = event.org_id AND candidate.beneficiary_id = event.beneficiary_id
+           AND candidate.support_case_id = event.support_case_id AND candidate.domain = event.domain
+           AND candidate.decision <> 'correct'
+       )
+     ORDER BY event.event_sequence`,
+  ).bind(orgId, supportCaseId).all<ConsentEventRow>();
+  const events = new Map<ConsentDomain, ConsentEvent>();
+  for (const row of rows.results) {
+    const event = mapConsentEvent(row);
+    if (!CONSENT_DOMAINS.includes(event.domain)) continue;
+    if (event.decision !== 'grant' || event.copyVersion !== CONSENT_COPY_VERSION || event.effectiveAt > at) {
+      events.set(event.domain, event);
+      continue;
+    }
+    const canonical = CONSENT_COPY[event.domain];
+    const expectedRetention = event.domain === 'voice_original_retention_period'
+      ? 'default_temporary_d85' : null;
+    if (
+      event.provider !== canonical.provider || event.purpose !== canonical.purpose
+      || event.retentionDuration !== expectedRetention
+    ) continue;
+    const registry = await env.DB.prepare(
+      `SELECT legal_recipient, country FROM consent_provider_registry_snapshots
+       WHERE org_id = ? AND provider = ? AND approved_at <= ?
+         AND (valid_until IS NULL OR valid_until > ?)
+       ORDER BY approved_at DESC LIMIT 1`,
+    ).bind(orgId, event.provider, at, at).first<{ legal_recipient: string; country: string }>();
+    const expectedHash = await consentSha256Hex(consentCopyPreimage({
+      domain: event.domain,
+      provider: event.provider,
+      providerLegalRecipient: event.providerLegalRecipient,
+      providerCountry: event.providerCountry,
+      purpose: event.purpose,
+      retentionDuration: event.retentionDuration,
+    }));
+    if (
+      registry === null
+      || registry.legal_recipient !== event.providerLegalRecipient
+      || registry.country !== event.providerCountry
+      || expectedHash !== event.copyHash
+    ) continue;
+    events.set(event.domain, event);
+  }
+  return events;
+}
+
+export async function getSupportCaseConsent(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<CurrentConsentState[]> {
+  await assertConsentActor(env, actor, supportCaseId);
+  const events = await currentConsentEventMap(env, actor.orgId, supportCaseId, now());
+  return CONSENT_DOMAINS.map((domain) => {
+    const event = events.get(domain);
+    const state = event === undefined ? 'unconfirmed'
+      : event.decision === 'grant' ? 'granted' : 'not_granted';
+    return {
+      domain,
+      state,
+      provider: event?.provider ?? null,
+      providerLegalRecipient: event?.providerLegalRecipient ?? null,
+      providerCountry: event?.providerCountry ?? null,
+      purpose: event?.purpose ?? null,
+      retentionDuration: event?.retentionDuration ?? null,
+      effectiveAt: event?.effectiveAt ?? null,
+      eventId: event?.id ?? null,
+      revision: event?.revision ?? null,
+      eventSequence: event?.eventSequence ?? null,
+    };
+  });
+}
+
+export async function listSupportCaseConsentEvents(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<ConsentEvent[]> {
+  await assertConsentActor(env, actor, supportCaseId);
+  const rows = await env.DB.prepare(
+    'SELECT * FROM consent_events WHERE org_id = ? AND support_case_id = ? ORDER BY event_sequence, id',
+  ).bind(actor.orgId, supportCaseId).all<ConsentEventRow>();
+  return rows.results.map(mapConsentEvent);
+}
+
+export async function issueSupportCaseConsentDisclosures(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+): Promise<ConsentDisclosureSnapshot[]> {
+  const supportCase = await assertConsentActor(env, actor, supportCaseId);
+  const issuedAt = now();
+  const expiresAt = new Date(parseUtcTimestamp(issuedAt) + 30 * 60_000).toISOString();
+  const snapshots: ConsentDisclosureSnapshot[] = [];
+  const statements: PreparedStatement[] = [];
+  for (const domain of CONSENT_DOMAINS) {
+    const canonical = CONSENT_COPY[domain];
+    const registry = await env.DB.prepare(
+      `SELECT id, legal_recipient, country FROM consent_provider_registry_snapshots
+       WHERE org_id = ? AND provider = ? AND approved_at <= ?
+         AND (valid_until IS NULL OR valid_until > ?)
+       ORDER BY approved_at DESC LIMIT 1`,
+    ).bind(actor.orgId, canonical.provider, issuedAt, issuedAt)
+      .first<{ id: string; legal_recipient: string; country: string }>();
+    if (registry === null) throw new ConsentContractError('provider_registry_unavailable');
+    const retentionDuration = domain === 'voice_original_retention_period' ? 'default_temporary_d85' as const : null;
+    const copyHash = await consentSha256Hex(consentCopyPreimage({
+      domain,
+      provider: canonical.provider,
+      providerLegalRecipient: registry.legal_recipient,
+      providerCountry: registry.country,
+      purpose: canonical.purpose,
+      retentionDuration,
+    }));
+    const snapshot: ConsentDisclosureSnapshot = {
+      snapshotId: newId(),
+      scopeBinding: {
+        orgId: actor.orgId,
+        programId: supportCase.programType,
+        issuerId: actor.userId,
+        supportCaseId,
+      },
+      domain,
+      fullKoreanCopy: canonical.copy,
+      provider: canonical.provider,
+      providerLegalRecipient: registry.legal_recipient,
+      country: registry.country,
+      purpose: canonical.purpose,
+      retentionProfile: 'default_temporary_d85',
+      retentionDuration: 'default_temporary_d85',
+      copyVersion: CONSENT_COPY_VERSION,
+      copyHash,
+      issuedAt,
+      expiresAt,
+    };
+    snapshots.push(snapshot);
+    statements.push(env.DB.prepare(
+      `INSERT INTO consent_disclosure_snapshots (
+         id, org_id, program_id, issuer_id, support_case_id, domain, full_korean_copy,
+         provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country, purpose,
+         retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'default_temporary_d85',
+                 'default_temporary_d85', ?, ?, ?, ?)`,
+    ).bind(
+      snapshot.snapshotId, actor.orgId, supportCase.programType, actor.userId, supportCaseId, domain,
+      canonical.copy, canonical.provider, registry.id, registry.legal_recipient, registry.country,
+      canonical.purpose, CONSENT_COPY_VERSION, copyHash, issuedAt, expiresAt,
+    ));
+  }
+  await env.DB.batch(statements);
+  return snapshots;
+}
+
+function consentInputHash(input: AppendConsentEventInput): Promise<string> {
+  return consentSha256Hex(canonicalizeJcs(input));
+}
+
+async function appendSupportCaseConsentEventUnchecked(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  input: AppendConsentEventInput,
+  allocationRetry = 0,
+): Promise<ConsentEvent> {
+  const supportCase = await assertConsentActor(env, actor, supportCaseId);
+  if (!CONSENT_DOMAINS.includes(input.domain)) throw new ConsentContractError('provider_scope_mismatch');
+  assertOpaqueIdentifier(input.idempotencyKey, 'idempotency key');
+  const requestHash = await consentInputHash(input);
+  const replay = await env.DB.prepare(
+    `SELECT event.*, event.request_hash FROM consent_events AS event
+     WHERE event.org_id = ? AND event.support_case_id = ? AND event.domain = ? AND event.idempotency_key = ?`,
+  ).bind(actor.orgId, supportCaseId, input.domain, input.idempotencyKey).first<ConsentEventRow & { request_hash: string }>();
+  if (replay !== null) {
+    if (replay.request_hash !== requestHash) throw new ConsentContractError('idempotency_conflict');
+    return mapConsentEvent(replay);
+  }
+
+  const recordedAt = now();
+  const effectiveMs = parseUtcTimestamp(input.effectiveAt);
+  const recordedMs = parseUtcTimestamp(recordedAt);
+  if (!Number.isFinite(effectiveMs) || effectiveMs > recordedMs) throw new ConsentContractError('future_effective_at');
+  if (input.decision !== 'correct' && effectiveMs < recordedMs - 5 * 60_000) {
+    throw new ConsentContractError('backdated_consent_event');
+  }
+  const snapshot = await env.DB.prepare(
+    `SELECT disclosure.*, registry.id AS current_registry_id
+     FROM consent_disclosure_snapshots AS disclosure
+     LEFT JOIN consent_provider_registry_snapshots AS registry
+       ON registry.id = disclosure.provider_registry_snapshot_id
+      AND registry.org_id = disclosure.org_id AND registry.provider = disclosure.provider
+      AND registry.legal_recipient = disclosure.provider_legal_recipient
+      AND registry.country = disclosure.provider_country
+      AND registry.approved_at <= ? AND (registry.valid_until IS NULL OR registry.valid_until > ?)
+     WHERE disclosure.id = ? AND disclosure.org_id = ? AND disclosure.support_case_id = ?
+       AND disclosure.issuer_id = ? AND disclosure.domain = ? AND disclosure.expires_at > ?`,
+  ).bind(
+    recordedAt, recordedAt, input.disclosureSnapshotId, actor.orgId, supportCaseId,
+    actor.userId, input.domain, recordedAt,
+  ).first<DbRow>();
+  if (snapshot === null || nullableString(snapshot.current_registry_id) === null) {
+    throw new ConsentContractError('consent_disclosure_mismatch');
+  }
+  const canonical = CONSENT_COPY[input.domain];
+  const retentionDuration = input.domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null;
+  if (
+    input.copyVersion !== CONSENT_COPY_VERSION
+    || input.copyHash !== stringValue(snapshot.copy_hash)
+    || stringValue(snapshot.full_korean_copy) !== canonical.copy
+  ) throw new ConsentContractError('consent_disclosure_mismatch');
+
+  const latest = (await currentConsentEventMap(env, actor.orgId, supportCaseId, recordedAt)).get(input.domain);
+  let target: ConsentEvent | undefined;
+  if (input.decision === 'withdraw') target = latest?.decision === 'grant' ? latest : undefined;
+  if (input.decision === 'correct' && input.correctionOfEventId !== null) {
+    const row = await env.DB.prepare(
+      'SELECT * FROM consent_events WHERE id = ? AND org_id = ? AND support_case_id = ? AND domain = ?',
+    ).bind(input.correctionOfEventId, actor.orgId, supportCaseId, input.domain).first<ConsentEventRow>();
+    target = row === null ? undefined : mapConsentEvent(row);
+  }
+  if ((input.decision === 'withdraw' || input.decision === 'correct') && target === undefined) {
+    throw new ConsentContractError('consent_not_effective');
+  }
+  const expectedProvider = target?.provider ?? canonical.provider;
+  const expectedRecipient = target?.providerLegalRecipient ?? nullableString(snapshot.provider_legal_recipient);
+  const expectedCountry = target?.providerCountry ?? nullableString(snapshot.provider_country);
+  const expectedPurpose = target?.purpose ?? canonical.purpose;
+  const expectedRetention = target?.retentionDuration ?? retentionDuration;
+  const applicable = input.decision !== 'decline' || input.provider !== null;
+  if (
+    (applicable && (
+      input.provider !== expectedProvider
+      || input.providerLegalRecipient !== expectedRecipient
+      || input.providerCountry !== expectedCountry
+      || input.purpose !== expectedPurpose
+      || input.retentionDuration !== expectedRetention
+    ))
+    || (!applicable && (
+      input.providerLegalRecipient !== null || input.providerCountry !== null
+      || input.purpose !== null || input.retentionDuration !== null
+    ))
+    || (input.decision === 'correct' && input.effectiveAt !== target?.effectiveAt)
+  ) throw new ConsentContractError('provider_scope_mismatch');
+  if (
+    (input.decision === 'withdraw' && input.expectedRevision !== latest?.revision)
+    || (input.decision !== 'correct' && latest !== undefined && input.effectiveAt < latest.effectiveAt)
+  ) throw new ConsentContractError('revision_conflict');
+
+  const eventId = newId();
+  const auditId = newId();
+  const insert = env.DB.prepare(
+    `INSERT INTO consent_events (
+       id, org_id, beneficiary_id, support_case_id, domain, decision, provider,
+       provider_legal_recipient, provider_country, purpose, retention_duration, copy_version, copy_hash,
+       disclosure_snapshot_id, effective_at, recorded_by, recorded_at, idempotency_key, request_hash,
+       revision, event_sequence, correction_of_event_id, provider_registry_snapshot_id
+     ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+         (SELECT COALESCE(MAX(revision),0)+1 FROM consent_events
+          WHERE org_id=? AND beneficiary_id=? AND support_case_id=? AND domain=?),
+         (SELECT COALESCE(MAX(event_sequence),0)+1 FROM consent_events
+          WHERE org_id=? AND beneficiary_id=? AND support_case_id=?),
+         ?,?
+       WHERE CAST(? AS BIGINT) IS NULL OR ? = COALESCE((
+         SELECT revision FROM consent_events
+         WHERE org_id=? AND beneficiary_id=? AND support_case_id=? AND domain=? AND decision<>'correct'
+         ORDER BY event_sequence DESC LIMIT 1
+       ),0)`,
+  ).bind(
+    eventId, actor.orgId, supportCase.beneficiaryId, supportCaseId, input.domain, input.decision,
+    applicable ? input.provider : null, applicable ? input.providerLegalRecipient : null,
+    applicable ? input.providerCountry : null, applicable ? input.purpose : null,
+    applicable ? input.retentionDuration : null, input.copyVersion, input.copyHash,
+    input.disclosureSnapshotId, input.effectiveAt, actor.userId, recordedAt, input.idempotencyKey,
+    requestHash,
+    actor.orgId, supportCase.beneficiaryId, supportCaseId, input.domain,
+    actor.orgId, supportCase.beneficiaryId, supportCaseId,
+    input.correctionOfEventId, nullableString(snapshot.provider_registry_snapshot_id),
+    input.decision === 'withdraw' ? input.expectedRevision : null,
+    input.decision === 'withdraw' ? input.expectedRevision : null,
+    actor.orgId, supportCase.beneficiaryId, supportCaseId, input.domain,
+  );
+  const statements: PreparedStatement[] = [
+    env.DB.prepare(
+      'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+    ).bind(supportCaseId, actor.orgId),
+    insert,
+  ];
+  const authorizationStops = input.decision === 'withdraw' || input.decision === 'decline';
+  const authorizationInvalidates = input.decision !== 'correct';
+  if (authorizationInvalidates) {
+    statements.push(
+      env.DB.prepare(
+        `UPDATE agent_jobs SET state='cancelled', terminal_failure_code='consent_not_effective',
+           lease_owner=NULL, claim_token_hash=NULL, claimed_at=NULL, lease_expires_at=NULL, updated_at=?
+         WHERE org_id=? AND support_case_id=? AND state IN ('pending','leased','blocked')
+           AND required_consent LIKE ? AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(recordedAt, actor.orgId, supportCaseId, `%"${input.domain}"%`, eventId),
+      env.DB.prepare(
+        `UPDATE agent_job_egress_records SET status='revoked'
+         WHERE org_id=? AND status='authorized' AND job_id IN (
+           SELECT id FROM agent_jobs WHERE support_case_id=? AND required_consent LIKE ?
+         ) AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(actor.orgId, supportCaseId, `%"${input.domain}"%`, eventId),
+      env.DB.prepare(
+        `UPDATE audio_objects SET state='deletion_pending', deletion_reason='consent_withdrawal',
+           deletion_attempt_id=CASE
+             WHEN deletion_reason='consent_withdrawal' AND deletion_attempt_id IS NOT NULL
+               THEN deletion_attempt_id
+             ELSE id || ':delete:consent_withdrawal:' || ?
+           END,
+           next_attempt_at=?, updated_at=?
+         WHERE org_id=? AND support_case_id=? AND state IN ('pending_upload','available','claimed','processing')
+           AND consent_gate_receipt_json LIKE ?
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(eventId, recordedAt, recordedAt, actor.orgId, supportCaseId, `%"${input.domain}"%`, eventId),
+      ...(['incident', 'manual_note'] as const).map((kind) => env.DB.prepare(
+        `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+         SELECT id || ':' || ? || ':consent_withdrawal',org_id,id,?,'consent_withdrawal',?
+         FROM audio_objects WHERE org_id=? AND support_case_id=? AND deletion_reason='consent_withdrawal'
+           AND updated_at=? AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)
+         ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+      ).bind(kind, kind, recordedAt, actor.orgId, supportCaseId, recordedAt, eventId)),
+    );
+  }
+  const llmConsentChanges = authorizationInvalidates && (
+    input.domain === 'external_llm_cross_border_processing'
+    || input.domain === 'personal_data_collection_use'
+    || input.domain === 'sensitive_information_processing'
+  );
+  if (llmConsentChanges) {
+    statements.push(
+      env.DB.prepare(
+        `UPDATE counseling_memory_sources
+         SET revision=revision+1,dirty=1,chunk_cursor=0
+         WHERE org_id=? AND support_case_id=?
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(actor.orgId, supportCaseId, eventId),
+      env.DB.prepare(
+        `UPDATE counseling_memory_materials
+         SET valid=0,status='failed',lease_token=NULL,lease_until=NULL
+         WHERE org_id=? AND support_case_id=? AND valid=1
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(actor.orgId, supportCaseId, eventId),
+      env.DB.prepare(
+        `UPDATE counseling_memory_items SET valid=0
+         WHERE org_id=? AND support_case_id=? AND valid=1
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(actor.orgId, supportCaseId, eventId),
+      env.DB.prepare(
+        `UPDATE counseling_memory_cases
+         SET generation=generation+1,status=?,reason=?,summary_json='[]',
+           lease_token=NULL,lease_until=NULL,egress=NULL,request_json=NULL,
+           not_before=?,updated_at=?
+         WHERE org_id=? AND support_case_id=?
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+      ).bind(
+        authorizationStops ? 'blocked' : 'updating',
+        authorizationStops ? 'consent_not_effective' : null,
+        recordedAt,
+        recordedAt,
+        actor.orgId,
+        supportCaseId,
+        eventId,
+      ),
+      env.DB.prepare(
+        `INSERT INTO ai_review_events(
+           id,work_item_id,draft_version_id,decision,replacement_draft_id,actor_id,created_at
+         )
+         SELECT draft.id || ':consent:' || ?,work.id,draft.id,'rejected',NULL,?,?
+         FROM ai_draft_versions AS draft
+         JOIN ai_work_items AS work ON work.id=draft.work_item_id
+         WHERE work.org_id=? AND work.support_case_id=?
+           AND draft.origin IN ('generated','fixture_generated')
+           AND draft.version=(
+             SELECT MAX(current.version) FROM ai_draft_versions AS current
+             WHERE current.work_item_id=work.id
+           )
+           AND NOT EXISTS(
+             SELECT 1 FROM ai_review_events AS review WHERE review.draft_version_id=draft.id
+           )
+           AND EXISTS(SELECT 1 FROM consent_events WHERE id=?)
+         ON CONFLICT DO NOTHING`,
+      ).bind(eventId, actor.userId, recordedAt, actor.orgId, supportCaseId, eventId),
+    );
+  }
+  statements.push(env.DB.prepare(
+    `INSERT INTO consent_audit_events(id,org_id,actor_id,action,consent_event_id,outcome_code,recorded_at)
+     SELECT ?,?,?,?,?,'accepted',? WHERE EXISTS(SELECT 1 FROM consent_events WHERE id=?)`,
+  ).bind(
+    auditId, actor.orgId, actor.userId,
+    input.decision === 'correct' ? 'consent_correction' : 'consent_append',
+    eventId, recordedAt, eventId,
+  ));
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    const raced = await env.DB.prepare(
+      `SELECT event.*,event.request_hash FROM consent_events AS event
+       WHERE event.org_id=? AND event.support_case_id=? AND event.domain=? AND event.idempotency_key=?`,
+    ).bind(actor.orgId, supportCaseId, input.domain, input.idempotencyKey)
+      .first<ConsentEventRow & { request_hash: string }>();
+    if (raced !== null) {
+      if (raced.request_hash !== requestHash) throw new ConsentContractError('idempotency_conflict');
+      return mapConsentEvent(raced);
+    }
+    if (input.decision !== 'withdraw' && allocationRetry < 2) {
+      return appendSupportCaseConsentEventUnchecked(env, actor, supportCaseId, input, allocationRetry + 1);
+    }
+    throw new ConsentContractError('revision_conflict');
+  }
+  const inserted = await env.DB.prepare(
+    'SELECT * FROM consent_events WHERE id=? AND org_id=? AND support_case_id=?',
+  ).bind(eventId, actor.orgId, supportCaseId).first<ConsentEventRow>();
+  if (inserted === null) throw new ConsentContractError('revision_conflict');
+  return mapConsentEvent(inserted);
+}
+
+export async function appendSupportCaseConsentEvent(
+  env: Env,
+  actor: Actor,
+  supportCaseId: string,
+  input: AppendConsentEventInput,
+): Promise<ConsentEvent> {
+  try {
+    return await appendSupportCaseConsentEventUnchecked(env, actor, supportCaseId, input);
+  } catch (error) {
+    const outcomeCode = error instanceof ConsentContractError
+      ? error.code
+      : error instanceof ForbiddenError ? 'forbidden' : 'invalid_request';
+    await env.DB.prepare(
+      `INSERT INTO consent_audit_events(
+         id,org_id,actor_id,action,consent_event_id,outcome_code,recorded_at
+       ) VALUES(?,?,?,?,NULL,?,?)`,
+    ).bind(
+      newId(), actor.orgId, actor.userId,
+      input.decision === 'withdraw' && outcomeCode === 'revision_conflict'
+        ? 'consent_withdraw_race' : 'consent_reject',
+      outcomeCode, now(),
+    ).run();
+    throw error;
+  }
+}
+
+export async function assertConsentGate(
+  env: Env,
+  orgId: string,
+  supportCaseId: string,
+  requiredDomains: readonly ConsentDomain[],
+): Promise<ConsentGateReceipt> {
+  const events = await currentConsentEventMap(env, orgId, supportCaseId, now());
+  const required: ConsentGateReceiptEntry[] = [];
+  for (const domain of [...requiredDomains].sort((a, b) => a.localeCompare(b, 'en'))) {
+    const event = events.get(domain);
+    if (
+      event === undefined || event.decision !== 'grant' || event.provider === null || event.purpose === null
+    ) throw new ConsentContractError('consent_not_effective');
+    required.push({
+      domain, eventSequence: event.eventSequence, revision: event.revision, eventId: event.id,
+      copyHash: event.copyHash, decision: 'grant', provider: event.provider,
+      purpose: event.purpose, effectiveAt: event.effectiveAt,
+    });
+  }
+  return { required, consentRevision: await consentRevision(required) };
+}
+
+const STT_READINESS_TTL_MS = 10 * 60_000;
+
+export async function recordSttReadiness(
+  env: Env,
+  actor: Actor,
+  report: SttReadinessReport,
+): Promise<{ accepted: true }> {
+  assertAgentActor(actor);
+  const receivedAt = now();
+  const expiresAt = new Date(parseUtcTimestamp(receivedAt) + STT_READINESS_TTL_MS).toISOString();
+  await env.DB.prepare(
+    `INSERT INTO stt_agent_readiness(
+       org_id,agent_id,schema_version,stt_mode,stt_engine_id,state,capacity,received_at,expires_at
+     ) VALUES(?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(org_id,agent_id) DO UPDATE SET
+       schema_version=excluded.schema_version,stt_mode=excluded.stt_mode,
+       stt_engine_id=excluded.stt_engine_id,state=excluded.state,capacity=excluded.capacity,
+       received_at=excluded.received_at,expires_at=excluded.expires_at`,
+  ).bind(
+    actor.orgId, actor.userId, report.schemaVersion, report.sttMode, report.sttEngineId,
+    report.state, report.capacity, receivedAt, expiresAt,
+  ).run();
+  return { accepted: true };
+}
+
+export async function getSttReadiness(
+  env: Env,
+  orgId: string,
+  sttMode: 'local' | 'azure',
+  sttEngineId: SttEngineId,
+  agentId?: string,
+): Promise<SttReadinessRecord | null> {
+  const at = now();
+  const row = await env.DB.prepare(
+    `SELECT * FROM stt_agent_readiness
+     WHERE org_id=? AND stt_mode=? AND stt_engine_id=? AND state='ready' AND capacity=1
+       AND expires_at>? ${agentId === undefined ? '' : 'AND agent_id=?'}
+     ORDER BY received_at DESC LIMIT 1`,
+  ).bind(
+    orgId, sttMode, sttEngineId, at, ...(agentId === undefined ? [] : [agentId]),
+  ).first<DbRow>();
+  if (row === null) return null;
+  return {
+    orgId,
+    agentId: stringValue(row.agent_id),
+    schemaVersion: 1,
+    sttMode,
+    sttEngineId,
+    state: 'ready',
+    capacity: 1,
+    receivedAt: stringValue(row.received_at),
+    expiresAt: stringValue(row.expires_at),
+  } as SttReadinessRecord;
+}
+
+export async function hasFreshSttReadiness(
+  env: Env,
+  orgId: string,
+  sttMode: 'local' | 'azure',
+  sttEngineId: SttEngineId,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT 1 AS ready FROM stt_agent_readiness
+     WHERE org_id=? AND stt_mode=? AND stt_engine_id=? AND state='ready' AND expires_at>?
+     LIMIT 1`,
+  ).bind(orgId, sttMode, sttEngineId, now()).first<{ ready: number }>();
+  return row !== null;
+}
+
+interface BusinessCalendar {
+  version: 'kr-business-days-v1';
+  validFrom: string;
+  validUntil: string;
+  closedDates: string[];
+}
+
+function loadBusinessCalendar(env: Env, at: string): BusinessCalendar {
+  const parsed = parseJson<BusinessCalendar>(env.CCC_KR_BUSINESS_CALENDAR);
+  if (
+    parsed === null || parsed.version !== 'kr-business-days-v1'
+    || !/^\d{4}-\d{2}-\d{2}$/.test(parsed.validFrom)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(parsed.validUntil)
+    || !Array.isArray(parsed.closedDates)
+    || parsed.closedDates.some((date) => !/^\d{4}-\d{2}-\d{2}$/.test(date))
+  ) throw new ValidationError('business_calendar_unavailable');
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(at));
+  const localDate = `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}-${parts.find((part) => part.type === 'day')?.value}`;
+  if (localDate < parsed.validFrom || localDate > parsed.validUntil) {
+    throw new ValidationError('business_calendar_unavailable');
+  }
+  return parsed;
+}
+
+function nextBusinessDayGate(env: Env, at: string): string {
+  const calendar = loadBusinessCalendar(env, at);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const current = formatter.formatToParts(new Date(at));
+  const year = Number(current.find((part) => part.type === 'year')?.value);
+  const month = Number(current.find((part) => part.type === 'month')?.value);
+  const day = Number(current.find((part) => part.type === 'day')?.value);
+  const closed = new Set(calendar.closedDates);
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const candidate = new Date(Date.UTC(year, month - 1, day + offset));
+    const date = candidate.toISOString().slice(0, 10);
+    if (date > calendar.validUntil) throw new ValidationError('business_calendar_unavailable');
+    const weekday = candidate.getUTCDay();
+    if (weekday !== 0 && weekday !== 6 && !closed.has(date)) {
+      return new Date(`${date}T00:00:00+09:00`).toISOString();
+    }
+  }
+  throw new ValidationError('business_calendar_unavailable');
+}
+
+export interface RecordingUploadAdmission {
+  sttEngine: Exclude<AgentSttEngine, null>;
+  sttEngineId: SttEngineId;
+  requiredConsent: ConsentDomain[];
+  consentReceipt: ConsentGateReceipt;
+  eligibleAfter: string;
+  retentionHardCapAt: string;
+}
+
+export async function admitRecordingUpload(
+  env: Env,
+  actor: Actor,
+  sessionId: string,
+  runtime: AgentRuntime,
+): Promise<RecordingUploadAdmission> {
+  const session = await assertSessionWriteAccess(env, actor, sessionId);
+  await assertRecordingUploadAllowedForSession(env, actor, session);
+  await assertRecordingResultNotCommitted(env, actor, session);
+  const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
+  if (runtime.sttEngine === null || runtime.sttEngineId === null) {
+    throw new AgentJobContractError('engine_unavailable');
+  }
+  const readiness = await getSttReadiness(env, actor.orgId, runtime.sttEngine, runtime.sttEngineId);
+  if (readiness === null) throw new AgentJobContractError('engine_unavailable');
+  const requiredConsent: ConsentDomain[] = runtime.sttEngine === 'azure'
+    ? ['counseling_recording', 'external_stt_processing']
+    : ['counseling_recording'];
+  const consentReceipt = await assertConsentGate(env, actor.orgId, canonicalScope.supportCaseId, requiredConsent);
+  const admittedAt = now();
+  return {
+    sttEngine: runtime.sttEngine,
+    sttEngineId: runtime.sttEngineId,
+    requiredConsent,
+    consentReceipt,
+    eligibleAfter: nextBusinessDayGate(env, admittedAt),
+    retentionHardCapAt: new Date(parseUtcTimestamp(admittedAt) + AUDIO_RETENTION_HARD_CAP_MS).toISOString(),
+  };
+}
+
 // Agent 작업 계약 v2 (S5 · E5-1a) — 오디오와 텍스트가 한 상태기계를 쓴다
 // ============================================================================
 
@@ -7274,7 +8354,7 @@ const MASK_DICTIONARY_TTL_MS = 5 * 60_000;
 const MASK_DICTIONARY_ID = /^md1\.([0-9a-f]{64})$/;
 const MASK_DICTIONARY_HKDF_SALT = 'ccc.mask-dictionary.hkdf.v1';
 const MASK_DICTIONARY_HKDF_INFO = 'ccc.mask-dictionary.authenticator.v1';
-const EGRESS_AUTHORIZATION_TTL_MS = 10 * 60_000;
+const EGRESS_AUTHORIZATION_TTL_MS = 5 * 60_000;
 /** SG8 절대 상한: 업로드 + 7일 (D85). */
 const AUDIO_RETENTION_HARD_CAP_MS = 7 * 24 * 60 * 60_000;
 
@@ -7285,6 +8365,7 @@ const AUDIO_RETENTION_HARD_CAP_MS = 7 * 24 * 60 * 60_000;
 export interface AgentRuntime {
   route: ProcessingRoute;
   sttEngine: AgentSttEngine;
+  sttEngineId: SttEngineId | null;
   audioDelivery: 'protected-get' | 'api-stream';
 }
 
@@ -7293,6 +8374,7 @@ interface AgentJobRow {
   orgId: string;
   kind: JobKind;
   state: AgentJobState;
+  audioProcessingDeadlineAt: string | null;
   sessionId: string;
   supportCaseId: string;
   sourceTextWorkItemId: string | null;
@@ -7307,6 +8389,11 @@ interface AgentJobRow {
   releaseQualificationReceiptId: string | null;
   nerAttestationId: string | null;
   nerAttestationResultHash: string | null;
+  nerModelId: string | null;
+  nerModelRevision: string | null;
+  nerLabelSetHash: string | null;
+  nerCorpusHash: string | null;
+  nerAttestationValidatedAt: string | null;
   nerAttestationExpiresAt: string | null;
   audioGenerationId: string | null;
   clientAssertedSha256: string | null;
@@ -7315,6 +8402,10 @@ interface AgentJobRow {
   retentionHardCapAt: string | null;
   processingDeadlineAt: string | null;
   sttEngine: string | null;
+  sttEngineId: SttEngineId | null;
+  audioObjectId: string | null;
+  consentRevision: string | null;
+  consentReceiptJson: string | null;
   requiredConsent: string;
   maskDictionaryId: string | null;
   maskDictionaryExpiresAt: string | null;
@@ -7326,6 +8417,7 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     orgId: stringValue(row.org_id),
     kind: stringValue(row.kind) as JobKind,
     state: stringValue(row.state) as AgentJobState,
+    audioProcessingDeadlineAt: nullableString(row.audio_processing_deadline_at),
     sessionId: stringValue(row.session_id),
     supportCaseId: stringValue(row.support_case_id),
     sourceTextWorkItemId: nullableString(row.source_text_work_item_id),
@@ -7341,6 +8433,11 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     nerAttestationId: nullableString(row.ner_attestation_id),
     nerAttestationResultHash: nullableString(row.ner_attestation_result_hash),
     nerAttestationExpiresAt: nullableString(row.ner_attestation_expires_at),
+    nerModelId: nullableString(row.ner_model_id),
+    nerModelRevision: nullableString(row.ner_model_revision),
+    nerLabelSetHash: nullableString(row.ner_label_set_hash),
+    nerCorpusHash: nullableString(row.ner_corpus_hash),
+    nerAttestationValidatedAt: nullableString(row.ner_attestation_validated_at),
     audioGenerationId: nullableString(row.audio_generation_id),
     clientAssertedSha256: nullableString(row.client_asserted_sha256),
     agentComputedSha256: nullableString(row.agent_computed_sha256),
@@ -7348,6 +8445,10 @@ function mapAgentJobRow(row: DbRow): AgentJobRow {
     retentionHardCapAt: nullableString(row.retention_hard_cap_at),
     processingDeadlineAt: nullableString(row.processing_deadline_at),
     sttEngine: nullableString(row.stt_engine),
+    sttEngineId: nullableString(row.stt_engine_id) as SttEngineId | null,
+    audioObjectId: nullableString(row.audio_object_id),
+    consentRevision: nullableString(row.consent_revision),
+    consentReceiptJson: nullableString(row.consent_receipt_json),
     requiredConsent: stringValue(row.required_consent),
     maskDictionaryId: nullableString(row.mask_dictionary_id),
     maskDictionaryExpiresAt: nullableString(row.mask_dictionary_expires_at),
@@ -7429,28 +8530,29 @@ export function interleaveAgentJobQueues<T extends { enqueuedAt: string; id: str
   return picked;
 }
 
-/**
- * requiredConsent 재확인. 현재 동의값에서 revision 을 도출해 egress 영수증과 결과
- * 수락이 같은 값을 쓴다. 외부 STT 동의 영역은 SG7·E4-6 이 만들기 전까지 없으므로
- * Azure engine 은 여기서 fail closed 다 (D85 경로별 동의).
- */
+/** Revalidates the immutable S7 receipt against the current fold before every protected operation. */
 async function agentJobConsentRevision(env: Env, orgId: string, job: AgentJobRow): Promise<string> {
-  const row = await env.DB.prepare(
-    'SELECT consent_recording_at, consent_text_ai_at FROM support_cases WHERE id = ? AND org_id = ?',
-  ).bind(job.supportCaseId, orgId).first<{
-    consent_recording_at: string | null;
-    consent_text_ai_at: string | null;
-  }>();
-  if (row === null) throw new AgentJobContractError('consent_not_effective', job.id);
-  const required = parseJson<string[]>(job.requiredConsent) ?? [];
-  for (const scope of required) {
-    const granted = scope === 'recording_ai'
-      ? row.consent_recording_at
-      : scope === 'text_ai' ? row.consent_text_ai_at : null;
-    if (granted === null) throw new AgentJobContractError('consent_not_effective', job.id);
-  }
-  if (job.sttEngine === 'azure') throw new AgentJobContractError('consent_not_effective', job.id);
-  return sha256Hex(`${row.consent_recording_at ?? ''}\u0000${row.consent_text_ai_at ?? ''}`);
+  const required = parseJson<ConsentDomain[]>(job.requiredConsent);
+  const storedReceipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (
+    required === null || required.length === 0 || storedReceipt === null || job.consentRevision === null
+    || storedReceipt.consentRevision !== job.consentRevision
+    || (job.sttEngine === 'local' && (
+      required.length !== 1 || required[0] !== 'counseling_recording'
+    ))
+    || (job.sttEngine === 'azure' && (
+      required.length !== 2
+      || !required.includes('counseling_recording')
+      || !required.includes('external_stt_processing')
+    ))
+  ) throw new AgentJobContractError('consent_not_effective', job.id);
+  const current = await assertConsentGate(env, orgId, job.supportCaseId, required)
+    .catch(() => { throw new AgentJobContractError('consent_not_effective', job.id); });
+  if (
+    current.consentRevision !== job.consentRevision
+    || canonicalizeJcs(current.required) !== canonicalizeJcs(storedReceipt.required)
+  ) throw new AgentJobContractError('consent_not_effective', job.id);
+  return current.consentRevision;
 }
 
 /**
@@ -7463,7 +8565,7 @@ async function assertNerReleaseQualification(
   attestation: NerAttestation,
   receiptId: string,
   jobId: string | null = null,
-): Promise<void> {
+): Promise<string> {
   const nowIso = now();
   if (attestation.status !== 'passed' || attestation.expiresAt <= nowIso) {
     throw new AgentJobContractError('local_ner_unavailable', jobId);
@@ -7484,6 +8586,38 @@ async function assertNerReleaseQualification(
   ) {
     throw new AgentJobContractError('local_ner_unavailable', jobId);
   }
+  return stringValue(receipt.expires_at) < attestation.expiresAt
+    ? stringValue(receipt.expires_at)
+    : attestation.expiresAt;
+}
+
+async function assertAgentJobQualificationCurrent(
+  env: Env,
+  actor: Actor,
+  job: AgentJobRow,
+): Promise<string> {
+  if (
+    job.releaseQualificationReceiptId === null
+    || job.nerAttestationId === null
+    || job.nerModelId === null
+    || job.nerModelRevision === null
+    || job.nerLabelSetHash === null
+    || job.nerCorpusHash === null
+    || job.nerAttestationResultHash === null
+    || job.nerAttestationValidatedAt === null
+    || job.nerAttestationExpiresAt === null
+  ) throw new AgentJobContractError('local_ner_unavailable', job.id);
+  return assertNerReleaseQualification(env, actor.orgId, {
+    id: job.nerAttestationId,
+    modelId: job.nerModelId,
+    modelRevision: job.nerModelRevision,
+    labelSetHash: job.nerLabelSetHash,
+    corpusHash: job.nerCorpusHash,
+    resultHash: job.nerAttestationResultHash,
+    validatedAt: job.nerAttestationValidatedAt,
+    expiresAt: job.nerAttestationExpiresAt,
+    status: 'passed',
+  }, job.releaseQualificationReceiptId, job.id);
 }
 
 /**
@@ -7493,37 +8627,80 @@ async function assertNerReleaseQualification(
 async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promise<void> {
   await env.DB.batch([
     env.DB.prepare(
-      `UPDATE agent_jobs
-       SET state = 'expired', terminal_failure_code = 'audio_deleted',
-           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
-           updated_at = ?
-       WHERE org_id = ? AND kind = 'audio' AND state IN ('pending', 'leased', 'blocked')
-         AND (retention_hard_cap_at <= ? OR processing_deadline_at <= ?)`,
-    ).bind(nowIso, orgId, nowIso, nowIso),
+      `UPDATE audio_objects SET state='deletion_pending',
+         deletion_reason=CASE WHEN retention_hard_cap_at<=? THEN 'retention_hard_cap' ELSE 'unprocessed_expiry' END,
+         deletion_attempt_id=id || ':delete:' ||
+           CASE WHEN retention_hard_cap_at<=? THEN 'retention_hard_cap:' ELSE 'unprocessed_expiry:' END || ?,
+         retry_count=0,next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,claim_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND state IN ('available','claimed','processing')
+         AND (retention_hard_cap_at<=? OR processing_deadline_at<=?)`,
+    ).bind(nowIso, nowIso, nowIso, nowIso, nowIso, orgId, nowIso, nowIso),
+    env.DB.prepare(
+      `UPDATE agent_jobs SET state='expired',terminal_failure_code='audio_deleted',
+         lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND kind='audio' AND state IN ('pending','leased','blocked')
+         AND audio_object_id IN(SELECT id FROM audio_objects WHERE state='deletion_pending')`,
+    ).bind(nowIso, orgId),
     env.DB.prepare(
       `UPDATE agent_jobs
-       SET state = CASE WHEN attempt >= ? THEN 'failed' ELSE 'pending' END,
-           terminal_failure_code = CASE WHEN attempt >= ? THEN 'retry_exhausted' ELSE NULL END,
-           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
-           updated_at = ?
-       WHERE org_id = ? AND state = 'leased' AND lease_expires_at <= ?`,
+       SET state=CASE WHEN attempt>=? THEN 'failed' ELSE 'pending' END,
+         terminal_failure_code=CASE WHEN attempt>=? THEN 'retry_exhausted' ELSE NULL END,
+         lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE org_id=? AND state='leased' AND lease_expires_at<=?`,
     ).bind(AGENT_JOB_MAX_ATTEMPTS, AGENT_JOB_MAX_ATTEMPTS, nowIso, orgId, nowIso),
+    env.DB.prepare(
+      `UPDATE audio_objects SET
+         state=CASE WHEN EXISTS(
+           SELECT 1 FROM agent_jobs
+           WHERE id=audio_objects.claim_id AND audio_object_id=audio_objects.id AND state='failed'
+         ) THEN 'deletion_pending' ELSE 'available' END,
+         deletion_reason=CASE WHEN EXISTS(
+           SELECT 1 FROM agent_jobs
+           WHERE id=audio_objects.claim_id AND audio_object_id=audio_objects.id AND state='failed'
+         ) THEN 'retry_exhausted' ELSE NULL END,
+         deletion_attempt_id=CASE WHEN EXISTS(
+           SELECT 1 FROM agent_jobs
+           WHERE id=audio_objects.claim_id AND audio_object_id=audio_objects.id AND state='failed'
+         ) THEN id || ':delete:retry_exhausted:' || ? ELSE deletion_attempt_id END,
+         next_attempt_at=CASE WHEN EXISTS(
+           SELECT 1 FROM agent_jobs
+           WHERE id=audio_objects.claim_id AND audio_object_id=audio_objects.id AND state='failed'
+         ) THEN ? ELSE NULL END,
+         claim_id=NULL,claim_agent_id=NULL,claim_expires_at=NULL,
+         processing_attempt_id=NULL,processing_started_at=NULL,updated_at=?
+       WHERE org_id=? AND state IN ('claimed','processing') AND claim_expires_at<=?
+         AND EXISTS(
+           SELECT 1 FROM agent_jobs
+           WHERE id=audio_objects.claim_id AND audio_object_id=audio_objects.id
+             AND state IN ('pending','failed')
+             AND (audio_objects.state='claimed' OR audio_objects.processing_attempt_id=id || ':' || attempt)
+         )`,
+    ).bind(nowIso, nowIso, nowIso, orgId, nowIso),
+    env.DB.prepare(
+      `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+       SELECT id || ':incident:' || deletion_reason,org_id,id,'incident',deletion_reason,?
+       FROM audio_objects WHERE org_id=? AND state='deletion_pending' AND updated_at=?
+       ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+    ).bind(nowIso, orgId, nowIso),
+    env.DB.prepare(
+      `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+       SELECT id || ':manual_note:' || deletion_reason,org_id,id,'manual_note',deletion_reason,?
+       FROM audio_objects WHERE org_id=? AND state='deletion_pending' AND updated_at=?
+       ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+    ).bind(nowIso, orgId, nowIso),
   ]);
 }
 
 /**
- * Agent 폴링 = claim (S5 §2.1). 후보 선별과 임대 부여가 원자적 CAS 라 두 Agent 가
- * 동시에 claim 해도 같은 작업이 두 번 나가지 않는다. blocked 행은 NER 이 회복되면
- * attempt 를 올리지 않고 다시 임대한다.
- *
- * Azure engine 은 후보에서 제외한다 — 외부 STT 동의 영역이 아직 없어(SG7 · E4-6)
- * 전송 근거를 만들 수 없다. 늦는 것이 새는 것보다 낫다(R3).
+ * Claims exact engine-bound work only while this service actor has a fresh capacity slot.
+ * Azure and Local share the same receipt, readiness and lifecycle predicates.
  */
 export async function claimAgentJobs(
   env: Env,
   actor: Actor,
   runtime: AgentRuntime,
   request: ClaimRequest,
+  audioStore?: AudioStore,
 ): Promise<ClaimResponse> {
   assertAgentActor(actor);
   const limit = normalizeClaimLimit(request.limit);
@@ -7537,112 +8714,204 @@ export async function claimAgentJobs(
 
   const nowIso = now();
   await recoverAgentJobs(env, actor.orgId, nowIso);
+  if (audioStore !== undefined) {
+    const due = await env.DB.prepare(
+      `SELECT id FROM audio_objects
+       WHERE org_id=? AND state='deletion_pending' AND next_attempt_at<=?
+       ORDER BY COALESCE(next_attempt_at,'9999-12-31T23:59:59.999Z'),id LIMIT 50`,
+    ).bind(actor.orgId, nowIso).all<{ id: string }>();
+    for (const item of due.results) {
+      await reconcileAudioObjectDeletion(env, audioStore, item.id);
+    }
+  }
 
-  const audioCandidates = runtime.sttEngine === 'local'
-    ? (await env.DB.prepare(
-      `SELECT job.* FROM agent_jobs AS job
-       JOIN support_cases AS support_case
-         ON support_case.id = job.support_case_id AND support_case.org_id = job.org_id
-       WHERE job.org_id = ? AND job.kind = 'audio' AND job.state IN ('pending', 'blocked')
-         -- blocked 는 attempt 를 소모하지 않는다. 3회를 다 쓴 뒤 차단된 작업도 NER 이
-         -- 회복되면 같은 attempt 로 다시 임대돼야 한다(S5 §2.2).
-         AND (job.state = 'blocked' OR job.attempt < ?)
-         AND job.audio_generation_id IS NOT NULL
-         AND (job.retention_hard_cap_at IS NULL OR job.retention_hard_cap_at > ?)
-         AND (job.processing_deadline_at IS NULL OR job.processing_deadline_at > ?)
-         AND support_case.consent_recording_at IS NOT NULL
-       ORDER BY job.enqueued_at, job.id
-       LIMIT ?`,
-    ).bind(actor.orgId, AGENT_JOB_MAX_ATTEMPTS, nowIso, nowIso, limit).all<DbRow>()).results
-    : [];
-
-  // 텍스트 일감은 파일럿 스위치·② 동의·공식 텍스트가 갖춰진 회차만 처리할 수 있다.
-  // 갖춰지지 않은 행을 내보내면 Agent 가 매번 같은 행을 집어 실패한다.
-  const textCandidates = isPilotTextAiEnabled(env)
-    ? (await env.DB.prepare(
-      `SELECT job.* FROM agent_jobs AS job
-       JOIN support_cases AS support_case
-         ON support_case.id = job.support_case_id AND support_case.org_id = job.org_id
-       JOIN sessions AS session ON session.id = job.session_id AND session.org_id = job.org_id
-       WHERE job.org_id = ? AND job.kind = 'text' AND job.state IN ('pending', 'blocked')
-         AND (job.state = 'blocked' OR job.attempt < ?)
-         AND support_case.consent_text_ai_at IS NOT NULL
-         AND EXISTS (
-           SELECT 1 FROM pilot_text_ai_consent_evidence AS evidence
-           WHERE evidence.org_id = job.org_id
-             AND evidence.support_case_id = job.support_case_id
-             AND evidence.effective_at <= ?
-         )
-         AND (
-           TRIM(COALESCE(session.memo, '')) <> ''
-           OR EXISTS (
-             SELECT 1 FROM approved_ai_briefing_v1 AS approved
-             WHERE approved.org_id = job.org_id AND approved.session_id = job.session_id
-               AND TRIM(COALESCE(approved.summary_text, '')) <> ''
+  const readiness = runtime.sttEngine !== null && runtime.sttEngineId !== null
+    ? await getSttReadiness(env, actor.orgId, runtime.sttEngine, runtime.sttEngineId, actor.userId)
+    : null;
+  const audioCandidates: DbRow[] = [];
+  if (readiness !== null) {
+    let cursorEnqueuedAt: string | null = null;
+    let cursorId: string | null = null;
+    while (audioCandidates.length === 0) {
+      const page = (await env.DB.prepare(
+        `SELECT job.*,audio.processing_deadline_at AS audio_processing_deadline_at
+         FROM agent_jobs AS job
+         JOIN audio_objects AS audio ON audio.id=job.audio_object_id AND audio.org_id=job.org_id
+         WHERE job.org_id=? AND job.kind='audio' AND job.state IN ('pending','blocked')
+           AND (job.state='blocked' OR job.attempt<?)
+           AND job.stt_engine=? AND job.stt_engine_id=?
+           AND job.audio_generation_id IS NOT NULL AND job.consent_revision IS NOT NULL
+           AND job.consent_receipt_json IS NOT NULL
+           AND audio.state='available' AND audio.generation_id=job.audio_generation_id
+           AND audio.stt_route=? AND audio.stt_engine_id=?
+           AND audio.eligible_after<=? AND audio.retention_hard_cap_at>?
+           AND (audio.processing_deadline_at IS NULL OR audio.processing_deadline_at>?)
+           AND (
+             CAST(? AS TEXT) IS NULL OR job.enqueued_at>?
+             OR (job.enqueued_at=? AND job.id>?)
            )
-         )
-       ORDER BY job.enqueued_at, job.id
-       LIMIT ?`,
-    ).bind(actor.orgId, AGENT_JOB_MAX_ATTEMPTS, nowIso, limit).all<DbRow>()).results
-    : [];
+         ORDER BY job.enqueued_at,job.id LIMIT 50`,
+      ).bind(
+        actor.orgId, AGENT_JOB_MAX_ATTEMPTS, runtime.sttEngine, runtime.sttEngineId,
+        runtime.sttEngine, runtime.sttEngineId, nowIso, nowIso, nowIso,
+        cursorEnqueuedAt, cursorEnqueuedAt, cursorEnqueuedAt, cursorId,
+      ).all<DbRow>()).results;
+      for (const candidate of page) {
+        try {
+          await agentJobConsentRevision(env, actor.orgId, mapAgentJobRow(candidate));
+          audioCandidates.push(candidate);
+          break;
+        } catch {
+          // A stale receipt remains unclaimable, but cannot starve later eligible audio.
+        }
+      }
+      if (audioCandidates.length > 0 || page.length < 50) break;
+      const last = page.at(-1);
+      if (last === undefined) break;
+      cursorEnqueuedAt = stringValue(last.enqueued_at);
+      cursorId = stringValue(last.id);
+    }
+  }
+
+  const textCandidates: DbRow[] = [];
+  if (isPilotTextAiEnabled(env)) {
+    let cursorEnqueuedAt: string | null = null;
+    let cursorId: string | null = null;
+    while (textCandidates.length < limit) {
+      const page = (await env.DB.prepare(
+        `SELECT job.* FROM agent_jobs AS job
+         JOIN sessions AS session ON session.id=job.session_id AND session.org_id=job.org_id
+         WHERE job.org_id=? AND job.kind='text' AND job.state IN ('pending','blocked')
+           AND (job.state='blocked' OR job.attempt<?)
+           AND job.consent_revision IS NOT NULL AND job.consent_receipt_json IS NOT NULL
+           AND (
+             TRIM(COALESCE(session.memo,''))<>''
+             OR EXISTS(
+               SELECT 1 FROM approved_ai_briefing_v1 AS approved
+               WHERE approved.org_id=job.org_id AND approved.session_id=job.session_id
+                 AND TRIM(COALESCE(approved.summary_text,''))<>''
+             )
+           )
+           AND (
+             CAST(? AS TEXT) IS NULL OR job.enqueued_at>?
+             OR (job.enqueued_at=? AND job.id>?)
+           )
+         ORDER BY job.enqueued_at,job.id LIMIT 50`,
+      ).bind(
+        actor.orgId,
+        AGENT_JOB_MAX_ATTEMPTS,
+        cursorEnqueuedAt,
+        cursorEnqueuedAt,
+        cursorEnqueuedAt,
+        cursorId,
+      ).all<DbRow>()).results;
+      for (const candidate of page) {
+        try {
+          await agentJobConsentRevision(env, actor.orgId, mapAgentJobRow(candidate));
+          textCandidates.push(candidate);
+          if (textCandidates.length >= limit) break;
+        } catch {
+          // A stale receipt remains unclaimable, but cannot starve later eligible text.
+        }
+      }
+      if (textCandidates.length >= limit || page.length < 50) break;
+      const last = page.at(-1);
+      if (last === undefined) break;
+      cursorEnqueuedAt = stringValue(last.enqueued_at);
+      cursorId = stringValue(last.id);
+    }
+  }
 
   const selected = interleaveAgentJobQueues(
     audioCandidates.map(mapAgentJobRow),
     textCandidates.map(mapAgentJobRow),
     limit,
   );
-
   const attestation = request.nerAttestation;
   const leases = selected.map((job) => {
     const claimToken = newClaimToken();
     const attempt = job.state === 'blocked' ? job.attempt : job.attempt + 1;
+    const processingDeadlineAt = job.kind === 'audio' && job.retentionHardCapAt !== null
+      ? job.audioProcessingDeadlineAt ?? job.processingDeadlineAt ?? [
+        new Date(parseUtcTimestamp(nowIso) + 24 * 60 * 60_000).toISOString(),
+        job.retentionHardCapAt,
+      ].reduce((earliest, value) => value < earliest ? value : earliest)
+      : job.processingDeadlineAt;
     return {
-      job,
-      claimToken,
-      attempt,
-      leaseExpiresAt: agentLeaseExpiry(nowIso, nowIso, job),
+      job, claimToken, attempt, processingDeadlineAt,
+      leaseExpiresAt: agentLeaseExpiry(nowIso, nowIso, { ...job, processingDeadlineAt }),
     };
   });
   const claimed: AgentJob[] = [];
   if (leases.length > 0) {
-    const results = await env.DB.batch(await Promise.all(leases.map(async (lease) => env.DB.prepare(
-      `UPDATE agent_jobs
-       SET state = 'leased',
-           attempt = CASE WHEN state = 'blocked' THEN attempt ELSE attempt + 1 END,
-           lease_owner = ?, claim_token_hash = ?, claimed_at = ?, lease_expires_at = ?,
-           ner_attestation_id = ?, ner_model_id = ?, ner_model_revision = ?, ner_label_set_hash = ?,
-           ner_corpus_hash = ?, ner_attestation_result_hash = ?, ner_attestation_validated_at = ?,
-           ner_attestation_expires_at = ?, release_qualification_receipt_id = ?,
-           route = ?, stt_engine = ?, terminal_failure_code = NULL,
-           mask_dictionary_id = NULL, mask_dictionary_issued_at = NULL,
-           mask_dictionary_expires_at = NULL, mask_dictionary_consumed_at = NULL,
-           updated_at = ?
-       WHERE id = ? AND org_id = ? AND state = ? AND attempt = ?`,
-    ).bind(
-      actor.userId,
-      await sha256Hex(lease.claimToken),
-      nowIso,
-      lease.leaseExpiresAt,
-      attestation.id,
-      attestation.modelId,
-      attestation.modelRevision,
-      attestation.labelSetHash,
-      attestation.corpusHash,
-      attestation.resultHash,
-      attestation.validatedAt,
-      attestation.expiresAt,
-      request.releaseQualificationReceiptId,
-      runtime.route,
-      lease.job.kind === 'audio' ? runtime.sttEngine : null,
-      nowIso,
-      lease.job.id,
-      actor.orgId,
-      lease.job.state,
-      lease.job.attempt,
-    ))));
+    const statements: PreparedStatement[] = [];
+    for (const lease of leases) {
+      const tokenHash = await sha256Hex(lease.claimToken);
+      const receipt = parseJson<ConsentGateReceipt>(lease.job.consentReceiptJson);
+      if (lease.job.kind === 'audio' && receipt === null) {
+        throw new AgentJobContractError('consent_not_effective', lease.job.id);
+      }
+      const jobConsentGuard = lease.job.kind === 'audio' && receipt !== null
+        ? consentSqlGuard(receipt, 'audio')
+        : { sql: '1=1', bindings: [] as Bindable[] };
+      const audioConsentGuard = lease.job.kind === 'audio' && receipt !== null
+        ? consentSqlGuard(receipt, 'audio_objects')
+        : { sql: '1=1', bindings: [] as Bindable[] };
+      statements.push(
+        env.DB.prepare(
+          `UPDATE agent_jobs
+           SET state='leased',attempt=CASE WHEN state='blocked' THEN attempt ELSE attempt+1 END,
+             lease_owner=?,claim_token_hash=?,claimed_at=?,lease_expires_at=?,
+             ner_attestation_id=?,ner_model_id=?,ner_model_revision=?,ner_label_set_hash=?,
+             ner_corpus_hash=?,ner_attestation_result_hash=?,ner_attestation_validated_at=?,
+             ner_attestation_expires_at=?,release_qualification_receipt_id=?,
+             route=?,processing_deadline_at=?,terminal_failure_code=NULL,
+             mask_dictionary_id=NULL,mask_dictionary_issued_at=NULL,
+             mask_dictionary_expires_at=NULL,mask_dictionary_consumed_at=NULL,updated_at=?
+           WHERE id=? AND org_id=? AND state=? AND attempt=?
+             AND (kind='text' OR (stt_engine=? AND stt_engine_id=? AND EXISTS(
+               SELECT 1 FROM audio_objects AS audio
+               WHERE audio.id=agent_jobs.audio_object_id AND audio.state='available'
+                 AND audio.eligible_after<=? AND audio.retention_hard_cap_at>?
+                 AND (audio.processing_deadline_at IS NULL OR audio.processing_deadline_at>?)
+                 AND ${jobConsentGuard.sql}
+             )))`,
+        ).bind(
+          actor.userId, tokenHash, nowIso, lease.leaseExpiresAt,
+          attestation.id, attestation.modelId, attestation.modelRevision, attestation.labelSetHash,
+          attestation.corpusHash, attestation.resultHash, attestation.validatedAt, attestation.expiresAt,
+          request.releaseQualificationReceiptId, runtime.route, lease.processingDeadlineAt, nowIso,
+          lease.job.id, actor.orgId, lease.job.state, lease.job.attempt,
+          runtime.sttEngine, runtime.sttEngineId, nowIso, nowIso, nowIso,
+          ...jobConsentGuard.bindings,
+        ),
+        env.DB.prepare(
+          `UPDATE audio_objects
+           SET state='claimed',first_agent_available_at=COALESCE(first_agent_available_at,?),
+             processing_deadline_at=COALESCE(processing_deadline_at,?),claim_id=?,
+             claim_agent_id=?,claim_expires_at=?,updated_at=?
+           WHERE id=? AND org_id=? AND state='available' AND generation_id=?
+             AND retention_hard_cap_at>? AND (processing_deadline_at IS NULL OR processing_deadline_at>?)
+             AND ${audioConsentGuard.sql}
+             AND EXISTS(
+               SELECT 1 FROM agent_jobs WHERE id=? AND state='leased'
+                 AND lease_owner=? AND claim_token_hash=? AND attempt=?
+             )`,
+        ).bind(
+          nowIso, lease.processingDeadlineAt, lease.job.id, actor.userId, lease.leaseExpiresAt, nowIso,
+          lease.job.audioObjectId, actor.orgId, lease.job.audioGenerationId, nowIso, nowIso,
+          ...audioConsentGuard.bindings,
+          lease.job.id, actor.userId, tokenHash, lease.attempt,
+        ),
+      );
+    }
+    const results = await env.DB.batch(statements);
     leases.forEach((lease, index) => {
-      const changes = (results[index] as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0;
-      if (changes < 1) return;
+      const jobChanges = results[index * 2]?.meta?.changes ?? 0;
+      const audioChanges = lease.job.kind === 'audio'
+        ? results[index * 2 + 1]?.meta?.changes ?? 0
+        : 1;
+      if (jobChanges < 1 || audioChanges < 1) return;
       claimed.push({
         jobId: lease.job.id,
         sessionId: lease.job.sessionId,
@@ -7657,7 +8926,8 @@ export async function claimAgentJobs(
         enqueuedAt: lease.job.enqueuedAt,
         route: runtime.route,
         sttEngine: lease.job.kind === 'audio' ? runtime.sttEngine : null,
-        requiredConsent: (parseJson<string[]>(lease.job.requiredConsent) ?? []) as ConsentScope[],
+        sttEngineId: lease.job.kind === 'audio' ? runtime.sttEngineId : null,
+        requiredConsent: (parseJson<ConsentDomain[]>(lease.job.requiredConsent) ?? []) as ConsentScope[],
         releaseQualificationReceiptId: request.releaseQualificationReceiptId,
         terminalFailureCode: null,
         maskDictionaryEndpoint: `/pipeline/jobs/${lease.job.id}/mask-dictionary`,
@@ -7668,7 +8938,7 @@ export async function claimAgentJobs(
             agentComputedSha256: lease.job.agentComputedSha256,
             rawAudioSha256: lease.job.rawAudioSha256,
             retentionHardCapAt: lease.job.retentionHardCapAt ?? lease.leaseExpiresAt,
-            processingDeadlineAt: lease.job.processingDeadlineAt,
+            processingDeadlineAt: lease.processingDeadlineAt,
             egressAuthorizationId: null,
             delivery: runtime.audioDelivery,
             endpoint: `/pipeline/jobs/${lease.job.id}/audio`,
@@ -7753,12 +9023,19 @@ export async function heartbeatAgentJob(
  * 종료 신호. transient 는 재큐잉(attempt 3 이면 retry_exhausted), blocked 는 NER
  * 회복 대기이며 attempt 를 소모하지 않고, permanent 는 실패 코드를 못 박는다.
  */
+type InternalReleaseRequest = ReleaseRequest | {
+  claimToken: string;
+  attempt: number;
+  outcome: 'permanent';
+  reason: JobErrorCode;
+};
+
 export async function releaseAgentJob(
   env: Env,
   actor: Actor,
   jobId: string,
-  request: ReleaseRequest,
-): Promise<void> {
+  request: InternalReleaseRequest,
+): Promise<string | null> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   const nowIso = now();
   let state: AgentJobState = 'pending';
@@ -7774,22 +9051,115 @@ export async function releaseAgentJob(
     state = 'failed';
     terminalFailureCode = request.reason;
   }
-  const updated = await env.DB.prepare(
-    `UPDATE agent_jobs
-     SET state = ?, terminal_failure_code = ?, lease_owner = NULL, claim_token_hash = NULL,
-         claimed_at = NULL, lease_expires_at = NULL, updated_at = ?
-     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
-       AND lease_expires_at > ?`,
-  ).bind(
-    state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
-  ).run();
-  if ((updated.meta?.changes ?? 0) === 0) await throwAgentJobCasFailure(env, actor, jobId, request);
+  const deletionReason = state === 'failed'
+    ? terminalFailureCode === 'retry_exhausted' ? 'retry_exhausted' : 'processing_failed'
+    : null;
+  if (job.kind !== 'audio' || job.audioObjectId === null || job.audioGenerationId === null) {
+    const updated = await env.DB.prepare(
+      `UPDATE agent_jobs
+       SET state=?,terminal_failure_code=?,lease_owner=NULL,claim_token_hash=NULL,
+         claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+         AND lease_expires_at>?`,
+    ).bind(
+      state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
+    ).run();
+    if ((updated.meta?.changes ?? 0) === 0) {
+      await throwAgentJobCasFailure(env, actor, jobId, request);
+    }
+  } else {
+    const receipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+    if (receipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
+    const consentGuard = consentSqlGuard(receipt, 'audio_objects');
+    const deletionAttemptId = deletionReason === null ? null : newId();
+    const statements: PreparedStatement[] = [
+      deletionReason === null
+        ? env.DB.prepare(
+          `UPDATE audio_objects SET state='available',claim_id=NULL,claim_agent_id=NULL,
+             claim_expires_at=NULL,processing_attempt_id=NULL,processing_started_at=NULL,updated_at=?
+           WHERE id=? AND org_id=? AND generation_id=? AND state IN ('claimed','processing')
+             AND claim_id=? AND claim_agent_id=?
+             AND (state='claimed' OR processing_attempt_id=?)
+             AND retention_hard_cap_at>? AND processing_deadline_at>?
+             AND ${consentGuard.sql}
+             AND EXISTS(
+               SELECT 1 FROM agent_jobs WHERE id=? AND org_id=? AND state='leased'
+                 AND lease_owner=? AND claim_token_hash=? AND attempt=? AND lease_expires_at>?
+             )`,
+        ).bind(
+          nowIso, job.audioObjectId, actor.orgId, job.audioGenerationId, jobId, actor.userId,
+          `${jobId}:${job.attempt}`, nowIso, nowIso, ...consentGuard.bindings,
+          jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt, nowIso,
+        )
+        : env.DB.prepare(
+          `UPDATE audio_objects SET state='deletion_pending',deletion_reason=?,
+             deletion_attempt_id=?,next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,
+             claim_expires_at=NULL,updated_at=?
+           WHERE id=? AND org_id=? AND generation_id=? AND state IN ('claimed','processing')
+             AND claim_id=? AND claim_agent_id=?
+             AND (state='claimed' OR processing_attempt_id=?)
+             AND retention_hard_cap_at>? AND processing_deadline_at>?
+             AND ${consentGuard.sql}
+             AND EXISTS(
+               SELECT 1 FROM agent_jobs WHERE id=? AND org_id=? AND state='leased'
+                 AND lease_owner=? AND claim_token_hash=? AND attempt=? AND lease_expires_at>?
+             )`,
+        ).bind(
+          deletionReason, deletionAttemptId, nowIso, nowIso,
+          job.audioObjectId, actor.orgId, job.audioGenerationId, jobId, actor.userId,
+          `${jobId}:${job.attempt}`, nowIso, nowIso, ...consentGuard.bindings,
+          jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt, nowIso,
+        ),
+      env.DB.prepare(
+        `UPDATE agent_jobs
+         SET state=?,terminal_failure_code=?,lease_owner=NULL,claim_token_hash=NULL,
+           claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+         WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+           AND lease_expires_at>? AND EXISTS(
+             SELECT 1 FROM audio_objects WHERE id=? AND org_id=? AND generation_id=?
+               AND state=? AND (CAST(? AS TEXT) IS NULL OR deletion_attempt_id=?)
+           )`,
+      ).bind(
+        state, terminalFailureCode, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt, nowIso,
+        job.audioObjectId, actor.orgId, job.audioGenerationId,
+        deletionReason === null ? 'available' : 'deletion_pending',
+        deletionAttemptId, deletionAttemptId,
+      ),
+      env.DB.prepare(
+        `UPDATE agent_job_egress_records
+         SET status=CASE WHEN status='in_flight' THEN 'completed' ELSE 'revoked' END,
+             completed_at=CASE WHEN status='in_flight' THEN ? ELSE completed_at END
+         WHERE org_id=? AND job_id=? AND attempt=? AND status IN ('authorized','in_flight')
+           AND EXISTS(SELECT 1 FROM agent_jobs WHERE id=? AND state=?)`,
+      ).bind(nowIso, actor.orgId, jobId, job.attempt, jobId, state),
+    ];
+    if (deletionReason !== null) {
+      const kinds = deletionReason === 'processing_failed'
+        ? (['incident', 'manual_note'] as const)
+        : (['manual_note'] as const);
+      statements.push(...kinds.map((kind) => env.DB.prepare(
+        `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+         SELECT id || ':' || ? || ':' || ?,org_id,id,?,?,?
+         FROM audio_objects WHERE id=? AND org_id=? AND state='deletion_pending'
+           AND deletion_reason=? AND deletion_attempt_id=?
+         ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+      ).bind(
+        kind, deletionReason, kind, deletionReason, nowIso,
+        job.audioObjectId, actor.orgId, deletionReason, deletionAttemptId,
+      )));
+    }
+    const results = await env.DB.batch(statements);
+    if (
+      (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
+    ) await throwAgentJobCasFailure(env, actor, jobId, request);
+  }
   await writeAudit(env, actor, {
     action: 'update',
     targetTable: 'agent_jobs',
     targetId: jobId,
     detail: { state, outcome: request.outcome, reason: request.reason, attempt: job.attempt },
   });
+  return deletionReason === null ? null : job.audioObjectId;
 }
 
 /** claim 에 묶인 텍스트 원문. 1차 치환까지 끝난 공식 텍스트만 나간다. */
@@ -7816,16 +9186,13 @@ export async function closeAgentJobAudioObjectMissing(
   jobId: string,
   claimToken: string,
   attempt: number,
-): Promise<void> {
-  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
-  try {
-    await closeJobOnResultRejection(env, actor, job, claimToken, () => {
-      throw new AgentJobContractError('audio_object_missing', jobId);
-    });
-  } catch (error) {
-    // 같은 code 는 호출부가 응답으로 돌려준다. 여기서는 전이만 확정한다.
-    if (!(error instanceof AgentJobContractError) || error.code !== 'audio_object_missing') throw error;
-  }
+): Promise<string | null> {
+  return releaseAgentJob(env, actor, jobId, {
+    claimToken,
+    attempt,
+    outcome: 'permanent',
+    reason: 'audio_object_missing',
+  });
 }
 
 /** claim 에 묶인 오디오 전달. 키는 응답에 싣지 않고 호출부가 바이트만 중계한다. */
@@ -7835,23 +9202,178 @@ export async function getAgentJobAudioDelivery(
   jobId: string,
   claimToken: string,
   attempt: number,
+  runtime: AgentRuntime,
 ): Promise<{ audioR2Key: string; caseId: string; generationId: string }> {
   const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
-  if (job.kind !== 'audio' || job.audioGenerationId === null) {
-    throw new AgentJobContractError('audio_object_missing', jobId);
-  }
-  const session = await getSessionForOrg(env, actor.orgId, job.sessionId);
-  if (session.audioR2Key === null) {
+  if (
+    job.sttEngine === null || job.sttEngineId === null
+    || job.sttEngine !== runtime.sttEngine || job.sttEngineId !== runtime.sttEngineId
+    || job.kind !== 'audio' || job.audioGenerationId === null || job.audioObjectId === null
+  ) throw new AgentJobContractError('route_mismatch', jobId);
+  const ready = await env.DB.prepare(
+    `SELECT 1 AS ready FROM stt_agent_readiness
+     WHERE org_id=? AND agent_id=? AND stt_mode=? AND stt_engine_id=?
+       AND state='ready' AND expires_at>?`,
+  ).bind(actor.orgId, actor.userId, job.sttEngine, job.sttEngineId, now()).first<{ ready: number }>();
+  if (ready === null) throw new AgentJobContractError('engine_unavailable', jobId);
+  await agentJobConsentRevision(env, actor.orgId, job);
+  const receipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (receipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
+  const consentGuard = consentSqlGuard(receipt, 'audio');
+  const at = now();
+  const audio = await env.DB.prepare(
+    `SELECT audio.key,audio.support_case_id,audio.generation_id FROM audio_objects AS audio
+     WHERE audio.id=? AND audio.org_id=? AND audio.generation_id=?
+       AND audio.state IN ('claimed','processing') AND audio.claim_id=? AND audio.claim_agent_id=?
+       AND audio.retention_hard_cap_at>? AND audio.processing_deadline_at>?
+       AND ${consentGuard.sql}
+       AND EXISTS(
+         SELECT 1 FROM agent_jobs
+         WHERE id=? AND org_id=? AND state='leased' AND lease_owner=?
+           AND claim_token_hash=? AND attempt=? AND lease_expires_at>?
+       )`,
+  ).bind(
+    job.audioObjectId, actor.orgId, job.audioGenerationId, jobId, actor.userId, at, at,
+    ...consentGuard.bindings,
+    jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt, at,
+  ).first<{ key: string; support_case_id: string; generation_id: string }>();
+  if (audio === null) {
     await closeAgentJobAudioObjectMissing(env, actor, jobId, claimToken, attempt);
     throw new AgentJobContractError('audio_object_missing', jobId);
   }
   await writeAudit(env, actor, {
-    action: 'download_audio',
-    targetTable: 'agent_jobs',
-    targetId: jobId,
-    caseId: session.caseId,
+    action: 'download_audio', targetTable: 'agent_jobs', targetId: jobId, caseId: audio.support_case_id,
   });
-  return { audioR2Key: session.audioR2Key, caseId: session.caseId, generationId: job.audioGenerationId };
+  return { audioR2Key: audio.key, caseId: audio.support_case_id, generationId: audio.generation_id };
+}
+
+export interface AgentAudioTargetMint {
+  mintId: string;
+  key: string;
+  generationId: string;
+}
+
+export async function beginAgentJobAudioTargetMint(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+): Promise<AgentAudioTargetMint> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  if (job.kind !== 'audio' || job.audioObjectId === null || job.audioGenerationId === null) {
+    throw new AgentJobContractError('audio_object_missing', jobId);
+  }
+  await agentJobConsentRevision(env, actor.orgId, job);
+  const receipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (receipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
+  const consentGuard = consentSqlGuard(receipt, 'audio');
+  const requestedAt = now();
+  const mintId = newId();
+  const inserted = await env.DB.prepare(
+    `INSERT INTO audio_download_target_mints(
+       id,org_id,audio_object_id,job_id,generation_id,agent_id,claim_token_hash,attempt,status,requested_at
+     )
+     SELECT ?,job.org_id,audio.id,job.id,audio.generation_id,job.lease_owner,
+            job.claim_token_hash,job.attempt,'pending',?
+     FROM agent_jobs AS job
+     JOIN audio_objects AS audio ON audio.id=job.audio_object_id AND audio.org_id=job.org_id
+     WHERE job.id=? AND job.org_id=? AND job.state='leased' AND job.lease_owner=?
+       AND job.claim_token_hash=? AND job.attempt=? AND job.lease_expires_at>?
+       AND audio.state IN ('claimed','processing') AND audio.generation_id=?
+       AND audio.claim_id=job.id AND audio.claim_agent_id=job.lease_owner
+       AND audio.retention_hard_cap_at>? AND audio.processing_deadline_at>?
+       AND ${consentGuard.sql}
+       AND EXISTS(
+         SELECT 1 FROM stt_agent_readiness
+         WHERE org_id=job.org_id AND agent_id=job.lease_owner
+           AND stt_mode=job.stt_engine AND stt_engine_id=job.stt_engine_id
+           AND state='ready' AND expires_at>?
+       )`,
+  ).bind(
+    mintId, requestedAt, jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt,
+    requestedAt, job.audioGenerationId, requestedAt, requestedAt,
+    ...consentGuard.bindings, requestedAt,
+  ).run();
+  if ((inserted.meta?.changes ?? 0) === 0) {
+    await throwAgentJobCasFailure(env, actor, jobId, { claimToken, attempt });
+  }
+  const audio = await env.DB.prepare(
+    `SELECT key,generation_id FROM audio_objects
+     WHERE id=? AND org_id=? AND state IN ('claimed','processing')`,
+  ).bind(job.audioObjectId, actor.orgId).first<{ key: string; generation_id: string }>();
+  if (audio === null) return throwAgentJobCasFailure(env, actor, jobId, { claimToken, attempt });
+  return { mintId, key: audio.key, generationId: audio.generation_id };
+}
+
+export async function failAgentJobAudioTargetMint(
+  env: Env,
+  actor: Actor,
+  mintId: string,
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE audio_download_target_mints SET status='failed',failed_at=?
+     WHERE id=? AND org_id=? AND agent_id=? AND status='pending'`,
+  ).bind(now(), mintId, actor.orgId, actor.userId).run();
+}
+
+export async function completeAgentJobAudioTargetMint(
+  env: Env,
+  actor: Actor,
+  jobId: string,
+  claimToken: string,
+  attempt: number,
+  mint: AgentAudioTargetMint,
+  expiresAt: string,
+): Promise<void> {
+  const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  if (job.audioObjectId === null || job.audioGenerationId !== mint.generationId) {
+    throw new AgentJobContractError('stale_claim', jobId);
+  }
+  await agentJobConsentRevision(env, actor.orgId, job);
+  const receipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (receipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
+  const consentGuard = consentSqlGuard(receipt, 'audio');
+  const issuedAt = now();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE audio_download_target_mints SET status='issued',issued_at=?,expires_at=?
+       WHERE id=? AND org_id=? AND audio_object_id=? AND job_id=? AND generation_id=?
+         AND agent_id=? AND claim_token_hash=? AND attempt=? AND status='pending'
+         AND EXISTS(
+           SELECT 1 FROM agent_jobs AS current_job
+           JOIN audio_objects AS audio
+             ON audio.id=current_job.audio_object_id AND audio.org_id=current_job.org_id
+           WHERE current_job.id=? AND current_job.org_id=? AND current_job.state='leased'
+             AND current_job.lease_owner=? AND current_job.claim_token_hash=?
+             AND current_job.attempt=? AND current_job.lease_expires_at>?
+             AND audio.state IN ('claimed','processing') AND audio.generation_id=?
+             AND audio.claim_id=current_job.id AND audio.claim_agent_id=current_job.lease_owner
+             AND audio.retention_hard_cap_at>? AND audio.processing_deadline_at>?
+             AND ${consentGuard.sql}
+         )`,
+    ).bind(
+      issuedAt, expiresAt, mint.mintId, actor.orgId, job.audioObjectId, jobId,
+      mint.generationId, actor.userId, job.claimTokenHash, job.attempt,
+      jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt, issuedAt,
+      mint.generationId, issuedAt, issuedAt, ...consentGuard.bindings,
+    ),
+    env.DB.prepare(
+      `UPDATE audio_objects SET download_target_issued_at=?,download_target_agent_id=?,
+         download_target_expires_at=?,updated_at=?
+       WHERE id=? AND org_id=? AND generation_id=? AND state IN ('claimed','processing')
+         AND EXISTS(
+           SELECT 1 FROM audio_download_target_mints
+           WHERE id=? AND org_id=? AND status='issued' AND issued_at=? AND expires_at=?
+         )`,
+    ).bind(
+      issuedAt, actor.userId, expiresAt, issuedAt, job.audioObjectId, actor.orgId,
+      mint.generationId, mint.mintId, actor.orgId, issuedAt, expiresAt,
+    ),
+  ]);
+  if (
+    (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
+  ) await throwAgentJobCasFailure(env, actor, jobId, { claimToken, attempt });
 }
 
 const KOREAN_METROPOLITAN_REGION_BY_NAME: Readonly<Partial<Record<string, string>>> = {
@@ -8240,61 +9762,128 @@ export async function verifyAgentJobAudio(
   actor: Actor,
   jobId: string,
   request: AudioVerifyRequest,
-  /** 서버가 저장된 원음 바이트에서 직접 계산한 해시. Agent 제출값과 대조할 독립 근거다. */
-  storedSha256: string,
 ): Promise<AudioVerifyResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
-  if (job.kind !== 'audio' || job.audioGenerationId === null) {
+  if (job.kind !== 'audio' || job.audioGenerationId === null || job.audioObjectId === null) {
     throw new AgentJobContractError('audio_object_missing', jobId);
   }
+  await agentJobConsentRevision(env, actor.orgId, job);
   if (job.audioGenerationId !== request.generationId) {
     throw new AgentJobContractError('stale_claim', jobId);
   }
-  if (!SHA256_HEX.test(request.agentComputedSha256) || !SHA256_HEX.test(storedSha256)) {
+  if (!SHA256_HEX.test(request.agentComputedSha256)) {
     throw new AgentJobContractError('audio_hash_mismatch', jobId);
   }
+  const audio = await env.DB.prepare(
+    `SELECT storage_sha256,client_asserted_sha256 FROM audio_objects
+     WHERE id=? AND org_id=? AND generation_id=? AND state='claimed'`,
+  ).bind(job.audioObjectId, actor.orgId, request.generationId).first<{
+    storage_sha256: string | null;
+    client_asserted_sha256: string | null;
+  }>();
+  if (audio === null) throw new AgentJobContractError('stale_claim', jobId);
+  const receipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (receipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
+  const consentGuard = consentSqlGuard(receipt, 'audio_objects');
   const nowIso = now();
-  // 독립 근거 두 축과 어긋나면 trusted hash 를 만들지 않고 즉시 닫는다. Agent 가 제출한
-  // 값만으로는 trusted 가 될 수 없다 — 업로드 시 client 주장 해시도 신뢰하지 않는다(S5 §2.1).
-  const mismatched = storedSha256 !== request.agentComputedSha256
-    || (job.clientAssertedSha256 !== null && job.clientAssertedSha256 !== request.agentComputedSha256);
+  const mismatched = (
+    audio.storage_sha256 !== null && audio.storage_sha256 !== request.agentComputedSha256
+  ) || (
+    audio.client_asserted_sha256 !== null
+    && audio.client_asserted_sha256 !== request.agentComputedSha256
+  );
   if (mismatched) {
-    await env.DB.prepare(
-      `UPDATE agent_jobs
-       SET state = 'failed', terminal_failure_code = 'audio_hash_mismatch', agent_computed_sha256 = ?,
-           lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
-           updated_at = ?
-       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
-    ).bind(
-      request.agentComputedSha256, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt,
-    ).run();
+    const deletionAttemptId = newId();
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE audio_objects SET state='deletion_pending',deletion_reason='hash_mismatch',
+           deletion_attempt_id=?,next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,claim_expires_at=NULL,
+           updated_at=? WHERE id=? AND org_id=? AND generation_id=? AND state='claimed'
+           AND claim_id=? AND claim_agent_id=? AND retention_hard_cap_at>?
+           AND processing_deadline_at>? AND ${consentGuard.sql}
+           AND EXISTS(
+             SELECT 1 FROM agent_jobs
+             WHERE id=? AND org_id=? AND state='leased' AND lease_owner=?
+               AND claim_token_hash=? AND attempt=? AND audio_generation_id=?
+               AND lease_expires_at>?
+           )`,
+      ).bind(
+        deletionAttemptId, nowIso, nowIso, job.audioObjectId, actor.orgId, request.generationId,
+        jobId, actor.userId, nowIso, nowIso, ...consentGuard.bindings,
+        jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt,
+        request.generationId, nowIso,
+      ),
+      env.DB.prepare(
+        `UPDATE agent_jobs
+         SET state='failed',terminal_failure_code='audio_hash_mismatch',agent_computed_sha256=?,
+           lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+         WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+           AND EXISTS(
+             SELECT 1 FROM audio_objects
+             WHERE id=? AND state='deletion_pending' AND deletion_reason='hash_mismatch'
+               AND deletion_attempt_id=?
+           )`,
+      ).bind(
+        request.agentComputedSha256, nowIso, jobId, actor.orgId, job.claimTokenHash, job.attempt,
+        job.audioObjectId, deletionAttemptId,
+      ),
+      env.DB.prepare(
+        `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+         SELECT id || ':manual_note:hash_mismatch',org_id,id,'manual_note','hash_mismatch',?
+         FROM audio_objects WHERE id=? AND org_id=? AND state='deletion_pending'
+           AND deletion_reason='hash_mismatch' AND deletion_attempt_id=?
+         ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+      ).bind(nowIso, job.audioObjectId, actor.orgId, deletionAttemptId),
+    ]);
+    if (
+      (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
+    ) await throwAgentJobCasFailure(env, actor, jobId, request);
     await writeAudit(env, actor, {
-      action: 'deny',
-      targetTable: 'agent_jobs',
-      targetId: jobId,
+      action: 'deny', targetTable: 'agent_jobs', targetId: jobId,
       detail: { reason: 'audio_hash_mismatch', attempt: job.attempt },
     });
     throw new AgentJobContractError('audio_hash_mismatch', jobId);
   }
-  const updated = await env.DB.prepare(
-    `UPDATE agent_jobs SET agent_computed_sha256 = ?, raw_audio_sha256 = ?, updated_at = ?
-     WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
-       AND audio_generation_id = ?`,
-  ).bind(
-    request.agentComputedSha256,
-    storedSha256,
-    nowIso,
-    jobId,
-    actor.orgId,
-    job.claimTokenHash,
-    job.attempt,
-    request.generationId,
-  ).run();
-  if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  const processingAttemptId = `${jobId}:${job.attempt}`;
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE audio_objects SET state='processing',object_sha256=?,processing_attempt_id=?,
+         processing_started_at=?,updated_at=?
+       WHERE id=? AND org_id=? AND generation_id=? AND state='claimed'
+         AND claim_id=? AND claim_agent_id=? AND retention_hard_cap_at>?
+         AND processing_deadline_at>? AND ${consentGuard.sql}
+         AND EXISTS(
+           SELECT 1 FROM agent_jobs
+           WHERE id=? AND org_id=? AND state='leased' AND lease_owner=?
+             AND claim_token_hash=? AND attempt=? AND audio_generation_id=? AND lease_expires_at>?
+         )`,
+    ).bind(
+      request.agentComputedSha256, processingAttemptId, nowIso, nowIso,
+      job.audioObjectId, actor.orgId, request.generationId, jobId, actor.userId,
+      nowIso, nowIso, ...consentGuard.bindings,
+      jobId, actor.orgId, actor.userId, job.claimTokenHash, job.attempt,
+      request.generationId, nowIso,
+    ),
+    env.DB.prepare(
+      `UPDATE agent_jobs SET agent_computed_sha256=?,raw_audio_sha256=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='leased' AND claim_token_hash=? AND attempt=?
+         AND audio_generation_id=? AND EXISTS(
+           SELECT 1 FROM audio_objects WHERE id=? AND state='processing'
+             AND processing_attempt_id=? AND object_sha256=?
+         )`,
+    ).bind(
+      request.agentComputedSha256, request.agentComputedSha256, nowIso, jobId, actor.orgId,
+      job.claimTokenHash, job.attempt, request.generationId, job.audioObjectId,
+      processingAttemptId, request.agentComputedSha256,
+    ),
+  ]);
+  if (
+    (results[0]?.meta?.changes ?? 0) === 0 || (results[1]?.meta?.changes ?? 0) === 0
+  ) await throwAgentJobCasFailure(env, actor, jobId, request);
   return {
     jobId,
     generationId: request.generationId,
-    rawAudioSha256: storedSha256,
+    rawAudioSha256: request.agentComputedSha256,
     verifiedAt: nowIso,
   };
 }
@@ -8305,45 +9894,70 @@ export async function authorizeAgentJobEgress(
   actor: Actor,
   jobId: string,
   request: EgressAuthorizationRequest,
+  runtime: AgentRuntime,
 ): Promise<AzureEgressAuthorization> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
-  if (job.kind !== 'audio' || job.sttEngine !== 'azure' || request.provider !== 'azure') {
-    throw new AgentJobContractError('route_mismatch', jobId);
-  }
+  if (
+    runtime.sttEngine !== 'azure' || runtime.sttEngineId !== 'azure-speech-koreacentral'
+    || job.kind !== 'audio' || job.sttEngine !== runtime.sttEngine
+    || job.sttEngineId !== runtime.sttEngineId || request.provider !== 'azure'
+  ) throw new AgentJobContractError('route_mismatch', jobId);
   if (job.rawAudioSha256 === null || job.rawAudioSha256 !== request.rawAudioSha256) {
     throw new AgentJobContractError('audio_hash_mismatch', jobId);
   }
-  // 외부 STT 동의 영역이 붙기 전까지 이 호출은 여기서 닫힌다(SG7 · E4-6).
-  const consentRevision = await agentJobConsentRevision(env, actor.orgId, job);
+  const qualificationExpiresAt = await assertAgentJobQualificationCurrent(env, actor, job);
+  const consentRevisionValue = await agentJobConsentRevision(env, actor.orgId, job);
   const authorizedAt = now();
-  const expiresAt = new Date(parseUtcTimestamp(authorizedAt) + EGRESS_AUTHORIZATION_TTL_MS).toISOString();
+  const readiness = await env.DB.prepare(
+    `SELECT 1 AS ready FROM stt_agent_readiness
+     WHERE org_id=? AND agent_id=? AND stt_mode='azure'
+       AND stt_engine_id='azure-speech-koreacentral' AND state='ready' AND expires_at>?`,
+  ).bind(actor.orgId, actor.userId, authorizedAt).first<{ ready: number }>();
+  if (readiness === null) throw new AgentJobContractError('engine_unavailable', jobId);
+  const existing = await env.DB.prepare(
+    `SELECT * FROM agent_job_egress_records
+     WHERE org_id=? AND job_id=? AND attempt=? AND provider='azure'`,
+  ).bind(actor.orgId, jobId, job.attempt).first<DbRow>();
+  if (existing !== null) {
+    if (
+      stringValue(existing.status) !== 'authorized'
+      || stringValue(existing.claim_token_hash) !== job.claimTokenHash
+      || stringValue(existing.raw_audio_sha256) !== job.rawAudioSha256
+      || stringValue(existing.consent_revision) !== consentRevisionValue
+      || stringValue(existing.expires_at) <= authorizedAt
+      || stringValue(existing.expires_at) > qualificationExpiresAt
+    ) throw new AgentJobContractError('stale_claim', jobId);
+    return {
+      egressAuthorizationId: stringValue(existing.id),
+      tuple: {
+        orgId: actor.orgId, jobId, claimTokenHash: job.claimTokenHash ?? '',
+        attempt: job.attempt, rawAudioSha256: job.rawAudioSha256,
+        consentRevision: consentRevisionValue, provider: 'azure',
+      },
+      status: 'authorized',
+      expiresAt: stringValue(existing.expires_at),
+    };
+  }
+  const ttlExpiry = new Date(parseUtcTimestamp(authorizedAt) + EGRESS_AUTHORIZATION_TTL_MS).toISOString();
+  const expiresAt = [ttlExpiry, qualificationExpiresAt, job.leaseExpiresAt]
+    .filter((value): value is string => value !== null)
+    .reduce((earliest, value) => value < earliest ? value : earliest);
   const egressAuthorizationId = newId();
   await env.DB.prepare(
-    `INSERT INTO agent_job_egress_records (
-       id, org_id, job_id, attempt, claim_token_hash, raw_audio_sha256, consent_revision,
-       provider, status, authorized_at, expires_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, 'azure', 'authorized', ?, ?)`,
+    `INSERT INTO agent_job_egress_records(
+       id,org_id,job_id,attempt,claim_token_hash,raw_audio_sha256,consent_revision,
+       provider,status,authorized_at,expires_at
+     ) VALUES(?,?,?,?,?,?,?,'azure','authorized',?,?)`,
   ).bind(
-    egressAuthorizationId,
-    actor.orgId,
-    jobId,
-    job.attempt,
-    job.claimTokenHash,
-    job.rawAudioSha256,
-    consentRevision,
-    authorizedAt,
-    expiresAt,
+    egressAuthorizationId, actor.orgId, jobId, job.attempt, job.claimTokenHash,
+    job.rawAudioSha256, consentRevisionValue, authorizedAt, expiresAt,
   ).run();
   return {
     egressAuthorizationId,
     tuple: {
-      orgId: actor.orgId,
-      jobId,
-      claimTokenHash: job.claimTokenHash ?? '',
-      attempt: job.attempt,
-      rawAudioSha256: job.rawAudioSha256,
-      consentRevision,
-      provider: 'azure',
+      orgId: actor.orgId, jobId, claimTokenHash: job.claimTokenHash ?? '',
+      attempt: job.attempt, rawAudioSha256: job.rawAudioSha256,
+      consentRevision: consentRevisionValue, provider: 'azure',
     },
     status: 'authorized',
     expiresAt,
@@ -8356,21 +9970,59 @@ export async function markAgentJobEgressInFlight(
   actor: Actor,
   jobId: string,
   request: EgressInFlightRequest,
+  runtime: AgentRuntime,
 ): Promise<EgressInFlightResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  if (
+    runtime.sttEngine !== 'azure' || runtime.sttEngineId !== 'azure-speech-koreacentral'
+    || job.sttEngine !== runtime.sttEngine || job.sttEngineId !== runtime.sttEngineId
+  ) throw new AgentJobContractError('route_mismatch', jobId);
+  const qualificationExpiresAt = await assertAgentJobQualificationCurrent(env, actor, job);
+  const currentConsentRevision = await agentJobConsentRevision(env, actor.orgId, job);
+  const receipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (receipt === null || job.audioObjectId === null) {
+    throw new AgentJobContractError('consent_not_effective', jobId);
+  }
+  const consentGuard = consentSqlGuard(receipt, 'audio_objects');
   const startedAt = now();
-  const updated = await env.DB.prepare(
-    `UPDATE agent_job_egress_records SET status = 'in_flight', started_at = ?
-     WHERE id = ? AND org_id = ? AND job_id = ? AND attempt = ? AND claim_token_hash = ?
-       AND status = 'authorized' AND expires_at > ?`,
+  const readiness = await env.DB.prepare(
+    `SELECT 1 AS ready FROM stt_agent_readiness
+     WHERE org_id=? AND agent_id=? AND stt_mode='azure'
+       AND stt_engine_id='azure-speech-koreacentral' AND state='ready' AND expires_at>?`,
+  ).bind(actor.orgId, actor.userId, startedAt).first<{ ready: number }>();
+  if (readiness === null) throw new AgentJobContractError('engine_unavailable', jobId);
+  const record = await env.DB.prepare(
+    `SELECT * FROM agent_job_egress_records
+     WHERE id=? AND org_id=? AND job_id=? AND attempt=? AND claim_token_hash=?`,
   ).bind(
-    startedAt,
-    request.egressAuthorizationId,
-    actor.orgId,
-    jobId,
-    job.attempt,
-    job.claimTokenHash,
-    startedAt,
+    request.egressAuthorizationId, actor.orgId, jobId, job.attempt, job.claimTokenHash,
+  ).first<DbRow>();
+  if (
+    record === null || stringValue(record.consent_revision) !== currentConsentRevision
+    || stringValue(record.raw_audio_sha256) !== job.rawAudioSha256
+    || stringValue(record.expires_at) <= startedAt
+    || stringValue(record.expires_at) > qualificationExpiresAt
+  ) throw new AgentJobContractError('stale_claim', jobId);
+  if (stringValue(record.status) === 'in_flight' && nullableString(record.started_at) !== null) {
+    return {
+      egressAuthorizationId: request.egressAuthorizationId,
+      provider: 'azure',
+      state: 'in_flight',
+      startedAt: stringValue(record.started_at),
+    };
+  }
+  const updated = await env.DB.prepare(
+    `UPDATE agent_job_egress_records SET status='in_flight',started_at=?
+     WHERE id=? AND org_id=? AND job_id=? AND attempt=? AND claim_token_hash=?
+       AND consent_revision=? AND raw_audio_sha256=? AND status='authorized' AND expires_at>?
+       AND EXISTS(
+         SELECT 1 FROM audio_objects
+         WHERE audio_objects.id=? AND audio_objects.org_id=? AND ${consentGuard.sql}
+       )`,
+  ).bind(
+    startedAt, request.egressAuthorizationId, actor.orgId, jobId, job.attempt,
+    job.claimTokenHash, currentConsentRevision, job.rawAudioSha256, startedAt,
+    job.audioObjectId, actor.orgId, ...consentGuard.bindings,
   ).run();
   if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
   return {
@@ -8438,6 +10090,7 @@ export interface AgentJobResultAcceptance {
   kind: JobKind;
   sessionId: string;
   replayed: boolean;
+  audioObjectId: string | null;
   /** 오디오 결과만 후속 초안·공식화 단계를 갖는다. 멱등 재전송이면 null. */
   recording: RecordingResultCommit | null;
 }
@@ -8446,18 +10099,18 @@ export interface AgentJobResultAcceptance {
  * 결과 검증이 malformed 로 판정하는 S6 code. 이 거부는 작업을 열어 둔 채 돌아가지 않고
  * 그 자리에서 `failed` 로 닫히며 code 를 `terminal_failure_code` 로 남긴다(S5 §2.6, S6 §4).
  * 열어 두면 Agent 가 사유를 추측해 release 하고 임대 만료 복구가 attempt 를 태운다.
- * `result_schema_invalid` 는 S6 판정이 아닌 요청 형식 거부라 제외하고,
  * `consent_not_effective` 는 실패가 아니라 `cancelled` 라 철회 경로가 소유한다.
  */
-const MALFORMED_RESULT_JOB_ERRORS: ReadonlySet<JobErrorCode> = new Set([
-  'audio_object_missing',
-  'masking_snapshot_missing',
-  'registered_pii_detected',
-  'unmasked_identifier_detected',
-  'evidence_hash_mismatch',
-  'masking_pipeline_version_mismatch',
-  'route_mismatch',
-]);
+const MALFORMED_RESULT_JOB_ERRORS: Readonly<Partial<Record<JobErrorCode, true>>> = {
+  audio_object_missing: true,
+  masking_snapshot_missing: true,
+  registered_pii_detected: true,
+  unmasked_identifier_detected: true,
+  evidence_hash_mismatch: true,
+  masking_pipeline_version_mismatch: true,
+  result_schema_invalid: true,
+  route_mismatch: true,
+};
 
 /**
  * 결과 검증 거부를 그 자리에서 닫는다.
@@ -8480,7 +10133,7 @@ async function closeJobOnResultRejection(
     if (!(error instanceof AgentJobContractError)) throw error;
     let state: AgentJobState | null = null;
     let terminalFailureCode: string | null = null;
-    if (MALFORMED_RESULT_JOB_ERRORS.has(error.code)) {
+    if (MALFORMED_RESULT_JOB_ERRORS[error.code] === true) {
       state = 'failed';
       terminalFailureCode = error.code;
     } else if (error.code === 'local_ner_unavailable') {
@@ -8494,6 +10147,24 @@ async function closeJobOnResultRejection(
       }
     }
     if (state === null) throw error;
+    if (job.kind === 'audio') {
+      if (state === 'failed') {
+        await releaseAgentJob(env, actor, job.id, {
+          claimToken,
+          attempt: job.attempt,
+          outcome: 'permanent',
+          reason: terminalFailureCode as JobErrorCode,
+        });
+      } else {
+        await releaseAgentJob(env, actor, job.id, {
+          claimToken,
+          attempt: job.attempt,
+          outcome: 'transient',
+          reason: 'engine_unavailable',
+        });
+      }
+      throw error;
+    }
     const nowIso = now();
     // 검증 도중 임대가 넘어가거나 만료됐으면 이 전이를 확정하지 않는다. 그 경우 사유는
     // 검증 오류가 아니라 현재 상태(`lease_expired`·`stale_claim`·terminal)다.
@@ -8561,34 +10232,70 @@ export async function acceptAgentJobResult(
       kind: stored.kind,
       sessionId: stored.sessionId,
       replayed: true,
+      audioObjectId: stored.audioObjectId,
       recording: replayedRecording,
     };
   }
 
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
-  if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
-    throw new AgentJobContractError('result_schema_invalid', jobId);
-  }
+  const currentConsentRevision = await agentJobConsentRevision(env, actor.orgId, job);
   await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
+    if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
+      throw new AgentJobContractError('result_schema_invalid', jobId);
+    }
+    if (
+      job.kind === 'audio'
+      && !(
+        (job.sttEngine === 'local' && job.sttEngineId === 'qwen3-asr')
+        || (job.sttEngine === 'azure' && job.sttEngineId === 'azure-speech-koreacentral')
+      )
+    ) throw new AgentJobContractError('route_mismatch', jobId);
     await assertAgentJobResultIntegrity(env, job, request);
+    if (job.sttEngine === 'azure') {
+      const egress = await env.DB.prepare(
+        `SELECT 1 AS present FROM agent_job_egress_records
+         WHERE org_id=? AND job_id=? AND attempt=? AND claim_token_hash=?
+           AND raw_audio_sha256=? AND consent_revision=? AND provider='azure' AND status='in_flight'`,
+      ).bind(
+        actor.orgId, jobId, job.attempt, job.claimTokenHash,
+        job.rawAudioSha256, currentConsentRevision,
+      ).first<{ present: number }>();
+      if (egress === null) throw new AgentJobContractError('route_mismatch', jobId);
+    }
   });
-  await agentJobConsentRevision(env, actor.orgId, job);
   const result = request.result;
   const acceptedAt = now();
+  const deletionAttemptId = job.kind === 'audio' ? newId() : null;
+  const resultReceipt = parseJson<ConsentGateReceipt>(job.consentReceiptJson);
+  if (resultReceipt === null) throw new AgentJobContractError('consent_not_effective', jobId);
+  const resultConsentGuard = consentSqlGuard(resultReceipt, 'audio_objects');
   const transition = (snapshot: MaskedSourceSnapshot): PreparedStatement[] => [
-    // 이 INSERT 의 트리거가 "지금 그 claim 이 살아 있는가" 를 batch 안에서 다시 묻는다.
-    // 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 batch 전체가 abort 되고
-    // 마스킹 스냅샷도 남지 않는다(S5 §2.2 · R3).
+    // The acceptance trigger aborts the whole batch if claim, attempt, consent or clocks lost.
     env.DB.prepare(
       `INSERT INTO agent_job_result_acceptances (job_id, attempt, claim_token_hash, payload_sha256, accepted_at)
        VALUES (?, ?, ?, ?, ?)`,
     ).bind(jobId, job.attempt, job.claimTokenHash, request.payloadSha256, acceptedAt),
+    ...(job.kind === 'audio' && job.audioObjectId !== null ? [
+      env.DB.prepare(
+        `UPDATE audio_objects SET state='deletion_pending',deletion_reason='processed',
+           deletion_attempt_id=?,processed_at=?,next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,
+           claim_expires_at=NULL,updated_at=?
+         WHERE id=? AND org_id=? AND generation_id=? AND state='processing'
+           AND processing_attempt_id=? AND processing_deadline_at>? AND retention_hard_cap_at>?
+           AND ${resultConsentGuard.sql}`,
+      ).bind(
+        deletionAttemptId, acceptedAt, acceptedAt, acceptedAt, job.audioObjectId, actor.orgId,
+        job.audioGenerationId, `${jobId}:${job.attempt}`, acceptedAt, acceptedAt,
+        ...resultConsentGuard.bindings,
+      ),
+    ] : []),
     env.DB.prepare(
       `UPDATE agent_jobs
        SET state = 'succeeded', result_id = ?, result_payload_sha256 = ?, result_accepted_at = ?,
            lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL, lease_expires_at = NULL,
            updated_at = ?
-       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?`,
+       WHERE id = ? AND org_id = ? AND state = 'leased' AND claim_token_hash = ? AND attempt = ?
+         AND lease_expires_at > ?`,
     ).bind(
       request.resultId,
       request.payloadSha256,
@@ -8598,6 +10305,7 @@ export async function acceptAgentJobResult(
       actor.orgId,
       job.claimTokenHash,
       job.attempt,
+      acceptedAt,
     ),
     ...(job.sourceTextWorkItemId === null ? [] : [env.DB.prepare(
       `UPDATE ai_text_work_queue SET status = 'done', completed_at = ?, completed_snapshot_id = ?
@@ -8633,6 +10341,7 @@ export async function acceptAgentJobResult(
       }, transition);
     }
   } catch (error) {
+
     // 검증과 batch 사이에 임대가 넘어가거나 동의가 철회되면 live claim 트리거가 batch 를
     // abort 한다. 그 경우만 stale 로 바꿔 알리고, 그 밖의 실패는 그대로 올린다.
     const current = await env.DB.prepare('SELECT state, claim_token_hash, attempt FROM agent_jobs WHERE id = ? AND org_id = ?')
@@ -8650,10 +10359,509 @@ export async function acceptAgentJobResult(
     targetId: jobId,
     detail: { state: 'succeeded', kind: job.kind, attempt: job.attempt },
   });
-  return { jobId, kind: job.kind, sessionId: job.sessionId, replayed: false, recording };
+  return {
+    jobId, kind: job.kind, sessionId: job.sessionId, replayed: false,
+    audioObjectId: job.audioObjectId, recording,
+  };
+}
+export async function reconcileSupportCaseAudioDeletions(
+  env: Env,
+  audioStore: AudioStore,
+  orgId: string,
+  supportCaseId: string,
+): Promise<number> {
+  const rows = await env.DB.prepare(
+    `SELECT id FROM audio_objects
+     WHERE org_id=? AND support_case_id=? AND state='deletion_pending' AND next_attempt_at<=?
+     ORDER BY COALESCE(next_attempt_at,'9999-12-31T23:59:59.999Z'),id`,
+  ).bind(orgId, supportCaseId, now()).all<{ id: string }>();
+  let deleted = 0;
+  for (const row of rows.results) {
+    if (await reconcileAudioObjectDeletion(env, audioStore, row.id)) deleted += 1;
+  }
+  return deleted;
 }
 
 // ============================================================================
+
+interface AudioLifecycleRow extends DbRow {
+  id: string;
+  org_id: string;
+  key: string;
+  generation_id: string;
+  state: string;
+  audio_delivery: 'api-stream' | 'protected-get';
+  object_sha256: string | null;
+  upload_expires_at: string;
+  deletion_reason: string | null;
+  deletion_attempt_id: string | null;
+  retry_count: number;
+}
+
+function audioTerminalState(reason: string): 'processed_deleted' | 'unprocessed_expired' | 'upload_abandoned' | 'retention_capped' {
+  if (reason === 'processed') return 'processed_deleted';
+  if (reason === 'retention_hard_cap') return 'retention_capped';
+  if (reason === 'rejected_upload' || reason === 'hash_mismatch' || reason === 'upload_abandoned') {
+    return 'upload_abandoned';
+  }
+  return 'unprocessed_expired';
+}
+
+function audioTerminalObligationsSql(alias: 'audio'): string {
+  return `(
+    ${alias}.deletion_reason='processed'
+    OR (
+      ${alias}.deletion_reason IN ('rejected_upload','hash_mismatch','upload_abandoned','retry_exhausted')
+      AND EXISTS(
+        SELECT 1 FROM audio_lifecycle_outbox AS manual
+        WHERE manual.audio_object_id=${alias}.id AND manual.org_id=${alias}.org_id
+          AND manual.kind='manual_note' AND manual.reason=${alias}.deletion_reason
+      )
+    )
+    OR (
+      ${alias}.deletion_reason IN ('unprocessed_expiry','consent_withdrawal','processing_failed','retention_hard_cap')
+      AND EXISTS(
+        SELECT 1 FROM audio_lifecycle_outbox AS incident
+        WHERE incident.audio_object_id=${alias}.id AND incident.org_id=${alias}.org_id
+          AND incident.kind='incident' AND incident.reason=${alias}.deletion_reason
+      )
+      AND EXISTS(
+        SELECT 1 FROM audio_lifecycle_outbox AS manual
+        WHERE manual.audio_object_id=${alias}.id AND manual.org_id=${alias}.org_id
+          AND manual.kind='manual_note' AND manual.reason=${alias}.deletion_reason
+      )
+    )
+  )`;
+}
+
+/** One generation-bound, fresh four-probe deletion cycle. */
+export async function reconcileAudioObjectDeletion(
+  env: Env,
+  audioStore: AudioStore,
+  audioObjectId: string,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT * FROM audio_objects WHERE id=? AND state='deletion_pending'`,
+  ).bind(audioObjectId).first<AudioLifecycleRow>();
+  if (row === null || row.deletion_reason === null || row.deletion_attempt_id === null) return false;
+
+  const requestedAt = now();
+  await env.DB.prepare(
+    `INSERT INTO audio_deletion_attempts(
+       id,deletion_attempt_id,phase,org_id,audio_object_id,generation_id,reason,
+       requested_at,delete_succeeded,absent_from_list,absent_from_metadata,direct_read_absent,
+       verification_method,verified_at,evidence_json,created_at
+     ) VALUES(?,?,'requested',?,?,?,?,?,NULL,NULL,NULL,NULL,NULL,NULL,NULL,?)
+     ON CONFLICT(id) DO NOTHING`,
+  ).bind(
+    `${row.deletion_attempt_id}:requested`,
+    row.deletion_attempt_id,
+    row.org_id,
+    row.id,
+    row.generation_id,
+    row.deletion_reason,
+    requestedAt,
+    requestedAt,
+  ).run();
+  const journal = await env.DB.prepare(
+    `SELECT 1 AS present FROM audio_deletion_attempts
+     WHERE id=? AND deletion_attempt_id=? AND phase='requested' AND audio_object_id=?
+       AND generation_id=? AND reason=?`,
+  ).bind(
+    `${row.deletion_attempt_id}:requested`,
+    row.deletion_attempt_id,
+    row.id,
+    row.generation_id,
+    row.deletion_reason,
+  ).first<{ present: number }>();
+  if (journal === null) return false;
+
+  let evidence: AudioDeletionEvidence;
+  try {
+    evidence = await audioStore.delete(row.key);
+  } catch {
+    const failedAt = now();
+    const retryCount = Number(row.retry_count) + 1;
+    const retrySeconds = Math.min(3600, 300 * (2 ** Math.min(retryCount - 1, 4)));
+    const statements = [env.DB.prepare(
+      `UPDATE audio_objects SET retry_count=?,next_attempt_at=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='deletion_pending' AND generation_id=?
+         AND deletion_reason=? AND deletion_attempt_id=?`,
+    ).bind(
+      retryCount,
+      new Date(parseUtcTimestamp(failedAt) + retrySeconds * 1000).toISOString(),
+      failedAt,
+      row.id,
+      row.org_id,
+      row.generation_id,
+      row.deletion_reason,
+      row.deletion_attempt_id,
+    )];
+    if (retrySeconds === 3600) {
+      statements.push(env.DB.prepare(
+        `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+         VALUES(?,?,?,'incident',?,?)
+         ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+      ).bind(
+        `${row.id}:incident:${row.deletion_reason}`,
+        row.org_id,
+        row.id,
+        row.deletion_reason,
+        failedAt,
+      ));
+    }
+    await env.DB.batch(statements);
+    return false;
+  }
+  const verifiedAt = now();
+  const pendingGeneration = row.generation_id.startsWith('pending:');
+  const effectiveGenerationId = pendingGeneration && evidence.generationId !== null
+    ? evidence.generationId
+    : row.generation_id;
+  const generationMatches = pendingGeneration
+    || evidence.generationId === null
+    || evidence.generationId === row.generation_id;
+  const normalizedEvidence: AudioDeletionEvidence = {
+    ...evidence,
+    generationId: evidence.generationId ?? (pendingGeneration ? null : row.generation_id),
+    objectSha256: row.object_sha256,
+    deletionAttemptId: row.deletion_attempt_id,
+  };
+  await env.DB.prepare(
+    `INSERT INTO audio_deletion_attempts(
+       id,deletion_attempt_id,phase,org_id,audio_object_id,generation_id,reason,requested_at,
+       provider_delete_accepted_at,deleted_at,delete_succeeded,absent_from_list,
+       absent_from_metadata,direct_read_absent,verification_method,provider_status,
+       verified_at,evidence_json,created_at
+     ) VALUES(?,?,'verification',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind(
+    `${row.deletion_attempt_id}:verification:${newId()}`,
+    row.deletion_attempt_id,
+    row.org_id,
+    row.id,
+    effectiveGenerationId,
+    row.deletion_reason,
+    normalizedEvidence.deletionRequestedAt,
+    normalizedEvidence.providerDeleteAcceptedAt,
+    normalizedEvidence.deletedAt,
+    normalizedEvidence.deleteSucceeded ? 1 : 0,
+    normalizedEvidence.absentFromList ? 1 : 0,
+    normalizedEvidence.absentFromMetadata ? 1 : 0,
+    normalizedEvidence.directReadAbsent ? 1 : 0,
+    normalizedEvidence.verificationMethod,
+    normalizedEvidence.providerStatus ?? null,
+    normalizedEvidence.verifiedAt,
+    canonicalizeJcs(normalizedEvidence),
+    verifiedAt,
+  ).run();
+  if (row.audio_delivery === 'api-stream' && pendingGeneration) {
+    const retryCount = Number(row.retry_count) + 1;
+    const retrySeconds = Math.min(3600, 300 * (2 ** Math.min(retryCount - 1, 4)));
+    const statements = [env.DB.prepare(
+      `UPDATE audio_objects SET retry_count=?,next_attempt_at=?,deletion_evidence=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='deletion_pending' AND generation_id=?
+         AND deletion_reason=? AND deletion_attempt_id=?`,
+    ).bind(
+      retryCount,
+      new Date(parseUtcTimestamp(verifiedAt) + retrySeconds * 1000).toISOString(),
+      canonicalizeJcs(normalizedEvidence),
+      verifiedAt,
+      row.id,
+      row.org_id,
+      row.generation_id,
+      row.deletion_reason,
+      row.deletion_attempt_id,
+    )];
+    if (retrySeconds === 3600) {
+      statements.push(env.DB.prepare(
+        `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+         VALUES(?,?,?,'incident',?,?)
+         ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+      ).bind(
+        `${row.id}:incident:${row.deletion_reason}`,
+        row.org_id,
+        row.id,
+        row.deletion_reason,
+        verifiedAt,
+      ));
+    }
+    await env.DB.batch(statements);
+    return false;
+  }
+  if (!generationMatches && evidence.generationId !== null) {
+    const replacementAttemptId = newId();
+    await env.DB.prepare(
+      `UPDATE audio_objects SET generation_id=?,deletion_attempt_id=?,retry_count=0,
+         next_attempt_at=?,deletion_evidence=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='deletion_pending' AND generation_id=?
+         AND deletion_reason=? AND deletion_attempt_id=?`,
+    ).bind(
+      evidence.generationId, replacementAttemptId, verifiedAt,
+      canonicalizeJcs(normalizedEvidence), verifiedAt,
+      row.id, row.org_id, row.generation_id, row.deletion_reason, row.deletion_attempt_id,
+    ).run();
+    return false;
+  }
+
+  const adoptedAttemptId = pendingGeneration && effectiveGenerationId !== row.generation_id
+    ? newId()
+    : row.deletion_attempt_id;
+  const uploadProofNotBefore = row.audio_delivery === 'protected-get' || pendingGeneration
+    ? new Date(parseUtcTimestamp(row.upload_expires_at) + 60_000).toISOString()
+    : null;
+  if (uploadProofNotBefore !== null && uploadProofNotBefore > verifiedAt) {
+    await env.DB.prepare(
+      `UPDATE audio_objects SET generation_id=?,deletion_attempt_id=?,next_attempt_at=?,
+         deletion_evidence=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='deletion_pending' AND generation_id=?
+         AND deletion_reason=? AND deletion_attempt_id=?`,
+    ).bind(
+      effectiveGenerationId, adoptedAttemptId, uploadProofNotBefore,
+      canonicalizeJcs(normalizedEvidence), verifiedAt,
+      row.id, row.org_id, row.generation_id, row.deletion_reason, row.deletion_attempt_id,
+    ).run();
+    return false;
+  }
+
+  const freshComplete = generationMatches
+    && normalizedEvidence.deleteSucceeded
+    && normalizedEvidence.deletedAt !== null
+    && normalizedEvidence.absentFromList
+    && normalizedEvidence.absentFromMetadata
+    && normalizedEvidence.directReadAbsent;
+  if (!freshComplete) {
+    const retryCount = Number(row.retry_count) + 1;
+    const retrySeconds = Math.min(3600, 300 * (2 ** Math.min(retryCount - 1, 4)));
+    const statements = [env.DB.prepare(
+      `UPDATE audio_objects SET generation_id=?,deletion_attempt_id=?,retry_count=?,next_attempt_at=?,
+         deletion_evidence=?,updated_at=?
+       WHERE id=? AND org_id=? AND state='deletion_pending' AND generation_id=?
+         AND deletion_reason=? AND deletion_attempt_id=?`,
+    ).bind(
+      effectiveGenerationId,
+      adoptedAttemptId,
+      retryCount,
+      new Date(parseUtcTimestamp(verifiedAt) + retrySeconds * 1000).toISOString(),
+      canonicalizeJcs(normalizedEvidence),
+      verifiedAt,
+      row.id,
+      row.org_id,
+      row.generation_id,
+      row.deletion_reason,
+      row.deletion_attempt_id,
+    )];
+    if (retrySeconds === 3600) {
+      statements.push(env.DB.prepare(
+        `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+         SELECT id || ':incident:' || deletion_reason,org_id,id,'incident',deletion_reason,?
+         FROM audio_objects WHERE id=? AND org_id=? AND state='deletion_pending'
+           AND deletion_reason=? AND deletion_attempt_id=?
+         ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+      ).bind(verifiedAt, row.id, row.org_id, row.deletion_reason, adoptedAttemptId));
+    }
+    await env.DB.batch(statements);
+    return false;
+  }
+
+  const terminal = audioTerminalState(row.deletion_reason);
+  const terminalized = await env.DB.prepare(
+    `UPDATE audio_objects AS audio SET state=?,generation_id=?,deleted_at=?,deletion_evidence=?,
+       next_attempt_at=NULL,updated_at=?
+     WHERE id=? AND org_id=? AND state='deletion_pending' AND generation_id=?
+       AND deletion_reason=? AND deletion_attempt_id=?
+       AND ${audioTerminalObligationsSql('audio')}`,
+  ).bind(
+    terminal,
+    effectiveGenerationId,
+    normalizedEvidence.deletedAt,
+    canonicalizeJcs(normalizedEvidence),
+    verifiedAt,
+    row.id,
+    row.org_id,
+    row.generation_id,
+    row.deletion_reason,
+    row.deletion_attempt_id,
+  ).run();
+  return (terminalized.meta?.changes ?? 0) === 1;
+}
+
+export async function reconcileAgentJobAudioDeletion(
+  env: Env,
+  audioStore: AudioStore,
+  orgId: string,
+  jobId: string,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT audio.id FROM audio_objects AS audio
+     JOIN agent_jobs AS job ON job.audio_object_id=audio.id AND job.org_id=audio.org_id
+     WHERE job.id=? AND job.org_id=? AND audio.state='deletion_pending'`,
+  ).bind(jobId, orgId).first<{ id: string }>();
+  return row !== null && reconcileAudioObjectDeletion(env, audioStore, row.id);
+}
+
+export async function runAudioExpiry(
+  env: Env,
+  audioStore: AudioStore,
+  at: string,
+): Promise<Record<string, number>> {
+  if (!Number.isFinite(parseUtcTimestamp(at))) throw new ValidationError('audio expiry time is invalid');
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason='retention_hard_cap',
+         deletion_attempt_id=CASE
+           WHEN deletion_reason='retention_hard_cap' AND deletion_attempt_id IS NOT NULL
+             THEN deletion_attempt_id
+           ELSE id || ':delete:retention_hard_cap:' || ?
+         END,
+         retry_count=CASE WHEN deletion_reason='retention_hard_cap' THEN retry_count ELSE 0 END,
+         next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,claim_expires_at=NULL,updated_at=?
+       WHERE state IN ('pending_upload','available','claimed','processing','deletion_pending')
+         AND NOT (state='deletion_pending' AND deletion_reason='retention_hard_cap')
+         AND retention_hard_cap_at<=?`,
+    ).bind(at, at, at, at),
+    env.DB.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason='unprocessed_expiry',
+         deletion_attempt_id=id || ':delete:unprocessed_expiry:' || ?,retry_count=0,
+         next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,claim_expires_at=NULL,updated_at=?
+       WHERE state IN ('available','claimed','processing') AND processing_deadline_at<=?
+         AND retention_hard_cap_at>?`,
+    ).bind(at, at, at, at, at),
+    env.DB.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason='upload_abandoned',
+         deletion_attempt_id=id || ':delete:upload_abandoned:' || ?,retry_count=0,
+         next_attempt_at=?,claim_id=NULL,claim_agent_id=NULL,claim_expires_at=NULL,updated_at=?
+       WHERE state='pending_upload' AND upload_expires_at<=? AND retention_hard_cap_at>?`,
+    ).bind(at, at, at, at, at),
+    env.DB.prepare(
+      `UPDATE agent_jobs SET state='expired',terminal_failure_code='audio_deleted',
+         lease_owner=NULL,claim_token_hash=NULL,claimed_at=NULL,lease_expires_at=NULL,updated_at=?
+       WHERE kind='audio' AND state IN ('pending','leased','blocked') AND audio_object_id IN(
+         SELECT id FROM audio_objects WHERE state='deletion_pending'
+           AND deletion_reason IN ('retention_hard_cap','unprocessed_expiry','upload_abandoned')
+           AND updated_at=?
+       )`,
+    ).bind(at, at),
+    ...(['incident', 'manual_note'] as const).map((kind) => env.DB.prepare(
+      `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+       SELECT id || ':' || ? || ':' || deletion_reason,org_id,id,?,deletion_reason,?
+       FROM audio_objects WHERE state='deletion_pending'
+         AND deletion_reason IN ('retention_hard_cap','unprocessed_expiry') AND updated_at=?
+       ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+    ).bind(kind, kind, at, at)),
+    env.DB.prepare(
+      `INSERT INTO audio_lifecycle_outbox(id,org_id,audio_object_id,kind,reason,created_at)
+       SELECT id || ':manual_note:upload_abandoned',org_id,id,'manual_note','upload_abandoned',?
+       FROM audio_objects WHERE state='deletion_pending' AND deletion_reason='upload_abandoned'
+         AND updated_at=? ON CONFLICT(org_id,audio_object_id,kind,reason) DO NOTHING`,
+    ).bind(at, at),
+  ]);
+  const due = await env.DB.prepare(
+    `SELECT id FROM audio_objects WHERE state='deletion_pending' AND next_attempt_at<=?
+     ORDER BY COALESCE(next_attempt_at,'9999-12-31T23:59:59.999Z'),id LIMIT 50`,
+  ).bind(at).all<{ id: string }>();
+  let deleted = 0;
+  for (const item of due.results) {
+    if (await reconcileAudioObjectDeletion(env, audioStore, item.id)) deleted += 1;
+  }
+  return { scanned: due.results.length, deleted };
+}
+
+export interface AudioLifecycleOutboxItem {
+  id: string;
+  orgId: string;
+  audioObjectId: string;
+  sessionId: string;
+  supportCaseId: string;
+  reason: string;
+  createdAt: string;
+}
+
+function mapAudioLifecycleOutbox(row: DbRow): AudioLifecycleOutboxItem {
+  return {
+    id: stringValue(row.id),
+    orgId: stringValue(row.org_id),
+    audioObjectId: stringValue(row.audio_object_id),
+    sessionId: stringValue(row.session_id),
+    supportCaseId: stringValue(row.support_case_id),
+    reason: stringValue(row.reason),
+    createdAt: stringValue(row.created_at),
+  };
+}
+
+export async function listPendingAudioLifecycleIncidents(
+  env: Env,
+  limit = 50,
+): Promise<AudioLifecycleOutboxItem[]> {
+  const rows = await env.DB.prepare(
+    `SELECT outbox.id,outbox.org_id,outbox.audio_object_id,audio.session_id,
+            audio.support_case_id,outbox.reason,outbox.created_at
+     FROM audio_lifecycle_outbox AS outbox
+     JOIN audio_objects AS audio ON audio.id=outbox.audio_object_id AND audio.org_id=outbox.org_id
+     WHERE outbox.kind='incident' AND outbox.delivered_at IS NULL
+     ORDER BY outbox.created_at,outbox.id LIMIT ?`,
+  ).bind(limit).all<DbRow>();
+  return rows.results.map(mapAudioLifecycleOutbox);
+}
+
+export async function markAudioLifecycleIncidentDelivered(
+  env: Env,
+  id: string,
+  deliveredAt: string,
+): Promise<boolean> {
+  const updated = await env.DB.prepare(
+    `UPDATE audio_lifecycle_outbox SET delivered_at=?
+     WHERE id=? AND kind='incident' AND delivered_at IS NULL`,
+  ).bind(deliveredAt, id).run();
+  return (updated.meta?.changes ?? 0) === 1;
+}
+
+export async function listAudioManualNoteFallbacks(
+  env: Env,
+  actor: Actor,
+): Promise<AudioLifecycleOutboxItem[]> {
+  assertAdmin(actor);
+  const rows = await env.DB.prepare(
+    `SELECT outbox.id,outbox.org_id,outbox.audio_object_id,audio.session_id,
+            audio.support_case_id,outbox.reason,outbox.created_at
+     FROM audio_lifecycle_outbox AS outbox
+     JOIN audio_objects AS audio ON audio.id=outbox.audio_object_id AND audio.org_id=outbox.org_id
+     WHERE outbox.org_id=? AND outbox.kind='manual_note' AND outbox.delivered_at IS NULL
+     ORDER BY outbox.created_at,outbox.id`,
+  ).bind(actor.orgId).all<DbRow>();
+  await writeAudit(env, actor, {
+    action: 'read',
+    targetTable: 'audio_lifecycle_outbox',
+    detail: { pendingManualNotes: rows.results.length },
+  });
+  return rows.results.map(mapAudioLifecycleOutbox);
+}
+
+export async function acknowledgeAudioManualNoteFallback(
+  env: Env,
+  actor: Actor,
+  id: string,
+): Promise<boolean> {
+  assertAdmin(actor);
+  const deliveredAt = now();
+  const updated = await env.DB.prepare(
+    `UPDATE audio_lifecycle_outbox SET delivered_at=?
+     WHERE id=? AND org_id=? AND kind='manual_note' AND delivered_at IS NULL`,
+  ).bind(deliveredAt, id, actor.orgId).run();
+  if ((updated.meta?.changes ?? 0) === 0) {
+    const delivered = await env.DB.prepare(
+      `SELECT 1 AS present FROM audio_lifecycle_outbox
+       WHERE id=? AND org_id=? AND kind='manual_note' AND delivered_at IS NOT NULL`,
+    ).bind(id, actor.orgId).first<{ present: number }>();
+    return delivered !== null;
+  }
+  await writeAudit(env, actor, {
+    action: 'update',
+    targetTable: 'audio_lifecycle_outbox',
+    targetId: id,
+    detail: { deliveredAt },
+  });
+  return true;
+}
 // 파이프라인 폴링 워치독 (D8) — poll_pipeline 감사 기록이 데이터 원천
 // ============================================================================
 
@@ -11430,7 +13638,7 @@ export async function updateParticipantConsent(
        SET state = 'cancelled', lease_owner = NULL, claim_token_hash = NULL, claimed_at = NULL,
            lease_expires_at = NULL, updated_at = ?
        WHERE org_id = ? AND support_case_id = ? AND state IN ('pending', 'leased', 'blocked')
-         AND ((kind = 'audio' AND ? IS NULL) OR (kind = 'text' AND ? IS NULL))`,
+         AND ((kind = 'audio' AND CAST(? AS TEXT) IS NULL) OR (kind = 'text' AND CAST(? AS TEXT) IS NULL))`,
     ).bind(recordedAt, actor.orgId, supportCaseId, recordingAt, textAiAt),
     env.DB.prepare(
       `INSERT INTO participant_consent_records (
@@ -18958,14 +21166,25 @@ interface MemoryMaterialRow {
   sha256: string | null; proof_json: string | null; payload_hash: string | null; processed: number; valid: number;
 }
 interface MemorySourceBody { text: string; sessionId: string | null; occurredAt: string }
-// Every consumer binds one canonical application timestamp for consent eligibility.
 const memoryEligibleSql = `EXISTS (SELECT 1 FROM support_cases sc
   JOIN participant_pii_vault pv ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id
-  WHERE sc.id=c.support_case_id AND sc.org_id=c.org_id AND sc.status='active'
-  AND sc.consent_privacy_at IS NOT NULL AND sc.consent_text_ai_at IS NOT NULL AND pv.purged_at IS NULL
-  AND NOT EXISTS(SELECT 1 FROM participant_pii_archives pa WHERE pa.beneficiary_id=sc.beneficiary_id AND pa.org_id=sc.org_id)
-  AND EXISTS(SELECT 1 FROM pilot_text_ai_consent_evidence ce WHERE ce.support_case_id=sc.id AND ce.org_id=sc.org_id
-    AND ce.effective_at <= ?))
+  WHERE sc.id=c.support_case_id AND sc.org_id=c.org_id AND sc.status='active' AND pv.purged_at IS NULL
+  AND NOT EXISTS(SELECT 1 FROM participant_pii_archives pa WHERE pa.beneficiary_id=sc.beneficiary_id AND pa.org_id=sc.org_id))
+  AND EXISTS(SELECT 1 FROM consent_events e WHERE e.org_id=c.org_id AND e.support_case_id=c.support_case_id
+    AND e.domain='personal_data_collection_use' AND e.decision='grant' AND e.provider='institution' AND e.purpose='case_management'
+    AND e.event_sequence=(SELECT MAX(latest.event_sequence) FROM consent_events latest
+      WHERE latest.org_id=e.org_id AND latest.beneficiary_id=e.beneficiary_id AND latest.support_case_id=e.support_case_id
+        AND latest.domain=e.domain AND latest.decision<>'correct'))
+  AND EXISTS(SELECT 1 FROM consent_events e WHERE e.org_id=c.org_id AND e.support_case_id=c.support_case_id
+    AND e.domain='sensitive_information_processing' AND e.decision='grant' AND e.provider='institution' AND e.purpose='sensitive_case_management'
+    AND e.event_sequence=(SELECT MAX(latest.event_sequence) FROM consent_events latest
+      WHERE latest.org_id=e.org_id AND latest.beneficiary_id=e.beneficiary_id AND latest.support_case_id=e.support_case_id
+        AND latest.domain=e.domain AND latest.decision<>'correct'))
+  AND EXISTS(SELECT 1 FROM consent_events e WHERE e.org_id=c.org_id AND e.support_case_id=c.support_case_id
+    AND e.domain='external_llm_cross_border_processing' AND e.decision='grant' AND e.provider='openai' AND e.purpose='ai_briefing'
+    AND e.event_sequence=(SELECT MAX(latest.event_sequence) FROM consent_events latest
+      WHERE latest.org_id=e.org_id AND latest.beneficiary_id=e.beneficiary_id AND latest.support_case_id=e.support_case_id
+        AND latest.domain=e.domain AND latest.decision<>'correct'))
   AND COALESCE((SELECT enabled FROM counseling_memory_settings WHERE org_id=c.org_id),1)=1`;
 
 async function memoryCase(env: Env, orgId: string, supportCaseId: string): Promise<MemoryCaseRow> {
@@ -18976,13 +21195,17 @@ async function memoryCase(env: Env, orgId: string, supportCaseId: string): Promi
 async function memoryConsent(env: Env, orgId: string, supportCaseId: string): Promise<string> {
   if (env.CCC_LLM_MODE !== 'openai') throw new ValidationError('memory_disabled');
   if (env.TEXT_AI_PILOT_ENABLED !== '1') throw new ValidationError('consent_not_effective');
-  const at = now();
-  const row = await env.DB.prepare(`SELECT sc.consent_privacy_at,sc.consent_text_ai_at,
-    (SELECT id FROM pilot_text_ai_consent_evidence ce WHERE ce.org_id=sc.org_id AND ce.support_case_id=sc.id AND ce.effective_at<=? ORDER BY effective_at DESC,created_at DESC,id DESC LIMIT 1) AS evidence
-    FROM counseling_memory_cases c JOIN support_cases sc ON sc.id=c.support_case_id AND sc.org_id=c.org_id
-    WHERE c.org_id=? AND c.support_case_id=? AND ${memoryEligibleSql}`).bind(at,orgId,supportCaseId,at).first<DbRow>();
-  if (!row) throw new ValidationError('consent_not_effective');
-  return canonicalizeJcs(row);
+  const eligible = await env.DB.prepare(
+    `SELECT 1 AS eligible FROM counseling_memory_cases c
+     WHERE c.org_id=? AND c.support_case_id=? AND ${memoryEligibleSql}`,
+  ).bind(orgId, supportCaseId).first<{ eligible: number }>();
+  if (eligible === null) throw new ValidationError('consent_not_effective');
+  const receipt = await assertConsentGate(env, orgId, supportCaseId, [
+    'external_llm_cross_border_processing',
+    'personal_data_collection_use',
+    'sensitive_information_processing',
+  ]);
+  return canonicalizeJcs(receipt);
 }
 async function memoryItems(env: Env, orgId: string, supportCaseId: string): Promise<MemoryItem[]> {
   const rows = await env.DB.prepare('SELECT item_json FROM counseling_memory_items WHERE org_id=? AND support_case_id=? AND valid=1 ORDER BY id').bind(orgId,supportCaseId).all<{item_json:string}>();
@@ -18991,10 +21214,20 @@ async function memoryItems(env: Env, orgId: string, supportCaseId: string): Prom
 export async function getCounselingMemory(env: Env, actor: Actor, supportCaseId: string): Promise<CaseMemoryView> {
   await assertSupportCaseAccess(env,actor,supportCaseId);
   const c = await memoryCase(env,actor.orgId,supportCaseId);
-  const lifecycle = await env.DB.prepare(`SELECT sc.status,sc.consent_text_ai_at,pv.purged_at,
+  const lifecycle = await env.DB.prepare(`SELECT sc.status,pv.purged_at,
     EXISTS(SELECT 1 FROM participant_pii_archives pa WHERE pa.beneficiary_id=sc.beneficiary_id AND pa.org_id=sc.org_id) AS archived
     FROM support_cases sc JOIN participant_pii_vault pv ON pv.beneficiary_id=sc.beneficiary_id AND pv.org_id=sc.org_id WHERE sc.id=? AND sc.org_id=?`).bind(supportCaseId,actor.orgId).first<DbRow>();
-  const hidden = !lifecycle || !lifecycle.consent_text_ai_at || lifecycle.purged_at !== null || lifecycle.archived === 1;
+  let consentEffective = true;
+  try {
+    await assertConsentGate(env, actor.orgId, supportCaseId, [
+      'external_llm_cross_border_processing',
+      'personal_data_collection_use',
+      'sensitive_information_processing',
+    ]);
+  } catch {
+    consentEffective = false;
+  }
+  const hidden = !lifecycle || !consentEffective || lifecycle.purged_at !== null || lifecycle.archived === 1;
   const setting = await env.DB.prepare('SELECT enabled FROM counseling_memory_settings WHERE org_id=?').bind(actor.orgId).first<{enabled:number}>();
   const automaticUnavailable = env.CCC_LLM_MODE !== 'openai' || env.TEXT_AI_PILOT_ENABLED !== '1';
   let canCorrect = false;
@@ -19168,7 +21401,7 @@ async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: strin
       SELECT 1 FROM counseling_memory_sources s WHERE s.org_id=c.org_id AND s.support_case_id=c.support_case_id AND s.dirty=1))
     AND c.not_before<=? AND (c.lease_until IS NULL OR c.lease_until<=?)
     ORDER BY c.not_before,c.support_case_id LIMIT ?`)
-    .bind(at, scope?.orgId ?? null, scope?.orgId ?? null, scope?.supportCaseId ?? null, at, at, Math.min(64, size * 4)).all<MemoryCaseRow>();
+    .bind(scope?.orgId ?? null, scope?.orgId ?? null, scope?.supportCaseId ?? null, at, at, Math.min(64, size * 4)).all<MemoryCaseRow>();
   const works: MemoryWork[] = [];
   for (const before of rows.results) {
     if (works.length >= size) break;
@@ -19257,13 +21490,13 @@ export async function claimCounselingMemorySources(env:Env,actor:Actor,request:C
   await expireMemoryMaskLeases(env, actor.orgId);
   const rows=await env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_cases c ON c.support_case_id=m.support_case_id AND c.org_id=m.org_id
     WHERE m.org_id=? AND m.valid=1 AND m.attempt<3 AND (m.status='pending' OR (m.status='leased' AND m.lease_until<=?)) AND ${memoryEligibleSql}
-    ORDER BY m.occurred_at,m.id LIMIT ?`).bind(actor.orgId,at,at,normalizeClaimLimit(request.limit)).all<MemoryMaterialRow>();
+    ORDER BY m.occurred_at,m.id LIMIT ?`).bind(actor.orgId,at,normalizeClaimLimit(request.limit)).all<MemoryMaterialRow>();
   const jobs:MemoryMaskJob[]=[];
   for(const row of rows.results) {
     const token=newId(),expires=new Date(Date.now()+300000).toISOString();
     const result=await env.DB.prepare(`UPDATE counseling_memory_materials SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?
       WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))`).bind(await sha256Hex(token),expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,now()).run();
-    if(result.meta.changes) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt:row.attempt+1,leaseExpiresAt:expires});
+    if(result.meta.changes) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt:row.attempt+1,leaseExpiresAt:expires});
   }
   await writeAudit(env,actor,{action:'poll_pipeline',targetTable:'counseling_memory_materials',detail:{claimed:jobs.length}});
   return jobs;
@@ -19331,7 +21564,7 @@ export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string
     env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_materials m JOIN counseling_memory_cases c ON c.org_id=m.org_id AND c.support_case_id=m.support_case_id WHERE m.id=? AND m.valid=1 AND m.status='leased' AND m.lease_token=? AND m.attempt=? AND c.generation=?
       AND m.lease_until>? AND m.attestation_expires_at>?
       AND EXISTS(SELECT 1 FROM ner_release_qualification_receipts r WHERE r.id=m.receipt_id AND r.org_id=m.org_id AND r.status='passed' AND r.expires_at>?)
-      AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,id,row.lease_token,row.attempt,c.generation,at,at,at,at),
+      AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,id,row.lease_token,row.attempt,c.generation,at,at,at),
     env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=? WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,id,row.lease_token,row.attempt),
     memoryAuditStatement(env,actor,row.support_case_id,'create',{materialId:id,sourceRevision:row.source_revision}),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
@@ -19350,7 +21583,7 @@ function memoryWorkGuard(env:Env,work:MemoryWork,id:string,egress:string|null):P
     AND c.work_settings=COALESCE((SELECT version FROM counseling_memory_settings WHERE org_id=c.org_id),1)
     AND c.work_settings=? AND c.lease_until>? AND c.egress IS NOT DISTINCT FROM ? AND ${memoryEligibleSql}
     AND (c.config_hash IS NULL OR EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=c.org_id AND a.deactivated_at IS NULL AND p.config_hash=c.config_hash))
-  ) THEN 1 ELSE 0 END)`).bind(id,work.orgId,work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision,work.settingsVersion,at,egress,at);
+  ) THEN 1 ELSE 0 END)`).bind(id,work.orgId,work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision,work.settingsVersion,at,egress);
 }
 async function assertMemoryWork(env:Env,work:MemoryWork,egress:string|null):Promise<MemoryCaseRow> {
   const c=await memoryCase(env,work.orgId,work.supportCaseId);
@@ -19481,7 +21714,11 @@ export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,config
   const request:MemoryGenerationRequest={supportCaseId:work.supportCaseId,generation:work.generation,materials:materials.map(toMemoryMaterial),existingItems};
   if(!request.materials.length) throw new ValidationError('masking_snapshot_missing');
   const marker=newId();
-  await memoryBatch(env,[memoryWorkGuard(env,work,marker,null),
+  await memoryBatch(env,[
+    env.DB.prepare(
+      'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+    ).bind(work.supportCaseId, work.orgId),
+    memoryWorkGuard(env,work,marker,null),
     ...request.materials.flatMap(material=>memoryMaterialGuard(env,`${marker}:${material.id}`,work.orgId,work.supportCaseId,material)),
     env.DB.prepare('INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=? AND a.deactivated_at IS NULL AND p.config_hash=?) THEN 1 ELSE 0 END)').bind(`${marker}:config`,work.orgId,work.orgId,configHash),
     env.DB.prepare("UPDATE counseling_memory_cases SET egress='started',request_json=?,config_hash=? WHERE org_id=? AND support_case_id=? AND lease_token=?").bind(JSON.stringify(request),configHash,work.orgId,work.supportCaseId,work.leaseToken),
@@ -19519,7 +21756,12 @@ export async function commitCounselingMemoryWork(env:Env,work:MemoryWork,output:
   }
   for(const line of output.summary) assertSafeGeneratedText(line.text);
   const marker=newId();
-  const statements=[memoryWorkGuard(env,work,marker,'started')];
+  const statements=[
+    env.DB.prepare(
+      'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
+    ).bind(work.supportCaseId, work.orgId),
+    memoryWorkGuard(env,work,marker,'started'),
+  ];
   statements.push(...request.materials.flatMap(material=>memoryMaterialGuard(env,`${marker}:${material.id}`,work.orgId,work.supportCaseId,material)));
   for(const item of reconciled.changed) {
     statements.push(env.DB.prepare('INSERT INTO counseling_memory_history(id,org_id,support_case_id,revision,item_json) SELECT id,org_id,support_case_id,revision,item_json FROM counseling_memory_items WHERE id=? ON CONFLICT(id,revision) DO NOTHING').bind(item.id));
@@ -19645,12 +21887,13 @@ async function memoryDraftContextStatements(env:Env,actor:Actor,sessionId:string
   if(!context||input.supportCaseId!==context.supportCaseId||input.revision!==context.revision||!Array.isArray(input.materialSnapshotIds)||!input.materialSnapshotIds.length||new Set(input.materialSnapshotIds).size!==input.materialSnapshotIds.length||input.materialSnapshotIds.some(id=>!context.materials.some(m=>m.snapshotId===id))) throw new ConflictError('memory_superseded');
   const marker=newId(),c=await memoryCase(env,actor.orgId,input.supportCaseId);
   return [
-    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=? AND c.support_case_id=? AND c.revision=? AND c.generation=? AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,actor.orgId,input.supportCaseId,input.revision,c.generation,now()),
+    env.DB.prepare(`INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.org_id=? AND c.support_case_id=? AND c.revision=? AND c.generation=? AND ${memoryEligibleSql}) THEN 1 ELSE 0 END)`).bind(marker,actor.orgId,actor.orgId,input.supportCaseId,input.revision,c.generation),
     ...context.materials.filter(material=>input.materialSnapshotIds.includes(material.snapshotId)).flatMap(material=>memoryMaterialGuard(env,`${marker}:${material.id}`,actor.orgId,input.supportCaseId,material)),
     env.DB.prepare('INSERT INTO counseling_memory_draft_context(draft_id,org_id,support_case_id,revision,snapshot_ids) VALUES(?,?,?,?,?)').bind(draftId,actor.orgId,input.supportCaseId,input.revision,JSON.stringify(input.materialSnapshotIds)),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=? OR id LIKE ?').bind(marker,`${marker}:%`),
   ];
 }
+
 
 function memoryAuditStatement(env:Env,actor:Actor,supportCaseId:string,action:string,detail:Record<string,unknown>):PreparedStatement {
   return env.DB.prepare(`INSERT INTO audit_log(org_id,actor_id,actor_role,action,target_table,target_id,case_id,beneficiary_id,support_case_id,detail,created_at)

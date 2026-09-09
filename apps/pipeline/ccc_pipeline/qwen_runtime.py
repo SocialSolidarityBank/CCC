@@ -20,13 +20,15 @@ from .speaker_mapping import Segment
 QWEN_ASR_NAME = "Qwen/Qwen3-ASR-1.7B"
 QWEN_ALIGNER_NAME = "Qwen/Qwen3-ForcedAligner-0.6B"
 QWEN_MODEL_NAMES = frozenset((QWEN_ASR_NAME, QWEN_ALIGNER_NAME))
-QWEN_WEIGHT_FILES = {
+QWEN_REQUIRED_FILES = {
     QWEN_ASR_NAME: frozenset((
         "model-00001-of-00002.safetensors",
         "model-00002-of-00002.safetensors",
+        "model.safetensors.index.json",
     )),
     QWEN_ALIGNER_NAME: frozenset(("model.safetensors",)),
 }
+QWEN_CHECKPOINT_PATTERNS = ("model*.safetensors", "pytorch_model*.bin", "*.index.json")
 QWEN_FILE_PATTERNS = ("*.json", "merges.txt", "vocab.json")
 STARTUP_TIMEOUT_SECONDS = 600.0
 INFERENCE_TIMEOUT_SECONDS = 600.0
@@ -71,6 +73,8 @@ _STARTUP_CODES = frozenset((
     "model_hash_mismatch",
     "model_load_failed",
     "model_manifest_invalid",
+    "model_index_invalid",
+    "model_snapshot_ambiguous",
     "model_snapshot_missing",
 ))
 _INFERENCE_CODES = frozenset((
@@ -161,7 +165,7 @@ def prepare_qwen_models(
             ):
                 raise QwenRuntimeError("model_manifest_invalid")
             patterns.append(name)
-        expected_files = QWEN_WEIGHT_FILES[row["name"]]
+        expected_files = QWEN_REQUIRED_FILES[row["name"]]
         if len(patterns) != len(expected_files) or frozenset(patterns) != expected_files:
             raise QwenRuntimeError("model_manifest_invalid")
         try:
@@ -187,6 +191,30 @@ def prepare_qwen_models(
                 raise QwenRuntimeError("model_file_missing") from error
             if digest != file["sha256"]:
                 raise QwenRuntimeError("model_hash_mismatch")
+        checkpoint_files = {
+            str(candidate.relative_to(snapshot))
+            for pattern in QWEN_CHECKPOINT_PATTERNS
+            for candidate in snapshot.glob(pattern)
+            if candidate.is_file()
+        }
+        if checkpoint_files != expected_files:
+            raise QwenRuntimeError("model_snapshot_ambiguous")
+        if row["name"] == QWEN_ASR_NAME:
+            try:
+                index = json.loads((snapshot / "model.safetensors.index.json").read_text(encoding="utf-8"))
+                weight_map = index["weight_map"]
+            except (OSError, UnicodeError, ValueError, KeyError, TypeError) as error:
+                raise QwenRuntimeError("model_index_invalid") from error
+            if (
+                not isinstance(index, dict)
+                or set(index) != {"metadata", "weight_map"}
+                or not isinstance(index["metadata"], dict)
+                or not isinstance(weight_map, dict)
+                or not weight_map
+                or any(not isinstance(name, str) or not isinstance(file, str) for name, file in weight_map.items())
+                or frozenset(weight_map.values()) != expected_files - {"model.safetensors.index.json"}
+            ):
+                raise QwenRuntimeError("model_index_invalid")
         snapshots[row["name"]] = snapshot
     return snapshots
 
@@ -352,7 +380,21 @@ class QwenEngine:
         self._reader: threading.Thread | None = None
         self._next_id = 1
         self._closed = False
+        self._initialized = False
         self._lock = threading.Lock()
+
+    def start(self) -> None:
+        """Load and verify both fixed models without requiring or transcribing audio."""
+        with self._lock:
+            if self._closed:
+                raise QwenRuntimeError("qwen_engine_closed")
+            self._ensure_started()
+
+    def is_ready(self) -> bool:
+        """Return whether the successfully initialized child is still alive."""
+        # The IPC lock is held throughout inference; liveness must not wait on it.
+        process = self._process
+        return not self._closed and self._initialized and process is not None and process.poll() is None
 
     def __call__(self, audio_path: str) -> list[Segment]:
         try:
@@ -439,6 +481,7 @@ class QwenEngine:
             self._abort()
             raise
         if response == {"type": "ready"}:
+            self._initialized = True
             return
         code = response.get("code") if response.get("type") == "startup_error" else None
         self._abort()

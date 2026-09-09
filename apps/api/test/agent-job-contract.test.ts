@@ -13,32 +13,73 @@ import {
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import {
   acceptAgentJobResult,
+  abandonRecordingUpload,
+  admitRecordingUpload,
+  acknowledgeAudioManualNoteFallback,
+  appendSupportCaseConsentEvent,
+  authorizeAgentJobEgress,
+  authorizeRecordingUploadTarget,
+  beginAgentJobAudioTargetMint,
+  beginRecordingUploadIntent,
+  completeAgentJobAudioTargetMint,
+  failAgentJobAudioTargetMint,
+  ConflictError,
   AgentJobContractError,
   claimAgentJobs,
   createBeneficiaryWithInitialSupportCase,
+  closeAgentJobAudioObjectMissing,
   createCase,
   createCounselingRecord,
   createIntakeRecord,
   enqueueTextWorkItem,
+  issueSupportCaseConsentDisclosures,
   getAgentJobSource,
   heartbeatAgentJob,
   interleaveAgentJobQueues,
   issueAgentJobMaskDictionary,
+  markAgentJobEgressInFlight,
+  listAudioManualNoteFallbacks,
   listSupportCasesForBeneficiary,
-  recordPilotTextAiConsentEvidence,
+  recordSttReadiness,
   registerRecording,
+  recordPilotTextAiConsentEvidence,
+  reconcileAudioObjectDeletion,
   releaseAgentJob,
+  verifyAgentJobAudio,
+  runAudioExpiry,
   updateParticipantConsent,
   updateParticipantPii,
   type Actor,
+  type AgentRuntime,
 } from '@ccc/core/gateway';
+import type { AudioDeletionEvidence, AudioStore } from '@ccc/contracts/runtime';
+import type { PreparedStatement } from '@ccc/contracts/database';
+import { deliverAudioLifecycleIncidents } from '@ccc/core/scheduled-job-runner';
 import { setupD1, testActors } from './support/d1';
-import { agentResultRequest, claimRequest, LOCAL_SINGLE_RUNTIME, seedNerQualification } from './support/agent-jobs';
+import {
+  agentResultRequest,
+  claimRequest,
+  LOCAL_SINGLE_RUNTIME,
+  TEXT_ONLY_RUNTIME,
+  registerFixtureRecording,
+  seedCanonicalSttConsent,
+  seedNerQualification,
+} from './support/agent-jobs';
 
 vi.setConfig({ testTimeout: 60_000 });
 
 const { counselor, service } = testActors;
 const secondAgent: Actor = { userId: 'service.second@example.invalid', orgId: 'org_demo', role: 'service' };
+
+async function readySecondAgent(): Promise<void> {
+  await recordSttReadiness(t.env, secondAgent, {
+    schemaVersion: 1,
+    sttMode: 'local',
+    sttEngineId: 'qwen3-asr',
+    state: 'ready',
+    capacity: 1,
+  });
+}
 
 const t = setupD1();
 
@@ -103,6 +144,7 @@ async function fixtureSession(supportCaseId: string, memo?: string): Promise<str
 
 /** 마스킹까지 끝난 텍스트 일감 1건. */
 async function fixtureTextJob(supportCaseId: string, memo?: string): Promise<string> {
+  await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
   const sessionId = await fixtureSession(supportCaseId, memo);
   await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
   return sessionId;
@@ -111,7 +153,7 @@ async function fixtureTextJob(supportCaseId: string, memo?: string): Promise<str
 /** 원음이 등록된 오디오 일감 1건. */
 async function fixtureAudioJob(supportCaseId: string): Promise<string> {
   const sessionId = await fixtureSession(supportCaseId);
-  await registerRecording(t.env, counselor, sessionId, `audio/${sessionId}/${crypto.randomUUID()}`);
+  await registerFixtureRecording(t.env, counselor, service, sessionId);
   return sessionId;
 }
 async function registerDictionaryPii(
@@ -139,6 +181,13 @@ async function registerDictionaryPii(
   });
 }
 
+
+const AZURE_RUNTIME: AgentRuntime = {
+  route: 'local-single-agent',
+  sttEngine: 'azure',
+  sttEngineId: 'azure-speech-koreacentral',
+  audioDelivery: 'api-stream',
+};
 async function jobRow(sessionId: string): Promise<Record<string, unknown>> {
   const row = await t.db.prepare(
     `SELECT id, kind, state, attempt, lease_owner, lease_expires_at, terminal_failure_code,
@@ -217,6 +266,7 @@ describe('S5 Agent 작업 계약 v2', () => {
     const textSession = await fixtureTextJob(supportCaseId);
     const audioSession = await fixtureAudioJob(supportCaseId);
     const qualification = await seedNerQualification(t.db);
+    await readySecondAgent();
 
     // 두 Agent 가 동시에 claim 한다 — 순차 호출이면 "중복 임대 없음" 을 증명하지 못한다.
     const [first, second] = await Promise.all([
@@ -227,9 +277,9 @@ describe('S5 Agent 작업 계약 v2', () => {
     expect(first.schemaVersion).toBe(2);
     // 작업 2건이 두 응답에 걸쳐 정확히 한 번씩만 나간다.
     const claimedJobs = [...first.jobs, ...second.jobs];
+    expect(claimedJobs.map((job) => job.kind).sort()).toEqual(['audio', 'text']);
     expect(claimedJobs).toHaveLength(2);
     expect(new Set(claimedJobs.map((job) => job.jobId)).size).toBe(2);
-    expect(claimedJobs.map((job) => job.kind).sort()).toEqual(['audio', 'text']);
     for (const job of claimedJobs) {
       expect(job.attempt).toBe(1);
       expect(job.maxAttempts).toBe(3);
@@ -895,6 +945,974 @@ describe('S5 Agent 작업 계약 v2', () => {
       vi.restoreAllMocks();
       vi.useRealTimers();
     }
+  });
+
+  it('Agent re-hash is trusted when provider SHA is absent, while the copied client assertion can still reject it', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const mismatchSession = await fixtureSession(supportCaseId);
+    const mismatchAudio = await registerFixtureRecording(
+      t.env,
+      counselor,
+      service,
+      mismatchSession,
+      LOCAL_SINGLE_RUNTIME,
+      `audio/${mismatchSession}/${crypto.randomUUID()}`,
+      { clientAssertedSha256: 'f'.repeat(64), storageSha256: null },
+    );
+    const qualification = await seedNerQualification(t.db);
+    const [mismatchClaim] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (mismatchClaim === undefined || mismatchClaim.audio === null) throw new Error('expected audio claim');
+    expect(mismatchClaim.audio.clientAssertedSha256).toBe('f'.repeat(64));
+    await expect(verifyAgentJobAudio(t.env, service, mismatchClaim.jobId, {
+      claimToken: mismatchClaim.claimToken,
+      attempt: mismatchClaim.attempt,
+      generationId: mismatchAudio.generationId,
+      agentComputedSha256: mismatchAudio.sha256,
+    })).rejects.toMatchObject({ code: 'audio_hash_mismatch' });
+    await expect(t.db.prepare(
+      `SELECT audio.state,audio.object_sha256,job.client_asserted_sha256,job.agent_computed_sha256
+       FROM audio_objects AS audio JOIN agent_jobs AS job ON job.audio_object_id=audio.id
+       WHERE audio.session_id=?`,
+    ).bind(mismatchSession).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      object_sha256: null,
+      client_asserted_sha256: 'f'.repeat(64),
+      agent_computed_sha256: mismatchAudio.sha256,
+    });
+
+    const successSession = await fixtureSession(supportCaseId);
+    const successAudio = await registerFixtureRecording(
+      t.env,
+      counselor,
+      service,
+      successSession,
+      LOCAL_SINGLE_RUNTIME,
+      `audio/${successSession}/${crypto.randomUUID()}`,
+      { storageSha256: null },
+    );
+    const [successClaim] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (successClaim === undefined) throw new Error('expected second audio claim');
+    await expect(verifyAgentJobAudio(t.env, service, successClaim.jobId, {
+      claimToken: successClaim.claimToken,
+      attempt: successClaim.attempt,
+      generationId: successAudio.generationId,
+      agentComputedSha256: successAudio.sha256,
+    })).resolves.toMatchObject({ rawAudioSha256: successAudio.sha256 });
+    await expect(t.db.prepare(
+      'SELECT state,object_sha256 FROM audio_objects WHERE session_id=?',
+    ).bind(successSession).first()).resolves.toMatchObject({
+      state: 'processing',
+      object_sha256: successAudio.sha256,
+    });
+  });
+
+  it('a verify request that loses its claim CAS cannot mutate the replacement attempt', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    const audio = await registerFixtureRecording(t.env, counselor, service, sessionId);
+    const qualification = await seedNerQualification(t.db);
+    await readySecondAgent();
+    const [first] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (first === undefined) throw new Error('expected first audio claim');
+    let replacement: { jobId: string; claimToken: string; attempt: number } | undefined;
+    let intercepted = false;
+    const raceDb = new Proxy(t.env.DB, {
+      get(target, property, receiver) {
+        if (property === 'batch') {
+          return async (statements: PreparedStatement[]) => {
+            if (!intercepted) {
+              intercepted = true;
+              await releaseAgentJob(t.env, service, first.jobId, {
+                claimToken: first.claimToken,
+                attempt: first.attempt,
+                outcome: 'transient',
+                reason: 'engine_unavailable',
+              });
+              [replacement] = (await claimAgentJobs(
+                t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+              )).jobs;
+            }
+            return target.batch(statements);
+          };
+        }
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(verifyAgentJobAudio(
+      { ...t.env, DB: raceDb },
+      service,
+      first.jobId,
+      {
+        claimToken: first.claimToken,
+        attempt: first.attempt,
+        generationId: audio.generationId,
+        agentComputedSha256: 'f'.repeat(64),
+      },
+    )).rejects.toMatchObject({ code: 'stale_claim' });
+    expect(replacement?.attempt).toBe(2);
+    await expect(t.db.prepare(
+      `SELECT state,claim_agent_id,deletion_reason,object_sha256
+       FROM audio_objects WHERE session_id=?`,
+    ).bind(sessionId).first()).resolves.toMatchObject({
+      state: 'claimed',
+      claim_agent_id: secondAgent.userId,
+      deletion_reason: null,
+      object_sha256: null,
+    });
+  });
+
+  it('reclaim returns the immutable first-opportunity deadline stored on the audio object', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureAudioJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    await readySecondAgent();
+    const [first] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (first === undefined || first.audio === null) throw new Error('expected first audio claim');
+    await releaseAgentJob(t.env, service, first.jobId, {
+      claimToken: first.claimToken,
+      attempt: first.attempt,
+      outcome: 'transient',
+      reason: 'engine_unavailable',
+    });
+    await t.db.prepare(
+      "UPDATE agent_jobs SET processing_deadline_at='2098-01-02T03:04:05.000Z' WHERE id=?",
+    ).bind(first.jobId).run();
+    await t.db.prepare(
+      "UPDATE audio_objects SET processing_deadline_at='2098-01-01T03:04:05.000Z' WHERE session_id=?",
+    ).bind(sessionId).run();
+    const [second] = (await claimAgentJobs(
+      t.env, secondAgent, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    expect(second?.audio?.processingDeadlineAt).toBe('2098-01-01T03:04:05.000Z');
+    await expect(t.db.prepare(
+      'SELECT processing_deadline_at FROM agent_jobs WHERE id=?',
+    ).bind(first.jobId).first()).resolves.toMatchObject({
+      processing_deadline_at: '2098-01-01T03:04:05.000Z',
+    });
+  });
+
+  it('permanent audio result validation closes the exact attempt and persists both obligations', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    const audio = await registerFixtureRecording(t.env, counselor, service, sessionId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (claimed === undefined) throw new Error('expected audio claim');
+    await verifyAgentJobAudio(t.env, service, claimed.jobId, {
+      claimToken: claimed.claimToken,
+      attempt: claimed.attempt,
+      generationId: audio.generationId,
+      agentComputedSha256: audio.sha256,
+    });
+    const request = await agentResultRequest({
+      kind: 'audio',
+      claimToken: claimed.claimToken,
+      attempt: claimed.attempt,
+      maskedText: 'MASKED invalid evidence audio',
+      qualification,
+    });
+    await expect(acceptAgentJobResult(t.env, service, claimed.jobId, {
+      ...request,
+      result: { ...request.result, evidenceHash: 'f'.repeat(64) },
+    })).rejects.toMatchObject({ code: 'evidence_hash_mismatch' });
+    await expect(t.db.prepare(
+      `SELECT job.state AS job_state,job.terminal_failure_code,audio.state AS audio_state,
+              audio.deletion_reason,audio.processing_attempt_id
+       FROM agent_jobs AS job JOIN audio_objects AS audio ON audio.id=job.audio_object_id
+       WHERE job.id=?`,
+    ).bind(claimed.jobId).first()).resolves.toMatchObject({
+      job_state: 'failed',
+      terminal_failure_code: 'evidence_hash_mismatch',
+      audio_state: 'deletion_pending',
+      deletion_reason: 'processing_failed',
+      processing_attempt_id: `${claimed.jobId}:${claimed.attempt}`,
+    });
+    await expect(t.db.prepare(
+      `SELECT kind FROM audio_lifecycle_outbox
+       WHERE audio_object_id=(SELECT audio_object_id FROM agent_jobs WHERE id=?)
+       ORDER BY kind`,
+    ).bind(claimed.jobId).all<{ kind: string }>()).resolves.toMatchObject({
+      results: [{ kind: 'incident' }, { kind: 'manual_note' }],
+    });
+  });
+
+  it('permanent release and missing storage each persist incident plus manual-note obligations', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const qualification = await seedNerQualification(t.db);
+    for (const close of ['release', 'missing'] as const) {
+      const sessionId = await fixtureAudioJob(supportCaseId);
+      const [claimed] = (await claimAgentJobs(
+        t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+      )).jobs;
+      if (claimed === undefined) throw new Error('expected audio claim');
+      if (close === 'release') {
+        await releaseAgentJob(t.env, service, claimed.jobId, {
+          claimToken: claimed.claimToken,
+          attempt: claimed.attempt,
+          outcome: 'permanent',
+          reason: 'permanent_failure',
+        });
+      } else {
+        await closeAgentJobAudioObjectMissing(
+          t.env, service, claimed.jobId, claimed.claimToken, claimed.attempt,
+        );
+      }
+      await expect(t.db.prepare(
+        `SELECT audio.state AS audio_state,audio.deletion_reason,
+                job.state AS job_state,job.terminal_failure_code
+         FROM audio_objects AS audio JOIN agent_jobs AS job ON job.audio_object_id=audio.id
+         WHERE audio.session_id=?`,
+      ).bind(sessionId).first()).resolves.toMatchObject({
+        job_state: 'failed',
+        audio_state: 'deletion_pending',
+        terminal_failure_code: close === 'release' ? 'permanent_failure' : 'audio_object_missing',
+        deletion_reason: 'processing_failed',
+      });
+      await expect(t.db.prepare(
+        `SELECT kind FROM audio_lifecycle_outbox
+         WHERE audio_object_id=(SELECT id FROM audio_objects WHERE session_id=?) ORDER BY kind`,
+      ).bind(sessionId).all<{ kind: string }>()).resolves.toMatchObject({
+        results: [{ kind: 'incident' }, { kind: 'manual_note' }],
+      });
+    }
+  });
+
+  function deletionEvidence(
+    generationId: string | null,
+    complete: boolean,
+  ): AudioDeletionEvidence {
+    const at = new Date().toISOString();
+    return {
+      keyHash: 'a'.repeat(64),
+      generationId,
+      objectSha256: null,
+      deletionAttemptId: crypto.randomUUID(),
+      deletionRequestedAt: at,
+      providerDeleteAcceptedAt: at,
+      deletedAt: at,
+      deleteSucceeded: true,
+      absentFromList: complete,
+      absentFromMetadata: complete,
+      directReadAbsent: complete,
+      verificationMethod: 'r2-head-absent',
+      verifiedAt: at,
+    };
+  }
+
+  function deletionStore(
+    remove: (key: string) => Promise<AudioDeletionEvidence>,
+  ): AudioStore {
+    return { delete: remove } as unknown as AudioStore;
+  }
+
+  it('a durable generation-bound deletion request recovers when a retry sees an already absent object', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureAudioJob(supportCaseId);
+    const row = await t.db.prepare(
+      'SELECT id,generation_id FROM audio_objects WHERE session_id=?',
+    ).bind(sessionId).first<{ id: string; generation_id: string }>();
+    if (row === null) throw new Error('expected audio object');
+    await t.db.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason='processed',
+       deletion_attempt_id='attempt-recover',next_attempt_at=?,updated_at=? WHERE id=?`,
+    ).bind(new Date().toISOString(), new Date().toISOString(), row.id).run();
+    let calls = 0;
+    const store = deletionStore(async () => {
+      calls += 1;
+      return deletionEvidence(calls === 1 ? row.generation_id : null, calls > 1);
+    });
+    await expect(reconcileAudioObjectDeletion(t.env, store, row.id)).resolves.toBe(false);
+    await expect(reconcileAudioObjectDeletion(t.env, store, row.id)).resolves.toBe(true);
+    await expect(t.db.prepare(
+      'SELECT state,generation_id FROM audio_objects WHERE id=?',
+    ).bind(row.id).first()).resolves.toMatchObject({
+      state: 'processed_deleted',
+      generation_id: row.generation_id,
+    });
+    await expect(t.db.prepare(
+      'SELECT phase,generation_id FROM audio_deletion_attempts WHERE audio_object_id=? ORDER BY created_at,id',
+    ).bind(row.id).all()).resolves.toMatchObject({
+      results: [
+        { phase: 'requested', generation_id: row.generation_id },
+        { phase: 'verification', generation_id: row.generation_id },
+        { phase: 'verification', generation_id: row.generation_id },
+      ],
+    });
+  });
+
+  it('Cloud deletion happens immediately but cannot terminalize until upload expiry plus propagation', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureAudioJob(supportCaseId);
+    const row = await t.db.prepare(
+      'SELECT id,generation_id FROM audio_objects WHERE session_id=?',
+    ).bind(sessionId).first<{ id: string; generation_id: string }>();
+    if (row === null) throw new Error('expected audio object');
+    const future = new Date(Date.now() + 60 * 60_000).toISOString();
+    await t.db.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason='processed',
+       deletion_attempt_id='attempt-cloud',next_attempt_at=?,audio_delivery='protected-get',
+       upload_expires_at=?,updated_at=? WHERE id=?`,
+    ).bind(new Date().toISOString(), future, new Date().toISOString(), row.id).run();
+    let calls = 0;
+    const store = deletionStore(async () => {
+      calls += 1;
+      return deletionEvidence(row.generation_id, true);
+    });
+    await expect(reconcileAudioObjectDeletion(t.env, store, row.id)).resolves.toBe(false);
+    expect(calls).toBe(1);
+    await expect(t.db.prepare('SELECT state,next_attempt_at FROM audio_objects WHERE id=?')
+      .bind(row.id).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      next_attempt_at: new Date(Date.parse(future) + 60_000).toISOString(),
+    });
+    await t.db.prepare(
+      "UPDATE audio_objects SET upload_expires_at='2000-01-01T00:00:00.000Z',next_attempt_at=? WHERE id=?",
+    ).bind(new Date().toISOString(), row.id).run();
+    await expect(reconcileAudioObjectDeletion(t.env, store, row.id)).resolves.toBe(true);
+    expect(calls).toBe(2);
+  });
+
+  it('reconciliation expires abandoned upload intents at upload expiry rather than the seven-day cap', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureAudioJob(supportCaseId);
+    const row = await t.db.prepare(
+      'SELECT id,generation_id FROM audio_objects WHERE session_id=?',
+    ).bind(sessionId).first<{ id: string; generation_id: string }>();
+    if (row === null) throw new Error('expected audio object');
+    await t.db.prepare(
+      `UPDATE audio_objects SET state='pending_upload',uploaded_at=NULL,audio_delivery='protected-get',
+       upload_expires_at='2000-01-01T00:00:00.000Z',retention_hard_cap_at='2099-01-01T00:00:00.000Z',
+       deletion_reason=NULL,deletion_attempt_id=NULL,next_attempt_at=NULL WHERE id=?`,
+    ).bind(row.id).run();
+    let calls = 0;
+    const store = deletionStore(async () => {
+      calls += 1;
+      return deletionEvidence(row.generation_id, true);
+    });
+    const report = await runAudioExpiry(t.env, store, new Date().toISOString());
+    expect(report).toEqual({ scanned: 1, deleted: 1 });
+    expect(calls).toBe(1);
+    await expect(t.db.prepare('SELECT state,deletion_reason FROM audio_objects WHERE id=?')
+      .bind(row.id).first()).resolves.toMatchObject({
+      state: 'upload_abandoned',
+      deletion_reason: 'upload_abandoned',
+    });
+  });
+
+  it('a hard-cap transition gets a new epoch so stale processed proof cannot terminalize it', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureAudioJob(supportCaseId);
+    const row = await t.db.prepare(
+      'SELECT id,generation_id FROM audio_objects WHERE session_id=?',
+    ).bind(sessionId).first<{ id: string; generation_id: string }>();
+    if (row === null) throw new Error('expected audio object');
+    const at = new Date().toISOString();
+    await t.db.prepare(
+      `UPDATE audio_objects SET state='deletion_pending',deletion_reason='processed',
+       deletion_attempt_id='processed-epoch',next_attempt_at=?,retention_hard_cap_at=?,updated_at=? WHERE id=?`,
+    ).bind(at, at, at, row.id).run();
+    let raced = false;
+    const inner = deletionStore(async () => deletionEvidence(row.generation_id, false));
+    const outer = deletionStore(async () => {
+      if (!raced) {
+        raced = true;
+        await runAudioExpiry(t.env, inner, at);
+      }
+      return deletionEvidence(row.generation_id, true);
+    });
+    await expect(reconcileAudioObjectDeletion(t.env, outer, row.id)).resolves.toBe(false);
+    const pending = await t.db.prepare(
+      'SELECT state,deletion_reason,deletion_attempt_id FROM audio_objects WHERE id=?',
+    ).bind(row.id).first<Record<string, unknown>>();
+    expect(pending).toMatchObject({ state: 'deletion_pending', deletion_reason: 'retention_hard_cap' });
+    expect(pending?.deletion_attempt_id).not.toBe('processed-epoch');
+    await expect(reconcileAudioObjectDeletion(
+      t.env,
+      deletionStore(async () => deletionEvidence(row.generation_id, true)),
+      row.id,
+    )).resolves.toBe(true);
+    await expect(t.db.prepare('SELECT state FROM audio_objects WHERE id=?')
+      .bind(row.id).first()).resolves.toMatchObject({ state: 'retention_capped' });
+  });
+
+  it('a losing upload completion cannot cancel the winner claim or enqueue a duplicate job', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
+    await recordSttReadiness(t.env, service, {
+      schemaVersion: 1,
+      sttMode: 'local',
+      sttEngineId: 'qwen3-asr',
+      state: 'ready',
+      capacity: 1,
+    });
+    const admission = await admitRecordingUpload(t.env, counselor, sessionId, LOCAL_SINGLE_RUNTIME);
+    const uploadExpiresAt = new Date(Date.now() + 2 * 60 * 60_000).toISOString();
+    const intent = await beginRecordingUploadIntent(
+      t.env, counselor, sessionId, admission, 'protected-get', {
+      contentLength: 364,
+      contentType: 'audio/wav',
+      clientAssertedSha256: null,
+      storageSha256: null,
+      uploadExpiresAt,
+      },
+    );
+    const generationId = crypto.randomUUID();
+    await registerRecording(t.env, counselor, sessionId, intent.key, admission, {
+      contentLength: 364,
+      contentType: 'audio/wav',
+      clientAssertedSha256: null,
+      storageSha256: null,
+      generationId,
+      uploadExpiresAt,
+    }, intent.audioObjectId);
+    await t.db.prepare(
+      'UPDATE audio_objects SET eligible_after=? WHERE id=?',
+    ).bind(new Date(Date.now() - 1000).toISOString(), intent.audioObjectId).run();
+    const qualification = await seedNerQualification(t.db);
+    const [winner] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (winner === undefined) throw new Error('expected completion winner claim');
+
+    await expect(registerRecording(t.env, counselor, sessionId, intent.key, admission, {
+      contentLength: 364,
+      contentType: 'audio/wav',
+      clientAssertedSha256: null,
+      storageSha256: null,
+      generationId,
+      uploadExpiresAt,
+    }, intent.audioObjectId)).rejects.toBeInstanceOf(ConflictError);
+    await expect(t.db.prepare(
+      `SELECT state,lease_owner,attempt FROM agent_jobs WHERE audio_object_id=?`,
+    ).bind(intent.audioObjectId).all()).resolves.toMatchObject({
+      results: [{ state: 'leased', lease_owner: service.userId, attempt: 1 }],
+    });
+    await expect(t.db.prepare(
+      'SELECT state,claim_id,claim_agent_id FROM audio_objects WHERE id=?',
+    ).bind(intent.audioObjectId).first()).resolves.toMatchObject({
+      state: 'claimed',
+      claim_id: winner.jobId,
+      claim_agent_id: service.userId,
+    });
+  });
+  it('declining external STT deletes only audio whose immutable receipt requires that domain', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+
+    const localSession = await fixtureSession(supportCaseId);
+    await registerFixtureRecording(t.env, counselor, service, localSession);
+    const azureSession = await fixtureSession(supportCaseId);
+    await registerFixtureRecording(t.env, counselor, service, azureSession, AZURE_RUNTIME);
+
+    const disclosure = (await issueSupportCaseConsentDisclosures(
+      t.env, counselor, supportCaseId,
+    )).find((item) => item.domain === 'external_stt_processing');
+    if (disclosure === undefined) throw new Error('expected external STT disclosure');
+    await appendSupportCaseConsentEvent(t.env, counselor, supportCaseId, {
+      domain: 'external_stt_processing',
+      decision: 'decline',
+      provider: null,
+      providerLegalRecipient: null,
+      providerCountry: null,
+      purpose: null,
+      retentionDuration: null,
+      copyVersion: disclosure.copyVersion,
+      copyHash: disclosure.copyHash,
+      disclosureSnapshotId: disclosure.snapshotId,
+      effectiveAt: new Date().toISOString(),
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: null,
+    });
+
+    await expect(t.db.prepare(
+      `SELECT audio.state AS audio_state,job.state AS job_state
+       FROM audio_objects AS audio JOIN agent_jobs AS job ON job.audio_object_id=audio.id
+       WHERE audio.session_id=?`,
+    ).bind(localSession).first()).resolves.toMatchObject({
+      audio_state: 'available',
+      job_state: 'pending',
+    });
+    await expect(t.db.prepare(
+      `SELECT audio.state AS audio_state,audio.deletion_reason,job.state AS job_state
+       FROM audio_objects AS audio JOIN agent_jobs AS job ON job.audio_object_id=audio.id
+       WHERE audio.session_id=?`,
+    ).bind(azureSession).first()).resolves.toMatchObject({
+      audio_state: 'deletion_pending',
+      deletion_reason: 'consent_withdrawal',
+      job_state: 'cancelled',
+    });
+  });
+
+  it('signed target completion records only a still-current claim and rejects a released lease', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const qualification = await seedNerQualification(t.db);
+
+    const successfulSession = await fixtureAudioJob(supportCaseId);
+    const [successfulClaim] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (successfulClaim === undefined) throw new Error('expected signed-target claim');
+    const successfulMint = await beginAgentJobAudioTargetMint(
+      t.env,
+      service,
+      successfulClaim.jobId,
+      successfulClaim.claimToken,
+      successfulClaim.attempt,
+    );
+    const expiresAt = new Date(Date.now() + 600_000).toISOString();
+    await completeAgentJobAudioTargetMint(
+      t.env,
+      service,
+      successfulClaim.jobId,
+      successfulClaim.claimToken,
+      successfulClaim.attempt,
+      successfulMint,
+      expiresAt,
+    );
+    await expect(t.db.prepare(
+      `SELECT mint.status,audio.download_target_agent_id,audio.download_target_expires_at
+       FROM audio_download_target_mints AS mint
+       JOIN audio_objects AS audio ON audio.id=mint.audio_object_id
+       WHERE mint.id=?`,
+    ).bind(successfulMint.mintId).first()).resolves.toMatchObject({
+      status: 'issued',
+      download_target_agent_id: service.userId,
+      download_target_expires_at: expiresAt,
+    });
+
+    const losingSession = await fixtureAudioJob(supportCaseId);
+    const [losingClaim] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (losingClaim === undefined) throw new Error('expected losing signed-target claim');
+    const losingMint = await beginAgentJobAudioTargetMint(
+      t.env,
+      service,
+      losingClaim.jobId,
+      losingClaim.claimToken,
+      losingClaim.attempt,
+    );
+    await releaseAgentJob(t.env, service, losingClaim.jobId, {
+      claimToken: losingClaim.claimToken,
+      attempt: losingClaim.attempt,
+      outcome: 'transient',
+      reason: 'engine_unavailable',
+    });
+    await expect(completeAgentJobAudioTargetMint(
+      t.env,
+      service,
+      losingClaim.jobId,
+      losingClaim.claimToken,
+      losingClaim.attempt,
+      losingMint,
+      new Date(Date.now() + 600_000).toISOString(),
+    )).rejects.toMatchObject({ code: 'stale_claim' });
+    await failAgentJobAudioTargetMint(t.env, service, losingMint.mintId);
+    await expect(t.db.prepare(
+      `SELECT mint.status,audio.state,audio.download_target_issued_at
+       FROM audio_download_target_mints AS mint
+       JOIN audio_objects AS audio ON audio.id=mint.audio_object_id
+       WHERE mint.id=? AND audio.session_id=?`,
+    ).bind(losingMint.mintId, losingSession).first()).resolves.toMatchObject({
+      status: 'failed',
+      state: 'available',
+      download_target_issued_at: null,
+    });
+    expect(successfulSession).not.toBe(losingSession);
+  });
+
+  it('lifecycle incidents reach the existing notifier and manual-note obligations remain observable until ack', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureAudioJob(supportCaseId);
+    const qualification = await seedNerQualification(t.db);
+    const [claimed] = (await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (claimed === undefined) throw new Error('expected audio claim');
+    await releaseAgentJob(t.env, service, claimed.jobId, {
+      claimToken: claimed.claimToken,
+      attempt: claimed.attempt,
+      outcome: 'permanent',
+      reason: 'permanent_failure',
+    });
+
+    const manualNotes = await listAudioManualNoteFallbacks(t.env, testActors.admin);
+    expect(manualNotes).toEqual([
+      expect.objectContaining({
+        sessionId,
+        supportCaseId,
+        reason: 'processing_failed',
+      }),
+    ]);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(deliverAudioLifecycleIncidents(t.env)).resolves.toBe(1);
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('audio lifecycle incident'));
+    consoleError.mockRestore();
+    await expect(t.db.prepare(
+      `SELECT delivered_at FROM audio_lifecycle_outbox
+       WHERE audio_object_id=? AND kind='incident'`,
+    ).bind(manualNotes[0]?.audioObjectId).first()).resolves.toMatchObject({
+      delivered_at: expect.any(String),
+    });
+    const acknowledged = await acknowledgeAudioManualNoteFallback(
+      t.env, testActors.admin, manualNotes[0]?.id ?? '',
+    );
+    expect(acknowledged).toBe(true);
+    await expect(listAudioManualNoteFallbacks(t.env, testActors.admin)).resolves.toEqual([]);
+    const replayed = await acknowledgeAudioManualNoteFallback(
+      t.env, testActors.admin, manualNotes[0]?.id ?? '',
+    );
+    expect(replayed).toBe(true);
+  });
+
+
+
+  it('skips an earlier stale audio receipt and claims the next consent-valid recording', async () => {
+    const first = await fixtureSupportCase();
+    const firstSession = await fixtureSession(first.supportCaseId);
+    await registerFixtureRecording(t.env, counselor, service, firstSession);
+    const firstDisclosure = (await issueSupportCaseConsentDisclosures(
+      t.env, counselor, first.supportCaseId,
+    )).find((item) => item.domain === 'counseling_recording');
+    if (firstDisclosure === undefined) throw new Error('expected recording disclosure');
+    await appendSupportCaseConsentEvent(t.env, counselor, first.supportCaseId, {
+      domain: 'counseling_recording',
+      decision: 'grant',
+      provider: firstDisclosure.provider,
+      providerLegalRecipient: firstDisclosure.providerLegalRecipient,
+      providerCountry: firstDisclosure.country,
+      purpose: firstDisclosure.purpose,
+      retentionDuration: null,
+      copyVersion: firstDisclosure.copyVersion,
+      copyHash: firstDisclosure.copyHash,
+      disclosureSnapshotId: firstDisclosure.snapshotId,
+      effectiveAt: new Date().toISOString(),
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: null,
+    });
+
+    const second = await fixtureSupportCase();
+    const secondSession = await fixtureSession(second.supportCaseId);
+    await registerFixtureRecording(t.env, counselor, service, secondSession);
+    const qualification = await seedNerQualification(t.db);
+    const result = await claimAgentJobs(
+      t.env, service, LOCAL_SINGLE_RUNTIME, claimRequest(qualification),
+    );
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({ kind: 'audio', sessionId: secondSession });
+  });
+
+  it('pages past a full requested batch of stale text receipts', async () => {
+    const createStaleTextJob = async (enqueuedAt: string): Promise<void> => {
+      const fixture = await fixtureSupportCase();
+      const sessionId = await fixtureSession(fixture.supportCaseId);
+      await seedCanonicalSttConsent(t.env, counselor, fixture.supportCaseId);
+      await enqueueTextWorkItem(t.env, counselor, sessionId, 'manual_record');
+      const disclosure = (await issueSupportCaseConsentDisclosures(
+        t.env, counselor, fixture.supportCaseId,
+      )).find((item) => item.domain === 'external_llm_cross_border_processing');
+      if (disclosure === undefined) throw new Error('expected external LLM disclosure');
+      await appendSupportCaseConsentEvent(t.env, counselor, fixture.supportCaseId, {
+        domain: 'external_llm_cross_border_processing',
+        decision: 'grant',
+        provider: disclosure.provider,
+        providerLegalRecipient: disclosure.providerLegalRecipient,
+        providerCountry: disclosure.country,
+        purpose: disclosure.purpose,
+        retentionDuration: null,
+        copyVersion: disclosure.copyVersion,
+        copyHash: disclosure.copyHash,
+        disclosureSnapshotId: disclosure.snapshotId,
+        effectiveAt: new Date().toISOString(),
+        idempotencyKey: crypto.randomUUID(),
+        correctionOfEventId: null,
+        expectedRevision: null,
+      });
+      await t.db.prepare(
+        `UPDATE agent_jobs SET state='pending',terminal_failure_code=NULL,enqueued_at=?
+         WHERE org_id=? AND session_id=? AND kind='text'`,
+      ).bind(enqueuedAt, counselor.orgId, sessionId).run();
+    };
+    await createStaleTextJob('2000-01-01T00:00:00.000Z');
+    await createStaleTextJob('2000-01-02T00:00:00.000Z');
+
+    const valid = await fixtureSupportCase();
+    const validSession = await fixtureSession(valid.supportCaseId);
+    await seedCanonicalSttConsent(t.env, counselor, valid.supportCaseId);
+    await enqueueTextWorkItem(t.env, counselor, validSession, 'manual_record');
+    const qualification = await seedNerQualification(t.db);
+    const result = await claimAgentJobs(
+      t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification, 2),
+    );
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({ kind: 'text', sessionId: validSession });
+  });
+
+  it('rebinds a pending provider generation to a fresh deletion attempt before confirming absence', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
+    await recordSttReadiness(t.env, service, {
+      schemaVersion: 1,
+      sttMode: 'local',
+      sttEngineId: 'qwen3-asr',
+      state: 'ready',
+      capacity: 1,
+    });
+    const admission = await admitRecordingUpload(t.env, counselor, sessionId, LOCAL_SINGLE_RUNTIME);
+    const uploadExpiresAt = new Date(Date.now() + 60_000).toISOString();
+    const intent = await beginRecordingUploadIntent(
+      t.env, counselor, sessionId, admission, 'protected-get', {
+        contentLength: 364,
+        contentType: 'audio/wav',
+        clientAssertedSha256: null,
+        storageSha256: null,
+        uploadExpiresAt,
+      },
+    );
+    const row = { id: intent.audioObjectId };
+    await abandonRecordingUpload(t.env, counselor, row.id, 'upload_abandoned');
+    const initial = await t.db.prepare(
+      'SELECT deletion_attempt_id FROM audio_objects WHERE id=?',
+    ).bind(row.id).first<{ deletion_attempt_id: string }>();
+    if (initial === null) throw new Error('expected deletion attempt');
+
+    const observedGeneration = 'provider-generation-2';
+    let calls = 0;
+    const store = deletionStore(async () => {
+      calls += 1;
+      return deletionEvidence(observedGeneration, true);
+    });
+    await expect(reconcileAudioObjectDeletion(t.env, store, row.id)).resolves.toBe(false);
+    await expect(t.db.prepare(
+      'SELECT generation_id,deletion_attempt_id,state FROM audio_objects WHERE id=?',
+    ).bind(row.id).first()).resolves.toMatchObject({
+      generation_id: observedGeneration,
+      deletion_attempt_id: expect.not.stringMatching(initial.deletion_attempt_id),
+      state: 'deletion_pending',
+    });
+
+    await t.db.prepare(
+      'UPDATE audio_objects SET upload_expires_at=?,next_attempt_at=?,updated_at=? WHERE id=?',
+    ).bind(
+      new Date(Date.now() - 120_000).toISOString(),
+      new Date(Date.now() - 1000).toISOString(),
+      new Date().toISOString(),
+      row.id,
+    ).run();
+    await expect(reconcileAudioObjectDeletion(t.env, store, row.id)).resolves.toBe(true);
+    expect(calls).toBe(2);
+  });
+
+  it('refuses an upload target after recording consent changes during provider target creation', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    await seedCanonicalSttConsent(t.env, counselor, supportCaseId);
+    await recordSttReadiness(t.env, service, {
+      schemaVersion: 1,
+      sttMode: 'local',
+      sttEngineId: 'qwen3-asr',
+      state: 'ready',
+      capacity: 1,
+    });
+    const admission = await admitRecordingUpload(
+      t.env, counselor, sessionId, LOCAL_SINGLE_RUNTIME,
+    );
+    const uploadExpiresAt = new Date(Date.now() + 60_000).toISOString();
+    const intent = await beginRecordingUploadIntent(
+      t.env, counselor, sessionId, admission, 'protected-get', {
+        contentLength: 364,
+        contentType: 'audio/wav',
+        clientAssertedSha256: null,
+        storageSha256: null,
+        uploadExpiresAt,
+      },
+    );
+    const disclosure = (await issueSupportCaseConsentDisclosures(
+      t.env, counselor, supportCaseId,
+    )).find((item) => item.domain === 'counseling_recording');
+    if (disclosure === undefined) throw new Error('expected recording disclosure');
+    await appendSupportCaseConsentEvent(t.env, counselor, supportCaseId, {
+      domain: 'counseling_recording',
+      decision: 'decline',
+      provider: null,
+      providerLegalRecipient: null,
+      providerCountry: null,
+      purpose: null,
+      retentionDuration: null,
+      copyVersion: disclosure.copyVersion,
+      copyHash: disclosure.copyHash,
+      disclosureSnapshotId: disclosure.snapshotId,
+      effectiveAt: new Date().toISOString(),
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: null,
+    });
+    await expect(authorizeRecordingUploadTarget(
+      t.env, counselor, sessionId, intent.audioObjectId, admission,
+    )).rejects.toBeInstanceOf(ConflictError);
+    await expect(t.db.prepare(
+      'SELECT state,deletion_reason FROM audio_objects WHERE id=?',
+    ).bind(intent.audioObjectId).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      deletion_reason: 'consent_withdrawal',
+    });
+  });
+
+  it('rechecks signed runtime and current NER qualification at Azure egress boundaries', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    const audio = await registerFixtureRecording(
+      t.env, counselor, service, sessionId, AZURE_RUNTIME,
+    );
+    const qualification = await seedNerQualification(t.db, {
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const [job] = (await claimAgentJobs(
+      t.env, service, AZURE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (job === undefined || job.kind !== 'audio') throw new Error('expected Azure audio job');
+    const verification = await verifyAgentJobAudio(t.env, service, job.jobId, {
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      generationId: audio.generationId,
+      agentComputedSha256: audio.sha256,
+    });
+    expect(verification.rawAudioSha256).toBe(audio.sha256);
+    await expect(authorizeAgentJobEgress(t.env, service, job.jobId, {
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      rawAudioSha256: audio.sha256,
+      provider: 'azure',
+    }, {
+      ...AZURE_RUNTIME,
+      sttEngine: null,
+      sttEngineId: null,
+    })).rejects.toMatchObject({ code: 'route_mismatch' });
+    const authorization = await authorizeAgentJobEgress(t.env, service, job.jobId, {
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      rawAudioSha256: audio.sha256,
+      provider: 'azure',
+    }, AZURE_RUNTIME);
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 2 * 60_000);
+    try {
+      await expect(markAgentJobEgressInFlight(t.env, service, job.jobId, {
+        egressAuthorizationId: authorization.egressAuthorizationId,
+        claimToken: job.claimToken,
+        attempt: job.attempt,
+      }, AZURE_RUNTIME)).rejects.toMatchObject({ code: 'local_ner_unavailable' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('loses the Azure in-flight CAS when consent is superseded after its preflight read', async () => {
+    const { supportCaseId } = await fixtureSupportCase();
+    const sessionId = await fixtureSession(supportCaseId);
+    const audio = await registerFixtureRecording(
+      t.env, counselor, service, sessionId, AZURE_RUNTIME,
+    );
+    const qualification = await seedNerQualification(t.db);
+    const [job] = (await claimAgentJobs(
+      t.env, service, AZURE_RUNTIME, claimRequest(qualification),
+    )).jobs;
+    if (job === undefined || job.kind !== 'audio') throw new Error('expected Azure audio job');
+    await verifyAgentJobAudio(t.env, service, job.jobId, {
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      generationId: audio.generationId,
+      agentComputedSha256: audio.sha256,
+    });
+    const authorization = await authorizeAgentJobEgress(t.env, service, job.jobId, {
+      claimToken: job.claimToken,
+      attempt: job.attempt,
+      rawAudioSha256: audio.sha256,
+      provider: 'azure',
+    }, AZURE_RUNTIME);
+    const disclosure = (await issueSupportCaseConsentDisclosures(
+      t.env, counselor, supportCaseId,
+    )).find((item) => item.domain === 'counseling_recording');
+    if (disclosure === undefined) throw new Error('expected recording disclosure');
+    let injected = false;
+    const wrap = (statement: PreparedStatement): PreparedStatement => ({
+      bind(...values) {
+        return wrap(statement.bind(...values));
+      },
+      first(column) {
+        return statement.first(column);
+      },
+      all() {
+        return statement.all();
+      },
+      async run() {
+        if (!injected) {
+          injected = true;
+          await appendSupportCaseConsentEvent(t.env, counselor, supportCaseId, {
+            domain: 'counseling_recording',
+            decision: 'grant',
+            provider: disclosure.provider,
+            providerLegalRecipient: disclosure.providerLegalRecipient,
+            providerCountry: disclosure.country,
+            purpose: disclosure.purpose,
+            retentionDuration: null,
+            copyVersion: disclosure.copyVersion,
+            copyHash: disclosure.copyHash,
+            disclosureSnapshotId: disclosure.snapshotId,
+            effectiveAt: new Date().toISOString(),
+            idempotencyKey: crypto.randomUUID(),
+            correctionOfEventId: null,
+            expectedRevision: null,
+          });
+        }
+        return statement.run();
+      },
+    });
+    const raceDb = new Proxy(t.env.DB, {
+      get(target, property, receiver) {
+        if (property === 'prepare') {
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            return sql.includes("UPDATE agent_job_egress_records SET status='in_flight'")
+              ? wrap(statement)
+              : statement;
+          };
+        }
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(markAgentJobEgressInFlight(
+      { ...t.env, DB: raceDb },
+      service,
+      job.jobId,
+      {
+        egressAuthorizationId: authorization.egressAuthorizationId,
+        claimToken: job.claimToken,
+        attempt: job.attempt,
+      },
+      AZURE_RUNTIME,
+    )).rejects.toMatchObject({ code: 'stale_claim' });
+    expect(injected).toBe(true);
+    await expect(t.db.prepare(
+      'SELECT status FROM agent_job_egress_records WHERE id=?',
+    ).bind(authorization.egressAuthorizationId).first()).resolves.toMatchObject({
+      status: 'revoked',
+    });
   });
 
   it('사람 역할은 claim endpoint를 쓸 수 없다', async () => {

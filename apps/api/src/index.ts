@@ -10,7 +10,7 @@ import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import { createAccessIdentity } from '@ccc/identity-access';
 
-import { MEMORY_CRON, PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
+import { AUDIO_EXPIRY_CRON, MEMORY_CRON, PURGE_CRON, WATCHDOG_CRON } from './cron-schedule';
 
 /** Raw provider bindings exist only at the Workers composition boundary. */
 type WorkerEnv = Omit<ApiEnv, 'secretStore'> & Partial<Record<SecretName, string>> & Pick<Partial<ApiEnv>, 'secretStore'>;
@@ -42,6 +42,7 @@ const CRON_JOBS: Record<string, ScheduledJobKind> = {
   [WATCHDOG_CRON]: 'pipeline_watchdog',
   [PURGE_CRON]: 'pii_retention',
   [MEMORY_CRON]: 'counseling_memory',
+  [AUDIO_EXPIRY_CRON]: 'audio_expiry',
 };
 
 export default {

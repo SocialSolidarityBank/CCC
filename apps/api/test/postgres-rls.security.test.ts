@@ -88,9 +88,22 @@ beforeAll(async () => {
       VALUES (?,?,'synthetic','v1',?,?,?,'2026-09-08T00:00:00.000Z','2027-09-08T00:00:00.000Z','passed','2026-09-08T00:00:00.000Z')`)
       .bind(`receipt-${actor.orgId}`, actor.orgId, 'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)).run();
     await admin.prepare(
-      `INSERT INTO agent_jobs(id,org_id,support_case_id,session_id,kind,state,enqueued_at,required_consent,attempt,updated_at)
-       VALUES (?,?,?,?,'audio','pending','2026-09-08T00:00:00.000Z','[]',0,'2026-09-08T00:00:00.000Z')`,
-    ).bind(actor === actorA ? 'job-a' : 'job-b', actor.orgId, created.supportCaseId, session.record.id).run();
+      `INSERT INTO ai_text_work_queue(
+         id,org_id,support_case_id,session_id,reason,status,enqueued_at
+       ) VALUES (?,?,?,?,'manual_record','pending','2026-09-08T00:00:00.000Z')`,
+    ).bind(`text-work-${actor.orgId}`, actor.orgId, created.supportCaseId, session.record.id).run();
+    await admin.prepare(
+      `INSERT INTO agent_jobs(
+         id,org_id,support_case_id,session_id,source_text_work_item_id,
+         kind,state,enqueued_at,required_consent,attempt,updated_at
+       ) VALUES (?,?,?,?,?,'text','pending','2026-09-08T00:00:00.000Z','[]',0,'2026-09-08T00:00:00.000Z')`,
+    ).bind(
+      actor === actorA ? 'job-a' : 'job-b',
+      actor.orgId,
+      created.supportCaseId,
+      session.record.id,
+      `text-work-${actor.orgId}`,
+    ).run();
     await admin.prepare(`UPDATE agent_jobs SET state='leased',attempt=1,lease_owner='synthetic-agent',
       claim_token_hash=?,claimed_at='2026-09-08T00:00:00.000Z',lease_expires_at='2027-09-08T00:00:00.000Z',
       ner_attestation_id='synthetic',ner_model_id='synthetic',ner_model_revision='v1',

@@ -28,7 +28,8 @@ def unreliable_transcription() -> TranscriptionResult:
 
 
 def run_audio_job(client, transcription: TranscriptionResult, config) -> None:
-    def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
+    def fake_download(job_id: str, claim_token: str, attempt: int, dest: Path, *, delivery: str) -> Path:
+        assert delivery == "api-stream"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(b"synthetic-audio")
         return dest

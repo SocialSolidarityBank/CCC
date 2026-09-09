@@ -8,7 +8,13 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 from ccc_pipeline import azure_stt
-from ccc_pipeline.azure_stt import AZURE_STT_ENDPOINT, AzureSttError, transcribe_azure
+from ccc_pipeline.azure_stt import (
+    AZURE_STT_ENDPOINT,
+    AZURE_TOKEN_ENDPOINT,
+    AzureSttError,
+    preflight_azure,
+    transcribe_azure,
+)
 
 
 class FakeResponse(io.BytesIO):
@@ -43,6 +49,18 @@ class AzureSttTest(unittest.TestCase):
         path = Path(directory) / "audio.wav"
         path.write_bytes(content)
         return path
+
+    def test_preflight_authenticates_against_korea_central_without_audio(self):
+        opener = mock.Mock()
+        opener.open.return_value = FakeResponse(b"short-lived-token")
+        with mock.patch.object(azure_stt.urllib.request, "build_opener", return_value=opener):
+            preflight_azure("fixture-key")
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.full_url, AZURE_TOKEN_ENDPOINT)
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.data, b"")
+        self.assertEqual(request.get_header("Ocp-apim-subscription-key"), "fixture-key")
+        self.assertNotIn("audio", request.headers)
 
     def test_streams_one_authorized_inline_korean_request_and_maps_milliseconds(self):
         payload = {

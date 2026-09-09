@@ -3,18 +3,20 @@ import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
 import {
   activateAiProviderConfiguration,
+  appendSupportCaseConsentEvent,
   createCase,
   createCounselingSchedule,
   createGoal,
   createSupportCase,
   createManualSession,
+  issueSupportCaseConsentDisclosures,
   listSupportCasesForBeneficiary,
   registerAiProviderConfiguration,
-  registerRecording,
   setSupportCaseOverallGoal,
   updateParticipantPii,
   createParticipantInvite,
   enqueueTextWorkItem,
+  type Actor,
 } from '@ccc/core/gateway';
 import {
   AI_PROVIDER_REGISTRY_VERSION,
@@ -33,7 +35,12 @@ import {
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { setupD1 } from './support/d1';
-import { agentManifestEnv, claimOverHttp } from './support/agent-jobs';
+import {
+  agentManifestEnv,
+  claimOverHttp,
+  registerFixtureRecording,
+  seedCanonicalSttConsent,
+} from './support/agent-jobs';
 
 const counselorHeaders = {
   'content-type': 'application/json',
@@ -290,8 +297,9 @@ async function setupPhase1AiFixture(
   return { adapter, admin, caseRecord, counselor, env, session };
 }
 
+/** Historical pilot evidence only; canonical consent events authorize outbound work. */
 async function recordPilotConsent(env: ApiEnv, caseId: string): Promise<Response> {
-  const response = await worker.fetch(new Request(`http://localhost/cases/${caseId}/pilot-text-ai-consent`, {
+  return worker.fetch(new Request(`http://localhost/cases/${caseId}/pilot-text-ai-consent`, {
     method: 'POST',
     headers: counselorHeaders,
     body: JSON.stringify({
@@ -302,14 +310,51 @@ async function recordPilotConsent(env: ApiEnv, caseId: string): Promise<Response
       effectiveAt: '2020-01-01T09:00:00.000Z',
     }),
   }), env);
-  // CCC-110: 근거 기록 라우트는 이력만 남긴다. 사용 허용은 support_cases.consent_text_ai_at
-  // 이 결정하고 그 컬럼은 참여자 동의 경로(② 체크) 몫이라, 픽스처에서는 성공 시 직접 세운다.
-  if (response.status === 201) {
-    await t.db.prepare(
-      'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
-    ).bind('2020-01-01T09:00:00.000Z', caseId, caseId).run();
-  }
-  return response;
+}
+
+async function canonicalSupportCaseId(env: ApiEnv, actor: Actor, caseId: string): Promise<string> {
+  const row = await env.DB.prepare(
+    'SELECT id FROM support_cases WHERE org_id = ? AND (id = ? OR legacy_case_id = ?)',
+  ).bind(actor.orgId, caseId, caseId).first<{ id: string }>();
+  if (row === null) throw new Error('missing canonical support case fixture');
+  return row.id;
+}
+
+async function seedCanonicalLlmConsent(env: ApiEnv, actor: Actor, caseId: string): Promise<void> {
+  await seedCanonicalSttConsent(env, actor, await canonicalSupportCaseId(env, actor, caseId), [
+    'personal_data_collection_use',
+    'sensitive_information_processing',
+    'external_llm_cross_border_processing',
+  ]);
+}
+
+async function appendCanonicalLlmGrant(
+  env: ApiEnv,
+  actor: Actor,
+  caseId: string,
+  domain: 'external_llm_cross_border_processing' | 'sensitive_information_processing'
+    = 'external_llm_cross_border_processing',
+): Promise<void> {
+  const supportCaseId = await canonicalSupportCaseId(env, actor, caseId);
+  const disclosure = (await issueSupportCaseConsentDisclosures(env, actor, supportCaseId))
+    .find((item) => item.domain === domain);
+  if (disclosure === undefined) throw new Error('missing canonical LLM disclosure fixture');
+  await appendSupportCaseConsentEvent(env, actor, supportCaseId, {
+    domain: disclosure.domain,
+    decision: 'grant',
+    provider: disclosure.provider,
+    providerLegalRecipient: disclosure.providerLegalRecipient,
+    providerCountry: disclosure.country,
+    purpose: disclosure.purpose,
+    retentionDuration: null,
+    copyVersion: disclosure.copyVersion,
+    copyHash: disclosure.copyHash,
+    disclosureSnapshotId: disclosure.snapshotId,
+    effectiveAt: new Date().toISOString(),
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: null,
+  });
 }
 
 /**
@@ -324,12 +369,22 @@ async function recordSource(
 ): Promise<Response> {
   const source = body ?? await sourceBody();
   const agentEnv = await agentManifestEnv(env);
-  const scope = await t.db.prepare('SELECT org_id FROM sessions WHERE id = ?')
-    .bind(sessionId).first<{ org_id: string }>();
+  const scope = await t.db.prepare(
+    `SELECT session.org_id,session.support_case_id,assignment.user_id
+     FROM sessions AS session
+     JOIN support_case_assignees AS assignment
+       ON assignment.org_id=session.org_id AND assignment.support_case_id=session.support_case_id
+      AND assignment.status='active' AND assignment.unassigned_at IS NULL
+     WHERE session.id=?
+     ORDER BY assignment.assigned_at,assignment.id
+     LIMIT 1`,
+  ).bind(sessionId).first<{ org_id: string; support_case_id: string; user_id: string }>();
   if (scope === null) throw new Error('expected a session row');
+  const assignedCounselor = { userId: scope.user_id, orgId: scope.org_id, role: 'counselor' as const };
+  await seedCanonicalSttConsent(agentEnv, assignedCounselor, scope.support_case_id);
   await enqueueTextWorkItem(
     agentEnv,
-    { ...routeCounselor, orgId: scope.org_id },
+    assignedCounselor,
     sessionId,
     'manual_record',
   );
@@ -812,7 +867,11 @@ describe('API routes', () => {
       gasScores: [],
     });
     expect((await recordPilotConsent(env, caseRecord.id)).status).toBe(201);
-    await registerRecording(t.env, counselor, session.id, 'audio/demo/route-session');
+    await registerFixtureRecording(t.env, counselor, {
+      userId: serviceHeaders['X-CCC-User-Id'],
+      orgId: serviceHeaders['X-CCC-Org-Id'],
+      role: 'service',
+    }, session.id);
 
     const sessionResponse = await worker.fetch(new Request(`http://localhost/sessions/${session.id}`, { headers: counselorHeaders }), env);
     expect(sessionResponse.status).toBe(200);
@@ -837,12 +896,9 @@ describe('API routes', () => {
         'X-CCC-Job-Attempt': String(audioJob.attempt),
       },
     }), agentEnv);
-    expect(audioResponse.status).toBe(404);
-    await expect(audioResponse.json()).resolves.toEqual({
-      error: 'audio_object_missing',
-      jobId: audioJob.jobId,
-      retryable: false,
-    });
+    expect(audioResponse.status).toBe(200);
+    expect(audioResponse.headers.get('content-type')).toBe('audio/wav');
+    expect(new Uint8Array(await audioResponse.arrayBuffer())).toHaveLength(364);
 
   });
 
@@ -972,11 +1028,11 @@ describe('API routes', () => {
        WHERE support_case.legacy_case_id = ?`,
     ).bind(fixture.caseRecord.id).first<{ count: number }>()).resolves.toEqual({ count: 0 });
   });
-  it('has zero provider calls for missing, disabled, and cross-case pilot consent', async () => {
+  it('has zero provider calls for missing canonical consent, disabled pilot, and cross-case sources', async () => {
     const missing = await setupPhase1AiFixture();
     const missingResponse = await generateDraft(missing.env, missing.session.id, 'missing-source-snapshot');
     expect(missingResponse.status).toBe(409);
-    await expect(missingResponse.json()).resolves.toEqual({ error: 'pilot_text_ai_consent_required' });
+    await expect(missingResponse.json()).resolves.toEqual({ error: 'consent_not_effective' });
     expect(missing.adapter.calls).toBe(0);
     await expectNoDraft(missing.env, missing.session.id);
 
@@ -998,9 +1054,10 @@ describe('API routes', () => {
       memo: 'SECOND_CASE_MANUAL_MEMO',
       gasScores: [],
     });
+    await seedCanonicalLlmConsent(isolated.env, isolated.counselor, secondCase.id);
     const isolatedResponse = await generateDraft(isolated.env, secondSession.id, source.sourceSnapshotId);
-    expect(isolatedResponse.status).toBe(409);
-    await expect(isolatedResponse.json()).resolves.toEqual({ error: 'pilot_text_ai_consent_required' });
+    expect(isolatedResponse.status).toBe(403);
+    await expect(isolatedResponse.json()).resolves.toEqual({ error: 'forbidden' });
     expect(isolated.adapter.calls).toBe(0);
     await expectNoDraft(isolated.env, secondSession.id);
   });
@@ -1018,6 +1075,7 @@ describe('API routes', () => {
     });
     const secondCase = await createCase(t.env, counselor, {});
     expect((await recordPilotConsent(env, secondCase.id)).status).toBe(201);
+    await seedCanonicalLlmConsent(env, counselor, secondCase.id);
     const crossCaseSession = await createManualSession(t.env, counselor, secondCase.id, {
       submissionId: '02000000-0000-4000-8000-000000000005',
       heldAt: '2026-07-14T11:00:00.000Z',
@@ -1100,7 +1158,7 @@ describe('API routes', () => {
     expect(await sessionAiState(fixture.session.id)).toEqual(baselineSession);
   });
 
-  it('rejects provider output when consent evidence changes during the outbound call', async () => {
+  it('rejects provider output when a non-LLM member of the canonical consent receipt changes', async () => {
     const adapter = new FakeAiProviderAdapter();
     const fixture = await setupPhase1AiFixture(adapter);
     expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
@@ -1108,27 +1166,9 @@ describe('API routes', () => {
     const baselineRows = await phase1MutableRowCounts();
     const baselineSession = await sessionAiState(fixture.session.id);
     adapter.beforeReturn = async () => {
-      await t.db.prepare(
-        `INSERT INTO pilot_text_ai_consent_evidence (
-          id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref,
-          evidence_sha256, captured_by, effective_at, created_at
-        )
-        SELECT ?, ?, session.support_case_id, ?, ?, ?, ?, ?, ?, ?
-        FROM sessions AS session
-        WHERE session.id = ? AND session.org_id = ?`,
-      ).bind(
-        'pilot-evidence-race',
-        fixture.counselor.orgId,
-        'pilot-notice-v2',
-        'e'.repeat(64),
-        'pilot-evidence-2',
-        'f'.repeat(64),
-        fixture.counselor.userId,
-        '2020-01-02T09:00:00.000Z',
-        '2020-01-02T09:00:00.000Z',
-        fixture.session.id,
-        fixture.counselor.orgId,
-      ).run();
+      await appendCanonicalLlmGrant(
+        fixture.env, fixture.counselor, fixture.caseRecord.id, 'sensitive_information_processing',
+      );
     };
 
     const response = await generateDraft(fixture.env, fixture.session.id, source.sourceSnapshotId);

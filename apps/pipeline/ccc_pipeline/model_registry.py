@@ -130,6 +130,8 @@ def role_spec(role: str, selected: str | None = None) -> ModelSpec:
         "qwen-asr": ("Qwen/Qwen3-ASR-1.7B", "1.7B"),
         "qwen-aligner": ("Qwen/Qwen3-ForcedAligner-0.6B", "0.6B"),
         "diarization": ("pyannote/speaker-diarization-3.1", "3.1"),
+        "diarization-segmentation": ("pyannote/segmentation-3.0", "3.0"),
+        "diarization-embedding": ("pyannote/wespeaker-voxceleb-resnet34-LM", "main"),
         "speech-emotion": (
             "jungjongho/wav2vec2-xlsr-korean-speech-emotion-recognition", "latest-approved",
         ),
