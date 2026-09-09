@@ -4,6 +4,7 @@ import type { MyIdentity, SettingsApi } from './api';
 import type { CloudAuth } from './auth';
 import type { InstitutionApi } from './institution';
 import type { ParticipantsApi } from './participants';
+import type { IntakeApi } from './intake';
 import type { CaseWorkApi, RecordsApi } from './records';
 import type { SchedulesApi } from './schedules';
 
@@ -15,6 +16,7 @@ export interface Session {
   schedules: SchedulesApi;
   records: RecordsApi;
   caseWork: CaseWorkApi;
+  intake: IntakeApi;
   aiReview: AiReviewApi;
   institution: InstitutionApi;
   me: MyIdentity;

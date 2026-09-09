@@ -271,6 +271,7 @@ export function RecordListScreen() {
           : `${base}/records/new?scheduleId=${encodeURIComponent(value.nextSchedule.id)}`}>
           상담 기록하기
         </WireButton>
+        <WireButton variant="neutral" href={`${base}/records/intake`}>인테이크 기록</WireButton>
         <WireButton variant="neutral" href={`${base}/briefing`}>15초 페이지</WireButton>
       </div>
     </WireCard>
