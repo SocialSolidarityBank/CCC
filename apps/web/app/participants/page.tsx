@@ -29,7 +29,9 @@ export default async function ParticipantsPage() {
     participants = await listAssignedParticipants();
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
-    if (error.code === 'authentication_required') redirect('/preview');
+    if (process.env.CCC_PREVIEW === 'true' && error.code === 'authentication_required') {
+      redirect('/preview');
+    }
     loadError = '당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.';
   }
 
