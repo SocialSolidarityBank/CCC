@@ -1,16 +1,21 @@
 import { createPostgresDatabase } from '@ccc/db-postgres';
-import { createEnvironmentSecretStore, SECRET_NAMES } from '@ccc/secrets-env';
-import type { SecretName } from '@ccc/contracts/runtime';
+import { createEnvironmentSecretStore } from '@ccc/secrets-env';
+import type { CoreSecretName } from '@ccc/contracts/runtime';
 import { createCommunityCloudRuntime } from './runtime';
 
 declare const Deno: {
-  env: { get(name: string): string | undefined };
+  env: { get(name: string): string | undefined; has(name: string): boolean };
   serve(handler: (request: Request) => Promise<Response>): unknown;
 };
 
 const SETTING_NAMES = [
   'CCC_STT_MODE', 'CCC_LLM_MODE', 'TEXT_AI_PILOT_ENABLED',
   'EXTERNAL_AI_CALLS_ENABLED', 'PUBLIC_SIGNUP_ENABLED', 'PII_PURGE_ENABLED',
+] as const;
+
+const BUSINESS_SECRET_NAMES = ['CODEX_API_KEY', 'PII_ENC_KEY', 'NOTIFY_WEBHOOK_URL'] as const satisfies readonly CoreSecretName[];
+const PRIVILEGED_BINDINGS = [
+  'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'SUPABASE_DB_URL', 'SUPABASE_ACCESS_TOKEN',
 ] as const;
 
 function required(name: string): string {
@@ -20,8 +25,10 @@ function required(name: string): string {
 }
 
 async function initialize() {
-  const secretBindings: Partial<Record<SecretName, string | undefined>> = {};
-  for (const name of Object.keys(SECRET_NAMES)) {
+  // Defense only: deployment identity and injection policy must separately prove privilege isolation.
+  if (PRIVILEGED_BINDINGS.some((name) => Deno.env.has(name))) throw new Error('installation_unavailable');
+  const secretBindings: Partial<Record<CoreSecretName, string | undefined>> = {};
+  for (const name of BUSINESS_SECRET_NAMES) {
     Object.defineProperty(secretBindings, name, { enumerable: true, get: () => Deno.env.get(name) });
   }
   // Never fall back to Supabase's owner connection. This credential must be for ccc_api.

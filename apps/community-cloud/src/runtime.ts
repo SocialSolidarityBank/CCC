@@ -24,7 +24,7 @@ const REQUEST_HEADERS: Record<string, true> = {
 };
 const ALLOWED_REQUEST_HEADERS = Object.keys(REQUEST_HEADERS).join(', ');
 
-/** Supabase Edge owns this composition; no business request passes through the static client host. */
+/** Independent business runtime; no business request passes through the static client host. */
 export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeConfig): Promise<(request: Request) => Promise<Response>> {
   if (config.organizationId.trim().length === 0) throw new Error('installation_invalid');
   // S11 permits this credential only in StorageSigner, never the business runtime.
@@ -40,12 +40,8 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
     throw new Error('installation_invalid');
   }
   const apiBase = new URL(manifest.apiBase);
-  const functionMatch = /^\/functions\/v1\/([A-Za-z0-9_-]+)\/?$/.exec(apiBase.pathname);
-  if (functionMatch === null || apiBase.username !== '' || apiBase.password !== '' || apiBase.search !== '' || apiBase.hash !== '') {
-    throw new Error('installation_invalid');
-  }
-  // Supabase's ingress removes /functions/v1 before invoking the Edge Function.
-  const routePrefix = `/${functionMatch[1]}`;
+  const routePrefix = apiBase.pathname;
+  const prefixWithSlash = routePrefix.endsWith('/') ? routePrefix : `${routePrefix}/`;
   const expiresAt = Date.parse(manifest.expiresAt);
   const allowedOrigins = new Set(manifest.allowedOrigins);
   await assertPostgresIdentityBoundary(config.database);
@@ -85,7 +81,8 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
     if (Date.now() >= expiresAt) return failure(503, 'service_unavailable');
     if (origin !== null && !permittedOrigin) return failure(403, 'forbidden');
     const url = new URL(request.url);
-    if (url.pathname !== routePrefix && !url.pathname.startsWith(`${routePrefix}/`)) {
+    if (url.origin !== apiBase.origin) return failure(403, 'forbidden');
+    if (url.pathname !== routePrefix && !url.pathname.startsWith(prefixWithSlash)) {
       return failure(404, 'not_found');
     }
     if (request.method === 'OPTIONS') {
@@ -99,7 +96,7 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
       return new Response(null, { status: 204, headers });
     }
     if (!Object.hasOwn(METHODS, request.method)) return failure(405, 'method_not_allowed');
-    url.pathname = url.pathname.slice(routePrefix.length) || '/';
+    url.pathname = url.pathname === routePrefix ? '/' : `/${url.pathname.slice(prefixWithSlash.length)}`;
     const mediaType = (request.headers.get('content-type') ?? '').split(';', 1)[0]?.trim().toLowerCase() ?? '';
     if (mediaType.startsWith('audio/') || mediaType.startsWith('multipart/')
       || mediaType === 'application/octet-stream'
