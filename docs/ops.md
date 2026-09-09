@@ -458,6 +458,17 @@ SQL만 만들고, 적용 대상은 여전히 `ccc-preview`로 고정한다.
 - 코드 게이트는 Access보다 약한 잠금이다 — 지정 코드를 아는 사람은 모두 데모 상담사 시점으로 본다. 실제 참여자 정보가 아니므로 감수한다.
 - 지정 코드 값은 코드·로그·문서에 넣지 않는다. 이름만 커밋한다(`PREVIEW_ACCESS_CODE`).
 
+### `GET /capabilities` 는 프리뷰·운영에서 503 이다 (2026-09-09 Q 결정)
+
+**버그가 아니다. 고치지 않는다.** 서버가 믿는 설치 사실은 signed install manifest 하나이고, 없으면 이 엔드포인트는 fail-closed 503 이다(`packages/http-api/src/capabilities.ts`). 프리뷰와 운영 `[env.*.vars]` 에는 `CCC_INSTALL_MANIFEST`·`CCC_INSTALL_SIGNING_KEYS` 가 없으므로 관리자 `AI·STT·연결` 탭의 STT 카드는 `확인 필요` 안내만 보인다.
+
+manifest 를 넣지 않는 이유는 넣을 값이 없기 때문이다. `mode` 는 `community-cloud`·`local-single`·`local-office` 셋뿐인데(`packages/contracts/src/runtime.ts`) 호스팅 프리뷰는 Cloudflare Workers + D1 이라 어디에도 해당하지 않는다. `community-cloud` 는 `assertModeFields` 가 Supabase 세 값과 project ref 일치를 요구하므로 가짜 값을 만들어야 하고, `local-office` 는 프리뷰를 기관 내부망 설치라고 선언하게 된다. manifest 생성 주체는 설치기(D83 `install`)이며 아직 없다. 배포용 생성기는 레포에 0건이고 있는 것은 테스트 헬퍼 `apps/api/test/support/install-manifest.ts` 하나다.
+
+엔진별 상태(`사용 가능`·`승인 전`·`설치에 없음`·`자격 없음`)를 실제로 보려면 로컬에서 설치 하나를 흉내 낸다. `unsignedManifest('local-office')` 값으로 서명해 `apps/api/.dev.vars` 에 두 변수를 넣고 API 를 다시 띄운다. 함정 둘:
+
+- `local-office` 는 `apiBase` 와 `scheme` 이 **https** 여야 검증을 통과한다. `http://127.0.0.1` 로 만들면 503 이다.
+- 서명은 `crypto.subtle` Ed25519 + JCS 정규화라 TypeScript 경로에서만 돌아간다. `apps/web` vitest 로 헬퍼를 불러 만드는 것이 가장 짧다.
+
 ### 미리보기에서 종단 경로 돌리기 (D57 · ADR-0027, 2026-07-31 실측)
 
 **왜 필요했나.** 미리보기는 Access 를 안 쓰고 코드 게이트로 신원을 공급하는데, 그 신원은 항상 users 디렉터리의 사람(실무자·관리자)이다. 처리 장비용 엔드포인트는 `service` 역할 전용이라 **"수기 저장 → 장비 마스킹 → 불일치 검출" 종단 경로를 미리보기에서 한 번도 확인할 수 없었다.**
