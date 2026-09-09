@@ -28,6 +28,7 @@ import { RecordCreateScreen, RecordListScreen, RecordReviewScreen } from './scre
 import { IntakeScreen } from './screens/intake';
 import { ConsentScreen } from './screens/consent';
 import { SettingsScreen } from './screens/settings';
+import { registerShellWorker } from './business/service-worker';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
 import { canOpenDestination, destinationAt, visibleDestinations } from './business/navigation';
@@ -175,6 +176,9 @@ function BusinessShell() {
   const session = useOutletContext<Session>();
   const location = useLocation();
   const destination = destinationAt(location.pathname, location.search);
+  // 정적 셸 워커는 업무 앱에서만 등록한다. 내부 시험 화면은 등록 지점이 아니다.
+  const [updateWaiting, setUpdateWaiting] = useState(false);
+  useEffect(() => { registerShellWorker(({ waiting }) => setUpdateWaiting(waiting)); }, []);
   return <GridContainer as="main" className="page-content">
     <div className="page-header">
       <PageTitle>{destination?.title ?? '페이지 확인'}</PageTitle>
@@ -193,6 +197,9 @@ function BusinessShell() {
           })}
         </ul>
       </WireCard>
+      {updateWaiting && <WireCallout tone="info" title="새 버전이 준비됐습니다">
+        지금 쓰던 화면은 그대로 둡니다. 입력 중인 내용을 저장한 뒤 창을 다시 열면 새 버전으로 바뀝니다.
+      </WireCallout>}
       <div className="settings-content">
         {destination === null ? <WireCard><WireError>요청한 페이지가 없습니다.</WireError></WireCard>
           : !canOpenDestination(destination, session.me.roles)

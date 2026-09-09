@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import { wireStyles } from '@ccc/web/wire-styles';
 import { composeSharedCss, repoRoot } from './build/shared-styles.mjs';
 import { trialFixtures } from './build/trial-fixtures.mjs';
+import { pwaAssets } from './build/pwa.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -72,6 +73,8 @@ export default defineConfig({
     // 화면 검수용 더미. 환경변수를 켜지 않으면 null 이라 플러그인 목록에서 사라진다.
     // 출처 검사 뒤, 프록시 앞에 선다.
     trialFixtures(process.env.CCC_STT_TRIAL_FIXTURES),
+    // 설치 매니페스트와 정적 셸 워커. 빌드에서만 돌고 dev 서버에는 워커가 없다.
+    pwaAssets(),
     {
       name: 'ccc-shared-css',
       resolveId(id) {

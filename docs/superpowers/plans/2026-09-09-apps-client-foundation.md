@@ -841,3 +841,32 @@ AI 초안은 승인 뒤에만 목록의 핵심 한 줄로 오른다. `llmMode`�
 | 저장소 | caches 0, service worker 0, localStorage와 sessionStorage 키 0 |
 
 제출 재생과 일정 버전 충돌은 `apps/client/src/business/records.test.ts`가 결정론으로 잡는다.
+
+## 19. P2 PWA, 공유 부품 통합
+
+### 공유 부품 통합 (DESIGN `7e7dd81` + `a2c8db2`)
+
+- `WireMonthCalendar` + `buildMonthWeeks` 가 월간 화면을 그린다. 임시 날짜별 목록은 없앴다.
+  같은 날 일정은 Map 을 덮어쓰지 않고 배열에 쌓아 넘긴다.
+- 업무 바는 두 줄이다. 1행 기간 네비, 2행 오늘·`WireToolbarField` 보기 선택창·상담 등록.
+  낡은 CCC-133 세 구역 배치는 쓰지 않는다.
+- 당사자 허브 손 카드를 `ParticipantHeroCard` 로, 목록 이름을 `ParticipantName` 으로 바꿨다.
+- 실측(합성 미리보기): 월간 셀 높이 데스크톱 148, 390px 88. `+1건` 링크가
+  `/schedule?view=day&date=2026-09-18` 로 이동. 표는 `table`/`thead`/`tbody` 네이티브 계층.
+  `.wire-button` 은 radius 9999px, 높이 32. 라우트 12개 전부 제목이 뜨고 권한 오류 없음.
+- 남은 것: 종일 일정과 `display_color` 는 BACKEND 가 API 에 실을 때 붙인다. 값은 지어내지 않았다.
+  기간 이동 화살표는 `Chevron` 이 아직 `@ccc/web/wire` 공개 진입점에 없어 글자 버튼이다(design 레인 몫).
+
+### P2 PWA (새 의존성 0)
+
+- `apps/client/build/pwa.mjs` 가 빌드에서 `manifest.webmanifest`, `icon.svg`, `sw.js` 를 만든다.
+  캐시 목록은 그 빌드가 실제로 낸 파일 이름을 적은 정확한 허용 목록이다. 같은 origin 광범위
+  규칙은 없다. 아이콘 색은 `design/tokens.css` 의 `--gradient-brand` 를 읽어 쓴다.
+- 시작 주소는 업무 진입점 `/schedule` 이다. 내부 시험 화면(`/`)이 아니다. 등록도 업무 셸에서만 한다.
+- 워커에 `skipWaiting` 과 강제 새로고침이 없다. 새 워커는 대기 상태로 남고 화면은 안내 한 줄만 띄운다.
+- 캐시하지 않는 것: 업무 API, Auth, 설치 manifest, 부트스트랩, 개인정보, 원음. GET 이 아니거나
+  다른 origin 이면 워커가 손대지 않는다.
+- 실측: manifest 200 `application/manifest+json`, 워커 scope `/` 활성·제어, 캐시 항목 5개
+  (`index.html`, `manifest.webmanifest`, `icon.svg`, 번들 js·css)뿐. `/api/v1/me` 는 캐시에 없음.
+  서버를 내린 뒤 이동해도 셸과 정적 자산이 뜨고 저장됐다는 문구는 없다. 새 워커는 `installed`
+  대기 상태로 남고 제어 워커와 페이지 상태가 그대로였다.
