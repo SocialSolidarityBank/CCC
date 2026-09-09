@@ -57,6 +57,12 @@ importers:
         specifier: ^4.107.0
         version: 4.107.1(@cloudflare/workers-types@5.20260708.1)
 
+  adapters/audio-file:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
   adapters/audio-r2:
     dependencies:
       '@ccc/contracts':
@@ -104,6 +110,12 @@ importers:
       '@ccc/core':
         specifier: workspace:*
         version: link:../../packages/core
+
+  adapters/scheduler-node:
+    dependencies:
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
   adapters/secrets-env:
     dependencies:
