@@ -7,8 +7,10 @@ import {
 import { CLAIM_SECTION_LABELS, CONTRAST_AXIS_LABELS, type AiDraft } from '../business/ai-review';
 import { type BusinessError, safeError } from '../business/errors';
 import {
-  ACTION_OWNER_LABELS, FLAG_LABELS, FLAG_TYPES, RECORD_DETAIL_KEYS, RECORD_DETAIL_LABELS,
-  type ActionOwner, type CounselingRecordList, type FlagType, type RecordDetailKey,
+  ACTION_OWNER_LABELS, FLAG_LABELS, FLAG_TYPES, GOAL_CLOSE_LABELS, GOAL_CLOSE_REASONS,
+  RECORD_DETAIL_KEYS, RECORD_DETAIL_LABELS,
+  type ActionOwner, type ClosureInfo, type CounselingRecordList, type FlagType,
+  type GoalCloseReason, type GoalTreeCase, type RecordDetailKey,
 } from '../business/records';
 import type { Session } from '../business/session';
 
@@ -36,6 +38,210 @@ function useRecordList(session: Session, supportCaseId: string) {
     return () => { generation.current += 1; };
   }, [reload]);
   return { value, error, reload };
+}
+
+function GoalTreeCard({ session, beneficiaryId, supportCaseId }: {
+  session: Session; beneficiaryId: string; supportCaseId: string;
+}) {
+  const [tree, setTree] = useState<GoalTreeCase | null>(null);
+  const [title, setTitle] = useState('');
+  const [retitle, setRetitle] = useState<{ id: string; title: string } | null>(null);
+  const [closing, setClosing] = useState<{ id: string; upcoming: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+
+  const load = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.caseWork.goalTree(beneficiaryId).then((cases) => {
+      if (own !== generation.current) return;
+      setTree(cases.find((entry) => entry.supportCaseId === supportCaseId) ?? null);
+    }).catch((cause: unknown) => {
+      if (own !== generation.current) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    });
+  }, [session.caseWork, session.auth, beneficiaryId, supportCaseId]);
+
+  useEffect(() => {
+    load();
+    return () => { generation.current += 1; };
+  }, [load]);
+
+  const run = async (work: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      load();
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <WireCard title="세부 목표">
+    {error && <WireError>{error.message}</WireError>}
+    {tree === null && error === null && <WireEmpty live reserve>목표 트리를 불러오고 있습니다.</WireEmpty>}
+    {tree !== null && <>
+      <WireDataRows>
+        <WireDataRow label="전체 목표" value={tree.overallGoal ?? '설정 전'} />
+      </WireDataRows>
+      {tree.goals.length === 0 && <WireEmpty>등록된 세부 목표가 없습니다.</WireEmpty>}
+      {tree.goals.map((goal) => <WireCardSection key={goal.id} title={goal.title}
+        action={<WireBadge tone={goal.status === 'active' ? 'mint' : 'neutral'}>
+          {goal.status === 'active'
+            ? '진행 중'
+            : `종료: ${GOAL_CLOSE_LABELS[goal.closedReason as GoalCloseReason] ?? goal.closedReason ?? '사유 없음'}`}
+        </WireBadge>}>
+        {goal.revisions.length > 1 && <WireDataRows>
+          {goal.revisions.map((revision, index) => <WireDataRow key={`${goal.id}-${index}`}
+            label={index === 0 ? '현재 문구' : '이전 문구'}
+            value={`${revision.title ?? '지움'} (${revision.editedByName ?? '이름 없음'}, ${revision.editedAt})`} />)}
+        </WireDataRows>}
+        {goal.linkedSessions.map((linked) => <WireItem key={linked.sessionId}
+          title={linked.oneLiner ?? '연결된 회차'} description={linked.heldAt} />)}
+        {goal.status === 'active' && <div className="business-actions">
+          <WireButton variant="neutral" disabled={busy}
+            onClick={() => setRetitle({ id: goal.id, title: goal.title })}>문구 수정</WireButton>
+          <WireButton variant="neutral" disabled={busy} onClick={() => {
+            void run(async () => {
+              const upcoming = await session.caseWork.goalUpcomingLinks(goal.id);
+              setClosing({ id: goal.id, upcoming });
+            });
+          }}>닫기</WireButton>
+        </div>}
+        {retitle?.id === goal.id && <form className="business-form" onSubmit={(event) => {
+          event.preventDefault();
+          void run(async () => {
+            await session.caseWork.retitleGoal(goal.id, retitle.title);
+            setRetitle(null);
+          });
+        }}>
+          <WireFormField label="새 문구" htmlFor={`goal-title-${goal.id}`} required
+            hint="이전 문구는 이력으로 남습니다">
+            <input id={`goal-title-${goal.id}`} value={retitle.title} required disabled={busy}
+              onChange={(event) => setRetitle({ id: goal.id, title: event.target.value })} />
+          </WireFormField>
+          <div className="business-actions">
+            <WireButton type="submit" variant="primary" disabled={busy}>문구 저장</WireButton>
+            <WireButton variant="neutral" disabled={busy} onClick={() => setRetitle(null)}>취소</WireButton>
+          </div>
+        </form>}
+        {closing?.id === goal.id && <>
+          {closing.upcoming > 0 && <WireCallout tone="info" title="앞으로의 회기에 연결돼 있습니다">
+            {`이 목표는 예정된 회기 ${closing.upcoming}건에 연결돼 있습니다. 닫아도 그 연결은 그대로 남습니다.`}
+          </WireCallout>}
+          <div className="business-actions">
+            {GOAL_CLOSE_REASONS.map((reason) => <WireButton key={reason} variant="neutral" disabled={busy}
+              onClick={() => { void run(async () => {
+                await session.caseWork.closeGoal(goal.id, reason);
+                setClosing(null);
+              }); }}>{`${GOAL_CLOSE_LABELS[reason]}으로 닫기`}</WireButton>)}
+            <WireButton variant="neutral" disabled={busy} onClick={() => setClosing(null)}>취소</WireButton>
+          </div>
+        </>}
+      </WireCardSection>)}
+      <form className="business-form" onSubmit={(event) => {
+        event.preventDefault();
+        void run(async () => {
+          await session.caseWork.createGoal(supportCaseId, title);
+          setTitle('');
+        });
+      }}>
+        <WireFormField label="새 세부 목표" htmlFor="goal-new-title" required
+          hint="측정할 수 있는 한 문장으로 적습니다">
+          <input id="goal-new-title" value={title} required disabled={busy}
+            onChange={(event) => setTitle(event.target.value)} />
+        </WireFormField>
+        <div className="business-actions">
+          <WireButton type="submit" variant="primary" disabled={busy || title.trim() === ''}>세부 목표 추가</WireButton>
+        </div>
+      </form>
+      <WireCallout tone="info" title="점수는 매기지 않습니다">
+        GAS 채점은 보류 상태라 이 화면은 문구와 연결, 상태만 다룹니다.
+      </WireCallout>
+    </>}
+  </WireCard>;
+}
+
+function ClosureCard({ session, supportCaseId }: { session: Session; supportCaseId: string }) {
+  const [closure, setClosure] = useState<ClosureInfo | null>(null);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<BusinessError | null>(null);
+  const generation = useRef(0);
+
+  const load = useCallback(() => {
+    const own = ++generation.current;
+    setError(null);
+    void session.caseWork.closure(supportCaseId).then((value) => {
+      if (own === generation.current) setClosure(value);
+    }).catch((cause: unknown) => {
+      if (own !== generation.current) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    });
+  }, [session.caseWork, session.auth, supportCaseId]);
+
+  useEffect(() => {
+    load();
+    return () => { generation.current += 1; };
+  }, [load]);
+
+  const close = async () => {
+    if (busy || reason.trim() === '') return;
+    setBusy(true);
+    setError(null);
+    try {
+      setClosure(await session.caseWork.close(supportCaseId, reason));
+      setReason('');
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <WireCard title="사업 종결">
+    {error && <WireError>{error.message}</WireError>}
+    {closure === null && error === null && <WireEmpty live reserve>종결 상태를 불러오고 있습니다.</WireEmpty>}
+    {closure !== null && <>
+      <WireDataRows>
+        <WireDataRow label="상태" value={closure.status === 'active' ? '진행 중' : '종결'} />
+        <WireDataRow label="종결 시각" value={closure.closedAt ?? '없음'} />
+        <WireDataRow label="종결 사유" value={closure.closedReason ?? '없음'} />
+        <WireDataRow label="금고 파기 예정" value={closure.purgeDue ?? '보관 시계 시작 전'} />
+        <WireDataRow label="이미 파기됨" value={closure.purgedAt ?? '아니오'} />
+      </WireDataRows>
+      {closure.status === 'active'
+        ? <form className="business-form" onSubmit={(event) => { event.preventDefault(); void close(); }}>
+          <WireFormField label="종결 사유" htmlFor="closure-reason" required>
+            <input id="closure-reason" value={reason} required disabled={busy}
+              onChange={(event) => setReason(event.target.value)} />
+          </WireFormField>
+          <div className="business-actions">
+            <WireButton type="submit" variant="primary" disabled={busy || reason.trim() === ''}>사업 종결</WireButton>
+          </div>
+        </form>
+        : <WireCallout tone="info" title="종결된 사업입니다">
+          {closure.hasOtherActiveSupportCase
+            ? '같은 당사자의 다른 사업이 진행 중이라 금고 보관 시계는 아직 시작하지 않았습니다.'
+            : '보관 시계는 서버가 정합니다. 이 화면은 저장된 값을 읽기만 합니다.'}
+        </WireCallout>}
+    </>}
+  </WireCard>;
 }
 
 export function RecordListScreen() {
@@ -88,16 +294,8 @@ export function RecordListScreen() {
           description={flag.quote ?? undefined} />)}
       </WireCardSection>)}
     </WireCard>
-    <WireCard title="세부 목표">
-      {value.goals.length === 0 && <WireEmpty>등록된 세부 목표가 없습니다.</WireEmpty>}
-      {value.goals.map((goal) => <WireItem key={goal.id} title={goal.title}
-        status={<WireBadge tone={goal.status === 'active' ? 'mint' : 'neutral'}>
-          {goal.status === 'active' ? '진행 중' : '종료'}
-        </WireBadge>} />)}
-      <WireCallout tone="info" title="목표 수정은 아직 없습니다">
-        세부 목표 신설과 닫기는 이 화면에 연결하지 않았습니다. 지금은 저장된 목표만 읽습니다.
-      </WireCallout>
-    </WireCard>
+    <GoalTreeCard session={session} beneficiaryId={beneficiaryId} supportCaseId={supportCaseId} />
+    <ClosureCard session={session} supportCaseId={supportCaseId} />
   </>;
 }
 

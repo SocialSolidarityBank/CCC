@@ -12,7 +12,7 @@ import { SettingsApi, type MyIdentity } from './business/api';
 import { InstitutionApi } from './business/institution';
 import { ParticipantsApi } from './business/participants';
 import { AiReviewApi } from './business/ai-review';
-import { RecordsApi } from './business/records';
+import { CaseWorkApi, RecordsApi } from './business/records';
 import { SchedulesApi } from './business/schedules';
 import type { Session } from './business/session';
 import {
@@ -122,6 +122,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
     const institution = new InstitutionApi(transport);
     const schedules = new SchedulesApi(transport);
     const records = new RecordsApi(transport);
+    const caseWork = new CaseWorkApi(transport);
     const aiReview = new AiReviewApi(transport);
     let live = true;
     const unsubscribe = runtime.auth.subscribe(() => {
@@ -136,7 +137,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
         const me = await api.me();
         if (live) {
           setSession({
-            auth: runtime.auth, api, participants, institution, schedules, records, aiReview, me, capabilities,
+            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, aiReview, me, capabilities,
             reloadIdentity: () => setIdentityNonce((current) => current + 1),
           });
         }

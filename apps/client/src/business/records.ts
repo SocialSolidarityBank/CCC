@@ -185,3 +185,212 @@ export class RecordsApi {
     return { id: saved.id, replayed: response.replayed };
   }
 }
+
+export const GOAL_CLOSE_REASONS = ['achieved', 'stopped', 'reset'] as const;
+export type GoalCloseReason = (typeof GOAL_CLOSE_REASONS)[number];
+export const GOAL_CLOSE_LABELS: Record<GoalCloseReason, string> = {
+  achieved: '달성', stopped: '중단', reset: '재설정',
+};
+
+/** 불일치 종류 2종. 화면은 사람이 읽는 이름으로 옮기고 식별자를 그대로 보이지 않는다. */
+export const DISCREPANCY_KIND_LABELS: Record<string, string> = {
+  cross_session: '회차 간 불일치', within_session: '회차 안 모순',
+};
+
+export const DISCREPANCY_RESOLUTIONS = ['situation_changed', 'record_error', 'confirmed'] as const;
+export type DiscrepancyResolution = (typeof DISCREPANCY_RESOLUTIONS)[number];
+export const DISCREPANCY_RESOLUTION_LABELS: Record<DiscrepancyResolution, string> = {
+  situation_changed: '상황 변경', record_error: '기록 오류', confirmed: '확인 완료',
+};
+
+export interface GoalRevision { title: string | null; editedByName: string | null; editedAt: string }
+export interface GoalTreeGoal {
+  id: string;
+  title: string;
+  status: 'active' | 'closed';
+  closedReason: string | null;
+  closedAt: string | null;
+  /** 문구 이력, 최신부터. 최초 작성이 마지막 행이다(D62). */
+  revisions: GoalRevision[];
+  linkedSessions: Array<{ sessionId: string; heldAt: string; oneLiner: string | null }>;
+}
+export interface GoalTreeCase {
+  supportCaseId: string;
+  status: 'active' | 'closed';
+  overallGoal: string | null;
+  overallGoalRevisions: GoalRevision[];
+  goals: GoalTreeGoal[];
+}
+
+export interface ClosureInfo {
+  supportCaseId: string;
+  status: 'active' | 'closed';
+  closedAt: string | null;
+  closedReason: string | null;
+  purgeDue: string | null;
+  purgedAt: string | null;
+  hasOtherActiveSupportCase: boolean;
+}
+
+function decodeRevisions(value: unknown): GoalRevision[] {
+  if (!Array.isArray(value)) throw new BusinessError('invalid_response');
+  return value.map((entry) => {
+    const row = record(entry);
+    if (!isNullableString(row.title) || !isNullableString(row.editedByName)
+      || typeof row.editedAt !== 'string') throw new BusinessError('invalid_response');
+    return { title: row.title, editedByName: row.editedByName, editedAt: row.editedAt };
+  });
+}
+
+export function decodeGoalTree(value: unknown): GoalTreeCase[] {
+  const row = record(value);
+  if (!Array.isArray(row.cases)) throw new BusinessError('invalid_response');
+  return row.cases.map((entry) => {
+    const item = record(entry);
+    const source = record(item.sourceSupportCase);
+    if (!isOpaqueIdentifier(source.id) || (source.status !== 'active' && source.status !== 'closed')
+      || !isNullableString(item.overallGoal) || !Array.isArray(item.goals)) {
+      throw new BusinessError('invalid_response');
+    }
+    return {
+      supportCaseId: source.id, status: source.status, overallGoal: item.overallGoal,
+      overallGoalRevisions: decodeRevisions(item.overallGoalRevisions),
+      goals: item.goals.map((goalValue) => {
+        const goal = record(goalValue);
+        if (!isOpaqueIdentifier(goal.id) || typeof goal.title !== 'string'
+          || (goal.status !== 'active' && goal.status !== 'closed')
+          || !isNullableString(goal.closedReason) || !isNullableString(goal.closedAt)
+          || !Array.isArray(goal.linkedSessions)) throw new BusinessError('invalid_response');
+        return {
+          id: goal.id, title: goal.title, status: goal.status, closedReason: goal.closedReason,
+          closedAt: goal.closedAt, revisions: decodeRevisions(goal.revisions),
+          linkedSessions: goal.linkedSessions.map((linked) => {
+            const session = record(linked);
+            if (!isOpaqueIdentifier(session.sessionId) || typeof session.heldAt !== 'string'
+              || !isNullableString(session.oneLiner)) throw new BusinessError('invalid_response');
+            return { sessionId: session.sessionId, heldAt: session.heldAt, oneLiner: session.oneLiner };
+          }),
+        };
+      }),
+    };
+  });
+}
+
+export class CaseWorkApi {
+  constructor(private readonly transport: BusinessTransport) {}
+
+  /** 세부 목표 트리와 문구 이력. 담당 사업만 실린다(D62 §8). */
+  async goalTree(beneficiaryId: string): Promise<GoalTreeCase[]> {
+    if (!isOpaqueIdentifier(beneficiaryId)) throw new BusinessError('invalid_request', 400);
+    return decodeGoalTree(await this.transport.request(
+      `/participants/${encodeURIComponent(beneficiaryId)}/goal-tree`,
+    ));
+  }
+
+  private goalId(value: unknown): string {
+    const row = record(value);
+    if (!isOpaqueIdentifier(row.id)) throw new BusinessError('invalid_response');
+    return row.id;
+  }
+
+  /** 세부 목표 신설. GAS 채점 기준은 D43대로 보내지 않는다. */
+  async createGoal(supportCaseId: string, title: string): Promise<string> {
+    if (!isOpaqueIdentifier(supportCaseId) || title.trim() === '') throw new BusinessError('invalid_request', 400);
+    return this.goalId(await this.transport.request(
+      `/cases/${encodeURIComponent(supportCaseId)}/goals`, 'POST', { title: title.trim() },
+    ));
+  }
+
+  /** 문구 수정. 이전 문구는 서버가 이력으로 남긴다(D62 §4). */
+  async retitleGoal(goalId: string, title: string): Promise<string> {
+    if (!isOpaqueIdentifier(goalId) || title.trim() === '') throw new BusinessError('invalid_request', 400);
+    return this.goalId(await this.transport.request(
+      `/goals/${encodeURIComponent(goalId)}/title`, 'PUT', { title: title.trim() },
+    ));
+  }
+
+  /** 닫기 전 안내용. 미래 회기 연결 수는 닫기를 막지 않는다(D62 §5). */
+  async goalUpcomingLinks(goalId: string): Promise<number> {
+    if (!isOpaqueIdentifier(goalId)) throw new BusinessError('invalid_request', 400);
+    const row = record(await this.transport.request(`/goals/${encodeURIComponent(goalId)}/upcoming-links`));
+    if (typeof row.upcomingCount !== 'number' || !Number.isSafeInteger(row.upcomingCount)) {
+      throw new BusinessError('invalid_response');
+    }
+    return row.upcomingCount;
+  }
+
+  /** 닫기는 활성과 종료 2종이고 재개는 없다(D62 §5). */
+  async closeGoal(goalId: string, reason: GoalCloseReason): Promise<string> {
+    if (!isOpaqueIdentifier(goalId)) throw new BusinessError('invalid_request', 400);
+    return this.goalId(await this.transport.request(
+      `/goals/${encodeURIComponent(goalId)}/close`, 'POST', { reason },
+    ));
+  }
+
+  /** 액션 등록. 담당과 기한은 실무자가 정한다. AI가 추정하지 않는다(D70). */
+  async createActionItem(supportCaseId: string, input:
+    { description: string; owner: ActionOwner; dueDate?: string; sessionId?: string },
+  ): Promise<string> {
+    if (!isOpaqueIdentifier(supportCaseId) || input.description.trim() === '') {
+      throw new BusinessError('invalid_request', 400);
+    }
+    const row = record(await this.transport.request(
+      `/cases/${encodeURIComponent(supportCaseId)}/action-items`, 'POST',
+      {
+        description: input.description.trim(), owner: input.owner,
+        ...(input.dueDate === undefined || input.dueDate === '' ? {} : { dueDate: input.dueDate }),
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      },
+    ));
+    if (!isOpaqueIdentifier(row.id)) throw new BusinessError('invalid_response');
+    return row.id;
+  }
+
+  /** 불일치 처리 3종. 표시일 뿐 원본 기록은 바뀌지 않는다(D45 영역 ③). */
+  async resolveDiscrepancy(
+    supportCaseId: string, discrepancyId: string, status: DiscrepancyResolution,
+  ): Promise<void> {
+    if (!isOpaqueIdentifier(supportCaseId) || !isOpaqueIdentifier(discrepancyId)) {
+      throw new BusinessError('invalid_request', 400);
+    }
+    await this.transport.request(
+      `/support-cases/${encodeURIComponent(supportCaseId)}/discrepancies/${encodeURIComponent(discrepancyId)}/resolution`,
+      'PUT', { status },
+    );
+  }
+
+  async closure(supportCaseId: string): Promise<ClosureInfo> {
+    if (!isOpaqueIdentifier(supportCaseId)) throw new BusinessError('invalid_request', 400);
+    return this.decodeClosure(await this.transport.request(
+      `/support-cases/${encodeURIComponent(supportCaseId)}/closure`,
+    ), supportCaseId);
+  }
+
+  /** 종결은 사유가 필수다. 보관 시계는 서버가 정하고 화면이 계산하지 않는다(D10). */
+  async close(supportCaseId: string, reason: string): Promise<ClosureInfo> {
+    if (!isOpaqueIdentifier(supportCaseId) || reason.trim() === '') {
+      throw new BusinessError('invalid_request', 400);
+    }
+    const closed = await this.transport.request(
+      `/support-cases/${encodeURIComponent(supportCaseId)}/close`, 'POST', { reason: reason.trim() },
+    );
+    const row = record(closed);
+    // 종결 응답은 케이스 자체다. 화면이 쓰는 값은 종결 조회와 같은 모양으로 다시 읽는다.
+    if (!isOpaqueIdentifier(row.id) && !isOpaqueIdentifier(row.supportCaseId)) {
+      throw new BusinessError('invalid_response');
+    }
+    return this.closure(supportCaseId);
+  }
+
+  private decodeClosure(value: unknown, supportCaseId: string): ClosureInfo {
+    const row = record(value);
+    if (row.supportCaseId !== supportCaseId || (row.status !== 'active' && row.status !== 'closed')
+      || !isNullableString(row.closedAt) || !isNullableString(row.closedReason)
+      || !isNullableString(row.purgeDue) || !isNullableString(row.purgedAt)
+      || typeof row.hasOtherActiveSupportCase !== 'boolean') throw new BusinessError('invalid_response');
+    return {
+      supportCaseId, status: row.status, closedAt: row.closedAt, closedReason: row.closedReason,
+      purgeDue: row.purgeDue, purgedAt: row.purgedAt, hasOtherActiveSupportCase: row.hasOtherActiveSupportCase,
+    };
+  }
+}

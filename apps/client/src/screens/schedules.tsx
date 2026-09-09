@@ -5,7 +5,10 @@ import {
   WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/web/wire';
 import { type BusinessError, safeError } from '../business/errors';
-import { FLAG_LABELS, type FlagType } from '../business/records';
+import {
+  ACTION_OWNER_LABELS, DISCREPANCY_KIND_LABELS, DISCREPANCY_RESOLUTIONS, DISCREPANCY_RESOLUTION_LABELS,
+  FLAG_LABELS, type ActionOwner, type DiscrepancyResolution, type FlagType,
+} from '../business/records';
 import type {
   Briefing, ScheduleCandidate, ScheduleCard, SchedulePlan, ScheduleWindow,
 } from '../business/schedules';
@@ -340,6 +343,9 @@ export function BriefingScreen() {
   const [goalDraft, setGoalDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
+  const [actionDraft, setActionDraft] = useState<{ description: string; owner: ActionOwner; dueDate: string }>({
+    description: '', owner: 'counselor', dueDate: '',
+  });
   const generation = useRef(0);
 
   const load = useCallback(() => {
@@ -380,6 +386,42 @@ export function BriefingScreen() {
     }
   };
 
+  const resolve = async (discrepancyId: string, status: DiscrepancyResolution) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.caseWork.resolveDiscrepancy(supportCaseId, discrepancyId, status);
+      load();
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addAction = async () => {
+    if (busy || actionDraft.description.trim() === '') return;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.caseWork.createActionItem(supportCaseId, {
+        description: actionDraft.description, owner: actionDraft.owner,
+        ...(actionDraft.dueDate === '' ? {} : { dueDate: actionDraft.dueDate }),
+      });
+      setActionDraft({ description: '', owner: 'counselor', dueDate: '' });
+      load();
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (error !== null && briefing === null) {
     return <WireCard>
       <WireError>{error.message}</WireError>
@@ -396,7 +438,8 @@ export function BriefingScreen() {
       <WireCardSection title="전체 목표">
         {briefing.canEditOverallGoal
           ? <form className="business-form" onSubmit={(event) => { event.preventDefault(); void saveGoal(); }}>
-            <WireFormField label="전체 목표" htmlFor="briefing-overall-goal" hideLabel>
+            <WireFormField label="전체 목표" htmlFor="briefing-overall-goal"
+          hint="첫 상담에서 당사자와 정한 방향을 한 줄로 적습니다">
               <input id="briefing-overall-goal" value={goalDraft ?? ''} disabled={busy}
                 onChange={(event) => setGoalDraft(event.target.value)} />
             </WireFormField>
@@ -446,21 +489,53 @@ export function BriefingScreen() {
     </WireCard>
     <WireCard title="내용 불일치">
       {briefing.focus.discrepancies.length === 0 && <WireEmpty>검출된 불일치가 없습니다.</WireEmpty>}
-      {briefing.focus.discrepancies.map((item) => <WireCardSection key={item.id} title={item.kind}>
+      {briefing.focus.discrepancies.map((item) => <WireCardSection key={item.id}
+        title={DISCREPANCY_KIND_LABELS[item.kind] ?? item.kind}>
         <WireDataRows>
           <WireDataRow label="한쪽 기록" value={item.left} />
           <WireDataRow label="다른 쪽 기록" value={item.right} />
-          <WireDataRow label="처리" value={item.resolution ?? '처리 전'} />
+          <WireDataRow label="처리"
+            value={item.resolution === null
+              ? '처리 전'
+              : DISCREPANCY_RESOLUTION_LABELS[item.resolution as DiscrepancyResolution] ?? item.resolution} />
         </WireDataRows>
+        {item.resolution === null && <div className="business-actions">
+          {DISCREPANCY_RESOLUTIONS.map((status) => <WireButton key={status} variant="neutral" disabled={busy}
+            onClick={() => { void resolve(item.id, status); }}>
+            {DISCREPANCY_RESOLUTION_LABELS[status]}
+          </WireButton>)}
+        </div>}
       </WireCardSection>)}
-      <WireCallout tone="info" title="처리 기능은 아직 없습니다">
-        불일치 처리 3종은 이 화면에 연결하지 않았습니다. 지금은 저장된 검출 결과만 읽습니다.
+      <WireCallout tone="info" title="처리는 표시일 뿐입니다">
+        처리해도 원본 기록은 바뀌지 않습니다. 어느 쪽이 맞는지는 AI가 판단하지 않습니다.
       </WireCallout>
     </WireCard>
     <WireCard title="미해결 액션">
       {briefing.focus.openActionItems.length === 0 && <WireEmpty>미해결 액션이 없습니다.</WireEmpty>}
       {briefing.focus.openActionItems.map((item) => <WireItem key={item.id} title={item.description}
         description={`기한 ${item.dueDate ?? '없음'}`} />)}
+      <form className="business-form" onSubmit={(event) => { event.preventDefault(); void addAction(); }}>
+        <WireFormField label="새 액션" htmlFor="action-new-description" required>
+          <input id="action-new-description" value={actionDraft.description} required disabled={busy}
+            onChange={(event) => setActionDraft({ ...actionDraft, description: event.target.value })} />
+        </WireFormField>
+        <WireFormField label="담당" htmlFor="action-new-owner" control="select">
+          <select id="action-new-owner" value={actionDraft.owner} disabled={busy}
+            onChange={(event) => setActionDraft({ ...actionDraft, owner: event.target.value as ActionOwner })}>
+            {(Object.keys(ACTION_OWNER_LABELS) as ActionOwner[]).map((owner) => (
+              <option key={owner} value={owner}>{ACTION_OWNER_LABELS[owner]}</option>
+            ))}
+          </select>
+        </WireFormField>
+        <WireFormField label="기한" htmlFor="action-new-due">
+          <input id="action-new-due" type="date" value={actionDraft.dueDate} disabled={busy}
+            onChange={(event) => setActionDraft({ ...actionDraft, dueDate: event.target.value })} />
+        </WireFormField>
+        <div className="business-actions">
+          <WireButton type="submit" variant="primary"
+            disabled={busy || actionDraft.description.trim() === ''}>액션 등록</WireButton>
+        </div>
+      </form>
     </WireCard>
   </>;
 }

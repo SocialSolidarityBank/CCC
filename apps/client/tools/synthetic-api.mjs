@@ -18,6 +18,12 @@ export function createSyntheticState() {
     admissionCopyHash: null,
     admissionConfirmed: false,
     assignmentRequested: false,
+    goals: [{ id: 'a7f1c9d2-4b6e-4a30-8c52-1d3e5f70b284', title: '월세 체납 정리', status: 'active', closedReason: null, closedAt: null,
+      revisions: [{ title: '월세 체납 정리', editedByName: '담당 실무자', editedAt: '2026-08-20T00:00:00.000Z' }],
+      sessionGoals: [], linkedSessions: [{ sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z', oneLiner: null }] }],
+    actionItems: [],
+    discrepancyResolution: null,
+    caseClosed: null,
     submissions: new Map(),
     records: [],
     draftDecision: null,
@@ -266,11 +272,14 @@ export function handleApi(request, state, options) {
         gasTrend: [],
         lastSessionSummary: { source: 'memo', text: '지난 회차 수기 메모', pendingApprovalCount: 1 },
         pendingReviewSessionIds: [SESSION_ID],
-        openActionItems: [{ id: 'action-1', description: '주민센터 서류 제출', owner: 'beneficiary', dueDate: '2026-09-18', sessionId: SESSION_ID }],
+        openActionItems: [{ id: 'action-1', description: '주민센터 서류 제출', owner: 'beneficiary', dueDate: '2026-09-18', sessionId: SESSION_ID },
+          ...state.actionItems.map((item) => ({ id: item.id, description: item.description, owner: item.owner, dueDate: item.dueDate, sessionId: null }))],
         flags: [{ id: 'flag-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed', sessionId: SESSION_ID, quote: '이번 달에도 이자를 못 냈어요' }],
         aiSuggestions: [{ title: '체납 고지서 확인', reason: '지난 회차에 고지서를 아직 못 봤다고 했습니다', sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z', sourceQuotes: [] }],
         sessionRows: [{ sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z', kind: 'regular', aiOneLiner: null, memoExcerpt: '고지서를 아직 확인하지 못했다고 함' }],
-        discrepancies: [{ id: 'discrepancy-1', kind: 'cross_session', left: '월세 45만원', right: '월세 50만원', detectedAt: '2026-09-02T02:00:00.000Z', resolution: null }],
+        discrepancies: [{ id: 'discrepancy-1', kind: 'cross_session', left: '월세 45만원', right: '월세 50만원',
+          detectedAt: '2026-09-02T02:00:00.000Z',
+          resolution: state.discrepancyResolution === null ? null : { status: state.discrepancyResolution } }],
       }],
       focusUpcomingSchedule: {
         id: SCHEDULE_ID, scheduledAt: '2026-09-20T01:00:00.000Z', sessionKind: 'regular', channel: 'in_person',
@@ -294,7 +303,7 @@ export function handleApi(request, state, options) {
         },
         ...state.records,
       ],
-      goals: [{ id: 'goal-a', title: '월세 체납 정리', status: 'active', closedReason: null }],
+      goals: state.goals.map((goal) => ({ id: goal.id, title: goal.title, status: goal.status, closedReason: goal.closedReason })),
       schedule: { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
         scheduledAt: '2026-09-20T01:00:00.000Z', status: 'scheduled', version: state.scheduleVersion, completedSessionId: null },
       recordErrorSessionIds: [], overallGoal: state.overallGoal, caseStatus: 'active',
@@ -373,6 +382,77 @@ export function handleApi(request, state, options) {
       ],
       permissions: { canManageRoles: true, canManageAccounts: true }, nextCursor: null,
     }, 200, cors);
+  }
+  if (path === '/participants/swallow-003/goal-tree' && request.method === 'GET') {
+    return json({ cases: [{
+      sourceSupportCase: { id: CASE_ID, programType: 'financial_support_v1', status: state.caseClosed === null ? 'active' : 'closed' },
+      overallGoal: state.overallGoal,
+      overallGoalRevisions: [{ title: state.overallGoal, editedByName: '담당 실무자', editedAt: '2026-08-20T00:00:00.000Z' }],
+      goals: state.goals,
+    }] }, 200, cors);
+  }
+  if (path === `/cases/${CASE_ID}/goals` && request.method === 'POST') {
+    return request.json().then((body) => {
+      const id = `f${state.goals.length + 1}c1c9d2-4b6e-4a30-8c52-1d3e5f70b28${state.goals.length + 4}`;
+      state.goals.push({ id, title: body.title, status: 'active', closedReason: null, closedAt: null,
+        revisions: [{ title: body.title, editedByName: '담당 실무자', editedAt: new Date().toISOString() }],
+        sessionGoals: [], linkedSessions: [] });
+      return json({ id, caseId: CASE_ID, title: body.title, scaleCriteria: null, status: 'active',
+        closedReason: null, closedAt: null, replacedByGoalId: null }, 201, cors);
+    });
+  }
+  if (/^\/goals\/[^/]+\/title$/.test(path) && request.method === 'PUT') {
+    const goalId = path.split('/')[2];
+    return request.json().then((body) => {
+      const goal = state.goals.find((entry) => entry.id === goalId);
+      if (goal === undefined) return json({ error: 'not_found' }, 404, cors);
+      goal.revisions = [{ title: body.title, editedByName: '담당 실무자', editedAt: new Date().toISOString() }, ...goal.revisions];
+      goal.title = body.title;
+      return json({ id: goal.id, caseId: CASE_ID, title: goal.title, scaleCriteria: null, status: goal.status,
+        closedReason: goal.closedReason, closedAt: goal.closedAt, replacedByGoalId: null }, 200, cors);
+    });
+  }
+  if (/^\/goals\/[^/]+\/upcoming-links$/.test(path) && request.method === 'GET') {
+    return json({ upcomingCount: 1 }, 200, cors);
+  }
+  if (/^\/goals\/[^/]+\/close$/.test(path) && request.method === 'POST') {
+    const goalId = path.split('/')[2];
+    return request.json().then((body) => {
+      const goal = state.goals.find((entry) => entry.id === goalId);
+      if (goal === undefined) return json({ error: 'not_found' }, 404, cors);
+      goal.status = 'closed';
+      goal.closedReason = body.reason;
+      goal.closedAt = new Date().toISOString();
+      return json({ id: goal.id, caseId: CASE_ID, title: goal.title, scaleCriteria: null, status: 'closed',
+        closedReason: goal.closedReason, closedAt: goal.closedAt, replacedByGoalId: null }, 200, cors);
+    });
+  }
+  if (path === `/cases/${CASE_ID}/action-items` && request.method === 'POST') {
+    return request.json().then((body) => {
+      const id = `c${state.actionItems.length + 1}a1c9d2-4b6e-4a30-8c52-1d3e5f70b2a${state.actionItems.length + 4}`;
+      state.actionItems.push({ id, description: body.description, owner: body.owner, dueDate: body.dueDate ?? null, sessionId: null });
+      return json({ id, caseId: CASE_ID, sessionId: null, description: body.description, owner: body.owner,
+        dueDate: body.dueDate ?? null, resolvedAt: null }, 201, cors);
+    });
+  }
+  if (/^\/support-cases\/[^/]+\/discrepancies\/[^/]+\/resolution$/.test(path) && request.method === 'PUT') {
+    return request.json().then((body) => {
+      state.discrepancyResolution = body.status;
+      return json({ id: 'discrepancy-1', resolution: { status: body.status } }, 200, cors);
+    });
+  }
+  if (path === `/support-cases/${CASE_ID}/closure` && request.method === 'GET') {
+    return json({
+      supportCaseId: CASE_ID, beneficiaryId: 'swallow-003', status: state.caseClosed === null ? 'active' : 'closed',
+      closedAt: state.caseClosed?.at ?? null, closedReason: state.caseClosed?.reason ?? null,
+      purgeDue: state.caseClosed === null ? null : '2027-09-10', purgedAt: null, hasOtherActiveSupportCase: false,
+    }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/close` && request.method === 'POST') {
+    return request.json().then((body) => {
+      state.caseClosed = { reason: body.reason, at: new Date().toISOString() };
+      return json({ id: CASE_ID, status: 'closed', closedAt: state.caseClosed.at }, 200, cors);
+    });
   }
   if (path === '/programs' && request.method === 'GET') {
     return json({
