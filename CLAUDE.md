@@ -347,6 +347,7 @@ Q가 `.worktrees/frontend`를 업무 클라이언트(D80 `apps/client`) 프런�
 - STT 설정 상태 화면으로 `apps/web/app/admin/ai-provider/**` 와 `apps/web/app/lib/api.ts` 의 `GET /capabilities` 읽기 함수를 소유한다. 화면은 `GET /capabilities` 의 `sttMode`·`sttEngine`·`sttOptions`·`agentStatus` 를 보여주기만 하며, STT 모드를 쓰는 엔드포인트는 없다. `apps/web/app/components/wire/**` 와 `globals.css` 는 그대로 `design-adjustments` 소유이므로 기존 컴포넌트·클래스만 재사용하고, 새 컴포넌트나 새 CSS가 필요해지면 그 시점에 인계한다.
 - STT 시험 화면 파일은 `stt-client` 레인 소유다. 상대 레인의 파일을 직접 고치지 않고, 각 레인은 자기 워크트리에서만 파일·Git 작업을 한다. 상대 레인의 checkout, reset, clean, stash, 미커밋 파일 정리는 금지한다.
 - 이 예외는 새 디자인 체계나 product 동의·NER·signed registry 우회를 허용하지 않는다. 같은 디자인 규칙과 기능별 실화면 검수·게이트를 적용한다.
+- **레인 순서는 프런트엔드 먼저, 디자인 다음이다**(2026-09-09 Q). 프런트엔드 레인이 API 계약과 거부 코드, 자기 소유 화면, 잠금 사실을 먼저 확정하고, 화면 규칙이 걸린 자리는 `docs/superpowers/plans/<날짜>-<주제>-design-handoff.md` 인계 패킷으로 넘긴다. 패킷의 필수 8항목과 되돌려 보내는 기준은 `.claude/skills/frontend-lane/SKILL.md` 가 갖고, 화면 작업 자체의 순서는 계속 `design-lane` 스킬이 갖는다. 규칙 사본은 어느 쪽에도 두지 않는다.
 
 ### 문서 배치 규칙 (2026-07-25 Q 확정)
 
