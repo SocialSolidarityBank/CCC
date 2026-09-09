@@ -169,6 +169,8 @@ import {
   listSupportCaseAssignees,
   countNewSignups,
   requestSupportCaseAssignment,
+  requestOwnSupportCaseAssignment,
+  reviewSupportCaseAssignmentRequest,
   listAssignedParticipants,
   listPrivacyConsentFollowUps,
   listParticipantPiiRetentionReviews,
@@ -1213,6 +1215,8 @@ function assignedParticipantResponse(participant: AssignedParticipant) {
     programCount: participant.programCount,
     name: participant.name,
     phone: participant.phone,
+    email: participant.email,
+    programNames: participant.programNames,
     // CCC-26 새 가입 배지 — 케이스에서 파생한 값이다(목록 API 가 감사 한 건을 이미 남긴다).
     newSignup: participant.newSignup,
   };
@@ -1259,10 +1263,25 @@ function participantHubResponse(
 ) {
   return {
     beneficiaryId,
+    restricted: programList.restricted === true,
     participantName: programList.participant.name,
     participantPhone: programList.participant.phone,
     participantEmail: programList.participant.email,
-    programs: programList.programs.map((program) => participantProgramResponse(program, programList.participant)),
+    ...(programList.restricted === true ? {} : {
+      participantBirthDate: programList.participant.birthDate ?? null,
+      ...programList.progress,
+    }),
+    programs: programList.programs.map((program) => {
+      const identification = {
+        id: program.supportCase.id, beneficiaryId, programId: program.programId, programName: program.programName,
+        programType: program.supportCase.programType, status: program.supportCase.status,
+        authorized: program.authorized, assigneeNames: program.assigneeNames,
+      };
+      return program.authorized ? {
+        ...participantProgramResponse(program, programList.participant), ...identification,
+        closedAt: program.supportCase.closedAt,
+      } : identification;
+    }),
   };
 }
 
@@ -2997,7 +3016,7 @@ export async function handleRequest(
           env,
           actor,
           beneficiaryId,
-          { includeEmail: true },
+          { includeEmail: true, hub: true },
         );
         return json(participantHubResponse(beneficiaryId, programList));
       }
@@ -3129,6 +3148,27 @@ export async function handleRequest(
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'closure') {
         requestQuery(url, []);
         return json(await getSupportCaseClosureInfo(env, actor, supportCaseId));
+      }
+      if (request.method === 'POST' && parts[2] === 'assignment-requests') {
+        requestQuery(url, []);
+        if (parts.length === 3) {
+          const body = await requestBody(request);
+          requireOnlyKeys(body, ['reason']);
+          return json(supportCaseAssigneeResponse(await requestOwnSupportCaseAssignment(
+            env, actor, supportCaseId, requiredString(body, 'reason'),
+          )), 201);
+        }
+        if (parts.length === 5 && parts[4] === 'review') {
+          const assignmentId = requireRouteUuid(parts[3] ?? '', 'assignment id');
+          const body = await requestBody(request);
+          const decision = requiredString(body, 'decision');
+          requireOnlyKeys(body, decision === 'reject' ? ['decision', 'reason'] : ['decision']);
+          if (decision !== 'coassign' && decision !== 'transfer' && decision !== 'reject') throw new ValidationError('assignment decision is invalid');
+          return json(supportCaseAssigneeResponse(await reviewSupportCaseAssignmentRequest(
+            env, actor, supportCaseId, assignmentId,
+            decision === 'reject' ? { decision, reason: requiredString(body, 'reason') } : { decision },
+          )));
+        }
       }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'force-transfer') {
         requestQuery(url, []);

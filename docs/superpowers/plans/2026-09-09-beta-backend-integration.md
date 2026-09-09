@@ -1,6 +1,6 @@
 # Beta backend integration implementation plan
 
-**Current state:** Main accepted creator-readiness checkpoint `8d4b1098927500c59fce50f3e19013101c66e548`: five PostgreSQL files passed 59/59 and a real restricted `ccc_api` readiness smoke passed (Main-reported, hosted Auth false). The subsequent D89 source wave implements independent exact HTTPS API addressing and the restricted Deno entry. Mini verification passed four focused files / 63 tests and both typechecks. This is not deployment isolation, hosted Auth, installer completion or runtime manifest-revocation integration proof. Historical pending/WIP notes below describe their original checkpoints and are superseded only by these explicitly attributed results.
+**Current state:** Main accepted creator-readiness checkpoint `8d4b1098927500c59fce50f3e19013101c66e548`. Main subsequently independently verified D89 checkpoint `b3dcf35df6e0ef17e29e5a7a6a201a6b221da0d8` on MacBook: seven files / 85 tests, including all five PostgreSQL files. Main also built and launched the actual Deno artifact, observed missing installation return `503 service_unavailable`, then stopped it. That is negative startup proof only. The P3 source wave below adds approved participant and assignment contracts; its local D1 and synthetic-identity HTTP evidence does not replace Main's PostgreSQL replay. Neither checkpoint proves deployment isolation, hosted Auth, installer completion or runtime manifest-revocation integration. Historical pending/WIP notes below describe their original checkpoints and are superseded only by explicitly attributed results.
 
 **Goal:** Integrate backend-owned settings, authentication and program admission from `feat/settings-backend@71778f3` onto `4352d32`. This is the first backend wave, not beta completion.
 
@@ -437,3 +437,41 @@ This is an implementation plan, not permission to mutate external systems or a c
 5. **Prove recovery and doctor behavior before release.** Test interruption/retry, duplicate/conflicting designation, wrong institution, stale manifest trust, restricted-role refusal, incomplete invitation and rollback boundaries with disposable fixtures. Doctor must report creator linkage, initial setup and first-program admission independently; metadata success is not readiness. Main replays PostgreSQL. Real hosted invitation, human MFA and deployment isolation require separately approved evidence; retain `off`/manual behavior until the existing activation gates are satisfied.
 
 Next installer ownership should explicitly include the existing bootstrap/plan tests and approved private writer boundaries. No new CLI flag, environment variable, backend role, public trust field or live installation is created merely by this plan.
+
+## P3 participant and assignment contract checkpoint
+
+Scope is ADR-0047 D88 listing/hub serialization and ADR-0044 D86 worker-origin assignment requests. No frontend, design, root dependency, migration, parity or installer writer change.
+
+### Participant reads
+
+- `GET /participants` keeps the existing authorization, archive and bulk PII-decryption path. Each result additionally has `email: string | null` and `programNames: string[]`. Names cover the listed person's same-organization participation, are distinct and sorted, and are loaded in bounded batches rather than per-row hub calls. Existing `programCount` semantics are unchanged.
+- The list already decrypted email. It now exposes that value and adds `email` to the existing PII read receipt's `fields`, without adding an audit row. Email-only contacts also produce the required receipt.
+- `GET /participants/:beneficiaryId/hub` adds `restricted`. A full hub additionally exposes `participantBirthDate: string | null`, `status: 'active' | 'closed'`, `closedAt: string | null`, `sessionCount` and `lastSessionAt: string | null`. Birth date is decrypted only for a full hub and included in the same PII receipt's `fields` as `birth_date`.
+- Record progress counts only authorized cases' official manual or approved AI records. Draft-only and unauthorized-case records do not contribute. Participant status is active while any same-organization participation remains active; otherwise `closedAt` is the latest case closure.
+- An active, same-organization, wholly unassigned practitioner receives the D86 restricted hub: `beneficiaryId`, `restricted: true`, `participantName`, `participantPhone`, `participantEmail`, and `programs`. Each restricted program contains only `id`, `beneficiaryId`, `programId`, `programName`, `programType`, `status`, `authorized: false` and `assigneeNames`. No birth date, progress, consent, intake or schedule payload is emitted.
+- The same restricted program projection applies to unauthorized programs inside a partially authorized full hub. Generic participant/support-case responses do not acquire email or birth date and retain their existing unassigned refusal. Local Single does not acquire the unassigned hub exception. Administrator counseling-content access remains read-only unless the actor also has an active practitioner role and case assignment.
+
+### Worker-origin assignment requests
+
+- `POST /support-cases/:supportCaseId/assignment-requests` accepts exactly `{ reason: string }`. Reason is trimmed, one line, 1 to 500 characters. The requester is derived from the authenticated actor, never supplied as `userId` or role. It creates an existing `support_case_assignees` row with `status: 'requested'`, returns the existing assignment response with `201`, and writes the canonical assignment audit. It does not grant content access.
+- `POST /support-cases/:supportCaseId/assignment-requests/:assignmentId/review` is institution-administrator-only. Accept exactly `{ decision: 'coassign' | 'transfer' }` or `{ decision: 'reject', reason: string }`; rejection reason uses the same one-line bounds. Return the reviewed assignment response with `200`.
+- Requested rows have immutable roles and request reasons. Approval atomically ends the requested row and inserts the chosen active assignment, secondary for coassignment or primary for transfer. Transfer ends the existing active assignees within that transaction. The response ID is the newly active assignment ID, not the consumed request ID.
+- Rejection ends the original requested row without granting access. Its original request reason remains `transferReason`; the rejection reason belongs to the append-only review audit. Approval receipts identify the new active assignment.
+- Worker-origin requests cannot use the existing recipient `/assignees/:assignmentId/accept` route to approve themselves. Existing administrator-origin invitations retain their acceptance behavior. Approval rechecks current practitioner eligibility and active case state.
+- Duplicate pending/active requests and repeated or competing reviews return `409`; malformed input returns `400`; forbidden actors and cross-organization access return `403`. Existing installation readiness refusal can precede these checks. A conditional operation-marker claim ensures only the winning review mutates assignments and emits its review audit. No new idempotency-key protocol or table is introduced.
+
+### Existing directory contract, intentionally reused
+
+No new practitioner directory endpoint was necessary. `GET /settings/accounts?cursor=<last-id>` already returns same-organization accounts with `id`, `email`, `name`, `active`, canonical `roles`, `supervisedTeamIds`, `assignmentCount`, plus `permissions` and `nextCursor`. It excludes service accounts and pages at 100.
+
+For administrator registration, consume all pages and select accounts where `active && roles.includes('worker')`. Send that account's UUID `id` as `initialAssigneeUserId` to `POST /participants`, not its email or a legacy role value. The registration gateway independently rechecks organization and current active practitioner status. Ordinary practitioners cannot read this administration directory. Do not substitute the broader program staff-options list.
+
+### Local evidence and handoff boundary
+
+- Focused API run: `participant-p3.contract.test.ts`, `assignment-lifecycle.test.ts`, `admin-area.test.ts`, `new-signup-badge.test.ts`, `participant-register-email.test.ts`, `participant-search.test.ts`, and `support-case-access-deny-audit.test.ts`: **7 files / 56 tests passed**, including nine new P3 cases and the existing 100-person batching regression.
+- Compatibility selection in `routes.test.ts` and `gateway-domain.test.ts`: **2 passed, 121 skipped**, targeting hub email isolation and actor-scoped multi-program receipts. This is not a whole-file or whole-suite claim.
+- The disposable real loopback HTTP smoke used Miniflare D1, actual API dispatch and synthetic identities. It passed directory-to-registration, list email/names, full hub birth date/progress, restricted hub, foreign-organization refusal, self-acceptance refusal, administrator coassignment, and repeated-review `409`. The server exited successfully; the throwaway source was removed.
+- API and Community Cloud API typechecks passed. Core-import, DB-gateway and SQL-dialect guards passed. Root `package.json`, `pnpm-lock.yaml` and `migrations/parity.yaml` retain their pre-wave hashes.
+- Local language-server references were unavailable because no server is configured. Caller inventory used repository searches; the existing directory API was retained instead of creating a competing contract.
+
+Main owns PostgreSQL replay and the frontend handoff decision. This checkpoint is not hosted Auth, real deployment, frontend integration, product STT activation or installer completion. Installer writer work remains pending Main's resolution of its concrete trust/ownership blocker and separate authorization.

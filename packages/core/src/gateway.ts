@@ -15023,6 +15023,8 @@ async function listPiiAuthorizedSupportCaseIdsForBeneficiary(
  */
 export interface ParticipantProgramEntry {
   supportCase: SupportCase;
+  programId: string | null;
+  programName: string | null;
   /** 상담 내용 읽기 권한이 있는가. 화면은 이 값으로 링크를 걸거나 잠근다. */
   authorized: boolean;
   /** 활성 담당 실무자 표시 이름(미입력이면 이메일). 비담당 사업에서 "누구에게 물어보나"를 답한다. */
@@ -15044,10 +15046,14 @@ export interface ParticipantProgramEntry {
 export interface ParticipantProgramList {
   participant: ParticipantDetailContact;
   programs: ParticipantProgramEntry[];
+  restricted?: boolean;
+  progress?: { status: 'active' | 'closed'; closedAt: string | null; sessionCount: number; lastSessionAt: string | null };
 }
 interface ParticipantProgramListOptions {
   /** 당사자 정보 허브에서만 이메일 복호화를 연다. 기본 경로는 name·phone 경계를 유지한다. */
   includeEmail?: boolean;
+  /** D86 restricted identification is available only through the explicit hub route. */
+  hub?: boolean;
 }
 
 
@@ -15105,22 +15111,21 @@ export async function listSupportCasesForBeneficiary(
   if (archived !== null) {
     throw new ForbiddenError('participant is unavailable');
   }
-  // **집합이 둘이다 — 섞으면 안 된다** (D36 · ADR-0014 '개정' 1번).
-  //  ① 접근 판정용: 상담 내용 읽기 권한이 있는 사업. **1건도 없으면 페이지 자체가 안 열린다.**
-  //  ② 표시용: 그 당사자의 기관 내 전 사업. 비담당 사업은 존재와 담당 실무자 이름까지만 보인다.
-  //
-  // ①의 게이트를 지우면 D36의 근거("이 페이지를 여는 사람은 이미 그 당사자의 담당 실무자라
-  // PII를 보고 있다")가 무너진다 — 표시 범위를 넓히면서 같이 지우기 쉬우니 주의한다.
+  // D86 opens basic identification only on the hub route. Generic record callers retain their gate.
   const piiAuthorizedIds = await listPiiAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
-  if (piiAuthorizedIds.length === 0) {
-    throw new ForbiddenError('participant is unavailable');
+  const restricted = piiAuthorizedIds.length === 0;
+  if (restricted) {
+    if (options.hub !== true || env.installationMode === 'local-single') throw new ForbiddenError('participant is unavailable');
+    await assertPractitioner(env, actor);
+    await getBeneficiaryForOrg(env, actor.orgId, beneficiaryId, { completeOnly: true });
   }
-  const contentAuthorizedIds = await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
+  const contentAuthorizedIds = restricted ? [] : await listAuthorizedSupportCaseIdsForBeneficiary(env, actor, beneficiaryId);
   const authorized = new Set(contentAuthorizedIds);
   const result = await env.DB.prepare(
-    `SELECT support_cases.* FROM support_cases
+    `SELECT support_cases.*, programs.display_name AS program_name FROM support_cases
      JOIN beneficiaries ON beneficiaries.id = support_cases.beneficiary_id
        AND beneficiaries.org_id = support_cases.org_id
+     LEFT JOIN programs ON programs.id = support_cases.program_id AND programs.org_id = support_cases.org_id
      WHERE support_cases.org_id = ? AND support_cases.beneficiary_id = ?
        AND beneficiaries.initialization_state = 'complete'
      ORDER BY CASE support_cases.status WHEN 'active' THEN 0 ELSE 1 END,
@@ -15133,12 +15138,15 @@ export async function listSupportCasesForBeneficiary(
     beneficiaryId,
   });
   const includeEmail = options.includeEmail === true;
-  // 이메일 복호화는 당사자 정보 허브 요청에서만 연다. 일반 기록 화면은 name·phone만 읽는다.
-  const contacts = await loadParticipantContacts(env, actor.orgId, [beneficiaryId], includeEmail);
+  const includeBirthDate = options.hub === true && !restricted;
+  const contacts = await loadParticipantContacts(env, actor.orgId, [beneficiaryId], includeEmail, includeBirthDate);
   const participantContact = contacts.get(beneficiaryId);
   await auditParticipantPiiRead(env, actor, contacts, {
     targetId: beneficiaryId,
-    extraFields: includeEmail && participantContact?.email != null ? ['email'] : [],
+    extraFields: [
+      ...(includeEmail && participantContact?.email != null ? ['email'] : []),
+      ...(includeBirthDate && participantContact?.birthDate != null ? ['birth_date'] : []),
+    ],
   });
   const supportCases = result.results.map(mapSupportCase);
   const assigneeNames = await loadAssigneeNamesBySupportCase(
@@ -15146,16 +15154,43 @@ export async function listSupportCasesForBeneficiary(
     actor.orgId,
     supportCases.map((supportCase) => supportCase.id),
   );
-  const consentRecordedAt = await loadLastConsentRecordedAt(env, actor.orgId, beneficiaryId);
+  const consentRecordedAt = restricted ? new Map<string, string>() : await loadLastConsentRecordedAt(env, actor.orgId, beneficiaryId);
   const upcomingSchedules = await loadUpcomingScheduleBySupportCase(
     env,
     actor.orgId,
     contentAuthorizedIds,
   );
+  let progress: ParticipantProgramList['progress'];
+  if (options.hub === true && !restricted) {
+    let sessionCount = 0;
+    let lastSessionAt: string | null = null;
+    for (let offset = 0; offset < contentAuthorizedIds.length; offset += 50) {
+      const ids = contentAuthorizedIds.slice(offset, offset + 50);
+      const summary = await env.DB.prepare(
+        `SELECT COUNT(*) AS session_count, MAX(held_at) AS last_session_at FROM sessions
+         WHERE org_id = ? AND support_case_id IN (${ids.map(() => '?').join(', ')})
+           AND (NULLIF(TRIM(memo), '') IS NOT NULL OR EXISTS (
+             SELECT 1 FROM approved_ai_briefing_v1 AS approved
+             WHERE approved.org_id = sessions.org_id AND approved.session_id = sessions.id
+           ))`,
+      ).bind(actor.orgId, ...ids).first<DbRow>();
+      sessionCount += integerValue(summary?.session_count) ?? 0;
+      const latest = nullableString(summary?.last_session_at);
+      if (latest !== null && (lastSessionAt === null || latest > lastSessionAt)) lastSessionAt = latest;
+    }
+    const status = supportCases.some((supportCase) => supportCase.status === 'active') ? 'active' : 'closed';
+    const closedAt = status === 'active' ? null : supportCases.reduce<string | null>(
+      (latest, supportCase) => supportCase.closedAt !== null && (latest === null || supportCase.closedAt > latest) ? supportCase.closedAt : latest, null,
+    );
+    progress = { status, closedAt, sessionCount, lastSessionAt };
+  }
   return {
+    ...(options.hub === true ? { restricted, ...(progress === undefined ? {} : { progress }) } : {}),
     participant: participantDetailContact(contacts.get(beneficiaryId)),
-    programs: supportCases.map((supportCase) => ({
+    programs: supportCases.map((supportCase, index) => ({
       supportCase,
+      programId: nullableString(result.results[index]?.program_id),
+      programName: nullableString(result.results[index]?.program_name),
       authorized: authorized.has(supportCase.id),
       assigneeNames: assigneeNames.get(supportCase.id) ?? [],
       consentRecordedAt: consentRecordedAt.get(supportCase.id) ?? null,
@@ -15484,7 +15519,25 @@ export async function listAssignedParticipants(
   });
   const ids = result.results.map((row) => stringValue(row.beneficiary_id));
   const contacts = await loadParticipantContacts(env, actor.orgId, ids);
-  await auditParticipantPiiRead(env, actor, contacts, {});
+  await auditParticipantPiiRead(env, actor, contacts, {
+    extraFields: [...contacts.values()].some((contact) => contact.email !== null) ? ['email'] : [],
+  });
+  const programNames = new Map<string, string[]>();
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const batch = ids.slice(offset, offset + 50);
+    const names = await env.DB.prepare(
+      `SELECT DISTINCT support_cases.beneficiary_id, programs.display_name FROM support_cases
+       JOIN programs ON programs.id = support_cases.program_id AND programs.org_id = support_cases.org_id
+       WHERE support_cases.org_id = ? AND support_cases.beneficiary_id IN (${batch.map(() => '?').join(', ')})
+         AND programs.display_name IS NOT NULL
+       ORDER BY support_cases.beneficiary_id, programs.display_name NULLS LAST`,
+    ).bind(actor.orgId, ...batch).all<{ beneficiary_id: string; display_name: string }>();
+    for (const row of names.results) {
+      const existing = programNames.get(row.beneficiary_id);
+      if (existing === undefined) programNames.set(row.beneficiary_id, [row.display_name]);
+      else existing.push(row.display_name);
+    }
+  }
   // CCC-26: 새 가입 배지 재료를 한 번에 묶어 계산한다(단위 배치). 감사는 위 목록 읽기 한 건대로.
   const newSignups = await newSignupBeneficiaryIds(env, actor, hasInstitutionAdminAccess);
   return result.results.map((row) => {
@@ -15496,6 +15549,8 @@ export async function listAssignedParticipants(
       programCount: integerValue(row.program_count) ?? 0,
       name: contact?.name ?? null,
       phone: contact?.phone ?? null,
+      email: contact?.email ?? null,
+      programNames: programNames.get(beneficiaryId) ?? [],
       newSignup: newSignups.has(beneficiaryId),
     };
   });
@@ -15581,6 +15636,8 @@ export interface AssignedParticipant {
   // D24·ADR-0005: 역할 기준 기본 표시. 범위 밖이거나 미기입이면 null.
   name: string | null;
   phone: string | null;
+  email: string | null;
+  programNames: string[];
   /**
    * CCC-26 새 가입 배지 — 새로 개설된 인테이크 전 케이스 중 담당자가 아직 확인하지 않은 것.
    * 새 알림 테이블 없이 케이스·일정·감사에서 파생한다 (newSignupBeneficiaryIds 참조).
@@ -16034,6 +16091,7 @@ export interface ParticipantContact {
   name: string | null;
   phone: string | null;
   email: string | null;
+  birthDate?: string | null;
 }
 
 /** 브리핑이 노출하는 당사자 필드. 이메일은 당사자 정보 허브 전용이라 여기서는 제외한다. */
@@ -16045,6 +16103,7 @@ export interface ParticipantNameContact {
 /** 당사자 정보 허브가 노출하는 기본 식별 정보(D24, 2026-09-02 Q). */
 export interface ParticipantDetailContact extends ParticipantNameContact {
   email: string | null;
+  birthDate?: string | null;
 }
 
 /** 브리핑 등 기존 소비자의 name·phone 경계를 유지한다. */
@@ -16058,6 +16117,7 @@ function participantDetailContact(contact: ParticipantContact | undefined): Part
     name: contact?.name ?? null,
     phone: contact?.phone ?? null,
     email: contact?.email ?? null,
+    ...(contact?.birthDate === undefined ? {} : { birthDate: contact.birthDate }),
   };
 }
 
@@ -16071,6 +16131,7 @@ async function loadParticipantContacts(
   orgId: string,
   beneficiaryIds: readonly string[],
   includeEmail = true,
+  includeBirthDate = false,
 ): Promise<Map<string, ParticipantContact>> {
   const contacts = new Map<string, ParticipantContact>();
   const unique = [...new Set(beneficiaryIds)];
@@ -16083,7 +16144,7 @@ async function loadParticipantContacts(
     const batch = unique.slice(offset, offset + beneficiaryBatchSize);
     const placeholders = batch.map(() => '?').join(', ');
     const rows = await env.DB.prepare(
-      `SELECT beneficiary_id, enc_name, enc_phone, enc_email
+      `SELECT beneficiary_id, enc_name, enc_phone, enc_email${includeBirthDate ? ', enc_birth_date' : ''}
        FROM participant_pii_vault
        WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})
          AND NOT EXISTS (
@@ -16092,12 +16153,13 @@ async function loadParticipantContacts(
              AND archive.org_id = participant_pii_vault.org_id
              AND archive.review_status <> 'purged'
          )`,
-    ).bind(orgId, ...batch).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null }>();
+    ).bind(orgId, ...batch).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null; enc_birth_date?: string | null }>();
     for (const row of rows.results) {
       contacts.set(stringValue(row.beneficiary_id), {
         name: await decryptPii(env, row.enc_name),
         phone: await decryptPii(env, row.enc_phone),
         email: includeEmail ? await decryptPii(env, row.enc_email) : null,
+        ...(includeBirthDate ? { birthDate: await decryptPii(env, row.enc_birth_date ?? null) } : {}),
       });
     }
   }
@@ -16116,7 +16178,9 @@ async function auditParticipantPiiRead(
   scope: { targetId?: string | null; supportCaseId?: string | null; extraFields?: readonly string[] },
 ): Promise<void> {
   const beneficiaryIds = [...contacts.entries()]
-    .filter(([, contact]) => contact.name !== null || contact.phone !== null)
+    .filter(([, contact]) => contact.name !== null || contact.phone !== null
+      || (scope.extraFields?.includes('email') === true && contact.email !== null)
+      || (scope.extraFields?.includes('birth_date') === true && contact.birthDate != null))
     .map(([beneficiaryId]) => beneficiaryId)
     .sort();
   // 화면 조회 1건 = 감사 1행(D24·ADR-0005). 같은 화면이 실명·연락처 외에 다른 금고
@@ -20681,6 +20745,123 @@ export async function requestSupportCaseAssignment(
   };
 }
 
+/** D86: a worker asks only for themself; requested never grants content access. */
+export async function requestOwnSupportCaseAssignment(
+  env: Env, actor: Actor, supportCaseId: string, reasonInput: string,
+): Promise<SupportCaseAssignee> {
+  await assertPractitioner(env, actor);
+  if (env.installationMode === 'local-single') throw new ForbiddenError('assignment request is unavailable');
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  const reason = assignmentRequestReason(reasonInput);
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  if (supportCase.status !== 'active') throw new ConflictError('support case is closed');
+  const existing = await env.DB.prepare(
+    `SELECT id FROM support_case_assignees WHERE org_id = ? AND support_case_id = ? AND user_id = ?
+     AND unassigned_at IS NULL AND status IN ('requested', 'active')`,
+  ).bind(actor.orgId, supportCaseId, actor.userId).first();
+  if (existing !== null) throw new ConflictError('support case assignment already exists');
+  const id = newId();
+  const requestedAt = now();
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO support_case_assignees
+         (id, org_id, support_case_id, user_id, role, assigned_at, status, acceptance_requested_by, transfer_reason)
+         VALUES (?, ?, ?, ?, 'secondary', ?, 'requested', ?, ?)`,
+      ).bind(id, actor.orgId, supportCaseId, actor.userId, requestedAt, actor.userId, reason),
+      canonicalAuditStatement(env, actor, {
+        action: 'assign', targetTable: 'support_case_assignees', targetId: id,
+        beneficiaryId: supportCase.beneficiaryId, supportCaseId, detail: { workerRequest: true, reason, status: 'requested' },
+      }),
+    ]);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new ConflictError('support case assignment already exists');
+    throw error;
+  }
+  return { id, supportCaseId, userId: actor.userId, role: 'secondary', status: 'requested',
+    acceptanceRequestedBy: actor.userId, acceptedAt: null, transferReason: reason,
+    notifiedBy: null, notifiedAt: null, assignedAt: requestedAt, unassignedAt: null };
+}
+
+function assignmentRequestReason(value: string): string {
+  if (typeof value !== 'string') throw new ValidationError('assignment reason is required');
+  const reason = value.trim();
+  if (reason.length === 0 || reason.length > 500 || /[\r\n]/.test(reason)) throw new ValidationError('assignment reason must be one line');
+  return reason;
+}
+
+export type AssignmentRequestReview =
+  | { decision: 'coassign' | 'transfer' }
+  | { decision: 'reject'; reason: string };
+
+/** Role and request reason are immutable. Consume the request and create the approved assignment atomically. */
+export async function reviewSupportCaseAssignmentRequest(
+  env: Env, actor: Actor, supportCaseId: string, assignmentId: string, input: AssignmentRequestReview,
+): Promise<SupportCaseAssignee> {
+  await assertInstitutionAdmin(env, actor);
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
+  assertOpaqueIdentifier(assignmentId, 'assignment id');
+  if (!['coassign', 'transfer', 'reject'].includes(input.decision)) throw new ValidationError('assignment decision is invalid');
+  assertExactKeys(input, input.decision === 'reject' ? ['decision', 'reason'] : ['decision']);
+  const rejectionReason = input.decision === 'reject' ? assignmentRequestReason(input.reason) : null;
+  const supportCase = await getSupportCaseForOrg(env, actor.orgId, supportCaseId, { completeOnly: true });
+  const row = await env.DB.prepare(
+    'SELECT * FROM support_case_assignees WHERE id = ? AND org_id = ? AND support_case_id = ?',
+  ).bind(assignmentId, actor.orgId, supportCaseId).first<DbRow>();
+  if (row === null || row.acceptance_requested_by !== row.user_id || nullableString(row.transfer_reason) === null) {
+    throw new ForbiddenError('worker assignment request is unavailable');
+  }
+  if (row.status !== 'requested' || row.unassigned_at !== null) throw new ConflictError('assignment request was already reviewed');
+  const userId = stringValue(row.user_id);
+  if (input.decision !== 'reject') {
+    if (supportCase.status !== 'active') throw new ConflictError('support case is closed');
+    await assertActivePractitionerUser(env, actor.orgId, userId);
+  }
+  const reviewedAt = now();
+  const marker = newId();
+  const activeId = input.decision === 'reject' ? null : newId();
+  const role = input.decision === 'transfer' ? 'primary' : 'secondary';
+  const claimed = {
+    sql: "SELECT 1 FROM support_case_assignees WHERE id = ? AND org_id = ? AND operation_marker = ? AND status = 'ended'",
+    bindings: [assignmentId, actor.orgId, marker],
+  };
+  const batch: PreparedStatement[] = [
+    env.DB.prepare(
+      `UPDATE support_case_assignees SET status = 'ended', unassigned_at = ?, operation_marker = ?
+       WHERE id = ? AND org_id = ? AND support_case_id = ? AND status = 'requested' AND unassigned_at IS NULL`,
+    ).bind(reviewedAt, marker, assignmentId, actor.orgId, supportCaseId),
+  ];
+  if (input.decision === 'transfer') {
+    batch.push(env.DB.prepare(
+      `UPDATE support_case_assignees SET status = 'ended', unassigned_at = ?, transfer_reason = COALESCE(transfer_reason, ?)
+       WHERE org_id = ? AND support_case_id = ? AND status = 'active' AND unassigned_at IS NULL
+       AND EXISTS (${claimed.sql})`,
+    ).bind(reviewedAt, stringValue(row.transfer_reason), actor.orgId, supportCaseId, ...claimed.bindings));
+  }
+  if (activeId !== null) {
+    batch.push(env.DB.prepare(
+      `INSERT INTO support_case_assignees
+       (id, org_id, support_case_id, user_id, role, assigned_at, status, acceptance_requested_by, accepted_at)
+       SELECT ?, ?, ?, ?, ?, ?, 'active', ?, ? WHERE EXISTS (${claimed.sql})`,
+    ).bind(activeId, actor.orgId, supportCaseId, userId, role, reviewedAt, userId, reviewedAt, ...claimed.bindings));
+  }
+  batch.push(conditionalCanonicalAuditStatement(env, actor, {
+    action: 'update', targetTable: 'support_case_assignees', targetId: assignmentId,
+    beneficiaryId: supportCase.beneficiaryId, supportCaseId,
+    detail: { workerRequest: true, decision: input.decision, ...(rejectionReason === null ? {} : { reason: rejectionReason }), activeAssignmentId: activeId },
+  }, { sql: claimed.sql, bindings: claimed.bindings }, reviewedAt));
+  try {
+    const results = await env.DB.batch(batch);
+    if ((results[0]?.meta.changes ?? 0) !== 1) throw new ConflictError('assignment request was already reviewed');
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new ConflictError('support case assignment changed');
+    throw error;
+  }
+  if (activeId === null) return { ...mapSupportCaseAssignee(row), status: 'ended', unassignedAt: reviewedAt };
+  return { id: activeId, supportCaseId, userId, role, status: 'active', acceptanceRequestedBy: userId,
+    acceptedAt: reviewedAt, transferReason: null, notifiedBy: null, notifiedAt: null, assignedAt: reviewedAt, unassignedAt: null };
+}
+
 /** 이관 수락 (CCC-123 · 정책 §2.3). 배정된 실무자 본인만, status='requested' 행만. */
 export async function acceptSupportCaseAssignment(
   env: Env,
@@ -20698,6 +20879,9 @@ export async function acceptSupportCaseAssignment(
   ).bind(assignmentId, actor.orgId, actor.userId, supportCaseId).first<DbRow>();
   if (row === null) {
     throw new ForbiddenError('support case assignment is unavailable');
+  }
+  if (row.acceptance_requested_by === row.user_id && nullableString(row.transfer_reason) !== null) {
+    throw new ForbiddenError('worker request requires institution admin review');
   }
   const acceptedAt = now();
   const operationMarker = newId();
