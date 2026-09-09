@@ -153,17 +153,19 @@ _BUILDING_NAME = (
 )
 _UNIT = r"(?:\d{1,4}동(?:\s*\d{1,5}호)?|\d{1,5}호)"
 _ADDRESS_END = _REGION_END
+_LOT_NUMBER = r"\d{1,5}(?:-\d{1,5})?(?:번지)?"
+_ROAD_BRANCH = r"(?:\s+\d{1,3}(?:번)?길)?"
 _ROAD_ADDRESS = (
-    rf"{_ADMIN_PREFIX}{_ROAD_NAME}\s*\d{{1,5}}(?:-\d{{1,5}})?"
+    rf"{_ADMIN_PREFIX}{_ROAD_NAME}{_ROAD_BRANCH}\s*{_LOT_NUMBER}"
     rf"(?:\s+(?:{_BUILDING_NAME}|{_UNIT})){{0,3}}"
 )
 _LOT_ADDRESS = (
     rf"{_ADMIN_PREFIX}[가-힣]{{1,12}}(?:읍|면|동|리)\s*(?:산\s*)?"
-    rf"\d{{1,5}}(?:-\d{{1,5}})?(?:\s+{_UNIT})?"
+    rf"{_LOT_NUMBER}(?:\s+{_UNIT})?"
 )
 _ADMIN_LOT_ADDRESS = (
     rf"(?:{_METRO}\s*)?(?:{_NON_METRO_LOCAL_ADMIN}\s*){{1,3}}(?:산\s*)?"
-    rf"\d{{1,5}}(?:-\d{{1,5}})?(?:\s+{_UNIT})?"
+    rf"{_LOT_NUMBER}(?:\s+{_UNIT})?"
 )
 _BUILDING_ADDRESS = rf"{_ADMIN_PREFIX}{_BUILDING_NAME}(?:\s*{_UNIT}){{0,2}}"
 _UNIT_PAIR = r"\d{1,4}동\s*\d{1,5}호"
