@@ -1,16 +1,32 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PreparedStatement } from '@ccc/contracts/database';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './support/local-worker';
 import {
+  abandonRecordingUpload,
+  admitRecordingUpload,
+  appendSupportCaseConsentEvent,
+  authorizeRecordingUploadStream,
+  beginRecordingUploadIntent,
+  completeRecordingUploadStorageWrite,
   ConflictError,
   createCase,
   createManualSession,
+  getSupportCaseConsent,
+  issueSupportCaseConsentDisclosures,
+  recordSttReadiness,
   registerRecording,
+  reconcileAudioObjectDeletion,
   type Actor,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
-import { agentManifestEnv, claimOverHttp } from './support/agent-jobs';
+import {
+  agentManifestEnv,
+  claimOverHttp,
+  LOCAL_SINGLE_RUNTIME,
+  registerFixtureRecording,
+  seedCanonicalSttConsent,
+} from './support/agent-jobs';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -68,9 +84,15 @@ const otherOrgServiceHeaders = {
 const AUDIO_BYTES = new Uint8Array([0x49, 0x44, 0x33, 0x04, 0x00, 0x11, 0x22, 0x33]);
 
 const t = setupD1();
+let configuredEnv: ApiEnv;
+beforeAll(async () => {
+  await t.reset();
+  configuredEnv = await agentManifestEnv(t.env, { stt: 'local' });
+});
 
-function localEnv() {
-  return t.env;
+function localEnv(): ApiEnv {
+  Object.assign(configuredEnv, t.env);
+  return configuredEnv;
 }
 
 async function makeInPersonSession(consent: boolean) {
@@ -82,6 +104,19 @@ async function makeInPersonSession(consent: boolean) {
     memo: 'MEMO_AUDIO_DEMO',
     gasScores: [],
   });
+  await recordSttReadiness(localEnv(), service, {
+    schemaVersion: 1,
+    sttMode: 'local',
+    sttEngineId: 'qwen3-asr',
+    state: 'ready',
+    capacity: 1,
+  });
+  if (consent) {
+    const scope = await t.db.prepare('SELECT support_case_id FROM sessions WHERE id=?')
+      .bind(session.id).first<{ support_case_id: string }>();
+    if (scope === null) throw new Error('expected support case scope');
+    await seedCanonicalSttConsent(localEnv(), counselor, scope.support_case_id);
+  }
   return { caseRecord, session };
 }
 
@@ -95,11 +130,16 @@ async function putAudio(
   if (!requestHeaders.has('content-length') && body instanceof Uint8Array) {
     requestHeaders.set('content-length', String(body.byteLength));
   }
-  return worker.fetch(new Request('http://localhost/sessions/' + sessionId + '/audio', {
+  const response = await worker.fetch(new Request('http://localhost/sessions/' + sessionId + '/audio', {
     method: 'PUT',
     headers: requestHeaders,
     body,
   }), env);
+  if (response.status === 200) {
+    await env.DB.prepare('UPDATE audio_objects SET eligible_after=? WHERE session_id=?')
+      .bind(new Date(Date.now() - 1000).toISOString(), sessionId).run();
+  }
+  return response;
 }
 
 async function bucketCount(): Promise<number> {
@@ -173,7 +213,7 @@ describe('audio upload and relay', () => {
     const { session } = await makeInPersonSession(true);
 
     const response = await putAudio(session.id, env);
-    expect(response.status).toBe(200);
+    expect(response.status, await response.clone().text()).toBe(200);
     expect(await response.json()).not.toHaveProperty('audioR2Key');
 
     expect(await bucketCount()).toBe(1);
@@ -181,6 +221,131 @@ describe('audio upload and relay', () => {
     const sessionResponse = await worker.fetch(new Request('http://localhost/sessions/' + session.id, { headers: counselorHeaders }), env);
     expect(sessionResponse.status).toBe(200);
     expect(await sessionResponse.json()).toMatchObject({ aiStatus: 'uploaded' });
+  });
+
+  it('keeps a durable deletion record when local audio storage fails after admission', async () => {
+    await t.reset();
+    const env = localEnv();
+    const { session } = await makeInPersonSession(true);
+    const putFailure = vi.spyOn(env.audioStore, 'put')
+      .mockRejectedValueOnce(new Error('synthetic storage failure'));
+
+    const response = await putAudio(session.id, env);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: 'internal_error' });
+    await expect(t.db.prepare(
+      `SELECT state,deletion_reason FROM audio_objects
+       WHERE org_id=? AND session_id=?`,
+    ).bind(counselor.orgId, session.id).all()).resolves.toMatchObject({
+      results: [{
+        state: 'upload_abandoned',
+        deletion_reason: 'rejected_upload',
+      }],
+    });
+    expect(await bucketCount()).toBe(0);
+    putFailure.mockRestore();
+  });
+
+  it('deletes a stream that commits after consent withdrawal already proved the key absent', async () => {
+    await t.reset();
+    const env = localEnv();
+    const { session } = await makeInPersonSession(true);
+    const scope = await t.db.prepare(
+      'SELECT support_case_id FROM sessions WHERE id=? AND org_id=?',
+    ).bind(session.id, counselor.orgId).first<{ support_case_id: string }>();
+    if (scope === null) throw new Error('expected support case scope');
+    const admission = await admitRecordingUpload(env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
+    const uploadExpiresAt = new Date(Date.now() + 60_000).toISOString();
+    const intent = await beginRecordingUploadIntent(
+      env, counselor, session.id, admission, 'api-stream', {
+        contentLength: AUDIO_BYTES.byteLength,
+        contentType: 'audio/mpeg',
+        clientAssertedSha256: null,
+        storageSha256: null,
+        uploadExpiresAt,
+      },
+    );
+    await authorizeRecordingUploadStream(env, counselor, session.id, intent.audioObjectId, admission);
+    const current = (await getSupportCaseConsent(env, counselor, scope.support_case_id))
+      .find((item) => item.domain === 'counseling_recording');
+    const disclosure = (await issueSupportCaseConsentDisclosures(env, counselor, scope.support_case_id))
+      .find((item) => item.domain === 'counseling_recording');
+    if (current?.state !== 'granted' || current.revision === null || disclosure === undefined) {
+      throw new Error('expected current recording consent');
+    }
+    await appendSupportCaseConsentEvent(env, counselor, scope.support_case_id, {
+      domain: 'counseling_recording',
+      decision: 'withdraw',
+      provider: current.provider,
+      providerLegalRecipient: current.providerLegalRecipient,
+      providerCountry: current.providerCountry,
+      purpose: current.purpose,
+      retentionDuration: current.retentionDuration,
+      copyVersion: disclosure.copyVersion,
+      copyHash: disclosure.copyHash,
+      disclosureSnapshotId: disclosure.snapshotId,
+      effectiveAt: new Date().toISOString(),
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: current.revision,
+    });
+    await expect(reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId))
+      .resolves.toBe(false);
+    await expect(t.db.prepare(
+      'SELECT state,generation_id FROM audio_objects WHERE id=?',
+    ).bind(intent.audioObjectId).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      generation_id: expect.stringMatching(/^pending:/),
+    });
+
+    const stored = await env.audioStore.put(intent.key, new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(AUDIO_BYTES);
+        controller.close();
+      },
+    }), {
+      contentLength: AUDIO_BYTES.byteLength,
+      contentType: 'audio/mpeg',
+      expiresAt: uploadExpiresAt,
+    });
+    await t.db.prepare(
+      'UPDATE audio_objects SET upload_expires_at=?,next_attempt_at=? WHERE id=?',
+    ).bind(
+      new Date(Date.now() - 120_000).toISOString(),
+      new Date(Date.now() - 1000).toISOString(),
+      intent.audioObjectId,
+    ).run();
+    await expect(reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId))
+      .resolves.toBe(false);
+    expect(await bucketCount()).toBe(0);
+    await expect(t.db.prepare(
+      'SELECT state,generation_id FROM audio_objects WHERE id=?',
+    ).bind(intent.audioObjectId).first()).resolves.toMatchObject({
+      state: 'deletion_pending',
+      generation_id: expect.stringMatching(/^pending:/),
+    });
+    await completeRecordingUploadStorageWrite(
+      env, counselor, session.id, intent.audioObjectId, stored.generationId, stored.sha256,
+    );
+    await expect(registerRecording(env, counselor, session.id, intent.key, admission, {
+      contentLength: AUDIO_BYTES.byteLength,
+      contentType: 'audio/mpeg',
+      clientAssertedSha256: null,
+      storageSha256: stored.sha256,
+      generationId: stored.generationId,
+      uploadExpiresAt,
+    }, intent.audioObjectId)).rejects.toThrow();
+    await abandonRecordingUpload(env, counselor, intent.audioObjectId, 'consent_withdrawal');
+    await expect(reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId))
+      .resolves.toBe(true);
+    expect(await bucketCount()).toBe(0);
+    await expect(t.db.prepare(
+      'SELECT state,generation_id,deletion_reason FROM audio_objects WHERE id=?',
+    ).bind(intent.audioObjectId).first()).resolves.toMatchObject({
+      state: 'unprocessed_expired',
+      generation_id: stored.generationId,
+      deletion_reason: 'consent_withdrawal',
+    });
   });
 
   it('다운로드가 원본 바이트를 그대로 돌려주고 감사를 남긴다 (CCC-94 녹음 보관함 왕복)', async () => {
@@ -207,6 +372,19 @@ describe('audio upload and relay', () => {
   it('rechecks the practitioner role inside the recording mutation batch', async () => {
     await t.reset();
     const { session } = await makeInPersonSession(true);
+    const scope = await t.db.prepare(
+      'SELECT support_case_id FROM sessions WHERE id = ? AND org_id = ?',
+    ).bind(session.id, counselor.orgId).first<{ support_case_id: string }>();
+    if (scope === null) throw new Error('expected support case scope');
+    await seedCanonicalSttConsent(t.env, counselor, scope.support_case_id);
+    await recordSttReadiness(t.env, service, {
+      schemaVersion: 1,
+      sttMode: 'local',
+      sttEngineId: 'qwen3-asr',
+      state: 'ready',
+      capacity: 1,
+    });
+    const admission = await admitRecordingUpload(t.env, counselor, session.id, LOCAL_SINGLE_RUNTIME);
     let intercepted = false;
     const raceDb = new Proxy(t.env.DB, {
       get(target, property, receiver) {
@@ -231,7 +409,17 @@ describe('audio upload and relay', () => {
       { ...t.env, DB: raceDb },
       counselor,
       session.id,
-      'audio/race/revoked-practitioner',
+      `audio/${session.id}/${crypto.randomUUID()}`,
+      admission,
+      {
+        contentLength: 1,
+        contentType: 'audio/wav',
+        clientAssertedSha256: null,
+        storageSha256: null,
+        generationId: crypto.randomUUID(),
+        uploadExpiresAt: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+      },
+      null,
     )).rejects.toBeInstanceOf(ConflictError);
     await expect(recordingState(session.id)).resolves.toEqual({
       audio_r2_key: null,
@@ -331,7 +519,10 @@ describe('audio upload and relay', () => {
     const before = await recordingState(session.id);
     const putSpy = vi.spyOn(t.bucket, 'put');
     const response = await putAudio(session.id, env);
-    await expectDeniedAudioRequest(response, session.id, { status: 400, body: { error: 'invalid_request' } }, 0, before);
+    await expectDeniedAudioRequest(response, session.id, {
+      status: 409,
+      body: { error: 'consent_not_effective' },
+    }, 0, before);
     expect(putSpy).not.toHaveBeenCalled();
     putSpy.mockRestore();
   });
@@ -438,8 +629,9 @@ describe('audio upload and relay', () => {
     await t.reset();
     const env = localEnv();
     const { session } = await makeInPersonSession(true);
-    // /recording은 D1 키만 등록하고 R2에는 아무것도 올리지 않는다.
-    await registerRecording(t.env, counselor, session.id, 'audio/missing/object-key');
+    const recording = await registerFixtureRecording(t.env, counselor, service, session.id);
+    // 정상 등록된 합성 객체를 저장소에서만 지워 DB와 원음 저장소의 불일치를 재현한다.
+    await t.bucket.delete(recording.key);
 
     const { response: relay, jobId } = await relayAudio(env, session.id);
     expect(relay.status).toBe(404);

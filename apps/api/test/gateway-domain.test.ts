@@ -54,7 +54,6 @@ import {
   registerAiProviderConfiguration,
   registerPii,
   revealPii,
-  registerRecording,
   rejectGeneratedAiDraft,
   reviewGeneratedAiDraft,
   reRegisterParticipantPii,
@@ -70,6 +69,7 @@ import {
   updateCaseExtra,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { registerFixtureRecording, seedCanonicalSttConsent } from './support/agent-jobs';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -113,11 +113,24 @@ async function seedCanonicalDirectory(): Promise<void> {
   ).run();
 }
 
-/** CCC-110: 사용 허용은 support_cases.consent_text_ai_at 이 결정한다 — 근거 행과 별개로 세운다. */
-async function grantCurrentTextAiConsent(caseId: string): Promise<void> {
-  await t.db.prepare(
-    'UPDATE support_cases SET consent_text_ai_at = ? WHERE legacy_case_id = ? OR id = ?',
-  ).bind('2026-01-01T00:00:00.000Z', caseId, caseId).run();
+async function seedCanonicalLlmConsent(caseId: string): Promise<string> {
+  const scope = await t.db.prepare(
+    'SELECT id FROM support_cases WHERE org_id = ? AND (legacy_case_id = ? OR id = ?)',
+  ).bind(counselor.orgId, caseId, caseId).first<{ id: string }>();
+  if (scope === null) throw new Error('expected canonical support case scope');
+  await seedCanonicalSttConsent(t.env, counselor, scope.id, [
+    'personal_data_collection_use',
+    'sensitive_information_processing',
+    'external_llm_cross_border_processing',
+  ]);
+  const consent = await t.db.prepare(
+    `SELECT id, decision FROM consent_events
+     WHERE org_id = ? AND support_case_id = ?
+       AND domain = 'external_llm_cross_border_processing' AND decision <> 'correct'
+     ORDER BY event_sequence DESC, id DESC LIMIT 1`,
+  ).bind(counselor.orgId, scope.id).first<{ id: string; decision: string }>();
+  if (consent?.decision !== 'grant') throw new Error('expected current canonical external LLM grant');
+  return consent.id;
 }
 async function enablePilotForCase(caseId: string): Promise<void> {
   t.env.TEXT_AI_PILOT_ENABLED = '1';
@@ -128,7 +141,7 @@ async function enablePilotForCase(caseId: string): Promise<void> {
     evidenceSha256: 'f'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
-  await grantCurrentTextAiConsent(caseId);
+  await seedCanonicalLlmConsent(caseId);
 }
 const PILOT_SOURCE_SEEDS = [
   {
@@ -265,14 +278,14 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
     memo: 'MANUAL_OFFICIAL_MEMO',
     gasScores: [],
   });
-  const consent = await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
+  await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
     noticeVersion: 'pilot-text-ai-v1',
     noticeSha256: SHA256,
     evidenceRef: OFFICIAL_CANARIES.consent,
     evidenceSha256: 'e'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
-  await grantCurrentTextAiConsent(caseRecord.id);
+  await seedCanonicalLlmConsent(caseRecord.id);
   const source = await seedMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
@@ -310,15 +323,19 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
     'SELECT support_case_id FROM sessions WHERE id = ? AND org_id = ?',
   ).bind(session.id, counselor.orgId).first<{ support_case_id: string }>();
   if (sessionScope === null) throw new Error('expected canonical session scope');
+  const consentSelection = await getActiveAiProviderRuntimeMetadataForService(
+    t.env, service, session.id,
+  );
   await t.db.prepare(
     'INSERT INTO ai_work_items (id, org_id, support_case_id, session_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   ).bind(workItemId, counselor.orgId, sessionScope.support_case_id, session.id, 'text_ai_briefing', createdAt).run();
   await t.db.prepare(
     `INSERT INTO ai_draft_versions (
       id, work_item_id, version, parent_version_id, summary_text, one_liner, questions_json,
-      source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
+      source_snapshot_id, source_snapshot_hash, consent_evidence_id, consent_revision,
+      consent_receipt_json, provider_config_id, model_id, prompt_version, schema_version,
       origin, creation_mode, grounding_status, created_by, created_at
-    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
   ).bind(
     draftId,
     workItemId,
@@ -327,7 +344,9 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
     JSON.stringify(['상황 일정에 변동이 있었나요?', '주거비 변화가 있었나요?']),
     source.snapshotId,
     source.snapshotHash,
-    consent.id,
+    consentSelection.consentEvidenceId,
+    consentSelection.consentRevision,
+    JSON.stringify(consentSelection.consentReceipt),
     config.id,
     OFFICIAL_CANARIES.providerModel,
     'provider-prompt-v1',
@@ -399,7 +418,7 @@ async function createReviewReadySession() {
     gasScores: [{ goalId: goal.id, score: 0 }],
   });
 
-  await registerRecording(t.env, counselor, session.id, 'audio/demo/session-1');
+  await registerFixtureRecording(t.env, counselor, service, session.id);
   const config = await registerAiProviderConfiguration(t.env, admin, {
     adapterId: 'codex',
     adapterVersion: 'v1',
@@ -434,6 +453,8 @@ async function createReviewReadySession() {
     ...singleTextMaterialInput(source.snapshotId, source.snapshotHash),
     providerConfigId: selection.providerConfigId,
     consentEvidenceId: selection.consentEvidenceId,
+    consentRevision: selection.consentRevision,
+    consentReceipt: selection.consentReceipt,
     modelId: 'gpt-5-codex',
     promptVersion: 'prompt-v1',
     schemaVersion: 'schema-v1',
@@ -539,7 +560,7 @@ async function createPilotDraft(
     evidenceSha256: 'c'.repeat(64),
     effectiveAt: '2026-01-01T00:00:00.000Z',
   });
-  await grantCurrentTextAiConsent(caseRecord.id);
+  await seedCanonicalLlmConsent(caseRecord.id);
   const source = await seedMaskedSourceSnapshot(
     caseRecord.id,
     session.id,
@@ -577,6 +598,8 @@ async function createPilotDraft(
     ...singleTextMaterialInput(source.snapshotId, source.snapshotHash),
     providerConfigId: selection.providerConfigId,
     consentEvidenceId: selection.consentEvidenceId,
+    consentRevision: selection.consentRevision,
+    consentReceipt: selection.consentReceipt,
     modelId: 'gpt-5-codex',
     promptVersion: 'prompt-v1',
     schemaVersion: 'schema-v1',
@@ -2402,7 +2425,6 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
     seedKey: string,
     suggestions: Array<{ title: string; reason: string }>,
     configId: string,
-    consentId: string,
   ): Promise<{ workItemId: string }> {
     const source = await seedMaskedSourceSnapshot(caseId, sessionId, `${seedKey}-source`, [
       { key: 'main', sourceRef: `memo:${seedKey}`, evidenceQuote: `MASKED_${seedKey}_EVIDENCE` },
@@ -2413,6 +2435,9 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
       'SELECT support_case_id FROM sessions WHERE id = ? AND org_id = ?',
     ).bind(sessionId, counselor.orgId).first<{ support_case_id: string }>();
     if (sessionScope === null) throw new Error('expected session scope');
+    const consentSelection = await getActiveAiProviderRuntimeMetadataForService(
+      t.env, service, sessionId,
+    );
 
     const workItemId = `${seedKey}-work`;
     const draftId = `${seedKey}-draft`;
@@ -2423,9 +2448,10 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
     await t.db.prepare(
       `INSERT INTO ai_draft_versions (
         id, work_item_id, version, parent_version_id, summary_text, questions_json,
-        source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
+        source_snapshot_id, source_snapshot_hash, consent_evidence_id, consent_revision,
+        consent_receipt_json, provider_config_id, model_id, prompt_version, schema_version,
         origin, creation_mode, grounding_status, created_by, created_at
-      ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+      ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
     ).bind(
       draftId,
       workItemId,
@@ -2433,7 +2459,9 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
       JSON.stringify(suggestions),
       source.snapshotId,
       source.snapshotHash,
-      consentId,
+      consentSelection.consentEvidenceId,
+      consentSelection.consentRevision,
+      JSON.stringify(consentSelection.consentReceipt),
       configId,
       'gpt-5-codex',
       'provider-prompt-v2',
@@ -2473,14 +2501,14 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
     });
     await activateAiProviderConfiguration(t.env, admin, config.id);
     const caseRecord = await createCase(t.env, counselor, {});
-    const consent = await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
+    await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
       noticeVersion: 'pilot-text-ai-v1',
       noticeSha256: SHA256,
       evidenceRef: 'r2://opaque-suggestion-consent',
       evidenceSha256: 'a'.repeat(64),
       effectiveAt: '2026-01-01T00:00:00.000Z',
     });
-    await grantCurrentTextAiConsent(caseRecord.id);
+    await seedCanonicalLlmConsent(caseRecord.id);
     const olderSession = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '01000000-0000-4000-8000-000000000011',
       heldAt: '2026-01-02T10:00:00.000Z',
@@ -2498,12 +2526,12 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
     const olderDraft = await seedStructuredDraft(caseRecord.id, olderSession.id, 'sugg-older', [
       { title: 'OLDER_TITLE_1', reason: 'OLDER_REASON_1' },
       { title: 'OLDER_TITLE_2', reason: 'OLDER_REASON_2' },
-    ], config.id, consent.id);
+    ], config.id);
     const newerDraft = await seedStructuredDraft(caseRecord.id, newerSession.id, 'sugg-newer', [
       { title: 'NEWER_TITLE_1', reason: 'NEWER_REASON_1' },
       { title: 'NEWER_TITLE_2', reason: 'NEWER_REASON_2' },
       { title: 'NEWER_TITLE_3', reason: 'NEWER_REASON_3' },
-    ], config.id, consent.id);
+    ], config.id);
     const scope = await t.db.prepare(
       'SELECT id, beneficiary_id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
     ).bind(caseRecord.id, counselor.orgId).first<{ id: string; beneficiary_id: string }>();

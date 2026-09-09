@@ -21,6 +21,7 @@ AZURE_STT_ENDPOINT = (
     "https://koreacentral.api.cognitive.microsoft.com/"
     "speechtotext/transcriptions:transcribe?api-version=2025-10-15"
 )
+AZURE_TOKEN_ENDPOINT = "https://koreacentral.api.cognitive.microsoft.com/sts/v1.0/issueToken"
 MAX_AUDIO_BYTES = 250_000_000
 MAX_AUDIO_SECONDS = 2 * 60 * 60
 _TIMEOUT_SECONDS = 120
@@ -39,6 +40,42 @@ class AzureSttError(Exception):
         self.code = code
         self.transient = transient
         self.status = status
+
+
+def preflight_azure(api_key: str) -> None:
+    """Authenticate in Korea Central without sending audio or retaining the issued token."""
+    if not isinstance(api_key, str) or api_key.strip() == "":
+        raise AzureSttError("credential_unavailable")
+    request = urllib.request.Request(
+        AZURE_TOKEN_ENDPOINT,
+        data=b"",
+        headers={
+            "Ocp-Apim-Subscription-Key": api_key,
+            "Content-Length": "0",
+        },
+        method="POST",
+    )
+    opener = urllib.request.build_opener(_RejectRedirects())
+    try:
+        with opener.open(request, timeout=_TIMEOUT_SECONDS) as response:
+            status = getattr(response, "status", None)
+            token = response.read(16 * 1024 + 1)
+    except urllib.error.HTTPError as error:
+        status = error.code
+        error.close()
+        raise AzureSttError(
+            "preflight_failed",
+            transient=status == 429 or status >= 500,
+            status=status,
+        ) from None
+    except (TimeoutError, urllib.error.URLError, OSError, http.client.HTTPException):
+        raise AzureSttError("preflight_failed", transient=True) from None
+    if status != 200 or not token or len(token) > 16 * 1024:
+        raise AzureSttError(
+            "preflight_failed",
+            transient=isinstance(status, int) and (status == 429 or status >= 500),
+            status=status if isinstance(status, int) else None,
+        )
 
 
 class _RejectRedirects(urllib.request.HTTPRedirectHandler):

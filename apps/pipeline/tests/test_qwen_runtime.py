@@ -9,6 +9,7 @@ import subprocess
 import sys
 import venv
 import unittest
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -22,6 +23,49 @@ from ccc_pipeline.qwen_runtime import (
     qwen_segments,
     validate_qwen_device,
 )
+
+def qwen_snapshot_fixture(root: Path, index_files: list[str] | None = None):
+    asr = root / "asr"
+    aligner = root / "aligner"
+    asr.mkdir()
+    aligner.mkdir()
+    shards = {
+        "model-00001-of-00002.safetensors": b"first",
+        "model-00002-of-00002.safetensors": b"second",
+    }
+    for name, content in shards.items():
+        (asr / name).write_bytes(content)
+    mapped_files = index_files or list(shards)
+    index = json.dumps({
+        "metadata": {"total_size": sum(len(content) for content in shards.values())},
+        "weight_map": {f"layer.{index}": name for index, name in enumerate(mapped_files)},
+    }, sort_keys=True).encode()
+    (asr / "model.safetensors.index.json").write_bytes(index)
+    aligner_weight = b"aligner"
+    (aligner / "model.safetensors").write_bytes(aligner_weight)
+    models = [
+        {
+            "name": "Qwen/Qwen3-ASR-1.7B",
+            "revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+            "files": [
+                *[{"name": name, "sha256": hashlib.sha256(content).hexdigest()} for name, content in shards.items()],
+                {"name": "model.safetensors.index.json", "sha256": hashlib.sha256(index).hexdigest()},
+            ],
+        },
+        {
+            "name": "Qwen/Qwen3-ForcedAligner-0.6B",
+            "revision": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7",
+            "files": [{
+                "name": "model.safetensors",
+                "sha256": hashlib.sha256(aligner_weight).hexdigest(),
+            }],
+        },
+    ]
+
+    def download(**kwargs):
+        return str(asr if kwargs["repo_id"] == "Qwen/Qwen3-ASR-1.7B" else aligner)
+
+    return models, download, asr
 
 
 class _Input(io.BytesIO):
@@ -92,31 +136,27 @@ class QwenModelBoundaryTest(unittest.TestCase):
 
     def test_wrong_weight_hash_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as root:
-            snapshot = Path(root)
-            weight = snapshot / "model.safetensors"
-            weight.write_bytes(b"wrong")
-            models = [
-                {
-                    "name": "Qwen/Qwen3-ASR-1.7B",
-                    "revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
-                    "files": [
-                        {"name": "model-00001-of-00002.safetensors", "sha256": "0" * 64},
-                        {
-                            "name": "model-00002-of-00002.safetensors",
-                            "sha256": hashlib.sha256(b"second").hexdigest(),
-                        },
-                    ],
-                },
-                {
-                    "name": "Qwen/Qwen3-ForcedAligner-0.6B",
-                    "revision": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7",
-                    "files": [{"name": "model.safetensors", "sha256": hashlib.sha256(weight.read_bytes()).hexdigest()}],
-                },
-            ]
-            (snapshot / "model-00001-of-00002.safetensors").write_bytes(b"tampered")
-            (snapshot / "model-00002-of-00002.safetensors").write_bytes(b"second")
+            models, download, asr = qwen_snapshot_fixture(Path(root))
+            (asr / "model-00001-of-00002.safetensors").write_bytes(b"tampered")
             with self.assertRaisesRegex(QwenRuntimeError, "model_hash_mismatch"):
-                prepare_qwen_models(models, snapshot_download=lambda **_kwargs: str(snapshot))
+                prepare_qwen_models(models, snapshot_download=download)
+
+    def test_competing_checkpoint_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            models, download, asr = qwen_snapshot_fixture(Path(root))
+            (asr / "model.safetensors").write_bytes(b"unapproved")
+            with self.assertRaisesRegex(QwenRuntimeError, "model_snapshot_ambiguous"):
+                prepare_qwen_models(models, snapshot_download=download)
+
+    def test_index_cannot_redirect_to_an_unapproved_shard(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            models, download, asr = qwen_snapshot_fixture(Path(root), [
+                "model-00001-of-00002.safetensors",
+                "alternative.safetensors",
+            ])
+            (asr / "alternative.safetensors").write_bytes(b"unapproved")
+            with self.assertRaisesRegex(QwenRuntimeError, "model_index_invalid"):
+                prepare_qwen_models(models, snapshot_download=download)
 
     def test_invalid_child_request_never_reaches_inference(self) -> None:
         infer = mock.Mock()
@@ -191,6 +231,51 @@ class QwenIpcTest(unittest.TestCase):
         popen = patcher.start()
         self.addCleanup(patcher.stop)
         return QwenEngine(self.python, "cpu"), popen
+
+    def test_start_performs_real_child_initialization_without_audio(self) -> None:
+        process = _Process([{"type": "ready"}, {"type": "closed"}])
+        engine, popen = self.engine(process)
+
+        engine.start()
+        self.assertTrue(engine.is_ready())
+        engine.close()
+        self.assertFalse(engine.is_ready())
+
+        popen.assert_called_once()
+        self.assertEqual(process.stdin.getvalue(), b'{"type":"close"}\n')
+
+    def test_readiness_remains_responsive_during_inference(self) -> None:
+        engine, _ = self.engine(_Process([{"type": "ready"}, {"type": "closed"}]))
+        engine.start()
+        inference_started = threading.Event()
+        finish_inference = threading.Event()
+        readiness_returned = threading.Event()
+        readiness = []
+
+        def receive(_timeout):
+            inference_started.set()
+            if not finish_inference.wait(5):
+                raise RuntimeError("inference release timed out")
+            return {"id": 1, "segments": []}
+
+        def read_readiness():
+            readiness.append(engine.is_ready())
+            readiness_returned.set()
+
+        with mock.patch.object(engine, "_receive", side_effect=receive):
+            inference = threading.Thread(target=engine, args=(str(self.audio),))
+            inference.start()
+            self.assertTrue(inference_started.wait(1))
+            reader = threading.Thread(target=read_readiness)
+            reader.start()
+            try:
+                self.assertTrue(readiness_returned.wait(1), "readiness blocked behind inference")
+                self.assertEqual(readiness, [True])
+            finally:
+                finish_inference.set()
+                inference.join(2)
+                reader.join(2)
+        engine.close()
 
 
     def test_missing_interpreter_fails_without_starting_a_child(self) -> None:

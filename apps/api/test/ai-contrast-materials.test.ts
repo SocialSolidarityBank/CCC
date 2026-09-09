@@ -31,7 +31,7 @@ import {
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { setupD1 } from './support/d1';
-import { agentManifestEnv, agentResultRequest, claimOverHttp } from './support/agent-jobs';
+import { agentManifestEnv, agentResultRequest, claimOverHttp, registerFixtureRecording } from './support/agent-jobs';
 
 const t = setupD1();
 
@@ -421,6 +421,7 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: '1',
+    CCC_LLM_MODE: 'openai',
     AI_PROVIDER_ADAPTER: adapter,
   };
   const caseRecord = await createCase(t.env, counselor, {
@@ -434,7 +435,7 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
     memo: '수기 메모: 관리비 체납 이야기가 나왔다.',
     gasScores: [],
   });
-  await registerRecording(t.env, counselor, session.id, `audio/${session.id}/fixture`);
+  await registerFixtureRecording(t.env, counselor, service, session.id);
 
   const consent = await worker.fetch(new Request(
     `http://localhost/cases/${caseRecord.id}/pilot-text-ai-consent`,
@@ -468,12 +469,41 @@ async function postTextSnapshot(env: ApiEnv, sessionId: string, maskedText = TEX
   return { sourceSnapshotId: snapshot.id, sha256: snapshot.sha256 };
 }
 
-/** 녹음 결과는 claim 한 오디오 작업의 결과로만 들어온다 (S5). */
+/** 녹음 결과는 오디오를 claim·읽기·검증한 작업의 결과로만 들어온다 (S5). */
 async function postRecordingResult(env: ApiEnv, sessionId: string): Promise<Response> {
   const agentEnv = await agentManifestEnv(env, { stt: 'local' });
   const { jobs, qualification } = await claimOverHttp(agentEnv, t.db);
   const job = jobs.find((candidate) => candidate.kind === 'audio' && candidate.sessionId === sessionId);
-  if (job === undefined) throw new Error('expected a claimable audio job');
+  if (job === undefined || job.audio === null) throw new Error('expected a claimable audio job');
+  const audioResponse = await worker.fetch(new Request(
+    `http://localhost/pipeline/jobs/${job.jobId}/audio`,
+    {
+      headers: {
+        ...serviceHeaders,
+        'X-CCC-Job-Claim': job.claimToken,
+        'X-CCC-Job-Attempt': String(job.attempt),
+      },
+    },
+  ), agentEnv);
+  if (audioResponse.status !== 200) throw new Error('expected claim-bound audio stream');
+  const audioSha256 = Array.from(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', await audioResponse.arrayBuffer())),
+    (byte) => byte.toString(16).padStart(2, '0'),
+  ).join('');
+  const verified = await worker.fetch(new Request(
+    `http://localhost/pipeline/jobs/${job.jobId}/audio/verify`,
+    {
+      method: 'POST',
+      headers: serviceHeaders,
+      body: JSON.stringify({
+        claimToken: job.claimToken,
+        attempt: job.attempt,
+        generationId: job.audio.generationId,
+        agentComputedSha256: audioSha256,
+      }),
+    },
+  ), agentEnv);
+  if (verified.status !== 200) throw new Error('expected Agent audio verification');
   return worker.fetch(new Request(`http://localhost/pipeline/jobs/${job.jobId}/result`, {
     method: 'POST',
     headers: serviceHeaders,

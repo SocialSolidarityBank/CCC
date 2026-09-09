@@ -6,6 +6,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from . import chunking, masking, repetition, transcribe  # 기본값 정본은 각 모듈에 둔다(중복 금지)
 from .backup import BACKUP_ADAPTERS, BackupPolicy, assert_backup_destination_available, validate_backup_policy
@@ -54,6 +55,7 @@ class Config:
     # Agent 는 그대로 실어 보낸다. 없으면 claim 자체가 성립하지 않아 워커가 뜨지 않는다(R3).
     ner_attestation: dict[str, str]
     ner_release_receipt_id: str
+    audio_download_origin: str | None
     backup_policy: BackupPolicy
 
 
@@ -100,6 +102,32 @@ def _required(name: str) -> str:
 def _optional(name: str) -> str | None:
     value = os.environ.get(name, "").strip()
     return value or None
+
+
+def _optional_https_origin(name: str) -> str | None:
+    value = _optional(name)
+    if value is None:
+        return None
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as error:
+        raise ConfigError(f"environment variable {name} is invalid") from error
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ConfigError(f"environment variable {name} must be an HTTPS origin")
+    host = parsed.hostname.lower()
+    authority = f"[{host}]" if ":" in host else host
+    if port is not None and port != 443:
+        authority += f":{port}"
+    return f"https://{authority}"
 
 
 def _backup_policy() -> BackupPolicy:
@@ -200,12 +228,17 @@ def load_config() -> Config:
     except Exception as error:
         raise ConfigError("original recording backup policy is invalid") from error
     stt_engine = os.environ.get("CCC_STT_ENGINE", "").strip() or transcribe.ENGINE_OFF
-    if stt_engine not in transcribe.KNOWN_ENGINES:
+    if stt_engine not in transcribe.BUSINESS_ENGINES:
         raise ConfigError("environment variable CCC_STT_ENGINE is invalid")
-    if stt_engine in (transcribe.ENGINE_FASTER_WHISPER, transcribe.ENGINE_QWEN) and runtime_environment != "preview":
-        raise ConfigError("unapproved local STT candidates are restricted to Preview")
-    stt_model = os.environ.get("CCC_STT_MODEL", "").strip() or (
-        "Qwen/Qwen3-ASR-1.7B" if stt_engine == transcribe.ENGINE_QWEN else "medium"
+    if stt_engine == transcribe.ENGINE_QWEN and runtime_environment != "preview":
+        raise ConfigError("unapproved local STT candidate is restricted to Preview")
+    configured_stt_model = _optional("CCC_STT_MODEL")
+    if configured_stt_model is not None and configured_stt_model != transcribe.QWEN_MODEL_ID:
+        raise ConfigError("environment variable CCC_STT_MODEL cannot override the fixed business engine")
+    stt_model = (
+        transcribe.QWEN_MODEL_ID
+        if stt_engine == transcribe.ENGINE_QWEN
+        else configured_stt_model or ""
     )
     stt_python_raw = os.environ.get("CCC_STT_PYTHON", "").strip()
     stt_python = Path(stt_python_raw) if stt_python_raw else None
@@ -220,18 +253,15 @@ def load_config() -> Config:
     ner_model_id = os.environ.get("CCC_NER_MODEL_ID", "").strip() or "FrameByFrame/korean-pii-e5-base"
     condition_ner_model_id = os.environ.get("CCC_CONDITION_NER_MODEL_ID", "").strip() or None
     try:
-        if stt_engine in (transcribe.ENGINE_WHISPER, transcribe.ENGINE_FASTER_WHISPER):
-            role_spec(
-                "faster-whisper" if stt_engine == transcribe.ENGINE_FASTER_WHISPER else "whisper",
-                stt_model,
-            )
-        elif stt_engine == transcribe.ENGINE_QWEN:
+        if stt_engine == transcribe.ENGINE_QWEN:
             role_spec("qwen-asr", stt_model)
         validate_optional_model(ner_model_id, "person-ner")
         if condition_ner_model_id is not None:
             model_spec(condition_ner_model_id)
     except ModelRegistryError as error:
         raise ConfigError("runtime model selection is not declared in model manifest") from error
+    audio_download_origin = _optional_https_origin("CCC_AUDIO_DOWNLOAD_ORIGIN")
+
 
     return Config(
         api_base_url=api_base_url,
@@ -257,5 +287,6 @@ def load_config() -> Config:
         ner_attestation=_ner_attestation(),
         ner_release_receipt_id=_required("CCC_NER_RELEASE_RECEIPT_ID"),
         runtime_environment=runtime_environment,
+        audio_download_origin=audio_download_origin,
         backup_policy=backup_policy,
     )

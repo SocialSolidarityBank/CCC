@@ -195,10 +195,10 @@ jobs:
           crons=$(curl -s --max-time 30 \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ccc-api/schedules" || true)
-          if printf '%s' "$crons" | grep -qF '*/30 * * * *' && printf '%s' "$crons" | grep -qF '0 3 * * *'; then
-            echo "스모크 ③ 크론 재등록 확인: */30(워치독 D8) · 0 3 * * *(PII 파기 D10)"
+          if printf '%s' "$crons" | grep -qF '*/5 * * * *' && printf '%s' "$crons" | grep -qF '*/30 * * * *' && printf '%s' "$crons" | grep -qF '0 3 * * *'; then
+            echo "스모크 ③ 크론 재등록 확인: */5(원음 재조정) · */30(워치독 D8) · 0 3 * * *(PII 파기 D10)"
           else
-            echo "::error::스모크 ③ 실패 — 등록 목록에서 크론(*/30 · 0 3 * * *)을 확인하지 못했다. 대시보드 Workers > ccc-api > Triggers 탭에서 직접 본다."
+            echo "::error::스모크 ③ 실패 — 등록 목록에서 크론(*/5 · */30 · 0 3 * * *)을 확인하지 못했다. 대시보드 Workers > ccc-api > Triggers 탭에서 직접 본다."
             failed=1
           fi
 

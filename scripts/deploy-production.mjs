@@ -328,7 +328,7 @@ if (process.env.CLOUDFLARE_API_TOKEN === undefined || process.env.CLOUDFLARE_API
 }
 const crons = cronVerdict(schedulesOutput);
 if (crons.ok) {
-  console.log('  스모크 ③ 크론 재등록 확인: */30(폴링 워치독 D8) · 0 3 * * *(PII 파기 D10)');
+  console.log('  스모크 ③ 크론 재등록 확인: */5(원음 재조정) · */30(폴링 워치독 D8) · 0 3 * * *(PII 파기 D10)');
 } else {
   smokeFailures.push(
     `크론: 등록 목록에서 ${crons.missing.join(' · ')} 를 확인하지 못했다 `

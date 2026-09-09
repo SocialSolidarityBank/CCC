@@ -8,17 +8,22 @@
 from __future__ import annotations
 
 import json
-import shutil
+import os
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
+from urllib.parse import urlsplit
 
 from . import __version__
 
 USER_AGENT = f"ccc-pipeline/{__version__}"
 _TIMEOUT_SECONDS = 120
+_MAX_AUDIO_BYTES = 200 * 1024 * 1024
+_MAX_SIGNED_TARGET_BYTES = 16 * 1024
+_SIGNED_TARGET_TTL_SECONDS = 600
 # Wire codes from packages/contracts/src/agent-jobs.ts, never provider error text.
 _API_ERROR_CODES = frozenset({
     "authentication_required", "forbidden", "job_not_found", "lease_expired",
@@ -37,12 +42,60 @@ class _RejectRedirects(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _https_origin(value: str) -> str:
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except (TypeError, ValueError) as error:
+        raise ValueError("invalid HTTPS origin") from error
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("invalid HTTPS origin")
+    host = parsed.hostname.lower()
+    authority = f"[{host}]" if ":" in host else host
+    if port is not None and port != 443:
+        authority += f":{port}"
+    return f"https://{authority}"
+
+
+def _copy_bounded(source: BinaryIO, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    total = 0
+    descriptor = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as file:
+            descriptor = -1
+            while chunk := source.read(1024 * 1024):
+                total += len(chunk)
+                if total > _MAX_AUDIO_BYTES:
+                    raise AudioDownloadError("permanent_failure")
+                file.write(chunk)
+        if total == 0:
+            raise AudioDownloadError("permanent_failure")
+    except Exception:
+        if descriptor >= 0:
+            os.close(descriptor)
+        dest.unlink(missing_ok=True)
+        raise
+
+
 class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(f"API error {status}: {detail}")
         self.status = status
         # 서버 error 코드. 서버가 닫지 않는 형식 거부만 Agent 가 스스로 닫는다.
         self.code = detail
+
+
+class AudioDownloadError(Exception):
+    def __init__(self, reason: str, *, transient: bool = False):
+        super().__init__(f"audio download failed: {reason}")
+        self.reason = reason
+        self.transient = transient
 
 
 class ApiClient:
@@ -54,6 +107,7 @@ class ApiClient:
         *,
         runtime_environment: str,
         preview_access_code: str | None = None,
+        audio_download_origin: str | None = None,
     ):
         if runtime_environment not in ("preview", "production"):
             raise ValueError("runtime environment must be preview or production")
@@ -70,6 +124,19 @@ class ApiClient:
         self._preview_token: str | None = None
         self._preview_token_expires_at = 0.0
         self._opener = urllib.request.build_opener(_RejectRedirects())
+        if audio_download_origin is not None:
+            parsed_origin = urlsplit(audio_download_origin)
+            if (
+                _https_origin(audio_download_origin) != audio_download_origin.rstrip("/")
+                or parsed_origin.path not in ("", "/")
+                or parsed_origin.query
+                or parsed_origin.fragment
+            ):
+                raise ValueError("audio download origin must be an exact HTTPS origin")
+        self._audio_download_origin = (
+            None if audio_download_origin is None else audio_download_origin.rstrip("/")
+        )
+        self._storage_opener = urllib.request.build_opener(_RejectRedirects())
 
     def _unlock_preview(self) -> str:
         if self._preview_access_code is None:
@@ -150,7 +217,15 @@ class ApiClient:
         if not isinstance(payload, dict) or payload.get("schemaVersion") != 2:
             raise ApiError(200, "unexpected claim schema version")
         jobs = payload.get("jobs")
-        if not isinstance(jobs, list):
+        if (
+            not isinstance(jobs, list)
+            or any(
+                not isinstance(job, dict)
+                or "sttEngine" not in job
+                or "sttEngineId" not in job
+                for job in jobs
+            )
+        ):
             raise ApiError(200, "malformed claim response")
         return jobs
 
@@ -176,13 +251,75 @@ class ApiClient:
             raise ApiError(200, "malformed job source response")
         return text
 
-    def download_audio(self, job_id: str, claim_token: str, attempt: int, dest: Path) -> Path:
-        """GET /pipeline/jobs/:id/audio — claim 에 묶인 원음을 작업 디렉터리에 저장한다."""
+    def download_audio(
+        self,
+        job_id: str,
+        claim_token: str,
+        attempt: int,
+        dest: Path,
+        *,
+        delivery: str,
+    ) -> Path:
+        """Fetch a claim-bound stream or a credential-free bounded signed target."""
+        if delivery not in ("api-stream", "protected-get"):
+            raise AudioDownloadError("route_mismatch")
         request = self._request("GET", f"/pipeline/jobs/{job_id}/audio", claim=(claim_token, attempt))
         with self._open(request) as response:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with open(dest, "wb") as file:
-                shutil.copyfileobj(response, file)
+            if delivery == "api-stream":
+                _copy_bounded(response, dest)
+                return dest
+            raw_target = response.read(_MAX_SIGNED_TARGET_BYTES + 1)
+        if len(raw_target) > _MAX_SIGNED_TARGET_BYTES:
+            raise AudioDownloadError("route_mismatch")
+        try:
+            target = json.loads(raw_target.decode("utf-8"))
+            if not isinstance(target, dict) or set(target) != {"delivery", "url", "expiresAt"}:
+                raise ValueError
+            url = target["url"]
+            expires_raw = target["expiresAt"]
+            if (
+                target["delivery"] != "signed-get"
+                or not isinstance(url, str)
+                or not isinstance(expires_raw, str)
+                or self._audio_download_origin is None
+            ):
+                raise ValueError
+            parsed_url = urlsplit(url)
+            if parsed_url.fragment or _https_origin(url) != self._audio_download_origin:
+                raise ValueError
+            expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+            now = datetime.now(timezone.utc)
+            if (
+                expires_at.tzinfo is None
+                or expires_at <= now
+                or expires_at > now + timedelta(seconds=_SIGNED_TARGET_TTL_SECONDS)
+            ):
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            raise AudioDownloadError("route_mismatch") from None
+        storage_request = urllib.request.Request(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            method="GET",
+        )
+        try:
+            with self._storage_opener.open(storage_request, timeout=_TIMEOUT_SECONDS) as response:
+                status = getattr(response, "status", None)
+                if status != 200:
+                    raise AudioDownloadError(
+                        "audio_object_missing" if status == 404 else "route_mismatch",
+                    )
+                _copy_bounded(response, dest)
+        except urllib.error.HTTPError as error:
+            status = error.code
+            error.close()
+            if status == 429 or status >= 500:
+                raise AudioDownloadError("engine_unavailable", transient=True) from None
+            raise AudioDownloadError(
+                "audio_object_missing" if status == 404 else "route_mismatch",
+            ) from None
+        except (TimeoutError, urllib.error.URLError, OSError):
+            raise AudioDownloadError("engine_unavailable", transient=True) from None
         return dest
 
     def verify_audio(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -211,6 +348,42 @@ class ApiClient:
         with self._open(self._request("POST", f"/pipeline/jobs/{job_id}/result", result_request)) as response:
             if response.status != 204:
                 raise ApiError(response.status, "unexpected result response")
+
+    def report_readiness(
+        self,
+        stt_mode: str,
+        stt_engine_id: str | None,
+        state: str,
+        capacity: int,
+    ) -> None:
+        expected_engine = {
+            "off": None,
+            "local": "qwen3-asr",
+            "azure": "azure-speech-koreacentral",
+        }.get(stt_mode, object())
+        if (
+            stt_engine_id != expected_engine
+            or (stt_mode == "off" and (state != "unavailable" or capacity != 0))
+            or state not in ("ready", "unavailable")
+            or type(capacity) is not int
+            or capacity not in (0, 1)
+            or (state == "unavailable" and capacity != 0)
+        ):
+            raise ValueError("invalid readiness report")
+        body = {
+            "schemaVersion": 1,
+            "sttMode": stt_mode,
+            "sttEngineId": stt_engine_id,
+            "state": state,
+            "capacity": capacity,
+        }
+        with self._open(self._request("POST", "/pipeline/readiness", body)) as response:
+            try:
+                payload = json.loads(response.read().decode("utf-8"))
+            except (UnicodeError, ValueError):
+                raise ApiError(response.status, "malformed readiness response") from None
+        if payload != {"accepted": True}:
+            raise ApiError(200, "malformed readiness response")
 
 
 class MemoryApiClient(ApiClient):

@@ -35,7 +35,17 @@ import {
   EmergencyReasonRequiredError,
   EmotionDeferredError,
   assertPilotTextAiConsent,
-  assertRecordingUploadAllowed,
+  assertPilotTextAiConsentForService,
+  admitRecordingUpload,
+  beginRecordingUploadIntent,
+  abandonRecordingUpload,
+  authorizeRecordingUploadTarget,
+  authorizeRecordingUploadStream,
+  beginAgentJobAudioTargetMint,
+  completeAgentJobAudioTargetMint,
+  failRecordingUploadStorageWrite,
+  completeRecordingUploadStorageWrite,
+  failAgentJobAudioTargetMint,
   approveSession,
   activateAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
@@ -83,8 +93,13 @@ import {
   getParticipantBasicInfo,
   getParticipantBriefing,
   getParticipantGoalTree,
+  getSupportCaseConsent,
+  issueSupportCaseConsentDisclosures,
+  listSupportCaseConsentEvents,
   closeAgentJobAudioObjectMissing,
   getAgentJobAudioDelivery,
+  getPendingRecordingUpload,
+  listAudioManualNoteFallbacks,
   getPipelineHealth,
   getMyIdentity,
   listMyRoles,
@@ -112,6 +127,14 @@ import {
   authorizeAgentJobEgress,
   markAgentJobEgressInFlight,
   acceptAgentJobResult,
+  appendSupportCaseConsentEvent,
+  recordSttReadiness,
+  reconcileSupportCaseAudioDeletions,
+  reconcileAudioObjectDeletion,
+  acknowledgeAudioManualNoteFallback,
+  reconcileAgentJobAudioDeletion,
+  ConsentContractError,
+  type AgentJobResultAcceptance,
   AgentJobContractError,
   type AgentRuntime,
   claimRecordingResultDownstream,
@@ -201,6 +224,15 @@ import {
   type ReleaseRequest,
   type ResultRequest,
 } from '@ccc/contracts/agent-jobs';
+import {
+  CONSENT_DOMAINS,
+  type AppendConsentEventInput,
+  type ConsentDecision,
+  type ProviderId,
+  type PurposeLiteral,
+  type RetentionDuration,
+} from '@ccc/contracts/consent';
+import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 // preview-gate 는 여기서 타입만 가져가므로(import type) 런타임 순환이 생기지 않는다.
 import { previewModeEnabled } from './preview-gate';
 import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
@@ -216,9 +248,6 @@ function normalizeAudioContentType(header: string | null): AudioContentType | nu
     : null;
 }
 
-function newAudioKey(sessionId: string): string {
-  return `audio/${sessionId}/${crypto.randomUUID()}`;
-}
 
 const jsonHeaders = {
   'content-type': 'application/json; charset=utf-8',
@@ -1657,13 +1686,77 @@ function parseEgressInFlightRequest(body: JsonObject): EgressInFlightRequest {
  * claim 시점의 route·engine·오디오 전달 방식. 서명된 install manifest 가 유일한 근거다.
  * 승인 registry 에 없는 STT 는 engine `null` 이고, 그러면 오디오 작업은 claim 되지 않는다(D77).
  */
+
+function parseSttReadinessReport(body: JsonObject) {
+  if (!isSttReadinessReport(body)) throw new ValidationError('STT readiness report is invalid');
+  return body;
+}
+
+function parseConsentEventInput(body: JsonObject): AppendConsentEventInput {
+  requireOnlyKeys(body, [
+    'domain', 'decision', 'provider', 'providerLegalRecipient', 'providerCountry', 'purpose',
+    'retentionDuration', 'copyVersion', 'copyHash', 'disclosureSnapshotId', 'effectiveAt',
+    'idempotencyKey', 'correctionOfEventId', 'expectedRevision',
+  ]);
+  const domain = requiredString(body, 'domain');
+  if (!CONSENT_DOMAINS.includes(domain as AppendConsentEventInput['domain'])) {
+    throw new ValidationError('consent domain is invalid');
+  }
+  const decision = requiredString(body, 'decision');
+  if (!(['grant', 'withdraw', 'decline', 'correct'] as ConsentDecision[]).includes(decision as ConsentDecision)) {
+    throw new ValidationError('consent decision is invalid');
+  }
+  const provider = optionalNullableString(body, 'provider') ?? null;
+  if (
+    provider !== null
+    && !(['institution', 'institution_recording', 'institution_private_storage', 'azure', 'openai'] as ProviderId[]).includes(provider as ProviderId)
+  ) throw new ValidationError('consent provider is invalid');
+  const purpose = optionalNullableString(body, 'purpose') ?? null;
+  if (
+    purpose !== null
+    && !([
+      'case_management', 'sensitive_case_management', 'counseling_recording',
+      'speech_to_text', 'ai_briefing', 'voice_original_retention',
+    ] as PurposeLiteral[]).includes(purpose as PurposeLiteral)
+  ) throw new ValidationError('consent purpose is invalid');
+  const retentionDuration = optionalNullableString(body, 'retentionDuration') ?? null;
+  if (retentionDuration !== null && retentionDuration !== 'default_temporary_d85') {
+    throw new ValidationError('consent retention duration is invalid');
+  }
+  const expectedRevisionValue = body.expectedRevision;
+  if (
+    expectedRevisionValue !== null
+    && (!Number.isInteger(expectedRevisionValue) || (expectedRevisionValue as number) < 0)
+  ) throw new ValidationError('expected consent revision is invalid');
+  return {
+    domain: domain as AppendConsentEventInput['domain'],
+    decision: decision as ConsentDecision,
+    provider: provider as ProviderId | null,
+    providerLegalRecipient: optionalNullableString(body, 'providerLegalRecipient') ?? null,
+    providerCountry: optionalNullableString(body, 'providerCountry') ?? null,
+    purpose: purpose as PurposeLiteral | null,
+    retentionDuration: retentionDuration as RetentionDuration | null,
+    copyVersion: requiredString(body, 'copyVersion'),
+    copyHash: requiredString(body, 'copyHash'),
+    disclosureSnapshotId: requiredString(body, 'disclosureSnapshotId'),
+    effectiveAt: requiredCanonicalUtc(body, 'effectiveAt'),
+    idempotencyKey: requiredString(body, 'idempotencyKey'),
+    correctionOfEventId: optionalNullableString(body, 'correctionOfEventId') ?? null,
+    expectedRevision: expectedRevisionValue as number | null,
+  };
+}
 async function resolveAgentRuntime(env: ApiEnv): Promise<AgentRuntime> {
   const manifest = await verifiedInstallManifest(env);
   const requested = env.CCC_STT_MODE === 'local' || env.CCC_STT_MODE === 'azure' ? env.CCC_STT_MODE : 'off';
-  const approved = manifest.approvedSttEngineIds.some((entry) => entry.mode === requested);
+  const requestedId = requested === 'local' ? 'qwen3-asr'
+    : requested === 'azure' ? 'azure-speech-koreacentral' : null;
+  const approved = requestedId !== null && manifest.approvedSttEngineIds.some(
+    (entry) => entry.id === requestedId && entry.mode === requested,
+  );
   return {
     route: routeForMode(manifest.mode),
     sttEngine: requested === 'off' || !approved ? null : requested,
+    sttEngineId: approved ? requestedId : null,
     audioDelivery: manifest.mode === 'community-cloud' ? 'protected-get' : 'api-stream',
   };
 }
@@ -2106,6 +2199,8 @@ async function generateAiDraft(
       sourceSnapshotHash: sourceSnapshot.sha256,
       providerConfigId: activeProvider.providerConfigId,
       consentEvidenceId: activeProvider.consentEvidenceId,
+      consentRevision: activeProvider.consentRevision,
+      consentReceipt: activeProvider.consentReceipt,
       modelId: config.model,
       promptVersion: AI_DRAFT_PROMPT_VERSION,
       schemaVersion: AI_DRAFT_SCHEMA_VERSION,
@@ -2159,30 +2254,149 @@ async function handleAudioUpload(
   actor: Actor,
   sessionId: string,
 ): Promise<Response> {
-  await assertRecordingUploadAllowed(env, actor, sessionId);
-  const contentType = normalizeAudioContentType(request.headers.get('content-type'));
-  if (contentType === null) {
-    throw new ValidationError('audio content type is not allowed');
+  const runtime = await resolveAgentRuntime(env);
+  if (runtime.audioDelivery === 'protected-get') {
+    throw new ValidationError('community cloud upload requires an upload target');
   }
+  const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
+  const contentType = normalizeAudioContentType(request.headers.get('content-type'));
+  if (contentType === null) throw new ValidationError('audio content type is not allowed');
   const declaredLengthHeader = request.headers.get('content-length');
   const contentLength = declaredLengthHeader === null ? Number.NaN : Number(declaredLengthHeader);
-  if (!Number.isInteger(contentLength) || contentLength < 1) {
+  if (!Number.isInteger(contentLength) || contentLength < 1 || contentLength > 209_715_200) {
     throw new ValidationError('audio content length is required');
   }
-  if (request.body === null) {
-    throw new ValidationError('audio body must not be empty');
+  if (request.body === null) throw new ValidationError('audio body must not be empty');
+  const clientAssertedSha256 = request.headers.get('x-ccc-audio-sha256');
+  if (clientAssertedSha256 !== null && !/^[0-9a-f]{64}$/.test(clientAssertedSha256)) {
+    throw new ValidationError('client audio hash is invalid');
   }
-  const key = newAudioKey(sessionId);
-  await env.audioStore.put(key, request.body, {
-    contentLength,
-    contentType,
-    expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-  } satisfies AudioObjectMetadata);
+  const uploadExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+  const intent = await beginRecordingUploadIntent(
+    env,
+    actor,
+    sessionId,
+    admission,
+    'api-stream',
+    {
+      contentLength,
+      contentType,
+      clientAssertedSha256,
+      storageSha256: null,
+      uploadExpiresAt,
+    },
+  );
+  let putFinished = false;
   try {
-    return json(sessionResponse(await registerRecording(env, actor, sessionId, key)));
+    await authorizeRecordingUploadStream(env, actor, sessionId, intent.audioObjectId, admission);
+    const stored = await env.audioStore.put(intent.key, request.body, {
+      contentLength, contentType, expiresAt: uploadExpiresAt,
+    } satisfies AudioObjectMetadata);
+    putFinished = true;
+    await completeRecordingUploadStorageWrite(
+      env, actor, sessionId, intent.audioObjectId, stored.generationId, stored.sha256,
+    );
+    return json(sessionResponse(await registerRecording(env, actor, sessionId, intent.key, admission, {
+      contentLength,
+      contentType,
+      clientAssertedSha256,
+      storageSha256: stored.sha256,
+      generationId: stored.generationId,
+      uploadExpiresAt,
+    }, intent.audioObjectId)));
   } catch (error) {
-    // 등록 실패(권한·동의·승인세션 등) 시 방금 올린 객체를 정리한 뒤 다시 던진다.
-    await env.audioStore.delete(key);
+    if (!putFinished) {
+      await failRecordingUploadStorageWrite(env, actor, sessionId, intent.audioObjectId);
+    }
+    await abandonRecordingUpload(env, actor, intent.audioObjectId, 'rejected_upload');
+    await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
+    throw error;
+  }
+}
+
+async function handleAudioUploadTarget(
+  request: Request,
+  env: ApiEnv,
+  actor: Actor,
+  sessionId: string,
+): Promise<Response> {
+  const runtime = await resolveAgentRuntime(env);
+  if (runtime.audioDelivery !== 'protected-get') throw new ValidationError('upload targets are cloud-only');
+  const body = await requestBody(request);
+  requireOnlyKeys(body, ['contentLength', 'contentType', 'clientAssertedSha256']);
+  const contentLength = requiredInteger(body, 'contentLength');
+  const contentType = normalizeAudioContentType(requiredString(body, 'contentType'));
+  if (contentType === null || contentLength < 1 || contentLength > 209_715_200) {
+    throw new ValidationError('audio metadata is invalid');
+  }
+  const clientAssertedSha256 = optionalNullableString(body, 'clientAssertedSha256') ?? null;
+  if (clientAssertedSha256 !== null && !/^[0-9a-f]{64}$/.test(clientAssertedSha256)) {
+    throw new ValidationError('client audio hash is invalid');
+  }
+  const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
+  const uploadExpiresAt = new Date(Date.now() + 2 * 60 * 60_000).toISOString();
+  const intent = await beginRecordingUploadIntent(
+    env, actor, sessionId, admission, 'protected-get',
+    { contentLength, contentType, clientAssertedSha256, storageSha256: null, uploadExpiresAt },
+  );
+  let target: { url: string; expiresAt: string } | null;
+  try {
+    target = await env.audioStore.createUploadTarget(intent.key, {
+      contentLength, contentType, expiresAt: uploadExpiresAt,
+    });
+  } catch (error) {
+    await abandonRecordingUpload(env, actor, intent.audioObjectId, 'upload_abandoned');
+    await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
+    throw error;
+  }
+  if (target === null || target.expiresAt !== uploadExpiresAt) {
+    await abandonRecordingUpload(env, actor, intent.audioObjectId, 'upload_abandoned');
+    await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
+    throw new CapabilitiesUnavailableError('audio upload target unavailable');
+  }
+  try {
+    await authorizeRecordingUploadTarget(env, actor, sessionId, intent.audioObjectId, admission);
+  } catch (error) {
+    await abandonRecordingUpload(env, actor, intent.audioObjectId, 'consent_withdrawal');
+    await reconcileAudioObjectDeletion(env, env.audioStore, intent.audioObjectId);
+    throw error;
+  }
+  return json({ audioObjectId: intent.audioObjectId, url: target.url, expiresAt: target.expiresAt }, 201, {
+    'cache-control': 'no-store',
+  });
+}
+
+async function handleAudioUploadCompletion(
+  env: ApiEnv,
+  actor: Actor,
+  sessionId: string,
+  audioObjectId: string,
+): Promise<Response> {
+  const runtime = await resolveAgentRuntime(env);
+  if (runtime.audioDelivery !== 'protected-get') throw new ValidationError('upload targets are cloud-only');
+  const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
+  const pending = await getPendingRecordingUpload(env, actor, sessionId, audioObjectId);
+  const object = await env.audioStore.get(pending.key);
+  if (
+    object === null || object.contentLength !== pending.contentLength
+    || object.contentType !== pending.contentType
+  ) {
+    await abandonRecordingUpload(env, actor, audioObjectId, 'rejected_upload');
+    await reconcileAudioObjectDeletion(env, env.audioStore, audioObjectId);
+    throw new ConflictError('uploaded audio metadata does not match');
+  }
+  try {
+    return json(sessionResponse(await registerRecording(env, actor, sessionId, pending.key, admission, {
+      contentLength: pending.contentLength,
+      contentType: pending.contentType,
+      clientAssertedSha256: pending.clientAssertedSha256,
+      storageSha256: object.sha256,
+      generationId: object.generationId,
+      uploadExpiresAt: pending.uploadExpiresAt,
+    }, audioObjectId)));
+  } catch (error) {
+    await abandonRecordingUpload(env, actor, audioObjectId, 'consent_withdrawal');
+    await reconcileAudioObjectDeletion(env, env.audioStore, audioObjectId);
     throw error;
   }
 }
@@ -2196,6 +2410,7 @@ function errorResponse(error: unknown): Response {
       jobErrorHttpStatus(error.code),
     );
   }
+  if (error instanceof ConsentContractError) return json({ error: error.code }, error.statusCode);
   if (error instanceof IdentityStoreUnavailableError) return json({ error: 'service_unavailable' }, 503);
   if (error instanceof ForbiddenError) return json({ error: 'forbidden' }, 403);
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
@@ -2733,6 +2948,36 @@ export async function handleRequest(
         await acceptSupportCaseAssignment(env, actor, assignmentId);
         return json({ accepted: true });
       }
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'consent') {
+        requestQuery(url, []);
+        return json({ consent: await getSupportCaseConsent(env, actor, supportCaseId) });
+      }
+      if (
+        request.method === 'GET' && parts.length === 4
+        && parts[2] === 'consent' && parts[3] === 'events'
+      ) {
+        requestQuery(url, []);
+        return json({ events: await listSupportCaseConsentEvents(env, actor, supportCaseId) });
+      }
+      if (
+        request.method === 'GET' && parts.length === 4
+        && parts[2] === 'consent' && parts[3] === 'disclosures'
+      ) {
+        requestQuery(url, []);
+        return json({
+          disclosures: await issueSupportCaseConsentDisclosures(env, actor, supportCaseId),
+        }, 200, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'consent-events') {
+        requestQuery(url, []);
+        const event = await appendSupportCaseConsentEvent(
+          env, actor, supportCaseId, parseConsentEventInput(await requestBody(request)),
+        );
+        if (event.decision === 'withdraw' || event.decision === 'decline') {
+          await reconcileSupportCaseAudioDeletions(env, env.audioStore, actor.orgId, supportCaseId);
+        }
+        return json(event, 201);
+      }
       // 동의 2종 수정·철회 (D44 · 항목 수는 D49). 담당 실무자 또는 기관 관리자만 —
       // 게이트웨이의 assertSupportCaseAccess 가 강제한다(R1). 두 값은 항상 함께 온다(현재 상태 전체).
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'consent') {
@@ -2997,6 +3242,19 @@ export async function handleRequest(
       if (request.method === 'PUT' && parts.length === 3 && parts[2] === 'audio') {
         return await handleAudioUpload(request, env, actor, sessionId);
       }
+      if (
+        request.method === 'POST' && parts.length === 3 && parts[2] === 'audio-upload-target'
+      ) {
+        return await handleAudioUploadTarget(request, env, actor, sessionId);
+      }
+      if (
+        request.method === 'POST' && parts.length === 5
+        && parts[2] === 'audio-upload-target' && parts[4] === 'complete'
+      ) {
+        return await handleAudioUploadCompletion(
+          env, actor, sessionId, requireRouteUuid(parts[3] ?? '', 'audio object id'),
+        );
+      }
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'approve') {
         return json(sessionResponse(await approveSession(env, actor, sessionId, parseApproval(await requestBody(request)))));
       }
@@ -3079,9 +3337,37 @@ export async function handleRequest(
         replayed: false,
       }, 201);
     }
+    if (
+      request.method === 'POST' && parts.length === 2
+      && parts[0] === 'pipeline' && parts[1] === 'readiness'
+    ) {
+      requestQuery(url, []);
+      return json(await recordSttReadiness(
+        env, actor, parseSttReadinessReport(await requestBody(request)),
+      ), 200, { 'cache-control': 'no-store' });
+    }
     if (request.method === 'GET' && parts.length === 2 && parts[0] === 'pipeline' && parts[1] === 'health') {
       // D8 폴링 워치독 조회 — 관리자 전용(getPipelineHealth 내부에서 강제). 자기 기관만.
       return json(await getPipelineHealth(env, actor));
+    }
+    if (parts[0] === 'audio-lifecycle' && parts[1] === 'manual-notes') {
+      requestQuery(url, []);
+      if (request.method === 'GET' && parts.length === 2) {
+        return json(
+          { manualNotes: await listAudioManualNoteFallbacks(env, actor) },
+          200,
+          { 'cache-control': 'no-store' },
+        );
+      }
+      if (
+        request.method === 'POST' && parts.length === 4
+        && parts[2] !== undefined && parts[3] === 'ack'
+      ) {
+        if (!await acknowledgeAudioManualNoteFallback(env, actor, parts[2])) {
+          throw new ConflictError('manual note fallback is unavailable');
+        }
+        return new Response(null, { status: 204 });
+      }
     }
     if (parts[0] === 'pipeline' && parts[1] === 'memory') {
       requestQuery(url, []);
@@ -3114,7 +3400,9 @@ export async function handleRequest(
     if (parts[0] === 'pipeline' && parts[1] === 'jobs') {
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'claim') {
         const runtime = await resolveAgentRuntime(env);
-        const claimed = await claimAgentJobs(env, actor, runtime, parseClaimRequest(await requestBody(request)));
+        const claimed = await claimAgentJobs(
+          env, actor, runtime, parseClaimRequest(await requestBody(request)), env.audioStore,
+        );
         return json(claimed, 200, { 'cache-control': 'no-store' });
       }
       const jobId = parts[2];
@@ -3123,7 +3411,12 @@ export async function handleRequest(
           return json(await heartbeatAgentJob(env, actor, jobId, parseClaimCredentials(await requestBody(request))));
         }
         if (request.method === 'POST' && parts[3] === 'release') {
-          await releaseAgentJob(env, actor, jobId, parseReleaseRequest(await requestBody(request)));
+          const audioObjectId = await releaseAgentJob(
+            env, actor, jobId, parseReleaseRequest(await requestBody(request)),
+          );
+          if (audioObjectId !== null) {
+            await reconcileAudioObjectDeletion(env, env.audioStore, audioObjectId);
+          }
           return new Response(null, { status: 204 });
         }
         if (request.method === 'GET' && parts[3] === 'source') {
@@ -3149,13 +3442,50 @@ export async function handleRequest(
             jobId,
             credentials.claimToken,
             credentials.attempt,
+            runtime,
           );
-          // Community Cloud 의 signed GET 발급은 E6-3 이 붙인다. 그전에는 열지 않는다.
-          if (runtime.audioDelivery === 'protected-get') return json({ error: 'service_unavailable' }, 503);
+          if (runtime.audioDelivery === 'protected-get') {
+            const mint = await beginAgentJobAudioTargetMint(
+              env, actor, jobId, credentials.claimToken, credentials.attempt,
+            );
+            let target: { url: string; expiresAt: string } | null;
+            try {
+              target = await env.audioStore.createDownloadTarget(mint.key, 600);
+            } catch (error) {
+              await failAgentJobAudioTargetMint(env, actor, mint.mintId);
+              throw error;
+            }
+            const nowMs = Date.now();
+            const expiresAtMs = target === null ? Number.NaN : Date.parse(target.expiresAt);
+            if (
+              target === null || !Number.isFinite(expiresAtMs)
+              || expiresAtMs <= nowMs || expiresAtMs > nowMs + 600_000
+            ) {
+              await failAgentJobAudioTargetMint(env, actor, mint.mintId);
+              return json({ error: 'service_unavailable' }, 503);
+            }
+            try {
+              await completeAgentJobAudioTargetMint(
+                env, actor, jobId, credentials.claimToken, credentials.attempt, mint, target.expiresAt,
+              );
+            } catch (error) {
+              await failAgentJobAudioTargetMint(env, actor, mint.mintId);
+              throw error;
+            }
+            return json({
+              delivery: 'signed-get',
+              url: target.url,
+              expiresAt: target.expiresAt,
+            }, 200, { 'cache-control': 'no-store' });
+          }
           const object = await env.audioStore.get(delivery.audioR2Key);
           if (object === null) {
-            // 객체가 사라진 작업은 열어 두지 않는다 - 코어가 그 코드로 닫는다(S5 §2.6).
-            await closeAgentJobAudioObjectMissing(env, actor, jobId, credentials.claimToken, credentials.attempt);
+            const audioObjectId = await closeAgentJobAudioObjectMissing(
+              env, actor, jobId, credentials.claimToken, credentials.attempt,
+            );
+            if (audioObjectId !== null) {
+              await reconcileAudioObjectDeletion(env, env.audioStore, audioObjectId);
+            }
             return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
           }
           // 저장소 키는 응답에 싣지 않는다. canonical content-type 으로 바이트만 중계한다.
@@ -3165,19 +3495,38 @@ export async function handleRequest(
           return new Response(object.body, { status: 200, headers });
         }
         if (request.method === 'POST' && parts[3] === 'result') {
-          const accepted = await acceptAgentJobResult(
-            env,
-            actor,
-            jobId,
-            parseAgentResultRequest(await requestBody(request)),
-          );
+          let accepted: AgentJobResultAcceptance;
+          try {
+            accepted = await acceptAgentJobResult(
+              env,
+              actor,
+              jobId,
+              parseAgentResultRequest(await requestBody(request)),
+            );
+          } catch (error) {
+            await reconcileAgentJobAudioDeletion(env, env.audioStore, actor.orgId, jobId);
+            throw error;
+          }
+          if (accepted.audioObjectId !== null) {
+            await reconcileAudioObjectDeletion(env, env.audioStore, accepted.audioObjectId);
+          }
           const committed = accepted.recording;
           if (committed !== null) {
-            // 통합 동의의 텍스트 AI 증적과 활성 스위치도 최종 관문이다. 후속 초안은
-            // 마스킹 스냅샷만 재료로 만들며, 실패하면 review_ready 로 올리지 않아 재시도된다.
             let finalizedNow = false;
             if (!committed.finalized) {
-              if (!committed.downstreamReady) {
+              let llmEnabled = env.CCC_LLM_MODE === 'openai' && env.TEXT_AI_PILOT_ENABLED === '1';
+              if (llmEnabled) {
+                try {
+                  await assertPilotTextAiConsentForService(env, actor, accepted.sessionId);
+                } catch (error) {
+                  if (error instanceof ConsentContractError && error.code === 'consent_not_effective') {
+                    llmEnabled = false;
+                  } else {
+                    throw error;
+                  }
+                }
+              }
+              if (llmEnabled && !committed.downstreamReady) {
                 const claimToken = await claimRecordingResultDownstream(env, actor, accepted.sessionId);
                 if (claimToken === null) {
                   throw new ConflictError('recording result downstream work is already in progress');
@@ -3192,9 +3541,12 @@ export async function handleRequest(
                 }
               }
               finalizedNow = await finalizeRecordingResult(env, actor, accepted.sessionId);
+              if (finalizedNow && llmEnabled) {
+                await runDiscrepancyDetection(env, actor, accepted.sessionId);
+              }
             }
-            if (finalizedNow) await runDiscrepancyDetection(env, actor, accepted.sessionId);
-          } else if (accepted.kind === 'text' && !accepted.replayed) {
+          }
+          else if (accepted.kind === 'text' && !accepted.replayed) {
             // 이제서야 이 회차가 2차 마스킹을 마친 재료를 갖는다 — 공식화 시점에 스킵됐던
             // 불일치 검출을 여기서 돌린다(ADR-0027). 실패는 스킵이다(D8).
             await runDiscrepancyDetection(env, actor, accepted.sessionId);
@@ -3205,39 +3557,29 @@ export async function handleRequest(
       if (jobId !== undefined && parts.length === 5 && request.method === 'POST') {
         if (parts[3] === 'audio' && parts[4] === 'verify') {
           const verifyRequest = parseAudioVerifyRequest(await requestBody(request));
-          const delivery = await getAgentJobAudioDelivery(
-            env,
-            actor,
-            jobId,
-            verifyRequest.claimToken,
-            verifyRequest.attempt,
+          const runtime = await resolveAgentRuntime(env);
+          await getAgentJobAudioDelivery(
+            env, actor, jobId, verifyRequest.claimToken, verifyRequest.attempt, runtime,
           );
-          const object = await env.audioStore.get(delivery.audioR2Key);
-          if (object === null) return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
-          // 서버가 저장된 바이트에서 직접 해시를 계산해 Agent 제출값의 독립 근거로 쓴다.
-          // ponytail: 전체를 메모리에 담는다. 200MB 상한 근처 파일은 청크 해시가 필요하고
-          // 그 자리는 E5-6(원음 생명주기)과 E6-2(업로드 해시)가 소유한다.
-          const storedBytes = await new Response(object.body).arrayBuffer();
-          const storedSha256 = Array.from(
-            new Uint8Array(await crypto.subtle.digest('SHA-256', storedBytes)),
-            (byte) => byte.toString(16).padStart(2, '0'),
-          ).join('');
-          return json(await verifyAgentJobAudio(env, actor, jobId, verifyRequest, storedSha256));
+          try {
+            return json(await verifyAgentJobAudio(env, actor, jobId, verifyRequest));
+          } catch (error) {
+            await reconcileAgentJobAudioDeletion(env, env.audioStore, actor.orgId, jobId);
+            throw error;
+          }
         }
         if (parts[3] === 'egress' && parts[4] === 'authorize') {
+          const authorizationRequest = parseEgressAuthorizationRequest(await requestBody(request));
+          const runtime = await resolveAgentRuntime(env);
           return json(await authorizeAgentJobEgress(
-            env,
-            actor,
-            jobId,
-            parseEgressAuthorizationRequest(await requestBody(request)),
+            env, actor, jobId, authorizationRequest, runtime,
           ), 200, { 'cache-control': 'no-store' });
         }
         if (parts[3] === 'egress' && parts[4] === 'in-flight') {
+          const inFlightRequest = parseEgressInFlightRequest(await requestBody(request));
+          const runtime = await resolveAgentRuntime(env);
           return json(await markAgentJobEgressInFlight(
-            env,
-            actor,
-            jobId,
-            parseEgressInFlightRequest(await requestBody(request)),
+            env, actor, jobId, inFlightRequest, runtime,
           ));
         }
       }

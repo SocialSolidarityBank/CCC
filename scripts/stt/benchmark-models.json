@@ -36,6 +36,10 @@
             {
               "name": "model-00002-of-00002.safetensors",
               "sha256": "6e0b9d9e09e2e0238e7ef3cc8a484ab387e91b90f1900bedf88bc92d7929ccfc"
+            },
+            {
+              "name": "model.safetensors.index.json",
+              "sha256": "f994739fe38e5210b9e3e8ce6c6307315e2ceac3cb630e7b7414d69dce520f60"
             }
           ]
         },

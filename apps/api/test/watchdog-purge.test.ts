@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import apiWorker from '../src/index';
 import { createScheduledJobRunner, runWatchdog } from '@ccc/core/scheduled-job-runner';
-import { WATCHDOG_CRON } from '../src/cron-schedule';
+import { AUDIO_EXPIRY_CRON, WATCHDOG_CRON } from '../src/cron-schedule';
 import worker from './support/local-worker';
 import {
   createCase,
@@ -9,11 +9,16 @@ import {
   enqueueTextWorkItem,
   getPipelineHealth,
   claimAgentJobs,
-  registerRecording,
   type Actor,
 } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
-import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
+import {
+  claimRequest,
+  registerFixtureRecording,
+  seedNerQualification,
+  seedCanonicalSttConsent,
+  TEXT_ONLY_RUNTIME,
+} from './support/agent-jobs';
 
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -71,7 +76,7 @@ async function makePendingJob(): Promise<string> {
     memo: 'MEMO',
     gasScores: [],
   });
-  await registerRecording(t.env, counselor, session.id, 'audio/seed/pending-key');
+  await registerFixtureRecording(t.env, counselor, service, session.id);
   return caseRecord.id;
 }
 
@@ -85,6 +90,10 @@ async function makePendingTextWork(enqueuedAtMs: number): Promise<string> {
     memo: 'MEMO',
     gasScores: [],
   });
+  const scope = await t.db.prepare('SELECT support_case_id FROM sessions WHERE id=?')
+    .bind(session.id).first<{ support_case_id: string }>();
+  if (scope === null) throw new Error('expected support case scope');
+  await seedCanonicalSttConsent(t.env, counselor, scope.support_case_id);
   await enqueueTextWorkItem(t.env, counselor, session.id, 'manual_record');
   // D8 의 대기 나이 기준은 agent_jobs.enqueued_at 이다(S5) — 테스트 셋업 직접 DB 허용.
   await t.db.prepare(
@@ -301,9 +310,34 @@ describe('scheduled job runner (E1-4)', () => {
     expect(audit?.count).toBe(2);
   });
 
-  it('fails closed for a kind that has no job body yet', async () => {
+  it('runs audio expiry through both the shared runner and the Workers cron mapping', async () => {
     await t.reset();
-    await expect(createScheduledJobRunner(t.env).run('audio_expiry', '2026-09-04T00:00:00.000Z'))
-      .rejects.toThrow('unsupported_scheduled_job');
+    await makePendingJob();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const nowIso = '2030-01-02T00:00:00.000Z';
+    await t.db.prepare(
+      "UPDATE audio_objects SET retention_hard_cap_at = '2030-01-01T00:00:00.000Z' WHERE state = 'available'",
+    ).run();
+    await expect(createScheduledJobRunner(t.env).run('audio_expiry', nowIso)).resolves.toMatchObject({
+      kind: 'audio_expiry',
+      nowIso,
+      counters: { scanned: 1, deleted: 1, incidentsDelivered: 1 },
+    });
+    expect((await t.bucket.list()).objects).toHaveLength(0);
+
+    const pending: Promise<unknown>[] = [];
+    await apiWorker.scheduled(
+      { cron: AUDIO_EXPIRY_CRON, scheduledTime: Date.parse(nowIso) } as ScheduledController,
+      t.env,
+      { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } as unknown as ExecutionContext,
+    );
+    expect(pending).toHaveLength(1);
+    const scheduled = pending[0];
+    if (scheduled === undefined) throw new Error('expected scheduled audio expiry');
+    await expect(scheduled).resolves.toMatchObject({
+      kind: 'audio_expiry',
+      nowIso,
+      counters: { scanned: 0, deleted: 0, incidentsDelivered: 0 },
+    });
   });
 });

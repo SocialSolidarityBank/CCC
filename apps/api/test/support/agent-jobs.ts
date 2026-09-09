@@ -1,7 +1,16 @@
-// S5 계약 테스트 공용 픽스처. 합성 ID·텍스트만 쓰고 실제 PII·오디오는 넣지 않는다.
+// S5 contract fixtures use synthetic identifiers, text and generated WAV bytes only; no real PII or recordings.
 import { expect } from 'vitest';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
-import type { AgentRuntime } from '@ccc/core/gateway';
+import {
+  admitRecordingUpload,
+  appendSupportCaseConsentEvent,
+  getSupportCaseConsent,
+  issueSupportCaseConsentDisclosures,
+  recordSttReadiness,
+  registerRecording,
+  type Actor,
+  type AgentRuntime,
+} from '@ccc/core/gateway';
 import type { AgentJob, NerAttestation, ResultRequest } from '@ccc/contracts/agent-jobs';
 import type { DeploymentMode } from '@ccc/contracts/runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
@@ -12,6 +21,7 @@ import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './in
 export const LOCAL_SINGLE_RUNTIME: AgentRuntime = {
   route: 'local-single-agent',
   sttEngine: 'local',
+  sttEngineId: 'qwen3-asr',
   audioDelivery: 'api-stream',
 };
 
@@ -22,12 +32,124 @@ export const LOCAL_SINGLE_RUNTIME: AgentRuntime = {
 export const TEXT_ONLY_RUNTIME: AgentRuntime = {
   route: 'local-single-agent',
   sttEngine: null,
+  sttEngineId: null,
   audioDelivery: 'api-stream',
 };
 
 export async function sha256Hex(value: string): Promise<string> {
+
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+export async function seedCanonicalSttConsent(
+  env: ApiEnv,
+  actor: Actor,
+  supportCaseId: string,
+  domains: Array<
+    | 'personal_data_collection_use'
+    | 'sensitive_information_processing'
+    | 'counseling_recording'
+    | 'external_stt_processing'
+    | 'external_llm_cross_border_processing'
+  > = [
+    'personal_data_collection_use', 'sensitive_information_processing', 'counseling_recording',
+    'external_stt_processing', 'external_llm_cross_border_processing',
+  ],
+): Promise<void> {
+  const at = new Date().toISOString();
+  env.CCC_KR_BUSINESS_CALENDAR = JSON.stringify({
+    version: 'kr-business-days-v1',
+    validFrom: '2025-01-01',
+    validUntil: '2030-12-31',
+    closedDates: [],
+  });
+  for (const [provider, recipient, country] of [
+    ['institution', 'Synthetic Institution', 'KR'],
+    ['institution_recording', 'Synthetic Institution Recording', 'KR'],
+    ['institution_private_storage', 'Synthetic Institution Storage', 'KR'],
+    ['azure', 'Synthetic Azure Recipient', 'KR'],
+    ['openai', 'Synthetic OpenAI Recipient', 'US'],
+  ] as const) {
+    await env.DB.prepare(
+      `INSERT INTO consent_provider_registry_snapshots(
+         id,org_id,provider,legal_recipient,country,approved_at
+       ) VALUES(?,?,?,?,?,?) ON CONFLICT(org_id,provider,approved_at) DO NOTHING`,
+    ).bind(`fixture-registry-${actor.orgId}-${provider}`, actor.orgId, provider, recipient, country, '2025-01-01T00:00:00.000Z').run();
+  }
+  const current = await getSupportCaseConsent(env, actor, supportCaseId);
+  const disclosures = await issueSupportCaseConsentDisclosures(env, actor, supportCaseId);
+  for (const domain of domains) {
+    if (current.find((item) => item.domain === domain)?.state === 'granted') continue;
+    const disclosure = disclosures.find((item) => item.domain === domain);
+    if (disclosure === undefined) throw new Error('missing consent disclosure fixture');
+    await appendSupportCaseConsentEvent(env, actor, supportCaseId, {
+      domain,
+      decision: 'grant',
+      provider: disclosure.provider,
+      providerLegalRecipient: disclosure.providerLegalRecipient,
+      providerCountry: disclosure.country,
+      purpose: disclosure.purpose,
+      retentionDuration: null,
+      copyVersion: disclosure.copyVersion,
+      copyHash: disclosure.copyHash,
+      disclosureSnapshotId: disclosure.snapshotId,
+      effectiveAt: at,
+      idempotencyKey: crypto.randomUUID(),
+      correctionOfEventId: null,
+      expectedRevision: null,
+    });
+  }
+}
+
+export async function registerFixtureRecording(
+  env: ApiEnv,
+  actor: Actor,
+  service: Actor,
+  sessionId: string,
+  runtime: AgentRuntime = LOCAL_SINGLE_RUNTIME,
+  key = `audio/${sessionId}/${crypto.randomUUID()}`,
+  overrides: { clientAssertedSha256?: string | null; storageSha256?: string | null } = {},
+): Promise<{ key: string; sha256: string; generationId: string }> {
+  const scope = await env.DB.prepare(
+    'SELECT support_case_id FROM sessions WHERE id=? AND org_id=?',
+  ).bind(sessionId, actor.orgId).first<{ support_case_id: string }>();
+  if (scope === null) throw new Error('missing session fixture');
+  await seedCanonicalSttConsent(env, actor, scope.support_case_id);
+  await recordSttReadiness(env, service, runtime.sttEngine === 'azure' ? {
+    schemaVersion: 1, sttMode: 'azure', sttEngineId: 'azure-speech-koreacentral', state: 'ready', capacity: 1,
+  } : {
+    schemaVersion: 1, sttMode: 'local', sttEngineId: 'qwen3-asr', state: 'ready', capacity: 1,
+  });
+  const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
+  const audio = Buffer.alloc(364);
+  audio.write('RIFF', 0);
+  audio.writeUInt32LE(audio.length - 8, 4);
+  audio.write('WAVEfmt ', 8);
+  audio.writeUInt32LE(16, 16);
+  audio.writeUInt16LE(1, 20);
+  audio.writeUInt16LE(1, 22);
+  audio.writeUInt32LE(16_000, 24);
+  audio.writeUInt32LE(32_000, 28);
+  audio.writeUInt16LE(2, 32);
+  audio.writeUInt16LE(16, 34);
+  audio.write('data', 36);
+  audio.writeUInt32LE(audio.length - 44, 40);
+  const uploadExpiresAt = new Date(Date.now() + 2 * 60 * 60_000).toISOString();
+  const stored = await env.audioStore.put(key, new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(audio); controller.close(); },
+  }), { contentLength: audio.length, contentType: 'audio/wav', expiresAt: uploadExpiresAt });
+  await registerRecording(env, actor, sessionId, key, admission, {
+    contentLength: audio.length,
+    contentType: 'audio/wav',
+    clientAssertedSha256: overrides.clientAssertedSha256 ?? null,
+    storageSha256: overrides.storageSha256 === undefined ? stored.sha256 : overrides.storageSha256,
+    generationId: stored.generationId,
+    uploadExpiresAt,
+  }, null);
+  await env.DB.prepare(
+    `UPDATE audio_objects SET eligible_after=? WHERE org_id=? AND session_id=?`,
+  ).bind(new Date(Date.now() - 1000).toISOString(), actor.orgId, sessionId).run();
+  return { key, sha256: stored.sha256, generationId: stored.generationId };
 }
 
 export interface NerQualification {

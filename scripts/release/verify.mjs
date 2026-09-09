@@ -632,6 +632,7 @@ function validateModels(manifestPath, allowedSpdx, allowedExceptions) {
     'Qwen/Qwen3-ASR-1.7B': [
       'model-00001-of-00002.safetensors',
       'model-00002-of-00002.safetensors',
+      'model.safetensors.index.json',
     ],
     'Qwen/Qwen3-ForcedAligner-0.6B': ['model.safetensors'],
   };

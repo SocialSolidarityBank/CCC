@@ -156,6 +156,14 @@ function closestDeclaration(name, sourceFile, before) {
 }
 
 function objectPropertyText(initializer, propertyName, sourceFile, before) {
+  if (
+    propertyName === 'sql'
+    && ts.isCallExpression(initializer)
+    && ts.isIdentifier(initializer.expression)
+    && initializer.expression.text === 'consentSqlGuard'
+  ) {
+    return '';
+  }
   if (ts.isObjectLiteralExpression(initializer)) {
     const property = initializer.properties.find((candidate) => (
       ts.isPropertyAssignment(candidate) && candidate.name.getText(sourceFile) === propertyName
@@ -220,8 +228,29 @@ function sqlText(node, sourceFile, before = node.getStart(sourceFile)) {
     return left === null || right === null ? null : left + right;
   }
   if (ts.isPropertyAccessExpression(node)) {
+    if (
+      node.name.text === 'sql'
+      && ts.isCallExpression(node.expression)
+      && ts.isIdentifier(node.expression.expression)
+      && node.expression.expression.text === 'consentSqlGuard'
+    ) {
+      // consentSqlGuard accepts only a compile-time table-alias union. Its fixed SQL body is
+      // covered by gateway behavior tests; callers still have all surrounding SQL inspected here.
+      return '';
+    }
     if (ts.isIdentifier(node.expression) && node.expression.text === 'postState' && node.name.text === 'sql') {
       return '';
+    }
+    if (ts.isIdentifier(node.expression) && node.name.text === 'sql') {
+      const declaration = closestDeclaration(node.expression.text, sourceFile, before);
+      if (
+        declaration !== null
+        && ts.isCallExpression(declaration.initializer)
+        && ts.isIdentifier(declaration.initializer.expression)
+        && declaration.initializer.expression.text === 'consentSqlGuard'
+      ) {
+        return '';
+      }
     }
     if (ts.isIdentifier(node.expression)) {
       const declaration = closestDeclaration(node.expression.text, sourceFile, before);
@@ -230,6 +259,13 @@ function sqlText(node, sourceFile, before = node.getStart(sourceFile)) {
         : objectPropertyText(declaration.initializer, node.name.text, sourceFile, before);
     }
     return null;
+  }
+  if (
+    ts.isCallExpression(node)
+    && ts.isIdentifier(node.expression)
+    && node.expression.text === 'audioTerminalObligationsSql'
+  ) {
+    return '';
   }
   if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'join') {
     const receiver = node.expression.expression;

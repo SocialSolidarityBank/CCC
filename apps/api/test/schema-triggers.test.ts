@@ -1,4 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import {
+  CONSENT_COPY,
+  CONSENT_COPY_VERSION,
+  consentCopyPreimage,
+  sha256Hex as consentSha256Hex,
+  consentRevision,
+  type ConsentGateReceiptEntry,
+} from '@ccc/contracts/consent';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
@@ -45,6 +53,7 @@ interface Phase1Provenance {
   supportCaseId: string;
   sessionId: string;
   consentEvidenceId: string;
+  pilotConsentEvidenceId: string;
   providerConfigId: string;
   providerActivationId: string;
   sourceSnapshotId: string;
@@ -108,6 +117,7 @@ async function createApprovedGeneratedProvenance(
   const participant = await createCanonicalParticipant();
   const sessionId = 'phase1-generated-session';
   const consentEvidenceId = 'phase1-consent-evidence';
+  const pilotConsentEvidenceId = 'phase1-pilot-consent-evidence';
   const providerConfigId = 'phase1-codex-config';
   const providerActivationId = 'phase1-codex-activation';
   const sourceSnapshotId = 'phase1-masked-source-snapshot';
@@ -138,12 +148,139 @@ async function createApprovedGeneratedProvenance(
     CREATED_AT,
   ).run();
 
+  const canonicalLlmConsent = [
+    {
+      domain: 'personal_data_collection_use',
+      provider: 'institution',
+      providerLegalRecipient: 'Synthetic Institution',
+      providerCountry: 'KR',
+      purpose: 'case_management',
+      registrySnapshotId: 'phase1-consent-registry-institution',
+    },
+    {
+      domain: 'sensitive_information_processing',
+      provider: 'institution',
+      providerLegalRecipient: 'Synthetic Institution',
+      providerCountry: 'KR',
+      purpose: 'sensitive_case_management',
+      registrySnapshotId: 'phase1-consent-registry-institution',
+    },
+    {
+      domain: 'external_llm_cross_border_processing',
+      provider: 'openai',
+      providerLegalRecipient: 'Synthetic OpenAI Recipient',
+      providerCountry: 'US',
+      purpose: 'ai_briefing',
+      registrySnapshotId: 'phase1-consent-registry-openai',
+    },
+  ] as const;
+  const consentReceiptEntries: ConsentGateReceiptEntry[] = [];
+
+  for (const [index, consent] of canonicalLlmConsent.entries()) {
+    await t.db.prepare(
+      `INSERT OR IGNORE INTO consent_provider_registry_snapshots (
+         id, org_id, provider, legal_recipient, country, approved_at
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      consent.registrySnapshotId,
+      counselor.orgId,
+      consent.provider,
+      consent.providerLegalRecipient,
+      consent.providerCountry,
+      CREATED_AT,
+    ).run();
+    const copyHash = await consentSha256Hex(consentCopyPreimage({
+      domain: consent.domain,
+      provider: consent.provider,
+      providerLegalRecipient: consent.providerLegalRecipient,
+      providerCountry: consent.providerCountry,
+      purpose: consent.purpose,
+      retentionDuration: null,
+    }));
+    const disclosureSnapshotId = `phase1-${consent.domain}-disclosure`;
+    const eventId = consent.domain === 'external_llm_cross_border_processing'
+      ? consentEvidenceId
+      : `phase1-${consent.domain}-consent`;
+    await t.db.prepare(
+      `INSERT INTO consent_disclosure_snapshots (
+         id, org_id, program_id, issuer_id, support_case_id, domain, full_korean_copy,
+         provider, provider_registry_snapshot_id, provider_legal_recipient, provider_country,
+         purpose, retention_profile, retention_duration, copy_version, copy_hash, issued_at, expires_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'default_temporary_d85',
+         'default_temporary_d85', ?, ?, ?, ?)`,
+    ).bind(
+      disclosureSnapshotId,
+      counselor.orgId,
+      'financial_support_v1',
+      counselor.userId,
+      participant.supportCaseId,
+      consent.domain,
+      CONSENT_COPY[consent.domain].copy,
+      consent.provider,
+      consent.registrySnapshotId,
+      consent.providerLegalRecipient,
+      consent.providerCountry,
+      consent.purpose,
+      CONSENT_COPY_VERSION,
+      copyHash,
+      CREATED_AT,
+      '2026-07-14T09:05:00.000Z',
+    ).run();
+    await t.db.prepare(
+      `INSERT INTO consent_events (
+         id, org_id, beneficiary_id, support_case_id, domain, decision, provider,
+         provider_legal_recipient, provider_country, purpose, retention_duration,
+         copy_version, copy_hash, disclosure_snapshot_id, effective_at, recorded_by,
+         recorded_at, idempotency_key, request_hash, revision, event_sequence,
+         correction_of_event_id, provider_registry_snapshot_id
+       ) VALUES (?, ?, ?, ?, ?, 'grant', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?)`,
+    ).bind(
+      eventId,
+      counselor.orgId,
+      participant.beneficiaryId,
+      participant.supportCaseId,
+      consent.domain,
+      consent.provider,
+      consent.providerLegalRecipient,
+      consent.providerCountry,
+      consent.purpose,
+      CONSENT_COPY_VERSION,
+      copyHash,
+      disclosureSnapshotId,
+      CREATED_AT,
+      counselor.userId,
+      CREATED_AT,
+      `phase1-${consent.domain}-grant`,
+      await consentSha256Hex(`phase1-${consent.domain}-request`),
+      index + 1,
+      consent.registrySnapshotId,
+    ).run();
+    consentReceiptEntries.push({
+      domain: consent.domain,
+      eventSequence: index + 1,
+      revision: 1,
+      eventId,
+      copyHash,
+      decision: 'grant',
+      provider: consent.provider,
+      purpose: consent.purpose,
+      effectiveAt: CREATED_AT,
+    });
+  }
+  const requiredConsent = [...consentReceiptEntries]
+    .sort((left, right) => left.domain.localeCompare(right.domain, 'en'));
+  const consentRevisionHash = await consentRevision(requiredConsent);
+  const consentReceiptJson = JSON.stringify({
+    required: requiredConsent,
+    consentRevision: consentRevisionHash,
+  });
+
   await t.db.prepare(
     `INSERT INTO pilot_text_ai_consent_evidence (
       id, org_id, support_case_id, notice_version, notice_sha256, evidence_ref, evidence_sha256, captured_by, effective_at, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
-    consentEvidenceId,
+    pilotConsentEvidenceId,
     counselor.orgId,
     participant.supportCaseId,
     'pilot-text-ai-v1',
@@ -230,9 +367,10 @@ async function createApprovedGeneratedProvenance(
   await t.db.prepare(
     `INSERT INTO ai_draft_versions (
       id, work_item_id, version, parent_version_id, summary_text, questions_json,
-      source_snapshot_id, source_snapshot_hash, consent_evidence_id, provider_config_id, model_id, prompt_version, schema_version,
+      source_snapshot_id, source_snapshot_hash, consent_evidence_id, consent_revision,
+      consent_receipt_json, provider_config_id, model_id, prompt_version, schema_version,
       origin, creation_mode, grounding_status, created_by, created_at
-    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
+    ) VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'provider_generated', 'grounded', ?, ?)`,
   ).bind(
     draftId,
     workItemId,
@@ -241,6 +379,8 @@ async function createApprovedGeneratedProvenance(
     sourceSnapshotId,
     SHA256,
     consentEvidenceId,
+    consentRevisionHash,
+    consentReceiptJson,
     providerConfigId,
     'codex-default',
     'prompt-v1',
@@ -309,6 +449,7 @@ async function createApprovedGeneratedProvenance(
     supportCaseId: participant.supportCaseId,
     sessionId,
     consentEvidenceId,
+    pilotConsentEvidenceId,
     providerConfigId,
     providerActivationId,
     sourceSnapshotId,
@@ -674,7 +815,7 @@ describe('schema triggers', () => {
     const mutations = [
       {
         table: 'pilot_text_ai_consent_evidence',
-        id: provenance.consentEvidenceId,
+        id: provenance.pilotConsentEvidenceId,
         column: 'notice_version',
         updateDiagnostic: 'phase1: pilot text-AI consent evidence is append-only',
         deleteDiagnostic: 'phase1: pilot text-AI consent evidence is append-only',

@@ -21,6 +21,9 @@ export const checkpoints = [
   { id: 'agent-jobs', sqlite: '0048_agent_jobs.sql', postgres: '0004_agent_jobs.sql' },
   { id: 'counseling-memory', sqlite: '0049_counseling_memory.sql', postgres: '0005_counseling_memory.sql' },
   { id: 'rls-default-deny', sqlite: '0050_rls_scope.sql', postgres: '0006_rls_default_deny.sql' },
+  { id: 'consent-six-domains', sqlite: '0051_consent_six_domains.sql', postgres: '0007_consent_six_domains.sql' },
+  { id: 'audio-objects', sqlite: '0052_audio_objects.sql', postgres: '0008_audio_objects.sql' },
+  { id: 'ai-draft-canonical-consent', sqlite: '0053_ai_draft_canonical_consent.sql', postgres: '0009_ai_draft_canonical_consent.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
