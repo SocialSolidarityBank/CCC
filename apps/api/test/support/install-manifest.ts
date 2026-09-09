@@ -29,7 +29,7 @@ export const FIXTURE_EXPIRES_AT = new Date(Date.now() + 365 * DAY_MS).toISOStrin
 export function unsignedManifest(mode: DeploymentMode, overrides: Partial<Unsigned> = {}): Unsigned {
   const base: Unsigned = mode === 'community-cloud'
     ? {
-      schemaVersion: 1, mode, apiBase: 'https://abcdefghijklmnopqrst.supabase.co/functions/v1',
+      schemaVersion: 1, mode, apiBase: 'https://api.example.invalid/api',
       clientOrigin: 'https://ccc.example.org', allowedOrigins: ['https://ccc.example.org'],
       host: 'ccc.example.org', scheme: 'https', endpointDiscovery: 'static',
       installationId: TEST_INSTALLATION_ID, sequence: 3,

@@ -194,12 +194,16 @@ function assertModeFields(manifest: SignedInstallManifest): void {
     if (api.protocol !== 'https:' || manifest.scheme !== 'https' || manifest.endpointDiscovery !== 'static') {
       throw new InstallManifestError('mode_fields', 'community-cloud requires https static endpoint');
     }
+    // Trust the signed spelling, never a silently normalized URL or non-path component.
+    if (api.href !== manifest.apiBase || manifest.apiBase !== `${api.origin}${api.pathname}`) {
+      throw new InstallManifestError('invalid_shape', 'apiBase must be an exact HTTPS origin and explicit path');
+    }
     if (manifest.supabaseProjectRef === null || manifest.supabaseAuthOrigin === null || manifest.supabasePublishableKey === null) {
       throw new InstallManifestError('mode_fields', 'community-cloud requires supabase fields');
     }
     const authOrigin = exactOrigin(manifest.supabaseAuthOrigin, 'supabaseAuthOrigin');
     if (!authOrigin.startsWith('https://')) throw new InstallManifestError('auth_origin', 'must be https');
-    if (projectRefOf(authOrigin) !== manifest.supabaseProjectRef || projectRefOf(manifest.apiBase) !== manifest.supabaseProjectRef) {
+    if (projectRefOf(authOrigin) !== manifest.supabaseProjectRef) {
       throw new InstallManifestError('project_ref_mismatch');
     }
     if (!isSupabasePublishableKey(manifest.supabasePublishableKey)) throw new InstallManifestError('publishable_key');

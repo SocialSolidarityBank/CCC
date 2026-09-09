@@ -1,6 +1,6 @@
 # Beta backend integration implementation plan
 
-**Current state:** The accepted pre-D89 checkpoint `004a97d` was integrated by FRONTEND as `9ca0b2c` (Main-reported proof). First-journey contracts were checkpointed at `0f1638c`. The Q follow-up now separates creator linkage, initial setup and first-program admission; API/Community Cloud typechecks, five focused files (70 tests), three boundary guards and a separate loopback HTTP/D1 creator-journey smoke passed. PostgreSQL replay of the new reads remains pending; earlier parity evidence does not validate them. No D89/runtime-address, first-admin provisioning/invite writer, hosted Auth or deployment readiness is claimed.
+**Current state:** Main accepted creator-readiness checkpoint `8d4b1098927500c59fce50f3e19013101c66e548`: five PostgreSQL files passed 59/59 and a real restricted `ccc_api` readiness smoke passed (Main-reported, hosted Auth false). The subsequent D89 source wave implements independent exact HTTPS API addressing and the restricted Deno entry. Mini verification passed four focused files / 63 tests and both typechecks. This is not deployment isolation, hosted Auth, installer completion or runtime manifest-revocation integration proof. Historical pending/WIP notes below describe their original checkpoints and are superseded only by these explicitly attributed results.
 
 **Goal:** Integrate backend-owned settings, authentication and program admission from `feat/settings-backend@71778f3` onto `4352d32`. This is the first backend wave, not beta completion.
 
@@ -23,7 +23,7 @@ Work stays on `integrate/beta-0.9-backend` after `004a97d`; it does not merge th
 
 ### First Community Cloud administrator: install-side handoff only
 
-Q/Main reports the decision recorded in orchestrator commit `23fa1da`; that object is not available in this local worktree. This handoff follows the supplied decision summary. No invite sender, credential generator, linking mutation, public pre-auth readiness endpoint or hosted call is implemented in this wave.
+Q/Main's decision is available locally at `refs/heads/handoff/beta-orchestrator-decisions`, commit `23fa1daa531682ecd2489002e924cd9a30512d46`. ADR-0048 and the S2/S9/S11 amendments were read directly from that ref without merging their files. The dated first-admin follow-up governs over older unapproved-method wording. No invite sender, credential generator, linking mutation, public pre-auth readiness endpoint or hosted call is implemented in this wave.
 
 | Boundary | Install-side contract and persisted/read result |
 | --- | --- |
@@ -386,3 +386,54 @@ pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts apps/ap
 ```
 
 This child remains **validation-only WIP, not FRONTEND/main-consumable integration**. If the normalized rejection still differs, report the actual engine and structured subtype instead of changing expectations or production classification. BACKEND source returns to frozen state after the child checkpoint; root package/lock remain at the previously reported frozen hashes throughout.
+
+## D89 independent runtime source handoff
+
+This source-only wave follows Q/Main's explicit seven-file ownership grant. No gateway, migration, root dependency, frontend/design, installer writer, secret access, hosted call or PostgreSQL run occurred on mini.
+
+### Exact frontend and ingress contract
+
+| Boundary | Contract |
+| --- | --- |
+| Signed `apiBase` | Independent HTTPS origin plus an explicit path, including `/` when the base is the origin root. The signed string must equal both URL serialization and `origin + pathname`. Userinfo, query, fragment, absent explicit root slash, implicit default-port removal and other silent URL normalization are rejected. Nondefault HTTPS ports are allowed. There is no Supabase API-host/project-ref requirement. |
+| Signed Auth | `supabaseAuthOrigin` remains an exact HTTPS origin whose hostname project ref matches `supabaseProjectRef`. Issuer and JWKS remain beneath this Auth origin, never the independent API origin. Publishable-key rules are unchanged. API/Auth values remain covered by one Ed25519 signature. |
+| Bootstrap | The unsigned `{ mode, apiBase }` must exactly equal the verified manifest. Do not trim, rewrite or infer a replacement API base, or derive the Auth origin from it. `/api`, `/api/` and `/` are distinct signed bases. |
+| Route composition | For signed `https://api.example.invalid/api`, `/api/health` reaches `/health`; `/apix/health`, `/health` and `/functions/v1/api/health` do not. For a signed base ending in `/`, append `health` directly; otherwise append `/health`. `/tenant/api/` does not admit `/tenant/api`. An exact base request maps to `/`. No legacy Edge ingress fallback exists. |
+| Request origin | `request.url` must have the signed API origin. Mismatch returns 403 `{ error: 'forbidden' }`, even with an allowed browser Origin or forged forwarding headers. Path mismatch returns 404 `{ error: 'not_found' }`. Deployment must preserve the externally signed URL to the Deno handler; arbitrary forwarded headers are not a trust source. Raw HTTP spellings already normalized by the request implementation cannot be recovered here. |
+| CORS | Exact signed `allowedOrigins` only. Preflight requires an allowed Origin, existing method and allowed request headers. Responses remain `Cache-Control: no-store`, `Vary: Origin`, with `X-CCC-Installation-Id` exposed only to an allowed Origin. CORS is not authentication. |
+| Identity and capability | Existing Bearer, issuer/signature, MFA, directory, institution and restricted database checks remain. No new capability fields, role grants or business DTO changes are introduced. Existing denial codes in the earlier table still apply. |
+| Unavailable/media | Startup failure or a manifest reaching expiry returns 503 `{ error: 'service_unavailable' }`. Raw audio/multipart/octet-stream bodies and the existing audio PUT path still return 415 `{ error: 'AUDIO_BODY_FORBIDDEN' }`. `audioStore` remains null; StorageSigner is not implemented by this source wave. |
+
+### Privilege and trust limits
+
+- The existing Deno entry is reused without new dependencies. It requires the existing `CCC_DATABASE_URL` restricted connection; no owner-connection fallback is added. Only the three existing core secret names are exposed by its environment SecretStore.
+- Presence of `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEYS`, `SUPABASE_DB_URL` or `SUPABASE_ACCESS_TOKEN` prevents startup before database construction. The runtime factory also retains its existing typed service-role rejection. These are known-name defenses, not evidence that renamed credentials, runtime identity capabilities or blanket secret-fetch permissions are absent.
+- Actual deployment identity, credential supply policy, region/TLS/provider choice and approval remain external prerequisites. Environment filtering is not final isolation proof. This Mac is not a production server.
+- The verifier retains optional `revokedKeyIds`, `minSequence` and `expectedInstallationId` enforcement. Its current production caller, `verifiedInstallManifest`, supplies only public keys and time. Runtime revocation-list integration, trusted sequence floor and expected-installation-record binding are **not complete**. This wave deliberately invents no trust inputs or public manifest fields to hide that gap.
+- LSP status and reference requests returned no configured server. Fallback reference inventory found the production verifier caller in `packages/http-api/src/capabilities.ts`, and the runtime factory caller in its Deno entry. Signatures remain unchanged. The shared signed-manifest fixture now uses the independent API base; capabilities and three-mode Agent contracts consume it without a parallel fixture convention.
+
+### Proof and cleanup
+
+- Before production edits, the two manifest/runtime files failed 16 of 26 checks because independent bases were rejected and URL-normalization rules were absent. After implementation they passed 26/26.
+- Final focused run passed **4 files / 63 tests** in 38.42 seconds. API and Community Cloud typechecks exited 0. One test-only generic mock typing error was corrected without changing production code.
+- New runtime tests exercise the real request handler with an attestation-only database double and synthetic Auth signing/JWKS. They cover exact path/root/trailing-slash handling, wrong origin, prefix siblings, legacy ingress rejection, CORS, Bearer/MFA, Auth-origin binding, expiry and privileged startup refusal. They do not execute PostgreSQL or contact Supabase.
+- Removed the affected manifest test's incidental fixture-default assertion rather than re-pinning it. No throwaway files or services remain from this wave.
+- Main's accepted `8d4b1098927500c59fce50f3e19013101c66e548` evidence is separate: five PostgreSQL files 59/59 and real restricted `ccc_api` readiness smoke with creator receipt, changed-subject denial and cross-org invisibility true; hosted Auth false. Main owns any replay of this new source checkpoint. No previous proof is relabeled as D89 deployment validation.
+
+```sh
+pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts apps/api/test/install-manifest.security.test.ts apps/api/test/community-cloud-runtime.test.ts apps/api/test/capabilities.contract.test.ts apps/api/test/agent-job-contract.modes.test.ts --maxWorkers=1
+pnpm --filter @ccc/api run typecheck
+pnpm --filter @ccc/community-cloud run typecheck
+```
+
+## Installer implementation plan after the source checkpoint
+
+This is an implementation plan, not permission to mutate external systems or a claim that an installer exists.
+
+1. **Close private trust inputs with Main.** Establish the existing installation's private `institutionId`/`expectedOwnerOrgId` ownership contract, source of manifest revocation/sequence/expected-installation trust, and how the installer verifies invitation acceptance and MFA before linking. Do not add those ownership fields to the public manifest or infer them from JWT email/role claims. First-admin invitation is approved; later employee-invite administrative authority remains separate and unresolved.
+2. **Align the existing read-only entry.** Reuse `scripts/supabase/bootstrap.mjs` and `scripts/supabase/plan.mjs`. Today only `plan` is parsed; unsupported operations fail before credentials or network. Keep `hosted-inspector.mjs` read-only. Its planned-resource list still names `ccc_worker`, baseline v1 and a 30-day audio purge, so align the versioned resource/checksum contract with restricted `ccc_api`, actual migration state and D85 before introducing apply. Preserve D84 ownership/region/RLS/Auth/Storage inspection and unchanged before/after fingerprints.
+3. **Implement protected apply separately after approval.** Define journal, resource ownership, checksums and resumable/idempotent steps before writing. Apply approved migrations and restricted credential supply through the installer-owned authority; never make the business API or StorageSigner a generic admin proxy. Runtime distribution needs its separately approved provider/region/TLS and identity policy. Installation journal, resource receipt and release-history writers are not present in this lane's inspected implementation.
+4. **Implement the approved one-email invitation and linking transaction.** A protected installer sends one human-supplied email through Supabase Auth's one-time invite. Record only its trimmed-address SHA-256 and safe pending/accepted/failure state; do not output links, passwords, tokens or provider errors. After verified acceptance/MFA, bind the designated opaque application user to the returned subject and atomically write exactly the single append-only receipt specified above. A retry reuses that result; contradictory existing evidence fails closed. No new creator column or API auto-link.
+5. **Prove recovery and doctor behavior before release.** Test interruption/retry, duplicate/conflicting designation, wrong institution, stale manifest trust, restricted-role refusal, incomplete invitation and rollback boundaries with disposable fixtures. Doctor must report creator linkage, initial setup and first-program admission independently; metadata success is not readiness. Main replays PostgreSQL. Real hosted invitation, human MFA and deployment isolation require separately approved evidence; retain `off`/manual behavior until the existing activation gates are satisfied.
+
+Next installer ownership should explicitly include the existing bootstrap/plan tests and approved private writer boundaries. No new CLI flag, environment variable, backend role, public trust field or live installation is created merely by this plan.

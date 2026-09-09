@@ -7,7 +7,7 @@ import {
   resolveEffectiveApiBase,
   verifySignedInstallManifest,
 } from '@ccc/contracts/install-manifest';
-import { createTestSigner, FIXTURE_EXPIRES_AT, signedManifest, TEST_INSTALLATION_ID, unsignedManifest } from './support/install-manifest';
+import { createTestSigner, FIXTURE_EXPIRES_AT, signedManifest, TEST_INSTALLATION_ID } from './support/install-manifest';
 
 // S2 §2.7 · §5 `pnpm test:security --bootstrap`. 실제 기관 키·값은 없다.
 const NOW = new Date();
@@ -91,13 +91,38 @@ describe('signed install manifest', () => {
     await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { apiBase: 'http://abcdefghijklmnopqrst.supabase.co/functions/v1' })), 'mode_fields');
   });
 
-  it('Supabase auth origin and project ref equality', async () => {
+  it('binds the Supabase project only to the Auth origin', async () => {
     const signer = await signerPromise;
     await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { supabaseAuthOrigin: 'https://abcdefghijklmnopqrst.supabase.co/auth/v1' })), 'invalid_shape');
     await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { supabaseAuthOrigin: 'https://user:pw@abcdefghijklmnopqrst.supabase.co' })), 'invalid_shape');
     await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { supabaseAuthOrigin: 'http://abcdefghijklmnopqrst.supabase.co' })), 'auth_origin');
     await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { supabaseAuthOrigin: 'https://zzzzzzzzzzzzzzzzzzzz.supabase.co' })), 'project_ref_mismatch');
-    await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { apiBase: 'https://zzzzzzzzzzzzzzzzzzzz.supabase.co/functions/v1' })), 'project_ref_mismatch');
+  });
+
+  it('accepts an independent HTTPS API with its exact explicit path and rejects unsigned substitution', async () => {
+    const signer = await signerPromise;
+    const apiBase = 'https://business.example.invalid:9443/tenant-api/';
+    const manifest = await signedManifest(signer, 'community-cloud', { apiBase });
+    const verified = await verifyWith(manifest);
+    expect(resolveEffectiveApiBase(verified, null)).toBe(apiBase);
+    expect(() => assertBootstrapMatchesManifest({ mode: 'community-cloud', apiBase: apiBase.slice(0, -1) }, verified))
+      .toThrow(/bootstrap_mismatch/);
+    await expectCode(verifyWith({ ...manifest, apiBase: 'https://other.example.invalid/tenant-api/' }), 'signature_mismatch');
+  });
+
+  it('rejects signed API addresses requiring URL normalization or containing non-path components', async () => {
+    const signer = await signerPromise;
+    for (const apiBase of [
+      'https://api.example.invalid',
+      'https://API.example.invalid/api',
+      'https://api.example.invalid:443/api',
+      'https://api.example.invalid/parent/../api',
+      'https://api.example.invalid/api?',
+      'https://api.example.invalid/api#fragment',
+      'https://user:pass@api.example.invalid/api',
+    ]) {
+      await expectCode(verifyWith(await signedManifest(signer, 'community-cloud', { apiBase })), 'invalid_shape');
+    }
   });
 
   it('publishable key fixtures', async () => {
@@ -131,7 +156,5 @@ describe('public bootstrap', () => {
     const single = await verifyWith(await signedManifest(signer, 'local-single'));
     expect(() => assertBootstrapMatchesManifest({ apiBase: 'http://127.0.0.1:47123', mode: 'local-single' }, single)).toThrow(/bootstrap_mismatch/);
     expect(() => assertBootstrapMatchesManifest({ apiBase: 'http://127.0.0.1', mode: 'local-single' }, single)).not.toThrow();
-    // 저장소의 example 은 값이 비어 있어 그대로는 통과하지 않는다.
-    expect(unsignedManifest('local-single').apiBase).toBe('http://127.0.0.1');
   });
 });
