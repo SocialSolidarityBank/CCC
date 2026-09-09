@@ -4,8 +4,8 @@ import type { Actor as IdentityActor, AudioStore } from '@ccc/contracts/runtime'
 import type { NotifyEnv } from '@ccc/core/notify';
 
 export interface ApiEnv extends GatewayEnv, AiProviderRuntimeEnv, NotifyEnv {
-  /** Runtime-neutral original-audio storage port; provider bindings stay in composition roots. */
-  audioStore: AudioStore;
+  /** Null means this runtime cannot handle original audio; no fallback adapter is supplied. */
+  audioStore: AudioStore | null;
   /**
    * Cloudflare Access adapter와 preview/local 이중 잠금이 읽는 공개 설정.
    * 검증 구현은 `adapters/identity-access`; http-api는 값만 전달한다.

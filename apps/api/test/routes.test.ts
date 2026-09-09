@@ -1,3 +1,4 @@
+import type { Bindable, PreparedStatement } from '@ccc/contracts/database';
 import { describe, expect, it, vi } from 'vitest';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import worker from './support/local-worker';
@@ -34,7 +35,7 @@ import {
 } from '@ccc/ai-runtime';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
-import { setupD1 } from './support/d1';
+import { seedTestProgram, seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
 import {
   agentManifestEnv,
   claimOverHttp,
@@ -277,7 +278,10 @@ async function setupPhase1AiFixture(
     orgId: adminHeaders['X-CCC-Org-Id'],
     role: 'admin' as const,
   };
-  const caseRecord = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: env.installationMode ?? 'community-cloud', sttMode: 'off', llmMode: 'openai',
+  });
+  const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '02000000-0000-4000-8000-000000000001',
     heldAt: '2026-07-14T09:00:00.000Z',
@@ -694,7 +698,7 @@ describe('API routes', () => {
     const createResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId('org_demo') }),
     }), env);
 
     expect(createResponse.status).toBe(201);
@@ -708,7 +712,7 @@ describe('API routes', () => {
     const caseResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId('org_demo') }),
     }), t.env);
     expect(caseResponse.status).toBe(201);
     const caseRecord = await caseResponse.json() as { id: string };
@@ -767,7 +771,7 @@ describe('API routes', () => {
     const caseResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: counselorHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId('org_demo') }),
     }), env);
     const caseRecord = await caseResponse.json() as { id: string };
 
@@ -836,7 +840,7 @@ describe('API routes', () => {
     const localAdminResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: adminHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId('org_demo') }),
     }), localEnv);
     expect(localAdminResponse.status).toBe(403);
     await expect(localAdminResponse.json()).resolves.toEqual({ error: 'forbidden' });
@@ -844,7 +848,7 @@ describe('API routes', () => {
     const accessAdminResponse = await worker.fetch(new Request('http://localhost/cases', {
       method: 'POST',
       headers: accessAdminHeaders,
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId('org_demo') }),
     }), t.env);
     expect(accessAdminResponse.status).toBe(401);
     await expect(accessAdminResponse.json()).resolves.toEqual({ error: 'actor_authentication_required' });
@@ -852,13 +856,19 @@ describe('API routes', () => {
 
   it('keeps R2 keys out of session responses and limits pipeline work to the service actor', async () => {
     await t.reset();
+    t.env.installationMode = 'local-single';
+    t.env.CCC_STT_MODE = 'local';
+    t.env.CCC_LLM_MODE = 'openai';
     const env = { ...t.env, LOCAL_ACTOR_HEADER_MODE: 'true', TEXT_AI_PILOT_ENABLED: '1' };
     const counselor = {
       userId: counselorHeaders['X-CCC-User-Id'],
       orgId: counselorHeaders['X-CCC-Org-Id'],
       role: 'counselor' as const,
     };
-    const caseRecord = await createCase(t.env, counselor, { consentRecordingAt: '2026-01-01T00:00:00.000Z' });
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      deploymentMode: 'local-single', sttMode: 'local', llmMode: 'openai',
+    });
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId), consentRecordingAt: '2026-01-01T00:00:00.000Z' });
     const session = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '02000000-0000-4000-8000-000000000002',
       heldAt: '2026-01-02T10:00:00.000Z',
@@ -1046,7 +1056,7 @@ describe('API routes', () => {
     const isolated = await setupPhase1AiFixture();
     expect((await recordPilotConsent(isolated.env, isolated.caseRecord.id)).status).toBe(201);
     const source = await recordSourceSnapshot(isolated.env, isolated.session.id);
-    const secondCase = await createCase(t.env, isolated.counselor, {});
+    const secondCase = await createCase(t.env, isolated.counselor, { programId: testProgramId(isolated.counselor.orgId) });
     const secondSession = await createManualSession(t.env, isolated.counselor, secondCase.id, {
       submissionId: '02000000-0000-4000-8000-000000000003',
       heldAt: '2026-07-14T10:00:00.000Z',
@@ -1073,7 +1083,7 @@ describe('API routes', () => {
       memo: 'SECOND_SESSION_MANUAL_MEMO',
       gasScores: [],
     });
-    const secondCase = await createCase(t.env, counselor, {});
+    const secondCase = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     expect((await recordPilotConsent(env, secondCase.id)).status).toBe(201);
     await seedCanonicalLlmConsent(env, counselor, secondCase.id);
     const crossCaseSession = await createManualSession(t.env, counselor, secondCase.id, {
@@ -1129,6 +1139,41 @@ describe('API routes', () => {
     await expect(mismatchedResponse.json()).resolves.toEqual({ error: 'ai_provider_unavailable' });
     expect(mismatchedAdapter.calls).toBe(0);
     await expectNoDraft(mismatched.env, mismatched.session.id);
+  });
+
+  it('stops provider egress when admission changes during historical context loading', async () => {
+    const fixture = await setupPhase1AiFixture();
+    expect((await recordPilotConsent(fixture.env, fixture.caseRecord.id)).status).toBe(201);
+    const source = await recordSourceSnapshot(fixture.env, fixture.session.id);
+    let changed = false;
+    const wrap = (statement: PreparedStatement): PreparedStatement => new Proxy(statement, {
+      get(target, property) {
+        if (property === 'bind') return (...values: Bindable[]) => wrap(target.bind(...values));
+        if (property === 'first') return async () => {
+          if (!changed) {
+            changed = true;
+            await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?')
+              .bind(fixture.counselor.orgId).run();
+          }
+          return target.first();
+        };
+        const value = Reflect.get(target, property);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const env: ApiEnv = { ...fixture.env, DB: {
+      prepare: (sql) => {
+        const statement = fixture.env.DB.prepare(sql);
+        return sql.startsWith('SELECT 1 AS eligible FROM counseling_memory_cases c')
+          ? wrap(statement) : statement;
+      },
+      batch: fixture.env.DB.batch.bind(fixture.env.DB),
+    } };
+    const response = await generateDraft(env, fixture.session.id, source.sourceSnapshotId);
+    expect(changed, `historical context injection; status=${response.status}`).toBe(true);
+    expect(fixture.adapter.calls).toBe(0);
+    expect(response.status).toBe(409);
+    await expectNoDraft(fixture.env, fixture.session.id);
   });
 
   it('rejects provider output when activation changes during the outbound call', async () => {
@@ -2369,11 +2414,12 @@ async function setupCanonicalParticipant(): Promise<ParticipantCreation> {
       'INSERT INTO users (id, org_id, email, role, active, time_zone) VALUES (?, ?, ?, ?, 1, ?)',
     ).bind(canonicalIds.hiddenCounselor, 'org_canonical', 'canonical.hidden@example.invalid', 'counselor', 'UTC'),
   ]);
+  await seedTestProgram(t.db, 'org_canonical', canonicalIds.admin);
   const response = await worker.fetch(new Request('http://localhost/beneficiaries', {
     method: 'POST',
     headers: canonicalCounselorHeaders,
     body: JSON.stringify({
-      programType: 'financial_support_v1',
+      programId: testProgramId('org_canonical'),
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
       consentPrivacy: true,
     }),
@@ -2730,7 +2776,7 @@ describe('canonical participant API routes', () => {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
-      programType: 'financial_support_v1',
+      programId: testProgramId('org_canonical'),
       intakeAt: '2026-07-16T09:00:00.000Z',
       sourceSupportCaseId: creation.supportCaseId,
     });
@@ -3115,7 +3161,7 @@ describe('canonical participant API routes', () => {
       submissionId: '99999999-9999-4999-8999-999999999999',
       // G1: 추가 참여 사업도 ① 을 다시 받는다(D44 — 두 번째 사업은 미체크로 시작).
       consentPrivacy: true,
-      programType: 'financial_support_v1',
+      programId: testProgramId('org_canonical'),
       sourceSupportCaseId: creation.supportCaseId,
     };
     const createdResponse = await worker.fetch(new Request(
@@ -3221,6 +3267,9 @@ describe('canonical participant API routes', () => {
       TEXT_AI_PILOT_ENABLED: '1',
       AI_PROVIDER_ADAPTER: adapter,
     };
+    await seedTestProgramWithRuntimeModes(t.db, canonicalAdmin.orgId, canonicalAdmin.userId, {
+      deploymentMode: env.installationMode ?? 'community-cloud', sttMode: 'off', llmMode: 'openai',
+    });
     const providerConfig = await registerAiProviderConfiguration(env, canonicalAdmin, {
       adapterId: CODEX_PROVIDER_ID,
       adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
@@ -3442,7 +3491,7 @@ describe('canonical participant API routes', () => {
       method: 'POST',
       headers: canonicalCounselorHeaders,
       body: JSON.stringify({
-        programType: 'financial_support_v1',
+        programId: testProgramId('org_canonical'),
         initialAssigneeUserId: canonicalIds.hiddenCounselor,
       }),
     }), t.env);
@@ -3457,7 +3506,7 @@ describe('canonical participant API routes', () => {
         body: JSON.stringify({
           schemaVersion: 1,
           submissionId: 'not-a-uuid',
-          programType: 'financial_support_v1',
+          programId: testProgramId('org_canonical'),
           sourceSupportCaseId: creation.supportCaseId,
           ignored: true,
         }),
@@ -3488,7 +3537,7 @@ describe('canonical participant API routes', () => {
       schemaVersion: 1,
       submissionId: '55555555-5555-4555-8555-555555555555',
       consentPrivacy: true,
-      programType: 'financial_support_v1',
+      programId: testProgramId('org_canonical'),
       initialAssigneeUserId: canonicalIds.hiddenCounselor,
     };
     const hidden = await worker.fetch(new Request(
@@ -3970,7 +4019,7 @@ describe('public participant signup routes (CCC-28)', () => {
 
   async function issueToken(): Promise<string> {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     return invite.token;
   }
 
@@ -4089,7 +4138,7 @@ describe('public participant signup routes (CCC-28)', () => {
       new Request('http://localhost/invites/participant', {
         method: 'POST',
         headers: counselorHeaders,
-        body: JSON.stringify({ programType: 'financial_support_v1' }),
+        body: JSON.stringify({ programId: testProgramId('org_demo') }),
       }),
       t.env,
     );
@@ -4208,7 +4257,7 @@ describe('support case closure routes (CCC-107)', () => {
         body: JSON.stringify({
           schemaVersion: 1,
           submissionId: 'aaaaaaaa-cccc-4ccc-8ccc-aaaaaaaaaaaa',
-          programType: 'financial_support_v1',
+          programId: testProgramId('org_canonical'),
           initialAssigneeUserId: canonicalIds.counselor,
           consentPrivacy: true,
         }),

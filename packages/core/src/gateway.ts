@@ -39,7 +39,11 @@ import {
   type ProviderId,
 } from '@ccc/contracts/consent';
 import type { SttEngineId, SttReadinessRecord, SttReadinessReport } from '@ccc/contracts/stt-readiness';
-import { AGENT_SCOPES, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason } from '@ccc/contracts/runtime';
+import {
+  PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION,
+  type ProgramProcessingMode, type ProgramStorageMode,
+} from '@ccc/contracts/program-admission';
+import { AGENT_SCOPES, IdentityStoreUnavailableError, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason, type DeploymentMode } from '@ccc/contracts/runtime';
 import {
   AGENT_JOB_ERROR_CODES,
   AGENT_JOB_MAX_ATTEMPTS,
@@ -84,6 +88,9 @@ import { memoryChunks, reconcileMemory, assertMemoryText, MEMORY_BATCH_SIZE, sel
 
 export interface Env {
   DB: Database;
+  /** Set by the composition root after verifying the installation manifest. */
+  installationMode?: DeploymentMode;
+  CCC_STT_MODE?: string;
   /** Runtime-owned read port; raw key bindings never enter the core environment. */
   secretStore: CoreSecretStore;
   /**
@@ -143,6 +150,14 @@ export class ForbiddenError extends Error {}
 export class NotApprovedError extends Error {}
 /** 요청 값이 시스템 규칙을 만족하지 않을 때 반환한다. */
 export class ValidationError extends Error {}
+export class ProgramAdmissionRequiredError extends Error {
+  readonly code = 'program_admission_required';
+  readonly statusCode = 409;
+
+  constructor(readonly reason: Exclude<ProgramAdmissionState, 'ready'> | 'program_closed') {
+    super('program_admission_required');
+  }
+}
 export class AgentJobContractError extends Error {
   readonly retryable: boolean;
 
@@ -1184,8 +1199,8 @@ function canonicalEffectiveTimestamp(value: unknown, field: string): string {
   return canonical;
 }
 
-function assertHuman(actor: Actor): void {
-  if (actor.role === 'service') {
+function assertHuman(actor: Actor | IdentityActor): asserts actor is Actor | (IdentityActor & { orgId: string }) {
+  if ('kind' in actor ? actor.kind !== 'human' || actor.orgId === null : actor.role === 'service') {
     throw new ForbiddenError('service role is not allowed for this action');
   }
 }
@@ -1209,6 +1224,7 @@ async function hasActiveHumanRoleAssignment(
   env: Env,
   actor: Actor,
   role: HumanRoleAssignment,
+  options?: { allowLegacyFallback?: boolean },
 ): Promise<boolean> {
   try {
     const assignment = await env.DB.prepare(
@@ -1220,17 +1236,17 @@ async function hasActiveHumanRoleAssignment(
   } catch (error) {
     // Migration regression tests intentionally execute the current gateway
     // against persisted pre-0040 schemas. Those schemas only have users.role.
-    if (!isMissingRoleAssignmentsTable(error)) throw error;
+    if (options?.allowLegacyFallback === false || !isMissingRoleAssignmentsTable(error)) throw error;
     return role === 'institution_admin'
       ? actor.role === 'admin'
       : actor.role === 'counselor';
   }
 }
 
-async function assertInstitutionAdmin(env: Env, actor: Actor): Promise<void> {
+async function assertInstitutionAdmin(env: Env, actor: Actor, options?: { allowLegacyFallback?: boolean }): Promise<void> {
   assertHuman(actor);
   await assertCurrentHumanActor(env, actor);
-  if (!(await hasActiveHumanRoleAssignment(env, actor, 'institution_admin'))) {
+  if (!(await hasActiveHumanRoleAssignment(env, actor, 'institution_admin', options))) {
     throw new ForbiddenError('institution admin role is required');
   }
 }
@@ -1713,11 +1729,11 @@ async function assertServiceTextAiSessionGrant(
   actor: Actor,
   sessionId: string,
   options: { allowCounselor?: boolean } = {},
-): Promise<{ session: Session; consentEvidenceId: string; consentReceipt: ConsentGateReceipt }> {
+): Promise<{ session: Session; consentEvidenceId: string; consentReceipt: ConsentGateReceipt; programAdmission: ProgramAdmissionGrant }> {
   const session = options.allowCounselor === true && actor.role !== 'service'
     ? await assertPhase1SessionWriteAccess(env, actor, sessionId)
     : await assertServiceSessionAccess(env, actor, sessionId, 'pilot_text_ai_consent_evidence');
-  const context = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
+  const context = await resolveSessionScope(env, actor.orgId, session.id);
   if (!isPilotTextAiEnabled(env)) {
     await writePhase1Denial(env, actor, {
       targetTable: 'pilot_text_ai_consent_evidence',
@@ -1746,6 +1762,8 @@ async function assertServiceTextAiSessionGrant(
     (entry) => entry.domain === 'external_llm_cross_border_processing',
   );
   if (consentEvent === undefined) throw new ConsentContractError('consent_not_effective');
+  const programAdmission = await requireSupportCaseProgramAdmission(env, actor.orgId, context.supportCaseId, 'llm');
+
   await writeAudit(env, actor, {
     action: 'read',
     targetTable: 'consent_events',
@@ -1753,7 +1771,13 @@ async function assertServiceTextAiSessionGrant(
     caseId: session.caseId,
     detail: { purpose: 'service_text_ai_grant_check' },
   });
-  return { session, consentEvidenceId: consentEvent.eventId, consentReceipt: receipt };
+  return { session, consentEvidenceId: consentEvent.eventId, consentReceipt: receipt, programAdmission };
+}
+
+/** Revalidate after optional context and provider resolution, immediately before sending. */
+export async function authorizeSessionTextAiEgress(env: Env, actor: Actor, sessionId: string): Promise<void> {
+  const grant = await assertServiceTextAiSessionGrant(env, actor, sessionId, { allowCounselor: true });
+  await programPolicyBatch(env, grant.programAdmission.context, [], grant.programAdmission.program);
 }
 
 async function getAiWorkItemForOrg(env: Env, orgId: string, workItemId: string): Promise<AiWorkItem> {
@@ -3657,6 +3681,7 @@ function assertMaskedSourceEvidenceContent(
 
 interface MaskedResultGrant {
   session: Session;
+  programAdmission: ProgramAdmissionGrant;
 }
 
 /**
@@ -3674,7 +3699,7 @@ async function commitMaskedResult(
   ) => PreparedStatement[] = () => [],
 ): Promise<MaskedSourceSnapshot> {
   const sessionId = grant.session.id;
-  const context = await resolveLegacyCaseContext(env, actor.orgId, grant.session.caseId);
+  const context = await resolveSessionScope(env, actor.orgId, grant.session.id);
   try {
     assertMaskedSourceSnapshotInput(input);
   } catch (error) {
@@ -3756,7 +3781,7 @@ async function commitMaskedResult(
     })),
   };
   try {
-    await env.DB.batch([
+    await programPolicyBatch(env, grant.programAdmission.context, [
       env.DB.prepare(
         'INSERT INTO ai_masked_source_snapshots (id, org_id, support_case_id, session_id, masked_text, sha256, masking_pipeline_version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
@@ -3786,7 +3811,7 @@ async function commitMaskedResult(
         item.createdAt,
       )),
       ...additionalStatements(snapshot, context.supportCaseId),
-    ]);
+    ], grant.programAdmission.program);
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       await writePhase1Denial(env, actor, {
@@ -4256,7 +4281,7 @@ export async function createGeneratedAiDraft(
       ));
     }
     if (input.memoryContext) statements.push(...await memoryDraftContextStatements(env, actor, sessionId, draftId, input.memoryContext));
-    await memoryBatch(env,statements);
+    await memoryBatch(env, statements, serviceGrant.programAdmission);
   } catch (error) {
     if (isUniqueConstraintError(error) || isStaleDraftVersionError(error)) {
       await writePhase1Denial(env, actor, {
@@ -5539,6 +5564,7 @@ export async function collectDiscrepancyDetectionSources(
   } else {
     await assertSupportCaseAccess(env, actor, scope.supportCaseId);
   }
+  await requireSupportCaseProgramAdmission(env, actor.orgId, scope.supportCaseId, 'llm');
 
   const [sessionRows, approvedRows] = await Promise.all([
     // 회차당 최신 스냅샷 1건. 스냅샷이 없는 회차는 JOIN 에서 떨어진다.
@@ -5922,7 +5948,7 @@ export async function createCase(
   env: Env,
   actor: Actor,
   input: {
-    programType?: string;
+    programId: string;
     intakeAt?: string;
     consentRecordingAt?: string | null; // D15
     consentTextAiAt?: string | null;
@@ -5934,16 +5960,16 @@ export async function createCase(
   } else {
     await assertPractitioner(env, actor);
   }
-  const programType = input.programType ?? FINANCIAL_SUPPORT_V1;
-  assertFinancialSupportProgramType(programType);
+  const optionalKeys = (['intakeAt', 'consentRecordingAt', 'consentTextAiAt'] as const).filter((key) => input[key] !== undefined);
+  assertExactKeys(input, ['programId', ...optionalKeys]);
   const intakeAt = input.intakeAt === undefined
     ? null
     : canonicalUtcInstant(input.intakeAt, 'intake time');
   // intakeAt 은 legacyCompatibility 로만 전달한다(CCC-56) — canonicalInput 에 실으면
   // "등록 시각을 인테이크로 본다"는 폐기된 패턴이 되살아난다.
   const canonicalInput: CreateBeneficiaryWithInitialSupportCaseInput = actor.role === 'admin'
-    ? { programType, initialAssigneeUserId: actor.userId }
-    : { programType };
+    ? { programId: input.programId, initialAssigneeUserId: actor.userId }
+    : { programId: input.programId };
   const creation = await createBeneficiaryWithInitialSupportCase(
     env,
     actor,
@@ -6441,13 +6467,15 @@ async function assertRecordingUploadAllowedForSession(
   env: Env,
   actor: Actor,
   session: Session,
-): Promise<void> {
+): Promise<ProgramAdmissionGrant> {
   if (session.approvedAt !== null) {
     throw new ValidationError('an approved session cannot be re-registered');
   }
   if (session.channel !== 'in_person') {
     throw new ValidationError('recording pipeline is limited to in-person sessions');
   }
+  const scope = await resolveSessionScope(env, actor.orgId, session.id);
+  return requireSupportCaseProgramAdmission(env, actor.orgId, scope.supportCaseId, 'audio');
 }
 
 /**
@@ -6527,7 +6555,8 @@ export async function beginRecordingUploadIntent(
   metadata: Omit<RecordingAudioMetadata, 'generationId'>,
 ): Promise<RecordingUploadIntent> {
   const session = await assertSessionWriteAccess(env, actor, sessionId);
-  await assertRecordingUploadAllowedForSession(env, actor, session);
+  const programAdmission = await assertRecordingUploadAllowedForSession(env, actor, session);
+  if (programAdmission.context.sttMode !== admission.sttEngine) throw new ProgramAdmissionRequiredError('processing_unavailable');
   await assertRecordingResultNotCommitted(env, actor, session);
   const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
   const current = await assertConsentGate(env, actor.orgId, canonicalScope.supportCaseId, admission.requiredConsent);
@@ -6539,7 +6568,7 @@ export async function beginRecordingUploadIntent(
   const key = `audio/${sessionId}/${crypto.randomUUID()}`;
   const createdAt = now();
   const consentGuard = consentSqlGuard(admission.consentReceipt, 'sessions');
-  const results = await env.DB.batch([
+  const results = await programPolicyBatch(env, programAdmission.context, [
     env.DB.prepare(
       'UPDATE support_cases SET updated_at=updated_at WHERE id=? AND org_id=?',
     ).bind(canonicalScope.supportCaseId, actor.orgId),
@@ -6580,7 +6609,7 @@ export async function beginRecordingUploadIntent(
     sessionId, actor.orgId, ...consentGuard.bindings, actor.userId,
     admission.sttEngine, admission.sttEngineId, createdAt,
     ),
-  ]);
+  ], programAdmission.program);
   const inserted = results[1] as { meta?: { changes?: number } } | undefined;
   if ((inserted?.meta?.changes ?? 0) === 0) {
     await assertConsentGate(env, actor.orgId, canonicalScope.supportCaseId, admission.requiredConsent);
@@ -6619,9 +6648,12 @@ async function authorizeRecordingUploadIntent(
   admission: RecordingUploadAdmission,
   audioDelivery: 'api-stream' | 'protected-get',
 ): Promise<void> {
+  const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  const programAdmission = await requireSupportCaseProgramAdmission(env, actor.orgId, scope.supportCaseId, 'audio');
+  if (programAdmission.context.sttMode !== admission.sttEngine) throw new ProgramAdmissionRequiredError('processing_unavailable');
   const at = now();
   const consentGuard = consentSqlGuard(admission.consentReceipt, 'audio_objects');
-  const authorized = await env.DB.prepare(
+  const [authorized] = await programPolicyBatch(env, programAdmission.context, [env.DB.prepare(
     `UPDATE audio_objects SET updated_at=?
      WHERE id=? AND org_id=? AND session_id=? AND state='pending_upload'
        AND audio_delivery=? AND upload_expires_at>?
@@ -6650,8 +6682,8 @@ async function authorizeRecordingUploadIntent(
     at, audioObjectId, actor.orgId, sessionId, audioDelivery, at,
     admission.sttEngine, admission.sttEngineId, ...consentGuard.bindings,
     actor.userId, at,
-  ).run();
-  if ((authorized.meta?.changes ?? 0) === 0) {
+  )], programAdmission.program);
+  if ((authorized?.meta?.changes ?? 0) === 0) {
     throw new ConflictError('recording upload intent is no longer allowed');
   }
 }
@@ -6801,7 +6833,8 @@ export async function registerRecording(
   existingAudioObjectId: string | null,
 ): Promise<Session> {
   const session = await assertSessionWriteAccess(env, actor, sessionId);
-  await assertRecordingUploadAllowedForSession(env, actor, session);
+  const programAdmission = await assertRecordingUploadAllowedForSession(env, actor, session);
+  if (programAdmission.context.sttMode !== admission.sttEngine) throw new ProgramAdmissionRequiredError('processing_unavailable');
   await assertRecordingResultNotCommitted(env, actor, session);
   const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
   if (!AUDIO_OBJECT_KEY.test(audioR2Key)) throw new ValidationError('audio key is invalid');
@@ -6899,7 +6932,7 @@ export async function registerRecording(
       metadata.contentType, admission.consentReceipt.consentRevision,
       ...consentGuard.bindings, actor.userId,
     );
-  const results = await env.DB.batch([
+  const results = await programPolicyBatch(env, programAdmission.context, [
     audioMutation,
     env.DB.prepare(
       `UPDATE sessions
@@ -6964,7 +6997,7 @@ export async function registerRecording(
          FROM audio_objects
          WHERE id=? AND org_id=? AND state='available' AND upload_completion_id=?`,
     ).bind(jobId, updatedAt, requiredConsent, updatedAt, audioObjectId, actor.orgId, jobId),
-  ]);
+  ], programAdmission.program);
   if (
     (results[0]?.meta?.changes ?? 0) < 1
     || (results[1]?.meta?.changes ?? 0) < 1
@@ -7181,11 +7214,12 @@ export async function commitRecordingResult(
     };
   }
 
+  const programAdmission = await requireSupportCaseProgramAdmission(env, actor.orgId, canonicalScope.supportCaseId, 'audio');
   const emotionJson = canonicalizeJcs(input.emotionScores);
   const createdAt = now();
   let snapshot: MaskedSourceSnapshot;
   try {
-    snapshot = await commitMaskedResult(env, actor, { session }, input, (saved, supportCaseId) => [
+    snapshot = await commitMaskedResult(env, actor, { session, programAdmission }, input, (saved, supportCaseId) => [
       env.DB.prepare(
         `INSERT INTO recording_result_commits (
            session_id, org_id, support_case_id, snapshot_id, result_sha256,
@@ -8300,12 +8334,13 @@ export async function admitRecordingUpload(
   runtime: AgentRuntime,
 ): Promise<RecordingUploadAdmission> {
   const session = await assertSessionWriteAccess(env, actor, sessionId);
-  await assertRecordingUploadAllowedForSession(env, actor, session);
+  const programAdmission = await assertRecordingUploadAllowedForSession(env, actor, session);
   await assertRecordingResultNotCommitted(env, actor, session);
   const canonicalScope = await resolveSessionScope(env, actor.orgId, sessionId);
   if (runtime.sttEngine === null || runtime.sttEngineId === null) {
     throw new AgentJobContractError('engine_unavailable');
   }
+  if (programAdmission.context.sttMode !== runtime.sttEngine) throw new ProgramAdmissionRequiredError('processing_unavailable');
   const readiness = await getSttReadiness(env, actor.orgId, runtime.sttEngine, runtime.sttEngineId);
   if (readiness === null) throw new AgentJobContractError('engine_unavailable');
   const requiredConsent: ConsentDomain[] = runtime.sttEngine === 'azure'
@@ -8667,6 +8702,26 @@ async function recoverAgentJobs(env: Env, orgId: string, nowIso: string): Promis
   ]);
 }
 
+const ADMITTED_PROGRAM_SQL = `SELECT id FROM programs WHERE org_id = ? AND storage_mode = ?
+  AND processing_mode IN ('external_allowed', 'internal_only')
+  AND admission_confirmed_by IS NOT NULL
+  AND admission_confirmed_storage_mode = storage_mode
+  AND admission_confirmed_processing_mode = processing_mode
+  AND admission_copy_version = ? AND admission_copy_hash = ?
+  AND admission_installation_config_hash = ? AND admission_installation_policy_version = ?
+  AND ? = 1 AND (? = 0 OR processing_mode = 'external_allowed')`;
+
+/** Filter before LIMIT, then repeat under the policy lock when taking a lease. */
+function admittedProgramValues(context: ProgramAdmissionContext, operation: 'audio' | 'llm'): Bindable[] {
+  const enabled = operation === 'audio' ? context.sttMode !== 'off' : context.llmMode === 'openai';
+  const externalOnly = operation === 'llm' || context.sttMode === 'azure';
+  return [
+    context.orgId, context.deploymentMode === 'community-cloud' ? 'supabase_seoul' : 'local_encrypted',
+    PROGRAM_ADMISSION_COPY_VERSION, context.copyHash, context.configHash, context.policyVersion,
+    enabled ? 1 : 0, externalOnly ? 1 : 0,
+  ];
+}
+
 /**
  * Claims exact engine-bound work only while this service actor has a fresh capacity slot.
  * Azure and Local share the same receipt, readiness and lifecycle predicates.
@@ -8687,6 +8742,9 @@ export async function claimAgentJobs(
     request.nerAttestation,
     request.releaseQualificationReceiptId,
   );
+  const admissionContext = await programAdmissionContext(env, actor.orgId);
+  const audioAdmission = admittedProgramValues(admissionContext, 'audio');
+  const textAdmission = admittedProgramValues(admissionContext, 'llm');
 
   const nowIso = now();
   await recoverAgentJobs(env, actor.orgId, nowIso);
@@ -8705,7 +8763,7 @@ export async function claimAgentJobs(
     ? await getSttReadiness(env, actor.orgId, runtime.sttEngine, runtime.sttEngineId, actor.userId)
     : null;
   const audioCandidates: DbRow[] = [];
-  if (readiness !== null) {
+  if (readiness !== null && runtime.sttEngine === admissionContext.sttMode) {
     let cursorEnqueuedAt: string | null = null;
     let cursorId: string | null = null;
     while (audioCandidates.length === 0) {
@@ -8722,6 +8780,9 @@ export async function claimAgentJobs(
            AND audio.stt_route=? AND audio.stt_engine_id=?
            AND audio.eligible_after<=? AND audio.retention_hard_cap_at>?
            AND (audio.processing_deadline_at IS NULL OR audio.processing_deadline_at>?)
+           AND EXISTS (SELECT 1 FROM support_cases AS admitted
+             WHERE admitted.id=job.support_case_id AND admitted.org_id=job.org_id
+               AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
            AND (
              CAST(? AS TEXT) IS NULL OR job.enqueued_at>?
              OR (job.enqueued_at=? AND job.id>?)
@@ -8730,6 +8791,7 @@ export async function claimAgentJobs(
       ).bind(
         actor.orgId, AGENT_JOB_MAX_ATTEMPTS, runtime.sttEngine, runtime.sttEngineId,
         runtime.sttEngine, runtime.sttEngineId, nowIso, nowIso, nowIso,
+        ...audioAdmission,
         cursorEnqueuedAt, cursorEnqueuedAt, cursorEnqueuedAt, cursorId,
       ).all<DbRow>()).results;
       for (const candidate of page) {
@@ -8750,7 +8812,7 @@ export async function claimAgentJobs(
   }
 
   const textCandidates: DbRow[] = [];
-  if (isPilotTextAiEnabled(env)) {
+  if (isPilotTextAiEnabled(env) && admissionContext.llmMode === 'openai') {
     let cursorEnqueuedAt: string | null = null;
     let cursorId: string | null = null;
     while (textCandidates.length < limit) {
@@ -8768,6 +8830,9 @@ export async function claimAgentJobs(
                  AND TRIM(COALESCE(approved.summary_text,''))<>''
              )
            )
+           AND EXISTS (SELECT 1 FROM support_cases AS admitted
+             WHERE admitted.id=job.support_case_id AND admitted.org_id=job.org_id
+               AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
            AND (
              CAST(? AS TEXT) IS NULL OR job.enqueued_at>?
              OR (job.enqueued_at=? AND job.id>?)
@@ -8776,6 +8841,7 @@ export async function claimAgentJobs(
       ).bind(
         actor.orgId,
         AGENT_JOB_MAX_ATTEMPTS,
+        ...textAdmission,
         cursorEnqueuedAt,
         cursorEnqueuedAt,
         cursorEnqueuedAt,
@@ -8851,7 +8917,10 @@ export async function claimAgentJobs(
                  AND audio.eligible_after<=? AND audio.retention_hard_cap_at>?
                  AND (audio.processing_deadline_at IS NULL OR audio.processing_deadline_at>?)
                  AND ${jobConsentGuard.sql}
-             )))`,
+             )))
+             AND EXISTS (SELECT 1 FROM support_cases AS admitted
+               WHERE admitted.id=agent_jobs.support_case_id AND admitted.org_id=agent_jobs.org_id
+                 AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))`,
         ).bind(
           actor.userId, tokenHash, nowIso, lease.leaseExpiresAt,
           attestation.id, attestation.modelId, attestation.modelRevision, attestation.labelSetHash,
@@ -8860,6 +8929,7 @@ export async function claimAgentJobs(
           lease.job.id, actor.orgId, lease.job.state, lease.job.attempt,
           runtime.sttEngine, runtime.sttEngineId, nowIso, nowIso, nowIso,
           ...jobConsentGuard.bindings,
+          ...(lease.job.kind === 'audio' ? audioAdmission : textAdmission),
         ),
         env.DB.prepare(
           `UPDATE audio_objects
@@ -8881,7 +8951,7 @@ export async function claimAgentJobs(
         ),
       );
     }
-    const results = await env.DB.batch(statements);
+    const results = await programPolicyBatch(env, admissionContext, statements);
     leases.forEach((lease, index) => {
       const jobChanges = results[index * 2]?.meta?.changes ?? 0;
       const audioChanges = lease.job.kind === 'audio'
@@ -9138,6 +9208,14 @@ export async function releaseAgentJob(
   return deletionReason === null ? null : job.audioObjectId;
 }
 
+async function requireAgentJobProgramAdmission(env: Env, orgId: string, job: AgentJobRow): Promise<ProgramAdmissionGrant> {
+  const admission = await requireSupportCaseProgramAdmission(env, orgId, job.supportCaseId, job.kind === 'audio' ? 'audio' : 'llm');
+  if (job.kind === 'audio' && job.sttEngine !== admission.context.sttMode) {
+    throw new ProgramAdmissionRequiredError('processing_unavailable');
+  }
+  return admission;
+}
+
 /** claim 에 묶인 텍스트 원문. 1차 치환까지 끝난 공식 텍스트만 나간다. */
 export async function getAgentJobSource(
   env: Env,
@@ -9148,6 +9226,7 @@ export async function getAgentJobSource(
 ): Promise<SourceResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
   if (job.kind !== 'text') throw new AgentJobContractError('forbidden', jobId);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
   return buildAgentJobSourceText(env, actor, job.sessionId);
 }
 
@@ -9181,6 +9260,7 @@ export async function getAgentJobAudioDelivery(
   runtime: AgentRuntime,
 ): Promise<{ audioR2Key: string; caseId: string; generationId: string }> {
   const job = await loadClaimedAgentJob(env, actor, jobId, claimToken, attempt);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
   if (
     job.sttEngine === null || job.sttEngineId === null
     || job.sttEngine !== runtime.sttEngine || job.sttEngineId !== runtime.sttEngineId
@@ -9363,6 +9443,7 @@ export async function issueAgentJobMaskDictionary(
   request: MaskDictionaryRequest,
 ): Promise<MaskDictionaryResponse> {
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
   const nowIso = now();
   const replayed = job.maskDictionaryId !== null
     && job.maskDictionaryExpiresAt !== null
@@ -9427,6 +9508,7 @@ export async function verifyAgentJobAudio(
     throw new AgentJobContractError('audio_object_missing', jobId);
   }
   await agentJobConsentRevision(env, actor.orgId, job);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
   if (job.audioGenerationId !== request.generationId) {
     throw new AgentJobContractError('stale_claim', jobId);
   }
@@ -9566,6 +9648,7 @@ export async function authorizeAgentJobEgress(
   }
   const qualificationExpiresAt = await assertAgentJobQualificationCurrent(env, actor, job);
   const consentRevisionValue = await agentJobConsentRevision(env, actor.orgId, job);
+  const admission = await requireAgentJobProgramAdmission(env, actor.orgId, job);
   const authorizedAt = now();
   const readiness = await env.DB.prepare(
     `SELECT 1 AS ready FROM stt_agent_readiness
@@ -9602,7 +9685,7 @@ export async function authorizeAgentJobEgress(
     .filter((value): value is string => value !== null)
     .reduce((earliest, value) => value < earliest ? value : earliest);
   const egressAuthorizationId = newId();
-  await env.DB.prepare(
+  await programPolicyBatch(env, admission.context, [env.DB.prepare(
     `INSERT INTO agent_job_egress_records(
        id,org_id,job_id,attempt,claim_token_hash,raw_audio_sha256,consent_revision,
        provider,status,authorized_at,expires_at
@@ -9610,7 +9693,7 @@ export async function authorizeAgentJobEgress(
   ).bind(
     egressAuthorizationId, actor.orgId, jobId, job.attempt, job.claimTokenHash,
     job.rawAudioSha256, consentRevisionValue, authorizedAt, expiresAt,
-  ).run();
+  )], admission.program);
   return {
     egressAuthorizationId,
     tuple: {
@@ -9643,6 +9726,7 @@ export async function markAgentJobEgressInFlight(
     throw new AgentJobContractError('consent_not_effective', jobId);
   }
   const consentGuard = consentSqlGuard(receipt, 'audio_objects');
+  const admission = await requireAgentJobProgramAdmission(env, actor.orgId, job);
   const startedAt = now();
   const readiness = await env.DB.prepare(
     `SELECT 1 AS ready FROM stt_agent_readiness
@@ -9670,7 +9754,7 @@ export async function markAgentJobEgressInFlight(
       startedAt: stringValue(record.started_at),
     };
   }
-  const updated = await env.DB.prepare(
+  const [updated] = await programPolicyBatch(env, admission.context, [env.DB.prepare(
     `UPDATE agent_job_egress_records SET status='in_flight',started_at=?
      WHERE id=? AND org_id=? AND job_id=? AND attempt=? AND claim_token_hash=?
        AND consent_revision=? AND raw_audio_sha256=? AND status='authorized' AND expires_at>?
@@ -9682,8 +9766,8 @@ export async function markAgentJobEgressInFlight(
     startedAt, request.egressAuthorizationId, actor.orgId, jobId, job.attempt,
     job.claimTokenHash, currentConsentRevision, job.rawAudioSha256, startedAt,
     job.audioObjectId, actor.orgId, ...consentGuard.bindings,
-  ).run();
-  if ((updated.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
+  )], admission.program);
+  if ((updated?.meta?.changes ?? 0) === 0) throw new AgentJobContractError('stale_claim', jobId);
   return {
     egressAuthorizationId: request.egressAuthorizationId,
     provider: 'azure',
@@ -9898,6 +9982,7 @@ export async function acceptAgentJobResult(
 
   const job = await loadClaimedAgentJob(env, actor, jobId, request.claimToken, request.attempt);
   const currentConsentRevision = await agentJobConsentRevision(env, actor.orgId, job);
+  await requireAgentJobProgramAdmission(env, actor.orgId, job);
   await closeJobOnResultRejection(env, actor, job, request.claimToken, async () => {
     if (request.schemaVersion !== 2 || request.result.kind !== job.kind) {
       throw new AgentJobContractError('result_schema_invalid', jobId);
@@ -10633,8 +10718,9 @@ async function computePipelineHealth(
  * 분류 한 단어만 나가므로 감사 행을 남기지 않는다(`/organization/profile` 과 같은 근거).
  * `authentication_error`·`quota_exceeded` 는 E9-2 연결 검사가 만든다.
  */
-export async function getAgentStatusForCapabilities(env: Env, actor: Actor): Promise<AgentStatus> {
-  if (actor.role === 'service') throw new ForbiddenError('agent cannot read capabilities');
+export async function getAgentStatusForCapabilities(env: Env, actor: Actor | IdentityActor): Promise<AgentStatus> {
+  assertHuman(actor);
+  if ('kind' in actor) await assertActiveHumanUser(env, actor.orgId, actor.userId);
   const health = await computePipelineHealth(
     env,
     actor.orgId,
@@ -11403,116 +11489,476 @@ export async function recordAiCallOutcome(
 }
 
 /**
- * 감사 로그 조회. 권한: admin 전용. 감사: read(audit_log) — 감사 조회도 기록.
+ * A bounded, metadata-only audit page. Reads are restricted to an active
+ * institution-admin assignment (legacy users.role fallback is intentionally
+ * disabled), and the read itself is recorded after the page query.
  */
+export interface AuditLogItem {
+  id: number;
+  actorId: string;
+  actorRole: Role;
+  action: string;
+  targetTable: string;
+  beneficiaryId: string | null;
+  supportCaseId: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogPage {
+  items: AuditLogItem[];
+  nextCursor: string | null;
+}
+
+export interface AuditLogFilter {
+  limit?: number;
+  cursor?: string;
+  actorId?: string;
+  from?: string;
+  to?: string;
+  supportCaseId?: string;
+}
+
+const DEFAULT_AUDIT_LOG_LIMIT = 50;
+const MAX_AUDIT_LOG_LIMIT = 100;
+
+function encodeAuditCursor(id: number): string {
+  return btoa(`audit:${id}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
+}
+
+function decodeAuditCursor(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (value.length === 0) throw new ValidationError('cursor is invalid');
+  let decoded: string;
+  try {
+    decoded = atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4));
+  } catch {
+    throw new ValidationError('cursor is invalid');
+  }
+  const raw = decoded.startsWith('audit:') ? decoded.slice('audit:'.length) : '';
+  if (!/^[1-9]\d*$/u.test(raw)) throw new ValidationError('cursor is invalid');
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id) || id < 1) throw new ValidationError('cursor is invalid');
+  return id;
+}
+
+function auditFilterString(value: string | undefined, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (value.trim().length === 0) throw new ValidationError(`${field} is invalid`);
+  return value;
+}
+
+function auditFilterTimestamp(value: string | undefined, field: string): string | undefined {
+  return value === undefined ? undefined : canonicalUtcInstant(value, field);
+}
+
 export async function listAuditLog(
   env: Env,
   actor: Actor,
-  filter?: { caseId?: string; actorId?: string; from?: string; to?: string },
-): Promise<
-  Array<{
-    id: number;
-    actorId: string;
-    actorRole: Role;
-    action: string;
-    targetTable: string;
-    targetId: string | null;
-    caseId: string | null;
-    createdAt: string;
-  }>
-> {
-  assertAdmin(actor);
-  const conditions = ['org_id = ?'];
-  const values: Array<string> = [actor.orgId];
+  filter?: AuditLogFilter,
+): Promise<AuditLogPage> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  const limit = filter?.limit ?? DEFAULT_AUDIT_LOG_LIMIT;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_AUDIT_LOG_LIMIT) {
+    throw new ValidationError('limit is invalid');
+  }
+  const cursor = decodeAuditCursor(filter?.cursor);
+  const actorId = auditFilterString(filter?.actorId, 'actorId');
+  const from = auditFilterTimestamp(filter?.from, 'from');
+  const to = auditFilterTimestamp(filter?.to, 'to');
+  if (from !== undefined && to !== undefined && from > to) {
+    throw new ValidationError('date range is invalid');
+  }
+  const supportCaseId = auditFilterString(filter?.supportCaseId, 'supportCaseId');
 
-  if (filter?.caseId !== undefined) {
-    conditions.push('case_id = ?');
-    values.push(filter.caseId);
+  const conditions = ['audit.org_id = ?'];
+  const values: Array<string | number> = [actor.orgId];
+  if (cursor !== undefined) {
+    conditions.push('audit.id < ?');
+    values.push(cursor);
   }
-  if (filter?.actorId !== undefined) {
-    conditions.push('actor_id = ?');
-    values.push(filter.actorId);
+  if (actorId !== undefined) {
+    conditions.push('audit.actor_id = ?');
+    values.push(actorId);
   }
-  if (filter?.from !== undefined) {
-    conditions.push('created_at >= ?');
-    values.push(filter.from);
+  if (from !== undefined) {
+    conditions.push('audit.created_at >= ?');
+    values.push(from);
   }
-  if (filter?.to !== undefined) {
-    conditions.push('created_at <= ?');
-    values.push(filter.to);
+  if (to !== undefined) {
+    conditions.push('audit.created_at <= ?');
+    values.push(to);
   }
-
+  if (supportCaseId !== undefined) {
+    // New rows carry support_case_id. Historical rows carry only case_id, so
+    // resolve both sides through the existing legacy_case_id edge.
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM support_cases AS filter_case
+      WHERE filter_case.org_id = audit.org_id
+        AND (
+          filter_case.id = audit.support_case_id
+          OR filter_case.id = audit.case_id
+          OR filter_case.legacy_case_id = audit.case_id
+        )
+        AND (filter_case.id = ? OR filter_case.legacy_case_id = ?)
+    )`);
+    values.push(supportCaseId, supportCaseId);
+  }
   const result = await env.DB.prepare(
-    `SELECT id, actor_id, actor_role, action, target_table, target_id, case_id, created_at FROM audit_log WHERE ${conditions.join(' AND ')} ORDER BY id`,
-  ).bind(...values).all<DbRow>();
+    `SELECT
+       audit.id,
+       audit.actor_id,
+       audit.actor_role,
+       audit.action,
+       audit.target_table,
+       COALESCE(
+         audit.beneficiary_id,
+         (
+           SELECT provenance.beneficiary_id
+           FROM support_cases AS provenance
+           WHERE provenance.org_id = audit.org_id
+             AND (
+               provenance.id = audit.support_case_id
+               OR provenance.id = audit.case_id
+               OR provenance.legacy_case_id = audit.case_id
+             )
+           LIMIT 1
+         )
+       ) AS beneficiary_id,
+       COALESCE(
+         audit.support_case_id,
+         (
+           SELECT provenance.id
+           FROM support_cases AS provenance
+           WHERE provenance.org_id = audit.org_id
+             AND (
+               provenance.id = audit.support_case_id
+               OR provenance.id = audit.case_id
+               OR provenance.legacy_case_id = audit.case_id
+             )
+           LIMIT 1
+         )
+       ) AS support_case_id,
+       audit.created_at
+     FROM audit_log AS audit
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY audit.id DESC
+     LIMIT ?`,
+  ).bind(...values, limit + 1).all<DbRow>();
 
   await writeAudit(env, actor, { action: 'read', targetTable: 'audit_log', detail: { filter: true } });
 
-  return result.results.map((row) => ({
+  const hasNext = result.results.length > limit;
+  const rows = hasNext ? result.results.slice(0, limit) : result.results;
+  const items = rows.map((row) => ({
     id: typeof row.id === 'number' ? row.id : Number.parseInt(stringValue(row.id), 10),
     actorId: stringValue(row.actor_id),
     actorRole: toRole(row.actor_role),
     action: stringValue(row.action),
     targetTable: stringValue(row.target_table),
-    targetId: nullableString(row.target_id),
-    caseId: nullableString(row.case_id),
+    beneficiaryId: nullableString(row.beneficiary_id),
+    supportCaseId: nullableString(row.support_case_id),
     createdAt: stringValue(row.created_at),
   }));
+  return {
+    items,
+    nextCursor: hasNext && items.length > 0 ? encodeAuditCursor(items[items.length - 1]!.id) : null,
+  };
 }
 
 /**
  * 케이스 내보내기(보고서 등 외부 반출). PII는 포함하지 않는다.
  * R2: 승인된 기록만 포함. 권한: 담당 실무자 배정. 감사: export (D14).
  */
+export interface CaseExportResponse {
+  schemaVersion: 1;
+  case: {
+    id: string;
+    programType: string;
+    status: Case['status'];
+    intakeAt: string | null;
+    closedAt: string | null;
+    closedReason: string | null;
+  };
+  goals: Array<Pick<Goal, 'id' | 'caseId' | 'title' | 'scaleCriteria' | 'status' | 'closedReason' | 'closedAt' | 'replacedByGoalId'>>;
+  sessions: Array<Pick<Session, 'id' | 'caseId' | 'counselorId' | 'heldAt' | 'channel' | 'memo' | 'aiStatus' | 'aiSummary' | 'approvedAt' | 'approvedBy'>>;
+  gasScores: Array<Pick<GasScore, 'sessionId' | 'goalId' | 'score' | 'scoredBy'>>;
+}
+
 export async function exportCase(
   env: Env,
   actor: Actor,
   caseId: string,
-): Promise<{ case: Case; goals: Goal[]; sessions: Session[]; gasScores: GasScore[] }> {
+): Promise<CaseExportResponse> {
   assertHuman(actor);
   const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
   const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
   // 서로 독립적인 조회는 병렬로 실행한다.
   const [goals, sessionRows, gasScores, approvedBriefings] = await Promise.all([
     env.DB.prepare(
-      `SELECT goal.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
+      `SELECT
+         goal.id,
+         support_case.id AS case_id,
+         goal.title,
+         goal.scale_criteria,
+         goal.status,
+         goal.closed_reason,
+         goal.closed_at,
+         goal.replaced_by_goal_id
        FROM goals AS goal
        JOIN support_cases AS support_case ON support_case.id = goal.support_case_id
        WHERE goal.org_id = ? AND goal.support_case_id = ?
        ORDER BY goal.created_at`,
     ).bind(actor.orgId, context.supportCaseId).all<DbRow>(),
     env.DB.prepare(
-      `SELECT session.*, COALESCE(support_case.legacy_case_id, support_case.id) AS case_id
+      `SELECT
+         session.id,
+         support_case.id AS case_id,
+         session.counselor_id,
+         session.held_at,
+         session.channel,
+         session.memo
        FROM sessions AS session
        JOIN support_cases AS support_case ON support_case.id = session.support_case_id
        WHERE session.org_id = ? AND session.support_case_id = ?
        ORDER BY session.held_at DESC`,
     ).bind(actor.orgId, context.supportCaseId).all<DbRow>(),
     env.DB.prepare(
-      `SELECT session_goal_scores.*
+      `SELECT
+         session_goal_scores.session_id,
+         session_goal_scores.goal_id,
+         session_goal_scores.score,
+         session_goal_scores.scored_by
        FROM session_goal_scores
        INNER JOIN sessions ON sessions.id = session_goal_scores.session_id
        WHERE session_goal_scores.org_id = ?
          AND sessions.support_case_id = ?
-         AND EXISTS (
-           SELECT 1
-           FROM approved_ai_briefing_v1 AS approved
-           WHERE approved.org_id = session_goal_scores.org_id
-             AND approved.session_id = sessions.id
-         )
        ORDER BY sessions.held_at`,
     ).bind(actor.orgId, context.supportCaseId).all<DbRow>(),
     loadApprovedAiBriefings(env, actor.orgId, caseId),
   ]);
   const approvedBySession = new Map(approvedBriefings.map((briefing) => [briefing.sessionId, briefing] as const));
-  await writeAudit(env, actor, { action: 'export', targetTable: 'cases', targetId: caseId, caseId });
+  const mappedSessions = sessionRows.results.map((row) => {
+    const sessionId = stringValue(row.id);
+    const briefing = approvedBySession.get(sessionId);
+    return {
+      id: sessionId,
+      caseId: stringValue(row.case_id),
+      counselorId: stringValue(row.counselor_id),
+      heldAt: stringValue(row.held_at),
+      channel: toChannel(row.channel),
+      memo: nullableString(row.memo),
+      aiStatus: briefing === undefined ? 'none' as const : 'approved' as const,
+      aiSummary: briefing?.summaryText ?? null,
+      approvedAt: briefing?.approvedAt ?? null,
+      approvedBy: briefing?.approvedBy ?? null,
+    };
+  });
+  const result: CaseExportResponse = {
+    schemaVersion: 1,
+    case: {
+      id: context.supportCaseId,
+      programType: caseRecord.programType,
+      status: caseRecord.status,
+      intakeAt: caseRecord.intakeAt,
+      closedAt: caseRecord.closedAt,
+      closedReason: caseRecord.closedReason,
+    },
+    goals: goals.results.map(mapGoal).map((goal) => ({
+      id: goal.id,
+      caseId: goal.caseId,
+      title: goal.title,
+      scaleCriteria: goal.scaleCriteria,
+      status: goal.status,
+      closedReason: goal.closedReason,
+      closedAt: goal.closedAt,
+      replacedByGoalId: goal.replacedByGoalId,
+    })),
+    sessions: mappedSessions,
+    // evidenceQuote is an AI suggestion and is intentionally not exported.
+    gasScores: gasScores.results.map(mapGasScore).map((score) => ({
+      sessionId: score.sessionId,
+      goalId: score.goalId,
+      score: score.score,
+      scoredBy: score.scoredBy,
+    })),
+  };
+  await writeAudit(env, actor, {
+    action: 'export',
+    targetTable: 'cases',
+    targetId: caseId,
+    caseId,
+    detail: {
+      schemaVersion: 1,
+      prepared: true,
+      goalCount: result.goals.length,
+      sessionCount: result.sessions.length,
+      gasScoreCount: result.gasScores.length,
+    },
+  });
+  return result;
+}
+
+export interface ExportHistoryItem {
+  id: number;
+  actorId: string;
+  actorRole: Role;
+  createdAt: string;
+  goalCount: number;
+  sessionCount: number;
+  gasScoreCount: number;
+}
+
+export interface ExportHistoryPage {
+  items: ExportHistoryItem[];
+  nextCursor: string | null;
+}
+
+export interface ExportHistoryFilter {
+  limit?: number;
+  cursor?: string;
+}
+
+const DEFAULT_EXPORT_HISTORY_LIMIT = 25;
+const MAX_EXPORT_HISTORY_LIMIT = 50;
+
+
+function exportCount(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > 100_000) return null;
+  return value;
+}
+
+function exportAuditMetadata(value: unknown): Pick<ExportHistoryItem, 'goalCount' | 'sessionCount' | 'gasScoreCount'> | null {
+  const parsed = typeof value === 'string' ? parseJson<Record<string, unknown>>(value) : null;
+  if (parsed === null || parsed.schemaVersion !== 1 || parsed.prepared !== true) return null;
+  const goalCount = exportCount(parsed.goalCount);
+  const sessionCount = exportCount(parsed.sessionCount);
+  const gasScoreCount = exportCount(parsed.gasScoreCount);
+  return goalCount === null || sessionCount === null || gasScoreCount === null
+    ? null
+    : { goalCount, sessionCount, gasScoreCount };
+}
+
+export async function listCaseExportHistory(
+  env: Env,
+  actor: Actor,
+  caseId: string,
+  filter?: ExportHistoryFilter,
+): Promise<ExportHistoryPage> {
+  assertHuman(actor);
+  const caseRecord = await assertCaseWriteAccess(env, actor, caseId);
+  const context = await resolveLegacyCaseContext(env, actor.orgId, caseId);
+  const limit = filter?.limit ?? DEFAULT_EXPORT_HISTORY_LIMIT;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_EXPORT_HISTORY_LIMIT) {
+    throw new ValidationError('limit is invalid');
+  }
+  if (filter?.cursor !== undefined && (filter.cursor.length > 300 || !/^[A-Za-z0-9_-]+$/u.test(filter.cursor))) {
+    throw new ValidationError('cursor is invalid');
+  }
+  const cursor = decodeAuditCursor(filter?.cursor);
+  const result = await env.DB.prepare(
+    `SELECT id, actor_id, actor_role, detail, created_at
+     FROM audit_log
+     WHERE org_id = ?
+       AND action = 'export'
+       AND target_table = 'cases'
+       AND (case_id = ? OR case_id = ?)
+       ${cursor === undefined ? '' : 'AND id < ?'}
+     ORDER BY id DESC
+     LIMIT ?`,
+  ).bind(
+    actor.orgId,
+    context.supportCaseId,
+    caseId,
+    ...(cursor === undefined ? [] : [cursor]),
+    limit + 1,
+  ).all<DbRow>();
+  const pageRows = result.results.slice(0, limit);
+  const rows = pageRows
+    .map((row): ExportHistoryItem | null => {
+      const metadata = exportAuditMetadata(row.detail);
+      if (metadata === null) return null;
+      const id = typeof row.id === 'number' ? row.id : Number.parseInt(stringValue(row.id), 10);
+      if (!Number.isSafeInteger(id) || id < 1) return null;
+      return {
+        id,
+        actorId: stringValue(row.actor_id),
+        actorRole: toRole(row.actor_role),
+        createdAt: stringValue(row.created_at),
+        ...metadata,
+      };
+    })
+    .filter((row): row is ExportHistoryItem => row !== null);
+  const hasNext = result.results.length > limit;
+  const items = rows;
+  await writeAudit(env, actor, {
+    action: 'read',
+    targetTable: 'audit_log',
+    targetId: caseRecord.id,
+    caseId,
+    detail: { exportHistory: true },
+  });
   return {
-    case: caseRecord,
-    goals: goals.results.map(mapGoal),
-    sessions: sessionRows.results
-      .map(mapSession)
-      .map((session) => officialSessionFromApprovedBriefing(session, approvedBySession.get(session.id))),
-    gasScores: gasScores.results.map(mapGasScore),
+    items,
+    nextCursor: hasNext && pageRows.length > 0 ? encodeAuditCursor(Number(pageRows[pageRows.length - 1]!.id)) : null,
+  };
+}
+
+export interface ExportCaseOption {
+  supportCaseId: string;
+  beneficiaryId: string;
+  name: string | null;
+  phone: string | null;
+  programName: string;
+  status: 'active' | 'closed';
+  intakeAt: string | null;
+}
+
+export async function listSettingsSupportCaseOptions(
+  env: Env, actor: Actor, scope: 'assigned' | 'organization', cursor?: string,
+): Promise<{ items: ExportCaseOption[]; nextCursor: string | null }> {
+  if (scope === 'assigned') await assertPractitioner(env, actor);
+  else if (scope === 'organization') await assertInstitutionAdmin(env, actor);
+  else throw new ValidationError('settings case scope is invalid');
+  const assignedOnly = scope === 'assigned' ? 1 : 0;
+  if (cursor !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(cursor)) {
+    throw new ValidationError('settings case cursor is invalid');
+  }
+  const result = await env.DB.prepare(
+    `SELECT support_case.id, support_case.beneficiary_id, support_case.status, support_case.intake_at,
+            COALESCE(program.display_name, support_case.program_type) AS program_name
+     FROM support_cases AS support_case
+     JOIN beneficiaries AS beneficiary ON beneficiary.id = support_case.beneficiary_id
+       AND beneficiary.org_id = support_case.org_id AND beneficiary.initialization_state = 'complete'
+     LEFT JOIN programs AS program ON program.id = support_case.program_id AND program.org_id = support_case.org_id
+     WHERE support_case.org_id = ?
+       AND (? = 1 OR support_case.status = 'active')
+       AND (? = 0 OR EXISTS (
+         SELECT 1 FROM support_case_assignees AS assignment
+         WHERE assignment.support_case_id = support_case.id AND assignment.org_id = support_case.org_id
+           AND assignment.user_id = ? AND assignment.status = 'active' AND assignment.unassigned_at IS NULL
+       ))
+       AND (CAST(? AS TEXT) IS NULL OR support_case.id > ?)
+     ORDER BY support_case.id LIMIT 51`,
+  ).bind(actor.orgId, assignedOnly, assignedOnly, actor.userId, cursor ?? null, cursor ?? null).all<DbRow>();
+  const rows = result.results.slice(0, 50);
+  const contacts = await loadParticipantContacts(env, actor.orgId, rows.map((row) => stringValue(row.beneficiary_id)), false);
+  await writeCanonicalAudit(env, actor, {
+    action: 'read', targetTable: 'support_cases', detail: { settingsOptions: scope, resultCount: rows.length },
+  });
+  await auditParticipantPiiRead(env, actor, contacts, {});
+  return {
+    items: rows.map((row) => {
+      const beneficiaryId = stringValue(row.beneficiary_id);
+      const contact = contacts.get(beneficiaryId);
+      return {
+        supportCaseId: stringValue(row.id), beneficiaryId,
+        name: contact?.name ?? null, phone: contact?.phone ?? null,
+        programName: stringValue(row.program_name), status: toCaseStatus(row.status),
+        intakeAt: nullableString(row.intake_at),
+      };
+    }),
+    nextCursor: result.results.length > 50 ? stringValue(rows[rows.length - 1]!.id) : null,
   };
 }
 
@@ -11598,23 +12044,59 @@ export async function resolveDirectoryActorByPrincipal(
   authn: IdentityActor['authn'],
   credentialIssuedAt: string | null,
 ): Promise<IdentityActor | null> {
-  const normalized = principal.trim();
-  if (normalized.length === 0) return null;
-  const user = await env.DB.prepare(
-    `SELECT id, org_id, role,
-       (SELECT MAX(revoked_at) FROM auth_revocations
-        WHERE kind = 'actor' AND subject = users.id) AS actor_revoked_at
-     FROM users
-     WHERE email = ? AND active = 1
-     LIMIT 1`,
-  ).bind(normalized).first<DbRow>();
-  if (user === null) return null;
+  return resolveDirectoryActorByKey(env, 'email', principal.trim(), authn, credentialIssuedAt);
+}
+
+/** Supabase subjects are opaque identifiers; token email and role claims are never directory keys. */
+export async function resolveDirectoryActorByAuthSubject(
+  env: Env,
+  subject: string,
+  authn: IdentityActor['authn'],
+  credentialIssuedAt: string,
+): Promise<IdentityActor | null> {
+  if (authn.source !== 'supabase-jwt' || authn.assurance !== 'aal2' || authn.sessionId === null) return null;
+  const actor = await resolveDirectoryActorByKey(env, 'auth_subject', subject, authn, credentialIssuedAt);
+  return actor?.kind === 'human' ? actor : null;
+}
+
+async function resolveDirectoryActorByKey(
+  env: Env,
+  key: 'email' | 'auth_subject',
+  principal: string,
+  authn: IdentityActor['authn'],
+  credentialIssuedAt: string | null,
+): Promise<IdentityActor | null> {
+  if (principal.length === 0) return null;
+  const userStatement = key === 'email'
+    ? env.DB.prepare(
+      `SELECT id, org_id, role,
+         (SELECT MAX(revoked_at) FROM auth_revocations
+          WHERE kind = 'actor' AND subject = users.id) AS actor_revoked_at,
+         (SELECT MAX(revoked_at) FROM auth_revocations
+          WHERE kind = 'session' AND subject = ?) AS session_revoked_at
+       FROM users
+       WHERE email = ? AND active = 1
+       LIMIT 1`,
+    )
+    : env.DB.prepare(
+      `SELECT id, org_id, role,
+         (SELECT MAX(revoked_at) FROM auth_revocations
+          WHERE kind = 'actor' AND subject = users.id) AS actor_revoked_at,
+         (SELECT MAX(revoked_at) FROM auth_revocations
+          WHERE kind = 'session' AND subject = ?) AS session_revoked_at
+       FROM users
+       WHERE auth_subject = ? AND active = 1
+       LIMIT 1`,
+    );
+  const user = await userStatement.bind(authn.sessionId, principal).first<DbRow>();
+  if (user === null || nullableString(user.session_revoked_at) !== null) return null;
   const actorRevokedAt = nullableString(user.actor_revoked_at);
   if (actorRevokedAt !== null) {
     const revokedAtMs = Date.parse(actorRevokedAt);
     const issuedAtMs = credentialIssuedAt === null ? Number.NaN : Date.parse(credentialIssuedAt);
     // A malformed persisted timestamp is an unreadable revocation state, never permission to pass.
-    if (Number.isNaN(revokedAtMs) || Number.isNaN(issuedAtMs) || issuedAtMs <= revokedAtMs) return null;
+    if (Number.isNaN(revokedAtMs)) throw new IdentityStoreUnavailableError();
+    if (Number.isNaN(issuedAtMs) || issuedAtMs <= revokedAtMs) return null;
   }
 
   const userId = stringValue(user.id);
@@ -11726,17 +12208,21 @@ export async function upsertUser(
   const name = input.name ?? null;
   if (existing === null) {
     const id = input.userId !== undefined && input.userId.trim().length > 0 ? input.userId.trim() : newId();
-    await env.DB.prepare('INSERT INTO users (id, org_id, email, role, active, name) VALUES (?, ?, ?, ?, 1, ?)')
-      .bind(id, actor.orgId, email, role, name)
-      .run();
-    await writeAudit(env, actor, { action: 'create', targetTable: 'users', targetId: id, detail: { role } });
+    await env.DB.batch([
+      env.DB.prepare('UPDATE organization_settings SET version = version WHERE org_id = ?').bind(actor.orgId),
+      env.DB.prepare('INSERT INTO users (id, org_id, email, role, active, name) VALUES (?, ?, ?, ?, 1, ?)').bind(id, actor.orgId, email, role, name),
+      canonicalAuditStatement(env, actor, { action: 'create', targetTable: 'users', targetId: id,
+        beneficiaryId: null, supportCaseId: null, detail: { role } }),
+    ]);
     return { id, orgId: actor.orgId, email, role, active: true, name };
   }
 
-  await env.DB.prepare('UPDATE users SET role = ?, active = 1, name = COALESCE(?, name) WHERE id = ? AND org_id = ?')
-    .bind(role, name, existing.id, actor.orgId)
-    .run();
-  await writeAudit(env, actor, { action: 'update', targetTable: 'users', targetId: existing.id, detail: { role } });
+  await env.DB.batch([
+    env.DB.prepare('UPDATE organization_settings SET version = version WHERE org_id = ?').bind(actor.orgId),
+    env.DB.prepare('UPDATE users SET role = ?, active = 1, name = COALESCE(?, name) WHERE id = ? AND org_id = ?').bind(role, name, existing.id, actor.orgId),
+    canonicalAuditStatement(env, actor, { action: 'update', targetTable: 'users', targetId: existing.id,
+      beneficiaryId: null, supportCaseId: null, detail: { role } }),
+  ]);
   return { ...existing, role, active: true, name: input.name ?? existing.name };
 }
 
@@ -11764,6 +12250,9 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string, opt
   // ③ 발급한 미사용 초대 토큰 폐기 ④ 기존 인증 material 전부 회수. 재활성화해도 배정은
   // 복원하지 않고, 회수 시각 뒤 발급된 새 credential만 Identity가 받는다.
   await env.DB.batch([
+    env.DB.prepare('UPDATE organization_settings SET version = version WHERE org_id = ?').bind(actor.orgId),
+    env.DB.prepare('UPDATE team_memberships SET ended_at = ? WHERE org_id = ? AND user_id = ? AND ended_at IS NULL').bind(endedAt, actor.orgId, userId),
+    env.DB.prepare('UPDATE team_supervisor_grants SET revoked_at = ? WHERE org_id = ? AND supervisor_user_id = ? AND revoked_at IS NULL').bind(endedAt, actor.orgId, userId),
     env.DB.prepare(
       `UPDATE support_case_assignees
        SET unassigned_at = ?, status = 'ended', transfer_reason = COALESCE(transfer_reason, ?)
@@ -11780,8 +12269,9 @@ export async function deactivateUser(env: Env, actor: Actor, userId: string, opt
     ).bind(newId(), userId, endedAt),
     env.DB.prepare('UPDATE users SET active = 0 WHERE id = ? AND org_id = ?')
       .bind(userId, actor.orgId),
+    canonicalAuditStatement(env, actor, { action: 'update', targetTable: 'users', targetId: userId,
+      beneficiaryId: null, supportCaseId: null, detail: { active: false, offboardedAssignments: true, offboardReason: reason } }),
   ]);
-  await writeCanonicalAudit(env, actor, { action: 'update', targetTable: 'users', targetId: userId, detail: { active: false, offboardedAssignments: true, offboardReason: reason } });
   return { ...user, active: false };
 }
 
@@ -11805,9 +12295,15 @@ export async function reactivateUser(env: Env, actor: Actor, userId: string): Pr
  * 권한: 인증된 본인(역할 무관) — org_id 일치로 자기 기관 자기 행만 읽는다. 감사: read(users, self).
  * 관리자 전용이 아니므로 담당 실무자(counselor)도 자기 신원은 확인할 수 있다.
  */
-export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
+export async function getMyIdentity(env: Env, actor: Actor | IdentityActor): Promise<User> {
+  assertHuman(actor);
   const user = await getUserForOrg(env, actor.orgId, actor.userId);
-  await writeAudit(env, actor, { action: 'read', targetTable: 'users', targetId: actor.userId, detail: { self: true } });
+  if (!user.active || user.role === 'service') throw new ForbiddenError('actor is unavailable');
+  // The audit schema retains the directory role; canonical grants remain separate authorization facts.
+  await writeAudit(env, { userId: user.id, orgId: user.orgId, role: user.role }, {
+    action: 'read', targetTable: 'users', targetId: actor.userId,
+    detail: 'kind' in actor ? { self: true, roles: actor.roles } : { self: true },
+  });
   return user;
 }
 
@@ -11817,8 +12313,9 @@ export async function getMyIdentity(env: Env, actor: Actor): Promise<User> {
  * 과 같다. 감사 없음: 권한 검사 결과일 뿐 기록 열람이 아니다. 0040 이전 스키마(표 없음)에서는
  * users.role 로 폴백해 hasActiveHumanRoleAssignment 와 같은 답을 낸다.
  */
-export async function listMyRoles(env: Env, actor: Actor): Promise<ActorRole[]> {
+export async function listMyRoles(env: Env, actor: Actor | IdentityActor): Promise<ActorRole[]> {
   assertHuman(actor);
+  if ('kind' in actor) return actor.roles;
   try {
     const assignments = await env.DB.prepare(
       `SELECT role
@@ -11876,7 +12373,7 @@ export async function rememberLastProgramType(
  * `/` 직행 목적지. 저장값이 없으면 null 을 돌려주고 **화면이 첫 사업으로 폴백**한다 —
  * 사라진 사업인지까지는 여기서 판정하지 않는다(사업 목록은 화면 상수라 D1 밖에 있다).
  */
-export async function getLastProgramType(env: Env, actor: Actor): Promise<string | null> {
+export async function getLastProgramType(env: Env, actor: Actor | IdentityActor): Promise<string | null> {
   assertHuman(actor);
   const row = await env.DB.prepare('SELECT last_program_type FROM users WHERE id = ? AND org_id = ?')
     .bind(actor.userId, actor.orgId)
@@ -12504,7 +13001,7 @@ function canonicalAuditStatement(
     action: string;
     targetTable: string;
     targetId: string;
-    beneficiaryId: string;
+    beneficiaryId: string | null;
     supportCaseId: string | null;
     detail: Record<string, unknown>;
     caseId?: string | null;
@@ -12612,8 +13109,470 @@ async function allocateBeneficiaryId(env: Env, orgId: string, attemptedIds: read
   return `${animal}-${String(next).padStart(3, '0')}`;
 }
 
-export interface CreateBeneficiaryWithInitialSupportCaseInput {
+export type ProgramAdmissionState =
+  | 'ready' | 'undecided' | 'confirmation_required' | 'selection_changed'
+  | 'notice_changed' | 'settings_changed' | 'storage_unavailable'
+  | 'processing_unavailable' | 'installation_unavailable';
+
+export interface ProgramConfirmationInput {
+  copyVersion: string;
+  copyHash: string;
+  installationPolicyVersion: number;
+  installationConfigHash: string;
+}
+
+export interface ProgramStaffInput {
+  userId: string;
+  isResponsible: boolean;
+}
+
+interface ProgramStaff extends ProgramStaffInput {
+  name: string | null;
+  active: boolean;
+}
+
+export interface CreateProgramInput {
+  displayName: string;
+  storageMode?: ProgramStorageMode | null;
+  processingMode?: ProgramProcessingMode | null;
+  confirmation?: ProgramConfirmationInput | null;
+  staff?: ProgramStaffInput[];
+}
+
+export interface UpdateProgramInput {
+  expectedVersion: number;
+  displayName?: string;
+  storageMode?: ProgramStorageMode | null;
+  processingMode?: ProgramProcessingMode | null;
+  confirmation?: ProgramConfirmationInput | null;
+  status?: 'active' | 'closed';
+  staff?: ProgramStaffInput[];
+}
+
+interface ProgramConfirmation extends ProgramConfirmationInput {
+  by: string;
+  at: string;
+  storageMode: ProgramStorageMode;
+  processingMode: ProgramProcessingMode;
+}
+
+interface ProgramRecord {
+  id: string;
+  orgId: string;
+  displayName: string | null;
+  status: 'active' | 'closed';
   programType: 'financial_support_v1';
+  storageMode: ProgramStorageMode;
+  processingMode: ProgramProcessingMode;
+  version: number;
+  confirmation: ProgramConfirmation | null;
+}
+
+export interface ProgramView extends ProgramRecord {
+  admissionState: ProgramAdmissionState;
+  staff: ProgramStaff[];
+}
+
+interface ProgramAdmissionContext {
+  orgId: string;
+  deploymentMode: DeploymentMode;
+  sttMode: 'off' | 'local' | 'azure';
+  llmMode: 'off' | 'openai';
+  policyVersion: number;
+  configHash: string;
+  copyHash: string;
+}
+
+let admissionCopyHash: Promise<string> | undefined;
+
+interface InstalledAiPolicy {
+  policyVersion: number;
+  sttMode: 'off' | 'local' | 'azure';
+  llmMode: 'off' | 'openai';
+}
+
+async function installedAiPolicyForOrg(env: Env, orgId: string): Promise<InstalledAiPolicy> {
+  const row = await env.DB.prepare(
+    'SELECT version, stt_mode, llm_mode FROM program_admission_policies WHERE org_id = ?',
+  ).bind(orgId).first<DbRow>();
+  const policyVersion = row === null ? null : integerValue(row.version);
+  if (row === null || policyVersion === null || policyVersion < 1
+    || (row.stt_mode !== 'off' && row.stt_mode !== 'local' && row.stt_mode !== 'azure')
+    || (row.llm_mode !== 'off' && row.llm_mode !== 'openai')) {
+    throw new ProgramAdmissionRequiredError('installation_unavailable');
+  }
+  return { policyVersion, sttMode: row.stt_mode, llmMode: row.llm_mode };
+}
+
+/**
+ * Authenticated runtime composition reads only its institution's selected modes.
+ * Like capability classification, this contains no clinical data or credentials.
+ * Business settings reads and mutations retain their own audit records.
+ */
+export async function getInstalledAiPolicy(env: Env, actor: Actor | IdentityActor): Promise<InstalledAiPolicy> {
+  if ('kind' in actor) assertHuman(actor);
+  if (!('kind' in actor) && actor.role === 'service') assertAgentActor(actor);
+  else await assertActiveHumanUser(env, actor.orgId, actor.userId);
+  return installedAiPolicyForOrg(env, actor.orgId);
+}
+
+async function programAdmissionContext(env: Env, orgId: string): Promise<ProgramAdmissionContext> {
+  const deploymentMode = env.installationMode;
+  if (deploymentMode !== 'community-cloud' && deploymentMode !== 'local-single' && deploymentMode !== 'local-office') {
+    throw new ProgramAdmissionRequiredError('installation_unavailable');
+  }
+  const { sttMode, llmMode, policyVersion } = await installedAiPolicyForOrg(env, orgId);
+  admissionCopyHash ??= sha256Hex(canonicalizeJcs(PROGRAM_ADMISSION_COPY));
+  const [copyHash, configHash] = await Promise.all([
+    admissionCopyHash,
+    sha256Hex(canonicalizeJcs({ deploymentMode, sttMode, llmMode })),
+  ]);
+  return {
+    orgId, deploymentMode, sttMode, llmMode, policyVersion, copyHash, configHash,
+  };
+}
+
+function mapProgram(row: DbRow): ProgramRecord {
+  const storageMode = row.storage_mode;
+  const processingMode = row.processing_mode;
+  const version = integerValue(row.version);
+  if ((storageMode !== 'supabase_seoul' && storageMode !== 'naver_public' && storageMode !== 'local_encrypted' && storageMode !== 'undecided')
+    || (processingMode !== 'external_allowed' && processingMode !== 'internal_only' && processingMode !== 'undecided')
+    || (row.status !== 'active' && row.status !== 'closed')
+    || version === null || version < 1) throw new ValidationError('program is invalid');
+  assertFinancialSupportProgramType(row.program_type);
+  const confirmedBy = nullableString(row.admission_confirmed_by);
+  return {
+    id: stringValue(row.id), orgId: stringValue(row.org_id), displayName: nullableString(row.display_name),
+    programType: row.program_type, status: row.status, storageMode, processingMode, version,
+    confirmation: confirmedBy === null ? null : {
+      by: confirmedBy, at: stringValue(row.admission_confirmed_at),
+      storageMode: stringValue(row.admission_confirmed_storage_mode) as ProgramStorageMode,
+      processingMode: stringValue(row.admission_confirmed_processing_mode) as ProgramProcessingMode,
+      copyVersion: stringValue(row.admission_copy_version), copyHash: stringValue(row.admission_copy_hash),
+      installationConfigHash: stringValue(row.admission_installation_config_hash),
+      installationPolicyVersion: integerValue(row.admission_installation_policy_version) ?? 0,
+    },
+  };
+}
+
+async function programForOrg(env: Env, orgId: string, programId: string): Promise<ProgramRecord> {
+  assertOpaqueIdentifier(programId, 'program id');
+  const row = await env.DB.prepare('SELECT * FROM programs WHERE org_id = ? AND id = ?')
+    .bind(orgId, programId).first<DbRow>();
+  if (row === null) throw new ForbiddenError('program is unavailable');
+  return mapProgram(row);
+}
+
+function programAdmissionState(program: ProgramRecord, context: ProgramAdmissionContext): ProgramAdmissionState {
+  if (program.storageMode === 'undecided' || program.processingMode === 'undecided') return 'undecided';
+  if (program.storageMode !== (context.deploymentMode === 'community-cloud' ? 'supabase_seoul' : 'local_encrypted')) {
+    return 'storage_unavailable';
+  }
+  const confirmation = program.confirmation;
+  if (confirmation === null) return 'confirmation_required';
+  if (confirmation.storageMode !== program.storageMode || confirmation.processingMode !== program.processingMode) return 'selection_changed';
+  if (confirmation.copyVersion !== PROGRAM_ADMISSION_COPY_VERSION || confirmation.copyHash !== context.copyHash) return 'notice_changed';
+  if (confirmation.installationPolicyVersion !== context.policyVersion
+    || confirmation.installationConfigHash !== context.configHash) return 'settings_changed';
+  return 'ready';
+}
+
+type ProgramOperation = 'registration' | 'audio' | 'llm';
+interface ProgramAdmissionGrant { program: ProgramRecord; context: ProgramAdmissionContext }
+
+async function requireProgramAdmission(
+  env: Env, orgId: string, programId: string, operation: ProgramOperation, knownContext?: ProgramAdmissionContext,
+): Promise<ProgramAdmissionGrant> {
+  if (knownContext !== undefined && knownContext.orgId !== orgId) throw new ForbiddenError('program is unavailable');
+  const [program, context] = await Promise.all([
+    programForOrg(env, orgId, programId), knownContext ?? programAdmissionContext(env, orgId),
+  ]);
+  const state = programAdmissionState(program, context);
+  if (state !== 'ready') throw new ProgramAdmissionRequiredError(state);
+  if (operation === 'registration' && program.status === 'closed') throw new ProgramAdmissionRequiredError('program_closed');
+  if (operation === 'llm' && (program.processingMode !== 'external_allowed' || context.llmMode !== 'openai')) {
+    throw new ProgramAdmissionRequiredError('processing_unavailable');
+  }
+  if (operation === 'audio' && (context.sttMode === 'off'
+    || (context.sttMode === 'azure' && program.processingMode !== 'external_allowed'))) {
+    throw new ProgramAdmissionRequiredError('processing_unavailable');
+  }
+  return { program, context };
+}
+
+async function requireSupportCaseProgramAdmission(
+  env: Env, orgId: string, supportCaseId: string, operation: ProgramOperation, context?: ProgramAdmissionContext,
+): Promise<ProgramAdmissionGrant> {
+  const row = await env.DB.prepare('SELECT program_id FROM support_cases WHERE org_id = ? AND id = ?')
+    .bind(orgId, supportCaseId).first<DbRow>();
+  if (row === null) throw new ForbiddenError('support case is unavailable');
+  return requireProgramAdmission(env, orgId, stringValue(row.program_id), operation, context);
+}
+
+
+async function programPolicyBatch<T = unknown>(
+  env: Env, context: ProgramAdmissionContext, statements: PreparedStatement[], program?: Pick<ProgramRecord, 'id' | 'version'>,
+): Promise<DatabaseResult<T>[]> {
+  const guardId = newId();
+  const programCheck = program === undefined ? '' : ' AND EXISTS (SELECT 1 FROM programs WHERE org_id = ? AND id = ? AND version = ?)';
+  const programValues: Bindable[] = program === undefined ? [] : [context.orgId, program.id, program.version];
+  try {
+    // A portable no-op write locks the policy row through commit. All program
+    // mutations use this lock order, so PostgreSQL cannot invalidate a grant
+    // between the revision check and the protected writes.
+    const result = await env.DB.batch<T>([
+      env.DB.prepare('UPDATE program_admission_policies SET version = version WHERE org_id = ? AND version = ?')
+        .bind(context.orgId, context.policyVersion),
+      env.DB.prepare(
+        `INSERT INTO program_admission_guards (id, org_id, valid)
+         VALUES (?, ?, CASE WHEN EXISTS (
+           SELECT 1 FROM program_admission_policies WHERE org_id = ? AND version = ?
+         )${programCheck} THEN 1 ELSE 0 END)`,
+      ).bind(guardId, context.orgId, context.orgId, context.policyVersion, ...programValues),
+      ...statements,
+      env.DB.prepare('DELETE FROM program_admission_guards WHERE id = ? AND org_id = ?').bind(guardId, context.orgId),
+    ]);
+    return result.slice(2, -1);
+  } catch (error) {
+    if (hasApplicationCode(error, 'program_admission_required')) throw new ProgramAdmissionRequiredError('settings_changed');
+    throw error;
+  }
+}
+
+function programName(value: unknown): string {
+  assertNonBlankText(value, 'program name');
+  const name = value.trim();
+  if (name.length > 120) throw new ValidationError('program name is invalid');
+  return name;
+}
+
+function programStorageChoice(
+  context: ProgramAdmissionContext, value: ProgramStorageMode | null | undefined, previous?: ProgramStorageMode,
+): ProgramStorageMode {
+  if (context.deploymentMode !== 'community-cloud') {
+    if (value !== undefined) throw new ValidationError('storage choice is not available on this installation');
+    return 'local_encrypted';
+  }
+  const choice = value === undefined ? (previous ?? 'undecided') : (value ?? 'undecided');
+  if (choice !== 'supabase_seoul' && choice !== 'undecided') throw new ValidationError('storage choice is unavailable');
+  return choice;
+}
+
+function programProcessingChoice(value: ProgramProcessingMode | null | undefined): ProgramProcessingMode {
+  const choice = value ?? 'undecided';
+  if (choice !== 'external_allowed' && choice !== 'internal_only' && choice !== 'undecided') {
+    throw new ValidationError('processing choice is invalid');
+  }
+  return choice;
+}
+
+function confirmedProgramChoices(
+  actor: Actor, context: ProgramAdmissionContext, storageMode: ProgramStorageMode, processingMode: ProgramProcessingMode,
+  input: ProgramConfirmationInput | null | undefined,
+): ProgramConfirmation | null {
+  if (input === undefined || input === null) return null;
+  assertExactKeys(input, ['copyVersion', 'copyHash', 'installationPolicyVersion', 'installationConfigHash']);
+  if (storageMode === 'undecided' || processingMode === 'undecided') throw new ValidationError('undecided choices cannot be confirmed');
+  if (input.installationPolicyVersion !== context.policyVersion
+    || input.installationConfigHash !== context.configHash || input.copyVersion !== PROGRAM_ADMISSION_COPY_VERSION
+    || input.copyHash !== context.copyHash) throw new ConflictError('program confirmation context changed');
+  return { ...input, by: actor.userId, at: now(), storageMode, processingMode };
+}
+
+function programConfirmationValues(confirmation: ProgramConfirmation | null): Bindable[] {
+  return confirmation === null ? [null, null, null, null, null, null, null, null] : [
+    confirmation.by, confirmation.at, confirmation.storageMode, confirmation.processingMode,
+    confirmation.copyVersion, confirmation.copyHash, confirmation.installationConfigHash, confirmation.installationPolicyVersion,
+  ];
+}
+
+async function programStaffOptions(env: Env, orgId: string): Promise<Array<{ userId: string; name: string | null }>> {
+  const rows = await env.DB.prepare(
+    `SELECT directory.id, directory.name FROM users AS directory
+     WHERE directory.org_id = ? AND directory.active = 1 AND directory.role IN ('admin', 'counselor')
+       AND (
+         EXISTS (SELECT 1 FROM user_role_assignments AS held
+           WHERE held.org_id = directory.org_id AND held.user_id = directory.id
+             AND held.role IN ('institution_admin', 'practitioner') AND held.revoked_at IS NULL)
+         OR EXISTS (SELECT 1 FROM team_supervisor_grants AS supervision
+           JOIN teams AS team ON team.id = supervision.team_id AND team.org_id = supervision.org_id AND team.archived_at IS NULL
+           WHERE supervision.org_id = directory.org_id AND supervision.supervisor_user_id = directory.id AND supervision.revoked_at IS NULL)
+       )
+     ORDER BY directory.name, directory.id`,
+  ).bind(orgId).all<DbRow>();
+  return rows.results.map((row) => ({ userId: stringValue(row.id), name: nullableString(row.name) }));
+}
+
+async function programStaffByProgram(env: Env, orgId: string, programId?: string): Promise<Map<string, ProgramStaff[]>> {
+  const rows = await env.DB.prepare(
+    `SELECT staff.program_id, staff.user_id, staff.is_responsible, directory.name, directory.active
+     FROM program_staff AS staff JOIN users AS directory ON directory.id = staff.user_id AND directory.org_id = staff.org_id
+     WHERE staff.org_id = ?${programId === undefined ? '' : ' AND staff.program_id = ?'}
+     ORDER BY staff.program_id, staff.is_responsible DESC, staff.user_id`,
+  ).bind(...(programId === undefined ? [orgId] : [orgId, programId])).all<DbRow>();
+  const result = new Map<string, ProgramStaff[]>();
+  for (const row of rows.results) {
+    const id = stringValue(row.program_id);
+    let staff = result.get(id);
+    if (staff === undefined) { staff = []; result.set(id, staff); }
+    staff.push({ userId: stringValue(row.user_id), name: nullableString(row.name),
+      isResponsible: row.is_responsible === 1, active: row.active === 1 });
+  }
+  return result;
+}
+
+async function validateProgramStaff(
+  env: Env, orgId: string, input: ProgramStaffInput[], previous: ProgramStaff[] = [],
+): Promise<ProgramStaffInput[]> {
+  if (!Array.isArray(input)) throw new ValidationError('program staff is invalid');
+  const seen = new Set<string>();
+  const eligible = new Set((await programStaffOptions(env, orgId)).map((person) => person.userId));
+  const existing = new Map(previous.map((person) => [person.userId, person.isResponsible]));
+  return input.map((person) => {
+    assertExactKeys(person, ['userId', 'isResponsible']);
+    assertOpaqueIdentifier(person.userId, 'staff user id');
+    if (typeof person.isResponsible !== 'boolean' || seen.has(person.userId)) throw new ValidationError('program staff is invalid');
+    seen.add(person.userId);
+    if (!eligible.has(person.userId) && existing.get(person.userId) !== person.isResponsible) {
+      throw new ForbiddenError('staff member is unavailable');
+    }
+    return { userId: person.userId, isResponsible: person.isResponsible };
+  });
+}
+
+function programStaffStatements(env: Env, orgId: string, programId: string, staff: ProgramStaffInput[]): PreparedStatement[] {
+  return [
+    env.DB.prepare('DELETE FROM program_staff WHERE org_id = ? AND program_id = ?').bind(orgId, programId),
+    ...staff.map((person) => env.DB.prepare(
+      'INSERT INTO program_staff (org_id, program_id, user_id, is_responsible) VALUES (?, ?, ?, ?)',
+    ).bind(orgId, programId, person.userId, person.isResponsible ? 1 : 0)),
+  ];
+}
+
+async function programReadback(env: Env, actor: Actor, id: string): Promise<ProgramView> {
+  const [program, context, staff] = await Promise.all([
+    programForOrg(env, actor.orgId, id), programAdmissionContext(env, actor.orgId), programStaffByProgram(env, actor.orgId, id),
+  ]);
+  await writeAudit(env, actor, { action: 'read', targetTable: 'programs', targetId: id });
+  return { ...program, staff: staff.get(id) ?? [], admissionState: programAdmissionState(program, context) };
+}
+
+export async function listPrograms(env: Env, actor: Actor) {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  const context = await programAdmissionContext(env, actor.orgId);
+  const rows = await env.DB.prepare('SELECT * FROM programs WHERE org_id = ? ORDER BY created_at, id')
+    .bind(actor.orgId).all<DbRow>();
+  const [staff, staffOptions] = await Promise.all([programStaffByProgram(env, actor.orgId), programStaffOptions(env, actor.orgId)]);
+  await writeAudit(env, actor, { action: 'read', targetTable: 'programs', detail: { list: true } });
+  return {
+    programs: rows.results.map((row): ProgramView => {
+      const program = mapProgram(row);
+      return { ...program, staff: staff.get(program.id) ?? [], admissionState: programAdmissionState(program, context) };
+    }),
+    staffOptions,
+    admissionCopy: { version: PROGRAM_ADMISSION_COPY_VERSION, hash: context.copyHash, copy: PROGRAM_ADMISSION_COPY },
+    installation: {
+      deploymentMode: context.deploymentMode, sttMode: context.sttMode, llmMode: context.llmMode,
+      policyVersion: context.policyVersion, configHash: context.configHash,
+    },
+  };
+}
+
+export async function listProgramOptions(env: Env, actor: Actor) {
+  await assertCurrentHumanActor(env, actor);
+  const role = await env.DB.prepare(
+    'SELECT 1 AS allowed FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND revoked_at IS NULL LIMIT 1',
+  ).bind(actor.orgId, actor.userId).first();
+  if (role === null) throw new ForbiddenError('programs are unavailable');
+  const context = await programAdmissionContext(env, actor.orgId);
+  const rows = await env.DB.prepare("SELECT * FROM programs WHERE org_id = ? AND status = 'active' ORDER BY created_at, id")
+    .bind(actor.orgId).all<DbRow>();
+  await writeAudit(env, actor, { action: 'read', targetTable: 'programs', detail: { options: true } });
+  return rows.results.map((row) => {
+    const program = mapProgram(row);
+    return { id: program.id, displayName: program.displayName, programType: program.programType,
+      admissionState: programAdmissionState(program, context) };
+  });
+}
+
+export async function createProgram(env: Env, actor: Actor, input: CreateProgramInput): Promise<ProgramView> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  const optionalKeys = (['storageMode', 'processingMode', 'confirmation', 'staff'] as const).filter((key) => input[key] !== undefined);
+  assertExactKeys(input, ['displayName', ...optionalKeys]);
+  const displayName = programName(input.displayName);
+  const context = await programAdmissionContext(env, actor.orgId);
+  const storageMode = programStorageChoice(context, input.storageMode);
+  const processingMode = programProcessingChoice(input.processingMode);
+  const confirmation = confirmedProgramChoices(actor, context, storageMode, processingMode, input.confirmation);
+  const staff = await validateProgramStaff(env, actor.orgId, input.staff ?? []);
+  const id = newId();
+  const at = now();
+  await programPolicyBatch(env, context, [
+    env.DB.prepare(
+      `INSERT INTO programs (
+         id, org_id, display_name, program_type, storage_mode, processing_mode, version,
+         admission_confirmed_by, admission_confirmed_at, admission_confirmed_storage_mode, admission_confirmed_processing_mode,
+         admission_copy_version, admission_copy_hash, admission_installation_config_hash, admission_installation_policy_version,
+         created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, actor.orgId, displayName, FINANCIAL_SUPPORT_V1, storageMode, processingMode, ...programConfirmationValues(confirmation), at, at),
+    ...programStaffStatements(env, actor.orgId, id, staff),
+    canonicalAuditStatement(env, actor, {
+      action: 'create', targetTable: 'programs', targetId: id, beneficiaryId: null, supportCaseId: null,
+      detail: { storageMode, processingMode, storageChoiceProvided: input.storageMode !== undefined,
+        processingChoiceProvided: input.processingMode !== undefined, confirmation, staff },
+    }),
+  ]);
+  return programReadback(env, actor, id);
+}
+
+export async function updateProgram(env: Env, actor: Actor, programId: string, input: UpdateProgramInput): Promise<ProgramView> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  const optionalKeys = (['displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff'] as const).filter((key) => input[key] !== undefined);
+  assertExactKeys(input, ['expectedVersion', ...optionalKeys]);
+  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 || optionalKeys.length === 0) {
+    throw new ValidationError('program update is invalid');
+  }
+  const [current, context] = await Promise.all([
+    programForOrg(env, actor.orgId, programId), programAdmissionContext(env, actor.orgId),
+  ]);
+  if (current.version !== input.expectedVersion) throw new ConflictError('program changed');
+  const status = input.status ?? current.status;
+  if (status !== 'active' && status !== 'closed') throw new ValidationError('program status is invalid');
+  const previousStaff = input.staff === undefined ? [] : (await programStaffByProgram(env, actor.orgId, programId)).get(programId) ?? [];
+  const staff = input.staff === undefined ? undefined : await validateProgramStaff(env, actor.orgId, input.staff, previousStaff);
+  const displayName = input.displayName === undefined ? current.displayName : programName(input.displayName);
+  const storageMode = programStorageChoice(context, input.storageMode, current.storageMode);
+  const processingMode = input.processingMode === undefined ? current.processingMode : programProcessingChoice(input.processingMode);
+  const choicesChanged = storageMode !== current.storageMode || processingMode !== current.processingMode;
+  const confirmation = input.confirmation === undefined && !choicesChanged ? current.confirmation
+    : confirmedProgramChoices(actor, context, storageMode, processingMode, input.confirmation);
+  if (confirmation !== null && displayName === null) throw new ValidationError('program name is required before confirmation');
+  try {
+    await programPolicyBatch(env, context, [
+      env.DB.prepare(
+        `UPDATE programs SET display_name = ?, status = ?, storage_mode = ?, processing_mode = ?, version = version + 1,
+           admission_confirmed_by = ?, admission_confirmed_at = ?, admission_confirmed_storage_mode = ?, admission_confirmed_processing_mode = ?,
+           admission_copy_version = ?, admission_copy_hash = ?, admission_installation_config_hash = ?, admission_installation_policy_version = ?,
+           updated_at = ? WHERE org_id = ? AND id = ? AND version = ?`,
+      ).bind(displayName, status, storageMode, processingMode, ...programConfirmationValues(confirmation), now(), actor.orgId, programId, current.version),
+      ...(staff === undefined ? [] : programStaffStatements(env, actor.orgId, programId, staff)),
+      canonicalAuditStatement(env, actor, {
+        action: 'update', targetTable: 'programs', targetId: programId, beneficiaryId: null, supportCaseId: null,
+        detail: { storageMode, processingMode, status, previousStatus: current.status, staff, version: current.version + 1, choicesChanged,
+          storageChoiceProvided: input.storageMode !== undefined, processingChoiceProvided: input.processingMode !== undefined, confirmation },
+      }),
+    ], current);
+  } catch (error) {
+    if (error instanceof ProgramAdmissionRequiredError) throw new ConflictError('program confirmation context changed');
+    throw error;
+  }
+  return programReadback(env, actor, programId);
+}
+
+export interface CreateBeneficiaryWithInitialSupportCaseInput {
+  programId: string;
   /**
    * 인테이크 **완료** 시각(CCC-56). 등록은 인테이크가 아니므로 **등록 경로는 이 값을 보내지
    * 않는다** — HTTP 등록 라우트는 키 자체를 거부하고, 미제공이면 NULL(아직 없음)로 만든다.
@@ -12717,7 +13676,7 @@ interface LegacyInitialSupportCaseCompatibility {
 export interface CreateSupportCaseInput {
   schemaVersion: 1;
   submissionId: string;
-  programType: 'financial_support_v1';
+  programId: string;
   /**
    * 인테이크 **완료** 시각(CCC-56). 추가 참여 사업도 등록 시점에는 인테이크 전이므로
    * HTTP 라우트는 키를 거부하고, 미제공이면 NULL 로 시작한다. 채움은 createIntakeRecord 몫이다.
@@ -12786,6 +13745,9 @@ export async function createOrganizationSettings(
        ) VALUES (?, ?, ?, 1, ?, ?)`,
     ).bind(actor.orgId, timeZone, input.piiPurgeGraceDays, createdAt, createdAt),
     env.DB.prepare(
+      "INSERT INTO program_admission_policies (org_id, version, stt_mode, llm_mode, created_at, updated_at) VALUES (?, 1, 'off', 'off', ?, ?)",
+    ).bind(actor.orgId, createdAt, createdAt),
+    env.DB.prepare(
       `INSERT INTO audit_log (
          org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
        ) VALUES (?, ?, ?, 'create', 'organization_settings', ?, NULL, ?, ?)`,
@@ -12827,7 +13789,10 @@ export interface OrganizationProfile {
 export async function getOrganizationProfile(env: Env, actor: Actor): Promise<OrganizationProfile> {
   assertHuman(actor);
   const row = await env.DB.prepare(
-    'SELECT org_name, program_display_name FROM organization_settings WHERE org_id = ?',
+    `SELECT settings.org_name, program.display_name AS program_display_name
+     FROM organization_settings AS settings
+     LEFT JOIN programs AS program ON program.id = settings.initial_program_id AND program.org_id = settings.org_id
+     WHERE settings.org_id = ?`,
   ).bind(actor.orgId).first<DbRow>();
   return {
     orgId: actor.orgId,
@@ -12836,52 +13801,123 @@ export async function getOrganizationProfile(env: Env, actor: Actor): Promise<Or
   };
 }
 
+export async function updateOrganizationProfile(
+  env: Env,
+  actor: Actor,
+  input: { orgName: string; expectedOrgName: string | null },
+): Promise<OrganizationProfile> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  assertExactKeys(input, ['orgName', 'expectedOrgName']);
+  if (typeof input.orgName !== 'string'
+    || (input.expectedOrgName !== null && typeof input.expectedOrgName !== 'string')) {
+    throw new ValidationError('organization profile payload is invalid');
+  }
+  const orgName = input.orgName.trim();
+  if (orgName.length < 1 || orgName.length > 80) throw new ValidationError('organization name is invalid');
+  const current = await env.DB.prepare(
+    'SELECT org_name, version FROM organization_settings WHERE org_id = ?',
+  ).bind(actor.orgId).first<DbRow>();
+  if (current === null) throw new ForbiddenError('organization is unavailable');
+  if (nullableString(current.org_name) !== input.expectedOrgName) throw new ConflictError('organization profile changed');
+  if (orgName === input.expectedOrgName) {
+    return getOrganizationProfile(env, actor);
+  }
+  const version = integerValue(current.version);
+  if (version === null) throw new ConflictError('organization profile is unavailable');
+  const nextVersion = version + 1;
+  const updatedAt = now();
+  const detail = stringifyJson({ organizationProfile: true, version: nextVersion, orgName });
+  // version CAS가 같은 행의 쓰기를 직렬화한다. 패배한 요청은 승자의 감사도 복제하지 않는다.
+  // 감사 실패 시 같은 batch의 이름 변경도 롤백한다. 시각을 작업 식별자로 사용하지 않는다.
+  const results = await env.DB.batch<DbRow>([
+    env.DB.prepare(
+      `UPDATE organization_settings SET org_name = ?, version = version + 1, updated_at = ?
+       WHERE org_id = ? AND version = ?
+         AND (org_name = ? OR (org_name IS NULL AND CAST(? AS TEXT) IS NULL))
+       RETURNING org_name`,
+    ).bind(orgName, updatedAt, actor.orgId, version, input.expectedOrgName, input.expectedOrgName),
+    env.DB.prepare(
+      `INSERT INTO audit_log (
+         org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
+       )
+       SELECT ?, ?, ?, 'update', 'organization_settings', ?, NULL, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM organization_settings WHERE org_id = ? AND version = ? AND org_name = ?
+       ) AND NOT EXISTS (
+         SELECT 1 FROM audit_log
+         WHERE org_id = ? AND target_table = 'organization_settings' AND target_id = ? AND action = 'update' AND detail = ?
+       )`,
+    ).bind(actor.orgId, actor.userId, actor.role, actor.orgId, detail, updatedAt,
+      actor.orgId, nextVersion, orgName, actor.orgId, actor.orgId, detail),
+  ]);
+  const saved = results[0]?.results[0];
+  if (saved === undefined) throw new ConflictError('organization profile changed');
+  return getOrganizationProfile(env, actor);
+}
+
 /**
- * 관리자 온보딩 2단계의 저장 (CCC-32 · 스펙 #78 US 1). 조직 이름·첫 사업 표시 이름만
- * 진짜 저장한다 — programs 테이블·사업 전환기 개편은 스펙이 명시적으로 제외했다.
- *
- * 설정 행이 이미 있어야 한다(로컬·미리보기 시드가 만든다 — scripts/seed/preload-data.ts).
- * 없는데 여기서 time_zone 을 지어내 INSERT 하면 0005 의 "no guessed default" 원칙이
- * 깨진다. 다시 실행하면 이름을 덮어쓴다(수정 경로 겸용 — 온보딩 화면 재방문이 409 로
- * 막히지 않는다). 변경은 전건 audit_log 에 남는다(D14).
+ * Initial institution setup creates its first real program without confirming
+ * admission. Later institution and program edits use their separate CAS APIs.
  */
 export async function completeOrganizationOnboarding(
   env: Env,
   actor: Actor,
   input: { orgName: string; programDisplayName: string },
 ): Promise<OrganizationProfile> {
-  assertAdmin(actor);
-  await assertCurrentHumanActor(env, actor);
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  assertExactKeys(input, ['orgName', 'programDisplayName']);
+  assertNonBlankText(input.orgName, 'organization name');
   const orgName = input.orgName.trim();
-  if (orgName.length < 1 || orgName.length > 80) {
-    throw new ValidationError('organization name is invalid');
-  }
-  const programDisplayName = input.programDisplayName.trim();
-  if (programDisplayName.length < 1 || programDisplayName.length > 120) {
-    throw new ValidationError('program display name is invalid');
-  }
-  await assertOrganizationSettings(env, actor.orgId);
+  if (orgName.length > 80) throw new ValidationError('organization name is invalid');
+  const displayName = programName(input.programDisplayName);
+  const settings = await env.DB.prepare(
+    'SELECT org_name, initial_program_id, version FROM organization_settings WHERE org_id = ?',
+  ).bind(actor.orgId).first<DbRow>();
+  if (settings === null) throw new ForbiddenError('organization is unavailable');
+  if (settings.org_name !== null) throw new ConflictError('organization setup is already complete');
+  const version = integerValue(settings.version);
+  if (version === null) throw new ConflictError('organization settings are unavailable');
+  const context = await programAdmissionContext(env, actor.orgId);
+  const initialProgramId = nullableString(settings.initial_program_id);
+  const current = initialProgramId === null ? null : await programForOrg(env, actor.orgId, initialProgramId);
+  const programId = current?.id ?? newId();
   const updatedAt = now();
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE organization_settings
-       SET org_name = ?, program_display_name = ?, updated_at = ?
-       WHERE org_id = ?`,
-    ).bind(orgName, programDisplayName, updatedAt, actor.orgId),
-    env.DB.prepare(
-      `INSERT INTO audit_log (
-         org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at
-       ) VALUES (?, ?, ?, 'update', 'organization_settings', ?, NULL, ?, ?)`,
-    ).bind(
-      actor.orgId,
-      actor.userId,
-      actor.role,
-      actor.orgId,
-      stringifyJson({ onboarding: true, orgName, programDisplayName }),
-      updatedAt,
-    ),
-  ]);
-  return { orgId: actor.orgId, orgName, programDisplayName };
+  const setupGuardId = newId();
+  try {
+    await programPolicyBatch(env, context, [
+      env.DB.prepare(
+        `INSERT INTO program_admission_guards (id, org_id, valid)
+         VALUES (?, ?, CASE WHEN EXISTS (
+           SELECT 1 FROM organization_settings WHERE org_id = ? AND version = ? AND org_name IS NULL
+         ) THEN 1 ELSE 0 END)`,
+      ).bind(setupGuardId, actor.orgId, actor.orgId, version),
+      current === null ? env.DB.prepare(
+        `INSERT INTO programs (id, org_id, display_name, program_type, storage_mode, processing_mode, version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'undecided', 1, ?, ?)`,
+      ).bind(programId, actor.orgId, displayName, FINANCIAL_SUPPORT_V1,
+        context.deploymentMode === 'community-cloud' ? 'undecided' : 'local_encrypted', updatedAt, updatedAt)
+        : env.DB.prepare(
+          'UPDATE programs SET display_name = ?, version = version + 1, updated_at = ? WHERE org_id = ? AND id = ? AND version = ?',
+        ).bind(displayName, updatedAt, actor.orgId, current.id, current.version),
+      env.DB.prepare(
+        `UPDATE organization_settings SET org_name = ?, initial_program_id = ?, version = version + 1, updated_at = ?
+         WHERE org_id = ? AND version = ? AND org_name IS NULL`,
+      ).bind(orgName, programId, updatedAt, actor.orgId, version),
+      canonicalAuditStatement(env, actor, {
+        action: current === null ? 'create' : 'update', targetTable: 'programs', targetId: programId,
+        beneficiaryId: null, supportCaseId: null, detail: { onboarding: true },
+      }),
+      canonicalAuditStatement(env, actor, {
+        action: 'update', targetTable: 'organization_settings', targetId: actor.orgId,
+        beneficiaryId: null, supportCaseId: null, detail: { onboarding: true, orgName, initialProgramId: programId },
+      }),
+      env.DB.prepare('DELETE FROM program_admission_guards WHERE id = ? AND org_id = ?').bind(setupGuardId, actor.orgId),
+    ], current ?? undefined);
+  } catch (error) {
+    if (error instanceof ProgramAdmissionRequiredError) throw new ConflictError('organization setup changed');
+    throw error;
+  }
+  return getOrganizationProfile(env, actor);
 }
 
 async function assertOrganizationSettings(env: Env, orgId: string): Promise<void> {
@@ -12956,15 +13992,15 @@ export async function createBeneficiaryWithInitialSupportCase(
     await assertPractitioner(env, actor);
   }
   const expectedKeys = actor.role === 'admin'
-    ? ['programType', 'initialAssigneeUserId']
-    : ['programType'];
+    ? ['programId', 'initialAssigneeUserId']
+    : ['programId'];
   // 이름·연락처·이메일은 선택 항목이므로 값이 있을 때만 허용 키에 넣는다(기존 등록 호출은 그대로).
   // intakeAt 도 같은 방식이다(CCC-56) — 등록 라우트는 보내지 않고, 하네스만 값을 실을 수 있다.
   const optionalPiiKeys = (['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const)
     .filter((key) => input[key] !== undefined);
   const optionalIntakeKeys = input.intakeAt === undefined ? [] : ['intakeAt'];
   assertExactKeys(input, [...expectedKeys, ...optionalIntakeKeys, ...optionalPiiKeys]);
-  assertFinancialSupportProgramType(input.programType);
+  assertOpaqueIdentifier(input.programId, 'program id');
   for (const key of optionalPiiKeys) {
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
@@ -12976,6 +14012,7 @@ export async function createBeneficiaryWithInitialSupportCase(
       : canonicalUtcInstant(input.intakeAt, 'intake time'))
     : legacyCompatibility.intakeAt;
   await assertOrganizationSettings(env, actor.orgId);
+  const admission = await requireProgramAdmission(env, actor.orgId, input.programId, 'registration');
   if (intakeAt !== null) {
     canonicalUtcInstant(intakeAt, 'intake time');
   }
@@ -13059,17 +14096,18 @@ export async function createBeneficiaryWithInitialSupportCase(
         ),
         env.DB.prepare(
           `INSERT INTO support_cases (
-             id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
+             id, org_id, beneficiary_id, legacy_case_id, program_id, program_type, status, intake_at,
              consent_recording_at, consent_text_ai_at, consent_privacy_at,
              emergency_registration_at, emergency_registration_reason, consent_privacy_due_at,
              creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, 'initial', ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           actor.orgId,
           beneficiaryId,
           legacyCaseId,
-          FINANCIAL_SUPPORT_V1,
+          admission.program.id,
+          admission.program.programType,
           intakeAt,
           consentRecordingAt,
           consentTextAiAt,
@@ -13202,7 +14240,7 @@ detail: { role: 'primary', initial: true },
           );
         }
       }
-      const results = await env.DB.batch(statements);
+      const results = await programPolicyBatch(env, admission.context, statements, admission.program);
       const completion = results[completionIndex] as unknown as { meta?: { changes?: number } };
       if ((completion.meta?.changes ?? 0) < 1) {
         throw new ConflictError('participant initialization did not complete');
@@ -13563,8 +14601,8 @@ export async function createSupportCase(
   await assertCurrentHumanActor(env, actor);
   assertBeneficiaryId(beneficiaryId);
   const baseKeys = actor.role === 'counselor'
-    ? ['schemaVersion', 'submissionId', 'programType', 'sourceSupportCaseId']
-    : ['schemaVersion', 'submissionId', 'programType', 'initialAssigneeUserId'];
+    ? ['schemaVersion', 'submissionId', 'programId', 'sourceSupportCaseId']
+    : ['schemaVersion', 'submissionId', 'programId', 'initialAssigneeUserId'];
   // ① 은 필수 키다(G1). 긴급 사유는 값이 있을 때만 허용 키에 넣는다(등록 경로의 선택 PII 와 같은 방식).
   // intakeAt 도 값이 있을 때만 허용한다(CCC-56, 하네스 전용 — HTTP 라우트는 키를 거부한다).
   const expectedKeys = [
@@ -13582,7 +14620,7 @@ export async function createSupportCase(
   }
   if (input.schemaVersion !== 1) throw new ValidationError('schema version is invalid');
   assertCanonicalSubmissionId(input.submissionId);
-  assertFinancialSupportProgramType(input.programType);
+  assertOpaqueIdentifier(input.programId, 'program id');
   const intakeAt = input.intakeAt === undefined || input.intakeAt === null
     ? null
     : canonicalUtcInstant(input.intakeAt, 'intake time');
@@ -13601,6 +14639,7 @@ export async function createSupportCase(
     await getBeneficiaryForOrg(env, actor.orgId, beneficiaryId, { completeOnly: true });
     await assertActivePractitionerUser(env, actor.orgId, effectiveAssigneeUserId);
   }
+  const admission = await requireProgramAdmission(env, actor.orgId, input.programId, 'registration');
 
   // ① 하드 게이트(G1). 영수증 해시 이전에 판정한다 — 동의 없는 요청이 재생(replay)으로
   // 통과하면 안 된다. 해시에도 동의·긴급 여부를 넣어, 같은 제출 id 로 조건만 바꾼 재시도는
@@ -13623,7 +14662,8 @@ export async function createSupportCase(
     emergencyRegistration: emergency !== null,
     intakeAt,
     orgId: actor.orgId,
-    programType: FINANCIAL_SUPPORT_V1,
+    programId: admission.program.id,
+    programType: admission.program.programType,
     schemaVersion: 1,
     sourceSupportCaseId,
   });
@@ -13685,23 +14725,24 @@ export async function createSupportCase(
       bindings: [beneficiaryId, actor.orgId, effectiveAssigneeUserId, actor.orgId],
     };
   try {
-    const results = await env.DB.batch([
+    const results = await programPolicyBatch(env, admission.context, [
       env.DB.prepare(
         `INSERT INTO support_cases (
-           id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+           id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
            creation_submission_id, creation_payload_hash, created_by_actor_id,
            source_support_case_id, initial_assignee_user_id,
            consent_privacy_at, consent_recording_at, consent_text_ai_at,
            emergency_registration_at, emergency_registration_reason,
            consent_privacy_due_at, created_at, updated_at
          )
-         SELECT ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, ?, 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE ${creationBoundary.sql}`,
       ).bind(
         supportCaseId,
         actor.orgId,
         beneficiaryId,
-        FINANCIAL_SUPPORT_V1,
+        admission.program.id,
+        admission.program.programType,
         intakeAt,
         input.submissionId,
         payloadHash,
@@ -13813,7 +14854,7 @@ export async function createSupportCase(
         sql: 'SELECT 1 FROM participant_consent_records WHERE id = ? AND org_id = ?',
         bindings: [consentRecordId, actor.orgId],
       }, createdAt),
-    ]);
+    ], admission.program);
     const creation = results[0] as unknown as { meta?: { changes?: number } };
     if ((creation.meta?.changes ?? 0) < 1) {
       throw new ConflictError('support case is unavailable');
@@ -19612,23 +20653,24 @@ export async function acceptSupportCaseAssignment(
   env: Env,
   actor: Actor,
   assignmentId: string,
+  supportCaseId: string,
 ): Promise<void> {
   await assertCurrentHumanActor(env, actor);
   assertOpaqueIdentifier(assignmentId, 'assignment id');
+  assertOpaqueIdentifier(supportCaseId, 'support case id');
   const row = await env.DB.prepare(
     `SELECT * FROM support_case_assignees
-     WHERE id = ? AND org_id = ? AND user_id = ?
+     WHERE id = ? AND org_id = ? AND user_id = ? AND support_case_id = ?
        AND unassigned_at IS NULL AND status = 'requested'`,
-  ).bind(assignmentId, actor.orgId, actor.userId).first<DbRow>();
+  ).bind(assignmentId, actor.orgId, actor.userId, supportCaseId).first<DbRow>();
   if (row === null) {
     throw new ForbiddenError('support case assignment is unavailable');
   }
   const acceptedAt = now();
   const operationMarker = newId();
   const beneficiary = await env.DB.prepare(
-    'SELECT beneficiary_id AS beneficiaryId FROM support_cases WHERE id = ? AND org_id = ?',
+    'SELECT beneficiary_id AS "beneficiaryId" FROM support_cases WHERE id = ? AND org_id = ?',
   ).bind(stringValue(row.support_case_id), actor.orgId).first<{ beneficiaryId: string }>();
-  const supportCaseId = stringValue(row.support_case_id);
   const batch: PreparedStatement[] = [
     env.DB.prepare(
       `UPDATE support_case_assignees
@@ -19938,13 +20980,15 @@ export async function listSupportCaseAssignees(
   env: Env,
   actor: Actor,
   supportCaseId: string,
-  opts?: { includeHistory?: boolean },
+  opts?: { includeHistory?: boolean; includeRequested?: boolean },
 ): Promise<SupportCaseAssignee[]> {
+  if (opts?.includeRequested === true) await assertInstitutionAdmin(env, actor);
   const supportCase = await assertSupportCaseReadOrAdminAccess(env, actor, supportCaseId);
   const result = await env.DB.prepare(
     `SELECT * FROM support_case_assignees
      WHERE org_id = ? AND support_case_id = ?
-       ${opts?.includeHistory === true ? '' : "AND unassigned_at IS NULL AND status = 'active'"}
+       ${opts?.includeHistory === true ? '' : opts?.includeRequested === true
+        ? "AND unassigned_at IS NULL AND status IN ('active', 'requested')" : "AND unassigned_at IS NULL AND status = 'active'"}
      ORDER BY assigned_at, id`,
   ).bind(actor.orgId, supportCaseId).all<DbRow>();
   await writeCanonicalAudit(env, actor, {
@@ -20102,6 +21146,7 @@ export interface InviteToken {
   token: string;
   kind: InviteKind;
   orgId: string;
+  programId: string | null;
   /** participant 초대에는 항상 있고(링크가 사업을 정한다), counselor 초대는 null. */
   programType: string | null;
   issuedBy: string;
@@ -20128,6 +21173,7 @@ function mapInviteToken(row: DbRow): InviteToken {
     token: stringValue(row.token),
     kind: stringValue(row.kind) as InviteKind,
     orgId: stringValue(row.org_id),
+    programId: nullableString(row.program_id),
     programType: row.program_type === null ? null : stringValue(row.program_type),
     issuedBy: stringValue(row.issued_by),
     status: stringValue(row.status) as InviteToken['status'],
@@ -20140,30 +21186,27 @@ function mapInviteToken(row: DbRow): InviteToken {
 
 /**
  * 당사자 가입 링크 발급(ADR-0016 결정 5). 실무자·관리자(사람)만 발급할 수 있고,
- * 링크에 사업(programType)과 발급자(actor)가 묶인다 — 가입 완료 시 이 발급자가
- * 담당 실무자가 된다(소비는 CCC-28의 가입 처리 몫).
+ * 링크에 사업 식별자와 발급자가 묶이고, 가입 완료 시 발급자가 담당 실무자가 된다.
  */
 export async function createParticipantInvite(
   env: Env,
   actor: Actor,
-  input: { programType: string },
+  input: { programId: string },
 ): Promise<InviteToken> {
   await assertPractitioner(env, actor);
-  assertFinancialSupportProgramType(input.programType);
-
+  assertExactKeys(input, ['programId']);
+  const admission = await requireProgramAdmission(env, actor.orgId, input.programId, 'registration');
   const token = newInviteTokenValue();
-  await env.DB.prepare(
-    `INSERT INTO invite_tokens (token, org_id, kind, program_type, issued_by)
-     VALUES (?, ?, 'participant', ?, ?)`,
-  ).bind(token, actor.orgId, input.programType, actor.userId).run();
-
-  await writeAudit(env, actor, {
-    action: 'invite_issue',
-    targetTable: 'invite_tokens',
-    targetId: token,
-    detail: { kind: 'participant', programType: input.programType },
-  });
-
+  await programPolicyBatch(env, admission.context, [
+    env.DB.prepare(
+      `INSERT INTO invite_tokens (token, org_id, kind, program_id, program_type, issued_by)
+       VALUES (?, ?, 'participant', ?, ?, ?)`,
+    ).bind(token, actor.orgId, admission.program.id, admission.program.programType, actor.userId),
+    canonicalAuditStatement(env, actor, {
+      action: 'invite_issue', targetTable: 'invite_tokens', targetId: token, beneficiaryId: null, supportCaseId: null,
+      detail: { kind: 'participant', programId: admission.program.id, programType: admission.program.programType },
+    }),
+  ], admission.program);
   return getInviteTokenOrThrow(env, token);
 }
 
@@ -20456,11 +21499,10 @@ export async function completeParticipantSignup(
   // 순차 이중 제출 게이트: 이미 소비되었거나 종류가 안 맞으면 여기서 거부한다.
   // 동시 경계는 아래 배치 안의 가드가 맡는다.
   const invite = await getInviteForSignup(env, input.token, 'participant');
-  const programType = invite.programType;
-  if (programType === null) {
+  const programId = invite.programId;
+  if (programId === null) {
     throw new ForbiddenError('invite token is not available');
   }
-  assertFinancialSupportProgramType(programType);
 
   // 후원 행위자 복원: 발급자가 활성 사용자인지 확인하고 역할까지 가져와 감사·배정에 쓴다.
   const sponsorRow = await env.DB.prepare(
@@ -20473,6 +21515,8 @@ export async function completeParticipantSignup(
   const sponsorActor: Actor = { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
 
   await assertOrganizationSettings(env, invite.orgId);
+  const admission = await requireProgramAdmission(env, invite.orgId, programId, 'registration');
+  const programType = admission.program.programType;
   const piiKeyVersion = activePiiKeyVersion(env);
   const encName = await encryptPii(env, input.name);
   const encPhone = input.phone === undefined || input.phone === null ? null : await encryptPii(env, input.phone);
@@ -20507,14 +21551,15 @@ export async function completeParticipantSignup(
         ).bind(beneficiaryId, invite.orgId, encName, encPhone, encEmail, piiKeyVersion, createdAt, createdAt, createdAt),
         env.DB.prepare(
           `INSERT INTO support_cases (
-             id, org_id, beneficiary_id, legacy_case_id, program_type, status, intake_at,
+             id, org_id, beneficiary_id, legacy_case_id, program_id, program_type, status, intake_at,
              consent_recording_at, consent_text_ai_at, consent_privacy_at, creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           invite.orgId,
           beneficiaryId,
           null,
+          admission.program.id,
           programType,
           null,
           consentRecordingAt,
@@ -20543,7 +21588,7 @@ export async function completeParticipantSignup(
           targetId: supportCaseId,
           beneficiaryId,
           supportCaseId,
-          detail: { programType, schemaVersion: 1, via: 'invite_signup' },
+          detail: { programId: admission.program.id, programType, schemaVersion: 1, via: 'invite_signup' },
           caseId: null,
         }),
         canonicalAuditStatement(env, sponsorActor, {
@@ -20627,7 +21672,7 @@ export async function completeParticipantSignup(
         ),
       );
 
-      const results = await env.DB.batch(statements);
+      const results = await programPolicyBatch(env, admission.context, statements, admission.program);
       const completion = results[completionIndex] as unknown as { meta?: { changes?: number } };
       if ((completion.meta?.changes ?? 0) < 1) {
         throw new ConflictError('participant initialization did not complete');
@@ -20851,16 +21896,20 @@ const memoryEligibleSql = `EXISTS (SELECT 1 FROM support_cases sc
     AND e.event_sequence=(SELECT MAX(latest.event_sequence) FROM consent_events latest
       WHERE latest.org_id=e.org_id AND latest.beneficiary_id=e.beneficiary_id AND latest.support_case_id=e.support_case_id
         AND latest.domain=e.domain AND latest.decision<>'correct'))
-  AND COALESCE((SELECT enabled FROM counseling_memory_settings WHERE org_id=c.org_id),1)=1`;
+  AND COALESCE((SELECT enabled FROM counseling_memory_settings WHERE org_id=c.org_id),1)=1
+  AND EXISTS(SELECT 1 FROM program_admission_policies policy WHERE policy.org_id=c.org_id AND policy.llm_mode='openai')`;
 
 async function memoryCase(env: Env, orgId: string, supportCaseId: string): Promise<MemoryCaseRow> {
   const row = await env.DB.prepare('SELECT * FROM counseling_memory_cases WHERE org_id=? AND support_case_id=?').bind(orgId, supportCaseId).first<MemoryCaseRow>();
   if (!row) throw new ForbiddenError('memory_unavailable');
   return row;
 }
-async function memoryConsent(env: Env, orgId: string, supportCaseId: string): Promise<string> {
-  if (env.CCC_LLM_MODE !== 'openai') throw new ValidationError('memory_disabled');
+interface MemoryAuthorization { revision: string; programAdmission: ProgramAdmissionGrant }
+async function memoryAuthorization(env: Env, orgId: string, supportCaseId: string): Promise<MemoryAuthorization> {
+  const context = await programAdmissionContext(env, orgId);
+  if (context.llmMode !== 'openai') throw new ValidationError('memory_disabled');
   if (env.TEXT_AI_PILOT_ENABLED !== '1') throw new ValidationError('consent_not_effective');
+  const programAdmission = await requireSupportCaseProgramAdmission(env, orgId, supportCaseId, 'llm', context);
   const eligible = await env.DB.prepare(
     `SELECT 1 AS eligible FROM counseling_memory_cases c
      WHERE c.org_id=? AND c.support_case_id=? AND ${memoryEligibleSql}`,
@@ -20871,7 +21920,10 @@ async function memoryConsent(env: Env, orgId: string, supportCaseId: string): Pr
     'personal_data_collection_use',
     'sensitive_information_processing',
   ]);
-  return canonicalizeJcs(receipt);
+  return { programAdmission, revision: canonicalizeJcs({
+    consent: receipt, programId: programAdmission.program.id,
+    programVersion: programAdmission.program.version, policyVersion: context.policyVersion,
+  }) };
 }
 async function memoryItems(env: Env, orgId: string, supportCaseId: string): Promise<MemoryItem[]> {
   const rows = await env.DB.prepare('SELECT item_json FROM counseling_memory_items WHERE org_id=? AND support_case_id=? AND valid=1 ORDER BY id').bind(orgId,supportCaseId).all<{item_json:string}>();
@@ -20895,7 +21947,17 @@ export async function getCounselingMemory(env: Env, actor: Actor, supportCaseId:
   }
   const hidden = !lifecycle || !consentEffective || lifecycle.purged_at !== null || lifecycle.archived === 1;
   const setting = await env.DB.prepare('SELECT enabled FROM counseling_memory_settings WHERE org_id=?').bind(actor.orgId).first<{enabled:number}>();
-  const automaticUnavailable = env.CCC_LLM_MODE !== 'openai' || env.TEXT_AI_PILOT_ENABLED !== '1';
+  let automaticReason: string | null = null;
+  if (!hidden && lifecycle?.status === 'active' && setting?.enabled !== 0) {
+    try {
+      const context = await programAdmissionContext(env, actor.orgId);
+      if (context.llmMode !== 'openai' || env.TEXT_AI_PILOT_ENABLED !== '1') automaticReason = 'memory_disabled';
+      else await requireSupportCaseProgramAdmission(env, actor.orgId, supportCaseId, 'llm', context);
+    } catch (error) {
+      if (!(error instanceof ProgramAdmissionRequiredError)) throw error;
+      automaticReason = error.code;
+    }
+  }
   let canCorrect = false;
   if (!hidden && lifecycle?.status === 'active') {
     try { await assertSupportCaseWriteAccess(env,actor,supportCaseId); canCorrect=true; } catch (error) { if (!(error instanceof ForbiddenError)) throw error; }
@@ -20908,7 +21970,7 @@ export async function getCounselingMemory(env: Env, actor: Actor, supportCaseId:
   const summary = hidden ? [] : storedSummary.filter(line =>
     line.itemIds.length > 0 && line.itemIds.every(id => validIds.has(id)));
   await writeAudit(env,actor,{action:'read',targetTable:'counseling_memory_cases',targetId:supportCaseId,caseId:supportCaseId});
-  return {supportCaseId,revision:c.revision,status:hidden?'unavailable':lifecycle?.status!=='active'?'closed':setting?.enabled===0?'off':automaticUnavailable?'blocked':c.status,reason:hidden?'consent_not_effective':automaticUnavailable?'memory_disabled':c.reason,updatedAt:c.updated_at,summary,items,history,canCorrect};
+  return {supportCaseId,revision:c.revision,status:hidden?'unavailable':lifecycle?.status!=='active'?'closed':setting?.enabled===0?'off':automaticReason!==null?'blocked':c.status,reason:hidden?'consent_not_effective':automaticReason??c.reason,updatedAt:c.updated_at,summary,items,history,canCorrect};
 }
 export async function getCounselingMemorySettings(env: Env, actor: Actor): Promise<MemorySettingsView> {
   await assertInstitutionAdmin(env,actor);
@@ -20951,10 +22013,11 @@ export async function getCounselingMemoryTrialState(env: Env, actor: Actor, supp
     .bind(actor.orgId).first<{ enabled: number }>();
   if (setting?.enabled === 0) blockers.push('memory_setting_off');
   try {
-    await memoryConsent(env, actor.orgId, supportCaseId);
+    await memoryAuthorization(env, actor.orgId, supportCaseId);
   } catch (error) {
-    if (!(error instanceof ValidationError)) throw error;
-    blockers.push(env.CCC_LLM_MODE !== 'openai' ? 'memory_disabled' : 'consent_not_effective');
+    if (error instanceof ProgramAdmissionRequiredError) blockers.push(error.code);
+    else if (error instanceof ValidationError) blockers.push(error.message === 'memory_disabled' ? 'memory_disabled' : 'consent_not_effective');
+    else throw error;
   }
   const agent = await env.DB.prepare(`SELECT attestation_json,receipt_id FROM counseling_memory_agents
     WHERE org_id=? AND seen_at>? ORDER BY seen_at DESC LIMIT 1`)
@@ -21015,7 +22078,7 @@ async function memorySourceBody(env: Env, source: MemorySourceRow): Promise<Memo
   return row?{text:row.body,sessionId:null,occurredAt:row.created_at}:null;
 }
 
-async function prepareMemorySources(env: Env,c:MemoryCaseRow):Promise<void> {
+async function prepareMemorySources(env: Env,c:MemoryCaseRow,admission:ProgramAdmissionGrant):Promise<void> {
   if (!c.backfill_done) {
     const sources=await env.DB.prepare(`SELECT * FROM(
       SELECT 'session' AS kind,id AS source_id,'session:'||id AS key FROM sessions WHERE org_id=? AND support_case_id=?
@@ -21023,10 +22086,10 @@ async function prepareMemorySources(env: Env,c:MemoryCaseRow):Promise<void> {
       UNION ALL SELECT 'goal',id,'goal:'||id FROM support_cases WHERE org_id=? AND id=? AND overall_goal IS NOT NULL
       UNION ALL SELECT 'action',id,'action:'||id FROM action_items WHERE org_id=? AND support_case_id=?
     ) WHERE key>? ORDER BY key LIMIT 16`).bind(c.org_id,c.support_case_id,c.org_id,c.support_case_id,c.org_id,c.support_case_id,c.org_id,c.support_case_id,c.cursor).all<{kind:string;source_id:string;key:string}>();
-    await env.DB.batch([
+    await memoryBatch(env,[
       ...sources.results.map(s=>env.DB.prepare('INSERT INTO counseling_memory_sources(org_id,support_case_id,kind,source_id) VALUES(?,?,?,?) ON CONFLICT(org_id,support_case_id,kind,source_id) DO NOTHING').bind(c.org_id,c.support_case_id,s.kind,s.source_id)),
       env.DB.prepare('UPDATE counseling_memory_cases SET cursor=?,backfill_done=? WHERE org_id=? AND support_case_id=? AND generation=? AND cursor=?').bind(sources.results.at(-1)?.key??c.cursor,sources.results.length<16?1:0,c.org_id,c.support_case_id,c.generation,c.cursor),
-    ]);
+    ],admission);
   }
   const dirty=await env.DB.prepare('SELECT * FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND dirty=1 ORDER BY kind,source_id LIMIT 8').bind(c.org_id,c.support_case_id).all<MemorySourceRow>();
   for (const source of dirty.results) {
@@ -21039,7 +22102,7 @@ async function prepareMemorySources(env: Env,c:MemoryCaseRow):Promise<void> {
       SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=? AND dirty=1)
       ON CONFLICT(org_id,support_case_id,kind,source_id,source_revision,start_offset) DO NOTHING`).bind(newId(),c.org_id,c.support_case_id,source.kind,source.source_id,source.revision,body!.sessionId,body!.occurredAt,chunk.start,chunk.end,await sha256Hex(chunk.text),c.org_id,c.support_case_id,source.kind,source.source_id,source.revision));
     statements.push(env.DB.prepare('UPDATE counseling_memory_sources SET dirty=?,chunk_cursor=? WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=?').bind(done?0:1,last,c.org_id,c.support_case_id,source.kind,source.source_id,source.revision));
-    await env.DB.batch(statements);
+    await memoryBatch(env,statements,admission);
   }
 }
 
@@ -21057,7 +22120,7 @@ export async function prepareCounselingMemoryTrialWork(env: Env, actor: Actor, s
 }
 
 async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: string; supportCaseId: string }): Promise<MemoryWork[]> {
-  if (env.TEXT_AI_PILOT_ENABLED !== '1' || env.CCC_LLM_MODE !== 'openai') return [];
+  if (env.TEXT_AI_PILOT_ENABLED !== '1') return [];
   const size = Math.max(1, Math.min(16, Number.isSafeInteger(limit) ? limit : MEMORY_BATCH_SIZE));
   const at = now();
   const revisitAt = new Date(Date.now() + 60000).toISOString();
@@ -21078,7 +22141,18 @@ async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: strin
       .bind(revisitAt, before.org_id, before.support_case_id, before.generation, at, at).run();
     if (!visited.meta.changes) continue;
     await expireMemoryMaskLeases(env, before.org_id, before.support_case_id);
-    await prepareMemorySources(env, before);
+    let authorization: MemoryAuthorization;
+    try {
+      authorization = await memoryAuthorization(env, before.org_id, before.support_case_id);
+      await prepareMemorySources(env, before, authorization.programAdmission);
+    } catch (error) {
+      if (!(error instanceof ProgramAdmissionRequiredError) && !(error instanceof ValidationError)) throw error;
+      const reason = error instanceof ProgramAdmissionRequiredError ? error.code
+        : error.message === 'memory_disabled' ? 'memory_disabled' : 'consent_not_effective';
+      await env.DB.prepare("UPDATE counseling_memory_cases SET status='blocked',reason=? WHERE org_id=? AND support_case_id=? AND generation=?")
+        .bind(reason,before.org_id,before.support_case_id,before.generation).run();
+      continue;
+    }
     const c = await memoryCase(env, before.org_id, before.support_case_id);
     if (c.generation !== before.generation) continue;
     const failure = await env.DB.prepare(`SELECT 1 FROM counseling_memory_materials
@@ -21113,11 +22187,10 @@ async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: strin
     if (!agent) continue;
     const setting = await env.DB.prepare('SELECT version FROM counseling_memory_settings WHERE org_id=?')
       .bind(c.org_id).first<{version: number}>();
-    let consent: string;
     try {
-      consent = await memoryConsent(env, c.org_id, c.support_case_id);
+      authorization = await memoryAuthorization(env, c.org_id, c.support_case_id);
     } catch (error) {
-      if (error instanceof ValidationError) continue;
+      if (error instanceof ValidationError || error instanceof ProgramAdmissionRequiredError) continue;
       throw error;
     }
     const work: MemoryWork = {
@@ -21125,14 +22198,14 @@ async function prepareMemoryWork(env: Env, limit: number, scope?: { orgId: strin
       generation: c.generation, correctionRevision: c.correction_revision,
       settingsVersion: setting?.version ?? 1, leaseToken: newId(),
     };
-    const result = await env.DB.prepare(`UPDATE counseling_memory_cases SET lease_token=?,lease_until=?,
+    const [result] = await programPolicyBatch(env,authorization.programAdmission.context,[env.DB.prepare(`UPDATE counseling_memory_cases AS c SET lease_token=?,lease_until=?,
       work_id=?,work_generation=?,work_correction=?,work_settings=?,consent_revision=?,status='updating',
       egress=NULL,config_hash=NULL WHERE org_id=? AND support_case_id=? AND generation=?
-      AND correction_revision=? AND (lease_until IS NULL OR lease_until<=?)`)
+      AND correction_revision=? AND (lease_until IS NULL OR lease_until<=?) AND ${memoryEligibleSql}`)
       .bind(work.leaseToken, new Date(Date.now() + 300000).toISOString(), work.id, work.generation,
-        work.correctionRevision, work.settingsVersion, consent, work.orgId, work.supportCaseId,
-        work.generation, work.correctionRevision, now()).run();
-    if (result.meta.changes) works.push(work);
+        work.correctionRevision, work.settingsVersion, authorization.revision, work.orgId, work.supportCaseId,
+        work.generation, work.correctionRevision, now())],authorization.programAdmission.program);
+    if (result?.meta.changes) works.push(work);
   }
   return works;
 }
@@ -21152,33 +22225,44 @@ export async function claimCounselingMemorySources(env:Env,actor:Actor,request:C
   // Identity comes from authenticated Agent traffic, never from human-directory fixtures.
   await env.DB.prepare(`INSERT INTO counseling_memory_agents(org_id,actor_id,attestation_json,receipt_id,seen_at) VALUES(?,?,?,?,?)
     ON CONFLICT(org_id,actor_id) DO UPDATE SET attestation_json=excluded.attestation_json,receipt_id=excluded.receipt_id,seen_at=excluded.seen_at`).bind(actor.orgId,actor.userId,attestationJson,request.releaseQualificationReceiptId,at).run();
-  if(env.TEXT_AI_PILOT_ENABLED!=='1'||env.CCC_LLM_MODE!=='openai') return [];
+  if(env.TEXT_AI_PILOT_ENABLED!=='1') return [];
+  const context=await programAdmissionContext(env,actor.orgId);
+  if(context.llmMode!=='openai') return [];
+  const admission=admittedProgramValues(context,'llm');
   await expireMemoryMaskLeases(env, actor.orgId);
   const rows=await env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_cases c ON c.support_case_id=m.support_case_id AND c.org_id=m.org_id
     WHERE m.org_id=? AND m.valid=1 AND m.attempt<3 AND (m.status='pending' OR (m.status='leased' AND m.lease_until<=?)) AND ${memoryEligibleSql}
-    ORDER BY m.occurred_at,m.id LIMIT ?`).bind(actor.orgId,at,normalizeClaimLimit(request.limit)).all<MemoryMaterialRow>();
+    AND EXISTS(SELECT 1 FROM support_cases admitted WHERE admitted.id=c.support_case_id AND admitted.org_id=c.org_id AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
+    ORDER BY m.occurred_at,m.id LIMIT ?`).bind(actor.orgId,at,...admission,normalizeClaimLimit(request.limit)).all<MemoryMaterialRow>();
   const jobs:MemoryMaskJob[]=[];
   for(const row of rows.results) {
     const token=newId(),expires=new Date(Date.now()+300000).toISOString();
-    const result=await env.DB.prepare(`UPDATE counseling_memory_materials SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?
-      WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))`).bind(await sha256Hex(token),expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,now()).run();
-    if(result.meta.changes) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt:row.attempt+1,leaseExpiresAt:expires});
+    const [result]=await programPolicyBatch(env,context,[env.DB.prepare(`UPDATE counseling_memory_materials AS m SET status='leased',attempt=attempt+1,lease_token=?,lease_until=?,actor_id=?,attestation_json=?,attestation_expires_at=?,receipt_id=?
+      WHERE id=? AND org_id=? AND valid=1 AND attempt=? AND (status='pending' OR(status='leased' AND lease_until<=?))
+      AND EXISTS(SELECT 1 FROM support_cases admitted WHERE admitted.id=m.support_case_id AND admitted.org_id=m.org_id AND admitted.program_id IN (${ADMITTED_PROGRAM_SQL}))
+      AND EXISTS(SELECT 1 FROM counseling_memory_cases c WHERE c.support_case_id=m.support_case_id AND c.org_id=m.org_id AND ${memoryEligibleSql})`)
+      .bind(await sha256Hex(token),expires,actor.userId,attestationJson,attestationExpiresAt,request.releaseQualificationReceiptId,row.id,actor.orgId,row.attempt,now(),...admission)]);
+    if(result?.meta.changes) jobs.push({jobId:row.id,caseId:row.support_case_id,sessionId:row.session_id,kind:'text',purpose:'counseling_memory',sttEngine:null,sttEngineId:null,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sourceStart:row.start_offset,sourceEnd:row.end_offset,claimToken:token,attempt:row.attempt+1,leaseExpiresAt:expires});
   }
   await writeAudit(env,actor,{action:'poll_pipeline',targetTable:'counseling_memory_materials',detail:{claimed:jobs.length}});
   return jobs;
 }
-async function memoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<MemoryMaterialRow> {
+async function readMemoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<MemoryMaterialRow> {
   assertAgentActor(actor);
   const row=await env.DB.prepare(`SELECT m.* FROM counseling_memory_materials m JOIN counseling_memory_sources s
     ON s.org_id=m.org_id AND s.support_case_id=m.support_case_id AND s.kind=m.kind AND s.source_id=m.source_id AND s.revision=m.source_revision
     WHERE m.id=? AND m.org_id=? AND m.actor_id=? AND m.lease_token=? AND m.attempt=? AND m.valid=1 AND s.deleted=0`).bind(id,actor.orgId,actor.userId,await sha256Hex(token),attempt).first<MemoryMaterialRow>();
   if(!row||(row.status!=='leased'&&!(replay&&row.status==='ready'))||(row.status==='leased'&&(!row.lease_until||row.lease_until<=now()))) throw new AgentJobContractError('stale_claim',id);
-  await memoryConsent(env,actor.orgId,row.support_case_id);
-  await memoryNerQualification(env,actor.orgId,JSON.parse(row.attestation_json!),row.receipt_id!,id);
   return row;
 }
+async function memoryClaim(env:Env,actor:Actor,id:string,token:string,attempt:number,replay=false):Promise<{row:MemoryMaterialRow;programAdmission:ProgramAdmissionGrant}> {
+  const row=await readMemoryClaim(env,actor,id,token,attempt,replay);
+  const {programAdmission}=await memoryAuthorization(env,actor.orgId,row.support_case_id);
+  await memoryNerQualification(env,actor.orgId,JSON.parse(row.attestation_json!),row.receipt_id!,id);
+  return {row,programAdmission};
+}
 export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,token:string,attempt:number):Promise<{text:string;sessionId:string|null}> {
-  const row=await memoryClaim(env,actor,id,token,attempt);
+  const {row}=await memoryClaim(env,actor,id,token,attempt);
   const source=await env.DB.prepare('SELECT * FROM counseling_memory_sources WHERE org_id=? AND support_case_id=? AND kind=? AND source_id=? AND revision=?').bind(actor.orgId,row.support_case_id,row.kind,row.source_id,row.source_revision).first<MemorySourceRow>();
   const body=source?await memorySourceBody(env,source):null;
   if(!body) throw new AgentJobContractError('stale_claim',id);
@@ -21191,7 +22275,7 @@ export async function getCounselingMemorySource(env:Env,actor:Actor,id:string,to
   return {text,sessionId:row.session_id};
 }
 export async function issueCounselingMemoryDictionary(env:Env,actor:Actor,id:string,request:MaskDictionaryRequest):Promise<MaskDictionaryResponse> {
-  const row=await memoryClaim(env,actor,id,request.claimToken,request.attempt);
+  const {row}=await memoryClaim(env,actor,id,request.claimToken,request.attempt);
   const pii=await memoryPii(env,actor.orgId,row.support_case_id);
   const entries:MaskDictionaryEntry[]=[];
   for(const [field,sourceValue] of Object.entries(pii)) if(sourceValue) entries.push({field,sourceValue,replacement:row.support_case_id});
@@ -21217,7 +22301,7 @@ async function verifyMemoryProof(env:Env,row:MemoryMaterialRow,result:ResultRequ
   try { assertNoObviousUnmaskedPii(result.maskedText); } catch { throw new ValidationError('unmasked_identifier_detected'); }
 }
 export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string,request:ResultRequest):Promise<void> {
-  const row=await memoryClaim(env,actor,id,request.claimToken,request.attempt,true);
+  const {row,programAdmission}=await memoryClaim(env,actor,id,request.claimToken,request.attempt,true);
   await verifyMemoryProof(env,row,request.result);
   if(request.schemaVersion!==2||await sha256Hex(canonicalizeJcs({schemaVersion:request.schemaVersion,attempt:request.attempt,result:request.result}))!==request.payloadSha256) throw new ValidationError('evidence_hash_mismatch');
   if(row.status==='ready') {
@@ -21234,10 +22318,10 @@ export async function acceptCounselingMemorySource(env:Env,actor:Actor,id:string
     env.DB.prepare("UPDATE counseling_memory_materials SET status='ready',snapshot_id=?,masked_text=?,sha256=?,proof_json=?,payload_hash=? WHERE id=? AND valid=1 AND status='leased' AND lease_token=? AND attempt=?").bind(newId(),request.result.maskedText,request.result.sha256,JSON.stringify(request.result),request.payloadSha256,id,row.lease_token,row.attempt),
     memoryAuditStatement(env,actor,row.support_case_id,'create',{materialId:id,sourceRevision:row.source_revision}),
     env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker),
-  ]);
+  ],programAdmission);
 }
 export async function releaseCounselingMemorySource(env:Env,actor:Actor,id:string,request:ReleaseRequest):Promise<void> {
-  const row=await memoryClaim(env,actor,id,request.claimToken,request.attempt);
+  const row=await readMemoryClaim(env,actor,id,request.claimToken,request.attempt);
   await env.DB.prepare("UPDATE counseling_memory_materials SET status=CASE WHEN attempt<3 AND ?='transient' THEN 'pending' ELSE 'failed' END,lease_token=NULL,lease_until=NULL WHERE id=? AND org_id=? AND valid=1 AND lease_token=? AND attempt=?").bind(request.outcome,id,actor.orgId,row.lease_token,row.attempt).run();
 }
 
@@ -21251,14 +22335,15 @@ function memoryWorkGuard(env:Env,work:MemoryWork,id:string,egress:string|null):P
     AND (c.config_hash IS NULL OR EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=c.org_id AND a.deactivated_at IS NULL AND p.config_hash=c.config_hash))
   ) THEN 1 ELSE 0 END)`).bind(id,work.orgId,work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision,work.settingsVersion,at,egress);
 }
-async function assertMemoryWork(env:Env,work:MemoryWork,egress:string|null):Promise<MemoryCaseRow> {
+async function assertMemoryWork(env:Env,work:MemoryWork,egress:string|null):Promise<{row:MemoryCaseRow;programAdmission:ProgramAdmissionGrant}> {
   const c=await memoryCase(env,work.orgId,work.supportCaseId);
   if(c.work_id!==work.id||c.lease_token!==work.leaseToken||c.generation!==work.generation||c.correction_revision!==work.correctionRevision||c.work_settings!==work.settingsVersion||!c.lease_until||c.lease_until<=now()||c.egress!==egress) throw new ConflictError('memory_superseded');
-  if(await memoryConsent(env,work.orgId,work.supportCaseId)!==c.consent_revision) throw new ConflictError('memory_superseded');
+  const authorization=await memoryAuthorization(env,work.orgId,work.supportCaseId);
+  if(authorization.revision!==c.consent_revision) throw new ConflictError('memory_superseded');
   const agent=await env.DB.prepare('SELECT attestation_json,receipt_id FROM counseling_memory_agents WHERE org_id=? AND actor_id=? AND seen_at>?').bind(work.orgId,work.serviceActorId,new Date(Date.now()-6*3600000).toISOString()).first<{attestation_json:string;receipt_id:string}>();
   if(!agent) throw new ValidationError('local_ner_unavailable');
   await memoryNerQualification(env,work.orgId,JSON.parse(agent.attestation_json),agent.receipt_id);
-  return c;
+  return {row:c,programAdmission:authorization.programAdmission};
 }
 function toMemoryMaterial(row:MemoryMaterialRow):MemoryMaterial {
   return {id:row.id,sourceKind:row.kind,sourceId:row.source_id,sourceRevision:String(row.source_revision),sessionId:row.session_id,occurredAt:row.occurred_at,snapshotId:row.snapshot_id!,sha256:row.sha256!,maskedText:row.masked_text!};
@@ -21311,7 +22396,7 @@ async function memoryMaterialReady(env: Env, row: MemoryMaterialRow): Promise<bo
   }
 }
 export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,configHash:string):Promise<MemoryGenerationRequest> {
-  await assertMemoryWork(env,work,null);
+  const {programAdmission}=await assertMemoryWork(env,work,null);
   const config=await env.DB.prepare(`SELECT p.config_hash FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=? AND a.deactivated_at IS NULL ORDER BY a.activated_at DESC,a.id DESC LIMIT 1`).bind(work.orgId).first<{config_hash:string}>();
   if(!config||config.config_hash!==configHash) throw new ValidationError('ai_provider_not_configured');
   const candidates=await verifiedMemoryMaterials(env,work.orgId,work.supportCaseId);
@@ -21389,7 +22474,7 @@ export async function beginCounselingMemoryEgress(env:Env,work:MemoryWork,config
     env.DB.prepare('INSERT INTO counseling_memory_guards(id,org_id,ok) VALUES(?,?,CASE WHEN EXISTS(SELECT 1 FROM ai_provider_activations a JOIN ai_provider_configs p ON p.id=a.config_id AND p.org_id=a.org_id WHERE a.org_id=? AND a.deactivated_at IS NULL AND p.config_hash=?) THEN 1 ELSE 0 END)').bind(`${marker}:config`,work.orgId,work.orgId,configHash),
     env.DB.prepare("UPDATE counseling_memory_cases SET egress='started',request_json=?,config_hash=? WHERE org_id=? AND support_case_id=? AND lease_token=?").bind(JSON.stringify(request),configHash,work.orgId,work.supportCaseId,work.leaseToken),
     memoryAuditStatement(env,{userId:work.serviceActorId,orgId:work.orgId,role:'service'},work.supportCaseId,'read',{generation:work.generation,egressId:work.id}),
-    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=? OR id=?').bind(marker,`${marker}:config`)]);
+    env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=? OR id=?').bind(marker,`${marker}:config`)],programAdmission);
   return request;
 }
 function memoryDerivedStatements(env:Env,orgId:string,supportCaseId:string,item:MemoryItem):PreparedStatement[] {
@@ -21400,7 +22485,7 @@ function memoryDerivedStatements(env:Env,orgId:string,supportCaseId:string,item:
   ];
 }
 export async function commitCounselingMemoryWork(env:Env,work:MemoryWork,output:MemoryGenerationOutput):Promise<void> {
-  const c=await assertMemoryWork(env,work,'started');
+  const {row:c,programAdmission}=await assertMemoryWork(env,work,'started');
   if(!c.request_json) throw new ConflictError('memory_superseded');
   const request=JSON.parse(c.request_json) as MemoryGenerationRequest;
   for(const material of request.materials) {
@@ -21443,13 +22528,13 @@ export async function commitCounselingMemoryWork(env:Env,work:MemoryWork,output:
   statements.push(env.DB.prepare("UPDATE counseling_memory_cases SET status='ready' WHERE org_id=? AND support_case_id=? AND applied_generation=generation").bind(work.orgId,work.supportCaseId));
   statements.push(memoryAuditStatement(env,{userId:work.serviceActorId,orgId:work.orgId,role:'service'},work.supportCaseId,'update',{generation:work.generation,changed:reconciled.changed.length}));
   statements.push(env.DB.prepare('DELETE FROM counseling_memory_guards WHERE id=?').bind(marker));
-  await memoryBatch(env,statements);
+  await memoryBatch(env,statements,programAdmission);
 }
 export async function failCounselingMemoryWork(env:Env,work:MemoryWork,code:string):Promise<void> {
-  const allowed=['masking_snapshot_missing','local_ner_unavailable','registered_pii_detected','unmasked_identifier_detected','evidence_hash_mismatch','masking_pipeline_version_mismatch','consent_not_effective','ai_provider_not_configured','memory_output_invalid','memory_evidence_invalid','memory_correction_protected','memory_reference_invalid'];
+  const allowed=['masking_snapshot_missing','local_ner_unavailable','registered_pii_detected','unmasked_identifier_detected','evidence_hash_mismatch','masking_pipeline_version_mismatch','consent_not_effective','ai_provider_not_configured','memory_output_invalid','memory_evidence_invalid','memory_correction_protected','memory_reference_invalid','program_admission_required','memory_disabled'];
   const reason=allowed.includes(code)?code:'memory_generation_failed';
-  await env.DB.prepare(`UPDATE counseling_memory_cases SET status='failed',reason=?,lease_token=NULL,lease_until=NULL,egress=NULL,request_json=NULL,not_before=?
-    WHERE org_id=? AND support_case_id=? AND work_id=? AND lease_token=? AND generation=? AND correction_revision=?`).bind(reason,new Date(Date.now()+60000).toISOString(),work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision).run();
+  await env.DB.prepare(`UPDATE counseling_memory_cases SET status=?,reason=?,lease_token=NULL,lease_until=NULL,egress=NULL,request_json=NULL,not_before=?
+    WHERE org_id=? AND support_case_id=? AND work_id=? AND lease_token=? AND generation=? AND correction_revision=?`).bind(reason==='program_admission_required'||reason==='memory_disabled'?'blocked':'failed',reason,new Date(Date.now()+60000).toISOString(),work.orgId,work.supportCaseId,work.id,work.leaseToken,work.generation,work.correctionRevision).run();
 }
 export async function correctCounselingMemory(env:Env,actor:Actor,supportCaseId:string,input:MemoryCorrectionInput):Promise<CaseMemoryView> {
   await assertSupportCaseWriteAccess(env,actor,supportCaseId);
@@ -21478,13 +22563,13 @@ export async function loadCounselingMemoryContext(
   env: Env, actor: Actor, sessionId: string,
 ): Promise<MemoryHistoricalContext | null> {
   const session = await getSessionForOrg(env, actor.orgId, sessionId);
-  const scope = await resolveLegacyCaseContext(env, actor.orgId, session.caseId);
+  const scope = await resolveSessionScope(env, actor.orgId, session.id);
   if (actor.role !== 'service') await assertSupportCaseAccess(env, actor, scope.supportCaseId);
   else await assertServiceTextAiSessionGrant(env, actor, sessionId, {allowCounselor: true});
   try {
-    await memoryConsent(env, actor.orgId, scope.supportCaseId);
+    await memoryAuthorization(env, actor.orgId, scope.supportCaseId);
   } catch (error) {
-    if (error instanceof ValidationError) return null;
+    if (error instanceof ValidationError || error instanceof ProgramAdmissionRequiredError) return null;
     throw error;
   }
   const c = await memoryCase(env, actor.orgId, scope.supportCaseId);
@@ -21603,9 +22688,353 @@ function memoryMaterialGuard(env:Env,id:string,orgId:string,supportCaseId:string
   ];
 }
 
-async function memoryBatch(env:Env,statements:PreparedStatement[]):Promise<void> {
-  try { await env.DB.batch(statements); } catch(error) {
-    if(hasApplicationCode(error,'counseling_memory_fence')) throw new ConflictError('memory_superseded');
+async function memoryBatch(env: Env, statements: PreparedStatement[], admission?: ProgramAdmissionGrant): Promise<void> {
+  try {
+    if (admission === undefined) await env.DB.batch(statements);
+    else await programPolicyBatch(env, admission.context, statements, admission.program);
+  } catch (error) {
+    if (hasApplicationCode(error, 'counseling_memory_fence')) throw new ConflictError('memory_superseded');
     throw error;
   }
+}
+/**
+ * New day-based settings are bounded independently from the immutable calendar
+ * ceiling. The existing closure trigger always takes the earlier deadline;
+ * 1,826 days is not asserted to equal every five-year calendar interval.
+ * Existing rows may contain the old schema's
+ * 1..3,660-day values; GET returns those values honestly, while PUT rejects a
+ * new value above this bound.
+ */
+export const RETENTION_POLICY_MAX_DAYS = 1826;
+const RETENTION_POLICY_STORAGE_MAX_DAYS = 3660;
+
+export interface RetentionPolicy {
+  orgId: string;
+  piiPurgeGraceDays: number;
+  version: number;
+}
+
+function mapRetentionPolicy(row: DbRow, orgId: string): RetentionPolicy {
+  const graceDays = integerValue(row.pii_purge_grace_days);
+  const version = integerValue(row.version);
+  if (graceDays === null || graceDays < 1 || graceDays > RETENTION_POLICY_STORAGE_MAX_DAYS
+    || version === null || version < 1) {
+    throw new ValidationError('organization retention policy is invalid');
+  }
+  return { orgId, piiPurgeGraceDays: graceDays, version };
+}
+
+async function readRetentionPolicy(env: Env, actor: Actor): Promise<RetentionPolicy> {
+  const row = await env.DB.prepare(
+    `SELECT pii_purge_grace_days, version
+     FROM organization_settings
+     WHERE org_id = ?`,
+  ).bind(actor.orgId).first<DbRow>();
+  if (row === null) throw new ForbiddenError('organization is unavailable');
+  return mapRetentionPolicy(row, actor.orgId);
+}
+
+/** IA-only, own-organization read. No absent-row default or row creation. */
+export async function getRetentionPolicy(env: Env, actor: Actor): Promise<RetentionPolicy> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  const policy = await readRetentionPolicy(env, actor);
+  await writeAudit(env, actor, {
+    action: 'read',
+    targetTable: 'organization_settings',
+    targetId: actor.orgId,
+    detail: { retentionPolicy: true },
+  });
+  return policy;
+}
+
+export interface UpdateRetentionPolicyInput {
+  expectedVersion: number;
+  piiPurgeGraceDays: number;
+}
+
+/**
+ * Strict version CAS. UPDATE and its guarded success audit share one DB batch;
+ * an audit trigger/error therefore rolls back the policy update. The audit is
+ * guarded by the post-update version/value, never by a timestamp identity and
+ * never by SQLite changes(). A stale write performs no mutation/audit.
+ */
+export async function updateRetentionPolicy(
+  env: Env,
+  actor: Actor,
+  input: UpdateRetentionPolicyInput,
+): Promise<RetentionPolicy> {
+  await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
+  assertExactKeys(input, ['expectedVersion', 'piiPurgeGraceDays']);
+  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1
+    || !Number.isSafeInteger(input.piiPurgeGraceDays)
+    || input.piiPurgeGraceDays < 1 || input.piiPurgeGraceDays > RETENTION_POLICY_MAX_DAYS) {
+    throw new ValidationError('organization retention policy is invalid');
+  }
+
+  const current = await readRetentionPolicy(env, actor);
+  if (current.version !== input.expectedVersion) {
+    throw new ConflictError('organization retention policy changed');
+  }
+  // A same-value PUT still enforces the expected version, but does not create
+  // a needless version/audit transition.
+  if (current.piiPurgeGraceDays === input.piiPurgeGraceDays) return getRetentionPolicy(env, actor);
+
+  const nextVersion = current.version + 1;
+  const updatedAt = now();
+  const detail = stringifyJson({
+    retentionPolicy: true,
+    previousPiiPurgeGraceDays: current.piiPurgeGraceDays,
+    piiPurgeGraceDays: input.piiPurgeGraceDays,
+    version: nextVersion,
+  });
+  const results = await env.DB.batch<DbRow>([
+    env.DB.prepare(
+      `UPDATE organization_settings
+       SET pii_purge_grace_days = ?, version = version + 1, updated_at = ?
+       WHERE org_id = ? AND version = ?
+       RETURNING pii_purge_grace_days, version`,
+    ).bind(input.piiPurgeGraceDays, updatedAt, actor.orgId, input.expectedVersion),
+    env.DB.prepare(
+      `INSERT INTO audit_log (
+         org_id, actor_id, actor_role, action, target_table, target_id, case_id,
+         detail, created_at
+       )
+       SELECT ?, ?, ?, 'update', 'organization_settings', ?, NULL, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM organization_settings
+         WHERE org_id = ? AND version = ? AND pii_purge_grace_days = ?
+       ) AND NOT EXISTS (
+         SELECT 1 FROM audit_log
+         WHERE org_id = ? AND target_table = 'organization_settings'
+           AND target_id = ? AND action = 'update' AND detail = ?
+       )`,
+    ).bind(
+      actor.orgId, actor.userId, actor.role, actor.orgId, detail, updatedAt,
+      actor.orgId, nextVersion, input.piiPurgeGraceDays,
+      actor.orgId, actor.orgId, detail,
+    ),
+  ]);
+  if (results[0]?.results[0] === undefined) {
+    throw new ConflictError('organization retention policy changed');
+  }
+  // Read back through the same IA/org boundary. This returns the stored value,
+  // not the submitted draft, and preserves the five-year cap engine unchanged.
+  return readRetentionPolicy(env, actor);
+}
+type DirectoryStoredRole = keyof typeof DIRECTORY_ROLE_MAP;
+export type DirectoryRole = Exclude<ActorRole, 'service'>;
+const DIRECTORY_STORED_ROLE_BY_PUBLIC: Record<Exclude<DirectoryRole, 'supervisor'>, DirectoryStoredRole> = {
+  'institution-admin': 'institution_admin', 'technical-admin': 'institution_technical_admin', worker: 'practitioner',
+};
+export interface DirectoryAccountView {
+  id: string; email: string | null; name: string | null; active: boolean;
+  roles: DirectoryRole[]; supervisedTeamIds: string[]; assignmentCount: number;
+}
+export interface DirectoryAccountsView {
+  accounts: DirectoryAccountView[];
+  permissions: { canManageRoles: boolean; canManageAccounts: boolean };
+  nextCursor: string | null;
+}
+async function currentDirectoryRoles(env: Env, actor: Actor): Promise<DirectoryRole[]> {
+  await assertCurrentHumanActor(env, actor);
+  const rows = await env.DB.prepare(
+    `SELECT role FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND revoked_at IS NULL ORDER BY role`,
+  ).bind(actor.orgId, actor.userId).all<{ role: DirectoryStoredRole }>();
+  const roles: DirectoryRole[] = rows.results.map((row) => DIRECTORY_ROLE_MAP[row.role]);
+  const supervisor = await env.DB.prepare(
+    `SELECT 1 AS present FROM team_supervisor_grants AS grant_row
+     JOIN teams ON teams.id = grant_row.team_id AND teams.org_id = grant_row.org_id AND teams.archived_at IS NULL
+     WHERE grant_row.org_id = ? AND grant_row.supervisor_user_id = ? AND grant_row.revoked_at IS NULL LIMIT 1`,
+  ).bind(actor.orgId, actor.userId).first();
+  if (supervisor !== null) roles.splice(roles.includes('worker') ? roles.indexOf('worker') : roles.length, 0, 'supervisor');
+  return roles;
+}
+async function assertDirectoryAccess(env: Env, actor: Actor, permission: 'read' | 'roles' | 'accounts'): Promise<DirectoryRole[]> {
+  assertHuman(actor);
+  const roles = await currentDirectoryRoles(env, actor);
+  if (!roles.includes('institution-admin') && (permission === 'roles' || !roles.includes('technical-admin'))) {
+    throw new ForbiddenError('account settings role is required');
+  }
+  return roles;
+}
+function directoryAccountFromRows(rows: DbRow[]): DirectoryAccountView[] {
+  const accounts: DirectoryAccountView[] = [];
+  const byId = new Map<string, DirectoryAccountView>();
+  for (const row of rows) {
+    const id = stringValue(row.id);
+    let account = byId.get(id);
+    if (account === undefined) {
+      const assignmentCount = integerValue(row.assignment_count);
+      if (assignmentCount === null || assignmentCount < 0) throw new ValidationError('account assignment count is invalid');
+      account = { id, email: nullableString(row.email), name: nullableString(row.name), active: row.active === true || integerValue(row.active) === 1,
+        roles: [], supervisedTeamIds: [], assignmentCount };
+      byId.set(id, account); accounts.push(account);
+    }
+    const storedRole = nullableString(row.direct_role);
+    if (storedRole !== null) {
+      if (!Object.hasOwn(DIRECTORY_ROLE_MAP, storedRole)) throw new ValidationError('account role is invalid');
+      const role = DIRECTORY_ROLE_MAP[storedRole as DirectoryStoredRole];
+      if (!account.roles.includes(role)) account.roles.push(role);
+    }
+    const teamId = nullableString(row.supervised_team_id);
+    if (teamId !== null && !account.supervisedTeamIds.includes(teamId)) account.supervisedTeamIds.push(teamId);
+  }
+  for (const account of accounts) {
+    if (account.supervisedTeamIds.length > 0) account.roles.splice(account.roles.includes('worker') ? account.roles.indexOf('worker') : account.roles.length, 0, 'supervisor');
+  }
+  return accounts;
+}
+async function readDirectoryAccounts(env: Env, orgId: string, targetId: string | null, cursor: string | null): Promise<DirectoryAccountView[]> {
+  const rows = await env.DB.prepare(
+    `WITH account_page AS (
+       SELECT id, org_id, email, name, active FROM users
+       WHERE org_id = ? AND role <> 'service'
+         AND (CAST(? AS TEXT) IS NULL OR id = ?)
+         AND (CAST(? AS TEXT) IS NULL OR id > ?)
+       ORDER BY id LIMIT 101
+     )
+     SELECT directory.id, directory.email, directory.name, directory.active,
+            role_assignment.role AS direct_role, supervision.team_id AS supervised_team_id,
+            (SELECT COUNT(*) FROM support_case_assignees AS assignment
+             WHERE assignment.org_id = directory.org_id AND assignment.user_id = directory.id
+               AND assignment.unassigned_at IS NULL AND assignment.status = 'active') AS assignment_count
+     FROM account_page AS directory
+     LEFT JOIN user_role_assignments AS role_assignment
+       ON role_assignment.org_id = directory.org_id AND role_assignment.user_id = directory.id AND role_assignment.revoked_at IS NULL
+     LEFT JOIN team_supervisor_grants AS supervision
+       ON supervision.org_id = directory.org_id AND supervision.supervisor_user_id = directory.id AND supervision.revoked_at IS NULL
+       AND EXISTS (SELECT 1 FROM teams WHERE teams.id = supervision.team_id AND teams.org_id = directory.org_id AND teams.archived_at IS NULL)
+     ORDER BY directory.id, role_assignment.role, supervision.team_id`,
+  ).bind(orgId, targetId, targetId, cursor, cursor).all<DbRow>();
+  return directoryAccountFromRows(rows.results);
+}
+export async function listDirectoryAccounts(env: Env, actor: Actor, cursor?: string): Promise<DirectoryAccountsView> {
+  const roles = await assertDirectoryAccess(env, actor, 'read');
+  if (cursor !== undefined) assertOpaqueIdentifier(cursor, 'account cursor');
+  const found = await readDirectoryAccounts(env, actor.orgId, null, cursor ?? null);
+  const accounts = found.slice(0, 100);
+  await writeAudit(env, actor, { action: 'read', targetTable: 'users', detail: { canonicalDirectory: true, count: accounts.length, roles } });
+  return { accounts, permissions: { canManageRoles: roles.includes('institution-admin'), canManageAccounts: true },
+    nextCursor: found.length > 100 ? accounts[accounts.length - 1]!.id : null };
+}
+async function readDirectoryAccount(env: Env, actor: Actor, userId: string): Promise<DirectoryAccountView> {
+  await assertDirectoryAccess(env, actor, 'read');
+  const account = (await readDirectoryAccounts(env, actor.orgId, userId, null))[0];
+  if (account === undefined) throw new ForbiddenError('account is unavailable in this organization');
+  await writeAudit(env, actor, { action: 'read', targetTable: 'users', targetId: userId, detail: { canonicalDirectory: true } });
+  return account;
+}
+function normalizedDirectRoles(input: readonly DirectoryRole[]): DirectoryStoredRole[] {
+  if (!Array.isArray(input) || input.length > 3) throw new ValidationError('account roles are invalid');
+  const result: DirectoryStoredRole[] = [];
+  for (const role of input) {
+    if (!Object.hasOwn(DIRECTORY_STORED_ROLE_BY_PUBLIC, role)) throw new ValidationError('account role is invalid');
+    const stored = DIRECTORY_STORED_ROLE_BY_PUBLIC[role as Exclude<DirectoryRole, 'supervisor'>];
+    if (result.includes(stored)) throw new ValidationError('account roles are duplicated');
+    result.push(stored);
+  }
+  return result.sort();
+}
+const ACCOUNT_MUTATION_GUARD_SQL = `INSERT INTO account_mutation_guards (id, org_id, valid)
+  VALUES (?, ?, CASE WHEN
+    EXISTS (SELECT 1 FROM organization_settings WHERE org_id = ?)
+    AND EXISTS (
+      SELECT 1 FROM users AS caller JOIN user_role_assignments AS caller_role
+        ON caller_role.user_id = caller.id AND caller_role.org_id = caller.org_id AND caller_role.revoked_at IS NULL
+      WHERE caller.id = ? AND caller.org_id = ? AND caller.active = 1 AND caller.role <> 'service'
+        AND (caller_role.role = 'institution_admin' OR (? = 1 AND caller_role.role = 'institution_technical_admin'))
+    )
+    AND EXISTS (SELECT 1 FROM users WHERE id = ? AND org_id = ? AND active = 1 AND role <> 'service')
+    AND (? <> ? OR (? = 1 AND ? = 1))
+    AND (? = 0 OR (
+      (CASE WHEN EXISTS (SELECT 1 FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND role = 'institution_admin' AND revoked_at IS NULL) THEN 1 ELSE 0 END) = ?
+      AND (CASE WHEN EXISTS (SELECT 1 FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND role = 'institution_technical_admin' AND revoked_at IS NULL) THEN 1 ELSE 0 END) = ?
+      AND (CASE WHEN EXISTS (SELECT 1 FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND role = 'practitioner' AND revoked_at IS NULL) THEN 1 ELSE 0 END) = ?
+    ))
+    AND (? = 1 OR NOT EXISTS (SELECT 1 FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND role = 'institution_admin' AND revoked_at IS NULL)
+      OR EXISTS (SELECT 1 FROM user_role_assignments AS replacement JOIN users ON users.id = replacement.user_id AND users.org_id = replacement.org_id AND users.active = 1
+        WHERE replacement.org_id = ? AND replacement.user_id <> ? AND replacement.role = 'institution_admin' AND replacement.revoked_at IS NULL))
+    AND (? = 1 OR NOT EXISTS (SELECT 1 FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND role = 'institution_technical_admin' AND revoked_at IS NULL)
+      OR EXISTS (SELECT 1 FROM user_role_assignments AS replacement JOIN users ON users.id = replacement.user_id AND users.org_id = replacement.org_id AND users.active = 1
+        WHERE replacement.org_id = ? AND replacement.user_id <> ? AND replacement.role = 'institution_technical_admin' AND replacement.revoked_at IS NULL))
+    THEN 1 ELSE 0 END)`;
+async function accountMutationBatch(
+  env: Env, actor: Actor, userId: string, expected: DirectoryStoredRole[] | null,
+  desired: DirectoryStoredRole[], statements: PreparedStatement[],
+): Promise<void> {
+  const id = newId();
+  const orgId = actor.orgId;
+  const roleChange = expected !== null;
+  const wantsAdmin = desired.includes('institution_admin') ? 1 : 0;
+  const wantsTechnical = desired.includes('institution_technical_admin') ? 1 : 0;
+  try {
+    await env.DB.batch([
+      env.DB.prepare('UPDATE organization_settings SET version = version WHERE org_id = ?').bind(orgId),
+      env.DB.prepare(ACCOUNT_MUTATION_GUARD_SQL).bind(
+        id, orgId, orgId, actor.userId, orgId, roleChange ? 0 : 1,
+        userId, orgId, userId, actor.userId, roleChange ? 1 : 0, wantsAdmin,
+        roleChange ? 1 : 0,
+        orgId, userId, expected?.includes('institution_admin') ? 1 : 0,
+        orgId, userId, expected?.includes('institution_technical_admin') ? 1 : 0,
+        orgId, userId, expected?.includes('practitioner') ? 1 : 0,
+        wantsAdmin, orgId, userId, orgId, userId,
+        wantsTechnical, orgId, userId, orgId, userId,
+      ),
+      ...statements,
+      env.DB.prepare('DELETE FROM account_mutation_guards WHERE org_id = ? AND id = ?').bind(orgId, id),
+    ]);
+  } catch (error) {
+    if (hasApplicationCode(error, 'account_state_changed')) throw new ConflictError('account state or required administrator changed');
+    throw error;
+  }
+}
+export async function updateDirectoryRoles(
+  env: Env, actor: Actor, userId: string, input: { roles: DirectoryRole[]; expectedRoles: DirectoryRole[] },
+): Promise<DirectoryAccountView> {
+  const actorRoles = await assertDirectoryAccess(env, actor, 'roles');
+  assertOpaqueIdentifier(userId, 'account id');
+  assertExactKeys(input, ['roles', 'expectedRoles']);
+  const desired = normalizedDirectRoles(input.roles);
+  const expected = normalizedDirectRoles(input.expectedRoles);
+  const target = await getUserForOrg(env, actor.orgId, userId);
+  if (!target.active || target.role === 'service') throw new ForbiddenError('active account is unavailable');
+  if (userId === actor.userId && !desired.includes('institution_admin')) throw new ValidationError('cannot remove your own institution admin role');
+  const additions = desired.filter((role) => !expected.includes(role));
+  const removals = expected.filter((role) => !desired.includes(role));
+  const at = now();
+  const statements: PreparedStatement[] = additions.map((role) => env.DB.prepare(
+    `INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by, granted_at) VALUES (?, ?, ?, ?, 'manual', ?, ?)`,
+  ).bind(newId(), actor.orgId, userId, role, actor.userId, at));
+  statements.push(...removals.map((role) => env.DB.prepare(
+    `UPDATE user_role_assignments SET revoked_at = ? WHERE org_id = ? AND user_id = ? AND role = ? AND revoked_at IS NULL`,
+  ).bind(at, actor.orgId, userId, role)));
+  if (additions.length > 0 || removals.length > 0) statements.push(canonicalAuditStatement(env, actor, {
+    action: 'update', targetTable: 'user_role_assignments', targetId: userId,
+    beneficiaryId: null, supportCaseId: null,
+    detail: { canonicalDirectory: true, actorRoles, granted: additions, revoked: removals },
+  }));
+  await accountMutationBatch(env, actor, userId, expected, desired, statements);
+  return readDirectoryAccount(env, actor, userId);
+}
+export async function deactivateDirectoryAccount(env: Env, actor: Actor, userId: string, reason: string): Promise<DirectoryAccountView> {
+  const actorRoles = await assertDirectoryAccess(env, actor, 'accounts');
+  assertOpaqueIdentifier(userId, 'account id');
+  if (typeof reason !== 'string' || reason.trim().length === 0 || reason.trim().length > 200) throw new ValidationError('deactivation reason is invalid');
+  if (userId === actor.userId) throw new ValidationError('cannot deactivate yourself');
+  const target = await getUserForOrg(env, actor.orgId, userId);
+  if (!target.active || target.role === 'service') throw new ForbiddenError('active account is unavailable');
+  const at = now();
+  const trimmedReason = reason.trim();
+  await accountMutationBatch(env, actor, userId, null, [], [
+    env.DB.prepare(`UPDATE support_case_assignees SET unassigned_at = ?, status = 'ended', transfer_reason = COALESCE(transfer_reason, ?) WHERE org_id = ? AND user_id = ? AND unassigned_at IS NULL AND status IN ('requested', 'active')`).bind(at, trimmedReason, actor.orgId, userId),
+    env.DB.prepare(`UPDATE team_memberships SET ended_at = ? WHERE org_id = ? AND user_id = ? AND ended_at IS NULL`).bind(at, actor.orgId, userId),
+    env.DB.prepare(`UPDATE team_supervisor_grants SET revoked_at = ? WHERE org_id = ? AND supervisor_user_id = ? AND revoked_at IS NULL`).bind(at, actor.orgId, userId),
+    env.DB.prepare(`UPDATE invite_tokens SET revoked_at = ? WHERE org_id = ? AND issued_by = ? AND status = 'issued' AND revoked_at IS NULL`).bind(at, actor.orgId, userId),
+    env.DB.prepare(`INSERT INTO auth_revocations (id, kind, subject, revoked_at, reason) VALUES (?, 'actor', ?, ?, 'admin-disable')`).bind(newId(), userId, at),
+    env.DB.prepare(`UPDATE users SET active = 0 WHERE id = ? AND org_id = ? AND active = 1`).bind(userId, actor.orgId),
+    canonicalAuditStatement(env, actor, { action: 'update', targetTable: 'users', targetId: userId,
+      beneficiaryId: null, supportCaseId: null,
+      detail: { canonicalDirectory: true, actorRoles, active: false, reason: trimmedReason, assignmentsEnded: true, supervisionEnded: true } }),
+  ]);
+  return readDirectoryAccount(env, actor, userId);
 }

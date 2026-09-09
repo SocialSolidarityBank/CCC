@@ -51,7 +51,7 @@ import {
 import type { AudioDeletionEvidence, AudioStore } from '@ccc/contracts/runtime';
 import type { PreparedStatement } from '@ccc/contracts/database';
 import { deliverAudioLifecycleIncidents } from '@ccc/core/scheduled-job-runner';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   agentResultRequest,
   claimRequest,
@@ -84,7 +84,10 @@ beforeEach(async () => {
 });
 
 async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: string }> {
-  const beneficiary = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'local', llmMode: 'openai' });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
+  const beneficiary = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
@@ -1022,6 +1025,9 @@ describe('S5 Agent 작업 계약 v2', () => {
     const localSession = await fixtureSession(supportCaseId);
     await registerFixtureRecording(t.env, counselor, service, localSession);
     const azureSession = await fixtureSession(supportCaseId);
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'azure', llmMode: 'openai',
+    });
     await registerFixtureRecording(t.env, counselor, service, azureSession, AZURE_RUNTIME);
 
     const disclosure = (await issueSupportCaseConsentDisclosures(
@@ -1384,6 +1390,9 @@ describe('S5 Agent 작업 계약 v2', () => {
   it('rechecks signed runtime and current NER qualification at Azure egress boundaries', async () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureSession(supportCaseId);
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'azure', llmMode: 'openai',
+    });
     const audio = await registerFixtureRecording(
       t.env, counselor, service, sessionId, AZURE_RUNTIME,
     );
@@ -1433,6 +1442,9 @@ describe('S5 Agent 작업 계약 v2', () => {
   it('loses the Azure in-flight CAS when consent is superseded after its preflight read', async () => {
     const { supportCaseId } = await fixtureSupportCase();
     const sessionId = await fixtureSession(supportCaseId);
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'azure', llmMode: 'openai',
+    });
     const audio = await registerFixtureRecording(
       t.env, counselor, service, sessionId, AZURE_RUNTIME,
     );
@@ -1458,17 +1470,9 @@ describe('S5 Agent 작업 계약 v2', () => {
     )).find((item) => item.domain === 'counseling_recording');
     if (disclosure === undefined) throw new Error('expected recording disclosure');
     let injected = false;
-    const wrap = (statement: PreparedStatement): PreparedStatement => ({
-      bind(...values) {
-        return wrap(statement.bind(...values));
-      },
-      first(column) {
-        return statement.first(column);
-      },
-      all() {
-        return statement.all();
-      },
-      async run() {
+    const raceDb = {
+      prepare: t.env.DB.prepare.bind(t.env.DB),
+      async batch<T>(statements: PreparedStatement[]) {
         if (!injected) {
           injected = true;
           await appendSupportCaseConsentEvent(t.env, counselor, supportCaseId, {
@@ -1488,23 +1492,9 @@ describe('S5 Agent 작업 계약 v2', () => {
             expectedRevision: null,
           });
         }
-        return statement.run();
+        return t.env.DB.batch<T>(statements);
       },
-    });
-    const raceDb = new Proxy(t.env.DB, {
-      get(target, property, receiver) {
-        if (property === 'prepare') {
-          return (sql: string) => {
-            const statement = target.prepare(sql);
-            return sql.includes("UPDATE agent_job_egress_records SET status='in_flight'")
-              ? wrap(statement)
-              : statement;
-          };
-        }
-        const value = Reflect.get(target, property, receiver);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
+    };
     await expect(markAgentJobEgressInFlight(
       { ...t.env, DB: raceDb },
       service,

@@ -13,7 +13,8 @@ import {
   reactivateUser,
   requestSupportCaseAssignment,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
+import { handleRequest } from '../../../packages/http-api/src/request-handler';
 
 // 배정 상태 머신 (CCC-123 · D74 · 정책 §2.3): 요청(requested)은 아무 게이트도 열지 않고,
 // 수락(active) 시 권한이 시작되며 이전 주담당이 끝난다. 강제 이관은 사유 필수 + 안내 확인
@@ -35,12 +36,37 @@ async function seedCase(): Promise<{ beneficiaryId: string; supportCaseId: strin
     testActors.admin.userId,
   ).run();
   return createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
 }
 
 describe('assignment request (CCC-123 requested status)', () => {
+  it('rejects a recipient acceptance URL naming a different support case', async () => {
+    const seeded = await seedCase();
+    const pending = await requestSupportCaseAssignment(
+      t.env, testActors.admin, seeded.supportCaseId, testActors.unassignedCounselor.userId, 'primary',
+    );
+    const assignmentSettings = (actor: typeof testActors.admin | typeof testActors.counselor) => handleRequest(new Request(
+      `http://localhost/settings/assignments/cases/${seeded.supportCaseId}`,
+    ), t.env, async () => actor);
+    const managed = await assignmentSettings(testActors.admin);
+    expect(managed.status).toBe(200);
+    expect((await managed.json() as { assignees: Array<{ id: string; status: string }> }).assignees)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ id: pending.id, status: 'requested' })]));
+    expect((await assignmentSettings(testActors.counselor)).status).toBe(403);
+    const accept = (supportCaseId: string) => handleRequest(new Request(
+      `http://localhost/support-cases/${supportCaseId}/assignees/${pending.id}/accept`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+    ), t.env, async () => testActors.unassignedCounselor);
+    expect((await accept(crypto.randomUUID())).status).toBe(403);
+    await expect(assertSupportCaseAccess(t.env, testActors.unassignedCounselor, seeded.supportCaseId))
+      .rejects.toThrow(ForbiddenError);
+    expect((await accept(seeded.supportCaseId)).status).toBe(200);
+    await expect(assertSupportCaseAccess(t.env, testActors.unassignedCounselor, seeded.supportCaseId))
+      .resolves.toBeTruthy();
+  });
+
   it('denies all access to the assignee until accepted, then grants it and ends prior primary', async () => {
     const seeded = await seedCase();
     // 기존 담당(primary, active)이 접근할 수 있다.
@@ -80,11 +106,11 @@ describe('assignment request (CCC-123 requested status)', () => {
     ).bind(testActors.admin.orgId, seeded.supportCaseId, testActors.unassignedCounselor.userId).first<{ id: string }>();
     if (pending === null) throw new Error('requested assignment fixture is missing');
     await expect(
-      acceptSupportCaseAssignment(t.env, testActors.admin, pending.id),
+      acceptSupportCaseAssignment(t.env, testActors.admin, pending.id, seeded.supportCaseId),
     ).rejects.toThrow(ForbiddenError);
 
     // 수락 → 활성 + 이전 주담당 종료.
-    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending.id);
+    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending.id, seeded.supportCaseId);
     await expect(
       assertSupportCaseAccess(t.env, testActors.unassignedCounselor, seeded.supportCaseId),
     ).resolves.toBeTruthy();
@@ -106,7 +132,7 @@ describe('assignment request (CCC-123 requested status)', () => {
   it('keeps an admin self-assignment requested when the institution has multiple active people', async () => {
     await t.reset();
     const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(testActors.unassignedCounselor.orgId),
       intakeAt: '2026-07-02T00:00:00.000Z',
     });
     await t.db.prepare(
@@ -133,7 +159,7 @@ describe('assignment request (CCC-123 requested status)', () => {
   it('immediately accepts a self-assignment only when one active human remains', async () => {
     await t.reset();
     const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(testActors.unassignedCounselor.orgId),
       intakeAt: '2026-07-02T00:00:00.000Z',
     });
     await t.db.prepare(
@@ -318,7 +344,7 @@ describe('offboarding checklist (CCC-123 deactivate/reactivate)', () => {
        WHERE org_id = ? AND support_case_id = ? AND user_id = ? AND status = 'requested'`,
     ).bind(testActors.admin.orgId, seeded.supportCaseId, testActors.unassignedCounselor.userId).first<{ id: string }>();
     if (pending === null) throw new Error('requested assignment fixture is missing');
-    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending.id);
+    await acceptSupportCaseAssignment(t.env, testActors.unassignedCounselor, pending.id, seeded.supportCaseId);
     // 실무자(unassignedCounselor)가 발급한 미사용 초대 토큰 하나를 직접 심는다.
     await t.db.prepare(
       `INSERT INTO invite_tokens (

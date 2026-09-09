@@ -11,7 +11,7 @@ import {
   claimAgentJobs,
   type Actor,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   claimRequest,
   registerFixtureRecording,
@@ -45,7 +45,10 @@ async function pollAgentQueue(): Promise<void> {
   await claimAgentJobs(t.env, service, TEXT_ONLY_RUNTIME, claimRequest(qualification));
 }
 
-function localEnv() {
+async function localEnv() {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, { sttMode: 'local', llmMode: 'openai' });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
   return t.env;
 }
 
@@ -66,9 +69,12 @@ function isoUtc(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-/** 대기 작업(uploaded + audio_r2_key) 1건이 있는 케이스를 만든다. */
 async function makePendingJob(): Promise<string> {
-  const caseRecord = await createCase(t.env, counselor, { consentRecordingAt: '2026-01-01T00:00:00.000Z' });
+  await localEnv();
+  const caseRecord = await createCase(t.env, counselor, {
+    programId: testProgramId(counselor.orgId),
+    consentRecordingAt: '2026-01-01T00:00:00.000Z',
+  });
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '04000000-0000-4000-8000-000000000001',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -82,7 +88,10 @@ async function makePendingJob(): Promise<string> {
 
 /** 텍스트 일감 큐에 대기 1건이 있는 회차를 만들고, 대기 시작 시각을 지정 시각으로 묵힌다. */
 async function makePendingTextWork(enqueuedAtMs: number): Promise<string> {
-  const caseRecord = await createCase(t.env, counselor, { consentRecordingAt: '2026-01-01T00:00:00.000Z' });
+  await localEnv();
+  const caseRecord = await createCase(t.env, counselor, {
+    programId: testProgramId(counselor.orgId),
+  });
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '04000000-0000-4000-8000-000000000002',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -243,7 +252,7 @@ describe('pipeline watchdog (D8)', () => {
 
   it('forbids the health route for a counselor and allows an admin', async () => {
     await t.reset();
-    const env = localEnv();
+    const env = await localEnv();
     const forbidden = await worker.fetch(new Request('http://localhost/pipeline/health', { headers: counselorHeaders }), env);
     expect(forbidden.status).toBe(403);
 

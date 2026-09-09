@@ -1,8 +1,8 @@
 # apps/client 업무 프런트엔드 전체 구현 계획
 
-> **실행 제약:** FRONTEND가 BACKEND의 ROOT_LOCK_FROZEN 뒤 독립 P1 검증 슬롯을 인수했다. 승인된 client importer/SDK 의존성 그래프만 lock에 반영하고 frozen 설치·단일 worker 검사·합성 transport smoke를 수행했다. 검증 결과는 §13이며 이 lock은 다시 동결한다. 미검증 BACKEND, shared manifest/runtime, CSS/STT/wire, D89 실제 인프라와 사업자 활성화는 적용하지 않는다.
+> **실행 제약:** FRONTEND가 검증된 pre-D89 BACKEND `004a97d`를 자기 `frontend/beta-0.9-client`에 로컬 병합했다. client/P1/SDK/DESIGN exports와 양쪽 pinned lock을 보존하고 지정된 결합 검증만 실행했다. 최신 결과는 §14다. push/origin-main merge/배포, D89 변경, 추가 PostgreSQL/전체 API suite, 자격/사업자 호출과 하위 에이전트는 실행하지 않는다.
 
-작성/갱신: 2026-09-09. 상태: **P0 정적 coverage 확인, 독립 P1 기준선 typecheck/43 tests/build/실제 모듈 smoke 통과. D89·실제 인증·전체 앱은 미완이다.** §11은 P0 기록, §12는 source-edit 기록, §13이 최신 검증/lock 인계다.
+작성/갱신: 2026-09-09. 상태: **검증된 pre-D89 소스 결합 후 client typecheck/43 tests/build와 API typecheck 통과. hosted P1·D89·전체 베타는 미완이다.** §11=P0, §12=source-edit, §13=독립 기준선, §14=현재 결합 검증이다.
 
 **목표:** 기존 업무 웹앱의 기능과 승인된 새 화면을 `apps/client`에서 실제 API와 연결해 구현한다. 기존 업무 소스와 공유 자산을 정리한 뒤 후속 계약까지 통합하고 세 배포 모드에서 전체 흐름을 검증한다. 뼈대나 시안 제작만으로 끝내지 않는다.
 
@@ -12,7 +12,7 @@
 
 **도구:** 기존 React/Vite, 승인된 React Router와 `@supabase/supabase-js@2.116.0`, 기존 Wire/계약 패키지를 사용한다. 이번 소스는 `@ccc/contracts:workspace:*`와 지정 SDK만 client manifest에 추가하며 Router 소비부가 없어 Router 패키지는 아직 추가하지 않는다. 앱 버전/기존 도구 버전은 유지한다. 새 CSS/다른 외부 의존성은 추가하지 않는다.
 
-**실행:** FRONTEND의 독립 P1 검증만 수행했다. 루트 lock 수정은 승인된 client 두 dependency와 SDK 하위 그래프뿐이다. 다른 importer, 기존 app/tool 버전, root package와 shared contracts/runtime은 유지한다. 지정 DESIGN `e29aa40` 외 BACKEND commit을 소비하지 않았고, 로컬 explicit-path checkpoint 뒤 ROOT_LOCK_FROZEN으로 반환한다. 하위 에이전트/hosted auth/provider/외부 시크릿은 사용하지 않는다.
+**실행:** 독립 P1 checkpoint `16f89a0`을 보존하고 Main이 승인한 `004a97d`만 로컬 병합했다. 제품 충돌/ours-theirs 선택/lock 재해석은 없었다. 기존 두 그래프의 pinned resolution과 backend importer 둘, client SDK를 그대로 결합했다. 제품·CSS/STT/wire·D89 계약을 추가 수정하지 않고, 정상 hooks로 merge checkpoint를 남긴 뒤 combined root lock을 반환한다.
 
 **근거:** [S2 인증/설치 계약](../../specs/S2-auth-capability-manifest.md), [S3 화면/API 대응표](../../specs/S3-screen-api-map.md), [D86](../../adr/0044-onboarding-invite-and-admin-surfaces.md), [D87](../../adr/0045-public-project-admission-gate.md), [실행 티켓 계획](../../../CCC_OPEN_PILOT_PLAN.md), [녹음 업로드 인계](2026-09-09-audio-upload-design-handoff.md). D88의 ADR-0047과 디자인 스펙은 현재 M에 포함됐다. 후보 C는 M과 통합되지 않았다. 총괄 계획의 절대 경로와 고정 SHA는 §11에 남긴다.
 
@@ -494,7 +494,7 @@ Q는 전체 베타 완성과 지정된 검증 커밋의 로컬 통합, `@supabas
 
 **소스 편집 시점 판정:** P1 기반 source-ready였다. 이후 독립 검증과 lock 처리는 §13에 기록한다. 실제 UI 진입이나 P1 전체 완료와 구분하며, 작업 브랜치는 `frontend/beta-0.9-client`만 사용한다.
 
-## 13. 독립 P1 검증과 ROOT_LOCK_FROZEN
+## 13. 독립 P1 기준선 검증 기록
 
 ### D89 수령과 검증 범위
 
@@ -547,3 +547,45 @@ smoke는 신뢰키 없는 요청 차단, 변조 서명 뒤 bootstrap 미조회, 
 **ROOT_LOCK_FROZEN:** 승인된 importer/SDK 그래프 갱신과 독립 검증이 끝났다. 위 최종 lock hash를 기준으로 O에 슬롯을 반환하며 다음 인계 전 lock을 더 바꾸지 않는다.
 
 남은 관문은 D89 shared manifest/runtime 계약과 정확한 API/Auth 주소 결합, 실제 제한 실행 환경/실제 인증/MFA, 첫 관리자와 직원 초대, 기관 코드/첫 사업/초기 설정 DTO, Local Office/Single, 전체 업무 Router/UI와 후속 사업/동의/원음/리포트다. 이 검증은 기존 기준선의 독립 P1 통과이며 **D89 또는 P1 전체 완료가 아니다.**
+
+## 14. 검증된 pre-D89 BACKEND와 P1 로컬 결합
+
+### 승인 입력과 보존
+
+- 시작 HEAD는 P1 checkpoint `16f89a05e9e47929eea38b707fb05af97c412f56`이고 tracked/untracked 변경이 없었다. 다른 worktree를 수정하지 않았다.
+- 병합 입력은 Main이 수락한 `004a97dcc4757b840c472b9fe46c477f56775a60`이다. 이 Mac의 공유 Git 객체에서 읽었고 GitHub fetch/push나 main 병합은 하지 않았다.
+- Main 제공 증거: PostgreSQL 5개 파일/59개 테스트 통과, restricted `ccc_api`의 실제 loopback HTTP admission/cross-org 5개 검사 통과, synthetic JWT/local JWKS, `hostedAuth:false`. source/generation parity hash는 `66884cd3343f8f8623bbf9ad4dc0b74eea9b8e7a8512b0b039c2eba1d7af075d`다. 정리 commit은 임시 smoke 제거/계획 갱신뿐이고 product/migration SQL은 검증된 `e717ad9`와 같다는 Main 판정을 수령했다.
+- 위 backend 실행을 FRONTEND에서 다시 하지 않았다. 원본 branch/commit을 이동하거나 삭제하지 않았다. `git merge --no-ff --no-commit 004a97d`로 검증 전에 결합했다.
+- client module/test 10개, client package, 현재 STT mount와 DESIGN exports는 병합 전후 바이트가 같다. SDK `2.116.0`과 앱/도구 버전을 유지했다.
+
+### 충돌과 lock
+
+- 제품 및 lock 충돌 **0건**. `pnpm-lock.yaml`은 Git이 자동 병합했고 수동 hunk 선택이나 blanket ours/theirs 처리가 없었다.
+- 기존 pinned resolution을 바꿀 이유가 없어 lock regeneration/resolution 명령은 실행하지 않았다. 두 부모의 packages/snapshots 합집합과 결합 lock을 비교했다: 부모 node 누락 0, 부모 밖 node 0, 동일 key의 부모 값 불일치 0, 기존 node 수정 0.
+- `apps/client` importer는 FRONTEND 부모와 같고, 그 밖 importer는 BACKEND 부모와 같다. 새로운 backend workspace importer 두 개 `adapters/identity-supabase`, `apps/community-cloud`와 client SDK 그래프가 모두 보존됐다.
+- 양쪽 원본 lock은 `local://pre-d89-combined-baseline/frontend-lock.yaml`, `local://pre-d89-combined-baseline/backend-lock.yaml`에 보존했다.
+- 최종 combined root lock SHA-256: `51d9e81fe5be8d9ed1671e49cf098ab174db226326c859f6c9747b949f7d694e`. frozen 설치 후 byte 변경 없음.
+
+### 이번 branch에서 실제 실행한 검사
+
+명령은 직렬 실행했고 `RAYON_NUM_THREADS=1`, `UV_THREADPOOL_SIZE=1`, `GOMAXPROCS=1`을 사용했다. Vitest는 worker 1개와 file parallelism off다.
+
+| 명령 | 결과 |
+|---|---|
+| `pnpm install --frozen-lockfile --ignore-scripts --network-concurrency=1 --child-concurrency=1` | exit 0, 16 workspace projects, resolution skipped, lock supply-chain policy 577 entries 통과 |
+| `pnpm --filter @ccc/client run typecheck` | exit 0 |
+| `pnpm --filter @ccc/client run test --maxWorkers=1 --no-file-parallelism` | 6개 파일/43개 테스트 PASS |
+| `pnpm --filter @ccc/client run build` | exit 0, Vite 8.1.3, 33 modules |
+| `pnpm --filter @ccc/api run typecheck` | exit 0 |
+
+owned client/lock wiring 수정이 필요하지 않았다. 기존 빌드의 `MODULE_TYPELESS_PACKAGE_JSON`와 500 kB 초과 경고는 유지했다(표시값 502.77 kB, gzip 157.87 kB). protected web package/CSS나 경고 기준을 수정해 숨기지 않았다. build는 여전히 현재 STT mount의 빌드이며 새 업무 UI나 hosted 인증 증거가 아니다.
+
+전체 API suite, 추가 PostgreSQL 실행, provider/hosted Auth/자격 조회, D89 manifest/runtime 변경과 하위 에이전트 실행은 없다. 앞선 독립 smoke와 Main의 backend smoke는 각자의 기준선 증거로 보존하고 이번 검사를 실제 hosted 실행으로 확대 해석하지 않는다.
+
+### 인계
+
+로컬 merge checkpoint에는 승인된 backend merge 결과와 자동 병합 lock, 이 frontend 계획의 인계 기록을 포함한다. commit은 정상 hooks를 사용하며 우회하지 않는다. 확정 SHA와 hook 결과는 commit 출력 및 `local://pre-d89-combined-validation.json`에 남긴다. 생성된 dist나 추가 임시 파일을 stage하지 않는다.
+
+**COMBINED_ROOT_LOCK_FROZEN:** 위 SHA-256에서 combined lock 작업을 마쳤다. 후속 결합/변경은 총괄의 다음 슬롯 지시에 따른다.
+
+남은 것은 D89 독립 제한 API/runtime과 signed 주소 계약, 실제 Auth/MFA/초기 관리자, 기관 준비 DTO/전체 Router/UI, 모드별 실제 수용 및 베타 전체 여정이다. 이번 단계의 판정은 **검증된 pre-D89 소스 결합**이며 hosted P1 또는 베타 완료가 아니다.

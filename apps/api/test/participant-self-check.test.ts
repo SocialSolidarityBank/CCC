@@ -8,7 +8,7 @@ import {
   requestSupportCaseAssignment,
   type ParticipantSelfCheck,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 import worker from './support/local-worker';
 
 // CCC-27 당사자 자기 확인 — 가입 링크(소비된 토큰)로 여는 본인 정보 페이지의
@@ -26,7 +26,7 @@ function signupOpenEnv() {
 
 /** 가입까지 끝낸 토큰·당사자 고정물. 이름·연락처를 심어 PII 왕복도 검증한다. */
 async function seedJoinedParticipant() {
-  const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+  const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const result = await completeParticipantSignup(t.env, {
     token: invite.token,
     name: '홍길동',
@@ -105,7 +105,7 @@ describe('getParticipantSelfCheck (CCC-27)', () => {
   it('미소비(issued)·무효 토큰은 거부한다 (구분 불가, 열거 단서 금지)', async () => {
     await t.reset();
     await seedJoinedParticipant();
-    const unused = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const unused = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     await expect(getParticipantSelfCheck(t.env, unused.token)).rejects.toBeInstanceOf(ForbiddenError);
     await expect(getParticipantSelfCheck(t.env, 'not-a-real-token')).rejects.toBeInstanceOf(ForbiddenError);
@@ -135,7 +135,7 @@ describe('GET /invites/participant/:token/me (CCC-27)', () => {
   it('미소비·무효 토큰은 404로 뭉친다 (구분 불가)', async () => {
     await t.reset();
     await seedJoinedParticipant();
-    const unused = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const unused = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     for (const token of [unused.token, 'not-a-real-token']) {
       const res = await worker.fetch(

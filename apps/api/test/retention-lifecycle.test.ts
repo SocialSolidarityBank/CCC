@@ -14,7 +14,7 @@ import apiWorker from '../src/index';
 import { PURGE_CRON } from '../src/cron-schedule';
 import { createScheduledJobRunner } from '@ccc/core/scheduled-job-runner';
 import worker from './support/local-worker';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 const t = setupD1();
 const counselor: Actor = testActors.counselor;
 const admin: Actor = testActors.admin;
@@ -42,7 +42,7 @@ async function runRetentionCron(env = t.env): Promise<void> {
 
 async function makeDueParticipant() {
   const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     intakeAt: '2025-01-01T09:00:00.000Z',
   });
   const record = await createCounselingRecord(t.env, counselor, created.supportCaseId, {
@@ -251,7 +251,7 @@ describe('participant PII retention lifecycle (CCC-121)', () => {
     await createSupportCase(t.env, admin, participant.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '73737373-7373-4737-8737-737373737373',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       initialAssigneeUserId: counselor.userId,
       consentPrivacy: true,
     });

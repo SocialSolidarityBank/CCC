@@ -18,7 +18,7 @@ import {
   processParticipantPiiRetention,
   purgeParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1 } from './support/d1';
+import { setupD1, testProgramId } from './support/d1';
 
 const t = setupD1();
 
@@ -74,7 +74,7 @@ function intakeInput(overrides: Partial<CreateIntakeRecordInput> = {}): CreateIn
 async function seedCase() {
   await seedCanonicalDirectory();
   return createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(canonicalActors.counselor.orgId),
     intakeAt: '2026-07-15T09:00:00.000Z',
   });
 }
@@ -139,7 +139,7 @@ describe('createIntakeRecord', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
     });
     const beforeIntake = await t.db.prepare(
       'SELECT intake_at FROM support_cases WHERE id = ?',
@@ -802,7 +802,7 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+    programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
       name: '홍서희',
       phone: '010-1234-5678',
@@ -835,7 +835,7 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
     const withoutConsent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
+      { programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
@@ -845,7 +845,7 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
     const withConsent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
+      { programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
       { privacy: true, recordingAi: true },
     );
@@ -856,7 +856,7 @@ describe('participant registration stores the 1-1 basic information (D41 · D42)
     const withPrivacy = await createBeneficiaryWithInitialSupportCase(
       t.env,
       canonicalActors.counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-07-15T09:00:00.000Z' },
+      { programId: testProgramId(canonicalActors.counselor.orgId), intakeAt: '2026-07-15T09:00:00.000Z' },
       undefined,
       { privacy: true, recordingAi: false },
     );
@@ -870,7 +870,7 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
 
@@ -904,7 +904,7 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
 
@@ -940,7 +940,7 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
 
@@ -960,7 +960,7 @@ describe('updateParticipantPii covers the 1-1 basic information (D42 ①)', () =
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await expect(updateParticipantPii(t.env, canonicalActors.admin, initial.beneficiaryId, {
@@ -976,7 +976,7 @@ describe('getParticipantBasicInfo is the edit screen read gate (CCC-37)', () => 
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await updateParticipantPii(t.env, canonicalActors.counselor, initial.beneficiaryId, {
@@ -1023,7 +1023,7 @@ describe('getParticipantBasicInfo is the edit screen read gate (CCC-37)', () => 
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await expect(

@@ -129,6 +129,9 @@ export type RevocationReason =
 /** Credential is absent or invalid; HTTP adapters map it to a generic 401. */
 export class ActorAuthenticationError extends Error {}
 
+/** A verified human credential lacks the required MFA assurance. */
+export class MfaRequiredError extends Error {}
+
 /** Identity directory or revocation state is unreadable; business data must fail closed with 503. */
 export class IdentityStoreUnavailableError extends Error {}
 

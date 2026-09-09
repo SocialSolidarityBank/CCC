@@ -16,7 +16,7 @@ import {
   releaseAgentJob,
   recordMaskedSourceSnapshot,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   claimRequest,
   seedCanonicalSttConsent,
@@ -50,6 +50,11 @@ async function consentHistory(supportCaseId: string): Promise<string[]> {
 
 describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
   it('철회하면 일감 목록·스냅샷 저장·초안 생성이 전부 거부되고 근거 이력은 남는다', async () => {
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'local',
+      llmMode: 'openai',
+    });
+    t.env.CCC_STT_MODE = 'local';
     t.env.CCC_LLM_MODE = 'openai';
     t.env.TEXT_AI_PILOT_ENABLED = '1';
 
@@ -57,7 +62,7 @@ describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-07-16T09:00:00.000Z' },
+      { programId: testProgramId(counselor.orgId), intakeAt: '2026-07-16T09:00:00.000Z' },
     );
     await seedCanonicalSttConsent(t.env, counselor, creation.supportCaseId);
     expect(await consentHistory(creation.supportCaseId)).toEqual(['grant']);

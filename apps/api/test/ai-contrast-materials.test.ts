@@ -30,7 +30,7 @@ import {
 } from '@ccc/ai-runtime';
 import { contrastAxisStates } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
-import { setupD1 } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testProgramId } from './support/d1';
 import { agentManifestEnv, agentResultRequest, claimOverHttp, registerFixtureRecording } from './support/agent-jobs';
 
 const t = setupD1();
@@ -418,17 +418,22 @@ interface RouteFixtureOptions {
 async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   await t.reset();
   const adapter = options.adapter ?? new ContrastAdapter();
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
   const env: ApiEnv = {
     ...t.env,
     TEXT_AI_PILOT_ENABLED: '1',
+    CCC_STT_MODE: 'local',
     CCC_LLM_MODE: 'openai',
     AI_PROVIDER_ADAPTER: adapter,
   };
-  const caseRecord = await createCase(t.env, counselor, {
-    consentRecordingAt: '2026-08-01T00:00:00.000Z',
+  const caseRecord = await createCase(env, counselor, {
+    programId: testProgramId(counselor.orgId),
     consentTextAiAt: '2026-08-01T00:00:00.000Z',
   });
-  const session = await createManualSession(t.env, counselor, caseRecord.id, {
+  const session = await createManualSession(env, counselor, caseRecord.id, {
     submissionId: crypto.randomUUID(),
     heldAt: '2026-08-01T09:00:00.000Z',
     channel: 'in_person',
@@ -453,13 +458,13 @@ async function setupRouteFixture(options: RouteFixtureOptions = {}) {
   ), env);
   expect(consent.status).toBe(201);
 
-  const providerConfig = await registerAiProviderConfiguration(t.env, admin, {
+  const providerConfig = await registerAiProviderConfiguration(env, admin, {
     adapterId: CODEX_PROVIDER_ID,
     adapterVersion: CODEX_PROVIDER_ADAPTER_VERSION,
     configHash: options.configHash ?? await canonicalAiProviderConfigHash(ROUTE_PROVIDER_CONFIG),
     approvalRefs: ['contrast-approval-1'],
   });
-  await activateAiProviderConfiguration(t.env, admin, providerConfig.id);
+  await activateAiProviderConfiguration(env, admin, providerConfig.id);
   return { adapter, caseRecord, env, session };
 }
 

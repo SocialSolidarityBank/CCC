@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, seedTestProgramWithRuntimeModes, testActors, testProgramId } from './support/d1';
 import { seedCanonicalSttConsent, seedNerQualification, claimRequest, agentResultRequest, type NerQualification } from './support/agent-jobs';
 import type { MemoryMaskJob } from '@ccc/contracts/agent-jobs';
 import worker from './support/local-worker';
@@ -7,6 +7,7 @@ import { agentManifestEnv, AGENT_SERVICE_HEADERS } from './support/agent-jobs';
 import { runCounselingMemory } from '@ccc/http-api/counseling-memory-runner';
 import { AI_PROVIDER_REGISTRY_VERSION, CODEX_PROVIDER_ID, CODEX_PROVIDER_ADAPTER_VERSION, canonicalAiProviderConfigHash, type AiProviderTestAdapter } from '@ccc/ai-runtime';
 import { activateAiProviderConfiguration, appendSupportCaseConsentEvent, beginCounselingMemoryEgress, claimCounselingMemorySources, commitCounselingMemoryWork, correctCounselingMemory, createActionItem, createCase, createManualSession, getCounselingMemory, getCounselingMemorySource, getSupportCaseConsent, issueSupportCaseConsentDisclosures, listSupportCasesForBeneficiary, loadCounselingMemoryContext, prepareCounselingMemoryWork, registerAiProviderConfiguration, resolveActionItem, acceptCounselingMemorySource, type ActionItem } from '@ccc/core/gateway';
+import { ProgramAdmissionRequiredError, releaseCounselingMemorySource } from '@ccc/core/gateway';
 vi.setConfig({ testTimeout: 30000 });
 const t = setupD1();
 const { counselor, admin, service } = testActors;
@@ -15,8 +16,12 @@ interface MemoryFixture { id: string; action: ActionItem; qualification: NerQual
 async function fixture(claim = true, expiresAt?: string, configHash = 'b'.repeat(64)): Promise<MemoryFixture> {
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   t.env.CCC_LLM_MODE = 'openai';
+  t.env.installationMode = 'local-single';
   t.env.MEMORY_MASKING_PIPELINES = JSON.stringify({ 'ner-mask-v1-addr-cond-dict': 'd'.repeat(64) });
-  const c = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: 'local-single', sttMode: 'off', llmMode: 'openai',
+  });
+  const c = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, c.id);
   const id = programs[0]!.supportCase.id;
   await seedCanonicalSttConsent(t.env, counselor, id);
@@ -189,7 +194,7 @@ describe('durable memory races', () => {
   it('stops in-flight memory when the installed LLM mode is off', async () => {
     const f = await fixture();
     const prepared = await materialize(f);
-    t.env.CCC_LLM_MODE = 'off';
+    await t.db.prepare("UPDATE program_admission_policies SET llm_mode='off',version=version+1 WHERE org_id=?").bind(counselor.orgId).run();
     await expect(commitCounselingMemoryWork(t.env, prepared.work, prepared.output)).rejects.toThrow('memory_disabled');
     expect(await prepareCounselingMemoryWork(t.env)).toEqual([]);
     expect(await claimCounselingMemorySources(t.env, service, claimRequest(f.qualification))).toEqual([]);
@@ -307,7 +312,7 @@ describe('durable memory races', () => {
     await maskJobs(f);
     const waitingIds: string[] = [];
     for (let index = 0; index < 2; index++) {
-      const participant = await createCase(t.env, counselor, {});
+      const participant = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
       const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, participant.id);
       const id = programs[0]!.supportCase.id;
       waitingIds.push(id);
@@ -410,5 +415,36 @@ describe('durable memory races', () => {
     })).rejects.toThrow('memory_context_overflow');
     expect(await getCounselingMemory(t.env, counselor, f.id)).toMatchObject({ items: [], summary: [] });
     expect(await t.db.prepare('SELECT processed FROM counseling_memory_materials WHERE id=?').bind(source.id).first()).toEqual({ processed: 0 });
+  });
+  it('blocks memory source delivery after admission changes but still releases the lease', async () => {
+    const f = await fixture();
+    const job = f.jobs.find(entry => entry.sourceKind === 'action')!;
+    await t.db.prepare('UPDATE program_admission_policies SET version=version+1 WHERE org_id=?').bind(counselor.orgId).run();
+    await expect(getCounselingMemorySource(t.env, service, job.jobId, job.claimToken, job.attempt))
+      .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
+    await releaseCounselingMemorySource(t.env, service, job.jobId, {
+      claimToken: job.claimToken, attempt: job.attempt, outcome: 'transient', reason: 'engine_unavailable',
+    });
+    expect(await t.db.prepare('SELECT lease_token FROM counseling_memory_materials WHERE id=?').bind(job.jobId).first())
+      .toEqual({ lease_token: null });
+  });
+
+  it('rejects an in-flight memory result after program confirmation becomes stale', async () => {
+    const f = await fixture();
+    const prepared = await materialize(f);
+    await t.db.prepare('UPDATE program_admission_policies SET version=version+1 WHERE org_id=?').bind(counselor.orgId).run();
+    await expect(commitCounselingMemoryWork(t.env, prepared.work, prepared.output))
+      .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
+    expect((await getCounselingMemory(t.env, counselor, f.id)).items).toEqual([]);
+  });
+
+  it('retains the previous summary and correction access while program admission is blocked', async () => {
+    const f = await fixture();
+    const prepared = await materialize(f);
+    await commitCounselingMemoryWork(t.env, prepared.work, prepared.output);
+    await t.db.prepare('UPDATE program_admission_policies SET version=version+1 WHERE org_id=?').bind(counselor.orgId).run();
+    const view = await getCounselingMemory(t.env, counselor, f.id);
+    expect(view).toMatchObject({ status: 'blocked', reason: 'program_admission_required', canCorrect: true });
+    expect(view.summary.map(line => line.text)).toEqual(['서류 준비 예정']);
   });
 });

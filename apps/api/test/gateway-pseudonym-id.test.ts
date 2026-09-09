@@ -14,7 +14,7 @@ import {
   LEGACY_BENEFICIARY_ID_PATTERN,
   isBeneficiaryId,
 } from '@ccc/contracts/animal-slugs';
-import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
 
 const { counselor, admin } = testActors;
 const t = setupD1();
@@ -69,9 +69,9 @@ describe('animal slug mapping (single source, D20 · ADR-0004)', () => {
 describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
   it('issues {animal}-{NNN} ids round-robin through the pool, starting each animal at 001', async () => {
     await t.reset();
-    const first = await createCase(t.env, counselor, { programType: 'financial_support_v1' });
-    const second = await createCase(t.env, counselor, {});
-    const third = await createCase(t.env, counselor, {});
+    const first = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const second = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const third = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     expect(first.id).toBe(`${animalAt(0)}-001`);
     expect(second.id).toBe(`${animalAt(1)}-001`);
@@ -89,7 +89,7 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
     await t.reset();
     await seedBeneficiary('dragon-001', counselor.orgId);
 
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     expect(created.id).toBe(`${animalAt(0)}-001`);
   });
 
@@ -103,7 +103,7 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
       await seedBeneficiary(`${animalAt(i)}-001`, counselor.orgId);
     }
 
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     expect(created.id).toBe(`${animalAt(0)}-004`);
   });
 
@@ -111,7 +111,7 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
     await t.reset();
     await seedBeneficiary(`${animalAt(0)}-005`, 'org_other');
 
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     // 다른 기관의 순번(005)과 무관하게 기관 내 첫 발급은 001이다.
     expect(created.id).toBe(`${animalAt(0)}-001`);
   });
@@ -120,7 +120,7 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
     await t.reset();
     await seedBeneficiary(`${animalAt(0)}-001`, 'org_other');
 
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     // 정확히 그 번호가 전역에서 선점된 경우에만 전역 최대값 다음으로 건너뛴다.
     expect(created.id).toBe(`${animalAt(0)}-002`);
   });
@@ -129,8 +129,8 @@ describe('animal slug pseudonym id issuance (gateway, 티켓 #11)', () => {
     await t.reset();
     await grantTestPractitionerRole(t.db, admin);
     const [first, second] = await Promise.all([
-      createCase(t.env, counselor, {}),
-      createCase(t.env, admin, { intakeAt: '2026-07-16T09:00:00.000Z' }),
+      createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) }),
+      createCase(t.env, admin, { programId: testProgramId(admin.orgId) }),
     ]);
     expect(first.id).not.toBe(second.id);
     expect(isBeneficiaryId(first.id)).toBe(true);
@@ -172,7 +172,7 @@ describe('dual-format acceptance (expand — 기존 A형식 요청 보존)', () 
     }
 
     // 실제 발급된 슬러그 ID는 라우트에서 200으로 조회된다.
-    const created = await createCase(t.env, admin, {});
+    const created = await createCase(t.env, admin, { programId: testProgramId(admin.orgId) });
     expect(created.id).toMatch(ANIMAL_SLUG_BENEFICIARY_ID_PATTERN);
     const found = await worker.fetch(
       new Request(`http://localhost/participants/${created.id}/support-cases`, { headers: adminHeaders }),

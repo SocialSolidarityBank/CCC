@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { revealPii } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 // 재개편 T7(#37): POST /participants 가 선택 이메일을 받아 pii_vault enc_email 로 저장하는지,
 // 그리고 형식 오류를 400 으로 막는지 확인한다. 저장 검증은 revealPii(admin) 라운드트립으로 한다
@@ -32,7 +32,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('stores the registration email and round-trips it through revealPii', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       email: 'participant@example.test',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -52,7 +52,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('stores registration name and phone alongside email (#37 보완)', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       name: '  김성규  ',
       phone: '010-2233-1234',
       email: 'named@example.test',
@@ -74,7 +74,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('rejects blank name with 400', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       name: '   ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -86,7 +86,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('trims surrounding whitespace before storing the email', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       email: '  spaced@example.test  ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -101,7 +101,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('rejects a malformed email with 400', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       email: 'not-an-email',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -113,7 +113,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('rejects a blank email string with 400', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       email: '   ',
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
@@ -125,7 +125,7 @@ describe('POST /participants 이메일 PII (#37 · T2 enc_email · D3·D24)', ()
   it('registers without an email and leaves enc_email NULL (email is optional)', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다(여기 관심사는 이메일 PII 다).
       consentPrivacy: true,
       consentRecordingAi: false,
