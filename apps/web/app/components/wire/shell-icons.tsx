@@ -5,6 +5,7 @@
 export type ShellIconName =
   | 'upcoming'
   | 'calendar'
+  | 'calendar-plus'
   | 'participants'
   | 'participant-add'
   | 'invite'
@@ -16,7 +17,8 @@ export type ShellIconName =
   | 'close'
   | 'sidebar'
   | 'updown'
-  | 'share';
+  | 'share'
+  | 'record';
 
 export function NavIcon({ name }: { name: ShellIconName }) {
   const common = {
@@ -41,6 +43,10 @@ export function NavIcon({ name }: { name: ShellIconName }) {
       return <svg {...common}><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>;
     case 'calendar':
       return <svg {...common}><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /></svg>;
+    // 일정 등록은 달력 안에 더하기를 얹는다. 당사자 목록(사람)과 당사자 등록(사람+더하기)이
+    // 쓰던 어휘를 그대로 따라, 같은 대상의 보기와 등록을 더하기 유무로 가른다(2026-09-09 Q).
+    case 'calendar-plus':
+      return <svg {...common}><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /><path d="M8 8.75v3.5M6.25 10.5h3.5" /></svg>;
     case 'participants':
       return <svg {...common}><circle cx="8" cy="5.5" r="2.5" /><path d="M3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4" /></svg>;
     // 메뉴 아이콘 2종(2026-08-30 Q "적당한 아이콘은 모두 넣되"). '당사자 목록'(사람)과
@@ -72,5 +78,9 @@ export function NavIcon({ name }: { name: ShellIconName }) {
     // 브랜드 글리프가 아니라 "밖으로 내보내는 상자"라 CCC 가 채널을 모른다는 계약과 맞다).
     case 'share':
       return <svg {...common}><path d="M8 10V2.5M5 5.5 8 2.5l3 3" /><path d="M3 8.5v4A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-4" /></svg>;
+    // 상담 기록하기 (2026-09-09 Q). 쓰는 행동이라 펜이다. 사이드바 '상담 기록하기'와
+    // 목록 카드 행동이 같은 글리프를 쓴다.
+    case 'record':
+      return <svg {...common}><path d="M11.1 2.6a1.6 1.6 0 0 1 2.3 2.3L6.6 11.7 3.5 12.5l.8-3.1z" /><path d="M9.9 3.8l2.3 2.3" /></svg>;
   }
 }
