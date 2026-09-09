@@ -1,8 +1,10 @@
 # S6: Privacy Packet
 
 - 상태: 확정 (2026-09-03)
+- 2026-09-06 Q 정정 승인: 실제 설치 검사는 N2로 분리하고, G10 해시와 기존 주소/지역 입력의 분류를 정정한다. 기존 N의 실패와 G1~G10 프로토콜 입력은 이력으로 보존하며 실제 NER 통과 증거로 사용하지 않는다.
+- 2026-09-06 후속 실행 승인: 고정 모델과 N2/출시 정답 및 통과 기준은 유지하고 BIOES 구간 해석을 교정해 재측정한다. 이 승인은 모델 교체나 운영 활성화를 포함하지 않는다.
 - 근거: ADR-0041 D81, D82, ADR-0036, `CLAUDE.md` §5 R3, S5 Agent 작업 계약 v2
-- 입력: `docs/adr/0041-one-core-three-deployment-modes.md`, `docs/adr/0042-supabase-read-only-preflight.md`, `docs/specs/S5-agent-job-contract-v2.md`, `apps/pipeline/ccc_pipeline/masking.py`, `apps/pipeline/ccc_pipeline/results.py`, `db/gateway.ts`, `docs/api-contract-pipeline.md`
+- 입력: `docs/adr/0041-one-core-three-deployment-modes.md`, `docs/adr/0042-supabase-read-only-preflight.md`, `docs/specs/S5-agent-job-contract-v2.md`, `apps/pipeline/ccc_pipeline/masking.py`, `apps/pipeline/ccc_pipeline/results.py`, `packages/core/src/gateway.ts`, `docs/api-contract-pipeline.md`
 - 산출: Agent가 제출하는 마스킹 증명, 코어의 재검증·동의 관문, 세 모드 privacy golden 계약. 대응 정본은 이 파일이며 구현 산출물은 E5-4, E5-5가 소유한다.
 - 관련 티켓: E5-4, E5-5, E5-1a, E5-1b, E1-5
 
@@ -50,16 +52,18 @@ S5의 audio `AgentJob.audio`는 `rawAudioSha256`과 `egressAuthorizationId`를 �
 | revision | `a308c54b4407819624a5661e31e162a269f39818` |
 | label set | `PRIVATE_PERSON`, `PRIVATE_ADDRESS` |
 | labelSetHash | `b645305b068070375d95b18979ead77ec584833f6670dd82554605e9ccf4a4fc` |
-| health corpus | `s6-ner-health-ko-conversation-v1` |
-| pipeline version | `ner-mask-v2` |
-| pipeline manifest SHA-256 | `49d44dbc50067341ff4ec63c1d76bdbf49d6ee9d9a730dbb707c147259de77dd` |
+| health corpus | `s6-ner-health-ko-conversation-v2` (N2) |
+| pipeline version | `ner-mask-v3` (BIOES 디코더 교정) |
+| pipeline manifest SHA-256 | N2 실측 통과 뒤 §2.3의 실제 구성으로 계산한다. 과거 프로토콜 fixture의 고정 hash는 §5.2에 보존한다. |
 `labelSetHash`는 사전순으로 정렬한 정확한 label 문자열 배열 `["PRIVATE_ADDRESS","PRIVATE_PERSON"]`의 JCS UTF-8 bytes SHA-256이며, 그 preimage hash가 위 값이다.
 
-health corpus `N`은 비어 있지 않은 한국어 상담체 합성 install-health corpus로, 알려진 인명 4개와 주소 4개, 어느 쪽도 없는 음성 2개를 고정한다. N은 model load, label mapping, deterministic span/label behavior를 확인하는 최소 smoke이며 production release를 승인하지 않는다. corpus 직렬화는 UTF-8 JCS이고, 각 행은 `id`, `text`, `person`, `address` 키를 갖는다. corpus와 기대 결과는 §5.1의 `N` fixture다.
+`ner-mask-v3`는 transformers의 token classification을 `aggregation_strategy="none"`, `ignore_labels=[]`로 실행하고 공통 `bioes-v1` 디코더가 원문 code-point 구간을 묶는다. B는 새 구간, E/L은 끝, S/U는 단독 구간이며 O와 범주 변경은 구간을 끊는다. 시작 없는 I/E/L은 버리지 않고 새 구간으로 보존한다. 경계를 정답이나 점수 임계값으로 보정하지 않는다. Agent와 측정 도구가 같은 디코더를 쓰고, 실제 결과와 보고서 hash를 새 파일로 남긴다.
 
-각 label의 span은 시작·끝 code-point와 label이 모두 같은 경우에만 TP다. `TP(label)`은 gold span과 예측 span이 시작·끝·label 모두 같은 개수, `FP(label)`은 gold와 정확히 대응하지 않는 예측 span 개수, `FN(label)`은 예측과 대응하지 않는 gold span 개수다. `precision = TP / (TP + FP)`, `recall = TP / (TP + FN)`으로 계산하고 분모가 0이면 통과시키지 않는다. `overgeneralizationRate = (FP(PRIVATE_PERSON) + FP(PRIVATE_ADDRESS)) / (TP(PRIVATE_PERSON) + TP(PRIVATE_ADDRESS) + FP(PRIVATE_PERSON) + FP(PRIVATE_ADDRESS))`로 계산한다. N은 `TP(PRIVATE_PERSON)=4`, `TP(PRIVATE_ADDRESS)=4`, 두 label의 FP·FN이 모두 0이어야 하므로 precision·recall은 각각 `1`, overgeneralizationRate는 `0`이다.
+실제 설치 health corpus는 §5.1의 N2다. 알려진 인명 4개와 주소 4개, 어느 쪽도 없는 음성 2개를 고정한다. N2는 model load, label mapping, deterministic span/label behavior를 확인하는 최소 smoke이며 production release를 승인하지 않는다. corpus는 `id`, `text`, `person`, `address` 키를 가진 배열의 UTF-8 JCS로 고정한다. 과거 N의 표식 literal과 가상 passing 결과는 프로토콜 검증 전용이며 실제 설치 통과로 사용하지 않는다.
 
-health 측정 결과를 담는 canonical object의 JCS는 `{"addressPrecision":1,"addressRecall":1,"overgeneralizationRate":0,"personPrecision":1,"personRecall":1}`이고 SHA-256은 `fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72`다. `resultHash`는 자기 필드를 제외한 전체 health result object의 JCS UTF-8 bytes SHA-256이며 임의 상수가 아니다. Agent claim에 전달·저장하는 attestation projection은 아래 필드만 갖는다.
+각 label의 span은 시작·끝 code-point와 label이 모두 같은 경우에만 TP다. `TP(label)`은 gold span과 예측 span이 시작·끝·label 모두 같은 개수, `FP(label)`은 gold와 정확히 대응하지 않는 예측 span 개수, `FN(label)`은 예측과 대응하지 않는 gold span 개수다. `precision = TP / (TP + FP)`, `recall = TP / (TP + FN)`으로 계산하고 분모가 0이면 통과시키지 않는다. `overgeneralizationRate = (FP(PRIVATE_PERSON) + FP(PRIVATE_ADDRESS)) / (TP(PRIVATE_PERSON) + TP(PRIVATE_ADDRESS) + FP(PRIVATE_PERSON) + FP(PRIVATE_ADDRESS))`로 계산한다. N2도 각 label TP=4, FP·FN=0이어야 한다. 모델 예측 이후 정답 span이나 입력을 변경하지 않는다.
+
+health result object는 위 다섯 metric만 가진다. 모두 통과한 값의 JCS는 `{"addressPrecision":1,"addressRecall":1,"overgeneralizationRate":0,"personPrecision":1,"personRecall":1}`이고 SHA-256은 `fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72`다. `resultHash`는 실제 측정한 이 object의 JCS UTF-8 bytes SHA-256이며 임의 상수가 아니다. 실행 환경, corpus, 항목별 TP/FP/FN과 시각까지 포함한 보고서는 자기 `reportHash`만 제외한 전체 object를 별도로 hash한다. Agent claim에 전달·저장하는 attestation projection은 아래 필드만 갖는다.
 
 ```ts
 interface NerHealthAttestation {
@@ -92,12 +96,14 @@ interface NerReleaseQualificationReceipt {
 }
 ```
 
-production claim과 모든 외부 egress authorization은 현재 `status='passed'`이고 만료되지 않은 release qualification receipt, 고정 model revision·labelSetHash, receipt의 corpusHash·resultHash가 일치할 때만 열린다. install smoke `N`만으로 production authorization을 만들지 않으며, receipt가 없거나 stale이면 `local_ner_unavailable`로 차단한다. 이 quality gate와 R3는 보지 못한 이름을 완전히 증명하지 않는다. runtime blocker가 잡지 못한 잔여 위험은 0이 아니며 동의 고지에 남긴다.
+production claim과 모든 외부 egress authorization은 현재 `status='passed'`이고 만료되지 않은 release qualification receipt, 고정 model revision·labelSetHash, receipt의 corpusHash·resultHash가 일치할 때만 열린다. install smoke N2만으로 production authorization을 만들지 않으며, receipt가 없거나 stale이면 `local_ner_unavailable`로 차단한다. 이 quality gate와 R3는 보지 못한 이름을 완전히 증명하지 않는다. runtime blocker가 잡지 못한 잔여 위험은 0이 아니며 동의 고지에 남긴다.
 
 ### 2.3 masking pipeline hash와 저장 증명
 
 `maskingPipelineHash`의 입력은 사전순 키를 사용하는 canonical JSON manifest이며, 자기 hash 필드는 포함하지 않는다.
 `maskingPipelineHash`는 `maskingPipelineHash` 필드를 제외한 manifest 전체의 JCS UTF-8 bytes에 SHA-256을 적용해 계산한다. manifest에는 `schemaVersion: 1`, `maskingPipelineVersion`, 직접 식별자 규칙 버전, 준식별자 규칙 버전, 정규식 규칙 버전, 고정 NER model revision·labelSetHash, health corpus hash·result hash, 질환 사전 버전만 넣는다. 감지된 원문, 스팬, 근거 발췌, PII 값은 manifest와 해시에 넣지 않는다.
+
+2026-09-06 직접 치환 정정은 `direct-v2`이며 주소/지역의 단일 필드 분류와 겹침의 비연쇄 치환을 포함한다. 후속 승인된 BIOES 교정은 `ner-mask-v3`로 구분한다. `quasi-v1`, `regex-v2`, `condition-dict-v1`과 고정 모델/라벨을 유지하며 실제 설치 attestation의 N2 corpus/result hash를 manifest에 넣는다. 다른 모델, 라벨, 디코더, 질환 NER 계층 또는 health 결과를 같은 manifest로 보고하지 않는다. 이전 `ner-mask-v2` 실측과 §5.2의 protocol fixture는 이력으로 보존한다. 새 manifest를 계산하더라도 E5-5의 허용 쌍이나 provider authorization을 자동으로 넓히지 않는다.
 E5-5가 소유하는 snapshot 저장 스키마는 모든 행에 다음 값을 불변으로 보존한다. 기존 행이라도 하나라도 없으면 provider 재료로 사용할 수 없다.
 | 저장 필드 | 의미와 검증 |
 |---|---|
@@ -116,7 +122,7 @@ E5-5가 소유하는 snapshot 저장 스키마는 모든 행에 다음 값을 �
 
 서버는 claim-bound, no-store 응답으로 PII 금고의 등록값과 대체값을 담은 일회성 mask dictionary를 Agent에 전달한다. Agent는 이 dictionary를 메모리에서만 사용해 원음에서 만든 전사 또는 source text에 직접 식별자 치환을 먼저 적용하고, 그 뒤에 NER·정규식·준식별자 일반화를 적용한다. dictionary는 파일, 로그, 결과, provider 요청에 저장하지 않고 처리 뒤 즉시 지운다. TextResult의 source는 이미 같은 직접 치환을 거친 값이며, Agent는 다시 적용해도 결과가 변하지 않는 멱등 규칙을 사용한다.
 
-mask dictionary endpoint는 `POST /pipeline/jobs/:jobId/mask-dictionary`다. TLS 인증 채널에서 S5 `MaskDictionaryRequest` 본문 `{ claimToken, attempt }`만 받고, query·추가 body field·브라우저 actor는 받지 않는다. users의 `service`, 기관, job·claim token·attempt가 모두 일치하고 job이 live일 때만 1회 `200`을 반환한다.
+mask dictionary endpoint는 `POST /pipeline/jobs/:jobId/mask-dictionary`다. TLS 인증 채널에서 S5 `MaskDictionaryRequest` 본문 `{ claimToken, attempt }`만 받고, query·추가 body field·브라우저 actor는 받지 않는다. users의 `service`, 기관, job·claim token·attempt가 모두 일치하고 job이 live일 때만 발급한다. 일회성의 단위는 claim이며, 응답 유실 뒤의 같은 claim 재전송은 [S5 §2.1](S5-agent-job-contract-v2.md#21-타입과-json-스키마)의 동일 응답 재생성 검증을 따른다.
 
 ```ts
 interface MaskDictionaryResponse {
@@ -132,7 +138,11 @@ interface MaskDictionaryResponse {
 }
 ```
 
-응답은 `Cache-Control: no-store`이고 `expiresAt` 이후와 첫 성공 fetch 이후 재사용할 수 없다. 서버와 Agent는 `sourceValue`·`replacement`를 메모리에만 두고 처리 뒤 zeroize하며, 파일·로그·결과·provider 요청에 저장하지 않는다. 서버는 `deliver_mask_dictionary` 감사 행에 job·session ID hash, attempt, entry count, issuedAt만 남긴다. endpoint와 일회성 메모리 저장은 E5-1a와 E5-4가 공동 소유한다. S5의 `maskDictionaryEndpoint`가 claim 응답에서 가리키는 유일한 endpoint다.
+응답은 `Cache-Control: no-store`다. 최초 만료 시각은 재전송으로 늘어나지 않으며, 다른 claim이나 만료 뒤에는 사용할 수 없다. 원문 표를 서버 cache나 DB에 보존하지 않고 검증된 동일 표만 재생성한다. 발급과 재전송의 감사 이름은 S5의 `mask_dictionary_read` 하나이며 원문 entries를 감사에 담지 않는다. endpoint와 메모리 폐기는 E5-1a와 E5-4가 공동 소유한다. S5의 `maskDictionaryEndpoint`가 claim 응답에서 가리키는 유일한 endpoint다.
+
+서버와 Agent는 dictionary의 `sourceValue`·`replacement` 쌍과 직접 식별자 원문을 메모리에서만 처리하고 성공·실패 모두에서 즉시 zeroize한다. dictionary 자체를 파일, 로그, 결과, provider 요청에 저장하지 않는다. 제어 가능한 writable buffer는 덮어쓴 뒤 해제하고, 원문을 붙잡는 응답/JSON 오류/traceback과 작업 컨테이너 참조도 정리한다. Agent의 전용 원문 수신 버퍼는 OS 잠금을 확인한 뒤 읽으며, 잠금 실패 시 잠기지 않은 버퍼로 계속 처리하지 않는다.
+
+전체 폐기 관문은 금고 복호화, 응답 직렬화/TLS, Agent 수신/JSON, 직접 치환/NER와 결과 경로를 함께 검증해야 닫는다. 특정 버퍼의 덮어쓰기나 참조 제거를 JavaScript/Python immutable 문자열, JSON parser와 모델 내부 복사본 전체의 물리적 폐기로 간주하지 않는다. 스왑, crash dump와 최대절전 저장의 유출 방지 조건도 별도로 확인하며, 암호화된 저장장치라는 사실만으로 원문 복사본 비저장을 증명하지 않는다. 일부 경로만 확인됐으면 전체 관문을 미통과 또는 미측정으로 남긴다.
 
 직접 치환은 다음과 같다.
 
@@ -144,6 +154,10 @@ interface MaskDictionaryResponse {
 | 거주지역 | 광역 단위 값. 광역 단위로 판정할 수 없으면 `[지역]` | dictionary가 매칭한 원래 값은 남지 않음 |
 | 성별 | `[성별]` | dictionary가 매칭한 원래 값은 남지 않음 |
 | 당사자·기관 내부 식별자 | 해당 케이스의 가명 ID | dictionary가 매칭한 원래 값은 남지 않음 |
+
+위 11종은 의미 범주이지 필수 DB 컬럼 11개가 아니다. `participant_pii_vault.enc_region`은 PRD의 “주소 또는 거주지역” 한 입력이다. 비어 있지 않은 전체 값을 한 번 분류한다. 행정구역명으로만 구성된 값이면 `region`으로 발행하고 명시된 광역값만 남기며, 광역을 판정할 수 없으면 `[지역]`으로 바꾼다. 도로명, 번지, 건물, 동·호, 우편번호가 섞이거나 지역만인지 불확실하면 전체를 `address`로 발행해 가명 ID로 바꾼다. 같은 원문을 둘로 나누거나 `region`과 `address`로 중복 발행하지 않는다.
+
+등록된 광역값이 대체값에도 그대로 남으면 `[지역]`으로 바꾼다. 예를 들어 등록값 `서울시 은평구`는 `서울시`, `서울시 은평구 샛길 123`은 가명 ID, `서울시`는 `[지역]`이다. 등록값 직접 치환이 일반 서술의 광역값 유지보다 우선하며, 코어의 원문 잔류 검사를 allowlist로 우회하지 않는다. 직접 치환은 원문 구간을 기준으로 하고 겹친 구간은 가장 긴 매칭의 대체값으로 한 번 덮는다. 동일 source의 상충 대체값이나 대체값이 다른 등록 원문을 포함하는 순환 사전은 거부한다. 출력값을 같은 pass에서 다시 원문으로 먹지 않는다.
 
 가명 ID는 가입일, 사업 유형, 지역, 나이 같은 의미를 넣지 않는다. Agent가 대체한 뒤 코어는 Packet bytes를 다시 쓰지 않는다. 코어는 금고 값이 남아 있는지 detection-only로 검사하고, 남아 있으면 `registered_pii_detected`로 거부한다. 코어가 Packet을 다시 치환해 hash·offset을 바꾸는 동작은 금지한다.
 
@@ -264,7 +278,15 @@ pnpm --filter @ccc/api exec vitest run test/agent-privacy-linearization.test.ts
 
 Expected: N corpus의 고정 model revision·라벨 실행 결과가 threshold를 통과하고, G1부터 G3은 정확한 output·offset·hash를 만든다. G4부터 G10은 표의 code를 반환하고 OpenAI 호출은 0회다. pre-STT fail은 Azure도 0회이고, post-STT fail은 Azure 1회 이하·감사 1건이며 OpenAI 0회다. withdrawal race는 DB winner에 따라 새 호출이 시작되지 않는다. 하나라도 다른 material이 검증되지 않거나, legacy field가 provider 요청에 들어가거나, 로그에 원문이 들어가면 실패다.
 
-### 5.1 NER health corpus N
+### 5.1 실제 설치 health corpus N2
+
+정본 입력은 [`scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json`](../../scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json)이며 JCS UTF-8 SHA-256은 `35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59`다. 7항목, 인명 4개, 주소 4개, 두 범주가 없는 2항목으로 구성한다. 입력과 정답은 모델 추론 전 독립 검수하고 고정한다. 실행 보고서에는 decoder, aggregation, runtime, model revision과 측정값을 기록한다. 실패하면 같은 version의 입력이나 정답을 바꿔 재응시하지 않는다.
+
+설치와 출시 corpus는 별도 CLI 실행 및 보고서로 남긴다. `scripts/privacy/qualify_ner.py --kind health --corpus scripts/privacy/fixtures/s6-ner-health-ko-conversation-v2.json --expected-corpus-hash 35565215b87909aad5a44c3124a7240ea80151136c9a12846fde05b861b7be59 --output <새-보고서-경로>`를 사용한다. 출력 경로는 기존 증거를 덮어쓰지 않는다. Mac에서는 모델 로드 직전 메모리를 점검하며 Windows STT 측정과 부하를 공유하지 않는다.
+
+### 5.1.1 과거 N과 프로토콜 검증 literal
+
+다음 N은 2026-09-06 실제 고정 모델에서 실패한 원래 입력이다. 원문과 hash 및 실패 보고서를 보존하며 N2의 실제 결과로 재표기하지 않는다.
 
 N의 JCS UTF-8 원문은 다음과 같다. 이 문자열 자체의 SHA-256은 `10265475ed38dbdc8f902cd78fb29654a948c96ddb9c9daeda3b485d4cdd46a5`다.
 
@@ -272,9 +294,11 @@ N의 JCS UTF-8 원문은 다음과 같다. 이 문자열 자체의 SHA-256은 `1
 [{"address":["테스트주소A"],"id":"p01","person":["테스트인명A"],"text":"테스트인명A가 테스트주소A에 왔다."},{"address":["테스트주소B"],"id":"p02","person":["테스트인명B"],"text":"테스트인명B님은 테스트주소B에서 상담했다."},{"address":["테스트주소C"],"id":"p03","person":["테스트인명C"],"text":"테스트인명C에게 테스트주소C로 안내했다."},{"address":[],"id":"p04","person":["테스트인명D"],"text":"테스트인명D가 다음 상담을 예약했다."},{"address":["테스트주소E"],"id":"p05","person":[],"text":"테스트주소E로 서류를 보냈다."},{"address":[],"id":"n01","person":[],"text":"오늘은 목표와 일정만 확인했다."},{"address":[],"id":"n02","person":[],"text":"다음 주에 다시 만나기로 했다."}]
 ```
 
-정답 span은 `person`·`address` 배열의 문자열을 source에서 찾은 Unicode code-point 구간이고, NER은 그 구간 외의 span을 만들지 않는다. `resultHash` 계산 대상은 `{"addressPrecision":1,"addressRecall":1,"overgeneralizationRate":0,"personPrecision":1,"personRecall":1}`이며 hash는 `fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72`다. 이 결과는 요구 threshold를 통과한 attestation에만 기록하며, 실제 측정값이 다르면 claim을 열지 않는다.
+정답 span은 `person`·`address` 배열의 문자열을 source에서 찾은 Unicode code-point 구간이다. 프로토콜의 가상 성공 metrics는 `{"addressPrecision":1,"addressRecall":1,"overgeneralizationRate":0,"personPrecision":1,"personRecall":1}`이며 hash는 `fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72`다. 이는 실제 모델이 그 span만 예측한다는 주장이 아니다. 실제 측정이 실패하면 이 literal로 attestation을 발행하거나 claim을 열지 않는다.
 
 ### 5.2 Literal golden fixtures G1부터 G10
+
+이 절의 attestation과 manifest는 고정 프로토콜 fixture다. 모델을 stub으로 대체한 G2 통과나 가상 `status=passed`가 실제 NER 설치 또는 출시 자격 통과를 증명하지 않는다.
 
 아래 모든 성공 Packet은 `nerAttestationId=ner-attest-s6-v1`, `nerAttestationResultHash=fd02b5efd65f04f9814959875cefb76b1fa9596e34bd0441aa452be7224f1c72`, `modelRevision=a308c54b4407819624a5661e31e162a269f39818`, `maskingPipelineVersion=ner-mask-v2`, `maskingPipelineHash=49d44dbc50067341ff4ec63c1d76bdbf49d6ee9d9a730dbb707c147259de77dd`를 사용한다. G1, G2, G3, G6, G7, G8, G9, G10의 `evidence`는 각각 아래에 적은 case ID, 본문 hash, 전체 본문 quote, `sourceStart=0`, 해당 표의 code-point 끝 offset을 갖는다. `materialHash`는 `maskedSha256`와 같다.
 모든 fixture 실행 시각은 `now=2026-09-03T12:00:00Z`로 고정한다. 이 시각은 attestation `validatedAt=2026-09-03T00:00:00Z`, `expiresAt=2026-09-04T00:00:00Z` 사이에 있으므로 시간 경과로 G1~G3의 기대 결과가 달라지지 않는다.
@@ -315,11 +339,18 @@ pipeline manifest의 canonical JCS JSON은 다음과 같고, `maskingPipelineHas
 | G7 | vault=G2와 동일; source=`연락처=010-5555-1212` | `연락처=010-5555-1212`; whole quote `0..17` | `1b99e002d25296a1fafbe1e3dc1c1cee3c70a5edeb34e0b86ac42d3288286bce` / `aec1ca15b89e8b5e69ee0e66296ac27bdb8da1df7d2f74ca8689cd4224ff6ccf` | `unmasked_identifier_detected`, OpenAI 0회 |
 | G8 | vault=G2와 동일; source=`오늘 [인명]가 왔다.`; 제출 `evidenceHash=0000000000000000000000000000000000000000000000000000000000000000` | `오늘 [인명]가 왔다.`; whole quote `0..12` | `16af949c7b2aaf144a998e0ff09d6056b004ecd4f34f1e08d81df6ec42f0f4f3` / 실제 `8bc73629b620af8090f2505018b781c57f1bdba258de5a4043cfd317bb5b3188`, 제출값은 0 hash | `evidence_hash_mismatch`, OpenAI 0회 |
 | G9 | vault=G2와 동일; source=`오늘 [인명]가 왔다.`; 제출 `maskingPipelineVersion=ner-mask-v1`, `maskingPipelineHash=0000000000000000000000000000000000000000000000000000000000000000` | `오늘 [인명]가 왔다.`; whole quote `0..12` | `16af949c7b2aaf144a998e0ff09d6056b004ecd4f34f1e08d81df6ec42f0f4f3` / `82377232754393e4502c1f9384b3cf0bd51be347537026b385d16ce0a362e0d0` | `masking_pipeline_version_mismatch`, OpenAI 0회 |
-| G10 | vault=G2와 동일; source=`오늘 [인명]가 왔다.`; 유효 Packet hash는 G8과 같고, current consent=`consentRevision=r2`, authorization input=`r1` | `오늘 [인명]가 왔다.`; whole quote `0..12` | `16af949c7b2aaf144a998e0ff09d6056b004ecd4f34f1e08d81df6ec42f0f4f3` / `dd8745358e84f15b5890c1f9384b3cf0bd51be347537026b385d16ce0a362e0d0` | `consent_not_effective`, authorization CAS 실패, OpenAI 0회 |
+| G10 | vault=G2와 동일; source=`오늘 [인명]가 왔다.`; 본문과 material hash만 G8과 같으며 evidenceHash는 G10 자신의 evidence 배열에서 계산한다. current consent=`consentRevision=r2`, authorization input=`r1` | `오늘 [인명]가 왔다.`; whole quote `0..12` | `16af949c7b2aaf144a998e0ff09d6056b004ecd4f34f1e08d81df6ec42f0f4f3` / `dd8745358e84f15b5894ee01bf2f7ff67f89760b7589f8ceef76cdbe1a2ae61d` | `consent_not_effective`, authorization CAS 실패, OpenAI 0회 |
 G10의 동일한 literal Packet으로 다음 OpenAI race를 각각 독립 실행한다. `generate`, `regenerate`, `detect_discrepancies` 모두 `beginOpenAiEgress` 직전에 withdrawal이 commit되면 `consent_not_effective`, OpenAI 0회다. `validUntil=2026-09-03T11:59:59Z`, fixture `now=2026-09-03T12:00:00Z`인 자연 만료 변형도 `consent_not_effective`, OpenAI 0회다. withdrawal 또는 자연 만료가 먼저 commit된 authorization은 `in_flight`로 바뀌지 않는다.
 G1~G3의 OpenAI request JSON과 `generate`·`regenerate`·`detect_discrepancies` operation race의 허가된 요청은 모두 `store:false`를 포함한다. LLM이 꺼진 Local 성공 flow는 호출 없이 수기 경로를 사용한다.
 
 G1의 11개 등록 필드는 이름, 전화번호, 이메일, 계좌번호, 생년월일, 거주지역, 성별, 정확한 주소, 긴급연락처, 당사자 내부 ID, 기관 내부 ID다. 구현 테스트는 이 행을 하나의 통합 case로만 세지 않고 각 필드를 하나씩 남긴 변형도 독립 실행해 `registered_pii_detected`와 OpenAI 0회를 확인한다. G6도 같은 방식으로 각 필드별 잔류를 독립 실행한다.
+실제 gateway 발행은 `enc_region`에 지역을 넣은 경우와 상세 주소를 넣은 경우를 별도로 검사해 11개 의미 범주를 모두 다룬다. 단일 실제 행에서 주소와 지역을 독립적으로 동시에 저장한다고 가정하거나 entries 11개 발행을 성공 기준으로 만들지 않는다.
+
+### 5.3 Dictionary 재전송과 메모리 폐기 검증
+
+합성 등록값을 사용해 최초 발급과 별도 모듈 상태에서의 동일 응답 재생, 동시 발급 CAS, 등록값 변경, 키/ID/만료 변조와 서명 중 만료를 확인한다. 재전송의 성공·거부 조건은 S5 §2.1이 정본이다. Agent의 다른 job, 만료, `oneTime` 오류와 잠금 실패는 결과 제출 없이 닫혀야 한다. text 경로는 STT 0회이고, post-STT audio dictionary 실패는 이미 수행한 STT 1회 이하와 OpenAI 0회를 구분한다.
+
+제어 가능한 메모리는 정상·예외 종료의 실제 bytes를 관찰하고, OS 잠금 실패에서는 원문을 읽지 않는지 확인한다. 소유 버퍼, parser 복사본, immutable 문자열, 모델/TLS 내부와 호스트 저장 정책을 나누어 기록한다. native 버퍼 단독 PASS나 mocked NER 회귀는 전체 메모리 폐기 또는 NER qualification PASS를 대신하지 않는다. N과 G1~G10의 정답, 모델 revision 및 hash는 이 검증 때문에 바꾸지 않는다.
 
 ## 6. 이번에 안 하는 것
 
