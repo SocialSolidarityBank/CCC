@@ -15,7 +15,7 @@ import type { AudioStore } from '@ccc/contracts/runtime';
 export type TestApiEnv = ApiEnv & { audioStore: AudioStore };
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION } from '@ccc/contracts/program-admission';
-const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
+export const TEST_PII_KEY = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
 
 /** 모든 API 계약 테스트가 읽는 SQLite migration SSOT(E3-1a). */
 export const SQLITE_MIGRATIONS_PATH = fileURLToPath(new URL(

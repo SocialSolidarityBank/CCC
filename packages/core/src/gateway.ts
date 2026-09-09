@@ -1426,14 +1426,19 @@ function toArrayBuffer(value: Uint8Array): ArrayBuffer {
 }
 
 async function piiKey(env: Env): Promise<CryptoKey> {
-  const encodedKey = await env.secretStore.get('PII_ENC_KEY');
-  if (encodedKey === null) throw new Error('secret_missing');
+  const material = await env.secretStore.getBytesWithVersion('PII_ENC_KEY');
+  if (material === null) throw new Error('secret_missing');
+  const rawKey = material.bytes;
   try {
-    const rawKey = base64ToBytes(encodedKey);
-    if (rawKey.byteLength !== 32) throw new Error('secret_invalid');
-    return await crypto.subtle.importKey('raw', toArrayBuffer(rawKey), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    if (!(rawKey instanceof Uint8Array) || Object.getPrototypeOf(rawKey) !== Uint8Array.prototype
+      || !(rawKey.buffer instanceof ArrayBuffer) || rawKey.byteLength !== 32
+      || material.version !== activePiiKeyVersion(env)) throw new Error('secret_invalid');
+    const view = new Uint8Array(rawKey.buffer, rawKey.byteOffset, rawKey.byteLength);
+    return await crypto.subtle.importKey('raw', view, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } catch {
     throw new Error('secret_invalid');
+  } finally {
+    if (rawKey instanceof Uint8Array) rawKey.fill(0);
   }
 }
 
@@ -12400,7 +12405,7 @@ export async function getLastProgramType(env: Env, actor: Actor | IdentityActor)
  *   detail에 PII 값 기록 금지 (R3) — 필드명 수준까지만.
  *
  * encryptPii / decryptPii:
- *   AES-GCM (키: secretStore.get('PII_ENC_KEY'), D3). 이 파일 밖으로 평문 반출 금지 (R3).
+ *   AES-GCM (키: secretStore.getBytesWithVersion('PII_ENC_KEY'), D3). 이 파일 밖으로 평문 반출 금지 (R3).
  */
 
 // ============================================================================

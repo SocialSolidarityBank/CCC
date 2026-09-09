@@ -15,7 +15,7 @@ export interface CommunityCloudRuntimeConfig {
   fetch?: typeof globalThis.fetch;
   settings?: Pick<ApiEnv,
     'CCC_STT_MODE' | 'CCC_LLM_MODE' | 'TEXT_AI_PILOT_ENABLED'
-    | 'EXTERNAL_AI_CALLS_ENABLED' | 'PUBLIC_SIGNUP_ENABLED' | 'PII_PURGE_ENABLED'>;
+    | 'EXTERNAL_AI_CALLS_ENABLED' | 'PUBLIC_SIGNUP_ENABLED' | 'PII_PURGE_ENABLED' | 'PII_KEY_VERSION'>;
 }
 
 const METHODS: Record<string, true> = { GET: true, POST: true, PUT: true, PATCH: true, DELETE: true };
