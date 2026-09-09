@@ -16,6 +16,7 @@
     "./consent": "./src/consent.ts",
     "./stt-readiness": "./src/stt-readiness.ts",
     "./counseling-memory": "./src/counseling-memory.ts",
+    "./program-admission": "./src/program-admission.ts",
     "./sql": "./src/sql.ts"
   }
 }

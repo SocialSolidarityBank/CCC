@@ -24,6 +24,8 @@ export const checkpoints = [
   { id: 'consent-six-domains', sqlite: '0051_consent_six_domains.sql', postgres: '0007_consent_six_domains.sql' },
   { id: 'audio-objects', sqlite: '0052_audio_objects.sql', postgres: '0008_audio_objects.sql' },
   { id: 'ai-draft-canonical-consent', sqlite: '0053_ai_draft_canonical_consent.sql', postgres: '0009_ai_draft_canonical_consent.sql' },
+  { id: 'program-admission', sqlite: '0054_program_admission.sql', postgres: '0010_program_admission.sql' },
+  { id: 'account-settings', sqlite: '0055_account_settings.sql', postgres: '0011_account_settings.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;

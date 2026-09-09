@@ -9,7 +9,7 @@ import {
   createParticipantInvite,
   type ParticipantSignupResult,
 } from '@ccc/core/gateway';
-import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
 
 const { counselor, admin } = testActors;
 
@@ -21,7 +21,7 @@ const t = setupD1();
 describe('participant self signup (CCC-28)', () => {
   it('실무자가 발급한 링크로 가입하면 당사자+케이스+배정+동의+토큰 소비가 한 번에 성립한다', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
@@ -82,7 +82,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('동의 기록의 기록자는 본인이며 발급 실무자가 아니다 (ADR-0016 결정 6)', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
@@ -109,7 +109,7 @@ describe('participant self signup (CCC-28)', () => {
   it('관리자가 발급한 링크의 담당 실무자는 그 관리자다 (겸임 1계정)', async () => {
     await t.reset();
     await grantTestPractitionerRole(t.db, admin);
-    const invite = await createParticipantInvite(t.env, admin, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, admin, { programId: testProgramId(admin.orgId) });
 
     const result = await completeParticipantSignup(t.env, {
       token: invite.token,
@@ -125,7 +125,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('이미 소비된 토큰으로 다시 가입하면 거부된다 (순차)', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await completeParticipantSignup(t.env, {
       token: invite.token, name: '홍길동', consent: { privacy: true, recordingAi: true },
     });
@@ -139,7 +139,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('같은 토큰 동시 이중 제출은 한 명만 성립하고 나머지는 409, 고아 당사자 없음', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const payload = { token: invite.token, name: '홍길동', consent: { privacy: true, recordingAi: true } };
 
     const [first, second] = await Promise.allSettled([
@@ -171,7 +171,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('이름이 비어 있으면 거부된다', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await expect(
       completeParticipantSignup(t.env, {
         token: invite.token, name: '   ', consent: { privacy: true, recordingAi: true },
@@ -181,7 +181,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('동의가 없거나 형태가 틀리면 거부된다', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await expect(
       completeParticipantSignup(t.env, { token: invite.token, name: '홍길동', consent: null as never }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -189,7 +189,7 @@ describe('participant self signup (CCC-28)', () => {
 
   it('생성 감사 3건은 후원 행위자, 토 소비 감사는 시스템 행위자로 남는다', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const result = await completeParticipantSignup(t.env, {
       token: invite.token, name: '홍길동', consent: { privacy: true, recordingAi: true },
     });

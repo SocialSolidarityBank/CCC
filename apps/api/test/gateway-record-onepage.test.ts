@@ -7,7 +7,7 @@ import {
   createIntakeRecord,
   listCounselingRecords,
 } from '@ccc/core/gateway';
-import { setupD1 } from './support/d1';
+import { setupD1, testProgramId } from './support/d1';
 
 // CCC-10 정기 기록지 원페이지: 서술형 항목(record_details · 0016)이 createCounselingRecord
 // 한 번의 호출로 원자 저장되는지 검증한다. 구 목표 종료+신설(goalTransition)은 D62 §5 로
@@ -22,7 +22,7 @@ async function seedCaseWithGoals(titles: string[]) {
     "INSERT INTO users (id, org_id, email, role, active, time_zone) VALUES (?, ?, 'record-onepage@example.invalid', 'counselor', 1, NULL)",
   ).bind(actor.userId, actor.orgId).run();
   const initial = await createBeneficiaryWithInitialSupportCase(t.env, actor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(actor.orgId),
     intakeAt: '2026-07-20T09:00:00.000Z',
   });
   await createIntakeRecord(t.env, actor, initial.supportCaseId, {

@@ -12,13 +12,13 @@ import {
   reRegisterParticipantPii,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 const t = setupD1();
 const counselor = testActors.counselor;
 const admin = testActors.admin;
 async function makeClosedParticipant(closedAt = '2025-01-01 00:00:00') {
   const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     intakeAt: '2024-01-01T09:00:00.000Z',
   });
   await updateParticipantPii(t.env, admin, created.beneficiaryId, {
@@ -106,7 +106,7 @@ describe('participant PII retention invariants (CCC-121)', () => {
   it('blocks ordinary case and schedule reads after archive', async () => {
     await t.reset();
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2024-01-01T09:00:00.000Z',
     });
     await createCounselingSchedule(t.env, counselor, {
@@ -220,7 +220,7 @@ describe('participant PII retention invariants (CCC-121)', () => {
     await createSupportCase(t.env, admin, participant.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '74747474-7474-4747-8747-747474747474',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       initialAssigneeUserId: counselor.userId,
       consentPrivacy: true,
     });
@@ -250,7 +250,7 @@ describe('participant PII retention invariants (CCC-121)', () => {
     const later = await createSupportCase(t.env, admin, participant.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '75757575-7575-4757-8757-757575757575',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       initialAssigneeUserId: counselor.userId,
       consentPrivacy: true,
     });

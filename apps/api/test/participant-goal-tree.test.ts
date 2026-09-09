@@ -11,7 +11,7 @@ import {
   setSupportCaseOverallGoal,
   updateGoalTitle,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 // 당사자 허브 목표 트리 (D62 §8 · CCC-69) — 전체 > 세부 > 세션 위계, 닫힌 목표 보존,
 // 문구 이력('이력 보기' 재료), D36 접근 범위(목표는 상담 내용 — 담당 케이스만)를 검증한다.
@@ -28,7 +28,7 @@ function headersFor(actor: { userId: string; orgId: string; role: string }): Rec
 
 async function seedTree() {
   const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
   // 수정자 표시 이름 — 이력 줄이 users.name 을 조인해 싣는 것을 검증한다.

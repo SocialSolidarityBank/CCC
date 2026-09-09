@@ -13,7 +13,7 @@ import {
   listPrivacyConsentFollowUps,
   updateParticipantConsent,
 } from '@ccc/core/gateway';
-import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
 
 // G1 (docs/consent/consent-implementation-gates-v1.md §2 · 2026-07-29 Q 결정1):
 // ① 개인정보 수집·이용 동의는 등록의 **하드 게이트**이고, 급박한 위기 개입만 "긴급 등록"
@@ -51,7 +51,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     await expect(createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: false, recordingAi: false },
     )).rejects.toBeInstanceOf(PrivacyConsentRequiredError);
@@ -67,7 +67,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: true, recordingAi: false },
     );
@@ -82,7 +82,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '위기 개입 — 서면 동의 전 등록' } },
     );
@@ -111,7 +111,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     await expect(createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '   ' } },
     )).rejects.toBeInstanceOf(EmergencyReasonRequiredError);
@@ -122,7 +122,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     await expect(createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: true, recordingAi: false, emergency: { reason: '사유' } },
     )).rejects.toBeInstanceOf(ValidationError);
@@ -133,7 +133,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
     const response = await worker.fetch(new Request('http://localhost/participants', {
       method: 'POST',
       headers: headersFor(counselor),
-      body: JSON.stringify({ programType: 'financial_support_v1' }),
+      body: JSON.stringify({ programId: testProgramId(counselor.orgId) }),
     }), t.env);
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'privacy_consent_required' });
@@ -145,7 +145,7 @@ describe('① 개인정보 동의 하드 게이트 — 당사자 등록 (G1)', (
       method: 'POST',
       headers: headersFor(counselor),
       body: JSON.stringify({
-        programType: 'financial_support_v1',
+        programId: testProgramId(counselor.orgId),
         consentPrivacy: false,
         emergencyReason: '',
       }),
@@ -160,7 +160,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     return createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: true, recordingAi: false },
     );
@@ -172,7 +172,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     await expect(createSupportCase(t.env, counselor, initial.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '11111111-1111-4111-8111-111111111111',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       sourceSupportCaseId: initial.supportCaseId,
       consentPrivacy: false,
@@ -190,7 +190,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     const second = await createSupportCase(t.env, counselor, initial.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '22222222-2222-4222-8222-222222222222',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       sourceSupportCaseId: initial.supportCaseId,
       consentPrivacy: true,
@@ -213,7 +213,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     const second = await createSupportCase(t.env, counselor, initial.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '44444444-4444-4444-8444-444444444444',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       sourceSupportCaseId: initial.supportCaseId,
       consentPrivacy: true,
@@ -239,7 +239,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     const second = await createSupportCase(t.env, counselor, initial.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '55555555-5555-4555-8555-555555555555',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       sourceSupportCaseId: initial.supportCaseId,
       consentPrivacy: true,
@@ -255,7 +255,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
     const second = await createSupportCase(t.env, counselor, initial.beneficiaryId, {
       schemaVersion: 1,
       submissionId: '33333333-3333-4333-8333-333333333333',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       sourceSupportCaseId: initial.supportCaseId,
       consentPrivacy: false,
@@ -271,7 +271,7 @@ describe('① 하드 게이트 — 추가 참여 사업 (G1 · D44 두 번째 �
 describe('① 하드 게이트 — 자기 가입 (G1 · 긴급 예외 없음)', () => {
   it('① 없이 가입하면 거부한다', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await expect(completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
@@ -286,7 +286,7 @@ describe('① 하드 게이트 — 자기 가입 (G1 · 긴급 예외 없음)', 
 
   it('자기 가입에는 긴급 등록 예외가 없다', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await expect(completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
@@ -301,14 +301,14 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
     const consented = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: true, recordingAi: false },
     );
     const urgent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
@@ -333,7 +333,7 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
     const urgent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       admin,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT, initialAssigneeUserId: admin.userId },
+      { programId: testProgramId(admin.orgId), initialAssigneeUserId: admin.userId },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
@@ -352,7 +352,7 @@ describe('① 동의 보완 대상 리포트 (G1 완료 기준)', () => {
     const urgent = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );

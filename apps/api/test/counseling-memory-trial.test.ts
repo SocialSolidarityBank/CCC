@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createBeneficiaryWithInitialSupportCase, type Actor } from '@ccc/core/gateway';
 import worker from './support/local-worker';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 import { seedNerQualification } from './support/agent-jobs';
 
 const t = setupD1();
 beforeEach(async () => { await t.reset(); });
 async function supportCase() {
   const created = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor,
-    { programType: 'financial_support_v1', intakeAt: '2026-09-01T09:00:00.000Z' },
+    { programId: testProgramId(testActors.counselor.orgId), intakeAt: '2026-09-01T09:00:00.000Z' },
     undefined, { privacy: true, recordingAi: false });
   return created.supportCaseId;
 }

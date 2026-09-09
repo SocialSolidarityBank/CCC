@@ -318,6 +318,34 @@ async function timestampProofs(orderingFixture: ParityDatabase, inventory: Times
   return proofs;
 }
 
+async function proveProgramAdmissionSchema(fixture: ParityDatabase): Promise<void> {
+  const db = fixture.db;
+  const orgId = 'parity-admission-org';
+  const id = `legacy-program:${orgId}`;
+  expect(await db.prepare(
+    `SELECT storage_mode, processing_mode, admission_confirmed_by, admission_confirmed_at
+     FROM programs WHERE id = ? AND org_id = ?`,
+  ).bind(id, orgId).first()).toEqual({
+    storage_mode: 'undecided', processing_mode: 'undecided',
+    admission_confirmed_by: null, admission_confirmed_at: null,
+  });
+  await db.prepare('INSERT INTO programs (id, org_id) VALUES (?, ?)')
+    .bind('parity-foreign-program', 'parity-foreign-org').run();
+  await expect(db.prepare('UPDATE organization_settings SET initial_program_id = ? WHERE org_id = ?')
+    .bind('parity-foreign-program', orgId).run()).rejects.toThrow();
+  await expect(db.prepare('UPDATE programs SET admission_confirmed_by = ? WHERE id = ?')
+    .bind('partial-confirmation', id).run()).rejects.toThrow();
+  await expect(db.batch([
+    db.prepare('UPDATE programs SET display_name = ? WHERE id = ?').bind('Must roll back', id),
+    db.prepare('INSERT INTO program_admission_guards (id, org_id, valid) VALUES (?, ?, 0)')
+      .bind('parity-invalid-admission', orgId),
+  ])).rejects.toThrow();
+  expect(await db.prepare('SELECT display_name, admission_confirmed_by FROM programs WHERE id = ?')
+    .bind(id).first()).toEqual({ display_name: null, admission_confirmed_by: null });
+  expect(await db.prepare('SELECT initial_program_id FROM organization_settings WHERE org_id = ?')
+    .bind(orgId).first()).toEqual({ initial_program_id: id });
+}
+
 async function proveDrift(fixture: ParityDatabase, original: Catalog): Promise<void> {
   const expected = fingerprint(original);
   const index = original.indexes.find((entry) => entry.name === 'idx_users_org');
@@ -408,6 +436,13 @@ describe('S1 live migration parity', () => {
       let lastSqlite: Catalog | undefined;
       let lastPostgres: Catalog | undefined;
       for (const checkpoint of sources) {
+        if (checkpoint.id === 'program-admission') {
+          for (const fixture of [sqlite, postgres]) {
+            await fixture.db.prepare(
+              'INSERT INTO organization_settings (org_id, time_zone, pii_purge_grace_days) VALUES (?, ?, ?)',
+            ).bind('parity-admission-org', 'UTC', 180).run();
+          }
+        }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
         const left = await collectCatalog(sqlite);
@@ -415,6 +450,10 @@ describe('S1 live migration parity', () => {
         assertLogicalParity(left, right);
         const sqliteSemantics = await dialectSemantics(sqlite);
         expect(await dialectSemantics(postgres)).toEqual(sqliteSemantics);
+        if (checkpoint.id === 'program-admission') {
+          await proveProgramAdmissionSchema(sqlite);
+          await proveProgramAdmissionSchema(postgres);
+        }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);
           expect(inventory.some((entry) => entry.table === 'audit_log' && entry.column === 'created_at')).toBe(true);

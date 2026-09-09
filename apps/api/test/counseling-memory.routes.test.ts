@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createBeneficiaryWithInitialSupportCase, type Actor } from '@ccc/core/gateway';
 import worker from './support/local-worker';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 const t = setupD1();
 beforeEach(async () => { await t.reset(); });
@@ -23,7 +23,7 @@ describe('케이스 기억의 HTTP 접근 경계', () => {
   it('담당자는 자기 케이스 기억을 읽고 비담당자와 다른 기관은 읽지 못한다', async () => {
     const created = await createBeneficiaryWithInitialSupportCase(
       t.env, testActors.counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-09-01T09:00:00.000Z' },
+      { programId: testProgramId(testActors.counselor.orgId), intakeAt: '2026-09-01T09:00:00.000Z' },
       undefined, { privacy: true, recordingAi: false },
     );
     const path = `/support-cases/${created.supportCaseId}/memory`;

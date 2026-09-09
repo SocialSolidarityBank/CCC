@@ -12,7 +12,7 @@ import {
   updateScheduleSessionGoals,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 const { counselor, unassignedCounselor, admin } = testActors;
 
@@ -23,7 +23,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
 
     await expect(assertSupportCaseAccess(t.env, unassignedCounselor, created.supportCaseId))
@@ -56,7 +56,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
 
     await expect(assertSupportCaseAccess(t.env, counselor, created.supportCaseId))
@@ -72,7 +72,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
 
     await expect(assertSupportCaseAccess(t.env, admin, created.supportCaseId))
@@ -88,7 +88,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
     await createCounselingSchedule(t.env, counselor, {
       beneficiaryId: created.beneficiaryId,
@@ -141,7 +141,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
 
     await expect(t.db.prepare(
@@ -160,7 +160,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
     await t.db.prepare(
       `UPDATE user_role_assignments SET revoked_at = datetime('now')
@@ -179,7 +179,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
     const schedule = await createCounselingSchedule(t.env, counselor, {
       beneficiaryId: created.beneficiaryId,
@@ -199,7 +199,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
     await t.db.batch([
       t.db.prepare(
@@ -257,7 +257,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
     await t.db.batch([
       t.db.prepare(
@@ -288,7 +288,7 @@ describe('assertSupportCaseAccess deny audit (CCC-116)', () => {
     await t.reset();
 
     const created = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
     });
     await t.db.batch([
       t.db.prepare(

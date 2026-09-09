@@ -14,7 +14,7 @@ import {
   updateParticipantConsent,
   type AgentRuntime,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId, type TestApiEnv } from './support/d1';
 import {
   claimRequest,
   registerFixtureRecording,
@@ -41,15 +41,22 @@ const counselorHeaders = {
   'X-CCC-Role': 'counselor',
 };
 
-async function envForMode(mode: DeploymentMode): Promise<ApiEnv> {
+async function envForMode(mode: DeploymentMode): Promise<TestApiEnv> {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    deploymentMode: mode,
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
   const signer = await createTestSigner();
   const manifest = await signedManifest(signer, mode, { approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY });
   return {
     ...t.env,
+    installationMode: mode,
     TEXT_AI_PILOT_ENABLED: '1',
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
     CCC_STT_MODE: 'local',
+    CCC_LLM_MODE: 'openai',
   };
 }
 
@@ -59,7 +66,7 @@ async function seedJobs(
   mode: DeploymentMode = 'local-single',
   expectedUploadStatus = 200,
 ) {
-  const beneficiary = await createCase(env, counselor, {});
+  const beneficiary = await createCase(env, counselor, { programId: testProgramId(counselor.orgId) });
   const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');
@@ -237,7 +244,7 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
   it('upload-target admission and completion failures stay inside the structured HTTP error boundary', async () => {
     await t.reset();
     const env = await envForMode('community-cloud');
-    const beneficiary = await createCase(env, counselor, {});
+    const beneficiary = await createCase(env, counselor, { programId: testProgramId(counselor.orgId) });
     const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
     const supportCaseId = programs[0]?.supportCase.id;
     if (supportCaseId === undefined) throw new Error('expected support case');
@@ -375,6 +382,9 @@ describe('S5 F8 세 모드 전달과 자격 경계', () => {
 
   it('승인 registry 에 없는 STT 는 오디오 작업을 claim 하지 않는다', async () => {
     await t.reset();
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'local', llmMode: 'openai',
+    });
     const signer = await createTestSigner();
     const manifest = await signedManifest(signer, 'local-office', { approvedSttEngineIds: [] });
     const env = {

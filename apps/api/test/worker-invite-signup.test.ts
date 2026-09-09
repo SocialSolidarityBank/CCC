@@ -8,7 +8,7 @@ import {
   listUsers,
 } from '@ccc/core/gateway';
 import type { ApiEnv } from '@ccc/http-api/identity';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 // 실무자 초대 가입 (CCC-108 · CCC-33). 공개 라우트 둘(GET /invites/worker/:token ·
 // POST /invites/worker)과 관리자 발급 라우트(POST /invites/counselor)를 검증한다.
@@ -112,7 +112,7 @@ describe('GET /invites/worker/:token (공개 유효성 조회)', () => {
 
   it('participant 종류 토큰은 worker 경로에서 404(종류 불일치도 구분 불가)', async () => {
     await t.reset();
-    const invite = await createParticipantInvite(t.env, counselor, { programType: 'financial_support_v1' });
+    const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const res = await worker.fetch(
       new Request(`http://localhost/invites/worker/${invite.token}`),
       openEnv(),

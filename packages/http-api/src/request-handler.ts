@@ -3,6 +3,16 @@ import {
   type ActionItemResolutionStatus,
   AiProviderNotConfiguredError,
   assertSupportCaseAccess,
+  listSettingsSupportCaseOptions,
+  getRetentionPolicy,
+  updateRetentionPolicy,
+  getMyIdentity,
+  listMyRoles,
+  listAuditLog,
+  listDirectoryAccounts,
+  updateDirectoryRoles,
+  deactivateDirectoryAccount,
+  type DirectoryRole,
   correctCounselingMemory,
   getCounselingMemory,
   getCounselingMemorySettings,
@@ -14,6 +24,14 @@ import {
   issueCounselingMemoryDictionary,
   releaseCounselingMemorySource,
   ConflictError,
+  ProgramAdmissionRequiredError,
+  createProgram,
+  updateProgram,
+  listPrograms,
+  listProgramOptions,
+  getInstalledAiPolicy,
+  type CreateProgramInput,
+  type UpdateProgramInput,
   SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
   FLAG_TYPES,
@@ -46,6 +64,7 @@ import {
   failRecordingUploadStorageWrite,
   completeRecordingUploadStorageWrite,
   failAgentJobAudioTargetMint,
+  authorizeSessionTextAiEgress,
   approveSession,
   activateAiProviderConfiguration,
   collectDiscrepancyDetectionSources,
@@ -101,12 +120,14 @@ import {
   getPendingRecordingUpload,
   listAudioManualNoteFallbacks,
   getPipelineHealth,
-  getMyIdentity,
-  listMyRoles,
+  exportCase,
+  listCaseExportHistory,
   getLastProgramType,
   getOrganizationProfile,
+  updateOrganizationProfile,
   completeOrganizationOnboarding,
   rememberLastProgramType,
+  revokeIdentitySession,
   getNextCounselingScheduleForSupportCase,
   getScheduleSessionPlan,
   getSession,
@@ -211,7 +232,7 @@ import {
   validateDiscrepancyDetectionOutput,
   validateDiscrepancyDetectionRequest,
 } from '@ccc/ai-runtime';
-import { type ApiEnv } from './identity';
+import { gatewayActorFromIdentity, type ApiEnv } from './identity';
 import { buildCapabilities, CapabilitiesUnavailableError, verifiedInstallManifest } from './capabilities';
 import {
   jobErrorHttpStatus,
@@ -237,7 +258,7 @@ import { isSttReadinessReport } from '@ccc/contracts/stt-readiness';
 import { previewModeEnabled } from './preview-gate';
 import { memoryTrialEnabled, memoryTrialReadiness } from './counseling-memory-trial';
 import { runCounselingMemoryTrial } from './counseling-memory-runner';
-import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
+import { ActorAuthenticationError, AUDIO_CONTENT_TYPES, IdentityStoreUnavailableError, MfaRequiredError, type Actor as IdentityActor, type AudioContentType, type AudioObjectMetadata } from '@ccc/contracts/runtime';
 
 type JsonObject = Record<string, unknown>;
 function normalizeAudioContentType(header: string | null): AudioContentType | null {
@@ -251,6 +272,7 @@ function normalizeAudioContentType(header: string | null): AudioContentType | nu
 
 const jsonHeaders = {
   'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store',
 };
 
 function json(body: unknown, status = 200, headers: HeadersInit = {}): Response {
@@ -436,12 +458,6 @@ function requireHumanParticipantActor(actor: Actor): void {
   }
 }
 
-function requireFinancialSupportProgramType(body: JsonObject): 'financial_support_v1' {
-  if (body.programType !== 'financial_support_v1') {
-    throw new ValidationError('program type is invalid');
-  }
-  return 'financial_support_v1';
-}
 
 /**
  * 긴급 등록 사유 (G1). **빈 문자열도 그대로 넘긴다** — "긴급 등록을 골랐는데 사유가 비었다"는
@@ -495,20 +511,20 @@ function parseInitialParticipantCreation(body: JsonObject, actor: Actor) {
   // 옛 클라이언트가 보내던 intakeAt 도 여기서 걸린다.
   const registrationKeys = ['consentPrivacy', 'consentRecordingAi', 'emergencyReason', 'name', 'phone', 'email', 'birthDate', 'region', 'gender'];
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['programType', 'initialAssigneeUserId', ...registrationKeys]);
+    requireOnlyKeys(body, ['programId', 'initialAssigneeUserId', ...registrationKeys]);
     return {
       input: {
-        programType: requireFinancialSupportProgramType(body),
+        programId: requiredString(body, 'programId'),
         initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
         ...optionalPii,
       },
       consent,
     };
   }
-  requireOnlyKeys(body, ['programType', ...registrationKeys]);
+  requireOnlyKeys(body, ['programId', ...registrationKeys]);
   return {
     input: {
-      programType: requireFinancialSupportProgramType(body),
+      programId: requiredString(body, 'programId'),
       ...optionalPii,
     },
     consent,
@@ -532,20 +548,20 @@ function parseSubsequentParticipantCreation(body: JsonObject, actor: Actor) {
   };
   // intakeAt 키는 여기서도 받지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
   if (actor.role === 'admin') {
-    requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'initialAssigneeUserId', ...consentKeys]);
+    requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programId', 'initialAssigneeUserId', ...consentKeys]);
     return {
       schemaVersion: requiredSchemaVersion(body),
       submissionId: requiredUuid(body, 'submissionId'),
-      programType: requireFinancialSupportProgramType(body),
+      programId: requiredString(body, 'programId'),
       initialAssigneeUserId: requiredUuid(body, 'initialAssigneeUserId'),
       ...consentInput,
     };
   }
-  requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programType', 'sourceSupportCaseId', ...consentKeys]);
+  requireOnlyKeys(body, ['schemaVersion', 'submissionId', 'programId', 'sourceSupportCaseId', ...consentKeys]);
   return {
     schemaVersion: requiredSchemaVersion(body),
     submissionId: requiredUuid(body, 'submissionId'),
-    programType: requireFinancialSupportProgramType(body),
+    programId: requiredString(body, 'programId'),
     sourceSupportCaseId: requiredUuid(body, 'sourceSupportCaseId'),
     ...consentInput,
   };
@@ -1074,6 +1090,99 @@ function parseScheduleSessionGoalsUpdate(body: JsonObject) {
     expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
     sessionGoals,
   };
+}
+
+function parseExportHistoryQuery(query: URLSearchParams) {
+  const limitValue = query.get('limit');
+  let limit: number | undefined;
+  if (limitValue !== null) {
+    if (!/^[1-9]\d*$/u.test(limitValue)) throw new ValidationError('limit is invalid');
+    limit = Number(limitValue);
+    if (!Number.isSafeInteger(limit) || limit > 50) throw new ValidationError('limit is invalid');
+  }
+  return {
+    ...(limit === undefined ? {} : { limit }),
+    ...(query.get('cursor') === null ? {} : { cursor: query.get('cursor')! }),
+  };
+}
+
+function parseAuditLogQuery(query: URLSearchParams) {
+  const limitValue = query.get('limit');
+  let limit: number | undefined;
+  if (limitValue !== null) {
+    if (!/^[1-9]\d*$/u.test(limitValue)) throw new ValidationError('limit is invalid');
+    limit = Number(limitValue);
+    if (!Number.isSafeInteger(limit) || limit > 100) throw new ValidationError('limit is invalid');
+  }
+  const actorId = query.get('actorId') ?? undefined;
+  const supportCaseId = query.get('supportCaseId') ?? undefined;
+  if (actorId !== undefined && actorId.trim().length === 0) throw new ValidationError('actorId is invalid');
+  if (supportCaseId !== undefined && supportCaseId.trim().length === 0) {
+    throw new ValidationError('supportCaseId is invalid');
+  }
+  const fromValue = query.get('from');
+  const toValue = query.get('to');
+  const from = fromValue === null ? undefined : canonicalUtc(fromValue, 'from');
+  const to = toValue === null ? undefined : canonicalUtc(toValue, 'to');
+  if (from !== undefined && to !== undefined && from > to) {
+    throw new ValidationError('date range is invalid');
+  }
+  return {
+    ...(limit === undefined ? {} : { limit }),
+    ...(query.get('cursor') === null ? {} : { cursor: query.get('cursor')! }),
+    ...(actorId === undefined ? {} : { actorId }),
+    ...(from === undefined ? {} : { from }),
+    ...(to === undefined ? {} : { to }),
+    ...(supportCaseId === undefined ? {} : { supportCaseId }),
+  };
+}
+function parseProgramStaff(value: unknown): NonNullable<CreateProgramInput['staff']> {
+  if (!Array.isArray(value)) throw new ValidationError('program staff is invalid');
+  return value.map((entry) => {
+    const person = asObject(entry);
+    requireOnlyKeys(person, ['userId', 'isResponsible']);
+    if (typeof person.isResponsible !== 'boolean') throw new ValidationError('staff responsibility is invalid');
+    return { userId: requiredString(person, 'userId'), isResponsible: person.isResponsible };
+  });
+}
+
+function parseProgramChoices(body: JsonObject): Pick<CreateProgramInput, 'storageMode' | 'processingMode' | 'confirmation' | 'staff'> {
+  const storageMode = optionalNullableString(body, 'storageMode');
+  if (storageMode !== undefined && storageMode !== null && storageMode !== 'supabase_seoul'
+    && storageMode !== 'naver_public' && storageMode !== 'local_encrypted' && storageMode !== 'undecided') {
+    throw new ValidationError('storage choice is invalid');
+  }
+  const processingMode = optionalNullableString(body, 'processingMode');
+  if (processingMode !== undefined && processingMode !== null && processingMode !== 'external_allowed'
+    && processingMode !== 'internal_only' && processingMode !== 'undecided') {
+    throw new ValidationError('processing choice is invalid');
+  }
+  const confirmation = body.confirmation === undefined ? undefined : body.confirmation === null ? null
+    : parseProgramConfirmation(asObject(body.confirmation));
+  return {
+    ...(storageMode === undefined ? {} : { storageMode }),
+    ...(processingMode === undefined ? {} : { processingMode }),
+    ...(confirmation === undefined ? {} : { confirmation }),
+    ...(body.staff === undefined ? {} : { staff: parseProgramStaff(body.staff) }),
+  };
+}
+
+function parseProgramConfirmation(body: JsonObject) {
+  requireOnlyKeys(body, ['copyVersion', 'copyHash', 'installationPolicyVersion', 'installationConfigHash']);
+  return {
+    copyVersion: requiredString(body, 'copyVersion'),
+    copyHash: requiredString(body, 'copyHash'),
+    installationPolicyVersion: requiredExpectedVersion(body, 'installationPolicyVersion'),
+    installationConfigHash: requiredString(body, 'installationConfigHash'),
+  };
+}
+
+function decodedProgramId(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    throw new ValidationError('program id is invalid');
+  }
 }
 
 function requestQuery(url: URL, allowed: readonly string[]): URLSearchParams {
@@ -1889,6 +1998,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
           outcome = 'skipped_unsupported';
           return;
         }
+        await authorizeSessionTextAiEgress(env, actor, sessionId);
         rawOutput = await adapter.detectDiscrepancies(providerRequest);
       }
     } else {
@@ -1898,6 +2008,7 @@ async function runDiscrepancyDetection(env: ApiEnv, actor: Actor, sessionId: str
         outcome = 'skipped_unsupported';
         return;
       }
+      await authorizeSessionTextAiEgress(env, actor, sessionId);
       rawOutput = await adapter.detectDiscrepancies(providerRequest);
     }
     const output = validateDiscrepancyDetectionOutput(rawOutput, providerRequest);
@@ -2181,6 +2292,7 @@ async function generateAiDraft(
     const generationRequest = historicalContext === null
       ? providerRequest
       : validateAiProviderRequest({ ...providerRequest, historicalContext });
+    await authorizeSessionTextAiEgress(env, actor, sessionId);
     const output = validateAiProviderOutput(await adapter.generate(generationRequest), generationRequest);
     const draft = await createGeneratedAiDraftForService(env, actor, sessionId, {
       summaryText: validateAiDraftSummary(output.claims.map((claim) => claim.text).join('\n')),
@@ -2254,6 +2366,7 @@ async function handleAudioUpload(
   actor: Actor,
   sessionId: string,
 ): Promise<Response> {
+  if (env.audioStore === null) return json({ error: 'service_unavailable' }, 503);
   const runtime = await resolveAgentRuntime(env);
   if (runtime.audioDelivery === 'protected-get') {
     throw new ValidationError('community cloud upload requires an upload target');
@@ -2320,6 +2433,7 @@ async function handleAudioUploadTarget(
   actor: Actor,
   sessionId: string,
 ): Promise<Response> {
+  if (env.audioStore === null) throw new CapabilitiesUnavailableError('audio storage unavailable');
   const runtime = await resolveAgentRuntime(env);
   if (runtime.audioDelivery !== 'protected-get') throw new ValidationError('upload targets are cloud-only');
   const body = await requestBody(request);
@@ -2372,6 +2486,7 @@ async function handleAudioUploadCompletion(
   sessionId: string,
   audioObjectId: string,
 ): Promise<Response> {
+  if (env.audioStore === null) throw new CapabilitiesUnavailableError('audio storage unavailable');
   const runtime = await resolveAgentRuntime(env);
   if (runtime.audioDelivery !== 'protected-get') throw new ValidationError('upload targets are cloud-only');
   const admission = await admitRecordingUpload(env, actor, sessionId, runtime);
@@ -2403,6 +2518,7 @@ async function handleAudioUploadCompletion(
 
 function errorResponse(error: unknown): Response {
   if (error instanceof ActorAuthenticationError) return json({ error: 'actor_authentication_required' }, 401);
+  if (error instanceof MfaRequiredError) return json({ error: 'mfa_required' }, 403);
   // S5 §2.6 고정 형태. 원문·PII·시크릿을 싣지 않는다.
   if (error instanceof AgentJobContractError) {
     return json(
@@ -2414,6 +2530,7 @@ function errorResponse(error: unknown): Response {
   if (error instanceof IdentityStoreUnavailableError) return json({ error: 'service_unavailable' }, 503);
   if (error instanceof ForbiddenError) return json({ error: 'forbidden' }, 403);
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
+  if (error instanceof ProgramAdmissionRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof PilotTextAiConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof TextAiPilotDisabledError) return json({ error: error.code }, error.statusCode);
   if (error instanceof PiiPurgeDisabledError) return json({ error: error.code }, error.statusCode);
@@ -2439,7 +2556,7 @@ function errorResponse(error: unknown): Response {
   return json({ error: 'internal_error' }, 500);
 }
 
-export type ActorResolver = (request: Request, env: ApiEnv) => Promise<Actor>;
+export type ActorResolver = (request: Request, env: ApiEnv) => Promise<Actor | IdentityActor>;
 
 export async function handleRequest(
   request: Request,
@@ -2474,6 +2591,10 @@ export async function handleRequest(
     // publicSignupPath 매칭에 worker 경로 패턴을 추가한다.
     const publicSignupEnabled = env.PUBLIC_SIGNUP_ENABLED === '1';
     if (publicSignupPath && !publicSignupEnabled) return json({ error: 'not_found' }, 404);
+    if (env.installationMode === undefined && env.CCC_INSTALL_MANIFEST !== undefined) {
+      const installation = await verifiedInstallManifest(env);
+      env = { ...env, installationMode: installation.mode };
+    }
     if (publicSignupPath && previewModeEnabled(env)) await resolveActor(request, env);
     if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
       requestQuery(url, []);
@@ -2564,8 +2685,109 @@ export async function handleRequest(
         throw e;
       }
     }
-    const actor = await resolveActor(request, env);
+    const resolvedActor = await resolveActor(request, env);
     const parts = url.pathname.split('/').filter((part) => part.length > 0);
+    if (request.method === 'POST' && parts.length === 2 && parts[0] === 'auth' && parts[1] === 'logout') {
+      requestQuery(url, []);
+      requireOnlyKeys(await requestBody(request), []);
+      if (!('kind' in resolvedActor) || resolvedActor.kind !== 'human' || resolvedActor.authn.sessionId === null) {
+        throw new ForbiddenError('session logout requires a verified human session');
+      }
+      try {
+        await revokeIdentitySession(env, resolvedActor.authn.sessionId, 'logout');
+      } catch {
+        throw new IdentityStoreUnavailableError();
+      }
+      return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+    }
+    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'capabilities') {
+      // 배포 capability(S2 §2.8, E1-7). 사람 역할만, Agent 는 403. 응답은 캐시하지 않고
+      // 설치 ID 헤더를 실어 client 가 signed manifest 와 byte-equal 비교한다.
+      requestQuery(url, []);
+      const { manifest, installationId } = await buildCapabilities(env, resolvedActor);
+      return json(manifest, 200, { 'cache-control': 'no-store', 'x-ccc-installation-id': installationId });
+    }
+    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'me') {
+      // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 기관 자기 행만.
+      requestQuery(url, []);
+      const me = await getMyIdentity(env, resolvedActor);
+      // lastProgramType: `/` 직행 목적지 (D35 · ADR-0014 '개정' 2번). 미선택이면 null 이고
+      // 화면이 첫 사업으로 폴백한다.
+      const lastProgramType = await getLastProgramType(env, resolvedActor);
+      // roles: D74 역할 합(ADR-0038). 어드민 탭 필터(ADR-0044 결정 7)가 읽는다. legacy `role` 은 유지.
+      const roles = await listMyRoles(env, resolvedActor);
+      return json({
+        id: me.id, orgId: me.orgId, email: me.email, role: me.role, active: me.active, name: me.name,
+        lastProgramType, roles,
+      });
+    }
+    if (parts[0] === 'settings' && parts[1] === 'accounts') {
+      // Preserve technical-only identities here. Authorization still reads canonical grants; the stored role is audit metadata.
+      const account = await getMyIdentity(env, resolvedActor);
+      const actor = { userId: account.id, orgId: account.orgId, role: account.role };
+      if (request.method === 'GET' && parts.length === 2) {
+        const query = requestQuery(url, ['cursor']);
+        return json(await listDirectoryAccounts(env, actor, query.get('cursor') ?? undefined));
+      }
+      requestQuery(url, []);
+      if (parts.length === 4 && parts[2] !== undefined) {
+        let userId: string;
+        try { userId = decodeURIComponent(parts[2]); }
+        catch { throw new ValidationError('account id is invalid'); }
+        if (request.method === 'PATCH' && parts[3] === 'roles') {
+          const body = await requestBody(request);
+          requireOnlyKeys(body, ['roles', 'expectedRoles']);
+          return json(await updateDirectoryRoles(env, actor, userId, {
+            roles: requestDirectoryRoles(body, 'roles'), expectedRoles: requestDirectoryRoles(body, 'expectedRoles'),
+          }));
+        }
+        if (request.method === 'POST' && parts[3] === 'deactivate') {
+          const body = await requestBody(request);
+          requireOnlyKeys(body, ['reason']);
+          return json(await deactivateDirectoryAccount(env, actor, userId, requiredString(body, 'reason')));
+        }
+      }
+    }
+    const actor = 'kind' in resolvedActor ? gatewayActorFromIdentity(resolvedActor) : resolvedActor;
+    const installationPolicy = await getInstalledAiPolicy(env, actor);
+    env = { ...env, CCC_STT_MODE: installationPolicy.sttMode, CCC_LLM_MODE: installationPolicy.llmMode };
+    if (parts.length === 1 && parts[0] === 'program-options' && request.method === 'GET') {
+      requestQuery(url, []);
+      return json({ programs: await listProgramOptions(env, actor) });
+    }
+    if (parts.length === 1 && parts[0] === 'programs') {
+      requestQuery(url, []);
+      if (request.method === 'GET') return json(await listPrograms(env, actor));
+      if (request.method === 'POST') {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['displayName', 'storageMode', 'processingMode', 'confirmation', 'staff']);
+        const program = await createProgram(env, actor, {
+          displayName: requiredString(body, 'displayName'), ...parseProgramChoices(body),
+        });
+        return json({ program }, 201);
+      }
+    }
+    if (parts.length === 2 && parts[0] === 'programs' && request.method === 'PATCH') {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      requireOnlyKeys(body, ['expectedVersion', 'displayName', 'storageMode', 'processingMode', 'confirmation', 'status', 'staff']);
+      const displayName = optionalString(body, 'displayName');
+      const input: UpdateProgramInput = {
+        expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
+        ...(displayName === undefined ? {} : { displayName }), ...parseProgramChoices(body),
+      };
+      const status = optionalString(body, 'status');
+      if (status !== undefined) {
+        if (status !== 'active' && status !== 'closed') throw new ValidationError('program status is invalid');
+        input.status = status;
+      }
+      const program = await updateProgram(env, actor, decodedProgramId(parts[1]!), input);
+      return json({ program });
+    }
+    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'audit-log') {
+      const query = requestQuery(url, ['limit', 'cursor', 'actorId', 'from', 'to', 'supportCaseId']);
+      return json(await listAuditLog(env, actor, parseAuditLogQuery(query)));
+    }
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'schedules') {
       // 상담 등록(#20): 담당 케이스 한정·감사는 createCounselingSchedule(R1 관문) 내장.
       requestQuery(url, []);
@@ -2573,27 +2795,6 @@ export async function handleRequest(
         scheduleResponse(await createCounselingSchedule(env, actor, parseScheduleCreation(await requestBody(request)))),
         201,
       );
-    }
-    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'capabilities') {
-      // 배포 capability(S2 §2.8, E1-7). 사람 역할만, Agent 는 403. 응답은 캐시하지 않고
-      // 설치 ID 헤더를 실어 client 가 signed manifest 와 byte-equal 비교한다.
-      requestQuery(url, []);
-      const { manifest, installationId } = await buildCapabilities(env, actor);
-      return json(manifest, 200, { 'cache-control': 'no-store', 'x-ccc-installation-id': installationId });
-    }
-    if (request.method === 'GET' && parts.length === 1 && parts[0] === 'me') {
-      // 로그인한 본인의 신원(이메일·역할) — 설정 화면 '내 계정'. 역할 무관, 자기 기관 자기 행만.
-      requestQuery(url, []);
-      const me = await getMyIdentity(env, actor);
-      // lastProgramType: `/` 직행 목적지 (D35 · ADR-0014 '개정' 2번). 미선택이면 null 이고
-      // 화면이 첫 사업으로 폴백한다.
-      const lastProgramType = await getLastProgramType(env, actor);
-      // roles: D74 역할 합(ADR-0038). 어드민 탭 필터(ADR-0044 결정 7)가 읽는다. legacy `role` 은 유지.
-      const roles = await listMyRoles(env, actor);
-      return json({
-        id: me.id, orgId: me.orgId, email: me.email, role: me.role, active: me.active, name: me.name,
-        lastProgramType, roles,
-      });
     }
     if (parts.length === 2 && parts[0] === 'settings' && parts[1] === 'counseling-memory') {
       requestQuery(url, []);
@@ -2614,6 +2815,15 @@ export async function handleRequest(
       // 값이 없으면 null — 화면이 labels.ts 하드코딩 라벨로 폴백한다. 감사 없음 근거는 게이트웨이 주석.
       requestQuery(url, []);
       return json(await getOrganizationProfile(env, actor));
+    }
+    if (request.method === 'PATCH' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'profile') {
+      requestQuery(url, []);
+      const body = await requestBody(request);
+      if (typeof body.orgName !== 'string'
+        || (body.expectedOrgName !== null && typeof body.expectedOrgName !== 'string')) {
+        throw new ValidationError('organization profile payload is invalid');
+      }
+      return json(await updateOrganizationProfile(env, actor, { ...body, orgName: body.orgName, expectedOrgName: body.expectedOrgName }));
     }
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'organization' && parts[1] === 'onboarding') {
       // 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). admin 검사·감사는 게이트웨이 내장(R1).
@@ -2707,9 +2917,9 @@ export async function handleRequest(
       // 링크를 만들 이유가 없으므로 같은 스위치로 404 한다.
       if (!publicSignupEnabled) return json({ error: 'not_found' }, 404);
       requestQuery(url, []);
-      const programType = (await requestBody(request)).programType;
-      if (typeof programType !== 'string') throw new ValidationError('program type is required');
-      return json(await createParticipantInvite(env, actor, { programType }), 201);
+      const body = await requestBody(request);
+      requireOnlyKeys(body, ['programId']);
+      return json(await createParticipantInvite(env, actor, { programId: requiredString(body, 'programId') }), 201);
     }
     if (request.method === 'POST' && parts.length === 2 && parts[0] === 'invites' && parts[1] === 'counselor') {
       // 실무자 초대 링크 발급(CCC-108 · CCC-33). 관리자 전용 — 권한·감사는
@@ -2855,8 +3065,20 @@ export async function handleRequest(
         return json(normalizeParticipantBriefing(await getParticipantBriefing(env, actor, beneficiaryId, supportCaseId)));
       }
     }
+    if (request.method === 'GET' && parts.length === 2 && parts[0] === 'exports' && parts[1] === 'cases') {
+      const query = requestQuery(url, ['cursor']);
+      return json(await listSettingsSupportCaseOptions(env, actor, 'assigned', query.get('cursor') ?? undefined));
+    }
     if (parts[0] === 'support-cases' && parts[1] !== undefined) {
       const supportCaseId = requireRouteUuid(parts[1], 'support case id');
+      if (request.method === 'POST' && parts.length === 3 && parts[2] === 'export') {
+        requestQuery(url, []);
+        return json(await exportCase(env, actor, supportCaseId));
+      }
+      if (request.method === 'GET' && parts.length === 3 && parts[2] === 'export-history') {
+        const query = requestQuery(url, ['limit', 'cursor']);
+        return json(await listCaseExportHistory(env, actor, supportCaseId, parseExportHistoryQuery(query)));
+      }
       if (parts.length === 4 && parts[2] === 'memory' && parts[3] === 'trial') {
         if (!memoryTrialEnabled(env)) return json({ error: 'not_found' }, 404);
         requestQuery(url, []);
@@ -2945,7 +3167,7 @@ export async function handleRequest(
       ) {
         requestQuery(url, []);
         const assignmentId = requireRouteUuid(parts[3] ?? '', 'assignment id');
-        await acceptSupportCaseAssignment(env, actor, assignmentId);
+        await acceptSupportCaseAssignment(env, actor, assignmentId, supportCaseId);
         return json({ accepted: true });
       }
       if (request.method === 'GET' && parts.length === 3 && parts[2] === 'consent') {
@@ -2973,7 +3195,7 @@ export async function handleRequest(
         const event = await appendSupportCaseConsentEvent(
           env, actor, supportCaseId, parseConsentEventInput(await requestBody(request)),
         );
-        if (event.decision === 'withdraw' || event.decision === 'decline') {
+        if (env.audioStore !== null && (event.decision === 'withdraw' || event.decision === 'decline')) {
           await reconcileSupportCaseAudioDeletions(env, env.audioStore, actor.orgId, supportCaseId);
         }
         return json(event, 201);
@@ -3089,13 +3311,15 @@ export async function handleRequest(
       return json(await listCases(env, actor, status === null ? undefined : { status }));
     }
     if (request.method === 'POST' && parts.length === 1 && parts[0] === 'cases') {
+      requestQuery(url, []);
       const body = await requestBody(request);
-      const input: { programType?: string; intakeAt?: string; consentRecordingAt?: string | null; consentTextAiAt?: string | null } = {};
-      const programType = optionalString(body, 'programType');
+      requireOnlyKeys(body, ['programId', 'intakeAt', 'consentRecordingAt', 'consentTextAiAt']);
+      const input: { programId: string; intakeAt?: string; consentRecordingAt?: string | null; consentTextAiAt?: string | null } = {
+        programId: requiredString(body, 'programId'),
+      };
       const intakeAt = optionalString(body, 'intakeAt');
       const consentRecordingAt = optionalNullableString(body, 'consentRecordingAt');
       const consentTextAiAt = optionalNullableString(body, 'consentTextAiAt');
-      if (programType !== undefined) input.programType = programType;
       if (intakeAt !== undefined) input.intakeAt = intakeAt;
       if (consentRecordingAt !== undefined) input.consentRecordingAt = consentRecordingAt;
       if (consentTextAiAt !== undefined) input.consentTextAiAt = consentTextAiAt;
@@ -3401,7 +3625,7 @@ export async function handleRequest(
       if (request.method === 'POST' && parts.length === 3 && parts[2] === 'claim') {
         const runtime = await resolveAgentRuntime(env);
         const claimed = await claimAgentJobs(
-          env, actor, runtime, parseClaimRequest(await requestBody(request)), env.audioStore,
+          env, actor, runtime, parseClaimRequest(await requestBody(request)), env.audioStore ?? undefined,
         );
         return json(claimed, 200, { 'cache-control': 'no-store' });
       }
@@ -3414,7 +3638,7 @@ export async function handleRequest(
           const audioObjectId = await releaseAgentJob(
             env, actor, jobId, parseReleaseRequest(await requestBody(request)),
           );
-          if (audioObjectId !== null) {
+          if (audioObjectId !== null && env.audioStore !== null) {
             await reconcileAudioObjectDeletion(env, env.audioStore, audioObjectId);
           }
           return new Response(null, { status: 204 });
@@ -3444,6 +3668,7 @@ export async function handleRequest(
             credentials.attempt,
             runtime,
           );
+          if (env.audioStore === null) return json({ error: 'service_unavailable' }, 503);
           if (runtime.audioDelivery === 'protected-get') {
             const mint = await beginAgentJobAudioTargetMint(
               env, actor, jobId, credentials.claimToken, credentials.attempt,
@@ -3483,7 +3708,7 @@ export async function handleRequest(
             const audioObjectId = await closeAgentJobAudioObjectMissing(
               env, actor, jobId, credentials.claimToken, credentials.attempt,
             );
-            if (audioObjectId !== null) {
+            if (audioObjectId !== null && env.audioStore !== null) {
               await reconcileAudioObjectDeletion(env, env.audioStore, audioObjectId);
             }
             return json({ error: 'audio_object_missing', jobId, retryable: false }, 404);
@@ -3504,10 +3729,10 @@ export async function handleRequest(
               parseAgentResultRequest(await requestBody(request)),
             );
           } catch (error) {
-            await reconcileAgentJobAudioDeletion(env, env.audioStore, actor.orgId, jobId);
+            if (env.audioStore !== null) await reconcileAgentJobAudioDeletion(env, env.audioStore, actor.orgId, jobId);
             throw error;
           }
-          if (accepted.audioObjectId !== null) {
+          if (accepted.audioObjectId !== null && env.audioStore !== null) {
             await reconcileAudioObjectDeletion(env, env.audioStore, accepted.audioObjectId);
           }
           const committed = accepted.recording;
@@ -3564,7 +3789,7 @@ export async function handleRequest(
           try {
             return json(await verifyAgentJobAudio(env, actor, jobId, verifyRequest));
           } catch (error) {
-            await reconcileAgentJobAudioDeletion(env, env.audioStore, actor.orgId, jobId);
+            if (env.audioStore !== null) await reconcileAgentJobAudioDeletion(env, env.audioStore, actor.orgId, jobId);
             throw error;
           }
         }
@@ -3582,6 +3807,20 @@ export async function handleRequest(
             env, actor, jobId, inFlightRequest, runtime,
           ));
         }
+      }
+    }
+    if (parts.length === 2 && parts[0] === 'settings' && parts[1] === 'retention-policy') {
+      requestQuery(url, []);
+      if (request.method === 'GET') {
+        return json(await getRetentionPolicy(env, actor), 200, { 'cache-control': 'no-store' });
+      }
+      if (request.method === 'PUT') {
+        const body = await requestBody(request);
+        requireOnlyKeys(body, ['expectedVersion', 'piiPurgeGraceDays']);
+        return json(await updateRetentionPolicy(env, actor, {
+          expectedVersion: requiredExpectedVersion(body, 'expectedVersion'),
+          piiPurgeGraceDays: requiredInteger(body, 'piiPurgeGraceDays'),
+        }), 200, { 'cache-control': 'no-store' });
       }
     }
     if (parts[0] === 'pii-retention' && parts[1] === 'reviews') {
@@ -3604,6 +3843,16 @@ export async function handleRequest(
       return json({ requests: await listMySupportCaseAssignmentRequests(env, actor) });
     }
 
+    if (request.method === 'GET' && parts.length === 3 && parts[0] === 'settings' && parts[1] === 'assignments' && parts[2] === 'cases') {
+      const query = requestQuery(url, ['cursor']);
+      return json(await listSettingsSupportCaseOptions(env, actor, 'organization', query.get('cursor') ?? undefined));
+    }
+    if (request.method === 'GET' && parts.length === 4 && parts[0] === 'settings' && parts[1] === 'assignments' && parts[2] === 'cases') {
+      requestQuery(url, []);
+      const supportCaseId = requireRouteUuid(parts[3] ?? '', 'support case id');
+      const assignees = await listSupportCaseAssignees(env, actor, supportCaseId, { includeRequested: true });
+      return json({ assignees: assignees.map(supportCaseAssigneeResponse) });
+    }
     if (parts[0] === 'users') {
       // 사용자 디렉터리 관리 — 관리자 전용(gateway 내부에서 강제). 자기 기관만.
       if (request.method === 'GET' && parts.length === 1) {
@@ -3643,4 +3892,15 @@ export async function handleRequest(
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+function requestDirectoryRoles(body: Record<string, unknown>, key: string): DirectoryRole[] {
+  const values = body[key];
+  if (!Array.isArray(values) || values.length > 3) throw new ValidationError('account roles are invalid');
+  return values.map((role) => {
+    if (role !== 'institution-admin' && role !== 'technical-admin' && role !== 'worker') {
+      throw new ValidationError('account role is invalid');
+    }
+    return role;
+  });
 }

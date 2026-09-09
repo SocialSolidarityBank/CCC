@@ -20,7 +20,7 @@ import {
   unassignCase,
 } from '@ccc/core/gateway';
 import { ANIMAL_SLUG_BENEFICIARY_ID_PATTERN } from '@ccc/contracts/animal-slugs';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 import { seedCanonicalSttConsent } from './support/agent-jobs';
 
 const {
@@ -40,18 +40,63 @@ describe('gateway foundation', () => {
   it('creates an assigned case, blocks an unassigned counselor, and records audit events', async () => {
     await t.reset();
 
-    const created = await createCase(t.env, counselor, { programType: 'financial_support_v1' });
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     expect(created.id).toMatch(ANIMAL_SLUG_BENEFICIARY_ID_PATTERN);
     await expect(getCase(t.env, unassignedCounselor, created.id)).rejects.toBeInstanceOf(ForbiddenError);
 
-    const audit = await listAuditLog(t.env, admin, { caseId: created.id });
-    expect(audit.map((entry) => entry.action)).toEqual(expect.arrayContaining(['create', 'assign']));
+    const audit = await listAuditLog(t.env, admin, { supportCaseId: created.id, limit: 100 });
+    expect(audit.items.map((entry) => entry.action)).toEqual(expect.arrayContaining(['create', 'assign']));
+    expect(audit.items.every((entry) => !('targetId' in entry))).toBe(true);
+  });
+  it('returns audit metadata in stable bounded descending pages', async () => {
+    await t.reset();
+    await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+
+    const first = await listAuditLog(t.env, admin, { limit: 1 });
+    expect(first.items).toHaveLength(1);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    expect(first.items[0]).toEqual(expect.objectContaining({
+      id: expect.any(Number),
+      actorId: expect.any(String),
+      actorRole: expect.any(String),
+      action: expect.any(String),
+      targetTable: expect.any(String),
+      beneficiaryId: expect.anything(),
+      supportCaseId: expect.anything(),
+      createdAt: expect.any(String),
+    }));
+    expect(first.items[0]).not.toHaveProperty('targetId');
+    expect(first.items[0]).not.toHaveProperty('detail');
+
+    const second = await listAuditLog(t.env, admin, { limit: 1, cursor: first.nextCursor! });
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]!.id).toBeLessThan(first.items[0]!.id);
+  });
+
+  it('requires an active institution-admin role for audit reads', async () => {
+    await t.reset();
+    await expect(listAuditLog(t.env, counselor)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(listAuditLog(t.env, service)).rejects.toBeInstanceOf(ForbiddenError);
+    await t.db.prepare(
+      `UPDATE user_role_assignments SET revoked_at = '2026-01-01T00:00:00.000Z'
+       WHERE user_id = ? AND org_id = ? AND role = 'institution_admin'`,
+    ).bind(admin.userId, admin.orgId).run();
+    await expect(listAuditLog(t.env, admin)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('rejects offset timestamps before lexicographic audit range comparison', async () => {
+    await t.reset();
+    await expect(listAuditLog(t.env, admin, {
+      from: '2026-09-09T09:00:00+09:00',
+      to: '2026-09-09T10:00:00.000Z',
+    })).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('does not expose a legacy case through a requested assignment', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, { programType: 'financial_support_v1' });
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const supportCase = await t.db.prepare(
       'SELECT id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
     ).bind(created.id, counselor.orgId).first<{ id: string }>();
@@ -73,12 +118,12 @@ describe('gateway foundation', () => {
   });
   it('fails legacy case creation, assignment, and transfer closed without organization settings', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await t.db.prepare('DELETE FROM organization_settings WHERE org_id = ?')
       .bind(counselor.orgId)
       .run();
 
-    await expect(createCase(t.env, counselor, {})).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(assignCase(t.env, admin, created.id, unassignedCounselor.userId, 'secondary'))
       .rejects.toBeInstanceOf(ForbiddenError);
     await expect(transferCase(t.env, admin, created.id, counselor.userId, unassignedCounselor.userId))
@@ -87,7 +132,7 @@ describe('gateway foundation', () => {
 
   it('rejects unknown and inactive human assignees without provisioning directory rows', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const unknownUserId = 'unknown@example.invalid';
 
     for (const userId of [unknownUserId, inactiveCounselor.userId]) {
@@ -103,7 +148,7 @@ describe('gateway foundation', () => {
 
   it('encrypts PII, allows only an admin to reveal it, and keeps plaintext out of audit detail', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     // enc_email(#32·D3)도 이름·연락처·계좌와 같은 AES-GCM 경로로 저장·복호화됨을 함께 확인한다.
     await registerPii(t.env, admin, created.id, {
@@ -175,7 +220,7 @@ describe('gateway foundation', () => {
 
   it('denies cross-org, service, and unassigned counselor PII reveals without plaintext or decrypt audits', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const pii = {
       name: 'NAME_REVEAL_DENIED',
       phone: 'PHONE_REVEAL_DENIED',
@@ -232,7 +277,7 @@ describe('gateway foundation', () => {
 
   it('requires archive review before purge while preserving the vault row', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await registerPii(t.env, admin, created.id, { name: 'NAME_DEMO' });
 
     await expect(processParticipantPiiRetention(t.env))
@@ -286,7 +331,7 @@ describe('gateway foundation', () => {
 
   it('preserves assignment history during transfer and protects the final active assignee', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const secondaryUser = 'secondary.demo@example.invalid';
     const replacementUser = 'replacement.demo@example.invalid';
     await t.db.batch([
@@ -327,14 +372,14 @@ describe('gateway foundation', () => {
 
   it('rejects an org mismatch before returning a case', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     await expect(getCase(t.env, otherOrgAdmin, created.id)).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('limits case lists to assigned counselors and rejects the service role', async () => {
     await t.reset();
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     await expect(listCases(t.env, counselor)).resolves.toEqual([
       expect.objectContaining({ id: created.id }),
@@ -345,7 +390,7 @@ describe('gateway foundation', () => {
   it('persists complete pilot text-AI evidence and rejects malformed or unauthorized writers without evidence writes', async () => {
     await t.reset();
     t.env.TEXT_AI_PILOT_ENABLED = '1';
-    const created = await createCase(t.env, counselor, {});
+    const created = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const input = {
       noticeVersion: 'pilot-text-ai-v1',
       noticeSha256: SHA256,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 // org_demo 는 setupD1 가 Asia/Seoul(UTC+9)로 프로비저닝한다. 앵커 07-16 기준
 // 다가오는 창은 UTC [2026-07-15T15:00Z, 2026-07-23T15:00Z) 이다.
@@ -26,7 +26,7 @@ interface SeededCase {
 async function seedOwnedCase(): Promise<SeededCase> {
   await t.reset();
   const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
   return { beneficiaryId: owned.beneficiaryId, supportCaseId: owned.supportCaseId };
