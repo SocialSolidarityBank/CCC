@@ -233,3 +233,92 @@ DESIGN이 위 export 패치를 적용하면 FRONTEND는 `@ccc/web/wire`에서 �
 2. ORCHESTRATOR가 `wire-section.tsx`/`wire-styles.ts` 변경을 별도 후속 슬롯으로 배정한다. 7개 호출자 LSP 분석 선행.
 3. FRONTEND는 이번 커밋(`client-surface.ts`) 후 `apps/client/src/business/settings-modules.tsx`를 컴파일 검증한다.
 4. BACKEND `integrate/beta-0.9-backend` 브랜치 통합이 확정되면 ORCHESTRATOR가 레거시 웹 슬롯(`api.ts`, `actions.ts`, `participants/**`)의 담당을 배정한다.
+
+---
+
+## FRONTEND P1/P2 소비 감사: `apps/client/src/business/business.css`
+
+감사 기준: DESIGN 레인 읽기 전용. 소스 비교 감사이며 브라우저 픽셀 QA가 아니다.  
+대상: 후보 `71778f3:apps/client/src/business/business.css` (62줄) + `business-page.tsx` + 전 business 모듈(10개).  
+비교 기준: `DESIGN-RULES.md`, `apps/web/app/components/wire/wire-styles.ts`, `apps/web/app/layout.tsx` 현행 main.
+
+### 클래스 이름 전수 대사 (orphan 없음)
+
+| 클래스 | 정의처 | 판정 |
+|---|---|---|
+| `business-form` | `business.css` | ✓ |
+| `business-actions` | `business.css` | ✓ |
+| `business-qr` | `business.css` | ✓ |
+| `settings-layout` | `business.css` | ✓ |
+| `settings-content` | `business.css` | ✓ |
+| `settings-navigation` | `business.css` (선택자 한정자만, 독립 규칙 없음) | ✓ |
+| `settings-navigation-list` | `business.css` | ✓ |
+| `navigation-link` | `business.css` | 아래 필수 교정 참조 |
+| `page-header`, `page-actions`, `page-content` | `layout.tsx` 공유 CSS → `composeSharedCss()` | ✓ |
+| `wire-choice-group`, `wire-fieldset`, `wire-form-hint`, `wire-section-value` | `wire-styles.ts` 공유 CSS → `composeSharedCss()` | ✓ |
+
+orphan 클래스(정의도 공유도 없는 이름) 없음.
+
+### 토큰 준수 확인 (경쟁 디자인 값 없음)
+
+`business.css`가 직접 지정하는 모든 비구조값은 `var(--*)` 토큰이다. 위반 없음:
+- 간격: `var(--space-5)`, `var(--space-3)`, `var(--space-0-5)`, `var(--space-4)`, `var(--section-gap)` 전용
+- 색, 폰트 크기/굵기, border-radius, box-shadow: 직접 값 없음
+- 원시 px 두 곳: `minmax(220px, 280px)` (settings nav 열 폭). 220=55×4, 280=70×4, 4의 배수 준수. 레이아웃 격자 정의에 토큰이 없는 구조 값이며, 280은 D58 승인 사이드바 최대 폭과 일치. 색·폰트·간격 계약을 침범하지 않음
+- 미디어 쿼리 `(max-width: 767px)`: 단일 브레이크포인트 계약과 일치
+
+10개 business 모듈 전체: `style=` 속성 없음. 런타임 inline style 없음.
+
+### 필수 교정 1건
+
+**`.navigation-link` 선택 상태·호버·포커스 누락**
+
+`business-page.tsx`의 `SettingsLink`는 활성 항목에 `aria-current="page"`와 `data-current="true"`를 설정한다. 그러나 `business.css`에 이 속성을 대상으로 하는 규칙이 없어 선택된 설정 메뉴 항목에 시각적 표시가 없다. 호버와 `focus-visible`도 없다.
+
+이는 DESIGN-RULES의 접근성 필수 상태 구분 요구(키보드·보조기기 사용자에게 현재 위치 전달)와 "중요한 값을 민짜 본문으로 두면 위반" 계약을 함께 어긴다.
+
+FRONTEND가 `business.css`에 추가할 최소 규칙 — 기존 토큰만 사용하고 새 값을 만들지 않는다:
+
+```css
+.settings-navigation-list .navigation-link {
+  border-radius: var(--radius-control);
+  padding-inline: var(--space-4);
+  padding-block: var(--space-2);
+  color: var(--ink);
+}
+.settings-navigation-list .navigation-link:hover {
+  background: var(--gradient-hover);
+}
+.settings-navigation-list .navigation-link:focus-visible {
+  outline: var(--wire-outline-width) solid var(--gradient-brand);
+  outline-offset: -2px;
+}
+.settings-navigation-list .navigation-link[aria-current="page"],
+.settings-navigation-list .navigation-link[data-current="true"] {
+  background: var(--gradient-action);
+  color: var(--on-action);
+}
+```
+
+이 규칙은 토큰 감사 대상이다. `guard:tokens`가 이 파일을 검사 범위에 포함하는지 FRONTEND가 확인한다. 포함되지 않으면 값만 직접 검토한다.
+
+### 관찰: 모바일 WireCardSection 구분선 재정의
+
+`business.css`의 모바일 미디어 쿼리가 `.settings-navigation .wire-card-section + .wire-card-section`의 `margin-inline`, `padding-top`, `padding-inline`, `border-top`을 0으로 덮는다. 이는 WireCardSection 내부 구분선을 직접 재정의하는 것이다.
+
+이유: 모바일에서 settings nav가 2열 격자로 전환되면 수직 구분선이 의미를 잃는다. 범위가 `.settings-navigation` 안으로만 한정돼 있어 다른 화면에 영향 없음. `wire-styles.ts`가 해당 속성을 바꾸면 이 재정의가 깨질 수 있다. 이번 패치에서 교정하지 않고 관찰로 기록한다.
+
+### 정적 CSS·CSP 통합 계약 (FRONTEND 수령 사항)
+
+| 자산 | 생성 방법 | CSP |
+|---|---|---|
+| 공유 CSS (토큰 + layout + wireStyles) | `composeSharedCss()` 호출, Vite 빌드 출력 → `dist/assets/*.css` 정적 파일 | `style-src 'self'` ✓ |
+| `business.css` | Vite가 `import './business.css'` 처리 → `dist/assets/*.css` 정적 파일 | `style-src 'self'` ✓ |
+
+- **순서:** 공유 CSS 먼저, `business.css` 나중. Vite 기본 처리(import 순서)가 이를 보장한다.
+- `<style>` 태그 런타임 삽입 없음. `dangerouslySetInnerHTML` 없음. `style=` 속성 없음.
+- 런타임 CSS-in-JS 없음. 새 의존성 없음(candidate `package.json` 변경은 `@ccc/contracts`, `@supabase/supabase-js` 두 가지뿐이며 CSS와 무관).
+
+### 소비 판정
+
+**`business.css`는 위 필수 교정 1건(`.navigation-link` 상태 규칙 추가)을 FRONTEND가 직접 적용한 뒤 소비 가능하다.** 디자인 시스템과 경쟁하는 새 값이 없고 공유 토큰 안에서 동작한다. DESIGN이 이 파일을 수정하지 않는다 — 파일 소유는 FRONTEND 레인(`apps/client/**`)이다.
