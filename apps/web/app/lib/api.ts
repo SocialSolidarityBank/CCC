@@ -2,6 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
+import { STT_MODES, type AgentStatus, type CapabilityDisabledReason, type SttMode } from '@ccc/contracts/runtime';
 
 export type ApiErrorCode =
   | 'authentication_required'
@@ -2442,6 +2443,40 @@ export async function getAiProviderStatus(): Promise<AiProviderStatus> {
         return value === null ? null : responseBoolean(runtime, 'matches');
       })(),
     },
+  };
+}
+
+const agentStatuses: readonly AgentStatus[] = ['connected', 'delayed', 'authentication_error', 'quota_exceeded', 'inactive'];
+type SttDisabledReason = Exclude<CapabilityDisabledReason, null>;
+const sttDisabledReasons: readonly SttDisabledReason[] = ['unverified', 'missing_key', 'unsupported'];
+
+/**
+ * `GET /capabilities` 의 STT 부분(S2 §2.8, E1-7). 화면은 이 값을 읽기만 한다 — STT 모드를 쓰는
+ * 엔드포인트는 없고, 설치 사실은 signed install manifest 와 배포 env 가 정한다(D77).
+ */
+export interface SttCapabilities {
+  sttMode: SttMode;
+  sttEngine: string | null;
+  agentStatus: AgentStatus;
+  options: Array<{ mode: SttMode; enabled: boolean; disabledReason: SttDisabledReason | null }>;
+}
+
+/** 기술 관리자 전용 화면 재료. manifest 가 없거나 검증에 실패하면 API 가 503 이라 `service_unavailable` 이 온다. */
+export async function getSttCapabilities(): Promise<SttCapabilities> {
+  const payload = await requestJson<unknown>('/capabilities');
+  const record = responseObject(payload);
+  return {
+    sttMode: responseEnum(responseProperty(record, 'sttMode'), STT_MODES),
+    sttEngine: responseNullableString(record, 'sttEngine'),
+    agentStatus: responseEnum(responseProperty(record, 'agentStatus'), agentStatuses),
+    options: responseArray(record, 'sttOptions').map((value) => {
+      const option = responseObject(value);
+      return {
+        mode: responseEnum(responseProperty(option, 'mode'), STT_MODES),
+        enabled: responseBoolean(option, 'enabled'),
+        disabledReason: responseNullableEnum(responseProperty(option, 'disabledReason'), sttDisabledReasons),
+      };
+    }),
   };
 }
 
