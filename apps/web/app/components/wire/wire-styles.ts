@@ -1443,30 +1443,39 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
 .wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
-/* 월간 격자 (D88 ①, 2026-09-10).
-   7열 격자. 셀 최소 높이 148px(모바일 88px).
-   요일 행: --gradient-brand 연속 면, 두 테마 고정 --on-action 글자.
-   날짜·일정 이름: --text-badge 12px(D88 ⑥ 예외 — .month-date · .calendar-event-title).
-   넘침: +N건 → 일간 보기. 바깥 달 셀은 [data-out-of-month] 속성 */
-.month-calendar{display:grid;gap:0;min-width:0}
-.month-weekday-header{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--gradient-brand)}
-.month-weekday-cell{padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:500;line-height:normal;text-align:center;color:var(--on-action)}
-.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-left:1px solid var(--line);border-top:1px solid var(--line)}
-.month-cell{min-height:148px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:var(--space-1-5);display:flex;flex-direction:column;gap:var(--space-0-5);overflow:hidden;min-width:0}
+/* 월간 격자 (D88 ①, 2026-09-10). <table> 의미론 — border-collapse:collapse.
+   border-box 그라데이션 테두리는 border-collapse 에서 동작하지 않으므로 오늘 셀은
+   --blue-tint 배경으로 구분한다(TimeAxisBadge 와 같은 시간 축 색).
+   요일 행: <thead> 의 --gradient-brand 면 하나가 투명 <th> 뒤로 연속으로 보인다.
+   날짜·이름: --text-badge 12px(D88 ⑥ 예외 — .month-date · .calendar-event-title).
+   이벤트 색: 5가지 variation 색상의 왼쪽 테두리(D88 ②, 승인된 --badge-* 토큰만). */
+.month-calendar{width:100%;min-width:0;border-collapse:collapse;table-layout:fixed}
+/* <thead> 배경이 투명 <th> 셀을 통해 하나의 연속 그라데이션으로 보인다. */
+.month-weekday-header{background:var(--gradient-brand)}
+.month-weekday-cell{background:transparent;padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:500;line-height:normal;text-align:center;color:var(--on-action)}
+/* height:148px 은 border-collapse 에서 min-height 처럼 동작한다(내용이 더 크면 행이 늘어난다). */
+.month-cell{height:148px;border:1px solid var(--line);vertical-align:top;padding:var(--space-1-5);overflow:hidden}
+/* display:flex 로 날짜 숫자·이벤트·넘침 링크를 세로로 쌓는다. */
+.month-cell{display:table-cell}
+.month-date,.calendar-event,.month-overflow-link{display:block}
 .month-cell[data-out-of-month="true"]{background:var(--muted);opacity:.6}
 .month-cell[data-temporal="past"]{background:var(--muted)}
-/* 오늘 셀: --gradient-brand 테두리(선택 카드와 같은 패턴). */
-.month-cell[data-temporal="today"]{--surface-fill:var(--panel);border-color:transparent;background:linear-gradient(var(--surface-fill),var(--surface-fill)) padding-box,var(--gradient-brand) border-box}
-/* D88 ⑥: 셀 날짜 숫자는 12px 예외. 셀 밖으로 퍼지지 않는다. */
+/* 오늘 셀: TimeAxisBadge 와 같은 --blue-tint. border-box 그라데이션은 border-collapse 미지원. */
+.month-cell[data-temporal="today"]{background:var(--blue-tint)}
+/* D88 ⑥: 날짜 숫자 12px. 셀 밖으로 퍼지지 않는다(소유자 .month-date). */
 .month-date{font-size:var(--text-badge);font-weight:400;line-height:normal;color:var(--ink)}
 .month-cell[data-temporal="today"] .month-date{font-weight:600}
-/* 이벤트 행: 말줄임. 색·배지는 BACKEND display_color 연동 이후(D88 ② 선행 조건). */
-.calendar-event{display:block;overflow:hidden;min-width:0}
+/* 이벤트 행: 말줄임. href 있으면 WireLink 컨텍스트로 감싸진다. */
+.calendar-event{overflow:hidden;min-width:0;padding:0 var(--space-1)}
 .calendar-event-title{display:block;font-size:var(--text-badge);font-weight:400;line-height:normal;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* +N건 → 일간 뷰 링크. 남은 공간 아래에 붙는다. */
-.month-overflow-link{display:block;font-size:var(--text-detail);font-weight:400;line-height:normal;color:var(--blue-deep);margin-top:auto;white-space:nowrap;text-decoration:none}
-@media(max-width:767px){
-  .month-cell{min-height:88px;padding:var(--space-1)}
-}
+/* 이벤트 색 왼쪽 테두리 — D88 ② 승인된 5색. --badge-* 는 배지 계열 면 토큰이다. */
+.calendar-event--mint{border-left:2px solid var(--badge-mint)}
+.calendar-event--lavender{border-left:2px solid var(--badge-lavender)}
+.calendar-event--coral{border-left:2px solid var(--badge-coral)}
+.calendar-event--cyan{border-left:2px solid var(--badge-cyan)}
+.calendar-event--light-magenta{border-left:2px solid var(--badge-light-magenta)}
+/* +N건 → 일간 뷰 링크. */
+.month-overflow-link{font-size:var(--text-detail);font-weight:400;line-height:normal;color:var(--blue-deep);white-space:nowrap;text-decoration:none}
+@media(max-width:767px){.month-cell{height:88px;padding:var(--space-1)}}
  `;
  

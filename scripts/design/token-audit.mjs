@@ -179,6 +179,10 @@ const UNUSED_BUT_CONTRACTED = new Set([
   'motion-flow',
   'motion-press',
   'motion-rise',
+  // D88 ② 월간 격자 이벤트 색 5종(2026-09-10). WireMonthCalendarEventColor 계약의 일부.
+  // 마크업은 `calendar-event--${event.color}` 템플릿으로 동적 생성되어 정적 스캔에 잡히지 않는다.
+  // mint·lavender·coral 은 테스트 렌더가 감지하지만 cyan·light-magenta 는 테스트 미사용.
+  'calendar-event--cyan', 'calendar-event--light-magenta',
 ]);
 
 // 마크업 스캔 대상: 공용 wire 클래스를 쓰는 화면 전부다. apps/client 는 공개 엔트리로 같은
@@ -263,6 +267,8 @@ const MARKUP_HOOKS = new Set([
   'briefing-more',          // HERO '전체 상담 기록' 버튼 식별 훅(테스트 앵커 — 구 CSS 는 2026-08-06 폐지)
   'schedule-day-accordion', // 지난 날짜(.schedule-past-day)와 가르는 상태 훅 — 옷은 WireCardDetails 기본
   'schedule-day-heading',   // 날짜 제목 조각 — 옷은 .schedule-day-summary-title 상속, 테스트 앵커
+  'month-grid',     // D88 월간 격자 <tbody> 식별 훅 — 옷은 네이티브 <tbody> 기본, 테스트 앵커
+  'month-week-row', // D88 월간 격자 <tr> 식별 훅 — 옷은 네이티브 <tr> 기본, 테스트 앵커
 ]);
 
 const usedClasses = new Map(); // name -> { file, line } 첫 등장
