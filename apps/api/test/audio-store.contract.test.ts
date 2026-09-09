@@ -8,6 +8,7 @@ import type {
 import { createR2AudioStore } from '@ccc/audio-r2';
 import { handleRequest } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
+import { fileAudioStoreContract } from '../../../adapters/audio-file/test/contract';
 
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 const KEY = 'audio/session_01/550e8400-e29b-41d4-a716-446655440000';
@@ -471,3 +472,5 @@ describe('R2 AudioStore contract', () => {
     await expect(store.createDownloadTarget(KEY)).resolves.toBeNull();
   });
 });
+
+fileAudioStoreContract();

@@ -475,3 +475,59 @@ For administrator registration, consume all pages and select accounts where `act
 - Local language-server references were unavailable because no server is configured. Caller inventory used repository searches; the existing directory API was retained instead of creating a competing contract.
 
 Main owns PostgreSQL replay and the frontend handoff decision. This checkpoint is not hosted Auth, real deployment, frontend integration, product STT activation or installer completion. Installer writer work remains pending Main's resolution of its concrete trust/ownership blocker and separate authorization.
+
+## E7-1a independent file and timer adapters
+
+Main approved independently authenticated fixed-size chunks and a narrow extraction of existing R2 audio validation into `@ccc/contracts/audio`. P3 gateway/HTTP paths remain frozen. This slice does not implement the E7-1a identity/bearer remainder or E7-1b runtime assembly. Root dependency/lock files remain frozen.
+
+### Internal audio-file format version 1
+
+This is a new internal format with no existing persisted users. `createFileAudioStore(root, { bytes, version })` takes exactly 32 mutable key bytes and a positive uint32 key version supplied by composition from `FILE_ENC_KEY`. It copies them into a Node `KeyObject`, does not retain the caller's byte array and never fetches or stores secrets. DPAPI, rotation, key selection and Recovery Kit rewrap remain S9 assembly responsibilities. The configured root must be private; missing parents are not created.
+
+All integers below are unsigned big-endian. AES is AES-256-GCM with 16-byte tags.
+
+1. Prefix: magic `43 43 43 41 01` followed by uint32 header length, bounded to 1..4096 bytes.
+2. Header: exact UTF-8 `JSON.stringify` bytes with ordered keys `formatVersion`, `keyVersion`, `chunkBytes`, `keyHash`, `generationId`, `noncePrefix`, `contentLength`, `contentType`, `expiresAt`. Values include version 1, chunk size 65,536, SHA-256 of the validated object key, random canonical UUID generation, random 8-byte prefix encoded as 16 lowercase hex characters, and the original validated metadata. Re-encoding must match byte-for-byte; extra/reordered/noncanonical fields fail. Stored metadata may outlive upload authorization, as with R2.
+3. Per-object key: HKDF-SHA-256, input key `FILE_ENC_KEY`, salt `UUID bytes || nonce-prefix bytes`, info `UTF8("CCC-AUDIO-FILE\0v1\0object-key")`, output 32 bytes. Derived temporary key bytes are zeroed after constructing the object `KeyObject`. This avoids relying on uniqueness of an 8-byte nonce prefix across all objects encrypted by one master key.
+4. Every record nonce is `noncePrefix[8] || uint32(recordIndex)`. Every record AAD is `UTF8("CCC-AUDIO-FILE\0v1") || completePrefixAndHeader || uint8(recordKind) || uint32(recordIndex) || uint32(plaintextLength)`.
+5. Header authentication is an empty-plaintext record, kind 0, index 0, length 0. Its 16-byte tag immediately follows the header.
+6. Data records are kind 1, indices 1 through `ceil(contentLength / 65536)`. Each stores ciphertext followed by its tag. All plaintext records are exactly 65,536 bytes except the final remainder; lengths and record boundaries follow the authenticated header, not unauthenticated per-record lengths.
+7. Mandatory completion record: kind 2, index `chunkCount + 1`, plaintext length 40. Plaintext is `uint32(totalLength) || uint32(chunkCount) || SHA256(completePlaintext)[32]`. Its ciphertext and tag occupy exactly 56 bytes, followed by EOF. Exact file length is `9 + headerLength + 16 + contentLength + 16*chunkCount + 56`.
+
+`get` opens one nofollow file descriptor, authenticates the header and completion record and checks exact file geometry before returning a stream. Each data chunk is authenticated before any of its plaintext is enqueued. The last chunk is withheld until the completion record is authenticated again on the same descriptor, the incremental plaintext hash matches, and an actual EOF read plus file-size check succeeds. There is no whole-file verify/reread pass, plaintext temporary file or whole-audio allocation. A truncation/modification after `get` can produce a stream error, never successful completion with an incomplete object. Consumers must treat clean EOF as success; previously emitted chunks are authenticated prefixes, not proof of whole-object completion.
+
+`put` uses the existing key, canonical MIME, length, expiry and checked-stream rules. SHA-256 is incremental via Node crypto. It packs arbitrary source chunks into bounded 64 KiB records and writes encrypted-only stages inside an exclusively created key-hash directory. After completion and file fsync, exclusive hard-link promotion publishes `object` without replacement, removes the stage link and fsyncs its parent. Partial/overrun/expired/error streams do not publish. An upload key is immutable and cannot be reused after durable deletion. Both target methods return `null`.
+
+### Durable filesystem deletion
+
+The root contains key-hash directories, not raw session keys. Files are created exclusively with nofollow and mode 0600; directories use 0700. Deletion uses two small authenticated metadata records per key:
+
+- `<keyHash>.delete` is the durable, permanent deletion intent and publication fence.
+- `<keyHash>.accepted` records durable cleanup acceptance and the committed object's authenticated generation, if one existed.
+
+Each record is UTF-8 JSON followed by LF and lowercase HMAC-SHA-256 hex. MAC input is `UTF8("CCC-AUDIO-DELETE\0v1") || JSON bytes` under the master file key. The ordered body fields are `formatVersion`, `keyVersion`, `keyHash`, `deletionAttemptId`, `deletionRequestedAt`, `generationId`, `deletedAt`. Intent has null generation/deleted time. Acceptance has its observed generation or null for never-committed stages and a durable-cleanup acceptance timestamp. These records contain neither audio, raw keys, secret material nor Agent-verified object hashes.
+
+Each record is written to an exclusive temporary file, fsynced, published by a no-overwrite hard link and followed by directory fsync. Existing records are authenticated and reused, not overwritten. The intent is durable before the whole object/staging directory is atomically renamed to `<keyHash>.deleted-<attemptId>` on the same filesystem and the root is fsynced. An in-flight writer's original stage path then cannot be promoted. Publication checks the intent both before and after creating its directory, closing the missing-key race.
+
+Acceptance is persisted before tombstone cleanup. The encrypted tombstone contents are removed and the root fsynced before success is reported. Retry/restart uses the same attempt and accepted generation/time; it resumes an existing tombstone, rather than inferring historical unlink success from absence. A crash after rename but before an acceptance receipt is recorded is recovered as a newly durable cleanup acceptance, not a fabricated original unlink timestamp.
+
+Every delete call freshly computes directory-list absence, metadata `lstat` absence and actual `stat` `ENOENT`, with `verificationMethod: 'filesystem-stat-enoent'`. `objectSha256` stays null because this adapter does not own Agent verification. Corrupt journals, generation reappearance, permission/fsync/rename/cleanup errors or failed observations cannot produce terminal four-true evidence. Per-key journal reconciliation is adapter-owned; scanning DB intents and choosing lifecycle transitions remain the existing core runner's responsibility.
+
+### Node scheduler boundary
+
+`createNodeScheduler(runner, onError)` consumes the existing `ScheduledJobRunner` and implements `Scheduler`, adding `close()` for service shutdown. It supports the repository's UTC numeric/wildcard/step minute/hour expressions with wildcard day/month/weekday fields, including existing 2m, 5m, 30m and daily schedules. Unsupported syntax fails closed instead of being approximated.
+
+Registration is keyed by job kind. Replacement cancels the old timer without overlapping an in-flight invocation. Delayed ticks run once with their original scheduled UTC instant; busy/suspended intervals do not generate a backlog queue. Completion schedules the next future tick. `close()` stops timers and drains work. Runner failures are reported as only kind, scheduled time and `scheduled_job_failed`; a broken error callback stops scheduling and makes close fail safely. No watchdog, retention, expiry, retry, consent or cron business body is duplicated. Runtime assembly still owns startup reconciliation and schedule registration.
+
+### Required platform evidence
+
+Local source/fixture verification does not establish Windows support. E7/E8 still need actual Windows Node and NTFS evidence for exclusive hard links, nofollow checks, private ACL provisioning, directory fsync, rename/unlink with open handles, crash/power-loss recovery and service-account permissions. Unsupported durability operations must fail, not silently fall back to plaintext or weaker evidence. S4's E8-8 reference gate is specifically Windows 11 Pro 24H2 x64 with Node 24.13.3 and its fixed hardware/workload; macOS Node 24.18.0 results cannot close it. DPAPI CurrentUser, alternate-SID restore/key-version handling, service-owned scheduler/watchdog and full profile wiring remain unexercised.
+
+### Source and local verification evidence
+
+- Existing AudioStore contract registration now runs the original **20 R2 cases** unchanged plus **12 filesystem cases**, all passing. Filesystem coverage includes canonical MIME round-trip, exactly 209,715,200 bytes, oversized/short/overrun input, wrong key/version, chunk tampering/reordering, header/footer mutation, truncation/append/substitution, mutation during a live stream, exclusive publication, durable deletion replay, reconstructed rename-before-receipt recovery, recreated/corrupt deletion state, upload/delete race, symlink refusal and stalled-upload cancellation.
+- Node scheduler tests: **4 passed**, covering UTC boundaries and scheduled instants, reschedule/nonoverlap/draining close, safe failure reporting followed by the next invocation, unsupported syntax and delayed-tick backlog avoidance.
+- A standalone bundled Node program streamed **209,715,200 bytes** through put/get after reopening the adapter, compared SHA-256, then used an actual minute-boundary Node timer and a synthetic `ScheduledJobRunner` to delete the file. It verified actual `stat` `ENOENT`, generation-bound evidence and deletion replay after reopening. Node **v24.18.0**, **darwin arm64**, maximum emitted chunk **65,536 bytes**, observed process maximum RSS **109,888 KiB**. It exited 0; its source/bundle were removed. This is a real adapter/timer exercise, not execution of the core lifecycle job body or Windows qualification.
+- Scoped adapter/fixture TypeScript and existing API TypeScript checks passed, as did core-import and DB-gateway guards. No PostgreSQL or project-wide test suite ran.
+- `pnpm exec` attempted automatic installation after the new workspace manifests appeared and was rejected by frozen-lock validation. No lock update was accepted. Subsequent checks used existing `node_modules/.bin` executables directly. Main must acquire the lockfile slot and add the two workspace importers before ordinary pnpm workspace commands/CI installation can accept these source manifests.
+- P3 gateway and HTTP source were not edited. Root package, lock and parity hashes remain unchanged. No hosted account, secret, DPAPI, Windows, frontend, design, runtime assembly or installer writer mutation occurred.
