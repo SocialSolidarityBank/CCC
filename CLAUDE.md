@@ -339,11 +339,12 @@ GitHub Issues(`SocialSolidarityBank/CCC`)를 `gh` CLI로 사용한다. 상세: `
 
 #### 업무 클라이언트 프런트엔드 레인 예외 (2026-09-09 Q 승인)
 
-Q가 `.worktrees/frontend`를 업무 클라이언트(D80 `apps/client`) 프런트엔드 작업 공간으로 승인했다. 이 예외는 그 앱의 화면 구현과 검수·출고 연결에만 적용한다.
+Q가 `.worktrees/frontend`를 업무 클라이언트(D80 `apps/client`) 프런트엔드 작업 공간으로 승인했다. 2026-09-09 후속으로 STT 설정 상태 화면도 이 레인이 맡는다. `design-adjustments`가 자기 화면 작업으로 점유 중이어서 같은 워크트리에서 두 브랜치를 동시에 쓸 수 없기 때문이고, 대상 파일은 그 레인의 미커밋 변경과 겹치지 않는다.
 
 - 프런트엔드 레인은 `apps/client/**` 에서 `apps/client/src/stt-trial/**` 을 뺀 범위를 소유한다. `index.html`, `src/main.tsx`, `vite.config.ts`, `tsconfig.json`, `vitest.config.ts`, `public/**`, `apps/client/package.json` 이 여기 든다.
 - 루트 `package.json` 의 client 검사·빌드 연결, `pnpm-lock.yaml` 의 client 의존성, `scripts/design/` 의 client 검사 연결과 전용 fixture, `artifacts/design/client/**` 도 필요한 범위에서 수정할 수 있다. 기존 검사 알고리즘·기준·baseline·assertion을 완화하거나 unrelated 변경을 섞지 않는다.
 - 기존 웹 화면·공유 CSS·디자인 토큰·`DESIGN.md`·`DESIGN-RULES.md`·기존 웹 하니스의 소유권은 `design-adjustments`에 남는다. 이 레인은 읽고 재사용하되 바꾸지 않으며, 추가 공유 변경은 별도 인계를 먼저 받는다. `ccc-preview` 수동 배포 소유권도 그대로다.
+- STT 설정 상태 화면으로 `apps/web/app/admin/ai-provider/**` 와 `apps/web/app/lib/api.ts` 의 `GET /capabilities` 읽기 함수를 소유한다. 화면은 `GET /capabilities` 의 `sttMode`·`sttEngine`·`sttOptions`·`agentStatus` 를 보여주기만 하며, STT 모드를 쓰는 엔드포인트는 없다. `apps/web/app/components/wire/**` 와 `globals.css` 는 그대로 `design-adjustments` 소유이므로 기존 컴포넌트·클래스만 재사용하고, 새 컴포넌트나 새 CSS가 필요해지면 그 시점에 인계한다.
 - STT 시험 화면 파일은 `stt-client` 레인 소유다. 상대 레인의 파일을 직접 고치지 않고, 각 레인은 자기 워크트리에서만 파일·Git 작업을 한다. 상대 레인의 checkout, reset, clean, stash, 미커밋 파일 정리는 금지한다.
 - 이 예외는 새 디자인 체계나 product 동의·NER·signed registry 우회를 허용하지 않는다. 같은 디자인 규칙과 기능별 실화면 검수·게이트를 적용한다.
 
