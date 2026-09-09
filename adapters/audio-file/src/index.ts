@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { open, mkdir, realpath, lstat, stat, readdir, rename, link, unlink, rm, type FileHandle } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { createHash, createHmac, createSecretKey, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { AudioDeletionEvidence, AudioStore } from '@ccc/contracts/runtime';
+import type { AudioDeletionEvidence, AudioStore, VersionedSecretBytes } from '@ccc/contracts/runtime';
 import { AudioStoreError, checkedBody, hashKey, validKey, validMetadata, validSha256 } from '@ccc/contracts/audio';
 import { isRecord } from '@ccc/contracts/guards';
 import { CHUNK_BYTES, decryptRecord, encryptRecord, footer, newContext, readContext, readExact, readFooter, writeAll } from './format';
@@ -36,7 +36,7 @@ interface DeletionRecord {
   deletedAt: string | null;
 }
 /** Composition supplies one versioned FILE_ENC_KEY; this adapter never fetches or persists secret material. */
-export async function createFileAudioStore(rootPath: string, fileKey: { bytes: Uint8Array; version: number }): Promise<AudioStore> {
+export async function createFileAudioStore(rootPath: string, fileKey: VersionedSecretBytes): Promise<AudioStore> {
   if (!(fileKey.bytes instanceof Uint8Array) || fileKey.bytes.byteLength !== 32 || !Number.isInteger(fileKey.version) || fileKey.version < 1 || fileKey.version > 0xffffffff) throw new AudioStoreError();
   const master = createSecretKey(fileKey.bytes);
   const keyVersion = fileKey.version;

@@ -80,6 +80,23 @@ export interface CoreSecretStore {
   get(name: CoreSecretName): Promise<string | null>;
 }
 
+/** S9 recovery boundary: mutable bytes, never string/base64 material.
+ * The caller owns returned buffers and zeroizes them in finally on success and failure.
+ * Implementations return plain Uint8Array, not a native Buffer; native copies must also be wiped.
+ */
+export type SecretBytes = Uint8Array;
+export interface VersionedSecretBytes {
+  bytes: SecretBytes;
+  /** Positive key version; PII uses the PII_KEY_VERSION meaning. */
+  version: number;
+}
+/** Separate from the string runtime read port; provider and Python credentials are excluded. */
+export interface RecoverySecretStore {
+  getBytesWithVersion(
+    name: 'DB_MASTER_KEY' | 'FILE_ENC_KEY' | 'PII_ENC_KEY' | 'OFFICE_CA_KEY',
+  ): Promise<VersionedSecretBytes | null>;
+}
+
 /**
  * 예약 작업 포트. 실행기(Workers cron, Supabase pg_cron tick, Local 프로세스 타이머)는
  * 종류와 예약 시각만 넘기고, 작업 몸체는 runner 하나가 갖는다.
