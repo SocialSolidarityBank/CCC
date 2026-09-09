@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { decodeAssignmentRequests, decodeIdentity, decodeMemorySettings, SettingsApi } from './api';
 import { initialEditor, reduceEditor } from './editing';
 import { BusinessError } from './errors';
-import { capabilities, installation, installationId, json } from './test-support';
+import { capabilities, installation, installationId, json, readiness } from './test-support';
 
 describe('settings response boundaries', () => {
   it('accepts a nullable own-account email without manufacturing one', () => {
     const me = decodeIdentity({ id: 'user-1', orgId: 'org-1', email: null, name: null, active: true,
-      roles: ['worker'] });
+      roles: ['worker'], institution: readiness('org-1') });
     expect(me.email).toBeNull();
   });
 
@@ -39,7 +39,7 @@ describe('settings response boundaries', () => {
 
   it('retains a technical administrator without manufacturing institution-admin authority', () => {
     const me = decodeIdentity({ id: 'technical-user', orgId: 'synthetic-org', email: 'technical@example.invalid',
-      name: null, active: true, roles: ['technical-admin'], role: 'admin' });
+      name: null, active: true, roles: ['technical-admin'], role: 'admin', institution: readiness('synthetic-org') });
     expect(me.roles).toEqual(['technical-admin']);
     expect(() => decodeIdentity({ ...me, roles: ['admin'] })).toThrow(BusinessError);
     expect(() => decodeIdentity({ ...me, active: false })).toThrow(BusinessError);

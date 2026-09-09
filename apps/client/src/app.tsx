@@ -5,9 +5,17 @@ import {
   WireEmpty, WireError, WireLinkProvider, type WireLinkProps,
 } from '@ccc/web/wire';
 import type { CapabilityManifest } from '@ccc/contracts/runtime';
+
 import { CloudAuth } from './business/auth';
 import { AuthView } from './business/auth-view';
-import { SettingsApi, type MyIdentity, type OrganizationProfile } from './business/api';
+import { SettingsApi, type MyIdentity } from './business/api';
+import { InstitutionApi } from './business/institution';
+import { ParticipantsApi } from './business/participants';
+import type { Session } from './business/session';
+import {
+  ParticipantBasicInfoScreen, ParticipantHubScreen, ParticipantListScreen, ParticipantRegisterScreen,
+} from './screens/participants';
+import { InstitutionScreen } from './screens/institution';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
 import { canOpenDestination, destinationAt, visibleDestinations } from './business/navigation';
@@ -16,12 +24,6 @@ import { BusinessTransport } from './business/transport';
 import { SttTrialPage } from './stt-trial/stt-trial-page';
 
 interface Runtime { installation: VerifiedInstallation; auth: CloudAuth }
-interface Session {
-  auth: CloudAuth;
-  api: SettingsApi;
-  me: MyIdentity;
-  capabilities: CapabilityManifest;
-}
 let runtimePromise: Promise<Runtime> | undefined;
 
 function RouterLink({ href, ...props }: WireLinkProps) {
@@ -104,9 +106,13 @@ function AuthBoundary() {
 function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: number }) {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<BusinessError | null>(null);
+  // 초기 설정과 도입 확인을 저장하면 /me의 준비 관측값을 다시 읽는다.
+  const [identityNonce, setIdentityNonce] = useState(0);
   useEffect(() => {
     const transport = new BusinessTransport(runtime.installation, runtime.auth.getToken);
     const api = new SettingsApi(transport);
+    const participants = new ParticipantsApi(transport);
+    const institution = new InstitutionApi(transport);
     let live = true;
     const unsubscribe = runtime.auth.subscribe(() => {
       if (runtime.auth.getSnapshot().revision !== revision) {
@@ -118,7 +124,12 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
       try {
         const capabilities = await transport.initialize();
         const me = await api.me();
-        if (live) setSession({ auth: runtime.auth, api, me, capabilities });
+        if (live) {
+          setSession({
+            auth: runtime.auth, api, participants, institution, me, capabilities,
+            reloadIdentity: () => setIdentityNonce((current) => current + 1),
+          });
+        }
       } catch (cause) {
         if (!live) return;
         const failure = safeError(cause);
@@ -127,7 +138,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
       }
     })();
     return () => { live = false; unsubscribe(); transport.dispose(); };
-  }, [runtime, revision]);
+  }, [runtime, revision, identityNonce]);
   if (session && session.me.roles.length > 0) return <Outlet context={session} />;
   return <GridContainer as="main" className="page-content">
     <div className="page-header">
@@ -195,41 +206,6 @@ function SettingsScreen() {
   return <AccountModule me={session.me} api={session.api} onFailure={(error) => handleAuthFailure(session.auth, error)} />;
 }
 
-function InstitutionScreen() {
-  const session = useOutletContext<Session>();
-  const [profile, setProfile] = useState<OrganizationProfile | null>(null);
-  const [error, setError] = useState<BusinessError | null>(null);
-  useEffect(() => {
-    let live = true;
-    void session.api.getProfile().then((value) => { if (live) setProfile(value); }).catch((cause: unknown) => {
-      if (!live) return;
-      const failure = safeError(cause);
-      handleAuthFailure(session.auth, failure);
-      setError(failure);
-    });
-    return () => { live = false; };
-  }, [session.api, session.auth]);
-  return <WireCard title="기관 준비 확인">
-    {error && <WireError>{error.message}</WireError>}
-    {!profile && !error && <WireEmpty live>기관 정보를 확인하고 있습니다.</WireEmpty>}
-    {profile && <WireDataRows>
-      <WireDataRow label="기관 이름" value={profile.orgName ?? '등록되지 않음'} />
-      <WireDataRow label="사업 표시 이름" value={profile.programDisplayName ?? '등록되지 않음'} />
-    </WireDataRows>}
-    <WireCallout tone="info" title="준비 상태 확인 대기">
-      초기 설정 완료 여부와 첫 사업을 확인하는 응답 계약이 아직 연결되지 않았습니다. 표시 이름만으로 업무 준비가 끝났다고 판단하지 않습니다.
-    </WireCallout>
-  </WireCard>;
-}
-
-function ParticipantEntry() {
-  return <WireCard title="업무 진입 확인">
-    <WireCallout tone="info" title="기관 준비 상태 확인 대기">
-      초기 설정과 첫 사업의 확인 상태를 알 수 없어 당사자 업무를 아직 열지 않습니다. 당사자 등록이나 조회가 완료된 상태가 아닙니다.
-    </WireCallout>
-  </WireCard>;
-}
-
 function PublicScreen({ kind }: { kind: 'welcome' | 'join' | 'institution' | 'missing' }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -272,7 +248,10 @@ export const appRoutes: RouteObject[] = [{
         { element: <BusinessShell />, children: [
           { path: 'settings', element: <SettingsScreen /> },
           { path: 'onboarding', element: <InstitutionScreen /> },
-          { path: 'participants', element: <ParticipantEntry /> },
+          { path: 'participants', element: <ParticipantListScreen /> },
+          { path: 'participants/new', element: <ParticipantRegisterScreen /> },
+          { path: 'participants/:beneficiaryId', element: <ParticipantHubScreen /> },
+          { path: 'participants/:beneficiaryId/edit', element: <ParticipantBasicInfoScreen /> },
         ] },
       ] },
     ] },

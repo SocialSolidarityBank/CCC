@@ -1,4 +1,7 @@
 import type { ActorRole } from '@ccc/contracts/runtime';
+import type { InstitutionReadiness } from '@ccc/contracts/institution';
+import type { ProgramAdmissionState } from '@ccc/contracts/program-admission';
+import { CONSENT_DOMAINS } from '@ccc/contracts/consent';
 import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
 import { BusinessError } from './errors';
 import { BusinessTransport } from './transport';
@@ -18,6 +21,8 @@ export interface MyIdentity {
   name: string | null;
   active: true;
   roles: HumanRole[];
+  /** 로그인 라우팅이 읽는 관측값이다. 권한이나 hosted 준비 완료가 아니다. */
+  institution: InstitutionReadiness;
 }
 export interface OrganizationProfile {
   orgId: string;
@@ -72,7 +77,7 @@ export interface AuditLogFilter {
   supportCaseId?: string;
 }
 
-function record(value: unknown): Record<string, unknown> {
+export function record(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new BusinessError('invalid_response');
   return value as Record<string, unknown>;
 }
@@ -85,11 +90,59 @@ function safeAuditIdentifier(value: unknown): value is string {
   return typeof value === 'string' && value.length >= 1 && value.length <= 200
     && !/[\u0000-\u001f\u007f]/u.test(value);
 }
-function isNullableString(value: unknown): value is string | null {
+export function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
-function isOpaqueIdentifier(value: unknown): value is string {
+export function isOpaqueIdentifier(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(value);
+}
+
+const ADMISSION_STATES: readonly ProgramAdmissionState[] = ['ready', 'undecided', 'confirmation_required',
+  'selection_changed', 'notice_changed', 'settings_changed', 'storage_unavailable',
+  'processing_unavailable', 'installation_unavailable'];
+export function isAdmissionState(value: unknown): value is ProgramAdmissionState {
+  return typeof value === 'string' && (ADMISSION_STATES as readonly string[]).includes(value);
+}
+
+/** /me의 기관 준비 관측값. 값이 계약과 다르면 준비된 것처럼 보이게 만들지 않고 거부한다. */
+export function decodeInstitutionReadiness(value: unknown, orgId: string): InstitutionReadiness {
+  const row = record(value);
+  const first = row.firstProgram === null ? null : record(row.firstProgram);
+  const copy = record(row.consentCopy);
+  const domains = Array.isArray(copy.domains) ? copy.domains.map(record) : null;
+  if (row.orgId !== orgId || !isNullableString(row.orgName)
+    || (row.settingsState !== 'present' && row.settingsState !== 'missing')
+    || (row.creatorLinkState !== 'unlinked' && row.creatorLinkState !== 'linked' && row.creatorLinkState !== 'not_applicable')
+    || (row.initialSetupState !== 'not_set_up' && row.initialSetupState !== 'complete')
+    || (row.firstProgramAdmissionState !== 'not_admitted' && row.firstProgramAdmissionState !== 'admitted')
+    || (row.installationState !== 'available' && row.installationState !== 'unavailable')
+    || (row.retentionPolicyStatus !== 'missing' && row.retentionPolicyStatus !== 'configured' && row.retentionPolicyStatus !== 'review_required')
+    || typeof copy.version !== 'string' || !copy.version
+    || (copy.status !== 'available' && copy.status !== 'provider_registry_unavailable')
+    || domains === null || domains.length !== CONSENT_DOMAINS.length
+    || !domains.every((domain, index) => domain.domain === CONSENT_DOMAINS[index] && typeof domain.disclosureAvailable === 'boolean')
+    || (first !== null && (!isOpaqueIdentifier(first.id) || !isNullableString(first.displayName)
+      || first.programType !== 'financial_support_v1' || !isAdmissionState(first.admissionState)
+      || (first.status !== 'active' && first.status !== 'closed')
+      || typeof first.version !== 'number' || !Number.isSafeInteger(first.version) || first.version < 1))) {
+    throw new BusinessError('invalid_response');
+  }
+  return {
+    orgId, orgName: row.orgName, settingsState: row.settingsState, creatorLinkState: row.creatorLinkState,
+    initialSetupState: row.initialSetupState, firstProgramAdmissionState: row.firstProgramAdmissionState,
+    firstProgram: first === null ? null : {
+      id: first.id as string, displayName: first.displayName as string | null,
+      programType: 'financial_support_v1', admissionState: first.admissionState as ProgramAdmissionState,
+      status: first.status as 'active' | 'closed', version: first.version as number,
+    },
+    installationState: row.installationState, retentionPolicyStatus: row.retentionPolicyStatus,
+    consentCopy: {
+      version: copy.version, status: copy.status,
+      domains: CONSENT_DOMAINS.map((domain, index) => ({
+        domain, disclosureAvailable: domains[index]!.disclosureAvailable as boolean,
+      })),
+    },
+  };
 }
 
 function assignmentRequest(value: unknown): AssignmentRequest {
@@ -120,7 +173,10 @@ export function decodeIdentity(value: unknown): MyIdentity {
   if (typeof row.id !== 'string' || !row.id || typeof row.orgId !== 'string' || !row.orgId
     || !isNullableString(row.email) || !isNullableString(row.name) || row.active !== true
     || !Array.isArray(row.roles) || !row.roles.every(isHumanRole)) throw new BusinessError('invalid_response');
-  return { id: row.id, orgId: row.orgId, email: row.email, name: row.name, active: true, roles: row.roles };
+  return {
+    id: row.id, orgId: row.orgId, email: row.email, name: row.name, active: true, roles: row.roles,
+    institution: decodeInstitutionReadiness(row.institution, row.orgId),
+  };
 }
 
 export function decodeMemorySettings(value: unknown): MemorySettingsView {

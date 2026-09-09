@@ -1,3 +1,4 @@
+import { CONSENT_DOMAINS } from '@ccc/contracts/consent';
 import { signInstallManifest } from '@ccc/contracts/install-manifest';
 import { buildCapabilityManifest } from '@ccc/contracts/capabilities';
 import type { SignedInstallManifest } from '@ccc/contracts/runtime';
@@ -40,4 +41,23 @@ export const capabilities = () => buildCapabilityManifest({
   mode: 'community-cloud', requestedSttMode: 'off', requestedLlmMode: 'off', registry: [],
   sttGatePassed: { local: false, azure: false }, azureKeyPresent: false, llmKeyPresent: false,
   llmGateOpen: false, agentStatus: 'inactive', publicSignupEnabled: false,
+});
+
+/** 합성 준비 관측값. 실제 기관 준비나 hosted 인증을 뜻하지 않는다. */
+export const readiness = (orgId = 'org-1', overrides: Record<string, unknown> = {}) => ({
+  orgId,
+  orgName: '합성 기관',
+  settingsState: 'present',
+  creatorLinkState: 'unlinked',
+  initialSetupState: 'not_set_up',
+  firstProgramAdmissionState: 'not_admitted',
+  firstProgram: null,
+  installationState: 'available',
+  retentionPolicyStatus: 'configured',
+  consentCopy: {
+    version: 'synthetic-copy-v1',
+    status: 'available',
+    domains: CONSENT_DOMAINS.map((domain) => ({ domain, disclosureAvailable: true })),
+  },
+  ...overrides,
 });

@@ -16,6 +16,8 @@ const messages = {
   conflict: '다른 사람이 먼저 변경했습니다. 입력한 내용은 남겨 두었습니다. 최신 정보를 확인한 뒤 다시 저장해 주세요.',
   purge_disabled: '최종 파기는 현재 비활성화되어 있습니다. 기록은 그대로 보존됩니다.',
   program_admission_required: '사업 도입 확인이 필요합니다. 설명을 다시 읽고 선택을 확인해 주세요.',
+  privacy_consent_required: '개인정보 수집과 이용 동의를 받아야 등록할 수 있습니다. 동의를 받았으면 체크하고, 받지 못했으면 긴급 등록 사유를 적어 주세요.',
+  emergency_reason_required: '긴급 등록을 고르면 사유를 적어야 합니다.',
   invalid_request: '입력 내용을 확인해 주세요.',
   unavailable: '서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요. 저장 요청이었다면 최신 상태를 먼저 확인해 주세요.',
   invalid_credentials: '이메일 또는 비밀번호를 확인해 주세요.',
@@ -54,7 +56,12 @@ export function httpError(status: number, value: unknown): BusinessError {
       : code === 'program_admission_required' ? 'program_admission_required' : 'conflict', status);
   }
   if (status === 429) return new BusinessError('rate_limited', status);
-  if (status === 400 || status === 422) return new BusinessError('invalid_request', status);
+  if (status === 422 || status === 400) {
+    const code = typeof value === 'object' && value !== null && 'error' in value ? value.error : undefined;
+    if (code === 'privacy_consent_required') return new BusinessError('privacy_consent_required', status);
+    if (code === 'emergency_reason_required') return new BusinessError('emergency_reason_required', status);
+    return new BusinessError('invalid_request', status);
+  }
   return new BusinessError('unavailable', status);
 }
 

@@ -655,3 +655,79 @@ Main이 P2를 승인했다. 설치 검증과 실제 Auth/MFA/`/capabilities`/`/m
 | CSP | `style-src 'self'`, `script-src 'self'` 헤더에서 위반 0건 |
 
 검수의 한계도 그대로 남긴다. Chrome의 CORS preflight는 브라우저 계측을 우회하므로 smoke는 앱과 API를 같은 origin에 두고 돌렸다. 실제 Cloud 배치의 교차 origin CORS, hosted Supabase Auth, 실제 MFA·기관 준비 DTO는 여전히 미검증이며 BACKEND/D89 계약에 남아 있다.
+
+### P2에 남은 PWA 수용 조건 (미구현)
+
+`ceb849f`는 Router 셸까지다. **P2를 완료로 세지 않는다.** 현재 소스에 `serviceWorker`, `registerSW`,
+`VitePWA`, `manifest.webmanifest`는 0건이고 D80의 PWA 부분은 아직 없다. 남은 수용 조건은 다음과 같다.
+
+- 설치 가능한 `manifest.webmanifest`(이름, 시작 주소, 표시 모드, 아이콘)와 `index.html` 연결.
+- 오프라인에서도 셸이 뜨는 최소 캐시와 새 버전 반영 경로.
+- 인증 API 응답과 자격증명은 어떤 저장소에도 남기지 않는다.
+
+최소 구현 제안(새 의존성 0, 승인된 도구만 사용):
+
+1. `apps/client/public/manifest.webmanifest`와 `index.html`의 `<link rel="manifest">` 한 줄. 아이콘은
+   기존 자산을 쓰고 새 그래픽을 만들지 않는다.
+2. 손으로 쓴 `apps/client/public/sw.js`. 캐시 대상은 `index.html`과 `/assets/**`의 해시 파일뿐이고,
+   `/functions/v1/**`, `/auth/v1/**`, `Authorization` 헤더가 붙은 요청은 **가로채지 않고 그대로 통과**시킨다.
+   `POST`와 비 GET은 전부 통과. 캐시 이름에 빌드 해시를 넣어 새 배포에서 옛 캐시를 지운다.
+3. 등록은 `main.tsx`의 `load` 이후 한 줄이고 `import.meta.env.PROD`에서만 돈다. 개발 서버와 STT 시험
+   진입은 영향을 받지 않는다.
+4. 검수는 브라우저 smoke로 한다: 오프라인 전환 뒤 셸이 뜨고, 업무 API 응답은 캐시에 0건이며,
+   `caches.keys()`와 저장소에 토큰 문자열이 없다.
+
+이 항목의 실행 순서는 Main이 정한다. 여기서는 수용 조건과 제안만 남긴다.
+
+## 16. P3 당사자 화면과 기관 준비 연결
+
+### 실행 범위
+
+검증된 backend `8d4b109`를 로컬 결합(`9a8ee05`)한 뒤 P3 소유 화면 네 개와 기관 준비 화면을 실제 API로
+구현했다. 다른 워크트리에서 소스를 복사하지 않았고 공유 CSS와 디자인 파일은 건드리지 않았다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `apps/client/src/business/participants.ts` | 목록·등록·허브·기본정보·동의 API와 응답 decoder |
+| `apps/client/src/business/institution.ts` | 초기 설정 저장, 사업 목록, 도입 확인 PATCH, 문안 hash 대조 |
+| `apps/client/src/business/session.ts` | 화면이 받는 세션 계약(토큰 없음) |
+| `apps/client/src/screens/participants.tsx` | 목록, 등록, 허브, 기본정보 화면 |
+| `apps/client/src/screens/institution.tsx` | 기관 준비 관측값과 사업 도입 확인 |
+| `apps/client/src/business/api.ts` | `/me`의 `institution` 세 축 decoder, 공용 guard 공개 |
+| `apps/client/src/business/errors.ts` | 422 동의 게이트 코드 두 개를 `invalid_request`에서 분리 |
+
+### 계약을 지키는 방식
+
+- `/me`의 `institution`은 필수다. 없거나 축이 빠진 응답은 준비된 것처럼 렌더하지 않고 거부한다.
+  `creatorLinkState`, `initialSetupState`, `firstProgramAdmissionState`를 서로 섞지 않는다.
+- 도입 확인은 **화면이 보여 주는 문안의 hash**(`sha256(canonicalizeJcs(PROGRAM_ADMISSION_COPY))`)가
+  서버 `admissionCopy.hash`와 같고 버전도 같을 때만 열린다. 버전만 같고 내용이 다르면 잠근다.
+  서버가 보낸 문안 본문을 그대로 렌더하며 hash를 대신 echo 하지 않는다.
+- 등록은 서버 거부를 그대로 보여 준다. `privacy_consent_required`와 `emergency_reason_required`는
+  `invalid_request`로 뭉치지 않는다. 잠긴 사업은 고를 수 없는 자리에 사유와 함께 남는다.
+- 기본정보 저장은 `supportCaseContextId`와 `expectedVersion`을 서버 응답에서만 가져오고, 409에서는
+  초안을 지우지 않고 다시 읽기를 준다.
+- 비담당 사업은 담당자 이름과 사업 존재만 렌더하고 동의 조작을 만들지 않는다(D86 ⑤).
+
+### 브라우저 검수 결과
+
+실제 production 번들 + 합성 서명 설치 정보 + 합성 Auth/API로 확인했다. hosted 인증은 없다.
+
+| 확인 항목 | 결과 |
+| --- | --- |
+| 목록 | 두 행 렌더, 상태 좁히기 `종결`은 `otter-011`만, 검색 `김합성`은 한 행 |
+| 이름 없는 당사자 | 가명 ID가 제목 자리에 옴 |
+| 등록 거부 | 동의 없이 제출하면 422를 그대로 보여 주고 저장되지 않음 |
+| 등록 성공 | 동의 체크 뒤 201, 허브 주소로 이동 |
+| 허브 | 담당 사업과 비담당 사업이 갈리고 비담당에는 요청 기능 미연결을 명시 |
+| 동의 저장 | `PUT /support-cases/case-1/consent` 본문 `{privacy:true, recordingAi:true}` |
+| 기본정보 | 1차 저장 `expectedVersion:3`에서 409, 다시 읽기 뒤 `expectedVersion:4`로 저장 성공 |
+| 기관 준비 | 여덟 관측값 표시, 세 축을 각각 표시 |
+| 도입 확인 잠금 | 문안 hash가 다르면 `확인 저장` 비활성 |
+| 도입 확인 저장 | hash 일치 시 활성, `PATCH /programs/program-1` 본문에 `expectedVersion:3`과 서버 hash 그대로 |
+
+### 남은 차단
+
+`docs/superpowers/plans/2026-09-10-participant-screens-design-handoff.md` 8번에 소유자와 함께 적었다.
+목록 이메일·사업 이름, 허브 생년월일·진행 상태, 실무자 발 배정 요청, 관리자 등록의 첫 담당 실무자 선택이
+BACKEND 계약 대기이고, 잠김 전용 톤은 규칙 티켓이다. 교차 origin CORS와 hosted Auth는 여전히 미검증이다.
