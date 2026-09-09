@@ -1,0 +1,19 @@
+{
+  "package": "@primno/dpapi",
+  "version": "2.0.1",
+  "license": "MIT",
+  "commit": "98ab69eb35dcdd1dcf873c528906c534e566136b",
+  "tarballIntegrity": "sha512-uX756jYkiyHHJU1981oRJMg3FtCGlBGpGcztTs7SFxeh0L/c0aLQcooF61HQ9V3MdaCDPIi8yreN7MlISr4mJg==",
+  "patchSha256": "9abd9c6f40fdba17aae8f8bbbc477cd3480256d2782a49e26456fe76539d61b8",
+  "hardeningVersion": 1,
+  "nodeGyp": "11.0.0",
+  "nodeAddonApi": "8.9.2",
+  "sources": {
+    "LICENSE": "455dda47a3fc2f58ab06d8e526f490ec43d0fc23a5ea80dd0942644397316d9b",
+    "binding.gyp": "d093676ff7f72b93d21cd1cb809167ab2198868f990eac8ab7dd4d196f33f18d",
+    "src/dpapi_addon.h": "18280b1135123aff82fbf4188a5aadfc9a5d6fffad9309f72f347f380f2da550",
+    "src/dpapi_win.cpp": "78d13f387bc58f9e1aabed34815860fd8e0126f43fe546a4d0c8815a5aaa93c5",
+    "src/dpapi_not_supported.cpp": "7c03cec11c438b6d2512239477d9f1b45d6e16763122a3a36458ab339f50d3c4",
+    "src/main.cpp": "1c5445869d68ab47518c320997ce982e94f63d3fb2bdefe184aa2c960d804cec"
+  }
+}

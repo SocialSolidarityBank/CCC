@@ -552,3 +552,49 @@ Its [API](https://github.com/primno/dpapi/blob/98ab69eb35dcdd1dcf873c528906c534e
 Recommendation to Main: approve this exact package only with audited exception-safe `SecureZeroMemory`/`LocalFree` cleanup, headless flags, and rebuilt verified Windows binaries. A source patch with unchanged published `.node` binaries is insufficient. Alternative: approve an owned minimal N-API CurrentUser-only binding, accepting CCC's native build/provenance maintenance. Waiting for an upstream corrected release avoids a local native patch but leaves implementation blocked. Node crypto has no DPAPI binding; existing SQLite consumes key bytes and env returns strings, neither implements account-bound Windows protection. PowerShell/.NET adds an IPC secret transport/lifetime boundary rather than providing the missing Node primitive.
 
 Main decides this dependency/native ownership fork. No package installation, native build, host secret, account, ACL or credential operation occurred. Actual Windows same-account success, wrong-account/reset refusal, crash-dump policy and cross-SID Kit restore remain unverified. DPAPI persisted record encoding/storage will be reviewed with the chosen native route before any irreversible writer is added; S9's allowed fields do not by themselves fix that encoding.
+
+## S9 approved patched-DPAPI source implementation
+
+Main relayed Q approval for the pinned MIT `@primno/dpapi@2.0.1` package with a native hardening patch and rebuilt binaries, never the unchanged published binary. This resolves the package ownership fork above. The existing backend worktree remains the only writer; no subagents or Windows/account/permission operations are used.
+
+Implementation ownership:
+- `patches/@primno__dpapi@2.0.1.patch` patches upstream `src/dpapi_win.cpp` and `src/main.cpp`, not the nonexistent `dpapi.cc`.
+- `adapters/secrets-dpapi/src/native.mjs` loads only the adapter-local verified rebuild. `src/store.ts` owns byte lifetimes; public `src/index.ts` does not accept an injected native binding.
+- `adapters/secrets-dpapi/scripts/build-native.mjs` verifies source and tool pins, copies only source/license/build inputs, and builds on Windows. `native-provenance.json` pins the source identity and hashes. `native-build/` is ignored and never supplied as a checked-in binary.
+- Workspace policy disables dependency lifecycle builds and registers the patch. The root package manifest remains unchanged. New direct pins are DPAPI 2.0.1, node-gyp 11.0.0 (upstream build-tool baseline, MIT) and the already-resolved node-addon-api 8.9.2 (MIT). The lock diff adds 492 lines with no removed/changed prior resolutions.
+
+### Native safety and loading
+
+The patch uses a noncopyable RAII owner with zero-initialized `DATA_BLOB`. Its destructor calls `SecureZeroMemory` before `LocalFree` on every allocated output, including unwinding from Node Buffer allocation/copy failure. This wipes decrypted native allocation as well as encrypted output. Only exact `CurrentUser` is accepted; `CRYPTPROTECT_UI_FORBIDDEN` applies to protect and unprotect. Native Win32 failure details are replaced with `secret_access_denied`. Uint8Array access respects byte subviews. A `cccHardeningVersion=1` native export distinguishes the patched ABI.
+
+The adapter never imports the package's default prebuild selector. `loadNative` requires win32 plus a receipt matching source-provenance hash, platform, architecture, exact Node version and actual rebuilt binary hash, then checks the native hardening marker. An ordinary installation cannot select the package's untouched prebuilds. This is a controlled-build provenance check, not protection against an attacker who can rewrite the application, receipts and binaries together.
+
+### Byte-only record boundary and remaining composition
+
+`createDpapiSecretStore(mode, records)` implements S9's separate recovery byte read port and exposes `protect` and `close`. Only DB/file/PII/Office CA names are accepted. The in-memory protected record has exactly schemaVersion, name, version and blob; no SID, account identifier, path, key text or extra metadata. Positive safe key versions are required; DB/file/PII material is exactly 32 bytes. Single rejects Office CA records. Public material must be plain fixed-buffer Uint8Array, not Buffer/shared/resizable material.
+
+Protect copies caller plaintext, invokes CurrentUser synchronously, returns a plain Uint8Array ciphertext copy and wipes owned input/native output/entropy in finally. Unprotect copies native output into caller-owned plain bytes, validates it and wipes both copies on failure, or only the native copy on success. Caller ownership requires finally-wiping successful output. Caller protected records are copied; close wipes owned copies and rejects later operations. Missing records return null; unprotect failure never generates replacement keys.
+
+Optional DPAPI entropy binds `UTF8("CCC-DPAPI\\0v1\\0" + name + "\\0" + decimalVersion)` to prevent metadata substitution. This is an explicit in-memory protected-record convention awaiting Main's persistence review before records are deployed; no disk encoding, record writer or active-generation pointer is introduced here. Recovery authorization/audit must happen upstream before calls, per S9. The adapter does not authenticate a caller from booleans or pretend a protected record activates a restored generation.
+
+The frozen legacy gateway consumes base64 PII material through `SecretStore.get`; this implementation does not convert the recovery port back into a string port. Legacy string-runtime composition, persistent record encoding and generation activation remain separate Main-owned integration decisions. E4-4b/E4-5 are not declared complete by this source checkpoint.
+
+### Rebuild recipe and exact provenance
+
+On the safely handed-off Windows reference host, use the locked workspace and `pnpm install --frozen-lockfile`, then `pnpm --filter @ccc/secrets-dpapi build:native`. The script requires Windows x64/arm64, verifies all patched source/license hashes, the patch hash and exact node-gyp/node-addon-api versions, then invokes node-gyp with the current Node executable. MSVC C++ Build Tools and compatible Python must already be provisioned by the approved machine handoff; the script does not install tools or modify accounts/ACLs.
+
+The generated receipt records source-provenance digest, OS/architecture, exact Node version, build-tool versions, configured binding.gyp digest and binary SHA-256. It then runs synthetic byte-subview round-trip and LocalMachine rejection. Any failure removes the receipt and emits only `secret_access_denied`, with no vendor output. This is a reproducible pinned-source build procedure, not a claim of bit-identical binaries across unpinned MSVC/Python versions.
+
+- Upstream source commit: `98ab69eb35dcdd1dcf873c528906c534e566136b`.
+- Tarball SHA-512 matches `native-provenance.json` and the registry integrity exactly; archive was downloaded as data, not executed.
+- Patch SHA-256: `9abd9c6f40fdba17aae8f8bbbc477cd3480256d2782a49e26456fe76539d61b8`.
+- Patched dpapi_win.cpp SHA-256: `78d13f387bc58f9e1aabed34815860fd8e0126f43fe546a4d0c8815a5aaa93c5`.
+- Patched main.cpp SHA-256: `1c5445869d68ab47518c320997ce982e94f63d3fb2bdefe184aa2c960d804cec`.
+- Lock SHA-256: `7e65df790be2394e4a0f896d160500903ad31b958d7cd9ebffe9b77859d694ba`.
+- Unchanged root package SHA-256: `1afe21070a90efb75d5081e01c8bc5e93f1c7d8d142309f423ae167cc0a8530a`.
+
+### Exercised evidence and platform blockers
+
+On darwin arm64 Node 24.18.0: 8 synthetic byte/lifetime/loader tests passed, API TypeScript and core-import/DB-gateway guards passed. The loader test simulates module loading to reject missing receipt, changed binary and unpatched marker; it is not Windows evidence. An actual invocation of build-native on this unsupported host returned exit 1, empty stdout and only `secret_access_denied`. Ordinary frozen pnpm install completed without native lifecycle execution.
+
+Still unverified: compiling the patched C++ with Windows headers/MSVC, native allocation-failure cleanup under fault injection, actual CurrentUser same-account round-trip, wrong-account/reset refusal, NTFS/ACL/durability, crash-dump policy, signed release provenance and cross-SID Kit restore. No real key, account, permission or credential changes were performed. Native hardening source is delivered; real Windows qualification must remain pending Main's safe machine handoff.

@@ -1,0 +1,20 @@
+{
+  "name": "@ccc/secrets-dpapi",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "imports": { "#dpapi-store": "./src/store.ts" },
+  "scripts": {
+    "build:native": "node scripts/build-native.mjs",
+    "test": "node --test test/contract.test.ts test/native-loader.test.mjs"
+  },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*",
+    "@primno/dpapi": "2.0.1"
+  },
+  "devDependencies": {
+    "node-addon-api": "8.9.2",
+    "node-gyp": "11.0.0"
+  }
+}
