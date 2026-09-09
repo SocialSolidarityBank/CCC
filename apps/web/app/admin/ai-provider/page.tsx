@@ -1,7 +1,8 @@
 import { PageError } from '../../components/wire/page-error';
 import { WireButton } from '../../components/wire/wire-button';
-import { ApiError, getAiProviderStatus } from '../../lib/api';
+import { ApiError, getAiProviderStatus, getSttCapabilities, type SttCapabilities } from '../../lib/api';
 import AiProviderControl from './ai-provider-control';
+import SttStatus from './stt-status';
 
 // CCC-44 AI 사업자 관리(기관 관리자) — /ai/provider/status·activate-runtime 의 화면.
 // 서버 페이지는 조회만 하고, 컨트롤(폼·상태 표시)은 클라이언트 부품이 갖는다.
@@ -21,5 +22,18 @@ export default async function AdminAiProviderPage() {
       </PageError>
     );
   }
-  return <AiProviderControl status={status} />;
+  // STT 는 signed install manifest 가 없으면 503 이다(D77). 사업자 카드까지 함께 죽이지 않고
+  // 그 카드 자리에서 확인 안내를 낸다.
+  let capabilities: SttCapabilities | null = null;
+  try {
+    capabilities = await getSttCapabilities();
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+  }
+  return (
+    <>
+      <AiProviderControl status={status} />
+      <SttStatus capabilities={capabilities} />
+    </>
+  );
 }
