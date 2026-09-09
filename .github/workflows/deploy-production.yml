@@ -9,7 +9,7 @@ on:
         type: string
 
 concurrency:
-  group: deploy-preview
+  group: deploy-preview-ccc237-address
   cancel-in-progress: false
 
 jobs:
