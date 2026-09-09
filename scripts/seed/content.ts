@@ -15,6 +15,7 @@
  */
 import type { FlagType, GoalCloseReason } from '@ccc/core/gateway';
 import { COUNSELOR_IDS } from './preload-data';
+import { fillSessionBuckets } from './generated-cases';
 
 export type Trajectory = 'improving' | 'plateau' | 'decline' | 'mixed';
 
@@ -290,21 +291,17 @@ export const PREVIEW_BASE_PARTICIPANTS: readonly SeedParticipant[] = [
 ];
 
 /**
- * 미리보기 참여자 11명(2026-09-05 Q "텍스트와 기능 상태를 풍부하게 보고, 예정 일정에는
- * 인테이크부터 시작할 사람도 포함").
+ * 미리보기 참여자 10명.
  *
  * 로컬 disposable preview 와 원격 `ccc-preview` 에만 쓴다.
  *
  * 고르게 덮는 축:
- * - 리스크 플래그 6종 전부(D72): 위기 발언·연락 두절·주거·생계·건강 급변·부채 악화·
- *   약속 불이행 반복·폭력·착취 피해. 브리핑 리스크 배너와 회차 카드 '이 회차에서 나온 것'이
- *   여섯 유형 모두에서 어떻게 읽히는지 한 화면씩 볼 수 있다.
+ * - 리스크 플래그 6종 전부(D72): 위기 발언, 연락 두절, 주거, 생계, 건강 급변, 부채 악화,
+ *   약속 불이행 반복, 폭력, 착취 피해.
  * - 녹취 미동의 1명(5): 수기 폴백(D5)만으로 브리핑이 서는 모양.
- * - 목표 닫기 사유 3종(D62 §5): 달성(11)·중단(12)·재설정(기본 3에 이미 있다).
- * - 추이 4종: 개선·정체·악화·혼재.
- * - 완료 사례는 정기 상담 3~6회: 회차별 정리와 접힘·펼침 리듬을 충분히 볼 수 있다.
- * - 메모 길이: 두 줄짜리와 여섯 줄짜리를 섞었다. 카드 폭에서 줄바꿈·말줄임이 어떻게
- *   걸리는지 보려면 긴 문장이 실제로 있어야 한다.
+ * - 목표 닫기 사유 3종(D62 §5): 달성(11), 중단(12), 재설정(기본 3).
+ * - 추이 4종: 개선, 정체, 악화, 혼재.
+ * - 메모 길이는 짧은 문장과 긴 문장을 섞어 카드 줄바꿈을 확인한다.
  */
 export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
   // ── 5 (녹취 미동의 · plateau · 수기 폴백만으로 브리핑) ─────────────────────────
@@ -526,14 +523,6 @@ export const PREVIEW_ONLY_PARTICIPANTS: readonly SeedParticipant[] = [
     ],
     futureSchedules: [{ scheduledAt: at(20, 7), goalLinks: ['income'] }],
   },
-  // ── 15 (미래 인테이크 일정만 있음 · 완료 기록 없음) ───────────────────────────
-  {
-    name: '윤하늘', phone: phone(15), email: email(15), assigneeUserId: COUNSELOR_IDS.ai00,
-    intakeAt: at(1, 4), pendingIntake: true, consent: { recordingAi: false }, trajectory: 'plateau',
-    goals: [],
-    intakeMemo: '',
-    regulars: [],
-  },
 ];
 
 if (process.env.SEED_PROFILE !== 'preview') {
@@ -542,18 +531,20 @@ if (process.env.SEED_PROFILE !== 'preview') {
   );
 }
 
-export const PARTICIPANTS: readonly SeedParticipant[] = [
+const CURATED_PARTICIPANTS: readonly SeedParticipant[] = [
   ...PREVIEW_BASE_PARTICIPANTS,
   ...PREVIEW_ONLY_PARTICIPANTS,
 ];
 
+export const PARTICIPANTS: readonly SeedParticipant[] = [
+  ...CURATED_PARTICIPANTS,
+  ...fillSessionBuckets(CURATED_PARTICIPANTS, { at, day, email, phone }),
+];
+
 /*
- * 집계 목표(검증 기준, 15명 = 기본 4 + 확장 11):
- * - 리스크 플래그 6종 전부 등장(위기 발언 6 · 연락 두절 7 · 주거·생계·건강 급변 8 ·
- *   약속 불이행 반복 9 · 폭력·착취 피해 10 · 부채 악화 4와 13).
- * - 녹취 미동의 사례와 수기 메모 폴백을 화면에서 볼 수 있다.
- * - 목표 닫기 사유 3종: 달성(11) · 중단(12) · 재설정(3).
- * - 추이 4종 전부: 개선(1·3·11) · 정체(2·5·9·14) · 악화(4·6·8) · 혼재(7·10·12·13).
- * - 완료 사례는 확장 참여자 기준 정기 상담 3~6회이고, 15는 미래 인테이크 일정만 있다.
- * - 예정 일정은 기준일 +0 ~ +20 일에 흩어져 일간·주간·월간 뷰를 채운다.
+ * 집계 목표(검증 기준, 100명):
+ * - 완료 상담 횟수 1회부터 10회까지 각 10명이다. 1회 사례는 인테이크만 완료했다.
+ * - 공개된 비식별 사례관리 자료의 개입 패턴만 참고하고 인물, 금액, 서술은 전부 합성했다.
+ * - 기존 14개 수동 사례는 리스크 6종, 녹취 미동의, 목표 닫기 사유와 추이 4종을 보존한다.
+ * - 생성 사례는 업종, 가구 상황, 상담 진행, 금액과 예정 일정을 결정론적으로 조합한다.
  */

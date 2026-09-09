@@ -15342,24 +15342,31 @@ async function loadParticipantContacts(
   const contacts = new Map<string, ParticipantContact>();
   const unique = [...new Set(beneficiaryIds)];
   if (unique.length === 0) return contacts;
-  const placeholders = unique.map(() => '?').join(', ');
-  const rows = await env.DB.prepare(
-    `SELECT beneficiary_id, enc_name, enc_phone, enc_email
-     FROM participant_pii_vault
-     WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})
-       AND NOT EXISTS (
-         SELECT 1 FROM participant_pii_archives AS archive
-         WHERE archive.beneficiary_id = participant_pii_vault.beneficiary_id
-           AND archive.org_id = participant_pii_vault.org_id
-           AND archive.review_status <> 'purged'
-       )`,
-  ).bind(orgId, ...unique).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null }>();
-  for (const row of rows.results) {
-    contacts.set(stringValue(row.beneficiary_id), {
-      name: await decryptPii(env, row.enc_name),
-      phone: await decryptPii(env, row.enc_phone),
-      email: includeEmail ? await decryptPii(env, row.enc_email) : null,
-    });
+  // D1 문서상 상한은 문장당 바인딩 100개지만, 프리뷰 운영 D1은 상한에 정확히 닿은
+  // 문장(org_id 1개 + 당사자 ID 99개)을 거부했다. 50개씩 나누면 100명 목록도 조회
+  // 문장 두 개로 끝나면서 어댑터와 런타임 차이를 위한 여유를 남긴다.
+  const beneficiaryBatchSize = 50;
+  for (let offset = 0; offset < unique.length; offset += beneficiaryBatchSize) {
+    const batch = unique.slice(offset, offset + beneficiaryBatchSize);
+    const placeholders = batch.map(() => '?').join(', ');
+    const rows = await env.DB.prepare(
+      `SELECT beneficiary_id, enc_name, enc_phone, enc_email
+       FROM participant_pii_vault
+       WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = participant_pii_vault.beneficiary_id
+             AND archive.org_id = participant_pii_vault.org_id
+             AND archive.review_status <> 'purged'
+         )`,
+    ).bind(orgId, ...batch).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null }>();
+    for (const row of rows.results) {
+      contacts.set(stringValue(row.beneficiary_id), {
+        name: await decryptPii(env, row.enc_name),
+        phone: await decryptPii(env, row.enc_phone),
+        email: includeEmail ? await decryptPii(env, row.enc_email) : null,
+      });
+    }
   }
   return contacts;
 }

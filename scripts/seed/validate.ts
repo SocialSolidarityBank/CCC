@@ -207,7 +207,7 @@ async function assertInvariants(replayDb: D1Database, checks: string[]): Promise
   }
   checks.push(`per-session score count in [1,3] and goal belongs to case (${perSession.length} sessions)`);
 
-  // 동의 레코드 20.
+  // 모든 완료 사례에 동의 레코드가 하나씩 있다.
   const consentRow = await replayDb
     .prepare('SELECT COUNT(*) AS n FROM participant_consent_records')
     .first<{ n: number }>();
@@ -217,7 +217,7 @@ async function assertInvariants(replayDb: D1Database, checks: string[]): Promise
   }
   checks.push(`consent records == ${consent}`);
 
-  // vault 20행 · key_version=2 · enc_name NOT NULL.
+  // vault는 사례당 1행이고 모두 key_version=2, enc_name NOT NULL이다.
   const vaultRow = await replayDb
     .prepare(`SELECT COUNT(*) AS total,
                      SUM(CASE WHEN key_version = 2 THEN 1 ELSE 0 END) AS v2,
