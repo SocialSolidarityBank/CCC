@@ -43,7 +43,7 @@ function nextTick(entry: Registration, after: number): number {
 }
 /** UTC numeric/wildcard/step minute and hour fields; calendar fields must be '*'.
  * This covers existing 2m/5m/30m and daily cron registrations. Unsupported syntax fails closed.
- * A late tick runs once with its scheduled instant; busy periods do not create a replay queue.
+ * A late tick runs once with the actual invocation clock; busy periods do not create a replay queue.
  * Startup reconciliation, persistence, retries and business policy remain the runner/assembly's responsibility.
  */
 export function createNodeScheduler(runner: ScheduledJobRunner, onError: (failure: SchedulerFailure) => void): NodeScheduler {
@@ -56,8 +56,11 @@ export function createNodeScheduler(runner: ScheduledJobRunner, onError: (failur
       entry.timer = undefined;
       if (closed) return;
       if (Date.now() < at) { arm(entry, at); return; }
-      const nowIso = new Date(at).toISOString();
-      entry.running = Promise.resolve().then(() => runner.run(entry.kind, nowIso)).then(() => undefined, () => {
+      let nowIso: string;
+      entry.running = Promise.resolve().then(() => {
+        nowIso = new Date(Date.now()).toISOString();
+        return runner.run(entry.kind, nowIso);
+      }).then(() => undefined, () => {
         onError({ kind: entry.kind, nowIso, code: 'scheduled_job_failed' });
       }).catch(() => {
         // A broken reporting callback is a service failure, never an unhandled raw error.

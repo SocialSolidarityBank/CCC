@@ -154,6 +154,17 @@ export function fileAudioStoreContract() {
       const late = Buffer.from(original); late[late.length - 1] = late[late.length - 1]! ^ 1;
       await writeFile(path, late); await expect(reader.read()).rejects.toThrow();
     }));
+    it('removes corrupt ciphertext durably but never upgrades unknown generation to terminal proof on retry', async () => fixture(async (root, store) => {
+      await store.put(KEY, stream(100), metadata(100));
+      const path = join(root, keyHash(KEY), 'object');
+      await writeFile(path, new Uint8Array([0, 1, 2]));
+      const evidence = await store.delete(KEY);
+      expect(evidence).toMatchObject({ generationId: null, objectSha256: null, deleteSucceeded: false, absentFromList: true, absentFromMetadata: true, directReadAbsent: true });
+      expect((await readdir(root)).some(name => name.includes('.deleted-'))).toBe(false);
+      await expect(stat(path)).rejects.toMatchObject({ code: 'ENOENT' });
+      const reopened = await createFileAudioStore(root, material);
+      expect(await reopened.delete(KEY)).toMatchObject({ deletionAttemptId: evidence.deletionAttemptId, generationId: null, deleteSucceeded: false, directReadAbsent: true });
+    }));
     it('deletes an in-flight stage without allowing its writer to publish later', async () => fixture(async (_root, store) => {
       const waiting = Promise.withResolvers<void>();
       const release = Promise.withResolvers<void>();

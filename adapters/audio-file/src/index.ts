@@ -177,29 +177,38 @@ export async function createFileAudioStore(rootPath: string, fileKey: { bytes: U
         evidence.deletionAttemptId = intent.deletionAttemptId; evidence.deletionRequestedAt = intent.deletionRequestedAt;
         const grave = join(root, `${hashed}.deleted-${intent.deletionAttemptId}`);
         const acceptedPath = join(root, `${hashed}.accepted`);
+        const unverifiedPath = join(root, `${hashed}.unverified`);
+        let unverified = await readJournal(unverifiedPath, hashed);
         let accepted = await readJournal(acceptedPath, hashed);
         if (await privateDirectory(directory)) {
           if (accepted !== null || await privateDirectory(grave)) throw new AudioStoreError();
           try { await rename(directory, grave); } catch (error) { if (!hasCode(error, 'ENOENT')) throw error; }
         }
         await syncDirectory(root);
-        if (accepted === null) {
+        if (accepted === null && unverified === null) {
           let generationId: string | null = null;
-          if (await privateDirectory(grave)) {
-            const object = await readFileHandle(join(grave, 'object'));
-            if (object !== null) {
-              try { generationId = (await readContext(object, master, hashed, keyVersion)).generationId; }
-              finally { await object.close(); }
+          try {
+            if (await privateDirectory(grave)) {
+              const object = await readFileHandle(join(grave, 'object'));
+              if (object !== null) {
+                try { generationId = (await readContext(object, master, hashed, keyVersion)).generationId; }
+                finally { await object.close(); }
+              }
             }
+          } catch {
+            // Persist this distinction before removal: retry must not reinterpret corrupt audio
+            // as a never-uploaded key merely because cleanup made its bytes absent.
+            unverified = await journal(unverifiedPath, { ...intent, generationId: null, deletedAt: new Date().toISOString() });
           }
-          accepted = await journal(acceptedPath, { ...intent, generationId, deletedAt: new Date().toISOString() });
+          if (unverified === null) accepted = await journal(acceptedPath, { ...intent, generationId, deletedAt: new Date().toISOString() });
         }
-        if (accepted.deletionAttemptId !== intent.deletionAttemptId || accepted.deletedAt === null) throw new AudioStoreError();
+        const receipt = unverified ?? accepted;
+        if (receipt === null || receipt.deletionAttemptId !== intent.deletionAttemptId || receipt.deletedAt === null) throw new AudioStoreError();
         if (await privateDirectory(grave)) await rm(grave, { recursive: true, force: true });
         await syncDirectory(root);
-        evidence.generationId = accepted.generationId;
-        evidence.providerDeleteAcceptedAt = accepted.deletedAt; evidence.deletedAt = accepted.deletedAt;
-        evidence.deleteSucceeded = true;
+        evidence.generationId = unverified === null ? receipt.generationId : null;
+        evidence.providerDeleteAcceptedAt = receipt.deletedAt; evidence.deletedAt = receipt.deletedAt;
+        evidence.deleteSucceeded = unverified === null;
         evidence.absentFromList = !(await readdir(root)).includes(hashed);
         try { await lstat(join(directory, 'object')); } catch (error) { if (hasCode(error, 'ENOENT')) evidence.absentFromMetadata = true; }
         try { await stat(join(directory, 'object')); } catch (error) { if (hasCode(error, 'ENOENT')) evidence.directReadAbsent = true; }

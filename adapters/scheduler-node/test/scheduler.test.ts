@@ -5,7 +5,7 @@ import { createNodeScheduler } from '../src/index.ts';
 import type { ScheduledJobRunner } from '@ccc/contracts/runtime';
 
 const report: ScheduledJobRunner['run'] = async (kind, nowIso) => ({ kind, nowIso, completedAt: new Date().toISOString(), counters: {} });
-test('UTC minute boundaries and daily retention receive scheduled instants rather than completion time', async t => {
+test('UTC minute boundaries and daily retention receive invocation instants rather than completion time', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date('2026-09-09T02:59:59.999Z') });
   const ticks: string[] = [];
   const scheduler = createNodeScheduler({ async run(kind, nowIso) { ticks.push(`${kind}:${nowIso}`); return report(kind, nowIso); } }, () => assert.fail('unexpected runner failure'));
@@ -45,7 +45,7 @@ test('runner rejection is safely reported and does not disable the next schedule
     t.mock.timers.tick(120_000); await setImmediate(); assert.equal(runs, 2);
   } finally { await scheduler.close(); }
 });
-test('unsupported syntax fails before scheduling and delayed ticks do not replay a backlog', async t => {
+test('unsupported syntax fails before scheduling and late wake uses actual time without replaying a backlog', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date('2026-09-09T00:00:00.000Z') });
   const ticks: string[] = [];
   const scheduler = createNodeScheduler({ async run(kind, nowIso) { ticks.push(nowIso); return report(kind, nowIso); } }, () => assert.fail());
@@ -54,7 +54,7 @@ test('unsupported syntax fails before scheduling and delayed ticks do not replay
     await scheduler.schedule('pipeline_watchdog', '*/30 * * * *');
     t.mock.timers.setTime(new Date('2026-09-09T06:00:00.000Z').getTime());
     t.mock.timers.tick(1); await setImmediate();
-    assert.deepEqual(ticks, ['2026-09-09T00:30:00.000Z']);
+    assert.deepEqual(ticks, ['2026-09-09T06:00:00.001Z']);
     t.mock.timers.tick(1); await setImmediate(); assert.equal(ticks.length, 1);
   } finally { await scheduler.close(); }
 });
