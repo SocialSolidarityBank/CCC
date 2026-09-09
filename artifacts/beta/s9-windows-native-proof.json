@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "observedLocalDate": "2026-09-10",
+  "sourceCommit": "b743a17383d1cd60e1bc8e1e107a5c26e930f470",
+  "sourceArchiveSha256": "5cde4e88c9ffda6eed0ca12dc1b195f32c1ebbc90a9e903952276e8f7434d60f",
+  "verifiedSourceFiles": 33,
+  "unsafeArchiveEntries": 0,
+  "sourceHashMismatches": 0,
+  "environment": {
+    "os": "Windows 11 Pro",
+    "architecture": "x64",
+    "node": "v24.19.0",
+    "buildTools": "Microsoft.VisualStudio.2022.BuildTools 17.14.40",
+    "packageRunner": "npm exec --package=pnpm@11.5.3",
+    "globalPnpmInstalled": false
+  },
+  "compilerInstallation": {
+    "authorizedByUser": true,
+    "exitCode": 0,
+    "cppWorkloadDetected": true,
+    "nativeCompileAndExecuteExit": 0,
+    "rebootPerformed": false
+  },
+  "initialCaptureWrapper": {
+    "exitCode": 1,
+    "category": "RemoteException",
+    "binaryAndProvenanceExistedAfterExit": true,
+    "installationOrBuildRepeated": false
+  },
+  "finalVerification": {
+    "contractExit": 0,
+    "tests": 8,
+    "passed": 7,
+    "failed": 0,
+    "skipped": 1,
+    "publicAdapterSmokeExit": 0,
+    "publicAdapterStatus": "synthetic-public-adapter-verified",
+    "keyKindsExercised": 3,
+    "binarySha256": "b6e5d78bacbb365857c41a4a93753ad02d0cbbbc4997f163ccd84dc3e6597f25"
+  },
+  "limits": {
+    "syntheticMaterialOnly": true,
+    "persistentKeyStorageVerified": false,
+    "recoveryKitVerified": false,
+    "crossAccountRecoveryVerified": false,
+    "windowsInstallerQualified": false,
+    "sttTaskOrSourceModified": false,
+    "accountPermissionsChanged": false
+  }
+}
