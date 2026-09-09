@@ -247,6 +247,31 @@ class QuasiIdentifierGeneralizationTest(unittest.TestCase):
         source = "목소리가 작고 활동을 정리한 친구와 상담했다. 활동에 참여했고 목소리로 답했다."
         self.assertEqual(masking.mask_text(source), source)
 
+    def test_keeps_counter_phrases_and_non_address_unit_compounds(self):
+        for source in (
+            "친구 2명과 만났다",
+            "우리 3명이 갔다",
+            "다시 3번 시도했다",
+            "잠시 10분 쉬었다",
+            "당시 5살이었다",
+            "운동 30분 했다",
+            "아홉시 30분에",
+            "지하철 5호선을 탔다",
+            "국밥집 2호점에 갔다",
+            "태풍 11호가 온다",
+        ):
+            with self.subTest(source=source):
+                self.assertNotIn(masking.ADDRESS_TOKEN, masking.mask_text(source))
+
+    def test_masks_unspaced_address_candidates(self):
+        cases = {
+            "늘봄로123에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
+            "행복아파트3동에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), expected)
+
     def test_masks_full_detailed_address_instead_of_generalizing_metro_prefix(self):
         source = "서울특별시 은평구 늘봄로 123에서 만났다"
         self.assertEqual(masking.mask_text(source), f"{masking.ADDRESS_TOKEN}에서 만났다")
@@ -268,7 +293,9 @@ class QuasiIdentifierGeneralizationTest(unittest.TestCase):
         cases = {
             "늘봄로 123 (신사동)에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
             "늘봄로 123 (신사동, 행복아파트)로 보냈다": f"{masking.ADDRESS_TOKEN}로 보냈다",
+            "늘봄로 123 (신사동 행복아파트)로 보냈다": f"{masking.ADDRESS_TOKEN}로 보냈다",
             "늘봄로 123 (상동)에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
+            "행복아파트 101동 (신사동)에 산다": f"{masking.ADDRESS_TOKEN}에 산다",
         }
         for source, expected in cases.items():
             with self.subTest(source=source):

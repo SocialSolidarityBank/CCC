@@ -152,31 +152,31 @@ _BUILDING_NAME = (
     r"[가-힣A-Za-z0-9·.-]{1,30}(?:아파트|빌라|오피스텔|빌딩|타워|센터|주택|연립|건물)"
 )
 _UNIT = r"(?:\d{1,4}동(?:\s*\d{1,5}호)?|\d{1,5}호)"
+_ADDRESS_END = _REGION_END
 _ROAD_ADDRESS = (
-    rf"{_ADMIN_PREFIX}{_ROAD_NAME}\s+\d{{1,5}}(?:-\d{{1,5}})?"
+    rf"{_ADMIN_PREFIX}{_ROAD_NAME}\s*\d{{1,5}}(?:-\d{{1,5}})?"
     rf"(?:\s+(?:{_BUILDING_NAME}|{_UNIT})){{0,3}}"
 )
 _LOT_ADDRESS = (
-    rf"{_ADMIN_PREFIX}[가-힣]{{1,12}}(?:읍|면|동|리)\s+(?:산\s*)?"
+    rf"{_ADMIN_PREFIX}[가-힣]{{1,12}}(?:읍|면|동|리)\s*(?:산\s*)?"
     rf"\d{{1,5}}(?:-\d{{1,5}})?(?:\s+{_UNIT})?"
 )
 _ADMIN_LOT_ADDRESS = (
-    rf"(?:{_METRO}\s+)?(?:{_NON_METRO_LOCAL_ADMIN}\s+){{1,3}}(?:산\s*)?"
+    rf"(?:{_METRO}\s*)?(?:{_NON_METRO_LOCAL_ADMIN}\s*){{1,3}}(?:산\s*)?"
     rf"\d{{1,5}}(?:-\d{{1,5}})?(?:\s+{_UNIT})?"
 )
-_BUILDING_ADDRESS = rf"{_ADMIN_PREFIX}{_BUILDING_NAME}(?:\s+{_UNIT})?"
-_NAMED_UNIT_ADDRESS = rf"{_ADMIN_PREFIX}[가-힣A-Za-z0-9·.-]{{1,30}}\s+{_UNIT}"
+_BUILDING_ADDRESS = rf"{_ADMIN_PREFIX}{_BUILDING_NAME}(?:\s*{_UNIT}){{0,2}}"
+_UNIT_PAIR = r"\d{1,4}동\s*\d{1,5}호"
+_NAMED_UNIT_ADDRESS = (
+    rf"{_ADMIN_PREFIX}(?:[가-힣A-Za-z0-9·.-]{{1,30}}\s+)?{_UNIT_PAIR}"
+)
 _ADDRESS = re.compile(
     rf"(?<![가-힣A-Za-z0-9])(?:{_ROAD_ADDRESS}|{_ADMIN_LOT_ADDRESS}|{_LOT_ADDRESS}|"
-    rf"{_BUILDING_ADDRESS}|{_NAMED_UNIT_ADDRESS}|{_UNIT})"
-    r"(?![A-Za-z0-9])",
-)
-_NUMERIC_ADDRESS = re.compile(
-    rf"(?:{_ROAD_ADDRESS}|{_ADMIN_LOT_ADDRESS}|{_LOT_ADDRESS})",
+    rf"{_BUILDING_ADDRESS}|{_NAMED_UNIT_ADDRESS}){_ADDRESS_END}",
 )
 _PARENTHETICAL_ADDRESS_REFERENCE = re.compile(
     rf"[ \t]*\([ \t]*(?:[가-힣]{{1,12}}(?:동|리))"
-    rf"(?:[ \t]*,[ \t]*{_BUILDING_NAME})?[ \t]*\)",
+    rf"(?:[ \t]*,?[ \t]*{_BUILDING_NAME})?[ \t]*\)",
 )
 _QUOTED_ROAD_REFERENCE = re.compile(
     rf"[\"“‘'](?P<road>{_ROAD_NAME})[ \t]+"
@@ -342,10 +342,9 @@ def _address_spans(text: str) -> list[tuple[int, int]]:
     spans = []
     for match in _ADDRESS.finditer(text):
         start, end = match.span()
-        if _NUMERIC_ADDRESS.fullmatch(match.group()):
-            reference = _PARENTHETICAL_ADDRESS_REFERENCE.match(text, end)
-            if reference is not None:
-                end = reference.end()
+        reference = _PARENTHETICAL_ADDRESS_REFERENCE.match(text, end)
+        if reference is not None:
+            end = reference.end()
         spans.append((start, end))
     spans.extend(_strict_context_road_spans(text))
     return spans
