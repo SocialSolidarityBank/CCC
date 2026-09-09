@@ -12,6 +12,7 @@ node_modules/
 .open-next/
 dist/
 *.tsbuildinfo
+/supabase/functions/ccc-api/index.js
 
 # 환경 변수·시크릿
 .env

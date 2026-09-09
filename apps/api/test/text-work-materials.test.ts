@@ -12,7 +12,7 @@ import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { Miniflare } from 'miniflare';
 import { createD1Database } from '@ccc/db-d1';
 import worker from './support/local-worker';
-import { SQLITE_MIGRATIONS_PATH } from './support/d1';
+import { SQLITE_MIGRATIONS_PATH, seedHistoricalParticipant, seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   activateAiProviderConfiguration,
   approveGeneratedAiDraft,
@@ -37,7 +37,6 @@ import {
   updateParticipantConsent,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
 import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 
 /**
@@ -68,7 +67,13 @@ beforeEach(async () => {
 });
 
 async function fixtureCase(): Promise<{ caseId: string; supportCaseId: string }> {
-  const caseRecord = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
+  const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, caseRecord.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected initial support case');
@@ -476,10 +481,7 @@ describe('마이그레이션 0034: 텍스트 일감 큐 사유 확장 (CCC-103)'
         `INSERT INTO users (id, org_id, email, role, active)
          VALUES (?, ?, 'migration-0034@example.invalid', 'counselor', 1)`,
       ).bind(counselor.userId, counselor.orgId).run();
-      const participant = await createBeneficiaryWithInitialSupportCase(upgradeEnv, counselor, {
-        programType: 'financial_support_v1',
-        intakeAt: '2026-07-14T09:00:00.000Z',
-      });
+      const participant = await seedHistoricalParticipant(db, counselor, '997', createdAt);
 
       const sessionIds = ['migration-0034-session-a', 'migration-0034-session-b'];
       for (const [index, sessionId] of sessionIds.entries()) {

@@ -93,6 +93,7 @@ function recoveryState(value: string | undefined): RecoveryState {
     case 'ai_provider_not_configured':
     case 'ai_prohibited_output':
     case 'ai_provider_unavailable':
+    case 'program_admission_required':
     case 'service_unavailable':
     case 'unknown_outcome':
       return value;
@@ -300,6 +301,7 @@ function responseOutcome(result: unknown): SubmissionOutcome {
     case 'ai_provider_not_configured':
     case 'ai_prohibited_output':
     case 'ai_provider_unavailable':
+    case 'program_admission_required':
     case 'service_unavailable':
       return result.status;
     default:
@@ -387,6 +389,7 @@ function RecoveryStatus({ state }: { state: RecoveryState }) {
     // 공용 Notice 타입을 쓰므로 자리는 채워 둔다(빠지면 타입이 깨진다).
     privacy_consent_required: '개인정보 수집·이용 동의가 확인되지 않아 요청을 처리할 수 없습니다. 당사자 정보 화면에서 동의 상태를 확인하세요.',
     emergency_reason_required: '긴급 등록 사유가 없어 요청을 처리할 수 없습니다.',
+    program_admission_required: '관리자가 사업의 저장 위치와 처리 방식을 확인해야 상담 기록을 저장할 수 있습니다. 관리자에게 사업 설정 확인을 요청하세요.',
     service_unavailable: '상담 기록 서비스에 연결할 수 없어 저장 여부를 확인할 수 없습니다. 이 화면에서는 재제출하거나 내용을 복원하지 않습니다.',
     unknown_outcome: '저장 결과를 확인할 수 없습니다. 이 화면에서는 제출 조회나 내용 재구성을 하지 않습니다.',
   };

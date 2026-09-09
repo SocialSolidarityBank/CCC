@@ -1,0 +1,22 @@
+Settings final design gate, integration owner wZ:p1
+
+User-approved scope: complete settings supported by existing foundations; unavailable engines must state the precise reason and must not expose fake save/run successes. The user wants real behavior before design. No commit, deployment, live secrets, root checkout changes or other worktrees.
+
+Worktree only: /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/settings-backend
+Expected local proof surface: http://127.0.0.1:13103/settings-smoke.html (Main supplies readiness separately). This mounts the real BusinessPage and real Supabase SDK. Authentication is explicitly synthetic signed fixtures; all business requests run through the real Community Cloud runtime, restricted ccc_api adapter and isolated native PostgreSQL. No hosted Supabase acceptance claim. Synthetic login: admin@example.invalid, arbitrary nonempty test password. Other identities: worker@example.invalid, other-worker@example.invalid, tech@example.invalid. No browser storage.
+
+Layout contract
+- One Settings page title, logout action. Group existing settings navigation by institution/records/AI/storage/system/personal. Show only authorized destinations; a direct unauthorized URL remains denied.
+- One selected content surface. Card sections use WireCardSection and WireItem, not hand-made nested cards. Existing form controls and WireDataRows retain shared rules.
+- Institution: institution, programs, accounts. Records: consent, retention, exports, audit. AI: speech, ai, agent, memory. Storage: database, storage, backup. System: security, system, updates. Personal: account, guide. Exactly 19 destinations.
+- Institution admin: institution/programs/consent/retention/audit/memory policy and role/assignment editing. Technical admin: installation preparation/readbacks and account deactivation, no policy, key or final AI authority. Worker: own account, own assignment acceptance, assigned-case official export. Supervisor is derived from teams, not an editable direct grant.
+- 409/uncertain writes retain drafts. No duplicate writes; no disabling that loses draft state. Do not alter API DTOs, auth, transport, capability gates, source scopes, or migration behavior.
+- Unavailable consent notice version linkage, Auth invite provisioning, SecretStore writes, approved STT activation, backup/import/restore/update engines are explicit unavailable explanations. Read-only actual capabilities are not overall health, region, size or connectivity proof.
+- Current staged guide has a stale paragraph claiming the manual still assigns old roles. docs/manual/project-admission-check.md already uses institution-admin ownership: correct or remove the false claim, do not change the manual to fit it.
+
+Ownership
+- Main: backend, migrations, tests, auth/transport/installation code, runtime fixtures, all validation commands, acceptance evidence and cleanup.
+- settings-screen-builder: only presentation and navigation markup in apps/client/src/business/*.tsx, business.css; no auth-view/auth.ts/transport.ts/installation.ts/API decoder changes. Can adjust icons/copy/layout to existing DESIGN-RULES, but preserve event handlers/state/IDs used by real flows. No new rule exceptions or invented capabilities. Read DESIGN-RULES.md and applicable design-lane instructions. Skip formatters, linters, guards, builds and test suites. Do not launch services. Capture real desktop/mobile after Main provides preview readiness.
+- settings-rule-reviewer: read-only rules/spec review, independent of builder. Read DESIGN-RULES.md and existing design reviewer criteria. No code or docs mutations. Skip all builds/tests/formatters/guards. Review all 19 routes, role restrictions, unavailable-state truthfulness, hierarchy, spacing, badges, action placement. Later inspect supplied real preview/captures. Report position/problem/rule/severity, ending with definite count and judgment-needed count.
+
+Deliver evidence in artifacts/settings-screen-review.txt and artifacts/settings-rules-review.txt respectively, screenshots under artifacts/settings-final-*.png. No .md creation. Main will run final validation after all edits settle. Other root CCC agents remain active: do not run a heavy pool or touch their resources.

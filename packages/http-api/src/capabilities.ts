@@ -6,10 +6,10 @@
  * 키는 존재 여부만 보고 값·이름·hash 는 응답과 로그에 싣지 않는다.
  */
 import type { Actor } from '@ccc/core/gateway';
-import { getAgentStatusForCapabilities } from '@ccc/core/gateway';
+import { getAgentStatusForCapabilities, getInstalledAiPolicy } from '@ccc/core/gateway';
 import { buildCapabilityManifest } from '@ccc/contracts/capabilities';
 import { verifySignedInstallManifest } from '@ccc/contracts/install-manifest';
-import { type CapabilityManifest, type LlmMode, LLM_MODES, STT_MODES, type SttMode } from '@ccc/contracts/runtime';
+import { type Actor as IdentityActor, type CapabilityManifest } from '@ccc/contracts/runtime';
 import type { ApiEnv } from './identity';
 
 export class CapabilitiesUnavailableError extends Error {}
@@ -33,7 +33,7 @@ function parseSigningKeys(raw: string | undefined): Record<string, string> {
  * 서버가 믿는 설치 사실 하나. 검증에 실패하면 이 값을 쓰는 모든 경로가 함께 닫힌다.
  * `GET /capabilities` 와 Agent claim 의 route·engine 판정이 같은 정본을 읽는다.
  */
-export async function verifiedInstallManifest(env: ApiEnv) {
+export async function verifiedInstallManifest(env: Pick<ApiEnv, 'CCC_INSTALL_MANIFEST' | 'CCC_INSTALL_SIGNING_KEYS'>) {
   if (env.CCC_INSTALL_MANIFEST === undefined) throw new CapabilitiesUnavailableError('install manifest missing');
   let raw: unknown;
   try {
@@ -51,17 +51,16 @@ export async function verifiedInstallManifest(env: ApiEnv) {
   }
 }
 
-export async function buildCapabilities(env: ApiEnv, actor: Actor): Promise<{ manifest: CapabilityManifest; installationId: string }> {
+export async function buildCapabilities(env: ApiEnv, actor: Actor | IdentityActor): Promise<{ manifest: CapabilityManifest; installationId: string }> {
   // Agent 는 403 (S2 §2.8). 사람 역할 판정보다 먼저라 manifest 유무를 Agent 에게 알리지 않는다.
   const agentStatus = await getAgentStatusForCapabilities(env, actor);
   const installManifest = await verifiedInstallManifest(env);
-  const requestedStt = env.CCC_STT_MODE ?? 'off';
-  const requestedLlm = env.CCC_LLM_MODE ?? 'off';
+  const policy = await getInstalledAiPolicy(env, actor);
   const llmKeyPresent = env.AI_PROVIDER_ADAPTER !== undefined || ((await env.secretStore.get('CODEX_API_KEY'))?.trim().length ?? 0) > 0;
   const manifest = buildCapabilityManifest({
     mode: installManifest.mode,
-    requestedSttMode: STT_MODES.includes(requestedStt as SttMode) ? requestedStt as SttMode : 'off',
-    requestedLlmMode: LLM_MODES.includes(requestedLlm as LlmMode) ? requestedLlm as LlmMode : 'off',
+    requestedSttMode: policy.sttMode,
+    requestedLlmMode: policy.llmMode,
     registry: installManifest.approvedSttEngineIds,
     // Q 승인 사실은 signed registry 로만 서버에 닿는다. gate 만 지나고 entry 가 없는 상태를 따로 실어
     // 나르는 signed 필드는 아직 없어 entry 존재를 gate 통과로 읽는다. 그 필드가 생기면 여기만 바꾼다.

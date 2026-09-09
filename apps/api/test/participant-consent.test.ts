@@ -12,7 +12,7 @@ import {
   CONSENT_PRIVACY_NOTICE_VERSION,
   CONSENT_TEXT_AI_NOTICE_VERSION,
 } from '@ccc/contracts/consent-notice';
-import { grantTestPractitionerRole, setupD1, testActors } from './support/d1';
+import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
 
 const { counselor, admin, unassignedCounselor } = testActors;
 const t = setupD1();
@@ -36,8 +36,8 @@ function headersFor(actor: { userId: string; orgId: string; role: string }): Rec
 
 async function register(actor: typeof counselor | typeof admin, consent?: ParticipantConsentInput) {
   const input = actor.role === 'admin'
-    ? { programType: 'financial_support_v1' as const, intakeAt: INTAKE_AT, initialAssigneeUserId: actor.userId }
-    : { programType: 'financial_support_v1' as const, intakeAt: INTAKE_AT };
+    ? { programId: testProgramId(actor.orgId), intakeAt: INTAKE_AT, initialAssigneeUserId: actor.userId }
+    : { programId: testProgramId(actor.orgId), intakeAt: INTAKE_AT };
   // G1: ① 은 등록의 하드 게이트다. 테스트 기본값은 "동의함"이고, 게이트 자체를 시험하는
   // 테스트만 privacy:false 를 명시한다(스프레드가 뒤에 있어 명시값이 이긴다).
   const gated = consent === undefined ? undefined : { privacy: true, ...consent };
@@ -200,7 +200,7 @@ describe('POST /participants consent contract (티켓 #19)', () => {
   it('records the merged consent from the registration payload (D49)', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       // G1: ① 은 등록의 하드 게이트라 등록 요청에는 언제나 실린다.
       consentPrivacy: true,
       consentRecordingAi: true,
@@ -218,7 +218,7 @@ describe('POST /participants consent contract (티켓 #19)', () => {
   it('records a decline when the form submits the merged flag false (D15 미동의 경로)', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       // ② 미동의 경로는 G1·D49 이후에도 불변이다 — 막히는 것은 ① 뿐이다.
       consentPrivacy: true,
       consentRecordingAi: false,
@@ -235,7 +235,7 @@ describe('POST /participants consent contract (티켓 #19)', () => {
   // 등록"이 아니라 **거부**다. 하위 호환으로 게이트를 건너뛰는 구멍을 두지 않는다.
   it('rejects a payload that omits the privacy consent (G1 하드 게이트)', async () => {
     await t.reset();
-    const response = await register({ programType: 'financial_support_v1' });
+    const response = await register({ programId: testProgramId(counselor.orgId) });
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'privacy_consent_required' });
     const created = await t.db.prepare('SELECT COUNT(*) AS count FROM beneficiaries').first<{ count: number }>();
@@ -245,7 +245,7 @@ describe('POST /participants consent contract (티켓 #19)', () => {
   it('rejects a non-boolean consent flag', async () => {
     await t.reset();
     const response = await register({
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       consentRecordingAi: 'yes',
     });
     expect(response.status).toBe(400);
@@ -442,7 +442,7 @@ describe('PUT /support-cases/:id/consent (D44)', () => {
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: INTAKE_AT },
+      { programId: testProgramId(counselor.orgId), intakeAt: INTAKE_AT },
       undefined,
       { privacy: false, recordingAi: false, emergency: { reason: '위기 개입' } },
     );
@@ -507,7 +507,7 @@ describe('participant_consent_records schema guards', () => {
   it('rejects a recorder who is not an active human user', async () => {
     await t.reset();
     const creation = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: INTAKE_AT,
     });
     await expect(t.db.prepare(
@@ -521,11 +521,11 @@ describe('participant_consent_records schema guards', () => {
   it('rejects a support case that does not belong to the beneficiary', async () => {
     await t.reset();
     const first = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: INTAKE_AT,
     });
     const second = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: INTAKE_AT,
     });
     await expect(t.db.prepare(
@@ -539,7 +539,7 @@ describe('participant_consent_records schema guards', () => {
   it('rejects an item consent time that differs from recorded_at', async () => {
     await t.reset();
     const creation = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: INTAKE_AT,
     });
     await expect(t.db.prepare(

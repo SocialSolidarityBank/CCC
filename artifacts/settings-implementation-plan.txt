@@ -1,0 +1,36 @@
+Settings implementation execution contract
+User approval: implement the approved 19 modules, then hand over visual/copy refinement to the design lane. This is not permission to fabricate completed operations, bypass authentication, or take over another worker's protected runtime.
+Integration baseline: origin/main feca8606df82607f8f5fb294d2be6a16d2e095cf. Both existing settings worktrees fast-forwarded; root and other worktrees untouched. Prior API inventory used 33c9fab and must not be treated as current absence proof.
+
+Ownership
+Main coordinates integration, real runtime verification and final design handoff. Existing settings-design owns eventual apps/client settings consumer code, not authentication engines. Settings-backend owns separately reserved settings gateway/HTTP operations. Foundation owner's response governs shared migration/auth/install seams. Do not extend Next/Cloudflare server actions into the final business data path.
+
+Sequence and acceptance
+1. Obtain foundation handoff: current authenticated Vite client seam, canonical roles, storage/install operations and exact ownership. Existing apps/client is an STT trial, not proof of signed-in business routing.
+2. Institution information: implement PATCH /organization/profile, request orgName + expectedOrgName, response existing OrganizationProfile. Active institution admin only; derive org from actor. Do not modify programDisplayName, timezone, retention, AI policy or onboarding behavior. Unknown input keys and blank/overlong names rejected. Missing org settings stays absent. Stale editor 409. Update and successful audit must be atomic under concurrent writers and audit failure, with no stale-write success audit. Check existing transaction/operation marker conventions before deciding whether schema support is needed; do not use timestamp equality as an operation identity or SQLite-only changes(). Run an observable HTTP regression before production code, then runtime smoke.
+3. Rebase the 19-module inventory on the new baseline, especially real counseling-memory settings and STT contracts. Keep explicit missing ownership/runtime prerequisites per module rather than marking unsupported placeholders complete.
+4. Connect existing personal identity, assignment acceptance, and institution memory settings through the authenticated business-client seam once supplied. Keep role union, input preservation on 409, no role query parameters, no session/key persistence in browser storage. Show real saved values and failures.
+5. Implement separately owned missing programs/admission, account administration, six-domain notice configuration, retention policy/review, export and bounded redacted audit contracts. Preserve module-specific authority and official-record restrictions.
+6. Connect STT/LLM/Agent configuration to owner-provided prepare/approve/execute services. No fake connection check, no STT engine auto-selection, no key write through read-only SecretStore.
+7. Connect DB/storage/backup/security/system/update modules to owner-provided real operations and observed state. Protect immutable plan approval, signed releases and rollback evidence. Do not turn interface declarations into fabricated service completion.
+8. Finish safe guide links and current role explanations, then test saved/read-back state, permissions, failure/conflict, secret boundaries and actual browser interaction. Hand over to design lane only after the corresponding module works end to end.
+
+No commit, push, deployment, live secret access or modification of other worktrees is authorized by this execution contract. Missing foundation services require explicit ownership resolution, not a second implementation hidden under settings.
+
+User scope amendment after elapsed-time review:
+- User explicitly selected "가능한 설정부터 완성": complete settings supported by existing foundations first, then design. Show the reason and blocked state for capabilities whose execution foundation is absent.
+- This supersedes the requirement to finish missing runtime engines inside this settings lane. It does not authorize success-shaped placeholders or arbitrary credential/update APIs.
+- Foundation owner wQ:p1 confirmed no integration-ready SecretStore write/rotation, backup/restore/.cccx import, update/rollback execution or Local Identity implementation. Supabase apply remains outside its read-only plan contract.
+- Existing ownership remains: CCC-230 DPAPI, CCC-226 Office identity, CCC-253 Single identity, CCC-141 Supabase apply, and separate D78/D83 application services. Keep root freeze and protected worktrees intact.
+- Account/role, consent, retention, export and audit settings work remains in scope where it can use the existing authenticated gateway and storage foundation.
+
+Hosted handoff attachment assessment:
+- Add deployment safety checks to the current scope: isolate Service Role from the business Edge, verify actual static-response CSP, and reconcile CORS with S11.
+- Source confirms S11 requires StorageSigner-only Service Role and forbids audio bytes through the business Edge. Current runtime directly composes the privileged Supabase AudioStore; this is a deployment blocker, not a verified-safe boundary.
+- S11 requires Authorization, Content-Type, Idempotency-Key, X-Request-Id and x-region. Current runtime advertises only the first two. Preserve X-CCC-Installation-Id exposure while reconciling region evidence.
+- Hosted verification is a separate gated acceptance stage, not permission to create projects, apply schemas, access live secrets or deploy now. Follow opsvc policy, synthetic-only data, read-only plan/fingerprints, ownership and explicit change authorization. Human login/MFA/captcha/terms/payment gates stop external execution, not unrelated settings work.
+- Hosted acceptance covers signed bootstrap, real Auth aal1/aal2, Bearer denial/allowance, org separation, installation/me identity, profile and memory readback/CAS, same-SID revocation/new-SID allowance, pool RLS reset, CORS, browser login/settings/logout/history, browser token persistence absence and sanitized response/log evidence.
+- Correct the attachment's stale memory API reference: current client uses GET/PUT /settings/counseling-memory, not GET/PATCH /counseling-memory/settings. Include current 0008 and subsequent approved migrations, not a 0007-only baseline.
+- Preserve reported earlier passing baselines without rerunning merely to reconfirm them. Revalidate changed contracts and separate local, source and hosted evidence. Never report hosted completion from local results.
+- Do not revive the deleted .settings-foundation-smoke.ts or delay disposal of no-longer-needed local synthetic resources until hosted access is possible.
+- Missing StorageSigner/apply foundations may require explicit safe deployment/audio blocking under the user's approved unavailable-state scope; this attachment does not reopen backup/update/local-auth engine development.

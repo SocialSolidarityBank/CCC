@@ -7,7 +7,7 @@ import { WireButton } from '../../components/wire/wire-button';
 import { Icon } from '../../components/wire/wire-icon';
 import { WireCard } from '../../components/wire/wire-card';
 import { DisclosureChevron } from '../../components/wire/chevron';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import type { ProgramOption } from '../../lib/api';
 import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from './consent-copy';
 
 // 성별 선택값은 정본 질문지 1-1 그대로다(D41). 빈 값은 '미입력' — 금고에 아무것도 쓰지 않는다.
@@ -30,11 +30,7 @@ export interface RegisterFormProps {
    * (actions.ts → 'server-only')에서 떼어내 단위 테스트에서 렌더 가능하게 한다.
    */
   action: (formData: FormData) => void | Promise<void>;
-  /**
-   * 참여 사업 표시 이름 — 페이지가 getDisplayLabels() 로 넣는다(온보딩 저장값 우선, CCC-32).
-   * 생략하면 labels.ts 폴백 — 단위 테스트가 서버 fetch 없이 렌더할 수 있다.
-   */
-  programLabel?: string;
+  programOptions: ProgramOption[];
 }
 
 /**
@@ -50,19 +46,20 @@ export interface RegisterFormProps {
  * 2026-07-30 UI 수정 레인 B — 어느 변경이 어디서 왔는지 남긴다:
  * - 훑기 결함(`artifacts/ui-revision-sweep-v1/findings.md`): Y6 카드·콤팩트 버튼 ·
  *   Y7 `등록하기` · Y8 필수 별표 · Y10 동의 블록 시각 언어
- * - 같은 날 Q 요청(훑기 목록 밖): 참여 사업 고정 표시 · 성별을 생년월일 위로 ·
+ * - 같은 날 Q 요청(훑기 목록 밖): 참여 사업 선택 목록 · 성별을 생년월일 위로 ·
  *   서명 동의서 첨부 자리(기능 없음)
  */
 export function RegisterForm({
   currentUser,
   action,
-  programLabel = PROGRAM_LABELS.financial_support_v1,
+  programOptions,
 }: RegisterFormProps) {
   // G1: ① 은 필수 체크이고, 긴급 등록을 켜면 그 필수가 사유 입력으로 옮겨 간다.
   // 둘은 **서로 배타**다 — 서버가 "동의가 있는데 긴급 예외까지 왔다"를 거부하므로(예외는
   // 동의가 없을 때만 성립), 화면에서 아예 함께 켜지지 않게 한다. 그러지 않으면 한 번의
   // 클릭으로 원인 없는 실패에 닿는다.
   const [privacy, setPrivacy] = useState(false);
+  const canCreate = programOptions.some((program) => program.admissionState === 'ready');
   const [emergency, setEmergency] = useState(false);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string>();
@@ -86,15 +83,34 @@ export function RegisterForm({
           }
         }}
       >
-        {/* 참여 사업은 고를 값이 아니다(2026-07-30 Q) — 초대 시점에 정해지고, 서버도 폼이 보낸
-            값을 읽지 않는다(actions.ts 가 financial_support_v1 하드코딩). 그래서 select 를 없애고
-            지금 등록하는 사업 하나만 고정 표시한다. 참여 사업이 여럿이어도 이 화면은 이번 것만 말한다.
-            민트 계열은 '사람·소속' 축이고 사업 라벨이 그 축에 든다(D34).
-            카드 **안** 이름 칸 위다 — 카드 밖에 두면 "화면의 모든 글자는 카드 안에"(D37)를 깬다. */}
-        <p className="register-program-fixed">
-          <span className="register-program-fixed-label">참여 사업</span>
-          <span className="register-program-fixed-value">{programLabel}</span>
-        </p>
+        <div>
+          <SearchInput
+            label="참여 사업"
+            variant="select"
+            name="programId"
+            required
+            options={[
+              { value: '', label: '사업을 선택하세요' },
+              ...programOptions
+                .filter((program) => program.admissionState === 'ready')
+                .map((program) => ({
+                  value: program.id,
+                  label: program.displayName ?? program.programType,
+                })),
+            ]}
+          />
+          {programOptions.length === 0 ? (
+            <p className="schedule-form-hint">등록할 수 있는 사업이 없습니다. 관리자에게 사업 확인을 요청하세요.</p>
+          ) : programOptions.some((program) => program.admissionState !== 'ready') ? (
+            <p className="schedule-form-hint">
+              확인 전인 사업은 등록할 수 없습니다:{' '}
+              {programOptions
+                .filter((program) => program.admissionState !== 'ready')
+                .map((program) => program.displayName ?? program.programType)
+                .join(', ')}
+            </p>
+          ) : null}
+        </div>
 
         <div className="wire-container" data-grid="true">
           {/* 이름·이메일·연락처는 필수 표시를 달지 않는다(2026-08-08 Q). 서버가 셋 다 선택
@@ -273,7 +289,7 @@ export function RegisterForm({
         {/* Y7: 실무자가 남을 등록하는 화면이라 '가입하기'가 아니다. 당사자 본인이 쓰는 자기 가입
             폼(join/participant)은 '가입하기'가 맞으므로 그쪽은 건드리지 않는다.
             Y6: 풀폭 버튼은 이 화면만의 예외였다 — 다른 화면처럼 콤팩트 알약으로 되돌린다. */}
-        <WireButton type="submit" size="large" className="register-submit" icon={<Icon name="check" />}>
+        <WireButton type="submit" size="large" className="register-submit" icon={<Icon name="check" />} disabled={!canCreate}>
           등록하기
         </WireButton>
       </form>

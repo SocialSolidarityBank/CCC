@@ -9,8 +9,8 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "build": "pnpm --filter @ccc/api run build && pnpm --filter @ccc/web run build && pnpm --filter @ccc/client run build",
-    "typecheck": "pnpm --filter @ccc/api run typecheck && pnpm --filter @ccc/web run typecheck && pnpm --filter @ccc/client run typecheck",
+    "build": "pnpm --filter @ccc/api run build && pnpm --filter @ccc/web run build && pnpm --filter @ccc/client run build && pnpm --filter @ccc/community-cloud run build",
+    "typecheck": "pnpm --filter @ccc/api run typecheck && pnpm --filter @ccc/web run typecheck && pnpm --filter @ccc/client run typecheck && pnpm --filter @ccc/community-cloud run typecheck",
     "test": "pnpm run test:design-routes && pnpm --filter @ccc/api run test && pnpm --filter @ccc/web run test && pnpm --filter @ccc/client run test && pnpm run design:routes",
     "test:design-routes": "node --test scripts/design/route-inventory.test.mjs && python3 -m unittest scripts/design/ia_shots_test.py",
     "test:stt-fixtures": "python3 -m unittest discover -s scripts/stt/tests -p \"test_*.py\" -v",

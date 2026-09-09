@@ -13,6 +13,8 @@ const APPLICATION_TRIGGER_CODES = [
   'invite_token_already_used',
   'participant_schema_violation',
   'counseling_memory_fence',
+  'program_admission_required',
+  'account_state_changed',
 ] as const;
 // Extended protocol also rejects multiple commands in an unbound statement.
 const QUERY_OPTIONS = { prepare: false, simple: false };
@@ -29,6 +31,8 @@ export interface PostgresDatabaseOptions {
 export interface PostgresActorContext {
   readonly orgId: string;
   readonly actorId: string;
+  /** Set only from a verified credential, never a request body or query parameter. */
+  readonly sessionId?: string;
 }
 
 export interface PostgresDatabase extends Database {
@@ -171,12 +175,13 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
       if (context === null || typeof context !== 'object') {
         throw new PostgresDatabaseError('unsupported');
       }
-      const { orgId, actorId } = context;
+      const { orgId, actorId, sessionId } = context;
       if (typeof orgId !== 'string' || orgId.trim().length === 0
-        || typeof actorId !== 'string' || actorId.trim().length === 0) {
+        || typeof actorId !== 'string' || actorId.trim().length === 0
+        || (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.trim().length === 0))) {
         throw new PostgresDatabaseError('unsupported');
       }
-      return Object.freeze({ orgId, actorId });
+      return Object.freeze({ orgId, actorId, ...(sessionId === undefined ? {} : { sessionId }) });
     } catch (error) {
       if (error instanceof PostgresDatabaseError) throw error;
       throw new PostgresDatabaseError('unsupported');
@@ -256,8 +261,9 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
       const outcome = await pool.begin(async (transaction) => {
         await transaction.unsafe(
           `SELECT set_config('app.org_id', $1, true),
-            set_config('app.actor_id', $2, true)`,
-          [context.orgId, context.actorId],
+            set_config('app.actor_id', $2, true),
+            set_config('app.session_id', $3, true)`,
+          [context.orgId, context.actorId, context.sessionId ?? ''],
           QUERY_OPTIONS,
         );
         return { value: await operation(transaction) };
@@ -360,4 +366,22 @@ export function createPostgresDatabase(options: PostgresDatabaseOptions): Postgr
       return closing;
     },
   };
+}
+
+/** The deployed identity path requires a restricted login and the verified-session RLS migration. */
+export async function assertPostgresIdentityBoundary(database: PostgresDatabase): Promise<void> {
+  const row = await database.prepare(
+    `SELECT CASE WHEN current_user = 'ccc_api'
+       AND role.rolcanlogin AND NOT role.rolsuper AND NOT role.rolbypassrls
+       AND NOT role.rolcreatedb AND NOT role.rolcreaterole AND NOT role.rolinherit AND NOT role.rolreplication
+       AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members WHERE member = role.oid)
+       AND EXISTS (
+         SELECT 1 FROM pg_catalog.pg_policies
+         WHERE schemaname = 'public' AND tablename = 'auth_revocations'
+           AND policyname = 'rls_auth_revocations_current_session_select' AND cmd = 'SELECT'
+       )
+       THEN 1 ELSE 0 END AS allowed
+     FROM pg_catalog.pg_roles AS role WHERE role.rolname = current_user`,
+  ).first<{ allowed: number }>();
+  if (row?.allowed !== 1) throw new PostgresDatabaseError('unsupported');
 }

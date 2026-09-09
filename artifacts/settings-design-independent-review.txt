@@ -1,0 +1,92 @@
+CCC SETTINGS DESIGN: INDEPENDENT RULE / SECURITY REVIEW
+Date: 2026-09-09
+Reviewer: settings-backend lane, not the UI author
+Disposition: changes requested for the concrete findings below. This is a static-source review, not browser verification or production security certification.
+
+Scope
+Reviewed the explicitly assigned settings-design/artifacts/settings-layout-prototype/{design-handoff.txt,index.html,prototype.js,prototype.css,server.mjs}. Read only; no files there changed. No backend implementation reopened. This report is separate from artifacts/settings-backend-contract.txt.
+Authority: supplied settings-lanes-contract.txt (especially 8,11,13-15); supplied settings-approved-snapshot.json files object (approved plan sections 2,4,6,7; DESIGN.md section 4-5; DESIGN-RULES.md). Also compared applicable existing rules in this backend checkout's DESIGN-RULES.md. Approved snapshot controls newer settings navigation requirements absent from this base checkout's rule text.
+No browser, service, tests, build, formatter, install, agents or panes launched. Main owns actual browser observation. Effects below are source-derived; where browser parser/cascade behavior matters, runtime impact is explicitly not claimed observed.
+
+Path notation
+All J/C/I/S anchors below expand to these absolute paths:
+J = /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/settings-design/artifacts/settings-layout-prototype/prototype.js
+C = /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/settings-design/artifacts/settings-layout-prototype/prototype.css
+I = /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/settings-design/artifacts/settings-layout-prototype/index.html
+S = /Users/barq/DEVELOPER/PROJECTS/CCC/.worktrees/settings-design/artifacts/settings-layout-prototype/server.mjs
+Read snapshots: J #2F01, C #B390, I #BAFB, S #C557; handoff #8DC7. Findings refer to this inspected revision, not later edits by Main/design.
+Severity: P2 = fix before calling this artifact's design gate passed; P3 = minor clarity/cosmetic issue. No observed production exploit is asserted.
+
+FINDINGS
+
+D01 | P2 | Audit filter emits malformed select markup
+Location: J:206-209, specifically prototype.js:209.
+Evidence: auditPanel opens <select id="audit-filter">, maps its options, and immediately appends the chevron SVG and </span></label>. There is no </select>. The following event list is concatenated into the same card-body string. In contrast fieldMarkup correctly closes its select at J:110.
+Rule: approved plan Task 1 requires all 19 screens and controls to be usable; Task 4 explicitly requires audit filtering and accessibility checks. Valid form structure is prerequisite to that behavior.
+Impact: the generated markup puts the chevron and following content inside an unterminated select in the source. Browser error recovery can discard/reparent subsequent audit content. This is a definite markup defect; exact resulting DOM and missing content are not browser-observed by this reviewer.
+Precise fix: insert </select> immediately after the options join and before ${chevron}. Keep the chevron as the select's sibling inside wire-input-box, as in fieldMarkup. Main should verify all five audit events and each filter after the fix, with the guide link outside the select.
+
+D02 | P2 | Memory 'syncing' scenario contradicts the same screen's off/current-processing facts
+Location: J:43,60,176-179,194,266-268.
+Evidence: memory exposes syncing in scenariosFor. scenarioPanel says '가상 동기화 중 2건 / 대기 4건'. render treats syncing as normal and renders the unchanged base current-setting rows, including '꺼짐 / 설치 LLM off'. detailsFor(memory) simultaneously renders '이번 처리: 0건 / 외부 호출 없음' and either '꺼짐' or '사용 준비 시연 / 설치 LLM off로 처리 중지'. The state=syncing path does not change any of these facts.
+Rule: approved DESIGN-RULES '디자인 미리보기의 기본 상태' requires mutually incompatible conditions in separate states; approved plan Task 3 requires off/syncing/masking-wait/failure to be distinguished. Shared contract forbids invented live success.
+Impact: one screen teaches both active synchronization and stopped/no current processing. This is not actual data exposure, but makes the required state demonstration internally inconsistent.
+Precise fix: render scenario-specific memory facts from one coherent dummy fixture. If the fixture demonstrates current processing, label its compatible enabled/processing conditions explicitly as simulation and do not retain the stopped/zero-current-work statements. If installed off/null is held invariant for this demonstration, describe the alternate example as queued or historical synchronization rather than currently processing. Do not change real capability or add a case-content response.
+
+D03 | P2 | Required input fields lack the required visual marker
+Location: J:105-113 and J:301-305.
+Evidence: every text/email input receives native required at J:112. J:113 emits a bare label containing only field.label. There is no wire-required-marker. validateCurrentForm also rejects blank string values, including the consent copy, without identifying requiredness in the form schema/label.
+Rule: current and approved DESIGN-RULES.md section 5, current file line 131: actual required inputs use WireBadge's .wire-required-marker, with the defined lavender outline and 8px label gap. Requiredness is not indicated by a placeholder or a later generic error.
+Impact: required fields look optional until validation blocks progression. The missing marker is source-visible; final pixel spacing has not been measured.
+Precise fix: give form fields explicit required metadata and render the existing artifact equivalent of .wire-required-marker only on required field labels. Preserve native required semantics for text/email/textarea as appropriate. Do not add duplicate required badges to card titles or invent another badge style. Keep the existing input values and failure preservation.
+
+D04 | P2 | Visual navigation groups are not named groups for assistive technology
+Location: J:245-246.
+Evidence: each group is <div class="navigation-group"><p class="navigation-section-title">...</p><div class="navigation-items">...</div></div>. Group titles have no id; the link container has no aria-labelledby, role=group or list semantics. I:18 labels only the entire nav as '설정'.
+Rule: approved DESIGN.md section 4-5, snapshot line 456: group title is a non-clickable p and names its list via aria-labelledby. Task 1/Task 4 require keyboard and accessibility behavior, not only a visual grouped menu.
+Impact: the five visible headings are ordinary paragraphs, not programmatically named link groups. Current link names and aria-current remain useful, but do not expose the specified group relationship.
+Precise fix: assign a stable unique id to each visible title and reference it from a semantic list or role=group container using aria-labelledby. Keep links at one level and retain the separate ungrouped 내 정보 and 사용 가이드 entries; do not add a common heading for those two.
+
+D05 | P2 | Theme action returns to the superseded sidebar footer instead of the existing shell action position
+Location: I:15-21 and C:28-30,76-81.
+Evidence: the theme button is rendered inside .sidebar-foot at I:19. The header at I:21 contains only screen text and a mobile menu button. .app-header is position:relative at C:29, while sidebar-footer is the only theme location. The same footer remains inside the mobile drawer.
+Rule: shared lane contract line 8 says settings replaces work navigation in the existing sidebar, not a new shell. Approved DESIGN.md section 4-5, snapshot lines 455 and 461: theme is a header account action, and on mobile those actions are in the drawer's top row; the earlier sidebar-foot placement was explicitly superseded. Header action persistence uses the existing sticky shell contract.
+Impact: the prototype demonstrates a different action location from the approved shell, despite claiming to replace only its menu. This is a standards issue, not a request to build a live router/auth/client foundation.
+Precise fix: move the existing simulated theme control into the approved desktop header/mobile drawer-top action slots, reusing the existing 32px icon-action vocabulary and accessible name. Keep it one logical control/state per active surface. Preserve the sidebar top return-to-work action and one settings navigation. Do not introduce a second sidebar, real logout or production session handling just for this fix.
+
+COVERAGE / CHECKED WITHOUT A NEW DEFECT CLAIM
+1. Labels and grouping: J:27,32-52 lists exactly the approved 19 modules. Groups are institution/programs/accounts; consent/retention/exports/audit; speech/ai/agent/memory; database/storage/backup; security/system/updates. account and guide have group:null and render separately at J:246. No A/B switch or second admin tab row in the assigned markup.
+2. Dummy-role boundary: roleNames/roleSets at J:25-31 explicitly map counselor preview to canonical worker. all exists only in the static preview. visible() and denied-route content at J:57,257-264 prevent normal navigation from rendering another preview role's screen. This does not prove production authorization, and the artifact does not claim it does.
+3. AI key/start split: J:107-110 disables credential selection without IA; J:133,323-337 separates TA preparation, IA key state and final start. Admin/TA fixture-loading buttons explicitly say they load example evidence rather than perform the other role's action. No actual secret input control exists.
+4. Backup split: J:134,326-338 requires IA approval and TA preparation/execution for the preview flow; a '검증 전' source does not receive checked=true at J:330. J:345-347 distinguishes procedure simulation from actual files/connections/install. No backend operation is wired here.
+5. Privacy facts: consentAreas at J:64 contains six domains. J:74,187,215 says old consent is not upgraded. J:37,75,188,216 describes archive-before-purge, last-active-case clock and nonlegal five-year cap. J:45,82,196,224 states immediate post-processing deletion and the earlier of first opportunity+24h / upload+7d. J:77-78,191-192,219-220 distinguishes Azure unmasked audio from OpenAI masked text and store:false; STT off/engine null is preserved rather than selecting unapproved local STT.
+6. Settings memory privacy: J:194 uses institution-level totals/status, not names, consultation content, quotes, memory.md or an item approval/correction queue. D02 concerns contradictory simulated state, not leaked clinical content.
+7. Form types and preservation: email/contact input type=email and label-for linkage at J:106-113; textarea for notice text; disabled Naver/local options at J:72,77. operationFailure at J:308-313 returns before writes and retains d.values for failure/conflict/unavailable/disconnected paths. Input changes clear checked/approved/confirmed/keyPrepared at J:357-363. Applied state is page memory only and role changes clear drafts at J:395. Browser behavior remains Main's check.
+8. Navigation/accessibility scaffolding: single h1 and skip link at I:13,22,30; route history and title focus at J:273-290,413; dialog/inert/Escape/focus-wrap code at J:292-300,402-412. These are implemented mechanisms, not evidence of actual focus containment at all widths. D01/D04 must be fixed independently of a successful screenshot.
+9. Output/transport boundary: esc() at J:4 escapes user-entered values used in HTML templates; institution name uses textContent at J:255. No fetch/API/storage/cookie call in assigned JS. I:29 prominently states no server storage, visitor isolation, seven-day persistence, external requests or file creation, and warns not to enter real PII/keys. S:11 permits only GET/HEAD, S:14-23 confines ordinary asset resolution to the artifact path/allowed extensions with a separate design-token path, S:25 sets no-store/nosniff. This is source inspection, not a network/path-traversal penetration test; no hypothetical symlink or filesystem leak is reported.
+10. Styling scope: C uses shared variables and a single 767px viewport shell switch with a separate content container query. No new raw color palette or fabricated production component/API found in assigned files. Actual wire.css cascade, token resolution, layout, contrast, height and clipping were not independently measured; no blanket DESIGN-RULES pass is issued.
+
+HANDOFF TO MAIN
+Five concrete P2 findings; no P0/P1 production security finding asserted. Fix D01-D05 before reporting an unqualified artifact design-gate pass, then use Main's browser pass to observe audit DOM/filtering, memory scenario coherence, required markers, grouped navigation semantics and shell action positions. Maintain the author's explicit distinction between static design completion and live integration. This reviewer made no UI/source changes and did not restart any implementation lane.
+
+RESOLUTION ADDENDUM: D01-D05 ONLY
+Date: 2026-09-09, after Main's corrective pass.
+Fresh source reviewed: J #E633, I #89E6, C #71D3. Path abbreviations retain the absolute paths defined above. This addendum supersedes the original five-open-findings disposition for these findings only; the original evidence remains as review history.
+
+D01 | RESOLVED IN SOURCE
+J:209-212 now closes </select> after the generated options and before the chevron. The event list is appended after the closed label. The precise malformed-markup defect is removed. Main retains mounted DOM/filter verification.
+
+D02 | RESOLVED IN SOURCE
+J:154 supplies a separate syncing fixture: fictional available OpenAI conditions and two snapshot-ready jobs. J:197 renders two currently processing example jobs and a syncing institution state instead of off/zero processing. J:82 also gives this scenario its own impact explanation, explicitly distinguishing fictional capability from actual external calls. Current-setting and processing panels no longer repeat the contradictory off/processing-stopped statements in the syncing branch. An off selection retained as an unapplied form draft is not treated as a contradiction with the current fixture. Main retains scenario-transition/browser checks.
+
+D03 | RESOLVED IN SOURCE
+J:69 marks text/email fields required; J:76 explicitly marks consent textarea required. J:113-115 derives native required and the existing wire-badge/wire-required-marker label markup from the same metadata. J:304-308 uses that metadata for blank-value validation. The original missing marker/implicit requiredness defect is removed. Actual inherited marker styling, spacing and native validation presentation remain Main's mounted checks.
+
+D04 | RESOLVED IN SOURCE
+J:249 generates stable settings-group-${i} title IDs and role="group" containers linked by aria-labelledby for each visible settings group. The independent account/guide entries remain outside those groups. The originally missing programmatic title association is present. Main retains accessibility-tree confirmation for the five-group all-view.
+
+D05 | RESOLVED IN SOURCE
+I:16 defines drawer-actions in the top row; I:19 removes the footer theme button; I:21 defines the single theme control and header-actions slot. J:401-408 moves that same node with append(), selecting header or drawer-top by the existing 767px breakpoint, updates its accessible label/title/pressed state, and renders sun/moon SVGs defined at J:13-17. J:409,423,425 covers toggling, breakpoint changes and initial positioning. C:29 makes the header sticky with top:0 and a canvas background; C:31-33 defines action-slot alignment and the token-sized circular control. No duplicate theme control is introduced. Main retains mounted positioning, focus and responsive checks.
+
+Re-review outcome: all five original findings resolved in the freshly inspected source. No residual concrete defect identified within the requested D01-D05 corrective scope. No broad re-audit performed, and no new production/API readiness claim made.
+Only this report was appended. No design source edits, tests, browser, services or backend implementation performed. Source resolution is not runtime verification; Main's final mounted DOM/browser evidence remains a separate requirement.

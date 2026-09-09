@@ -535,3 +535,13 @@ pnpm exec wrangler d1 execute ccc-preview --env preview --remote --command \
 6. **GitHub secret 등록**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 7. **첫 배포**: `pnpm --filter @ccc/api exec wrangler deploy --env preview` → `pnpm --filter @ccc/web exec opennextjs-cloudflare build && opennextjs-cloudflare deploy --env preview`.
 8. **자동 배포 검증**: main에 커밋 1건 머지 → `.github/workflows/deploy-preview.yml`이 검증 후 재배포하는지 확인. 링크 + 지정 코드로 접속해 진입 화면 → 홈 흐름을 확인한다.
+
+## Community Cloud 업무 Edge의 배포 차단 조건
+
+현재 `apps/community-cloud`는 S11의 전용 StorageSigner와 연결되지 않았다. 업무 Edge에 `SUPABASE_SERVICE_ROLE_KEY`가 들어오면 초기화를 거부하고 공개 응답은 `503 service_unavailable`로 끝낸다. 키를 숨긴 채 정상 배포로 처리하지 않는다.
+
+업무 API의 `audioStore`는 명시적으로 `null`이며 가짜 저장소로 대체하지 않는다. 원음 업로드 경로와 audio, multipart, octet-stream 요청은 `415 AUDIO_BODY_FORBIDDEN`으로 거부한다. 기존 Supabase AudioStore 어댑터가 있다는 사실은 전용 signer가 구현됐다는 뜻이 아니다.
+
+음성 경로를 다시 열려면 Service Role이 signer에만 존재하는 배치와 S11의 직접 Storage 전송 계약을 실제 배포에서 확인해야 한다. 플랫폼이 업무 함수에도 이 키를 자동 주입한다면 현재 차단을 유지하며, 키 제거 또는 함수 격리가 검증되기 전에는 호스팅 성공으로 기록하지 않는다.
+
+CORS는 서명된 허용 origin에만 응답하며 `Authorization`, `Content-Type`, `Idempotency-Key`, `X-Request-Id`, `x-region`을 허용한다. 이 헤더 목록이 서울 리전 실행을 증명하지는 않는다. 실제 응답 CSP, 리전 근거, Auth와 RLS는 별도 호스팅 검증 대상이다.

@@ -242,7 +242,14 @@ describe('정렬 하니스 생성기', () => {
       <RegisterForm
         currentUser={{ name: '홍길동', email: 'worker@example.test' }}
         action={() => {}}
-        programLabel={PROGRAM_LABELS.financial_support_v1}
+        programOptions={[
+          {
+            id: 'program-harness',
+            displayName: PROGRAM_LABELS.financial_support_v1,
+            programType: 'financial_support_v1',
+            admissionState: 'ready',
+          },
+        ]}
       />,
     );
     const hubConsent = renderToStaticMarkup(

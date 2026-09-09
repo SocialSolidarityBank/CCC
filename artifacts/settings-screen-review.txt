@@ -1,0 +1,73 @@
+Settings screen-builder final source report
+
+Source status
+- Presentation source is frozen for Main validation and capture.
+- No commit made.
+- accounts.tsx was not changed during this correction wave; Main owns that file entirely.
+- No auth, transport, API decoder, DTO, backend, migration, test, or other-worktree files changed.
+- Existing handlers, component state, form names and values, protected-route branches, control IDs, and DTOs remain unchanged.
+- Per instruction, no test, build, formatter, linter, guard, or browser operation was run after these corrections.
+
+Corrections applied
+
+apps/client/src/business/capability-settings.tsx
+- missing_key now renders the explicit state “키 없음”.
+- unverified now renders “사용 가능 여부 확인 전” and does not claim that an unseen approval, signature, or health gate failed.
+- unsupported remains the precise installation-mode limitation, and the defensive null fallback states that no detailed reason was supplied.
+- Removed the unsupported claim that the current login passed additional authentication. The security route now says it only reads the installation mode and cannot establish the login assurance level or whole-institution security state.
+- Added WireBadge presentation for installation mode, current STT mode, approved-engine presence, current LLM mode, processing-device status, and option availability.
+- Tones follow existing semantics: mint for available/connected/active states, lavender for attention or verification-needed states, neutral for off/inactive/unsupported classifications, and risk for actual authentication or quota errors.
+- Backup limitations now explicitly disclose that .cccx import is unavailable alongside backup creation and restore.
+- System and update limitations name only values currently returned by the capability manifest.
+
+apps/client/src/business/guide.tsx
+- Rewrote processing-device, database, storage, backup, security, system, and update descriptions to distinguish current readbacks from unavailable checks.
+- Processing-device guidance now promises only installation mode and the server-recorded device status, not registration, version, observation time, or masking readiness.
+- Database, storage, security, backup, and update guidance now says those routes read only installation mode.
+- System guidance is limited to installation mode, selected STT/LLM modes, and server-recorded processing-device status.
+- Removed claims that the settings routes expose database plans, storage state, login assurance, installed version, or signature verification.
+- Added explicit .cccx import unavailability to the destination description, initial setup sequence, and troubleshooting section.
+- The guide’s scope callout now directs users only to values each route explicitly displays.
+
+apps/client/src/business/audit-retention-modules.tsx
+- Removed read-only audit metadata from WireItem.action.
+- Audit items now render the item/status first and their actor and linkage metadata in sibling WireDataRows.
+- Promoted participant and support-case linkage states to semantic badges.
+- Promoted retention review status to a badge: mint for 보존 중, lavender for 검토 필요, neutral for 파기 완료.
+- Retention policy and retention review remain two intentional sibling cards. They represent separate operations within the same selected route; no card-in-card wrapper was introduced.
+
+apps/client/src/business/exports.tsx
+- Removed execution and audit identifiers from WireItem.action.
+- Each history entry keeps its WireItem summary and renders read-only identifiers in following WireDataRows within the existing history section.
+- Export handlers, selection state, pagination, download behavior, and history loading are unchanged.
+
+apps/client/src/business/settings-modules.tsx
+- Promoted the signed-in user’s canonical roles to badges, including a lavender 역할 대기 state.
+- Promoted the current counseling-memory enabled state to a mint or neutral badge.
+- Account directory presentation was not touched; Main owns accounts.tsx.
+
+apps/client/src/business/programs.tsx
+- Replaced nested StaffChoices WireCardSection with the existing wire-fieldset and legend hierarchy.
+- Changed the always-present case-assignment policy sentence from WireEmpty to a plain wire-form-hint. The genuine no-accounts condition remains WireEmpty.
+- Program operation status now uses mint for 운영 중 and neutral for 종료.
+- Admission status now uses mint for 확인 완료 and lavender for 설정 필요 or 다시 확인 필요.
+- Program handlers, drafts, uncertain-write guards, IDs, radio/checkbox state, and API inputs are unchanged.
+
+Additional final surface corrections
+- Replaced visible legacy 참여자 wording with current 당사자 wording in audit target labels, audit linkage metadata, and the retention-review callout.
+- Added the shared Icon check to the owned state-changing form controls for institution-name save, counseling-memory save, retention-policy save, and retention retain decision.
+- Audit filtering and official-record download remain action submits rather than save controls, so their existing icon treatment was not changed.
+- No account markup or account request behavior was changed.
+
+Static source checks
+- No WireDataRows remain in WireItem.action in the audit or export modules.
+- The unsupported additional-authentication assurance text is absent from capability and guide source.
+- .cccx import unavailability appears in both capability limitations and guide guidance.
+- StaffChoices uses fieldset/legend and no longer nests a same-level WireCardSection.
+- Program active/admission statuses select mint/lavender/neutral according to the existing semantic meanings.
+- No visible 참여자 wording remains in the owned settings markup checked for this wave.
+- Owned institution, memory, retention-policy, retention-decision, and program save controls use the shared Icon check.
+
+Main validation boundary
+- Main owns all accounts.tsx changes, including uncertain-write behavior and account badges, plus the institution-admin pending-assignment read path. The general assignees endpoint remains active-only.
+- Main will run central type/build/guard/test validation and new browser captures after this source freeze.

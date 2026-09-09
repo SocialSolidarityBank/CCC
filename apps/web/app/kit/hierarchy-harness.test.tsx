@@ -369,7 +369,11 @@ const SCREENS: Screen[] = [
   {
     id: 'register',
     label: '당사자 등록',
-    node: <RegisterForm currentUser={{ name: '이지은', email: 'staff@example.test' } as never} action={noop as never} />,
+    node: <RegisterForm
+      currentUser={{ name: '이지은', email: 'staff@example.test' } as never}
+      action={noop as never}
+      programOptions={[{ id: 'program-harness', displayName: '희망키움 2026', programType: 'financial_support_v1' as const, admissionState: 'ready' }]}
+    />,
   },
   { id: 'review', label: 'AI 초안 검토', node: <DraftReviewView {...reviewProps} /> },
 ];

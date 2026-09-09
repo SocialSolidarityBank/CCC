@@ -1,0 +1,11 @@
+{
+  "name": "@ccc/audio-supabase",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*",
+    "@noble/hashes": "1.8.0"
+  }
+}

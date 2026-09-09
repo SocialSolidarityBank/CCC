@@ -12,7 +12,11 @@ export const ORG_ID = 'bss';
  * 이유: 캡처 DB 와 검증 DB 가 각각 다른 시각에 프리로드되므로, 시계값을 쓰면 프리로드
  * 행부터 두 DB 가 달라진다. 고정값이면 프리로드가 바이트 동일해져 시드 행 diff 가 깨끗하다.
  */
-export const PRELOAD_AT = '2026-01-01 00:00:00';
+export const PRELOAD_PROGRAM_ID = `test-program:${ORG_ID}`;
+const PRELOAD_COPY_VERSION = 'D87-v1';
+const PRELOAD_COPY_HASH = 'f6feaba8a647ec5768cf0aaec0ceef63473e24496c517567c5428283559a1465';
+const PRELOAD_INSTALLATION_CONFIG_HASH = 'bcb1a0ac447b0cf3c041f994d96b395c406d42c8dc2c9342ffbf5e89d332f36b';
+const PRELOAD_PROGRAM_CONFIRMED_AT = '2026-01-01T00:00:00.000Z';
 
 export interface PreviewUser {
   id: string;
@@ -66,6 +70,38 @@ export function preloadStatements(): RawStatement[] {
              org_id, time_zone, pii_purge_grace_days, version, created_at, updated_at
            ) VALUES (?, 'Asia/Seoul', 365, 1, ?, ?)`,
     params: [ORG_ID, PRELOAD_AT, PRELOAD_AT],
+  });
+
+  statements.push({
+    sql: `INSERT INTO program_admission_policies (org_id, version, stt_mode, llm_mode, created_at, updated_at)
+          VALUES (?, 1, 'off', 'off', ?, ?)`,
+    params: [ORG_ID, PRELOAD_AT, PRELOAD_AT],
+  });
+  statements.push({
+    sql: `INSERT INTO programs (
+            id, org_id, display_name, program_type, storage_mode, processing_mode,
+            version, admission_confirmed_by, admission_confirmed_at,
+            admission_confirmed_storage_mode, admission_confirmed_processing_mode,
+            admission_copy_version, admission_copy_hash,
+            admission_installation_config_hash, admission_installation_policy_version,
+            created_at, updated_at
+          ) VALUES (?, ?, 'BSS 금융지원', 'financial_support_v1', 'supabase_seoul', 'external_allowed',
+                    1, ?, ?, 'supabase_seoul', 'external_allowed', ?, ?, ?, 1, ?, ?)`,
+    params: [
+      PRELOAD_PROGRAM_ID,
+      ORG_ID,
+      ADMIN_ACTOR_ID,
+      PRELOAD_PROGRAM_CONFIRMED_AT,
+      PRELOAD_COPY_VERSION,
+      PRELOAD_COPY_HASH,
+      PRELOAD_INSTALLATION_CONFIG_HASH,
+      PRELOAD_AT,
+      PRELOAD_AT,
+    ],
+  });
+  statements.push({
+    sql: `UPDATE organization_settings SET initial_program_id = ? WHERE org_id = ?`,
+    params: [PRELOAD_PROGRAM_ID, ORG_ID],
   });
 
   for (const user of PREVIEW_USERS) {

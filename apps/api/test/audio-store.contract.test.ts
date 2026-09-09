@@ -211,7 +211,7 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 // These are compile-time boundary checks. The handler environment must expose
 // the neutral port, not the provider's R2 binding, after composition is cut over.
 type HandlerEnvironment = Parameters<typeof handleRequest>[1];
-type HandlerHasAudioStore = HandlerEnvironment extends { audioStore: AudioStore } ? true : never;
+type HandlerHasAudioStore = HandlerEnvironment extends { audioStore: AudioStore | null } ? true : never;
 type HandlerHasNoRawR2 = Extract<keyof HandlerEnvironment, 'AUDIO_BUCKET'> extends never ? true : never;
 const handlerAcceptsAudioStore: HandlerHasAudioStore = true;
 const handlerHidesRawR2: HandlerHasNoRawR2 = true;

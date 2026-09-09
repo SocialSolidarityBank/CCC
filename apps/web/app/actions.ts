@@ -123,9 +123,10 @@ type Notice =
   | 'ai_provider_not_configured'
   | 'ai_prohibited_output'
   | 'ai_provider_unavailable'
-  // G1: ① 동의 하드 게이트에 걸린 두 경우. 화면이 원인을 그대로 안내한다.
   | 'privacy_consent_required'
   | 'emergency_reason_required'
+  // 사업 저장 조건이 관리자 확인과 경합하면 원인을 잃지 않고 등록 화면으로 전달한다.
+  | 'program_admission_required'
   | 'service_unavailable';
 
 class FormInputError extends Error {}
@@ -417,6 +418,7 @@ function noticeFor(error: unknown): Notice {
       // G1: ① 미동의·긴급 사유 누락은 화면이 원인을 그대로 안내한다.
       case 'privacy_consent_required':
       case 'emergency_reason_required':
+      case 'program_admission_required':
         return error.code;
     }
   }
@@ -938,7 +940,7 @@ export async function createInitialParticipantProgramAction(formData: FormData):
       ? (optionalTrimmedText(formData, 'emergencyReason', 500) ?? '')
       : undefined;
     const created = await createInitialParticipantProgram({
-      programType: 'financial_support_v1',
+      programId: opaqueId(formData, 'programId'),
       // intakeAt 을 싣지 않는다(CCC-56): 등록 시각을 인테이크 완료로 기록하던 오염을 중단.
       // 인테이크 완료 시각은 인테이크 기록 저장이 채운다.
       // 항목별 동의 2종(D49·D23·D44): ② 는 기본 미체크이고 미동의여도 등록은 진행된다.
@@ -987,7 +989,7 @@ export async function createSubsequentParticipantProgramAction(formData: FormDat
     const created = await createSubsequentParticipantProgram(beneficiaryId, {
       schemaVersion: 1,
       submissionId: submissionId(formData),
-      programType: 'financial_support_v1',
+      programId: opaqueId(formData, 'programId'),
       // intakeAt 을 싣지 않는다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
       sourceSupportCaseId: opaqueId(formData, 'sourceSupportCaseId'),
       // D49: 두 번째 참여 사업도 2종을 여기서 받는다 — 전에는 ② 를 보낼 경로가 없었다.
@@ -1109,9 +1111,9 @@ export type ParticipantInviteResult = { status: 'created'; token: string } | { s
 
 // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 링크·QR·이메일 문안 조립은 화면 몫이고
 // 여기는 토큰만 받아 넘긴다. 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
-export async function createParticipantInviteAction(): Promise<ParticipantInviteResult> {
+export async function createParticipantInviteAction(programId: string): Promise<ParticipantInviteResult> {
   try {
-    const invite = await createParticipantInvite('financial_support_v1');
+    const invite = await createParticipantInvite(programId);
     return { status: 'created', token: invite.token };
   } catch (error) {
     return { status: noticeFor(error) };

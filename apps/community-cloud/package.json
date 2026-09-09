@@ -1,0 +1,22 @@
+{
+  "name": "@ccc/community-cloud",
+  "version": "0.8.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ccc/contracts": "workspace:*",
+    "@ccc/core": "workspace:*",
+    "@ccc/db-postgres": "workspace:*",
+    "@ccc/http-api": "workspace:*",
+    "@ccc/identity-supabase": "workspace:*",
+    "@ccc/secrets-env": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "typescript": "^5.9.3"
+  }
+}

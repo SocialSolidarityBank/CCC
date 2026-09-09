@@ -105,9 +105,8 @@ export function WireItem({ title, description, status, action, tone = 'plain', t
       data-tone={tone === 'plain' ? undefined : tone}
       {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
-      <p className="wire-item-title">{title}</p>
+      <p className="wire-item-title">{title}{status !== undefined && <span className="wire-item-status">{status}</span>}</p>
       {description !== undefined && <p className="wire-item-desc">{description}</p>}
-      {status !== undefined && <span className="wire-item-status">{status}</span>}
       {action !== undefined && <span className="wire-item-action">{action}</span>}
     </div>
   );

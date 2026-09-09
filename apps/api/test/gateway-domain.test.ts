@@ -69,7 +69,7 @@ import {
   unassignCase,
   updateCaseExtra,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId, seedTestProgramWithRuntimeModes } from './support/d1';
 
 /**
  * 재료 하나(텍스트 맥락)뿐인 초안의 재료 증빙과 대조 3종 (D69 · ADR-0036).
@@ -120,6 +120,9 @@ async function grantCurrentTextAiConsent(caseId: string): Promise<void> {
   ).bind('2026-01-01T00:00:00.000Z', caseId, caseId).run();
 }
 async function enablePilotForCase(caseId: string): Promise<void> {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: t.env.installationMode ?? 'community-cloud', sttMode: 'local', llmMode: 'openai',
+  });
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   await recordPilotTextAiConsentEvidence(t.env, counselor, caseId, {
     noticeVersion: 'pilot-text-ai-v1',
@@ -248,6 +251,9 @@ function expectNoCanaries(value: unknown, canaries: readonly string[]): void {
 }
 
 async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCanaryFixture> {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, admin.userId, {
+    deploymentMode: t.env.installationMode ?? 'community-cloud', sttMode: 'off', llmMode: 'openai',
+  });
   t.env.TEXT_AI_PILOT_ENABLED = '1';
   const config = await registerAiProviderConfiguration(t.env, admin, {
     adapterId: 'codex',
@@ -257,7 +263,7 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
   });
   await activateAiProviderConfiguration(t.env, admin, config.id);
 
-  const caseRecord = await createCase(t.env, counselor, {});
+  const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '01000000-0000-4000-8000-000000000001',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -385,6 +391,7 @@ async function createPendingOfficialCanaryFixture(): Promise<PendingOfficialCana
 
 async function createReviewReadySession() {
   const caseRecord = await createCase(t.env, counselor, {
+    programId: testProgramId(counselor.orgId),
     consentRecordingAt: '2026-01-01T00:00:00.000Z',
   });
   await enablePilotForCase(caseRecord.id);
@@ -524,7 +531,7 @@ async function createPilotDraft(
   });
   await activateAiProviderConfiguration(t.env, admin, config.id);
 
-  const caseRecord = await createCase(t.env, counselor, {});
+  const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const session = await createManualSession(t.env, counselor, caseRecord.id, {
     submissionId: '01000000-0000-4000-8000-000000000003',
     heldAt: '2026-01-02T10:00:00.000Z',
@@ -598,7 +605,7 @@ async function createPilotDraft(
 describe('gateway domain records', () => {
   it('enforces the active-goal cap, restricts close reasons to the D62 picks, and frees the cap after closing', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const first = await createGoal(t.env, counselor, caseRecord.id, { title: 'Goal one' });
     await createGoal(t.env, counselor, caseRecord.id, { title: 'Goal two' });
     await createGoal(t.env, counselor, caseRecord.id, { title: 'Goal three' });
@@ -622,7 +629,7 @@ describe('gateway domain records', () => {
 
   it('edits a goal title with the previous wording preserved as history (D62)', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const goal = await createGoal(t.env, counselor, caseRecord.id, { title: '주 1회 저축 습관 만들기' });
 
     const updated = await updateGoalTitle(t.env, counselor, goal.id, '  주 1회 3만원 저축하기  ');
@@ -648,7 +655,7 @@ describe('gateway domain records', () => {
 
   it('locks goal title edits on a closed support case (D62)', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const goal = await createGoal(t.env, counselor, caseRecord.id, { title: '종결 전 목표' });
     await closeCase(t.env, counselor, caseRecord.id, 'program complete');
     await expect(updateGoalTitle(t.env, counselor, goal.id, '종결 후 수정 시도')).rejects.toBeInstanceOf(ValidationError);
@@ -723,19 +730,13 @@ describe('gateway domain records', () => {
     const exportedSessionBefore = exportBefore.sessions[0];
     if (exportedSessionBefore === undefined) throw new Error('expected exported official session');
     expect(exportedSessionBefore.id).toBe(fixture.sessionId);
-    expect({
-      transcript: exportedSessionBefore.transcript,
-      aiSummary: exportedSessionBefore.aiSummary,
-      aiSchema: exportedSessionBefore.aiSchema,
-      aiContrast: exportedSessionBefore.aiContrast,
-      emotionScores: exportedSessionBefore.emotionScores,
-    }).toEqual({
-      transcript: null,
-      aiSummary: null,
-      aiSchema: null,
-      aiContrast: null,
-      emotionScores: null,
-    });
+    expect(exportedSessionBefore.aiStatus).toBe('none');
+    expect(exportedSessionBefore.aiSummary).toBeNull();
+    expect(exportedSessionBefore).not.toHaveProperty('transcript');
+    expect(exportedSessionBefore).not.toHaveProperty('audioR2Key');
+    expect(exportedSessionBefore).not.toHaveProperty('aiSchema');
+    expect(exportedSessionBefore).not.toHaveProperty('aiContrast');
+    expect(exportedSessionBefore).not.toHaveProperty('emotionScores');
     expect(approvedBefore).toEqual([]);
     // 참여자 브리핑의 회차 줄(핵심 한 줄 포함)도 승인 전에는 어떤 캐너리도 싣지 않는다(R2·CCC-38).
     const briefingScope = await t.db.prepare(
@@ -797,21 +798,13 @@ describe('gateway domain records', () => {
     const exportedSessionAfter = exportAfter.sessions[0];
     if (exportedSessionAfter === undefined) throw new Error('expected approved export session');
     expect(exportedSessionAfter.id).toBe(fixture.sessionId);
-    expect({
-      aiStatus: exportedSessionAfter.aiStatus,
-      transcript: exportedSessionAfter.transcript,
-      aiSummary: exportedSessionAfter.aiSummary,
-      aiSchema: exportedSessionAfter.aiSchema,
-      aiContrast: exportedSessionAfter.aiContrast,
-      emotionScores: exportedSessionAfter.emotionScores,
-    }).toEqual({
-      aiStatus: 'approved',
-      transcript: null,
-      aiSummary: OFFICIAL_CANARIES.draft,
-      aiSchema: null,
-      aiContrast: null,
-      emotionScores: null,
-    });
+    expect(exportedSessionAfter.aiStatus).toBe('approved');
+    expect(exportedSessionAfter.aiSummary).toBe(OFFICIAL_CANARIES.draft);
+    expect(exportedSessionAfter).not.toHaveProperty('transcript');
+    expect(exportedSessionAfter).not.toHaveProperty('audioR2Key');
+    expect(exportedSessionAfter).not.toHaveProperty('aiSchema');
+    expect(exportedSessionAfter).not.toHaveProperty('aiContrast');
+    expect(exportedSessionAfter).not.toHaveProperty('emotionScores');
     expect(approvedAfter).toHaveLength(1);
     const approvedBriefing = approvedAfter[0];
     if (approvedBriefing === undefined) throw new Error('expected approved briefing row');
@@ -916,8 +909,10 @@ describe('gateway domain records', () => {
     ]));
 
     const exported = await exportCase(t.env, counselor, caseRecord.id);
-    expect(exported.sessions[0]?.aiSummary).toBeNull();
-    expect(exported.sessions[0]?.transcript).toBeNull();
+    const exportedSession = exported.sessions[0];
+    if (exportedSession === undefined) throw new Error('expected exported official session');
+    expect(exportedSession.aiSummary).toBeNull();
+    expect(exportedSession).not.toHaveProperty('transcript');
   });
 
 
@@ -1050,7 +1045,7 @@ describe('gateway domain records', () => {
   });
   it('keeps counselor-entered GAS visible without any approved AI draft', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const goal = await createGoal(t.env, counselor, caseRecord.id, { title: '생활비 계획 유지' });
     const session = await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '01000000-0000-4000-8000-000000000004',
@@ -1095,7 +1090,7 @@ describe('gateway domain records', () => {
 
   it('keeps a manual memo immediately official when no AI work exists', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     await createManualSession(t.env, counselor, caseRecord.id, {
       submissionId: '01000000-0000-4000-8000-000000000005',
       heldAt: '2026-01-02T10:00:00.000Z',
@@ -1211,7 +1206,7 @@ describe('organization onboarding names (CCC-32)', () => {
 describe('canonical participant gateway', () => {
   it('routes legacy PII registration through the canonical admin-only atomic mutation', async () => {
     await t.reset();
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
 
     await expect(registerPii(t.env, counselor, caseRecord.id, {
       name: 'COUNSELOR_MUTATION_MUST_FAIL',
@@ -1265,7 +1260,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const submissionId = '11111111-1111-4111-8111-111111111111';
@@ -1273,7 +1268,7 @@ describe('canonical participant gateway', () => {
       consentPrivacy: true,
       schemaVersion: 1 as const,
       submissionId,
-      programType: 'financial_support_v1' as const,
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
       sourceSupportCaseId: initial.supportCaseId,
     };
@@ -1366,7 +1361,7 @@ describe('canonical participant gateway', () => {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId,
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.admin.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
@@ -1410,7 +1405,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const pii = {
@@ -1480,7 +1475,7 @@ describe('canonical participant gateway', () => {
       scheduledAt: '2026-07-15T00:00:00.000Z',
     });
     const hidden = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.secondCounselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.secondCounselor.orgId),
       intakeAt: '2026-07-15T09:30:00.000Z',
     });
     const hiddenSchedule = await createCounselingSchedule(t.env, canonicalActors.secondCounselor, {
@@ -1560,7 +1555,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const goal = await createGoal(t.env, canonicalActors.counselor, initial.supportCaseId, {
@@ -1687,7 +1682,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const input = {
@@ -1719,7 +1714,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const activeGoal = await createGoal(t.env, canonicalActors.counselor, initial.supportCaseId, {
@@ -1768,7 +1763,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const seeded = await createCounselingRecord(t.env, canonicalActors.counselor, initial.supportCaseId, {
@@ -1791,7 +1786,7 @@ describe('canonical participant gateway', () => {
 
     // Another support case whose action must not be resolvable from the first case.
     const other = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await createCounselingRecord(t.env, canonicalActors.counselor, other.supportCaseId, {
@@ -1872,7 +1867,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
 
@@ -1985,7 +1980,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const base = {
@@ -2062,7 +2057,7 @@ describe('canonical participant gateway', () => {
       ),
     ]);
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await assignSupportCase(
@@ -2116,7 +2111,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     vi.useFakeTimers();
@@ -2147,7 +2142,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await closeSupportCase(t.env, canonicalActors.counselor, initial.supportCaseId, 'program complete');
@@ -2160,7 +2155,7 @@ describe('canonical participant gateway', () => {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '33333333-3333-4333-8333-333333333333',
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.admin.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
@@ -2178,7 +2173,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await t.db.prepare(
@@ -2207,7 +2202,7 @@ describe('canonical participant gateway', () => {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.admin.orgId),
       intakeAt: '2026-07-17T09:00:00.000Z',
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
@@ -2241,7 +2236,7 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const withEmail = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
       email: 'PARTICIPANT_EMAIL_CANARY@example.invalid',
     });
@@ -2254,7 +2249,7 @@ describe('canonical participant gateway', () => {
     expect(withEmailVault?.enc_email).not.toContain('PARTICIPANT_EMAIL_CANARY');
 
     const withoutEmail = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:30:00.000Z',
     });
     await expect(t.db.prepare(
@@ -2273,7 +2268,7 @@ describe('canonical participant gateway', () => {
 
   it('routes Phase-1 writes through canonical primary-safe receipt semantics', async () => {
     await t.reset();
-    const legacyCase = await createCase(t.env, counselor, {});
+    const legacyCase = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const supportCase = await t.db.prepare(
       'SELECT id FROM support_cases WHERE legacy_case_id = ? AND org_id = ?',
     ).bind(legacyCase.id, counselor.orgId).first<{ id: string }>();
@@ -2332,14 +2327,14 @@ describe('canonical participant gateway', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const initial = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     const hidden = await createSupportCase(t.env, canonicalActors.admin, initial.beneficiaryId, {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '44444444-4444-4444-8444-444444444444',
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.admin.orgId),
       intakeAt: '2026-07-16T09:00:00.000Z',
       initialAssigneeUserId: canonicalActors.secondCounselor.userId,
     });
@@ -2472,7 +2467,7 @@ describe('briefing AI suggestions (D45 영역 ① · CCC-39)', () => {
       approvalRefs: ['privacy-security-approval'],
     });
     await activateAiProviderConfiguration(t.env, admin, config.id);
-    const caseRecord = await createCase(t.env, counselor, {});
+    const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
     const consent = await recordPilotTextAiConsentEvidence(t.env, counselor, caseRecord.id, {
       noticeVersion: 'pilot-text-ai-v1',
       noticeSha256: SHA256,
@@ -2557,7 +2552,7 @@ describe('overall goal (D45 · CCC-41)', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const created = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
 
@@ -2638,7 +2633,7 @@ describe('overall goal (D45 · CCC-41)', () => {
     await t.reset();
     await seedCanonicalDirectory();
     const created = await createBeneficiaryWithInitialSupportCase(t.env, canonicalActors.counselor, {
-      programType: 'financial_support_v1',
+      programId: testProgramId(canonicalActors.counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
     });
     await closeSupportCase(t.env, canonicalActors.counselor, created.supportCaseId, 'program complete');

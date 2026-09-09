@@ -34,7 +34,7 @@ import {
   type DiscrepancyDetectionRequest,
 } from '@ccc/ai-runtime';
 import worker from './support/local-worker';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import {
   agentManifestEnv,
   claimRequest,
@@ -94,7 +94,7 @@ async function seedMaskedSnapshot(sessionId: string, text: string): Promise<void
  * 라우트가 불일치 재검출을 돌린다. `mask` 로 NER 마스킹을 대신한다(기본값은 원문 그대로).
  */
 async function runDeviceTextJobs(mask: (text: string) => string = (text) => text): Promise<number> {
-  const env = await agentManifestEnv(t.env);
+  const env = await agentManifestEnv(t.env, { mode: t.env.installationMode ?? 'community-cloud' });
   return runAgentTextJobs(env, t.db, { mask, headers: serviceHeaders() });
 }
 
@@ -113,7 +113,13 @@ async function createCaseWithSessions(memos: string[], withSnapshots = false): P
   supportCaseId: string;
   sessionIds: string[];
 }> {
-  const caseRecord = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
+  const caseRecord = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const sessionIds: string[] = [];
   for (const [index, memo] of memos.entries()) {
     const session = await createManualSession(t.env, counselor, caseRecord.id, {

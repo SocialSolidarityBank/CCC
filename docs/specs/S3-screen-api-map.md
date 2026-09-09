@@ -114,6 +114,7 @@ Preview mode의 `/join/*` 공개 page/API는 현재 production token-only 경계
 |---|---|---|
 | `GET /me` | object `{id,orgId,email,role,active,name,lastProgramType}` where `lastProgramType` is required and nullable | `MyIdentity`; root은 `lastProgramType`만 읽음 |
 | `GET /organization/profile` | `{orgId,orgName,programDisplayName}` | `OrganizationProfile` |
+| `PATCH /organization/profile` | 입력 `{orgName,expectedOrgName}`. 활성 기관 관리자만 기관 이름을 부분 수정한다. 성공 시 `{orgId,orgName,programDisplayName}`. 이름은 trim 후 1~80자이며 다른 필드는 거부한다. 이전 이름 불일치는 409, 설정 행 없음은 403이다. 변경과 감사는 원자적으로 기록하고, 같은 값 재저장은 추가 감사 없이 반환한다. | `OrganizationProfile`; Vite `/settings?module=institution`에서 서명된 설치 정보와 Bearer 인증으로 연결한다. 충돌 시 입력을 보존한다. |
 | `GET /participants/new-signup-count` | `{count}` | number |
 | `GET /users` | `DirectoryUser[]` | `DirectoryUser[]` |
 | `POST /users` | `DirectoryUser` | `DirectoryUser` |

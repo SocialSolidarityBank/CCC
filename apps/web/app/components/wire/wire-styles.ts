@@ -643,7 +643,7 @@ summary:has(.wire-disclosure-chevron)::-webkit-details-marker{display:none}
 .wire-item[data-tone]{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control)}
 .wire-item[data-tone="mint"]{background:var(--mint-tint)}
 .wire-item[data-tone="lavender"]{background:var(--lavender-tint)}
-.wire-item-title{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.wire-item-title{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);min-height:var(--badge-height);margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-item-desc{margin:0;font-size:var(--text-sm);color:var(--sub)}
 /* 구획(WireCardSection) 안에 WireItem 없이 바로 오는 읽는 값(§2-2 위계 4단 ③ 16/400
    --ink). 구획은 자식 규칙을 갖지 않으므로(위 §2-2 안내 참고) 화면이 이 클래스로 직접

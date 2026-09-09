@@ -6,8 +6,9 @@ import { createParticipantInviteAction } from '../../actions';
 import { WireButton } from '../../components/wire/wire-button';
 import { WireCard } from '../../components/wire/wire-card';
 import { WireFormField } from '../../components/wire/wire-form-field';
+import { SearchInput } from '../../components/wire/search-input';
 import { NavIcon } from '../../components/wire/shell-icons';
-import { PROGRAM_LABELS } from '../../lib/labels';
+import type { ProgramOption } from '../../lib/api';
 
 // 당사자 가입 링크 발급(D39 · ADR-0016 · CCC-29). 실제 이메일 발송이 없는 화면 흐름
 // MVP 이므로 발급 결과를 세 형태(웹 주소·QR·이메일 문안)로 보여 주고 복사에 맡긴다.
@@ -17,7 +18,7 @@ import { PROGRAM_LABELS } from '../../lib/labels';
 type IssueState =
   | { phase: 'idle' }
   | { phase: 'working' }
-  | { phase: 'error' }
+  | { phase: 'error'; code: string }
   | { phase: 'created'; url: string };
 
 /** 가입 링크 목적지. 가입 화면 라우트는 CCC-28 이 만든다 — 경로 계약만 여기서 정한다. */
@@ -78,16 +79,18 @@ function ShareButton({ text, url }: { text: string; url: string }) {
   );
 }
 
-export function InviteIssue() {
+export function InviteIssue({ programOptions }: { programOptions: ProgramOption[] }) {
+  const [programId, setProgramId] = useState('');
   const [state, setState] = useState<IssueState>({ phase: 'idle' });
 
   const issue = () => {
+    if (programId.length === 0) return;
     setState({ phase: 'working' });
-    void createParticipantInviteAction().then((result) => {
+    void createParticipantInviteAction(programId).then((result) => {
       if (result.status === 'created') {
         setState({ phase: 'created', url: joinUrl(result.token) });
       } else {
-        setState({ phase: 'error' });
+        setState({ phase: 'error', code: result.status });
       }
     });
   };
@@ -97,16 +100,43 @@ export function InviteIssue() {
     return (
       <WireCard title="가입 링크">
         <div className="wire-invite-stack participant-invite-stack">
+          <SearchInput
+            label="참여 사업"
+            variant="select"
+            name="programId"
+            required
+            value={programId}
+            onChange={setProgramId}
+            options={[
+              { value: '', label: '사업을 선택하세요' },
+              ...programOptions
+                .filter((program) => program.admissionState === 'ready')
+                .map((program) => ({ value: program.id, label: program.displayName ?? program.programType })),
+            ]}
+          />
+          {programOptions.length === 0 ? (
+            <p className="wire-form-hint">초대할 수 있는 사업이 없습니다. 관리자에게 사업 확인을 요청하세요.</p>
+          ) : programOptions.some((program) => program.admissionState !== 'ready') ? (
+            <p className="wire-form-hint">
+              확인 전인 사업은 초대할 수 없습니다:{' '}
+              {programOptions
+                .filter((program) => program.admissionState !== 'ready')
+                .map((program) => program.displayName ?? program.programType)
+                .join(', ')}
+            </p>
+          ) : null}
           <p className="wire-invite-caption">
-            링크에는 사업({PROGRAM_LABELS.financial_support_v1})과 발급한 실무자가 함께 담깁니다.
+            링크에는 선택한 사업과 발급한 실무자가 함께 담깁니다.
             당사자가 가입을 마치면 내 당사자 목록에 나타납니다.
           </p>
-          <WireButton variant="primary" disabled={state.phase === 'working'} onClick={issue} icon={<NavIcon name="invite" />}>
+          <WireButton variant="primary" disabled={state.phase === 'working' || programId.length === 0} onClick={issue} icon={<NavIcon name="invite" />}>
             {state.phase === 'working' ? '만드는 중' : '가입 링크 만들기'}
           </WireButton>
           {state.phase === 'error' ? (
             <p className="wire-field-error" role="alert">
-              링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.
+              {state.code === 'program_admission_required'
+                ? '관리자가 사업의 저장 위치와 처리 방식을 확인해야 초대할 수 있습니다. 설정에서 사업을 다시 확인해 주세요.'
+                : '링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.'}
             </p>
           ) : null}
         </div>

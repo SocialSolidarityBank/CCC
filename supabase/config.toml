@@ -1,0 +1,5 @@
+[functions.ccc-api]
+# The function verifies asymmetric Supabase JWTs and enforces MFA itself.
+verify_jwt = false
+entrypoint = "./functions/ccc-api/index.js"
+import_map = "./functions/ccc-api/deno.json"

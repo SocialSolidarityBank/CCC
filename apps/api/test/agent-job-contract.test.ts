@@ -28,7 +28,7 @@ import {
   updateParticipantConsent,
   type Actor,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import { agentResultRequest, claimRequest, LOCAL_SINGLE_RUNTIME, seedNerQualification } from './support/agent-jobs';
 
 vi.setConfig({ testTimeout: 60_000 });
@@ -43,7 +43,10 @@ beforeEach(async () => {
 });
 
 async function fixtureSupportCase(): Promise<{ caseId: string; supportCaseId: string }> {
-  const beneficiary = await createCase(t.env, counselor, {});
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, { sttMode: 'local', llmMode: 'openai' });
+  t.env.CCC_STT_MODE = 'local';
+  t.env.CCC_LLM_MODE = 'openai';
+  const beneficiary = await createCase(t.env, counselor, { programId: testProgramId(counselor.orgId) });
   const { programs } = await listSupportCasesForBeneficiary(t.env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');

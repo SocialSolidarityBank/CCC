@@ -11,7 +11,7 @@ import {
   rescheduleCounselingSchedule,
   updateScheduleSessionGoals,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 // 세션 목표(D28)·맞춤형 질문 저장·조회, 잘못된 케이스 목표 연결 거부, 비담당 접근 차단,
 // 브리핑 병기(데이터)를 검증한다 (티켓 #35).
@@ -35,7 +35,7 @@ interface SeededCase {
 
 async function seedOwnedCaseWithGoal(): Promise<SeededCase> {
   const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
   const goal = await createGoal(t.env, testActors.counselor, owned.supportCaseId, { title: '생활비 계획 유지' });

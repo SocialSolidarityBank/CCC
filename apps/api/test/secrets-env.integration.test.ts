@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import { createCase, registerPii, revealPii } from '@ccc/core/gateway';
 import worker from '../src/index';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 const t = setupD1();
 const pii = { name: 'SYNTHETIC_SECRETSTORE_PERSON' };
@@ -10,7 +10,7 @@ const pii = { name: 'SYNTHETIC_SECRETSTORE_PERSON' };
 describe('SecretStore PII and Workers composition', () => {
   it('decrypts stored PII through raw Worker bindings without exposing key material', async () => {
     await t.reset();
-    const created = await createCase(t.env, testActors.counselor, {});
+    const created = await createCase(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) });
     await registerPii(t.env, testActors.admin, created.id, pii);
     const { secretStore, ...bindings } = t.env;
     const key = await secretStore.get('PII_ENC_KEY');
@@ -45,7 +45,7 @@ describe('SecretStore PII and Workers composition', () => {
 
   it('rejects missing and malformed PII keys without overwriting encrypted records', async () => {
     await t.reset();
-    const created = await createCase(t.env, testActors.counselor, {});
+    const created = await createCase(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) });
     await registerPii(t.env, testActors.admin, created.id, pii);
     for (const [value, errorCode] of [
       [undefined, 'secret_missing'],
@@ -74,7 +74,7 @@ describe('SecretStore PII and Workers composition', () => {
 
   it('contains a required key getter failure within the HTTP error boundary', async () => {
     await t.reset();
-    const created = await createCase(t.env, testActors.counselor, {});
+    const created = await createCase(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) });
     await registerPii(t.env, testActors.admin, created.id, pii);
     const { secretStore: _store, ...bindings } = t.env;
     const env = Object.defineProperty({
@@ -94,7 +94,7 @@ describe('SecretStore PII and Workers composition', () => {
 
   it('does not promote an inherited raw key into an own binding', async () => {
     await t.reset();
-    const created = await createCase(t.env, testActors.counselor, {});
+    const created = await createCase(t.env, testActors.counselor, { programId: testProgramId(testActors.counselor.orgId) });
     await registerPii(t.env, testActors.admin, created.id, pii);
     const { secretStore, ...bindings } = t.env;
     const inherited = Object.assign(Object.create({ PII_ENC_KEY: await secretStore.get('PII_ENC_KEY') }), {

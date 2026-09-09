@@ -8,7 +8,7 @@ import {
   reviewParticipantPiiRetention,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 const t = setupD1();
 const counselor = testActors.counselor;
@@ -26,7 +26,7 @@ async function closeSupportCase(supportCaseId: string, closedAt: string): Promis
 it('rejects a prior archive decision replayed against a later archive cycle', async () => {
   await t.reset();
   const participant = await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     intakeAt: '2020-01-01T09:00:00.000Z',
   });
   await updateParticipantPii(t.env, admin, participant.beneficiaryId, {
@@ -59,7 +59,7 @@ it('rejects a prior archive decision replayed against a later archive cycle', as
   const later = await createSupportCase(t.env, admin, participant.beneficiaryId, {
     schemaVersion: 1,
     submissionId: '76767676-7676-4767-8767-767676767676',
-    programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     initialAssigneeUserId: counselor.userId,
     consentPrivacy: true,
   });

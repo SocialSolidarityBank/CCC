@@ -26,6 +26,7 @@ export type ApiErrorCode =
   // 안내하려면 원인이 코드로 구분돼야 한다 — 'invalid_request' 로 뭉치지 않는다.
   | 'privacy_consent_required'
   | 'emergency_reason_required'
+  | 'program_admission_required'
   | 'service_unavailable';
 
 const knownErrorCodes = new Set<ApiErrorCode>([
@@ -49,6 +50,7 @@ const knownErrorCodes = new Set<ApiErrorCode>([
   'ai_provider_unavailable',
   'privacy_consent_required',
   'emergency_reason_required',
+  'program_admission_required',
   'service_unavailable',
 ]);
 
@@ -193,8 +195,15 @@ export interface AiDraft {
   transcriptQuality?: TranscriptQuality | null;
 }
 
+export interface ProgramOption {
+  id: string;
+  displayName: string | null;
+  programType: ParticipantProgramType;
+  admissionState: string;
+}
+
 export interface CreateCaseInput {
-  programType: string;
+  programId: string;
   intakeAt?: string;
 }
 
@@ -618,7 +627,7 @@ export interface NewRecordContext {
 }
 
 export interface CreateInitialParticipantProgramInput {
-  programType: ParticipantProgramType;
+  programId: string;
   // intakeAt 은 없다(CCC-56): 등록은 인테이크가 아니다. 인테이크 완료 시각은 인테이크
   // 기록 저장이 채우고, 그 전까지 위저드는 이 당사자를 '인테이크 전'으로 본다.
   initialAssigneeUserId?: string;
@@ -657,7 +666,7 @@ export interface ScheduleCandidate {
 export interface CreateSubsequentParticipantProgramInput {
   schemaVersion: 1;
   submissionId: string;
-  programType: ParticipantProgramType;
+  programId: string;
   // intakeAt 은 없다(CCC-56) — 추가 참여 사업도 등록 시점에는 인테이크 전이다.
   sourceSupportCaseId?: string;
   initialAssigneeUserId?: string;
@@ -1340,6 +1349,19 @@ function jsonRequest<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', body: un
 export async function getCounselingMemorySettings(): Promise<MemorySettingsView> {
   return requestJson<MemorySettingsView>('/settings/counseling-memory');
 }
+export async function getProgramOptions(): Promise<ProgramOption[]> {
+  const payload = responseObject(await requestJson<unknown>('/program-options'));
+  return responseArray(payload, 'programs').map((value) => {
+    const program = responseObject(value);
+    return {
+      id: responseString(program, 'id'),
+      displayName: responseNullableString(program, 'displayName'),
+      programType: responseEnum(program.programType, participantProgramTypes),
+      admissionState: responseString(program, 'admissionState'),
+    };
+  });
+}
+
 
 export async function setCounselingMemorySettings(input: MemorySettingsInput): Promise<MemorySettingsView> {
   return jsonRequest<MemorySettingsView>('/settings/counseling-memory', 'PUT', input);
@@ -2307,11 +2329,10 @@ export async function addSupportCaseAssignee(
   return decodeSupportCaseAssignee(await jsonRequest<unknown>(
     `/support-cases/${encodeURIComponent(supportCaseId)}/assignees`,
     'POST',
-    role === undefined ? { userId } : { userId, role },
+    { userId, role: role ?? 'secondary' },
   ));
 }
 
-/** 실무자 등록(기존 POST /users, role=counselor). 기관 관리자만 호출한다. */
 export async function registerCounselor(email: string): Promise<DirectoryUser> {
   return decodeDirectoryUser(await jsonRequest<unknown>('/users', 'POST', { email, role: 'counselor' }));
 }
@@ -2327,8 +2348,8 @@ export interface ParticipantInvite {
  * 당사자 가입 링크 발급(POST /invites/participant). 사업+발급 실무자가 토큰에 묶인다.
  * 권한(사람만)·감사는 API 게이트웨이가 강제한다(R1·D14).
  */
-export async function createParticipantInvite(programType: string): Promise<ParticipantInvite> {
-  const raw = await jsonRequest<Record<string, unknown>>('/invites/participant', 'POST', { programType });
+export async function createParticipantInvite(programId: string): Promise<ParticipantInvite> {
+  const raw = await jsonRequest<Record<string, unknown>>('/invites/participant', 'POST', { programId });
   if (typeof raw.token !== 'string' || typeof raw.programType !== 'string' || typeof raw.issuedAt !== 'string') {
     throw new ApiError('invalid_request');
   }

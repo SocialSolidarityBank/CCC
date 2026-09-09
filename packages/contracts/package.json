@@ -14,6 +14,7 @@
     "./guards": "./src/guards.ts",
     "./agent-jobs": "./src/agent-jobs.ts",
     "./counseling-memory": "./src/counseling-memory.ts",
+    "./program-admission": "./src/program-admission.ts",
     "./sql": "./src/sql.ts"
   }
 }

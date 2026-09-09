@@ -6,9 +6,10 @@ import {
   type CapabilityInput,
   decodeCapabilityManifest,
 } from '@ccc/contracts/capabilities';
-import type { AgentStatus, ApprovedSttEngineEntry, DeploymentMode, LlmMode, SttMode } from '@ccc/contracts/runtime';
+import type { Actor as IdentityActor, AgentStatus, ApprovedSttEngineEntry, DeploymentMode, LlmMode, SttMode } from '@ccc/contracts/runtime';
 import worker from './support/local-worker';
-import { setupD1 } from './support/d1';
+import { setupD1, testActors } from './support/d1';
+import { handleRequest } from '../../../packages/http-api/src/request-handler';
 import {
   createTestSigner,
   signedManifest,
@@ -191,6 +192,23 @@ describe('GET /capabilities', () => {
     for (const needle of ['org_demo', 'counselor@example.invalid', TEST_INSTALLATION_ID, 'sb_publishable', 'supabase']) {
       expect(text).not.toContain(needle);
     }
+  });
+
+  it('admits a technical-only human to capability reads without granting business access', async () => {
+    const env = await envWithManifest('community-cloud');
+    const userId = counselor['X-CCC-User-Id'];
+    await t.db.prepare("INSERT INTO user_role_assignments (id, org_id, user_id, role, source, granted_by) VALUES (?, 'org_demo', ?, 'institution_technical_admin', 'manual', ?)")
+      .bind('capabilities-technical-only', userId, testActors.admin.userId).run();
+    await t.db.prepare("UPDATE user_role_assignments SET revoked_at = ? WHERE org_id = 'org_demo' AND user_id = ? AND role <> 'institution_technical_admin' AND revoked_at IS NULL")
+      .bind(new Date().toISOString(), userId).run();
+    const identity: IdentityActor = { kind: 'human', userId, orgId: 'org_demo', roles: ['technical-admin'], scopes: [],
+      authn: { source: 'supabase-jwt', assurance: 'aal2', sessionId: 'capability-technical-session' } };
+    const response = await handleRequest(new Request('http://localhost/capabilities'), env, async () => identity);
+    expect(response.status).toBe(200);
+    const manifest = decodeCapabilityManifest(await response.json(), SYNTHETIC_LOCAL_REGISTRY);
+    expect(manifest.llmMode).toBe('off');
+    expect(manifest.sttEngine).toBeNull();
+    expect((await handleRequest(new Request('http://localhost/programs'), env, async () => identity)).status).toBe(403);
   });
 
   it('reports key presence from the read port without returning its value', async () => {

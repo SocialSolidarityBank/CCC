@@ -37,7 +37,7 @@ import {
   type CreateScheduleSessionGoalInput,
 } from '@ccc/core/gateway';
 import type { D1Capture } from './capture';
-import { ADMIN_ACTOR_ID, ORG_ID } from './preload-data';
+import { ADMIN_ACTOR_ID, ORG_ID, PRELOAD_PROGRAM_ID } from './preload-data';
 import {
   PARTICIPANTS,
   VIRTUAL_COUNSELORS,
@@ -135,7 +135,7 @@ async function runParticipant(
     env,
     adminActor,
     {
-      programType: FINANCIAL_SUPPORT_V1,
+      programId: PRELOAD_PROGRAM_ID,
       // intakeAt 없음(CCC-56): 등록 시점의 intake_at 은 NULL 이고, 아래 인테이크 기록
       // 저장(createIntakeRecord)이 실흐름과 같은 배선으로 채운다.
       initialAssigneeUserId: participant.assigneeUserId,

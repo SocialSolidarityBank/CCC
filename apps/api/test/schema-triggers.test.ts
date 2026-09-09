@@ -11,7 +11,7 @@ import {
   reRegisterParticipantPii,
   updateParticipantPii,
 } from '@ccc/core/gateway';
-import { grantTestPractitionerRole, setupD1, SQLITE_MIGRATIONS_PATH, testActors } from './support/d1';
+import { grantTestPractitionerRole, seedHistoricalParticipant, setupD1, SQLITE_MIGRATIONS_PATH, testActors, testProgramId } from './support/d1';
 
 const counselor = testActors.counselor;
 const t = setupD1();
@@ -36,7 +36,7 @@ async function seedCanonicalDirectory(): Promise<void> {
 async function createCanonicalParticipant(): Promise<{ beneficiaryId: string; supportCaseId: string }> {
   await seedCanonicalDirectory();
   return createBeneficiaryWithInitialSupportCase(t.env, counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(counselor.orgId),
     intakeAt: '2026-07-14T09:00:00.000Z',
   });
 }
@@ -328,7 +328,7 @@ describe('schema triggers', () => {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '91919191-9191-4191-8191-919191919191',
-      programType: 'financial_support_v1',
+      programId: testProgramId(counselor.orgId),
       intakeAt: '2026-07-15T09:00:00.000Z',
       initialAssigneeUserId: counselor.userId,
     });
@@ -1496,22 +1496,22 @@ describe('schema triggers', () => {
       consentPrivacy: true,
       schemaVersion: 1,
       submissionId: '77777777-7777-4777-8777-777777777777',
-      programType: 'financial_support_v1',
+      programId: testProgramId(admin.orgId),
       intakeAt: '2026-07-14T10:00:00.000Z',
       initialAssigneeUserId: admin.userId,
     });
     await expect(t.db.prepare(
       `INSERT INTO support_cases (
-         id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+         id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
          creation_submission_id, creation_payload_hash, created_by_actor_id,
          source_support_case_id, initial_assignee_user_id, created_at, updated_at
-       ) VALUES (?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       'unassigned-counselor-subsequent-case',
       counselor.orgId,
       participant.beneficiaryId,
+      testProgramId(counselor.orgId),
       '2026-07-14T10:00:00.000Z',
-      '88888888-8888-4888-8888-888888888888',
       SHA256,
       counselor.userId,
       unassignedSource.supportCaseId,
@@ -1549,14 +1549,15 @@ describe('schema triggers', () => {
     ).run()).rejects.toThrow('participant_schema_violation');
     await expect(t.db.prepare(
       `INSERT INTO support_cases (
-         id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+         id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
          creation_submission_id, creation_payload_hash, created_by_actor_id,
          source_support_case_id, initial_assignee_user_id, created_at, updated_at
-       ) VALUES (?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       'closed-source-subsequent-case',
       counselor.orgId,
       participant.beneficiaryId,
+      testProgramId(counselor.orgId),
       '2026-07-14T10:00:00.000Z',
       '66666666-6666-4666-8666-666666666666',
       SHA256,
@@ -1626,14 +1627,15 @@ describe('schema triggers', () => {
     const reRegistrationSupportCaseId = 're-registration-support-case';
     await t.db.prepare(
       `INSERT INTO support_cases (
-         id, org_id, beneficiary_id, program_type, status, intake_at, creation_kind,
+         id, org_id, beneficiary_id, program_id, program_type, status, intake_at, creation_kind,
          creation_submission_id, creation_payload_hash, created_by_actor_id,
          source_support_case_id, initial_assignee_user_id, created_at, updated_at
-       ) VALUES (?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, NULL, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, 'financial_support_v1', 'active', ?, 'subsequent', ?, ?, ?, NULL, ?, ?, ?)`,
     ).bind(
       reRegistrationSupportCaseId,
       counselor.orgId,
       participant.beneficiaryId,
+      testProgramId(counselor.orgId),
       '2026-07-14T10:00:00.000Z',
       '44444444-4444-4444-8444-444444444444',
       SHA256,
@@ -1734,10 +1736,7 @@ describe('schema triggers', () => {
         `INSERT INTO users (id, org_id, email, role, active)
          VALUES (?, ?, 'migration-counselor@example.invalid', 'counselor', 1)`,
       ).bind(counselor.userId, counselor.orgId).run();
-      const participant = await createBeneficiaryWithInitialSupportCase(upgradeEnv, counselor, {
-        programType: 'financial_support_v1',
-        intakeAt: '2026-07-14T09:00:00.000Z',
-      });
+      const participant = await seedHistoricalParticipant(db, counselor, '998');
       const sessionId = 'migration-0033-session';
       const workItemId = 'migration-0033-work';
       const draftId = 'migration-0033-draft';

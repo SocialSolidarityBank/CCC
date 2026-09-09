@@ -10,6 +10,8 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@ccc/contracts": "workspace:*",
+    "@supabase/supabase-js": "2.116.0",
     "@ccc/web": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7"

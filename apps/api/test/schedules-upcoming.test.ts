@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { setupD1, testActors, testProgramId } from './support/d1';
 
 // org_demo 는 setupD1 가 Asia/Seoul(UTC+9, DST 없음)로 프로비저닝한다. 앵커 날짜 2026-07-16.
 // 창(오늘 + 향후 7일 = 8일)은 KST 07-16 00:00 ~ 07-24 00:00, 즉 UTC 로는
@@ -36,7 +36,7 @@ async function seedScheduleWindow(): Promise<SeededWindow> {
   await t.reset();
 
   const owned = await createBeneficiaryWithInitialSupportCase(t.env, testActors.counselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(testActors.counselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
 
@@ -72,7 +72,7 @@ async function seedScheduleWindow(): Promise<SeededWindow> {
   });
 
   const hidden = await createBeneficiaryWithInitialSupportCase(t.env, testActors.unassignedCounselor, {
-    programType: 'financial_support_v1',
+    programId: testProgramId(testActors.unassignedCounselor.orgId),
     intakeAt: '2026-07-01T00:00:00.000Z',
   });
   // 다른 담당 실무자의 케이스에 창 안(KST 07-16 10:00) 일정

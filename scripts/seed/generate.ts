@@ -112,7 +112,8 @@ function assembleSeedSql(emitted: readonly EmittedRich[]): string {
     `INSERT INTO ccc_preview_seed_target_assertions (id, ok)
 SELECT 'preview_preload_only', CASE WHEN
   (SELECT COUNT(*) FROM organization_settings) = 1
-  AND (SELECT COUNT(*) FROM organization_settings WHERE org_id = '${ORG_ID}') = 1
+  AND (SELECT COUNT(*) FROM organization_settings WHERE org_id = '${ORG_ID}' AND initial_program_id = 'test-program:${ORG_ID}') = 1
+  AND (SELECT COUNT(*) FROM programs WHERE id = 'test-program:${ORG_ID}' AND org_id = '${ORG_ID}' AND admission_confirmed_by = '${PREVIEW_USERS[0]!.id}') = 1
   AND (SELECT COUNT(*) FROM users) = ${PREVIEW_USERS.length}
   AND (SELECT COUNT(*) FROM users WHERE org_id = '${ORG_ID}' AND active = 1) = ${PREVIEW_USERS.length}
   AND (SELECT COUNT(*) FROM users WHERE email LIKE '%@example.test') = ${previewExampleUsers}

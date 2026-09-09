@@ -1,0 +1,27 @@
+Organization profile partial-update implementation evidence
+Baseline: feca8606df82607f8f5fb294d2be6a16d2e095cf on feat/settings-backend.
+Implemented source: packages/core/src/gateway.ts; packages/http-api/src/request-handler.ts.
+Regression source: apps/api/test/settings-routes.test.ts.
+API documentation updated: docs/specs/S3-screen-api-map.md.
+
+Delivered backend behavior
+PATCH /organization/profile accepts exactly orgName:string and expectedOrgName:string|null. Active institution administrator assignment is required; the new writer opts out of the existing pre-0040 compatibility fallback. No actor/role projection change. Names are trimmed and bounded 1-80 characters. Only own institution name, organization version and updated_at change; program and policy are preserved. Missing settings 403, stale expectation or losing CAS 409. Same-value request with current expectation is a no-op. Ordered atomic DB.batch commits name/version and successful audit together. Deduplication uses next version and fixed operation detail rather than timestamps. Nullable PostgreSQL placeholder explicitly CAST AS TEXT.
+
+Observed verification
+1. Before implementation: three new HTTP tests failed with missing-route 404 (expected 200/409/403).
+2. Before strict-role correction: dropping user_role_assignments in the isolated real fixture still allowed profile PATCH 200; regression expected 500. Corrected new writer now fails closed without profile mutation or audit. Existing helper callers retain prior migration compatibility.
+3. Final command:
+   pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/settings-routes.test.ts apps/api/test/role-access-schema.test.ts
+   Result: 2 files, 21 tests passed. Includes forced simultaneous same-version reads with two distinct administrator actors, exactly one winner audit, no stale overwrite, audit-trigger failure rollback, null/missing-row distinction, no-op, IA-only/TA-only/revoked/inactive/service boundaries, and existing role-schema regression tests.
+4. pnpm --filter @ccc/api run typecheck: passed.
+5. pnpm run guard:db: passed.
+6. pnpm run guard:sql-dialect: passed.
+7. Final standalone real loopback HTTP smoke with isolated Miniflare D1 and all actual SQLite migrations: GET before200, PATCH200, GET readback matched new institution and preserved first program, stale PATCH409, successful audit count1. Explicit synthetic administrator resolver was injected; this does NOT verify production login/JWT/MFA. Throwaway server and Miniflare disposed after execution. Smoke sources/bundle removed after preserving this evidence.
+
+Independent review
+settings-profile-transaction-review.txt: nullable PG parameter and race scheduling/attribution findings corrected in source.
+Sibling settings-design/artifacts/settings-profile-authorization-review.txt: strict canonical-role fallback defect corrected; TA fixture uses canonical DB role institution_technical_admin and append-only revocation rules after initial fixture correction. Final runtime results above are authoritative, not earlier intermediate fixture assertions.
+
+Explicit limits
+No PostgreSQL execution: local colima Docker endpoint returned EOF, default /var/run/docker.sock was absent, and no local Homebrew PostgreSQL executable was found. PostgreSQL SQL typing correction is source-reviewed only, not a claim of exercised parity.
+No frontend setting connected. Existing apps/client on this baseline is STT-trial-only; authenticated business shell/transport/login still need their foundation handoff. No new programs/notice/key-write/backup/update service was implemented. No live credentials, production data, deployment, commit, push or merge into main. Other worktrees/root source remained untouched; two settings worktrees alone were fast-forwarded to the released baseline.

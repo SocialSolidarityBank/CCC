@@ -18,7 +18,7 @@ import {
   updateParticipantConsent,
   PilotTextAiConsentRequiredError,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import { claimRequest, seedNerQualification, TEXT_ONLY_RUNTIME } from './support/agent-jobs';
 
 // 픽스처가 케이스·회차·동의를 매번 새로 만든다 — text-work-materials.test.ts 와 같은 이유로 여유를 준다.
@@ -45,13 +45,18 @@ async function evidenceRowCount(supportCaseId: string): Promise<number> {
 
 describe('텍스트 AI 동의 철회 종단 (CCC-110 · P0-7)', () => {
   it('철회하면 일감 목록·스냅샷 저장·초안 생성이 전부 거부되고 근거 이력은 남는다', async () => {
+    await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+      sttMode: 'local',
+      llmMode: 'openai',
+    });
+    t.env.CCC_STT_MODE = 'local';
+    t.env.CCC_LLM_MODE = 'openai';
     t.env.TEXT_AI_PILOT_ENABLED = '1';
-
     // 1) 동의 저장 — 등록 시점의 ② 체크가 consent_text_ai_at 과 근거 행을 함께 만든다.
     const creation = await createBeneficiaryWithInitialSupportCase(
       t.env,
       counselor,
-      { programType: 'financial_support_v1', intakeAt: '2026-07-16T09:00:00.000Z' },
+      { programId: testProgramId(counselor.orgId), intakeAt: '2026-07-16T09:00:00.000Z' },
       undefined,
       { privacy: true, recordingAi: true },
     );

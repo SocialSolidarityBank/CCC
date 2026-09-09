@@ -12,6 +12,8 @@ const APPLICATION_TRIGGER_CODES = [
   'invite_token_already_used',
   'participant_schema_violation',
   'counseling_memory_fence',
+  'program_admission_required',
+  'account_state_changed',
 ] as const;
 
 type ConstraintSubtype = NonNullable<DatabaseError['constraintSubtype']>;

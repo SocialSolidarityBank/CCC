@@ -1,0 +1,155 @@
+Settings foundation integration verification, wZ:p1
+Scope: chronological integration evidence. Final agreed scope is completion of supported settings with explicit unavailable surfaces for missing foundations, not completion of all 19 execution engines.
+
+Ownership: user selected this Main for integration verification. wQ:p1 acknowledged it will not modify, test, clean up or operate Supabase until integration owner completion.
+
+Observed commands and results:
+- pnpm exec vitest run --config apps/api/vitest.config.ts apps/api/test/settings-routes.test.ts apps/api/test/role-access-schema.test.ts apps/api/test/identity-subject.test.ts apps/api/test/identity-supabase.test.ts apps/api/test/audio-supabase.test.ts: 5 files, 87 tests passed.
+- pnpm --filter @ccc/api run typecheck; pnpm --filter @ccc/client run typecheck; pnpm --filter @ccc/community-cloud run typecheck: all exited 0.
+- pnpm run guard:db; pnpm run guard:sql-dialect; pnpm run guard:core-imports: all passed.
+- pnpm --filter @ccc/community-cloud run build: exited 0.
+- Final pnpm --filter @ccc/client run test: 6 files, 40 tests passed.
+- Final client typecheck and build: exited 0. Existing wire-styles package-type warning and >500 kB chunk warning remain.
+
+Real runtime proof:
+- Temporary smoke used a fresh database with all PostgreSQL migrations on an isolated native PostgreSQL 17.10 service at loopback. Business requests traversed real HTTP, the Community Cloud composition, JWT verifier, restricted ccc_api adapter, gateway and database.
+- JWT and JWKS were synthetic signed fixtures, not hosted Supabase authentication. No live credentials or production data.
+- CORS preflight accepted; hostile origin rejected; absent credential 401; signed aal1 rejected with 403 mfa_required.
+- /me canonical role union and /capabilities returned 200.
+- PATCH /organization/profile saved and read back; unrelated program display name preserved.
+- Concurrent writes from the same expected name produced exactly 200 and 409.
+- POST /auth/logout returned 204; old SID rejected, including a later-issued JWT; new SID accepted.
+- Session RLS exposed only the verified current SID; no-SID and different-SID contexts saw no revocation records. Unscoped reused pool saw no organization rows.
+- Every smoke database was dropped in finally after its pools closed.
+
+Bugs found during integration:
+1. Browser rejected valid signed Cloud installations when client host differed from Supabase API host. Shared manifest already validates signed API project identity; removed the incorrect extra equality. Added regression: observed 1 failure before fix, then passing. No signature/bootstrap/origin checks weakened.
+2. Worker final MFA session normalization had not reached integration. Real SDK MFA response omits expires_at; old event-payload use produced null business token and skipped backend revocation. Integrated getSession normalization. Observed 4 failures before fix, then all 40 client tests passed. Kept fail-closed expiry check rather than accepting missing expiry.
+3. Integrated finalized worker lifecycle cleanup, encoded QR URI, immediate transport disposal on auth revision, and bounded public installation fetch. Preserved backend's correct {error:'mfa_required'} decoding rather than worker's stale {code:...} assumption.
+
+Browser proof:
+- Real Chromium /login at isolated local Vite source preview with a synthetic signed installation, no substituted business API responses.
+- Before fix: installation_invalid view. After fix: visible required email/password inputs and Login button.
+- localStorage=0, sessionStorage=0, cookie string length=0 at signed-out login.
+- Screenshot: artifacts/settings-foundation-login.png.
+- This does not prove a hosted password/MFA enrollment or an authenticated settings form in a live Supabase deployment.
+
+Unverified/remaining:
+- Hosted Supabase Auth/Edge/Storage behavior, private bucket deletion/version behavior, and deployed ingress.
+- The five Docker-based PostgreSQL suites were not run; native HTTP smoke is separate evidence, not a claim those suites passed.
+- Local Single/Office client login and remaining 19-module services/UI remain in the implementation plan.
+- No commit, push, merge, deployment, or live secret operation performed.
+
+Assignment and audit integration checkpoint:
+- Focused API verification: assignment-lifecycle, audit-log.routes, gateway-foundation, counseling-memory.routes: 4 files, 26 tests passed.
+- Client verification: 6 files, 44 tests passed. API/client typechecks, guard:db, guard:sql-dialect, guard:core-imports and client build passed.
+- Fixed missing browser-safe WireItem export discovered by client typecheck.
+- Acceptance HTTP now binds the assignment to the support-case URL. Regression observed incorrect 200 before fix; correct case succeeds and wrong case is denied.
+- Audit pagination returns metadata only, at most 100 rows, with canonical UTC range validation and strict active institution-admin access. Offset timestamp regression failed before fix and passed afterward.
+- Isolated Chromium component reproduction used explicitly synthetic assignment responses, not a production endpoint. Before fix, an uncertain write left acceptance enabled. After fix, acceptance remained disabled until explicit successful list refresh; observed write count stayed one throughout refresh.
+- Temporary assignment HTML/TSX fixtures removed; Vite service stopped and managed browser tab released.
+- Agent accidentally edited root apps/api/test/gateway-foundation.test.ts. Its first hash-checked edit used #D361 and succeeded; hash-checked restoration returned #D361. Future delegated edits require absolute worktree paths.
+
+Program admission and memory checkpoint:
+- Program API lifecycle/access regression: 7 tests passed. Staff metadata does not grant case access; closing a program prevents new registration without closing existing cases.
+- API and client typechecks passed after the staff/status contract change.
+- Earlier pipeline compatibility checkpoint: agent-job-contract 17 tests, audio plus text-ai-consent-withdrawal 18 tests passed.
+- Reproduced four memory admission failures against the pre-fix implementation: persisted LLM Off did not stop commit, stale program confirmation still allowed source delivery and result commit, and the view did not expose the admission blocker.
+- Added durable policy and program fences to memory preparation, claims, source/dictionary access, result acceptance and LLM egress/commit. Lease cleanup stays available while admission is blocked.
+- Post-fix API typecheck passed. counseling-memory.races, counseling-memory.routes, counseling-memory-trial and program-admission.routes: 4 files, 31 tests passed.
+- Memory admission blocking retains the previous valid summary and assigned-practitioner correction access. No clinical memory contents are added to institution settings.
+- Native PostgreSQL: all eight migrations applied; program_staff forced RLS enabled and cross-organization staff excluded.
+- Real ProgramsModule with synthetic identity and an isolated PostgreSQL-backed HTTP API: confirmation and staff persisted; duplicate submits produced one mutation; a concurrent update returned 409 and retained the draft until explicit refresh.
+- Closing through the browser blocked new case creation with 409, preserved an existing active case with 200, and removed the closed program from registration options. New program creation persisted one row for duplicate submits.
+- Desktop 1280px and mobile 390px screenshots preserved under artifacts/settings-programs-native-*.png. Mobile radio descriptions and action widths verified visually; no horizontal overflow or browser storage entries.
+- Client typecheck and token audit passed after correcting stylesheet discovery, unused registration class and audit/retention separators. Token audit reports zero violations.
+- Owned API and Vite services stopped, synthetic API reported PROGRAM_SMOKE_CLEANED, and managed browser tab released. This is not hosted Supabase authentication evidence or final design approval.
+
+Final outbound admission checkpoint:
+- Reproduced a provider call after program confirmation changed during optional historical-context loading: expected zero calls, observed one before the fix.
+- Added authorizeSessionTextAiEgress at the final production generation and discrepancy-send boundaries, with active consent/role checks and an atomic program/policy revision fence.
+- API typecheck and four focused generation/race tests passed. Full routes run: 79 passed, two legacy fixtures lacked explicit enabled processing modes; both corrected fixtures passed on targeted rerun.
+- Full discrepancy suite passed: 40 tests. Agent fixture manifests now match their actual installation mode instead of silently switching a Cloud fixture to Local Single.
+- No diagnostic logging remains in gateway.
+
+S11 CORS checkpoint:
+- Executed real Community Cloud composition against an isolated PostgreSQL 17.10 database with all eight migrations and a restricted ccc_api connection; used a signed synthetic install manifest, no hosted credentials.
+- Before fix: preflight requesting all five S11 headers returned 403. After fix: returned 204 and advertised all required headers from the same allowlist used for validation.
+- Untrusted origin returned 403 without ACAO; an unapproved request header returned 403. No wildcard/origin reflection was added.
+- Community Cloud typecheck and build passed. Temporary smoke databases were dropped in finally. This is local runtime evidence, not actual hosted CORS or Seoul-region evidence.
+
+Business Edge privileged-storage checkpoint:
+- Reproduced business runtime startup with an injected synthetic Service Role credential before the fix; startup now rejects with storage_signer_required.
+- Removed privileged Supabase AudioStore composition and its direct package dependency from the business Edge. ApiEnv explicitly supports audioStore=null; audio operations return unavailable rather than using a fake adapter.
+- Actual runtime smoke against isolated PostgreSQL: privileged startup denied, raw audio rejected with 415, unauthenticated metadata still rejected with 401. Temporary database dropped in finally.
+- API and Community Cloud typechecks, Edge build and 19 AudioStore contract tests passed. Deployment guidance explicitly preserves blocking if the hosting platform injects Service Role into the business function.
+- This implements a safe deployment/audio block, not StorageSigner or hosted storage support.
+
+Static admission SQL checkpoint:
+- SQL dialect guard rejected five dynamic query-factory interpolations. Replaced them with one static admission SQL constant and bound mode predicates; the guard itself is unchanged.
+- SQL dialect guard, core import guard and API typecheck passed.
+- agent-job-contract and counseling-memory.races passed: two files, 32 tests. This covers both ordinary job leasing and memory admission/Off/revision races after the static SQL cutover.
+
+Account, retention and export integration checkpoint:
+- Account endpoints use canonical active grants, role-set CAS and an atomic account_mutation_guards transaction. Role mutation and deactivation share the organization row lock with legacy provisioning/offboarding.
+- Successful offboarding, last technical administrator protection, stale-role conflict, cross-organization/worker denial and audit rollback passed: account-settings 5 tests.
+- Existing gateway-users 14 tests and retention-policy-settings 7 tests passed. Client and API typechecks passed before the final transport hardening.
+- Retention policy read/write consumes organization_settings and affects future last-active-case closure deadlines, not existing review clocks. Read-only legacy values above the new bound are not silently normalized.
+- Restored real authenticated transport initialization in SignedInSettings. Added reachable account management, retention-policy and unavailable six-domain consent views.
+- Reproduced signed-prefix escape through encoded dot segments in the extended transport. Fixed dot-segment rejection while allowing correctly encoded directory IDs containing periods; query keys are restricted to actual audit/history/picker contracts. Boundary suite: 9 tests passed after correction.
+- Native PostgreSQL with all nine migrations reproduced permission denied on account_mutation_guards. Added explicit restricted-role SELECT/INSERT/DELETE grants, revoked PUBLIC and assigned schema ownership; no bypass role added.
+- Actual Community Cloud runtime plus restricted ccc_api/native PostgreSQL then passed role CAS 200/409, retention CAS 200/409, administrator/assigned-case picker reads and official export/history. Export retained multiline memo and excluded the synthetic PII-email canary.
+- Current browser proof surface mounts the real BusinessPage and Supabase SDK with explicitly synthetic Auth/JWKS. Business responses are forwarded from the real local runtime without substituted payloads. This is not hosted Supabase E2E evidence.
+
+Final supported-settings checkpoint:
+- All 19 settings destinations share one role-filtered, grouped navigation and guide catalog. Account-role editing, offboarding and assignment use canonical grants; invitation remains explicitly unavailable.
+- Found and fixed PostgreSQL alias folding on assignment acceptance by quoting beneficiaryId. Added an institution-admin-only requested-assignment read path; ordinary assignee reads retain their existing active-only behavior.
+- A real administrator requested an assignment; the pending view removed the duplicate action. The actual worker accepted through the browser, then explicit administrator refresh displayed the active assignment.
+- Technical-only login initially failed because installed AI policy read projected a canonical identity into clinical legacy roles. The read now accepts the original active human identity while preserving legacy agent callers. Native runtime and browser login passed afterward; clinical program access remained forbidden.
+- Two actual administrator tabs reproduced a role-set conflict. The stale tab retained its role draft and deactivation reason, disabled mutation until explicit successful refresh, and preserved those inputs during refresh. Successful role save/readback and restoration also passed.
+- Retention policy saved and read back through the browser. The empty review queue was a genuine database result. Existing retention lifecycle, replay and invariant tests cover the review actions.
+- Official export used the actual response Blob and browser download action. Parsed output had the minimal v1 schema, retained the multiline official memo and excluded the synthetic PII-email canary. History showed the recorded preparation. This proves payload preparation and download initiation, not operating-system disk completion.
+- Memory policy Off saved and read back with real aggregate counters; no clinical memory text was exposed. Audit actor filtering returned only the requested actor metadata; filter content was absent from browser URL and browser storage.
+- Restricted native PostgreSQL proof also covered assignment acceptance, sibling-case export denial, forced transfer ending old-primary access, technical-only account reads/offboarding, role-write denial and rejection of the offboarded identity.
+
+Final verification:
+- Focused API verification covered 10 suites across targeted runs; final account-settings had 6 passing tests and capabilities had 29. Earlier failures were corrected rather than hidden: a profile fixture wrote the superseded program-name field, and the new technical-role fixture used a noncanonical schema slug. This is not a claim of one final project-wide suite invocation.
+- Client suite: 43 tests passed. API/client typechecks passed; final client typecheck and production build passed after the last account and shared-layout changes.
+- Shared WireItem suite: 9 tests passed after moving status beside its title without changing its props contract.
+- Database boundary, SQL dialect and core-import guards passed. Final token audit reported zero violations.
+- Existing build warnings remain: wire-styles module-type detection and a main client chunk above 500 kB. No warning suppression or dependency change was introduced.
+
+Final design gate:
+- New Herdr screen-builder and independent rule-reviewer panes were used. Reviewer disposition: 14 definite findings and 4 judgment items resolved; zero unresolved. Reports: settings-screen-review.txt and settings-rules-review.txt.
+- Main verified actual authenticated BusinessPage rendering against the real loopback Community Cloud runtime, restricted ccc_api and PostgreSQL. Only Auth/JWKS and installation configuration were synthetic; business response payloads were not replaced.
+- After final source changes, all 19 routes were exercised at both 1280px and 390px: 38 observations, zero visible alerts and zero horizontal overflow.
+- Account actions are content-width using the existing business-actions wrapper. Actual role-save width was 105.73px at both widths. Shared WireItem badge and title occupied the same line.
+- Shared wire-styles is imported when Vite starts; restarting the owned preview server applied the new layout. Dark capture was taken after navigation color transitions settled.
+- Final captures were visually inspected: settings-final-accounts-desktop.png, settings-final-accounts-mobile.png, settings-final-status-desktop.png and settings-final-status-dark.png. Dark-token rendering was exercised directly; this is not a claim of a persisted theme-preference feature.
+- Worker-only navigation exposed 3 allowed destinations; technical-only navigation exposed 12, with account deactivation present and role-save absent.
+
+Remaining execution boundaries:
+- No SecretStore write/rotation, .cccx backup/restore/import, update/rollback, Local Identity, Supabase apply, hosted invitation provider or six-domain consent-notice persistence/application engine was invented.
+- The nine capability destinations show actual current installation state plus explicit unavailable operations. Consent publication and authenticated invitation creation also remain unavailable, with no fake completion or browser-storage substitute.
+- Business Edge privileged Service Role composition and local CORS checks were addressed as documented above. StorageSigner/hosted storage, actual hosted CSP and real Supabase E2E remain separate approval and execution gates.
+- No commit, push, merge, deployment, live secret access or hosted-state mutation was performed.
+
+Cleanup:
+- Owned final API and Vite services stopped; all five owned final browser tabs and PostgreSQL client pools released.
+- Service exit did not prove asynchronous database cleanup: catalog inspection found four settings_final_* synthetic databases from owned preview runs. Their generated-name format and ccc_contract ownership were verified, then they were explicitly dropped. The final catalog count was zero.
+- Removed the disposable API source, preview HTML and preview TSX. Earlier account/retention integration fragments were already absent.
+- Owned PostgreSQL service stopped with exit 0 and its temporary native-binary/data sandbox was removed.
+- Closed only the two newly created design-gate panes. The ccc-dev tab and pre-existing panes/services were left intact.
+
+Post-approval deployment preflight:
+- Q approved proceeding with deployment after viewing the captured screens. Approval does not waive the documented privileged-key isolation or hosted verification gates.
+- Fetched origin/main and inspected its production workflow changes. It still deploys @ccc/api to Cloudflare Workers and @ccc/web through OpenNext. The upstream change only adds the five-minute cron smoke expectation; it does not deploy apps/client or apps/community-cloud.
+- The new client requires a trusted signing-key build configuration and a real signed installation/bootstrap. A localhost synthetic installation is not a production configuration.
+- Supabase's current official environment-variable documentation lists SUPABASE_SERVICE_ROLE_KEY among default legacy secrets and SUPABASE_SECRET_KEYS among default privileged secrets: https://supabase.com/docs/guides/functions/secrets . This conflicts with the current business runtime's explicit rejection of an injected Service Role credential; removing or hiding that check is not an acceptable deployment workaround.
+- Fetching the specified shared client address https://app.ccc.kr/ did not yield a verifiable response: the reader reported certificate verification failure. This is not evidence that the new client is deployed there.
+- A fresh root typecheck exposed missing legacy web integration declarations: ai_provider_unavailable in ApiErrorCode, the two consent refusal values in Notice, the InviteIssue import, and the program-admission recovery mapping. Restored these at their actual consumer boundaries without weakening the backend refusal.
+- Compiled and exercised the actual recovery helper functions: program-admission refusal is preserved through response and URL-state handling; unknown values retain the existing bounded fallback.
+- All four application typechecks then passed. Client tests passed 43/43; affected legacy web tests passed 43/43 across three suites. Tests now explicitly select a program and target the actual accessible button. Removed wording and markup-only assertions rather than changing production wording to satisfy them.
+- Client and Community Cloud builds passed; DB boundary, SQL dialect, core-import and token guards passed. Existing package-type and bundle-size warnings remain. No claim of a full repository test-suite run.
+- Corrected an earlier cleanup blind spot: four obsolete integration fragments were under artifacts/, not the worktree root. They have now been removed.
+- Production deployment remains blocked on the new client deployment path, real installation provisioning and a verified business-runtime isolation design. No production workflow was dispatched and no operational schema or secret was changed.

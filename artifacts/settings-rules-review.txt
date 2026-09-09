@@ -1,0 +1,176 @@
+SETTINGS RULES AND SPEC REVIEW
+
+Review mode: independent source-only re-review against the current files after final source corrections. No command, test, build, formatter, guard, browser, service, code, or rules operation was performed. The only mutation in this pass is this review artifact.
+
+ROUTE COVERAGE
+
+institution: institution-admin route; real CAS save; uncertain writes retain the draft and require an explicit successful refresh.
+programs: institution-admin route; real create/update; uncertain writes retain drafts and require refresh; status and admission badges follow mint, lavender, and neutral semantics.
+accounts: institution-admin and technical-admin route; server permission flags separate role editing from account deactivation; every failed write blocks repeats until an explicit successful refresh; same-account drafts and reasons survive that refresh.
+consent: institution-admin route; explicitly read-only and unavailable; no fake save or apply action.
+retention: institution-admin route; real policy and review decisions; two sibling cards intentionally separate policy editing from review-queue decisions within one selected route.
+exports: worker route; assigned-case options and official-record export; history metadata is rendered as data rather than an action.
+audit: institution-admin route; metadata-only records; metadata is rendered as data rather than an action.
+speech: institution-admin and technical-admin route; read-only capability display; no activation action; disabled reasons use the capability contract without inventing finer evidence.
+ai: institution-admin and technical-admin route; no key save or activation action; missing-key and unsupported states remain distinct.
+agent: institution-admin and technical-admin read route; no registration action; the guide identifies technical preparation and institution-admin read access.
+memory: institution-admin route; real CAS policy save; uncertain writes retain the draft and require refresh.
+database: read-only capability route; the route and guide both limit the claim to the current installation mode and require the separate read-only installation plan for deeper checks.
+storage: read-only capability route; the route and guide both state that region, usage, capacity, original-audio storage, and migration evidence are not displayed.
+backup: read-only unavailable route; backup creation, .cccx import, verification, and restore execution are explicitly disclosed as unavailable.
+security: read-only route; it explicitly refuses to infer login assurance or institution-wide security from installation mode.
+system: read-only component summary; the route and guide both deny whole-system-health proof.
+updates: read-only unavailable route; the route and guide both state that version, signature, update, and rollback evidence are not displayed or executable.
+account: all signed-in users; canonical roles and assignment requests; assignment acceptance retains its refresh-required uncertain-write state.
+guide: all signed-in users; current role links, responsibility boundaries, capability limits, and unavailable application services are described without the prior stale manual warning.
+
+CURRENT DEFINITE FINDINGS
+
+None.
+
+RESOLVED DEFINITE FINDINGS
+
+1.
+position: apps/client/src/business/business-page.tsx:39-73; apps/client/src/business/business.css:18-61; apps/client/src/business/guide.tsx:159-165
+problem: The previous flat pill-button navigation lacked required groups and selected-place treatment.
+resolution: resolved. The shell now renders six named groups through WireCardSection, uses rectangular navigation links, and sets aria-current plus data-current for the selected destination.
+rule: artifacts/settings-design-gate-brief.txt:8-11; DESIGN-RULES.md §§3 and 7.
+severity: resolved, previously high
+
+2.
+position: apps/client/src/business/guide.tsx:37-42
+problem: The guide previously excluded technical administrators from the accounts destination despite the real shell allowing their account-management scope.
+resolution: resolved. The destination now grants institution-admin and technical-admin roles and states the split between role and assignment management versus account deactivation.
+rule: artifacts/settings-design-gate-brief.txt:9,12; docs/adr/0044-onboarding-invite-and-admin-surfaces.md:23,27.
+severity: resolved, previously high
+
+3.
+position: apps/client/src/business/accounts.tsx:153-185,218-248,262-267,292-345,357-358,394-401,409-438
+problem: Account, assignment, and transfer writes previously remained repeatable after an uncertain result and could lose same-account drafts during refresh.
+resolution: resolved. Every failed write sets needsRefresh; role, deactivation, assignment, and transfer controls block while it is set; only a successful explicit directory refresh clears it. Refresh traverses directory pages until the selected account is retained, and draft ownership prevents same-account role and reason resets. The dedicated institution-admin case-assignment read includes requested records, while the general user-assignment read remains active-only.
+rule: artifacts/settings-design-gate-brief.txt:13.
+severity: resolved, previously high
+
+4.
+position: apps/client/src/business/capability-settings.tsx:19-32; packages/contracts/src/capabilities.ts:58-91
+problem: Disabled STT and LLM states previously collapsed contract reasons into vague wording.
+resolution: resolved. missing_key, unverified, unsupported, and absent-detail states have distinct labels. The UI stays within the source contract instead of inventing registry, health, or provider evidence the manifest does not carry.
+rule: artifacts/settings-design-gate-brief.txt:3,14.
+severity: resolved, previously high
+
+5.
+position: apps/client/src/business/capability-settings.tsx:41
+problem: The security route previously claimed additional authentication without mode-specific assurance evidence.
+resolution: resolved. The current copy says installation mode cannot establish the current login assurance level or institution-wide security state.
+rule: artifacts/settings-design-gate-brief.txt:14; docs/adr/0041-one-core-three-deployment-modes.md:111-115.
+severity: resolved, previously high
+
+6.
+position: apps/client/src/business/guide.tsx:86-139; apps/client/src/business/capability-settings.tsx:34-43
+problem: The guide previously promised detailed agent, database, storage, security, and update readbacks that their routes did not render.
+resolution: resolved. Each guide entry now names only displayed values and explicitly lists unavailable evidence. The route limitation copy matches those boundaries.
+rule: artifacts/settings-design-gate-brief.txt:3,14; design-reviewer criterion 6.
+severity: resolved, previously high
+
+7.
+position: apps/client/src/business/capability-settings.tsx:40; apps/client/src/business/guide.tsx:115-118,204-210,235-240
+problem: The unavailable-service disclosure previously omitted the .cccx import engine.
+resolution: resolved. Backup, .cccx import, restore verification, and execution are named separately from official-record export and are explicitly unavailable.
+rule: artifacts/settings-design-gate-brief.txt:14; docs/adr/0041-one-core-three-deployment-modes.md:119-123.
+severity: resolved, previously medium
+
+8.
+position: apps/client/src/business/guide.tsx:185-243
+problem: The guide previously warned that the current admission manual used an obsolete role split.
+resolution: resolved. The stale warning is gone; current responsibility text consistently separates institution-admin policy, key, and final-start authority from technical-admin preparation.
+rule: artifacts/settings-design-gate-brief.txt:15.
+severity: resolved, previously high
+
+9.
+position: apps/client/src/business/audit-retention-modules.tsx:118-133
+problem: Audit metadata previously occupied WireItem.action and was therefore classified as an action.
+resolution: resolved. WireItem owns the audit event summary and actor-role status; the metadata follows in sibling WireDataRows.
+rule: DESIGN-RULES.md §2; apps/web/app/components/wire/wire-section.tsx:78-89.
+severity: resolved, previously medium
+
+10.
+position: apps/client/src/business/exports.tsx:312-320
+problem: Export-history metadata previously occupied WireItem.action.
+resolution: resolved. WireItem owns the history summary and status; actor and audit identifiers follow in sibling WireDataRows.
+rule: DESIGN-RULES.md §2; apps/web/app/components/wire/wire-section.tsx:78-89.
+severity: resolved, previously medium
+
+11.
+position: apps/client/src/business/settings-modules.tsx:160-162,239-242; apps/client/src/business/accounts.tsx:376-408; apps/client/src/business/audit-retention-modules.tsx:18-19,118-132,189-195; apps/client/src/business/capability-settings.tsx:24-32,53-68
+problem: Scan-first status and classification values previously remained plain data-row text.
+resolution: resolved. Roles, account state, assignment role, memory state, retention state, capability selections, agent state, and option availability now use WireBadge. Operational attention and error states use lavender; risk remains reserved for D9.
+rule: DESIGN-RULES.md §§1 and 4; design-reviewer criteria 1 and 3.
+severity: resolved, previously medium
+
+12.
+position: apps/client/src/business/programs.tsx:166-169,333-356
+problem: Program status and admission state previously always used neutral badges.
+resolution: resolved. Active and ready use mint, attention states use lavender, and closed uses neutral.
+rule: DESIGN-RULES.md §4; design-reviewer criterion 3.
+severity: resolved, previously medium
+
+13.
+position: apps/client/src/business/accounts.tsx:371-440
+problem: Final screenshots showed direct account action buttons expanding to the full content width instead of keeping their intrinsic action width.
+resolution: resolved. Role save, account deactivation, case loading, pagination, assignment request, and forced-transfer buttons now sit inside the existing business-actions wrapper.
+rule: DESIGN-RULES.md §7 requires mobile actions to remain content-sized rather than stretching to card width.
+severity: resolved, previously medium
+
+14.
+position: apps/web/app/components/wire/wire-section.tsx:87-110; apps/web/app/components/wire/wire-styles.ts:642-656
+problem: The shared WireItem status API rendered status below the description, weakening scan order and separating state from its title.
+resolution: resolved. The unchanged status API now renders inside the title line. The shared styles provide the existing gap, align status contents, and reserve badge height whether status is present or absent.
+rule: DESIGN-RULES.md §§1 and 4 require scan-first status beside its title and stable reserved badge height.
+severity: resolved, previously medium
+
+CURRENT JUDGMENT-NEEDED FINDINGS
+
+None.
+
+RESOLVED JUDGMENT ITEMS
+
+1.
+position: apps/client/src/business/business-page.tsx:148-155; apps/client/src/business/retention-policy.tsx:70-76,158-189; apps/client/src/business/audit-retention-modules.tsx:139-231
+problem: The earlier review asked whether the two retention cards violated the one-selected-route requirement.
+resolution: resolved by product judgment. The cards are siblings, not nested surfaces: one edits the forward policy and one handles review-queue decisions. Both belong to the single selected retention route.
+rule: artifacts/settings-design-gate-brief.txt:10; design-reviewer criteria 4 and 6.
+severity: resolved, previously medium
+
+2.
+position: apps/client/src/business/guide.tsx:86-90; apps/client/src/business/business-page.tsx:136-143
+problem: The earlier guide made processing-agent visibility ambiguous for institution administrators.
+resolution: resolved. The route grants both administrator roles, and the guide states technical-admin preparation plus institution-admin read access.
+rule: artifacts/settings-design-gate-brief.txt:12; docs/adr/0044-onboarding-invite-and-admin-surfaces.md:27.
+severity: resolved, previously medium
+
+3.
+position: apps/client/src/business/programs.tsx:289-305,308-327,333-358
+problem: Program staff selection previously nested WireCardSection at the same heading level.
+resolution: resolved. Staff, storage, and processing choices are fieldsets inside the program section, with legends defining the form hierarchy.
+rule: DESIGN-RULES.md §§1-2; design-reviewer criteria 4 and 5.
+severity: resolved, previously medium
+
+4.
+position: apps/client/src/business/programs.tsx:272-330; apps/client/src/business/accounts.tsx:352-359,396-446
+problem: Always-present policy and unavailable-feature guidance previously used WireEmpty.
+resolution: resolved. Persistent guidance and unavailable-feature explanations use WireCallout; WireEmpty remains for loading, success notices, absent data, or an existing assignment that makes the action surface empty.
+rule: DESIGN-RULES.md §§1-2; design-reviewer criterion 6.
+severity: resolved, previously low
+
+CURRENT SOURCE COUNTS
+
+definite resolved: 14
+definite unresolved: 0
+judgment resolved: 4
+judgment unresolved: 0
+total resolved: 18
+total unresolved: 0
+
+RUNTIME STATUS
+
+Final proof from Main: the shared WireItem suite passed all 9 tests; client typecheck and build passed; the token audit reported 0. After Vite restarted and reloaded its static wire-styles import, the actual DOM showed title display:flex, the badge beside the title, and a 105.73px role-save width at both 1280px and 390px. The post-change sweep covered all 19 routes at both widths, 38 observations total, with zero alerts and zero horizontal overflow. All four named final captures were overwritten and visually inspected; the dark capture waited for the navigation color transition to settle. Source remains frozen and no unresolved findings remain.

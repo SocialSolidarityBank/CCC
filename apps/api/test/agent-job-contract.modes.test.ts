@@ -12,9 +12,9 @@ import {
   recordPilotTextAiConsentEvidence,
   updateParticipantConsent,
 } from '@ccc/core/gateway';
-import { setupD1, testActors } from './support/d1';
-import { claimRequest, seedNerQualification } from './support/agent-jobs';
+import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import { createTestSigner, signedManifest, SYNTHETIC_LOCAL_REGISTRY } from './support/install-manifest';
+import { claimRequest, seedNerQualification } from './support/agent-jobs';
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -35,6 +35,11 @@ const counselorHeaders = {
 };
 
 async function envForMode(mode: DeploymentMode): Promise<ApiEnv> {
+  await seedTestProgramWithRuntimeModes(t.db, counselor.orgId, counselor.userId, {
+    deploymentMode: mode,
+    sttMode: 'local',
+    llmMode: 'openai',
+  });
   const signer = await createTestSigner();
   const manifest = await signedManifest(signer, mode, { approvedSttEngineIds: SYNTHETIC_LOCAL_REGISTRY });
   return {
@@ -43,12 +48,13 @@ async function envForMode(mode: DeploymentMode): Promise<ApiEnv> {
     CCC_INSTALL_MANIFEST: JSON.stringify(manifest),
     CCC_INSTALL_SIGNING_KEYS: JSON.stringify(signer.publicKeys),
     CCC_STT_MODE: 'local',
+    CCC_LLM_MODE: 'openai',
   };
 }
 
 /** 텍스트 일감 1건과 오디오 1건을 만든다. 오디오 바이트는 업로드 경로로 넣는다. */
 async function seedJobs(env: ApiEnv) {
-  const beneficiary = await createCase(env, counselor, {});
+  const beneficiary = await createCase(env, counselor, { programId: testProgramId(counselor.orgId) });
   const { programs } = await listSupportCasesForBeneficiary(env, counselor, beneficiary.id);
   const supportCaseId = programs[0]?.supportCase.id;
   if (supportCaseId === undefined) throw new Error('expected an initial support case');

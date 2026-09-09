@@ -1,15 +1,28 @@
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageTitle } from '../../components/wire/page-title';
-import { WireCard, WireField } from '../../components/wire/wire-card';
-import { getDisplayLabels } from '../../lib/display-labels';
+import { WireCard } from '../../components/wire/wire-card';
+import { ApiError, getProgramOptions, type ProgramOption } from '../../lib/api';
+import { WireError } from '../../components/wire/wire-state';
 import { InviteIssue } from './invite-issue';
 
 // 당사자 초대 화면(D39 · ADR-0016 · CCC-29 — 구 D26 정적 스텁 대체).
 // 실무자가 당사자 가입 링크(사업+발급 실무자 묶음 토큰 URL)를 발급해 링크·QR·이메일
 // 문안으로 전달한다. 발급·감사는 API 게이트웨이(R1·D14), 이메일 발송은 없다(D39).
 export default async function ParticipantInvitePage() {
-  // 초대 사업 표기도 온보딩 저장 이름을 되비춘다(CCC-32) — 미설정이면 하드코딩 폴백.
-  const { orgLabel, programLabels } = await getDisplayLabels();
+  let programOptions: ProgramOption[];
+  try {
+    programOptions = await getProgramOptions();
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return (
+      <main className="page-content">
+        <GridContainer>
+          <PageTitle>당사자 초대</PageTitle>
+          <WireError>초대할 수 있는 사업 목록을 불러오지 못했습니다.</WireError>
+        </GridContainer>
+      </main>
+    );
+  }
 
   return (
     <main className="page-content">
@@ -17,14 +30,11 @@ export default async function ParticipantInvitePage() {
         <PageTitle>당사자 초대</PageTitle>
 
         <div className="wire-invite-stack">
-          {/* 이동하는 행이 아니라 "이 링크가 무엇에 묶이는가"라는 정보라서 리스트 행이 아니라
-              정보 필드 계약(라벨 14/700 민트 deep + 값 16 --ink)을 쓴다(DESIGN.md §5). */}
           <WireCard title="초대 사업">
-            <WireField label="기관">{orgLabel}</WireField>
-            <WireField label="사업">{programLabels.financial_support_v1}</WireField>
+            <p className="wire-invite-caption">발급한 링크는 선택한 사업에 고정됩니다.</p>
           </WireCard>
 
-          <InviteIssue />
+          <InviteIssue programOptions={programOptions} />
         </div>
       </GridContainer>
     </main>

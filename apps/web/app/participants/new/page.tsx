@@ -1,5 +1,4 @@
-import { ApiError, getMyIdentity, type MyIdentity } from '../../lib/api';
-import { getDisplayLabels } from '../../lib/display-labels';
+import { ApiError, getMyIdentity, getProgramOptions, type MyIdentity, type ProgramOption } from '../../lib/api';
 import { createInitialParticipantProgramAction } from '../../actions';
 import { GridContainer } from '../../components/wire/grid-container';
 import { PageTitle } from '../../components/wire/page-title';
@@ -20,7 +19,8 @@ const errorMessages: Record<string, string> = {
   // 화면에서 원인 없는 실패로 보인다(게이트 문서 §2 G1).
   privacy_consent_required: '개인정보 수집·이용 동의를 체크해야 등록할 수 있습니다. 동의를 먼저 받을 수 없다면 긴급 등록을 선택하세요.',
   emergency_reason_required: '긴급 등록에는 사유를 적어야 합니다.',
-  authentication_required: '인증 정보를 확인할 수 없습니다. 다시 로그인하세요.',
+  // 사업 확정 이후에도 관리자 변경과 경합할 수 있어, 서버 원문 대신 재확인 위치만 안내한다.
+  program_admission_required: '관리자가 사업의 저장 위치와 처리 방식을 확인해야 등록할 수 있습니다. 설정에서 사업을 다시 확인해 주세요.',
   service_unavailable: '지금 당사자를 등록할 수 없습니다. 잠시 후 다시 시도하세요.',
 };
 
@@ -58,6 +58,20 @@ export default async function NewParticipantPage({
     );
   }
 
+  let programOptions: ProgramOption[];
+  try {
+    programOptions = await getProgramOptions();
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return (
+      <main className="page-content">
+        <GridContainer>
+          <PageTitle>당사자 등록</PageTitle>
+          <WireError>등록할 수 있는 사업 목록을 불러오지 못했습니다.</WireError>
+        </GridContainer>
+      </main>
+    );
+  }
   // 등록자=담당 실무자(D7): 담당 실무자 지정 select 를 없앴다. 서버 액션이 admin 은 본인을 배정하고
   // counselor 는 게이트웨이 자동 본인 배정에 맡긴다. 폼엔 현재 사용자만 읽기 전용으로 넘긴다.
   return (
@@ -75,7 +89,7 @@ export default async function NewParticipantPage({
         <RegisterForm
           currentUser={{ name: me.name, email: me.email }}
           action={createInitialParticipantProgramAction}
-          programLabel={(await getDisplayLabels()).programLabels.financial_support_v1}
+          programOptions={programOptions}
         />
       </GridContainer>
     </main>
