@@ -1,3 +1,5 @@
+import type { MeResponse } from '@ccc/contracts/institution';
+import type { CreateProgramInput, UpdateProgramInput, ProgramOptionsResponse, ProgramMutationResponse, ProgramAdmissionDeniedResponse } from '@ccc/contracts/program-admission';
 import {
   ACTION_ITEM_RESOLUTION_STATUSES,
   type ActionItemResolutionStatus,
@@ -7,6 +9,7 @@ import {
   getRetentionPolicy,
   updateRetentionPolicy,
   getMyIdentity,
+  getInstitutionReadiness,
   listMyRoles,
   listAuditLog,
   listDirectoryAccounts,
@@ -30,8 +33,6 @@ import {
   listPrograms,
   listProgramOptions,
   getInstalledAiPolicy,
-  type CreateProgramInput,
-  type UpdateProgramInput,
   SpeakerConfirmationRequiredError,
   DraftVersionRequiredError,
   FLAG_TYPES,
@@ -2530,7 +2531,9 @@ function errorResponse(error: unknown): Response {
   if (error instanceof IdentityStoreUnavailableError) return json({ error: 'service_unavailable' }, 503);
   if (error instanceof ForbiddenError) return json({ error: 'forbidden' }, 403);
   if (error instanceof ConflictError) return json({ error: 'conflict' }, 409);
-  if (error instanceof ProgramAdmissionRequiredError) return json({ error: error.code }, error.statusCode);
+  if (error instanceof ProgramAdmissionRequiredError) {
+    return json({ error: error.code, reason: error.reason } satisfies ProgramAdmissionDeniedResponse, error.statusCode);
+  }
   if (error instanceof PilotTextAiConsentRequiredError) return json({ error: error.code }, error.statusCode);
   if (error instanceof TextAiPilotDisabledError) return json({ error: error.code }, error.statusCode);
   if (error instanceof PiiPurgeDisabledError) return json({ error: error.code }, error.statusCode);
@@ -2716,10 +2719,11 @@ export async function handleRequest(
       const lastProgramType = await getLastProgramType(env, resolvedActor);
       // roles: D74 역할 합(ADR-0038). 어드민 탭 필터(ADR-0044 결정 7)가 읽는다. legacy `role` 은 유지.
       const roles = await listMyRoles(env, resolvedActor);
+      const institution = await getInstitutionReadiness(env, resolvedActor);
       return json({
         id: me.id, orgId: me.orgId, email: me.email, role: me.role, active: me.active, name: me.name,
-        lastProgramType, roles,
-      });
+        lastProgramType, roles, institution,
+      } satisfies MeResponse);
     }
     if (parts[0] === 'settings' && parts[1] === 'accounts') {
       // Preserve technical-only identities here. Authorization still reads canonical grants; the stored role is audit metadata.
@@ -2753,7 +2757,7 @@ export async function handleRequest(
     env = { ...env, CCC_STT_MODE: installationPolicy.sttMode, CCC_LLM_MODE: installationPolicy.llmMode };
     if (parts.length === 1 && parts[0] === 'program-options' && request.method === 'GET') {
       requestQuery(url, []);
-      return json({ programs: await listProgramOptions(env, actor) });
+      return json({ programs: await listProgramOptions(env, actor) } satisfies ProgramOptionsResponse);
     }
     if (parts.length === 1 && parts[0] === 'programs') {
       requestQuery(url, []);
@@ -2764,7 +2768,7 @@ export async function handleRequest(
         const program = await createProgram(env, actor, {
           displayName: requiredString(body, 'displayName'), ...parseProgramChoices(body),
         });
-        return json({ program }, 201);
+        return json({ program } satisfies ProgramMutationResponse, 201);
       }
     }
     if (parts.length === 2 && parts[0] === 'programs' && request.method === 'PATCH') {
@@ -2782,7 +2786,7 @@ export async function handleRequest(
         input.status = status;
       }
       const program = await updateProgram(env, actor, decodedProgramId(parts[1]!), input);
-      return json({ program });
+      return json({ program } satisfies ProgramMutationResponse);
     }
     if (request.method === 'GET' && parts.length === 1 && parts[0] === 'audit-log') {
       const query = requestQuery(url, ['limit', 'cursor', 'actorId', 'from', 'to', 'supportCaseId']);
@@ -2829,6 +2833,7 @@ export async function handleRequest(
       // 관리자 온보딩 2단계 저장 (CCC-32 · 스펙 #78 US 1). admin 검사·감사는 게이트웨이 내장(R1).
       requestQuery(url, []);
       const body = await requestBody(request);
+      requireOnlyKeys(body, ['orgName', 'programDisplayName']);
       const orgName = body.orgName;
       const programDisplayName = body.programDisplayName;
       if (typeof orgName !== 'string' || typeof programDisplayName !== 'string') {

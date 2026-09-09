@@ -4,6 +4,7 @@ import {
   listSupportCasesForBeneficiary, ProgramAdmissionRequiredError, recordSttReadiness, type Actor,
 } from '@ccc/core/gateway';
 import type { PreparedStatement } from '@ccc/contracts/database';
+import type { ProgramMutationResponse, ProgramListResponse } from '@ccc/contracts/program-admission';
 import { handleRequest } from '@ccc/http-api';
 import { seedTestProgramWithRuntimeModes, setupD1, testActors, testProgramId } from './support/d1';
 import { LOCAL_SINGLE_RUNTIME, seedCanonicalSttConsent } from './support/agent-jobs';
@@ -18,14 +19,6 @@ const request = (path: string, method = 'GET', body?: unknown, actor: Actor = ad
   }), t.env, async () => actor,
 );
 
-interface ProgramResponse {
-  program: { id: string; displayName: string; version: number; admissionState: string };
-}
-interface ProgramListResponse {
-  programs: ProgramResponse['program'][];
-  admissionCopy: { version: string; hash: string };
-  installation: { policyVersion: number; configHash: string };
-}
 
 describe('program admission boundary', () => {
   it('keeps an unconfirmed program locked while allowing its administrator to finish confirmation', async () => {
@@ -34,7 +27,7 @@ describe('program admission boundary', () => {
       displayName: '합성 사업', storageMode: 'supabase_seoul', processingMode: 'external_allowed',
     });
     expect(createdResponse.status).toBe(201);
-    const created = await createdResponse.json() as ProgramResponse;
+    const created = await createdResponse.json() as ProgramMutationResponse;
     expect(created.program.admissionState).toBe('confirmation_required');
     await expect(createCase(t.env, worker, { programId: created.program.id }))
       .rejects.toBeInstanceOf(ProgramAdmissionRequiredError);
@@ -52,7 +45,7 @@ describe('program admission boundary', () => {
       },
     });
     expect(confirmedResponse.status).toBe(200);
-    const confirmed = await confirmedResponse.json() as ProgramResponse;
+    const confirmed = await confirmedResponse.json() as ProgramMutationResponse;
     expect(confirmed.program.admissionState).toBe('ready');
     const participant = await createCase(t.env, worker, { programId: created.program.id });
     expect(await t.db.prepare('SELECT program_id FROM support_cases WHERE beneficiary_id = ?')

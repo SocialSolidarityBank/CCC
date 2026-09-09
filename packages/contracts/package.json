@@ -17,6 +17,7 @@
     "./stt-readiness": "./src/stt-readiness.ts",
     "./counseling-memory": "./src/counseling-memory.ts",
     "./program-admission": "./src/program-admission.ts",
+    "./institution": "./src/institution.ts",
     "./sql": "./src/sql.ts"
   }
 }

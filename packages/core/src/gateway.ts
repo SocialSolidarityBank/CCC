@@ -19,6 +19,7 @@
 
 import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
 import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/contracts/runtime';
+import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingInput, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -41,7 +42,10 @@ import {
 import type { SttEngineId, SttReadinessRecord, SttReadinessReport } from '@ccc/contracts/stt-readiness';
 import {
   PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION,
-  type ProgramProcessingMode, type ProgramStorageMode,
+  type ProgramProcessingMode, type ProgramStorageMode, type ProgramAdmissionState,
+  type ProgramConfirmationInput, type ProgramConfirmation, type ProgramStaffInput, type ProgramStaff,
+  type ProgramRecord, type ProgramView, type CreateProgramInput, type UpdateProgramInput,
+  type ProgramListResponse, type ProgramOption,
 } from '@ccc/contracts/program-admission';
 import { AGENT_SCOPES, IdentityStoreUnavailableError, type Actor as IdentityActor, type ActorRole, type AgentStatus, type RevocationReason, type DeploymentMode } from '@ccc/contracts/runtime';
 import {
@@ -13109,69 +13113,6 @@ async function allocateBeneficiaryId(env: Env, orgId: string, attemptedIds: read
   return `${animal}-${String(next).padStart(3, '0')}`;
 }
 
-export type ProgramAdmissionState =
-  | 'ready' | 'undecided' | 'confirmation_required' | 'selection_changed'
-  | 'notice_changed' | 'settings_changed' | 'storage_unavailable'
-  | 'processing_unavailable' | 'installation_unavailable';
-
-export interface ProgramConfirmationInput {
-  copyVersion: string;
-  copyHash: string;
-  installationPolicyVersion: number;
-  installationConfigHash: string;
-}
-
-export interface ProgramStaffInput {
-  userId: string;
-  isResponsible: boolean;
-}
-
-interface ProgramStaff extends ProgramStaffInput {
-  name: string | null;
-  active: boolean;
-}
-
-export interface CreateProgramInput {
-  displayName: string;
-  storageMode?: ProgramStorageMode | null;
-  processingMode?: ProgramProcessingMode | null;
-  confirmation?: ProgramConfirmationInput | null;
-  staff?: ProgramStaffInput[];
-}
-
-export interface UpdateProgramInput {
-  expectedVersion: number;
-  displayName?: string;
-  storageMode?: ProgramStorageMode | null;
-  processingMode?: ProgramProcessingMode | null;
-  confirmation?: ProgramConfirmationInput | null;
-  status?: 'active' | 'closed';
-  staff?: ProgramStaffInput[];
-}
-
-interface ProgramConfirmation extends ProgramConfirmationInput {
-  by: string;
-  at: string;
-  storageMode: ProgramStorageMode;
-  processingMode: ProgramProcessingMode;
-}
-
-interface ProgramRecord {
-  id: string;
-  orgId: string;
-  displayName: string | null;
-  status: 'active' | 'closed';
-  programType: 'financial_support_v1';
-  storageMode: ProgramStorageMode;
-  processingMode: ProgramProcessingMode;
-  version: number;
-  confirmation: ProgramConfirmation | null;
-}
-
-export interface ProgramView extends ProgramRecord {
-  admissionState: ProgramAdmissionState;
-  staff: ProgramStaff[];
-}
 
 interface ProgramAdmissionContext {
   orgId: string;
@@ -13458,7 +13399,7 @@ async function programReadback(env: Env, actor: Actor, id: string): Promise<Prog
   return { ...program, staff: staff.get(id) ?? [], admissionState: programAdmissionState(program, context) };
 }
 
-export async function listPrograms(env: Env, actor: Actor) {
+export async function listPrograms(env: Env, actor: Actor): Promise<ProgramListResponse> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
   const context = await programAdmissionContext(env, actor.orgId);
   const rows = await env.DB.prepare('SELECT * FROM programs WHERE org_id = ? ORDER BY created_at, id')
@@ -13479,7 +13420,7 @@ export async function listPrograms(env: Env, actor: Actor) {
   };
 }
 
-export async function listProgramOptions(env: Env, actor: Actor) {
+export async function listProgramOptions(env: Env, actor: Actor): Promise<ProgramOption[]> {
   await assertCurrentHumanActor(env, actor);
   const role = await env.DB.prepare(
     'SELECT 1 AS allowed FROM user_role_assignments WHERE org_id = ? AND user_id = ? AND revoked_at IS NULL LIMIT 1',
@@ -13769,11 +13710,6 @@ export async function createOrganizationSettings(
     updatedAt: createdAt,
   };
 }
-export interface OrganizationProfile {
-  orgId: string;
-  orgName: string | null;
-  programDisplayName: string | null;
-}
 
 /**
  * 사이드바·화면이 되비출 기관·첫 사업 표시 이름 (CCC-32 · 스펙 #78 US 2).
@@ -13798,6 +13734,64 @@ export async function getOrganizationProfile(env: Env, actor: Actor): Promise<Or
     orgId: actor.orgId,
     orgName: row === null ? null : nullableString(row.org_name),
     programDisplayName: row === null ? null : nullableString(row.program_display_name),
+  };
+}
+
+/**
+ * Login routing observations from persisted state, not a business authorization grant.
+ * Unlike business routes, missing installation policy must remain observable here.
+ * This metadata read is audited without reading participant records or issuing consent.
+ */
+export async function getInstitutionReadiness(env: Env, actor: Actor | IdentityActor): Promise<InstitutionReadiness> {
+  assertHuman(actor);
+  const user = await getUserForOrg(env, actor.orgId, actor.userId);
+  if (!user.active || user.role === 'service') throw new ForbiddenError('actor is unavailable');
+  const row = await env.DB.prepare(
+    `SELECT settings.org_name, settings.pii_purge_grace_days, settings.version AS settings_version, program.*
+     FROM organization_settings AS settings
+     LEFT JOIN programs AS program ON program.id = settings.initial_program_id AND program.org_id = settings.org_id
+     WHERE settings.org_id = ?`,
+  ).bind(actor.orgId).first<DbRow>();
+  let context: ProgramAdmissionContext | null = null;
+  try {
+    context = await programAdmissionContext(env, actor.orgId);
+  } catch (error) {
+    if (!(error instanceof ProgramAdmissionRequiredError) || error.reason !== 'installation_unavailable') throw error;
+  }
+  const program = row === null || row.id === null ? null : mapProgram(row);
+  const retention = row === null ? null : mapRetentionPolicy({
+    pii_purge_grace_days: row.pii_purge_grace_days, version: row.settings_version,
+  }, actor.orgId);
+  const at = now();
+  const registry = await env.DB.prepare(
+    `SELECT DISTINCT provider FROM consent_provider_registry_snapshots
+     WHERE org_id = ? AND approved_at <= ? AND (valid_until IS NULL OR valid_until > ?)`,
+  ).bind(actor.orgId, at, at).all<{ provider: ProviderId }>();
+  const providers = new Set(registry.results.map(entry => entry.provider));
+  const domains = CONSENT_DOMAINS.map(domain => ({
+    domain, disclosureAvailable: providers.has(CONSENT_COPY[domain].provider),
+  }));
+  const orgName = row === null ? null : nullableString(row.org_name);
+  await writeAudit(env, { userId: user.id, orgId: user.orgId, role: user.role }, {
+    action: 'read', targetTable: 'organization_settings', targetId: actor.orgId,
+    detail: { institutionReadiness: true },
+  });
+  return {
+    orgId: actor.orgId, orgName, settingsState: row === null ? 'missing' : 'present',
+    onboardingCompleted: orgName !== null,
+    firstProgram: program === null ? null : {
+      id: program.id, displayName: program.displayName, programType: program.programType,
+      status: program.status, version: program.version,
+      admissionState: context === null ? 'installation_unavailable' : programAdmissionState(program, context),
+    },
+    installationState: context === null ? 'unavailable' : 'available',
+    retentionPolicyStatus: retention === null ? 'missing'
+      : retention.piiPurgeGraceDays > RETENTION_POLICY_MAX_DAYS ? 'review_required' : 'configured',
+    consentCopy: {
+      version: CONSENT_COPY_VERSION,
+      status: domains.every(domain => domain.disclosureAvailable) ? 'available' : 'provider_registry_unavailable',
+      domains,
+    },
   };
 }
 
@@ -13862,8 +13856,8 @@ export async function updateOrganizationProfile(
 export async function completeOrganizationOnboarding(
   env: Env,
   actor: Actor,
-  input: { orgName: string; programDisplayName: string },
-): Promise<OrganizationProfile> {
+  input: OrganizationOnboardingInput,
+): Promise<OrganizationOnboardingResponse> {
   await assertInstitutionAdmin(env, actor, { allowLegacyFallback: false });
   assertExactKeys(input, ['orgName', 'programDisplayName']);
   assertNonBlankText(input.orgName, 'organization name');
@@ -13917,7 +13911,11 @@ export async function completeOrganizationOnboarding(
     if (error instanceof ProgramAdmissionRequiredError) throw new ConflictError('organization setup changed');
     throw error;
   }
-  return getOrganizationProfile(env, actor);
+  const institution = await getInstitutionReadiness(env, actor);
+  return {
+    orgId: actor.orgId, orgName: institution.orgName,
+    programDisplayName: institution.firstProgram?.displayName ?? null, institution,
+  };
 }
 
 async function assertOrganizationSettings(env: Env, orgId: string): Promise<void> {
