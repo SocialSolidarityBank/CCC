@@ -176,6 +176,13 @@ function monthWindow(month) {
   if (today.slice(0, 7) === month) {
     cards.push({ ...scheduleCard(`${today}T04:00:00.000Z`), id: '3f6c8a51-2b4d-4e79-8c1a-5d7e9f0a2b46' });
   }
+  // 넘침(+N건) 확인용으로 같은 날에 넷을 둔다. 전부 합성이다.
+  for (const [index, hour] of ['05', '06', '07', '08'].entries()) {
+    cards.push({
+      ...scheduleCard(`${month}-18T${hour}:00:00.000Z`),
+      id: `6a2b4c8${index}-1d3e-4f57-9b2c-7e8f0a1b2c3d`,
+    });
+  }
   return {
     date: `${month}-01`, timeZone: 'Asia/Seoul',
     startUtc: `${month}-01T00:00:00.000Z`, endUtc: `${month}-28T00:00:00.000Z`,

@@ -233,3 +233,70 @@ DESIGN이 위 export 패치를 적용하면 FRONTEND는 `@ccc/web/wire`에서 �
 2. ORCHESTRATOR가 `wire-section.tsx`/`wire-styles.ts` 변경을 별도 후속 슬롯으로 배정한다. 7개 호출자 LSP 분석 선행.
 3. FRONTEND는 이번 커밋(`client-surface.ts`) 후 `apps/client/src/business/settings-modules.tsx`를 컴파일 검증한다.
 4. BACKEND `integrate/beta-0.9-backend` 브랜치 통합이 확정되면 ORCHESTRATOR가 레거시 웹 슬롯(`api.ts`, `actions.ts`, `participants/**`)의 담당을 배정한다.
+
+---
+
+## FRONTEND P1/P2 소비 감사: `apps/client/src/business/business.css`
+
+감사 기준: DESIGN 레인 읽기 전용 소스 비교 감사. 브라우저 픽셀 QA가 아니다.  
+대상: 후보 `71778f3:apps/client/src/business/business.css` (62줄) + `business-page.tsx` + business 모듈 10개.  
+비교 기준: `DESIGN-RULES.md`, `apps/web/app/components/wire/wire-styles.ts`, `apps/web/app/layout.tsx` 현행 main.
+
+### 클래스 이름 전수 대사 (orphan 없음)
+
+| 클래스 | 정의처 | 판정 |
+|---|---|---|
+| `business-form`, `business-actions`, `business-qr` | `business.css` | ✓ |
+| `settings-layout`, `settings-content`, `settings-navigation-list` | `business.css` | ✓ |
+| `settings-navigation` | `business.css` (미디어 쿼리 선택자 한정자만, 독립 규칙 없음) | ✓ |
+| `navigation-link` | `business.css` (`text-decoration:none` 추가) + `layout.tsx` 공유 CSS(상태 포함) | ✓ 아래 참조 |
+| `page-header`, `page-actions`, `page-content` | `layout.tsx` 공유 CSS | ✓ |
+| `wire-choice-group`, `wire-fieldset`, `wire-form-hint`, `wire-section-value` | `wire-styles.ts` 공유 CSS | ✓ |
+
+orphan 클래스 없음.
+
+### 토큰 준수 확인 (경쟁 디자인 값 없음)
+
+`business.css`가 직접 지정하는 모든 비구조값은 `var(--*)` 토큰이다:
+- 간격: `var(--space-5)`, `var(--space-3)`, `var(--space-0-5)`, `var(--space-4)`, `var(--section-gap)` 전용
+- 색, 폰트 크기/굵기, border-radius, box-shadow: 직접 값 없음
+- 원시 px: `minmax(220px, 280px)` (settings nav 격자 열 폭). 220=55×4, 280=70×4, 4의 배수 준수. 레이아웃 격자 정의에 전용 토큰이 없으며 색·폰트·간격 계약을 침범하지 않음
+- 미디어 쿼리 `(max-width: 767px)`: 단일 브레이크포인트 계약과 일치
+- 10개 business 모듈: `style=` 인라인 속성 없음
+
+### `.navigation-link` 상태 — 공유 CSS가 이미 처리함, 새 CSS 불필요
+
+`business.css`는 `.settings-navigation-list .navigation-link { display:flex; align-items:center; text-decoration:none }`만 추가한다. 호버·선택 상태는 `business.css`에 없지만, 이는 결함이 아니다. `layout.tsx` 공유 CSS가 이미 `composeSharedCss()` 출력에 다음을 포함한다:
+
+- `.navigation-link { min-height:var(--pill-height); padding:0 var(--space-2); border:1.5px solid transparent; border-radius:var(--radius-control); color:var(--sub); ... }`
+- `.navigation-link[data-current="true"] { background: linear-gradient(var(--blue-tint),...) padding-box, var(--gradient-brand) border-box; color:var(--ink); font-weight:600 }`
+- `.navigation-link:not([data-current="true"]):hover { background:var(--ink); color:var(--panel) }`
+- 다크 모드 변형 포함
+
+`SettingsLink`가 이미 `data-current="true"`를 활성 항목에 설정하므로 공유 CSS 선택 상태 규칙이 적용된다. **FRONTEND는 `.navigation-link` 상태 규칙을 새로 작성하지 않는다.** Q가 디자인 세부사항을 유보했으며 공유 CSS로 충분하다.
+
+### 관찰: 모바일 WireCardSection 구분선 재정의
+
+`business.css` 모바일 미디어 쿼리가 `.settings-navigation .wire-card-section + .wire-card-section`의 `margin-inline`, `padding-top`, `padding-inline`, `border-top`을 0으로 재정의한다. 범위가 `.settings-navigation` 안으로만 한정돼 다른 화면에 영향 없음. `wire-styles.ts`가 해당 속성을 바꾸면 이 재정의가 깨질 수 있다. 이번 파동에서 교정하지 않고 관찰로 기록한다.
+
+### 공유 CSS 로딩 방식과 정적 출력 계약
+
+**현재 후보 상태 (`main.tsx`):**
+```js
+const style = document.createElement('style');
+style.textContent = sharedCss;  // virtual:ccc-shared-css → composeSharedCss() 출력
+document.head.append(style);
+```
+런타임 `<style>` 주입이다. `style-src 'self'`만으로는 동작하지 않으며 `'unsafe-inline'` 또는 nonce가 필요하다. 현재 후보를 CSP 준수로 보고하지 않는다.
+
+**필수 미래 통합 (P2 셸 조립 시):** `virtual:ccc-shared-css`를 통한 런타임 `<style>` 주입을 Vite 정적 CSS 파일 출력으로 교체해야 `style-src 'self'` 준수가 가능하다. `build/shared-styles.mjs`의 `composeSharedCss()`를 Vite 빌드 플러그인 또는 별도 입력 CSS 파일로 전환하는 것이 해당 작업이다. 이것은 현재 증거가 아니라 요구되는 후속 작업이다.
+
+**`business.css`는 이 변환과 무관하다.** `import './business.css'`는 Vite가 정적 파일로 처리하며 현재도 `dist/assets/*.css`로 출력된다.
+
+### 소비 판정
+
+**`business.css`는 수정 없이 소비 가능하다.** 경쟁 디자인 값 없음. 토큰 준수. 모든 클래스 출처 확인. `.navigation-link` 상태는 공유 CSS가 담당. DESIGN이 이 파일을 수정하지 않는다.
+
+FRONTEND 수령 조건 2건:
+1. 공유 CSS(`composeSharedCss()` 출력)가 `business.css`보다 **먼저** 로드돼야 공유 `.navigation-link` 기반 규칙이 적용된다. 현재 후보 `main.tsx`는 이 순서를 지킨다.
+2. P2 시점에 `virtual:ccc-shared-css` 런타임 주입을 정적 파일 출력으로 교체한다. 이것이 완료되기 전까지 CSP `style-src 'self'` 준수를 완료로 세지 않는다.

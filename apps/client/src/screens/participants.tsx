@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
+  ParticipantHeroCard, ParticipantName, type ParticipantHeroDetail,
 } from '@ccc/web/wire';
 import type { ProgramAdmissionState } from '@ccc/contracts/program-admission';
 import { type BusinessError, safeError } from '../business/errors';
@@ -63,10 +64,6 @@ function useSessionFailure(session: Session) {
   }, [session.auth]);
 }
 
-function participantTitle(name: string | null, beneficiaryId: string): string {
-  return name ?? beneficiaryId;
-}
-
 export function ParticipantListScreen() {
   const session = useOutletContext<Session>();
   const onFailure = useSessionFailure(session);
@@ -105,7 +102,7 @@ export function ParticipantListScreen() {
     {value === null && error === null && <WireEmpty live reserve>당사자 목록을 불러오고 있습니다.</WireEmpty>}
     {value !== null && shown.length === 0 && <WireEmpty>조건에 맞는 당사자가 없습니다.</WireEmpty>}
     {shown.map((item) => <WireItem key={item.beneficiaryId}
-      title={participantTitle(item.name, item.beneficiaryId)}
+      title={<ParticipantName name={item.name} beneficiaryId={item.beneficiaryId} />}
       description={[
         item.phone ?? '연락처 없음',
         item.email ?? '이메일 없음',
@@ -366,28 +363,34 @@ export function ParticipantHubScreen() {
   }
   if (value === null) return <WireCard><WireEmpty live reserve>당사자 정보를 불러오고 있습니다.</WireEmpty></WireCard>;
 
+  // HERO 는 공유 부품이 소유한다(D38·D88 8). 항목 범위는 응답이 정하고 화면이 늘리지 않는다.
+  const details: ParticipantHeroDetail[] = [
+    { label: 'ID', value: value.beneficiaryId },
+    { label: '전화번호', value: value.participantPhone ?? '등록되지 않음', tone: 'mint' },
+    { label: '이메일', value: value.participantEmail ?? '등록되지 않음', tone: 'mint' },
+    ...value.restricted ? [] : [
+      { label: '생년월일', value: value.participantBirthDate ?? '등록되지 않음' },
+      {
+        label: '진행 상태',
+        value: value.status === 'active' ? '진행 중' : `종결 (${value.closedAt ?? '시각 없음'})`,
+      },
+      { label: '공식 기록', value: `${value.sessionCount ?? 0}건`, tone: 'blue' as const },
+      { label: '마지막 상담', value: value.lastSessionAt ?? '없음', tone: 'blue' as const },
+    ],
+  ];
+
   return <>
-    <WireCard title={participantTitle(value.participantName, value.beneficiaryId)}>
-      <WireDataRows>
-        <WireDataRow label="ID" value={value.beneficiaryId} />
-        <WireDataRow label="연락처" value={value.participantPhone ?? '등록되지 않음'} />
-        <WireDataRow label="이메일" value={value.participantEmail ?? '등록되지 않음'} />
-        {!value.restricted && <WireDataRow label="생년월일" value={value.participantBirthDate ?? '등록되지 않음'} />}
-        {!value.restricted && <WireDataRow label="진행 상태"
-          value={value.status === 'active' ? '진행 중' : `종결 (${value.closedAt ?? '시각 없음'})`} />}
-        {!value.restricted && <WireDataRow label="공식 기록"
-          value={`${value.sessionCount ?? 0}건, 마지막 ${value.lastSessionAt ?? '없음'}`} />}
-      </WireDataRows>
-      {value.restricted
-        ? <WireCallout tone="info" title="담당하지 않는 당사자입니다">
-          기본 식별 정보와 담당 실무자, 참여 사업만 보입니다. 상담 내용과 생년월일은 응답에 실리지 않습니다.
-        </WireCallout>
-        : <div className="business-actions">
-          <WireButton variant="neutral" href={`/participants/${encodeURIComponent(value.beneficiaryId)}/edit`}>
-            기본정보 수정
-          </WireButton>
-        </div>}
-    </WireCard>
+    <ParticipantHeroCard name={value.participantName} beneficiaryId={value.beneficiaryId} details={details}
+      nameSize="hub"
+      actions={value.restricted ? undefined
+        : <WireButton variant="neutral" href={`/participants/${encodeURIComponent(value.beneficiaryId)}/edit`}>
+          기본정보 수정
+        </WireButton>} />
+    {value.restricted && <WireCard>
+      <WireCallout tone="info" title="담당하지 않는 당사자입니다">
+        기본 식별 정보와 담당 실무자, 참여 사업만 보입니다. 상담 내용과 생년월일은 응답에 실리지 않습니다.
+      </WireCallout>
+    </WireCard>}
     <WireCard title="참여 사업">
       {value.programs.length === 0 && <WireEmpty>참여 중인 사업이 없습니다.</WireEmpty>}
       {value.programs.map((program) => <WireCardSection key={program.id}

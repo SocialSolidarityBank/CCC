@@ -290,6 +290,11 @@ details.surface-card[open]>.record-summary .wire-badge,
    WireField(stack, sm)가 라벨 14/600과 값 14/400을 담당한다. */
 .participant-hero-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-5) var(--space-6);min-width:0}
 /* 뷰포트가 아니라 카드의 실제 내부 폭으로 패드의 좁은 본문도 함께 전환한다. */
+/* 960px 이상에서 4열이 된다(D88 ①, 2026-09-10). 760px 이하는 아래 컨테이너 질의가 80px 라벨 행으로 전환한다.
+   세 분기: ≥960 → 4열, 760~960 → 3열(기본), ≤760 → 80px 라벨 행. */
+@container (min-width:960px){
+  .participant-hero-details{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 @media(max-width:767px){
   .participant-hero-card:has(.participant-hero-details){min-height:0}
   .participant-hero-title{gap:var(--space-2)}
@@ -1438,5 +1443,39 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wire-kit-flat>p{margin:0;font-size:var(--text-md);font-weight:600;color:var(--ink)}
 .wire-kit-flat>p.is-reason{font-weight:400;color:var(--sub)}
 .wire-kit-flat>a{justify-self:start;font-size:var(--text-md);font-weight:600;color:var(--ink);text-decoration:underline}
+/* 월간 격자 (D88 ①, 2026-09-10). <table> 의미론 — border-collapse:collapse.
+   border-box 그라데이션 테두리는 border-collapse 에서 동작하지 않으므로 오늘 셀은
+   --blue-tint 배경으로 구분한다(TimeAxisBadge 와 같은 시간 축 색).
+   요일 행: <thead> 의 --gradient-brand 면 하나가 투명 <th> 뒤로 연속으로 보인다.
+   날짜·이름: --text-badge 12px(D88 ⑥ 예외 — .month-date · .calendar-event-title).
+   이벤트 색: 5가지 variation 색상의 왼쪽 테두리(D88 ②, 승인된 --badge-* 토큰만). */
+.month-calendar{width:100%;min-width:0;border-collapse:collapse;table-layout:fixed}
+/* <thead> 배경이 투명 <th> 셀을 통해 하나의 연속 그라데이션으로 보인다. */
+.month-weekday-header{background:var(--gradient-brand)}
+.month-weekday-cell{background:transparent;padding:var(--space-1-5) 0;font-size:var(--text-sm);font-weight:500;line-height:normal;text-align:center;color:var(--on-action)}
+/* height:148px 은 border-collapse 에서 min-height 처럼 동작한다(내용이 더 크면 행이 늘어난다). */
+.month-cell{height:148px;border:1px solid var(--line);vertical-align:top;padding:var(--space-1-5);overflow:hidden}
+/* display:flex 로 날짜 숫자·이벤트·넘침 링크를 세로로 쌓는다. */
+.month-cell{display:table-cell}
+.month-date,.calendar-event,.month-overflow-link{display:block}
+.month-cell[data-out-of-month="true"]{background:var(--muted);opacity:.6}
+.month-cell[data-temporal="past"]{background:var(--muted)}
+/* 오늘 셀: TimeAxisBadge 와 같은 --blue-tint. border-box 그라데이션은 border-collapse 미지원. */
+.month-cell[data-temporal="today"]{background:var(--blue-tint)}
+/* D88 ⑥: 날짜 숫자 12px. 셀 밖으로 퍼지지 않는다(소유자 .month-date). */
+.month-date{font-size:var(--text-badge);font-weight:400;line-height:normal;color:var(--ink)}
+.month-cell[data-temporal="today"] .month-date{font-weight:600}
+/* 이벤트 행: 말줄임. href 있으면 WireLink 컨텍스트로 감싸진다. */
+.calendar-event{overflow:hidden;min-width:0;padding:0 var(--space-1)}
+.calendar-event-title{display:block;font-size:var(--text-badge);font-weight:400;line-height:normal;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 이벤트 색 왼쪽 테두리 — D88 ② 승인된 5색. --badge-* 는 배지 계열 면 토큰이다. */
+.calendar-event--mint{border-left:2px solid var(--badge-mint)}
+.calendar-event--lavender{border-left:2px solid var(--badge-lavender)}
+.calendar-event--coral{border-left:2px solid var(--badge-coral)}
+.calendar-event--cyan{border-left:2px solid var(--badge-cyan)}
+.calendar-event--light-magenta{border-left:2px solid var(--badge-light-magenta)}
+/* +N건 → 일간 뷰 링크. */
+.month-overflow-link{font-size:var(--text-detail);font-weight:400;line-height:normal;color:var(--blue-deep);white-space:nowrap;text-decoration:none}
+@media(max-width:767px){.month-cell{height:88px;padding:var(--space-1)}}
  `;
  

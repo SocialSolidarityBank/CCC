@@ -32,6 +32,12 @@ export function WireLinkProvider({
 }) {
   return <WireLinkContext.Provider value={renderer}>{children}</WireLinkContext.Provider>;
 }
+/** 등록된 링크 렌더러를 반환한다. 없으면 null(기본 `<a>`).
+ *  공용 부품에서 WireLinkContext 를 직접 import 하지 않고 이 훅을 쓴다. */
+export function useWireLink(): WireLinkRenderer | null {
+  return useContext(WireLinkContext);
+}
+
 
 /** 버튼 종류 5종(DESIGN.md §5). 색·테두리 규칙은 종류가 정한다. 높이는 전 버튼 32 단일이다
  *  (2026-08-28 Q — 구 md 40 / sm 32 2단 폐지: 툴바·목록 버튼과 HERO·폼 버튼이 한 높이로 선다).
@@ -81,7 +87,7 @@ export interface WireButtonProps {
   className?: string;
 }
 
-/** 버튼 5종(DESIGN.md §5). 전부 radius pill · 높이 32 단일(2026-08-28 Q). 종류가 색·면만 가른다. */
+/** 버튼 5종(DESIGN.md §5). 알약(--radius-pill, 2026-08-25 Q) · 높이 32 단일(2026-08-28 Q). 종류가 색·면만 가른다. */
 export function WireButton({
   children,
   size = 'small',

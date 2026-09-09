@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
-  WireEmpty, WireError, WireFormField, WireItem,
+  WireEmpty, WireError, WireFormField, WireItem, WireToolbarField,
+  WireMonthCalendar, buildMonthWeeks, type WireMonthCalendarEvent,
 } from '@ccc/web/wire';
 import { type BusinessError, safeError } from '../business/errors';
 import {
@@ -118,32 +119,54 @@ export function ScheduleScreen() {
     setParams({ view: next.view ?? view, date: next.date ?? date });
   };
 
+  // 월간은 공유 격자 부품이 그린다. 같은 날 일정이 여럿이므로 Map 을 덮어쓰지 않고 쌓는다.
+  const monthWeeks = useMemo(() => {
+    if (view !== 'month') return [];
+    const grouped = new Map<string, WireMonthCalendarEvent[]>();
+    for (const [day, cards] of byDate) {
+      for (const card of cards) {
+        const list = grouped.get(day) ?? [];
+        list.push({
+          id: card.id,
+          label: card.participantName ?? card.beneficiaryId,
+          href: `/schedules/${encodeURIComponent(card.id)}/plan`,
+        });
+        grouped.set(day, list);
+      }
+    }
+    return buildMonthWeeks(range.label, grouped, today, 3, (dateKey) => `/schedule?view=day&date=${dateKey}`);
+  }, [view, byDate, range.label, today]);
+
   return <WireCard title="일정">
     {error && <><WireError>{error.message}</WireError>
       <div className="business-actions"><WireButton variant="neutral" onClick={load}>다시 불러오기</WireButton></div></>}
-    <div className="business-actions">
-      <WireButton variant="neutral" onClick={() => move({ date: today })}>오늘</WireButton>
-      <WireButton variant="neutral" onClick={() => move({ date: shift(view, date, -1) })}>이전</WireButton>
-      <WireButton variant="neutral" onClick={() => move({ date: shift(view, date, 1) })}>다음</WireButton>
-      <WireButton variant="neutral" href="/schedules/new">상담 일정 등록</WireButton>
-    </div>
-    <div className="business-form">
-      <WireFormField label="보기" htmlFor="schedule-view" control="select">
-        <select id="schedule-view" value={view}
-          onChange={(event) => move({ view: event.target.value as ScheduleView })}>
-          <option value="day">일간</option>
-          <option value="week">주간</option>
-          <option value="month">월간</option>
-        </select>
-      </WireFormField>
-    </div>
+    {/* 업무 바는 두 줄이다(2026-09-08 Q). 1행 기간 네비, 2행 오늘·보기 선택창·등록. */}
+    <nav className="schedule-nav work-toolbar" aria-label="일정 도구">
+      <div className="schedule-nav-period">
+        <WireButton variant="neutral" onClick={() => move({ date: shift(view, date, -1) })}>이전 기간</WireButton>
+        <span className="schedule-period-label">{range.label}</span>
+        <WireButton variant="neutral" onClick={() => move({ date: shift(view, date, 1) })}>다음 기간</WireButton>
+      </div>
+      <div className="schedule-nav-controls">
+        <WireButton variant="neutral" onClick={() => move({ date: today })}>오늘</WireButton>
+        <WireToolbarField label="기간 단위" className="schedule-view-select">
+          <select id="schedule-view" value={view}
+            onChange={(event) => move({ view: event.target.value as ScheduleView })}>
+            <option value="day">일간</option>
+            <option value="week">주간</option>
+            <option value="month">월간</option>
+          </select>
+        </WireToolbarField>
+        <WireButton variant="primary" href="/schedules/new">상담 등록</WireButton>
+      </div>
+    </nav>
     <WireDataRows>
-      <WireDataRow label="기간" value={range.label} />
       <WireDataRow label="기관 시간대" value={timeZone} />
     </WireDataRows>
     {windows === null && error === null && <WireEmpty live reserve>일정을 불러오고 있습니다.</WireEmpty>}
-    {windows !== null && byDate.length === 0 && <WireEmpty>이 기간에 등록된 일정이 없습니다.</WireEmpty>}
-    {byDate.map(([day, cards]) => <WireCardSection key={day} title={day}>
+    {windows !== null && byDate.length === 0 && view !== 'month' && <WireEmpty>이 기간에 등록된 일정이 없습니다.</WireEmpty>}
+    {windows !== null && view === 'month' && <WireMonthCalendar month={range.label} weeks={monthWeeks} />}
+    {view !== 'month' && byDate.map(([day, cards]) => <WireCardSection key={day} title={day}>
       {cards.map((card) => <WireItem key={card.id}
         title={card.participantName ?? card.beneficiaryId}
         description={`${zoned(card.scheduledAt, timeZone, { hour: '2-digit', minute: '2-digit' })}, ${card.sessionKind === 'intake' ? '인테이크' : '기본 상담'}`}
@@ -156,9 +179,6 @@ export function ScheduleScreen() {
           </WireButton>
         </>} />)}
     </WireCardSection>)}
-    <WireCallout tone="info" title="아직 목록 형태입니다">
-      월간 7열 격자와 종일 일정 표시는 공유 부품이 필요해 design 인계로 남겼습니다. 지금은 날짜별 목록으로 같은 자료를 보여 줍니다.
-    </WireCallout>
   </WireCard>;
 }
 

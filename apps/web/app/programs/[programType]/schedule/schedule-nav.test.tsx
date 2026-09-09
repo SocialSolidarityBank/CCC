@@ -358,7 +358,7 @@ describe('CCC-133 내비 회귀, 컨트롤 높이 계약', () => {
 });
 
 describe('CCC-133 통합 업무 바', () => {
-  it('글자 버튼과 일정 아이콘 버튼이 각각 알약과 원형 계약을 쓴다', () => {
+  it('글자 버튼과 일정 아이콘 버튼이 각각 알약과 원형 계약을 쓴다(2026-08-25 Q)', () => {
     expect(baseRule('.wire-button'))
       .toContain('border-radius:var(--radius-pill)');
     expect(baseRule('.header-icon-button'))

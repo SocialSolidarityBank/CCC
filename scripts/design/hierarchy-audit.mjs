@@ -213,6 +213,27 @@ const ALLOW = [
     combo: 'var(--text-sm)/600/var(--lavender-deep)',
     why: 'AI 제안 항목 제목 — 구획 라벨과 같은 계열 색과 라벨 단 크기를 쓴다',
   },
+  // D88 ⑥ 월간 격자 셀 12px 예외(2026-09-10). 날짜 숫자와 일정 이름만; 셀 밖 금지.
+  {
+    selector: '.month-date',
+    combo: 'var(--text-badge)/400/var(--ink)',
+    why: 'D88 ⑥: 월간 격자 셀 날짜 숫자 12px. 소유자 .month-date 만.',
+  },
+  {
+    selector: '.month-cell[data-temporal="today"] .month-date',
+    combo: 'var(--text-badge)/600/var(--ink)',
+    why: 'D88 ⑥: 오늘 날짜 숫자는 강조(600).',
+  },
+  {
+    selector: '.calendar-event-title',
+    combo: 'var(--text-badge)/400/var(--ink)',
+    why: 'D88 ⑥: 월간 격자 셀 일정 이름 12px. 소유자 .calendar-event-title 만.',
+  },
+  {
+    selector: '.month-overflow-link',
+    combo: 'var(--text-detail)/400/var(--blue-deep)',
+    why: 'D88 ①: 셀 안 12px 콘텐츠에 인접한 +N건 링크는 13px blue-deep.',
+  },
 ];
 
 // 킷 페이지 반례(`.wire-kit-flat>p.is-reason`)는 **여기 넣지 않는다.** 한 번 넣었다가 되돌렸다.
