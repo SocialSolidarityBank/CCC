@@ -104,4 +104,15 @@ describe('new signup badge derivation (CCC-26)', () => {
     expect(newSignups.has(created.beneficiaryId)).toBe(true);
     expect(await countNewSignups(t.env, admin)).toBe(1);
   });
+  it('당사자 100명도 D1 바인딩 상한을 넘지 않고 목록에 보인다', async () => {
+    await t.reset();
+    for (let index = 0; index < 100; index += 1) {
+      await createBeneficiaryWithInitialSupportCase(t.env, counselor, {
+        programType: 'financial_support_v1',
+      });
+    }
+
+    await expect(listAssignedParticipants(t.env, counselor)).resolves.toHaveLength(100);
+  });
+
 });

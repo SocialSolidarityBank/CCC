@@ -15001,24 +15001,30 @@ async function loadParticipantContacts(
   const contacts = new Map<string, ParticipantContact>();
   const unique = [...new Set(beneficiaryIds)];
   if (unique.length === 0) return contacts;
-  const placeholders = unique.map(() => '?').join(', ');
-  const rows = await env.DB.prepare(
-    `SELECT beneficiary_id, enc_name, enc_phone, enc_email
-     FROM participant_pii_vault
-     WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})
-       AND NOT EXISTS (
-         SELECT 1 FROM participant_pii_archives AS archive
-         WHERE archive.beneficiary_id = participant_pii_vault.beneficiary_id
-           AND archive.org_id = participant_pii_vault.org_id
-           AND archive.review_status <> 'purged'
-       )`,
-  ).bind(orgId, ...unique).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null }>();
-  for (const row of rows.results) {
-    contacts.set(stringValue(row.beneficiary_id), {
-      name: await decryptPii(env, row.enc_name),
-      phone: await decryptPii(env, row.enc_phone),
-      email: includeEmail ? await decryptPii(env, row.enc_email) : null,
-    });
+  // D1은 문장 하나당 바인딩을 100개까지만 받는다. org_id가 한 자리를 쓰므로 당사자 ID는
+  // 99개씩 나눈다. 이 관문을 쓰는 목록과 일정 조회가 100명에서 함께 실패하지 않아야 한다.
+  const beneficiaryBatchSize = 99;
+  for (let offset = 0; offset < unique.length; offset += beneficiaryBatchSize) {
+    const batch = unique.slice(offset, offset + beneficiaryBatchSize);
+    const placeholders = batch.map(() => '?').join(', ');
+    const rows = await env.DB.prepare(
+      `SELECT beneficiary_id, enc_name, enc_phone, enc_email
+       FROM participant_pii_vault
+       WHERE org_id = ? AND purged_at IS NULL AND beneficiary_id IN (${placeholders})
+         AND NOT EXISTS (
+           SELECT 1 FROM participant_pii_archives AS archive
+           WHERE archive.beneficiary_id = participant_pii_vault.beneficiary_id
+             AND archive.org_id = participant_pii_vault.org_id
+             AND archive.review_status <> 'purged'
+         )`,
+    ).bind(orgId, ...batch).all<{ beneficiary_id: string; enc_name: string | null; enc_phone: string | null; enc_email: string | null }>();
+    for (const row of rows.results) {
+      contacts.set(stringValue(row.beneficiary_id), {
+        name: await decryptPii(env, row.enc_name),
+        phone: await decryptPii(env, row.enc_phone),
+        email: includeEmail ? await decryptPii(env, row.enc_email) : null,
+      });
+    }
   }
   return contacts;
 }
