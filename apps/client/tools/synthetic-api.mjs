@@ -17,6 +17,7 @@ export function createSyntheticState() {
     consent: { privacy: true, recordingAi: false },
     admissionCopyHash: null,
     admissionConfirmed: false,
+    assignmentRequested: false,
     submissions: new Map(),
     records: [],
     draftDecision: null,
@@ -165,8 +166,10 @@ export function handleApi(request, state, options) {
   if (path === '/auth/logout') return new Response(null, { status: 204, headers: cors });
   if (path === '/participants' && request.method === 'GET') {
     return json({ results: [
-      { beneficiaryId: 'swallow-003', status: 'active', programCount: 2, name: '김합성', phone: '010-0000-0000', newSignup: true },
-      { beneficiaryId: 'otter-011', status: 'closed', programCount: 1, name: null, phone: null, newSignup: false },
+      { beneficiaryId: 'swallow-003', status: 'active', programCount: 2, name: '김합성', phone: '010-0000-0000',
+        email: 'synthetic@example.invalid', programNames: ['금전 지원', '주거 지원'], newSignup: true },
+      { beneficiaryId: 'otter-011', status: 'closed', programCount: 1, name: null, phone: null,
+        email: null, programNames: ['금전 지원'], newSignup: false },
     ] }, 200, cors);
   }
   if (path === '/program-options') {
@@ -177,19 +180,20 @@ export function handleApi(request, state, options) {
   }
   if (path === '/participants/swallow-003/hub') {
     return json({
-      beneficiaryId: 'swallow-003', participantName: '김합성', participantPhone: '010-0000-0000',
-      participantEmail: 'synthetic@example.invalid',
+      beneficiaryId: 'swallow-003', restricted: false, participantName: '김합성', participantPhone: '010-0000-0000',
+      participantEmail: 'synthetic@example.invalid', participantBirthDate: '1980-03-05',
+      status: 'active', closedAt: null, sessionCount: 1, lastSessionAt: '2026-09-02T01:00:00.000Z',
       programs: [
-        { id: CASE_ID, beneficiaryId: 'swallow-003', programType: 'financial_support_v1', status: 'active',
+        { id: CASE_ID, beneficiaryId: 'swallow-003', programId: 'program-1', programName: '금전 지원',
+          programType: 'financial_support_v1', status: 'active',
           intakeAt: '2026-02-01T00:00:00.000Z', creationKind: 'initial', sourceSupportCase: null,
           participantName: '김합성', participantPhone: '010-0000-0000', authorized: true,
           assigneeNames: ['담당 실무자'], consent: state.consent, consentRecordedAt: '2026-09-01T00:00:00.000Z',
+          closedAt: null,
           upcomingSchedule: { id: SCHEDULE_ID, scheduledAt: '2026-09-20T01:00:00.000Z', sessionKind: 'regular' } },
-        { id: CLOSED_CASE_ID, beneficiaryId: 'swallow-003', programType: 'financial_support_v1', status: 'closed',
-          intakeAt: '2026-01-05T00:00:00.000Z', creationKind: 'subsequent', sourceSupportCase: null,
-          participantName: '김합성', participantPhone: '010-0000-0000', authorized: false,
-          assigneeNames: ['다른 실무자'], consent: { privacy: true, recordingAi: true },
-          consentRecordedAt: null, upcomingSchedule: null },
+        { id: CLOSED_CASE_ID, beneficiaryId: 'swallow-003', programId: 'program-2', programName: '주거 지원',
+          programType: 'financial_support_v1', status: 'closed', authorized: false,
+          assigneeNames: ['다른 실무자'] },
       ],
     }, 200, cors);
   }
@@ -346,6 +350,29 @@ export function handleApi(request, state, options) {
         questions: [], evidence: [], contrast: [],
       }, 200, cors);
     });
+  }
+  if (/^\/support-cases\/[^/]+\/assignment-requests$/.test(path) && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (state.assignmentRequested) return json({ error: 'conflict' }, 409, cors);
+      if (typeof body.reason !== 'string' || body.reason.trim() === '') return json({ error: 'invalid_request' }, 400, cors);
+      state.assignmentRequested = true;
+      return json({
+        id: '8c2d1f04-5a3b-4e62-9d17-4f8a0b1c2d35', supportCaseId: CLOSED_CASE_ID, userId: 'user-1',
+        role: 'secondary', status: 'requested', acceptanceRequestedBy: 'user-1', acceptedAt: null,
+        transferReason: body.reason, notifiedBy: null, notifiedAt: null, assignedAt: new Date().toISOString(),
+      }, 201, cors);
+    });
+  }
+  if (path === '/settings/accounts' && request.method === 'GET') {
+    return json({
+      accounts: [
+        { id: 'a1c3f5e7-1234-4a5b-8c9d-0e1f2a3b4c5d', email: 'worker@example.invalid', name: '실무자 하나',
+          active: true, roles: ['worker'], supervisedTeamIds: [], assignmentCount: 2 },
+        { id: 'b2d4f6a8-2345-4b6c-9d0e-1f2a3b4c5d6e', email: 'tech@example.invalid', name: '기술 관리자',
+          active: true, roles: ['technical-admin'], supervisedTeamIds: [], assignmentCount: 0 },
+      ],
+      permissions: { canManageRoles: true, canManageAccounts: true }, nextCursor: null,
+    }, 200, cors);
   }
   if (path === '/programs' && request.method === 'GET') {
     return json({

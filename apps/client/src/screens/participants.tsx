@@ -106,7 +106,11 @@ export function ParticipantListScreen() {
     {value !== null && shown.length === 0 && <WireEmpty>조건에 맞는 당사자가 없습니다.</WireEmpty>}
     {shown.map((item) => <WireItem key={item.beneficiaryId}
       title={participantTitle(item.name, item.beneficiaryId)}
-      description={`${item.phone ?? '연락처 없음'}, 참여 사업 ${item.programCount}개`}
+      description={[
+        item.phone ?? '연락처 없음',
+        item.email ?? '이메일 없음',
+        item.programNames.length === 0 ? `참여 사업 ${item.programCount}개` : item.programNames.join(', '),
+      ].join(', ')}
       status={<>
         <WireBadge tone={item.status === 'active' ? 'mint' : 'neutral'}>
           {item.status === 'active' ? '진행 중' : '종결'}
@@ -116,32 +120,42 @@ export function ParticipantListScreen() {
       action={<WireButton variant="neutral" href={`/participants/${encodeURIComponent(item.beneficiaryId)}`}>
         정보 보기
       </WireButton>} />)}
-    <WireCallout tone="info" title="목록에 아직 없는 것">
-      이메일과 참여 사업 이름은 이 목록 응답에 없습니다. 서버가 실을 때까지 화면이 다른 요청으로 채우지 않습니다.
-    </WireCallout>
   </WireCard>;
 }
 
-function registrationBlock(session: Session, options: ProgramOption[] | null): string | null {
+function registrationBlock(session: Session, options: ProgramOption[] | null, assignees: WorkerOption[] | null): string | null {
   const readiness = session.me.institution;
+  const admin = session.me.roles.includes('institution-admin');
   if (readiness.installationState !== 'available') return '설치 정보를 읽을 수 없어 등록을 열지 않습니다.';
   if (readiness.initialSetupState !== 'complete') return '기관 초기 설정이 끝나지 않았습니다.';
   if (options !== null && !options.some((option) => option.admissionState === 'ready')) {
     return '도입 확인이 끝난 사업이 없습니다. 사업 등록과 확인을 먼저 마쳐야 합니다.';
   }
-  if (!session.me.roles.includes('worker')) {
-    return '이 화면의 등록은 담당 실무자 역할로만 진행합니다. 관리자 등록은 첫 담당 실무자를 고르는 계약이 아직 연결되지 않았습니다.';
+  if (!admin && !session.me.roles.includes('worker')) {
+    return '당사자 등록은 담당 실무자나 기관 관리자만 할 수 있습니다.';
+  }
+  if (admin && assignees !== null && assignees.length === 0) {
+    return '첫 담당으로 지정할 활성 실무자가 없습니다. 실무자를 먼저 등록해 주세요.';
   }
   return null;
 }
+
+interface WorkerOption { id: string; name: string | null; email: string | null }
 
 export function ParticipantRegisterScreen() {
   const session = useOutletContext<Session>();
   const onFailure = useSessionFailure(session);
   const navigate = useNavigate();
+  const admin = session.me.roles.includes('institution-admin');
   const load = useCallback(() => session.participants.programOptions(), [session.participants]);
   const { value: options, error: loadError } = useLoaded<ProgramOption[]>(load, onFailure);
+  const loadWorkers = useCallback(
+    () => (admin ? session.participants.activeWorkerOptions() : Promise.resolve<WorkerOption[]>([])),
+    [admin, session.participants],
+  );
+  const { value: workers, error: workerError } = useLoaded<WorkerOption[]>(loadWorkers, onFailure);
   const [programId, setProgramId] = useState('');
+  const [assigneeId, setAssigneeId] = useState('');
   const [privacy, setPrivacy] = useState(false);
   const [recordingAi, setRecordingAi] = useState(false);
   const [emergency, setEmergency] = useState(false);
@@ -149,7 +163,7 @@ export function ParticipantRegisterScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
 
-  const blocked = registrationBlock(session, options);
+  const blocked = registrationBlock(session, options, admin ? workers : null);
   const ready = (options ?? []).filter((option) => option.admissionState === 'ready');
   const locked = (options ?? []).filter((option) => option.admissionState !== 'ready');
 
@@ -168,6 +182,7 @@ export function ParticipantRegisterScreen() {
         programId,
         consentPrivacy: privacy,
         consentRecordingAi: recordingAi,
+        ...(admin ? { initialAssigneeUserId: assigneeId } : {}),
         ...(emergency ? { emergencyReason } : {}),
         ...(text('name') === undefined ? {} : { name: text('name')! }),
         ...(text('phone') === undefined ? {} : { phone: text('phone')! }),
@@ -188,6 +203,7 @@ export function ParticipantRegisterScreen() {
 
   return <WireCard title="당사자 등록">
     {loadError && <WireError>{loadError.message}</WireError>}
+    {workerError && <WireError>{workerError.message}</WireError>}
     {blocked !== null && <WireCallout tone="info" title="지금은 등록할 수 없습니다">{blocked}</WireCallout>}
     {error && <WireError>{error.message}</WireError>}
     {options === null && loadError === null && <WireEmpty live reserve>사업 목록을 불러오고 있습니다.</WireEmpty>}
@@ -204,6 +220,16 @@ export function ParticipantRegisterScreen() {
       {locked.length > 0 && <WireCallout tone="info" title="지금 고를 수 없는 사업">
         {locked.map((option) => `${option.displayName ?? option.id}: ${ADMISSION_LABELS[option.admissionState]}`).join(' / ')}
       </WireCallout>}
+      {admin && <WireFormField label="첫 담당 실무자" htmlFor="register-assignee" control="select" required
+        hint="계정 디렉터리의 활성 실무자만 고를 수 있습니다">
+        <select id="register-assignee" value={assigneeId} required disabled={busy || blocked !== null}
+          onChange={(event) => setAssigneeId(event.target.value)}>
+          <option value="">실무자를 고르세요</option>
+          {(workers ?? []).map((worker) => <option key={worker.id} value={worker.id}>
+            {worker.name ?? worker.email ?? worker.id}
+          </option>)}
+        </select>
+      </WireFormField>}
       <WireFormField label="이름" htmlFor="register-name">
         <input id="register-name" name="name" autoComplete="off" disabled={busy || blocked !== null} />
       </WireFormField>
@@ -235,7 +261,7 @@ export function ParticipantRegisterScreen() {
         </WireFormField>}
       </>}
       <div className="business-actions">
-        <WireButton type="submit" variant="primary" disabled={busy || blocked !== null || programId === ''}>
+        <WireButton type="submit" variant="primary" disabled={busy || blocked !== null || programId === '' || (admin && assigneeId === '')}>
           등록하기
         </WireButton>
       </div>
@@ -243,15 +269,58 @@ export function ParticipantRegisterScreen() {
   </WireCard>;
 }
 
+function AssignmentRequestForm({ program, session }: { program: ParticipantProgram; session: Session }) {
+  const onFailure = useSessionFailure(session);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const [error, setError] = useState<BusinessError | null>(null);
+
+  const send = async () => {
+    if (busy || reason.trim() === '') return;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.participants.requestAssignment(program.id, reason);
+      setRequested(true);
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      onFailure(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <>
+    {error && <WireError>{error.message}</WireError>}
+    {requested
+      ? <WireCallout tone="info" title="배정 요청을 보냈습니다">
+        기관 관리자가 공동 담당이나 이관으로 승인하기 전까지 상담 내용은 열리지 않습니다.
+      </WireCallout>
+      : <form className="business-form" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+        <WireFormField label="담당 배정을 요청하는 이유" htmlFor={`assignment-reason-${program.id}`} required
+          hint="한 줄로 적습니다">
+          <input id={`assignment-reason-${program.id}`} value={reason} required disabled={busy}
+            onChange={(event) => setReason(event.target.value)} />
+        </WireFormField>
+        <div className="business-actions">
+          <WireButton type="submit" variant="neutral" disabled={busy || reason.trim() === ''}>담당 배정 요청</WireButton>
+        </div>
+      </form>}
+  </>;
+}
+
 function ProgramConsent({ program, session, onSaved }: {
   program: ParticipantProgram; session: Session; onSaved: () => void;
 }) {
   const onFailure = useSessionFailure(session);
-  const [privacy, setPrivacy] = useState(program.consent.privacy);
-  const [recordingAi, setRecordingAi] = useState(program.consent.recordingAi);
+  const current = program.consent ?? { privacy: false, recordingAi: false };
+  const [privacy, setPrivacy] = useState(current.privacy);
+  const [recordingAi, setRecordingAi] = useState(current.recordingAi);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
-  const changed = privacy !== program.consent.privacy || recordingAi !== program.consent.recordingAi;
+  const changed = privacy !== current.privacy || recordingAi !== current.recordingAi;
 
   const save = async () => {
     if (busy || !changed) return;
@@ -271,6 +340,9 @@ function ProgramConsent({ program, session, onSaved }: {
 
   return <>
     {error && <WireError>{error.message}</WireError>}
+    <WireCallout tone="info" title="아직 옛 2종 동의입니다">
+      여섯 영역 동의 계약이 붙기 전까지 이 두 체크만 저장됩니다. 옛 기록을 여섯 영역으로 올려 적지 않습니다.
+    </WireCallout>
     <WireChoice type="checkbox" label="개인정보 수집과 이용 동의" checked={privacy} disabled={busy} onChange={setPrivacy} />
     <WireChoice type="checkbox" label="AI를 활용한 녹취기록 동의" checked={recordingAi} disabled={busy} onChange={setRecordingAi} />
     <div className="business-actions">
@@ -300,33 +372,50 @@ export function ParticipantHubScreen() {
         <WireDataRow label="ID" value={value.beneficiaryId} />
         <WireDataRow label="연락처" value={value.participantPhone ?? '등록되지 않음'} />
         <WireDataRow label="이메일" value={value.participantEmail ?? '등록되지 않음'} />
+        {!value.restricted && <WireDataRow label="생년월일" value={value.participantBirthDate ?? '등록되지 않음'} />}
+        {!value.restricted && <WireDataRow label="진행 상태"
+          value={value.status === 'active' ? '진행 중' : `종결 (${value.closedAt ?? '시각 없음'})`} />}
+        {!value.restricted && <WireDataRow label="공식 기록"
+          value={`${value.sessionCount ?? 0}건, 마지막 ${value.lastSessionAt ?? '없음'}`} />}
       </WireDataRows>
-      <div className="business-actions">
-        <WireButton variant="neutral" href={`/participants/${encodeURIComponent(value.beneficiaryId)}/edit`}>
-          기본정보 수정
-        </WireButton>
-      </div>
-      <WireCallout tone="info" title="아직 싣지 않는 정보">
-        생년월일과 진행 상태는 이 허브 응답에 없습니다. 서버가 실을 때까지 화면이 만들어 채우지 않습니다.
-      </WireCallout>
+      {value.restricted
+        ? <WireCallout tone="info" title="담당하지 않는 당사자입니다">
+          기본 식별 정보와 담당 실무자, 참여 사업만 보입니다. 상담 내용과 생년월일은 응답에 실리지 않습니다.
+        </WireCallout>
+        : <div className="business-actions">
+          <WireButton variant="neutral" href={`/participants/${encodeURIComponent(value.beneficiaryId)}/edit`}>
+            기본정보 수정
+          </WireButton>
+        </div>}
     </WireCard>
     <WireCard title="참여 사업">
       {value.programs.length === 0 && <WireEmpty>참여 중인 사업이 없습니다.</WireEmpty>}
       {value.programs.map((program) => <WireCardSection key={program.id}
-        title={program.status === 'active' ? '진행 중인 사업' : '종결된 사업'}>
+        title={program.programName ?? (program.status === 'active' ? '진행 중인 사업' : '종결된 사업')}
+        action={<WireBadge tone={program.status === 'active' ? 'mint' : 'neutral'}>
+          {program.status === 'active' ? '진행 중' : '종결'}
+        </WireBadge>}>
         <WireDataRows>
           <WireDataRow label="담당 실무자"
             value={program.assigneeNames.length === 0 ? '이름이 등록된 담당 실무자가 없습니다' : program.assigneeNames.join(', ')} />
-          <WireDataRow label="인테이크" value={program.intakeAt ?? '아직 없음'} />
-          <WireDataRow label="다음 일정"
-            value={program.upcomingSchedule === null ? '예정 없음' : program.upcomingSchedule.scheduledAt} />
-          <WireDataRow label="동의 기록 시각" value={program.consentRecordedAt ?? '기록 없음'} />
+          {program.authorized && <WireDataRow label="인테이크" value={program.intakeAt ?? '아직 없음'} />}
+          {program.authorized && <WireDataRow label="다음 일정"
+            value={program.upcomingSchedule === null ? '예정 없음' : program.upcomingSchedule.scheduledAt} />}
+          {program.authorized && <WireDataRow label="동의 기록 시각" value={program.consentRecordedAt ?? '기록 없음'} />}
         </WireDataRows>
-        {program.authorized
-          ? <ProgramConsent program={program} session={session} onSaved={reload} />
-          : <WireCallout tone="info" title="담당하지 않는 사업">
-            이 사업의 상담 내용과 동의 수정은 담당 실무자만 할 수 있습니다. 배정 요청 기능은 아직 연결되지 않았습니다.
-          </WireCallout>}
+        {program.authorized ? <>
+          <div className="business-actions">
+            <WireButton variant="neutral"
+              href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/records`}>
+              상담 기록 확인하기
+            </WireButton>
+            <WireButton variant="neutral"
+              href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/briefing`}>
+              15초 페이지
+            </WireButton>
+          </div>
+          <ProgramConsent program={program} session={session} onSaved={reload} />
+        </> : <AssignmentRequestForm program={program} session={session} />}
       </WireCardSection>)}
     </WireCard>
   </>;

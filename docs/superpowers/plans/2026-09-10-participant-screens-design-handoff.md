@@ -71,12 +71,14 @@ API 경계는 `apps/client/src/business/participants.ts`, `institution.ts`이고
 
 - STT 시험 화면(`apps/client/src/stt-trial/**`)과 기존 웹 화면은 이 패킷 범위가 아니다.
 - 공유 CSS, 디자인 토큰, `DESIGN.md`, `DESIGN-RULES.md` 수정 소유는 design 레인이다.
-- 선행 조건과 소유자
-  - 목록 이메일과 참여 사업 이름(D88 ③): 서버 응답에 없음. 소유자 BACKEND.
-  - 허브 HERO 일곱 항목 중 생년월일과 진행 상태(D88 ⑧): hub 응답에 없음. 소유자 BACKEND.
-  - 비담당 허브의 담당 배정 요청(D86 ⑥): 현재 `POST /support-cases/:id/assignees`는 관리자 전용.
-    실무자 발 요청 경로 없음. 소유자 BACKEND.
-  - 관리자 계정의 당사자 등록: `initialAssigneeUserId`를 고를 디렉터리 화면과 계약이 없어
-    이 화면은 실무자 역할로만 등록한다. 소유자 BACKEND와 후속 프런트엔드 wave.
-  - 잠김 상태 전용 톤: 현재 `WireCallout`은 `info`, `mint`, `lavender`뿐이라 잠금 안내도 `info`다.
-    잠김 표현이 필요하면 규칙 변경이라 티켓으로 간다.
+- 2026-09-10 갱신: 검증된 backend `3230f0b`를 결합해 아래 네 자리를 실제로 구현했다. 목록의 이메일과
+  참여 사업 이름, 허브의 생년월일과 진행 상태(공식 기록 수, 마지막 기록), 비담당 허브의 담당 배정 요청
+  (`POST /support-cases/:id/assignment-requests`), 관리자 등록의 첫 담당 실무자 선택
+  (`GET /settings/accounts` 전 페이지에서 활성 `worker`만). 화면의 "아직 없음" 안내도 함께 걷어냈다.
+- 남은 선행 조건과 소유자
+  - **여섯 영역 동의(S2·D82)**: 등록과 허브의 동의는 아직 **옛 2종 체크**다. 화면이 그 사실을 밝히고
+    옛 기록을 여섯 영역으로 자동 승격하지 않는다. 최종 계약이 붙기 전까지 이 자리는 완료가 아니다.
+    소유자 BACKEND(계약)와 프런트엔드(연결).
+  - 관리자 배정 요청 검토 화면(`POST …/assignment-requests/:id/review`): API 소비 함수는 있으나
+    관리자 목록 화면이 아직 없다. 소유자 프런트엔드 후속 wave.
+- 잠김 상태는 규칙 변경 없이 `info` `WireCallout`을 그대로 쓴다(2026-09-10 Q).
