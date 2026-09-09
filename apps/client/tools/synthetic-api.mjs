@@ -65,7 +65,13 @@ export function handleAuth(request, state, clientOrigin) {
     expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600,
     token_type: 'bearer', user: authUser(),
   });
-  if (url.pathname === '/auth/v1/token') return json(session(), 200, cors);
+  if (url.pathname === '/auth/v1/token') {
+    // 새 비밀번호 로그인은 언제나 aal1에서 시작한다. 앞선 검수가 올려 둔 상태를 물려받으면
+    // 추가 인증을 건너뛴 것처럼 보여 하네스가 제품 증거를 오염시킨다.
+    // refresh_token 교환은 지금 검증된 세션의 단계를 그대로 유지한다.
+    if (url.searchParams.get('grant_type') === 'password') state.mfaLevel = 'aal1';
+    return json(session(), 200, cors);
+  }
   if (url.pathname === '/auth/v1/user') return json(authUser(), 200, cors);
   if (url.pathname.endsWith('/challenge')) {
     return json({ id: 'challenge', type: 'totp', expires_at: Math.floor(Date.now() / 1000) + 300 }, 200, cors);
