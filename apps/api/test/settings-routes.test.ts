@@ -50,7 +50,7 @@ describe('settings routes (/me, /users)', () => {
     const response = await worker.fetch(new Request('http://localhost/me', { headers: counselorHeaders }), t.env);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       id: 'counselor.routes@example.invalid',
       orgId: 'org_demo',
       email: 'counselor.routes@example.invalid',
@@ -64,10 +64,10 @@ describe('settings routes (/me, /users)', () => {
       roles: ['worker'],
     });
     // R1: 자기 신원 열람도 감사에 남는다(read, users, self).
-    // 마지막 선택 사업 조회는 여기에 행을 더하지 않는다 — 본인 UI 설정이라 감사 대상이
-    // 아니다(근거: db/gateway.ts rememberLastProgramType · migrations/sqlite/0017 주석).
+    // Last selection adds no audit. Institution readiness is a separate audited settings read.
     expect(await auditRows('counselor.routes@example.invalid')).toEqual([
       expect.objectContaining({ action: 'read', targetTable: 'users', detail: JSON.stringify({ self: true }) }),
+      expect.objectContaining({ action: 'read', targetTable: 'organization_settings', detail: JSON.stringify({ institutionReadiness: true }) }),
     ]);
   });
 

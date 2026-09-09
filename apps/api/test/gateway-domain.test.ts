@@ -1190,7 +1190,7 @@ describe('organization onboarding names (CCC-32)', () => {
     const saved = await completeOrganizationOnboarding(t.env, admin, {
       orgName: '  연대은행  ', programDisplayName: '금융지원 사업',
     });
-    expect(saved).toEqual({
+    expect(saved).toMatchObject({
       orgId: admin.orgId,
       orgName: '연대은행',
       programDisplayName: '금융지원 사업',

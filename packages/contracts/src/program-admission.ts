@@ -1,3 +1,5 @@
+import type { DeploymentMode } from './runtime';
+
 /**
  * D87 사업 도입 확인의 저장·처리 선택지와 화면 문안 단일 정본.
  *
@@ -83,3 +85,105 @@ export const PROGRAM_ADMISSION_COPY = {
     installationSettingsWillChange: '이 설정을 저장하면 N개 사업의 자료가 밖으로 나가는 방식이 바뀝니다. 그 사업들은 관리자가 다시 확인하기 전까지 새 당사자 등록, 녹음, AI 정리가 잠깁니다.',
   },
 } as const;
+
+export type ProgramAdmissionState =
+  | 'ready' | 'undecided' | 'confirmation_required' | 'selection_changed'
+  | 'notice_changed' | 'settings_changed' | 'storage_unavailable'
+  | 'processing_unavailable' | 'installation_unavailable';
+
+export type ProgramAdmissionDenialReason = Exclude<ProgramAdmissionState, 'ready'> | 'program_closed';
+export interface ProgramAdmissionDeniedResponse {
+  error: 'program_admission_required';
+  reason: ProgramAdmissionDenialReason;
+}
+
+export interface ProgramConfirmationInput {
+  copyVersion: string;
+  copyHash: string;
+  installationPolicyVersion: number;
+  installationConfigHash: string;
+}
+
+export interface ProgramStaffInput {
+  userId: string;
+  isResponsible: boolean;
+}
+
+export interface ProgramStaff extends ProgramStaffInput {
+  name: string | null;
+  active: boolean;
+}
+
+export interface CreateProgramInput {
+  displayName: string;
+  storageMode?: ProgramStorageMode | null;
+  processingMode?: ProgramProcessingMode | null;
+  confirmation?: ProgramConfirmationInput | null;
+  staff?: ProgramStaffInput[];
+}
+
+export interface UpdateProgramInput {
+  expectedVersion: number;
+  displayName?: string;
+  storageMode?: ProgramStorageMode | null;
+  processingMode?: ProgramProcessingMode | null;
+  confirmation?: ProgramConfirmationInput | null;
+  status?: 'active' | 'closed';
+  staff?: ProgramStaffInput[];
+}
+
+export interface ProgramConfirmation extends ProgramConfirmationInput {
+  by: string;
+  at: string;
+  storageMode: ProgramStorageMode;
+  processingMode: ProgramProcessingMode;
+}
+
+export interface ProgramRecord {
+  id: string;
+  orgId: string;
+  displayName: string | null;
+  status: 'active' | 'closed';
+  programType: 'financial_support_v1';
+  storageMode: ProgramStorageMode;
+  processingMode: ProgramProcessingMode;
+  version: number;
+  confirmation: ProgramConfirmation | null;
+}
+
+export interface ProgramView extends ProgramRecord {
+  admissionState: ProgramAdmissionState;
+  staff: ProgramStaff[];
+}
+
+export interface ProgramOption {
+  id: string;
+  displayName: string | null;
+  programType: 'financial_support_v1';
+  admissionState: ProgramAdmissionState;
+}
+
+export interface ProgramOptionsResponse {
+  programs: ProgramOption[];
+}
+
+export interface ProgramListResponse {
+  programs: ProgramView[];
+  staffOptions: Array<{ userId: string; name: string | null }>;
+  admissionCopy: {
+    version: string;
+    hash: string;
+    copy: typeof PROGRAM_ADMISSION_COPY;
+  };
+  installation: {
+    deploymentMode: DeploymentMode;
+    sttMode: 'off' | 'local' | 'azure';
+    llmMode: 'off' | 'openai';
+    policyVersion: number;
+    configHash: string;
+  };
+}
+
+export interface ProgramMutationResponse {
+  program: ProgramView;
+}

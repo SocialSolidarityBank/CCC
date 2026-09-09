@@ -1,12 +1,138 @@
 # Beta backend integration implementation plan
 
-**Current state:** Main accepted pre-D89 PostgreSQL validation after reading the actual MacBook output: five PostgreSQL contract files passed 59/59 and real loopback HTTP plus restricted PostgreSQL smoke passed all five checks. The generated parity-only commit was verified and fast-forwarded locally. FRONTEND's local integration is now authorized. This is not a second complete API pass, D89 implementation, hosted Auth proof or deployment readiness.
+**Current state:** The accepted pre-D89 checkpoint `004a97d` was integrated by FRONTEND as `9ca0b2c` (Main-reported proof). First-journey contracts were checkpointed at `0f1638c`. The Q follow-up now separates creator linkage, initial setup and first-program admission; API/Community Cloud typechecks, five focused files (70 tests), three boundary guards and a separate loopback HTTP/D1 creator-journey smoke passed. PostgreSQL replay of the new reads remains pending; earlier parity evidence does not validate them. No D89/runtime-address, first-admin provisioning/invite writer, hosted Auth or deployment readiness is claimed.
 
 **Goal:** Integrate backend-owned settings, authentication and program admission from `feat/settings-backend@71778f3` onto `4352d32`. This is the first backend wave, not beta completion.
 
 **Architecture:** Three-way reconciliation against common base `feca8606`. Current main remains authoritative for six-domain consent, immutable audio objects, readiness, canonical AI drafts and egress. Program admission adds a separate authorization fence. No commit cherry-pick.
 
 **Spec:** Q/Main's 2026-09-09 first-wave instructions, ADR-0044 and ADR-0045, current main consent/audio contracts.
+
+## First-journey contract wave handoff
+
+Work stays on `integrate/beta-0.9-backend` after `004a97d`; it does not merge the frontend branch. No migration, new column, root dependency change, provider call or first-admin provisioning/invite privilege path is introduced.
+
+### Routing sequence and authorization
+
+1. After the existing authentication/MFA flow, read `GET /me`. `roles` remains the canonical role set. A technical-only or role-waiting identity must not be offered institution-admin mutations merely because its legacy `role` says admin.
+2. Read `institution.settingsState` and `installationState` before offering initial setup. A missing persisted installation/settings row is an operator prerequisite, not permission to create the first Auth user or fabricate defaults.
+3. Read the three independent axes: `creatorLinkState`, `initialSetupState`, and `firstProgramAdmissionState`. Cloud `unlinked` requires the install-side linking handoff, not an API privilege escalation. `not_set_up` requires both a persisted institution name and a named same-org `initial_program_id` link; a profile name alone is not completion. `firstProgram` never guesses the first listing result or uses `lastProgramType`. These fields replace `onboardingCompleted`.
+4. An institution admin posts initial names once, then uses the returned first program ID with `GET /programs` and `PATCH /programs/:id`. Confirmation must echo the current copy and installation tokens plus the program `expectedVersion`. There is no separate confirm endpoint.
+5. Workers read active options from `GET /program-options`; admins use the management listing. A closed first program may retain `firstProgram.admissionState: ready`, but `firstProgramAdmissionState` is `not_admitted`: the separate `status: closed` prevents registration and excludes it from options. Policy/copy changes also return this axis to `not_admitted`.
+6. Registration uses the explicit program ID and existing participant consent/assignment requirements. These observations are not authorization grants; every write rechecks canonical roles, admission and consent. On 409, reread current state rather than automatically confirming or overwriting it.
+
+### First Community Cloud administrator: install-side handoff only
+
+Q/Main reports the decision recorded in orchestrator commit `23fa1da`; that object is not available in this local worktree. This handoff follows the supplied decision summary. No invite sender, credential generator, linking mutation, public pre-auth readiness endpoint or hosted call is implemented in this wave.
+
+| Boundary | Install-side contract and persisted/read result |
+| --- | --- |
+| Input | One human-supplied email address for the first administrator. Trim surrounding whitespace, preserve the exact address sent, and reject multiple recipients. The install tool uses Supabase Auth's one-time invitation flow; it never invents a password. |
+| Human action | The invited human accepts the invitation and sets their password and MFA through Supabase Auth. Merely sending an invitation is not creator linkage or readiness success. |
+| Secret ownership | Supabase administrative credentials remain in the install tool's protected runtime, never the business API. Do not print or persist passwords, invitation/recovery links, access/refresh tokens or raw provider errors. Email appears only as a SHA-256 hash in receipts; do not put it in actor/target IDs. |
+| Invitation receipt | Install-only status must distinguish pending/accepted/linking failure from completion. Hash the UTF-8 bytes of the trimmed email actually sent. This receipt is not the database linking receipt below and cannot make readiness `linked`. Actual invitation receipt generation and hosted calls remain owned by the install lane. |
+| Expected identity linkage | After verified acceptance and MFA, the protected install/linking step binds the returned opaque Auth user ID to the designated same-institution application `users.auth_subject`. The application user ID is opaque and email-independent. The existing unique subject key and active canonical `institution_admin` assignment must agree. Never derive authority by matching a JWT email/role claim, choose an arbitrary existing administrator, or perform an API-side auto-link. |
+| Durable creator designation | There is no creator-ID column. The install/linking step must atomically persist the subject link and exactly one append-only `audit_log` linking receipt: `org_id = installation org`, `actor_id = "install:first-admin:" + orgId`, `actor_role = "service"`, `action = "first_admin_linked"`, `target_table = "users"`, `target_id = designated opaque application user ID`. The reserved actor namespace uses the existing actor index and is not a login identity. Retries reuse the completed result; they must not append another linking receipt. The business API implements only this receipt's reader, not its writer. |
+| Exact linking detail | JSON with exactly `{ schemaVersion: 1, emailSha256: lowercase SHA-256 of sent email, authSubjectSha256: lowercase SHA-256 of the opaque Auth user ID }`. No email, subject, credential or invitation link is echoed. Existing audit time records the link observation. Unknown versions, extra/missing fields, invalid hashes or multiple receipts fail closed as `unlinked`. |
+| Cloud creator observation | `creatorLinkState: linked` requires that single receipt, a same-org active non-service directory user, a non-revoked canonical institution-admin assignment, and the exact current subject hash. Absent/mismatched evidence returns `unlinked`, even if another admin has a subject or initial names/program are already populated. This is an observation, not proof of a live Supabase session or fresh MFA; existing authentication and revocation checks still apply. |
+| Unlinked Auth principal | A verified Auth subject without the existing directory link still fails existing identity resolution. It does not receive a fabricated `/me` success or public organization data. `creatorLinkState` is available only to an already authenticated, authorized directory reader; the install tool must surface its own pending/unlinked state before that boundary. |
+| Local modes | `creatorLinkState: not_applicable` means only that this Supabase first-admin linkage contract does not apply. It is not proof of Local authentication or runtime readiness. An unknown installation mode remains `unlinked` plus the existing unavailable installation observation. |
+| Initial setup observation | `initialSetupState: complete` requires a nonblank persisted institution name and a named same-org first-program link. Otherwise return `not_set_up`. It does not prove review of consent copy or retention policy; their independent fields remain. A legacy name-only row is not success; the existing one-time onboarding conflict remains an operator repair prerequisite, not permission to overwrite it. |
+| First-program observation | `firstProgramAdmissionState: admitted` requires the linked first program to be active and currently `ready` under persisted installation/admission policy. Missing, closed or locked programs return `not_admitted`; inspect `firstProgram` for the precise reason. No combined success flag grants participant consent, STT access or record creation. |
+
+The client must replace its former `onboardingCompleted` handling with these three axes. Existing authorization stays unchanged: receipt presence is neither a new role nor a business-write grant, and a 200 metadata response is not completed installation.
+
+### Exact HTTP DTO table
+
+Public types are `@ccc/contracts/institution` and `@ccc/contracts/program-admission`. Program DTO definitions moved out of core; callers import the shared contract directly, without legacy re-exports.
+
+| HTTP operation | Request | Success DTO |
+| --- | --- | --- |
+| `GET /me` | No query/body fields | 200 `MeResponse`: `{ id: string, orgId: string, email: string|null, role: 'admin'|'counselor'|'service', active: boolean, name: string|null, lastProgramType: string|null, roles: ActorRole[], institution: InstitutionReadiness }`. Legacy role vocabulary is retained; service actors cannot obtain a successful response. |
+| `GET /organization/profile` | No query/body fields | 200 `OrganizationProfile`: `{ orgId: string, orgName: string|null, programDisplayName: string|null }`, unchanged. Unlike `/me`, this existing business route still requires a usable installed policy. |
+| `POST /organization/onboarding` | `OrganizationOnboardingInput`: `{ orgName: string, programDisplayName: string }`; all other keys rejected. Trimmed lengths are 1..80 and 1..120 respectively. | 200 `OrganizationOnboardingResponse`: `{ orgId: string, orgName: string|null, programDisplayName: string|null, institution: InstitutionReadiness }`. Single-use, institution-admin-only, creates/renames the linked first program without confirming it. |
+| `GET /programs` | No query/body fields; institution admin only | 200 `ProgramListResponse`: `{ programs: ProgramView[], staffOptions: { userId: string, name: string|null }[], admissionCopy: { version: string, hash: string, copy: typeof PROGRAM_ADMISSION_COPY }, installation: { deploymentMode: DeploymentMode, sttMode: 'off'|'local'|'azure', llmMode: 'off'|'openai', policyVersion: number, configHash: string } }`. Includes active and closed programs. |
+| `GET /program-options` | No query/body fields; active human with a canonical role, subject to the existing identity projection | 200 `ProgramOptionsResponse`: `{ programs: ProgramOption[] }`. Only active same-institution programs, including locked ones with their admission state. |
+| `POST /programs` | `CreateProgramInput`: `{ displayName: string, storageMode?: ProgramStorageMode|null, processingMode?: ProgramProcessingMode|null, confirmation?: ProgramConfirmationInput|null, staff?: ProgramStaffInput[] }` | 201 `ProgramMutationResponse`: `{ program: ProgramView }`. |
+| `PATCH /programs/:id` | `UpdateProgramInput`: `{ expectedVersion: number, displayName?: string, storageMode?: ProgramStorageMode|null, processingMode?: ProgramProcessingMode|null, confirmation?: ProgramConfirmationInput|null, status?: 'active'|'closed', staff?: ProgramStaffInput[] }`; at least one optional field, all unknown keys rejected. | 200 `ProgramMutationResponse`: `{ program: ProgramView }`. Explicit confirmation uses this route; administrator ID/time are server-generated. |
+
+| Nested DTO / alias | Exact shape and interpretation |
+| --- | --- |
+| `InstitutionReadiness` | `{ orgId: string, orgName: string|null, settingsState: 'present'|'missing', creatorLinkState: 'unlinked'|'linked'|'not_applicable', initialSetupState: 'not_set_up'|'complete', firstProgramAdmissionState: 'not_admitted'|'admitted', firstProgram: (ProgramOption & { status: 'active'|'closed', version: number })|null, installationState: 'available'|'unavailable', retentionPolicyStatus: 'missing'|'configured'|'review_required', consentCopy: { version: string, status: 'available'|'provider_registry_unavailable', domains: { domain: ConsentDomain, disclosureAvailable: boolean }[] } }` |
+| `ProgramOption` | `{ id: string, displayName: string|null, programType: 'financial_support_v1', admissionState: ProgramAdmissionState }` |
+| `ProgramRecord` | `{ id: string, orgId: string, displayName: string|null, status: 'active'|'closed', programType: 'financial_support_v1', storageMode: ProgramStorageMode, processingMode: ProgramProcessingMode, version: number, confirmation: ProgramConfirmation|null }` |
+| `ProgramView` | `ProgramRecord & { admissionState: ProgramAdmissionState, staff: ProgramStaff[] }` |
+| `ProgramConfirmationInput` | `{ copyVersion: string, copyHash: string, installationPolicyVersion: number, installationConfigHash: string }` |
+| `ProgramConfirmation` | `ProgramConfirmationInput & { by: string, at: string, storageMode: ProgramStorageMode, processingMode: ProgramProcessingMode }` |
+| `ProgramStaffInput` / `ProgramStaff` | `{ userId: string, isResponsible: boolean }` / `ProgramStaffInput & { name: string|null, active: boolean }` |
+| `ProgramStorageMode` | `'supabase_seoul'|'naver_public'|'local_encrypted'|'undecided'`. Cloud writes accept only `supabase_seoul`/`undecided`; Local requires omission and keeps `local_encrypted`. `naver_public` is not an available write option. |
+| `ProgramProcessingMode` | `'external_allowed'|'internal_only'|'undecided'` |
+| `ProgramAdmissionState` | `'ready'|'undecided'|'confirmation_required'|'selection_changed'|'notice_changed'|'settings_changed'|'storage_unavailable'|'processing_unavailable'|'installation_unavailable'` |
+| `DeploymentMode` / `ActorRole` | `'community-cloud'|'local-single'|'local-office'` / `'institution-admin'|'technical-admin'|'supervisor'|'worker'|'service'` from the existing runtime contract. |
+| `ConsentDomain` | The six existing values, in canonical order: `personal_data_collection_use`, `sensitive_information_processing`, `counseling_recording`, `external_stt_processing`, `external_llm_cross_border_processing`, `voice_original_retention_period`. |
+
+`installationState: available` only means the deployment mode and persisted program policy can produce an admission context. It does not assert STT qualification, healthy Agent, signed-manifest availability to a client, provider connectivity or hosting readiness.
+
+`retentionPolicyStatus` reports stored settings: absent row is `missing`, valid stored grace period through the current 1,826-day write ceiling is `configured`, and legacy stored values above that ceiling are `review_required`. It does not rewrite defaults, prove administrator review or replace the existing five-calendar-year retention enforcement.
+
+`consentCopy.version` is the shipped canonical six-domain copy version, not an institution-specific approval version. A domain is available only when its provider has a same-org persisted registry snapshot with `approved_at <= now` and `valid_until IS NULL OR valid_until > now`, matching disclosure issuance. Future, expired and other-org rows do not qualify. All six must qualify for aggregate `available`. Reading this state neither creates disclosures nor grants consent; there is no invented institution-custom-copy acceptance flag.
+
+### Denial codes for client handling
+
+No vendor exception text, user identifiers or secrets are added. Existing coarse conflict/forbidden codes are retained rather than fabricating a more specific cause.
+
+| HTTP | Exact JSON | Scope and client action |
+| --- | --- | --- |
+| 401 | `{ error: 'actor_authentication_required' }` | Missing/invalid identity: return to authentication. |
+| 403 | `{ error: 'mfa_required' }` | Verified Cloud human below required aal2: complete existing MFA flow. No first-admin provisioning route is added. |
+| 403 | `{ error: 'forbidden' }` | Inactive/non-human actor, insufficient canonical role, unavailable/foreign target or settings: do not auto-elevate or infer target existence. |
+| 400 | `{ error: 'invalid_request' }` | Wrong/unknown fields, unsupported storage, invalid choices, blank names or invalid version: correct input; no retry by dropping security fields. |
+| 409 | `{ error: 'conflict' }` | Repeated onboarding, stale program version/copy/policy or concurrent context change: reread `/me` and `/programs`, then require deliberate confirmation. |
+| 409 | `{ error: 'program_admission_required', reason: ProgramAdmissionDenialReason }` | Additive typed `reason` now accompanies the existing code. Reason is any non-ready `ProgramAdmissionState` or `program_closed`. Show the relevant locked state; a reason is never permission to bypass the guard. |
+| 503 | `{ error: 'service_unavailable' }` | Identity store or verified capability state unavailable: stop, do not construct fallback readiness. |
+| 500 | `{ error: 'internal_error' }` | Unclassified failure, including unreadable persistence/audit failure: stop and report safely. |
+| 422 | `{ error: 'privacy_consent_required' }` or `{ error: 'emergency_reason_required' }` | Existing participant registration gates remain independent of program readiness. Collect the required consent or valid emergency reason through the existing workflow. |
+
+Missing program policy blocks business endpoints with `program_admission_required/installation_unavailable`; `/me` alone still reports the unavailable state without creating rows. Participant six-domain consent/disclosure APIs retain their separate canonical error codes and cannot be satisfied by this metadata.
+
+### Verification boundary for this wave
+
+#### Q creator-link follow-up on `0f1638c`
+
+- Red phase: seven of nine journey checks failed against the former response because the three explicit state axes were absent. The corrected implementation passed the journey and adjacent contracts; the final run below passed **5 files / 70 tests** in 32.97 seconds, with typechecks and guards completing in 40.07 seconds total.
+- Creator checks cover a subject without designation, receipt-bound linkage, changed subject, duplicate receipts, foreign-institution and non-admin targets, and Local-mode non-applicability. A name-only settings row stays `not_set_up`; closed programs and changed policy stay `not_admitted`. These are synthetic fixtures, not actual Supabase invitation or MFA evidence.
+- A separate Bun process served real loopback HTTP over disposable Miniflare D1 after applying the current SQLite migrations. It exercised the actual gateway subject lookup with synthetic verified-identity metadata. Final exit was 0; `unlinkedSubjectDenied`, `receiptRequired`, `creatorLinked`, `nameOnlyNotSetUp`, `setup`, `admitted`, `independentConsent`, `policyRelocked`, `duplicateReceiptDenied` and `actorIndex` were all true. `syntheticIdentity:true`, `hostedAuth:false`, `postgres:false`.
+- Smoke harness corrections did not change production behavior: an `ActorResolver` must throw rather than return null, and the production Supabase adapter classifies an authenticated but unlinked subject as **403 `forbidden`**, not 401. The administrator registration probe also needed its required valid practitioner assignment before reaching the independent privacy-consent gate. Both harness errors were corrected; no gate was weakened.
+- The smoke server exited and Miniflare disposed. `apps/api/test/creator-readiness.smoke.ts` was deleted after proof; the duplicate-receipt boundary remains in the permanent journey regression. Final checks below ran after removal.
+- Frozen `package.json`, `pnpm-lock.yaml` and accepted `migrations/parity.yaml` hashes are unchanged. No new migration/column, hosted request, Docker/PG run, frontend edit, root dependency edit or invite/linking writer was introduced. The pre-existing untracked `supabase/` directory was left untouched.
+
+```sh
+pnpm --filter @ccc/api run typecheck
+pnpm --filter @ccc/community-cloud run typecheck
+pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts apps/api/test/institution-journey.contract.test.ts apps/api/test/identity-subject.test.ts apps/api/test/identity-supabase.test.ts apps/api/test/settings-routes.test.ts apps/api/test/program-admission.routes.test.ts --maxWorkers=1
+node scripts/guard-core-imports.mjs
+node scripts/guard-db-gateway.mjs
+node scripts/guard-sql-dialect.mjs
+```
+
+#### Prior first-journey checkpoint `0f1638c` (historical proof)
+
+New synthetic contract tests exercise persisted setup → explicit confirmation → registration, stale policy lock, privacy denial, closed programs, absent settings/policy without writes, retention review status, six-domain registry time/org boundaries, replay/unknown-field rejection and audited same-org reads. Identity resolution is injected; gateway, D1, HTTP handler and audit are real. Existing identity/MFA and consent tests run alongside them. No hosted Auth, first-admin provisioning, Docker or PostgreSQL execution is part of this wave; PostgreSQL replay remains pending.
+
+Observed mini results for this wave:
+
+- New contract tests first failed 5/5 against the old responses (absent `institution`, plus onboarding silently accepting unknown keys). After implementation, an invalid fixture UPDATE was correctly rejected by the immutable provider-registry trigger; the fixture now appends fresh synthetic snapshots. The production trigger was not changed.
+- API and Community Cloud typechecks passed, followed by **9 files / 146 tests passing** in 128.75 seconds (combined command 134.53 seconds):
+
+```sh
+pnpm --filter @ccc/api run typecheck
+pnpm --filter @ccc/community-cloud run typecheck
+pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts apps/api/test/institution-journey.contract.test.ts apps/api/test/program-admission.routes.test.ts apps/api/test/settings-routes.test.ts apps/api/test/gateway-domain.test.ts apps/api/test/identity-subject.test.ts apps/api/test/identity-supabase.test.ts apps/api/test/retention-policy-settings.test.ts apps/api/test/consent-privacy-gate.test.ts apps/api/test/worker-invite-signup.test.ts --maxWorkers=1
+```
+
+- A separate throwaway Bun program started real loopback HTTP over real Miniflare D1, applied every current SQLite migration, created synthetic institution/directory/policy rows and exercised the complete journey without Vitest. It exited 0 with `initialObservation`, `setup`, `unconfirmedDenial`, `confirmation`, `independentPrivacyDenial`, `registration` and `missingRegistryReported` all true; `hostedAuth:false`, `postgres:false`. The server stopped, its Miniflare instance disposed, and `apps/api/test/institution-journey.smoke.ts` was removed after proof.
+- These are focused, overlapping checks, not another full API pass or PostgreSQL rerun. No first-admin Auth account was provisioned: only disposable synthetic database fixtures existed.
+- After smoke removal, API/Community Cloud typechecks and the core-import, DB-gateway and SQL-dialect guards passed again (6.23 seconds). Frozen root dependency hashes and the accepted parity manifest hash remained unchanged. PostgreSQL must still replay the new readiness query/audit path before this wave inherits a PostgreSQL validation claim.
 
 ## Current accepted evidence and cleanup
 
