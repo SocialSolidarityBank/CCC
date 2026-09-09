@@ -208,3 +208,20 @@ Harness source is `apps/api/test/support/postgres.ts`, entrypoint `startPostgres
 If workspace links are missing, only frozen-lockfile linking of already locked versions is authorized; do not approve unknown lifecycle scripts or modify either frozen root file. Report environmental or permission prerequisites instead of substituting dependencies or weakening tests.
 
 After this WIP checkpoint, **all BACKEND source is frozen until validation reports and Main coordinates the next write slot**. Root dependency files retain their stricter explicit slot-transfer requirement. No D89 runtime/address changes, push, merge, deployment or shared Docker repair are authorized by this exception.
+
+## Scoped fixture-only child WIP for MacBook replay
+
+Main reports that MacBook VALIDATION generated the real pinned-PostgreSQL parity manifest, then obtained 54 passes and 5 failures across the five PostgreSQL contract files. HTTP smoke correctly stopped. This follow-up changes only two test files and this handoff; all product, migration, manifest, runtime and root dependency bytes remain those of `bf63b224087773af6b396d46d03cc1098f08d0e6`.
+
+- `postgres-rls.security.test.ts`: the two pre-0006 setup loops now select `.sql` files with names less than `0006`, not every file except 0006. Their former setup included 0010, whose policies need roles created by 0006, producing SQLSTATE 42704 before the intended rejection. Three membership cases and one ownership/atomicity case retain every assertion. The positive installation test still applies every latest migration.
+- `database-parity.test.ts`: the users primary-key witness keeps the duplicate ID but uses `parity-pk-other-org`, with an already distinct email. Both schemas have `idx_users_id_org(id,org_id)`; the old input collided with both that UNIQUE index and the logical primary key. Current `users.org_id` has no foreign key, and user-role seeding runs after insertion, so no extra organization seed or production exemption is needed.
+- Independent in-memory SQLite 3.53.4 probe applied all actual SQLite migration files. Old input returned `SQLITE_CONSTRAINT_UNIQUE`; isolated input returned `SQLITE_CONSTRAINT_PRIMARYKEY`; both left rows unchanged. This establishes the fixture collision, **not the missing exact subtype from MacBook's truncated report**, and does not prove D1/SQLCipher/PostgreSQL adapter parity. The expected `primary_key` subtype and every rejection/rollback assertion are unchanged.
+- Mini verification: API TypeScript check and core-import, DB-gateway, SQL-dialect guards passed (combined 4.92 seconds). No PostgreSQL suite, Docker operation, install or D89 runtime change was attempted. The SQLite probe was an inline command and created no persistent artifact.
+
+Replay the corrected contracts on MacBook VALIDATION before resuming the existing five-file suite and HTTP smoke:
+
+```sh
+pnpm --workspace-root exec vitest run --config apps/api/vitest.config.ts apps/api/test/postgres-rls.security.test.ts apps/api/test/database-parity.test.ts --maxWorkers=1
+```
+
+This child remains **validation-only WIP, not FRONTEND/main-consumable integration**. If the normalized rejection still differs, report the actual engine and structured subtype instead of changing expectations or production classification. BACKEND source returns to frozen state after the child checkpoint; root package/lock remain at the previously reported frozen hashes throughout.

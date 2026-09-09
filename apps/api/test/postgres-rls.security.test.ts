@@ -420,7 +420,7 @@ it.each([
   try {
     const fixture = await isolated.openDatabase();
     const directory = new URL('../../../migrations/postgres/', import.meta.url);
-    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && !name.startsWith('0006')).sort()) {
+    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && name < '0006').sort()) {
       await isolated.applyMigration(fixture, readFileSync(new URL(name, directory), 'utf8'));
     }
     await fixture.prepare(`CREATE ROLE ${protectedRole} ${protectedRole === 'ccc_api' ? 'LOGIN' : 'NOLOGIN'} NOINHERIT NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB`).run();
@@ -442,7 +442,7 @@ it('rejects installation without public-schema ownership atomically', async () =
     await fixture.prepare('CREATE ROLE ccc_installer NOLOGIN NOSUPERUSER CREATEROLE INHERIT').run();
     await fixture.prepare('GRANT USAGE, CREATE ON SCHEMA public TO ccc_installer WITH GRANT OPTION').run();
     const directory = new URL('../../../migrations/postgres/', import.meta.url);
-    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && !name.startsWith('0006')).sort()) {
+    for (const name of readdirSync(directory).filter(name => name.endsWith('.sql') && name < '0006').sort()) {
       await isolated.applyMigration(fixture, `SET LOCAL ROLE ccc_installer;\n${readFileSync(new URL(name, directory), 'utf8')}`);
     }
     await expect(isolated.applyMigration(fixture,
