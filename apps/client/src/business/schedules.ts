@@ -88,7 +88,8 @@ export interface Briefing {
     discrepancies: BriefingDiscrepancy[];
     openActionItems: Array<{ id: string; description: string; owner: string; dueDate: string | null; sessionId: string | null }>;
     confirmedFlags: Array<{ id: string; flagType: string; quote: string | null }>;
-    pendingReviewCount: number;
+    /** 승인 대기 초안이 있는 회차. 본문은 싣지 않고 검토 화면 입구만 연다(R2). */
+    pendingReviewSessionIds: string[];
   };
   upcoming: {
     id: string;
@@ -267,8 +268,8 @@ export function decodeBriefing(value: unknown, focusSupportCaseId: string): Brie
           || !isNullableString(entry.quote)) throw new BusinessError('invalid_response');
         return { id: entry.id, flagType: entry.flagType, quote: entry.quote };
       }),
-      pendingReviewCount: Array.isArray(focusSection.pendingReviewSessionIds)
-        ? focusSection.pendingReviewSessionIds.length : 0,
+      pendingReviewSessionIds: (Array.isArray(focusSection.pendingReviewSessionIds)
+        ? focusSection.pendingReviewSessionIds : []).filter((entry): entry is string => isOpaqueIdentifier(entry)),
     },
     upcoming: upcoming === null ? null : {
       id: isOpaqueIdentifier(upcoming.id) ? upcoming.id : (() => { throw new BusinessError('invalid_response'); })(),

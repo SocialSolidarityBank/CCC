@@ -17,6 +17,10 @@ export function createSyntheticState() {
     consent: { privacy: true, recordingAi: false },
     admissionCopyHash: null,
     admissionConfirmed: false,
+    submissions: new Map(),
+    records: [],
+    draftDecision: null,
+    scheduleVersion: 2,
     calls: [],
   };
 }
@@ -259,7 +263,7 @@ export function handleApi(request, state, options) {
         lastSessionSummary: { source: 'memo', text: '지난 회차 수기 메모', pendingApprovalCount: 1 },
         pendingReviewSessionIds: [SESSION_ID],
         openActionItems: [{ id: 'action-1', description: '주민센터 서류 제출', owner: 'beneficiary', dueDate: '2026-09-18', sessionId: SESSION_ID }],
-        flags: [{ id: 'flag-1', flagType: 'debt_worsening', source: 'ai', reviewStatus: 'confirmed', sessionId: SESSION_ID, quote: '이번 달에도 이자를 못 냈어요' }],
+        flags: [{ id: 'flag-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed', sessionId: SESSION_ID, quote: '이번 달에도 이자를 못 냈어요' }],
         aiSuggestions: [{ title: '체납 고지서 확인', reason: '지난 회차에 고지서를 아직 못 봤다고 했습니다', sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z', sourceQuotes: [] }],
         sessionRows: [{ sessionId: SESSION_ID, heldAt: '2026-09-02T01:00:00.000Z', kind: 'regular', aiOneLiner: null, memoExcerpt: '고지서를 아직 확인하지 못했다고 함' }],
         discrepancies: [{ id: 'discrepancy-1', kind: 'cross_session', left: '월세 45만원', right: '월세 50만원', detectedAt: '2026-09-02T02:00:00.000Z', resolution: null }],
@@ -270,6 +274,78 @@ export function handleApi(request, state, options) {
         customQuestions: [{ body: '지난주 상담 이후 달라진 점이 있나요' }],
       },
     }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/records` && request.method === 'GET') {
+    const approved = state.draftDecision === 'approved';
+    return json({
+      records: [
+        {
+          id: SESSION_ID, supportCaseId: CASE_ID, heldAt: '2026-09-02T01:00:00.000Z', channel: 'in_person',
+          memo: '고지서를 아직 확인하지 못했다고 함', kind: 'regular', createdAt: '2026-09-02T02:00:00.000Z',
+          gasScores: [], actionItems: [{ id: 'action-1', description: '주민센터 서류 제출', owner: 'beneficiary', dueDate: '2026-09-18', resolved: false }],
+          flags: [{ id: 'flag-1', flagType: 'debt_deterioration', source: 'ai', reviewStatus: 'confirmed', quote: '이번 달에도 이자를 못 냈어요' }],
+          lifeAreaSnapshot: [], managerOpinion: null,
+          aiOneLiner: approved ? '체납 정리 계획을 다시 세우기로 함' : null,
+          memoExcerpt: '고지서를 아직 확인하지 못했다고 함', sessionGoals: [], discrepancies: [],
+        },
+        ...state.records,
+      ],
+      goals: [{ id: 'goal-a', title: '월세 체납 정리', status: 'active', closedReason: null }],
+      schedule: { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
+        scheduledAt: '2026-09-20T01:00:00.000Z', status: 'scheduled', version: state.scheduleVersion, completedSessionId: null },
+      recordErrorSessionIds: [], overallGoal: state.overallGoal, caseStatus: 'active',
+      programType: 'financial_support_v1',
+    }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/records` && request.method === 'POST') {
+    return request.json().then((body) => {
+      const known = state.submissions.get(body.submissionId);
+      if (known !== undefined) return json({ record: known, replayed: true }, 200, cors);
+      if (body.expectedScheduleVersion !== undefined && body.expectedScheduleVersion !== state.scheduleVersion) {
+        return json({ error: 'conflict' }, 409, cors);
+      }
+      const saved = { id: `record-${state.submissions.size + 1}`, heldAt: body.heldAt, channel: body.channel, memo: body.memo };
+      state.submissions.set(body.submissionId, saved);
+      state.records.push({
+        id: saved.id, supportCaseId: CASE_ID, heldAt: body.heldAt, channel: 'in_person', memo: body.memo,
+        kind: 'regular', createdAt: new Date().toISOString(), gasScores: [],
+        actionItems: (body.actions ?? []).map((action, index) => ({
+          id: `new-action-${index}`, description: action.description, owner: action.owner,
+          dueDate: action.dueDate ?? null, resolved: false,
+        })),
+        flags: (body.flags ?? []).map((flag, index) => ({
+          id: `new-flag-${index}`, flagType: flag.flagType, source: 'counselor', reviewStatus: 'confirmed', quote: null,
+        })),
+        lifeAreaSnapshot: [], managerOpinion: null, aiOneLiner: null,
+        memoExcerpt: String(body.memo).slice(0, 60), sessionGoals: [], discrepancies: [],
+      });
+      return json({ record: saved, replayed: false }, 201, cors);
+    });
+  }
+  if (path === `/sessions/${SESSION_ID}/ai` && request.method === 'GET') {
+    return json({
+      version: 1, origin: 'agent', creationMode: 'recording', summaryText: '체납 정리 진행 상황을 확인했다',
+      claims: [{ claimKey: 'claim-1', section: 'session_goal_discussion', text: '고지서 확인을 다음 주까지 하기로 함' }],
+      oneLiner: '체납 정리 계획을 다시 세우기로 함', reviewDecision: state.draftDecision,
+      questions: [{ title: '고지서 확인 여부', reason: '지난 회차에 미확인이라고 함' }],
+      evidence: [{ id: 'evidence-1', claimKey: 'claim-1', quote: '아직 고지서를 못 봤어요' }],
+      contrast: [
+        { axis: 'missing_in_memo', status: 'applied', findings: [{ description: '이자 연체 언급', materialKind: 'transcript', quote: '이자를 못 냈어요' }] },
+        { axis: 'undiscussed_goals', status: 'no_material', findings: [] },
+      ],
+      regenerateAvailable: false, regenerateSourceSnapshotId: null, transcriptQuality: null,
+    }, 200, cors);
+  }
+  if (/^\/sessions\/[^/]+\/ai\/drafts\/\d+\/review$/.test(path) && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (body.expectedVersion !== 1) return json({ error: 'stale_draft_version' }, 409, cors);
+      state.draftDecision = body.decision;
+      return json({
+        version: 1, origin: 'agent', creationMode: 'recording', summaryText: '체납 정리 진행 상황을 확인했다',
+        claims: [], oneLiner: '체납 정리 계획을 다시 세우기로 함', reviewDecision: body.decision,
+        questions: [], evidence: [], contrast: [],
+      }, 200, cors);
+    });
   }
   if (path === '/programs' && request.method === 'GET') {
     return json({

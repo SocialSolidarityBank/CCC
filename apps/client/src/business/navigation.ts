@@ -21,6 +21,8 @@ const destinations: readonly ShellDestination[] = [
 const PARTICIPANT_DETAIL = /^\/participants\/([A-Za-z0-9_-]{1,200})(\/edit)?$/;
 /** 15초 페이지는 사람과 참여 사업 두 값을 함께 받는다. */
 const BRIEFING = /^\/participants\/[A-Za-z0-9_-]{1,200}\/programs\/[A-Za-z0-9-]{1,200}\/briefing$/;
+/** 상담 기록 확인하기와 상담 기록하기. 목록과 같은 권한 묶음을 쓴다. */
+const RECORDS = /^\/participants\/[A-Za-z0-9_-]{1,200}\/programs\/[A-Za-z0-9-]{1,200}\/records(\/new|\/[A-Za-z0-9-]{1,200}\/review)?$/;
 /** 계획 화면은 일정 하나를 받는다. */
 const SCHEDULE_PLAN = /^\/schedules\/[A-Za-z0-9-]{1,200}\/plan$/;
 
@@ -48,6 +50,12 @@ export function destinationAt(pathname: string, search: string): ShellDestinatio
   }
   if (participants !== undefined && BRIEFING.test(pathname)) {
     return { ...participants, title: '15초 페이지', href: pathname };
+  }
+  const records = RECORDS.exec(pathname);
+  if (participants !== undefined && records !== null) {
+    const title = records[1] === undefined ? '상담 기록 확인하기'
+      : records[1] === '/new' ? '상담 기록하기' : 'AI 정리 검토';
+    return { ...participants, title, href: pathname };
   }
   const detail = PARTICIPANT_DETAIL.exec(pathname);
   if (detail === null || participants === undefined) return null;

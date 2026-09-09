@@ -5,6 +5,7 @@ import {
   WireEmpty, WireError, WireFormField, WireItem,
 } from '@ccc/web/wire';
 import { type BusinessError, safeError } from '../business/errors';
+import { FLAG_LABELS, type FlagType } from '../business/records';
 import type {
   Briefing, ScheduleCandidate, ScheduleCard, SchedulePlan, ScheduleWindow,
 } from '../business/schedules';
@@ -14,11 +15,6 @@ export type ScheduleView = 'day' | 'week' | 'month';
 
 const STATUS_LABELS: Record<ScheduleCard['status'], string> = {
   scheduled: '예정', completed: '완료', cancelled: '취소', no_show: '오지 않음',
-};
-const FLAG_LABELS: Record<string, string> = {
-  crisis_statement: '위기 발언', contact_loss_risk: '연락 두절 위험',
-  living_condition_change: '주거, 생계, 건강 급변', debt_worsening: '부채 악화',
-  repeated_no_show: '약속 불이행 반복', violence_exploitation: '폭력, 착취 피해',
 };
 
 /** 서버가 준 기관 시간대로 날짜와 시각을 읽는다. 브라우저 시간대로 다시 계산하지 않는다. */
@@ -396,7 +392,7 @@ export function BriefingScreen() {
     <WireCard title={briefing.participant.name ?? briefing.beneficiaryId}>
       {error && <WireError>{error.message}</WireError>}
       {briefing.focus.confirmedFlags.length > 0 && <WireCallout tone="info" title="확인된 리스크"
-        items={briefing.focus.confirmedFlags.map((flag) => `${FLAG_LABELS[flag.flagType] ?? flag.flagType}${flag.quote === null ? '' : `: ${flag.quote}`}`)} />}
+        items={briefing.focus.confirmedFlags.map((flag) => `${FLAG_LABELS[flag.flagType as FlagType] ?? flag.flagType}${flag.quote === null ? '' : `: ${flag.quote}`}`)} />}
       <WireCardSection title="전체 목표">
         {briefing.canEditOverallGoal
           ? <form className="business-form" onSubmit={(event) => { event.preventDefault(); void saveGoal(); }}>
@@ -432,9 +428,16 @@ export function BriefingScreen() {
       </WireCardSection>
     </WireCard>
     <WireCard title="상담 내용 회차별 정리">
-      {briefing.focus.pendingReviewCount > 0 && <WireBadge tone="lavender">
-        {`승인 대기 ${briefing.focus.pendingReviewCount}건`}
-      </WireBadge>}
+      {briefing.focus.pendingReviewSessionIds.length > 0 && <WireCardSection
+        title={`승인 대기 ${briefing.focus.pendingReviewSessionIds.length}건`}>
+        {briefing.focus.pendingReviewSessionIds.map((pending) => <WireItem key={pending}
+          title="AI 정리 초안이 승인을 기다립니다"
+          description="승인 전에는 이 회차의 공식 기록에 오르지 않습니다"
+          action={<WireButton variant="neutral"
+            href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records/${encodeURIComponent(pending)}/review`}>
+            AI 정리 검토
+          </WireButton>} />)}
+      </WireCardSection>}
       {briefing.focus.sessionRows.length === 0 && <WireEmpty>아직 기록이 없습니다.</WireEmpty>}
       {briefing.focus.sessionRows.map((row) => <WireItem key={row.sessionId}
         title={row.aiOneLiner ?? row.memoExcerpt ?? '내용 없음'}

@@ -37,6 +37,11 @@ describe('business navigation permission boundary', () => {
     const briefing = destinationAt('/participants/swallow-003/programs/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/briefing', '');
     expect(briefing?.id).toBe('participants');
     expect(briefing?.title).toBe('15초 페이지');
+    const list = destinationAt('/participants/swallow-003/programs/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/records', '');
+    const write = destinationAt('/participants/swallow-003/programs/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/records/new', '');
+    const review = destinationAt('/participants/swallow-003/programs/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/records/91ac47d2-38b5-4f0c-9a71-2d5e6f8a0b13/review', '');
+    expect([list?.title, write?.title, review?.title]).toEqual(['상담 기록 확인하기', '상담 기록하기', 'AI 정리 검토']);
+    expect(canOpenDestination(write!, ['technical-admin'])).toBe(false);
     const plan = destinationAt('/schedules/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/plan', '');
     expect(plan?.id).toBe('schedule');
     expect(canOpenDestination(plan!, ['technical-admin'])).toBe(false);
