@@ -87,7 +87,7 @@ export interface WireButtonProps {
   className?: string;
 }
 
-/** 버튼 5종(DESIGN.md §5). radius 6(--radius-control, D61) · 높이 32 단일(2026-08-28 Q). 종류가 색·면만 가른다. */
+/** 버튼 5종(DESIGN.md §5). 알약(--radius-pill, 2026-08-25 Q) · 높이 32 단일(2026-08-28 Q). 종류가 색·면만 가른다. */
 export function WireButton({
   children,
   size = 'small',
