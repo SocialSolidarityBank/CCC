@@ -158,7 +158,7 @@ Auth는 Supabase Auth를 사용한다. 이메일/비밀번호 로그인, invite 
 - 이메일/비밀번호 provider를 켜고, 초대 링크에서 비밀번호를 설정하는 흐름을 허용한다.
 - Auth 사용자와 CCC `users.auth_subject`의 unique 연결 없이는 업무 API actor를 만들지 않는다.
 - 관리 작업은 S2의 MFA/AAL2 조건을 통과한 actor만 gateway에서 허용한다.
-- 설치 과정에서 기관 관리자 계정이나 실사용자 계정을 자동 생성하지 않는다.
+- 설치 과정에서 실사용자 계정을 대량·대화형으로 자동 생성하지 않는다. 최초 관리자는 D89 후속 결정에 따라 설치 도구가 사람이 지정한 이메일 하나에 1회용 초대를 보내는 방식으로만 만든다. 초대 수락 뒤 `users.auth_subject` 연결이 있어야 기관 생성자 actor가 된다.
 
 Auth 설정 fingerprint가 영수증과 다르면 drift다. JWT signing secret, service role key, refresh token은 fingerprint와 출력에 포함하지 않는다.
 ### 2.7 시크릿 배치
