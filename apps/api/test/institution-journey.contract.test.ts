@@ -4,6 +4,7 @@ import type { MeResponse, OrganizationOnboardingResponse } from '@ccc/contracts/
 import type { ProgramListResponse, ProgramMutationResponse, ProgramOptionsResponse } from '@ccc/contracts/program-admission';
 import { handleRequest } from '@ccc/http-api';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { sha256Hex } from '@ccc/contracts/consent';
 
 const t = setupD1();
 const admin = testActors.admin;
@@ -15,12 +16,25 @@ const request = (path: string, method = 'GET', body?: unknown, actor: Actor = ad
   }), t.env, async () => actor,
 );
 
+// Installer-side receipt fixture only. Production invite/link writes are not implemented here.
+async function seedCreatorReceipt(creator: Actor, subject: string, receiptOrgId = creator.orgId) {
+  await t.db.prepare('UPDATE users SET auth_subject = ? WHERE id = ? AND org_id = ?')
+    .bind(subject, creator.userId, creator.orgId).run();
+  await t.db.prepare(`INSERT INTO audit_log(org_id,actor_id,actor_role,action,target_table,target_id,detail)
+    VALUES (?,?,'service','first_admin_linked','users',?,?)`).bind(
+    receiptOrgId, `install:first-admin:${receiptOrgId}`, creator.userId,
+    JSON.stringify({ schemaVersion: 1, emailSha256: await sha256Hex('synthetic.creator@example.invalid'), authSubjectSha256: await sha256Hex(subject) }),
+  ).run();
+}
+
 // Identity resolution is injected; database, gateway, HTTP responses and audit are real.
 describe('persisted institution first journey', () => {
   it('routes through initial setup and explicit confirmation without granting participant consent or hiding later locks', async () => {
     await t.reset();
     const initial = await (await request('/me')).json() as MeResponse;
-    expect(initial.institution).toMatchObject({ settingsState: 'present', onboardingCompleted: false, firstProgram: null });
+    expect(initial.institution).toMatchObject({ settingsState: 'present', creatorLinkState: 'unlinked',
+      initialSetupState: 'not_set_up', firstProgramAdmissionState: 'not_admitted', firstProgram: null });
+    await seedCreatorReceipt(admin, crypto.randomUUID());
     // An existing unlinked fixture program must not be guessed to be the initial program.
     const onboardedResponse = await request('/organization/onboarding', 'POST', {
       orgName: '합성 기관', programDisplayName: '첫 사업',
@@ -28,7 +42,8 @@ describe('persisted institution first journey', () => {
     expect(onboardedResponse.status).toBe(200);
     const onboarded = await onboardedResponse.json() as OrganizationOnboardingResponse;
     expect(onboarded).toMatchObject({ orgId: admin.orgId, orgName: '합성 기관', programDisplayName: '첫 사업',
-      institution: { onboardingCompleted: true, firstProgram: { displayName: '첫 사업', version: 1, admissionState: 'undecided' } } });
+      institution: { creatorLinkState: 'linked', initialSetupState: 'complete', firstProgramAdmissionState: 'not_admitted',
+        firstProgram: { displayName: '첫 사업', version: 1, admissionState: 'undecided' } } });
     const first = onboarded.institution.firstProgram!;
     expect(first.id).not.toBe(testProgramId(admin.orgId));
     const denied = await request('/participants', 'POST', { programId: first.id, consentPrivacy: true }, worker);
@@ -57,6 +72,7 @@ describe('persisted institution first journey', () => {
     });
     const reread = await (await request('/me', 'GET', undefined, worker)).json() as MeResponse;
     expect(reread.institution.firstProgram).toMatchObject({ id: first.id, admissionState: 'ready', version: 2 });
+    expect(reread.institution).toMatchObject({ creatorLinkState: 'linked', initialSetupState: 'complete', firstProgramAdmissionState: 'admitted' });
     const noConsent = await request('/participants', 'POST', { programId: first.id }, worker);
     expect(noConsent.status).toBe(422);
     expect(await noConsent.json()).toEqual({ error: 'privacy_consent_required' });
@@ -66,6 +82,7 @@ describe('persisted institution first journey', () => {
     await t.db.prepare('UPDATE program_admission_policies SET version = version + 1 WHERE org_id = ?').bind(admin.orgId).run();
     const changed = await (await request('/me')).json() as MeResponse;
     expect(changed.institution.firstProgram?.admissionState).toBe('settings_changed');
+    expect(changed.institution.firstProgramAdmissionState).toBe('not_admitted');
     const locked = await request('/participants', 'POST', { programId: first.id, consentPrivacy: true }, worker);
     expect(locked.status).toBe(409);
     expect(await locked.json()).toEqual({ error: 'program_admission_required', reason: 'settings_changed' });
@@ -80,7 +97,7 @@ describe('persisted institution first journey', () => {
     const response = await request('/me');
     expect(response.status).toBe(200);
     const me = await response.json() as MeResponse;
-    expect(me.institution).toMatchObject({ settingsState: 'missing', orgName: null, onboardingCompleted: false,
+    expect(me.institution).toMatchObject({ settingsState: 'missing', orgName: null, creatorLinkState: 'unlinked', initialSetupState: 'not_set_up',
       firstProgram: null, installationState: 'unavailable', retentionPolicyStatus: 'missing' });
     const denied = await request('/organization/onboarding', 'POST', { orgName: '기관', programDisplayName: '사업' });
     expect(denied.status).toBe(409);
@@ -95,7 +112,8 @@ describe('persisted institution first journey', () => {
       .bind('저장된 기관', testProgramId(admin.orgId), admin.orgId).run();
     await t.db.prepare("UPDATE programs SET status = 'closed' WHERE org_id = ?").bind(admin.orgId).run();
     const me = await (await request('/me')).json() as MeResponse;
-    expect(me.institution).toMatchObject({ onboardingCompleted: true, retentionPolicyStatus: 'review_required',
+    expect(me.institution).toMatchObject({ creatorLinkState: 'unlinked', initialSetupState: 'complete',
+      firstProgramAdmissionState: 'not_admitted', retentionPolicyStatus: 'review_required',
       firstProgram: { id: testProgramId(admin.orgId), status: 'closed', admissionState: 'ready' } });
     expect(await (await request('/program-options', 'GET', undefined, worker)).json()).toEqual({ programs: [] });
     const denied = await request('/participants', 'POST', { programId: testProgramId(admin.orgId), consentPrivacy: true }, worker);
@@ -163,5 +181,44 @@ describe('persisted institution first journey', () => {
     expect(serviceDenied.status).toBe(403);
     expect(await t.db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE org_id = ? AND actor_id = ? AND action = 'read' AND target_table = 'organization_settings'")
       .bind(admin.orgId, worker.userId).first('n')).toBe(1);
+  });
+
+  it('requires one designated creator receipt bound to the exact subject rather than any linked administrator', async () => {
+    await t.reset();
+    const subject = crypto.randomUUID();
+    await t.db.prepare('UPDATE users SET auth_subject = ? WHERE id = ?').bind(subject, admin.userId).run();
+    const unlinked = await (await request('/me')).json() as MeResponse;
+    expect(unlinked.institution.creatorLinkState).toBe('unlinked');
+    await seedCreatorReceipt(admin, subject);
+    const linked = await (await request('/me')).json() as MeResponse;
+    expect(linked.institution).toMatchObject({ creatorLinkState: 'linked', initialSetupState: 'not_set_up', firstProgramAdmissionState: 'not_admitted' });
+    expect(JSON.stringify(linked.institution)).not.toContain(subject);
+    await t.db.prepare('UPDATE organization_settings SET org_name = ? WHERE org_id = ?').bind('이름만 있음', admin.orgId).run();
+    const nameOnly = await (await request('/me')).json() as MeResponse;
+    expect(nameOnly.institution.initialSetupState).toBe('not_set_up');
+    await t.db.prepare('UPDATE users SET auth_subject = ? WHERE id = ?').bind(crypto.randomUUID(), admin.userId).run();
+    const changedSubject = await (await request('/me')).json() as MeResponse;
+    expect(changedSubject.institution.creatorLinkState).toBe('unlinked');
+    await seedCreatorReceipt(admin, subject);
+    const duplicateReceipt = await (await request('/me')).json() as MeResponse;
+    expect(duplicateReceipt.institution.creatorLinkState).toBe('unlinked');
+  });
+
+  it.each([
+    ['foreign institution', testActors.otherOrgAdmin],
+    ['non-administrator', worker],
+  ] as const)('does not accept a creator linkage receipt for a %s', async (_boundary, creator) => {
+    await t.reset();
+    await seedCreatorReceipt(creator, crypto.randomUUID(), admin.orgId);
+    const me = await (await request('/me')).json() as MeResponse;
+    expect(me.institution.creatorLinkState).toBe('unlinked');
+  });
+
+  it('does not require Supabase creator linking on a Local installation', async () => {
+    await t.reset();
+    t.env.installationMode = 'local-single';
+    const me = await (await request('/me')).json() as MeResponse;
+    expect(me.institution).toMatchObject({ creatorLinkState: 'not_applicable', initialSetupState: 'not_set_up',
+      firstProgramAdmissionState: 'not_admitted' });
   });
 });

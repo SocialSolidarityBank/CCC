@@ -13772,18 +13772,53 @@ export async function getInstitutionReadiness(env: Env, actor: Actor | IdentityA
     domain, disclosureAvailable: providers.has(CONSENT_COPY[domain].provider),
   }));
   const orgName = row === null ? null : nullableString(row.org_name);
+  const firstProgram: InstitutionReadiness['firstProgram'] = program === null ? null : {
+    id: program.id, displayName: program.displayName, programType: program.programType,
+    status: program.status, version: program.version,
+    admissionState: context === null ? 'installation_unavailable' : programAdmissionState(program, context),
+  };
+  let creatorLinkState: InstitutionReadiness['creatorLinkState'] = 'unlinked';
+  if (env.installationMode === 'local-single' || env.installationMode === 'local-office') {
+    creatorLinkState = 'not_applicable';
+  } else if (env.installationMode === 'community-cloud') {
+    // The install lane designates the creator explicitly; arbitrary directory admins are not proof.
+    const receipts = await env.DB.prepare(
+      `SELECT receipt.detail, creator.auth_subject
+       FROM audit_log AS receipt
+       LEFT JOIN users AS creator ON creator.id = receipt.target_id AND creator.org_id = receipt.org_id
+         AND creator.active = 1 AND creator.role <> 'service'
+         AND EXISTS (SELECT 1 FROM user_role_assignments AS held
+           WHERE held.user_id = creator.id AND held.org_id = creator.org_id
+             AND held.role = 'institution_admin' AND held.revoked_at IS NULL)
+       WHERE receipt.org_id = ? AND receipt.actor_id = ? AND receipt.actor_role = 'service'
+         AND receipt.action = 'first_admin_linked' AND receipt.target_table = 'users'
+       LIMIT 2`,
+    ).bind(actor.orgId, `install:first-admin:${actor.orgId}`).all<DbRow>();
+    // Missing, conflicting or malformed receipts never report a successful creator link.
+    const receipt = receipts.results.length === 1 ? receipts.results[0] : undefined;
+    if (receipt !== undefined) {
+      const detail = parseJson<Record<string, unknown>>(receipt.detail);
+      const subject = nullableString(receipt.auth_subject);
+      if (detail !== null && typeof detail === 'object' && !Array.isArray(detail)
+        && Object.keys(detail).length === 3 && detail.schemaVersion === 1
+        && typeof detail.emailSha256 === 'string' && /^[a-f0-9]{64}$/.test(detail.emailSha256)
+        && typeof detail.authSubjectSha256 === 'string' && subject !== null && subject.trim().length > 0
+        && detail.authSubjectSha256 === await sha256Hex(subject)) {
+        creatorLinkState = 'linked';
+      }
+    }
+  }
   await writeAudit(env, { userId: user.id, orgId: user.orgId, role: user.role }, {
     action: 'read', targetTable: 'organization_settings', targetId: actor.orgId,
     detail: { institutionReadiness: true },
   });
   return {
     orgId: actor.orgId, orgName, settingsState: row === null ? 'missing' : 'present',
-    onboardingCompleted: orgName !== null,
-    firstProgram: program === null ? null : {
-      id: program.id, displayName: program.displayName, programType: program.programType,
-      status: program.status, version: program.version,
-      admissionState: context === null ? 'installation_unavailable' : programAdmissionState(program, context),
-    },
+    creatorLinkState,
+    initialSetupState: orgName !== null && orgName.trim().length > 0
+      && program?.displayName != null && program.displayName.trim().length > 0 ? 'complete' : 'not_set_up',
+    firstProgramAdmissionState: firstProgram?.status === 'active' && firstProgram.admissionState === 'ready' ? 'admitted' : 'not_admitted',
+    firstProgram,
     installationState: context === null ? 'unavailable' : 'available',
     retentionPolicyStatus: retention === null ? 'missing'
       : retention.piiPurgeGraceDays > RETENTION_POLICY_MAX_DAYS ? 'review_required' : 'configured',

@@ -13,8 +13,12 @@ export interface InstitutionReadiness {
   orgId: string;
   orgName: string | null;
   settingsState: 'present' | 'missing';
-  /** The existing one-time onboarding gate is org_name IS NOT NULL. */
-  onboardingCompleted: boolean;
+  /** Cloud requires an installer receipt bound to the designated administrator's auth_subject. */
+  creatorLinkState: 'unlinked' | 'linked' | 'not_applicable';
+  /** Both the persisted institution name and named initial-program link must exist. */
+  initialSetupState: 'not_set_up' | 'complete';
+  /** The linked first program must be active and pass the current admission policy. */
+  firstProgramAdmissionState: 'not_admitted' | 'admitted';
   /** Only the persisted initial_program_id link; never the first listing result. */
   firstProgram: (ProgramOption & { status: 'active' | 'closed'; version: number }) | null;
   installationState: 'available' | 'unavailable';
