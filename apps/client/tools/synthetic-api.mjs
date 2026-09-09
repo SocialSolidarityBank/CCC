@@ -29,7 +29,35 @@ export function createSyntheticState() {
     records: [],
     draftDecision: null,
     scheduleVersion: 2,
+    consentEvents: new Map(),
+    retention: [{
+      beneficiaryId: 'swallow-003', status: 'pending', archivedAt: '2026-09-01T00:00:00.000Z',
+      reviewDueAt: '2026-09-20T00:00:00.000Z', retentionCapDueAt: '2027-09-01T00:00:00.000Z',
+      reasonKind: null, retainUntil: null,
+    }],
     calls: [],
+  };
+}
+
+const CONSENT_DOMAINS = [
+  'personal_data_collection_use', 'sensitive_information_processing', 'counseling_recording',
+  'external_stt_processing', 'external_llm_cross_border_processing', 'voice_original_retention_period',
+];
+
+/** 합성 고지문. 실제 기관 문안이 아니고 실제 사업자 연결도 없다. */
+function syntheticDisclosure(domain) {
+  const external = domain === 'external_stt_processing' || domain === 'external_llm_cross_border_processing';
+  return {
+    snapshotId: `d0000000-0000-4000-8000-${String(CONSENT_DOMAINS.indexOf(domain) + 1).padStart(12, '0')}`,
+    scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: USER_ID, supportCaseId: CASE_ID },
+    domain,
+    fullKoreanCopy: `합성 고지문입니다. ${domain} 영역의 처리 목적과 보관 기간을 설명합니다.`,
+    provider: external ? (domain === 'external_stt_processing' ? 'azure' : 'openai') : 'institution',
+    providerLegalRecipient: external ? '합성 사업자' : '기관',
+    country: external ? 'KR' : null,
+    purpose: null, retentionProfile: 'p1y', retentionDuration: 'p1y',
+    copyVersion: 'synthetic-consent-v1', copyHash: `hash-${domain}`,
+    issuedAt: '2026-09-09T00:00:00.000Z', expiresAt: '2027-09-09T00:00:00.000Z',
   };
 }
 
@@ -81,7 +109,14 @@ export function handleAuth(request, state, clientOrigin) {
     // 새 비밀번호 로그인은 언제나 aal1에서 시작한다. 앞선 검수가 올려 둔 상태를 물려받으면
     // 추가 인증을 건너뛴 것처럼 보여 하네스가 제품 증거를 오염시킨다.
     // refresh_token 교환은 지금 검증된 세션의 단계를 그대로 유지한다.
-    if (url.searchParams.get('grant_type') === 'password') state.mfaLevel = 'aal1';
+    if (url.searchParams.get('grant_type') === 'password') {
+      state.mfaLevel = 'aal1';
+      // 검수용 역할 선택. 합성 계정 이름만 보고 정하며 실제 권한 판정은 서버 몫이다.
+      return request.json().then((body) => {
+        state.role = typeof body?.email === 'string' && body.email.startsWith('admin@') ? 'institution-admin' : 'worker';
+        return json(session(), 200, cors);
+      }).catch(() => json(session(), 200, cors));
+    }
     return json(session(), 200, cors);
   }
   if (url.pathname === '/auth/v1/user') return json(authUser(), 200, cors);
@@ -211,6 +246,42 @@ export function handleApi(request, state, options) {
       name: '김합성', phone: '010-0000-0000', email: null, account: null,
       birthDate: '1980-03-05', region: '서울', gender: null,
     }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/consent` && request.method === 'GET') {
+    return json({ consent: CONSENT_DOMAINS.map((domain) => {
+      const event = state.consentEvents.get(domain) ?? null;
+      return {
+        domain,
+        state: event === null ? 'unconfirmed' : event.decision === 'grant' ? 'granted' : 'not_granted',
+        provider: syntheticDisclosure(domain).provider,
+        providerLegalRecipient: syntheticDisclosure(domain).providerLegalRecipient,
+        providerCountry: syntheticDisclosure(domain).country,
+        purpose: syntheticDisclosure(domain).purpose,
+        retentionDuration: syntheticDisclosure(domain).retentionDuration,
+        effectiveAt: event?.effectiveAt ?? null, eventId: event?.id ?? null,
+        revision: event?.revision ?? null, eventSequence: event?.sequence ?? null,
+      };
+    }) }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/consent/disclosures` && request.method === 'GET') {
+    return json({ disclosures: CONSENT_DOMAINS.map(syntheticDisclosure) }, 200, cors);
+  }
+  if (path === `/support-cases/${CASE_ID}/consent-events` && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (!CONSENT_DOMAINS.includes(body.domain)) return json({ error: 'invalid_request' }, 400, cors);
+      const disclosure = syntheticDisclosure(body.domain);
+      if (body.copyHash !== disclosure.copyHash || body.disclosureSnapshotId !== disclosure.snapshotId) {
+        return json({ error: 'invalid_request' }, 400, cors);
+      }
+      const previous = state.consentEvents.get(body.domain) ?? null;
+      const event = {
+        id: `f1000000-0000-4000-8000-${String(state.consentEvents.size + 1).padStart(12, '0')}`,
+        decision: body.decision, effectiveAt: body.effectiveAt,
+        revision: (previous?.revision ?? 0) + 1, sequence: state.consentEvents.size + 1,
+      };
+      state.consentEvents.set(body.domain, event);
+      return json(event, 201, cors);
+    });
   }
   if (path === `/support-cases/${CASE_ID}/consent` && request.method === 'PUT') {
     return request.json().then((body) => {
@@ -371,6 +442,37 @@ export function handleApi(request, state, options) {
         role: 'secondary', status: 'requested', acceptanceRequestedBy: 'user-1', acceptedAt: null,
         transferReason: body.reason, notifiedBy: null, notifiedAt: null, assignedAt: new Date().toISOString(),
       }, 201, cors);
+    });
+  }
+  if (path === '/organization/profile' && request.method === 'GET') {
+    return json({ orgId: 'org-1', orgName: '합성 기관', programDisplayName: '합성 사업' }, 200, cors);
+  }
+  if (path === '/settings/counseling-memory' && request.method === 'GET') {
+    return json({
+      enabled: false, version: 1, pendingCases: 2, blockedCases: 1, failedCases: 0, lastSuccessAt: null,
+    }, 200, cors);
+  }
+  if (path.startsWith('/audit-log') && request.method === 'GET') {
+    return json({ items: [{
+      id: 1, actorId: USER_ID, actorRole: 'admin', action: 'read_participant_pii',
+      targetTable: 'participant_pii_vault', beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
+      createdAt: '2026-09-09T01:00:00.000Z',
+    }], nextCursor: null }, 200, cors);
+  }
+  if (path === '/pii-retention/reviews' && request.method === 'GET') {
+    return json({ reviews: state.retention }, 200, cors);
+  }
+  if (/^\/pii-retention\/reviews\/[^/]+$/.test(path) && request.method === 'POST') {
+    return request.json().then((body) => {
+      const target = state.retention[0];
+      if (body.decision === 'retain') {
+        target.status = 'retained';
+        target.reasonKind = body.reasonKind;
+        target.retainUntil = body.retainUntil;
+      } else {
+        target.status = 'purged';
+      }
+      return json(target, 200, cors);
     });
   }
   if (path === '/settings/accounts' && request.method === 'GET') {

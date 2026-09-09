@@ -1,7 +1,8 @@
 import type { HumanRole } from './api';
 
 export interface ShellDestination {
-  id: 'account' | 'schedule' | 'schedule-register' | 'participants' | 'participant-register' | 'onboarding' | 'system';
+  id: 'account' | 'schedule' | 'schedule-register' | 'participants' | 'participant-register'
+    | 'onboarding' | 'system' | 'institution-profile' | 'memory' | 'audit' | 'retention';
   title: string;
   href: string;
   roles: readonly HumanRole[];
@@ -15,6 +16,10 @@ const destinations: readonly ShellDestination[] = [
   { id: 'participant-register', title: '당사자 등록', href: '/participants/new', roles: ['institution-admin', 'worker'] },
   { id: 'onboarding', title: '기관 준비', href: '/onboarding', roles: ['institution-admin'] },
   { id: 'system', title: '연결 상태', href: '/settings?module=system', roles: ['institution-admin', 'technical-admin'] },
+  { id: 'institution-profile', title: '기관 정보', href: '/settings?module=institution-profile', roles: ['institution-admin'] },
+  { id: 'memory', title: '기관 상담 기억', href: '/settings?module=memory', roles: ['institution-admin'] },
+  { id: 'audit', title: '감사 기록', href: '/settings?module=audit', roles: ['institution-admin'] },
+  { id: 'retention', title: '개인정보 보존 검토', href: '/settings?module=retention', roles: ['institution-admin'] },
 ];
 
 /** 사람 ID만 받는다. 케이스 ID나 경로가 섞인 값은 상세 화면으로 인정하지 않는다. */
@@ -23,8 +28,13 @@ const PARTICIPANT_DETAIL = /^\/participants\/([A-Za-z0-9_-]{1,200})(\/edit)?$/;
 const BRIEFING = /^\/participants\/[A-Za-z0-9_-]{1,200}\/programs\/[A-Za-z0-9-]{1,200}\/briefing$/;
 /** 상담 기록 확인하기와 상담 기록하기. 목록과 같은 권한 묶음을 쓴다. */
 const RECORDS = /^\/participants\/[A-Za-z0-9_-]{1,200}\/programs\/[A-Za-z0-9-]{1,200}\/records(\/new|\/intake|\/[A-Za-z0-9-]{1,200}\/review)?$/;
+/** 여섯 영역 동의 화면. 목록과 같은 권한 묶음을 쓴다. */
+const CONSENT = /^\/participants\/[A-Za-z0-9_-]{1,200}\/programs\/[A-Za-z0-9-]{1,200}\/consent$/;
 /** 계획 화면은 일정 하나를 받는다. */
 const SCHEDULE_PLAN = /^\/schedules\/[A-Za-z0-9-]{1,200}\/plan$/;
+
+/** `/settings` 아래 탭으로 열 수 있는 모듈. 목록에 없는 값은 주소로도 열리지 않는다. */
+const SETTINGS_MODULES: readonly string[] = ['account', 'system', 'institution-profile', 'memory', 'audit', 'retention'];
 
 export function canOpenDestination(destination: ShellDestination, roles: readonly HumanRole[]): boolean {
   return destination.roles.some((role) => roles.includes(role));
@@ -39,7 +49,7 @@ export function destinationAt(pathname: string, search: string): ShellDestinatio
   if (params.getAll('module').length > 1) return null;
   const module = params.get('module') ?? 'account';
   if (pathname === '/settings') {
-    return destinations.find((destination) => destination.id === module && (module === 'account' || module === 'system')) ?? null;
+    return destinations.find((destination) => destination.id === module && SETTINGS_MODULES.includes(module)) ?? null;
   }
   const exact = destinations.find((destination) => destination.href === pathname);
   if (exact !== undefined) return exact;
@@ -50,6 +60,9 @@ export function destinationAt(pathname: string, search: string): ShellDestinatio
   }
   if (participants !== undefined && BRIEFING.test(pathname)) {
     return { ...participants, title: '15초 페이지', href: pathname };
+  }
+  if (participants !== undefined && CONSENT.test(pathname)) {
+    return { ...participants, title: '여섯 영역 동의', href: pathname };
   }
   const records = RECORDS.exec(pathname);
   if (participants !== undefined && records !== null) {

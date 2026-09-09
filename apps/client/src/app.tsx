@@ -12,6 +12,7 @@ import { SettingsApi, type MyIdentity } from './business/api';
 import { InstitutionApi } from './business/institution';
 import { ParticipantsApi } from './business/participants';
 import { AiReviewApi } from './business/ai-review';
+import { ConsentApi } from './business/consent';
 import { IntakeApi } from './business/intake';
 import { CaseWorkApi, RecordsApi } from './business/records';
 import { SchedulesApi } from './business/schedules';
@@ -25,10 +26,11 @@ import {
 } from './screens/schedules';
 import { RecordCreateScreen, RecordListScreen, RecordReviewScreen } from './screens/records';
 import { IntakeScreen } from './screens/intake';
+import { ConsentScreen } from './screens/consent';
+import { SettingsScreen } from './screens/settings';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
 import { canOpenDestination, destinationAt, visibleDestinations } from './business/navigation';
-import { AccountModule } from './business/settings-modules';
 import { BusinessTransport } from './business/transport';
 import { SttTrialPage } from './stt-trial/stt-trial-page';
 
@@ -126,6 +128,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
     const records = new RecordsApi(transport);
     const caseWork = new CaseWorkApi(transport);
     const intake = new IntakeApi(transport);
+    const consent = new ConsentApi(transport);
     const aiReview = new AiReviewApi(transport);
     let live = true;
     const unsubscribe = runtime.auth.subscribe(() => {
@@ -140,7 +143,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
         const me = await api.me();
         if (live) {
           setSession({
-            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, intake, aiReview, me, capabilities,
+            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, intake, consent, aiReview, me, capabilities,
             reloadIdentity: () => setIdentityNonce((current) => current + 1),
           });
         }
@@ -200,25 +203,6 @@ function BusinessShell() {
   </GridContainer>;
 }
 
-function SettingsScreen() {
-  const session = useOutletContext<Session>();
-  const location = useLocation();
-  if (destinationAt(location.pathname, location.search)?.id === 'system') {
-    const cap = session.capabilities;
-    return <WireCard title="서버가 확인한 연결 상태">
-      <WireDataRows>
-        <WireDataRow label="설치 방식" value={cap.mode} />
-        <WireDataRow label="음성 인식" value={cap.sttMode === 'off' ? '꺼짐' : cap.sttMode} />
-        <WireDataRow label="지정된 엔진" value={cap.sttEngine ?? '승인된 엔진 없음'} />
-        <WireDataRow label="AI 처리" value={cap.llmMode === 'off' ? '꺼짐' : cap.llmMode} />
-        <WireDataRow label="처리 장비" value={cap.agentStatus} />
-      </WireDataRows>
-      <WireCallout tone="info" title="확인 범위">서버가 응답한 설치 값입니다. 실제 인증, 장비 준비나 제품 활성화가 모두 완료됐다는 뜻은 아닙니다.</WireCallout>
-      <div className="business-actions"><WireButton variant="neutral" onClick={() => session.auth.recheck()}>상태 다시 확인</WireButton></div>
-    </WireCard>;
-  }
-  return <AccountModule me={session.me} api={session.api} onFailure={(error) => handleAuthFailure(session.auth, error)} />;
-}
 
 function PublicScreen({ kind }: { kind: 'welcome' | 'join' | 'institution' | 'missing' }) {
   const location = useLocation();
@@ -270,6 +254,7 @@ export const appRoutes: RouteObject[] = [{
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records', element: <RecordListScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/new', element: <RecordCreateScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/intake', element: <IntakeScreen /> },
+          { path: 'participants/:beneficiaryId/programs/:supportCaseId/consent', element: <ConsentScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review', element: <RecordReviewScreen /> },
           { path: 'schedule', element: <ScheduleScreen /> },
           { path: 'schedules/new', element: <ScheduleCreateScreen /> },

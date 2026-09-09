@@ -413,6 +413,10 @@ export function ParticipantHubScreen() {
               href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/briefing`}>
               15초 페이지
             </WireButton>
+            <WireButton variant="neutral"
+              href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/consent`}>
+              여섯 영역 동의
+            </WireButton>
           </div>
           <ProgramConsent program={program} session={session} onSaved={reload} />
         </> : <AssignmentRequestForm program={program} session={session} />}
