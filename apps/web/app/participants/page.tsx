@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { ApiError, listAssignedParticipants, type AssignedParticipant } from '../lib/api';
 import { GridContainer } from '../components/wire/grid-container';
 import { PageTitle } from '../components/wire/page-title';
@@ -28,6 +29,7 @@ export default async function ParticipantsPage() {
     participants = await listAssignedParticipants();
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
+    if (error.code === 'authentication_required') redirect('/preview');
     loadError = '당사자 목록을 불러올 수 없습니다. 접근 권한을 확인하세요.';
   }
 
