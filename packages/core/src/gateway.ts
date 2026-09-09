@@ -15001,9 +15001,10 @@ async function loadParticipantContacts(
   const contacts = new Map<string, ParticipantContact>();
   const unique = [...new Set(beneficiaryIds)];
   if (unique.length === 0) return contacts;
-  // D1은 문장 하나당 바인딩을 100개까지만 받는다. org_id가 한 자리를 쓰므로 당사자 ID는
-  // 99개씩 나눈다. 이 관문을 쓰는 목록과 일정 조회가 100명에서 함께 실패하지 않아야 한다.
-  const beneficiaryBatchSize = 99;
+  // D1 문서상 상한은 문장당 바인딩 100개지만, 프리뷰 운영 D1은 상한에 정확히 닿은
+  // 문장(org_id 1개 + 당사자 ID 99개)을 거부했다. 50개씩 나누면 100명 목록도 조회
+  // 문장 두 개로 끝나면서 어댑터와 런타임 차이를 위한 여유를 남긴다.
+  const beneficiaryBatchSize = 50;
   for (let offset = 0; offset < unique.length; offset += beneficiaryBatchSize) {
     const batch = unique.slice(offset, offset + beneficiaryBatchSize);
     const placeholders = batch.map(() => '?').join(', ');
