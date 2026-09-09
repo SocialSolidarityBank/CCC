@@ -3,12 +3,14 @@ import type { MyIdentity, SettingsApi } from './api';
 import type { CloudAuth } from './auth';
 import type { InstitutionApi } from './institution';
 import type { ParticipantsApi } from './participants';
+import type { SchedulesApi } from './schedules';
 
 /** 한 인증 상태에 속한 업무 화면의 입력. 토큰은 담지 않는다. */
 export interface Session {
   auth: CloudAuth;
   api: SettingsApi;
   participants: ParticipantsApi;
+  schedules: SchedulesApi;
   institution: InstitutionApi;
   me: MyIdentity;
   capabilities: CapabilityManifest;

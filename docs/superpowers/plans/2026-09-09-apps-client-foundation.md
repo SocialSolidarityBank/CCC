@@ -731,3 +731,67 @@ Main이 P2를 승인했다. 설치 검증과 실제 Auth/MFA/`/capabilities`/`/m
 `docs/superpowers/plans/2026-09-10-participant-screens-design-handoff.md` 8번에 소유자와 함께 적었다.
 목록 이메일·사업 이름, 허브 생년월일·진행 상태, 실무자 발 배정 요청, 관리자 등록의 첫 담당 실무자 선택이
 BACKEND 계약 대기이고, 잠김 전용 톤은 규칙 티켓이다. 교차 origin CORS와 hosted Auth는 여전히 미검증이다.
+
+## 17. P4 일정과 15초 페이지, 그리고 합성 미리보기 하네스
+
+### 결합한 backend
+
+검증된 `b3dcf35`(서명된 독립 API 경계)를 로컬 merge했다. 충돌 0건, lock resolution 변경 0건,
+root lock SHA-256 불변이다. 이 계약으로 `apiBase`는 정확한 origin과 명시된 경로여야 하고
+Supabase Auth origin과 같을 필요가 없다.
+
+### 구현
+
+| 파일 | 역할 |
+| --- | --- |
+| `apps/client/src/business/schedules.ts` | 달 일정, 후보, 등록, 계획, 15초 페이지, 전체 목표 API와 decoder |
+| `apps/client/src/screens/schedules.tsx` | `/schedule`, `/schedules/new`, `/schedules/:id/plan`, 15초 페이지 |
+| `apps/client/src/business/transport.ts` | `/schedules/month`의 `month` 질의만 추가 허용 |
+| `apps/client/src/business/navigation.ts` | 일정과 등록 목적지, 계획과 15초 페이지 경로 권한 매핑 |
+
+날짜 경계는 서버가 준 기관 시간대(`timeZone`)로만 계산한다. 주간이 달을 걸치면 두 달을 받아 합치고,
+브라우저 시간대로 날짜를 다시 만들지 않는다. 월간 7열 격자, 종일 일정, 업무 바 규격, 흐림은
+공유 부품이 없어 `docs/superpowers/plans/2026-09-10-schedule-briefing-design-handoff.md` 3번으로 넘겼다.
+
+### 합성 미리보기 하네스 (제품 코드 아님)
+
+`apps/client/tools/synthetic-preview.mjs`와 `synthetic-api.mjs`는 검수용 하네스다. 두 번째 애플리케이션도,
+영구적인 가짜 런타임도 아니며 제품 코드에 준비 완료 상태를 만들어 넣지 않는다.
+
+- 실행: `bun apps/client/tools/synthetic-preview.mjs --port 4173`
+- 포트: 클라이언트 `https://127.0.0.1:4173`, 독립 API `https://127.0.0.1:4174/api/v1`, 분리된 Auth `https://127.0.0.1:4175`
+- 로그인: 아무 이메일과 비밀번호, 인증 번호 `123456`. 다른 번호는 거부된다.
+- 인증서는 자체 서명이라 브라우저가 경고한다. 검수자가 경고를 넘긴 뒤 클라이언트 주소를 연다.
+
+**실제 backend로 바꿔 끼우는 자리는 두 곳뿐이다.**
+
+1. `bootstrap`과 `manifest` 생성: `synthetic-preview.mjs`가 `signInstallManifest`로 만든 manifest를
+   클라이언트 origin의 `/ccc-install-manifest.json`과 `/ccc-bootstrap.json`으로 낸다. 실제 설치는 같은 두
+   경로에 `install` 산출물을 두면 되고 클라이언트 코드는 그대로다. 서명 공개키는 빌드 시
+   `VITE_CCC_INSTALL_SIGNING_KEYS`로 들어간다.
+2. API listener: `synthetic-api.mjs`의 `handleApi`가 `apiBase` 경로 아래를 받는다. 실제로는 이 자리에
+   `createCommunityCloudRuntime` 기반 listener를 두고 같은 origin과 경로를 서명 manifest에 적으면 된다.
+   Auth listener(`handleAuth`)는 그때도 합성으로 남고, hosted Supabase Auth는 별도 관문이다.
+
+**합성 fixture 성공은 실제 backend 성공이 아니다.** 아래 검수 결과는 화면과 계약 소비의 증거이고,
+실제 `createCommunityCloudRuntime`과 제한 PostgreSQL 대상 검증은 Main이 수행한다.
+
+### 브라우저 검수 결과 (실제 HTTPS, 실제 교차 origin CORS)
+
+| 확인 항목 | 결과 |
+| --- | --- |
+| 잘못된 인증 번호 | 서버 거부를 그대로 표시하고 업무 화면으로 넘어가지 않음 |
+| 주간 보기 | 서버 시간대 `Asia/Seoul`과 기간이 표시되고 오늘 일정이 뜸 |
+| 월간 보기 | `?view=month&date=...`가 URL에 남고 같은 자료를 날짜별로 묶음 |
+| 등록 | 인테이크 여부로 상담 유형이 정해지는 이유를 표시, 저장 뒤 계획 화면 이동 |
+| 계획 저장 | `expectedVersion`으로 저장하고 서버 값으로 다시 읽음 |
+| 15초 페이지 | 확인된 리스크, AI 제안, 수기 배지, 불일치 양쪽 원문, 승인 대기 1건, 미해결 액션 모두 렌더 |
+| 전체 목표 저장 | 저장 뒤 서버 값이 다시 채워짐 |
+| 저장소 | `caches` 0개, service worker 0개, localStorage와 sessionStorage 키 0개 |
+
+### PWA는 여전히 미해결
+
+§15의 수용 조건이 그대로 남는다. 추가 제약: service worker는 경로와 무관하게 **어떤 API 응답과 설치
+메타데이터도 캐시하지 않는다**. `/functions/v1` 접두어로 판단하지 않고, 서명 manifest가 정한 `apiBase`와
+Auth origin, `/ccc-install-manifest.json`, `/ccc-bootstrap.json`을 모두 통과 대상으로 둔다. 명시적 통과 전까지
+P2는 완료가 아니다.

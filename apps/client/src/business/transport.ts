@@ -6,6 +6,8 @@ import { BusinessError, httpError, safeError } from './errors';
 const AUDIT_QUERY_KEYS = ['limit', 'cursor', 'actorId', 'from', 'to', 'supportCaseId'];
 const HISTORY_QUERY_KEYS = ['limit', 'cursor'];
 const CURSOR_QUERY_KEYS = ['cursor'];
+/** 일정 화면은 서버가 정한 달만 고른다. 임의 필터를 주소로 붙이지 않는다. */
+const MONTH_QUERY_KEYS = ['month'];
 
 /** 한 인증 상태에만 속한다. refresh, 계정 변경, 로그아웃 때 버리고 다시 검증한다. */
 export class BusinessTransport {
@@ -37,9 +39,10 @@ export class BusinessTransport {
     }
     if (query !== undefined) {
       const permitted = pathname === '/audit-log' ? AUDIT_QUERY_KEYS
-        : /^\/support-cases\/[^/]+\/export-history$/.test(pathname) ? HISTORY_QUERY_KEYS
-          : pathname === '/exports/cases' || pathname === '/settings/accounts' || pathname === '/settings/assignments/cases'
-            ? CURSOR_QUERY_KEYS : [];
+        : pathname === '/schedules/month' ? MONTH_QUERY_KEYS
+          : /^\/support-cases\/[^/]+\/export-history$/.test(pathname) ? HISTORY_QUERY_KEYS
+            : pathname === '/exports/cases' || pathname === '/settings/accounts' || pathname === '/settings/assignments/cases'
+              ? CURSOR_QUERY_KEYS : [];
       const seen = new Set<string>();
       for (const key of new URLSearchParams(query).keys()) {
         if (!permitted.includes(key) || seen.has(key)) throw new BusinessError('invalid_api_path');

@@ -34,6 +34,12 @@ describe('business navigation permission boundary', () => {
     expect(canOpenDestination(hub!, ['technical-admin'])).toBe(false);
     expect(destinationAt('/participants/new', '')?.id).toBe('participant-register');
     expect(destinationAt('/participants/swallow-003/records', '')).toBeNull();
+    const briefing = destinationAt('/participants/swallow-003/programs/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/briefing', '');
+    expect(briefing?.id).toBe('participants');
+    expect(briefing?.title).toBe('15초 페이지');
+    const plan = destinationAt('/schedules/2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10/plan', '');
+    expect(plan?.id).toBe('schedule');
+    expect(canOpenDestination(plan!, ['technical-admin'])).toBe(false);
     expect(destinationAt('/participants/swallow 003', '')).toBeNull();
   });
 
@@ -46,8 +52,8 @@ describe('business navigation permission boundary', () => {
 
   it('includes institution setup only for institution administrators', () => {
     expect(visibleDestinations(['institution-admin']).map((entry) => entry.id))
-      .toEqual(['account', 'participants', 'participant-register', 'onboarding', 'system']);
+      .toEqual(['account', 'schedule', 'schedule-register', 'participants', 'participant-register', 'onboarding', 'system']);
     expect(visibleDestinations(['supervisor']).map((entry) => entry.id))
-      .toEqual(['account', 'participants']);
+      .toEqual(['account', 'schedule', 'participants']);
   });
 });

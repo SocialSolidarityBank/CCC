@@ -11,11 +11,15 @@ import { AuthView } from './business/auth-view';
 import { SettingsApi, type MyIdentity } from './business/api';
 import { InstitutionApi } from './business/institution';
 import { ParticipantsApi } from './business/participants';
+import { SchedulesApi } from './business/schedules';
 import type { Session } from './business/session';
 import {
   ParticipantBasicInfoScreen, ParticipantHubScreen, ParticipantListScreen, ParticipantRegisterScreen,
 } from './screens/participants';
 import { InstitutionScreen } from './screens/institution';
+import {
+  BriefingScreen, ScheduleCreateScreen, SchedulePlanScreen, ScheduleScreen,
+} from './screens/schedules';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
 import { canOpenDestination, destinationAt, visibleDestinations } from './business/navigation';
@@ -113,6 +117,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
     const api = new SettingsApi(transport);
     const participants = new ParticipantsApi(transport);
     const institution = new InstitutionApi(transport);
+    const schedules = new SchedulesApi(transport);
     let live = true;
     const unsubscribe = runtime.auth.subscribe(() => {
       if (runtime.auth.getSnapshot().revision !== revision) {
@@ -126,7 +131,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
         const me = await api.me();
         if (live) {
           setSession({
-            auth: runtime.auth, api, participants, institution, me, capabilities,
+            auth: runtime.auth, api, participants, institution, schedules, me, capabilities,
             reloadIdentity: () => setIdentityNonce((current) => current + 1),
           });
         }
@@ -252,6 +257,10 @@ export const appRoutes: RouteObject[] = [{
           { path: 'participants/new', element: <ParticipantRegisterScreen /> },
           { path: 'participants/:beneficiaryId', element: <ParticipantHubScreen /> },
           { path: 'participants/:beneficiaryId/edit', element: <ParticipantBasicInfoScreen /> },
+          { path: 'participants/:beneficiaryId/programs/:supportCaseId/briefing', element: <BriefingScreen /> },
+          { path: 'schedule', element: <ScheduleScreen /> },
+          { path: 'schedules/new', element: <ScheduleCreateScreen /> },
+          { path: 'schedules/:scheduleId/plan', element: <SchedulePlanScreen /> },
         ] },
       ] },
     ] },
