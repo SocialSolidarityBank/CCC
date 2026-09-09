@@ -26,6 +26,7 @@ export const checkpoints = [
   { id: 'ai-draft-canonical-consent', sqlite: '0053_ai_draft_canonical_consent.sql', postgres: '0009_ai_draft_canonical_consent.sql' },
   { id: 'program-admission', sqlite: '0054_program_admission.sql', postgres: '0010_program_admission.sql' },
   { id: 'account-settings', sqlite: '0055_account_settings.sql', postgres: '0011_account_settings.sql' },
+  { id: 'schedule-display', sqlite: '0056_schedule_display.sql', postgres: '0012_schedule_display.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -96,6 +97,51 @@ export function checkpointSources() {
     sqlite: index === 0 ? sqlite.slice(0, boundary + 1) : [sqlite[boundary + index]!],
     postgres: [postgres[index]!],
   }));
+}
+
+/** Seed before the display migration so historical midnight data is part of the proof. */
+export async function seedScheduleDisplaySchema(db: Database): Promise<void> {
+  const org = 'parity-schedule-org', user = 'parity-schedule-user', beneficiary = 'A902';
+  const stamp = '2026-07-16T00:00:00.000Z';
+  await db.prepare('INSERT INTO organization_settings (org_id, time_zone, pii_purge_grace_days) VALUES (?, ?, ?)')
+    .bind(org, 'UTC', 180).run();
+  await db.prepare('INSERT INTO programs (id, org_id) VALUES (?, ?)').bind('parity-schedule-program', org).run();
+  await db.prepare('INSERT INTO users (id, org_id, email, role, active, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(user, org, 'schedule@example.invalid', 'counselor', 1, stamp).run();
+  await db.prepare('INSERT INTO beneficiaries (id, org_id, initialization_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(beneficiary, org, 'pending', stamp, stamp).run();
+  await db.prepare(`INSERT INTO support_cases
+    (id, org_id, beneficiary_id, legacy_case_id, program_id, status, creation_kind, intake_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind('parity-schedule-case', org, beneficiary, beneficiary, 'parity-schedule-program', 'active', 'initial', stamp, stamp, stamp).run();
+  await db.prepare(`INSERT INTO counseling_schedules
+    (id, org_id, beneficiary_id, support_case_id, scheduled_at, status, version, created_by_actor_id, updated_by_actor_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind('parity-schedule', org, beneficiary, 'parity-schedule-case', stamp, 'scheduled', 1, user, user, stamp, stamp).run();
+}
+
+export async function proveScheduleDisplaySchema(db: Database): Promise<void> {
+  const read = () => db.prepare('SELECT scheduled_at, all_day, display_color FROM counseling_schedules WHERE id = ?')
+    .bind('parity-schedule').first();
+  expect(await read()).toEqual({ scheduled_at: '2026-07-16T00:00:00.000Z', all_day: 0, display_color: null });
+  const at = '2026-07-16T13:30:00.000Z';
+  for (const color of ['mint', 'lavender', 'coral', 'cyan', 'light-magenta']) {
+    await db.prepare('UPDATE counseling_schedules SET scheduled_at = ?, all_day = 1, display_color = ?, version = version + 1 WHERE id = ?')
+      .bind(at, color, 'parity-schedule').run();
+    expect(await read()).toEqual({ scheduled_at: at, all_day: 1, display_color: color });
+  }
+  for (const value of [-1, 2, null]) {
+    await expect(db.prepare('UPDATE counseling_schedules SET all_day = ?, version = version + 1 WHERE id = ?')
+      .bind(value, 'parity-schedule').run()).rejects.toMatchObject({ kind: 'constraint' });
+  }
+  for (const value of ['blue', '']) {
+    await expect(db.prepare('UPDATE counseling_schedules SET display_color = ?, version = version + 1 WHERE id = ?')
+      .bind(value, 'parity-schedule').run()).rejects.toMatchObject({ kind: 'constraint' });
+  }
+  expect(await read()).toEqual({ scheduled_at: at, all_day: 1, display_color: 'light-magenta' });
+  await db.prepare('UPDATE counseling_schedules SET all_day = 0, display_color = NULL, version = version + 1 WHERE id = ?')
+    .bind('parity-schedule').run();
+  expect(await read()).toEqual({ scheduled_at: at, all_day: 0, display_color: null });
 }
 export async function openParityDatabase(profile: Profile, harness: PostgresHarness): Promise<ParityDatabase> {
   if (profile === 'postgres') {

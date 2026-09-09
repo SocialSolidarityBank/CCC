@@ -5,6 +5,7 @@ import {
   PARITY_MANIFEST_PATH, assertFingerprint, assertLogicalParity, canonical, checkpointSources,
   collectCatalog, dialectSemantics, fingerprint, hash, identifier, openParityDatabase,
   physicalRules, timestampInventory, type Catalog, type ParityDatabase, type TimestampColumn,
+  seedScheduleDisplaySchema, proveScheduleDisplaySchema,
 } from './support/migration-parity';
 
 let harness: PostgresHarness;
@@ -443,6 +444,9 @@ describe('S1 live migration parity', () => {
             ).bind('parity-admission-org', 'UTC', 180).run();
           }
         }
+        if (checkpoint.id === 'schedule-display') {
+          for (const fixture of [sqlite, postgres]) await seedScheduleDisplaySchema(fixture.db);
+        }
         await sqlite.apply(checkpoint.sqlite);
         await postgres.apply(checkpoint.postgres);
         const left = await collectCatalog(sqlite);
@@ -453,6 +457,9 @@ describe('S1 live migration parity', () => {
         if (checkpoint.id === 'program-admission') {
           await proveProgramAdmissionSchema(sqlite);
           await proveProgramAdmissionSchema(postgres);
+        }
+        if (checkpoint.id === 'schedule-display') {
+          for (const fixture of [sqlite, postgres]) await proveScheduleDisplaySchema(fixture.db);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);

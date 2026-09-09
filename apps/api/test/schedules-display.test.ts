@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openEncryptedSqlite } from '@ccc/db-sqlite';
+import { checkpointSources, seedScheduleDisplaySchema, proveScheduleDisplaySchema } from './support/migration-parity';
 import worker from './support/local-worker';
 import { createBeneficiaryWithInitialSupportCase, createCounselingSchedule, getNextCounselingScheduleForSupportCase, listSupportCasesForBeneficiary, getParticipantBriefing } from '@ccc/core/gateway';
 import { setupD1, testActors, testProgramId } from './support/d1';
@@ -81,6 +85,18 @@ describe('D88 explicit schedule display contract', () => {
 });
 
 describe('D88 forward SQLite upgrade', () => {
+  it('replays the registered checkpoint through the shared live semantic proof', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ccc-schedule-checkpoint-'));
+    const db = openEncryptedSqlite({ filename: join(directory, 'proof.db'), key: new Uint8Array(32).fill(19) });
+    try {
+      const sources = checkpointSources();
+      for (const checkpoint of sources) {
+        if (checkpoint.id === 'schedule-display') await seedScheduleDisplaySchema(db);
+        await db.applyMigrations(checkpoint.sqlite);
+      }
+      await proveScheduleDisplaySchema(db);
+    } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
+  });
   it('preserves preexisting midnight appointments and enforces storage domains', () => {
     const db = new DatabaseSync(':memory:');
     try {
