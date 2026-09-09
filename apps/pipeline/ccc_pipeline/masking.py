@@ -128,13 +128,120 @@ _METRO_NAMES = (
     "경남",
 )
 _METRO = "(?:" + "|".join(map(re.escape, _METRO_NAMES)) + ")"
+_CITY_NAMES = (
+    "수원시",
+    "고양시",
+    "용인시",
+    "성남시",
+    "부천시",
+    "화성시",
+    "안산시",
+    "남양주시",
+    "안양시",
+    "평택시",
+    "시흥시",
+    "파주시",
+    "의정부시",
+    "김포시",
+    "광주시",
+    "광명시",
+    "군포시",
+    "하남시",
+    "오산시",
+    "양주시",
+    "이천시",
+    "구리시",
+    "안성시",
+    "포천시",
+    "의왕시",
+    "여주시",
+    "동두천시",
+    "과천시",
+    "춘천시",
+    "원주시",
+    "강릉시",
+    "동해시",
+    "태백시",
+    "속초시",
+    "삼척시",
+    "청주시",
+    "충주시",
+    "제천시",
+    "천안시",
+    "공주시",
+    "보령시",
+    "아산시",
+    "서산시",
+    "논산시",
+    "계룡시",
+    "당진시",
+    "전주시",
+    "군산시",
+    "익산시",
+    "정읍시",
+    "남원시",
+    "김제시",
+    "목포시",
+    "여수시",
+    "순천시",
+    "나주시",
+    "광양시",
+    "포항시",
+    "경주시",
+    "김천시",
+    "안동시",
+    "구미시",
+    "영주시",
+    "영천시",
+    "상주시",
+    "문경시",
+    "경산시",
+    "창원시",
+    "진주시",
+    "통영시",
+    "사천시",
+    "김해시",
+    "밀양시",
+    "거제시",
+    "양산시",
+    "제주시",
+    "서귀포시",
+)
+_CITY = "(?:" + "|".join(map(re.escape, _CITY_NAMES)) + ")"
 # 읍/면/동/리 접미사와 조사만으로는 지역으로 보지 않는다. 이 하위 이름들은
 # 명시된 광역 또는 시/군/구 뒤의 행정구역 계층 안에서만 인식한다.
 _LOCAL_ADMIN = r"[가-힣]{1,12}(?:시|군|구|읍|면|동|리)"
 _NON_METRO_LOCAL_ADMIN = rf"(?!(?:{_METRO})(?=\s)){_LOCAL_ADMIN}"
 _ADMIN_CHAIN = rf"{_NON_METRO_LOCAL_ADMIN}(?:\s+{_NON_METRO_LOCAL_ADMIN}){{0,2}}"
 _REGION_END = r"(?=$|[\s,.;:!?)]|(?:에서|으로|까지|부터|에|로|은|는|이|가|을|를|와|과|의)(?=$|[\s,.;:!?)]))"
-_BARE_DISTRICT = r"(?:[가-힣]{2,12}(?:시|군|구)|[중동서남북]구)"
+_NON_REGION_SUFFIX_WORDS = (
+    "지역구",
+    "선거구",
+    "행정구",
+    "자치구",
+    "출입구",
+    "비상구",
+    "환기구",
+    "환풍구",
+    "통풍구",
+    "개찰구",
+    "투입구",
+    "배출구",
+    "배수구",
+    "하수구",
+    "매표구",
+    "연합군",
+    "정부군",
+    "유엔군",
+    "예비군",
+    "시민군",
+    "의용군",
+)
+_NON_REGION_SUFFIX_WORD = "(?:" + "|".join(map(re.escape, _NON_REGION_SUFFIX_WORDS)) + ")"
+_BARE_DISTRICT = (
+    rf"(?!(?:{_NON_REGION_SUFFIX_WORD}){_REGION_END})"
+    rf"(?:{_CITY}|[가-힣]{{2,12}}(?:군|구)|[중동서남북]구)"
+)
 _REGION_WITH_SUBREGION = re.compile(
     rf"(?<![가-힣])(?P<metro>{_METRO})\s+"
     rf"(?P<subregions>{_ADMIN_CHAIN}){_REGION_END}",
@@ -352,6 +459,7 @@ def _address_spans(text: str) -> list[tuple[int, int]]:
     return spans
 
 
+
 def _generalize_regions(text: str, report: MaskingReport) -> str:
     address_spans = _address_spans(text)
 
@@ -366,7 +474,8 @@ def _generalize_regions(text: str, report: MaskingReport) -> str:
 
     for match in _LOCAL_REGION.finditer(text):
         if inside_address(match) or any(
-            metro.start() <= match.start() and match.end() <= metro.end() for metro in metro_matches
+            metro.start() <= match.start() and match.end() <= metro.end()
+            for metro in metro_matches
         ):
             continue
         replacements.append((match.start(), match.end(), REGION_TOKEN))

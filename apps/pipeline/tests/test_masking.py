@@ -233,6 +233,15 @@ class QuasiIdentifierGeneralizationTest(unittest.TestCase):
             "수원시 팔달구로 갔다": f"{masking.REGION_TOKEN}로 갔다",
             "은평구에 갔다": f"{masking.REGION_TOKEN}에 갔다",
             "수원시 팔달구 매산동에서 상담했다": f"{masking.REGION_TOKEN}에서 상담했다",
+            "수원시에 갔다": f"{masking.REGION_TOKEN}에 갔다",
+            "구리시 방문 기록": f"{masking.REGION_TOKEN} 방문 기록",
+            "은평구에 산다": f"{masking.REGION_TOKEN}에 산다",
+            "은평구에 삽니다": f"{masking.REGION_TOKEN}에 삽니다",
+            "은평구에 사는 집": f"{masking.REGION_TOKEN}에 사는 집",
+            "은평구에 있는 집": f"{masking.REGION_TOKEN}에 있는 집",
+            "은평구에서 지내고 있다": f"{masking.REGION_TOKEN}에서 지내고 있다",
+            "은평구에 다닌다": f"{masking.REGION_TOKEN}에 다닌다",
+            "은평구 근처에 산다": f"{masking.REGION_TOKEN} 근처에 산다",
         }
         for source, expected in cases.items():
             with self.subTest(source=source):
@@ -244,8 +253,35 @@ class QuasiIdentifierGeneralizationTest(unittest.TestCase):
         self.assertEqual(masking.mask_text(source), expected)
 
     def test_keeps_non_location_words_with_administrative_suffixes(self):
-        source = "목소리가 작고 활동을 정리한 친구와 상담했다. 활동에 참여했고 목소리로 답했다."
-        self.assertEqual(masking.mask_text(source), source)
+        for source in (
+            "목소리가 작고 활동을 정리한 친구와 상담했다. 활동에 참여했고 목소리로 답했다.",
+            "아홉시 30분에 만났다",
+            "아홉시에 도착했다",
+            "회의는 아홉시.",
+            "아홉시 운동을 시작했다",
+            "평상시에 쉬었다",
+            "필요시 연락한다",
+            "비상시 연락한다",
+            "유사시 대피한다",
+            "지역구 의원을 만났다",
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(masking.mask_text(source), source)
+
+    def test_does_not_classify_common_suffix_nouns_as_regions(self):
+        for source in (
+            "출입구 앞에서 만났다",
+            "비상구 위치를 확인했다",
+            "환기구와 환풍구를 청소했다",
+            "통풍구와 배수구를 점검했다",
+            "개찰구와 매표구를 지나갔다",
+            "투입구와 배출구를 막았다",
+            "하수구가 막혔다",
+            "예비군 훈련에 갔다",
+            "시민군과 의용군을 설명했다",
+        ):
+            with self.subTest(source=source):
+                self.assertNotIn(masking.REGION_TOKEN, masking.mask_text(source))
 
     def test_does_not_classify_counter_phrases_and_unit_compounds_as_addresses(self):
         for source in (
