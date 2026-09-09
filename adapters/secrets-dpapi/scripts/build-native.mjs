@@ -17,6 +17,8 @@ try {
   for (const [file, hash] of Object.entries(expected.sources)) {
     if (sha256(await readFile(join(dep, file))) !== hash) throw new Error();
   }
+  const recordsHeader = await readFile(join(packageRoot, 'native/record_files.h'));
+  if (sha256(recordsHeader) !== expected.recordStorageSourceSha256 || expected.recordStorageVersion !== 1) throw new Error();
   for (const [name, version] of [['node-gyp', expected.nodeGyp], ['node-addon-api', expected.nodeAddonApi]]) {
     if (require(`${name}/package.json`).version !== version) throw new Error();
   }
@@ -25,6 +27,11 @@ try {
   const source = join(out, 'source');
   await mkdir(join(source, 'src'), { recursive: true });
   for (const file of Object.keys(expected.sources)) await copyFile(join(dep, file), join(source, file));
+  await writeFile(join(source, 'src/ccc_record_files.h'), recordsHeader);
+  let main = await readFile(join(source, 'src/main.cpp'), 'utf8');
+  if (main.split('return exports;').length !== 2) throw new Error();
+  main = '#include "ccc_record_files.h"\n' + main.replace('return exports;', 'ccc_records::Export(env, exports);\n\treturn exports;');
+  await writeFile(join(source, 'src/main.cpp'), main);
   let gyp = await readFile(join(source, 'binding.gyp'), 'utf8');
   const include = require.resolve('node-addon-api/package.json').replace(/[/\\]package\.json$/, '').replaceAll('\\', '/');
   const includeExpression = String.raw`<!(node -p "require(\'node-addon-api\').include_dir")`;
@@ -33,7 +40,7 @@ try {
   await writeFile(join(source, 'binding.gyp'), gyp);
   const result = spawnSync(process.execPath, [require.resolve('node-gyp/bin/node-gyp.js'), 'rebuild', `--arch=${process.arch}`], { cwd: source, encoding: 'utf8', timeout: 300_000, maxBuffer: 4 * 1024 * 1024 });
   if (result.status !== 0 || result.error) throw new Error();
-  const receipt = { sourceProvenanceSha256: sha256(provenanceBytes), platform: process.platform, arch: process.arch, node: process.version, nodeGyp: expected.nodeGyp, nodeAddonApi: expected.nodeAddonApi, configuredBindingSha256: sha256(gyp), binarySha256: sha256(await readFile(join(source, 'build/Release/dpapi.node'))) };
+  const receipt = { sourceProvenanceSha256: sha256(provenanceBytes), platform: process.platform, arch: process.arch, node: process.version, nodeGyp: expected.nodeGyp, nodeAddonApi: expected.nodeAddonApi, configuredBindingSha256: sha256(gyp), configuredMainSha256: sha256(main), binarySha256: sha256(await readFile(join(source, 'build/Release/dpapi.node'))) };
   await writeFile(join(out, 'provenance.json'), JSON.stringify(receipt, null, 2) + '\n');
   // Synthetic only: verifies the rebuilt path, byte subviews and native scope rejection.
   const native = loadNative();

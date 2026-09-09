@@ -3,11 +3,22 @@
   "version": "0.5.1",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "imports": { "#dpapi-store": "./src/store.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./records": "./src/record-file.ts",
+    "./recovery-kit": "./src/recovery-kit.ts"
+  },
+  "imports": {
+    "#dpapi-store": "./src/store.ts",
+    "#recovery-cbor": "./src/cbor.ts",
+    "#protected-records": "./src/record-file.ts",
+    "#recovery-payload": "./src/recovery-payload.ts",
+    "#recovery-kit": "./src/recovery-kit.ts",
+    "#private-files": "./src/private-files.ts"
+  },
   "scripts": {
     "build:native": "node scripts/build-native.mjs",
-    "test": "node --test test/contract.test.ts test/native-loader.test.mjs"
+    "test": "node --test test/contract.test.ts test/native-loader.test.mjs test/recovery.test.ts"
   },
   "dependencies": {
     "@ccc/contracts": "workspace:*",

@@ -21,6 +21,9 @@ export function loadNative() {
     const binding = require(binary);
     if (binding.cccHardeningVersion !== expected.hardeningVersion
       || typeof binding.protectData !== 'function' || typeof binding.unprotectData !== 'function') throw new Error();
+    if (expected.recordStorageVersion !== 1 || binding.cccRecordStorageVersion !== expected.recordStorageVersion
+      || ['createPrivateDirectory', 'assertPrivateDirectory', 'assertPrivateFile', 'writePrivateTemporary', 'publishPrivateFile']
+        .some(name => typeof binding[name] !== 'function')) throw new Error();
     return binding;
   } catch { throw new Error('secret_access_denied'); }
 }

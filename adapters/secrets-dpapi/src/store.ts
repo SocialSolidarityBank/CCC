@@ -21,8 +21,8 @@ function material(name: Name, value: VersionedSecretBytes) {
 }
 function entropy(name: Name, version: number) { return new TextEncoder().encode(`CCC-DPAPI\0v1\0${name}\0${version}`); }
 
-/** Internal seam for synthetic tests. Production gets the verified binding only via index.ts. */
-export function byteStore(native: NativeDpapi, mode: 'local-single' | 'local-office', records: readonly DpapiRecord[]) {
+/** Copies only validated protected records; callers own and wipe the returned ciphertext. */
+export function copyDpapiRecords(mode: 'local-single' | 'local-office', records: readonly DpapiRecord[]): Map<Name, DpapiRecord> {
   if (mode !== 'local-single' && mode !== 'local-office') throw new Error('secret_invalid');
   const owned = new Map<Name, DpapiRecord>();
   try {
@@ -33,6 +33,12 @@ export function byteStore(native: NativeDpapi, mode: 'local-single' | 'local-off
       owned.set(record.name, { ...record, blob: new Uint8Array(record.blob) });
     }
   } catch { for (const record of owned.values()) record.blob.fill(0); throw new Error('secret_invalid'); }
+  return owned;
+}
+
+/** Internal seam for synthetic tests. Production gets the verified binding only via index.ts. */
+export function byteStore(native: NativeDpapi, mode: 'local-single' | 'local-office', records: readonly DpapiRecord[]) {
+  const owned = copyDpapiRecords(mode, records);
   let closed = false;
   return {
     async getBytesWithVersion(name: Name): Promise<VersionedSecretBytes | null> {

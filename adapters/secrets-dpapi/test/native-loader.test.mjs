@@ -17,7 +17,7 @@ test('loader rejects absent receipt, altered binary and unpatched marker before 
     await mkdir(join(root, 'src'), { recursive: true });
     await mkdir(join(root, 'native-build/source/build/Release'), { recursive: true });
     await copyFile(new URL('../src/native.mjs', import.meta.url), join(root, 'src/native.mjs'));
-    const expected = JSON.stringify({ hardeningVersion: 1 });
+    const expected = JSON.stringify({ hardeningVersion: 1, recordStorageVersion: 1 });
     await writeFile(join(root, 'native-provenance.json'), expected);
     const binary = join(root, 'native-build/source/build/Release/dpapi.node');
     await writeFile(binary, 'synthetic-unpatched-binary');
@@ -31,6 +31,9 @@ test('loader rejects absent receipt, altered binary and unpatched marker before 
     receipt.binarySha256 = sha256('synthetic-unpatched-binary');
     await writeFile(join(root, 'native-build/provenance.json'), JSON.stringify(receipt));
     assert.throws(loadNative, /^Error: secret_access_denied$/); assert.equal(loads, 1);
+    delete require.cache[require.resolve(binary)];
+    require.extensions['.node'] = module => { loads++; module.exports = { cccHardeningVersion: 1, protectData() {}, unprotectData() {} }; };
+    assert.throws(loadNative, /^Error: secret_access_denied$/); assert.equal(loads, 2);
   } finally {
     Object.defineProperty(process, 'platform', platform);
     require.extensions['.node'] = extension;

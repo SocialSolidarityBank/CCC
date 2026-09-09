@@ -6,6 +6,8 @@
   "tarballIntegrity": "sha512-uX756jYkiyHHJU1981oRJMg3FtCGlBGpGcztTs7SFxeh0L/c0aLQcooF61HQ9V3MdaCDPIi8yreN7MlISr4mJg==",
   "patchSha256": "9abd9c6f40fdba17aae8f8bbbc477cd3480256d2782a49e26456fe76539d61b8",
   "hardeningVersion": 1,
+  "recordStorageVersion": 1,
+  "recordStorageSourceSha256": "67ff688272a8185dec268e12b64fdc828d09c9d7e5fb6e7565423c4b18ac2539",
   "nodeGyp": "11.0.0",
   "nodeAddonApi": "8.9.2",
   "sources": {
