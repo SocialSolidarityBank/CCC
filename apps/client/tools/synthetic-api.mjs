@@ -30,6 +30,7 @@ export function createSyntheticState() {
     draftDecision: null,
     scheduleVersion: 2,
     consentEvents: new Map(),
+    lastRegistration: null,
     retention: [{
       beneficiaryId: 'swallow-003', status: 'pending', archivedAt: '2026-09-01T00:00:00.000Z',
       reviewDueAt: '2026-09-20T00:00:00.000Z', retentionCapDueAt: '2027-09-01T00:00:00.000Z',
@@ -227,6 +228,23 @@ export function handleApi(request, state, options) {
       { id: 'program-2', displayName: '주거 지원', programType: 'financial_support_v1', admissionState: 'undecided' },
     ] }, 200, cors);
   }
+  if (path === '/participants' && request.method === 'POST') {
+    return request.json().then((body) => {
+      // 실제 서버와 같은 순서다: 개인정보 동의가 없고 긴급 사유도 없으면 하드 게이트가 막는다(D46).
+      state.lastRegistration = Object.keys(body).sort();
+      const emergency = typeof body.emergencyReason === 'string' && body.emergencyReason.trim() !== '';
+      if (!emergency && body.consentPrivacy !== true) {
+        return json({ error: 'privacy_consent_required' }, 422, cors);
+      }
+      return json({
+        beneficiaryId: 'otter-011', supportCaseId: '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20',
+        assignmentRole: 'primary', replayed: false,
+      }, 201, cors);
+    });
+  }
+  if (path === '/debug/last-registration' && request.method === 'GET') {
+    return json({ keys: state.lastRegistration ?? [] }, 200, cors);
+  }
   if (path === '/participants/swallow-003/hub') {
     return json({
       beneficiaryId: 'swallow-003', restricted: false, participantName: '김합성', participantPhone: '010-0000-0000',
@@ -290,12 +308,7 @@ export function handleApi(request, state, options) {
       return json(event, 201, cors);
     });
   }
-  if (path === `/support-cases/${CASE_ID}/consent` && request.method === 'PUT') {
-    return request.json().then((body) => {
-      state.consent = { privacy: body.privacy === true, recordingAi: body.recordingAi === true };
-      return json({ supportCaseId: CASE_ID, ...state.consent, recordedAt: new Date().toISOString() }, 200, cors);
-    });
-  }
+
   if (path === `/support-cases/${CASE_ID}/overall-goal` && request.method === 'PUT') {
     return request.json().then((body) => {
       state.overallGoal = typeof body.overallGoal === 'string' && body.overallGoal !== '' ? body.overallGoal : null;

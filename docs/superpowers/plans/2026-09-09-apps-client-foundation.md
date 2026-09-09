@@ -870,3 +870,50 @@ AI 초안은 승인 뒤에만 목록의 핵심 한 줄로 오른다. `llmMode`�
   (`index.html`, `manifest.webmanifest`, `icon.svg`, 번들 js·css)뿐. `/api/v1/me` 는 캐시에 없음.
   서버를 내린 뒤 이동해도 셸과 정적 자산이 뜨고 저장됐다는 문구는 없다. 새 워커는 `installed`
   대기 상태로 남고 제어 워커와 페이지 상태가 그대로였다.
+
+## 20. 여섯 영역 동의 clean cutover (S7 §5.1.1, §6)
+
+### 없앤 것
+
+- `screens/participants.tsx` 의 `ProgramConsent`(옛 2종 체크 쓰기)와 등록 화면의
+  `개인정보 수집과 이용에 동의받았습니다`, `AI를 활용한 녹취기록에 동의받았습니다` 체크를 지웠다.
+- `ParticipantsApi.updateConsent`(`PUT /support-cases/:id/consent`) 호출부와 `ParticipantConsent`
+  타입, `register` 의 `consentPrivacy`·`consentRecordingAi` 본문 키를 지웠다. 합성 하네스의 옛
+  `PUT /consent` 경로도 함께 없앴다.
+- 별도 `/participants/:id/programs/:caseId/consent` 화면과 그 이동 버튼, 내비 매핑을 없앴다.
+  S7 §6 대로 여섯 영역은 당사자 정보의 참여 사업 구획 안(`business/consent-panel.tsx`)에 붙는다.
+- 허브의 `동의 기록 시각`(옛 컬럼) 행을 지웠다. 응답 모양은 계속 검증하고 화면으로는 내보내지 않는다.
+
+### 첫 등록 경로: 지금은 막혀 있다 (BACKEND 선행 조건)
+
+옛 불리언을 여섯 영역 사건으로 바꾸지 않았고, 개인정보 동의 게이트도 풀지 않았다. 그래서 일반
+등록은 서버 게이트가 그대로 막고(`privacy_consent_required`), 화면은 그 사실을 미리 알린다.
+긴급 등록 사유 경로(D46)는 그대로 열려 있다.
+
+필요한 계약 셋(모두 BACKEND 소유):
+
+1. **등록 전 고지문 발행.** 지금 고지문은 `GET /support-cases/:supportCaseId/consent/disclosures`
+   뿐이라 케이스가 있어야 나온다. 등록 시점에는 케이스가 없으므로 `(orgId, programId)` 로 묶인
+   `ConsentDisclosureSnapshot` 을 케이스 없이 발행하는 경로가 필요하다.
+2. **케이스 생성과 동의 사건의 원자적 생성.** `POST /participants` 가 여섯 영역 사건 배열
+   (`domain`, `decision`, `copyVersion`, `copyHash`, `disclosureSnapshotId`, `effectiveAt`,
+   `idempotencyKey`)을 받아 케이스 생성과 같은 트랜잭션에 기록해야 한다.
+3. **게이트 판정 근거 교체와 legacy 키 거부.** 등록 게이트가 `consentPrivacy` 불리언이 아니라
+   `consent_events` fold 를 읽어야 하고, 그 경로에서 legacy 키는 400 으로 거부해야 한다
+   (`packages/http-api/src/request-handler.ts` 의 `parseParticipantCreation` 은 지금
+   `optionalBoolean(body, 'consentPrivacy')` 로 받는다).
+
+### 실측 (합성 미리보기)
+
+- 허브: 여섯 영역 구획이 뜨고 `동의함` 을 누르면 `철회함` 이 생긴다. 옛 2종 체크, `동의 상태 저장`
+  버튼, `동의 기록 시각` 행, 별도 동의 화면 이동 버튼 모두 없다.
+- 옛 `/consent` 주소는 `요청한 페이지가 없습니다` 로 떨어진다.
+- 등록 화면: 막힘 안내가 뜨고 옛 동의 체크가 없다. 사업 도입 확인을 마친 뒤 일반 등록을 시도하면
+  서버가 `개인정보 수집과 이용 동의가 없어 등록할 수 없습니다` 로 거절하고 폼에 머문다.
+  긴급 등록 사유를 적으면 201 로 생성되어 당사자 정보로 이동한다.
+- 단위 회귀: 등록 본문 키가 `programId`, `emergencyReason`, `name` 뿐이고 허브 자료에
+  `consent`·`consentRecordedAt` 이 없다(`business/participants.test.ts`).
+
+### 상태
+
+P3, P5, P7 은 이 선행 조건 셋이 오기 전까지 완료로 표시하지 않는다.

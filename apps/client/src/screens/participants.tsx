@@ -6,6 +6,7 @@ import {
   ParticipantHeroCard, ParticipantName, type ParticipantHeroDetail,
 } from '@ccc/web/wire';
 import type { ProgramAdmissionState } from '@ccc/contracts/program-admission';
+import { ConsentPanel } from '../business/consent-panel';
 import { type BusinessError, safeError } from '../business/errors';
 import {
   BASIC_INFO_FIELDS, type BasicInfoField, type ParticipantBasicInfo, type ParticipantHub,
@@ -153,8 +154,6 @@ export function ParticipantRegisterScreen() {
   const { value: workers, error: workerError } = useLoaded<WorkerOption[]>(loadWorkers, onFailure);
   const [programId, setProgramId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
-  const [privacy, setPrivacy] = useState(false);
-  const [recordingAi, setRecordingAi] = useState(false);
   const [emergency, setEmergency] = useState(false);
   const [emergencyReason, setEmergencyReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -177,8 +176,6 @@ export function ParticipantRegisterScreen() {
     try {
       const created = await session.participants.register({
         programId,
-        consentPrivacy: privacy,
-        consentRecordingAi: recordingAi,
         ...(admin ? { initialAssigneeUserId: assigneeId } : {}),
         ...(emergency ? { emergencyReason } : {}),
         ...(text('name') === undefined ? {} : { name: text('name')! }),
@@ -245,18 +242,20 @@ export function ParticipantRegisterScreen() {
       <WireFormField label="성별" htmlFor="register-gender">
         <input id="register-gender" name="gender" autoComplete="off" disabled={busy || blocked !== null} />
       </WireFormField>
-      <WireChoice type="checkbox" label="개인정보 수집과 이용에 동의받았습니다" checked={privacy}
-        disabled={busy || blocked !== null} onChange={setPrivacy} />
-      <WireChoice type="checkbox" label="AI를 활용한 녹취기록에 동의받았습니다" checked={recordingAi}
-        disabled={busy || blocked !== null} onChange={setRecordingAi} />
-      {!privacy && <>
-        <WireChoice type="checkbox" label="개인정보 동의 없이 긴급 등록합니다" checked={emergency}
-          disabled={busy || blocked !== null} onChange={setEmergency} />
-        {emergency && <WireFormField label="긴급 등록 사유" htmlFor="register-emergency" required>
-          <input id="register-emergency" value={emergencyReason} required disabled={busy}
-            onChange={(event) => setEmergencyReason(event.target.value)} />
-        </WireFormField>}
-      </>}
+      {/* 옛 동의 2종 체크는 없앴다(S7 5.1.1). 여섯 영역 동의는 사업이 생긴 뒤 당사자 정보에서 받는다.
+          등록 시점에 쓸 사전 고지문 발행과 한 번에 처리하는 동의 생성 API 가 아직 없어, 일반 등록은
+          서버의 개인정보 동의 하드 게이트가 그대로 막는다. 화면이 기본 동의를 지어내지 않는다. */}
+      <WireCallout tone="info" title="일반 등록은 아직 막혀 있습니다">
+        여섯 영역 동의를 등록과 함께 받는 경로가 서버에 아직 없습니다. 지금 일반 등록을 시도하면
+        서버가 개인정보 동의가 없다는 이유로 거절합니다. 긴급 등록 사유를 적는 경로는 그대로 쓸 수 있고,
+        등록 뒤 당사자 정보 화면에서 여섯 영역 동의를 받습니다.
+      </WireCallout>
+      <WireChoice type="checkbox" label="개인정보 동의 없이 긴급 등록합니다" checked={emergency}
+        disabled={busy || blocked !== null} onChange={setEmergency} />
+      {emergency && <WireFormField label="긴급 등록 사유" htmlFor="register-emergency" required>
+        <input id="register-emergency" value={emergencyReason} required disabled={busy}
+          onChange={(event) => setEmergencyReason(event.target.value)} />
+      </WireFormField>}
       <div className="business-actions">
         <WireButton type="submit" variant="primary" disabled={busy || blocked !== null || programId === '' || (admin && assigneeId === '')}>
           등록하기
@@ -305,46 +304,6 @@ function AssignmentRequestForm({ program, session }: { program: ParticipantProgr
           <WireButton type="submit" variant="neutral" disabled={busy || reason.trim() === ''}>담당 배정 요청</WireButton>
         </div>
       </form>}
-  </>;
-}
-
-function ProgramConsent({ program, session, onSaved }: {
-  program: ParticipantProgram; session: Session; onSaved: () => void;
-}) {
-  const onFailure = useSessionFailure(session);
-  const current = program.consent ?? { privacy: false, recordingAi: false };
-  const [privacy, setPrivacy] = useState(current.privacy);
-  const [recordingAi, setRecordingAi] = useState(current.recordingAi);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<BusinessError | null>(null);
-  const changed = privacy !== current.privacy || recordingAi !== current.recordingAi;
-
-  const save = async () => {
-    if (busy || !changed) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await session.participants.updateConsent(program.id, { privacy, recordingAi });
-      onSaved();
-    } catch (cause) {
-      const safe = safeError(cause);
-      setError(safe);
-      onFailure(safe);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return <>
-    {error && <WireError>{error.message}</WireError>}
-    <WireCallout tone="info" title="아직 옛 2종 동의입니다">
-      여섯 영역 동의 계약이 붙기 전까지 이 두 체크만 저장됩니다. 옛 기록을 여섯 영역으로 올려 적지 않습니다.
-    </WireCallout>
-    <WireChoice type="checkbox" label="개인정보 수집과 이용 동의" checked={privacy} disabled={busy} onChange={setPrivacy} />
-    <WireChoice type="checkbox" label="AI를 활용한 녹취기록 동의" checked={recordingAi} disabled={busy} onChange={setRecordingAi} />
-    <div className="business-actions">
-      <WireButton variant="primary" disabled={busy || !changed} onClick={() => { void save(); }}>동의 상태 저장</WireButton>
-    </div>
   </>;
 }
 
@@ -404,7 +363,6 @@ export function ParticipantHubScreen() {
           {program.authorized && <WireDataRow label="인테이크" value={program.intakeAt ?? '아직 없음'} />}
           {program.authorized && <WireDataRow label="다음 일정"
             value={program.upcomingSchedule === null ? '예정 없음' : program.upcomingSchedule.scheduledAt} />}
-          {program.authorized && <WireDataRow label="동의 기록 시각" value={program.consentRecordedAt ?? '기록 없음'} />}
         </WireDataRows>
         {program.authorized ? <>
           <div className="business-actions">
@@ -416,12 +374,8 @@ export function ParticipantHubScreen() {
               href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/briefing`}>
               15초 페이지
             </WireButton>
-            <WireButton variant="neutral"
-              href={`/participants/${encodeURIComponent(value.beneficiaryId)}/programs/${encodeURIComponent(program.id)}/consent`}>
-              여섯 영역 동의
-            </WireButton>
           </div>
-          <ProgramConsent program={program} session={session} onSaved={reload} />
+          <ConsentPanel session={session} supportCaseId={program.id} />
         </> : <AssignmentRequestForm program={program} session={session} />}
       </WireCardSection>)}
     </WireCard>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeParticipantHub, decodeParticipantList } from './participants';
+import { ParticipantsApi, decodeParticipantHub, decodeParticipantList } from './participants';
 import { BusinessError } from './errors';
 
 const CASE_ID = '2f9d1e6e-0d94-4f39-8f21-0d4f9d3a6f10';
@@ -29,7 +29,7 @@ describe('participant list and hub contracts', () => {
     }] })).toThrow(BusinessError);
   });
 
-  it('keeps the restricted hub free of birth date, progress and consent', () => {
+  it('keeps the restricted hub free of birth date and progress', () => {
     const hub = decodeParticipantHub({
       beneficiaryId: 'swallow-003', restricted: true, participantName: '김합성',
       participantPhone: '010-0000-0000', participantEmail: null, programs: [restrictedProgram],
@@ -37,7 +37,6 @@ describe('participant list and hub contracts', () => {
     expect(hub.restricted).toBe(true);
     expect(hub.participantBirthDate).toBeNull();
     expect(hub.sessionCount).toBeNull();
-    expect(hub.programs[0]?.consent).toBeNull();
     expect(hub.programs[0]?.authorized).toBe(false);
   });
 
@@ -68,5 +67,34 @@ describe('participant list and hub contracts', () => {
       participantEmail: null, participantBirthDate: null, status: 'active', closedAt: null,
       lastSessionAt: null, programs: [],
     }, 'swallow-003')).toThrow(BusinessError);
+  });
+});
+
+describe('여섯 영역 동의 컷오버', () => {
+  it('등록 요청에 옛 동의 2종 키를 싣지 않는다', async () => {
+    const sent: { path: string; body: unknown }[] = [];
+    const transport = {
+      request: async (path: string, _method?: string, body?: unknown) => {
+        sent.push({ path, body });
+        return { beneficiaryId: 'otter-011', supportCaseId: CASE_ID, assignmentRole: 'primary', replayed: false };
+      },
+    };
+    const api = new ParticipantsApi(transport as never);
+    await api.register({ programId: CASE_ID, emergencyReason: '연락 두절 위험', name: '김합성' });
+    const body = sent[0]?.body as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['emergencyReason', 'name', 'programId']);
+    expect(body).not.toHaveProperty('consentPrivacy');
+    expect(body).not.toHaveProperty('consentRecordingAi');
+  });
+
+  it('옛 동의 값을 화면 자료로 내보내지 않는다', () => {
+    const hub = decodeParticipantHub({
+      beneficiaryId: 'swallow-003', restricted: false, participantName: '김합성',
+      participantPhone: '010-0000-0000', participantEmail: null, participantBirthDate: null,
+      status: 'active', closedAt: null, sessionCount: 0, lastSessionAt: null,
+      programs: [authorizedProgram],
+    }, 'swallow-003');
+    expect(hub.programs[0]).not.toHaveProperty('consent');
+    expect(hub.programs[0]).not.toHaveProperty('consentRecordedAt');
   });
 });

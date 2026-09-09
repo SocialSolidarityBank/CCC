@@ -18,11 +18,6 @@ export interface ParticipantListItem {
   newSignup: boolean;
 }
 
-export interface ParticipantConsent {
-  privacy: boolean;
-  recordingAi: boolean;
-}
-
 export interface ParticipantProgram {
   id: string;
   beneficiaryId: string;
@@ -35,8 +30,6 @@ export interface ParticipantProgram {
   creationKind: 'legacy_import' | 'initial' | 'subsequent' | null;
   participantName: string | null;
   participantPhone: string | null;
-  consent: ParticipantConsent | null;
-  consentRecordedAt: string | null;
   closedAt: string | null;
   /** D36: 담당하지 않는 사업은 목록에만 오르고 상담 내용으로 들어갈 수 없다. */
   authorized: boolean;
@@ -77,8 +70,10 @@ export interface ProgramOption {
 
 export interface ParticipantRegistrationInput {
   programId: string;
-  consentPrivacy: boolean;
-  consentRecordingAi: boolean;
+  /**
+   * 긴급 등록 사유(D46). 옛 동의 2종 입력은 보내지 않는다(S7 §5.1.1).
+   * 일반 등록은 서버의 개인정보 동의 하드 게이트가 그대로 막는다.
+   */
   emergencyReason?: string;
   name?: string;
   phone?: string;
@@ -128,15 +123,6 @@ function decodeUpcomingSchedule(value: unknown): ParticipantProgram['upcomingSch
   return { id: row.id, scheduledAt: row.scheduledAt, sessionKind: row.sessionKind };
 }
 
-function decodeConsent(value: unknown): ParticipantConsent {
-  const row = record(value);
-  exactKeys(row, ['privacy', 'recordingAi']);
-  if (typeof row.privacy !== 'boolean' || typeof row.recordingAi !== 'boolean') {
-    throw new BusinessError('invalid_response');
-  }
-  return { privacy: row.privacy, recordingAi: row.recordingAi };
-}
-
 /** D86 축소 허브의 사업 투영. 상담 내용과 동의는 응답에 없어야 한다. */
 function decodeRestrictedProgram(row: Record<string, unknown>): ParticipantProgram {
   exactKeys(row, ['id', 'beneficiaryId', 'programId', 'programName', 'programType', 'status',
@@ -153,7 +139,7 @@ function decodeRestrictedProgram(row: Record<string, unknown>): ParticipantProgr
     programName: row.programName, programType: 'financial_support_v1', status: row.status,
     intakeAt: null, creationKind: null, participantName: null, participantPhone: null,
     authorized: false, assigneeNames: row.assigneeNames as string[],
-    consent: null, consentRecordedAt: null, closedAt: null, upcomingSchedule: null,
+    closedAt: null, upcomingSchedule: null,
   };
 }
 
@@ -179,7 +165,8 @@ function decodeProgram(value: unknown): ParticipantProgram {
     intakeAt: row.intakeAt, creationKind: row.creationKind,
     participantName: row.participantName, participantPhone: row.participantPhone,
     authorized: true, assigneeNames: row.assigneeNames as string[],
-    consent: decodeConsent(row.consent), consentRecordedAt: row.consentRecordedAt,
+    // 옛 동의 2종(`consent`, `consentRecordedAt`)은 응답 모양만 확인하고 화면으로 내보내지 않는다.
+    // 동의는 여섯 영역 사건이 정본이다(S7 §5.1.1).
     closedAt: row.closedAt, upcomingSchedule: decodeUpcomingSchedule(row.upcomingSchedule),
   };
 }
@@ -307,11 +294,7 @@ export class ParticipantsApi {
 
   async register(input: ParticipantRegistrationInput): Promise<ParticipantCreationResult> {
     if (!isOpaqueIdentifier(input.programId)) throw new BusinessError('invalid_request', 400);
-    const body: Record<string, unknown> = {
-      programId: input.programId,
-      consentPrivacy: input.consentPrivacy,
-      consentRecordingAi: input.consentRecordingAi,
-    };
+    const body: Record<string, unknown> = { programId: input.programId };
     if (input.emergencyReason !== undefined) body.emergencyReason = input.emergencyReason;
     if (input.initialAssigneeUserId !== undefined) body.initialAssigneeUserId = input.initialAssigneeUserId;
     for (const field of ['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const) {
@@ -321,19 +304,7 @@ export class ParticipantsApi {
     return decodeCreation(await this.transport.request('/participants', 'POST', body));
   }
 
-  async updateConsent(supportCaseId: string, consent: ParticipantConsent): Promise<ParticipantConsent> {
-    if (!isOpaqueIdentifier(supportCaseId)) throw new BusinessError('invalid_request', 400);
-    const value = record(await this.transport.request(
-      `/support-cases/${encodeURIComponent(supportCaseId)}/consent`, 'PUT',
-      { privacy: consent.privacy, recordingAi: consent.recordingAi },
-    ));
-    exactKeys(value, ['supportCaseId', 'privacy', 'recordingAi', 'recordedAt']);
-    if (value.supportCaseId !== supportCaseId || typeof value.privacy !== 'boolean'
-      || typeof value.recordingAi !== 'boolean' || !isNullableString(value.recordedAt)) {
-      throw new BusinessError('invalid_response');
-    }
-    return { privacy: value.privacy, recordingAi: value.recordingAi };
-  }
+
 
   /**
    * 실무자 발 배정 요청(D86 ⑥). 요청자는 서버가 인증 주체에서 정한다. 이 호출은 접근을 열지 않는다.

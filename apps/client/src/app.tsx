@@ -26,7 +26,6 @@ import {
 } from './screens/schedules';
 import { RecordCreateScreen, RecordListScreen, RecordReviewScreen } from './screens/records';
 import { IntakeScreen } from './screens/intake';
-import { ConsentScreen } from './screens/consent';
 import { SettingsScreen } from './screens/settings';
 import { registerShellWorker } from './business/service-worker';
 import { BusinessError, safeError } from './business/errors';
@@ -261,7 +260,6 @@ export const appRoutes: RouteObject[] = [{
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records', element: <RecordListScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/new', element: <RecordCreateScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/intake', element: <IntakeScreen /> },
-          { path: 'participants/:beneficiaryId/programs/:supportCaseId/consent', element: <ConsentScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/records/:sessionId/review', element: <RecordReviewScreen /> },
           { path: 'schedule', element: <ScheduleScreen /> },
           { path: 'schedules/new', element: <ScheduleCreateScreen /> },
