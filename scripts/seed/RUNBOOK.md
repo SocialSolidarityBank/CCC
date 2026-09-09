@@ -44,7 +44,7 @@ PII_ENC_KEY="${PREVIEW_PII_ENC_KEY:?미리보기 키 주입 필요}" pnpm seed:g
 ```
 
 생성 뒤 `manifest.json`의 `profile`이 `preview`, `target`이 적용할 대상, `participants`가
-15인지 확인한다. `out/`은 두 대상이 공유하므로 대상을 바꿔 생성하면 이전 산출물을 덮어쓴다.
+100인지 확인한다. `out/`은 두 대상이 공유하므로 대상을 바꿔 생성하면 이전 산출물을 덮어쓴다.
 날짜는 기관 시간대 기준일 상대값이며, 재현할 때는 `SEED_ANCHOR_DATE=<manifest의 anchorDate>`를
 같이 준다.
 

@@ -20,7 +20,7 @@ import { runScenario } from './scenario';
 import { inlineSql, firstKeyword, type SqlParam } from './sql-literal';
 import { validateSeed, type EmittedStatement } from './validate';
 import type { WriteEntry } from './capture';
-import { PARTICIPANTS, PREVIEW_ONLY_PARTICIPANTS, SEED_ANCHOR_DATE, VIRTUAL_COUNSELORS } from './content';
+import { PARTICIPANTS, SEED_ANCHOR_DATE, VIRTUAL_COUNSELORS } from './content';
 import { ORG_ID, PREVIEW_BENEFICIARY_STUBS, PREVIEW_USERS, preloadStatements } from './preload-data';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
@@ -309,21 +309,60 @@ function buildCaptureReport(
 }
 
 describe('preview seed content', () => {
-  it('keeps completed preview cases rich and includes one future intake case', () => {
-    const pending = PREVIEW_ONLY_PARTICIPANTS.filter((participant) => (
-      Object.prototype.hasOwnProperty.call(participant, 'pendingIntake')
-    ));
-    const completed = PREVIEW_ONLY_PARTICIPANTS.filter((participant) => (
-      !Object.prototype.hasOwnProperty.call(participant, 'pendingIntake')
-    ));
+  it('provides 100 completed cases evenly across one to ten sessions', () => {
+    expect(PARTICIPANTS).toHaveLength(100);
 
-    expect(pending).toHaveLength(1);
-    expect(Reflect.get(pending[0]!, 'pendingIntake')).toBe(true);
-    expect(pending[0]?.regulars).toHaveLength(0);
-    expect(Date.parse(pending[0]!.intakeAt)).toBeGreaterThan(Date.parse(`${SEED_ANCHOR_DATE}T00:00:00.000Z`));
-    expect(completed.every((participant) => participant.regulars.length >= 3)).toBe(true);
+    const sessionDistribution = new Map<number, number>();
+    for (const participant of PARTICIPANTS) {
+      expect(participant.pendingIntake).toBeUndefined();
+      const sessionCount = participant.regulars.length + 1;
+      sessionDistribution.set(sessionCount, (sessionDistribution.get(sessionCount) ?? 0) + 1);
+    }
 
-    const flagTypes = new Set(PREVIEW_ONLY_PARTICIPANTS.flatMap((participant) => [
+    expect(Object.fromEntries(sessionDistribution)).toEqual({
+      1: 10,
+      2: 10,
+      3: 10,
+      4: 10,
+      5: 10,
+      6: 10,
+      7: 10,
+      8: 10,
+      9: 10,
+      10: 10,
+    });
+  });
+
+  it('keeps every synthetic identity and counseling narrative distinct and coherent', () => {
+    expect(new Set(PARTICIPANTS.map((participant) => participant.name)).size).toBe(100);
+    expect(new Set(PARTICIPANTS.map((participant) => participant.phone)).size).toBe(100);
+    expect(new Set(PARTICIPANTS.map((participant) => participant.email)).size).toBe(100);
+
+    const sessionMemos = PARTICIPANTS.flatMap((participant) => (
+      participant.regulars.map((regular) => regular.memo)
+    ));
+    expect(new Set(sessionMemos).size).toBe(sessionMemos.length);
+
+    for (const participant of PARTICIPANTS) {
+      expect(participant.intakeMemo.length).toBeGreaterThanOrEqual(30);
+      const goalKeys = new Set([
+        ...participant.goals.map((goal) => goal.key),
+        ...(participant.goalReplacement === undefined ? [] : [participant.goalReplacement.newGoal.key]),
+      ]);
+      let previousHeldAt = Date.parse(participant.intakeAt);
+      for (const regular of participant.regulars) {
+        const heldAt = Date.parse(regular.heldAt);
+        expect(heldAt).toBeGreaterThan(previousHeldAt);
+        expect(heldAt).toBeLessThan(Date.parse(`${SEED_ANCHOR_DATE}T00:00:00.000Z`));
+        expect(regular.memo.length).toBeGreaterThanOrEqual(20);
+        expect(regular.goalLinks?.every((key) => goalKeys.has(key)) ?? true).toBe(true);
+        previousHeldAt = heldAt;
+      }
+    }
+  });
+
+  it('covers all confirmed risk flag types', () => {
+    const flagTypes = new Set(PARTICIPANTS.flatMap((participant) => [
       ...participant.regulars.flatMap((regular) => regular.flags?.map((flag) => flag.flagType) ?? []),
       ...(participant.standaloneFlag === undefined ? [] : [participant.standaloneFlag.flagType]),
     ]));
@@ -375,16 +414,6 @@ describe('preview seed generation', () => {
       // 산출물 기록.
       const { manifest, tableInsertCounts } = buildManifest(emitted, summarySessions);
       const perParticipant = manifest.perParticipant as ParticipantManifest[];
-      const pendingIndex = PARTICIPANTS.findIndex((participant) => (
-        Object.prototype.hasOwnProperty.call(participant, 'pendingIntake')
-      ));
-      if (pendingIndex >= 0) {
-        const pendingId = `p${String(pendingIndex + 1).padStart(2, '0')}`;
-        const pendingManifest = perParticipant.find((participant) => participant.participantId === pendingId);
-        expect(pendingManifest?.submissionIds).toEqual([]);
-        expect(pendingManifest?.rows.sessions ?? []).toEqual([]);
-        expect(pendingManifest?.rows.counseling_schedules).toHaveLength(1);
-      }
       await mkdir(OUT_DIR, { recursive: true });
       await Promise.all([
         writeFile(join(OUT_DIR, 'seed.sql'), seedSql, 'utf8'),
