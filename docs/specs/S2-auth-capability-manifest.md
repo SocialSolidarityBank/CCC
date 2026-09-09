@@ -177,7 +177,7 @@ interface SignedInstallManifest {
   publishedAt: string;
   expiresAt: string;
   approvedSttEngineIds: readonly Array<{ id: ApprovedSttEngineId; mode: 'local' | 'azure' }>; // signed, sorted, unique; initial value []
-  supabaseProjectRef: string | null;     // Community Cloud만, apiBase와 동일 project ref
+  supabaseProjectRef: string | null;     // Community Cloud만, Auth origin의 project ref
   supabaseAuthOrigin: string | null;     // Community Cloud만 exact HTTPS origin
   supabasePublishableKey: string | null; // public key, signed manifest에서만 읽음
   signingKeyId: string;
@@ -185,7 +185,7 @@ interface SignedInstallManifest {
 }
 ```
 
-서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 `{ id, mode }`는 ID 오름차순으로 정렬되고 중복이 없어야 한다. 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻으며 mode도 함께 검증한다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 signed `apiBase`의 project ref와 같아야 한다. `supabasePublishableKey`는 `^sb_publishable_[A-Za-z0-9_-]+$` 형식 또는 JWT 세 부분을 가진 legacy key만 허용하며 legacy payload의 decoded `role`이 정확히 `anon`이어야 한다. `sb_secret_*`, `service_role` JWT, 빈 값, malformed/unknown key는 manifest에 쓰기 전에 거부한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
+서명 대상은 RFC 8785 JSON Canonicalization Scheme(JCS)로 정규화한 signature 제외 객체다. `approvedSttEngineIds`도 서명 대상이며 `{ id, mode }`는 ID 오름차순으로 정렬되고 중복이 없어야 한다. 각 ID는 signed registry의 exact member로만 `ApprovedSttEngineId` brand를 얻으며 mode도 함께 검증한다. `supabaseAuthOrigin`은 Community Cloud에서만 non-null이고 정확한 `https` origin이며 path, query, fragment, userinfo를 가질 수 없다. 그 host의 project ref는 `supabaseProjectRef`와 같아야 한다. D89에 따라 signed `apiBase`는 독립 업무 API의 정확한 HTTPS 주소이며 Auth host와 같을 필요가 없다. API 주소와 Auth/project ref는 같은 검증된 설치 정보에 결합하고, unsigned 입력으로 어느 주소도 대체하지 않는다. `supabasePublishableKey`는 `^sb_publishable_[A-Za-z0-9_-]+$` 형식 또는 JWT 세 부분을 가진 legacy key만 허용하며 legacy payload의 decoded `role`이 정확히 `anon`이어야 한다. `sb_secret_*`, `service_role` JWT, 빈 값, malformed/unknown key는 manifest에 쓰기 전에 거부한다. Local Single/Office에서는 `supabaseProjectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`가 모두 null이어야 한다. client build에는 revoked signing key ID 목록을 embedded하고, manifest의 `sequence`는 설치된 값보다 단조 증가해야 하며 `publishedAt <= now < expiresAt`이어야 한다. 알 수 없는 key, 폐기된 key, expiry, sequence replay, installationId 불일치는 시작을 중지한다. `installationId`는 보호 install record와 비교하고 다른 설치에서 복사된 manifest를 거부한다.
 
 client는 먼저 같은 origin의 signed manifest를 검증한 뒤에만 public bootstrap을 읽는다. `bootstrap.mode === signedManifest.mode === capabilities.mode`이어야 하며, Cloud/Office의 `bootstrap.apiBase === signedManifest.apiBase === effectiveApiBase`여야 한다. Single은 bootstrap의 `apiBase`와 `mode`가 서명된 `http://127.0.0.1` base와 exact equality여야 하고, 실제 random port는 DPAPI endpoint record가 같은 installationId에 대해 추가한다. 인증 뒤 `GET /capabilities`의 `X-CCC-Installation-Id` header도 signed manifest의 `installationId`와 byte-equal이어야 하며 하나라도 다르면 403으로 중지한다. public join은 unsigned bootstrap target이 아니라 이 검증과 equality가 끝난 effective `apiBase`만 사용한다.
 
@@ -299,12 +299,14 @@ E2-5c가 legacy token-path route를 이 계약으로 cutover한다. 초대 token
 5. join page에는 third-party resource·analytics·external link가 없다. token 원문은 static/API 로그, errors, cache, Referer, history에 남지 않는다. 가입 완료 뒤 self-check에는 내 정보·참여 사업·담당 실무자·일정·동의 상태만 있고 상담 기록·요약·GAS·flag·기관 전체 목록은 없다.
 소유: join route·fragment cutover는 E2-5c, Cloud Auth user linkage와 service-role 경계는 E4-2, Local join transport는 E7/E8이다. S3는 E2-5c cutover 뒤 이 endpoint/DTO 표를 참조한다.
 
+D89는 업무 API의 관리자 키 접근을 금지한다. 따라서 위 worker complete의 Auth 관리자 호출을 일반 업무 handler에 직접 구현하지 않는다. 최초 관리자 생성과 직원 초대의 별도 권한 경계, S11 설치 승인 정보와 공개 manifest의 누락된 결합 계약은 후속 결정 전 미완료로 남긴다. 이 보류는 초대 기능을 전체 범위에서 제외하거나 StorageSigner에 Auth 관리자 기능을 추가하는 승인이 아니다. 정본: [ADR-0048](../adr/0048-independent-cloud-api-runtime.md).
+
 ## 3. 세 모드에서 어떻게 다른가
 
 | | Community Cloud | Local Single | Local Office |
 |---|---|---|---|
 | client origin | signed exact HTTPS origin | registered `ccc://app` | 기관 CA HTTPS origin |
-| API origin | signed Supabase/Edge HTTPS | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |
+| API origin | signed 독립 업무 API HTTPS(D89) | DPAPI endpoint record가 정한 loopback random port | 내부망 HTTPS |
 | human auth | Supabase JWT + all human roles require `aal2` | OS user + Argon2id app lock + stableUserId | Argon2id local account + privileged session MFA |
 | Actor source | `auth_subject → users.id` | stableUserId | local users.id |
 | Agent source | SG5 service principal + agent_installations | paired local Agent + agent_installations | paired server Agent + agent_installations |

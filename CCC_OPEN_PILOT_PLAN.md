@@ -10,6 +10,8 @@
 
 **Primary spec after approval:** `docs/adr/0041-one-core-three-deployment-modes.md`, `PRD/CCC-open-pilot-v0.2.md`, `docs/specs/S1-*.md` through `S15-*.md`. E0 완료 전에는 저장소 밖 `inbox` 원본과 회수한 Notion ADR-0040을 정본 후보로만 사용한다.
 
+**2026-09-09 D89 개정:** [ADR-0048](docs/adr/0048-independent-cloud-api-runtime.md)에 따라 Cloud 업무 API는 관리자 키가 없는 독립 실행 환경을 사용한다. Supabase 서울 DB/Auth/private Storage와 공통 코어는 유지한다. S2의 signed API 주소는 Supabase Auth host와 분리하며 설치 검증을 생략하지 않는다. 호스팅 선택·실제 배포·최초 관리자와 직원 초대의 권한 경계는 별도 관문이다. 진행 중인 기존 BACKEND 검증은 보존하지만 독립 배포 검증으로 보고하지 않는다.
+
 ## 2026-09-08 실행 우선순위 개정
 
 Q는 벤치마크, 최소사양 확정과 비필수 법무 검토보다 결정된 STT, OpenAI API와 DB 설정 구현을 먼저 하도록 요청했다. 첫 완료 지점은 Community Cloud에서 합성 상담 한 건이 등록부터 AI 승인과 DB 재조회까지 이어지는 것이다. 이 절은 아래 종전 웨이브와 날짜 관문의 실행 순서보다 우선하며 최종 세 모드 범위는 유지한다.
@@ -156,7 +158,7 @@ export interface AIProvider {
 - `packages/core/src/scheduled-job-runner.ts`는 `run(kind: ScheduledJobKind, nowIso: string): Promise<JobReport>`를 export한다. Workers cron, Supabase pg_cron에서 호출하는 Edge HTTP, Node timer가 같은 runner를 부르고, audio 삭제 도래 판단은 `audio_objects.purge_due`를 gateway로 조회한다.
 - Agent의 Local STT는 `build_engine(name, model_name, *, python_executable=None, device='cpu')`가 반환하는 callable을 기존 청크 오케스트레이션에 연결한다. Azure는 별도 full-file 함수 `transcribe_azure(audio_path, *, api_key, before_send, expected_sha256=None)`로 `api-version=2025-10-15` endpoint를 호출한다. Azure client는 attempt당 원본 파일 send를 최대 한 번 시작하고 자동 재시도하지 않는다. request definition은 `diarization.enabled=true`, `maxSpeakers=2`이며 익명의 파일별 `speaker` ID를 보존한다. Azure를 Local `build_engine`이나 청크 업로드에 넣지 않는다. TypeScript contracts에는 `TranscriptResult` DTO와 `sttEngine`, `route` literal만 두며 Azure key와 Agent refresh token은 TypeScript `SecretStore`에 넣지 않는다.
 
-- SG2는 배포/install 단계가 쓰는 `apps/client/public/ccc-bootstrap.json`을 정확히 `{ "apiBase": string, "mode": DeploymentMode }` 두 키로 고정하고, 저장소에는 값 없는 `.example`만 둔다. Community Cloud의 `projectRef`, `supabaseAuthOrigin`, `supabasePublishableKey`는 bootstrap에 복사하지 않고 서명된 install manifest에만 둔다. Auth origin은 HTTPS origin만 허용하고 `apiBase`와 같은 Supabase project ref여야 한다. Local 두 모드는 세 값을 모두 `null`로 강제한다. publishable key는 `sb_publishable_` 또는 role이 정확히 `anon`인 legacy JWT만 허용하며 `sb_secret_`, `service_role`, 빈 값과 미지 형식은 manifest 생성 전에 거부한다. publishable key는 공개 설정이지만 capability에는 넣지 않는다. 설치기는 서명된 manifest를 먼저 검증한 뒤 그 manifest의 `installationId`, `mode`, 허용 origin과 `apiBase`를 bootstrap, renderer의 유효 origin, `GET /capabilities` 응답과 전부 정확히 대조한다. 어느 하나라도 다르면 첫 renderer load와 Bearer 전송 전에 실패한다. PWA의 Supabase Auth 초기화와 CSP `connect-src`는 bootstrap이 아니라 검증된 signed manifest의 Auth 값만 사용한다. Single의 OS 할당 포트는 discovery 뒤 그 정확한 origin을 CSP에 주입하고 나서만 renderer를 연다. Electron은 `file://`와 `Origin: null`을 쓰지 않고 custom protocol 또는 local-service same-origin으로 정적 client를 제공한다. mode별 로그인을 끝낸 뒤 Bearer로 `GET /capabilities`를 호출한다. public join route도 검증된 signed manifest와 일치하는 bootstrap 주소만 쓰며 token은 URL Referrer로 나가지 않는다. 현행 Access header와 Preview `ccc_preview` cookie는 E2-7까지의 명시적 전환 예외이고, production의 최종 업무 인증은 Bearer만 허용한다.
+- SG2의 설치 신뢰 계약은 [S2 §2.7](docs/specs/S2-auth-capability-manifest.md)을 따른다. 공개 bootstrap은 `{ "apiBase": string, "mode": DeploymentMode }` 두 키뿐이며 Auth/project ref/publishable key는 검증된 signed manifest에서만 읽는다. D89의 독립 API 주소와 Supabase Auth/project ref를 같은 설치 정보에 결합하되 host 일치를 요구하지 않는다. 서명·만료·폐기키·sequence·설치 ID, bootstrap/renderer/capability의 exact equality, CSP와 Electron discovery, public join의 Referrer 보호는 그대로 유지한다. Access header와 Preview cookie는 E2-7까지의 전환 예외이며 최종 업무 인증은 Bearer만 허용한다.
 - `ApprovedSttEngineId`는 signed engine registry 검증을 통과한 값만 생성하는 branded type이다. 현재 Q 승인 registry는 비어 있다. 합성 입력과 운영자 본인의 비민감 자기 목소리로 어댑터를 구현·시험하는 것은 허용하지만 제품 선택지를 활성화하지 않는다. 사람 품질·장비와 Azure 기관 적합성의 후속 관문, Q 채택 전에는 `sttEngine`이 `null`이다. Local과 Azure는 서로 자동 전환하지 않는다.
 
 ```ts
@@ -337,7 +339,7 @@ SG1~SG15는 위 스펙 표와 1:1인 Linear 이슈다. 각 이슈 본문에 GitH
 |---|---|---|
 | E6-1a Supabase read-only preflight | E0-5b | PR #210을 ADR-0042와 E6-1a 범위로 정리하고 v0.1 정책 전제를 제거한다. read-only plan과 관련 검증을 통과한 PR #210이 병합되면 브랜치의 `ccc-140` 연동이 이 티켓을 Done으로 바꾸는 것이 정확하다. |
 | E6-1b Supabase apply와 baseline | E6-1a, E3-4, E3-5, SG11 | 서울 리전 PostgreSQL, Auth, private Storage, cron과 전용 API role을 idempotent install로 적용한다. |
-| E6-2 Edge Function wrapper | E1-5, E3-3, E4-2 | Deno `serve`가 공통 handler에 runtime adapter를 주입한다. CORS를 정확한 client origin으로 제한하고 audio 본문은 Edge를 지나지 않는다. |
+| E6-2 독립 업무 API wrapper | E1-5, E3-3, E4-2 | D89의 독립 실행 환경에서 공통 handler에 runtime adapter를 주입한다. 업무 환경의 관리자 자격 부재, 제한된 DB 연결, signed API/Auth 주소 결합과 정확한 CORS를 검증하며 원음 본문을 중계하지 않는다. 공급자 선택과 실제 배포는 별도 승인이다. |
 | E6-3 Supabase AudioStore | E1-3, E5-6, E6-1a | 2시간 upload, E0-5a와 SG8이 정한 object lifetime, claim-scoped 10분 GET, 독립 head와 인증 GET 404를 호스팅 합성 프로젝트에서 검증한다. |
 | E6-4 Agent 페어링 | E5-1a, E6-2 | 10분 1회 pairing code와 회전 refresh token을 구현하고 service principal을 job endpoint에만 제한한다. |
 | E6-5a install/doctor/update 명령 | E6-1b, E6-2, E6-3, E6-4, SG12 | install, doctor, update, rollback, redacted report 명령을 구현하고 서명과 rollback 계약을 검증한다. |

@@ -20,13 +20,13 @@
 
 | 분류 | 이름 | 읽을 수 있는 런타임 | Community Cloud | Local Single / Local Office | Python Agent |
 |---|---|---|---|---|---|
-| Core | `CODEX_API_KEY` | `packages/core`가 호출하는 AI adapter | 기관 Edge secret | 해당 Local 실행 계정의 DPAPI `CurrentUser` | 읽지 않음 |
-| Core | `PII_ENC_KEY` | Core의 PII vault 경계 | 기관 Edge secret | local-service 실행 계정의 DPAPI `CurrentUser` | 읽지 않음 |
-| Core | `NOTIFY_WEBHOOK_URL` | Core 알림 adapter | 기관 Edge secret | local-service 실행 계정의 DPAPI `CurrentUser` | 읽지 않음 |
-| Platform | `DB_MASTER_KEY` | DB adapter와 Local/Cloud 조립 루트 | 기관 Edge secret 또는 기관이 관리하는 platform secret store 한 곳 | local-service 계정의 DPAPI `CurrentUser` | 읽지 않음 |
-| Platform | `FILE_ENC_KEY` | encrypted file adapter와 Local/Cloud 조립 루트 | 기관 Edge secret 또는 기관이 관리하는 platform secret store 한 곳 | local-service 계정의 DPAPI `CurrentUser` | 읽지 않음 |
+| Core | `CODEX_API_KEY` | `packages/core`가 호출하는 AI adapter | 독립 업무 API의 전용 secret store(D89) | 해당 Local 실행 계정의 DPAPI `CurrentUser` | 읽지 않음 |
+| Core | `PII_ENC_KEY` | Core의 PII vault 경계 | 독립 업무 API의 전용 secret store(D89) | local-service 실행 계정의 DPAPI `CurrentUser` | 읽지 않음 |
+| Core | `NOTIFY_WEBHOOK_URL` | Core 알림 adapter | 독립 업무 API의 전용 secret store(D89) | local-service 실행 계정의 DPAPI `CurrentUser` | 읽지 않음 |
+| Platform | `DB_MASTER_KEY` | DB adapter와 Local/Cloud 조립 루트 | 필요한 경우 기관 platform secret store 한 곳, 업무 API에는 관리자 자격 공급 금지(D89) | local-service 계정의 DPAPI `CurrentUser` | 읽지 않음 |
+| Platform | `FILE_ENC_KEY` | encrypted file adapter와 Local/Cloud 조립 루트 | 필요한 경우 기관 platform secret store 한 곳 | local-service 계정의 DPAPI `CurrentUser` | 읽지 않음 |
 | Platform | `OFFICE_CA_KEY` | Local Office TLS adapter만 | `null` | Office 전용 Windows Service 계정의 DPAPI `CurrentUser`; Single은 `null` | 읽지 않음 |
-| Platform | `SUPABASE_SERVICE_ROLE_KEY` | Community Cloud API 조립 루트와 Supabase adapter만 | 기관 Edge secret | Local에서는 존재하지 않음 | 읽지 않음 |
+| Platform | `SUPABASE_SERVICE_ROLE_KEY` | 전용 StorageSigner만, 업무 API 접근 금지 | StorageSigner의 secret binding(S11·D89) | Local에서는 존재하지 않음 | 읽지 않음 |
 | Python | `AZURE_SPEECH_KEY` | `apps/pipeline/ccc_pipeline/stt`의 Azure adapter | Agent의 DPAPI `CurrentUser` | Agent의 DPAPI `CurrentUser` | Python SecretStore만 |
 | Python | `AGENT_REFRESH_TOKEN` | Agent pairing client | Agent의 DPAPI `CurrentUser` | Agent의 DPAPI `CurrentUser` | Python SecretStore만 |
 | Python | `HF_TOKEN` | 명시적으로 허용된 Agent model downloader | Agent의 DPAPI `CurrentUser` | Agent의 DPAPI `CurrentUser` | Python SecretStore만 |
@@ -346,7 +346,7 @@ Office에서 `officeCaKey`가 `null`이면 CA를 새로 만들어 기존 fingerp
 
 | | Community Cloud | Local Single | Local Office |
 |---|---|---|---|
-| Core/Platform 저장 | 기관 Supabase/Edge secret; provider-managed storage key는 이 경계 밖으로 내보내지 않음 | interactive 사용자 local-service의 DPAPI `CurrentUser` | 전용 Windows Service 계정의 DPAPI `CurrentUser` |
+| Core/Platform 저장 | 독립 업무 API와 StorageSigner의 공급 자격을 분리(D89); provider-managed storage key는 외부로 내보내지 않음 | interactive 사용자 local-service의 DPAPI `CurrentUser` | 전용 Windows Service 계정의 DPAPI `CurrentUser` |
 | Python Agent | Agent PC의 Python DPAPI `CurrentUser`; Azure key와 refresh token은 Edge/TS로 가지 않음 | Agent PC의 Python DPAPI `CurrentUser` | Agent PC의 Python DPAPI `CurrentUser` |
 | `officeCaKey` | 항상 `null` | 항상 `null`; Office 승격 시 새 Kit에 non-null을 넣음 | CA private key slot non-null이어야 기존 HTTPS identity 복구 |
 | human ID | Supabase Auth `sub` → users directory; S2 규칙 | Kit의 `stableUserId`를 그대로 유지; SID와 분리 | 백업 DB의 users/role/assignment ID를 그대로 유지; 서비스 계정은 human Actor가 아님 |

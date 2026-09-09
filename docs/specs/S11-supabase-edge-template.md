@@ -1,16 +1,22 @@
-# S11: Supabase 서울 프로젝트와 Edge 경계
+# S11: Supabase 서울 프로젝트와 독립 업무 API 경계
 
 - 상태: 확정 (2026-09-03)
 - 근거: ADR-0041 D76, D78, D80, D81, D82, D83, ADR-0042 D84
 - 입력: `docs/adr/0041-one-core-three-deployment-modes.md`, `docs/adr/0042-supabase-read-only-preflight.md`, `CCC_OPEN_PILOT_PLAN.md`, S1 Database 포트, S2 Identity/Auth, S8 AudioStore, S10 `.cccx` 포맷
-- 산출: 기관 소유 Supabase 서울 프로젝트의 읽기 전용 사전 점검, 적용, Edge 경계, 설치 영수증과 drift/rollback 계약
+- 산출: 기관 소유 Supabase 서울 프로젝트의 읽기 전용 사전 점검, 적용, 독립 업무 API와 StorageSigner 경계, 설치 영수증과 drift/rollback 계약
 - 관련 티켓: E6-1a, E6-1b, E6-2, E6-3, E6-5a, E6-5b
 
 ## 1. 목적
 
-Community Cloud는 기관이 소유한 Supabase 프로젝트 하나를 사용한다. 이 문서는 프로젝트를 안전하게 확인하고 반복 적용할 수 있는 PostgreSQL, Auth, RLS, private Storage, cron, Edge 경계를 고정한다. 업무 권한은 gateway와 Identity가 소유하며, RLS와 API-only role은 브라우저 직접 접근을 차단하는 2차 방어다.
+Community Cloud는 기관이 소유한 Supabase 프로젝트 하나에 PostgreSQL, Auth, private Storage를 두고, D89에 따라 관리자 키가 없는 독립 업무 API 실행 환경을 사용한다. 업무 권한은 gateway와 Identity가 소유하며 RLS와 API-only role은 2차 방어다.
 
 이 문서의 `확정`은 계약이 완결되었다는 뜻이다. 실제 Supabase 프로젝트 적용, Edge 실행, 백업 복원 결과는 E6 티켓의 구현 검증에서 증명한다.
+
+### 2026-09-09 D89 적용 범위
+
+[ADR-0048](../adr/0048-independent-cloud-api-runtime.md)이 이 문서의 일반 업무 실행을 Supabase hosted Edge로 한정한 조항을 대체한다. 일반 업무 요청·PII·AI 호출은 독립 업무 API에서 실행하며, 본문의 Supabase Edge 배포/리전 헤더/공급자 CPU·메모리 한계는 그 플랫폼에 남는 전용 기능에만 적용한다. 공통 HTTP 본문 한도, 원음 중계 금지, 권한·동의·감사·서명·정확한 CORS/CSP 규칙은 유지한다. 새 업무 호스팅의 공급자·리전 증거·배포 방식은 별도 승인과 실제 검증 전까지 미완료다.
+
+S2의 공개 signed manifest에는 아래 §2.1이 전제한 `institutionId`와 `expectedOwnerOrgId`가 없다. 기관 소유 확인의 입력 계약, 최초 관리자와 직원 초대의 Auth 관리자 권한 경계는 후속 결정이 필요하다. 임의 필드를 공개 manifest에 추가하거나 소유 확인을 생략하지 않으며, 이 공백이 있는 설치 apply/초대 경로를 완료로 세지 않는다.
 
 ## 2. 설치 경계와 명령
 
@@ -104,7 +110,7 @@ CCC-221의 `0006_rls_default_deny.sql`이 `ccc_schema_owner`와 `ccc_api`, brows
 후속 Supabase platform 마이그레이션은 남은 플랫폼 공통 객체만 만든다. 파일 번호는 구현 시점의 다음 번호를 사용한다.
 
 - `private.ccc_install_receipt`와 append-only `private.ccc_release_history`
-- Auth 사용자와 CCC `users.auth_user_id` 연결에 필요한 제약
+- Auth 사용자와 CCC `users.auth_subject` 연결에 필요한 제약
 - 비공개 `ccc-audio` bucket의 선언 상태와 cron 등록에 필요한 platform 설정
 
 S7/E3-8의 consent와 legacy observations는 후속 paired migration 하나로 만들며 이미 생성된 `ccc_api` 정책을 사용한다. S8/E5-6의 audio objects는 그 동의 단계를 따른다. 과거 설계의 예약 번호 `0004/0005/0006`과 SQLite `0049/0050`은 이미 다른 적용 파일이 차지하므로 재사용하지 않는다. S11은 이 선행 관계만 정하고 동의 fold, 원음 시계, claim, signed URL 만료와 삭제 증거는 각 소유 스펙이 정한다. 이후 forward migration도 S1의 parity 규칙을 따른다.
@@ -150,7 +156,7 @@ Auth는 Supabase Auth를 사용한다. 이메일/비밀번호 로그인, invite 
 - anonymous signup은 끈다.
 - 기관의 초대 없는 공개 signup은 끈다.
 - 이메일/비밀번호 provider를 켜고, 초대 링크에서 비밀번호를 설정하는 흐름을 허용한다.
-- Auth 사용자와 CCC `users.auth_user_id`의 unique 연결 없이는 업무 API actor를 만들지 않는다.
+- Auth 사용자와 CCC `users.auth_subject`의 unique 연결 없이는 업무 API actor를 만들지 않는다.
 - 관리 작업은 S2의 MFA/AAL2 조건을 통과한 actor만 gateway에서 허용한다.
 - 설치 과정에서 기관 관리자 계정이나 실사용자 계정을 자동 생성하지 않는다.
 
@@ -163,10 +169,10 @@ Auth 설정 fingerprint가 영수증과 다르면 drift다. JWT signing secret, 
 |---|---|---|
 | `SUPABASE_ACCESS_TOKEN` | install/plan 프로세스의 환경변수 | Management API read-only plan과 apply 입력, 저장·출력 금지 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 전용 `StorageSigner` Edge function의 secret binding | Storage 서명 동작만 허용, 업무 DB client/import·Auth 관리자·일반 request handler와 분리 |
-| `PII_ENC_KEY` | 업무 Edge의 secret binding | PII 금고 호출, Agent나 browser 전달 금지 |
-| `OPENAI_API_KEY` | 업무 Edge의 secret binding | `store:false` AI 호출, browser·Agent 전달 금지 |
-| Azure STT key | Agent SecretStore | 명시적으로 승인된 Azure STT 호출, Edge·browser 전달 금지 |
-| Supabase DB connection string | 업무 Edge/API의 server-side `SecretStore` | `ccc_api` PostgreSQL 연결, CLI 인자·browser 전달 금지 |
+| `PII_ENC_KEY` | 독립 업무 API의 전용 secret store | PII 금고 호출, Agent나 browser 전달 금지 |
+| `CODEX_API_KEY` | 독립 업무 API의 전용 secret store | OpenAI `store:false` 호출, browser·Agent 전달 금지 |
+| Azure STT key | Agent SecretStore | 명시적으로 승인된 Azure STT 호출, 업무 API·browser 전달 금지 |
+| Supabase DB connection string | 독립 업무 API의 server-side `SecretStore` | 제한된 `ccc_api` PostgreSQL 연결만, 관리자 연결·CLI 인자·browser 전달 금지 |
 | Supabase project URL, publishable/anon key | browser public configuration | Supabase Auth session 수립만 허용, 업무 table/Storage direct access는 grant 없음으로 거부 |
 
 `StorageSigner`는 `SUPABASE_SERVICE_ROLE_KEY`만 읽고 business DB client, `ccc_api`, 공통 request handler, SQL driver를 import하지 않는다. signer 입력 DTO는 아래처럼 exact field/type을 가진다.
