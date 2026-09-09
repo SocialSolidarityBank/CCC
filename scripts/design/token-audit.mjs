@@ -21,6 +21,8 @@ const TOKENS = join(repoRoot, 'design/tokens.css');
 const TARGETS = [
   join(repoRoot, 'apps/web/app/layout.tsx'),
   join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  // 업무 클라이언트 전용 CSS. 파일 전체가 CSS 라 아래 수집이 리터럴 대신 본문을 읽는다.
+  join(repoRoot, 'apps/client/src/business/business.css'),
 ];
 
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
@@ -198,9 +200,10 @@ walkMarkup(join(repoRoot, 'apps/client/src'));
 const declaredClasses = new Map();
 for (const file of TARGETS) {
   const raw = readFileSync(file, 'utf8');
-  // CSS 는 템플릿 리터럴(역따옴표 문자열) 안에만 있다 — 바깥 JS 에서 경로의 .css·.ts 가 잡힌다.
-  for (const lit of raw.matchAll(/`([\s\S]*?)`/g)) {
-    const css = lit[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/url\("[^"]*"\)/g, ' ');
+  // CSS 는 템플릿 리터럴(역따옴표 문자열) 안에 있거나, .css 파일이면 본문 전체다.
+  const sources = file.endsWith('.css') ? [raw] : [...raw.matchAll(/`([\s\S]*?)`/g)].map((lit) => lit[1]);
+  for (const source of sources) {
+    const css = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/url\("[^"]*"\)/g, ' ');
     if (!/\{[^}]*:/.test(css)) continue; // 규칙이 없으면 CSS 리터럴이 아니다
     for (const m of css.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)(?=[\s,{:[>.]|$)/gm)) {
       const name = m[1];

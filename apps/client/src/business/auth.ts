@@ -31,7 +31,9 @@ export class CloudAuth {
     phase: 'signed-out', revision: 0, working: false, factors: [], enrollment: null, error: null,
   };
 
-  constructor(private readonly installation: VerifiedInstallation, private readonly fetcher: typeof fetch = fetch) {
+  // 브라우저의 fetch는 Window 수신자를 요구한다. 클래스 필드로 두면 호출이 illegal invocation 이 된다.
+  constructor(private readonly installation: VerifiedInstallation,
+    private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
     assertInstallationCurrent(installation);
     if (installation.manifest.mode !== 'community-cloud') throw new BusinessError('installation_invalid');
   }

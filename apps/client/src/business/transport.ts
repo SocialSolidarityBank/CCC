@@ -15,7 +15,8 @@ export class BusinessTransport {
   constructor(
     private readonly installation: VerifiedInstallation,
     private readonly token: () => string | null,
-    private readonly fetcher: typeof fetch = fetch,
+    // 브라우저 fetch는 Window 수신자를 요구한다(CloudAuth와 같은 이유).
+    private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
   ) {}
 
   dispose(): void {

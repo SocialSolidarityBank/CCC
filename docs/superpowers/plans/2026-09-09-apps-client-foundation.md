@@ -589,3 +589,69 @@ owned client/lock wiring 수정이 필요하지 않았다. 기존 빌드의 `MOD
 **COMBINED_ROOT_LOCK_FROZEN:** 위 SHA-256에서 combined lock 작업을 마쳤다. 후속 결합/변경은 총괄의 다음 슬롯 지시에 따른다.
 
 남은 것은 D89 독립 제한 API/runtime과 signed 주소 계약, 실제 Auth/MFA/초기 관리자, 기관 준비 DTO/전체 Router/UI, 모드별 실제 수용 및 베타 전체 여정이다. 이번 단계의 판정은 **검증된 pre-D89 소스 결합**이며 hosted P1 또는 베타 완료가 아니다.
+
+## 15. P2 Router 셸 작업
+
+Main이 P2를 승인했다. 설치 검증과 실제 Auth/MFA/`/capabilities`/`/me`를 거친 역할 기반 메뉴, route 경계와 logout 정리를 구현한다. 초기 준비/첫 사업 DTO가 없는 상태는 확인 대기로 표시하고 성공 필드를 발명하지 않는다. 이 단계는 업무 앱 전체나 최초 기관 설정 완료가 아니다.
+
+### 승인된 의존성과 표현 재사용
+
+- Q가 추가 확인에서 `react-router@8.3.1` 하나의 추가를 명시 승인했다. 다른 패키지/도구 버전은 바꾸지 않는다.
+- Router를 정상 pnpm install로 추가했다. `apps/client` importer만 바뀌고 새 packages/snapshots는 React Router 8.3.1과 그 의존성 cookie-es 3.1.1뿐이다. 기존 resolution 수정/삭제 0건, root package.json hash 불변이다.
+- 이때 root lock SHA-256은 `af24d40b0cdb783c0a99848a9ef10512001f0f62f7b99f631b12635c6815a8d2`다. 최종 checkpoint에서도 확인한다.
+- DESIGN corrected handoff의 공유 CSS 정적 출력 조건을 따른다. 후보 `auth-view.tsx`와 검수된 `business.css`는 값 변경 없이 재사용한다. CSS를 새로 설계하거나 공유 Wire/CSS를 수정하지 않는다.
+
+### route/인증 경계
+
+| 진입 | P2 처리 |
+|---|---|
+| `/` | 기존 STT 시험 진입을 그대로 유지. 업무 설치/Auth를 시작하지 않는다 |
+| `/welcome` | 공개 안내. 업무 요청 없음 |
+| `/join`, `/k/:code` | 공개 계약 미연결 상태를 명시. 업무 Bearer/API를 사용하지 않음 |
+| `/login` | 기존 signed installation과 CloudAuth/MFA. 성공은 실제 SDK 상태와 capability/identity 확인 뒤 판단 |
+| `/settings`, `/settings?module=account` | 실제 `/me`의 내 정보와 역할 기반 메뉴 |
+| `/settings?module=system` | 실제 capability 읽기. 기관/기술 관리자만 |
+| `/onboarding` | 기관 관리자만 기존 profile 읽기. 준비 완료/첫 사업 식별은 unknown으로 표시 |
+| `/participants` | 읽기 역할만 진입. 현재 준비 계약 미완을 명시하며 데이터/등록 완료를 꾸미지 않음 |
+| 그 밖 | 명시적 not-found. 임의 경로를 STT나 성공 화면으로 보내지 않음 |
+
+업무 경로에 직접 접근해 로그인이 필요하면 그 URL을 유지한 채 로그인 화면을 보인다. 인증 완료 후 같은 경로로 진행하므로 credentials/return URL을 query/storage에 저장하지 않는다. 새로고침은 memory-only 세션이 없어 다시 로그인하며, 뒤로/앞으로도 동일한 인증/역할 판정을 거친다. 공개/시험 경로로 떠나거나 logout/session revision이 바뀌면 업무 transport와 표시 데이터를 폐기한다.
+
+### 위계 배치표
+
+| 줄/상태 | 역할 | 기존 부품/클래스 |
+|---|---|---|
+| 각 페이지 이름 | 유일 h1 | PageTitle |
+| 업무 메뉴/내 정보/연결 상태/기관 정보 | 카드 h2 | WireCard |
+| 정보 라벨과 실제 `/me`/profile/capability 값 | 라벨/값 | WireDataRows, WireDataRow |
+| 실제 roles | 분류 배지 | WireBadge, 기존 ROLE_LABELS |
+| 권한 없음/응답 실패 | 오류 상태 | WireError |
+| 초기 준비/first-program unknown | 명시적 차단/범위 안내 | WireCallout |
+| 로딩, 서버 logout 대기 | 진행 상태 | WireEmpty live |
+| 메뉴/뒤로/로그아웃 | 기존 제어 | WireLinkProvider + React Router Link, WireButton, navigation-link |
+| 로그인/TOTP | 기존 폼 | 후보 AuthView + WireFormField/WireChoice, 검수된 business.css |
+
+새 sidebar/HERO/신규 시안 부품이 필요한 후속 화면은 DESIGN 인계로 남긴다. P2는 이미 공개된 부품과 후보 settings 레이아웃으로 메뉴 골격을 조립한다. 전사/STT 내부 코드를 수정하지 않는다.
+
+### P2 실행 결과
+
+구현 파일은 `apps/client/src/app.tsx`(route/셸/경계), `src/business/navigation.ts`(메뉴와 역할 판정), `src/main.tsx`(Router 진입과 정적 CSS import), `vite.config.ts`(공유 CSS를 정적 stylesheet로 출력), `index.html`이다. 후보에서 값 변경 없이 가져온 표현은 `auth-view.tsx`, `settings-modules.tsx`, `business.css`다.
+
+**브라우저 검수에서 실제 결함 1건을 찾아 고쳤다.** `CloudAuth`와 `BusinessTransport`의 기본 fetcher가 `fetch`를 클래스 필드로 담아 `this.fetcher(...)`로 불러서, 실제 Chrome에서는 모든 인증·업무 호출이 `Illegal invocation`으로 실패하고 화면에는 `unavailable`만 떴다. jsdom은 이 수신자 규칙이 없어 43개 테스트가 전부 통과했는데도 앱은 브라우저에서 로그인 자체가 불가능한 상태였다. 기본값을 `globalThis.fetch.bind(globalThis)`로 바꿔 해결했고, 이 계약은 단위 테스트가 아니라 아래 브라우저 smoke가 지킨다.
+
+검수는 실제 production 번들을 합성 서명 설치 정보와 합성 Auth/API 응답 위에서 돌렸다. 확인한 사실은 다음과 같다.
+
+| 확인 항목 | 결과 |
+|---|---|
+| 인증 전 업무 호출 | 로그인·MFA 단계까지 `/functions/v1/ccc/*` 호출 0건 |
+| 업무 경로 직접 진입 | `/settings` URL 유지한 채 로그인 화면, 인증 뒤 같은 경로 |
+| 역할 기반 메뉴 | `worker` 응답에서 `내 정보`, `당사자 목록`만 노출 |
+| 역할 경계 | `/settings?module=system` 직접 진입은 로그인 뒤에도 권한 없음 표시 |
+| SPA 이동 | 메뉴 클릭·뒤로·앞으로에서 문서 재적재 0회(창 표식 유지), 새로고침만 문서 교체 |
+| 세션 수명 | 새로고침 뒤 다시 로그인 요구(memory-only 세션) |
+| logout | `POST /functions/v1/ccc/auth/logout`과 provider logout 모두 발생 후 로그인 화면 |
+| 요청 링크 | `/join#token=...`의 fragment가 주소에서 제거됨 |
+| 스타일 | `<head><style>` 0개, 외부 stylesheet 1개, `--canvas` `#fafaf9` 적용 |
+| CSP | `style-src 'self'`, `script-src 'self'` 헤더에서 위반 0건 |
+
+검수의 한계도 그대로 남긴다. Chrome의 CORS preflight는 브라우저 계측을 우회하므로 smoke는 앱과 API를 같은 origin에 두고 돌렸다. 실제 Cloud 배치의 교차 origin CORS, hosted Supabase Auth, 실제 MFA·기관 준비 DTO는 여전히 미검증이며 BACKEND/D89 계약에 남아 있다.
