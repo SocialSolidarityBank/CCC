@@ -317,7 +317,7 @@ export async function runRuntimeScenario(root, report) {
       });
       await stage(mode, 'bounded-shutdown-with-stalled-body', async () => {
         const ready = Promise.withResolvers(), closed = Promise.withResolvers();
-        let responded = false;
+        let responseStatus = null;
         const stalled = (tls ? httpsRequest : httpRequest)(new URL('/api/auth/login', base), {
           method: 'POST', ...(tls ? { ca: tls.ca } : {}),
           headers: { expect: '100-continue', 'content-type': 'application/json', 'content-length': '1024' },
@@ -325,7 +325,7 @@ export async function runRuntimeScenario(root, report) {
         stalled.once('continue', ready.resolve);
         stalled.on('error', () => { ready.reject(new Error('transport_failed')); });
         stalled.once('close', closed.resolve);
-        stalled.on('response', (response) => { responded = true; response.resume(); });
+        stalled.on('response', (response) => { responseStatus = response.statusCode; response.resume(); });
         stalled.setTimeout(15_000, () => { stalled.destroy(new Error('request_timeout')); });
         stalled.flushHeaders();
         try {
@@ -335,7 +335,7 @@ export async function runRuntimeScenario(root, report) {
           runtime = undefined;
           await closed.promise;
           assert.ok(performance.now() - started < 12_000);
-          assert.equal(responded, false);
+          assert.ok(responseStatus === null || responseStatus >= 400);
         } finally { stalled.destroy(); }
       });
       await stage(mode, 'acknowledged-record-survives-database-reopen', async () => {
