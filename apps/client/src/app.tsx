@@ -53,7 +53,7 @@ function RouterRoot() {
   const location = useLocation();
   useEffect(() => {
     document.title = location.pathname === '/' ? 'STT 내부 시험'
-      : `${destinationAt(location.pathname, location.search)?.title ?? 'CCC'} | CCC`;
+      : `${destinationAt(location.pathname, location.search)?.title ?? 'Relayer'} | Relayer`;
     // Trial entry retains its original focus behavior.
     if (location.pathname === '/') return;
     const heading = document.querySelector('h1');
@@ -227,7 +227,7 @@ function PublicScreen({ kind }: { kind: 'welcome' | 'join' | 'institution' | 'mi
       void navigate({ pathname: location.pathname, search: location.search, hash: '' }, { replace: true });
     }
   }, [kind, location.hash, location.pathname, location.search, navigate]);
-  const title = kind === 'welcome' ? 'CCC' : kind === 'join' ? '요청 링크' : kind === 'institution' ? '기관 확인' : '페이지 확인';
+  const title = kind === 'welcome' ? 'Relayer' : kind === 'join' ? '요청 링크' : kind === 'institution' ? '기관 확인' : '페이지 확인';
   return <GridContainer as="main" className="page-content">
     <PageTitle>{title}</PageTitle>
     <WireCard>{kind === 'welcome' ? <>

@@ -206,7 +206,7 @@ export class CloudAuth {
         this.pendingFactorId = null;
       }
       if (!this.isCurrent(active.sdk, revision)) return;
-      const result = await active.sdk.auth.mfa.enroll({ factorType: 'totp', friendlyName: `CCC ${crypto.randomUUID()}` });
+      const result = await active.sdk.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Relayer ${crypto.randomUUID()}` });
       if (result.error) throw result.error;
       if (this.active !== active) return;
       this.pendingFactorId = result.data.id;
