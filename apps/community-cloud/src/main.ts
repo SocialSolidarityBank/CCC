@@ -2,6 +2,7 @@ import { createPostgresDatabase } from '@ccc/db-postgres';
 import { createEnvironmentSecretStore } from '@ccc/secrets-env';
 import type { CoreSecretName } from '@ccc/contracts/runtime';
 import { createCommunityCloudRuntime } from './runtime';
+import { assertApplicationCaBinding } from './application-ca.mjs';
 
 declare const Deno: {
   env: { get(name: string): string | undefined; has(name: string): boolean };
@@ -16,6 +17,7 @@ const SETTING_NAMES = [
 
 const BUSINESS_SECRET_NAMES = ['CODEX_API_KEY', 'PII_ENC_KEY', 'NOTIFY_WEBHOOK_URL'] as const satisfies readonly CoreSecretName[];
 const PRIVILEGED_BINDINGS = [
+  'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'SUPABASE_DB_URL', 'SUPABASE_ACCESS_TOKEN',
 ] as const;
 
@@ -28,6 +30,11 @@ function required(name: string): string {
 async function initialize() {
   // Defense only: deployment identity and injection policy must separately prove privilege isolation.
   if (PRIVILEGED_BINDINGS.some((name) => Deno.env.has(name))) throw new Error('installation_unavailable');
+  assertApplicationCaBinding({
+    CCC_DATABASE_CA_FILE: Deno.env.get('CCC_DATABASE_CA_FILE'),
+    NODE_EXTRA_CA_CERTS: Deno.env.get('NODE_EXTRA_CA_CERTS'),
+    DENO_CERT: Deno.env.get('DENO_CERT'),
+  });
   const secretBindings: Partial<Record<CoreSecretName, string | undefined>> = {};
   for (const name of BUSINESS_SECRET_NAMES) {
     Object.defineProperty(secretBindings, name, { enumerable: true, get: () => Deno.env.get(name) });

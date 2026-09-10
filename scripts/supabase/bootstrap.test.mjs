@@ -5,6 +5,8 @@ import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
+import { createHostedInspector } from './hosted-inspector.mjs';
+import { buildSupabasePlan } from './plan.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const cliPath = resolve(import.meta.dirname, 'bootstrap.mjs');
@@ -120,8 +122,9 @@ async function withManagementApi({
   }
 }
 
-async function runCli(origin, { token = accessToken, leadingSeparator = false, managementOrigin } = {}) {
-  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), 'plan', '--target', 'hosted', '--project-ref', 'test-project', '--format', 'json'];
+async function runCli(origin, { token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan', installManifest } = {}) {
+  const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project', '--format', 'json'];
+  if (installManifest !== undefined) args.push('--install-manifest', installManifest);
   const childEnv = {
     ...process.env,
     NODE_OPTIONS: `--import=${fetchShim}`,
@@ -129,6 +132,9 @@ async function runCli(origin, { token = accessToken, leadingSeparator = false, m
     CCC_SUPABASE_TEST_ORIGIN: origin,
   };
   delete childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN;
+  delete childEnv.CCC_INSTALL_MANIFEST;
+  delete childEnv.CCC_INSTALL_SIGNING_KEYS;
+  delete childEnv.CCC_DATABASE_CA_FILE;
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, args, {
     cwd: repoRoot,
@@ -154,109 +160,104 @@ function assertNoSensitiveOutput(result, origin) {
   assert.equal(output.includes(origin), false);
 }
 
-test('black-box plan uses only read endpoints and emits a redacted valid result', async () => {
+// The observation engine is tested independently of the public CLI trust gate.
+// No test invents an approved S11 owner envelope or bypass flag for production.
+async function inspectPlan(origin, token = accessToken) {
+  const inspector = createHostedInspector({
+    accessToken: token, projectRef: 'test-project',
+    fetchImpl: (url, options) => {
+      assert.equal(new URL(url).origin, 'https://api.supabase.com');
+      return fetch(new URL(new URL(url).pathname, origin), options);
+    },
+  });
+  return buildSupabasePlan({ target: 'hosted', inspector });
+}
+
+test('hosted observation uses only read endpoints without claiming signed ownership', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
-    const result = await runCli(origin);
-    assert.equal(result.exitCode, 0, result.stderr);
-    const output = JSON.parse(result.stdout);
-    assert.equal(output.ready, true);
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, false);
     assert.equal(output.readOnly, true);
     assert.equal(output.unchanged, true);
-    assertNoSensitiveOutput(result, origin);
+    assert.ok(output.blockers.some(({ code }) => code === 'OWNER_EVIDENCE_MISSING'));
+    assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
     assert.ok(requests.length >= 6);
     assert.ok(requests.every(({ method, path }) => method === 'GET' || (method === 'POST' && path.endsWith('/database/query/read-only'))));
     assert.ok(requests.filter(({ path }) => path.endsWith('/database/query/read-only')).every(({ body }) => JSON.parse(body).query.trimStart().startsWith('SELECT')));
   });
 });
 
-test('public CLI keeps the official Management API origin when an override is supplied', async () => {
+test('public hosted preflight rejects absent ownership before credentials or provider access', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
-    const result = await runCli(origin, { managementOrigin: origin });
-    assert.equal(result.exitCode, 0, result.stderr);
-    assert.ok(requests.length >= 6);
-    assertNoSensitiveOutput(result, origin);
-  });
-});
-
-test('black-box plan blocks when any Auth setting changes during the read-only plan', async () => {
-  await withManagementApi({ mutateAuth: true }, async ({ origin }) => {
-    const result = await runCli(origin);
-    assert.equal(result.exitCode, 6);
-    const output = JSON.parse(result.stdout);
-    assert.equal(output.unchanged, false);
-    assert.ok(output.blockers.some(({ code }) => code === 'STATE_CHANGED_DURING_PLAN'));
-    assertNoSensitiveOutput(result, origin);
-  });
-});
-
-test('package-script argument separator is accepted without changing the public plan operation', async () => {
-  await withManagementApi({}, async ({ origin }) => {
-    const result = await runCli(origin, { leadingSeparator: true });
-
-    assert.equal(result.exitCode, 0, result.stderr);
-    assert.equal(JSON.parse(result.stdout).operation, 'plan');
-  });
-});
-
-test('black-box plan detects hosted table data changing between its two reads', async () => {
-  const database = databaseSnapshot({
-    user_table_names: ['participants'],
-    user_table_count: 1,
-    user_row_estimate: 1,
-  });
-  await withManagementApi({ database, mutateData: true }, async ({ origin }) => {
-    const result = await runCli(origin);
-    assert.equal(result.exitCode, 6);
-    const output = JSON.parse(result.stdout);
-    assert.equal(output.unchanged, false);
-    assert.ok(output.blockers.some(({ code }) => code === 'STATE_CHANGED_DURING_PLAN'));
-    assertNoSensitiveOutput(result, origin);
-  });
-});
-
-test('black-box plan blocks a non-Seoul project without leaking provider data', async () => {
-  await withManagementApi({ region: 'ap-southeast-1' }, async ({ origin }) => {
-    const result = await runCli(origin);
-    assert.equal(result.exitCode, 6);
-    const output = JSON.parse(result.stdout);
-    assert.ok(output.blockers.some(({ code }) => code === 'REGION_MISMATCH'));
-    assertNoSensitiveOutput(result, origin);
-  });
-});
-
-test('black-box plan distinguishes missing, invalid, and insufficient credentials', async () => {
-  await withManagementApi({}, async ({ origin }) => {
-    const result = await runCli(origin, { token: '' });
-    assert.equal(result.exitCode, 2);
-    assert.equal(JSON.parse(result.stderr).error.code, 'CREDENTIAL_MISSING');
-    assertNoSensitiveOutput(result, origin);
-  });
-  for (const [status, code, exitCode] of [
-    [401, 'CREDENTIAL_INVALID', 3],
-    [403, 'CREDENTIAL_INSUFFICIENT', 4],
-  ]) {
-    await withManagementApi({ status }, async ({ origin }) => {
-      const result = await runCli(origin);
-      assert.equal(result.exitCode, exitCode);
-      const output = JSON.parse(result.stderr);
-      assert.equal(output.error.code, code);
+    for (const options of [{}, { token: '' }, { managementOrigin: origin }, { leadingSeparator: true }]) {
+      const result = await runCli(origin, options);
+      assert.equal(result.exitCode, 6);
+      assert.equal(JSON.parse(result.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
       assertNoSensitiveOutput(result, origin);
+    }
+    assert.equal(requests.length, 0);
+  });
+});
+
+test('manifest argument is recognized but malformed input cannot authorize observation', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, { installManifest: '{invalid' });
+    assert.equal(result.exitCode, 6);
+    assert.equal(JSON.parse(result.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
+    assert.equal(requests.length, 0);
+    assertNoSensitiveOutput(result, origin);
+  });
+});
+
+test('mutation and receipt commands remain explicitly blocked until owner and journal contracts align', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    for (const operation of ['apply', 'doctor', 'rollback']) {
+      const result = await runCli(origin, { operation });
+      assert.equal(result.exitCode, 6);
+      assert.equal(JSON.parse(result.stderr).error.code, 'INSTALLER_CONTRACT_UNRESOLVED');
+      assertNoSensitiveOutput(result, origin);
+    }
+    assert.equal(requests.length, 0);
+  });
+});
+
+test('read-only observations detect both Auth drift and institution data changing between reads', async () => {
+  for (const configuration of [
+    { mutateAuth: true },
+    { database: databaseSnapshot({ user_table_names: ['participants'], user_table_count: 1, user_row_estimate: 1 }), mutateData: true },
+  ]) {
+    await withManagementApi(configuration, async ({ origin }) => {
+      const output = await inspectPlan(origin);
+      assert.equal(output.unchanged, false);
+      assert.ok(output.blockers.some(({ code }) => code === 'STATE_CHANGED_DURING_PLAN'));
+      assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
     });
   }
 });
 
-test('black-box plan distinguishes existing institution data from a version blocker', async () => {
-  await withManagementApi({
-    database: databaseSnapshot({
-      institution_data_fingerprint: 'data-present',
-      user_table_count: 3,
-      user_row_estimate: 12,
-    }),
-  }, async ({ origin }) => {
-    const result = await runCli(origin);
-    assert.equal(result.exitCode, 6);
-    const output = JSON.parse(result.stdout);
-    assert.equal(output.blockers[0].code, 'EXISTING_PROJECT');
-    assertNoSensitiveOutput(result, origin);
+test('read-only observations preserve region and unowned-project denials', async () => {
+  await withManagementApi({ region: 'ap-southeast-1' }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.ok(output.blockers.some(({ code }) => code === 'REGION_MISMATCH'));
   });
+  await withManagementApi({ database: databaseSnapshot({ user_table_count: 3, user_row_estimate: 12 }) }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.blockers[0].code, 'EXISTING_PROJECT_NOT_CLEAN');
+    assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
+  });
+});
+
+test('inspector credential errors retain fixed codes without provider response text', async () => {
+  await withManagementApi({}, async ({ origin }) => {
+    await assert.rejects(inspectPlan(origin, ''), error => error.code === 'CREDENTIAL_MISSING');
+  });
+  for (const [status, code] of [[401, 'CREDENTIAL_INVALID'], [403, 'CREDENTIAL_INSUFFICIENT']]) {
+    await withManagementApi({ status }, async ({ origin }) => {
+      await assert.rejects(inspectPlan(origin), error => {
+        assert.equal(error.code, code);
+        assertNoSensitiveOutput({ stdout: '', stderr: error.message }, origin);
+        return true;
+      });
+    });
+  }
 });

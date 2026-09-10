@@ -95,11 +95,14 @@ export const DATABASE_STATE_QUERY = `SELECT
     JOIN pg_catalog.pg_class AS relation ON relation.oid = policy.polrelid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
     WHERE namespace.nspname = 'public') AS policy_count,
-  EXISTS(SELECT 1 FROM storage.buckets AS bucket WHERE bucket.id = 'ccc-session-audio') AS bucket_exists,
-  (SELECT bucket.public FROM storage.buckets AS bucket WHERE bucket.id = 'ccc-session-audio') AS bucket_public,
+  EXISTS(SELECT 1 FROM storage.buckets AS bucket WHERE bucket.id = 'ccc-audio') AS bucket_exists,
+  (SELECT bucket.public FROM storage.buckets AS bucket WHERE bucket.id = 'ccc-audio') AS bucket_public,
   pg_catalog.current_setting('server_version') AS database_version,
   (pg_catalog.current_setting('transaction_read_only') = 'on') AS read_only,
   pg_catalog.has_database_privilege(CURRENT_USER, pg_catalog.current_database(), 'CONNECT') AS database_readable,
+  EXISTS(SELECT 1 FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=relation.relnamespace
+    WHERE namespace.nspname='private' AND relation.relname IN ('ccc_install_journal','ccc_schema_migrations','ccc_install_receipt','ccc_install_resources')) AS private_install_metadata_exists,
   EXISTS(SELECT 1
     FROM pg_catalog.pg_class AS relation
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
@@ -163,7 +166,9 @@ export function boolean(value) {
 }
 
 export function normalizeDatabaseSnapshot({ database, migration, auth, authFingerprint = fingerprint(auth), institutionDataFingerprint = '' }) {
-  const ledgerExists = boolean(database.ledger_exists);
+  // Presence is not ownership. The planner rejects both unverified S11 metadata
+  // and the legacy public ledger until the private signed-owner contract is resolved.
+  const ledgerExists = boolean(database.ledger_exists) || boolean(database.private_install_metadata_exists);
   return {
     connection: {
       readOnly: boolean(database.read_only),

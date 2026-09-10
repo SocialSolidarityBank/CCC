@@ -60,7 +60,7 @@ function inspector(...snapshots) {
   };
 }
 
-test('fresh Seoul project returns a read-only plan with named resources and no blocker', async () => {
+test('fresh Seoul observation remains blocked without signed ownership and names current resources', async () => {
   const result = await buildSupabasePlan({
     target: 'hosted',
     inspector: inspector(snapshot(), snapshot()),
@@ -68,19 +68,23 @@ test('fresh Seoul project returns a read-only plan with named resources and no b
 
   assert.equal(result.operation, 'plan');
   assert.equal(result.readOnly, true);
-  assert.equal(result.ready, true);
-  assert.deepEqual(result.blockers, []);
+  assert.equal(result.ready, false);
+  assert.deepEqual(result.blockers.map(({ code }) => code), ['OWNER_EVIDENCE_MISSING']);
   assert.equal(result.installed.state, 'not-installed');
   assert.deepEqual(
     result.plannedResources.map(({ name }) => name),
     expectedSupabaseResources.map(({ name }) => name),
   );
+  assert.ok(result.plannedResources.some(resource => resource.kind === 'storage-bucket' && resource.name === 'ccc-audio (private)'));
+  assert.ok(result.plannedResources.some(resource => resource.kind === 'database-role' && resource.name.startsWith('ccc_api ')));
+  assert.ok(result.migrations.every(migration => /^\d{4}_[A-Za-z0-9_-]+\.sql$/.test(migration.id) && /^[a-f0-9]{64}$/.test(migration.checksum)));
 });
 
 test('hosted project with missing or non-Seoul region evidence is blocked before apply', async () => {
   for (const [region, code] of [
     [null, 'REGION_UNVERIFIED'],
     ['ap-southeast-1', 'REGION_MISMATCH'],
+    ['seoul', 'REGION_MISMATCH'],
   ]) {
     const observed = snapshot({
       project: { region, databaseVersion: '17.4', status: 'ACTIVE_HEALTHY' },
@@ -96,7 +100,7 @@ test('hosted project with missing or non-Seoul region evidence is blocked before
   }
 });
 
-test('existing project data and unsupported installed versions produce different recovery paths', async () => {
+test('existing data and any legacy ledger are rejected without S11 installation ownership', async () => {
   const existing = snapshot({
     state: { ...stableState, institutionDataFingerprint: 'data-present', userTableCount: 2, userRowEstimate: 8 },
   });
@@ -104,8 +108,8 @@ test('existing project data and unsupported installed versions produce different
     target: 'hosted',
     inspector: inspector(existing, existing),
   });
-  assert.equal(existingPlan.blockers[0].code, 'EXISTING_PROJECT');
-  assert.match(existingPlan.blockers[0].recovery, /빈 프로젝트/u);
+  assert.equal(existingPlan.blockers[0].code, 'EXISTING_PROJECT_NOT_CLEAN');
+  assert.match(existingPlan.blockers[0].recovery, /소유 승인/u);
 
   const ahead = snapshot({
     installed: { ledger: 'present', version: 99, checksum: 'newer-checksum' },
@@ -114,8 +118,8 @@ test('existing project data and unsupported installed versions produce different
     target: 'hosted',
     inspector: inspector(ahead, ahead),
   });
-  assert.equal(aheadPlan.blockers[0].code, 'VERSION_AHEAD');
-  assert.doesNotMatch(aheadPlan.blockers[0].recovery, /빈 프로젝트/u);
+  assert.equal(aheadPlan.blockers[0].code, 'RESOURCE_OWNERSHIP_MISMATCH');
+  assert.equal(aheadPlan.installed.state, 'unverified');
 
   const behind = snapshot({
     installed: { ledger: 'present', version: 0, checksum: 'older-checksum' },
@@ -124,7 +128,7 @@ test('existing project data and unsupported installed versions produce different
     target: 'hosted',
     inspector: inspector(behind, behind),
   });
-  assert.equal(behindPlan.blockers[0].code, 'VERSION_GAP');
+  assert.equal(behindPlan.blockers[0].code, 'RESOURCE_OWNERSHIP_MISMATCH');
 });
 
 test('a state change observed during planning fails instead of claiming read-only stability', async () => {

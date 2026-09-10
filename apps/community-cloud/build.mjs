@@ -23,3 +23,14 @@ await build({
   sourcemap: false,
   logLevel: 'warning',
 });
+
+await build({
+  entryPoints: ['src/install-manifest-verifier.ts'],
+  outfile: 'dist/install-manifest-verifier.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'es2022',
+  sourcemap: false,
+  logLevel: 'warning',
+});
