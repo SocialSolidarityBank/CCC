@@ -1,70 +1,62 @@
 # Community Cloud 베타 배포 실행 순서
 
-Supabase 값이 도착한 다음 총괄이 그대로 실행하는 순서다. 값은 승인된 주입 경로로만 읽고 화면과 기록에 남기지
-않는다. 이미 만들어 둔 자원은 리소스 그룹 `ccc-beta-krc`(한국 중부), 레지스트리 `cccbetakrc0470`,
-Container Apps 환경 `ccc-beta-env`, 이미지 `ccc-community-cloud:0.9.0`, 예산 알림 `ccc-beta-monthly`다.
+## 현재 확인한 상태
 
-## 0. 값이 갖춰졌는지 확인
+Relayer Supabase 프로젝트는 이미 존재하며 서울 리전이다. 새 프로젝트를 만들거나 기존 사용자 값을
+덮어쓰지 않는다. Aside의 해당 프로젝트 Connect 화면에서 IPv4 session pooler를 확인했고, 공식 CA를
+지정한 인증서와 호스트 검증, 기존 설치 계정의 읽기 전용 `SELECT 1` 연결이 성공했다.
+업무 행 조회와 DB 쓰기는 하지 않았다. 이 결과는 설치 계정의 연결 증거이며 `ccc_api` 기동 증거가 아니다.
 
-RELAYER prod `/` 에 다음 이름이 새 프로젝트 값으로 있어야 한다. 값은 읽지 않고 존재만 확인한다.
+Azure 로그인은 유지되고 있다. 앞서 만든 자원은 `ccc-beta-krc`, `cccbetakrc0470`, `ccc-beta-env`다.
+기존 이미지 빌드 성공은 현재 통합 tip의 배포나 실제 인증 성공을 뜻하지 않는다.
 
-- `CCC_DATABASE_URL` : Session pooler(IPv4) 접속 문자열. 소유자 계정이 아니라 제한 역할용으로 쓸 것이다.
-- `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CCC_SUPABASE_PROJECT_REF`
-- `PII_ENC_KEY` : 이미 있다.
+## 시크릿과 연결 경계
 
-## 1. 변경 없는 사전 점검 (D84 · ADR-0042)
+- 정본은 `.infisical.json`의 RELAYER 프로젝트, 명시적 `--path /`다. 환경도 매번 지정한다.
+- 인증은 기존 `hermes-bss` Universal Auth를 `opsvc`로 주입한다. 옛 source-scoped 자격은 쓰지 않는다.
+- `SUPABASE_DB_PASSWORD`는 설치 계정 전용이다. 소유자 접속 문자열을 `CCC_DATABASE_URL`로 저장하지 않는다.
+- `CCC_DATABASE_URL`은 설치기가 준비한 제한 역할 `ccc_api`의 업무 실행 연결에만 사용한다.
+- 원본 프로젝트 항목과 사용자 값을 삭제하거나 회전하지 않는다. staging의 누락값을 prod에서 임의 복제하지 않는다.
+- Supabase CA는 공식 대시보드가 제공한 공개 인증서만 사용한다. 앱별 신뢰 설정으로
+  인증서 체인과 호스트 검증을 유지한다. 시스템 신뢰 저장소나 `rejectUnauthorized`를 바꾸지 않는다.
 
-```sh
-node scripts/supabase/bootstrap.mjs plan
-```
+## 설치 전 관문
 
-리전, 읽기 권한, 기존 데이터, RLS, Auth, Storage를 읽기 전용으로 확인한다. 실행 전후 지문이 같아야 통과다.
-여기서 막히면 배포로 넘어가지 않는다.
+정본은 `docs/specs/S11-supabase-edge-template.md`다. 앞선 버전의 SQL 파일 일괄 실행 명령은 폐기한다.
+서명된 설치 manifest, 소유 기관과 프로젝트 결합, 만료, 깨끗한 프로젝트 또는 일치하는 설치 journal을
+먼저 확인해야 한다. 연결 성공이나 비어 보이는 화면만으로 마이그레이션을 실행하지 않는다.
 
-## 2. 스키마 적용과 제한 역할 준비
-
-소유자 자격으로 `migrations/postgres/*.sql` 을 번호 순서대로 적용한다. 그다음 `ccc_api` 역할에 로그인 자격을
-부여하고, 업무 런타임에 줄 접속 문자열은 그 역할로만 만든다. 소유자 문자열은 런타임에 넣지 않는다.
-
-적용 뒤 확인할 것은 셋이다. 표 개수, `0006_rls_default_deny.sql` 이후의 기본 거부, 그리고 `ccc_api` 로 붙은
-연결에서 보호 테이블 직접 접근이 거부되는지다.
-
-## 3. 설치 매니페스트 서명
-
-`packages/contracts/src/install-manifest.ts` 의 `signInstallManifest` 로 Community Cloud 매니페스트를 만든다.
-`mode`는 `community-cloud`, `apiBase`는 배포될 Container App 주소 + `/api/v1`, `clientOrigin`과
-`allowedOrigins`는 클라이언트가 서비스될 주소, `supabaseAuthOrigin`은 `SUPABASE_URL`, `scheme`은 `https`다.
-서명 공개키 묶음이 `CCC_INSTALL_SIGNING_KEYS`가 된다. 개인키는 저장하지 않는다.
-
-## 4. 컨테이너 앱 생성
+현재 구현된 읽기 전용 명령의 인자는 다음과 같다.
 
 ```sh
-az containerapp create -n ccc-api -g ccc-beta-krc --environment ccc-beta-env \
-  --image cccbetakrc0470.azurecr.io/ccc-community-cloud:0.9.0 \
-  --registry-server cccbetakrc0470.azurecr.io --registry-identity system \
-  --ingress external --target-port 8080 --min-replicas 0 --max-replicas 1 \
-  --secrets <이름=값은 주입으로만> \
-  --env-vars CCC_ORGANIZATION_ID=... CCC_STT_MODE=off CCC_LLM_MODE=off PII_KEY_VERSION=2
+node scripts/supabase/bootstrap.mjs plan --target hosted --format json
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEYS`, `SUPABASE_DB_URL`, `SUPABASE_ACCESS_TOKEN` 은 절대 넣지
-않는다. 런타임이 이 이름들을 보면 기동을 거부한다. 상세 계약은 `apps/community-cloud/RUN.md` 가 갖는다.
+이 명령은 주입된 `SUPABASE_ACCESS_TOKEN`과 `CCC_SUPABASE_PROJECT_REF`를 읽는다.
+이전된 Management API 토큰의 새 프로젝트 403은 미해결이며, 별도의 DB 연결 성공으로 대체할 수 없다.
 
-## 5. 기동 확인
+현재 bootstrap은 `plan`만 지원하고 S11의 `--install-manifest`, `apply`, `doctor`, `rollback`은
+구현되지 않았다. 계획의 옛 `ccc_worker`와 30일 원음 보관 선언도 현행 계약과 맞지 않는다.
+API 레인이 이 차이를 해소하기 전에는 이 문서를 실행 가능한 설치기로 취급하지 않는다.
 
-- `/readyz` 200 (데이터베이스를 건드리지 않는 준비 확인)
-- 서명된 host 로 보낸 `/api/v1/capabilities` 200, 다른 host 는 403
-- 설정을 하나 빼고 띄우면 `installation_unavailable` 한 줄로 종료
+## 구현 후 실행할 순서
 
-## 6. 클라이언트 서빙과 실제 완주
+1. S11 read-only plan에서 기관 소유권, 기존 자원, Auth, Storage, RLS, schema와 전후 지문을 확인한다.
+2. 승인 manifest와 일치하는 durable journal을 먼저 만든 뒤, migration별 transaction과 checksum을 기록한다.
+   이미 적용된 migration을 다시 실행하거나 같은 번호의 내용을 바꾸지 않는다.
+3. `ccc_api`의 최소 권한과 실제 거부를 검증한다. 설치 자격과 업무 자격의 주입 프로세스를 분리한다.
+4. 서명 개인키는 승인된 SecretStore가 관리한다. 임시로 만들었다가 버리는 키로 정식 설치 이력을 만들지 않는다.
+5. Cloud 이미지에는 업무용 허용 이름만 주입한다. Supabase 관리자 비밀번호, secret/service-role 키,
+   Management API 토큰을 전달하지 않는다. CA 신뢰와 `verify-full`을 유지한다.
+6. 승인된 한국 중부 환경에서 이미지 읽기 권한, 최대 한 인스턴스, 예산 알림과 정확한 ingress/probe 설정을 확인한다.
+   현재 통합 commit과 이미지 digest를 연결한 뒤 배포한다.
+7. 실제 hosted Auth와 MFA, 업무 화면의 등록부터 DB 재조회까지, 권한 거부, 저장 충돌,
+   미승인 초안 제외, 가림 실패 시 외부 호출 차단, 원음 삭제와 수기 경로를 검증한다.
+8. 신뢰된 HTTPS origin에서 PWA 등록과 캐시 경계, 업데이트와 복원 경로를 별도로 확인한다.
 
-`apps/client` 를 빌드해 정적으로 서빙하고 `/ccc-install-manifest.json` 과 `/ccc-bootstrap.json` 을 같은 origin
-에서 제공한다. 그다음 실제 브라우저로 다음을 통과시킨다. 로그인과 2단계 인증(hosted Supabase Auth),
-기관 초기 설정, D87 사업 확인, 당사자 등록, 일정, 인테이크, 상담 기록, 15초 페이지, 전체 리포트,
-실무자 초대와 수락, 공개 요청 링크. 여기서 처음으로 hosted Auth·MFA(P1)와 신뢰 인증서 아래의 워커 등록(P2)이
-증명된다.
+## 완료 판정
 
-## 7. 남는 것
-
-Local Office 모드는 아직 앱이 없다. 세 모드 완주(P10)는 그 구현 뒤에야 닫힌다. Local Single은 Windows 실기에서
-14단계를 통과했다.
+테스트 통과, 이미지 빌드, 설치 계정 연결, 업무 API 기동, hosted 인증, 배포된 사용자 흐름을 구분한다.
+Local Single의 기존 Windows 번들 통과는 어댑터와 identity 로직의 증거다. 실제 서비스와 클라이언트를
+기동한 증거가 없으므로 Single 완료로 부르지 않는다. Local Office의 TLS, 실제 계정 저장소와 MFA,
+전용 서비스 계정, 두 client와 복원 검증도 별도로 남는다. 전체 목표는 세 모드 모두이며 축소하지 않는다.
