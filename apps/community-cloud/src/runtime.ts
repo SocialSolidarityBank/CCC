@@ -13,6 +13,8 @@ export interface CommunityCloudRuntimeConfig {
   installManifest: string;
   signingKeys: string;
   fetch?: typeof globalThis.fetch;
+  /** Container ingress terminates HTTPS; accept HTTP only for the exact signed host. */
+  allowHttpIngress?: boolean;
   settings?: Pick<ApiEnv,
     'CCC_STT_MODE' | 'CCC_LLM_MODE' | 'TEXT_AI_PILOT_ENABLED'
     | 'EXTERNAL_AI_CALLS_ENABLED' | 'PUBLIC_SIGNUP_ENABLED' | 'PII_PURGE_ENABLED' | 'PII_KEY_VERSION'>;
@@ -63,6 +65,21 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
   });
 
   return async (request) => {
+    const url = new URL(request.url);
+    // Reserved transport probe: no identity/configuration headers and no DB access.
+    if (url.pathname === '/readyz') {
+      const headers = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response(null, { status: 405, headers: { ...headers, allow: 'GET, HEAD' } });
+      }
+      const ready = Date.now() < expiresAt;
+      return new Response(request.method === 'HEAD' ? null : JSON.stringify({ status: ready ? 'ready' : 'unavailable' }), {
+        status: ready ? 200 : 503, headers,
+      });
+    }
+    if (config.allowHttpIngress === true && url.protocol === 'http:' && url.host === apiBase.host) {
+      url.protocol = apiBase.protocol;
+    }
     const origin = request.headers.get('origin');
     const permittedOrigin = origin !== null && allowedOrigins.has(origin);
     const headers = new Headers({
@@ -80,7 +97,6 @@ export async function createCommunityCloudRuntime(config: CommunityCloudRuntimeC
     };
     if (Date.now() >= expiresAt) return failure(503, 'service_unavailable');
     if (origin !== null && !permittedOrigin) return failure(403, 'forbidden');
-    const url = new URL(request.url);
     if (url.origin !== apiBase.origin) return failure(403, 'forbidden');
     if (url.pathname !== routePrefix && !url.pathname.startsWith(prefixWithSlash)) {
       return failure(404, 'not_found');

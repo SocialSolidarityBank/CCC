@@ -138,6 +138,44 @@ describe('independent Community Cloud runtime', () => {
     configuration.secretStore = createEnvironmentSecretStore({ SUPABASE_SERVICE_ROLE_KEY: 'synthetic-not-a-credential' });
     await expect(createCommunityCloudRuntime(configuration)).rejects.toThrow('storage_signer_required');
   });
+
+  it('answers readiness without database access or configuration headers and expires with the manifest', async () => {
+    const configuration = await config();
+    const handler = await createCommunityCloudRuntime(configuration);
+    configuration.database.prepare = () => { throw new Error('readiness_touched_database'); };
+    const probe = new URL('/readyz', clientOrigin);
+    const response = await handler(new Request(probe));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'ready' });
+    expect(Object.fromEntries(response.headers)).toEqual({
+      'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8',
+    });
+    const head = await handler(new Request(probe, { method: 'HEAD' }));
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe('');
+    expect((await handler(new Request(probe, { method: 'POST' }))).status).toBe(405);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(JSON.parse(configuration.installManifest).expiresAt));
+    const expired = await handler(new Request(probe));
+    expect(expired.status).toBe(503);
+    expect(await expired.json()).toEqual({ status: 'unavailable' });
+  });
+
+  it('normalizes opted-in HTTP ingress only for the signed host, never forwarding headers', async () => {
+    const configuration = await config();
+    const internal = new URL('/api/health', apiOrigin);
+    internal.protocol = 'http:';
+    const direct = await createCommunityCloudRuntime(configuration);
+    await expectFailure(await direct(new Request(internal)), 403, 'forbidden');
+    const ingress = await createCommunityCloudRuntime({ ...configuration, allowHttpIngress: true });
+    expect((await ingress(new Request(internal))).status).toBe(200);
+    await expectFailure(await ingress(new Request(new URL('/api/me', internal))), 401, 'actor_authentication_required');
+    const wrongHost = new URL('/api/health', clientOrigin);
+    wrongHost.protocol = 'http:';
+    await expectFailure(await ingress(new Request(wrongHost, { headers: {
+      'x-forwarded-host': new URL(apiOrigin).host, 'x-forwarded-proto': 'https',
+    } })), 403, 'forbidden');
+  });
 });
 
 describe('Deno business entry privilege defense', () => {
@@ -150,25 +188,54 @@ describe('Deno business entry privilege defense', () => {
     };
     vi.mocked(createPostgresDatabase).mockReturnValue(configuration.database);
     let serve: ((request: Request) => Promise<Response>) | undefined;
+    let exitCode: number | undefined;
+    let listenOptions: { hostname: string; port: number } | undefined;
+    const diagnostics: unknown[][] = [];
+    const processExit = new Error('simulated_process_exit');
+    const stderr = vi.spyOn(console, 'error').mockImplementation((...values) => { diagnostics.push(values); });
     vi.stubGlobal('Deno', {
       env: { get: (name: string) => environment[name], has: (name: string) => Object.hasOwn(environment, name) },
-      serve: (handler: typeof serve) => { serve = handler; },
+      serve: (options: typeof listenOptions, handler: typeof serve) => { listenOptions = options; serve = handler; },
+      exit: (code: number) => { exitCode = code; throw processExit; },
     });
     // Module-loading boundary: the entry must initialize after this test installs its synthetic Deno.
-    await import('../../community-cloud/src/main');
-    if (serve === undefined) throw new Error('entry did not expose an HTTP handler');
-    return serve(new Request(`${apiOrigin}/api/health`));
+    try {
+      await import('../../community-cloud/src/main');
+    } catch (error) {
+      if (error !== processExit) throw error;
+    } finally {
+      stderr.mockRestore();
+    }
+    return {
+      response: serve === undefined ? null : await serve(new Request(`${apiOrigin}/api/health`)),
+      exitCode, listenOptions, diagnostics,
+    };
   }
 
   it('serves with only the business installation bindings', async () => {
-    const response = await boot();
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'ok', service: 'ccc-api' });
+    const result = await boot({ PORT: '9099' });
+    expect(result.exitCode).toBeUndefined();
+    expect(result.listenOptions).toMatchObject({ hostname: '0.0.0.0', port: 9099 });
+    expect(result.response?.status).toBe(200);
+    expect(await result.response?.json()).toEqual({ status: 'ok', service: 'ccc-api' });
+    expect(result.diagnostics).toEqual([]);
   });
 
   it.each(['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'SUPABASE_DB_URL', 'SUPABASE_ACCESS_TOKEN'])(
     'fails closed when the process contains %s instead of hiding it behind SecretStore', async name => {
-      await expectFailure(await boot({ [name]: 'synthetic-not-a-credential' }), 503, 'service_unavailable');
+      const result = await boot({ [name]: 'synthetic-not-a-credential' });
+      expect(result).toEqual({
+        response: null, exitCode: 1, listenOptions: undefined, diagnostics: [['installation_unavailable']],
+      });
     },
   );
+
+  it('exits without serving or exposing configuration when installation input is missing or PORT is invalid', async () => {
+    for (const extra of [{ CCC_DATABASE_URL: '' }, { PORT: '0' }, { PORT: '65536' }, { PORT: 'invalid' }]) {
+      const result = await boot(extra);
+      expect(result).toEqual({
+        response: null, exitCode: 1, listenOptions: undefined, diagnostics: [['installation_unavailable']],
+      });
+    }
+  });
 });

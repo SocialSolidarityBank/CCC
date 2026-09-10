@@ -5,7 +5,8 @@ import { createCommunityCloudRuntime } from './runtime';
 
 declare const Deno: {
   env: { get(name: string): string | undefined; has(name: string): boolean };
-  serve(handler: (request: Request) => Promise<Response>): unknown;
+  serve(options: { hostname: string; port: number; onListen: () => void }, handler: (request: Request) => Promise<Response>): unknown;
+  exit(code: number): never;
 };
 
 const SETTING_NAMES = [
@@ -49,6 +50,7 @@ async function initialize() {
       installManifest: required('CCC_INSTALL_MANIFEST'),
       signingKeys: required('CCC_INSTALL_SIGNING_KEYS'),
       settings,
+      allowHttpIngress: true,
     });
   } catch {
     await database.close();
@@ -56,14 +58,15 @@ async function initialize() {
   }
 }
 
-const runtime = initialize().catch(() => null);
-Deno.serve(async (request) => {
-  const handler = await runtime;
-  if (handler === null) {
-    return new Response(JSON.stringify({ error: 'service_unavailable' }), {
-      status: 503,
-      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-    });
+try {
+  const portText = Deno.env.get('PORT') ?? '8080';
+  const port = Number(portText);
+  if (!/^[0-9]+$/.test(portText) || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('installation_unavailable');
   }
-  return handler(request);
-});
+  const runtime = await initialize();
+  Deno.serve({ hostname: '0.0.0.0', port, onListen: () => {} }, runtime);
+} catch {
+  console.error('installation_unavailable');
+  Deno.exit(1);
+}
