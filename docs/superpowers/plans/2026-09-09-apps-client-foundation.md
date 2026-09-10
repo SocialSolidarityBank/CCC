@@ -1084,3 +1084,64 @@ readiness 뿐). 다섯 구획과 회차별 요약, 최초 인테이크 목표 �
 | 20 | 로그아웃 | 통과 |
 
 실패 0건. 값은 전부 합성 하네스 응답이며 실제 기관 자료, 실제 사업자 연결은 없다.
+
+## 27. 배포 빌드 경로 (2026-09-10)
+
+새 앱을 만들지 않았다. 기존 vite 빌드를 감싼 명령 하나와 설정 예시뿐이다. 비밀값은 레포에 없고
+호스트 이름도 코드에 없다. 전부 서명된 manifest 에서 읽는다.
+
+### 명령
+
+```
+pnpm --filter @ccc/client run build:release -- --config <배포설정.json> [--out <디렉터리>]
+```
+
+실행기는 `bun` 이다(`@ccc/contracts` TypeScript 정본을 그대로 읽어 서명을 검증한다. 하네스 도구와 같은 규약).
+
+설정 예시는 `apps/client/release.config.example.json` 이고 두 칸뿐이다.
+
+| 칸 | 뜻 |
+|---|---|
+| `manifestPath` | 배포 담당이 **서명한** install manifest 파일 경로. 이 명령은 서명하지 않고 검증만 한다 |
+| `publicKeys` | `signingKeyId` → Ed25519 공개 키(base64). 공개 키라 비밀은 아니지만 레포에 두지 않는다 |
+
+### 명령이 하는 일
+
+1. `verifySignedInstallManifest` 로 서명, 만료, 모드별 필드(https `apiBase`, Supabase 세 값,
+   `projectRef` 일치, publishable key 모양)를 검증한다. `community-cloud` 가 아니면 멈춘다.
+2. `VITE_CCC_INSTALL_SIGNING_KEYS` 에 공개 키만 넣고 `vite build` 를 돌린다.
+3. `ccc-install-manifest.json` 을 산출물에 복사하고, `ccc-bootstrap.json` 을 manifest 에서 파생해
+   `assertBootstrapMatchesManifest` 로 다시 확인한다. bootstrap 을 손으로 적지 않는다.
+4. `ccc-deploy-headers.json` 에 정적 서버가 켜야 할 header 를 적는다(S2 §2.9 고정 문구 + manifest 의
+   두 origin). `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` 를 포함한다.
+
+### 실측: 비-localhost HTTPS origin 세 벌
+
+`*.localtest.me`(공개 DNS 가 loopback 을 가리킨다)로 세 origin 을 분리해 산출물을 그대로 서빙했다.
+하네스는 origin 을 세워 주기만 하고 산출물은 위 명령이 만든 것 그대로다.
+
+- client `https://app.localtest.me:4443`, API `https://api.localtest.me:4444/api/v1`,
+  Auth `https://abcdefghij.supabase.localtest.me:4445`
+- 결과: 공개 문서 둘 200, 로그인과 추가 인증 통과, 업무 셸 진입, 당사자 목록 렌더,
+  `localStorage`·`sessionStorage` 키 0개, 새로고침하면 다시 로그인 요구(memory-only 세션).
+  요청 origin 은 셋뿐이고 그 밖의 origin 은 없다.
+- **여기서 실제 결함 하나를 잡았다**: `connect-src` 에 `apiBase` 를 끝 슬래시 없이 넣으면 CSP 가
+  그 경로 하나만 허용해 `/api/v1/capabilities` 호출이 막힌다. 경로 접두사로 쓰도록 끝에 `/` 를
+  붙였고, 붙인 뒤 같은 검수를 다시 돌려 통과를 확인했다.
+
+### Main 이 실제 인프라에서 줘야 하는 값
+
+| 값 | 어디에 들어가나 | 형식·제약 |
+|---|---|---|
+| API base URL | manifest `apiBase`, 파생 `ccc-bootstrap.json`, CSP `connect-src` | `https://<host>/<path>` 정확한 문자열. 쿼리·조각 없음 |
+| 클라이언트 origin | manifest `clientOrigin`, `allowedOrigins`, API CORS allowlist | `https://<host>` origin 하나. `allowedOrigins` 가 이 값을 포함해야 한다 |
+| Supabase project ref | manifest `supabaseProjectRef` | Auth origin 호스트의 첫 라벨과 같아야 한다 |
+| Supabase Auth origin | manifest `supabaseAuthOrigin`, CSP `connect-src` | `https://<ref>.<도메인>` origin |
+| Supabase publishable key | manifest `supabasePublishableKey` | `sb_publishable_...` 또는 `role=anon` JWT. service-role 키는 절대 아니다 |
+| installation id | manifest `installationId` | CSPRNG opaque 값. 기관·사용자 ID 가 아니다 |
+| 서명 키 ID와 공개 키 | manifest `signingKeyId`, 설정 `publicKeys` | Ed25519 공개 키 base64 32바이트. **개인 키는 배포 담당이 갖고 이 명령에 넣지 않는다** |
+| 서명된 manifest 파일 | 설정 `manifestPath` | `sequence`, `publishedAt`, `expiresAt` 포함. 만료 전이어야 빌드가 통과한다 |
+
+정적 서버 쪽 요구는 둘이다: `ccc-deploy-headers.json` 의 header 를 켜고, 모든 미지의 경로를
+`index.html` 로 돌려준다(SPA). API 쪽은 `allowedOrigins` 를 byte-equal 로 echo 하는 S2 §2.9 CORS 다.
+배포는 이 레인에서 하지 않는다.
