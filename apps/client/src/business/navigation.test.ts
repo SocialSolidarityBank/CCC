@@ -64,6 +64,11 @@ describe('business navigation permission boundary', () => {
     expect(visibleDestinations(['technical-admin']).map((entry) => entry.id)).toEqual(['account', 'staff-invites', 'system']);
     expect(destinationAt('/settings', '?module=retention')?.id).toBe('retention');
     expect(destinationAt('/settings', '?module=accounts')?.id).toBe('accounts');
+    // 공개 가입을 끈 설치에서는 당사자 초대 자리가 사라진다(CCC-112).
+    expect(visibleDestinations(['worker'], { public_signup: false }).map((entry) => entry.id))
+      .not.toContain('participant-invite');
+    expect(visibleDestinations(['worker'], { public_signup: true }).map((entry) => entry.id))
+      .toContain('participant-invite');
     expect(destinationAt('/settings', '?module=retention-policy')?.id).toBe('retention-policy');
     expect(destinationAt('/settings', '?module=unknown')).toBeNull();
     expect(visibleDestinations(['supervisor']).map((entry) => entry.id))

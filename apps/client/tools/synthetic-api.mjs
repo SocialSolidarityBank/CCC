@@ -362,6 +362,8 @@ export function handleApi(request, state, options) {
     }
   }
   if (path === '/invites/participant' && request.method === 'POST') {
+    // CCC-112: 공개 가입 표면이 닫힌 설치에서는 발급 자체가 404 다.
+    if (!options.publicSignupEnabled) return json({ error: 'not_found' }, 404, cors);
     return request.json().then((body) => {
       if (body.programId === state.lockedProgramId) return json({ error: 'program_admission_required' }, 409, cors);
       const token = `request-token-${state.requestLinks.size + 1}`;
@@ -377,7 +379,12 @@ export function handleApi(request, state, options) {
     const token = decodeURIComponent(path.split('/')[3]);
     const link = state.requestLinks.get(token);
     if (link === undefined) return json({ error: 'not_found' }, 404, cors);
-    if (link.status === 'used') return json({ status: 'used', counselorName: '담당 실무자' }, 200, cors);
+    if (link.status === 'used') {
+      return json({
+        status: 'used', counselorName: '김실무',
+        message: '이 링크는 이미 사용되었습니다. 담당 실무자에게 문의해 주세요.',
+      }, 200, cors);
+    }
     return json({
       status: 'issued', programId: link.programId, programType: 'financial_support_v1',
       orgName: '합성 기관', expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
