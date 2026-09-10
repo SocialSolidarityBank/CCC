@@ -12,7 +12,7 @@ export function WelcomePage({ loginOrigin = null }: { loginOrigin?: string | nul
         </p>
       </div>
 
-      <WireCard as="section" labelledBy="briefing-title" title={<h2 id="briefing-title">15초 페이지</h2>} className="preview-gate-card">
+      <WireCard as="section" labelledBy="briefing-title" title={<h2 id="briefing-title">15초 페이지</h2>} className="preview-intro-card">
         <p className="wire-section-value">상담 5분 전에 열어 15초 안에 훑는 한 화면에 담기는 것:</p>
         <WireBullets items={[
           '오늘 만나기 전 꼭 기억할 것',
@@ -24,7 +24,7 @@ export function WelcomePage({ loginOrigin = null }: { loginOrigin?: string | nul
         </p>
       </WireCard>
 
-      <WireCard as="section" labelledBy="start-title" title={<h2 id="start-title">시작하기</h2>} className="preview-gate-card">
+      <WireCard as="section" labelledBy="start-title" title={<h2 id="start-title">시작하기</h2>} className="preview-intro-card">
         <WireButton variant="primary" href="#adoption" className="preview-gate-submit">
           도입 안내
         </WireButton>
@@ -42,7 +42,7 @@ export function WelcomePage({ loginOrigin = null }: { loginOrigin?: string | nul
         )}
       </WireCard>
 
-      <WireCard as="section" labelledBy="adoption" title={<h2 id="adoption">도입 전에 확인할 것</h2>} className="preview-gate-card">
+      <WireCard as="section" labelledBy="adoption" title={<h2 id="adoption">도입 전에 확인할 것</h2>} className="preview-intro-card">
         <WireCardSection title="기관 설치와 초기 설정">
           <p className="wire-section-value">
             기관은 설치 절차에서 만듭니다. 이 페이지에는 기관을 직접 등록하는 폼이 없습니다.

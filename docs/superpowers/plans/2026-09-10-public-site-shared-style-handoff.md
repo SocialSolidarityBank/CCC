@@ -42,9 +42,11 @@ Deployment owner must map `/welcome` to the emitted `welcome.html` (or its platf
 
 The earlier claim that all classes already existed was incorrect: `report-description` was documented by DESIGN-RULES §5 and D88 but had no production selector. Main's integration token guard exposed the missing rule. The owner correction adds that canonical reading-description rule once in `packages/wire/src/shell-styles.ts`, immediately after the shared paragraph rule: `font-size:var(--text-detail);font-weight:400;color:var(--sub);line-height:var(--leading-relaxed)`. Tokens and palette values are unchanged; the production CSS now intentionally differs from the move-only transfer receipt below.
 
+The three public `WireCard` containers use `preview-intro-card` for the existing 400px maximum width and left alignment, not the `preview-gate-card` form grid. Internal card padding, divider margins and body layout remain owned by the canonical `WireCard` rules. The public page's outer narrow beta composition and full-width buttons are retained.
+
 ## Canonical CSS contract
 
-- Seven layout CSS literals originally moved byte-for-byte to `packages/wire/src/shell-styles.ts` in `3bb2f6c1`; the subsequent missing `report-description` rule is an explicit addition, not part of that unchanged transfer.
+- Seven layout CSS literals originally moved byte-for-byte to `packages/wire/src/shell-styles.ts` in `3bb2f6c1`; the subsequent missing `report-description` rule and public card/form layout separation are explicit corrections, not part of that unchanged transfer.
 - `@ccc/wire/shell-styles` exports the original concatenated `shellStyles` for legacy Next rendering.
 - `@ccc/wire/styles` remains the existing `wireStyles` export.
 - `@ccc/wire/build/shared-styles` is a Node-only build entry exposing `composeSharedCss`, `repoRoot`, `tokensPath`, `shellStylesPath`. It reads `design/tokens.css` and the canonical package source, reusing `composeRuntimeCss` from the existing hierarchy tool.
@@ -158,6 +160,16 @@ Main reported that the required token guard failed in VALIDATION because the pub
 Main copied the initial rule patch `47158fdf8137b6604ff3f6a19691c6e56f188eb4` and reported the next token-audit failure: the existing `--text-detail` owner list omitted `.report-description`. D88 ⑨ and DESIGN-RULES §5 explicitly assign that token to this selector. The consolidated owner patch retains the exact CSS rule above and adds only `.report-description` plus its contract comment to the existing scoped owner list in `scripts/design/token-audit.mjs`; this aligns the declared ownership contract, not an audit algorithm, threshold or baseline.
 
 The consolidated commit replaces the initial two-file owner commit and contains exactly three files: `packages/wire/src/shell-styles.ts`, `scripts/design/token-audit.mjs`, and this handoff. No tokens, algorithms, thresholds, baselines, client files or other worktrees are modified. No tests, builds, linting, formatting or deployment ran for this source correction. Main will copy the exact owner-approved source into the in-progress integration merge, then run the token guard and built-surface verification. No passing guard or visual result is claimed here.
+
+### Public card spacing correction (2026-09-11)
+
+Main's independent desktop/mobile screenshot review found that applying `preview-gate-card` to `WireCard` added a 20px grid gap around the title, divider and body, on top of the divider's canonical margins. Main reported 44px divider-to-content spacing and roughly 40px extra height per card.
+
+The source correction changes only the three public card class assignments to `preview-intro-card` and separates the shared selector responsibilities: both card classes retain `width:min(400px,100%)` and `text-align:left`; only the existing gate-form class keeps its grid, gap and padding declarations. Both classes retain full-width centered button content. The public cards no longer receive an outer grid/gap or duplicate padding declaration, so their internal layout remains the existing `WireCard` contract. No global card padding, divider margins, tokens, algorithms, thresholds or baselines change. The gate form retains its original declarations and other screens are not edited.
+
+The accessibility review also found that both public HTML entries still used CCC in the meta description and noscript text despite the Relayer title/h1. Only those four user-facing name occurrences are replaced with Relayer; all other fallback wording is preserved. No package, repository or infrastructure names change. No existing public HTML test owns those strings, so no new test or text assertion is added.
+
+This consolidated follow-up replaces spacing commit `a5e747a5bf79836df93d9da5e173abe574cf6bf2` and contains only `apps/site/src/welcome-page.tsx`, `apps/site/index.html`, `apps/site/welcome.html`, `packages/wire/src/shell-styles.ts` and this handoff. The spacing source correction above is retained unchanged. No validation commands or deployment ran. Main will apply the patch after the current Local merge and rerun desktop/mobile screenshots and gates. The earlier screenshot and accessibility findings are inputs to this correction, not evidence that the corrected surface has passed.
 
 Main's pending commands after client handoff and source freeze:
 
