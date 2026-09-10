@@ -14,7 +14,6 @@ export function createSyntheticState() {
     basicInfoVersion: 3,
     planVersion: 2,
     overallGoal: '월세 체납을 정리하고 안정적인 소득을 만든다',
-    consent: { privacy: true, recordingAi: false },
     admissionCopyHash: null,
     admissionConfirmed: false,
     assignmentRequested: false,
@@ -73,6 +72,25 @@ const CONSENT_CANONICAL = {
   external_llm_cross_border_processing: { provider: 'openai', purpose: 'ai_briefing' },
   voice_original_retention_period: { provider: 'institution_private_storage', purpose: 'voice_original_retention' },
 };
+
+/** 여섯 영역 현재 상태. 동의 화면과 인테이크 화면이 같은 모양을 받는다(S7 §6). */
+function currentConsentStates(state) {
+  return CONSENT_DOMAINS.map((domain) => {
+    const event = state.consentEvents.get(domain) ?? null;
+    const disclosure = syntheticDisclosure(domain);
+    return {
+      domain,
+      state: event === null ? 'unconfirmed' : event.decision === 'grant' ? 'granted' : 'not_granted',
+      provider: disclosure.provider,
+      providerLegalRecipient: disclosure.providerLegalRecipient,
+      providerCountry: disclosure.country,
+      purpose: disclosure.purpose,
+      retentionDuration: domain === 'voice_original_retention_period' ? disclosure.retentionDuration : null,
+      effectiveAt: event?.effectiveAt ?? null, eventId: event?.id ?? null,
+      revision: event?.revision ?? null, eventSequence: event?.sequence ?? null,
+    };
+  });
+}
 
 /** 합성 고지문. 실제 기관 문안이 아니고 실제 사업자 연결도 없다. */
 function syntheticDisclosure(domain) {
@@ -428,7 +446,7 @@ export function handleApi(request, state, options) {
           programType: 'financial_support_v1', status: 'active',
           intakeAt: '2026-02-01T00:00:00.000Z', creationKind: 'initial', sourceSupportCase: null,
           participantName: '김합성', participantPhone: '010-0000-0000', authorized: true,
-          assigneeNames: ['담당 실무자'], consent: state.consent, consentRecordedAt: '2026-09-01T00:00:00.000Z',
+          assigneeNames: ['담당 실무자'], consentRecordedAt: '2026-09-01T00:00:00.000Z',
           closedAt: null,
           upcomingSchedule: { id: SCHEDULE_ID, scheduledAt: '2026-09-20T01:00:00.000Z', sessionKind: 'regular' } },
         { id: CLOSED_CASE_ID, beneficiaryId: 'swallow-003', programId: 'program-2', programName: '주거 지원',
@@ -484,20 +502,7 @@ export function handleApi(request, state, options) {
     }, 200, cors);
   }
   if (path === `/support-cases/${CASE_ID}/consent` && request.method === 'GET') {
-    return json({ consent: CONSENT_DOMAINS.map((domain) => {
-      const event = state.consentEvents.get(domain) ?? null;
-      return {
-        domain,
-        state: event === null ? 'unconfirmed' : event.decision === 'grant' ? 'granted' : 'not_granted',
-        provider: syntheticDisclosure(domain).provider,
-        providerLegalRecipient: syntheticDisclosure(domain).providerLegalRecipient,
-        providerCountry: syntheticDisclosure(domain).country,
-        purpose: syntheticDisclosure(domain).purpose,
-        retentionDuration: syntheticDisclosure(domain).retentionDuration,
-        effectiveAt: event?.effectiveAt ?? null, eventId: event?.id ?? null,
-        revision: event?.revision ?? null, eventSequence: event?.sequence ?? null,
-      };
-    }) }, 200, cors);
+    return json({ consent: currentConsentStates(state) }, 200, cors);
   }
   if (path === `/support-cases/${CASE_ID}/consent/disclosures` && request.method === 'GET') {
     return json({ disclosures: CONSENT_DOMAINS.map(syntheticDisclosure) }, 200, cors);
@@ -850,7 +855,7 @@ export function handleApi(request, state, options) {
       participant: { name: '김합성', phone: '010-0000-0000', email: 'synthetic@example.invalid' },
       sessionSequence: state.intake === null ? 1 : 2, hasIntake: state.intake !== null,
       extendedPii: { birthDate: '1980-03-05', region: '서울', emergencyContact: null, gender: null },
-      consent: state.consent, saved: state.intake, overallGoal: state.overallGoal,
+      consent: currentConsentStates(state), saved: state.intake, overallGoal: state.overallGoal,
       schedule: { id: SCHEDULE_ID, beneficiaryId: 'swallow-003', supportCaseId: CASE_ID,
         scheduledAt: '2026-09-20T01:00:00.000Z', status: 'scheduled', version: state.scheduleVersion,
         completedSessionId: null },

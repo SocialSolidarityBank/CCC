@@ -147,9 +147,11 @@ function decodeRestrictedProgram(row: Record<string, unknown>): ParticipantProgr
 function decodeProgram(value: unknown): ParticipantProgram {
   const row = record(value);
   if (row.authorized === false) return decodeRestrictedProgram(row);
+  // 실제 hub 응답의 키 그대로다. 여섯 영역 컷오버로 옛 `consent` 키는 사라졌고
+  // `sourceSupportCase` 는 서버가 계속 보낸다(값은 null). 느슨한 검사로 바꾸지 않는다.
   exactKeys(row, ['id', 'beneficiaryId', 'programId', 'programName', 'programType', 'status', 'intakeAt',
     'creationKind', 'sourceSupportCase', 'participantName', 'participantPhone', 'authorized', 'assigneeNames',
-    'consent', 'consentRecordedAt', 'closedAt', 'upcomingSchedule']);
+    'consentRecordedAt', 'closedAt', 'upcomingSchedule']);
   if (!isOpaqueIdentifier(row.id) || !isOpaqueIdentifier(row.beneficiaryId)
     || !isOpaqueIdentifier(row.programId) || !isNullableString(row.programName)
     || row.programType !== 'financial_support_v1'
@@ -166,7 +168,7 @@ function decodeProgram(value: unknown): ParticipantProgram {
     intakeAt: row.intakeAt, creationKind: row.creationKind,
     participantName: row.participantName, participantPhone: row.participantPhone,
     authorized: true, assigneeNames: row.assigneeNames as string[],
-    // 옛 동의 2종(`consent`, `consentRecordedAt`)은 응답 모양만 확인하고 화면으로 내보내지 않는다.
+    // 옛 `consentRecordedAt` 은 응답 모양만 확인하고 화면으로 내보내지 않는다.
     // 동의는 여섯 영역 사건이 정본이다(S7 §5.1.1).
     closedAt: row.closedAt, upcomingSchedule: decodeUpcomingSchedule(row.upcomingSchedule),
   };
