@@ -469,6 +469,23 @@ export function RecordReviewScreen() {
     }
   };
 
+  const regenerate = async () => {
+    if (busy || draft === null || draft === 'none' || !draft.regenerateAvailable
+      || draft.regenerateSourceSnapshotId === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDraft(await session.aiReview.regenerate(sessionId, draft.regenerateSourceSnapshotId));
+      setSpeakerConfirmed(false);
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const registerAction = async () => {
     if (busy || actionDraft === null || actionDraft.description.trim() === '') return;
     setBusy(true);
@@ -493,7 +510,10 @@ export function RecordReviewScreen() {
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
   return <WireCard title="AI 정리 검토">
     {error && <><WireError>{error.message}</WireError>
-      <div className="business-actions"><WireButton variant="neutral" onClick={load}>다시 불러오기</WireButton></div></>}
+      {(error.code === 'draft_changed' || error.code === 'conflict') && <WireCallout tone="info" title="선택한 내용은 그대로 두었습니다">
+        최신 초안을 불러와 비교하기 전까지 승인, 반려, 액션 등록 상태를 완료로 처리하지 않습니다.
+      </WireCallout>}
+      <div className="business-actions"><WireButton variant="neutral" onClick={load}>최신 초안 다시 불러오기</WireButton></div></>}
     {aiOff && <WireCallout tone="info" title="AI 처리가 꺼져 있습니다">
       이 설치는 AI 정리를 쓰지 않습니다. 상담은 직접 쓴 기록으로 남고, 이 화면은 저장된 초안이 있을 때만 내용을 보여 줍니다.
     </WireCallout>}
@@ -571,6 +591,9 @@ export function RecordReviewScreen() {
         {draft.evidence.map((item) => <WireItem key={item.id} title={item.quote} description={item.claimKey} />)}
       </WireCardSection>
       {draft.reviewDecision === null && <>
+        {draft.regenerateAvailable && draft.regenerateSourceSnapshotId !== null && <div className="business-actions">
+          <WireButton variant="neutral" disabled={busy} onClick={() => { void regenerate(); }}>최신 재료로 다시 만들기</WireButton>
+        </div>}
         <WireChoice type="checkbox" label="화자 매핑을 확인했습니다" checked={speakerConfirmed}
           disabled={busy} onChange={setSpeakerConfirmed} />
         <div className="business-actions">
