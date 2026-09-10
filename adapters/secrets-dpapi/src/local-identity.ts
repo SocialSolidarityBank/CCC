@@ -84,9 +84,10 @@ export async function createLocalIdentityRepository(root: string) {
     },
     async readSingle(generation: number, expectedHash: string): Promise<SingleInstallData> {
       if (!Number.isSafeInteger(generation) || generation < 1 || !/^[0-9a-f]{64}$/.test(expectedHash)) throw new Error('secret_access_denied');
-      const value = await unprotect(`generation-${generation}/single.cbor`, expectedHash);
+      const decoded = await unprotect(`generation-${generation}/single.cbor`, expectedHash);
+      const value: unknown = decoded;
       try { validate(value); return { ...value, handshakeKey: new Uint8Array(value.handshakeKey) }; }
-      finally { wipeCbor(value); }
+      finally { wipeCbor(decoded); }
     },
     async writeEndpoint(record: SingleEndpointRecord): Promise<void> {
       if (!Number.isInteger(record.port) || record.port < 1 || record.port > 65535 || !record.installationId) throw new Error('secret_access_denied');
