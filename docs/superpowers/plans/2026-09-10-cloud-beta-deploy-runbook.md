@@ -33,7 +33,13 @@ node scripts/supabase/bootstrap.mjs plan --target hosted --format json
 ```
 
 이 명령은 주입된 `SUPABASE_ACCESS_TOKEN`과 `CCC_SUPABASE_PROJECT_REF`를 읽는다.
-이전된 Management API 토큰의 새 프로젝트 403은 미해결이며, 별도의 DB 연결 성공으로 대체할 수 없다.
+Q의 별도 승인으로 Aside에서 새 관리 인증을 연결했다. 설치 전용 CLI 프로필은 네이티브 자격 저장소만
+사용하며 평문 토큰 파일 fallback은 차단했다. 설치 프로세스용 인증은 공식 CLI의 브라우저 교환 절차로
+메모리에서 받아 자식 환경에만 주입한다. 기존 정본 토큰은 바꾸지 않았다.
+
+현재 구현의 실제 실행은 exit 0, `readOnly:true`, `unchanged:true`, 서울 리전 확인,
+DB/Auth/Storage 읽기 성공, 업무 테이블 0개를 보고했다. `productionReady`는 계속 `false`다.
+이 결과는 아래에 남은 S11 서명·소유권·설치 journal 검증을 대신하지 않는다.
 
 현재 bootstrap은 `plan`만 지원하고 S11의 `--install-manifest`, `apply`, `doctor`, `rollback`은
 구현되지 않았다. 계획의 옛 `ccc_worker`와 30일 원음 보관 선언도 현행 계약과 맞지 않는다.
