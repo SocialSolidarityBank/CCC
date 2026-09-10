@@ -304,16 +304,24 @@ export class SchedulesApi {
     return decodeCandidates(await this.transport.request('/schedules/candidates'));
   }
 
+  /**
+   * 상담 일정 등록. 목표가 들어가는 자리는 상담 유형이 정한다(D62).
+   * 인테이크 일정은 세션 목표를 가질 수 없고(서버가 400 으로 거절한다) 대신 케이스의
+   * 세부 목표(`caseGoals`)를 그 자리에서 만든다. 기본 상담은 그 반대다.
+   */
   async create(input: {
     beneficiaryId: string; supportCaseId: string; scheduledAt: string;
-    sessionKind: ScheduleKind; sessionGoals: string[];
+    sessionKind: ScheduleKind; goals: string[];
   }): Promise<{ id: string; scheduledAt: string }> {
     if (!isOpaqueIdentifier(input.beneficiaryId) || !isOpaqueIdentifier(input.supportCaseId)
       || !utcInstant(input.scheduledAt)) throw new BusinessError('invalid_request', 400);
+    const goals = input.goals.map((goal) => goal.trim()).filter((goal) => goal !== '');
     const body = {
       beneficiaryId: input.beneficiaryId, supportCaseId: input.supportCaseId,
       scheduledAt: input.scheduledAt, sessionKind: input.sessionKind, channel: 'in_person',
-      sessionGoals: input.sessionGoals.map((goal) => ({ body: goal, caseGoalId: null })),
+      ...(input.sessionKind === 'intake'
+        ? { caseGoals: goals }
+        : { sessionGoals: goals.map((goal) => ({ body: goal, caseGoalId: null })) }),
     };
     const row = record(await this.transport.request('/schedules', 'POST', body));
     if (!isOpaqueIdentifier(row.id) || !utcInstant(row.scheduledAt)) throw new BusinessError('invalid_response');

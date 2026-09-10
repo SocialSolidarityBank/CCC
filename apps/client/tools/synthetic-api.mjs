@@ -537,13 +537,27 @@ export function handleApi(request, state, options) {
       beneficiaryId: 'swallow-003', supportCaseId: CASE_ID, programType: 'financial_support_v1',
       participantName: '김합성', participantPhone: '010-0000-0000',
       participantEmail: 'synthetic@example.invalid', intakeAt: '2026-02-01T00:00:00.000Z',
+    }, {
+      // 인테이크 전 케이스. 이 경로에서 세션 목표를 보내면 실제 서버처럼 400 이다.
+      beneficiaryId: 'otter-011', supportCaseId: '9bd2a1c4-3f57-4a26-8e19-0b4c6d8e1f20',
+      programType: 'financial_support_v1', participantName: '박합성', participantPhone: '010-0000-0001',
+      participantEmail: null, intakeAt: null,
     }] }, 200, cors);
   }
   if (path === '/schedules' && request.method === 'POST') {
-    return request.json().then((body) => json({
-      id: SCHEDULE_ID, beneficiaryId: body.beneficiaryId, supportCaseId: body.supportCaseId,
-      scheduledAt: body.scheduledAt, status: 'scheduled', version: 1,
-    }, 201, cors));
+    return request.json().then((body) => {
+      // 실제 서버 규칙: 인테이크 일정은 세션 목표를 가질 수 없고, 세부 목표는 인테이크에서만 만든다.
+      if (body.sessionKind === 'intake' && Array.isArray(body.sessionGoals) && body.sessionGoals.length > 0) {
+        return json({ error: 'invalid_request' }, 400, cors);
+      }
+      if (body.sessionKind !== 'intake' && Array.isArray(body.caseGoals) && body.caseGoals.length > 0) {
+        return json({ error: 'invalid_request' }, 400, cors);
+      }
+      return json({
+        id: SCHEDULE_ID, beneficiaryId: body.beneficiaryId, supportCaseId: body.supportCaseId,
+        scheduledAt: body.scheduledAt, status: 'scheduled', version: 1,
+      }, 201, cors);
+    });
   }
   if (path === `/schedules/${SCHEDULE_ID}/plan`) {
     if (request.method === 'PUT') {
