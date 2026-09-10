@@ -6,7 +6,7 @@ import { startPostgresHarness, type PostgresHarness } from './support/postgres';
 import { assertPostgresIdentityBoundary, type PostgresDatabase } from '@ccc/db-postgres';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
 import { PROGRAM_ADMISSION_COPY, PROGRAM_ADMISSION_COPY_VERSION } from '@ccc/contracts/program-admission';
-import { registrationInput } from './support/registration';
+import { registrationInput, seedProviderRegistry } from './support/registration';
 let harness: PostgresHarness;
 let admin: PostgresDatabase;
 let api: PostgresDatabase;
@@ -92,6 +92,8 @@ beforeAll(async () => {
             ('actor-b-practitioner','org-b','actor-b','practitioner','manual','actor-b','2026-09-08T00:00:00.000Z')`,
   ).run();
   api = await harness.openApiDatabase(admin, 2);
+  // provider registry 는 ccc_api 에 SELECT 만 열려 있다(0007). 신뢰 연결로 심어야 등록 고지가 발급된다.
+  for (const actor of [actorA, actorB]) await seedProviderRegistry(admin, actor.orgId);
   for (const actor of [actorA, actorB]) {
     const env: Env = {
       DB: api.forActor({ orgId: actor.orgId, actorId: actor.userId }),

@@ -1,7 +1,12 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { openEncryptedSqlite } from '@ccc/db-sqlite';
 import worker from './support/local-worker';
 import { completeOrganizationOnboarding } from '@ccc/core/gateway';
 import { setupD1, testActors } from './support/d1';
+import { checkpointSources, proveStaffInvitesSchema } from './support/migration-parity';
 
 // D86 직원 초대(staff_invites). 기존 invite_tokens 는 당사자 링크 전용으로 남고,
 // 익명 발급이던 POST /invites/counselor 는 폐기된다.
@@ -439,5 +444,16 @@ describe('폐기된 익명 발급 라우트', () => {
     );
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: 'not_found' });
+  });
+});
+
+describe('0058 forward SQLite upgrade', () => {
+  it('replays the registered checkpoint through the shared live semantic proof', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ccc-staff-invite-checkpoint-'));
+    const db = openEncryptedSqlite({ filename: join(directory, 'proof.db'), key: new Uint8Array(32).fill(29) });
+    try {
+      for (const checkpoint of checkpointSources()) await db.applyMigrations(checkpoint.sqlite);
+      await proveStaffInvitesSchema(db);
+    } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
   });
 });

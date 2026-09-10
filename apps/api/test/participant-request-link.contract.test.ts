@@ -1,5 +1,9 @@
 // D86 participant request-link HTTP contract. Synthetic organization and PII only.
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { openEncryptedSqlite } from '@ccc/db-sqlite';
 import type { Database, PreparedStatement } from '@ccc/contracts/database';
 import {
   CONSENT_DOMAINS,
@@ -12,6 +16,7 @@ import type { Actor } from '@ccc/core/gateway';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import worker from './support/local-worker';
 import { setupD1, testActors, testProgramId } from './support/d1';
+import { checkpointSources, proveParticipantRequestLinksSchema } from './support/migration-parity';
 
 const { counselor, unassignedCounselor } = testActors;
 const t = setupD1();
@@ -418,5 +423,16 @@ describe('D86 participant request-link HTTP contract', () => {
       usedByBeneficiaryId: null,
       consumptionId: null,
     });
+  });
+});
+
+describe('0059 forward SQLite upgrade', () => {
+  it('replays the registered checkpoint through the shared live semantic proof', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ccc-request-link-checkpoint-'));
+    const db = openEncryptedSqlite({ filename: join(directory, 'proof.db'), key: new Uint8Array(32).fill(31) });
+    try {
+      for (const checkpoint of checkpointSources()) await db.applyMigrations(checkpoint.sqlite);
+      await proveParticipantRequestLinksSchema(db);
+    } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
   });
 });

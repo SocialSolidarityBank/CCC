@@ -7,6 +7,7 @@ import {
   physicalRules, timestampInventory, type Catalog, type ParityDatabase, type TimestampColumn,
   seedScheduleDisplaySchema, proveScheduleDisplaySchema,
   seedPreregistrationConsentSchema, provePreregistrationConsentSchema,
+  proveStaffInvitesSchema, proveParticipantRequestLinksSchema,
 } from './support/migration-parity';
 
 let harness: PostgresHarness;
@@ -468,6 +469,12 @@ describe('S1 live migration parity', () => {
         if (checkpoint.id === 'preregistration-consent') {
           for (const fixture of [sqlite, postgres]) await provePreregistrationConsentSchema(fixture.db);
         }
+        if (checkpoint.id === 'staff-invites') {
+          for (const fixture of [sqlite, postgres]) await proveStaffInvitesSchema(fixture.db);
+        }
+        if (checkpoint.id === 'participant-request-links') {
+          for (const fixture of [sqlite, postgres]) await proveParticipantRequestLinksSchema(fixture.db);
+        }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);
           expect(inventory.some((entry) => entry.table === 'audit_log' && entry.column === 'created_at')).toBe(true);
@@ -479,7 +486,9 @@ describe('S1 live migration parity', () => {
           expect(covered, 'Every live inventoried timestamp requires a real rewrite, output and ordering witness').toEqual(inventory.map(({ table, column }) => `${table}.${column}`).sort());
         }
         const markers = left.tables.flatMap((table) => table.columns.filter((column) => ['operation_marker', 'consumption_id'].includes(column.name)).map((column) => `${table.name}.${column.name}`));
-        if (checkpoint.id !== 'baseline-0045') expect(markers).toHaveLength(7);
+        // 0058 adds staff_invites.consumption_id to the seven markers every checkpoint since 0046 carries.
+        const staffInvitesIndex = sources.findIndex((source) => source.id === 'staff-invites');
+        if (checkpoint.id !== 'baseline-0045') expect(markers).toHaveLength(sources.indexOf(checkpoint) >= staffInvitesIndex ? 8 : 7);
         entries.push({ id: checkpoint.id,
           sqlite: { sources: checkpoint.sqlite.map(({ name, sha256 }) => ({ name, sha256 })), catalogSha256: fingerprint(left) },
           postgres: { sources: checkpoint.postgres.map(({ name, sha256 }) => ({ name, sha256 })), catalogSha256: fingerprint(right) },

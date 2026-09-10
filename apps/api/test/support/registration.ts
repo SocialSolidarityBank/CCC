@@ -17,11 +17,18 @@ import {
 /** 6종 고지가 참조하는 provider 집합. 국외 처리 고지가 실제로 국가를 실어 나르는지 보려고 openai 만 US 다. */
 const PROVIDERS: ProviderId[] = [...new Set(CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].provider))];
 
-/** 승인된 합성 registry. 같은 기관에 여러 번 불려도 안전하도록 OR IGNORE 다(행은 immutable). */
-async function seedProviderRegistry(env: Env, orgId: string): Promise<void> {
+/**
+ * 승인된 합성 registry. ccc_api 는 registry 에 SELECT 만 있으므로(0007 RLS) PostgreSQL 에서는
+ * 신뢰 연결로 미리 심고, 여기서는 없는 provider 만 채운다(행은 immutable 이라 갱신하지 않는다).
+ */
+export async function seedProviderRegistry(db: Env['DB'], orgId: string): Promise<void> {
   for (const provider of PROVIDERS) {
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO consent_provider_registry_snapshots (
+    const existing = await db.prepare(
+      'SELECT 1 AS present FROM consent_provider_registry_snapshots WHERE org_id = ? AND provider = ?',
+    ).bind(orgId, provider).first();
+    if (existing !== null) continue;
+    await db.prepare(
+      `INSERT INTO consent_provider_registry_snapshots (
          id, org_id, provider, legal_recipient, country, approved_at
        ) VALUES (?, ?, ?, ?, ?, '2025-01-01T00:00:00.000Z')`,
     ).bind(
@@ -46,7 +53,7 @@ export async function registrationConsentEvents(
   programId: string,
   decisions: Partial<Record<ConsentDomain, 'grant' | 'decline'>> = {},
 ): Promise<AppendConsentEventInput[]> {
-  await seedProviderRegistry(env, actor.orgId);
+  await seedProviderRegistry(env.DB, actor.orgId);
   const snapshots = await issueRegistrationConsentDisclosures(env, actor, programId);
   // 고지 발급 직후를 동의 시각으로 쓴다 — 게이트웨이가 미래·5분 초과 소급을 모두 거부한다.
   const effectiveAt = new Date().toISOString();
@@ -81,7 +88,7 @@ export async function signupConsentEvents(
   decisions: Partial<Record<ConsentDomain, 'grant' | 'decline'>> = {},
 ): Promise<AppendConsentEventInput[]> {
   const invite = await getInviteForSignup(env, token, 'participant');
-  await seedProviderRegistry(env, invite.orgId);
+  await seedProviderRegistry(env.DB, invite.orgId);
   const snapshots = await issueParticipantRequestLinkDisclosures(env, token);
   const effectiveAt = new Date().toISOString();
   return CONSENT_DOMAINS.map((domain) => {

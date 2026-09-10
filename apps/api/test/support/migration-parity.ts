@@ -197,6 +197,50 @@ export async function provePreregistrationConsentSchema(db: Database): Promise<v
   expect(await rejection(db.prepare("UPDATE participant_registration_receipts SET request_hash = ? WHERE idempotency_key = 'parity-receipt'")
     .bind('d'.repeat(64)).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
 }
+
+/** 0058/0014: canonical roles CHECK, issued default, one-way issued -> used|revoked, no delete. */
+export async function proveStaffInvitesSchema(db: Database): Promise<void> {
+  const insert = (id: string, hash: string, roles: string) => db.prepare(`INSERT INTO staff_invites
+    (id, org_id, token_hash, email_normalized, roles_json, issued_by, expires_at)
+    VALUES (?, 'parity-invite-org', ?, 'parity@example.invalid', ?, 'parity-invite-admin', '2026-01-08T00:00:00.000Z')`)
+    .bind(id, hash, roles).run();
+  expect(await insert('parity-staff-invite', 'e'.repeat(64), '["practitioner"]')).toMatchObject({ meta: { changes: 1 } });
+  const issued = await db.prepare('SELECT status, issued_at, used_at FROM staff_invites WHERE id = ?').bind('parity-staff-invite').first<Row>();
+  expect(issued).toMatchObject({ status: 'issued', used_at: null });
+  expect(typeof issued?.issued_at).toBe('string');
+  // Only the canonical sorted array is schema; any other spelling of the same set is rejected.
+  expect(await rejection(insert('parity-staff-invite-unsorted', 'f'.repeat(64), '["practitioner","institution_admin"]')))
+    .toMatchObject({ kind: 'constraint' });
+  for (const sql of [
+    `UPDATE staff_invites SET token_hash = '${'d'.repeat(64)}' WHERE id = 'parity-staff-invite'`,
+    "UPDATE staff_invites SET status = 'used' WHERE id = 'parity-staff-invite'",
+    "DELETE FROM staff_invites WHERE id = 'parity-staff-invite'",
+  ]) {
+    expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  }
+  expect(await db.prepare(`UPDATE staff_invites SET status = 'used', used_at = '2026-01-02T00:00:00.000Z',
+    used_by_user_id = 'parity-invite-user', consumption_id = 'parity-consumption' WHERE id = 'parity-staff-invite' AND status = 'issued'`).run())
+    .toMatchObject({ meta: { changes: 1 } });
+  expect(await rejection(db.prepare(`UPDATE staff_invites SET status = 'revoked', revoked_at = '2026-01-03T00:00:00.000Z',
+    revoked_by = 'parity-invite-admin', used_at = NULL, used_by_user_id = NULL, consumption_id = NULL WHERE id = 'parity-staff-invite'`).run()))
+    .toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+}
+
+/** 0059/0015: expires_at exists and consumption after expiry aborts while consumption before it commits. */
+export async function proveParticipantRequestLinksSchema(db: Database): Promise<void> {
+  const issue = (token: string, expiresAt: string) => db.prepare(`INSERT INTO invite_tokens
+    (token, org_id, kind, issued_by, issued_at, expires_at) VALUES (?, 'parity-link-org', 'counselor', 'parity-link-admin', '2026-01-01T00:00:00.000Z', ?)`)
+    .bind(token, expiresAt).run();
+  await issue('parity-link-expired', '2026-01-08T00:00:00.000Z');
+  await issue('parity-link-live', '2026-01-08T00:00:00.000Z');
+  expect(await db.prepare('SELECT expires_at FROM invite_tokens WHERE token = ?').bind('parity-link-live').first())
+    .toEqual({ expires_at: '2026-01-08T00:00:00.000Z' });
+  expect(await rejection(db.prepare(`UPDATE invite_tokens SET status = 'used', used_at = '2026-01-08T00:00:00.000Z',
+    used_by_user_id = 'parity-link-user' WHERE token = 'parity-link-expired'`).run()))
+    .toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+  expect(await db.prepare(`UPDATE invite_tokens SET status = 'used', used_at = '2026-01-07T23:59:59.999Z',
+    used_by_user_id = 'parity-link-user' WHERE token = 'parity-link-live'`).run()).toMatchObject({ meta: { changes: 1 } });
+}
 export async function openParityDatabase(profile: Profile, harness: PostgresHarness): Promise<ParityDatabase> {
   if (profile === 'postgres') {
     const db = await harness.openDatabase();
