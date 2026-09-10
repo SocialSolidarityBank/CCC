@@ -7,7 +7,7 @@ const authorizedProgram = {
   id: CASE_ID, beneficiaryId: 'swallow-003', programId: 'program-1', programName: '금전 지원',
   programType: 'financial_support_v1', status: 'active', intakeAt: null, creationKind: 'initial',
   sourceSupportCase: null, participantName: '김합성', participantPhone: '010-0000-0000',
-  authorized: true, assigneeNames: ['담당 실무자'], consent: { privacy: true, recordingAi: false },
+  authorized: true, assigneeNames: ['담당 실무자'],
   consentRecordedAt: null, closedAt: null, upcomingSchedule: null,
 };
 const restrictedProgram = {
@@ -48,7 +48,7 @@ describe('participant list and hub contracts', () => {
     expect(() => decodeParticipantHub({
       beneficiaryId: 'swallow-003', restricted: true, participantName: null, participantPhone: null,
       participantEmail: null,
-      programs: [{ ...restrictedProgram, consent: { privacy: true, recordingAi: true } }],
+      programs: [{ ...restrictedProgram, consentRecordedAt: '2026-09-01T00:00:00.000Z' }],
     }, 'swallow-003')).toThrow(BusinessError);
   });
 
@@ -89,6 +89,29 @@ describe('여섯 영역 동의 컷오버', () => {
       .toEqual(['consentEvents', 'emergencyReason', 'idempotencyKey', 'name', 'programId']);
     expect(body).not.toHaveProperty('consentPrivacy');
     expect(body).not.toHaveProperty('consentRecordingAi');
+  });
+
+  it('실제 서버가 보내는 사업 키 묶음을 그대로 받는다', () => {
+    // 실런타임 응답 키다. 옛 `consent` 는 없고 `sourceSupportCase` 는 값이 null 이어도 온다.
+    const hub = decodeParticipantHub({
+      beneficiaryId: 'swallow-001', restricted: false, participantName: '김합성',
+      participantPhone: '010-0000-0000', participantEmail: null, participantBirthDate: null,
+      status: 'active', closedAt: null, sessionCount: 0, lastSessionAt: null,
+      programs: [{
+        id: CASE_ID, beneficiaryId: 'swallow-001', programType: 'financial_support_v1', status: 'active',
+        intakeAt: null, creationKind: 'initial', sourceSupportCase: null, participantName: '김합성',
+        participantPhone: '010-0000-0000', authorized: true, assigneeNames: [], consentRecordedAt: null,
+        upcomingSchedule: null, programId: 'program-1', programName: '금전 지원', closedAt: null,
+      }],
+    }, 'swallow-001');
+    expect(hub.programs[0]?.authorized).toBe(true);
+    // 옛 키가 다시 들어오면 계약 위반으로 막는다(느슨한 검사로 바꾸지 않는다).
+    expect(() => decodeParticipantHub({
+      beneficiaryId: 'swallow-001', restricted: false, participantName: null, participantPhone: null,
+      participantEmail: null, participantBirthDate: null, status: 'active', closedAt: null,
+      sessionCount: 0, lastSessionAt: null,
+      programs: [{ ...authorizedProgram, consent: { privacy: true, recordingAi: false } }],
+    }, 'swallow-001')).toThrow(BusinessError);
   });
 
   it('옛 동의 값을 화면 자료로 내보내지 않는다', () => {

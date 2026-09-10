@@ -1263,3 +1263,27 @@ pnpm --filter @ccc/client run build:release -- --config <배포설정.json> [--o
 | 9 | 옛 2종 키는 여전히 400 | 통과 |
 
 client 68 tests, typecheck, build, tokens·align·hierarchy 통과.
+
+## 31. 실서버 결함 교정 2: 응답 키 계약 (2026-09-10)
+
+**증상(Main 실런타임):** 허브가 `GET /participants/:id/hub` 200 을 받고도 `서버 응답을 확인할 수 없습니다`.
+
+**원인:** `decodeProgram` 의 `exactKeys` 목록에 여섯 영역 컷오버로 사라진 `consent` 가 남아 있었다.
+서버가 보내는 담당 사업 키는 `id, beneficiaryId, programType, status, intakeAt, creationKind,
+sourceSupportCase, participantName, participantPhone, authorized, assigneeNames, consentRecordedAt,
+upcomingSchedule` 에 identification 세 개(`programId`, `programName`)와 `closedAt` 을 더한 묶음이다
+(`participantProgramResponse` + `participantHubResponse`).
+
+**고친 것**
+
+1. `consent` 만 목록에서 뺐다. `exactKeys` 는 그대로 엄격하게 두고 느슨한 검사로 바꾸지 않았다.
+2. `sourceSupportCase` 는 **목록에 남긴다**. 서버가 값 `null` 로 계속 보내므로 빼면 같은 오류가 난다
+   (`participantProgramResponse:1239`).
+3. 회귀 두 개를 심었다. 실런타임 응답 키 그대로면 통과하고, 옛 `consent` 키가 섞이면 거부한다.
+4. **같은 종류의 결함 하나를 더 찾아 고쳤다**: 인테이크 기록 화면의 `IntakeRecordContext.consent` 는
+   서버에서 이미 `CurrentConsentState[]`(여섯 영역)인데 클라이언트가 옛 `{privacy, recordingAi}` 로
+   읽고 있었다. 같은 화면에서 곧바로 났을 오류다. 디코더와 표시 문구를 여섯 영역으로 바꿨다.
+5. 하네스도 허브와 인테이크 응답을 실제 모양으로 바꿔 옛 키를 더 이상 보내지 않는다.
+
+**검증**: client 69 tests 통과(신규 회귀 3), typecheck·build·tokens·align·hierarchy 통과.
+합성 미리보기에서 허브 렌더, 여섯 영역 구획, 인테이크 화면과 동의 상태 줄 모두 오류 없이 표시.

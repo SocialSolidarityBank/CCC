@@ -4,6 +4,7 @@ import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField,
 } from '@ccc/web/wire';
+import { CONSENT_DOMAIN_LABELS, CONSENT_STATE_LABELS } from '../business/consent';
 import { type BusinessError, safeError } from '../business/errors';
 import {
   INTAKE_RESPONSES, INTAKE_RESPONSE_LABELS, INTAKE_STEPS, INTAKE_TABLES,
@@ -204,7 +205,7 @@ export function IntakeScreen() {
       <WireDataRow label="이메일" value={context.participant.email ?? '등록되지 않음'} />
       <WireDataRow label="상담 회차" value={`${context.sessionSequence}회차`} />
       <WireDataRow label="동의"
-        value={`개인정보 ${context.consent.privacy ? '받음' : '없음'}, AI 녹취기록 ${context.consent.recordingAi ? '받음' : '없음'}`} />
+        value={context.consent.map((entry) => `${CONSENT_DOMAIN_LABELS[entry.domain]} ${CONSENT_STATE_LABELS[entry.state]}`).join(', ')} />
       <WireDataRow label="전체 목표" value={context.overallGoal ?? '설정 전'} />
     </WireDataRows>
     <div className="business-actions">

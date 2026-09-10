@@ -1,7 +1,9 @@
 // 인테이크 기록의 API 경계 (P5). 정본 질문지는 `intake-form.ts`가 갖고 여기서는 계약만 다룬다.
 // 저장은 케이스당 한 번이고, 저장된 뒤에는 같은 화면이 수정으로 바뀐다.
 
+import type { CurrentConsentState } from '@ccc/contracts/consent';
 import { isNullableString, isOpaqueIdentifier, record } from './api';
+import { decodeConsentStates } from './consent';
 import { BusinessError } from './errors';
 import { INTAKE_RESPONSES, type IntakeResponse, type IntakeTableName } from './intake-form';
 import type { BusinessTransport } from './transport';
@@ -16,7 +18,8 @@ export interface IntakeContext {
   sessionSequence: number;
   hasIntake: boolean;
   extendedPii: { birthDate: string | null; region: string | null; emergencyContact: string | null; gender: string | null };
-  consent: { privacy: boolean; recordingAi: boolean };
+  /** 여섯 영역 현재 상태(S7). 인테이크 화면은 읽기만 하고 여기서 동의를 바꾸지 않는다. */
+  consent: CurrentConsentState[];
   overallGoal: string | null;
   schedule: { id: string; version: number; scheduledAt: string } | null;
   saved: {
@@ -61,13 +64,12 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
   const row = record(value);
   const participant = record(row.participant);
   const extendedPii = record(row.extendedPii);
-  const consent = record(row.consent);
+
   const schedule = row.schedule === null || row.schedule === undefined ? null : record(row.schedule);
   const saved = row.saved === null || row.saved === undefined ? null : record(row.saved);
   if (row.supportCaseId !== supportCaseId || !isOpaqueIdentifier(row.beneficiaryId)
     || typeof row.sessionSequence !== 'number' || !Number.isSafeInteger(row.sessionSequence)
     || typeof row.hasIntake !== 'boolean' || !isNullableString(row.overallGoal)
-    || typeof consent.privacy !== 'boolean' || typeof consent.recordingAi !== 'boolean'
     || !isNullableString(participant.name) || !isNullableString(participant.phone)
     || !isNullableString(participant.email)) throw new BusinessError('invalid_response');
   const pii = (key: string): string | null => {
@@ -84,7 +86,7 @@ export function decodeIntakeContext(value: unknown, supportCaseId: string): Inta
       birthDate: pii('birthDate'), region: pii('region'),
       emergencyContact: pii('emergencyContact'), gender: pii('gender'),
     },
-    consent: { privacy: consent.privacy, recordingAi: consent.recordingAi },
+    consent: decodeConsentStates({ consent: row.consent }),
     overallGoal: row.overallGoal,
     schedule: schedule === null ? null : (() => {
       if (!isOpaqueIdentifier(schedule.id) || typeof schedule.version !== 'number'
