@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   WireBadge, WireButton, WireCallout, WireCardSection, WireDataRow, WireDataRows, WireEmpty, WireError,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import type { ConsentDisclosureSnapshot, CurrentConsentState } from '@ccc/contracts/consent';
 import { CONSENT_DOMAIN_LABELS, CONSENT_STATE_LABELS } from './consent';
 import { type BusinessError, safeError } from './errors';

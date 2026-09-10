@@ -4,7 +4,7 @@ import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireChoice, WireDataRow, WireDataRows,
   WireEmpty, WireError, WireFormField, WireItem,
   ParticipantHeroCard, ParticipantName, type ParticipantHeroDetail,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import type { ConsentDisclosureSnapshot } from '@ccc/contracts/consent';
 import type { ProgramAdmissionState } from '@ccc/contracts/program-admission';
 import { ConsentPanel } from '../business/consent-panel';

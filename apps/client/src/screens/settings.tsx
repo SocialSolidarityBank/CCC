@@ -3,7 +3,7 @@ import { useLocation, useOutletContext } from 'react-router';
 import {
   WireBadge, WireButton, WireCallout, WireCard, WireCardSection, WireDataRow, WireDataRows,
   WireChoice, WireEmpty, WireError, WireFormField, WireItem, ParticipantName,
-} from '@ccc/web/wire';
+} from '@ccc/wire';
 import {
   ROLE_LABELS, type AssignmentCasePage, type AuditLogItem, type DirectoryAccountsPage, type HumanRole,
   type RetentionPolicy, type RetentionReview, type RetentionReasonKind, type SupportCaseAssignee,

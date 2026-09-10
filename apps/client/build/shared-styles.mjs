@@ -2,7 +2,7 @@
 //
 // 정본 둘을 빌드 시점에 읽는다.
 //   1. 색 토큰: design/tokens.css. 운영 RootLayout 이 import 하는 바로 그 파일이다.
-//   2. 화면 CSS: apps/web 의 문자열 8묶음(layout.tsx 의 7개 + wireStyles).
+//   2. 화면 CSS: apps/web/app/layout.tsx 의 문자열 7묶음 + `@ccc/wire/styles` 의 wireStyles.
 // 이어붙이는 순서는 scripts/design/hierarchy-audit.mjs 의 composeRuntimeCss 가 이미 계약으로
 // 갖고 있다. 그래서 순서를 여기서 다시 적지 않고 그 함수를 부른다. shellStyles 순서가 바뀌면
 // composeRuntimeCss 가 먼저 던진다.
@@ -29,7 +29,7 @@ export const layoutPath = join(repoRoot, 'apps/web/app/layout.tsx');
 /**
  * 토큰 + 운영과 같은 순서의 화면 CSS.
  * 토큰이 먼저다. 운영도 tokens.css 를 layout 문자열보다 먼저 싣는다.
- * @param {string} wireStyles `@ccc/web/wire-styles` 의 export 값
+ * @param {string} wireStyles `@ccc/wire/styles` 의 export 값
  * @returns {string}
  */
 export function composeSharedCss(wireStyles) {
