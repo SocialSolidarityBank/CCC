@@ -18,6 +18,10 @@ const messages = {
   invalid_request: '입력 내용을 확인해 주세요.',
   program_admission_required: '사업 도입 확인이 필요합니다. 설명을 다시 읽고 선택을 확인해 주세요.',
   public_signup_disabled: '이 설치는 당사자 요청 링크를 쓰지 않습니다. 당사자 등록 화면에서 직접 등록해 주세요.',
+  draft_changed: 'AI 초안이 바뀌어 이 화면의 선택을 저장하지 않았습니다. 최신 초안을 다시 불러와 확인해 주세요.',
+  speaker_confirmation_required: '녹음 회차는 화자 매핑을 확인한 뒤 승인할 수 있습니다.',
+  grounded_evidence_required: '저장된 근거와 연결되지 않은 내용이 있어 승인할 수 없습니다.',
+  fixture_draft_approval_forbidden: '합성 검수용 초안은 공식 기록으로 승인할 수 없습니다.',
   consent_scope_mismatch: '동의 문안과 보낸 값이 맞지 않아 저장하지 않았습니다. 화면을 새로 고쳐 최신 문안으로 다시 받아 주세요.',
   emergency_reason_required: '긴급 등록을 고르면 사유를 적어야 합니다.',
   privacy_consent_required: '개인정보 수집과 이용 동의가 없어 등록할 수 없습니다. 동의를 아직 받지 못했으면 긴급 등록 사유를 적어 주세요.',
@@ -60,6 +64,12 @@ export function httpError(status: number, value: unknown): BusinessError {
     if (code === 'provider_scope_mismatch' || code === 'consent_disclosure_mismatch') {
       return new BusinessError('consent_scope_mismatch', status);
     }
+    if (code === 'stale_draft_version' || code === 'draft_version_required') {
+      return new BusinessError('draft_changed', status);
+    }
+    if (code === 'speaker_confirmation_required') return new BusinessError('speaker_confirmation_required', status);
+    if (code === 'grounded_evidence_required') return new BusinessError('grounded_evidence_required', status);
+    if (code === 'fixture_draft_approval_forbidden') return new BusinessError('fixture_draft_approval_forbidden', status);
     return new BusinessError('conflict', status);
   }
   if (status === 429) return new BusinessError('rate_limited', status);

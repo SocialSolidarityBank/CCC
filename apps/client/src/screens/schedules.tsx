@@ -459,6 +459,16 @@ export function BriefingScreen() {
 
   return <>
     <WireCard title={briefing.participant.name ?? briefing.beneficiaryId}>
+      <div className="business-actions">
+        <WireButton variant="primary"
+          href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records/new`}>
+          상담 기록하기
+        </WireButton>
+        <WireButton variant="neutral"
+          href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records`}>
+          상담 기록 확인하기
+        </WireButton>
+      </div>
       {error && <WireError>{error.message}</WireError>}
       {briefing.focus.confirmedFlags.length > 0 && <WireCallout tone="info" title="확인된 리스크"
         items={briefing.focus.confirmedFlags.map((flag) => `${FLAG_LABELS[flag.flagType as FlagType] ?? flag.flagType}${flag.quote === null ? '' : `: ${flag.quote}`}`)} />}
@@ -512,7 +522,11 @@ export function BriefingScreen() {
       {briefing.focus.sessionRows.map((row) => <WireItem key={row.sessionId}
         title={row.aiOneLiner ?? row.memoExcerpt ?? '내용 없음'}
         description={`${row.heldAt}, ${row.kind === 'intake' ? '인테이크' : '기본 상담'}`}
-        status={row.aiOneLiner === null ? <WireBadge tone="neutral">수기</WireBadge> : undefined} />)}
+        status={row.aiOneLiner === null ? <WireBadge tone="neutral">수기</WireBadge> : undefined}
+        action={<WireButton variant="neutral"
+          href={`/participants/${encodeURIComponent(briefing.beneficiaryId)}/programs/${encodeURIComponent(briefing.focusSupportCaseId)}/records#record-${encodeURIComponent(row.sessionId)}`}>
+          회차 보기
+        </WireButton>} />)}
     </WireCard>
     <WireCard title="내용 불일치">
       {briefing.focus.discrepancies.length === 0 && <WireEmpty>검출된 불일치가 없습니다.</WireEmpty>}

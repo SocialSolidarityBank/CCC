@@ -24,6 +24,9 @@ export interface AiDraft {
   summaryText: string;
   oneLiner: string | null;
   reviewDecision: string | null;
+  /** 서버가 판단한 재생성 가능 여부와 그대로 되돌려 보낼 저장 스냅샷 ID. */
+  regenerateAvailable: boolean;
+  regenerateSourceSnapshotId: string | null;
   claims: Array<{ claimKey: string; section: string; text: string }>;
   questions: Array<{ title: string; reason: string | null }>;
   evidence: Array<{ id: string; claimKey: string; quote: string }>;
@@ -40,11 +43,15 @@ export function decodeAiDraft(value: unknown): AiDraft {
     || typeof row.origin !== 'string' || typeof row.creationMode !== 'string'
     || typeof row.summaryText !== 'string' || !isNullableString(row.oneLiner)
     || !isNullableString(row.reviewDecision)
+    || !(row.regenerateAvailable === undefined || typeof row.regenerateAvailable === 'boolean')
+    || !(row.regenerateSourceSnapshotId === undefined || isNullableString(row.regenerateSourceSnapshotId))
     || !Array.isArray(row.claims) || !Array.isArray(row.questions)
     || !Array.isArray(row.evidence) || !Array.isArray(row.contrast)) throw new BusinessError('invalid_response');
   return {
     version: row.version, origin: row.origin, creationMode: row.creationMode,
     summaryText: row.summaryText, oneLiner: row.oneLiner, reviewDecision: row.reviewDecision,
+    regenerateAvailable: row.regenerateAvailable === true,
+    regenerateSourceSnapshotId: row.regenerateSourceSnapshotId === undefined ? null : row.regenerateSourceSnapshotId,
     claims: row.claims.map((entry) => {
       const claim = record(entry);
       if (typeof claim.claimKey !== 'string' || typeof claim.section !== 'string' || typeof claim.text !== 'string') {
@@ -96,6 +103,16 @@ export class AiReviewApi {
       if (error instanceof BusinessError && error.status === 404) return null;
       throw error;
     }
+  }
+
+  /** 새 마스킹 스냅샷이 있을 때만 서버가 true 로 연다(D69). hosted provider 상태를 화면이 추측하지 않는다. */
+  async regenerate(sessionId: string, sourceSnapshotId: string): Promise<AiDraft> {
+    if (!isOpaqueIdentifier(sessionId) || !isOpaqueIdentifier(sourceSnapshotId)) {
+      throw new BusinessError('invalid_request', 400);
+    }
+    return decodeAiDraft(await this.transport.request(
+      `/sessions/${encodeURIComponent(sessionId)}/ai/generate`, 'POST', { sourceSnapshotId },
+    ));
   }
 
   /** 승인은 공식화다(R2). 반려는 공식 기록을 만들지 않는다. 화자 확인은 별도 확언으로 보낸다. */

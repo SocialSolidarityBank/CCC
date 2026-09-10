@@ -9,6 +9,17 @@ describe('HTTP 오류 번역', () => {
     expect(httpError(409, { error: 'consent_disclosure_mismatch' }).code).toBe('consent_scope_mismatch');
   });
 
+  it('초안 검토 409 를 각 복구 행동으로 가른다', () => {
+    expect(httpError(409, { error: 'stale_draft_version' }).code).toBe('draft_changed');
+    expect(httpError(409, { error: 'draft_version_required' }).code).toBe('draft_changed');
+    expect(httpError(409, { error: 'speaker_confirmation_required' }).code)
+      .toBe('speaker_confirmation_required');
+    expect(httpError(409, { error: 'grounded_evidence_required' }).code)
+      .toBe('grounded_evidence_required');
+    expect(httpError(409, { error: 'fixture_draft_approval_forbidden' }).code)
+      .toBe('fixture_draft_approval_forbidden');
+  });
+
   it('그 밖의 409 는 그대로 동시 변경 충돌이다', () => {
     expect(httpError(409, { error: 'version_conflict' }).code).toBe('conflict');
     expect(httpError(409, { error: 'program_admission_required' }).code).toBe('program_admission_required');
