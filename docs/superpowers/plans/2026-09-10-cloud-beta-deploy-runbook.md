@@ -41,10 +41,18 @@ Q의 별도 승인으로 Aside에서 새 관리 인증을 연결했다. 설치 �
 DB/Auth/Storage 읽기 성공, 업무 테이블 0개를 보고했다. `productionReady`는 `false`였다.
 이 결과는 서명된 기관 소유권 승인이나 설치 완료를 뜻하지 않는다.
 
-2026-09-10 Q는 별도 비공개 설치 승인서를 선택했다. S2 공개 형식은 유지하며,
-정확한 서명·해시 결합, 재개와 갱신 규칙은 S11 §2.1을 따른다. 현재 `c78484c6`은 CA 처리와
-잘못된 소유권 입력의 거부까지만 구현했고 완전한 승인서/journal 경로는 API 레인이 이어서 구현한다.
-관찰용 plan이나 항상 거부하는 안전 잠금을 실제 설치기 대신 사용하지 않는다.
+2026-09-10 Q는 별도 비공개 설치 승인서를 선택했다. S2 공개 형식은 그대로 유지했다.
+설치기 구현은 통합본에서 단위 계약 53건과 disposable PostgreSQL journal 계약 17건을 통과했다.
+업무 런타임은 `CCC_INSTALL_SIGNING_PRIVATE_KEY`가 빈 값이어도 DB 초기화와 listen 전에 거부한다.
+서명 키와 공개 manifest, 비공개 승인서는 RELAYER의 승인된 SecretStore에 보관하며 업무 컨테이너에는
+개인키와 승인서를 주입하지 않는다.
+
+2026-09-11 실제 서명된 read-only `plan`은 기관 ID `bss`, Relayer 프로젝트, 승인된 소유자,
+서울 리전, 두 서명과 공개 manifest 전체 해시를 모두 확인했다. DB, Auth, Storage를 읽었고
+전후 지문은 같았다. 업무 표와 행, Auth 사용자, Storage bucket은 모두 0건이었다. 다만 Supabase가
+관리하는 기본 객체 101개와 grant 903개를 승인할 서명된 provider baseline이 없어서
+`EXISTING_PROJECT_NOT_CLEAN`으로 중단했다. 이 중단까지 DB 쓰기는 0건이다. 값이 없는 증거는
+`artifacts/beta-0.9/2026-09-11-signed-plan.json`에 있다.
 
 ## 구현 후 실행할 순서
 

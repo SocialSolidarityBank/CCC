@@ -1,0 +1,41 @@
+{
+  "sourceCommit": "7a6353fc1b964a660f3d737f53f2322617417227",
+  "reportCount": 141,
+  "currentCount": 141,
+  "keySetMatch": true,
+  "contentMismatch": [],
+  "resultSha256": "d81f8a36f1f1bde71b7531c377cbb4248e901251878c2baeb7b824c3715850eb",
+  "verdict": "PASS",
+  "stages": [
+    { "mode": "local-single", "stage": "reinitialization-rejected-and-original-identity-preserved", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "startup-rejects-unsigned-expired-and-wrong-mode-before-database", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "actual-runtime-startup", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "http-unlock-or-password-and-mfa", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "http-authorized-business-write-read-and-encrypted-database-reread", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "http-lock-revocation-directory-and-expiry-denials", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "bounded-shutdown-with-stalled-body", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "acknowledged-record-survives-database-reopen", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "same-stable-id-after-runtime-restart", "verdict": "PASS" },
+    { "mode": "local-single", "stage": "kit-stable-id-rewrap-and-http-unlock", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "startup-rejects-unsigned-expired-and-wrong-mode-before-database", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "certificate-constraints-and-public-bind-denials", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "actual-runtime-startup", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "https-live-and-cleartext-rejected", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "http-unlock-or-password-and-mfa", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "http-authorized-business-write-read-and-encrypted-database-reread", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "http-lock-revocation-directory-and-expiry-denials", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "bounded-shutdown-with-stalled-body", "verdict": "PASS" },
+    { "mode": "local-office", "stage": "acknowledged-record-survives-database-reopen", "verdict": "PASS" }
+  ],
+  "notProven": [
+    "full-S4-SG4",
+    "Windows-installer",
+    "dedicated-service-account-and-SCM",
+    "two-client-devices",
+    "firewall-and-external-reachability",
+    "full-SG9-and-cross-SID-restore",
+    "S12-credential-reset-and-installer-bootstrap",
+    "Authenticode-and-update-rollback",
+    "E8-8-load-gate"
+  ]
+}
