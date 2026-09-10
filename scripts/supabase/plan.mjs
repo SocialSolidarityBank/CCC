@@ -118,9 +118,15 @@ const INSTALL_STEPS = new Set([
   'restore_provider_metadata', 'switch_release', 'verify_receipt',
 ]);
 
+function hasProvedCleanInventory(state) {
+  return ['unownedObjectCount', 'unexpectedGrantCount'].every(key =>
+    Number.isSafeInteger(state?.[key]) && state[key] === 0);
+}
+
 function hasUnownedProjectState(snapshot) {
   const state = snapshot.state;
-  return state.userTableCount > 0 || state.userRowEstimate > 0
+  return !hasProvedCleanInventory(state)
+    || state.userTableCount > 0 || state.userRowEstimate > 0
     || state.rlsEnabledTableCount > 0 || state.policyCount > 0
     || state.authUserCount > 0 || state.bucketCount > 0 || state.storageObjectCount > 0
     || state.userRoutineCount > 0 || state.userTypeCount > 0 || state.customSchemaCount > 0
@@ -130,7 +136,10 @@ function hasUnownedProjectState(snapshot) {
 
 function resourcesMatchObservation(snapshot, state, installationId) {
   const ownershipTag = `ccc.installation_id=${installationId}`;
-  if (snapshot.state.customSchemaCount > 0 || snapshot.state.userTypeCount > 0 || snapshot.state.unknownObjectCount > 0
+  if (!hasProvedCleanInventory(snapshot.state)
+    || (snapshot.cronJobCount ?? 0) > 0
+    || snapshot.state.customSchemaCount > 0 || snapshot.state.userTypeCount > 0
+    || snapshot.state.unknownObjectCount > 0
     || !Array.isArray(snapshot.state.buckets) || !Array.isArray(state.resources)
     || snapshot.state.bucketCount !== snapshot.state.buckets.length) return false;
   if (snapshot.state.buckets.length !== state.resources.length) return false;
@@ -208,6 +217,8 @@ function observationSafety(snapshot) {
     unknownObjectCount: snapshot.state.unknownObjectCount ?? 0,
     customSchemaCount: snapshot.state.customSchemaCount ?? 0,
     auxiliaryRelationCount: snapshot.state.auxiliaryRelationCount ?? 0,
+    unownedObjectCount: snapshot.state.unownedObjectCount ?? null,
+    unexpectedGrantCount: snapshot.state.unexpectedGrantCount ?? null,
     privateSchemaExists: Boolean(snapshot.state.privateSchemaExists),
     privateTableNames: [...(snapshot.state.privateTableNames ?? [])].sort(),
     legacyLedgerPresent: Boolean(snapshot.state.legacyLedgerPresent),
@@ -215,6 +226,123 @@ function observationSafety(snapshot) {
     observedBuckets: snapshot.state.buckets ?? [],
     cronJobCount: snapshot.cronJobCount ?? 0,
   };
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validRollbackTarget(value) {
+  return value === null || (isRecord(value)
+    && typeof value.releaseVersion === 'string' && value.releaseVersion.length > 0
+    && Number.isSafeInteger(value.releaseSequence) && value.releaseSequence > 0
+    && SHA256_HEX.test(value.manifestDigest));
+}
+
+function validReceipt(receipt) {
+  const evidence = receipt?.edgeRegionEvidence;
+  const digests = receipt?.providerResourceDigests;
+  const backupValid = (receipt?.backupId === null && receipt?.backupDigest === null)
+    || (typeof receipt?.backupId === 'string' && receipt.backupId.length > 0
+      && SHA256_HEX.test(receipt.backupDigest));
+  return isRecord(receipt)
+    && receipt.contract === 'S11' && receipt.contractVersion === '0.3'
+    && typeof receipt.installationId === 'string' && receipt.installationId.length > 0
+    && SHA256_HEX.test(receipt.institutionIdHash)
+    && validRollbackTarget(receipt.rollbackTarget)
+    && SHA256_HEX.test(receipt.expectedOwnerOrgIdHash)
+    && SHA256_HEX.test(receipt.observedOwnerOrgIdHash)
+    && typeof receipt.releaseVersion === 'string' && receipt.releaseVersion.length > 0
+    && Number.isSafeInteger(receipt.releaseSequence) && receipt.releaseSequence > 0
+    && SHA256_HEX.test(receipt.manifestDigest) && SHA256_HEX.test(receipt.artifactSetDigest)
+    && typeof receipt.migrationHead === 'string' && receipt.migrationHead.length > 0
+    && SHA256_HEX.test(receipt.schemaFingerprint)
+    && isRecord(evidence) && evidence.requestedRegion === 'ap-northeast-2'
+    && typeof evidence.responseRegion === 'string' && evidence.responseRegion.length > 0
+    && typeof evidence.functionRegion === 'string' && evidence.functionRegion.length > 0
+    && typeof evidence.mismatch === 'boolean'
+    && isRecord(digests) && Object.entries(digests).every(([key, digest]) =>
+      key.length > 0 && SHA256_HEX.test(digest))
+    && backupValid
+    && (receipt.priorReceiptDigest === null || SHA256_HEX.test(receipt.priorReceiptDigest))
+    && typeof receipt.recordedAt === 'string' && !Number.isNaN(Date.parse(receipt.recordedAt))
+    && (receipt.status === 'installed' || receipt.status === 'rollback_failed');
+}
+
+function receiptBindingsMatch(receipt, state, snapshot, authorization) {
+  const journal = state.journal;
+  return receipt.installationId === journal?.installationId
+    && receipt.installationId === authorization?.installationId
+    && receipt.institutionIdHash === journal?.institutionIdHash
+    && receipt.institutionIdHash === authorization?.institutionIdHash
+    && receipt.expectedOwnerOrgIdHash === journal?.expectedOwnerOrgIdHash
+    && receipt.expectedOwnerOrgIdHash === authorization?.expectedOwnerOrgIdHash
+    && receipt.observedOwnerOrgIdHash === snapshot.project.ownerOrgIdHash
+    && receipt.observedOwnerOrgIdHash === receipt.expectedOwnerOrgIdHash;
+}
+
+function appliedMigrationsComplete(state, migrations) {
+  if (!Array.isArray(state.migrations) || state.migrations.length !== migrations.length) return false;
+  const applied = [...state.migrations].sort((left, right) => String(left?.id).localeCompare(String(right?.id)));
+  return applied.every((entry, index) =>
+    entry?.id === migrations[index].id && entry?.checksum === migrations[index].checksum);
+}
+
+function providerDigestsMatch(receipt, state) {
+  if (!Array.isArray(state.resources)) return false;
+  const recorded = state.resources.map(resource =>
+    [resource?.resourceIdHash, resource?.resourceDigest])
+    .sort(([left], [right]) => String(left).localeCompare(String(right)));
+  return recorded.every(([id, digest], index) =>
+    SHA256_HEX.test(id) && SHA256_HEX.test(digest)
+      && (index === 0 || id !== recorded[index - 1][0]))
+    && JSON.stringify(recorded)
+      === JSON.stringify(Object.entries(receipt.providerResourceDigests)
+        .sort(([left], [right]) => left.localeCompare(right)));
+}
+
+async function doctorReceiptIssues(snapshot, state, authorization, migrations) {
+  let incomplete = state.journal?.phase !== 'installed';
+  let drift = false;
+  const receipt = state.currentReceipt;
+  if (!validReceipt(receipt) || receipt.status !== 'installed') {
+    incomplete = true;
+  } else {
+    if (!receiptBindingsMatch(receipt, state, snapshot, authorization)) incomplete = true;
+    if (!appliedMigrationsComplete(state, migrations)
+      || receipt.migrationHead !== migrations.at(-1)?.id) incomplete = true;
+    if (!SHA256_HEX.test(snapshot.databaseFingerprint)
+      || !SHA256_HEX.test(state.journal?.databaseFingerprint)) {
+      incomplete = true;
+    } else if (receipt.schemaFingerprint !== snapshot.databaseFingerprint
+      || state.journal.databaseFingerprint !== snapshot.databaseFingerprint) {
+      drift = true;
+    }
+    if (!providerDigestsMatch(receipt, state)) drift = true;
+    if (receipt.edgeRegionEvidence.mismatch
+      || receipt.edgeRegionEvidence.responseRegion !== receipt.edgeRegionEvidence.requestedRegion
+      || receipt.edgeRegionEvidence.functionRegion !== receipt.edgeRegionEvidence.requestedRegion) drift = true;
+
+    const history = state.releaseHistory;
+    if (!Array.isArray(history) || history.length === 0
+      || history.some(item => !validReceipt(item) || !receiptBindingsMatch(item, state, snapshot, authorization))) {
+      incomplete = true;
+    } else {
+      const ordered = [...history].sort((left, right) => left.releaseSequence - right.releaseSequence);
+      const unique = new Set(ordered.map(item => item.releaseSequence));
+      const matching = ordered.filter(item => item.releaseSequence === receipt.releaseSequence);
+      if (unique.size !== ordered.length || ordered.at(-1)?.releaseSequence !== receipt.releaseSequence
+        || matching.length !== 1
+        || await hashCanonical(matching[0]) !== await hashCanonical(receipt)) incomplete = true;
+    }
+  }
+
+  // These inputs contain no verified S12 manifest, artifact-set, trust-floor or release-origin proof.
+  // Consistent durable metadata is still not release authorization.
+  return [
+    ...(incomplete ? ['INSTALL_INCOMPLETE'] : ['RELEASE_PREREQUISITES_MISSING']),
+    ...(drift ? ['DRIFT_DETECTED'] : []),
+  ];
 }
 
 /** Observations contain no credentials or source documents; authority is verified separately. */
@@ -242,6 +370,8 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
     if (![before, after].every(value => isSeoulRegion(value.project.region))) deny('REGION_MISMATCH');
     if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
   }
+  const stateFingerprint = await installationStateFingerprint(before);
+  const afterStateFingerprint = await installationStateFingerprint(after);
   const state = before.installState;
   if (!state) {
     if ([before, after].some(snapshot => snapshot.state.legacyLedgerPresent
@@ -254,8 +384,13 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
       assertAuthorizationMatches(state.journal, authorization, {
         renewAuthorization: renewAuthorization && changedPair, resourcesSha256, migrationsSha256,
       });
-      if (!INSTALL_PHASES.has(state.journal.phase)) deny('INSTALL_JOURNAL_INVALID');
-      if (state.journal.databaseFingerprint && state.journal.databaseFingerprint !== before.databaseFingerprint) deny('DRIFT_BLOCKED');
+      if (!INSTALL_PHASES.has(state.journal.phase)
+        || !SHA256_HEX.test(state.journal.stateFingerprint)) deny('INSTALL_JOURNAL_INVALID');
+      else if (state.journal.stateFingerprint !== stateFingerprint
+        || state.journal.stateFingerprint !== afterStateFingerprint) deny('DRIFT_BLOCKED');
+      if (state.journal.databaseFingerprint
+        && ![before, after].every(snapshot =>
+          state.journal.databaseFingerprint === snapshot.databaseFingerprint)) deny('DRIFT_BLOCKED');
       if (!Array.isArray(state.migrations)
         || state.migrations.some(entry => typeof entry?.id !== 'string' || typeof entry?.checksum !== 'string')) {
         deny('MIGRATION_CHECKSUM_MISMATCH');
@@ -270,8 +405,7 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
       }
     } catch (error) { deny(error?.code ?? 'INSTALL_AUTHORIZATION_MISMATCH'); }
   }
-  const stateFingerprint = await installationStateFingerprint(before);
-  const unchanged = stateFingerprint === await installationStateFingerprint(after)
+  const unchanged = stateFingerprint === afterStateFingerprint
     && await hashCanonical(observationSafety(before)) === await hashCanonical(observationSafety(after))
     && await hashCanonical(before.installed) === await hashCanonical(after.installed)
     && await hashCanonical(before.installState ?? null) === await hashCanonical(after.installState ?? null);
@@ -310,25 +444,43 @@ export async function buildSupabasePlan({ target, inspector, authorization, rene
 
 export async function buildSupabaseDoctor(options) {
   const plan = await buildSupabasePlan(options);
-  const snapshot = await options.inspector.inspect();
+  let snapshot;
+  try {
+    snapshot = await options.inspector.inspect();
+    if (options.target === 'hosted') assertAuthorizationCurrent(options.authorization);
+  } catch (error) {
+    throw new PlanFailure(error?.code ?? (options.target === 'local'
+      ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
+  }
   const state = snapshot.installState;
   const issues = [...plan.blockers];
+  const addIssue = code => {
+    if (!issues.some(issue => issue.code === code)) {
+      issues.push({ code, message: new PlanFailure(code).message });
+    }
+  };
+  if (!(snapshot.connection.readOnly && snapshot.connection.databaseReadable
+    && snapshot.connection.authReadable && snapshot.connection.storageReadable)) {
+    addIssue('CONNECTION_NOT_READ_ONLY');
+  }
+  const stateFingerprint = await installationStateFingerprint(snapshot);
+  if (stateFingerprint !== plan.stateFingerprint) addIssue('PLAN_STATE_CHANGED');
   if (!state) {
-    issues.push({ code: 'INSTALL_NOT_FOUND', message: new PlanFailure('INSTALL_NOT_FOUND').message });
+    addIssue('INSTALL_NOT_FOUND');
   } else {
-    if (state.journal?.phase !== 'installed'
-      || state.currentReceipt === null || typeof state.currentReceipt !== 'object'
-      || Array.isArray(state.currentReceipt)) {
-      issues.push({ code: 'INSTALL_INCOMPLETE', message: new PlanFailure('INSTALL_INCOMPLETE').message });
+    if (!resourcesMatchObservation(snapshot, state, options.authorization?.installationId)) {
+      addIssue('RESOURCE_OWNERSHIP_MISMATCH');
     }
-    if (state.journal?.stateFingerprint
-      && state.journal.stateFingerprint !== await installationStateFingerprint(snapshot)) {
-      issues.push({ code: 'DRIFT_DETECTED', message: new PlanFailure('DRIFT_DETECTED').message });
-    }
+    if (!SHA256_HEX.test(state.journal?.stateFingerprint)
+      || state.journal.stateFingerprint !== stateFingerprint) addIssue('DRIFT_DETECTED');
+    for (const code of await doctorReceiptIssues(
+      snapshot, state, options.authorization, plan.migrations,
+    )) addIssue(code);
   }
   return {
     operation: 'doctor', readOnly: true, ready: issues.length === 0, productionReady: false,
-    installed: plan.installed, stateFingerprint: await installationStateFingerprint(snapshot),
+    installed: state ? safeInstalledSummary(state, plan.migrations) : plan.installed,
+    stateFingerprint,
     completedSteps: safeCompletedSteps(state),
     blockers: issues,
   };

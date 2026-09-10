@@ -30,7 +30,9 @@ function databaseSnapshot(overrides = {}) {
     bucket_public: null,
     ledger_exists: false,
     auth_user_count: 0, bucket_count: 0, storage_object_count: 0, user_routine_count: 0,
-    user_type_count: 0, unknown_object_count: 0, custom_schema_count: 0, user_auxiliary_relation_count: 0, private_table_names: [],
+    user_type_count: 0, unknown_object_count: 0, custom_schema_count: 0, user_auxiliary_relation_count: 0,
+    unowned_object_count: 0, installation_unowned_object_count: 0, installation_unowned_schema_count: 0,
+    unexpected_grant_count: 0, installation_unexpected_grant_count: 0, private_table_names: [],
     private_schema_exists: false, private_install_metadata_exists: false, cron_exists: false,
     database_version: '17.4',
     read_only: true,
@@ -176,17 +178,22 @@ function assertNoSensitiveOutput(result, origin) {
 
 // The observation engine is tested independently of the public CLI trust gate.
 // Signature/adversarial tests use the real two-document verifier in install-authorization.test.mjs.
-async function inspectPlan(origin, token = accessToken) {
-  const authorization = observationAuthorization();
-  const inspector = createHostedInspector({
+function hostedInspector(origin, token = accessToken) {
+  return createHostedInspector({
     accessToken: token, projectRef: 'test-project',
-    authorization,
+    authorization: observationAuthorization(),
     fetchImpl: (url, options) => {
       assert.equal(new URL(url).origin, 'https://api.supabase.com');
       return fetch(new URL(new URL(url).pathname, origin), options);
     },
   });
-  return buildSupabasePlan({ target: 'hosted', inspector, authorization });
+}
+
+async function inspectPlan(origin, token = accessToken) {
+  const authorization = observationAuthorization();
+  return buildSupabasePlan({
+    target: 'hosted', inspector: hostedInspector(origin, token), authorization,
+  });
 }
 
 test('owner-aware hosted observation uses only read endpoints and produces a redacted plan', async () => {
@@ -328,6 +335,87 @@ test('read-only observations preserve region and unowned-project denials', async
     assert.equal(output.blockers[0].code, 'EXISTING_PROJECT_NOT_CLEAN');
     assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
   });
+});
+
+test('hosted inventory rejects a business table hidden in the extensions schema without reading its rows', async () => {
+  const objectName = 'extensions.legacy_business';
+  await withManagementApi({
+    database: databaseSnapshot({
+      unowned_object_count: 1,
+      provider_inventory_evidence: { objectName, rowCount: 3 },
+    }),
+  }, async ({ origin, requests }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, false);
+    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.ok(requests.every(({ body }) => !body.includes('AS row_value')));
+    assert.equal(JSON.stringify(output).includes(objectName), false);
+  });
+});
+
+test('hosted inventory rejects an opaque object in a non-system schema', async () => {
+  const objectName = 'extensions.legacy_collation';
+  await withManagementApi({
+    database: databaseSnapshot({
+      unowned_object_count: 1,
+      provider_inventory_evidence: { objectName, objectKind: 'collation' },
+    }),
+  }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, false);
+    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.equal(JSON.stringify(output).includes(objectName), false);
+  });
+});
+
+test('hosted inventory rejects a stable default SELECT grant to an unrelated role', async () => {
+  const roleName = 'unrelated_reader_must_not_escape';
+  await withManagementApi({
+    database: databaseSnapshot({
+      unexpected_grant_count: 1,
+      provider_inventory_evidence: { roleName, privilege: 'SELECT', defaultPrivilege: true },
+    }),
+  }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, false);
+    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.equal(JSON.stringify(output).includes(roleName), false);
+  });
+});
+
+test('hosted inventory accepts exact provider metadata and extension ownership evidence', async () => {
+  await withManagementApi({
+    database: databaseSnapshot({
+      unowned_object_count: 0,
+      unexpected_grant_count: 0,
+      provider_inventory_evidence: {
+        exactProviderObject: 'provider_object_must_not_escape',
+        extensionObject: 'extension_object_must_not_escape',
+      },
+    }),
+  }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, true);
+    assert.doesNotMatch(JSON.stringify(output), /(?:provider|extension)_object_must_not_escape/u);
+  });
+});
+
+test('hosted inventory fails closed when object or grant counts are malformed', async () => {
+  for (const overrides of [
+    { unowned_object_count: undefined },
+    { unowned_object_count: '-1' },
+    { unexpected_grant_count: '1.5' },
+    { unexpected_grant_count: Number.MAX_SAFE_INTEGER + 1 },
+    { installation_unowned_object_count: undefined },
+    { installation_unowned_schema_count: '-1' },
+    { installation_unexpected_grant_count: 'invalid' },
+  ]) {
+    await withManagementApi({
+      database: databaseSnapshot(overrides),
+    }, async ({ origin }) => {
+      await assert.rejects(hostedInspector(origin).inspect(), error => error.code === 'PROVIDER_UNREADABLE');
+    });
+  }
 });
 
 test('observed storage identifiers and metadata remain internal to the redacted plan', async () => {

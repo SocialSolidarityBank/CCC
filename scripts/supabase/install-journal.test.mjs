@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import postgres from 'postgres';
+import { INSTALLER_SESSION_TIMEOUTS } from './installer-connection.mjs';
 import {
   applyJournaledMigration,
   bootstrapInstall,
@@ -101,11 +102,92 @@ function ensure(session, verified = authorization(), target = desired(), options
     authorize: options.authorize ?? (async () => verified),
   });
 }
+
 async function privateSchemaExists(session) {
   const [{ exists }] = await session.unsafe(
     "SELECT to_regnamespace('private') IS NOT NULL AS exists",
   );
   return exists;
+}
+
+async function withBlockingTransaction(sql, acquire, run) {
+  const blocker = await sql.reserve();
+  let transactionOpen = false;
+  let failSafe;
+  const rollback = async () => {
+    if (!transactionOpen) return;
+    try {
+      await blocker.unsafe('ROLLBACK');
+    } finally {
+      transactionOpen = false;
+    }
+  };
+  try {
+    await blocker.unsafe('BEGIN');
+    transactionOpen = true;
+    await acquire(blocker);
+    const operation = Promise.resolve().then(() => run(blocker));
+    const escaped = new Promise(resolve => {
+      failSafe = setTimeout(() => resolve(true), 10_000);
+    });
+    const completed = operation.then(() => false, () => false);
+    if (await Promise.race([completed, escaped])) {
+      await rollback();
+      await operation.catch(() => {});
+      throw new Error('SERVER_LOCK_TIMEOUT_MISSING');
+    }
+    return await operation;
+  } finally {
+    clearTimeout(failSafe);
+    try {
+      await rollback();
+    } finally {
+      await blocker.release();
+    }
+  }
+}
+
+async function observeBlockedMigrationRelation(session, attempt) {
+  let settled = false;
+  let failure;
+  attempt.then(
+    () => { settled = true; },
+    error => { settled = true; failure = error; },
+  );
+  for (;;) {
+    const [{ waiting }] = await session.unsafe(`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_locks
+      WHERE relation = 'public.ccc_install_journal_test_lock_target'::regclass
+        AND mode = 'AccessExclusiveLock'
+        AND NOT granted
+        AND pid <> pg_backend_pid()
+    ) AS waiting`);
+    if (waiting) return;
+    if (settled) {
+      if (failure) throw failure;
+      throw new Error('MIGRATION_DID_NOT_WAIT_FOR_RELATION_LOCK');
+    }
+    await new Promise(resolve => setImmediate(resolve));
+  }
+}
+
+async function assertAdvisoryLocksReleased(installerBackendPid) {
+  assert.ok(Number.isInteger(installerBackendPid));
+  const probe = postgres(databaseUrl, {
+    max: 1,
+    connection: INSTALLER_SESSION_TIMEOUTS,
+    onnotice: () => {},
+  });
+  try {
+    const [{ backend_exists, held }] = await probe.unsafe(`SELECT
+      EXISTS (SELECT 1 FROM pg_catalog.pg_stat_activity WHERE pid = $1) AS backend_exists,
+      (SELECT count(*)::integer FROM pg_catalog.pg_locks
+        WHERE pid = $1 AND locktype = 'advisory' AND granted) AS held`, [installerBackendPid]);
+    assert.equal(backend_exists, true);
+    assert.equal(held, 0);
+  } finally {
+    await probe.end();
+  }
 }
 
 const fixtureCleanup = `DROP TABLE IF EXISTS
@@ -116,6 +198,7 @@ const fixtureCleanup = `DROP TABLE IF EXISTS
   public.ccc_install_journal_test_expiry,
   public.ccc_install_journal_test_revocation,
   public.ccc_install_journal_test_renewal,
+  public.ccc_install_journal_test_lock_target,
   public.ccc_install_journal_test_drift CASCADE;
 DROP TYPE IF EXISTS
   public.ccc_install_journal_test_enum,
@@ -124,7 +207,11 @@ DROP TYPE IF EXISTS
   private.ccc_install_journal_test_range CASCADE`;
 
 async function withDatabase(run) {
-  const sql = postgres(databaseUrl, { max: 4, onnotice: () => {} });
+  const sql = postgres(databaseUrl, {
+    max: 4,
+    connection: INSTALLER_SESSION_TIMEOUTS,
+    onnotice: () => {},
+  });
   let admitted = false;
   try {
     const [safety] = await sql.unsafe(`SELECT
@@ -151,6 +238,170 @@ async function withDatabase(run) {
     }
   }
 }
+
+databaseTest('installer sessions enforce positive bounded server lock deadlines', async () => {
+  await withDatabase(async sql => {
+    const session = await sql.reserve();
+    try {
+      const [settings] = await session.unsafe(`SELECT
+        (extract(epoch FROM current_setting('lock_timeout')::interval) * 1000)::integer AS lock_timeout_ms,
+        (extract(epoch FROM current_setting('statement_timeout')::interval) * 1000)::integer AS statement_timeout_ms`);
+      assert.ok(settings.lock_timeout_ms > 0 && settings.lock_timeout_ms <= 5_000);
+      assert.ok(settings.statement_timeout_ms > 0 && settings.statement_timeout_ms <= 60_000);
+      assert.ok(settings.statement_timeout_ms > settings.lock_timeout_ms);
+    } finally {
+      await session.release();
+    }
+  });
+});
+
+databaseTest('a blocked journal row times out without mutation and releases the project lock', { timeout: 30_000 }, async () => {
+  await withDatabase(async sql => {
+    const setup = await sql.reserve();
+    let before;
+    try {
+      await bootstrap(setup, authorization(), desired());
+      before = await readInstallState(setup, authorization().installationId);
+    } finally {
+      await setup.release();
+    }
+    const renewed = authorization({
+      runtimeManifestSha256: 'e'.repeat(64),
+      approvalSha256: 'f'.repeat(64),
+      runtimeSequence: 2,
+      expiresAt: new Date(Date.now() + 1_200_000).toISOString(),
+    });
+    let installerBackendPid;
+    await withBlockingTransaction(
+      sql,
+      async blocker => {
+        const rows = await blocker.unsafe(
+          'SELECT installation_id FROM private.ccc_install_journal WHERE installation_id = $1 FOR UPDATE',
+          [authorization().installationId],
+        );
+        assert.equal(rows.length, 1);
+      },
+      () => assert.rejects(
+        withInstallLock(sql, hashes.project, async session => {
+          const [{ pid }] = await session.unsafe('SELECT pg_backend_pid() AS pid');
+          installerBackendPid = pid;
+          return ensure(
+            session,
+            renewed,
+            desired(),
+            { renewAuthorization: true },
+          );
+        }),
+        error => error?.code === '55P03',
+      ),
+    );
+    const observer = await sql.reserve();
+    try {
+      assert.deepEqual(await readInstallState(observer, authorization().installationId), before);
+      const [journal] = await observer.unsafe(`SELECT
+        runtime_sequence::integer AS runtime_sequence,
+        runtime_manifest_sha256,
+        approval_sha256
+        FROM private.ccc_install_journal
+        WHERE installation_id = $1`, [authorization().installationId]);
+      const [{ authorization_count }] = await observer.unsafe(`SELECT count(*)::integer AS authorization_count
+        FROM private.ccc_install_authorizations
+        WHERE installation_id = $1`, [authorization().installationId]);
+      assert.deepEqual(journal, {
+        runtime_sequence: 1,
+        runtime_manifest_sha256: hashes.manifest,
+        approval_sha256: hashes.approval,
+      });
+      assert.equal(authorization_count, 1);
+    } finally {
+      await observer.release();
+    }
+    await assertAdvisoryLocksReleased(installerBackendPid);
+  });
+});
+
+databaseTest('a blocked migration DDL times out without a receipt and releases the project lock', { timeout: 30_000 }, async () => {
+  await withDatabase(async sql => {
+    const setup = await sql.reserve();
+    let before;
+    try {
+      await bootstrap(setup, authorization(), desired());
+      await applyJournaledMigration(
+        setup,
+        authorization(),
+        migration(
+          '0001_lock_target.sql',
+          'CREATE TABLE public.ccc_install_journal_test_lock_target (id integer PRIMARY KEY)',
+        ),
+        { authorize: authorizeFresh },
+      );
+      before = await readInstallState(setup, authorization().installationId);
+    } finally {
+      await setup.release();
+    }
+    let installerBackendPid;
+    await withBlockingTransaction(
+      sql,
+      blocker => blocker.unsafe(
+        'LOCK TABLE public.ccc_install_journal_test_lock_target IN ACCESS SHARE MODE',
+      ),
+      async blocker => {
+        const attempt = withInstallLock(sql, hashes.project, async session => {
+          const [{ pid }] = await session.unsafe('SELECT pg_backend_pid() AS pid');
+          const [settings] = await session.unsafe(`SELECT
+            (extract(epoch FROM current_setting('lock_timeout')::interval) * 1000)::integer AS lock_timeout_ms,
+            (extract(epoch FROM current_setting('statement_timeout')::interval) * 1000)::integer AS statement_timeout_ms`);
+          assert.ok(settings.lock_timeout_ms > 0 && settings.lock_timeout_ms <= 5_000);
+          assert.ok(settings.statement_timeout_ms > settings.lock_timeout_ms
+            && settings.statement_timeout_ms <= 60_000);
+          installerBackendPid = pid;
+          return applyJournaledMigration(
+            session,
+            authorization(),
+            migration(
+              '0002_lock_target.sql',
+              'ALTER TABLE public.ccc_install_journal_test_lock_target ADD COLUMN blocked integer',
+            ),
+            { authorize: authorizeFresh },
+          );
+        });
+        await observeBlockedMigrationRelation(blocker, attempt);
+        await assert.rejects(
+          attempt,
+          error => error?.code === 'MIGRATION_APPLY_FAILED',
+        );
+      },
+    );
+    const observer = await sql.reserve();
+    try {
+      const after = await readInstallState(observer, authorization().installationId);
+      assert.equal(after.journal.currentStep, 'platform_migration');
+      assert.equal(after.journal.lastErrorCode, 'MIGRATION_APPLY_FAILED');
+      assert.deepEqual({
+        ...after,
+        journal: {
+          ...after.journal,
+          currentStep: before.journal.currentStep,
+          lastErrorCode: before.journal.lastErrorCode,
+          updatedAt: before.journal.updatedAt,
+        },
+      }, before);
+      const [{ changed }] = await observer.unsafe(`SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'ccc_install_journal_test_lock_target'
+          AND column_name = 'blocked'
+      ) AS changed`);
+      assert.equal(changed, false);
+      const [{ receipt_count }] = await observer.unsafe(`SELECT count(*)::integer AS receipt_count
+        FROM private.ccc_schema_migrations WHERE id = '0002_lock_target.sql'`);
+      assert.equal(receipt_count, 0);
+    } finally {
+      await observer.release();
+    }
+    await assertAdvisoryLocksReleased(installerBackendPid);
+  });
+});
 
 databaseTest('project advisory lock is exclusive and is released after the callback', async () => {
   await withDatabase(async sql => {

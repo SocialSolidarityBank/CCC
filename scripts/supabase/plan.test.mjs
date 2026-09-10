@@ -30,6 +30,8 @@ const stableState = Object.freeze({
   unknownObjectCount: 0,
   customSchemaCount: 0,
   auxiliaryRelationCount: 0,
+  unownedObjectCount: 0,
+  unexpectedGrantCount: 0,
   privateTableNames: [],
   privateSchemaExists: false,
   legacyLedgerPresent: false,
@@ -63,6 +65,7 @@ function snapshot(overrides = {}) {
       refreshTokenRotationEnabled: true,
     },
     state: stableState,
+    cronJobCount: 0,
     ...overrides,
   };
 }
@@ -114,27 +117,74 @@ async function installedSnapshot({
     runtimeSequence: authorization.runtimeSequence,
     expiresAt: authorization.expiresAt,
   };
-  return {
-    authorization,
-    desired,
-    observed: snapshot({
-      state: { ...stableState, ...state },
-      installState: {
-        journal: {
-          ...journalAuthorization,
-          resourcesSha256: desired.resourcesSha256,
-          migrationsSha256: desired.migrationsSha256,
-          phase: 'installed',
-          databaseFingerprint: null,
-          ...journal,
-        },
-        migrations,
-        resources,
-        completedSteps: [],
-        currentReceipt: null,
+  const observed = snapshot({
+    state: { ...stableState, ...state },
+    installState: {
+      journal: {
+        ...journalAuthorization,
+        resourcesSha256: desired.resourcesSha256,
+        migrationsSha256: desired.migrationsSha256,
+        phase: 'installed',
+        databaseFingerprint: null,
+        ...journal,
       },
-    }),
+      migrations,
+      resources,
+      completedSteps: [],
+      currentReceipt: null,
+      releaseHistory: [],
+    },
+  });
+  if (!Object.hasOwn(journal, 'stateFingerprint')) {
+    observed.installState.journal.stateFingerprint = await installationStateFingerprint(observed);
+  }
+  return { authorization, desired, observed };
+}
+
+async function installedReceiptSnapshot({ state = {}, resources = [] } = {}) {
+  const fixture = await installedSnapshot({ state, resources });
+  fixture.observed.installState.migrations = structuredClone(fixture.desired.migrations);
+  fixture.observed.databaseFingerprint =
+    createHash('sha256').update('installed-catalog').digest('hex');
+  fixture.observed.installState.journal.databaseFingerprint = fixture.observed.databaseFingerprint;
+  fixture.observed.installState.journal.stateFingerprint =
+    await installationStateFingerprint(fixture.observed);
+  const receipt = {
+    contract: 'S11',
+    contractVersion: '0.3',
+    installationId: fixture.authorization.installationId,
+    institutionIdHash: fixture.authorization.institutionIdHash,
+    rollbackTarget: null,
+    expectedOwnerOrgIdHash: fixture.authorization.expectedOwnerOrgIdHash,
+    observedOwnerOrgIdHash: fixture.authorization.expectedOwnerOrgIdHash,
+    releaseVersion: '1.0.0',
+    releaseSequence: 1,
+    manifestDigest: createHash('sha256').update('release-manifest').digest('hex'),
+    artifactSetDigest: createHash('sha256').update('artifact-set').digest('hex'),
+    migrationHead: fixture.desired.migrations.at(-1).id,
+    schemaFingerprint: fixture.observed.databaseFingerprint,
+    edgeRegionEvidence: {
+      requestedRegion: 'ap-northeast-2',
+      responseRegion: 'ap-northeast-2',
+      functionRegion: 'ap-northeast-2',
+      mismatch: false,
+    },
+    providerResourceDigests: Object.fromEntries(
+      resources.map(resource => [resource.resourceIdHash, resource.resourceDigest]),
+    ),
+    backupId: null,
+    backupDigest: null,
+    priorReceiptDigest: null,
+    recordedAt: '2026-09-11T00:00:00.000Z',
+    status: 'installed',
   };
+  fixture.observed.installState.currentReceipt = receipt;
+  fixture.observed.installState.releaseHistory = [structuredClone(receipt)];
+  return fixture;
+}
+
+function blockerCodes(result) {
+  return result.blockers.map(blocker => blocker.code);
 }
 
 test('fresh Seoul project with verified authorization returns a full read-only owner-aware plan', async () => {
@@ -455,4 +505,216 @@ test('opaque schema objects cannot be adopted with or without an installation jo
     target: 'hosted', authorization: fixture.authorization, inspector: inspector(fixture.observed),
   });
   assert.ok(resumed.blockers.some(item => item.code === 'RESOURCE_OWNERSHIP_MISMATCH'));
+});
+
+test('resumed and renewal plans reject stable Auth drift from the durable provider fingerprint', async () => {
+  const fixture = await installedSnapshot();
+  const drifted = structuredClone(fixture.observed);
+  drifted.state.authFingerprint = 'stable-but-changed-auth';
+
+  const resumed = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(drifted, drifted),
+  });
+  assert.equal(resumed.ready, false);
+  assert.ok(blockerCodes(resumed).includes('DRIFT_BLOCKED'));
+
+  const renewedAuthorization = {
+    ...fixture.authorization,
+    runtimeManifestSha256: 'a'.repeat(64),
+    approvalSha256: 'b'.repeat(64),
+    runtimeSequence: fixture.authorization.runtimeSequence + 1,
+  };
+  const renewal = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: renewedAuthorization,
+    renewAuthorization: true,
+    inspector: inspector(drifted, drifted),
+  });
+  assert.equal(renewal.ready, false);
+  assert.ok(blockerCodes(renewal).includes('DRIFT_BLOCKED'));
+});
+
+test('resumed plans reject missing or malformed durable provider fingerprints', async () => {
+  for (const stateFingerprint of [undefined, null, 'not-a-fingerprint']) {
+    const fixture = await installedSnapshot({ journal: { stateFingerprint } });
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('INSTALL_JOURNAL_INVALID'));
+  }
+});
+
+test('resumed plans compare the durable provider fingerprint with both observations', async () => {
+  const fixture = await installedSnapshot();
+  const drifted = structuredClone(fixture.observed);
+  drifted.state.authFingerprint = 'changed-in-one-observation';
+  for (const observations of [
+    [drifted, fixture.observed],
+    [fixture.observed, drifted],
+  ]) {
+    const result = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(...observations),
+    });
+    assert.ok(blockerCodes(result).includes('DRIFT_BLOCKED'));
+  }
+});
+
+test('fresh and resumed plans cannot authorize cron before signed cron ownership exists', async () => {
+  const fresh = snapshot({ cronJobCount: 1 });
+  const freshResult = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: observationAuthorization(),
+    inspector: inspector(fresh, fresh),
+  });
+  assert.ok(blockerCodes(freshResult).includes('EXISTING_PROJECT_NOT_CLEAN'));
+
+  const fixture = await installedSnapshot();
+  fixture.observed.cronJobCount = 1;
+  fixture.observed.installState.journal.stateFingerprint =
+    await installationStateFingerprint(fixture.observed);
+  const result = await buildSupabasePlan({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('RESOURCE_OWNERSHIP_MISMATCH'));
+  assert.ok(!blockerCodes(result).includes('DRIFT_BLOCKED'));
+});
+
+test('fresh and resumed plans require proved clean object and grant inventories', async () => {
+  for (const inventory of [
+    { unownedObjectCount: 1, unexpectedGrantCount: 0 },
+    { unownedObjectCount: 0, unexpectedGrantCount: 1 },
+    { unownedObjectCount: undefined, unexpectedGrantCount: 0 },
+    { unownedObjectCount: 0.5, unexpectedGrantCount: 0 },
+    { unownedObjectCount: 0, unexpectedGrantCount: -1 },
+  ]) {
+    const fresh = snapshot({ state: { ...stableState, ...inventory } });
+    const freshResult = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: observationAuthorization(),
+      inspector: inspector(fresh, fresh),
+    });
+    assert.ok(blockerCodes(freshResult).includes('EXISTING_PROJECT_NOT_CLEAN'));
+
+    const fixture = await installedSnapshot({ state: inventory });
+    const resumedResult = await buildSupabasePlan({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed),
+    });
+    assert.ok(blockerCodes(resumedResult).includes('RESOURCE_OWNERSHIP_MISMATCH'));
+  }
+});
+
+test('doctor rejects empty, failed, mismatched and history-unmatched receipts without exposing them', async () => {
+  for (const mutate of [
+    fixture => { fixture.observed.installState.currentReceipt = {}; },
+    fixture => {
+      fixture.observed.installState.currentReceipt.status = 'rollback_failed';
+      fixture.observed.installState.releaseHistory[0].status = 'rollback_failed';
+    },
+    fixture => {
+      fixture.observed.installState.currentReceipt.institutionIdHash = 'f'.repeat(64);
+      fixture.observed.installState.releaseHistory[0].institutionIdHash = 'f'.repeat(64);
+    },
+    fixture => {
+      fixture.observed.installState.currentReceipt.installationId = 'other-installation';
+      fixture.observed.installState.releaseHistory[0].installationId = 'other-installation';
+    },
+    fixture => {
+      fixture.observed.installState.currentReceipt.observedOwnerOrgIdHash = 'f'.repeat(64);
+      fixture.observed.installState.releaseHistory[0].observedOwnerOrgIdHash = 'f'.repeat(64);
+    },
+    fixture => { fixture.observed.installState.migrations.pop(); },
+    fixture => { fixture.observed.installState.currentReceipt.migrationHead = 'provider-secret-head'; },
+    fixture => { fixture.observed.installState.releaseHistory = []; },
+    fixture => { fixture.observed.installState.releaseHistory[0].manifestDigest = 'e'.repeat(64); },
+  ]) {
+    const fixture = await installedReceiptSnapshot();
+    mutate(fixture);
+    const result = await buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('INSTALL_INCOMPLETE'));
+    assert.doesNotMatch(JSON.stringify(result), /provider-secret/u);
+  }
+});
+
+test('doctor rejects catalog and provider receipt fingerprint mismatches as drift', async () => {
+  const bucket = observedBucket();
+  for (const mutate of [
+    fixture => { fixture.observed.installState.currentReceipt.schemaFingerprint = 'f'.repeat(64); },
+    fixture => {
+      const [resourceIdHash] = Object.keys(
+        fixture.observed.installState.currentReceipt.providerResourceDigests,
+      );
+      fixture.observed.installState.currentReceipt.providerResourceDigests[resourceIdHash] = 'f'.repeat(64);
+    },
+    fixture => { fixture.observed.installState.currentReceipt.edgeRegionEvidence.mismatch = true; },
+  ]) {
+    const fixture = await installedReceiptSnapshot({
+      state: { bucketCount: 1, buckets: [bucket], bucket: { exists: true, public: false } },
+      resources: [{ ...bucket, ownershipTag: 'ccc.installation_id=synthetic-installation' }],
+    });
+    mutate(fixture);
+    fixture.observed.installState.releaseHistory =
+      [structuredClone(fixture.observed.installState.currentReceipt)];
+    const result = await buildSupabaseDoctor({
+      target: 'hosted',
+      authorization: fixture.authorization,
+      inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+    });
+    assert.equal(result.ready, false);
+    assert.ok(blockerCodes(result).includes('DRIFT_DETECTED'));
+  }
+});
+
+test('doctor checks the latest observation rather than blessing a stale two-snapshot plan', async () => {
+  const fixture = await installedReceiptSnapshot();
+  const latest = structuredClone(fixture.observed);
+  latest.state.authFingerprint = 'changed-after-plan';
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed, latest),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('PLAN_STATE_CHANGED'));
+  assert.ok(blockerCodes(result).includes('DRIFT_DETECTED'));
+});
+
+test('doctor checks read-only connection evidence on its latest observation', async () => {
+  const fixture = await installedReceiptSnapshot();
+  const latest = structuredClone(fixture.observed);
+  latest.connection.readOnly = false;
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed, latest),
+  });
+  assert.equal(result.ready, false);
+  assert.ok(blockerCodes(result).includes('CONNECTION_NOT_READ_ONLY'));
+});
+
+test('internally consistent receipt and history remain incomplete without S12 release trust proof', async () => {
+  const fixture = await installedReceiptSnapshot();
+  const result = await buildSupabaseDoctor({
+    target: 'hosted',
+    authorization: fixture.authorization,
+    inspector: inspector(fixture.observed, fixture.observed, fixture.observed),
+  });
+  assert.equal(result.ready, false);
+  assert.deepEqual(blockerCodes(result), ['RELEASE_PREREQUISITES_MISSING']);
 });

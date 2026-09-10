@@ -1,6 +1,11 @@
 import postgres from 'postgres';
 import { PlanFailure } from './plan.mjs';
 
+export const INSTALLER_SESSION_TIMEOUTS = Object.freeze({
+  lock_timeout: '5s',
+  statement_timeout: '60s',
+});
+
 /** Only called after dual-signature and Management API owner/region checks. */
 export async function withInstallerConnection(authorization, run) {
   const connectionString = process.env.CCC_INSTALL_DATABASE_URL;
@@ -20,7 +25,15 @@ export async function withInstallerConnection(authorization, run) {
   } catch {
     throw new PlanFailure('CREDENTIAL_INSUFFICIENT');
   }
-  const sql = postgres(connectionString, { ssl: 'verify-full', max: 1, connect_timeout: 10, onnotice: () => {}, debug: false });
+  const sql = postgres(connectionString, {
+    port: 5432,
+    ssl: 'verify-full',
+    max: 1,
+    connect_timeout: 10,
+    connection: INSTALLER_SESSION_TIMEOUTS,
+    onnotice: () => {},
+    debug: false,
+  });
   try {
     const [identity] = await sql`SELECT current_user AS role, current_database() AS database`;
     if (typeof identity?.role !== 'string' || identity.database !== 'postgres'
