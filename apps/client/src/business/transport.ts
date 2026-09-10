@@ -118,3 +118,43 @@ export class BusinessTransport {
     return value;
   }
 }
+
+/**
+ * 인증 없이 토큰만으로 도는 공개 경로 전송기(D86 ③④). Bearer 를 붙이지 않고, 아래 세 모양의
+ * 경로만 허용한다. 업무 API 는 이 전송기로 부르지 않는다.
+ */
+const PUBLIC_PATHS: readonly RegExp[] = [
+  /^\/staff-invites\/token\/[A-Za-z0-9_-]{1,300}$/u,
+  /^\/staff-invites\/token\/[A-Za-z0-9_-]{1,300}\/accept$/u,
+  /^\/invites\/participant\/[A-Za-z0-9_-]{1,300}$/u,
+  /^\/invites\/participant\/[A-Za-z0-9_-]{1,300}\/consent\/disclosures$/u,
+  /^\/signup\/participant$/u,
+];
+
+export class PublicTransport {
+  constructor(
+    private readonly installation: VerifiedInstallation,
+    private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
+  ) {}
+
+  async request(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<unknown> {
+    assertInstallationCurrent(this.installation);
+    if (!PUBLIC_PATHS.some((pattern) => pattern.test(path))) throw new BusinessError('invalid_api_path');
+    const target = `${this.installation.apiBase.replace(/\/$/, '')}${path}`;
+    try {
+      const response = await this.fetcher(target, {
+        method, credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
+        signal: AbortSignal.timeout(30_000),
+        headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (response.redirected) throw new BusinessError('invalid_response');
+      const value: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw httpError(response.status, value);
+      if (value === null) throw new BusinessError('invalid_response');
+      return value;
+    } catch (error) {
+      throw safeError(error);
+    }
+  }
+}

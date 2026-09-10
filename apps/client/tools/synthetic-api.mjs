@@ -31,6 +31,9 @@ export function createSyntheticState() {
     scheduleVersion: 2,
     consentEvents: new Map(),
     lastRegistration: null,
+    staffInvites: [],
+    requestLinks: new Map(),
+    lockedProgramId: 'program-2',
     retentionPolicy: { orgId: 'org-1', piiPurgeGraceDays: 365, version: 1 },
     assignees: [
       { id: '5d0c1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e2f', supportCaseId: CASE_ID, userId: USER_ID, role: 'primary',
@@ -216,7 +219,13 @@ export function handleApi(request, state, options) {
   if (!url.pathname.startsWith(basePath)) return json({ error: 'not_found' }, 404, cors);
   const path = url.pathname.slice(basePath.length);
   state.calls.push(`${request.method} ${path}`);
-  if (request.headers.get('authorization') === null) return json({ error: 'actor_authentication_required' }, 401, cors);
+  // 공개 토큰 경로는 Bearer 없이 돈다(D86 ③④). 토큰이 자격이고 실패는 전부 404다.
+  const publicPath = path.startsWith('/staff-invites/token/')
+    || /^\/invites\/participant\/[^/]+(\/consent\/disclosures)?$/.test(path)
+    || path === '/signup/participant';
+  if (!publicPath && request.headers.get('authorization') === null) {
+    return json({ error: 'actor_authentication_required' }, 401, cors);
+  }
 
   if (path === '/capabilities') {
     return json(options.capabilities, 200, { ...cors, 'X-CCC-Installation-Id': installationId });
@@ -244,12 +253,125 @@ export function handleApi(request, state, options) {
       { id: 'program-2', displayName: '주거 지원', programType: 'financial_support_v1', admissionState: 'undecided' },
     ] }, 200, cors);
   }
+  if (/^\/programs\/[^/]+\/consent\/disclosures$/.test(path) && request.method === 'GET') {
+    return json({ disclosures: CONSENT_DOMAINS.map(syntheticDisclosure) }, 200, cors);
+  }
+  if (path === '/staff-invites' && request.method === 'GET') {
+    return json({ invites: state.staffInvites.map(({ token, ...invite }) => invite) }, 200, cors);
+  }
+  if (path === '/staff-invites' && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (typeof body.email !== 'string' || !body.email.includes('@')) return json({ error: 'invalid_request' }, 400, cors);
+      const admin = state.role !== 'worker';
+      if (admin ? body.roles.length === 0 : body.roles.length > 0) return json({ error: 'invalid_request' }, 400, cors);
+      const token = `staff-token-${state.staffInvites.length + 1}`;
+      const invite = {
+        id: `7f${state.staffInvites.length + 1}00000-0000-4000-8000-000000000001`,
+        email: body.email.toLowerCase(), roles: [...body.roles].sort(), status: 'issued',
+        issuedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+        usedAt: null, revokedAt: null, token,
+      };
+      state.staffInvites.push(invite);
+      const { token: _token, ...view } = invite;
+      return json({ invite: view, token }, 201, cors);
+    });
+  }
+  if (/^\/staff-invites\/[^/]+\/revoke$/.test(path) && request.method === 'POST') {
+    return request.json().then(() => {
+      const id = decodeURIComponent(path.split('/')[2]);
+      const invite = state.staffInvites.find((entry) => entry.id === id);
+      if (invite === undefined || invite.status !== 'issued') return json({ error: 'not_found' }, 404, cors);
+      invite.status = 'revoked';
+      invite.revokedAt = new Date().toISOString();
+      const { token: _token, ...view } = invite;
+      return json({ invite: view }, 200, cors);
+    });
+  }
+  if (path === '/staff-invites/token' || path.startsWith('/staff-invites/token/')) {
+    const parts = path.split('/');
+    const token = decodeURIComponent(parts[3] ?? '');
+    const invite = state.staffInvites.find((entry) => entry.token === token && entry.status === 'issued');
+    if (invite === undefined) return json({ error: 'not_found' }, 404, cors);
+    if (request.method === 'GET' && parts.length === 4) {
+      return json({ orgName: '합성 기관', roles: invite.roles, expiresAt: invite.expiresAt }, 200, cors);
+    }
+    if (request.method === 'POST' && parts[4] === 'accept') {
+      return request.json().then((body) => {
+        if (typeof body.email !== 'string' || body.email.toLowerCase() !== invite.email) {
+          return json({ error: 'not_found' }, 404, cors);
+        }
+        invite.status = 'used';
+        invite.usedAt = new Date().toISOString();
+        return json({
+          userId: 'b8000000-0000-4000-8000-000000000002', email: invite.email,
+          roleWaiting: invite.roles.length === 0,
+        }, 201, cors);
+      });
+    }
+  }
+  if (path === '/invites/participant' && request.method === 'POST') {
+    return request.json().then((body) => {
+      if (body.programId === state.lockedProgramId) return json({ error: 'program_admission_required' }, 409, cors);
+      const token = `request-token-${state.requestLinks.size + 1}`;
+      state.requestLinks.set(token, { status: 'issued', programId: body.programId });
+      return json({
+        token, kind: 'participant', programId: body.programId, programType: 'financial_support_v1',
+        issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+        usedAt: null, revokedAt: null,
+      }, 201, cors);
+    });
+  }
+  if (/^\/invites\/participant\/[^/]+$/.test(path) && request.method === 'GET') {
+    const token = decodeURIComponent(path.split('/')[3]);
+    const link = state.requestLinks.get(token);
+    if (link === undefined) return json({ error: 'not_found' }, 404, cors);
+    if (link.status === 'used') return json({ status: 'used', counselorName: '담당 실무자' }, 200, cors);
+    return json({
+      status: 'issued', programId: link.programId, programType: 'financial_support_v1',
+      orgName: '합성 기관', expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    }, 200, cors);
+  }
+  if (/^\/invites\/participant\/[^/]+\/consent\/disclosures$/.test(path) && request.method === 'GET') {
+    const token = decodeURIComponent(path.split('/')[3]);
+    const link = state.requestLinks.get(token);
+    if (link === undefined || link.status !== 'issued') return json({ error: 'not_found' }, 404, cors);
+    return json({ disclosures: CONSENT_DOMAINS.map(syntheticDisclosure) }, 200, cors);
+  }
+  if (path === '/signup/participant' && request.method === 'POST') {
+    return request.json().then((body) => {
+      const link = state.requestLinks.get(body.token);
+      if (link === undefined || link.status !== 'issued') return json({ error: 'not_found' }, 404, cors);
+      if (!Array.isArray(body.consentEvents) || body.consentEvents.length !== CONSENT_DOMAINS.length) {
+        return json({ error: 'invalid_request' }, 400, cors);
+      }
+      link.status = 'used';
+      return json({
+        beneficiaryId: 'heron-021', supportCaseId: '4b7c1d2e-5f60-4a71-8b92-0c3d4e5f6a70',
+      }, 201, cors);
+    });
+  }
   if (path === '/participants' && request.method === 'POST') {
     return request.json().then((body) => {
       // 실제 서버와 같은 순서다: 개인정보 동의가 없고 긴급 사유도 없으면 하드 게이트가 막는다(D46).
       state.lastRegistration = Object.keys(body).sort();
+      if ('consentPrivacy' in body || 'consentRecordingAi' in body) {
+        return json({ error: 'invalid_request' }, 400, cors);
+      }
+      if (body.programId === state.lockedProgramId) {
+        return json({ error: 'program_admission_required' }, 409, cors);
+      }
+      const events = Array.isArray(body.consentEvents) ? body.consentEvents : [];
+      if (events.length !== CONSENT_DOMAINS.length) return json({ error: 'invalid_request' }, 400, cors);
+      for (const event of events) {
+        const disclosure = syntheticDisclosure(event.domain);
+        if (event.copyHash !== disclosure.copyHash || event.disclosureSnapshotId !== disclosure.snapshotId) {
+          return json({ error: 'invalid_request' }, 400, cors);
+        }
+      }
+      const privacy = events.find((event) => event.domain === 'personal_data_collection_use');
       const emergency = typeof body.emergencyReason === 'string' && body.emergencyReason.trim() !== '';
-      if (!emergency && body.consentPrivacy !== true) {
+      if (privacy?.decision !== 'grant' && !emergency) {
         return json({ error: 'privacy_consent_required' }, 422, cors);
       }
       return json({

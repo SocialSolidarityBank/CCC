@@ -1145,3 +1145,49 @@ pnpm --filter @ccc/client run build:release -- --config <배포설정.json> [--o
 정적 서버 쪽 요구는 둘이다: `ccc-deploy-headers.json` 의 header 를 켜고, 모든 미지의 경로를
 `index.html` 로 돌려준다(SPA). API 쪽은 `allowedOrigins` 를 byte-equal 로 echo 하는 S2 §2.9 CORS 다.
 배포는 이 레인에서 하지 않는다.
+
+## 28. API 레인 83581cb 소비 (2026-09-10)
+
+### 붙인 것
+
+- **일반 등록**: 사업을 고르면 `GET /programs/:programId/consent/disclosures` 로 등록 전 고지문을
+  받아 여섯 영역을 각각 고르게 하고, `POST /participants` 에 `idempotencyKey` 와 사건 여섯 개를
+  함께 보낸다. 막힘 안내는 지웠다. 옛 2종 불리언은 보내지 않고 서버도 400 으로 거부한다.
+- **실무자 초대**(`/staff-invites`): `GET·POST /staff-invites`, `POST /staff-invites/:id/revoke`.
+  이메일 하나에 묶이고 링크는 `#t=` 조각으로 한 번만 보여 준다. 기관 관리자는 역할을 고르고
+  기술 관리자는 역할 대기 초대만 만든다. 공개 수락은 `/staff/join#t=` 화면이
+  `GET·POST /staff-invites/token/:token[/accept]` 를 부른다.
+- **당사자 요청 링크**(`/participants/invite`): `POST /invites/participant`. 공개 완료는 `/join#t=`
+  화면이 `GET /invites/participant/:token`, `.../consent/disclosures`, `POST /signup/participant`
+  를 부르고 여섯 영역 동의를 여기서 받는다.
+- **공개 전송기**(`PublicTransport`): Bearer 를 붙이지 않고 위 다섯 경로 모양만 허용한다.
+  `referrerPolicy: 'no-referrer'`, 조각 토큰은 읽는 즉시 주소에서 지운다.
+- **D87 잠금**: 도입 확인이 끝나지 않은 사업은 등록과 요청 링크 선택 목록에서 빠지고 사유가 뜬다.
+
+### 실화면 결과 (합성 미리보기)
+
+| # | 확인 | 결과 |
+|---|---|---|
+| 1 | 로그인과 추가 인증 | 통과 |
+| 2 | 등록 화면에서 막힘 안내 사라짐 | 통과 |
+| 3 | 사업 선택 시 여섯 영역 고지문 발행 | 통과 |
+| 4 | 여섯 개를 다 고르기 전 제출 비활성 | 통과 |
+| 5 | 여섯 영역 동의와 함께 등록 생성 | 통과(당사자 정보로 이동) |
+| 6 | 옛 2종 키 전송 0건(서버 400 계약) | 통과(단위 회귀 유지) |
+| 7 | 실무자 초대 발급과 목록 | 통과 |
+| 8 | 초대 링크가 `#t=` 조각 | 통과 |
+| 9 | 초대 수락, 다른 이메일이면 거부 | 통과 |
+| 10 | 요청 링크 발급 | 통과 |
+| 11 | 로그인 없이 요청 링크 화면 열림 | 통과 |
+| 12 | 조각 토큰이 주소에서 지워짐 | 통과 |
+| 13 | 요청 링크 화면의 여섯 영역 동의 | 통과 |
+| 14 | 요청 링크 제출 접수 | 통과 |
+| 15 | 같은 링크 재사용 거부 | 통과(`이미 사용한 링크입니다`) |
+| 16 | 공개 화면 저장소 키 0개 | 통과 |
+| 17 | D87 미확인 사업이 등록·초대 선택에서 빠짐 | 통과(사유 문구 노출) |
+
+실패 0건. 값은 합성 하네스 응답이고 실제 기관 자료·사업자 연결은 없다.
+
+### 남은 것
+
+리포트 API(P6), 팀 감독·동의 문안 탭, `apps/web` 공유 자산 추출(P9), 실제 인프라 값(§27 표).

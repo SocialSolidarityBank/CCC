@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate, useOutletContext, type RouteObject } from 'react-router';
 import {
   GridContainer, PageTitle, WireButton, WireCallout, WireCard, WireDataRow, WireDataRows,
@@ -13,10 +13,11 @@ import { InstitutionApi } from './business/institution';
 import { ParticipantsApi } from './business/participants';
 import { AiReviewApi } from './business/ai-review';
 import { ConsentApi } from './business/consent';
+import { InvitesApi, PublicJoinApi } from './business/invites';
 import { IntakeApi } from './business/intake';
 import { CaseWorkApi, RecordsApi } from './business/records';
 import { SchedulesApi } from './business/schedules';
-import type { Session } from './business/session';
+import type { PublicSession, Session } from './business/session';
 import {
   ParticipantBasicInfoScreen, ParticipantHubScreen, ParticipantListScreen, ParticipantRegisterScreen,
 } from './screens/participants';
@@ -27,11 +28,14 @@ import {
 import { RecordCreateScreen, RecordListScreen, RecordReviewScreen } from './screens/records';
 import { IntakeScreen } from './screens/intake';
 import { SettingsScreen } from './screens/settings';
+import {
+  ParticipantInviteScreen, ParticipantJoinScreen, StaffInviteScreen, StaffJoinScreen,
+} from './screens/invites';
 import { registerShellWorker } from './business/service-worker';
 import { BusinessError, safeError } from './business/errors';
 import { loadInstallation, type VerifiedInstallation } from './business/installation';
 import { canOpenDestination, destinationAt, visibleDestinations } from './business/navigation';
-import { BusinessTransport } from './business/transport';
+import { BusinessTransport, PublicTransport } from './business/transport';
 import { SttTrialPage } from './stt-trial/stt-trial-page';
 
 interface Runtime { installation: VerifiedInstallation; auth: CloudAuth }
@@ -129,6 +133,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
     const caseWork = new CaseWorkApi(transport);
     const intake = new IntakeApi(transport);
     const consent = new ConsentApi(transport);
+    const invites = new InvitesApi(transport);
     const aiReview = new AiReviewApi(transport);
     let live = true;
     const unsubscribe = runtime.auth.subscribe(() => {
@@ -143,7 +148,7 @@ function VerifiedSession({ runtime, revision }: { runtime: Runtime; revision: nu
         const me = await api.me();
         if (live) {
           setSession({
-            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, intake, consent, aiReview, me, capabilities,
+            auth: runtime.auth, api, participants, institution, schedules, records, caseWork, intake, consent, invites, aiReview, me, capabilities,
             reloadIdentity: () => setIdentityNonce((current) => current + 1),
           });
         }
@@ -233,6 +238,19 @@ function PublicScreen({ kind }: { kind: 'welcome' | 'join' | 'institution' | 'mi
   </GridContainer>;
 }
 
+/** 공개 토큰 화면의 경계. 설치 정보만 확인하고 로그인은 요구하지 않는다. */
+function PublicJoinBoundary() {
+  const runtime = useOutletContext<Runtime>();
+  const session = useMemo<PublicSession>(
+    () => ({ publicJoin: new PublicJoinApi(new PublicTransport(runtime.installation)) }),
+    [runtime.installation],
+  );
+  return <GridContainer as="main" className="page-content">
+    <PageTitle>초대</PageTitle>
+    <Outlet context={session} />
+  </GridContainer>;
+}
+
 function RouteFailure() {
   return <GridContainer as="main" className="page-content">
     <PageTitle>화면을 열 수 없습니다</PageTitle>
@@ -244,9 +262,13 @@ export const appRoutes: RouteObject[] = [{
   path: '/', element: <RouterRoot />, errorElement: <RouteFailure />, children: [
     { index: true, element: <SttTrialPage /> },
     { path: 'welcome', element: <PublicScreen kind="welcome" /> },
-    { path: 'join', element: <PublicScreen kind="join" /> },
+
     { path: 'k/:code', element: <PublicScreen kind="institution" /> },
     { element: <RuntimeBoundary />, children: [
+      { element: <PublicJoinBoundary />, children: [
+        { path: 'join', element: <ParticipantJoinScreen /> },
+        { path: 'staff/join', element: <StaffJoinScreen /> },
+      ] },
       { element: <AuthBoundary />, children: [
         { path: 'login', element: <Navigate to="/settings" replace /> },
         { element: <BusinessShell />, children: [
@@ -254,6 +276,8 @@ export const appRoutes: RouteObject[] = [{
           { path: 'onboarding', element: <InstitutionScreen /> },
           { path: 'participants', element: <ParticipantListScreen /> },
           { path: 'participants/new', element: <ParticipantRegisterScreen /> },
+          { path: 'participants/invite', element: <ParticipantInviteScreen /> },
+          { path: 'staff-invites', element: <StaffInviteScreen /> },
           { path: 'participants/:beneficiaryId', element: <ParticipantHubScreen /> },
           { path: 'participants/:beneficiaryId/edit', element: <ParticipantBasicInfoScreen /> },
           { path: 'participants/:beneficiaryId/programs/:supportCaseId/briefing', element: <BriefingScreen /> },

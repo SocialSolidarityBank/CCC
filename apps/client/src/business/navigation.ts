@@ -2,7 +2,7 @@ import type { HumanRole } from './api';
 
 export interface ShellDestination {
   id: 'account' | 'schedule' | 'schedule-register' | 'participants' | 'participant-register'
-    | 'onboarding' | 'system' | 'institution-profile' | 'accounts' | 'assignments' | 'memory' | 'audit'
+    | 'participant-invite' | 'staff-invites' | 'onboarding' | 'system' | 'institution-profile' | 'accounts' | 'assignments' | 'memory' | 'audit'
     | 'retention' | 'retention-policy';
   title: string;
   href: string;
@@ -15,6 +15,8 @@ const destinations: readonly ShellDestination[] = [
   { id: 'schedule-register', title: '상담 일정 등록', href: '/schedules/new', roles: ['institution-admin', 'worker'] },
   { id: 'participants', title: '당사자 목록', href: '/participants', roles: ['institution-admin', 'supervisor', 'worker'] },
   { id: 'participant-register', title: '당사자 등록', href: '/participants/new', roles: ['institution-admin', 'worker'] },
+  { id: 'participant-invite', title: '당사자 초대', href: '/participants/invite', roles: ['institution-admin', 'worker'] },
+  { id: 'staff-invites', title: '실무자 초대', href: '/staff-invites', roles: ['institution-admin', 'technical-admin'] },
   { id: 'onboarding', title: '기관 준비', href: '/onboarding', roles: ['institution-admin'] },
   { id: 'system', title: '연결 상태', href: '/settings?module=system', roles: ['institution-admin', 'technical-admin'] },
   { id: 'institution-profile', title: '기관 정보', href: '/settings?module=institution-profile', roles: ['institution-admin'] },

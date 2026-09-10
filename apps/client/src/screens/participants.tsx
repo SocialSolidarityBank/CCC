@@ -5,8 +5,12 @@ import {
   WireEmpty, WireError, WireFormField, WireItem,
   ParticipantHeroCard, ParticipantName, type ParticipantHeroDetail,
 } from '@ccc/web/wire';
+import type { ConsentDisclosureSnapshot } from '@ccc/contracts/consent';
 import type { ProgramAdmissionState } from '@ccc/contracts/program-admission';
 import { ConsentPanel } from '../business/consent-panel';
+import {
+  ConsentDecisionList, allDomainsDecided, consentEventsFrom, type ConsentDecisions,
+} from '../business/consent-decisions';
 import { type BusinessError, safeError } from '../business/errors';
 import {
   BASIC_INFO_FIELDS, type BasicInfoField, type ParticipantBasicInfo, type ParticipantHub,
@@ -158,6 +162,26 @@ export function ParticipantRegisterScreen() {
   const [emergencyReason, setEmergencyReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
+  // 등록 전 고지문은 고른 사업에 묶여 발행된다(S7 §6). 사업을 바꾸면 결정도 비운다.
+  const [disclosures, setDisclosures] = useState<ConsentDisclosureSnapshot[]>([]);
+  const [decisions, setDecisions] = useState<ConsentDecisions>({});
+  useEffect(() => {
+    if (programId === '') { setDisclosures([]); setDecisions({}); return; }
+    let live = true;
+    void session.consent.registrationDisclosures(programId).then((value) => {
+      if (!live) return;
+      setDisclosures(value);
+      setDecisions({});
+    }).catch((cause: unknown) => {
+      if (!live) return;
+      const safe = safeError(cause);
+      if (safe.code === 'session_changed') return;
+      setDisclosures([]);
+      setError(safe);
+      onFailure(safe);
+    });
+    return () => { live = false; };
+  }, [programId, session.consent, onFailure]);
 
   const blocked = registrationBlock(session, options, admin ? workers : null);
   const ready = (options ?? []).filter((option) => option.admissionState === 'ready');
@@ -176,6 +200,8 @@ export function ParticipantRegisterScreen() {
     try {
       const created = await session.participants.register({
         programId,
+        idempotencyKey: crypto.randomUUID(),
+        consentEvents: consentEventsFrom(disclosures, decisions),
         ...(admin ? { initialAssigneeUserId: assigneeId } : {}),
         ...(emergency ? { emergencyReason } : {}),
         ...(text('name') === undefined ? {} : { name: text('name')! }),
@@ -242,14 +268,9 @@ export function ParticipantRegisterScreen() {
       <WireFormField label="성별" htmlFor="register-gender">
         <input id="register-gender" name="gender" autoComplete="off" disabled={busy || blocked !== null} />
       </WireFormField>
-      {/* 옛 동의 2종 체크는 없앴다(S7 5.1.1). 여섯 영역 동의는 사업이 생긴 뒤 당사자 정보에서 받는다.
-          등록 시점에 쓸 사전 고지문 발행과 한 번에 처리하는 동의 생성 API 가 아직 없어, 일반 등록은
-          서버의 개인정보 동의 하드 게이트가 그대로 막는다. 화면이 기본 동의를 지어내지 않는다. */}
-      <WireCallout tone="info" title="일반 등록은 아직 막혀 있습니다">
-        여섯 영역 동의를 등록과 함께 받는 경로가 서버에 아직 없습니다. 지금 일반 등록을 시도하면
-        서버가 개인정보 동의가 없다는 이유로 거절합니다. 긴급 등록 사유를 적는 경로는 그대로 쓸 수 있고,
-        등록 뒤 당사자 정보 화면에서 여섯 영역 동의를 받습니다.
-      </WireCallout>
+      {/* 옛 동의 2종 체크는 없다(S7 §5.1.1). 등록과 동의 기록은 서버가 한 번에 처리한다. */}
+      {programId !== '' && <ConsentDecisionList disclosures={disclosures} decisions={decisions}
+        disabled={busy || blocked !== null} onChange={setDecisions} />}
       <WireChoice type="checkbox" label="개인정보 동의 없이 긴급 등록합니다" checked={emergency}
         disabled={busy || blocked !== null} onChange={setEmergency} />
       {emergency && <WireFormField label="긴급 등록 사유" htmlFor="register-emergency" required>
@@ -257,7 +278,9 @@ export function ParticipantRegisterScreen() {
           onChange={(event) => setEmergencyReason(event.target.value)} />
       </WireFormField>}
       <div className="business-actions">
-        <WireButton type="submit" variant="primary" disabled={busy || blocked !== null || programId === '' || (admin && assigneeId === '')}>
+        <WireButton type="submit" variant="primary"
+          disabled={busy || blocked !== null || programId === '' || (admin && assigneeId === '')
+            || !allDomainsDecided(disclosures, decisions)}>
           등록하기
         </WireButton>
       </div>

@@ -58,10 +58,10 @@ describe('business navigation permission boundary', () => {
   it('includes institution setup only for institution administrators', () => {
     expect(visibleDestinations(['institution-admin']).map((entry) => entry.id))
       .toEqual([
-        'account', 'schedule', 'schedule-register', 'participants', 'participant-register', 'onboarding',
+        'account', 'schedule', 'schedule-register', 'participants', 'participant-register', 'participant-invite', 'staff-invites', 'onboarding',
         'system', 'institution-profile', 'accounts', 'assignments', 'memory', 'audit', 'retention-policy', 'retention',
       ]);
-    expect(visibleDestinations(['technical-admin']).map((entry) => entry.id)).toEqual(['account', 'system']);
+    expect(visibleDestinations(['technical-admin']).map((entry) => entry.id)).toEqual(['account', 'staff-invites', 'system']);
     expect(destinationAt('/settings', '?module=retention')?.id).toBe('retention');
     expect(destinationAt('/settings', '?module=accounts')?.id).toBe('accounts');
     expect(destinationAt('/settings', '?module=retention-policy')?.id).toBe('retention-policy');

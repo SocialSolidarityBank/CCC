@@ -80,6 +80,32 @@ export function decodeDisclosures(value: unknown): ConsentDisclosureSnapshot[] {
   });
 }
 
+/**
+ * 발행된 고지문 하나를 결정과 묶어 서버가 받는 사건 모양으로 만든다(S7 §6).
+ * 문안 버전과 확인값, 스냅샷 ID 는 발행본 그대로 되돌려 보낸다.
+ */
+export function consentEventFrom(
+  disclosure: ConsentDisclosureSnapshot,
+  decision: Extract<ConsentDecision, 'grant' | 'decline'>,
+): Record<string, unknown> {
+  return {
+    domain: disclosure.domain,
+    decision,
+    provider: disclosure.provider,
+    providerLegalRecipient: disclosure.providerLegalRecipient,
+    providerCountry: disclosure.country,
+    purpose: disclosure.purpose,
+    retentionDuration: disclosure.retentionDuration,
+    copyVersion: disclosure.copyVersion,
+    copyHash: disclosure.copyHash,
+    disclosureSnapshotId: disclosure.snapshotId,
+    effectiveAt: new Date().toISOString(),
+    idempotencyKey: crypto.randomUUID(),
+    correctionOfEventId: null,
+    expectedRevision: null,
+  };
+}
+
 export class ConsentApi {
   constructor(private readonly transport: BusinessTransport) {}
 
@@ -87,6 +113,14 @@ export class ConsentApi {
     if (!isOpaqueIdentifier(supportCaseId)) throw new BusinessError('invalid_request', 400);
     return decodeConsentStates(await this.transport.request(
       `/support-cases/${encodeURIComponent(supportCaseId)}/consent`,
+    ));
+  }
+
+  /** 등록 전 고지문(케이스 없음). 사업 하나에 묶인 여섯 영역 문안을 서버가 발행한다. */
+  async registrationDisclosures(programId: string): Promise<ConsentDisclosureSnapshot[]> {
+    if (!isOpaqueIdentifier(programId)) throw new BusinessError('invalid_request', 400);
+    return decodeDisclosures(await this.transport.request(
+      `/programs/${encodeURIComponent(programId)}/consent/disclosures`,
     ));
   }
 

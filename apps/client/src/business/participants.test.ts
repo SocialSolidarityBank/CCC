@@ -80,9 +80,13 @@ describe('여섯 영역 동의 컷오버', () => {
       },
     };
     const api = new ParticipantsApi(transport as never);
-    await api.register({ programId: CASE_ID, emergencyReason: '연락 두절 위험', name: '김합성' });
+    await api.register({
+      programId: CASE_ID, idempotencyKey: CASE_ID, consentEvents: [{ domain: 'counseling_recording' }],
+      emergencyReason: '연락 두절 위험', name: '김합성',
+    });
     const body = sent[0]?.body as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['emergencyReason', 'name', 'programId']);
+    expect(Object.keys(body).sort())
+      .toEqual(['consentEvents', 'emergencyReason', 'idempotencyKey', 'name', 'programId']);
     expect(body).not.toHaveProperty('consentPrivacy');
     expect(body).not.toHaveProperty('consentRecordingAi');
   });

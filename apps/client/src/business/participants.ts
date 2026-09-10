@@ -70,10 +70,11 @@ export interface ProgramOption {
 
 export interface ParticipantRegistrationInput {
   programId: string;
-  /**
-   * 긴급 등록 사유(D46). 옛 동의 2종 입력은 보내지 않는다(S7 §5.1.1).
-   * 일반 등록은 서버의 개인정보 동의 하드 게이트가 그대로 막는다.
-   */
+  /** 같은 등록을 두 번 만들지 않기 위한 열쇠. 화면이 제출 한 번에 하나를 만든다. */
+  idempotencyKey: string;
+  /** 여섯 영역 동의 사건. 발행된 고지문에서 만든다(S7 §6). 옛 2종 불리언은 보내지 않는다. */
+  consentEvents: Record<string, unknown>[];
+  /** 긴급 등록 사유(D46). 개인정보 동의를 아직 받지 못한 경우에만 쓴다. */
   emergencyReason?: string;
   name?: string;
   phone?: string;
@@ -294,7 +295,12 @@ export class ParticipantsApi {
 
   async register(input: ParticipantRegistrationInput): Promise<ParticipantCreationResult> {
     if (!isOpaqueIdentifier(input.programId)) throw new BusinessError('invalid_request', 400);
-    const body: Record<string, unknown> = { programId: input.programId };
+    if (!isOpaqueIdentifier(input.idempotencyKey)) throw new BusinessError('invalid_request', 400);
+    const body: Record<string, unknown> = {
+      programId: input.programId,
+      idempotencyKey: input.idempotencyKey,
+      consentEvents: input.consentEvents,
+    };
     if (input.emergencyReason !== undefined) body.emergencyReason = input.emergencyReason;
     if (input.initialAssigneeUserId !== undefined) body.initialAssigneeUserId = input.initialAssigneeUserId;
     for (const field of ['name', 'phone', 'email', 'birthDate', 'region', 'gender'] as const) {
