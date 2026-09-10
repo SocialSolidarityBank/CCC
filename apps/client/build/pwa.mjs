@@ -29,8 +29,8 @@ function iconSvg() {
     <stop offset="0%" stop-color="${from}"/><stop offset="100%" stop-color="${to}"/>
   </linearGradient></defs>
   <rect width="192" height="192" rx="36" fill="url(#g)"/>
-  <text x="96" y="120" font-family="system-ui, sans-serif" font-size="64" font-weight="600"
-    text-anchor="middle" fill="#ffffff">CCC</text>
+  <text x="96" y="124" font-family="system-ui, sans-serif" font-size="88" font-weight="600"
+    text-anchor="middle" fill="#ffffff">R</text>
 </svg>
 `;
 }
@@ -40,8 +40,8 @@ function iconSvg() {
  * 시험 화면은 범위 안에 있어도 시작 주소로 삼지 않는다.
  */
 const manifest = {
-  name: 'CCC 사례관리',
-  short_name: 'CCC',
+  name: 'Relayer',
+  short_name: 'Relayer',
   lang: 'ko',
   start_url: '/schedule',
   scope: '/',
