@@ -49,13 +49,35 @@ Main supplied the official dashboard CA download metadata: `https://supabase-dow
 
 ### S11 installation preflight status
 
-This source-only handoff has **not been validated**. `plan` remains the default read-only operation. Hosted `--install-manifest` accepts either manifest JSON or an explicit local JSON file; `CCC_INSTALL_MANIFEST` is the fallback binding, and `CCC_INSTALL_SIGNING_KEYS` supplies the existing S2 verifier's public-key map. Build the manifest-verifier artifact with the Community Cloud build before Main's approved verification.
+This source-only handoff has **not been validated**. The installer-only approval contract is frozen in `beabc12`, S11 §2.1 and ADR-0048's 2026-09-10 follow-up. S2 public fields are unchanged.
 
-There is an unresolved contract boundary: S11 §2.1 requires signed `institutionId`, `projectRef`, and `expectedOwnerOrgId`, but S2 §2.7's exact public manifest and its verifier have no institution/owner fields and reject extensions. A valid S2 runtime manifest therefore produces `OWNER_MANIFEST_CONTRACT_UNRESOLVED`; missing or invalid evidence produces `OWNER_EVIDENCE_MISSING`. Both stop before Management API token consumption or provider observation. Do not infer the approved owner from a live response or add ownership fields to the public runtime manifest.
+`plan` is the default, and `doctor` is read-only. Both require the signed public manifest (`--install-manifest` or `CCC_INSTALL_MANIFEST`) and private approval (`--install-approval` or `CCC_INSTALL_APPROVAL`), each as JSON or an explicit local file. `CCC_ORGANIZATION_ID` is the externally configured target institution. `CCC_INSTALL_SIGNING_KEYS` is the externally configured key-ID to raw-Ed25519-Base64 public-key map trusted for that institution; `CCC_INSTALL_REVOKED_KEY_IDS` is its JSON array of revoked IDs (default `[]`). Neither signed document can supply keys or register an institution. Main owns signing material and scoped token injection.
 
-`apply`, `doctor`, and `rollback` remain explicitly blocked with `INSTALLER_CONTRACT_UNRESOLVED`. There is no new durable journal writer, resource-adoption path, or release-receipt writer in this handoff. The local migration inventory checks each actual PostgreSQL file against `migrations/parity.yaml`; it is not an applied-migration journal. Existing unowned tables or legacy/private installation metadata are not accepted as a resumable installation. Do not apply the SQL files manually to bypass S11.
+Both signatures, expiry/revocation, institution/project/installation bindings and the SHA-256 of UTF-8 JCS of the **entire signed** public manifest are checked before provider access. The observed owner must then match the signed private approval. The hosted inspector uses only Management API read endpoints and hashes metadata, not institution row contents. Unowned data, unknown private installation tables, changed fingerprints and mismatched migration checksums are rejected.
 
-Credential acquisition stays outside this code. After the private signed-owner contract is resolved, the installer continues to require an authorized Management API token via scoped `SUPABASE_ACCESS_TOKEN` environment injection. A working pooler connection does not replace owner/control-plane checks. Native keyring/browser access and token-injection bridging remain Main-owned; the old project token is not a fallback and no source entries are deleted.
+The protected journal implements advisory locking, atomic bootstrap metadata, per-migration SQL+receipt+catalog-fingerprint transactions, immutable authorization history, hash-only resource ownership and restart without replay. Ordinary resume requires the same two signed artifact hashes. `plan --renew-authorization` previews a new signed pair; `renew-authorization` updates authorization history only under a project lock. Renewal preserves stable institution/project/owner/installation, contract, runtime configuration and desired resource/migration digests; metadata sequence must advance. Retrying the same already-recorded renewal is a no-op. Expired/revoked inputs never authorize a write.
+
+Journal bootstrap and renewal also require a fresh verifier callback immediately before mutation and before commit. Migration SQL is parameter-bound through a session-local PostgreSQL function so transaction-control statements cannot end the journal transaction. Catalog fingerprints cover `public` and `private` definitions and user types without depending on the observing SQL role. These source changes remain unverified.
+
+The resumed planner currently reconciles recorded `storage_bucket` resources against hashed observed IDs and nonsecret configuration digests. Unknown custom schemas, standalone user types and other resource categories fail closed until the signed platform artifact contract supplies their ownership checks. This is not full installed-resource verification.
+
+**Current live approval is signed read-only plan only, not database writes.** The renewal writer and journal scenarios are source for later separately approved execution. No account, credential, schema, provider or deployment operations were executed for this handoff.
+
+**Full resource apply and rollback remain incomplete at real release prerequisites.** This repository has no approved S12 embedded release origin/offline-root/factory floor, signed platform artifact set (including StorageSigner and authenticated Vault scheduler), or E6-7 verified backup/restore catalog and executor. The CLI reports `RELEASE_PREREQUISITES_MISSING` or `ROLLBACK_PREREQUISITES_MISSING` after owner-aware preflight instead of running checkout SQL, manufacturing an installed receipt, or deleting resources. The journal module's migration primitives are not permission to bypass those gates.
+
+Credentials continue to enter only through scoped environment injection. A working pooler connection does not replace Management API owner/control-plane checks. `CCC_INSTALL_DATABASE_URL` is used only by separately approved installer writes, never as a fallback for the ordinary runtime's `CCC_DATABASE_URL`. It must bind the already-approved project through its direct endpoint or Seoul session-pooler username and port 5432; TLS remains `verify-full`. No native keyring, browser, token file, owner discovery or authentication mechanism is added.
+
+### Pending executable verification
+
+Main may run these only after merging the frozen migration/checkpoint changes and approving verification. They were **not run** in this source-only checkpoint:
+
+```sh
+pnpm --filter @ccc/community-cloud build
+node --test scripts/supabase/install-authorization.test.mjs scripts/supabase/plan.test.mjs scripts/supabase/bootstrap.test.mjs scripts/supabase/installer-connection.test.mjs
+node --test apps/community-cloud/test/installer-private-key.test.mjs
+```
+
+The PostgreSQL journal scenarios are `scripts/supabase/install-journal.test.mjs`. They require explicitly injected `CCC_INSTALL_JOURNAL_TEST_DATABASE_URL` pointing to an empty loopback **disposable** database with a test/fixture/disposable name; missing configuration fails rather than skipping. Never supply an installation or production URL. Scenarios cover transaction rollback, receipt/checksum atomicity, crash-safe catalog fingerprints, ordinary resume, renewal history/no replay, expired/revoked inputs, lock release and foreign ownership. Compute final plan resource/migration digests only after Main merges PG0017/0018, SQLite0061/0062 and their parity wiring.
 
 ## Settings
 
@@ -88,6 +110,7 @@ The shared environment secret adapter also recognizes `DB_MASTER_KEY`, `FILE_ENC
 Never bind any of the following names to this container:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `CCC_INSTALL_SIGNING_PRIVATE_KEY`
 - `SUPABASE_SECRET_KEY`
 - `SUPABASE_SECRET_KEYS`
 - `SUPABASE_DB_URL`
