@@ -1,5 +1,6 @@
-# E7 Local Single Windows Proof Script
+# E7 Local Single Windows Proof Script v16
 # Validates DPAPI native bindings, encrypted SQLite, and full service composition
+# Run from the extracted bundle directory - sources are alongside this script
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -94,38 +95,24 @@ if (-not $pnpmVersion) {
     exit 1
 }
 
-# Require tar.gz bundle exists in same directory as script
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$bundle = Join-Path $scriptDir 'e7-local-service-v15.tar.gz'
-if (-not (Test-Path $bundle)) {
-    Write-Status @{ stage='validate'; status='FAIL'; reason='no-bundle'; expected=$bundle }
-    exit 1
-}
-
 Write-Status @{ stage='validate'; status='OK'; nodeVersion=$nodeVersion; pnpmVersion=$pnpmVersion }
 $completedStages += 'validate'
 
 # ── Stage: setup ──────────────────────────────────────────────────────────────
 Write-Status @{ stage='setup'; status='running' }
 
-# Create temp directory with clean name (no spaces/special chars)
-$tempDir = Join-Path $env:TEMP "e7proof_$(Get-Random)"
-New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+# Use the script's directory as the working directory (sources alongside script)
+$tempDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Extract bundle
-$extractResult = Invoke-CmdWithOutput -Command "tar -xzf `"$bundle`"" -WorkingDirectory $tempDir
-
-if ($extractResult.ExitCode -ne 0) {
-    Write-Status @{ 
-        stage='setup'; status='FAIL'; reason='extract-failed';
-        exitCode=$extractResult.ExitCode; stdout=$extractResult.Stdout; stderr=$extractResult.Stderr
-    }
+# Verify this looks like an extracted bundle
+$packageJson = Join-Path $tempDir 'package.json'
+if (-not (Test-Path $packageJson)) {
+    Write-Status @{ stage='setup'; status='FAIL'; reason='no-package-json'; expected=$packageJson }
     exit 1
 }
 
 Write-Status @{ stage='setup'; status='OK'; tempDir=$tempDir }
 $completedStages += 'setup'
-
 # ── Stage: copy-source ────────────────────────────────────────────────────────
 Write-Status @{ stage='copy-source'; status='running' }
 
@@ -207,9 +194,9 @@ if ($buildResult.ExitCode -ne 0) {
 }
 
 # Verify the .node binding was built
-$bindingPath = Join-Path $tempDir 'adapters/secrets-dpapi/native/build/Release/ccc_dpapi.node'
+$bindingPath = Join-Path $tempDir 'adapters/secrets-dpapi/native-build/source/build/Release/dpapi.node'
 if (-not (Test-Path $bindingPath)) {
-    $listing = Get-DirListing (Join-Path $tempDir 'adapters/secrets-dpapi/native')
+    $listing = Get-DirListing (Join-Path $tempDir 'adapters/secrets-dpapi/native-build/source/build')
     Write-Status @{ stage='build-native'; status='FAIL'; reason='no-binding'; path=$bindingPath; listing=$listing }
     exit 1
 }
