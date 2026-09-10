@@ -64,21 +64,54 @@ const CONSENT_DOMAINS = [
   'external_stt_processing', 'external_llm_cross_border_processing', 'voice_original_retention_period',
 ];
 
+/** 실제 서버가 쓰는 영역별 사업자와 목적(`CONSENT_COPY`). 하네스도 같은 값을 발행한다. */
+const CONSENT_CANONICAL = {
+  personal_data_collection_use: { provider: 'institution', purpose: 'case_management' },
+  sensitive_information_processing: { provider: 'institution', purpose: 'sensitive_case_management' },
+  counseling_recording: { provider: 'institution_recording', purpose: 'counseling_recording' },
+  external_stt_processing: { provider: 'azure', purpose: 'speech_to_text' },
+  external_llm_cross_border_processing: { provider: 'openai', purpose: 'ai_briefing' },
+  voice_original_retention_period: { provider: 'institution_private_storage', purpose: 'voice_original_retention' },
+};
+
 /** 합성 고지문. 실제 기관 문안이 아니고 실제 사업자 연결도 없다. */
 function syntheticDisclosure(domain) {
   const external = domain === 'external_stt_processing' || domain === 'external_llm_cross_border_processing';
+  const canonical = CONSENT_CANONICAL[domain];
+  const retention = domain === 'voice_original_retention_period' ? 'default_temporary_d85' : 'p1y';
   return {
     snapshotId: `d0000000-0000-4000-8000-${String(CONSENT_DOMAINS.indexOf(domain) + 1).padStart(12, '0')}`,
     scopeBinding: { orgId: 'org-1', programId: 'program-1', issuerId: USER_ID, supportCaseId: CASE_ID },
     domain,
     fullKoreanCopy: `합성 고지문입니다. ${domain} 영역의 처리 목적과 보관 기간을 설명합니다.`,
-    provider: external ? (domain === 'external_stt_processing' ? 'azure' : 'openai') : 'institution',
+    provider: canonical.provider,
     providerLegalRecipient: external ? '합성 사업자' : '기관',
     country: external ? 'KR' : null,
-    purpose: null, retentionProfile: 'p1y', retentionDuration: 'p1y',
+    purpose: canonical.purpose, retentionProfile: retention, retentionDuration: retention,
     copyVersion: 'synthetic-consent-v1', copyHash: `hash-${domain}`,
     issuedAt: '2026-09-09T00:00:00.000Z', expiresAt: '2027-09-09T00:00:00.000Z',
   };
+}
+
+/**
+ * 실제 서버의 초기 동의 사건 검사와 같은 규칙(gateway `provider_scope_mismatch`).
+ * 하네스가 실제 서버라면 거절할 모양을 받아 주면 다음 결함을 숨긴다.
+ */
+function consentScopeError(event) {
+  const disclosure = syntheticDisclosure(event.domain);
+  const expectedRetention = event.domain === 'voice_original_retention_period' ? 'default_temporary_d85' : null;
+  if (event.provider === null) {
+    return event.decision === 'grant' || event.providerLegalRecipient !== null || event.providerCountry !== null
+      || event.purpose !== null || event.retentionDuration !== null;
+  }
+  return event.provider !== disclosure.provider
+    || event.providerLegalRecipient !== disclosure.providerLegalRecipient
+    || event.providerCountry !== disclosure.country
+    || event.purpose !== disclosure.purpose
+    || event.retentionDuration !== expectedRetention
+    || event.copyVersion !== disclosure.copyVersion
+    || event.copyHash !== disclosure.copyHash
+    || event.disclosureSnapshotId !== disclosure.snapshotId;
 }
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
@@ -345,6 +378,10 @@ export function handleApi(request, state, options) {
       if (!Array.isArray(body.consentEvents) || body.consentEvents.length !== CONSENT_DOMAINS.length) {
         return json({ error: 'invalid_request' }, 400, cors);
       }
+      for (const event of body.consentEvents) {
+        if (!CONSENT_DOMAINS.includes(event.domain)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+        if (consentScopeError(event)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+      }
       link.status = 'used';
       return json({
         beneficiaryId: 'heron-021', supportCaseId: '4b7c1d2e-5f60-4a71-8b92-0c3d4e5f6a70',
@@ -364,10 +401,8 @@ export function handleApi(request, state, options) {
       const events = Array.isArray(body.consentEvents) ? body.consentEvents : [];
       if (events.length !== CONSENT_DOMAINS.length) return json({ error: 'invalid_request' }, 400, cors);
       for (const event of events) {
-        const disclosure = syntheticDisclosure(event.domain);
-        if (event.copyHash !== disclosure.copyHash || event.disclosureSnapshotId !== disclosure.snapshotId) {
-          return json({ error: 'invalid_request' }, 400, cors);
-        }
+        if (!CONSENT_DOMAINS.includes(event.domain)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+        if (consentScopeError(event)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
       }
       const privacy = events.find((event) => event.domain === 'personal_data_collection_use');
       const emergency = typeof body.emergencyReason === 'string' && body.emergencyReason.trim() !== '';
@@ -410,6 +445,44 @@ export function handleApi(request, state, options) {
       birthDate: '1980-03-05', region: '서울', gender: null,
     }, 200, cors);
   }
+  if (path === `/support-cases/${CASE_ID}/report` && request.method === 'GET') {
+    // 저장된 근거만 투영한다. riskSignals 는 근거가 없어 일부러 빠진다("자료 없음").
+    const ev = (source, text, number = 1) => ({
+      sessionId: SESSION_ID, sessionNumber: number, heldAt: '2026-09-02T01:00:00.000Z', source, text,
+    });
+    return json({
+      schemaVersion: 1, supportCaseId: CASE_ID, beneficiaryId: 'swallow-003',
+      programId: 'program-1', programName: '합성 사업', status: state.caseClosed === null ? 'active' : 'closed',
+      sessions: [
+        { sessionId: SESSION_ID, sessionNumber: 1, heldAt: '2026-09-02T01:00:00.000Z', kind: 'intake',
+          channel: 'in_person', summary: ev('records.memo', '체납 정리 계획을 함께 세웠습니다') },
+        { sessionId: '5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', sessionNumber: 2,
+          heldAt: '2026-09-08T01:00:00.000Z', kind: 'regular', channel: 'phone' },
+      ],
+      firstIntakeGoal: ev('intake.overallGoal', '월세 체납을 정리하고 안정적인 소득을 만든다'),
+      nextConfirmations: [{
+        item: '전체 채무 잔액', reason: '채무조정 가능성 판단', method: '신용정보조회서 확인',
+        dueNote: '다음 상담 전', evidence: ev('intake.additionalItems[0]', '전체 채무 잔액 확인 필요'),
+      }],
+      sections: {
+        situationChanges: { entries: [ev('records.memo', '월세 2개월 체납이 1개월로 줄었습니다', 2)] },
+        goalChanges: {
+          initialGoal: ev('goals[0].revisions[0]', '월세 체납 정리'),
+          directions: [ev('goals[0].revisions[1]', '월세 체납 정리 (2차)', 2)],
+        },
+        actionItems: { items: [{
+          id: 'c1a1c9d2-4b6e-4a30-8c52-1d3e5f70b2a4', description: '주민센터 긴급복지 상담 예약',
+          resolutionStatus: 'in_progress', resolvedAt: null, dueDate: '2026-09-20',
+          evidence: ev('actionItems[0].description', '주민센터 긴급복지 상담 예약'),
+        }] },
+        resourceConnections: { entries: [{
+          orgName: 'OO구 주민센터', serviceName: '긴급복지 생계지원', supportDetail: '생계비 713,100원',
+          usagePeriod: '2026.07~2026.09', progressStatus: '심사 중',
+          evidence: ev('intake.linkedOrgs[0]', 'OO구 주민센터 긴급복지 생계지원 심사 중'),
+        }] },
+      },
+    }, 200, cors);
+  }
   if (path === `/support-cases/${CASE_ID}/consent` && request.method === 'GET') {
     return json({ consent: CONSENT_DOMAINS.map((domain) => {
       const event = state.consentEvents.get(domain) ?? null;
@@ -431,11 +504,8 @@ export function handleApi(request, state, options) {
   }
   if (path === `/support-cases/${CASE_ID}/consent-events` && request.method === 'POST') {
     return request.json().then((body) => {
-      if (!CONSENT_DOMAINS.includes(body.domain)) return json({ error: 'invalid_request' }, 400, cors);
-      const disclosure = syntheticDisclosure(body.domain);
-      if (body.copyHash !== disclosure.copyHash || body.disclosureSnapshotId !== disclosure.snapshotId) {
-        return json({ error: 'invalid_request' }, 400, cors);
-      }
+      if (!CONSENT_DOMAINS.includes(body.domain)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
+      if (consentScopeError(body)) return json({ error: 'provider_scope_mismatch' }, 409, cors);
       const previous = state.consentEvents.get(body.domain) ?? null;
       const event = {
         id: `f1000000-0000-4000-8000-${String(state.consentEvents.size + 1).padStart(12, '0')}`,

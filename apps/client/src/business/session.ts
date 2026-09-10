@@ -8,6 +8,7 @@ import type { ConsentApi } from './consent';
 import type { IntakeApi } from './intake';
 import type { InvitesApi, PublicJoinApi } from './invites';
 import type { CaseWorkApi, RecordsApi } from './records';
+import type { ReportApi } from './report';
 import type { SchedulesApi } from './schedules';
 
 /** 한 인증 상태에 속한 업무 화면의 입력. 토큰은 담지 않는다. */
@@ -21,6 +22,7 @@ export interface Session {
   intake: IntakeApi;
   consent: ConsentApi;
   invites: InvitesApi;
+  report: ReportApi;
   aiReview: AiReviewApi;
   institution: InstitutionApi;
   me: MyIdentity;
