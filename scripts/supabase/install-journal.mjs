@@ -500,16 +500,16 @@ export function buildInstallStateQuery(installationId) {
     ),
     'authorizationHistory', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
-        'runtimeSequence', authorization.runtime_sequence,
-        'runtimeManifestSha256', authorization.runtime_manifest_sha256,
-        'approvalSha256', authorization.approval_sha256,
-        'runtimeConfigurationSha256', authorization.runtime_configuration_sha256,
-        'contractVersion', authorization.contract_version,
-        'expiresAt', authorization.expires_at,
-        'recordedAt', authorization.recorded_at
-      ) ORDER BY authorization.runtime_sequence)
-      FROM private.ccc_install_authorizations AS authorization
-      WHERE authorization.installation_id = journal.installation_id
+        'runtimeSequence', authorization_record.runtime_sequence,
+        'runtimeManifestSha256', authorization_record.runtime_manifest_sha256,
+        'approvalSha256', authorization_record.approval_sha256,
+        'runtimeConfigurationSha256', authorization_record.runtime_configuration_sha256,
+        'contractVersion', authorization_record.contract_version,
+        'expiresAt', authorization_record.expires_at,
+        'recordedAt', authorization_record.recorded_at
+      ) ORDER BY authorization_record.runtime_sequence)
+      FROM private.ccc_install_authorizations AS authorization_record
+      WHERE authorization_record.installation_id = journal.installation_id
     ), '[]'::jsonb),
     'migrations', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
