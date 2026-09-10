@@ -30,6 +30,7 @@ export const checkpoints = [
   { id: 'preregistration-consent', sqlite: '0057_preregistration_consent.sql', postgres: '0013_preregistration_consent.sql' },
   { id: 'staff-invites', sqlite: '0058_staff_invites.sql', postgres: '0014_staff_invites.sql' },
   { id: 'participant-request-links', sqlite: '0059_participant_request_links.sql', postgres: '0015_participant_request_links.sql' },
+  { id: 'canonical-compatibility-views', sqlite: '0060_canonical_compatibility_views.sql', postgres: '0016_canonical_compatibility_views.sql' },
 ] as const;
 export type Profile = 'd1' | 'sqlite' | 'postgres';
 type Row = Record<string, unknown>;
@@ -240,6 +241,42 @@ export async function proveParticipantRequestLinksSchema(db: Database): Promise<
     .toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
   expect(await db.prepare(`UPDATE invite_tokens SET status = 'used', used_at = '2026-01-07T23:59:59.999Z',
     used_by_user_id = 'parity-link-user' WHERE token = 'parity-link-live'`).run()).toMatchObject({ meta: { changes: 1 } });
+}
+
+/** Canonical initial rows and historical IDs share the existing read-only views. */
+export async function proveCanonicalCompatibilityViews(db: Database): Promise<void> {
+  const org = 'parity-compat-org', user = 'parity-compat-user', program = 'parity-compat-program';
+  const at = '2026-09-01T00:00:00.000Z';
+  await db.prepare('INSERT INTO organization_settings (org_id,time_zone,pii_purge_grace_days) VALUES (?,?,?)')
+    .bind(org, 'UTC', 180).run();
+  await db.prepare('INSERT INTO programs (id,org_id) VALUES (?,?)').bind(program, org).run();
+  await db.prepare("INSERT INTO users (id,org_id,email,role,active,created_at) VALUES (?,?,?,'counselor',1,?)")
+    .bind(user, org, 'compat@example.invalid', at).run();
+  for (const [beneficiary, caseId, legacyId] of [
+    ['A904', 'parity-compat-canonical', null],
+    ['A905', 'parity-compat-legacy', 'A905'],
+  ] as const) {
+    await db.prepare("INSERT INTO beneficiaries (id,org_id,initialization_state,created_at,updated_at) VALUES (?,?,'pending',?,?)")
+      .bind(beneficiary, org, at, at).run();
+    await db.prepare(`INSERT INTO support_cases
+      (id,org_id,beneficiary_id,legacy_case_id,program_id,status,creation_kind,created_at,updated_at)
+      VALUES (?,?,?,?,?,'active','initial',?,?)`).bind(caseId, org, beneficiary, legacyId, program, at, at).run();
+    await db.prepare(`INSERT INTO support_case_assignees (id,org_id,support_case_id,user_id,role,assigned_at)
+      VALUES (?,?,?,?,'primary',?)`).bind(`${caseId}-assignment`, org, caseId, user, at).run();
+  }
+  expect((await db.prepare('SELECT id,org_id FROM cases WHERE org_id=? ORDER BY id').bind(org).all()).results)
+    .toEqual([{ id: 'A905', org_id: org }, { id: 'parity-compat-canonical', org_id: org }]);
+  expect((await db.prepare('SELECT case_id,org_id FROM case_assignees WHERE org_id=? ORDER BY case_id').bind(org).all()).results)
+    .toEqual([{ case_id: 'A905', org_id: org }, { case_id: 'parity-compat-canonical', org_id: org }]);
+  for (const view of ['cases', 'case_assignees']) {
+    for (const sql of [
+      `INSERT INTO ${view} (id,org_id) VALUES ('forbidden', '${org}')`,
+      `UPDATE ${view} SET id=id WHERE org_id='${org}'`,
+      `DELETE FROM ${view} WHERE org_id='${org}'`,
+    ]) {
+      expect(await rejection(db.prepare(sql).run())).toMatchObject({ kind: 'constraint', constraintSubtype: 'trigger' });
+    }
+  }
 }
 export async function openParityDatabase(profile: Profile, harness: PostgresHarness): Promise<ParityDatabase> {
   if (profile === 'postgres') {

@@ -8,6 +8,7 @@ import {
   seedScheduleDisplaySchema, proveScheduleDisplaySchema,
   seedPreregistrationConsentSchema, provePreregistrationConsentSchema,
   proveStaffInvitesSchema, proveParticipantRequestLinksSchema,
+  proveCanonicalCompatibilityViews,
 } from './support/migration-parity';
 
 let harness: PostgresHarness;
@@ -474,6 +475,9 @@ describe('S1 live migration parity', () => {
         }
         if (checkpoint.id === 'participant-request-links') {
           for (const fixture of [sqlite, postgres]) await proveParticipantRequestLinksSchema(fixture.db);
+        }
+        if (checkpoint.id === 'canonical-compatibility-views') {
+          for (const fixture of [sqlite, postgres]) await proveCanonicalCompatibilityViews(fixture.db);
         }
         if (checkpoint.id === 'baseline-0045') {
           inventory = timestampInventory(left);
