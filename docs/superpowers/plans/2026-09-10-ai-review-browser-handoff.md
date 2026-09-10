@@ -42,28 +42,55 @@
 | 재생성 노출·새 버전 | 같은 파일 `2478-2529` |
 | 반려 뒤 재생성 차단·stale 409 | 같은 파일 `2545-2568` |
 
-## 브라우저 fixture 전제
+## Standalone 브라우저 하네스
 
-`setupPhase1AiFixture()`는 현재 `routes.test.ts` 내부 함수라 standalone 브라우저 서버에서 직접 가져올
-수 없다. Main의 실제 API+DB 브라우저 하네스에서 아래 순서로 같은 seam을 호출해야 한다. 이 함수를
-production route로 내보내거나 우회 seed endpoint를 추가하지 않는다.
+실행 파일은 `apps/api/test/tools/ai-review-preview.mjs`다. production 우회·seed endpoint 없이 프로세스
+시작 중에만 격리 PostgreSQL에 합성 graph를 만든 뒤 실제 `handleRequest`를 연다.
 
-1. 격리 DB를 최신 migration으로 초기화한다.
-2. 기관, 담당 실무자, 배정 안 된 기관 관리자, 배정 안 된 실무자를 만든다.
-3. `seedTestProgramWithRuntimeModes(..., {sttMode:'off', llmMode:'openai'})`로 합성 사업을 만들고 D87
-   확인을 끝낸다.
-4. 담당 실무자로 case와 수기 memo가 있는 session을 만든다.
-5. `personal_data_collection_use`, `sensitive_information_processing`,
-   `external_llm_cross_border_processing`을 canonical disclosure에서 grant한다.
-6. `TEXT_AI_PILOT_ENABLED='1'`, `AI_PROVIDER_ADAPTER=<testOnly FakeAiProviderAdapter>`를 넣는다.
-   `EXTERNAL_AI_CALLS_ENABLED`와 hosted key는 넣지 않는다.
-7. adapter config hash로 provider 설정을 등록·활성화한다.
-8. `recordSourceSnapshot()`으로 text job을 enqueue → claim → result 제출해 저장 snapshot을 만든다.
-9. `generateDraft()`로 `origin='generated'`, `creationMode='provider_generated'`인 v1 초안을 저장한다.
-   `fixture_generated` 초안은 `fixture_draft_approval_forbidden` 계약이라 승인 시나리오에 쓰면 안 된다.
-10. 같은 synthetic graph를 두 벌 더 만든다: 반려·stale 시나리오, 비담당 관리자 403 시나리오.
-11. 실제 handleRequest origin을 client manifest의 `apiBase`로 가리키고, 테스트 인증을 담당 실무자와 관리자
-    계정에 연결한다. 클라이언트는 production build를 그대로 서빙한다.
+```bash
+bun apps/api/test/tools/ai-review-preview.mjs
+```
+
+고정 주소는 client `https://127.0.0.1:4281`, API `https://127.0.0.1:4282/api/v1`, 합성 Auth
+`https://127.0.0.1:4283`이다. 임시 인증서, Ed25519 설치 키, PostgreSQL 자격, PII 키와 data는
+격리된 임시 디렉터리·Docker DB에만 있고 프로세스 종료 때 삭제된다. ready 출력에는 route와 fixture
+ID만 있고 auth token·refresh token·키는 없다.
+
+| actor | 로그인 이메일 | 비밀번호 | MFA | 용도 |
+|---|---|---|---|---|
+| 담당 실무자 | `assigned@example.invalid` | `synthetic-password` | `123456` | A·B·C·E |
+| 비담당 기관 관리자 | `admin@example.invalid` | `synthetic-password` | `123456` | D |
+| 비담당 실무자 | `unassigned@example.invalid` | `synthetic-password` | `123456` | 추가 403 확인 |
+
+Auth는 로그인마다 별도 subject·session·refresh·challenge를 발급한다. API resolver는 JWT의 `sub`를
+`resolveDirectoryActorByAuthSubject`로 실제 `users.auth_subject`와 `user_role_assignments`에 다시
+묶는다. 옛 `synthetic-api.mjs`의 전역 `state.role`과 단일 `USER_ID`를 쓰지 않는다.
+
+하네스 ready JSON의 route 키를 그대로 연다.
+
+| 시나리오 | ready route |
+|---|---|
+| A 승인 전 제외→승인 | `approveBriefing`, `approveReview` |
+| B 반려·stale 409 | `rejectStaleReview` |
+| C 늦은 재료 재생성 | `regenerateReview` |
+| D 비담당 관리자 승인 거부 | `adminDeniedReview` |
+| E 수기 기록 version 충돌 | `recordConflict` |
+
+fixture 준비는 기존 route-test seam과 같은 순서다.
+
+1. 실제 PostgreSQL migration 전부 적용 후 `ccc_api` 제한 연결을 연다.
+2. 기관, 담당 실무자, 비담당 기관 관리자, 비담당 실무자, service actor를 서로 다른 ID와
+   `auth_subject`로 만든다.
+3. `seedTestProgramWithRuntimeModes(..., {sttMode:'off', llmMode:'openai'})`와 canonical provider
+   registry를 적용한다.
+4. case와 수기 memo session을 만들고 등록 시점 여섯 영역 동의를 실제 disclosure에 묶어 grant한다.
+5. `TEXT_AI_PILOT_ENABLED='1'`, `AI_PROVIDER_ADAPTER=<testOnly FakeAiProviderAdapter>`를 쓰고 adapter
+   config hash를 등록·활성화한다. `EXTERNAL_AI_CALLS_ENABLED`와 hosted key는 없다.
+6. S5 text job을 enqueue→claim→result route로 제출해 masked snapshot을 만든다.
+7. 일반 `/sessions/:id/ai/generate` route가 genuine adapter dispatch를 거쳐
+   `origin='generated'`, `creationMode='provider_generated'` 초안을 만든다. approvable draft를 SQL로
+   직접 넣지 않는다.
+8. C graph에만 두 번째 S5 snapshot을 만든다. E graph에는 실제 일정 한 건을 만든다.
 
 ## 실행 시나리오
 
@@ -116,7 +143,8 @@ production route로 내보내거나 우회 seed endpoint를 추가하지 않는�
 
 | 층 | 현재 상태 |
 |---|---|
-| client 소스 | 위 범위 구현됨. 이번 동시 변경 중 formatter/lint/build/test 미실행 |
-| API fixture | 위 파일의 기존 계약 증거 존재. Main이 이미 실행한 API suite의 대상 |
-| 실제 DB 브라우저 | 아직 미실행. standalone seed seam이 없어 이 문서의 전제로 Main 하네스가 실행해야 함 |
+| client 소스 | 기록 입구, approve/reject/regenerate와 409 입력 보존 wiring 구현 |
+| API fixture | 기존 route-test seam을 standalone 하네스가 실제 PostgreSQL·handleRequest로 조합 |
+| standalone 실행 | Main 실행 대기. 이번 동시 변경 중 harness·build·test·lint·formatter 미실행 |
+| 실제 DB 브라우저 | ready route A–E를 Main이 구동·검증하면 채워짐 |
 | hosted provider/STT/운영 | 사용하지 않음. 활성화·시크릿·운영자료 0 |
