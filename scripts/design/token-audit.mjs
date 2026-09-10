@@ -20,7 +20,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKENS = join(repoRoot, 'design/tokens.css');
 const TARGETS = [
   join(repoRoot, 'apps/web/app/layout.tsx'),
-  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  join(repoRoot, 'packages/wire/src/wire-styles.ts'),
 ];
 
 // 이 감사에서 허용하는 계단. tokens.css 와 어긋나면 아래 assertScale 이 먼저 잡는다.
