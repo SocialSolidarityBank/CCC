@@ -89,13 +89,13 @@ import {
   updateIntakeRecord,
   createParticipantInvite,
   completeParticipantSignup,
-  getInviteForSignup,
-  getParticipantSelfCheck,
   createStaffInvite,
   listStaffInvites,
   revokeStaffInvite,
   getStaffInvitePublicInfo,
   acceptStaffInvite,
+  getParticipantRequestLinkInfo,
+  issueParticipantRequestLinkDisclosures,
   getIntakeRecordContext,
   createCounselingSchedule,
   listScheduleCandidates,
@@ -2591,13 +2591,18 @@ export async function handleRequest(
     const pubParts = url.pathname.split('/').filter((p) => p.length > 0);
     const publicSignupPath =
       (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant')
-      || (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me')
+      || (request.method === 'GET' && pubParts.length === 5 && pubParts[0] === 'invites' && pubParts[1] === 'participant'
+        && pubParts[3] === 'consent' && pubParts[4] === 'disclosures')
       || (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant');
     // D86 실무자 초대 공개 경로는 당사자 공개 가입 스위치와 무관하다. 토큰이 자격이고 실패는 전부 404다.
     const staffInviteTokenPath = pubParts.length >= 3 && pubParts[0] === 'staff-invites' && pubParts[1] === 'token';
     // D86: 익명 실무자 초대 가입 경로(worker)는 폐기됐다. 인증 전에 404로 닫아 토큰 유효성을 새지 않는다.
     if (pubParts[0] === 'invites' && pubParts[1] === 'worker') return json({ error: 'not_found' }, 404);
     // ── 기능 스위치(CCC-112 · P0-2): 공개 가입 표면은 PUBLIC_SIGNUP_ENABLED 가 정확히
+    // D86: 자기 확인 페이지는 폐기됐다. 토큰 유효성을 새지 않게 인증 전에 404로 닫는다.
+    if (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me') {
+      return json({ error: 'not_found' }, 404);
+    }
     // '1' 일 때만 열린다. 없거나 다른 값이면 404 — 미지의 경로와 응답을 구분 불가하게
     // 둔다(fail closed, EXTERNAL_AI_CALLS_ENABLED 와 같은 규약). 미리보기 코드 게이트보다
     // **앞**이다: 스위치가 닫힌 배포에서는 코드가 있어도 이 표면이 존재하지 않는다.
@@ -2610,27 +2615,21 @@ export async function handleRequest(
     }
     if ((publicSignupPath || staffInviteTokenPath) && previewModeEnabled(env)) await resolveActor(request, env);
     if (request.method === 'GET' && pubParts.length === 3 && pubParts[0] === 'invites' && pubParts[1] === 'participant') {
+      // D86 요청 링크 조회. GET은 소비하지 않고, 무효·만료는 404로 뭉친다.
       requestQuery(url, []);
-      // 빈 토큰은 조회 자체를 하지 않는다 — 아래 실패들과 같은 404 로 맞춰 응답을 구분 불가하게 둔다.
-      const pathToken = pubParts[2] ?? '';
-      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
       try {
-        const invite = await getInviteForSignup(env, pathToken, 'participant');
-        if (invite.programType === null) return json({ error: 'not_found' }, 404);
-        return json({ programType: invite.programType });
+        return json(await getParticipantRequestLinkInfo(env, pubParts[2] ?? ''), 200, { 'cache-control': 'no-store' });
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
       }
     }
-    if (request.method === 'GET' && pubParts.length === 4 && pubParts[0] === 'invites' && pubParts[1] === 'participant' && pubParts[3] === 'me') {
-      // CCC-27 당사자 자기 확인 — 소비된(가입 완료) 토큰만 자기 정보를 연다. 무효·미소비·
-      // 실무자용 토큰은 위 가입 조회와 같은 404 로 뭉친다(구분 불가 — 토큰 유효성 누설 금지).
+    if (request.method === 'GET' && pubParts.length === 5 && pubParts[0] === 'invites' && pubParts[1] === 'participant'
+      && pubParts[3] === 'consent' && pubParts[4] === 'disclosures') {
       requestQuery(url, []);
-      const pathToken = pubParts[2] ?? '';
-      if (pathToken.length === 0) return json({ error: 'not_found' }, 404);
       try {
-        return json(await getParticipantSelfCheck(env, pathToken));
+        return json({ disclosures: await issueParticipantRequestLinkDisclosures(env, pubParts[2] ?? '') },
+          200, { 'cache-control': 'no-store' });
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;
@@ -2639,31 +2638,17 @@ export async function handleRequest(
     if (request.method === 'POST' && pubParts.length === 2 && pubParts[0] === 'signup' && pubParts[1] === 'participant') {
       requestQuery(url, []);
       const body = await requestBody(request);
-      const token = requiredString(body, 'token');
-      const name = requiredString(body, 'name');
+      requireOnlyKeys(body, ['token', 'name', 'phone', 'email', 'consentEvents']);
       const phone = optionalString(body, 'phone');
       const email = optionalString(body, 'email');
-      // 동의 2종(D49): ① 개인정보 ② AI를 활용한 녹취기록. 자기 가입이 곧 등록이므로 등록
-      // 화면과 같은 2체크를 받는다. 둘 다 독립 boolean 이고 ② 는 강제하지 않는다 — 미동의여도
-      // 가입은 진행된다(D15 미동의 경로).
-      const consentRaw = body.consent;
-      if (
-        consentRaw === null
-        || typeof consentRaw !== 'object'
-        || !('privacy' in consentRaw)
-        || !('recordingAi' in consentRaw)
-        || typeof consentRaw.privacy !== 'boolean'
-        || typeof consentRaw.recordingAi !== 'boolean'
-      ) {
-        throw new ValidationError('consent is required');
-      }
-      const consent = { privacy: consentRaw.privacy, recordingAi: consentRaw.recordingAi };
-      const signupInput: Parameters<typeof completeParticipantSignup>[1] = { token, name, consent };
-      if (phone != null) signupInput.phone = phone;
-      if (email != null) signupInput.email = email;
       try {
-        const result = await completeParticipantSignup(env, signupInput);
-        return json(result, 201);
+        return json(await completeParticipantSignup(env, {
+          token: requiredString(body, 'token'),
+          name: requiredString(body, 'name'),
+          consentEvents: parseInitialConsentEvents(body.consentEvents),
+          ...(phone === undefined ? {} : { phone }),
+          ...(email === undefined ? {} : { email }),
+        }), 201);
       } catch (e) {
         if (e instanceof ForbiddenError) return json({ error: 'not_found' }, 404);
         throw e;

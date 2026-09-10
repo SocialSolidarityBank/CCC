@@ -13552,33 +13552,6 @@ export interface CreateBeneficiaryWithInitialSupportCaseInput {
   gender?: string | null;
 }
 
-/**
- * 당사자 등록 시 항목별 동의 3종(개인정보·녹음·텍스트 AI 분리, D15·D23·D44). 기본은 미동의(false)이며,
- * 미동의여도 등록은 진행된다(D15 미동의 경로). 동의한 항목은 등록 시각을
- * support_cases.consent_*_at(파이프라인 게이트) + participant_consent_records(기록자·일시)에
- * 함께 남긴다.
- */
-export interface ParticipantConsentInput {
-  /**
-   * 개인정보 수집·이용 동의 (D44 → G1). **등록의 하드 게이트**다: true 가 아니면 등록이
-   * 거부되고, 급박한 위기 개입만 `emergency`(사유 필수)로 통과한다. 생략은 미동의로 읽는다.
-   */
-  privacy?: boolean;
-  /**
-   * ② AI를 활용한 녹취기록 동의 (D49 — 구 ② 녹음·음성 분석 + 구 ③ 텍스트 AI 정리를 합친 것).
-   * 체크 하나가 `consent_recording_at`·`consent_text_ai_at` **두 컬럼에 같은 시각**을 찍는다:
-   * DB 는 3컬럼을 그대로 두므로(마이그레이션 없음) 법률 검토가 분리를 요구하면 화면만 다시
-   * 펴면 된다. 값이 갈리면 0008·0014 insert 가드가 거부한다("NULL 아닌 동의 시각 = recorded_at").
-   */
-  recordingAi: boolean;
-  /**
-   * 긴급 등록 (G1 예외). ① 동의를 아직 받지 못한 채 등록해야 하는 경우에만 쓴다 —
-   * 사유가 케이스 행에 남고 보완 기한(EMERGENCY_CONSENT_GRACE_DAYS)이 함께 생긴다.
-   * ① 동의와 동시에 올 수 없다(예외는 동의가 없을 때만 성립).
-   */
-  emergency?: EmergencyRegistrationInput;
-}
-
 /** 긴급 등록 사유 (G1). 자유 텍스트라 감사 detail 에는 싣지 않는다(R3 태도). */
 export interface EmergencyRegistrationInput {
   reason: string;
@@ -21017,6 +20990,8 @@ export interface InviteToken {
   status: 'issued' | 'used';
   issuedAt: string;
   usedAt: string | null;
+  /** D86: 당사자 요청 링크 만료. 역사 행은 null이다. */
+  expiresAt: string | null;
   /** CCC-123: 발급자 퇴사·휴직 시 폐기 마킹(가입 게이트가 revoked_at NULL 을 요구). */
   revokedAt: string | null;
   /** 스스로 가입한 당사자(D39 · CCC-28). 감독·감사 조회용으로 초대 호출부가 함께 채운다. */
@@ -21025,6 +21000,7 @@ export interface InviteToken {
 
 /** 초대 소비를 감사할 때 쓰는 시스템 행위자 id. 가입자는 아직 디렉터리에 없다. */
 export const INVITE_SIGNUP_ACTOR_ID = 'system:invite-signup';
+const PARTICIPANT_REQUEST_LINK_TTL_MS = 7 * 24 * 60 * 60_000;
 
 /** 32바이트 난수 hex(64자). 추측·열거 불가가 이 토큰 보안의 전부다(의미 정보 금지, D20 참조). */
 function newInviteTokenValue(): string {
@@ -21043,6 +21019,7 @@ function mapInviteToken(row: DbRow): InviteToken {
     status: stringValue(row.status) as InviteToken['status'],
     issuedAt: stringValue(row.issued_at),
     usedAt: row.used_at === null ? null : stringValue(row.used_at),
+    expiresAt: nullableString(row.expires_at),
     revokedAt: row.revoked_at === null ? null : stringValue(row.revoked_at),
     usedByBeneficiaryId: row.used_by_beneficiary_id === null ? null : stringValue(row.used_by_beneficiary_id),
   };
@@ -21061,11 +21038,13 @@ export async function createParticipantInvite(
   assertExactKeys(input, ['programId']);
   const admission = await requireProgramAdmission(env, actor.orgId, input.programId, 'registration');
   const token = newInviteTokenValue();
+  const issuedAt = now();
+  const expiresAt = new Date(parseUtcTimestamp(issuedAt) + PARTICIPANT_REQUEST_LINK_TTL_MS).toISOString();
   await programPolicyBatch(env, admission.context, [
     env.DB.prepare(
-      `INSERT INTO invite_tokens (token, org_id, kind, program_id, program_type, issued_by)
-       VALUES (?, ?, 'participant', ?, ?, ?)`,
-    ).bind(token, actor.orgId, admission.program.id, admission.program.programType, actor.userId),
+      `INSERT INTO invite_tokens (token, org_id, kind, program_id, program_type, issued_by, issued_at, expires_at)
+       VALUES (?, ?, 'participant', ?, ?, ?, ?, ?)`,
+    ).bind(token, actor.orgId, admission.program.id, admission.program.programType, actor.userId, issuedAt, expiresAt),
     canonicalAuditStatement(env, actor, {
       action: 'invite_issue', targetTable: 'invite_tokens', targetId: token, beneficiaryId: null, supportCaseId: null,
       detail: { kind: 'participant', programId: admission.program.id, programType: admission.program.programType },
@@ -21099,7 +21078,8 @@ export async function getInviteForSignup(
     throw new ForbiddenError('invite token is not available');
   }
   const invite = await getInviteTokenOrThrow(env, token);
-  if (invite.kind !== kind || invite.status !== 'issued') {
+  if (invite.kind !== kind || invite.status !== 'issued'
+    || (invite.expiresAt !== null && invite.expiresAt <= now())) {
     throw new ForbiddenError('invite token is not available');
   }
   return invite;
@@ -21138,134 +21118,67 @@ export async function consumeInviteToken(
   return getInviteTokenOrThrow(env, token);
 }
 
-/** 자기 가입·자기 확인이 감사를 남길 후원 행위자(토큰 발급자, 실제 사용자). */
-async function sponsorActorFor(env: Env, invite: InviteToken): Promise<Actor> {
-  const sponsorRow = await env.DB.prepare(
-    'SELECT id, role FROM users WHERE id = ? AND org_id = ?',
-  ).bind(invite.issuedBy, invite.orgId).first<{ id: string; role: string }>();
-  if (sponsorRow === null) {
-    throw new ForbiddenError('invite sponsor is unavailable');
-  }
-  return { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
-}
-
-export interface ParticipantSelfCheckProgram {
+export interface ParticipantRequestLinkInfo {
+  status: 'issued';
+  programId: string;
   programType: string;
-  /** 담당 실무자 표시 이름(D36). 배정이 없거나 미기입이면 null. */
+  orgName: string | null;
+  expiresAt: string;
+}
+
+export interface ParticipantRequestLinkUsedInfo {
+  status: 'used';
   counselorName: string | null;
-  consent: { privacy: boolean; recordingAi: boolean };
+  message: string;
 }
 
-export interface ParticipantSelfCheckSchedule extends ScheduleDisplay {
-  id: string;
-  scheduledAt: string;
-  status: CounselingScheduleStatus;
-}
-
-/** CCC-27 자기 확인 응답 — 정확히 이 다섯 갈래뿐(기록 내용 없음). */
-export interface ParticipantSelfCheck {
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  programs: ParticipantSelfCheckProgram[];
-  upcomingSchedules: ParticipantSelfCheckSchedule[];
-  pastSchedules: ParticipantSelfCheckSchedule[];
-}
-
-/**
- * CCC-27 자기 확인(당사자) — 가입 링크(소비된 토큰)로 여는 본인 정보. **토큰이 자격이다.**
- * 보이는 것은 정확히 다섯 갈래다: 이름·연락처, 참여 사업+담당 실무자 이름, 다가오는/지난
- * 상담 일정, 동의 상태. 상담 기록 내용(요약·GAS·플래그·브리핑)은 이 응답에 없다 — 표시
- * 범위를 화면이 아니라 응답에서 고정한다(테스트가 키를 검증).
- * 무효·미소비(issued)·실무자(kind=counselor) 토큰은 전부 ForbiddenError 로 뭉쳐 라우트가
- * 404 로 답하게 한다 — 어느 토큰이 살아 있는지 구분 불가하게.
- */
-export async function getParticipantSelfCheck(
+/** D86 요청 링크 공개 조회. GET은 링크를 소비하지 않는다. 만료·회수·미존재는 전부 ForbiddenError다. */
+export async function getParticipantRequestLinkInfo(
   env: Env,
   token: string,
-): Promise<ParticipantSelfCheck> {
+): Promise<ParticipantRequestLinkInfo | ParticipantRequestLinkUsedInfo> {
+  if (token.length === 0) throw new ForbiddenError('invite token is not available');
   const invite = await getInviteTokenOrThrow(env, token);
-  if (invite.kind !== 'participant' || invite.status !== 'used' || invite.usedByBeneficiaryId === null) {
+  if (invite.kind !== 'participant' || invite.programId === null || invite.programType === null) {
     throw new ForbiddenError('invite token is not available');
   }
-  const beneficiaryId = invite.usedByBeneficiaryId;
-
-  // PII(이름·연락처) 노출은 토큰 보유자(본인)에 대한 것이다 — 감사는 자기 가입과 같은
-  // 후원 행위자(발급 실무자)로 남긴다(토큰 흐름엔 실무자 세션이 없고, D14 보존 요구).
-  const contacts = await loadParticipantContacts(env, invite.orgId, [beneficiaryId]);
-  await auditParticipantPiiRead(env, await sponsorActorFor(env, invite), contacts, { targetId: beneficiaryId });
-
-  const checkedAt = now();
-  const [caseRows, upcomingRows, pastRows, assigneeRows] = await Promise.all([
-    env.DB.prepare(
-      `SELECT id, program_type, consent_privacy_at, consent_recording_at
-       FROM support_cases
-       WHERE org_id = ? AND beneficiary_id = ?
-       ORDER BY created_at, id`,
-    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
-    env.DB.prepare(
-      `SELECT id, scheduled_at, all_day, display_color, status
-       FROM counseling_schedules
-       WHERE org_id = ? AND beneficiary_id = ?
-         AND scheduled_at >= ?
-       ORDER BY scheduled_at, id
-       LIMIT 10`,
-    ).bind(invite.orgId, beneficiaryId, checkedAt).all<DbRow>(),
-    env.DB.prepare(
-      `SELECT id, scheduled_at, all_day, display_color, status
-       FROM counseling_schedules
-       WHERE org_id = ? AND beneficiary_id = ?
-         AND scheduled_at < ?
-       ORDER BY scheduled_at DESC, id DESC
-       LIMIT 10`,
-    ).bind(invite.orgId, beneficiaryId, checkedAt).all<DbRow>(),
-    env.DB.prepare(
-      `SELECT assignment.support_case_id, users.name AS user_name, users.email AS user_email
-       FROM support_case_assignees AS assignment
-       JOIN support_cases AS case_row ON case_row.id = assignment.support_case_id
-         AND case_row.org_id = assignment.org_id
-       JOIN users ON users.id = assignment.user_id AND users.org_id = assignment.org_id
-       WHERE assignment.org_id = ? AND case_row.beneficiary_id = ?
-         AND assignment.unassigned_at IS NULL
-         AND assignment.status = 'active'
-       ORDER BY assignment.assigned_at, assignment.id`,
-    ).bind(invite.orgId, beneficiaryId).all<DbRow>(),
-  ]);
-
-  const counselorByCase = new Map<string, string | null>();
-  for (const row of assigneeRows.results) {
-    const supportCaseId = stringValue(row.support_case_id);
-    if (counselorByCase.has(supportCaseId)) continue;
-    const displayName = nullableString(row.user_name) ?? nullableString(row.user_email);
-    counselorByCase.set(supportCaseId, displayName === null ? null : displayName);
+  if (invite.status === 'used') {
+    const issuer = await env.DB.prepare('SELECT name, email FROM users WHERE id = ? AND org_id = ?')
+      .bind(invite.issuedBy, invite.orgId).first<DbRow>();
+    return {
+      status: 'used',
+      counselorName: issuer === null ? null : nullableString(issuer.name) ?? nullableString(issuer.email),
+      message: '이 링크는 이미 사용되었습니다. 담당 실무자에게 문의해 주세요.',
+    };
   }
-
-  const contact = contacts.get(beneficiaryId);
+  if (invite.expiresAt === null || invite.expiresAt <= now()) throw new ForbiddenError('invite token is not available');
+  const org = await env.DB.prepare('SELECT org_name FROM organization_settings WHERE org_id = ?')
+    .bind(invite.orgId).first<DbRow>();
   return {
-    name: contact?.name ?? null,
-    phone: contact?.phone ?? null,
-    email: contact?.email ?? null,
-    programs: caseRows.results.map((row) => ({
-      programType: stringValue(row.program_type),
-      counselorName: counselorByCase.get(stringValue(row.id)) ?? null,
-      consent: {
-        privacy: nullableString(row.consent_privacy_at) !== null,
-        recordingAi: nullableString(row.consent_recording_at) !== null,
-      },
-    })),
-    upcomingSchedules: upcomingRows.results.map((row) => ({
-      id: stringValue(row.id),
-      scheduledAt: stringValue(row.scheduled_at),
-      ...scheduleDisplayFromRow(row),
-      status: canonicalScheduleStatus(row.status),
-    })),
-    pastSchedules: pastRows.results.map((row) => ({
-      id: stringValue(row.id),
-      scheduledAt: stringValue(row.scheduled_at),
-      ...scheduleDisplayFromRow(row),
-      status: canonicalScheduleStatus(row.status),
-    })),
+    status: 'issued', programId: invite.programId, programType: invite.programType,
+    orgName: org === null ? null : nullableString(org.org_name), expiresAt: invite.expiresAt,
   };
+}
+
+/** 요청 링크의 사전 고지 snapshot. 발급 실무자를 issuer로, 케이스 없이 사업에 묶는다(S7 §5). */
+export async function issueParticipantRequestLinkDisclosures(
+  env: Env,
+  token: string,
+): Promise<ConsentDisclosureSnapshot[]> {
+  const invite = await getInviteForSignup(env, token, 'participant');
+  if (invite.programId === null) throw new ForbiddenError('invite token is not available');
+  const sponsor = await activeSponsorActor(env, invite);
+  await requireProgramAdmission(env, invite.orgId, invite.programId, 'registration');
+  return issueConsentDisclosures(env, sponsor, invite.programId, null);
+}
+
+async function activeSponsorActor(env: Env, invite: InviteToken): Promise<Actor> {
+  const sponsorRow = await env.DB.prepare(
+    `SELECT id, role FROM users
+     WHERE id = ? AND org_id = ? AND active = 1 AND role IN ('admin', 'counselor')`,
+  ).bind(invite.issuedBy, invite.orgId).first<{ id: string; role: string }>();
+  if (sponsorRow === null) throw new ForbiddenError('invite sponsor is unavailable');
+  return { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
 }
 // ============================================================================
 // 당사자 자기 가입(self signup) — 토 권한 원자 트랜잭션 (D39 · ADR-0016 · CCC-28)
@@ -21295,9 +21208,8 @@ export interface ParticipantSignupInput {
   name: string;
   phone?: string | null;
   email?: string | null;
-  // 동의 3종(D44) — privacy 를 필수로 좁힌다. updateParticipantConsent 와 같은 모양이라
-  // 등록 시 받은 값과 이후 수정·철회가 같은 어휘를 쓴다.
-  consent: ParticipantConsentInput & { privacy: boolean };
+  /** 여섯 영역 초기 사건. recordedBy는 이 경로에서만 `self`다(S7 §3). */
+  consentEvents: AppendConsentEventInput[];
 }
 
 export interface ParticipantSignupResult {
@@ -21316,29 +21228,19 @@ export async function completeParticipantSignup(
   input: ParticipantSignupInput,
 ): Promise<ParticipantSignupResult> {
   const optionalKeys = (['phone', 'email'] as const).filter((key) => input[key] !== undefined);
-  assertExactKeys(input, ['token', 'name', 'consent', ...optionalKeys]);
+  assertExactKeys(input, ['token', 'name', 'consentEvents', ...optionalKeys]);
   assertNonBlankText(input.token, 'token');
   assertNonBlankText(input.name, 'name');
   for (const key of optionalKeys) {
     const value = input[key];
     if (value !== null) assertNonBlankText(value, key);
   }
-  // 동의 2종(D49). 자기 가입은 등록이므로 등록 경로와 같은 2체크를 받는다. 둘 다 필수 boolean 이다.
-  if (
-    input.consent === null
-    || typeof input.consent !== 'object'
-    || typeof input.consent.privacy !== 'boolean'
-    || typeof input.consent.recordingAi !== 'boolean'
-  ) {
-    throw new ValidationError('consent is required');
-  }
-  // ① 하드 게이트(G1): 자기 가입에는 **긴급 등록 예외가 없다**. 긴급 등록은 실무자가
-  // 사유를 적고 책임지는 예외인데(전건 감사·보완 기한), 여기서는 당사자 본인이 체크하고
-  // 판단할 실무자가 그 자리에 없다. ② ③ 미동의 경로는 그대로다(D15).
-  if (input.consent.emergency !== undefined) {
-    throw new ValidationError('emergency registration is not available on self signup');
-  }
-  assertPrivacyConsentGate(input.consent.privacy, undefined, now());
+  // 자기 가입에는 긴급 등록 예외가 없다. 개인정보 grant가 없으면 G1 게이트가 거부한다.
+  if (!Array.isArray(input.consentEvents)) throw new ValidationError('consent events are required');
+  assertPrivacyConsentGate(
+    input.consentEvents.some(event => event.domain === 'personal_data_collection_use' && event.decision === 'grant'),
+    undefined, now(),
+  );
 
   // 순차 이중 제출 게이트: 이미 소비되었거나 종류가 안 맞으면 여기서 거부한다.
   // 동시 경계는 아래 배치 안의 가드가 맡는다.
@@ -21348,15 +21250,7 @@ export async function completeParticipantSignup(
     throw new ForbiddenError('invite token is not available');
   }
 
-  // 후원 행위자 복원: 발급자가 활성 사용자인지 확인하고 역할까지 가져와 감사·배정에 쓴다.
-  const sponsorRow = await env.DB.prepare(
-    `SELECT id, role FROM users
-     WHERE id = ? AND org_id = ? AND active = 1 AND role IN ('admin', 'counselor')`,
-  ).bind(invite.issuedBy, invite.orgId).first<{ id: string; role: string }>();
-  if (sponsorRow === null) {
-    throw new ForbiddenError('invite sponsor is unavailable');
-  }
-  const sponsorActor: Actor = { userId: sponsorRow.id, orgId: invite.orgId, role: sponsorRow.role as Actor['role'] };
+  const sponsorActor = await activeSponsorActor(env, invite);
 
   await assertOrganizationSettings(env, invite.orgId);
   const admission = await requireProgramAdmission(env, invite.orgId, programId, 'registration');
@@ -21373,13 +21267,10 @@ export async function completeParticipantSignup(
     attemptedIds.push(beneficiaryId);
     const supportCaseId = newId();
     const assignmentId = newId();
-    const consentRecordId = newId();
     const createdAt = now();
-    // D49: ② 한 체크 → 두 컬럼에 같은 시각.
-    const consentRecordingAt = input.consent.recordingAi ? createdAt : null;
-    const consentTextAiAt = input.consent.recordingAi ? createdAt : null;
-    const consentPrivacyAt = input.consent.privacy ? createdAt : null;
-    const privacyEvidence = await privacyNoticeEvidence(consentRecordId, consentPrivacyAt);
+    const consentStatements = await registrationConsentStatements(
+      env, sponsorActor, programId, beneficiaryId, supportCaseId, input.consentEvents, createdAt, PARTICIPANT_SELF_RECORDER,
+    );
     try {
       const statements: PreparedStatement[] = [
         env.DB.prepare(
@@ -21396,8 +21287,8 @@ export async function completeParticipantSignup(
         env.DB.prepare(
           `INSERT INTO support_cases (
              id, org_id, beneficiary_id, legacy_case_id, program_id, program_type, status, intake_at,
-             consent_recording_at, consent_text_ai_at, consent_privacy_at, creation_kind, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'initial', ?, ?)`,
+             creation_kind, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, 'initial', ?, ?)`,
         ).bind(
           supportCaseId,
           invite.orgId,
@@ -21406,9 +21297,6 @@ export async function completeParticipantSignup(
           admission.program.id,
           programType,
           null,
-          consentRecordingAt,
-          consentTextAiAt,
-          consentPrivacyAt,
           createdAt,
           createdAt,
         ),
@@ -21416,7 +21304,7 @@ export async function completeParticipantSignup(
           `INSERT INTO support_case_assignees (
              id, org_id, support_case_id, user_id, role, assigned_at
            ) VALUES (?, ?, ?, ?, 'primary', ?)`,
-        ).bind(assignmentId, invite.orgId, supportCaseId, sponsorRow.id, createdAt),
+        ).bind(assignmentId, invite.orgId, supportCaseId, sponsorActor.userId, createdAt),
         canonicalAuditStatement(env, sponsorActor, {
           action: 'create',
           targetTable: 'beneficiaries',
@@ -21451,55 +21339,16 @@ export async function completeParticipantSignup(
         ).bind(createdAt, beneficiaryId, invite.orgId),
       ];
       const completionIndex = statements.length - 1;
-      // 동의 기록(기록자=본인) + 감사는 완료 전환 뒤에 쌓는다(beneficiaries_complete_guard 가
-      // 그 시점에 당사자 감사 3건을 요구하므로).
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO participant_consent_records (
-
-             id, org_id, beneficiary_id, support_case_id, consent_recording_at,
-             consent_text_ai_at, consent_privacy_at, privacy_notice_version,
-             privacy_notice_sha256, privacy_evidence_ref,
-             recorded_by, recorded_at, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(
-          consentRecordId,
-          invite.orgId,
-          beneficiaryId,
-          supportCaseId,
-          consentRecordingAt,
-          consentTextAiAt,
-          consentPrivacyAt,
-          privacyEvidence.noticeVersion,
-          privacyEvidence.noticeSha256,
-          privacyEvidence.evidenceRef,
-          PARTICIPANT_SELF_RECORDER,
-          createdAt,
-          createdAt,
-        ),
-        canonicalAuditStatement(env, sponsorActor, {
-          action: 'record_consent',
-          targetTable: 'participant_consent_records',
-          targetId: consentRecordId,
-          beneficiaryId,
-          supportCaseId,
-          detail: {
-            privacy: input.consent.privacy,
-            recordingAi: input.consent.recordingAi,
-            recorder: PARTICIPANT_SELF_RECORDER,
-            privacyNoticeVersion: privacyEvidence.noticeVersion,
-          },
-          caseId: null,
-        }),
-      );
+      // 여섯 영역 사건은 완료 전환 뒤에 쌓는다(beneficiaries_complete_guard가 당사자 감사 3건을 요구).
+      statements.push(...consentStatements);
       // 토큰 소비를 같은 배치에: 상태 술어 없이 업데이트해 경계에서 used 행을 맞춰도
       // 가드(0019)가 used->used 를 RAISE 로 막아 트랜잭션 전체를 되감게 한다.
       statements.push(
         env.DB.prepare(
           `UPDATE invite_tokens
-           SET status = 'used', used_at = ?, used_by_beneficiary_id = ?, used_by_user_id = NULL
+           SET status = 'used', used_at = ?, used_by_beneficiary_id = ?, used_by_user_id = NULL, consumption_id = ?
            WHERE token = ?`,
-        ).bind(createdAt, beneficiaryId, input.token),
+        ).bind(createdAt, beneficiaryId, newId(), input.token),
         env.DB.prepare(
           `INSERT INTO audit_log (
              org_id, actor_id, actor_role, action, target_table, target_id, case_id, detail, created_at

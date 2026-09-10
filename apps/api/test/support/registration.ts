@@ -1,5 +1,7 @@
 // 등록 6종 동의 픽스처(S7). 합성 기관·합성 provider registry 만 심고 실제 PII·수신자는 없다.
 import {
+  getInviteForSignup,
+  issueParticipantRequestLinkDisclosures,
   issueRegistrationConsentDisclosures,
   type Actor,
   type Env,
@@ -47,6 +49,40 @@ export async function registrationConsentEvents(
   await seedProviderRegistry(env, actor.orgId);
   const snapshots = await issueRegistrationConsentDisclosures(env, actor, programId);
   // 고지 발급 직후를 동의 시각으로 쓴다 — 게이트웨이가 미래·5분 초과 소급을 모두 거부한다.
+  const effectiveAt = new Date().toISOString();
+  return CONSENT_DOMAINS.map((domain) => {
+    const snapshot = snapshots.find((item) => item.domain === domain);
+    if (snapshot === undefined) throw new Error(`missing consent disclosure fixture for ${domain}`);
+    const granted = (decisions[domain] ?? 'grant') === 'grant';
+    return {
+      domain,
+      decision: granted ? 'grant' : 'decline',
+      provider: granted ? snapshot.provider : null,
+      providerLegalRecipient: granted ? snapshot.providerLegalRecipient : null,
+      providerCountry: granted ? snapshot.country : null,
+      purpose: granted ? snapshot.purpose : null,
+      retentionDuration: granted && domain === 'voice_original_retention_period'
+        ? 'default_temporary_d85' : null,
+      copyVersion: snapshot.copyVersion,
+      copyHash: snapshot.copyHash,
+      disclosureSnapshotId: snapshot.snapshotId,
+      effectiveAt,
+      idempotencyKey: `${snapshot.snapshotId}:${domain}`,
+      correctionOfEventId: null,
+      expectedRevision: null,
+    };
+  });
+}
+
+/** 요청 링크가 발급한 고지에 묶인 자기 가입용 6종 동의 이벤트. */
+export async function signupConsentEvents(
+  env: Env,
+  token: string,
+  decisions: Partial<Record<ConsentDomain, 'grant' | 'decline'>> = {},
+): Promise<AppendConsentEventInput[]> {
+  const invite = await getInviteForSignup(env, token, 'participant');
+  await seedProviderRegistry(env, invite.orgId);
+  const snapshots = await issueParticipantRequestLinkDisclosures(env, token);
   const effectiveAt = new Date().toISOString();
   return CONSENT_DOMAINS.map((domain) => {
     const snapshot = snapshots.find((item) => item.domain === domain);

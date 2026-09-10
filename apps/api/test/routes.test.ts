@@ -43,7 +43,7 @@ import {
   registerFixtureRecording,
   seedCanonicalSttConsent,
 } from './support/agent-jobs';
-import { registrationConsentEvents, registrationInput } from './support/registration';
+import { registrationConsentEvents, registrationInput, signupConsentEvents } from './support/registration';
 
 const counselorHeaders = {
   'content-type': 'application/json',
@@ -3993,14 +3993,20 @@ describe('public participant signup routes (CCC-28)', () => {
     return { ...t.env, PUBLIC_SIGNUP_ENABLED: '1' };
   }
 
-  it('GET /invites/participant/:token returns programType for a valid token', async () => {
+  it('GET /invites/participant/:token returns the issued request-link details', async () => {
     const token = await issueToken();
     const res = await worker.fetch(
       new Request(`http://localhost/invites/participant/${token}`),
       signupOpenEnv(),
     );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ programType: 'financial_support_v1' });
+    await expect(res.json()).resolves.toEqual({
+      status: 'issued',
+      programId: testProgramId(counselor.orgId),
+      programType: 'financial_support_v1',
+      orgName: null,
+      expiresAt: expect.any(String),
+    });
   });
 
   it('GET /invites/participant/:token returns 404 for unknown token', async () => {
@@ -4014,6 +4020,7 @@ describe('public participant signup routes (CCC-28)', () => {
 
   it('POST /signup/participant creates beneficiary + case and returns 201', async () => {
     const token = await issueToken();
+    const consentEvents = await signupConsentEvents(t.env, token);
     const res = await worker.fetch(
       new Request('http://localhost/signup/participant', {
         method: 'POST',
@@ -4022,7 +4029,7 @@ describe('public participant signup routes (CCC-28)', () => {
           token,
           name: '테스트 당사자',
           phone: '010-1234-5678',
-          consent: { privacy: true, recordingAi: true },
+          consentEvents,
         }),
       }),
       signupOpenEnv(),
@@ -4035,10 +4042,11 @@ describe('public participant signup routes (CCC-28)', () => {
 
   it('POST /signup/participant returns 404 for already-used token', async () => {
     const token = await issueToken();
+    const consentEvents = await signupConsentEvents(t.env, token);
     const body = {
       token,
       name: '첫 가입',
-      consent: { privacy: true, recordingAi: true },
+      consentEvents,
     };
     const first = await worker.fetch(
       new Request('http://localhost/signup/participant', {
@@ -4060,13 +4068,26 @@ describe('public participant signup routes (CCC-28)', () => {
     expect(second.status).toBe(404);
   });
 
-  it('POST /signup/participant returns 400 when consent is missing', async () => {
+  it('POST /signup/participant returns 400 when consentEvents is missing', async () => {
     const token = await issueToken();
     const res = await worker.fetch(
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token, name: '이름만' }),
+      }),
+      signupOpenEnv(),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /signup/participant returns 400 for the retired consent object', async () => {
+    const token = await issueToken();
+    const res = await worker.fetch(
+      new Request('http://localhost/signup/participant', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, name: '구 입력', consent: { privacy: true, recordingAi: true } }),
       }),
       signupOpenEnv(),
     );
@@ -4080,6 +4101,7 @@ describe('public participant signup routes (CCC-28)', () => {
    */
   it('스위치 미설정이면 유효 토큰이어도 공개 가입 표면 전체가 404 (fail closed)', async () => {
     const token = await issueToken();
+    const consentEvents = await signupConsentEvents(t.env, token);
     // t.env 에는 PUBLIC_SIGNUP_ENABLED 가 없다 — 미설정 = 닫힘.
     const invite = await worker.fetch(
       new Request(`http://localhost/invites/participant/${token}`),
@@ -4091,7 +4113,7 @@ describe('public participant signup routes (CCC-28)', () => {
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, name: '테스트 당사자', consent: { privacy: true, recordingAi: true } }),
+        body: JSON.stringify({ token, name: '테스트 당사자', consentEvents }),
       }),
       t.env,
     );
@@ -4113,7 +4135,7 @@ describe('public participant signup routes (CCC-28)', () => {
       new Request('http://localhost/signup/participant', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, name: '테스트 당사자', consent: { privacy: true, recordingAi: true } }),
+        body: JSON.stringify({ token, name: '테스트 당사자', consentEvents }),
       }),
       signupOpenEnv(),
     );
@@ -4223,7 +4245,7 @@ describe('support case closure routes (CCC-107)', () => {
           submissionId: 'aaaaaaaa-cccc-4ccc-8ccc-aaaaaaaaaaaa',
           programId: testProgramId('org_canonical'),
           initialAssigneeUserId: canonicalIds.counselor,
-          consentPrivacy: true,
+          consentEvents: await registrationConsentEvents(t.env, canonicalAdmin, testProgramId('org_canonical')),
         }),
       },
     ), t.env);

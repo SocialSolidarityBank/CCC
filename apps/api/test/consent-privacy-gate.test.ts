@@ -18,7 +18,7 @@ import {
 } from '@ccc/core/gateway';
 import { CONSENT_DOMAINS, type ConsentDomain } from '@ccc/contracts/consent';
 import { grantTestPractitionerRole, setupD1, testActors, testProgramId } from './support/d1';
-import { registrationConsentEvents, registrationInput } from './support/registration';
+import { registrationConsentEvents, registrationInput, signupConsentEvents } from './support/registration';
 
 // G1 (docs/consent/consent-implementation-gates-v1.md §2 · 2026-07-29 Q 결정1):
 // ① 개인정보 수집·이용 동의는 등록의 **하드 게이트**이고, 급박한 위기 개입만 "긴급 등록"
@@ -324,10 +324,11 @@ describe('① 하드 게이트 — 자기 가입 (G1 · 긴급 예외 없음)', 
   it('① 없이 가입하면 거부한다', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const consentEvents = await signupConsentEvents(t.env, invite.token, DECLINE_ALL);
     await expect(completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { privacy: false, recordingAi: false },
+      consentEvents,
     })).rejects.toBeInstanceOf(PrivacyConsentRequiredError);
 
     // 토큰은 소비되지 않는다 — 거부된 제출이 링크를 태워 버리면 당사자가 다시 가입할 수 없다.
@@ -339,11 +340,13 @@ describe('① 하드 게이트 — 자기 가입 (G1 · 긴급 예외 없음)', 
   it('자기 가입에는 긴급 등록 예외가 없다', async () => {
     await t.reset();
     const invite = await createParticipantInvite(t.env, counselor, { programId: testProgramId(counselor.orgId) });
+    const consentEvents = await signupConsentEvents(t.env, invite.token, DECLINE_ALL);
     await expect(completeParticipantSignup(t.env, {
       token: invite.token,
       name: '홍길동',
-      consent: { privacy: false, recordingAi: false, emergency: { reason: '급함' } },
-    })).rejects.toBeInstanceOf(ValidationError);
+      consentEvents,
+      emergencyReason: '급함',
+    } as never)).rejects.toBeInstanceOf(ValidationError);
   });
 });
 
