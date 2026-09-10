@@ -1,8 +1,10 @@
 'use client';
 
+import {
+  WireCard,
+  WireFormField,
+} from '@ccc/wire';
 import { useState, type FormEvent } from 'react';
-import { WireCard } from '../../../components/wire/wire-card';
-import { WireFormField } from '../../../components/wire/wire-form-field';
 import { DateTextInput, dateTextHint } from '../../../components/wire/date-text-input';
 import type { ParticipantBasicInfo } from '../../../lib/api';
 

@@ -1,3 +1,6 @@
+import {
+  WireButton,
+} from '@ccc/wire';
 import { Suspense } from 'react';
 import {
   ApiError,
@@ -16,7 +19,6 @@ import {
 import { formatKoreanDate } from '../../../../../../../lib/format-korean-date';
 import { PageError } from '../../../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../../../components/wire/page-loading';
-import { WireButton } from '../../../../../../../components/wire/wire-button';
 import { DraftReviewView } from './fixture-draft-view';
 
 type ErrorKind = 'authentication_required' | 'access_or_not_found' | 'service_unavailable';

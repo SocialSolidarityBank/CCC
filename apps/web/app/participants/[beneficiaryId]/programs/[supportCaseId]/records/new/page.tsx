@@ -1,4 +1,13 @@
-import { WireError } from '../../../../../../components/wire/wire-state';
+import {
+  Icon,
+  PageTitle,
+  ParticipantHeroCard,
+  WireButton,
+  WireCallout,
+  WireCard,
+  WireError,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import { redirect } from 'next/navigation';
 import {
   closeGoalAction,
@@ -8,13 +17,7 @@ import {
   updateGoalTitleAction,
 } from '../../../../../../actions';
 import { GoalSection } from './goal-section';
-import { PageTitle } from '../../../../../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../../components/wire/participant-hero-card';
 import { RecordAccordionToggle } from './record-accordion-toggle';
-import { WireButton } from '../../../../../../components/wire/wire-button';
-import { Icon } from '../../../../../../components/wire/wire-icon';
-import { WireCard } from '../../../../../../components/wire/wire-card';
-import { WireCallout } from '../../../../../../components/wire/wire-callout';
 import { ApiError, getNewRecordContext, getParticipantDetail, lifeAreaKeys, lifeAreaStatuses, type ApiErrorCode, type NewRecordContext, type ParticipantDetail } from '../../../../../../lib/api';
 import { RecordOnepage } from './record-onepage';
 import { formatKoreanDate } from '../../../../../../lib/format-korean-date';

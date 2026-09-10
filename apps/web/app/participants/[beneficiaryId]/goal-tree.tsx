@@ -1,12 +1,15 @@
+import {
+  DisclosureChevron,
+  WireBadge,
+  WireCard,
+  WireEmpty,
+  WireError,
+} from '@ccc/wire';
 import Link from 'next/link';
 import type { ParticipantGoalTreeCase, ParticipantGoalTreeGoal, GoalRevisionEntry, ParticipantProgramType } from '../../lib/api';
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireCard } from '../../components/wire/wire-card';
-import { WireEmpty, WireError } from '../../components/wire/wire-state';
 import { MetaRow } from '../../components/wire/meta-row';
 import { WireTimeline, WireTimelineItem } from '../../components/wire/wire-timeline';
 import { formatKoreanDate, formatKoreanDateTime } from '../../lib/format-korean-date';
-import { DisclosureChevron } from '../../components/wire/chevron';
 
 // 목표 트리 (D62 §8 · CCC-69) — 당사자 허브의 케이스별 구획. 위계는 전체 > 세부 > 세션이고
 // 담당(또는 admin) 케이스만 온다(D36 — 목표는 상담 내용, 게이트웨이가 강제).

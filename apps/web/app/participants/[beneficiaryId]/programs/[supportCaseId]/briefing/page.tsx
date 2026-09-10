@@ -1,14 +1,16 @@
+import {
+  GridContainer,
+  PageTitle,
+  WireButton,
+  WireCard,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ApiError, getParticipantBriefing } from '../../../../../lib/api';
 import { resolveDiscrepancyAction, updateOverallGoalAction } from '../../../../../actions';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
-import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PageError } from '../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../components/wire/page-loading';
-import { PageTitle } from '../../../../../components/wire/page-title';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../components/wire/wire-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
 import { BriefingCards } from './briefing-cards';
 import { IntakeSavedNotice } from './intake-saved-notice';

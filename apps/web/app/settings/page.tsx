@@ -1,3 +1,10 @@
+import {
+  PageTitle,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireError,
+} from '@ccc/wire';
 import Link from 'next/link';
 import {
   ApiError,
@@ -12,11 +19,6 @@ import {
   type ParticipantProgramType,
 } from '../lib/api';
 import { acceptSupportCaseAssignmentAction } from '../actions';
-import { PageTitle } from '../components/wire/page-title';
-import { WireError } from '../components/wire/wire-state';
-import { WireBadge } from '../components/wire/wire-badge';
-import { WireButton } from '../components/wire/wire-button';
-import { WireCard } from '../components/wire/wire-card';
 import { adminMenuFor, userLabel } from '../admin/admin-format';
 import { getDisplayLabels } from '../lib/display-labels';
 import { getCounselingMemorySettings } from '../lib/api';

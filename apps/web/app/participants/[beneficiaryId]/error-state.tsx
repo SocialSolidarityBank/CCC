@@ -1,5 +1,7 @@
+import {
+  WireButton,
+} from '@ccc/wire';
 import { PageError } from '../../components/wire/page-error';
-import { WireButton } from '../../components/wire/wire-button';
 
 // 당사자 정보 화면의 오류 상태. 서버 컴포넌트(page.tsx)에서 쓰지만,
 // jsdom 테스트가 page.tsx 를 직접 import 하면 server-only·next/headers 가

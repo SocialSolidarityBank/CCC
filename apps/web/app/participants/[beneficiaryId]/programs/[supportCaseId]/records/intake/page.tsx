@@ -1,5 +1,7 @@
+import {
+  WireButton,
+} from '@ccc/wire';
 import { PageError } from '../../../../../../components/wire/page-error';
-import { WireButton } from '../../../../../../components/wire/wire-button';
 import { ApiError, getIntakeRecordContext, getMyIdentity, type IntakeRecordContext } from '../../../../../../lib/api';
 import { createIntakeRecordAction, updateIntakeRecordAction } from '../../../../../../actions';
 import { IntakeReadView } from './intake-read-view';

@@ -1,11 +1,13 @@
 'use client';
 
+import {
+  WireButton,
+  WireCard,
+  WireFormField,
+} from '@ccc/wire';
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { createParticipantInviteAction } from '../../actions';
-import { WireButton } from '../../components/wire/wire-button';
-import { WireCard } from '../../components/wire/wire-card';
-import { WireFormField } from '../../components/wire/wire-form-field';
 import { NavIcon } from '../../components/wire/shell-icons';
 import { PROGRAM_LABELS } from '../../lib/labels';
 

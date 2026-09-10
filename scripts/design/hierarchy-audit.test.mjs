@@ -198,7 +198,7 @@ check(
 );
 
 const wireStylesSource = readFileSync(
-  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  join(repoRoot, 'packages/wire/src/wire-styles.ts'),
   'utf8',
 );
 check(

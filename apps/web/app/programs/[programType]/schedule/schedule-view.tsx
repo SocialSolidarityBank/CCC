@@ -1,11 +1,13 @@
+import {
+  Chevron,
+  WireButton,
+  WireCardDetails,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { formatKoreanDate, formatKoreanTime } from '../../../lib/format-korean-date';
 import type { TodaySchedule } from '../../../lib/api';
 import { ParticipantCard } from '../../../components/wire/participant-card';
 import { TimeAxisBadge } from '../../../components/wire/time-axis-badge';
-import { WireButton } from '../../../components/wire/wire-button';
-import { WireCardDetails } from '../../../components/wire/wire-card';
-import { Chevron } from '../../../components/wire/chevron';
 import { NavIcon } from '../../../components/wire/shell-icons';
 import {
   dayHeading,

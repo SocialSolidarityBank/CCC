@@ -1,7 +1,9 @@
 'use client';
 
+import {
+  WireButton,
+} from '@ccc/wire';
 import { useState } from 'react';
-import { WireButton } from '../../../../../../components/wire/wire-button';
 
 /**
  * 접힘 칸 전체 여닫기 (2026-08-09 Q — 당사자 카드 안 작은 버튼).

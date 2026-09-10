@@ -14,6 +14,9 @@
  *
  * 실행: pnpm --filter @ccc/web test   (이 파일이 돌면 harness.html 이 다시 쓰인다)
  */
+import {
+  WireButton,
+} from '@ccc/wire';
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
@@ -26,7 +29,6 @@ import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mj
 import { wireStyles } from '../components/wire/wire-styles';
 import KitPage from './page';
 import { PageLoading } from '../components/wire/page-loading';
-import { WireButton } from '../components/wire/wire-button';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { RecordOnepage, type RecordOnepageProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/record-onepage';
 import { GoalSection } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/goal-section';

@@ -1,18 +1,26 @@
 'use client';
 
+import {
+  Chevron,
+  DisclosureChevron,
+  ParticipantHeroCard,
+  WireBadge,
+  WireBullets,
+  WireButton,
+  WireCard,
+  WireCardDetails,
+  WireCardSection,
+  WireEmpty,
+  WireItem,
+  WireQuote,
+  WireSourceQuotes,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
-import { WireBullets, WireCard, WireCardDetails } from '../../../../../components/wire/wire-card';
-import { WireCardSection, WireItem } from '../../../../../components/wire/wire-section';
-import { WireEmpty } from '../../../../../components/wire/wire-state';
-import { WireQuote, WireSourceQuotes } from '../../../../../components/wire/wire-callout';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../../../components/wire/wire-button';
 import { MetaRow } from '../../../../../components/wire/meta-row';
-import { Chevron, DisclosureChevron } from '../../../../../components/wire/chevron';
 import { ConsultationTypeBadge, consultationTypeLabel } from '../../../../../components/wire/consultation-type-badge';
 import { TimeAxisBadge } from '../../../../../components/wire/time-axis-badge';
-import { WireBadge } from '../../../../../components/wire/wire-badge';
 import { RiskBanner, type RiskBannerFlag } from './risk-banner';
 import { formatKoreanDate, formatKoreanDateTime } from '../../../../../lib/format-korean-date';
 import type { BriefingUpcomingSchedule, ParticipantBriefingSection } from '../../../../../lib/api';

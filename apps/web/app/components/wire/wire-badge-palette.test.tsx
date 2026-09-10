@@ -1,8 +1,8 @@
+import { WireBadge, type WireBadgeTone } from '@ccc/wire';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
-import { WireBadge, type WireBadgeTone } from './wire-badge';
 
 afterEach(cleanup);
 

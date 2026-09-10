@@ -1,11 +1,14 @@
 'use client';
 
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
+import {
+  WireBadge,
+  WireCard,
+  WireChoice,
+  WireEmpty,
+  WireFormField,
+  WireRadioGroup,
+} from '@ccc/wire';
 import { TimeAxisBadge } from '../../../../../../components/wire/time-axis-badge';
-import { WireCard } from '../../../../../../components/wire/wire-card';
-import { WireChoice, WireFormField } from '../../../../../../components/wire/wire-form-field';
-import { WireRadioGroup } from '../../../../../../components/wire/wire-radio-group';
-import { WireEmpty } from '../../../../../../components/wire/wire-state';
 
 export interface OpenActionResolutionItem {
   id: string;

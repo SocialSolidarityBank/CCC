@@ -1,8 +1,8 @@
 'use client';
 
+import { Chevron, type ChevronDir } from '@ccc/wire';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Chevron, type ChevronDir } from './chevron';
 
 export interface ListRowProps {
   children: ReactNode;

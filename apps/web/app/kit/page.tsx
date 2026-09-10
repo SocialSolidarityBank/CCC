@@ -1,21 +1,29 @@
 'use client';
 
+import {
+  GridContainer,
+  PageTitle,
+  WireBadge,
+  WireBullets,
+  WireButton,
+  WireCallout,
+  WireCard,
+  WireCardDetails,
+  WireCardSection,
+  WireChoice,
+  WireField,
+  WireFormField,
+  WireItem,
+  WireQuote,
+  WireRadioGroup,
+} from '@ccc/wire';
 import { useState } from 'react';
 import { AdminSidebar } from '../components/wire/admin-sidebar';
 import { RiskBanner } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/risk-banner';
-import { GridContainer } from '../components/wire/grid-container';
 import { ListRow } from '../components/wire/list-row';
-import { PageTitle } from '../components/wire/page-title';
 import { SearchInput } from '../components/wire/search-input';
-import { WireBullets, WireCard, WireCardDetails, WireField } from '../components/wire/wire-card';
-import { WireCardSection, WireItem } from '../components/wire/wire-section';
-import { WireChoice, WireFormField } from '../components/wire/wire-form-field';
-import { WireRadioGroup } from '../components/wire/wire-radio-group';
 import { ConsultationTypeBadge } from '../components/wire/consultation-type-badge';
 import { TimeAxisBadge } from '../components/wire/time-axis-badge';
-import { WireBadge } from '../components/wire/wire-badge';
-import { WireButton } from '../components/wire/wire-button';
-import { WireCallout, WireQuote } from '../components/wire/wire-callout';
 import { PROGRAM_LABELS } from '../lib/labels';
 
 // #31 컴포넌트 킷 검수용 데모. 전 컴포넌트를 변형까지 나열한다. 스타일 검수 전용이라

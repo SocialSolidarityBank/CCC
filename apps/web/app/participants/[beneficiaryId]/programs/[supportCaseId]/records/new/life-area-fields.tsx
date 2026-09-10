@@ -1,8 +1,10 @@
 'use client';
 
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
-import { WireCard } from '../../../../../../components/wire/wire-card';
-import { WireFormField } from '../../../../../../components/wire/wire-form-field';
+import {
+  WireBadge,
+  WireCard,
+  WireFormField,
+} from '@ccc/wire';
 import type { LifeAreaKey, LifeAreaSnapshotEntry } from '../../../../../../lib/api';
 import { lifeAreaOrder, lifeAreaStatusLabels, lifeAreaStatusOptions } from '../../../../../../lib/life-area-labels';
 

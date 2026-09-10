@@ -1,9 +1,11 @@
+import {
+  GridContainer,
+  PageTitle,
+  WireButton,
+  WireError,
+} from '@ccc/wire';
 import { ApiError, getMyIdentity, getOrganizationProfile, type OrganizationProfile } from '../lib/api';
 import { completeOrganizationOnboardingAction } from '../actions';
-import { GridContainer } from '../components/wire/grid-container';
-import { PageTitle } from '../components/wire/page-title';
-import { WireError } from '../components/wire/wire-state';
-import { WireButton } from '../components/wire/wire-button';
 import { OnboardingWizard } from './onboarding-wizard';
 
 const errorMessages: Record<string, string> = {
