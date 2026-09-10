@@ -10,7 +10,8 @@ import { createDpapiSecretStore, createLocalIdentityRepository } from '@ccc/secr
 import { createProtectedRecordRepository } from '@ccc/secrets-dpapi/records';
 import { sealRecoveryKit, openRecoveryKit, wipeCbor } from '@ccc/secrets-dpapi/recovery-kit';
 import { signInstallManifest, InstallManifestError } from '@ccc/contracts/install-manifest';
-import { createOfficeAccount, decodeOfficeTotpSecret } from '@ccc/core/gateway';
+import { CONSENT_COPY, CONSENT_DOMAINS } from '@ccc/contracts/consent';
+import { createOfficeAccount, decodeOfficeTotpSecret, installConsentProviderRegistry } from '@ccc/core/gateway';
 import { startLocalSingle, startLocalOffice, stageNewSingleIdentity, loadLocalMigrations } from '../src/main.ts';
 import { readEndpointRecord } from '../src/runtime.ts';
 import { hashPassword } from '../src/office-identity.ts';
@@ -126,6 +127,20 @@ export async function runRuntimeScenario(root, report) {
       await database.prepare(`UPDATE user_role_assignments SET revoked_at = ? WHERE user_id = ? AND role = 'institution_admin' AND revoked_at IS NULL`)
         .bind(new Date().toISOString(), technician).run();
       const env = { DB: database, installationMode: mode, secretStore: { async get() { return null; }, async getBytesWithVersion() { return { bytes: new Uint8Array(piiKey), version: 1 }; } } };
+      await installConsentProviderRegistry(database, {
+        schemaVersion: 1,
+        orgId,
+        approvedBy: userId,
+        approvedAt: new Date().toISOString(),
+        approvalRef: 'synthetic-local-runtime',
+        providers: [...new Set(CONSENT_DOMAINS.map((domain) => CONSENT_COPY[domain].provider))]
+          .map((provider) => ({
+            provider,
+            legalRecipient: `Synthetic recipient ${provider}`,
+            country: provider === 'openai' ? 'US' : 'KR',
+            validUntil: null,
+          })),
+      });
       if (mode === 'local-office') {
         for (const [id, username, mfa] of [[userId, 'admin', true], [otherUser, 'worker', false], [technician, 'technician', true]]) {
           const verifier = await hashPassword(new TextEncoder().encode(PASSWORD));
