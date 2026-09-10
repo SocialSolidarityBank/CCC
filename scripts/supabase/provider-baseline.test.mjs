@@ -14,6 +14,10 @@ const PROJECT_REF_SHA256 = '11'.repeat(32);
 const OWNER_ORG_ID_SHA256 = '22'.repeat(32);
 const encoder = new TextEncoder();
 
+const OVERSIZED_NOT_BEFORE = `Fri,${' '.repeat(1_025)}11 Sep 2026 00:00:00 GMT`;
+const OVERSIZED_BASELINE_EXPIRY = `Sat,${' '.repeat(1_025)}19 Sep 2026 00:00:00 GMT`;
+const OVERSIZED_TRUST_EXPIRY = `Sun,${' '.repeat(1_025)}20 Sep 2026 00:00:00 GMT`;
+
 function base64(bytes) {
   return Buffer.from(bytes).toString('base64');
 }
@@ -176,11 +180,14 @@ async function resignTrust(fixture, overrides) {
 
 async function resignBaseline(fixture, overrides, key = fixture.release) {
   const { ed25519Signature: _signature, ...unsigned } = fixture.providerBaseline;
-  const providerBaseline = await signDomain(
-    { ...unsigned, ...overrides },
-    key,
-    PROVIDER_BASELINE_DOMAIN,
-  );
+  const next = { ...unsigned, ...overrides };
+  if (Object.hasOwn(overrides, 'objects') && !Object.hasOwn(overrides, 'objectInventorySha256')) {
+    next.objectInventorySha256 = await inventorySha256(next.objects);
+  }
+  if (Object.hasOwn(overrides, 'grants') && !Object.hasOwn(overrides, 'grantInventorySha256')) {
+    next.grantInventorySha256 = await inventorySha256(next.grants);
+  }
+  const providerBaseline = await signDomain(next, key, PROVIDER_BASELINE_DOMAIN);
   return { ...fixture.inputs, providerBaseline: JSON.stringify(providerBaseline) };
 }
 
@@ -207,6 +214,13 @@ test('valid beta root delegation verifies one exact provider baseline', async ()
   assert.ok(Object.isFrozen(verified.objects[0]));
 });
 
+test('JCS signature verification keeps false-on-invalid-input behavior', async () => {
+  const key = await signer('invalid-jcs-test');
+  const signature = base64(new Uint8Array(64));
+  assert.equal(await verifier.verifyJcsEd25519Signature({ invalid: Number.NaN }, signature, key.publicKey), false);
+  assert.equal(await verifier.verifyJcsEd25519Signature(undefined, signature, key.publicKey), false);
+});
+
 test('closed schemas and beta-only trust reject malformed or broadened authority', async t => {
   const fixture = await signedBaselineFixture();
   const alternateRelease = await signer('alternate-release');
@@ -226,11 +240,16 @@ test('closed schemas and beta-only trust reject malformed or broadened authority
     ['unknown root', 'BETA_TRUST_INVALID', { ...fixture.inputs, rootKeys: { other: fixture.root.publicKey } }],
     ['revoked root', 'BETA_TRUST_INVALID', { ...fixture.inputs, revokedRootKeyIds: [fixture.root.keyId] }],
     ['changed release public key', 'PROVIDER_BASELINE_INVALID', await resignTrust(fixture, {
-      releaseKeyId: alternateRelease.keyId,
       releasePublicKey: alternateRelease.publicKey,
     })],
     ['future notBefore', 'BETA_TRUST_INVALID', await resignTrust(fixture, { notBefore: '2026-09-11T12:00:00.001Z' })],
     ['expired trust', 'BETA_TRUST_INVALID', await resignTrust(fixture, { expiresAt: NOW.toISOString() })],
+    ['oversized trust notBefore', 'BETA_TRUST_INVALID', await resignTrust(fixture, {
+      notBefore: OVERSIZED_NOT_BEFORE,
+    })],
+    ['oversized trust expiresAt', 'BETA_TRUST_INVALID', await resignTrust(fixture, {
+      expiresAt: OVERSIZED_TRUST_EXPIRY,
+    })],
     ['expired baseline', 'PROVIDER_BASELINE_INVALID', await resignBaseline(fixture, { expiresAt: NOW.toISOString() })],
     ['trust lifetime over 30 days', 'BETA_TRUST_INVALID', await resignTrust(fixture, {
       expiresAt: '2026-10-12T00:00:00.000Z',
@@ -288,6 +307,9 @@ test('baseline exact schemas, hashes, ordering, bounds, and bindings fail closed
     ] }],
     ['duplicate grants', { grants: [fixture.providerBaseline.grants[0], fixture.providerBaseline.grants[0]] }],
     ['string over UTF-8 byte limit', { objects: [longObject, fixture.providerBaseline.objects[1]] }],
+    ['oversized database version', { databaseVersion: '1'.repeat(1_025) }],
+    ['oversized baseline issuedAt', { issuedAt: OVERSIZED_NOT_BEFORE }],
+    ['oversized baseline expiresAt', { expiresAt: OVERSIZED_BASELINE_EXPIRY }],
     ['bad object inventory hash', { objectInventorySha256: '00'.repeat(32) }],
     ['bad grant inventory hash', { grantInventorySha256: '00'.repeat(32) }],
     ['wrong baseline project', { projectRefSha256: '77'.repeat(32) }],

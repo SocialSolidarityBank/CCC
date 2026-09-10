@@ -51,11 +51,15 @@ export async function verifyJcsEd25519Signature(
   signatureBase64: string,
   publicKeyBase64: string,
 ): Promise<boolean> {
-  return verifyEd25519Bytes(
-    encoder.encode(canonicalizeJcs(value)),
-    signatureBase64,
-    publicKeyBase64,
-  );
+  try {
+    return await verifyEd25519Bytes(
+      encoder.encode(canonicalizeJcs(value)),
+      signatureBase64,
+      publicKeyBase64,
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function sha256Jcs(value: unknown): Promise<string> {

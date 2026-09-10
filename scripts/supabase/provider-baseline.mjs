@@ -77,7 +77,7 @@ function isBoundedString(value, { nonempty = false, identity = false } = {}) {
 }
 
 function parseInstant(value) {
-  return typeof value === 'string' ? Date.parse(value) : Number.NaN;
+  return isBoundedString(value) ? Date.parse(value) : Number.NaN;
 }
 
 function validLifetime(start, expires, now) {
@@ -180,7 +180,7 @@ function validProviderBaseline(value, trust, authorization, manifestExpiry, now,
     && value.ownerOrgIdSha256 === authorization.expectedOwnerOrgIdHash
     && value.region === trust.region
     && value.region === 'ap-northeast-2'
-    && typeof value.databaseVersion === 'string'
+    && isBoundedString(value.databaseVersion, { nonempty: true })
     && DATABASE_VERSION.test(value.databaseVersion)
     && typeof value.sourceRevision === 'string'
     && SOURCE_REVISION.test(value.sourceRevision)
