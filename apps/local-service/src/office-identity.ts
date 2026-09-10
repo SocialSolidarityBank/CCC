@@ -5,7 +5,8 @@
  * - Session expiry
  * - Administrator MFA requirement
  */
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import * as nodeCrypto from 'node:crypto';
+const { createHash, randomBytes, timingSafeEqual, argon2: nodeArgon2 } = nodeCrypto;
 import type {
   Actor,
   ActorRole,
@@ -109,13 +110,12 @@ async function verifyArgon2id(
   salt: Uint8Array,
   expectedHash: Uint8Array,
 ): Promise<boolean> {
-  const argon2 = Reflect.get(crypto, 'argon2');
-  if (typeof argon2 !== 'function') {
+  if (typeof nodeArgon2 !== 'function') {
     throw new Error('argon2id_unavailable');
   }
 
   return new Promise((resolve, reject) => {
-    argon2(
+    nodeArgon2(
       'argon2id',
       {
         message: password,
@@ -143,15 +143,14 @@ async function verifyArgon2id(
  * Hash password with Argon2id for storage.
  */
 export async function hashPassword(password: Uint8Array): Promise<{ hash: string; salt: string }> {
-  const argon2 = Reflect.get(crypto, 'argon2');
-  if (typeof argon2 !== 'function') {
+  if (typeof nodeArgon2 !== 'function') {
     throw new Error('argon2id_unavailable');
   }
 
   const salt = randomBytes(16);
 
   return new Promise((resolve, reject) => {
-    argon2(
+    nodeArgon2(
       'argon2id',
       {
         message: password,
