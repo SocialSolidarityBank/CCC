@@ -6,6 +6,7 @@
 - 대체: D65(로컬 우선, PostgreSQL 연기), D67(STT 결승 후보), D68 일부(시연 전부 가상), Notion ADR-0040 §8.2의 audio-retention과 §14의 local-server-exclusion, 그리고 예전 PR #210과 현재 ADR-0042의 Workers relay/30-day policy를 대체한다. 2026-09-01 통합본의 Azure Functions·Key Vault·Managed AI·동의 4영역과 2026-08-31 계획의 Hyperdrive 전제도 대체한다.
 - 후속: `CLAUDE.md` 9장 D76~D83 색인, `PRD/CCC-open-pilot-v0.2.md`, `docs/specs/` S1~S15, E0~E12
 - 정본 규칙: 이 문서와 충돌하는 노션 문서와 레포 문서는 이 문서가 이긴다. 충돌 문서에는 `Superseded by ADR-0041`을 표시한다. ADR-0042와 D84는 Supabase 사전 점검 범위에서 보존하며 이 ADR의 배포·원음 정책을 따른다.
+- **Superseded by ADR-0048 in part (2026-09-09 D89):** 일반 업무 API의 Supabase hosted Edge 실행 전제와 그 업무 시크릿 배치는 관리자 키가 없는 독립 업무 실행 환경으로 대체한다. Supabase 서울 DB/Auth/private Storage, 세 모드, 공통 코어와 나머지 안전 계약은 유지한다. 해당 범위는 후속 ADR-0048이 우선한다.
 
 ## 배경
 

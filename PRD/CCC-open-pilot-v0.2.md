@@ -3,8 +3,9 @@
 - 작성: 2026-09-03
 - 정본: `docs/adr/0041-one-core-three-deployment-modes.md` (D76~D83)
 - 보조 근거: `docs/adr/0042-supabase-read-only-preflight.md` (D84 사전 점검)
+- 업무 실행 경계의 후속 결정: `docs/adr/0048-independent-cloud-api-runtime.md` (D89, Supabase DB/Auth/Storage 유지 + 관리자 키 없는 독립 업무 API)
 - 대체: 2026-09-01 PRD v0.1의 Community Cloud 단일 제품 전제
-- 문서 역할: ADR-0041의 결정을 제품 언어로 설명하는 제품 요구사항 문서다. 구현 세부가 이 문서와 충돌하면 ADR-0041이 우선한다.
+- 문서 역할: 승인 ADR의 결정을 제품 언어로 설명한다. ADR-0041이 기본 정본이며, Community Cloud 업무 실행 경계는 후속 ADR-0048(D89)이 우선한다.
 
 ## 1. 제품 한 문단
 
@@ -36,6 +37,8 @@ AI는 결론, 심리 진단, 지원 지속·중단 판단, GAS 점수 또는 리
 | 오프라인 | 지원하지 않는다 | 지원한다. AI는 연결이 없으면 쉬고 수기 기록은 계속한다 | 내부망만으로 업무를 계속한다 |
 
 Community Cloud의 첫 설치 동작은 `plan`을 통한 read-only 사전 점검이다. 리전, 권한, 기존 데이터, 설치 버전, RLS, Auth, Storage를 확인하기 전에는 자원을 바꾸지 않는다. 이 사전 점검의 상세 규칙은 ADR-0042와 D84를 따른다.
+
+D89에 따라 업무 API는 관리자 키가 없는 독립 실행 환경에 둔다. Supabase의 DB/Auth/private Storage는 유지하며, 실행 서비스의 공급자·비용·실제 배포는 별도 승인이다. 실제 설치와 실행 환경의 권한을 확인하기 전에는 Cloud 사용 준비 완료로 보고하지 않는다.
 
 ## 4. 공통 제품 경험
 
@@ -72,7 +75,7 @@ Azure Speech는 OpenAI와 다른 독립 경로다. `koreacentral`·`ko-KR`·`api
 
 제품 경로에서는 기관 관리자의 명시적 선택, provider health check, 유효한 외부 음성 처리 동의와 S5 egress authorization·attempt·receipt 경계를 모두 통과해야 원음을 보낸다. 내부 자기 목소리 시험의 업로드 허락은 실제 참가자, 제3자 오디오나 production job 동의를 대신하지 않는다. Azure가 선택되면 마스킹 전 원음이 Azure로 이전될 수 있으므로 “원문은 어떤 경우에도 기관 밖으로 나가지 않는다”라고 표현하지 않는다. OpenAI에는 원음이나 마스킹 전 원문이 아니라 검증된 AI Packet만 보내고 `store:false`를 유지한다.
 
-Azure 키는 Agent의 `SecretStore`에만 둔다. Community Cloud의 OpenAI 키는 Edge Function secret에 두고, Local의 호출 자격증명은 해당 Local `SecretStore` 경계에 둔다. 키를 브라우저, 데이터베이스, 로그, 화면 또는 다른 서비스에 복제하지 않는다.
+Azure 키는 Agent의 `SecretStore`에만 둔다. Community Cloud의 OpenAI 키는 D89의 독립 업무 API 전용 secret store에 두고, Local의 호출 자격증명은 해당 Local `SecretStore` 경계에 둔다. 키를 브라우저, 데이터베이스, 로그, 화면 또는 다른 서비스에 복제하지 않는다.
 
 ### 4.4 원음 오디오 생명주기
 
@@ -149,7 +152,7 @@ Managed AI, CLOVA, RTZR, 로컬 LLM, Tauri, 기관 자체 클라우드는 이번
 
 1. `apps/client` 정적 클라이언트
 2. `packages/core`, `packages/http-api`, `packages/ai-runtime`, `packages/contracts` 공통 코어
-3. Community Cloud 템플릿과 Edge Function
+3. Community Cloud 템플릿, 독립 업무 API와 전용 StorageSigner
 4. `apps/local-service`
 5. Local Single 설치기
 6. Processing Agent 설치기

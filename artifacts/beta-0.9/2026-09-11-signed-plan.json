@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-10T16:55:42.922Z",
+  "sourceCommit": "d1b5fdb8298ca649c30dc918a56f4f128fe5bb19",
+  "signedDocuments": {
+    "keyId": "relayer-beta-20260910",
+    "installationIdSha256": "f836c4186435f45683156fa64aea4436083ae16197b9e0d8241c071a8b65afab",
+    "expiresAt": "2026-10-10T16:50:18.708Z",
+    "runtimeManifestSha256": "d58c63b04169fc1fd0ac9b814c36c800c34eef7eb6bc3bd4953a7d9bc1738449",
+    "approvalSha256": "b5e34c84a4829b4e7983c311eac17afab419cdec1fd27ac62249bcf7ee5779f5",
+    "runtimeConfigurationSha256": "b19b4475caeb7e89acb5f9e4a1d0a8d90e9f6de27f02d720dad9b98342b95e50",
+    "organizationId": "bss",
+    "projectRef": "wtbdqyedyimivdbgljcs",
+    "expectedOwnerOrgIdSha256": "c8db45a82b044761ec94b5feb2d5a1387ec5370ab301faec766dce9038c8df41",
+    "apiOrigin": "https://relayer-api-beta.calmwater-64253262.koreacentral.azurecontainerapps.io/api/v1",
+    "clientOrigin": "https://relayer-client-beta.calmwater-64253262.koreacentral.azurecontainerapps.io"
+  },
+  "plan": {
+    "exitCode": 1,
+    "operation": "plan",
+    "readOnly": true,
+    "ready": false,
+    "unchanged": true,
+    "productionReady": false,
+    "blockerCodes": ["EXISTING_PROJECT_NOT_CLEAN"],
+    "connection": {
+      "databaseReadable": true,
+      "authReadable": true,
+      "storageReadable": true
+    },
+    "project": {
+      "regionEvidence": "seoul-verified",
+      "ownerVerified": true,
+      "observedOwnerOrgIdHash": "c8db45a82b044761ec94b5feb2d5a1387ec5370ab301faec766dce9038c8df41",
+      "databaseVersion": "17.6.1.166",
+      "status": "ACTIVE_HEALTHY"
+    },
+    "installed": { "state": "not-installed", "migrationHead": null },
+    "observed": {
+      "userTableCount": 0,
+      "userRowEstimate": 0,
+      "userTypeCount": 0,
+      "rlsEnabledTableCount": 0,
+      "policyCount": 0,
+      "audioBucket": { "exists": false, "public": null },
+      "auth": {
+        "emailEnabled": true,
+        "openSignupDisabled": false,
+        "totpEnabled": true,
+        "refreshTokenRotationEnabled": true
+      }
+    },
+    "planFingerprint": "fdcada922f595753bff839fb1df28bad13405b123f7e207d8e89f8f7e9d4460a",
+    "stateFingerprint": "9354ef9986df60600063efa9503fb69239d92bf40c4dc0d934537b1036a40d89",
+    "resourcesSha256": "095ced7afce86db92696a39833a3796c11a2af561def72f1fad66aad1903899f",
+    "migrationsSha256": "11cb13234b375a7a7a9013243b6b5fd08b10c8daf2abc3115a5a866b6fd6b69e"
+  },
+  "cleanlinessDetails": {
+    "userTableCount": 0,
+    "userRowEstimate": 0,
+    "authUserCount": 0,
+    "bucketCount": 0,
+    "storageObjectCount": 0,
+    "userRoutineCount": 0,
+    "userTypeCount": 0,
+    "auxiliaryRelationCount": 0,
+    "privateSchemaExists": false,
+    "privateTableCount": 0,
+    "legacyLedgerPresent": false,
+    "privateInstallMetadataExists": false,
+    "unownedObjectCount": 101,
+    "customSchemaCount": 6,
+    "unexpectedGrantCount": 903
+  },
+  "security": {
+    "databaseWrites": 0,
+    "managementTokenPersisted": false,
+    "managementTokenZeroed": true,
+    "secretValuesPrinted": false
+  }
+}
