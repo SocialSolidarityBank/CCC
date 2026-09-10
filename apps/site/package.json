@@ -1,0 +1,29 @@
+{
+  "name": "@ccc/site",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./pages": "./src/welcome-page.tsx"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ccc/wire": "workspace:*",
+    "pretendard": "^1.3.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vite": "8.1.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -15,11 +15,11 @@ afterEach(cleanup);
 // 높이 같은 계산값은 jsdom 이 내지 않으므로, 렌더 결과로 잡을 수 있는 것은 DOM 으로 잡고
 // 계산이 필요한 계약은 CSS 원문을 읽어 잠근다(wire-badge-palette 와 같은 방법).
 
-const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
-const wireSource = readFileSync(resolve(process.cwd(), 'app/components/wire/wire-styles.ts'), 'utf8');
+const layoutSource = readFileSync(resolve(process.cwd(), '../../packages/wire/src/shell-styles.ts'), 'utf8');
+const wireSource = readFileSync(resolve(process.cwd(), '../../packages/wire/src/wire-styles.ts'), 'utf8');
 
 /**
- * 일정 CSS 는 layout.tsx 안의 `scheduleStyles` 템플릿 리터럴 하나에 모여 있다. layout.tsx
+ * 일정 CSS 는 shell-styles.ts 안의 `scheduleStyles` 템플릿 리터럴 하나에 모여 있다. 이 파일
  * 전체에는 `@media(max-width:767px)` 블록이 여럿이라, 먼저 이 스타일시트로 범위를
  * 좁힌 뒤에 데스크톱과 767 이하를 가른다.
  */
@@ -38,7 +38,7 @@ const MOBILE_AT = (() => {
 })();
 
 /** `선택자{...}` 한 벌을 원문에서 꺼낸다. from 을 주면 그 뒤에서 찾는다(모바일 블록용). */
-/** layout.tsx 전체에서 찾는다. 일정 CSS 밖에 사는 공유 규칙용이다. */
+/** shell-styles.ts 전체에서 찾는다. 일정 CSS 밖에 사는 공유 규칙용이다. */
 function baseRule(selector: string): string {
   for (const source of [layoutSource, wireSource]) {
     const start = source.indexOf(`\n${selector}{`);

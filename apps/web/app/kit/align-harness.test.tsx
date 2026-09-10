@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
-import { wireStyles } from '../components/wire/wire-styles';
+import { wireStyles } from '@ccc/wire/styles';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
 import { OpenActionItemsCard } from '../participants/[beneficiaryId]/programs/[supportCaseId]/close/close-cards';
 import { OpenActionResolutions } from '../participants/[beneficiaryId]/programs/[supportCaseId]/records/new/open-action-resolutions';
@@ -453,7 +453,7 @@ describe('정렬 하니스 생성기', () => {
     expect(cardHeading, '카드 H2 fixture가 없다').toContain('wire-title-with-badge');
 
     const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
-    const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
+    const runtimeCss = composeRuntimeCss(join(repoRoot, 'packages/wire/src/shell-styles.ts'), wireStyles);
     const pretendardCssUrl = pathToFileURL(join(
       process.cwd(),
       'node_modules/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css',

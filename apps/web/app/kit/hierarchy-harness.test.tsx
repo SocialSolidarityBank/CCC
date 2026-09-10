@@ -26,7 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ComponentProps, ReactElement } from 'react';
 
 import { composeRuntimeCss } from '../../../../scripts/design/hierarchy-audit.mjs';
-import { wireStyles } from '../components/wire/wire-styles';
+import { wireStyles } from '@ccc/wire/styles';
 import KitPage from './page';
 import { PageLoading } from '../components/wire/page-loading';
 import { BriefingCards, type BriefingCardsProps } from '../participants/[beneficiaryId]/programs/[supportCaseId]/briefing/briefing-cards';
@@ -383,7 +383,7 @@ const SCREENS: Screen[] = [
 async function buildHarness(): Promise<{ html: string; markup: Map<string, string> }> {
   const tokens = readFileSync(join(repoRoot, 'design/tokens.css'), 'utf8');
   // 실제 RootLayout의 shellStyles 식과 같은 순서로 조립한다. 순서가 다르면 캐스케이드 실측이 거짓이다.
-  const runtimeCss = composeRuntimeCss(join(repoRoot, 'apps/web/app/layout.tsx'), wireStyles);
+  const runtimeCss = composeRuntimeCss(join(repoRoot, 'packages/wire/src/shell-styles.ts'), wireStyles);
   const pretendardCssUrl = pathToFileURL(join(
     process.cwd(),
     'node_modules/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css',
