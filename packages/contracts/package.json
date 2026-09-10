@@ -19,6 +19,7 @@
     "./counseling-memory": "./src/counseling-memory.ts",
     "./program-admission": "./src/program-admission.ts",
     "./institution": "./src/institution.ts",
+    "./report": "./src/report.ts",
     "./sql": "./src/sql.ts"
   }
 }
