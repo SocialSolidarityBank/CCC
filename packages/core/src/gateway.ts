@@ -20,6 +20,7 @@
 import type { Bindable, Database, DatabaseResult, PreparedStatement } from '@ccc/contracts/database';
 import type { AudioDeletionEvidence, AudioStore, CoreSecretStore } from '@ccc/contracts/runtime';
 import type { InstitutionReadiness, OrganizationProfile, OrganizationOnboardingInput, OrganizationOnboardingResponse } from '@ccc/contracts/institution';
+import type { ReportEvidence, SupportCaseReport } from '@ccc/contracts/report';
 
 import { ANIMAL_SLUGS, ANIMAL_SLUG_KOREAN_NAMES, isBeneficiaryId } from '@ccc/contracts/animal-slugs';
 import { canonicalizeJcs } from '@ccc/contracts/jcs';
@@ -19679,6 +19680,163 @@ export async function listCounselingRecords(
       discrepancies: discrepanciesBySession.get(sessionId) ?? [],
     };
   });
+}
+
+/** Preserve stored wording and attach a source field to every report value. */
+function reportEvidence(
+  record: CounselingRecord, sessionNumber: number, source: string, text: unknown,
+): ReportEvidence | undefined {
+  return typeof text === 'string' && text.trim() !== ''
+    ? { sessionId: record.id, sessionNumber, heldAt: record.heldAt, source, text }
+    : undefined;
+}
+
+/** P6: no generation, provider calls, inferred outcomes, or unapproved AI material. */
+export async function getSupportCaseReport(
+  env: Env, actor: Actor, supportCaseId: string,
+): Promise<SupportCaseReport> {
+  const supportCase = await assertSupportCaseAccess(env, actor, supportCaseId);
+  const [records, detailRows, actionRows, program] = await Promise.all([
+    listCounselingRecords(env, actor, supportCaseId),
+    env.DB.prepare(`SELECT id, record_details, intake_details FROM sessions
+      WHERE org_id=? AND support_case_id=?`).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare(`SELECT id, session_id, description, due_date, resolved_at,
+        resolution_status, resolution_note, resolution_session_id
+      FROM action_items WHERE org_id=? AND support_case_id=? AND owner='beneficiary'
+      ORDER BY created_at, id`).bind(actor.orgId, supportCaseId).all<DbRow>(),
+    env.DB.prepare('SELECT display_name FROM programs WHERE org_id=? AND id=?')
+      .bind(actor.orgId, supportCase.programId).first<DbRow>(),
+  ]);
+  // Existing record projection is newest-first (held_at, id); reverse both axes.
+  records.reverse();
+  const detailsById = new Map(detailRows.results.map((row) => [stringValue(row.id), row]));
+  const bySession = new Map(records.map((record, index) => [record.id, { record, number: index + 1 }]));
+  const sessions: SupportCaseReport['sessions'] = [];
+  const situations: ReportEvidence[] = [], directions: ReportEvidence[] = [], risks: ReportEvidence[] = [];
+  const resources: NonNullable<SupportCaseReport['sections']['resourceConnections']>['entries'] = [];
+  const nextConfirmations: NonNullable<SupportCaseReport['nextConfirmations']> = [];
+  let firstIntakeGoal: ReportEvidence | undefined;
+  let intakeSeen = false;
+  for (const [index, record] of records.entries()) {
+    const number = index + 1;
+    const row = detailsById.get(record.id);
+    const details = parseJson<Record<string, unknown>>(row?.record_details) ?? {};
+    const intake = parseJson<Record<string, unknown>>(row?.intake_details) ?? {};
+    const answers = Array.isArray(intake.answers) ? intake.answers as IntakeAnswerInput[] : [];
+    const answer = (key: IntakeAnswerKey) => answers.find((item) => item?.key === key && item.response === 'answered')?.text;
+    if (record.kind === 'intake' && !intakeSeen) {
+      intakeSeen = true;
+      // One explicit plan, in questionnaire order. Never use the mutable overall_goal
+      // or infer a session link from goal_revisions timestamps.
+      firstIntakeGoal = reportEvidence(record, number, 'intake_details.answers.need_primary', answer('need_primary'))
+        ?? reportEvidence(record, number, 'intake_details.answers.summary_direction', answer('summary_direction'))
+        ?? reportEvidence(record, number, 'intake_details.helpNarrative.desiredChange',
+          (intake.helpNarrative as IntakeHelpNarrativeInput | null)?.desiredChange);
+    }
+    let summary = reportEvidence(record, number, 'approved_ai_briefing_v1.one_liner', record.aiOneLiner)
+      ?? reportEvidence(record, number, 'approved_ai_briefing_v1.summary_text', sessionMemoExcerpt(record.aiSummary))
+      ?? reportEvidence(record, number, 'sessions.memo', record.memoExcerpt);
+    if (summary === undefined && record.kind === 'intake') {
+      for (const key of ['application_reason_detail', 'application_reason', 'need_primary'] as const) {
+        summary = reportEvidence(record, number, `intake_details.answers.${key}`, sessionMemoExcerpt(answer(key) ?? null));
+        if (summary !== undefined) break;
+      }
+    }
+    sessions.push({
+      sessionId: record.id, sessionNumber: number, heldAt: record.heldAt, kind: record.kind,
+      channel: record.channel, ...(summary === undefined ? {} : { summary }),
+    });
+    const change = reportEvidence(record, number, 'record_details.changeSinceLast', details.changeSinceLast);
+    if (change !== undefined) situations.push(change);
+    for (const area of record.lifeAreaSnapshot) {
+      const status = reportEvidence(record, number, `session_life_area_snapshots.${area.areaKey}.status`, area.status);
+      if (status !== undefined) situations.push(status);
+      const entry = reportEvidence(record, number, `session_life_area_snapshots.${area.areaKey}.note`, area.note);
+      if (entry !== undefined) situations.push(entry);
+    }
+    for (const item of answers) {
+      if (item?.response !== 'answered' || !/^(economy_|employment_|housing_|health_|family_|life_detail_)/.test(item.key)) continue;
+      const entry = reportEvidence(record, number, `intake_details.answers.${item.key}`, item.text);
+      if (entry !== undefined) situations.push(entry);
+    }
+    if (record.kind === 'intake' && Array.isArray(intake.debts)) {
+      for (const [debtIndex, debt] of (intake.debts as IntakeDebtEntryInput[]).entries()) {
+        // The questionnaire uses the same explicit sentinel for no debt.
+        if (debt?.creditor?.trim() === '해당 없음') continue;
+        for (const field of ['creditor', 'kind', 'balance', 'monthlyPayment', 'arrearsStatus'] as const) {
+          const entry = reportEvidence(record, number, `intake_details.debts.${debtIndex}.${field}`, debt?.[field]);
+          if (entry !== undefined) situations.push(entry);
+        }
+      }
+    }
+    if (record.kind === 'intake' && Array.isArray(intake.additionalItems)) {
+      for (const [itemIndex, item] of (intake.additionalItems as IntakeAdditionalItemInput[]).entries()) {
+        const evidence = reportEvidence(record, number, `intake_details.additionalItems.${itemIndex}.item`, item?.item);
+        if (evidence === undefined) continue;
+        const entry: typeof nextConfirmations[number] = { item: item.item, evidence };
+        for (const field of ['reason', 'method', 'dueNote', 'dueDate', 'owner'] as const) {
+          if (typeof item[field] === 'string' && item[field].trim() !== '') entry[field] = item[field];
+        }
+        nextConfirmations.push(entry);
+      }
+    }
+    for (const [goalIndex, text] of record.sessionGoals.entries()) {
+      const entry = reportEvidence(record, number, `sessionGoals.${goalIndex}`, text);
+      if (entry !== undefined) directions.push(entry);
+    }
+    const safety = reportEvidence(record, number, 'record_details.safetyNote', details.safetyNote);
+    if (safety !== undefined) risks.push(safety);
+    const urgency = reportEvidence(record, number, 'intake_details.answers.summary_urgency', answer('summary_urgency'));
+    if (urgency !== undefined) risks.push(urgency);
+    for (const flag of record.confirmedFlags) {
+      const entry = reportEvidence(record, number, `flags.${flag.id}`, flag.quote ?? flag.flagType);
+      if (entry !== undefined) risks.push(entry);
+    }
+    if (record.kind === 'intake' && Array.isArray(intake.linkedOrgs)) {
+      for (const [orgIndex, linked] of (intake.linkedOrgs as IntakeLinkedOrgInput[]).entries()) {
+        // D41's required no-resource row is an answer, not an institution.
+        if (linked?.orgName?.trim() === '해당 없음') continue;
+        const evidence = reportEvidence(record, number, `intake_details.linkedOrgs.${orgIndex}`, linked?.orgName);
+        if (evidence === undefined) continue;
+        const entry: typeof resources[number] = { orgName: linked.orgName, evidence };
+        for (const field of ['serviceName', 'supportDetail', 'usagePeriod', 'progressStatus'] as const) {
+          if (typeof linked[field] === 'string' && linked[field].trim() !== '') entry[field] = linked[field];
+        }
+        resources.push(entry);
+      }
+    }
+  }
+  const actions: NonNullable<SupportCaseReport['sections']['actionItems']>['items'] = [];
+  for (const row of actionRows.results) {
+    const origin = bySession.get(stringValue(row.session_id));
+    if (origin === undefined) continue;
+    const id = stringValue(row.id), description = stringValue(row.description);
+    const evidence = reportEvidence(origin.record, origin.number, `action_items.${id}.description`, description);
+    if (evidence === undefined) continue;
+    const resolved = bySession.get(stringValue(row.resolution_session_id));
+    const resolution = resolved === undefined ? undefined
+      : reportEvidence(resolved.record, resolved.number, `action_items.${id}.resolution_note`, row.resolution_note)
+        ?? reportEvidence(resolved.record, resolved.number, `action_items.${id}.resolution_status`, row.resolution_status);
+    actions.push({
+      id, description, dueDate: nullableString(row.due_date), resolvedAt: nullableString(row.resolved_at),
+      resolutionStatus: nullableString(row.resolution_status) as ActionItemResolutionStatus | null,
+      evidence, ...(resolution === undefined ? {} : { resolution }),
+    });
+  }
+  return {
+    schemaVersion: 1, supportCaseId, beneficiaryId: supportCase.beneficiaryId,
+    programId: supportCase.programId, programName: nullableString(program?.display_name),
+    status: supportCase.status, sessions,
+    ...(firstIntakeGoal === undefined ? {} : { firstIntakeGoal }),
+    ...(nextConfirmations.length === 0 ? {} : { nextConfirmations }),
+    sections: {
+      ...(situations.length === 0 ? {} : { situationChanges: { entries: situations } }),
+      ...(firstIntakeGoal === undefined ? {} : { goalChanges: { initialGoal: firstIntakeGoal, directions } }),
+      ...(actions.length === 0 ? {} : { actionItems: { items: actions } }),
+      ...(resources.length === 0 ? {} : { resourceConnections: { entries: resources } }),
+      ...(risks.length === 0 ? {} : { riskSignals: { entries: risks } }),
+    },
+  };
 }
 
 export interface ParticipantBriefingGasTrend {
