@@ -18,8 +18,8 @@ import {
   type LlmMode,
   STT_MODES,
   type SttMode,
-} from './runtime';
-import { isRecord } from './guards';
+} from './runtime.js';
+import { isRecord } from './guards.js';
 
 export class CapabilityManifestError extends Error {}
 

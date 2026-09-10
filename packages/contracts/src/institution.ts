@@ -1,6 +1,6 @@
-import type { ConsentDomain } from './consent';
-import type { ProgramOption } from './program-admission';
-import type { ActorRole } from './runtime';
+import type { ConsentDomain } from './consent.js';
+import type { ProgramOption } from './program-admission.js';
+import type { ActorRole } from './runtime.js';
 
 export interface OrganizationProfile {
   orgId: string;

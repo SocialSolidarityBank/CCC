@@ -1,5 +1,5 @@
-import type { AudioObjectMetadata } from './runtime';
-import { AUDIO_CONTENT_TYPES } from './runtime';
+import type { AudioObjectMetadata } from './runtime.js';
+import { AUDIO_CONTENT_TYPES } from './runtime.js';
 export const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 const AUDIO_KEY = /^audio\/([A-Za-z0-9_-]+)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 const SHA256_K = new Uint32Array([

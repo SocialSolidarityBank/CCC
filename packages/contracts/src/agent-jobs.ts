@@ -1,8 +1,8 @@
-import type { DeploymentMode } from './runtime';
-import type { ConsentDomain } from './consent';
-import type { SttEngineId } from './stt-readiness';
+import type { DeploymentMode } from './runtime.js';
+import type { ConsentDomain } from './consent.js';
+import type { SttEngineId } from './stt-readiness.js';
 
-export type { DeploymentMode } from './runtime';
+export type { DeploymentMode } from './runtime.js';
 
 export const AGENT_JOB_STATES = [
   'pending',
