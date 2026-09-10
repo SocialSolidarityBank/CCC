@@ -88,6 +88,8 @@ export interface LocalOfficeIdentity extends Identity {
   login(username: string, password: Uint8Array): Promise<LoginResult>;
   /** Complete MFA challenge for a session. */
   verifyMfa(sessionId: string, code: string): Promise<void>;
+  /** End session by bearer token. */
+  logout(bearer: string): Promise<void>;
   /** Get active session count (for monitoring). */
   activeSessionCount(): number;
   /** Zeros memory and invalidates all sessions. */
@@ -394,6 +396,20 @@ export function createLocalOfficeIdentity(config: LocalOfficeIdentityConfig): Lo
       if (session) {
         session.bearerHash.fill(0);
         sessions.delete(sessionId);
+      }
+    },
+
+    async logout(bearer: string): Promise<void> {
+      const session = findSessionByBearer(bearer);
+      if (session) {
+        session.bearerHash.fill(0);
+        // Find and delete by session - findSessionByBearer doesn't return sessionId
+        for (const [sessionId, s] of sessions) {
+          if (s === session) {
+            sessions.delete(sessionId);
+            break;
+          }
+        }
       }
     },
 

@@ -6,10 +6,10 @@
 import { resolve } from 'node:path';
 import { readFile, readdir } from 'node:fs/promises';
 import type { SqliteMigration } from '@ccc/db-sqlite';
+import type { InstallSigningKeys } from '@ccc/contracts/install-manifest';
 import { createProtectedRecordRepository } from '@ccc/secrets-dpapi/records';
 import { createLocalSingleRuntime, type LocalSingleRuntime } from './runtime.js';
 import { createLocalOfficeRuntime, type LocalOfficeRuntime, type LocalOfficeRuntimeConfig } from './office-runtime.js';
-import type { OfficeAccountStore } from './office-identity.js';
 const MIGRATION_PATTERN = /^(\d{4})_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$/;
 
 async function loadMigrations(migrationsPath: string): Promise<SqliteMigration[]> {
@@ -30,8 +30,8 @@ export interface LocalSingleStartupConfig {
   dataPath: string;
   /** Path to SQLite migrations directory. */
   migrationsPath: string;
-  /** Windows interactive username. */
-  interactiveUsername: string;
+  /** Stable user ID from install. */
+  stableUserId: string;
   /** Organization ID from install manifest. */
   orgId: string;
   /** Install manifest JSON string (signed). */
@@ -68,7 +68,7 @@ export async function startLocalSingle(config: LocalSingleStartupConfig): Promis
     // Start runtime
     return await createLocalSingleRuntime({
       dataPath: config.dataPath,
-      interactiveUsername: config.interactiveUsername,
+      stableUserId: config.stableUserId,
       orgId: config.orgId,
       installManifest: config.installManifest,
       signingKeys: config.signingKeys,
@@ -97,9 +97,8 @@ export interface LocalOfficeStartupConfig {
   orgId: string;
   /** Install manifest JSON string (signed). */
   installManifest: string;
-  /** Install signing keys JSON string. */
-  signingKeys: string;
-  /** Generation number for DPAPI records. */
+  /** Install signing keys. */
+  signingKeys: InstallSigningKeys;
   generation: number;
   /** Expected SHA-256 hash of the generation records file. */
   recordsHash: string;
@@ -109,8 +108,6 @@ export interface LocalOfficeStartupConfig {
   tlsKeyPath: string;
   /** Optional CA certificate PEM file path. */
   tlsCaPath?: string;
-  /** Account store implementation. */
-  accountStore: OfficeAccountStore;
   /** Optional runtime settings. */
   settings?: LocalOfficeRuntimeConfig['settings'];
   /** Optional watchdog callback. */
@@ -149,7 +146,6 @@ export async function startLocalOffice(config: LocalOfficeStartupConfig): Promis
       tlsCertPath: config.tlsCertPath,
       tlsKeyPath: config.tlsKeyPath,
       ...(config.tlsCaPath !== undefined ? { tlsCaPath: config.tlsCaPath } : {}),
-      accountStore: config.accountStore,
       ...(config.settings !== undefined ? { settings: config.settings } : {}),
       ...(config.onWatchdogTick !== undefined ? { onWatchdogTick: config.onWatchdogTick } : {}),
     });

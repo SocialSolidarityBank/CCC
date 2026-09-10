@@ -17,8 +17,8 @@ const LOOPBACK = '127.0.0.1';
 export interface LocalSingleRuntimeConfig {
   /** Root directory for all local data (database, audio, secrets, endpoint). */
   dataPath: string;
-  /** Windows interactive username from the session. */
-  interactiveUsername: string;
+  /** Stable user ID from install. Generated at install and stored in DPAPI. */
+  stableUserId: string;
   /** Organization ID from install manifest. */
   orgId: string;
   /** Install manifest JSON string (signed). */
@@ -99,7 +99,7 @@ export async function createLocalSingleRuntime(config: LocalSingleRuntimeConfig)
 
     // Create local identity
     identity = createLocalSingleIdentity({
-      interactiveUsername: config.interactiveUsername,
+      stableUserId: config.stableUserId,
       orgId: config.orgId,
     });
 

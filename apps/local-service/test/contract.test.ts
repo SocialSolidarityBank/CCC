@@ -1,13 +1,14 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { createLocalSingleIdentity, type LocalSingleIdentity, type LocalSingleIdentityConfig } from '../src/identity.ts';
+import { createLocalSingleIdentity, generateStableUserId, type LocalSingleIdentity, type LocalSingleIdentityConfig } from '../src/identity.ts';
 import { ActorAuthenticationError } from '@ccc/contracts/runtime';
 
 /**
  * E7-1a/E7-1b contract tests for Local Single identity.
  *
  * These tests verify:
- * - Stable user ID derivation (no raw SID)
+ * - Stable user ID from config is used correctly
+ * - generateStableUserId produces valid random IDs
  * - Opaque memory-only bearer generation
  * - Bearer verification with constant-time comparison
  * - Identity closure zeros memory
@@ -17,15 +18,43 @@ import { ActorAuthenticationError } from '@ccc/contracts/runtime';
  * belongs to the Windows verification bundle that Main executes.
  */
 describe('Local Single Identity (E7-1a)', () => {
-  describe('stable user ID', () => {
-    it('derives consistent ID from same username', () => {
+  describe('stable user ID generation', () => {
+    it('generateStableUserId produces base64url string', () => {
+      const id = generateStableUserId();
+      // 20 random bytes = 160 bits → 27 base64url chars
+      assert.ok(id.length >= 26);
+      assert.ok(/^[A-Za-z0-9_-]+$/.test(id), 'should be base64url');
+    });
+
+    it('generateStableUserId produces unique IDs', () => {
+      const id1 = generateStableUserId();
+      const id2 = generateStableUserId();
+      const id3 = generateStableUserId();
+
+      assert.notStrictEqual(id1, id2);
+      assert.notStrictEqual(id2, id3);
+      assert.notStrictEqual(id1, id3);
+    });
+  });
+
+  describe('stable user ID config', () => {
+    it('uses stableUserId from config', () => {
+      const stableUserId = generateStableUserId();
       const config: LocalSingleIdentityConfig = {
-        interactiveUsername: 'TestUser',
+        stableUserId,
         orgId: 'org-123',
       };
 
-      const identity1 = createLocalSingleIdentity(config);
-      const identity2 = createLocalSingleIdentity(config);
+      const identity = createLocalSingleIdentity(config);
+      assert.strictEqual(identity.stableUserId, stableUserId);
+      identity.close();
+    });
+
+    it('same stableUserId produces same identity userId', () => {
+      const stableUserId = generateStableUserId();
+
+      const identity1 = createLocalSingleIdentity({ stableUserId, orgId: 'org-123' });
+      const identity2 = createLocalSingleIdentity({ stableUserId, orgId: 'org-123' });
 
       assert.strictEqual(identity1.stableUserId, identity2.stableUserId);
 
@@ -33,26 +62,9 @@ describe('Local Single Identity (E7-1a)', () => {
       identity2.close();
     });
 
-    it('normalizes username case', () => {
-      const config1 = { interactiveUsername: 'TestUser', orgId: 'org-123' };
-      const config2 = { interactiveUsername: 'testuser', orgId: 'org-123' };
-      const config3 = { interactiveUsername: 'TESTUSER', orgId: 'org-123' };
-
-      const id1 = createLocalSingleIdentity(config1);
-      const id2 = createLocalSingleIdentity(config2);
-      const id3 = createLocalSingleIdentity(config3);
-
-      assert.strictEqual(id1.stableUserId, id2.stableUserId);
-      assert.strictEqual(id2.stableUserId, id3.stableUserId);
-
-      id1.close();
-      id2.close();
-      id3.close();
-    });
-
-    it('different usernames produce different IDs', () => {
-      const id1 = createLocalSingleIdentity({ interactiveUsername: 'alice', orgId: 'org-123' });
-      const id2 = createLocalSingleIdentity({ interactiveUsername: 'bob', orgId: 'org-123' });
+    it('different stableUserIds produce different identities', () => {
+      const id1 = createLocalSingleIdentity({ stableUserId: generateStableUserId(), orgId: 'org-123' });
+      const id2 = createLocalSingleIdentity({ stableUserId: generateStableUserId(), orgId: 'org-123' });
 
       assert.notStrictEqual(id1.stableUserId, id2.stableUserId);
 
@@ -60,33 +72,21 @@ describe('Local Single Identity (E7-1a)', () => {
       id2.close();
     });
 
-    it('does not contain raw username in ID', () => {
-      const identity = createLocalSingleIdentity({
-        interactiveUsername: 'MyWindowsUsername',
-        orgId: 'org-123',
-      });
-
-      assert.ok(!identity.stableUserId.toLowerCase().includes('mywindows'));
-      assert.ok(!identity.stableUserId.toLowerCase().includes('username'));
-
-      identity.close();
-    });
-
-    it('rejects empty username', () => {
+    it('rejects empty stableUserId', () => {
       assert.throws(
-        () => createLocalSingleIdentity({ interactiveUsername: '', orgId: 'org-123' }),
+        () => createLocalSingleIdentity({ stableUserId: '', orgId: 'org-123' }),
         /identity_invalid/,
       );
 
       assert.throws(
-        () => createLocalSingleIdentity({ interactiveUsername: '   ', orgId: 'org-123' }),
+        () => createLocalSingleIdentity({ stableUserId: '   ', orgId: 'org-123' }),
         /identity_invalid/,
       );
     });
 
     it('rejects empty orgId', () => {
       assert.throws(
-        () => createLocalSingleIdentity({ interactiveUsername: 'user', orgId: '' }),
+        () => createLocalSingleIdentity({ stableUserId: generateStableUserId(), orgId: '' }),
         /identity_invalid/,
       );
     });
@@ -94,7 +94,8 @@ describe('Local Single Identity (E7-1a)', () => {
 
   describe('opaque bearer', () => {
     it('generates unique bearer each instantiation', () => {
-      const config = { interactiveUsername: 'user', orgId: 'org-123' };
+      const stableUserId = generateStableUserId();
+      const config = { stableUserId, orgId: 'org-123' };
 
       const id1 = createLocalSingleIdentity(config);
       const id2 = createLocalSingleIdentity(config);
@@ -110,7 +111,7 @@ describe('Local Single Identity (E7-1a)', () => {
 
     it('bearer starts with expected prefix', () => {
       const identity = createLocalSingleIdentity({
-        interactiveUsername: 'user',
+        stableUserId: generateStableUserId(),
         orgId: 'org-123',
       });
 
@@ -119,12 +120,15 @@ describe('Local Single Identity (E7-1a)', () => {
       identity.close();
     });
   });
+
   describe('actor resolution', () => {
     let identity: LocalSingleIdentity;
+    let stableUserId: string;
 
     beforeEach(() => {
+      stableUserId = generateStableUserId();
       identity = createLocalSingleIdentity({
-        interactiveUsername: 'TestUser',
+        stableUserId,
         orgId: 'org-456',
       });
     });
@@ -141,7 +145,7 @@ describe('Local Single Identity (E7-1a)', () => {
       const actor = await identity.resolve(request);
 
       assert.strictEqual(actor.kind, 'human');
-      assert.strictEqual(actor.userId, identity.stableUserId);
+      assert.strictEqual(actor.userId, stableUserId);
       assert.strictEqual(actor.orgId, 'org-456');
       assert.deepStrictEqual(actor.roles, ['institution-admin', 'worker']);
       assert.strictEqual(actor.authn.source, 'single-local-bearer');
@@ -170,7 +174,7 @@ describe('Local Single Identity (E7-1a)', () => {
 
     it('rejects after close', async () => {
       const localIdentity = createLocalSingleIdentity({
-        interactiveUsername: 'user',
+        stableUserId: generateStableUserId(),
         orgId: 'org-123',
       });
       const validBearer = localIdentity.bearer;
@@ -191,7 +195,7 @@ describe('Local Single Identity (E7-1a)', () => {
   describe('revocation', () => {
     it('revokeAll closes identity', async () => {
       const identity = createLocalSingleIdentity({
-        interactiveUsername: 'user',
+        stableUserId: generateStableUserId(),
         orgId: 'org-123',
       });
       const bearer = identity.bearer;
@@ -223,16 +227,16 @@ describe('Local Single Platform Guard (E7-1b)', () => {
     );
   });
 
-  it('documents no raw SID in actor', () => {
+  it('documents no raw SID in stable user ID', () => {
     // S4 requirement: no raw SID stored or transmitted
+    // stableUserId is random bytes generated at install, not derived from SID
     const identity = createLocalSingleIdentity({
-      interactiveUsername: 'S-1-5-21-fake-sid-here',
+      stableUserId: generateStableUserId(),
       orgId: 'org-123',
     });
 
-    // Even if username looks like a SID, it gets hashed
+    // Random ID should not look like a Windows SID
     assert.ok(!identity.stableUserId.includes('S-1-5'));
-    assert.ok(!identity.stableUserId.includes('21'));
 
     identity.close();
   });
@@ -242,52 +246,13 @@ describe('Local Single Platform Guard (E7-1b)', () => {
     // This is enforced by architecture: bearer is generated in-memory,
     // only the endpoint port is written to endpoint.json
     const identity = createLocalSingleIdentity({
-      interactiveUsername: 'user',
+      stableUserId: generateStableUserId(),
       orgId: 'org-123',
     });
 
     // Bearer should be base64url (URL-safe, no filesystem-problematic chars)
-    assert.ok(/^[A-Za-z0-9_\x00-]+$/.test(identity.bearer));
+    assert.ok(/^[A-Za-z0-9_-]+$/.test(identity.bearer));
 
     identity.close();
-  });
-});
-
-/**
- * S9 pieces that remain unimplemented in this E7-1a/E7-1b scope:
- *
- * 1. Recovery capability issue/consume (S9 §2.4)
- *    - Issuing a new recovery kit requires authorized admin action
- *    - Consuming a kit for restore requires passphrase verification
- *    - Both belong to E4-5 and E7-3
- *
- * 2. Write fence (S9 §2.5)
- *    - Prevents concurrent writes to generation files
- *    - Requires process-level locking
- *    - Belongs to E7-3 backup/restore
- *
- * 3. Signed floor (S9 §2.6)
- *    - Prevents generation rollback attacks
- *    - Requires signature verification of minimum generation
- *    - Belongs to E7-6a update/rollback
- *
- * The adapters at 77165d4 (secrets-dpapi, audio-file, scheduler-node) are
- * verified for their primitive operations. This composition wires them together
- * for the Local Single profile without implementing the full recovery lifecycle.
- */
-describe('S9 unimplemented documentation', () => {
-  it('recovery capability issue/consume: E4-5, E7-3', () => {
-    // Placeholder documenting scope boundary
-    assert.ok(true);
-  });
-
-  it('write fence: E7-3', () => {
-    // Placeholder documenting scope boundary
-    assert.ok(true);
-  });
-
-  it('signed floor: E7-6a', () => {
-    // Placeholder documenting scope boundary
-    assert.ok(true);
   });
 });

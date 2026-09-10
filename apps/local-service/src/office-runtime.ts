@@ -15,20 +15,26 @@ import { createFileAudioStore } from '@ccc/audio-file';
 import { createNodeScheduler, type NodeScheduler, type SchedulerFailure } from '@ccc/scheduler-node';
 import { createDpapiSecretStore, type DpapiRecord } from '@ccc/secrets-dpapi';
 import type { AudioStore, CoreSecretStore, DeploymentMode, VersionedSecretBytes } from '@ccc/contracts/runtime';
+import {
+  verifySignedInstallManifest,
+  type InstallSigningKeys,
+} from '@ccc/contracts/install-manifest';
 import { createScheduledJobRunner, type ScheduledJobEnv } from '@ccc/core/scheduled-job-runner';
 import { handleRequest, type ActorResolver } from '@ccc/http-api';
 import type { ApiEnv } from '@ccc/http-api/identity';
 import {
   createLocalOfficeIdentity,
   type LocalOfficeIdentity,
-  type OfficeAccountStore,
+  hashPassword,
 } from './office-identity.js';
+import { createOfficeAccountStore } from './office-account-store.js';
 import { isRfc1918, validateBindAddress } from './bind-validation.js';
 
 // Re-export for consumers who need them
 export { isRfc1918, validateBindAddress };
 
 const OFFICE_PORT = 8443;
+const MAX_AUTH_BODY_BYTES = 4096;
 
 export interface LocalOfficeRuntimeConfig {
   /** Root directory for all local data (database, audio, secrets). */
@@ -41,8 +47,8 @@ export interface LocalOfficeRuntimeConfig {
   orgId: string;
   /** Install manifest JSON string (signed). */
   installManifest: string;
-  /** Install signing keys JSON string. */
-  signingKeys: string;
+  /** Install signing keys. */
+  signingKeys: InstallSigningKeys;
   /** Pre-loaded DPAPI-protected secret records from the generation file. */
   secretRecords: readonly DpapiRecord[];
   /** SQLite migrations to apply on startup. */
@@ -53,8 +59,6 @@ export interface LocalOfficeRuntimeConfig {
   tlsKeyPath: string;
   /** Optional CA certificate PEM file path for client verification. */
   tlsCaPath?: string;
-  /** Account store implementation (backed by encrypted SQLite). */
-  accountStore: OfficeAccountStore;
   /** Optional runtime settings overrides. */
   settings?: Partial<Pick<ApiEnv,
     'CCC_STT_MODE' | 'CCC_LLM_MODE' | 'TEXT_AI_PILOT_ENABLED'
@@ -91,6 +95,17 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
   if (process.platform !== 'win32') {
     throw new Error('platform_unsupported');
   }
+
+  // Verify signed manifest BEFORE touching DB or binding
+  // S4 §2.2: rejectUnsigned must occur before listening
+  const manifest = await verifySignedInstallManifest(
+    JSON.parse(config.installManifest),
+    { ...config.signingKeys, now: new Date() },
+  );
+  if (manifest.mode !== 'local-office') {
+    throw new Error('installation_invalid');
+  }
+  const installationId = manifest.installationId;
 
   // Validate bind address is RFC1918 and within CIDR
   validateBindAddress(config.bindHost, config.privateCidr);
@@ -137,16 +152,15 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
     // Create encrypted audio store
     audioStore = await createFileAudioStore(audioPath, fileEncKey);
 
+    // Create account store from opened database (not caller-injected)
+    // Uses live enabled/roles/revocation state from DB
+    const accountStore = createOfficeAccountStore(database);
+
     // Create local identity with account store
     identity = createLocalOfficeIdentity({
       orgId: config.orgId,
-      accountStore: config.accountStore,
+      accountStore,
     });
-
-    // Parse install manifest for installation ID
-    const manifest = JSON.parse(config.installManifest) as { installationId: string; mode: DeploymentMode };
-    if (manifest.mode !== 'local-office') throw new Error('installation_invalid');
-    const installationId = manifest.installationId;
 
     // Build core secret store (read-only, no platform keys)
     const coreSecretStore: CoreSecretStore = {
@@ -161,7 +175,7 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
     // Build API environment
     const installation = {
       CCC_INSTALL_MANIFEST: config.installManifest,
-      CCC_INSTALL_SIGNING_KEYS: config.signingKeys,
+      CCC_INSTALL_SIGNING_KEYS: JSON.stringify(config.signingKeys),
     };
 
     const baseEnv: ApiEnv = {
@@ -172,7 +186,6 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
       secretStore: coreSecretStore,
       audioStore,
     };
-
     // Create scheduled job environment
     const scheduledJobEnv: ScheduledJobEnv = {
       ...baseEnv,
@@ -216,6 +229,10 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
 
     server = createHttpsServer(serverOptions, async (req, res) => {
       const url = new URL(req.url ?? '/', `https://${config.bindHost}:${OFFICE_PORT}`);
+      const pathname = url.pathname;
+      const method = req.method ?? 'GET';
+
+      // Collect headers
       const headers = new Headers();
       for (const [key, value] of Object.entries(req.headers)) {
         if (value !== undefined) {
@@ -223,37 +240,148 @@ export async function createLocalOfficeRuntime(config: LocalOfficeRuntimeConfig)
         }
       }
 
-      let bodyInit: BodyInit | null = null;
-      if (req.method !== 'GET' && req.method !== 'HEAD') {
+      // Read body with size limit for auth endpoints
+      let bodyBuffer: Buffer | null = null;
+      if (method !== 'GET' && method !== 'HEAD') {
         const chunks: Buffer[] = [];
+        let totalSize = 0;
         for await (const chunk of req) {
+          totalSize += (chunk as Buffer).length;
+          if (totalSize > MAX_AUTH_BODY_BYTES) {
+            res.statusCode = 413;
+            res.setHeader('content-type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: 'payload_too_large' }));
+            return;
+          }
           chunks.push(chunk as Buffer);
         }
         if (chunks.length > 0) {
-          bodyInit = Buffer.concat(chunks);
+          bodyBuffer = Buffer.concat(chunks);
         }
       }
 
-      const method = req.method ?? 'GET';
-      const request = new Request(url.toString(), {
-        method,
-        headers,
-        body: bodyInit,
-      });
+      // Add security headers for all responses
+      res.setHeader('strict-transport-security', 'max-age=31536000; includeSubDomains');
+      res.setHeader('content-type', 'application/json; charset=utf-8');
 
       try {
+        // POST /api/auth/login - username/password login
+        if (method === 'POST' && pathname === '/api/auth/login') {
+          if (!bodyBuffer) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'missing_body' }));
+            return;
+          }
+          let body: { username?: string; password?: string };
+          try {
+            body = JSON.parse(bodyBuffer.toString('utf-8'));
+          } catch {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'invalid_json' }));
+            return;
+          }
+          if (typeof body.username !== 'string' || typeof body.password !== 'string') {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'invalid_credentials' }));
+            return;
+          }
+          // Convert password string to Uint8Array (identity expects bytes)
+          const passwordBytes = new TextEncoder().encode(body.password);
+          try {
+            const result = await identity!.login(body.username, passwordBytes);
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              bearer: result.bearer,
+              sessionId: result.sessionId,
+              mfaRequired: result.mfaRequired,
+            }));
+          } catch (error) {
+            if (error instanceof Error) {
+              if (error.message === 'account_locked') {
+                res.statusCode = 423;
+                res.end(JSON.stringify({ error: 'account_locked' }));
+                return;
+              }
+              if (error.message === 'account_disabled') {
+                res.statusCode = 403;
+                res.end(JSON.stringify({ error: 'account_disabled' }));
+                return;
+              }
+            }
+            res.statusCode = 401;
+            res.end(JSON.stringify({ error: 'authentication_failed' }));
+          } finally {
+            passwordBytes.fill(0);
+          }
+          return;
+        }
+
+        // POST /api/auth/mfa - verify MFA code
+        if (method === 'POST' && pathname === '/api/auth/mfa') {
+          if (!bodyBuffer) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'missing_body' }));
+            return;
+          }
+          let body: { sessionId?: string; code?: string };
+          try {
+            body = JSON.parse(bodyBuffer.toString('utf-8'));
+          } catch {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'invalid_json' }));
+            return;
+          }
+          if (typeof body.sessionId !== 'string' || typeof body.code !== 'string') {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'invalid_mfa_request' }));
+            return;
+          }
+          try {
+            await identity!.verifyMfa(body.sessionId, body.code);
+            res.statusCode = 200;
+            res.end(JSON.stringify({ verified: true }));
+          } catch {
+            res.statusCode = 401;
+            res.end(JSON.stringify({ error: 'invalid_mfa_code' }));
+          }
+          return;
+        }
+
+        // POST /api/auth/logout - end session
+        if (method === 'POST' && pathname === '/api/auth/logout') {
+          const authorization = headers.get('authorization');
+          if (!authorization) {
+            res.statusCode = 401;
+            res.end(JSON.stringify({ error: 'missing_authorization' }));
+            return;
+          }
+          try {
+            await identity!.logout(authorization.replace(/^Bearer\s+/i, ''));
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true }));
+          } catch {
+            res.statusCode = 401;
+            res.end(JSON.stringify({ error: 'logout_failed' }));
+          }
+          return;
+        }
+
+        // All other routes go through handleRequest (requires auth)
+        const request = new Request(url.toString(), {
+          method,
+          headers,
+          body: bodyBuffer ? new Uint8Array(bodyBuffer) : null,
+        });
+
         const response = await handleRequest(request, baseEnv, resolveActor);
         res.statusCode = response.status;
         for (const [key, value] of response.headers) {
           res.setHeader(key, value);
         }
-        // Add security headers for Office mode
-        res.setHeader('strict-transport-security', 'max-age=31536000; includeSubDomains');
         const responseBody = await response.arrayBuffer();
         res.end(new Uint8Array(responseBody));
       } catch {
         res.statusCode = 500;
-        res.setHeader('content-type', 'application/json; charset=utf-8');
         res.end(JSON.stringify({ error: 'internal_error' }));
       }
     });
