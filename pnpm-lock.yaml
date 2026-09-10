@@ -141,9 +141,6 @@ importers:
       '@ccc/web':
         specifier: workspace:*
         version: link:../web
-      '@ccc/wire':
-        specifier: workspace:*
-        version: link:../../packages/wire
       react:
         specifier: 19.2.7
         version: 19.2.7

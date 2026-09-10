@@ -29,7 +29,7 @@ export const layoutPath = join(repoRoot, 'apps/web/app/layout.tsx');
 /**
  * 토큰 + 운영과 같은 순서의 화면 CSS.
  * 토큰이 먼저다. 운영도 tokens.css 를 layout 문자열보다 먼저 싣는다.
- * @param {string} wireStyles `@ccc/wire/styles` 의 export 값
+ * @param {string} wireStyles `@ccc/web/wire-styles` 의 export 값
  * @returns {string}
  */
 export function composeSharedCss(wireStyles) {
