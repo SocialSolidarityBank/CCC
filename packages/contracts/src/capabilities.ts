@@ -18,8 +18,8 @@ import {
   type LlmMode,
   STT_MODES,
   type SttMode,
-} from './runtime';
-import { isRecord } from './guards';
+} from './runtime.ts';
+import { isRecord } from './guards.ts';
 
 export class CapabilityManifestError extends Error {}
 

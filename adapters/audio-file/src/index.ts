@@ -5,7 +5,7 @@ import { createHash, createHmac, createSecretKey, randomUUID, timingSafeEqual } 
 import type { AudioDeletionEvidence, AudioStore, VersionedSecretBytes } from '@ccc/contracts/runtime';
 import { AudioStoreError, checkedBody, hashKey, validKey, validMetadata, validSha256 } from '@ccc/contracts/audio';
 import { isRecord } from '@ccc/contracts/guards';
-import { CHUNK_BYTES, decryptRecord, encryptRecord, footer, newContext, readContext, readExact, readFooter, writeAll } from './format.js';
+import { CHUNK_BYTES, decryptRecord, encryptRecord, footer, newContext, readContext, readExact, readFooter, writeAll } from './format.ts';
 
 const IS_WINDOWS = process.platform === 'win32';
 
