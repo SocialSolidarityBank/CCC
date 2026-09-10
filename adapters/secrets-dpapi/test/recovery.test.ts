@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { encodeCbor, decodeCbor, wipeCbor } from '#recovery-cbor';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, symlink } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createProtectedRecordRepository } from '#protected-records';
@@ -66,51 +67,84 @@ test('Kit rejects array coercion in actor kinds instead of sealing an invalid co
   await assert.rejects(sealRecoveryKit(source, phrase()), /^Error: recovery_kit_invalid$/);
 });
 
-test('protected records persist immutably across reopen and reject conflict or tampering without activation', async () => {
+test('protected records persist immutably across reopen and reject conflict or tampering without activation', async (t) => {
   const parent = await mkdtemp(join(tmpdir(), 'ccc-protected-records-')), root = join(parent, 'records');
   // Opaque synthetic ciphertext, not a DPAPI or Windows qualification result.
   const record = { schemaVersion: 1 as const, name: 'PII_ENC_KEY' as const, version: 2, blob: new Uint8Array([17, 28, 39, 40]) };
+  let stage = 'create_repository';
   try {
     const repo = await createProtectedRecordRepository(root, 'local-single');
+    stage = 'stage_generation';
     const digest = await repo.stage(7, [record]);
     assert.equal(await repo.stage(7, [record]), digest);
+    stage = 'reopen_repository';
     const reopened = await createProtectedRecordRepository(root, 'local-single');
+    stage = 'read_generation';
     const restored = await reopened.read(7, digest);
     assert.deepEqual(restored, [record]); restored[0]!.blob.fill(0);
     assert.deepEqual(await repo.read(7, digest), [record]);
+    stage = 'reject_immutable_conflict';
     await assert.rejects(repo.stage(7, [{ ...record, version: 3 }]), /^Error: secret_access_denied$/);
+    assert.deepEqual(await repo.read(7, digest), [record]);
     await assert.rejects(repo.read(8, digest), /^Error: secret_access_denied$/);
     await assert.rejects(readFile(join(root, 'active.json')), { code: 'ENOENT' });
     const file = join(root, 'generation-7', 'keys.cbor');
+    stage = 'reject_tampered_record';
     const original = await readFile(file);
     await writeFile(file, original.subarray(0, original.length - 1));
     await assert.rejects(reopened.read(7, digest), /^Error: secret_access_denied$/);
+  } catch (error) {
+    t.diagnostic(`protected_record_stage=${stage}`);
+    throw error;
   } finally { await rm(parent, { recursive: true, force: true }); }
 });
 
-test('Windows protected records reopen into the public byte store with exact versions', { skip: process.platform !== 'win32' }, async () => {
+test('Windows protected records reopen into the public byte store with exact versions', { skip: process.platform !== 'win32' }, async (t) => {
   const parent = await mkdtemp(join(tmpdir(), 'ccc-dpapi-persistent-')), root = join(parent, 'records');
-  const writer = createDpapiSecretStore('local-single', []);
+  let writer: ReturnType<typeof createDpapiSecretStore> | undefined;
   const keys = ['DB_MASTER_KEY', 'FILE_ENC_KEY', 'PII_ENC_KEY'] as const;
   const records = [];
   let reader: ReturnType<typeof createDpapiSecretStore> | undefined;
+  let stage = 'native_load';
   try {
+    writer = createDpapiSecretStore('local-single', []);
+    stage = 'protect_records';
     for (const [index, name] of keys.entries()) {
       const bytes = new Uint8Array(32).fill(19 + index);
       try { records.push(writer.protect(name, { bytes, version: index + 2 })); } finally { bytes.fill(0); }
     }
+    stage = 'create_repository';
     const repository = await createProtectedRecordRepository(root, 'local-single');
+    stage = 'stage_generation';
     const digest = await repository.stage(7, records); writer.close();
+    stage = 'reopen_repository';
     const reopened = await createProtectedRecordRepository(root, 'local-single');
+    stage = 'read_generation';
     const restored = await reopened.read(7, digest);
+    stage = 'open_byte_store';
     try { reader = createDpapiSecretStore('local-single', restored); } finally { for (const record of restored) record.blob.fill(0); }
+    stage = 'read_keys';
     for (const [index, name] of keys.entries()) {
       const value = await reader.getBytesWithVersion(name);
       assert.ok(value); assert.equal(value.version, index + 2);
       try { assert.deepEqual(value.bytes, new Uint8Array(32).fill(19 + index)); } finally { value.bytes.fill(0); }
     }
+    stage = 'reject_reparse_directory';
+    const junction = join(parent, 'junction');
+    await symlink(root, junction, 'junction');
+    await assert.rejects(createProtectedRecordRepository(junction, 'local-single'), /^Error: secret_access_denied$/);
+    stage = 'reject_nonprivate_acl';
+    // Change only this test's newly created directory, never a host directory or account.
+    const grant = spawnSync('icacls.exe', [root, '/grant', '*S-1-1-0:(OI)(CI)R'], { encoding: 'utf8' });
+    if (grant.error || grant.status !== 0) throw new Error('synthetic_acl_fixture_failed');
+    await assert.rejects(createProtectedRecordRepository(root, 'local-single'), /^Error: secret_access_denied$/);
+    // Refusal must not repair the broad ACL or let an already open repository bypass it.
+    await assert.rejects(reopened.read(7, digest), /^Error: secret_access_denied$/);
+  } catch (error) {
+    t.diagnostic(`protected_record_stage=${stage}`);
+    throw error;
   } finally {
-    writer.close(); reader?.close(); for (const record of records) record.blob.fill(0);
+    writer?.close(); reader?.close(); for (const record of records) record.blob.fill(0);
     await rm(parent, { recursive: true, force: true });
   }
 });

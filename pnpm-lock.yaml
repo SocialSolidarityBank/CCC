@@ -241,6 +241,30 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  apps/local-service:
+    dependencies:
+      '@ccc/audio-file':
+        specifier: workspace:*
+        version: link:../../adapters/audio-file
+      '@ccc/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@ccc/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ccc/db-sqlite':
+        specifier: workspace:*
+        version: link:../../adapters/db-sqlite
+      '@ccc/http-api':
+        specifier: workspace:*
+        version: link:../../packages/http-api
+      '@ccc/scheduler-node':
+        specifier: workspace:*
+        version: link:../../adapters/scheduler-node
+      '@ccc/secrets-dpapi':
+        specifier: workspace:*
+        version: link:../../adapters/secrets-dpapi
+
   apps/web:
     dependencies:
       '@ccc/contracts':
