@@ -1,10 +1,13 @@
-import { WireEmpty, WireError } from '../../../components/wire/wire-state';
+import {
+  PageTitle,
+  WireButton,
+  WireEmpty,
+  WireError,
+} from '@ccc/wire';
 import Link from 'next/link';
 import { ListRow } from '../../../components/wire/list-row';
 import { MetaRow } from '../../../components/wire/meta-row';
-import { PageTitle } from '../../../components/wire/page-title';
 import { SearchInput } from '../../../components/wire/search-input';
-import { WireButton } from '../../../components/wire/wire-button';
 import {
   ApiError,
   listCounselorAssignments,

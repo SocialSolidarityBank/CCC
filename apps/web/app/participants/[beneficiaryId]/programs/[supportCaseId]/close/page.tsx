@@ -1,3 +1,11 @@
+import {
+  GridContainer,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import { Suspense } from 'react';
 import {
   ApiError,
@@ -8,14 +16,9 @@ import {
 } from '../../../../../lib/api';
 import { closeSupportCaseAction } from '../../../../../actions';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
-import { GridContainer } from '../../../../../components/wire/grid-container';
 import { PageError } from '../../../../../components/wire/page-error';
 import { PageLoading } from '../../../../../components/wire/page-loading';
-import { PageTitle } from '../../../../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../../../../components/wire/participant-hero-card';
 import { getDisplayLabels } from '../../../../../lib/display-labels';
-import { WireBadge } from '../../../../../components/wire/wire-badge';
-import { WireButton } from '../../../../../components/wire/wire-button';
 import { ActiveGoalsCard, CaseCloseForm, ClosedCaseSummary, OpenActionItemsCard } from './close-cards';
 
 // 케이스 종결 확인 화면 (CCC-107). 플로우맵 정의: "지원 기록을 닫고 보관 기간을 세기 시작한다".

@@ -1,9 +1,7 @@
 'use client';
 
-import { WireButton } from '../wire/wire-button';
+import { WireBadge, WireButton, WireCallout } from '@ccc/wire';
 import { formatKoreanTime } from '../../lib/format-korean-date';
-import { WireBadge } from '../wire/wire-badge';
-import { WireCallout } from '../wire/wire-callout';
 import { draftRetentionLabel } from '../../lib/form-draft';
 
 // 로컬 임시본(CCC-12)의 화면 2종. 인테이크 위저드와 정기 기록지가 같은 것을 쓴다.

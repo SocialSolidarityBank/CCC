@@ -1,8 +1,8 @@
 'use client';
 
+import { Icon } from '@ccc/wire';
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
-import { Icon } from './wire-icon';
 import { NavIcon } from './shell-icons';
 import type { ParticipantProgramType } from '../../lib/api';
 import { DEFAULT_PROGRAM_TYPE, PROGRAM_TYPES, isKnownProgramType } from '../../lib/labels';

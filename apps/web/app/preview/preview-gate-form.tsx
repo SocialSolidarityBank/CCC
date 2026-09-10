@@ -1,5 +1,5 @@
-import { WireButton } from '../components/wire/wire-button';
-import { WireFormField } from '../components/wire/wire-form-field';
+import { WireButton, WireFormField } from '@ccc/wire';
+
 
 const errorMessages: Record<string, string> = {
   invalid_request: '코드가 올바르지 않습니다. 다시 확인하세요.',

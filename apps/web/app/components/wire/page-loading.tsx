@@ -1,7 +1,4 @@
-import { GridContainer } from './grid-container';
-import { PageTitle } from './page-title';
-import { WireCard } from './wire-card';
-import { WireEmpty } from './wire-state';
+import { GridContainer, PageTitle, WireCard, WireEmpty } from '@ccc/wire';
 
 // 로딩 화면 공용 부품(2026-08-09 Q). DESIGN.md §5 의 `[추론]` 목록에 "로딩·스켈레톤" 으로
 // 남아 있던 자리를 계약으로 채운다.

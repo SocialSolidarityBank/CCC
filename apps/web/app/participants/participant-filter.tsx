@@ -1,10 +1,12 @@
 'use client';
 
+import {
+  WireButton,
+  WireError,
+  WireToolbarField,
+} from '@ccc/wire';
 import { useMemo, useState, type ReactNode } from 'react';
 import { NavIcon } from '../components/wire/shell-icons';
-import { WireButton } from '../components/wire/wire-button';
-import { WireToolbarField } from '../components/wire/wire-form-field';
-import { WireError } from '../components/wire/wire-state';
 
 // 당사자 목록 좁히기 (D21 '상단 당사자 검색'의 새 자리 — 상단 헤더 폐기로 옮겨왔다).
 //

@@ -1,8 +1,11 @@
-import { WireEmpty, WireError } from '../../components/wire/wire-state';
-import { PageTitle } from '../../components/wire/page-title';
+import {
+  PageTitle,
+  WireButton,
+  WireCallout,
+  WireEmpty,
+  WireError,
+} from '@ccc/wire';
 import { SearchInput } from '../../components/wire/search-input';
-import { WireButton } from '../../components/wire/wire-button';
-import { WireCallout } from '../../components/wire/wire-callout';
 import { registerCounselorAction } from '../../actions';
 import { WorkerInviteIssue } from './worker-invite-issue';
 

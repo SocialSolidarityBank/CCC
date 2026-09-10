@@ -1,13 +1,15 @@
 'use client';
 
+import {
+  DisclosureChevron,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireEmpty,
+  WireFormField,
+} from '@ccc/wire';
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
-import { WireButton } from '../../../../../../components/wire/wire-button';
-import { WireCard } from '../../../../../../components/wire/wire-card';
-import { WireEmpty } from '../../../../../../components/wire/wire-state';
-import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { WireRepeatActions } from '../../../../../../components/wire/wire-repeat-actions';
-import { DisclosureChevron } from '../../../../../../components/wire/chevron';
 import type { GoalCloseReason, SupportCaseRecordGoal } from '../../../../../../lib/api';
 import type { GoalActionResult, GoalUpcomingLinksResult } from '../../../../../../actions';
 

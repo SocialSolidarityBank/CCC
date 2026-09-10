@@ -1,10 +1,10 @@
 'use client';
 
+import { WireBadge } from '@ccc/wire';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { NavIcon } from './shell-icons';
-import { WireBadge } from './wire-badge';
 import { OrgSwitcher } from './org-switcher';
 import { ProgramSwitcher, resolveActiveProgram } from './program-switcher';
 import { logoutAction } from '../../logout-action';

@@ -12,7 +12,7 @@ vi.mock('next/link', () => ({
 // vi.mock 이 끌어올려진 뒤에 모듈을 평가해야 가짜 next/link 가 잡힌다. 정적 import 는
 // 모의 등록보다 먼저 평가돼 진짜 모듈을 물어 온다(back-link.test.tsx 와 같은 이유·방식).
 const { NextLinkProvider } = await import('./next-link-provider');
-const { WireButton } = await import('./wire-button');
+const { WireButton } = await import('@ccc/wire');
 
 afterEach(cleanup);
 

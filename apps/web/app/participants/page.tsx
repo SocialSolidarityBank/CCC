@@ -1,7 +1,9 @@
+import {
+  GridContainer,
+  PageTitle,
+} from '@ccc/wire';
 import { redirect } from 'next/navigation';
 import { ApiError, listAssignedParticipants, type AssignedParticipant } from '../lib/api';
-import { GridContainer } from '../components/wire/grid-container';
-import { PageTitle } from '../components/wire/page-title';
 import { ParticipantCard } from '../components/wire/participant-card';
 import { ParticipantFilter } from './participant-filter';
 

@@ -1,8 +1,10 @@
 'use client';
 
+import {
+  WireButton,
+  WireCallout,
+} from '@ccc/wire';
 import { useEffect } from 'react';
-import { WireButton } from '../../../../../components/wire/wire-button';
-import { WireCallout } from '../../../../../components/wire/wire-callout';
 
 // 인테이크 저장 직후 브리핑에 한 번만 뜨는 안내줄(CCC-31 · 스펙 #78 US 17·18).
 //

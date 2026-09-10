@@ -1,7 +1,7 @@
 'use client';
 
+import { Chevron } from '@ccc/wire';
 import { useRouter } from 'next/navigation';
-import { Chevron } from './chevron';
 import { useEffect, useState } from 'react';
 
 /**

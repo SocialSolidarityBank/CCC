@@ -1,9 +1,11 @@
 'use client';
 
-import { WireBadge } from '../components/wire/wire-badge';
+import {
+  WireBadge,
+  WireButton,
+} from '@ccc/wire';
 import { useState } from 'react';
 import { SearchInput } from '../components/wire/search-input';
-import { WireButton } from '../components/wire/wire-button';
 
 export interface OnboardingWizardProps {
   /**

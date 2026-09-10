@@ -1,7 +1,7 @@
 'use client';
 
+import { Chevron } from '@ccc/wire';
 import { useId, type ReactNode } from 'react';
-import { Chevron } from './chevron';
 import { DateTextInput, dateTextHint } from './date-text-input';
 
 export interface SearchSelectOption {

@@ -1,8 +1,8 @@
 'use client';
 
+import { WireLinkProvider, type WireLinkRenderer } from '@ccc/wire';
 import NextLink from 'next/link';
 import type { ReactNode } from 'react';
-import { WireLinkProvider, type WireLinkRenderer } from './wire-button';
 
 // apps/web 전용 링크 어댑터(2026-09-08). 공용 부품은 프레임워크를 모르고 기본값이 평범한
 // <a> 라, 클라이언트 사이드 이동이 필요한 이 앱만 자기 렌더러를 끼운다.

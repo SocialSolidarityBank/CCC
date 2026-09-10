@@ -1,5 +1,7 @@
+import {
+  WireButton,
+} from '@ccc/wire';
 import { PageError } from '../../components/wire/page-error';
-import { WireButton } from '../../components/wire/wire-button';
 import { ApiError, getAiProviderStatus, getSttCapabilities, type SttCapabilities } from '../../lib/api';
 import AiProviderControl from './ai-provider-control';
 import SttStatus from './stt-status';

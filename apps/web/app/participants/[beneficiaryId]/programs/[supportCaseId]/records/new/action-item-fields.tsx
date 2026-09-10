@@ -1,7 +1,9 @@
 'use client';
 
+import {
+  WireFormField,
+} from '@ccc/wire';
 import { useState } from 'react';
-import { WireFormField } from '../../../../../../components/wire/wire-form-field';
 import { DatePickerControl } from '../../../../../../components/wire/date-picker-control';
 import { dateTextHint } from '../../../../../../components/wire/date-text-input';
 

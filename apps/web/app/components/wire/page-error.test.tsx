@@ -1,7 +1,7 @@
+import { WireButton } from '@ccc/wire';
 import { afterEach, describe, it, expect } from 'vitest';
 import { cleanup, render, within } from '@testing-library/react';
 import { PageError } from './page-error';
-import { WireButton } from './wire-button';
 
 afterEach(cleanup);
 

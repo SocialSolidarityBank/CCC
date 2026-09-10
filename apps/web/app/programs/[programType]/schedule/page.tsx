@@ -1,3 +1,8 @@
+import {
+  GridContainer,
+  PageTitle,
+  WireError,
+} from '@ccc/wire';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import {
@@ -8,9 +13,6 @@ import {
   rememberLastProgramType,
   type TodaySchedule,
 } from '../../../lib/api';
-import { GridContainer } from '../../../components/wire/grid-container';
-import { PageTitle } from '../../../components/wire/page-title';
-import { WireError } from '../../../components/wire/wire-state';
 import { isKnownProgramType } from '../../../lib/labels';
 import { ScheduleBody, ScheduleNav } from './schedule-view';
 import {

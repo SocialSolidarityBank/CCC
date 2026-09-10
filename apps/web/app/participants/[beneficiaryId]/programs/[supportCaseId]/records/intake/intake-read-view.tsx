@@ -1,15 +1,20 @@
 'use client';
 
+import {
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCard,
+  WireCardDetails,
+  WireDataRow,
+  WireDataRows,
+} from '@ccc/wire';
 import { useState, type ReactNode } from 'react';
 import type {
   IntakeAnswerInput,
   IntakeSavedRecord,
 } from '../../../../../../lib/api';
-import { PageTitle } from '../../../../../../components/wire/page-title';
-import { ParticipantHeroCard } from '../../../../../../components/wire/participant-hero-card';
-import { WireButton } from '../../../../../../components/wire/wire-button';
-import { WireCard, WireCardDetails } from '../../../../../../components/wire/wire-card';
-import { WireBadge } from '../../../../../../components/wire/wire-badge';
 import { formatKoreanDateTime } from '../../../../../../lib/format-korean-date';
 import {
   ADDITIONAL_COLUMNS,
@@ -24,7 +29,6 @@ import {
   type IntakeQuestionGroup,
   type IntakeTableColumn,
 } from './intake-questions';
-import { WireDataRow, WireDataRows } from '../../../../../../components/wire/wire-data-rows';
 import { IntakeStepRail } from './intake-step-rail';
 
 /**

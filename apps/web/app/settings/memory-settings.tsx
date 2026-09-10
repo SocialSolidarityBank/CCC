@@ -1,16 +1,19 @@
 'use client';
 
+import {
+  Icon,
+  WireBadge,
+  WireButton,
+  WireCallout,
+  WireCard,
+  WireCardSection,
+  WireChoice,
+  WireDataRow,
+  WireDataRows,
+  WireError,
+} from '@ccc/wire';
 import { useState } from 'react';
 import type { MemorySettingsInput, MemorySettingsView } from '@ccc/contracts/counseling-memory';
-import { WireCard } from '../components/wire/wire-card';
-import { WireCardSection } from '../components/wire/wire-section';
-import { WireBadge } from '../components/wire/wire-badge';
-import { WireChoice } from '../components/wire/wire-form-field';
-import { WireButton } from '../components/wire/wire-button';
-import { WireDataRow, WireDataRows } from '../components/wire/wire-data-rows';
-import { WireError } from '../components/wire/wire-state';
-import { Icon } from '../components/wire/wire-icon';
-import { WireCallout } from '../components/wire/wire-callout';
 import { formatKoreanDateTime } from '../lib/format-korean-date';
 
 type SettingsResult = { ok: true; data: MemorySettingsView } | { ok: false; error: string };

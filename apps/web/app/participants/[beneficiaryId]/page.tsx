@@ -1,3 +1,15 @@
+import {
+  Chevron,
+  DisclosureChevron,
+  GridContainer,
+  Icon,
+  PageTitle,
+  ParticipantHeroCard,
+  WireBadge,
+  WireButton,
+  WireCard,
+  type ParticipantHeroDetail,
+} from '@ccc/wire';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import {
@@ -10,17 +22,9 @@ import {
   type ParticipantProgramType,
 } from '../../lib/api';
 import { isBeneficiaryId } from '@ccc/contracts/animal-slugs';
-import { GridContainer } from '../../components/wire/grid-container';
 import { PageLoading } from '../../components/wire/page-loading';
-import { PageTitle } from '../../components/wire/page-title';
-import { ParticipantHeroCard, type ParticipantHeroDetail } from '../../components/wire/participant-hero-card';
 import { ConsultationTypeBadge } from '../../components/wire/consultation-type-badge';
-import { Chevron, DisclosureChevron } from '../../components/wire/chevron';
 import { NavIcon } from '../../components/wire/shell-icons';
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireButton } from '../../components/wire/wire-button';
-import { Icon } from '../../components/wire/wire-icon';
-import { WireCard } from '../../components/wire/wire-card';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { formatKoreanDateTime } from '../../lib/format-korean-date';
 import { updateParticipantConsentAction } from '../../actions';

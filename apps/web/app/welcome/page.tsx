@@ -1,6 +1,9 @@
+import {
+  WireBullets,
+  WireButton,
+  WireCard,
+} from '@ccc/wire';
 import type { Metadata } from 'next';
-import { WireButton } from '../components/wire/wire-button';
-import { WireBullets, WireCard } from '../components/wire/wire-card';
 
 export const metadata: Metadata = { title: 'CCC 사례관리 소개' };
 

@@ -1,12 +1,14 @@
 'use client';
 
+import {
+  DisclosureChevron,
+  Icon,
+  WireBadge,
+  WireButton,
+  WireCard,
+} from '@ccc/wire';
 import { useState } from 'react';
 import { SearchInput } from '../../components/wire/search-input';
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireButton } from '../../components/wire/wire-button';
-import { Icon } from '../../components/wire/wire-icon';
-import { WireCard } from '../../components/wire/wire-card';
-import { DisclosureChevron } from '../../components/wire/chevron';
 import { PROGRAM_LABELS } from '../../lib/labels';
 import { CONSENT_DETAIL_DISCLAIMER, CONSENT_DETAIL_SECTIONS } from './consent-copy';
 

@@ -1,8 +1,10 @@
+import {
+  GridContainer,
+  WireError,
+} from '@ccc/wire';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { AdminSidebar } from '../components/wire/admin-sidebar';
-import { GridContainer } from '../components/wire/grid-container';
-import { WireError } from '../components/wire/wire-state';
 import { ApiError, getMyIdentity, type MyRole } from '../lib/api';
 import { adminMenuFor } from './admin-format';
 

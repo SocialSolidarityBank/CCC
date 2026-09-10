@@ -1,6 +1,9 @@
-import { GridContainer } from '../../components/wire/grid-container';
-import { PageTitle } from '../../components/wire/page-title';
-import { WireCard, WireField } from '../../components/wire/wire-card';
+import {
+  GridContainer,
+  PageTitle,
+  WireCard,
+  WireField,
+} from '@ccc/wire';
 import { getDisplayLabels } from '../../lib/display-labels';
 import { InviteIssue } from './invite-issue';
 

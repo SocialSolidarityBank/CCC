@@ -1,9 +1,13 @@
-import { WireEmpty, WireError } from '../../components/wire/wire-state';
+import {
+  Chevron,
+  PageTitle,
+  WireBadge,
+  WireCardSection,
+  WireEmpty,
+  WireError,
+  WireItem,
+} from '@ccc/wire';
 import Link from 'next/link';
-import { Chevron } from '../../components/wire/chevron';
-import { WireBadge } from '../../components/wire/wire-badge';
-import { WireCardSection, WireItem } from '../../components/wire/wire-section';
-import { PageTitle } from '../../components/wire/page-title';
 import {
   ApiError,
   listCounselorAssignments,

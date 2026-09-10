@@ -1,10 +1,12 @@
 'use client';
 
+import {
+  WireButton,
+  WireCard,
+  WireFormField,
+} from '@ccc/wire';
 import { useState } from 'react';
 import { createWorkerInviteAction } from '../../actions';
-import { WireButton } from '../../components/wire/wire-button';
-import { WireCard } from '../../components/wire/wire-card';
-import { WireFormField } from '../../components/wire/wire-form-field';
 
 // 실무자 초대 링크 발급(CCC-108 · CCC-33). 당사자 가입 링크 발급 화면
 // (participants/invite/invite-issue.tsx)과 같은 구조 — 발급 결과를 복사용 링크로

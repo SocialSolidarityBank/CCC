@@ -1,5 +1,5 @@
+import { WireBadge } from '@ccc/wire';
 import type { SessionKind } from '../../lib/api';
-import { WireBadge } from './wire-badge';
 
 type ConsultationTypePresentation = {
   readonly label: string;
