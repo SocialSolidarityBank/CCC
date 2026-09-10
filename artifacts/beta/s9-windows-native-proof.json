@@ -46,5 +46,19 @@
     "windowsInstallerQualified": false,
     "sttTaskOrSourceModified": false,
     "accountPermissionsChanged": false
+  },
+  "persistence": {
+    "sourceCommit": "77165d4",
+    "archiveSha256": "095e8aefc6ccb18dfc75fcdc1ffb21010eb36cdc96ced962ad3f8d01d709bb98",
+    "verifiedSourceFiles": 41,
+    "firstAttemptCommit": "bc015ac",
+    "firstAttemptBuildExit": 1,
+    "firstAttemptFailures": 2,
+    "buildExit": 0,
+    "testExit": 0,
+    "tests": 20,
+    "passed": 19,
+    "skipped": 1,
+    "recoveryCapabilityVerified": false
   }
 }
