@@ -28,7 +28,7 @@ const BASELINE = join(repoRoot, 'scripts/design/hierarchy-baseline.json');
 // guard:tokens 와 같은 대상이다 — 앱 CSS 는 이 둘뿐이다.
 const TARGETS = [
   join(repoRoot, 'apps/web/app/layout.tsx'),
-  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  join(repoRoot, 'packages/wire/src/wire-styles.ts'),
 ];
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKENS = join(repoRoot, 'design/tokens.css');
 const TARGETS = [
   join(repoRoot, 'apps/web/app/layout.tsx'),
-  join(repoRoot, 'apps/web/app/components/wire/wire-styles.ts'),
+  join(repoRoot, 'packages/wire/src/wire-styles.ts'),
   // 업무 클라이언트 전용 CSS. 파일 전체가 CSS 라 아래 수집이 리터럴 대신 본문을 읽는다.
   join(repoRoot, 'apps/client/src/business/business.css'),
 ];
