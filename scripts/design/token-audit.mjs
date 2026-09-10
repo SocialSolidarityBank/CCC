@@ -19,7 +19,7 @@ import { dirname, join, relative } from 'node:path';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKENS = join(repoRoot, 'design/tokens.css');
 const TARGETS = [
-  join(repoRoot, 'apps/web/app/layout.tsx'),
+  join(repoRoot, 'packages/wire/src/shell-styles.ts'),
   join(repoRoot, 'packages/wire/src/wire-styles.ts'),
 ];
 
@@ -200,6 +200,7 @@ const walkMarkup = (dir) => {
 };
 walkMarkup(join(repoRoot, 'apps/web/app'));
 walkMarkup(join(repoRoot, 'apps/client/src'));
+walkMarkup(join(repoRoot, 'apps/site/src'));
 // 2026-09-10 P9: 공유 Wire 부품 패키지로 분리됨(packages/wire).
 walkMarkup(join(repoRoot, 'packages/wire/src'));
 

@@ -27,7 +27,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASELINE = join(repoRoot, 'scripts/design/hierarchy-baseline.json');
 // guard:tokens 와 같은 대상이다 — 앱 CSS 는 이 둘뿐이다.
 const TARGETS = [
-  join(repoRoot, 'apps/web/app/layout.tsx'),
+  join(repoRoot, 'packages/wire/src/shell-styles.ts'),
   join(repoRoot, 'packages/wire/src/wire-styles.ts'),
 ];
 
@@ -273,11 +273,11 @@ export function extractCss(file) {
 }
 
 /**
- * layout.tsx가 실제로 <style>에 싣는 순서로 CSS를 조립한다.
+ * canonical shellStyles 모듈이 실제로 <style>에 싣는 순서로 CSS를 조립한다.
  *
  * extractCss 뒤에 wireStyles를 덧붙이면 registerStyles보다 wireStyles가 늦게 적용되어 실제
  * RootLayout과 캐스케이드가 뒤집힌다. 2026-09-01 등록 동의 전문 상자의 위 패딩 결함을 그
- * 거짓 순서가 숨겼다. 아래 배열은 layout.tsx의 shellStyles 식과 같은 순서다.
+ * 거짓 순서가 숨겼다. 아래 배열은 shell-styles.ts의 shellStyles 식과 같은 순서다.
  */
 export function composeRuntimeCss(file, injectedWireStyles) {
   const src = readFileSync(file, 'utf8');

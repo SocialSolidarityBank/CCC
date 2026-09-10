@@ -205,7 +205,7 @@ check(
   'WireCard의 복합 제목 안 h2도 카드 제목 16px 계약을 상속한다',
   /\.wire-card-title>\.wire-card-head>h2\{[^}]*font-size:inherit[^}]*font-weight:inherit[^}]*line-height:inherit/.test(wireStylesSource),
 );
-const layoutSource = readFileSync(join(repoRoot, 'apps/web/app/layout.tsx'), 'utf8');
+const layoutSource = readFileSync(join(repoRoot, 'packages/wire/src/shell-styles.ts'), 'utf8');
 
 for (const [name, snippet] of [
   ['당사자 허브 사업명', '.participant-program-head-main>h3{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-sm);font-weight:400;line-height:var(--leading-normal);color:var(--ink)}'],

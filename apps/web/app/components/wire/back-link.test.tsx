@@ -7,7 +7,7 @@ const router = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 const { BackLink } = await import('./back-link');
-const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
+const layoutSource = readFileSync(resolve(process.cwd(), '../../packages/wire/src/shell-styles.ts'), 'utf8');
 
 afterEach(cleanup);
 beforeEach(() => {

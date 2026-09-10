@@ -6,10 +6,10 @@ import { RecordList } from './record-list';
 import type { SupportCaseRecord } from '../../../../../lib/api';
 
 const wireStylesSource = readFileSync(
-  resolve(process.cwd(), 'app/components/wire/wire-styles.ts'),
+  resolve(process.cwd(), '../../packages/wire/src/wire-styles.ts'),
   'utf8',
 );
-const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
+const layoutSource = readFileSync(resolve(process.cwd(), '../../packages/wire/src/shell-styles.ts'), 'utf8');
 
 // D47 · ADR-0019 — 상담 기록 회차 목록. 고정하는 것은 네 가지다:
 //  ① 최신 1개만 펼침 + 나머지는 접힘 (§1)

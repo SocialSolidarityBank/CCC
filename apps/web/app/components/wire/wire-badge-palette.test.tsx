@@ -31,7 +31,7 @@ const foregroundToken = (
 
 const tokensSource = readFileSync(resolve(process.cwd(), '../../design/tokens.css'), 'utf8');
 const stylesSource = readFileSync(
-  resolve(process.cwd(), 'app/components/wire/wire-styles.ts'),
+  resolve(process.cwd(), '../../packages/wire/src/wire-styles.ts'),
   'utf8',
 );
 

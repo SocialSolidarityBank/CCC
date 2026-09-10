@@ -6,7 +6,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./styles": "./src/wire-styles.ts"
+    "./styles": "./src/wire-styles.ts",
+    "./shell-styles": "./src/shell-styles.ts",
+    "./build/shared-styles": "./build/shared-styles.mjs"
   },
   "scripts": {
     "test": "vitest run",
