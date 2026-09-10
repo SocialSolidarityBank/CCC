@@ -216,7 +216,7 @@ export async function runRuntimeScenario(root, report) {
       await stage(mode, 'http-authorized-business-write-read-and-encrypted-database-reread', async () => {
         const context = await call('/programs', { bearer }); assert.equal(context.status, 200);
         const program = await call('/programs', { method: 'POST', bearer, body: {
-          displayName: 'Synthetic runtime program', storageMode: 'local_encrypted', processingMode: 'internal_only',
+          displayName: 'Synthetic runtime program', processingMode: 'internal_only',
           staff: [{ userId, isResponsible: true }, { userId: otherUser, isResponsible: false }],
           confirmation: { copyVersion: context.body.admissionCopy.version, copyHash: context.body.admissionCopy.hash,
             installationPolicyVersion: context.body.installation.policyVersion, installationConfigHash: context.body.installation.configHash },
