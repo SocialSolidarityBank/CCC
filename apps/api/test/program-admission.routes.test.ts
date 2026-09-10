@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  admitRecordingUpload, createCase, createManualSession, getCase, listCases,
-  listSupportCasesForBeneficiary, ProgramAdmissionRequiredError, recordSttReadiness, type Actor,
+  admitRecordingUpload, createCase, createManualSession, createParticipantInvite, enqueueTextWorkItem,
+  enqueueTextWorkForGoalChange, getCase, listCases, listSupportCasesForBeneficiary,
+  ProgramAdmissionRequiredError, recordSttReadiness, type Actor,
 } from '@ccc/core/gateway';
 import type { PreparedStatement } from '@ccc/contracts/database';
 import type { ProgramMutationResponse, ProgramListResponse } from '@ccc/contracts/program-admission';
@@ -184,5 +185,75 @@ describe('program admission boundary', () => {
     expect(await (await request('/program-options', 'GET', undefined, worker)).json()).toEqual({ programs: [] });
     await expect(createCase(t.env, worker, afterClose)).rejects.toMatchObject({ reason: 'program_closed' });
     expect(await getCase(t.env, worker, participant.id)).toMatchObject({ id: participant.id, status: 'active' });
+  });
+});
+
+describe('D87 admission lock (ADR-0045)', () => {
+  const signupEnv = () => ({ ...t.env, PUBLIC_SIGNUP_ENABLED: '1' });
+  const publicRequest = (path: string, method = 'GET', body?: unknown) => handleRequest(
+    new Request(`http://localhost${path}`, {
+      method,
+      ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+    }), signupEnv(), async () => worker,
+  );
+  async function undecide(programId: string): Promise<void> {
+    await t.db.prepare("UPDATE programs SET processing_mode = 'undecided' WHERE id = ?").bind(programId).run();
+  }
+
+  it('rejects every real-data creation surface for an undecided program', async () => {
+    await t.reset();
+    const programId = testProgramId(worker.orgId);
+    const registration = await registrationInput(t.env, worker, { programId });
+    const link = await createParticipantInvite(t.env, worker, { programId });
+    const linkDisclosures = await publicRequest(`/invites/participant/${link.token}/consent/disclosures`);
+    expect(linkDisclosures.status).toBe(200);
+    await undecide(programId);
+    const denied = { error: 'program_admission_required', reason: 'undecided' };
+
+    const registered = await request('/participants', 'POST', registration, worker);
+    expect(registered.status).toBe(409);
+    expect(await registered.json()).toEqual(denied);
+    const disclosures = await request(`/programs/${encodeURIComponent(programId)}/consent/disclosures`, 'GET', undefined, worker);
+    expect(disclosures.status).toBe(409);
+    expect(await disclosures.json()).toEqual(denied);
+    const invite = await publicRequest('/invites/participant', 'POST', { programId });
+    expect(invite.status).toBe(409);
+    expect(await invite.json()).toEqual(denied);
+    // 발급 뒤 잠긴 링크: 고지도 가입도 열리지 않고 링크는 소비되지 않는다.
+    const lockedDisclosures = await publicRequest(`/invites/participant/${link.token}/consent/disclosures`);
+    expect(lockedDisclosures.status).toBe(409);
+    const signup = await publicRequest('/signup/participant', 'POST', {
+      token: link.token, name: '합성 당사자', consentEvents: registration.consentEvents,
+    });
+    expect(signup.status).toBe(409);
+    expect(await signup.json()).toEqual(denied);
+    expect(await t.db.prepare('SELECT COUNT(*) AS n FROM beneficiaries WHERE org_id = ?').bind(worker.orgId).first()).toEqual({ n: 0 });
+    expect(await t.db.prepare('SELECT status FROM invite_tokens WHERE token = ?').bind(link.token).first()).toEqual({ status: 'issued' });
+  });
+
+  it('does not start AI text work for a case whose program lost admission', async () => {
+    await t.reset();
+    await seedTestProgramWithRuntimeModes(t.db, worker.orgId, worker.userId, { sttMode: 'off', llmMode: 'openai' });
+    const programId = testProgramId(worker.orgId);
+    const participant = await createCase(t.env, worker, await registrationInput(t.env, worker, { programId }));
+    const supportCaseId = (await listSupportCasesForBeneficiary(t.env, worker, participant.id)).programs[0]!.supportCase.id;
+    const session = await createManualSession(t.env, worker, participant.id, {
+      submissionId: crypto.randomUUID(), heldAt: '2026-09-01T09:00:00.000Z',
+      channel: 'in_person', memo: 'Synthetic AI lock', gasScores: [],
+    });
+    await enqueueTextWorkItem(t.env, worker, session.id, 'manual_record');
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE org_id = ? AND kind = 'text'")
+      .bind(worker.orgId).first()).toEqual({ n: 1 });
+    const secondSession = await createManualSession(t.env, worker, participant.id, {
+      submissionId: crypto.randomUUID(), heldAt: '2026-09-02T09:00:00.000Z',
+      channel: 'in_person', memo: 'Synthetic AI lock 2', gasScores: [],
+    });
+    await undecide(programId);
+    await expect(enqueueTextWorkItem(t.env, worker, secondSession.id, 'manual_record'))
+      .rejects.toMatchObject({ reason: 'undecided' });
+    await expect(enqueueTextWorkForGoalChange(t.env, worker, supportCaseId))
+      .rejects.toMatchObject({ reason: 'undecided' });
+    expect(await t.db.prepare("SELECT COUNT(*) AS n FROM agent_jobs WHERE org_id = ? AND kind = 'text'")
+      .bind(worker.orgId).first()).toEqual({ n: 1 });
   });
 });

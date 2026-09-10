@@ -7314,6 +7314,8 @@ export async function enqueueTextWorkItem(
 ): Promise<void> {
   assertOpaqueIdentifier(sessionId, 'session id');
   const scope = await resolveSessionScope(env, actor.orgId, sessionId);
+  // D87: 사업 도입 확인 전에는 AI 정리를 시작하지 않는다. 호출부는 스킵으로 다룬다(D8).
+  const admission = await requireSupportCaseProgramAdmission(env, actor.orgId, scope.supportCaseId, 'llm');
   let receipt: ConsentGateReceipt;
   try {
     receipt = await assertConsentGate(env, actor.orgId, scope.supportCaseId, [
@@ -7324,7 +7326,7 @@ export async function enqueueTextWorkItem(
   } catch {
     return;
   }
-  await env.DB.batch(textWorkEnqueueStatements(
+  await programPolicyBatch(env, admission.context, textWorkEnqueueStatements(
     env,
     actor.orgId,
     scope.supportCaseId,
@@ -7332,7 +7334,7 @@ export async function enqueueTextWorkItem(
     reason,
     now(),
     receipt,
-  ));
+  ), admission.program);
 }
 
 /**
@@ -7419,6 +7421,7 @@ export async function enqueueTextWorkForGoalChange(
   ).bind(actor.orgId, context.supportCaseId).all<DbRow>();
 
   const enqueuedAt = now();
+  const admission = await requireSupportCaseProgramAdmission(env, actor.orgId, context.supportCaseId, 'llm');
   let receipt: ConsentGateReceipt;
   try {
     receipt = await assertConsentGate(env, actor.orgId, context.supportCaseId, [
@@ -7439,7 +7442,7 @@ export async function enqueueTextWorkForGoalChange(
     receipt,
   ));
   if (statements.length > 0) {
-    await env.DB.batch(statements);
+    await programPolicyBatch(env, admission.context, statements, admission.program);
   }
   // 목표 문구는 감사 detail 에 싣지 않는다(R3 태도). 몇 회차를 올렸는지만 남긴다.
   await writeAudit(env, actor, {
