@@ -676,3 +676,16 @@ The final scoped adapter run on darwin has 16 tests: 15 pass, zero fail, one Win
 Remaining integration blockers are concrete: no authenticated recovery-capability issuer/redemption, online organization-owned generation floor/TPM binding, maintenance fence/drain, unified Local generation composition or exhaustive DB/file/PII/CA/identity verification implementation was found in packages, adapters or application roots. No supplied boolean is accepted as a substitute, no generation journal is forged as verified, and no `data_restored` or `operational_restored` state is produced.
 
 For E4-6, the pre-registration seam report is delivered. Existing disclosure snapshots require a non-null support_case_id; the existing signup transaction still uses the legacy two-checkbox contract and has no six-domain pre-signup consume binding. The requested staff atomic cutover remains blocked on Main's binding/schema resolution. No fictitious case, new consent purpose or new table was introduced to bypass that decision.
+
+### Isolated continuation handoff
+
+Source commit: `bc015ac67f992d80ca46ecd05192610463e27032`.
+
+- Untracked source artifact: `artifacts/s9-persist-source-bc015ac.tar.gz`, 60,091 bytes, SHA-256 `3b63d73ef39ab8e8227c6347f791e5bbe56da1f69a70df74b6128cc7908db6f0`.
+- The archive has 41 regular files, including a manifest of 40 source/proof files. It contains no resource-fork entries, native binaries, node_modules, credentials or key records. The original three-importer, 87-package pinned dependency closure is retained.
+- Fresh isolated extraction verified all 40 hashes. Frozen offline install used all 87 cached packages with zero downloads and no lifecycle scripts. The isolated adapter run passed 15 tests with one Windows-only skip; the public unbuilt/unsupported loader refusal and the bundle smoke's Node syntax check passed. Temporary extraction was removed.
+- The staged source scan examined 53.61 KB and found no leaks; API TypeScript and both boundary guards passed.
+
+The bundle-only public smoke now writes three synthetic CurrentUser-protected records into a new private temporary directory, reopens them through the public byte adapter, and seals/persists/reopens a synthetic CCCR envelope. Its result distinguishes `stagedPersistence` and `recoveryEnvelope` from the still-false `generationActivation` and `operationalRestore`. Private ACL creation is limited to new synthetic paths; existing permissions, accounts and credentials are not changed.
+
+Main owns executing this new source in a fresh isolated ASCII Windows directory. Direct commands are available if the previously reported PowerShell native-stderr wrapper issue recurs: frozen no-script install, `windows-smoke.mjs --expect-unbuilt`, `build:native`, package tests, then `windows-smoke.mjs`. Do not repeat an already successful native build solely because its capture wrapper threw; inspect its receipt and run the direct tests. This handoff was not executed on Windows in BACKEND.
