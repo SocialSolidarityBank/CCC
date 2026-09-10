@@ -9,6 +9,7 @@ import { createLocalOfficeRuntime, type LocalOfficeRuntime, type LocalOfficeRunt
 import { verifyLocalInstallation } from './runtime-resources.ts';
 import { generateStableUserId } from './identity.ts';
 import { hashPassword } from './office-identity.ts';
+import { validateBindAddress } from './bind-validation.ts';
 
 const MIGRATION_PATTERN = /^\d{4}_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$/;
 export async function loadLocalMigrations(migrationsPath: string): Promise<SqliteMigration[]> {
@@ -59,6 +60,7 @@ export async function startLocalSingle(config: LocalSingleStartupConfig): Promis
 export async function startLocalOffice(config: LocalOfficeStartupConfig): Promise<LocalOfficeRuntime> {
   if (process.platform !== 'win32') throw new Error('platform_unsupported');
   await verifyLocalInstallation(config, 'local-office');
+  validateBindAddress(config.bindHost, config.privateCidr);
   const repository = await createProtectedRecordRepository(resolve(config.dataPath, 'secrets'), 'local-office');
   const secretRecords = await repository.read(config.generation, config.recordsHash);
   try {
