@@ -1,0 +1,22 @@
+{
+  "name": "@ccc/local-service",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/runtime.ts",
+    "./identity": "./src/identity.ts"
+  },
+  "scripts": {
+    "test": "node --test test/contract.test.ts"
+  },
+  "dependencies": {
+    "@ccc/audio-file": "workspace:*",
+    "@ccc/contracts": "workspace:*",
+    "@ccc/core": "workspace:*",
+    "@ccc/db-sqlite": "workspace:*",
+    "@ccc/http-api": "workspace:*",
+    "@ccc/scheduler-node": "workspace:*",
+    "@ccc/secrets-dpapi": "workspace:*"
+  }
+}
