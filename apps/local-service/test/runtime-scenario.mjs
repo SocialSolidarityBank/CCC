@@ -221,7 +221,32 @@ export async function runRuntimeScenario(root, report) {
           confirmation: { copyVersion: context.body.admissionCopy.version, copyHash: context.body.admissionCopy.hash,
             installationPolicyVersion: context.body.installation.policyVersion, installationConfigHash: context.body.installation.configHash },
         } }); assert.equal(program.status, 201);
-        const participant = await call('/participants', { method: 'POST', bearer, body: { programId: program.body.program.id, initialAssigneeUserId: userId, consentPrivacy: true, consentRecordingAi: false } });
+        const disclosures = await call(`/programs/${program.body.program.id}/consent/disclosures`, { bearer });
+        assert.equal(disclosures.status, 200);
+        const consentEvents = disclosures.body.disclosures.map((disclosure) => ({
+          domain: disclosure.domain,
+          decision: disclosure.domain === 'personal_data_collection_use' ? 'grant' : 'decline',
+          provider: disclosure.provider,
+          providerLegalRecipient: disclosure.providerLegalRecipient,
+          providerCountry: disclosure.country,
+          purpose: disclosure.purpose,
+          retentionDuration: disclosure.domain === 'voice_original_retention_period'
+            ? disclosure.retentionDuration : null,
+          copyVersion: disclosure.copyVersion,
+          copyHash: disclosure.copyHash,
+          disclosureSnapshotId: disclosure.snapshotId,
+          effectiveAt: new Date().toISOString(),
+          idempotencyKey: randomUUID(),
+          correctionOfEventId: null,
+          expectedRevision: null,
+        }));
+        const participant = await call('/participants', { method: 'POST', bearer, body: {
+          programId: program.body.program.id,
+          initialAssigneeUserId: userId,
+          idempotencyKey: randomUUID(),
+          consentEvents,
+          name: 'Synthetic Local Participant',
+        } });
         assert.equal(participant.status, 201); supportCaseId = participant.body.supportCaseId;
         const saved = await call(`/support-cases/${supportCaseId}/records`, { method: 'POST', bearer, body: {
           submissionId: randomUUID(), heldAt: new Date().toISOString(), channel: 'in_person', memo, gasScores: [], actions: [], flags: [],
