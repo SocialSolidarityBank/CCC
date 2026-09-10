@@ -1,7 +1,7 @@
 -- Counterpart of immutable SQLite 0061. Cloud has no credential route or table grants.
 CREATE TABLE office_accounts (
   user_id text PRIMARY KEY,
-  username text NOT NULL,
+  username text NOT NULL UNIQUE,
   password_hash text NOT NULL,
   salt text NOT NULL,
   roles text NOT NULL,
@@ -15,10 +15,6 @@ CREATE TABLE office_accounts (
 );
 CREATE INDEX office_accounts_username ON office_accounts(username);
 CREATE INDEX office_accounts_locked ON office_accounts(locked_until) WHERE locked_until IS NOT NULL;
-
--- SQLite NOCASE folds ASCII only. Do not replace it with Unicode case folding.
-CREATE UNIQUE INDEX office_accounts_username_key ON office_accounts
-  (translate(username, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'));
 
 ALTER TABLE office_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE office_accounts FORCE ROW LEVEL SECURITY;
