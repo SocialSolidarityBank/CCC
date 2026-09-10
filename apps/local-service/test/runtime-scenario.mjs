@@ -190,7 +190,12 @@ export async function runRuntimeScenario(root, report) {
       const call = (path, options = {}) => exchange(base, path, { ...options, ...(tls ? { ca: tls.ca } : {}) });
       assert.equal((await call('/me')).status, 401);
       assert.equal((await call('/health', { headers: { origin: 'null' } })).status, 403);
-      assert.equal((await call('/health', { headers: { host: 'untrusted.invalid' } })).status, 403);
+      if (mode === 'local-office') {
+        await assert.rejects(call('/health', { headers: { host: 'untrusted.invalid' } }),
+          (error) => error.message === 'transport_failed' && error.code === 'ERR_TLS_CERT_ALTNAME_INVALID');
+      } else {
+        assert.equal((await call('/health', { headers: { host: 'untrusted.invalid' } })).status, 403);
+      }
       if (mode === 'local-office') await stage(mode, 'https-live-and-cleartext-rejected', async () => {
         assert.equal((await call('/health')).status, 200);
         await assert.rejects(exchange(`http://${network.host}:8443`, '/health'), (error) => error.message === 'transport_failed');
