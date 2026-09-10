@@ -5,9 +5,9 @@ await build({
   outfile: 'dist/index.js',
   bundle: true,
   format: 'esm',
-  platform: 'neutral',
+  // Deno implements these node: built-ins; bundle postgres so the image needs no npm install.
+  platform: 'node',
   target: 'es2022',
-  external: ['postgres'],
   sourcemap: false,
   logLevel: 'warning',
 });
