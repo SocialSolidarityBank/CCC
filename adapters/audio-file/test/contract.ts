@@ -4,7 +4,7 @@ import { mkdtemp, rm, readFile, writeFile, stat, readdir, mkdir, symlink, open, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { createFileAudioStore } from '../src/index';
+import { createFileAudioStore } from '../src/index.ts';
 import type { AudioObjectMetadata } from '@ccc/contracts/runtime';
 
 const KEY = 'audio/session_01/550e8400-e29b-41d4-a716-446655440000';

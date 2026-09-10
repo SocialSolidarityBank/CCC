@@ -5,16 +5,16 @@
  * signature 제외 객체에 대한 Ed25519 다. 여기에는 비밀, bearer, orgId, userId, email 이 없다.
  * 설치기가 파일을 만드는 쪽(E6/E7/E8)과 client 가 fetch 하는 쪽(E2-3)은 이 모듈만 부른다.
  */
-import { isRecord } from './guards.js';
-import { canonicalizeJcs } from './jcs.js';
-import { isValidSttEngineIdShape } from './capabilities.js';
+import { isRecord } from './guards';
+import { canonicalizeJcs } from './jcs';
+import { isValidSttEngineIdShape } from './capabilities';
 import {
   type ApprovedSttEngineEntry,
   DEPLOYMENT_MODES,
   type DeploymentMode,
   type PublicBootstrap,
   type SignedInstallManifest,
-} from './runtime.js';
+} from './runtime';
 
 export type InstallManifestErrorCode =
   | 'invalid_shape'
