@@ -7,6 +7,8 @@ import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { createHostedInspector } from './hosted-inspector.mjs';
 import { buildSupabasePlan } from './plan.mjs';
+import { observationAuthorization } from './fixtures/authorization.mjs';
+import { canonicalizeJcs, sha256Jcs } from '../../apps/community-cloud/dist/install-manifest-verifier.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const cliPath = resolve(import.meta.dirname, 'bootstrap.mjs');
@@ -18,6 +20,7 @@ function databaseSnapshot(overrides = {}) {
     schema_fingerprint: 'schema-empty',
     policy_fingerprint: 'policy-empty',
     bucket_fingerprint: 'bucket-empty',
+    bucket_inventory: [],
     user_table_names: [],
     user_table_count: 0,
     user_row_estimate: 0,
@@ -26,6 +29,9 @@ function databaseSnapshot(overrides = {}) {
     bucket_exists: false,
     bucket_public: null,
     ledger_exists: false,
+    auth_user_count: 0, bucket_count: 0, storage_object_count: 0, user_routine_count: 0,
+    user_type_count: 0, unknown_object_count: 0, custom_schema_count: 0, user_auxiliary_relation_count: 0, private_table_names: [],
+    private_schema_exists: false, private_install_metadata_exists: false, cron_exists: false,
     database_version: '17.4',
     read_only: true,
     database_readable: true,
@@ -81,14 +87,14 @@ async function withManagementApi({
         disable_signup: true,
         external_email_enabled: true,
         jwt_exp: 3600,
-        mailer_autoconfirm: false,
-        mfa_max_enrolled_factors: 10,
+        mailer_autoconfirm: mutateAuth === 'mailer_autoconfirm' && authReadCount > 1,
+        mfa_max_enrolled_factors: mutateAuth === 'mfa_max_enrolled_factors' && authReadCount > 1 ? 9 : 10,
         mfa_totp_enroll_enabled: true,
         mfa_totp_verify_enabled: true,
         refresh_token_rotation_enabled: true,
-        security_captcha_enabled: true,
+        security_captcha_enabled: !(mutateAuth === 'security_captcha_enabled' && authReadCount > 1),
         sessions_single_per_user: false,
-        site_url: mutateAuth && authReadCount > 1 ? 'https://changed-must-not-escape.test' : 'https://must-not-escape.test',
+        site_url: mutateAuth === true && authReadCount > 1 ? 'https://changed-must-not-escape.test' : 'https://must-not-escape.test',
         smtp_pass: 'must-not-escape',
       }));
       return;
@@ -103,6 +109,10 @@ async function withManagementApi({
           hash_b: mutateData && dataReadCount > 1 ? 'changed-b' : 'stable-b',
         }]));
       } else {
+        if (query.includes('catalog_state')) {
+          response.end(JSON.stringify([{ catalog_state: 'synthetic-public-catalog' }]));
+          return;
+        }
         response.end(JSON.stringify([database]));
       }
       return;
@@ -122,7 +132,7 @@ async function withManagementApi({
   }
 }
 
-async function runCli(origin, { token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan', installManifest } = {}) {
+async function runCli(origin, { token = accessToken, leadingSeparator = false, managementOrigin, operation = 'plan', installManifest, signedInput } = {}) {
   const args = [cliPath, ...(leadingSeparator ? ['--'] : []), operation, '--target', 'hosted', '--project-ref', 'test-project', '--format', 'json'];
   if (installManifest !== undefined) args.push('--install-manifest', installManifest);
   const childEnv = {
@@ -135,6 +145,10 @@ async function runCli(origin, { token = accessToken, leadingSeparator = false, m
   delete childEnv.CCC_INSTALL_MANIFEST;
   delete childEnv.CCC_INSTALL_SIGNING_KEYS;
   delete childEnv.CCC_DATABASE_CA_FILE;
+  delete childEnv.CCC_INSTALL_APPROVAL;
+  delete childEnv.CCC_INSTALL_REVOKED_KEY_IDS;
+  delete childEnv.CCC_ORGANIZATION_ID;
+  if (signedInput !== undefined) Object.assign(childEnv, signedInput);
   if (managementOrigin !== undefined) childEnv.CCC_SUPABASE_MANAGEMENT_ORIGIN = managementOrigin;
   const child = spawn(process.execPath, args, {
     cwd: repoRoot,
@@ -161,29 +175,86 @@ function assertNoSensitiveOutput(result, origin) {
 }
 
 // The observation engine is tested independently of the public CLI trust gate.
-// No test invents an approved S11 owner envelope or bypass flag for production.
+// Signature/adversarial tests use the real two-document verifier in install-authorization.test.mjs.
 async function inspectPlan(origin, token = accessToken) {
+  const authorization = observationAuthorization();
   const inspector = createHostedInspector({
     accessToken: token, projectRef: 'test-project',
+    authorization,
     fetchImpl: (url, options) => {
       assert.equal(new URL(url).origin, 'https://api.supabase.com');
       return fetch(new URL(new URL(url).pathname, origin), options);
     },
   });
-  return buildSupabasePlan({ target: 'hosted', inspector });
+  return buildSupabasePlan({ target: 'hosted', inspector, authorization });
 }
 
-test('hosted observation uses only read endpoints without claiming signed ownership', async () => {
+test('owner-aware hosted observation uses only read endpoints and produces a redacted plan', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
     const output = await inspectPlan(origin);
-    assert.equal(output.ready, false);
+    assert.equal(output.ready, true);
     assert.equal(output.readOnly, true);
     assert.equal(output.unchanged, true);
-    assert.ok(output.blockers.some(({ code }) => code === 'OWNER_EVIDENCE_MISSING'));
+    assert.equal(output.project.ownerVerified, true);
     assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
     assert.ok(requests.length >= 6);
     assert.ok(requests.every(({ method, path }) => method === 'GET' || (method === 'POST' && path.endsWith('/database/query/read-only'))));
     assert.ok(requests.filter(({ path }) => path.endsWith('/database/query/read-only')).every(({ body }) => JSON.parse(body).query.trimStart().startsWith('SELECT')));
+  });
+});
+
+async function signedCliInputs(expectedOwnerOrgId = 'test-organization') {
+  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
+  const sign = async value => ({
+    ...value,
+    ed25519Signature: Buffer.from(await crypto.subtle.sign('Ed25519', pair.privateKey, new TextEncoder().encode(canonicalizeJcs(value)))).toString('base64'),
+  });
+  const manifest = await sign({
+    schemaVersion: 1, mode: 'community-cloud', apiBase: 'https://api.example.invalid/api',
+    clientOrigin: 'https://client.example.invalid', allowedOrigins: ['https://client.example.invalid'],
+    host: 'client.example.invalid', scheme: 'https', endpointDiscovery: 'static',
+    installationId: 'synthetic-installation', sequence: 1,
+    publishedAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    approvedSttEngineIds: [], supabaseProjectRef: 'test-project', supabaseAuthOrigin: 'https://test-project.supabase.co',
+    supabasePublishableKey: 'sb_publishable_synthetic', signingKeyId: 'synthetic-key',
+  });
+  const approval = await sign({
+    schemaVersion: 1, institutionId: 'synthetic-institution', projectRef: 'test-project', expectedOwnerOrgId,
+    installationId: manifest.installationId, runtimeManifestSha256: await sha256Jcs(manifest),
+    contractVersion: 'S11-install-approval-v1', expiresAt: manifest.expiresAt, signingKeyId: 'synthetic-key',
+  });
+  return {
+    CCC_INSTALL_MANIFEST: JSON.stringify(manifest), CCC_INSTALL_APPROVAL: JSON.stringify(approval),
+    CCC_ORGANIZATION_ID: 'synthetic-institution',
+    CCC_INSTALL_SIGNING_KEYS: JSON.stringify({ 'synthetic-key': publicKey }),
+    CCC_INSTALL_REVOKED_KEY_IDS: '[]',
+  };
+}
+
+test('real CLI accepts both signed documents and observes the approved owner read-only', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, { signedInput: await signedCliInputs() });
+    assert.equal(result.exitCode, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ready, true);
+    assert.equal(output.readOnly, true);
+    assert.equal(output.project.ownerVerified, true);
+    assert.equal(output.productionReady, false);
+    assert.ok(requests.every(({ method, path }) => method === 'GET' || path.endsWith('/database/query/read-only')));
+    assertNoSensitiveOutput(result, origin);
+    assert.equal(result.stdout.includes('test-organization'), false);
+    assert.equal(result.stdout.includes('synthetic-institution'), false);
+  });
+});
+
+test('signed owner mismatch stops after the project observation and before other access', async () => {
+  await withManagementApi({}, async ({ origin, requests }) => {
+    const result = await runCli(origin, { signedInput: await signedCliInputs('different-approved-owner') });
+    assert.equal(result.exitCode, 6);
+    assert.equal(JSON.parse(result.stderr).error.code, 'OWNER_MISMATCH');
+    assert.deepEqual(requests.map(({ method, path }) => ({ method, path })), [{ method: 'GET', path: '/v1/projects/test-project' }]);
+    assertNoSensitiveOutput(result, origin);
   });
 });
 
@@ -209,30 +280,36 @@ test('manifest argument is recognized but malformed input cannot authorize obser
   });
 });
 
-test('mutation and receipt commands remain explicitly blocked until owner and journal contracts align', async () => {
+test('every installation operation requires authorization before provider access', async () => {
   await withManagementApi({}, async ({ origin, requests }) => {
     for (const operation of ['apply', 'doctor', 'rollback']) {
       const result = await runCli(origin, { operation });
       assert.equal(result.exitCode, 6);
-      assert.equal(JSON.parse(result.stderr).error.code, 'INSTALLER_CONTRACT_UNRESOLVED');
+      assert.equal(JSON.parse(result.stderr).error.code, 'OWNER_EVIDENCE_MISSING');
       assertNoSensitiveOutput(result, origin);
     }
     assert.equal(requests.length, 0);
   });
 });
 
-test('read-only observations detect both Auth drift and institution data changing between reads', async () => {
-  for (const configuration of [
-    { mutateAuth: true },
-    { database: databaseSnapshot({ user_table_names: ['participants'], user_table_count: 1, user_row_estimate: 1 }), mutateData: true },
-  ]) {
-    await withManagementApi(configuration, async ({ origin }) => {
+test('read-only observations detect every allowlisted Auth drift without fingerprinting institution row values', async () => {
+  for (const mutateAuth of [true, 'mailer_autoconfirm', 'mfa_max_enrolled_factors', 'security_captcha_enabled']) {
+    await withManagementApi({ mutateAuth }, async ({ origin }) => {
       const output = await inspectPlan(origin);
       assert.equal(output.unchanged, false);
-      assert.ok(output.blockers.some(({ code }) => code === 'STATE_CHANGED_DURING_PLAN'));
+      assert.ok(output.blockers.some(({ code }) => code === 'PLAN_STATE_CHANGED'));
       assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
     });
   }
+  await withManagementApi({
+    database: databaseSnapshot({ user_table_names: ['participants'], user_table_count: 1, user_row_estimate: 1 }),
+    mutateData: true,
+  }, async ({ origin, requests }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.ready, false);
+    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.ok(requests.every(({ body }) => !body.includes('AS row_value')));
+  });
 });
 
 test('read-only observations preserve region and unowned-project denials', async () => {
@@ -244,6 +321,32 @@ test('read-only observations preserve region and unowned-project denials', async
     const output = await inspectPlan(origin);
     assert.equal(output.blockers[0].code, 'EXISTING_PROJECT_NOT_CLEAN');
     assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
+  });
+  await withManagementApi({ database: databaseSnapshot({ user_type_count: 1 }) }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.equal(output.observed.userTypeCount, 1);
+    assert.equal(output.blockers[0].code, 'EXISTING_PROJECT_NOT_CLEAN');
+    assertNoSensitiveOutput({ stdout: JSON.stringify(output), stderr: '' }, origin);
+  });
+});
+
+test('observed storage identifiers and metadata remain internal to the redacted plan', async () => {
+  const bucketId = 'provider-bucket-id-must-not-escape';
+  await withManagementApi({
+    database: databaseSnapshot({
+      bucket_count: 1,
+      bucket_inventory: [{
+        id: bucketId,
+        public: false,
+        fileSizeLimit: null,
+        allowedMimeTypes: ['audio/wav'],
+      }],
+    }),
+  }, async ({ origin }) => {
+    const output = await inspectPlan(origin);
+    assert.ok(output.blockers.some(({ code }) => code === 'EXISTING_PROJECT_NOT_CLEAN'));
+    assert.equal(JSON.stringify(output).includes(bucketId), false);
+    assert.equal(JSON.stringify(output).includes('audio/wav'), false);
   });
 });
 

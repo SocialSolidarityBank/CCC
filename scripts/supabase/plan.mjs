@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
+import { assertAuthorizationCurrent, assertAuthorizationMatches, hashCanonical } from './manifest-preflight.mjs';
 
 export const expectedSupabaseResources = Object.freeze([
   { kind: 'installation-journal', name: 'private.ccc_install_journal' },
@@ -50,11 +51,24 @@ const safeFailures = Object.freeze({
   OPERATION_UNSUPPORTED: '지원하지 않는 설치 동작 또는 인자입니다.',
   TARGET_UNSUPPORTED: 'target은 local 또는 hosted여야 합니다.',
   OWNER_EVIDENCE_MISSING: '서명된 기관 소유 승인과 프로젝트 연결 증거가 없습니다.',
-  OWNER_MANIFEST_CONTRACT_UNRESOLVED: 'S11은 기관과 소유자 서명 필드를 요구하지만 S2의 정확한 manifest 형식에는 해당 필드가 없습니다. 소유 승인 형식을 먼저 확정해야 합니다.',
-  INSTALLER_CONTRACT_UNRESOLVED: '소유 승인 manifest와 journal 및 영수증 계약을 연결하기 전에는 apply, doctor, rollback을 실행할 수 없습니다.',
   MANIFEST_VERIFIER_UNAVAILABLE: 'Community Cloud manifest 검증 모듈을 먼저 빌드해야 합니다.',
   MIGRATION_CHECKSUM_MISMATCH: '마이그레이션 파일과 정본의 파일별 체크섬이 일치하지 않습니다.',
   CA_TRUST_UNAVAILABLE: '애플리케이션 전용 CA 파일과 프로세스 신뢰 설정을 확인하지 못했습니다.',
+  OWNER_MISMATCH: '관찰한 프로젝트 소유자가 서명된 설치 승인과 다릅니다.',
+  INSTALL_AUTHORIZATION_MISMATCH: '재개 또는 재승인 문서가 기존 설치의 서명 결합과 다릅니다.',
+  INSTALL_LOCK_BUSY: '같은 프로젝트의 다른 설치 작업이 진행 중입니다.',
+  RESOURCE_OWNERSHIP_MISMATCH: '설치 journal과 자원 소유권이 일치하지 않습니다.',
+  PLAN_STATE_CHANGED: '읽기 전용 계획 이후 프로젝트 상태가 달라졌습니다.',
+  DRIFT_DETECTED: '설치 영수증과 현재 자원 상태가 다릅니다.',
+  DRIFT_BLOCKED: '현재 설치 상태가 journal과 달라 변경을 멈췄습니다.',
+  INSTALL_NOT_FOUND: '이 설치의 journal 또는 영수증이 없습니다.',
+  INSTALL_INCOMPLETE: '설치 단계가 완료되지 않았습니다.',
+  RELEASE_PREREQUISITES_MISSING: '승인된 S12 릴리스 원본, 고정 trust/floor와 서명된 플랫폼 artifact가 필요합니다.',
+  ROLLBACK_PREREQUISITES_MISSING: 'S12 rollback 승인과 E6-7의 검증된 백업 및 복원 실행기가 필요합니다.',
+  INSTALL_JOURNAL_INVALID: '설치 journal의 구조나 현재 상태가 유효하지 않습니다.',
+  INSTALL_JOURNAL_MISSING: '검증된 설치 journal이 없습니다.',
+  INSTALL_STEP_MISMATCH: '설치 단계의 idempotency key 또는 상태가 다릅니다.',
+  MIGRATION_APPLY_FAILED: '마이그레이션 transaction이 실패했으며 해당 변경은 반영되지 않았습니다.',
 });
 
 export class PlanFailure extends Error {
@@ -83,8 +97,8 @@ const blockerDetails = Object.freeze({
     recovery: '기존 프로젝트를 변경하지 말고 승인 manifest, journal과 자원별 소유 tag를 먼저 대조합니다.',
   },
   OWNER_EVIDENCE_MISSING: {
-    message: '기관 소유 승인 형식이 확정되지 않아 hosted 계획을 적용 가능한 상태로 표시하지 않습니다.',
-    recovery: 'S2와 S11의 private 소유 승인 manifest 연결을 Main에서 확정합니다.',
+    message: '현재 기관에 대해 유효한 설치 승인과 서명 결합을 확인하지 못했습니다.',
+    recovery: '외부에서 구성한 기관별 trust와 두 서명 문서의 만료 및 폐기 상태를 확인합니다.',
   },
   CONNECTION_NOT_READ_ONLY: {
     message: '읽기 전용 연결을 확인하지 못했습니다.',
@@ -96,109 +110,226 @@ const blockerDetails = Object.freeze({
   },
 });
 
-function blocker(code) {
-  return { code, ...blockerDetails[code] };
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
+const INSTALL_PHASES = new Set(['planned', 'installing', 'installed', 'rollback_failed']);
+const INSTALL_STEPS = new Set([
+  'baseline', 'platform_migration', 'auth_config', 'storage_bucket', 'cron_job',
+  'edge_secret_binding', 'receipt', 'prepare_backup', 'verify_manifest', 'restore_data',
+  'restore_provider_metadata', 'switch_release', 'verify_receipt',
+]);
+
+function hasUnownedProjectState(snapshot) {
+  const state = snapshot.state;
+  return state.userTableCount > 0 || state.userRowEstimate > 0
+    || state.rlsEnabledTableCount > 0 || state.policyCount > 0
+    || state.authUserCount > 0 || state.bucketCount > 0 || state.storageObjectCount > 0
+    || state.userRoutineCount > 0 || state.userTypeCount > 0 || state.customSchemaCount > 0
+    || state.unknownObjectCount > 0 || state.auxiliaryRelationCount > 0 || state.privateSchemaExists
+    || (state.privateTableNames?.length ?? 0) > 0 || (snapshot.cronJobCount ?? 0) > 0;
 }
+
+function resourcesMatchObservation(snapshot, state, installationId) {
+  const ownershipTag = `ccc.installation_id=${installationId}`;
+  if (snapshot.state.customSchemaCount > 0 || snapshot.state.userTypeCount > 0 || snapshot.state.unknownObjectCount > 0
+    || !Array.isArray(snapshot.state.buckets) || !Array.isArray(state.resources)
+    || snapshot.state.bucketCount !== snapshot.state.buckets.length) return false;
+  if (snapshot.state.buckets.length !== state.resources.length) return false;
+  const recorded = new Map();
+  for (const resource of state.resources) {
+    if (resource?.resourceType !== 'storage_bucket'
+      || typeof resource.resourceIdHash !== 'string'
+      || recorded.has(resource.resourceIdHash)
+      || resource.ownershipTag !== ownershipTag) return false;
+    recorded.set(resource.resourceIdHash, resource);
+  }
+  return snapshot.state.buckets.every(bucket => {
+    const resource = recorded.get(bucket.resourceIdHash);
+    return bucket.resourceType === 'storage_bucket'
+      && resource?.resourceDigest === bucket.resourceDigest;
+  });
+}
+
+function safeInstalledSummary(state, migrations) {
+  const approvedIds = new Set(migrations.map(migration => migration.id));
+  const applied = Array.isArray(state?.migrations)
+    ? state.migrations.filter(migration => approvedIds.has(migration?.id))
+      .sort((left, right) => left.id.localeCompare(right.id))
+    : [];
+  const journal = state?.journal;
+  return {
+    state: INSTALL_PHASES.has(journal?.phase) ? journal.phase : 'unverified',
+    migrationHead: applied.at(-1)?.id ?? null,
+    runtimeManifestSha256: SHA256_HEX.test(journal?.runtimeManifestSha256)
+      ? journal.runtimeManifestSha256
+      : null,
+    approvalSha256: SHA256_HEX.test(journal?.approvalSha256) ? journal.approvalSha256 : null,
+  };
+}
+
+function safeCompletedSteps(state) {
+  if (!Array.isArray(state?.completedSteps)) return [];
+  return state.completedSteps.flatMap(step =>
+    INSTALL_STEPS.has(step?.step) && SHA256_HEX.test(step?.idempotencyKey)
+      ? [{ step: step.step, idempotencyKey: step.idempotencyKey }]
+      : []);
+}
+
 
 function isSeoulRegion(region) {
   return region === 'ap-northeast-2';
 }
 
-function comparableState(snapshot) {
-  return {
-    schema: snapshot.state.schemaFingerprint,
+export async function installationStateFingerprint(snapshot) {
+  return hashCanonical({
+    region: snapshot.project.region,
+    ownerOrgIdHash: snapshot.project.ownerOrgIdHash ?? null,
+    database: snapshot.databaseFingerprint ?? snapshot.state.schemaFingerprint,
     policies: snapshot.state.policyFingerprint,
     buckets: snapshot.state.bucketFingerprint,
     auth: snapshot.state.authFingerprint,
-    institutionData: snapshot.state.institutionDataFingerprint,
-    installed: {
-      ledger: snapshot.installed.ledger,
-      version: snapshot.installed.version,
-      checksum: snapshot.installed.checksum,
-    },
+    cron: snapshot.cronJobCount ?? 0,
+  });
+}
+
+// Counts protect the read-only observation window, not the durable installation
+// fingerprint: normal business activity must not become configuration drift.
+function observationSafety(snapshot) {
+  return {
+    connection: snapshot.connection,
+    userTableCount: snapshot.state.userTableCount ?? 0,
+    userRowEstimate: snapshot.state.userRowEstimate ?? 0,
+    rlsEnabledTableCount: snapshot.state.rlsEnabledTableCount ?? 0,
+    policyCount: snapshot.state.policyCount ?? 0,
+    authUserCount: snapshot.state.authUserCount ?? 0,
+    bucketCount: snapshot.state.bucketCount ?? 0,
+    storageObjectCount: snapshot.state.storageObjectCount ?? 0,
+    userRoutineCount: snapshot.state.userRoutineCount ?? 0,
+    userTypeCount: snapshot.state.userTypeCount ?? 0,
+    unknownObjectCount: snapshot.state.unknownObjectCount ?? 0,
+    customSchemaCount: snapshot.state.customSchemaCount ?? 0,
+    auxiliaryRelationCount: snapshot.state.auxiliaryRelationCount ?? 0,
+    privateSchemaExists: Boolean(snapshot.state.privateSchemaExists),
+    privateTableNames: [...(snapshot.state.privateTableNames ?? [])].sort(),
+    legacyLedgerPresent: Boolean(snapshot.state.legacyLedgerPresent),
+    audioBucket: snapshot.state.bucket,
+    observedBuckets: snapshot.state.buckets ?? [],
+    cronJobCount: snapshot.cronJobCount ?? 0,
   };
 }
 
-function installedSummary(installed) {
-  if (installed.ledger !== 'present') {
-    return { state: 'not-installed', version: null, checksumMatches: null };
-  }
-  return { state: 'unverified', version: installed.version, checksumMatches: null };
-}
-
-function versionBlocker(snapshot) {
-  const { installed, state } = snapshot;
-  if (installed.ledger !== 'present') {
-    if (state.userTableCount > 0 || state.userRowEstimate > 0) return blocker('EXISTING_PROJECT_NOT_CLEAN');
-    return null;
-  }
-  // A legacy public ledger is not a signed-owner S11 journal or a resumable installation.
-  return blocker('RESOURCE_OWNERSHIP_MISMATCH');
-}
-
-export async function buildSupabasePlan({ target, inspector }) {
+/** Observations contain no credentials or source documents; authority is verified separately. */
+export async function buildSupabasePlan({ target, inspector, authorization, renewAuthorization = false }) {
   if (target !== 'hosted' && target !== 'local') throw new PlanFailure('TARGET_UNSUPPORTED');
-
+  if (target === 'hosted') assertAuthorizationCurrent(authorization);
+  const migrations = postgresMigrationPlan();
+  const resourcesSha256 = await hashCanonical(expectedSupabaseResources);
+  const migrationsSha256 = await hashCanonical(migrations);
   let before;
   let after;
   try {
     before = await inspector.inspect();
+    if (target === 'hosted') assertAuthorizationCurrent(authorization);
     after = await inspector.inspect();
+    if (target === 'hosted') assertAuthorizationCurrent(authorization);
   } catch (error) {
-    if (error instanceof PlanFailure) throw new PlanFailure(error.code);
-    throw new PlanFailure(target === 'local' ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE');
+    throw new PlanFailure(error?.code ?? (target === 'local' ? 'LOCAL_SUPABASE_UNAVAILABLE' : 'PROVIDER_UNREADABLE'));
   }
-
   const blockers = [];
-  if (!before.connection.readOnly || !before.connection.databaseReadable) {
-    blockers.push(blocker('CONNECTION_NOT_READ_ONLY'));
-  }
+  const deny = code => blockers.push({ code, ...(blockerDetails[code] ?? { message: new PlanFailure(code).message, recovery: '변경하지 말고 승인된 설치 입력과 journal을 확인합니다.' }) });
+  if (![before, after].every(value => value.connection.readOnly && value.connection.databaseReadable
+    && value.connection.authReadable && value.connection.storageReadable)) deny('CONNECTION_NOT_READ_ONLY');
   if (target === 'hosted') {
-    if (before.project.region === null || before.project.region === undefined || before.project.region === '') {
-      blockers.push(blocker('REGION_UNVERIFIED'));
-    } else if (!isSeoulRegion(before.project.region)) {
-      blockers.push(blocker('REGION_MISMATCH'));
-    }
+    if (![before, after].every(value => isSeoulRegion(value.project.region))) deny('REGION_MISMATCH');
+    if (![before, after].every(value => value.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash)) deny('OWNER_MISMATCH');
   }
-
-  const versionIssue = versionBlocker(before);
-  if (versionIssue !== null) blockers.push(versionIssue);
-  if (target === 'hosted') blockers.push(blocker('OWNER_EVIDENCE_MISSING'));
-
-  const unchanged = JSON.stringify(comparableState(before)) === JSON.stringify(comparableState(after));
-  if (!unchanged) blockers.push(blocker('STATE_CHANGED_DURING_PLAN'));
-
+  const state = before.installState;
+  if (!state) {
+    if ([before, after].some(snapshot => snapshot.state.legacyLedgerPresent
+      || snapshot.installed.ledger === 'present')) deny('RESOURCE_OWNERSHIP_MISMATCH');
+    else if ([before, after].some(hasUnownedProjectState)) deny('EXISTING_PROJECT_NOT_CLEAN');
+  } else {
+    try {
+      const changedPair = state.journal.runtimeManifestSha256 !== authorization.runtimeManifestSha256
+        || state.journal.approvalSha256 !== authorization.approvalSha256;
+      assertAuthorizationMatches(state.journal, authorization, {
+        renewAuthorization: renewAuthorization && changedPair, resourcesSha256, migrationsSha256,
+      });
+      if (!INSTALL_PHASES.has(state.journal.phase)) deny('INSTALL_JOURNAL_INVALID');
+      if (state.journal.databaseFingerprint && state.journal.databaseFingerprint !== before.databaseFingerprint) deny('DRIFT_BLOCKED');
+      if (!Array.isArray(state.migrations)
+        || state.migrations.some(entry => typeof entry?.id !== 'string' || typeof entry?.checksum !== 'string')) {
+        deny('MIGRATION_CHECKSUM_MISMATCH');
+      } else {
+        const applied = [...state.migrations].sort((left, right) => left.id.localeCompare(right.id));
+        if (applied.length > migrations.length || applied.some((entry, index) =>
+          entry.id !== migrations[index]?.id || entry.checksum !== migrations[index]?.checksum)) deny('MIGRATION_CHECKSUM_MISMATCH');
+      }
+      if (![before, after].every(snapshot =>
+        resourcesMatchObservation(snapshot, state, authorization.installationId))) {
+        deny('RESOURCE_OWNERSHIP_MISMATCH');
+      }
+    } catch (error) { deny(error?.code ?? 'INSTALL_AUTHORIZATION_MISMATCH'); }
+  }
+  const stateFingerprint = await installationStateFingerprint(before);
+  const unchanged = stateFingerprint === await installationStateFingerprint(after)
+    && await hashCanonical(observationSafety(before)) === await hashCanonical(observationSafety(after))
+    && await hashCanonical(before.installed) === await hashCanonical(after.installed)
+    && await hashCanonical(before.installState ?? null) === await hashCanonical(after.installState ?? null);
+  if (!unchanged) deny('PLAN_STATE_CHANGED');
+  const planFingerprint = await hashCanonical({
+    stateFingerprint, resourcesSha256, migrationsSha256,
+    runtimeManifestSha256: authorization?.runtimeManifestSha256 ?? null,
+    approvalSha256: authorization?.approvalSha256 ?? null,
+  });
   return {
-    operation: 'plan',
-    target,
-    readOnly: true,
-    ready: blockers.length === 0,
-    productionReady: false,
-    unchanged,
+    operation: 'plan', target, readOnly: true, ready: blockers.length === 0, productionReady: false, unchanged,
+    planFingerprint, stateFingerprint, resourcesSha256, migrationsSha256,
     project: {
       regionEvidence: target === 'local' ? 'local-development' : (isSeoulRegion(before.project.region) ? 'seoul-verified' : 'blocked'),
-      databaseVersion: before.project.databaseVersion ?? null,
-      status: before.project.status ?? null,
+      ownerVerified: target === 'hosted' && before.project.ownerOrgIdHash === authorization.expectedOwnerOrgIdHash,
+      observedOwnerOrgIdHash: before.project.ownerOrgIdHash ?? null,
+      databaseVersion: before.project.databaseVersion ?? null, status: before.project.status ?? null,
     },
     connection: {
-      databaseReadable: Boolean(before.connection.databaseReadable),
-      authReadable: Boolean(before.connection.authReadable),
+      databaseReadable: Boolean(before.connection.databaseReadable), authReadable: Boolean(before.connection.authReadable),
       storageReadable: Boolean(before.connection.storageReadable),
     },
-    installed: installedSummary(before.installed),
+    installed: state
+      ? safeInstalledSummary(state, migrations)
+      : { state: before.installed.ledger === 'present' ? 'unverified' : 'not-installed', migrationHead: null },
     observed: {
-      userTableCount: before.state.userTableCount,
-      userRowEstimate: before.state.userRowEstimate,
-      rlsEnabledTableCount: before.state.rlsEnabledTableCount,
-      policyCount: before.state.policyCount,
-      audioBucket: before.state.bucket,
-      auth: before.auth,
+      userTableCount: before.state.userTableCount, userRowEstimate: before.state.userRowEstimate,
+      userTypeCount: before.state.userTypeCount,
+      rlsEnabledTableCount: before.state.rlsEnabledTableCount, policyCount: before.state.policyCount,
+      audioBucket: before.state.bucket, auth: before.auth,
     },
-    plannedResources: expectedSupabaseResources,
-    migrations: postgresMigrationPlan(),
-    blockers,
-    notes: target === 'local'
-      ? ['로컬 계획은 개발 검증용이며 운영 준비 증거가 아닙니다.']
-      : ['plan은 변경을 적용하지 않습니다.'],
+    plannedResources: expectedSupabaseResources, migrations, blockers,
+    notes: target === 'local' ? ['로컬 개발 관찰이며 설치 승인이나 운영 준비 증거가 아닙니다.'] : ['서명과 소유권을 확인한 읽기 전용 계획이며 DB 변경 승인이 아닙니다.'],
+  };
+}
+
+export async function buildSupabaseDoctor(options) {
+  const plan = await buildSupabasePlan(options);
+  const snapshot = await options.inspector.inspect();
+  const state = snapshot.installState;
+  const issues = [...plan.blockers];
+  if (!state) {
+    issues.push({ code: 'INSTALL_NOT_FOUND', message: new PlanFailure('INSTALL_NOT_FOUND').message });
+  } else {
+    if (state.journal?.phase !== 'installed'
+      || state.currentReceipt === null || typeof state.currentReceipt !== 'object'
+      || Array.isArray(state.currentReceipt)) {
+      issues.push({ code: 'INSTALL_INCOMPLETE', message: new PlanFailure('INSTALL_INCOMPLETE').message });
+    }
+    if (state.journal?.stateFingerprint
+      && state.journal.stateFingerprint !== await installationStateFingerprint(snapshot)) {
+      issues.push({ code: 'DRIFT_DETECTED', message: new PlanFailure('DRIFT_DETECTED').message });
+    }
+  }
+  return {
+    operation: 'doctor', readOnly: true, ready: issues.length === 0, productionReady: false,
+    installed: plan.installed, stateFingerprint: await installationStateFingerprint(snapshot),
+    completedSteps: safeCompletedSteps(state),
+    blockers: issues,
   };
 }

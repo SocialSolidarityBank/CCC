@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 
 import { PlanFailure } from './plan.mjs';
+import { buildInstallStateQuery, DATABASE_INSTALL_FINGERPRINT_QUERY, hashDatabaseInstallFingerprint, INSTALL_METADATA_TABLES } from './install-journal.mjs';
+import { assertAuthorizationCurrent } from './manifest-preflight.mjs';
 
 export const DATABASE_STATE_QUERY = `SELECT
   (SELECT pg_catalog.md5(COALESCE(pg_catalog.string_agg(schema_item.item, ',' ORDER BY schema_item.item), ''))
@@ -68,9 +70,20 @@ export const DATABASE_STATE_QUERY = `SELECT
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
     WHERE namespace.nspname = 'public') AS policy_fingerprint,
   (SELECT pg_catalog.md5(COALESCE(pg_catalog.string_agg(
-    pg_catalog.to_jsonb(bucket)::text,
+    pg_catalog.jsonb_build_object(
+      'id', bucket.id,
+      'public', bucket.public,
+      'fileSizeLimit', bucket.file_size_limit::text,
+      'allowedMimeTypes', bucket.allowed_mime_types
+    )::text,
     ',' ORDER BY bucket.id
   ), '')) FROM storage.buckets AS bucket) AS bucket_fingerprint,
+  (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+    'id', bucket.id,
+    'public', bucket.public,
+    'fileSizeLimit', bucket.file_size_limit::text,
+    'allowedMimeTypes', bucket.allowed_mime_types
+  ) ORDER BY bucket.id), '[]'::jsonb) FROM storage.buckets AS bucket) AS bucket_inventory,
   (SELECT COALESCE(pg_catalog.array_agg(relation.relname::text ORDER BY relation.relname), ARRAY[]::text[])
     FROM pg_catalog.pg_class AS relation
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
@@ -97,12 +110,61 @@ export const DATABASE_STATE_QUERY = `SELECT
     WHERE namespace.nspname = 'public') AS policy_count,
   EXISTS(SELECT 1 FROM storage.buckets AS bucket WHERE bucket.id = 'ccc-audio') AS bucket_exists,
   (SELECT bucket.public FROM storage.buckets AS bucket WHERE bucket.id = 'ccc-audio') AS bucket_public,
+  (SELECT count(*)::integer FROM auth.users) AS auth_user_count,
+  (SELECT count(*)::integer FROM storage.buckets) AS bucket_count,
+  (SELECT count(*)::integer FROM storage.objects) AS storage_object_count,
+  (SELECT count(*)::integer FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e'
+    )) AS user_routine_count,
+  (SELECT count(*)::integer FROM pg_catalog.pg_type AS type_value
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = type_value.typnamespace
+    LEFT JOIN pg_catalog.pg_class AS composite_relation ON composite_relation.oid = type_value.typrelid
+    WHERE namespace.nspname = 'public'
+      AND (type_value.typrelid = 0 OR composite_relation.relkind = 'c')
+      AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_type AS base_type WHERE base_type.typarray = type_value.oid)
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_depend AS dependency
+        WHERE dependency.classid = 'pg_type'::regclass
+          AND dependency.objid = type_value.oid
+          AND dependency.deptype = 'e'
+      )) AS user_type_count,
+  (SELECT count(DISTINCT (dependency.classid, dependency.objid, dependency.objsubid))::integer
+    FROM pg_catalog.pg_depend AS dependency
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = dependency.refobjid
+    WHERE dependency.refclassid = 'pg_namespace'::regclass
+      AND namespace.nspname IN ('public','private')
+      AND dependency.classid NOT IN (
+        'pg_class'::regclass, 'pg_proc'::regclass, 'pg_type'::regclass,
+        'pg_default_acl'::regclass, 'pg_extension'::regclass
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_depend AS member
+        WHERE member.classid = dependency.classid AND member.objid = dependency.objid
+          AND member.refclassid = 'pg_extension'::regclass AND member.deptype = 'e'
+      )) AS unknown_object_count,
+  (SELECT count(*)::integer FROM pg_catalog.pg_namespace n
+    WHERE n.nspname !~ '^pg_' AND n.nspname NOT IN (
+      'public','private','information_schema','auth','storage','extensions','realtime','_realtime',
+      'supabase_functions','supabase_migrations','vault','graphql','graphql_public','pgbouncer','net','cron','_analytics'
+    )) AS custom_schema_count,
+  (SELECT count(*)::integer FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relkind IN ('v','m','S','f') AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e'
+    )) AS user_auxiliary_relation_count,
+  (SELECT COALESCE(array_agg(c.relname::text ORDER BY c.relname), ARRAY[]::text[])
+    FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='private' AND c.relkind IN ('r','p')) AS private_table_names,
+  EXISTS(SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='cron' AND c.relname='job') AS cron_exists,
+  EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname='private') AS private_schema_exists,
   pg_catalog.current_setting('server_version') AS database_version,
   (pg_catalog.current_setting('transaction_read_only') = 'on') AS read_only,
   pg_catalog.has_database_privilege(CURRENT_USER, pg_catalog.current_database(), 'CONNECT') AS database_readable,
   EXISTS(SELECT 1 FROM pg_catalog.pg_class AS relation
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=relation.relnamespace
-    WHERE namespace.nspname='private' AND relation.relname IN ('ccc_install_journal','ccc_schema_migrations','ccc_install_receipt','ccc_install_resources')) AS private_install_metadata_exists,
+    WHERE namespace.nspname='private' AND relation.relname IN ('ccc_install_journal','ccc_schema_migrations','ccc_install_receipt','ccc_install_resources','ccc_install_authorizations','ccc_install_steps','ccc_release_history')) AS private_install_metadata_exists,
   EXISTS(SELECT 1
     FROM pg_catalog.pg_class AS relation
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
@@ -124,6 +186,33 @@ function safeAuth(auth) {
 
 export function fingerprint(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function observedBuckets(database) {
+  if (!Array.isArray(database.bucket_inventory)) throw new PlanFailure('PROVIDER_UNREADABLE');
+  const ids = new Set();
+  return database.bucket_inventory.map(bucket => {
+    const id = bucket?.id;
+    const fileSizeLimit = bucket?.fileSizeLimit;
+    const allowedMimeTypes = bucket?.allowedMimeTypes;
+    if (typeof id !== 'string' || id.length === 0 || ids.has(id)
+      || typeof bucket.public !== 'boolean'
+      || (fileSizeLimit !== null && (typeof fileSizeLimit !== 'string' || !/^\d+$/u.test(fileSizeLimit)))
+      || (allowedMimeTypes !== null && (!Array.isArray(allowedMimeTypes)
+        || allowedMimeTypes.some(value => typeof value !== 'string')))) {
+      throw new PlanFailure('PROVIDER_UNREADABLE');
+    }
+    ids.add(id);
+    return {
+      resourceType: 'storage_bucket',
+      resourceIdHash: createHash('sha256').update(id, 'utf8').digest('hex'),
+      resourceDigest: fingerprint({
+        public: bucket.public,
+        fileSizeLimit,
+        allowedMimeTypes: allowedMimeTypes === null ? null : [...allowedMimeTypes].sort(),
+      }),
+    };
+  }).sort((left, right) => left.resourceIdHash.localeCompare(right.resourceIdHash));
 }
 
 export function publicDataTableNames(database) {
@@ -166,8 +255,7 @@ export function boolean(value) {
 }
 
 export function normalizeDatabaseSnapshot({ database, migration, auth, authFingerprint = fingerprint(auth), institutionDataFingerprint = '' }) {
-  // Presence is not ownership. The planner rejects both unverified S11 metadata
-  // and the legacy public ledger until the private signed-owner contract is resolved.
+  // A legacy public ledger is never treated as an S11 installation journal.
   const ledgerExists = boolean(database.ledger_exists) || boolean(database.private_install_metadata_exists);
   return {
     connection: {
@@ -189,11 +277,23 @@ export function normalizeDatabaseSnapshot({ database, migration, auth, authFinge
       policyFingerprint: String(database.policy_fingerprint ?? ''),
       bucketFingerprint: String(database.bucket_fingerprint ?? ''),
       authFingerprint,
+      buckets: observedBuckets(database),
       institutionDataFingerprint,
       userTableCount: number(database.user_table_count),
       userRowEstimate: number(database.user_row_estimate),
       rlsEnabledTableCount: number(database.rls_enabled_table_count),
       policyCount: number(database.policy_count),
+      authUserCount: number(database.auth_user_count),
+      bucketCount: number(database.bucket_count),
+      storageObjectCount: number(database.storage_object_count),
+      userRoutineCount: number(database.user_routine_count),
+      userTypeCount: number(database.user_type_count),
+      unknownObjectCount: number(database.unknown_object_count),
+      customSchemaCount: number(database.custom_schema_count),
+      auxiliaryRelationCount: number(database.user_auxiliary_relation_count),
+      privateTableNames: database.private_table_names ?? [],
+      privateSchemaExists: boolean(database.private_schema_exists),
+      legacyLedgerPresent: boolean(database.ledger_exists),
       bucket: {
         exists: boolean(database.bucket_exists),
         public: database.bucket_public === null || database.bucket_public === undefined
@@ -204,13 +304,22 @@ export function normalizeDatabaseSnapshot({ database, migration, auth, authFinge
   };
 }
 
-export function createHostedInspector({ accessToken, projectRef, fetchImpl = fetch }) {
+export function createHostedInspector({ accessToken, projectRef, authorization, authorize, fetchImpl = fetch }) {
   if (!accessToken) throw new PlanFailure('CREDENTIAL_MISSING');
   if (!projectRef) throw new PlanFailure('PROJECT_REF_MISSING');
+  assertAuthorizationCurrent(authorization);
+  if (authorization.projectRef !== projectRef) {
+    throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+  }
   const base = 'https://api.supabase.com';
   const ref = encodeURIComponent(projectRef);
 
   async function request(path, options = {}) {
+    const fresh = authorize === undefined ? authorization : await authorize();
+    assertAuthorizationCurrent(fresh);
+    if (fresh.runtimeManifestSha256 !== authorization.runtimeManifestSha256 || fresh.approvalSha256 !== authorization.approvalSha256) {
+      throw new PlanFailure('INSTALL_AUTHORIZATION_MISMATCH');
+    }
     let response;
     try {
       response = await fetchImpl(`${base}${path}`, {
@@ -234,6 +343,16 @@ export function createHostedInspector({ accessToken, projectRef, fetchImpl = fet
     }
   }
 
+  async function projectEvidence() {
+    assertAuthorizationCurrent(authorization);
+    const project = await request(`/v1/projects/${ref}`);
+    if ((project.ref ?? project.id) !== projectRef || typeof project.organization_id !== 'string') {
+      throw new PlanFailure('OWNER_EVIDENCE_MISSING');
+    }
+    if (project.organization_id !== authorization.expectedOwnerOrgId) throw new PlanFailure('OWNER_MISMATCH');
+    return project;
+  }
+
   async function readOnlyQuery(query) {
     const payload = await request(`/v1/projects/${ref}/database/query/read-only`, {
       method: 'POST',
@@ -246,21 +365,41 @@ export function createHostedInspector({ accessToken, projectRef, fetchImpl = fet
 
   return {
     async inspect() {
-      const [project, authConfig, database] = await Promise.all([
-        request(`/v1/projects/${ref}`),
+      const project = await projectEvidence();
+      const [authConfig, database] = await Promise.all([
         request(`/v1/projects/${ref}/config/auth`),
         readOnlyQuery(DATABASE_STATE_QUERY),
       ]);
       const auth = safeAuth(authConfig);
-      const migration = boolean(database.ledger_exists) ? await readOnlyQuery(LEDGER_QUERY) : null;
-      const dataEntries = await Promise.all(publicDataTableNames(database).map(async (tableName) => ({
-        tableName,
-        row: await readOnlyQuery(dataFingerprintQuery(tableName)),
-      })));
-      const institutionDataFingerprint = fingerprintPublicData(dataEntries);
+      for (const key of ['auth_user_count','bucket_count','storage_object_count','user_routine_count','user_type_count','unknown_object_count','custom_schema_count','user_auxiliary_relation_count','user_table_count','user_row_estimate']) {
+        const value = database[key];
+        if ((typeof value !== 'number' && typeof value !== 'string') || !/^\d+$/.test(String(value))
+          || !Number.isSafeInteger(Number(value))) throw new PlanFailure('PROVIDER_UNREADABLE');
+      }
+      const metadataTables = [...INSTALL_METADATA_TABLES].sort();
+      const privateTables = database.private_table_names;
+      if (!Array.isArray(privateTables)) throw new PlanFailure('PROVIDER_UNREADABLE');
+      let installState = null;
+      if (privateTables.length > 0) {
+        if (JSON.stringify([...privateTables].sort()) !== JSON.stringify(metadataTables)) {
+          throw new PlanFailure('RESOURCE_OWNERSHIP_MISMATCH');
+        }
+        installState = (await readOnlyQuery(buildInstallStateQuery(authorization.installationId))).install_state;
+        if (installState === null || typeof installState !== 'object') throw new PlanFailure('RESOURCE_OWNERSHIP_MISMATCH');
+      }
+      const cron = boolean(database.cron_exists)
+        ? await readOnlyQuery('SELECT count(*)::integer AS count FROM cron.job') : { count: 0 };
+      const databaseFingerprint = hashDatabaseInstallFingerprint([await readOnlyQuery(DATABASE_INSTALL_FINGERPRINT_QUERY)]);
+      const authState = Object.fromEntries([
+        'disable_signup','external_anonymous_users_enabled','external_email_enabled','mailer_autoconfirm',
+        'mfa_max_enrolled_factors','mfa_totp_enroll_enabled','mfa_totp_verify_enabled',
+        'refresh_token_rotation_enabled','security_captcha_enabled','jwt_exp','site_url',
+        'sessions_single_per_user',
+      ].map(key => [key, authConfig[key] ?? null]));
       return {
         project: {
           region: typeof project.region === 'string' ? project.region : null,
+          ownerOrgIdHash: createHash('sha256').update(project.organization_id, 'utf8').digest('hex'),
           databaseVersion: typeof project.database?.version === 'string' && /^[0-9.]+$/u.test(project.database.version)
             ? project.database.version
             : null,
@@ -270,11 +409,14 @@ export function createHostedInspector({ accessToken, projectRef, fetchImpl = fet
         },
         ...normalizeDatabaseSnapshot({
           database,
-          migration,
+          migration: null,
           auth,
-          authFingerprint: fingerprint(authConfig),
-          institutionDataFingerprint,
+          authFingerprint: fingerprint(authState),
+          institutionDataFingerprint: '',
         }),
+        installState,
+        databaseFingerprint,
+        cronJobCount: number(cron.count),
       };
     },
   };
