@@ -668,6 +668,36 @@ describe('API routes', () => {
     expect(saved.status).toBe(200);
     await expect(saved.json()).resolves.toEqual({
       orgId: 'org_demo', orgName: '연대은행', programDisplayName: '금융지원 사업',
+      institution: {
+        orgId: 'org_demo',
+        orgName: '연대은행',
+        settingsState: 'present',
+        creatorLinkState: 'unlinked',
+        initialSetupState: 'complete',
+        firstProgramAdmissionState: 'not_admitted',
+        firstProgram: {
+          id: expect.any(String),
+          displayName: '금융지원 사업',
+          programType: 'financial_support_v1',
+          status: 'active',
+          version: 1,
+          admissionState: 'undecided',
+        },
+        installationState: 'available',
+        retentionPolicyStatus: 'configured',
+        consentCopy: {
+          version: 'consent-six-domains-v1',
+          status: 'provider_registry_unavailable',
+          domains: [
+            { domain: 'personal_data_collection_use', disclosureAvailable: false },
+            { domain: 'sensitive_information_processing', disclosureAvailable: false },
+            { domain: 'counseling_recording', disclosureAvailable: false },
+            { domain: 'external_stt_processing', disclosureAvailable: false },
+            { domain: 'external_llm_cross_border_processing', disclosureAvailable: false },
+            { domain: 'voice_original_retention_period', disclosureAvailable: false },
+          ],
+        },
+      },
     });
 
     // 저장한 이름이 실무자 조회에도 되비친다 — 사이드바는 모든 역할의 셸이다.
@@ -2677,6 +2707,8 @@ describe('canonical participant API routes', () => {
         supportCaseId: creation.supportCaseId,
         beneficiaryId: creation.beneficiaryId,
         scheduledAt: '2026-07-15T10:00:00.000Z',
+        allDay: false,
+        displayColor: null,
         programType: 'financial_support_v1',
         status: 'scheduled',
         sessionKind: 'regular',
@@ -2848,6 +2880,8 @@ describe('canonical participant API routes', () => {
         beneficiaryId: creation.beneficiaryId,
         supportCaseId: creation.supportCaseId,
         scheduledAt: '2026-07-15T10:00:00.000Z',
+        allDay: false,
+        displayColor: null,
         status: 'scheduled',
         version: 1,
         completedSessionId: null,
@@ -3610,6 +3644,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       supportCaseId: creation.supportCaseId,
       scheduledAt: '2026-07-16T11:00:00.000Z',
+      allDay: false,
+      displayColor: null,
       status: 'scheduled',
       version: 2,
     });
@@ -3637,6 +3673,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       supportCaseId: creation.supportCaseId,
       scheduledAt: cancellableSchedule.scheduledAt,
+      allDay: false,
+      displayColor: null,
       status: 'cancelled',
       version: 2,
     });
@@ -3657,6 +3695,8 @@ describe('canonical participant API routes', () => {
       beneficiaryId: creation.beneficiaryId,
       supportCaseId: creation.supportCaseId,
       scheduledAt: noShowSchedule.scheduledAt,
+      allDay: false,
+      displayColor: null,
       status: 'no_show',
       version: 2,
     });
