@@ -1,4 +1,4 @@
-import type { DeploymentMode } from './runtime';
+import type { DeploymentMode } from './runtime.ts';
 
 /**
  * D87 사업 도입 확인의 저장·처리 선택지와 화면 문안 단일 정본.
