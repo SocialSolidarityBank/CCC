@@ -33,8 +33,34 @@ function hasPrivatePermissions(mode: number): boolean {
   return (mode & 0o077) === 0; // No group/other permissions
 }
 
+/**
+ * Ensure directory entries are durable on disk.
+ *
+ * POSIX (Linux, macOS): fsync on a directory fd flushes directory metadata,
+ * ensuring that file creates/renames/unlinks are persisted. This is the
+ * authoritative durability guarantee for directory entries.
+ *
+ * Windows (NTFS): No equivalent exists. FlushFileBuffers() only works on files,
+ * not directories, and opening a directory for sync fails with EACCES or similar.
+ * NTFS provides durability through:
+ * 1. File data is durable after FlushFileBuffers() on the file handle
+ * 2. Directory entries are durable after the file handle is closed (NTFS journals)
+ * 3. Atomic rename (MoveFileEx with MOVEFILE_REPLACE_EXISTING) is metadata-only
+ *    and durable once the source file's data is flushed
+ *
+ * Residual difference: On POSIX, a crash after this call guarantees the directory
+ * entry exists. On Windows, a crash between file close and journal commit could
+ * theoretically lose the entry, but NTFS journaling makes this extremely unlikely
+ * in practice. The adapter's write pattern (temp file → sync → atomic rename)
+ * provides equivalent practical durability on both platforms.
+ */
 async function syncDirectory(path: string): Promise<void> {
-  // O_NOFOLLOW not supported on Windows; symlink already checked by privateDirectory
+  if (IS_WINDOWS) {
+    // Windows: no directory fsync equivalent; rely on NTFS journaling + file flush
+    // The caller must ensure file.sync() was called before any rename/link.
+    return;
+  }
+  // POSIX: fsync the directory to ensure entry durability
   const directory = await open(path, constants.O_RDONLY | O_NOFOLLOW_SAFE);
   try { await directory.sync(); } finally { await directory.close(); }
 }
