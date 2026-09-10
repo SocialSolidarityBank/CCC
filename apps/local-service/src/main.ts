@@ -20,12 +20,11 @@ export async function loadLocalMigrations(migrationsPath: string): Promise<Sqlit
   return migrations;
 }
 interface StartupRecords {
-  migrationsPath: string;
   generation: number;
   recordsHash: string;
 }
-export interface LocalSingleStartupConfig extends Omit<LocalSingleRuntimeConfig, 'secretRecords' | 'migrations'>, StartupRecords {}
-export interface LocalOfficeStartupConfig extends Omit<LocalOfficeRuntimeConfig, 'secretRecords' | 'migrations'>, StartupRecords {}
+export interface LocalSingleStartupConfig extends Omit<LocalSingleRuntimeConfig, 'secretRecords'>, StartupRecords {}
+export interface LocalOfficeStartupConfig extends Omit<LocalOfficeRuntimeConfig, 'secretRecords'>, StartupRecords {}
 
 /** First-install primitive, never called from startup or recovery. The caller provisions this returned UUID in users. */
 export async function stageNewSingleIdentity(
@@ -53,7 +52,7 @@ export async function startLocalSingle(config: LocalSingleStartupConfig): Promis
   const repository = await createProtectedRecordRepository(resolve(config.dataPath, 'secrets'), 'local-single');
   const secretRecords = await repository.read(config.generation, config.recordsHash);
   try {
-    return await createLocalSingleRuntime({ ...config, secretRecords, migrations: await loadLocalMigrations(config.migrationsPath) });
+    return await createLocalSingleRuntime({ ...config, secretRecords });
   } finally { for (const record of secretRecords) record.blob.fill(0); }
 }
 
@@ -63,6 +62,6 @@ export async function startLocalOffice(config: LocalOfficeStartupConfig): Promis
   const repository = await createProtectedRecordRepository(resolve(config.dataPath, 'secrets'), 'local-office');
   const secretRecords = await repository.read(config.generation, config.recordsHash);
   try {
-    return await createLocalOfficeRuntime({ ...config, secretRecords, migrations: await loadLocalMigrations(config.migrationsPath) });
+    return await createLocalOfficeRuntime({ ...config, secretRecords });
   } finally { for (const record of secretRecords) record.blob.fill(0); }
 }
