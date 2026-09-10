@@ -30,7 +30,7 @@ Deployment owner must map `/welcome` to the emitted `welcome.html` (or its platf
 
 ### Hierarchy/composition table
 
-| Line/group | Hierarchy | Existing component/style |
+| Line/group | Hierarchy | Component/style |
 |---|---|---|
 | Relayer name and introduction | Sole h1 + explanation | `PageTitle` inside `preview-gate-head` |
 | `15초 페이지` heading | Card title | `WireCard` with semantic h2 |
@@ -40,11 +40,11 @@ Deployment owner must map `/welcome` to the emitted `welcome.html` (or its platf
 | Configured login or unavailable guidance | Navigation + explanation | `WireButton`, `report-description` |
 | Installation, storage, AI and preparation | Label + reading text | Four `WireCardSection` groups with automatic dividers |
 
-All classes existed before this pass. No tokens, font sizes, palette values or CSS rules were restyled.
+The earlier claim that all classes already existed was incorrect: `report-description` was documented by DESIGN-RULES §5 and D88 but had no production selector. Main's integration token guard exposed the missing rule. The owner correction adds that canonical reading-description rule once in `packages/wire/src/shell-styles.ts`, immediately after the shared paragraph rule: `font-size:var(--text-detail);font-weight:400;color:var(--sub);line-height:var(--leading-relaxed)`. Tokens and palette values are unchanged; the production CSS now intentionally differs from the move-only transfer receipt below.
 
 ## Canonical CSS contract
 
-- Seven layout CSS literals moved byte-for-byte to `packages/wire/src/shell-styles.ts`.
+- Seven layout CSS literals originally moved byte-for-byte to `packages/wire/src/shell-styles.ts` in `3bb2f6c1`; the subsequent missing `report-description` rule is an explicit addition, not part of that unchanged transfer.
 - `@ccc/wire/shell-styles` exports the original concatenated `shellStyles` for legacy Next rendering.
 - `@ccc/wire/styles` remains the existing `wireStyles` export.
 - `@ccc/wire/build/shared-styles` is a Node-only build entry exposing `composeSharedCss`, `repoRoot`, `tokensPath`, `shellStylesPath`. It reads `design/tokens.css` and the canonical package source, reusing `composeRuntimeCss` from the existing hierarchy tool.
@@ -52,7 +52,7 @@ All classes existed before this pass. No tokens, font sizes, palette values or C
 - Site imports a virtual **CSS** module. Vite is configured to emit an external CSS asset rather than a production runtime style-injection module. Production output and CSP still require Main's build verification.
 - Legacy business selectors intentionally remain in the shared stylesheet. Removing them is not a safe source-count shortcut and belongs to verified retirement.
 
-Observed transfer receipt, before any CSS minification:
+Historical move-only transfer receipt for `3bb2f6c1`, before the missing production rule was added and before any CSS minification. These bytes/hash do not describe the corrected stylesheet; Main must obtain current evidence on the integrated snapshot:
 
 ```text
 composed CSS bytes: 296610
@@ -61,9 +61,9 @@ raw layout CSS blocks identical: 7
 existing component behavioral test files unchanged: 8
 ```
 
-### Reproduce composition evidence on Main's frozen snapshot
+### Historical move-only composition evidence
 
-Run from the repository root. This compares the base's original layout with the package's real composition using the unchanged wire literal. It writes only a temporary file outside the repository and removes it.
+The following recipe reproduces the move-only receipt at `3bb2f6c1`, not the current corrected snapshot. Its exact-equality assertion is no longer a valid acceptance check after the intentional `report-description` addition; do not use it to claim unchanged current CSS. It compares the base's original layout with the package composition using the unchanged wire literal, writes only a temporary file outside the repository and removes it.
 
 ```sh
 node --input-type=module <<'NODE'
@@ -146,6 +146,18 @@ Correction inventory: `apps/site/src/welcome-page.tsx`, `apps/site/index.html`, 
 Main's browser/source finding establishes `/login` as the existing business authentication entry and bare `/` as the preserved STT entry. Only the public staff-login href changes to the validated configured origin plus `/login`; `businessClientOrigin` and its origin-only validation assertions remain unchanged. The naming/PageTitle changes from `eb82e9258edb2f6ab5dada8d282cf8e9c89f8569` are retained on this lane.
 
 Changed files for this follow-up: `apps/site/src/welcome-page.tsx`, `apps/web/app/welcome/page.test.tsx`, and this handoff. The existing rendered navigation assertions retain the unconfigured `#adoption`-only path and no-form assertion; an added rendered-href regression expects `#adoption` plus `https://work.example.test/login` for a configured origin, again with no form. No text-only assertion was re-pinned and no business I/O was added. No client/STT routes, CSS, gate algorithms, thresholds or baselines were changed. No tests, builds or deployment ran during this source correction; Main owns their execution and actual built-site verification.
+
+### Missing canonical reading-description rule (2026-09-10)
+
+Main reported that the required token guard failed in VALIDATION because the public page used `report-description` without a production selector. This corrects the unsupported reuse claim above. The owner-approved patch adds exactly one rule after the global `p` rule in `packages/wire/src/shell-styles.ts`:
+
+```css
+.report-description{font-size:var(--text-detail);font-weight:400;color:var(--sub);line-height:var(--leading-relaxed)}
+```
+
+Main copied the initial rule patch `47158fdf8137b6604ff3f6a19691c6e56f188eb4` and reported the next token-audit failure: the existing `--text-detail` owner list omitted `.report-description`. D88 ⑨ and DESIGN-RULES §5 explicitly assign that token to this selector. The consolidated owner patch retains the exact CSS rule above and adds only `.report-description` plus its contract comment to the existing scoped owner list in `scripts/design/token-audit.mjs`; this aligns the declared ownership contract, not an audit algorithm, threshold or baseline.
+
+The consolidated commit replaces the initial two-file owner commit and contains exactly three files: `packages/wire/src/shell-styles.ts`, `scripts/design/token-audit.mjs`, and this handoff. No tokens, algorithms, thresholds, baselines, client files or other worktrees are modified. No tests, builds, linting, formatting or deployment ran for this source correction. Main will copy the exact owner-approved source into the in-progress integration merge, then run the token guard and built-surface verification. No passing guard or visual result is claimed here.
 
 Main's pending commands after client handoff and source freeze:
 

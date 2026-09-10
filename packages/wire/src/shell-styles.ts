@@ -316,6 +316,7 @@ strong{font-weight:600}
    위계 baseline 에 등재돼 있다(2026-08-27 검수). 여기 세 축을 실효값 그대로 명시한 것은
    감사가 이 부채를 보게 하기 위함이며 시각 변화는 없다. 고칠 때 baseline 도 함께 지운다. */
 p{margin:var(--space-2) 0 0;font-size:var(--text-md);font-weight:400;color:var(--sub)}
+.report-description{font-size:var(--text-detail);font-weight:400;color:var(--sub);line-height:var(--leading-relaxed)}
 /* 버튼 규칙은 **.wire-button 하나가 소유한다**(2026-07-31). 여기 있던 .button 4종
    (.button-primary·.button-ghost·.button-danger·.button-sm)은 지웠다 — 마크업이 한 곳도
    쓰지 않는 죽은 CSS 였는데, 같은 계약을 두 벌로 적어 둔 탓에 §5 를 고칠 때마다 어느 쪽을
