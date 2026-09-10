@@ -8,7 +8,7 @@ import type { ActorRole } from '@ccc/contracts/runtime';
 
 /**
  * Create an OfficeAccountStore backed by the encrypted SQLite database.
- * The database must have the office_accounts table from migration 0057.
+ * The database must have the office_accounts table from migration 0061.
  */
 export function createOfficeAccountStore(db: Database): OfficeAccountStore {
   return {

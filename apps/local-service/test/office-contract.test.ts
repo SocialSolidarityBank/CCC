@@ -539,7 +539,7 @@ describe('Local Office Bind Validation (E8-1)', () => {
  * Q2: Where do the local account records live?
  * A2: S4 §2.2 says "두 Local 모드의 DB·file·PII·CA key는 DPAPI `CurrentUser`로 암호화한다"
  *     Implemented in: office-account-store.ts (createOfficeAccountStore)
- *     Migration: 0057_office_accounts.sql
+ *     Migration: 0061_office_accounts.sql
  *     Table: office_accounts in the same encrypted SQLite as business data
  */
 describe('S4 contract answers (documentation)', () => {
@@ -552,7 +552,7 @@ describe('S4 contract answers (documentation)', () => {
 
   it('documents account storage: implemented in office-account-store.ts', () => {
     // S4 §2.2: "두 Local 모드의 DB·file·PII·CA key는 DPAPI `CurrentUser`로 암호화한다"
-    // OfficeAccountStore implemented with migration 0057_office_accounts.sql
-    assert.ok(true, 'See office-account-store.ts and migrations/sqlite/0057_office_accounts.sql');
+    // OfficeAccountStore implemented with migration 0061_office_accounts.sql
+    assert.ok(true, 'See office-account-store.ts and migrations/sqlite/0061_office_accounts.sql');
   });
 });
