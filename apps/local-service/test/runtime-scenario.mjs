@@ -87,7 +87,7 @@ export async function runRuntimeScenario(root, report) {
       approvedSttEngineIds: [], supabaseProjectRef: null, supabaseAuthOrigin: null, supabasePublishableKey: null, signingKeyId: 'synthetic',
     };
     const manifest = await signInstallManifest(unsigned, pair.privateKey);
-    const common = { dataPath, orgId, installationId, minSequence: 1, installManifest: JSON.stringify(manifest), signingKeys, generation: 1, migrationsPath };
+    const common = { dataPath, orgId, installationId, minSequence: 1, installManifest: JSON.stringify(manifest), signingKeys, generation: 1 };
     let userId = randomUUID(), identityHash;
     if (mode === 'local-single') {
       const installed = await stageNewSingleIdentity(common, new TextEncoder().encode(PASSWORD));

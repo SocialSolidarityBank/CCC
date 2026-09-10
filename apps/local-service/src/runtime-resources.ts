@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { openEncryptedSqlite, type EncryptedSqliteDatabase, type SqliteMigration } from '@ccc/db-sqlite';
+import { openEncryptedSqlite, type EncryptedSqliteDatabase } from '@ccc/db-sqlite';
 import { createFileAudioStore } from '@ccc/audio-file';
 import { createDpapiSecretStore, type DpapiRecord } from '@ccc/secrets-dpapi';
 import { createNodeScheduler, type NodeScheduler, type SchedulerFailure } from '@ccc/scheduler-node';
@@ -16,7 +16,6 @@ export interface LocalRuntimeConfig {
   installManifest: string;
   signingKeys: InstallSigningKeys;
   secretRecords: readonly DpapiRecord[];
-  migrations: readonly SqliteMigration[];
   settings?: Partial<Pick<ApiEnv, 'CCC_STT_MODE' | 'CCC_LLM_MODE' | 'TEXT_AI_PILOT_ENABLED' | 'EXTERNAL_AI_CALLS_ENABLED' | 'PUBLIC_SIGNUP_ENABLED' | 'PII_PURGE_ENABLED' | 'PII_KEY_VERSION'>>;
   onSchedulerError?: (failure: SchedulerFailure) => void;
 }
@@ -47,7 +46,6 @@ export async function openLocalResources(config: LocalRuntimeConfig, manifest: S
     piiKey = await store.getBytesWithVersion('PII_ENC_KEY');
     if (dbKey === null || fileKey === null || piiKey === null) throw new Error('secret_access_denied');
     database = openEncryptedSqlite({ filename: join(config.dataPath, 'database.sqlite'), key: dbKey.bytes, fileMustExist: true });
-    database.applyMigrations(config.migrations);
     const audioStore = await createFileAudioStore(join(config.dataPath, 'audio'), fileKey);
     const retainedPiiKey = piiKey;
     const baseEnv: ApiEnv = {
