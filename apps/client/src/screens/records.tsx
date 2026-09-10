@@ -425,6 +425,10 @@ export function RecordReviewScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<BusinessError | null>(null);
   const generation = useRef(0);
+  const [actionDraft, setActionDraft] = useState<
+    { claimKey: string; description: string; owner: ActionOwner; dueDate: string } | null
+  >(null);
+  const [actionSaved, setActionSaved] = useState<string | null>(null);
   const aiOff = session.capabilities.llmMode === 'off';
 
   const load = useCallback(() => {
@@ -464,6 +468,27 @@ export function RecordReviewScreen() {
     }
   };
 
+  const registerAction = async () => {
+    if (busy || actionDraft === null || actionDraft.description.trim() === '') return;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.caseWork.createActionItem(supportCaseId, {
+        description: actionDraft.description, owner: actionDraft.owner,
+        ...(actionDraft.dueDate === '' ? {} : { dueDate: actionDraft.dueDate }),
+        sessionId,
+      });
+      setActionSaved(actionDraft.description.trim());
+      setActionDraft(null);
+    } catch (cause) {
+      const safe = safeError(cause);
+      setError(safe);
+      if (safe.status === 401) void session.auth.signOut(safe);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const base = `/participants/${encodeURIComponent(beneficiaryId)}/programs/${encodeURIComponent(supportCaseId)}`;
   return <WireCard title="AI 정리 검토">
     {error && <><WireError>{error.message}</WireError>
@@ -489,7 +514,42 @@ export function RecordReviewScreen() {
       <WireCardSection title="요약">
         <p className="wire-section-value">{draft.summaryText}</p>
         {draft.claims.map((claim) => <WireItem key={claim.claimKey}
-          title={CLAIM_SECTION_LABELS[claim.section] ?? claim.section} description={claim.text} />)}
+          title={CLAIM_SECTION_LABELS[claim.section] ?? claim.section} description={claim.text}
+          action={claim.section === 'next_session_commitments'
+            ? <WireButton variant="neutral" disabled={busy}
+              onClick={() => { setActionDraft({ claimKey: claim.claimKey, description: claim.text, owner: 'counselor', dueDate: '' }); }}>
+              액션으로 등록
+            </WireButton>
+            : undefined} />)}
+        {/* D70: 문구만 프리필하고 담당과 기한은 실무자가 정한다. AI가 추정하지 않는다. */}
+        {actionDraft !== null && <form className="business-form"
+          onSubmit={(event) => { event.preventDefault(); void registerAction(); }}>
+          <WireFormField label="액션 내용" htmlFor="review-action-description" required>
+            <input id="review-action-description" value={actionDraft.description} required disabled={busy}
+              onChange={(event) => setActionDraft({ ...actionDraft, description: event.target.value })} />
+          </WireFormField>
+          <WireFormField label="담당" htmlFor="review-action-owner" control="select">
+            <select id="review-action-owner" value={actionDraft.owner} disabled={busy}
+              onChange={(event) => setActionDraft({ ...actionDraft, owner: event.target.value as ActionOwner })}>
+              {(Object.keys(ACTION_OWNER_LABELS) as ActionOwner[]).map((owner) => (
+                <option key={owner} value={owner}>{ACTION_OWNER_LABELS[owner]}</option>
+              ))}
+            </select>
+          </WireFormField>
+          <WireFormField label="기한" htmlFor="review-action-due" hint="비워 두면 기한 없음">
+            <input id="review-action-due" type="date" value={actionDraft.dueDate} disabled={busy}
+              onChange={(event) => setActionDraft({ ...actionDraft, dueDate: event.target.value })} />
+          </WireFormField>
+          <div className="business-actions">
+            <WireButton type="submit" variant="primary" disabled={busy || actionDraft.description.trim() === ''}>
+              액션 등록
+            </WireButton>
+            <WireButton variant="neutral" disabled={busy} onClick={() => setActionDraft(null)}>취소</WireButton>
+          </div>
+        </form>}
+        {actionSaved !== null && <WireCallout tone="info" title="액션을 등록했습니다">
+          {actionSaved} 항목이 미해결 액션 목록에 올라갔습니다. 승인 상태는 이 등록으로 바뀌지 않습니다.
+        </WireCallout>}
       </WireCardSection>
       <WireCardSection title="대조">
         {draft.contrast.length === 0 && <WireEmpty>대조 결과가 없습니다.</WireEmpty>}

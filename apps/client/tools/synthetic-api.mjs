@@ -446,7 +446,10 @@ export function handleApi(request, state, options) {
   if (path === `/sessions/${SESSION_ID}/ai` && request.method === 'GET') {
     return json({
       version: 1, origin: 'agent', creationMode: 'recording', summaryText: '체납 정리 진행 상황을 확인했다',
-      claims: [{ claimKey: 'claim-1', section: 'session_goal_discussion', text: '고지서 확인을 다음 주까지 하기로 함' }],
+      claims: [
+        { claimKey: 'claim-1', section: 'session_goal_discussion', text: '고지서 확인을 다음 주까지 하기로 함' },
+        { claimKey: 'claim-2', section: 'next_session_commitments', text: '주민센터 긴급복지 상담 예약하기' },
+      ],
       oneLiner: '체납 정리 계획을 다시 세우기로 함', reviewDecision: state.draftDecision,
       questions: [{ title: '고지서 확인 여부', reason: '지난 회차에 미확인이라고 함' }],
       evidence: [{ id: 'evidence-1', claimKey: 'claim-1', quote: '아직 고지서를 못 봤어요' }],
